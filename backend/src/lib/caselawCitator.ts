@@ -257,8 +257,23 @@ export type StandsForCandidate = {
   spanSha256: string;
 };
 
+/**
+ * Candidate ordering policies (Stage 9 H19 ablation — registered as a
+ * live experimental variable, never assume one is right):
+ * - authority: citing-court level, citer occurrences, recency;
+ *   commentary carries no court level and sorts last.
+ * - banded_recency: band = court level; commentary joins the HIGHEST
+ *   band present in the profile; newest-first within every band.
+ * - flat_recency: newest first regardless of source kind.
+ */
+export type StandsForRankPolicy =
+  | "authority"
+  | "banded_recency"
+  | "flat_recency";
+
 export type StandsForProfile = {
   citation: string;
+  rankPolicy: StandsForRankPolicy;
   /** distinct citing cases in the edge graph (all, not just considered) */
   totalCiters: number;
   candidates: StandsForCandidate[];
@@ -357,9 +372,11 @@ function commentaryCandidates(keys: string[]): {
 export function standsForProfile(args: {
   citation: string;
   size?: number;
+  rankPolicy?: StandsForRankPolicy;
 }): StandsForProfile | null {
   const key = citationLookupKey(args.citation);
   const cap = Math.max(1, Math.min(24, Math.trunc(args.size ?? 8)));
+  const rankPolicy = args.rankPolicy ?? "authority";
   return withDatabase((database) => {
     const keys = keysForQuery(database, key);
     const placeholders = keys.map(() => "?").join(", ");
@@ -425,17 +442,48 @@ export function standsForProfile(args: {
     }
     const commentary = commentaryCandidates(keys);
     if (commentary) usable.push(...commentary.usable);
-    usable.sort(
-      (a, b) =>
-        (b.citingLevel ?? 0) - (a.citingLevel ?? 0) ||
-        b.occurrences - a.occurrences ||
-        (b.citingDate ?? "").localeCompare(a.citingDate ?? ""),
-    );
+    // Policies reorder the SAME usable set — the classifier gates and
+    // the cap are policy-independent, so only rank moves (H19).
+    const byDate = (
+      a: (typeof usable)[number],
+      b: (typeof usable)[number],
+    ) =>
+      (a.citingDate === null ? 1 : 0) - (b.citingDate === null ? 1 : 0) ||
+      (b.citingDate ?? "").localeCompare(a.citingDate ?? "");
+    if (rankPolicy === "flat_recency") {
+      usable.sort(
+        (a, b) =>
+          byDate(a, b) ||
+          b.occurrences - a.occurrences ||
+          (b.citingLevel ?? 0) - (a.citingLevel ?? 0),
+      );
+    } else if (rankPolicy === "banded_recency") {
+      const topLevel = usable.reduce(
+        (top, candidate) => Math.max(top, candidate.citingLevel ?? 0),
+        0,
+      );
+      const band = (candidate: (typeof usable)[number]) =>
+        candidate.sourceKind === "commentary"
+          ? topLevel || 1
+          : (candidate.citingLevel ?? 0);
+      usable.sort(
+        (a, b) =>
+          band(b) - band(a) || byDate(a, b) || b.occurrences - a.occurrences,
+      );
+    } else {
+      usable.sort(
+        (a, b) =>
+          (b.citingLevel ?? 0) - (a.citingLevel ?? 0) ||
+          b.occurrences - a.occurrences ||
+          (b.citingDate ?? "").localeCompare(a.citingDate ?? ""),
+      );
+    }
     const candidates = usable
       .slice(0, cap)
       .map(({ occurrences: _occurrences, ...candidate }) => candidate);
     return {
       citation: args.citation,
+      rankPolicy,
       totalCiters,
       candidates,
       tier: usable.length >= 3 ? "rich" : usable.length ? "thin" : "none",

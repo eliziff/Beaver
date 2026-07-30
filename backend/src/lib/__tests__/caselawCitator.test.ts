@@ -353,8 +353,39 @@ describe("caselaw citator note-up graph", () => {
         citingDate: "2020",
       });
       expect(commentaryCandidate.text).toContain("security of the person");
-      // Court prose still outranks commentary.
+      // Court prose still outranks commentary under the default policy.
       expect(withCommentary.candidates[0].sourceKind).toBe("case");
+      expect(withCommentary.rankPolicy).toBe("authority");
+
+      // H19 rank policies (Stage 9): the SAME candidate set, reordered.
+      // banded_recency: commentary joins the highest band present
+      // (ONCA's level 4) and its 2020 date beats ONCA's 2018 within the
+      // band; FC stays below in band 3 despite being newest overall.
+      const banded = citator.standsForProfile({
+        citation: "2015 SCC 5",
+        rankPolicy: "banded_recency",
+      })!;
+      expect(banded.rankPolicy).toBe("banded_recency");
+      expect(
+        banded.candidates.map(
+          (candidate) => candidate.citingCitation ?? candidate.sourceKind,
+        ),
+      ).toEqual(["(2020) 65:1 McGill LJ 1", "2018 ONCA 50", "2020 FC 100"]);
+      // flat_recency: newest first regardless of source kind or level.
+      const flat = citator.standsForProfile({
+        citation: "2015 SCC 5",
+        rankPolicy: "flat_recency",
+      })!;
+      expect(
+        flat.candidates.map(
+          (candidate) => candidate.citingCitation ?? candidate.sourceKind,
+        ),
+      ).toEqual(["2020 FC 100", "(2020) 65:1 McGill LJ 1", "2018 ONCA 50"]);
+      // Policies reorder, never change membership or the tier.
+      expect(new Set(flat.candidates.map((c) => c.spanSha256))).toEqual(
+        new Set(withCommentary.candidates.map((c) => c.spanSha256)),
+      );
+      expect(flat.tier).toBe("rich");
       // The rank-2 string-cite member does not attribute to 2019 SCC 5.
       const rank2Profile = citator.standsForProfile({ citation: "2019 SCC 5" })!;
       expect(

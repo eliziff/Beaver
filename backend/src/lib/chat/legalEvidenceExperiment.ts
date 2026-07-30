@@ -9,9 +9,16 @@ import {
 import {
   buildA2AJParagraphRangeUrl,
   buildA2AJPinpointUrl,
+  buildLegalSourceMultiPassageUrl,
   formatLegalLocator,
+  legalSourceQuoteCandidates,
 } from "../legalSourceLinks";
 import {
+  createTextSourceDoc,
+  sourceDocContainsQuote,
+} from "../sourceDoc";
+import {
+  alienPhrases,
   lintLegalClaim,
   type LintFeatureReceipt,
   type LintThresholds,
@@ -40,6 +47,7 @@ export const LEGAL_EVIDENCE_EXPERIMENT_MODES = [
   "attested_framing",
   "required_slot",
   "lint_gated",
+  "arbitrary_source_spans",
 ] as const;
 
 /**
@@ -166,10 +174,13 @@ export type LegalEvidenceTurnState = {
    */
   deterministicSupport: boolean[] | null;
   /**
-   * lint_gated only: what the deterministic lint needs beyond the claim
-   * and its spans — the user question (H14) and the jurisdiction-matched
-   * alienness index (H13). Set by the harness before composition; null
-   * leaves those features off exactly as lintLegalClaim documents.
+   * What the deterministic lint needs beyond the claim and its spans —
+   * the user question (H14) and the jurisdiction-matched alienness
+   * index (H13). lint_gated GATES on it; every other structured mode
+   * uses only the index path, for the Stage 9 bounce-time alienness
+   * ADVISORY (H13-advisory: appended to rejections that already
+   * happened, never a cause of one). Null leaves those features off
+   * exactly as lintLegalClaim documents.
    */
   lintContext: {
     question: string | null;
@@ -649,6 +660,68 @@ export function premiseAnchorSupport(
   return anchor.length >= 10 && normalizeQuote(source).includes(anchor);
 }
 
+/**
+ * H10-minimal (Stage 9): a neutral citation carries its own decision
+ * year, so "2005 BCCA 293 followed 2012 SCC 57" asserts an impossible
+ * temporal order — the follower predates the followed. Active voice
+ * only (passive "was followed in/by" inverts the relation and is
+ * skipped), both citations required in the same clause, years strictly
+ * inverted. Registered prediction: zero false flags on the matrix;
+ * every fire is a caught fabrication (audited either way).
+ */
+export function temporalOrderInversion(text: string): {
+  earlier: string;
+  later: string;
+  verb: string;
+} | null {
+  const citationRe = /\b((?:19|20)\d{2})\s+[A-Z][A-Z0-9-]{1,15}\s+\d{1,5}\b/gu;
+  const verbRe =
+    /\b(followed|applied|adopted|affirmed|endorsed|overruled|distinguished)\b/giu;
+  const citations = [...text.matchAll(citationRe)].map((match) => ({
+    text: match[0],
+    year: Number(match[1]),
+    start: match.index,
+    end: match.index + match[0].length,
+  }));
+  if (citations.length < 2) return null;
+  for (const verb of text.matchAll(verbRe)) {
+    const start = verb.index;
+    const end = start + verb[0].length;
+    if (
+      /\b(?:was|were|been|being|be|is|are)\s+(?:\w+\s+)?$/iu.test(
+        text.slice(Math.max(0, start - 24), start),
+      ) ||
+      /^\s+(?:by|in)\b/iu.test(text.slice(end))
+    )
+      continue;
+    // Clause boundary: semicolon, or a period opening a capitalized
+    // word — NOT the abbreviation dots inside case names ("R. v. B,").
+    // A style-of-cause like "v. Boe" also reads as a boundary, which
+    // only ever suppresses a flag (conservative by registration).
+    const boundary = /;|\.(?=\s+[A-Z][a-z])/u;
+    const subject = citations.filter(
+      (candidate) =>
+        candidate.end <= start &&
+        start - candidate.end <= 90 &&
+        !boundary.test(text.slice(candidate.end, start)),
+    );
+    const object = citations.find(
+      (candidate) =>
+        candidate.start >= end &&
+        candidate.start - end <= 90 &&
+        !boundary.test(text.slice(end, candidate.start)),
+    );
+    const last = subject[subject.length - 1];
+    if (last && object && last.year < object.year)
+      return {
+        earlier: last.text,
+        later: object.text,
+        verb: verb[0].toLowerCase(),
+      };
+  }
+  return null;
+}
+
 export function submitLegalEvidenceAnswer(
   args: Record<string, unknown>,
   state: LegalEvidenceTurnState,
@@ -661,6 +734,25 @@ export function submitLegalEvidenceAnswer(
     errors: string[],
     claims: GroundedLegalClaim[] = [],
   ): { ok: false; errors: string[] } => {
+    // H13-advisory (Stage 9): a rejection that is ALREADY happening may
+    // additionally name the conclusion claim's corpus-alien phrasing.
+    // Advisory only — it never causes a bounce, gates nothing, and is
+    // absent when no lint context or index is installed.
+    if (claims.length && state.lintContext) {
+      const conclusion = claims.find((claim) => claim.kind === "conclusion");
+      const phrases = conclusion
+        ? alienPhrases(conclusion.text, {
+            indexPath: state.lintContext.alienessIndexPath,
+          })
+        : null;
+      if (phrases?.length)
+        errors = [
+          ...errors,
+          `advisory (style, not a rule): the conclusion claim uses phrasing unattested in the legal corpus: ${phrases
+            .map((phrase) => `"${phrase}"`)
+            .join(", ")} — prefer the source's own words where possible`,
+        ];
+    }
     state.bounces.push({ claims, errors });
     return { ok: false, errors };
   };
@@ -715,6 +807,17 @@ export function submitLegalEvidenceAnswer(
       }),
       parsed.claims,
     );
+  // H10-minimal temporal flag (Stage 9): rides every structured mode.
+  const temporalErrors = parsed.claims.flatMap((claim, index) => {
+    const inversion = temporalOrderInversion(claim.text);
+    return inversion
+      ? [
+          `claims[${index}] asserts that ${inversion.earlier} ${inversion.verb} ${inversion.later}, but the neutral citations date the first decision BEFORE the second — that temporal order is impossible. State the relation the passages actually support, or quote them.`,
+        ]
+      : [];
+  });
+  if (temporalErrors.length)
+    return reject(temporalErrors.slice(0, 12), parsed.claims);
   // quote_first enforces its composition contract DETERMINISTICALLY at
   // submission, not by prompt hope: every claim except at most one
   // conclusion claim must be a verbatim quotation of its cited passage
@@ -1162,7 +1265,8 @@ export function legalEvidenceExperimentTools(
     mode === "quote_first" ||
     mode === "attested_framing" ||
     mode === "required_slot" ||
-    mode === "lint_gated"
+    mode === "lint_gated" ||
+    mode === "arbitrary_source_spans"
   )
     return [LEGAL_EVIDENCE_SUBMIT_TOOL];
   if (mode === "evidence_first")
@@ -1314,7 +1418,11 @@ function claimQuoteBody(claim: GroundedLegalClaim): string | null {
 }
 
 function allClaimsSupported(state: LegalEvidenceTurnState) {
-  if (state.mode === "citation_structure") return Boolean(state.answer);
+  if (
+    state.mode === "citation_structure" ||
+    state.mode === "arbitrary_source_spans"
+  )
+    return Boolean(state.answer);
   if (
     state.mode === "tiered_check" ||
     state.mode === "quote_first" ||
@@ -1541,7 +1649,8 @@ async function finalizeLegalEvidenceExperimentUnsafe(args: {
     return { passed: false, modelCalls, usage, diagnostic: null };
 
   if (
-    state.mode === "citation_structure" &&
+    (state.mode === "citation_structure" ||
+      state.mode === "arbitrary_source_spans") &&
     !state.answer &&
     args.draft.trim()
   ) {
@@ -1568,7 +1677,10 @@ async function finalizeLegalEvidenceExperimentUnsafe(args: {
     return { passed: false, modelCalls, usage, diagnostic: null };
   }
 
-  if (state.mode === "citation_structure")
+  if (
+    state.mode === "citation_structure" ||
+    state.mode === "arbitrary_source_spans"
+  )
     return { passed: true, modelCalls, usage, diagnostic: null };
 
   if (
@@ -1762,21 +1874,88 @@ export function renderLegalEvidenceAnswer(
         .sort((left, right) => right.length - left.length),
     };
   };
+  const arbitrarySpanCitations = (claim: GroundedLegalClaim) => {
+    if (state.mode !== "arbitrary_source_spans") return null;
+    const quotes = legalSourceQuoteCandidates(claim.text);
+    if (quotes.length < 2) return null;
+    const entries = [
+      ...new Map(
+        claim.evidence_ids.flatMap((id) => {
+          const entry = state.evidence.get(id);
+          return entry ? [[id, entry] as const] : [];
+        }),
+      ).values(),
+    ];
+    const passages = entries.flatMap((entry) => {
+      const text = entry.receipt.span_text;
+      const document = entry.document
+        ? getA2AJDocumentSourceDoc(entry.document)
+        : entry.lookup
+          ? getA2AJLookupDocument(entry.lookup)
+          : null;
+      return text && document
+        ? [{
+            entry,
+            block: createTextSourceDoc(text),
+            document,
+            quotes: [] as string[],
+          }]
+        : [];
+    });
+    if (passages.length !== entries.length) return null;
+    for (const quote of quotes) {
+      const matches = passages.filter(({ block }) =>
+        sourceDocContainsQuote(block, quote),
+      );
+      if (matches.length !== 1) return null;
+      matches[0].quotes.push(quote);
+    }
+    const sources = new Map<string, typeof passages>();
+    for (const passage of passages) {
+      const key = passage.entry.receipt.stable_source_id;
+      sources.set(key, [...(sources.get(key) ?? []), passage]);
+    }
+    const placements = [...sources.values()].flatMap((source) => {
+      const urls = new Set(
+        source.map(({ entry }) => entry.receipt.external_url),
+      );
+      const url = urls.size === 1 ? [...urls][0] : null;
+      if (!url) return [];
+      const target = buildLegalSourceMultiPassageUrl(
+        url,
+        source.map(({ entry, block, document, quotes }) => ({
+          key: entry.receipt.evidence_id,
+          blockText: block,
+          documentText: document,
+          quotes,
+        })),
+      );
+      if (!target) return [];
+      const label = source[0].entry.receipt.citation;
+      return [{
+        markdown: `[${label.replace(/[\\[\]]/gu, "\\$&")}](${target.replace(/\)/gu, "%29")})`,
+        candidates: [label],
+      }];
+    });
+    return placements.length === sources.size ? placements : null;
+  };
   return state.answer
     .map((claim) => {
-      const citations = [
-        ...new Map(
-          claim.evidence_ids.flatMap((id) => {
-            const entry = state.evidence.get(id);
-            return entry
-              ? [[
-                  `${entry.receipt.stable_source_id}|${entry.receipt.locator.kind}|${entry.receipt.locator.label}`,
-                  citation(entry),
-                ] as const]
-              : [];
-          }),
-        ).values(),
-      ];
+      const citations =
+        arbitrarySpanCitations(claim) ??
+        [
+          ...new Map(
+            claim.evidence_ids.flatMap((id) => {
+              const entry = state.evidence.get(id);
+              return entry
+                ? [[
+                    `${entry.receipt.stable_source_id}|${entry.receipt.locator.kind}|${entry.receipt.locator.label}`,
+                    citation(entry),
+                  ] as const]
+                : [];
+            }),
+          ).values(),
+        ];
       if (!citations.length) return claim.text;
       let text = claim.text;
       const pending: string[] = [];
