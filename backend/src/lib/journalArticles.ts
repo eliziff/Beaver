@@ -354,32 +354,59 @@ function addRanges(
   }));
 }
 
+/**
+ * The `[page N]` markers in `text` are rendered by the journals database
+ * export from its own page map, so the map (`article_pages`, in page_order)
+ * is the authority on which pages exist: walk it and locate each label's
+ * marker line, rather than regex-discovering markers. This also carries
+ * non-numeric labels ("PDF 1", "-5") and repeated labels, which discovery
+ * by numeric regex plus a label-keyed anchor map cannot.
+ */
+function pageBlocks(text: string, pageRows: PageRow[]) {
+  const found: Array<Omit<SourceDocBlock, "end">> = [];
+  let cursor = 0;
+  for (const row of pageRows) {
+    const label = String(row.page_label ?? "").trim();
+    if (!label) continue;
+    const marker = `[page ${label}]`;
+    let at = text.indexOf(marker, cursor);
+    while (at >= 0) {
+      const lineStart = at === 0 ? 0 : text.lastIndexOf("\n", at - 1) + 1;
+      const lineEnd = at + marker.length;
+      const nextBreak = text.indexOf("\n", lineEnd);
+      const tail = text.slice(
+        lineEnd,
+        nextBreak < 0 ? text.length : nextBreak,
+      );
+      if (
+        !/[^ \t]/u.test(text.slice(lineStart, at)) &&
+        !/[^ \t\r]/u.test(tail)
+      ) {
+        const pdfPage = integer(row.pdf_page);
+        found.push({
+          kind: "page",
+          label: /^\d+$/u.test(label) ? `page${Number(label)}` : `page${label}`,
+          start: lineStart,
+          anchor: pdfPage ? `page=${pdfPage}` : undefined,
+          aliases: [label],
+          origin: "native",
+        });
+        cursor = lineEnd;
+        break;
+      }
+      at = text.indexOf(marker, lineEnd);
+    }
+  }
+  return found;
+}
+
 function journalSourceDoc(
   articleId: number,
   url: string,
   text: string,
   pageRows: PageRow[],
 ): SourceDoc {
-  const pageAnchors = new Map(
-    pageRows.flatMap((row) => {
-      const label = String(row.page_label ?? "").trim();
-      const pdfPage = integer(row.pdf_page);
-      return label && pdfPage ? [[label, `page=${pdfPage}`] as const] : [];
-    }),
-  );
-  const pages = addRanges(
-    [...text.matchAll(/^[ \t]*\[page\s+(\d{1,5})\][ \t]*$/gimu)].map(
-      (match) => ({
-        kind: "page" as const,
-        label: `page${Number(match[1])}`,
-        start: match.index,
-        anchor: pageAnchors.get(match[1]),
-        aliases: [match[1]],
-        origin: "native" as const,
-      }),
-    ),
-    text.length,
-  );
+  const pages = addRanges(pageBlocks(text, pageRows), text.length);
   const sections = addRanges(
     [...text.matchAll(/^[ \t]*([IVXLCDM]+|[A-Z])\.[ \t]+([^\n\b]{3,180})$/gmu)]
       .map((match) => {
@@ -414,7 +441,7 @@ function journalSourceDoc(
     text.length,
   );
   const paragraphs = [...text.matchAll(/\S[\s\S]*?(?=\r?\n[ \t]*\r?\n|$)/gu)]
-    .filter((match) => !/^\[page\s+\d+\]/iu.test(match[0]))
+    .filter((match) => !/^\[page [^\]\n]{1,40}\]/iu.test(match[0]))
     .map(
       (match, index): SourceDocBlock => ({
         kind: "paragraph",
