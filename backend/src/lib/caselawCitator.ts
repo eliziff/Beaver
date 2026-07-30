@@ -1,7 +1,10 @@
+import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { citationLookupKey as sharedCitationLookupKey } from "./citationKey";
+import { classifyCitatorExcerpt } from "./citatorExcerpts";
+import { courtLevel } from "./courtLevels";
 import { withReadonlySqlite } from "./legalDataPath";
 
 /**
@@ -227,6 +230,131 @@ export function noteUpCitations(args: {
       };
     }
     return { total, entries, provider };
+  });
+}
+
+export type StandsForCandidate = {
+  /** the attested characterization text (the excerpt's prose window) */
+  text: string;
+  /** prose = clean citing prose; mixed = prose window extracted from around citations */
+  excerptKind: "prose" | "mixed";
+  citingCitation: string | null;
+  citingName: string | null;
+  citingCourt: string | null;
+  /** courtLevels level of the citing court; null when unmapped */
+  citingLevel: number | null;
+  citingDate: string | null;
+  paragraph: number | null;
+  /** sha256 of `text`, for rendering receipts */
+  spanSha256: string;
+};
+
+export type StandsForProfile = {
+  citation: string;
+  /** distinct citing cases in the edge graph (all, not just considered) */
+  totalCiters: number;
+  candidates: StandsForCandidate[];
+  /** rich >= 3 usable candidates, thin 1-2, none 0 (typed refusal downstream) */
+  tier: "rich" | "thin" | "none";
+  excerptsConsidered: number;
+  excerptsRejected: { authorityList: number; insufficient: number };
+};
+
+const STANDS_FOR_CONSIDERED = 300;
+
+/**
+ * Ranked attested characterizations of a cited case, drawn from what
+ * OTHER courts' prose says when citing it (H12; research plan D2).
+ * Excerpts pass the deterministic prose-vs-authority-list classifier;
+ * candidates rank by citing-court level, then citing-case occurrence
+ * count, then recency. A case nobody characterizes in prose returns
+ * tier "none" — the caller's contract must then refuse composed
+ * characterizations, never invent one. Null when no graph is installed.
+ */
+export function standsForProfile(args: {
+  citation: string;
+  size?: number;
+}): StandsForProfile | null {
+  const key = citationLookupKey(args.citation);
+  const cap = Math.max(1, Math.min(24, Math.trunc(args.size ?? 8)));
+  return withDatabase((database) => {
+    const keys = keysForQuery(database, key);
+    const placeholders = keys.map(() => "?").join(", ");
+    const totalCiters = Number(
+      (
+        database
+          .prepare(
+            `SELECT COUNT(DISTINCT case_id) AS total
+             FROM edge WHERE cited_key IN (${placeholders})`,
+          )
+          .get(...keys) as Row
+      ).total,
+    );
+    const groups = database
+      .prepare(
+        `SELECT case_doc.citation, case_doc.name, case_doc.court, case_doc.date,
+                case_doc.id AS case_id,
+                COUNT(*) AS occurrences, MIN(edge.text_offset) AS first_offset
+         FROM edge
+         JOIN case_doc ON case_doc.id = edge.case_id
+         WHERE edge.cited_key IN (${placeholders})
+         GROUP BY edge.case_id
+         ORDER BY (case_doc.date IS NULL), case_doc.date DESC, case_doc.id
+         LIMIT ?`,
+      )
+      .all(...keys, STANDS_FOR_CONSIDERED) as Row[];
+    const firstOccurrence = database.prepare(
+      `SELECT paragraph, excerpt FROM edge WHERE case_id = ? AND text_offset = ?`,
+    );
+    let authorityList = 0;
+    let insufficient = 0;
+    const usable: Array<StandsForCandidate & { occurrences: number }> = [];
+    for (const group of groups) {
+      const first = firstOccurrence.get(
+        group.case_id as number,
+        group.first_offset as number,
+      ) as Row;
+      const verdict = classifyCitatorExcerpt(String(first.excerpt));
+      if (verdict.kind === "authority_list") {
+        authorityList += 1;
+        continue;
+      }
+      if (verdict.kind === "insufficient" || !verdict.proseWindow) {
+        insufficient += 1;
+        continue;
+      }
+      usable.push({
+        text: verdict.proseWindow,
+        excerptKind: verdict.kind,
+        citingCitation: (group.citation as string | null) ?? null,
+        citingName: (group.name as string | null) ?? null,
+        citingCourt: (group.court as string | null) ?? null,
+        citingLevel: courtLevel(group.court as string | null)?.level ?? null,
+        citingDate: (group.date as string | null) ?? null,
+        paragraph: first.paragraph === null ? null : Number(first.paragraph),
+        spanSha256: createHash("sha256")
+          .update(verdict.proseWindow, "utf8")
+          .digest("hex"),
+        occurrences: Number(group.occurrences),
+      });
+    }
+    usable.sort(
+      (a, b) =>
+        (b.citingLevel ?? 0) - (a.citingLevel ?? 0) ||
+        b.occurrences - a.occurrences ||
+        (b.citingDate ?? "").localeCompare(a.citingDate ?? ""),
+    );
+    const candidates = usable
+      .slice(0, cap)
+      .map(({ occurrences: _occurrences, ...candidate }) => candidate);
+    return {
+      citation: args.citation,
+      totalCiters,
+      candidates,
+      tier: usable.length >= 3 ? "rich" : usable.length ? "thin" : "none",
+      excerptsConsidered: groups.length,
+      excerptsRejected: { authorityList, insufficient },
+    };
   });
 }
 

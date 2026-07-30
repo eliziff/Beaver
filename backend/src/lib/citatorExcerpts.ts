@@ -136,13 +136,23 @@ export function classifyCitatorExcerpt(excerpt: string): ExcerptClassification {
     .split(/[^a-z']+/u)
     .filter((word) => FUNCTION_WORDS.has(word)).length;
 
-  const longest = segments
-    .map((segment) => segment.trim())
-    .sort((a, b) => b.length - a.length)[0] ?? "";
+  // Pick the citation-free stretch with the most lowercase words, not
+  // the longest one: excerpts space-join document headers ("Tremblay c.
+  // Canada (Procureur général) Date 2021-03-15 Référence neutre"), and
+  // those metadata runs are capitalized-word/date sequences while real
+  // sentence prose — English or French — is mostly lowercase words.
+  const lowercaseWords = (text: string) =>
+    (text.match(/[\p{L}'’-]+/gu) ?? []).filter(
+      (word) => word.length >= 3 && /\p{Ll}/u.test(word[0]),
+    ).length;
+  const best = segments
+    .flatMap((segment) => segment.split("\n"))
+    .map((line) => ({ line: line.trim(), score: lowercaseWords(line) }))
+    .sort((a, b) => b.score - a.score || b.line.length - a.line.length)[0];
   // excerpt windows truncate mid-word at both ends; trim to word boundaries
   const proseWindow =
-    longest.length >= MIN_PROSE_WINDOW
-      ? longest.replace(/^\S*\s+/u, "").replace(/\s+\S*$/u, "")
+    best && best.score >= 4 && best.line.length >= MIN_PROSE_WINDOW
+      ? best.line.replace(/^\S*\s+/u, "").replace(/\s+\S*$/u, "")
       : null;
 
   if (citeRuns >= 3 && functionWords < citeRuns * 4) {
