@@ -502,26 +502,36 @@ def scan_doc(job: tuple[str, str, str, dict]) -> dict:
     elif kind == "law":
         want = set(oracle.get("section_labels") or [])
         num = oracle.get("num_sections") or 0
-        detected = law_section_labels(text)
-        combined = (
-            detected["alr_ext"] | detected["bold"] | detected["ranges"]
-            | detected["named"]
-        )
-        def _rec(found: set) -> float | None:
-            return len(want & found) / len(want) if want else None
-        def _prec(found: set) -> float | None:
-            return len(want & found) / len(found) if found else None
-        record["sections"] = {
-            "oracle": num,
-            "recovery_combined": _rec(combined),
-            "detectors": {
-                name: {"rec": _rec(found), "prec": _prec(found)}
-                for name, found in detected.items()
-            },
-        }
-        best = record["sections"]["recovery_combined"] or 0.0
-        if want and best < 0.5:
-            record["fail"].append(f"section_recovery_{best:.2f}")
+        if len(want) == 1 and next(iter(want)).lower() in {
+            "order", "ordonnance", "proclamation",
+        }:
+            # Provider convention for unsectioned instruments: the section
+            # map's single pseudo-label names the instrument KIND and is
+            # usually absent as any heading (1,218 REG-FED + 582 REG-NL
+            # docs; laws vet 2026-07-30). The structure is "whole
+            # document" — a scoring convention, not a recovery target.
+            record["sections"] = {"oracle": num, "single_instrument": True}
+        else:
+            detected = law_section_labels(text)
+            combined = (
+                detected["alr_ext"] | detected["bold"] | detected["ranges"]
+                | detected["named"]
+            )
+            def _rec(found: set) -> float | None:
+                return len(want & found) / len(want) if want else None
+            def _prec(found: set) -> float | None:
+                return len(want & found) / len(found) if found else None
+            record["sections"] = {
+                "oracle": num,
+                "recovery_combined": _rec(combined),
+                "detectors": {
+                    name: {"rec": _rec(found), "prec": _prec(found)}
+                    for name, found in detected.items()
+                },
+            }
+            best = record["sections"]["recovery_combined"] or 0.0
+            if want and best < 0.5:
+                record["fail"].append(f"section_recovery_{best:.2f}")
     elif kind == "journal":
         # Journal page structure IS database metadata (article_pages /
         # page_map_json in Eli's own public_endpoint.db); the [page N]

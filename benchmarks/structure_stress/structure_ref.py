@@ -262,7 +262,12 @@ SECTION_MARK_RE_EXT = re.compile(
     # LEGISLATION-NS), lookahead widened for label-alone-on-line and
     # repeal/quote stubs. Held-out validated: NS .795->.963, YT
     # .981->.994, precision unchanged.
-    r"^[ \t]*(\d{1,8}(?:[.-]\d{1,8}){0,3}[A-Z]{0,2})"
+    # 2026-07-30 laws-vet extensions: optional trailing dot after the
+    # label ("1. There is established...", "2.(1) In this section" — the
+    # NT/PE drafting convention, worth ~6pp of full-corpus recovery) and
+    # an optional markdown heading prefix ("### 61.01 Enforcement of
+    # Orders" — NB rules of court).
+    r"^(?:#{1,6}[ \t]+)?[ \t]*(\d{1,8}(?:[.-]\d{1,8}){0,3}[A-Z]{0,2})\.?"
     r"(?=[ \t]+(?:\(?\d|[A-Za-zÀ-ÿ]|[\[*“\"«])|[ \t]*\(|[ \t]*$)",
     re.MULTILINE,
 )
@@ -278,7 +283,7 @@ _RANGE_RE = re.compile(
 
 _NAMED_HEAD_RE = re.compile(
     r"^#{1,4}[ \t]+[\"“«]?[ \t]*"
-    r"(Schedule|Annexe|Form|Formule|Appendix|Appendice|Table|Tableau|"
+    r"(Schedule|Annexe|Formulaire|Form|Formule|Appendix|Appendice|Table|Tableau|"
     r"Preamble|Préambule|Order|Ordonnance)(?![A-Za-zÀ-ÿ])"
     r"[ \t]*[\"”»]?[ \t]*([A-Za-z0-9IVXLC.\"“”]{0,12})",
     re.MULTILINE | re.IGNORECASE,
@@ -295,8 +300,9 @@ _NAMED_TAIL_OK = re.compile(
 _NAMED_BARE_OK = frozenset({"Schedule", "Appendix", "Preamble"})
 
 _NAMED_CANON = {
-    "annexe": "Schedule", "formule": "Form", "appendice": "Appendix",
-    "tableau": "Table", "préambule": "Preamble", "ordonnance": "Order",
+    "annexe": "Schedule", "formule": "Form", "formulaire": "Form",
+    "appendice": "Appendix", "tableau": "Table", "préambule": "Preamble",
+    "ordonnance": "Order",
 }
 
 RANGE_EXPANSION_CAP = 400
@@ -322,19 +328,25 @@ def expand_ranges(text: str) -> set[str]:
 
 
 def named_heading_labels(text: str) -> set[str]:
-    """'## SCHEDULE "A"' -> 'Schedule A'; repeats gain (n) like the oracle."""
+    """'## SCHEDULE "A"' -> 'Schedule A'; repeats gain (n) like the oracle.
+
+    Labels keep the heading's SURFACE language: oracles key the surface
+    form on both en rows ('Schedule I') and fr rows ('Annexe I'), and the
+    old fr->en translation via _NAMED_CANON never matched anything (laws
+    vet 2026-07-30) — _NAMED_CANON survives only to normalize the kind
+    for the bare-label whitelist check."""
     seen: dict[str, int] = {}
     labels: set[str] = set()
     for match in _NAMED_HEAD_RE.finditer(text):
         kind_raw = match.group(1).lower()
-        kind = _NAMED_CANON.get(kind_raw, kind_raw.capitalize())
+        kind_canonical = _NAMED_CANON.get(kind_raw, kind_raw.capitalize())
         tail = match.group(2).strip(' "“”').rstrip(".").strip()
         if tail:
             if not _NAMED_TAIL_OK.fullmatch(tail):
                 continue
-        elif kind not in _NAMED_BARE_OK:
+        elif kind_canonical not in _NAMED_BARE_OK:
             continue
-        label = f"{kind} {tail}".strip()
+        label = f"{kind_raw.capitalize()} {tail}".strip()
         count = seen.get(label, 0) + 1
         seen[label] = count
         labels.add(label if count == 1 else f"{label} ({count})")
