@@ -206,17 +206,20 @@ def segment_notes(
     for line in text[start:end].splitlines(keepends=True):
         lines.append((offset, line))
         offset += len(line)
-    # Two export dialects render note labels: `N<TAB>` (body may start on
-    # the next line) and `N<2+ spaces>body` (OCR lane; same-line content
-    # required, so bare page-number furniture lines never become
-    # candidates). Anything else digit-led is left to the backbone DP's
-    # mercy only via these gates - i.e. excluded.
+    # Three export dialects render note labels: `N<TAB>` (body may start
+    # on the next line), `N.<TAB>` (trailing period before the tab -
+    # Osgoode/Dalhousie style; section headings share this shape and are
+    # out-competed by the backbone DP), and `N<2+ spaces>body` (OCR lane;
+    # same-line content required, so bare page-number furniture lines
+    # never become candidates). Anything else digit-led is excluded.
     label_lines: list[tuple[int, int, str, int]] = []  # (line idx, offset, value, body col)
     for index, (line_offset, line) in enumerate(lines):
         match = LABEL_RE.match(line)
         if not match:
             continue
         after = match.end("label")
+        if line[after : after + 1] in ".)]" and line[after + 1 : after + 2] in "\t ":
+            after += 1
         if line[after : after + 1] == "\t":
             label_lines.append((index, line_offset, match.group("label"), after + 1))
         elif line[after : after + 2] == "  ":

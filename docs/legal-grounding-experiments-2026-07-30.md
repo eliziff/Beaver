@@ -878,6 +878,93 @@ therefore ablates the SOFT contract plus deterministic lint (H13
 corpus-alienness, H14 prompt-gravitation, H7 features) rather than
 hard caps.
 
+## Stage 7 — lint-gated cascade (pre-registered, not yet run)
+
+### Frozen Hypothesis 7
+
+Deterministic lint over composed claims — novel-content features (H7),
+corpus-alienness against a jurisdiction-matched trigram reference
+(H13), and prompt-gravitation (H14) — inserted as a SOFT pre-checker
+gate in the tiered lane will (a) catch overreach-shaped framing before
+the stochastic checker sees it, (b) reduce checker calls, and (c) add
+zero new false accepts, because the gate can only send claims BACK for
+revision with a typed feature-named rejection, never approve them.
+Per Stage 6's refined conclusion this is the soft-contract path: no
+answer-level caps; the deterministic verbatim tier is unchanged.
+
+Evidence basis: source-anchored validation on RegLab expert labels —
+response-level max-pooled novel_content_fraction AUC 0.829, US-indexed
+unattested_trigram_share 0.781, prompt_only_share 0.635–0.652 — and the
+Stage 1–6 receipts' uniform overreach failure shape. Thresholds are
+smoke-calibrated (8 misgrounded responses); they are FROZEN before the
+run at operating points that flag zero grounded max-pooled responses in
+the RegLab validation set, and the run measures flag rates, not
+accuracy claims from that calibration.
+
+### Design, predictions, falsification
+
+The Stage 6 held-constant 41 items; arms tiered_check (control) and
+lint_gated × composers Claude and Codex, Claude-family checker, bounded
+pool 4/2. The lint gate runs on every composed claim pre-checker; a
+flagged claim costs one revision iteration naming the feature.
+
+Predictions: checker calls per rendered cell fall; the audited
+housing:163/0 pair is unchanged; lint-flagged claims are
+overreach-shaped on manual decode (not a random tax); rendering and
+non-submission do not degrade materially vs tiered_check; every
+deterministic clear re-audits verbatim.
+
+Falsified by: any new false accept; audited-pair degradation; a lint
+flag rate on grounded compositions high enough to depress rendering
+below tiered_check; or no checker-call reduction.
+
+## Stage 8 — attested framing / H12 widened tier (pre-registered, not yet run)
+
+### Frozen Hypothesis 8
+
+For case-law claims, characterization ("stands for") language becomes
+IMPOSSIBLE to compose freely without loss of honest coverage, by (a)
+feeding forward ranked attested characterizations from
+standsForProfile — citing-court prose from the 2.54M-edge citator graph
+plus journal-commentary propositions from the paired footnote build —
+into composition, and (b) requiring any claim with stands-for language
+to clear the widened deterministic tier (verbatim membership in the
+cited span OR a fed-forward attested characterization named in its
+evidence_ids, receipts naming whose words are borrowed). Cases with
+tier "none" profiles force passage-quotation-only answers or a typed
+no-attested-characterization statement.
+
+Infrastructure now in place and soundness-probed: standsForProfile
+(court-level ranking, prose classifier, sha receipts; commentary
+source with classifier gating), attestedCharacterizationReceipt +
+widened-tier registration (mutation and splice probes fail closed,
+19/19 lib tests), journal_commentary.sqlite (editor-verified
+proposition↔authority pairs).
+
+### Design, predictions, falsification
+
+Case-law-heavy matrix: the Stage 6 CSLB case rows and CLERC
+continuations, plus HousingQA statute rows retained verbatim as the
+NO-OP CONTROL (statute claims have no stands-for path), plus a
+Charlotin "Misrepresented" adversarial probe set where the contract
+must be UNABLE to express the recorded misrepresentation. Arms
+tiered_check and attested_framing × composers Claude and Codex, Claude
+checker. Before the run, profile coverage (rich/thin/none) over the
+matrix's cited cases is measured and recorded — a mostly-none matrix
+defers the stage rather than diluting it.
+
+Predictions: composed-overreach rejections fall to ~zero on case-law
+cells; checker calls fall (characterization claims clear
+deterministically); thin/none-profile refusals are reported as such,
+not as errors; HousingQA cells are statistically indistinguishable
+from tiered_check; no widened-tier false pass under the extended
+mutation/splice probe family; audited decisions unchanged.
+
+Falsified by: any widened-tier false pass; coverage collapse beyond
+thin-profile refusals (attested candidates exist but composition fails
+to use them); no reduction in composed overreach on case-law cells; or
+Charlotin probes expressible under the contract.
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under
