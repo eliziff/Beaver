@@ -479,6 +479,24 @@ async function runCase(
   const state = createLegalEvidenceTurnState(
     arm === "control" ? null : arm,
   );
+  if (arm === "lint_gated") {
+    // Stage 7: the lint needs the question (H14) and the
+    // jurisdiction-matched alienness index (H13). US cells use the
+    // CAP-bulk index built beside the Canadian default.
+    state.lintContext = {
+      question: item.prompt,
+      ...(item.jurisdiction === "US"
+        ? {
+            alienessIndexPath: path.join(
+              process.env.LOCALAPPDATA ?? "",
+              "ALR Quote Verifier",
+              "alienness",
+              "trigrams-en-us.sqlite",
+            ),
+          }
+        : {}),
+    };
+  }
   const receipts = item.evidence.map((source) =>
     createBenchmarkEvidence({
       jurisdiction: item.jurisdiction,
@@ -538,6 +556,8 @@ async function runCase(
             ? "Answer only from the supplied exact passages, as two kinds of claims. Quotation claims: the passage's words copied EXACTLY — no edits, no elisions, no framing around them. At most ONE conclusion claim: the direct answer to the question, stating only what the quoted text establishes; never characterize the law beyond the quoted words (never assert a statute 'regulates', 'has a framework', or 'governs' unless those words are quoted). If the passages cannot support a direct answer, say exactly that in the conclusion claim. The submission tool rejects answers with more than one non-verbatim claim; requote and resubmit if rejected. Finish through the grounded-answer tool without a prose copy or citation text; Beaver places citations from the evidence receipts."
             : arm === "attested_framing"
               ? "Answer only from the supplied exact passages and attested characterizations, as two kinds of claims. Quotation claims: the words of a passage OR of an attested characterization copied EXACTLY, citing that evidence id. At most ONE conclusion claim: the direct answer to the question, stating only what the quoted text establishes. Any claim saying what a case stands for, held, establishes, or governs must be a verbatim quote of the cited passage or of an attested characterization named in its evidence ids; if none is supplied for that case, either quote the passage itself or state exactly that no attested characterization is available — never compose your own characterization. The submission tool rejects violations; requote and resubmit if rejected. Finish through the grounded-answer tool without a prose copy or citation text; Beaver places citations and attributions from the evidence receipts."
+            : arm === "lint_gated"
+              ? "Answer only from the supplied exact passages. Correct any premise that conflicts with them. Where a passage's exact words answer the question, make that claim a verbatim quotation; paraphrase only where quotation cannot answer. The submission tool may return deterministic lint warnings naming a claim's feature values; revise that claim once to track the cited passage's own words, or replace it with a verbatim quotation. Finish through the available grounded-answer tool without a prose copy or citation text; Beaver places citations from the evidence receipts."
             : arm === "tiered_check"
             ? "Answer only from the supplied exact passages. Correct any premise that conflicts with them. Where a passage's exact words answer the question, make that claim a verbatim quotation; paraphrase only where quotation cannot answer. Finish through the available grounded-answer tool without a prose copy or citation text; Beaver places citations from the evidence receipts."
             : structured
@@ -559,7 +579,8 @@ async function runCase(
       maxIterations:
         arm === "evidence_first" ||
         arm === "quote_first" ||
-        arm === "attested_framing"
+        arm === "attested_framing" ||
+        arm === "lint_gated"
           ? 3
           : structured
             ? 2

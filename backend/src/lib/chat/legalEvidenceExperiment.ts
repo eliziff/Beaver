@@ -12,6 +12,11 @@ import {
   formatLegalLocator,
 } from "../legalSourceLinks";
 import {
+  lintLegalClaim,
+  type LintFeatureReceipt,
+  type LintThresholds,
+} from "../legalClaimLint";
+import {
   streamChatWithTools,
   type NormalizedLlmUsage,
   type OpenAIToolSchema,
@@ -32,7 +37,25 @@ export const LEGAL_EVIDENCE_EXPERIMENT_MODES = [
   "tiered_check",
   "quote_first",
   "attested_framing",
+  "lint_gated",
 ] as const;
+
+/**
+ * Stage 7 frozen operating points (Frozen Hypothesis 7). Computed by
+ * scripts/freeze-stage7-thresholds.ts on the RegLab expert-label
+ * validation set: each threshold is the maximum claim-level value over
+ * grounded responses among claims with >=12 lint content words, so the
+ * gate flags ZERO grounded max-pooled responses at freeze time
+ * (94 grounded / 7 misgrounded / 5 ungrounded responses, US-index
+ * features). The lint is SOFT: it can only send claims back for one
+ * named revision or annotate the checker prompt — never approve.
+ */
+export const STAGE7_LINT_THRESHOLDS: LintThresholds = {
+  novelContentFraction: 0.666667,
+  unattestedShare: 0.823529,
+  promptOnlyShare: 0.333333,
+  minContentWords: 12,
+};
 
 export type LegalEvidenceExperimentMode =
   (typeof LEGAL_EVIDENCE_EXPERIMENT_MODES)[number];
@@ -126,6 +149,25 @@ export type LegalEvidenceTurnState = {
    * the deterministic tier verifies grounding, never coverage.
    */
   deterministicSupport: boolean[] | null;
+  /**
+   * lint_gated only: what the deterministic lint needs beyond the claim
+   * and its spans — the user question (H14) and the jurisdiction-matched
+   * alienness index (H13). Set by the harness before composition; null
+   * leaves those features off exactly as lintLegalClaim documents.
+   */
+  lintContext: {
+    question: string | null;
+    alienessIndexPath?: string;
+  } | null;
+  /** lint_gated only: the one pre-registered revision bounce was spent. */
+  lintBounced: boolean;
+  /**
+   * lint_gated only: full lint receipts per accepted claim (aligned with
+   * `answer`; empty array for claims the verbatim tier cleared). Fired
+   * receipts enter the checker prompt; all of them enter the receipt
+   * event for calibration.
+   */
+  lintReceipts: LintFeatureReceipt[][] | null;
   attempted: boolean;
   failure: string | null;
 };
@@ -144,6 +186,9 @@ export function createLegalEvidenceTurnState(
     holisticVerdict: null,
     coverage: null,
     deterministicSupport: null,
+    lintContext: null,
+    lintBounced: false,
+    lintReceipts: null,
     attempted: false,
     failure: null,
   };
@@ -559,6 +604,53 @@ export function submitLegalEvidenceAnswer(
       };
     }
   }
+  // lint_gated (Stage 7 / H7+H13+H14): the soft pre-checker gate. Claims
+  // the verbatim tier clears are untouched; composed claims run through
+  // the deterministic lint at the frozen operating points. A flagged
+  // claim costs exactly ONE typed revision bounce naming the features;
+  // after the bounce the answer proceeds and the fired receipts ride
+  // into the checker prompt instead. The gate never approves anything.
+  if (state.mode === "lint_gated" && !errors.length) {
+    const lint = parsed.claims.map((claim) =>
+      deterministicClaimSupport(claim, state)
+        ? null
+        : lintLegalClaim(
+            {
+              claim: claim.text,
+              spans: claim.evidence_ids.flatMap((id) => {
+                const span = state.evidence.get(id)?.receipt.span_text;
+                return span ? [span] : [];
+              }),
+              question: state.lintContext?.question ?? null,
+              alienessIndexPath: state.lintContext?.alienessIndexPath,
+            },
+            STAGE7_LINT_THRESHOLDS,
+          ),
+    );
+    const flagged = lint.flatMap((result, index) =>
+      result?.flagged ? [index] : [],
+    );
+    if (flagged.length && !state.lintBounced) {
+      state.lintBounced = true;
+      return {
+        ok: false,
+        errors: flagged.slice(0, 12).map((index) => {
+          const fired = lint[index]!.receipts.filter(
+            (receipt) => receipt.fired === true,
+          );
+          return `claims[${index}] triggers deterministic lint (${fired
+            .map(
+              (receipt) =>
+                `${receipt.feature} ${receipt.value.toFixed(2)} > ${receipt.threshold}`,
+            )
+            .join(
+              ", ",
+            )}): revise it to track the cited passage's own words, or quote the passage verbatim`;
+        }),
+      };
+    }
+    state.lintReceipts = lint.map((result) => result?.receipts ?? []);
+  }
   if (errors.length) return { ok: false, errors: errors.slice(0, 12) };
   state.answer = parsed.claims;
   state.rejectedAnswer = null;
@@ -803,7 +895,8 @@ export function legalEvidenceExperimentTools(
     mode === "holistic_check" ||
     mode === "tiered_check" ||
     mode === "quote_first" ||
-    mode === "attested_framing"
+    mode === "attested_framing" ||
+    mode === "lint_gated"
   )
     return [LEGAL_EVIDENCE_SUBMIT_TOOL];
   if (mode === "evidence_first")
@@ -952,7 +1045,8 @@ function allClaimsSupported(state: LegalEvidenceTurnState) {
   if (
     state.mode === "tiered_check" ||
     state.mode === "quote_first" ||
-    state.mode === "attested_framing"
+    state.mode === "attested_framing" ||
+    state.mode === "lint_gated"
   )
     return (
       Boolean(state.answer) &&
@@ -982,10 +1076,27 @@ function holisticVerificationPrompt(args: {
   const evidenceIds = new Set(
     args.state.answer?.flatMap((claim) => claim.evidence_ids) ?? [],
   );
+  // Stage 7 cascade: fired lint receipts ride INTO the checker prompt as
+  // deterministic observations — the checker weighs them, the lint never
+  // decides. Absent or clean lint adds nothing.
+  const lintFlags =
+    args.state.mode === "lint_gated"
+      ? (args.state.lintReceipts ?? []).flatMap((receipts, index) =>
+          receipts
+            .filter((receipt) => receipt.fired === true)
+            .map((receipt) => ({
+              claim_index: index,
+              feature: receipt.feature,
+              value: receipt.value,
+              threshold: receipt.threshold,
+            })),
+        )
+      : [];
   return {
     question: args.requestContext ?? null,
     candidate_answer:
       args.state.answer?.map((claim) => claim.text).join("\n\n") ?? "",
+    ...(lintFlags.length ? { deterministic_lint_flags: lintFlags } : {}),
     exact_passages: [...evidenceIds].flatMap((id) => {
       const receipt = args.state.evidence.get(id)?.receipt;
       return receipt
@@ -1189,7 +1300,8 @@ async function finalizeLegalEvidenceExperimentUnsafe(args: {
   if (
     state.mode === "tiered_check" ||
     state.mode === "quote_first" ||
-    state.mode === "attested_framing"
+    state.mode === "attested_framing" ||
+    state.mode === "lint_gated"
   ) {
     state.deterministicSupport = state.answer.map((claim) =>
       deterministicClaimSupport(claim, state),
@@ -1450,6 +1562,8 @@ export type LegalEvidenceReceiptEvent = {
       evidence_status: LegalClaimVerification["evidence_status"] | "not_run";
       /** tiered_check only: this claim cleared the verbatim-quote tier. */
       deterministic_support?: boolean;
+      /** lint_gated only: full lint receipts (fired and clean alike). */
+      lint?: LintFeatureReceipt[];
     }
   >;
   evidence: LegalEvidenceReceipt[];
@@ -1491,6 +1605,9 @@ export function legalEvidenceReceiptEvent(
         state.verification?.[index]?.evidence_status ?? "not_run",
       ...(state.deterministicSupport
         ? { deterministic_support: state.deterministicSupport[index] ?? false }
+        : {}),
+      ...(state.lintReceipts?.[index]?.length
+        ? { lint: state.lintReceipts[index] }
         : {}),
     })),
     evidence: [...ids].flatMap((id) => {

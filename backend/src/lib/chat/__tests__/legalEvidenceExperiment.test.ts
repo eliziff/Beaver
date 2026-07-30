@@ -900,3 +900,96 @@ describe("attested_framing stands-for gate (Stage 8)", () => {
     ).toEqual({ ok: true, terminal: true });
   });
 });
+
+describe("lint_gated soft gate (Stage 7 / H7+H13+H14)", () => {
+  const passage =
+    "If rent is unpaid when due, the landlord may deliver a written notice " +
+    "to terminate the lease not less than seven business days after receipt.";
+  const question = "What notice must an Alabama landlord give before eviction?";
+  const overreach =
+    "Alabama maintains a comprehensive regulatory framework broadly " +
+    "governing residential evictions, imposing systematic statewide " +
+    "oversight obligations and licensing duties across municipalities.";
+
+  function lintGatedState() {
+    const state = createLegalEvidenceTurnState("lint_gated");
+    // Nonexistent index path keeps H13 off (documented null contract),
+    // so these vectors exercise only the index-free features.
+    state.lintContext = {
+      question,
+      alienessIndexPath: "Z:/nonexistent/trigrams-en.sqlite",
+    };
+    const receipt = createBenchmarkEvidence({
+      stableSourceId: "test:lint",
+      sourceText: passage,
+      spanText: passage,
+      citation: "ALA. CODE § 35-9A-421(b)",
+      dataset: "test",
+      locatorKind: "section",
+      locatorLabel: "ALA. CODE § 35-9A-421(b)",
+      jurisdiction: "US",
+      sourceClass: "legislation",
+    });
+    registerLegalEvidence(state, receipt);
+    return { state, id: receipt.evidence_id };
+  }
+
+  it("bounces a flagged composed claim exactly once, naming the feature", () => {
+    const { state, id } = lintGatedState();
+    const first = submitLegalEvidenceAnswer(
+      { claims: [{ text: overreach, evidence_ids: [id] }] },
+      state,
+    );
+    expect(first.ok).toBe(false);
+    expect(first.errors?.[0]).toContain("deterministic lint");
+    expect(first.errors?.[0]).toContain("novel_content_fraction");
+    expect(state.lintBounced).toBe(true);
+    expect(state.answer).toBeNull();
+
+    const second = submitLegalEvidenceAnswer(
+      { claims: [{ text: overreach, evidence_ids: [id] }] },
+      state,
+    );
+    expect(second).toEqual({ ok: true, terminal: true });
+    expect(state.lintReceipts?.[0]?.some((r) => r.fired === true)).toBe(true);
+  });
+
+  it("keeps lint receipts in the receipt event for calibration", () => {
+    const { state, id } = lintGatedState();
+    submitLegalEvidenceAnswer(
+      { claims: [{ text: overreach, evidence_ids: [id] }] },
+      state,
+    );
+    submitLegalEvidenceAnswer(
+      { claims: [{ text: overreach, evidence_ids: [id] }] },
+      state,
+    );
+    const event = legalEvidenceReceiptEvent(state);
+    expect(event?.claims[0]?.lint?.length).toBeGreaterThan(0);
+  });
+
+  it("never fires on claims under the minimum content-word gate", () => {
+    const { state, id } = lintGatedState();
+    const result = submitLegalEvidenceAnswer(
+      {
+        claims: [
+          { text: "A comprehensive framework governs.", evidence_ids: [id] },
+        ],
+      },
+      state,
+    );
+    expect(result).toEqual({ ok: true, terminal: true });
+    expect(state.lintBounced).toBe(false);
+  });
+
+  it("skips lint entirely for claims the verbatim tier clears", () => {
+    const { state, id } = lintGatedState();
+    const result = submitLegalEvidenceAnswer(
+      { claims: [{ text: passage, evidence_ids: [id] }] },
+      state,
+    );
+    expect(result).toEqual({ ok: true, terminal: true });
+    expect(state.lintBounced).toBe(false);
+    expect(state.lintReceipts?.[0]).toEqual([]);
+  });
+});

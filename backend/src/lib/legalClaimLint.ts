@@ -76,6 +76,14 @@ function contentWords(text: string): Set<string> {
   );
 }
 
+/**
+ * The lint's own content-word count, exported so calibration scripts
+ * gate on exactly the definition the shipped features use.
+ */
+export function contentWordCount(text: string): number {
+  return contentWords(text).size;
+}
+
 /** Bit-exact port of the Python builder's FNV-1a 64 (signed for sqlite). */
 export function fnv1a64(value: string): bigint {
   let digest = 0xcbf29ce484222325n;
@@ -200,6 +208,14 @@ export type LintThresholds = {
   novelContentFraction?: number;
   unattestedShare?: number;
   promptOnlyShare?: number;
+  /**
+   * Thresholded features fire only on claims with at least this many
+   * content words. RegLab calibration showed the saturating "grounded"
+   * claims are citation fragments (case-name splits, reporter
+   * furniture) under this length — the gate is part of the frozen
+   * operating point, not a heuristic escape hatch.
+   */
+  minContentWords?: number;
 };
 
 export function lintLegalClaim(
@@ -213,6 +229,9 @@ export function lintLegalClaim(
   const spanWords = new Set(words(spanText));
   const claimWords = new Set(words(input.claim));
 
+  const gateOpen =
+    claimContent.size >= (thresholds.minContentWords ?? 0);
+
   const novel = [...claimContent].filter((word) => !spanContent.has(word));
   const novelFraction = claimContent.size
     ? novel.length / claimContent.size
@@ -224,7 +243,7 @@ export function lintLegalClaim(
     fired:
       thresholds.novelContentFraction === undefined
         ? null
-        : novelFraction > thresholds.novelContentFraction,
+        : gateOpen && novelFraction > thresholds.novelContentFraction,
   });
 
   const abstraction = novel.filter((word) => ABSTRACTION.has(word));
@@ -285,7 +304,7 @@ export function lintLegalClaim(
       fired:
         thresholds.promptOnlyShare === undefined
           ? null
-          : promptOnlyShare > thresholds.promptOnlyShare,
+          : gateOpen && promptOnlyShare > thresholds.promptOnlyShare,
       detail: promptOnly.slice(0, 12).join(","),
     });
   }
@@ -317,7 +336,8 @@ export function lintLegalClaim(
       fired:
         thresholds.unattestedShare === undefined
           ? null
-          : spectrum.trigrams >= 5 &&
+          : gateOpen &&
+            spectrum.trigrams >= 5 &&
             spectrum.unattested > thresholds.unattestedShare,
     });
     receipts.push({
