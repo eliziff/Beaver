@@ -1475,6 +1475,104 @@ coverage: 12/18 case-cell non-submissions on required_slot vs sol's
 observation above. No false accept was observed in any small-tier
 lane (audit caveat: checker-derived labels).
 
+## Stage 9 — rank-policy ablation and cheap selection (pre-registered
+2026-07-30, frozen before implementation)
+
+Stage 8b localized the required slot's failure to CANDIDATE SELECTION
+cost, not quoting ability, and exposed that the incumbent candidate
+ordering (court level, citer count, recency; commentary implicitly
+last via unmapped level) is an unmeasured formalist assumption. Per
+Eli's directive (2026-07-30): "the declarative principle of judicial
+lawmaking is a legal fiction" — journal commentary is often the more
+principled statement of what a case stands for; whether authority
+hierarchy helps the RAG contract must be tested, not assumed.
+
+### Frozen Hypothesis 19 — candidate ordering policy is a live variable
+
+Three deterministic rank policies over `standsForProfile` candidates,
+identical machinery otherwise:
+- A `authority` (incumbent, control): citing-court level desc, citer
+  occurrences desc, recency desc; commentary carries no level and so
+  sorts last.
+- B `banded_recency` (Eli's proposal): band = citing-court level for
+  case candidates; commentary joins the HIGHEST band present in the
+  profile (apex when apex citers exist, otherwise the top available
+  level); newest-first within every band.
+- C `flat_recency`: newest first regardless of source kind; ties by
+  occurrences then level.
+Registered as EXPLORATORY on direction — no policy is predicted to
+win; the gate is that any claimed policy effect must exceed the
+measured Stage 8b checker-stochasticity floor (0–13% outcome flips on
+prompt-identical cells). Outcome variables per policy: slot uptake,
+no-submission rate, refusal-despite-candidates, quoted-candidate RANK
+(new receipt), F1 on case cells. Machinery falsifier: any widened-tier
+false pass under any policy, or a policy changing the candidate SET
+rather than only its order (audited from receipts).
+
+### Frozen Hypothesis 20 — cheap selection restores slot coverage
+
+Stage 8b offered up to 8 candidates late; models bailed (no-submission
+7–12/18 case cells) or used the refusal escape hatch with candidates
+present (15/15 refusals). H20: selection cost, not the slot itself, is
+the binding constraint. Two changes, constant across policies: the
+offer is capped at the TOP 3 ranked candidates, and a thin-profile
+pre-declaration module states up front, per cited case, how many
+attested characterizations are supplied (and the newest's year) or
+that none are. Predictions vs Stage 8b required_slot (cap 8, policy
+A): case-cell no-submission drops toward the quote_first baseline
+(<= 3/18 per model); refusal-despite-candidates -> ~0; none-tier
+honest refusals persist unchanged; zero new false passes. Falsifiers:
+no-submission persisting at cap 3 (implicates the slot concept, not
+selection cost — retire the required slot); degenerate top-1 quoting
+of irrelevant candidates (hand-audited sample per model).
+
+### H10-minimal — temporal-order hard flag (rides all arms)
+
+Deterministic typed rejection when a single claim asserts an active
+follow/apply/adopt/affirm/distinguish/overrule relation between two
+resolved citations whose receipt dates invert the assertion (the
+"following" decision predates the "followed" one). Dates come only
+from evidence receipts already in state; no new lookups; conservative
+active-voice pattern requiring both citations present in the claim
+text. Prediction: zero false flags on the matrix (any flag that fires
+is a caught fabrication; count reported). Falsifier: any false flag
+on audit — the pattern narrows before shipping.
+
+### H13-advisory — alienness named in bounce text (advisory, never a gate)
+
+When a submission already bounces for a typed contract violation, the
+rejection text additionally names the conclusion claim's corpus-alien
+phrases (maximal contiguous runs of trigrams unattested in the H13
+reference index) with the instruction to answer in the source's
+words. The advisory NEVER causes a bounce and no threshold gates
+anything — nothing to overfit; the deterministic tier and checker are
+unchanged. Per-conclusion-claim alienness spectra are also recorded
+in run receipts (receipt-only witness, grows the C4 matrix).
+Predictions: no coverage or F1 regression (advisory-only);
+exploratory: post-bounce revisions shift toward lower unattested
+share. Falsifier: corpus-phrase parroting that clears the checker
+with degraded F1 on advised cells (the tier cannot be cleared by
+parroting — the panel is not quotable evidence).
+
+### Design (factored per the H17 standing rule)
+
+Roster: codex:gpt-5.6-sol, claude-p:claude-sonnet-4-6,
+codex:gpt-5.4-mini. Haiku is DROPPED from composition rosters until a
+protocol-tolerant wrapper exists (Stage 8b transport finding); its
+lane would measure transport attrition, not grounding. Same-model
+checker; the checker-family crossing subset follows analysis.
+Arms: tiered_check and quote_first (policy-independent anchors, run
+once), attested_framing and required_slot (policy-varying). Rank
+policy varies ONLY case cells of attested arms (A/B/C variants per
+cell); non-case cells run once under policy A — the policy module is
+a no-op there, and prompt_modules receipts prove prompt identity as
+in Stage 8b. All Stage 9 modules (predeclare, temporal flag,
+alienness advisory) ride every arm identically, so the policy
+contrast is the only inter-arm difference on case cells. Held-constant
+41-item matrix; effort low; timeout 180s; receipts under the standard
+experiments directory with sha256 recorded at analysis; checker labels
+never promoted to gold.
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under
