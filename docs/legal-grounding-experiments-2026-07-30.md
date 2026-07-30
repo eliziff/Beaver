@@ -1583,6 +1583,60 @@ contrast is the only inter-arm difference on case cells. Held-constant
 experiments directory with sha256 recorded at analysis; checker labels
 never promoted to gold.
 
+### Stage 9 results (run + analysis 2026-07-30; flat_recency lane only)
+
+Receipts `stage9-h19h20.jsonl`, sha256
+`7aa340c88f1d625d9765c9840d632aa451cea0cba625b27ed0b5d8bfe3bb675a`,
+515 rows, 509 unique clean cells (6 errors, all sonnet transport — 4
+of them on required_slot). Roster sol/sonnet/mini; the 22 postponed
+authority/banded cells remain in-file unanalyzed per the amendment.
+All required_slot/attested numbers below CONFOUND flat_recency with
+the H20 changes by design (single live policy).
+
+**H20 (cheap selection) — the escape hatch is dead; the bail is
+half-fixed.** Refusal-despite-candidates went 15/15 (Stage 8b, all
+three models) to **0/0/0**: with a top-3 offer and the availability
+pre-declaration, every typed refusal in the run is honest (the
+citation genuinely had no candidates). Case-cell no-submission on
+required_slot: sol 7/18 → **2/18** (prediction ≤3 met), mini 12/18 →
+8/18 (improved, missed the target), sonnet 8/15 → 7/14 (unmoved —
+and its 4 transport errors sit on this arm too, so the claude lane's
+binding constraint on the slot looks like transport/iteration budget,
+not selection). Attested-quote slot fills rose modestly (5/1/3 →
+5/3/5). Verdict: selection cost was a REAL constraint (the refusal
+result) but not the only one; the residual no-submission on the
+small-tier and claude lanes needs a different lever (H18 panel, or
+iteration budget).
+
+**Quoted-rank receipt — models genuinely select.** Of attested quotes
+with a recorded rank, positions 1/2/3 were all used by every model
+(sol 2/2/1, sonnet 1/1/1, mini 3/1/1). The degenerate-top-1 falsifier
+did not fire: under flat-recency ordering models pick by content, not
+list position — which also means ordering policy has room to matter
+(H19 remains a live question for the postponed lanes).
+
+**Temporal flag — zero fires.** Registered prediction (zero false
+flags) held; the matrix also produced no true inversions to catch.
+The flag is now standing contract infrastructure awaiting adversarial
+probes (Charlotin lane).
+
+**Alienness advisory — live at scale, no measurable cost.** 149
+bounces on 54 cells carried the advisory; conclusion-claim alienness
+spectra recorded on 424/509 cells (C4 matrix growth). Pass rates and
+F1 vs Stage 8b are within the measured noise floor on every model×arm
+(largest delta: mini quote_first 33→28, 12% — at the floor's edge,
+flagged for the C4 pass; every other delta ≤3 cells, F1 deltas
+≤0.04). No parroting-with-degraded-F1 signature appears on advised
+cells.
+
+**Transport note (infrastructure, measured):** the claude-p lane
+gained opt-in persistent sessions (`MIKE_CLAUDE_P_PERSIST=1`,
+commit `e640b740`) — one stream-json process per conversation,
+follow-up turns send only tool_results, full-replay fallback on any
+failure. Live A/B (sonnet, 2-tool-call loop): 14.5s → 6.0s with
+prompt-cache reads engaged. OFF for all Stage 9 receipts above; a
+future stage may enable it, recorded per-run.
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under
@@ -1605,6 +1659,8 @@ committed.
 | `stage7-h7.jsonl` | `6ED54A338EA3B7AE04F3E20ACEF0D9D240FB39E120D8C641EE1D484A39E26DED` |
 | `stage8-h8.jsonl` | `2E51CB52786FB289DC78FA759FD3178B0BA6752EFC9190BAF51B7FC7C595714C` |
 | `stage8b-h15h16h17.jsonl` (haiku lane stopped early per Eli) | `F7C3861B9669D7963512CED1FB623928EA3FD221008B088D289589F015592067` |
+| `stage9-smoke.jsonl` | `7D3CA498A0A29300C1F26B068871C6CCC204B69674E530042471E06DB00AE4C8` |
+| `stage9-h19h20.jsonl` (flat_recency live; A/B policy lanes postponed) | `7AA340C88F1D625D9765C9840D632AA451CEA0CBA625B27ED0B5D8BFE3BB675A` |
 
 ## Validation and final selection gate
 
