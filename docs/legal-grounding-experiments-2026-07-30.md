@@ -1854,6 +1854,43 @@ Falsified by: any false pass; transport attrition >20% of either
 lane's cells (would mean the lane measures transport, not grounding,
 per the Stage 8b haiku precedent).
 
+### Stage 11 results (run 2026-07-30, 77 cells, 0 errors; smoke 2/2 clean)
+
+Case cells (n=18 per policy), luna medium, required_slot:
+
+| policy | pass | no-sub | first-sub accept | bounces | refusals (despite) | attested fills | quoted ranks | median lat |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| authority | 4 | 3 | 4 | 24 | 10 (0) | 4 | 1,2,1,3,1 | 34.5s |
+| banded_recency | 4 | 3 | 3 | 23 | 10 (0) | 4 | 1,2,1,3,1 | 30.6s |
+| flat_recency | 3 | 7 | 3 | 29 | 6 (0) | 3 | 1,1,2,3,1 | 32.4s |
+
+Non-case: 17/23 pass. Zero transport errors; zero
+refusal-despite-candidates; ranks 1/2/3 all used under every policy.
+
+- **P1 FIRES — first policy effect of the program.** Under the slot
+  contract, flat_recency produces 7/18 no-submission vs 3/18 under
+  authority and banded_recency — a 4-cell (22%) separation, beyond
+  the 13% gate. authority and banded_recency are indistinguishable
+  from each other (every difference ≤1 cell). Direction: newest-first
+  ordering costs coverage where the slot binds; the banked-lane null
+  (attested_framing, no slot) is consistent — the policy only matters
+  when the model must actually use a candidate. Caveat: one model,
+  one run, n=18; no-sub is model behavior, not checker noise, but a
+  replication rides the next scheduled matrix run.
+- **P2 FALSIFIED.** Luna-medium no-sub on the flat_recency lane is
+  7/18 vs sol-low's 2/18 (and 3/18 on its best policy) — the new
+  baseline bails MORE than sol despite higher effort. The baseline
+  directive costs case-cell coverage; flagged for Eli. Zero
+  widened-tier false passes (standing gate holds).
+- P3 (cost): median case-cell latency ~31–35s at effort medium (vs
+  ~15–21s sol/luna low lanes); 341k input / 94k output tokens across
+  77 cells — tolerated by the flat-rate lane.
+- Config recommendation recorded: with luna-medium as baseline, the
+  candidate offer should default to authority or banded_recency
+  ordering, NOT flat_recency (coverage cost beyond the floor);
+  between authority and banded the data cannot separate — Eli's
+  banded proposal survives at no measured cost vs the incumbent.
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under
@@ -1880,6 +1917,8 @@ committed.
 | `stage9-h19h20.jsonl` (flat_recency live; A/B policy lanes postponed) | `7AA340C88F1D625D9765C9840D632AA451CEA0CBA625B27ED0B5D8BFE3BB675A` |
 | `stage10-smoke.jsonl` | `E8CDD06D030F85B5361CF9F6F2AED52B9361580ADE3D273E1764CA538C9DCCF0` |
 | `stage10-h18.jsonl` (persist transport; first 36 cells banked from the pre-relaunch pass) | `2F62B5D140044AC8F4F7119186DB44181CD4D8D51E39575693F7214056D4E7DC` |
+| `stage11-smoke.jsonl` | `0301AFF421752C3FF36680124D1F53A2292D0167DC7F00089F2ABEFB09D578FE` |
+| `stage11-luna-baseline.jsonl` | `185FAE297F9895753A29EA0609915F70A387B94EDBD85C79B6E4D56F000FC71C` |
 
 ## Validation and final selection gate
 
