@@ -82,6 +82,26 @@ and Data Portraits (Bloom membership, the base under QUIP-Score); the
 sqlite trigram index ships only as an explicitly-marked interim behind
 the corpusAlienness() seam.
 
+C2 CONFIGURATION DECISION (2026-07-30, three-way calibration over 553
+labeled claims, pre-stated rule: best AUC at matched operating points,
+ties to boundary robustness then base preference): WORD-TRIGRAMS WIN.
+word-trigram 0.694 beats every tokengrams configuration at the current
+reference scale — char n=12/16/20/24 = 0.677/0.675/0.659/0.640; GPT-2
+token n=3/4/5/8 = 0.624/0.646/0.608/0.588; char n=30/50 saturate
+(~100% unattested for accepted and rejected alike). Mechanism: our
+230M-char reference sample is ~4 orders below QUIP's web-scale corpus,
+so contrast lives at coarse word granularity; the QUIP-canonical long
+spans presume a reference we don't have. Two follow-ups queued: (a)
+serve word n-grams FROM tokengrams via a u32 word-id stream (word
+vocab > 65k), retiring the hand-rolled sqlite while keeping the
+winning signal — satisfies the base directive; (b) rebuild the
+reference at full-corpus scale (tokengrams makes this cheap) and
+re-run this table, since reference size is the binding constraint on
+the finer-grained signals. Engine choice (tokengrams, MIT,
+Windows-native) is settled regardless; only the stream encoding was in
+question. Labels remain checker-derived; the breadth corpus re-test
+still gates production thresholds.
+
 ## Workstream C — deterministic legal lint (H7 + H10 + H13 + H14)
 
 C1. Implement `legalClaimLint` (backend lib, pure deterministic):
