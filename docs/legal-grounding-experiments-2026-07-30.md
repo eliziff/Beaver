@@ -1101,6 +1101,92 @@ sample growth land. The claude-p none-profile collapse also caps
 maxIterations sensitivity: the next case-law arm must include the
 passage-quote-only fallback in the composer instructions verbatim.
 
+## Stage 8b — contract shape and prompt factorization (pre-registered, not yet run)
+
+Stage 8 settled that the harness carries grounding and exposed that the
+composition PROMPT is the under-controlled half of the harness. Stage
+8b treats prompt structure as the experimental variable, one factor per
+arm, frozen here before any run.
+
+### Frozen Hypothesis 15 — contract shape determines affordance uptake
+
+Stage 8's attested candidates were offered but optional, and uptake was
+zero: quoting the passage always sufficed. H15: uptake is a property of
+the contract, not the model — a REQUIRED characterization slot changes
+it. Arm `attested_slot`: when the prompt asks what a case stands for
+(deterministic trigger on the question, recorded per cell), the
+submission must contain exactly one characterization claim that either
+(a) verbatim-quotes an attested candidate naming its evidence_id, or
+(b) is the typed no-attested-characterization statement. Free
+paraphrase is not a legal value for the slot; other claims keep the
+Stage 6 quote contract. Predictions: widened-tier clearances > 0 on
+rich cells; attribution renders from receipts; typed statement appears
+on none cells. Falsified by: degenerate slot-filling (an irrelevant
+candidate quoted to satisfy the slot — audited + checker-visible),
+coverage collapse on rich cells, or slot compliance below the
+tiered_check pass rate on the same cells.
+
+### Frozen Hypothesis 16 — explicit fallback rung removes composer collapse
+
+claude-p failed to submit on 9/9 none-profile case cells; the compliant
+path (passage-quote-only) existed but was not stated. H16: one added
+instruction line stating the fallback ladder ("if no attested
+characterization is provided, answer using only verbatim quotes of the
+cited passage, or state that none exists") restores coverage.
+Prediction: claude-p none-profile non-submission 9/9 → ≤1/9, zero new
+false accepts, no change on rich cells. Falsified by persistent
+collapse (then the defect is capacity, not instruction) or any new
+false accept.
+
+### Frozen Hypothesis 17 — prompt factorization validates controls
+
+Stage 8's arm prompt differed globally, so control cells (housing)
+shifted without any mechanism applying (codex verbatim share 0/12 →
+15/27). H17: holding the base composition prompt IDENTICAL across arms
+and injecting mechanism text only on cells where the mechanism applies
+makes control cells statistically indistinguishable across arms.
+Prediction: housing verdict flips across arms ≤ checker-stochasticity
+baseline (measured by the Stage 5 same-cell repeat variance); becomes a
+standing design rule for every future arm if confirmed. Falsified by
+persistent control-cell drift under identical prompts (which would
+implicate the mechanism text itself leaking into non-case behavior).
+
+### Candidate Hypothesis 18 — transparent witnesses beat blackbox grading
+(design frozen after Stage 7's verdict; direction registered now, per
+Eli's directive 2026-07-30)
+
+Today the deterministic machinery mostly grades the model from outside:
+compose → gate → typed rejection or checker verdict. H18: exposing the
+witnesses TO the composer concisely — an observability panel in
+context, not just post-hoc bounces — recruits in-context learning and
+produces better first submissions, not just better-filtered ones.
+Concretely: alongside the evidence, the composer sees a compact
+per-source panel (attested-characterization count and top candidates,
+citer count / court level / profile tier, alienness reading of its own
+draft claim via the lint's feature values, temporal ordering facts) —
+the same receipts we already compute, surfaced before and during
+composition rather than only as rejection text. The lint_gated arm's
+bounce message (feature names + values) is the minimal version and
+Stage 7 measures it; H18 is the full version. Predictions (to be
+frozen with the design): first-submission acceptance rises vs
+lint_gated; checker calls fall further; no new false accepts (the gate
+stays — transparency ADDS to enforcement, never replaces it).
+Falsified by: panel text leaking into claims (parroting the panel
+instead of the source — detectable, the panel is not quotable
+evidence), or no first-submission improvement over the bounce-only
+form. Token cost per cell recorded; the panel must stay concise
+enough that flat-rate lanes tolerate the matrix.
+
+Design: one factored run on the held-constant 41-item matrix — base
+prompt constant everywhere (H17), fallback rung present in all
+case-cell arms (H16), required slot as the single arm contrast (H15) —
+against tiered_check re-run under the same factored base prompt.
+Secondary measured (not gated): rich-cell token-F1, which Stage 8
+showed sagging under feed-forward (0.57 → 0.38 codex), attributable to
+candidate volume/placement; recorded per-cell to inform, not to tune
+mid-run. Runs only after Stage 7's lanes drain; Charlotin probes queue
+after Stage 8b to grow the positive class per protocol C4.
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under
