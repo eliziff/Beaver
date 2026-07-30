@@ -116,6 +116,28 @@ a general misgrounding detector, and no threshold generalizes past
 that scope until the jurisdiction-matched, claim-segmented re-test
 passes.
 
+RE-TEST — SOURCE-ANCHORED VALIDATION PASSES (2026-07-30, same RegLab
+expert labels, sources retrieved): with responses segmented into
+claims (`segment_reglab_claims.py`, eyecite full_span citation
+masking; 1,704 claims / 766 cited) and each claim scored against the
+TEXT OF THE CASES IT CITES (CAP static casebodies; 289/442 citations
+resolved, 45 LEXIS/WL out-of-corpus by construction), the shipped
+`lintLegalClaim` features discriminate expert-labeled misgrounding:
+response-level max-pooled novel_content_fraction AUC 0.829 grounded
+vs misgrounded (106 vs 8 responses — n small, stated plainly; 0.703
+vs all 15 bad), claim-level 0.637 under weak labels (456 vs 81
+claims). Max-pooling beats mean-pooling everywhere, confirming the
+one-bad-claim mechanism behind response labels. Claim segmentation
+ALONE un-inverted the alienness signal (unattested share max-pooled
+0.689 vs misgrounded even against the mismatched Canadian reference;
+mean-pooled still inverted) — the prior negative result was unit
+mismatch first, reference mismatch second. prompt_only_share holds
+directionally (0.635–0.652 max-pooled). Receipts:
+us_sources/claim_features.jsonl + manifest.json (hashes inside).
+Remaining gates for production thresholds: US-reference alienness
+index, and more labeled misgrounded responses (n=8 is a smoke pass,
+not a calibration).
+
 C2 CONFIGURATION DECISION (2026-07-30, three-way calibration over 553
 labeled claims, pre-stated rule: best AUC at matched operating points,
 ties to boundary robustness then base preference): WORD-TRIGRAMS WIN.
