@@ -878,7 +878,7 @@ therefore ablates the SOFT contract plus deterministic lint (H13
 corpus-alienness, H14 prompt-gravitation, H7 features) rather than
 hard caps.
 
-## Stage 7 — lint-gated cascade (pre-registered, not yet run)
+## Stage 7 — lint-gated cascade (run 2026-07-30)
 
 ### Frozen Hypothesis 7
 
@@ -948,6 +948,65 @@ deterministic clear re-audits verbatim.
 Falsified by: any new false accept; audited-pair degradation; a lint
 flag rate on grounded compositions high enough to depress rendering
 below tiered_check; or no checker-call reduction.
+
+### Results (2026-07-30, by amendment against the frozen predictions)
+
+Registered run: 164/164 cells, 0 errors, receipts `stage7-h7.jsonl`
+(sha in the table). Live smoke of the arm preceded the run (3 cells,
+lint receipts stored on all claims, zero fired on quote-heavy
+composition, no bounces).
+
+**Checker-call reduction: FALSIFIED.** Holistic checker runs per arm:
+claude-p 37 lint_gated vs 39 tiered_check; codex 39 vs 40. The frozen
+falsifier "no checker-call reduction" fires. Structural reason,
+visible only in the receipts: the holistic checker runs once per CELL
+whenever any claim lacks deterministic support, so a claim-level lint
+gate cannot reduce cell-level checker calls unless it converts ENTIRE
+cells to all-verbatim — and deterministic-support rates barely moved
+(codex 14/89 → 23/88 claims; claude-p 0 → 0, again composing zero
+verbatim claims under either arm). The lint's economic benefit as
+hypothesized does not exist at this cascade position.
+
+**Safety envelope: every other prediction held.**
+- Bounce cost: 11 cells bounced (9 claude-p, 2 codex), every one
+  exactly one revision (2 submits), none abandoned — the one-bounce
+  contract held and the gate approved nothing.
+- Rendering: pass rates 0.85 vs 0.88 (codex), 0.66 vs 0.66
+  (claude-p); token-F1 unchanged. No flag-rate depression.
+- Audited pair: codex housing:163/0 verdicts identical across arms.
+  claude-p housing:163 moved partially_supported → supported —
+  consistent with the same cell's checker flip in Stage 8, i.e.
+  checker stochasticity on that cell, recorded not excused.
+- Transparency rode through: post-revision claims that still carry
+  fired receipts surface them in the receipt event (2 claims).
+
+**Flag shape: MIXED, with a discovered false-positive class.** Of the
+two accepted-after-bounce claims still carrying fired receipts, one is
+a PREMISE-CORRECTION claim ("The question's premise also conflicts
+with the passage: section 146.10 governs recall advertising sponsors,
+not muni…") — novel_content_fraction 0.69, unattested share 0.86.
+Premise corrections are novel-content BY DESIGN (they contradict the
+prompt using the source's distinctions); the lint's features cannot
+distinguish them from overreach. This is exactly a C4 ensemble case:
+a premise-correction witness (deterministic: claim negates
+prompt-asserted content while citing span content) should gate or
+down-weight the novel-content witnesses. Registered for the ensemble
+matrix, not patched ad hoc.
+
+**Instrumentation gap found: bounced claim text is not archived** —
+receipts record the surviving revision, not the original flagged
+claim, so "flags are overreach-shaped" could only be decoded for
+claims still flagged after revision. Amendment for any future lint
+arm: archive the pre-bounce claim text + rejection text in the run
+receipt (composition-side transparency has an audit-side mirror).
+
+Verdict: H7 falsified in its economic claim at this cascade position;
+the lint retains value only as (a) revision pressure with a measured
+one-bounce cost and no rendering tax, and (b) receipt transparency
+into the checker prompt. Whether that value is real is now an H18
+question (does surfacing witnesses improve first submissions?), and
+the lint features themselves fold into protocol C4's ensemble study
+with the premise-correction witness as a registered addition.
 
 ## Stage 8 — attested framing / H12 widened tier (run 2026-07-30)
 
@@ -1159,6 +1218,31 @@ standing design rule for every future arm if confirmed. Falsified by
 persistent control-cell drift under identical prompts (which would
 implicate the mechanism text itself leaking into non-case behavior).
 
+### Typed claim roles — schema-level premise distinction (registered 2026-07-30, per Eli)
+
+Stage 7 found the lint cannot distinguish a premise-correction claim
+from overreach: both are novel-content by construction. Eli's
+proposal — distinguish the supplied premise SCHEMA-side, not
+statistically — dissolves the false-positive class instead of
+calibrating around it. Design: the submission schema's claims gain an
+explicit `kind` (quotation | conclusion | premise_correction),
+making the Stage 6 contract's implicit claim types first-class. A
+premise_correction claim must carry `premise_text` that is a VERBATIM
+substring of the premise's source — the user's question, or, in
+multi-turn settings, the assistant's own prior answer (source named
+in the field) — plus evidence_ids whose spans ground the correction.
+Both requirements are deterministically checkable with typed
+rejections, exactly like the quotation tier: the premise anchor is
+substring-verifiable, the grounding is span-verifiable. The lint then
+keys its thresholds on kind — novel-content witnesses skip
+premise_correction claims because a stronger deterministic contract
+replaced them, not because they were inconvenient. Renderer gains
+honest framing from the schema ("the question assumes X; the source
+says Y") built from receipts, never parsed from prose. Joins the
+Stage 8b factored design as a schema change shared by ALL arms (it is
+contract infrastructure, not an arm contrast); its per-kind lint
+keying is a registered C4 ensemble witness.
+
 ### Candidate Hypothesis 18 — transparent witnesses beat blackbox grading
 (design frozen after Stage 7's verdict; direction registered now, per
 Eli's directive 2026-07-30)
@@ -1197,21 +1281,21 @@ after Stage 8b to grow the positive class per protocol C4.
 
 ### Model-diversity axis (added 2026-07-30, per Eli's directive)
 
-Every conclusion since Stage 6 rests on two composer families and ONE
-checker family (Claude). Two diversity extensions, both flat-rate or
-local-hardware only:
-- Composer tier/family spread: add claude-p:claude-haiku-4-5
-  (same family, small tier) and ollama:qwen3.5:9b + 2b-q4_K_M (open
-  weights, different family, tiny tiers — the Beaver product's own
-  local lane, so "the contract makes a small local model trustworthy"
-  is the product thesis stated as a hypothesis). The runner already
-  dispatches ollama:<id> through streamChatWithTools unchanged.
-  STATUS: the tailnet Ollama host (desktop-47kgka2, qwen3.5 2b/4b/9b
-  configured in backend/.env) currently answers 502 — daemon down on
-  the remote box; the qwen arms queue until it returns. Prediction to
-  freeze with the run: the contract's typed-rejection discipline holds
-  for small models (fail-closed, coverage may drop, false accepts must
-  not rise) — capability should trade coverage, never soundness.
+Every conclusion since Stage 6 rests on two composer models and ONE
+checker family (Claude). Two diversity extensions, both flat-rate:
+- Composer tier/vintage/family spread (AMENDED 2026-07-30 per Eli):
+  the codex lane serves multiple slugs concurrently — catalog per
+  `codex debug models`: gpt-5.6-sol/-terra/-luna, gpt-5.5, gpt-5.4,
+  gpt-5.4-mini — and the claude-p lane serves any Claude model.
+  Stage 8b roster: keep gpt-5.6-sol + claude-sonnet-4-6 as the
+  held-constant anchors, add gpt-5.4-mini and claude-haiku-4-5 as the
+  small-tier points (cross-family tier contrast). Prediction to
+  freeze with the run: capability trades COVERAGE, never SOUNDNESS —
+  small-tier typed refusals and non-submissions may rise; false
+  accepts must not. Ollama/qwen3.5 arms are DEFERRED (Eli,
+  2026-07-30): the models' context window is too small to be
+  informative until the planned hyper-compaction layer for Beaver RAG
+  exists; revisit then.
 - Checker-family crossing: on a Stage 8b subset, codex as checker vs
   the pinned Claude checker over identical composed answers, measuring
   verdict agreement. Controls for single-checker-family bias in every
@@ -1236,6 +1320,7 @@ committed.
 | `stage4-h4.jsonl` | `13C6859455021AFC2B6E9E94AFCF1EB76A0901386E49E26BD18C6B9343D0C69E` |
 | `stage5-h5.jsonl` | `1690AD59C6660EB11D25D19EBA242E00F522CB0DCF010278D34DD09145D6951B` |
 | `stage6-h6.jsonl` | `F79FDEB8C530281AB3DD247BA7CAF50D6FE2E5B5D0837DECEBD35B506C774615` |
+| `stage7-h7.jsonl` | `6ED54A338EA3B7AE04F3E20ACEF0D9D240FB39E120D8C641EE1D484A39E26DED` |
 | `stage8-h8.jsonl` | `2E51CB52786FB289DC78FA759FD3178B0BA6752EFC9190BAF51B7FC7C595714C` |
 
 ## Validation and final selection gate
