@@ -208,7 +208,7 @@ describe("public legal source tool integration", () => {
     expect(modelPayload.ok).toBe(true);
     expect(modelPayload).not.toHaveProperty("url");
     expect(modelPayload.evidence.handle).toMatch(
-      /^mike-provider-evidence:v1:[0-9a-f]{64}$/u,
+      /^mike-provider-evidence:v2:[0-9a-f]{64}$/u,
     );
     expect(state.documents.size).toBeGreaterThan(0);
     expect(PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT).toContain(
@@ -224,7 +224,7 @@ describe("public legal source tool integration", () => {
         input: {
           provider: "tna",
           identifier: "[2024] UKSC 1",
-          evidence_handle: `mike-provider-evidence:v1:${"0".repeat(64)}`,
+          evidence_handle: `mike-provider-evidence:v2:${"0".repeat(64)}`,
         },
       },
     ]);
@@ -235,6 +235,25 @@ describe("public legal source tool integration", () => {
       error:
         "Provider evidence is unavailable or failed integrity verification.",
     });
+    expect(result.content).not.toContain(temporaryDirectory);
+  });
+
+  it("refuses superseded v1 evidence handles with the typed recapture error", async () => {
+    const [result] = await runLocalAssistantTools("local-user", [
+      {
+        id: "v1-evidence",
+        name: PUBLIC_LEGAL_SOURCE_TOOL_NAMES.lookup,
+        input: {
+          provider: "tna",
+          identifier: "[2024] UKSC 1",
+          evidence_handle: `mike-provider-evidence:v1:${"0".repeat(64)}`,
+        },
+      },
+    ]);
+    const payload = JSON.parse(result.content);
+
+    expect(payload.ok).toBe(false);
+    expect(payload.error).toContain("superseded v1 structure schema");
     expect(result.content).not.toContain(temporaryDirectory);
   });
 

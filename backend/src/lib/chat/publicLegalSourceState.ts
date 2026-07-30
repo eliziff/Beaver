@@ -205,6 +205,20 @@ function safeDocument(
     text: document.text.slice(0, maxChars),
     truncated: document.text.length > maxChars,
     structure: summarizeLegalSourceDoc(document.structure),
+    // TNA marks every recognized citation up as <ref uk:canonical>; the
+    // provider's own list beats re-mining the text (structural-richness
+    // survey 2026-07-29, finding 3). Absent for providers without it.
+    ...(document.citedAuthorities?.length
+      ? {
+          cited_authorities: document.citedAuthorities
+            .slice(0, 60)
+            .map((ref) => ({
+              citation: ref.citation,
+              canonical: ref.canonical,
+              type: ref.type,
+            })),
+        }
+      : {}),
     attachments: document.attachments.map((attachment) => ({
       title: attachment.title,
       content_type: attachment.contentType,
@@ -417,7 +431,14 @@ export async function executePublicLegalSourceTool(
       identifier,
       error:
         evidenceHandle
-          ? "Provider evidence is unavailable or failed integrity verification."
+          ? // The superseded-schema refusal is typed, path-free, and tells
+            // the model the right recovery (re-run the lookup); every other
+            // evidence failure stays behind the generic message so local
+            // paths never leak.
+            error instanceof Error &&
+            error.message.includes("superseded v1 structure schema")
+            ? error.message
+            : "Provider evidence is unavailable or failed integrity verification."
           : error instanceof Error
           ? error.message
           : "Public legal source request failed.",
