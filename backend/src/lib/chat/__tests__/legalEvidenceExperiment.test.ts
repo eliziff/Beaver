@@ -86,7 +86,7 @@ describe("provisional legal evidence contract", () => {
       "The governing test has three elements [2024 SCC 6 at para. 12](https://www.canlii.org/en/ca/scc/doc/2024/2024scc6/2024scc6.html#par12).",
     );
     expect(legalEvidenceReceiptEvent(state)).toMatchObject({
-      schema_version: 5,
+      schema_version: 6,
       mode: "compose_check",
       status: "passed",
       verification: {
@@ -250,7 +250,7 @@ describe("provisional legal evidence contract", () => {
     );
     expect(rendered).toMatch(/#par10:~:text=[^)]+,[^)]+\)\.$/u);
     expect(legalEvidenceReceiptEvent(state)).toMatchObject({
-      schema_version: 5,
+      schema_version: 6,
       mode: "citation_structure",
       status: "passed",
       verification: {
@@ -464,7 +464,7 @@ describe("provisional legal evidence contract", () => {
       "https://www.canlii.org/en/ca/scc/doc/2024/2024scc6/2024scc6.html#par12",
     );
     expect(legalEvidenceReceiptEvent(state)).toMatchObject({
-      schema_version: 5,
+      schema_version: 6,
       status: "passed",
       verification: {
         answerability: "not_run",
@@ -991,5 +991,346 @@ describe("lint_gated soft gate (Stage 7 / H7+H13+H14)", () => {
     expect(result).toEqual({ ok: true, terminal: true });
     expect(state.lintBounced).toBe(false);
     expect(state.lintReceipts?.[0]).toEqual([]);
+  });
+});
+
+describe("Stage 8b typed claim roles and required characterization slot", () => {
+  const passage =
+    "If rent is unpaid when due, the landlord may deliver a written notice " +
+    "to terminate the lease not less than seven business days after receipt.";
+  const question =
+    "Given that Alabama requires thirty days of notice before any eviction, " +
+    "can a landlord terminate a lease for unpaid rent?";
+
+  function typedState(mode: "quote_first" | "required_slot" | "lint_gated") {
+    const state = createLegalEvidenceTurnState(mode);
+    state.premiseContext = { question, priorAnswer: null };
+    const receipt = createBenchmarkEvidence({
+      stableSourceId: "test:8b",
+      sourceText: passage,
+      spanText: passage,
+      citation: "ALA. CODE § 35-9A-421(b)",
+      dataset: "test",
+      locatorKind: "section",
+      locatorLabel: "ALA. CODE § 35-9A-421(b)",
+      jurisdiction: "US",
+      sourceClass: "legislation",
+    });
+    registerLegalEvidence(state, receipt);
+    return { state, id: receipt.evidence_id };
+  }
+
+  it("accepts a verified premise correction beyond the conclusion allowance", () => {
+    const { state, id } = typedState("quote_first");
+    expect(
+      submitLegalEvidenceAnswer(
+        {
+          claims: [
+            { text: `“${passage}”`, evidence_ids: [id], kind: "quotation" },
+            {
+              text: "Yes — after seven business days' written notice.",
+              evidence_ids: [id],
+              kind: "conclusion",
+            },
+            {
+              text:
+                "The question assumes a thirty-day notice period; the cited " +
+                "section instead sets seven business days.",
+              evidence_ids: [id],
+              kind: "premise_correction",
+              premise_source: "question",
+              premise_text: "thirty days of notice before any eviction",
+            },
+          ],
+        },
+        state,
+      ),
+    ).toEqual({ ok: true, terminal: true });
+    expect(
+      legalEvidenceReceiptEvent(state)?.claims[2],
+    ).toMatchObject({ kind: "premise_correction", premise_support: true });
+  });
+
+  it("rejects an unanchored premise_text and archives the bounce", () => {
+    const { state, id } = typedState("quote_first");
+    const result = submitLegalEvidenceAnswer(
+      {
+        claims: [
+          {
+            text: "The question assumes sixty days of notice; it does not.",
+            evidence_ids: [id],
+            kind: "premise_correction",
+            premise_source: "question",
+            premise_text: "sixty days of notice",
+          },
+        ],
+      },
+      state,
+    );
+    expect(result.ok).toBe(false);
+    expect(result.errors?.[0]).toContain("not a verbatim substring");
+    const event = legalEvidenceReceiptEvent(state);
+    expect(event?.bounces).toHaveLength(1);
+    expect(event?.bounces[0].claims[0]).toMatchObject({
+      premise_text: "sixty days of notice",
+    });
+    expect(event?.bounces[0].errors[0]).toContain("premise_correction");
+  });
+
+  it("rejects prior_answer anchoring when no prior answer exists", () => {
+    const { state, id } = typedState("quote_first");
+    const result = submitLegalEvidenceAnswer(
+      {
+        claims: [
+          {
+            text: "My earlier answer overstated the notice period.",
+            evidence_ids: [id],
+            kind: "premise_correction",
+            premise_source: "prior_answer",
+            premise_text: "thirty days of notice",
+          },
+        ],
+      },
+      state,
+    );
+    expect(result.ok).toBe(false);
+    expect(result.errors?.[0]).toContain("no prior assistant answer");
+  });
+
+  it("rejects a typed quotation that is not verbatim", () => {
+    const { state, id } = typedState("quote_first");
+    const result = submitLegalEvidenceAnswer(
+      {
+        claims: [
+          {
+            text: "Landlords may deliver written notices to end the lease.",
+            evidence_ids: [id],
+            kind: "quotation",
+          },
+        ],
+      },
+      state,
+    );
+    expect(result.ok).toBe(false);
+    expect(result.errors?.[0]).toContain('kind "quotation"');
+  });
+
+  it("requires premise fields on premise corrections and nowhere else", () => {
+    const { state, id } = typedState("quote_first");
+    expect(
+      submitLegalEvidenceAnswer(
+        {
+          claims: [
+            {
+              text: "The question rests on a mistaken premise.",
+              evidence_ids: [id],
+              kind: "premise_correction",
+            },
+          ],
+        },
+        state,
+      ).errors?.[0],
+    ).toContain("must carry premise_source and premise_text");
+    expect(
+      submitLegalEvidenceAnswer(
+        {
+          claims: [
+            {
+              text: "Yes, notice is required.",
+              evidence_ids: [id],
+              kind: "conclusion",
+              premise_text: "thirty days of notice",
+            },
+          ],
+        },
+        state,
+      ).errors?.[0],
+    ).toContain("not kind premise_correction");
+  });
+
+  describe("required_slot (H15)", () => {
+    const casePassage =
+      "The total delay from the charge to the actual or anticipated end of " +
+      "trial exceeded the presumptive ceiling and was not justified.";
+    const characterization = {
+      text:
+        "the Supreme Court has set a presumptive ceiling beyond which delay " +
+        "is presumed unreasonable unless exceptional circumstances justify it",
+      citingCitation: "2023 SCC 30",
+      citingName: "R. v. Citing Example",
+      citingCourt: "SCC",
+      citingDate: "2023-05-05",
+      spanSha256: "ignored",
+    };
+
+    function slotState(withCandidate: boolean) {
+      const state = createLegalEvidenceTurnState("required_slot");
+      state.premiseContext = { question, priorAnswer: null };
+      state.requiredCharacterizations = ["2016 SCC 27"];
+      const caseReceipt = createBenchmarkEvidence({
+        stableSourceId: "test:slot-case",
+        sourceText: casePassage,
+        spanText: casePassage,
+        citation: "R. v. Jordan, 2016 SCC 27",
+        dataset: "test",
+        locatorKind: "paragraph",
+        locatorLabel: "par1",
+        jurisdiction: "CA",
+        sourceClass: "case",
+      });
+      registerLegalEvidence(state, caseReceipt);
+      let attested = null;
+      if (withCandidate) {
+        attested = attestedCharacterizationReceipt({
+          citedCitation: "2016 SCC 27",
+          characterization,
+        });
+        registerLegalEvidence(state, attested);
+      }
+      return { state, caseId: caseReceipt.evidence_id, attested };
+    }
+
+    it("rejects an answer whose slot is unfilled, restating both paths", () => {
+      const { state, caseId } = slotState(true);
+      const result = submitLegalEvidenceAnswer(
+        {
+          claims: [
+            {
+              text: `“${casePassage}”`,
+              evidence_ids: [caseId],
+              kind: "quotation",
+            },
+            {
+              text: "The delay was unreasonable.",
+              evidence_ids: [caseId],
+              kind: "conclusion",
+            },
+          ],
+        },
+        state,
+      );
+      expect(result.ok).toBe(false);
+      expect(result.errors?.[0]).toContain("characterization slot");
+      expect(result.errors?.[0]).toContain(
+        "No attested characterization of 2016 SCC 27 is available.",
+      );
+    });
+
+    it("fills the slot with a verbatim attested quotation", () => {
+      const { state, attested } = slotState(true);
+      expect(
+        submitLegalEvidenceAnswer(
+          {
+            claims: [
+              {
+                text: `“${characterization.text}”`,
+                evidence_ids: [attested!.evidence_id],
+                kind: "quotation",
+              },
+              {
+                text: "The delay here therefore breached that ceiling.",
+                evidence_ids: [attested!.evidence_id],
+                kind: "conclusion",
+              },
+            ],
+          },
+          state,
+        ),
+      ).toEqual({ ok: true, terminal: true });
+    });
+
+    it("fills the slot with the exact typed refusal on thin profiles", () => {
+      const { state, caseId } = slotState(false);
+      expect(
+        submitLegalEvidenceAnswer(
+          {
+            claims: [
+              {
+                text: `“${casePassage}”`,
+                evidence_ids: [caseId],
+                kind: "quotation",
+              },
+              {
+                text:
+                  "No attested characterization of 2016 SCC 27 is available.",
+                evidence_ids: [caseId],
+                kind: "conclusion",
+              },
+            ],
+          },
+          state,
+        ),
+      ).toEqual({ ok: true, terminal: true });
+    });
+
+    it("never lets premise typing launder a stands-for characterization", () => {
+      const { state, caseId } = slotState(true);
+      const result = submitLegalEvidenceAnswer(
+        {
+          claims: [
+            {
+              text:
+                "The question assumes thirty days of notice; in fact Jordan " +
+                "held that a comprehensive framework governs all delay.",
+              evidence_ids: [caseId],
+              kind: "premise_correction",
+              premise_source: "question",
+              premise_text: "thirty days of notice before any eviction",
+            },
+          ],
+        },
+        state,
+      );
+      expect(result.ok).toBe(false);
+      expect(result.errors?.[0]).toContain("stands-for language");
+    });
+  });
+
+  it("exempts only verified premise corrections from the lint bounce", () => {
+    const { state, id } = typedState("lint_gated");
+    state.lintContext = {
+      question,
+      alienessIndexPath: "Z:/nonexistent/trigrams-en.sqlite",
+    };
+    const overreach =
+      "Alabama maintains a comprehensive regulatory framework broadly " +
+      "governing residential evictions, imposing systematic statewide " +
+      "oversight obligations and licensing duties across municipalities.";
+    const corrective =
+      "The premise of thirty days of notice misstates the position: the " +
+      "section instead requires landlords to provide written termination " +
+      "notice spanning seven business days following receipt of demand.";
+    expect(
+      submitLegalEvidenceAnswer(
+        {
+          claims: [
+            {
+              text: corrective,
+              evidence_ids: [id],
+              kind: "premise_correction",
+              premise_source: "question",
+              premise_text: "thirty days of notice",
+            },
+          ],
+        },
+        state,
+      ).ok,
+    ).toBe(true);
+    expect(state.lintBounced).toBe(false);
+    const bounced = typedState("lint_gated").state;
+    bounced.lintContext = state.lintContext;
+    const result = submitLegalEvidenceAnswer(
+      {
+        claims: [
+          {
+            text: overreach,
+            evidence_ids: [[...bounced.evidence.keys()][0]],
+          },
+        ],
+      },
+      bounced,
+    );
+    expect(result.ok).toBe(false);
+    expect(bounced.lintBounced).toBe(true);
   });
 });

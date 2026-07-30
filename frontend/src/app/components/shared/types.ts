@@ -326,7 +326,7 @@ export type AssistantEvent =
     }
   | Streamable<{
       type: "legal_evidence_receipt";
-      schema_version: 4 | 5;
+      schema_version: 4 | 5 | 6;
       mode:
         | "citation_structure"
         | "compose_check"
