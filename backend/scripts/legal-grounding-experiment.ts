@@ -948,7 +948,20 @@ async function main() {
   // checker. Control cells have no checker and run once.
   const checkerSpecs = listFlag("checker-models", "same");
   mkdirSync(path.dirname(output), { recursive: true });
-  writeFileSync(output, "", "utf8");
+  // --resume 1: keep the existing output file and skip cells it already
+  // holds a non-error row for; errored cells get another attempt (the
+  // file may then hold both rows — analysis dedupes keeping the last).
+  const resume = flag("resume", "0") !== "0";
+  const done = new Set<string>();
+  if (resume && existsSync(output)) {
+    for (const row of readJsonl<RunReceipt>(output))
+      if (!row.error)
+        done.add(
+          `${row.model}|${row.arm}|${row.checker_model ?? "same"}|${row.case_id}`,
+        );
+  } else {
+    writeFileSync(output, "", "utf8");
+  }
   const rows: RunReceipt[] = [];
   const cells = models.flatMap((model) =>
     arms.flatMap((arm) =>
@@ -964,8 +977,17 @@ async function main() {
       }),
     ),
   );
-  console.log(`cells: ${cells.length}`);
-  await runPool(cells, concurrency, perModel, async (cell) => {
+  const pendingCells = cells.filter(
+    (cell) =>
+      !done.has(
+        `${cell.model}|${cell.arm}|${cell.checker ?? "same"}|${cell.item.id}`,
+      ),
+  );
+  console.log(
+    `cells: ${cells.length}` +
+      (resume ? ` (${cells.length - pendingCells.length} already done)` : ""),
+  );
+  await runPool(pendingCells, concurrency, perModel, async (cell) => {
     const label =
       `${cell.model} | ${cell.arm}` +
       (cell.checker ? ` | checker=${cell.checker.split(":")[0]}` : "");
