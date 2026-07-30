@@ -1637,6 +1637,63 @@ failure. Live A/B (sonnet, 2-tool-call loop): 14.5s → 6.0s with
 prompt-cache reads engaged. OFF for all Stage 9 receipts above; a
 future stage may enable it, recorded per-run.
 
+## Stage 10 — transparent witness panel under persistent transport
+(pre-registered 2026-07-30, before implementation)
+
+Motivation: Stage 9 killed the refusal escape hatch but left a
+residual case-cell no-submission (mini 8/18, sonnet 7/14) that the
+verdict attributed to levers other than selection cost — the H18
+panel or the claude lane's transport/iteration budget. Stage 10 tests
+both at once, factored so they don't confound each other.
+
+Design: two arms on the held-constant matrix, roster sol/sonnet/mini,
+same-family checker, flat_recency, effort low: (a) `required_slot`
+exactly as Stage 9 shipped it (the H20 configuration), and (b)
+`witness_panel` = required_slot plus ONE added prompt module, injected
+on case cells only (H17 factoring — non-case cells are byte-identical
+across the two arms). Both arms run with `MIKE_CLAUDE_P_PERSIST=1` —
+first adoption of the persistent claude-p transport, recorded here.
+The within-run arm contrast is therefore transport-clean, and the
+Stage 9 → Stage 10 `required_slot` delta separately measures the
+transport fix on the claude lane.
+
+Panel contents (facts the machinery already computes, surfaced BEFORE
+composition instead of only inside rejection text): per cited case —
+profile tier, distinct citing cases in the local graph, and each
+supplied candidate's rank, date, citing court or journal, and source
+kind; followed by a one-sentence statement of the deterministic
+checks the submission will face and that a compliant first submission
+is accepted without bounces. The panel is context, NOT registered
+evidence: quoting it cannot clear the verbatim tier by construction.
+
+### Frozen Hypothesis 18 (full form) — predictions
+
+- P1 (primary): first-submission acceptance on case cells (accepted
+  with zero typed rejections) is higher on witness_panel than
+  required_slot within-run for at least two of three models, and
+  total bounce mass per submitted case cell falls.
+- P2: case-cell no-submission on witness_panel ≤ required_slot per
+  model within-run; mini (Stage 9 baseline 8/18) reaches ≤5 of its
+  case-cell denominator if the panel is the operative lever.
+- P3 (parroting falsifier): an ACCEPTED claim whose text appears in
+  the panel but not in registered evidence is impossible by
+  construction; any such acceptance falsifies the verbatim tier and
+  halts the program pending audit. Attempted parroting (verbatim-tier
+  rejections whose claim text matches panel lines) is counted;
+  if it exceeds 20% of case-cell bounce mass the panel design is
+  declared a distraction and restyled before any further use.
+- P4 (H17 control): non-case cells statistically identical across the
+  two arms within the 0–13% checker noise floor.
+- P5 (transport, secondary): sonnet transport-error cells 6 → ≤1 and
+  claude-lane median latency falls vs Stage 9 (reported).
+- Cost: the panel's input-token delta vs required_slot on case cells
+  is reported per model; flat-rate lanes must tolerate the matrix.
+
+Falsified by: P1 failing (no first-submission improvement in either
+acceptance or bounce-mass form), parroting past threshold, any new
+false accept, or control-cell drift beyond the floor. Denominators
+reported exactly over completed cells, per the Stage 9 correction.
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under
