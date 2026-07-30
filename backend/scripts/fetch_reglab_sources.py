@@ -8,23 +8,25 @@ source-anchored features (claim vs its own purported source) can run
 on expert labels:
 
   extract  eyecite over every labeled Response -> distinct case
-           citations (offline, no network).
-  resolve  CourtListener /api/rest/v4/citation-lookup/ in throttled
-           batches -> citation -> cluster id(s). eyecite is CL's own
-           parser, so extraction and resolution agree.
-  fetch    opinion text per resolved cluster (plain_text, else
-           stripped HTML), cached one file per cluster with sha256.
-  report   coverage table: citations found / resolved / fetched, and
-           per-response source coverage.
+           citations with volume/reporter/page (offline).
+  resolve  Caselaw Access Project static files (static.case.law —
+           anonymous, CDN): reporter short-name -> slug via
+           ReportersMetadata.json, then per-volume CasesMetadata.json
+           matched on first_page. (CourtListener's citation-lookup API
+           now requires an account token — probed 401 on 2026-07-30 —
+           so CAP static is the base; database citations such as
+           "U.S. Dist. LEXIS" are recorded as out-of-corpus.)
+  fetch    full casebody JSON per resolved case, cached one file per
+           CAP case id with decision date and court.
+  report   coverage: citations found / resolved / fetched, per-response
+           coverage; manifest with hashes.
 
 Cache layout (durable-receipts contract, outside git):
   %LOCALAPPDATA%/OpenLegalData/misgrounding-corpus/us_sources/
     citations.jsonl   one row per distinct citation with resolution
-    opinions/<cluster_id>.json
-    manifest.json     counts + hashes
-
-Free API, no key required; COURTLISTENER_API_TOKEN honored if set.
-Throttled to stay well inside CourtListener's documented limits.
+    volumes/<slug>-<vol>.json   cached CAP volume metadata
+    opinions/<cap_id>.json
+    manifest.json
 
     python -X utf8 scripts/fetch_reglab_sources.py all
 """
@@ -32,15 +34,14 @@ from __future__ import annotations
 
 import csv
 import hashlib
-import html
 import json
 import os
 import re
 import sys
 import time
-import urllib.parse
 import urllib.request
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from eyecite import get_citations
@@ -55,27 +56,22 @@ def local(*parts: str) -> Path:
 RAW = local("OpenLegalData", "misgrounding-corpus", "raw", "reglab_rag_dataset.csv")
 OUT_DIR = local("OpenLegalData", "misgrounding-corpus", "us_sources")
 CITATIONS = OUT_DIR / "citations.jsonl"
+VOLUMES = OUT_DIR / "volumes"
 OPINIONS = OUT_DIR / "opinions"
 MANIFEST = OUT_DIR / "manifest.json"
 
-API = "https://www.courtlistener.com/api/rest/v4"
-LOOKUP_BATCH = 40          # citations per lookup POST
-LOOKUP_PAUSE = 65.0        # seconds between lookup batches (limit: 60/min)
-FETCH_PAUSE = 1.2          # seconds between opinion fetches
+CAP = "https://static.case.law"
+WORKERS = 8
 LABELS = {"Grounded", "Ungrounded", "Misgrounded"}
 
 csv.field_size_limit(10_000_000)
 
 
-def request(url: str, data: bytes | None = None) -> dict | list:
-    headers = {"User-Agent": "beaver-research/1.0 (grounding validation)"}
-    token = os.environ.get("COURTLISTENER_API_TOKEN")
-    if token:
-        headers["Authorization"] = f"Token {token}"
-    if data is not None:
-        headers["Content-Type"] = "application/x-www-form-urlencoded"
-    req = urllib.request.Request(url, data=data, headers=headers)
-    with urllib.request.urlopen(req, timeout=120) as resp:
+def get_json(url: str):
+    req = urllib.request.Request(
+        url, headers={"User-Agent": "beaver-research/1.0 (grounding validation)"}
+    )
+    with urllib.request.urlopen(req, timeout=60) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
 
@@ -104,9 +100,9 @@ def extract() -> dict[str, dict]:
                 key,
                 {
                     "citation": key,
-                    "matched_text": cite.matched_text(),
-                    "case_name": (cite.metadata.plaintiff or "")
-                    + (" v. " + cite.metadata.defendant if cite.metadata.defendant else ""),
+                    "volume": cite.groups.get("volume"),
+                    "reporter": cite.corrected_reporter(),
+                    "page": cite.groups.get("page"),
                     "year": cite.metadata.year,
                     "question_ids": [],
                 },
@@ -123,101 +119,124 @@ def extract() -> dict[str, dict]:
     return distinct
 
 
+def slugify(reporter: str) -> str:
+    return re.sub(r"-+", "-", re.sub(r"[^a-z0-9]+", "-", reporter.lower())).strip("-")
+
+
+def reporter_slugs() -> dict[str, str]:
+    cache = OUT_DIR / "reporters_metadata.json"
+    if cache.exists():
+        reporters = json.loads(cache.read_text(encoding="utf-8"))
+    else:
+        reporters = get_json(f"{CAP}/ReportersMetadata.json")
+        cache.write_text(json.dumps(reporters), encoding="utf-8")
+    return {r["short_name"]: r["slug"] for r in reporters if r.get("short_name")}
+
+
+def volume_metadata(slug: str, volume: str):
+    VOLUMES.mkdir(parents=True, exist_ok=True)
+    cache = VOLUMES / f"{slug}-{volume}.json"
+    if cache.exists():
+        data = json.loads(cache.read_text(encoding="utf-8"))
+        return None if data == "missing" else data
+    try:
+        data = get_json(f"{CAP}/{slug}/{volume}/CasesMetadata.json")
+    except Exception:  # noqa: BLE001 — volume absent from CAP
+        cache.write_text('"missing"', encoding="utf-8")
+        return None
+    cache.write_text(json.dumps(data), encoding="utf-8")
+    return data
+
+
 def resolve(distinct: dict[str, dict]) -> None:
-    """citation-lookup in batches; annotates entries with clusters."""
-    done: dict[str, dict] = {}
+    done: set[str] = set()
     if CITATIONS.exists():
         for line in open(CITATIONS, encoding="utf-8"):
-            row = json.loads(line)
-            done[row["citation"]] = row
-    pending = [key for key in distinct if key not in done]
-    print(f"resolve: {len(done)} cached, {len(pending)} to look up")
-    for start in range(0, len(pending), LOOKUP_BATCH):
-        batch = pending[start : start + LOOKUP_BATCH]
-        text = "\n".join(batch)
-        payload = urllib.parse.urlencode({"text": text}).encode("utf-8")
-        try:
-            results = request(f"{API}/citation-lookup/", payload)
-        except Exception as exc:  # noqa: BLE001 — record and continue
-            print(f"[lookup error] batch at {start}: {exc}", file=sys.stderr)
-            time.sleep(LOOKUP_PAUSE)
-            continue
-        matched: dict[str, list] = {}
-        for item in results:
-            for key in item.get("normalized_citations") or [item.get("citation")]:
-                matched.setdefault(item["citation"], []).extend(
-                    {
-                        "cluster_id": c["id"],
-                        "case_name": c.get("case_name"),
-                        "court": (c.get("docket") or {}).get("court_id")
-                        if isinstance(c.get("docket"), dict)
-                        else None,
-                        "date_filed": c.get("date_filed"),
-                    }
-                    for c in item.get("clusters") or []
-                )
-        with open(CITATIONS, "a", encoding="utf-8") as out:
-            for key in batch:
-                # citation-lookup echoes the input line as `citation`
-                clusters = matched.get(key, [])
-                row = dict(distinct[key])
-                row["clusters"] = clusters
-                row["resolved"] = bool(clusters)
-                out.write(json.dumps(row, ensure_ascii=False) + "\n")
-        print(
-            f"resolve: batch {start // LOOKUP_BATCH + 1} "
-            f"({start + len(batch)}/{len(pending)}) done"
-        )
-        if start + LOOKUP_BATCH < len(pending):
-            time.sleep(LOOKUP_PAUSE)
+            done.add(json.loads(line)["citation"])
+    slugs = reporter_slugs()
+    pending = [distinct[key] for key in distinct if key not in done]
+    print(f"resolve: {len(done)} cached, {len(pending)} to resolve")
 
+    def resolve_one(entry: dict) -> dict:
+        row = dict(entry)
+        slug = slugs.get(row["reporter"]) or slugify(row["reporter"] or "")
+        row["cap_slug"] = slug
+        row["cases"] = []
+        if not (slug and row["volume"] and row["page"]):
+            row["resolved"] = False
+            return row
+        cases = volume_metadata(slug, row["volume"])
+        if cases:
+            for case in cases:
+                if str(case.get("first_page")) == str(row["page"]):
+                    row["cases"].append(
+                        {
+                            "cap_id": case["id"],
+                            "file_name": case["file_name"],
+                            "name": case.get("name_abbreviation"),
+                            "decision_date": case.get("decision_date"),
+                            "court": (case.get("court") or {}).get("name"),
+                        }
+                    )
+        row["resolved"] = bool(row["cases"])
+        return row
 
-TAG = re.compile(r"<[^>]+>")
+    with ThreadPoolExecutor(max_workers=WORKERS) as pool:
+        results = list(pool.map(resolve_one, pending))
+    with open(CITATIONS, "a", encoding="utf-8") as out:
+        for row in results:
+            out.write(json.dumps(row, ensure_ascii=False) + "\n")
+    resolved = sum(1 for r in results if r["resolved"])
+    print(f"resolve: {resolved}/{len(results)} newly resolved via CAP static")
 
 
 def fetch() -> None:
     OPINIONS.mkdir(parents=True, exist_ok=True)
-    wanted: set[int] = set()
+    wanted: dict[int, tuple[str, str, str]] = {}
     for line in open(CITATIONS, encoding="utf-8"):
         row = json.loads(line)
-        for cluster in row.get("clusters") or []:
-            wanted.add(cluster["cluster_id"])
-    have = {int(p.stem) for p in OPINIONS.glob("*.json")}
-    pending = sorted(wanted - have)
-    print(f"fetch: {len(have)} cached, {len(pending)} opinions to fetch")
-    for index, cluster_id in enumerate(pending):
-        try:
-            data = request(f"{API}/opinions/?cluster__id={cluster_id}")
-        except Exception as exc:  # noqa: BLE001
-            print(f"[fetch error] cluster {cluster_id}: {exc}", file=sys.stderr)
-            time.sleep(FETCH_PAUSE)
-            continue
-        texts = []
-        for opinion in data.get("results", []):
-            text = opinion.get("plain_text") or ""
-            if not text.strip():
-                markup = (
-                    opinion.get("html_with_citations")
-                    or opinion.get("html")
-                    or opinion.get("xml_harvard")
-                    or ""
-                )
-                text = html.unescape(TAG.sub(" ", markup))
-            texts.append(
-                {
-                    "opinion_id": opinion.get("id"),
-                    "type": opinion.get("type"),
-                    "text": re.sub(r"[ \t]+", " ", text).strip(),
-                }
+        for case in row.get("cases") or []:
+            wanted[case["cap_id"]] = (
+                row["cap_slug"],
+                row["volume"],
+                case["file_name"],
             )
+    have = {int(p.stem) for p in OPINIONS.glob("*.json")}
+    pending = [(cid, *meta) for cid, meta in wanted.items() if cid not in have]
+    print(f"fetch: {len(have)} cached, {len(pending)} casebodies to fetch")
+
+    def fetch_one(item: tuple) -> bool:
+        cap_id, slug, volume, file_name = item
+        try:
+            case = get_json(f"{CAP}/{slug}/{volume}/cases/{file_name}.json")
+        except Exception as exc:  # noqa: BLE001
+            print(f"[fetch error] {slug}/{volume}/{file_name}: {exc}", file=sys.stderr)
+            return False
+        opinions = [
+            {
+                "type": op.get("type"),
+                "author": op.get("author"),
+                "text": op.get("text") or "",
+            }
+            for op in (case.get("casebody") or {}).get("opinions") or []
+        ]
         blob = json.dumps(
-            {"cluster_id": cluster_id, "opinions": texts}, ensure_ascii=False
+            {
+                "cap_id": cap_id,
+                "name": case.get("name_abbreviation"),
+                "decision_date": case.get("decision_date"),
+                "court": (case.get("court") or {}).get("name"),
+                "opinions": opinions,
+            },
+            ensure_ascii=False,
         )
-        path = OPINIONS / f"{cluster_id}.json"
-        path.write_text(blob, encoding="utf-8")
-        if (index + 1) % 25 == 0:
-            print(f"fetch: {index + 1}/{len(pending)}")
-        time.sleep(FETCH_PAUSE)
+        (OPINIONS / f"{cap_id}.json").write_text(blob, encoding="utf-8")
+        time.sleep(0.1)
+        return True
+
+    with ThreadPoolExecutor(max_workers=WORKERS) as pool:
+        results = list(pool.map(fetch_one, pending))
+    print(f"fetch: {sum(results)}/{len(pending)} fetched")
 
 
 def report() -> None:
@@ -229,38 +248,43 @@ def report() -> None:
         data = json.loads(path.read_text(encoding="utf-8"))
         if any(op["text"] for op in data["opinions"]):
             nonempty += 1
+    database_cites = sum(
+        1 for r in rows if "LEXIS" in r["citation"] or " WL " in r["citation"]
+    )
     coverage = Counter()
     for row in rows:
         state = (
             "fetched"
-            if any(c["cluster_id"] in fetched for c in row.get("clusters") or [])
+            if any(c["cap_id"] in fetched for c in row.get("cases") or [])
             else "resolved"
             if row.get("resolved")
             else "unresolved"
         )
-        for question_id in row["question_ids"]:
-            coverage[(question_id, state)] += 1
-    question_ids = {q for q, _ in coverage}
+        for response_key in row["question_ids"]:
+            coverage[(response_key, state)] += 1
+    response_keys = {q for q, _ in coverage}
     full = sum(
         1
-        for q in question_ids
+        for q in response_keys
         if coverage[(q, "unresolved")] == 0 and coverage[(q, "resolved")] == 0
     )
     print(
         f"report: {len(rows)} distinct citations, {len(resolved)} resolved "
-        f"({len(resolved) / max(1, len(rows)):.0%}), {len(fetched)} clusters fetched "
-        f"({nonempty} with text)"
+        f"({len(resolved) / max(1, len(rows)):.0%}), {len(fetched)} casebodies "
+        f"({nonempty} with text), {database_cites} database cites (LEXIS/WL, "
+        f"out of CAP corpus by construction)"
     )
     print(
-        f"report: {len(question_ids)} responses with citations, "
-        f"{full} fully covered ({full / max(1, len(question_ids)):.0%})"
+        f"report: {len(response_keys)} responses with citations, "
+        f"{full} fully covered ({full / max(1, len(response_keys)):.0%})"
     )
     manifest = {
         "distinct_citations": len(rows),
         "resolved": len(resolved),
-        "clusters_fetched": len(fetched),
-        "clusters_with_text": nonempty,
-        "responses_with_citations": len(question_ids),
+        "casebodies_fetched": len(fetched),
+        "casebodies_with_text": nonempty,
+        "database_citations": database_cites,
+        "responses_with_citations": len(response_keys),
         "responses_fully_covered": full,
         "citations_sha256": hashlib.sha256(CITATIONS.read_bytes()).hexdigest(),
     }
