@@ -44,20 +44,40 @@ def main() -> int:
     parser.add_argument("--per-court", type=int, default=200)
     parser.add_argument("--per-set", type=int, default=100)
     parser.add_argument("--language", choices=["en", "fr"], default="en")
+    parser.add_argument(
+        "--stream", choices=["gpt2", "chars"], default="gpt2",
+        help="gpt2: BPE token stream (LM-convention counts). chars: "
+        "character-code stream — the QUIP-canonical attestation signal, "
+        "no tokenizer dependency, no BPE boundary artifacts.",
+    )
     parser.add_argument("--seed", type=int, default=47)
     parser.add_argument("--corpus-root", default=str(default_corpus_root()))
     parser.add_argument("--output-dir", default=str(default_output_dir()))
     args = parser.parse_args()
 
-    tokenizer = AutoTokenizer.from_pretrained("gpt2")
-    assert tokenizer.vocab_size <= 0xFFFF, "u16 vocab required"
+    if args.stream == "gpt2":
+        tokenizer = AutoTokenizer.from_pretrained("gpt2")
+        assert tokenizer.vocab_size <= 0xFFFF, "u16 vocab required"
+        separator = tokenizer.eos_token_id
+
+        def encode(text: str) -> list[int]:
+            return tokenizer(text, add_special_tokens=False)["input_ids"]
+    else:
+        # Character codes as u16 "tokens": BMP codepoints pass through,
+        # anything above maps to 0xFFFE; 0xFFFF is the document
+        # separator (a noncharacter, never in text).
+        separator = 0xFFFF
+
+        def encode(text: str) -> list[int]:
+            return [min(ord(ch), 0xFFFE) for ch in text]
 
     root = Path(args.corpus_root)
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    bin_path = out_dir / f"tokengrams-{args.language}.bin"
-    idx_path = out_dir / f"tokengrams-{args.language}.idx"
-    meta_path = out_dir / f"tokengrams-{args.language}.meta.json"
+    suffix = "" if args.stream == "gpt2" else f"-{args.stream}"
+    bin_path = out_dir / f"tokengrams-{args.language}{suffix}.bin"
+    idx_path = out_dir / f"tokengrams-{args.language}{suffix}.idx"
+    meta_path = out_dir / f"tokengrams-{args.language}{suffix}.meta.json"
 
     con = duckdb.connect()
     con.execute("set threads=2")
@@ -84,10 +104,10 @@ def main() -> int:
                 return
             taken = 0
             for (text,) in rows:
-                ids = tokenizer(text, add_special_tokens=False)["input_ids"]
+                ids = encode(text)
                 np.asarray(ids, dtype=np.uint16).tofile(out)
-                # EOS separates documents so n-grams never span them.
-                np.asarray([tokenizer.eos_token_id], dtype=np.uint16).tofile(out)
+                # Separator token keeps n-grams from spanning documents.
+                np.asarray([separator], dtype=np.uint16).tofile(out)
                 docs += 1
                 taken += 1
                 chars += len(text)
@@ -108,7 +128,8 @@ def main() -> int:
             {
                 "schema_version": SCHEMA_VERSION,
                 "engine": "tokengrams",
-                "tokenizer": "gpt2",
+                "stream": args.stream,
+                "tokenizer": "gpt2" if args.stream == "gpt2" else None,
                 "language": args.language,
                 "seed": args.seed,
                 "per_court": args.per_court,
