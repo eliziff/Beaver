@@ -354,6 +354,21 @@ const FLAT_SECTION_RE = new RegExp(
   String.raw`^[ \t]*(\d{1,8}(?:[.-]\d{1,8}){0,3})(?=[ \t]+(?:\(?\d|\p{L})|[ \t]*\()`,
   "gmu",
 );
+// Second-chance grammar, tried only when FLAT_SECTION_RE yields no spine:
+// the optional trailing dot ("1. There is established...", "2.(1) In this
+// section") is the NT/PE drafting convention, the optional markdown
+// heading prefix is NB's rules of court ("### 61.01 Enforcement of
+// Orders"). Both measured on the full fixed sets in the Python reference
+// (structure_ref.py SECTION_MARK_RE_EXT, commit 6ae6d330): NT/PE recovery
+// 0.03-0.11 -> 0.985+. It must never compete with the plain grammar:
+// Ontario writes enumerated paragraphs INSIDE sections in the same
+// "1. Grassed waterways." shape, and letting those restart-ladders into
+// the scope competition corrupts spines the plain grammar already gets
+// right (a2aj-regs-on-oreg267-03 lost 6 of 64 sections in the first cut).
+const FLAT_SECTION_EXT_RE = new RegExp(
+  String.raw`^(?:#{1,6}[ \t]+)?[ \t]*(\d{1,8}(?:[.-]\d{1,8}){0,3})\.?(?=[ \t]+(?:\(?\d|\p{L})|[ \t]*\()`,
+  "gmu",
+);
 const PARAGRAPH_MARK_RE =
   /^[ \t]*(?:\[(\d{1,4})\]|(\d{1,4})\.(?=\s)|(\d{1,4})(?=\s))/gmu;
 const PAGE_MARK_RE =
@@ -445,23 +460,48 @@ function paragraphBlocks(text: string, minRun = 5): SourceDocBlock[] {
   const hypotheses: Array<{
     style: ParagraphMarker["style"];
     markers: NumberedMarker[];
+    shortComplete: boolean;
   }> = [];
   for (const style of ["bracket", "dot", "bare"] as const) {
     for (const scope of monotoneScopes(
       markers.filter((marker) => marker.style === style),
     )) {
-      if (scope.length >= minRun) hypotheses.push({ style, markers: scope });
+      if (scope.length >= minRun) {
+        hypotheses.push({ style, markers: scope, shortComplete: false });
+      } else if (
+        style === "bracket" &&
+        scope.length >= 2 &&
+        scope.every((marker, index) => marker.number === index + 1)
+      ) {
+        // Complete short [1]..[N] ladders are real structure in short
+        // orders / oral reasons / costs rulings — the full-sweep
+        // none-queue inspection found 17/29 sampled "no structure" docs
+        // were exactly this shape, killed by minRun. Contiguity from 1
+        // excludes quoted-fragment ladders and bracketed years ([1999]
+        // parses as 1999).
+        hypotheses.push({ style, markers: scope, shortComplete: true });
+      }
     }
   }
   if (!hypotheses.length) return [];
   const rank = { bracket: 2, dot: 1, bare: 0 };
-  const primary = hypotheses.filter((item) => item.markers[0].number <= 5);
-  const ordered = [...(primary.length ? primary : hypotheses)].sort(
-    (left, right) =>
-      right.markers.length - left.markers.length ||
-      rank[right.style] - rank[left.style] ||
-      left.markers[0].number - right.markers[0].number,
-  );
+  // Short-complete hypotheses are a last resort: they must never enter
+  // the primary/fallback decision for full scopes (a tail [1]..[4] list
+  // in a big doc would otherwise shadow the real ladder).
+  const full = hypotheses.filter((item) => !item.shortComplete);
+  const short = hypotheses.filter((item) => item.shortComplete);
+  const primary = full.filter((item) => item.markers[0].number <= 5);
+  const byStrength = (
+    left: (typeof hypotheses)[number],
+    right: (typeof hypotheses)[number],
+  ) =>
+    right.markers.length - left.markers.length ||
+    rank[right.style] - rank[left.style] ||
+    left.markers[0].number - right.markers[0].number;
+  const ordered = [
+    ...[...(primary.length ? primary : full)].sort(byStrength),
+    ...[...short].sort(byStrength),
+  ];
   for (const hypothesis of ordered) {
     const allOffsets = markers
       .filter((marker) => marker.style === hypothesis.style)
@@ -483,15 +523,43 @@ function paragraphBlocks(text: string, minRun = 5): SourceDocBlock[] {
       (blocks.at(-1)!.start - blocks[0].start) / Math.max(text.length, 1);
     const startRatio = blocks[0].start / Math.max(text.length, 1);
     const bounded = blocks.length > 1 ? blocks.slice(0, -1) : blocks;
-    const medianWords = median(
-      bounded.map((block) => wordCount(text.slice(block.start, block.end))),
+    const counts = bounded.map((block) =>
+      wordCount(text.slice(block.start, block.end)),
     );
+    const medianWords = median(counts);
+    // Substance = median prose, or mean pulled up by real reasons
+    // (concurrence tails sink the median: "ROWLES, J.A.: I agree."), or
+    // at least one full prose paragraph (max) — quoted lists and endnote
+    // ladders are uniformly tiny on all three.
     const substantive =
+      medianWords >= 12 ||
+      counts.reduce((sum, value) => sum + value, 0) / counts.length >= 20 ||
+      Math.max(...counts) >= 30;
+    if (hypothesis.shortComplete) {
+      // The ladder IS the document. Case headers are bounded absolutely
+      // (~500-900 chars) OR relatively (half the doc) — sub-1.5KB oral
+      // rulings fail the ratio while 2-4KB costs rulings fail the
+      // absolute, so accept either; a tail fragment in a 22KB doc fails
+      // both plus the size cap.
+      if (
+        text.length <= 6000 &&
+        (blocks[0].start <= 1200 || startRatio <= 0.5) &&
+        Math.max(
+          ...blocks.map((block) =>
+            wordCount(text.slice(block.start, block.end)),
+          ),
+        ) >= 30
+      ) {
+        return blocks;
+      }
+      continue;
+    }
+    const substantiveRatio =
       blocks.filter(
         (block) => wordCount(text.slice(block.start, block.end)) >= 12,
       ).length / blocks.length;
-    if (medianWords < 12 || markerSpan < 0.05) continue;
-    if (hypothesis.style !== "bracket" && substantive < 0.7) continue;
+    if (!substantive || markerSpan < 0.05) continue;
+    if (hypothesis.style !== "bracket" && substantiveRatio < 0.7) continue;
     if (
       hypothesis.style === "bare" &&
       (medianWords < 20 || markerSpan < 0.15 || startRatio > 0.7)
@@ -593,9 +661,9 @@ function pageBlocks(
   return blocks;
 }
 
-function sectionMarkers(text: string) {
+function sectionMarkers(text: string, grammar: RegExp) {
   const markers: SectionMarker[] = [];
-  for (const match of text.matchAll(FLAT_SECTION_RE)) {
+  for (const match of text.matchAll(grammar)) {
     const label = match[1];
     markers.push({
       label,
@@ -614,7 +682,18 @@ function sectionMarkers(text: string) {
 }
 
 function sectionSpine(text: string, allowHyphen: boolean) {
-  const markers = sectionMarkers(text);
+  for (const grammar of [FLAT_SECTION_RE, FLAT_SECTION_EXT_RE]) {
+    const spine = spineFromMarkers(sectionMarkers(text, grammar), text, allowHyphen);
+    if (spine.length) return spine;
+  }
+  return [];
+}
+
+function spineFromMarkers(
+  markers: SectionMarker[],
+  text: string,
+  allowHyphen: boolean,
+) {
   if (markers.length < 3) return [];
   const scopesFor = (
     styles: Set<SectionMarker["style"]>,
@@ -718,8 +797,10 @@ function flatSectionBlocks(text: string, name: string | null | undefined) {
     // "3 (1) An occupier ..." keeps the first subsection on the number's own
     // line, where the line-anchored scan cannot see it; the block it opens
     // starts at the section number, as the flat spine has always placed it.
+    // The optional dot mirrors FLAT_SECTION_RE's dot-form acceptance:
+    // "2.(1) In this section" keeps its first subsection too.
     const leading = new RegExp(
-      String.raw`^[ \t]*${marker.label.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}[ \t]*\((${CHILD_TOKEN})\)(?=\s)`,
+      String.raw`^[ \t]*${marker.label.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}\.?[ \t]*\((${CHILD_TOKEN})\)(?=\s)`,
       "u",
     ).exec(body);
     if (leading) children.unshift({ token: leading[1], start: 0 });
