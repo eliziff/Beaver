@@ -1760,7 +1760,60 @@ nothing the slot contract doesn't already extract. The residual
 no-sub on mini and the claude lane's content-shaped transport errors
 are separate problems, and neither is information asymmetry.
 
-## Durable receipts
+## Roster amendment (Eli directive, 2026-07-30)
+
+"Stop testing models below the luna tier; luna medium as our
+baseline." Against the live codex catalog (priority order: gpt-5.6-sol
+> gpt-5.6-terra > gpt-5.6-luna > gpt-5.5 > gpt-5.4 > gpt-5.4-mini >
+gpt-5.3-codex-spark): **gpt-5.4-mini is retired** from composition
+rosters (its Stage 8b–10 lanes stay in the record as measured);
+**codex:gpt-5.6-luna at effort medium is the baseline** going
+forward; sol (above the luna tier) is retained where a frontier-lane
+contrast is wanted. Interpretation note recorded: claude-sonnet-4-6
+is cross-family and has no defined position in the codex tier order;
+it is retained as the claude-family lane pending direction, since
+family diversity is load-bearing for the harness-vs-model question.
+
+## H19 three-way on the banked lanes (zero-cost analysis, 2026-07-30)
+
+The 22 postponed cells (sol, attested_framing, 11 case cells x
+authority/banded_recency, effort low) compare directly against the
+same 11 cells' flat_recency rows from the Stage 9 live run —
+same model, arm, effort, checker. Result: **no policy effect
+detectable.** pass 11/10/11, no-sub 0/0/0, bounces 1/0/0, attested
+fills 6/5/5 (authority/banded/flat). Every difference is one cell
+(9%), inside the 0–13% checker noise floor, per the H19 gate.
+Caveats: sol only, and attested_framing is the arm where candidate
+selection binds least (no required slot) — H19 stays open for the
+slot contract, which Stage 11 carries on the new baseline.
+
+## Stage 11 — luna-medium baseline + H19 under the slot contract
+(pre-registered 2026-07-30, before the run)
+
+Design: codex:gpt-5.6-luna, effort medium (the new baseline — note
+this changes model AND effort vs prior stages; cross-stage deltas are
+labeled baseline shifts, not controlled contrasts). Held-constant
+41-item matrix, arm `required_slot` (the shipped H20 configuration),
+same-model checker, timeout 180s. Rank policies
+authority/banded_recency/flat_recency vary the 18 case cells (54
+policy cells); the 23 non-case cells run once (policy is a no-op
+there). 77 cells total. The within-run policy contrast is clean:
+one model, one effort, one transport.
+
+Frozen predictions:
+- P1 (H19 under the slot): if candidate ordering matters where the
+  slot binds, at least one outcome (slot uptake, no-sub,
+  refusal-despite-candidates, pass) separates policies beyond the
+  13% floor (>2 of 18 cells). Exploratory on direction per the H19
+  registration — no policy is predicted to win.
+- P2 (baseline): luna-medium case-cell no-sub <= sol-low's 2/18;
+  zero widened-tier false passes; refusal-despite-candidates counted
+  under the Stage 10 amendment (behavioral recurrence expected rare,
+  not gate-blocked).
+- P3 (cost): latency and token deltas vs sol-low reported; effort
+  medium must tolerate the flat-rate lane.
+Falsified by: any widened-tier false pass; a policy changing the
+candidate SET rather than only order (audited from receipts).
 
 The experiment JSONL receipts are outside git under
 `%LOCALAPPDATA%\OpenLegalData\experiments\legal-grounding\2026-07-30`.
