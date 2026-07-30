@@ -457,22 +457,7 @@ function citationRate(
 ) {
   if (!state.answer?.length) return null;
   const cited = state.answer.filter((claim) =>
-    claim.evidence_ids.some((id) => {
-      const citation = state.evidence.get(id)?.receipt.citation;
-      if (!citation) return false;
-      const short = citation.replace(
-        /,\s*(?:para(?:graph)?|s(?:ection)?)s?\.?\s*\d.*$/iu,
-        "",
-      );
-      const text = claim.text
-        .replace(/[*_`]/gu, "")
-        .toLocaleLowerCase("en-US");
-      return [citation, short].some(
-        (form) =>
-          form.length >= 5 &&
-          text.includes(form.toLocaleLowerCase("en-US")),
-      );
-    }),
+    claim.evidence_ids.every((id) => state.evidence.has(id)),
   ).length;
   return cited / state.answer.length;
 }
@@ -511,11 +496,13 @@ async function runCase(
       enableThinking: false,
       systemPrompt:
         arm === "evidence_first"
-          ? "Answer only from the supplied exact passages. Before composing, call plan_grounded_evidence to decide whether those passages are sufficient. If insufficient, commit no evidence IDs and stop. If sufficient, commit the minimal evidence IDs, correct conflicting premises, cite authority inline, and finish through submit_grounded_answer without a prose copy."
-          : arm === "tiered_check"
-            ? "Answer only from the supplied exact passages. Correct any premise that conflicts with them. Where a passage's exact words answer the question, make that claim a verbatim quotation of the passage with the citation in a trailing parenthetical; paraphrase only where quotation cannot answer, and cite authority inline there too. Finish through the available grounded-answer tool; do not emit a prose copy."
+          ? "Answer only from the supplied exact passages. Before composing, call plan_grounded_evidence to decide whether those passages are sufficient. If insufficient, commit no evidence IDs and stop. If sufficient, commit the minimal evidence IDs, correct conflicting premises, and finish through submit_grounded_answer without a prose copy or citation text; Beaver places citations from the evidence receipts."
+          : arm === "quote_first"
+            ? "Answer only from the supplied exact passages, as two kinds of claims. Quotation claims: the passage's words copied EXACTLY — no edits, no elisions, no framing around them. At most ONE conclusion claim: the direct answer to the question, stating only what the quoted text establishes; never characterize the law beyond the quoted words (never assert a statute 'regulates', 'has a framework', or 'governs' unless those words are quoted). If the passages cannot support a direct answer, say exactly that in the conclusion claim. The submission tool rejects answers with more than one non-verbatim claim; requote and resubmit if rejected. Finish through the grounded-answer tool without a prose copy or citation text; Beaver places citations from the evidence receipts."
+            : arm === "tiered_check"
+            ? "Answer only from the supplied exact passages. Correct any premise that conflicts with them. Where a passage's exact words answer the question, make that claim a verbatim quotation; paraphrase only where quotation cannot answer. Finish through the available grounded-answer tool without a prose copy or citation text; Beaver places citations from the evidence receipts."
             : structured
-              ? "Answer only from the supplied exact passages. Correct any premise that conflicts with them. Put authority citations inline. Finish through the available grounded-answer tool; do not emit a prose copy."
+              ? "Answer only from the supplied exact passages. Correct any premise that conflicts with them. Finish through the available grounded-answer tool without a prose copy or citation text; Beaver places citations from the evidence receipts."
               : "Answer only from the supplied exact passages. Correct any premise that conflicts with them. Put authority citations inline.",
       messages: [
         {
@@ -527,7 +514,12 @@ async function runCase(
         },
       ],
       tools: structured ? legalEvidenceExperimentTools(arm) : [],
-      maxIterations: arm === "evidence_first" ? 3 : structured ? 2 : 1,
+      maxIterations:
+        arm === "evidence_first" || arm === "quote_first"
+          ? 3
+          : structured
+            ? 2
+            : 1,
       abortSignal,
       callbacks: {
         onToolCallStart: (call) => primaryToolCalls.push(call.name),

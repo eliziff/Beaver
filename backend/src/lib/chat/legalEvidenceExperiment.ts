@@ -6,7 +6,11 @@ import {
   type A2AJDocument,
   type A2AJLocatorLookup,
 } from "../a2aj";
-import { addA2AJInlineLinks } from "../legalSourceLinks";
+import {
+  buildA2AJParagraphRangeUrl,
+  buildA2AJPinpointUrl,
+  formatLegalLocator,
+} from "../legalSourceLinks";
 import {
   streamChatWithTools,
   type NormalizedLlmUsage,
@@ -26,19 +30,22 @@ export const LEGAL_EVIDENCE_EXPERIMENT_MODES = [
   "evidence_first",
   "holistic_check",
   "tiered_check",
+  "quote_first",
 ] as const;
 
 export type LegalEvidenceExperimentMode =
   (typeof LEGAL_EVIDENCE_EXPERIMENT_MODES)[number];
+export type LegalEvidenceMode =
+  | "citation_structure"
+  | LegalEvidenceExperimentMode;
 
 /**
  * PROVISIONAL, NOT PRODUCTION-VALIDATED EXPERIMENT.
  *
- * The experiment verifies source identity, exact passage ownership, output
- * shape, and a separate model's claim/passage support decision. It does not
- * establish authority, treatment, or current-law status. It is off unless one
- * exact mode is selected; there is deliberately no compatibility alias for the
- * former boolean flag.
+ * Exact receipt-backed citation placement is the production baseline. The
+ * optional modes add experimental model checks for claim/passage support; they
+ * do not establish authority, treatment, or current-law status. There is
+ * deliberately no compatibility alias for the former boolean flag.
  */
 export function legalEvidenceExperimentMode():
   | LegalEvidenceExperimentMode
@@ -49,10 +56,6 @@ export function legalEvidenceExperimentMode():
   )
     ? (value as LegalEvidenceExperimentMode)
     : null;
-}
-
-export function legalEvidenceExperimentEnabled() {
-  return legalEvidenceExperimentMode() !== null;
 }
 
 export type LegalSourceClass = "case" | "legislation";
@@ -99,7 +102,7 @@ export type LegalClaimVerification = {
 };
 
 export type LegalEvidenceTurnState = {
-  mode: LegalEvidenceExperimentMode | null;
+  mode: LegalEvidenceMode | null;
   evidence: Map<string, RegisteredEvidence>;
   answerability: "sufficient" | "insufficient" | null;
   plannedEvidenceIds: Set<string> | null;
@@ -124,7 +127,7 @@ export type LegalEvidenceTurnState = {
 };
 
 export function createLegalEvidenceTurnState(
-  mode = legalEvidenceExperimentMode(),
+  mode: LegalEvidenceMode | null = legalEvidenceExperimentMode(),
 ): LegalEvidenceTurnState {
   return {
     mode,
@@ -276,6 +279,7 @@ export function registerLegalEvidence(
   } = {},
 ) {
   if (!receipt) return;
+  state.mode ??= "citation_structure";
   state.evidence.set(receipt.evidence_id, { receipt, ...source });
 }
 
@@ -421,6 +425,24 @@ export function submitLegalEvidenceAnswer(
       state,
       `claims[${index}]`,
     );
+    const normalizedClaim = normalizeWhitespace(claim.text).toLowerCase();
+    const inlineCitations = claim.evidence_ids.flatMap((id) => {
+      const citation = state.evidence.get(id)?.receipt.citation;
+      return citation &&
+        normalizedClaim.includes(normalizeWhitespace(citation).toLowerCase())
+        ? [citation]
+        : [];
+    });
+    if (
+      inlineCitations.length ||
+      /\b(?:at\s+)?(?:(?:paras?|paragraphs?|pages?|sections?)\.?|pp?\.?|ss?\.?)\s*\d[\dA-Za-z().-]*(?:\s*[-\u2013\u2014]\s*\d[\dA-Za-z().-]*)?[.!)]*$/iu.test(
+        claim.text.trim(),
+      )
+    ) {
+      claimErrors.push(
+        `claims[${index}].text must omit citation text; Beaver places it from evidence_ids`,
+      );
+    }
     if (
       state.mode === "evidence_first" &&
       (!state.plannedEvidenceIds ||
@@ -430,6 +452,25 @@ export function submitLegalEvidenceAnswer(
     }
     return claimErrors;
   });
+  // quote_first enforces its composition contract DETERMINISTICALLY at
+  // submission, not by prompt hope: every claim except at most one
+  // conclusion claim must be a verbatim quotation of its cited passage
+  // (the same tier that later renders them checker-free). The rejection
+  // names the offending claims so the model can requote and retry.
+  if (state.mode === "quote_first" && !errors.length) {
+    const support = parsed.claims.map((claim) =>
+      deterministicClaimSupport(claim, state),
+    );
+    const nonVerbatim = support.flatMap((ok, index) => (ok ? [] : [index]));
+    if (nonVerbatim.length > 1) {
+      return {
+        ok: false,
+        errors: [
+          `claims ${nonVerbatim.join(", ")} are not verbatim quotations of their cited passages; at most ONE conclusion claim may paraphrase — every other claim must quote the passage exactly`,
+        ],
+      };
+    }
+  }
   if (errors.length) return { ok: false, errors: errors.slice(0, 12) };
   state.answer = parsed.claims;
   state.rejectedAnswer = null;
@@ -548,7 +589,7 @@ export const LEGAL_EVIDENCE_SUBMIT_TOOL: OpenAIToolSchema = {
     name: LEGAL_EVIDENCE_TOOL_NAME,
     strict: true,
     description:
-      "Finish the answer as independently checkable support units tied to exact passage evidence. Put the complete supporting authority citation inline in each unit. Every substantive proposition needs evidence; this call is the final answer, so do not emit a separate copy.",
+      "Finish a Canadian legal answer as independently checkable support units tied to exact passage evidence. Do not write citations in text; Beaver appends each evidence receipt's complete citation at the end of its unit. Every substantive proposition needs evidence. This call is the final answer, so do not emit a separate copy.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -668,10 +709,12 @@ const LEGAL_EVIDENCE_HOLISTIC_VERIFY_TOOL: OpenAIToolSchema = {
 export function legalEvidenceExperimentTools(
   mode = legalEvidenceExperimentMode(),
 ): OpenAIToolSchema[] {
+  if (mode === null) return [LEGAL_EVIDENCE_SUBMIT_TOOL];
   if (
     mode === "compose_check" ||
     mode === "holistic_check" ||
-    mode === "tiered_check"
+    mode === "tiered_check" ||
+    mode === "quote_first"
   )
     return [LEGAL_EVIDENCE_SUBMIT_TOOL];
   if (mode === "evidence_first")
@@ -816,7 +859,8 @@ export function deterministicClaimSupport(
 }
 
 function allClaimsSupported(state: LegalEvidenceTurnState) {
-  if (state.mode === "tiered_check")
+  if (state.mode === "citation_structure") return Boolean(state.answer);
+  if (state.mode === "tiered_check" || state.mode === "quote_first")
     return (
       Boolean(state.answer) &&
       (state.deterministicSupport?.every(Boolean) === true ||
@@ -1023,7 +1067,10 @@ async function finalizeLegalEvidenceExperimentUnsafe(args: {
     return { passed: false, modelCalls, usage, diagnostic: null };
   }
 
-  if (state.mode === "tiered_check") {
+  if (state.mode === "citation_structure")
+    return { passed: true, modelCalls, usage, diagnostic: null };
+
+  if (state.mode === "tiered_check" || state.mode === "quote_first") {
     state.deterministicSupport = state.answer.map((claim) =>
       deterministicClaimSupport(claim, state),
     );
@@ -1157,28 +1204,69 @@ export function renderLegalEvidenceAnswer(
   ) {
     return null;
   }
+  const citation = (entry: RegisteredEvidence) => {
+    const { receipt, lookup, document } = entry;
+    const paragraphRange =
+      receipt.locator.kind === "paragraph"
+        ? receipt.locator.label.match(
+            /^par(\d+)(?:-|\u2013|\u2014)par(\d+)$/iu,
+          )
+        : null;
+    const url =
+      lookup && paragraphRange
+        ? buildA2AJParagraphRangeUrl(
+            receipt.citation,
+            paragraphRange[1],
+            paragraphRange[2],
+            [lookup],
+            document ? [document] : [],
+          )
+        : lookup
+          ? buildA2AJPinpointUrl(lookup, [])
+          : receipt.external_url;
+    const locator = paragraphRange
+      ? `paras. ${Number(paragraphRange[1])}\u2013${Number(paragraphRange[2])}`
+      : receipt.locator.kind === "document"
+        ? ""
+        : formatLegalLocator(receipt.locator.kind, receipt.locator.label);
+    const label = [
+      receipt.citation,
+      locator
+        ? receipt.locator.kind === "section"
+          ? `, ${locator}`
+          : ` at ${locator}`
+        : "",
+    ].join("");
+    if (!url) return label;
+    return `[${label.replace(/[\\[\]]/gu, "\\$&")}](${url.replace(/\)/gu, "%29")})`;
+  };
   return state.answer
     .map((claim) => {
-      const registered = claim.evidence_ids.flatMap((id) => {
-        const entry = state.evidence.get(id);
-        return entry ? [entry] : [];
-      });
-      return addA2AJInlineLinks(
-        claim.text,
-        registered.flatMap((entry) => (entry.lookup ? [entry.lookup] : [])),
-        [],
-        registered.flatMap((entry) =>
-          entry.document ? [entry.document] : [],
-        ),
-      ).text;
+      const citations = [
+        ...new Map(
+          claim.evidence_ids.flatMap((id) => {
+            const entry = state.evidence.get(id);
+            return entry
+              ? [[
+                  `${entry.receipt.stable_source_id}|${entry.receipt.locator.kind}|${entry.receipt.locator.label}`,
+                  citation(entry),
+                ] as const]
+              : [];
+          }),
+        ).values(),
+      ];
+      if (!citations.length) return claim.text;
+      const punctuation = claim.text.match(/[.!?]$/u)?.[0] ?? "";
+      const body = punctuation ? claim.text.slice(0, -1) : claim.text;
+      return `${body} ${citations.join("; ")}${punctuation}`;
     })
     .join("\n\n");
 }
 
 export type LegalEvidenceReceiptEvent = {
   type: "legal_evidence_receipt";
-  schema_version: 4;
-  mode: LegalEvidenceExperimentMode;
+  schema_version: 5;
+  mode: LegalEvidenceMode;
   status: "passed" | "failed";
   verification: {
     reference: "verified";
@@ -1216,7 +1304,7 @@ export function legalEvidenceReceiptEvent(
     allClaimsSupported(state);
   return {
     type: "legal_evidence_receipt",
-    schema_version: 4,
+    schema_version: 5,
     mode: state.mode,
     status: passed ? "passed" : "failed",
     verification: {
