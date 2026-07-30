@@ -57,6 +57,47 @@ describe("A2AJ compiler spine", () => {
     ).toContain("primary judgment resumes");
   });
 
+  it("accepts a complete short [1]..[N] ladder in a short order", () => {
+    // Short orders / oral reasons / costs rulings: 17/29 of the
+    // full-sweep none-queue sample were exactly this shape, killed by
+    // the minimum-run rule (structure_ref.py parity, commit dbb7b355).
+    const text = [
+      "COURT OF APPEAL — Costs ruling. Registry 12345.",
+      "[1] The appellant seeks costs of the application on an elevated scale, arguing the respondent's conduct through the proceeding unnecessarily lengthened the hearing and multiplied expense for every party involved.",
+      "[2] We do not agree that the conduct described rises to the level required for elevated costs under the governing authorities.",
+      "[3] The application is dismissed with costs in the ordinary course.",
+    ].join("\n");
+    const doc = compile({ text, docType: "cases" });
+    expect(
+      doc.blocks
+        .filter((block) => block.kind === "paragraph")
+        .map((block) => block.label),
+    ).toEqual(["par1", "par2", "par3"]);
+  });
+
+  it("rejects a short complete ladder that is only a tail fragment", () => {
+    const prose = "Reasons continue at considerable length here. ".repeat(500);
+    const text = `${prose}\n[1] Tail list item one with enough words to look superficially substantive across the line.\n[2] Tail list item two with enough words to look superficially substantive across the line.`;
+    expect(text.length).toBeGreaterThan(6000);
+    const doc = compile({ text, docType: "cases" });
+    expect(doc.ranges.paragraph.count).toBe(0);
+  });
+
+  it("keeps a ladder whose tail is short concurrence lines", () => {
+    // "ROWLES, J.A.: I agree." tails sink the median; the max-words arm
+    // of the substance guard keeps the ladder (dbb7b355).
+    const text = [
+      "[1] The trial judge erred in principle by treating the limitation defence as dispositive without first resolving the discoverability question that both parties squarely raised on the evidence presented at trial in this matter before the court.",
+      "[2] I would allow the appeal.",
+      "[3] SMITH J.A.: I agree.",
+      "[4] JONES J.A.: I agree.",
+      "[5] LOW J.A.: I agree.",
+      "[6] Disposition accordingly.",
+    ].join("\n");
+    const doc = compile({ text, docType: "cases" });
+    expect(doc.ranges.paragraph.count).toBe(6);
+  });
+
   it("rejects an embedded numbered list borrowing an unnumbered tail", () => {
     const prefix = "Reasons before the quoted list. ".repeat(100);
     const list = Array.from(
@@ -70,6 +111,29 @@ describe("A2AJ compiler spine", () => {
       docType: "cases",
     });
     expect(doc.ranges.paragraph.count).toBe(0);
+  });
+
+  it("falls back to the dot-form section grammar when the plain one finds nothing", () => {
+    // NT/PE drafting convention ("1. There is established...",
+    // "2.(1) In this section") — structure_ref.py SECTION_MARK_RE_EXT,
+    // commit 6ae6d330. The extended grammar must only run when the plain
+    // grammar yields no spine: Ontario enumerates paragraphs inside
+    // sections in the same shape (pinned by a2aj-regs-on-oreg267-03).
+    const body =
+      "This section provides for the administration of the enactment in force across the territory. ";
+    const text = [
+      `1. There is established a board to administer this Act. ${body}`,
+      `2.(1) In this section, a term has the meaning given by regulation. ${body}`,
+      `3. The Minister may make regulations for carrying out this Act. ${body}`,
+      `4. This Act comes into force on assent. ${body}`,
+    ].join("\n");
+    const doc = compile({ text, docType: "laws" });
+    expect(
+      doc.blocks
+        .filter((block) => block.kind === "section" && !block.parentLabel)
+        .map((block) => block.label),
+    ).toEqual(["sec1", "sec2", "sec3", "sec4"]);
+    expect(labels(doc)).toContain("sec2(1)");
   });
 
   it("recognizes ALR's observed reporter-page variants", () => {
