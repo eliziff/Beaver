@@ -2,8 +2,11 @@
 
 Status: **completed benchmark experiment; not production-validated**. The
 experiment is off by default. This log owns the hypotheses, fixed comparisons,
-failure evidence, and promotion decision for this three-stage run. It does not
-convert automatic or derivative benchmark labels into human gold.
+failure evidence, and promotion decision for this four-stage run. It does not
+convert automatic or derivative benchmark labels into human gold. Stages 1–3
+ran under the strict all-gates rule (no winner); Stage 4 runs under the
+revised rule recorded in its section and selects `claude-p` + `tiered_check`
+as the recommended experimental lane, still off by default.
 
 ## Decision rule
 
@@ -580,8 +583,67 @@ retry machinery.
 
 ### Stage 4 result
 
-Result: **pending — frozen before the run; results recorded below after
-the frozen matrix and probe suite complete.**
+Result: **H4 falsified as frozen; the Claude lane of the tiered arm is
+nevertheless the first configuration in four stages to clear every
+revised-rule quality gate in a single run.** The pre-registration is
+commit `b0338f65`; the matrix ran under the bounded pool (concurrency 4,
+per-model cap 2), which changes wall-clock only.
+
+Probe suite (14 probes × 2 providers): Claude matched 13/14 exact labels
+and 14/14 allow/deny decisions — the sole label disagreement is the same
+fail-closed lost-attribution `partially_supported`-vs-`unsupported` from
+Stage 3. All three new deterministic probes behaved as predicted on BOTH
+providers: the pure quote passed with zero model calls, the mutated
+quote (business → calendar days inside quotation marks) and the spliced
+prose refused the deterministic tier, escalated, and failed closed.
+Codex matched 11/14 with three transport nulls confined to the
+retry-less holistic-mode probes; its tiered-mode probes, which carry the
+retry harness, all completed. ALCE leave-one-out necessity matched on
+both providers.
+
+Held-constant matrix (same six items as Stage 3, same CLERC row), for
+Claude:
+
+| Arm | Completed | Mean / median latency | Output tokens | Cache-write input | Housing support gate | Answerable cells rendered |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| control | 6/6 | 10.0 s / 8.3 s | 2,000 | 9,464 | — | — |
+| `holistic_check` | 6/6 | 12.2 s / 11.1 s | 2,103 | 22,697 | 0/2 | 4/5 |
+| `tiered_check` | 6/6 | 13.5 s / 13.1 s | 2,163 | 23,006 | **2/2** | **5/5** |
+
+The same-run `holistic_check` arm flipped BOTH housing decisions wrong —
+it false-accepted the weak Alabama reference (third occurrence across
+runs) and falsely rejected the sufficient seven-business-day row —
+further confirming stochastic same-model judging. The tiered arm, whose
+only semantic delta upstream of the identical checker is the
+quote-preferring composition instruction, rejected the weak reference
+and rendered every answerable cell; its single failure is that correct
+rejection. Cost against control: one checker call per cell, +8% output
+tokens, ~2.4× cache-write input, +3.5 s mean.
+
+Codex completed all 18 non-control cells this run (the prior stages'
+overloads were transient provider weather, not schema failures), but its
+tiered lane falsely rejected the sufficient housing row that its
+holistic lane accepted — an answerable-cell loss.
+
+H4's frozen falsification clauses therefore trip on two points, stated
+plainly: (1) an answerable paired cell was lost relative to
+`holistic_check` on the Codex lane; (2) matrix-wide checker spend was
+not reduced, because composition never produced a fully-quoted answer —
+the zero-call deterministic path fired only in the probe, and the two
+claims that cleared the tier inside mixed answers were verified genuine
+verbatim quotes (no deterministic false pass anywhere, matrix or
+probes).
+
+Promotion decision under the revised rule: `claude-p` + `tiered_check`
+is the recommended experimental grounding lane — reasonably grounded at
+roughly one extra small call per answer — but the flag stays off by
+default. Two things gate a default-on decision, and they are the next
+stage's independent variables: composition must quote-anchor firmly
+enough that the zero-call deterministic path carries real answers (the
+same-run holistic-vs-tiered housing divergence suggests quote-anchored
+composition also stabilizes the judge), and the Codex lane stays
+disqualified as both composer and checker. Authority and current-law
+validation remain untested, as before.
 
 ## Durable receipts
 
@@ -598,6 +660,8 @@ committed.
 | `stage2-h2.jsonl` | `D9F6917D9AC2DE1AE01F244FCBAF19CDE9AC3F6A53800B32BB280D340CACD575` |
 | `stage3-h3.jsonl` | `D0483C99D3FBD1A607538BFD6855B07E35B43400B5773181859E6BB6CE6C160B` |
 | `stage3-verifier-probes.jsonl` | `2D7128D41424AC93ED02B01A7D7F473EB7A95D97BC81AAA95F76CA7B2C5823FA` |
+| `stage4-verifier-probes.jsonl` | `C5B2A0CF16051CF6579C5C06CA9B1CE7EA13E06B85EC3B5234436EFF36C5DFFA` |
+| `stage4-h4.jsonl` | `13C6859455021AFC2B6E9E94AFCF1EB76A0901386E49E26BD18C6B9343D0C69E` |
 
 ## Validation and final selection gate
 
