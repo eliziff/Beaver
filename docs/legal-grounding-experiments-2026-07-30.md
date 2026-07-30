@@ -1301,6 +1301,67 @@ checker family (Claude). Two diversity extensions, both flat-rate:
   verdict agreement. Controls for single-checker-family bias in every
   stage verdict to date; disagreement cells get audited by hand.
 
+### H16′ upgrade — diff-carrying rejections (registered 2026-07-30, pre-run, per Eli)
+
+Eli's directive mid-implementation: ALR-Quote-Verifier already holds
+text-diff machinery for quote verification — examine it. Its
+`_quote_match_score` / `_build_corrected_citation` align a claimed
+quote against the source token-by-token (SequenceMatcher with
+legal-editorial equivalences) and emit a corrected quote. Ported in
+approach (never runtime-imported, per the reference-implementation
+doctrine) as `backend/src/lib/chat/quoteRepair.ts`, narrowed to what
+Beaver's strict tier accepts: since the tier requires a CONTIGUOUS
+substring, the repair offered is the cited span's own best-matching
+contiguous token window (longest common run, >= 6 tokens, >= 25 chars,
+score >= 0.5) — verbatim by construction, so requoting it always
+clears. Wired into all three quote-family rejections (typed-quotation
+failure, stands-for, conclusion-allowance overflow). This SHARPENS
+H16′, registered before any Stage 8b cell ran: the bounce no longer
+restates the rules — it hands the repair. Sharpened prediction:
+quotation bounces converge in <= 1 revision; non-submission collapses
+(claude-p 9/9 -> <= 1/9 stands). New falsifier: excerpt-parroting —
+models accepting suggested excerpts that do not serve the question
+(measured as F1/answerability degradation on repaired cells vs
+un-bounced cells). Thin overlap yields NO suggestion by design: a
+lookalike quote must never be manufactured for a claim the span does
+not actually contain. Unit round-trip proven: a bounced near-miss's
+suggested excerpt clears `deterministicClaimSupport` when resubmitted
+(`quoteRepair.test.ts`).
+
+### Implementation and launch (2026-07-30)
+
+Implementation commit `0c2e4adf` (13 new unit vectors, 40/40 pass):
+typed claim roles enforced at submission (premise_text verbatim >= 10
+normalized chars in the named source; verified corrections exempt from
+the conclusion allowance and the lint bounce but NEVER from the
+stands-for bar — premise typing cannot launder a characterization);
+H15 `required_slot` arm (slot filled only by attested-verbatim quote
+against the citator receipt's own span, or the exact refusal sentence
+naming the citation); H17 factored prompts (shared base + roles
+modules; quote_contract on quote-family arms; attested/slot modules
+injected ONLY on case-law cells, so attested arms and quote_first are
+prompt-identical on legislation/housing cells; per-cell `prompt_modules`
+in runner receipts, schema v2); bounce archive (pre-bounce claims +
+rejection text, receipt event schema v6).
+
+Smoke (2 cells, receipts in scratch): codex:gpt-5.4-mini ran the full
+slot contract and failed only at the holistic checker verdict on its
+conclusion claim (normal contract behavior); claude-p:claude-haiku-4-5
+submitted, drew a diff-carrying bounce ("28 of 28 words match" plus the
+exact excerpt), then outran the 90s default timeout mid-revision —
+cell timeout raised to 180s for the run on that evidence.
+
+Run launched 2026-07-30: 656 cells = 4 models (anchors
+codex:gpt-5.6-sol + claude-p:claude-sonnet-4-6; small tier
+codex:gpt-5.4-mini + claude-p:claude-haiku-4-5) × 4 arms (tiered_check,
+quote_first, attested_framing, required_slot) × the held-constant
+41-item matrix; same-model checker (crossing subset follows analysis);
+effort low; pool 8/2; receipts
+`%LOCALAPPDATA%\OpenLegalData\experiments\legal-grounding\2026-07-30\stage8b-h15h16h17.jsonl`
+(sha256 recorded at analysis). lint_gated is not in the run roster:
+the typed-role lint exemption is unit-tested contract infrastructure,
+and Stage 7 already measured the lint arm's economics.
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under
