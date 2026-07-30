@@ -30,6 +30,8 @@ type PendingBlock = {
   start: number;
   anchor?: string;
   parentLabel?: string;
+  /** Inline marker (CAP star pagination): starts a page without a break. */
+  inline?: boolean;
 };
 
 const BREAK_TAGS = new Set([
@@ -99,7 +101,7 @@ function attribute(attrs: string, name: string) {
 
 function cleanSectionId(raw: string) {
   const value = raw
-    .replace(/^(?:section|sec|article|part|chapter|subsection)[_-]*/iu, "")
+    .replace(/^(?:section|sec|article|part|chapter|subsection|level|lvl)[_-]*/iu, "")
     .replace(/__(?:subsection|paragraph|subparagraph)[_-]*/giu, "(")
     .replace(/[_-](\d+|[A-Za-z]|[ivxlcdm]+)(?=$|[_-])/giu, "($1)")
     .replace(/\(+/gu, "(");
@@ -112,12 +114,37 @@ function nativeIdentity(
   provider: SourceDocProvider,
   tag: string,
   attrs: string,
-): Pick<PendingBlock, "kind" | "label" | "anchor"> | null {
+): Pick<PendingBlock, "kind" | "label" | "anchor" | "inline"> | null {
   const id =
     attribute(attrs, "eId") ||
     attribute(attrs, "id") ||
     attribute(attrs, "name");
   const anchor = id || undefined;
+
+  // CAP casebody HTML (xml_harvard): star pagination arrives as
+  // <a id="p336" data-label="336" class="page-label">*336</a> INSIDE
+  // running text, and footnotes as <aside data-label="1" class="footnote">
+  // containers. Star pages are inline — they must not introduce breaks,
+  // or the rendered text (frozen by the legacy recording) would change.
+  if (tag === "a" && provider === "courtlistener") {
+    const cls = attribute(attrs, "class");
+    if (/\bpage-label\b/u.test(cls)) {
+      const label =
+        attribute(attrs, "data-label") || id.match(/^p(\d{1,5})$/iu)?.[1] || "";
+      return /^\d{1,5}$/u.test(label)
+        ? { kind: "page", label: `page${Number(label)}`, anchor, inline: true }
+        : null;
+    }
+    // Citation links and footnotemarks are references, never containers.
+    return null;
+  }
+  if (tag === "aside" && provider === "courtlistener") {
+    const label = attribute(attrs, "data-label");
+    return /\bfootnote\b/u.test(attribute(attrs, "class")) &&
+      /^\d{1,5}$/u.test(label)
+      ? { kind: "footnote", label: `fn${Number(label)}`, anchor }
+      : null;
+  }
 
   if (tag === "page-number") {
     const label =
@@ -234,7 +261,7 @@ function nativeMarkupBlocks(provider: SourceDocProvider, markup: string) {
     const attrs = opening[2] ?? "";
     const identity = nativeIdentity(provider, tag, attrs);
     if (identity?.kind === "page") {
-      appendBreak();
+      if (!identity.inline) appendBreak();
       pageStarts.push({
         label: identity.label,
         start: position,
@@ -343,6 +370,39 @@ export function summarizeLegalSourceDoc(
       footnote: doc.ranges.footnote.count,
     },
   };
+}
+
+export type NativeMarkupRef = {
+  /** the citation as the judgment's text writes it */
+  citation: string;
+  /** provider's canonical form (TNA uk:canonical), when stated */
+  canonical: string | null;
+  /** provider's type tag (case, legislation), when stated */
+  type: string | null;
+};
+
+/**
+ * Cited authorities the markup states as data: TNA Akoma Ntoso wraps
+ * every recognized citation in <ref uk:canonical uk:type>. Deduplicated
+ * on canonical form (falling back to surface text); order of first
+ * appearance. Providers without <ref> markup simply yield [].
+ */
+export function nativeMarkupCitedRefs(markup: string): NativeMarkupRef[] {
+  const refs = new Map<string, NativeMarkupRef>();
+  for (const match of markup.matchAll(
+    /<(?:\w+:)?ref\b([^>]*)>([\s\S]*?)<\/(?:\w+:)?ref\s*>/giu,
+  )) {
+    const attrs = match[1] ?? "";
+    const citation = decodeEntities(match[2].replace(/<[^>]+>/gu, ""))
+      .replace(/\s+/gu, " ")
+      .trim();
+    const canonical = attribute(attrs, "uk:canonical") || null;
+    const type = attribute(attrs, "uk:type") || null;
+    const key = (canonical ?? citation).toLowerCase();
+    if (!key || refs.has(key)) continue;
+    refs.set(key, { citation: citation || canonical || "", canonical, type });
+  }
+  return [...refs.values()];
 }
 
 function normalizeLegalLocator(kind: SourceDocLocatorKind, locator: string) {

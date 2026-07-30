@@ -17,7 +17,9 @@ import { rehydrateProviderPdfReference } from "./providerPdfLibraryBridge";
 import { rehydratePublicLegalEvidence } from "./publicLegalSources";
 
 const LOCAL_HANDLE = /^mike-evidence:v1:[0-9a-f]{64}$/u;
-const PROVIDER_HANDLE = /^mike-provider-evidence:v1:[0-9a-f]{64}$/u;
+// v1 handles still parse as handles here; the receipt reader refuses
+// them with the superseded-schema error at rehydration time.
+const PROVIDER_HANDLE = /^mike-provider-evidence:v[12]:[0-9a-f]{64}$/u;
 const PROVIDER_PDF_REFERENCE =
   /^mike-provider-pdf:v1:(?:a2aj|courtlistener|govinfo|govuk-et|tna):[a-f0-9]{64}:[a-f0-9]{64}$/u;
 const SOURCE_ID = /^[a-z][a-z0-9_-]{0,63}$/u;

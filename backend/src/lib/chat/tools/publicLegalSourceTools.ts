@@ -80,7 +80,7 @@ export const PUBLIC_LEGAL_SOURCE_TOOLS = [
           evidence_handle: {
             type: "string",
             description:
-              "Optional mike-provider-evidence:v1 handle returned by an earlier exact TNA lookup.",
+              "Optional mike-provider-evidence:v2 handle returned by an earlier exact TNA lookup.",
           },
           locator_type: {
             type: "string",
