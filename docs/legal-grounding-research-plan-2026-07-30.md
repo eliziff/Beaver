@@ -138,6 +138,21 @@ Remaining gates for production thresholds: US-reference alienness
 index, and more labeled misgrounded responses (n=8 is a smoke pass,
 not a calibration).
 
+JURISDICTION-MATCHED INDEX RESULT (2026-07-30, first gate closed):
+rebuilt the alienness reference from CAP bulk volume zips — 17,547
+docs / 229M chars across 16 US reporters, seeded stratified volumes
+(seed 47), matching the Canadian reference's scale — and re-ran the
+identical scorer with ALIENNESS_INDEX_PATH at trigrams-en-us.sqlite
+(15.97M distinct trigrams). unattested_trigram_share max-pooled AUC
+vs misgrounded rose 0.689 -> 0.781 (vs all bad 0.561 -> 0.625);
+mean-pooling and claim-level remain ~chance under weak labels, as the
+one-bad-claim mechanism predicts. novel_content_fraction (index-free)
+unchanged at 0.829, confirming the delta is the reference and nothing
+else moved. Verdict: reference-jurisdiction mismatch was real and
+recoverable; H13's alienness prong now validates on expert labels in
+BOTH jurisdictions at the response level. The n=8 gate still stands —
+no production threshold until more labeled positives exist.
+
 C2 CONFIGURATION DECISION (2026-07-30, three-way calibration over 553
 labeled claims, pre-stated rule: best AUC at matched operating points,
 ties to boundary robustness then base preference): WORD-TRIGRAMS WIN.
