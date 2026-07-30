@@ -75,7 +75,14 @@ B3. Gap-fill generation ONLY if external breadth is thin: elicit
     the Stage 5-validated checker AND flagged as judge-labeled, with a
     human-audited subsample.
 
-## Workstream C — deterministic legal lint (H7 + H10)
+Standing directive (2026-07-30): build on existing repos/bases over
+hand-rolling, everywhere possible. For the H13 attestation index the
+candidates under evaluation are infini-gram (suffix-array exact counts)
+and Data Portraits (Bloom membership, the base under QUIP-Score); the
+sqlite trigram index ships only as an explicitly-marked interim behind
+the corpusAlienness() seam.
+
+## Workstream C — deterministic legal lint (H7 + H10 + H13 + H14)
 
 C1. Implement `legalClaimLint` (backend lib, pure deterministic):
     - QUIP-family: novel-content-word fraction + char/word n-gram
@@ -118,6 +125,25 @@ D2. Stands-for profiles: per cited case, the prose citing contexts
     (cases) + body commentary contexts (journals), citer counts from
     provider lists, court level, decision date, opinion length. Profile
     quality tiers: rich (many prose contexts), thin (few), none.
+    FOOTNOTE-PAIR PRONG (added 2026-07-30): journal footnote citations
+    are editor/peer-verified proposition↔authority pairs — for each
+    footnote citing case C, the body proposition the footnote anchors
+    is an attested characterization of C with editorial provenance.
+    All machinery exists: journals-lane native footnote blocks, the
+    engine's proposition-per-note-reference extraction (sentence +
+    passage-since-prior-note), the ported note-crossrefs module for
+    supra/ibid resolution, and ALR's proposition/footnote pairing
+    system as the read-only reference design. In-text discussion
+    contexts stay the richer signal; footnote pairs are the breadth
+    signal (and cover US cases cited in Canadian journals). Ambiguity
+    of what a citation supports relative to its proposition is recorded
+    per-pair, not assumed away.
+    US external complement (scout-verified): CourtListener
+    Parentheticals/ParentheticalGroup bulk CSVs (1M+ judge-written
+    parentheticals clustered into propositions with frequency+quality
+    weights, public domain), LePaRD (21.9M citing-context→quoted-
+    passage pairs, CC-BY-NC-SA), δ-Stance (signal polarity), courts-db
+    (US court levels) + a ~30-row hand map for A2AJ court codes.
 D3. Stage 8 ablations (each frozen separately):
     - feed-forward: "other courts cite this case for: …" (top prose
       contexts / parentheticals) in the composition prompt; measure
