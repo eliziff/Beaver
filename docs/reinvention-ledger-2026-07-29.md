@@ -184,3 +184,18 @@ Ordered by correctness risk first, duplicated maintenance second.
 7. **The fork's own stress harness re-detects rather than measuring shipping code.** `benchmarks/structure_stress/sweep.py:90-98` implements a *fourth* set of paragraph/page/section detectors, unattributed, while its sibling probes (`probes/alr_probe.py:7,30`, `probes/laws_section_probe.py:45,55`) do import `a2aj_structure` as an oracle. So the corpus-scale numbers in `results/smoke/*.summary.json` describe harness-local regexes, not `sourceDocA2AJ` or `statuteSpine`.
 8. **`journal_search.py` has no acceptance threshold in the fork.** ALR refuses below `difflib` ratio 0.7 (`journal_search.py:272-290`) after narrowing candidates by year/volume/issue/journal metadata (`:112-149,293-375`). The fork's `journalArticles.ts:268-334` ranks by bm25 with no threshold and no metadata narrowing — better recall, materially worse precision, on a lane where a confidently-wrong article is worse than no answer.
 9. **Prompt text is standing in for a rate governor.** ALR paces outbound calls from live `x-ratelimit-*` headers with a set-once parallelism decision (`rate_governor.py:58-113`, 6 tests). The fork's only outbound rate-limit strategy is an instruction to the model: "On any rate-limit/throttling/429 error, stop all CourtListener calls for that turn" (`chat/tools/courtlistenerTools.ts:89`). A 5 KB deterministic module exists upstream for this.
+
+10. **(appended same evening) The endnote detector repeated the pattern
+    inside the harness that existed to catch it.** The first
+    `structure_ref.endnote_index` was hand-authored from failure-taxonomy
+    statistics (tail position + entry length) while the engine — the
+    text-fidelity project — already defined the note-ladder contract:
+    labels from the shared table `label.line-start` (`core.py:36`), regions
+    opened only at expected number 1 or under a `Notes`/`Endnotes` heading,
+    continuity as `expected_endnote = last + 1`
+    (`core._infer_note_region_modes:1753-1808`), pairing geometric. The
+    hand-rolled version shipped measured FPs (room lists `405..`, year
+    tables `1985..`, appendix `[55]+`; fp_scan 2026-07-29). Rebuilt on the
+    engine's contract with the label regex copied byte-equal (provenance
+    comment + `--parity` drift assertion; runtime import removed on Eli's
+    instruction — reference repos are copied, never imported).
