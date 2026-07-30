@@ -1694,6 +1694,72 @@ acceptance or bounce-mass form), parroting past threshold, any new
 false accept, or control-cell drift beyond the floor. Denominators
 reported exactly over completed cells, per the Stage 9 correction.
 
+### Stage 10 results (run 2026-07-30, 246 cells, 234 clean; smoke 12/12)
+
+Both arms ran under `MIKE_CLAUDE_P_PERSIST=1` as registered. Case-cell
+metrics over clean cells (n varies with transport errors; exact
+denominators shown):
+
+| model | arm | n | pass | no-sub | first-sub accept | bounces | median lat | mean input tok |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| sol | required_slot | 18 | 6 | 2 | 5 | 18 | 20.8s | 4,733 |
+| sol | witness_panel | 18 | 6 | 1 | 5 | 16 | 20.1s | 4,822 |
+| sonnet | required_slot | 15 | 6 | 6 | 2 | 29 | 34.7s | n/r |
+| sonnet | witness_panel | 12 | 5 | 4 | 1 | 20 | 31.5s | n/r |
+| mini | required_slot | 18 | 2 | 8 | 2 | 32 | 22.0s | 5,712 |
+| mini | witness_panel | 18 | 1 | 7 | 1 | 31 | 24.0s | 6,079 |
+
+- **P1 FALSIFIED (primary).** First-submission acceptance rose for no
+  model (sol 5→5, sonnet 2/15→1/12, mini 2→1). Per-cell bounce mass
+  fell slightly everywhere (sol 1.00→0.89, sonnet 1.93→1.67, mini
+  1.78→1.72), but the acceptance clause fails, and the falsifier
+  clause names P1. Verdict: telling the model the checks it faces
+  does not make first submissions compliant — the residual is not an
+  information asymmetry.
+- **P2 partial.** No-sub witness_panel ≤ required_slot for all three
+  models (2→1, 6/15→4/12, 8→7), but mini lands at 7, missing the ≤5
+  bar — the panel is NOT the operative lever for mini's residual
+  no-submission. Remaining suspects from the Stage 9 attribution:
+  composition capacity under the slot contract, not missing context.
+- **P3 held perfectly.** Zero accepted panel-parroting claims (the
+  by-construction guarantee stands; no program halt) and zero
+  attempted parroting in 67 case-cell bounces across the three
+  witness_panel lanes (0% < 20% threshold; no restyle needed).
+- **P4 held.** Controls: sol 12/23 vs 12/23 (identical), sonnet 18/22
+  vs 18/21 (Δ3.9pp), mini 19/23 vs 17/23 (Δ8.7pp) — all within the
+  0–13% H17 noise floor.
+- **P5 split; error clause falsified.** Claude-lane median latency
+  fell 29.5s → 20.2s (required_slot, vs Stage 9), but transport
+  errors did not: required_slot 4→4, and witness_panel added 8 more.
+  The errors are two distinct modes: (a) unparseable-JSON replies
+  recurring on the SAME three case cells in both arms
+  (pss-case-0014, pss-case-0055, adv-pss-0045) — content-shaped, not
+  spawn-shaped, so persistence cannot fix it; (b) six `Stream
+  aborted` cells at exactly the 90s cap, clustered late in the run
+  with late sonnet completions creeping to 50–84s — the persistent
+  session appears to saturate under sustained load. Persistence is a
+  latency lever, not a reliability lever.
+- Cost: the panel costs +89 (sol) / +367 (mini) mean input tokens per
+  case cell — cheap. The persist lane under-reports input tokens
+  (mean ≈9/cell, a session-delta artifact), so claude-lane cost is
+  not reportable this run (instrumentation gap recorded).
+- Amendment to Stage 9's "escape hatch dead": that zero was
+  behavioral, not gate-enforced — the slot contract accepts the
+  unavailability sentence unconditionally. Stage 10 shows a low-rate
+  recurrence: 2 of 246 cells asserted "No attested characterization
+  of X is available" for a citation WITH candidates (sonnet
+  required_slot pss-case-0004, candidates=1; mini witness_panel
+  adv-pss-0015, candidates=3). Both cells failed the checker anyway
+  (no false accept). Hardening candidate for a future stage:
+  typed-reject the unavailability sentence when the citation's
+  attested-candidate count is nonzero.
+
+H18 verdict: falsified as the lever for residual no-submission. The
+panel is safe (zero parroting, controls clean, trivial cost) but buys
+nothing the slot contract doesn't already extract. The residual
+no-sub on mini and the claude lane's content-shaped transport errors
+are separate problems, and neither is information asymmetry.
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under
@@ -1718,6 +1784,8 @@ committed.
 | `stage8b-h15h16h17.jsonl` (haiku lane stopped early per Eli) | `F7C3861B9669D7963512CED1FB623928EA3FD221008B088D289589F015592067` |
 | `stage9-smoke.jsonl` | `7D3CA498A0A29300C1F26B068871C6CCC204B69674E530042471E06DB00AE4C8` |
 | `stage9-h19h20.jsonl` (flat_recency live; A/B policy lanes postponed) | `7AA340C88F1D625D9765C9840D632AA451CEA0CBA625B27ED0B5D8BFE3BB675A` |
+| `stage10-smoke.jsonl` | `E8CDD06D030F85B5361CF9F6F2AED52B9361580ADE3D273E1764CA538C9DCCF0` |
+| `stage10-h18.jsonl` (persist transport; first 36 cells banked from the pre-relaunch pass) | `2F62B5D140044AC8F4F7119186DB44181CD4D8D51E39575693F7214056D4E7DC` |
 
 ## Validation and final selection gate
 
