@@ -7,6 +7,7 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { jsonrepair } from "jsonrepair";
 
 import { abortError, throwIfAborted } from "./abort";
 import type {
@@ -36,7 +37,10 @@ FINAL
 <answer in ordinary Markdown>
 
 Do not invoke tools yourself. To act, return TOOL_CALLS with one or more calls
-whose inputs satisfy the named tools' schemas. When complete, return FINAL.`;
+whose inputs satisfy the named tools' schemas. When complete, return FINAL.
+The TOOL_CALLS JSON must be strict JSON: inside string values escape every
+double quote as \\" and every newline as \\n. Never wrap a reply in Markdown
+code fences.`;
 
 // A healthy generation streams partial chunks continuously (we pass
 // --include-partial-messages); silence means a wedged call. Whole-document
@@ -339,18 +343,47 @@ function resultEnvelope(stdout: string): Envelope {
   throw new Error("stream ended without a result envelope");
 }
 
-function parseReply(text: string, iteration: number): AnthropicBlock[] {
-  const reply = text.trim();
-  if (reply.startsWith("FINAL\n")) {
-    const finalText = reply.slice("FINAL\n".length).trim();
-    if (!finalText) throw new Error("FINAL reply is empty");
-    return [{ type: "text", text: finalText }];
+/** Strip one Markdown code fence wrapping the whole text, if present. */
+function stripFence(text: string): string {
+  const match = /^```[\w-]*[ \t]*\r?\n([\s\S]*?)\r?\n?```$/u.exec(text.trim());
+  return match ? match[1].trim() : text.trim();
+}
+
+/**
+ * Tolerant reply parser. The contract is a FINAL/TOOL_CALLS marker line, but
+ * models drift in content-shaped ways — code fences, preamble prose, the
+ * marker on the same line as the JSON, and (the Stage 12 Claude-5 failure
+ * mode) unescaped quotes/newlines inside JSON string values when the tool
+ * input embeds legal text that itself contains quotation marks. Tolerance
+ * never invents content: JSON that even jsonrepair cannot parse still
+ * throws, and a repair that mutated quoted text fails the downstream
+ * deterministic verbatim gate rather than passing falsely.
+ */
+export function parseReply(text: string, iteration: number): AnthropicBlock[] {
+  const reply = stripFence(text);
+  const marker = /(?:^|\n)[ \t]*(FINAL|TOOL_CALLS)\b[ \t]*:?/u.exec(reply);
+  if (!marker) throw new Error("reply did not contain FINAL or TOOL_CALLS");
+  const rest = stripFence(reply.slice(marker.index + marker[0].length).trim());
+  if (marker[1] === "FINAL") {
+    if (!rest) throw new Error("FINAL reply is empty");
+    return [{ type: "text", text: rest }];
   }
-  if (!reply.startsWith("TOOL_CALLS\n"))
-    throw new Error("reply did not start with FINAL or TOOL_CALLS");
-  const parsed = JSON.parse(reply.slice("TOOL_CALLS\n".length)) as {
-    calls?: unknown;
-  };
+  const start = rest.indexOf("{");
+  const end = rest.lastIndexOf("}");
+  if (start < 0 || end <= start)
+    throw new Error("TOOL_CALLS reply has no JSON object");
+  const raw = rest.slice(start, end + 1);
+  let parsed: { calls?: unknown };
+  try {
+    parsed = JSON.parse(raw) as { calls?: unknown };
+  } catch (parseError) {
+    try {
+      parsed = JSON.parse(jsonrepair(raw)) as { calls?: unknown };
+    } catch {
+      throw parseError;
+    }
+    console.warn("[claude-p] repaired malformed TOOL_CALLS JSON");
+  }
   if (!Array.isArray(parsed.calls) || !parsed.calls.length)
     throw new Error("TOOL_CALLS reply has no calls");
   return parsed.calls.map((rawCall, index) => {
@@ -412,21 +445,40 @@ export async function streamClaudeP(
   try {
     for (let iter = 0; iter < maxIter; iter++) {
       throwIfAborted(params.abortSignal);
-      const payload = JSON.stringify({
-        transport_protocol: persist
-          ? TRANSPORT_PROTOCOL + PERSIST_PROTOCOL_ADDENDUM
-          : TRANSPORT_PROTOCOL,
-        system: params.systemPrompt,
-        messages,
-        tools: claudeTools,
-      });
-
       let blocks: AnthropicBlock[] | null = null;
       let lastError: unknown = null;
+      // After a parse failure the retry payload carries the bad reply plus a
+      // typed correction naming the parse error — Stage 12 proved these
+      // failures are content-shaped and deterministic, so an identical
+      // resend just fails identically.
+      let corrective: { reply: string; problem: string } | null = null;
       for (let attempt = 0; attempt < 3 && !blocks; attempt++) {
         throwIfAborted(params.abortSignal);
         if (attempt > 0)
           await new Promise((resolve) => setTimeout(resolve, 15_000 * attempt));
+        const payload = JSON.stringify({
+          transport_protocol: persist
+            ? TRANSPORT_PROTOCOL + PERSIST_PROTOCOL_ADDENDUM
+            : TRANSPORT_PROTOCOL,
+          system: params.systemPrompt,
+          messages: corrective
+            ? [
+                ...messages,
+                { role: "assistant", content: corrective.reply },
+                {
+                  role: "user",
+                  content:
+                    `Your reply could not be parsed: ${corrective.problem}. ` +
+                    "Resend the ENTIRE reply in the required format: the marker " +
+                    "line (TOOL_CALLS or FINAL), then the content. TOOL_CALLS " +
+                    "JSON must be strict single-line JSON — inside string values " +
+                    'escape every double quote as \\" and every newline as \\n — ' +
+                    "with no code fences and no other text.",
+                },
+              ]
+            : messages,
+          tools: claudeTools,
+        });
         try {
           let envelope: Envelope;
           if (persist) {
@@ -463,7 +515,8 @@ export async function streamClaudeP(
             throw new Error(
               `claude -p error result: ${String(envelope.result).slice(0, 300)}`,
             );
-          const parsed = parseReply(String(envelope.result ?? ""), iter);
+          // Usage before parsing: a reply that fails to parse still spent
+          // these tokens, and telemetry should see them.
           const e = envelope.usage ?? {};
           usage.inputTokens =
             (usage.inputTokens ?? 0) + (e.input_tokens ?? 0);
@@ -473,7 +526,18 @@ export async function streamClaudeP(
           usage.cacheWriteInputTokens =
             (usage.cacheWriteInputTokens ?? 0) +
             (e.cache_creation_input_tokens ?? 0);
-          blocks = parsed;
+          const rawReply = String(envelope.result ?? "");
+          try {
+            blocks = parseReply(rawReply, iter);
+          } catch (parseError) {
+            corrective = {
+              reply: rawReply,
+              problem: String(
+                (parseError as Error).message ?? parseError,
+              ).slice(0, 200),
+            };
+            throw parseError;
+          }
         } catch (error) {
           lastError = error;
         }
