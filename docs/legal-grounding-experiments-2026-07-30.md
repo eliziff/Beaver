@@ -1815,6 +1815,47 @@ Frozen predictions:
 Falsified by: any widened-tier false pass; a policy changing the
 candidate SET rather than only order (audited from receipts).
 
+## Stage 12 — Claude 5 family on the claude lane
+(pre-registered 2026-07-30, before the run; Eli directive: "try some
+newer sonnet models and then also opus 5 on some stuff")
+
+Both models verified reachable over the flat-rate `claude -p`
+subscription route before registration. Design, factored to keep the
+model upgrade the ONLY change vs the Stage 10 sonnet-4-6
+required_slot lane (same arm, flat_recency, effort low, same-model
+checker, `MIKE_CLAUDE_P_PERSIST=1`):
+- `claude-p:claude-sonnet-5`: full held-constant 41-item matrix (41
+  cells) — the direct sonnet-4-6 → sonnet-5 upgrade contrast.
+- `claude-p:claude-opus-5`: the 18 case cells only (the subset where
+  the claude lane bails and errors) — the capability-ceiling read.
+One labeled transport change: timeout raised 90s → 180s, because
+Stage 10's `Stream aborted` errors sat exactly on the 90s cap;
+error-cell comparisons vs Stage 10 must note this.
+
+What Stage 12 discriminates: the program's standing finding is that
+the HARNESS, not the model family, carries grounding decisions; but
+Stage 10's H18 falsification re-attributed the residual case-cell
+no-submission to composition capacity. If harness-bound, sonnet-5 ≈
+sonnet-4-6 on pass/no-sub within the 0–13% floor and opus-5 adds
+little; if capacity-bound, the newer/larger models move the residual
+that the witness panel could not.
+
+Frozen predictions:
+- P1 (discriminating): reported as the capacity-vs-harness read
+  above; exploratory on direction, gated on the 13% floor.
+- P2 (transport): Stage 10's unparseable-JSON errors were
+  content-shaped; prediction: sonnet-5 transport-error cells ≤
+  sonnet-4-6's 4 on required_slot, and zero 90s-cap aborts under the
+  180s timeout (labeled fix, reported separately).
+- P3: zero verbatim-tier false passes (standing).
+- Cost: latency and usage per lane reported; the subscription must
+  tolerate the opus subset.
+Falsified by: any false pass; transport attrition >20% of either
+lane's cells (would mean the lane measures transport, not grounding,
+per the Stage 8b haiku precedent).
+
+## Durable receipts
+
 The experiment JSONL receipts are outside git under
 `%LOCALAPPDATA%\OpenLegalData\experiments\legal-grounding\2026-07-30`.
 They contain model outputs and exact benchmark evidence and must not be
