@@ -259,6 +259,38 @@ describe("caselaw citator note-up graph", () => {
         { citation: "2020 FC 100", occurrences: 1, paragraph: 5 },
       ]);
 
+      // Stands-for profile: attested characterizations ranked by citing
+      // court level (ONCA level 4 outranks FC level 3), prose windows
+      // extracted by the excerpt classifier, sha receipts over the text.
+      const profile = citator.standsForProfile({ citation: "2015 SCC 5" })!;
+      expect(profile.totalCiters).toBe(2);
+      expect(profile.tier).toBe("thin");
+      expect(profile.candidates).toHaveLength(2);
+      expect(profile.candidates[0]).toMatchObject({
+        citingCitation: "2018 ONCA 50",
+        citingCourt: "ONCA",
+        citingLevel: 4,
+      });
+      expect(profile.candidates[0].text).toContain("governing framework");
+      expect(profile.candidates[0].text).not.toMatch(/\d{4} (?:SCC|ONCA) \d+/u);
+      const { createHash } = await import("node:crypto");
+      expect(profile.candidates[0].spanSha256).toBe(
+        createHash("sha256")
+          .update(profile.candidates[0].text, "utf8")
+          .digest("hex"),
+      );
+      expect(profile.candidates[1]).toMatchObject({
+        citingCitation: "2020 FC 100",
+        citingLevel: 3,
+      });
+      // The French twin profiles only French-keyed citing prose.
+      const frenchProfile = citator.standsForProfile({ citation: "2015 CSC 5" })!;
+      expect(frenchProfile.totalCiters).toBe(1);
+      expect(frenchProfile.tier).toBe("thin");
+      expect(frenchProfile.candidates[0].text).toContain(
+        "norme constitutionnelle",
+      );
+
       // Typed refusals when nothing survives normalization.
       expect(() => citator.noteUpCitations({ citation: "" })).toThrow(
         /citation is required/u,
