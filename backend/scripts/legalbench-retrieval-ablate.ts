@@ -11,7 +11,7 @@
  * per-source lexical R@4 + pool R@48, JSONL receipts):
  *   npx tsx scripts/legalbench-retrieval-ablate.ts --stage18
  */
-import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import {
@@ -106,6 +106,158 @@ if (process.argv.includes("--fair500")) {
   process.exit(0);
 }
 
+// Stage 18 R3: rerank compute ablation — same crowned lexical pool
+// (k=48, t1600/o120/w16, perDocCap 24), one listwise rerank call per
+// {model, effort} arm, char P/R of the unstitched top-6. Flat-rate
+// model calls; resumable (arm|test_id keyed on non-error rows).
+//   npx tsx scripts/legalbench-retrieval-ablate.ts --rerank-arms \
+//     [--per-source 48] [--concurrency 3] [--resume 1]
+async function rerankArmsMain() {
+  const argValue = (name: string, fallback: string) => {
+    const index = process.argv.indexOf(`--${name}`);
+    return index >= 0 ? process.argv[index + 1] : fallback;
+  };
+  const perSource = Number(argValue("per-source", "48"));
+  const concurrency = Number(argValue("concurrency", "3"));
+  const resume = argValue("resume", "0") !== "0";
+  const output = path.join(
+    process.env.LOCALAPPDATA ?? "",
+    "OpenLegalData/experiments/legal-grounding/2026-07-30/stage18-rerank-arms.jsonl",
+  );
+  const arms: { arm: string; model: string; effort?: string }[] = [
+    { arm: "luna@default", model: "codex:gpt-5.6-luna" },
+    { arm: "luna@low", model: "codex:gpt-5.6-luna", effort: "low" },
+    { arm: "luna@high", model: "codex:gpt-5.6-luna", effort: "high" },
+    { arm: "sol@medium", model: "codex:gpt-5.6-sol", effort: "medium" },
+    { arm: "terra@medium", model: "codex:gpt-5.6-terra", effort: "medium" },
+  ];
+  const { rerankPassages } = await import("../src/lib/retrievalRerank");
+  const bySource = new Map<string, typeof tests>();
+  for (const test of tests) {
+    const entry = bySource.get(test.source) ?? [];
+    if (entry.length < perSource) entry.push(test);
+    bySource.set(test.source, entry);
+  }
+  const selected = [...bySource.values()].flat();
+  const done = new Set<string>();
+  if (resume && existsSync(output)) {
+    for (const line of readFileSync(output, "utf8").split("\n").filter(Boolean)) {
+      const row = JSON.parse(line) as { arm: string; test_id: string; error?: string };
+      if (!row.error) done.add(`${row.arm}|${row.test_id}`);
+    }
+  } else {
+    writeFileSync(output, "", "utf8");
+  }
+  const cells = arms.flatMap((arm) =>
+    selected
+      .filter((test) => !done.has(`${arm.arm}|${test.id}`))
+      .map((test) => ({ arm, test })),
+  );
+  console.log(
+    `rerank-arms: ${cells.length} cells to run (${done.size} resumed), ` +
+      `${selected.length} tests x ${arms.length} arms`,
+  );
+  let next = 0;
+  const runCell = async () => {
+    for (;;) {
+      const index = next++;
+      if (index >= cells.length) return;
+      const { arm, test } = cells[index];
+      const pool = searchPassages({
+        sourceDb,
+        query: test.query,
+        k: 48,
+        target: 1600,
+        overlap: 120,
+        nameWeight: 16,
+        perDocCap: 24,
+      });
+      try {
+        const { hits, fallback } = await rerankPassages({
+          query: test.query,
+          hits: pool,
+          model: arm.model,
+          top: 6,
+          preview: 1600,
+          ...(arm.effort ? { effort: arm.effort } : {}),
+        });
+        const { precision, recall } = charPrecisionRecall(
+          hits.map((hit) => ({
+            filePath: hit.citation,
+            start: hit.start,
+            end: hit.end,
+          })),
+          test.gold,
+        );
+        appendFileSync(
+          output,
+          `${JSON.stringify({
+            arm: arm.arm,
+            model: arm.model,
+            effort: arm.effort ?? null,
+            test_id: test.id,
+            source: test.source,
+            p6: precision,
+            r6: recall,
+            fallback,
+          })}\n`,
+          "utf8",
+        );
+      } catch (error) {
+        appendFileSync(
+          output,
+          `${JSON.stringify({
+            arm: arm.arm,
+            test_id: test.id,
+            source: test.source,
+            error: error instanceof Error ? error.message : String(error),
+          })}\n`,
+          "utf8",
+        );
+      }
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.max(1, concurrency) }, () => runCell()),
+  );
+  // Summary over ALL non-error rows in the file (resumed + fresh).
+  const rows = readFileSync(output, "utf8")
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as {
+      arm: string;
+      source: string;
+      p6?: number;
+      r6?: number;
+      fallback?: boolean;
+      error?: string;
+    })
+    .filter((row) => !row.error);
+  for (const arm of arms) {
+    const armRows = rows.filter((row) => row.arm === arm.arm);
+    const sources = [...new Set(armRows.map((row) => row.source))].sort();
+    const parts = sources.map(
+      (source) =>
+        `${source} R6=${mean(
+          armRows.filter((row) => row.source === source).map((row) => row.r6 ?? 0),
+        ).toFixed(4)}`,
+    );
+    console.log(
+      `${arm.arm}: P6=${mean(armRows.map((row) => row.p6 ?? 0)).toFixed(4)} ` +
+        `R6=${mean(armRows.map((row) => row.r6 ?? 0)).toFixed(4)} ` +
+        `fallback=${armRows.filter((row) => row.fallback).length}/${armRows.length} | ${parts.join(" ")}`,
+    );
+  }
+  console.log(`Receipts: ${output}`);
+  process.exit(0);
+}
+if (process.argv.includes("--rerank-arms")) {
+  rerankArmsMain().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}
+
 // Stage 18 registered arms: {chars,clause} x {plain,phrases} at the
 // crowned t1600/o120/w16, gated on maud pool R@48. Deterministic, free.
 if (process.argv.includes("--stage18")) {
@@ -178,6 +330,7 @@ if (process.argv.includes("--stage18")) {
   process.exit(0);
 }
 
+if (!process.argv.includes("--rerank-arms")) {
 console.log(
   "target overlap nameW | k | precision recall docRecall | chars/query",
 );
@@ -214,4 +367,5 @@ for (const config of configs) {
         `${mean(perK[k].p).toFixed(4)} ${mean(perK[k].r).toFixed(4)} ` +
         `${mean(perK[k].d).toFixed(4)} | ${Math.round(mean(perK[k].c))}`,
     );
+}
 }

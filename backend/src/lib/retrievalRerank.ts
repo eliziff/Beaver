@@ -25,6 +25,9 @@ export async function rerankPassages(args: {
    * over preview 500 on 120 paired gold tests — ranking on 31% of the
    * evidence was the single largest post-pool loss. */
   preview?: number;
+  /** Reasoning effort for the ranking call. Unset = provider default
+   * (the config every pre-effort receipt file was recorded at). */
+  effort?: string;
 }): Promise<{ hits: PassageHit[]; fallback: boolean }> {
   const { query, hits, model, top } = args;
   if (hits.length <= top) return { hits: hits.slice(0, top), fallback: false };
@@ -39,7 +42,12 @@ export async function rerankPassages(args: {
     })),
   });
   try {
-    const reply = await completeText({ model, systemPrompt: SYSTEM, user });
+    const reply = await completeText({
+      model,
+      systemPrompt: SYSTEM,
+      user,
+      ...(args.effort ? { reasoningEffort: args.effort } : {}),
+    });
     const match = reply.match(/\[[\d,\s]+\]/u);
     if (!match) throw new Error("no JSON array in reranker reply");
     const order = (JSON.parse(match[0]) as unknown[])

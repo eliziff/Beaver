@@ -2531,6 +2531,44 @@ k=6, stitch gap 200 (post-rerank same-doc merge; baseline lane stays
 unstitched for Stage 17 comparability). Output
 `stage18-lbrag-grounded.jsonl`. Predictions as registered above.
 
+### Stage 18 R4 — rerank compute ablation (registered 2026-07-30,
+before any cell ran; receipts `stage18-rerank-arms.jsonl`)
+
+Eli's question: does a heavier model or a higher luna effort tier
+change results? For the COMPOSER, Stage 13 answered it — effort
+saturates at sol@medium, max effort was retired (2–4× latency, no
+pass gain). The RERANKER has never been ablated on model or effort:
+luna has run at its provider default (medium) since Stage 16, and the
+rerank call path did not even plumb effort until now
+(`completeText`/`rerankPassages` gained an optional `reasoningEffort`
+pass-through; runner flag `--rerank-effort`, recorded in the
+retriever id as `+rerank(model@effort)`, absent = default = every
+prior receipt's config). Ranking is a different task shape from
+composition (one listwise selection over 48 candidates), so Stage 13's
+saturation result is a prior, not an answer.
+
+Design (deterministic bed, LLM only at the rank step): for each test,
+the crowned lexical pool (k=48, t1600/o120/w16, perDocCap 24 — byte-
+identical across arms), one listwise rerank call per arm, char P@6 /
+R@6 of the unstitched top-6 vs human gold. Unparseable replies fall
+back to lexical order (typed `fallback` flag, reported per arm — a
+rambling heavy arm fails closed, visibly). Bed: first 48/source (192
+tests) × 5 arms = 960 flat-rate calls; any displacing winner confirms
+on the full 776 before entering a frozen config. Holdout untouched.
+
+Arms: `luna@default` (champion control, no effort param), `luna@low`,
+`luna@high`, `sol@medium`, `terra@medium`.
+
+Predictions (frozen): (1) luna is effort-insensitive for ranking —
+low/high within ±0.02 R@6 of default; (2) no arm beats luna@default
+by more than +0.03 overall R@6; (3) heavier arms (sol, terra) cost
+≥2× rerank latency and do not lower fallback count. Displacement rule:
+an arm replaces luna@default in a future config only if overall R@6
+gain ≥ +0.03 AND no per-source R@6 regression > 0.03 AND fallback
+cells ≤ champion + 2, then confirmed on the full bed. A cheap tie
+(luna@low within 0.01) is recorded as a cost result, not adopted
+pre-holdout.
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under

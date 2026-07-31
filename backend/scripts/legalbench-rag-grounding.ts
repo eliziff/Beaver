@@ -279,6 +279,9 @@ async function main() {
   const rerankPreview = flag("rerank-preview", "")
     ? Number(flag("rerank-preview"))
     : undefined;
+  // Reranker reasoning effort. Empty = provider default (medium for
+  // luna), matching every receipt file recorded before this flag.
+  const rerankEffort = flag("rerank-effort", "");
   // Stage 18 G: merge same-doc retrieved spans whose gap is at most
   // this many chars, so narrow gold clauses straddling chunk joints
   // arrive as one evidence snippet. 0 = off. Baseline stays unstitched.
@@ -287,7 +290,9 @@ async function main() {
     (retrieverKind === "passage"
       ? `passage:t${chunkTarget}/o${chunkOverlap}/w${nameWeight}`
       : "product") +
-    (rerankModel ? `+rerank(${rerankModel})` : "") +
+    (rerankModel
+      ? `+rerank(${rerankModel}${rerankEffort ? `@${rerankEffort}` : ""})`
+      : "") +
     (rerankPreview === undefined ? "" : `@p${rerankPreview}`) +
     (stitchGap > 0 ? `+stitch${stitchGap}` : "");
   const timeoutMs = Number(flag("timeout-ms", "300000"));
@@ -389,6 +394,7 @@ async function main() {
             model: rerankModel,
             top: k,
             ...(rerankPreview === undefined ? {} : { preview: rerankPreview }),
+            ...(rerankEffort ? { effort: rerankEffort } : {}),
           })
         ).hits;
       for (const hit of hits) {
