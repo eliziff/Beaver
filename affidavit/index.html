@@ -283,7 +283,7 @@
     .exhibits-heading > div:first-child { display: grid; gap: .15rem; }
     .work-panel {
       display: grid;
-      grid-template-columns: 4rem minmax(0, 1fr);
+      grid-template-columns: 3rem minmax(0, 1fr);
       align-items: center;
       gap: 1rem;
       min-width: 0;
@@ -296,16 +296,21 @@
     .work-mark {
       display: grid;
       place-items: center;
-      width: 4rem;
+      width: 3rem;
       aspect-ratio: 1;
-      border-radius: 1rem;
-      color: #d97757;
-      background: #fdf3ef;
+      border-radius: .75rem;
+      color: var(--brand);
+      background: var(--brand-soft);
     }
     .work-swirl {
-      width: 2.15rem;
-      height: 2.15rem;
-      transform-origin: center;
+      display: grid;
+      place-items: center;
+      width: 1.75rem;
+      height: 1.75rem;
+      font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+      font-size: 1.65rem;
+      font-weight: 700;
+      line-height: 1;
     }
     .work-copy {
       display: grid;
@@ -328,16 +333,20 @@
       font-variant-numeric: tabular-nums;
     }
     .work-copy progress { grid-column: 1 / -1; margin: .15rem 0 0; }
-    @media (prefers-reduced-motion: no-preference) {
-      .work-swirl { animation: work-swirl 1.05s steps(8, end) infinite; }
+    .exhibit-files-panel {
+      margin-block-end: 1rem;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: .65rem;
+      background: #fff;
     }
-    @keyframes work-swirl { to { transform: rotate(1turn); } }
-
-    .exhibit-import-stage { min-height: 11rem; margin-block-end: 1rem; }
+    .exhibit-import-stage { min-height: 12.25rem; }
     .exhibit-import-controls { display: grid; align-content: start; min-width: 0; }
     .batch-drop {
-      min-height: 5rem;
-      border-radius: .65rem .65rem 0 0;
+      min-height: 7.5rem;
+      border: 0;
+      border-bottom: 1px dashed var(--line);
+      border-radius: 0;
     }
     .placement-mode {
       display: grid;
@@ -346,9 +355,9 @@
       min-width: 0;
       margin: 0;
       padding: .5rem;
-      border: 1px solid var(--line);
-      border-top: 0;
-      border-radius: 0 0 .65rem .65rem;
+      border: 0;
+      border-bottom: 1px solid var(--line);
+      border-radius: 0;
       background: #f9fafb;
     }
     .placement-mode legend {
@@ -383,17 +392,21 @@
     .placement-mode input { margin: .15rem 0 0; accent-color: var(--brand); }
 
     .file-pool {
-      margin-block-end: 1rem;
       padding: .85rem;
-      border-radius: .65rem;
+      border-radius: 0;
       background: #f9fafb;
-      box-shadow: inset 0 0 0 1px var(--line);
+      box-shadow: none;
       transition-property: background-color, box-shadow;
       transition-duration: 120ms;
     }
     .file-pool[data-over="true"] {
       background: var(--brand-soft);
       box-shadow: inset 0 0 0 2px var(--brand), 0 0 0 3px rgb(213 43 30 / 12%);
+    }
+    .exhibit-files-panel .work-panel {
+      min-height: 12.25rem;
+      border-radius: 0;
+      box-shadow: inset 0 -1px var(--line);
     }
     .pool-heading {
       display: flex;
@@ -734,9 +747,10 @@
       .file-drop .file-button { width: 100%; }
       #affidavit-drop { grid-template-columns: 1fr; }
       #affidavit-drop .affidavit-picker { width: 8.5rem; justify-self: start; }
-      .work-panel { grid-template-columns: 3.25rem minmax(0, 1fr); padding: 1rem; }
-      .work-mark { width: 3.25rem; }
-      .exhibit-import-stage { min-height: 10.5rem; }
+      .work-panel { grid-template-columns: 2.75rem minmax(0, 1fr); padding: 1rem; }
+      .work-mark { width: 2.75rem; }
+      .exhibit-import-stage,
+      .exhibit-files-panel .work-panel { min-height: 13.5rem; }
       .pool-heading { align-items: stretch; flex-direction: column; }
       .pool-heading .clear-exhibits { width: 100%; }
       .form-grid { grid-template-columns: 1fr; }
@@ -808,18 +822,7 @@
         </div>
         <div id="affidavit-loading" class="work-panel hidden">
           <div class="work-mark" aria-hidden="true">
-            <svg class="work-swirl" viewBox="0 0 36 36">
-              <g fill="none" stroke="currentColor" stroke-linecap="round">
-                <path d="M18 3.5v8" stroke-width="4.4"/>
-                <path d="M28.4 7.6l-5.8 5.8" stroke-width="3.8" opacity=".86"/>
-                <path d="M32.5 18h-8" stroke-width="4.2" opacity=".72"/>
-                <path d="M28.3 28.3l-5.7-5.7" stroke-width="3.6" opacity=".58"/>
-                <path d="M18 32.5v-8" stroke-width="4.4" opacity=".44"/>
-                <path d="M7.7 28.3l5.7-5.7" stroke-width="3.7" opacity=".32"/>
-                <path d="M3.5 18h8" stroke-width="4.1" opacity=".22"/>
-                <path d="M7.7 7.7l5.7 5.7" stroke-width="3.5" opacity=".13"/>
-              </g>
-            </svg>
+            <span class="work-swirl">⠋</span>
           </div>
           <div class="work-copy">
             <strong>Reading affidavit</strong>
@@ -882,8 +885,9 @@
               <span id="exhibit-count" class="count">1 exhibit</span>
             </div>
           </div>
-          <div class="exhibit-import-stage">
-            <div id="exhibit-import-controls" class="exhibit-import-controls">
+          <div class="exhibit-files-panel">
+            <div class="exhibit-import-stage">
+              <div id="exhibit-import-controls" class="exhibit-import-controls">
               <div id="exhibit-batch" class="file-drop batch-drop">
                 <div>
                   <strong>Add exhibit files</strong>
@@ -900,41 +904,31 @@
                 <label><input type="radio" name="file-placement" value="sequence"><span>Use selection order</span></label>
                 <label><input type="radio" name="file-placement" value="pool"><span>Unsorted</span></label>
               </fieldset>
-            </div>
-            <div id="exhibit-loading" class="work-panel hidden">
-              <div class="work-mark" aria-hidden="true">
-                <svg class="work-swirl" viewBox="0 0 36 36">
-                  <g fill="none" stroke="currentColor" stroke-linecap="round">
-                    <path d="M18 3.5v8" stroke-width="4.4"/>
-                    <path d="M28.4 7.6l-5.8 5.8" stroke-width="3.8" opacity=".86"/>
-                    <path d="M32.5 18h-8" stroke-width="4.2" opacity=".72"/>
-                    <path d="M28.3 28.3l-5.7-5.7" stroke-width="3.6" opacity=".58"/>
-                    <path d="M18 32.5v-8" stroke-width="4.4" opacity=".44"/>
-                    <path d="M7.7 28.3l5.7-5.7" stroke-width="3.7" opacity=".32"/>
-                    <path d="M3.5 18h8" stroke-width="4.1" opacity=".22"/>
-                    <path d="M7.7 7.7l5.7 5.7" stroke-width="3.5" opacity=".13"/>
-                  </g>
-                </svg>
               </div>
-              <div class="work-copy">
-                <strong>Sorting exhibit files</strong>
-                <span id="exhibit-work-step" class="work-step" role="status" aria-live="polite">Preparing document tools</span>
-                <output id="exhibit-work-percent" class="work-percent">0%</output>
-                <progress id="exhibit-work-progress" max="100" value="0" aria-label="Exhibit sorting progress"></progress>
+              <div id="exhibit-loading" class="work-panel hidden">
+                <div class="work-mark" aria-hidden="true">
+                  <span class="work-swirl">⠋</span>
+                </div>
+                <div class="work-copy">
+                  <strong>Sorting exhibit files</strong>
+                  <span id="exhibit-work-step" class="work-step" role="status" aria-live="polite">Preparing document tools</span>
+                  <output id="exhibit-work-percent" class="work-percent">0%</output>
+                  <progress id="exhibit-work-progress" max="100" value="0" aria-label="Exhibit sorting progress"></progress>
+                </div>
               </div>
             </div>
+            <section class="file-pool" aria-labelledby="pool-title">
+              <div class="pool-heading">
+                <div>
+                  <h3 id="pool-title">Files</h3>
+                  <span id="pool-count" class="count">0 files</span>
+                </div>
+                <button id="clear-exhibits" type="button" class="secondary clear-exhibits" disabled>Clear exhibit slots</button>
+              </div>
+              <p class="pool-help">Drag a file into a slot. Drop an assigned exhibit here to unassign it.</p>
+              <div id="pool-list" class="pool-list"></div>
+            </section>
           </div>
-          <section class="file-pool" aria-labelledby="pool-title">
-            <div class="pool-heading">
-              <div>
-                <h3 id="pool-title">Files</h3>
-                <span id="pool-count" class="count">0 files</span>
-              </div>
-              <button id="clear-exhibits" type="button" class="secondary clear-exhibits" disabled>Clear exhibit slots</button>
-            </div>
-            <p class="pool-help">Drag a file into a slot. Drop an assigned exhibit here to unassign it.</p>
-            <div id="pool-list" class="pool-list"></div>
-          </section>
           <div id="exhibit-list" class="exhibit-list" aria-label="Exhibits in order"></div>
           <button id="add-slot" type="button" class="add-exhibit"><span aria-hidden="true">+</span> Add exhibit</button>
           <label class="check bumper-option">
@@ -1037,6 +1031,17 @@
       docxQueue: Promise.resolve(),
       docxCache: new Map(),
     };
+    const spinnerFrames = [..."⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"];
+    let spinnerFrame = 0;
+    if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setInterval(() => {
+        spinnerFrame = (spinnerFrame + 1) % spinnerFrames.length;
+        document.querySelectorAll(".work-swirl").forEach((spinner) => {
+          spinner.textContent = spinnerFrames[spinnerFrame];
+        });
+      }, 110);
+    }
+
     function escapeHtml(value) {
       return String(value).replace(/[&<>"']/g, (character) => ({
         "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
