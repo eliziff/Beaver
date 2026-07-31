@@ -10,13 +10,13 @@
     },
     "TableOfAuthoritiesMaker": {
       "branch": "master",
-      "commit": "3d765c5860400cad1c603346bc20ae8797c34206",
+      "commit": "8e342c2aabaa74971221e90372d2f1d22aade9ab",
       "bundle": "subrepos/TableOfAuthoritiesMaker.bundle",
       "remote": null
     },
     "universal-legal-pdf-engine": {
       "branch": "main",
-      "commit": "9e72346efa11e789100edef5d3782f0becd7d78e",
+      "commit": "7eb62a832993307bd692c64b127d131750d71cb2",
       "bundle": "subrepos/universal-legal-pdf-engine.bundle",
       "remote": null
     }

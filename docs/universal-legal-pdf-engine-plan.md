@@ -4,6 +4,10 @@
 > portion of this design. This file remains the detailed requirements and
 > benchmark appendix; the authoritative remaining work is in the
 > [Beaver master plan](beaver-master-plan.md).
+>
+> Integration note (2026-07-30): full-article footnote/endnote pairing is a
+> mandatory engine stage. Consumers do not select another pairer or a reduced
+> pairing implementation.
 
 ## Purpose
 
@@ -473,8 +477,9 @@ merely produce more plausible-looking structure.
 - Confidential PDFs may not be eligible for remote model calls; the local mode
   remains fully usable and provenance makes model use auditable.
 - Text-Fidelity-Project had no top-level license in the inspected checkout.
-  Begin with adapters and clarify reuse/distribution terms before extracting
-  its implementations into a separately distributed package.
+  The pairing stage records its exact upstream revision and the
+  author's explicit reuse approval; keep that provenance with redistributed
+  source.
 - Do not add vector search, a daemon, or a plugin protocol to the engine.
   Consumer applications can layer those capabilities over the stable document
   contract if they actually need them.

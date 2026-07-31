@@ -591,7 +591,7 @@ describe("local assistant tools", () => {
     expect(response.content).not.toContain("ENOENT");
   });
 
-  it("submits only an owned Library DOCX version to the ToA bridge", async () => {
+  it("submits owned Word and PDF Library versions to the ToA bridge", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-tools-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const jobId = "a".repeat(32);
@@ -646,6 +646,36 @@ describe("local assistant tools", () => {
         id: jobId,
         app_url: `/table-of-authorities?job=${jobId}`,
       },
+    });
+
+    const pdf = await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "factum.pdf",
+      bytes: Buffer.from("owned-pdf-bytes"),
+    });
+    const [pdfResponse] = await tools.runLocalAssistantTools("local-user", [
+      {
+        id: "call-toa-pdf",
+        name: "toa_submit_library_document",
+        input: {
+          document_id: pdf.id,
+          version_id: pdf.current_version_id,
+          split_fallback: "off",
+        },
+      },
+    ]);
+
+    expect(submit).toHaveBeenCalledTimes(2);
+    expect(submit.mock.calls[1][0]).toMatchObject({
+      filename: "factum.pdf",
+      splitFallback: "off",
+    });
+    expect(submit.mock.calls[1][0].bytes.toString()).toBe("owned-pdf-bytes");
+    expect(JSON.parse(pdfResponse.content)).toMatchObject({
+      ok: true,
+      document_id: pdf.id,
+      version_id: pdf.current_version_id,
     });
   });
 

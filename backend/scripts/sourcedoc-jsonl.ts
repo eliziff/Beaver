@@ -49,6 +49,41 @@ function numbered(label: string) {
   return Number.isFinite(value) ? value : label;
 }
 
+function rendition(
+  text: string,
+  selected: Array<{
+    kind: "paragraph" | "page" | "section";
+    label: string;
+    aliases?: string[];
+    start: number;
+    end: number;
+    origin: "native" | "heuristic";
+  }>,
+  kind: string,
+) {
+  const segments: Array<Record<string, unknown>> = [];
+  let cursor = 0;
+  for (const block of [...selected].sort(
+    (left, right) => left.start - right.start,
+  )) {
+    if (block.start > cursor) {
+      segments.push({ kind: "text", text: text.slice(cursor, block.start) });
+    }
+    segments.push({
+      kind: block.kind,
+      label: block.label,
+      aliases: block.aliases ?? [],
+      origin: block.origin,
+      text: text.slice(block.start, block.end),
+    });
+    cursor = Math.max(cursor, block.end);
+  }
+  if (cursor < text.length || !segments.length) {
+    segments.push({ kind: "text", text: text.slice(cursor) });
+  }
+  return { kind, segments };
+}
+
 function compile(input: Request) {
   const started = performance.now();
   const doc = compileA2AJSourceDoc(input);
@@ -58,6 +93,7 @@ function compile(input: Request) {
       doc.blocks
         .filter((block) => block.kind === kind && !block.parentLabel)
         .map(({ label, aliases, start, end, origin }) => ({
+          kind,
           label,
           aliases: aliases ?? [],
           start,
@@ -100,6 +136,7 @@ function compile(input: Request) {
             ? 1
             : 0,
     },
+    rendition: rendition(doc.text, selected, kind),
     blocks,
     elapsedMs: Number((performance.now() - started).toFixed(3)),
   };

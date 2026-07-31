@@ -535,7 +535,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
   ),
   tool(
     "toa_submit_library_document",
-    "Submit one owned DOCX Library version to the local Table of Authorities workflow. Detection is deterministic first, with a bounded cached Codex splitter only for unresolved citation units. Never pass or invent filesystem paths.",
+    "Submit one owned Word or PDF Library version to the local authorities workflow. A PDF can create a Book of Authorities; inserting a table requires Word. Detection is deterministic first, with a bounded cached Codex splitter only for unresolved citation units. Never pass or invent filesystem paths.",
     {
       type: "object",
       properties: {
@@ -2718,11 +2718,11 @@ export async function runLocalAssistantTools(
             documentId,
             versionId || undefined,
           );
-          if (!file) return fail(call, "DOCX Library version not found");
-          if (file.fileType.toLowerCase() !== "docx") {
+          if (!file) return fail(call, "Library version not found");
+          if (!["docx", "pdf"].includes(file.fileType.toLowerCase())) {
             return fail(
               call,
-              "Table of Authorities requires a DOCX Library version",
+              "Table of Authorities requires a Word or PDF Library version",
             );
           }
           const job = await submitTableOfAuthoritiesDocument({

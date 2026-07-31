@@ -35,15 +35,19 @@ const ACTIONS: readonly Action[] = [
     { tool: "library_link_docx_citations", icon: Link2 },
     { tool: "library_fix_docx_supras", icon: RefreshCw },
 ];
+function documentAutomationKind(
+    document: DocumentAutomationTarget | null,
+): "docx" | "pdf" | null {
+    if (!document || document.library_kind === "template") return null;
+    const type = document.file_type?.trim().toLowerCase();
+    if (type === "docx" || type === "pdf") return type;
+    const match = document.filename.trim().toLowerCase().match(/\.(docx|pdf)$/);
+    return (match?.[1] as "docx" | "pdf" | undefined) ?? null;
+}
 export function documentAutomationEligible(
     document: DocumentAutomationTarget | null,
 ) {
-    if (!document) return false;
-    if (document.library_kind === "template") return false;
-    return (
-        document.file_type?.trim().toLowerCase() === "docx" ||
-        document.filename.trim().toLowerCase().endsWith(".docx")
-    );
+    return documentAutomationKind(document) !== null;
 }
 function docxRun(
     id: string,
@@ -149,8 +153,14 @@ function DocumentAutomationMenu({
     const open = !!document && menu?.documentId === document.id;
     const inspectionError =
         document && failure?.documentId === document.id ? failure.message : "";
+    const pdf = documentAutomationKind(document) === "pdf";
     async function openAutomation() {
         if (!document || inspecting) return;
+        if (pdf) {
+            setFailure(null);
+            setMenu({ documentId: document.id, showSupras: false });
+            return;
+        }
         setInspecting(true);
         setFailure(null);
         try {
@@ -228,7 +238,9 @@ function DocumentAutomationMenu({
     }
     const actions = ACTIONS.filter(
         ({ tool }) =>
-            tool !== "library_fix_docx_supras" || menu?.showSupras,
+            tool === "toa_submit_library_document" ||
+            (!pdf &&
+                (tool !== "library_fix_docx_supras" || menu?.showSupras)),
     );
     return (
         <>
