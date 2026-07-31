@@ -509,3 +509,33 @@ describe("compileAgreementSkeleton: segmentation competition", () => {
     expect(labels).not.toContain("sec12.01");
   });
 });
+
+describe("compileAgreementSkeleton: single-space line joins", () => {
+  const body = (n: number) =>
+    `${n}.01 Heading ${n}. The parties agree at length about topic ${n}. ` +
+    `This is governed by Section 1.01 and Section 2.01.`;
+  // One 'page' per line, lines joined with a single space — no run to split.
+  const JOINED = `AGREEMENT DATED TODAY. ${[1, 2, 3, 4, 5].map(body).join(" ")}`;
+
+  it("recovers heads that follow a sentence terminator", () => {
+    const labels = compileAgreementSkeleton(JOINED).nodes.map((n) => n.label);
+    expect(labels).toContain("sec1.01");
+    expect(labels).toContain("sec5.01");
+  });
+
+  it("does not mint heads out of a definitions index", () => {
+    // Every entry cites a section mid-sentence. None of those citations is a
+    // heading, and the ones cited are real heads elsewhere — precisely the
+    // shape that made the unguarded version score itself higher.
+    const index = [
+      '"Balance Sheet Date" has the meaning set forth in Section 6.16.',
+      '"Bring-Down Date" has the meaning set forth in Section 3.11.',
+      '"Burdensome Condition" has the meaning set forth in Section 6.17.',
+    ].join(" ");
+    const doc = `AGREEMENT DATED TODAY. 1.01 Definitions. ${index} ${[6, 3].map(body).join(" ")}`;
+    const labels = compileAgreementSkeleton(doc).nodes.map((n) => n.label);
+    expect(labels).not.toContain("sec6.16");
+    expect(labels).not.toContain("sec6.17");
+    expect(labels).not.toContain("sec3.11");
+  });
+});
