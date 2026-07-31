@@ -2907,6 +2907,51 @@ registration):
   (lock-in bias); revisitable post-holdout only as a new
   registered round.
 
+### Stage 18 R5b grounded confirm verdict (2026-07-31; receipts
+`stage18-lbrag-grounded-ctx.jsonl`, 776/776 cells, 0 errors after a
+2-cell resume)
+
+**KEEP — every frozen gate passes and every source improved.**
+Retriever label recorded in every row:
+`passage:t1600/o120/w16+ctx(w4@36d041f7d66b)+rerank(codex:gpt-5.6-luna)@p1600+stitch200`.
+
+P1 unconditional, clean: 1,564 quoted spans, 0 verbatim mismatches,
+0 unlocated quotes, doc-miss 7 raw — all 7 byte-identical duplicate
+files (the known ADUROBIOTECH-class artifact), 0 TRUE.
+
+Coverage and precision vs G: answered 693/776 = 89.3% (G 87.8%);
+answered-only P 0.5535 (G 0.5377), R 0.5832 (G 0.5708). Per source
+(ansP/ansR, G in parens): contractnli 0.8052/0.8578 (0.7893/0.8491),
+cuad 0.6232/0.7689 (0.5822/0.7427), maud 0.1754/0.1385
+(0.1626/0.1070), privacy_qa 0.5394/0.4809 (0.5241/0.4701).
+
+Gate arithmetic: maud answered-only R 0.1385 ≥ 0.1170 KEEP bar;
+overall P 0.5535 ≥ 0.5277; overall R 0.5832 ≥ 0.5608 — KEEP on all
+three, DROP conditions nowhere near.
+
+Predictions: maud R lift +0.0315 inside the +0.01..+0.05 band HIT;
+answered 89.3% inside 85–91% HIT; retrieval-only R 0.8464 ≥ 0.8097
+HIT. One band miss recorded honestly: cuad answered-only P moved
++0.0410, outside the ±0.02 "non-maud within noise" prediction — in
+the favorable direction, and expected in hindsight since the
+adopted sidecar carries (low-effort) headers for every source, not
+only maud; the R5 off-target observation already showed cuad's pool
+benefits most.
+
+Fair-comparison modes (locked protocol): answered-only P 0.5535 /
+R 0.5832; forced-answer P 0.5040 / R 0.5743; zero-credit P 0.4943 /
+R 0.5209; retrieval-only over all cells P 0.0757 / R 0.8464. All
+four modes improved over G — the sidecar is not an
+abstention-selection artifact.
+
+**The retrieval config is now frozen as G+ctx:** sol@medium
+composer, required_slot, k=6,
+`passage:t1600/o120/w16+ctx(w4@36d041f7d66b)+rerank(luna)@p1600+stitch200`.
+The only remaining pre-holdout lane is arm D (dense), in flight
+under its own frozen gates; its verdict either adds a hybrid pool
+lane (after its own confirm) or closes, and then Stage 19 burns
+once.
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under
@@ -2955,6 +3000,7 @@ committed.
 | `stage18-passage-context-maud-medium.jsonl` (R5b maud headers at luna@medium, 4,692 rows incl. 1 superseded error row) | `CBDC6994F3C012F87CAE67BF48D50843D302B443E507893E73F9035178C4C594` |
 | `stage18-passage-context-combined-medium.jsonl` (R5b adopted sidecar: raw low-effort file + maud-medium rows, byte-exact concat, 12,180 lines) | `36D041F7D66B6F39C99D47078C88BF9F45F3FAF18ED054B5E8EA6640F231397E` |
 | `stage18-context-arms-maud-medium.jsonl` (R5b weight sweep, combined sidecar) | `9FA97EAE337F9F7F7D54FE53E5BAA9B424354F4A8E68782CE5A1226048982F38` |
+| `stage18-lbrag-grounded-ctx.jsonl` (R5b grounded confirm, 776 cells + 2-cell resume, 0 errors) | `11A4FB9A32D27679E8E8A7BBBDAEFF9E22228B950F68C093F8AA2D2B32DE751C` |
 
 ## Validation and final selection gate
 
