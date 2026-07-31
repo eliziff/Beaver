@@ -2569,6 +2569,46 @@ cells ≤ champion + 2, then confirmed on the full bed. A cheap tie
 (luna@low within 0.01) is recorded as a cost result, not adopted
 pre-holdout.
 
+### Stage 18 R4 verdict (2026-07-30, 960/960 cells, 0 errors,
+concurrency 12, receipts `stage18-rerank-arms.jsonl`)
+
+**No displacement — luna@default (provider medium) is confirmed the
+best rerank seat; prediction 1 falsified in an instructive direction.**
+
+| arm | R@6 | P@6 | fallback | maud R@6 |
+| --- | --- | --- | --- | --- |
+| luna@default | **0.7845** | 0.0790 | **0/192** | 0.2764 |
+| sol@medium | 0.7773 | 0.0787 | 0/192 | 0.2630 |
+| terra@medium | 0.7612 | 0.0766 | 9/192 | 0.2698 |
+| luna@high | 0.7571 | 0.0788 | 55/192 | 0.2747 |
+| luna@low | 0.6562 | 0.0618 | 41/192 | 0.2695 |
+
+- Prediction 1 (luna effort-insensitive, ±0.02) **falsified**: low
+  −0.128, high −0.027. But the mediator is FORMAT COMPLIANCE, not
+  ranking ability — fallback (unparseable listwise reply → lexical
+  order, fail-closed) runs 0% at default vs 21% at low and 29% at
+  high. Low-effort luna gets sloppy with the JSON array; high-effort
+  luna buries it. Effort deviation in either direction breaks the
+  output contract more often than it improves the ranking.
+  privacy_qa shows the damage concentrated where lexical order is
+  weakest (low: 0.9494 → 0.4437).
+- Prediction 2 held: nothing beat the champion at all, let alone by
+  +0.03. A whole model tier up (sol) with zero fallback still ranks
+  0.007 WORSE — listwise selection over 48 candidates is saturated at
+  luna-medium capability.
+- Prediction 3 (latency): unmeasurable as registered — the harness
+  did not record per-call latency (honest gap; arms interleaved in
+  one wall-clock window). Fallback comparison: sol ties default at 0;
+  terra 9/192.
+- Cross-confirmation of the maud diagnosis: every arm lands maud R@6
+  at 0.26–0.28 against a pool ceiling of ~0.29 — no amount of rerank
+  compute can rank what the pool never contains. maud is a pool
+  problem (R5/dense lanes), not a rank problem.
+
+Roster consequence: rerank seat frozen at luna@default preview 1600.
+The effort plumbing stays (measured-negative options documented);
+`--rerank-effort` should NOT be set in production configs.
+
 ### Stage 18 R5 — contextual enrichment (registered 2026-07-30,
 before any header was generated; receipts
 `stage18-passage-context.jsonl`)
@@ -2699,6 +2739,7 @@ committed.
 | `stage17-lbrag-full.jsonl` (784 rows incl. 8 superseded error rows; resume passes appended) | `F117396886C52B10365ECB334A304F675C63D576FDB21E3039034C42F828DCF1` |
 | `stage18-retrieval-arms.jsonl` (R1/R2 deterministic arms, all 776 tests) | `66689E7F6EB513348A167665C9D53BF02F807DDBDE61D409C52DDA88A0D23164` |
 | `stage18-lbrag-grounded.jsonl` (G confirm, 776 rows; survived a mid-run machine restart via two resume passes, c=6 then c=3) | `BF2ED3965651565A75BE407BE1463B800F9B9F7246A6FCB58C96B52993A9D6E9` |
+| `stage18-rerank-arms.jsonl` (R4 compute ablation, 960 cells, 0 errors) | `CC8837B79B962A17D385C3B5E16157F9B89B2C8DE00E3B967C77A03C759C0D9C` |
 
 ## Validation and final selection gate
 
