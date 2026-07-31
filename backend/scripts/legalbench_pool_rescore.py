@@ -15,12 +15,19 @@ Prints pool recall three ways so the two defects stay separable:
   B  lf-map only   coordinates corrected, still pairwise-sum (D2 present)
   C  corrected     coordinates + union-merged credit, clipped at 1.0
 
+Sidecars built on the NORMALIZED (LF) source db carry LF offsets already and
+must not be mapped again: pass `--coords lf`, which skips step A/B and reports
+the corrected column only.
+
 Usage (from backend/):
   python scripts/legalbench_pool_rescore.py <pool.jsonl> [--json out.json]
+      [--coords raw|lf] [--arm <name>]
 
 Pool sidecar format: one JSON object per line,
   {"test_id": "maud:007", "source": "maud",
    "pool": [{"citation": <upstream path>, "start": int, "end": int}, ...]}
+Multi-arm sidecars (legalbench_dense_pools.py) carry {"arms": {<name>: [...]}}
+instead; select one with `--arm <name>`.
 """
 import json
 import os
@@ -92,6 +99,11 @@ def main():
         return 2
     pool_path = sys.argv[1]
     json_out = sys.argv[sys.argv.index("--json") + 1] if "--json" in sys.argv else None
+    coords = sys.argv[sys.argv.index("--coords") + 1] if "--coords" in sys.argv else "raw"
+    arm = sys.argv[sys.argv.index("--arm") + 1] if "--arm" in sys.argv else None
+    if coords not in ("raw", "lf"):
+        print("--coords must be raw or lf")
+        return 2
     gold = load_gold()
     per_source = {}
 
@@ -99,10 +111,17 @@ def main():
         if not line.strip():
             continue
         row = json.loads(line)
+        spans = row["arms"][arm] if arm else row["pool"]
         gold_spans = gold[row["test_id"]]
         gold_length = sum(end - start for _, start, end in gold_spans)
-        pool_raw = [(p["citation"], p["start"], p["end"]) for p in row["pool"]]
-        pool_lf = [(c, raw_to_lf(c, a), raw_to_lf(c, b)) for c, a, b in pool_raw]
+        pool_raw = [(p["citation"], p["start"], p["end"]) for p in spans]
+        # An LF sidecar is already in gold coordinates; mapping it again would
+        # shift every maud offset a second time.
+        pool_lf = (
+            pool_raw
+            if coords == "lf"
+            else [(c, raw_to_lf(c, a), raw_to_lf(c, b)) for c, a, b in pool_raw]
+        )
 
         def pairwise(pool):
             common = 0
@@ -131,7 +150,7 @@ def main():
         return sum(values) / len(values) if values else 0.0
 
     overall = {"recorded": [], "lf_map": [], "corrected": []}
-    report = {"pool": os.path.basename(pool_path), "per_source": {}}
+    report = {"pool": os.path.basename(pool_path), "coords": coords, "arm": arm, "per_source": {}}
     print("%-12s %11s %9s %12s   n" % ("source", "A recorded", "B lf-map", "C corrected"))
     for source in sorted(per_source):
         entry = per_source[source]
