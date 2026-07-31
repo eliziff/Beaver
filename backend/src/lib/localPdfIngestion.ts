@@ -109,6 +109,7 @@ export type LocalPdfParseState = {
   };
   structural_repair_available?: boolean;
   error?: string;
+  error_detail?: string;
 };
 
 type JsonObject = Record<string, unknown>;
@@ -212,6 +213,24 @@ function safeParserError(error: unknown) {
     return "PDF source changed after its parse job was queued";
   }
   return "PDF structural parser failed";
+}
+
+function parserErrorDetail(error: unknown) {
+  if (!(error instanceof Error)) return String(error).slice(0, 4_000);
+  const processError = error as Error & {
+    code?: unknown;
+    stderr?: unknown;
+    stdout?: unknown;
+  };
+  return [
+    error.message,
+    processError.code === undefined ? "" : `exit: ${String(processError.code)}`,
+    typeof processError.stderr === "string" ? processError.stderr : "",
+    typeof processError.stdout === "string" ? processError.stdout : "",
+  ]
+    .filter(Boolean)
+    .join("\n")
+    .slice(0, 4_000);
 }
 
 async function detectedTesseractIdentity(
@@ -778,6 +797,7 @@ async function publishCompactArtifacts(
   ) as JsonObject;
   if (
     manifest.schema_version !== LEGAL_PDF_DOCUMENT_SCHEMA ||
+    manifest.artifact_profile !== "compact-source" ||
     manifest.source_sha256 !== state.source_sha256 ||
     manifest.parser_version !== state.parser_version
   ) {
@@ -844,6 +864,18 @@ async function publishCompactArtifacts(
     ...artifacts,
     parser_config: "parser-config.json",
   };
+  if (
+    manifest.metadata &&
+    typeof manifest.metadata === "object" &&
+    !Array.isArray(manifest.metadata)
+  ) {
+    const pairing = (manifest.metadata as JsonObject).pairing;
+    if (pairing && typeof pairing === "object" && !Array.isArray(pairing)) {
+      delete (pairing as JsonObject).created_at;
+      delete (pairing as JsonObject).elapsed_seconds;
+    }
+  }
+  delete manifest.artifact_profile;
   manifest.engine_schema_version = LEGAL_PDF_DOCUMENT_SCHEMA;
   manifest.schema_version = LOCAL_PDF_SOURCE_SCHEMA;
   manifest.artifact_profile = "compact-source";
@@ -949,6 +981,7 @@ async function processJob(sourcePath: string) {
       "--mode",
       parsing.parser_config.mode,
       "--no-cache",
+      "--compact-pages",
       "--cache-dir",
       path.join(
         dataRoot,
@@ -1072,6 +1105,7 @@ async function processJob(sourcePath: string) {
       ...parsing,
       status: "failed",
       error: safeParserError(error),
+      error_detail: parserErrorDetail(error),
       completed_at: failed,
       updated_at: failed,
     });
@@ -1230,6 +1264,25 @@ export async function queueLocalPdfParse(params: {
   return candidate;
 }
 
+export async function parseLocalPdfOnDemand(
+  params: Omit<Parameters<typeof queueLocalPdfParse>[0], "force">,
+) {
+  const current = await readLocalPdfParseState(params.sourcePath);
+  if (current?.status === "ready" || current?.status === "degraded") {
+    return current;
+  }
+  const queued =
+    current?.status === "queued" || current?.status === "parsing"
+      ? current
+      : await queueLocalPdfParse({
+          ...params,
+          force: current?.status === "failed",
+        });
+  if (queued.status === "ready" || queued.status === "degraded") return queued;
+  await jobs.get(jobKey(params.sourcePath))?.catch(() => undefined);
+  return (await readLocalPdfParseState(params.sourcePath)) ?? queued;
+}
+
 /**
  * Light parse-state summary for library listings: reads the state file
  * only — no artifact validation, no diagnostics load, no writes — so a
@@ -1357,52 +1410,6 @@ async function stateFiles(directory: string): Promise<string[]> {
 }
 
 export async function resumeLocalPdfParses() {
-  try {
-    const store = JSON.parse(
-      await readFile(path.join(dataRoot, "library.json"), "utf8"),
-    ) as {
-      documents?: {
-        id?: unknown;
-        versions?: {
-          id?: unknown;
-          fileType?: unknown;
-          storagePath?: unknown;
-          sourceSha256?: unknown;
-        }[];
-      }[];
-    };
-    for (const document of store.documents ?? []) {
-      for (const version of document.versions ?? []) {
-        if (
-          version.fileType !== "pdf" ||
-          typeof document.id !== "string" ||
-          typeof version.id !== "string" ||
-          typeof version.storagePath !== "string"
-        ) {
-          continue;
-        }
-        const sourcePath = path.resolve(dataRoot, version.storagePath);
-        relativeDataPath(sourcePath);
-        if ((await exists(sourcePath)) && !(await readState(sourcePath))) {
-          await queueLocalPdfParse({
-            documentId: document.id,
-            versionId: version.id,
-            sourcePath,
-            sourceSha256:
-              typeof version.sourceSha256 === "string"
-                ? version.sourceSha256
-                : undefined,
-          });
-        }
-      }
-    }
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-      console.error("[local-library] Could not recover unqueued PDF imports", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }
   for (const filePath of await stateFiles(path.join(dataRoot, "files"))) {
     try {
       const sourcePath = filePath.slice(0, -STATE_SUFFIX.length);
@@ -1424,13 +1431,6 @@ export async function resumeLocalPdfParses() {
             2,
           )}\n`,
         );
-        continue;
-      }
-      if (
-        (state.status === "ready" || state.status === "degraded") &&
-        !(await validatePublishedArtifacts(sourcePath, state))
-      ) {
-        await requeueInvalidPublication(sourcePath, state);
         continue;
       }
       if (!["queued", "parsing"].includes(state.status)) continue;
