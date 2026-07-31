@@ -100,6 +100,14 @@ const SPEC_MODULE: [name: string, text: string] = [
   "Before composing, build an internal spec of the supplied passages as a web of related concepts: map defined terms to their definitions, follow cross-references between passages, and note which passages qualify, extend, or carve out exceptions to the others. Then answer the question against that web, quoting every passage that plays a role — the definition, the operative clause, and any exception or cross-referenced qualifier.",
 ];
 
+// Stage 18 F3 control arm: the whole registered contract replaced by
+// one sentence. The claim-typing schema is still enforced by the tool,
+// so this prices the PROMPT contract, not the machinery.
+const PLAIN_MODULE: [name: string, text: string] = [
+  "plain",
+  "Answer using the grounded-answer tool. Quote the supplied passages that answer the question, exactly as written.",
+];
+
 type MiniTestCell = {
   id: string;
   source: SourceBenchmark;
@@ -343,15 +351,28 @@ async function main() {
   const resume = flag("resume", "0") !== "0";
   const coverageArm = flag("coverage", "0") !== "0";
   const specArm = flag("spec", "0") !== "0";
-  const activeModules = [
-    ...PROMPT_MODULES,
-    ...(coverageArm ? [COVERAGE_MODULE] : []),
-    ...(specArm ? [SPEC_MODULE] : []),
-  ];
+  // Stage 18 F2 negative control: gold docs (and byte-identical twins)
+  // dropped from the hits, so the honest outcome is a decline.
+  const excludeGold = flag("exclude-gold", "0") !== "0";
+  // Stage 18 F3 plain-prompt control: the ONLY module is PLAIN_MODULE.
+  const plainArm = flag("plain", "0") !== "0";
+  if (plainArm && (coverageArm || specArm))
+    throw new Error(
+      "--plain is a standalone control arm; it cannot be combined with --coverage or --spec",
+    );
+  const activeModules = plainArm
+    ? [PLAIN_MODULE]
+    : [
+        ...PROMPT_MODULES,
+        ...(coverageArm ? [COVERAGE_MODULE] : []),
+        ...(specArm ? [SPEC_MODULE] : []),
+      ];
   const armLabel =
-    "required_slot" +
-    (coverageArm ? "+coverage" : "") +
-    (specArm ? "+spec" : "");
+    (plainArm
+      ? "plain"
+      : "required_slot" +
+        (coverageArm ? "+coverage" : "") +
+        (specArm ? "+spec" : "")) + (excludeGold ? "+nogold" : "");
 
   // Pinned data, verified before trusting (same discipline as the
   // retrieval baseline runner).
@@ -372,6 +393,29 @@ async function main() {
       disk.get(entry.path)!.toString("utf8"),
     ]),
   );
+
+  // F2: a gold doc's byte-identical duplicates count as gold too — the
+  // mini corpus carries repeated contracts under distinct paths, and
+  // leaving a twin in would silently defeat the negative control.
+  const pathsByTextHash = new Map<string, string[]>();
+  if (excludeGold) {
+    for (const [docPath, text] of corpusText) {
+      const digest = createHash("sha256").update(text).digest("hex");
+      const twins = pathsByTextHash.get(digest);
+      if (twins) twins.push(docPath);
+      else pathsByTextHash.set(digest, [docPath]);
+    }
+  }
+  const goldDocsFor = (test: MiniTestCell): Set<string> => {
+    const excluded = new Set(test.gold.map((span) => span.filePath));
+    for (const docPath of [...excluded]) {
+      const text = corpusText.get(docPath);
+      if (text === undefined) continue;
+      const digest = createHash("sha256").update(text).digest("hex");
+      for (const twin of pathsByTextHash.get(digest) ?? []) excluded.add(twin);
+    }
+    return excluded;
+  };
 
   const poolByTest = new Map<
     string,
@@ -439,6 +483,9 @@ async function main() {
     // Retrieval: top-k passages (exact offsets from the index) or the
     // product doc-level path (snippets located back via indexOf).
     const retrieved: Array<Span & { snippet: string }> = [];
+    // F2: null unless --exclude-gold. Applied to the hits BEFORE rerank
+    // in every retrieval path, so the composer never sees a gold doc.
+    const excludedDocs = excludeGold ? goldDocsFor(test) : null;
     if (retrieverKind === "passage") {
       let hits;
       if (poolJsonl) {
@@ -461,6 +508,8 @@ async function main() {
             rank: index,
           };
         });
+        if (excludedDocs)
+          hits = hits.filter((hit) => !excludedDocs.has(hit.citation));
       } else {
         hits = searchPassages({
           sourceDb: database,
@@ -474,6 +523,8 @@ async function main() {
             : {}),
           ...(rerankModel ? { perDocCap: 24 } : {}),
         });
+        if (excludedDocs)
+          hits = hits.filter((hit) => !excludedDocs.has(hit.citation));
       }
       if (rerankModel)
         hits = (
@@ -500,6 +551,7 @@ async function main() {
       ).slice(0, k);
       for (const result of results) {
         if (!result.snippet) continue;
+        if (excludedDocs?.has(result.citation)) continue;
         const text = corpusText.get(result.citation);
         const start = text ? text.indexOf(result.snippet) : -1;
         if (start < 0) continue;
