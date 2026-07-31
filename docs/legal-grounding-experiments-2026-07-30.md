@@ -3312,6 +3312,103 @@ config does NOT change post-hoc; clause chunking gets its own
 registered round post-holdout, and all pool-level comparisons from
 here on are scored union-merged.
 
+### Stage 18 adversarial registration-discipline audit (2026-07-31, independent Opus agent, receipts + git forensics)
+
+Scope: Stages 14–18, every registration commit vs receipt file
+timestamps, every reported number recomputed from raw receipts.
+Baseline finding first: **all headline numbers reproduce exactly**
+(G/ctx/fused answered counts and P/R, per-source splits, R5/R5b pool
+sweeps, arm-D table, R1 correction deltas, 7/7 spot-checked SHA-256s);
+the log is append-only across 30 commits. The findings below concern
+decision structure, not data integrity. Rank-1 findings (could change
+conclusions), all CONFIRMED against receipts/git:
+
+1. **R5b's "registered contingency" was not registered.** The R5
+   registration (`47ab92ab`) contains no contingency; the R5b section
+   entered the file in the same commit as the R5 verdict (`a24cde12`)
+   after the middle-band result was observed, yet the log calls it
+   "the registered contingency". R5b produced the frozen config, and
+   it adopted on *stacking* (low+medium = +0.0691) while its own
+   registered prediction (medium < +0.03 over low) was a confirmed
+   null. Robustness check in the program's favor: the adoption's
+   justifying number survives the double-count correction (clipped:
+   champion 0.3529, bar 0.4029, best arm 0.4188, margin +0.0159), so
+   the config choice stands but the pre-registration claim does not.
+2. **The R1 "OVERTURNED" verdict is only half-supported.** R1 had two
+   independent falsifiers; the correction rescued only the
+   contractnli/overall prong. Recomputed under the same clipping fix,
+   the primary maud prong still fires: clause 0.3848 vs chars clipped
+   0.3529 = +0.0319 < the +0.05 bar. Correct statement: one of two
+   falsifiers overturned; clause chunking's KEEP candidacy is weaker
+   than the correction section claims (post-holdout round still
+   justified, with both prongs restated).
+3. **The fused DROP gate is coverage-confounded.** Answered-only means
+   compare different answered sets (693 vs 719 cells). On the 668
+   cells both configs answered: maud R 0.1333→0.1514 (+0.0181, ~3×
+   the unpaired +0.0064), overall 0.5944→0.6161. Still short of the
+   +0.02 KEEP bar — the DROP survives — but "far below" was wrong,
+   and fused won on BOTH other locked fair modes (forced
+   0.6052 vs 0.5743 R; zero-credit 0.5561 vs 0.5209 R) plus coverage.
+4. **The KEEP bar doubled between lanes with no registered rationale:**
+   ctx confirm bar was +0.01 over G; fused confirm bar was +0.02 over
+   ctx. Under the incumbent's own +0.01 standard the fused lane would
+   have KEPT.
+5. **Double-count inflation extends beyond R1** — it inflates every
+   pool/retrieval headline and two of the three locked fair modes:
+   retrieval-only ctx 0.8464→0.7827 clipped, fused 0.9120→0.8402
+   (flipping the recorded "≥0.86" HIT to a MISS), Stage 17
+   0.6604→0.6242; ctx-w4 pool ALL 0.8915→0.8204; the "≤0.02"
+   double-count characterization understated by 3–5× (max 2.0000,
+   32% of cells above ceiling); the published-paper calibration
+   (fair500 vs arXiv:2408.10343) used the inflated scorer. The arm-D
+   "dump-path pool-construction delta" (0.4310 vs 0.4146) was in fact
+   this defect: clipping closes the gap to ~0.004.
+6. **Timing table:** clean for 13 of 16 rounds (+9 s to +2 m between
+   registration commit and receipt creation). Violations: Stage 16 W2
+   receipt predates its registration commit by 5 s; Stage 16b
+   (preview 1600, part of the frozen config) was never registered at
+   all — documented post-hoc 40 min later; arm D is unverifiable
+   locally (remote run, transfer timestamps only). Disclosed peek
+   (F2 adoption condition written mid-C1 with a partial contractnli
+   peek) confirmed as recorded.
+7. **Asymmetry ledger:** every middle-band bind landed on a challenger
+   lane (clause geometry, phrase terms, heavier rerankers, dense
+   fusion); every amendment/rescue landed on the incumbent lexical
+   stack (R5b re-roll, three P1 instrument widenings, P4 bar
+   "mis-calibrated"). Also: the G champion was left with 2 unresolved
+   error cells (both answered under ctx, one at R=0.992), so 2 of the
+   12-cell G→ctx coverage gain is a transport artifact.
+8. **Unregistered degrees of freedom in the frozen config:** k=6,
+   stitch=200, perDocCap 2→24, preview 1600 (unregistered Stage 16b),
+   header prompt shape, mixed-effort sidecar (all-medium never
+   generated) — none swept under registration; chunk t1600 and ctx w4
+   are edge-of-range winners of their sweeps. Composer seat and rerank
+   seat were properly registered (Stage 13 ladder, R4).
+9. **Calibration bias by metric class:** composed-metric misses are
+   3/3 over-optimistic, retrieval-metric misses 6/6 under-optimistic
+   (partly instrument inflation); favorable out-of-band results are
+   prose ("just above") while unfavorable ones are bolded MISSes; the
+   cuad ±band was broken upward twice and never recalibrated.
+10. **Verdict-producing analysis code is not in version control** —
+    every aggregate (fair modes, P1 audits, strict-answered,
+    byte-exact, R1 correction) came from ephemeral scratchpad
+    scripts; only per-cell scores come from tracked code.
+
+Standing corrections adopted from this audit, effective immediately:
+(a) all pool/retrieval/fair-mode numbers are reported **clipped at
+1.0** (union-merge where spans are available, clip otherwise); the
+retrieval-only headline for any future run is the clipped number;
+(b) paired-subset comparison joins the reporting protocol beside
+answered-only whenever two configs are compared; (c) challenger-lane
+KEEP bars must state a rationale if they differ from the incumbent's
+bar at adoption time; (d) the Stage 19 report must disclose items 1,
+2, 6, and 8 (provenance of the frozen config) alongside the headline;
+(e) scorer scripts for Stage 19 will be committed to the repo, not
+scratchpad-ephemeral. Per frozen-gate discipline the fused DROP and
+the G+ctx config are NOT re-litigated post-hoc; finding 3/4 makes the
+fused lane a first-class candidate for the post-holdout registered
+queue with a pre-stated bar rationale.
+
 The experiment JSONL receipts are outside git under
 `%LOCALAPPDATA%\OpenLegalData\experiments\legal-grounding\2026-07-30`.
 They contain model outputs and exact benchmark evidence and must not be
