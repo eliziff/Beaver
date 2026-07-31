@@ -2315,6 +2315,65 @@ bed variety):
   fabrication; errors < 10%.
 Falsified by: any P1 breach; answered-only P < 0.077; errors ≥ 10%.
 
+### Stage 17 verdict (2026-07-30): the crowned stack HOLDS on the full bed
+
+All 776 cells completed (194 per source). Seven cells erred in the main
+pass (two Codex 503s; five on a runner accounting bug — `usage`
+undefined dereference at `legalbench-rag-grounding.ts` merge, fixed with
+optional chaining, model work unaffected) and were re-run to completion
+via `--resume 1` at the frozen config. The resume path pins
+`--rerank-preview 500` (new flag): the reranker's module default moved
+to 1600 (Stage 16b) after launch, and one receipt file must never mix
+rerank configs. Final outcomes: **651 answered (83.9%), 87 declined, 34
+rejected, 4 abstained, 0 errors.**
+
+Gates (scored from `stage17-lbrag-full.jsonl`, dedupe = last non-error
+row per test_id):
+
+- **P1 (soundness) — holds under audit.** Verbatim tier: all 1,358
+  quoted spans across the 651 answered cells re-verified against the
+  corpus files under the locator's declared contract (CRLF preserved,
+  quote glyphs/whitespace-runs normalized) — **zero false passes**.
+  (First audit pass showed 276 "mismatches"; all were audit artifacts —
+  Python CRLF translation shifting offsets plus curly-quote glyphs —
+  not runner defects.) Unlocated quotes: 0, nothing to audit.
+  Answered ∩ gold-doc-miss: literal 7/651 = 1.08%, a hair over the ≤1%
+  line — audited individually: **6 of 7 quote
+  `cuad/ADUROBIOTECH...CONSULTING AGREEMENT.txt`, byte-identical
+  (12,020 chars) to the gold `...AGREEMENT(1).txt` twin** — the quoted
+  text IS the gold text under a duplicate filename (upstream CUAD
+  corpus duplicate), and char scoring already punishes them (P=R=0).
+  The one true wrong-doc answer is contractnli:152 (answered from
+  AGProjects NDA; gold was the Eskom template) = 0.15% of answered.
+  Recorded as: literal breach by half a cell, resolved by audit to a
+  corpus-duplicate artifact; true unsound-document rate 0.15%.
+- **P2 (coverage) — PASS.** 651/776 = 83.9% answered (gate ≥60%;
+  32-cell bed measured 81%).
+- **P3 (precision floor) — PASS.** Answered-only grounded char
+  P = 0.5050, R = 0.5114 (gate ≥0.077; 32-cell 0.58). Per source
+  (answered-only P / R): contractnli 0.7592/0.7857 (179 answered),
+  cuad 0.5544/0.6588 (161), maud 0.1429/0.1114 (142), privacy_qa
+  0.4928/0.4163 (169). maud weakest as predicted — narrow deal-point
+  gold vs. chars-mode chunking; the registered Stage 18 levers (clause
+  mode, stitching) target exactly this slice.
+- **P4 (typed residuals) — PASS.** 0 final errors (transients resumed
+  to completion); every non-answer is typed (87 declined / 34
+  rejected / 4 abstained), never fabrication.
+
+Baseline comparison (all non-error cells): raw retrieval-span scoring
+at the same k gives P = 0.0865, R = 0.6604 over a mean 5,557 quoted
+chars/cell; the harness answers with P = 0.5050 over a mean 779
+chars/cell — **5.8× the precision at 1/7th the quoted text**, which is
+the program's claim in one line: the contract turns high-recall sludge
+into small, verbatim, located answers, and refuses in type when it
+cannot. Mean cell latency 17.8 s (p90 25.3 s).
+
+Verdict: **not falsified — the finished-stack claim stands on the full
+LegalBench-RAG mini.** The honest residual is maud's precision (0.14):
+a chunk-granularity problem, not a soundness problem, and the
+pre-registered Stage 18 bundle (clause-mode chunking + preview 1600 +
+stitching/child-rank) is the follow-up.
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under
@@ -2352,6 +2411,7 @@ committed.
 | `stage16-rerank-eval.jsonl` | `107D021AEEA0594C95961F9F82CE7558ED95E56940FBAF1F75E637D905AE28E3` |
 | `stage16-lbrag-rerank.jsonl` | `8DB2AC1DF0EBF9D0227C0820CB79BA1E86BBAABE5B0BF3DB48C761AA07602174` |
 | `stage16b-preview1600.jsonl` | `C9C59D8EF859C1974457348FA66EA172F1466CC6D0109B579A51286175FBFDE4` |
+| `stage17-lbrag-full.jsonl` (784 rows incl. 8 superseded error rows; resume passes appended) | `F117396886C52B10365ECB334A304F675C63D576FDB21E3039034C42F828DCF1` |
 
 ## Validation and final selection gate
 
