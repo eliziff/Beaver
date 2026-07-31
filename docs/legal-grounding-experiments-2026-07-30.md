@@ -3755,6 +3755,188 @@ The fused pool sidecar has the same defect but is exactly correctable
 at score time via the committed re-scorer. **Stage 19 prerequisite:
 regenerate maud headers before any burn.**
 
+## Stage 19 — the hold-out burn (registered 2026-07-31 before any hold-out label is read; USER-GATED, not yet run)
+
+Registered in full before the burn, per the fair-comparison protocol
+locked 2026-07-30 ("the Stage 19 hold-out burn happens ONCE, after
+Stage 18 freezes the final config … no re-tuning afterward") and per
+standing correction 4. Nothing below may be edited after the first
+hold-out model call; changes before the burn are recorded as dated
+amendments.
+
+### The bed (derived deterministically; only counts inspected)
+
+The mini derivation rule continued past the mini cut: per source,
+group tests by first-snippet document path, take documents in
+code-unit lexicographic order until 194 tests accumulate. Re-running
+the rule from offset 0 reproduces the mini split exactly (21/24/17/7
+docs, 194 tests each), which validates the derivation; the next
+documents in order form the hold-out.
+
+| source | hold-out docs | hold-out tests | corpus bytes | dev docs/tests |
+|---|---|---|---|---|
+| contractnli | 17 | 194 | 192,778 | 21 / 194 |
+| cuad | 20 | 194 | 1,691,817 | 24 / 194 |
+| maud | 18 | 194 | 7,103,167 | 17 / 194 |
+| privacy_qa | **0** | **0** | 0 | 7 / 194 |
+| **total** | **55** | **582** | **8,987,762** | 69 / 776 |
+
+**The hold-out bed is 3 sources, 55 documents, 582 tests** — privacy_qa
+mini *is* the complete upstream benchmark (194 of 194 tests), so it has
+no hold-out and never will. Documents do not overlap dev by
+construction. No hold-out question, gold span, or document body has
+been read beyond these aggregate counts.
+
+### Prerequisites, all gated, none touching hold-out labels
+
+1. maud dev ctx headers regenerated on the LF index (in flight,
+   4,674 passages, luna@low with backoff), then the deterministic
+   sweep re-verified. **Stop condition: if maud ctx pool recall still
+   falls with context weight, the ctx arm is not running on the
+   instrument it claims and the burn does not start.**
+2. Hold-out source db built with LF normalization at load, FTS
+   rebuilt, then `legalbench-gold-oracle-check.ts` run over it.
+   **Hard gate: 100% of hold-out gold spans must satisfy
+   `text[start:end] == answer` per source before any model call.**
+   This is the CRLF lesson made procedural — the defect that corrupted
+   25% of the bed for five stages would have been caught by exactly
+   this check on day one.
+3. Assert no `\r` byte in any hold-out corpus file, all three sources
+   (`generate_cuad.py` carries the identical latent `shutil.copy`
+   trap and is clean only by luck — literature re-check §0).
+4. Contextual headers generated for the hold-out corpus (~7.2k
+   passages estimated from the byte ratio), luna@low, same generator
+   and prompt as dev. Headers see document text only — never
+   questions, never gold. Header **coverage rate is recorded and
+   published**; the dev sidecar carries 1,509 error rows out of 12,180
+   (12.4%) and that gap is a disclosure, not a footnote.
+5. **Instrument-forced config amendment, recorded now:** the frozen
+   config names `ctx(w4@36d041f7d66b)`. LF normalization moves every
+   maud chunk span, so that sidecar cannot be reused and a new digest
+   is unavoidable. The regenerated sidecar is *equivalent by
+   construction* — same generator, model, effort, prompt, weight —
+   but **not byte-identical**. This is an instrument fix, not a tuning
+   change; no arm was selected on the new sidecar.
+
+### Arms (two; no others, before or after)
+
+- **A1 — laptop, the production candidate.** Frozen G+ctx,
+  unmodified: sol@medium composer, `required_slot`, k=6,
+  `passage:t1600/o120/w16 + ctx(w4, LF sidecar) +
+  rerank(codex:gpt-5.6-luna)@p1600 + stitch200`. **Three replicates**
+  at identical config; the headline is the replicate mean, with the
+  measured spread published beside it. Replicates rather than more
+  items is the deliberate choice — paired prediction noise exceeds
+  paired data noise on this kind of bed (arXiv:2512.21326), and the
+  composer's 9–10% answered↔declined flip rate at byte-identical
+  evidence is far above the 2.2–6.0 pp that arXiv:2602.07150 already
+  calls dangerous.
+- **A2 — ceiling, diagnostic only.** Fused retrieval on the 3080 Ti,
+  single run. Reinstated as ceiling arm by the corrected-instrument
+  reading (standing correction 3). **A2 is never adoptable**:
+  production inference is laptop CPU, and the desktop is an
+  experiment ceiling, never a production dependency. It prices
+  headroom, nothing else.
+
+### Scoring (locked before the burn)
+
+- `backend/scripts/score_stage18_c1.py` conventions: union-merge
+  overlapping gold, clip recall at 1.0, per-source always, paired
+  wherever a pairing exists.
+- New rows carry `coords:"lf"`; the scorer asserts the tag and
+  refuses mixed-coordinate files. No LF→raw mapping is applied to
+  hold-out rows — the corpus is normalized at load.
+- **All three fair modes, always:** answered-only, forced-answer,
+  zero-credit — plus retrieval-only top-4 P/R against the paper's own
+  metric.
+- **No macro-average across sources.** privacy_qa is absent from the
+  hold-out, so overall dev↔hold-out comparison is invalid by
+  construction; the comparison is per source, plus a dev figure
+  recomputed over the same three sources.
+- Empirical noise band from the three A1 replicates: paired σ per
+  source and overall, BCa paired bootstrap B=10,000 on the primary
+  metric, and a stated minimum detectable effect.
+- **maud reported twice** — LF-normalized (correct) and CRLF-naive
+  (what every non-Python consumer gets) — so the portability defect
+  is legible and others can locate themselves against the 3× spread
+  in the published MAUD R@64 numbers.
+
+### Registered predictions (falsifiable; frozen before the burn)
+
+- **P1 (generalization).** Per-source hold-out answered-only P and R
+  land within **±0.05** of dev values recomputed on the corrected
+  instrument. Band rationale: ~3× the measured paired noise floor
+  (1σ ≈ 0.0065, 95% ±0.013–0.015), tight enough to catch the
+  retro-holdout inflation the literature reports at up to 16 pp
+  (arXiv:2410.09247). A drop beyond 0.05 on any source is recorded
+  as adaptive-overfit / subset-fit evidence and **not repaired**.
+- **P2 (ordering).** A2 ≥ A1 on maud pool recall, reproducing the dev
+  ordering. An inversion re-opens the fused reinstatement.
+- **P3 (noise).** Max pairwise |Δ| across the three A1 replicates on
+  overall answered-only P is < 0.015.
+- **P4 (declines).** Hold-out decline rate within ±0.05 of dev.
+- **P5 (what P1 cannot show).** 98.5–100% of hold-out queries reuse
+  question templates already seen in dev. P1 holding therefore
+  establishes transfer across *documents* only, never robustness to
+  phrasing. A paraphrase-at-eval arm (PTEB, arXiv:2510.06730) is
+  registered as future work and is explicitly **not** run here.
+
+### Adoption rule
+
+**None. Stage 19 selects nothing.** The config is already frozen;
+A1 *is* that config and A2 is not production-viable. This is a
+one-shot honest generalization measurement. Failed predictions are
+published as limitations; no post-hoc arm is added, no threshold is
+moved, and the config does not change in response to the result.
+
+### Mandatory disclosures, printed beside the headline
+
+1. **F1 query-format artifact.** The `Consider <document>;` preamble
+   hands lexical retrieval the answer's address: stripped, doc recall
+   1.0000→0.7075, pool R@48 0.8915→0.3680, lexical R@4
+   0.5339→0.0894. The crowned retrieval numbers are substantially a
+   query-format artifact, not product retrieval quality.
+2. Template staleness 98.5–100% — the hold-out refutes document
+   memorization only.
+3. privacy_qa has no hold-out; the bed is 3 sources.
+4. maud hold-out gold is 15.5% near-duplicate boilerplate of dev gold.
+5. Bed easiness: 55-document searchable pool against upstream's 718;
+   dev doc_hit@6 measured 99.5–100%. Document identification — the
+   hard half of RAG — is free on this bed.
+6. Mini-split recipe stated explicitly
+   (`MAX_TESTS_PER_BENCHMARK = 194`, `SORT_BY_DOCUMENT = True`), since
+   the split is undocumented upstream and otherwise incomparable.
+7. The CRLF/LF portability defect, framed as a cross-language
+   reimplementation trap — **the published ZeroEntropy numbers are
+   not wrong**; `benchmark.py` reads with Python universal newlines
+   and is accidentally self-consistent.
+8. Header sidecar coverage rate, dev and hold-out.
+9. The composition contract is a generation-time citation (G-Cite)
+   design, which arXiv:2509.21557 predicts is structurally
+   coverage-capped; F3 priced our instance at +0.065 P for −0.063 R.
+10. The rerank prior is against us — two independent LegalBench-RAG
+    studies found reranking hurt — and our reranker sees the raw file
+    path, so its gain is not separable from filename matching.
+
+### Explicitly not in Stage 19 (registered, do not fold in)
+
+Realistic-retrieval round (full 718-document index + name-stripped
+queries — the highest-value retrieval work in the program per F1; the
+full corpus is already on disk, so it is cheap, but mixing it into
+this burn would confound generalization with a bed change);
+coverage-contract rework; P-Cite arm; the three negative-control arms
+(gold-removed / distractor-only / risk–coverage AURC); clause
+chunking re-round; laptop dense embedder; CPU reranker; gap-directed
+second-pass retrieval; composition-quality round; paraphrase-at-eval
+arm; upstream disclosure of the CRLF defect.
+
+### Cost
+
+Flat-rate surfaces only, no per-token spend: ~4.7k header calls (maud
+dev regeneration, in flight) + ~7.2k (hold-out corpus) + 2,328
+composer calls (582 × 3 replicates for A1, 582 for A2) plus rerank
+calls. Hours of wall clock; the bill is time.
+
 The experiment JSONL receipts are outside git under
 `%LOCALAPPDATA%\OpenLegalData\experiments\legal-grounding\2026-07-30`.
 They contain model outputs and exact benchmark evidence and must not be
