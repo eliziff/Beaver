@@ -21,7 +21,7 @@
  * — consumers get exact coordinates and never re-locate by search.
  */
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { compileAgreementSkeleton } from "./legalTextSkeleton";
 import { sourceDocBlockText, type SourceDoc } from "./sourceDoc";
@@ -224,6 +224,34 @@ export type PassageIndexOptions = ChunkOptions & {
   contextJsonl?: string;
 };
 
+/**
+ * Content digest of a context sidecar file, cached per (path, mtime,
+ * size). `paramsKey` runs on EVERY searchPassages call — twice, once for
+ * the sidecar path and once for the params comparison — so an uncached
+ * digest re-read and re-hashed the whole enrichment file per query:
+ * measured 3.12 ms per pass over a 2.5 MB headers file, 6.2 ms of every
+ * 70.8 ms context-arm query, to recompute a constant. The stat guard
+ * keeps the key content-addressed: a headers file rewritten between
+ * calls changes size or mtime and is re-hashed.
+ */
+const contextDigests = new Map<
+  string,
+  { key: string; mtimeMs: number; size: number }
+>();
+
+function contextDigest(file: string): string {
+  const stats = statSync(file);
+  const cached = contextDigests.get(file);
+  if (cached && cached.mtimeMs === stats.mtimeMs && cached.size === stats.size)
+    return cached.key;
+  const key = createHash("sha256")
+    .update(readFileSync(file))
+    .digest("hex")
+    .slice(0, 12);
+  contextDigests.set(file, { key, mtimeMs: stats.mtimeMs, size: stats.size });
+  return key;
+}
+
 function paramsKey(options: PassageIndexOptions) {
   return createHash("sha256")
     .update(
@@ -234,12 +262,7 @@ function paramsKey(options: PassageIndexOptions) {
         mode: options.mode ?? "chars",
         v: 4,
         ...(options.contextJsonl
-          ? {
-              ctx: createHash("sha256")
-                .update(readFileSync(options.contextJsonl))
-                .digest("hex")
-                .slice(0, 12),
-            }
+          ? { ctx: contextDigest(options.contextJsonl) }
           : {}),
       }),
     )
