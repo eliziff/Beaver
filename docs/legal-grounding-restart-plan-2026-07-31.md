@@ -16,8 +16,9 @@ Verbatim membership is sound *as a matcher* (not evidence that quoted claims are
 grounded). H16′ diff-carrying rejections (9/9 → 1/41). H17 prompt identity, which
 produced the **0–13% checker-stochasticity floor** everything is judged against.
 H12 suppression half. Typed claim roles 60/60. R2 phrase bigrams genuinely dead
-(−0.15 corrected). The CRLF/LF portability defect — real, unreported upstream,
-ours to publish.
+(−0.15 corrected). The CRLF/LF portability defect — real, and unreported
+anywhere upstream. Internal finding; we are not filing it or contacting the
+maintainers.
 
 ## What went wrong — four classes
 
@@ -111,13 +112,12 @@ Built, unproven, never shown to a composer.
 **7. LegalBench closeout — low priority, not a gate for anything.** Tier C
 (~70 min, pools injected) answers whether `G+ctx` was ever separable from plain
 `G`; if not, the crowning unwinds to plain G. The hold-out burn is a **separate
-decision**, not queued behind Tier C: it buys one publishable number plus the
-CRLF finding, on a bed we have deprioritized. File the CRLF defect upstream
-regardless — it costs nothing and makes us the citable source.
+decision**, not queued behind Tier C, on a bed we have deprioritized.
 
 ## Do not
 
-Add LegalBench stages beyond Tier C. Re-test against a bar with no rationale.
+Contact or file anything upstream. Add LegalBench stages beyond Tier C. Re-test
+against a bar with no rationale.
 Decide a composed verdict inside that comparison's band. Rebuild the citator,
 journals or alienness indexes — they exist; query them. Promote any model- or
 checker-derived label to gold.
