@@ -2975,6 +2975,54 @@ under its own frozen gates; its verdict either adds a hybrid pool
 lane (after its own confirm) or closes, and then Stage 19 burns
 once.
 
+### Stage 18 arm D dense lane verdict (2026-07-31; receipts
+`stage18-dense-pool.jsonl`, 776 rows; Qwen3-Embedding-4B fp16 on
+the 3080 Ti per the amendment)
+
+**OPEN — the fused gate is cleared by 13.5 points, with every
+source improving.** Runtime: plain matrix 409.6s, ctx matrix
+507.9s, queries 9.2s (the CPU attempt burned 34 min without
+finishing one matrix). Pool R@48 by arm:
+
+| source | lex | ctx | dense | densectx | fused | fusedlex |
+| --- | --- | --- | --- | --- | --- | --- |
+| contractnli | 0.9650 | 0.9878 | 0.9681 | 0.9721 | **1.0000** | 0.9989 |
+| cuad | 0.8225 | 0.8885 | 0.9307 | 0.9633 | **0.9748** | 0.9415 |
+| maud | 0.3489 | 0.4146 | 0.4598 | 0.5576 | **0.6351** | 0.5442 |
+| privacy_qa | 0.9932 | 0.9846 | 0.9905 | 0.9919 | **0.9962** | 0.9967 |
+| ALL | 0.7824 | 0.8189 | 0.8373 | 0.8712 | **0.9015** | 0.8703 |
+
+Gate arithmetic: fused maud 0.6351 ≥ 0.50 OPEN bar; vs the ctx
+pool no source drops (contractnli +0.0122, cuad +0.0863,
+privacy_qa +0.0116) — OPEN on the frozen text, nowhere near the
+CLOSED condition (ctx maud + 0.01 = 0.4246).
+
+Predictions vs the held-over bge-base bands, judged against the
+original text: dense-only maud 0.4598 ABOVE the 0.3619–0.4310
+band MISS (overshoot); densectx > dense HIT (0.5576 vs 0.4598,
+far more than "edges"); fused maud 0.6351 ABOVE the 0.45–0.52
+band MISS (overshoot). Both misses are the flagged model-upgrade
+direction — bands were calibrated for bge-base.
+
+Attribution: headers and dense stack. dense alone (0.8373 ALL)
+beats ctx (0.8189); adding headers to the embedded text is worth
++0.034 ALL / +0.098 maud on top of dense; fused beats fusedlex
+(0.9015 vs 0.8703) — the R5b sidecar earns its keep inside the
+hybrid too. Baseline note, recorded honestly: this eval's own
+lex/ctx maud pools (0.3489/0.4146) sit slightly below the ablate
+runner's numbers for nominally the same configs (0.3619/0.4310) —
+a dump-path pool-construction delta; gates were judged against
+the eval's own ctx arm as the exact comparator, which is the
+harder bar here.
+
+Per the frozen OPEN action, the rrfFuse hybrid must ride its own
+registered grounded confirm before joining the frozen config;
+until that confirm returns KEEP, the production config remains
+G+ctx. Operational note for the confirm and beyond: query-time
+dense retrieval requires an embedder (the 3080 Ti desktop over
+Tailscale, or precomputed pools for fixed beds) — a real
+deployment dependency the lexical stack doesn't have.
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under
@@ -3024,6 +3072,7 @@ committed.
 | `stage18-passage-context-combined-medium.jsonl` (R5b adopted sidecar: raw low-effort file + maud-medium rows, byte-exact concat, 12,180 lines) | `36D041F7D66B6F39C99D47078C88BF9F45F3FAF18ED054B5E8EA6640F231397E` |
 | `stage18-context-arms-maud-medium.jsonl` (R5b weight sweep, combined sidecar) | `9FA97EAE337F9F7F7D54FE53E5BAA9B424354F4A8E68782CE5A1226048982F38` |
 | `stage18-lbrag-grounded-ctx.jsonl` (R5b grounded confirm, 776 cells + 2-cell resume, 0 errors) | `11A4FB9A32D27679E8E8A7BBBDAEFF9E22228B950F68C093F8AA2D2B32DE751C` |
+| `stage18-dense-pool.jsonl` (arm D six-arm pool eval, Qwen3-Embedding-4B on the 3080 Ti, 776 rows; sha verified byte-exact after Tailscale transfer) | `857848D409648EB39805E1593A2D997C6096F021D7C8F7235AB7B84B1021F7C9` |
 
 ## Validation and final selection gate
 
