@@ -189,10 +189,13 @@ gold, so the expected source-level effect is ~0.2 of that. cuad **loses 6×**.
 Same shape as the C1 coverage arms: extra context buys recall and costs
 precision.
 
-**Both weak layers retired on evidence, not assumption.** Defined-term edges
-0.12–1.29%, lexical-overlap edges 0.81–4.57% — **below the contiguous control
-everywhere.** They were built separably precisely so this retirement could be
-measured rather than argued. Layer L3 is closed.
+**The weak layers scored low**: defined-term edges 0.12–1.29%, lexical-overlap
+edges 0.81–4.57%, below the contiguous control everywhere. **This is NOT a
+retirement** — see the amendment below. A defined-term edge points from a usage
+to its *definition*, and a definition is by construction never the answer span,
+so scoring it against answer-span gold measures the wrong thing in exactly the
+way described for cross-references. One untuned implementation of each, on the
+same small n, at the same half strength.
 
 ### What this result does and does NOT license (amended, same day)
 
@@ -228,9 +231,35 @@ standing. Four reasons the measurement cannot carry that weight:
   edges to decide anything.
 - **B/C remain the primary hypothesis** — the graph and its typed refusals shown
   to a composer as a map it corrects. Untested.
-- **E (similarity edges) is closed** — those lost to a *deterministic* control,
-  which is a stronger and simpler result that does not depend on the gold-span
-  objection above.
+- **E (similarity / defined-term edges) is NOT closed.** An earlier amendment
+  let this retirement stand on the grounds that those edges lost to a
+  *deterministic* control. That reasoning fails: a clean control does not
+  repair a metric that cannot express the mechanism, and a defined-term edge
+  exists precisely to reach text that is never in the answer span. One untuned
+  implementation, same small n, same half-strength instrument. Withdrawn.
+
+### The retirement standard (adopted, because nothing above met it)
+
+Eli, 2026-07-31: *"I need a lot more proof to 'retire' anything."* Correct — and
+the existing ensemble doctrine already said so: never discard a witness for weak
+solo performance, retire only on **demonstrated redundancy**. Nothing measured
+in this round meets that. From here, retiring any layer or edge class requires
+**all four**:
+
+1. **A metric that can express the mechanism.** Answer-span character overlap
+   cannot score "retrieved the provision that governs the answer." If the
+   mechanism's whole purpose is to reach supporting text, the bed must be able
+   to credit supporting text.
+2. **Adequate n**, stated, with the band computed from that n — not 14
+   fragments.
+3. **Full instrument strength** — refusal rate reported, and the upstream
+   detector at its current best rather than mid-repair.
+4. **Tested in concert, not only solo** — per the ensemble protocol, redundancy
+   against the other witnesses is the thing that licenses retirement, and a low
+   solo score licenses nothing.
+
+Until then the honest status of every layer here is **built and unproven**, and
+that is what the log should say.
 
 The resolver itself stands on its own: 3.3% unresolved, honest bimodality,
 typed refusal where the structure is too thin. Cross-reference resolution is a
