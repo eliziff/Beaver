@@ -7,7 +7,9 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import {
   chunkText,
+  clauseChunkText,
   ensurePassageIndex,
+  passageIndexPath,
   passageQueryTokens,
   rrfFuse,
   searchPassages,
@@ -59,6 +61,110 @@ describe("chunkText", () => {
     expect(chunkText("short.", { target: 1000 })).toEqual([
       { start: 0, end: 6 },
     ]);
+  });
+});
+
+describe("clauseChunkText", () => {
+  /** Joined clause lines with their exact start offsets. */
+  const assemble = (lines: string[]) => {
+    const offsets: number[] = [];
+    let at = 0;
+    for (const line of lines) {
+      offsets.push(at);
+      at += line.length + 1;
+    }
+    return { text: lines.join("\n"), offsets };
+  };
+  const filler = (n: number) => "covenant obligation party ".repeat(n).trim();
+
+  it("tiles the text with spans starting only at clause boundaries", () => {
+    const { text, offsets } = assemble(
+      Array.from({ length: 8 }, (_, i) => `${i + 1}. Clause. ${filler(5)}`),
+    );
+    const spans = clauseChunkText(text, { target: 300 });
+    expect(spans.length).toBeGreaterThan(1);
+    expect(spans[0].start).toBe(0);
+    expect(spans[spans.length - 1].end).toBe(text.length);
+    const boundaries = new Set(offsets);
+    for (const [index, span] of spans.entries()) {
+      expect(span.end).toBeGreaterThan(span.start);
+      expect(boundaries.has(span.start)).toBe(true);
+      // No overlap and no gap: clause units tile.
+      if (index > 0) expect(span.start).toBe(spans[index - 1].end);
+    }
+  });
+
+  it("packs whole clauses up to target", () => {
+    const { text, offsets } = assemble(
+      Array.from({ length: 6 }, (_, i) => `${i + 1}. Clause. ${filler(4)}`),
+    );
+    const spans = clauseChunkText(text, { target: 250 });
+    const boundaries = new Set([...offsets, text.length]);
+    for (const span of spans) expect(boundaries.has(span.end)).toBe(true);
+    for (const span of spans.slice(0, -1))
+      expect(span.end - span.start).toBeGreaterThanOrEqual(250);
+  });
+
+  it("subdivides a clause longer than twice the target without overlap", () => {
+    const { text } = assemble([
+      `1. Short. ${filler(3)}`,
+      `2. Oversized. ${filler(40)}`,
+      `3. Short. ${filler(3)}`,
+    ]);
+    const spans = clauseChunkText(text, { target: 200 });
+    expect(spans[0].start).toBe(0);
+    expect(spans[spans.length - 1].end).toBe(text.length);
+    for (const [index, span] of spans.entries()) {
+      expect(span.end - span.start).toBeLessThanOrEqual(400);
+      if (index > 0) expect(span.start).toBe(spans[index - 1].end);
+    }
+    expect(spans.length).toBeGreaterThan(3);
+  });
+
+  it("recognizes section, article, dotted, and enumerated joints", () => {
+    const { text, offsets } = assemble([
+      `Section 7.2 Indemnity. ${filler(9)}`,
+      `ARTICLE IV ${filler(9)}`,
+      `7.2.1 Notice periods. ${filler(9)}`,
+      `(a) first item. ${filler(9)}`,
+      `(iv) roman item. ${filler(9)}`,
+    ]);
+    const spans = clauseChunkText(text, { target: 200 });
+    expect(spans.map((span) => span.start)).toEqual(offsets);
+  });
+
+  it("falls back to character chunking when no skeleton is found", () => {
+    const prose =
+      "This agreement has no numbering at all, merely flowing prose " +
+      filler(30);
+    expect(clauseChunkText(prose, { target: 300 })).toEqual(
+      chunkText(prose, { target: 300 }),
+    );
+  });
+
+  it("is a distinct index identity from chars mode", () => {
+    const sourceDb = path.join(dir, "clause-source.sqlite");
+    const db = new DatabaseSync(sourceDb);
+    db.exec(
+      "CREATE TABLE document (id INTEGER PRIMARY KEY, doc_type TEXT, citation_en TEXT, citation_fr TEXT, name_en TEXT, name_fr TEXT, unofficial_text_en TEXT, unofficial_text_fr TEXT)",
+    );
+    db.prepare(
+      "INSERT INTO document (doc_type, citation_en, name_en, unofficial_text_en) VALUES ('laws', 'x.txt', 'X', ?)",
+    ).run(
+      Array.from({ length: 6 }, (_, i) => `${i + 1}. Clause. ${filler(8)}`)
+        .join("\n"),
+    );
+    db.close();
+
+    expect(passageIndexPath({ sourceDb, target: 300, mode: "clause" })).not.toBe(
+      passageIndexPath({ sourceDb, target: 300, mode: "chars" }),
+    );
+    const chars = ensurePassageIndex({ sourceDb, target: 300 });
+    const clause = ensurePassageIndex({ sourceDb, target: 300, mode: "clause" });
+    expect(chars.built).toBe(true);
+    expect(clause.built).toBe(true);
+    expect(ensurePassageIndex({ sourceDb, target: 300, mode: "clause" }).built)
+      .toBe(false);
   });
 });
 
