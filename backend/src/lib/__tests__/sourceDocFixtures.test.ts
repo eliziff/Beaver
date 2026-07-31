@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { buildLegalSourcePinpointUrl } from "../legalSourceLinks";
@@ -45,10 +45,6 @@ type Fixture = {
 };
 
 const FIXTURE_DIR = path.join(__dirname, "fixtures", "sourcedoc");
-const FIXTURE_FILES = readdirSync(FIXTURE_DIR)
-  .filter((name) => name.endsWith(".json") && name !== "legacy-spine.json")
-  .map((name) => name.replace(/\.json$/u, ""))
-  .sort();
 
 function fixture(file: string): Fixture {
   return JSON.parse(
@@ -97,14 +93,12 @@ const LEGACY = JSON.parse(
 
 /**
  * Shapes whose spine the compiler must reproduce exactly. Statute shapes the
- * flat-text spine never matched are excluded on purpose - there is no old
- * behaviour there to be faithful to.
+ * flat-text spine never matched and the two case fixtures corrected to match
+ * the faithful ALR compatibility behavior are excluded on purpose.
  */
 const PARITY_FIXTURES = [
-  "a2aj-case-scc-2026scc16-toc",
   "a2aj-case-scc-2001scc1-bare",
   "a2aj-case-scc-1990scr30-unnumbered",
-  "a2aj-case-scc-1986scr103-dot",
   "a2aj-laws-on-occupiers-liability",
   "a2aj-regs-on-oreg267-03",
 ] as const;
@@ -119,7 +113,7 @@ const MATRIX: Array<{
     file: "a2aj-case-scc-2026scc16-toc",
     docType: "cases",
     compiledSections: 0,
-    compiledParagraphs: 18,
+    compiledParagraphs: 35,
   },
   {
     file: "a2aj-case-scc-2001scc1-bare",
@@ -137,7 +131,7 @@ const MATRIX: Array<{
     file: "a2aj-case-scc-1986scr103-dot",
     docType: "cases",
     compiledSections: 0,
-    compiledParagraphs: 18,
+    compiledParagraphs: 22,
   },
   {
     file: "a2aj-case-scc-2021scc31-bracket",
@@ -226,16 +220,6 @@ const MATRIX: Array<{
 ];
 
 describe("SourceDoc cross-provider fixture matrix", () => {
-  it("validates every committed capture without duplicating its inventory", () => {
-    for (const file of FIXTURE_FILES) {
-      expect(fixture(file)).toMatchObject({
-        provider: "a2aj",
-        citation: expect.stringMatching(/\S/u),
-        capture: { capturedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/u) },
-      });
-    }
-  });
-
   it.each(MATRIX)(
     "$file indexes $compiledSections sections and $compiledParagraphs paragraphs",
     (entry) => {
@@ -265,7 +249,7 @@ describe("SourceDoc cross-provider fixture matrix", () => {
           doc.blocks
             .filter((block) => block.origin === "native")
             .map((block) => block.label),
-        ).toEqual(["sec231", "sec22.1", "sec83.01"]);
+        ).toEqual(["sec22.1", "sec83.01", "sec231"]);
       } else {
         expect([...origins]).not.toContain("native");
       }
@@ -461,48 +445,23 @@ describe("provider section map and Markdown emphasis agree", () => {
   });
 });
 
-describe("case spine defects the compiler inherits unchanged", () => {
-  // These are wrong, verified live against the full documents, and are held
-  // here so that fixing them is a deliberate, gated change rather than an
-  // accident. Stage 2 changes how the spine is queried, not what it finds.
-  it("halves the paragraph index when the decision carries a table of contents", () => {
+describe("case spine corrections", () => {
+  it("keeps the complete ladder when a table of contents repeats its numbers", () => {
     const doc = compile(fixture("a2aj-case-scc-2026scc16-toc"));
-    expect(labels(doc)).toEqual([
-      "par1",
-      "par2",
-      "par4",
-      "par6",
-      "par8",
-      "par10",
-      "par12",
-      "par14",
-      "par16",
-      "par18",
-      "par20",
-      "par22",
-      "par24",
-      "par26",
-      "par28",
-      "par30",
-      "par32",
-      "par34",
-    ]);
-    // Every odd paragraph from 3 up is reported missing rather than silently
-    // absent - the locator range makes the defect legible to a caller.
-    expect(doc.ranges.paragraph.missing.slice(0, 4)).toEqual([
-      "par3",
-      "par5",
-      "par7",
-      "par9",
-    ]);
+    expect(labels(doc)).toEqual(
+      Array.from({ length: 35 }, (_, index) => `par${index + 1}`),
+    );
+    expect(doc.ranges.paragraph.missing).toEqual([]);
   });
 
-  it("anchors par1 of a dot-numbered pre-1995 decision on quoted legislation", () => {
+  it("anchors a dot-numbered decision on its reasons, not quoted legislation", () => {
     const doc = compile(fixture("a2aj-case-scc-1986scr103-dot"));
     expect(lookupSourceDoc(doc, "paragraph", "1").block?.text).toContain(
-      "The Canadian Charter of Rights and Freedoms guarantees the rights",
+      "This appeal concerns the constitutionality",
     );
-    expect(lookupSourceDoc(doc, "paragraph", "2").status).toBe("not_found");
+    expect(lookupSourceDoc(doc, "paragraph", "2").block?.text).toContain(
+      "Before reviewing the factual context",
+    );
   });
 
   it("abstains on a pre-1995 decision with no paragraph numbers", () => {

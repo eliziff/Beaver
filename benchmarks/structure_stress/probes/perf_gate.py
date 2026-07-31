@@ -2,8 +2,8 @@
 
 Doctrine (Eli, 2026-07-29): "made sure the full sweep is highly
 performant so we don't wait for nothing." This probe runs the REAL
-per-doc scorer (sweep.scan_doc, same entries, same prefilters, same
-cascade) over a seeded reservoir sample, then:
+per-doc scorer (sweep.scan_doc, same entries, same prefilters, shipping
+compileA2AJSourceDoc bridge) over a seeded reservoir sample, then:
 
   1. per-doc wall stats by source and size decile;
   2. a per-entry cost table (ms/MB, gated-share) to expose the regexes
@@ -31,7 +31,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 import sweep  # noqa: E402
-from structure_ref import law_section_labels, structure_cascade  # noqa: E402
+from sourcedoc_client import close_client, compile_document  # noqa: E402
 
 A2AJ = Path(r"C:\Users\elias\AppData\Local\ALR Quote Verifier\a2aj_corpus")
 
@@ -45,7 +45,8 @@ def sample_cases(con, per_court: int):
             try:
                 rows = con.execute(
                     f"""
-                    select citation_{lang}, unofficial_text_{lang}
+                    select citation_{lang}, citation2_{lang},
+                           unofficial_text_{lang}
                     from read_parquet('{pq}')
                     where unofficial_text_{lang} is not null
                     using sample reservoir({per_court} rows) repeatable (43)
@@ -53,9 +54,11 @@ def sample_cases(con, per_court: int):
                 ).fetchall()
             except Exception:
                 continue
-            for cite, text in rows:
+            for cite, alternate, text in rows:
                 jobs.append((f"{court}:{cite}:{lang}", "case", text or "",
-                             {"self_cite": cite, "cited_count": 0}))
+                             {"self_cite": cite,
+                              "alternate_citation": alternate,
+                              "dataset": court, "cited_count": 0}))
     return jobs
 
 
@@ -68,7 +71,8 @@ def sample_laws(con, per_set: int):
             try:
                 rows = con.execute(
                     f"""
-                    select citation_{lang}, unofficial_text_{lang},
+                    select citation_{lang}, citation2_{lang}, name_{lang},
+                           unofficial_text_{lang},
                            unofficial_sections_{lang}, num_sections_{lang}
                     from read_parquet('{pq}')
                     where unofficial_text_{lang} is not null
@@ -77,13 +81,26 @@ def sample_laws(con, per_set: int):
                 ).fetchall()
             except Exception:
                 continue
-            for cite, text, sections_json, num in rows:
+            for cite, alternate, instrument, text, sections_json, num in rows:
                 try:
-                    labels = list(json.loads(sections_json or "{}").keys())
+                    sections = json.loads(sections_json or "{}")
+                    labels = [
+                        label
+                        for label, value in sections.items()
+                        if (
+                            isinstance(value, str)
+                            and value.strip()
+                            and value.strip().casefold() != "[blank]"
+                        )
+                    ]
                 except (json.JSONDecodeError, TypeError, AttributeError):
                     labels = []
                 jobs.append((f"{name}:{cite}:{lang}", "law", text or "",
-                             {"section_labels": labels, "num_sections": num or 0}))
+                             {"citation": cite,
+                              "alternate_citation": alternate,
+                              "dataset": name, "name": instrument,
+                              "section_labels": labels,
+                              "num_sections": num or 0}))
     return jobs
 
 
@@ -165,19 +182,33 @@ def main() -> int:
     cheap = sum(1 for ms_mb, *_ in rows if ms_mb < 5)
     print(f"   (+{len(rows) - 12} more; {cheap}/{len(rows)} entries under 5 ms/MB)")
 
-    # Structure cost isolated.
+    # Shipping SourceDoc compiler cost isolated; no harness detector exists.
     t0 = time.perf_counter()
-    for _id, _k, text, oracle in case_jobs:
-        structure_cascade(text[:sweep.MAX_DOC_CHARS], oracle.get("self_cite") or "")
-    cascade_s = time.perf_counter() - t0
+    for _id, _k, text, metadata in case_jobs:
+        compile_document({
+            "id": _id, "docType": "cases",
+            "citation": metadata.get("self_cite") or "",
+            "alternateCitation": metadata.get("alternate_citation") or "",
+            "dataset": metadata.get("dataset") or "",
+            "text": text[:sweep.MAX_DOC_CHARS],
+        })
+    case_structure_s = time.perf_counter() - t0
     t0 = time.perf_counter()
-    for _id, _k, text, _o in law_jobs:
-        law_section_labels(text[:sweep.MAX_DOC_CHARS])
-    law_s = time.perf_counter() - t0
+    for _id, _k, text, metadata in law_jobs:
+        compile_document({
+            "id": _id, "docType": "laws",
+            "citation": metadata.get("citation") or "",
+            "alternateCitation": metadata.get("alternate_citation") or "",
+            "dataset": metadata.get("dataset") or "",
+            "name": metadata.get("name") or "",
+            "text": text[:sweep.MAX_DOC_CHARS],
+        })
+    law_structure_s = time.perf_counter() - t0
     case_mb = sum(len(j[2]) for j in case_jobs) / 1e6
     law_mb = sum(len(j[2]) for j in law_jobs) / 1e6
-    print(f"\n== structure cost: cascade {cascade_s * 1e3 / max(case_mb, 1e-9):.1f} ms/MB, "
-          f"law_section_labels {law_s * 1e3 / max(law_mb, 1e-9):.1f} ms/MB")
+    print(f"\n== compileA2AJSourceDoc cost: "
+          f"cases {case_structure_s * 1e3 / max(case_mb, 1e-9):.1f} ms/MB, "
+          f"laws {law_structure_s * 1e3 / max(law_mb, 1e-9):.1f} ms/MB")
 
     totals = corpus_totals(con)
     print("\n== projection (from parquet counts x sampled mean size / measured rate)")
@@ -194,6 +225,7 @@ def main() -> int:
         print("  (0.8 pool efficiency)")
     print(f"\nsample fail-rate sanity: {fails}/{len(case_jobs) + len(law_jobs)} "
           f"docs flagged")
+    close_client()
     return 0
 
 

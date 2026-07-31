@@ -3761,7 +3761,7 @@
     "status": "usable",
     "source": "hybrid",
     "counts": {
-      "paragraph": 5,
+      "paragraph": 6,
       "page": 17,
       "section": 0,
       "footnote": 20
@@ -4091,6 +4091,14 @@
       ],
       [
         "paragraph",
+        "par5",
+        32757,
+        32956,
+        null,
+        null
+      ],
+      [
+        "paragraph",
         "par6",
         32956,
         32999,
@@ -4231,9 +4239,9 @@
         ],
         "after": [
           "par4",
-          "par6"
+          "par5"
         ],
-        "payloadSha256": "34c8556dcf5ba74441583c5262505c7546689973fd74c27856356b03bb7ce259"
+        "payloadSha256": "9b6b619a23f9a59f30ea7bdd0da22765104e4728fd7aaa56dab525431fd9ec33"
       },
       {
         "kind": "paragraph",
@@ -4251,9 +4259,9 @@
         ],
         "after": [
           "par4",
-          "par6"
+          "par5"
         ],
-        "payloadSha256": "34c8556dcf5ba74441583c5262505c7546689973fd74c27856356b03bb7ce259"
+        "payloadSha256": "9b6b619a23f9a59f30ea7bdd0da22765104e4728fd7aaa56dab525431fd9ec33"
       },
       {
         "kind": "paragraph",
@@ -4271,9 +4279,9 @@
         ],
         "after": [
           "par4",
-          "par6"
+          "par5"
         ],
-        "payloadSha256": "34c8556dcf5ba74441583c5262505c7546689973fd74c27856356b03bb7ce259"
+        "payloadSha256": "9b6b619a23f9a59f30ea7bdd0da22765104e4728fd7aaa56dab525431fd9ec33"
       },
       {
         "kind": "paragraph",
@@ -4290,9 +4298,10 @@
           "par3"
         ],
         "after": [
+          "par5",
           "par6"
         ],
-        "payloadSha256": "96f9e917f01a58ce2c5e662b49a00ed47a6b02e34af384d8ae2b45c04d4cd57c"
+        "payloadSha256": "950f7affbdadbda318f4eb56a39e46e65780690702895b3705e2319b81a2e313"
       },
       {
         "kind": "paragraph",
@@ -4309,9 +4318,10 @@
           "par3"
         ],
         "after": [
+          "par5",
           "par6"
         ],
-        "payloadSha256": "96f9e917f01a58ce2c5e662b49a00ed47a6b02e34af384d8ae2b45c04d4cd57c"
+        "payloadSha256": "950f7affbdadbda318f4eb56a39e46e65780690702895b3705e2319b81a2e313"
       },
       {
         "kind": "paragraph",
@@ -4328,9 +4338,67 @@
           "par3"
         ],
         "after": [
+          "par5",
           "par6"
         ],
-        "payloadSha256": "96f9e917f01a58ce2c5e662b49a00ed47a6b02e34af384d8ae2b45c04d4cd57c"
+        "payloadSha256": "950f7affbdadbda318f4eb56a39e46e65780690702895b3705e2319b81a2e313"
+      },
+      {
+        "kind": "paragraph",
+        "locator": "par5",
+        "status": "found",
+        "requestedLabel": "par5",
+        "matches": [
+          "par5"
+        ],
+        "block": "par5",
+        "anchor": null,
+        "before": [
+          "par3",
+          "par4"
+        ],
+        "after": [
+          "par6"
+        ],
+        "payloadSha256": "f0a0bb42d4174d1e74ec79a9afe1e1a7c7278f285c227b97b88dac3020c40c30"
+      },
+      {
+        "kind": "paragraph",
+        "locator": "5",
+        "status": "found",
+        "requestedLabel": "par5",
+        "matches": [
+          "par5"
+        ],
+        "block": "par5",
+        "anchor": null,
+        "before": [
+          "par3",
+          "par4"
+        ],
+        "after": [
+          "par6"
+        ],
+        "payloadSha256": "f0a0bb42d4174d1e74ec79a9afe1e1a7c7278f285c227b97b88dac3020c40c30"
+      },
+      {
+        "kind": "paragraph",
+        "locator": "paragraph 5",
+        "status": "found",
+        "requestedLabel": "par5",
+        "matches": [
+          "par5"
+        ],
+        "block": "par5",
+        "anchor": null,
+        "before": [
+          "par3",
+          "par4"
+        ],
+        "after": [
+          "par6"
+        ],
+        "payloadSha256": "f0a0bb42d4174d1e74ec79a9afe1e1a7c7278f285c227b97b88dac3020c40c30"
       },
       {
         "kind": "paragraph",
@@ -4343,11 +4411,11 @@
         "block": "par6",
         "anchor": null,
         "before": [
-          "par3",
-          "par4"
+          "par4",
+          "par5"
         ],
         "after": [],
-        "payloadSha256": "54a17598aa3925235f1a3b0f692b311ca634666dfa58233d0e9e9048ba9dd678"
+        "payloadSha256": "b9cf570ad648f8d9b57a29c1adde8e557dc9ae907bf6954bc8eb9a048edb56ae"
       },
       {
         "kind": "paragraph",
@@ -4360,11 +4428,11 @@
         "block": "par6",
         "anchor": null,
         "before": [
-          "par3",
-          "par4"
+          "par4",
+          "par5"
         ],
         "after": [],
-        "payloadSha256": "54a17598aa3925235f1a3b0f692b311ca634666dfa58233d0e9e9048ba9dd678"
+        "payloadSha256": "b9cf570ad648f8d9b57a29c1adde8e557dc9ae907bf6954bc8eb9a048edb56ae"
       },
       {
         "kind": "paragraph",
@@ -4377,11 +4445,11 @@
         "block": "par6",
         "anchor": null,
         "before": [
-          "par3",
-          "par4"
+          "par4",
+          "par5"
         ],
         "after": [],
-        "payloadSha256": "54a17598aa3925235f1a3b0f692b311ca634666dfa58233d0e9e9048ba9dd678"
+        "payloadSha256": "b9cf570ad648f8d9b57a29c1adde8e557dc9ae907bf6954bc8eb9a048edb56ae"
       },
       {
         "kind": "paragraph",

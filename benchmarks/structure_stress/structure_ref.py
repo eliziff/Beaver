@@ -1,4 +1,11 @@
-"""Faithful port of ALR's corpus-proven structure detectors.
+"""REFERENCE/COMPATIBILITY CODE ONLY; never a production or sweep candidate.
+
+The measured Beaver candidate is always shipping ``compileA2AJSourceDoc`` via
+``backend/scripts/sourcedoc-jsonl.ts``. No product correctness claim may be
+derived from this module; it exists only to reproduce historical ALR behavior
+for compatibility analysis.
+
+Faithful port of ALR's corpus-proven structure detectors.
 
 Source: ALR-Quote-Verifier verifier_core/a2aj_structure.py (read-only
 reference). paragraph_index and its helpers are transcribed verbatim —
@@ -14,9 +21,9 @@ silently substituted for the faithful base: the section lookahead
 additions (letter-suffixed provisions, label-alone-on-line, repeal/stub
 followers) lifted LEGISLATION-NS 0.795 -> 0.963 and YT 0.981 -> 0.994
 with precision unchanged, validated on held-out splits. Range
-expansion and named-heading recovery are oracle-justified general
-mechanisms (the pre-1985 federal oracle collapses 51.6% of its labels
-into ranges; 4.18% of all oracle labels are non-numeric).
+expansion and named-heading recovery are provider-section-map-supported
+mechanisms (the pre-1985 federal maps collapse 51.6% of their labels
+into ranges; 4.18% of all provider-map labels are non-numeric).
 
 Paragraph-side extensions (2026-07-30, from the full-sweep none-queue
 close inspection: 17/29 sampled "no structure" docs were complete
@@ -293,7 +300,7 @@ _NAMED_HEAD_RE = re.compile(
 # 'Order to' drove named precision to 0.293): identifiers are digits,
 # romans, or a single capital — case-sensitive on purpose, re.I on the
 # heading regex would let 'of'/'to' through the roman branch. Bare
-# labels only for units that appear bare in oracle keys.
+# labels only for units that appear bare in provider section-map keys.
 _NAMED_TAIL_OK = re.compile(
     r"(?:No\.?[ \t]*)?(?:\d{1,4}(?:\.\d{1,3})?[A-Za-z]?|[IVXLC]{1,7}|[A-Z])$"
 )
@@ -311,7 +318,7 @@ RANGE_EXPANSION_CAP = 400
 def expand_ranges(text: str) -> set[str]:
     """Labels recovered from 'N to M' / 'N et M' repeal-range lines.
 
-    The pre-1985 federal oracle collapses 51.6% of its labels into such
+    The pre-1985 federal provider maps collapse 51.6% of their labels into such
     lines; integer interiors only, span capped so a stray match cannot
     fabricate thousands of labels.
     """
@@ -328,9 +335,9 @@ def expand_ranges(text: str) -> set[str]:
 
 
 def named_heading_labels(text: str) -> set[str]:
-    """'## SCHEDULE "A"' -> 'Schedule A'; repeats gain (n) like the oracle.
+    """'## SCHEDULE "A"' -> 'Schedule A'; repeats gain (n) like provider maps.
 
-    Labels keep the heading's SURFACE language: oracles key the surface
+    Labels keep the heading's SURFACE language: provider maps key the surface
     form on both en rows ('Schedule I') and fr rows ('Annexe I'), and the
     old fr->en translation via _NAMED_CANON never matched anything (laws
     vet 2026-07-30) — _NAMED_CANON survives only to normalize the kind

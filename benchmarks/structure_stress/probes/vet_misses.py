@@ -1,11 +1,8 @@
-"""Vet every previously-flagged miss under the structure cascade.
+"""Vet every previously-flagged miss with shipping compileA2AJSourceDoc.
 
-Doctrine (Eli, 2026-07-29): no-paragraphs is never a verdict. This
-probe joins prior failure records back to corpus text and asks, for
-each, what structure the cascade actually finds — paragraphs / pages /
-endnotes / heading hints / truly none. Output: an old-reason x
-cascade-kind cross-table plus a per-doc jsonl for close inspection of
-whatever remains 'none'. Single-threaded by design (throttle rules).
+This probe joins prior failure records back to corpus text and asks what the
+production compiler returns. It contains no structure grammar. Output is an
+old-reason x SourceDoc-kind cross-table plus per-document detail.
 
     python -X utf8 probes/vet_misses.py [--limit N] \
         [--failures results/smoke/a2aj_cases.failures.jsonl ...]
@@ -21,7 +18,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
-from structure_ref import structure_cascade  # noqa: E402
+sys.path.insert(0, str(HERE.parents[2] / "backend" / "scripts"))
+from sourcedoc_client import close_client, compile_document  # noqa: E402
 
 A2AJ = Path(r"C:\Users\elias\AppData\Local\ALR Quote Verifier\a2aj_corpus")
 
@@ -45,7 +43,7 @@ def fetch(con, court: str, lang: str, citations: list[str]):
     placeholders = ",".join("?" for _ in citations)
     return con.execute(
         f"""
-        select citation_{lang}, unofficial_text_{lang}
+        select citation_{lang}, citation2_{lang}, unofficial_text_{lang}
         from read_parquet('{pq}')
         where citation_{lang} in ({placeholders})
         """,
@@ -85,24 +83,32 @@ def main() -> int:
             citations = list(wanted)
             if args.limit and checked >= args.limit:
                 break
-            for citation, text in fetch(con, court, lang, citations):
+            for citation, alternate, text in fetch(con, court, lang, citations):
                 if args.limit and checked >= args.limit:
                     break
                 checked += 1
-                structure = structure_cascade(text or "", citation)
+                result = compile_document({
+                    "id": f"{court}:{citation}:{lang}",
+                    "docType": "cases",
+                    "citation": citation,
+                    "alternateCitation": alternate or "",
+                    "dataset": court,
+                    "text": text or "",
+                })
+                structure = {**result["summary"], "engine": result["compiler"]}
                 for reason in wanted[citation]:
                     cross[(reason.split("_0")[0], structure["kind"])] += 1
                 row = {
                     "id": f"{court}:{citation}:{lang}",
                     "prior_fail": wanted[citation],
-                    "cascade": structure,
+                    "sourceDoc": structure,
                     "chars": len(text or ""),
                 }
                 sink.write(json.dumps(row, ensure_ascii=False) + "\n")
                 if structure["kind"] == "none":
                     none_rows.append(row)
 
-    print(f"\nvetted {checked} docs; cross-table (prior reason -> cascade kind):")
+    print(f"\nvetted {checked} docs; cross-table (prior reason -> SourceDoc kind):")
     kinds = sorted({k for _, k in cross})
     reasons = sorted({r for r, _ in cross})
     header = "prior_reason".ljust(34) + "".join(k.rjust(12) for k in kinds)
@@ -113,10 +119,11 @@ def main() -> int:
 
     print(f"\nkind=none (close-inspection queue): {len(none_rows)}")
     for row in none_rows[:10]:
-        cascade = row["cascade"]
+        source_doc = row["sourceDoc"]
         print(f"  {row['id'][:60]:60s} chars={row['chars']:>7} "
-              f"heading_hints={cascade.get('heading_hint_lines', 0)}")
+              f"blocks={source_doc.get('count', 0)}")
     print(f"\nper-doc detail: {out_path}")
+    close_client()
     return 0
 
 

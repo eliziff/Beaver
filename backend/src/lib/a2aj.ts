@@ -10,8 +10,8 @@ import {
 } from "node:fs/promises";
 import path from "node:path";
 import {
-  createTextSourceDoc,
   lookupSourceDoc,
+  lookupSourceDocLabel,
   normalizeSourceDocLocator,
   sliceSourceDocBlocks,
   sourceDocBlockText,
@@ -26,6 +26,7 @@ import {
 } from "./sourceDocA2AJ";
 import {
   fetchLocalA2AJDocument,
+  getLocalA2AJSectionMap,
   getLocalA2AJStructure,
   searchLocalA2AJ,
 } from "./a2ajLocalBulk";
@@ -65,6 +66,7 @@ type A2AJStructureView = A2AJStructureSummary & {
 };
 
 export type A2AJDocument = {
+  docType?: "cases" | "laws";
   dataset: string;
   citation: string;
   alternateCitation: string | null;
@@ -140,7 +142,7 @@ export type A2AJLocatorLookup = {
   before: Array<SourceDocBlock & { text: string }>;
   after: Array<SourceDocBlock & { text: string }>;
   structure: A2AJStructureSummary;
-  sourceMethod: "structure_index" | "api_section";
+  sourceMethod: "structure_index" | "provider_section";
 };
 
 export type A2AJViewerPayload = {
@@ -251,6 +253,7 @@ export function canonicalA2AJSourceUrl(
 function documentFromResult(
   value: unknown,
   language: "en" | "fr",
+  docType: "cases" | "laws",
 ): A2AJDocument | null {
   const record = asRecord(value);
   if (!record) return null;
@@ -263,6 +266,7 @@ function documentFromResult(
     textForLanguage(record, "citation2", actualLanguage);
   if (!text || !citation) return null;
   const document: A2AJDocument = {
+    docType,
     dataset: asString(record.dataset) ?? "",
     citation,
     alternateCitation: textForLanguage(record, "citation2", actualLanguage),
@@ -500,6 +504,8 @@ function structureFor(
   document: A2AJDocument,
   docType: "cases" | "laws",
 ): SourceDoc {
+  docType = document.docType ?? docType;
+  document.docType = docType;
   const cached = structureIndexes.get(document);
   if (cached) return cached;
   const doc = compileA2AJSourceDoc({
@@ -510,15 +516,120 @@ function structureFor(
     alternateCitation: document.alternateCitation,
     dataset: document.dataset,
     name: document.name,
-    sectionMap: sectionMap(rawRecords.get(document), document.language),
   });
   structureIndexes.set(document, doc);
+  document.text = doc.text;
   document.structure = summarizeA2AJSourceDoc(doc);
   return doc;
 }
 
 export function getA2AJDocumentSourceDoc(document: A2AJDocument) {
-  return structureFor(document, "cases");
+  return structureFor(document, document.docType ?? "cases");
+}
+
+function documentSectionMap(document: A2AJDocument) {
+  return (
+    getLocalA2AJSectionMap(document) ??
+    sectionMap(rawRecords.get(document), document.language)
+  );
+}
+
+function sectionLocator(value: string) {
+  const stripped = value
+    .trim()
+    .replace(/^(?:(?:sections?)\s+|ss?\.?(?=\s)\s*)/iu, "")
+    .replace(/^sec(?=[\p{L}\p{N}])/iu, "")
+    .trim();
+  if (!stripped) return "";
+  return normalizeSourceDocLocator("section", stripped) || `sec${stripped}`;
+}
+
+function providerSectionSource(
+  document: A2AJDocument,
+  locator: string,
+):
+  | { status: "found"; doc: SourceDoc; lookup: ReturnType<typeof lookupSourceDocLabel> }
+  | { status: "ambiguous"; matches: string[] }
+  | null {
+  const mapped = documentSectionMap(document);
+  if (!mapped) return null;
+  const normalized = sectionLocator(locator);
+  const requested = normalized.toLowerCase();
+  const candidates = Object.entries(mapped)
+    .map(([key, text]) => {
+      const canonical = sectionLocator(key);
+      return { key, text, canonical, label: canonical.toLowerCase() };
+    })
+    .filter(({ label }) =>
+      requested === label || requested.startsWith(`${label}(`),
+    );
+  const exact = candidates.filter(({ label }) => label === requested);
+  const longest = Math.max(
+    0,
+    ...(exact.length ? exact : candidates).map(({ label }) => label.length),
+  );
+  const matches = (exact.length ? exact : candidates).filter(
+    ({ label }) => label.length === longest,
+  );
+  if (matches.length > 1) {
+    return {
+      status: "ambiguous",
+      matches: matches.map(({ key }) => `sec${key.trim()}`),
+    };
+  }
+  const match = matches[0];
+  if (!match || !match.text.trim() || /^\[blank\]$/iu.test(match.text.trim())) {
+    return null;
+  }
+  const { key, text } = match;
+  const requestedLabel =
+    match.canonical + normalized.slice(match.canonical.length);
+  const doc = compileA2AJSourceDoc({
+    citation: document.citation,
+    docType: "laws",
+    text,
+    id: document.citation,
+    url: document.url,
+    alternateCitation: document.alternateCitation,
+    dataset: document.dataset,
+    name: document.name,
+    sectionMap: { [key]: text },
+  });
+  const lookup = lookupSourceDocLabel(
+    doc,
+    "section",
+    requestedLabel,
+    0,
+  );
+  return lookup.status === "found" ? { status: "found", doc, lookup } : null;
+}
+
+function requestedSectionDocument(
+  document: A2AJDocument,
+  locator: string,
+  text: string,
+) {
+  const label = sectionLocator(locator).replace(/^sec/iu, "");
+  if (!label || !text.trim()) return null;
+  const doc = compileA2AJSourceDoc({
+    citation: document.citation,
+    docType: "laws",
+    text,
+    id: document.citation,
+    url: document.url,
+    alternateCitation: document.alternateCitation,
+    dataset: document.dataset,
+    name: document.name,
+    sectionMap: { [label]: text },
+  });
+  const scoped: A2AJDocument = {
+    ...document,
+    docType: "laws",
+    text: doc.text,
+    structure: summarizeA2AJSourceDoc(doc),
+  };
+  structureIndexes.set(scoped, doc);
+  return scoped;
 }
 
 function readerSegments(
@@ -597,18 +708,34 @@ async function fullA2AJDocument(args: {
   }
   if (cached) documentCache.delete(key);
   const cachedPromise = (async () => {
-    if (!args.section?.trim()) {
-      const localDocument = fetchLocalA2AJDocument({
-        citation: args.citation,
-        docType: args.docType,
-        language: args.language,
-        dataset: args.dataset,
-        maxChars: Number.MAX_SAFE_INTEGER,
-      });
-      if (localDocument) {
+    const localDocument = fetchLocalA2AJDocument({
+      citation: args.citation,
+      docType: args.docType,
+      language: args.language,
+      dataset: args.dataset,
+      maxChars: Number.MAX_SAFE_INTEGER,
+    });
+    if (localDocument) {
+      if (!args.section?.trim()) {
         const localStructure = getLocalA2AJStructure(localDocument);
         if (localStructure) structureIndexes.set(localDocument, localStructure);
+        localDocument.docType = args.docType;
         return localDocument;
+      }
+      const localSection = providerSectionSource(
+        localDocument,
+        args.section,
+      );
+      if (localSection?.status === "ambiguous") return null;
+      if (localSection?.status === "found") {
+        const root = localSection.doc.blocks.find(
+          (block) => block.kind === "section" && block.origin === "native",
+        );
+        return requestedSectionDocument(
+          localDocument,
+          root?.label ?? args.section,
+          localSection.doc.text,
+        );
       }
     }
     const payload = await request("/fetch", {
@@ -618,13 +745,16 @@ async function fullA2AJDocument(args: {
       section: args.section?.trim(),
     });
     const document = (Array.isArray(payload.results) ? payload.results : [])
-      .map((item) => documentFromResult(item, args.language))
+      .map((item) => documentFromResult(item, args.language, args.docType))
       .find(
         (item): item is A2AJDocument =>
           !!item &&
           (!args.dataset?.trim() ||
             item.dataset.toLowerCase() === args.dataset.trim().toLowerCase()),
       );
+    if (document && args.section?.trim()) {
+      return requestedSectionDocument(document, args.section, document.text);
+    }
     if (document) structureFor(document, args.docType);
     return document ?? null;
   })();
@@ -901,6 +1031,57 @@ export async function lookupA2AJLocator(args: {
     lookupDocuments.set(lookup, compiled);
     return lookup;
   }
+  if (args.kind === "section" && docType === "laws") {
+    const provider = providerSectionSource(document, locator);
+    if (provider?.status === "ambiguous") {
+      const lookup: A2AJLocatorLookup = {
+        status: "ambiguous",
+        citation: document.citation,
+        alternateCitation: document.alternateCitation,
+        name: document.name,
+        dataset: document.dataset,
+        url: document.url,
+        language: document.language,
+        requested: {
+          kind: args.kind,
+          locator,
+          label: sectionLocator(locator),
+        },
+        matches: provider.matches,
+        block: null,
+        before: [],
+        after: [],
+        structure: document.structure,
+        sourceMethod: "provider_section",
+      };
+      lookupDocuments.set(lookup, compiled);
+      return lookup;
+    }
+    if (provider?.status === "found") {
+      const lookup: A2AJLocatorLookup = {
+        status: "found",
+        citation: document.citation,
+        alternateCitation: document.alternateCitation,
+        name: document.name,
+        dataset: document.dataset,
+        url: document.url,
+        language: document.language,
+        requested: {
+          kind: args.kind,
+          locator,
+          label: provider.lookup.requestedLabel,
+        },
+        matches: provider.lookup.matches,
+        block: provider.lookup.block,
+        before: provider.lookup.before,
+        after: provider.lookup.after,
+        structure: summarizeA2AJSourceDoc(provider.doc),
+        sourceMethod: "provider_section",
+      };
+      lookupDocuments.set(lookup, provider.doc);
+      return lookup;
+    }
+  }
   const result = lookupSourceDoc(
     compiled,
     args.kind,
@@ -912,7 +1093,7 @@ export async function lookupA2AJLocator(args: {
     docType === "laws" &&
     result.status !== "found"
   ) {
-    const label = normalizeSourceDocLocator("section", locator);
+    const label = sectionLocator(locator);
     const section = label.replace(/^sec/iu, "");
     if (section) {
       const native = await fullA2AJDocument({
@@ -923,36 +1104,32 @@ export async function lookupA2AJLocator(args: {
         section,
       });
       if (native?.text.trim()) {
-        const lookup: A2AJLocatorLookup = {
-          status: "found",
-          citation: document.citation,
-          alternateCitation: document.alternateCitation,
-          name: document.name,
-          dataset: document.dataset,
-          url: document.url,
-          language: document.language,
-          requested: { kind: args.kind, locator, label },
-          matches: [label],
-          block: {
-            kind: "section",
-            label,
-            start: 0,
-            end: native.text.length,
-            origin: "native",
-            text: native.text.trim(),
-          },
-          before: [],
-          after: [],
-          structure: document.structure,
-          sourceMethod: "api_section",
-        };
-        lookupDocuments.set(
-          lookup,
-          compiled.text.includes(native.text.trim())
-            ? compiled
-            : createTextSourceDoc(native.text),
+        const providerDoc = getA2AJDocumentSourceDoc(native);
+        const providerLookup = lookupSourceDocLabel(
+          providerDoc,
+          "section",
+          label,
         );
-        return lookup;
+        if (providerLookup.status === "found") {
+          const lookup: A2AJLocatorLookup = {
+            status: "found",
+            citation: document.citation,
+            alternateCitation: document.alternateCitation,
+            name: document.name,
+            dataset: document.dataset,
+            url: document.url,
+            language: document.language,
+            requested: { kind: args.kind, locator, label },
+            matches: providerLookup.matches,
+            block: providerLookup.block,
+            before: providerLookup.before,
+            after: providerLookup.after,
+            structure: summarizeA2AJSourceDoc(providerDoc),
+            sourceMethod: "provider_section",
+          };
+          lookupDocuments.set(lookup, providerDoc);
+          return lookup;
+        }
       }
     }
   }

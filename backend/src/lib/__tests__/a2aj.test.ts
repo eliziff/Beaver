@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { mkdtemp, readdir, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -7,10 +8,13 @@ import {
   clearA2AJCache,
   fetchA2AJDocument,
   getA2AJCoverage,
+  getA2AJDocumentSourceDoc,
   lookupA2AJLocator,
   resolveA2AJViewerDocument,
   searchA2AJ,
 } from "../a2aj";
+import { createA2AJDocumentEvidence } from "../chat/legalEvidenceExperiment";
+import { normalizeWhitespace } from "../text";
 
 let temporaryLegalDataHome: string | null = null;
 
@@ -275,6 +279,15 @@ describe("A2AJ client", () => {
   });
 
   it("uses A2AJ's raw section map for nested provision lookup", async () => {
+    const fullText =
+      "The complete provider document keeps its title, headings, and other provisions. ".repeat(
+        2,
+      ).trim();
+    const mappedText = [
+      "34(1) Parent defence provision.",
+      "(a) The requested nested statutory paragraph applies.",
+      "(b) A sibling paragraph applies.",
+    ].join("\n");
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -284,13 +297,9 @@ describe("A2AJ client", () => {
             dataset: "LEGISLATION-FED",
             citation_en: "RSC 1985, c C-46",
             name_en: "Criminal Code",
-            unofficial_text_en: "unstructured fallback",
+            unofficial_text_en: fullText,
             unofficial_sections_en: JSON.stringify({
-              "34": [
-                "34(1) Parent defence provision.",
-                "(a) The requested nested statutory paragraph applies.",
-                "(b) A sibling paragraph applies.",
-              ].join("\n"),
+              "34": mappedText,
             }),
           },
         ],
@@ -298,6 +307,11 @@ describe("A2AJ client", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
+    const document = await fetchA2AJDocument({
+      citation: "RSC 1985, c C-46",
+      docType: "laws",
+      maxChars: 40,
+    });
     const lookup = await lookupA2AJLocator({
       citation: "RSC 1985, c C-46",
       docType: "laws",
@@ -305,9 +319,24 @@ describe("A2AJ client", () => {
       locator: "s. 34(1)(a)",
     });
 
+    expect(document).toMatchObject({
+      docType: "laws",
+      text: fullText.slice(0, 40),
+      truncated: true,
+      total_chars: fullText.length,
+      structure: { source: "flat_text" },
+    });
+    expect(getA2AJDocumentSourceDoc(document!).text).toBe(fullText);
+    const evidence = createA2AJDocumentEvidence(document!, "legislation");
+    expect(evidence.span_sha256).toBe(
+      `sha256:${crypto
+        .createHash("sha256")
+        .update(normalizeWhitespace(fullText))
+        .digest("hex")}`,
+    );
     expect(lookup).toMatchObject({
       status: "found",
-      sourceMethod: "structure_index",
+      sourceMethod: "provider_section",
       structure: { source: "section_map" },
       block: { label: "sec34(1)(a)" },
     });
@@ -315,6 +344,112 @@ describe("A2AJ client", () => {
       "requested nested statutory paragraph",
     );
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("looks up provider-native named, suffixed and combined map keys exactly", async () => {
+    const sections = {
+      Preamble: "Whereas the Legislature recognizes these principles.",
+      "1": "First provision.",
+      "2A": "Suffixed provision.",
+      "202DI": "Later suffixed provision.",
+      "4 and 4.1": "Combined provider provision.",
+      "Schedule 1": "First schedule.",
+    };
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        results: [
+          {
+            dataset: "LEGISLATION-TEST",
+            citation_en: "RSC 2099, c P-1",
+            name_en: "Provider Map Act",
+            unofficial_text_en: "Stale flat rendition.",
+            unofficial_sections_en: JSON.stringify(sections),
+          },
+        ],
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    for (const [locator, text] of Object.entries(sections).filter(
+      ([locator]) => locator !== "1",
+    )) {
+      const lookup = await lookupA2AJLocator({
+        citation: "RSC 2099, c P-1",
+        docType: "laws",
+        kind: "section",
+        locator,
+      });
+      expect(lookup).toMatchObject({
+        status: "found",
+        requested: { label: `sec${locator}` },
+        matches: [`sec${locator}`],
+        block: {
+          label: `sec${locator}`,
+          origin: "native",
+          text,
+        },
+        sourceMethod: "provider_section",
+      });
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses blank section renditions and normalized-key collisions", async () => {
+    const record = {
+      dataset: "LEGISLATION-TEST",
+      citation_en: "RSC 2099, c C-2",
+      name_en: "Provider Collision Act",
+      unofficial_text_en: [
+        "1 First reconstructed provision.",
+        "2 Second reconstructed provision.",
+        "3 Third reconstructed provision.",
+      ].join("\n"),
+      unofficial_sections_en: JSON.stringify({
+        Preamble: "First provider preamble.",
+        preamble: "Conflicting provider preamble.",
+        "9": "[blank]",
+      }),
+    };
+    const fetchMock = vi.fn(
+      async (input: Parameters<typeof fetch>[0]) => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          results: new URL(String(input)).searchParams.has("section")
+            ? []
+            : [record],
+        }),
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      lookupA2AJLocator({
+        citation: "RSC 2099, c C-2",
+        docType: "laws",
+        kind: "section",
+        locator: "Preamble",
+      }),
+    ).resolves.toMatchObject({
+      status: "ambiguous",
+      matches: ["secPreamble", "secpreamble"],
+      sourceMethod: "provider_section",
+    });
+    await expect(
+      lookupA2AJLocator({
+        citation: "RSC 2099, c C-2",
+        docType: "laws",
+        kind: "section",
+        locator: "9",
+      }),
+    ).resolves.toMatchObject({
+      status: "not_found",
+      matches: [],
+      sourceMethod: "structure_index",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("returns a stable pointer payload and reuses the persistent response cache", async () => {

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { computeStatuteSpine } from "../statuteSpine";
+import {
+  compareStatuteLabels,
+  computeStatuteSpine,
+} from "../statuteSpine";
 
 // Fixture shapes mirror the corpus families measured by
 // scripts/skeleton-oracle-probe.py / skeleton-oracle-diff.ts (431 texts,
@@ -40,6 +43,221 @@ describe("computeStatuteSpine", () => {
     expect(spine.every((mark) => mark.style === "dotterm")).toBe(true);
   });
 
+  it("pulls dotted descendants into a dot-terminated section spine", () => {
+    const text = [
+      "64. First provision.",
+      "64.1. Inserted provision.",
+      "65. Second provision.",
+      "65.1. Another inserted provision.",
+      "66. Final provision.",
+    ].join("\n");
+
+    expect(computeStatuteSpine(text).map(({ label }) => label)).toEqual([
+      "64",
+      "64.1",
+      "65",
+      "65.1",
+      "66",
+    ]);
+  });
+
+  it("refuses repeated trailing-dot descendants", () => {
+    const text = [
+      "64. First provision.",
+      "64.1. First appearance.",
+      "64.1. Repeated appearance.",
+      "65. Second provision.",
+      "99.1. Unrelated dotted line.",
+      "66. Final provision.",
+    ].join("\n");
+
+    expect(computeStatuteSpine(text).map(({ label }) => label)).toEqual([
+      "64",
+      "65",
+      "66",
+    ]);
+  });
+
+  it("falls back to New Brunswick Markdown section headings", () => {
+    const text = [
+      "### 61.01 Enforcement of orders.",
+      "### 61.02 Examination in aid of enforcement.",
+      "### 61.03 Seizure and sale under an order.",
+    ].join("\n");
+    const spine = computeStatuteSpine(text);
+
+    expect(spine.map((mark) => mark.label)).toEqual([
+      "61.01",
+      "61.02",
+      "61.03",
+    ]);
+    expect(spine[1].start).toBe(text.indexOf("### 61.02"));
+    expect(text.slice(spine[1].contentStart)).toMatch(/^Examination/u);
+  });
+
+  it("orders legislative decimals without dropping later provisions", () => {
+    const text = [
+      "17.26 First provision.",
+      "17.261 First inserted provision.",
+      "17.262 Second inserted provision.",
+      "17.27 Later provision.",
+      "17.28 Final provision.",
+    ].join("\n");
+
+    expect(computeStatuteSpine(text).map((mark) => mark.label)).toEqual([
+      "17.26",
+      "17.261",
+      "17.262",
+      "17.27",
+      "17.28",
+    ]);
+  });
+
+  it("indexes an indented provision at its first digit", () => {
+    const text = [
+      "  1 First provision.",
+      "  2 Second provision.",
+      "  3 Third provision.",
+    ].join("\n");
+    const spine = computeStatuteSpine(text);
+
+    expect(spine.map(({ start }) => start)).toEqual([
+      text.indexOf("1"),
+      text.indexOf("2"),
+      text.indexOf("3"),
+    ]);
+  });
+
+  it("keeps measured uppercase section suffixes", () => {
+    const text = [
+      "5A (1) First suffixed provision.",
+      "6 Next ordinary provision.",
+      "17W Final suffixed provision.",
+    ].join("\n");
+
+    expect(computeStatuteSpine(text).map((mark) => mark.label)).toEqual([
+      "5A",
+      "6",
+      "17W",
+    ]);
+  });
+
+  it.each([
+    "### Interpretation of Sections 85AA to",
+    "### Interprétation des articles 85AA à",
+    "### Interpretation of Sections 85AA –",
+  ])("does not parse a wrapped range end after %s", (heading) => {
+    const text = [
+      heading,
+      "85F",
+      "85AA First provision in the range.",
+      "85AB Second provision in the range.",
+      "86 Provision after the range.",
+    ].join("\n");
+
+    const spine = computeStatuteSpine(text);
+    expect(spine.map(({ label }) => label)).toEqual(["85AA", "85AB", "86"]);
+    expect(spine[0].start).toBe(text.indexOf("85AA First"));
+  });
+
+  it("keeps a line-alone section after an ordinary Markdown heading", () => {
+    const text = [
+      "### Interpretation",
+      "85F",
+      "Provision text continues on the next line.",
+      "85G Next provision.",
+      "86 Final provision.",
+    ].join("\n");
+
+    expect(computeStatuteSpine(text).map(({ label }) => label)).toEqual([
+      "85F",
+      "85G",
+      "86",
+    ]);
+  });
+
+  it("keeps an earlier dot-terminated spine despite a later bare list", () => {
+    const text = [
+      "1. First provision of the regulation.",
+      "2. Second provision of the regulation.",
+      "3. Third provision of the regulation.",
+      "4. Fourth provision of the regulation.",
+      "5. Fifth provision of the regulation.",
+      "6. Sixth provision of the regulation.",
+      "Schedule",
+      "10 Table row.",
+      "20 Another table row.",
+      "30 Final table row.",
+      "Explanatory schedule text follows the table.",
+      "Further explanatory schedule text follows the table.",
+    ].join("\n");
+
+    expect(computeStatuteSpine(text).map((mark) => mark.label)).toEqual([
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+    ]);
+  });
+
+  it("does not require an arbitrary size advantage for the earlier dot-terminated spine", () => {
+    const text = [
+      "1. First provision.",
+      "2. Second provision.",
+      "3. Third provision.",
+      "4. Fourth provision.",
+      "5. Fifth provision.",
+      "Schedule",
+      "10 Table row.",
+      "20 Another table row.",
+      "30 Final table row.",
+      "Explanatory schedule text follows.".repeat(20),
+    ].join("\n");
+
+    expect(computeStatuteSpine(text).map(({ label }) => label)).toEqual([
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+    ]);
+  });
+
+  it("keeps an earlier Markdown spine separate from later bare rows", () => {
+    const text = [
+      "### 61.01 Enforcement of orders.",
+      "### 61.02 Examination in aid of enforcement.",
+      "### 61.03 Seizure and sale under an order.",
+      "Schedule",
+      "10 Table row.",
+      "20 Another table row.",
+      "30 Final table row.",
+      "Explanatory schedule text follows.".repeat(20),
+    ].join("\n");
+
+    expect(computeStatuteSpine(text).map(({ label }) => label)).toEqual([
+      "61.01",
+      "61.02",
+      "61.03",
+    ]);
+  });
+
+  it.each([
+    ["hyphen", ["1-1", "1-2", "1-10"]],
+    ["mixed", ["1.1-1", "1.1-2", "1.1-3"]],
+  ] as const)("gates %s rule labels", (_style, labels) => {
+    const text = labels
+      .map((label) => `${label} Rule text for this provision.`)
+      .join("\n");
+
+    expect(computeStatuteSpine(text)).toEqual([]);
+    expect(computeStatuteSpine(text, true).map((mark) => mark.label)).toEqual(
+      labels,
+    );
+  });
+
   it("prefers a bare spine over a longer nested paragraph list", () => {
     // Ontario drafting: "1." paragraphs inside dotless sections. The
     // dotterm chain is longer (5 > 3) but is not the spine.
@@ -57,12 +275,99 @@ describe("computeStatuteSpine", () => {
     expect(spine.map((mark) => mark.label)).toEqual(["1", "2", "3"]);
   });
 
+  it("expands integer roots before scoring a denser dotted hypothesis", () => {
+    const text = [
+      "1 First root.",
+      "1.1 First child.",
+      "1.2 Second child.",
+      "1.3 Third child.",
+      "2 Second root.",
+      "2.1 First child.",
+      "2.2 Second child.",
+      "2.3 Third child.",
+      "3 Third root.",
+      "3.1 First child.",
+      "3.2 Second child.",
+      "3.3 Third child.",
+    ].join("\n");
+
+    expect(computeStatuteSpine(text).map(({ label }) => label)).toEqual([
+      "1",
+      "1.1",
+      "1.2",
+      "1.3",
+      "2",
+      "2.1",
+      "2.2",
+      "2.3",
+      "3",
+      "3.1",
+      "3.2",
+      "3.3",
+    ]);
+  });
+
+  it("refuses equal-strength dotted dialect disagreement", () => {
+    const text = [
+      "17.26 First provision.",
+      "17.261 First inserted provision.",
+      "17.27 Later provision.",
+      "17.262 Ambiguous reordered provision.",
+    ].join("\n");
+
+    expect(computeStatuteSpine(text)).toEqual([]);
+  });
+
   it("returns no spine for prose with scattered numbers", () => {
     const text = [
       "This agreement is made as of January 1, 2004 between the parties.",
       "2004 was the year of the closing (as defined below).",
       "The purchase price is 3 million dollars payable at closing.",
     ].join("\n");
+    expect(computeStatuteSpine(text)).toEqual([]);
+  });
+
+  it.each([
+    [
+      "one section",
+      "1 This Act may be cited as the Short Act.\nFurther operative text.",
+      ["1"],
+    ],
+    [
+      "two sections",
+      "1 This Act may be cited as the Short Act.\n2 This Act comes into force on assent.",
+      ["1", "2"],
+    ],
+    [
+      "label-alone sections",
+      "1\nShort title\nThis Act may be cited as the Short Act.\n2\n(1) This Act comes into force on assent.",
+      ["1", "2"],
+    ],
+  ] as const)("recovers a guarded short-root %s", (_name, text, expected) => {
+    expect(computeStatuteSpine(text).map(({ label }) => label)).toEqual(
+      expected,
+    );
+  });
+
+  it("refuses duplicate short roots", () => {
+    const text = [
+      "1 First candidate provision.",
+      "1 Repeated quoted provision.",
+      "2 Second candidate provision.",
+    ].join("\n");
+
+    expect(computeStatuteSpine(text)).toEqual([]);
+  });
+
+  it("refuses a line-broken quantity as a short section", () => {
+    const text = [
+      "1",
+      "Short title",
+      "The instrument text follows.",
+      "2",
+      "de 45,72 litres",
+    ].join("\n");
+
     expect(computeStatuteSpine(text)).toEqual([]);
   });
 
@@ -87,5 +392,16 @@ describe("computeStatuteSpine", () => {
     ].join("\n");
     const spine = computeStatuteSpine(text);
     expect(spine.map((mark) => mark.label)).toEqual(["1", "2", "3", "4"]);
+  });
+});
+
+describe("compareStatuteLabels", () => {
+  it("orders component, fractional, suffixed, and hyphen labels explicitly", () => {
+    expect(compareStatuteLabels("11.9", "11.10", "component")).toBeLessThan(0);
+    expect(compareStatuteLabels("17.262", "17.27", "fraction")).toBeLessThan(0);
+    expect(compareStatuteLabels("83.01", "83.1", "fraction")).toBeLessThan(0);
+    expect(compareStatuteLabels("2", "2A", "component")).toBeLessThan(0);
+    expect(compareStatuteLabels("2A", "2B", "component")).toBeLessThan(0);
+    expect(compareStatuteLabels("1-2", "1-10", "component")).toBeLessThan(0);
   });
 });

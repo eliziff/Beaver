@@ -1,8 +1,9 @@
 """Structure stress sweep over every local corpus.
 
-For each document: run every grammar-table entry (prefilter-gated) and
-the structure detectors (paragraph ladder, page marks, law sections),
-score against the corpus's own oracle where one exists, and aggregate.
+For each document: run every grammar-table entry (prefilter-gated), invoke
+Beaver's shipping compileA2AJSourceDoc through one persistent process per
+worker, score its blocks against provider metadata where available, and
+aggregate. This harness contains no structure detector or parser grammar.
 Regex is the measured bottleneck. On the full tier, workers read their
 own parquet row slices (pyarrow decodes ~500 MB/s) and return per-shard
 aggregates, so the parent never touches document text — the first full
@@ -35,6 +36,7 @@ FORK = HERE.parent.parent
 ENGINE_SRC = FORK / "universal-legal-pdf-engine" / "src"
 TABLES_DIR = FORK / "shared" / "grammar-tables"
 A2AJ = Path(r"C:\Users\elias\AppData\Local\ALR Quote Verifier\a2aj_corpus")
+sys.path.insert(0, str(FORK / "backend" / "scripts"))
 
 
 def _public_endpoint_db() -> Path:
@@ -119,22 +121,9 @@ SHORT_STRING_ENTRIES = {
 
 SLOW_DOC_SECONDS = 2.0
 
-# Structure detection is ALR's corpus-proven machinery, ported with a
-# 0-mismatch parity proof in structure_ref.py. The naive detectors that
-# used to live here scored 43% presence accuracy and 31% flag precision
-# against hand-verified gold; the port scores 95% / 93%.
-from structure_ref import law_section_labels, structure_cascade  # noqa: E402
+from sourcedoc_client import compile_document  # noqa: E402
 
 PILCROW_RE = re.compile(r"¶\s?\d")
-ANY_BRACKET_LABEL_RE = re.compile(r"\[(\d{1,4})\]")
-# Provider catalog cards whose Decision Content section states the text is
-# absent (CHRT/CITT; en 185 + fr 186 docs probed 2026-07-30). Matched only
-# in the document tail, where the provider layout puts it — a decision
-# QUOTING the phrase mid-text stays a real document.
-STUB_SENTINEL_RE = re.compile(
-    r"There is no document available for this decision\."
-    r"|Il n[’']y a pas de document disponible pour cette décision\."
-)
 
 # The anchored-scan machinery (derived gates, anchor windows with the
 # clip-guard and coverage bailout) lives in the engine now — the private
@@ -210,14 +199,14 @@ MAX_DOC_CHARS = 8_000_000
 
 
 def scan_doc(job: tuple[str, str, str, dict]) -> dict:
-    """(doc_id, kind, text, oracle) -> per-doc record."""
-    doc_id, kind, text, oracle = job
+    """(doc_id, kind, text, provider metadata) -> per-doc record."""
+    doc_id, kind, text, metadata = job
     t0 = time.perf_counter()
     if len(text) > MAX_DOC_CHARS:
         # One giant document must never take a worker down; record and
         # scan the head only.
-        oracle = dict(oracle)
-        oracle["truncated_from"] = len(text)
+        metadata = dict(metadata)
+        metadata["truncated_from"] = len(text)
         text = text[:MAX_DOC_CHARS]
     lower = text.lower()
     matches: dict[str, int] = {}
@@ -241,36 +230,30 @@ def scan_doc(job: tuple[str, str, str, dict]) -> dict:
     }
 
     if kind == "case":
-        self_cite = oracle.get("self_cite") or ""
+        self_cite = metadata.get("self_cite") or ""
         window = text[:3000]
         record["self_cite_found"] = bool(self_cite) and self_cite in window
-        record["cited_count"] = oracle.get("cited_count", 0)
+        record["cited_count"] = metadata.get("cited_count", 0)
         cite_hits = sum(
             matches.get(k, 0)
             for k in ("cite.neutral", "cite.neutral.tribunal", "cite.canlii",
                       "cite.reporter.splitter")
         )
-        if STUB_SENTINEL_RE.search(text[-300:]):
-            # No decision text exists to detect structure or citations in;
-            # a provider inventory fact, not an instrument failure.
-            record["structure"] = {"kind": "stub_sentinel"}
-            record["wall"] = round(time.perf_counter() - t0, 4)
-            return record
         if record["cited_count"] > 0 and cite_hits == 0:
             record["fail"].append("cites_expected_none_found")
-        # No structure detected is never a verdict: paragraphs, then
-        # reporter-anchored pages, then endnote ladders, then heading
-        # hints. Only all-empty lands in the close-inspection bucket.
-        structure = structure_cascade(text, self_cite)
+        compiled = compile_document({
+            "id": doc_id,
+            "docType": "cases",
+            "citation": self_cite,
+            "alternateCitation": metadata.get("alternate_citation") or "",
+            "dataset": metadata.get("dataset") or doc_id.split(":", 1)[0],
+            "text": text,
+        })
+        structure = {**compiled["summary"], "engine": compiled["compiler"]}
         record["structure"] = structure
+        record["source_doc_ms"] = compiled["elapsedMs"]
         if structure["kind"] == "none":
             record["fail"].append("no_addressable_structure")
-            lines = text.splitlines() or [""]
-            mean_line = len(text) / max(1, len(lines))
-            if mean_line > 600 and len(ANY_BRACKET_LABEL_RE.findall(text)) >= 8:
-                # Labels exist but sit mid-line: a corpus defect (four
-                # Sept-Oct 2003 BCCA rows found so far), not absence.
-                record["fail"].append("line_collapsed")
         elif structure["kind"] == "paragraphs" and structure.get("span", 1.0) < 0.55:
             # Accepted scope covers under 55% of the document — the
             # host-vs-quote competition residual worth surfacing. In
@@ -281,8 +264,18 @@ def scan_doc(job: tuple[str, str, str, dict]) -> dict:
             if len(text) >= 4000 or structure.get("span", 1.0) < 0.30:
                 record["fail"].append("paragraph_scope_narrow")
     elif kind == "law":
-        want = set(oracle.get("section_labels") or [])
-        num = oracle.get("num_sections") or 0
+        want = set(metadata.get("section_labels") or [])
+        expected_count = len(want) or metadata.get("num_sections") or 0
+        compiled = compile_document({
+            "id": doc_id,
+            "docType": "laws",
+            "citation": metadata.get("citation") or "",
+            "alternateCitation": metadata.get("alternate_citation") or "",
+            "dataset": metadata.get("dataset") or doc_id.split(":", 1)[0],
+            "name": metadata.get("name") or "",
+            "text": text,
+        })
+        record["source_doc_ms"] = compiled["elapsedMs"]
         if len(want) == 1 and next(iter(want)).lower() in {
             "order", "ordonnance", "proclamation",
         }:
@@ -291,26 +284,27 @@ def scan_doc(job: tuple[str, str, str, dict]) -> dict:
             # usually absent as any heading (1,218 REG-FED + 582 REG-NL
             # docs; laws vet 2026-07-30). The structure is "whole
             # document" — a scoring convention, not a recovery target.
-            record["sections"] = {"oracle": num, "single_instrument": True}
-        else:
-            detected = law_section_labels(text)
-            combined = (
-                detected["alr_ext"] | detected["bold"] | detected["ranges"]
-                | detected["named"]
-            )
-            def _rec(found: set) -> float | None:
-                return len(want & found) / len(want) if want else None
-            def _prec(found: set) -> float | None:
-                return len(want & found) / len(found) if found else None
             record["sections"] = {
-                "oracle": num,
-                "recovery_combined": _rec(combined),
-                "detectors": {
-                    name: {"rec": _rec(found), "prec": _prec(found)}
-                    for name, found in detected.items()
-                },
+                "expected_count": expected_count,
+                "single_instrument": True,
+                "engine": compiled["compiler"],
             }
-            best = record["sections"]["recovery_combined"] or 0.0
+        else:
+            found = {
+                label[3:]
+                for block in compiled["blocks"]["section"]
+                for label in [block["label"], *block.get("aliases", [])]
+            }
+            recovery = len(want & found) / len(want) if want else None
+            precision = len(want & found) / len(found) if found else None
+            record["sections"] = {
+                "expected_count": expected_count,
+                "recovery_production": recovery,
+                "precision_production": precision,
+                "actual": len(found),
+                "engine": compiled["compiler"],
+            }
+            best = recovery or 0.0
             if want and best < 0.5:
                 record["fail"].append(f"section_recovery_{best:.2f}")
     elif kind == "journal":
@@ -321,15 +315,15 @@ def scan_doc(job: tuple[str, str, str, dict]) -> dict:
         # for grammar-entry rates only.
         record["structure"] = {
             "kind": "provider_metadata",
-            "pages": len(oracle.get("page_labels") or []),
+            "pages": len(metadata.get("page_labels") or []),
         }
 
     wall = time.perf_counter() - t0
     record["wall"] = round(wall, 4)
     if wall > SLOW_DOC_SECONDS:
         record["fail"].append("slow_doc")
-    if oracle.get("truncated_from"):
-        record["truncated_from"] = oracle["truncated_from"]
+    if metadata.get("truncated_from"):
+        record["truncated_from"] = metadata["truncated_from"]
         record["fail"].append("oversize_doc")
     return record
 
@@ -355,7 +349,7 @@ def _cases_jobs(con, tier: str, langs: list[str]):
             print(f"[cases] {court}:{lang} start", flush=True)
             rows = con.execute(
                 f"""
-                select citation_{lang}, unofficial_text_{lang},
+                select citation_{lang}, citation2_{lang}, unofficial_text_{lang},
                        len(cases_cited_{lang}) as cited
                 from read_parquet('{pq}')
                 where unofficial_text_{lang} is not null
@@ -367,12 +361,17 @@ def _cases_jobs(con, tier: str, langs: list[str]):
                 batch = rows.fetchmany(200)
                 if not batch:
                     break
-                for cite, text, cited in batch:
+                for cite, alternate, text, cited in batch:
                     yield (
                         f"{court}:{cite}:{lang}",
                         "case",
                         text,
-                        {"self_cite": cite, "cited_count": cited or 0},
+                        {
+                            "self_cite": cite,
+                            "alternate_citation": alternate,
+                            "dataset": court,
+                            "cited_count": cited or 0,
+                        },
                     )
 
 
@@ -386,7 +385,8 @@ def _laws_jobs(con, tier: str, langs: list[str]):
             print(f"[laws] {name}:{lang} start", flush=True)
             rows = con.execute(
                 f"""
-                select citation_{lang}, unofficial_text_{lang},
+                select citation_{lang}, citation2_{lang}, name_{lang},
+                       unofficial_text_{lang},
                        unofficial_sections_{lang}, num_sections_{lang}
                 from read_parquet('{pq}')
                 where unofficial_text_{lang} is not null
@@ -398,16 +398,32 @@ def _laws_jobs(con, tier: str, langs: list[str]):
                 batch = rows.fetchmany(100)
                 if not batch:
                     break
-                for cite, text, sections_json, num in batch:
+                for cite, alternate, instrument, text, sections_json, num in batch:
                     try:
-                        labels = list(json.loads(sections_json or "{}").keys())
+                        sections = json.loads(sections_json or "{}")
+                        labels = [
+                            label
+                            for label, value in sections.items()
+                            if (
+                                isinstance(value, str)
+                                and value.strip()
+                                and value.strip().casefold() != "[blank]"
+                            )
+                        ]
                     except (json.JSONDecodeError, TypeError, AttributeError):
                         labels = []
                     yield (
                         f"{name}:{cite}:{lang}",
                         "law",
                         text,
-                        {"section_labels": labels, "num_sections": num or 0},
+                        {
+                            "citation": cite,
+                            "alternate_citation": alternate,
+                            "dataset": name,
+                            "name": instrument,
+                            "section_labels": labels,
+                            "num_sections": num or 0,
+                        },
                     )
 
 
@@ -445,6 +461,7 @@ def _empty_agg(name: str) -> dict:
         "entry_docs": Counter(),
         "entry_matches": Counter(),
         "structure_kinds": Counter(),
+        "structure_engines": Counter(),
         "slow_docs": 0,
     }
 
@@ -467,9 +484,13 @@ def _fold_record(
     structure = rec.get("structure")
     if structure:
         agg["structure_kinds"][structure["kind"]] += 1
+        if structure.get("engine"):
+            agg["structure_engines"][structure["engine"]] += 1
     for key in ("sections", "pages"):
         sub = rec.get(key)
         if sub:
+            if sub.get("engine"):
+                agg["structure_engines"][sub["engine"]] += 1
             vals = [
                 v
                 for k, v in sub.items()
@@ -513,6 +534,7 @@ def _summarize(
         "entry_docs": dict(agg["entry_docs"].most_common()),
         "entry_matches": dict(agg["entry_matches"].most_common()),
         "structure_kinds": dict(agg["structure_kinds"].most_common()),
+        "structure_engines": dict(agg["structure_engines"].most_common()),
         "mb": round(mb, 1),
         "wall_s": round(wall, 1),
         "mb_per_s": round(mb / wall, 2) if wall else None,
@@ -605,14 +627,15 @@ def scan_shard(shard: tuple[str, str, str, str, int, int]) -> dict:
     con = _worker_con()
     if kind == "case":
         query = f"""
-            select citation_{lang}, unofficial_text_{lang},
+            select citation_{lang}, citation2_{lang}, unofficial_text_{lang},
                    len(cases_cited_{lang}) as cited
             from read_parquet('{pq_path}')
             limit {stop - start} offset {start}
         """
     else:
         query = f"""
-            select citation_{lang}, unofficial_text_{lang},
+            select citation_{lang}, citation2_{lang}, name_{lang},
+                   unofficial_text_{lang},
                    unofficial_sections_{lang}, num_sections_{lang}
             from read_parquet('{pq_path}')
             limit {stop - start} offset {start}
@@ -626,18 +649,40 @@ def scan_shard(shard: tuple[str, str, str, str, int, int]) -> dict:
         if not batch:
             break
         for row in batch:
-            cite, text = row[0], row[1]
+            cite = row[0]
+            text = row[2] if kind == "case" else row[3]
             if not text:
                 continue
             if kind == "case":
-                oracle = {"self_cite": cite, "cited_count": row[2] or 0}
+                metadata = {
+                    "self_cite": cite,
+                    "alternate_citation": row[1],
+                    "dataset": name,
+                    "cited_count": row[3] or 0,
+                }
             else:
                 try:
-                    labels = list(json.loads(row[2] or "{}").keys())
+                    sections = json.loads(row[4] or "{}")
+                    labels = [
+                        label
+                        for label, value in sections.items()
+                        if (
+                            isinstance(value, str)
+                            and value.strip()
+                            and value.strip().casefold() != "[blank]"
+                        )
+                    ]
                 except (json.JSONDecodeError, TypeError, AttributeError):
                     labels = []
-                oracle = {"section_labels": labels, "num_sections": row[3] or 0}
-            rec = scan_doc((f"{name}:{cite}:{lang}", kind, text, oracle))
+                metadata = {
+                    "citation": cite,
+                    "alternate_citation": row[1],
+                    "dataset": name,
+                    "name": row[2],
+                    "section_labels": labels,
+                    "num_sections": row[5] or 0,
+                }
+            rec = scan_doc((f"{name}:{cite}:{lang}", kind, text, metadata))
             _fold_record(
                 agg, rec, failures, recoveries, failure_cap=SHARD_FAILURE_CAP
             )
@@ -659,7 +704,7 @@ def run_source_sharded(
             for key in ("docs", "chars", "fail_docs", "slow_docs"):
                 agg[key] += partial[key]
             for key in ("fail_reasons", "entry_docs", "entry_matches",
-                        "structure_kinds"):
+                        "structure_kinds", "structure_engines"):
                 agg[key].update(partial[key])
             recoveries.extend(partial["recoveries"])
             shard_failures.append((partial["fail_docs"], partial["failures"]))

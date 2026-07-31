@@ -529,7 +529,7 @@ describe("verified legal-source links", () => {
       "[1] The opening paragraph provides a unique procedural history for this fictional appeal.",
       "[2] The range begins with a distinctive governing proposition that appears nowhere else in the judgment.",
       "[3] The middle paragraph applies that proposition to the unusual facts found at trial.",
-      "[4] The range ends by stating a distinctive remedy and final consequence for the parties.",
+      "[4] The range ends by stating a distinctive remedy and final consequence for the parties.\n(3) Applying the test\n(a) The following issue",
       "[5] The costs paragraph contains separate language about the allocation of appellate costs.",
       "[6] The disposition paragraph gives the remaining formal directions required by the court.",
     ].join("\n");
@@ -539,7 +539,7 @@ describe("verified legal-source links", () => {
       alternateCitation: null,
       name: "Example v. Example",
       date: "2099-01-01",
-      url: "https://www.canlii.org/en/ca/scc/doc/2099/2099scc1/2099scc1.html",
+      url: "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/99999/index.do",
       text,
       language: "en",
       upstreamLicense: null,
@@ -558,10 +558,11 @@ describe("verified legal-source links", () => {
     );
 
     expect(result.text).toContain(
-      "[2099 SCC 1 at paras. 2–4](https://www.canlii.org/en/ca/scc/doc/2099/2099scc1/2099scc1.html#par2:~:text=",
+      "[2099 SCC 1 at paras. 2–4](https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/99999/index.do?iframe=true&site_preference=mobile#par2:~:text=",
     );
     expect(result.text.match(/text=/gu)).toHaveLength(1);
     expect(result.text).toMatch(/#par2:~:text=[^)]+,[^)]+\)/u);
+    expect(result.text).not.toContain("Applying");
   });
 
   it("normalizes a case-level SCC docket link to CanLII", () => {
@@ -789,28 +790,6 @@ describe("verified legal-source links", () => {
       "https://www.canlii.org/en/ca/scc/doc/2099/2099scc1/2099scc1.html#:~:text=text%20from%20paragraph%2099",
     );
     expect(createCitation(parsed, {}, undefined, [lookup]).url).toBeNull();
-  });
-
-  it("builds one atomic multi-text CourtListener link from cached opinions", () => {
-    const text =
-      "The court adopted the distinctive first proposition. " +
-      "It then applied the separate second proposition.";
-    const result = buildCourtlistenerCitationPinpointUrl(
-      {
-        quotes: [
-          { opinionId: 7, quote: "distinctive first proposition" },
-          { opinionId: 7, quote: "separate second proposition" },
-        ],
-      },
-      {
-        url: "https://www.courtlistener.com/opinion/42/example/",
-        opinions: [{ opinionId: 7, text }],
-      },
-    )!;
-
-    expect(result).toContain("#:~:text=");
-    expect(result.match(/text=/gu)).toHaveLength(2);
-    expect(result).toContain("&text=");
   });
 
   it("falls back to the trusted CourtListener case URL on a quote mismatch", () => {

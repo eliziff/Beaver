@@ -17,6 +17,10 @@ type Language = "en" | "fr";
 type DocType = "cases" | "laws";
 
 const documentStructures = new WeakMap<A2AJDocument, SourceDoc>();
+const documentSectionMaps = new WeakMap<
+  A2AJDocument,
+  Record<string, string>
+>();
 
 function a2ajLocalBulkPath() {
   const configured = process.env.MIKE_A2AJ_BULK_DB?.trim();
@@ -79,6 +83,7 @@ function document(row: Row, language: Language): A2AJDocument | null {
     languageField(row, "citation2", actualLanguage);
   if (!text || !citation) return null;
   const docType = string(row, "doc_type") === "laws" ? "laws" : "cases";
+  const mappedSections = sectionMap(row, actualLanguage);
   const compiled = compileA2AJSourceDoc({
     citation,
     docType,
@@ -87,9 +92,9 @@ function document(row: Row, language: Language): A2AJDocument | null {
     alternateCitation: languageField(row, "citation2", actualLanguage),
     dataset: string(row, "dataset"),
     name: languageField(row, "name", actualLanguage),
-    sectionMap: sectionMap(row, actualLanguage),
   });
   const document: A2AJDocument = {
+    docType,
     dataset: string(row, "dataset") ?? "",
     citation,
     alternateCitation: languageField(row, "citation2", actualLanguage),
@@ -102,11 +107,16 @@ function document(row: Row, language: Language): A2AJDocument | null {
     structure: summarizeA2AJSourceDoc(compiled),
   };
   documentStructures.set(document, compiled);
+  if (mappedSections) documentSectionMaps.set(document, mappedSections);
   return document;
 }
 
 export function getLocalA2AJStructure(document: A2AJDocument) {
   return documentStructures.get(document) ?? null;
+}
+
+export function getLocalA2AJSectionMap(document: A2AJDocument) {
+  return documentSectionMaps.get(document) ?? null;
 }
 
 function boundedSize(

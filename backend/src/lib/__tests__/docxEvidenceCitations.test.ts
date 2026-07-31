@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createSourceDoc } from "../sourceDoc";
 
 const mocks = vi.hoisted(() => ({
   createLocalPdfLinkEvidenceSession: vi.fn(),
@@ -32,20 +33,33 @@ const localHandle = `mike-evidence:v1:${"c".repeat(64)}`;
 
 function providerEvidence(handle: string, index: number) {
   const contexts = ["Alpha context", "Beta context"];
-  const blockText =
-    `${contexts[index]} explains why the same rule applies uniquely here. ` +
-    `End ${index ? "beta" : "alpha"}.`;
-  const documentText = [
+  const paragraphs = [
     "Alpha context explains why the same rule applies uniquely here. End alpha.",
     "Beta context explains why the same rule applies uniquely here. End beta.",
-  ].join("\n");
+  ];
+  const documentText = paragraphs.join("\n");
+  const starts = [0, paragraphs[0].length + 1];
+  const structure = createSourceDoc({
+    provider: "tna",
+    id: "[2024] UKSC 1",
+    text: documentText,
+    blocks: paragraphs.map((text, position) => ({
+      kind: "paragraph",
+      label: `par${position + 1}`,
+      anchor: `para_${position + 1}`,
+      origin: "native",
+      start: starts[position],
+      end: starts[position] + text.length,
+    })),
+  });
   return {
     document: {
       provider: "tna",
       identity: "[2024] UKSC 1",
       title: "Example v State",
       url: "https://caselaw.nationalarchives.gov.uk/uksc/2024/1",
-      text: documentText,
+      text: "A bounded transport excerpt that omits the cited passages.",
+      structure,
     },
     lookup: {
       status: "found",
@@ -53,7 +67,7 @@ function providerEvidence(handle: string, index: number) {
         kind: "paragraph",
         label: `para ${index + 1}`,
         anchor: `para_${index + 1}`,
-        text: blockText,
+        text: paragraphs[index],
       },
     },
     receipt: {

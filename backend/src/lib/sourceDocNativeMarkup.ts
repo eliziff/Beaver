@@ -327,11 +327,20 @@ export function compileNativeMarkupSourceDoc(args: {
     ? nativeMarkupBlocks(args.provider, args.markup)
     : { text: "", blocks: [] as SourceDocBlock[] };
   const text = native.text || args.text;
-  const nativeKinds = new Set(native.blocks.map(({ kind }) => kind));
+  const nativeLocators = new Set(
+    native.blocks.flatMap((block) =>
+      [block.label, ...(block.aliases ?? [])].map(
+        (label) => `${block.kind}:${label.toLowerCase()}`,
+      ),
+    ),
+  );
   const heuristic = a2ajCaseBlocks({
     text,
     citation: args.citation,
-  }).filter(({ kind }) => !nativeKinds.has(kind));
+  }).filter(
+    ({ kind, label }) =>
+      !nativeLocators.has(`${kind}:${label.toLowerCase()}`),
+  );
   const blocks = [...native.blocks, ...heuristic].sort(
     (left, right) =>
       left.start - right.start ||

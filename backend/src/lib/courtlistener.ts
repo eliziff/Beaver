@@ -190,47 +190,79 @@ function compactCluster(raw: unknown) {
 }
 
 function attachOpinionStructure(
-  compacted: { opinionId: number | null; url: string | null },
+  compacted: {
+    opinionId: number | null;
+    url: string | null;
+    text: string | null;
+  },
   text: string | null,
   markup: string | null,
+  maxChars: number,
 ) {
   if (!text) return;
-  opinionDocumentTexts.set(compacted, text);
-  opinionStructures.set(
-    compacted,
-    compileNativeMarkupSourceDoc({
-      provider: "courtlistener",
-      id: compacted.opinionId === null ? "" : String(compacted.opinionId),
-      url: compacted.url,
-      text,
-      markup,
-    }),
-  );
+  const structure = compileNativeMarkupSourceDoc({
+    provider: "courtlistener",
+    id: compacted.opinionId === null ? "" : String(compacted.opinionId),
+    url: compacted.url,
+    text,
+    markup,
+  });
+  compacted.text = truncate(structure.text, maxChars);
+  opinionDocumentTexts.set(compacted, structure.text);
+  opinionStructures.set(compacted, structure);
 }
 
 function compactOpinion(opinion: JsonRecord, maxChars: number) {
-  const rawHtml = firstString(opinion, "html_with_citations", "html", "xml_harvard");
-  const rawText = asString(opinion.plain_text) ?? rawHtml;
+  const rawHtml = firstString(
+    opinion,
+    "htmlWithCitations",
+    "html_with_citations",
+    "html",
+    "htmlLawbox",
+    "html_lawbox",
+    "htmlColumbia",
+    "html_columbia",
+    "htmlWithCitationsLawbox",
+    "html_with_citations_lawbox",
+    "xmlHarvard",
+    "xml_harvard",
+    "xmlLawbox",
+    "xml_lawbox",
+  );
+  const rawMarkup = firstString(
+    opinion,
+    "xmlHarvard",
+    "xml_harvard",
+    "htmlWithCitations",
+    "html_with_citations",
+    "html",
+    "htmlLawbox",
+    "html_lawbox",
+    "htmlColumbia",
+    "html_columbia",
+    "htmlAnon2020",
+    "html_anon_2020",
+  );
+  const rawText = firstString(opinion, "plainText", "plain_text") ?? rawHtml;
   const text = stripOpinionMarkup(rawText);
   const html = sanitizeOpinionHtml(rawHtml);
   const compacted = {
-    opinionId: asNumber(opinion.id),
+    opinionId:
+      asNumber(opinion.opinionId) ??
+      asNumber(opinion.id) ??
+      asNumber(opinion.opinion_id),
     type: asString(opinion.type),
     author:
       asString(opinion.author_str) ??
+      asString(opinion.author) ??
       asString((opinion.author as JsonRecord | undefined)?.name),
     per_curiam: asString(opinion.per_curiam),
     joined_by_str: asString(opinion.joined_by_str),
-    url: absoluteWebUrl(opinion.absolute_url),
+    url: absoluteWebUrl(opinion.absolute_url ?? opinion.url),
     text: truncate(text, maxChars),
     html: truncate(html, maxChars),
   };
-  attachOpinionStructure(
-    compacted,
-    text,
-    firstString(opinion, "xml_harvard", "html_with_citations", "html",
-      "html_lawbox", "html_columbia", "html_anon_2020"),
-  );
+  attachOpinionStructure(compacted, text, rawMarkup, maxChars);
   return compacted;
 }
 
@@ -927,38 +959,7 @@ async function getBulkCourtlistenerCaseOpinions(args: {
         (opinion): opinion is JsonRecord =>
           !!opinion && typeof opinion === "object" && !Array.isArray(opinion),
       )
-      .map((opinion) => {
-        const rawHtml = firstString(opinion,
-          "htmlWithCitations", "html_with_citations", "html",
-          "htmlLawbox", "html_lawbox", "htmlColumbia", "html_columbia",
-          "htmlWithCitationsLawbox", "html_with_citations_lawbox",
-          "xmlHarvard", "xml_harvard", "xmlLawbox", "xml_lawbox");
-        const rawText =
-          asString(opinion.plainText) ?? asString(opinion.plain_text) ?? rawHtml;
-        const text = stripOpinionMarkup(rawText);
-        const compacted = {
-          opinionId:
-            asNumber(opinion.opinionId) ??
-            asNumber(opinion.id) ??
-            asNumber(opinion.opinion_id),
-          type: asString(opinion.type),
-          author: asString(opinion.author) ?? asString(opinion.author_str),
-          per_curiam: asString(opinion.per_curiam),
-          joined_by_str: asString(opinion.joined_by_str),
-          url: absoluteWebUrl(opinion.url),
-          text: truncate(text, args.maxChars),
-          html: truncate(sanitizeOpinionHtml(rawHtml), args.maxChars),
-        };
-        attachOpinionStructure(
-          compacted,
-          text,
-          firstString(opinion,
-            "xmlHarvard", "xml_harvard", "htmlWithCitations",
-            "html_with_citations", "html", "htmlLawbox", "html_lawbox",
-            "htmlColumbia", "html_columbia"),
-        );
-        return compacted;
-      }),
+      .map((opinion) => compactOpinion(opinion, args.maxChars)),
     source: "bulk",
   };
 }
