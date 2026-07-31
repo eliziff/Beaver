@@ -2907,6 +2907,29 @@ registration):
   (lock-in bias); revisitable post-holdout only as a new
   registered round.
 
+### Stage 18 arm D amendment (2026-07-31, before any results
+observed): backend moved to the 3080 Ti, model upgraded
+
+The bge-base CPU run was killed twice for machine load (34 CPU-min
+in, still inside the first passage matrix; full run projected
+70–90 CPU-min). Eli: "Set up the strongest embedding model that
+can fit on our desktop pc/3080ti" — the RTX 3080 Ti (12 GB) lives
+on `oajd-desktop`, reachable over Tailscale SSH.
+
+Amended: embedding backend is now `Qwen/Qwen3-Embedding-4B` fp16
+via sentence-transformers CUDA on the desktop (strongest open
+embedder that fits 12 GB unquantized; queries use the model's
+instruction prompt, passages plain; max_seq 1024). Inputs
+(`passages.jsonl`, `tests.jsonl`, combined header sidecar
+`36d041f7…`) shipped to the desktop; `stage18-dense-pool.jsonl`
+ships back to the receipt store. Pool machinery, six arms, and the
+frozen OPEN/CLOSED gates are UNCHANGED. No dense/fused numbers
+were observed under bge-base, so the model swap is not
+results-contingent. The frozen prediction bands were calibrated
+for bge-base and are held over as-is, with the honest note that a
+stronger embedder plausibly overshoots them — band hits/misses
+will be recorded against the original text.
+
 ### Stage 18 R5b grounded confirm verdict (2026-07-31; receipts
 `stage18-lbrag-grounded-ctx.jsonl`, 776/776 cells, 0 errors after a
 2-cell resume)
