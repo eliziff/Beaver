@@ -166,7 +166,7 @@
       font-weight: 600;
       text-align: center;
       text-decoration: none;
-      transition-property: color, background-color, box-shadow;
+      transition-property: color, background-color, box-shadow, transform;
       transition-duration: 120ms;
       transition-timing-function: ease-out;
     }
@@ -299,10 +299,14 @@
       width: 4rem;
       aspect-ratio: 1;
       border-radius: 1rem;
-      color: var(--brand);
-      background: var(--brand-soft);
+      color: #d97757;
+      background: #fdf3ef;
     }
-    .work-swirl { width: 2rem; height: 2rem; }
+    .work-swirl {
+      width: 2.15rem;
+      height: 2.15rem;
+      transform-origin: center;
+    }
     .work-copy {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
@@ -325,40 +329,51 @@
     }
     .work-copy progress { grid-column: 1 / -1; margin: .15rem 0 0; }
     @media (prefers-reduced-motion: no-preference) {
-      .work-swirl { animation: work-swirl 1.15s linear infinite; }
+      .work-swirl { animation: work-swirl 1.05s steps(8, end) infinite; }
     }
     @keyframes work-swirl { to { transform: rotate(1turn); } }
 
     .exhibit-import-stage { min-height: 11rem; margin-block-end: 1rem; }
-    .exhibit-import-controls { display: grid; align-content: start; gap: .85rem; min-width: 0; }
-    .batch-drop { min-height: 5rem; }
+    .exhibit-import-controls { display: grid; align-content: start; min-width: 0; }
+    .batch-drop {
+      min-height: 5rem;
+      border-radius: .65rem .65rem 0 0;
+    }
     .placement-mode {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: .5rem;
+      gap: .35rem;
       min-width: 0;
       margin: 0;
-      padding: 0;
-      border: 0;
+      padding: .5rem;
+      border: 1px solid var(--line);
+      border-top: 0;
+      border-radius: 0 0 .65rem .65rem;
+      background: #f9fafb;
     }
     .placement-mode legend {
-      margin-block-end: .4rem;
+      grid-column: 1 / -1;
+      width: 100%;
+      margin: 0;
+      padding: 0 0 .25rem;
       color: var(--muted);
+      font-size: .75rem;
     }
     .placement-mode label {
       display: grid;
       grid-template-columns: 1rem minmax(0, 1fr);
-      align-items: start;
-      gap: .45rem;
+      align-items: center;
+      gap: .35rem;
       min-width: 0;
-      min-height: 3.25rem;
-      padding: .65rem;
+      min-height: 2.25rem;
+      padding: .35rem .45rem;
       border: 1px solid var(--line);
       border-radius: .5rem;
       background: #fff;
       cursor: pointer;
+      font-size: .75rem;
       font-weight: 500;
-      line-height: 1.3;
+      line-height: 1.2;
     }
     .placement-mode label:has(input:checked) {
       border-color: var(--brand);
@@ -373,6 +388,12 @@
       border-radius: .65rem;
       background: #f9fafb;
       box-shadow: inset 0 0 0 1px var(--line);
+      transition-property: background-color, box-shadow;
+      transition-duration: 120ms;
+    }
+    .file-pool[data-over="true"] {
+      background: var(--brand-soft);
+      box-shadow: inset 0 0 0 2px var(--brand), 0 0 0 3px rgb(213 43 30 / 12%);
     }
     .pool-heading {
       display: flex;
@@ -383,11 +404,16 @@
     }
     .pool-heading > div { display: flex; align-items: baseline; gap: .5rem; min-width: 0; }
     .pool-heading h3 { margin: 0; font-size: .9375rem; }
+    .pool-help {
+      margin: -.2rem 0 .65rem;
+      color: var(--muted);
+      font-size: var(--text-sm);
+    }
     .pool-list { display: grid; gap: .5rem; }
     .pool-empty { margin: 0; color: var(--muted); font-size: var(--text-sm); }
     .pool-file {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-columns: minmax(0, 1fr) auto auto;
       align-items: center;
       gap: .5rem;
       min-width: 0;
@@ -399,21 +425,34 @@
     }
     .pool-file:active { cursor: grabbing; }
     .pool-file[data-dragging="true"] { opacity: .55; }
-    .preview-file {
+    .file-description {
       display: grid;
-      justify-content: stretch;
-      justify-items: start;
       gap: .1rem;
       min-width: 0;
       min-height: 2.75rem;
       padding: .45rem .55rem;
-      color: var(--ink);
-      border-color: transparent;
-      background: transparent;
       text-align: start;
     }
-    .preview-file:hover { background: #f2f4f7; }
-    .preview-file .file-name { width: 100%; }
+    .preview-eye {
+      width: 2.75rem;
+      min-width: 2.75rem;
+      min-height: 2.75rem;
+      padding: 0;
+      color: var(--muted);
+      border-color: transparent;
+      background: transparent;
+    }
+    .preview-eye:hover { color: var(--ink); background: #f2f4f7; }
+    .preview-eye svg {
+      display: block;
+      width: 1.25rem;
+      height: 1.25rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-width: 1.75;
+    }
     .delete-pool-file {
       min-width: 2.75rem;
       min-height: 2.75rem;
@@ -451,7 +490,12 @@
       font-size: var(--text-lg);
       font-weight: 700;
     }
-    .slot-body { display: grid; gap: .45rem; min-width: 0; }
+    .slot-body {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: .45rem .65rem;
+      min-width: 0;
+    }
     .slot-body > label {
       display: inline-flex;
       width: fit-content;
@@ -469,22 +513,43 @@
     }
     .slot-drop {
       display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
       align-content: center;
+      align-items: center;
       min-width: 0;
       min-height: 5rem;
       padding: .75rem;
       border: 2px dashed var(--line);
       border-radius: .5rem;
       background: #fcfcfd;
+      cursor: copy;
+      transition-property: background-color, border-color, box-shadow;
+      transition-duration: 120ms;
+    }
+    .slot-drop[draggable="true"] {
+      cursor: grab;
+    }
+    .slot-drop[draggable="true"]:active {
+      cursor: grabbing;
+    }
+    .slot-drop[data-dragging="true"] {
+      opacity: .58;
     }
     .slot-drop[data-over="true"] {
       border-color: var(--brand);
       background: var(--brand-soft);
       box-shadow: 0 0 0 3px rgb(213 43 30 / 12%);
     }
-    .slot-drop p { margin: 0; color: var(--muted); font-size: var(--text-sm); }
-    .slot-drop .preview-file { width: 100%; }
-    .slot-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+    .slot-drop p { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: var(--text-sm); }
+    .slot-drop .file-description { padding-inline-start: 0; }
+    .slot-actions {
+      display: grid;
+      align-content: start;
+      gap: .35rem;
+      min-width: 7.25rem;
+    }
+    .slot-actions > * { width: 100%; }
+    .slot-body > .expected { grid-column: 1 / -1; }
     .file-name {
       min-width: 0;
       overflow: hidden;
@@ -503,12 +568,28 @@
     .expected { margin-block-start: .25rem; }
     .expected ul { margin: .35rem 0 0; padding-inline-start: 1.1rem; }
     .expected li + li { margin-block-start: .25rem; }
-    .delete-exhibit {
+    .delete-assigned {
       color: var(--danger);
       border-color: #fecdca;
       background: #fff;
       font-size: var(--text-sm);
     }
+    .delete-slot {
+      width: 2.5rem;
+      min-width: 2.5rem;
+      min-height: 2.5rem;
+      padding: 0;
+      border-color: #fecdca;
+      border-radius: 50%;
+      color: var(--danger);
+      background: #fff;
+      font-size: 1.25rem;
+      line-height: 1;
+    }
+    .delete-slot:hover,
+    .delete-assigned:hover { color: #fff; background: var(--danger); }
+    button:active,
+    .file-button:active { transform: scale(.96); }
     .add-exhibit {
       width: 100%;
       margin-block-start: .75rem;
@@ -583,8 +664,9 @@
       overflow: auto;
       background: #e4e7ec;
     }
-    .preview-dialog-body iframe { display: block; width: 100%; height: 100%; border: 0; background: #fff; }
     .preview-dialog-body > p { margin: 0; padding: 2rem; color: var(--muted); text-align: center; }
+    .preview-dialog-body .preview-pages { height: 100%; }
+    .preview-page img { display: block; width: 100%; height: 100%; object-fit: contain; }
 
     .preview-card {
       position: sticky;
@@ -654,8 +736,7 @@
       #affidavit-drop .affidavit-picker { width: 8.5rem; justify-self: start; }
       .work-panel { grid-template-columns: 3.25rem minmax(0, 1fr); padding: 1rem; }
       .work-mark { width: 3.25rem; }
-      .placement-mode { grid-template-columns: 1fr; }
-      .exhibit-import-stage { min-height: 19rem; }
+      .exhibit-import-stage { min-height: 10.5rem; }
       .pool-heading { align-items: stretch; flex-direction: column; }
       .pool-heading .clear-exhibits { width: 100%; }
       .form-grid { grid-template-columns: 1fr; }
@@ -664,7 +745,10 @@
       .exhibit-row { grid-template-columns: 2.5rem minmax(0, 1fr); }
       .letter { grid-column: 1; grid-row: 1; }
       .slot-body { grid-column: 2; grid-row: 1; }
-      .delete-exhibit { grid-column: 2; width: 100%; }
+      .slot-body { grid-template-columns: 1fr; }
+      .slot-actions { grid-column: 1; grid-row: 2; grid-template-columns: 1fr; min-width: 0; }
+      .slot-body > .expected { grid-column: 1; }
+      .delete-slot { grid-column: 2; grid-row: 2; justify-self: end; }
       .output-card .primary { width: 100%; }
     }
   </style>
@@ -673,11 +757,16 @@
   <header class="topbar">
     <div class="brand-lockup">
       <svg class="beaver-mark" viewBox="0 0 32 32" aria-hidden="true">
-        <circle cx="8" cy="8" r="4" fill="currentColor"/>
-        <circle cx="24" cy="8" r="4" fill="currentColor"/>
-        <path fill="currentColor" d="M16 4C9.4 4 5 8.8 5 15.2 5 23.1 9.6 28 16 28s11-4.9 11-12.8C27 8.8 22.6 4 16 4Z"/>
-        <path fill="#fff" d="M10 16h6v10h-4.2A1.8 1.8 0 0 1 10 24.2V16Zm6 0h6v8.2a1.8 1.8 0 0 1-1.8 1.8H16V16Z"/>
-        <path fill="none" stroke="#17191c" stroke-width="1.25" d="M16 16v10"/>
+        <defs>
+          <clipPath id="beaver-tail-clip">
+            <path d="M24.8 3.7C30 9 28.2 20.4 18.9 27.1C13.1 31.3 5.6 28.4 4.2 21.9C2.3 13.2 10.5 3.4 18.6 2.2C20.8 1.9 22.9 2.4 24.8 3.7Z"/>
+          </clipPath>
+        </defs>
+        <path fill="currentColor" d="M24.8 3.7C30 9 28.2 20.4 18.9 27.1C13.1 31.3 5.6 28.4 4.2 21.9C2.3 13.2 10.5 3.4 18.6 2.2C20.8 1.9 22.9 2.4 24.8 3.7Z"/>
+        <g clip-path="url(#beaver-tail-clip)" fill="none" stroke="#fff" stroke-width="1.25" opacity=".62">
+          <path d="M2 11L25 31M4 5L30 28M10 1L31 19"/>
+          <path d="M3 26L26 3M8 31L31 8M1 19L19 1"/>
+        </g>
       </svg>
       <span class="brand-name">Beaver</span>
       <span class="brand-divider" aria-hidden="true">|</span>
@@ -719,16 +808,16 @@
         </div>
         <div id="affidavit-loading" class="work-panel hidden">
           <div class="work-mark" aria-hidden="true">
-            <svg class="work-swirl" viewBox="0 0 32 32">
-              <g fill="currentColor">
-                <rect x="14.5" y="2" width="3" height="8" rx="1.5"/>
-                <rect x="14.5" y="2" width="3" height="8" rx="1.5" opacity=".85" transform="rotate(45 16 16)"/>
-                <rect x="14.5" y="2" width="3" height="8" rx="1.5" opacity=".7" transform="rotate(90 16 16)"/>
-                <rect x="14.5" y="2" width="3" height="8" rx="1.5" opacity=".55" transform="rotate(135 16 16)"/>
-                <rect x="14.5" y="2" width="3" height="8" rx="1.5" opacity=".4" transform="rotate(180 16 16)"/>
-                <rect x="14.5" y="2" width="3" height="8" rx="1.5" opacity=".3" transform="rotate(225 16 16)"/>
-                <rect x="14.5" y="2" width="3" height="8" rx="1.5" opacity=".2" transform="rotate(270 16 16)"/>
-                <rect x="14.5" y="2" width="3" height="8" rx="1.5" opacity=".12" transform="rotate(315 16 16)"/>
+            <svg class="work-swirl" viewBox="0 0 36 36">
+              <g fill="none" stroke="currentColor" stroke-linecap="round">
+                <path d="M18 3.5v8" stroke-width="4.4"/>
+                <path d="M28.4 7.6l-5.8 5.8" stroke-width="3.8" opacity=".86"/>
+                <path d="M32.5 18h-8" stroke-width="4.2" opacity=".72"/>
+                <path d="M28.3 28.3l-5.7-5.7" stroke-width="3.6" opacity=".58"/>
+                <path d="M18 32.5v-8" stroke-width="4.4" opacity=".44"/>
+                <path d="M7.7 28.3l5.7-5.7" stroke-width="3.7" opacity=".32"/>
+                <path d="M3.5 18h8" stroke-width="4.1" opacity=".22"/>
+                <path d="M7.7 7.7l5.7 5.7" stroke-width="3.5" opacity=".13"/>
               </g>
             </svg>
           </div>
@@ -809,21 +898,21 @@
                 <legend>File placement</legend>
                 <label><input type="radio" name="file-placement" value="auto" checked><span>Auto-sort</span></label>
                 <label><input type="radio" name="file-placement" value="sequence"><span>Use selection order</span></label>
-                <label><input type="radio" name="file-placement" value="pool"><span>Keep in file pool</span></label>
+                <label><input type="radio" name="file-placement" value="pool"><span>Unsorted</span></label>
               </fieldset>
             </div>
             <div id="exhibit-loading" class="work-panel hidden">
               <div class="work-mark" aria-hidden="true">
-                <svg class="work-swirl" viewBox="0 0 32 32">
-                  <g fill="currentColor">
-                    <rect x="14.5" y="2" width="3" height="8" rx="1.5"/>
-                    <rect x="14.5" y="2" width="3" height="8" rx="1.5" opacity=".85" transform="rotate(45 16 16)"/>
-                    <rect x="14.5" y="2" width="3" height="8" rx="1.5" opacity=".7" transform="rotate(90 16 16)"/>
-                    <rect x="14.5" y="2" width="3" height="8" rx="1.5" opacity=".55" transform="rotate(135 16 16)"/>
-                    <rect x="14.5" y="2" width="3" height="8" rx="1.5" opacity=".4" transform="rotate(180 16 16)"/>
-                    <rect x="14.5" y="2" width="3" height="8" rx="1.5" opacity=".3" transform="rotate(225 16 16)"/>
-                    <rect x="14.5" y="2" width="3" height="8" rx="1.5" opacity=".2" transform="rotate(270 16 16)"/>
-                    <rect x="14.5" y="2" width="3" height="8" rx="1.5" opacity=".12" transform="rotate(315 16 16)"/>
+                <svg class="work-swirl" viewBox="0 0 36 36">
+                  <g fill="none" stroke="currentColor" stroke-linecap="round">
+                    <path d="M18 3.5v8" stroke-width="4.4"/>
+                    <path d="M28.4 7.6l-5.8 5.8" stroke-width="3.8" opacity=".86"/>
+                    <path d="M32.5 18h-8" stroke-width="4.2" opacity=".72"/>
+                    <path d="M28.3 28.3l-5.7-5.7" stroke-width="3.6" opacity=".58"/>
+                    <path d="M18 32.5v-8" stroke-width="4.4" opacity=".44"/>
+                    <path d="M7.7 28.3l5.7-5.7" stroke-width="3.7" opacity=".32"/>
+                    <path d="M3.5 18h8" stroke-width="4.1" opacity=".22"/>
+                    <path d="M7.7 7.7l5.7 5.7" stroke-width="3.5" opacity=".13"/>
                   </g>
                 </svg>
               </div>
@@ -838,11 +927,12 @@
           <section class="file-pool" aria-labelledby="pool-title">
             <div class="pool-heading">
               <div>
-                <h3 id="pool-title">File pool</h3>
+                <h3 id="pool-title">Files</h3>
                 <span id="pool-count" class="count">0 files</span>
               </div>
               <button id="clear-exhibits" type="button" class="secondary clear-exhibits" disabled>Clear exhibit slots</button>
             </div>
+            <p class="pool-help">Drag a file into a slot. Drop an assigned exhibit here to unassign it.</p>
             <div id="pool-list" class="pool-list"></div>
           </section>
           <div id="exhibit-list" class="exhibit-list" aria-label="Exhibits in order"></div>
@@ -882,7 +972,7 @@
     <form method="dialog">
       <div class="dialog-body">
         <h2 id="clear-title">Clear all exhibit slots?</h2>
-        <p>The files will return to the file pool. No files or exhibit slots will be deleted.</p>
+        <p>The files will become unassigned. No files or exhibit slots will be deleted.</p>
       </div>
       <div class="dialog-actions">
         <button value="cancel" class="secondary">Cancel</button>
@@ -897,7 +987,10 @@
         <h2 id="file-preview-title">File preview</h2>
         <button id="close-file-preview" type="button" class="secondary">Close</button>
       </div>
-      <div id="file-preview-body" class="preview-dialog-body"></div>
+      <div id="file-preview-body" class="preview-dialog-body">
+        <p id="file-preview-message"></p>
+        <div id="file-preview-pages" class="preview-pages hidden"></div>
+      </div>
     </div>
   </dialog>
 
@@ -934,7 +1027,8 @@
       scanning: false,
       busy: false,
       busyKind: null,
-      previewUrl: null,
+      filePreviewDocument: null,
+      filePreviewGeneration: 0,
       previewTimer: null,
       previewGeneration: 0,
       previewDocument: null,
@@ -1018,7 +1112,7 @@
       $("#affidavit-file").disabled = busy;
       $("#automatic").disabled = busy;
       $("#clear-exhibits").disabled = busy || !state.order.some(Boolean);
-      document.querySelectorAll(".slot-file, .delete-exhibit, .return-file, .preview-file, .delete-pool-file, input[name='file-placement']").forEach((control) => {
+      document.querySelectorAll(".slot-file, .delete-slot, .unassign-file, .delete-assigned, .preview-eye, .delete-pool-file, input[name='file-placement']").forEach((control) => {
         control.disabled = busy;
       });
       $("#progress").classList.toggle("hidden", !(busy && kind === "build"));
@@ -1150,43 +1244,63 @@
     }
 
     function releaseFilePreview() {
-      if (state.previewUrl) URL.revokeObjectURL(state.previewUrl);
-      state.previewUrl = null;
-      $("#file-preview-body").replaceChildren();
+      state.filePreviewGeneration += 1;
+      state.filePreviewDocument?.destroy();
+      state.filePreviewDocument = null;
+      $("#file-preview-pages").replaceChildren();
+      $("#file-preview-pages").classList.add("hidden");
+      $("#file-preview-message").textContent = "";
+      $("#file-preview-message").classList.remove("hidden");
     }
 
     async function previewEntry(id) {
       const entry = entryById(id);
       if (!entry) return;
       const dialog = $("#file-preview-dialog");
-      const body = $("#file-preview-body");
       releaseFilePreview();
+      const generation = state.filePreviewGeneration;
       $("#file-preview-title").textContent = entry.file.name;
-      const loading = document.createElement("p");
-      loading.textContent = "Preparing preview…";
-      body.append(loading);
+      $("#file-preview-message").textContent = "Preparing preview…";
       dialog.showModal();
       try {
         if (isPdf(entry.file)) {
-          state.previewUrl = URL.createObjectURL(entry.file);
-          const frame = document.createElement("iframe");
-          frame.title = `Preview of ${entry.file.name}`;
-          frame.src = state.previewUrl;
-          body.replaceChildren(frame);
+          const document = await openPdf(entry.file);
+          if (generation !== state.filePreviewGeneration) {
+            await document.destroy();
+            return;
+          }
+          state.filePreviewDocument = document;
+          await renderDocumentPreview(
+            document,
+            $("#file-preview-pages"),
+            () => generation === state.filePreviewGeneration,
+            "File preview page",
+          );
         } else {
-          await docxTools();
-          body.replaceChildren();
-          await window.docx.renderAsync(await entry.file.arrayBuffer(), body, body, {
-            inWrapper: true,
-            breakPages: true,
-            ignoreLastRenderedPageBreak: false,
-            useBase64URL: true,
+          const pages = await docxPages(entry.file);
+          if (generation !== state.filePreviewGeneration) return;
+          const target = document.createDocumentFragment();
+          pages.forEach((page, index) => {
+            const shell = document.createElement("div");
+            shell.className = "preview-page";
+            shell.setAttribute("role", "img");
+            shell.setAttribute("aria-label", `File preview page ${index + 1} of ${pages.length}`);
+            shell.style.aspectRatio = `${page.width} / ${page.height}`;
+            const image = document.createElement("img");
+            image.src = page.data;
+            image.alt = "";
+            shell.append(image);
+            target.append(shell);
           });
+          $("#file-preview-pages").replaceChildren(target);
+          $("#file-preview-pages").classList.remove("hidden");
+          $("#file-preview-message").classList.add("hidden");
         }
       } catch {
-        const error = document.createElement("p");
-        error.textContent = "Unable to preview this file. It is still available in the exhibit list.";
-        body.replaceChildren(error);
+        if (generation !== state.filePreviewGeneration) return;
+        $("#file-preview-pages").classList.add("hidden");
+        $("#file-preview-message").textContent = "Unable to preview this file. It is still available in the exhibit list.";
+        $("#file-preview-message").classList.remove("hidden");
       }
     }
 
@@ -1271,6 +1385,12 @@
       return result;
     }
 
+    function affidavitNumberFrom(text) {
+      return text.match(/\b(?:This\s+is\s+the\s+)?(\d{1,3})(?:st|nd|rd|th)?\s+Affidavit\b/iu)?.[1]
+        || text.match(/\bAffidavit\s*(?:(?:No\.?|Number|#)\s*)?[:#-]?\s*(\d{1,3})(?:st|nd|rd|th)?\b/iu)?.[1]
+        || "";
+    }
+
     function caseDetails(scan) {
       const pages = scan.pages?.length ? scan.pages : [scan.text];
       const opening = pages.slice(0, 3).join("\n").replace(/\r/g, "");
@@ -1338,13 +1458,12 @@
         validName,
       );
       const respondent = labelled(openingLines, ["respondent", "defendant"], validName);
-      const affidavitNumber = openingFlat.match(/\bThis is the\s+(\d+)(?:st|nd|rd|th)?\s+Affidavit\b/iu)?.[1]
-        || openingFlat.match(/\bAffidavit\s*#\s*(\d+)\b/iu)?.[1]
+      const affidavitNumber = affidavitNumberFrom(openingFlat)
         || labelled(openingLines, ["affidavit number", "affidavit no"], (value) => /^\d{1,3}$/u.test(value.trim()));
       let deponent = labelled(openingLines, ["deponent"], validName);
       if (!deponent) {
         deponent = openingLines.map((line) =>
-          line.match(/^(?:This is the \d+(?:st|nd|rd|th)? )?Affidavit(?:\s*#?\s*\d+)?\s+of\s+(.+?)(?:\s+in this case.*)?$/iu)?.[1]
+          line.match(/^(?:(?:This\s+is\s+the\s+)?\d+(?:st|nd|rd|th)?\s+Affidavit|Affidavit(?:\s*(?:(?:No\.?|Number|#)\s*)?[:#-]?\s*\d+(?:st|nd|rd|th)?)?)\s+of\s+(.+?)(?:\s+in\s+this\s+case.*)?$/iu)?.[1]
         ).find((value) => value && validName(value)) || "";
       }
       const monthNames = "January|February|March|April|May|June|July|August|September|October|November|December";
@@ -1480,6 +1599,14 @@
       state.order[index] = id;
     }
 
+    function moveOrSwapSlots(from, to) {
+      if (from === to || !state.order[from]) return;
+      [state.order[from], state.order[to]] = [state.order[to] || null, state.order[from]];
+      renderExhibits();
+      setStatus(`Exhibits ${indexLabel(from)} and ${indexLabel(to)} updated.`, "success");
+      schedulePreview();
+    }
+
     function assignFiles(files, startIndex) {
       const documents = files.filter(isDocument);
       if (!documents.length) {
@@ -1543,7 +1670,7 @@
       const mode = document.querySelector('input[name="file-placement"]:checked').value;
       if (mode === "pool") {
         renderExhibits();
-        setStatus(`${documents.length} file${documents.length === 1 ? "" : "s"} added to the file pool.`);
+        setStatus(`${documents.length} file${documents.length === 1 ? "" : "s"} added to Files.`);
         return;
       }
       if (mode === "sequence") {
@@ -1594,12 +1721,12 @@
         const pooled = documents.length - sorted;
         setStatus(
           pooled
-            ? `Auto-sorted ${sorted} file${sorted === 1 ? "" : "s"}. ${pooled} left in the file pool for placement.`
+            ? `Auto-sorted ${sorted} file${sorted === 1 ? "" : "s"}. ${pooled} left unassigned under Files.`
             : `Auto-sorted ${sorted} exhibit file${sorted === 1 ? "" : "s"}. Review the slots.`,
           sorted ? "success" : ""
         );
       } catch (error) {
-        setStatus(error instanceof Error ? error.message : "Unable to sort the exhibit files. They remain in the file pool.", "error");
+        setStatus(error instanceof Error ? error.message : "Unable to sort the exhibit files. They remain unassigned under Files.", "error");
       } finally {
         if (state.ocrWorker) {
           await state.ocrWorker.terminate();
@@ -1613,24 +1740,36 @@
     }
 
     function deleteExhibit(index) {
+      if (index !== state.order.length - 1) return;
       const hadFile = Boolean(state.order[index]);
       state.order.splice(index, 1);
       renderExhibits();
-      setStatus(`Exhibit ${indexLabel(index)} slot deleted.${hadFile ? " Its file remains in the pool." : ""}`);
+      setStatus(`Exhibit ${indexLabel(index)} removed.${hadFile ? " Its file is now unassigned." : ""}`);
       schedulePreview();
     }
 
-    function returnToPool(index) {
+    function unassignFile(index) {
       state.order[index] = null;
       renderExhibits();
-      setStatus(`Exhibit ${indexLabel(index)} file returned to the pool.`);
+      setStatus(`Exhibit ${indexLabel(index)} file unassigned.`);
+      schedulePreview();
+    }
+
+    function deleteAssignedFile(index) {
+      const id = state.order[index];
+      const entry = entryById(id);
+      if (!entry) return;
+      state.order[index] = null;
+      state.entries = state.entries.filter((item) => item.id !== id);
+      renderExhibits();
+      setStatus(`${entry.file.name} deleted.`);
       schedulePreview();
     }
 
     function clearExhibits() {
       state.order.fill(null);
       renderExhibits();
-      setStatus("All exhibit files returned to the pool.");
+      setStatus("All exhibit files are unassigned.");
       schedulePreview();
     }
 
@@ -1639,7 +1778,16 @@
       if (!entry || assignedIds().has(id)) return;
       state.entries = state.entries.filter((item) => item.id !== id);
       renderExhibits();
-      setStatus(`${entry.file.name} deleted from the file pool.`);
+      setStatus(`${entry.file.name} deleted.`);
+    }
+
+    function previewEye(id, filename) {
+      return `<button type="button" class="preview-eye" data-id="${id}" draggable="false" aria-label="Preview ${filename}" ${state.busy ? "disabled" : ""}>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/>
+          <circle cx="12" cy="12" r="2.75"/>
+        </svg>
+      </button>`;
     }
 
     function renderPool() {
@@ -1651,11 +1799,12 @@
           const filename = escapeHtml(entry.file.name);
           return `
             <article class="pool-file" draggable="${!state.busy}" data-id="${entry.id}">
-              <button type="button" class="preview-file" data-id="${entry.id}" ${state.busy ? "disabled" : ""}>
+              <div class="file-description">
                 <span class="file-name" title="${filename}">${filename}</span>
                 <span class="file-meta">${fileKind(entry.file)} · Drag into an exhibit slot</span>
-              </button>
-              <button type="button" class="delete-pool-file" data-id="${entry.id}" aria-label="Delete ${filename} from the file pool" ${state.busy ? "disabled" : ""}>Delete</button>
+              </div>
+              ${previewEye(entry.id, filename)}
+              <button type="button" class="delete-pool-file" data-id="${entry.id}" aria-label="Delete ${filename}" ${state.busy ? "disabled" : ""}>Delete</button>
             </article>`;
         }).join("")
         : '<p class="pool-empty">No unassigned files.</p>';
@@ -1680,24 +1829,33 @@
           <article class="exhibit-row" data-index="${index}" data-id="${entry?.id || ""}">
             <div class="letter">${indexLabel(index)}</div>
             <div class="slot-body">
-              <div class="slot-drop" data-index="${index}" aria-label="Exhibit ${indexLabel(index)} file slot">
+              <div class="slot-drop" data-index="${index}" draggable="${Boolean(entry) && !state.busy}" aria-label="Exhibit ${indexLabel(index)} file slot">
                 ${entry
-                  ? `<button type="button" class="preview-file" data-id="${entry.id}" ${state.busy ? "disabled" : ""}>
+                  ? `<div class="file-description">
                       <span class="file-name" title="${filename}">${filename}</span>
-                      <span class="file-meta">${metadata} · Preview</span>
-                    </button>`
-                  : `<p><strong>Drop a file into Exhibit ${indexLabel(index)}</strong><br>Drag from the file pool, or choose a file.</p>`}
+                      <span class="file-meta">${metadata} · Drag to swap · Drop to replace</span>
+                    </div>
+                    ${previewEye(entry.id, filename)}`
+                  : `<p><strong>Drop into Exhibit ${indexLabel(index)}</strong><br>Use a file, another exhibit, or choose below.</p>`}
               </div>
               <div class="slot-actions">
-                <label class="file-button secondary">
-                  <span>${entry ? "Replace file" : "Choose file"}</span>
-                  <input class="slot-file" data-index="${index}" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" ${state.busy ? "disabled" : ""}>
-                </label>
-                ${entry ? `<button type="button" class="secondary return-file" data-index="${index}" ${state.busy ? "disabled" : ""}>Return to pool</button>` : ""}
+                ${entry
+                  ? `<label class="file-button secondary">
+                      <span>Replace file</span>
+                      <input class="slot-file" data-index="${index}" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" ${state.busy ? "disabled" : ""}>
+                    </label>
+                    <button type="button" class="secondary unassign-file" data-index="${index}" ${state.busy ? "disabled" : ""}>Unassign</button>
+                    <button type="button" class="secondary delete-assigned" data-index="${index}" ${state.busy ? "disabled" : ""}>Delete</button>`
+                  : `<label class="file-button secondary">
+                      <span>Choose file</span>
+                      <input class="slot-file" data-index="${index}" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" ${state.busy ? "disabled" : ""}>
+                    </label>`}
               </div>
               ${expected}
             </div>
-            <button type="button" class="secondary delete-exhibit" aria-label="Delete Exhibit ${indexLabel(index)} slot" ${state.busy ? "disabled" : ""}>Delete slot</button>
+            ${index === count - 1
+              ? `<button type="button" class="delete-slot" aria-label="Remove final Exhibit ${indexLabel(index)}" ${state.busy ? "disabled" : ""}><span aria-hidden="true">×</span></button>`
+              : ""}
           </article>`;
       }).join("");
       renderPool();
@@ -1910,15 +2068,15 @@
       state.previewTimer = setTimeout(() => updatePreview(generation), 450);
     }
 
-    async function renderPreviewPage(document, shell, generation) {
-      if (generation !== state.previewGeneration) return;
+    async function renderPreviewPage(document, shell, container, isCurrent) {
+      if (!isCurrent()) return;
       const page = await document.getPage(Number(shell.dataset.page));
-      if (generation !== state.previewGeneration) {
+      if (!isCurrent()) {
         page.cleanup();
         return;
       }
       const base = page.getViewport({ scale: 1 });
-      const cssWidth = Math.max(240, $("#preview").clientWidth - 32);
+      const cssWidth = Math.max(240, container.clientWidth - 32);
       const scale = Math.min(1.2, cssWidth / base.width);
       const pixelRatio = Math.min(1.5, window.devicePixelRatio || 1);
       const viewport = page.getViewport({ scale: scale * pixelRatio });
@@ -1930,6 +2088,33 @@
       context.fillRect(0, 0, canvas.width, canvas.height);
       await page.render({ canvasContext: context, viewport }).promise;
       page.cleanup();
+    }
+
+    async function renderDocumentPreview(document, container, isCurrent, label) {
+      const target = window.document.createDocumentFragment();
+      for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+        const page = await document.getPage(pageNumber);
+        if (!isCurrent()) {
+          page.cleanup();
+          return;
+        }
+        const viewport = page.getViewport({ scale: 1 });
+        const shell = window.document.createElement("div");
+        shell.className = "preview-page";
+        shell.dataset.page = String(pageNumber);
+        shell.setAttribute("role", "img");
+        shell.setAttribute("aria-label", `${label} ${pageNumber} of ${document.numPages}`);
+        shell.style.aspectRatio = `${viewport.width} / ${viewport.height}`;
+        shell.append(window.document.createElement("canvas"));
+        target.append(shell);
+        page.cleanup();
+      }
+      container.replaceChildren(target);
+      container.classList.remove("hidden");
+      $("#file-preview-message").classList.add("hidden");
+      for (const shell of container.querySelectorAll(".preview-page")) {
+        await renderPreviewPage(document, shell, container, isCurrent);
+      }
     }
 
     async function updatePreview(generation) {
@@ -1974,7 +2159,12 @@
             if (!entry.isIntersecting) return;
             observer.unobserve(entry.target);
             state.previewRenderQueue = state.previewRenderQueue
-              .then(() => renderPreviewPage(document, entry.target, generation))
+              .then(() => renderPreviewPage(
+                document,
+                entry.target,
+                preview,
+                () => generation === state.previewGeneration,
+              ))
               .catch(() => {});
           });
         }, { root: preview, rootMargin: "600px 0px" });
@@ -2121,10 +2311,23 @@
       const row = event.target.closest(".exhibit-row");
       if (!row) return;
       const index = Number(row.dataset.index);
-      if (event.target.closest(".delete-exhibit")) deleteExhibit(index);
-      if (event.target.closest(".return-file")) returnToPool(index);
-      const preview = event.target.closest(".preview-file");
+      if (event.target.closest(".delete-slot")) deleteExhibit(index);
+      if (event.target.closest(".unassign-file")) unassignFile(index);
+      if (event.target.closest(".delete-assigned")) deleteAssignedFile(index);
+      const preview = event.target.closest(".preview-eye");
       if (preview) previewEntry(preview.dataset.id);
+    });
+    $("#exhibit-list").addEventListener("dragstart", (event) => {
+      const drop = event.target.closest('.slot-drop[draggable="true"]');
+      if (!drop) return;
+      drop.dataset.dragging = "true";
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("application/x-beaver-slot", drop.dataset.index);
+    });
+    $("#exhibit-list").addEventListener("dragend", (event) => {
+      const drop = event.target.closest(".slot-drop");
+      if (drop) delete drop.dataset.dragging;
+      document.querySelectorAll("[data-over]").forEach((target) => delete target.dataset.over);
     });
     $("#exhibit-list").addEventListener("dragover", (event) => {
       const drop = event.target.closest(".slot-drop");
@@ -2146,6 +2349,11 @@
       const index = Number(row.dataset.index);
       if (event.dataTransfer.files.length) assignFiles([...event.dataTransfer.files], index);
       else {
+        const from = Number(event.dataTransfer.getData("application/x-beaver-slot"));
+        if (Number.isInteger(from) && event.dataTransfer.getData("application/x-beaver-slot") !== "") {
+          moveOrSwapSlots(from, index);
+          return;
+        }
         const id = event.dataTransfer.getData("application/x-beaver-exhibit");
         if (!entryById(id) || assignedIds().has(id)) return;
         assignEntryToSlot(id, index);
@@ -2156,7 +2364,7 @@
     });
 
     $("#pool-list").addEventListener("click", (event) => {
-      const preview = event.target.closest(".preview-file");
+      const preview = event.target.closest(".preview-eye");
       if (preview) previewEntry(preview.dataset.id);
       const remove = event.target.closest(".delete-pool-file");
       if (remove) deletePoolEntry(remove.dataset.id);
@@ -2172,6 +2380,23 @@
       const file = event.target.closest(".pool-file");
       if (file) delete file.dataset.dragging;
       document.querySelectorAll(".slot-drop[data-over]").forEach((drop) => delete drop.dataset.over);
+    });
+    $(".file-pool").addEventListener("dragover", (event) => {
+      if ([...event.dataTransfer.types].includes("application/x-beaver-slot")) {
+        event.preventDefault();
+        $(".file-pool").dataset.over = "true";
+        event.dataTransfer.dropEffect = "move";
+      }
+    });
+    $(".file-pool").addEventListener("dragleave", (event) => {
+      if (!$(".file-pool").contains(event.relatedTarget)) delete $(".file-pool").dataset.over;
+    });
+    $(".file-pool").addEventListener("drop", (event) => {
+      const raw = event.dataTransfer.getData("application/x-beaver-slot");
+      if (raw === "") return;
+      event.preventDefault();
+      delete $(".file-pool").dataset.over;
+      unassignFile(Number(raw));
     });
 
     $("#clear-exhibits").addEventListener("click", () => $("#clear-dialog").showModal());
@@ -2218,6 +2443,18 @@
         || details.deponent !== "Sample Deponent" || details.swornPlace !== "New Westminster, British Columbia"
         || details.swornDate !== "January 2, 2026" || caseDetails({ text: "No. 12345" }).fileNumber) {
         throw new Error(`Case detail parser check failed: ${JSON.stringify(details)}`);
+      }
+      if (![
+        "19th Affidavit of Sample Deponent",
+        "Affidavit 19 of Sample Deponent",
+        "Affidavit No. 19 of Sample Deponent",
+        "Affidavit #19 of Sample Deponent",
+      ].every((value) => affidavitNumberFrom(value) === "19")) {
+        throw new Error("Affidavit number parser check failed");
+      }
+      const numberedAffidavit = caseDetails({ text: "Affidavit 19 of Sample Deponent" });
+      if (numberedAffidavit.affidavitNumber !== "19" || numberedAffidavit.deponent !== "Sample Deponent") {
+        throw new Error(`Numbered affidavit heading check failed: ${JSON.stringify(numberedAffidavit)}`);
       }
       if (explicitExhibitIndex("Exhibit B - email.pdf") !== 1
         || matchScore("respondent email.pdf", ["The respondent's email is attached as Exhibit B."]) < .5) {
