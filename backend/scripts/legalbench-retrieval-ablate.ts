@@ -65,6 +65,47 @@ for (const target of [600, 1000, 1600])
 const mean = (values: number[]) =>
   values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
 
+// Fair-comparison row: paper-matched ~500-char chunks, k=4, so the
+// retrieval comparison vs arXiv:2408.10343 is chunk-size-matched.
+if (process.argv.includes("--fair500")) {
+  const perSource = new Map<string, { p: number[]; r: number[] }>();
+  for (const test of tests) {
+    const hits = searchPassages({
+      sourceDb,
+      query: test.query,
+      k: 4,
+      target: 500,
+      overlap: 0,
+      nameWeight: 16,
+      perDocCap: 2,
+    });
+    const { precision, recall } = charPrecisionRecall(
+      hits.map((hit) => ({
+        filePath: hit.citation,
+        start: hit.start,
+        end: hit.end,
+      })),
+      test.gold,
+    );
+    const entry = perSource.get(test.source) ?? { p: [], r: [] };
+    entry.p.push(precision);
+    entry.r.push(recall);
+    perSource.set(test.source, entry);
+  }
+  const all = { p: [] as number[], r: [] as number[] };
+  for (const [source, entry] of perSource) {
+    all.p.push(...entry.p);
+    all.r.push(...entry.r);
+    console.log(
+      `fair500 ${source}: P4=${mean(entry.p).toFixed(4)} R4=${mean(entry.r).toFixed(4)} (n=${entry.p.length})`,
+    );
+  }
+  console.log(
+    `fair500 ALL: P4=${mean(all.p).toFixed(4)} R4=${mean(all.r).toFixed(4)}`,
+  );
+  process.exit(0);
+}
+
 // Stage 18 registered arms: {chars,clause} x {plain,phrases} at the
 // crowned t1600/o120/w16, gated on maud pool R@48. Deterministic, free.
 if (process.argv.includes("--stage18")) {
