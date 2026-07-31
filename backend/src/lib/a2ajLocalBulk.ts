@@ -22,7 +22,7 @@ const documentSectionMaps = new WeakMap<
   Record<string, string>
 >();
 
-function a2ajLocalBulkPath() {
+export function a2ajLocalBulkPath() {
   const configured = process.env.MIKE_A2AJ_BULK_DB?.trim();
   if (configured) return path.resolve(configured);
   return legalProviderDatabase("a2aj", "a2aj.sqlite");
