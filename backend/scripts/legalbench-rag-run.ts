@@ -8,6 +8,10 @@
  * validated Issue-1 run trace:
  *
  *   npx tsx scripts/legalbench-rag-run.ts        # offline; no model calls
+ *   npx tsx scripts/legalbench-rag-run.ts --build-only [--rebuild-index]
+ *
+ * `--build-only` stops after step 2 — it is the one place the normalized
+ * (LF) source db every other LegalBench script reads is built.
  *
  * Requires scripts/legalbench-rag-mini-setup.ts to have populated the
  * git-ignored data directory (verified against mini.manifest.json before the
@@ -19,11 +23,13 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import {
+  LEGALBENCH_MINI_SOURCE_DB,
   LEGALBENCH_RAG_DATA_DIR,
   LEGALBENCH_RAG_RESULTS_DIR,
   MANIFEST_PATH,
   SOURCE_BENCHMARKS,
   evaluateMiniRetrieval,
+  normalizeCorpusBytes,
   reportScoreMap,
   upstreamBenchmarkSchema,
   validateMiniManifest,
@@ -82,10 +88,17 @@ async function main() {
   const disk = new Map(onDisk.map((file) => [file.path, file.bytes]));
 
   // 2. Import the mini corpus into a local SQLite DB with the product's
-  //    existing importer (one record per document, doc text verbatim).
+  //    existing importer (one record per document). Text is NORMALIZED at
+  //    this read (CRLF -> LF; see normalizeCorpusText) so the db, every
+  //    derived passage index and every span scored downstream live in the
+  //    same coordinate space as upstream gold. The corpus files on disk
+  //    are untouched. Receipts and passage sidecars produced BEFORE this
+  //    fix (stages 14-18, source db `a2aj-mini.sqlite`) hold raw-CRLF
+  //    offsets and need score-time mapping:
+  //      raw_offset = lf_offset + (number of "\r\n" before it).
   const databaseDir = path.join(LEGALBENCH_RAG_DATA_DIR, "db");
-  const database = path.join(databaseDir, "a2aj-mini.sqlite");
-  const jsonl = path.join(databaseDir, "records.jsonl");
+  const database = LEGALBENCH_MINI_SOURCE_DB;
+  const jsonl = path.join(databaseDir, "records-lf.jsonl");
   if (!existsSync(database) || process.argv.includes("--rebuild-index")) {
     mkdirSync(databaseDir, { recursive: true });
     writeFileSync(
@@ -97,7 +110,7 @@ async function main() {
             dataset: "legalbench_rag_mini",
             citation_en: entry.upstream_path,
             name_en: entry.upstream_path,
-            unofficial_text_en: disk.get(entry.path)!.toString("utf8"),
+            unofficial_text_en: normalizeCorpusBytes(disk.get(entry.path)!),
             upstream_license: manifest.upstream.license,
           }),
         )
@@ -120,6 +133,10 @@ async function main() {
       throw new Error(`import_a2aj_bulk.py failed: ${imported.stderr}`);
     console.log(imported.stdout.trim());
   }
+  if (process.argv.includes("--build-only")) {
+    console.log(`Built normalized source db: ${database}`);
+    return;
+  }
 
   // 3. Drive the product retriever.
   process.env.MIKE_A2AJ_BULK_DB = database;
@@ -127,7 +144,7 @@ async function main() {
   const corpusText = new Map(
     manifest.corpus.map((entry) => [
       entry.upstream_path,
-      disk.get(entry.path)!.toString("utf8"),
+      normalizeCorpusBytes(disk.get(entry.path)!),
     ]),
   );
   const tests: MiniTest[] = SOURCE_BENCHMARKS.flatMap((source) => {

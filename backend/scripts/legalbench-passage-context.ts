@@ -19,7 +19,10 @@ import { DatabaseSync } from "node:sqlite";
 
 import { completeText } from "../src/lib/llm";
 import { ensurePassageIndex } from "../src/lib/passageRetrieval";
-import { LEGALBENCH_RAG_DATA_DIR } from "../src/lib/legalbenchRag";
+import {
+  LEGALBENCH_MINI_SOURCE_DB,
+  LEGALBENCH_RAG_DATA_DIR,
+} from "../src/lib/legalbenchRag";
 
 const SYSTEM =
   "You situate a chunk of a legal document within the whole document " +
@@ -48,11 +51,12 @@ async function main() {
       "OpenLegalData/experiments/legal-grounding/2026-07-30/stage18-passage-context.jsonl",
     ),
   );
-  const sourceDb = path.join(
-    LEGALBENCH_RAG_DATA_DIR,
-    "db",
-    "a2aj-mini.sqlite",
-  );
+  // Normalized (LF) corpus db. Headers are keyed by EXACT chunk span, and
+  // chunk spans move when the corpus is normalized, so the pre-fix header
+  // sidecars (stage18-passage-context*.jsonl, built over raw CRLF text)
+  // key nothing on the 17 maud files under this db — those passages fall
+  // back to the heading path until the maud headers are regenerated here.
+  const sourceDb = LEGALBENCH_MINI_SOURCE_DB;
   const { indexDb } = ensurePassageIndex({
     sourceDb,
     target: 1600,
