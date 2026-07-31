@@ -3831,6 +3831,93 @@ unwinds to the last arm that survives replicated comparison, and *that*
 is what the hold-out sees — not the incumbent. Reverting to a simpler
 config on a null result is the honest outcome, not a failure.
 
+### Stage 18R Tier D verdict (2026-07-31): the dense/fused pool advantage REPRODUCES on the corrected instrument
+
+Arm D re-derived from scratch on the normalized (LF) 5,966-chunk index —
+not re-scored. Machinery committed first (`legalbench_dense_pools.py`,
+`legalbench-dense-dump.ts`, `legalbench_pool_rescore.py --coords lf
+--arm`), because an arm that cannot be re-derived from the repo cannot be
+re-traced. Same model and settings as the original run:
+`Qwen/Qwen3-Embedding-4B` fp16 on the RTX 3080 Ti (still present:
+8.06 GB snapshot `5cf2132a`, torch 2.6.0+cu124, sentence-transformers
+5.6.1), queries with the model's instruction prompt, passages plain,
+max_seq 1024, batch 8, pool k=48 / perDocCap 24, RRF `1/(60+rank+1)`.
+Arm definitions and fusion rule unchanged. Runtime: plain matrix 409.6s
+(the original run: 409.6s), ctx matrix 497.2s (507.9s), queries 9.2s
+(9.2s). Every transferred artifact sha256-verified byte-exact.
+
+Pool R@48, corrected instrument (union-merged credit, clipped at 1.0),
+per source — receipts `stage18r-dense-pools-lf.jsonl`
+(`8EC2FB7C…`), `stage18r-fused-pools-lf.jsonl` (`DCF8137F…`),
+manifest `stage18r-tierD-receipts.json` (`43759F0F…`):
+
+| source | lex | ctx | dense | densectx | fused | fusedlex |
+| --- | --- | --- | --- | --- | --- | --- |
+| contractnli | 0.9650 | 0.9878 | 0.9681 | 0.9721 | **1.0000** | 0.9989 |
+| cuad | 0.8225 | 0.8858 | 0.9307 | 0.9633 | **0.9748** | 0.9415 |
+| maud | 0.6028 | 0.6442 | 0.6591 | 0.7823 | **0.8392** | 0.7630 |
+| privacy_qa | 0.9932 | 0.9846 | 0.9905 | 0.9919 | **0.9962** | 0.9967 |
+| ALL | 0.8459 | 0.8756 | 0.8871 | 0.9274 | **0.9525** | 0.9250 |
+
+**Instrument-identity check, and the cleanest evidence yet that the
+defect was exactly localized:** every non-maud cell of this fresh
+re-derivation reproduces the CRLF-era table to four decimals — all six
+arms on contractnli and privacy_qa, and five of six on cuad. The only
+non-maud move is cuad/ctx (0.8885 → 0.8858, −0.0027), and it is not the
+coordinate fix: the LF sidecar carries *regenerated* maud headers, and
+FTS ranking statistics are global, so new maud header text perturbs cuad
+ranking slightly. maud is the only column that moves materially, on
+every arm (+0.199 to +0.254). The defect never touched anything else.
+
+Gate arithmetic on the frozen arm-D text: fused maud 0.8392 ≥ the 0.50
+OPEN bar; vs the ctx pool no source drops (contractnli +0.0122, cuad
++0.0890, privacy_qa +0.0116) — **OPEN**, and nowhere near CLOSED
+(ctx maud + 0.01 = 0.6542). The verdict does not flip.
+
+Advantage over the ctx pool, CRLF-recorded → LF-re-derived (maud / ALL):
+dense +0.0452/+0.0184 → **+0.0149/+0.0115**; densectx +0.1430/+0.0523 →
++0.1381/+0.0518; fused +0.2205/+0.0826 → **+0.1950/+0.0770**; fusedlex
++0.1296/+0.0514 → +0.1188/+0.0494. So: fused and densectx reproduce with
+their advantage essentially intact; **dense-alone weakens by two thirds
+on maud** — most of what looked like a dense-only win over lexical was
+the corrupted maud baseline (lex maud was recorded 0.3489, truly 0.6028).
+In miss-reduction terms the fused lane is stronger on the corrected
+instrument, not weaker: it closes 54.8% of the ctx pool's remaining maud
+gap, against 37.7% as recorded. The headers-plus-dense attribution
+survives unchanged (fused 0.9525 > fusedlex 0.9250; densectx > dense by
++0.1232 maud).
+
+Divergence from the re-scored old sidecar, reported as required: the
+committed re-scorer over the CRLF-era fused sidecar gives maud 0.8625 /
+ALL 0.9584; this fresh derivation gives **0.8392 / 0.9525** (−0.0233 /
+−0.0059). Re-scoring is therefore a good but *not* exact proxy for
+re-deriving: it recovers offsets but not chunk boundaries (5,984 vs 5,966
+passages) and keeps the CRLF-era headers. The re-scored figure flatters
+the arm by ~0.02 on maud. This is the measured size of the "re-scoring
+is not enough" claim in the Stage 18R registration.
+
+Determinism, stated explicitly: the scoring, the lexical pools, the
+pooling and the RRF fusion are fully deterministic; the dense arms are
+deterministic given the embedding matrices (fp16 cuBLAS reproducibility
+on fixed hardware, not bit-guaranteed across drivers). None of these
+numbers are subject to the ±0.015 composer noise floor. The **ctx-bearing
+arms are not free of stochastic input**: the LF sidecar's 4,674 maud
+headers are a fresh LLM generation, so ctx/densectx/fused differences vs
+the CRLF era conflate the instrument fix with a header re-generation.
+The 1,292 non-maud headers are the R5b-adopted ones, carried over
+verbatim (they key exactly on the LF index, 1,292/1,292); the combined
+LF sidecar is `stage18r-passage-context-lf-combined-medium.jsonl`
+(`C484C006…`). Gold coordinates verified on the LF instrument before the
+run (`legalbench-gold-oracle-check.ts` → `oracle OK`).
+
+Scope note: this settles Tier D's own question only — whether the dense
+pool advantage was an artifact of the broken instrument. It was not. It
+says nothing about whether that pool advantage survives composition; the
+CRLF-era fused grounded confirm already showed it mostly does not
+(+0.22 pool → +0.0064 composed), and Tier C is what re-tests that. Arm D
+remains experiment-ceiling only: query-time dense retrieval needs the
+3080 Ti, which the laptop-inference constraint rules out of production.
+
 ## Stage 19 — the hold-out burn (registered 2026-07-31 before any hold-out label is read; USER-GATED, BLOCKED behind Stage 18R)
 
 Registered in full before the burn, per the fair-comparison protocol
