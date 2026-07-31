@@ -101,7 +101,7 @@
       filter: blur(.2px);
       transform: perspective(20rem) rotateX(68deg);
     }
-    .motion-card:first-child .stage::before { content: none; }
+    .motion-card:is(:first-child, :last-child) .stage::before { content: none; }
     svg { display: block; width: min(100%, 25rem); height: 10.75rem; overflow: visible; }
     svg * { transform-box: fill-box; }
     .cut { fill: var(--stage); }
@@ -393,16 +393,37 @@
       }
 
       .run .a8-log { animation: a8-log 1.4s steps(5, end) both; transform-origin: right center; }
-      .run .a8-chip { animation: a8-swarm 4.4s var(--delay) cubic-bezier(.2, .75, .2, 1) both; transform-origin: center; }
+      .run .a8-splinter { animation: a8-splinter 4.4s var(--delay) cubic-bezier(.2, .75, .2, 1) both; transform-origin: center; }
+      .run .a8-tail { animation: a8-tail 4.4s cubic-bezier(.2, .8, .2, 1) both; transform-origin: left center; }
       .run .a8-body { animation: a8-body 4.4s cubic-bezier(.2, .8, .2, 1) both; transform-origin: center; }
       .run .a8-glint { animation: a8-glint 4.4s ease-out both; transform-origin: center; }
       @keyframes a8-log { to { opacity: 0; transform: scaleX(0); } }
-      @keyframes a8-swarm {
-        0%, 8% { opacity: 0; transform: translate(var(--sx), var(--sy)) rotate(0) scale(.2); }
+      @keyframes a8-splinter {
+        0%, 8% {
+          opacity: 0;
+          stroke: currentColor;
+          stroke-dasharray: .18 .82;
+          stroke-dashoffset: var(--dash);
+          transform: translate(var(--sx), var(--sy)) rotate(0) scale(.35);
+        }
         16% { opacity: 1; }
-        52% { opacity: .82; transform: translate(var(--mx), var(--my)) rotate(var(--r)) scale(1.12); }
-        82%, 100% { opacity: 1; transform: none; }
+        52% {
+          opacity: .88;
+          stroke: currentColor;
+          stroke-dasharray: .25 .75;
+          stroke-dashoffset: var(--dash);
+          transform: translate(var(--mx), var(--my)) rotate(var(--r)) scale(.8);
+        }
+        72% { stroke: var(--stage); }
+        82%, 100% {
+          opacity: .78;
+          stroke: var(--stage);
+          stroke-dasharray: 1 0;
+          stroke-dashoffset: 0;
+          transform: none;
+        }
       }
+      @keyframes a8-tail { 0%, 67% { opacity: 0; transform: translateX(-5px) scale(.84); } 82%, 100% { opacity: 1; transform: none; } }
       @keyframes a8-body { 0%, 62% { opacity: 0; transform: translateX(-8px) scale(.86); } 82%, 100% { opacity: 1; transform: translateX(0) scale(1); } }
       @keyframes a8-glint { 0%, 87% { opacity: 0; transform: scale(.2) rotate(0); } 94% { opacity: .8; } 100% { opacity: 0; transform: scale(1.5) rotate(90deg); } }
     }
@@ -641,23 +662,19 @@
 
       <article class="motion-card run">
         <div class="stage">
-          <svg viewBox="0 0 240 120" role="img" aria-label="Wood chips fly from a disappearing log and assemble into a Beaver">
+          <svg viewBox="0 0 240 120" role="img" aria-label="Wood splinters fly from a disappearing log and become the crosshatch on a Beaver tail">
             <g class="a8-log">
               <rect x="20" y="59" width="78" height="15" rx="7.5" fill="currentColor"/>
               <path d="M31 64h34m-22 5h27" fill="none" stroke="var(--stage)" stroke-width="1.3" stroke-linecap="round"/>
             </g>
-            <g fill="currentColor" stroke="var(--stage)" stroke-width=".9" stroke-linejoin="round">
-              <path class="a8-chip" d="M170 50 180 39 193 62Z" style="--delay:0s;--sx:-83px;--sy:13px;--mx:-55px;--my:-35px;--r:210deg"/>
-              <path class="a8-chip" d="M180 39 196 36 193 62Z" style="--delay:.04s;--sx:-94px;--sy:18px;--mx:-35px;--my:-48px;--r:-165deg"/>
-              <path class="a8-chip" d="M196 36 211 43 193 62Z" style="--delay:.08s;--sx:-104px;--sy:16px;--mx:-10px;--my:-52px;--r:230deg"/>
-              <path class="a8-chip" d="M211 43 218 55 193 62Z" style="--delay:.12s;--sx:-109px;--sy:10px;--mx:18px;--my:-44px;--r:-190deg"/>
-              <path class="a8-chip" d="M218 55 216 68 193 62Z" style="--delay:.16s;--sx:-111px;--sy:2px;--mx:40px;--my:-23px;--r:175deg"/>
-              <path class="a8-chip" d="M216 68 206 81 193 62Z" style="--delay:.2s;--sx:-107px;--sy:-7px;--mx:48px;--my:5px;--r:-215deg"/>
-              <path class="a8-chip" d="M206 81 190 87 193 62Z" style="--delay:.24s;--sx:-98px;--sy:-14px;--mx:32px;--my:32px;--r:205deg"/>
-              <path class="a8-chip" d="M190 87 176 81 193 62Z" style="--delay:.28s;--sx:-88px;--sy:-14px;--mx:5px;--my:44px;--r:-180deg"/>
-              <path class="a8-chip" d="M176 81 167 69 193 62Z" style="--delay:.32s;--sx:-81px;--sy:-8px;--mx:-25px;--my:38px;--r:220deg"/>
-              <path class="a8-chip" d="M167 69 165 58 193 62Z" style="--delay:.36s;--sx:-77px;--sy:0;--mx:-48px;--my:18px;--r:-200deg"/>
-              <path class="a8-chip" d="M165 58 170 50 193 62Z" style="--delay:.4s;--sx:-78px;--sy:6px;--mx:-58px;--my:-8px;--r:185deg"/>
+            <path class="a8-tail" d="M169 57c12-14 28-23 44-19 13 3 18 14 12 26-7 15-27 24-44 18-13-5-19-16-12-25Z" fill="currentColor" opacity="0"/>
+            <g fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round">
+              <path class="a8-splinter" pathLength="1" d="m178 55 24 25" style="--delay:0s;--dash:.05;--sx:-92px;--sy:-3px;--mx:-50px;--my:-35px;--r:170deg"/>
+              <path class="a8-splinter" pathLength="1" d="m187 45 28 28" style="--delay:.05s;--dash:.22;--sx:-103px;--sy:6px;--mx:-20px;--my:-50px;--r:-185deg"/>
+              <path class="a8-splinter" pathLength="1" d="m198 39 27 20" style="--delay:.1s;--dash:.38;--sx:-114px;--sy:16px;--mx:20px;--my:-42px;--r:205deg"/>
+              <path class="a8-splinter" pathLength="1" d="m174 72 20-29" style="--delay:.15s;--dash:.54;--sx:-86px;--sy:8px;--mx:42px;--my:-10px;--r:-170deg"/>
+              <path class="a8-splinter" pathLength="1" d="m183 81 28-42" style="--delay:.2s;--dash:.7;--sx:-99px;--sy:5px;--mx:25px;--my:35px;--r:190deg"/>
+              <path class="a8-splinter" pathLength="1" d="m198 83 27-32" style="--delay:.25s;--dash:.86;--sx:-113px;--sy:-3px;--mx:-20px;--my:45px;--r:-210deg"/>
             </g>
             <g class="a8-body" fill="currentColor" opacity="0">
               <circle cx="133" cy="42" r="6" fill="var(--red)"/>
@@ -675,7 +692,7 @@
           </svg>
         </div>
         <div class="card-footer">
-          <div class="option"><strong>8. Chip murmuration</strong><span>Eleven pieces leave the log, take flight, then tessellate into one Beaver tail.</span></div>
+          <div class="option"><strong>8. Chip murmuration</strong><span>Six wood splinters take flight, then become the crosshatch on a clean Beaver tail.</span></div>
           <button class="replay" type="button" aria-label="Replay chip-murmuration animation">Replay</button>
         </div>
       </article>
