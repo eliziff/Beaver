@@ -381,6 +381,44 @@ describe("computeStatuteSpine", () => {
     expect(computeStatuteSpine(filler + tail)).toEqual([]);
   });
 
+  // Measured on LegalBench-RAG-mini: 10 of 69 agreements drew a spine whose
+  // marks were mostly or entirely centred page numbers, and the spurious spine
+  // then suppressed the real "Section N." headings (ALAMOGORDO agency
+  // agreement: 39 empty "sections", the (a)..(n) ladder scattered across four
+  // of them). The label-alone extension may EXTEND a spine, never CONSTITUTE
+  // one; the A2AJ laws sample (960 documents, 39,371 provider section labels)
+  // is unchanged label-for-label by this rule.
+  it("refuses a spine made only of label-alone page numbers", () => {
+    const page = (number: number) =>
+      [
+        `Section ${number}. Heading of the operative provision.`,
+        "",
+        "Operative text of the provision continues here at length.",
+        "",
+        `                    ${number + 1}`,
+        "",
+      ].join("\n");
+    const text = [1, 2, 3, 4, 5, 6].map(page).join("");
+    expect(computeStatuteSpine(text)).toEqual([]);
+  });
+
+  it("still lets label-alone marks extend a substantive spine", () => {
+    const text = [
+      line("1", "This Act may be cited as the Example Act."),
+      line("2", "The following definitions apply in this Act."),
+      "3",
+      "Application",
+      "This Act applies to every person in the territory.",
+      line("4", "The Minister may make regulations."),
+    ].join("\n");
+    expect(computeStatuteSpine(text).map(({ label }) => label)).toEqual([
+      "1",
+      "2",
+      "3",
+      "4",
+    ]);
+  });
+
   it("keeps monotone discipline: a restarted list opens a new scope", () => {
     const text = [
       line("1", "First provision about definitions."),
