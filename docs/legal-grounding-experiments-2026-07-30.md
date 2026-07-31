@@ -2118,6 +2118,50 @@ targeting; snippet windows that cover gold spans), not composition.
 Follow-ups queued: retrieval-lever ablation (k, doc-name matching);
 Stage 13 winner lane on the same 32 for a model contrast.
 
+## Stage 15 — retrieval overhaul (pre-registered 2026-07-30 before the
+scored confirm run; Eli: "let's fix this comprehensively")
+
+Diagnosis (from code + Stage 14 failure pattern): the doc-level search
+path had four compounding defects — first-12-token query truncation
+that discarded the question, AND-conjunction that zeroed a document
+for one absent token, whole-document bm25 with no passage unit, and a
+snippet window anchored at the first token hit (the header).
+
+Fix (`src/lib/passageRetrieval.ts`, commit `3997cf12`): boundary-aware
+offset-preserving chunker; derived sidecar FTS5 passage index (source
+db read-only); OR-semantics bm25 with doc name/citation columns on
+every passage row (bm25 column weights = doc targeting); per-doc
+diversity cap; verbatim-slice invariant (7 unit vectors); `rrfFuse`
+standing by as the dense-lane fusion point (no local embedding
+runtime installed; fastembed/ONNX is the no-API-spend vehicle if
+lexical recall proves insufficient).
+
+Offline lever selection (776 tests, deterministic, zero model calls):
+every swept config dominates the baseline; monotone in chunk target,
+overlap 120 > 0, nameWeight 16 ≥ 4 > 1. Winner **t1600/o120/w16**:
+at k=4 char P 0.0303 / R 0.2865 / doc recall 0.9884 (~4.8k chars per
+query); at k=8 R 0.2919 / doc recall 0.9948 for double the volume.
+Baseline: P 0.0077 / R 0.0209 / doc recall 0.4987. Doc targeting is
+effectively solved lexically; residual char-recall ceiling (~0.29) is
+the paraphrase gap — the dense lane's job, only if needed.
+
+Confirm run (the registered test that precision guarantees are
+structural and survive coverage growth): same 32 tests as Stage 14,
+`codex:gpt-5.6-sol` @medium (Stage 13 crowned lane), required_slot,
+`--retriever passage` t1600/o120/w16, k=4 →
+`stage15-lbrag-passage.jsonl`. Frozen predictions:
+- P1 (invariants): zero unresolved unlocated quotes; answered ∩
+  gold-doc-miss ≤ 1.
+- P2 (coverage): answered rate ≥ 2× the Stage 14 pilot (≥6/32),
+  driven by the 14× char-recall feed.
+- P3 (precision survives): answered-only grounded char precision
+  stays ≥ 0.077 (≥10× the original retrieval baseline).
+- P4: residual retrieval misses still produce typed decline/
+  abstention, never fabrication.
+Falsified by: any P1 breach; answered-only precision < 0.077 (the
+thesis clause — coverage bought by sacrificing precision); error rate
+>20%.
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under
