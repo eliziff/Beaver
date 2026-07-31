@@ -337,26 +337,40 @@
     .work-log {
       position: absolute;
       inset-block-end: .25rem;
-      width: 2.25rem;
-      height: .48rem;
-      overflow: hidden;
-      border-radius: .4rem;
+      width: 2.45rem;
+      height: .68rem;
+      overflow: visible;
+      border-radius: .45rem .2rem .2rem .45rem;
       background: var(--brand-dark);
-      box-shadow: inset 0 0 0 1px rgb(255 255 255 / 24%);
+      box-shadow: inset 0 0 0 1px rgb(255 255 255 / 24%), inset 0 -.14rem rgb(0 0 0 / 13%);
     }
     .work-log::after {
       position: absolute;
-      inset-block: -.1rem;
-      width: .55rem;
+      inset-inline-end: -.12rem;
+      inset-block-start: -.17rem;
+      width: .72rem;
+      height: 1rem;
       border-radius: 50%;
       background: #fcfcfd;
       content: "";
-      transform: translateX(-.7rem);
+      box-shadow: 0 .42rem #fcfcfd;
+      transform: scale(0);
+      transform-origin: right center;
+    }
+    .work-log::before {
+      position: absolute;
+      inset-inline-start: .28rem;
+      inset-block-start: .17rem;
+      width: 1.35rem;
+      height: .08rem;
+      border-radius: 99px;
+      background: rgb(255 255 255 / 28%);
+      content: "";
     }
     @media (prefers-reduced-motion: no-preference) {
       .work-braille { animation: work-braille-turn 1.8s linear infinite; }
       .work-braille > span::before { animation: work-braille-spin 1.1s steps(1, end) infinite; }
-      .work-log::after { animation: work-log-gnaw 1.15s ease-in-out infinite; }
+      .work-log::after { animation: work-log-gnaw 1.15s steps(1, end) infinite; }
     }
     @keyframes work-braille-turn {
       to { transform: translateY(-.25rem) scale(.8) rotateX(338deg) rotateY(398deg); }
@@ -368,9 +382,10 @@
       90%, 100% { content: "⠏"; }
     }
     @keyframes work-log-gnaw {
-      0%, 20% { transform: translateX(-.7rem); }
-      45%, 65% { transform: translateX(1.15rem); }
-      100% { transform: translateX(2.8rem); }
+      0%, 24% { transform: scale(0); }
+      25%, 49% { transform: scale(.48); }
+      50%, 74% { transform: scale(.73); }
+      75%, 100% { transform: scale(1); }
     }
     .work-copy {
       display: grid;
@@ -1013,8 +1028,17 @@
   <header class="topbar">
     <div class="brand-lockup">
       <svg class="beaver-mark" viewBox="0 0 32 32" aria-hidden="true">
-        <path fill="currentColor" d="M5 6.5h10.3v17.8a3.4 3.4 0 0 1-3.4 3.4H8.4A3.4 3.4 0 0 1 5 24.3V6.5Zm11.7 0H27v17.8a3.4 3.4 0 0 1-3.4 3.4h-3.5a3.4 3.4 0 0 1-3.4-3.4V6.5Z"/>
-        <path d="M16 7v19.5" fill="none" stroke="#fff" stroke-width="1.35" stroke-linecap="round"/>
+        <circle cx="8.2" cy="8.5" r="4.1" fill="currentColor"/>
+        <circle cx="23.8" cy="8.5" r="4.1" fill="currentColor"/>
+        <path d="M4.7 17.1C4.7 9.8 9.7 5.7 16 5.7s11.3 4.1 11.3 11.4c0 7.1-4.8 10.4-11.3 10.4S4.7 24.2 4.7 17.1Z" fill="currentColor"/>
+        <circle cx="11.3" cy="14.1" r="2" fill="#fff"/>
+        <circle cx="20.7" cy="14.1" r="2" fill="#fff"/>
+        <circle cx="11.7" cy="14.4" r=".78" fill="currentColor"/>
+        <circle cx="20.3" cy="14.4" r=".78" fill="currentColor"/>
+        <path d="M13.5 18.2h5l-2.5 2.05-2.5-2.05Z" fill="#fff"/>
+        <rect x="11.2" y="20.4" width="4.8" height="6.5" rx="1.1" fill="#fff"/>
+        <rect x="16" y="20.4" width="4.8" height="6.5" rx="1.1" fill="#fff"/>
+        <path d="M16 20.8v5.7" fill="none" stroke="currentColor" stroke-width="1.1"/>
       </svg>
       <span class="brand-name">Beaver</span>
       <span class="brand-divider" aria-hidden="true">|</span>
