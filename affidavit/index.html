@@ -320,16 +320,16 @@
     .gnaw-chip { opacity: 0; transform-origin: center; }
     .gnaw-cut { fill: #fcfcfd; }
     @media (prefers-reduced-motion: no-preference) {
-      .gnaw-scene { animation: gnaw-cycle var(--gnaw-duration) linear infinite; }
-      .gnaw-beaver { animation: gnaw-head var(--gnaw-duration) cubic-bezier(.4, 0, .2, 1) infinite; }
-      .gnaw-teeth { animation: gnaw-teeth var(--gnaw-duration) steps(1, end) infinite; }
-      .gnaw-log-body { animation: gnaw-log-shorten var(--gnaw-duration) steps(1, end) infinite; }
-      .gnaw-log-end { animation: gnaw-log-end var(--gnaw-duration) steps(1, end) infinite; }
-      .gnaw-bite-one { animation: gnaw-bite-one var(--gnaw-duration) steps(1, end) infinite; }
-      .gnaw-bite-two { animation: gnaw-bite-two var(--gnaw-duration) steps(1, end) infinite; }
-      .gnaw-bite-three { animation: gnaw-bite-three var(--gnaw-duration) steps(1, end) infinite; }
-      .gnaw-chip-one { animation: gnaw-chip-one var(--gnaw-duration) ease-out infinite; }
-      .gnaw-chip-two { animation: gnaw-chip-two var(--gnaw-duration) ease-out infinite; }
+      .gnaw-scene { animation: gnaw-cycle var(--gnaw-duration) linear 1 both; }
+      .gnaw-beaver { animation: gnaw-head var(--gnaw-duration) cubic-bezier(.4, 0, .2, 1) 1 both; }
+      .gnaw-teeth { animation: gnaw-teeth var(--gnaw-duration) steps(1, end) 1 both; }
+      .gnaw-log-body { animation: gnaw-log-shorten var(--gnaw-duration) steps(1, end) 1 both; }
+      .gnaw-log-end { animation: gnaw-log-end var(--gnaw-duration) steps(1, end) 1 both; }
+      .gnaw-bite-one { animation: gnaw-bite-one var(--gnaw-duration) steps(1, end) 1 both; }
+      .gnaw-bite-two { animation: gnaw-bite-two var(--gnaw-duration) steps(1, end) 1 both; }
+      .gnaw-bite-three { animation: gnaw-bite-three var(--gnaw-duration) steps(1, end) 1 both; }
+      .gnaw-chip-one { animation: gnaw-chip-one var(--gnaw-duration) ease-out 1 both; }
+      .gnaw-chip-two { animation: gnaw-chip-two var(--gnaw-duration) ease-out 1 both; }
     }
     @media (prefers-reduced-motion: reduce) {
       .gnaw-beaver { transform: translate(-54px, -1px) rotate(1deg); }
@@ -337,8 +337,8 @@
       .gnaw-log-end { opacity: 0; transform: translateX(-62px); }
     }
     @keyframes gnaw-cycle {
-      0%, 2%, 96%, 100% { opacity: 0; }
-      4%, 92% { opacity: 1; }
+      0%, 2% { opacity: 0; }
+      4%, 100% { opacity: 1; }
     }
     @keyframes gnaw-head {
       0%, 4% { transform: translate(0) rotate(0); }
@@ -360,8 +360,7 @@
       64% { transform: translate(-62px) rotate(0); }
       69% { transform: translate(-54px, -2px) rotate(2deg); }
       74% { transform: translate(-54px) rotate(-1deg); }
-      79%, 96% { transform: translate(-54px, -1px) rotate(1deg); }
-      97%, 100% { transform: translate(0) rotate(0); }
+      79%, 100% { transform: translate(-54px, -1px) rotate(1deg); }
     }
     @keyframes gnaw-teeth {
       0%, 5%, 9%, 13%, 17%, 21%, 25%, 29%, 33%, 37%, 41%, 45%, 49%, 53%, 57%, 61%, 65%, 100% { transform: translateX(0); }
@@ -376,8 +375,7 @@
       40%, 47% { transform: scaleX(.375); }
       48%, 55% { transform: scaleX(.25); }
       56%, 63% { transform: scaleX(.125); }
-      64%, 96% { transform: scaleX(0); }
-      97%, 100% { transform: scaleX(1); }
+      64%, 100% { transform: scaleX(0); }
     }
     @keyframes gnaw-log-end {
       0%, 7% { opacity: 1; transform: translateX(0); }
@@ -388,12 +386,11 @@
       40%, 47% { opacity: 1; transform: translateX(-40px); }
       48%, 55% { opacity: 1; transform: translateX(-48px); }
       56%, 63% { opacity: 1; transform: translateX(-56px); }
-      64%, 96% { opacity: 0; transform: translateX(-62px); }
-      97%, 100% { opacity: 1; transform: translateX(0); }
+      64%, 100% { opacity: 0; transform: translateX(-62px); }
     }
-    @keyframes gnaw-bite-one { 0%, 7%, 97%, 100% { opacity: 0; } 8%, 96% { opacity: 1; } }
-    @keyframes gnaw-bite-two { 0%, 15%, 97%, 100% { opacity: 0; } 16%, 96% { opacity: 1; } }
-    @keyframes gnaw-bite-three { 0%, 23%, 97%, 100% { opacity: 0; } 24%, 96% { opacity: 1; } }
+    @keyframes gnaw-bite-one { 0%, 7% { opacity: 0; } 8%, 100% { opacity: 1; } }
+    @keyframes gnaw-bite-two { 0%, 15% { opacity: 0; } 16%, 100% { opacity: 1; } }
+    @keyframes gnaw-bite-three { 0%, 23% { opacity: 0; } 24%, 100% { opacity: 1; } }
     @keyframes gnaw-chip-one {
       0%, 5% { opacity: 0; transform: translate(0) rotate(0); }
       6% { opacity: 1; transform: translate(0) rotate(0); }
@@ -778,11 +775,22 @@
       min-width: 2.125rem;
       min-height: 2.125rem;
     }
-    .wording-disclosure {
+    .wording-disclosure,
+    .wording-single {
       grid-column: 1 / -1;
       min-width: 0;
       padding-block-start: .3rem;
       border-top: 1px solid #eaecf0;
+    }
+    .wording-single {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: center;
+      gap: .35rem;
+      min-height: 1.5rem;
+      margin: 0;
+      color: var(--muted);
+      font-size: .75rem;
     }
     .wording-disclosure summary {
       display: grid;
@@ -865,23 +873,24 @@
       min-width: 1.5rem;
       min-height: 1.5rem;
       padding: 0;
-      border-color: var(--brand-dark);
-      border-radius: 50%;
+      border-color: transparent;
+      border-radius: .375rem;
       color: #fff;
       background: var(--brand);
+      box-shadow: 0 1px 2px rgb(16 24 40 / 12%);
     }
     .delete-slot svg {
       display: block;
-      width: .75rem;
-      height: .75rem;
+      width: .875rem;
+      height: .875rem;
       fill: none;
       stroke: currentColor;
       stroke-linecap: round;
-      stroke-width: 2;
+      stroke-width: 2.25;
     }
     button.delete-slot:hover {
       color: #fff;
-      border-color: #7a271a;
+      border-color: transparent;
       background: var(--brand-dark);
     }
     button.delete-assigned:hover,
@@ -1285,7 +1294,10 @@
                   </label>
                   <button id="clear-exhibits" type="button" class="secondary clear-exhibits" disabled>Clear exhibit slots</button>
                   <button id="file-options" type="button" class="secondary options-button" aria-label="File placement options" title="File placement options">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.05.05-2.31 2.31-.05-.05a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56v.07h-3.27v-.07a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.88.34l-.05.05-2.31-2.31.05-.05A1.7 1.7 0 0 0 6.41 15a1.7 1.7 0 0 0-1.56-1.03h-.07v-3.27h.07A1.7 1.7 0 0 0 6.41 9.67a1.7 1.7 0 0 0-.34-1.88l-.05-.05 2.31-2.31.05.05a1.7 1.7 0 0 0 1.88.34 1.7 1.7 0 0 0 1.03-1.56v-.07h3.27v.07a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.05-.05 2.31 2.31-.05.05a1.7 1.7 0 0 0-.34 1.88 1.7 1.7 0 0 0 1.56 1.03h.07v3.27h-.07A1.7 1.7 0 0 0 19.4 15Z"/></svg>
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.09a2 2 0 0 1 1 1.74v.5a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2Z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
                   </button>
                 </div>
               </div>
@@ -1544,6 +1556,10 @@
         $("#affidavit-summary").textContent = visible ? "Processing" : state.affidavitMeta;
       }
       if (visible) {
+        panel.querySelector(".gnaw-scene").getAnimations({ subtree: true }).forEach((animation) => {
+          animation.cancel();
+          animation.play();
+        });
         state.workTaskIndexes[kind] = 0;
         updateBeaverTask(kind);
         state.workTaskTimers[kind] = setInterval(() => {
@@ -2303,9 +2319,12 @@
     function wordingDisclosure(statements) {
       if (!statements.length) return "";
       const first = escapeHtml(statements[0]);
+      if (statements.length === 1) {
+        return `<p class="wording-single"><span class="wording-label">Affidavit said:</span><span class="wording-preview" title="${first}">${first}</span></p>`;
+      }
       return `<details class="wording-disclosure">
         <summary><span class="wording-label">Affidavit said:</span><span class="wording-preview" title="${first}">${first}</span></summary>
-        <ul class="wording-statements">${statements.map((statement) => `<li>${escapeHtml(statement)}</li>`).join("")}</ul>
+        <ul class="wording-statements">${statements.slice(1).map((statement) => `<li>${escapeHtml(statement)}</li>`).join("")}</ul>
       </details>`;
     }
 
@@ -2978,7 +2997,7 @@
       const page = button && $(`#preview .preview-page[data-page="${button.dataset.page}"]`);
       if (!page) return;
       page.scrollIntoView({
-        behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+        behavior: "auto",
         block: "start",
       });
     });
