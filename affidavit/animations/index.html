@@ -406,7 +406,7 @@
         52% { opacity: .8; transform: translate(var(--mx), var(--my)) rotate(190deg) scale(1.12); }
         82%, 100% { opacity: 1; transform: translate(var(--x), var(--y)) rotate(var(--r)) scale(1); }
       }
-      @keyframes a8-tail-core { 0%, 74% { opacity: 0; } 100% { opacity: .2; } }
+      @keyframes a8-tail-core { 0%, 74% { opacity: 0; } 100% { opacity: .28; } }
       @keyframes a8-body { 0%, 62% { opacity: 0; transform: translateX(-8px) scale(.86); } 82%, 100% { opacity: 1; transform: translateX(0) scale(1); } }
       @keyframes a8-grid { 0%, 80% { opacity: 0; stroke-dashoffset: 55; } 100% { opacity: .7; stroke-dashoffset: 0; } }
       @keyframes a8-glint { 0%, 87% { opacity: 0; transform: scale(.2) rotate(0); } 94% { opacity: .8; } 100% { opacity: 0; transform: scale(1.5) rotate(90deg); } }
@@ -450,16 +450,24 @@
               <path d="M31 72h42m-31 5h23" fill="none" stroke="var(--stage)" stroke-width="1.4" stroke-linecap="round"/>
             </g>
             <g class="a1-muncher">
-              <g class="a1-tail">
-                <path d="M190 69c22-9 42 2 43 17 1 11-11 17-25 12-14-5-23-17-18-29Z" fill="currentColor"/>
-                <path d="m198 72 25 20m-29-9 18 15m9-24-24 18m31-10-17 15" fill="none" stroke="var(--stage)" stroke-width="1.1" stroke-linecap="round"/>
-              </g>
-              <g class="a1-head">
-                <path d="M142 72c0-24 17-39 40-39 19 0 31 15 31 37 0 13-5 23-14 29h-43c-9-6-14-15-14-27Z" fill="currentColor"/>
-                <circle cx="176" cy="51" r="3" class="cut"/>
-                <path d="M141 64c11-8 23-5 27 5 3 8-4 16-15 16-8 0-15-5-15-11 0-4 1-7 3-10Z" class="cut"/>
-                <rect x="135" y="68" width="7" height="15" rx="1.5" class="cut"/>
-                <rect x="142" y="68" width="7" height="15" rx="1.5" class="cut"/>
+              <g transform="translate(58 14) scale(1.25)">
+                <g class="a1-tail">
+                  <path d="M101 43c13-6 24 1 24 12 0 10-11 15-25 10-3-8-2-16 1-22Z" fill="currentColor"/>
+                  <path d="m108 44 12 11m-16-5 14 13m-15-5 7 7m5-21 9 8" fill="none" stroke="var(--stage)" stroke-width="1.2" stroke-linecap="round"/>
+                </g>
+                <g class="a1-head">
+                  <circle cx="88" cy="24" r="7" fill="var(--red)"/>
+                  <path d="M109 54c-1-19-10-31-25-31-14 0-24 11-24 26 0 11 6 18 15 21h28c4-4 6-9 6-16Z" fill="currentColor"/>
+                  <path d="M63 38c6-6 14-6 19 0 2 3 1 8-2 11-5 4-13 3-18-1-3-3-2-7 1-10Z" fill="#d9dcdf"/>
+                  <circle cx="76" cy="33" r="2.15" fill="#101828"/>
+                  <circle cx="76.7" cy="32.4" r=".65" fill="#fff"/>
+                  <path d="m61 39 4-2.8 3.2 3.3-3.7 3.1Z" fill="#101828"/>
+                  <g class="a1-teeth">
+                    <rect x="59.2" y="43" width="5.1" height="9.5" rx="1.1" fill="#fff"/>
+                    <rect x="64.3" y="43" width="5.1" height="9.5" rx="1.1" fill="#fff"/>
+                    <path d="M64.3 44v7.5" stroke="#d0d5dd" stroke-width=".8"/>
+                  </g>
+                </g>
               </g>
               <g fill="currentColor">
                 <circle class="a1-chip-up" cx="136" cy="69" r="2.2"/>
@@ -470,8 +478,8 @@
           </svg>
         </div>
         <div class="card-footer">
-          <div class="option"><strong>1. Side-profile munch</strong><span>Full Beaver, eight bites, energetic chip spray.</span></div>
-          <button class="replay" type="button" aria-label="Replay side-profile munch animation">Replay</button>
+          <div class="option"><strong>1. Beaver, refined</strong><span>The original character, red ear and all, works through eight complete bites.</span></div>
+          <button class="replay" type="button" aria-label="Replay refined-Beaver animation">Replay</button>
         </div>
       </article>
 
@@ -644,29 +652,34 @@
               <rect x="20" y="59" width="78" height="15" rx="7.5" fill="currentColor"/>
               <path d="M31 64h34m-22 5h27" fill="none" stroke="var(--stage)" stroke-width="1.3" stroke-linecap="round"/>
             </g>
-            <path class="a8-tail-core" d="M171 43c23-9 43 4 44 22 1 15-13 25-30 19-17-6-24-24-14-41Z" fill="currentColor" opacity="0"/>
+            <path class="a8-tail-core" d="M169 50c17-16 40-13 47 3 7 16-5 32-23 33-18 1-32-14-24-36Z" fill="currentColor" opacity="0"/>
             <g fill="currentColor">
-              <rect class="a8-chip" x="94" y="62" width="6" height="5" rx="1" style="--delay:0s;--mx:20px;--my:-36px;--x:82px;--y:-22px;--r:18deg"/>
-              <rect class="a8-chip" x="94" y="62" width="7" height="4" rx="1" style="--delay:.04s;--mx:42px;--my:-30px;--x:94px;--y:-27px;--r:-22deg"/>
-              <rect class="a8-chip" x="94" y="62" width="5" height="7" rx="1" style="--delay:.08s;--mx:61px;--my:-17px;--x:105px;--y:-20px;--r:35deg"/>
-              <rect class="a8-chip" x="94" y="62" width="7" height="5" rx="1" style="--delay:.12s;--mx:69px;--my:1px;--x:112px;--y:-10px;--r:8deg"/>
-              <rect class="a8-chip" x="94" y="62" width="5" height="6" rx="1" style="--delay:.16s;--mx:57px;--my:24px;--x:114px;--y:4px;--r:-28deg"/>
-              <rect class="a8-chip" x="94" y="62" width="7" height="4" rx="1" style="--delay:.2s;--mx:40px;--my:36px;--x:108px;--y:18px;--r:26deg"/>
-              <rect class="a8-chip" x="94" y="62" width="5" height="7" rx="1" style="--delay:.24s;--mx:17px;--my:39px;--x:96px;--y:26px;--r:-12deg"/>
-              <rect class="a8-chip" x="94" y="62" width="7" height="5" rx="1" style="--delay:.28s;--mx:-5px;--my:28px;--x:84px;--y:22px;--r:31deg"/>
-              <rect class="a8-chip" x="94" y="62" width="6" height="4" rx="1" style="--delay:.32s;--mx:-18px;--my:7px;--x:77px;--y:10px;--r:-34deg"/>
-              <rect class="a8-chip" x="94" y="62" width="5" height="7" rx="1" style="--delay:.36s;--mx:-11px;--my:-17px;--x:76px;--y:-5px;--r:16deg"/>
-              <rect class="a8-chip" x="94" y="62" width="7" height="4" rx="1" style="--delay:.4s;--mx:2px;--my:-29px;--x:83px;--y:-14px;--r:-18deg"/>
-              <rect class="a8-chip" x="94" y="62" width="5" height="6" rx="1" style="--delay:.44s;--mx:35px;--my:-12px;--x:94px;--y:-12px;--r:32deg"/>
-              <rect class="a8-chip" x="94" y="62" width="7" height="5" rx="1" style="--delay:.48s;--mx:46px;--my:9px;--x:101px;--y:0px;--r:-9deg"/>
-              <rect class="a8-chip" x="94" y="62" width="5" height="7" rx="1" style="--delay:.52s;--mx:26px;--my:22px;--x:95px;--y:13px;--r:24deg"/>
+              <rect class="a8-chip" x="94" y="62" width="6" height="5" rx="1" style="--delay:0s;--mx:20px;--my:-36px;--x:84px;--y:-14px;--r:18deg"/>
+              <rect class="a8-chip" x="94" y="62" width="7" height="4" rx="1" style="--delay:.04s;--mx:42px;--my:-30px;--x:95px;--y:-15px;--r:-22deg"/>
+              <rect class="a8-chip" x="94" y="62" width="5" height="7" rx="1" style="--delay:.08s;--mx:61px;--my:-17px;--x:106px;--y:-12px;--r:35deg"/>
+              <rect class="a8-chip" x="94" y="62" width="7" height="5" rx="1" style="--delay:.12s;--mx:69px;--my:1px;--x:113px;--y:-5px;--r:8deg"/>
+              <rect class="a8-chip" x="94" y="62" width="5" height="6" rx="1" style="--delay:.16s;--mx:57px;--my:24px;--x:110px;--y:7px;--r:-28deg"/>
+              <rect class="a8-chip" x="94" y="62" width="7" height="4" rx="1" style="--delay:.2s;--mx:40px;--my:36px;--x:103px;--y:16px;--r:26deg"/>
+              <rect class="a8-chip" x="94" y="62" width="5" height="7" rx="1" style="--delay:.24s;--mx:17px;--my:39px;--x:91px;--y:18px;--r:-12deg"/>
+              <rect class="a8-chip" x="94" y="62" width="7" height="5" rx="1" style="--delay:.28s;--mx:-5px;--my:28px;--x:81px;--y:11px;--r:31deg"/>
+              <rect class="a8-chip" x="94" y="62" width="6" height="4" rx="1" style="--delay:.32s;--mx:-18px;--my:7px;--x:78px;--y:1px;--r:-34deg"/>
+              <rect class="a8-chip" x="94" y="62" width="5" height="7" rx="1" style="--delay:.36s;--mx:-11px;--my:-17px;--x:82px;--y:-8px;--r:16deg"/>
+              <rect class="a8-chip" x="94" y="62" width="7" height="4" rx="1" style="--delay:.4s;--mx:2px;--my:-29px;--x:92px;--y:-5px;--r:-18deg"/>
+              <rect class="a8-chip" x="94" y="62" width="5" height="6" rx="1" style="--delay:.44s;--mx:35px;--my:-12px;--x:101px;--y:2px;--r:32deg"/>
+              <rect class="a8-chip" x="94" y="62" width="7" height="5" rx="1" style="--delay:.48s;--mx:46px;--my:9px;--x:96px;--y:9px;--r:-9deg"/>
+              <rect class="a8-chip" x="94" y="62" width="5" height="7" rx="1" style="--delay:.52s;--mx:26px;--my:22px;--x:107px;--y:-1px;--r:24deg"/>
             </g>
             <g class="a8-body" fill="currentColor" opacity="0">
+              <circle cx="133" cy="42" r="6" fill="var(--red)"/>
               <ellipse cx="151" cy="69" rx="29" ry="22"/>
               <circle cx="125" cy="55" r="16"/>
-              <circle cx="121" cy="51" r="2.2" class="cut"/>
-              <path d="M111 58h-14" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>
-              <rect x="96" y="54" width="6" height="12" rx="1.4" class="cut"/>
+              <ellipse cx="111" cy="61" rx="12" ry="9" fill="#d9dcdf"/>
+              <circle cx="120" cy="50" r="2.2" fill="#101828"/>
+              <circle cx="120.6" cy="49.4" r=".65" fill="#fff"/>
+              <path d="m99 57 5-3 4 4-4.5 3.5Z" fill="#101828"/>
+              <rect x="97" y="61" width="6" height="12" rx="1.3" fill="#fff"/>
+              <rect x="103" y="61" width="6" height="12" rx="1.3" fill="#fff"/>
+              <path d="M103 62v10" stroke="#d0d5dd" stroke-width=".8"/>
             </g>
             <path class="a8-grid" d="m177 43 27 35m-33-22 24 32m8-39-31 27m39-13-26 25" fill="none" stroke="var(--stage)" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="55" stroke-dashoffset="55" opacity="0"/>
             <path class="a8-glint" d="M91 46v11m-5-5.5h10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0"/>
