@@ -3023,6 +3023,49 @@ dense retrieval requires an embedder (the 3080 Ti desktop over
 Tailscale, or precomputed pools for fixed beds) — a real
 deployment dependency the lexical stack doesn't have.
 
+### Stage 18 arm D grounded confirm (registered 2026-07-31 before
+the run; receipts `stage18-lbrag-grounded-fused.jsonl`)
+
+Per the frozen OPEN action, the fused hybrid rides its own grounded
+confirm before joining the config. Eli's deployment constraint,
+recorded up front: production inference must work on the laptop;
+the 3080 Ti lane is the quality ceiling ("good to know what the
+3080ti can offer though, so let's see that through"). A KEEP here
+crowns the fused config for the benchmark/ceiling lane only; any
+production adoption requires a laptop-viable embedder measured in
+its own registered round.
+
+Config: the frozen G+ctx composition stack unchanged (sol@medium
+composer, required_slot, k=6, rerank luna@p1600, stitch200), with
+the lexical pool stage replaced by precomputed hybrid pools via the
+new `--pool-jsonl` runner flag: `stage18-fused-pools.jsonl` =
+per-test RRF(ctx-w4 lexical pool, densectx Qwen3-4B pool), 48
+spans/test, regenerated on the 3080 Ti with a sanity assert that
+fused maud pool R@48 reproduces the verdict run's 0.6351. The
+retriever label becomes `passage:pool(<sha12 of the sidecar>)
++rerank(codex:gpt-5.6-luna)@p1600+stitch200` — the sidecar hash
+pins the entire upstream pool construction. Runner injects pool
+spans with text sliced verbatim from the pinned corpus (same
+coordinates the P1 audit checks). c=6, full 776-cell bed.
+
+Frozen gates (baselines = the R5b ctx confirm: maud ansR 0.1385,
+overall ansP 0.5535 / ansR 0.5832):
+- **KEEP** iff maud answered-only R ≥ 0.1585 (+0.02 over ctx)
+  AND overall answered-only P ≥ 0.5435 AND R ≥ 0.5732 (each
+  within 0.01 of ctx — the pool lift must survive composition
+  without degrading the whole).
+- **DROP** if maud answered-only R < 0.1385 (no lift) OR overall
+  P < 0.5335 OR R < 0.5632.
+- Middle band: default DROP for the Stage 19 freeze (lock-in
+  bias); revisitable post-holdout only as a new registered round.
+- P1 unconditional: any verbatim mismatch or TRUE doc-miss kills
+  the lane regardless of scores.
+
+Frozen predictions: maud answered-only R lands 0.17–0.25 (pool
++0.22 discounts heavily through rerank→k=6→composition); non-maud
+sources within ±0.03 of ctx confirm on ansP/ansR; answered rate
+87–92%; retrieval-only R over all cells ≥ 0.86 (ctx 0.8464).
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under

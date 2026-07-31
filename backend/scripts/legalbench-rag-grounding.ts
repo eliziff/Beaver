@@ -299,11 +299,25 @@ async function main() {
           .digest("hex")
           .slice(0, 12)})`
       : "";
+  // Stage 18 arm D OPEN action: replace the lexical pool stage with
+  // precomputed hybrid pool spans (per-test JSONL: {test_id, pool:
+  // [{citation,start,end}...]}). The label carries the sidecar's
+  // content hash, which pins the whole upstream pool construction
+  // (embedder, headers, fusion); rerank/stitch/contract unchanged.
+  const poolJsonl = flag("pool-jsonl", "");
+  const poolTag = poolJsonl
+    ? `pool(${createHash("sha256")
+        .update(readFileSync(poolJsonl))
+        .digest("hex")
+        .slice(0, 12)})`
+    : "";
   const retriever =
     (retrieverKind === "passage"
-      ? `passage:t${chunkTarget}/o${chunkOverlap}/w${nameWeight}`
+      ? poolJsonl
+        ? `passage:${poolTag}`
+        : `passage:t${chunkTarget}/o${chunkOverlap}/w${nameWeight}`
       : "product") +
-    contextTag +
+    (poolJsonl ? "" : contextTag) +
     (rerankModel
       ? `+rerank(${rerankModel}${rerankEffort ? `@${rerankEffort}` : ""})`
       : "") +
@@ -337,6 +351,20 @@ async function main() {
       disk.get(entry.path)!.toString("utf8"),
     ]),
   );
+
+  const poolByTest = new Map<
+    string,
+    Array<{ citation: string; start: number; end: number }>
+  >();
+  if (poolJsonl) {
+    for (const line of readFileSync(poolJsonl, "utf8").split("\n").filter(Boolean)) {
+      const row = JSON.parse(line) as {
+        test_id: string;
+        pool: Array<{ citation: string; start: number; end: number }>;
+      };
+      poolByTest.set(row.test_id, row.pool);
+    }
+  }
 
   const database = path.join(LEGALBENCH_RAG_DATA_DIR, "db", "a2aj-mini.sqlite");
   if (!existsSync(database))
@@ -391,18 +419,41 @@ async function main() {
     // product doc-level path (snippets located back via indexOf).
     const retrieved: Array<Span & { snippet: string }> = [];
     if (retrieverKind === "passage") {
-      let hits = searchPassages({
-        sourceDb: database,
-        query: test.query,
-        k: rerankModel ? 48 : k,
-        target: chunkTarget,
-        overlap: chunkOverlap,
-        nameWeight,
-        ...(contextJsonl && contextWeight > 0
-          ? { contextJsonl, contextWeight }
-          : {}),
-        ...(rerankModel ? { perDocCap: 24 } : {}),
-      });
+      let hits;
+      if (poolJsonl) {
+        const pool = poolByTest.get(test.id);
+        if (!pool) throw new Error(`pool sidecar has no test ${test.id}`);
+        const docIds = new Map<string, number>();
+        hits = pool.slice(0, rerankModel ? 48 : k).map((span, index) => {
+          if (!docIds.has(span.citation))
+            docIds.set(span.citation, docIds.size + 1);
+          const text = corpusText.get(span.citation);
+          if (!text) throw new Error(`pool cites unknown doc ${span.citation}`);
+          return {
+            docId: docIds.get(span.citation)!,
+            citation: span.citation,
+            name: null,
+            language: "en" as const,
+            start: span.start,
+            end: span.end,
+            text: text.slice(span.start, span.end),
+            rank: index,
+          };
+        });
+      } else {
+        hits = searchPassages({
+          sourceDb: database,
+          query: test.query,
+          k: rerankModel ? 48 : k,
+          target: chunkTarget,
+          overlap: chunkOverlap,
+          nameWeight,
+          ...(contextJsonl && contextWeight > 0
+            ? { contextJsonl, contextWeight }
+            : {}),
+          ...(rerankModel ? { perDocCap: 24 } : {}),
+        });
+      }
       if (rerankModel)
         hits = (
           await rerankPassages({
