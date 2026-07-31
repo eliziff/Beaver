@@ -2374,6 +2374,86 @@ a chunk-granularity problem, not a soundness problem, and the
 pre-registered Stage 18 bundle (clause-mode chunking + preview 1600 +
 stitching/child-rank) is the follow-up.
 
+### Published-score calibration (fetched 2026-07-30, arXiv:2408.10343)
+
+Frame of reference for all char-level numbers in this log. The
+LegalBench-RAG paper's own baselines (OpenAI text-embedding-3-large,
+naive vs RCTS chunking; Cohere rerank HURT on every dataset) score, at
+k=4 chunks, char precision contractnli 12.5% / cuad 6.0% / maud 2.2% /
+privacy_qa 12.3% (best of the two chunkings) with recall@4 of 29.8% /
+27.9% / 4.6% / 27.9%; even at k=64 chunks recall reaches only 86.6% /
+75.7% / 28.3% / 84.2%. maud is brutal for everyone: paper P@1 2.65%,
+R@64 28.3%. Against that: our lexical+rerank retrieval at k=4
+(1600-char chunks) has recall 91% / 68% / 22% / 84% per source —
+at-or-above the paper's k=64 numbers on three of four sources with
+1/16th the chunks — and the harness's answered-only grounded char
+precision 0.505 has no published counterpart (the paper benchmarks
+retrieval only; nothing in it reaches 13% char precision at any k).
+Vendor evals (Ragie) claim ~54% P@1, but under binarized per-chunk
+scoring, not the paper's char-span formula — not comparable. Sources:
+arxiv.org/abs/2408.10343; ragie.ai blog. Calibration: char precision
+against minimal human gold spans saturates far below 1.0 (a perfect
+clause quote scores <1 when gold marks a sub-sentence); contractnli
+0.76 answered-P is near practical ceiling, and the exploitable gaps
+are maud (pool recall) and quote-selection width elsewhere.
+
+## Stage 18 — maud pool recall + grounded composition (pre-registered
+2026-07-30, before any scored run)
+
+Diagnosis from receipts (stage16b bed, n=120): pool R@48 per source is
+contractnli 1.02 / cuad 0.92 / privacy_qa 1.02 — saturated, rerank R@4
+0.90–1.0 — vs **maud 0.3494 pool, 0.2265 rerank R@4**. maud's pool is
+the single binding retrieval constraint on the bed; everything else is
+generation-side. Stage 17 grounded confirm: overall answered-only
+P 0.505 / R 0.511, maud 0.143/0.111.
+
+Arms (retrieval arms scored deterministically on ALL 776 gold tests,
+free; rerank stage on the stage16b 120-cell bed at preview 1600,
+luna@low; frozen config otherwise t1600/o120/w16, pool perDocCap 24):
+
+- **R1 clause-mode chunking** (`mode: "clause"`, tiling, no overlap):
+  predict maud pool R@48 0.3494 → ≥0.42 and maud lexical R@4 0.0948 →
+  ≥0.13; saturated sources stay within −0.04 of chars-mode pool R@48.
+  Falsified for maud if pool gain < +0.05; falsified overall if any
+  saturated source drops > 0.06.
+- **R2 phrase bigrams** (adjacent content-word pairs from the query as
+  quoted FTS5 phrase OR-terms beside the unigrams): predict overall
+  lexical R@4 0.3241 → ≥0.34, maud pool +0.02 or more, no source's
+  pool R@48 down > 0.02. Dropped as flat if overall lexR4 gain < +0.01
+  and maud pool gain < +0.02.
+- **R3 composition** (clause + phrases) only if R1 and R2 are both
+  individually non-negative on maud.
+- **Rerank confirm**: winning retrieval config on the 120-cell bed,
+  preview 1600 (paired vs stage16b receipts): predict maud rerank R@4
+  0.2265 → ≥0.30.
+- **G grounded confirm** (full 776-cell bed, sol@medium required_slot,
+  same gates machinery as Stage 17): winning retrieval config +
+  preview 1600 + evidence k=6 + adjacent-span stitching (post-rerank
+  merge of same-doc spans within a 200-char gap, so narrow deal-point
+  clauses straddling chunk joints arrive whole). Attribution note: G
+  is a composition run — lever attribution lives in the retrieval-arm
+  receipts above and the Stage 16b preview receipts, not in G.
+  Predictions: overall answered-only grounded P ≥ 0.55 (from 0.505)
+  and R ≥ 0.55 (from 0.511); maud answered-only P ≥ 0.25 (from
+  0.143); answered ≥ 75%; P1 unconditional exactly as Stage 17
+  (verbatim zero false passes; every unlocated quote audited;
+  answered ∩ gold-doc-miss ≤ 1% of answered, byte-identical duplicate
+  corpus files counting as hits per the Stage 17 audit rule); errors
+  < 10% pre-resume. Falsified by: any P1 breach; overall answered-only
+  P < 0.505 (strict no-regression); answered < 60%.
+- **D dense lane (registered-deferred)**: hybrid BM25+dense through
+  the standing `rrfFuse` plug-point, embeddings from a local model —
+  blocked at registration: no local ollama binary and the desktop-PC
+  tailscale endpoint (`OLLAMA_BASE_URL` in backend/.env) did not
+  answer `/api/tags` when probed today. Registered so the intent and
+  the plug-point are on record; runs when an embedding backend is up.
+  Target when it runs: maud pool R@48 ≥ 0.50.
+
+Aims, calibrated to the published scores above: Stage 18 success looks
+like maud grounded P in the 0.25–0.35 band (paper's best maud char
+precision at ANY k is 3.4%), overall answered-P ≥ 0.55, with soundness
+untouched. contractnli is treated as at-ceiling; no lever targets it.
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under
