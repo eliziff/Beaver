@@ -23,6 +23,9 @@
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
+import { compileAgreementSkeleton } from "./legalTextSkeleton";
+import { sourceDocBlockText, type SourceDoc } from "./sourceDoc";
+import { compileA2AJSourceDoc } from "./sourceDocA2AJ";
 
 export type ChunkSpan = { start: number; end: number };
 
@@ -68,12 +71,6 @@ export function chunkText(text: string, options?: ChunkOptions): ChunkSpan[] {
   return spans;
 }
 
-/** Clause/section starts at line beginnings: "Section 7.2", "ARTICLE
- * IV", dotted numbering (7.2, 7.2.1), simple enumeration (1., (a),
- * (iv)). The contract skeleton's joints. */
-const CLAUSE_START_RE =
-  /^[ \t]{0,8}(?:(?:Section|SECTION|Article|ARTICLE)\s+[0-9IVXLC]|\d+(?:\.\d+)+[.)]?\s|\d+[.)]\s|\([a-z]{1,4}\)\s|\([ivxlc]+\)\s)/gmu;
-
 /**
  * Skeleton-aligned chunking: every span STARTS at a clause boundary
  * (or 0); whole clauses pack greedily up to `target`; a single clause
@@ -85,9 +82,27 @@ export function clauseChunkText(
   text: string,
   options?: ChunkOptions,
 ): ChunkSpan[] {
+  return structuralChunkText(
+    compileAgreementSkeleton(text).doc,
+    options,
+    "section",
+  );
+}
+
+function structuralChunkText(
+  doc: SourceDoc,
+  options: ChunkOptions | undefined,
+  kind: "paragraph" | "section",
+): ChunkSpan[] {
+  const text = doc.text;
   const target = Math.max(200, options?.target ?? chunkDefaults.target);
   const starts = [
-    ...new Set([0, ...[...text.matchAll(CLAUSE_START_RE)].map((m) => m.index)]),
+    ...new Set([
+      0,
+      ...doc.blocks
+        .filter((block) => block.kind === kind)
+        .map((block) => block.start),
+    ]),
   ].sort((left, right) => left - right);
   if (starts.length < 3) return chunkText(text, options);
   const spans: ChunkSpan[] = [];
@@ -152,6 +167,27 @@ export function passageQueryTokens(query: string): string[] {
 }
 
 /**
+ * Adjacent content-word pairs of the query, for FTS5 phrase terms
+ * ("change of control" queries reward passages containing the phrase,
+ * not just the scattered words). Pairs must be adjacent in the ORIGINAL
+ * query — pairing the stopword-filtered token stream would fabricate
+ * phrases ("party allowed" from "party is allowed") that the corpus
+ * never contains.
+ */
+export function passageQueryPhrases(query: string): string[] {
+  const words =
+    query.toLocaleLowerCase("en-US").match(/[\p{L}\p{N}]+/gu) ?? [];
+  const phrases: string[] = [];
+  for (let i = 0; i + 1 < words.length; i += 1) {
+    const [a, b] = [words[i], words[i + 1]];
+    if (a.length < 2 || b.length < 2 || STOPWORDS.has(a) || STOPWORDS.has(b))
+      continue;
+    phrases.push(`${a} ${b}`);
+  }
+  return [...new Set(phrases)].slice(0, 16);
+}
+
+/**
  * Reciprocal rank fusion over ranked lists keyed by item id:
  * score(d) = Σ 1/(k + rank_i(d)). Rank-based, so incompatible score
  * scales (bm25 vs cosine) fuse cleanly. The standing plug-point for a
@@ -189,7 +225,7 @@ function paramsKey(options: PassageIndexOptions) {
         overlap: options.overlap ?? chunkDefaults.overlap,
         docType: options.docType ?? null,
         mode: options.mode ?? "chars",
-        v: 3,
+        v: 4,
       }),
     )
     .digest("hex")
@@ -281,10 +317,26 @@ export function ensurePassageIndex(options: PassageIndexOptions): {
           documents += 1;
           counted = true;
         }
-        const headings = headingLines(text);
+        const sourceDoc =
+          options.mode === "clause"
+            ? compileAgreementSkeleton(text, `${String(row.id)}:${language}`)
+                .doc
+            : compileA2AJSourceDoc({
+                citation,
+                docType:
+                  row.doc_type === "laws" || row.doc_type === "cases"
+                    ? row.doc_type
+                    : options.docType ?? "cases",
+                text,
+                name,
+              });
         const spans =
           options.mode === "clause"
-            ? clauseChunkText(text, options)
+            ? structuralChunkText(
+                sourceDoc,
+                options,
+                "section",
+              )
             : chunkText(text, options);
         for (const span of spans) {
           const result = insertPassage.run(
@@ -298,7 +350,7 @@ export function ensurePassageIndex(options: PassageIndexOptions): {
             text.slice(span.start, span.end),
             name,
             citation,
-            headingPath(headings, span.start),
+            headingPath(sourceDoc, span.start),
           );
           passages += 1;
         }
@@ -315,36 +367,19 @@ export function ensurePassageIndex(options: PassageIndexOptions): {
   }
 }
 
-/**
- * Deterministic contextual-retrieval prefix (skeleton-lite for plain
- * text): the nearest enclosing heading line(s) above a chunk, indexed
- * in a dedicated FTS column so heading vocabulary matches queries
- * without polluting the verbatim passage text. Heading = line starting
- * with a numbered label (1., 1.1, (a)), ARTICLE/SECTION/PART, or a
- * short ALL-CAPS line.
- */
-const HEADING_RE =
-  /^[ \t]{0,8}(?:(?:ARTICLE|SECTION|PART|SCHEDULE|EXHIBIT|APPENDIX)\b.{0,80}|\d+(?:\.\d+)*[.)]?[ \t]+\S.{0,80}|[A-Z][A-Z0-9 ,;:'&()/-]{4,60})$/u;
-
-function headingLines(text: string): Array<{ at: number; line: string }> {
-  const headings: Array<{ at: number; line: string }> = [];
-  const lineRe = /^.*$/gmu;
-  for (const match of text.matchAll(lineRe)) {
-    const line = match[0].trim();
-    if (line && HEADING_RE.test(match[0]) && headings.length < 5_000)
-      headings.push({ at: match.index, line: line.slice(0, 120) });
-  }
-  return headings;
-}
-
-function headingPath(
-  headings: Array<{ at: number; line: string }>,
-  start: number,
-): string {
-  const before = headings.filter((heading) => heading.at <= start);
-  return before
+/** Context comes from the same compiled structure that owns chunk joints. */
+function headingPath(doc: SourceDoc, start: number): string {
+  return doc.blocks
+    .filter(
+      (block) =>
+        block.start <= start &&
+        !block.parentLabel &&
+        (block.kind === "section" || block.kind === "paragraph"),
+    )
     .slice(-2)
-    .map((heading) => heading.line)
+    .map((block) => sourceDocBlockText(doc, block).split(/\r?\n/u, 1)[0])
+    .filter(Boolean)
+    .map((line) => line.slice(0, 120))
     .join(" — ");
 }
 
@@ -373,6 +408,8 @@ export type PassageSearchOptions = {
   contextWeight?: number;
   /** Max passages returned per document (diversity cap). */
   perDocCap?: number;
+  /** Add adjacent content-word pairs as FTS5 phrase OR-terms. */
+  phrases?: boolean;
 } & ChunkOptions;
 
 /** OR-semantics weighted-bm25 passage search over the derived index. */
@@ -389,7 +426,12 @@ export function searchPassages(options: PassageSearchOptions): PassageHit[] {
   const contextWeight = options.contextWeight ?? 0;
   const perDocCap = Math.max(1, options.perDocCap ?? 2);
   const language = options.language ?? "en";
-  const match = tokens.map((token) => `"${token}"*`).join(" OR ");
+  const phraseTerms = options.phrases
+    ? passageQueryPhrases(options.query).map((phrase) => `"${phrase}"`)
+    : [];
+  const match = [...tokens.map((token) => `"${token}"*`), ...phraseTerms].join(
+    " OR ",
+  );
   const index = new DatabaseSync(indexDb, { readOnly: true });
   const source = new DatabaseSync(options.sourceDb, { readOnly: true });
   try {

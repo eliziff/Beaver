@@ -10,6 +10,7 @@ import {
   clauseChunkText,
   ensurePassageIndex,
   passageIndexPath,
+  passageQueryPhrases,
   passageQueryTokens,
   rrfFuse,
   searchPassages,
@@ -182,6 +183,28 @@ describe("passageQueryTokens", () => {
   });
 });
 
+describe("passageQueryPhrases", () => {
+  it("pairs only words adjacent in the original query", () => {
+    const phrases = passageQueryPhrases(
+      "Is the receiving party allowed to reverse engineer the object?",
+    );
+    expect(phrases).toContain("receiving party");
+    expect(phrases).toContain("reverse engineer");
+    // "allowed" and "reverse" are separated by "to" in the query;
+    // pairing the stopword-filtered stream would fabricate this phrase.
+    expect(phrases).not.toContain("allowed reverse");
+  });
+
+  it("excludes stopword-touching pairs and dedupes", () => {
+    const phrases = passageQueryPhrases(
+      "change of control and change of control provisions",
+    );
+    expect(phrases).not.toContain("change of");
+    expect(phrases).not.toContain("of control");
+    expect(phrases.filter((p) => p === "control provisions")).toHaveLength(1);
+  });
+});
+
 describe("rrfFuse", () => {
   it("ranks items on both lists above single-list items", () => {
     const fused = rrfFuse([
@@ -244,6 +267,22 @@ describe("index + search round trip", () => {
     expect(
       hits.some((hit) => hit.text.includes("reverse engineer")),
     ).toBe(true);
+  });
+
+  it("phrase terms are additive: phrase-bearing passage ranks first", () => {
+    const hits = searchPassages({
+      sourceDb,
+      target: 400,
+      overlap: 50,
+      query: "may the receiving party reverse engineer objects",
+      k: 4,
+      phrases: true,
+    });
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits[0].text).toContain("reverse engineer");
+    expect(hits[0].text).toBe(
+      contract.slice(hits[0].start, hits[0].end),
+    );
   });
 
   it("name weighting pulls the named document above lexical noise", () => {
