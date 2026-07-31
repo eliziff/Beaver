@@ -24,6 +24,11 @@
  * scripts/legalbench-rag-run.ts. Usage (from backend/):
  *   npx tsx scripts/legalbench-rag-grounding.ts --model codex:gpt-5.6-luna `
  *     --effort medium --per-source 8 --k 4 [--resume 1] [--cases cuad:003,...]
+ *
+ * Arms differ only in what they are meant to test: --per-doc-cap is one
+ * setting for every retrieval path (default 24), recorded on every row and
+ * in the resume key, and --output refuses to overwrite an existing receipt
+ * without --force.
  */
 import "../src/lib/loadEnv";
 
@@ -64,7 +69,7 @@ import {
   type SourceBenchmark,
   type Span,
 } from "../src/lib/legalbenchRag";
-import { searchPassages } from "../src/lib/passageRetrieval";
+import { capHitsPerDoc, searchPassages } from "../src/lib/passageRetrieval";
 import { rerankPassages } from "../src/lib/retrievalRerank";
 import {
   streamChatWithTools,
@@ -140,6 +145,11 @@ type Row = {
   /** "product" (doc-level FTS5 + snippet window) or
    * "passage:t<target>/o<overlap>/w<nameWeight>". */
   retriever: string;
+  /** P0.1: passages any one document may contribute, applied identically
+   * in every retrieval arm; null on the product path, which has no cap.
+   * Rows WITHOUT this field predate the fix and ran at whatever the arm
+   * implied (2 lexical / 24 reranked / uncapped injected pool). */
+  per_doc_cap: number | null;
   query: string;
   status: "passed" | "failed" | "error";
   /** answered: passed with ≥1 located verbatim quote (score precision
@@ -300,6 +310,25 @@ async function main() {
   const chunkTarget = Number(flag("chunk-target", "1000"));
   const chunkOverlap = Number(flag("chunk-overlap", "120"));
   const nameWeight = Number(flag("name-weight", "4"));
+  // P0.1 — passage diversity cap: the most passages any ONE document may
+  // contribute. ARM-INDEPENDENT by construction: one flag, applied to the
+  // lexical path and the injected-pool path alike, recorded on every row
+  // and carried in the resume key.
+  //
+  // Before this it was `perDocCap: 24` only when a reranker was set, while
+  // the lexical path silently took searchPassages' default of 2 and an
+  // injected pool took no cap at all — so a four-arm comparison ran three
+  // different caps. On maud, where gold concentrates inside one 300 KB
+  // agreement, the cap alone can decide the arm.
+  //
+  // Default 24: the crowned config's value everywhere else (the ablation
+  // sweeps, the rerank bed, and legalbench-dense-dump, which BUILT the
+  // injected pool sidecars), and the only value that is inert at the
+  // composed k (4/6) in every arm while leaving the k=48 pool exactly as
+  // the reranker was measured on.
+  const perDocCap = Number(flag("per-doc-cap", "24"));
+  if (!Number.isInteger(perDocCap) || perDocCap < 1)
+    throw new Error("--per-doc-cap must be a positive integer");
   // Optional Stage 16 W2 reranking: pool k=48 lexical, one listwise
   // call (this model) picks the top k. Empty string = off.
   const rerankModel = flag("rerank", "");
@@ -352,6 +381,10 @@ async function main() {
       : "") +
     (rerankPreview === undefined ? "" : `@p${rerankPreview}`) +
     (stitchGap > 0 ? `+stitch${stitchGap}` : "");
+  // The product path retrieves whole documents through searchLocalA2AJ and
+  // has no per-document cap to set, so the row records null rather than a
+  // number that did nothing.
+  const recordedPerDocCap = retrieverKind === "passage" ? perDocCap : null;
   const timeoutMs = Number(flag("timeout-ms", "300000"));
   const concurrency = Number(flag("concurrency", "3"));
   const experimentsDir = path.join(
@@ -486,7 +519,11 @@ async function main() {
       )
     : tests;
   if (!selected.length) throw new Error("no tests selected");
-  console.log(`selected ${selected.length} tests (k=${k}, model=${model})`);
+  console.log(
+    `selected ${selected.length} tests (k=${k}, model=${model}, ` +
+      `arm=${armLabel}, retriever=${retriever}, ` +
+      `per_doc_cap=${recordedPerDocCap ?? "n/a"})`,
+  );
   if (process.argv.includes("--dry-run")) return;
 
   // Receipt destination, resolved AFTER --dry-run so a dry run can never
@@ -535,7 +572,7 @@ async function main() {
         const pool = poolByTest.get(test.id);
         if (!pool) throw new Error(`pool sidecar has no test ${test.id}`);
         const docIds = new Map<string, number>();
-        hits = pool.slice(0, rerankModel ? 48 : k).map((span, index) => {
+        hits = capHitsPerDoc(pool, perDocCap, rerankModel ? 48 : k).map((span, index) => {
           if (!docIds.has(span.citation))
             docIds.set(span.citation, docIds.size + 1);
           const text = corpusText.get(span.citation);
@@ -564,7 +601,7 @@ async function main() {
           ...(contextJsonl && contextWeight > 0
             ? { contextJsonl, contextWeight }
             : {}),
-          ...(rerankModel ? { perDocCap: 24 } : {}),
+          perDocCap,
         });
         if (excludedDocs)
           hits = hits.filter((hit) => !excludedDocs.has(hit.citation));
@@ -743,6 +780,7 @@ async function main() {
       arm: armLabel,
       k,
       retriever,
+      per_doc_cap: recordedPerDocCap,
       query: test.query,
       status: passed ? "passed" : "failed",
       outcome: passed
@@ -801,6 +839,7 @@ async function main() {
             arm: armLabel,
             k,
             retriever,
+            per_doc_cap: recordedPerDocCap,
             query: test.query,
             status: "error",
             outcome: "error",
