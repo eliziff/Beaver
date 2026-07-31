@@ -1,0 +1,696 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Beaver Motion Lab</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #202326;
+      --muted: #697077;
+      --line: #d9dcdf;
+      --paper: #f1f2f3;
+      --stage: #fbfbfa;
+      --stage-deep: #eef0f1;
+      --soft-ink: #555b60;
+      --red: #d52b1e;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-synthesis: none;
+    }
+    * { box-sizing: border-box; }
+    body {
+      min-width: 0;
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      -webkit-font-smoothing: antialiased;
+    }
+    button { font: inherit; }
+    button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+    main { width: min(70rem, 100%); margin-inline: auto; padding: clamp(1rem, 4vw, 2rem); }
+    header {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 1.5rem;
+      margin-block-end: 1.5rem;
+    }
+    .eyebrow {
+      margin: 0 0 .25rem;
+      color: var(--red);
+      font-size: .75rem;
+      font-weight: 750;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    h1 { margin: 0; font-size: clamp(1.55rem, 4vw, 2.25rem); line-height: 1.1; letter-spacing: -.035em; }
+    header p:last-child { max-width: 58ch; margin: .55rem 0 0; color: var(--muted); line-height: 1.5; }
+    button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 2.5rem;
+      padding: .55rem .85rem;
+      border: 1px solid var(--line);
+      border-radius: .5rem;
+      color: var(--ink);
+      background: #fff;
+      cursor: pointer;
+      transition: background-color 120ms ease-out, transform 120ms ease-out;
+    }
+    button:hover { background: #f7f7f6; }
+    button:active { transform: scale(.96); }
+    #replay-all { flex: 0 0 auto; color: #fff; border-color: transparent; background: var(--red); }
+    #replay-all:hover { background: #b42318; }
+    .motion-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+    .motion-card {
+      display: grid;
+      grid-template-rows: auto auto;
+      gap: .85rem;
+      min-width: 0;
+      padding: .85rem;
+      border-radius: 1rem;
+      background: #fff;
+      box-shadow: 0 0 0 1px rgb(0 0 0 / 6%), 0 3px 10px rgb(0 0 0 / 5%);
+      transition: box-shadow 180ms ease-out;
+    }
+    .motion-card:hover { box-shadow: 0 0 0 1px rgb(0 0 0 / 8%), 0 10px 26px rgb(0 0 0 / 8%); }
+    .stage {
+      position: relative;
+      display: grid;
+      place-items: center;
+      min-height: 12rem;
+      overflow: hidden;
+      isolation: isolate;
+      border-radius: .75rem;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 50% 40%, #fff 0 16%, transparent 58%),
+        linear-gradient(145deg, var(--stage), var(--stage-deep));
+      box-shadow: inset 0 0 0 1px rgb(0 0 0 / 7%);
+    }
+    .stage::before {
+      position: absolute;
+      z-index: -1;
+      width: 60%;
+      height: 40%;
+      border: 1px solid rgb(32 35 38 / 8%);
+      border-radius: 50%;
+      content: "";
+      filter: blur(.2px);
+      transform: perspective(20rem) rotateX(68deg);
+    }
+    svg { display: block; width: min(100%, 25rem); height: 10.75rem; overflow: visible; }
+    svg * { transform-box: fill-box; }
+    .cut { fill: var(--stage); }
+    .card-footer {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: .75rem;
+    }
+    .option { display: grid; gap: .1rem; min-width: 0; }
+    .option strong { font-size: .9375rem; }
+    .option span { color: var(--muted); font-size: .75rem; line-height: 1.35; }
+    .replay { min-height: 2.25rem; padding: .4rem .65rem; font-size: .75rem; }
+    .iso-scene, .lathe-scene, .dam-scene {
+      position: relative;
+      width: min(100%, 25rem);
+      height: 10.75rem;
+      perspective: 46rem;
+    }
+    .iso-world, .lathe-world, .dam-world { position: absolute; inset: 0; transform-style: preserve-3d; }
+    .iso-world { transform: rotateX(-28deg) rotateY(-30deg); }
+    .iso-ground, .lathe-ground {
+      position: absolute;
+      left: 16%;
+      top: 68%;
+      width: 68%;
+      height: 24%;
+      border-radius: 50%;
+      background: rgb(32 35 38 / 9%);
+      filter: blur(5px);
+      transform: rotateX(72deg) translateZ(-1.5rem);
+    }
+    .iso-log { position: absolute; left: 2.7rem; top: 4.6rem; width: 11rem; height: 1.4rem; transform-style: preserve-3d; }
+    .iso-cube {
+      position: absolute;
+      left: calc(var(--i) * 1.3rem);
+      width: 1.35rem;
+      height: 1.35rem;
+      transform-style: preserve-3d;
+    }
+    .iso-cube i { position: absolute; inset: 0; display: block; border: 1px solid rgb(255 255 255 / 14%); background: #272b2e; }
+    .iso-cube .front { transform: translateZ(.675rem); }
+    .iso-cube .back { transform: rotateY(180deg) translateZ(.675rem); background: #171a1c; }
+    .iso-cube .right { transform: rotateY(90deg) translateZ(.675rem); background: #15181a; }
+    .iso-cube .left { transform: rotateY(-90deg) translateZ(.675rem); background: #34393d; }
+    .iso-cube .top { transform: rotateX(90deg) translateZ(.675rem); background: #62696e; }
+    .iso-cube .bottom { transform: rotateX(-90deg) translateZ(.675rem); background: #111315; }
+    .iso-cutter { position: absolute; left: 13.1rem; top: 3.55rem; display: flex; gap: .18rem; transform-style: preserve-3d; }
+    .iso-cutter i {
+      width: .55rem;
+      height: 2.5rem;
+      border-radius: .16rem;
+      background: linear-gradient(90deg, #16191b, #596066 55%, #202427);
+      box-shadow: .1rem .1rem 0 #101214;
+      transform: translateZ(1.4rem);
+    }
+    .iso-spark, .lathe-chip {
+      position: absolute;
+      width: .28rem;
+      height: .28rem;
+      border-radius: .06rem;
+      background: var(--ink);
+      opacity: 0;
+    }
+    .iso-spark.one { left: 13rem; top: 4.4rem; }
+    .iso-spark.two { left: 13.25rem; top: 5.2rem; }
+
+    .lathe-world { transform: rotateY(-25deg) rotateZ(-2deg); }
+    .lathe-ground { top: 66%; }
+    .lathe-shell {
+      position: absolute;
+      left: 3.45rem;
+      top: 5.1rem;
+      width: 9.8rem;
+      height: .5rem;
+      transform-origin: left center;
+      transform-style: preserve-3d;
+    }
+    .lathe-roll { position: absolute; inset: 0; transform-style: preserve-3d; }
+    .lathe-slat {
+      position: absolute;
+      inset: 0;
+      border-radius: .2rem;
+      background: linear-gradient(90deg, #202427, #52595e 48%, #222629);
+      transform: rotateX(calc(var(--r) * 30deg)) translateZ(1.15rem);
+      backface-visibility: visible;
+    }
+    .lathe-end {
+      position: absolute;
+      left: 8.65rem;
+      top: -1rem;
+      width: 2.25rem;
+      height: 2.25rem;
+      border: .16rem solid #25292c;
+      border-radius: 50%;
+      background: radial-gradient(circle, transparent 0 22%, #62686d 23% 27%, #2a2e31 28% 48%, #71777b 49% 53%, #202427 54%);
+      transform: rotateY(90deg) translateZ(1.12rem);
+    }
+    .lathe-tool { position: absolute; left: 13.7rem; top: 3.8rem; display: flex; gap: .18rem; transform-style: preserve-3d; }
+    .lathe-tool i {
+      width: .52rem;
+      height: 2.65rem;
+      border-radius: .15rem;
+      background: linear-gradient(90deg, #111416, #646b70 55%, #1c2022);
+      transform: translateZ(1.45rem);
+    }
+    .lathe-chip.one { left: 13.3rem; top: 4.2rem; }
+    .lathe-chip.two { left: 13.1rem; top: 5.5rem; }
+    .lathe-chip.three { left: 13.5rem; top: 4.9rem; }
+
+    .dam-world {
+      left: 50%;
+      top: 50%;
+      width: 15rem;
+      height: 9rem;
+      margin: -4.5rem 0 0 -7.5rem;
+      transform: rotateX(56deg) rotateZ(-28deg);
+    }
+    .dam-water {
+      position: absolute;
+      inset: 2rem .7rem .9rem;
+      border: 1px solid rgb(32 35 38 / 20%);
+      border-radius: 48%;
+      background: repeating-linear-gradient(0deg, transparent 0 .55rem, rgb(32 35 38 / 10%) .55rem .62rem);
+      transform: translateZ(-.7rem);
+      transform-origin: bottom;
+    }
+    .dam-beam {
+      position: absolute;
+      left: 4.1rem;
+      top: 4.2rem;
+      width: 7rem;
+      height: .75rem;
+      border-radius: .35rem;
+      background: #272b2e;
+      transform-style: preserve-3d;
+    }
+    .dam-beam::before {
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: linear-gradient(180deg, #747b80, #4d5459);
+      box-shadow: 0 .42rem 0 #171a1c, 0 .62rem .8rem rgb(0 0 0 / 16%);
+      content: "";
+      transform: translateZ(.55rem);
+    }
+    .dam-beam::after {
+      position: absolute;
+      right: -.02rem;
+      width: .75rem;
+      height: .75rem;
+      border-radius: 50%;
+      background: radial-gradient(circle, #777e82 0 19%, #25292c 21% 34%, #73797d 36% 41%, #292d30 43%);
+      content: "";
+      transform: rotateY(90deg) translateZ(.35rem);
+    }
+    .dam-tail {
+      position: absolute;
+      left: 9.9rem;
+      top: 1.2rem;
+      width: 3.8rem;
+      height: 2rem;
+      border-radius: 62% 38% 56% 44%;
+      background:
+        repeating-linear-gradient(45deg, transparent 0 .45rem, rgb(255 255 255 / 62%) .46rem .54rem),
+        repeating-linear-gradient(-45deg, #262a2d 0 .45rem, #71777b .46rem .54rem);
+      box-shadow: 0 .35rem .5rem rgb(0 0 0 / 18%);
+      transform: translateZ(2rem) rotateZ(18deg);
+      transform-origin: left center;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .run .a1-log { animation: a1-log 4s steps(8, end) both; transform-origin: left center; }
+      .run .a1-muncher { animation: a1-move 4s steps(8, end) both; }
+      .run .a1-head { animation: a1-bite .5s ease-in-out 8 both; transform-origin: left center; }
+      .run .a1-chip-up { animation: a1-chip-up .5s ease-out 8 both; }
+      .run .a1-chip-mid { animation: a1-chip-mid .5s .05s ease-out 8 both; }
+      .run .a1-chip-down { animation: a1-chip-down .5s .1s ease-out 8 both; }
+      .run .a1-tail { animation: a1-tail .5s ease-in-out 8 both; transform-origin: left center; }
+      .run .a1-halo { animation: a1-halo 4s cubic-bezier(.2, .8, .2, 1) both; transform-origin: center; }
+      .run .a1-shadow { animation: a1-shadow 4s steps(8, end) both; transform-origin: left center; }
+      @keyframes a1-log { to { transform: scaleX(0); } }
+      @keyframes a1-move { to { transform: translateX(-112px); } }
+      @keyframes a1-bite { 0%, 100% { transform: translateX(0); } 45% { transform: translateX(-4px); } }
+      @keyframes a1-tail { 0%, 100% { transform: rotate(-2deg); } 50% { transform: rotate(7deg); } }
+      @keyframes a1-halo { 0% { opacity: 0; transform: scale(.7); stroke-dashoffset: 150; } 20%, 80% { opacity: .18; } 100% { opacity: 0; transform: scale(1.12); stroke-dashoffset: 0; } }
+      @keyframes a1-shadow { to { transform: translateX(-76px) scaleX(.55); } }
+      @keyframes a1-chip-up { 0%, 18% { opacity: 0; transform: translate(0); } 25% { opacity: 1; } 100% { opacity: 0; transform: translate(-11px, -18px); } }
+      @keyframes a1-chip-mid { 0%, 18% { opacity: 0; transform: translate(0); } 25% { opacity: 1; } 100% { opacity: 0; transform: translate(-17px, -2px); } }
+      @keyframes a1-chip-down { 0%, 18% { opacity: 0; transform: translate(0); } 25% { opacity: 1; } 100% { opacity: 0; transform: translate(-9px, 15px); } }
+
+      .run .a2-segment { animation: a2-segment .3s var(--delay) cubic-bezier(.2, .8, .2, 1) both; transform-origin: center; }
+      .run .a2-tool { animation: a2-move 4s steps(8, end) both; }
+      .run .a2-teeth { animation: a2-bite .5s ease-in-out 8 both; transform-origin: center; }
+      .run .a2-chip-one { animation: a2-chip-one .5s ease-out 8 both; }
+      .run .a2-chip-two { animation: a2-chip-two .5s .08s ease-out 8 both; }
+      .run .a2-ring-one { animation: a2-ring .5s ease-out 8 both; transform-origin: center; }
+      .run .a2-ring-two { animation: a2-ring .5s .1s ease-out 8 both; transform-origin: center; }
+      @keyframes a2-segment { 0%, 20% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: translateY(-8px) scale(.2) rotate(12deg); } }
+      @keyframes a2-move { to { transform: translateX(-176px); } }
+      @keyframes a2-bite { 0%, 100% { transform: translateY(0); } 48% { transform: translateY(3px); } }
+      @keyframes a2-ring { 0%, 22% { opacity: 0; transform: scale(.2); } 35% { opacity: .24; } 100% { opacity: 0; transform: scale(1.5); } }
+      @keyframes a2-chip-one { 0%, 20% { opacity: 0; transform: translate(0); } 28% { opacity: 1; } 100% { opacity: 0; transform: translate(-12px, -16px); } }
+      @keyframes a2-chip-two { 0%, 20% { opacity: 0; transform: translate(0); } 28% { opacity: 1; } 100% { opacity: 0; transform: translate(-17px, 8px); } }
+
+      .run .iso-world { animation: iso-camera 4.2s cubic-bezier(.2, .75, .2, 1) both; }
+      .run .iso-cube { animation: iso-bite .34s var(--delay) cubic-bezier(.25, .8, .2, 1) both; transform-origin: center; }
+      .run .iso-cutter { animation: iso-travel 4s steps(8, end) both; }
+      .run .iso-cutter i:first-child { animation: iso-jaw .5s ease-in-out 8 both; }
+      .run .iso-cutter i:last-child { animation: iso-jaw .5s .05s ease-in-out 8 reverse both; }
+      .run .iso-spark.one { animation: iso-spark-one .5s ease-out 8 both; }
+      .run .iso-spark.two { animation: iso-spark-two .5s .08s ease-out 8 both; }
+      @keyframes iso-camera {
+        0% { transform: rotateX(-28deg) rotateY(-30deg) translateZ(0); }
+        48% { transform: rotateX(-22deg) rotateY(-18deg) translateZ(1rem); }
+        100% { transform: rotateX(-24deg) rotateY(22deg) translateZ(.15rem); }
+      }
+      @keyframes iso-bite { 0%, 18% { opacity: 1; transform: translate3d(0, 0, 0) rotateX(0) scale(1); } 100% { opacity: 0; transform: translate3d(-.3rem, -1.6rem, 2rem) rotateX(110deg) scale(.18); } }
+      @keyframes iso-travel { to { transform: translateX(-10.4rem); } }
+      @keyframes iso-jaw { 0%, 100% { transform: translateZ(1.4rem) translateY(0); } 48% { transform: translateZ(1.4rem) translateY(.28rem); } }
+      @keyframes iso-spark-one { 0%, 22% { opacity: 0; transform: translate3d(0, 0, 1.5rem); } 30% { opacity: 1; } 100% { opacity: 0; transform: translate3d(-1rem, -1.5rem, 3rem) rotate(90deg); } }
+      @keyframes iso-spark-two { 0%, 22% { opacity: 0; transform: translate3d(0, 0, 1.5rem); } 30% { opacity: 1; } 100% { opacity: 0; transform: translate3d(-1.4rem, .8rem, 2.4rem) rotate(-70deg); } }
+
+      .run .a4-beaver { animation: a4-dive 3.7s cubic-bezier(.4, 0, .2, 1) both; }
+      .run .a4-tail { animation: a4-tail 3.7s ease-in-out both; transform-origin: left center; }
+      .run .a4-ripple-one { animation: a4-ripple 1s 2.45s ease-out both; transform-origin: center; }
+      .run .a4-ripple-two { animation: a4-ripple 1.1s 2.7s ease-out both; transform-origin: center; }
+      .run .a4-wake { animation: a4-wake 2.5s ease-out both; }
+      .run .a4-bubble-one { animation: a4-bubble .8s 2.45s ease-out both; }
+      .run .a4-bubble-two { animation: a4-bubble .9s 2.7s ease-out both; }
+      @keyframes a4-dive {
+        0% { opacity: 1; transform: translate(-75px, 0); }
+        58% { opacity: 1; transform: translate(45px, 0); }
+        76% { opacity: 1; transform: translate(65px, 12px) rotate(8deg); }
+        86%, 100% { opacity: 0; transform: translate(72px, 28px) rotate(14deg); }
+      }
+      @keyframes a4-tail { 0%, 50% { transform: rotate(-8deg); } 64% { transform: rotate(22deg); } 76%, 100% { transform: rotate(-18deg); } }
+      @keyframes a4-ripple { 0% { opacity: .5; transform: scale(.25); } 100% { opacity: 0; transform: scale(1.5); } }
+      @keyframes a4-wake { 0% { opacity: 0; stroke-dashoffset: 74; } 15%, 72% { opacity: .3; } 100% { opacity: 0; stroke-dashoffset: 0; } }
+      @keyframes a4-bubble { 0% { opacity: 0; transform: translateY(0) scale(.3); } 30% { opacity: .42; } 100% { opacity: 0; transform: translateY(-18px) scale(1); } }
+
+      .run .a5-sheet-one { animation: a5-one 3.5s cubic-bezier(.2, .8, .2, 1) both; transform-origin: center; }
+      .run .a5-sheet-two { animation: a5-two 3.5s cubic-bezier(.2, .8, .2, 1) both; transform-origin: center; }
+      .run .a5-sheet-three { animation: a5-three 3.5s cubic-bezier(.2, .8, .2, 1) both; transform-origin: center; }
+      .run .a5-tail { animation: a5-tail 3.5s cubic-bezier(.2, .8, .2, 1) both; transform-origin: right center; }
+      .run .a5-teeth { animation: a5-stamp 3.5s steps(1, end) both; }
+      .run .a5-seal { animation: a5-seal 3.5s cubic-bezier(.2, .8, .2, 1) both; transform-origin: center; }
+      .run .a5-spark { animation: a5-spark 3.5s ease-out both; transform-origin: center; }
+      @keyframes a5-one { 0%, 8% { transform: translate(-42px, -18px) rotate(-12deg); } 38%, 100% { transform: translate(12px, 27px) rotate(0); } }
+      @keyframes a5-two { 0%, 28% { transform: translate(54px, -15px) rotate(11deg); } 58%, 100% { transform: translate(7px, 18px) rotate(0); } }
+      @keyframes a5-three { 0%, 50% { transform: translate(-20px, 55px) rotate(-7deg); } 78%, 100% { transform: translate(2px, 9px) rotate(0); } }
+      @keyframes a5-tail { 0%, 68% { transform: translateX(30px) rotate(18deg); } 82% { transform: translateX(-2px) rotate(-14deg); } 92%, 100% { transform: translateX(7px) rotate(5deg); } }
+      @keyframes a5-stamp { 0%, 88% { opacity: 0; } 89%, 100% { opacity: 1; } }
+      @keyframes a5-seal { 0%, 84% { opacity: 0; transform: scale(.3); } 92% { opacity: .28; transform: scale(1.22); } 100% { opacity: .18; transform: scale(1); } }
+      @keyframes a5-spark { 0%, 88% { opacity: 0; transform: scale(.2) rotate(0); } 94% { opacity: .65; } 100% { opacity: 0; transform: scale(1.45) rotate(70deg); } }
+
+      .run .lathe-world { animation: lathe-camera 4.2s cubic-bezier(.2, .75, .2, 1) both; }
+      .run .lathe-shell { animation: lathe-consume 4.2s steps(8, end) both; }
+      .run .lathe-roll { animation: lathe-spin 4.2s linear both; }
+      .run .lathe-tool { animation: lathe-travel 4s steps(8, end) both; }
+      .run .lathe-chip.one { animation: lathe-chip-one .5s ease-out 8 both; }
+      .run .lathe-chip.two { animation: lathe-chip-two .5s .06s ease-out 8 both; }
+      .run .lathe-chip.three { animation: lathe-chip-three .5s .11s ease-out 8 both; }
+      @keyframes lathe-camera { 0% { transform: rotateY(-25deg) rotateZ(-2deg); } 50% { transform: rotateY(-15deg) rotateZ(0); } 100% { transform: rotateY(18deg) rotateZ(2deg); } }
+      @keyframes lathe-consume { to { transform: scaleX(.015); } }
+      @keyframes lathe-spin { to { transform: rotateX(1080deg); } }
+      @keyframes lathe-travel { to { transform: translateX(-9.4rem); } }
+      @keyframes lathe-chip-one { 0%, 18% { opacity: 0; transform: translate3d(0, 0, 1rem) rotate(0); } 28% { opacity: 1; } 100% { opacity: 0; transform: translate3d(-1.6rem, -1.55rem, 3rem) rotate(150deg); } }
+      @keyframes lathe-chip-two { 0%, 18% { opacity: 0; transform: translate3d(0, 0, 1rem) rotate(0); } 28% { opacity: 1; } 100% { opacity: 0; transform: translate3d(-2rem, .85rem, 2.2rem) rotate(-110deg); } }
+      @keyframes lathe-chip-three { 0%, 18% { opacity: 0; transform: translate3d(0, 0, 1rem) rotate(0); } 28% { opacity: 1; } 100% { opacity: 0; transform: translate3d(-.7rem, -2.1rem, 1.8rem) rotate(90deg); } }
+
+      .run .dam-world { animation: dam-camera 4.8s cubic-bezier(.2, .75, .2, 1) both; }
+      .run .dam-beam { animation: dam-drop .68s var(--delay) cubic-bezier(.18, .88, .22, 1.25) both; }
+      .run .dam-water { animation: dam-water 4.8s cubic-bezier(.2, .8, .2, 1) both; }
+      .run .dam-tail { animation: dam-tail 4.8s cubic-bezier(.2, .8, .2, 1) both; }
+      @keyframes dam-camera {
+        0% { transform: rotateX(56deg) rotateZ(-28deg) translateZ(0); }
+        55% { transform: rotateX(62deg) rotateZ(-19deg) translateZ(1rem); }
+        100% { transform: rotateX(54deg) rotateZ(-13deg) translateZ(.4rem); }
+      }
+      @keyframes dam-drop {
+        0% { opacity: 0; transform: translate3d(var(--x), calc(var(--y) - 5rem), calc(var(--z) + 6rem)) rotateZ(var(--r)); }
+        68% { opacity: 1; transform: translate3d(var(--x), calc(var(--y) + .25rem), var(--z)) rotateZ(var(--r)); }
+        100% { opacity: 1; transform: translate3d(var(--x), var(--y), var(--z)) rotateZ(var(--r)); }
+      }
+      @keyframes dam-water { 0%, 18% { opacity: 0; transform: translateZ(-.7rem) scaleY(.15); } 72%, 100% { opacity: 1; transform: translateZ(-.7rem) scaleY(1); } }
+      @keyframes dam-tail {
+        0%, 67% { opacity: 0; transform: translate3d(3rem, -3rem, 5rem) rotateZ(38deg); }
+        76% { opacity: 1; transform: translate3d(0, 0, 3.5rem) rotateZ(-16deg); }
+        86%, 100% { opacity: 1; transform: translate3d(0, 0, 2rem) rotateZ(18deg); }
+      }
+
+      .run .a8-log { animation: a8-log 1.4s steps(5, end) both; transform-origin: right center; }
+      .run .a8-chip { animation: a8-swarm 4.4s var(--delay) cubic-bezier(.2, .75, .2, 1) both; transform-origin: center; }
+      .run .a8-tail-core { animation: a8-tail-core 4.4s ease-out both; }
+      .run .a8-body { animation: a8-body 4.4s cubic-bezier(.2, .8, .2, 1) both; transform-origin: center; }
+      .run .a8-grid { animation: a8-grid 4.4s ease-out both; }
+      .run .a8-glint { animation: a8-glint 4.4s ease-out both; transform-origin: center; }
+      @keyframes a8-log { to { opacity: 0; transform: scaleX(0); } }
+      @keyframes a8-swarm {
+        0%, 8% { opacity: 0; transform: translate(0, 0) rotate(0) scale(.2); }
+        16% { opacity: 1; }
+        52% { opacity: .8; transform: translate(var(--mx), var(--my)) rotate(190deg) scale(1.12); }
+        82%, 100% { opacity: 1; transform: translate(var(--x), var(--y)) rotate(var(--r)) scale(1); }
+      }
+      @keyframes a8-tail-core { 0%, 74% { opacity: 0; } 100% { opacity: .2; } }
+      @keyframes a8-body { 0%, 62% { opacity: 0; transform: translateX(-8px) scale(.86); } 82%, 100% { opacity: 1; transform: translateX(0) scale(1); } }
+      @keyframes a8-grid { 0%, 80% { opacity: 0; stroke-dashoffset: 55; } 100% { opacity: .7; stroke-dashoffset: 0; } }
+      @keyframes a8-glint { 0%, 87% { opacity: 0; transform: scale(.2) rotate(0); } 94% { opacity: .8; } 100% { opacity: 0; transform: scale(1.5) rotate(90deg); } }
+    }
+
+    @media (max-width: 46rem) {
+      header { align-items: stretch; flex-direction: column; }
+      #replay-all { align-self: start; }
+      .motion-grid { grid-template-columns: 1fr; }
+      .motion-card:last-child { grid-column: auto; }
+    }
+    @media (max-width: 24rem) {
+      .card-footer { grid-template-columns: 1fr; }
+      .replay { justify-self: start; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .stage::after { content: "Motion reduced by system preference"; color: var(--muted); font-size: .75rem; }
+      .stage svg, .iso-scene, .lathe-scene, .dam-scene { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <p class="eyebrow">Beaver motion lab</p>
+        <h1>Pick a loading animation</h1>
+        <p>Eight single-shot directions. Options 3, 6, and 7 use real CSS 3D; every log animation reaches a finished state.</p>
+      </div>
+      <button id="replay-all" type="button">Replay all</button>
+    </header>
+
+    <section class="motion-grid" aria-label="Beaver animation options">
+      <article class="motion-card run">
+        <div class="stage">
+          <svg viewBox="0 0 240 120" role="img" aria-label="A side-profile Beaver eats a whole log while chips fly">
+            <circle class="a1-halo" cx="179" cy="63" r="39" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="5 7"/>
+            <ellipse class="a1-shadow" cx="129" cy="91" rx="83" ry="5" fill="currentColor" opacity=".09"/>
+            <g class="a1-log">
+              <rect x="20" y="67" width="112" height="15" rx="7.5" fill="currentColor"/>
+              <path d="M31 72h42m-31 5h23" fill="none" stroke="var(--stage)" stroke-width="1.4" stroke-linecap="round"/>
+            </g>
+            <g class="a1-muncher">
+              <g class="a1-tail">
+                <path d="M190 69c22-9 42 2 43 17 1 11-11 17-25 12-14-5-23-17-18-29Z" fill="currentColor"/>
+                <path d="m198 72 25 20m-29-9 18 15m9-24-24 18m31-10-17 15" fill="none" stroke="var(--stage)" stroke-width="1.1" stroke-linecap="round"/>
+              </g>
+              <g class="a1-head">
+                <path d="M142 72c0-24 17-39 40-39 19 0 31 15 31 37 0 13-5 23-14 29h-43c-9-6-14-15-14-27Z" fill="currentColor"/>
+                <circle cx="176" cy="51" r="3" class="cut"/>
+                <path d="M141 64c11-8 23-5 27 5 3 8-4 16-15 16-8 0-15-5-15-11 0-4 1-7 3-10Z" class="cut"/>
+                <rect x="135" y="68" width="7" height="15" rx="1.5" class="cut"/>
+                <rect x="142" y="68" width="7" height="15" rx="1.5" class="cut"/>
+              </g>
+              <g fill="currentColor">
+                <circle class="a1-chip-up" cx="136" cy="69" r="2.2"/>
+                <rect class="a1-chip-mid" x="132" y="74" width="4.5" height="4.5" rx="1"/>
+                <path class="a1-chip-down" d="m137 81 5 2-4 4Z"/>
+              </g>
+            </g>
+          </svg>
+        </div>
+        <div class="card-footer">
+          <div class="option"><strong>1. Side-profile munch</strong><span>Full Beaver, eight bites, energetic chip spray.</span></div>
+          <button class="replay" type="button" aria-label="Replay side-profile munch animation">Replay</button>
+        </div>
+      </article>
+
+      <article class="motion-card run">
+        <div class="stage">
+          <svg viewBox="0 0 240 120" role="img" aria-label="Two Beaver incisors chip a log into flying segments">
+            <g class="a2-log" fill="currentColor">
+              <rect class="a2-segment" style="--delay:3.5s" x="30" y="63" width="22" height="17" rx="8"/>
+              <rect class="a2-segment" style="--delay:3s" x="51" y="63" width="23" height="17"/>
+              <rect class="a2-segment" style="--delay:2.5s" x="73" y="63" width="23" height="17"/>
+              <rect class="a2-segment" style="--delay:2s" x="95" y="63" width="23" height="17"/>
+              <rect class="a2-segment" style="--delay:1.5s" x="117" y="63" width="23" height="17"/>
+              <rect class="a2-segment" style="--delay:1s" x="139" y="63" width="23" height="17"/>
+              <rect class="a2-segment" style="--delay:.5s" x="161" y="63" width="23" height="17"/>
+              <rect class="a2-segment" style="--delay:0s" x="183" y="63" width="23" height="17" rx="8"/>
+            </g>
+            <g class="a2-tool">
+              <g class="a2-teeth" fill="currentColor">
+                <rect x="207" y="49" width="8" height="25" rx="2"/>
+                <rect x="216" y="49" width="8" height="25" rx="2"/>
+              </g>
+              <circle class="a2-ring-one" cx="210" cy="67" r="9" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0"/>
+              <circle class="a2-ring-two" cx="210" cy="67" r="5" fill="none" stroke="currentColor" stroke-width="1" opacity="0"/>
+              <circle class="a2-chip-one" cx="205" cy="64" r="2.3" fill="currentColor"/>
+              <path class="a2-chip-two" d="m204 73 6 1-4 5Z" fill="currentColor"/>
+            </g>
+          </svg>
+        </div>
+        <div class="card-footer">
+          <div class="option"><strong>2. Incisors only</strong><span>No mascot body; the teeth and flying segments tell the story.</span></div>
+          <button class="replay" type="button" aria-label="Replay incisors-only animation">Replay</button>
+        </div>
+      </article>
+
+      <article class="motion-card run">
+        <div class="stage">
+          <div class="iso-scene" role="img" aria-label="An isometric 3D cutter turns a timber beam into flying cubes">
+            <div class="iso-world">
+              <div class="iso-ground"></div>
+              <div class="iso-log" aria-hidden="true">
+                <span class="iso-cube" style="--i:0;--delay:3.5s"><i class="front"></i><i class="back"></i><i class="right"></i><i class="left"></i><i class="top"></i><i class="bottom"></i></span>
+                <span class="iso-cube" style="--i:1;--delay:3s"><i class="front"></i><i class="back"></i><i class="right"></i><i class="left"></i><i class="top"></i><i class="bottom"></i></span>
+                <span class="iso-cube" style="--i:2;--delay:2.5s"><i class="front"></i><i class="back"></i><i class="right"></i><i class="left"></i><i class="top"></i><i class="bottom"></i></span>
+                <span class="iso-cube" style="--i:3;--delay:2s"><i class="front"></i><i class="back"></i><i class="right"></i><i class="left"></i><i class="top"></i><i class="bottom"></i></span>
+                <span class="iso-cube" style="--i:4;--delay:1.5s"><i class="front"></i><i class="back"></i><i class="right"></i><i class="left"></i><i class="top"></i><i class="bottom"></i></span>
+                <span class="iso-cube" style="--i:5;--delay:1s"><i class="front"></i><i class="back"></i><i class="right"></i><i class="left"></i><i class="top"></i><i class="bottom"></i></span>
+                <span class="iso-cube" style="--i:6;--delay:.5s"><i class="front"></i><i class="back"></i><i class="right"></i><i class="left"></i><i class="top"></i><i class="bottom"></i></span>
+                <span class="iso-cube" style="--i:7;--delay:0s"><i class="front"></i><i class="back"></i><i class="right"></i><i class="left"></i><i class="top"></i><i class="bottom"></i></span>
+              </div>
+              <div class="iso-cutter" aria-hidden="true"><i></i><i></i></div>
+              <i class="iso-spark one" aria-hidden="true"></i>
+              <i class="iso-spark two" aria-hidden="true"></i>
+            </div>
+          </div>
+        </div>
+        <div class="card-footer">
+          <div class="option"><strong>3. Isometric bites · 3D</strong><span>The camera orbits while a timber beam breaks into dimensional chips.</span></div>
+          <button class="replay" type="button" aria-label="Replay isometric-bites animation">Replay</button>
+        </div>
+      </article>
+
+      <article class="motion-card run">
+        <div class="stage">
+          <svg viewBox="0 0 240 120" role="img" aria-label="A Beaver glides across a pond and dives with ripples">
+            <path d="M17 79h206" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".2"/>
+            <path class="a4-wake" d="M26 75c22-9 41-9 62 0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="74" stroke-dashoffset="74" opacity="0"/>
+            <g class="a4-beaver">
+              <g class="a4-tail">
+                <ellipse cx="67" cy="69" rx="22" ry="9" fill="currentColor" transform="rotate(18 67 69)"/>
+                <path d="m54 61 27 17m-22-21 19 24m-6-22-15 18" fill="none" stroke="var(--stage)" stroke-width="1.1" stroke-linecap="round"/>
+              </g>
+              <ellipse cx="105" cy="65" rx="31" ry="22" fill="currentColor"/>
+              <circle cx="128" cy="51" r="15" fill="currentColor"/>
+              <circle cx="133" cy="48" r="2.2" class="cut"/>
+              <path d="M141 58h11" stroke="currentColor" stroke-width="7" stroke-linecap="round"/>
+              <rect x="145" y="54" width="6" height="11" rx="1.5" class="cut"/>
+            </g>
+            <ellipse class="a4-ripple-one" cx="187" cy="79" rx="19" ry="6" fill="none" stroke="currentColor" stroke-width="2" opacity="0"/>
+            <ellipse class="a4-ripple-two" cx="187" cy="79" rx="13" ry="4" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0"/>
+            <circle class="a4-bubble-one" cx="185" cy="72" r="2.2" fill="none" stroke="currentColor" opacity="0"/>
+            <circle class="a4-bubble-two" cx="194" cy="75" r="1.5" fill="none" stroke="currentColor" opacity="0"/>
+          </svg>
+        </div>
+        <div class="card-footer">
+          <div class="option"><strong>4. Pond dive</strong><span>A quiet glide, tail kick, disappearance, and two clean ripples.</span></div>
+          <button class="replay" type="button" aria-label="Replay pond-dive animation">Replay</button>
+        </div>
+      </article>
+
+      <article class="motion-card run">
+        <div class="stage">
+          <svg viewBox="0 0 240 120" role="img" aria-label="A Beaver tail stacks loose pages into a paper dam and stamps them with teeth">
+            <g fill="none" stroke="currentColor" stroke-width="2">
+              <g class="a5-sheet-one"><rect x="57" y="24" width="84" height="55" rx="4"/><path d="M69 38h44m-44 10h58"/></g>
+              <g class="a5-sheet-two"><rect x="57" y="24" width="84" height="55" rx="4"/><path d="M69 38h51m-51 10h38"/></g>
+              <g class="a5-sheet-three"><rect x="57" y="24" width="84" height="55" rx="4"/><path d="M69 38h47m-47 10h55"/></g>
+            </g>
+            <g class="a5-tail">
+              <path d="M163 30c23-10 48 2 53 24 4 17-9 29-28 25-20-4-34-22-25-49Z" fill="currentColor"/>
+              <path d="m174 35 29 32m-35-18 22 25m5-34-28 27m40-15-22 24" fill="none" stroke="var(--stage)" stroke-width="1.2" stroke-linecap="round"/>
+            </g>
+            <g class="a5-teeth" fill="currentColor" opacity="0">
+              <rect x="102" y="69" width="7" height="13" rx="1.5"/>
+              <rect x="111" y="69" width="7" height="13" rx="1.5"/>
+            </g>
+            <circle class="a5-seal" cx="110" cy="76" r="17" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0"/>
+            <path class="a5-spark" d="M136 58v12m-6-6h12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0"/>
+          </svg>
+        </div>
+        <div class="card-footer">
+          <div class="option"><strong>5. Paper dam</strong><span>Loose legal pages settle into order, then receive a tiny tooth stamp.</span></div>
+          <button class="replay" type="button" aria-label="Replay paper-dam animation">Replay</button>
+        </div>
+      </article>
+
+      <article class="motion-card run">
+        <div class="stage">
+          <div class="lathe-scene" role="img" aria-label="A rotating 3D log is precisely gnawed from end to end">
+            <div class="lathe-world">
+              <div class="lathe-ground"></div>
+              <div class="lathe-shell" aria-hidden="true">
+                <div class="lathe-roll">
+                  <i class="lathe-slat" style="--r:0"></i><i class="lathe-slat" style="--r:1"></i>
+                  <i class="lathe-slat" style="--r:2"></i><i class="lathe-slat" style="--r:3"></i>
+                  <i class="lathe-slat" style="--r:4"></i><i class="lathe-slat" style="--r:5"></i>
+                  <i class="lathe-slat" style="--r:6"></i><i class="lathe-slat" style="--r:7"></i>
+                  <i class="lathe-slat" style="--r:8"></i><i class="lathe-slat" style="--r:9"></i>
+                  <i class="lathe-slat" style="--r:10"></i><i class="lathe-slat" style="--r:11"></i>
+                  <i class="lathe-end"></i>
+                </div>
+              </div>
+              <div class="lathe-tool" aria-hidden="true"><i></i><i></i></div>
+              <i class="lathe-chip one" aria-hidden="true"></i>
+              <i class="lathe-chip two" aria-hidden="true"></i>
+              <i class="lathe-chip three" aria-hidden="true"></i>
+            </div>
+          </div>
+        </div>
+        <div class="card-footer">
+          <div class="option"><strong>6. Timber lathe · 3D</strong><span>A dimensional log rotates through three turns while precision teeth shave it away.</span></div>
+          <button class="replay" type="button" aria-label="Replay timber-lathe animation">Replay</button>
+        </div>
+      </article>
+
+      <article class="motion-card run">
+        <div class="stage">
+          <div class="dam-scene" role="img" aria-label="A miniature three-dimensional dam assembles log by log under a Beaver tail">
+            <div class="dam-world">
+              <div class="dam-water"></div>
+              <i class="dam-beam" style="--x:-3.1rem;--y:1.65rem;--z:0rem;--r:0deg;--delay:.15s"></i>
+              <i class="dam-beam" style="--x:-2.55rem;--y:.85rem;--z:.7rem;--r:0deg;--delay:.65s"></i>
+              <i class="dam-beam" style="--x:-2rem;--y:.05rem;--z:1.4rem;--r:0deg;--delay:1.15s"></i>
+              <i class="dam-beam" style="--x:-.95rem;--y:1.45rem;--z:2.1rem;--r:90deg;--delay:1.65s"></i>
+              <i class="dam-beam" style="--x:-.15rem;--y:.65rem;--z:2.8rem;--r:90deg;--delay:2.15s"></i>
+              <i class="dam-beam" style="--x:.65rem;--y:-.15rem;--z:3.5rem;--r:90deg;--delay:2.65s"></i>
+              <div class="dam-tail" aria-hidden="true"></div>
+            </div>
+          </div>
+        </div>
+        <div class="card-footer">
+          <div class="option"><strong>7. Pocket dam · 3D</strong><span>A tiny isometric dam assembles, the water rises, and a crosshatched tail approves it.</span></div>
+          <button class="replay" type="button" aria-label="Replay pocket-dam animation">Replay</button>
+        </div>
+      </article>
+
+      <article class="motion-card run">
+        <div class="stage">
+          <svg viewBox="0 0 240 120" role="img" aria-label="Wood chips fly from a disappearing log and assemble into a Beaver">
+            <g class="a8-log">
+              <rect x="20" y="59" width="78" height="15" rx="7.5" fill="currentColor"/>
+              <path d="M31 64h34m-22 5h27" fill="none" stroke="var(--stage)" stroke-width="1.3" stroke-linecap="round"/>
+            </g>
+            <path class="a8-tail-core" d="M171 43c23-9 43 4 44 22 1 15-13 25-30 19-17-6-24-24-14-41Z" fill="currentColor" opacity="0"/>
+            <g fill="currentColor">
+              <rect class="a8-chip" x="94" y="62" width="6" height="5" rx="1" style="--delay:0s;--mx:20px;--my:-36px;--x:82px;--y:-22px;--r:18deg"/>
+              <rect class="a8-chip" x="94" y="62" width="7" height="4" rx="1" style="--delay:.04s;--mx:42px;--my:-30px;--x:94px;--y:-27px;--r:-22deg"/>
+              <rect class="a8-chip" x="94" y="62" width="5" height="7" rx="1" style="--delay:.08s;--mx:61px;--my:-17px;--x:105px;--y:-20px;--r:35deg"/>
+              <rect class="a8-chip" x="94" y="62" width="7" height="5" rx="1" style="--delay:.12s;--mx:69px;--my:1px;--x:112px;--y:-10px;--r:8deg"/>
+              <rect class="a8-chip" x="94" y="62" width="5" height="6" rx="1" style="--delay:.16s;--mx:57px;--my:24px;--x:114px;--y:4px;--r:-28deg"/>
+              <rect class="a8-chip" x="94" y="62" width="7" height="4" rx="1" style="--delay:.2s;--mx:40px;--my:36px;--x:108px;--y:18px;--r:26deg"/>
+              <rect class="a8-chip" x="94" y="62" width="5" height="7" rx="1" style="--delay:.24s;--mx:17px;--my:39px;--x:96px;--y:26px;--r:-12deg"/>
+              <rect class="a8-chip" x="94" y="62" width="7" height="5" rx="1" style="--delay:.28s;--mx:-5px;--my:28px;--x:84px;--y:22px;--r:31deg"/>
+              <rect class="a8-chip" x="94" y="62" width="6" height="4" rx="1" style="--delay:.32s;--mx:-18px;--my:7px;--x:77px;--y:10px;--r:-34deg"/>
+              <rect class="a8-chip" x="94" y="62" width="5" height="7" rx="1" style="--delay:.36s;--mx:-11px;--my:-17px;--x:76px;--y:-5px;--r:16deg"/>
+              <rect class="a8-chip" x="94" y="62" width="7" height="4" rx="1" style="--delay:.4s;--mx:2px;--my:-29px;--x:83px;--y:-14px;--r:-18deg"/>
+              <rect class="a8-chip" x="94" y="62" width="5" height="6" rx="1" style="--delay:.44s;--mx:35px;--my:-12px;--x:94px;--y:-12px;--r:32deg"/>
+              <rect class="a8-chip" x="94" y="62" width="7" height="5" rx="1" style="--delay:.48s;--mx:46px;--my:9px;--x:101px;--y:0px;--r:-9deg"/>
+              <rect class="a8-chip" x="94" y="62" width="5" height="7" rx="1" style="--delay:.52s;--mx:26px;--my:22px;--x:95px;--y:13px;--r:24deg"/>
+            </g>
+            <g class="a8-body" fill="currentColor" opacity="0">
+              <ellipse cx="151" cy="69" rx="29" ry="22"/>
+              <circle cx="125" cy="55" r="16"/>
+              <circle cx="121" cy="51" r="2.2" class="cut"/>
+              <path d="M111 58h-14" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>
+              <rect x="96" y="54" width="6" height="12" rx="1.4" class="cut"/>
+            </g>
+            <path class="a8-grid" d="m177 43 27 35m-33-22 24 32m8-39-31 27m39-13-26 25" fill="none" stroke="var(--stage)" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="55" stroke-dashoffset="55" opacity="0"/>
+            <path class="a8-glint" d="M91 46v11m-5-5.5h10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0"/>
+          </svg>
+        </div>
+        <div class="card-footer">
+          <div class="option"><strong>8. Chip murmuration</strong><span>The surprise: sawdust escapes its log, takes flight, then remembers it is a Beaver.</span></div>
+          <button class="replay" type="button" aria-label="Replay chip-murmuration animation">Replay</button>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <script>
+    function replay(card) {
+      card.classList.remove("run");
+      requestAnimationFrame(() => requestAnimationFrame(() => card.classList.add("run")));
+    }
+    document.querySelectorAll(".replay").forEach((button) => {
+      button.addEventListener("click", () => replay(button.closest(".motion-card")));
+    });
+    document.querySelector("#replay-all").addEventListener("click", () => {
+      document.querySelectorAll(".motion-card").forEach(replay);
+    });
+  </script>
+</body>
+</html>
