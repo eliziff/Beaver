@@ -90,6 +90,16 @@ const PROMPT_MODULES: Array<[name: string, text: string]> = [
   ],
 ];
 
+const COVERAGE_MODULE: [name: string, text: string] = [
+  "coverage",
+  "Quote comprehensively: every supplied passage that answers any part of the question gets its own quotation claim — multi-part questions need the clause for each part; do not stop after the first supporting passage. Omit a passage only when it adds nothing beyond what is already quoted. If any passage bears on the question, answer with quotes rather than declining; decline only when no passage is responsive.",
+];
+
+const SPEC_MODULE: [name: string, text: string] = [
+  "spec",
+  "Before composing, build an internal spec of the supplied passages as a web of related concepts: map defined terms to their definitions, follow cross-references between passages, and note which passages qualify, extend, or carve out exceptions to the others. Then answer the question against that web, quoting every passage that plays a role — the definition, the operative clause, and any exception or cross-referenced qualifier.",
+];
+
 type MiniTestCell = {
   id: string;
   source: SourceBenchmark;
@@ -110,7 +120,7 @@ type Row = {
   source: SourceBenchmark;
   model: string;
   effort: string;
-  arm: "required_slot";
+  arm: string;
   k: number;
   /** "product" (doc-level FTS5 + snippet window) or
    * "passage:t<target>/o<overlap>/w<nameWeight>". */
@@ -331,6 +341,17 @@ async function main() {
   );
   const output = flag("output", path.join(experimentsDir, "stage14-lbrag.jsonl"));
   const resume = flag("resume", "0") !== "0";
+  const coverageArm = flag("coverage", "0") !== "0";
+  const specArm = flag("spec", "0") !== "0";
+  const activeModules = [
+    ...PROMPT_MODULES,
+    ...(coverageArm ? [COVERAGE_MODULE] : []),
+    ...(specArm ? [SPEC_MODULE] : []),
+  ];
+  const armLabel =
+    "required_slot" +
+    (coverageArm ? "+coverage" : "") +
+    (specArm ? "+spec" : "");
 
   // Pinned data, verified before trusting (same discipline as the
   // retrieval baseline runner).
@@ -530,7 +551,7 @@ async function main() {
       model,
       reasoningEffort: effort,
       enableThinking: false,
-      systemPrompt: PROMPT_MODULES.map(([, text]) => text).join(" "),
+      systemPrompt: activeModules.map(([, text]) => text).join(" "),
       messages: [
         {
           role: "user",
@@ -622,7 +643,7 @@ async function main() {
       source: test.source,
       model,
       effort,
-      arm: "required_slot",
+      arm: armLabel,
       k,
       retriever,
       query: test.query,
@@ -668,7 +689,7 @@ async function main() {
             source: test.source,
             model,
             effort,
-            arm: "required_slot",
+            arm: armLabel,
             k,
             retriever,
             query: test.query,
