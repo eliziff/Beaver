@@ -5,6 +5,7 @@ import {
   deriveMiniTests,
   evaluateMiniRetrieval,
   miniDocumentPaths,
+  normalizeCorpusText,
   reportScoreMap,
   sanitizeCorpusPath,
   upstreamBenchmarkSchema,
@@ -88,6 +89,52 @@ describe("charPrecisionRecall (upstream formulas)", () => {
     expect(
       charPrecisionRecall([], [{ filePath: "a", start: 0, end: 5 }]),
     ).toEqual({ precision: 0, recall: 0 });
+  });
+
+  // Stage 18 defect D2: overlapping retrieved spans used to credit the
+  // same gold characters once per span, so recall ran past 1.0.
+  it("credits each gold character once across overlapping retrieved spans", () => {
+    const gold = [{ filePath: "a", start: 0, end: 100 }];
+    const retrieved = [
+      { filePath: "a", start: 0, end: 100 },
+      { filePath: "a", start: 0, end: 100 },
+    ];
+    const { precision, recall } = charPrecisionRecall(retrieved, gold);
+    expect(recall).toBe(1);
+    expect(precision).toBeCloseTo(100 / 200, 10);
+  });
+
+  it("union-merges partially overlapping credited spans", () => {
+    const gold = [{ filePath: "a", start: 0, end: 100 }];
+    const retrieved = [
+      { filePath: "a", start: 0, end: 60 },
+      { filePath: "a", start: 40, end: 100 },
+      { filePath: "b", start: 0, end: 10 },
+    ];
+    const { precision, recall } = charPrecisionRecall(retrieved, gold);
+    expect(recall).toBe(1); // 0..100 covered once, not 120/100
+    expect(precision).toBeCloseTo(100 / 130, 10);
+  });
+
+  it("never exceeds 1.0 when gold spans themselves overlap", () => {
+    const gold = [
+      { filePath: "a", start: 0, end: 50 },
+      { filePath: "a", start: 25, end: 75 },
+    ];
+    const { precision, recall } = charPrecisionRecall(
+      [{ filePath: "a", start: 0, end: 75 }],
+      gold,
+    );
+    expect(recall).toBeLessThanOrEqual(1);
+    expect(precision).toBeLessThanOrEqual(1);
+  });
+});
+
+describe("normalizeCorpusText", () => {
+  it("converts CRLF to LF and keeps a leading BOM (gold counts it)", () => {
+    expect(normalizeCorpusText("﻿a\r\nb\r\n")).toBe("﻿a\nb\n");
+    expect(normalizeCorpusText("a\nb")).toBe("a\nb");
+    expect(normalizeCorpusText("a\rb")).toBe("a\rb");
   });
 });
 
