@@ -15,6 +15,13 @@
 import { normalizeSourceDocLocator } from "./sourceDoc";
 import type { SourceDoc, SourceDocBlock } from "./sourceDoc";
 
+import {
+  FR_PROVISION_REF,
+  PROVISION_REF,
+  compactLabel,
+  compactLabelFr,
+  joinLocator,
+} from "./legalReferenceGrammar";
 import { compileAgreementSkeleton } from "./legalTextSkeleton";
 
 export type AmendOpKind =
@@ -71,42 +78,11 @@ function quotedValue(...groups: Array<string | undefined>): string | undefined {
   return undefined;
 }
 
-const PROVISION_WORD =
-  "(?:sub-?section|section|paragraph|subparagraph|clause|subclause|item|article|part|division|schedule|definition)";
-
-/** "Section 3", "Subsection 5(1)", "paragraph (b)", "clause 5(1)(b)(ii)". */
-const PROVISION_REF = String.raw`${PROVISION_WORD}s?\s+((?:\d+[A-Za-z]?(?:\.\d+)*)?(?:\s?\([^\s()]{1,12}\))*)`;
-
-function compactLabel(raw: string): string {
-  return raw.replace(/\s+/gu, "");
-}
-
-/* French federal drafting ("est remplacé par ce qui suit :") — the same
- * op algebra; both language versions are equally authoritative. */
-const FR_PROVISION_WORD =
-  "(?:sous-alinéas?|alinéas?|paragraphes?|articles?|sous-divisions?|divisions?|parties?|annexes?)";
-
-// French writes paragraph letters without the opening paren — "42a)(i)",
-// "alinéa b)" — while subclauses keep both parens.
-const FR_PROVISION_REF = String.raw`${FR_PROVISION_WORD}\s+((?:\d+(?:\.\d+)*[A-Za-z]?)?(?:\s?(?:\([^\s()]{1,12}\)|[a-zà-ÿ]{1,4}\)))*)`;
-
-/** "42a)(i)" → "42(a)(i)": restore the shared locator dialect. */
-function compactLabelFr(raw: string): string {
-  return compactLabel(raw).replace(/(?<!\()([a-zà-ÿ]{1,4})\)/gu, "($1)");
-}
-
-/** Join a head label with a nested sub-label: "3" + "(u)" → "sec3(u)". */
-export function joinLocator(head: string, sub?: string): string {
-  const headCompact = compactLabel(head);
-  const subCompact = sub ? compactLabel(sub) : "";
-  const joined = subCompact.startsWith("(")
-    ? `${headCompact}${subCompact}`
-    : subCompact || headCompact;
-  if (!joined) return "";
-  return (
-    normalizeSourceDocLocator("section", joined) || `sec${joined.toLowerCase()}`
-  );
-}
+/* Reference SHAPE — what "Section 5(1)" looks like and how its label
+ * normalizes — is shared grammar, owned by legalReferenceGrammar; this file
+ * owns only what to DO with a reference once matched. `joinLocator` is
+ * re-exported so existing importers of this module keep their surface. */
+export { joinLocator } from "./legalReferenceGrammar";
 
 /* ------------------------------------------------------------------ */
 /* Parser                                                              */

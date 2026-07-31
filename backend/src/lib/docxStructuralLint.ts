@@ -1,6 +1,7 @@
 import { loadZip } from "./zip";
 import { readFile } from "node:fs/promises";
 import { getLocalVersionFile } from "./localDocumentStore";
+import { isExternalReference } from "./legalReferenceGrammar";
 import { decodeXmlText, escapeRegExp } from "./text";
 
 // Deterministic structural lint for contract-style DOCX documents.
@@ -116,14 +117,10 @@ export function romanToInt(value: string) {
   return total;
 }
 
-// A reference like "Section 85 of the Income Tax Act" points outside this
-// document. Only "of this ..." (and "hereof"/bare continuations) are internal.
-export function isExternalReference(following: string) {
-  const trimmed = following.replace(/^\s*\([a-z0-9]{1,4}\)/giu, "").trimStart();
-  const external = trimmed.match(/^(?:of|to|under)\s+(\w+)/iu);
-  if (!external) return false;
-  return external[1].toLowerCase() !== "this";
-}
+// "Section 85 of the Income Tax Act" points outside this document. The test
+// lives in the shared reference grammar (legalTextSkeleton imports it from
+// here; the re-export keeps that surface intact).
+export { isExternalReference } from "./legalReferenceGrammar";
 
 type NumberAnchor = {
   number: string;
