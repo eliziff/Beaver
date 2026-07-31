@@ -1,0 +1,377 @@
+{
+  "schema_version": "1",
+  "name": "legalbench-rag-holdout",
+  "upstream": {
+    "repository": "https://github.com/ZeroEntropy-AI/legalbenchrag",
+    "paper": "https://arxiv.org/abs/2408.10343",
+    "download_url": "https://www.dropbox.com/scl/fo/r7xfa5i3hdsbxex1w6amw/AID389Olvtm-ZLTKAPrw6k4?rlkey=5n8zrbk4c08lbit3iiexofmwg&st=0hu354cq&dl=1",
+    "download_zip_bytes_observed": 90591976,
+    "license": "MIT (LegalBench-RAG benchmark and repository, Copyright (c) 2025 ZeroEntropy)",
+    "license_note": "Benchmark aggregates ContractNLI, CUAD, MAUD and PrivacyQA; each source dataset retains its own upstream terms. Downloaded and derived data stay in the git-ignored data/ directory; only this manifest (URLs, derivation rule, sha256 pins) is committed."
+  },
+  "derivation": {
+    "rule": "Stage 19 hold-out. Same walk as the mini rule, continued: per source benchmark, group tests by first-snippet document path, order documents in code-unit lexicographic order, SKIP every document the mini derivation touched (including one truncated at the mini cap), then take documents until max_tests_per_source tests accumulate, truncated to max_tests_per_source. Sources whose upstream benchmark is exhausted by mini yield no hold-out and are listed in derivation.sources_without_split. Files serialize the selected upstream test objects verbatim as JSON.stringify({tests}) + newline; corpus files are byte-identical zip entries under Windows-safe names.",
+    "max_tests_per_source": 194,
+    "sources_without_split": [
+      "privacy_qa"
+    ]
+  },
+  "benchmarks": [
+    {
+      "path": "holdout/benchmarks/contractnli.json",
+      "sha256": "9f4d44d749916551dfb6c1afeabb9413d3aca0dd52804a8576eea145486ef8e8",
+      "bytes": 153038,
+      "source": "contractnli",
+      "tests": 194,
+      "documents": 17
+    },
+    {
+      "path": "holdout/benchmarks/cuad.json",
+      "sha256": "f416729e37762e35efb11fd9d2ff2cd583912a73109e30f97cc368a2d47ea38a",
+      "bytes": 205240,
+      "source": "cuad",
+      "tests": 194,
+      "documents": 20
+    },
+    {
+      "path": "holdout/benchmarks/maud.json",
+      "sha256": "8eaefaac50e87b6d4403f272ad8f018764b0813fa70fd2c993a1050d2afe23d7",
+      "bytes": 296660,
+      "source": "maud",
+      "tests": 194,
+      "documents": 18
+    }
+  ],
+  "corpus": [
+    {
+      "path": "holdout/corpus/contractnli/Geheimhaltungsvereinbarung_Abschlussarbeiten_HFU_englisch.txt",
+      "sha256": "0f91b1dfdd771f4f5c1eab5fe5cb1ad4eeb41f14d324aa6e6213bc2a2b09787d",
+      "bytes": 5297,
+      "upstream_path": "contractnli/Geheimhaltungsvereinbarung_Abschlussarbeiten_HFU_englisch.txt"
+    },
+    {
+      "path": "holdout/corpus/contractnli/GreenStorm%20NDCSC.txt",
+      "sha256": "b4d8826bb1fd902812d67ae8f1effd3276fe6a54eee264a96d23bd9c9c08019d",
+      "bytes": 10987,
+      "upstream_path": "contractnli/GreenStorm%20NDCSC.txt"
+    },
+    {
+      "path": "holdout/corpus/contractnli/Grindrod%20SA%20Confidentiality%20and%20Non-Disclosure%20Undertaking.txt",
+      "sha256": "b9b7a580c0b5acfddc732d5cf745f4f4eae81eaa74f2dc5f784cddd68cfcdddf",
+      "bytes": 5549,
+      "upstream_path": "contractnli/Grindrod%20SA%20Confidentiality%20and%20Non-Disclosure%20Undertaking.txt"
+    },
+    {
+      "path": "holdout/corpus/contractnli/HNBA-2017-18-Confidentiality-Agreement.txt",
+      "sha256": "2a748cb1888853a0f5bf6dccc7f8b2e0c2fc0ec303e3349ae24af04181485c58",
+      "bytes": 9839,
+      "upstream_path": "contractnli/HNBA-2017-18-Confidentiality-Agreement.txt"
+    },
+    {
+      "path": "holdout/corpus/contractnli/IBC-PMS-NDA-agreement.txt",
+      "sha256": "3c55c524fdb02d8a9a40d321c7f139d35bcc02ce4f4ac78b8dcd24965ebdc5b2",
+      "bytes": 19847,
+      "upstream_path": "contractnli/IBC-PMS-NDA-agreement.txt"
+    },
+    {
+      "path": "holdout/corpus/contractnli/IGC-Non-Disclosure-Agreement-LSE-Sample.txt",
+      "sha256": "209e9849fee114a9608d2b3804608ae25f514508875c66adf981daba2259e438",
+      "bytes": 17113,
+      "upstream_path": "contractnli/IGC-Non-Disclosure-Agreement-LSE-Sample.txt"
+    },
+    {
+      "path": "holdout/corpus/contractnli/INFOMAGNET%20NDA.txt",
+      "sha256": "2dce30f2633692f12a986e8961ff4d60831333f2347d618bdaa79a21f01fbcbd",
+      "bytes": 8293,
+      "upstream_path": "contractnli/INFOMAGNET%20NDA.txt"
+    },
+    {
+      "path": "holdout/corpus/contractnli/IPTK-CO-MutualNon-DisclosureAgreement.txt",
+      "sha256": "5c11c09af1308351085efdd5fb47029440881010622ed3bb08198954181b7ed7",
+      "bytes": 13619,
+      "upstream_path": "contractnli/IPTK-CO-MutualNon-DisclosureAgreement.txt"
+    },
+    {
+      "path": "holdout/corpus/contractnli/Inaturals_NDA.txt",
+      "sha256": "0c0d79650b7e0090a7a06bfd607372c3182bee308827cae8cb31b8b16bba6413",
+      "bytes": 5229,
+      "upstream_path": "contractnli/Inaturals_NDA.txt"
+    },
+    {
+      "path": "holdout/corpus/contractnli/JB-Machine-LLC-NDA-1.txt",
+      "sha256": "59d697feb007ed957899126dbb1ae16ff58548a47f5c07cb8ca0add194fd8a05",
+      "bytes": 17362,
+      "upstream_path": "contractnli/JB-Machine-LLC-NDA-1.txt"
+    },
+    {
+      "path": "holdout/corpus/contractnli/JBF_NDA_rev-2017033-1.txt",
+      "sha256": "12e0522f592a38c1eedd837d0e633fc5068b196bc3a013ae233c3e802242327d",
+      "bytes": 10718,
+      "upstream_path": "contractnli/JBF_NDA_rev-2017033-1.txt"
+    },
+    {
+      "path": "holdout/corpus/contractnli/Kenway-NDA-Form-Blank.txt",
+      "sha256": "3dff6905cdc6ba5263a025b509f5c989ad4a3108a3ca726c753f1f9bf8072fb6",
+      "bytes": 19083,
+      "upstream_path": "contractnli/Kenway-NDA-Form-Blank.txt"
+    },
+    {
+      "path": "holdout/corpus/contractnli/Kerber_Non_Disclosure_Agreement.txt",
+      "sha256": "98573c2897fbc94b79bcc0078d39a35aee35cf3594d639c0c7cc27dca89c5f2e",
+      "bytes": 4862,
+      "upstream_path": "contractnli/Kerber_Non_Disclosure_Agreement.txt"
+    },
+    {
+      "path": "holdout/corpus/contractnli/LiiON%20NDA%202-27-2015%20v1.0.txt",
+      "sha256": "e138d11288291cdf8abdfcaa2bf4f98fd280c4ddc72c4a5cedd17f43c4abf3a2",
+      "bytes": 12290,
+      "upstream_path": "contractnli/LiiON%20NDA%202-27-2015%20v1.0.txt"
+    },
+    {
+      "path": "holdout/corpus/contractnli/Model%20NDA%20(recommended%20by%20SWA).txt",
+      "sha256": "501af7c9de42ad420858d2b8d0e7259180e66ac971c3ff1e30ef3e120ead5dc4",
+      "bytes": 11287,
+      "upstream_path": "contractnli/Model%20NDA%20(recommended%20by%20SWA).txt"
+    },
+    {
+      "path": "holdout/corpus/contractnli/Mutual-Non-Disclosure-Agreement-Inventor-Product-Development-Experts-Inc..txt",
+      "sha256": "3c1ab3de6177de462f47495c0bf6e2f815c88088f41bccc698b92e00c35b3492",
+      "bytes": 8752,
+      "upstream_path": "contractnli/Mutual-Non-Disclosure-Agreement-Inventor-Product-Development-Experts-Inc..txt"
+    },
+    {
+      "path": "holdout/corpus/contractnli/MutualNDA_The_Knights_of_Unity.txt",
+      "sha256": "cccc7f2602cf62c8fce6a69d54273c1e124f9704fc1294a6c2204f64cc2b5893",
+      "bytes": 12651,
+      "upstream_path": "contractnli/MutualNDA_The_Knights_of_Unity.txt"
+    },
+    {
+      "path": "holdout/corpus/cuad/ASPIRITYHOLDINGSLLC_05_07_2012-EX-10.6-OUTSOURCING AGREEMENT.txt",
+      "sha256": "4539ca9a496fc80305dc42d2f9ebcaa8a8e46a4fd406482846b69812c586b764",
+      "bytes": 67122,
+      "upstream_path": "cuad/ASPIRITYHOLDINGSLLC_05_07_2012-EX-10.6-OUTSOURCING AGREEMENT.txt"
+    },
+    {
+      "path": "holdout/corpus/cuad/ATHENSBANCSHARESCORP_11_02_2009-EX-1.2-AGENCY AGREEMENT , 2009.txt",
+      "sha256": "5698a2da99dd5ca090571f4c9a7ac437d868443121ddc9288aa5a9bcfb3e118e",
+      "bytes": 145322,
+      "upstream_path": "cuad/ATHENSBANCSHARESCORP_11_02_2009-EX-1.2-AGENCY AGREEMENT , 2009.txt"
+    },
+    {
+      "path": "holdout/corpus/cuad/ATMOSENERGYCORP_11_22_2002-EX-10.17-TRANSPORTATION SERVICE AGREEMENT.txt",
+      "sha256": "f8634e3d4296d3254e8589ae7ae4b5fc2b887fb56ac1b288cc8125d855c02601",
+      "bytes": 24151,
+      "upstream_path": "cuad/ATMOSENERGYCORP_11_22_2002-EX-10.17-TRANSPORTATION SERVICE AGREEMENT.txt"
+    },
+    {
+      "path": "holdout/corpus/cuad/AULAMERICANUNITTRUST_04_24_2020-EX-99.8.77-SERVICING AGREEMENT.txt",
+      "sha256": "ae207bb16f35b516ee3de6523291a3b5b62cc5733a048839cd8d909278aae022",
+      "bytes": 36019,
+      "upstream_path": "cuad/AULAMERICANUNITTRUST_04_24_2020-EX-99.8.77-SERVICING AGREEMENT.txt"
+    },
+    {
+      "path": "holdout/corpus/cuad/AURASYSTEMSINC_06_16_2010-EX-10.25-STRATEGIC ALLIANCE AGREEMENT.txt",
+      "sha256": "cd9c428d08826e612d978e6bdad41df2463e5d84f45edb1bfc012e2580be0118",
+      "bytes": 45033,
+      "upstream_path": "cuad/AURASYSTEMSINC_06_16_2010-EX-10.25-STRATEGIC ALLIANCE AGREEMENT.txt"
+    },
+    {
+      "path": "holdout/corpus/cuad/AgapeAtpCorp_20191202_10-KA_EX-10.1_11911128_EX-10.1_Supply Agreement.txt",
+      "sha256": "6d43065ff242642866da6be6b83f9849ad898e6eea9c1e71b0c2853dd3822c5a",
+      "bytes": 20693,
+      "upstream_path": "cuad/AgapeAtpCorp_20191202_10-KA_EX-10.1_11911128_EX-10.1_Supply Agreement.txt"
+    },
+    {
+      "path": "holdout/corpus/cuad/AimmuneTherapeuticsInc_20200205_8-K_EX-10.3_11967170_EX-10.3_Development Agreement.txt",
+      "sha256": "3060a01d1ea3766e43cfc623f3aa3d5563bccac7c2364fffb84cbd7d49dee1ad",
+      "bytes": 168025,
+      "upstream_path": "cuad/AimmuneTherapeuticsInc_20200205_8-K_EX-10.3_11967170_EX-10.3_Development Agreement.txt"
+    },
+    {
+      "path": "holdout/corpus/cuad/AlliedEsportsEntertainmentInc_20190815_8-K_EX-10.19_11788293_EX-10.19_Content License Agreement.txt",
+      "sha256": "82411b6956e9a2144f8a1440891954249156112d44057c01f778ae577ab864a9",
+      "bytes": 35525,
+      "upstream_path": "cuad/AlliedEsportsEntertainmentInc_20190815_8-K_EX-10.19_11788293_EX-10.19_Content License Agreement.txt"
+    },
+    {
+      "path": "holdout/corpus/cuad/AlliedEsportsEntertainmentInc_20190815_8-K_EX-10.34_11788308_EX-10.34_Sponsorship Agreement.txt",
+      "sha256": "e9a7e542a3a9941c3879ac170c7ade20c2c3bf456c8b5c9a4554d622f199e271",
+      "bytes": 37799,
+      "upstream_path": "cuad/AlliedEsportsEntertainmentInc_20190815_8-K_EX-10.34_11788308_EX-10.34_Sponsorship Agreement.txt"
+    },
+    {
+      "path": "holdout/corpus/cuad/Antares Pharma, Inc. - Manufacturing Agreement.txt",
+      "sha256": "28f64048e5b3ba33f6db9ec7c0423394ba14f001c43d4c5349a6505808452f75",
+      "bytes": 106794,
+      "upstream_path": "cuad/Antares Pharma, Inc. - Manufacturing Agreement.txt"
+    },
+    {
+      "path": "holdout/corpus/cuad/Apollo Endosurgery - Manufacturing and Supply Agreement.txt",
+      "sha256": "f408b4d3754ed2f99c86c5092900df88286666c044bf66430c073c9c10a9d734",
+      "bytes": 48434,
+      "upstream_path": "cuad/Apollo Endosurgery - Manufacturing and Supply Agreement.txt"
+    },
+    {
+      "path": "holdout/corpus/cuad/ArcGroupInc_20171211_8-K_EX-10.1_10976103_EX-10.1_Sponsorship Agreement.txt",
+      "sha256": "4f6122be05857c75d5ea3bd3be66bcceaab1a968e276330f8d7ee60e694d1fec",
+      "bytes": 16773,
+      "upstream_path": "cuad/ArcGroupInc_20171211_8-K_EX-10.1_10976103_EX-10.1_Sponsorship Agreement.txt"
+    },
+    {
+      "path": "holdout/corpus/cuad/ArcaUsTreasuryFund_20200207_N-2_EX-99.K5_11971930_EX-99.K5_Development Agreement.txt",
+      "sha256": "0e421b7daa96857cf42de41b7671949d8c99a5eb90f9fc5b79a9d0a16a8cd2bd",
+      "bytes": 15318,
+      "upstream_path": "cuad/ArcaUsTreasuryFund_20200207_N-2_EX-99.K5_11971930_EX-99.K5_Development Agreement.txt"
+    },
+    {
+      "path": "holdout/corpus/cuad/ArconicRolledProductsCorp_20191217_10-12B_EX-2.7_11923804_EX-2.7_Trademark License Agreement.txt",
+      "sha256": "bc3db8c11b06d0847c57051aaf75c493dda351e87a98fd5fcfe3fca7c751a0fa",
+      "bytes": 18069,
+      "upstream_path": "cuad/ArconicRolledProductsCorp_20191217_10-12B_EX-2.7_11923804_EX-2.7_Trademark License Agreement.txt"
+    },
+    {
+      "path": "holdout/corpus/cuad/ArmstrongFlooringInc_20190107_8-K_EX-10.2_11471795_EX-10.2_Intellectual Property Agreement.txt",
+      "sha256": "4311463a9da996c008b3c16e323d32c517ed1b785f283a30ee1aceccacf90558",
+      "bytes": 56868,
+      "upstream_path": "cuad/ArmstrongFlooringInc_20190107_8-K_EX-10.2_11471795_EX-10.2_Intellectual Property Agreement.txt"
+    },
+    {
+      "path": "holdout/corpus/cuad/Array BioPharma Inc. - LICENSE, DEVELOPMENT AND COMMERCIALIZATION AGREEMENT.txt",
+      "sha256": "94706869d0da15fd791d8c9104959513c48271a91977b4701291184d1606c969",
+      "bytes": 272046,
+      "upstream_path": "cuad/Array BioPharma Inc. - LICENSE, DEVELOPMENT AND COMMERCIALIZATION AGREEMENT.txt"
+    },
+    {
+      "path": "holdout/corpus/cuad/ArtaraTherapeuticsInc_20200110_8-K_EX-10.5_11943350_EX-10.5_License Agreement.txt",
+      "sha256": "aa63496b5011130a8704272a732ce09d5ccea0103437b90a5cf4caa05fed3039",
+      "bytes": 38450,
+      "upstream_path": "cuad/ArtaraTherapeuticsInc_20200110_8-K_EX-10.5_11943350_EX-10.5_License Agreement.txt"
+    },
+    {
+      "path": "holdout/corpus/cuad/AtnInternationalInc_20191108_10-Q_EX-10.1_11878541_EX-10.1_Maintenance Agreement.txt",
+      "sha256": "783d0e615db36afaba845e7b3a07b06aaf1638c3da041e10a75d6adc525f2c8e",
+      "bytes": 228965,
+      "upstream_path": "cuad/AtnInternationalInc_20191108_10-Q_EX-10.1_11878541_EX-10.1_Maintenance Agreement.txt"
+    },
+    {
+      "path": "holdout/corpus/cuad/AudibleInc_20001113_10-Q_EX-10.32_2599586_EX-10.32_Co-Branding Agreement_ Marketing Agreement_ Investment Distribution Agreement.txt",
+      "sha256": "5cb5b5a5e08db4d12897c2277e8ea9986c3eb83a789b02511339950772905d2a",
+      "bytes": 77102,
+      "upstream_path": "cuad/AudibleInc_20001113_10-Q_EX-10.32_2599586_EX-10.32_Co-Branding Agreement_ Marketing Agreement_ Investment Distribution Agreement.txt"
+    },
+    {
+      "path": "holdout/corpus/cuad/AzulSa_20170303_F-1A_EX-10.3_9943903_EX-10.3_Maintenance Agreement1.txt",
+      "sha256": "ae387a12fe0b3198004076f49e1991600b5993c656a4de3866786d3f7ec2a1df",
+      "bytes": 233309,
+      "upstream_path": "cuad/AzulSa_20170303_F-1A_EX-10.3_9943903_EX-10.3_Maintenance Agreement1.txt"
+    },
+    {
+      "path": "holdout/corpus/maud/Cadence Bancorporation_BancorpSouth Bank.pdf__Cadence_Bancorporation_BancorpSouth_Bank_Amendment No.1.txt",
+      "sha256": "29560a50722f875d8a4d735663cdf8aef28778790f50d3a8b4f87f4d5732d964",
+      "bytes": 322658,
+      "upstream_path": "maud/Cadence Bancorporation_BancorpSouth Bank.pdf||Cadence_Bancorporation_BancorpSouth_Bank_Amendment No.1.txt"
+    },
+    {
+      "path": "holdout/corpus/maud/Cantel Medical Corp._STERIS plc.pdf__Cantel Medical Corp._STERIS plc. Amendment No. 1.txt",
+      "sha256": "4fe3c2f1aa4f545c29a075f4cb70108ecae4fd02810a63cbd247f1f369161a91",
+      "bytes": 385317,
+      "upstream_path": "maud/Cantel Medical Corp._STERIS plc.pdf||Cantel Medical Corp._STERIS plc. Amendment No. 1.txt"
+    },
+    {
+      "path": "holdout/corpus/maud/Capstead_Mortgage_Corp_Benefit_Street_Partners.pdf__Capstead_Mortgage_Corp_Benefit_Street_Partners_Amendment No.1.txt",
+      "sha256": "f9abab132b2bd69c71ed14e12a24fbc8d73e772fcdc7c5df814a7f9acc5c94a9",
+      "bytes": 425579,
+      "upstream_path": "maud/Capstead_Mortgage_Corp_Benefit_Street_Partners.pdf||Capstead_Mortgage_Corp_Benefit_Street_Partners_Amendment No.1.txt"
+    },
+    {
+      "path": "holdout/corpus/maud/Century Bancorp, Inc._Eastern Bankshares, Inc..txt",
+      "sha256": "a7faee765c5169d52f9e8fea062279a645e7066731026edc04e7911ccd3e8ff1",
+      "bytes": 241640,
+      "upstream_path": "maud/Century Bancorp, Inc._Eastern Bankshares, Inc..txt"
+    },
+    {
+      "path": "holdout/corpus/maud/Change Healthcare Inc._UnitedHealth Group Incorporated.txt",
+      "sha256": "ed8fad8cfcbc5d1c0c2c9970830a4a468398b6419e74f143451b81c95269b554",
+      "bytes": 347112,
+      "upstream_path": "maud/Change Healthcare Inc._UnitedHealth Group Incorporated.txt"
+    },
+    {
+      "path": "holdout/corpus/maud/Chiasma, Inc._Amryt Pharma plc.txt",
+      "sha256": "fed5e67f3703ee5873fe35762972d945166847987fefd0284c36a1822efb5abd",
+      "bytes": 403857,
+      "upstream_path": "maud/Chiasma, Inc._Amryt Pharma plc.txt"
+    },
+    {
+      "path": "holdout/corpus/maud/Cimarex Energy Co._Cabot Oil & Gas Corporation.pdf__Cimarex_Energy_Co_Cabot_Oil_Gas_Corporation_Amendment No.1.txt",
+      "sha256": "5147eb47583af5e51ab48f924519e4c87005131c6cde6e4e83f3a75b1c8af046",
+      "bytes": 458757,
+      "upstream_path": "maud/Cimarex Energy Co._Cabot Oil & Gas Corporation.pdf||Cimarex_Energy_Co_Cabot_Oil_Gas_Corporation_Amendment No.1.txt"
+    },
+    {
+      "path": "holdout/corpus/maud/Cincinnati Bell Inc._Macquarie Infrastructure and Real Assets.txt",
+      "sha256": "5118d4e31bdbcfe4c9406b2fa8596d17a6092c3403e7b7e72419e5070e8f0f4a",
+      "bytes": 314116,
+      "upstream_path": "maud/Cincinnati Bell Inc._Macquarie Infrastructure and Real Assets.txt"
+    },
+    {
+      "path": "holdout/corpus/maud/Cloudera, Inc._Investment Group.txt",
+      "sha256": "11fc4da8ac856eb24e4cdb068fe862befaec83247187f2a4945844a8c1d67868",
+      "bytes": 373531,
+      "upstream_path": "maud/Cloudera, Inc._Investment Group.txt"
+    },
+    {
+      "path": "holdout/corpus/maud/Coherent, Inc._II-VI Incorporated.txt",
+      "sha256": "b0dbbc0f213f04d96c329ddebb4f7b07a8a50b2aaa733830e8e24645f96acf0b",
+      "bytes": 496862,
+      "upstream_path": "maud/Coherent, Inc._II-VI Incorporated.txt"
+    },
+    {
+      "path": "holdout/corpus/maud/Collectors Universe, Inc._Investment Group.txt",
+      "sha256": "b69c020256e64f72da98214db460b0bdfadc41cc13bb3d5f40c72120ef8080c1",
+      "bytes": 356417,
+      "upstream_path": "maud/Collectors Universe, Inc._Investment Group.txt"
+    },
+    {
+      "path": "holdout/corpus/maud/Columbia_Property_Pacific_Investment_Management.txt",
+      "sha256": "29810b09966051af48a1c49a817a4d3646ce421eadd6d27f9e817eccd31e334e",
+      "bytes": 326776,
+      "upstream_path": "maud/Columbia_Property_Pacific_Investment_Management.txt"
+    },
+    {
+      "path": "holdout/corpus/maud/Community Bankers Trust Corporation_United Bankshares, Inc..txt",
+      "sha256": "67f1e353c04151fd847a866305528b0fafeebe8a416a755a4ef8ce638616133a",
+      "bytes": 261676,
+      "upstream_path": "maud/Community Bankers Trust Corporation_United Bankshares, Inc..txt"
+    },
+    {
+      "path": "holdout/corpus/maud/Concho Resources Inc._ConocoPhillips.txt",
+      "sha256": "263cad3e71c33d035ffe1a78f7a5ba73c78c76835ca069b683d3dd845eb25e79",
+      "bytes": 363952,
+      "upstream_path": "maud/Concho Resources Inc._ConocoPhillips.txt"
+    },
+    {
+      "path": "holdout/corpus/maud/Constellation Pharmaceuticals, Inc._MorphoSys AG.txt",
+      "sha256": "9ea7ad18d3db6e5e3904af0320802a9363a75a2edeb784aaa6c795352c70a049",
+      "bytes": 263371,
+      "upstream_path": "maud/Constellation Pharmaceuticals, Inc._MorphoSys AG.txt"
+    },
+    {
+      "path": "holdout/corpus/maud/Contango_Oil_&_Gas_KKR_&_Co.txt",
+      "sha256": "4edc30a193b5b61d464406c2ad12406d33e218828c340d027414020f99305df7",
+      "bytes": 1013485,
+      "upstream_path": "maud/Contango_Oil_&_Gas_KKR_&_Co.txt"
+    },
+    {
+      "path": "holdout/corpus/maud/Cooper Tire _ Rubber Company_The Goodyear Tire _ Rubber Company.txt",
+      "sha256": "04b126ab6ddeb40f40ed143c5b86b30e5355d298f68d1397b50a69c6c7718032",
+      "bytes": 393967,
+      "upstream_path": "maud/Cooper Tire _ Rubber Company_The Goodyear Tire _ Rubber Company.txt"
+    },
+    {
+      "path": "holdout/corpus/maud/Core-Mark Holding Company, Inc._Performance Food Group Company.txt",
+      "sha256": "f37e3556313f49aaf84a1f40a08b3dc93e5799d5271ce99bcac0b5ee8de9f7a8",
+      "bytes": 354094,
+      "upstream_path": "maud/Core-Mark Holding Company, Inc._Performance Food Group Company.txt"
+    }
+  ]
+}

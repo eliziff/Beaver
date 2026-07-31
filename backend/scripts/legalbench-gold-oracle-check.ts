@@ -15,18 +15,22 @@
  * `--raw` scores the un-normalized bytes instead — the historical instrument,
  * kept so the defect stays reproducible on demand.
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import {
   LEGALBENCH_RAG_DATA_DIR,
   SOURCE_BENCHMARKS,
+  SPLITS,
   normalizeCorpusText,
   sanitizeCorpusPath,
+  splitFromArgv,
   upstreamBenchmarkSchema,
 } from "../src/lib/legalbenchRag";
 
 const RAW = process.argv.includes("--raw");
+const SPLIT = splitFromArgv();
+const DIR = SPLITS[SPLIT].dir;
 const SHOW = Number(
   process.argv.includes("--show")
     ? process.argv[process.argv.indexOf("--show") + 1]
@@ -40,26 +44,38 @@ function corpusText(filePath: string): string {
   const bytes = readFileSync(
     path.join(
       LEGALBENCH_RAG_DATA_DIR,
-      "mini",
+      DIR,
       "corpus",
       sanitizeCorpusPath(filePath),
     ),
   ).toString("utf8");
+  if (bytes.includes("\r")) crFiles.add(filePath);
   const text = RAW ? bytes : normalizeCorpusText(bytes);
   corpusCache.set(filePath, text);
   return text;
 }
 
+/**
+ * CR census. Upstream's `generate_cuad.py` carries the same `shutil.copy`
+ * pattern that put LF-coordinate gold against CRLF bytes in maud, and is
+ * clean only by luck — so which files carry CR is reported every run rather
+ * than assumed stable across a corpus re-download.
+ */
+const crFiles = new Set<string>();
+
 let failures = 0;
 let total = 0;
 for (const source of SOURCE_BENCHMARKS) {
+  const benchmarkPath = path.join(
+    LEGALBENCH_RAG_DATA_DIR,
+    `${DIR}/benchmarks/${source}.json`,
+  );
+  if (!existsSync(benchmarkPath)) {
+    console.log(`${source.padEnd(12)} no ${SPLIT} bed (skipped)`);
+    continue;
+  }
   const parsed = upstreamBenchmarkSchema.parse(
-    JSON.parse(
-      readFileSync(
-        path.join(LEGALBENCH_RAG_DATA_DIR, `mini/benchmarks/${source}.json`),
-        "utf8",
-      ),
-    ),
+    JSON.parse(readFileSync(benchmarkPath, "utf8")),
   );
   let pass = 0;
   let count = 0;
@@ -98,7 +114,12 @@ for (const source of SOURCE_BENCHMARKS) {
 }
 
 console.log(
-  `\n${total - failures}/${total} overall (${RAW ? "RAW bytes" : "normalized corpus load"})`,
+  `\n[${SPLIT}] ${total - failures}/${total} overall (${RAW ? "RAW bytes" : "normalized corpus load"})`,
+);
+console.log(
+  crFiles.size
+    ? `CR census: ${crFiles.size} corpus file(s) carry \\r — normalization is load-bearing here:\n  ${[...crFiles].sort().join("\n  ")}`
+    : "CR census: no corpus file carries \\r (normalization is a no-op on this split)",
 );
 if (failures) {
   console.error(

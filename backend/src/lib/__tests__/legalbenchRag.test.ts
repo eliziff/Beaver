@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   charPrecisionRecall,
   deriveMiniTests,
+  deriveSplitTests,
   evaluateMiniRetrieval,
   miniDocumentPaths,
   normalizeCorpusText,
@@ -38,6 +39,34 @@ describe("deterministic mini derivation", () => {
       "query b1",
     ]);
     expect(miniDocumentPaths(mini)).toEqual(["a.txt", "b.txt"]);
+  });
+
+  // Stage 19: the hold-out continues the same walk. These pin the only
+  // leakage property the hold-out actually establishes — document blocking.
+  it("hold-out resumes after every document the mini walk touched", () => {
+    // cap 3 truncates mid-b.txt, so b.txt belongs to mini alone.
+    expect(deriveMiniTests(tests, 3).map((t) => t.query)).toEqual([
+      "query a1",
+      "query a2",
+      "query b1",
+    ]);
+    const holdout = deriveSplitTests(tests, "holdout", 3);
+    expect(holdout.map((t) => t.query)).toEqual(["query c1"]);
+    expect(miniDocumentPaths(holdout)).toEqual(["c.txt"]);
+  });
+
+  it("hold-out shares no document with mini at any cap", () => {
+    for (const cap of [1, 2, 3, 4, 5]) {
+      const dev = new Set(miniDocumentPaths(deriveMiniTests(tests, cap)));
+      for (const document of miniDocumentPaths(
+        deriveSplitTests(tests, "holdout", cap),
+      ))
+        expect(dev.has(document)).toBe(false);
+    }
+  });
+
+  it("hold-out is empty when mini exhausts the upstream benchmark", () => {
+    expect(deriveSplitTests(tests, "holdout", 99)).toEqual([]);
   });
 
   it("is byte-identical across repeated derivations", () => {

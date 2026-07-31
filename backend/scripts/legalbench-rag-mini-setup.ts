@@ -18,17 +18,19 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import {
   LEGALBENCH_RAG_DATA_DIR,
-  MANIFEST_PATH,
   MAX_TESTS_PER_SOURCE,
   SOURCE_BENCHMARKS,
-  deriveMiniTests,
+  SPLITS,
+  deriveSplitTests,
   miniDocumentPaths,
   sanitizeCorpusPath,
+  splitFromArgv,
   upstreamBenchmarkSchema,
   validateMiniManifest,
   verifyAgainstManifest,
   type ManifestFile,
   type MiniManifest,
+  type SourceBenchmark,
 } from "../src/lib/legalbenchRag";
 import { sha256Hex } from "../src/lib/runTrace";
 
@@ -46,6 +48,9 @@ const UPSTREAM = {
 
 const DERIVATION_RULE =
   "Per source benchmark: group tests by first-snippet document path, take documents in code-unit lexicographic order until max_tests_per_source tests are accumulated, truncate to max_tests_per_source (upstream file order within a document). Mini benchmark files serialize the selected upstream test objects verbatim as JSON.stringify({tests}) + newline. Corpus files are byte-identical zip entries stored under Windows-safe names (characters <>:\"|?* replaced with _).";
+
+const HOLDOUT_DERIVATION_RULE =
+  "Stage 19 hold-out. Same walk as the mini rule, continued: per source benchmark, group tests by first-snippet document path, order documents in code-unit lexicographic order, SKIP every document the mini derivation touched (including one truncated at the mini cap), then take documents until max_tests_per_source tests accumulate, truncated to max_tests_per_source. Sources whose upstream benchmark is exhausted by mini yield no hold-out and are listed in derivation.sources_without_split. Files serialize the selected upstream test objects verbatim as JSON.stringify({tests}) + newline; corpus files are byte-identical zip entries under Windows-safe names.";
 
 const ZIP_PATH = path.join(LEGALBENCH_RAG_DATA_DIR, "LegalBench-RAG.zip");
 
@@ -68,11 +73,15 @@ async function ensureZip(): Promise<void> {
   console.log(`Saved ${bytes.length} bytes to ${ZIP_PATH}`);
 }
 
-/** Derive every mini file (benchmarks + corpus) from the cached zip. */
+const SPLIT = splitFromArgv();
+const CONFIG = SPLITS[SPLIT];
+
+/** Derive every split file (benchmarks + corpus) from the cached zip. */
 async function deriveFiles(): Promise<{
   files: ManifestFile[];
   benchmarks: MiniManifest["benchmarks"];
   corpus: MiniManifest["corpus"];
+  empty: SourceBenchmark[];
 }> {
   const JSZip = require("jszip") as typeof import("jszip");
   const zip = await JSZip.loadAsync(readFileSync(ZIP_PATH));
@@ -86,17 +95,25 @@ async function deriveFiles(): Promise<{
   const benchmarks: MiniManifest["benchmarks"] = [];
   const corpusEntries: MiniManifest["corpus"] = [];
   const corpusPaths = new Map<string, string>(); // upstream -> local
+  const empty: SourceBenchmark[] = [];
   for (const source of SOURCE_BENCHMARKS) {
     const raw = JSON.parse(
       (await entry(`benchmarks/${source}.json`)).toString("utf8"),
     ) as { tests: unknown[] };
     upstreamBenchmarkSchema.parse(raw);
-    const tests = deriveMiniTests(
-      raw.tests as Parameters<typeof deriveMiniTests>[0],
+    const tests = deriveSplitTests(
+      raw.tests as Parameters<typeof deriveSplitTests>[0],
+      SPLIT,
     );
+    // privacy_qa mini IS the complete upstream benchmark (194 of 194), so it
+    // has no hold-out. Record the absence; never fabricate an empty bed.
+    if (!tests.length) {
+      empty.push(source);
+      continue;
+    }
     const documents = miniDocumentPaths(tests);
     const bytes = Buffer.from(`${JSON.stringify({ tests })}\n`, "utf8");
-    const filePath = `mini/benchmarks/${source}.json`;
+    const filePath = `${CONFIG.dir}/benchmarks/${source}.json`;
     files.push({ path: filePath, bytes });
     benchmarks.push({
       source,
@@ -108,7 +125,7 @@ async function deriveFiles(): Promise<{
     });
     for (const upstream of documents) {
       if (corpusPaths.has(upstream)) continue;
-      const local = `mini/corpus/${sanitizeCorpusPath(upstream)}`;
+      const local = `${CONFIG.dir}/corpus/${sanitizeCorpusPath(upstream)}`;
       for (const [otherUpstream, otherLocal] of corpusPaths) {
         if (otherLocal === local)
           throw new Error(
@@ -127,7 +144,7 @@ async function deriveFiles(): Promise<{
     }
   }
   corpusEntries.sort((a, b) => (a.path < b.path ? -1 : 1));
-  return { files, benchmarks, corpus: corpusEntries };
+  return { files, benchmarks, corpus: corpusEntries, empty };
 }
 
 async function main() {
@@ -142,35 +159,66 @@ async function main() {
   }
   const corpusBytes = derived.corpus.reduce((n, f) => n + f.bytes, 0);
   console.log(
-    `Derived ${derived.benchmarks.reduce((n, b) => n + b.tests, 0)} tests / ` +
-      `${derived.corpus.length} corpus documents (${corpusBytes} bytes) into ${LEGALBENCH_RAG_DATA_DIR}`,
+    `[${SPLIT}] Derived ${derived.benchmarks.reduce((n, b) => n + b.tests, 0)} tests / ` +
+      `${derived.corpus.length} corpus documents (${corpusBytes} bytes) into ${LEGALBENCH_RAG_DATA_DIR}` +
+      (derived.empty.length
+        ? `; no ${SPLIT} bed for ${derived.empty.join(", ")} (upstream exhausted by mini)`
+        : ""),
   );
+
+  // Document-blocking is the ONLY leakage property the hold-out establishes,
+  // so it is asserted here rather than assumed: no hold-out document may
+  // appear in the pinned mini corpus.
+  if (SPLIT === "holdout" && existsSync(SPLITS.mini.manifestPath)) {
+    const mini = validateMiniManifest(
+      JSON.parse(readFileSync(SPLITS.mini.manifestPath, "utf8")),
+    );
+    const devDocuments = new Set(mini.corpus.map((c) => c.upstream_path));
+    const shared = derived.corpus
+      .map((c) => c.upstream_path)
+      .filter((p) => devDocuments.has(p));
+    if (shared.length) {
+      console.error(
+        `hold-out is NOT document-blocked: ${shared.length} document(s) also in mini:\n  ${shared.join("\n  ")}`,
+      );
+      process.exit(1);
+    }
+    console.log(
+      `Document-blocking OK: 0 of ${derived.corpus.length} hold-out documents appear in the mini corpus`,
+    );
+  }
 
   if (writeManifest) {
     const manifest: MiniManifest = validateMiniManifest({
       schema_version: "1",
-      name: "legalbench-rag-mini",
+      name: CONFIG.manifestName,
       upstream: UPSTREAM,
       derivation: {
-        rule: DERIVATION_RULE,
+        rule: SPLIT === "holdout" ? HOLDOUT_DERIVATION_RULE : DERIVATION_RULE,
         max_tests_per_source: MAX_TESTS_PER_SOURCE,
+        ...(derived.empty.length
+          ? { sources_without_split: derived.empty }
+          : {}),
       },
       benchmarks: derived.benchmarks,
       corpus: derived.corpus,
     });
-    writeFileSync(MANIFEST_PATH, `${JSON.stringify(manifest, null, 2)}\n`);
-    console.log(`Wrote manifest: ${MANIFEST_PATH}`);
+    writeFileSync(
+      CONFIG.manifestPath,
+      `${JSON.stringify(manifest, null, 2)}\n`,
+    );
+    console.log(`Wrote manifest: ${CONFIG.manifestPath}`);
     return;
   }
 
-  if (!existsSync(MANIFEST_PATH)) {
+  if (!existsSync(CONFIG.manifestPath)) {
     console.error(
-      `No committed manifest at ${MANIFEST_PATH}. Run with --write-manifest to pin.`,
+      `No committed manifest at ${CONFIG.manifestPath}. Run with --write-manifest to pin.`,
     );
     process.exit(1);
   }
   const manifest = validateMiniManifest(
-    JSON.parse(readFileSync(MANIFEST_PATH, "utf8")),
+    JSON.parse(readFileSync(CONFIG.manifestPath, "utf8")),
   );
   const problems = verifyAgainstManifest(manifest, derived.files);
   if (problems.length) {
@@ -179,7 +227,7 @@ async function main() {
     process.exit(1);
   }
   console.log(
-    `Manifest verification OK: ${derived.files.length} files byte-identical to ${MANIFEST_PATH}`,
+    `Manifest verification OK: ${derived.files.length} files byte-identical to ${CONFIG.manifestPath}`,
   );
 }
 
