@@ -19,6 +19,7 @@
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
+import { receiptPath as resolveReceiptPath } from "../src/lib/experimentReceipts";
 import {
   LEGALBENCH_MINI_SOURCE_DB,
   LEGALBENCH_MINI_SOURCE_DB_RAW,
@@ -47,31 +48,19 @@ const COORDS = RAW_COORDS ? "crlf" : "lf";
 const RUN_TAG =
   (RAW_COORDS ? "+rawcoords" : "") + (STRIP_CONSIDER ? "+stripped" : "");
 /**
- * Receipt destination for a sweep. `--output` wins; otherwise the default
- * name under the receipt store.
- *
- * Refuses to clobber an existing receipt unless `--force` is passed. Stage
- * 18R lost the pinned `stage18-retrieval-arms.jsonl` bytes exactly this way
- * — a re-run took the default path because `--output` was wired into only
- * one of the sweep modes, and the sha recorded in the experiment log stopped
- * resolving. Receipts are append-only evidence; overwriting one silently is
- * a defect, not a convenience.
+ * Receipt destination for a sweep: `--output` wins in every sweep mode,
+ * otherwise the default name under the receipt store. The no-clobber
+ * guard itself lives in src/lib/experimentReceipts (shared with the two
+ * grounding harnesses, which lost a pinned receipt to this exact defect).
  */
-function receiptPath(defaultName: string): string {
-  const at = process.argv.indexOf("--output");
-  const output =
-    at >= 0
-      ? process.argv[at + 1]
-      : path.join(
-          process.env.LOCALAPPDATA ?? "",
-          `OpenLegalData/experiments/legal-grounding/2026-07-30/${defaultName}`,
-        );
-  if (existsSync(output) && !process.argv.includes("--force"))
-    throw new Error(
-      `refusing to overwrite an existing receipt: ${output}\n` +
-        "pass --output <newfile> for a fresh run, or --force if you really mean to replace it",
-    );
-  return output;
+function receiptPath(defaultName: string, resume = false): string {
+  return resolveReceiptPath(
+    path.join(
+      process.env.LOCALAPPDATA ?? "",
+      `OpenLegalData/experiments/legal-grounding/2026-07-30/${defaultName}`,
+    ),
+    { resume },
+  );
 }
 
 export function stripConsider(query: string): string {
@@ -280,10 +269,10 @@ async function rerankArmsMain() {
   const perSource = Number(argValue("per-source", "48"));
   const concurrency = Number(argValue("concurrency", "3"));
   const resume = argValue("resume", "0") !== "0";
-  const output = path.join(
-    process.env.LOCALAPPDATA ?? "",
-    `OpenLegalData/experiments/legal-grounding/2026-07-30/stage18-rerank-arms${RUN_TAG}.jsonl`,
-  );
+  // This mode built its path inline and ignored --output, which is the
+  // hole the receipt guard exists to close: it truncates on every
+  // non-resume run.
+  const output = receiptPath(`stage18-rerank-arms${RUN_TAG}.jsonl`, resume);
   const arms: { arm: string; model: string; effort?: string }[] = [
     { arm: "luna@default", model: "codex:gpt-5.6-luna" },
     { arm: "luna@low", model: "codex:gpt-5.6-luna", effort: "low" },
