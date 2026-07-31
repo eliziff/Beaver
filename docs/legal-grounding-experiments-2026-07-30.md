@@ -2191,6 +2191,40 @@ LLM reranking of a deep pool (k≈24–48 → top 4), which bounds recall@4
 at 0.68–0.85 without any embedding infrastructure; dense lane
 reconsidered only if reranking underdelivers.
 
+## Stage 16 — structure-native retrieval program (pre-registered
+2026-07-30; Eli authorized flat-rate model spend for retrieval and
+directed a research-grounded plan)
+
+Research anchors: whole-pool listwise reranking (RankGPT family;
+long-context models rank a 48-candidate pool in one call);
+parent-child / hierarchy-aware chunking validated on legal corpora
+(HiChunk; a MAUD chunking benchmark; parent-document retrieval as
+pushed by the LegalBench-RAG authors themselves); contextual chunk
+prefixes (Anthropic contextual retrieval). Our angle: the skeleton
+makes chunk boundaries and context prefixes deterministic, and the
+citator supplies proposition-level surrogates no generic stack has.
+
+Workstreams, in execution order, each gated on deterministic gold:
+- **W2 (now, model spend): whole-pool LLM reranker.** Pool k=48
+  lexical (t1600/o120/w16, measured pool recall 0.8486), one listwise
+  call (luna@low) returns the best 4 passage indices; parse failure
+  falls back to lexical order (typed, counted). Frozen predictions:
+  reranked recall@4 ≥ 0.40 (lexical 0.2865; pool bound 0.85);
+  precision@4 ≥ lexical (0.0303); doc recall ≥ 0.98 unchanged;
+  fallback rate < 5%. Falsified by: recall@4 < lexical (reranker
+  destroys order), or fallback ≥ 20% (transport-shaped, not scored).
+- **W1: skeleton-aligned chunking + context prefixes** (free,
+  offline): clause/heading-boundary chunks for contracts, heading-path
+  + doc-identity prefixes in indexed text; ablate vs t1600 winner.
+- **W3: citation short-circuit lane** — queries containing citations
+  resolve deterministically via citation_lookup, RRF-fused first.
+- **W4: proposition-surrogate index** (product corpus): parentheticals
+  / citator excerpts as an embedded+lexical retrieval lane routing to
+  opinion passages; attacks the Stage 13 CLERC no-sub floor via
+  richer attested offers.
+- **W5: dense lane** (fastembed ONNX local; turbovec at product
+  scale) — only if W1+W2 leave recall@4 < 0.5.
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under
