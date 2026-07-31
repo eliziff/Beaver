@@ -73,7 +73,7 @@
     .brand-lockup { display: flex; align-items: center; gap: .6rem; min-width: 0; }
     .brand-name { font-weight: 700; letter-spacing: -.01em; white-space: nowrap; }
     .brand-divider { color: #98a2b3; }
-    .beaver-mark { flex: 0 0 auto; width: 1.6rem; height: 1.6rem; color: var(--brand); }
+    .beaver-mark { flex: 0 0 auto; width: 1.75rem; height: 1.75rem; color: var(--brand); }
     .local-note { color: #d0d5dd; font-size: var(--text-sm); }
 
     main {
@@ -283,7 +283,7 @@
     .exhibits-heading > div:first-child { display: grid; gap: .15rem; }
     .work-panel {
       display: grid;
-      grid-template-columns: 4rem minmax(0, 1fr);
+      grid-template-columns: 6.25rem minmax(0, 1fr);
       align-items: center;
       gap: 1rem;
       min-width: 0;
@@ -295,97 +295,59 @@
     }
     .work-mark {
       display: grid;
-      position: relative;
       place-items: center;
-      width: 4rem;
-      aspect-ratio: 1;
-      border-radius: .75rem;
+      width: 6.25rem;
+      min-height: 4.5rem;
       color: var(--brand);
       background: transparent;
-      perspective: 7rem;
     }
-    .work-braille {
-      position: relative;
-      width: 2.8rem;
-      height: 2.8rem;
-      transform: translateY(-.25rem) scale(.8) rotateX(-22deg) rotateY(38deg);
-      transform-style: preserve-3d;
-    }
-    .work-braille > span {
-      position: absolute;
-      inset: 0;
-      display: grid;
-      place-items: center;
-      color: var(--brand);
-      font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
-      font-size: 2.65rem;
-      font-weight: 700;
-      line-height: 1;
-      transform-style: preserve-3d;
-      backface-visibility: hidden;
-    }
-    .work-braille > span::before { content: "⠋"; }
-    .work-braille .front { transform: translateZ(1.05rem); }
-    .work-braille .side {
-      color: var(--brand-dark);
-      transform: rotateY(90deg) translateZ(1.05rem);
-    }
-    .work-braille .top {
-      color: #ed5a4d;
-      transform: rotateX(90deg) translateZ(1.05rem);
-    }
-    .work-log {
-      position: absolute;
-      inset-block-end: .25rem;
-      width: 2.45rem;
-      height: .68rem;
-      overflow: visible;
-      border-radius: .45rem .2rem .2rem .45rem;
-      background: var(--brand-dark);
-      box-shadow: inset 0 0 0 1px rgb(255 255 255 / 24%), inset 0 -.14rem rgb(0 0 0 / 13%);
-    }
-    .work-log::after {
-      position: absolute;
-      inset-inline-end: -.12rem;
-      inset-block-start: -.17rem;
-      width: .72rem;
-      height: 1rem;
-      border-radius: 50%;
-      background: #fcfcfd;
-      content: "";
-      box-shadow: 0 .42rem #fcfcfd;
-      transform: scale(0);
-      transform-origin: right center;
-    }
-    .work-log::before {
-      position: absolute;
-      inset-inline-start: .28rem;
-      inset-block-start: .17rem;
-      width: 1.35rem;
-      height: .08rem;
-      border-radius: 99px;
-      background: rgb(255 255 255 / 28%);
-      content: "";
-    }
+    .gnaw-scene { display: block; width: 6.25rem; height: 4.5rem; overflow: visible; }
+    .gnaw-beaver,
+    .gnaw-teeth,
+    .gnaw-log,
+    .gnaw-chip { transform-box: fill-box; }
+    .gnaw-beaver { transform-origin: 82% 78%; }
+    .gnaw-teeth { transform-origin: center right; }
+    .gnaw-log { transform-origin: left center; }
+    .gnaw-chip { opacity: 0; transform-origin: center; }
+    .gnaw-cut { fill: #fcfcfd; }
     @media (prefers-reduced-motion: no-preference) {
-      .work-braille { animation: work-braille-turn 1.8s linear infinite; }
-      .work-braille > span::before { animation: work-braille-spin 1.1s steps(1, end) infinite; }
-      .work-log::after { animation: work-log-gnaw 1.15s steps(1, end) infinite; }
+      .gnaw-beaver { animation: gnaw-head 2.1s cubic-bezier(.4, 0, .2, 1) infinite; }
+      .gnaw-teeth { animation: gnaw-teeth 2.1s steps(1, end) infinite; }
+      .gnaw-log { animation: gnaw-log 2.1s steps(1, end) infinite; }
+      .gnaw-bite-one { animation: gnaw-bite-one 2.1s steps(1, end) infinite; }
+      .gnaw-bite-two { animation: gnaw-bite-two 2.1s steps(1, end) infinite; }
+      .gnaw-bite-three { animation: gnaw-bite-three 2.1s steps(1, end) infinite; }
+      .gnaw-chip-one { animation: gnaw-chip-one 2.1s ease-out infinite; }
+      .gnaw-chip-two { animation: gnaw-chip-two 2.1s ease-out infinite; }
     }
-    @keyframes work-braille-turn {
-      to { transform: translateY(-.25rem) scale(.8) rotateX(338deg) rotateY(398deg); }
+    @keyframes gnaw-head {
+      0%, 8%, 25%, 42%, 59%, 96%, 100% { transform: translate(0) rotate(0); }
+      15%, 32%, 49% { transform: translate(-2.5px, 1px) rotate(-3deg); }
+      66%, 88% { transform: translate(7px, -1px) rotate(2deg); }
     }
-    @keyframes work-braille-spin {
-      0% { content: "⠋"; } 10% { content: "⠙"; } 20% { content: "⠹"; }
-      30% { content: "⠸"; } 40% { content: "⠼"; } 50% { content: "⠴"; }
-      60% { content: "⠦"; } 70% { content: "⠧"; } 80% { content: "⠇"; }
-      90%, 100% { content: "⠏"; }
+    @keyframes gnaw-teeth {
+      0%, 11%, 29%, 47%, 100% { transform: translateX(0); }
+      12%, 28%, 30%, 46%, 48%, 66% { transform: translateX(-2px); }
     }
-    @keyframes work-log-gnaw {
-      0%, 24% { transform: scale(0); }
-      25%, 49% { transform: scale(.48); }
-      50%, 74% { transform: scale(.73); }
-      75%, 100% { transform: scale(1); }
+    @keyframes gnaw-log {
+      0%, 15%, 96%, 100% { transform: scaleX(1); }
+      16%, 32% { transform: scaleX(.98); }
+      33%, 49% { transform: scaleX(.955); }
+      50%, 95% { transform: scaleX(.92); }
+    }
+    @keyframes gnaw-bite-one { 0%, 17%, 96%, 100% { opacity: 0; } 18%, 95% { opacity: 1; } }
+    @keyframes gnaw-bite-two { 0%, 35%, 96%, 100% { opacity: 0; } 36%, 95% { opacity: 1; } }
+    @keyframes gnaw-bite-three { 0%, 53%, 96%, 100% { opacity: 0; } 54%, 95% { opacity: 1; } }
+    @keyframes gnaw-chip-one {
+      0%, 17%, 100% { opacity: 0; transform: translate(0) rotate(0); }
+      18% { opacity: 1; transform: translate(0) rotate(0); }
+      34% { opacity: 0; transform: translate(-9px, -12px) rotate(-48deg); }
+    }
+    @keyframes gnaw-chip-two {
+      0%, 35%, 100% { opacity: 0; transform: translate(0) rotate(0); }
+      36% { opacity: 1; transform: translate(0) rotate(0); }
+      52% { opacity: 0; transform: translate(-11px, 8px) rotate(62deg); }
     }
     .work-copy {
       display: grid;
@@ -574,6 +536,14 @@
       background: #fff;
     }
     .preview-eye:hover { color: var(--ink); background: #f2f4f7; }
+    .preview-eye:disabled,
+    .wording-details:disabled { opacity: .52; cursor: not-allowed; }
+    .preview-eye:disabled:hover,
+    .wording-details:disabled:hover {
+      color: #98a2b3;
+      border-color: #e4e7ec;
+      background: #f2f4f7;
+    }
     .preview-eye svg {
       display: block;
       width: 1.25rem;
@@ -601,11 +571,12 @@
     }
     .exhibit-row {
       display: grid;
-      grid-template-columns: 2.5rem minmax(0, 1fr) auto;
+      position: relative;
+      grid-template-columns: 2.25rem minmax(0, 1fr) auto;
       align-items: start;
       gap: .6rem;
       min-width: 0;
-      padding: .6rem .65rem .6rem 3rem;
+      padding: .6rem .65rem;
       border: 1px solid var(--line);
       border-radius: .6rem;
       background: #fff;
@@ -613,8 +584,8 @@
     .letter {
       display: grid;
       place-items: center;
-      width: 2.5rem;
-      min-height: 2.5rem;
+      width: 2.25rem;
+      min-height: 2.25rem;
       border-radius: .45rem;
       color: var(--brand-dark);
       background: var(--brand-soft);
@@ -700,15 +671,13 @@
       display: grid;
       position: absolute;
       inset-block-start: 50%;
-      inset-inline-start: -2px;
+      inset-inline-start: .7rem;
       place-items: center;
-      width: 2rem;
-      min-height: 3.5rem;
+      width: .9rem;
+      min-height: 1.35rem;
       color: #98a2b3;
-      border: 1px solid var(--line);
-      border-inline-start: 0;
-      border-radius: 0 .45rem .45rem 0;
-      background: #f9fafb;
+      border: 0;
+      background: transparent;
       font-size: 0;
       line-height: 1;
       cursor: grab;
@@ -716,35 +685,45 @@
       user-select: none;
     }
     .drag-grip::before {
-      width: .25rem;
-      height: .25rem;
-      border-radius: 50%;
-      background: currentColor;
-      box-shadow:
-        0 .45rem currentColor,
-        0 -.45rem currentColor,
-        .45rem 0 currentColor,
-        .45rem .45rem currentColor,
-        .45rem -.45rem currentColor;
+      width: .9rem;
+      height: 1.35rem;
+      background: radial-gradient(circle, currentColor .11rem, transparent .12rem) center / .45rem .45rem;
       content: "";
-      transform: translateX(-.225rem);
     }
     [data-dragging="true"] .drag-grip,
     [draggable="true"]:hover .drag-grip { color: var(--ink); }
-    .letter-stack { display: grid; justify-items: center; gap: .4rem; }
-    .letter-stack .preview-eye {
-      width: 2.5rem;
-      min-width: 2.5rem;
-      min-height: 2.5rem;
+    .letter-stack { display: grid; justify-items: center; gap: .25rem; }
+    .letter-stack .preview-eye,
+    .letter-stack .wording-details {
+      width: 2.125rem;
+      min-width: 2.125rem;
+      min-height: 2.125rem;
+    }
+    .wording-details {
+      padding: 0;
+      color: var(--muted);
+      border-color: var(--line);
+      background: #fff;
+    }
+    .wording-details:hover { color: var(--ink); background: #f2f4f7; }
+    .wording-details svg {
+      width: 1.2rem;
+      height: 1.2rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-width: 1.75;
     }
     .slot-actions {
       display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       align-content: start;
       gap: .35rem;
-      min-width: 7.25rem;
+      min-width: 10.5rem;
     }
     .slot-actions > * { width: 100%; }
-    .slot-body > .expected { grid-column: 1 / -1; }
+    .slot-actions > label { grid-column: 1 / -1; }
     .file-name {
       min-width: 0;
       overflow: hidden;
@@ -753,23 +732,15 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .file-meta, .expected {
+    .file-meta {
       color: var(--muted);
       font-size: var(--text-sm);
       overflow-wrap: break-word;
     }
     .file-meta[data-kind="strong"] { color: var(--success); }
     .file-meta[data-kind="possible"] { color: var(--warning); }
-    .expected {
-      margin: .1rem 0 0;
-      padding: .5rem .65rem;
-      border-radius: .45rem;
-      background: #f9fafb;
-      box-shadow: inset 0 0 0 1px var(--line);
-    }
-    .expected summary { cursor: pointer; color: var(--ink); font-weight: 600; }
-    .expected ul { margin: .35rem 0 0; padding-inline-start: 1.1rem; }
-    .expected li + li { margin-block-start: .25rem; }
+    .wording-list { margin: 0; padding-inline-start: 1.25rem; }
+    .wording-list li + li { margin-block-start: .6rem; }
     .delete-assigned {
       color: var(--danger);
       border-color: #fecdca;
@@ -1002,8 +973,8 @@
       .file-drop .file-button { width: 100%; }
       #affidavit-drop { grid-template-columns: 1fr; }
       #affidavit-drop .affidavit-picker { width: 8.5rem; justify-self: start; }
-      .work-panel { grid-template-columns: 3.5rem minmax(0, 1fr); padding: 1rem; }
-      .work-mark { width: 3.5rem; }
+      .work-panel { grid-template-columns: 5rem minmax(0, 1fr); gap: .75rem; padding: 1rem; }
+      .work-mark, .gnaw-scene { width: 5rem; }
       .exhibit-import-stage,
       .exhibit-files-panel .work-panel { min-height: 18rem; }
       .files-toolbar { align-items: stretch; flex-direction: column; }
@@ -1013,13 +984,16 @@
       .form-grid { grid-template-columns: 1fr; }
       .field.wide { grid-column: auto; }
       .exhibits-heading { display: grid; }
-      .exhibit-row { grid-template-columns: 2.5rem minmax(0, 1fr); }
+      .exhibit-row { grid-template-columns: 2.25rem minmax(0, 1fr); }
       .letter-stack { grid-column: 1; grid-row: 1; }
       .slot-body { grid-column: 2; grid-row: 1; }
       .slot-body { grid-template-columns: 1fr; }
-      .slot-actions { grid-column: 1; grid-row: 2; grid-template-columns: 1fr; min-width: 0; }
-      .slot-body > .expected { grid-column: 1; }
-      .delete-slot { grid-column: 2; grid-row: 2; justify-self: end; }
+      .slot-actions { grid-column: 1; grid-row: 2; min-width: 0; }
+      .delete-slot {
+        position: absolute;
+        inset-block-end: .6rem;
+        inset-inline-start: .65rem;
+      }
       .output-card .primary { width: 100%; }
     }
   </style>
@@ -1028,17 +1002,16 @@
   <header class="topbar">
     <div class="brand-lockup">
       <svg class="beaver-mark" viewBox="0 0 32 32" aria-hidden="true">
-        <circle cx="8.2" cy="8.5" r="4.1" fill="currentColor"/>
-        <circle cx="23.8" cy="8.5" r="4.1" fill="currentColor"/>
-        <path d="M4.7 17.1C4.7 9.8 9.7 5.7 16 5.7s11.3 4.1 11.3 11.4c0 7.1-4.8 10.4-11.3 10.4S4.7 24.2 4.7 17.1Z" fill="currentColor"/>
-        <circle cx="11.3" cy="14.1" r="2" fill="#fff"/>
-        <circle cx="20.7" cy="14.1" r="2" fill="#fff"/>
-        <circle cx="11.7" cy="14.4" r=".78" fill="currentColor"/>
-        <circle cx="20.3" cy="14.4" r=".78" fill="currentColor"/>
-        <path d="M13.5 18.2h5l-2.5 2.05-2.5-2.05Z" fill="#fff"/>
-        <rect x="11.2" y="20.4" width="4.8" height="6.5" rx="1.1" fill="#fff"/>
-        <rect x="16" y="20.4" width="4.8" height="6.5" rx="1.1" fill="#fff"/>
-        <path d="M16 20.8v5.7" fill="none" stroke="currentColor" stroke-width="1.1"/>
+        <circle cx="7.7" cy="8.2" r="4.2" fill="#9f2118"/>
+        <circle cx="24.3" cy="8.2" r="4.2" fill="#9f2118"/>
+        <path d="M16 4.6c7.4 0 12 5 12 12.8 0 7.3-4.8 11.4-12 11.4S4 24.7 4 17.4C4 9.6 8.6 4.6 16 4.6Z" fill="currentColor"/>
+        <circle cx="11.5" cy="14.3" r="1.15" fill="#101828"/>
+        <circle cx="20.5" cy="14.3" r="1.15" fill="#101828"/>
+        <path d="M8.7 18.3c0-2.3 2-3.9 4.5-3.9 1.1 0 2.1.4 2.8 1.1.7-.7 1.7-1.1 2.8-1.1 2.5 0 4.5 1.6 4.5 3.9 0 2.8-2.1 4.5-4.7 4.5h-5.2c-2.6 0-4.7-1.7-4.7-4.5Z" fill="#fecdca"/>
+        <path d="m13.4 18 2.6-1.4 2.6 1.4-2.6 2.2Z" fill="#101828"/>
+        <rect x="11.4" y="21.3" width="4.6" height="7.2" rx=".9" fill="#fff"/>
+        <rect x="16" y="21.3" width="4.6" height="7.2" rx=".9" fill="#fff"/>
+        <path d="M16 21.8v6.2" fill="none" stroke="#d0d5dd" stroke-width=".9"/>
       </svg>
       <span class="brand-name">Beaver</span>
       <span class="brand-divider" aria-hidden="true">|</span>
@@ -1080,10 +1053,33 @@
         </div>
         <div id="affidavit-loading" class="work-panel hidden">
           <div class="work-mark" aria-hidden="true">
-            <span class="work-braille">
-              <span class="front"></span><span class="side"></span><span class="top"></span>
-            </span>
-            <span class="work-log"></span>
+            <svg class="gnaw-scene" viewBox="0 0 128 72">
+              <g class="gnaw-log">
+                <rect x="4" y="49" width="64" height="15" rx="7.5" fill="#8b4a35"/>
+                <circle cx="66" cy="56.5" r="6.3" fill="#c98a6e"/>
+                <path d="M12 54h25M18 59h14" fill="none" stroke="#c98a6e" stroke-width="1.5" stroke-linecap="round"/>
+                <circle class="gnaw-cut gnaw-bite-one" cx="70" cy="50.5" r="3.1"/>
+                <circle class="gnaw-cut gnaw-bite-two" cx="68.8" cy="56.5" r="3.1"/>
+                <circle class="gnaw-cut gnaw-bite-three" cx="70" cy="62.5" r="3.1"/>
+              </g>
+              <path d="M101 43c13-6 24 1 24 12 0 10-11 15-25 10-3-8-2-16 1-22Z" fill="#8b4a35"/>
+              <path d="m108 44 12 11m-16-5 14 13m-15-5 7 7m5-21 9 8" fill="none" stroke="#c98a6e" stroke-width="1.2" stroke-linecap="round"/>
+              <g class="gnaw-beaver">
+                <circle cx="88" cy="24" r="7" fill="#9f2118"/>
+                <path d="M109 54c-1-19-10-31-25-31-14 0-24 11-24 26 0 11 6 18 15 21h28c4-4 6-9 6-16Z" fill="currentColor"/>
+                <path d="M63 38c6-6 14-6 19 0 2 3 1 8-2 11-5 4-13 3-18-1-3-3-2-7 1-10Z" fill="#fecdca"/>
+                <circle cx="76" cy="33" r="2.15" fill="#101828"/>
+                <circle cx="76.7" cy="32.4" r=".65" fill="#fff"/>
+                <path d="m61 39 4-2.8 3.2 3.3-3.7 3.1Z" fill="#101828"/>
+                <g class="gnaw-teeth">
+                  <rect x="59.2" y="43" width="5.1" height="9.5" rx="1.1" fill="#fff"/>
+                  <rect x="64.3" y="43" width="5.1" height="9.5" rx="1.1" fill="#fff"/>
+                  <path d="M64.3 44v7.5" stroke="#d0d5dd" stroke-width=".8"/>
+                </g>
+              </g>
+              <path class="gnaw-chip gnaw-chip-one" d="m58 47 4-2 1 4Z" fill="#c98a6e"/>
+              <path class="gnaw-chip gnaw-chip-two" d="m59 59 4 1-2 3Z" fill="#c98a6e"/>
+            </svg>
           </div>
           <div class="work-copy">
             <strong>Reading affidavit</strong>
@@ -1175,10 +1171,33 @@
               </div>
               <div id="exhibit-loading" class="work-panel hidden">
                 <div class="work-mark" aria-hidden="true">
-                  <span class="work-braille">
-                    <span class="front"></span><span class="side"></span><span class="top"></span>
-                  </span>
-                  <span class="work-log"></span>
+                  <svg class="gnaw-scene" viewBox="0 0 128 72">
+                    <g class="gnaw-log">
+                      <rect x="4" y="49" width="64" height="15" rx="7.5" fill="#8b4a35"/>
+                      <circle cx="66" cy="56.5" r="6.3" fill="#c98a6e"/>
+                      <path d="M12 54h25M18 59h14" fill="none" stroke="#c98a6e" stroke-width="1.5" stroke-linecap="round"/>
+                      <circle class="gnaw-cut gnaw-bite-one" cx="70" cy="50.5" r="3.1"/>
+                      <circle class="gnaw-cut gnaw-bite-two" cx="68.8" cy="56.5" r="3.1"/>
+                      <circle class="gnaw-cut gnaw-bite-three" cx="70" cy="62.5" r="3.1"/>
+                    </g>
+                    <path d="M101 43c13-6 24 1 24 12 0 10-11 15-25 10-3-8-2-16 1-22Z" fill="#8b4a35"/>
+                    <path d="m108 44 12 11m-16-5 14 13m-15-5 7 7m5-21 9 8" fill="none" stroke="#c98a6e" stroke-width="1.2" stroke-linecap="round"/>
+                    <g class="gnaw-beaver">
+                      <circle cx="88" cy="24" r="7" fill="#9f2118"/>
+                      <path d="M109 54c-1-19-10-31-25-31-14 0-24 11-24 26 0 11 6 18 15 21h28c4-4 6-9 6-16Z" fill="currentColor"/>
+                      <path d="M63 38c6-6 14-6 19 0 2 3 1 8-2 11-5 4-13 3-18-1-3-3-2-7 1-10Z" fill="#fecdca"/>
+                      <circle cx="76" cy="33" r="2.15" fill="#101828"/>
+                      <circle cx="76.7" cy="32.4" r=".65" fill="#fff"/>
+                      <path d="m61 39 4-2.8 3.2 3.3-3.7 3.1Z" fill="#101828"/>
+                      <g class="gnaw-teeth">
+                        <rect x="59.2" y="43" width="5.1" height="9.5" rx="1.1" fill="#fff"/>
+                        <rect x="64.3" y="43" width="5.1" height="9.5" rx="1.1" fill="#fff"/>
+                        <path d="M64.3 44v7.5" stroke="#d0d5dd" stroke-width=".8"/>
+                      </g>
+                    </g>
+                    <path class="gnaw-chip gnaw-chip-one" d="m58 47 4-2 1 4Z" fill="#c98a6e"/>
+                    <path class="gnaw-chip gnaw-chip-two" d="m59 59 4 1-2 3Z" fill="#c98a6e"/>
+                  </svg>
                 </div>
                 <div class="work-copy">
                   <strong>Sorting exhibit files</strong>
@@ -1268,6 +1287,19 @@
     </form>
   </dialog>
 
+  <dialog id="wording-dialog" aria-labelledby="wording-title">
+    <form method="dialog">
+      <div class="dialog-body">
+        <h2 id="wording-title">Exhibit details</h2>
+        <p>Affidavit wording</p>
+        <ul id="wording-list" class="wording-list"></ul>
+      </div>
+      <div class="dialog-actions">
+        <button value="close" class="primary">Done</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="file-preview-dialog" class="file-preview-dialog" aria-labelledby="file-preview-title">
     <div class="preview-dialog-shell">
       <div class="preview-dialog-heading">
@@ -1326,6 +1358,8 @@
       previewRenderQueue: Promise.resolve(),
       docxQueue: Promise.resolve(),
       docxCache: new Map(),
+      workTaskTimers: { affidavit: null, exhibit: null },
+      workTaskIndexes: { affidavit: 0, exhibit: 0 },
     };
     function escapeHtml(value) {
       return String(value).replace(/[&<>"']/g, (character) => ({
@@ -1378,15 +1412,25 @@
       const panel = $(`#${kind}-loading`);
       input.classList.toggle("hidden", visible);
       panel.classList.toggle("hidden", !visible);
+      clearInterval(state.workTaskTimers[kind]);
+      state.workTaskTimers[kind] = null;
       if (kind === "affidavit") {
         $("#affidavit-card").setAttribute("aria-busy", String(visible));
         $("#affidavit-summary").textContent = visible ? "Processing" : state.affidavitMeta;
       }
-      if (visible) updateWorkProgress(kind, "Preparing document tools", 0);
+      if (visible) {
+        state.workTaskIndexes[kind] = 0;
+        updateBeaverTask(kind);
+        state.workTaskTimers[kind] = setInterval(() => {
+          state.workTaskIndexes[kind] = (state.workTaskIndexes[kind] + 1) % beaverTasks(kind).length;
+          updateBeaverTask(kind);
+        }, 3200);
+        updateWorkProgress(kind, 0);
+      }
     }
 
-    function beaverTask(kind, message, value) {
-      const affidavitTasks = [
+    function beaverTasks(kind) {
+      const affidavit = [
         "Sharpening the Beaver teeth",
         "Putting on tiny reading glasses",
         "Gnawing through the opening pages",
@@ -1400,7 +1444,7 @@
         "Stacking the useful bits by the pond",
         "Giving the final pile an approving tail slap",
       ];
-      const exhibitTasks = [
+      const exhibits = [
         "Rolling the exhibit logs into view",
         "Sniffing for matching wood grain",
         "Trying each log in its little slot",
@@ -1413,16 +1457,15 @@
         "Polishing the last woodchip",
         "Giving the sorted pile an approving tail slap",
       ];
-      if (/preparing/i.test(message)) return affidavitTasks[0];
-      const tasks = kind === "affidavit" ? affidavitTasks : exhibitTasks;
-      return tasks[Math.min(tasks.length - 1, Math.floor(Math.max(0, value) * tasks.length / 100))];
+      return kind === "affidavit" ? affidavit : exhibits;
     }
 
-    function updateWorkProgress(kind, message, value) {
+    function updateBeaverTask(kind) {
+      $(`#${kind}-work-step`).textContent = beaverTasks(kind)[state.workTaskIndexes[kind]];
+    }
+
+    function updateWorkProgress(kind, value) {
       const percent = Math.max(0, Math.min(100, Math.round(value)));
-      const step = $(`#${kind}-work-step`);
-      const task = beaverTask(kind, message, percent);
-      if (step.textContent !== task) step.textContent = task;
       $(`#${kind}-work-percent`).textContent = `${percent}%`;
       $(`#${kind}-work-progress`).value = percent;
     }
@@ -1437,8 +1480,14 @@
       $("#automatic").disabled = busy;
       $("#file-options").disabled = busy;
       $("#clear-exhibits").disabled = busy || !state.order.some(Boolean);
-      document.querySelectorAll(".slot-file, .delete-slot, .unassign-file, .delete-assigned, .preview-eye, .delete-pool-file, #sort-abstain, input[name='file-placement']").forEach((control) => {
+      document.querySelectorAll(".slot-file, .delete-slot, .unassign-file, .delete-assigned, .delete-pool-file, #sort-abstain, input[name='file-placement']").forEach((control) => {
         control.disabled = busy;
+      });
+      document.querySelectorAll(".preview-eye").forEach((control) => {
+        control.disabled = busy || !control.dataset.id;
+      });
+      document.querySelectorAll(".wording-details").forEach((control) => {
+        control.disabled = busy || control.dataset.available !== "true";
       });
       $("#progress").classList.toggle("hidden", !(busy && kind === "build"));
       if (!busy) $("#progress").value = 0;
@@ -1448,8 +1497,8 @@
       setStatus(message);
       const percent = total ? (completed / total) * 100 : 0;
       $("#progress").value = percent;
-      if (state.busyKind === "scan") updateWorkProgress("affidavit", message, percent);
-      if (state.busyKind === "sort") updateWorkProgress("exhibit", message, percent);
+      if (state.busyKind === "scan") updateWorkProgress("affidavit", percent);
+      if (state.busyKind === "sort") updateWorkProgress("exhibit", percent);
     }
 
     function script(src) {
@@ -1638,8 +1687,8 @@
             if (status === "recognizing text") {
               const value = state.ocrProgressBase + amount * state.ocrProgressSpan;
               setStatus(`${state.ocrContext} — ${Math.round(value)}%`);
-              if (state.busyKind === "scan") updateWorkProgress("affidavit", state.ocrContext, value);
-              if (state.busyKind === "sort") updateWorkProgress("exhibit", state.ocrContext, value);
+              if (state.busyKind === "scan") updateWorkProgress("affidavit", value);
+              if (state.busyKind === "sort") updateWorkProgress("exhibit", value);
             }
           },
         });
@@ -2118,13 +2167,38 @@
       setStatus(`${entry.file.name} deleted.`);
     }
 
-    function previewEye(id, filename) {
-      return `<button type="button" class="preview-eye" data-id="${id}" draggable="false" aria-label="Preview ${filename}" ${state.busy ? "disabled" : ""}>
+    function previewEye(id = "", filename = "") {
+      const available = Boolean(id);
+      const label = available ? `Preview ${filename}` : "Preview unavailable until a file is added";
+      return `<button type="button" class="preview-eye" data-id="${id}" draggable="false" aria-label="${label}" title="${label}" ${state.busy || !available ? "disabled" : ""}>
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/>
           <circle cx="12" cy="12" r="2.75"/>
         </svg>
       </button>`;
+    }
+
+    function wordingDetails(index, statements) {
+      const label = indexLabel(index);
+      const available = statements.length > 0;
+      const title = available ? `View Exhibit ${label} affidavit wording` : `No affidavit wording found for Exhibit ${label}`;
+      return `<button type="button" class="wording-details" data-index="${index}" data-available="${available}" aria-label="${title}" title="${title}" ${state.busy || !available ? "disabled" : ""}>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M6.5 4.5h11a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-11a2 2 0 0 1-2-2v-11a2 2 0 0 1 2-2Z"/>
+          <path d="M8 9h8M8 12.5h8M8 16h5"/>
+        </svg>
+      </button>`;
+    }
+
+    function showWordingDetails(index) {
+      const label = indexLabel(index);
+      const statements = state.statements.get(label) || [];
+      if (!statements.length) return;
+      $("#wording-title").textContent = `Exhibit ${label} details`;
+      $("#wording-list").innerHTML = statements
+        .map((statement) => `<li>${escapeHtml(statement)}</li>`)
+        .join("");
+      $("#wording-dialog").showModal();
     }
 
     function renderPool() {
@@ -2154,11 +2228,6 @@
       $("#exhibit-list").innerHTML = state.order.map((id, index) => {
         const entry = entryById(id);
         const statements = state.statements.get(indexLabel(index)) || [];
-        const expected = statements.length ? `
-          <details class="expected">
-            <summary>Affidavit wording</summary>
-            <ul>${statements.map((statement) => `<li>${escapeHtml(statement)}</li>`).join("")}</ul>
-          </details>` : "";
         const filename = entry ? escapeHtml(entry.file.name) : "";
         const metadata = entry
           ? `${fileKind(entry.file)}${entry.pageCount ? ` · ${entry.pageCount} page${entry.pageCount === 1 ? "" : "s"}` : ""}`
@@ -2167,7 +2236,8 @@
           <article class="exhibit-row" data-index="${index}" data-id="${entry?.id || ""}">
             <div class="letter-stack">
               <div class="letter">${indexLabel(index)}</div>
-              ${entry ? previewEye(entry.id, filename) : ""}
+              ${previewEye(entry?.id, filename)}
+              ${wordingDetails(index, statements)}
             </div>
             <div class="slot-body">
               <div class="slot-drop" data-index="${index}" draggable="${Boolean(entry) && !state.busy}"
@@ -2194,7 +2264,6 @@
                       <input class="slot-file" data-index="${index}" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" ${state.busy ? "disabled" : ""}>
                     </label>`}
               </div>
-              ${expected}
             </div>
             ${index === count - 1
               ? `<button type="button" class="delete-slot" aria-label="Remove final Exhibit ${indexLabel(index)}" ${state.busy ? "disabled" : ""}><span aria-hidden="true">×</span></button>`
@@ -2699,6 +2768,7 @@
       if (event.target.closest(".delete-slot")) deleteExhibit(index);
       if (event.target.closest(".unassign-file")) unassignFile(index);
       if (event.target.closest(".delete-assigned")) deleteAssignedFile(index);
+      if (event.target.closest(".wording-details")) showWordingDetails(index);
       const preview = event.target.closest(".preview-eye");
       if (preview) previewEntry(preview.dataset.id);
     });
