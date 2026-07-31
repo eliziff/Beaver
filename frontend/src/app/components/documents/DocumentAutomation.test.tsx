@@ -25,19 +25,18 @@ const docx = {
     filename: "Lease.docx",
     file_type: "docx",
 };
+const pdf = {
+    id: "pdf-1",
+    filename: "Decision.pdf",
+    file_type: "pdf",
+};
 
 describe("DocumentAutomation", () => {
     beforeEach(() => vi.clearAllMocks());
 
-    it("is available only for DOCX", () => {
+    it("is available for DOCX and PDF files", () => {
         expect(documentAutomationEligible(docx)).toBe(true);
-        expect(
-            documentAutomationEligible({
-                id: "pdf-1",
-                filename: "Decision.pdf",
-                file_type: "pdf",
-            }),
-        ).toBe(false);
+        expect(documentAutomationEligible(pdf)).toBe(true);
         expect(
             documentAutomationEligible({
                 id: "sheet-1",
@@ -55,9 +54,9 @@ describe("DocumentAutomation", () => {
         const { rerender } = render(
             <DocumentAutomation
                 document={{
-                    id: "pdf-1",
-                    filename: "Decision.pdf",
-                    file_type: "pdf",
+                    id: "sheet-1",
+                    filename: "Schedule.xlsx",
+                    file_type: "xlsx",
                 }}
             />,
         );
@@ -72,7 +71,7 @@ describe("DocumentAutomation", () => {
         ).not.toBeNull();
     });
 
-    it("keeps one stable disabled trigger until one DOCX is eligible", () => {
+    it("keeps one stable trigger while document eligibility changes", () => {
         const { rerender } = render(
             <DocumentAutomation
                 document={null}
@@ -87,18 +86,14 @@ describe("DocumentAutomation", () => {
 
         rerender(
             <DocumentAutomation
-                document={{
-                    id: "pdf-1",
-                    filename: "Decision.pdf",
-                    file_type: "pdf",
-                }}
+                document={pdf}
                 showWhenUnavailable
             />,
         );
         expect(screen.getByRole("button", { name: "Automation" })).toBe(
             trigger,
         );
-        expect(trigger).toBeDisabled();
+        expect(trigger).toBeEnabled();
 
         rerender(
             <DocumentAutomation
@@ -110,6 +105,31 @@ describe("DocumentAutomation", () => {
             trigger,
         );
         expect(trigger).toBeEnabled();
+    });
+
+    it("opens PDF automation without DOCX inspection and shows only Authorities", async () => {
+        const user = userEvent.setup();
+        render(<DocumentAutomation document={pdf} />);
+
+        await user.click(screen.getByRole("button", { name: "Automation" }));
+
+        expect(
+            screen.getByRole("complementary", { name: "Automation" }),
+        ).toBeVisible();
+        expect(inspectLibraryDocumentAutomation).not.toHaveBeenCalled();
+        expect(
+            screen.getByRole("button", {
+                name: "Create book/table of authorities",
+            }),
+        ).toBeVisible();
+        expect(
+            screen.queryByRole("button", {
+                name: "Auto-add hyperlinks to citations",
+            }),
+        ).toBeNull();
+        expect(
+            screen.queryByRole("button", { name: "Fix supra references" }),
+        ).toBeNull();
     });
 
     it("waits for server capabilities before opening", async () => {

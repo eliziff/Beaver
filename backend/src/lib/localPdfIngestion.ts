@@ -87,8 +87,6 @@ export type LocalPdfParseState = {
     max_attempts?: number | null;
     max_live_calls?: number | null;
     max_scope_pages?: number | null;
-    text_fidelity_root: string | null;
-    text_fidelity_native: false;
   };
   repair_contract?: LocalPdfRepairIdentity;
   cache_key: string;
@@ -143,8 +141,6 @@ function parserConfig(
     model: repair?.model ?? null,
     prompt_version:
       repair && repairIdentity ? repairIdentity.prompt_version : null,
-    text_fidelity_root: process.env.LEGALPDF_TEXT_FIDELITY_ROOT?.trim() || null,
-    text_fidelity_native: false,
   };
   if (repair && repairIdentity) {
     Object.assign(config, {

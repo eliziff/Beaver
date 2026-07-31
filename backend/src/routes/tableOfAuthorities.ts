@@ -73,13 +73,16 @@ tableOfAuthoritiesRouter.post("/jobs", requireAuth, async (req, res) => {
       versionId || undefined,
     );
     if (!file) {
-      res.status(404).json({ detail: "DOCX Library version not found" });
+      res.status(404).json({ detail: "Library version not found" });
       return;
     }
-    if (file.fileType.toLowerCase() !== "docx") {
+    if (!["docx", "pdf"].includes(file.fileType.toLowerCase())) {
       res
         .status(400)
-        .json({ detail: "Table of Authorities requires a DOCX Library version" });
+        .json({
+          detail:
+            "Table of Authorities requires a Word or PDF Library version",
+        });
       return;
     }
     res.status(202).json(

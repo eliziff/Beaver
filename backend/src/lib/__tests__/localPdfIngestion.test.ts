@@ -251,6 +251,9 @@ describe("local PDF ingestion", () => {
     expect(await readFile(file!.path)).toEqual(bytes);
 
     const state = await waitForState(ingestion, file!.path, "ready");
+    const parseArgs = runLegalPdf.mock.calls.find(
+      ([args]) => args[0] === "parse",
+    )?.[0];
     expect(state).toMatchObject({
       source_sha256: crypto.createHash("sha256").update(bytes).digest("hex"),
       parser_version: "0.1.0",
@@ -270,6 +273,8 @@ describe("local PDF ingestion", () => {
       page_count: 1,
       diagnostic_count: 0,
     });
+    expect(parseArgs).not.toContain("--text-fidelity-root");
+    expect(state!.parser_config).not.toHaveProperty("text_fidelity_root");
     const manifest = JSON.parse(
       await readFile(
         path.join(temporaryDirectory, state!.artifact_manifest),

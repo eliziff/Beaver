@@ -5,6 +5,7 @@ import { appUrl } from "./appRoutes";
 import { isAnonymousLocalMode } from "./localMode";
 
 const DOCX_LIMIT = 64 * 1024 * 1024;
+const PDF_LIMIT = 256 * 1024 * 1024;
 const JOB_ID = /^[0-9a-f]{32}$/;
 
 let child: ChildProcess | null = null;
@@ -189,12 +190,20 @@ export async function submitTableOfAuthoritiesDocument(params: {
   splitFallback?: "off" | "auto";
   projectId?: string | null;
 }) {
-  if (params.bytes.byteLength === 0 || params.bytes.byteLength > DOCX_LIMIT) {
-    throw new Error("Table of Authorities accepts DOCX files up to 64 MB.");
-  }
   const filename = path.basename(params.filename).slice(0, 180);
-  if (!filename.toLowerCase().endsWith(".docx")) {
-    throw new Error("Table of Authorities requires a DOCX Library version.");
+  const lower = filename.toLowerCase();
+  const pdf = lower.endsWith(".pdf");
+  const docx = lower.endsWith(".docx");
+  if (!docx && !pdf) {
+    throw new Error(
+      "Table of Authorities requires a Word or PDF Library version.",
+    );
+  }
+  const limit = pdf ? PDF_LIMIT : DOCX_LIMIT;
+  if (params.bytes.byteLength === 0 || params.bytes.byteLength > limit) {
+    throw new Error(
+      `Table of Authorities accepts ${pdf ? "PDF files up to 256 MB" : "Word files up to 64 MB"}.`,
+    );
   }
   await ensureTableOfAuthoritiesRunning();
   const query = new URLSearchParams({
@@ -210,8 +219,9 @@ export async function submitTableOfAuthoritiesDocument(params: {
       method: "POST",
       headers: {
         Accept: "application/json",
-        "Content-Type":
-          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "Content-Type": pdf
+          ? "application/pdf"
+          : "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       },
       body: new Uint8Array(params.bytes),
       signal: AbortSignal.timeout(30_000),
