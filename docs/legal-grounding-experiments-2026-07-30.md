@@ -2276,6 +2276,32 @@ bottleneck and two measured levers removed most of it; next levers
 are W3/W4 (citation short-circuit; proposition surrogates on the
 product corpus, targeting the Stage 13 CLERC floor).
 
+## Stage 17 — the full-bed honest verdict (pre-registered 2026-07-30;
+Eli: "drive us home ... tested honestly on the hardest benchmark
+tasks")
+
+The 32-cell bed validated levers; the finished-system claim needs the
+FULL LegalBench-RAG mini: all 776 tests (194 per source), including
+the slices the 32-cell bed showed hardest (maud deal-point clauses;
+answered-only P 0.073 there). Config held at the crowned stack:
+sol@medium composition, required_slot, passage t1600/o120/w16 pool
+k=48 → luna@low listwise rerank → top 4, 300s timeout →
+`stage17-lbrag-full.jsonl` (resumable).
+
+Frozen predictions (from the 32-cell confirm, with honest margins for
+bed variety):
+- P1 (soundness, unconditional): zero verbatim-tier false passes;
+  every unlocated quote audited (locator defect vs gate defect —
+  only an unaudited or gate-defect case falsifies); answered ∩
+  gold-doc-miss ≤ 1% of answered cells.
+- P2 (coverage): answered ≥ 60% overall (32-cell measured 81%).
+- P3 (precision floor): answered-only grounded char P ≥ 0.077
+  overall (32-cell 0.58); reported per source with maud expected
+  weakest — per-slice numbers reported, not gated.
+- P4: residual failures typed (declined/rejected/abstained), never
+  fabrication; errors < 10%.
+Falsified by: any P1 breach; answered-only P < 0.077; errors ≥ 10%.
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under
