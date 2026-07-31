@@ -291,6 +291,86 @@ Citator hot-path measurements, so nobody re-opens them:
   So thin-profile refusal fires on **62%** of keys, not 93%, and the
   `STANDS_FOR_CONSIDERED = 300` cap binds on only 409 keys (0.076%).
 
+## 9b. Session status, 2026-07-31 (what landed, and two corrections of record)
+
+**Phase 0 — all four correctness fixes landed.** `1ca6a238` never reindex on a
+transient sqlite lock (a `SQLITE_BUSY` from a concurrent reader was triggering a
+full `DROP TABLE` + rebuild; hit live twice). `9d4eafe6` receipts append-only in
+all three harnesses, via a shared `experimentReceipts.ts`. `a40f46ee` one
+explicit per-doc cap for every arm, recorded on the row. `1d220fce` resume keys
+carry every meaning-bearing dimension (the key omitted `arm`, and
+`--coverage/--spec/--plain/--exclude-gold` all change the arm — the flags C1a,
+C1b, F2 and F3 ran under). Backend suite 1,427 passing.
+
+The perDocCap confound was **~16× the composer noise band** — maud lexical
+recall 0.0210 → 0.1672 at k=6. Tier C as registered would have compared two arms
+at cap 2 against an uncapped injected pool and produced an uninterpretable
+result.
+
+**Product lane, same defect class, decoupled** (`74831c08`). `a2ajPassageSearch`
+spelled the cap `rerankModel ? 24 : undefined`, so reranking could not be
+changed without silently changing document diversity — a confound under every
+rerank number this codebase has produced. Behaviour preserved and *measured*:
+over 160 real queries, `undefined` and explicit `2` are byte-identical at k=8
+and k=48. Recorded honestly: the un-reranked `2` is `searchPassages`' own `?? 2`,
+which entered with the benchmark ablation harness in `3997cf12` and carries no
+rationale, unlike every other default in that function. The cap binds hard
+(k=8: cap 2 → 4.54 documents/query, cap 24 → 1.49), so it is a real search
+policy question — and the benchmark's answer must **not** be copied, because
+uncapping wins there only because every LegalBench query names its one gold
+document. Owed: a measurement on a text-bearing product corpus.
+
+**CourtListener widened.** New slice at 384 MiB compressed → **55,504 opinion
+rows against the previous 17,343**; import in flight. The audit found only
+1,332 of 17,343 opinions carried any text, so the US lane was effectively not
+local.
+
+### Correction 1 — the skeleton was never "blind to subsections"
+
+An earlier claim in this session, that `compileAgreementSkeleton` finds zero
+subsections across all 69 documents, was **a measurement artifact of the probe
+that produced it**. `toBlock` flattens every node kind onto `kind: "section"`,
+so counting `doc.blocks` returns zero subsections by construction. Counted over
+`skeleton.nodes`: contractnli 30, cuad 475, **maud 1,842**. Consequences:
+`structuralChunkText` already consumes subsections, and **R1 was not character
+chunking on maud** (zero fallback documents there). The privacy_qa fallback is
+real (6 of 7) but is an unnumbered-heading problem, not an enumeration one.
+
+The real defect underneath, found and fixed (`0fdc1e81`): `statuteSpine`'s
+label-alone-on-line extension — the measured `_EXT` that lifted LEGISLATION-NS
+0.795 → 0.963 — matches **centred page numbers** in agreements, and a run of
+page numbers is monotone, same-arity and document-spanning, so it clears every
+guard, wins the scope competition and then *suppresses the real headings*. Ten
+of 69 agreements drew a mostly or entirely contentless spine. Fix: a label-alone
+mark may **extend** a spine, never **constitute** one. Non-regression shown:
+960 statutes across all 16 A2AJ sets byte-identical (recall 0.8714 / precision
+0.9926 over 39,371 provider gold labels, unchanged); 1,020 of 1,029 corpus
+documents hash-identical; gold-span containment 88.33% → 88.62%.
+
+Open, measured, deliberately not yet fixed: contract-style `a)` / `1)` (33
+lines) and `a.` / `iv.` (66 lines) enumerators.
+
+### Correction 2 — bars, and what "measure first" costs when skipped
+
+Both corrections above, plus the Stage 13 misattribution and the F1 artifact,
+share one shape: **a number was produced by an instrument nobody had validated,
+and a narrative was built on it.** The restart principles in §3 exist because of
+this, and §3 principle 2 (detector-blindness check before any structure verdict)
+was itself derived from getting this wrong twice in one day.
+
+## 9c. Registered: the structure-graph round
+
+Design registered in full at `docs/legal-structure-graph-round-2026-07-31.md`
+before any of it is built — layers ordered by verifiability, ablation ladder in
+build order, standing constraints, and an explicit kill criterion. Headline
+points: the cheapest version is **deterministic edge-following at retrieval
+time** (no model, no tokens, no round trips); model-built relational edges over
+a given skeleton rank **above** similarity edges because their endpoints are
+verifiable; the maud-vs-contractnli/privacy_qa cross-reference density gap
+(13.1 vs 0.6–0.8 per 10k chars) is the round's built-in negative control; and
+the multi-document comparator has **no bed** on LegalBench-RAG and is deferred
+rather than forced.
+
 ## 10. What we explicitly do not do
 
 - No new LegalBench-RAG stages beyond Tier C and the hold-out.
