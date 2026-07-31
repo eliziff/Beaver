@@ -3547,6 +3547,38 @@ joints cannot fabricate text.
    disclose template-staleness, the missing privacy_qa holdout, and
    the doc-named-query easiness; scorers committed to the repo.
 
+### Stage 18 F1 result (2026-07-31): name-stripped retrieval collapses — prediction confirmed at ~3× the registered magnitude
+
+Deterministic sweep, zero model calls, frozen G+ctx retrieval config
+over all 776 tests, `--strip-consider` vs unstripped, context windows
+w0/w1/w2/w4. Receipts `stage18-context-arms-combined-medium.jsonl` and
+`...+stripped.jsonl`.
+
+At the production arm (w4):
+
+| Metric | Unstripped | Stripped | Δ |
+|---|---|---|---|
+| doc recall | 1.0000 | 0.7075 | −0.2925 |
+| pool R@48 | 0.8915 | 0.3680 | −0.5235 |
+| lexical R@4 | 0.5339 | 0.0894 | −0.4445 |
+
+Per-source stripped doc recall (w4): contractnli 0.6443, cuad 0.4175,
+maud 0.8866, privacy_qa 0.8814. The registered prediction (stripped
+doc recall drops ≥0.10 absolute; maud and cuad drop most) is confirmed
+in direction and exceeded ~3× in magnitude, with one wrinkle: cuad and
+contractnli drop most; maud drops least (its 17-file corpus and
+distinctive deal vocabulary make the document findable without its
+name). Verdict per registration: no gate — but the crowned retrieval
+numbers are hereby flagged as substantially a query-format artifact
+("Consider <document>; ..." hands lexical retrieval the answer's
+address), not product retrieval quality. Stage 19 must report this
+beside the headline, and the post-holdout realistic-retrieval round
+(full 714-doc corpus, no doc-named queries) is now the highest-value
+retrieval work in the program. Note: unstripped pool R@48 exceeds 1.0
+on some sources in this runner's output (the pre-correction unclipped
+recall); both sides of the ablation share the artifact, so the delta
+stands, and clipped re-reporting falls under standing correction 1.
+
 The experiment JSONL receipts are outside git under
 `%LOCALAPPDATA%\OpenLegalData\experiments\legal-grounding\2026-07-30`.
 They contain model outputs and exact benchmark evidence and must not be
