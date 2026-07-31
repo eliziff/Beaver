@@ -23,11 +23,11 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import {
-  LEGALBENCH_MINI_SOURCE_DB,
   LEGALBENCH_RAG_DATA_DIR,
   LEGALBENCH_RAG_RESULTS_DIR,
-  MANIFEST_PATH,
   SOURCE_BENCHMARKS,
+  SPLITS,
+  splitFromArgv,
   evaluateMiniRetrieval,
   normalizeCorpusBytes,
   reportScoreMap,
@@ -70,9 +70,11 @@ function markdown(report: MiniRetrievalReport): string {
 
 async function main() {
   // 1. Verify the pinned data before trusting it.
-  if (!existsSync(MANIFEST_PATH))
-    throw new Error(`missing manifest: ${MANIFEST_PATH}`);
-  const manifestBytes = readFileSync(MANIFEST_PATH);
+  const split = splitFromArgv();
+  const config = SPLITS[split];
+  if (!existsSync(config.manifestPath))
+    throw new Error(`missing manifest: ${config.manifestPath}`);
+  const manifestBytes = readFileSync(config.manifestPath);
   const manifest = validateMiniManifest(
     JSON.parse(manifestBytes.toString("utf8")),
   );
@@ -97,8 +99,8 @@ async function main() {
   //    offsets and need score-time mapping:
   //      raw_offset = lf_offset + (number of "\r\n" before it).
   const databaseDir = path.join(LEGALBENCH_RAG_DATA_DIR, "db");
-  const database = LEGALBENCH_MINI_SOURCE_DB;
-  const jsonl = path.join(databaseDir, "records-lf.jsonl");
+  const database = config.sourceDb;
+  const jsonl = path.join(databaseDir, config.recordsJsonl);
   if (!existsSync(database) || process.argv.includes("--rebuild-index")) {
     mkdirSync(databaseDir, { recursive: true });
     writeFileSync(
@@ -107,7 +109,7 @@ async function main() {
         .map((entry) =>
           JSON.stringify({
             doc_type: "laws",
-            dataset: "legalbench_rag_mini",
+            dataset: `legalbench_rag_${split}`,
             citation_en: entry.upstream_path,
             name_en: entry.upstream_path,
             unofficial_text_en: normalizeCorpusBytes(disk.get(entry.path)!),
@@ -148,8 +150,10 @@ async function main() {
     ]),
   );
   const tests: MiniTest[] = SOURCE_BENCHMARKS.flatMap((source) => {
+    const bytes = disk.get(`${config.dir}/benchmarks/${source}.json`);
+    if (!bytes) return []; // privacy_qa has no hold-out bed.
     const parsed = upstreamBenchmarkSchema.parse(
-      JSON.parse(disk.get(`mini/benchmarks/${source}.json`)!.toString("utf8")),
+      JSON.parse(bytes.toString("utf8")),
     );
     return parsed.tests.map((test) => ({
       source,

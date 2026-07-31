@@ -46,6 +46,10 @@ export const MANIFEST_PATH = path.join(
   LEGALBENCH_RAG_DIR,
   "mini.manifest.json",
 );
+export const HOLDOUT_MANIFEST_PATH = path.join(
+  LEGALBENCH_RAG_DIR,
+  "holdout.manifest.json",
+);
 
 /**
  * Source db built from the corpus (one document row per corpus file).
@@ -65,6 +69,16 @@ export const LEGALBENCH_MINI_SOURCE_DB_RAW = path.join(
   LEGALBENCH_RAG_DATA_DIR,
   "db",
   "a2aj-mini.sqlite",
+);
+/**
+ * Stage 19 hold-out source db (normalized at load, like the `-lf` mini db).
+ * Separate path for the same reason: the FTS sidecar identity is source-db
+ * path + chunk params, so a shared path would silently reuse the dev index.
+ */
+export const LEGALBENCH_HOLDOUT_SOURCE_DB = path.join(
+  LEGALBENCH_RAG_DATA_DIR,
+  "db",
+  "a2aj-holdout-lf.sqlite",
 );
 
 /**
@@ -144,6 +158,30 @@ export function deriveMiniTests(
   tests: UpstreamTest[],
   cap: number = MAX_TESTS_PER_SOURCE,
 ): UpstreamTest[] {
+  return deriveSplitTests(tests, "mini", cap);
+}
+
+export const SPLIT_NAMES = ["mini", "holdout"] as const;
+export type SplitName = (typeof SPLIT_NAMES)[number];
+
+/**
+ * Split derivation. `mini` is the pinned dev bed: documents in code-unit
+ * lexicographic order until `cap` tests accumulate, truncated to `cap`.
+ * `holdout` (Stage 19) continues the SAME walk from the first document the
+ * mini derivation never touched, and takes the next `cap` tests.
+ *
+ * A document the mini walk consumed only partially (the truncation at `cap`
+ * lands mid-document) belongs to mini alone and is skipped entirely — that
+ * is what makes the split document-blocked, which is the only leakage
+ * property the hold-out actually establishes. Sources whose upstream
+ * benchmark is exhausted by mini (privacy_qa: 194 of 194 tests) yield an
+ * EMPTY hold-out; that is a fact about the benchmark, not an error.
+ */
+export function deriveSplitTests(
+  tests: UpstreamTest[],
+  split: SplitName,
+  cap: number = MAX_TESTS_PER_SOURCE,
+): UpstreamTest[] {
   const byDocument = new Map<string, UpstreamTest[]>();
   for (const test of tests) {
     const document = test.snippets[0].file_path;
@@ -151,12 +189,46 @@ export function deriveMiniTests(
     if (!bucket.length) byDocument.set(document, bucket);
     bucket.push(test);
   }
+  const documents = [...byDocument.keys()].sort();
+  let at = 0;
+  if (split === "holdout") {
+    // Advance past every document the mini walk touched, truncated or not.
+    for (let taken = 0; at < documents.length && taken < cap; at += 1)
+      taken += byDocument.get(documents[at])!.length;
+  }
   const chosen: UpstreamTest[] = [];
-  for (const document of [...byDocument.keys()].sort()) {
+  for (; at < documents.length; at += 1) {
     if (chosen.length >= cap) break;
-    chosen.push(...byDocument.get(document)!);
+    chosen.push(...byDocument.get(documents[at])!);
   }
   return chosen.slice(0, cap);
+}
+
+/** Everything that differs between the dev bed and the Stage 19 hold-out. */
+export const SPLITS = {
+  mini: {
+    manifestName: "legalbench-rag-mini",
+    dir: "mini",
+    manifestPath: MANIFEST_PATH,
+    sourceDb: LEGALBENCH_MINI_SOURCE_DB,
+    recordsJsonl: "records-lf.jsonl",
+  },
+  holdout: {
+    manifestName: "legalbench-rag-holdout",
+    dir: "holdout",
+    manifestPath: HOLDOUT_MANIFEST_PATH,
+    sourceDb: LEGALBENCH_HOLDOUT_SOURCE_DB,
+    recordsJsonl: "records-holdout-lf.jsonl",
+  },
+} as const satisfies Record<SplitName, unknown>;
+
+/** `--split mini|holdout` from argv, defaulting to the dev bed. */
+export function splitFromArgv(argv: string[] = process.argv): SplitName {
+  const at = argv.indexOf("--split");
+  const value = at >= 0 ? argv[at + 1] : "mini";
+  if (!SPLIT_NAMES.includes(value as SplitName))
+    throw new Error(`--split must be one of ${SPLIT_NAMES.join("|")}`);
+  return value as SplitName;
 }
 
 export function miniDocumentPaths(tests: UpstreamTest[]): string[] {
@@ -185,7 +257,7 @@ const fileEntry = z.strictObject({
 
 export const miniManifestSchema = z.strictObject({
   schema_version: z.literal("1"),
-  name: z.literal("legalbench-rag-mini"),
+  name: z.enum(["legalbench-rag-mini", "legalbench-rag-holdout"]),
   upstream: z.strictObject({
     repository: z.string(),
     paper: z.string(),
@@ -197,6 +269,8 @@ export const miniManifestSchema = z.strictObject({
   derivation: z.strictObject({
     rule: z.string(),
     max_tests_per_source: z.int().positive(),
+    /** Sources the split cannot cover; hold-out only (privacy_qa). */
+    sources_without_split: z.array(z.enum(SOURCE_BENCHMARKS)).optional(),
   }),
   benchmarks: z.array(
     fileEntry.extend({
