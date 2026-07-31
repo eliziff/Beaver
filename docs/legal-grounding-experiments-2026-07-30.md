@@ -2253,6 +2253,29 @@ unlocated quotes 0 (post-locator); answered ∩ gold-doc-miss ≤ 1;
 answered-only grounded P ≥ 0.077; errors < 20%. Falsified by:
 answered-only P < 0.077 or any unaudited unlocated quote.
 
+### Stage 16 confirm results (32 cells, sol@medium over reranked
+retrieval, 0 errors → `stage16-lbrag-rerank.jsonl`)
+
+All five frozen predictions held, no falsifier fired:
+- **Answered 26/32** (≥21 bar; pilot was 3/32 this morning, Stage 15
+  21/32). Zero abstentions; residual = 4 typed declines + 2 gate
+  rejections. cuad flipped 0 → 7 answered.
+- Unlocated quotes 0; answered ∩ gold-doc-miss 0; doc recall 1.00
+  everywhere.
+- Answered-only grounded P **0.5841** — above Stage 15's 0.4429, so
+  precision ROSE while coverage rose; 76× the original retrieval
+  baseline. Answered-only R 0.5031. contractnli: P 0.90 / R 0.82.
+- maud remains the hard slice (answered-only P 0.073 — gold spans are
+  narrow deal-point clauses; quotes land near but not on them).
+
+Session arc, same 32 cells, all invariants intact end to end:
+answer rate 3/32 → 21/32 (passage retrieval) → 26/32 (reranking),
+answered precision 0.44 → 0.58, zero fabrications, zero
+wrong-document answers, zero transport errors. Retrieval was the
+bottleneck and two measured levers removed most of it; next levers
+are W3/W4 (citation short-circuit; proposition surrogates on the
+product corpus, targeting the Stage 13 CLERC floor).
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under
@@ -2288,6 +2311,7 @@ committed.
 | `stage14-lbrag.jsonl` (pilot, pre-locator-fix scoring; maud:002 re-scored offline per the P1 audit) | `5720B4F97641655EE8C08F9D6EE9DED897E1492D9096AA684E5B46DD8AB7FD10` |
 | `stage15-lbrag-passage.jsonl` | `595C123915066647D739AB1A5388488C08A12909FE6DA5B33DC5524615C7DDB6` |
 | `stage16-rerank-eval.jsonl` | `107D021AEEA0594C95961F9F82CE7558ED95E56940FBAF1F75E637D905AE28E3` |
+| `stage16-lbrag-rerank.jsonl` | `8DB2AC1DF0EBF9D0227C0820CB79BA1E86BBAABE5B0BF3DB48C761AA07602174` |
 
 ## Validation and final selection gate
 
