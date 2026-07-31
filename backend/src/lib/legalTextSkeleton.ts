@@ -804,6 +804,7 @@ function endorsement(doc: SourceDoc, references: ProvisionReference[]): number {
   return landed;
 }
 
+
 /**
  * The recoveries above can only ADD line starts, so they can only add
  * candidate heads — but a spine competition is not monotone in its candidate
@@ -812,12 +813,32 @@ function endorsement(doc: SourceDoc, references: ProvisionReference[]): number {
  * segmentations COMPETE, on the same principle statuteSpine uses one level
  * down: the document decides. Ties go to the text as extracted.
  */
+export interface CompileSkeletonOptions {
+  /**
+   * Whether this text may have lost its line breaks to an extractor, and so
+   * whether the segmentation competition may run at all.
+   *
+   * Default true, because the Library lane compiles PDF- and DOCX-derived
+   * agreements and that is what the recoveries exist for. Pass false for
+   * text from an authoritative structured source, where the line breaks are
+   * the publisher's and there is nothing to recover — the A2AJ lane passes
+   * it so that legislation and case law cannot reach the competition BY
+   * CONSTRUCTION rather than by a corpus diff showing they happened not to.
+   * (A whole-corpus differential says they do not: 23,531 statutes,
+   * 2,924,267 nodes, byte-identical. Scoping is still the right shape; a
+   * measurement is evidence about today's corpus, not a guarantee.)
+   */
+  recoverExtraction?: boolean;
+}
+
 export function compileAgreementSkeleton(
   text: string,
   id = "",
+  options: CompileSkeletonOptions = {},
 ): AgreementSkeleton {
   const lines = splitLines(text);
-  const hypotheses = segmentations(text);
+  const hypotheses =
+    options.recoverExtraction === false ? [text] : segmentations(text);
   let best = discoverNodes(hypotheses[0]);
   if (hypotheses.length > 1) {
     const references = findProvisionReferences(text);
