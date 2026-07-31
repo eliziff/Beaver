@@ -186,3 +186,34 @@ describe("weaker edge classes stay separate", () => {
     expect(graph.edges.every((edge) => !("evidence" in edge))).toBe(true);
   });
 });
+
+describe("crossReferenceGraph — the contents-page trap", () => {
+  // Acacia Communications' shape: the contents page prints every heading at
+  // a line start, the body's headings survive extraction nowhere, and so
+  // every reference resolves — to a contents line — and integrity reads 1.00.
+  const filler = "The parties agree to the foregoing at length. ".repeat(60);
+  const CONTENTS_ONLY = [
+    "TABLE OF CONTENTS",
+    "1.01 Definitions",
+    "2.01 The Merger",
+    "3.01 Closing",
+    `${filler} as provided in Section 1.01 and Section 2.01.`,
+    `${filler} subject to Section 3.01 and Section 2.01.`,
+    `${filler} governed by Section 1.01 and Section 3.01.`,
+  ].join("\n");
+
+  it("abstains when every resolved target lands in a thin prefix", () => {
+    const graph = crossReferenceGraph(CONTENTS_ONLY, "toc-only");
+    expect(graph.documentAbstained).toBe(true);
+    expect(graph.note).toMatch(/table of contents/u);
+    expect(graph.counts.resolved).toBe(0);
+  });
+
+  it("says so without the gate, so the refusal is the gate's and not the resolver's", () => {
+    const ungated = crossReferenceGraph(CONTENTS_ONLY, "toc-only", {
+      integrityThreshold: 0,
+    });
+    expect(ungated.counts.integrity).toBe(1);
+    expect(ungated.counts.resolved).toBeGreaterThan(0);
+  });
+});
