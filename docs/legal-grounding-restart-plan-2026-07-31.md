@@ -250,12 +250,46 @@ All output-identical, all on the laptop-CPU production path:
 | `53d3bed8` | narrow + memoize per-hit metadata row (product lane) | 157.9 → 54.9 ms/q (**2.9×**) |
 | `7da4f03d` | batch citator alias expansion (one graph open per query) | 4.77 → 1.35 ms/q (**3.5×**); 200 keys 137 → 20 ms |
 | `0cadfd44` | cache context-sidecar digest | 70.8 → 62.8 ms/q (11%) |
+| `7da4f03d` (second, undescribed hunk) | `standsForProfile`: first-occurrence paragraph/excerpt ride the `MIN(text_offset)` row instead of a per-group re-fetch | top-cited keys 155.1 → 61.1 ms median, 338.3 → 154.7 p90, 190.3 → 80.7 mean; thin keys 4.1 → 1.3 ms; 80-key sweep 7.8 → 3.3 s. Output fingerprint identical (`242f4c14…`), 80/80 profiles equal field-by-field |
 
 Product a2aj passage lane: **157.9 → 40.8 ms/q, 3.9×.** 1,096 backend lib tests
 pass. Measured negative results, recorded so nobody re-investigates:
 `stmt.iterate()` is 3.6× *slower*; SQL `substr()` per hit is slower than the
 memo; `charPrecisionRecall`/`unionLength` is 0.1% of a sweep (the sweep is 98.9%
 `searchPassages`); `setReturnArrays` is ~3.5% and costs positional access.
+
+Citator hot-path measurements, so nobody re-opens them:
+
+- **`noteUpCitations` needs no equivalent fix.** It runs the same per-group
+  shape, but its page caps at 50 groups, so the loop is ~10 probes and is not
+  the cost: top-cited median 36.2 ms is the two full scans, not the lookup.
+- **`commentaryCandidates` is already clean** — one query, JS loop over its own
+  rows, ~1.5 ms per profile. No per-row query.
+- **An index on `edge(cited_key, case_id, text_offset)` is the remaining
+  lever, and it was NOT applied.** `totalCiters` (~30 ms) and the grouped
+  query (~40 ms) both walk `edge_cited_idx` and then fetch every row just to
+  read `case_id` — ~11.3k rows × ~600-char excerpts to compute one integer.
+  Measured on a bounded side table over the 80 benchmark keys, a covering
+  index takes `COUNT(DISTINCT case_id)` to 0.24–0.40 ms and the group-by to
+  0.30–0.51 ms (`SEARCH ek USING COVERING INDEX`). Treat as an optimistic
+  bound: 124k rows fully cached vs 2.54M in production. Not applied because it
+  is a schema change to a shared 2.28 GB store that concurrent sessions read,
+  it belongs in `scripts/build_citator_graph.py`, and the disk is 98% full.
+- **Citer-count distribution over all 540,948 distinct `cited_key`** (73.9 s
+  full scan), which **corrects the "93% of cited keys have one citer" figure
+  that P1.5 flags** — the smoke-citator number is wrong on the full graph:
+
+  | citers | keys | share | cumulative |
+  |---|---|---|---|
+  | 1 | 336,257 | 62.16% | 62.16% |
+  | 2–12 | 178,763 | 33.05% | 95.21% |
+  | 13–50 | 21,460 | 3.97% | 99.17% |
+  | 51–300 | 4,059 | 0.75% | 99.92% |
+  | 301–1000 | 350 | 0.06% | 99.99% |
+  | 1000+ | 59 | 0.01% | 100% |
+
+  So thin-profile refusal fires on **62%** of keys, not 93%, and the
+  `STANDS_FOR_CONSIDERED = 300` cap binds on only 409 keys (0.076%).
 
 ## 10. What we explicitly do not do
 
