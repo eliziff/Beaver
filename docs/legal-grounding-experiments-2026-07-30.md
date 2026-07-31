@@ -2787,6 +2787,57 @@ best + 0.01) at every weight — then header quality is not the
 residual lever and the dense/proposition lanes are what remains for
 maud.
 
+### Stage 18 R5b verdict (2026-07-30, maud-medium regeneration +
+combined-sidecar sweep; receipts
+`stage18-passage-context-maud-medium.jsonl`,
+`stage18-passage-context-combined-medium.jsonl`,
+`stage18-context-arms-maud-medium.jsonl`)
+
+**ADOPT: generator effort was the residual lever — medium-effort maud
+headers clear the frozen R5 adoption bar.** Generation: 4,692/4,692
+maud passages headed at luna@medium (4,691 first pass at c=9, ~2.8
+headers/s vs low's ~3.6; 1 transient "terminated" error filled by a
+c=1 resume). Combined sidecar = byte-exact concatenation of the raw
+low-effort file + the maud-medium rows (`loadContextHeaders` is
+last-wins), so contractnli/cuad/privacy_qa headers are byte-identical
+to R5's raw arm. A first build via `Set-Content -Encoding utf8` was
+discarded: PS 5.1 writes a BOM that would corrupt the first JSONL row
+for `JSON.parse`; the shipped file is a
+`[System.IO.File]::ReadAllBytes`/`WriteAllBytes` concat.
+
+maud pool R@48 (champion 0.3619; low-effort best 0.4019 at w4):
+w1 0.4228, w2 0.4281, w4 0.4310. maud chunk-lexical R@4
+0.0683 → 0.1628 (w2) / 0.1604 (w4).
+
+Gate judgments against the frozen bars:
+- **Adopt (maud pool R@48 ≥ 0.4119 at some weight, contractnli
+  within −0.06): MET at every weight** — best w4 0.4310 (champion
+  +0.0691); contractnli 1.0783 at w4, above its unchanged 1.0529
+  baseline, so the guard is satisfied as registered.
+- **Retirement (medium ≤ 0.4029 at every weight): not triggered.**
+- Frozen prediction (medium < +0.03 over low's best 0.4019): HIT,
+  narrowly — +0.0209 / +0.0262 / +0.0291 at w1/w2/w4. The
+  registration under-called the compounding: medium's modest
+  increment stacks on low's +0.0400 to a total header lift of
+  +0.0691 over champion, clearing the +0.05 bar low missed alone.
+  The prediction was right about the increment's size and wrong
+  about its sufficiency.
+
+Cross-source integrity: contractnli/cuad/privacy_qa pool R@48 match
+the raw-low sweep at every weight (their header bytes are unchanged);
+the only deltas are ≤0.006 lexR4 wiggles from corpus-wide BM25
+document-frequency shifts introduced by the new maud vocabulary.
+Overall at the adopted weight: pool R@48 0.8842 → 0.8915, lexical
+R@4 0.5313 → 0.5339 — the best deterministic retrieval numbers of
+the program.
+
+**Adopted config delta:** the crowned index gains
+`contextJsonl = stage18-passage-context-combined-medium.jsonl`
+(sha `36D041F7…`) at context weight 4. Per the lock-in rule this
+rides ONE grounded confirm run before the config freezes for the
+Stage 19 holdout; the dense lane remains a separately-registered
+open question (machine-free window required).
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under
@@ -2832,6 +2883,9 @@ committed.
 | `stage18-passage-context-linted.jsonl` (R5 lint arm, 5,864 kept / 115 dropped) | `946B6B79ABC0E1E7C0AEB467E420FC1163CBC10F204F9AFE12E3D177F5C865BE` |
 | `stage18-context-arms-raw.jsonl` (R5 weight sweep, raw sidecar) | `0EF5A805090D885539AFB85113C3C02064842D94267B48EFAD07AE75B819943C` |
 | `stage18-context-arms-linted.jsonl` (R5 weight sweep, linted sidecar) | `521095FE9058C3182717075626EA11CDB27E09DD1708A995E17330412773B33F` |
+| `stage18-passage-context-maud-medium.jsonl` (R5b maud headers at luna@medium, 4,692 rows incl. 1 superseded error row) | `CBDC6994F3C012F87CAE67BF48D50843D302B443E507893E73F9035178C4C594` |
+| `stage18-passage-context-combined-medium.jsonl` (R5b adopted sidecar: raw low-effort file + maud-medium rows, byte-exact concat, 12,180 lines) | `36D041F7D66B6F39C99D47078C88BF9F45F3FAF18ED054B5E8EA6640F231397E` |
+| `stage18-context-arms-maud-medium.jsonl` (R5b weight sweep, combined sidecar) | `9FA97EAE337F9F7F7D54FE53E5BAA9B424354F4A8E68782CE5A1226048982F38` |
 
 ## Validation and final selection gate
 
