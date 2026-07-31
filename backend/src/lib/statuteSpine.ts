@@ -380,6 +380,31 @@ function scopesFor(
 }
 
 /**
+ * ALR's SECTION_MARK_RE admits a mark only when content follows it on the same
+ * line. Beaver widened that with a label-alone-on-line alternative — the
+ * measured `_EXT` that lifted LEGISLATION-NS 0.795 -> 0.963 — because statutes
+ * legitimately print a provision label with its heading on the next line.
+ * Agreement text spends the same shape on centred page numbers, and a run of
+ * page numbers is monotone, same-arity, document-spanning and starts early, so
+ * it clears every guard and wins the competition outright — measured on
+ * LegalBench-RAG-mini, 10 of 69 agreements drew a spine whose marks were
+ * mostly or entirely contentless, and in those documents the spurious spine
+ * also suppressed the real "Section N." headings.
+ *
+ * The rule below is the extension's own limit rather than its removal: a
+ * label-alone mark may EXTEND a spine that substantive marks already carry, but
+ * may never CONSTITUTE one. When the winner has no substantive member at all
+ * the competition reruns over substantive marks only, so statute texts (where
+ * label-alone provisions sit among ordinary ones) are untouched.
+ */
+function hasInlineContent(text: string, mark: SpineMark) {
+  const lineEnd = text.indexOf("\n", mark.contentStart);
+  return /\S/u.test(
+    text.slice(mark.contentStart, lineEnd < 0 ? text.length : lineEnd),
+  );
+}
+
+/**
  * Return the winning section spine for statute-style text, or [] when no
  * hypothesis clears the compatibility guards (>= 3 members and first section
  * starts in the first 70%). Hyphenated and mixed
@@ -390,10 +415,24 @@ export function computeStatuteSpine(
   allowHyphen = false,
 ): SpineMark[] {
   if (!text) return [];
+  const spine = spineOver(text, allowHyphen, (marks) => marks);
+  if (!spine.length || spine.some((mark) => hasInlineContent(text, mark))) {
+    return spine;
+  }
+  return spineOver(text, allowHyphen, (marks) =>
+    marks.filter((mark) => hasInlineContent(text, mark)),
+  );
+}
+
+function spineOver(
+  text: string,
+  allowHyphen: boolean,
+  admit: (marks: SpineMark[]) => SpineMark[],
+): SpineMark[] {
   const families = [
-    collectMarks(text, BARE_MARK_RE, "bare"),
-    collectMarks(text, DOTTERM_MARK_RE, "dotterm"),
-    collectMarks(text, MARKDOWN_MARK_RE, "markdown"),
+    admit(collectMarks(text, BARE_MARK_RE, "bare")),
+    admit(collectMarks(text, DOTTERM_MARK_RE, "dotterm")),
+    admit(collectMarks(text, MARKDOWN_MARK_RE, "markdown")),
   ];
   const candidates = families
     .map((marks) => statuteWinner(marks, text, allowHyphen))
