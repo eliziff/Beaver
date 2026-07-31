@@ -519,6 +519,36 @@ export type PassageSearchOptions = {
   contextJsonl?: string;
 } & ChunkOptions;
 
+/**
+ * Apply the per-document diversity cap to a ranked list this module did
+ * not produce (an injected/precomputed pool), then truncate to `k`.
+ *
+ * Same rule as the loop inside `searchPassages`: walk in rank order, skip
+ * a passage once its document has contributed `perDocCap` of them, stop at
+ * `k`. Exists so an arm that injects a pool is capped identically to an
+ * arm that retrieves one — an injected pool that took `slice(0, k)` while
+ * the lexical arm capped at 2 was the Stage 18 perDocCap confound, where
+ * the cap alone can decide a maud cell (gold concentrates inside a single
+ * 300 KB agreement).
+ */
+export function capHitsPerDoc<T extends { citation: string }>(
+  hits: T[],
+  perDocCap: number,
+  k: number,
+): T[] {
+  const cap = Math.max(1, perDocCap);
+  const used = new Map<string, number>();
+  const kept: T[] = [];
+  for (const hit of hits) {
+    if (kept.length >= k) break;
+    const seen = used.get(hit.citation) ?? 0;
+    if (seen >= cap) continue;
+    used.set(hit.citation, seen + 1);
+    kept.push(hit);
+  }
+  return kept;
+}
+
 /** OR-semantics weighted-bm25 passage search over the derived index. */
 export function searchPassages(options: PassageSearchOptions): PassageHit[] {
   const tokens = passageQueryTokens(options.query);

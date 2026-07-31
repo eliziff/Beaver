@@ -6,6 +6,7 @@ import { DatabaseSync } from "node:sqlite";
 import { afterAll, describe, expect, it } from "vitest";
 
 import {
+  capHitsPerDoc,
   chunkText,
   clauseChunkText,
   ensurePassageIndex,
@@ -321,6 +322,38 @@ describe("passageQueryPhrases", () => {
   });
 });
 
+describe("capHitsPerDoc", () => {
+  const pool = [
+    { citation: "maud/agreement.txt", rank: 0 },
+    { citation: "maud/agreement.txt", rank: 1 },
+    { citation: "cuad/services.txt", rank: 2 },
+    { citation: "maud/agreement.txt", rank: 3 },
+    { citation: "cuad/services.txt", rank: 4 },
+    { citation: "contractnli/nda.txt", rank: 5 },
+  ];
+
+  it("keeps rank order and drops only over-cap passages", () => {
+    expect(capHitsPerDoc(pool, 2, 10).map((hit) => hit.rank)).toEqual([
+      0, 1, 2, 4, 5,
+    ]);
+    expect(capHitsPerDoc(pool, 1, 10).map((hit) => hit.rank)).toEqual([0, 2, 5]);
+  });
+
+  it("truncates to k after capping, never before", () => {
+    // Rank 3 is the third maud passage: at cap 2 it is skipped, so a k of 3
+    // reaches into the other documents instead of stopping at rank 2.
+    expect(capHitsPerDoc(pool, 2, 3).map((hit) => hit.rank)).toEqual([0, 1, 2]);
+    expect(capHitsPerDoc(pool, 1, 2).map((hit) => hit.rank)).toEqual([0, 2]);
+  });
+
+  it("is inert when the cap cannot bind", () => {
+    expect(capHitsPerDoc(pool, 24, 48)).toEqual(pool);
+    expect(capHitsPerDoc(pool, 24, 4)).toEqual(pool.slice(0, 4));
+    expect(capHitsPerDoc(pool, 0, 10)).toEqual(capHitsPerDoc(pool, 1, 10));
+  });
+
+});
+
 describe("rrfFuse", () => {
   it("ranks items on both lists above single-list items", () => {
     const fused = rrfFuse([
@@ -411,6 +444,15 @@ describe("index + search round trip", () => {
       nameWeight: 8,
     });
     expect(hits[0]?.citation).toBe("cuad/services.txt");
+  });
+
+  it("capHitsPerDoc reproduces the cap searchPassages applies internally", () => {
+    const query = "confidential information receiving party agreement";
+    const search = (perDocCap: number) =>
+      searchPassages({ sourceDb, target: 400, overlap: 50, query, k: 4, perDocCap });
+    expect(search(1).map((hit) => [hit.citation, hit.start])).toEqual(
+      capHitsPerDoc(search(4), 1, 4).map((hit) => [hit.citation, hit.start]),
+    );
   });
 
   it("contextJsonl headers key a distinct sidecar and add searchable words", () => {
