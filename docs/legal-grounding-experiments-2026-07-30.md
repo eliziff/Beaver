@@ -3579,6 +3579,136 @@ on some sources in this runner's output (the pre-correction unclipped
 recall); both sides of the ablation share the artifact, so the delta
 stands, and clipped re-reporting falls under standing correction 1.
 
+### Stage 18 C1/F2/F3 verdict (2026-07-31): both coverage arms DROP on the precision gate, corrected instrument agrees, F2 condition FAILS, F3 prices the contract at +0.065 P / −0.063 R
+
+Scorer `backend/scripts/score_stage18_c1.py` (committed instrument, standing
+corrections applied: LF→raw gold mapping for the 17 CRLF maud files, union-merge,
+clip at 1.0, per-source + paired everywhere). Dedupe 777→776 unique on both C1
+files, 0 errors after dedupe (C1a 1 error row superseded). Receipt SHAs at the
+end. The corrected ctx baseline recomputes to maud ansR 0.4985 / overall ansP
+0.6140 / ansR 0.6622 — identical to the published correction, so arm-vs-baseline
+is one scorer, one code path.
+
+**As-registered gates (recorded coordinates, the metric the gates were frozen
+against): both arms DROP.** C1a ansR 0.6376 ≥ 0.6032 ✓, maud ansR 0.1598 ≥
+0.1485 ✓, ansP **0.4057** < 0.5335 → DROP trip. C1b ansR 0.6514 ✓, maud 0.1825
+✓, ansP **0.3620** < 0.5335 → DROP trip. P1 PASS on both (0 verbatim
+mismatches, 0 unlocated quotes, doc-miss 6/5 all byte-identical-duplicate, 0
+TRUE). Neither KEEPs → **Stage 19 holdout burns the unmodified frozen G+ctx
+config**; the F2 adoption condition never binds, though it also fails.
+
+**Corrected instrument (decision basis), answered-only per source:**
+
+| arm | source | ansP | ansR | ctx ansP | ctx ansR | strict-ans |
+| --- | --- | --- | --- | --- | --- | --- |
+| C1a | contractnli | 0.6279 | 0.9137 | 0.8052 | 0.8578 | 95.9% (ctx 93.8%) |
+| C1a | cuad | 0.4478 | 0.8346 | 0.6232 | 0.7689 | 61.3% (56.7%) |
+| C1a | maud | 0.3690 | 0.5317 | 0.4508 | 0.4985 | 36.1% (25.3%) |
+| C1a | privacy_qa | 0.3812 | 0.6292 | 0.5394 | 0.4809 | 62.4% (63.4%) |
+| C1a | OVERALL | 0.4594 | 0.7311 | 0.6140 | 0.6622 | 63.9% (59.8%) |
+| C1b | contractnli | 0.5416 | 0.9381 | 0.8052 | 0.8578 | 97.9% |
+| C1b | cuad | 0.4085 | 0.8179 | 0.6232 | 0.7689 | 64.4% |
+| C1b | maud | 0.3446 | 0.5490 | 0.4508 | 0.4985 | 41.8% |
+| C1b | privacy_qa | 0.3475 | 0.6467 | 0.5394 | 0.4809 | 66.5% |
+| C1b | OVERALL | 0.4130 | 0.7422 | 0.6140 | 0.6622 | 67.7% |
+
+Answered rate 89.3% (ctx) → 95.4% (C1a) → 95.2% (C1b); the coverage module does
+what it says — it converts declines into answers and lifts recall everywhere,
+including maud (+0.033 / +0.051 unpaired, +0.092 / +0.103 paired). It also
+lifts strict-answered by mix and by conclusion-claim discipline (maud strict
+25.3% → 36.1% → 41.8%). **But it buys that with a precision collapse ~1.5–1.8×
+the size of the recall gain, on every source.**
+
+**Paired subset (answered in BOTH arm and ctx), corrected; noise 95% band
+±0.015:**
+
+| arm | source | n | dP | dR |
+| --- | --- | --- | --- | --- |
+| C1a | contractnli | 188 | −0.1722 | +0.0537 |
+| C1a | cuad | 180 | −0.1640 | +0.0820 |
+| C1a | maud | 152 | −0.0559 | +0.0916 |
+| C1a | privacy_qa | 166 | −0.1612 | +0.1490 |
+| C1a | OVERALL | 686 | **−0.1416** | **+0.0926** |
+| C1b | OVERALL | 682 | **−0.1911** | **+0.1078** |
+
+Every cell is far outside the ±0.015 noise band, in both directions — the
+recall lift is real and the precision loss is real. C1b vs C1a paired (n=727):
+dP −0.0443, dR +0.0150 (recall delta sits on the noise boundary; the `spec`
+module buys ~nothing in recall and costs 4.4 points of precision). The mid-run
+contractnli peek (ctx P 0.807 → coverage 0.615 → covspec 0.511) held to the
+end: final corrected contractnli ansP 0.8052 → 0.6279 → 0.5416. Mechanism is
+volume, not error: quoted chars/answered cell 880 → 1544 → 1699 and spans/cell
+2.26 → 3.30 → 3.78. The arms dump more of the retrieved pool; gold coverage
+rises, non-gold chars rise faster. **Corrected verdict = as-registered verdict:
+DROP both; ctx stays the frozen config.**
+
+Fair modes (corrected composed side; retrieval-only recorded+clipped, and still
+in maud CRLF coordinates so its R is understated):
+
+| arm | answered-only | forced | zero-credit | retrieval-only |
+| --- | --- | --- | --- | --- |
+| ctx | 0.6140 / 0.6622 | 0.5580 / 0.6410 | 0.5483 / 0.5914 | 0.0757 / 0.7827 |
+| C1a | 0.4594 / 0.7311 | 0.4444 / 0.7253 | 0.4381 / 0.6972 | 0.0755 / 0.7768 |
+| C1b | 0.4130 / 0.7422 | 0.3992 / 0.7388 | 0.3933 / 0.7068 | 0.0763 / 0.7852 |
+
+**P1 + byte-exact.** 0 mismatches / 0 unlocated on all four receipts. Byte-exact
+under the audit's claim-substring rule: ctx 97.95% (1532/1564 — reproduces the
+published figure exactly), C1a 98.24%, C1b 98.57%, F3-plain 98.43%. Under
+strict byte equality (span text == claim text): ctx 94.63%, C1a 95.66%, C1b
+95.81%, **F3-plain 22.92%**. The gap is one benign class — the located span
+drops a wrapper the model put around its quote (52/84 ctx failures; 336/343 F3
+failures are the plain arm wrapping every quote in curly quotes). True
+normalization dependence is whitespace-run collapse only: 30 / 41 / 39 / 1 spans.
+
+**F2 negative control (gold document removed, per-source 25):**
+
+| arm | answered | strict FA | loose (quote-only) | dup-rescued | adj FA |
+| --- | --- | --- | --- | --- | --- |
+| base | 23 | **20.0%** | 3.0% | 4 | 16.0% |
+| coverage | 39 | **31.0%** | 8.0% | 11 | 20.0% |
+| covspec | 34 | **27.0%** | 7.0% | 14 | 13.0% |
+
+Registered condition — strict FA ≤ base + 5 pts: coverage 31.0% vs ceiling
+25.0% → **FAIL** (+11.0); covspec 27.0% vs 25.0% → **FAIL** (+7.0). The
+registered prediction (coverage suppresses justified declines) is confirmed:
+declines 74 → 56 → 59. Per-source the damage is concentrated in contractnli
+(base 72% → coverage 92% strict FA) and maud (4% → 12% → 20%); privacy_qa base
+declines 25/25. Two caveats recorded, neither of which rescues the arms:
+(a) contractnli base FA is already 72%, so this bed's negative control is weak
+there — the mini corpus carries near-duplicate NDA boilerplate, and a
+dup-rescue probe (quotes recovering ≥50% of a gold snippet's tokens from a
+NON-gold doc) fires on 3/18 base, 10/23 coverage, 9/18 covspec contractnli
+cells; on that adjusted metric both arms would PASS (20.0%/13.0% vs 16.0%),
+and on a substantive-conclusion variant both still FAIL (28.0%/26.0% vs 20.0%).
+(b) D7 applies: 25 cells/source ≈ 2–4 documents. The registered metric is the
+strict one and it fails; per the F round's own text the coverage contract must
+be REWORKED in a future registered round (drop "answer rather than declining",
+keep "quote comprehensively"), not adopted.
+
+**F3 plain-prompt control (196 cells, 49/source), corrected:** plain ansP
+0.5842, ansR 0.6803, declines 5/196 = 2.6% — all three inside the registered
+prediction bands (0.45–0.60 / 0.55–0.70 / <5%). Paired against ctx on the same
+test_ids (n=173): dP **−0.0650**, dR **+0.0632**; per source contractnli
+−0.1198/+0.0020(noise), cuad −0.0696/+0.0896, maud −0.0048(noise)/+0.0941,
+privacy_qa −0.0608/+0.0703. So the three-module contract's measured marginal
+value on this bed is: +0.065 precision, −0.063 recall, 5.6 points fewer answers
+(91.3% vs 96.9%), and — the real prize — conclusion-claim discipline:
+strict-answered 54.1% (ctx) vs **28.6%** (plain), with maud 22.4% → 6.1% and
+privacy_qa 51.0% → 6.1%. A one-line instruction gets you comparable char-level
+P/R and a receipt that is mostly quote-dumps. Sobering companion reading:
+deleting the entire prompt contract costs 0.065 precision, while ADDING the
+coverage module costs 0.142 (C1a) / 0.191 (C1b) on their paired subsets — the
+coverage contract is more damaging to precision than having no contract at all.
+
+Receipts (SHA-256, uppercase): coverage
+`7F51AF650710E7B8F0C3DCEB7EAF6AEF3CA11ADFC62E95B1CC76E8D14C86A866`; covspec
+`EAEF16E1D53BCAF3454DDD93F52F0785319F7BBA6A775D3BF4DFAD7253E6993D`; f2-base
+`B6899ADFF5A8E3BFFF657A58821B136EE8671DE9B9C4CCEDAF75EEB62137CFDA`; f2-coverage
+`B3621D87E64AFE6CCF4D3831442CDBA114A642A468D80C9EB16EDDFCDC3469D7`; f2-covspec
+`61D74247F4AC2B35B02C20D1BA4411B2970F9B229F372C67B5DA35B0A69E357D`; f3-plain
+`8F6750ECEFC00F43329539ADEB8B2957FAF18DDF84A3614D1FA39FA42EC2AB03`; ctx baseline
+`11A4FB9A32D27679E8E8A7BBBDAEFF9E22228B950F68C093F8AA2D2B32DE751C`.
+
 The experiment JSONL receipts are outside git under
 `%LOCALAPPDATA%\OpenLegalData\experiments\legal-grounding\2026-07-30`.
 They contain model outputs and exact benchmark evidence and must not be
