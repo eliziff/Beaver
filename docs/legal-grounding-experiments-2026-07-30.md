@@ -3709,6 +3709,52 @@ Receipts (SHA-256, uppercase): coverage
 `8F6750ECEFC00F43329539ADEB8B2957FAF18DDF84A3614D1FA39FA42EC2AB03`; ctx baseline
 `11A4FB9A32D27679E8E8A7BBBDAEFF9E22228B950F68C093F8AA2D2B32DE751C`.
 
+### Stage 18 instrument fix (2026-07-31): LF normalization at load, gold oracle 1362/1362, D2/D3/D4/D8 fixed — and the maud ctx headers are invalidated by the fix
+
+Commits `1b115b36`, `328eb32b`, `e37ca5f3` (Opus subagent; corpus files
+on disk untouched — normalization happens at the corpus→db read in
+`legalbench-rag-run.ts` and at the grounding runner's `corpusText`
+read). New `backend/scripts/legalbench-gold-oracle-check.ts`: all four
+sources now slice `text[start:end] == answer` for **1362/1362** gold
+snippets (maud 334/334); `--raw` reproduces the defect on demand
+(1028/1362, maud 0/334). One deliberate deviation: the **BOM is NOT
+stripped** — measured, upstream gold counts the BOM as one character
+(retained: 334/334; stripped: 0/334). Normalization is CRLF→LF only.
+
+New LF source db `benchmarks/legalbench_rag/data/db/a2aj-mini-lf.sqlite`
+(separate path required: passage-sidecar identity is db path + chunk
+params, NOT content — an in-place rebuild would have silently reused
+CRLF indexes). FTS rebuilt 5,966 passages / 69 docs; 300 random index
+rows verified as exact slices of normalized text. D2 union-merge + clip
+fixed in `charPrecisionRecall` (with tests): recall > 1.0 rows went
+from 1,278/3,104 in the published ctx sweep to **0**. D3
+`rerank_fallback` recorded; D4 flat mean now accompanied by per-source
+mix + balanced macro; D8 doc-rate denominators printed explicitly.
+Rows now carry `coords:"lf"` (also in the resume key), and pre-fix
+receipts are marked CRLF-coordinate in code comments.
+
+Deterministic re-sweep (zero model calls), pool R@48, receipts
+`stage18-instrumentfix-context-arms{,-rawcoords}.jsonl`: LF+D2-fixed
+maud w0 **0.6028** / w4 **0.5788** (published raw: 0.3619/0.4310);
+non-maud sources bit-identical between raw-coords and LF runs, as they
+must be. Independent cross-check: committed
+`backend/scripts/legalbench_pool_rescore.py` re-scores the arm-D fused
+pool sidecar at score time (raw→LF mapping) and reproduces the audit's
+corrected figures to 4 decimals (maud 0.8625, ALL 0.9584).
+
+**New finding, load-bearing for Stage 19: the R5b contextual headers
+are invalidated for maud by the fix.** Headers are keyed by exact
+chunk span, and spans move under normalization: **0/9,379 maud header
+rows key against the LF index** (non-maud: 1,292/1,292 still key).
+That is why maud pool recall FALLS with context weight in the LF sweep
+(0.6028 w0 → 0.5788 w4): maud ctx cells run with no enrichment at all.
+Any ctx-arm maud number on the fixed instrument is meaningless until
+the 17 maud docs' headers are regenerated on the LF index
+(`legalbench-passage-context.ts`, flat-rate calls, already repointed).
+The fused pool sidecar has the same defect but is exactly correctable
+at score time via the committed re-scorer. **Stage 19 prerequisite:
+regenerate maud headers before any burn.**
+
 The experiment JSONL receipts are outside git under
 `%LOCALAPPDATA%\OpenLegalData\experiments\legal-grounding\2026-07-30`.
 They contain model outputs and exact benchmark evidence and must not be
