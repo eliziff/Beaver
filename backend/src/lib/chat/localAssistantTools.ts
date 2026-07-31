@@ -17,6 +17,21 @@ import {
   readSection,
   renderAgreementOutline,
 } from "../legalTextSkeleton";
+import { crossReferenceGraph } from "../legalCrossReference";
+import {
+  nodeLinks,
+  nodeNeighbourhood,
+  pageAt,
+  pageLabel,
+  pageMapFromMarkers,
+  pageMapFromSourceDoc,
+  pageSections,
+  referenceHubs,
+  resolvePage,
+  selectPages,
+  type PageMap,
+  type PageSpan,
+} from "../legalDocumentNavigator";
 import { termDriftReport } from "../legalTermDrift";
 import { extractDocxDraftingSource } from "../docxDraftingSource";
 import { resolveDocxEvidenceCitations } from "../docxEvidenceCitations";
@@ -186,6 +201,11 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
           description:
             "Structural locator from the document's own numbering ('8.01', 'Article VIII', 'Schedule 7.01', 's. 8(2)'). Returns only that span, children included. library_outline lists the exact handles.",
         },
+        page: {
+          type: "string",
+          description:
+            "Printed page label ('47', 'iv', 'A-3') — what a table of contents cites. Returns that page and the section handles on it, so the follow-up can be a section read. Paged documents only (PDFs); a DOCX has no fixed pagination and will say so.",
+        },
         offset: {
           type: "integer",
           minimum: 0,
@@ -221,6 +241,28 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
     },
   ),
   tool(
+    "library_links",
+    "Follow a document's own cross-references. With `section`, returns that provision's parent/siblings/children plus the references it makes and the references made to it, each as a handle library_read section= accepts. Without `section`, returns the reference census and the most-referenced provisions. Deterministic — the document's literal pointers, not a similarity guess.",
+    {
+      type: "object",
+      properties: {
+        document_id: { type: "string" },
+        section: {
+          type: "string",
+          description:
+            "Structural locator to stand at ('8.01', 'Article VIII'). Omit for the document-level census and hubs.",
+        },
+        max_results: {
+          type: "integer",
+          minimum: 1,
+          maximum: 200,
+          description: "Cap on edges reported in each direction. Defaults to 40.",
+        },
+      },
+      required: ["document_id"],
+    },
+  ),
+  tool(
     "library_find",
     "Search inside a local Beaver Library document and return matching excerpts with context. Each hit carries its enclosing structural handle (`section`, when numbered) and character offset (`at`), so the follow-up is a scoped or windowed library_read, not a whole-document read.",
     {
@@ -236,6 +278,11 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
         case_insensitive: {
           type: "boolean",
           description: "Regex mode only. Default false.",
+        },
+        pages: {
+          type: "string",
+          description:
+            'Restrict the search to pages: "47", "12-18", "3,5,9", or a qualified form when the printed label and PDF page differ ("printed:47", "pdf:52", "printed:iv - printed:2"). Paged documents only. Hit offsets stay document-wide, so a hit still reads with library_read offset=.',
         },
         max_results: { type: "integer", minimum: 1, maximum: 50 },
         context_chars: { type: "integer", minimum: 40, maximum: 2000 },
@@ -1381,7 +1428,10 @@ function pdfLocatorParams(args: Record<string, unknown>) {
   };
 }
 
-const textCache = new Map<string, { text: string; cautions: string[] }>();
+const textCache = new Map<
+  string,
+  { text: string; cautions: string[]; pages: PageMap }
+>();
 
 export async function extractLocalDocument(userId: string, documentId: string) {
   const file = await getLocalVersionFile(userId, documentId);
@@ -1426,11 +1476,19 @@ export async function extractLocalDocument(userId: string, documentId: string) {
         )
       : [];
 
+  // The page map is built HERE because this is the only place that still
+  // holds the engine artifact: `parsed` carries both the PDF page number and
+  // the printed label the engine's header/footer detection found, and the
+  // rendered text collapses them into one marker. Every consumer downstream
+  // sees text only, so a map recovered later cannot tell "printed 47" from
+  // "PDF page 47" — and a table of contents cites the printed one.
+  const pages = parsed ? pageMapFromSourceDoc(parsed) : pageMapFromMarkers(text);
+
   if (textCache.size >= 16) {
     textCache.delete(textCache.keys().next().value!);
   }
-  textCache.set(cacheKey, { text, cautions });
-  return { filename: file.document.filename, text, cautions };
+  textCache.set(cacheKey, { text, cautions, pages });
+  return { filename: file.document.filename, text, cautions, pages };
 }
 
 /**
@@ -2328,6 +2386,73 @@ export async function runLocalAssistantTools(
                 : {}),
             });
           }
+          // Page address. The point of pagination here is that a contents
+          // page cites it: the reply carries the section handles printed on
+          // the page so the next call can be a structural read, which is the
+          // address that survives re-pagination.
+          const pageRequest = trimmed(args.page);
+          if (pageRequest) {
+            const lookup = resolvePage(
+              document.pages,
+              document.text,
+              pageRequest,
+            );
+            if (lookup.status === "no_pages") {
+              return result(call, {
+                ok: false,
+                error:
+                  "This document carries no page structure. Pages exist only where a compiler recorded them (PDFs, journal articles); a DOCX has no fixed pagination. Use section= for a provision or offset= for a window.",
+              });
+            }
+            if (lookup.status === "ambiguous") {
+              return result(call, {
+                ok: false,
+                error:
+                  `'${lookup.requested}' is ambiguous in this document: it is ${pageLabel(lookup.asPdfPage)} read as a PDF page, and ${pageLabel(lookup.asPrintedLabel)} read as a printed label. Re-ask as page="pdf:${lookup.asPdfPage.pdfPage}" or page="printed:${lookup.asPrintedLabel.printedLabel}".`,
+              });
+            }
+            if (lookup.status === "not_found") {
+              return result(call, {
+                ok: false,
+                error:
+                  `Page '${lookup.requested}' not found. This document has ${lookup.count} pages, ${lookup.first} through ${lookup.last}.`,
+              });
+            }
+            const maxChars = clampInt(args.max_chars, 200, 300_000, 24_000);
+            const pageBody = lookup.text.slice(0, maxChars);
+            const pageCut = pageBody.length < lookup.text.length;
+            const onPage = pageSections(
+              compileAgreementSkeleton(document.text),
+              lookup.page,
+            );
+            return result(call, {
+              ok: true,
+              filename: document.filename,
+              ...(document.cautions.length
+                ? { notes_of_caution: document.cautions }
+                : {}),
+              page: pageLabel(lookup.page),
+              pdf_page: lookup.page.pdfPage,
+              printed_label: lookup.page.printedLabel,
+              matched_on: lookup.matchedOn,
+              sections: onPage.starts
+                .slice(0, 24)
+                .map((node) => ({ section: node.label, display: node.display })),
+              ...(onPage.starts.length > 24 ? { sections_truncated: true } : {}),
+              ...(onPage.continuedFrom.length
+                ? {
+                    continued_from: onPage.continuedFrom[0].label,
+                  }
+                : {}),
+              text: pageBody,
+              truncated: pageCut,
+              ...(pageCut
+                ? {
+                    continuation: `Page continues; call library_read with offset=${lookup.page.start + pageBody.length}, or read one of the listed sections.`,
+                  }
+                : {}),
+            });
+          }
           // Windowed read: offset composes with library_find's `at` for
           // documents without numbered structure. Untargeted reads keep the
           // historical 300k head.
@@ -2360,20 +2485,47 @@ export async function runLocalAssistantTools(
               : {}),
           });
         }
+        // Page-scoped search. The filter runs on OFFSETS after the match, so
+        // every `at` stays a document offset that library_read offset=
+        // accepts; scoping must narrow where you look, never renumber what
+        // you find. The internal cap is raised first, because applying
+        // max_results before the filter would return nothing whenever the
+        // first hits all sit outside the scope.
+        const pageSpec = trimmed(args.pages);
+        let scope: PageSpan[] | null = null;
+        if (pageSpec) {
+          const selection = selectPages(document.pages, document.text, pageSpec);
+          if (selection.status === "empty") {
+            return fail(call, "pages was empty");
+          }
+          if (selection.status === "failed") {
+            const lookup = selection.lookup;
+            return result(call, {
+              ok: false,
+              error:
+                lookup.status === "no_pages"
+                  ? "This document carries no page structure; drop `pages` and search the whole document."
+                  : lookup.status === "ambiguous"
+                    ? `'${selection.token}' is ambiguous: ${pageLabel(lookup.asPdfPage)} as a PDF page, ${pageLabel(lookup.asPrintedLabel)} as a printed label. Qualify it as "pdf:${lookup.asPdfPage.pdfPage}" or "printed:${lookup.asPrintedLabel.printedLabel}".`
+                    : `Page '${selection.token}' not found. This document has ${lookup.status === "not_found" ? lookup.count : 0} pages, ${lookup.status === "not_found" ? lookup.first : "?"} through ${lookup.status === "not_found" ? lookup.last : "?"}.`,
+            });
+          }
+          scope = selection.pages;
+        }
         const query = trimmed(args.query);
         const matches =
           args.regex === true
             ? findRegexMatches({
                 text: document.text,
                 pattern: query,
-                maxResults: clampInt(args.max_results, 1, 50, 20),
+                maxResults: scope ? 500 : clampInt(args.max_results, 1, 50, 20),
                 contextChars: clampInt(args.context_chars, 40, 2000, 500),
                 caseInsensitive: args.case_insensitive === true,
               })
             : findTextMatches({
                 text: document.text,
                 query,
-                maxResults: clampInt(args.max_results, 1, 50, 20),
+                maxResults: scope ? 500 : clampInt(args.max_results, 1, 50, 20),
                 contextChars: clampInt(args.context_chars, 40, 2000, 500),
               });
         if ("error" in matches) return fail(call, matches.error);
@@ -2381,11 +2533,25 @@ export async function runLocalAssistantTools(
         // carries its offset plus the deepest enclosing structural handle,
         // so the follow-up is a section read, not a whole-document read.
         const skeleton = compileAgreementSkeleton(document.text);
-        const hits = matches.hits.map((hit) => {
+        const inScope = scope
+          ? matches.hits.filter((hit) =>
+              scope!.some((page) => page.start <= hit.at && hit.at < page.end),
+            )
+          : matches.hits;
+        const cap = clampInt(args.max_results, 1, 50, 20);
+        const kept = scope ? inScope.slice(0, cap) : inScope;
+        const hits = kept.map((hit) => {
           const owner = skeleton.nodes
             .filter((node) => node.start <= hit.at && hit.at < node.end)
             .sort((a, b) => b.depth - a.depth)[0];
-          return { ...hit, section: owner?.label ?? null };
+          const page = document.pages.pages.length
+            ? pageAt(document.pages, hit.at)
+            : null;
+          return {
+            ...hit,
+            section: owner?.label ?? null,
+            ...(page ? { page: pageLabel(page) } : {}),
+          };
         });
         return result(call, {
           ok: true,
@@ -2395,6 +2561,13 @@ export async function runLocalAssistantTools(
             : {}),
           query,
           totalMatches: matches.totalMatches,
+          ...(scope
+            ? {
+                pages_searched: scope.length,
+                matches_in_pages: inScope.length,
+                ...(inScope.length > kept.length ? { truncated: true } : {}),
+              }
+            : {}),
           hits,
         });
       }
@@ -2426,6 +2599,96 @@ export async function runLocalAssistantTools(
           outline: renderAgreementOutline(skeleton, {
             maxChars: clampInt(args.max_chars, 1_000, 40_000, 8_000),
           }),
+        });
+      }
+
+      if (call.name === "library_links") {
+        if (!documentId) return fail(call, "document_id is required");
+        const document = await extractLocalDocument(userId, documentId);
+        if (!document) return fail(call, "Document not found");
+        const skeleton = compileAgreementSkeleton(document.text);
+        const graph = crossReferenceGraph(document.text, documentId, {
+          skeleton,
+        });
+        const cap = clampInt(args.max_results, 1, 200, 40);
+        const handle = (node: { label: string; display: string }) => ({
+          section: node.label,
+          display: node.display,
+        });
+        // A whole-document abstention is a real answer, not an empty one:
+        // it says the skeleton is too thin to address this numbering, so a
+        // miss would carry no information. Surface it rather than returning
+        // zero edges and letting the caller read that as "no references".
+        const census = {
+          ok: true as const,
+          filename: document.filename,
+          ...(document.cautions.length
+            ? { notes_of_caution: document.cautions }
+            : {}),
+          counts: graph.counts,
+          ...(graph.documentAbstained ? { abstained: true } : {}),
+          ...(graph.note ? { note: graph.note } : {}),
+        };
+
+        const locator = trimmed(args.section);
+        if (!locator) {
+          return result(call, {
+            ...census,
+            hubs: referenceHubs(graph).map((hub) => ({
+              section: hub.label,
+              referenced_by: hub.incoming,
+            })),
+          });
+        }
+
+        const lookup = readSection(skeleton, locator);
+        if (lookup.status !== "found" || !lookup.block) {
+          return result(call, {
+            ok: false,
+            error:
+              `Section '${locator}' not found (${lookup.status}` +
+              (lookup.matches.length
+                ? `; candidates: ${lookup.matches.join(", ")}`
+                : "") +
+              "). Call library_outline for the available handles.",
+          });
+        }
+        const around = nodeNeighbourhood(skeleton, lookup.block.label);
+        if (!around) {
+          return result(call, {
+            ok: false,
+            error: `Section '${locator}' resolved to '${lookup.block.label}', which is not a skeleton node.`,
+          });
+        }
+        const links = nodeLinks(graph, around.node.label);
+        return result(call, {
+          ...census,
+          section: around.node.label,
+          display: around.node.display,
+          ...(around.node.heading ? { heading: around.node.heading } : {}),
+          ancestors: around.ancestors.map(handle),
+          siblings: around.siblings.slice(0, cap).map(handle),
+          ...(around.siblings.length > cap ? { siblings_truncated: true } : {}),
+          children: around.children.slice(0, cap).map(handle),
+          ...(around.children.length > cap ? { children_truncated: true } : {}),
+          references_out: links.outgoing.slice(0, cap).map((edge) => ({
+            reference: edge.raw.replace(/\s+/gu, " ").trim(),
+            target: edge.targetLabel,
+            status: edge.status,
+            ...(edge.reason ? { reason: edge.reason } : {}),
+            at: edge.sourceStart,
+          })),
+          ...(links.outgoing.length > cap
+            ? { references_out_truncated: true }
+            : {}),
+          references_in: links.incoming.slice(0, cap).map((edge) => ({
+            from: edge.sourceLabel,
+            reference: edge.raw.replace(/\s+/gu, " ").trim(),
+            at: edge.sourceStart,
+          })),
+          ...(links.incoming.length > cap
+            ? { references_in_truncated: true }
+            : {}),
         });
       }
 
