@@ -277,6 +277,7 @@ export async function parseLegalPdfSourceDoc(bytes: Buffer) {
       "--output",
       output,
       "--no-cache",
+      "--compact-pages",
     ]);
     return await readLegalPdfSourceDoc(output);
   } finally {
