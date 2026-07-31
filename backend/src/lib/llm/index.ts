@@ -100,6 +100,7 @@ export async function completeText(params: {
   systemPrompt?: string;
   user: string;
   maxTokens?: number;
+  reasoningEffort?: string;
   apiKeys?: UserApiKeys;
 }): Promise<string> {
   const provider = providerForModel(params.model);
@@ -116,6 +117,9 @@ export async function completeText(params: {
       model: params.model,
       systemPrompt: params.systemPrompt ?? "",
       messages: [{ role: "user", content: params.user }],
+      ...(params.reasoningEffort
+        ? { reasoningEffort: params.reasoningEffort }
+        : {}),
     });
     return result.fullText;
   }
