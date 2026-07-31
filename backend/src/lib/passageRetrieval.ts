@@ -31,6 +31,10 @@ export type ChunkOptions = {
   target?: number;
   /** Chars of tail overlap carried into the next chunk. */
   overlap?: number;
+  /** "chars": boundary-preferring character windows. "clause": spans
+   * snap to clause/section starts (the skeleton doctrine — retrieval
+   * unit = citable unit), packing whole clauses up to target. */
+  mode?: "chars" | "clause";
 };
 
 const chunkDefaults = { target: 1000, overlap: 120 };
@@ -62,6 +66,55 @@ export function chunkText(text: string, options?: ChunkOptions): ChunkSpan[] {
     start = Math.max(start + 1, end - overlap);
   }
   return spans;
+}
+
+/** Clause/section starts at line beginnings: "Section 7.2", "ARTICLE
+ * IV", dotted numbering (7.2, 7.2.1), simple enumeration (1., (a),
+ * (iv)). The contract skeleton's joints. */
+const CLAUSE_START_RE =
+  /^[ \t]{0,8}(?:(?:Section|SECTION|Article|ARTICLE)\s+[0-9IVXLC]|\d+(?:\.\d+)+[.)]?\s|\d+[.)]\s|\([a-z]{1,4}\)\s|\([ivxlc]+\)\s)/gmu;
+
+/**
+ * Skeleton-aligned chunking: every span STARTS at a clause boundary
+ * (or 0); whole clauses pack greedily up to `target`; a single clause
+ * longer than 2×target subdivides with the character chunker. No
+ * overlap — clause units don't straddle, so boundary overlap has
+ * nothing to recover.
+ */
+export function clauseChunkText(
+  text: string,
+  options?: ChunkOptions,
+): ChunkSpan[] {
+  const target = Math.max(200, options?.target ?? chunkDefaults.target);
+  const starts = [
+    ...new Set([0, ...[...text.matchAll(CLAUSE_START_RE)].map((m) => m.index)]),
+  ].sort((left, right) => left - right);
+  if (starts.length < 3) return chunkText(text, options);
+  const spans: ChunkSpan[] = [];
+  let chunkStart = 0;
+  for (let index = 0; index < starts.length; index += 1) {
+    const clauseEnd = starts[index + 1] ?? text.length;
+    if (clauseEnd - chunkStart >= target || clauseEnd === text.length) {
+      if (clauseEnd - chunkStart > target * 2) {
+        // Flush what precedes, then subdivide the oversized clause.
+        if (starts[index] > chunkStart)
+          spans.push({ start: chunkStart, end: starts[index] });
+        const clauseStart = Math.max(chunkStart, starts[index]);
+        for (const sub of chunkText(
+          text.slice(clauseStart, clauseEnd),
+          { target, overlap: 0 },
+        ))
+          spans.push({
+            start: clauseStart + sub.start,
+            end: clauseStart + sub.end,
+          });
+      } else {
+        spans.push({ start: chunkStart, end: clauseEnd });
+      }
+      chunkStart = clauseEnd;
+    }
+  }
+  return spans.filter((span) => span.end > span.start);
 }
 
 function structuralBreak(text: string, from: number, to: number) {
@@ -135,7 +188,8 @@ function paramsKey(options: PassageIndexOptions) {
         target: options.target ?? chunkDefaults.target,
         overlap: options.overlap ?? chunkDefaults.overlap,
         docType: options.docType ?? null,
-        v: 2,
+        mode: options.mode ?? "chars",
+        v: 3,
       }),
     )
     .digest("hex")
@@ -228,7 +282,11 @@ export function ensurePassageIndex(options: PassageIndexOptions): {
           counted = true;
         }
         const headings = headingLines(text);
-        for (const span of chunkText(text, options)) {
+        const spans =
+          options.mode === "clause"
+            ? clauseChunkText(text, options)
+            : chunkText(text, options);
+        for (const span of spans) {
           const result = insertPassage.run(
             row.id as number,
             language,
