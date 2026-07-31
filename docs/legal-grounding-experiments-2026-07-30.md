@@ -3409,6 +3409,144 @@ the G+ctx config are NOT re-litigated post-hoc; finding 3/4 makes the
 fused lane a first-class candidate for the post-holdout registered
 queue with a pre-stated bar rationale.
 
+### Stage 18 CRITICAL instrument defect (2026-07-31): CRLF/LF gold-coordinate mismatch — every maud score in the program was wrong
+
+Found independently by BOTH the code-level scorer audit and the
+leakage/contamination audit (separate Opus agents, separate probes),
+then verified first-hand with a minimal repro. The 17 maud corpus
+files are CRLF (+BOM); the other 52 files are pure LF. The upstream
+gold `span` offsets are **LF coordinates** — decidable because
+upstream ships the `answer` string per snippet: all 334 maud snippets
+slice to their `answer` under `\r\n→\n` text, **0/334** under the raw
+text. Every scorer and runner in the program slices raw text
+(`legalbench-rag-grounding.ts:390`, `legalbench-rag-run.ts:96` — the
+FTS index too, so retrieved/quoted spans are CRLF coordinates scored
+against LF gold). Drift = one char per preceding CRLF: median 1,145,
+max 2,957; 247/334 gold spans have drift larger than their own length
+(guaranteed zero overlap). Internal-inconsistency proof from receipts
+alone: 70/152 maud answered ctx cells have corrected composed recall
+exceeding the recorded retrieval recall of the very evidence they
+quoted. Only maud is affected; contractnli/cuad/privacy_qa are
+byte-identical LF.
+
+Corrected scores (gold LF→raw coordinate mapping + union-merge; the
+two audits' independent corrections agree within 0.002):
+
+| receipt | maud ansP → corr | maud ansR → corr | overall ansP → corr | overall ansR → corr |
+| --- | --- | --- | --- | --- |
+| G confirm | 0.1626 → 0.4523 | 0.1070 → 0.4546 | 0.5377 → 0.5976 | 0.5708 → 0.6428 |
+| ctx confirm | 0.1754 → 0.4508 | 0.1385 → 0.4985 | 0.5535 → 0.6140 | 0.5832 → 0.6622 |
+| fused confirm | 0.1712 → 0.5190 | 0.1449 → 0.6057 | 0.5525 → 0.6323 | 0.6002 → 0.7060 |
+| stage17 full | 0.1429 → 0.4475 | 0.1114 → 0.4369 | 0.5050 → 0.5714 | 0.5114 → 0.5823 |
+
+Fused pool maud R@48: 0.6351 → **0.8625** (ALL 0.9015 → 0.9584).
+
+**Verdicts that change under the corrected instrument:**
+
+- **Fused grounded confirm flips DROP → KEEP.** Corrected maud lift
+  +0.107 (0.4985 → 0.6057) vs the +0.02 KEEP bar; corrected overall
+  P and R both clear their bars. The recorded MIDDLE→DROP was an
+  artifact of scoring maud against the wrong bytes.
+- R4's "maud is a pool problem, not a rank problem" is invalidated
+  (built on corrupted maud R@6/pool numbers).
+- R5/R5b adoption gates were maud pool R@48 in wrong coordinates;
+  the ctx grounded KEEP itself survives corrected re-scoring
+  (maud lift +0.044 vs its +0.01 bar) but every published maud
+  figure changes.
+- The funnel-attribution maud rows and the maud decline audit are
+  invalid; the "maud bottleneck" narrative was ~65% coordinate
+  artifact (pool 0.635 vs corrected 0.863).
+- Every frozen maud gate constant (0.1170/0.1285/0.1385/0.1485/
+  0.1585) is a number on a corrupted metric, including the
+  registered C1 gates.
+
+### Stage 18 companion audit findings (noise floor, holdout validity, other scorer defects)
+
+**Noise floor (leakage audit, measured from paired receipts):** on
+cells with byte-identical k=6 evidence across two runs, the composer
+still flips answered↔declined on 9–10% of cells and produces a
+different precision on ~40%; paired 1σ on a 776-cell config delta ≈
+**±0.0065**, 95% band ±0.013–0.015. Null control: on 147 cells where
+ctx changed *nothing* about retrieval, ctx still scored +0.0277 P
+over base — larger than the entire claimed ctx composed effect
+(+0.0158). Any verdict decided on < 0.015 with one run per arm is
+unsupported; gate widths of ±0.01–0.02 are inside noise.
+
+**Holdout validity:** the manifest split is document-blocked — dev
+and holdout share essentially no documents (0–2 tests per source cite
+a dev doc; document-leakage hypothesis falsified). But 98.5–100% of
+holdout queries use question templates already seen in dev (17–32
+templates per source), so the holdout refutes document memorization
+only — everything tuned on question phrasing transfers 1:1. And
+**privacy_qa has no holdout at all** (mini == the complete upstream
+benchmark, 194 tests): the holdout bed is 3 sources, not 4. maud
+holdout gold is 15.5% near-duplicate boilerplate of dev gold.
+
+**Bed easiness:** the searchable pool is 69 documents (upstream:
+714); every query's preamble names the gold document (uniquely
+identifying it by filename tokens in 100% of maud/privacy_qa, 42% of
+cuad); measured doc_hit@6 is 99.5–100% on every source. Document
+identification — the hard half of RAG — is free on this bed; all
+retrieval verdicts price intra-document passage ordering only, and
+the reranker sees the raw file path as `document`, so its gain is
+not separable from filename matching. The header sidecar's lift is
+real contextual enrichment (headers never saw questions or gold;
+injected terms are generic legal register, not benchmark taxonomy)
+but is partly document re-identification that will not survive a
+realistic corpus. No header→composer leakage path exists (headers
+feed only the FTS context column).
+
+**Other verified scorer defects (code audit):** (D2) the span
+double-count also contaminates `retrieval_baseline` in every
+grounded receipt — retrieval-only fair-mode numbers cap to 0.7827
+(ctx) / 0.8402 (fused) / 0.7479 (G); (D3) the rerank fallback flag
+is silently discarded by the grounding runner (measured 0% fallback
+at luna@default on the R4 bed, but 21–29% at luna low/high — R4's
+arm means mix two systems; ranked-only ordering still puts
+luna@default first); (D4) `summarize()` prints an unweighted flat
+mean over whatever rows exist — on the mid-run C1 coverage snapshot,
+~41% of the apparent recall gain was missing-source mix artifact
+(zero privacy_qa rows at snapshot time); C1 scoring must be
+per-source and paired; (D5) the verbatim gate and the quote locator
+have different equivalence classes (dash/ellipsis/prime, citation
+tails) — a gate-accepted quote can silently vanish from
+`quoted_spans`, biasing precision up; measured firing rate 0 across
+all six receipt files, latent; (D6) the resume key omits the arm
+label — two arms resumed into one file would silently interleave;
+measured 0 occurrences, latent; (D7) `--per-source n` slices are
+document-degenerate (25/source ≈ 2–4 documents each) — the F2/F3
+beds are narrower than their cell counts suggest. Cleared by probe:
+gold spans are disjoint (no precision-side double-credit), UTF-16 ==
+code-point on this corpus, BOM handling is correct as-is, no path or
+evidence-id collisions, quote-occurrence selection is sound, stitch
+joints cannot fabricate text.
+
+**Standing corrections adopted (instrument fixes, not result-chasing):**
+
+1. All maud scoring from here on maps gold LF→CRLF coordinates (or
+   normalizes the corpus at load + rebuilds the FTS db — the Stage 19
+   runner fix); every re-reported historical number uses the
+   corrected instrument. In-flight C1/F2/F3 receipts are in CRLF
+   coordinates and will be scored with the score-time correction.
+2. C1 arms are judged two ways and both reported: (a) as-registered
+   gates on the recorded (corrupted) instrument for frozen-gate
+   bookkeeping; (b) corrected-coordinate scoring, per-source and
+   paired-subset, which is the decision basis — with the corrected
+   ctx baselines (maud ansR 0.4985, overall ansP 0.6140 / ansR
+   0.6622) and gate widths respecting the measured noise floor
+   (≥ 0.015 paired, or replicate runs).
+3. The fused lane's DROP is re-opened as an instrument-defect
+   correction (same class as the R1 correction, here with the
+   verdict sign actually flipping): fused is reinstated as the
+   ceiling arm of the Stage 19 two-arm design on its corrected KEEP
+   reading. The laptop arm remains G+ctx. Final Stage 19 config
+   remains user-gated.
+4. Stage 19 protocol additions: at least one replicate run to
+   publish the paired noise band; per-source + paired reporting
+   mandatory; retrieval-only numbers clipped; holdout report must
+   disclose template-staleness, the missing privacy_qa holdout, and
+   the doc-named-query easiness; scorers committed to the repo.
+
 The experiment JSONL receipts are outside git under
 `%LOCALAPPDATA%\OpenLegalData\experiments\legal-grounding\2026-07-30`.
 They contain model outputs and exact benchmark evidence and must not be
