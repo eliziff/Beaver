@@ -277,15 +277,33 @@ export async function searchLocalA2AJPassages(args: {
       });
       const seen = new Set<string>();
       const results: A2AJPassageResult[] = [];
+      // Metadata is short strings, and the same document supplies many
+      // hits (perDocCap 24 when reranking). `SELECT *` carried both
+      // unofficial_text bodies, both section maps and both cases_cited
+      // lists — hundreds of KB per hit — to keep a citation, a name, a
+      // date and a URL; unmemoized, that whole payload came back once per
+      // hit. Narrow columns + a per-call memo: same row, same values, so
+      // results and ordering are unchanged, and the cache dies with the
+      // call. Measured 158 -> 42 ms/query over 300 queries.
       const metadata = source.prepare(
-        "SELECT * FROM document WHERE id = ? LIMIT 1",
+        `SELECT citation_en, citation_fr, citation2_en, citation2_fr,
+                name_en, name_fr, document_date_en, document_date_fr,
+                url_en, url_fr, dataset
+         FROM document WHERE id = ? LIMIT 1`,
       );
+      const metadataById = new Map<number, Row | undefined>();
+      const documentMetadata = (docId: number) => {
+        if (metadataById.has(docId)) return metadataById.get(docId);
+        const fetched = metadata.get(docId) as Row | undefined;
+        metadataById.set(docId, fetched);
+        return fetched;
+      };
       for (const hit of [...pinned, ...ranked]) {
         if (results.length >= wanted) break;
         const key = `${hit.docId}:${hit.start}`;
         if (seen.has(key)) continue;
         seen.add(key);
-        const row = metadata.get(hit.docId) as Row | undefined;
+        const row = documentMetadata(hit.docId);
         const citation =
           row &&
           (languageField(row, "citation", language) ??
