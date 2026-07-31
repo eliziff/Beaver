@@ -260,6 +260,25 @@ describe("caselaw citator note-up graph", () => {
         { citation: "2020 FC 100", occurrences: 1, paragraph: 5 },
       ]);
 
+      // The batch alias surface is the single-citation one, on one handle:
+      // element i must equal citationAliasKeys(citations[i]) exactly,
+      // including the "" input that normalizes to no key at all. Callers
+      // scanning a query's fragments use it to avoid reopening the graph
+      // per fragment; it may never answer differently.
+      const batchInputs = [
+        "2015 SCC 5",
+        "2015 S.C.C. 5",
+        "2015 CSC 5",
+        "[2015] 1 SCR 331",
+        "384 US 436",
+        "no citation here",
+        "",
+      ];
+      expect(citator.citationAliasKeysBatch(batchInputs)).toEqual(
+        batchInputs.map((citation) => citator.citationAliasKeys(citation)),
+      );
+      expect(citator.citationAliasKeysBatch([])).toEqual([]);
+
       // Stands-for profile: attested characterizations ranked by citing
       // court level (ONCA level 4 outranks FC level 3), prose windows
       // extracted by the excerpt classifier, sha receipts over the text.
@@ -284,6 +303,15 @@ describe("caselaw citator note-up graph", () => {
         citingCitation: "2020 FC 100",
         citingLevel: 3,
       });
+      // 2020 FC 100 cites Carter twice ([2] and [3]); the profile must
+      // characterize the FIRST occurrence. The paragraph and excerpt ride
+      // the MIN(text_offset) row of the grouped query, so this pins the
+      // bare-column contract that replaced a per-group re-fetch: pick the
+      // wrong row and the paragraph reads 3 and the window becomes the
+      // "bears that burden" sentence.
+      expect(profile.candidates[1].paragraph).toBe(2);
+      expect(profile.candidates[1].text).toContain("governing authorities");
+      expect(profile.candidates[1].text).not.toContain("bears that burden");
       // No journal commentary DB installed -> the source reports null,
       // never an empty count that would read as "looked and found nothing".
       expect(profile.commentary).toBeNull();
@@ -481,5 +509,17 @@ describe("caselaw citator note-up graph", () => {
     const citator = await import("../caselawCitator");
     expect(citator.noteUpCitations({ citation: "2015 SCC 5" })).toBeNull();
     expect(citator.graphStats()).toBeNull();
+    // Absent graph: both alias surfaces degrade to the literal key, and
+    // text that normalizes to nothing to no key. Same contract, batched
+    // or not.
+    const inputs = ["2015 SCC 5", "prose that keys anyway", "  -- "];
+    expect(citator.citationAliasKeysBatch(inputs)).toEqual([
+      ["2015scc5"],
+      ["prosethatkeysanyway"],
+      [],
+    ]);
+    expect(citator.citationAliasKeysBatch(inputs)).toEqual(
+      inputs.map((citation) => citator.citationAliasKeys(citation)),
+    );
   });
 });
