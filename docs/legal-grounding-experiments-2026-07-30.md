@@ -2454,6 +2454,83 @@ like maud grounded P in the 0.25–0.35 band (paper's best maud char
 precision at ANY k is 3.4%), overall answered-P ≥ 0.55, with soundness
 untouched. contractnli is treated as at-ceiling; no lever targets it.
 
+### Fair-comparison protocol (locked 2026-07-30, before the hold-out
+burn; Eli: "measure it against public results honestly … as if we did
+not let the model abstain")
+
+Three scoring modes, all REQUIRED in every future headline report
+(derived deterministically from the same receipts; Stage 17 values
+below from `stage17-lbrag-full.jsonl`, deduped final rows):
+
+1. **answered-only** (our operating metric; conditions on the 83.9%
+   the system chose to answer — flattered by selection, always
+   reported beside coverage): P 0.5050 / R 0.5114.
+2. **forced-answer** (no abstention credit: non-answered cells score
+   their top-4 retrieval spans — what the system would emit if forced
+   to always answer): P 0.4375 / R 0.4833. Per source P: contractnli
+   0.7047, cuad 0.4613, maud 0.1227, privacy_qa 0.4614.
+3. **zero-credit** (harshest: every non-answer scores 0 — abstention
+   counted as total miss): P 0.4236 / R 0.4290.
+
+Reading: the abstention selection effect is worth ~0.07–0.08 P
+overall — the score is not an abstention artifact. Even zero-credit
+(0.42) sits 3–19× above the paper's per-source P@4 (2.2–12.5%).
+
+Retrieval-only comparison (vs the paper's own metric, which is all the
+paper measures): our post-rerank top-4 spans over ALL cells score
+P 0.0865 / R 0.6604 (per-source R: 0.91/0.68/0.22/0.84) vs the
+paper's best-chunking P@4 2.2–12.5% / R@4 4.6–29.8%. Known asymmetry,
+recorded: our chunks are 1600 chars vs the paper's ~500-char RCTS —
+bigger chunks depress char precision and inflate recall; a
+chunk-matched retrieval arm (t500/o0, same scorer) rides the Stage 18
+ablation for an apples-to-apples row. Other honest asymmetries: (a)
+our bed is the first 194 tests/source of 6,858 (fixed pre-registered
+subset; the Stage 19 hold-out — next 194/source, zero tuning — tests
+subset fit); (b) possible pretraining contamination helps quote
+SELECTION but cannot fabricate (verbatim gate); (c) overlapping gold
+spans can push recall marginally above 1.0 (double-count, ≤0.02).
+
+The Stage 19 hold-out burn happens ONCE, after Stage 18 freezes the
+final config, and reports all three modes + retrieval-only, same
+formulas, no re-tuning afterward.
+
+### Stage 18 retrieval-arm verdicts (2026-07-30, receipts
+`stage18-retrieval-arms.jsonl`, all 776 tests, deterministic)
+
+**R1 clause mode: FALSIFIED** under its frozen terms. maud pool R@48
+0.3619 → 0.3848 (+0.023, needed +0.05) and contractnli pool dropped
+1.0529 → 0.9806 (−0.072, tolerance −0.06). (chars-mode numbers here
+differ from the stage16b 120-cell bed — full-776 vs subsample.)
+Clause mode did lift lexical R@4 (overall 0.4058 → 0.4189, cuad
+0.184 → 0.254) but the pool is what the rerank eats, and the pool
+didn't move. maud's pool constraint is vocabulary mismatch, not chunk
+geometry — the dense lane (arm D, deferred) is the right lever.
+
+**R2 phrase bigrams: FALSIFIED, strongly negative.** Overall lexical
+R@4 0.4058 → 0.2489; contractnli 0.860 → 0.437. OR'd phrase terms
+redistribute bm25 mass toward boilerplate-phrase-bearing passages.
+The `phrases` option stays in the module as measured-negative
+(off by default); a rank-fused phrase LANE (rrfFuse) is the correct
+retry shape if ever revisited, not score-summed OR terms.
+
+**R3 composition: moot** (needs both parents non-negative).
+
+**Fair500 row** (chunk-matched retrieval comparison, t500/o0/w16
+lexical-only k=4): P@4 0.0594 / R@4 0.1434 overall (contractnli
+0.114/0.391, cuad 0.019/0.046, maud 0.028/0.018, privacy_qa
+0.077/0.119) vs the paper's dense-embedding P@4 2.2–12.5% / R@4
+4.6–29.8%. Honest reading: at matched conditions our raw BM25 is at
+or below the paper's embedding baselines — the stack's edge is the
+architecture (wide pool → listwise LLM rerank → verbatim contract),
+not the lexical retriever. Recorded so nobody mistakes the headline
+numbers for retriever magic.
+
+**G final config (frozen):** retrieval unchanged (chars
+t1600/o120/w16, pool 48, luna rerank), rerank preview 1600, evidence
+k=6, stitch gap 200 (post-rerank same-doc merge; baseline lane stays
+unstitched for Stage 17 comparability). Output
+`stage18-lbrag-grounded.jsonl`. Predictions as registered above.
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under

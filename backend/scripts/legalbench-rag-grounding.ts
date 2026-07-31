@@ -197,6 +197,59 @@ export function locateQuote(
     : null;
 }
 
+/**
+ * Merge same-document spans separated by at most `gap` chars (overlaps
+ * included) into single spans, re-sliced verbatim from the document.
+ * Order preserved by each merged group's best original rank.
+ */
+export function stitchSpans(
+  spans: Array<Span & { snippet: string }>,
+  gap: number,
+  textByPath: Map<string, string>,
+): Array<Span & { snippet: string }> {
+  type Group = Span & { rank: number };
+  const groups: Group[] = spans.map((span, rank) => ({
+    filePath: span.filePath,
+    start: span.start,
+    end: span.end,
+    rank,
+  }));
+  let merged = true;
+  while (merged) {
+    merged = false;
+    outer: for (let i = 0; i < groups.length; i += 1) {
+      for (let j = i + 1; j < groups.length; j += 1) {
+        const [a, b] = [groups[i], groups[j]];
+        if (a.filePath !== b.filePath) continue;
+        if (b.start > a.end + gap || a.start > b.end + gap) continue;
+        groups[i] = {
+          filePath: a.filePath,
+          start: Math.min(a.start, b.start),
+          end: Math.max(a.end, b.end),
+          rank: Math.min(a.rank, b.rank),
+        };
+        groups.splice(j, 1);
+        merged = true;
+        break outer;
+      }
+    }
+  }
+  groups.sort((left, right) => left.rank - right.rank);
+  return groups.map((group) => {
+    const text = textByPath.get(group.filePath);
+    const original = spans.find(
+      (span) => span.filePath === group.filePath && span.start === group.start,
+    );
+    return {
+      filePath: group.filePath,
+      start: group.start,
+      end: group.end,
+      snippet:
+        text?.slice(group.start, group.end) ?? original?.snippet ?? "",
+    };
+  });
+}
+
 function scoreSpans(spans: Span[], gold: Span[]): RowSpanScore {
   const { precision, recall } = charPrecisionRecall(spans, gold);
   const goldDocs = new Set(gold.map((span) => span.filePath));
@@ -226,10 +279,17 @@ async function main() {
   const rerankPreview = flag("rerank-preview", "")
     ? Number(flag("rerank-preview"))
     : undefined;
+  // Stage 18 G: merge same-doc retrieved spans whose gap is at most
+  // this many chars, so narrow gold clauses straddling chunk joints
+  // arrive as one evidence snippet. 0 = off. Baseline stays unstitched.
+  const stitchGap = Number(flag("stitch", "0"));
   const retriever =
     (retrieverKind === "passage"
       ? `passage:t${chunkTarget}/o${chunkOverlap}/w${nameWeight}`
-      : "product") + (rerankModel ? `+rerank(${rerankModel})` : "");
+      : "product") +
+    (rerankModel ? `+rerank(${rerankModel})` : "") +
+    (rerankPreview === undefined ? "" : `@p${rerankPreview}`) +
+    (stitchGap > 0 ? `+stitch${stitchGap}` : "");
   const timeoutMs = Number(flag("timeout-ms", "300000"));
   const concurrency = Number(flag("concurrency", "3"));
   const experimentsDir = path.join(
@@ -357,6 +417,8 @@ async function main() {
       }
     }
     const baseline = scoreSpans(retrieved, test.gold);
+    const evidence =
+      stitchGap > 0 ? stitchSpans(retrieved, stitchGap, corpusText) : retrieved;
 
     const state = createLegalEvidenceTurnState("required_slot");
     state.premiseContext = { question: test.query, priorAnswer: null };
@@ -370,7 +432,7 @@ async function main() {
       ),
     };
     const bySnippetId = new Map<string, Span & { snippet: string }>();
-    const receipts = retrieved.map((span, index) => {
+    const receipts = evidence.map((span, index) => {
       const receipt = createBenchmarkEvidence({
         jurisdiction: "US",
         sourceClass: "legislation",
