@@ -1,6 +1,7 @@
 # Structure-graph round (2026-07-31)
 
-Eli's design. Nothing here has been tested with a model.
+Eli's design. Built, unproven, never shown to a composer.
+Priority 6 in `legal-grounding-restart-plan-2026-07-31.md`.
 
 ## The idea
 
