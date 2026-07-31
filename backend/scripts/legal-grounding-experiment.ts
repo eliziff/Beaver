@@ -55,6 +55,7 @@ import {
   type LegalEvidenceReceipt,
   type LegalSourceClass,
 } from "../src/lib/chat/legalEvidenceExperiment";
+import { receiptPath } from "../src/lib/experimentReceipts";
 import {
   streamChatWithTools,
   type NormalizedLlmUsage,
@@ -1056,11 +1057,6 @@ async function main() {
       throw new Error(`invalid --housing-ids value: ${value}`);
     return id;
   });
-  const output = flag(
-    "output",
-    path.join(tempRoot, `results-${new Date().toISOString().replace(/[:.]/gu, "-")}.jsonl`),
-  );
-
   const cases: BenchmarkCase[] = [];
   if (suites.has("cslb")) cases.push(...cslbCases(cslbFile, split, perSource));
   if (suites.has("clerc")) {
@@ -1116,11 +1112,22 @@ async function main() {
   for (const policy of rankPolicies)
     if (!["authority", "banded_recency", "flat_recency"].includes(policy))
       throw new Error(`unknown --rank-policies entry: ${policy}`);
-  mkdirSync(path.dirname(output), { recursive: true });
   // --resume 1: keep the existing output file and skip cells it already
   // holds a non-error row for; errored cells get another attempt (the
   // file may then hold both rows — analysis dedupes keeping the last).
   const resume = flag("resume", "0") !== "0";
+  // Receipt destination, resolved AFTER --dry-run so a dry run can never
+  // be refused by the guard. Without --resume the branch below truncates
+  // the file, so an existing receipt throws unless --force: receipts are
+  // append-only evidence with shas pinned in the experiment log.
+  const output = receiptPath(
+    path.join(
+      tempRoot,
+      `results-${new Date().toISOString().replace(/[:.]/gu, "-")}.jsonl`,
+    ),
+    { resume },
+  );
+  mkdirSync(path.dirname(output), { recursive: true });
   const done = new Set<string>();
   if (resume && existsSync(output)) {
     for (const row of readJsonl<RunReceipt>(output))

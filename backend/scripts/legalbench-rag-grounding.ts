@@ -50,6 +50,7 @@ import {
   LEGAL_EVIDENCE_PLAN_TOOL_NAME,
   LEGAL_EVIDENCE_TOOL_NAME,
 } from "../src/lib/chat/legalEvidenceExperiment";
+import { receiptPath } from "../src/lib/experimentReceipts";
 import {
   LEGALBENCH_MINI_SOURCE_DB,
   LEGALBENCH_RAG_DATA_DIR,
@@ -357,7 +358,6 @@ async function main() {
     process.env.LOCALAPPDATA ?? "",
     "OpenLegalData/experiments/legal-grounding/2026-07-30",
   );
-  const output = flag("output", path.join(experimentsDir, "stage14-lbrag.jsonl"));
   const resume = flag("resume", "0") !== "0";
   const coverageArm = flag("coverage", "0") !== "0";
   const specArm = flag("spec", "0") !== "0";
@@ -489,6 +489,14 @@ async function main() {
   console.log(`selected ${selected.length} tests (k=${k}, model=${model})`);
   if (process.argv.includes("--dry-run")) return;
 
+  // Receipt destination, resolved AFTER --dry-run so a dry run can never
+  // be refused by the guard. The default is a fixed path and the
+  // non-resume branch below truncates it, so an existing receipt throws
+  // unless --force: that is how `stage18-retrieval-arms.jsonl` (sha
+  // pinned in the experiment log) was destroyed on 2026-07-30.
+  const output = receiptPath(path.join(experimentsDir, "stage14-lbrag.jsonl"), {
+    resume,
+  });
   mkdirSync(path.dirname(output), { recursive: true });
   const done = new Set<string>();
   // Resume key carries the coordinate space: a pre-fix (raw-CRLF) row has
