@@ -659,21 +659,38 @@ function recoverSpaceRuns(text: string): string {
 }
 
 /**
- * MEASURED AND REJECTED, recorded so it is not retried blind: the other
- * extraction dialect joins lines with a SINGLE space (At Home Group — 316k
- * characters, 1,030 lines, zero internal space runs, one 5,035-character
- * "line" per page), which leaves no run to split on. Offering a line start
- * at every internal space a head grammar could begin at recovers four more
- * documents on the mini corpus and breaks none by the endorsement score —
- * and is nonetheless unsound. A merger agreement's definitions index is a
- * list of "'Balance Sheet Date' has the meaning set forth in Section
- * 6.16(a)", and every one of those entries then becomes a section head that
- * a real reference elsewhere resolves onto. CAI International compiles 272
- * heads against roughly 100 real ones and its endorsement score RISES,
- * because the invented heads are exactly the labels the document cites.
- * Endorsement cannot police a hypothesis that mints the provisions being
- * looked for; only a stronger structural check could, and none is proven.
+ * The other extraction dialect joins lines with a SINGLE space, leaving no
+ * run to split on — At Home Group is 316k characters in 1,030 lines with
+ * zero internal space runs, one 5,035-character "line" per page.
+ *
+ * Offering a line start at every internal space a head grammar could begin
+ * at is UNSOUND, and the corpus said so loudly enough to be worth recording:
+ * a merger agreement's definitions index is a list of "'Balance Sheet Date'
+ * has the meaning set forth in Section 6.16(a)", so every entry becomes a
+ * head that real references elsewhere resolve onto. CAI International
+ * compiled 272 heads against roughly 100 real ones and its endorsement score
+ * ROSE, because the invented heads were exactly the labels the document
+ * cites. Endorsement cannot police a hypothesis that mints the provisions
+ * being looked for.
+ *
+ * What separates a lost line break from an ordinary space is what precedes
+ * it. A heading follows the END of the previous line, so in a single-space
+ * join the character before the lost newline is a sentence terminator;
+ * "set forth in Section 6.16" is preceded by "in". Requiring the terminator
+ * costs nothing real and collapses the pathology exactly: CAI stays at 26
+ * heads instead of 272, while At Home goes 33 -> 96 with integrity 0.39 ->
+ * 0.90 and BioTelemetry 0.75 -> 0.93.
  */
+const HEAD_WORD = String.raw`(?:ARTICLE|Article|PART|Part|DIVISION|Division|SECTION|Section|SCHEDULE|Schedule|EXHIBIT|Exhibit|ANNEX|Annex|APPENDIX|Appendix)`;
+const SENTENCE_JOIN_RE = new RegExp(
+  String.raw`(?<=[.;:][)"'”’]?)[ \t]` +
+    String.raw`(?=${HEAD_WORD}\s+[IVXLCDM\d]|\d{1,3}\.\d{1,3}(?:\.\d{1,3})*\s+\S|\(\w{1,3}\)\s)`,
+  "gu",
+);
+
+function recoverSentenceJoins(text: string): string {
+  return text.replace(SENTENCE_JOIN_RE, "\n");
+}
 
 /**
  * A real inventory of heads runs the length of the instrument. A table of
@@ -710,8 +727,16 @@ function headSpan(nodes: SkeletonNode[], length: number): number {
  * length as the original and differs only in whitespace.
  */
 function segmentations(text: string): string[] {
-  const recovered = recoverSpaceRuns(text);
-  return recovered === text ? [text] : [text, recovered];
+  const joined = recoverSentenceJoins(text);
+  const hypotheses = [
+    text,
+    recoverSpaceRuns(text),
+    joined,
+    recoverSpaceRuns(joined),
+  ];
+  return hypotheses.filter(
+    (candidate, index) => hypotheses.indexOf(candidate) === index,
+  );
 }
 
 /**
