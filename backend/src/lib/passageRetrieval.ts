@@ -21,7 +21,7 @@
  * — consumers get exact coordinates and never re-locate by search.
  */
 import { createHash } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { compileAgreementSkeleton } from "./legalTextSkeleton";
 import { sourceDocBlockText, type SourceDoc } from "./sourceDoc";
@@ -215,6 +215,13 @@ export type PassageIndexOptions = ChunkOptions & {
   /** Sidecar path; defaults beside the source keyed by chunk params. */
   indexDb?: string;
   docType?: "cases" | "laws";
+  /** Offline LLM-written situating headers (contextual-retrieval
+   * pattern), JSONL rows {doc_id, language, start, end, header} keyed
+   * to THIS parameter set's chunk spans. When set, the header replaces
+   * the regex heading path in the FTS `context` column (fallback:
+   * heading path) and the sidecar is keyed by the file's content hash.
+   * Unset = byte-identical params key to before this option existed. */
+  contextJsonl?: string;
 };
 
 function paramsKey(options: PassageIndexOptions) {
@@ -226,10 +233,44 @@ function paramsKey(options: PassageIndexOptions) {
         docType: options.docType ?? null,
         mode: options.mode ?? "chars",
         v: 4,
+        ...(options.contextJsonl
+          ? {
+              ctx: createHash("sha256")
+                .update(readFileSync(options.contextJsonl))
+                .digest("hex")
+                .slice(0, 12),
+            }
+          : {}),
       }),
     )
     .digest("hex")
     .slice(0, 12);
+}
+
+/** Enrichment headers keyed by passage coordinates. */
+function loadContextHeaders(
+  contextJsonl: string | undefined,
+): Map<string, string> {
+  const headers = new Map<string, string>();
+  if (!contextJsonl) return headers;
+  for (const line of readFileSync(contextJsonl, "utf8")
+    .split("\n")
+    .filter(Boolean)) {
+    const row = JSON.parse(line) as {
+      doc_id: number;
+      language: string;
+      start: number;
+      end: number;
+      header?: string;
+      error?: string;
+    };
+    if (row.error || !row.header) continue;
+    headers.set(
+      `${row.doc_id}|${row.language}|${row.start}|${row.end}`,
+      row.header,
+    );
+  }
+  return headers;
 }
 
 export function passageIndexPath(options: PassageIndexOptions) {
@@ -268,6 +309,7 @@ export function ensurePassageIndex(options: PassageIndexOptions): {
       existing.close();
     }
   }
+  const contextHeaders = loadContextHeaders(options.contextJsonl);
   const source = new DatabaseSync(options.sourceDb, { readOnly: true });
   const index = new DatabaseSync(indexDb);
   try {
@@ -350,7 +392,9 @@ export function ensurePassageIndex(options: PassageIndexOptions): {
             text.slice(span.start, span.end),
             name,
             citation,
-            headingPath(sourceDoc, span.start),
+            contextHeaders.get(
+              `${row.id}|${language}|${span.start}|${span.end}`,
+            ) ?? headingPath(sourceDoc, span.start),
           );
           passages += 1;
         }
@@ -410,6 +454,8 @@ export type PassageSearchOptions = {
   perDocCap?: number;
   /** Add adjacent content-word pairs as FTS5 phrase OR-terms. */
   phrases?: boolean;
+  /** See PassageIndexOptions.contextJsonl (selects/keys the sidecar). */
+  contextJsonl?: string;
 } & ChunkOptions;
 
 /** OR-semantics weighted-bm25 passage search over the derived index. */
