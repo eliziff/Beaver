@@ -481,10 +481,19 @@ export function searchPassages(options: PassageSearchOptions): PassageHit[] {
   const index = new DatabaseSync(indexDb, { readOnly: true });
   const source = new DatabaseSync(options.sourceDb, { readOnly: true });
   try {
+    // The ranked query carries NO fts5 content columns. An fts5 column read
+    // materializes the whole stored row — the passage text and its context
+    // header — so selecting citation/name here paid ~1.6 KB per candidate
+    // over a candidate pool of k*perDocCap*4 (4608 rows at the crowned
+    // config, nearly the whole 5,966-row mini index) to keep two short
+    // strings for the <=k rows that survive the perDocCap filter. Measured
+    // 50.4 -> 23.5 ms/query for the query alone, 81 -> 49 ms/query end to
+    // end. The labels are fetched below, per surviving row, from the same
+    // table — identical strings, so hits and ordering are unchanged.
     const rows = index
       .prepare(
-        `SELECT passage.doc_id, passage.language, passage.start, passage.end,
-                passage_search.citation, passage_search.name,
+        `SELECT passage.id, passage.doc_id, passage.language,
+                passage.start, passage.end,
                 bm25(passage_search, 1.0, ?, ?, ?) AS score
          FROM passage_search
          JOIN passage ON passage.id = passage_search.rowid
@@ -502,6 +511,9 @@ export function searchPassages(options: PassageSearchOptions): PassageHit[] {
       ) as Array<
       Record<string, unknown>
     >;
+    const labelStmt = index.prepare(
+      "SELECT citation, name FROM passage_search WHERE rowid = ?",
+    );
     const perDoc = new Map<number, number>();
     const hits: PassageHit[] = [];
     const textStmt = source.prepare(
@@ -532,10 +544,13 @@ export function searchPassages(options: PassageSearchOptions): PassageHit[] {
       if (text === null) continue;
       const doc = { text };
       perDoc.set(docId, used + 1);
+      const label = labelStmt.get(row.id as number) as
+        | { citation?: unknown; name?: unknown }
+        | undefined;
       hits.push({
         docId,
-        citation: String(row.citation ?? ""),
-        name: row.name ? String(row.name) : null,
+        citation: String(label?.citation ?? ""),
+        name: label?.name ? String(label.name) : null,
         language,
         start: row.start as number,
         end: row.end as number,
