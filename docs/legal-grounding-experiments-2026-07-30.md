@@ -4260,3 +4260,75 @@ committed.
 
 No arm satisfies every pre-registered quality, coverage, latency, token, and
 provider-reliability gate. The final selection is therefore **no winner**.
+
+## Stage 20 — checker-family crossing on banked compositions (registered Stage 8b ~1299–1302 and Stage 9 ~1573; run 2026-07-31). H5 / premise #1 falsified.
+
+289 banked compositions re-judged with 1,156 checker calls (0 errors, 0
+missing verdicts) and **no composer call**: composition, evidence,
+question, system prompt and tool held byte-identical by calling the same
+exported `holisticVerificationPass` and rebuilding the question from the
+harness's own case builders (now shared, not copied). Receipt
+`stage20-checker-crossing.jsonl` (1,156 rows,
+`sha256:d2e7f863bfa71f6dc2bb2a8794e08e038e882de4ac3d194eb789448420c3375c`),
+harness `fc820b65`. Three conditions per row: the archived verdict, a
+same-family re-check on the original checker model × 2 replicates (the
+run-to-run floor at *this* n, not a borrowed one), and a cross-family
+re-check on the other family's anchor (`codex:gpt-5.6-sol` ↔
+`claude-p:claude-sonnet-4-6`). Judged stratum: 222 rows stratified on
+original-checker family (claude 110 / codex 112) × source_class (111/111)
+× archived verdict with accepts over-weighted (132/68/22), spanning six
+arms and 42 items, seed 20260731. Deterministic stratum: all 67 rows that
+spent no checker call.
+
+Binary pass/fail (what the harness acts on), Wilson 95%: within-family
+replicate **14/222 = 6.3% [3.8, 10.3]**; archived-vs-fresh same-family
+**48/444 = 10.8% [8.3, 14.0]** — both inside the registered H17 0–13%
+floor, so the instrument is behaving; **cross-family 159/444 = 35.8%
+[31.5, 40.4]** paired against the fresh same-family verdict (34.9%
+against the archived verdict — same conclusion either way), a paired
+**+29.5 pp [23.2, 36.0]** by cluster bootstrap over rows. Three-level
+verdict: within 11.3%, cross 43.2%. Headline counts independently
+recomputed from the receipt bytes by the orchestrator; they reproduce.
+
+Direction is near-symmetric — 73 fail-closed / 86 fail-open, **45.9%
+fail-closed** — not Stage 5's 11/12. The other family rejects 60 of 264
+accepted compositions and accepts 73 of 180 rejected ones. Conditioned on
+the archived verdict: supported 27.7% disagreement (82.2% fail-closed),
+partially_supported 49.3% (17.9%), unsupported 43.2% (5.3%). Aggregate
+accept rates over the *identical* compositions are nevertheless
+near-identical — claude 61.9% [57.3, 66.3], codex 59.0% [54.4, 63.5],
+archived 59.5% — which is exactly how an 8-cell table could read as
+family-invariant. Quote-anchoring does not damp the effect where the
+checker runs (<50% of claims verbatim-cleared 35.4%, ≥50% 36.1%).
+
+**Stage 5's decisive datum does not replicate.** On `housing:0`, the
+audited-*insufficient* reference, the claude-family checker false-accepts
+6/16 = 37.5% [18.5, 61.4] against codex 5/16 = 31.3% [14.2, 55.6]:
+sonnet-4-6 checking sonnet-4-6's own composition ("Alabama has a statute
+covering residential tenancies … indicating a statutory framework", on a
+passage that only defines *premises*) accepts it repeatedly, and
+gpt-5.6-sol is the one that catches it. "The run's only false accept
+required Codex in both roles" is false.
+
+**The deterministic tier IS family-invariant by construction** —
+`deterministicClaimSupport` recomputed from archived receipt bytes over
+all 2,179 banked structured rows / 4,951 claims: **0 mismatches**, all 67
+all-clear rows reproduce. Nothing model-derived enters that path. But the
+tier and the model checkers do not judge the same object: shadow-crossing
+those 67 tier-cleared answers gives codex 83.6% [76.4, 88.9] vs claude
+52.2% [43.8, 60.5] acceptance, cross disagreement 41.8% [33.8, 50.3] vs
+11.9% within, and only 27/67 called supported by all four checks. Most
+non-accepts are `partially_supported` — coverage, which the tier
+explicitly disclaims. The part that is not by design: **8 claude calls
+across 4 of 67 rows (6.0% [2.3, 14.4]) returned `unsupported`** — *the
+passages do not establish the core answer* — on answers whose every claim
+is a verified verbatim quote of its cited passage. A grounding-level
+contradiction, to chase separately.
+
+**Verdict: premise #1 as written is unsupported.** Arm-level pass *rates*
+may be roughly family-stable; *which cells pass* is not, and every
+per-cell verdict, disagreement audit and false-accept count in Stages
+6–13 inherits ~36% checker-family lability against a 6% same-model floor.
+Caveat carried forward, same as Stage 5's: this crossing confounds family
+with that family's anchor model and cannot decompose the two. Nothing
+retired on this run.
