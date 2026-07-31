@@ -33,10 +33,9 @@ Extraction runs over unofficial_text_en, falling back to unofficial_text_fr
 only when there is no English text, so one judgment's two language versions
 never double-count the same citation.
 
-PORTED GRAMMAR, NOT INVENTED: the citation anchors, case-name capture,
-pinpoint capture, node-identity key, and paragraph indexing are faithful
-ports of the proven reference implementations (kept read-only, never
-imported at runtime):
+PORTED GRAMMAR, NOT INVENTED: the citation anchors, case-name capture, and
+node-identity key are faithful ports of the proven reference implementations
+(kept read-only, never imported at runtime):
   - anchor regexes / span dedupe / name + pinpoint capture:
       TableOfAuthoritiesMaker/toa_maker.py (_NEUTRAL_RE, _CANLII_RE,
       _REPORTER_RE, _STATUTE_RE, _JOURNAL_RE, _URL_RE, _anchor_spans,
@@ -45,11 +44,9 @@ imported at runtime):
       ALR-Quote-Verifier/local_a2aj.py (_citation_lookup_key) - the exact
       key space of the corpus lookup index (lookup.duckdb), so graph keys
       and corpus identity agree.
-  - paragraph index:
-      ALR-Quote-Verifier/verifier_core/a2aj_structure.py (paragraph_index,
-      monotone_scopes).
 scripts/citator-oracle-diff.py proves the ports against the originals over a
-real corpus slice (the skeleton-oracle-probe pattern).
+real corpus slice. Host paragraphs come directly from Beaver's shipping
+compileA2AJSourceDoc process; this builder contains no paragraph grammar.
 
 NODE IDENTITY / NORMALIZATION: cited_key = citation_lookup_key(anchor text):
 NFKC, en/em dashes to "-", digit-boundary "." "-" "/" become the words
@@ -103,13 +100,14 @@ import json
 import os
 import re
 import sqlite3
-import statistics
 import sys
 import time
 import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
+
+from sourcedoc_client import compile_document
 
 # ---------------------------------------------------------------------------
 # Citation anchor grammar - ported verbatim from
@@ -216,99 +214,6 @@ def citation_lookup_key(value: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Paragraph index - ported from ALR-Quote-Verifier verifier_core/
-# a2aj_structure.py (paragraph_index, monotone_scopes, _numbered_index,
-# _word_count) minus the lru_cache. Returns (number, start, end, text)
-# tuples for the strongest substantive monotone decision-paragraph scope.
-# ---------------------------------------------------------------------------
-PARAGRAPH_MARK_RE = re.compile(
-    r"^[ \t]*(?:\[(\d{1,4})\]|(\d{1,4})\.(?=\s)|(\d{1,4})(?=\s))",
-    re.MULTILINE,
-)
-WORD_RE = re.compile(r"[^\W_]+(?:['’][^\W_]+)*", re.UNICODE)
-
-Paragraph = tuple[int, int, int, str]
-
-
-def _word_count(text: str) -> int:
-    return len(WORD_RE.findall(text or ""))
-
-
-def monotone_scopes(
-    markers: list[tuple[int, int]], *, max_gap: int = 8
-) -> list[list[tuple[int, int]]]:
-    scopes: list[list[tuple[int, int]]] = []
-    by_last: dict[int, list[int]] = {}
-    for marker in markers:
-        number = marker[1]
-        candidates = [index for prior in range(number - max_gap, number)
-                      for index in by_last.get(prior, ())]
-        if candidates:
-            index = min(candidates, key=lambda i: (scopes[i][0][1], i))
-            previous = scopes[index][-1][1]
-            by_last[previous].remove(index)
-            if not by_last[previous]:
-                del by_last[previous]
-            scopes[index].append(marker)
-        else:
-            scopes.append([marker])
-            index = len(scopes) - 1
-        by_last.setdefault(number, []).append(index)
-    return scopes
-
-
-def _numbered_index(
-    text: str, markers: list[tuple[int, int]], all_offsets: list[int]
-) -> list[Paragraph]:
-    next_offset = {offset: all_offsets[i + 1] if i + 1 < len(all_offsets) else len(text)
-                   for i, offset in enumerate(all_offsets)}
-    return [
-        (number, start, next_offset[start], text[start:next_offset[start]])
-        for start, number in markers
-    ]
-
-
-def paragraph_index(text: str, *, min_run: int = 5) -> list[Paragraph]:
-    if not text:
-        return []
-    markers: list[tuple[int, int, str]] = []
-    for match in PARAGRAPH_MARK_RE.finditer(text):
-        bracket, dot, bare = match.groups()
-        markers.append((match.start(), int(bracket or dot or bare),
-                        "bracket" if bracket else "dot" if dot else "bare"))
-    hypotheses: list[tuple[str, list[tuple[int, int]]]] = []
-    for style in ("bracket", "dot", "bare"):
-        styled = [(offset, number) for offset, number, marker_style in markers
-                  if marker_style == style]
-        for scope in monotone_scopes(styled):
-            if len(scope) >= min_run:
-                hypotheses.append((style, scope))
-    if not hypotheses:
-        return []
-    rank = {"bracket": 2, "dot": 1, "bare": 0}
-    primary = [item for item in hypotheses if item[1][0][1] <= 5]
-    ordered = sorted(primary or hypotheses,
-                     key=lambda item: (len(item[1]), rank[item[0]], -item[1][0][1]),
-                     reverse=True)
-    for style, candidate in ordered:
-        out = _numbered_index(text, candidate,
-                              [offset for offset, _number, marker_style in markers
-                               if marker_style == style])
-        marker_span = (out[-1][1] - out[0][1]) / len(text)
-        start_ratio = out[0][1] / len(text)
-        bounded = out[:-1] or out
-        median_words = statistics.median(_word_count(item[3]) for item in bounded)
-        if median_words < 12 or marker_span < 0.05:
-            continue
-        if style != "bracket" and sum(_word_count(item[3]) >= 12 for item in out) / len(out) < 0.70:
-            continue
-        if style == "bare" and (median_words < 20 or marker_span < 0.15 or start_ratio > 0.70):
-            continue
-        return out
-    return []
-
-
-# ---------------------------------------------------------------------------
 # Occurrence extraction over one case text
 # ---------------------------------------------------------------------------
 EXCERPT_BEFORE = 250
@@ -359,10 +264,10 @@ def case_occurrences(text: str) -> tuple[list[dict[str, Any]], dict[str, int]]:
     return occurrences, kind_counts
 
 
-def paragraph_for_offset(paragraphs: list[Paragraph], offset: int) -> int | None:
-    for number, start, end, _text in paragraphs:
-        if start <= offset < end:
-            return number
+def paragraph_for_offset(paragraphs: list[dict[str, Any]], offset: int) -> int | None:
+    for block in paragraphs:
+        if block["start"] <= offset < block["end"]:
+            return int(block["label"][3:])
     return None
 
 
@@ -753,7 +658,18 @@ def build(args: argparse.Namespace) -> None:
             occurrences, kind_counts = case_occurrences(text)
             for kind, count in kind_counts.items():
                 kind_totals[kind] = kind_totals.get(kind, 0) + count
-            paragraphs = paragraph_index(text)
+            paragraphs = (
+                compile_document({
+                    "id": identity or f"row:{counters['rows_scanned']}",
+                    "docType": "cases",
+                    "citation": case["citation"] or "",
+                    "alternateCitation": case["citation2"] or "",
+                    "dataset": case["court"] or "",
+                    "text": text,
+                })["blocks"]["paragraph"]
+                if occurrences
+                else []
+            )
             case_id = counters["cases_indexed"] + 1
             case_edges = 0
             mined_keys: set[str] = set()
@@ -846,8 +762,10 @@ def build(args: argparse.Namespace) -> None:
             "normalization": (
                 "citation_lookup_key port of ALR-Quote-Verifier local_a2aj"
                 "._citation_lookup_key; anchors ported from "
-                "TableOfAuthoritiesMaker toa_maker.py"
+                "TableOfAuthoritiesMaker toa_maker.py; host paragraphs from "
+                "compileA2AJSourceDoc"
             ),
+            "paragraph_compiler": "compileA2AJSourceDoc",
             "resolution": resolution_note,
             "resolved_edge_keys": str(resolved_edge_keys),
             "resolution_keys": str(resolution_keys),

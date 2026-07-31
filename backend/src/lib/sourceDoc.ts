@@ -151,6 +151,17 @@ function locatorRange(
     missingTruncated: false,
   };
   if (!blocks.length) return empty;
+  const physicalLabels = new Set(
+    blocks.map((block) => block.label.toLowerCase()),
+  );
+  const aliasOnly = new Set(
+    blocks.flatMap((block) =>
+      (block.aliases ?? [])
+        .map((label) => label.toLowerCase())
+        .filter((label) => !physicalLabels.has(label)),
+    ),
+  );
+  const count = blocks.length + aliasOnly.size;
   // Sections nest, so only top-level provisions define the advertised range;
   // paragraphs, pages and footnotes are flat.
   const spine =
@@ -158,11 +169,15 @@ function locatorRange(
       ? blocks.filter((block) => !block.label.includes("("))
       : blocks;
   if (!spine.length) {
-    return { ...empty, count: blocks.length };
+    return { ...empty, count };
   }
-  const numbered = spine.map((block) => ({
-    label: block.label,
-    value: kind === "section" ? sectionRoot(block.label) : labelNumber(block.label),
+  const numbered = [
+    ...new Set(
+      spine.flatMap((block) => [block.label, ...(block.aliases ?? [])]),
+    ),
+  ].map((label) => ({
+    label,
+    value: kind === "section" ? sectionRoot(label) : labelNumber(label),
   }));
   const present = numbered.filter(
     (entry): entry is { label: string; value: number } => entry.value !== null,
@@ -171,7 +186,7 @@ function locatorRange(
     // A non-numeric spine (e.g. "A.01.001") has an order but no gap notion.
     return {
       kind,
-      count: blocks.length,
+      count,
       first: spine[0].label,
       last: spine.at(-1)!.label,
       missing: [],
@@ -205,7 +220,7 @@ function locatorRange(
   }
   return {
     kind,
-    count: blocks.length,
+    count,
     first: lowest.label,
     last: highest.label,
     missing,
@@ -279,10 +294,10 @@ export function createSourceDoc(args: {
 }
 
 /**
- * A SourceDoc for a rendition no provider compiler produces yet (CourtListener
- * opinion joins, local PDF page text - master plan P1.1a stage 4). It carries
- * the text and its token index, which is everything the quote and pinpoint
- * path queries, and no blocks.
+ * A SourceDoc view of a text-only artifact whose upstream representation has
+ * no structural blocks. It carries the text and token index used by quote and
+ * fragment queries; provider compilers should pass their real SourceDoc
+ * instead of converting it through this helper.
  */
 export function createTextSourceDoc(text: string): SourceDoc {
   return createSourceDoc({ provider: null, id: "", text, blocks: [] });
@@ -316,7 +331,7 @@ export function normalizeSourceDocLocator(
     .replace(/\s+/gu, "");
   // Federal regulations number sections alphanumerically ("A.01.001"); every
   // other corpus numbers them decimally ("83.01(1)(b)(ii)").
-  return /^\d{1,8}(?:[.-]\d{1,8}){0,3}(?:\([^)]+\))*$/u.test(compact) ||
+  return /^\d{1,8}[A-Za-z]{0,3}(?:[.-]\d{1,8}[A-Za-z]{0,3}){0,3}(?:\([^)]+\))*$/u.test(compact) ||
     /^[A-Za-z]{1,3}(?:[.-][0-9A-Za-z]{1,8}){1,3}(?:\([^)]+\))*$/u.test(compact)
     ? `sec${compact}`
     : "";
@@ -425,7 +440,11 @@ export function sliceSourceDocBlocks(
   const find = (locator: string) => {
     const label = normalizeSourceDocLocator(kind, locator).toLowerCase();
     return label
-      ? available.findIndex((block) => block.label.toLowerCase() === label)
+      ? available.findIndex((block) =>
+          [block.label, ...(block.aliases ?? [])].some(
+            (candidate) => candidate.toLowerCase() === label,
+          ),
+        )
       : -1;
   };
   const first = find(from);

@@ -1,15 +1,16 @@
-"""Differential check: build_citator_graph.py ports vs the reference oracles.
+"""Differential check: build_citator_graph.py ports vs compatibility references.
 
 Beaver's citator build script must not import the reference implementations
 at runtime (they are read-only reference projects), so its citation grammar,
-node-identity key, case-name capture, and paragraph indexing are PORTS. This
+node-identity key and case-name capture are PORTS. This
 throwaway dev tool - the skeleton-oracle-probe pattern - imports BOTH sides
 and proves the ports faithful over a real corpus slice:
 
   - anchor spans:      port.anchor_spans        vs toa_maker._anchor_spans
   - node identity:     port.citation_lookup_key vs local_a2aj._citation_lookup_key
   - case-name capture: port.case_name_start     vs toa_maker._case_name_start
-  - paragraph index:   port.paragraph_index     vs a2aj_structure.paragraph_index
+Host paragraph indexing is not ported here: build_citator_graph calls the
+shipping compileA2AJSourceDoc JSONL bridge.
 
 The deliberate deviation NOT diffed here: the build's pinpoint capture scans
 a bounded window after each anchor (toa_maker scans a whole split part),
@@ -22,26 +23,20 @@ Usage:
 Exits 1 on any mismatch so it can gate a port change.
 """
 from __future__ import annotations
-import os
-
 import argparse
 import sys
 from pathlib import Path
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
 TOA_ROOT = SCRIPTS_DIR.parents[1] / "TableOfAuthoritiesMaker"
-VERIFIER_ROOT = Path(
-    os.environ.get("ALR_QUOTE_VERIFIER_ROOT", "")
-)
-for root in (str(SCRIPTS_DIR), str(TOA_ROOT), str(VERIFIER_ROOT)):
+for root in (str(SCRIPTS_DIR), str(TOA_ROOT)):
     if root not in sys.path:
         sys.path.insert(0, root)
 
 import build_citator_graph as port  # noqa: E402
 
-import toa_maker  # noqa: E402  (reference oracle, read-only)
-import local_a2aj  # noqa: E402  (reference oracle, read-only)
-from verifier_core import a2aj_structure  # noqa: E402  (reference oracle)
+import toa_maker  # noqa: E402  (compatibility reference, read-only)
+import local_a2aj  # noqa: E402  (compatibility reference, read-only)
 
 
 def sample_texts(corpus_root: Path, families: list[str] | None, per_family: int):
@@ -94,48 +89,33 @@ def main() -> int:
         texts += 1
         ok = True
 
-        oracle_spans = toa_maker._anchor_spans(text)
+        reference_spans = toa_maker._anchor_spans(text)
         ported_spans = port.anchor_spans(text)
-        if ported_spans != oracle_spans:
+        if ported_spans != reference_spans:
             ok = False
             mismatches.append(
                 f"{family}: anchor_spans diverges "
-                f"(oracle {len(oracle_spans)}, port {len(ported_spans)})"
+                f"(reference {len(reference_spans)}, port {len(ported_spans)})"
             )
-        anchors_checked += len(oracle_spans)
+        anchors_checked += len(reference_spans)
 
-        for value in citations + [text[s:e] for s, e, _k in oracle_spans]:
+        for value in citations + [text[s:e] for s, e, _k in reference_spans]:
             keys_checked += 1
             if port.citation_lookup_key(value) != local_a2aj._citation_lookup_key(value):
                 ok = False
                 mismatches.append(f"{family}: key diverges for {value!r}")
 
         previous_end = 0
-        for start, end, kind in oracle_spans:
+        for start, end, kind in reference_spans:
             if kind in port.CASE_ANCHOR_KINDS:
-                oracle_name = toa_maker._case_name_start(text, start, previous_end)
+                reference_name = toa_maker._case_name_start(text, start, previous_end)
                 ported_name = port.case_name_start(text, start, previous_end)
-                if oracle_name != ported_name:
+                if reference_name != ported_name:
                     ok = False
                     mismatches.append(
                         f"{family}: case_name_start diverges at offset {start}"
                     )
                 previous_end = end
-
-        oracle_paragraphs = [
-            (number, start, end)
-            for number, start, end, _text in a2aj_structure.paragraph_index(text)
-        ]
-        ported_paragraphs = [
-            (number, start, end)
-            for number, start, end, _text in port.paragraph_index(text)
-        ]
-        if oracle_paragraphs != ported_paragraphs:
-            ok = False
-            mismatches.append(
-                f"{family}: paragraph_index diverges "
-                f"(oracle {len(oracle_paragraphs)}, port {len(ported_paragraphs)})"
-            )
 
         bucket = per_family_ok.setdefault(family, [0, 0])
         bucket[0] += int(ok)
@@ -153,7 +133,7 @@ def main() -> int:
     if mismatches:
         print(f"{len(mismatches)} mismatch(es)")
         return 1
-    print("ports match the reference oracles exactly")
+    print("ports match the compatibility references exactly")
     return 0
 
 

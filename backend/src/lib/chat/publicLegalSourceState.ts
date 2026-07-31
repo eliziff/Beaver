@@ -9,7 +9,6 @@ import {
   formatLegalLocator,
 } from "../legalSourceLinks";
 import {
-  createTextSourceDoc,
   sourceDocContainsQuote,
   type SourceDocLocatorKind,
 } from "../sourceDoc";
@@ -460,19 +459,17 @@ export function buildPublicLegalCitationUrl(
   if (!state) return null;
   const document = citedDocument(state, citation);
   if (!document || !citation.quotes.length) return null;
-  const compiled = createTextSourceDoc(document.text);
   if (
     !citation.quotes.every(({ quote }) =>
-      sourceDocContainsQuote(compiled, quote),
+      sourceDocContainsQuote(document.structure, quote),
     )
   ) {
     return null;
   }
   const candidates = state.lookups.filter(({ document: candidate, lookup }) => {
     if (candidate !== document || !lookup.block) return false;
-    const block = createTextSourceDoc(lookup.block.text);
     return citation.quotes.every(({ quote }) =>
-      sourceDocContainsQuote(block, quote),
+      sourceDocContainsQuote(document.structure, quote, lookup.block!),
     );
   });
   const unique = new Map(
@@ -492,10 +489,14 @@ export function buildPublicLegalCitationUrl(
           url: document.url,
           anchor: evidence.lookup.anchor ?? undefined,
           blockText: evidence.lookup.block!.text,
-          documentText: compiled,
+          documentText: document.structure,
           pageScoped: evidence.lookup.block!.kind === "page",
         }
-      : { url: document.url, blockText: compiled, documentText: compiled },
+      : {
+          url: document.url,
+          blockText: document.structure,
+          documentText: document.structure,
+        },
     citation.quotes.map(({ quote }) => quote),
   );
 }
@@ -535,7 +536,7 @@ export function appendPublicLegalPinpointLinks(
                       ? (lookup.anchor ?? undefined)
                       : undefined),
                   blockText: block.text,
-                  documentText: document.text,
+                  documentText: document.structure,
                   pageScoped: block.kind === "page",
                 },
               },

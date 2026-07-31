@@ -3,12 +3,13 @@ import os from "node:os";
 import path from "node:path";
 import {
   fetchA2AJDocument,
+  getA2AJDocumentSourceDoc,
   lookupA2AJLocator,
   type A2AJLocatorKind,
 } from "./a2aj";
 import {
   getCourtlistenerCases,
-  getCourtlistenerOpinionDocumentText,
+  getCourtlistenerOpinionStructure,
   lookupCourtlistenerOpinionLocator,
   verifyCourtlistenerCitations,
 } from "./courtlistener";
@@ -126,16 +127,12 @@ async function resolveA2AJ(intent: DocxCitationIntent) {
     docType,
     maxChars: 300_000,
   });
-  return document?.url
-    ? buildLegalSourcePinpointUrl(
-        {
-          url: document.url,
-          blockText: document.text,
-          documentText: document.text,
-        },
-        quotes(intent),
-      )
-    : null;
+  if (!document?.url) return null;
+  const source = getA2AJDocumentSourceDoc(document);
+  return buildLegalSourcePinpointUrl(
+    { url: document.url, blockText: source, documentText: source },
+    quotes(intent),
+  );
 }
 
 function uniqueClusterId(value: unknown) {
@@ -182,10 +179,16 @@ async function resolveCourtlistener(intent: DocxCitationIntent) {
   if (!requested) {
     const opinion = opinions.length === 1 ? record(opinions[0]) : null;
     const opinionUrl = typeof opinion?.url === "string" ? opinion.url : caseUrl;
-    const text = opinion ? getCourtlistenerOpinionDocumentText(opinion) : "";
-    return opinionUrl
+    const structure = opinion
+      ? getCourtlistenerOpinionStructure(opinion)
+      : null;
+    return opinionUrl && structure
       ? buildLegalSourcePinpointUrl(
-          { url: opinionUrl, blockText: text, documentText: text },
+          {
+            url: opinionUrl,
+            blockText: structure,
+            documentText: structure,
+          },
           quotes(intent),
         )
       : null;
@@ -207,7 +210,8 @@ async function resolveCourtlistener(intent: DocxCitationIntent) {
   const url =
     (typeof opinion?.url === "string" ? opinion.url : null) ?? caseUrl;
   if (!url) return null;
-  const documentText = getCourtlistenerOpinionDocumentText(match.opinion);
+  const documentText = getCourtlistenerOpinionStructure(match.opinion);
+  if (!documentText) return null;
   return buildLegalSourcePinpointUrl(
     {
       url,
@@ -230,8 +234,8 @@ async function resolvePublicDocument(
     return buildLegalSourcePinpointUrl(
       {
         url: document.url,
-        blockText: document.text,
-        documentText: document.text,
+        blockText: document.structure,
+        documentText: document.structure,
       },
       quotes(intent),
     );
@@ -248,7 +252,7 @@ async function resolvePublicDocument(
           url: document.url,
           anchor: lookup.anchor ?? undefined,
           blockText: lookup.block.text,
-          documentText: document.text,
+          documentText: document.structure,
           pageScoped: requested.kind === "page",
         },
         quotes(intent),
@@ -311,8 +315,8 @@ async function resolveJournal(intent: DocxCitationIntent) {
     return buildLegalSourcePinpointUrl(
       {
         url: article.url,
-        blockText: article.text,
-        documentText: article.text,
+        blockText: article.structure,
+        documentText: article.structure,
       },
       quotes(intent),
     );
@@ -329,7 +333,7 @@ async function resolveJournal(intent: DocxCitationIntent) {
           url: article.url,
           anchor: lookup.anchor ?? undefined,
           blockText: lookup.block.text,
-          documentText: article.text,
+          documentText: article.structure,
           pageScoped: requested.kind === "page",
         },
         quotes(intent),
