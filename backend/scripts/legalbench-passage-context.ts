@@ -35,6 +35,9 @@ function flag(name: string, fallback = "") {
 async function main() {
   const model = flag("model", "codex:gpt-5.6-luna");
   const effort = flag("effort", "low");
+  // R5b: restrict generation to one benchmark source, e.g.
+  // --citation-prefix maud/ regenerates only maud passages.
+  const citationPrefix = flag("citation-prefix", "");
   const concurrency = Number(flag("concurrency", "3"));
   const resume = flag("resume", "0") !== "0";
   const limit = Number(flag("limit", "0"));
@@ -72,7 +75,10 @@ async function main() {
   const docStmt = source.prepare(
     "SELECT name_en, citation_en, unofficial_text_en AS text FROM document WHERE id = ?",
   );
-  const docs = new Map<number, { name: string; text: string }>();
+  const docs = new Map<
+    number,
+    { name: string; citation: string; text: string }
+  >();
   for (const row of passages) {
     if (docs.has(row.doc_id)) continue;
     const doc = docStmt.get(row.doc_id) as
@@ -80,6 +86,7 @@ async function main() {
       | undefined;
     docs.set(row.doc_id, {
       name: [doc?.name_en, doc?.citation_en].filter(Boolean).join(" "),
+      citation: doc?.citation_en ?? "",
       text: doc?.text ?? "",
     });
   }
@@ -108,6 +115,11 @@ async function main() {
     writeFileSync(output, "", "utf8");
   }
   const todo = passages
+    .filter(
+      (row) =>
+        !citationPrefix ||
+        (docs.get(row.doc_id)?.citation ?? "").startsWith(citationPrefix),
+    )
     .filter(
       (row) => !done.has(`${row.doc_id}|${row.language}|${row.start}|${row.end}`),
     )
