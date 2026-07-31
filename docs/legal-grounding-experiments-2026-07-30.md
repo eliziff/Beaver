@@ -3115,6 +3115,83 @@ protocol. A fused lane remains revisitable post-holdout only as a
 new registered round, and any production use additionally requires
 a laptop-viable embedder (the 3080 Ti is the ceiling lane only).
 
+### Stage 18 funnel attribution + decline audit (2026-07-31, receipt-only analysis, zero model calls)
+
+Per-source loss attribution, pool R@48 → post-rerank k=6 retrieval
+R → composed answered-only R (ctx confirm / fused confirm):
+
+| source | poolR | k6-R | ansR | rerank loss | composition loss |
+| --- | --- | --- | --- | --- | --- |
+| contractnli | 0.9878/1.0000 | 0.9782/0.9937 | 0.8578/0.8583 | 0.010/0.006 | 0.120/0.135 |
+| cuad | 0.8885/0.9748 | 0.8765/0.9516 | 0.7689/0.8508 | 0.012/0.023 | 0.108/0.101 |
+| maud | 0.4146/0.6351 | 0.3411/0.4759 | 0.1385/0.1449 | 0.074/**0.159** | 0.203/**0.331** |
+| privacy_qa | 0.9846/0.9962 | 0.9350/0.9395 | 0.4809/0.4786 | 0.050/0.057 | **0.454/0.461** |
+
+Composition, not retrieval, is now the dominant loss everywhere.
+privacy_qa is the single largest composition gap (0.94 gold in
+context, 0.48 quoted). Decline audit (baseline R on non-answered
+cells): privacy_qa non-answers are 100% timid (19–22 cells with
+baseline R ≥ 0.5 — gold in context, model declined/rejected
+anyway); maud ctx-confirm non-answers were mostly justified (28/42
+baseline R < 0.05) but fused non-answers were majority-timid
+(16/29 ≥ 0.5) — the better pools turned justified declines into
+timid ones. Motivates the coverage round below (general mechanism:
+quote everything responsive; never decline over responsive
+passages — not benchmark-specific).
+
+### Stage 18 C1 coverage-composition confirm (registered 2026-07-31 before the run; receipts `stage18-lbrag-grounded-coverage.jsonl`)
+
+Config: the frozen G+ctx stack unchanged (sol@medium composer,
+required_slot, k=6, ctx-w4 retrieval, rerank luna@p1600,
+stitch200), plus ONE new prompt module `coverage` appended to the
+three registered modules (base/roles/quote_contract), arm label
+`required_slot+coverage` via new `--coverage` runner flag:
+
+> "Quote comprehensively: every supplied passage that answers any
+> part of the question gets its own quotation claim — multi-part
+> questions need the clause for each part; do not stop after the
+> first supporting passage. Omit a passage only when it adds
+> nothing beyond what is already quoted. If any passage bears on
+> the question, answer with quotes rather than declining; decline
+> only when no passage is responsive."
+
+Full 776-cell bed, c=6. Frozen gates (baselines = ctx confirm:
+overall ansP 0.5535 / ansR 0.5832, maud ansR 0.1385):
+- **KEEP** iff overall ansR ≥ 0.6032 (+0.02) AND overall ansP ≥
+  0.5435 (within 0.01) AND maud ansR ≥ 0.1485 (no regression
+  beyond +0.01 noise).
+- **DROP** if overall ansR < 0.5832 (no lift) OR overall ansP <
+  0.5335 OR maud ansR < 0.1285.
+- Middle band: default DROP. P1 unconditional.
+
+Amendment (registered 2026-07-31 before any run, per Eli's
+direction — treat complex contracts as webs of related concepts,
+the legislation-"compiler" idea; model the contract internally
+before answering): a second arm **C1b** = coverage module PLUS a
+`spec` module (arm label `required_slot+coverage+spec`, receipts
+`stage18-lbrag-grounded-covspec.jsonl`, own `--spec` flag):
+
+> "Before composing, build an internal spec of the supplied
+> passages as a web of related concepts: map defined terms to
+> their definitions, follow cross-references between passages, and
+> note which passages qualify, extend, or carve out exceptions to
+> the others. Then answer the question against that web, quoting
+> every passage that plays a role — the definition, the operative
+> clause, and any exception or cross-referenced qualifier."
+
+Both arms run the full 776 bed at c=6, judged against the SAME
+frozen gates above. Adoption rule: the KEEP arm with the higher
+overall ansR joins the frozen config for BOTH Stage 19 holdout
+arms (tie → simpler module, C1a); if neither KEEPs, holdout burns
+the unmodified frozen config.
+
+Frozen predictions: C1a — privacy_qa ansR 0.55–0.75 (the 0.45
+composition loss at least halves); maud ansR 0.17–0.28; overall
+ansR 0.62–0.70; overall ansP flat to −0.03; answered rate 93–97%.
+C1b — at or above C1a on maud/privacy_qa ansR (the web reaches
+definition+operative+exception nodes); risk side recorded: longer
+answers may pull ansP down as far as −0.04 vs ctx.
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under
