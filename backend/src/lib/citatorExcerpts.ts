@@ -12,7 +12,11 @@
  *
  * Pure regex/counting; no model calls; receipts name the deciding rule.
  * Typed refusal: "insufficient" is a verdict, never a guess.
+ *
+ * Citation spotting is delegated to `citationKey.citationsInText`, the
+ * shared detector this classifier's CITE_TOKEN was promoted into.
  */
+import { citationsInText, hasCitationInText } from "./citationKey";
 
 export type ExcerptClassification = {
   kind: "prose" | "mixed" | "authority_list" | "insufficient";
@@ -31,22 +35,6 @@ export type ExcerptClassification = {
   /** which rule decided, for receipts */
   rule: string;
 };
-
-/**
- * Citation tokens as they appear in Canadian citing text: neutral
- * citations, [year] reporter cites, volume-reporter-page, CanLII ids,
- * and "(1985), 48 C.R. (3d) 226"-style first-instance reporters.
- */
-const CITE_TOKEN = new RegExp(
-  [
-    String.raw`\b(?:19|20)\d{2}\s+[A-Z]{2,8}\s+\d+\b`,
-    String.raw`\[\d{4}\]\s+\d*\s*[A-Z][A-Za-z.]{1,12}\.?\s+\d+`,
-    String.raw`\b\d+\s+[A-Z][A-Za-z.']{1,14}\s*(?:\(\d[a-z]{0,2}\))?\s+\d+\b`,
-    String.raw`\bCanLII\s+\d+\b`,
-    String.raw`\(\d{4}\),?\s+\d+\s+[A-Z][A-Za-z.]{1,14}`,
-  ].join("|"),
-  "gu",
-);
 
 /** Case-name lead-in immediately before a cite ("R. v. Nasogaluak, "). */
 const NAME_LEADIN = new RegExp(
@@ -74,9 +62,8 @@ type Span = { start: number; end: number };
 
 function citationSpans(excerpt: string): Span[] {
   const spans: Span[] = [];
-  for (const match of excerpt.matchAll(CITE_TOKEN)) {
-    let start = match.index ?? 0;
-    let end = start + match[0].length;
+  for (const match of citationsInText(excerpt)) {
+    let { start, end } = match;
     const leadin = excerpt.slice(0, start).match(NAME_LEADIN);
     if (leadin) start -= leadin[0].length;
     const tail = excerpt.slice(end).match(PINPOINT);
@@ -114,13 +101,10 @@ export function classifyCitatorExcerpt(excerpt: string): ExcerptClassification {
   if (text.length < MIN_EXCERPT) return refusal("shorter_than_min_excerpt");
 
   const spans = citationSpans(text);
-  const citeTokens = [...text.matchAll(CITE_TOKEN)].length;
+  const citeTokens = citationsInText(text).length;
   const citeChars = spans.reduce((sum, span) => sum + (span.end - span.start), 0);
   const citeCharCoverage = citeChars / text.length;
-  const citeTest = new RegExp(CITE_TOKEN.source, "u");
-  const citeRuns = text
-    .split(";")
-    .filter((segment) => citeTest.test(segment)).length;
+  const citeRuns = text.split(";").filter(hasCitationInText).length;
 
   // prose segments = text minus citation spans
   const segments: string[] = [];

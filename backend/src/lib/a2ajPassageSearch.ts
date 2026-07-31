@@ -25,7 +25,7 @@ import { DatabaseSync } from "node:sqlite";
 
 import { a2ajLocalBulkPath } from "./a2ajLocalBulk";
 import { citationAliasKeys } from "./caselawCitator";
-import { citationLookupKey } from "./citationKey";
+import { citationLookupKey, citationsInText } from "./citationKey";
 import { withReadonlySqlite } from "./legalDataPath";
 import {
   passageIndexPath,
@@ -118,19 +118,16 @@ function languageField(row: Row, field: string, language: Language) {
 }
 
 /**
- * Citation-shaped substrings of a natural-language query: neutral
- * citations, [year] reporter cites, CanLII ids. The whole query and its
+ * Citation-shaped substrings of a natural-language query come from the
+ * shared detector (`citationsInText`). The whole query and its
  * comma/semicolon fragments are tried too, so a query that IS a citation
  * ("RSA 2000, c A-4.2") resolves without a shape rule for every reporter.
  */
-const CITATION_IN_QUERY =
-  /\b(?:19|20)\d{2}\s+[A-Z]{2,8}\s+\d+\b|\[\d{4}\]\s+\d*\s*[A-Z][A-Za-z.]{1,12}\.?\s+\d+|\bCanLII\s+\d+\b/gu;
-
 function citationKeys(query: string) {
   const fragments = [
     query,
     ...query.split(/[,;]/u),
-    ...(query.match(CITATION_IN_QUERY) ?? []),
+    ...citationsInText(query).map(({ text }) => text),
   ];
   const keys = new Set<string>();
   for (const fragment of fragments) {
@@ -148,8 +145,14 @@ function citationKeys(query: string) {
   return [...keys];
 }
 
+/** The bm25 side of the query: everything the citation short-circuit
+ * already consumed is blanked out, so the ranked lane scores the prose. */
 function residualTokens(query: string) {
-  return passageQueryTokens(query.replace(CITATION_IN_QUERY, " "));
+  let residual = query;
+  for (const { start, end } of citationsInText(query).reverse()) {
+    residual = `${residual.slice(0, start)} ${residual.slice(end)}`;
+  }
+  return passageQueryTokens(residual);
 }
 
 function citationDocIds(
