@@ -1,0 +1,285 @@
+/**
+ * Product passage lane over the local A2AJ bulk store: the entry point
+ * that puts `passageRetrieval` on the search path without touching the
+ * document-level lane (`searchLocalA2AJ` is unchanged).
+ *
+ * Two lanes, deterministic first. A citation short-circuit resolves
+ * citation-shaped substrings of the query through `citation_lookup` and
+ * PREPENDS those documents' best passages ahead of the bm25 ranking —
+ * an exact identity match beats a ranked guess. The ranked lane is
+ * `searchPassages` (OR-semantics weighted bm25, verbatim char offsets).
+ *
+ * The derived sidecar is NEVER built inline: the product db is
+ * 5.5 GB-scale and a build would hang a user request. A missing sidecar
+ * is a typed refusal naming the build command, not a silent build.
+ */
+import { existsSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
+
+import { a2ajLocalBulkPath } from "./a2ajLocalBulk";
+import { citationLookupKey } from "./citationKey";
+import { withReadonlySqlite } from "./legalDataPath";
+import {
+  passageIndexPath,
+  passageQueryTokens,
+  searchPassages,
+  type PassageHit,
+} from "./passageRetrieval";
+
+type Row = Record<string, unknown>;
+type Language = "en" | "fr";
+type DocType = "cases" | "laws";
+
+/** Chunk parameters of the product sidecar; shared with the builder
+ * script so query and build agree on the sidecar identity. */
+export const A2AJ_PASSAGE_TARGET = 1600;
+export const A2AJ_PASSAGE_OVERLAP = 120;
+
+export class MissingPassageIndexError extends Error {
+  constructor(
+    readonly sourceDb: string,
+    readonly indexDb: string,
+    readonly command: string,
+  ) {
+    super(
+      `passage index not built for ${sourceDb} (expected ${indexDb}); run: ${command}`,
+    );
+    this.name = "MissingPassageIndexError";
+  }
+}
+
+export type A2AJPassageResult = {
+  docId: number;
+  citation: string;
+  name: string | null;
+  date: string | null;
+  url: string | null;
+  dataset: string;
+  /** Verbatim `documentText.slice(start, end)`. */
+  passage: { text: string; start: number; end: number };
+};
+
+function buildCommand(sourceDb: string, docType?: DocType) {
+  return [
+    "npx tsx scripts/build-passage-index.ts",
+    `--db "${sourceDb}"`,
+    `--target ${A2AJ_PASSAGE_TARGET}`,
+    `--overlap ${A2AJ_PASSAGE_OVERLAP}`,
+    ...(docType ? [`--doc-type ${docType}`] : []),
+  ].join(" ");
+}
+
+function string(row: Row, field: string) {
+  const value = row[field];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function languageField(row: Row, field: string, language: Language) {
+  return (
+    string(row, `${field}_${language}`) ??
+    string(row, `${field}_${language === "en" ? "fr" : "en"}`)
+  );
+}
+
+/**
+ * Citation-shaped substrings of a natural-language query: neutral
+ * citations, [year] reporter cites, CanLII ids. The whole query and its
+ * comma/semicolon fragments are tried too, so a query that IS a citation
+ * ("RSA 2000, c A-4.2") resolves without a shape rule for every reporter.
+ */
+const CITATION_IN_QUERY =
+  /\b(?:19|20)\d{2}\s+[A-Z]{2,8}\s+\d+\b|\[\d{4}\]\s+\d*\s*[A-Z][A-Za-z.]{1,12}\.?\s+\d+|\bCanLII\s+\d+\b/gu;
+
+function citationKeys(query: string) {
+  const fragments = [
+    query,
+    ...query.split(/[,;]/u),
+    ...(query.match(CITATION_IN_QUERY) ?? []),
+  ];
+  const keys = new Set<string>();
+  for (const fragment of fragments) {
+    const trimmed = fragment.trim();
+    if (trimmed.length < 6) continue;
+    const key = citationLookupKey(trimmed);
+    if (key) keys.add(key);
+  }
+  return [...keys];
+}
+
+function residualTokens(query: string) {
+  return passageQueryTokens(query.replace(CITATION_IN_QUERY, " "));
+}
+
+function citationDocIds(
+  source: DatabaseSync,
+  keys: string[],
+  docType?: DocType,
+) {
+  if (!keys.length) return [];
+  const filters = [`lookup.citation_key IN (${keys.map(() => "?").join(", ")})`];
+  const values: string[] = [...keys];
+  if (docType) {
+    filters.push("document.doc_type = ?");
+    values.push(docType);
+  }
+  return (
+    source
+      .prepare(
+        `SELECT document.id AS id
+         FROM citation_lookup AS lookup
+         JOIN document ON document.id = lookup.document_id
+         WHERE ${filters.join(" AND ")}
+         ORDER BY document.id
+         LIMIT 8`,
+      )
+      .all(...values) as Row[]
+  ).map((row) => row.id as number);
+}
+
+/** Best passage inside one already-resolved document: top bm25 passage
+ * on the text column for the non-citation part of the query, else the
+ * document's first chunk. */
+function bestPassage(
+  index: DatabaseSync,
+  docId: number,
+  language: Language,
+  tokens: string[],
+) {
+  if (tokens.length) {
+    const row = index
+      .prepare(
+        `SELECT passage.start, passage.end
+         FROM passage_search
+         JOIN passage ON passage.id = passage_search.rowid
+         WHERE passage_search MATCH ? AND passage.doc_id = ?
+           AND passage.language = ?
+         ORDER BY bm25(passage_search, 1.0, 0.0, 0.0, 0.0)
+         LIMIT 1`,
+      )
+      .get(tokens.map((token) => `"${token}"*`).join(" OR "), docId, language) as
+      | Row
+      | undefined;
+    if (row) return row as { start: number; end: number };
+  }
+  return index
+    .prepare(
+      "SELECT start, end FROM passage WHERE doc_id = ? AND language = ? ORDER BY start LIMIT 1",
+    )
+    .get(docId, language) as { start: number; end: number } | undefined;
+}
+
+export function searchLocalA2AJPassages(args: {
+  query: string;
+  docType?: DocType;
+  language?: Language;
+  size?: number;
+  /** bm25 weight on the document name/citation columns (text = 1). */
+  nameWeight?: number;
+  /** Widen the returned candidate pool to this many hits for a
+   * downstream `rerankPassages` call, which cuts back to `size`. */
+  rerankHits?: number;
+}): A2AJPassageResult[] {
+  const query = args.query.trim();
+  if (!query) throw new Error("query is required");
+  const sourceDb = a2ajLocalBulkPath();
+  if (!existsSync(sourceDb))
+    throw new Error(`A2AJ bulk database not found at ${sourceDb}`);
+  const language = args.language === "fr" ? "fr" : "en";
+  const size = Math.max(1, Math.min(50, Math.trunc(args.size ?? 8)));
+  const wanted = Math.max(
+    size,
+    Math.min(50, Math.trunc(args.rerankHits ?? size)),
+  );
+  const indexOptions = {
+    sourceDb,
+    target: A2AJ_PASSAGE_TARGET,
+    overlap: A2AJ_PASSAGE_OVERLAP,
+    docType: args.docType,
+  };
+  const indexDb = passageIndexPath(indexOptions);
+  if (!existsSync(indexDb))
+    throw new MissingPassageIndexError(
+      sourceDb,
+      indexDb,
+      buildCommand(sourceDb, args.docType),
+    );
+
+  const ranked = searchPassages({
+    ...indexOptions,
+    query,
+    language,
+    k: wanted,
+    nameWeight: args.nameWeight,
+  });
+  return (
+    withReadonlySqlite(sourceDb, (source) => {
+      const pinned = pinnedHits(source, indexDb, {
+        query,
+        language,
+        docType: args.docType,
+      });
+      const seen = new Set<string>();
+      const results: A2AJPassageResult[] = [];
+      const metadata = source.prepare(
+        "SELECT * FROM document WHERE id = ? LIMIT 1",
+      );
+      for (const hit of [...pinned, ...ranked]) {
+        if (results.length >= wanted) break;
+        const key = `${hit.docId}:${hit.start}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const row = metadata.get(hit.docId) as Row | undefined;
+        const citation =
+          row &&
+          (languageField(row, "citation", language) ??
+            languageField(row, "citation2", language));
+        if (!row || !citation) continue;
+        results.push({
+          docId: hit.docId,
+          citation,
+          name: languageField(row, "name", language),
+          date: languageField(row, "document_date", language),
+          url: languageField(row, "url", language),
+          dataset: string(row, "dataset") ?? "",
+          passage: { text: hit.text, start: hit.start, end: hit.end },
+        });
+      }
+      return results;
+    }) ?? []
+  );
+}
+
+function pinnedHits(
+  source: DatabaseSync,
+  indexDb: string,
+  args: { query: string; language: Language; docType?: DocType },
+): PassageHit[] {
+  const docIds = citationDocIds(source, citationKeys(args.query), args.docType);
+  if (!docIds.length) return [];
+  const tokens = residualTokens(args.query);
+  const index = new DatabaseSync(indexDb, { readOnly: true });
+  try {
+    const textStmt = source.prepare(
+      `SELECT unofficial_text_${args.language} AS text FROM document WHERE id = ?`,
+    );
+    const hits: PassageHit[] = [];
+    for (const docId of docIds) {
+      const span = bestPassage(index, docId, args.language, tokens);
+      const doc = textStmt.get(docId) as { text?: string } | undefined;
+      if (!span || typeof doc?.text !== "string") continue;
+      hits.push({
+        docId,
+        citation: "",
+        name: null,
+        language: args.language,
+        start: span.start,
+        end: span.end,
+        text: doc.text.slice(span.start, span.end),
+        rank: hits.length,
+      });
+    }
+    return hits;
+  } finally {
+    index.close();
+  }
+}
