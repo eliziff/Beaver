@@ -158,6 +158,61 @@ against it. That would not make the idea wrong for the product — cross-referen
 resolution is a real legal-work primitive — but it would mean the benchmark
 cannot show it, and we say so rather than manufacturing a number.
 
+## 6b. RESULT — the kill criterion fired (2026-07-31, `a8cdd08c` + `2d903c82`)
+
+Both measurements ran before any model-side arm, as designed. Receipt:
+`crossref-graph-instrument-20260731.txt` (outside git). Gold oracle re-verified
+1362/1362 first.
+
+**The resolver works.** Gated at integrity ≥ 0.5: 9,234 references detected,
+2,428 resolved, 1,720 external, 307 unresolved (3.3%), 4,779 abstained, 24/69
+documents refused outright. Its ceiling is provably the skeleton's section
+inventory: maud documents with 97–111 detected sections resolve **96–97%** of
+accepted references, documents with 13–33 sections resolve **24–40%**. That
+bimodality is what the integrity gate refuses on, and it will lift on its own as
+structure detection improves.
+
+**The edges do not point at gold.** Unit = one fragment of a fragmented-gold
+test; both arms spend the same character budget, the control spending it
+contiguously (the `stitch200` analogue):
+
+| source | fragments with an edge | hit% | graph precision | contiguous control |
+|---|---|---|---|---|
+| contractnli | 15/168 | 11.8% | 4.06% | **5.06%** |
+| cuad | 14/153 | 13.3% | 1.15% | **6.99%** |
+| **maud** | **31/227** | **32.2%** | **2.28%** | 1.44% |
+| privacy_qa | 0/384 | — | — | — |
+
+maud is the single win — 1.6× the contiguous control, exactly the source the
+density table predicted — but the graph reaches only 13.7% of maud's fragmented
+gold, so the expected source-level effect is ~0.2 of that. cuad **loses 6×**.
+Same shape as the C1 coverage arms: extra context buys recall and costs
+precision.
+
+**Both weak layers retired on evidence, not assumption.** Defined-term edges
+0.12–1.29%, lexical-overlap edges 0.81–4.57% — **below the contiguous control
+everywhere.** They were built separably precisely so this retirement could be
+measured rather than argued. Layer L3 is closed.
+
+**Consequences for §4's ladder.**
+
+- **A (retrieval-time edge following) is DEAD on this bed.** It was argued in
+  this session as the cheapest and probably strongest version — "the best
+  version of the idea may not need the model at all." The measurement says
+  otherwise: as *extra retrieved context* it does not pay, and on cuad it is
+  strongly negative. Do not register a retrieval arm.
+- **The surviving hypothesis is narrower and is B/C, not A**: the graph plus its
+  typed refusals shown to a composer *as a map it corrects* — structure as
+  orientation, not as additional evidence. That is a different mechanism and
+  must be registered and gated on its own terms.
+- **E (similarity edges) is closed** without needing composed arms.
+
+This is the kill criterion in §6 working as intended, and it cost zero model
+calls. The idea is not refuted for the product — cross-reference resolution is
+a real legal primitive and the resolver is now built, tested and reusable — but
+**LegalBench-RAG cannot show it**, and no number should be manufactured from
+this bed to suggest otherwise.
+
 ## 7. Prerequisites
 
 - Hard-reference graph + resolution oracle (in flight).
