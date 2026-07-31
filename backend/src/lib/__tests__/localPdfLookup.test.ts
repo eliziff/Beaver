@@ -181,8 +181,6 @@ async function fixture() {
       ocr_provider: null,
       model: null,
       prompt_version: null,
-      text_fidelity_root: null,
-      text_fidelity_native: false,
     },
     cache_key: cacheKey,
     source_sha256: sourceSha256,

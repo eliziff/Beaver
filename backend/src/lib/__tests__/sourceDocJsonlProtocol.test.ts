@@ -85,6 +85,49 @@ describe("SourceDoc JSONL protocol", () => {
     expect(malformed.error).toEqual(expect.any(String));
   });
 
+  it("returns provider-map rendition slices without exporting offsets to Python", async () => {
+    const request = {
+      id: "mapped-law",
+      docType: "laws" as const,
+      citation: "Test Act",
+      text: "This whole-text rendition is not the provider section map.",
+      sectionMap: {
+        "1": "😀 First provider section.",
+        "2": "Second provider section.",
+      },
+    };
+    const [result] = await bridge([request]);
+    const doc = compileA2AJSourceDoc(request);
+    const rendition = result.rendition as {
+      kind: string;
+      segments: Array<{
+        kind: string;
+        label?: string;
+        origin?: string;
+        text: string;
+      }>;
+    };
+
+    expect(rendition.kind).toBe("sections");
+    expect(rendition.segments.map(({ text }) => text).join("")).toBe(doc.text);
+    expect(rendition.segments.filter(({ kind }) => kind === "section")).toEqual([
+      {
+        kind: "section",
+        label: "sec1",
+        aliases: [],
+        origin: "native",
+        text: "😀 First provider section.",
+      },
+      {
+        kind: "section",
+        label: "sec2",
+        aliases: [],
+        origin: "native",
+        text: "Second provider section.",
+      },
+    ]);
+  });
+
   it("records production-only short-ladder structure in the sweep", () => {
     const script = [
       "import json,sys",

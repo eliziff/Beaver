@@ -1,11 +1,9 @@
 """Footnote/endnote pairing over the public_endpoint.db plaintext export.
 
-Lightweight adapter of the Text-Fidelity footnote_pairing_v2 essentials -
+Lightweight plaintext adapter of the canonical footnote-pairing essentials -
 label backbone by global monotone-chain dynamic program, refs assigned
 under first-occurrence monotonicity with page proximity, abstain over
-guess - and of the pin engine's builtin pairer (universal-legal-pdf-engine
-legalpdf/core.py: _builtin_markers best_chain / select_segments,
-_sentence_at). Deliberately NOT the full TFP stack: no kraken/ppdoc/codex
+guess. Deliberately not a PDF parser: no kraken/ppdoc/codex
 inference; geometry-free, because the input is OUR OWN rendered plaintext:
 
   - `[page N]` lines are printed by the export from article_pages, so the
@@ -260,8 +258,7 @@ def segment_notes(
 
 
 # ---------------------------------------------------------------------------
-# Backbone selection - port of the engine's best_chain / select_segments
-# (legalpdf/core.py _builtin_markers): the best strictly increasing chain
+# Backbone selection for the derived plaintext export: the best increasing chain
 # (gap 1..5) over numeric label candidates in reading order wins; flanking
 # segments recurse; single unsupported chains are dropped. Support = a
 # same-value ref site within one page.

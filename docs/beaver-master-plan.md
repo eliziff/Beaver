@@ -738,13 +738,17 @@ Acceptance:
 Status: **Partial**
 
 - **Done:** the local assistant has bounded submit/status tools for owned
-  Library DOCX versions. It reuses the standalone localhost job API, exposes no
-  arbitrary path/command parameter, and returns a job-specific Beaver route.
+  Library Word and PDF versions. It reuses the standalone localhost job API,
+  exposes no arbitrary path/command parameter, and returns a job-specific
+  Beaver route.
+- **Done:** PDF source documents use `universal-legal-pdf-engine`'s canonical
+  body/footnote/endnote adapter and can create a Book of Authorities. Inserting
+  a table remains an explicit Word-only operation.
 - **Done:** detection can explicitly use the neutral universal engine's cached
   splitter for incomplete citation units only; deterministic-only remains the
   standalone default and review JSON records fallback telemetry.
 - Finish browser/Tk parity gaps using the browser UI as canonical.
-- Make jobs durable/resumable and use the universal PDF adapter.
+- Make jobs durable/resumable.
 - Remove anonymous-development-only embedding restrictions where deployment
   security permits.
 - Package the same localhost host/static UI as a standalone desktop executable.
