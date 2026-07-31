@@ -13,6 +13,7 @@ import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs
 import path from "node:path";
 
 import {
+  LEGALBENCH_MINI_SOURCE_DB,
   LEGALBENCH_RAG_DATA_DIR,
   MANIFEST_PATH,
   SOURCE_BENCHMARKS,
@@ -45,7 +46,9 @@ const output = flag(
 );
 
 validateMiniManifest(JSON.parse(readFileSync(MANIFEST_PATH, "utf8")));
-const sourceDb = path.join(LEGALBENCH_RAG_DATA_DIR, "db", "a2aj-mini.sqlite");
+// Normalized (LF) corpus db — gold's coordinate space. Receipts written
+// by this script before the Stage 18 instrument fix are raw-CRLF.
+const sourceDb = LEGALBENCH_MINI_SOURCE_DB;
 const all = SOURCE_BENCHMARKS.flatMap((source) => {
   const parsed = upstreamBenchmarkSchema.parse(
     JSON.parse(
