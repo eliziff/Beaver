@@ -16,7 +16,7 @@ let temporaryDirectory: string | null = null;
 const documentId = "document-1";
 const versionId = "version-1";
 const cacheKey = "c".repeat(64);
-const parserVersion = "0.1.0";
+const parserVersion = "0.3.0";
 const parserConfigVersion = "fixture-v1";
 
 async function writeJsonLines(filePath: string, rows: object[]) {
@@ -105,9 +105,78 @@ async function fixture() {
       text: "Section 9 Second version",
     },
   ];
-  const sections = paragraphs
-    .filter((row) => row.region_type === "heading")
-    .map((row) => ({ ...row, provenance: "heading-region" }));
+  const sections = [
+    {
+      id: "section-000001",
+      heading_paragraph_id: "section_7",
+      heading: "Section 7 General rule",
+      locator: "7",
+      locator_kind: "section",
+      aliases: ["7", "section 7", "Section 7 General rule"],
+      text:
+        "Section 7 General rule\n\nEngine-owned first rule paragraph." +
+        "\n\nEngine-owned second rule paragraph.",
+      paragraph_ids: ["section_7", "paragraph-rule"],
+      page_indexes: [0, 1],
+      line_ids: ["line-section-7", "line-rule"],
+      provenance: "heading-region",
+    },
+    {
+      id: "section-000002",
+      heading_paragraph_id: "section_7__subsection_1",
+      heading: "Subsection 7(1) Exception",
+      locator: "7(1)",
+      locator_kind: "subsection",
+      aliases: ["7(1)", "subsection 7(1)", "Subsection 7(1) Exception"],
+      text: "Subsection 7(1) Exception\n\nThe exception is narrow.",
+      paragraph_ids: [
+        "section_7__subsection_1",
+        "paragraph-exception",
+      ],
+      page_indexes: [1],
+      line_ids: ["line-subsection-7-1", "line-exception"],
+      provenance: "heading-region",
+    },
+    {
+      id: "section-000003",
+      heading_paragraph_id: "section_8",
+      heading: "Section 8 Remedy",
+      locator: "8",
+      locator_kind: "section",
+      aliases: ["8", "section 8", "Section 8 Remedy"],
+      text: "Section 8 Remedy",
+      paragraph_ids: ["section_8"],
+      page_indexes: [2],
+      line_ids: ["line-section-8"],
+      provenance: "heading-region",
+    },
+    {
+      id: "section-000004",
+      heading_paragraph_id: "section_9_first",
+      heading: "Section 9 First version",
+      locator: "9",
+      locator_kind: "section",
+      aliases: ["9", "section 9", "Section 9 First version"],
+      text: "Section 9 First version",
+      paragraph_ids: ["section_9_first"],
+      page_indexes: [2],
+      line_ids: ["line-section-9-first"],
+      provenance: "heading-region",
+    },
+    {
+      id: "section-000005",
+      heading_paragraph_id: "section_9_second",
+      heading: "Section 9 Second version",
+      locator: "9",
+      locator_kind: "section",
+      aliases: ["9", "section 9", "Section 9 Second version"],
+      text: "Section 9 Second version",
+      paragraph_ids: ["section_9_second"],
+      page_indexes: [3],
+      line_ids: ["line-section-9-second"],
+      provenance: "heading-region",
+    },
+  ];
   const footnotes = [
     {
       pair_id: "fn-a",
@@ -166,13 +235,6 @@ async function fixture() {
       warnings: [],
     },
   ];
-  const propositions = footnotes.map((footnote) => ({
-    pair_id: footnote.pair_id,
-    label: footnote.label,
-    reference_page: footnote.reference_page,
-    sentence: footnote.sentence_proposition,
-    passage_since_prior_note: footnote.passage_since_prior_note,
-  }));
   const parserConfig = {
     parser_version: parserVersion,
     parser_config_version: parserConfigVersion,
@@ -186,7 +248,9 @@ async function fixture() {
     source_sha256: sourceSha256,
   };
   const manifest = {
-    schema_version: "legalpdf.document.v1",
+    schema_version: "mike.pdf_source.v1",
+    engine_schema_version: "legalpdf.document.v2",
+    artifact_profile: "compact-source",
     parser_version: parserVersion,
     document_id: "parsed-document",
     source_sha256: sourceSha256,
@@ -207,7 +271,6 @@ async function fixture() {
       footnotes: "footnotes.jsonl",
       diagnostics: "diagnostics.jsonl",
       repairs: "repairs.jsonl",
-      propositions: "propositions.jsonl",
       parser_config: "parser-config.json",
     },
   };
@@ -227,7 +290,6 @@ async function fixture() {
     attempts: 1,
     queued_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-01T00:00:01.000Z",
-    flat_text_fallback_available: true,
   };
 
   await mkdir(output, { recursive: true });
@@ -237,7 +299,6 @@ async function fixture() {
     writeJsonLines(path.join(output, "paragraphs.jsonl"), paragraphs),
     writeJsonLines(path.join(output, "sections.jsonl"), sections),
     writeJsonLines(path.join(output, "footnotes.jsonl"), footnotes),
-    writeJsonLines(path.join(output, "propositions.jsonl"), propositions),
     writeFile(path.join(output, "diagnostics.jsonl"), "", "utf8"),
     writeFile(path.join(output, "repairs.jsonl"), "", "utf8"),
     writeFile(manifestPath, JSON.stringify(manifest), "utf8"),
@@ -1044,8 +1105,9 @@ describe("exact local PDF structure lookup", () => {
     });
   });
 
-  it("resolves exact section kinds and encoded subsection identifiers", async () => {
+  it("uses engine-owned section bodies, aliases, kinds, and page spans", async () => {
     const built = await fixture();
+    await writeJsonLines(built.paragraphsPath, []);
     const { lookupLocalPdfStructure } = await import("../localPdfLookup");
 
     await expect(
@@ -1057,9 +1119,13 @@ describe("exact local PDF structure lookup", () => {
       status: "found",
       units: [
         {
-          id: "section_7",
-          text: "Section 7 General rule\n\nThe rule applies.",
-          page_numbers: [1],
+          id: "section-000001",
+          locator: "7",
+          text:
+            "Section 7 General rule\n\nEngine-owned first rule paragraph." +
+            "\n\nEngine-owned second rule paragraph.",
+          page_numbers: [1, 2],
+          confidence: 0.82,
         },
       ],
     });
@@ -1067,13 +1133,13 @@ describe("exact local PDF structure lookup", () => {
     await expect(
       lookupLocalPdfStructure(built.source, {
         locatorKind: "subsection",
-        locator: "section_7__subsection_1",
+        locator: "subsection 7(1)",
       }),
     ).resolves.toMatchObject({
       status: "found",
       units: [
         {
-          id: "section_7__subsection_1",
+          id: "section-000002",
           text: "Subsection 7(1) Exception\n\nThe exception is narrow.",
           page_numbers: [2],
         },
@@ -1087,7 +1153,7 @@ describe("exact local PDF structure lookup", () => {
       }),
     ).resolves.toMatchObject({
       status: "ambiguous",
-      matches: ["section_9_first", "section_9_second"],
+      matches: ["section-000004", "section-000005"],
     });
     await expect(
       lookupLocalPdfStructure(built.source, {
@@ -1099,93 +1165,101 @@ describe("exact local PDF structure lookup", () => {
       exact: false,
       error: "No exact subclause identifiers exist in this PDF artifact",
     });
+    await expect(
+      lookupLocalPdfStructure(built.source, {
+        locatorKind: "subsection",
+        locator: "section_7__subsection_1",
+      }),
+    ).resolves.toMatchObject({
+      status: "not_found",
+      exact: false,
+    });
   });
 
-  it("normalizes provider fragments across every exact provision kind", async () => {
+  it("trusts exact aliases and kinds supplied by engine section rows", async () => {
     const built = await fixture();
-    const headings = [
-      {
-        id: "opaque-section",
-        page_index: 4,
-        region_type: "heading",
-        text: "7 General rule",
-        locator_kind: "section",
-        provider_locator: "#sec7",
-      },
-      {
-        id: "opaque-subsection",
-        page_index: 5,
-        region_type: "heading",
-        text: "7(2) Exception",
-        locator_kind: "subsec",
-        locator: "section/7/subsection/2",
-      },
-      {
-        id: "section_7_subsection_2_paragraph_a",
-        page_index: 6,
-        region_type: "heading",
-        text: "7(2)(a) Application",
-      },
-      {
-        id: "sec7__subsec2__para_a__subpara_i",
-        page_index: 7,
-        region_type: "heading",
-        text: "7(2)(a)(i) Detail",
-      },
-      {
-        id: "opaque-clause",
-        page_index: 8,
-        region_type: "heading",
-        text: "Cl. 7(2)(a)(i)(A) Condition",
-      },
-      {
-        id: "opaque-subclause",
-        page_index: 9,
-        region_type: "heading",
-        text: "Subcl. 7(2)(a)(i)(A)(I) Exception",
-      },
-      {
-        id: "schedule-A",
-        page_index: 10,
-        region_type: "heading",
-        text: "Sched. A Forms",
-      },
-      {
-        id: "article_IV",
-        page_index: 11,
-        region_type: "heading",
-        text: "Art. IV Rights",
-      },
-      {
-        id: "section-hyphen",
-        page_index: 12,
-        region_type: "heading",
-        text: "Section 4-1 Hyphenated rule",
-      },
-      {
-        id: "section-parenthetical",
-        page_index: 13,
-        region_type: "heading",
-        text: "Section 4(1) Parenthetical rule",
-      },
-    ];
-    const paragraphs = headings.flatMap((heading) => [
-      heading,
-      {
-        id: `body-${heading.id}`,
-        page_index: heading.page_index,
-        region_type: "body",
-        text: `Body for ${heading.id}.`,
-      },
-    ]);
-    await Promise.all([
-      writeJsonLines(built.paragraphsPath, paragraphs),
-      writeJsonLines(
-        built.sectionsPath,
-        headings.map((heading) => ({
-          ...heading,
-          provenance: "provider-fixture",
-        })),
+    const section = (
+      id: string,
+      locatorKind: string,
+      locator: string,
+      aliases: string[],
+      pageIndex: number,
+    ) => ({
+      id,
+      heading_paragraph_id: `heading-${id}`,
+      heading: aliases[1] ?? locator,
+      locator,
+      locator_kind: locatorKind,
+      aliases,
+      text: `Engine-owned text for ${id}.`,
+      paragraph_ids: [`heading-${id}`, `body-${id}`],
+      page_indexes: [pageIndex],
+      line_ids: [`line-${id}`],
+      provenance: "heading-region",
+    });
+    await writeJsonLines(built.sectionsPath, [
+      section(
+        "opaque-section",
+        "section",
+        "7",
+        ["7", "section 7", "#sec7"],
+        4,
+      ),
+      section(
+        "opaque-subsection",
+        "subsection",
+        "7(2)",
+        ["7(2)", "subsection 7(2)", "section/7/subsection/2"],
+        5,
+      ),
+      section(
+        "section_7_subsection_2_paragraph_a",
+        "provision_paragraph",
+        "7(2)(a)",
+        ["7(2)(a)", "paragraph 7(2)(a)", "sec-7-subsec-2-para-a"],
+        6,
+      ),
+      section(
+        "sec7__subsec2__para_a__subpara_i",
+        "subparagraph",
+        "7(2)(a)(i)",
+        [
+          "7(2)(a)(i)",
+          "subparagraph 7(2)(a)(i)",
+          "section_7__subsection_2__paragraph_a__subparagraph_i",
+          "sec7__subsec2__para_a__subpara_i",
+        ],
+        7,
+      ),
+      section(
+        "opaque-clause",
+        "clause",
+        "7(2)(a)(i)(A)",
+        ["7(2)(a)(i)(A)", "cl. 7(2)(a)(i)(A)"],
+        8,
+      ),
+      section(
+        "opaque-subclause",
+        "subclause",
+        "7(2)(a)(i)(A)(I)",
+        ["7(2)(a)(i)(A)(I)", "subcl. 7(2)(a)(i)(A)(I)"],
+        9,
+      ),
+      section("schedule-A", "schedule", "A", ["A", "schedule A"], 10),
+      section("article_IV", "article", "IV", ["IV", "article IV"], 11),
+      section(
+        "section-hyphen",
+        "section",
+        "4-1",
+        ["4-1", "section 4-1", "sec4-1"],
+        12,
+      ),
+      section(
+        "section-parenthetical",
+        "section",
+        "4(1)",
+        ["4(1)", "section 4(1)", "sec4(1)"],
+        13,
       ),
     ]);
     const { lookupLocalPdfStructure } = await import("../localPdfLookup");

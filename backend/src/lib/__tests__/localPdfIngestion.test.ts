@@ -7,7 +7,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const runLegalPdf = vi.hoisted(() => vi.fn());
 const renameFault = vi.hoisted(() => ({ remaining: 0, injected: 0 }));
 
-vi.mock("../legalPdfProcess", () => ({ runLegalPdf }));
+vi.mock("../legalPdfProcess", () => ({
+  LEGAL_PDF_DOCUMENT_SCHEMA: "legalpdf.document.v2",
+  LEGAL_PDF_PARSER_VERSION: "0.3.0",
+  runLegalPdf,
+}));
 vi.mock("node:fs/promises", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs/promises")>();
   return {
@@ -75,8 +79,21 @@ async function fakeArtifacts(
       number: 1,
       width: 612,
       height: 792,
-      lines: [],
-      regions: [],
+      printed_label: "1",
+      printed_label_source: "physical",
+      source: "native",
+      text_quality: 0.99,
+      lines: [
+        {
+          id: "line-1",
+          reading_order: 0,
+          text: "Introduction",
+          bbox: [72, 72, 160, 84],
+          spans: [{ text: "Introduction", bbox: [72, 72, 160, 84] }],
+          words: [{ text: "Introduction", bbox: [72, 72, 160, 84] }],
+        },
+      ],
+      regions: [{ type: "body", bbox: [72, 72, 540, 720] }],
     })}\n`,
     "paragraphs.jsonl": `${JSON.stringify({
       id: "paragraph-1",
@@ -118,8 +135,8 @@ async function fakeArtifacts(
   await writeFile(
     path.join(output, "document.json"),
     JSON.stringify({
-      schema_version: "legalpdf.document.v1",
-      parser_version: "0.1.0",
+      schema_version: "legalpdf.document.v2",
+      parser_version: "0.3.0",
       document_id: "parsed-document",
       source_name: path.basename(source),
       source_sha256: sourceSha256,
@@ -242,7 +259,6 @@ describe("local PDF ingestion", () => {
 
     expect(document.pdf_parse).toMatchObject({
       status: "queued",
-      flat_text_fallback_available: true,
     });
     expect(file).not.toBeNull();
     expect(path.basename(file!.path)).toMatch(
@@ -256,7 +272,7 @@ describe("local PDF ingestion", () => {
     )?.[0];
     expect(state).toMatchObject({
       source_sha256: crypto.createHash("sha256").update(bytes).digest("hex"),
-      parser_version: "0.1.0",
+      parser_version: "0.3.0",
       parser_config_version: "mike-local-v1",
       parser_config: {
         mode: "local",
@@ -273,24 +289,49 @@ describe("local PDF ingestion", () => {
       page_count: 1,
       diagnostic_count: 0,
     });
+    expect(parseArgs).toContain("--no-cache");
     expect(parseArgs).not.toContain("--text-fidelity-root");
     expect(state!.parser_config).not.toHaveProperty("text_fidelity_root");
-    const manifest = JSON.parse(
-      await readFile(
-        path.join(temporaryDirectory, state!.artifact_manifest),
-        "utf8",
-      ),
+    const artifactRoot = path.dirname(
+      path.join(temporaryDirectory, state!.artifact_manifest),
     );
+    const manifest = JSON.parse(
+      await readFile(path.join(artifactRoot, "document.json"), "utf8"),
+    );
+    expect(manifest).toMatchObject({
+      schema_version: "mike.pdf_source.v1",
+      engine_schema_version: "legalpdf.document.v2",
+      artifact_profile: "compact-source",
+    });
     expect(manifest.artifacts).toMatchObject({
       pages: "pages.jsonl",
       paragraphs: "paragraphs.jsonl",
       sections: "sections.jsonl",
       footnotes: "footnotes.jsonl",
-      propositions: "propositions.jsonl",
       diagnostics: "diagnostics.jsonl",
       repairs: "repairs.jsonl",
       parser_config: "parser-config.json",
     });
+    const [page] = (
+      await readFile(path.join(artifactRoot, "pages.jsonl"), "utf8")
+    )
+      .trim()
+      .split(/\r?\n/u)
+      .map((line) => JSON.parse(line));
+    expect(page).toEqual({
+      id: "page-1",
+      index: 0,
+      number: 1,
+      printed_label: "1",
+      printed_label_source: "physical",
+      source: "native",
+      text_quality: 0.99,
+      lines: [{ reading_order: 0, text: "Introduction" }],
+    });
+    expect(page).not.toHaveProperty("regions");
+    expect(page.lines[0]).not.toHaveProperty("bbox");
+    expect(page.lines[0]).not.toHaveProperty("spans");
+    expect(page.lines[0]).not.toHaveProperty("words");
 
     await ingestion.queueLocalPdfParse({
       documentId: document.id,
@@ -566,6 +607,7 @@ describe("local PDF ingestion", () => {
     expect(repairParse).toEqual(
       expect.arrayContaining(["--model", "gpt-5.6-luna", "--effort", "max"]),
     );
+    expect(repairParse).toContain("--no-cache");
   });
 
   it("refreshes the engine repair contract without changing local cache identity", async () => {

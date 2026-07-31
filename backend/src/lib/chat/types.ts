@@ -1,14 +1,4 @@
-import path from "path";
 import type { LlmImage } from "../llm/types";
-
-export const STANDARD_FONT_DATA_URL = (() => {
-  try {
-    const pkgPath = require.resolve("pdfjs-dist/package.json");
-    return path.join(path.dirname(pkgPath), "standard_fonts") + path.sep;
-  } catch {
-    return undefined;
-  }
-})();
 
 const isDev = process.env.NODE_ENV !== "production";
 export const devLog = (...args: Parameters<typeof console.log>) => {

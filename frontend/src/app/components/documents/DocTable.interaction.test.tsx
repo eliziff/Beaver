@@ -476,11 +476,9 @@ describe("structural parse state", () => {
         updated_at: "2026-07-30T00:00:00.000Z",
         completed_at: null,
         engine_status: null,
-        cache_hit: false,
         page_count: null,
         diagnostic_count: null,
         structural_repair_available: false,
-        flat_text_fallback_available: true,
         ...extra,
     });
 

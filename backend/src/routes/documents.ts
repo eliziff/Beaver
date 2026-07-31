@@ -29,6 +29,7 @@ import {
   shouldConvertToPdf,
 } from "../lib/documentTypes";
 import { imageValidationError } from "../lib/llm/images";
+import { countLegalPdfPages } from "../lib/legalPdfSourceDoc";
 
 export const documentsRouter = Router();
 documentsRouter.use(requireAuth);
@@ -637,7 +638,7 @@ documentsRouter.post(
       "versions/upload",
     );
     const pageCount =
-      suffix === "pdf" ? await countPdfPages(toArrayBuffer(file.buffer)) : null;
+      suffix === "pdf" ? await countPdfPages(file.buffer) : null;
 
     const versionRow = await insertVersionAsCurrent(
       res,
@@ -747,7 +748,7 @@ documentsRouter.put(
       "versions/replace",
     );
     const pageCount =
-      suffix === "pdf" ? await countPdfPages(toArrayBuffer(file.buffer)) : null;
+      suffix === "pdf" ? await countPdfPages(file.buffer) : null;
 
     const { data: updated, error: updateErr } = await db
       .from("document_versions")
@@ -1074,7 +1075,7 @@ export async function handleDocumentUpload(
     );
 
     const pageCount =
-      suffix === "pdf" ? await countPdfPages(toArrayBuffer(content)) : null;
+      suffix === "pdf" ? await countPdfPages(content) : null;
     const pdfStoragePath = await pdfRenditionFor(
       suffix,
       key,
@@ -1141,21 +1142,9 @@ export async function handleDocumentUpload(
   }
 }
 
-async function countPdfPages(buf: ArrayBuffer): Promise<number | null> {
+async function countPdfPages(buf: Buffer): Promise<number | null> {
   try {
-    const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs" as string);
-    const pdf = await (
-      pdfjsLib as unknown as {
-        getDocument: (opts: unknown) => {
-          promise: Promise<{ numPages: number }>;
-        };
-      }
-    ).getDocument({
-      // Untrusted uploads: never let pdf.js compile font programs via eval.
-      data: new Uint8Array(buf),
-      isEvalSupported: false,
-    }).promise;
-    return pdf.numPages;
+    return await countLegalPdfPages(buf);
   } catch {
     return null;
   }

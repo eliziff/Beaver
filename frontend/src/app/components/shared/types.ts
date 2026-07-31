@@ -56,7 +56,8 @@ export interface Document {
   /**
    * Structural PDF parse lifecycle, denormalized from the durable parse
    * job (local lane). null / absent = no parse lane (non-PDF versions,
-   * cloud lane); flat text always remains available regardless.
+   * cloud lane). The original PDF remains authoritative and the compact
+   * structural source can be rebuilt from it.
    */
   parse_state?: {
     status: "queued" | "parsing" | "ready" | "degraded" | "failed";
@@ -66,11 +67,9 @@ export interface Document {
     updated_at: string;
     completed_at: string | null;
     engine_status: string | null;
-    cache_hit: boolean;
     page_count: number | null;
     diagnostic_count: number | null;
     structural_repair_available: boolean;
-    flat_text_fallback_available: true;
   } | null;
   created_at: string | null;
   updated_at?: string | null;

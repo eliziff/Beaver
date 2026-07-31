@@ -6,6 +6,12 @@ import { access, link, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { mikeLocalDataHome } from "./legalDataPath";
 import { readLocalPdfParseState } from "./localPdfIngestion";
 import { sha256 } from "./hash";
+import {
+  compileLegalPdfSourceDoc,
+  LEGAL_PDF_DOCUMENT_SCHEMA,
+  LOCAL_PDF_SOURCE_SCHEMA,
+} from "./legalPdfSourceDoc";
+import { normalizeSourceDocLocator } from "./sourceDoc";
 
 export const LOCAL_PDF_LOCATOR_KINDS = [
   "page",
@@ -59,7 +65,6 @@ export type LocalPdfLookupUnit = {
 };
 
 const SCHEMA_VERSION = "mike.pdf_lookup.v1";
-const DOCUMENT_SCHEMA = "legalpdf.document.v1";
 const MAX_UNITS = 20;
 const MAX_CONTEXT_BLOCKS = 2;
 const MAX_RETURN_CHARS = 60_000;
@@ -425,82 +430,27 @@ function normalizeFootnote(raw: string) {
     .toLocaleLowerCase();
 }
 
-const PROVISION_PREFIX =
-  /^(?:subsections?|subsecs?|subparagraphs?|subparas?|subclauses?|subcls?|sections?|sec(?:tion)?s?|paragraphs?|paras?|pars?|clauses?|cls?|schedules?|scheds?|articles?|arts?|subs?|ss?|s|§{1,2})\.?(?:[\s:_/=#-]+|(?=\d|\())/iu;
-const ENCODED_PART =
-  /(?:__|[_:/-])(?:subsection|subsec|paragraph|para|par|subparagraph|subpara|clause|cl|subclause|subcl)[_:/=-]*([A-Za-z0-9.]+)(?=__|[_:/-]|$)/giu;
-
-function normalizeProvision(raw: string) {
-  let value = raw
-    .trim()
-    .normalize("NFKC")
-    .replace(/^#\s*/u, "")
-    .replace(PROVISION_PREFIX, "")
-    .replace(ENCODED_PART, "($1)")
-    .replace(/_(\d+|[A-Za-z]|[ivxlcdm]+)(?=$|_)/giu, "($1)")
-    .replace(/\s+/gu, "");
-  const open = (value.match(/\(/gu) ?? []).length;
-  const close = (value.match(/\)/gu) ?? []).length;
-  value = `${value}${")".repeat(Math.max(0, open - close))}`
-    .replace(/[.:;,]+$/gu, "")
-    .toLocaleLowerCase();
-  return /^(?:\d{1,8}(?:[.-]\d{1,8}){0,4}|[ivxlcdm]+|[a-z])(?:\([^)]+\))*$/iu.test(
-    value,
-  )
-    ? `locator:${value}`
-    : `title:${raw.trim().replace(/\s+/gu, " ").toLocaleLowerCase()}`;
+function sectionLocatorKind(row: JsonObject): LocalPdfLocatorKind | null {
+  const kind = stringValue(row.locator_kind);
+  return LOCAL_PDF_LOCATOR_KINDS.includes(kind as LocalPdfLocatorKind) &&
+    canonicalKind(kind as LocalPdfLocatorKind) === "section"
+    ? (kind as LocalPdfLocatorKind)
+    : null;
 }
 
-function explicitHeadingKind(value: unknown): LocalPdfLocatorKind | null {
-  const token = stringValue(value)
-    .trim()
-    .toLocaleLowerCase()
-    .replace(/[^a-z]+/gu, "");
-  if (["section", "sec"].includes(token)) return "section";
-  if (["subsection", "subsec"].includes(token)) return "subsection";
-  if (["provisionparagraph", "paragraph", "para", "par"].includes(token)) {
-    return "provision_paragraph";
-  }
-  if (["subparagraph", "subpara"].includes(token)) return "subparagraph";
-  if (["clause", "cl"].includes(token)) return "clause";
-  if (["subclause", "subcl"].includes(token)) return "subclause";
-  if (["schedule", "sched"].includes(token)) return "schedule";
-  if (["article", "art"].includes(token)) return "article";
-  return null;
+function sectionAliasKey(value: string) {
+  return (
+    normalizeSourceDocLocator("section", value) ||
+    value.trim().normalize("NFKC").replace(/\s+/gu, " ").toLocaleLowerCase()
+  );
 }
 
-function headingKind(row: JsonObject): LocalPdfLocatorKind | null {
-  const text = stringValue(row.text).trim();
-  const id = stringValue(row.id).trim();
-  const metadataKind = explicitHeadingKind(row.locator_kind);
-  if (metadataKind) return metadataKind;
-  const textKind = text.match(
-    /^(subclause|subcl|clause|cl|subparagraph|subpara|paragraph|para|par|subsection|subsec|section|sec|schedule|sched|article|art)\.?(?:[\s:_/-]|$)/iu,
-  )?.[1];
-  if (textKind) return explicitHeadingKind(textKind);
-  const encodedKinds = [
-    ...id.matchAll(
-      /(?:^|__|[_:/.-])(subclause|subcl|clause|cl|subparagraph|subpara|paragraph|para|par|subsection|subsec|section|sec|schedule|sched|article|art)(?=[_:/.-]|\d|\(|$)/giu,
-    ),
-  ];
-  return explicitHeadingKind(encodedKinds.at(-1)?.[1]);
-}
-
-function sectionAliases(row: JsonObject) {
-  const text = stringValue(row.text).trim();
-  const id = stringValue(row.id).trim();
-  const aliases = new Set<string>();
-  if (text) aliases.add(normalizeProvision(text));
-  if (id) aliases.add(normalizeProvision(id));
-  for (const field of [row.locator, row.provider_locator]) {
-    const locator = stringValue(field).trim();
-    if (locator) aliases.add(normalizeProvision(locator));
-  }
-  const leading = text.match(
-    /^(?:(?:sections?|sec(?:tion)?s?|subsections?|subsecs?|paragraphs?|paras?|subparagraphs?|subparas?|clauses?|cls?|subclauses?|subcls?|schedules?|scheds?|articles?|arts?)\.?\s+)?((?:\d{1,8}(?:[.-]\d{1,8}){0,4}|[IVXLCDM]+|[A-Z])(?:\s*\([^)]+\))*)\s*(?:[-.:;,\u2013\u2014]\s*|\s+|$)/iu,
-  )?.[1];
-  if (leading) aliases.add(normalizeProvision(leading));
-  return aliases;
+function sectionAliasKeys(row: JsonObject) {
+  return new Set(
+    [stringValue(row.locator), ...stringArray(row.aliases)]
+      .filter(Boolean)
+      .map(sectionAliasKey),
+  );
 }
 
 function cleanParagraphText(value: unknown) {
@@ -620,7 +570,9 @@ async function loadArtifactSource(sourcePath: string) {
     await readFile(manifestPath, "utf8"),
   ) as JsonObject;
   if (
-    manifest.schema_version !== DOCUMENT_SCHEMA ||
+    manifest.schema_version !== LOCAL_PDF_SOURCE_SCHEMA ||
+    manifest.engine_schema_version !== LEGAL_PDF_DOCUMENT_SCHEMA ||
+    manifest.artifact_profile !== "compact-source" ||
     manifest.source_sha256 !== state.source_sha256 ||
     manifest.parser_version !== state.parser_version
   ) {
@@ -692,6 +644,34 @@ export function createLocalPdfArtifactSession(
   };
 }
 
+export async function readLocalPdfSourceDoc(
+  sourcePath: string,
+  session = createLocalPdfArtifactSession(sourcePath),
+) {
+  if (within(dataRoot, sourcePath) !== session.source) {
+    throw new Error("PDF lookup session does not belong to this source");
+  }
+  const loaded = await session.loaded;
+  if (!loaded.available) return null;
+  const [pages, paragraphs, sections, footnotes] = await Promise.all([
+    loaded.readRows("pages"),
+    loaded.readRows("paragraphs"),
+    loaded.readRows("sections"),
+    loaded.readRows("footnotes"),
+  ]);
+  if (!pages || !paragraphs || !sections || !footnotes) return null;
+  return compileLegalPdfSourceDoc(
+    {
+      manifest: loaded.manifest,
+      pages,
+      paragraphs,
+      sections,
+      footnotes,
+    },
+    { id: loaded.state.document_id },
+  );
+}
+
 async function artifacts(
   sourcePath: string,
   kind: CanonicalKind,
@@ -716,13 +696,11 @@ async function artifacts(
     return { error: `No exact ${kind} artifact is available`, state } as const;
   }
   const pages = kind === "page" ? rows : await readRows("pages");
-  const paragraphs = kind === "section" ? await readRows("paragraphs") : null;
   return {
     state,
     manifest,
     rows,
     pages: pages ?? [],
-    paragraphs: paragraphs ?? [],
   };
 }
 
@@ -826,49 +804,41 @@ function footnoteUnit(row: JsonObject): LocalPdfLookupUnit {
 }
 
 function sectionUnits(
-  headings: JsonObject[],
-  paragraphs: JsonObject[],
+  rows: JsonObject[],
   pages: ReturnType<typeof pageMaps>["byIndex"],
 ) {
-  const paragraphIndex = new Map(
-    paragraphs.map((paragraph, index) => [stringValue(paragraph.id), index]),
-  );
-  return headings.map((heading, headingIndex) => {
-    const start = paragraphIndex.get(stringValue(heading.id));
-    const next = headings
-      .slice(headingIndex + 1)
-      .map((row) => paragraphIndex.get(stringValue(row.id)))
-      .find((index): index is number => index !== undefined);
-    const content =
-      start === undefined
-        ? [heading]
-        : paragraphs.slice(start, next ?? paragraphs.length);
+  return rows.map((row, index) => {
+    const pageIndexes = Array.isArray(row.page_indexes)
+      ? row.page_indexes.filter(
+          (value): value is number =>
+            typeof value === "number" &&
+            Number.isInteger(value) &&
+            value >= 0,
+        )
+      : [];
     const pageNumbers = [
       ...new Set(
-        content
-          .map((row) => pages.get(integerValue(row.page_index))?.number)
+        pageIndexes
+          .map((pageIndex) => pages.get(pageIndex)?.number)
           .filter((page): page is number => page !== undefined),
       ),
     ];
-    const qualities = content
-      .map((row) => pages.get(integerValue(row.page_index))?.confidence)
+    const qualities = pageIndexes
+      .map((pageIndex) => pages.get(pageIndex)?.confidence)
       .filter(
         (value): value is number => value !== null && value !== undefined,
       );
     return {
-      id: stringValue(heading.id) || `section-${headingIndex + 1}`,
+      id: stringValue(row.id) || `section-${index + 1}`,
       kind: "section" as const,
-      locator: stringValue(heading.text).trim(),
-      text: content
-        .map((row) => cleanParagraphText(row.text))
-        .filter(Boolean)
-        .join("\n\n"),
+      locator: stringValue(row.locator).trim(),
+      text: stringValue(row.text).trim(),
       page_numbers: pageNumbers,
       confidence: qualities.length ? Math.min(...qualities) : null,
       confidence_basis: qualities.length
         ? "minimum_page_text_quality"
         : "unavailable",
-      provenance: stringValue(heading.provenance) || "heading-region",
+      provenance: stringValue(row.provenance) || "heading-region",
     };
   });
 }
@@ -949,7 +919,7 @@ export async function lookupLocalPdfStructure(
       };
     }
     options?.capturePageRows?.(loaded.pages);
-    const { state, manifest, rows, pages, paragraphs } = loaded;
+    const { state, manifest, rows, pages } = loaded;
     const pageInfo =
       options?.artifactSession?.pageInfo ?? pageMaps(pages).byIndex;
     if (options?.artifactSession) {
@@ -1034,20 +1004,22 @@ export async function lookupLocalPdfStructure(
           error: "Section ranges are not supported by this artifact contract",
         };
       }
-      const requested = normalizeProvision(input.locator);
+      const requested = sectionAliasKey(input.locator);
       const candidates = rows
         .map((row, index) => ({ row, index }))
         .filter(({ row }) => {
-          const explicitKind = headingKind(row);
+          const explicitKind = sectionLocatorKind(row);
           return (
             (input.locatorKind === "section" ||
               explicitKind === input.locatorKind) &&
-            sectionAliases(row).has(requested)
+            sectionAliasKeys(row).has(requested)
           );
         });
       if (
         input.locatorKind !== "section" &&
-        !rows.some((row) => headingKind(row) === input.locatorKind)
+        !rows.some(
+          (row) => sectionLocatorKind(row) === input.locatorKind,
+        )
       ) {
         return {
           ...base,
@@ -1066,7 +1038,7 @@ export async function lookupLocalPdfStructure(
       }
       ordered =
         options?.artifactSession?.orderedUnits.get(kind) ??
-        sectionUnits(rows, paragraphs, pageInfo);
+        sectionUnits(rows, pageInfo);
       options?.artifactSession?.orderedUnits.set(kind, ordered);
       selectedStart = candidates[0]?.index ?? -1;
       selectedEnd = selectedStart;

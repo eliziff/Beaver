@@ -14,14 +14,17 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { mikeLocalDataHome } from "./legalDataPath";
-import { runLegalPdf } from "./legalPdfProcess";
+import { LOCAL_PDF_SOURCE_SCHEMA } from "./legalPdfSourceDoc";
+import {
+  LEGAL_PDF_DOCUMENT_SCHEMA,
+  LEGAL_PDF_PARSER_VERSION,
+  runLegalPdf,
+} from "./legalPdfProcess";
 import { sha256 } from "./hash";
 
-const LOCAL_PDF_PARSER_VERSION = "0.1.0";
 const STATE_SUFFIX = ".legalpdf-state.json";
 const ARTIFACT_SUFFIX = ".legalpdf";
 const STATE_SCHEMA = "mike.pdf_parse.v1";
-const DOCUMENT_SCHEMA = "legalpdf.document.v1";
 const statuses = new Set(["queued", "parsing", "ready", "degraded", "failed"]);
 const publicationArtifacts = [
   "pages",
@@ -30,7 +33,6 @@ const publicationArtifacts = [
   "footnotes",
   "diagnostics",
   "repairs",
-  "propositions",
   "parser_config",
 ] as const;
 
@@ -98,7 +100,6 @@ export type LocalPdfParseState = {
   completed_at?: string;
   interrupted_at?: string;
   engine_status?: string;
-  cache_hit?: boolean;
   page_count?: number;
   counts?: Record<string, number>;
   diagnostic_count?: number;
@@ -108,7 +109,6 @@ export type LocalPdfParseState = {
   };
   structural_repair_available?: boolean;
   error?: string;
-  flat_text_fallback_available: true;
 };
 
 type JsonObject = Record<string, unknown>;
@@ -463,7 +463,7 @@ function cacheKey(
   sourceSha256: string,
   version: string,
   config: object,
-  parserVersion = LOCAL_PDF_PARSER_VERSION,
+  parserVersion = LEGAL_PDF_PARSER_VERSION,
 ) {
   return sha256(
     JSON.stringify({
@@ -503,7 +503,7 @@ function newQueuedState(params: {
     status: "queued",
     source_path: relativeDataPath(params.sourcePath),
     source_sha256: params.sourceSha256,
-    parser_version: LOCAL_PDF_PARSER_VERSION,
+    parser_version: LEGAL_PDF_PARSER_VERSION,
     parser_config_version: version,
     parser_config: config,
     ...(params.repairIdentity
@@ -517,7 +517,6 @@ function newQueuedState(params: {
     queued_at: now,
     updated_at: now,
     interrupted_at: params.previous?.interrupted_at,
-    flat_text_fallback_available: true,
   } satisfies LocalPdfParseState;
 }
 
@@ -549,7 +548,6 @@ function rekeyOcrState(
     started_at: undefined,
     completed_at: undefined,
     engine_status: undefined,
-    cache_hit: undefined,
     page_count: undefined,
     counts: undefined,
     diagnostic_count: undefined,
@@ -573,7 +571,6 @@ async function requeueInvalidPublication(
     started_at: undefined,
     completed_at: undefined,
     engine_status: undefined,
-    cache_hit: undefined,
     page_count: undefined,
     counts: undefined,
     diagnostic_count: undefined,
@@ -626,6 +623,28 @@ function jsonObject(raw: string, label: string) {
   return objectValue(JSON.parse(raw) as unknown, label);
 }
 
+function compactPage(row: JsonObject) {
+  const lines = Array.isArray(row.lines)
+    ? row.lines.map((value) => {
+        const line = objectValue(value, "PDF page line");
+        return {
+          reading_order: line.reading_order,
+          text: line.text,
+        };
+      })
+    : [];
+  return {
+    id: row.id,
+    index: row.index,
+    number: row.number,
+    printed_label: row.printed_label,
+    printed_label_source: row.printed_label_source,
+    source: row.source,
+    text_quality: row.text_quality,
+    lines,
+  };
+}
+
 async function validateJsonLines(filePath: string) {
   const input = createReadStream(filePath, { encoding: "utf8" });
   const lines = createInterface({ input, crlfDelay: Infinity });
@@ -656,7 +675,9 @@ async function validatePublishedArtifacts(
     const manifest = jsonObject(manifestRaw, "PDF artifact manifest");
     const engineStatus = String(manifest.status || "");
     if (
-      manifest.schema_version !== DOCUMENT_SCHEMA ||
+      manifest.schema_version !== LOCAL_PDF_SOURCE_SCHEMA ||
+      manifest.engine_schema_version !== LEGAL_PDF_DOCUMENT_SCHEMA ||
+      manifest.artifact_profile !== "compact-source" ||
       manifest.source_sha256 !== state.source_sha256 ||
       manifest.parser_version !== state.parser_version ||
       !["ready", "degraded", "ocr_required"].includes(engineStatus) ||
@@ -729,7 +750,6 @@ async function validatePublishedArtifacts(
     }
     if (
       manifest.page_count !== rowCounts.pages ||
-      rowCounts.propositions !== rowCounts.footnotes ||
       (state.page_count !== undefined &&
         state.page_count !== rowCounts.pages) ||
       (state.diagnostic_count !== undefined &&
@@ -747,7 +767,7 @@ async function validatePublishedArtifacts(
   }
 }
 
-async function publishBridgeArtifacts(
+async function publishCompactArtifacts(
   sourcePath: string,
   state: LocalPdfParseState,
 ) {
@@ -757,6 +777,7 @@ async function publishBridgeArtifacts(
     await readFile(manifestPath, "utf8"),
   ) as JsonObject;
   if (
+    manifest.schema_version !== LEGAL_PDF_DOCUMENT_SCHEMA ||
     manifest.source_sha256 !== state.source_sha256 ||
     manifest.parser_version !== state.parser_version
   ) {
@@ -794,46 +815,38 @@ async function publishBridgeArtifacts(
     manifest.artifacts && typeof manifest.artifacts === "object"
       ? (manifest.artifacts as JsonObject)
       : {};
-  const footnotes = jsonLines(
-    await readFile(
-      publishedArtifactPath(output, artifacts.footnotes, "footnote"),
-      "utf8",
-    ),
+  const pagesPath = publishedArtifactPath(
+    output,
+    artifacts.pages,
+    "page",
   );
-  publishedArtifactPath(output, artifacts.sections, "section");
-  const propositions = footnotes.map((footnote) => ({
-    pair_id: footnote.pair_id,
-    label: footnote.label,
-    reference_page: footnote.reference_page,
-    sentence: footnote.sentence_proposition,
-    passage_since_prior_note: footnote.passage_since_prior_note,
-  }));
-  await Promise.all([
-    atomicWrite(
-      path.join(output, "propositions.jsonl"),
-      propositions.map((row) => JSON.stringify(row)).join("\n") +
-        (propositions.length ? "\n" : ""),
-    ),
-    atomicWrite(
-      path.join(output, "parser-config.json"),
-      `${JSON.stringify(
-        {
-          parser_version: state.parser_version,
-          parser_config_version: state.parser_config_version,
-          parser_config: state.parser_config,
-          cache_key: state.cache_key,
-          source_sha256: state.source_sha256,
-        },
-        null,
-        2,
-      )}\n`,
-    ),
-  ]);
+  const pages = jsonLines(await readFile(pagesPath, "utf8")).map(compactPage);
+  await atomicWrite(
+    pagesPath,
+    pages.map((row) => JSON.stringify(row)).join("\n") +
+      (pages.length ? "\n" : ""),
+  );
+  await atomicWrite(
+    path.join(output, "parser-config.json"),
+    `${JSON.stringify(
+      {
+        parser_version: state.parser_version,
+        parser_config_version: state.parser_config_version,
+        parser_config: state.parser_config,
+        cache_key: state.cache_key,
+        source_sha256: state.source_sha256,
+      },
+      null,
+      2,
+    )}\n`,
+  );
   manifest.artifacts = {
     ...artifacts,
-    propositions: "propositions.jsonl",
     parser_config: "parser-config.json",
   };
+  manifest.engine_schema_version = LEGAL_PDF_DOCUMENT_SCHEMA;
+  manifest.schema_version = LOCAL_PDF_SOURCE_SCHEMA;
+  manifest.artifact_profile = "compact-source";
   await atomicWrite(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   return manifest;
 }
@@ -935,6 +948,7 @@ async function processJob(sourcePath: string) {
       output,
       "--mode",
       parsing.parser_config.mode,
+      "--no-cache",
       "--cache-dir",
       path.join(
         dataRoot,
@@ -981,7 +995,7 @@ async function processJob(sourcePath: string) {
       await rm(artifactRoot(sourcePath), { recursive: true, force: true });
       return;
     }
-    const manifest = await publishBridgeArtifacts(sourcePath, parsing);
+    const manifest = await publishCompactArtifacts(sourcePath, parsing);
     if (cancelled.has(key)) return;
     const diagnostics = await diagnosticSummary(
       output,
@@ -989,10 +1003,6 @@ async function processJob(sourcePath: string) {
     );
     const completed = new Date().toISOString();
     const engineStatus = String(manifest.status || "degraded");
-    const provenance =
-      manifest.provenance && typeof manifest.provenance === "object"
-        ? (manifest.provenance as JsonObject)
-        : {};
     const counts =
       manifest.counts && typeof manifest.counts === "object"
         ? Object.fromEntries(
@@ -1007,7 +1017,6 @@ async function processJob(sourcePath: string) {
       ...parsing,
       status: engineStatus === "ready" ? "ready" : "degraded",
       engine_status: engineStatus,
-      cache_hit: provenance.cache_hit === true,
       page_count:
         typeof manifest.page_count === "number"
           ? manifest.page_count
@@ -1239,11 +1248,9 @@ export async function peekLocalPdfParseState(sourcePath: string) {
     updated_at: state.updated_at,
     completed_at: state.completed_at ?? null,
     engine_status: state.engine_status ?? null,
-    cache_hit: state.cache_hit ?? false,
     page_count: state.page_count ?? null,
     diagnostic_count: state.diagnostic_count ?? null,
     structural_repair_available: state.structural_repair_available ?? false,
-    flat_text_fallback_available: true as const,
   };
 }
 
