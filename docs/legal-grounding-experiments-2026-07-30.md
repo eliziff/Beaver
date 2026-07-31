@@ -2721,6 +2721,72 @@ lanes target — composition is not the maud bottleneck.
 stays unburned until the R4/R5/dense results settle the final
 config, per the lock-in rule.
 
+### Stage 18 R5 verdict (2026-07-30, generation complete + dual
+deterministic sweep; receipts `stage18-passage-context.jsonl`,
+`stage18-passage-context-linted.jsonl`,
+`stage18-context-arms-{raw,linted}.jsonl`)
+
+**Middle band: real lift, adoption bar not met, falsifier not
+triggered.** Generation: 5,979/5,984 passages headed (5 skipped on
+empty doc text — fail-closed to the heading path; 1,508 stale 429
+error rows in the file are superseded by resume, last-wins). Lint on
+the full set: 115/5,979 flagged (1.92%, vs 3.94% on the smoke) —
+contractnli 2.16%, cuad 3.08%, maud 1.71%, privacy_qa 0.75%; flagged
+tokens are mostly benign unattested inferences ("African" for
+Transnet/Eskom, "GAAP", "AAA" arbitration), not invented parties.
+
+maud pool R@48 vs champion 0.3619: raw w1 0.3942 (+0.0323), w2
+0.3896 (+0.0277), w4 0.4019 (+0.0400); linted w1 0.3961 (+0.0342),
+w2 0.3860 (+0.0241), w4 0.3980 (+0.0361).
+
+Gate judgments against the frozen bars:
+- **Adopt (maud ≥ +0.05): NOT met** — best +0.0400 (raw w4).
+- **Falsifier (< +0.03 at every weight): NOT triggered** — both arms
+  clear +0.03 at w1 and w4. Vocabulary mismatch IS partially
+  header-bridgeable.
+- Predictions: maud +0.03..+0.10 HIT; contractnli within tolerance
+  HIT (improved, 1.0529 → 1.0783); "weight 4 over-weights" MISS —
+  w4 is the best weight on maud and overall (pool 0.8534 → 0.8842);
+  "no source drops > 0.03" HIT (only privacy_qa dips, −0.0101).
+- **Lint arm: prediction held, lint adds nothing.** Raw and linted
+  are within ±0.01 at every weight (max gap 0.0039 at w4, raw
+  ahead). Retirement bar (raw > linted by 0.02) not hit; verdict is
+  the lint is a measured no-op on this bed — kept available as a
+  guard for corpora with higher hallucination rates, not adopted as
+  a default layer.
+
+Off-target observation (recorded, not adopted — the gate was
+maud-scoped): headers are broadly positive elsewhere. cuad pool
+R@48 0.8946 → 0.9623 (+0.0677) and chunk-lexical R@4 0.1844 →
+0.5512 at w4; overall lexical R@4 0.4058 → 0.5313. Any adoption on
+a portfolio-level gate would be a NEW registered round riding a
+grounded confirm, not a post-hoc rescope of this one.
+
+### Stage 18 R5b — generator-effort contingency on maud (registered
+2026-07-30 before any medium-effort header was generated)
+
+R5 landed between the falsifier and the adoption bar, so the
+registered contingency runs: is the header GENERATOR the lever?
+Regenerate maud passages only (4,687) with luna at its default
+medium effort, same prompt, same everything else. Combined sidecar =
+raw low-effort file with the maud rows appended after (
+`loadContextHeaders` is last-wins on duplicate keys), so only maud
+headers change; contractnli/cuad/privacy_qa rows are byte-identical.
+Sweep weights {1, 2, 4}, label `maud-medium`, receipts
+`stage18-passage-context-maud-medium.jsonl` +
+`stage18-context-arms-maud-medium.jsonl`.
+
+Frozen predictions: medium lifts maud pool R@48 by < +0.03 over
+low's best (0.4019) — identity vocabulary (deal, parties, target)
+is already captured at low effort, and clause-concept vocabulary
+lives in the chunk both tiers already see. Adopt only if maud pool
+R@48 ≥ 0.4119 (champion +0.05, the R5 bar) at some weight with
+contractnli within −0.06 (trivially satisfied — its headers are
+unchanged). Generator-effort lane retired if medium ≤ 0.4029 (low's
+best + 0.01) at every weight — then header quality is not the
+residual lever and the dense/proposition lanes are what remains for
+maud.
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under
@@ -2762,6 +2828,10 @@ committed.
 | `stage18-retrieval-arms.jsonl` (R1/R2 deterministic arms, all 776 tests) | `66689E7F6EB513348A167665C9D53BF02F807DDBDE61D409C52DDA88A0D23164` |
 | `stage18-lbrag-grounded.jsonl` (G confirm, 776 rows; survived a mid-run machine restart via two resume passes, c=6 then c=3) | `BF2ED3965651565A75BE407BE1463B800F9B9F7246A6FCB58C96B52993A9D6E9` |
 | `stage18-rerank-arms.jsonl` (R4 compute ablation, 960 cells, 0 errors) | `CC8837B79B962A17D385C3B5E16157F9B89B2C8DE00E3B967C77A03C759C0D9C` |
+| `stage18-passage-context.jsonl` (R5 raw headers, 5,979 good rows + 1,508 superseded 429 rows) | `07A11F18F47BA689C637D33DCBF0BA50E02B5AF4AAD4CC37C1ABB02BEC1EE350` |
+| `stage18-passage-context-linted.jsonl` (R5 lint arm, 5,864 kept / 115 dropped) | `946B6B79ABC0E1E7C0AEB467E420FC1163CBC10F204F9AFE12E3D177F5C865BE` |
+| `stage18-context-arms-raw.jsonl` (R5 weight sweep, raw sidecar) | `0EF5A805090D885539AFB85113C3C02064842D94267B48EFAD07AE75B819943C` |
+| `stage18-context-arms-linted.jsonl` (R5 weight sweep, linted sidecar) | `521095FE9058C3182717075626EA11CDB27E09DD1708A995E17330412773B33F` |
 
 ## Validation and final selection gate
 
