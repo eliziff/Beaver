@@ -12,8 +12,8 @@ The five rules that prevent the most damage:
 3. No per-token API spend. Flat-rate surfaces only (codex CLI route,
    headless `claude -p`); the `backend/.env` Anthropic key is a stub.
 4. Check local data before the network: A2AJ bulk corpus at
-   `%LOCALAPPDATA%\ALR Quote Verifier\a2aj_corpus`, gold under
-   `Desktop/legal-generalization-corpus`. US case law is local too:
+   `%LOCALAPPDATA%\ALR Quote Verifier\a2aj_corpus`, gold in-repo under
+   `benchmarks/legal-generalization-corpus/`. US case law is local too:
    CourtListener bulk sqlite (5.5 GB) under
    `%LOCALAPPDATA%\OpenLegalProducts\LegalData\providers\courtlistener\`
    via `courtlistenerLocalBulk.ts`.
