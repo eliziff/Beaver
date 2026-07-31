@@ -10,8 +10,9 @@
  *   npx tsx scripts/build-passage-index.ts --db path/to.sqlite --doc-type cases
  *
  * Flags: --db (default: MIKE_A2AJ_BULK_DB or the A2AJ provider db),
- * --target 1600, --overlap 120, --doc-type cases|laws (a doc-type build
- * is a SEPARATE sidecar — query with the same --doc-type).
+ * --target 1600, --overlap 120, --doc-type cases|laws, --mode
+ * chars|clause. --doc-type and --mode are part of the sidecar identity:
+ * each build is a SEPARATE sidecar — query with the same flags.
  */
 import { a2ajLocalBulkPath } from "../src/lib/a2ajLocalBulk";
 import {
@@ -31,18 +32,25 @@ if (docTypeFlag && docTypeFlag !== "cases" && docTypeFlag !== "laws") {
   process.exit(1);
 }
 
+const modeFlag = flag("mode");
+if (modeFlag && modeFlag !== "chars" && modeFlag !== "clause") {
+  console.error("--mode must be chars or clause");
+  process.exit(1);
+}
+
 const options = {
   sourceDb: flag("db") ?? a2ajLocalBulkPath(),
   target: Number(flag("target") ?? A2AJ_PASSAGE_TARGET),
   overlap: Number(flag("overlap") ?? A2AJ_PASSAGE_OVERLAP),
   docType: docTypeFlag as "cases" | "laws" | undefined,
+  mode: modeFlag as "chars" | "clause" | undefined,
 };
 
 console.log(`source   ${options.sourceDb}`);
 console.log(
-  `chunking target=${options.target} overlap=${options.overlap}${
-    options.docType ? ` doc_type=${options.docType}` : ""
-  }`,
+  `chunking target=${options.target} overlap=${options.overlap} mode=${
+    options.mode ?? "chars"
+  }${options.docType ? ` doc_type=${options.docType}` : ""}`,
 );
 const started = Date.now();
 const result = ensurePassageIndex(options);
