@@ -2162,6 +2162,35 @@ Falsified by: any P1 breach; answered-only precision < 0.077 (the
 thesis clause — coverage bought by sacrificing precision); error rate
 >20%.
 
+### Stage 15 confirm results (run 2026-07-30, 32 tests, sol@medium,
+passage t1600/o120/w16, k=4, 0 errors → `stage15-lbrag-passage.jsonl`)
+
+Outcomes: answered 21, declined 11, rejected 0, abstained 0.
+
+- **P1 held.** Unlocated quotes 0; answered ∩ gold-doc-miss 0; doc
+  recall 1.00 on every slice.
+- **P2 held decisively.** Answered 21/32 vs the pilot's 3/32 — 7×,
+  far above the ≥6 bar. privacy_qa flipped 8/8 abstained → 8/8
+  answered.
+- **P3 held — the thesis clause.** Answered-only grounded char
+  precision 0.4429 (57× the original 0.0077 baseline) across a 7×
+  coverage expansion. contractnli: answered P 0.81 / R 0.91. Honest
+  nuance: 2 cuad answered cells carry verbatim right-document quotes
+  with ZERO gold overlap (relevance misses, not fabrications — the
+  maud:002 pattern); they drag answered-only P and are the checker-
+  free residual this bed exposes.
+- **P4 held.** All 11 residual misses are typed declines; zero
+  abstentions, zero fabrication.
+
+Verdict: precision guarantees are structural — coverage rose 7× with
+no invariant breached. Retrieval remains the residual lever: pool
+recall at the winner config is 0.29 @k=4 but **0.52 @12 / 0.68 @24 /
+0.85 @48** — the gold IS in the lexical pool, ranked below the cut.
+Next lever (Eli authorized flat-rate model spend for retrieval):
+LLM reranking of a deep pool (k≈24–48 → top 4), which bounds recall@4
+at 0.68–0.85 without any embedding infrastructure; dense lane
+reconsidered only if reranking underdelivers.
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under
@@ -2195,6 +2224,7 @@ committed.
 | `stage13-ladder.jsonl` (luna@max, terra@max, sol@medium; sol@max no-op'd on the resume-key flaw) | `808AED56F24C5D36939A49F126A71AB64CD5D2CF85CBFD7D90E1F0A5F6C4D9C4` |
 | `stage13-solmax.jsonl` | `C2225BF9ADA4C6011F3F6111AF4BF8E4541D8BDB7BB8435D610703BB46111A05` |
 | `stage14-lbrag.jsonl` (pilot, pre-locator-fix scoring; maud:002 re-scored offline per the P1 audit) | `5720B4F97641655EE8C08F9D6EE9DED897E1492D9096AA684E5B46DD8AB7FD10` |
+| `stage15-lbrag-passage.jsonl` | `595C123915066647D739AB1A5388488C08A12909FE6DA5B33DC5524615C7DDB6` |
 
 ## Validation and final selection gate
 
