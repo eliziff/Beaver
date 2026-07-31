@@ -47,6 +47,59 @@ export const MANIFEST_PATH = path.join(
   "mini.manifest.json",
 );
 
+/**
+ * Source db built from the corpus (one document row per corpus file).
+ * `...-lf` is the NORMALIZED build (see `normalizeCorpusText`) and is the
+ * only coordinate space that matches upstream gold; the un-suffixed db is
+ * the historical raw build kept for re-reading stage 14–18 receipts.
+ * Separate paths, so the derived FTS sidecars (keyed by source-db path +
+ * chunk params, NOT by source content) can never be reused across the two
+ * coordinate spaces.
+ */
+export const LEGALBENCH_MINI_SOURCE_DB = path.join(
+  LEGALBENCH_RAG_DATA_DIR,
+  "db",
+  "a2aj-mini-lf.sqlite",
+);
+export const LEGALBENCH_MINI_SOURCE_DB_RAW = path.join(
+  LEGALBENCH_RAG_DATA_DIR,
+  "db",
+  "a2aj-mini.sqlite",
+);
+
+/**
+ * Corpus load normalization — apply at EVERY read of a corpus file, before
+ * any offsetting, chunking or indexing. Converts CRLF to LF and NOTHING
+ * else: a leading BOM is deliberately KEPT, because upstream gold counts
+ * it as one character (measured: 334/334 maud snippets slice to their
+ * answer with the BOM retained, 0/334 with it stripped).
+ *
+ * Why: the 17 maud corpus files ship CRLF (+BOM); every other file is LF.
+ * Upstream gold `span` offsets are LF coordinates throughout (decidable
+ * from the shipped `answer` string: 334/334 maud snippets slice to their
+ * answer under LF, 0/334 raw). Normalizing here makes every downstream
+ * coordinate — chunk spans, FTS index rows, retrieved/quoted spans —
+ * directly comparable to gold. The corpus files themselves are never
+ * rewritten; `mini.manifest.json` still pins their raw bytes.
+ *
+ * COORDINATE-SPACE WARNING for anyone re-scoring old receipts: every
+ * receipt produced before this fix (stages 14–18, i.e. every
+ * `stage14-`…`stage18-` JSONL and every passage sidecar built from
+ * `a2aj-mini.sqlite`) holds RAW-CRLF offsets. Mapping at score time is
+ * `raw_offset = lf_offset + (count of "\r\n" in the LF text before
+ * lf_offset)` — equivalently, subtract that count to go raw → LF. Only
+ * maud is affected; the other three sources are byte-identical either way.
+ * Receipts written after this fix carry `coords: "lf"`.
+ */
+export function normalizeCorpusText(text: string): string {
+  return text.replace(/\r\n/gu, "\n");
+}
+
+/** `normalizeCorpusText` over freshly read bytes (the file-read path). */
+export function normalizeCorpusBytes(bytes: Buffer): string {
+  return normalizeCorpusText(bytes.toString("utf8"));
+}
+
 export const SOURCE_BENCHMARKS = [
   "contractnli",
   "cuad",
@@ -212,8 +265,17 @@ const overlap = (a: Span, b: Span) =>
     : 0;
 
 /**
- * Character-level precision/recall of retrieved spans against disjoint gold
- * spans — exactly the upstream QAResult formulas.
+ * Character-level precision/recall of retrieved spans against gold spans —
+ * the upstream QAResult formulas, with the credited region UNION-MERGED
+ * (Stage 18 defect D2).
+ *
+ * Upstream sums every (retrieved × gold) pairwise overlap. That is only
+ * correct when the retrieved spans are mutually disjoint; ours are not
+ * (overlapping chunks, k=48 pools with perDocCap 24, stitched spans), so
+ * a character covered by two retrieved spans was credited twice and
+ * recall could exceed 1.0. Here the pairwise intersections are merged per
+ * document before summing, so every gold character is credited at most
+ * once. Both ratios are clipped at 1.0 as a belt-and-braces invariant.
  */
 export function charPrecisionRecall(
   retrieved: Span[],
@@ -221,13 +283,46 @@ export function charPrecisionRecall(
 ): { precision: number; recall: number } {
   const retrievedLen = retrieved.reduce((n, s) => n + (s.end - s.start), 0);
   const goldLen = gold.reduce((n, s) => n + (s.end - s.start), 0);
-  let common = 0;
+  const credited: Span[] = [];
   for (const span of retrieved)
-    for (const gt of gold) common += overlap(span, gt);
+    for (const gt of gold) {
+      if (overlap(span, gt) <= 0) continue;
+      credited.push({
+        filePath: span.filePath,
+        start: Math.max(span.start, gt.start),
+        end: Math.min(span.end, gt.end),
+      });
+    }
+  const common = unionLength(credited);
   return {
-    precision: retrievedLen === 0 ? 0 : common / retrievedLen,
-    recall: goldLen === 0 ? 0 : common / goldLen,
+    precision: retrievedLen === 0 ? 0 : Math.min(1, common / retrievedLen),
+    recall: goldLen === 0 ? 0 : Math.min(1, common / goldLen),
   };
+}
+
+/** Total length covered by `spans`, counting each character once. */
+export function unionLength(spans: Span[]): number {
+  const byPath = new Map<string, Span[]>();
+  for (const span of spans) {
+    const bucket = byPath.get(span.filePath);
+    if (bucket) bucket.push(span);
+    else byPath.set(span.filePath, [span]);
+  }
+  let total = 0;
+  for (const bucket of byPath.values()) {
+    bucket.sort((left, right) => left.start - right.start);
+    let start = bucket[0].start;
+    let end = bucket[0].end;
+    for (const span of bucket.slice(1)) {
+      if (span.start > end) {
+        total += end - start;
+        start = span.start;
+        end = span.end;
+      } else if (span.end > end) end = span.end;
+    }
+    total += end - start;
+  }
+  return total;
 }
 
 // ---------------------------------------------------------------------------
