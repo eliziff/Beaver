@@ -15,11 +15,11 @@ import {
   DEFAULT_INTEGRITY_GATE,
 } from "../src/lib/legalCrossReference";
 
-const ROOT = join(
-  process.cwd(),
-  "../benchmarks/legalbench_rag/data/mini/corpus",
-);
-const SOURCES = ["contractnli", "cuad", "maud", "privacy_qa"] as const;
+const SPLIT = process.env.XREF_SPLIT ?? "mini";
+const ROOT =
+  process.env.XREF_CORPUS ??
+  join(process.cwd(), `../benchmarks/legalbench_rag/data/${SPLIT}/corpus`);
+const SOURCES = readdirSync(ROOT).sort();
 
 interface Row {
   source: string;
