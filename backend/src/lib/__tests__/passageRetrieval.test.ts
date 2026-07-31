@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -9,6 +9,7 @@ import {
   chunkText,
   clauseChunkText,
   ensurePassageIndex,
+  isSqliteLockError,
   passageIndexPath,
   passageQueryPhrases,
   passageQueryTokens,
@@ -166,6 +167,121 @@ describe("clauseChunkText", () => {
     expect(clause.built).toBe(true);
     expect(ensurePassageIndex({ sourceDb, target: 300, mode: "clause" }).built)
       .toBe(false);
+  });
+});
+
+describe("ensurePassageIndex under lock contention", () => {
+  const sourceDb = path.join(dir, "lock-source.sqlite");
+  const indexDb = path.join(dir, "lock-index.sqlite");
+  const options = { sourceDb, indexDb, target: 400, overlap: 50 };
+
+  const build = () => {
+    if (!existsSync(sourceDb)) {
+      const db = new DatabaseSync(sourceDb);
+      db.exec(
+        "CREATE TABLE document (id INTEGER PRIMARY KEY, doc_type TEXT, citation_en TEXT, citation_fr TEXT, name_en TEXT, name_fr TEXT, unofficial_text_en TEXT, unofficial_text_fr TEXT)",
+      );
+      db.prepare(
+        "INSERT INTO document (doc_type, citation_en, name_en, unofficial_text_en) VALUES ('laws', 'lock.txt', 'Lock', ?)",
+      ).run(
+        "1. Definitions. Confidential Information means any disclosed data. " +
+          "2. Term. This Agreement remains in force for five years.",
+      );
+      db.close();
+    }
+    return ensurePassageIndex(options);
+  };
+
+  it("classifies real busy errors as locks and real corruption as not", () => {
+    const first = build();
+    expect(first.passages).toBeGreaterThan(0);
+    const holder = new DatabaseSync(indexDb);
+    holder.exec("PRAGMA locking_mode = EXCLUSIVE");
+    holder.exec("BEGIN IMMEDIATE");
+    holder.exec("CREATE TABLE IF NOT EXISTS lock_probe (x INTEGER)");
+    let busy: unknown;
+    const reader = new DatabaseSync(indexDb, { readOnly: true });
+    try {
+      reader.prepare("SELECT value FROM meta WHERE key = 'params'").get();
+    } catch (error) {
+      busy = error;
+    } finally {
+      reader.close();
+    }
+    expect((busy as { errcode?: number }).errcode).toBe(5);
+    expect(isSqliteLockError(busy)).toBe(true);
+    // A schema that is merely foreign (no `meta` table) is corruption,
+    // not contention — that is the case that MAY rebuild.
+    let foreign: unknown;
+    try {
+      holder.prepare("SELECT value FROM absent_table").get();
+    } catch (error) {
+      foreign = error;
+    }
+    expect(foreign).toBeDefined();
+    expect(isSqliteLockError(foreign)).toBe(false);
+    holder.exec("ROLLBACK");
+    holder.close();
+  });
+
+  it("rethrows a transient lock instead of dropping and reindexing", () => {
+    const first = build();
+    const holder = new DatabaseSync(indexDb);
+    holder.exec("PRAGMA locking_mode = EXCLUSIVE");
+    holder.exec("BEGIN IMMEDIATE");
+    holder.exec("CREATE TABLE IF NOT EXISTS lock_probe (x INTEGER)");
+    // The source db is pointed at a path that does not exist, so the two
+    // behaviours are distinguishable by the error alone: rethrowing the
+    // meta-read failure says "database is locked" (errcode 5), while
+    // falling through to the rebuild opens the source FIRST and would say
+    // "unable to open database file". Under contention both paths throw,
+    // so the message is the only witness of which decision was taken.
+    let thrown: unknown;
+    try {
+      ensurePassageIndex({ ...options, sourceDb: path.join(dir, "gone.sqlite") });
+    } catch (error) {
+      thrown = error;
+    }
+    expect((thrown as { errcode?: number }).errcode).toBe(5);
+    expect(String(thrown)).toMatch(/database is locked/iu);
+    holder.exec("ROLLBACK");
+    holder.close();
+    // The sidecar survived: same params, same rows, no rebuild.
+    const after = ensurePassageIndex(options);
+    expect(after.built).toBe(false);
+    expect(after.passages).toBe(first.passages);
+    expect(after.documents).toBe(first.documents);
+  });
+
+  it("still rebuilds a foreign sidecar", () => {
+    const first = build();
+    // A readable sqlite file that is not one of our indexes: the meta
+    // probe fails for a reason that is NOT contention, so the rebuild is
+    // the right answer and must still happen.
+    rmSync(indexDb, { force: true });
+    const foreign = new DatabaseSync(indexDb);
+    foreign.exec("CREATE TABLE something_else (x INTEGER)");
+    foreign.close();
+    const rebuilt = ensurePassageIndex(options);
+    expect(rebuilt.built).toBe(true);
+    expect(rebuilt.passages).toBe(first.passages);
+  });
+});
+
+describe("isSqliteLockError", () => {
+  it("accepts extended BUSY/LOCKED codes and rejects other failures", () => {
+    // Extended result codes share the primary code in their low byte.
+    for (const errcode of [5, 6, 261, 517, 773])
+      expect(isSqliteLockError({ errcode })).toBe(true);
+    // SQLITE_CORRUPT(11), SQLITE_NOTADB(26), SQLITE_CANTOPEN(14), SQLITE_ERROR(1)
+    for (const errcode of [1, 11, 14, 26])
+      expect(isSqliteLockError({ errcode })).toBe(false);
+    // Message fallback for an error that lost the numeric field.
+    expect(isSqliteLockError(new Error("database is locked"))).toBe(true);
+    expect(isSqliteLockError(new Error("database table is locked"))).toBe(true);
+    expect(isSqliteLockError(new Error("file is not a database"))).toBe(false);
+    expect(isSqliteLockError(null)).toBe(false);
+    expect(isSqliteLockError("database is locked")).toBe(false);
   });
 });
 

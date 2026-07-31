@@ -303,6 +303,39 @@ export function passageIndexPath(options: PassageIndexOptions) {
 }
 
 /**
+ * True for a TRANSIENT sqlite contention failure — another connection
+ * held the lock — as opposed to a damaged or foreign database file.
+ *
+ * node:sqlite raises `Error { code: "ERR_SQLITE_ERROR", errcode, errstr }`;
+ * `errcode` is the extended result code, whose low byte is the primary
+ * code (SQLITE_BUSY = 5, so 261 = SQLITE_BUSY_RECOVERY and 517 =
+ * SQLITE_BUSY_SNAPSHOT all classify here; SQLITE_LOCKED = 6 is the
+ * same-process form and is equally transient). Message matching is the
+ * fallback for wrapped errors that lost the numeric field.
+ *
+ * The distinction is load-bearing: `ensurePassageIndex` treats an
+ * unreadable sidecar as corruption and reindexes from scratch, so
+ * misreading a one-off "database is locked" as corruption destroys and
+ * rebuilds a perfectly healthy index (observed twice on 2026-07-31; on
+ * the 5.5 GB product corpus that is hours of work thrown away).
+ */
+export function isSqliteLockError(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  const { errcode, message } = error as {
+    errcode?: unknown;
+    message?: unknown;
+  };
+  if (typeof errcode === "number") {
+    const primary = errcode & 0xff;
+    return primary === 5 || primary === 6;
+  }
+  return (
+    typeof message === "string" &&
+    /\bdatabase (?:table )?is locked\b/iu.test(message)
+  );
+}
+
+/**
  * Build (or reuse) the derived passage index. Reads the source db
  * read-only; writes only the sidecar. Idempotent per parameter set.
  */
@@ -326,8 +359,13 @@ export function ensurePassageIndex(options: PassageIndexOptions): {
         .get() as { passages: number; documents: number };
       if (meta?.value === paramsKey(options))
         return { indexDb, built: false, ...counts };
-    } catch {
-      // Corrupt or foreign sidecar: rebuild below.
+    } catch (error) {
+      // A concurrent reader/writer makes this probe fail TRANSIENTLY
+      // (SQLITE_BUSY). That is not corruption, and falling through would
+      // DROP the tables and reindex a healthy sidecar — so rethrow and let
+      // the caller retry. Only a genuinely unreadable (corrupt or foreign)
+      // sidecar reaches the rebuild below.
+      if (isSqliteLockError(error)) throw error;
     } finally {
       existing.close();
     }
