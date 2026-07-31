@@ -232,6 +232,11 @@ export async function searchLocalA2AJPassages(args: {
   /** Widen the returned candidate pool to this many hits for a
    * downstream `rerankPassages` call, which cuts back to `size`. */
   rerankHits?: number;
+  /** Max hits credited to any one document — the diversity policy. Low
+   * spreads results across documents (corpus-wide search); high keeps the
+   * best passages wherever they fall (document-scoped grounding). Defaults
+   * to 2, or 24 when reranking. */
+  perDocCap?: number;
   /** Listwise LLM rerank over a widened pool, cut back to `size`.
    * Defaults to MIKE_RETRIEVAL_RERANK_MODEL when set. Rerank failures
    * degrade to lexical order inside `rerankPassages`. */
@@ -251,6 +256,26 @@ export async function searchLocalA2AJPassages(args: {
   const wanted = rerankModel
     ? Math.max(48, size * 8)
     : Math.max(size, Math.min(50, Math.trunc(args.rerankHits ?? size)));
+  // Max hits per document. Spelled out here because it used to be
+  // `rerankModel ? 24 : undefined`, which meant you could not change
+  // reranking without also changing document diversity — a confound sitting
+  // under every rerank measurement this codebase has taken.
+  //
+  // UNVERIFIED DEFAULT, stated honestly: 24 (reranked) is deliberate — the
+  // reranker judges diversity, so bm25 should not. The un-reranked 2 is NOT
+  // a considered search policy; it is `searchPassages`' own `?? 2`, which
+  // entered in 3997cf12 with the *benchmark ablation harness* and carries no
+  // rationale, unlike every other default in that function. Preserved here
+  // only so this refactor changes no behaviour.
+  //
+  // It is very likely wrong for corpus-wide search, and it is NOT safe to
+  // copy the benchmark's answer: on LegalBench-RAG uncapping takes maud
+  // lexical recall 0.0210 -> 0.1672 at k=6, but only because every query
+  // there names its one gold document, so gold is concentrated by
+  // construction. Corpus-wide search over 225k documents plausibly wants the
+  // opposite. Owed: a real measurement on a text-bearing product corpus (the
+  // local A2AJ store is metadata_only, so this cannot be measured today).
+  const perDocCap = args.perDocCap ?? (rerankModel ? 24 : 2);
   const indexOptions = {
     sourceDb,
     target: A2AJ_PASSAGE_TARGET,
@@ -272,7 +297,7 @@ export async function searchLocalA2AJPassages(args: {
     language,
     k: wanted,
     nameWeight: args.nameWeight,
-    perDocCap: rerankModel ? 24 : undefined,
+    perDocCap: perDocCap,
   });
   const pool =
     withReadonlySqlite(sourceDb, (source) => {
