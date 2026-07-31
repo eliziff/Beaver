@@ -1581,7 +1581,14 @@ async function verificationPass(args: {
   });
 }
 
-async function holisticVerificationPass(args: {
+/**
+ * One whole-answer checker call. Exported so the checker-family crossing
+ * can re-judge BANKED compositions with a different family over the exact
+ * same system prompt, tool and payload the original run used — a re-check
+ * that diverged from this function would measure the re-check harness, not
+ * the checker family.
+ */
+export async function holisticVerificationPass(args: {
   state: LegalEvidenceTurnState;
   model: string;
   /** Run the checker on a different model than the composer (crossed). */
