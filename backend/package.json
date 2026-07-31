@@ -39,7 +39,6 @@
     "mammoth": "^1.9.0",
     "multer": "^2.2.0",
     "nspell": "^2.1.5",
-    "pdfjs-dist": "^4.10.38",
     "undici": "6.28.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^3.25.76"

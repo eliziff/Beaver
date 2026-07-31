@@ -9,7 +9,6 @@ vi.mock("../lib/localMode", () => ({ isAnonymousLocalMode: () => true }));
 vi.mock("../lib/localPdfIngestion", () => ({
   queueLocalPdfParse: vi.fn(async () => ({
     status: "queued",
-    flat_text_fallback_available: true,
   })),
   removeLocalPdfParseArtifacts: vi.fn(async () => undefined),
 }));

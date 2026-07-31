@@ -9,6 +9,9 @@ afterEach(async () => {
   delete process.env.MIKE_LOCAL_DATA_DIR;
   vi.doUnmock("../tableOfAuthorities");
   vi.doUnmock("../convert");
+  vi.doUnmock("../localDocumentStore");
+  vi.doUnmock("../localPdfLookup");
+  vi.doUnmock("node:fs/promises");
   vi.unstubAllGlobals();
   vi.resetModules();
   if (temporaryDirectory) {
@@ -18,6 +21,59 @@ afterEach(async () => {
 });
 
 describe("local assistant tools", () => {
+  it("uses verified PDF artifacts without loading the source into memory", async () => {
+    const sourcePath = path.join(os.tmpdir(), "verified-source.pdf");
+    const sourceReads = vi.fn();
+    vi.doMock("node:fs/promises", async (importOriginal) => {
+      const actual = await importOriginal<typeof import("node:fs/promises")>();
+      return {
+        ...actual,
+        readFile: async (filePath: unknown, ...args: unknown[]) => {
+          if (filePath === sourcePath) {
+            sourceReads();
+            return Buffer.from("%PDF-1.4");
+          }
+          return (
+            actual.readFile as (
+              filePath: unknown,
+              ...args: unknown[]
+            ) => Promise<unknown>
+          )(filePath, ...args);
+        },
+      };
+    });
+    vi.doMock("../localDocumentStore", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("../localDocumentStore")>()),
+      getLocalVersionFile: vi.fn(async () => ({
+        path: sourcePath,
+        fileType: "pdf",
+        document: { filename: "verified-source.pdf" },
+        version: {
+          id: "version-1",
+          created_at: "2026-07-30T00:00:00.000Z",
+        },
+      })),
+    }));
+    vi.doMock("../localPdfLookup", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("../localPdfLookup")>()),
+      readLocalPdfSourceDoc: vi.fn(async () => ({
+        text: "Text from the verified PDF artifact.",
+      })),
+    }));
+
+    const { extractLocalDocument } =
+      await import("../chat/localAssistantTools");
+
+    await expect(
+      extractLocalDocument("local-user", "document-1"),
+    ).resolves.toEqual({
+      filename: "verified-source.pdf",
+      text: "Text from the verified PDF artifact.",
+      cautions: [],
+    });
+    expect(sourceReads).not.toHaveBeenCalled();
+  });
+
   it("offers bounded deterministic DOCX actions", async () => {
     const { LOCAL_ASSISTANT_TOOLS } =
       await import("../chat/localAssistantTools");

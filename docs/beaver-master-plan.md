@@ -331,10 +331,12 @@ Work:
 
 - On PDF import, store the source first, then create a durable background parse
   job with `queued`, `parsing`, `ready`, `degraded`, or `failed` state.
-- Save versioned page, paragraph, section, footnote, proposition, diagnostics,
-  parser configuration, and repair artifacts beside the immutable source.
-- Reuse cached artifacts by source hash + parser/prompt/model/config version.
-- Keep flat-text access available if structural parsing fails.
+- Save a compact versioned page, paragraph, section, footnote/proposition,
+  diagnostics, parser configuration, and repair source beside the immutable
+  PDF. Do not persist geometry-rich parser working state.
+- Reuse that structural source by source hash +
+  parser/prompt/model/config version.
+- Keep the immutable PDF available if structural parsing fails.
 - Expose parse state, diagnostics, and a manual retry/escalation control in the
   Library.
 - Feed attachments from TNA/GOV.UK ET/GovInfo and other providers through the

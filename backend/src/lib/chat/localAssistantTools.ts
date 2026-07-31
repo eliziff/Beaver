@@ -35,6 +35,7 @@ import {
   LOCAL_PDF_LOCATOR_KINDS,
   lookupLocalPdfStructure,
   readLocalPdfEvidenceReceipt,
+  readLocalPdfSourceDoc,
   rehydrateLocalPdfEvidence,
   type LocalPdfLinkEvidence,
   type LocalPdfLocatorKind,
@@ -1390,23 +1391,39 @@ export async function extractLocalDocument(userId: string, documentId: string) {
     return { filename: file.document.filename, ...cached };
   }
 
-  const bytes = await readFile(file.path);
   const fileType = file.fileType.toLowerCase();
   const parser = textParserFor(fileType);
-  const text = parser
-    ? await cachedParse({
-        scope: `user:${userId}`,
-        parser: parser.parser,
-        version: parser.version,
-        bytes,
-        parse: () => parser.run(bytes),
-      })
-    : "";
+  const parsed =
+    fileType === "pdf"
+      ? await readLocalPdfSourceDoc(file.path).catch(() => null)
+      : null;
+  let bytes: Buffer | undefined;
+  const sourceBytes = async () => (bytes ??= await readFile(file.path));
+  const text: string =
+    parsed?.text ??
+    (parser
+      ? await sourceBytes().then((value) =>
+          cachedParse({
+            scope: `user:${userId}`,
+            parser: parser.parser,
+            version: parser.version,
+            bytes: value,
+            parse: () => parser.run(value),
+          }),
+        )
+      : "");
   // Additive metadata only: the sniffer's cautions ride alongside the text,
   // which stays byte-identical to what this function has always returned.
-  const cautions = docxCautionNotes(
-    await docxPathologyReportFor({ fileType, scope: `user:${userId}`, bytes }),
-  );
+  const cautions =
+    fileType === "docx"
+      ? docxCautionNotes(
+          await docxPathologyReportFor({
+            fileType,
+            scope: `user:${userId}`,
+            bytes: await sourceBytes(),
+          }),
+        )
+      : [];
 
   if (textCache.size >= 16) {
     textCache.delete(textCache.keys().next().value!);

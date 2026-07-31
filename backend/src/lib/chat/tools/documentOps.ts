@@ -12,7 +12,6 @@ import {
   type DocStore,
   type DocIndex,
   type EditAnnotation,
-  STANDARD_FONT_DATA_URL,
   devLog,
 } from "../types";
 import {
@@ -38,6 +37,7 @@ import {
   normalizeDocxControlTag,
   renderDocxMarkdown,
 } from "./docxMarkdown";
+import { extractLegalPdfText } from "../../legalPdfSourceDoc";
 
 export function citationReminder(docLabel: string, filename: string): string {
   const isSpreadsheet = isSpreadsheetDocumentType(
@@ -57,35 +57,7 @@ export function citationReminder(docLabel: string, filename: string): string {
 
 export async function extractPdfText(buf: ArrayBuffer): Promise<string> {
   try {
-    const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs" as string);
-    const pdf = await (
-      pdfjsLib as unknown as {
-        getDocument: (opts: unknown) => {
-          promise: Promise<{
-            numPages: number;
-            getPage: (n: number) => Promise<{
-              getTextContent: () => Promise<{
-                items: { str?: string }[];
-              }>;
-            }>;
-          }>;
-        };
-      }
-    ).getDocument({
-      // Untrusted uploads: never let pdf.js compile font programs via eval.
-      data: new Uint8Array(buf),
-      standardFontDataUrl: STANDARD_FONT_DATA_URL,
-      isEvalSupported: false,
-    }).promise;
-    const parts: string[] = [];
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      parts.push(
-        `[Page ${i}]\n${textContent.items.map((it) => it.str ?? "").join(" ")}`,
-      );
-    }
-    return parts.join("\n\n");
+    return await extractLegalPdfText(Buffer.from(buf));
   } catch {
     return "";
   }
@@ -108,8 +80,8 @@ export function textParserFor(fileType: string): {
 } | null {
   if (fileType === "pdf")
     return {
-      parser: "pdfjs-text",
-      version: 1,
+      parser: "legalpdf-text",
+      version: 2,
       run: (b) => extractPdfText(toArrayBuffer(b)),
     };
   if (fileType === "docx")
@@ -145,7 +117,7 @@ export function textParserFor(fileType: string): {
   if (isPresentationDocumentType(fileType) || isWordDocumentType(fileType))
     return {
       parser: "office-pdf-text",
-      version: 1,
+      version: 2,
       // Legacy Office formats go through a PDF detour for text extraction.
       run: async (b) => extractPdfText(toArrayBuffer(await docxToPdf(b))),
     };

@@ -515,7 +515,7 @@ describe("A2AJ compiler spine", () => {
       "(g) Seventh paragraph.",
     ].join("\n");
     const doc = compile({
-      text: "unstructured fallback",
+      text,
       docType: "laws",
       sectionMap: { "34": text },
     });
@@ -563,7 +563,7 @@ describe("A2AJ compiler spine", () => {
     const assembled = [...ordered, ...providerTail];
     const text = assembled.map(([, value]) => value).join("\n");
     const doc = compile({
-      text: "Stale flat rendition.",
+      text: "",
       docType: "laws",
       sectionMap,
     });
@@ -590,10 +590,93 @@ describe("A2AJ compiler spine", () => {
     });
   });
 
+  it("preserves whole text while native map entries replace matching sections", () => {
+    const text = [
+      "1 First full-text provision.",
+      "2 Second full-text provision.",
+      "3 Third full-text provision.",
+    ].join("\n");
+    const doc = compile({
+      text,
+      docType: "laws",
+      sectionMap: { "2": "Second full-text provision." },
+    });
+
+    expect(doc.text).toBe(text);
+    expect(
+      doc.blocks
+        .filter((block) => block.kind === "section" && !block.parentLabel)
+        .map(({ label, origin }) => ({ label, origin })),
+    ).toEqual([
+      { label: "sec1", origin: "heuristic" },
+      { label: "sec2", origin: "native" },
+      { label: "sec3", origin: "heuristic" },
+    ]);
+    expect(lookupSourceDoc(doc, "section", "2").block?.text).toBe(
+      "2 Second full-text provision.",
+    );
+  });
+
+  it("fails closed on ambiguous content and locator conflicts", () => {
+    const repeatedText = [
+      "1 Repeated provision.",
+      "2 Repeated provision.",
+      "3 Distinct provision.",
+    ].join("\n");
+    const repeated = compile({
+      text: repeatedText,
+      docType: "laws",
+      sectionMap: { "1": "Repeated provision." },
+    });
+    expect(
+      lookupSourceDoc(repeated, "section", "1").block?.origin,
+    ).toBe("heuristic");
+
+    const conflictingText = [
+      "1 First unique provision.",
+      "2 Second unique provision.",
+      "3 Third unique provision.",
+    ].join("\n");
+    const conflicting = compile({
+      text: conflictingText,
+      docType: "laws",
+      sectionMap: { "1": "Second unique provision." },
+    });
+    expect(
+      lookupSourceDoc(conflicting, "section", "1").block?.origin,
+    ).toBe("heuristic");
+  });
+
+  it("adds an exact provider section missed by reconstruction", () => {
+    const text = [
+      "1 First reconstructed provision.",
+      "Second provider-only provision.",
+      "3 Third reconstructed provision.",
+      "4 Fourth reconstructed provision.",
+    ].join("\n");
+    const doc = compile({
+      text,
+      docType: "laws",
+      sectionMap: { "2": "Second provider-only provision." },
+    });
+
+    expect(doc.text).toBe(text);
+    expect(lookupSourceDoc(doc, "section", "1").status).toBe("found");
+    expect(lookupSourceDoc(doc, "section", "2")).toMatchObject({
+      status: "found",
+      block: {
+        label: "sec2",
+        origin: "native",
+        text: "Second provider-only provision.",
+      },
+    });
+    expect(lookupSourceDoc(doc, "section", "3").status).toBe("found");
+  });
+
   it("preserves one provider section rendition byte-for-byte", () => {
     const text = "\n  Provider spacing is evidence, not decoration.  \n";
     const doc = compile({
-      text: "Different whole-document rendition.",
+      text: "",
       docType: "laws",
       sectionMap: { "8": "[blank]", "9": text },
     });
@@ -620,7 +703,7 @@ describe("A2AJ compiler spine", () => {
 
   it("places provider preambles and suffixed sections without sorting named tails", () => {
     const doc = compile({
-      text: "Stale flat rendition.",
+      text: "",
       docType: "laws",
       sectionMap: {
         Preamble: "Whereas the Legislature recognizes these principles.",
@@ -675,7 +758,7 @@ describe("A2AJ compiler spine", () => {
       ordered.map((label) => [label, `Provision ${label}.`]),
     );
     const doc = compile({
-      text: "Different whole-document rendition.",
+      text: "",
       docType: "laws",
       sectionMap,
     });
@@ -690,7 +773,7 @@ describe("A2AJ compiler spine", () => {
   it("preserves provider order when dotted dialect evidence is tied", () => {
     const ordered = ["17.26", "17.261", "17.27", "17.262"];
     const doc = compile({
-      text: "Different whole-document rendition.",
+      text: "",
       docType: "laws",
       sectionMap: Object.fromEntries(
         ordered.map((label) => [label, `Provision ${label}.`]),
@@ -715,7 +798,7 @@ describe("A2AJ compiler spine", () => {
       "(v) Item.",
     ].join("\n");
     const doc = compile({
-      text: "unstructured fallback",
+      text,
       docType: "laws",
       sectionMap: { "34": text },
     });
@@ -735,10 +818,11 @@ describe("A2AJ compiler spine", () => {
   it.each(["ii", "iv", "IV"])(
     "handles direct multi-character Roman child %s",
     (token) => {
+      const text = `1 Parent\n(${token}) Direct item.`;
       const doc = compile({
-        text: "unstructured fallback",
+        text,
         docType: "laws",
-        sectionMap: { "1": `1 Parent\n(${token}) Direct item.` },
+        sectionMap: { "1": text },
       });
       expect(labels(doc)).toContain(
         `sec1(${token})`,

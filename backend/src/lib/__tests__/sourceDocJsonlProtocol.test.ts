@@ -85,15 +85,20 @@ describe("SourceDoc JSONL protocol", () => {
     expect(malformed.error).toEqual(expect.any(String));
   });
 
-  it("returns provider-map rendition slices without exporting offsets to Python", async () => {
+  it("preserves whole text and exports aligned native section overlays", async () => {
+    const text = [
+      "1 First provider-backed section.",
+      "2 Second provider-backed section.",
+      "3 Reconstructed section.",
+    ].join("\n");
     const request = {
       id: "mapped-law",
       docType: "laws" as const,
       citation: "Test Act",
-      text: "This whole-text rendition is not the provider section map.",
+      text,
       sectionMap: {
-        "1": "😀 First provider section.",
-        "2": "Second provider section.",
+        "1": "First provider-backed section.",
+        "2": "Second provider-backed section.",
       },
     };
     const [result] = await bridge([request]);
@@ -116,14 +121,21 @@ describe("SourceDoc JSONL protocol", () => {
         label: "sec1",
         aliases: [],
         origin: "native",
-        text: "😀 First provider section.",
+        text: "1 First provider-backed section.\n",
       },
       {
         kind: "section",
         label: "sec2",
         aliases: [],
         origin: "native",
-        text: "Second provider section.",
+        text: "2 Second provider-backed section.\n",
+      },
+      {
+        kind: "section",
+        label: "sec3",
+        aliases: [],
+        origin: "heuristic",
+        text: "3 Reconstructed section.",
       },
     ]);
   });

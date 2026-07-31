@@ -92,7 +92,6 @@ beforeEach(() => {
   mocks.queueLocalPdfParse.mockReset();
   mocks.queueLocalPdfParse.mockResolvedValue({
     status: "queued",
-    flat_text_fallback_available: true,
   });
   mocks.readLocalPdfParseState.mockReset();
   mocks.readLocalPdfParseState.mockResolvedValue({ status: "queued" });
@@ -1135,7 +1134,6 @@ describe("provider PDF Library bridge", () => {
     await setup();
     mocks.queueLocalPdfParse.mockResolvedValue({
       status: "ready",
-      flat_text_fallback_available: true,
     });
     const found = {
       status: "found",
@@ -1209,7 +1207,6 @@ describe("provider PDF Library bridge", () => {
     mocks.queueLocalPdfParse.mockResolvedValue({
       status: "queued",
       interrupted_at: "2026-07-27T00:00:00.000Z",
-      flat_text_fallback_available: true,
     });
 
     vi.resetModules();

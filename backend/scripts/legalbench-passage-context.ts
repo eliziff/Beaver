@@ -89,15 +89,20 @@ async function main() {
   const done = new Set<string>();
   if (resume && existsSync(output)) {
     for (const line of readFileSync(output, "utf8").split("\n").filter(Boolean)) {
-      const row = JSON.parse(line) as {
-        doc_id: number;
-        language: string;
-        start: number;
-        end: number;
-        error?: string;
-      };
-      if (!row.error)
-        done.add(`${row.doc_id}|${row.language}|${row.start}|${row.end}`);
+      try {
+        const row = JSON.parse(line) as {
+          doc_id: number;
+          language: string;
+          start: number;
+          end: number;
+          error?: string;
+        };
+        if (!row.error)
+          done.add(`${row.doc_id}|${row.language}|${row.start}|${row.end}`);
+      } catch {
+        // A kill mid-append can tear the final line; the passage
+        // simply re-runs.
+      }
     }
   } else {
     writeFileSync(output, "", "utf8");
@@ -144,7 +149,7 @@ async function main() {
           } catch (error) {
             const message =
               error instanceof Error ? error.message : String(error);
-            if (!message.includes("429") || attempt >= 5) throw error;
+            if (!message.includes("429") || attempt >= 7) throw error;
             await new Promise((resolve) =>
               setTimeout(
                 resolve,

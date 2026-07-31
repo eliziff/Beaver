@@ -3,10 +3,12 @@ import {
   copyFileSync,
   existsSync,
   mkdtempSync,
+  mkdirSync,
   readFileSync,
   rmSync,
   statSync,
   utimesSync,
+  writeFileSync,
 } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -31,6 +33,7 @@ import { buildLegalSourcePinpointUrl } from "../legalSourceLinks";
 let directory = "";
 let previousDatabase: string | undefined;
 let previousSearchDatabase: string | undefined;
+let previousFinalContractDatabase: string | undefined;
 
 function fixtureDatabase() {
   directory = mkdtempSync(path.join(os.tmpdir(), "beaver-journals-"));
@@ -146,11 +149,121 @@ function fixtureSearchDatabase(source: string) {
   return filename;
 }
 
+function fixtureFinalContractDatabase(options?: {
+  annotations?: boolean;
+  sourceDir?: string;
+}) {
+  const registry = path.join(directory, "registry");
+  const packageDirectory = path.join(
+    directory,
+    "data",
+    "final-contracts",
+    "7",
+  );
+  mkdirSync(registry, { recursive: true });
+  mkdirSync(packageDirectory, { recursive: true });
+  const region = (
+    id: string,
+    type: string,
+    order: number,
+    text: string,
+    lineOrder: number,
+  ) => ({
+    id,
+    type,
+    order,
+    text,
+    lines: [{ codex_text_order: lineOrder, text }],
+  });
+  const pageOneRegions = [
+    region("title-1", "paragraph_title", 1, "I. Native Introduction", 1),
+    region(
+      "text-1",
+      "text",
+      2,
+      "Canonical opening paragraph with a reference.",
+      2,
+    ),
+    region("note-1", "footnote", 3, "1\t\nNative paired footnote.", 3),
+  ];
+  const pageTwoRegions = [
+    region("title-2", "paragraph_title", 1, "II. Native Analysis", 1),
+    region("text-2", "text", 2, "Canonical analysis paragraph.", 2),
+  ];
+  const pages = [
+    {
+      article_id: "7",
+      pdf_page: 1,
+      text: pageOneRegions.map(({ text }) => text).join("\n"),
+      regions: pageOneRegions,
+      annotations:
+        options?.annotations === false
+          ? []
+          : [
+              {
+                taxonomy_name: "fn_ref",
+                pair_status: "paired",
+                pair_id: "pair-1",
+                start_line_order: 2,
+                selected_text: "1",
+                note_id: "1",
+              },
+              {
+                taxonomy_name: "fn_label",
+                pair_status: "paired",
+                pair_id: "pair-1",
+                start_line_order: 3,
+                selected_text: "1",
+                note_id: "1",
+              },
+            ],
+    },
+    {
+      article_id: "7",
+      pdf_page: 2,
+      text: pageTwoRegions.map(({ text }) => text).join("\n"),
+      regions: pageTwoRegions,
+      annotations: [],
+    },
+  ];
+  writeFileSync(
+    path.join(packageDirectory, "pages.jsonl"),
+    `${pages.map((page) => JSON.stringify(page)).join("\n")}\n`,
+  );
+
+  const filename = path.join(registry, "journals.db");
+  const database = new DatabaseSync(filename);
+  database.exec(`
+    CREATE TABLE article_final_contracts (
+      article_id INTEGER PRIMARY KEY,
+      source_dir TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      updated_at_utc TEXT NOT NULL
+    )
+  `);
+  database
+    .prepare("INSERT INTO article_final_contracts VALUES (?, ?, ?, ?)")
+    .run(
+      7,
+      options?.sourceDir ?? "data\\final-contracts\\7",
+      "{}",
+      "2026-07-30T00:00:00Z",
+    );
+  database.close();
+  return {
+    filename,
+    text: pages.map(({ text }) => text).join("\n"),
+  };
+}
+
 beforeEach(() => {
   previousDatabase = process.env.MIKE_PUBLIC_ENDPOINT_DB;
   previousSearchDatabase = process.env.MIKE_PUBLIC_ENDPOINT_FTS_DB;
+  previousFinalContractDatabase =
+    process.env.MIKE_JOURNAL_FINAL_CONTRACT_DB;
   process.env.MIKE_PUBLIC_ENDPOINT_DB = fixtureDatabase();
   delete process.env.MIKE_PUBLIC_ENDPOINT_FTS_DB;
+  delete process.env.MIKE_JOURNAL_FINAL_CONTRACT_DB;
 });
 
 afterEach(() => {
@@ -165,10 +278,86 @@ afterEach(() => {
   } else {
     process.env.MIKE_PUBLIC_ENDPOINT_FTS_DB = previousSearchDatabase;
   }
+  if (previousFinalContractDatabase === undefined) {
+    delete process.env.MIKE_JOURNAL_FINAL_CONTRACT_DB;
+  } else {
+    process.env.MIKE_JOURNAL_FINAL_CONTRACT_DB =
+      previousFinalContractDatabase;
+  }
   rmSync(directory, { recursive: true, force: true });
 });
 
 describe("local journal articles", () => {
+  it("prefers registered final-contract text and native structure", () => {
+    const canonical = fixtureFinalContractDatabase();
+    process.env.MIKE_JOURNAL_FINAL_CONTRACT_DB = canonical.filename;
+    closeJournalDatabases();
+
+    const article = fetchJournalArticle("7")!;
+    expect(article.text).toBe(canonical.text);
+    expect(article.text).not.toContain("[page 100]");
+    expect(lookupJournalArticle(article, "page", "101")).toMatchObject({
+      status: "found",
+      anchor: "page=2",
+      block: { origin: "native" },
+    });
+    expect(lookupJournalArticle(article, "section", "II")).toMatchObject({
+      status: "found",
+      block: {
+        origin: "native",
+        text: expect.stringContaining("Canonical analysis paragraph."),
+      },
+    });
+    expect(lookupJournalArticle(article, "footnote", "1")).toMatchObject({
+      status: "found",
+      anchor: "page=1",
+      block: {
+        origin: "native",
+        text: "1\t\nNative paired footnote.",
+      },
+    });
+    expect(
+      article.structure.blocks
+        .filter(({ kind }) => kind === "paragraph")
+        .every(({ origin }) => origin === "native"),
+    ).toBe(true);
+  });
+
+  it("reconstructs only a locator kind missing from the final contract", () => {
+    const canonical = fixtureFinalContractDatabase({ annotations: false });
+    process.env.MIKE_JOURNAL_FINAL_CONTRACT_DB = canonical.filename;
+    closeJournalDatabases();
+
+    const article = fetchJournalArticle("7")!;
+    expect(lookupJournalArticle(article, "footnote", "1")).toMatchObject({
+      status: "found",
+      block: { origin: "heuristic" },
+    });
+    expect(lookupJournalArticle(article, "page", "100").block?.origin).toBe(
+      "native",
+    );
+    expect(lookupJournalArticle(article, "section", "I").block?.origin).toBe(
+      "native",
+    );
+  });
+
+  it("ignores an unsafe final-contract registration", () => {
+    const canonical = fixtureFinalContractDatabase({
+      sourceDir: "..\\..\\outside",
+    });
+    process.env.MIKE_JOURNAL_FINAL_CONTRACT_DB = canonical.filename;
+    closeJournalDatabases();
+
+    const article = fetchJournalArticle("7")!;
+    expect(article.text).toContain("[page 100]");
+    expect(lookupJournalArticle(article, "page", "100").block?.origin).toBe(
+      "native",
+    );
+    expect(lookupJournalArticle(article, "section", "I").block?.origin).toBe(
+      "heuristic",
+    );
+  });
+
   it("searches candidates, resolves stable locators, and builds multi-text links", () => {
     const match = searchJournalArticles("Fixture Article")[0];
     expect(match.hitId).toBe("journal:7");

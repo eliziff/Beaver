@@ -209,8 +209,6 @@ localLibraryRouter.get(
     if (!state) {
       return void res.status(404).json({
         detail: "No structural PDF parse state exists for this version",
-        retry_available: true,
-        flat_text_fallback_available: true,
       });
     }
     res.json(state);
