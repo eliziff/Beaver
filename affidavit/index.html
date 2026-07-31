@@ -47,7 +47,7 @@
     }
     button, input { font: inherit; }
     button, .file-button { touch-action: manipulation; }
-    button:focus-visible, input:focus-visible, summary:focus-visible {
+    button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible {
       outline: 2px solid var(--ink);
       outline-offset: 2px;
     }
@@ -77,7 +77,7 @@
     .local-note { color: #d0d5dd; font-size: var(--text-sm); }
 
     main {
-      width: min(74rem, 100%);
+      width: min(96rem, 100%);
       margin-inline: auto;
       padding: clamp(1rem, 3vw, 2rem);
     }
@@ -96,7 +96,7 @@
 
     .builder {
       display: grid;
-      grid-template-columns: minmax(0, 36rem) minmax(24rem, 1fr);
+      grid-template-columns: minmax(0, 34rem) minmax(32rem, 1fr);
       align-items: start;
       gap: 1.25rem;
       min-width: 0;
@@ -302,7 +302,7 @@
       background: transparent;
     }
     .gnaw-scene {
-      --gnaw-duration: 7.2s;
+      --gnaw-duration: 9.6s;
       display: block;
       width: 6.25rem;
       height: 4.5rem;
@@ -320,25 +320,25 @@
     .gnaw-chip { opacity: 0; transform-origin: center; }
     .gnaw-cut { fill: #fcfcfd; }
     @media (prefers-reduced-motion: no-preference) {
-      .gnaw-scene { animation: gnaw-cycle var(--gnaw-duration) linear 1 both; }
-      .gnaw-beaver { animation: gnaw-head var(--gnaw-duration) cubic-bezier(.4, 0, .2, 1) 1 both; }
-      .gnaw-teeth { animation: gnaw-teeth var(--gnaw-duration) steps(1, end) 1 both; }
-      .gnaw-log-body { animation: gnaw-log-shorten var(--gnaw-duration) steps(1, end) 1 both; }
-      .gnaw-log-end { animation: gnaw-log-end var(--gnaw-duration) steps(1, end) 1 both; }
-      .gnaw-bite-one { animation: gnaw-bite-one var(--gnaw-duration) steps(1, end) 1 both; }
-      .gnaw-bite-two { animation: gnaw-bite-two var(--gnaw-duration) steps(1, end) 1 both; }
-      .gnaw-bite-three { animation: gnaw-bite-three var(--gnaw-duration) steps(1, end) 1 both; }
-      .gnaw-chip-one { animation: gnaw-chip-one var(--gnaw-duration) ease-out 1 both; }
-      .gnaw-chip-two { animation: gnaw-chip-two var(--gnaw-duration) ease-out 1 both; }
+      .gnaw-scene { animation: gnaw-cycle var(--gnaw-duration) linear infinite; }
+      .gnaw-beaver { animation: gnaw-head var(--gnaw-duration) cubic-bezier(.4, 0, .2, 1) infinite; }
+      .gnaw-teeth { animation: gnaw-teeth var(--gnaw-duration) steps(1, end) infinite; }
+      .gnaw-log-body { animation: gnaw-log-shorten var(--gnaw-duration) steps(1, end) infinite; }
+      .gnaw-log-end { animation: gnaw-log-end var(--gnaw-duration) steps(1, end) infinite; }
+      .gnaw-bite-one { animation: gnaw-bite-one var(--gnaw-duration) steps(1, end) infinite; }
+      .gnaw-bite-two { animation: gnaw-bite-two var(--gnaw-duration) steps(1, end) infinite; }
+      .gnaw-bite-three { animation: gnaw-bite-three var(--gnaw-duration) steps(1, end) infinite; }
+      .gnaw-chip-one { animation: gnaw-chip-one var(--gnaw-duration) ease-out infinite; }
+      .gnaw-chip-two { animation: gnaw-chip-two var(--gnaw-duration) ease-out infinite; }
     }
     @media (prefers-reduced-motion: reduce) {
-      .gnaw-beaver { transform: translate(-54px, -1px) rotate(1deg); }
-      .gnaw-log-body { transform: scaleX(0); }
-      .gnaw-log-end { opacity: 0; transform: translateX(-62px); }
+      .gnaw-beaver { transform: none; }
+      .gnaw-log-body { transform: none; }
+      .gnaw-log-end { opacity: 1; transform: none; }
     }
     @keyframes gnaw-cycle {
-      0%, 2% { opacity: 0; }
-      4%, 100% { opacity: 1; }
+      0%, 2%, 98%, 100% { opacity: 0; }
+      4%, 94% { opacity: 1; }
     }
     @keyframes gnaw-head {
       0%, 4% { transform: translate(0) rotate(0); }
@@ -360,7 +360,8 @@
       64% { transform: translate(-62px) rotate(0); }
       69% { transform: translate(-54px, -2px) rotate(2deg); }
       74% { transform: translate(-54px) rotate(-1deg); }
-      79%, 100% { transform: translate(-54px, -1px) rotate(1deg); }
+      79%, 90% { transform: translate(-54px, -1px) rotate(1deg); }
+      96%, 100% { transform: translate(0) rotate(0); }
     }
     @keyframes gnaw-teeth {
       0%, 5%, 9%, 13%, 17%, 21%, 25%, 29%, 33%, 37%, 41%, 45%, 49%, 53%, 57%, 61%, 65%, 100% { transform: translateX(0); }
@@ -375,7 +376,8 @@
       40%, 47% { transform: scaleX(.375); }
       48%, 55% { transform: scaleX(.25); }
       56%, 63% { transform: scaleX(.125); }
-      64%, 100% { transform: scaleX(0); }
+      64%, 90% { transform: scaleX(0); }
+      96%, 100% { transform: scaleX(1); }
     }
     @keyframes gnaw-log-end {
       0%, 7% { opacity: 1; transform: translateX(0); }
@@ -386,11 +388,12 @@
       40%, 47% { opacity: 1; transform: translateX(-40px); }
       48%, 55% { opacity: 1; transform: translateX(-48px); }
       56%, 63% { opacity: 1; transform: translateX(-56px); }
-      64%, 100% { opacity: 0; transform: translateX(-62px); }
+      64%, 90% { opacity: 0; transform: translateX(-62px); }
+      96%, 100% { opacity: 1; transform: translateX(0); }
     }
-    @keyframes gnaw-bite-one { 0%, 7% { opacity: 0; } 8%, 100% { opacity: 1; } }
-    @keyframes gnaw-bite-two { 0%, 15% { opacity: 0; } 16%, 100% { opacity: 1; } }
-    @keyframes gnaw-bite-three { 0%, 23% { opacity: 0; } 24%, 100% { opacity: 1; } }
+    @keyframes gnaw-bite-one { 0%, 7%, 96%, 100% { opacity: 0; } 8%, 90% { opacity: 1; } }
+    @keyframes gnaw-bite-two { 0%, 15%, 96%, 100% { opacity: 0; } 16%, 90% { opacity: 1; } }
+    @keyframes gnaw-bite-three { 0%, 23%, 96%, 100% { opacity: 0; } 24%, 90% { opacity: 1; } }
     @keyframes gnaw-chip-one {
       0%, 5% { opacity: 0; transform: translate(0) rotate(0); }
       6% { opacity: 1; transform: translate(0) rotate(0); }
@@ -653,7 +656,6 @@
       gap: .6rem;
       min-width: 0;
       padding: .6rem .65rem;
-      padding-inline-end: 2.5rem;
       border: 1px solid var(--line);
       border-radius: .6rem;
       background: #fff;
@@ -770,6 +772,7 @@
     [data-dragging="true"] .drag-grip,
     [draggable="true"]:hover .drag-grip { color: var(--ink); }
     .letter-stack { display: grid; justify-items: center; gap: .25rem; }
+    .exhibit-row:has(.delete-slot) .letter-stack { padding-block-end: 1.75rem; }
     .letter-stack .preview-eye {
       width: 2.125rem;
       min-width: 2.125rem;
@@ -777,6 +780,7 @@
     }
     .wording-disclosure,
     .wording-single {
+      --wording-label-width: 5.2rem;
       grid-column: 1 / -1;
       min-width: 0;
       padding-block-start: .3rem;
@@ -784,7 +788,7 @@
     }
     .wording-single {
       display: grid;
-      grid-template-columns: auto minmax(0, 1fr);
+      grid-template-columns: var(--wording-label-width) minmax(0, 1fr);
       align-items: center;
       gap: .35rem;
       min-height: 1.5rem;
@@ -794,7 +798,7 @@
     }
     .wording-disclosure summary {
       display: grid;
-      grid-template-columns: auto minmax(0, 1fr) .55rem;
+      grid-template-columns: var(--wording-label-width) minmax(0, 1fr) .55rem;
       align-items: center;
       gap: .35rem;
       min-width: 0;
@@ -822,19 +826,29 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    .wording-expanded {
+      display: grid;
+      grid-template-columns: var(--wording-label-width) minmax(0, 1fr) .55rem;
+      gap: .35rem;
+      min-width: 0;
+    }
     .wording-statements {
+      grid-column: 2;
       max-height: 8rem;
-      margin: .35rem 0 0;
-      padding: .5rem .65rem .5rem 1.65rem;
+      margin: .25rem 0 0;
+      padding: 0;
       overflow-y: auto;
       overscroll-behavior: contain;
-      border-radius: .4rem;
+      list-style: none;
       color: var(--muted);
-      background: #f9fafb;
       font-size: .75rem;
       line-height: 1.45;
     }
-    .wording-statements li + li { margin-block-start: .35rem; }
+    .wording-statements li + li {
+      margin-block-start: .3rem;
+      padding-block-start: .3rem;
+      border-top: 1px solid #eaecf0;
+    }
     .slot-actions {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -867,8 +881,8 @@
     }
     .delete-slot {
       position: absolute;
-      inset-block-start: .5rem;
-      inset-inline-end: .5rem;
+      inset-block-end: .45rem;
+      inset-inline-start: .45rem;
       width: 1.5rem;
       min-width: 1.5rem;
       min-height: 1.5rem;
@@ -983,8 +997,43 @@
     .preview-card {
       position: sticky;
       top: 1rem;
-      min-height: 36rem;
+      min-height: 42rem;
       container-type: inline-size;
+    }
+    .preview-card .card-heading { align-items: center; }
+    .preview-heading-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: .4rem;
+      min-width: 0;
+    }
+    .preview-zoom-select {
+      min-height: 2.25rem;
+      padding: .35rem 1.8rem .35rem .55rem;
+      border: 1px solid var(--line);
+      border-radius: .45rem;
+      color: var(--ink);
+      background: #fff;
+      font: inherit;
+      font-size: .75rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .preview-fullscreen {
+      width: 2.25rem;
+      min-width: 2.25rem;
+      min-height: 2.25rem;
+      padding: 0;
+    }
+    .preview-fullscreen svg {
+      width: 1rem;
+      height: 1rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-width: 1.8;
     }
     .preview-layout {
       display: grid;
@@ -995,8 +1044,7 @@
     }
     .preview-toc {
       min-width: 0;
-      min-height: 32rem;
-      max-height: calc(100vh - 8rem);
+      height: clamp(36rem, calc(100vh - 7rem), 68rem);
       padding: .5rem;
       overflow-y: auto;
       border-radius: .55rem;
@@ -1043,8 +1091,7 @@
     .preview-toc-empty { color: var(--muted); font-size: .75rem; }
     .preview-shell {
       display: grid;
-      min-height: 32rem;
-      max-height: calc(100vh - 8rem);
+      height: clamp(36rem, calc(100vh - 7rem), 68rem);
       overflow: hidden;
       border-radius: .55rem;
       background: #d9dde3;
@@ -1054,7 +1101,7 @@
     .preview-empty {
       display: grid;
       place-items: center;
-      min-height: 32rem;
+      min-height: 100%;
       padding: 2rem;
       color: var(--muted);
       text-align: center;
@@ -1064,22 +1111,44 @@
       display: flex;
       flex-direction: column;
       gap: .9rem;
+      --preview-zoom: 1.25;
       width: 100%;
       min-width: 0;
-      height: min(70vh, 52rem);
+      height: 100%;
       padding: 1rem;
-      overflow-y: auto;
+      overflow: auto;
       overscroll-behavior: contain;
     }
     .preview-page {
       position: relative;
       flex: 0 0 auto;
-      width: 100%;
+      width: calc(100% * var(--preview-zoom));
+      margin-inline: auto;
       overflow: hidden;
       background: #fff;
       box-shadow: 0 0 0 1px rgb(0 0 0 / 10%), 0 4px 12px rgb(0 0 0 / 8%);
     }
     .preview-page canvas { display: block; width: 100%; height: 100%; }
+    .preview-card:fullscreen {
+      display: grid;
+      position: fixed;
+      inset: 0;
+      grid-template-rows: auto minmax(0, 1fr);
+      width: 100vw;
+      height: 100vh;
+      min-height: 0;
+      padding: 1rem;
+      overflow: hidden;
+      border-radius: 0;
+      background: var(--paper);
+    }
+    .preview-card:fullscreen .preview-layout {
+      grid-template-columns: minmax(0, 1fr) 10rem;
+      min-height: 0;
+      height: 100%;
+    }
+    .preview-card:fullscreen .preview-shell,
+    .preview-card:fullscreen .preview-toc { height: 100%; }
     .docx-stage {
       position: fixed;
       inset-inline-start: -20000px;
@@ -1089,7 +1158,7 @@
     }
     .hidden { display: none !important; }
 
-    @media (max-width: 64rem) {
+    @media (max-width: 72rem) {
       .builder { grid-template-columns: 1fr; }
       .preview-card { position: static; }
     }
@@ -1097,10 +1166,11 @@
       .preview-layout { grid-template-columns: 1fr; }
       .preview-toc {
         grid-row: 1;
+        height: auto;
         min-height: 0;
         max-height: 9rem;
       }
-      .preview-shell { grid-row: 2; }
+      .preview-shell { grid-row: 2; height: 38rem; }
     }
     @media (max-width: 34rem) {
       main { padding: 1rem; }
@@ -1128,6 +1198,18 @@
       .slot-body { grid-template-columns: 1fr; }
       .slot-actions { grid-column: 1; grid-row: 2; min-width: 0; }
       .output-card .primary { width: 100%; }
+      .preview-card:fullscreen { padding: .65rem; }
+      .preview-card:fullscreen .card-heading { align-items: flex-start; flex-wrap: wrap; }
+      .preview-card:fullscreen .preview-layout {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(0, 1fr) 7rem;
+      }
+      .preview-card:fullscreen .preview-shell { grid-row: 1; height: 100%; }
+      .preview-card:fullscreen .preview-toc {
+        grid-row: 2;
+        height: 7rem;
+        max-height: 7rem;
+      }
     }
   </style>
 </head>
@@ -1373,7 +1455,21 @@
             </svg>
             Live preview
           </h2>
-          <span id="preview-count" class="count">Waiting for affidavit</span>
+          <div class="preview-heading-actions">
+            <span id="preview-count" class="count">Waiting for affidavit</span>
+            <select id="preview-zoom" class="preview-zoom-select" aria-label="Preview zoom">
+              <option value="1">Fit</option>
+              <option value="1.25" selected>125%</option>
+              <option value="1.5">150%</option>
+              <option value="1.75">175%</option>
+              <option value="2">200%</option>
+            </select>
+            <button id="preview-fullscreen" type="button" class="secondary preview-fullscreen" aria-label="Open preview fullscreen" title="Open preview fullscreen">
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M7 3H3v4m10-4h4v4M7 17H3v-4m10 4h4v-4"/>
+              </svg>
+            </button>
+          </div>
         </div>
         <div class="preview-layout">
           <div class="preview-shell">
@@ -1490,6 +1586,8 @@
       previewGeneration: 0,
       previewDocument: null,
       previewObserver: null,
+      previewRenderVersion: 0,
+      previewZoom: 1.25,
       previewVisibilityObserver: null,
       previewNearViewport: false,
       previewRenderQueue: Promise.resolve(),
@@ -2025,6 +2123,41 @@
       return found;
     }
 
+    function statementTokens(value) {
+      return String(value)
+        .normalize("NFKC")
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}]+/gu, " ")
+        .trim()
+        .split(/\s+/)
+        .filter((word) => word.length > 2);
+    }
+
+    function sameStatement(left, right) {
+      const leftWords = new Set(statementTokens(left));
+      const rightWords = new Set(statementTokens(right));
+      if ([...leftWords].join(" ") === [...rightWords].join(" ")) return true;
+      const shorter = Math.min(leftWords.size, rightWords.size);
+      const longer = Math.max(leftWords.size, rightWords.size);
+      if (shorter < 5 || shorter / longer < .72) return false;
+      const overlap = [...leftWords].filter((word) => rightWords.has(word)).length;
+      if (overlap / shorter >= .9) return true;
+      if (leftWords.size !== rightWords.size || overlap !== shorter - 1) return false;
+      const [leftOnly] = [...leftWords].filter((word) => !rightWords.has(word));
+      const [rightOnly] = [...rightWords].filter((word) => !leftWords.has(word));
+      return Math.min(leftOnly.length, rightOnly.length) >= 5
+        && (leftOnly.startsWith(rightOnly)
+          || rightOnly.startsWith(leftOnly)
+          || state.fuzzy?.distance(leftOnly, rightOnly) <= 1);
+    }
+
+    function distinctStatements(statements) {
+      return statements
+        .map((statement) => String(statement).trim())
+        .filter((statement, index, values) => statement
+          && !values.slice(0, index).some((earlier) => sameStatement(earlier, statement)));
+    }
+
     function statementWindows(text) {
       const flat = text.replace(/\s+/g, " ").trim();
       const marker = /\bExhibit\s*["“”'‘’]?\s*([A-Z]{1,2})\s*["“”'‘’]?\b/giu;
@@ -2054,7 +2187,7 @@
         if (!window || /This is Exhibit\b.{0,120}\b(?:referred to in|to) the Affidavit/iu.test(window)) continue;
         const label = match[1].toUpperCase();
         const values = output.get(label) || [];
-        if (!values.some((value) => value.toLowerCase() === window.toLowerCase())) values.push(window);
+        if (!values.some((value) => sameStatement(value, window))) values.push(window);
         output.set(label, values);
       }
       return output;
@@ -2317,14 +2450,17 @@
     }
 
     function wordingDisclosure(statements) {
-      if (!statements.length) return "";
-      const first = escapeHtml(statements[0]);
-      if (statements.length === 1) {
+      const distinct = distinctStatements(statements);
+      if (!distinct.length) return "";
+      const first = escapeHtml(distinct[0]);
+      if (distinct.length === 1) {
         return `<p class="wording-single"><span class="wording-label">Affidavit said:</span><span class="wording-preview" title="${first}">${first}</span></p>`;
       }
       return `<details class="wording-disclosure">
         <summary><span class="wording-label">Affidavit said:</span><span class="wording-preview" title="${first}">${first}</span></summary>
-        <ul class="wording-statements">${statements.slice(1).map((statement) => `<li>${escapeHtml(statement)}</li>`).join("")}</ul>
+        <div class="wording-expanded">
+          <ul class="wording-statements">${distinct.slice(1).map((statement) => `<li>${escapeHtml(statement)}</li>`).join("")}</ul>
+        </div>
       </details>`;
     }
 
@@ -2642,10 +2778,11 @@
         return;
       }
       const base = page.getViewport({ scale: 1 });
-      const cssWidth = Math.max(240, container.clientWidth - 32);
-      const scale = Math.min(1.2, cssWidth / base.width);
       const pixelRatio = Math.min(1.5, window.devicePixelRatio || 1);
-      const viewport = page.getViewport({ scale: scale * pixelRatio });
+      const cssWidth = Math.max(240, shell.clientWidth);
+      const viewport = page.getViewport({
+        scale: Math.min(2.5, cssWidth / base.width * pixelRatio),
+      });
       const canvas = shell.querySelector("canvas");
       canvas.width = Math.ceil(viewport.width);
       canvas.height = Math.ceil(viewport.height);
@@ -2693,6 +2830,64 @@
       requestAnimationFrame(renderVisible);
     }
 
+    function observePreviewPages(document, preview, generation) {
+      state.previewObserver?.disconnect();
+      const renderVersion = ++state.previewRenderVersion;
+      preview.querySelectorAll(".preview-page").forEach((page) => {
+        delete page.dataset.queued;
+      });
+      state.previewObserver = new IntersectionObserver((entries, observer) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          observer.unobserve(entry.target);
+          entry.target.dataset.queued = "true";
+          state.previewRenderQueue = state.previewRenderQueue
+            .then(() => renderPreviewPage(
+              document,
+              entry.target,
+              preview,
+              () => generation === state.previewGeneration
+                && renderVersion === state.previewRenderVersion,
+            ))
+            .catch(() => {});
+        });
+      }, { root: preview, rootMargin: "600px 0px" });
+      preview.querySelectorAll(".preview-page").forEach((page) => state.previewObserver.observe(page));
+    }
+
+    function refreshPreviewPages() {
+      const preview = $("#preview");
+      if (!state.previewDocument || preview.classList.contains("hidden")) return;
+      requestAnimationFrame(() => observePreviewPages(
+        state.previewDocument,
+        preview,
+        state.previewGeneration,
+      ));
+    }
+
+    function setPreviewZoom(value) {
+      state.previewZoom = Math.max(1, Math.min(2, Number(value) || 1.25));
+      $("#preview").style.setProperty("--preview-zoom", state.previewZoom);
+      $("#preview-zoom").value = String(state.previewZoom);
+      refreshPreviewPages();
+    }
+
+    async function togglePreviewFullscreen() {
+      const card = $(".preview-card");
+      if (document.fullscreenElement === card) await document.exitFullscreen();
+      else await card.requestFullscreen();
+      syncPreviewFullscreen();
+    }
+
+    function syncPreviewFullscreen() {
+      const active = document.fullscreenElement === $(".preview-card");
+      const button = $("#preview-fullscreen");
+      const label = active ? "Exit preview fullscreen" : "Open preview fullscreen";
+      button.setAttribute("aria-label", label);
+      button.title = label;
+      requestAnimationFrame(() => requestAnimationFrame(refreshPreviewPages));
+    }
+
     async function updatePreview(generation) {
       try {
         const result = await assemblePdf({ allowIncomplete: true });
@@ -2731,21 +2926,8 @@
         $("#preview-count").textContent = `${document.numPages} page${document.numPages === 1 ? "" : "s"}`;
         renderPreviewToc(result.toc);
 
-        state.previewObserver = new IntersectionObserver((entries, observer) => {
-          entries.forEach((entry) => {
-            if (!entry.isIntersecting) return;
-            observer.unobserve(entry.target);
-            state.previewRenderQueue = state.previewRenderQueue
-              .then(() => renderPreviewPage(
-                document,
-                entry.target,
-                preview,
-                () => generation === state.previewGeneration,
-              ))
-              .catch(() => {});
-          });
-        }, { root: preview, rootMargin: "600px 0px" });
-        preview.querySelectorAll(".preview-page").forEach((page) => state.previewObserver.observe(page));
+        preview.style.setProperty("--preview-zoom", state.previewZoom);
+        observePreviewPages(document, preview, generation);
         renderExhibits();
       } catch (error) {
         if (generation !== state.previewGeneration) return;
@@ -2869,6 +3051,12 @@
     });
     $("#add-slot").addEventListener("click", () => setExhibitCount(state.order.length + 1, true));
     ["bumpers", "page-numbers"].forEach((id) => $(`#${id}`).addEventListener("change", schedulePreview));
+    $("#preview-zoom").addEventListener("change", (event) => setPreviewZoom(event.target.value));
+    $("#preview-fullscreen").addEventListener("click", () => {
+      togglePreviewFullscreen().catch(() => setStatus("Fullscreen preview is unavailable.", "error"));
+    });
+    document.addEventListener("fullscreenchange", syncPreviewFullscreen);
+    $("#preview-fullscreen").disabled = !document.fullscreenEnabled;
     $("#build").addEventListener("click", buildAndDownload);
     fields.forEach((id) => {
       $(`#${id}`).addEventListener("input", () => {
@@ -3031,6 +3219,14 @@
       const found = statementWindows(text);
       if (found.get("A")?.length !== 2 || found.get("B")?.length !== 1 || found.has("C") || found.has("D")) {
         throw new Error("Statement parser check failed");
+      }
+      const deduped = distinctStatements([
+        "The respondent's email is attached as Exhibit B.",
+        "The respondents email is attached as Exhibit B.",
+        "The email also records the mitigation deadline.",
+      ]);
+      if (deduped.length !== 2 || !deduped[1].includes("mitigation")) {
+        throw new Error("Statement deduplication check failed");
       }
       const details = caseDetails({ pages: [[
         "Court File No. TEST-0001",
