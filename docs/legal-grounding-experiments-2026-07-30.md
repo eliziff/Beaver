@@ -2645,6 +2645,28 @@ if maud pool moves < +0.03 at every weight — then vocabulary mismatch
 is not header-bridgeable and the dense/proposition lanes are the
 remaining levers.
 
+**Amendment (registered 2026-07-30 before measurement, per Eli): the
+attested-entity lint is itself an ablation arm, not an assumed
+improvement.** The lint (deterministic: every capitalized header
+token outside a structural whitelist must appear in the doc
+text/name, with an alphanumeric-skeleton fallback absorbing
+formatting variants; flagged headers drop to the heading-path
+fallback) runs against the raw generation receipts, and the weight
+sweep runs TWICE — `raw` (all non-error headers) vs `linted` — each
+with its own hash-keyed sidecar and receipts
+(`stage18-context-arms-{raw,linted}.jsonl`). Prediction (frozen):
+linted ≥ raw on maud pool R@48 (dropped headers remove false lexical
+bridges) or within noise (±0.01); the lint arm is falsified — and the
+lint retired from the lane — if raw beats linted by > 0.02 maud pool
+R@48, which would mean the drops delete more true vocabulary than the
+hallucinations they prevent. Smoke stats on the first 406 headers:
+3.94% drop rate pre-skeleton-fallback.
+
+Generation ops note (recorded): c=12 tripped the codex 429 rate
+limit on short low-effort calls (1,502/2,008 rows); generator gained
+jittered exponential backoff; sustained c=4–5 runs clean (~1.5
+headers/s).
+
 ### Stage 18 G verdict (2026-07-30, full bed, receipts
 `stage18-lbrag-grounded.jsonl`, 776/776 cells, run completed;
 2 error-final cells (0.26%) left as-is per Eli's "enough model
