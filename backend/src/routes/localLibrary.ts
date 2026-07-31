@@ -12,6 +12,7 @@ import {
   updateLocalFolder,
 } from "../lib/localDocumentStore";
 import {
+  parseLocalPdfOnDemand,
   queueLocalPdfParse,
   readLocalPdfParseState,
 } from "../lib/localPdfIngestion";
@@ -240,6 +241,12 @@ localLibraryRouter.post(
     if (file.fileType !== "pdf") {
       return void res.status(409).json({ detail: "Version is not a PDF" });
     }
+    await parseLocalPdfOnDemand({
+      documentId: req.params.documentId,
+      versionId: file.version.id,
+      sourcePath: file.path,
+      sourceSha256: file.version.source_sha256,
+    });
     const lookup = await lookupLocalPdfStructure(file.path, {
       locatorKind: req.body?.locator_kind as LocalPdfLocatorKind,
       locator: typeof req.body?.locator === "string" ? req.body.locator : "",

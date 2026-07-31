@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   getLocalVersionFile: vi.fn(),
   readLocalPdfParseState: vi.fn(),
   queueLocalPdfParse: vi.fn(),
+  parseLocalPdfOnDemand: vi.fn(),
+  lookupLocalPdfStructure: vi.fn(),
   readLocalPdfEvidenceReceipt: vi.fn(),
   rehydrateLocalPdfEvidence: vi.fn(),
   getCodexModelCatalog: vi.fn(),
@@ -22,11 +24,13 @@ vi.mock("../lib/localPdfIngestion", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../lib/localPdfIngestion")>()),
   readLocalPdfParseState: mocks.readLocalPdfParseState,
   queueLocalPdfParse: mocks.queueLocalPdfParse,
+  parseLocalPdfOnDemand: mocks.parseLocalPdfOnDemand,
 }));
 vi.mock("../lib/localPdfLookup", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../lib/localPdfLookup")>()),
   readLocalPdfEvidenceReceipt: mocks.readLocalPdfEvidenceReceipt,
   rehydrateLocalPdfEvidence: mocks.rehydrateLocalPdfEvidence,
+  lookupLocalPdfStructure: mocks.lookupLocalPdfStructure,
 }));
 vi.mock("../lib/codexCatalog", () => ({
   getCodexModelCatalog: mocks.getCodexModelCatalog,
@@ -58,6 +62,8 @@ beforeEach(() => {
     diagnostics: [{ code: "OCR_REQUIRED" }],
   });
   mocks.queueLocalPdfParse.mockResolvedValue({ status: "queued" });
+  mocks.parseLocalPdfOnDemand.mockResolvedValue({ status: "ready" });
+  mocks.lookupLocalPdfStructure.mockResolvedValue({ status: "found" });
   mocks.readLocalPdfEvidenceReceipt.mockResolvedValue({
     source: { document_id: "document-1", version_id: "version-1" },
   });
@@ -75,6 +81,21 @@ beforeEach(() => {
 });
 
 describe("local Library PDF parse routes", () => {
+  it("starts parsing only when structural lookup is requested", async () => {
+    const response = await request(app)
+      .post("/library/files/documents/document-1/lookup")
+      .send({ locator_kind: "page", locator: "1" });
+
+    expect(response.status).toBe(200);
+    expect(mocks.parseLocalPdfOnDemand).toHaveBeenCalledWith({
+      documentId: "document-1",
+      versionId: "version-1",
+      sourcePath: "C:\\data\\source.pdf",
+      sourceSha256: "a".repeat(64),
+    });
+    expect(mocks.lookupLocalPdfStructure).toHaveBeenCalledOnce();
+  });
+
   it("returns durable parse state and diagnostics", async () => {
     const response = await request(app).get(
       "/library/files/documents/document-1/pdf-parse",

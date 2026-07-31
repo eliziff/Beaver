@@ -127,6 +127,22 @@ async function fakeArtifacts(
           })}\n`,
     "repairs.jsonl": "",
   };
+  if (args.includes("--compact-pages")) {
+    const page = JSON.parse(rows["pages.jsonl"]);
+    rows["pages.jsonl"] = `${JSON.stringify({
+      id: page.id,
+      index: page.index,
+      number: page.number,
+      printed_label: page.printed_label,
+      printed_label_source: page.printed_label_source,
+      source: page.source,
+      text_quality: page.text_quality,
+      lines: page.lines.map((line: { reading_order: number; text: string }) => ({
+        reading_order: line.reading_order,
+        text: line.text,
+      })),
+    })}\n`;
+  }
   await Promise.all(
     Object.entries(rows).map(([name, content]) =>
       writeFile(path.join(output, name), content, "utf8"),
@@ -136,13 +152,20 @@ async function fakeArtifacts(
     path.join(output, "document.json"),
     JSON.stringify({
       schema_version: "legalpdf.document.v2",
+      artifact_profile: "compact-source",
       parser_version: "0.3.0",
       document_id: "parsed-document",
       source_name: path.basename(source),
       source_sha256: sourceSha256,
       page_count: 1,
       status,
-      metadata: {},
+      metadata: {
+        pairing: {
+          created_at: "2026-07-31T18:00:00Z",
+          elapsed_seconds: 1.2345,
+          paired_count: 1,
+        },
+      },
       provenance: {
         cache_hit: false,
         ...(args[args.indexOf("--mode") + 1] === "codex"
@@ -241,7 +264,7 @@ afterEach(async () => {
 });
 
 describe("local PDF ingestion", () => {
-  it("stores the immutable source, returns queued, and publishes versioned artifacts", async () => {
+  it("stores a PDF without parsing until structural use", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-pdf-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     runLegalPdf.mockImplementation((args: string[]) => fakeLegalPdf(args));
@@ -257,16 +280,21 @@ describe("local PDF ingestion", () => {
     });
     const file = await store.getLocalVersionFile("local-user", document.id);
 
-    expect(document.pdf_parse).toMatchObject({
-      status: "queued",
-    });
+    expect(document).not.toHaveProperty("pdf_parse");
+    expect(await ingestion.readLocalPdfParseState(file!.path)).toBeNull();
+    expect(runLegalPdf).not.toHaveBeenCalled();
     expect(file).not.toBeNull();
     expect(path.basename(file!.path)).toMatch(
       new RegExp(`^${file!.version.id}-[a-f0-9]{16}\\.pdf$`, "u"),
     );
     expect(await readFile(file!.path)).toEqual(bytes);
 
-    const state = await waitForState(ingestion, file!.path, "ready");
+    const state = await ingestion.parseLocalPdfOnDemand({
+      documentId: document.id,
+      versionId: file!.version.id,
+      sourcePath: file!.path,
+      sourceSha256: file!.version.source_sha256,
+    });
     const parseArgs = runLegalPdf.mock.calls.find(
       ([args]) => args[0] === "parse",
     )?.[0];
@@ -290,6 +318,7 @@ describe("local PDF ingestion", () => {
       diagnostic_count: 0,
     });
     expect(parseArgs).toContain("--no-cache");
+    expect(parseArgs).toContain("--compact-pages");
     expect(parseArgs).not.toContain("--text-fidelity-root");
     expect(state!.parser_config).not.toHaveProperty("text_fidelity_root");
     const artifactRoot = path.dirname(
@@ -302,7 +331,10 @@ describe("local PDF ingestion", () => {
       schema_version: "mike.pdf_source.v1",
       engine_schema_version: "legalpdf.document.v2",
       artifact_profile: "compact-source",
+      metadata: { pairing: { paired_count: 1 } },
     });
+    expect(manifest.metadata.pairing).not.toHaveProperty("created_at");
+    expect(manifest.metadata.pairing).not.toHaveProperty("elapsed_seconds");
     expect(manifest.artifacts).toMatchObject({
       pages: "pages.jsonl",
       paragraphs: "paragraphs.jsonl",
@@ -456,7 +488,12 @@ describe("local PDF ingestion", () => {
     });
     const file = await store.getLocalVersionFile("local-user", document.id);
 
-    const state = await waitForState(ingestion, file!.path, "degraded");
+    const state = await ingestion.parseLocalPdfOnDemand({
+      documentId: document.id,
+      versionId: file!.version.id,
+      sourcePath: file!.path,
+      sourceSha256: file!.version.source_sha256,
+    });
 
     expect(state).toMatchObject({
       engine_status: "ocr_required",
@@ -1061,7 +1098,7 @@ describe("local PDF ingestion", () => {
     await waitForState(restarted, source, "ready");
   });
 
-  it("sanitizes parser failures before persisting them", async () => {
+  it("keeps a safe badge message and durable parser failure detail", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-pdf-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     runLegalPdf.mockImplementation((args: string[]) =>
@@ -1092,6 +1129,8 @@ describe("local PDF ingestion", () => {
 
     expect(state!.error).toBe("PDF structural parser failed");
     expect(state!.error).not.toContain(temporaryDirectory);
+    expect(state!.error_detail).toContain("Command failed while reading");
+    expect(state!.error_detail).toContain(temporaryDirectory);
   });
 
   it("aborts an in-flight OCR parse before deleting its artifacts", async () => {
@@ -1153,7 +1192,7 @@ describe("local PDF ingestion", () => {
     });
   });
 
-  it("recovers a stored PDF if shutdown occurred before its job sidecar was written", async () => {
+  it("does not parse an untouched stored PDF during startup recovery", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-pdf-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     runLegalPdf.mockImplementation((args: string[]) => fakeLegalPdf(args));
@@ -1185,12 +1224,7 @@ describe("local PDF ingestion", () => {
     );
 
     await ingestion.resumeLocalPdfParses();
-    const state = await waitForState(ingestion, source, "ready");
-
-    expect(state).toMatchObject({
-      document_id: "document",
-      version_id: "version",
-      attempts: 1,
-    });
+    await expect(ingestion.readLocalPdfParseState(source)).resolves.toBeNull();
+    expect(runLegalPdf).not.toHaveBeenCalled();
   });
 });
