@@ -1038,7 +1038,10 @@ async function processJob(sourcePath: string) {
       !(await exists(sourcePath)) ||
       (await hashFile(sourcePath)) !== parsing.source_sha256
     ) {
-      await rm(artifactRoot(sourcePath), { recursive: true, force: true });
+      await Promise.all([
+        rm(statePath(sourcePath), { force: true }),
+        rm(artifactRoot(sourcePath), { recursive: true, force: true }),
+      ]);
       return;
     }
     const manifest = await publishCompactArtifacts(sourcePath, parsing);
@@ -1094,6 +1097,10 @@ async function processJob(sourcePath: string) {
         error: undefined,
       };
     }
+    await rm(artifactDirectory(sourcePath, parsing.cache_key), {
+      recursive: true,
+      force: true,
+    });
     const failed = new Date().toISOString();
     if (!(await exists(sourcePath))) {
       if (await exists(statePath(sourcePath))) {
@@ -1410,9 +1417,14 @@ export async function removeLocalPdfParseArtifacts(sourcePath: string) {
   const active = activeControllers.get(key);
   const job = jobs.get(key);
   cancelled.add(key);
-  validatedPublications.clear();
   active?.abort();
   await job?.catch(() => undefined);
+  const publicationPrefix = `${path.resolve(sourcePath)}\u0000`;
+  for (const publication of validatedPublications.keys()) {
+    if (publication.startsWith(publicationPrefix)) {
+      validatedPublications.delete(publication);
+    }
+  }
   await Promise.all([
     rm(statePath(sourcePath), { force: true }),
     rm(artifactRoot(sourcePath), { recursive: true, force: true }),

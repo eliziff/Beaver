@@ -442,6 +442,35 @@ describe("local PDF ingestion", () => {
     ).toHaveLength(2);
   });
 
+  it("drops stale parse state when source bytes change during parsing", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-pdf-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    runLegalPdf.mockImplementation(async (args: string[]) => {
+      const result = await fakeLegalPdf(args);
+      if (args[0] === "parse") {
+        await writeFile(args[1], "%PDF-1.4 changed during parse", "utf8");
+      }
+      return result;
+    });
+    const ingestion = await import("../localPdfIngestion");
+    const source = path.join(temporaryDirectory, "files", "document", "version.pdf");
+    await mkdir(path.dirname(source), { recursive: true });
+    const bytes = Buffer.from("%PDF-1.4 original");
+    await writeFile(source, bytes);
+
+    const queued = await ingestion.parseLocalPdfOnDemand({
+      documentId: "document",
+      versionId: "version",
+      sourcePath: source,
+      sourceSha256: crypto.createHash("sha256").update(bytes).digest("hex"),
+    });
+
+    await expect(ingestion.readLocalPdfParseState(source)).resolves.toBeNull();
+    await expect(
+      readFile(path.join(temporaryDirectory, queued.artifact_manifest)),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("rebuilds incomplete or corrupt ready publications before reuse", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-pdf-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
@@ -1168,15 +1197,17 @@ describe("local PDF ingestion", () => {
   it("keeps a safe badge message and durable parser failure detail", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-pdf-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
-    runLegalPdf.mockImplementation((args: string[]) =>
-      args[0] === "repair-identity"
-        ? fakeLegalPdf(args)
-        : Promise.reject(
-            new Error(
-              `Command failed while reading ${path.join(temporaryDirectory, "private", "source.pdf")}`,
-            ),
-          ),
-    );
+    let partialPath = "";
+    runLegalPdf.mockImplementation(async (args: string[]) => {
+      if (args[0] === "repair-identity") return fakeLegalPdf(args);
+      const output = args[args.indexOf("--output") + 1];
+      await mkdir(output, { recursive: true });
+      partialPath = path.join(output, "partial.json");
+      await writeFile(partialPath, "partial", "utf8");
+      throw new Error(
+        `Command failed while reading ${path.join(temporaryDirectory!, "private", "source.pdf")}`,
+      );
+    });
     const ingestion = await import("../localPdfIngestion");
     const source = path.join(
       temporaryDirectory,
@@ -1198,6 +1229,9 @@ describe("local PDF ingestion", () => {
     expect(state!.error).not.toContain(temporaryDirectory);
     expect(state!.error_detail).toContain("Command failed while reading");
     expect(state!.error_detail).toContain(temporaryDirectory);
+    await expect(readFile(partialPath, "utf8")).rejects.toMatchObject({
+      code: "ENOENT",
+    });
   });
 
   it("aborts an in-flight OCR parse before deleting its artifacts", async () => {
