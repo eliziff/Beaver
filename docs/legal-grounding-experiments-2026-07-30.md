@@ -3048,6 +3048,12 @@ pins the entire upstream pool construction. Runner injects pool
 spans with text sliced verbatim from the pinned corpus (same
 coordinates the P1 audit checks). c=6, full 776-cell bed.
 
+Sidecar landed 2026-07-31: sanity reproduced fused maud R@48 =
+0.6351 exactly; 776 rows; sha256
+`67958D5292D2CA26FE02EB755BCE7939654469BEFE06400EB7DBF01A2E52066D`
+(byte-exact after Tailscale transfer) → retriever label
+`passage:pool(67958d5292d2)+rerank(codex:gpt-5.6-luna)@p1600+stitch200`.
+
 Frozen gates (baselines = the R5b ctx confirm: maud ansR 0.1385,
 overall ansP 0.5535 / ansR 0.5832):
 - **KEEP** iff maud answered-only R ≥ 0.1585 (+0.02 over ctx)
