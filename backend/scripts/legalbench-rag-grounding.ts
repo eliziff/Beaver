@@ -60,6 +60,7 @@ import {
   type SourceBenchmark,
   type Span,
 } from "../src/lib/legalbenchRag";
+import { searchPassages } from "../src/lib/passageRetrieval";
 import {
   streamChatWithTools,
   type NormalizedLlmUsage,
@@ -109,6 +110,9 @@ type Row = {
   effort: string;
   arm: "required_slot";
   k: number;
+  /** "product" (doc-level FTS5 + snippet window) or
+   * "passage:t<target>/o<overlap>/w<nameWeight>". */
+  retriever: string;
   query: string;
   status: "passed" | "failed" | "error";
   /** answered: passed with ≥1 located verbatim quote (score precision
@@ -208,6 +212,14 @@ async function main() {
   const effort = flag("effort", "medium");
   const perSource = Number(flag("per-source", "8"));
   const k = Number(flag("k", "4"));
+  const retrieverKind = flag("retriever", "product");
+  const chunkTarget = Number(flag("chunk-target", "1000"));
+  const chunkOverlap = Number(flag("chunk-overlap", "120"));
+  const nameWeight = Number(flag("name-weight", "4"));
+  const retriever =
+    retrieverKind === "passage"
+      ? `passage:t${chunkTarget}/o${chunkOverlap}/w${nameWeight}`
+      : "product";
   const timeoutMs = Number(flag("timeout-ms", "300000"));
   const concurrency = Number(flag("concurrency", "3"));
   const experimentsDir = path.join(
@@ -275,7 +287,10 @@ async function main() {
   if (resume && existsSync(output)) {
     for (const line of readFileSync(output, "utf8").split("\n").filter(Boolean)) {
       const row = JSON.parse(line) as Row;
-      if (!row.error) done.add(`${row.model}|${row.effort}|${row.k}|${row.test_id}`);
+      if (!row.error)
+        done.add(
+          `${row.model}|${row.effort}|${row.k}|${row.retriever ?? "product"}|${row.test_id}`,
+        );
     }
   } else {
     writeFileSync(output, "", "utf8");
@@ -283,22 +298,41 @@ async function main() {
 
   async function runTest(test: MiniTestCell): Promise<Row> {
     const started = Date.now();
-    // Retrieval: top-k product snippets, located to doc coordinates.
-    const results = (
-      searchLocalA2AJ({ query: test.query, docType: "laws", size: k }) ?? []
-    ).slice(0, k);
+    // Retrieval: top-k passages (exact offsets from the index) or the
+    // product doc-level path (snippets located back via indexOf).
     const retrieved: Array<Span & { snippet: string }> = [];
-    for (const result of results) {
-      if (!result.snippet) continue;
-      const text = corpusText.get(result.citation);
-      const start = text ? text.indexOf(result.snippet) : -1;
-      if (start < 0) continue;
-      retrieved.push({
-        filePath: result.citation,
-        start,
-        end: start + result.snippet.length,
-        snippet: result.snippet,
-      });
+    if (retrieverKind === "passage") {
+      for (const hit of searchPassages({
+        sourceDb: database,
+        query: test.query,
+        k,
+        target: chunkTarget,
+        overlap: chunkOverlap,
+        nameWeight,
+      })) {
+        retrieved.push({
+          filePath: hit.citation,
+          start: hit.start,
+          end: hit.end,
+          snippet: hit.text,
+        });
+      }
+    } else {
+      const results = (
+        searchLocalA2AJ({ query: test.query, docType: "laws", size: k }) ?? []
+      ).slice(0, k);
+      for (const result of results) {
+        if (!result.snippet) continue;
+        const text = corpusText.get(result.citation);
+        const start = text ? text.indexOf(result.snippet) : -1;
+        if (start < 0) continue;
+        retrieved.push({
+          filePath: result.citation,
+          start,
+          end: start + result.snippet.length,
+          snippet: result.snippet,
+        });
+      }
     }
     const baseline = scoreSpans(retrieved, test.gold);
 
@@ -432,6 +466,7 @@ async function main() {
       effort,
       arm: "required_slot",
       k,
+      retriever,
       query: test.query,
       status: passed ? "passed" : "failed",
       outcome: passed
@@ -456,7 +491,7 @@ async function main() {
   }
 
   const queue = selected.filter(
-    (test) => !done.has(`${model}|${effort}|${k}|${test.id}`),
+    (test) => !done.has(`${model}|${effort}|${k}|${retriever}|${test.id}`),
   );
   console.log(`running ${queue.length} tests (${done.size} resumed)`);
   let index = 0;
@@ -477,6 +512,7 @@ async function main() {
             effort,
             arm: "required_slot",
             k,
+            retriever,
             query: test.query,
             status: "error",
             outcome: "error",
