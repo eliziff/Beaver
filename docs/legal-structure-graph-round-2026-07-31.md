@@ -110,6 +110,34 @@ scores as a precision loss by construction. n was 14–31 fragments per source.
 24/69 documents were refused. And it measured pool expansion, not the registered
 proposal (structure as orientation).
 
+## Navigation surface (`559b3841`) — the layer that was missing
+
+The structure work was unreachable from a model turn: whole-document read,
+Ctrl+F, one section by handle, a flat rendered outline. No page, no
+neighbours, no edges. Build order **A/B** assumed a navigator that did not
+exist.
+
+- **Page map with both numbers.** The engine already detects printed labels
+  and `compileLegalPdfSourceDoc` already carries `anchor: page=<physical>` +
+  printed label in `aliases`; the renderer collapsed them to one `[page N]`
+  and `extractLocalDocument` kept only `.text`. The map is now built where
+  the artifact is still in hand. Marker recovery is the labelled fallback.
+- **Two-scheme resolution.** Front matter printed i-viii makes "1" name two
+  sheets. Ambiguous requests are refused; `printed:1` / `pdf:1` settle them.
+  This is what makes a ToC page number usable.
+- **`library_find pages=`** — "47", "12-18", "printed:iv - printed:2".
+  Filters on offsets after the match, so `at` stays document-wide.
+- **`library_links`** — ancestors/siblings/children plus references out and
+  in, each a handle `library_read` accepts; document-level census and hubs.
+  Whole-document abstention surfaces as `abstained` + note.
+
+Two defects the tests caught: overlap ≠ printed-on (a node's span runs to the
+next heading, so it laps onto the next page by the marker line), and a
+blockless rendition must read as "no pages", not throw.
+
+**Still open:** the ToC-as-outline product (in flight), and the six lib
+consumers that can receive a statute without passing `recoverExtraction`.
+
 ## Retirement standard
 
 > "none of this is remotely 'retired' until the most robust deterministic first
