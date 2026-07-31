@@ -376,6 +376,27 @@ function artifactDirectory(sourcePath: string, cacheKey: string) {
   return path.join(artifactRoot(sourcePath), cacheKey);
 }
 
+async function removeOutmodedArtifacts(sourcePath: string, keepCacheKey: string) {
+  const root = artifactRoot(sourcePath);
+  let entries;
+  try {
+    entries = await readdir(root);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw error;
+  }
+  for (const name of entries) {
+    if (name !== keepCacheKey) {
+      validatedPublications.delete(publicationKey(sourcePath, name));
+    }
+  }
+  await Promise.all(
+    entries
+      .filter((name) => name !== keepCacheKey)
+      .map((name) => rm(path.join(root, name), { recursive: true, force: true })),
+  );
+}
+
 async function exists(filePath: string) {
   try {
     await access(filePath);
@@ -971,7 +992,7 @@ async function processJob(sourcePath: string) {
     if (cancelled.has(key)) return;
     if (!(await writeState(sourcePath, parsing))) return;
     validatedPublications.delete(publicationKey(sourcePath, parsing.cache_key));
-    await rm(path.join(output, "document.json"), { force: true });
+    await rm(output, { recursive: true, force: true });
     const configuredTimeout = Number(process.env.MIKE_PDF_PARSE_TIMEOUT_MS);
     const arguments_ = [
       "parse",
@@ -982,14 +1003,6 @@ async function processJob(sourcePath: string) {
       parsing.parser_config.mode,
       "--no-cache",
       "--compact-pages",
-      "--cache-dir",
-      path.join(
-        dataRoot,
-        "cache",
-        "legalpdf",
-        parsing.parser_version,
-        parsing.parser_config_version,
-      ),
     ];
     if (parsing.parser_config.mode === "codex") {
       arguments_.push(
@@ -1254,11 +1267,13 @@ export async function queueLocalPdfParse(params: {
       (current.status === "ready" || current.status === "degraded") &&
       (await validatePublishedArtifacts(params.sourcePath, current))
     ) {
+      await removeOutmodedArtifacts(params.sourcePath, current.cache_key);
       return current;
     }
     if (!params.force && current.status === "failed") return current;
   }
   cancelled.delete(jobKey(params.sourcePath));
+  await removeOutmodedArtifacts(params.sourcePath, candidate.cache_key);
   await writeState(params.sourcePath, candidate);
   schedule(params.sourcePath);
   return candidate;
@@ -1267,17 +1282,31 @@ export async function queueLocalPdfParse(params: {
 export async function parseLocalPdfOnDemand(
   params: Omit<Parameters<typeof queueLocalPdfParse>[0], "force">,
 ) {
-  const current = await readLocalPdfParseState(params.sourcePath);
-  if (current?.status === "ready" || current?.status === "degraded") {
+  const sourceSha256 = await hashFile(params.sourcePath);
+  let current = await readLocalPdfParseState(params.sourcePath, {
+    validatePublication: false,
+  });
+  if (params.sourceSha256 && params.sourceSha256 !== sourceSha256) {
+    await removeLocalPdfParseArtifacts(params.sourcePath);
+    throw new Error("PDF source bytes no longer match their version");
+  }
+  if (current && current.source_sha256 !== sourceSha256) {
+    await removeLocalPdfParseArtifacts(params.sourcePath);
+    current = null;
+  }
+  if (
+    current &&
+    (current.status === "ready" || current.status === "degraded") &&
+    (await validatePublishedArtifacts(params.sourcePath, current))
+  ) {
+    await removeOutmodedArtifacts(params.sourcePath, current.cache_key);
     return current;
   }
-  const queued =
-    current?.status === "queued" || current?.status === "parsing"
-      ? current
-      : await queueLocalPdfParse({
-          ...params,
-          force: current?.status === "failed",
-        });
+  const queued = await queueLocalPdfParse({
+    ...params,
+    sourceSha256,
+    force: current?.status === "failed",
+  });
   if (queued.status === "ready" || queued.status === "degraded") return queued;
   await jobs.get(jobKey(params.sourcePath))?.catch(() => undefined);
   return (await readLocalPdfParseState(params.sourcePath)) ?? queued;
@@ -1381,8 +1410,9 @@ export async function removeLocalPdfParseArtifacts(sourcePath: string) {
   const active = activeControllers.get(key);
   const job = jobs.get(key);
   cancelled.add(key);
+  validatedPublications.clear();
   active?.abort();
-  if (active) await job?.catch(() => undefined);
+  await job?.catch(() => undefined);
   await Promise.all([
     rm(statePath(sourcePath), { force: true }),
     rm(artifactRoot(sourcePath), { recursive: true, force: true }),
