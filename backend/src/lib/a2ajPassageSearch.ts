@@ -4,10 +4,17 @@
  * document-level lane (`searchLocalA2AJ` is unchanged).
  *
  * Two lanes, deterministic first. A citation short-circuit resolves
- * citation-shaped substrings of the query through `citation_lookup` and
- * PREPENDS those documents' best passages ahead of the bm25 ranking —
+ * citation-shaped substrings of the query through `citation_lookup` —
+ * widened by the citator's resolution evidence, so a query citing the
+ * French twin or a parallel reporter cite reaches the same decision —
+ * and PREPENDS those documents' best passages ahead of the bm25 ranking:
  * an exact identity match beats a ranked guess. The ranked lane is
  * `searchPassages` (OR-semantics weighted bm25, verbatim char offsets).
+ *
+ * An optional third stage reranks the pooled candidates with one
+ * listwise model call (`rerankPassages`); it only reorders verbatim
+ * slices and degrades to lexical order on failure, which is why this
+ * entry point is async even though both retrieval lanes are sync.
  *
  * The derived sidecar is NEVER built inline: the product db is
  * 5.5 GB-scale and a build would hang a user request. A missing sidecar
@@ -17,6 +24,7 @@ import { existsSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 
 import { a2ajLocalBulkPath } from "./a2ajLocalBulk";
+import { citationAliasKeys } from "./caselawCitator";
 import { citationLookupKey } from "./citationKey";
 import { withReadonlySqlite } from "./legalDataPath";
 import {
@@ -25,10 +33,12 @@ import {
   searchPassages,
   type PassageHit,
 } from "./passageRetrieval";
+import { rerankPassages } from "./retrievalRerank";
 
 type Row = Record<string, unknown>;
 type Language = "en" | "fr";
 type DocType = "cases" | "laws";
+type ChunkMode = "chars" | "clause";
 
 /** Chunk parameters of the product sidecar; shared with the builder
  * script so query and build agree on the sidecar identity. */
@@ -59,14 +69,40 @@ export type A2AJPassageResult = {
   passage: { text: string; start: number; end: number };
 };
 
-function buildCommand(sourceDb: string, docType?: DocType) {
+function buildCommand(sourceDb: string, docType?: DocType, mode?: ChunkMode) {
   return [
     "npx tsx scripts/build-passage-index.ts",
     `--db "${sourceDb}"`,
     `--target ${A2AJ_PASSAGE_TARGET}`,
     `--overlap ${A2AJ_PASSAGE_OVERLAP}`,
     ...(docType ? [`--doc-type ${docType}`] : []),
+    ...(mode ? [`--mode ${mode}`] : []),
   ].join(" ");
+}
+
+function indexOptionsFor(args?: { docType?: DocType; mode?: ChunkMode }) {
+  return {
+    sourceDb: a2ajLocalBulkPath(),
+    target: A2AJ_PASSAGE_TARGET,
+    overlap: A2AJ_PASSAGE_OVERLAP,
+    docType: args?.docType,
+    mode: args?.mode,
+  };
+}
+
+/**
+ * Product gate for the passage lane: opt-in env AND a sidecar that
+ * already exists. Callers use this to choose a lane; a missing sidecar
+ * means "lane unavailable" (fall back to the document-level path), never
+ * an inline build and never a failed user request.
+ */
+export function a2ajPassageLaneReady(args?: {
+  docType?: DocType;
+  mode?: ChunkMode;
+}) {
+  if (process.env.MIKE_PASSAGE_SEARCH !== "1") return false;
+  const options = indexOptionsFor(args);
+  return existsSync(options.sourceDb) && existsSync(passageIndexPath(options));
 }
 
 function string(row: Row, field: string) {
@@ -101,7 +137,13 @@ function citationKeys(query: string) {
     const trimmed = fragment.trim();
     if (trimmed.length < 6) continue;
     const key = citationLookupKey(trimmed);
-    if (key) keys.add(key);
+    if (!key) continue;
+    keys.add(key);
+    // Alias expansion through the citator's resolution evidence: the
+    // French twin and parallel reporter cites of the SAME decision, only
+    // where that evidence is unambiguous. No citator graph installed (or
+    // an ambiguous key) degrades to the literal key alone.
+    for (const alias of citationAliasKeys(trimmed)) keys.add(alias);
   }
   return [...keys];
 }
@@ -168,17 +210,24 @@ function bestPassage(
     .get(docId, language) as { start: number; end: number } | undefined;
 }
 
-export function searchLocalA2AJPassages(args: {
+export async function searchLocalA2AJPassages(args: {
   query: string;
   docType?: DocType;
   language?: Language;
   size?: number;
+  /** Chunking of the sidecar to query; part of its identity, so a
+   * clause-mode query needs a clause-mode build. Default "chars". */
+  mode?: ChunkMode;
   /** bm25 weight on the document name/citation columns (text = 1). */
   nameWeight?: number;
   /** Widen the returned candidate pool to this many hits for a
    * downstream `rerankPassages` call, which cuts back to `size`. */
   rerankHits?: number;
-}): A2AJPassageResult[] {
+  /** Listwise LLM rerank over a widened pool, cut back to `size`.
+   * Defaults to MIKE_RETRIEVAL_RERANK_MODEL when set. Rerank failures
+   * degrade to lexical order inside `rerankPassages`. */
+  rerank?: { model: string };
+}): Promise<A2AJPassageResult[]> {
   const query = args.query.trim();
   if (!query) throw new Error("query is required");
   const sourceDb = a2ajLocalBulkPath();
@@ -186,22 +235,26 @@ export function searchLocalA2AJPassages(args: {
     throw new Error(`A2AJ bulk database not found at ${sourceDb}`);
   const language = args.language === "fr" ? "fr" : "en";
   const size = Math.max(1, Math.min(50, Math.trunc(args.size ?? 8)));
-  const wanted = Math.max(
-    size,
-    Math.min(50, Math.trunc(args.rerankHits ?? size)),
-  );
+  const rerankModel =
+    args.rerank?.model ?? process.env.MIKE_RETRIEVAL_RERANK_MODEL?.trim();
+  // Reranking earns a wide pool with a loose per-document cap: the model
+  // is the one that judges document diversity, not the bm25 cap.
+  const wanted = rerankModel
+    ? Math.max(48, size * 8)
+    : Math.max(size, Math.min(50, Math.trunc(args.rerankHits ?? size)));
   const indexOptions = {
     sourceDb,
     target: A2AJ_PASSAGE_TARGET,
     overlap: A2AJ_PASSAGE_OVERLAP,
     docType: args.docType,
+    mode: args.mode,
   };
   const indexDb = passageIndexPath(indexOptions);
   if (!existsSync(indexDb))
     throw new MissingPassageIndexError(
       sourceDb,
       indexDb,
-      buildCommand(sourceDb, args.docType),
+      buildCommand(sourceDb, args.docType, args.mode),
     );
 
   const ranked = searchPassages({
@@ -210,8 +263,9 @@ export function searchLocalA2AJPassages(args: {
     language,
     k: wanted,
     nameWeight: args.nameWeight,
+    perDocCap: rerankModel ? 24 : undefined,
   });
-  return (
+  const pool =
     withReadonlySqlite(sourceDb, (source) => {
       const pinned = pinnedHits(source, indexDb, {
         query,
@@ -245,8 +299,31 @@ export function searchLocalA2AJPassages(args: {
         });
       }
       return results;
-    }) ?? []
+    }) ?? [];
+  if (!rerankModel) return pool.slice(0, size);
+  // rerankPassages short-circuits (no model call) when the pool already
+  // fits, and falls back to lexical order on any ranker failure.
+  const { hits } = await rerankPassages({
+    query,
+    model: rerankModel,
+    top: size,
+    hits: pool.map((result, rank) => ({
+      docId: result.docId,
+      citation: result.citation,
+      name: result.name,
+      language,
+      start: result.passage.start,
+      end: result.passage.end,
+      text: result.passage.text,
+      rank,
+    })),
+  });
+  const byKey = new Map(
+    pool.map((result) => [`${result.docId}:${result.passage.start}`, result]),
   );
+  return hits
+    .map((hit) => byKey.get(`${hit.docId}:${hit.start}`))
+    .filter((result): result is A2AJPassageResult => !!result);
 }
 
 function pinnedHits(
