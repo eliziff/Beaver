@@ -150,6 +150,26 @@ export function citationAliasKeys(citation: string): string[] {
 }
 
 /**
+ * `citationAliasKeys` over a batch, on ONE citator handle. Element i is
+ * the expansion of citations[i], exactly what the single-citation call
+ * returns for it.
+ *
+ * Why a batch surface exists: `withDatabase` opens and closes the graph
+ * per call, and a scanner asks about every citation-shaped fragment of
+ * one query. Measured on the 2.3 GB noteup graph, 7 fragments of one
+ * query: 13.76 ms handle-per-fragment vs 2.17 ms on one handle.
+ */
+export function citationAliasKeysBatch(citations: string[]): string[][] {
+  const keys = citations.map((citation) => sharedCitationLookupKey(citation));
+  if (!keys.some(Boolean)) return keys.map(() => []);
+  return (
+    withDatabase((database) =>
+      keys.map((key) => (key ? keysForQuery(database, key) : [])),
+    ) ?? keys.map((key) => (key ? [key] : []))
+  );
+}
+
+/**
  * Later cases citing the given citation, newest first, one entry per citing
  * case (its excerpt/pinpoints are the first occurrence in that case).
  * Returns null when no note-up graph has been built, mirroring
@@ -404,11 +424,21 @@ export function standsForProfile(args: {
           .get(...keys) as Row
       ).total,
     );
+    // The first occurrence's paragraph/excerpt ride the MIN() row rather than
+    // being re-fetched per group. SQLite's documented bare-column rule gives
+    // every non-aggregated column the value from the row that produced the
+    // single min()/max(), and (case_id, text_offset) is unique across `edge`,
+    // so the row is the same one the old per-group lookup found. That lookup
+    // had no index to sit on - `edge` is indexed on (cited_key) and (case_id)
+    // only - so each of the 300 probes walked ~15 sibling edge rows, dragging
+    // each one's ~600-char excerpt off disk to keep one. Measured on the 40
+    // most-cited keys: 63.1ms -> 36.8ms of query time per profile.
     const groups = database
       .prepare(
         `SELECT case_doc.citation, case_doc.name, case_doc.court, case_doc.date,
                 case_doc.id AS case_id,
-                COUNT(*) AS occurrences, MIN(edge.text_offset) AS first_offset
+                COUNT(*) AS occurrences, MIN(edge.text_offset) AS first_offset,
+                edge.paragraph AS first_paragraph, edge.excerpt AS first_excerpt
          FROM edge
          JOIN case_doc ON case_doc.id = edge.case_id
          WHERE edge.cited_key IN (${placeholders})
@@ -417,18 +447,11 @@ export function standsForProfile(args: {
          LIMIT ?`,
       )
       .all(...keys, STANDS_FOR_CONSIDERED) as Row[];
-    const firstOccurrence = database.prepare(
-      `SELECT paragraph, excerpt FROM edge WHERE case_id = ? AND text_offset = ?`,
-    );
     let authorityList = 0;
     let insufficient = 0;
     const usable: Array<StandsForCandidate & { occurrences: number }> = [];
     for (const group of groups) {
-      const first = firstOccurrence.get(
-        group.case_id as number,
-        group.first_offset as number,
-      ) as Row;
-      const verdict = classifyCitatorExcerpt(String(first.excerpt));
+      const verdict = classifyCitatorExcerpt(String(group.first_excerpt));
       if (verdict.kind === "authority_list") {
         authorityList += 1;
         continue;
@@ -447,7 +470,8 @@ export function standsForProfile(args: {
         citingCourt: (group.court as string | null) ?? null,
         citingLevel: courtLevel(group.court as string | null)?.level ?? null,
         citingDate: (group.date as string | null) ?? null,
-        paragraph: first.paragraph === null ? null : Number(first.paragraph),
+        paragraph:
+          group.first_paragraph === null ? null : Number(group.first_paragraph),
         spanSha256: createHash("sha256")
           .update(verdict.proseWindow, "utf8")
           .digest("hex"),

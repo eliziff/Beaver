@@ -24,7 +24,7 @@ import { existsSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 
 import { a2ajLocalBulkPath } from "./a2ajLocalBulk";
-import { citationAliasKeys } from "./caselawCitator";
+import { citationAliasKeysBatch } from "./caselawCitator";
 import { citationLookupKey, citationsInText } from "./citationKey";
 import { withReadonlySqlite } from "./legalDataPath";
 import {
@@ -129,19 +129,25 @@ function citationKeys(query: string) {
     ...query.split(/[,;]/u),
     ...citationsInText(query).map(({ text }) => text),
   ];
-  const keys = new Set<string>();
+  const candidates: Array<{ text: string; key: string }> = [];
   for (const fragment of fragments) {
     const trimmed = fragment.trim();
     if (trimmed.length < 6) continue;
     const key = citationLookupKey(trimmed);
-    if (!key) continue;
-    keys.add(key);
-    // Alias expansion through the citator's resolution evidence: the
-    // French twin and parallel reporter cites of the SAME decision, only
-    // where that evidence is unambiguous. No citator graph installed (or
-    // an ambiguous key) degrades to the literal key alone.
-    for (const alias of citationAliasKeys(trimmed)) keys.add(alias);
+    if (key) candidates.push({ text: trimmed, key });
   }
+  // Alias expansion through the citator's resolution evidence: the
+  // French twin and parallel reporter cites of the SAME decision, only
+  // where that evidence is unambiguous. No citator graph installed (or
+  // an ambiguous key) degrades to the literal key alone. Batched: the
+  // per-citation call opens and closes the 2.3 GB graph each time, and
+  // one query offers ~7 citation-shaped fragments (13.76 -> 2.17 ms).
+  const aliases = citationAliasKeysBatch(candidates.map((c) => c.text));
+  const keys = new Set<string>();
+  candidates.forEach((candidate, index) => {
+    keys.add(candidate.key);
+    for (const alias of aliases[index]) keys.add(alias);
+  });
   return [...keys];
 }
 
