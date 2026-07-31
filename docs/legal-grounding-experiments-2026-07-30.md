@@ -3072,6 +3072,49 @@ Frozen predictions: maud answered-only R lands 0.17–0.25 (pool
 sources within ±0.03 of ctx confirm on ansP/ansR; answered rate
 87–92%; retrieval-only R over all cells ≥ 0.86 (ctx 0.8464).
 
+### Stage 18 fused grounded confirm verdict (2026-07-31): MIDDLE band → default DROP; G+ctx stays the frozen config
+
+Run: 776 cells, c=6, one transient timeout (maud:122) resolved by a
+resume pass to `rejected`; 0 errors final. Receipts
+`stage18-lbrag-grounded-fused.jsonl`, retriever label verified
+uniform `passage:pool(67958d5292d2)+rerank(codex:gpt-5.6-luna)@p1600+stitch200`.
+
+P1 (unconditional): PASS — 1,659 quoted spans, 0 verbatim
+mismatches, 0 unlocated quotes, 5 raw doc-misses all byte-identical
+duplicates (TRUE doc-miss = 0).
+
+Scores vs the frozen gates (ctx confirm baselines in parens):
+
+- maud answered-only R = **0.1449** (ctx 0.1385; KEEP bar 0.1585,
+  DROP bar 0.1385) — above no-lift, far below the +0.02 KEEP bar.
+- overall answered-only P = 0.5525 (bar 0.5435) — PASS.
+- overall answered-only R = 0.6002 (ctx 0.5832; bar 0.5732) — PASS.
+- **Verdict: MIDDLE → default DROP** per the registered lock-in
+  bias. The frozen Stage 19 config remains G+ctx.
+
+Full table (answered-only, ctx confirm in parens): answered 719/776
+= 92.7% (89.3%); contractnli P 0.7876/R 0.8583 (0.8052/0.8578);
+cuad 0.6689/0.8508 (0.6232/0.7689); maud 0.1712/0.1449
+(0.1754/0.1385); privacy_qa 0.5288/0.4786 (0.5394/0.4809). Fair
+modes: forced-answer 0.5215/0.6052; zero-credit 0.5119/0.5561;
+retrieval-only over all cells 0.0831/0.9120.
+
+Prediction audit: maud ansR 0.1449 **MISSED below** the frozen
+0.17–0.25 band; answered 92.7% just above the 87–92% band;
+retrieval-only R 0.9120 ≥ 0.86 HIT; non-maud within ±0.03 held for
+contractnli/privacy_qa but cuad ansR overshot (+0.082).
+
+Reading (recorded, not adopted): the dense-lane pool lift on maud
+(+0.22 R@48) almost entirely fails to survive rerank→k=6→
+composition (+0.0064 composed) — the maud bottleneck is now
+demonstrably the rerank/composition stage, not pool recall. The
+fused pools DID lift overall composed recall (+0.017), coverage
+(+26 answered cells), and cuad ansR (+0.082) at flat precision —
+real off-target gains, not adoptable post-hoc under the frozen
+protocol. A fused lane remains revisitable post-holdout only as a
+new registered round, and any production use additionally requires
+a laptop-viable embedder (the 3080 Ti is the ceiling lane only).
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under
@@ -3122,6 +3165,8 @@ committed.
 | `stage18-context-arms-maud-medium.jsonl` (R5b weight sweep, combined sidecar) | `9FA97EAE337F9F7F7D54FE53E5BAA9B424354F4A8E68782CE5A1226048982F38` |
 | `stage18-lbrag-grounded-ctx.jsonl` (R5b grounded confirm, 776 cells + 2-cell resume, 0 errors) | `11A4FB9A32D27679E8E8A7BBBDAEFF9E22228B950F68C093F8AA2D2B32DE751C` |
 | `stage18-dense-pool.jsonl` (arm D six-arm pool eval, Qwen3-Embedding-4B on the 3080 Ti, 776 rows; sha verified byte-exact after Tailscale transfer) | `857848D409648EB39805E1593A2D997C6096F021D7C8F7235AB7B84B1021F7C9` |
+| `stage18-fused-pools.jsonl` (fused pool sidecar, 776 rows, sanity 0.6351 reproduced; byte-exact after Tailscale transfer) | `67958D5292D2CA26FE02EB755BCE7939654469BEFE06400EB7DBF01A2E52066D` |
+| `stage18-lbrag-grounded-fused.jsonl` (fused grounded confirm, 776 cells + 1-cell resume, 0 errors final) | `3FB273AB584962B951B753337F76B3DA355E1B3045510772EB8DD486FA5B1480` |
 
 ## Validation and final selection gate
 
