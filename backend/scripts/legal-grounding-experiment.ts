@@ -55,7 +55,10 @@ import {
   type LegalEvidenceReceipt,
   type LegalSourceClass,
 } from "../src/lib/chat/legalEvidenceExperiment";
-import { receiptPath } from "../src/lib/experimentReceipts";
+import {
+  legalGroundingCellKey,
+  receiptPath,
+} from "../src/lib/experimentReceipts";
 import {
   streamChatWithTools,
   type NormalizedLlmUsage,
@@ -1131,10 +1134,7 @@ async function main() {
   const done = new Set<string>();
   if (resume && existsSync(output)) {
     for (const row of readJsonl<RunReceipt>(output))
-      if (!row.error)
-        done.add(
-          `${row.model}|${row.arm}|${row.checker_model ?? "same"}|${row.case_id}|${row.rank_policy ?? "-"}`,
-        );
+      if (!row.error) done.add(legalGroundingCellKey(row));
   } else {
     writeFileSync(output, "", "utf8");
   }
@@ -1166,10 +1166,20 @@ async function main() {
       }),
     ),
   );
+  // Cell identity (src/lib/experimentReceipts) now carries `effort`: it
+  // changes what the cell means and every row already records it, so a
+  // ladder lane no longer needs its own output file to stay separable.
   const pendingCells = cells.filter(
     (cell) =>
       !done.has(
-        `${cell.model}|${cell.arm}|${cell.checker ?? "same"}|${cell.item.id}|${cell.policy ?? "-"}`,
+        legalGroundingCellKey({
+          model: cell.model,
+          effort,
+          arm: cell.arm,
+          checker_model: cell.checker,
+          case_id: cell.item.id,
+          rank_policy: cell.policy,
+        }),
       ),
   );
   console.log(
