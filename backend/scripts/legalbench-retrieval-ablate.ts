@@ -46,6 +46,34 @@ const RAW_COORDS = process.argv.includes("--raw-coords");
 const COORDS = RAW_COORDS ? "crlf" : "lf";
 const RUN_TAG =
   (RAW_COORDS ? "+rawcoords" : "") + (STRIP_CONSIDER ? "+stripped" : "");
+/**
+ * Receipt destination for a sweep. `--output` wins; otherwise the default
+ * name under the receipt store.
+ *
+ * Refuses to clobber an existing receipt unless `--force` is passed. Stage
+ * 18R lost the pinned `stage18-retrieval-arms.jsonl` bytes exactly this way
+ * — a re-run took the default path because `--output` was wired into only
+ * one of the sweep modes, and the sha recorded in the experiment log stopped
+ * resolving. Receipts are append-only evidence; overwriting one silently is
+ * a defect, not a convenience.
+ */
+function receiptPath(defaultName: string): string {
+  const at = process.argv.indexOf("--output");
+  const output =
+    at >= 0
+      ? process.argv[at + 1]
+      : path.join(
+          process.env.LOCALAPPDATA ?? "",
+          `OpenLegalData/experiments/legal-grounding/2026-07-30/${defaultName}`,
+        );
+  if (existsSync(output) && !process.argv.includes("--force"))
+    throw new Error(
+      `refusing to overwrite an existing receipt: ${output}\n` +
+        "pass --output <newfile> for a fresh run, or --force if you really mean to replace it",
+    );
+  return output;
+}
+
 export function stripConsider(query: string): string {
   if (!query.startsWith("Consider ")) return query;
   const at = query.indexOf(";");
@@ -163,14 +191,9 @@ if (process.argv.includes("--context-arms")) {
   if (!contextJsonl) throw new Error("missing --context-jsonl");
   const labelAt = process.argv.indexOf("--label");
   const label = labelAt >= 0 ? process.argv[labelAt + 1] : "linted";
-  const outputAt = process.argv.indexOf("--output");
-  const output =
-    outputAt >= 0
-      ? process.argv[outputAt + 1]
-      : path.join(
-          process.env.LOCALAPPDATA ?? "",
-          `OpenLegalData/experiments/legal-grounding/2026-07-30/stage18-context-arms-${label}${RUN_TAG}.jsonl`,
-        );
+  const output = receiptPath(
+    `stage18-context-arms-${label}${RUN_TAG}.jsonl`,
+  );
   writeFileSync(output, "", "utf8");
   for (const weight of [0, 1, 2, 4]) {
     const bySource = new Map<
@@ -399,9 +422,8 @@ if (process.argv.includes("--rerank-arms")) {
 // Stage 18 registered arms: {chars,clause} x {plain,phrases} at the
 // crowned t1600/o120/w16, gated on maud pool R@48. Deterministic, free.
 if (process.argv.includes("--stage18")) {
-  const output = path.join(
-    process.env.LOCALAPPDATA ?? "",
-    `OpenLegalData/experiments/legal-grounding/2026-07-30/stage18-retrieval-arms${RUN_TAG}.jsonl`,
+  const output = receiptPath(
+    `stage18-retrieval-arms${RUN_TAG}.jsonl`,
   );
   writeFileSync(output, "", "utf8");
   const arms = [
