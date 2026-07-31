@@ -126,6 +126,28 @@ to improve a build number.
   (CL bulk, citator noteup.sqlite, alienness indexes, a2aj lookup.duckdb)
   instead of re-parsing the CSVs/parquet they were built from, and never
   rebuild an index that's already on disk (check its `meta` table first).
+- Journal footnote pairs: `%LOCALAPPDATA%\ALR Quote Verifier\citator\
+  journal_commentary.sqlite` (18,595 articles, 237,236 paired notes,
+  75,018 citations; built from public_endpoint.db plaintext by
+  `backend/scripts/pair_journal_footnotes.py` — interim). The canonical
+  digital-native pairs live in `Desktop\Open Access Journals Database\
+  oajd\journals.db` `article_final_contracts` (6,937 packages, all
+  local, pages.jsonl annotations fn_label/fn_ref from
+  footnote_pairing_v2; same article_id space as public_endpoint.db) —
+  prefer that lane once wired. Root-level journals.db is an empty stub.
+- Citation detection/resolution: call the EXISTING machinery; do not
+  invent another in-place regex. The surfaces: `citationKey.ts`
+  (`citationLookupKey` — the one corpus-identity normalizer),
+  `caselawCitator.ts` (`citationAliasKeys` same-decision alias expansion
+  through resolution evidence; note-up), the corpus `citation_lookup` /
+  `lookup.duckdb` indexes, `courtlistenerLocalBulk.ts`
+  (US volume/reporter/page lookup) and eyecite for the US lane. If a
+  task needs a citation shape none of these detect (e.g. spotting cites
+  inside free text), expand the shared module — with tests beside the
+  existing ones — so every caller inherits it; a new one-off pattern in
+  a consumer file is a defect. (Known debt: `CITATION_IN_QUERY` in
+  `a2ajPassageSearch.ts` predates this rule — fold it into the shared
+  surface when next touched.)
 - Deterministic legal-text modules (`legalTextAnchors`, `legalTextSkeleton`,
   `legalAmendOps`, `legalDeadlines`, `legalTermDrift`, `legalDraftingLint`):
   no grammar change without a corpus/gold measurement (USLM gold, CUAD,
