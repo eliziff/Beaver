@@ -1,11 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("../legalPdfProcess", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../legalPdfProcess")>()),
+  runLegalPdf: vi.fn(),
+}));
 
 import { lookupSourceDoc } from "../sourceDoc";
 import {
   compileLegalPdfSourceDoc,
   LEGAL_PDF_DOCUMENT_SCHEMA,
   LOCAL_PDF_SOURCE_SCHEMA,
+  parseLegalPdfSourceDoc,
 } from "../legalPdfSourceDoc";
+import { runLegalPdf } from "../legalPdfProcess";
 
 const rows = {
   manifest: {
@@ -100,5 +107,17 @@ describe("legal PDF SourceDoc adapter", () => {
       status: "found",
       block: { anchor: "page=2" },
     });
+  });
+
+  it("requests geometry-free pages for transient text extraction", async () => {
+    vi.mocked(runLegalPdf).mockRejectedValueOnce(new Error("stop after argv"));
+
+    await expect(parseLegalPdfSourceDoc(Buffer.from("pdf"))).rejects.toThrow(
+      "stop after argv",
+    );
+
+    expect(vi.mocked(runLegalPdf).mock.calls[0]?.[0]).toContain(
+      "--compact-pages",
+    );
   });
 });
