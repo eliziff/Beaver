@@ -128,17 +128,32 @@ async function main() {
         chunk,
       });
       try {
-        const header = (
-          await completeText({
-            model,
-            systemPrompt: SYSTEM,
-            user,
-            reasoningEffort: effort,
-          })
-        )
-          .trim()
-          .replace(/\s+/gu, " ")
-          .slice(0, 600);
+        // Short low-effort calls at high concurrency trip the codex
+        // 429 rate limit (measured: 1,502/2,008 rows at c=12); retry
+        // with exponential backoff + jitter before recording an error.
+        let reply = "";
+        for (let attempt = 0; ; attempt += 1) {
+          try {
+            reply = await completeText({
+              model,
+              systemPrompt: SYSTEM,
+              user,
+              reasoningEffort: effort,
+            });
+            break;
+          } catch (error) {
+            const message =
+              error instanceof Error ? error.message : String(error);
+            if (!message.includes("429") || attempt >= 5) throw error;
+            await new Promise((resolve) =>
+              setTimeout(
+                resolve,
+                1000 * 2 ** attempt + Math.random() * 1000,
+              ),
+            );
+          }
+        }
+        const header = reply.trim().replace(/\s+/gu, " ").slice(0, 600);
         if (!header) throw new Error("empty header");
         appendFileSync(
           output,
