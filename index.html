@@ -1,0 +1,1778 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Affidavit Builder</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #111827;
+      --muted: #667085;
+      --paper: #f3f4f6;
+      --card: #fff;
+      --line: #d0d5dd;
+      --brand: #d52b1e;
+      --brand-dark: #b42318;
+      --brand-soft: #fff1f0;
+      --success: #067647;
+      --warning: #b54708;
+      --danger: #b42318;
+      --shadow:
+        0 0 0 1px rgb(0 0 0 / 5%),
+        0 1px 2px -1px rgb(0 0 0 / 6%),
+        0 2px 4px rgb(0 0 0 / 4%);
+      --text-sm: .8125rem;
+      --text-base: 1rem;
+      --text-lg: 1.125rem;
+      --text-xl: 1.5rem;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-synthesis: none;
+    }
+
+    * { box-sizing: border-box; }
+    html {
+      min-width: 0;
+      background: var(--paper);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    body {
+      min-width: 0;
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font-size: var(--text-base);
+      line-height: 1.5;
+    }
+    button, input { font: inherit; }
+    button, .file-button { touch-action: manipulation; }
+    button:focus-visible, input:focus-visible, summary:focus-visible {
+      outline: 2px solid var(--ink);
+      outline-offset: 2px;
+    }
+    ::selection { color: #fff; background: var(--brand); }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      min-height: 3.5rem;
+      padding: .65rem clamp(1rem, 4vw, 2rem);
+      color: #fff;
+      background: #17191c;
+    }
+    .topbar h1 {
+      margin: 0;
+      font-size: var(--text-lg);
+      line-height: 1.2;
+      font-weight: 650;
+      letter-spacing: -.01em;
+    }
+    .brand-lockup { display: flex; align-items: center; gap: .6rem; min-width: 0; }
+    .brand-name { font-weight: 700; letter-spacing: -.01em; white-space: nowrap; }
+    .brand-divider { color: #98a2b3; }
+    .beaver-mark { flex: 0 0 auto; width: 1.6rem; height: 1.6rem; color: var(--brand); }
+    .local-note { color: #d0d5dd; font-size: var(--text-sm); }
+
+    main {
+      width: min(74rem, 100%);
+      margin-inline: auto;
+      padding: clamp(1rem, 3vw, 2rem);
+    }
+    .intro {
+      max-width: 67ch;
+      margin-block-end: 1.5rem;
+    }
+    .intro h2 {
+      margin: 0 0 .35rem;
+      font-size: var(--text-xl);
+      line-height: 1.2;
+      letter-spacing: -.02em;
+      text-wrap: balance;
+    }
+    .intro p { margin: 0; color: var(--muted); text-wrap: pretty; }
+
+    .builder {
+      display: grid;
+      grid-template-columns: minmax(0, 36rem) minmax(24rem, 1fr);
+      align-items: start;
+      gap: 1.25rem;
+      min-width: 0;
+      margin-block-start: 1.25rem;
+    }
+    .editor-stack { display: grid; gap: 1rem; min-width: 0; }
+    .affidavit-card { max-width: 48rem; }
+    .card {
+      min-width: 0;
+      padding: 1rem;
+      border-radius: .75rem;
+      background: var(--card);
+      box-shadow: var(--shadow);
+    }
+    .card-heading {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: .75rem;
+      margin-block-end: .85rem;
+    }
+    .card h2 {
+      margin: 0;
+      font-size: var(--text-lg);
+      line-height: 1.3;
+    }
+    .count {
+      color: var(--muted);
+      font-size: var(--text-sm);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: .8rem;
+    }
+    .field { display: grid; align-content: start; gap: .3rem; min-width: 0; }
+    .field.wide { grid-column: 1 / -1; }
+    label, legend { font-size: var(--text-sm); font-weight: 600; }
+    input[type="text"] {
+      width: 100%;
+      min-width: 0;
+      min-height: 2.65rem;
+      padding: .55rem .65rem;
+      border: 1px solid var(--line);
+      border-radius: .5rem;
+      color: var(--ink);
+      background: #fff;
+    }
+    input::placeholder { color: #98a2b3; }
+    input[aria-invalid="true"] { border-color: var(--danger); }
+
+    button, .file-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 2.5rem;
+      padding: .5rem .8rem;
+      border: 1px solid transparent;
+      border-radius: .5rem;
+      color: #fff;
+      background: var(--ink);
+      cursor: pointer;
+      font-size: .875rem;
+      font-weight: 600;
+      text-align: center;
+      text-decoration: none;
+      transition-property: color, background-color, box-shadow;
+      transition-duration: 120ms;
+      transition-timing-function: ease-out;
+    }
+    button:hover, .file-button:hover { background: #344054; }
+    button.primary { background: var(--brand); }
+    button.primary:hover { background: var(--brand-dark); }
+    button.secondary, .file-button.secondary {
+      color: var(--ink);
+      border-color: var(--line);
+      background: #fff;
+    }
+    button.secondary:hover, .file-button.secondary:hover { background: #f9fafb; }
+    button:disabled {
+      color: #98a2b3;
+      border-color: #e4e7ec;
+      background: #f2f4f7;
+      cursor: not-allowed;
+    }
+    .file-button { position: relative; overflow: hidden; }
+    .file-button input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+    }
+    .file-button:has(input:focus-visible) {
+      outline: 2px solid var(--ink);
+      outline-offset: 2px;
+    }
+
+    .file-drop {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      min-width: 0;
+      min-height: 6.5rem;
+      padding: 1rem;
+      border: 1px dashed var(--line);
+      border-radius: .65rem;
+      background: #fcfcfd;
+    }
+    .file-drop[data-over="true"] {
+      border-color: var(--brand);
+      background: var(--brand-soft);
+      box-shadow: 0 0 0 1px var(--brand);
+    }
+    .file-drop > div { display: grid; gap: .2rem; min-width: 0; }
+    .file-drop strong {
+      overflow: hidden;
+      font-size: .9375rem;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .file-drop span:not(.file-button span) {
+      color: var(--muted);
+      font-size: var(--text-sm);
+    }
+    .affidavit-card .check { margin-block-start: 1rem; }
+    .check {
+      display: grid;
+      grid-template-columns: 1.25rem minmax(0, 1fr);
+      align-items: start;
+      gap: .55rem;
+      cursor: pointer;
+    }
+    .check input {
+      width: 1.15rem;
+      height: 1.15rem;
+      margin: .15rem 0 0;
+      accent-color: var(--brand);
+    }
+    .check span { display: grid; gap: .15rem; }
+    .check small {
+      color: var(--muted);
+      font-size: var(--text-sm);
+      font-weight: 400;
+      line-height: 1.4;
+      text-wrap: pretty;
+    }
+
+    details { min-width: 0; }
+    summary {
+      color: var(--muted);
+      cursor: pointer;
+      font-size: var(--text-sm);
+      font-weight: 600;
+    }
+
+    .exhibits-heading {
+      align-items: start;
+      margin-block-end: 1rem;
+    }
+    .exhibits-heading > div:first-child { display: grid; gap: .15rem; }
+    .batch-drop { min-height: 5rem; margin-block-end: .75rem; }
+    .exhibit-list {
+      display: grid;
+      gap: .75rem;
+      min-width: 0;
+    }
+    .exhibit-row {
+      display: grid;
+      grid-template-columns: 2.5rem 2.5rem minmax(0, 1fr) auto;
+      align-items: start;
+      gap: .75rem;
+      min-width: 0;
+      padding: .75rem;
+      border: 1px solid var(--line);
+      border-radius: .6rem;
+      background: #fff;
+    }
+    .exhibit-row[data-dragging="true"] {
+      opacity: .6;
+      box-shadow: 0 0 0 2px var(--brand);
+    }
+    .drag-handle {
+      width: 2.5rem;
+      min-width: 2.5rem;
+      min-height: 2.5rem;
+      padding: 0;
+      color: var(--muted);
+      border-color: transparent;
+      background: transparent;
+      cursor: grab;
+      font-size: 1.35rem;
+      line-height: 1;
+    }
+    .drag-handle:hover { color: var(--ink); background: #f2f4f7; }
+    .drag-handle:active { cursor: grabbing; }
+    .letter {
+      display: grid;
+      place-items: center;
+      width: 2.5rem;
+      min-height: 2.5rem;
+      border-radius: .45rem;
+      color: var(--brand-dark);
+      background: var(--brand-soft);
+      font-size: var(--text-lg);
+      font-weight: 700;
+    }
+    .slot-body { display: grid; gap: .45rem; min-width: 0; }
+    .slot-body > label {
+      display: inline-flex;
+      width: fit-content;
+      color: var(--ink);
+    }
+    .slot-body input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+    }
+    .slot-body > label:has(input:focus-visible) {
+      outline: 2px solid var(--ink);
+      outline-offset: 2px;
+    }
+    .slot-drop {
+      min-width: 0;
+      padding: .75rem;
+      border: 1px dashed var(--line);
+      border-radius: .5rem;
+      background: #fcfcfd;
+    }
+    .slot-drop[data-over="true"] {
+      border-color: var(--brand);
+      background: var(--brand-soft);
+    }
+    .slot-drop p { margin: 0; color: var(--muted); font-size: var(--text-sm); }
+    .file-name {
+      min-width: 0;
+      overflow: hidden;
+      font-size: .9375rem;
+      font-weight: 650;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .file-meta, .expected {
+      color: var(--muted);
+      font-size: var(--text-sm);
+      overflow-wrap: break-word;
+    }
+    .file-meta[data-kind="strong"] { color: var(--success); }
+    .file-meta[data-kind="possible"] { color: var(--warning); }
+    .expected { margin-block-start: .25rem; }
+    .expected ul { margin: .35rem 0 0; padding-inline-start: 1.1rem; }
+    .expected li + li { margin-block-start: .25rem; }
+    .delete-exhibit {
+      color: var(--danger);
+      border-color: #fecdca;
+      background: #fff;
+      font-size: var(--text-sm);
+    }
+    .add-exhibit {
+      width: 100%;
+      margin-block-start: .75rem;
+      gap: .35rem;
+      color: var(--muted);
+      border: 1px dashed var(--line);
+      background: #fcfcfd;
+    }
+    .add-exhibit:hover { color: var(--ink); background: #f9fafb; }
+    .bumper-option { margin-block-start: 1rem; }
+    .output-card { display: grid; gap: .75rem; }
+    .output-card .card-heading { margin-block-end: 0; }
+    .output-card .primary { justify-self: start; }
+    .status {
+      min-height: 1.5rem;
+      color: var(--muted);
+      font-size: var(--text-sm);
+      overflow-wrap: break-word;
+    }
+    .status[data-tone="error"] { color: var(--danger); }
+    .status[data-tone="success"] { color: var(--success); }
+    progress { width: 100%; height: .45rem; margin-block-start: .5rem; accent-color: var(--brand); }
+
+    .preview-card {
+      position: sticky;
+      top: 1rem;
+      min-height: 36rem;
+    }
+    .preview-shell {
+      display: grid;
+      min-height: 32rem;
+      max-height: calc(100vh - 8rem);
+      overflow: hidden;
+      border-radius: .55rem;
+      background: #d9dde3;
+      box-shadow: inset 0 0 0 1px rgb(0 0 0 / 8%);
+    }
+    .preview-shell > * { grid-area: 1 / 1; }
+    .preview-empty {
+      display: grid;
+      place-items: center;
+      min-height: 32rem;
+      padding: 2rem;
+      color: var(--muted);
+      text-align: center;
+      text-wrap: pretty;
+    }
+    .preview-pages {
+      display: flex;
+      flex-direction: column;
+      gap: .9rem;
+      width: 100%;
+      min-width: 0;
+      height: min(70vh, 52rem);
+      padding: 1rem;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+    .preview-page {
+      position: relative;
+      flex: 0 0 auto;
+      width: 100%;
+      overflow: hidden;
+      background: #fff;
+      box-shadow: 0 0 0 1px rgb(0 0 0 / 10%), 0 4px 12px rgb(0 0 0 / 8%);
+    }
+    .preview-page canvas { display: block; width: 100%; height: 100%; }
+    .docx-stage {
+      position: fixed;
+      inset-inline-start: -20000px;
+      top: 0;
+      width: 900px;
+      pointer-events: none;
+    }
+    .hidden { display: none !important; }
+
+    @media (max-width: 64rem) {
+      .builder { grid-template-columns: 1fr; }
+      .preview-card { position: static; }
+    }
+    @media (max-width: 34rem) {
+      main { padding: 1rem; }
+      .topbar { align-items: flex-start; flex-wrap: wrap; }
+      .brand-lockup { gap: .45rem; }
+      .local-note { margin-inline-start: 2.05rem; }
+      .file-drop { align-items: stretch; flex-direction: column; }
+      .file-drop .file-button { width: 100%; }
+      .form-grid { grid-template-columns: 1fr; }
+      .field.wide { grid-column: auto; }
+      .exhibits-heading { display: grid; }
+      .exhibit-row { grid-template-columns: 2.5rem minmax(0, 1fr); }
+      .drag-handle { grid-column: 1; grid-row: 1; }
+      .letter { grid-column: 1; grid-row: 2; }
+      .slot-body { grid-column: 2; grid-row: 1 / span 2; }
+      .delete-exhibit { grid-column: 2; width: 100%; }
+      .output-card .primary { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand-lockup">
+      <svg class="beaver-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <circle cx="8" cy="8" r="4" fill="currentColor"/>
+        <circle cx="24" cy="8" r="4" fill="currentColor"/>
+        <path fill="currentColor" d="M16 4C9.4 4 5 8.8 5 15.2 5 23.1 9.6 28 16 28s11-4.9 11-12.8C27 8.8 22.6 4 16 4Z"/>
+        <path fill="#fff" d="M10 16h6v10h-4.2A1.8 1.8 0 0 1 10 24.2V16Zm6 0h6v8.2a1.8 1.8 0 0 1-1.8 1.8H16V16Z"/>
+        <path fill="none" stroke="#17191c" stroke-width="1.25" d="M16 16v10"/>
+      </svg>
+      <span class="brand-name">Beaver</span>
+      <span class="brand-divider" aria-hidden="true">|</span>
+      <h1>Affidavit Builder</h1>
+    </div>
+    <span class="local-note">Files stay in this browser</span>
+  </header>
+
+  <main>
+    <section class="intro" aria-labelledby="intro-title">
+      <h2 id="intro-title">Build an affidavit with exhibits</h2>
+      <p>Start with the affidavit. Add each exhibit in order, review the combined PDF, then download it.</p>
+    </section>
+
+    <section class="card affidavit-card" aria-labelledby="affidavit-title">
+      <div class="card-heading">
+        <h2 id="affidavit-title">1. Add the affidavit</h2>
+        <span id="affidavit-summary" class="count">PDF or DOCX</span>
+      </div>
+      <div id="affidavit-drop" class="file-drop" data-kind="affidavit">
+        <div>
+          <strong id="affidavit-name">Choose an affidavit</strong>
+          <span>or drag a PDF or DOCX file here</span>
+        </div>
+        <label class="file-button secondary">
+          <span id="affidavit-action">Choose file</span>
+          <input id="affidavit-file" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+        </label>
+      </div>
+      <label class="check">
+        <input id="automatic" type="checkbox" checked>
+        <span>
+          Auto-fill from PDF
+          <small>Reads every affidavit page for case details and exhibit references. PDF OCR stays in this browser; DOCX also works.</small>
+        </span>
+      </label>
+    </section>
+
+    <div id="builder" class="builder hidden">
+      <div class="editor-stack">
+        <section class="card" aria-labelledby="case-title">
+          <div class="card-heading"><h2 id="case-title">2. Case details</h2></div>
+          <form id="details-form" class="form-grid">
+            <div class="field">
+              <label for="file-number">Court file number</label>
+              <input id="file-number" name="file-number" type="text" required>
+            </div>
+            <div class="field">
+              <label for="registry">Court registry</label>
+              <input id="registry" name="registry" type="text" required>
+            </div>
+            <div class="field wide">
+              <label for="court">Court</label>
+              <input id="court" name="court" type="text" required>
+            </div>
+            <div class="field wide">
+              <label for="claimant">Claimant</label>
+              <input id="claimant" name="claimant" type="text" required>
+            </div>
+            <div class="field wide">
+              <label for="respondent">Respondent</label>
+              <input id="respondent" name="respondent" type="text" required>
+            </div>
+            <div class="field">
+              <label for="affidavit-number">Affidavit number</label>
+              <input id="affidavit-number" name="affidavit-number" type="text" required>
+            </div>
+            <div class="field">
+              <label for="deponent">Deponent</label>
+              <input id="deponent" name="deponent" type="text" required>
+            </div>
+            <div class="field">
+              <label for="sworn-date">Sworn date</label>
+              <input id="sworn-date" name="sworn-date" type="text" placeholder="Month D, YYYY" required>
+            </div>
+            <div class="field">
+              <label for="sworn-place">Sworn at</label>
+              <input id="sworn-place" name="sworn-place" type="text" placeholder="City, province" required>
+            </div>
+          </form>
+        </section>
+
+        <section class="card order-card" aria-labelledby="order-title">
+          <div class="card-heading exhibits-heading">
+            <div>
+              <h2 id="order-title">3. Add the exhibits</h2>
+              <span id="exhibit-count" class="count">1 exhibit</span>
+            </div>
+          </div>
+          <div id="exhibit-batch" class="file-drop batch-drop">
+            <div>
+              <strong>Add exhibit files</strong>
+              <span>Select every PDF or DOCX at once; Beaver will try to sort them.</span>
+            </div>
+            <label class="file-button secondary">
+              <span>Choose files</span>
+              <input id="exhibit-files" type="file" multiple accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+            </label>
+          </div>
+          <div id="exhibit-list" class="exhibit-list" aria-label="Exhibits in order"></div>
+          <button id="add-slot" type="button" class="add-exhibit"><span aria-hidden="true">+</span> Add exhibit</button>
+          <label class="check bumper-option">
+            <input id="bumpers" type="checkbox">
+            <span>
+              Start exhibit covers on right-hand pages
+              <small>Adds a blank bumper page only when the next certificate would otherwise start on an even page.</small>
+            </span>
+          </label>
+        </section>
+
+        <section class="card output-card" aria-labelledby="output-title">
+          <div class="card-heading"><h2 id="output-title">4. Download</h2></div>
+          <div id="status" class="status" role="status" aria-live="polite"></div>
+          <progress id="progress" class="hidden" max="100" value="0" aria-label="Processing progress"></progress>
+          <button id="build" type="button" class="primary">Build and download PDF</button>
+        </section>
+      </div>
+
+      <aside class="card preview-card" aria-labelledby="preview-title">
+        <div class="card-heading">
+          <h2 id="preview-title">Live preview</h2>
+          <span id="preview-count" class="count">Waiting for affidavit</span>
+        </div>
+        <div class="preview-shell">
+          <div id="preview-empty" class="preview-empty">The assembled PDF will appear here.</div>
+          <div id="preview" class="preview-pages hidden" aria-label="Finished affidavit preview"></div>
+        </div>
+      </aside>
+    </div>
+    <div id="docx-stage" class="docx-stage" aria-hidden="true"></div>
+  </main>
+
+  <script>
+    const $ = (selector) => document.querySelector(selector);
+    const fields = [
+      "file-number", "registry", "court", "claimant", "respondent",
+      "affidavit-number", "deponent", "sworn-date", "sworn-place",
+    ];
+    const CDN = {
+      pdfLib: "https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js",
+      pdfJs: "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs",
+      pdfWorker: "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs",
+      fuzzy: "https://cdn.jsdelivr.net/npm/fastest-levenshtein@1.0.16/+esm",
+      tesseract: "https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/tesseract.min.js",
+      jszip: "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js",
+      docxPreview: "https://cdn.jsdelivr.net/npm/docx-preview@0.3.7/dist/docx-preview.min.js",
+      html2canvas: "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js",
+    };
+    const preferencesKey = "exhibitBookBuilder.courtPreferences.v1";
+    const state = {
+      affidavit: null,
+      entries: [],
+      order: [null],
+      statements: new Map(),
+      touchedFields: new Set(),
+      pdfJs: null,
+      fuzzy: null,
+      ocrWorker: null,
+      ocrContext: "",
+      affidavitMeta: "PDF or DOCX",
+      scanning: false,
+      dragIndex: null,
+      busy: false,
+      previewTimer: null,
+      previewGeneration: 0,
+      previewDocument: null,
+      previewObserver: null,
+      previewRenderQueue: Promise.resolve(),
+      docxQueue: Promise.resolve(),
+      docxCache: new Map(),
+    };
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (character) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+      })[character]);
+    }
+
+    function todayText(date = new Date()) {
+      return new Intl.DateTimeFormat("en-CA", {
+        month: "long", day: "numeric", year: "numeric",
+      }).format(date);
+    }
+
+    function ordinal(value) {
+      const number = Number(value);
+      if (number % 100 >= 11 && number % 100 <= 13) return `${number}th`;
+      return `${number}${({ 1: "st", 2: "nd", 3: "rd" })[number % 10] || "th"}`;
+    }
+
+    function legalDate(value) {
+      const raw = value.trim().replace(/^this\s+/iu, "");
+      const months = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December",
+      ];
+      let match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/u);
+      if (match) return `${ordinal(match[3])} day of ${months[Number(match[2]) - 1]} ${match[1]}`;
+      match = raw.match(/^([A-Za-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?[,]?\s+(\d{4})$/iu);
+      if (match) {
+        const month = months.find((name) => name.toLowerCase() === match[1].toLowerCase());
+        if (month) return `${ordinal(match[2])} day of ${month} ${match[3]}`;
+      }
+      match = raw.match(/^(\d{1,2})(?:st|nd|rd|th)?(?:\s+day\s+of)?\s+([A-Za-z]+)\s+(\d{4})$/iu);
+      if (match) {
+        const month = months.find((name) => name.toLowerCase() === match[2].toLowerCase());
+        if (month) return `${ordinal(match[1])} day of ${month} ${match[3]}`;
+      }
+      return raw;
+    }
+
+    function fieldValue(id) { return $(`#${id}`).value.trim(); }
+
+    function setStatus(message, tone = "") {
+      $("#status").textContent = message;
+      $("#status").dataset.tone = tone;
+    }
+
+    function setBusy(busy) {
+      state.busy = busy;
+      $("#build").disabled = busy;
+      $("#add-slot").disabled = busy;
+      $("#exhibit-files").disabled = busy;
+      $("#automatic").disabled = busy;
+      document.querySelectorAll(".slot-file, .delete-exhibit, .drag-handle").forEach((control) => {
+        control.disabled = busy;
+      });
+      $("#progress").classList.toggle("hidden", !busy);
+      if (!busy) $("#progress").value = 0;
+    }
+
+    function progress(message, completed, total) {
+      setStatus(message);
+      if (state.scanning) $("#affidavit-summary").textContent = message;
+      $("#progress").value = total ? Math.round((completed / total) * 100) : 0;
+    }
+
+    function script(src) {
+      return new Promise((resolve, reject) => {
+        const existing = document.querySelector(`script[src="${src}"]`);
+        if (existing) {
+          if (existing.dataset.loaded) resolve();
+          else existing.addEventListener("load", resolve, { once: true });
+          return;
+        }
+        const node = document.createElement("script");
+        node.src = src;
+        node.addEventListener("load", () => {
+          node.dataset.loaded = "true";
+          resolve();
+        }, { once: true });
+        node.addEventListener("error", () => reject(new Error("Unable to load the document tools. Check your connection and try again.")), { once: true });
+        document.head.append(node);
+      });
+    }
+
+    // ponytail: CDN libraries keep this a single publishable file; vendor them only if offline use becomes required.
+    async function pdfLib() {
+      if (!window.PDFLib) await script(CDN.pdfLib);
+      return window.PDFLib;
+    }
+
+    async function pdfJs() {
+      if (!state.pdfJs) {
+        state.pdfJs = await import(CDN.pdfJs);
+        state.pdfJs.GlobalWorkerOptions.workerSrc = CDN.pdfWorker;
+      }
+      return state.pdfJs;
+    }
+
+    async function fuzzyTools() {
+      if (!state.fuzzy) state.fuzzy = await import(CDN.fuzzy);
+      return state.fuzzy;
+    }
+
+    async function docxTools() {
+      if (!window.JSZip) await script(CDN.jszip);
+      if (!window.docx) await script(CDN.docxPreview);
+      if (!window.html2canvas) await script(CDN.html2canvas);
+    }
+
+    function isPdf(file) {
+      return file?.type === "application/pdf" || /\.pdf$/iu.test(file?.name || "");
+    }
+
+    function isDocx(file) {
+      return file?.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        || /\.docx$/iu.test(file?.name || "");
+    }
+
+    function isDocument(file) { return isPdf(file) || isDocx(file); }
+
+    function fileKey(file) { return `${file.name}:${file.size}:${file.lastModified}`; }
+
+    function fileKind(file) { return isDocx(file) ? "DOCX" : "PDF"; }
+
+    function withDocxStage(file, action) {
+      const run = state.docxQueue.then(async () => {
+        await docxTools();
+        const stage = $("#docx-stage");
+        stage.replaceChildren();
+        await window.docx.renderAsync(await file.arrayBuffer(), stage, stage, {
+          inWrapper: false,
+          breakPages: true,
+          ignoreLastRenderedPageBreak: false,
+          useBase64URL: true,
+          renderHeaders: true,
+          renderFooters: true,
+          renderFootnotes: true,
+          renderEndnotes: true,
+        });
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const sections = [...stage.querySelectorAll("section.docx")];
+        return action(stage, sections.length ? sections : [stage]);
+      });
+      state.docxQueue = run.then(() => undefined, () => undefined);
+      return run;
+    }
+
+    async function docxText(file) {
+      return withDocxStage(file, (_stage, sections) => {
+        const pages = sections.map((page) => page.textContent.replace(/\s+/g, " ").trim());
+        return { text: pages.join("\n\n"), pages, pageCount: pages.length };
+      });
+    }
+
+    function docxPages(file) {
+      const key = fileKey(file);
+      if (state.docxCache.has(key)) return state.docxCache.get(key);
+      const pending = withDocxStage(file, async (_stage, sections) => {
+        const pages = [];
+        for (const section of sections) {
+          const canvas = await window.html2canvas(section, {
+            backgroundColor: "#ffffff",
+            logging: false,
+            scale: 1.5,
+            useCORS: true,
+          });
+          const bounds = section.getBoundingClientRect();
+          pages.push({
+            data: canvas.toDataURL("image/png"),
+            width: Math.max(72, bounds.width * .75),
+            height: Math.max(72, bounds.height * .75),
+          });
+          canvas.width = canvas.height = 1;
+        }
+        return pages;
+      });
+      state.docxCache.set(key, pending);
+      pending.catch(() => state.docxCache.delete(key));
+      return pending;
+    }
+
+    async function ocrWorker() {
+      if (!window.Tesseract) await script(CDN.tesseract);
+      if (!state.ocrWorker) {
+        state.ocrWorker = await window.Tesseract.createWorker("eng", 1, {
+          logger: ({ status, progress: amount }) => {
+            if (status === "recognizing text") {
+              const message = `${state.ocrContext} — ${Math.round(amount * 100)}%`;
+              if (state.scanning) $("#affidavit-summary").textContent = message;
+              setStatus(message);
+            }
+          },
+        });
+      }
+      return state.ocrWorker;
+    }
+
+    async function openPdf(file) {
+      const library = await pdfJs();
+      return library.getDocument({
+        data: new Uint8Array(await file.arrayBuffer()),
+        useSystemFonts: true,
+      }).promise;
+    }
+
+    async function textFromPage(page) {
+      const content = await page.getTextContent();
+      return content.items.map((item) =>
+        `${typeof item.str === "string" ? item.str : ""}${item.hasEOL ? "\n" : " "}`
+      ).join("").trim();
+    }
+
+    async function ocrPage(page, context) {
+      state.ocrContext = context;
+      const base = page.getViewport({ scale: 1 });
+      const scale = Math.min(1.75, 1800 / base.width);
+      const viewport = page.getViewport({ scale });
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+      const worker = await ocrWorker();
+      const result = await worker.recognize(canvas);
+      canvas.width = canvas.height = 1;
+      return result.data.text.trim();
+    }
+
+    async function scanPdf(file, allPages, label, step, totalSteps, forceOcr = false) {
+      const document = await openPdf(file);
+      const pageCount = document.numPages;
+      const indexes = allPages
+        ? Array.from({ length: pageCount }, (_, index) => index + 1)
+        : [...new Set([1, pageCount])];
+      const pages = [];
+      for (let index = 0; index < indexes.length; index += 1) {
+        const pageNumber = indexes[index];
+        const page = await document.getPage(pageNumber);
+        progress(`${label}: page ${pageNumber} of ${pageCount}`, step + index / indexes.length, totalSteps);
+        const nativeText = await textFromPage(page);
+        const ocrText = forceOcr || nativeText.replace(/\s/g, "").length < 80
+          ? await ocrPage(page, `${label}: OCR page ${pageNumber} of ${pageCount}`)
+          : "";
+        pages.push([nativeText, ocrText].filter(Boolean).join("\n"));
+        page.cleanup();
+      }
+      await document.destroy();
+      return { text: pages.join("\n\n"), pages, pageCount };
+    }
+
+    async function scanAffidavit(file) {
+      if (isPdf(file)) return scanPdf(file, true, "Affidavit", 0, 1, true);
+      progress("Reading affidavit", 0, 1);
+      const result = await docxText(file);
+      progress("Affidavit read", 1, 1);
+      return result;
+    }
+
+    function caseDetails(scan) {
+      const pages = scan.pages?.length ? scan.pages : [scan.text];
+      const opening = pages.slice(0, 3).join("\n").replace(/\r/g, "");
+      const ending = pages.slice(-3).join("\n").replace(/\r/g, "");
+      const lines = (text) => text.split("\n").map((line) => line.replace(/\s+/g, " ").trim()).filter(Boolean);
+      const openingLines = lines(opening);
+      const endingLines = lines(ending);
+      const readable = (value) => {
+        const clean = value.replace(/\s+/g, " ").trim().replace(/^[,;:\s]+|[,;:\s]+$/gu, "");
+        return clean === clean.toUpperCase()
+          ? clean.toLowerCase()
+            .replace(/\b\p{L}/gu, (letter) => letter.toUpperCase())
+            .replace(/\b(?:Of|For|The|And)\b/gu, (word) => word.toLowerCase())
+          : clean;
+      };
+      const normalized = (value) => value.normalize("NFKD").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+      const closeLabel = (value, aliases) => aliases.some((alias) => {
+        const left = normalized(value);
+        const right = normalized(alias);
+        return left === right || state.fuzzy.distance(left, right) <= Math.max(1, Math.floor(right.length * .24));
+      });
+      const labelled = (source, aliases, valid) => {
+        for (let index = 0; index < source.length; index += 1) {
+          const divided = source[index].match(/^(.{2,35}?)(?:\s*[:|]\s*|\s+[â€“â€”-]\s+)(.+)$/u);
+          if (divided && closeLabel(divided[1], aliases) && valid(divided[2])) return readable(divided[2]);
+          if (closeLabel(source[index], aliases) && valid(source[index + 1] || "")) return readable(source[index + 1]);
+        }
+        return "";
+      };
+      const validFileNumber = (value) => /^(?=.*\d)[A-Z0-9][A-Z0-9./-]{1,30}$/iu.test(value.trim());
+      const validName = (value) => {
+        const clean = readable(value);
+        return clean.length >= 2 && clean.length <= 120 && /\p{L}/u.test(clean)
+          && !/\b(?:Court|Registry|Between|Affidavit|Claimant|Respondent|Plaintiff|Defendant)\b/iu.test(clean);
+      };
+      const validPlace = (value) => {
+        const clean = readable(value);
+        return clean.length >= 2 && clean.length <= 80 && /\p{L}/u.test(clean)
+          && !/\b(?:sworn|affirmed|before|date|affidavit)\b/iu.test(clean);
+      };
+      const openingFlat = openingLines.join(" ");
+      const endingFlat = endingLines.join(" ");
+      const fileNumber = openingFlat.match(/\bCourt\s+File\s+(?:No\.?|Number)\s*:?\s*([A-Z0-9][A-Z0-9./-]{1,30})\b/iu)?.[1]
+        || labelled(openingLines, ["court file no", "court file number"], validFileNumber);
+      let registry = labelled(openingLines, ["court registry", "registry"], validPlace);
+      if (!registry) {
+        registry = openingLines.map((line) => line.match(/^([\p{L}][\p{L} .'-]{1,49})\s+Registry$/iu)?.[1])
+          .find((value) => value && !/^Court$/iu.test(value)) || "";
+      }
+      const jurisdictions = "(?:British Columbia|Alberta|Saskatchewan|Manitoba|Ontario|Quebec|New Brunswick|Nova Scotia|Prince Edward Island|Newfoundland and Labrador|Yukon|Northwest Territories|Nunavut|Canada)";
+      const courtPatterns = [
+        /\bSupreme Court of (?:British Columbia|Canada)\b/iu,
+        /\bFederal Court of Appeal\b/iu,
+        /\bFederal Court(?: of Canada)?\b/iu,
+        new RegExp(`\\bCourt of Appeal (?:for|of) ${jurisdictions}\\b`, "iu"),
+        new RegExp(`\\bCourt of (?:King['â€™]s|Queen['â€™]s) Bench of ${jurisdictions}\\b`, "iu"),
+        /\b(?:Ontario )?Superior Court of Justice\b/iu,
+        new RegExp(`\\bProvincial Court of ${jurisdictions}\\b`, "iu"),
+        /\bTax Court of Canada\b/iu,
+      ];
+      const court = courtPatterns.map((pattern) => openingFlat.match(pattern)?.[0]).find(Boolean) || "";
+      const claimant = labelled(
+        openingLines,
+        ["claimant", "plaintiff", "petitioner", "applicant", "appellant"],
+        validName,
+      );
+      const respondent = labelled(openingLines, ["respondent", "defendant"], validName);
+      const affidavitNumber = openingFlat.match(/\bThis is the\s+(\d+)(?:st|nd|rd|th)?\s+Affidavit\b/iu)?.[1]
+        || openingFlat.match(/\bAffidavit\s*#\s*(\d+)\b/iu)?.[1]
+        || labelled(openingLines, ["affidavit number", "affidavit no"], (value) => /^\d{1,3}$/u.test(value.trim()));
+      let deponent = labelled(openingLines, ["deponent"], validName);
+      if (!deponent) {
+        deponent = openingLines.map((line) =>
+          line.match(/^(?:This is the \d+(?:st|nd|rd|th)? )?Affidavit(?:\s*#?\s*\d+)?\s+of\s+(.+?)(?:\s+in this case.*)?$/iu)?.[1]
+        ).find((value) => value && validName(value)) || "";
+      }
+      const monthNames = "January|February|March|April|May|June|July|August|September|October|November|December";
+      const jurat = endingFlat.match(/\b(?:sworn|affirmed)(?:\s+or\s+affirmed)?(?:\s+before\s+me)?\s+at\s+(?:the\s+)?(?:City|Town|Village)?\s*(?:of\s+)?([\p{L}][\p{L} .,'-]{1,70}?)(?=\s+(?:in\s+the\s+Province|this|on)\b)/iu);
+      const swornPlace = jurat?.[1] && validPlace(jurat[1])
+        ? readable(jurat[1])
+        : labelled(endingLines, ["sworn at", "affirmed at"], validPlace);
+      const dateSource = `${endingFlat} ${openingFlat}`;
+      let date = dateSource.match(new RegExp(`\\b(?:this|on)\\s+(\\d{1,2})(?:st|nd|rd|th|e)?\\s+(?:day\\s+of\\s+)?(${monthNames})\\s*,?\\s*(\\d{4})\\b`, "iu"));
+      const swornDate = date
+        ? `${readable(date[2])} ${Number(date[1])}, ${date[3]}`
+        : labelled(endingLines, ["sworn date", "date sworn", "affirmed date"], (value) =>
+          /(?:\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}(?:st|nd|rd|th)?\b.*\b\d{4}\b|\b[A-Za-z]+\s+\d{1,2},?\s+\d{4}\b)/iu.test(value)
+        );
+      return {
+        fileNumber: fileNumber || "",
+        registry: registry ? readable(registry) : "",
+        court: court ? readable(court) : "",
+        claimant,
+        respondent,
+        affidavitNumber: affidavitNumber || "",
+        deponent: deponent ? readable(deponent) : "",
+        swornDate,
+        swornPlace,
+      };
+    }
+
+    function applyCaseDetails(scan) {
+      const details = caseDetails(scan);
+      const found = [];
+      [
+        ["file-number", "court file number", details.fileNumber],
+        ["registry", "registry", details.registry],
+        ["court", "court", details.court],
+        ["claimant", "claimant", details.claimant],
+        ["respondent", "respondent", details.respondent],
+        ["affidavit-number", "affidavit number", details.affidavitNumber],
+        ["deponent", "deponent", details.deponent],
+        ["sworn-date", "sworn date", details.swornDate],
+        ["sworn-place", "sworn place", details.swornPlace],
+      ].forEach(([id, label, value]) => {
+        if (!value) return;
+        found.push(label);
+        if (!state.touchedFields.has(id)) $(`#${id}`).value = value;
+      });
+      return found;
+    }
+
+    function statementWindows(text) {
+      const flat = text.replace(/\s+/g, " ").trim();
+      const marker = /\bExhibit\s*["“”'‘’]?\s*([A-Z]{1,2})\s*["“”'‘’]?\b/giu;
+      const output = new Map();
+      for (const match of flat.matchAll(marker)) {
+        const lowerBound = Math.max(0, match.index - 280);
+        const upperBound = Math.min(flat.length, match.index + match[0].length + 300);
+        const before = [".", "?", "!", ";"].reduce(
+          (position, character) => Math.max(position, flat.lastIndexOf(character, match.index - 1)),
+          -1,
+        );
+        const afterPositions = [".", "?", "!", ";"]
+          .map((character) => flat.indexOf(character, match.index + match[0].length))
+          .filter((position) => position >= 0);
+        const nearestAfter = afterPositions.length ? Math.min(...afterPositions) + 1 : upperBound;
+        const end = Math.min(upperBound, nearestAfter);
+        let start = before >= lowerBound ? before + 1 : lowerBound;
+        let window = flat.slice(start, end).replace(/^\s*\d+[.)]?\s*/, "").trim();
+        if (window.split(/\s+/).length < 5 && before >= lowerBound) {
+          const contextStart = [".", "?", "!", ";"].reduce(
+            (position, character) => Math.max(position, flat.lastIndexOf(character, before - 1)),
+            -1,
+          );
+          start = contextStart >= lowerBound ? contextStart + 1 : lowerBound;
+          window = flat.slice(start, end).replace(/^\s*\d+[.)]?\s*/, "").trim();
+        }
+        if (!window || /This is Exhibit\b.{0,120}\b(?:referred to in|to) the Affidavit/iu.test(window)) continue;
+        const label = match[1].toUpperCase();
+        const values = output.get(label) || [];
+        if (!values.some((value) => value.toLowerCase() === window.toLowerCase())) values.push(window);
+        output.set(label, values);
+      }
+      return output;
+    }
+
+    function labelIndex(label) {
+      return [...label].reduce((value, character) => value * 26 + character.charCodeAt(0) - 64, 0) - 1;
+    }
+
+    function indexLabel(index) {
+      let value = index + 1;
+      let label = "";
+      while (value) {
+        value -= 1;
+        label = String.fromCharCode(65 + value % 26) + label;
+        value = Math.floor(value / 26);
+      }
+      return label;
+    }
+
+    function expectedSlotCount() {
+      return Math.max(0, ...[...state.statements.keys()].map((label) => labelIndex(label) + 1));
+    }
+
+    function entryById(id) { return state.entries.find((entry) => entry.id === id); }
+
+    function setExhibitCount(value, announce = false) {
+      const count = Math.max(0, Math.min(52, Number(value) || 0));
+      if (count < state.order.length) {
+        const removed = new Set(state.order.slice(count).filter(Boolean));
+        state.entries = state.entries.filter((entry) => !removed.has(entry.id));
+        state.order.length = count;
+      } else {
+        while (state.order.length < count) state.order.push(null);
+      }
+      renderExhibits();
+      if (announce) setStatus(`${count} exhibit field${count === 1 ? "" : "s"} ready.`);
+      schedulePreview();
+    }
+
+    function assignFiles(files, startIndex) {
+      const documents = files.filter(isDocument);
+      if (!documents.length) {
+        setStatus("Choose a PDF or DOCX file.", "error");
+        return;
+      }
+      if (startIndex + documents.length > state.order.length) {
+        setExhibitCount(startIndex + documents.length);
+      }
+      documents.forEach((file, offset) => {
+        const index = startIndex + offset;
+        const replaced = state.order[index];
+        if (replaced) state.entries = state.entries.filter((entry) => entry.id !== replaced);
+        const entry = { id: crypto.randomUUID(), file, pageCount: null };
+        state.entries.push(entry);
+        state.order[index] = entry.id;
+      });
+      renderExhibits();
+      setStatus(`${documents.length} document${documents.length === 1 ? "" : "s"} added.`);
+      schedulePreview();
+    }
+
+    function explicitExhibitIndex(text) {
+      const match = text.match(/\b(?:Exhibit|Tab)\s*["“”']?\s*([A-Z]{1,2})\s*["“”']?\b/iu);
+      return match ? labelIndex(match[1].toUpperCase()) : -1;
+    }
+
+    function matchScore(text, statements) {
+      const ignored = new Set(["about", "after", "also", "attached", "before", "being", "copy", "dated", "document", "exhibit", "from", "have", "marked", "referred", "that", "this", "with"]);
+      const words = (value) => value.toLowerCase().match(/[\p{L}\p{N}]+/gu)
+        ?.filter((word) => word.length > 2 && !ignored.has(word)) || [];
+      const available = [...new Set(words(text))];
+      return Math.max(0, ...statements.map((statement) => {
+        const wanted = [...new Set(words(statement))].slice(0, 16);
+        if (!wanted.length) return 0;
+        const overlap = wanted.filter((word) => available.some((candidate) =>
+          candidate === word || (word.length >= 6 && state.fuzzy.distance(candidate, word) <= 1)
+        )).length;
+        return overlap / Math.min(wanted.length, 6);
+      }));
+    }
+
+    async function documentHint(file, index, total) {
+      const stem = file.name.replace(/\.(?:pdf|docx)$/iu, "").replace(/[_-]+/g, " ");
+      if (explicitExhibitIndex(stem) >= 0) return stem;
+      progress(`Checking ${file.name}`, index, total);
+      const probe = isPdf(file)
+        ? await scanPdf(file, false, `Checking ${file.name}`, index, total)
+        : await docxText(file);
+      return `${stem}\n${probe.text}`;
+    }
+
+    async function batchAssignFiles(files) {
+      const documents = files.filter(isDocument);
+      if (!documents.length) {
+        setStatus("Choose PDF or DOCX exhibit files.", "error");
+        return;
+      }
+      setBusy(true);
+      try {
+        await fuzzyTools();
+        const hinted = [];
+        for (let index = 0; index < documents.length; index += 1) {
+          hinted.push({ file: documents[index], text: await documentHint(documents[index], index, documents.length) });
+        }
+        const explicitLast = Math.max(-1, ...hinted.map((item) => explicitExhibitIndex(item.text)));
+        setExhibitCount(Math.max(state.order.length, documents.length, explicitLast + 1));
+        const free = () => state.order.map((id, index) => id ? -1 : index).filter((index) => index >= 0);
+        const assigned = new Map();
+        const remaining = [];
+        hinted.forEach((item) => {
+          const index = explicitExhibitIndex(item.text);
+          if (index >= 0 && index < state.order.length && !state.order[index] && !assigned.has(index)) {
+            assigned.set(index, item);
+          } else {
+            remaining.push(item);
+          }
+        });
+        const unsorted = [];
+        remaining.forEach((item) => {
+          const ranked = free().filter((index) => !assigned.has(index)).map((index) => ({
+            index,
+            score: matchScore(item.text, state.statements.get(indexLabel(index)) || []),
+          })).sort((left, right) => right.score - left.score);
+          if (ranked[0]?.score >= .34 && (!ranked[1] || ranked[0].score - ranked[1].score >= .08)) {
+            assigned.set(ranked[0].index, item);
+          } else {
+            unsorted.push(item);
+          }
+        });
+        unsorted.forEach((item) => {
+          let index = free().find((candidate) => !assigned.has(candidate));
+          if (index === undefined) {
+            index = state.order.length;
+            setExhibitCount(index + 1);
+          }
+          assigned.set(index, item);
+        });
+        assigned.forEach(({ file }, index) => {
+          const entry = { id: crypto.randomUUID(), file, pageCount: null };
+          state.entries.push(entry);
+          state.order[index] = entry.id;
+        });
+        renderExhibits();
+        setStatus(`Added ${documents.length} exhibit file${documents.length === 1 ? "" : "s"}. Review the order.`, "success");
+      } catch (error) {
+        setStatus(error instanceof Error ? error.message : "Unable to sort the exhibit files. Add them to slots manually.", "error");
+      } finally {
+        if (state.ocrWorker) {
+          await state.ocrWorker.terminate();
+          state.ocrWorker = null;
+        }
+        setBusy(false);
+        renderExhibits();
+        schedulePreview();
+      }
+    }
+
+    function deleteExhibit(index) {
+      const id = state.order[index];
+      if (id) state.entries = state.entries.filter((entry) => entry.id !== id);
+      state.order.splice(index, 1);
+      renderExhibits();
+      setStatus(`Exhibit ${indexLabel(index)} deleted.`);
+      schedulePreview();
+    }
+
+    function moveSlot(from, to) {
+      if (from === to || from < 0 || to < 0 || from >= state.order.length || to >= state.order.length) return;
+      [state.order[from], state.order[to]] = [state.order[to], state.order[from]];
+      renderExhibits();
+      setStatus("Exhibit order changed.");
+      schedulePreview();
+    }
+
+    function renderExhibits() {
+      const count = state.order.length;
+      $("#exhibit-count").textContent = `${count} exhibit${count === 1 ? "" : "s"}`;
+      $("#exhibit-list").innerHTML = state.order.map((id, index) => {
+        const entry = entryById(id);
+        const statements = state.statements.get(indexLabel(index)) || [];
+        const expected = statements.length ? `
+          <details class="expected">
+            <summary>Affidavit wording</summary>
+            <ul>${statements.map((statement) => `<li>${escapeHtml(statement)}</li>`).join("")}</ul>
+          </details>` : "";
+        const filename = entry ? escapeHtml(entry.file.name) : "";
+        const metadata = entry
+          ? `${fileKind(entry.file)}${entry.pageCount ? ` · ${entry.pageCount} page${entry.pageCount === 1 ? "" : "s"}` : ""}`
+          : "PDF or DOCX";
+        return `
+          <article class="exhibit-row" data-index="${index}" data-id="${entry?.id || ""}">
+            <button type="button" class="drag-handle" draggable="${count > 1}" aria-label="Move Exhibit ${indexLabel(index)}. Use Alt plus arrow keys, or drag." title="Drag to reorder" ${state.busy || count <= 1 ? "disabled" : ""}><span aria-hidden="true">⋮</span></button>
+            <div class="letter">${indexLabel(index)}</div>
+            <div class="slot-body">
+              <div class="slot-drop" data-index="${index}">
+                ${entry
+                  ? `<div class="file-name" title="${filename}">${filename}</div><div class="file-meta">${metadata}</div>`
+                  : `<p>Choose a PDF or DOCX file, or drag it here.</p>`}
+              </div>
+              <label class="file-button secondary">
+                <span>${entry ? "Replace file" : "Choose file"}</span>
+                <input class="slot-file" data-index="${index}" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" ${state.busy ? "disabled" : ""}>
+              </label>
+              ${expected}
+            </div>
+            <button type="button" class="secondary delete-exhibit" aria-label="Delete Exhibit ${indexLabel(index)}" ${state.busy ? "disabled" : ""}>Delete</button>
+          </article>`;
+      }).join("");
+    }
+
+    async function autoFillFromAffidavit() {
+      if (!$("#automatic").checked || !state.affidavit) return;
+      state.scanning = true;
+      setBusy(true);
+      try {
+        await fuzzyTools();
+        const affidavit = await scanAffidavit(state.affidavit);
+        const details = applyCaseDetails(affidavit);
+        state.statements = statementWindows(affidavit.text);
+        const count = expectedSlotCount();
+        const detected = details.length ? ` Detected ${details.join(", ")}.` : "";
+        if (count) {
+          const lastFilled = state.order.findLastIndex(Boolean);
+          setExhibitCount(Math.max(count, lastFilled + 1));
+          setStatus(`Found ${count} exhibit${count === 1 ? "" : "s"}.${detected} Review the fields.`, "success");
+        } else {
+          renderExhibits();
+          setStatus(`${detected.trim()} No exhibit labels were found. Add exhibit fields manually.`.trim());
+        }
+      } catch (error) {
+        setStatus(error instanceof Error ? error.message : "Unable to auto-fill. Review the fields manually.", "error");
+      } finally {
+        if (state.ocrWorker) {
+          await state.ocrWorker.terminate();
+          state.ocrWorker = null;
+        }
+        state.scanning = false;
+        $("#affidavit-summary").textContent = state.affidavitMeta;
+        setBusy(false);
+        schedulePreview();
+      }
+    }
+
+    function validateBuild() {
+      if (!state.affidavit) {
+        setStatus("Add the affidavit before building the PDF.", "error");
+        $("#affidavit-file").focus();
+        return false;
+      }
+      const form = $("#details-form");
+      fields.forEach((id) => $(`#${id}`).removeAttribute("aria-invalid"));
+      if (!form.reportValidity()) {
+        const invalid = form.querySelector(":invalid");
+        invalid?.setAttribute("aria-invalid", "true");
+        invalid?.focus();
+        setStatus("Complete the case details before building the PDF.", "error");
+        return false;
+      }
+      const missing = state.order.findIndex((id) => !id);
+      if (missing >= 0) {
+        setStatus(`Add the PDF or DOCX file for Exhibit ${indexLabel(missing)} before building.`, "error");
+        document.querySelector(`.slot-file[data-index="${missing}"]`)?.focus();
+        return false;
+      }
+      return true;
+    }
+
+    function wrap(text, font, size, width) {
+      const words = text.split(/\s+/);
+      const lines = [];
+      let line = "";
+      for (const word of words) {
+        const candidate = line ? `${line} ${word}` : word;
+        if (line && font.widthOfTextAtSize(candidate, size) > width) {
+          lines.push(line);
+          line = word;
+        } else line = candidate;
+      }
+      if (line) lines.push(line);
+      return lines;
+    }
+
+    function centered(page, text, y, font, size) {
+      page.drawText(text, {
+        x: (page.getWidth() - font.widthOfTextAtSize(text, size)) / 2,
+        y, size, font,
+      });
+    }
+
+    function centeredAt(page, text, center, y, font, size) {
+      page.drawText(text, {
+        x: center - font.widthOfTextAtSize(text, size) / 2,
+        y, size, font,
+      });
+    }
+
+    function centeredBlock(page, text, y, font, size, width, lineHeight) {
+      const lines = wrap(text, font, size, width);
+      lines.forEach((line, index) => centered(page, line, y - index * lineHeight, font, size));
+      return y - lines.length * lineHeight;
+    }
+
+    function pageNumber(page, number, font) {
+      const text = String(number);
+      page.drawText(text, {
+        x: page.getWidth() - 72 - font.widthOfTextAtSize(text, 9),
+        y: page.getHeight() - 35,
+        size: 9,
+        font,
+      });
+    }
+
+    function certificatePage(document, fonts, exhibit, number) {
+      const page = document.addPage([612, 792]);
+      const { roman, bold, italic } = fonts;
+      pageNumber(page, number, roman);
+      centeredAt(page, `Court File No. ${fieldValue("file-number") || "—"}`, 474, 714, bold, 11);
+      centeredAt(page, `Court Registry: ${fieldValue("registry") || "—"}`, 474, 691, bold, 11);
+      centered(page, `In the ${fieldValue("court") || "Court"}`, 642, bold, 11.5);
+      page.drawText("Claimant:", { x: 70, y: 616, size: 11, font: bold });
+      centeredBlock(page, (fieldValue("claimant") || "—").toUpperCase(), 590, bold, 11.5, 410, 15);
+      page.drawText("Respondent:", { x: 70, y: 544, size: 11, font: bold });
+      centeredBlock(page, (fieldValue("respondent") || "—").toUpperCase(), 518, bold, 11.5, 410, 15);
+
+      const affidavit = fieldValue("affidavit-number").replace(/^#/, "");
+      centered(page, `This is Exhibit “${exhibit}” referred to in the`, 450, bold, 11.5);
+      centeredBlock(page, `Affidavit #${affidavit || "—"} of ${fieldValue("deponent") || "—"}`, 432, bold, 11.5, 420, 15);
+      centeredBlock(page, `sworn before me at ${fieldValue("sworn-place") || "—"}`, 414, bold, 11.5, 420, 15);
+      centered(page, `this ${legalDate(fieldValue("sworn-date")) || "—"}`, 396, bold, 11.5);
+      page.drawLine({ start: { x: 212, y: 370 }, end: { x: 400, y: 370 }, thickness: 1 });
+      centered(page, "A commissioner for taking Affidavits", 350, italic, 11);
+      centered(page, "Within British Columbia", 332, italic, 11);
+      return page;
+    }
+
+    async function appendDocument(output, file, onPage = null) {
+      const { PDFDocument } = await pdfLib();
+      if (isPdf(file)) {
+        const source = await PDFDocument.load(await file.arrayBuffer());
+        const pages = await output.copyPages(source, source.getPageIndices());
+        pages.forEach((page, index) => {
+          output.addPage(page);
+          onPage?.(page, index, pages.length);
+        });
+        return pages.length;
+      }
+      const rendered = await docxPages(file);
+      for (let index = 0; index < rendered.length; index += 1) {
+        const item = rendered[index];
+        const page = output.addPage([item.width, item.height]);
+        const image = await output.embedPng(item.data);
+        page.drawImage(image, { x: 0, y: 0, width: item.width, height: item.height });
+        onPage?.(page, index, rendered.length);
+      }
+      return rendered.length;
+    }
+
+    async function assemblePdf({ allowIncomplete = false, report = false } = {}) {
+      const { PDFDocument, StandardFonts } = await pdfLib();
+      const output = await PDFDocument.create();
+      const fonts = {
+        roman: await output.embedFont(StandardFonts.TimesRoman),
+        bold: await output.embedFont(StandardFonts.TimesRomanBold),
+        italic: await output.embedFont(StandardFonts.TimesRomanBoldItalic),
+      };
+      output.setTitle(fieldValue("file-number")
+        ? `Affidavit with exhibits - ${fieldValue("file-number")}`
+        : "Affidavit with exhibits");
+      output.setCreator("Affidavit Builder");
+      output.setProducer("pdf-lib");
+      output.setCreationDate(new Date());
+      output.setModificationDate(new Date());
+
+      if (report) progress("Adding affidavit", 0, state.order.length + 1);
+      await appendDocument(output, state.affidavit);
+
+      let exhibitPage = 1;
+      for (let index = 0; index < state.order.length; index += 1) {
+        const entry = entryById(state.order[index]);
+        if (report) progress(`Adding Exhibit ${indexLabel(index)}`, index + 1, state.order.length + 1);
+        if ($("#bumpers").checked && (output.getPageCount() + 1) % 2 === 0) {
+          output.addPage([612, 792]);
+        }
+        certificatePage(output, fonts, indexLabel(index), exhibitPage);
+        exhibitPage += 1;
+        if (!entry) {
+          if (allowIncomplete) continue;
+          throw new Error(`Exhibit ${indexLabel(index)} has no file.`);
+        }
+        entry.pageCount = await appendDocument(output, entry.file, (page) => {
+          pageNumber(page, exhibitPage, fonts.roman);
+          exhibitPage += 1;
+        });
+      }
+      return { bytes: await output.save(), pageCount: output.getPageCount() };
+    }
+
+    function schedulePreview() {
+      state.previewGeneration += 1;
+      clearTimeout(state.previewTimer);
+      state.previewObserver?.disconnect();
+      if (!state.affidavit) {
+        $("#preview-count").textContent = "Waiting for affidavit";
+        $("#preview-empty").textContent = "The assembled PDF will appear here.";
+        $("#preview-empty").classList.remove("hidden");
+        $("#preview").classList.add("hidden");
+        return;
+      }
+      const generation = state.previewGeneration;
+      $("#preview-count").textContent = "Updating";
+      $("#preview-empty").textContent = "Building preview…";
+      $("#preview-empty").classList.remove("hidden");
+      $("#preview").classList.add("hidden");
+      state.previewTimer = setTimeout(() => updatePreview(generation), 450);
+    }
+
+    async function renderPreviewPage(document, shell, generation) {
+      if (generation !== state.previewGeneration) return;
+      const page = await document.getPage(Number(shell.dataset.page));
+      if (generation !== state.previewGeneration) {
+        page.cleanup();
+        return;
+      }
+      const base = page.getViewport({ scale: 1 });
+      const cssWidth = Math.max(240, $("#preview").clientWidth - 32);
+      const scale = Math.min(1.2, cssWidth / base.width);
+      const pixelRatio = Math.min(1.5, window.devicePixelRatio || 1);
+      const viewport = page.getViewport({ scale: scale * pixelRatio });
+      const canvas = shell.querySelector("canvas");
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      const context = canvas.getContext("2d", { alpha: false });
+      context.fillStyle = "#fff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      await page.render({ canvasContext: context, viewport }).promise;
+      page.cleanup();
+    }
+
+    async function updatePreview(generation) {
+      try {
+        const result = await assemblePdf({ allowIncomplete: true });
+        if (generation !== state.previewGeneration) return;
+        const library = await pdfJs();
+        const document = await library.getDocument({
+          data: result.bytes.slice(),
+          useSystemFonts: true,
+        }).promise;
+        if (generation !== state.previewGeneration) {
+          await document.destroy();
+          return;
+        }
+        state.previewObserver?.disconnect();
+        if (state.previewDocument) await state.previewDocument.destroy();
+        state.previewDocument = document;
+
+        const preview = $("#preview");
+        const target = window.document.createDocumentFragment();
+        for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+          const page = await document.getPage(pageNumber);
+          const viewport = page.getViewport({ scale: 1 });
+          const shell = window.document.createElement("div");
+          shell.className = "preview-page";
+          shell.dataset.page = String(pageNumber);
+          shell.setAttribute("role", "img");
+          shell.setAttribute("aria-label", `Preview page ${pageNumber} of ${document.numPages}`);
+          shell.style.aspectRatio = `${viewport.width} / ${viewport.height}`;
+          shell.append(window.document.createElement("canvas"));
+          target.append(shell);
+          page.cleanup();
+        }
+        preview.replaceChildren(target);
+        preview.classList.remove("hidden");
+        $("#preview-empty").classList.add("hidden");
+        $("#preview-count").textContent = `${document.numPages} page${document.numPages === 1 ? "" : "s"}`;
+
+        state.previewObserver = new IntersectionObserver((entries, observer) => {
+          entries.forEach((entry) => {
+            if (!entry.isIntersecting) return;
+            observer.unobserve(entry.target);
+            state.previewRenderQueue = state.previewRenderQueue
+              .then(() => renderPreviewPage(document, entry.target, generation))
+              .catch(() => {});
+          });
+        }, { root: preview, rootMargin: "600px 0px" });
+        preview.querySelectorAll(".preview-page").forEach((page) => state.previewObserver.observe(page));
+        renderExhibits();
+      } catch (error) {
+        if (generation !== state.previewGeneration) return;
+        $("#preview-count").textContent = "Preview unavailable";
+        $("#preview-empty").textContent = error instanceof Error
+          ? error.message
+          : "Unable to build the preview.";
+        $("#preview-empty").classList.remove("hidden");
+        $("#preview").classList.add("hidden");
+      }
+    }
+
+    function loadPreferences() {
+      let preferences = {};
+      try { preferences = JSON.parse(localStorage.getItem(preferencesKey) || "{}"); } catch {}
+      $("#registry").value = typeof preferences.registry === "string" && preferences.registry
+        ? preferences.registry
+        : "Vancouver";
+      $("#court").value = typeof preferences.court === "string" && preferences.court
+        ? preferences.court
+        : "Supreme Court of British Columbia";
+    }
+
+    function savePreferences() {
+      try {
+        localStorage.setItem(preferencesKey, JSON.stringify({
+          registry: fieldValue("registry"),
+          court: fieldValue("court"),
+        }));
+      } catch {}
+    }
+
+    async function setAffidavit(file) {
+      if (!isDocument(file)) {
+        setStatus("Choose an affidavit in PDF or DOCX format.", "error");
+        return;
+      }
+      state.affidavit = file;
+      state.statements.clear();
+      $("#affidavit-name").textContent = file.name;
+      state.affidavitMeta = `${fileKind(file)} · ${(file.size / 1048576).toFixed(1)} MB`;
+      $("#affidavit-summary").textContent = state.affidavitMeta;
+      $("#affidavit-action").textContent = "Replace file";
+      if ($("#automatic").checked) {
+        $("#builder").classList.add("hidden");
+        await autoFillFromAffidavit();
+      } else {
+        renderExhibits();
+        schedulePreview();
+      }
+      $("#builder").classList.remove("hidden");
+    }
+
+    function bindDropZone(element, onFiles) {
+      element.addEventListener("dragover", (event) => {
+        event.preventDefault();
+        element.dataset.over = "true";
+        event.dataTransfer.dropEffect = "copy";
+      });
+      element.addEventListener("dragleave", (event) => {
+        if (!element.contains(event.relatedTarget)) delete element.dataset.over;
+      });
+      element.addEventListener("drop", (event) => {
+        event.preventDefault();
+        delete element.dataset.over;
+        onFiles([...event.dataTransfer.files]);
+      });
+    }
+
+    async function buildAndDownload() {
+      if (!validateBuild()) return;
+      clearTimeout(state.previewTimer);
+      setBusy(true);
+      try {
+        const result = await assemblePdf({ report: true });
+        const url = URL.createObjectURL(new Blob([result.bytes], { type: "application/pdf" }));
+        const link = document.createElement("a");
+        const safeNumber = fieldValue("file-number").replace(/[<>:"/\\|?*\u0000-\u001F]/g, "-");
+        link.href = url;
+        link.download = `${safeNumber || "Court file"} - Affidavit with exhibits.pdf`;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 30_000);
+        savePreferences();
+        renderExhibits();
+        setStatus(`Downloaded ${state.order.length} exhibit${state.order.length === 1 ? "" : "s"}.`, "success");
+      } catch (error) {
+        setStatus(error instanceof Error ? error.message : "Unable to build the PDF. Check the source files and try again.", "error");
+      } finally {
+        setBusy(false);
+        schedulePreview();
+      }
+    }
+
+    $("#affidavit-file").addEventListener("change", (event) => {
+      const [file] = event.target.files;
+      if (file) setAffidavit(file);
+      event.target.value = "";
+    });
+    bindDropZone($("#affidavit-drop"), (files) => {
+      const file = files.find(isDocument);
+      if (file) setAffidavit(file);
+      else setStatus("Choose an affidavit in PDF or DOCX format.", "error");
+    });
+    $("#exhibit-files").addEventListener("change", (event) => {
+      if (event.target.files.length) batchAssignFiles([...event.target.files]);
+      event.target.value = "";
+    });
+    bindDropZone($("#exhibit-batch"), (files) => batchAssignFiles(files));
+    $("#automatic").addEventListener("change", async (event) => {
+      if (event.target.checked && state.affidavit) {
+        $("#builder").classList.add("hidden");
+        await autoFillFromAffidavit();
+        $("#builder").classList.remove("hidden");
+      } else if (!event.target.checked) {
+        state.statements.clear();
+        renderExhibits();
+        setStatus("Auto-fill is off. Add exhibit fields manually.");
+      }
+    });
+    $("#add-slot").addEventListener("click", () => setExhibitCount(state.order.length + 1, true));
+    $("#bumpers").addEventListener("change", schedulePreview);
+    $("#build").addEventListener("click", buildAndDownload);
+    fields.forEach((id) => {
+      $(`#${id}`).addEventListener("input", () => {
+        state.touchedFields.add(id);
+        schedulePreview();
+      });
+    });
+    ["registry", "court"].forEach((id) => {
+      $(`#${id}`).addEventListener("change", savePreferences);
+    });
+
+    $("#exhibit-list").addEventListener("change", (event) => {
+      if (!event.target.matches(".slot-file")) return;
+      const [file] = event.target.files;
+      if (file) assignFiles([file], Number(event.target.dataset.index));
+      event.target.value = "";
+    });
+    $("#exhibit-list").addEventListener("click", (event) => {
+      const row = event.target.closest(".exhibit-row");
+      if (!row) return;
+      const index = Number(row.dataset.index);
+      if (event.target.closest(".delete-exhibit")) deleteExhibit(index);
+    });
+    $("#exhibit-list").addEventListener("keydown", (event) => {
+      if (!event.altKey || !event.target.matches(".drag-handle")) return;
+      const row = event.target.closest(".exhibit-row");
+      const from = Number(row.dataset.index);
+      const to = event.key === "ArrowUp" ? from - 1 : event.key === "ArrowDown" ? from + 1 : from;
+      if (to === from || to < 0 || to >= state.order.length) return;
+      event.preventDefault();
+      moveSlot(from, to);
+      document.querySelector(`.exhibit-row[data-index="${to}"] .drag-handle`)?.focus();
+    });
+    $("#exhibit-list").addEventListener("dragstart", (event) => {
+      const handle = event.target.closest('.drag-handle[draggable="true"]');
+      const row = handle?.closest(".exhibit-row");
+      if (!row) return;
+      state.dragIndex = Number(row.dataset.index);
+      row.dataset.dragging = "true";
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", row.dataset.id);
+    });
+    $("#exhibit-list").addEventListener("dragend", (event) => {
+      const row = event.target.closest(".exhibit-row");
+      if (row) delete row.dataset.dragging;
+      state.dragIndex = null;
+      document.querySelectorAll(".slot-drop[data-over]").forEach((drop) => delete drop.dataset.over);
+    });
+    $("#exhibit-list").addEventListener("dragover", (event) => {
+      const drop = event.target.closest(".slot-drop");
+      if (!drop) return;
+      event.preventDefault();
+      drop.dataset.over = "true";
+      event.dataTransfer.dropEffect = event.dataTransfer.files.length ? "copy" : "move";
+    });
+    $("#exhibit-list").addEventListener("dragleave", (event) => {
+      const drop = event.target.closest(".slot-drop");
+      if (drop && !drop.contains(event.relatedTarget)) delete drop.dataset.over;
+    });
+    $("#exhibit-list").addEventListener("drop", (event) => {
+      const row = event.target.closest(".exhibit-row");
+      if (!row) return;
+      event.preventDefault();
+      const drop = row.querySelector(".slot-drop");
+      delete drop.dataset.over;
+      const index = Number(row.dataset.index);
+      if (event.dataTransfer.files.length) assignFiles([...event.dataTransfer.files], index);
+      else if (state.dragIndex !== null) moveSlot(state.dragIndex, index);
+    });
+
+    loadPreferences();
+    $("#sworn-date").value = todayText();
+    renderExhibits();
+    window.addEventListener("beforeunload", () => {
+      state.previewObserver?.disconnect();
+      state.previewDocument?.destroy();
+    });
+
+    window.__exhibitBookSelfTest = async () => {
+      await fuzzyTools();
+      const text = [
+        "The January order is attached as Exhibit A.",
+        "The same order also records the parenting schedule and is marked as Exhibit A.",
+        "The email dated June 8 is attached as Exhibit B.",
+        "This is Exhibit “C” referred to in the Affidavit #9 of Example Person.",
+        "This is Exhibit D to the Affidavit of Example Person.",
+      ].join(" ");
+      const found = statementWindows(text);
+      if (found.get("A")?.length !== 2 || found.get("B")?.length !== 1 || found.has("C") || found.has("D")) {
+        throw new Error("Statement parser check failed");
+      }
+      const details = caseDetails({ pages: [[
+        "Court File No. TEST-0001",
+        "NEW WESTMINSTER REGISTRY",
+        "IN THE SUPREME COURT OF BRITISH COLUMBIA",
+        "Clalmant: ALPHA PERSON",
+        "Responident: BETA PERSON",
+        "Affidavit #7 of SAMPLE DEPONENT",
+      ].join("\n"), "The order is attached as Exhibit A.", [
+        "SWORN BEFORE ME at New Westminster, British Columbia",
+        "this 2nd day of January 2026",
+      ].join("\n")] });
+      if (details.fileNumber !== "TEST-0001" || details.registry !== "New Westminster"
+        || details.court !== "Supreme Court of British Columbia" || details.claimant !== "Alpha Person"
+        || details.respondent !== "Beta Person" || details.affidavitNumber !== "7"
+        || details.deponent !== "Sample Deponent" || details.swornPlace !== "New Westminster, British Columbia"
+        || details.swornDate !== "January 2, 2026" || caseDetails({ text: "No. 12345" }).fileNumber) {
+        throw new Error(`Case detail parser check failed: ${JSON.stringify(details)}`);
+      }
+      if (explicitExhibitIndex("Exhibit B - email.pdf") !== 1
+        || matchScore("respondent email.pdf", ["The respondent's email is attached as Exhibit B."]) < .5) {
+        throw new Error("Exhibit sorter check failed");
+      }
+      if (ordinal(11) !== "11th" || ordinal(22) !== "22nd"
+        || legalDate("January 2, 2026") !== "2nd day of January 2026") {
+        throw new Error("Formatting helper check failed");
+      }
+      return { passed: true, exhibitAStatements: 2 };
+    };
+  </script>
+</body>
+</html>
