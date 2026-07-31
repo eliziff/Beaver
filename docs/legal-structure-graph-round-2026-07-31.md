@@ -52,12 +52,53 @@ hallucination to wrong-relation-between-real-sections.
 ## Status: built, unproven, never shown to a composer
 
 Commits `a8cdd08c` (shared reference-grammar kernel), `2d903c82` (graph +
-measurements).
+measurements), then the structure round below.
 
-**Resolver works.** 9,234 references detected, 2,428 resolved, 3.3% unresolved,
-24/69 documents refused by an integrity gate. Ceiling is the skeleton's section
-inventory: docs with 97–111 sections resolve 96–97%; docs with 13–33 resolve
-24–40%.
+**Resolver works.** At `2d903c82`: 9,234 references detected, 2,428 resolved,
+24/69 documents refused. Ceiling was the skeleton's section inventory — docs
+with 97–111 sections resolved 96–97%, docs with 13–33 resolved 24–40%.
+
+### Structure round (`bdbab160`, `191c512f`, `54be6001`)
+
+The ceiling was an EXTRACTION artifact, not a grammar limit. Every structural
+grammar keys on a line start; seven maud agreements had none, their extraction
+having joined each page into one line (mean line 226–310 chars vs 98–183).
+`compileAgreementSkeleton` now compiles under competing whitespace-only
+segmentations — offset-exact, same length, same guards — and lets the
+document's own references choose. Two guards were needed and both came from
+being wrong first: a reference may not endorse a provision minted out of
+itself, and a hypothesis must produce heads spanning the document.
+
+| | mini (69) | holdout (55, disjoint, untuned) |
+|---|---|---|
+| refused | 24 → **16** | 14 → **9** |
+| resolved | 2,428 → **4,414** | 3,879 → **5,150** |
+| accepted refs missing | 11.2% → **9.1%** | 17.2% → **10.5%** |
+
+Detected (9,234 / 12,025) and external (1,720 / 2,008) are unchanged in both:
+no reference grammar moved. The holdout is the anti-overfit control — same
+direction, same magnitude, nothing tuned on it.
+
+**Residue, 16 documents.** Six privacy_qa policies whose HTML headings were
+flattened into a sentence stream carry ~11 internal references between them —
+refusing a cross-reference graph there is correct, not a miss. Two NDAs have
+no section headings and zero references, so a synthetic root buys navigation
+nodes only. Four maud documents (Acacia, Anworth, Boingo, CAI — 2,016
+references) are the real remaining prize and share one cause: the body
+headings survive extraction nowhere, so only the contents page is visible.
+
+**A contents page is a legitimate OUTLINE and an illegitimate span index.**
+Following an edge into one lands a reader on a page number, which is why the
+reach gate refuses it — but it is the drafter's own outline, and richer than
+what we keep (Boingo 13 titled heads kept vs 80 in the contents reading;
+holdout ASPIRITY 11 vs 102). Splitting those two products is the next step.
+
+Measured and rejected, with its number: Text-Fidelity's later-recurrence
+contents proof (`toc_outline_witness._early_heading_swarm_findings`) ports in
+shape but costs resolution here (−19 mini, −110 holdout) because `uniqueLabel`
+has already given the bare label to the contents entry. Its richer machinery
+(dot-leader grammar, confirm-entry-on-page, monotone printed-page validation)
+needs page structure that flattened text does not carry.
 
 **Gold∩graph diagnostic (NOT a verdict).** Graph vs same-budget contiguous
 control, per gold fragment: contractnli 4.06 vs 5.06, cuad 1.15 vs 6.99,
@@ -77,9 +118,11 @@ proposal (structure as orientation).
 
 Registering a deterministic "kill criterion" was a design error: a proxy says
 where to look, never what to close. Nothing here is retired. Retirement needs a
-robust deterministic layer (today: 24/69 refused, skeleton repaired mid-run, one
-untuned implementation per edge class) **plus** composed runs across ablations,
-solo and in concert, retiring only on demonstrated redundancy.
+robust deterministic layer (today: 16/69 and 9/55 refused, the residue
+characterized above, one untuned implementation per edge class) **plus**
+composed runs across ablations, solo and in concert, retiring only on
+demonstrated redundancy. The structure round strengthened the instrument; it
+judged no hypothesis and no arm.
 
 ## Constraints
 
