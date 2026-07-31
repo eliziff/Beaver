@@ -3271,7 +3271,46 @@ verdict onward):
 3. The byte-exact quote rate is reported beside the normalized P1 audit
    number.
 
-## Durable receipts
+### Stage 18 receipt-only audit results (2026-07-31, zero model calls): strict-answered, byte-exact, R1 double-count CORRECTION
+
+Strict-answered (≥1 quotation AND ≥1 conclusion claim), ctx / fused
+confirms: overall 59.8% / 59.4% vs loose 89.3% / 92.7%; the entire
+gap is missing conclusion claims (noQuote = 0 everywhere). maud
+collapses 78.4→25.3% (ctx) and 85.1→19.6% (fused) — ~4 in 5 maud
+"answered" cells are quotation-only dumps (maud mean 1,652 quoted
+chars/cell, max 8,163). Strict overall P/R reads higher
+(0.597/0.628 ctx) but only by mix shift — per-source strict P/R is
+at-or-below loose on every ctx source. The strict column is now
+protocol (reporting amendment 2 above).
+
+Byte-exact quote audit (no normalization), ctx / fused: 97.95% /
+97.77% of spans byte-exact (1,532/1,564 and 1,622/1,659), zero
+invalid spans, and every failure is explained by exactly ONE
+normalization feature — whitespace-run collapse dominates (26/32,
+34/37), concentrated in cuad (92.3% / 90.5% exact; other sources
+99.2–100%). Residual: 2 curly-quote + 4 nbsp (ctx, contractnli).
+The P1 equivalence class is real but narrow.
+
+**R1 correction (methodology defect found by adversarial audit,
+verified against receipts):** the R1 clause-vs-chars falsification
+compared a double-counted arm to a union-merged one.
+`charPrecisionRecall` sums overlaps without union-merging retrieved
+spans, so overlapping chunks double-count gold chars: 235/776
+chars-arm cells exceed recall 1.0 (max 2.0000) while clause-arm
+cells never do (0/776). Clipping chars at the mathematical ceiling
+flips the sign: contractnli delta −0.0722 (the falsifying margin)
+→ **≥ +0.0156**; overall −0.0504 → **≥ +0.0188**. Independent
+quantification on real fused-pool spans: double-counting inflates
+recall +0.0881 overall at 4.12% pool char-overlap; the union-merge
+recompute reproduces the generator's own fused_r48 on all 776
+cells at 0 mismatch. Composed-side (answered-only) numbers are
+clean — 0% of answered rows have overlapping quoted_spans; the
+defect affects pool/retrieval-arm numbers only. **Consequence: R1's
+falsification is OVERTURNED.** Clause chunking is a candidate KEEP
+that was wrongly killed. Frozen-gate discipline: the Stage 19
+config does NOT change post-hoc; clause chunking gets its own
+registered round post-holdout, and all pool-level comparisons from
+here on are scored union-merged.
 
 The experiment JSONL receipts are outside git under
 `%LOCALAPPDATA%\OpenLegalData\experiments\legal-grounding\2026-07-30`.
