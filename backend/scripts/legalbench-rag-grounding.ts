@@ -55,7 +55,10 @@ import {
   LEGAL_EVIDENCE_PLAN_TOOL_NAME,
   LEGAL_EVIDENCE_TOOL_NAME,
 } from "../src/lib/chat/legalEvidenceExperiment";
-import { receiptPath } from "../src/lib/experimentReceipts";
+import {
+  legalbenchRagCellKey,
+  receiptPath,
+} from "../src/lib/experimentReceipts";
 import {
   LEGALBENCH_MINI_SOURCE_DB,
   LEGALBENCH_RAG_DATA_DIR,
@@ -536,20 +539,14 @@ async function main() {
   });
   mkdirSync(path.dirname(output), { recursive: true });
   const done = new Set<string>();
-  // Resume key carries the coordinate space: a pre-fix (raw-CRLF) row has
+  // Cell identity (src/lib/experimentReceipts): coordinate space, model,
+  // effort, ARM, k, retriever and per-doc cap. A pre-fix (raw-CRLF) row has
   // no `coords`, so it can never satisfy a cell of this LF run — the two
   // instruments are refused into one file rather than silently mixed.
-  const cellKey = (
-    row: Pick<Row, "model" | "effort" | "k" | "retriever" | "test_id"> & {
-      coords?: string;
-    },
-  ) =>
-    `${row.coords ?? "crlf"}|${row.model}|${row.effort}|${row.k}|` +
-    `${row.retriever ?? "product"}|${row.test_id}`;
   if (resume && existsSync(output)) {
     for (const line of readFileSync(output, "utf8").split("\n").filter(Boolean)) {
       const row = JSON.parse(line) as Row;
-      if (!row.error) done.add(cellKey(row));
+      if (!row.error) done.add(legalbenchRagCellKey(row));
     }
   } else {
     writeFileSync(output, "", "utf8");
@@ -808,12 +805,14 @@ async function main() {
   const queue = selected.filter(
     (test) =>
       !done.has(
-        cellKey({
+        legalbenchRagCellKey({
           coords: COORDS,
           model,
           effort,
+          arm: armLabel,
           k,
           retriever,
+          per_doc_cap: recordedPerDocCap,
           test_id: test.id,
         }),
       ),
