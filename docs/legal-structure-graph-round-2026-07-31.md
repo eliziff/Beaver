@@ -149,7 +149,7 @@ It belongs with the case-law bed work.
 - **Every bar carries a registered rationale.** Sixteen bars in Stages 14–19 did
   not.
 
-## 6. Kill criterion
+## 6. Kill criterion — AMENDED, see §6b: a deterministic proxy is a diagnostic, never a verdict
 
 If the **gold∩graph alignment** measurement shows that following edges from a
 gold-bearing chunk lands mostly on non-gold text, the graph buys recall at a
@@ -238,28 +238,33 @@ standing. Four reasons the measurement cannot carry that weight:
   exists precisely to reach text that is never in the answer span. One untuned
   implementation, same small n, same half-strength instrument. Withdrawn.
 
-### The retirement standard (adopted, because nothing above met it)
+### The retirement standard (governing)
 
-Eli, 2026-07-31: *"I need a lot more proof to 'retire' anything."* Correct — and
-the existing ensemble doctrine already said so: never discard a witness for weak
-solo performance, retire only on **demonstrated redundancy**. Nothing measured
-in this round meets that. From here, retiring any layer or edge class requires
-**all four**:
+Eli, 2026-07-31: *"none of this is remotely 'retired' until the most robust
+deterministic first layer is built and we test it with real model runs across
+several ablations."*
 
-1. **A metric that can express the mechanism.** Answer-span character overlap
-   cannot score "retrieved the provision that governs the answer." If the
-   mechanism's whole purpose is to reach supporting text, the bed must be able
-   to credit supporting text.
-2. **Adequate n**, stated, with the band computed from that n — not 14
-   fragments.
-3. **Full instrument strength** — refusal rate reported, and the upstream
-   detector at its current best rather than mid-repair.
-4. **Tested in concert, not only solo** — per the ensemble protocol, redundancy
-   against the other witnesses is the thing that licenses retirement, and a low
-   solo score licenses nothing.
+That is the standard. It subsumes everything below and it invalidates the
+premise of §6 as originally written.
 
-Until then the honest status of every layer here is **built and unproven**, and
-that is what the log should say.
+**§6's kill criterion was a design error.** It made a *deterministic proxy*
+sufficient to close a hypothesis, so a cheap gate could retire ideas without a
+single model run. A proxy measurement can tell us **where to look**. It cannot
+retire anything. §6 is amended accordingly: the gold∩graph measurement is a
+diagnostic, never a verdict.
+
+**Nothing in this round is retired, and nothing can be** until both hold:
+
+1. **The deterministic first layer is actually robust.** Today it is not: 24/69
+   documents refused (8/17 on maud, the target source), the skeleton repaired
+   mid-run, one untuned implementation per edge class, no variants attempted.
+   "Built once and measured once" is a first draft, not a foundation.
+2. **Real model runs across several ablations**, on that foundation — with the
+   ensemble protocol applied: solo *and* in concert, retiring only on
+   demonstrated redundancy, never on a weak solo score.
+
+Honest status of every layer in this round: **built, unproven, untested with a
+model.** No layer has ever been put in front of a composer.
 
 The resolver itself stands on its own: 3.3% unresolved, honest bimodality,
 typed refusal where the structure is too thin. Cross-reference resolution is a
