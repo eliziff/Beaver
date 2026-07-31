@@ -3192,6 +3192,85 @@ C1b — at or above C1a on maud/privacy_qa ansR (the web reaches
 definition+operative+exception nodes); risk side recorded: longer
 answers may pull ansP down as far as −0.04 vs ctx.
 
+### Stage 18 F fairness round (registered 2026-07-31 before any run; motivated by an independent adversarial methodology review)
+
+An adversarial review of Stages 14–18 identified places where the
+program may be fitting the benchmark's structural artifacts — every
+LegalBench-RAG question is answerable from the corpus, and every query
+names its own document ("Consider <document identity>; <question>") —
+rather than the product. This round measures each of those cheaply,
+before the Stage 19 holdout burn spends its one shot. A Canadian
+in-house holdout was raised by the same review and ruled OUT OF SCOPE
+by Eli 2026-07-31.
+
+**F1 — name-stripped retrieval audit** (deterministic, zero model
+calls). Every benchmark query is templated "Consider <document
+identity>; <question>", so lexical retrieval can be scoring the
+document name rather than the question. New ablate-runner flag
+`--strip-consider` removes everything through the first `;` (inclusive,
+plus following whitespace) from a query that starts with `Consider `
+before retrieval; other queries are unchanged. Run the frozen G+ctx
+deterministic retrieval config over all 776 tests, stripped vs
+unstripped, reporting per-source doc recall and pool R@48. No gate —
+this is an audit, and its result is REPORTED at Stage 19 beside the
+headline: if the stripped config collapses, the crowned retrieval
+numbers are flagged as partly a query-format artifact rather than
+product retrieval quality. Registered prediction: stripped doc recall
+drops ≥0.10 absolute overall; maud and cuad drop most.
+
+**F2 — negative-control composition arm** (gold document removed). New
+grounding-runner flag `--exclude-gold`: after retrieval and before
+rerank, drop every hit whose `filePath` is a gold document for that
+test — plus any corpus doc whose full text is byte-identical to a gold
+doc's full text — then proceed with the survivors (k unchanged; if
+fewer than k survive, run with what remains). On such cells the honest
+outcome is a decline/abstention: the answer is not in the supplied
+passages. Three arms, per-source 25 (100 cells each): base modules;
++coverage; +coverage+spec. c=6. Receipts
+`stage18-lbrag-f2-{base,coverage,covspec}.jsonl`.
+
+Registered metric: **false-answer rate** = fraction of cells answered
+WITH a conclusion claim that asserts a substantive answer (vs correctly
+declining, or answering that the supplied passages do not address the
+question).
+
+Registered adoption condition, layered onto C1 BEFORE any F2 result is
+observed (recorded honestly: the C1 arms were mid-flight and a partial
+contractnli peek had occurred at the time this was registered) — a C1
+arm may join the frozen config ONLY if its F2 false-answer rate does
+not exceed the base arm's by more than 5 points absolute.
+
+Prediction: base declines ≥80% of gold-removed cells; coverage and
+covspec suppress justified declines, landing 10–30 points of
+false-answer rate above base. If that happens the coverage contract
+must be REWORKED in a future registered round (e.g. keep "quote
+comprehensively", drop "answer rather than declining") — not adopted
+as-is on its C1 ansR lift.
+
+**F3 — plain-prompt control arm** (prices the grounding contract). New
+grounding-runner flag `--plain` replaces the three registered prompt
+modules with a single module:
+
+> "Answer using the grounded-answer tool. Quote the supplied passages
+> that answer the question, exactly as written."
+
+The claim-typing schema is still enforced by the tool itself, so this
+prices the *prompt* contract, not the machinery. One arm, per-source 49
+(196 cells), frozen G+ctx retrieval, c=6, receipts
+`stage18-lbrag-f3-plain.jsonl`. No gate — it prices the contract's
+marginal value on this bed. Prediction bands: plain ansP 0.45–0.60
+(within 0.05 of the champion at the same cells is NOT guaranteed), ansR
+0.55–0.70, decline rate <5%.
+
+**Reporting amendments** (protocol, reporting-only, apply from the C1
+verdict onward):
+1. Per-source answered-only P and R are always shown, never overall
+   only.
+2. A strict-answered column (answered requires ≥1 quotation claim AND
+   ≥1 conclusion claim) is reported beside the loose answered rate.
+3. The byte-exact quote rate is reported beside the normalized P1 audit
+   number.
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under

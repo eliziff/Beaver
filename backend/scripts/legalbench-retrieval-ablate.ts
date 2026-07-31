@@ -10,6 +10,8 @@
  * Stage 18 arms ({chars,clause} x {plain,phrases} at t1600/o120/w16,
  * per-source lexical R@4 + pool R@48, JSONL receipts):
  *   npx tsx scripts/legalbench-retrieval-ablate.ts --stage18
+ * Stage 18 F1 name-stripped audit (any mode; "+stripped" labels):
+ *   ... --context-arms --context-jsonl <headers.jsonl> --strip-consider
  */
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -24,6 +26,20 @@ import {
   type Span,
 } from "../src/lib/legalbenchRag";
 import { searchPassages } from "../src/lib/passageRetrieval";
+
+// Stage 18 F1 name-stripped audit: every benchmark query is templated
+// "Consider <document identity>; <question>", so lexical retrieval can
+// be scoring the document name instead of the question. --strip-consider
+// removes everything through the first ";" and re-runs the same configs;
+// arm labels and receipt files carry a "+stripped" suffix so a stripped
+// run can never be mistaken for the unstripped baseline.
+const STRIP_CONSIDER = process.argv.includes("--strip-consider");
+const STRIP_TAG = STRIP_CONSIDER ? "+stripped" : "";
+export function stripConsider(query: string): string {
+  if (!query.startsWith("Consider ")) return query;
+  const at = query.indexOf(";");
+  return at < 0 ? query : query.slice(at + 1).replace(/^\s+/u, "");
+}
 
 const manifest = validateMiniManifest(
   JSON.parse(readFileSync(MANIFEST_PATH, "utf8")),
@@ -40,7 +56,7 @@ const tests = SOURCE_BENCHMARKS.flatMap((source) => {
   return parsed.tests.map((test, index) => ({
     id: `${source}:${String(index).padStart(3, "0")}`,
     source,
-    query: test.query,
+    query: STRIP_CONSIDER ? stripConsider(test.query) : test.query,
     gold: test.snippets.map((snippet) => ({
       filePath: snippet.file_path,
       start: snippet.span[0],
@@ -124,11 +140,14 @@ if (process.argv.includes("--context-arms")) {
   const label = labelAt >= 0 ? process.argv[labelAt + 1] : "linted";
   const output = path.join(
     process.env.LOCALAPPDATA ?? "",
-    `OpenLegalData/experiments/legal-grounding/2026-07-30/stage18-context-arms-${label}.jsonl`,
+    `OpenLegalData/experiments/legal-grounding/2026-07-30/stage18-context-arms-${label}${STRIP_TAG}.jsonl`,
   );
   writeFileSync(output, "", "utf8");
   for (const weight of [0, 1, 2, 4]) {
-    const bySource = new Map<string, { lexR4: number[]; poolR48: number[] }>();
+    const bySource = new Map<
+      string,
+      { lexR4: number[]; poolR48: number[]; docHit: number[] }
+    >();
     for (const test of tests) {
       const pool = searchPassages({
         sourceDb,
@@ -148,33 +167,46 @@ if (process.argv.includes("--context-arms")) {
         }));
       const lexical = charPrecisionRecall(spans(pool.slice(0, 4)), test.gold);
       const poolScore = charPrecisionRecall(spans(pool), test.gold);
+      const goldDocs = new Set(test.gold.map((span) => span.filePath));
+      const docHit = pool.some((hit) => goldDocs.has(hit.citation));
       appendFileSync(
         output,
         `${JSON.stringify({
-          arm: `ctx-${label}-w${weight}`,
+          arm: `ctx-${label}-w${weight}${STRIP_TAG}`,
           test_id: test.id,
           source: test.source,
           lexical_r4: lexical.recall,
           pool_r48: poolScore.recall,
+          doc_hit: docHit,
         })}\n`,
         "utf8",
       );
-      const entry = bySource.get(test.source) ?? { lexR4: [], poolR48: [] };
+      const entry = bySource.get(test.source) ?? {
+        lexR4: [],
+        poolR48: [],
+        docHit: [],
+      };
       entry.lexR4.push(lexical.recall);
       entry.poolR48.push(poolScore.recall);
+      entry.docHit.push(docHit ? 1 : 0);
       bySource.set(test.source, entry);
     }
-    const overall = { lexR4: [] as number[], poolR48: [] as number[] };
+    const overall = {
+      lexR4: [] as number[],
+      poolR48: [] as number[],
+      docHit: [] as number[],
+    };
     const parts: string[] = [];
     for (const [source, entry] of [...bySource.entries()].sort()) {
       overall.lexR4.push(...entry.lexR4);
       overall.poolR48.push(...entry.poolR48);
+      overall.docHit.push(...entry.docHit);
       parts.push(
-        `${source} lexR4=${mean(entry.lexR4).toFixed(4)} poolR48=${mean(entry.poolR48).toFixed(4)}`,
+        `${source} lexR4=${mean(entry.lexR4).toFixed(4)} poolR48=${mean(entry.poolR48).toFixed(4)} docR=${mean(entry.docHit).toFixed(4)}`,
       );
     }
     console.log(
-      `ctx-${label}-w${weight}: lexR4=${mean(overall.lexR4).toFixed(4)} poolR48=${mean(overall.poolR48).toFixed(4)} | ${parts.join(" | ")}`,
+      `ctx-${label}-w${weight}${STRIP_TAG}: lexR4=${mean(overall.lexR4).toFixed(4)} poolR48=${mean(overall.poolR48).toFixed(4)} docR=${mean(overall.docHit).toFixed(4)} | ${parts.join(" | ")}`,
     );
   }
   console.log(`Receipts: ${output}`);
@@ -197,7 +229,7 @@ async function rerankArmsMain() {
   const resume = argValue("resume", "0") !== "0";
   const output = path.join(
     process.env.LOCALAPPDATA ?? "",
-    "OpenLegalData/experiments/legal-grounding/2026-07-30/stage18-rerank-arms.jsonl",
+    `OpenLegalData/experiments/legal-grounding/2026-07-30/stage18-rerank-arms${STRIP_TAG}.jsonl`,
   );
   const arms: { arm: string; model: string; effort?: string }[] = [
     { arm: "luna@default", model: "codex:gpt-5.6-luna" },
@@ -338,14 +370,18 @@ if (process.argv.includes("--rerank-arms")) {
 if (process.argv.includes("--stage18")) {
   const output = path.join(
     process.env.LOCALAPPDATA ?? "",
-    "OpenLegalData/experiments/legal-grounding/2026-07-30/stage18-retrieval-arms.jsonl",
+    `OpenLegalData/experiments/legal-grounding/2026-07-30/stage18-retrieval-arms${STRIP_TAG}.jsonl`,
   );
   writeFileSync(output, "", "utf8");
   const arms = [
-    { arm: "chars", mode: "chars" as const, phrases: false },
-    { arm: "chars+phrases", mode: "chars" as const, phrases: true },
-    { arm: "clause", mode: "clause" as const, phrases: false },
-    { arm: "clause+phrases", mode: "clause" as const, phrases: true },
+    { arm: `chars${STRIP_TAG}`, mode: "chars" as const, phrases: false },
+    { arm: `chars+phrases${STRIP_TAG}`, mode: "chars" as const, phrases: true },
+    { arm: `clause${STRIP_TAG}`, mode: "clause" as const, phrases: false },
+    {
+      arm: `clause+phrases${STRIP_TAG}`,
+      mode: "clause" as const,
+      phrases: true,
+    },
   ];
   for (const { arm, mode, phrases } of arms) {
     const bySource = new Map<
