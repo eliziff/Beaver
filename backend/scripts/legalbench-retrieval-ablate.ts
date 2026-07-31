@@ -163,10 +163,14 @@ if (process.argv.includes("--context-arms")) {
   if (!contextJsonl) throw new Error("missing --context-jsonl");
   const labelAt = process.argv.indexOf("--label");
   const label = labelAt >= 0 ? process.argv[labelAt + 1] : "linted";
-  const output = path.join(
-    process.env.LOCALAPPDATA ?? "",
-    `OpenLegalData/experiments/legal-grounding/2026-07-30/stage18-context-arms-${label}${RUN_TAG}.jsonl`,
-  );
+  const outputAt = process.argv.indexOf("--output");
+  const output =
+    outputAt >= 0
+      ? process.argv[outputAt + 1]
+      : path.join(
+          process.env.LOCALAPPDATA ?? "",
+          `OpenLegalData/experiments/legal-grounding/2026-07-30/stage18-context-arms-${label}${RUN_TAG}.jsonl`,
+        );
   writeFileSync(output, "", "utf8");
   for (const weight of [0, 1, 2, 4]) {
     const bySource = new Map<
