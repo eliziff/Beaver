@@ -319,6 +319,7 @@ describe("local PDF ingestion", () => {
     });
     expect(parseArgs).toContain("--no-cache");
     expect(parseArgs).toContain("--compact-pages");
+    expect(parseArgs).not.toContain("--cache-dir");
     expect(parseArgs).not.toContain("--text-fidelity-root");
     expect(state!.parser_config).not.toHaveProperty("text_fidelity_root");
     const artifactRoot = path.dirname(
@@ -373,6 +374,72 @@ describe("local PDF ingestion", () => {
     expect(
       runLegalPdf.mock.calls.filter(([args]) => args[0] === "parse"),
     ).toHaveLength(1);
+  });
+
+  it("reparses changed version bytes and deletes every obsolete publication", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-pdf-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    runLegalPdf.mockImplementation((args: string[]) => fakeLegalPdf(args));
+    const ingestion = await import("../localPdfIngestion");
+    const source = path.join(
+      temporaryDirectory,
+      "files",
+      "document",
+      "version.pdf",
+    );
+    await mkdir(path.dirname(source), { recursive: true });
+    const firstBytes = Buffer.from("%PDF-1.4 first version");
+    const firstHash = crypto.createHash("sha256").update(firstBytes).digest("hex");
+    await writeFile(source, firstBytes);
+    const first = await ingestion.parseLocalPdfOnDemand({
+      documentId: "document",
+      versionId: "version-1",
+      sourcePath: source,
+      sourceSha256: firstHash,
+    });
+    const firstManifest = path.join(temporaryDirectory, first.artifact_manifest);
+    const artifactRoot = path.dirname(path.dirname(firstManifest));
+    const obsolete = path.join(artifactRoot, "obsolete-key", "leftover.bin");
+    await mkdir(path.dirname(obsolete), { recursive: true });
+    await writeFile(obsolete, "stale");
+
+    await ingestion.parseLocalPdfOnDemand({
+      documentId: "document",
+      versionId: "version-1",
+      sourcePath: source,
+      sourceSha256: firstHash,
+    });
+    await expect(readFile(obsolete)).rejects.toMatchObject({ code: "ENOENT" });
+
+    const secondBytes = Buffer.from("%PDF-1.4 second version");
+    const secondHash = crypto
+      .createHash("sha256")
+      .update(secondBytes)
+      .digest("hex");
+    await writeFile(source, secondBytes);
+    await expect(
+      ingestion.parseLocalPdfOnDemand({
+        documentId: "document",
+        versionId: "version-1",
+        sourcePath: source,
+        sourceSha256: firstHash,
+      }),
+    ).rejects.toThrow("source bytes no longer match their version");
+    await expect(readFile(firstManifest)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+
+    const second = await ingestion.parseLocalPdfOnDemand({
+      documentId: "document",
+      versionId: "version-2",
+      sourcePath: source,
+      sourceSha256: secondHash,
+    });
+    expect(second.source_sha256).toBe(secondHash);
+    expect(second.cache_key).not.toBe(first.cache_key);
+    expect(
+      runLegalPdf.mock.calls.filter(([args]) => args[0] === "parse"),
+    ).toHaveLength(2);
   });
 
   it("rebuilds incomplete or corrupt ready publications before reuse", async () => {
