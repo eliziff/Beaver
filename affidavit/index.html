@@ -171,8 +171,8 @@
       transition-timing-function: ease-out;
     }
     button:hover, .file-button:hover { background: #344054; }
-    button.primary { background: var(--brand); }
-    button.primary:hover { background: var(--brand-dark); }
+    button.primary, .file-button.primary { background: var(--brand); }
+    button.primary:hover, .file-button.primary:hover { background: var(--brand-dark); }
     button.secondary, .file-button.secondary {
       color: var(--ink);
       border-color: var(--line);
@@ -300,18 +300,18 @@
       aspect-ratio: 1;
       border-radius: .75rem;
       color: var(--brand);
-      background: var(--brand-soft);
+      background: transparent;
       perspective: 7rem;
     }
     .work-braille {
       display: grid;
       place-items: center;
-      width: 1.75rem;
-      height: 1.75rem;
+      width: 2.5rem;
+      height: 2.5rem;
       transform: rotateX(18deg) rotateY(-14deg);
       transform-style: preserve-3d;
       font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
-      font-size: 1.7rem;
+      font-size: 2.35rem;
       font-weight: 700;
       line-height: 1;
       text-shadow: 1px 1px 0 var(--brand-dark), 2px 2px 0 rgb(213 43 30 / 22%);
@@ -467,11 +467,12 @@
     .pool-empty { margin: 0; color: var(--muted); font-size: var(--text-sm); }
     .pool-file {
       display: grid;
-      grid-template-columns: auto minmax(0, 1fr) auto auto;
+      position: relative;
+      grid-template-columns: minmax(0, 1fr) auto auto;
       align-items: center;
       gap: .5rem;
       min-width: 0;
-      padding: .5rem;
+      padding: .5rem .5rem .5rem 1rem;
       border-radius: .5rem;
       background: #fff;
       box-shadow: inset 0 0 0 1px var(--line);
@@ -568,12 +569,12 @@
     .slot-drop {
       display: grid;
       position: relative;
-      grid-template-columns: auto minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1fr);
       align-content: center;
       align-items: center;
       min-width: 0;
       min-height: 5rem;
-      padding: .75rem 3.75rem .75rem .75rem;
+      padding: .75rem;
       border: 2px dashed var(--line);
       border-radius: .5rem;
       background: #fcfcfd;
@@ -610,41 +611,47 @@
       min-height: 4.25rem;
       padding: .45rem .25rem;
     }
-    .slot-drop > .preview-eye {
-      position: absolute;
-      inset-block-start: .65rem;
-      inset-inline-end: .65rem;
+    .slot-drop[role="button"]:hover {
+      border-color: #98a2b3;
+      background: #f9fafb;
+    }
+    .slot-drop[role="button"]:focus-visible {
+      outline: 2px solid var(--ink);
+      outline-offset: 2px;
     }
     .drag-grip {
       display: grid;
+      position: absolute;
+      inset-block-start: 50%;
+      inset-inline-start: -.8rem;
       place-items: center;
-      width: 2.25rem;
-      min-height: 3.25rem;
+      width: 1.45rem;
+      min-height: 3rem;
       color: #98a2b3;
       border: 1px solid var(--line);
-      border-radius: .45rem;
-      background: #f9fafb;
+      border-inline-end: 0;
+      border-radius: .45rem 0 0 .45rem;
+      background: #fff;
       font-size: 0;
       line-height: 1;
       cursor: grab;
+      transform: translateY(-50%);
       user-select: none;
     }
     .drag-grip::before {
-      width: .25rem;
-      height: .25rem;
-      border-radius: 50%;
-      background: currentColor;
-      box-shadow:
-        0 .45rem currentColor,
-        0 -.45rem currentColor,
-        .45rem 0 currentColor,
-        .45rem .45rem currentColor,
-        .45rem -.45rem currentColor;
-      content: "";
-      transform: translateX(-.225rem);
+      content: "‹";
+      font-size: 1.5rem;
+      font-weight: 700;
+      line-height: 1;
     }
     [data-dragging="true"] .drag-grip,
     [draggable="true"]:hover .drag-grip { color: var(--ink); }
+    .letter-stack { display: grid; justify-items: center; gap: .4rem; }
+    .letter-stack .preview-eye {
+      width: 2.5rem;
+      min-width: 2.5rem;
+      min-height: 2.5rem;
+    }
     .slot-actions {
       display: grid;
       align-content: start;
@@ -689,8 +696,14 @@
       font-size: 1.25rem;
       line-height: 1;
     }
-    .delete-slot:hover,
-    .delete-assigned:hover { color: #fff; background: var(--danger); }
+    button.delete-slot:hover,
+    button.delete-assigned:hover,
+    button.delete-pool-file:hover,
+    button.clear-exhibits:hover {
+      color: var(--danger);
+      border-color: #fda29b;
+      background: #fef3f2;
+    }
     button:active,
     .file-button:active { transform: scale(.96); }
     .add-exhibit {
@@ -738,8 +751,8 @@
     }
     .dialog-actions .danger { background: var(--brand); }
     .file-preview-dialog {
-      width: min(64rem, calc(100% - 2rem));
-      height: min(52rem, calc(100% - 2rem));
+      width: min(50rem, calc(100% - 2rem));
+      height: min(44rem, calc(100% - 2rem));
     }
     .preview-dialog-shell {
       display: grid;
@@ -848,7 +861,7 @@
       .field.wide { grid-column: auto; }
       .exhibits-heading { display: grid; }
       .exhibit-row { grid-template-columns: 2.5rem minmax(0, 1fr); }
-      .letter { grid-column: 1; grid-row: 1; }
+      .letter-stack { grid-column: 1; grid-row: 1; }
       .slot-body { grid-column: 2; grid-row: 1; }
       .slot-body { grid-template-columns: 1fr; }
       .slot-actions { grid-column: 1; grid-row: 2; grid-template-columns: 1fr; min-width: 0; }
@@ -985,12 +998,12 @@
                   <span id="pool-count" class="count">0 files</span>
                 </div>
                 <div class="files-actions">
-                  <button id="file-options" type="button" class="secondary">Options</button>
-                  <label class="file-button secondary">
+                  <label class="file-button primary">
                     <span>Choose files</span>
                     <input id="exhibit-files" type="file" multiple accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
                   </label>
-                  <button id="clear-exhibits" type="button" class="secondary clear-exhibits" disabled>Clear slots</button>
+                  <button id="file-options" type="button" class="secondary">Options</button>
+                  <button id="clear-exhibits" type="button" class="secondary clear-exhibits" disabled>Clear exhibit slots</button>
                 </div>
               </div>
               <section id="exhibit-batch" class="file-pool" aria-labelledby="pool-title">
@@ -1016,13 +1029,6 @@
           </div>
           <div id="exhibit-list" class="exhibit-list" aria-label="Exhibits in order"></div>
           <button id="add-slot" type="button" class="add-exhibit"><span aria-hidden="true">+</span> Add exhibit</button>
-          <label class="check bumper-option">
-            <input id="bumpers" type="checkbox">
-            <span>
-              Start exhibit covers on right-hand pages
-              <small>Adds a blank bumper page only when the next certificate would otherwise start on an even page.</small>
-            </span>
-          </label>
         </section>
 
         <section class="card output-card" aria-labelledby="output-title">
@@ -1071,6 +1077,20 @@
           <label><input type="radio" name="file-placement" value="pool"><span>Unsorted</span></label>
           <label class="sort-abstain"><input id="sort-abstain" type="checkbox" checked><span>Leave unmatched files unassigned</span></label>
         </fieldset>
+        <label class="check bumper-option">
+          <input id="bumpers" type="checkbox" checked>
+          <span>
+            Start exhibit covers on right-hand pages
+            <small>Adds a blank page only when needed to place the next cover on the right.</small>
+          </span>
+        </label>
+        <label class="check bumper-option">
+          <input id="page-numbers" type="checkbox">
+          <span>
+            Print page numbers at the top
+            <small>Numbers certificate and exhibit pages in the upper-right corner.</small>
+          </span>
+        </label>
       </div>
       <div class="dialog-actions">
         <button value="close" class="primary">Done</button>
@@ -1941,16 +1961,20 @@
           : "PDF or DOCX";
         return `
           <article class="exhibit-row" data-index="${index}" data-id="${entry?.id || ""}">
-            <div class="letter">${indexLabel(index)}</div>
+            <div class="letter-stack">
+              <div class="letter">${indexLabel(index)}</div>
+              ${entry ? previewEye(entry.id, filename) : ""}
+            </div>
             <div class="slot-body">
-              <div class="slot-drop" data-index="${index}" draggable="${Boolean(entry) && !state.busy}" aria-label="Exhibit ${indexLabel(index)} file slot">
+              <div class="slot-drop" data-index="${index}" draggable="${Boolean(entry) && !state.busy}"
+                ${entry || state.busy ? "" : 'role="button" tabindex="0"'}
+                aria-label="${entry ? `Exhibit ${indexLabel(index)} file slot` : `Choose a file for Exhibit ${indexLabel(index)}`}">
                 ${entry
                   ? `<span class="drag-grip" aria-hidden="true">⋮</span>
                     <div class="file-description">
                       <span class="file-name" title="${filename}">${filename}</span>
-                      <span class="file-meta">${metadata} · Drag to swap · Drop to replace</span>
-                    </div>
-                    ${previewEye(entry.id, filename)}`
+                      <span class="file-meta">${metadata} · Drop to swap/replace</span>
+                    </div>`
                   : `<p><strong>Drop into Exhibit ${indexLabel(index)}</strong><br>Use a file, another exhibit, or choose below.</p>`}
               </div>
               <div class="slot-actions">
@@ -2082,7 +2106,7 @@
     function certificatePage(document, fonts, exhibit, number) {
       const page = document.addPage([612, 792]);
       const { roman, bold, italic } = fonts;
-      pageNumber(page, number, roman);
+      if ($("#page-numbers").checked) pageNumber(page, number, roman);
       centeredAt(page, `Court File No. ${fieldValue("file-number") || "—"}`, 474, 714, bold, 11);
       centeredAt(page, `Court Registry: ${fieldValue("registry") || "—"}`, 474, 691, bold, 11);
       centered(page, `In the ${fieldValue("court") || "Court"}`, 642, bold, 11.5);
@@ -2157,7 +2181,7 @@
           throw new Error(`Exhibit ${indexLabel(index)} has no file.`);
         }
         entry.pageCount = await appendDocument(output, entry.file, (page) => {
-          pageNumber(page, exhibitPage, fonts.roman);
+          if ($("#page-numbers").checked) pageNumber(page, exhibitPage, fonts.roman);
           exhibitPage += 1;
         });
       }
@@ -2422,7 +2446,7 @@
       }
     });
     $("#add-slot").addEventListener("click", () => setExhibitCount(state.order.length + 1, true));
-    $("#bumpers").addEventListener("change", schedulePreview);
+    ["bumpers", "page-numbers"].forEach((id) => $(`#${id}`).addEventListener("change", schedulePreview));
     $("#build").addEventListener("click", buildAndDownload);
     fields.forEach((id) => {
       $(`#${id}`).addEventListener("input", () => {
@@ -2444,11 +2468,20 @@
       const row = event.target.closest(".exhibit-row");
       if (!row) return;
       const index = Number(row.dataset.index);
+      if (event.target.closest('.slot-drop[role="button"]')) {
+        row.querySelector(".slot-file")?.click();
+        return;
+      }
       if (event.target.closest(".delete-slot")) deleteExhibit(index);
       if (event.target.closest(".unassign-file")) unassignFile(index);
       if (event.target.closest(".delete-assigned")) deleteAssignedFile(index);
       const preview = event.target.closest(".preview-eye");
       if (preview) previewEntry(preview.dataset.id);
+    });
+    $("#exhibit-list").addEventListener("keydown", (event) => {
+      if (!event.target.matches('.slot-drop[role="button"]') || !["Enter", " "].includes(event.key)) return;
+      event.preventDefault();
+      event.target.closest(".exhibit-row").querySelector(".slot-file")?.click();
     });
     $("#exhibit-list").addEventListener("dragstart", (event) => {
       const drop = event.target.closest('.slot-drop[draggable="true"]');
