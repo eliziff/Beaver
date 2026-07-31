@@ -271,8 +271,9 @@ describe("provisional legal evidence contract", () => {
   it("keeps cross-block multi-spans behind the experiment flag", () => {
     const text = [
       "[1] Ancient forests hold clean water beneath a changing sky.",
-      "[2] The middle paragraph concerns an unrelated procedural question.",
+      "[2] Ancient forests hold clean water beneath a changing sky.",
       "[3] Migratory birds cross open air above the northern wetlands.",
+      "[4] Old roots remember rain after the summer fires.",
     ].join("\n");
     const document: A2AJDocument = {
       dataset: "SCC",
@@ -287,10 +288,10 @@ describe("provisional legal evidence contract", () => {
       structure: {
         status: "unavailable",
         source: "flat_text",
-        counts: { paragraph: 3, page: 0, section: 0 },
+        counts: { paragraph: 4, page: 0, section: 0 },
       },
     };
-    const paragraph = (number: 1 | 3): A2AJLocatorLookup => {
+    const paragraph = (number: 1 | 3 | 4): A2AJLocatorLookup => {
       const start = text.indexOf(`[${number}]`);
       const end = text.indexOf("\n", start);
       return {
@@ -318,7 +319,7 @@ describe("provisional legal evidence contract", () => {
       mode: "citation_structure" | "arbitrary_source_spans",
     ) => {
       const state = createLegalEvidenceTurnState(mode);
-      const lookups = [paragraph(1), paragraph(3)];
+      const lookups = [paragraph(1), paragraph(3), paragraph(4)];
       const evidence = lookups.map((item) => createA2AJLookupEvidence(item)!);
       evidence.forEach((item, index) =>
         registerLegalEvidence(state, item, {
@@ -332,7 +333,8 @@ describe("provisional legal evidence contract", () => {
             claims: [{
               text:
                 "\u201cforests hold clean water\u201d \u2014 " +
-                "\u201cbirds cross open air\u201d",
+                "\u201cbirds cross open air\u201d \u2014 " +
+                "\u201croots remember rain\u201d",
               evidence_ids: evidence.map(({ evidence_id }) => evidence_id),
             }],
           },
@@ -343,13 +345,14 @@ describe("provisional legal evidence contract", () => {
     };
 
     const safe = render("citation_structure");
-    expect(safe.match(/\[2023 SCC 23 at para\./gu)).toHaveLength(2);
+    expect(safe.match(/\[2023 SCC 23 at para\./gu)).toHaveLength(3);
     expect(safe).not.toContain("text=");
 
     const experimental = render("arbitrary_source_spans");
     expect(experimental.match(/\[2023 SCC 23\]/gu)).toHaveLength(1);
     expect(experimental.match(/text=/gu)).toHaveLength(2);
     expect(experimental).toContain("?iframe=true&site_preference=mobile#:~:");
+    expect(experimental).not.toContain("forests%20hold%20clean%20water");
     expect(experimental).not.toContain("1%5D");
   });
 
@@ -1550,5 +1553,94 @@ describe("Stage 9 — temporal-order flag and alienness advisory", () => {
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
+  });
+});
+
+describe("premise-correction and abstention surfacing", () => {
+  it("renders a verified premise correction visibly marked", () => {
+    const state = createLegalEvidenceTurnState(null);
+    state.premiseContext = {
+      question: "Since the notice period is thirty days, can I appeal?",
+      priorAnswer: null,
+    };
+    state.answer = [
+      {
+        text: "The statute sets a seven-day notice period.",
+        evidence_ids: [],
+        kind: "premise_correction",
+        premise_source: "question",
+        premise_text: "the notice period is thirty days",
+      },
+    ];
+    expect(renderLegalEvidenceAnswer(state)).toBe(
+      '**Premise correction** — the question states "the notice period is thirty days": The statute sets a seven-day notice period.',
+    );
+  });
+
+  it("salvages verified corrections and typed unavailability on failure", () => {
+    const state = createLegalEvidenceTurnState("required_slot");
+    state.premiseContext = {
+      question: "Since the notice period is thirty days, can I appeal?",
+      priorAnswer: null,
+    };
+    state.bounces.push({
+      claims: [
+        {
+          text: "The statute sets a seven-day notice period.",
+          evidence_ids: [],
+          kind: "premise_correction",
+          premise_source: "question",
+          premise_text: "the notice period is thirty days",
+        },
+        {
+          text: "No attested characterization of 2007 BCCA 40 is available.",
+          evidence_ids: [],
+          kind: "quotation",
+        },
+        {
+          text: "This overreaching claim was rejected.",
+          evidence_ids: [],
+          kind: "conclusion",
+        },
+      ],
+      errors: ["claims[2] is not supported by its cited passages"],
+    });
+    state.failure = "The model did not submit a grounded answer.";
+    const rendered = renderLegalEvidenceAnswer(state);
+    expect(rendered).toContain("**Premise correction**");
+    expect(rendered).toContain(
+      "No attested characterization of 2007 BCCA 40 is available.",
+    );
+    expect(rendered).toContain("The model did not submit a grounded answer.");
+    expect(rendered).not.toContain("overreaching");
+  });
+
+  it("keeps the bare failure line when nothing typed survives", () => {
+    const state = createLegalEvidenceTurnState("required_slot");
+    state.failure = "The model did not submit a grounded answer.";
+    expect(renderLegalEvidenceAnswer(state)).toBe(
+      "The model did not submit a grounded answer.",
+    );
+  });
+
+  it("never salvages a correction whose anchor does not verify", () => {
+    const state = createLegalEvidenceTurnState("required_slot");
+    state.premiseContext = { question: "Can I appeal?", priorAnswer: null };
+    state.bounces.push({
+      claims: [
+        {
+          text: "The statute sets a seven-day notice period.",
+          evidence_ids: [],
+          kind: "premise_correction",
+          premise_source: "question",
+          premise_text: "the notice period is thirty days",
+        },
+      ],
+      errors: [],
+    });
+    state.failure = "The model did not submit a grounded answer.";
+    expect(renderLegalEvidenceAnswer(state)).toBe(
+      "The model did not submit a grounded answer.",
+    );
   });
 });

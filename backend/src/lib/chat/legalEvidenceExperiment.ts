@@ -1826,14 +1826,6 @@ export async function finalizeLegalEvidenceExperiment(
 export function renderLegalEvidenceAnswer(
   state: LegalEvidenceTurnState,
 ): string | null {
-  if (state.failure) return state.failure;
-  if (!state.answer) return null;
-  if (
-    state.mode &&
-    !allClaimsSupported(state)
-  ) {
-    return null;
-  }
   const citation = (entry: RegisteredEvidence) => {
     const { receipt, lookup, document } = entry;
     const paragraphRange =
@@ -1967,8 +1959,18 @@ export function renderLegalEvidenceAnswer(
     });
     return placements.length === sources.size ? placements : null;
   };
-  return state.answer
-    .map((claim) => {
+  // A premise correction whose anchor re-verifies deterministically
+  // renders visibly AS a correction, not as an ordinary sentence.
+  const decorate = (claim: GroundedLegalClaim, text: string): string =>
+    claim.kind === "premise_correction" &&
+    premiseAnchorSupport(claim, state) === true
+      ? `**Premise correction** — ${
+          claim.premise_source === "prior_answer"
+            ? "the earlier answer"
+            : "the question"
+        } states "${claim.premise_text}": ${text}`
+      : text;
+  const renderClaim = (claim: GroundedLegalClaim): string => {
       const citations =
         arbitrarySpanCitations(claim) ??
         [
@@ -1984,7 +1986,7 @@ export function renderLegalEvidenceAnswer(
             }),
           ).values(),
         ];
-      if (!citations.length) return claim.text;
+      if (!citations.length) return decorate(claim, claim.text);
       let text = claim.text;
       const pending: string[] = [];
       const replacements = new Map<string, string>();
@@ -2015,9 +2017,43 @@ export function renderLegalEvidenceAnswer(
       for (const [token, markdown] of replacements) {
         text = text.replace(token, markdown);
       }
-      return text;
-    })
-    .join("\n\n");
+      return decorate(claim, text);
+  };
+
+  // Verified premise corrections and typed unavailability statements are
+  // receipts-backed content the user should see even when the submission
+  // as a whole failed — surfaced above the typed abstention line, never
+  // parsed from prose. Salvage draws from the last checker-rejected
+  // answer or, failing that, the last bounce (excluding claims its typed
+  // errors name), and re-verifies each premise anchor deterministically
+  // at render time.
+  if (state.failure) {
+    const lastBounce = state.bounces[state.bounces.length - 1];
+    const claims = state.rejectedAnswer ?? lastBounce?.claims ?? [];
+    const fromBounce = !state.rejectedAnswer && !!lastBounce;
+    const unavailability =
+      /^No attested characterization of .+ is available\.$/u;
+    const salvaged = claims.flatMap((claim, index) => {
+      if (
+        fromBounce &&
+        lastBounce!.errors.some((error) => error.includes(`claims[${index}]`))
+      )
+        return [];
+      if (
+        claim.kind === "premise_correction" &&
+        premiseAnchorSupport(claim, state) === true
+      )
+        return [renderClaim(claim)];
+      if (unavailability.test(claim.text.trim())) return [claim.text.trim()];
+      return [];
+    });
+    return salvaged.length
+      ? [...salvaged, state.failure].join("\n\n")
+      : state.failure;
+  }
+  if (!state.answer) return null;
+  if (state.mode && !allClaimsSupported(state)) return null;
+  return state.answer.map(renderClaim).join("\n\n");
 }
 
 export type LegalEvidenceReceiptEvent = {
