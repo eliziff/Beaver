@@ -2225,6 +2225,34 @@ Workstreams, in execution order, each gated on deterministic gold:
 - **W5: dense lane** (fastembed ONNX local; turbovec at product
   scale) — only if W1+W2 leave recall@4 < 0.5.
 
+### Stage 16 W2 verdict (776 tests, luna@low ranking calls, 0 errors
+→ `stage16-rerank-eval.jsonl`) + W1 null
+
+All four registered predictions held, no falsifier fired:
+- Reranked R@4 **0.6697** vs paired lexical 0.4012 (same k=48 pool,
+  perDocCap 24; the Stage 15 confirm config with cap 2 measured
+  0.2865 — combined lift 2.3×). Prediction ≥0.40: held at 1.7× the
+  bar. The reranker captures 79% of the 0.8486 pool bound.
+- P@4 doubled, 0.0437 → 0.0876 (≥ lexical: held).
+- doc@4 0.9987 (≥0.98: held).
+- Fallbacks **0/776** (<5%: held). Mean 5.1s/ranking call.
+W5 gate: recall@4 0.67 ≥ 0.5 — the dense lane stays closed.
+
+W1 executed with an honest null (commit `45e70fc1`): heading-path
+context prefixes in a dedicated FTS column measured slightly negative
+on this bed (R@4 0.2865 → 0.2763 at weight 2) — headings are
+regex-guessed on plain-text contracts and queries don't use heading
+vocabulary. Ships default-off; its customer is the product skeleton
+lane where true heading paths exist.
+
+### Stage 16 confirm run (pre-registered): grounding over reranked
+retrieval. Same 32 cells, sol@medium, required_slot, passage
+t1600/o120/w16 pool k=48 → luna@low rerank → top 4 →
+`stage16-lbrag-rerank.jsonl`. Frozen: answered ≥ Stage 15's 21/32;
+unlocated quotes 0 (post-locator); answered ∩ gold-doc-miss ≤ 1;
+answered-only grounded P ≥ 0.077; errors < 20%. Falsified by:
+answered-only P < 0.077 or any unaudited unlocated quote.
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under
@@ -2259,6 +2287,7 @@ committed.
 | `stage13-solmax.jsonl` | `C2225BF9ADA4C6011F3F6111AF4BF8E4541D8BDB7BB8435D610703BB46111A05` |
 | `stage14-lbrag.jsonl` (pilot, pre-locator-fix scoring; maud:002 re-scored offline per the P1 audit) | `5720B4F97641655EE8C08F9D6EE9DED897E1492D9096AA684E5B46DD8AB7FD10` |
 | `stage15-lbrag-passage.jsonl` | `595C123915066647D739AB1A5388488C08A12909FE6DA5B33DC5524615C7DDB6` |
+| `stage16-rerank-eval.jsonl` | `107D021AEEA0594C95961F9F82CE7558ED95E56940FBAF1F75E637D905AE28E3` |
 
 ## Validation and final selection gate
 
