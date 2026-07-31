@@ -3823,6 +3823,74 @@ config actually depends on are re-tested with replicates in Tier C;
 the rest stay undetermined rather than being re-run, and any downstream
 claim resting on them is withdrawn rather than defended.
 
+### Tier A result and the Tier C design it forces (2026-07-31, deterministic; receipts `stage18r-tierA-arms-lf.jsonl`, `stage18r-context-arms-lf.jsonl`)
+
+**Stop condition CLEARED.** With the 4,674 regenerated maud headers (0
+errors) plus the 1,292 non-maud headers that key 1,292/1,292, maud pool
+R@48 now RISES with context weight — 0.6028 (w0) → 0.6544 (w1) → 0.6385
+(w2) → 0.6442 (w4) — against the pre-regeneration 0.6028 → 0.5788. The
+ctx arm is finally measured on the instrument it claims.
+
+| weight | maud pool | overall pool | maud lex R@4 | overall lex R@4 |
+|---|---|---|---|---|
+| w0 | 0.6028 | 0.8459 | 0.1277 | 0.3926 |
+| w1 | **0.6544** | 0.8640 | 0.2966 | 0.4962 |
+| w2 | 0.6385 | 0.8673 | 0.3154 | 0.5284 |
+| w4 | 0.6442 | **0.8756** | **0.3211** | **0.5459** |
+
+Two findings. (1) **Contextual enrichment is worth about twice what was
+recorded**: maud lex R@4 +0.193 (0.1277 → 0.3211) against the CRLF-era
++0.092. (2) **w4 is no longer the maud-optimal weight — w1 is**
+(+0.0102), and the R5b adoption that put `ctx(w4)` in the frozen config
+was gated *specifically* on maud pool recall.
+
+**Decision: w4 is retained; w1 is recorded, not adopted.** w4 wins every
+general metric (overall pool +0.0116, overall lex R@4 +0.0497, cuad,
+contractnli); w1 wins only maud. Re-picking the weight because the
+hardest single source prefers it is tuning to that source — the
+no-benchmark-overfitting doctrine applies to our own corrected
+instrument exactly as it applied before. Recorded as an open question
+for the post-hold-out queue, not resolved by dev-bed re-selection.
+
+**R1 clause chunking, re-run on LF:** clause beats chars on EVERY source
+and both metrics (overall lex R@4 0.3926 → 0.4410; contractnli pool
+0.9650 → **0.9806**, where the original falsification recorded a *drop*).
+The maud prong still misses its bar (+0.0171 vs +0.05), so R1 stays
+falsified — but half its recorded basis does not reproduce. **R2 phrase
+bigrams:** re-falsified decisively on LF (overall lex R@4 0.3926 →
+0.2430).
+
+### Tier C, staged for a fast first read (registered before the run)
+
+Retrieval is deterministic and every pool is already computed as a
+sidecar, so Tier C injects pools via `--pool-jsonl` and pays **only
+composition**. This also sharpens the science: replicates then vary the
+composer alone against byte-identical evidence, which is how the
+±0.0065 floor was measured in the first place.
+
+Round 1 — four arms, one replicate each, all at k=6/stitch200/w4:
+
+1. **G** — lexical pool, **no rerank**
+2. **G+ctx** — ctx w4 pool, no rerank
+3. **G+ctx+rerank** — the incumbent frozen config; prices reranking
+   end-to-end, which has never been measured on this program
+4. **fused** — the Tier D LF fused pool, no rerank
+
+Escalation is pre-committed and keyed on spread, not on the result: any
+pairwise delta landing inside ±0.015 (overall) or ±0.030 (per-source)
+escalates **that pair only** to 3 replicates. Arms whose deltas are
+already outside the band are not re-run.
+
+**Rerank is dropped from the default candidate** (Eli, 2026-07-31: it
+"adds inference time cost that we could probably spend better on
+something else"). At `@p1600` over a 48-passage pool the reranker reads
+~76,800 chars per query in one call — the dominant latency of the whole
+pipeline on the laptop-CPU production target — and F1 showed its gain is
+not separable from filename matching. Arm 3 is retained as the control
+that prices it rather than assuming it away. Consequence: **preview-500
+isolation is retired as moot** (no preview to size without a reranker),
+which removes the one config ingredient that was never registered at all.
+
 ### Stop rule
 
 Stage 19 does not start until Tier C reports. If Tier C cannot
