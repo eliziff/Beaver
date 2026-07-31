@@ -135,7 +135,7 @@ function paramsKey(options: PassageIndexOptions) {
         target: options.target ?? chunkDefaults.target,
         overlap: options.overlap ?? chunkDefaults.overlap,
         docType: options.docType ?? null,
-        v: 1,
+        v: 2,
       }),
     )
     .digest("hex")
@@ -189,7 +189,7 @@ export function ensurePassageIndex(options: PassageIndexOptions): {
       "CREATE TABLE passage (id INTEGER PRIMARY KEY, doc_id INTEGER NOT NULL, language TEXT NOT NULL, start INTEGER NOT NULL, end INTEGER NOT NULL)",
     );
     index.exec(
-      "CREATE VIRTUAL TABLE passage_search USING fts5(text, name, citation, tokenize='unicode61')",
+      "CREATE VIRTUAL TABLE passage_search USING fts5(text, name, citation, context, tokenize='unicode61')",
     );
     index.exec("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)");
     const filters = options.docType ? "WHERE doc_type = ?" : "";
@@ -206,7 +206,7 @@ export function ensurePassageIndex(options: PassageIndexOptions): {
       "INSERT INTO passage (doc_id, language, start, end) VALUES (?, ?, ?, ?)",
     );
     const insertSearch = index.prepare(
-      "INSERT INTO passage_search (rowid, text, name, citation) VALUES (?, ?, ?, ?)",
+      "INSERT INTO passage_search (rowid, text, name, citation, context) VALUES (?, ?, ?, ?, ?)",
     );
     let passages = 0;
     let documents = 0;
@@ -227,6 +227,7 @@ export function ensurePassageIndex(options: PassageIndexOptions): {
           documents += 1;
           counted = true;
         }
+        const headings = headingLines(text);
         for (const span of chunkText(text, options)) {
           const result = insertPassage.run(
             row.id as number,
@@ -239,6 +240,7 @@ export function ensurePassageIndex(options: PassageIndexOptions): {
             text.slice(span.start, span.end),
             name,
             citation,
+            headingPath(headings, span.start),
           );
           passages += 1;
         }
@@ -253,6 +255,39 @@ export function ensurePassageIndex(options: PassageIndexOptions): {
     source.close();
     index.close();
   }
+}
+
+/**
+ * Deterministic contextual-retrieval prefix (skeleton-lite for plain
+ * text): the nearest enclosing heading line(s) above a chunk, indexed
+ * in a dedicated FTS column so heading vocabulary matches queries
+ * without polluting the verbatim passage text. Heading = line starting
+ * with a numbered label (1., 1.1, (a)), ARTICLE/SECTION/PART, or a
+ * short ALL-CAPS line.
+ */
+const HEADING_RE =
+  /^[ \t]{0,8}(?:(?:ARTICLE|SECTION|PART|SCHEDULE|EXHIBIT|APPENDIX)\b.{0,80}|\d+(?:\.\d+)*[.)]?[ \t]+\S.{0,80}|[A-Z][A-Z0-9 ,;:'&()/-]{4,60})$/u;
+
+function headingLines(text: string): Array<{ at: number; line: string }> {
+  const headings: Array<{ at: number; line: string }> = [];
+  const lineRe = /^.*$/gmu;
+  for (const match of text.matchAll(lineRe)) {
+    const line = match[0].trim();
+    if (line && HEADING_RE.test(match[0]) && headings.length < 5_000)
+      headings.push({ at: match.index, line: line.slice(0, 120) });
+  }
+  return headings;
+}
+
+function headingPath(
+  headings: Array<{ at: number; line: string }>,
+  start: number,
+): string {
+  const before = headings.filter((heading) => heading.at <= start);
+  return before
+    .slice(-2)
+    .map((heading) => heading.line)
+    .join(" — ");
 }
 
 export type PassageHit = {
@@ -276,6 +311,8 @@ export type PassageSearchOptions = {
   k?: number;
   /** bm25 weight on the document name/citation columns (text = 1). */
   nameWeight?: number;
+  /** bm25 weight on the heading-path context column (text = 1). */
+  contextWeight?: number;
   /** Max passages returned per document (diversity cap). */
   perDocCap?: number;
 } & ChunkOptions;
@@ -287,6 +324,11 @@ export function searchPassages(options: PassageSearchOptions): PassageHit[] {
   const { indexDb } = ensurePassageIndex(options);
   const k = Math.max(1, Math.min(50, options.k ?? 8));
   const nameWeight = options.nameWeight ?? 4;
+  // Default 0 (column ignored): measured slightly NEGATIVE on
+  // LegalBench (R@4 0.2865 -> 0.2763 at weight 2) where headings are
+  // regex-guessed from plain text. Enable per-call where a real
+  // skeleton supplies the heading path (product corpora).
+  const contextWeight = options.contextWeight ?? 0;
   const perDocCap = Math.max(1, options.perDocCap ?? 2);
   const language = options.language ?? "en";
   const match = tokens.map((token) => `"${token}"*`).join(" OR ");
@@ -297,14 +339,21 @@ export function searchPassages(options: PassageSearchOptions): PassageHit[] {
       .prepare(
         `SELECT passage.doc_id, passage.language, passage.start, passage.end,
                 passage_search.citation, passage_search.name,
-                bm25(passage_search, 1.0, ?, ?) AS score
+                bm25(passage_search, 1.0, ?, ?, ?) AS score
          FROM passage_search
          JOIN passage ON passage.id = passage_search.rowid
          WHERE passage_search MATCH ? AND passage.language = ?
          ORDER BY score
          LIMIT ?`,
       )
-      .all(nameWeight, nameWeight, match, language, k * perDocCap * 4) as Array<
+      .all(
+        nameWeight,
+        nameWeight,
+        contextWeight,
+        match,
+        language,
+        k * perDocCap * 4,
+      ) as Array<
       Record<string, unknown>
     >;
     const perDoc = new Map<number, number>();
