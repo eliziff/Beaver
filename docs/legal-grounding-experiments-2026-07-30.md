@@ -2873,6 +2873,40 @@ Frozen confirm gates:
 After the verdict the retrieval config freezes; Stage 19 timing
 still waits on the dense-lane decision per the lock-in rule.
 
+### Stage 18 arm D dense lane run (registered 2026-07-31 before the
+eval; Eli: "Start dense lane now"; receipts
+`stage18-dense-pool.jsonl`)
+
+Arm D was registered-deferred for want of an embedding backend. It
+now runs fully local and deterministic-given-the-model: fastembed
+ONNX `BAAI/bge-base-en-v1.5` on CPU, `OMP_NUM_THREADS=2` + Idle
+priority per the resource lesson from the killed first attempt.
+Pool machinery matches the rerank bed (k=48, perDocCap 24, upstream
+char-recall formula).
+
+Six pool arms per test: `lex` (plain champion pool), `ctx` (the
+R5b-adopted header pool, w4), `dense` (name+text embeddings),
+`densectx` (name+header+text — the dense analogue of the adopted
+FTS config), `fused` = RRF(ctx, densectx) — the production-shaped
+hybrid — and `fusedlex` = RRF(lex, dense) for attribution of the
+header vs dense contributions.
+
+Frozen predictions: dense-only maud lands between lexical 0.3619
+and ctx 0.4310; header-enriched embeddings edge plain; fused maud
+pool R@48 in the 0.45–0.52 band (material lift; the 0.50 target
+uncertain).
+
+Frozen gates (0.50 target held over from the original arm-D
+registration):
+- **OPEN** the lane (wire the rrfFuse hybrid into the production
+  stack, riding its own grounded confirm) iff fused maud pool
+  R@48 ≥ 0.50 AND no other source drops > 0.03 vs the ctx pool.
+- **CLOSED** (retired for maud) if fused maud ≤ ctx maud + 0.01 —
+  embedding infrastructure is not justified by ≤1pt of pool.
+- Middle band: recorded, default CLOSED for the Stage 19 freeze
+  (lock-in bias); revisitable post-holdout only as a new
+  registered round.
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under
