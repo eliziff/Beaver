@@ -194,24 +194,48 @@ precision.
 everywhere.** They were built separably precisely so this retirement could be
 measured rather than argued. Layer L3 is closed.
 
-**Consequences for §4's ladder.**
+### What this result does and does NOT license (amended, same day)
 
-- **A (retrieval-time edge following) is DEAD on this bed.** It was argued in
-  this session as the cheapest and probably strongest version — "the best
-  version of the idea may not need the model at all." The measurement says
-  otherwise: as *extra retrieved context* it does not pay, and on cuad it is
-  strongly negative. Do not register a retrieval arm.
-- **The surviving hypothesis is narrower and is B/C, not A**: the graph plus its
-  typed refusals shown to a composer *as a map it corrects* — structure as
-  orientation, not as additional evidence. That is a different mechanism and
-  must be registered and gated on its own terms.
-- **E (similarity edges) is closed** without needing composed arms.
+A first pass through these numbers concluded "retrieval-time edge following is
+DEAD." **That was an overreach**, and it is corrected here rather than left
+standing. Four reasons the measurement cannot carry that weight:
 
-This is the kill criterion in §6 working as intended, and it cost zero model
-calls. The idea is not refuted for the product — cross-reference resolution is
-a real legal primitive and the resolver is now built, tested and reusable — but
-**LegalBench-RAG cannot show it**, and no number should be manufactured from
-this bed to suggest otherwise.
+1. **The metric structurally cannot reward the mechanism.** LegalBench gold is
+   *where the answer text is*, not *what must be read to understand it*.
+   Following "as defined in Section 1.1" to retrieve the definition of a
+   capitalised deal term is correct legal behaviour and scores as a **precision
+   loss**, because the definition is not inside the gold span. The measurement
+   cannot separate "pulled irrelevant text" from "pulled exactly the supporting
+   provision a lawyer needs."
+2. **The n is small.** Only 15/168 contractnli and **14/153 cuad** gold
+   fragments had an outgoing edge at all. The headline "cuad loses 6×" rests on
+   fourteen fragments — the same small-n error this restart exists to correct.
+3. **It ran at half instrument strength.** The integrity gate refused 24/69
+   documents, including **8/17 maud** — the target source — and the resolver's
+   ceiling is the skeleton section inventory, which had only just been repaired
+   mid-run.
+4. **It measured a proxy, not the proposal.** The design (§1) is structure as
+   *orientation* — a map the model reads and corrects. What was measured is
+   pool expansion scored by character overlap, the one framing in which extra
+   context is definitionally a precision cost.
+
+**Corrected consequences.**
+
+- **A (retrieval-time edge following) is UNPROVEN on this bed, not refuted.** It
+  earns no arm *yet*, and no positive claim may be made for it either. A fair
+  re-test needs: the skeleton improvements propagated (refusal rate down),
+  scoring against *support* rather than answer-span, and enough fragments with
+  edges to decide anything.
+- **B/C remain the primary hypothesis** — the graph and its typed refusals shown
+  to a composer as a map it corrects. Untested.
+- **E (similarity edges) is closed** — those lost to a *deterministic* control,
+  which is a stronger and simpler result that does not depend on the gold-span
+  objection above.
+
+The resolver itself stands on its own: 3.3% unresolved, honest bimodality,
+typed refusal where the structure is too thin. Cross-reference resolution is a
+real legal primitive and this is a working one, whatever this benchmark can or
+cannot show about it.
 
 ## 7. Prerequisites
 
