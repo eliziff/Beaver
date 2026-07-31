@@ -16,7 +16,6 @@ import { mikeLocalDataHome } from "./legalDataPath";
 import { isImageDocumentType, validateImageBytes } from "./llm/images";
 import {
   peekLocalPdfParseState,
-  queueLocalPdfParse,
   removeLocalPdfParseArtifacts,
 } from "./localPdfIngestion";
 import { legalKnowledgeGraphStore } from "./legalKnowledgeGraphStore";
@@ -325,21 +324,6 @@ async function writeVersionFiles(
   return { suffix, relativeSource, relativePdf, sourceSha256 };
 }
 
-async function queueVersionPdf<T extends Record<string, unknown>>(
-  documentId: string,
-  version: LocalVersion,
-  response: T,
-) {
-  if (version.fileType !== "pdf") return response;
-  const pdfParse = await queueLocalPdfParse({
-    documentId,
-    versionId: version.id,
-    sourcePath: absoluteDataPath(version.storagePath),
-    sourceSha256: version.sourceSha256,
-  });
-  return { ...response, pdf_parse: pdfParse };
-}
-
 async function localDocumentResponse(document: LocalDocument) {
   const version = activeVersion(document);
   // The durable parse job's state, denormalized onto every document
@@ -504,11 +488,7 @@ export async function createLocalDocument(params: {
     store.documents.push(document);
     return { document, version };
   });
-  return queueVersionPdf(
-    saved.document.id,
-    saved.version,
-    await localDocumentResponse(saved.document),
-  );
+  return localDocumentResponse(saved.document);
 }
 
 async function getLocalDocument(userId: string, documentId: string) {
@@ -645,11 +625,7 @@ export async function addLocalVersion(params: {
     return { document, version };
   });
   if (!saved) return null;
-  return queueVersionPdf(
-    saved.document.id,
-    saved.version,
-    localVersionResponse(saved.version),
-  );
+  return localVersionResponse(saved.version);
 }
 
 export async function renameLocalVersion(
@@ -723,11 +699,7 @@ export async function replaceLocalVersion(params: {
     return { document, version };
   });
   if (!saved) return null;
-  return queueVersionPdf(
-    saved.document.id,
-    saved.version,
-    localVersionResponse(saved.version),
-  );
+  return localVersionResponse(saved.version);
 }
 
 export async function resolveLocalTrackedEdit(params: {

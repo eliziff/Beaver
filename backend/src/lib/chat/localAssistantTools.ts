@@ -40,6 +40,7 @@ import {
   type LocalPdfLinkEvidence,
   type LocalPdfLocatorKind,
 } from "../localPdfLookup";
+import { parseLocalPdfOnDemand } from "../localPdfIngestion";
 import {
   lookupProviderPdfReference,
   rehydrateProviderPdfReference,
@@ -2661,6 +2662,12 @@ export async function runLocalAssistantTools(
             "Exact structural lookup requires a parsed PDF version",
           );
         }
+        await parseLocalPdfOnDemand({
+          documentId,
+          versionId: file.version.id,
+          sourcePath: file.path,
+          sourceSha256: file.version.source_sha256,
+        });
         const artifactSession = localPdfEvidenceHandles
           ? localPdfArtifactSessionForTurn(localPdfEvidenceHandles, file.path)
           : undefined;
