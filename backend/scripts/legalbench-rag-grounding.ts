@@ -51,10 +51,12 @@ import {
   LEGAL_EVIDENCE_TOOL_NAME,
 } from "../src/lib/chat/legalEvidenceExperiment";
 import {
+  LEGALBENCH_MINI_SOURCE_DB,
   LEGALBENCH_RAG_DATA_DIR,
   MANIFEST_PATH,
   SOURCE_BENCHMARKS,
   charPrecisionRecall,
+  normalizeCorpusBytes,
   upstreamBenchmarkSchema,
   validateMiniManifest,
   verifyAgainstManifest,
@@ -124,6 +126,10 @@ type RowSpanScore = {
 
 type Row = {
   schema_version: "lbrag-grounding-1";
+  /** Corpus coordinate space of every span in this row. "lf" = upstream
+   * gold's space (the fixed instrument). Rows WITHOUT this field are
+   * pre-fix raw-CRLF receipts and need score-time mapping. */
+  coords: "lf";
   test_id: string;
   source: SourceBenchmark;
   model: string;
@@ -152,6 +158,10 @@ type Row = {
   /** The raw top-k retrieval spans scored the baseline way, same test,
    * same k — the paired comparison column. */
   retrieval_baseline: RowSpanScore;
+  /** Stage 18 defect D3: whether the listwise reranker fell back to the
+   * lexical order for this cell (null = no reranker configured). Silently
+   * dropped before the fix, so arm means mixed two systems. */
+  rerank_fallback: boolean | null;
   latency_ms: number;
   usage: NormalizedLlmUsage | null;
   legal_evidence_receipt: ReturnType<typeof legalEvidenceReceiptEvent> | null;
@@ -387,12 +397,26 @@ async function main() {
   if (problems.length)
     throw new Error(`data does not match manifest:\n${problems.join("\n")}`);
   const disk = new Map(onDisk.map((file) => [file.path, file.bytes]));
+  // Corpus load normalization (CRLF -> LF) applied AT FILE READ, before any
+  // offsetting: quote location, span scoring and the source db below all
+  // then live in upstream gold's coordinate space (17 maud files ship
+  // CRLF; scripts/legalbench-gold-oracle-check.ts is the assertion).
+  //
+  // Every receipt written before this fix (stages 14-18) holds RAW CRLF
+  // offsets — `quoted_spans`, `retrieval_baseline`, the pool/context
+  // sidecars, everything. Score-time mapping for those files is
+  //   raw_offset = lf_offset + (count of "\r\n" in the LF text before it),
+  // which is not otherwise visible anywhere in this code. Rows written
+  // from here on carry `coords: "lf"`, and the resume key below treats a
+  // row without that field as a different cell so the two spaces can
+  // never interleave in one file.
   const corpusText = new Map(
     manifest.corpus.map((entry) => [
       entry.upstream_path,
-      disk.get(entry.path)!.toString("utf8"),
+      normalizeCorpusBytes(disk.get(entry.path)!),
     ]),
   );
+  const COORDS = "lf" as const;
 
   // F2: a gold doc's byte-identical duplicates count as gold too — the
   // mini corpus carries repeated contracts under distinct paths, and
@@ -431,10 +455,11 @@ async function main() {
     }
   }
 
-  const database = path.join(LEGALBENCH_RAG_DATA_DIR, "db", "a2aj-mini.sqlite");
+  const database = LEGALBENCH_MINI_SOURCE_DB;
   if (!existsSync(database))
     throw new Error(
-      `FTS db missing (${database}); run scripts/legalbench-rag-run.ts once first`,
+      `normalized FTS db missing (${database}); run ` +
+        "scripts/legalbench-rag-run.ts --build-only once first",
     );
   process.env.MIKE_A2AJ_BULK_DB = database;
   const { searchLocalA2AJ } = await import("../src/lib/a2ajLocalBulk");
@@ -466,13 +491,20 @@ async function main() {
 
   mkdirSync(path.dirname(output), { recursive: true });
   const done = new Set<string>();
+  // Resume key carries the coordinate space: a pre-fix (raw-CRLF) row has
+  // no `coords`, so it can never satisfy a cell of this LF run — the two
+  // instruments are refused into one file rather than silently mixed.
+  const cellKey = (
+    row: Pick<Row, "model" | "effort" | "k" | "retriever" | "test_id"> & {
+      coords?: string;
+    },
+  ) =>
+    `${row.coords ?? "crlf"}|${row.model}|${row.effort}|${row.k}|` +
+    `${row.retriever ?? "product"}|${row.test_id}`;
   if (resume && existsSync(output)) {
     for (const line of readFileSync(output, "utf8").split("\n").filter(Boolean)) {
       const row = JSON.parse(line) as Row;
-      if (!row.error)
-        done.add(
-          `${row.model}|${row.effort}|${row.k}|${row.retriever ?? "product"}|${row.test_id}`,
-        );
+      if (!row.error) done.add(cellKey(row));
     }
   } else {
     writeFileSync(output, "", "utf8");
@@ -483,6 +515,9 @@ async function main() {
     // Retrieval: top-k passages (exact offsets from the index) or the
     // product doc-level path (snippets located back via indexOf).
     const retrieved: Array<Span & { snippet: string }> = [];
+    // D3: recorded per cell, never dropped — a fallback cell is the
+    // lexical order, not the reranker's.
+    let rerankFallback: boolean | null = rerankModel ? false : null;
     // F2: null unless --exclude-gold. Applied to the hits BEFORE rerank
     // in every retrieval path, so the composer never sees a gold doc.
     const excludedDocs = excludeGold ? goldDocsFor(test) : null;
@@ -526,17 +561,18 @@ async function main() {
         if (excludedDocs)
           hits = hits.filter((hit) => !excludedDocs.has(hit.citation));
       }
-      if (rerankModel)
-        hits = (
-          await rerankPassages({
-            query: test.query,
-            hits,
-            model: rerankModel,
-            top: k,
-            ...(rerankPreview === undefined ? {} : { preview: rerankPreview }),
-            ...(rerankEffort ? { effort: rerankEffort } : {}),
-          })
-        ).hits;
+      if (rerankModel) {
+        const reranked = await rerankPassages({
+          query: test.query,
+          hits,
+          model: rerankModel,
+          top: k,
+          ...(rerankPreview === undefined ? {} : { preview: rerankPreview }),
+          ...(rerankEffort ? { effort: rerankEffort } : {}),
+        });
+        hits = reranked.hits;
+        rerankFallback = reranked.fallback;
+      }
       for (const hit of hits) {
         retrieved.push({
           filePath: hit.citation,
@@ -691,6 +727,7 @@ async function main() {
     const abstained = receipt?.failure === NO_SUB;
     return {
       schema_version: "lbrag-grounding-1",
+      coords: COORDS,
       test_id: test.id,
       source: test.source,
       model,
@@ -714,6 +751,7 @@ async function main() {
       unlocated_quotes: unlocated,
       grounded: scoreSpans(quoted, test.gold),
       retrieval_baseline: baseline,
+      rerank_fallback: rerankFallback,
       latency_ms: Date.now() - started,
       usage,
       legal_evidence_receipt: receipt,
@@ -722,7 +760,17 @@ async function main() {
   }
 
   const queue = selected.filter(
-    (test) => !done.has(`${model}|${effort}|${k}|${retriever}|${test.id}`),
+    (test) =>
+      !done.has(
+        cellKey({
+          coords: COORDS,
+          model,
+          effort,
+          k,
+          retriever,
+          test_id: test.id,
+        }),
+      ),
   );
   console.log(`running ${queue.length} tests (${done.size} resumed)`);
   let index = 0;
@@ -737,6 +785,7 @@ async function main() {
         } catch (error) {
           row = {
             schema_version: "lbrag-grounding-1",
+            coords: COORDS,
             test_id: test.id,
             source: test.source,
             model,
@@ -759,6 +808,7 @@ async function main() {
               doc_hit: false,
               chars: 0,
             },
+            rerank_fallback: null,
             latency_ms: 0,
             usage: null,
             legal_evidence_receipt: null,
@@ -786,26 +836,64 @@ async function main() {
     const answered = ok.filter((row) => row.outcome === "answered");
     const count = (outcome: Row["outcome"]) =>
       ok.filter((row) => row.outcome === outcome).length;
+    const rerankRows = ok.filter((row) => row.rerank_fallback !== null);
     console.log(
       `${label}: n=${subset.length} errors=${subset.length - ok.length} ` +
         `answered=${answered.length} declined=${count("declined")} ` +
         `rejected=${count("rejected")} abstained=${count("abstained")} ` +
-        `unlocated=${ok.reduce((n, r) => n + r.unlocated_quotes, 0)} | ` +
+        `unlocated=${ok.reduce((n, r) => n + r.unlocated_quotes, 0)} ` +
+        // D3: fallback cells ran the lexical order, not the reranker.
+        `rerank_fallback=${
+          rerankRows.length
+            ? `${rerankRows.filter((r) => r.rerank_fallback).length}/${rerankRows.length}`
+            : "n/a"
+        } | ` +
         `answered-only grounded P=${mean(answered.map((r) => r.grounded.precision)).toFixed(4)} ` +
         `R=${mean(answered.map((r) => r.grounded.recall)).toFixed(4)} ` +
+        // D8: both doc numbers are now printed on BOTH denominators, so
+        // an answered-only doc rate is never read against an all-cells
+        // one. n= makes each denominator explicit.
         `doc=${mean(answered.map((r) => (r.grounded.doc_hit ? 1 : 0))).toFixed(2)} ` +
+        `(n=${answered.length}) ` +
         `answered∩doc-miss=${
           answered.filter((r) => !r.retrieval_baseline.doc_hit).length
         } | ` +
         `baseline P=${mean(ok.map((r) => r.retrieval_baseline.precision)).toFixed(4)} ` +
         `R=${mean(ok.map((r) => r.retrieval_baseline.recall)).toFixed(4)} ` +
-        `doc=${mean(ok.map((r) => (r.retrieval_baseline.doc_hit ? 1 : 0))).toFixed(2)}`,
+        `doc=${mean(ok.map((r) => (r.retrieval_baseline.doc_hit ? 1 : 0))).toFixed(2)} ` +
+        `(n=${ok.length}) baseline-on-answered doc=${mean(
+          answered.map((r) => (r.retrieval_baseline.doc_hit ? 1 : 0)),
+        ).toFixed(2)}`,
     );
   };
   console.log("");
   summarize("overall", rows);
   for (const source of SOURCE_BENCHMARKS)
     summarize(source, rows.filter((row) => row.source === source));
+  // D4: the "overall" line above is a flat mean over whatever rows exist,
+  // so a partial run (one source short, or unequal per-source counts)
+  // reports a source-mix artifact as a score change. Print the mix and the
+  // source-balanced (macro) means beside it; compare arms per source and
+  // paired, never on the flat mean of a partial file.
+  const bySource = SOURCE_BENCHMARKS.map((source) => {
+    const ok = rows.filter((row) => row.source === source && !row.error);
+    const answered = ok.filter((row) => row.outcome === "answered");
+    return { source, cells: ok.length, answered };
+  }).filter((entry) => entry.cells > 0);
+  const complete = new Set(bySource.map((entry) => entry.cells)).size <= 1;
+  console.log(
+    `mix: ${bySource
+      .map((entry) => `${entry.source}=${entry.cells}`)
+      .join(" ")} sources=${bySource.length}/${SOURCE_BENCHMARKS.length}` +
+      `${complete ? "" : "  <-- UNBALANCED: the overall line is a mix artifact; read per-source"}`,
+  );
+  console.log(
+    `macro (source-balanced, answered-only): P=${mean(
+      bySource.map((entry) => mean(entry.answered.map((r) => r.grounded.precision))),
+    ).toFixed(4)} R=${mean(
+      bySource.map((entry) => mean(entry.answered.map((r) => r.grounded.recall))),
+    ).toFixed(4)}`,
+  );
   console.log(`\nReceipts: ${output}`);
 }
 

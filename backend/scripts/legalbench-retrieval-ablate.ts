@@ -12,11 +12,16 @@
  *   npx tsx scripts/legalbench-retrieval-ablate.ts --stage18
  * Stage 18 F1 name-stripped audit (any mode; "+stripped" labels):
  *   ... --context-arms --context-jsonl <headers.jsonl> --strip-consider
+ * Stage 18 instrument fix: the sweep runs on the NORMALIZED (LF) corpus db,
+ * the only coordinate space upstream gold is expressed in. `--raw-coords`
+ * reruns on the historical CRLF db ("+rawcoords" labels) for before/after.
  */
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import {
+  LEGALBENCH_MINI_SOURCE_DB,
+  LEGALBENCH_MINI_SOURCE_DB_RAW,
   LEGALBENCH_RAG_DATA_DIR,
   MANIFEST_PATH,
   SOURCE_BENCHMARKS,
@@ -34,7 +39,13 @@ import { searchPassages } from "../src/lib/passageRetrieval";
 // arm labels and receipt files carry a "+stripped" suffix so a stripped
 // run can never be mistaken for the unstripped baseline.
 const STRIP_CONSIDER = process.argv.includes("--strip-consider");
-const STRIP_TAG = STRIP_CONSIDER ? "+stripped" : "";
+// Corpus coordinate space (see `sourceDb` below). Part of every arm label
+// and receipt filename, so an LF run and a raw-CRLF run can never be
+// mistaken for one another.
+const RAW_COORDS = process.argv.includes("--raw-coords");
+const COORDS = RAW_COORDS ? "crlf" : "lf";
+const RUN_TAG =
+  (RAW_COORDS ? "+rawcoords" : "") + (STRIP_CONSIDER ? "+stripped" : "");
 export function stripConsider(query: string): string {
   if (!query.startsWith("Consider ")) return query;
   const at = query.indexOf(";");
@@ -64,7 +75,21 @@ const tests = SOURCE_BENCHMARKS.flatMap((source) => {
     })) as Span[],
   }));
 });
-const sourceDb = path.join(LEGALBENCH_RAG_DATA_DIR, "db", "a2aj-mini.sqlite");
+// The normalized (LF) source db is built by `legalbench-rag-run.ts
+// --build-only`: the corpus files with CRLF -> LF applied AT FILE READ,
+// which is the only space the upstream gold spans are expressed in (17
+// maud files ship CRLF; verify with scripts/legalbench-gold-oracle-check).
+// Chunking, the FTS index and every span scored below inherit it.
+//
+// EVERY receipt this program wrote before this fix (stages 14-18) — and
+// every passage sidecar hanging off `a2aj-mini.sqlite` — is in RAW CRLF
+// coordinates and must be score-time mapped:
+//   raw_offset = lf_offset + (count of "\r\n" in the LF text before it).
+// `--raw-coords` re-runs a sweep on that historical instrument so a
+// before/after is one code path over two corpora; never the default.
+const sourceDb = RAW_COORDS
+  ? LEGALBENCH_MINI_SOURCE_DB_RAW
+  : LEGALBENCH_MINI_SOURCE_DB;
 
 type Config = {
   target: number;
@@ -140,7 +165,7 @@ if (process.argv.includes("--context-arms")) {
   const label = labelAt >= 0 ? process.argv[labelAt + 1] : "linted";
   const output = path.join(
     process.env.LOCALAPPDATA ?? "",
-    `OpenLegalData/experiments/legal-grounding/2026-07-30/stage18-context-arms-${label}${STRIP_TAG}.jsonl`,
+    `OpenLegalData/experiments/legal-grounding/2026-07-30/stage18-context-arms-${label}${RUN_TAG}.jsonl`,
   );
   writeFileSync(output, "", "utf8");
   for (const weight of [0, 1, 2, 4]) {
@@ -172,7 +197,8 @@ if (process.argv.includes("--context-arms")) {
       appendFileSync(
         output,
         `${JSON.stringify({
-          arm: `ctx-${label}-w${weight}${STRIP_TAG}`,
+          arm: `ctx-${label}-w${weight}${RUN_TAG}`,
+          coords: COORDS,
           test_id: test.id,
           source: test.source,
           lexical_r4: lexical.recall,
@@ -206,7 +232,7 @@ if (process.argv.includes("--context-arms")) {
       );
     }
     console.log(
-      `ctx-${label}-w${weight}${STRIP_TAG}: lexR4=${mean(overall.lexR4).toFixed(4)} poolR48=${mean(overall.poolR48).toFixed(4)} docR=${mean(overall.docHit).toFixed(4)} | ${parts.join(" | ")}`,
+      `ctx-${label}-w${weight}${RUN_TAG}: lexR4=${mean(overall.lexR4).toFixed(4)} poolR48=${mean(overall.poolR48).toFixed(4)} docR=${mean(overall.docHit).toFixed(4)} | ${parts.join(" | ")}`,
     );
   }
   console.log(`Receipts: ${output}`);
@@ -229,7 +255,7 @@ async function rerankArmsMain() {
   const resume = argValue("resume", "0") !== "0";
   const output = path.join(
     process.env.LOCALAPPDATA ?? "",
-    `OpenLegalData/experiments/legal-grounding/2026-07-30/stage18-rerank-arms${STRIP_TAG}.jsonl`,
+    `OpenLegalData/experiments/legal-grounding/2026-07-30/stage18-rerank-arms${RUN_TAG}.jsonl`,
   );
   const arms: { arm: string; model: string; effort?: string }[] = [
     { arm: "luna@default", model: "codex:gpt-5.6-luna" },
@@ -300,6 +326,7 @@ async function rerankArmsMain() {
           output,
           `${JSON.stringify({
             arm: arm.arm,
+            coords: COORDS,
             model: arm.model,
             effort: arm.effort ?? null,
             test_id: test.id,
@@ -370,15 +397,15 @@ if (process.argv.includes("--rerank-arms")) {
 if (process.argv.includes("--stage18")) {
   const output = path.join(
     process.env.LOCALAPPDATA ?? "",
-    `OpenLegalData/experiments/legal-grounding/2026-07-30/stage18-retrieval-arms${STRIP_TAG}.jsonl`,
+    `OpenLegalData/experiments/legal-grounding/2026-07-30/stage18-retrieval-arms${RUN_TAG}.jsonl`,
   );
   writeFileSync(output, "", "utf8");
   const arms = [
-    { arm: `chars${STRIP_TAG}`, mode: "chars" as const, phrases: false },
-    { arm: `chars+phrases${STRIP_TAG}`, mode: "chars" as const, phrases: true },
-    { arm: `clause${STRIP_TAG}`, mode: "clause" as const, phrases: false },
+    { arm: `chars${RUN_TAG}`, mode: "chars" as const, phrases: false },
+    { arm: `chars+phrases${RUN_TAG}`, mode: "chars" as const, phrases: true },
+    { arm: `clause${RUN_TAG}`, mode: "clause" as const, phrases: false },
     {
-      arm: `clause+phrases${STRIP_TAG}`,
+      arm: `clause+phrases${RUN_TAG}`,
       mode: "clause" as const,
       phrases: true,
     },
@@ -412,6 +439,7 @@ if (process.argv.includes("--stage18")) {
         output,
         `${JSON.stringify({
           arm,
+          coords: COORDS,
           test_id: test.id,
           source: test.source,
           lexical_p4: lexical.precision,
