@@ -70,8 +70,103 @@ describe("local assistant tools", () => {
       filename: "verified-source.pdf",
       text: "Text from the verified PDF artifact.",
       cautions: [],
+      // A stub artifact carries no page records, so the map is empty rather
+      // than absent — page addressing refuses on "none", it does not throw.
+      pages: { pages: [], source: "none" },
     });
     expect(sourceReads).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The navigation surface end to end, on the case it exists for: front
+   * matter printed "i" makes PDF page 2 the sheet printed "1", which is the
+   * sheet a table of contents cites.
+   */
+  it("addresses pages by both numbering schemes and follows the reference graph", async () => {
+    const sourcePath = path.join(os.tmpdir(), "paged-agreement.pdf");
+    const parts = [
+      { printed: "i", body: "TABLE OF CONTENTS\n\nARTICLE II — TERM ... 1" },
+      {
+        printed: "1",
+        body:
+          "ARTICLE II — TERM\n\n2.01 Term. This Agreement continues until terminated under Section 3.02.",
+      },
+      {
+        printed: "2",
+        body:
+          "ARTICLE III — TERMINATION\n\n3.02 Effect. On termination, Section 2.01 ceases to apply.",
+      },
+    ];
+    let text = "";
+    const blocks = parts.map((part, index) => {
+      const start = text.length;
+      text += `[page ${part.printed}]\n${part.body}\n\n`;
+      return {
+        kind: "page" as const,
+        label: `page${part.printed}`,
+        start,
+        end: text.length,
+        origin: "native" as const,
+        anchor: `page=${index + 1}`,
+        aliases: [String(index + 1), part.printed],
+      };
+    });
+    vi.doMock("../localDocumentStore", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("../localDocumentStore")>()),
+      getLocalVersionFile: vi.fn(async () => ({
+        path: sourcePath,
+        fileType: "pdf",
+        document: { filename: "paged-agreement.pdf" },
+        version: { id: "v1", created_at: "2026-07-31T00:00:00.000Z" },
+      })),
+    }));
+    vi.doMock("../localPdfLookup", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("../localPdfLookup")>()),
+      readLocalPdfSourceDoc: vi.fn(async () => ({ text, blocks })),
+    }));
+    const tools = await import("../chat/localAssistantTools");
+    const run = async (name: string, input: Record<string, unknown>) => {
+      const [response] = await tools.runLocalAssistantTools("local-user", [
+        { id: `call-${name}`, name, input: { document_id: "doc-1", ...input } },
+      ]);
+      return JSON.parse(response.content);
+    };
+
+    // "1" names two sheets, so it is refused rather than guessed.
+    const ambiguous = await run("library_read", { page: "1" });
+    expect(ambiguous.ok).toBe(false);
+    expect(ambiguous.error).toContain('printed "1"');
+
+    const printed = await run("library_read", { page: "printed:1" });
+    expect(printed).toMatchObject({
+      ok: true,
+      pdf_page: 2,
+      printed_label: "1",
+      matched_on: "printed",
+    });
+    expect(printed.text).toContain("2.01 Term.");
+    expect(printed.sections.map((entry: { section: string }) => entry.section)).toContain(
+      "sec2.01",
+    );
+
+    // Search scoped to a page, with document-wide offsets preserved.
+    const scoped = await run("library_find", {
+      query: "Section",
+      pages: "printed:2",
+    });
+    expect(scoped.pages_searched).toBe(1);
+    expect(scoped.hits).toHaveLength(1);
+    expect(scoped.hits[0].page).toBe('PDF page 3 (printed "2")');
+    expect(text.slice(scoped.hits[0].at)).toMatch(/^Section 2\.01/u);
+
+    const links = await run("library_links", { section: "2.01" });
+    expect(links.ok).toBe(true);
+    expect(
+      links.references_out.map((edge: { target: string }) => edge.target),
+    ).toEqual(["sec3.02"]);
+    expect(links.references_in.map((edge: { from: string }) => edge.from)).toEqual([
+      "sec3.02",
+    ]);
   });
 
   it("offers bounded deterministic DOCX actions", async () => {
