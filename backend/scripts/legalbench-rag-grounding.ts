@@ -27,6 +27,7 @@
  */
 import "../src/lib/loadEnv";
 
+import { createHash } from "node:crypto";
 import {
   appendFileSync,
   existsSync,
@@ -286,10 +287,23 @@ async function main() {
   // this many chars, so narrow gold clauses straddling chunk joints
   // arrive as one evidence snippet. 0 = off. Baseline stays unstitched.
   const stitchGap = Number(flag("stitch", "0"));
+  // Stage 18 R5b adopted lane: LLM situating-header sidecar indexed in
+  // the FTS context column. The label carries the sidecar's content
+  // hash so a receipt file can never silently mix header versions.
+  const contextJsonl = flag("context-jsonl", "");
+  const contextWeight = Number(flag("context-weight", "0"));
+  const contextTag =
+    contextJsonl && contextWeight > 0
+      ? `+ctx(w${contextWeight}@${createHash("sha256")
+          .update(readFileSync(contextJsonl))
+          .digest("hex")
+          .slice(0, 12)})`
+      : "";
   const retriever =
     (retrieverKind === "passage"
       ? `passage:t${chunkTarget}/o${chunkOverlap}/w${nameWeight}`
       : "product") +
+    contextTag +
     (rerankModel
       ? `+rerank(${rerankModel}${rerankEffort ? `@${rerankEffort}` : ""})`
       : "") +
@@ -384,6 +398,9 @@ async function main() {
         target: chunkTarget,
         overlap: chunkOverlap,
         nameWeight,
+        ...(contextJsonl && contextWeight > 0
+          ? { contextJsonl, contextWeight }
+          : {}),
         ...(rerankModel ? { perDocCap: 24 } : {}),
       });
       if (rerankModel)
