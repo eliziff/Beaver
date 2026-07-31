@@ -220,6 +220,12 @@ async function main() {
   // Optional Stage 16 W2 reranking: pool k=48 lexical, one listwise
   // call (this model) picks the top k. Empty string = off.
   const rerankModel = flag("rerank", "");
+  // Rerank candidate preview chars. The module default moved 500 -> 1600
+  // (Stage 16b); a resume into a receipt file recorded at the old value
+  // must pin it so one file never mixes rerank configs.
+  const rerankPreview = flag("rerank-preview", "")
+    ? Number(flag("rerank-preview"))
+    : undefined;
   const retriever =
     (retrieverKind === "passage"
       ? `passage:t${chunkTarget}/o${chunkOverlap}/w${nameWeight}`
@@ -322,6 +328,7 @@ async function main() {
             hits,
             model: rerankModel,
             top: k,
+            ...(rerankPreview === undefined ? {} : { preview: rerankPreview }),
           })
         ).hits;
       for (const hit of hits) {
@@ -408,7 +415,7 @@ async function main() {
       abortSignal,
       runTools: async (calls) => calls.map((call) => runTool(call, state)),
     });
-    usage = primary.usage;
+    usage = primary.usage ?? null;
     const finalized = await finalizeLegalEvidenceExperiment({
       state,
       model,
@@ -420,20 +427,20 @@ async function main() {
     if (finalized.usage) {
       usage = {
         inputTokens:
-          (usage.inputTokens ?? 0) + (finalized.usage.inputTokens ?? 0),
+          (usage?.inputTokens ?? 0) + (finalized.usage.inputTokens ?? 0),
         outputTokens:
-          (usage.outputTokens ?? 0) + (finalized.usage.outputTokens ?? 0),
+          (usage?.outputTokens ?? 0) + (finalized.usage.outputTokens ?? 0),
         reasoningTokens:
-          usage.reasoningTokens === null &&
+          usage?.reasoningTokens == null &&
           finalized.usage.reasoningTokens == null
             ? null
-            : (usage.reasoningTokens ?? 0) +
+            : (usage?.reasoningTokens ?? 0) +
               (finalized.usage.reasoningTokens ?? 0),
         cacheReadInputTokens:
-          (usage.cacheReadInputTokens ?? 0) +
+          (usage?.cacheReadInputTokens ?? 0) +
           (finalized.usage.cacheReadInputTokens ?? 0),
         cacheWriteInputTokens:
-          (usage.cacheWriteInputTokens ?? 0) +
+          (usage?.cacheWriteInputTokens ?? 0) +
           (finalized.usage.cacheWriteInputTokens ?? 0),
       };
     }
