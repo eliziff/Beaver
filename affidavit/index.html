@@ -238,6 +238,47 @@
       color: var(--muted);
       font-size: var(--text-sm);
     }
+    .affidavit-open-action {
+      display: inline-flex !important;
+      align-items: center;
+      gap: .45rem;
+      flex: 0 0 auto;
+      min-height: 2.5rem;
+      margin-top: 0 !important;
+      padding: .5rem .8rem;
+      border: 1px solid var(--line);
+      border-radius: .5rem;
+      color: var(--ink) !important;
+      background: #fff;
+      box-shadow: 0 1px 2px rgb(0 0 0 / 6%);
+      font-size: .875rem !important;
+      font-weight: 600;
+      transition-property: background-color, box-shadow, transform;
+      transition-duration: 120ms;
+      transition-timing-function: ease-out;
+    }
+    .affidavit-open-action span {
+      display: inline !important;
+      margin-top: 0 !important;
+      color: inherit !important;
+      font-size: inherit !important;
+    }
+    .affidavit-open-action svg {
+      width: 1rem;
+      height: 1rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-width: 1.8;
+    }
+    #affidavit-drop:hover .affidavit-open-action {
+      background: #f9fafb;
+      box-shadow: 0 2px 4px rgb(0 0 0 / 8%);
+    }
+    #affidavit-drop:active .affidavit-open-action {
+      transform: scale(.96);
+    }
     .affidavit-stage,
     .exhibit-import-stage {
       display: grid;
@@ -1184,6 +1225,7 @@
       .brand-lockup { gap: .45rem; }
       .local-note { margin-inline-start: 2.05rem; }
       .file-drop { align-items: stretch; flex-direction: column; }
+      .affidavit-open-action { align-self: flex-start; }
       .work-panel { grid-template-columns: 5rem minmax(0, 1fr); gap: .75rem; padding: 1rem; }
       .work-mark, .gnaw-scene { width: 5rem; }
       .exhibit-import-stage,
@@ -1256,6 +1298,13 @@
               <strong id="affidavit-name">Choose an affidavit</strong>
               <span id="affidavit-hint">Drop a PDF or DOCX file here, or click anywhere to browse</span>
             </div>
+            <span class="affidavit-open-action" aria-hidden="true">
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M3.5 6.5h4l1.5 1.5h7.5v8H3.5z" />
+                <path d="M6 11h8m-3-3 3 3-3 3" />
+              </svg>
+              <span>Open file</span>
+            </span>
             <input id="affidavit-file" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
           </label>
           <label class="check">
@@ -1284,7 +1333,6 @@
               <g class="gnaw-beaver">
                 <path d="M101 43c13-6 24 1 24 12 0 10-11 15-25 10-3-8-2-16 1-22Z" fill="currentColor"/>
                 <path d="m108 44 12 11m-16-5 14 13m-15-5 7 7m5-21 9 8" fill="none" stroke="#fcfcfd" stroke-width="1.2" stroke-linecap="round"/>
-                <circle cx="88" cy="24" r="7" fill="var(--brand)"/>
                 <path d="M109 54c-1-19-10-31-25-31-14 0-24 11-24 26 0 11 6 18 15 21h28c4-4 6-9 6-16Z" fill="currentColor"/>
                 <path d="M63 38c6-6 14-6 19 0 2 3 1 8-2 11-5 4-13 3-18-1-3-3-2-7 1-10Z" fill="#d9dcdf"/>
                 <circle cx="76" cy="33" r="2.15" fill="#101828"/>
@@ -1409,7 +1457,6 @@
                     <g class="gnaw-beaver">
                     <path d="M101 43c13-6 24 1 24 12 0 10-11 15-25 10-3-8-2-16 1-22Z" fill="currentColor"/>
                     <path d="m108 44 12 11m-16-5 14 13m-15-5 7 7m5-21 9 8" fill="none" stroke="#fcfcfd" stroke-width="1.2" stroke-linecap="round"/>
-                    <circle cx="88" cy="24" r="7" fill="var(--brand)"/>
                     <path d="M109 54c-1-19-10-31-25-31-14 0-24 11-24 26 0 11 6 18 15 21h28c4-4 6-9 6-16Z" fill="currentColor"/>
                     <path d="M63 38c6-6 14-6 19 0 2 3 1 8-2 11-5 4-13 3-18-1-3-3-2-7 1-10Z" fill="#d9dcdf"/>
                       <circle cx="76" cy="33" r="2.15" fill="#101828"/>
@@ -2078,8 +2125,14 @@
         ).find((value) => value && validName(value)) || "";
       }
       if (!deponent) {
-        deponent = openingLines.map((line) =>
-          line.match(/^(?:I,\s*|I\s+am\s+)(.+?)(?=\s*,?\s+(?:of|residing)\b)/iu)?.[1]
+        const heading = openingFlat.match(
+          /\b(?:(?:This\s+is\s+the\s+)?\d+(?:st|nd|rd|th)?\s+)?Affidavit(?:\s*(?:(?:No\.?|Number|#)\s*)?[:#-]?\s*\d+(?:st|nd|rd|th)?)?\s+of\s+([\p{L}][\p{L} .'-]{1,119}?)(?=\s+(?:in\s+this\s+case|I\b|sworn\b|affirmed\b|the\s+deponent\b)|$)/iu,
+        )?.[1];
+        if (heading && validName(heading)) deponent = heading;
+      }
+      if (!deponent) {
+        deponent = [...openingLines, openingFlat].map((value) =>
+          value.match(/\b(?:I,\s*|I\s+am\s+)(.+?)(?=\s*,?\s+(?:of|residing)\b)/iu)?.[1]
         ).find((value) => value && validName(value)) || "";
       }
       const monthNames = "January|February|March|April|May|June|July|August|September|October|November|December";
@@ -3263,9 +3316,13 @@
       if (numberedAffidavit.affidavitNumber !== "19" || numberedAffidavit.deponent !== "Sample Deponent") {
         throw new Error(`Numbered affidavit heading check failed: ${JSON.stringify(numberedAffidavit)}`);
       }
-      const firstPersonAffidavit = caseDetails({ text: "I, SAMPLE DEPONENT, of the City of Vancouver, swear as follows." });
+      const firstPersonAffidavit = caseDetails({ text: "Court File No. TEST-0001 IN THE SUPREME COURT I, SAMPLE DEPONENT, of the City of Vancouver, swear as follows." });
       if (firstPersonAffidavit.deponent !== "Sample Deponent") {
         throw new Error(`First-person deponent check failed: ${JSON.stringify(firstPersonAffidavit)}`);
+      }
+      const inlineHeadingAffidavit = caseDetails({ text: "Court caption AFFIDAVIT OF INLINE DEPONENT I, INLINE DEPONENT, of Vancouver, swear as follows." });
+      if (inlineHeadingAffidavit.deponent !== "Inline Deponent") {
+        throw new Error(`Inline heading deponent check failed: ${JSON.stringify(inlineHeadingAffidavit)}`);
       }
       if (explicitExhibitIndex("Exhibit B - email.pdf") !== 1
         || matchScore("respondent email.pdf", ["The respondent's email is attached as Exhibit B."]) < .5
