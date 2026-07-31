@@ -287,6 +287,12 @@ async function main() {
             lint_in_loop: stage === "stage7-h7" && row.arm === "lint_gated",
             holistic: verdict,
             cell_reject: verdict === "supported" ? 0 : 1,
+            /** Gold-derived cell quality, independent of the checker and
+             * therefore of the 0-13% flip rate. The only quality axis in
+             * the archive that the checker's own verdict cannot circle. */
+            target_token_f1: row.target_token_f1 ?? null,
+            expected_answer_match: row.expected_answer_match ?? null,
+            inline_citation_rate: row.inline_citation_rate ?? null,
             c2_label: c2Label,
             claim_index: claimIndex,
             claims_in_cell: claims.length,
@@ -298,6 +304,10 @@ async function main() {
             claim_chars: text.length,
             span_chars: spanTexts.join(" ").length,
             archived_lint: claim.lint ?? null,
+            /** Stage 9's recorded conclusion-claim alienness spectrum
+             * (cell-level, 424/515 rows) — the C4 matrix growth the log
+             * banked and never analysed. */
+            conclusion_alienness: row.conclusion_alienness ?? null,
             features,
             citator: citatorColumns(firstCitation),
           }),
