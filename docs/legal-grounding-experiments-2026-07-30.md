@@ -2605,6 +2605,60 @@ if maud pool moves < +0.03 at every weight — then vocabulary mismatch
 is not header-bridgeable and the dense/proposition lanes are the
 remaining levers.
 
+### Stage 18 G verdict (2026-07-30, full bed, receipts
+`stage18-lbrag-grounded.jsonl`, 776/776 cells, run completed;
+2 error-final cells (0.26%) left as-is per Eli's "enough model
+running" — no resume pass)
+
+**Not falsified; G beats Stage 17 on every headline; two registered
+predictions missed.** Config: sol@medium composer, required_slot,
+k=6, `passage:t1600/o120/w16+rerank(luna)@p1600+stitch200`.
+
+| metric | Stage 17 (k=4, no stitch) | Stage 18 G | Δ |
+| --- | --- | --- | --- |
+| answered | 651/776 (83.9%) | 681/776 (87.8%) | +3.9pp |
+| answered-only P | 0.5050 | 0.5377 | +0.0327 |
+| answered-only R | 0.5114 | 0.5708 | +0.0594 |
+
+Per-source answered-only P/R: contractnli 0.7893/0.8491 (S17 P
+0.7592), cuad 0.5822/0.7427, maud 0.1626/0.1070, privacy_qa
+0.5241/0.4701. Outcomes: 70 declined, 20 rejected, 3 abstained,
+2 error.
+
+**P1 unconditional: CLEAN.** 1,552 quoted spans audited, 0
+mismatches, 0 unlocated; 7 answered doc-misses, all byte-identical
+duplicate-file artifacts (ADUROBIOTECH class), TRUE doc-misses 0.
+Audit amendment, recorded: the Stage 17 audit normalized quote
+glyphs only; Stage 18's wider evidence (k=6 + stitch) pulled in
+documents with non-breaking spaces and multi-space formatting (DoiT
+NDA, ACCELERATEDTECHNOLOGIES, ACCURAY), surfacing 20 apparent
+mismatches that all resolve under whitespace-class normalization
+(nbsp→space, run collapse). The harness's `locateQuote` is
+documented whitespace/quote-glyph-tolerant while yielding exact
+original coordinates, so the audit now mirrors that equivalence
+class — verified 20/20 resolve, then 0 mismatches.
+
+**Fair-comparison modes (locked protocol):** answered-only P 0.5377 /
+R 0.5708; forced-answer P 0.4808 / R 0.5436; zero-credit P 0.4731 /
+R 0.5022; retrieval-only over all cells P 0.0707 / R 0.8097 (k=6
+spans are wider than S17's k=4: retrieval R rose 0.6604 → 0.8097,
+P fell 0.0865 → 0.0707 — the composer, not the pool, converts that
+recall into precision).
+
+**Prediction misses, honest:** answered-only P 0.5377 < 0.55
+predicted; maud P 0.1626 < 0.25 predicted (maud did move
+0.1429 → 0.1626, +14% relative, and maud answered rose 126 → 141 —
+direction right, magnitude short). R 0.5708 ≥ 0.55 and answered
+87.8% ≥ 75% both hit. Falsifiers (P < 0.505, answered < 60%, any
+true P1 breach) all clear. Reading: k=6+stitch is a real, mostly
+recall-shaped win; maud's precision problem is retrieval vocabulary
+plus clause-boundary granularity, which the registered R4/R5/dense
+lanes target — composition is not the maud bottleneck.
+
+**Stage 18 G is the new champion config.** Holdout (next 194/source)
+stays unburned until the R4/R5/dense results settle the final
+config, per the lock-in rule.
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under
@@ -2643,6 +2697,8 @@ committed.
 | `stage16-lbrag-rerank.jsonl` | `8DB2AC1DF0EBF9D0227C0820CB79BA1E86BBAABE5B0BF3DB48C761AA07602174` |
 | `stage16b-preview1600.jsonl` | `C9C59D8EF859C1974457348FA66EA172F1466CC6D0109B579A51286175FBFDE4` |
 | `stage17-lbrag-full.jsonl` (784 rows incl. 8 superseded error rows; resume passes appended) | `F117396886C52B10365ECB334A304F675C63D576FDB21E3039034C42F828DCF1` |
+| `stage18-retrieval-arms.jsonl` (R1/R2 deterministic arms, all 776 tests) | `66689E7F6EB513348A167665C9D53BF02F807DDBDE61D409C52DDA88A0D23164` |
+| `stage18-lbrag-grounded.jsonl` (G confirm, 776 rows; survived a mid-run machine restart via two resume passes, c=6 then c=3) | `BF2ED3965651565A75BE407BE1463B800F9B9F7246A6FCB58C96B52993A9D6E9` |
 
 ## Validation and final selection gate
 
