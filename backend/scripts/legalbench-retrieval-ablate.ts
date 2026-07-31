@@ -106,6 +106,81 @@ if (process.argv.includes("--fair500")) {
   process.exit(0);
 }
 
+// Stage 18 R5 measurement: contextual-enrichment weight sweep.
+// Deterministic and free once headers exist: lexical R@4 + pool R@48
+// at contextWeight {0 (champion plain index), 1, 2, 4} over the
+// enriched sidecar. Pass the LINTED headers file (attested-entity
+// lint output), not the raw generation receipts.
+//   npx tsx scripts/legalbench-retrieval-ablate.ts --context-arms \
+//     --context-jsonl <headers.jsonl> --label <raw|linted>
+// The lint itself is an ABLATION ARM, not an assumed improvement: run
+// once with the raw generation receipts and once with the linted file;
+// each labeled run gets its own receipts and hash-keyed sidecar.
+if (process.argv.includes("--context-arms")) {
+  const at = process.argv.indexOf("--context-jsonl");
+  const contextJsonl = at >= 0 ? process.argv[at + 1] : "";
+  if (!contextJsonl) throw new Error("missing --context-jsonl");
+  const labelAt = process.argv.indexOf("--label");
+  const label = labelAt >= 0 ? process.argv[labelAt + 1] : "linted";
+  const output = path.join(
+    process.env.LOCALAPPDATA ?? "",
+    `OpenLegalData/experiments/legal-grounding/2026-07-30/stage18-context-arms-${label}.jsonl`,
+  );
+  writeFileSync(output, "", "utf8");
+  for (const weight of [0, 1, 2, 4]) {
+    const bySource = new Map<string, { lexR4: number[]; poolR48: number[] }>();
+    for (const test of tests) {
+      const pool = searchPassages({
+        sourceDb,
+        query: test.query,
+        k: 48,
+        target: 1600,
+        overlap: 120,
+        nameWeight: 16,
+        perDocCap: 24,
+        ...(weight > 0 ? { contextJsonl, contextWeight: weight } : {}),
+      });
+      const spans = (hits: typeof pool) =>
+        hits.map((hit) => ({
+          filePath: hit.citation,
+          start: hit.start,
+          end: hit.end,
+        }));
+      const lexical = charPrecisionRecall(spans(pool.slice(0, 4)), test.gold);
+      const poolScore = charPrecisionRecall(spans(pool), test.gold);
+      appendFileSync(
+        output,
+        `${JSON.stringify({
+          arm: `ctx-${label}-w${weight}`,
+          test_id: test.id,
+          source: test.source,
+          lexical_r4: lexical.recall,
+          pool_r48: poolScore.recall,
+        })}\n`,
+        "utf8",
+      );
+      const entry = bySource.get(test.source) ?? { lexR4: [], poolR48: [] };
+      entry.lexR4.push(lexical.recall);
+      entry.poolR48.push(poolScore.recall);
+      bySource.set(test.source, entry);
+    }
+    const overall = { lexR4: [] as number[], poolR48: [] as number[] };
+    const parts: string[] = [];
+    for (const [source, entry] of [...bySource.entries()].sort()) {
+      overall.lexR4.push(...entry.lexR4);
+      overall.poolR48.push(...entry.poolR48);
+      parts.push(
+        `${source} lexR4=${mean(entry.lexR4).toFixed(4)} poolR48=${mean(entry.poolR48).toFixed(4)}`,
+      );
+    }
+    console.log(
+      `ctx-${label}-w${weight}: lexR4=${mean(overall.lexR4).toFixed(4)} poolR48=${mean(overall.poolR48).toFixed(4)} | ${parts.join(" | ")}`,
+    );
+  }
+  console.log(`Receipts: ${output}`);
+  process.exit(0);
+}
+
 // Stage 18 R3: rerank compute ablation — same crowned lexical pool
 // (k=48, t1600/o120/w16, perDocCap 24), one listwise rerank call per
 // {model, effort} arm, char P/R of the unstitched top-6. Flat-rate
