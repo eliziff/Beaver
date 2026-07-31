@@ -79,7 +79,7 @@
     main {
       width: min(96rem, 100%);
       margin-inline: auto;
-      padding: clamp(1rem, 3vw, 2rem);
+      padding: clamp(1rem, 3vw, 2rem) clamp(1.5rem, 4vw, 3rem);
     }
     .intro {
       max-width: 67ch;
@@ -199,6 +199,7 @@
 
     .file-drop {
       display: flex;
+      position: relative;
       align-items: center;
       justify-content: space-between;
       gap: 1rem;
@@ -208,7 +209,19 @@
       border: 1px dashed var(--line);
       border-radius: .65rem;
       background: #fcfcfd;
+      font-weight: 400;
     }
+    .file-drop:has(input:focus-visible) {
+      outline: 2px solid var(--ink);
+      outline-offset: 2px;
+    }
+    .file-drop input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+    }
+    .file-drop input:focus-visible { outline: none; }
     .file-drop[data-over="true"] {
       border-color: var(--brand);
       background: var(--brand-soft);
@@ -234,16 +247,8 @@
     .exhibit-import-stage > * { grid-area: 1 / 1; }
     .affidavit-input { min-width: 0; }
     #affidavit-drop {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) 8.5rem;
       min-height: 10.5rem;
-    }
-    .affidavit-picker {
-      width: 8.5rem;
-      min-height: 8.5rem;
-      aspect-ratio: 1;
-      padding: 1rem;
-      border-radius: .75rem;
+      cursor: pointer;
     }
     .affidavit-card .check { margin-block-start: 1rem; }
     .check {
@@ -298,7 +303,7 @@
       place-items: center;
       width: 6.25rem;
       min-height: 4.5rem;
-      color: var(--brand);
+      color: #8b4a35;
       background: transparent;
     }
     .gnaw-scene {
@@ -307,7 +312,7 @@
       width: 6.25rem;
       height: 4.5rem;
       overflow: visible;
-      color: var(--ink);
+      color: inherit;
     }
     .gnaw-beaver,
     .gnaw-teeth,
@@ -1112,7 +1117,7 @@
       display: flex;
       flex-direction: column;
       gap: .9rem;
-      --preview-zoom: 1.25;
+      --preview-zoom: 1;
       width: 100%;
       min-width: 0;
       height: 100%;
@@ -1179,9 +1184,6 @@
       .brand-lockup { gap: .45rem; }
       .local-note { margin-inline-start: 2.05rem; }
       .file-drop { align-items: stretch; flex-direction: column; }
-      .file-drop .file-button { width: 100%; }
-      #affidavit-drop { grid-template-columns: 1fr; }
-      #affidavit-drop .affidavit-picker { width: 8.5rem; justify-self: start; }
       .work-panel { grid-template-columns: 5rem minmax(0, 1fr); gap: .75rem; padding: 1rem; }
       .work-mark, .gnaw-scene { width: 5rem; }
       .exhibit-import-stage,
@@ -1249,16 +1251,13 @@
       </div>
       <div class="affidavit-stage">
         <div id="affidavit-input" class="affidavit-input">
-          <div id="affidavit-drop" class="file-drop" data-kind="affidavit">
+          <label id="affidavit-drop" class="file-drop" data-kind="affidavit">
             <div>
               <strong id="affidavit-name">Choose an affidavit</strong>
-              <span>or drag a PDF or DOCX file here</span>
+              <span id="affidavit-hint">Drop a PDF or DOCX file here, or click anywhere to browse</span>
             </div>
-            <label class="file-button secondary affidavit-picker">
-              <span id="affidavit-action">Choose file</span>
-              <input id="affidavit-file" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
-            </label>
-          </div>
+            <input id="affidavit-file" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+          </label>
           <label class="check">
             <input id="automatic" type="checkbox" checked>
             <span>
@@ -1459,8 +1458,8 @@
           <div class="preview-heading-actions">
             <span id="preview-count" class="count">Waiting for affidavit</span>
             <select id="preview-zoom" class="preview-zoom-select" aria-label="Preview zoom">
-              <option value="1">Fit</option>
-              <option value="1.25" selected>125%</option>
+              <option value="1" selected>Fit</option>
+              <option value="1.25">125%</option>
               <option value="1.5">150%</option>
               <option value="1.75">175%</option>
               <option value="2">200%</option>
@@ -1588,7 +1587,7 @@
       previewDocument: null,
       previewObserver: null,
       previewRenderVersion: 0,
-      previewZoom: 1.25,
+      previewZoom: 1,
       previewVisibilityObserver: null,
       previewNearViewport: false,
       previewRenderQueue: Promise.resolve(),
@@ -2076,6 +2075,11 @@
       if (!deponent) {
         deponent = openingLines.map((line) =>
           line.match(/^(?:(?:This\s+is\s+the\s+)?\d+(?:st|nd|rd|th)?\s+Affidavit|Affidavit(?:\s*(?:(?:No\.?|Number|#)\s*)?[:#-]?\s*\d+(?:st|nd|rd|th)?)?)\s+of\s+(.+?)(?:\s+in\s+this\s+case.*)?$/iu)?.[1]
+        ).find((value) => value && validName(value)) || "";
+      }
+      if (!deponent) {
+        deponent = openingLines.map((line) =>
+          line.match(/^(?:I,\s*|I\s+am\s+)(.+?)(?=\s*,?\s+(?:of|residing)\b)/iu)?.[1]
         ).find((value) => value && validName(value)) || "";
       }
       const monthNames = "January|February|March|April|May|June|July|August|September|October|November|December";
@@ -2656,7 +2660,7 @@
 
       const affidavit = fieldValue("affidavit-number").replace(/^#/, "");
       centered(page, `This is Exhibit “${exhibit}” referred to in the`, 450, bold, 11.5);
-      centeredBlock(page, `Affidavit #${affidavit || "—"} of ${fieldValue("deponent") || "—"}`, 432, bold, 11.5, 420, 15);
+      centeredBlock(page, `Affidavit #${affidavit || "—"}`, 432, bold, 11.5, 420, 15);
       centeredBlock(page, `sworn before me at ${fieldValue("sworn-place") || "—"}`, 414, bold, 11.5, 420, 15);
       centered(page, `this ${legalDate(fieldValue("sworn-date")) || "—"}`, 396, bold, 11.5);
       page.drawLine({ start: { x: 212, y: 370 }, end: { x: 400, y: 370 }, thickness: 1 });
@@ -2867,7 +2871,7 @@
     }
 
     function setPreviewZoom(value) {
-      state.previewZoom = Math.max(1, Math.min(2, Number(value) || 1.25));
+      state.previewZoom = Math.max(1, Math.min(2, Number(value) || 1));
       $("#preview").style.setProperty("--preview-zoom", state.previewZoom);
       $("#preview-zoom").value = String(state.previewZoom);
       refreshPreviewPages();
@@ -2972,7 +2976,7 @@
       $("#affidavit-name").textContent = file.name;
       state.affidavitMeta = `${fileKind(file)} · ${(file.size / 1048576).toFixed(1)} MB`;
       $("#affidavit-summary").textContent = state.affidavitMeta;
-      $("#affidavit-action").textContent = "Replace file";
+      $("#affidavit-hint").textContent = "Click to replace or drop a different file";
       if ($("#automatic").checked) {
         $("#builder").classList.add("hidden");
         await autoFillFromAffidavit();
@@ -3258,6 +3262,10 @@
       const numberedAffidavit = caseDetails({ text: "Affidavit 19 of Sample Deponent" });
       if (numberedAffidavit.affidavitNumber !== "19" || numberedAffidavit.deponent !== "Sample Deponent") {
         throw new Error(`Numbered affidavit heading check failed: ${JSON.stringify(numberedAffidavit)}`);
+      }
+      const firstPersonAffidavit = caseDetails({ text: "I, SAMPLE DEPONENT, of the City of Vancouver, swear as follows." });
+      if (firstPersonAffidavit.deponent !== "Sample Deponent") {
+        throw new Error(`First-person deponent check failed: ${JSON.stringify(firstPersonAffidavit)}`);
       }
       if (explicitExhibitIndex("Exhibit B - email.pdf") !== 1
         || matchScore("respondent email.pdf", ["The respondent's email is attached as Exhibit B."]) < .5
