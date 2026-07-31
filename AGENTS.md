@@ -137,17 +137,21 @@ to improve a build number.
   prefer that lane once wired. Root-level journals.db is an empty stub.
 - Citation detection/resolution: call the EXISTING machinery; do not
   invent another in-place regex. The surfaces: `citationKey.ts`
-  (`citationLookupKey` — the one corpus-identity normalizer),
+  (`citationLookupKey` — the one corpus-identity normalizer — and
+  `citationsInText` / `hasCitationInText`, the one in-text detector for
+  citation-shaped substrings of free text, calibrated on 3,000 citator
+  edges; consumed by `citatorExcerpts.ts` and `a2ajPassageSearch.ts`),
   `caselawCitator.ts` (`citationAliasKeys` same-decision alias expansion
   through resolution evidence; note-up), the corpus `citation_lookup` /
   `lookup.duckdb` indexes, `courtlistenerLocalBulk.ts`
-  (US volume/reporter/page lookup) and eyecite for the US lane. If a
-  task needs a citation shape none of these detect (e.g. spotting cites
-  inside free text), expand the shared module — with tests beside the
-  existing ones — so every caller inherits it; a new one-off pattern in
-  a consumer file is a defect. (Known debt: `CITATION_IN_QUERY` in
-  `a2ajPassageSearch.ts` predates this rule — fold it into the shared
-  surface when next touched.)
+  (US volume/reporter/page lookup) and eyecite for the US lane. Distinct
+  contract, deliberately not folded in: the neutral-citation PARSERS in
+  `canliiUrls.buildCanliiCaseUrl` / `legalSourceLinks.answerCaseCitations`,
+  which need year/court/number capture groups and the wider court-slug
+  charset the CanLII route table gates. If a task needs a citation shape
+  none of these detect, expand the shared module — with tests beside the
+  existing ones (`citationKey.test.ts`) — so every caller inherits it; a
+  new one-off pattern in a consumer file is a defect.
 - Deterministic legal-text modules (`legalTextAnchors`, `legalTextSkeleton`,
   `legalAmendOps`, `legalDeadlines`, `legalTermDrift`, `legalDraftingLint`):
   no grammar change without a corpus/gold measurement (USLM gold, CUAD,
