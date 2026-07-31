@@ -3755,7 +3755,83 @@ The fused pool sidecar has the same defect but is exactly correctable
 at score time via the committed re-scorer. **Stage 19 prerequisite:
 regenerate maud headers before any burn.**
 
-## Stage 19 — the hold-out burn (registered 2026-07-31 before any hold-out label is read; USER-GATED, not yet run)
+## Stage 18R — re-trace on the corrected instrument (registered 2026-07-31 before any re-run; Stage 19 is BLOCKED behind it)
+
+Eli, 2026-07-31, on reviewing the Stage 19 prerequisites: *"I still feel
+like we must need to more hypothesis testing before we burn the holdout,
+since there were so many things our previous runs got wrong and
+uncovered. We surely have not really fairly re-traced our steps and
+re-tested on the already used tasks."* Scope chosen: **all four tiers**,
+plus **re-label sub-noise verdicts null and re-test the load-bearing
+ones**.
+
+### Why re-scoring is not enough
+
+Re-scoring repairs a broken *measurement*. It cannot repair a broken
+*selection*. Every arm in the crowning chain was chosen by comparing
+numbers produced on the CRLF instrument, and the fix changes **inputs**,
+not only scores, in three of those comparisons:
+
+| Crowned choice | What the fix changes | Re-scorable? |
+|---|---|---|
+| chunking t1600/o120 (R1/R2) | chunk boundaries shift (~0.6% of maud chars are `\r`) | no — re-run |
+| ctx w4 over w0 (R5/R5b) | header sidecar keys **0/9,379** on the LF index | no — sidecar destroyed, re-run |
+| fused over G+ctx (arm D) | dense embeddings computed over CRLF chunk text | no — re-embed |
+| rerank luna@p1600 (R4) | arm means mix two systems (D3: 0% fallback at default, 21–29% at low/high) | no — confound predates the fix |
+| G+ctx over G (composed) | nothing about the fix — but the **null control was +0.0277 P vs the +0.0158 claimed composed effect** | no — inside noise |
+
+The last row is the one that blocks the burn: the frozen config's
+defining ingredient may be noise. The fused verdict has already flipped
+DROP→KEEP once under correction. Spending the one clean hold-out on a
+config whose selection has never been reproduced on a valid instrument
+is the expensive mistake, and the hold-out is spendable exactly once.
+
+### Tier A — deterministic, zero model calls (LF instrument)
+
+Re-run and compare against the recorded CRLF-instrument numbers:
+A1 R1 clause chunking, both prongs; A2 R2 phrase-bigram FTS terms and
+the four-arm retrieval ablation; A3 ctx weight sweep w0/w1/w2/w4 (blocked
+on the maud header regeneration); A4 F1 name-strip. Deterministic, so no
+replicates and no noise floor — an arm either reproduces or it does not.
+
+### Tier B — rerank ablation, flat-rate
+
+R4 re-run on LF with `rerank_fallback` actually recorded (D3), so arm
+means stop silently mixing a reranked and a fallback system. Any R4
+conclusion that depended on a mixed mean is void, not adjusted.
+
+### Tier C — the decisive one, flat-rate composer calls
+
+Grounded confirms re-run on LF evidence for **G, G+ctx and fused**, with
+**≥2 replicates per arm** — the first time this comparison respects the
+measured ±0.015 noise floor. 776 cells × 3 arms × 2 replicates = 4,656
+composer calls. This is the round that decides whether the frozen config
+was ever really selected.
+
+### Tier D — dense lane re-derived
+
+Re-embed the corpus on the 3080 Ti over LF chunks and rebuild the fused
+pool from scratch rather than inheriting a CRLF-built index. Runs only
+if fused survives Tier A. Experiment ceiling only, never production.
+
+### Verdict re-labelling (applies across stages 14–18)
+
+Every recorded verdict decided on a delta below **0.015** is re-labelled
+**UNDETERMINED** in this log — it was measured inside the composer noise
+band and was never evidence either way. Of those, the ones the frozen
+config actually depends on are re-tested with replicates in Tier C;
+the rest stay undetermined rather than being re-run, and any downstream
+claim resting on them is withdrawn rather than defended.
+
+### Stop rule
+
+Stage 19 does not start until Tier C reports. If Tier C cannot
+distinguish G+ctx from plain G at the measured noise floor, the crowning
+unwinds to the last arm that survives replicated comparison, and *that*
+is what the hold-out sees — not the incumbent. Reverting to a simpler
+config on a null result is the honest outcome, not a failure.
+
+## Stage 19 — the hold-out burn (registered 2026-07-31 before any hold-out label is read; USER-GATED, BLOCKED behind Stage 18R)
 
 Registered in full before the burn, per the fair-comparison protocol
 locked 2026-07-30 ("the Stage 19 hold-out burn happens ONCE, after
@@ -3823,9 +3899,26 @@ been read beyond these aggregate counts.
 - **A1 — laptop, the production candidate.** Frozen G+ctx,
   unmodified: sol@medium composer, `required_slot`, k=6,
   `passage:t1600/o120/w16 + ctx(w4, LF sidecar) +
-  rerank(codex:gpt-5.6-luna)@p1600 + stitch200`. **Three replicates**
-  at identical config; the headline is the replicate mean, with the
-  measured spread published beside it. Replicates rather than more
+  rerank(codex:gpt-5.6-luna)@p1600 + stitch200`. **Staged replicates,
+  1 → 3 → 5** (amended 2026-07-31, before the burn, at Eli's
+  direction: "start with a 1-pass of it, see where it lands, and maybe
+  scale up to 3, then maybe up to 5"). Choosing a replicate count
+  *after seeing the headline* is optional stopping and biases the
+  published mean, so the escalation rule is pre-committed here and
+  keyed on **spread, never on the result**:
+  (a) escalate 1 → 3 if any per-source answered-only P or R lands
+  within 0.05 of a P1 band edge (the single run cannot resolve pass
+  from fail), or if the decline rate differs from dev by > 0.03 (the
+  composer is in a different regime than the one the noise floor was
+  measured in);
+  (b) escalate 3 → 5 if max pairwise |Δ| across the three exceeds
+  0.015 — P3 fails and three replicates cannot pin the mean.
+  **The published headline is the mean of every replicate run, n
+  stated; no replicate is discarded and no subset is selected.** At
+  n=1 the headline says so, carries the dev-measured band explicitly
+  labelled as borrowed, and P3 is recorded as untested rather than
+  passed.
+  Replicates rather than more
   items is the deliberate choice — paired prediction noise exceeds
   paired data noise on this kind of bed (arXiv:2512.21326), and the
   composer's 9–10% answered↔declined flip rate at byte-identical
@@ -3933,8 +4026,9 @@ arm; upstream disclosure of the CRLF defect.
 ### Cost
 
 Flat-rate surfaces only, no per-token spend: ~4.7k header calls (maud
-dev regeneration, in flight) + ~7.2k (hold-out corpus) + 2,328
-composer calls (582 × 3 replicates for A1, 582 for A2) plus rerank
+dev regeneration, in flight) + ~7.2k (hold-out corpus) + composer
+calls of 582 × (replicates run) for A1 + 582 for A2 — 1,164 at the
+first stage, 2,328 at three replicates, 3,492 at five — plus rerank
 calls. Hours of wall clock; the bill is time.
 
 The experiment JSONL receipts are outside git under
