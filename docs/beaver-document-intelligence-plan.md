@@ -71,29 +71,39 @@ Store the following beneath Beaver's existing local data root:
   documents/<document-id>/
     versions/<version-id>/
       source.pdf
-      manifest.json
-      text.jsonl
-      structure.json
-      footnotes.jsonl
-      propositions.jsonl
-      diagnostics.json
+      source.pdf.legalpdf-state.json
+      source.pdf.legalpdf/<parse-identity>/
+        document.json
+        pages.jsonl
+        paragraphs.jsonl
+        sections.jsonl
+        footnotes.jsonl
+        diagnostics.jsonl
+        repairs.jsonl
+        parser-config.json
 ```
 
-`manifest.json` records:
+`footnotes.jsonl` includes each paired note's sentence and
+passage-since-prior-note proposition fields.
+
+`document.json` records:
 
 - Source SHA-256, byte length, MIME type, and import time.
 - Parser, schema, prompt, model, and configuration versions.
 - Artifact hashes and parse status.
 - Whether results are deterministic, Codex-repaired, OCR-derived, or degraded.
 
-The structured records preserve:
+The durable structured source preserves:
 
-- Pages, regions, lines, spans, bounding boxes, and reading order.
-- Body paragraphs, headings, page furniture, and immutable source text.
+- Ordered page text, body paragraphs, headings, and reading order.
 - Footnote/endnote references and bodies.
 - Display labels and unique pair IDs so restarted numbering is unambiguous.
 - Reference locations and paired propositions.
 - Confidence, warnings, and repair provenance.
+
+Regions, spans, words, and bounding boxes are parser working state. They remain
+available in memory to geometry consumers such as PDF highlighting but are not
+duplicated beside every stored PDF.
 
 Use ordinary JSON and JSONL files for the first implementation. Beaver does not
 need a new database merely to retrieve small, version-scoped records.
@@ -102,8 +112,8 @@ need a new database merely to retrieve small, version-scoped records.
 
 ### Deterministic first pass
 
-1. Fingerprint the source and reuse a complete matching artifact set when one
-   exists.
+1. Fingerprint the source and reuse its complete matching compact structural
+   source when one exists.
 2. Detect whether useful embedded text is present.
 3. Run Text-Fidelity's native digital-born extraction and canonical-package
    construction.
@@ -150,23 +160,45 @@ The default repair model is `gpt-5.6-luna` at low effort. Model and effort must
 remain configurable through the same dynamic Codex controls as the rest of
 Beaver; no model name or supported effort list is hardcoded into this feature.
 
-### Cache rules
+### Durable parse identity
 
-Cache deterministic work by:
+Identify deterministic work by:
 
 ```text
 source hash + parser version + schema version + deterministic configuration
 ```
 
-Cache Codex repairs by:
+Cache only bounded Codex repair calls by:
 
 ```text
 source hash + selected context + prompt/schema version + model + effort
 ```
 
-Partial or invalid artifacts are never cache hits. Artifact publication uses a
-temporary build directory followed by an atomic rename. Re-importing an
-unchanged PDF should perform no parsing or model calls.
+Partial or invalid structural sources are never reused. Publication is atomic.
+The full geometry-rich parser document is transient; Beaver persists the
+compact structural source and exact receipts. Re-importing an unchanged PDF
+should perform no parsing or model calls.
+
+### Implementation record (2026-07-30)
+
+The canonical parser completed a three-worker, full local Canadian corpus run:
+367,400 documents and 9,599,936,926 characters with zero parser errors. Against
+the existing provider structure maps, the shipping parser reached 95.4721%
+precision, 90.4193% recall, and 92.8770% F1; all three measures improved over
+the prior laws run. The immutable run receipt has SHA-256
+`1c640b664e2b4cbd028e0c49d38fe662886dfeb637099236f18be22f24d838f8`.
+
+Beaver's compact publication was also measured through the real ingestion and
+SourceDoc readers:
+
+| PDF | Pages | Source | Full parser artifact | Compact source | Reduction | Full/compact median read |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Wastech | 67 | 386,296 B | 10,283,955 B | 962,750 B | 90.6% | 91 / 11 ms |
+| Westport | 84 | 435,963 B | 5,963,519 B | 985,584 B | 83.5% | 49 / 14 ms |
+
+Both profiles produced identical SourceDoc character and block counts. This is
+why Beaver persists the compact source rather than compressing or caching the
+geometry-rich parser working document.
 
 ## Assistant Tools
 

@@ -43,6 +43,7 @@ import {
     listLocalDocumentsById,
 } from "../lib/localDocumentStore";
 import { legalKnowledgeGraphStore } from "../lib/legalKnowledgeGraphStore";
+import { extractLegalPdfText } from "../lib/legalPdfSourceDoc";
 import { appUrl } from "../lib/appRoutes";
 import {
     localTabularStore,
@@ -2356,39 +2357,7 @@ async function extractDocumentMarkdown(
 
 async function extractPdfMarkdown(buf: ArrayBuffer): Promise<string> {
     try {
-        const pdfjsLib = await import(
-            "pdfjs-dist/legacy/build/pdf.mjs" as string
-        );
-        const pdf = await (
-            pdfjsLib as unknown as {
-                getDocument: (opts: unknown) => {
-                    promise: Promise<{
-                        numPages: number;
-                        getPage: (n: number) => Promise<{
-                            getTextContent: () => Promise<{
-                                items: { str?: string; hasEOL?: boolean }[];
-                            }>;
-                        }>;
-                    }>;
-                };
-            }
-        ).getDocument({
-            // Untrusted uploads: never let pdf.js compile font programs via eval.
-            data: new Uint8Array(buf),
-            isEvalSupported: false,
-        }).promise;
-        const pages: string[] = [];
-        for (let i = 1; i <= pdf.numPages; i++) {
-            const page = await pdf.getPage(i);
-            const tc = await page.getTextContent();
-            const text = tc.items
-                .filter((it): it is { str: string } => "str" in it)
-                .map((it) => it.str)
-                .join(" ")
-                .trim();
-            if (text) pages.push(`## Page ${i}\n\n${text}`);
-        }
-        return pages.join("\n\n");
+        return await extractLegalPdfText(Buffer.from(buf));
     } catch {
         return "";
     }

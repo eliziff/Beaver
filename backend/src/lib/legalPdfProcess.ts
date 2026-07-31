@@ -5,6 +5,9 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
+export const LEGAL_PDF_DOCUMENT_SCHEMA = "legalpdf.document.v2";
+export const LEGAL_PDF_PARSER_VERSION = "0.3.0";
+
 type LegalPdfRuntimeOptions = {
   env?: NodeJS.ProcessEnv;
   platform?: NodeJS.Platform;

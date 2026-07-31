@@ -1,5 +1,8 @@
 import {
   createSourceDoc,
+  createTextSourceDoc,
+  sourceDocPhraseSpans,
+  tokenizeSourceText,
   type SourceDoc,
   type SourceDocBlock,
 } from "./sourceDoc";
@@ -13,19 +16,20 @@ import {
  * A2AJ -> SourceDoc.
  *
  * A2AJ hands us Markdown, never the source HTML, so nothing here can claim a
- * provider anchor. `unofficial_text` and each `unofficial_sections` value are
- * distinct provider renditions: whole-document callers compile the former;
- * exact section callers compile one map entry. A map entry's top-level block
- * is therefore native without inventing offsets into the full text.
- * Everything derived from prose -
+ * provider anchor. When `unofficial_text` is present it remains the immutable
+ * rendition: provider section-map labels become native only when their text
+ * aligns uniquely inside it. A map alone remains a valid section-granular
+ * rendition. Everything derived from prose -
  * the case paragraph spine, emphasis-marked statute sections, and every nested
  * subsection/paragraph/subparagraph label - is `heuristic`.
  *
  * Statute strategy:
- *   1. provider section map (native spine, heuristic children);
- *   2. one whole-text marker overlay: the shared flat spine plus Markdown
+ *   1. one whole-text marker overlay: the shared flat spine plus Markdown
  *      emphasis markers (`**231**`, `**A.01.001**`), with emphasis winning
  *      only an exact locator collision.
+ *   2. uniquely aligned provider-map labels replace matching heuristic blocks
+ *      and add exact missing blocks without replacing the full rendition.
+ *   3. provider section map alone (native spine, heuristic children).
  *
  * Cases get the paragraph spine (bracketed, dotted or bare numbering, chosen
  * by longest monotone run) and, for reported decisions, the page spine.
@@ -448,6 +452,23 @@ function statusRangeMarkers(text: string, allowHyphen: boolean) {
   return markers;
 }
 
+function providerSectionChildren(
+  label: string,
+  text: string,
+  offset: number,
+  sectionEnd: number,
+) {
+  const children = childMarkers(text);
+  const leading = new RegExp(
+    String.raw`^[ \t]*${label.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}[ \t]*\((${CHILD_TOKEN})\)(?=\s)`,
+    "u",
+  ).exec(text);
+  if (leading) {
+    children.unshift({ token: leading[1], start: leading[0].length - 1 });
+  }
+  return childBlocks(label, children, offset, sectionEnd);
+}
+
 /** Provider section map: native spine, heuristic children. */
 function sectionMapBlocks(sectionMap: Record<string, string>) {
   const pieces: string[] = [];
@@ -508,21 +529,131 @@ function sectionMapBlocks(sectionMap: Record<string, string>) {
       end,
       origin: "native",
     });
-    const children = childMarkers(text);
     // Some corpora keep the number in the body ("34(1) Parent ..."); the
     // A2AJ section map strips it and opens with "(1) ...", which the
     // line-anchored scan already catches at offset 0.
-    const leading = new RegExp(
-      String.raw`^[ \t]*${label.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}[ \t]*\((${CHILD_TOKEN})\)(?=\s)`,
-      "u",
-    ).exec(text);
-    if (leading) {
-      children.unshift({ token: leading[1], start: leading[0].length - 1 });
-    }
-    blocks.push(...childBlocks(label, children, position, end));
+    blocks.push(...providerSectionChildren(label, text, position, end));
     position += text.length;
   }
   return { text: pieces.join(""), blocks };
+}
+
+/**
+ * Overlay provider section evidence without changing the whole-document
+ * rendition. Content must occur exactly once. A reconstructed locator supplies
+ * safe outer bounds; a missing locator is added only when the provider value
+ * itself is a byte-exact slice, because token alignment alone cannot recover
+ * punctuation or whitespace boundaries.
+ */
+function overlaySectionMap(
+  text: string,
+  reconstructed: SourceDocBlock[],
+  sectionMap: Record<string, string>,
+) {
+  const blocks = [...reconstructed];
+  const searchDoc = createTextSourceDoc(text);
+  const entries = Object.entries(sectionMap)
+    .map(([rawLabel, rawText]) => ({
+      label: rawLabel.trim(),
+      text: rawText,
+    }))
+    .filter(
+      ({ label, text: value }) =>
+        label &&
+        value.trim() &&
+        !/^\[blank\]$/iu.test(value.trim()),
+    );
+  const labelCounts = new Map<string, number>();
+  for (const { label } of entries) {
+    const key = label.toLowerCase();
+    labelCounts.set(key, (labelCounts.get(key) ?? 0) + 1);
+  }
+
+  for (const { label, text: providerText } of entries) {
+    const providerLabel = `sec${label}`;
+    const key = providerLabel.toLowerCase();
+    if (labelCounts.get(label.toLowerCase()) !== 1) continue;
+    const providerTokens = tokenizeSourceText(providerText);
+    if (!providerTokens.length) continue;
+    const matches = sourceDocPhraseSpans(
+      searchDoc,
+      providerTokens.map(({ word }) => word),
+      { limit: 2 },
+    );
+    if (matches.length !== 1) continue;
+    const [match] = matches;
+    const exactStart = match.start - providerTokens[0].start;
+    const exactEnd = exactStart + providerText.length;
+    const exact =
+      exactStart >= 0 &&
+      text.slice(exactStart, exactEnd) === providerText;
+    const matchingBlocks = blocks
+      .map((block, index) => ({ block, index }))
+      .filter(
+        ({ block }) =>
+          block.kind === "section" &&
+          !block.parentLabel &&
+          [block.label, ...(block.aliases ?? [])].some(
+            (candidate) => candidate.toLowerCase() === key,
+          ),
+      );
+    if (matchingBlocks.length > 1) continue;
+    if (matchingBlocks.length === 1) {
+      const { block, index } = matchingBlocks[0];
+      if (match.start < block.start || match.end > block.end) continue;
+      blocks[index] = { ...block, origin: "native" };
+      if (
+        exact &&
+        block.label.toLowerCase() === key &&
+        PROVIDER_PROVISION_LABEL_RE.test(label)
+      ) {
+        for (let position = blocks.length - 1; position >= 0; position -= 1) {
+          const child = blocks[position];
+          if (
+            child.parentLabel?.toLowerCase() === key &&
+            child.start >= block.start &&
+            child.end <= block.end
+          ) {
+            blocks.splice(position, 1);
+          }
+        }
+        blocks.push(
+          ...providerSectionChildren(
+            label,
+            providerText,
+            exactStart,
+            exactEnd,
+          ),
+        );
+      }
+      continue;
+    }
+
+    if (!exact) continue;
+    blocks.push({
+      kind: "section",
+      label: providerLabel,
+      start: exactStart,
+      end: exactEnd,
+      origin: "native",
+    });
+    if (PROVIDER_PROVISION_LABEL_RE.test(label)) {
+      blocks.push(
+        ...providerSectionChildren(
+          label,
+          providerText,
+          exactStart,
+          exactEnd,
+        ),
+      );
+    }
+  }
+
+  return blocks.sort(
+    (left, right) =>
+      left.start - right.start ||
+      Number(!!left.parentLabel) - Number(!!right.parentLabel),
+  );
 }
 
 /* ------------------------------------------------------------------ *
@@ -1100,7 +1231,11 @@ export function compileA2AJSourceDoc(input: CompileInput): SourceDoc {
     });
   }
 
-  if (input.sectionMap && Object.keys(input.sectionMap).length) {
+  if (
+    !input.text.trim() &&
+    input.sectionMap &&
+    Object.keys(input.sectionMap).length
+  ) {
     const mapped = sectionMapBlocks(input.sectionMap);
     if (mapped.blocks.length) {
       return createSourceDoc({
@@ -1111,9 +1246,13 @@ export function compileA2AJSourceDoc(input: CompileInput): SourceDoc {
     }
   }
 
+  const reconstructed = lawSectionBlocks(input.text, input.name);
   return createSourceDoc({
     ...identity,
     text: input.text,
-    blocks: lawSectionBlocks(input.text, input.name),
+    blocks:
+      input.sectionMap && Object.keys(input.sectionMap).length
+        ? overlaySectionMap(input.text, reconstructed, input.sectionMap)
+        : reconstructed,
   });
 }

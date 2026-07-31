@@ -1,5 +1,10 @@
 import crypto from "node:crypto";
-import { existsSync, statSync } from "node:fs";
+import {
+  existsSync,
+  readFileSync,
+  realpathSync,
+  statSync,
+} from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { legalProviderDatabase } from "./legalDataPath";
@@ -65,6 +70,10 @@ const searchDatabases = new Map<
   string,
   { connection: DatabaseSync; sourceSignature: string }
 >();
+const finalContractDatabases = new Map<
+  string,
+  { connection: DatabaseSync; sourceSignature: string }
+>();
 const documents = new Map<string, JournalArticleDocument>();
 const MAX_DOCUMENT_CACHE = 16;
 
@@ -120,11 +129,22 @@ function journalSearchDatabasePath() {
     : legalProviderDatabase("journals", "public_endpoint-search.sqlite");
 }
 
+function journalFinalContractDatabasePath() {
+  const configured = process.env.MIKE_JOURNAL_FINAL_CONTRACT_DB?.trim();
+  return configured
+    ? path.resolve(configured)
+    : legalProviderDatabase("journals", "journals.db");
+}
+
 export function closeJournalDatabases() {
   for (const { connection } of databases.values()) connection.close();
   for (const { connection } of searchDatabases.values()) connection.close();
+  for (const { connection } of finalContractDatabases.values()) {
+    connection.close();
+  }
   databases.clear();
   searchDatabases.clear();
+  finalContractDatabases.clear();
   documents.clear();
 }
 
@@ -212,6 +232,34 @@ function searchDatabase() {
   }
   searchDatabases.set(filename, { connection, sourceSignature });
   return connection;
+}
+
+function finalContractDatabase() {
+  const filename = journalFinalContractDatabasePath();
+  if (!existsSync(filename)) return null;
+  const source = statSync(filename);
+  const sourceSignature = `${path.resolve(filename)}:${source.size}:${Math.trunc(source.mtimeMs)}`;
+  const cached = finalContractDatabases.get(filename);
+  if (cached?.sourceSignature === sourceSignature) {
+    return { connection: cached.connection, filename };
+  }
+  if (cached) {
+    cached.connection.close();
+    finalContractDatabases.delete(filename);
+    documents.clear();
+  }
+  const connection = new DatabaseSync(filename, { readOnly: true });
+  const schema = connection
+    .prepare(
+      "SELECT 1 FROM sqlite_master WHERE type='table' AND name='article_final_contracts'",
+    )
+    .get();
+  if (!schema) {
+    connection.close();
+    return null;
+  }
+  finalContractDatabases.set(filename, { connection, sourceSignature });
+  return { connection, filename };
 }
 
 function displayCitation(row: Row) {
@@ -400,16 +448,300 @@ function pageBlocks(text: string, pageRows: PageRow[]) {
   return found;
 }
 
-function journalSourceDoc(
+type FinalContractPages = {
+  filename: string;
+  signature: string;
+};
+
+function inside(base: string, candidate: string) {
+  const relative = path.relative(base, candidate);
+  return (
+    relative === "" ||
+    (!relative.startsWith(`..${path.sep}`) &&
+      relative !== ".." &&
+      !path.isAbsolute(relative))
+  );
+}
+
+function registeredPages(filename: string, sourceDir: string) {
+  if (
+    !sourceDir ||
+    path.isAbsolute(sourceDir) ||
+    /^[A-Za-z]:[\\/]/u.test(sourceDir)
+  ) {
+    return null;
+  }
+  const relative = sourceDir.replace(/[\\/]+/gu, path.sep);
+  const databaseDirectory = path.dirname(filename);
+  for (const base of [
+    databaseDirectory,
+    path.dirname(databaseDirectory),
+  ]) {
+    const candidate = path.resolve(base, relative, "pages.jsonl");
+    if (!inside(base, candidate) || !existsSync(candidate)) continue;
+    try {
+      const realBase = realpathSync(base);
+      const realCandidate = realpathSync(candidate);
+      if (inside(realBase, realCandidate) && statSync(realCandidate).isFile()) {
+        return realCandidate;
+      }
+    } catch {
+      // An unreadable registration is equivalent to no canonical package.
+    }
+  }
+  return null;
+}
+
+function finalContractPages(articleId: number): FinalContractPages | null {
+  try {
+    const registered = finalContractDatabase();
+    if (!registered) return null;
+    const row = registered.connection
+      .prepare(
+        "SELECT source_dir FROM article_final_contracts WHERE article_id = ?",
+      )
+      .get(articleId) as Row | undefined;
+    const sourceDir = row ? string(row, "source_dir") : null;
+    const filename = sourceDir
+      ? registeredPages(registered.filename, sourceDir)
+      : null;
+    if (!filename) return null;
+    const source = statSync(filename);
+    return {
+      filename,
+      signature: `${filename}:${source.size}:${Math.trunc(source.mtimeMs)}`,
+    };
+  } catch {
+    return null;
+  }
+}
+
+type FinalRegion = {
+  type: string;
+  text: string;
+  start: number;
+  end: number;
+  pdfPage: number | null;
+  lineOrders: Set<number>;
+};
+
+type FinalAnnotation = {
+  annotation: Row;
+  regions: FinalRegion[];
+};
+
+function row(value: unknown): Row | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Row)
+    : null;
+}
+
+function titleAliases(text: string) {
+  const compact = text.replace(/\s+/gu, " ").trim();
+  const numbered = compact.match(/^([IVXLCDM]+|[A-Z])\.[ \t]+(.+)$/u);
+  const title = (numbered?.[2] ?? compact)
+    .toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+  return {
+    label: numbered?.[1] ?? null,
+    aliases: [
+      ...(numbered ? [numbered[1]] : []),
+      ...(title ? [`sectitle:${title}`] : []),
+    ],
+  };
+}
+
+function finalContractSource(
   articleId: number,
-  url: string,
-  text: string,
+  pagesFile: FinalContractPages,
   pageRows: PageRow[],
-): SourceDoc {
-  const pages = addRanges(pageBlocks(text, pageRows), text.length);
-  const sections = addRanges(
-    [...text.matchAll(/^[ \t]*([IVXLCDM]+|[A-Z])\.[ \t]+([^\n\b]{3,180})$/gmu)]
-      .map((match) => {
+) {
+  try {
+    const pages = readFileSync(pagesFile.filename, "utf8")
+      .split(/\r?\n/gu)
+      .filter((line) => line.trim())
+      .map((line) => row(JSON.parse(line)));
+    if (!pages.length || pages.some((page) => !page)) return null;
+
+    const parts: string[] = [];
+    const blocks: SourceDocBlock[] = [];
+    const titles: FinalRegion[] = [];
+    const annotations: FinalAnnotation[] = [];
+    let offset = 0;
+    let paragraph = 0;
+    for (const [pageIndex, page] of (pages as Row[]).entries()) {
+      const registeredArticle = integer(page.article_id);
+      if (registeredArticle && registeredArticle !== articleId) return null;
+      const pageText =
+        typeof page.text === "string" ? page.text : null;
+      if (pageText === null) return null;
+      if (pageIndex) {
+        parts.push("\n");
+        offset += 1;
+      }
+      const pageStart = offset;
+      parts.push(pageText);
+      offset += pageText.length;
+      const pdfPage = integer(page.pdf_page);
+      if (pdfPage) {
+        const publicPage = pageRows.find(
+          (candidate) => integer(candidate.pdf_page) === pdfPage,
+        );
+        const publicLabel = String(publicPage?.page_label ?? "").trim();
+        const label = publicLabel || String(pdfPage);
+        blocks.push({
+          kind: "page",
+          label: /^\d+$/u.test(label)
+            ? `page${Number(label)}`
+            : `page${label}`,
+          start: pageStart,
+          end: offset,
+          anchor: `page=${pdfPage}`,
+          aliases: [label],
+          origin: "native",
+        });
+      }
+
+      const regions: FinalRegion[] = [];
+      let cursor = 0;
+      const orderedRegions = (Array.isArray(page.regions)
+        ? page.regions
+        : []
+      )
+        .map((value, index) => ({ value: row(value), index }))
+        .filter(
+          (entry): entry is { value: Row; index: number } => !!entry.value,
+        )
+        .sort(
+          (left, right) =>
+            Number(left.value.order ?? left.index) -
+            Number(right.value.order ?? right.index),
+        );
+      for (const { value: region } of orderedRegions) {
+        const regionText =
+          typeof region.text === "string" ? region.text : "";
+        if (!regionText) continue;
+        const at = pageText.indexOf(regionText, cursor);
+        if (at < 0) continue;
+        cursor = at + regionText.length;
+        const lines = Array.isArray(region.lines) ? region.lines : [];
+        const lineOrders = new Set(
+          lines
+            .map((line) => integer(row(line)?.codex_text_order))
+            .filter((value): value is number => value !== null),
+        );
+        const placed: FinalRegion = {
+          type: String(region.type ?? ""),
+          text: regionText,
+          start: pageStart + at,
+          end: pageStart + at + regionText.length,
+          pdfPage,
+          lineOrders,
+        };
+        regions.push(placed);
+        paragraph += 1;
+        blocks.push({
+          kind: "paragraph",
+          label: `par${paragraph}`,
+          start: placed.start,
+          end: placed.end,
+          origin: "native",
+        });
+        if (placed.type === "paragraph_title") titles.push(placed);
+      }
+      for (const value of Array.isArray(page.annotations)
+        ? page.annotations
+        : []) {
+        const annotation = row(value);
+        if (annotation) annotations.push({ annotation, regions });
+      }
+    }
+    const text = parts.join("");
+    if (!text.trim()) return null;
+
+    titles.forEach((title, index) => {
+      const identified = titleAliases(title.text);
+      blocks.push({
+        kind: "section",
+        label: identified.label
+          ? `sec${identified.label}`
+          : `secTitle${index + 1}`,
+        start: title.start,
+        end: titles[index + 1]?.start ?? text.length,
+        aliases: identified.aliases,
+        origin: "native",
+      });
+    });
+
+    const pairedRefs = new Set(
+      annotations
+        .filter(
+          ({ annotation }) =>
+            annotation.taxonomy_name === "fn_ref" &&
+            annotation.pair_status === "paired" &&
+            typeof annotation.pair_id === "string",
+        )
+        .map(({ annotation }) => annotation.pair_id as string),
+    );
+    const usedPairs = new Set<string>();
+    for (const { annotation, regions } of annotations) {
+      const pairId =
+        typeof annotation.pair_id === "string" ? annotation.pair_id : "";
+      if (
+        annotation.taxonomy_name !== "fn_label" ||
+        annotation.pair_status !== "paired" ||
+        !pairId ||
+        !pairedRefs.has(pairId) ||
+        usedPairs.has(pairId)
+      ) {
+        continue;
+      }
+      const lineOrder = integer(annotation.start_line_order);
+      const note = String(
+        annotation.note_id ?? annotation.selected_text ?? "",
+      ).trim();
+      const region = lineOrder
+        ? regions.find(
+            (candidate) =>
+              candidate.type === "footnote" &&
+              candidate.lineOrders.has(lineOrder),
+          )
+        : null;
+      if (!region || !note) continue;
+      usedPairs.add(pairId);
+      blocks.push({
+        kind: "footnote",
+        label: /^\d+$/u.test(note) ? `fn${Number(note)}` : `fn${note}`,
+        start: region.start,
+        end: region.end,
+        aliases: [note],
+        anchor: region.pdfPage ? `page=${region.pdfPage}` : undefined,
+        origin: "native",
+      });
+    }
+
+    return {
+      text,
+      blocks: blocks.sort(
+        (left, right) => left.start - right.start || left.end - right.end,
+      ),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function reconstructedJournalBlocks(text: string, pageRows: PageRow[]) {
+  const blocks: SourceDocBlock[] = [];
+  blocks.push(...addRanges(pageBlocks(text, pageRows), text.length));
+  blocks.push(
+    ...addRanges(
+      [
+        ...text.matchAll(
+          /^[ \t]*([IVXLCDM]+|[A-Z])\.[ \t]+([^\n\b]{3,180})$/gmu,
+        ),
+      ].map((match) => {
         const title = match[2].replace(/\s+/gu, " ").trim();
         const titleAlias = title
           .toLocaleLowerCase()
@@ -426,32 +758,51 @@ function journalSourceDoc(
           origin: "heuristic" as const,
         };
       }),
-    text.length,
-  );
-  const footnotes = addRanges(
-    [...text.matchAll(/^[ \t]*(\d{1,5})\t[ \t]*(?:\r?\n)?/gmu)].map(
-      (match) => ({
-        kind: "footnote" as const,
-        label: `fn${Number(match[1])}`,
-        start: match.index,
-        aliases: [match[1]],
-        origin: "heuristic" as const,
-      }),
+      text.length,
     ),
-    text.length,
   );
-  const paragraphs = [...text.matchAll(/\S[\s\S]*?(?=\r?\n[ \t]*\r?\n|$)/gu)]
-    .filter((match) => !/^\[page [^\]\n]{1,40}\]/iu.test(match[0]))
-    .map(
-      (match, index): SourceDocBlock => ({
-        kind: "paragraph",
-        label: `par${index + 1}`,
-        start: match.index,
-        end: match.index + match[0].length,
-        origin: "heuristic",
-      }),
-    );
-  const blocks = [...pages, ...sections, ...footnotes, ...paragraphs].sort(
+  blocks.push(
+    ...addRanges(
+      [...text.matchAll(/^[ \t]*(\d{1,5})\t[ \t]*(?:\r?\n)?/gmu)].map(
+        (match) => ({
+          kind: "footnote" as const,
+          label: `fn${Number(match[1])}`,
+          start: match.index,
+          aliases: [match[1]],
+          origin: "heuristic" as const,
+        }),
+      ),
+      text.length,
+    ),
+  );
+  blocks.push(
+    ...[...text.matchAll(/\S[\s\S]*?(?=\r?\n[ \t]*\r?\n|$)/gu)]
+      .filter((match) => !/^\[page [^\]\n]{1,40}\]/iu.test(match[0]))
+      .map(
+        (match, index): SourceDocBlock => ({
+          kind: "paragraph",
+          label: `par${index + 1}`,
+          start: match.index,
+          end: match.index + match[0].length,
+          origin: "heuristic",
+        }),
+      ),
+  );
+  return blocks;
+}
+
+function journalSourceDoc(
+  articleId: number,
+  url: string,
+  text: string,
+  pageRows: PageRow[],
+  nativeBlocks: SourceDocBlock[] = [],
+): SourceDoc {
+  const nativeKinds = new Set(nativeBlocks.map(({ kind }) => kind));
+  const reconstructed = reconstructedJournalBlocks(text, pageRows).filter(
+    ({ kind }) => !nativeKinds.has(kind),
+  );
+  const blocks = [...nativeBlocks, ...reconstructed].sort(
     (left, right) => left.start - right.start || left.end - right.end,
   );
   return createSourceDoc({
@@ -485,22 +836,26 @@ export function fetchJournalArticle(
   identifier = identifier.trim();
   if (!identifier) throw new Error("identifier is required");
   database();
-  const numericId = identifier.match(/^(?:journal:)?(\d+)$/iu)?.[1];
-  const cacheKey = numericId ? `${journalDatabasePath()}:${numericId}` : "";
-  const cached = cacheKey ? documents.get(cacheKey) : undefined;
-  if (cached) return cached;
   const row = articleRow(identifier);
   if (!row) return null;
   const articleId = integer(row.article_id)!;
-  const text = string(row, "text");
+  const publicText = string(row, "text");
   const url = trustedUrl(string(row, "galley_url") ?? string(row, "url_en"));
-  if (!text || !url) return null;
+  if (!publicText || !url) return null;
+  const registered = finalContractPages(articleId);
+  const cacheKey = `${journalDatabasePath()}:${articleId}:${registered?.signature ?? "public"}`;
+  const cached = documents.get(cacheKey);
+  if (cached) return cached;
   const pageRows = database()
     .prepare(
       `SELECT page_label, pdf_page FROM article_pages
        WHERE article_id = ? ORDER BY page_order`,
     )
     .all(articleId) as PageRow[];
+  const canonical = registered
+    ? finalContractSource(articleId, registered, pageRows)
+    : null;
+  const text = canonical?.text ?? publicText;
   const document: JournalArticleDocument = {
     provider: "journal",
     identity: String(articleId),
@@ -511,7 +866,13 @@ export function fetchJournalArticle(
     date: string(row, "document_date_en"),
     url,
     text,
-    structure: journalSourceDoc(articleId, url, text, pageRows),
+    structure: journalSourceDoc(
+      articleId,
+      url,
+      text,
+      pageRows,
+      canonical?.blocks,
+    ),
     upstreamLicense: string(row, "upstream_license"),
     journalName: string(row, "journal_name"),
     authors: string(row, "authors"),
@@ -520,7 +881,7 @@ export function fetchJournalArticle(
   if (documents.size >= MAX_DOCUMENT_CACHE) {
     documents.delete(documents.keys().next().value!);
   }
-  documents.set(`${journalDatabasePath()}:${articleId}`, document);
+  documents.set(cacheKey, document);
   return document;
 }
 
