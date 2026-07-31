@@ -1013,14 +1013,8 @@
   <header class="topbar">
     <div class="brand-lockup">
       <svg class="beaver-mark" viewBox="0 0 32 32" aria-hidden="true">
-        <path fill="currentColor" d="M8.2 9.4 5.5 6.8 7.1 3.9l4.2 2.2A13.2 13.2 0 0 1 16 5.3c1.7 0 3.3.3 4.7.8l4.2-2.2 1.6 2.9-2.7 2.6c2.2 2.3 3.5 5.4 3.5 8.8 0 6.5-5 10.9-11.2 10.9S4.7 24.7 4.7 18.2c0-3.4 1.3-6.5 3.5-8.8Z"/>
-        <ellipse cx="11.7" cy="15.4" rx="1.45" ry="1.7" fill="#fff"/>
-        <ellipse cx="20.3" cy="15.4" rx="1.45" ry="1.7" fill="#fff"/>
-        <circle cx="11.9" cy="15.7" r=".72" fill="currentColor"/>
-        <circle cx="20.1" cy="15.7" r=".72" fill="currentColor"/>
-        <path d="M13.1 20.1c.8.55 1.9.85 2.9.85s2.1-.3 2.9-.85" fill="none" stroke="#fff" stroke-width="1.35" stroke-linecap="round"/>
-        <path d="M13.2 21.5h5.6v3.9c0 .8-.65 1.45-1.45 1.45H16v-3.15h-1.35c-.8 0-1.45-.65-1.45-1.45v-.8Z" fill="#fff"/>
-        <path d="M16 23.75v3.15" stroke="currentColor" stroke-width="1"/>
+        <path fill="currentColor" d="M5 6.5h10.3v17.8a3.4 3.4 0 0 1-3.4 3.4H8.4A3.4 3.4 0 0 1 5 24.3V6.5Zm11.7 0H27v17.8a3.4 3.4 0 0 1-3.4 3.4h-3.5a3.4 3.4 0 0 1-3.4-3.4V6.5Z"/>
+        <path d="M16 7v19.5" fill="none" stroke="#fff" stroke-width="1.35" stroke-linecap="round"/>
       </svg>
       <span class="brand-name">Beaver</span>
       <span class="brand-divider" aria-hidden="true">|</span>
@@ -1143,7 +1137,7 @@
                   </label>
                   <button id="clear-exhibits" type="button" class="secondary clear-exhibits" disabled>Clear exhibit slots</button>
                   <button id="file-options" type="button" class="secondary options-button" aria-label="File placement options" title="File placement options">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.1"/><path d="M19.4 13.7a1.7 1.7 0 0 0 .34 1.88l.06.06-2.14 2.14-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.04 1.56V19h-3v-.1a1.7 1.7 0 0 0-1.04-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06-2.14-2.14.06-.06a1.7 1.7 0 0 0 .34-1.88 1.7 1.7 0 0 0-1.56-1.04H5v-3h.1a1.7 1.7 0 0 0 1.56-1.04 1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.14-2.14.06.06a1.7 1.7 0 0 0 1.88.34 1.7 1.7 0 0 0 1.04-1.56V5h3v.1a1.7 1.7 0 0 0 1.04 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.14 2.14-.06.06a1.7 1.7 0 0 0-.34 1.88 1.7 1.7 0 0 0 1.56 1.04h.1v3h-.1a1.7 1.7 0 0 0-1.56 1.04Z"/></svg>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.05.05-2.31 2.31-.05-.05a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56v.07h-3.27v-.07a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.88.34l-.05.05-2.31-2.31.05-.05A1.7 1.7 0 0 0 6.41 15a1.7 1.7 0 0 0-1.56-1.03h-.07v-3.27h.07A1.7 1.7 0 0 0 6.41 9.67a1.7 1.7 0 0 0-.34-1.88l-.05-.05 2.31-2.31.05.05a1.7 1.7 0 0 0 1.88.34 1.7 1.7 0 0 0 1.03-1.56v-.07h3.27v.07a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.05-.05 2.31 2.31-.05.05a1.7 1.7 0 0 0-.34 1.88 1.7 1.7 0 0 0 1.56 1.03h.07v3.27h-.07A1.7 1.7 0 0 0 19.4 15Z"/></svg>
                   </button>
                 </div>
               </div>
@@ -1368,23 +1362,36 @@
     }
 
     function beaverTask(kind, message, value) {
-      const phase = Math.min(4, Math.floor(Math.max(0, value) / 20));
       const affidavitTasks = [
         "Sharpening the Beaver teeth",
+        "Putting on tiny reading glasses",
         "Gnawing through the opening pages",
         "Following the grain of the affidavit",
-        "Checking each little woodchip twice",
+        "Holding the page very close to the nose",
+        "Tucking useful woodchips behind one ear",
+        "Checking the margin for secret twigs",
+        "Straightening the little paper dam",
+        "Counting exhibit sticks twice",
+        "Paddling back for one more look",
         "Stacking the useful bits by the pond",
+        "Giving the final pile an approving tail slap",
       ];
       const exhibitTasks = [
         "Rolling the exhibit logs into view",
         "Sniffing for matching wood grain",
-        "Sorting the likely matches by the pond",
-        "Leaving uncertain logs in the pile",
-        "Tidying the exhibit dam",
+        "Trying each log in its little slot",
+        "Comparing bark patterns carefully",
+        "Setting aside a suspiciously mysterious twig",
+        "Lining up the best-looking logs",
+        "Asking the pond for a second opinion",
+        "Leaving uncertain logs in the loose pile",
+        "Making a very tidy exhibit dam",
+        "Polishing the last woodchip",
+        "Giving the sorted pile an approving tail slap",
       ];
       if (/preparing/i.test(message)) return affidavitTasks[0];
-      return (kind === "affidavit" ? affidavitTasks : exhibitTasks)[phase];
+      const tasks = kind === "affidavit" ? affidavitTasks : exhibitTasks;
+      return tasks[Math.min(tasks.length - 1, Math.floor(Math.max(0, value) * tasks.length / 100))];
     }
 
     function updateWorkProgress(kind, message, value) {
