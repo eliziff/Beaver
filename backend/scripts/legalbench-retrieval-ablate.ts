@@ -7,8 +7,11 @@
  * overall char P 0.0077 / R 0.0209 / doc recall 0.4987 @k=8.
  *
  * Usage (from backend/): npx tsx scripts/legalbench-retrieval-ablate.ts
+ * Stage 18 arms ({chars,clause} x {plain,phrases} at t1600/o120/w16,
+ * per-source lexical R@4 + pool R@48, JSONL receipts):
+ *   npx tsx scripts/legalbench-retrieval-ablate.ts --stage18
  */
-import { readFileSync } from "node:fs";
+import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import {
@@ -34,7 +37,8 @@ const tests = SOURCE_BENCHMARKS.flatMap((source) => {
       ),
     ),
   );
-  return parsed.tests.map((test) => ({
+  return parsed.tests.map((test, index) => ({
+    id: `${source}:${String(index).padStart(3, "0")}`,
     source,
     query: test.query,
     gold: test.snippets.map((snippet) => ({
@@ -60,6 +64,78 @@ for (const target of [600, 1000, 1600])
 
 const mean = (values: number[]) =>
   values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+
+// Stage 18 registered arms: {chars,clause} x {plain,phrases} at the
+// crowned t1600/o120/w16, gated on maud pool R@48. Deterministic, free.
+if (process.argv.includes("--stage18")) {
+  const output = path.join(
+    process.env.LOCALAPPDATA ?? "",
+    "OpenLegalData/experiments/legal-grounding/2026-07-30/stage18-retrieval-arms.jsonl",
+  );
+  writeFileSync(output, "", "utf8");
+  const arms = [
+    { arm: "chars", mode: "chars" as const, phrases: false },
+    { arm: "chars+phrases", mode: "chars" as const, phrases: true },
+    { arm: "clause", mode: "clause" as const, phrases: false },
+    { arm: "clause+phrases", mode: "clause" as const, phrases: true },
+  ];
+  for (const { arm, mode, phrases } of arms) {
+    const bySource = new Map<
+      string,
+      { lexR4: number[]; poolR48: number[] }
+    >();
+    for (const test of tests) {
+      const pool = searchPassages({
+        sourceDb,
+        query: test.query,
+        k: 48,
+        target: 1600,
+        overlap: mode === "clause" ? 0 : 120,
+        nameWeight: 16,
+        perDocCap: 24,
+        mode,
+        phrases,
+      });
+      const spans = (hits: typeof pool) =>
+        hits.map((hit) => ({
+          filePath: hit.citation,
+          start: hit.start,
+          end: hit.end,
+        }));
+      const lexical = charPrecisionRecall(spans(pool.slice(0, 4)), test.gold);
+      const poolScore = charPrecisionRecall(spans(pool), test.gold);
+      appendFileSync(
+        output,
+        `${JSON.stringify({
+          arm,
+          test_id: test.id,
+          source: test.source,
+          lexical_p4: lexical.precision,
+          lexical_r4: lexical.recall,
+          pool_r48: poolScore.recall,
+        })}\n`,
+        "utf8",
+      );
+      const entry = bySource.get(test.source) ?? { lexR4: [], poolR48: [] };
+      entry.lexR4.push(lexical.recall);
+      entry.poolR48.push(poolScore.recall);
+      bySource.set(test.source, entry);
+    }
+    const overall = { lexR4: [] as number[], poolR48: [] as number[] };
+    for (const [source, entry] of bySource) {
+      overall.lexR4.push(...entry.lexR4);
+      overall.poolR48.push(...entry.poolR48);
+      console.log(
+        `${arm} ${source}: lexR4=${mean(entry.lexR4).toFixed(4)} poolR48=${mean(entry.poolR48).toFixed(4)} (n=${entry.lexR4.length})`,
+      );
+    }
+    console.log(
+      `${arm} ALL: lexR4=${mean(overall.lexR4).toFixed(4)} poolR48=${mean(overall.poolR48).toFixed(4)}\n`,
+    );
+  }
+  console.log(`Receipts: ${output}`);
+  process.exit(0);
+}
 
 console.log(
   "target overlap nameW | k | precision recall docRecall | chars/query",
