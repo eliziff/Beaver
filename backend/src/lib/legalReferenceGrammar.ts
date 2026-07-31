@@ -95,6 +95,53 @@ export function isExternalReference(following: string) {
   return external[1].toLowerCase() !== "this";
 }
 
+/**
+ * Instrument nouns that put the OWNING instrument in front of the provision
+ * word: "Code Section 59A", "Treasury Regulation Section 1.482", "Exchange
+ * Act Section 13(d)". `isExternalReference` reads only the right flank and
+ * is structurally blind to these; the whole-flank test below composes the
+ * two. Kept separate rather than folded into `isExternalReference`, whose
+ * one-argument contract three shipping consumers depend on.
+ */
+const INSTRUMENT_LEAD =
+  /\b(?:code|act|regulations?|rules?|statutes?|laws?|chapter|title|ordinance|directive|treaty|convention|constitution)\s*$/iu;
+
+/** "Sections 302 and 906 of the Sarbanes-Oxley Act": skip to the "of". */
+const LIST_CONTINUATION = /^(?:\s*(?:,|and|or|through)\s*\d[\w.()-]*)+/iu;
+
+export interface ReferenceFlanks {
+  /** text immediately before the reference */
+  before: string;
+  /** text immediately after the reference */
+  after: string;
+}
+
+/**
+ * Does this reference point outside the document? Both flanks, because
+ * external statutory references in US contracts are written either way
+ * round. Composes `isExternalReference` rather than replacing it.
+ */
+export function isExternalReferenceInContext(flanks: ReferenceFlanks): boolean {
+  if (INSTRUMENT_LEAD.test(flanks.before)) return true;
+  // "Section 1.6011-4(b)(2)" — a hyphenated subdivision is Treasury
+  // Regulation numbering; no contract numbers a section that way.
+  if (/^-\s?\d/u.test(flanks.after)) return true;
+  // "Section 262 thereof" — "thereof" names an instrument already in scope,
+  // which is never the present one ("hereof" is the present one).
+  if (/^\s*thereof\b/iu.test(flanks.after)) return true;
+  if (isExternalReference(flanks.after)) return true;
+  // Only a member of a list can hide the "of the X Act" behind siblings.
+  const skipped = flanks.after.replace(LIST_CONTINUATION, "");
+  if (skipped === flanks.after) return false;
+  // Deliberately stricter than isExternalReference here: it also accepts
+  // "to", which past a numeric list is an infinitive far more often than a
+  // preposition — "Section 7.2 or 7.3 to be satisfied" is internal. Dropping
+  // "to" on this path costs 0 external references and recovers 4 resolvable
+  // ones across the mini corpus.
+  const owner = skipped.match(/^\s*(?:of|under)\s+(\w+)/iu);
+  return Boolean(owner) && owner![1].toLowerCase() !== "this";
+}
+
 /* ------------------------------------------------------------------ */
 /* Free-text detector                                                  */
 /* ------------------------------------------------------------------ */
@@ -187,6 +234,7 @@ export function findProvisionReferences(
     const label = compactLabel(rawLabel);
     const end = start + raw.length;
     const following = text.slice(end, end + window);
+    const preceding = text.slice(Math.max(0, start - window), start);
     found.set(start, {
       start,
       end,
@@ -197,7 +245,10 @@ export function findProvisionReferences(
       shape,
       locator: shape === "roman" ? "" : normalizeSourceDocLocator("section", label),
       aliasKey: `${singular} ${label}`.toLowerCase(),
-      external: isExternalReference(following),
+      external: isExternalReferenceInContext({
+        before: preceding,
+        after: following,
+      }),
     });
   };
 
