@@ -56,7 +56,7 @@ describe("local A2AJ bulk data", () => {
         citation_en: "RSC 1985, c C-46",
         name_en: "Criminal Code",
         document_date_en: "1985-01-01",
-        unofficial_text_en: "34(1) Parent defence provision.",
+        unofficial_text_en: "Stale flat rendition.",
         unofficial_sections_en: {
           "34": "34(1) Parent defence provision.",
         },
@@ -102,15 +102,19 @@ describe("local A2AJ bulk data", () => {
       language: "fr",
       upstreamLicense: "CC BY 4.0",
     });
-    expect(
-      bulk.fetchLocalA2AJDocument({
-        citation: "RSC 1985, c C-46",
-        docType: "laws",
-      }),
-    ).toMatchObject({
-      name: "Criminal Code",
-      structure: { source: "section_map" },
+    const law = bulk.fetchLocalA2AJDocument({
+      citation: "RSC 1985, c C-46",
+      docType: "laws",
     });
+    expect(law).toMatchObject({
+      docType: "laws",
+      name: "Criminal Code",
+      text: "Stale flat rendition.",
+      structure: { source: "flat_text" },
+    });
+    expect(bulk.getLocalA2AJSectionMap(law!)?.["34"]).toBe(
+      "34(1) Parent defence provision.",
+    );
     expect(
       bulk.searchLocalA2AJ({
         query: "constitutional remedy",

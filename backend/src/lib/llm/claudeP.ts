@@ -456,19 +456,23 @@ export async function streamClaudeP(
         throwIfAborted(params.abortSignal);
         if (attempt > 0)
           await new Promise((resolve) => setTimeout(resolve, 15_000 * attempt));
+        const correction = corrective as {
+          reply: string;
+          problem: string;
+        } | null;
         const payload = JSON.stringify({
           transport_protocol: persist
             ? TRANSPORT_PROTOCOL + PERSIST_PROTOCOL_ADDENDUM
             : TRANSPORT_PROTOCOL,
           system: params.systemPrompt,
-          messages: corrective
+          messages: correction
             ? [
                 ...messages,
-                { role: "assistant", content: corrective.reply },
+                { role: "assistant", content: correction.reply },
                 {
                   role: "user",
                   content:
-                    `Your reply could not be parsed: ${corrective.problem}. ` +
+                    `Your reply could not be parsed: ${correction.problem}. ` +
                     "Resend the ENTIRE reply in the required format: the marker " +
                     "line (TOOL_CALLS or FINAL), then the content. TOOL_CALLS " +
                     "JSON must be strict single-line JSON — inside string values " +

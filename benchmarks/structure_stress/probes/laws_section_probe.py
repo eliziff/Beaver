@@ -560,7 +560,11 @@ def mode_score(con, args) -> None:
             for cite, dnm, text, sj, _num in rows_for(con, name, lang,
                                                       args.limit):
                 secs = oracle(sj)
-                want = set(secs)
+                want = {
+                    label
+                    for label, value in secs.items()
+                    if norm(value).casefold() != "[blank]"
+                }
                 if not want or not text:
                     continue
                 sp = split_of(cite)

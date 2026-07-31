@@ -26,6 +26,9 @@ describe("local CourtListener bulk data", () => {
     const compressedCitations = `${citations}.bz2`;
     const clusters = path.join(temporaryDirectory, "opinion-clusters.csv");
     const opinions = path.join(temporaryDirectory, "opinions.csv");
+    const canonicalOpinionText =
+      `[1] ${"Canonical native opinion text supplies the source rendition. ".repeat(30)}`.trim();
+    const canonicalOpinionMarkup = `<p>${canonicalOpinionText}</p>`;
     await Promise.all([
       writeFile(
         citations,
@@ -39,7 +42,7 @@ describe("local CourtListener bulk data", () => {
       writeFile(
         opinions,
         "id,cluster_id,type,author_str,page_count,plain_text,html,html_with_citations\n" +
-          "7,42,010combined,Justice Example,3,Exact opinion text.,<p>Exact opinion text.</p>,<p>Exact opinion text.</p>\n",
+          `7,42,010combined,Justice Example,3,Stale plain rendition.,${canonicalOpinionMarkup},${canonicalOpinionMarkup}\n`,
       ),
     ]);
     const compress = spawnSync(
@@ -82,13 +85,13 @@ describe("local CourtListener bulk data", () => {
     ).toMatchObject([{ id: 42, caseName: "Alpha v. Beta" }]);
     expect(bulk.getLocalCourtlistenerCase(42)).toMatchObject({
       citations: ["123 F.3d 456"],
-      opinions: [{ id: 7, plainText: "Exact opinion text." }],
+      opinions: [{ id: 7, plainText: "Stale plain rendition." }],
     });
     expect(
       bulk.searchLocalCourtlistenerCases({ query: "Alpha Corporation" }),
     ).toMatchObject([{ id: 42 }]);
     expect(
-      bulk.searchLocalCourtlistenerCases({ query: "Exact opinion" }),
+      bulk.searchLocalCourtlistenerCases({ query: "Stale plain" }),
     ).toMatchObject([{ id: 42 }]);
 
     const fetchMock = vi.fn().mockResolvedValue(
@@ -107,7 +110,28 @@ describe("local CourtListener bulk data", () => {
       ),
     );
     vi.stubGlobal("fetch", fetchMock);
-    const { searchCourtlistenerCaseLaw } = await import("../courtlistener");
+    const {
+      getCourtlistenerCaseOpinions,
+      getCourtlistenerOpinionDocumentText,
+      getCourtlistenerOpinionStructure,
+      searchCourtlistenerCaseLaw,
+    } = await import("../courtlistener");
+    const fetchedCase = await getCourtlistenerCaseOpinions({
+      clusterId: 42,
+      maxChars: 1000,
+    });
+    const opinion = (
+      fetchedCase as { opinions: Array<{ text: string | null }> }
+    ).opinions[0]!;
+    expect(opinion.text).toContain("Canonical native opinion text");
+    expect(opinion.text).not.toContain("Stale plain rendition");
+    expect(opinion.text!.length).toBeLessThan(canonicalOpinionText.length);
+    expect(getCourtlistenerOpinionDocumentText(opinion)).toBe(
+      canonicalOpinionText,
+    );
+    expect(getCourtlistenerOpinionStructure(opinion)?.text).toBe(
+      canonicalOpinionText,
+    );
     const filtered = await searchCourtlistenerCaseLaw({
       query: "Alpha",
       court: "ca9",

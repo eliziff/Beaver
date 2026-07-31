@@ -23,10 +23,9 @@ import {
  * (CAP star-pagination pages + footnote asides, TNA lvl_N sections;
  * 2026-07-30) the compiler intentionally indexes MORE than the legacy
  * engine, so the legacy recording now gates the invariants that must
- * survive enrichment: rendered text stays byte-identical, every legacy
- * block survives verbatim, and every legacy PARAGRAPH lookup replays with
- * an identical receipt payload hash (lookup context is same-kind, so new
- * page/footnote/section blocks cannot enter it).
+ * survive enrichment: rendered text stays byte-identical and every legacy
+ * block survives verbatim. Lookup contexts follow the corrected current
+ * index rather than replaying defects from the deleted engine.
  *
  * `native-structure-v2.json` is the frozen output of the enriched
  * compiler — the byte-exact gate for current behavior, in the exact shape
@@ -143,10 +142,9 @@ function assertRecording(doc: SourceDoc, recording: Recording) {
 }
 
 /**
- * The enrichment invariants vs the deleted engine's recording: text bytes
- * unchanged, no legacy block lost, and every legacy paragraph lookup —
- * the shape v1 receipts persisted — replays with an identical payload
- * hash under the enriched index.
+ * The deleted engine's recording gates unchanged text and legacy blocks.
+ * Lookup hashes belong to the current v2 recording because corrected
+ * indexing can change their context.
  */
 function assertLegacyInvariants(doc: SourceDoc, recording: Recording) {
   expect(sha256(doc.text)).toBe(recording.textSha256);
@@ -165,13 +163,6 @@ function assertLegacyInvariants(doc: SourceDoc, recording: Recording) {
   );
   for (const block of recording.blocks) {
     expect(current.has(JSON.stringify(block))).toBe(true);
-  }
-  for (const before of recording.lookups) {
-    if (before.kind !== "paragraph" || before.status !== "found") continue;
-    const after = lookupLegalSourceDoc(doc, before.kind, before.locator, 2);
-    expect(sha256(JSON.stringify(lookupPayload(after)))).toBe(
-      before.payloadSha256,
-    );
   }
 }
 
@@ -394,6 +385,47 @@ describe("native markup compilation", () => {
     expect(lookup.block?.text).toContain("Paragraph 4");
     expect(doc.ranges.section.count).toBe(0);
     expect(summarizeLegalSourceDoc(doc).source).toBe("flat_text");
+  });
+
+  it("preserves native paragraphs and reconstructs missing labels", () => {
+    const markup = [
+      "<article>",
+      '<paragraph id="para_1"><num>[1]</num><content>Paragraph 1 contains enough substantive judicial words for reliable structural reconstruction.</content></paragraph>',
+      ...Array.from(
+        { length: 4 },
+        (_, index) =>
+          `<p>[${index + 2}] Paragraph ${index + 2} contains enough substantive judicial words for reliable structural reconstruction.</p>`,
+      ),
+      "</article>",
+    ].join("");
+    const doc = compileNativeMarkupSourceDoc({
+      provider: "courtlistener",
+      id: "cluster-partial",
+      text: "",
+      markup,
+    });
+
+    expect(
+      doc.blocks
+        .filter(({ kind }) => kind === "paragraph")
+        .map(({ label, origin, anchor }) => [label, origin, anchor ?? null]),
+    ).toEqual([
+      ["par1", "native", "para_1"],
+      ["par2", "heuristic", null],
+      ["par3", "heuristic", null],
+      ["par4", "heuristic", null],
+      ["par5", "heuristic", null],
+    ]);
+    expect(lookupLegalSourceDoc(doc, "paragraph", "1").block).toMatchObject({
+      label: "par1",
+      origin: "native",
+      anchor: "para_1",
+    });
+    expect(lookupLegalSourceDoc(doc, "paragraph", "4").block).toMatchObject({
+      label: "par4",
+      origin: "heuristic",
+    });
+    expect(summarizeLegalSourceDoc(doc).source).toBe("hybrid");
   });
 
   it("does not invent PDF pages from page-count metadata", () => {

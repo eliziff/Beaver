@@ -190,7 +190,6 @@ async function resolveProviderSource(input: SourceInput) {
   ) {
     throw new Error(`DOCX source "${input.id}" mixes source versions.`);
   }
-  const compiled = sharedSourceDocs();
   const passages = restored.map(({ document, lookup, receipt }, index) => {
     if (lookup.status !== "found" || !lookup.block) {
       throw new Error(`DOCX source "${input.id}" evidence is unavailable.`);
@@ -199,7 +198,7 @@ async function resolveProviderSource(input: SourceInput) {
       url: document.url,
       anchor: lookup.block.anchor,
       blockText: lookup.block.text,
-      documentText: compiled(document.text),
+      documentText: document.structure,
     };
     const quote =
       input.quotes[index] ??

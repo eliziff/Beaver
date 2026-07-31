@@ -3,24 +3,29 @@ import {
   type SourceDoc,
   type SourceDocBlock,
 } from "./sourceDoc";
+import {
+  compareStatuteLabels,
+  computeStatuteSpine,
+  type SpineMark,
+} from "./statuteSpine";
 
 /**
  * A2AJ -> SourceDoc.
  *
  * A2AJ hands us Markdown, never the source HTML, so nothing here can claim a
- * provider anchor. The one exception is `unofficial_sections`: that map is
- * provider-supplied section granularity (the bulk corpus column read by
- * a2ajLocalBulk, and the same text `/fetch?section=` returns), so a top-level
- * block taken straight from it is `native`. Everything derived from prose -
+ * provider anchor. `unofficial_text` and each `unofficial_sections` value are
+ * distinct provider renditions: whole-document callers compile the former;
+ * exact section callers compile one map entry. A map entry's top-level block
+ * is therefore native without inventing offsets into the full text.
+ * Everything derived from prose -
  * the case paragraph spine, emphasis-marked statute sections, and every nested
  * subsection/paragraph/subparagraph label - is `heuristic`.
  *
- * Statute strategy, in order:
+ * Statute strategy:
  *   1. provider section map (native spine, heuristic children);
- *   2. Markdown emphasis markers - `**231** (1) ...` federal statutes and
- *      `**A.01.001** ...` federal regulations, neither of which the flat-text
- *      spine has ever matched;
- *   3. the flat-text spine for bare line-start numbering (Ontario).
+ *   2. one whole-text marker overlay: the shared flat spine plus Markdown
+ *      emphasis markers (`**231**`, `**A.01.001**`), with emphasis winning
+ *      only an exact locator collision.
  *
  * Cases get the paragraph spine (bracketed, dotted or bare numbering, chosen
  * by longest monotone run) and, for reported decisions, the page spine.
@@ -38,12 +43,13 @@ type CompileInput = {
   sectionMap?: Record<string, string> | null;
 };
 
-const SECTION_LABEL = String.raw`\d{1,8}(?:[.-]\d{1,8}){0,3}|[A-Za-z]{1,3}(?:[.-][0-9A-Za-z]{1,8}){1,3}`;
+const SECTION_LABEL = String.raw`\d{1,8}[A-Za-z]{0,3}(?:[.-]\d{1,8}[A-Za-z]{0,3}){0,3}|[A-Za-z]{1,3}(?:[.-][0-9A-Za-z]{1,8}){1,3}`;
 const EMPHASIS_SECTION_RE = new RegExp(
   String.raw`^[ \t]*\*\*(${SECTION_LABEL})\*\*(?=$|[ \t])`,
   "gmu",
 );
-const SECTION_LABEL_RE = new RegExp(String.raw`^(?:${SECTION_LABEL})$`, "u");
+const PROVIDER_PROVISION_LABEL_RE =
+  /^(?:\d{1,8}[A-Za-z]{0,3}(?:[.-]\d{1,8}[A-Za-z]{0,3}){0,3}|[A-Za-z]{1,3}(?:[.-][0-9A-Za-z]{1,8}){1,3})$/u;
 const CHILD_TOKEN = String.raw`\d+(?:\.\d+)?|[A-Za-z](?:\.\d+)?|[ivxlcdmIVXLCDM]+`;
 const CHILD_MARK_RE = new RegExp(
   String.raw`^[ \t]*\((${CHILD_TOKEN})\)(?=\s)`,
@@ -58,6 +64,11 @@ const INLINE_CHILD_RE = new RegExp(
 const MIN_EMPHASIS_SPAN = 0.1;
 const MAX_EMPHASIS_START = 0.7;
 const INLINE_CHILD_WINDOW = 24;
+const STATUS_RANGE_RE = new RegExp(
+  String.raw`^[ \t]*(?<emphasis>\*\*)?(?<from>\d{1,4})(?:[ \t]+(?<word>to|through|and|à|a|et)[ \t]+|[ \t]*(?<dash>[-–—])[ \t]*)(?<to>\d{1,4})\k<emphasis>[ \t]*[,;:]?[ \t]*(?:\[[ \t]*)?(?:repealed|revoked|abrog(?:ated|é|ée|és|ées)|renumbered|spent|not (?:yet )?in force|omitted)\b`,
+  "gimu",
+);
+const MAX_STATUS_RANGE = 400;
 
 /**
  * Legislative numbering is decimal-fraction ordered, not numeric: 83.01 comes
@@ -71,6 +82,29 @@ function compareLabelParts(left: string[], right: string[]) {
     const first = left[index] ?? "";
     const second = right[index] ?? "";
     if (first === second) continue;
+    const firstAlphanumeric = first.match(/^(\d+)([A-Za-z]*)$/u);
+    const secondAlphanumeric = second.match(/^(\d+)([A-Za-z]*)$/u);
+    if (
+      firstAlphanumeric &&
+      secondAlphanumeric &&
+      (firstAlphanumeric[2] || secondAlphanumeric[2])
+    ) {
+      const number =
+        Number(firstAlphanumeric[1]) - Number(secondAlphanumeric[1]);
+      if (number) return number < 0 ? -1 : 1;
+      const firstSuffix = [...firstAlphanumeric[2].toUpperCase()].reduce(
+        (value, character) => value * 26 + character.charCodeAt(0) - 64,
+        0,
+      );
+      const secondSuffix = [...secondAlphanumeric[2].toUpperCase()].reduce(
+        (value, character) => value * 26 + character.charCodeAt(0) - 64,
+        0,
+      );
+      if (firstSuffix !== secondSuffix) {
+        return firstSuffix < secondSuffix ? -1 : 1;
+      }
+      continue;
+    }
     const digits = /^\d*$/u.test(first) && /^\d*$/u.test(second);
     if (!digits) return first < second ? -1 : 1;
     if (index === 0) {
@@ -84,10 +118,6 @@ function compareLabelParts(left: string[], right: string[]) {
     if (padded !== other) return padded < other ? -1 : 1;
   }
   return 0;
-}
-
-function labelParts(label: string) {
-  return label.split(/[.-]/u);
 }
 
 function romanValue(token: string) {
@@ -225,32 +255,94 @@ function childMarkers(text: string) {
   return markers;
 }
 
+function dottedOrderForSource(labels: string[]) {
+  const dotted = labels.filter(
+    (label) => label.includes(".") && !label.includes("-"),
+  );
+  const inversions = (order: "component" | "fraction") => {
+    let count = 0;
+    for (let index = 1; index < dotted.length; index += 1) {
+      if (
+        compareStatuteLabels(dotted[index - 1], dotted[index], order) > 0
+      ) {
+        count += 1;
+      }
+    }
+    return count;
+  };
+  const component = inversions("component");
+  const fraction = inversions("fraction");
+  if (component !== fraction) {
+    return fraction < component
+      ? ("fraction" as const)
+      : ("component" as const);
+  }
+  const disagrees = dotted.some(
+    (label, index) =>
+      index > 0 &&
+      Math.sign(
+        compareStatuteLabels(dotted[index - 1], label, "component"),
+      ) !==
+        Math.sign(
+          compareStatuteLabels(dotted[index - 1], label, "fraction"),
+        ),
+  );
+  return disagrees ? null : ("component" as const);
+}
+
 /**
- * Statute compiler for the Markdown emphasis shape. One pass for the section
- * spine, one pass for child markers, then a linear merge - no per-section
- * rescan of the document.
+ * Markdown emphasis is strong enough to preserve a one-provision excerpt, but
+ * the first leading-label family owns the run. This keeps federal
+ * A.01.001-style regulations while preventing later formula variables
+ * (D.1, E.1) from poisoning a numeric statute.
  */
-function emphasisSectionBlocks(text: string): SourceDocBlock[] {
-  const markers: Array<{ label: string; start: number; end: number }> = [];
+type SectionMarker = {
+  label: string;
+  start: number;
+  contentStart: number;
+  source: "emphasis" | "flat" | "range";
+  aliases?: string[];
+};
+
+function emphasisSectionMarkers(text: string): SectionMarker[] {
+  const candidates: SectionMarker[] = [];
   for (const match of text.matchAll(EMPHASIS_SECTION_RE)) {
     const label = match[1];
     // Bold is also how A2AJ renders marginal notes and defined terms
     // ("**Classification of murder**", "**common-law partner**"); a section
     // number always carries a digit.
     if (!/\d/u.test(label)) continue;
-    const prior = markers.at(-1);
-    if (
-      prior &&
-      compareLabelParts(labelParts(label), labelParts(prior.label)) <= 0
-    ) {
-      continue;
-    }
-    markers.push({
+    const start =
+      match.index + (match[0].length - match[0].trimStart().length);
+    const markerEnd = match.index + match[0].length;
+    candidates.push({
       label,
-      start: match.index + (match[0].length - match[0].trimStart().length),
-      end: match.index + match[0].length,
+      start,
+      contentStart: markerEnd + leadingSpaceLength(text, markerEnd),
+      source: "emphasis",
     });
   }
+  if (!candidates.length) return [];
+
+  const numeric = /^\d/u.test(candidates[0].label);
+  const family = candidates.filter(
+    (marker) => /^\d/u.test(marker.label) === numeric,
+  );
+  const dottedOrder = dottedOrderForSource(
+    family.map(({ label }) => label),
+  );
+  if (!dottedOrder) return [];
+  const markers: SectionMarker[] = [];
+  for (const marker of family) {
+    const prior = markers.at(-1);
+    if (
+      !prior ||
+      compareStatuteLabels(marker.label, prior.label, dottedOrder) > 0
+    ) {
+      markers.push(marker);
+    }
+  }
+
   // One bold line-start number is already a far stronger signal than a bare
   // one - the bare-numbered corpora (Ontario statutes and regulations) carry
   // no Markdown emphasis at all - so a single provision excerpt still
@@ -259,7 +351,21 @@ function emphasisSectionBlocks(text: string): SourceDocBlock[] {
   const start = markers[0].start / Math.max(text.length, 1);
   const span = (text.length - markers[0].start) / Math.max(text.length, 1);
   if (start > MAX_EMPHASIS_START || span < MIN_EMPHASIS_SPAN) return [];
+  return markers;
+}
 
+function leadingSpaceLength(text: string, at: number) {
+  let length = 0;
+  while (text[at + length] === " " || text[at + length] === "\t") {
+    length += 1;
+  }
+  return length;
+}
+
+function sectionBlocksFromMarkers(
+  text: string,
+  markers: SectionMarker[],
+): SourceDocBlock[] {
   const children = childMarkers(text);
   const blocks: SourceDocBlock[] = [];
   let cursor = 0;
@@ -271,20 +377,27 @@ function emphasisSectionBlocks(text: string): SourceDocBlock[] {
       start: marker.start,
       end: sectionEnd,
       origin: "heuristic",
+      aliases: marker.aliases?.map((label) => `sec${label}`),
     });
+    if (!PROVIDER_PROVISION_LABEL_RE.test(marker.label)) return;
     const owned: ChildMarker[] = [];
     // `**231** (1) Murder ...` keeps the first subsection on the marker line,
     // where a line-anchored scan cannot see it.
     const inline = INLINE_CHILD_RE.exec(
-      text.slice(marker.end, marker.end + INLINE_CHILD_WINDOW),
+      text.slice(
+        marker.contentStart,
+        marker.contentStart + INLINE_CHILD_WINDOW,
+      ),
     );
     if (inline) {
       owned.push({
         token: inline[1],
         start:
-          marker.end -
-          marker.start +
-          (inline[0].length - inline[0].trimStart().length),
+          marker.source === "flat"
+            ? 0
+            : marker.contentStart -
+              marker.start +
+              (inline[0].length - inline[0].trimStart().length),
       });
     }
     while (cursor < children.length && children[cursor].start < marker.start) {
@@ -304,42 +417,109 @@ function emphasisSectionBlocks(text: string): SourceDocBlock[] {
   return blocks;
 }
 
+function statusRangeMarkers(text: string, allowHyphen: boolean) {
+  const markers: SectionMarker[] = [];
+  for (const match of text.matchAll(STATUS_RANGE_RE)) {
+    if (allowHyphen && match.groups?.dash) continue;
+    const from = Number(match.groups?.from);
+    const to = Number(match.groups?.to);
+    if (
+      !Number.isSafeInteger(from) ||
+      !Number.isSafeInteger(to) ||
+      from >= to ||
+      to > from + MAX_STATUS_RANGE
+    ) {
+      continue;
+    }
+    const start =
+      match.index + (match[0].length - match[0].trimStart().length);
+    const afterMark = match.index + match[0].length;
+    markers.push({
+      label: String(from),
+      aliases: Array.from(
+        { length: to - from },
+        (_, index) => String(from + index + 1),
+      ),
+      start,
+      contentStart: afterMark + leadingSpaceLength(text, afterMark),
+      source: "range",
+    });
+  }
+  return markers;
+}
+
 /** Provider section map: native spine, heuristic children. */
 function sectionMapBlocks(sectionMap: Record<string, string>) {
   const pieces: string[] = [];
   const blocks: SourceDocBlock[] = [];
   let position = 0;
-  for (const [rawLabel, rawText] of Object.entries(sectionMap)) {
+  const sourceEntries = Object.entries(sectionMap);
+  const dottedOrder = dottedOrderForSource(
+    sourceEntries.map(([label]) => label),
+  );
+  const sourceOrder = new Map(
+    sourceEntries.map(([label], index) => [label, index] as const),
+  );
+  // ECMAScript enumerates integer keys before dotted/suffixed keys even when
+  // the JSON supplied 4, 4.1, 4.2, 5 or 2, 2A, 3. Reconstruct that legislative
+  // order, put a preamble first, and keep every other named entry stable.
+  const entries = sourceEntries.sort(([left], [right]) => {
+    const leftLabel = left.trim();
+    const rightLabel = right.trim();
+    const leftPreamble = /^(?:preamble|préambule)$/iu.test(leftLabel);
+    const rightPreamble = /^(?:preamble|préambule)$/iu.test(rightLabel);
+    if (leftPreamble !== rightPreamble) return leftPreamble ? -1 : 1;
+    const leftSection = PROVIDER_PROVISION_LABEL_RE.test(leftLabel);
+    const rightSection = PROVIDER_PROVISION_LABEL_RE.test(rightLabel);
+    if (leftSection && rightSection) {
+      if (dottedOrder) {
+        return compareStatuteLabels(leftLabel, rightLabel, dottedOrder);
+      }
+      const component = compareStatuteLabels(
+        leftLabel,
+        rightLabel,
+        "component",
+      );
+      const fraction = compareStatuteLabels(
+        leftLabel,
+        rightLabel,
+        "fraction",
+      );
+      return Math.sign(component) === Math.sign(fraction)
+        ? component
+        : sourceOrder.get(left)! - sourceOrder.get(right)!;
+    }
+    return leftSection ? -1 : rightSection ? 1 : 0;
+  });
+  for (const [rawLabel, rawText] of entries) {
     const label = rawLabel.trim();
-    const text = rawText.trim();
-    if (!text) continue;
+    const text = rawText;
+    if (!text.trim() || /^\[blank\]$/iu.test(text.trim())) continue;
     if (pieces.length) {
       pieces.push("\n");
       position += 1;
     }
     pieces.push(text);
-    if (SECTION_LABEL_RE.test(label)) {
-      const end = position + text.length;
-      blocks.push({
-        kind: "section",
-        label: `sec${label}`,
-        start: position,
-        end,
-        origin: "native",
-      });
-      const children = childMarkers(text);
-      // Some corpora keep the number in the body ("34(1) Parent ..."); the
-      // A2AJ section map strips it and opens with "(1) ...", which the
-      // line-anchored scan already catches at offset 0.
-      const leading = new RegExp(
-        String.raw`^[ \t]*${label.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}[ \t]*\((${CHILD_TOKEN})\)(?=\s)`,
-        "u",
-      ).exec(text);
-      if (leading) {
-        children.unshift({ token: leading[1], start: leading[0].length - 1 });
-      }
-      blocks.push(...childBlocks(label, children, position, end));
+    const end = position + text.length;
+    blocks.push({
+      kind: "section",
+      label: `sec${label}`,
+      start: position,
+      end,
+      origin: "native",
+    });
+    const children = childMarkers(text);
+    // Some corpora keep the number in the body ("34(1) Parent ..."); the
+    // A2AJ section map strips it and opens with "(1) ...", which the
+    // line-anchored scan already catches at offset 0.
+    const leading = new RegExp(
+      String.raw`^[ \t]*${label.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}[ \t]*\((${CHILD_TOKEN})\)(?=\s)`,
+      "u",
+    ).exec(text);
+    if (leading) {
+      children.unshift({ token: leading[1], start: leading[0].length - 1 });
     }
+    blocks.push(...childBlocks(label, children, position, end));
     position += text.length;
   }
   return { text: pieces.join(""), blocks };
@@ -350,25 +530,6 @@ function sectionMapBlocks(sectionMap: Record<string, string>) {
  * regulations), and the case paragraph/page spine.
  * ------------------------------------------------------------------ */
 
-const FLAT_SECTION_RE = new RegExp(
-  String.raw`^[ \t]*(\d{1,8}(?:[.-]\d{1,8}){0,3})(?=[ \t]+(?:\(?\d|\p{L})|[ \t]*\()`,
-  "gmu",
-);
-// Second-chance grammar, tried only when FLAT_SECTION_RE yields no spine:
-// the optional trailing dot ("1. There is established...", "2.(1) In this
-// section") is the NT/PE drafting convention, the optional markdown
-// heading prefix is NB's rules of court ("### 61.01 Enforcement of
-// Orders"). Both measured on the full fixed sets in the Python reference
-// (structure_ref.py SECTION_MARK_RE_EXT, commit 6ae6d330): NT/PE recovery
-// 0.03-0.11 -> 0.985+. It must never compete with the plain grammar:
-// Ontario writes enumerated paragraphs INSIDE sections in the same
-// "1. Grassed waterways." shape, and letting those restart-ladders into
-// the scope competition corrupts spines the plain grammar already gets
-// right (a2aj-regs-on-oreg267-03 lost 6 of 64 sections in the first cut).
-const FLAT_SECTION_EXT_RE = new RegExp(
-  String.raw`^(?:#{1,6}[ \t]+)?[ \t]*(\d{1,8}(?:[.-]\d{1,8}){0,3})\.?(?=[ \t]+(?:\(?\d|\p{L})|[ \t]*\()`,
-  "gmu",
-);
 const PARAGRAPH_MARK_RE =
   /^[ \t]*(?:\[(\d{1,4})\]|(\d{1,4})\.(?=\s)|(\d{1,4})(?=\s))/gmu;
 const PAGE_MARK_RE =
@@ -377,11 +538,6 @@ const REPORT_PAGE_RE = /\b(?:S\.?C\.?R\.?|R\.?C\.?S\.?)\s+(\d{1,4})\b/iu;
 
 type NumberedMarker = { number: number; start: number; contentStart?: number };
 type ParagraphMarker = NumberedMarker & { style: "bracket" | "dot" | "bare" };
-type SectionMarker = {
-  label: string;
-  start: number;
-  style: "integer" | "dot" | "hyphen" | "mixed";
-};
 
 function wordCount(text: string) {
   return text.match(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu)?.length ?? 0;
@@ -396,22 +552,12 @@ function median(values: number[]) {
     : (ordered[middle - 1] + ordered[middle]) / 2;
 }
 
-function sectionKey(label: string) {
-  return label.split(/[.-]/u).map(Number);
-}
-
-function compareKeys(left: number[], right: number[]) {
-  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
-    const difference = (left[index] ?? -1) - (right[index] ?? -1);
-    if (difference) return difference;
-  }
-  return 0;
-}
-
 /**
- * Group numbered markers into ascending runs, preferring the run that starts
- * lowest: a decision whose table of contents repeats every paragraph number
- * must not split its spine in half.
+ * Exact TypeScript port of ALR Quote Verifier's
+ * a2aj_structure.monotone_scopes: group markers into ascending runs and
+ * choose the lowest starting number, then the earliest scope. A decision
+ * whose table of contents repeats every paragraph number must not split its
+ * spine in half.
  */
 function monotoneScopes(markers: NumberedMarker[], maxGap = 8) {
   const scopes: NumberedMarker[][] = [];
@@ -427,7 +573,11 @@ function monotoneScopes(markers: NumberedMarker[], maxGap = 8) {
     }
     const index = candidates.length
       ? candidates.reduce((best, current) =>
-          scopes[current][0].number < scopes[best][0].number ? current : best,
+          scopes[current][0].number < scopes[best][0].number ||
+          (scopes[current][0].number === scopes[best][0].number &&
+            current < best)
+            ? current
+            : best,
         )
       : scopes.length;
     if (index === scopes.length) {
@@ -515,6 +665,7 @@ function recoverHeadingJoinedParagraphs(
       !before &&
       !!after &&
       number > 0 &&
+      number < after.number &&
       after.number - number <= 2 &&
       after.start - match.index <= 2_000;
     if (!between && !leading) continue;
@@ -643,19 +794,22 @@ function paragraphBlocks(text: string, minRun = 5): SourceDocBlock[] {
     const markerSpan =
       (blocks.at(-1)!.start - blocks[0].start) / Math.max(text.length, 1);
     const startRatio = blocks[0].start / Math.max(text.length, 1);
-    const bounded = blocks.length > 1 ? blocks.slice(0, -1) : blocks;
-    const counts = bounded.map((block) =>
+    const counts = blocks.map((block) =>
       wordCount(text.slice(block.start, block.end)),
     );
-    const medianWords = median(counts);
+    const boundedCounts = blocks.length > 1 ? counts.slice(0, -1) : counts;
+    const medianWords = median(boundedCounts);
+    const meanWords =
+      boundedCounts.reduce((sum, value) => sum + value, 0) /
+      boundedCounts.length;
     // Substance = median prose, or mean pulled up by real reasons
     // (concurrence tails sink the median: "ROWLES, J.A.: I agree."), or
     // at least one full prose paragraph (max) — quoted lists and endnote
     // ladders are uniformly tiny on all three.
     const substantive =
       medianWords >= 12 ||
-      counts.reduce((sum, value) => sum + value, 0) / counts.length >= 20 ||
-      Math.max(...counts) >= 30;
+      meanWords >= 20 ||
+      Math.max(...boundedCounts) >= 30;
     if (hypothesis.shortComplete) {
       // The ladder IS the document. Case headers are bounded absolutely
       // (~500-900 chars) OR relatively (half the doc) — sub-1.5KB oral
@@ -665,11 +819,7 @@ function paragraphBlocks(text: string, minRun = 5): SourceDocBlock[] {
       if (
         text.length <= 6000 &&
         (blocks[0].start <= 1200 || startRatio <= 0.5) &&
-        Math.max(
-          ...blocks.map((block) =>
-            wordCount(text.slice(block.start, block.end)),
-          ),
-        ) >= 30
+        Math.max(...counts) >= 30
       ) {
         return paragraphSourceBlocks(
           text,
@@ -681,10 +831,17 @@ function paragraphBlocks(text: string, minRun = 5): SourceDocBlock[] {
       continue;
     }
     const substantiveRatio =
-      blocks.filter(
-        (block) => wordCount(text.slice(block.start, block.end)) >= 12,
-      ).length / blocks.length;
-    if (!substantive || markerSpan < 0.05) continue;
+      counts.filter((count) => count >= 12).length / blocks.length;
+    if (
+      !substantive ||
+      markerSpan < 0.05 ||
+      (hypothesis.style === "bracket" &&
+        text.length > 6000 &&
+        startRatio > 0.7 &&
+        substantiveRatio < 0.5)
+    ) {
+      continue;
+    }
     if (hypothesis.style !== "bracket" && substantiveRatio < 0.7) continue;
     if (
       hypothesis.style === "bare" &&
@@ -792,152 +949,94 @@ function pageBlocks(
   return blocks;
 }
 
-function sectionMarkers(text: string, grammar: RegExp) {
-  const markers: SectionMarker[] = [];
-  for (const match of text.matchAll(grammar)) {
-    const label = match[1];
-    markers.push({
-      label,
-      start: match.index,
-      style:
-        label.includes(".") && label.includes("-")
-          ? "mixed"
-          : label.includes("-")
-            ? "hyphen"
-            : label.includes(".")
-              ? "dot"
-              : "integer",
-    });
-  }
-  return markers;
-}
-
-function sectionSpine(text: string, allowHyphen: boolean) {
-  for (const grammar of [FLAT_SECTION_RE, FLAT_SECTION_EXT_RE]) {
-    const spine = spineFromMarkers(sectionMarkers(text, grammar), text, allowHyphen);
-    if (spine.length) return spine;
-  }
-  return [];
-}
-
-function spineFromMarkers(
-  markers: SectionMarker[],
+function flatSectionMarkers(
   text: string,
   allowHyphen: boolean,
-) {
-  if (markers.length < 3) return [];
-  const scopesFor = (
-    styles: Set<SectionMarker["style"]>,
-    requireRoot = false,
-  ) => {
-    const scopes: SectionMarker[][] = [];
-    for (const marker of markers) {
-      if (!styles.has(marker.style)) continue;
-      const value = sectionKey(marker.label);
-      const candidates = scopes
-        .map((scope, index) => ({
-          index,
-          key: sectionKey(scope.at(-1)!.label),
-        }))
-        .filter(
-          (item) =>
-            item.key.length === value.length &&
-            compareKeys(value, item.key) > 0,
-        );
-      if (candidates.length) {
-        const selected = candidates.reduce((best, current) =>
-          compareKeys(current.key, best.key) > 0 ? current : best,
-        );
-        scopes[selected.index].push(marker);
-      } else {
-        scopes.push([marker]);
-      }
-      if (scopes.length > 8) {
-        const shortest = scopes.reduce(
-          (best, scope, index) =>
-            scope.length < scopes[best].length ? index : best,
-          0,
-        );
-        scopes.splice(shortest, 1);
-      }
-    }
-    return scopes.filter(
-      (scope) =>
-        scope.length >= 3 &&
-        (!requireRoot ||
-          sectionKey(scope[0].label).every((part) => part === 1)),
-    );
-  };
-  const hypotheses = scopesFor(new Set(["integer", "dot"]));
-  if (allowHyphen) {
-    hypotheses.push(...scopesFor(new Set(["hyphen"]), true));
-    hypotheses.push(...scopesFor(new Set(["mixed"]), true));
-  }
-  if (!hypotheses.length) return [];
-  let best = hypotheses.reduce((winner, item) =>
-    item.length > winner.length ? item : winner,
-  );
-  if (sectionKey(best[0].label).length === 1) {
-    const expanded: SectionMarker[] = [];
-    best.forEach((parent, index) => {
-      const end = best[index + 1]?.start ?? text.length;
-      const parentNumber = sectionKey(parent.label)[0];
-      const descendants = markers.filter(
-        (marker) =>
-          marker.style === "dot" &&
-          marker.start > parent.start &&
-          marker.start < end &&
-          sectionKey(marker.label)[0] === parentNumber,
-      );
-      const duplicates = new Set(
-        descendants
-          .filter(
-            (candidate) =>
-              descendants.filter((item) => item.label === candidate.label)
-                .length > 1,
-          )
-          .map((item) => item.label),
-      );
-      expanded.push(parent);
-      expanded.push(
-        ...descendants.filter((item) => !duplicates.has(item.label)),
-      );
-    });
-    best = expanded;
-  }
-  const span = (text.length - best[0].start) / Math.max(text.length, 1);
-  return span >= 0.1 && best[0].start / Math.max(text.length, 1) <= 0.7
-    ? best
-    : [];
+): SectionMarker[] {
+  return computeStatuteSpine(text, allowHyphen).map((marker: SpineMark) => ({
+    label: marker.label,
+    start: marker.start,
+    contentStart: marker.contentStart,
+    source: "flat" as const,
+  }));
 }
 
-function flatSectionBlocks(text: string, name: string | null | undefined) {
-  const spine = sectionSpine(text, /\brules?\b/iu.test(name ?? ""));
-  const blocks: SourceDocBlock[] = [];
-  spine.forEach((marker, index) => {
-    const end = spine[index + 1]?.start ?? text.length;
-    const body = text.slice(marker.start, end);
-    blocks.push({
-      kind: "section",
-      label: `sec${marker.label}`,
-      start: marker.start,
-      end,
-      origin: "heuristic",
-    });
-    const children = childMarkers(body);
-    // "3 (1) An occupier ..." keeps the first subsection on the number's own
-    // line, where the line-anchored scan cannot see it; the block it opens
-    // starts at the section number, as the flat spine has always placed it.
-    // The optional dot mirrors FLAT_SECTION_RE's dot-form acceptance:
-    // "2.(1) In this section" keeps its first subsection too.
-    const leading = new RegExp(
-      String.raw`^[ \t]*${marker.label.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}\.?[ \t]*\((${CHILD_TOKEN})\)(?=\s)`,
-      "u",
-    ).exec(body);
-    if (leading) children.unshift({ token: leading[1], start: 0 });
-    blocks.push(...childBlocks(marker.label, children, marker.start, end));
-  });
-  return blocks;
+function lawSectionBlocks(
+  text: string,
+  name: string | null | undefined,
+): SourceDocBlock[] {
+  const allowHyphen =
+    /\b(?:rules?|regulations?|r[eè]glements?)\b/iu.test(name ?? "");
+  const emphasis = emphasisSectionMarkers(text);
+  const flat = flatSectionMarkers(text, allowHyphen);
+  let selected: SectionMarker[];
+  if (!emphasis.length) {
+    selected = flat;
+  } else if (!flat.length) {
+    selected = emphasis;
+  } else {
+    const emphasisByOccurrence = new Set(
+      emphasis.map(
+        ({ label, contentStart }) =>
+          `${label.toLowerCase()}:${contentStart}`,
+      ),
+    );
+    if (
+      !flat.some(({ label, contentStart }) =>
+        emphasisByOccurrence.has(`${label.toLowerCase()}:${contentStart}`),
+      )
+    ) {
+      selected = emphasis;
+    } else {
+      const byLabel = new Map(
+        flat.map((marker) => [marker.label.toLowerCase(), marker] as const),
+      );
+      for (const marker of emphasis) {
+        const key = marker.label.toLowerCase();
+        const existing = byLabel.get(key);
+        if (!existing || existing.contentStart === marker.contentStart) {
+          byLabel.set(key, marker);
+        }
+      }
+      const combined = [...byLabel.values()].sort(
+        (left, right) => left.start - right.start,
+      );
+      selected = coherentSectionMarkers(combined) ? combined : emphasis;
+    }
+  }
+
+  const ranges = statusRangeMarkers(text, allowHyphen);
+  if (ranges.length) {
+    const byLabel = new Map(
+      selected.map((marker) => [marker.label.toLowerCase(), marker] as const),
+    );
+    for (const marker of ranges) {
+      for (const alias of marker.aliases ?? []) {
+        byLabel.delete(alias.toLowerCase());
+      }
+      byLabel.set(marker.label.toLowerCase(), marker);
+    }
+    const combined = [...byLabel.values()].sort(
+      (left, right) => left.start - right.start,
+    );
+    if (coherentSectionMarkers(combined)) selected = combined;
+  }
+  return sectionBlocksFromMarkers(text, selected);
+}
+
+function coherentSectionMarkers(markers: SectionMarker[]) {
+  const dottedOrder = dottedOrderForSource(
+    markers.map(({ label }) => label),
+  );
+  return !!dottedOrder && markers.every(
+    (marker, index) =>
+      index === 0 ||
+      compareStatuteLabels(
+        markers[index - 1].label,
+        marker.label,
+        dottedOrder,
+      ) < 0,
+  );
 }
 
 /**
@@ -1012,12 +1111,9 @@ export function compileA2AJSourceDoc(input: CompileInput): SourceDoc {
     }
   }
 
-  const emphasis = emphasisSectionBlocks(input.text);
   return createSourceDoc({
     ...identity,
     text: input.text,
-    blocks: emphasis.length
-      ? emphasis
-      : flatSectionBlocks(input.text, input.name),
+    blocks: lawSectionBlocks(input.text, input.name),
   });
 }

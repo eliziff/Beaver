@@ -4,10 +4,7 @@ import {
   type A2AJDocument,
   type A2AJLocatorLookup,
 } from "./a2aj";
-import {
-  getCourtlistenerOpinionDocumentText,
-  getCourtlistenerOpinionStructure,
-} from "./courtlistener";
+import { getCourtlistenerOpinionStructure } from "./courtlistener";
 import {
   createTextSourceDoc,
   sourceDocBlockText,
@@ -369,7 +366,7 @@ function contextFor(
         )
       : "";
   prefix = prefix.replace(
-    /^(?:\[\d+\]|\([A-Za-z0-9ivxlcdm]+\)|\d+[.)])\s*/iu,
+    /^(?:\[\d+\]|\([A-Za-z0-9ivxlcdm]+\)|\d+(?:[.)]|\]))\s*/iu,
     "",
   );
   return { prefix, suffix };
@@ -755,10 +752,7 @@ export function buildA2AJCitationPinpointUrl(
 type CourtlistenerOpinionEvidence = {
   opinionId: number | null;
   url: string | null;
-  text: string;
-  /** The full opinion rendition, compiled once per opinion. */
   document: SourceDoc;
-  source: object;
 };
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -778,8 +772,8 @@ function courtlistenerOpinions(
   return (caseRecord.opinions ?? []).flatMap((raw) => {
     const value = record(raw);
     if (!value) return [];
-    const compactText = textField(value, "text") ?? "";
-    if (!compactText) return [];
+    const document = getCourtlistenerOpinionStructure(value);
+    if (!document) return [];
     const rawId = value.opinionId ?? value.opinion_id ?? value.id;
     const opinionId =
       typeof rawId === "number" && Number.isFinite(rawId)
@@ -789,11 +783,7 @@ function courtlistenerOpinions(
       {
         opinionId,
         url: textField(value, "url"),
-        text: compactText,
-        document: createTextSourceDoc(
-          getCourtlistenerOpinionDocumentText(value) || compactText,
-        ),
-        source: value,
+        document,
       },
     ];
   });
@@ -803,8 +793,7 @@ function courtlistenerNativeAnchor(
   opinion: CourtlistenerOpinionEvidence,
   quote: string,
 ) {
-  const structure = getCourtlistenerOpinionStructure(opinion.source);
-  if (!structure) return null;
+  const structure = opinion.document;
   const matches = structure.blocks
     .filter(({ anchor, origin }) => Boolean(anchor) && origin === "native")
     .filter((block) => sourceDocContainsQuote(structure, quote, block))
@@ -845,28 +834,45 @@ export function buildCourtlistenerCitationPinpointUrl(
   }
   if (!resolved.length) return sourceUrl(fallbackUrl);
 
-  const selected = new Set(resolved);
-  const blockText = opinions
-    .filter((opinion) => selected.has(opinion))
-    .map(({ document }) => document.text)
-    .join("\n");
-  const documentText = opinions.map(({ document }) => document.text).join("\n");
-  const anchors = citation.quotes.map((citationQuote, index) =>
-    courtlistenerNativeAnchor(resolved[index], citationQuote.quote),
+  const passages = new Map<CourtlistenerOpinionEvidence, string[]>();
+  resolved.forEach((opinion, index) =>
+    passages.set(opinion, [
+      ...(passages.get(opinion) ?? []),
+      citation.quotes[index].quote,
+    ]),
   );
-  const anchor =
-    anchors.length > 0 &&
-    anchors.every((candidate) => candidate && candidate === anchors[0])
-      ? anchors[0]!
-      : undefined;
-  return buildLegalSourcePinpointUrl(
-    {
-      url: fallbackUrl,
-      anchor,
-      blockText,
-      documentText,
-    },
-    citation.quotes.map(({ quote }) => quote),
+  if (passages.size === 1) {
+    const [opinion, quotes] = passages.entries().next().value as [
+      CourtlistenerOpinionEvidence,
+      string[],
+    ];
+    const anchors = quotes.map((quote) =>
+      courtlistenerNativeAnchor(opinion, quote),
+    );
+    const anchor =
+      anchors.every((candidate) => candidate && candidate === anchors[0])
+        ? anchors[0]!
+        : undefined;
+    return buildLegalSourcePinpointUrl(
+      {
+        url: fallbackUrl,
+        anchor,
+        blockText: opinion.document,
+        documentText: opinion.document,
+      },
+      quotes,
+    );
+  }
+  return (
+    buildLegalSourceMultiPassageUrl(
+      fallbackUrl,
+      [...passages].map(([opinion, quotes], index) => ({
+        key: `${opinion.opinionId ?? "opinion"}:${index}`,
+        blockText: opinion.document,
+        documentText: opinion.document,
+        quotes,
+      })),
+    ) ?? sourceUrl(fallbackUrl)
   );
 }
 
@@ -899,6 +905,8 @@ function answerQuoteCandidates(answer: string) {
   }
   return [...unique.values()];
 }
+
+export { answerQuoteCandidates as legalSourceQuoteCandidates };
 
 function isCanadianDecisionUrl(url: URL) {
   return (
@@ -1104,8 +1112,9 @@ function uniqueParagraphEdge(
   document: SourceDoc,
   edge: "start" | "end",
 ) {
+  const line = text.split(/\r?\n/u, 1)[0];
   const block = createTextSourceDoc(
-    text.replace(/^\s*(?:\[\d+\]|\d+[.)])\s*/u, ""),
+    line.replace(/^\s*(?:\[\d+\]|\d+[.)])\s*/u, ""),
   );
   for (const length of [12, 16, 8, 24, 32, 6, 4, 2]) {
     if (block.tokens.length < length) continue;
@@ -1189,7 +1198,7 @@ export function buildA2AJParagraphRangeUrl(
   );
   if (!startTarget || !endTarget) return null;
   const anchor = `par${Number(start)}`;
-  const preferred = preferredA2AJUrl(metadata, false, anchor);
+  const preferred = preferredA2AJUrl(metadata, true, anchor);
   const baseUrl = preferred ? sourceUrl(preferred, anchor) : null;
   return baseUrl
     ? appendDirectives(baseUrl, [
