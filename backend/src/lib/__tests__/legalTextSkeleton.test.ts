@@ -442,3 +442,70 @@ describe("compileAgreementSkeleton: corpus statute styles", () => {
     expect(labels).toContain("sec164(1)(b)");
   });
 });
+
+describe("compileAgreementSkeleton: segmentation competition", () => {
+  // Every heading below sits mid-line behind a run of spaces, which is what
+  // a PDF-to-text extractor leaves when it joins a page into one line.
+  const COLLAPSED =
+    "MERGER AGREEMENT   ARTICLE I DEFINITIONS   " +
+    "1.01 Defined Terms.  Capitalized terms have the meanings given.   " +
+    "1.02 Interpretation.  References to Articles are to this Agreement.   " +
+    "ARTICLE II THE MERGER   " +
+    "2.01 The Merger.  Merger Sub shall merge into the Company as set forth in Section 1.01.   " +
+    "2.02 Closing.  The Closing shall occur as provided in Section 2.01 and Section 1.02.   " +
+    "2.03 Effective Time.  Subject to Section 2.02, the Effective Time occurs at filing.";
+
+  it("recovers headings the extractor buried mid-line", () => {
+    const labels = compileAgreementSkeleton(COLLAPSED).nodes.map((n) => n.label);
+    expect(labels).toContain("sec1.01");
+    expect(labels).toContain("sec2.03");
+    expect(labels).toContain("art2");
+  });
+
+  it("keeps offsets valid in the ORIGINAL text, not the recovered one", () => {
+    const skeleton = compileAgreementSkeleton(COLLAPSED);
+    for (const node of skeleton.nodes) {
+      expect(COLLAPSED.slice(node.start, node.end)).not.toMatch(/^\s/u);
+    }
+    const found = readSection(skeleton, "2.01");
+    expect(found.status).toBe("found");
+    expect(found.block?.text).toContain("Merger Sub shall merge");
+  });
+
+  it("leaves a well-lineated document exactly as it read it", () => {
+    const lineated = COLLAPSED.replace(/ {2,}/gu, "\n");
+    const recovered = compileAgreementSkeleton(COLLAPSED).nodes.map((n) => n.label);
+    expect(compileAgreementSkeleton(lineated).nodes.map((n) => n.label)).toEqual(
+      recovered,
+    );
+  });
+
+  it("refuses to let a reference endorse a provision minted out of itself", () => {
+    // "Section 9.99" exists only in prose. A segmentation that turns that
+    // prose into a heading must not score for resolving the very reference
+    // it was minted from.
+    const prose =
+      "AGREEMENT   1.01 Term.  This is the term.   " +
+      "1.02 Notices.  Notice is given as described.   " +
+      "1.03 Remedies.  The Agent may act.  See also Section 9.99 for notices.";
+    const labels = compileAgreementSkeleton(prose).nodes.map((n) => n.label);
+    expect(labels).not.toContain("sec9.99");
+  });
+
+  it("will not adopt a contents page as the document's structure", () => {
+    // A contents block whose entries are space-padded, then a body whose
+    // headings are not: recovery reveals only the contents, and 12 heads
+    // packed into the first 1% of the document are not a structure.
+    const body = Array.from(
+      { length: 12 },
+      (_, i) => `Section ${i + 1}.01 is discussed at length. ${"Filler text. ".repeat(40)}`,
+    ).join(" ");
+    const contents =
+      "TABLE OF CONTENTS   " +
+      Array.from({ length: 12 }, (_, i) => `${i + 1}.01 Heading ${i + 1}   `).join("");
+    const labels = compileAgreementSkeleton(`${contents}${body}`).nodes.map(
+      (n) => n.label,
+    );
+    expect(labels).not.toContain("sec12.01");
+  });
+});

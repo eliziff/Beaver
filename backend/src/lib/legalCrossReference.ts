@@ -131,6 +131,24 @@ export interface CrossReferenceGraph {
  */
 const MIN_ADDRESSABLE_NODES = 3;
 
+/**
+ * A table of contents is not a structure. When a document's contents page is
+ * the only place its numbering is visible to the compiler, every reference
+ * resolves — to another contents line — and the integrity gate sees a
+ * perfectly healthy document. Three of the 69 mini documents look like that,
+ * one of them (Acacia Communications: 85 heads, 89 resolved) with no
+ * segmentation help at all, so this is a defect in the shipped instrument
+ * and not an artifact of recovery.
+ *
+ * The tell is that the graph has no REACH: every target lands inside a thin
+ * prefix. Measured over the corpus the deepest resolved target sits at
+ * 0.01-0.02 of the document for the three, and at 0.16 or beyond for every
+ * document whose targets are real provisions. Gate at 0.05, in that gap, and
+ * only where enough targets exist for the concentration to mean anything.
+ */
+const MIN_TARGET_REACH = 0.05;
+const MIN_TARGETS_FOR_REACH = 3;
+
 const ADDRESSABLE: ReadonlySet<SkeletonNode["kind"]> = new Set([
   "section",
   "subsection",
@@ -272,12 +290,23 @@ export function crossReferenceGraph(
     };
   }
 
+  // Reach gate: the targets are real provisions, or they are a contents page.
+  const targets = edges
+    .filter((edge) => edge.status === "resolved" && edge.targetStart !== null)
+    .map((edge) => edge.targetStart!);
+  const reach = text.length
+    ? Math.max(0, ...targets) / text.length
+    : 1;
   // Integrity gate. Most of what the resolver accepted still missed, so what
   // is unreliable is our view of this document's numbering, not the
   // document — restate every internal edge as a refusal rather than ship a
   // graph whose targets are mostly wrong.
   const threshold = options.integrityThreshold ?? DEFAULT_INTEGRITY_GATE;
-  if (accepted > 0 && counts.integrity < threshold) {
+  const contentsOnly =
+    threshold > 0 &&
+    targets.length >= MIN_TARGETS_FOR_REACH &&
+    reach < MIN_TARGET_REACH;
+  if (contentsOnly || (accepted > 0 && counts.integrity < threshold)) {
     const gated = edges.map((edge) =>
       edge.status === "external"
         ? edge
@@ -295,11 +324,14 @@ export function crossReferenceGraph(
       nodes,
       edges: gated,
       documentAbstained: true,
-      note:
-        `Cross-reference resolution abstained: only ${counts.resolved} of ${accepted} ` +
-        `resolvable references (${(counts.integrity * 100).toFixed(0)}%) landed on a ` +
-        `compiled provision, below the ${(threshold * 100).toFixed(0)}% needed to trust ` +
-        `this document's numbering scheme.`,
+      note: contentsOnly
+        ? `Cross-reference resolution abstained: every one of ${targets.length} resolved ` +
+          `targets lands in the first ${(reach * 100).toFixed(0)}% of the document, so the ` +
+          `only numbering the compiler can see is a table of contents, not the provisions.`
+        : `Cross-reference resolution abstained: only ${counts.resolved} of ${accepted} ` +
+          `resolvable references (${(counts.integrity * 100).toFixed(0)}%) landed on a ` +
+          `compiled provision, below the ${(threshold * 100).toFixed(0)}% needed to trust ` +
+          `this document's numbering scheme.`,
       counts: {
         ...counts,
         resolved: 0,

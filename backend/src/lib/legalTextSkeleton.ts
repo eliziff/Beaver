@@ -34,6 +34,10 @@ import {
   type SourceDocBlock,
   type SourceDocLookup,
 } from "./sourceDoc";
+import {
+  findProvisionReferences,
+  type ProvisionReference,
+} from "./legalReferenceGrammar";
 import { computeStatuteSpine } from "./statuteSpine";
 
 export type SkeletonNodeKind =
@@ -304,10 +308,13 @@ export interface LadderDiagnostics {
 // Compiler
 // ---------------------------------------------------------------------------
 
-export function compileAgreementSkeleton(
-  text: string,
-  id = "",
-): AgreementSkeleton {
+interface DiscoveredNodes {
+  nodes: SkeletonNode[];
+  schedules: string[];
+  ladder: LadderDiagnostics;
+}
+
+function discoverNodes(text: string): DiscoveredNodes {
   const lines = splitLines(text);
   const nodes: SkeletonNode[] = [];
   const schedules: string[] = [];
@@ -621,6 +628,163 @@ export function compileAgreementSkeleton(
   }
 
   closeSpans(nodes, text.length);
+  return { nodes, schedules, ladder };
+}
+
+/**
+ * Line breaks lost by the extraction that produced this text.
+ *
+ * A typeset page has short lines; a text dump whose "lines" run to hundreds
+ * of characters is one where the extractor joined them, leaving the break as
+ * a run of spaces. Every structural grammar in this module keys on a line
+ * START, so in such a document the headings are invisible — measured on
+ * LegalBench-RAG-mini, the seven merger agreements whose mean line exceeds
+ * 220 characters detect 13-33 sections where their well-lineated siblings
+ * detect 78-111, and all seven are refused by the cross-reference integrity
+ * gate.
+ *
+ * Recovery is OFFSET-EXACT by construction: the first space of an internal
+ * run is replaced by a newline and the rest of the run is kept, so the
+ * recovered text is the same length as the original, character for
+ * character, and differs from it only in whitespace. Every offset a node
+ * discovered over it carries is therefore a valid offset in the original,
+ * and the SourceDoc, defined terms and quote verification below are all
+ * built from the ORIGINAL text regardless of which segmentation won.
+ */
+function recoverSpaceRuns(text: string): string {
+  return text.replace(
+    /(?<=\S)[ \t]([ \t]+)(?=\S)/gu,
+    (_match, rest: string) => `\n${rest}`,
+  );
+}
+
+/**
+ * MEASURED AND REJECTED, recorded so it is not retried blind: the other
+ * extraction dialect joins lines with a SINGLE space (At Home Group — 316k
+ * characters, 1,030 lines, zero internal space runs, one 5,035-character
+ * "line" per page), which leaves no run to split on. Offering a line start
+ * at every internal space a head grammar could begin at recovers four more
+ * documents on the mini corpus and breaks none by the endorsement score —
+ * and is nonetheless unsound. A merger agreement's definitions index is a
+ * list of "'Balance Sheet Date' has the meaning set forth in Section
+ * 6.16(a)", and every one of those entries then becomes a section head that
+ * a real reference elsewhere resolves onto. CAI International compiles 272
+ * heads against roughly 100 real ones and its endorsement score RISES,
+ * because the invented heads are exactly the labels the document cites.
+ * Endorsement cannot police a hypothesis that mints the provisions being
+ * looked for; only a stronger structural check could, and none is proven.
+ */
+
+/**
+ * A real inventory of heads runs the length of the instrument. A table of
+ * contents repeats every label inside a compressed prefix, and space-run
+ * recovery reveals it preferentially — a contents line is padded with runs,
+ * a body heading usually is not. Measured over the 69 mini documents the
+ * separation is not close: the head span of a contents-only inventory is
+ * 0.0077, 0.0079, 0.0083, 0.0122 of the document, the next inventory up is
+ * 0.1237 and real ones run 0.30-1.00. The gate sits in that 10x gap.
+ *
+ * This is `passesSpineGuards`' startRatio guard at the other end of the
+ * document, and it is why Boingo Wireless and Anworth keep their thin
+ * as-extracted reading: 80 and 99 contents entries that resolve beautifully
+ * to each other are not this document's structure, and following one would
+ * land a reader on a page number.
+ */
+const MIN_HEAD_SPAN = 0.05;
+
+function headSpan(nodes: SkeletonNode[], length: number): number {
+  if (!length) return 0;
+  let low = Number.POSITIVE_INFINITY;
+  let high = -1;
+  for (const node of nodes) {
+    if (node.kind !== "section") continue;
+    if (node.start < low) low = node.start;
+    if (node.start > high) high = node.start;
+  }
+  return high < 0 ? 0 : (high - low) / length;
+}
+
+/**
+ * Segmentation hypotheses, in precedence order — the text as extracted
+ * first, so a tie always keeps what the extractor produced. Each is the same
+ * length as the original and differs only in whitespace.
+ */
+function segmentations(text: string): string[] {
+  const recovered = recoverSpaceRuns(text);
+  return recovered === text ? [text] : [text, recovered];
+}
+
+/**
+ * How many of the document's OWN provision references land on a provision
+ * this reading of the structure compiled. The document is the only authority
+ * available question-blind: a merger agreement that writes "Section 9.01"
+ * forty times is telling us what its numbering scheme is, and a reading that
+ * cannot address those pointers has misread it.
+ *
+ * Deliberately a plainer resolver than `legalCrossReference`'s — exact index
+ * hits only, no descendant-prefix union and no context-relative sub-only
+ * resolution. It is a SELECTOR between whole hypotheses, not the graph, and
+ * a selector wants the least machinery that ranks correctly.
+ *
+ * A reference may not endorse a provision minted out of ITSELF. Offering a
+ * line start before "... See also Section 9.99 for notices." lets that prose
+ * become a section head, whereupon the reference "resolves" and the reading
+ * that invented it scores higher — the selector would reward a detector for
+ * hallucinating exactly the provision the document is missing. Skipping
+ * targets that begin inside the reference span closes that loop; it costs
+ * nothing real, because a genuine heading is somewhere else in the document.
+ */
+function endorsement(doc: SourceDoc, references: ProvisionReference[]): number {
+  let landed = 0;
+  for (const reference of references) {
+    if (reference.external) continue;
+    const key = reference.shape === "roman" ? reference.aliasKey : reference.locator;
+    if (!key) continue;
+    const position = doc.index.get(key.toLowerCase());
+    if (position === undefined) continue;
+    const target = doc.blocks[position];
+    if (target.start >= reference.start && target.start < reference.end) continue;
+    landed += 1;
+  }
+  return landed;
+}
+
+/**
+ * The recoveries above can only ADD line starts, so they can only add
+ * candidate heads — but a spine competition is not monotone in its candidate
+ * set, and on a well-lineated document the added noise beats the real spine
+ * (measured: CIT Group 105 sections -> 3, Bryn Mawr 78 -> 12). So the
+ * segmentations COMPETE, on the same principle statuteSpine uses one level
+ * down: the document decides. Ties go to the text as extracted.
+ */
+export function compileAgreementSkeleton(
+  text: string,
+  id = "",
+): AgreementSkeleton {
+  const lines = splitLines(text);
+  const hypotheses = segmentations(text);
+  let best = discoverNodes(hypotheses[0]);
+  if (hypotheses.length > 1) {
+    const references = findProvisionReferences(text);
+    const docOf = (found: DiscoveredNodes) =>
+      createSourceDoc({
+        provider: null,
+        id,
+        text,
+        blocks: found.nodes.map(toBlock),
+      });
+    let bestScore = endorsement(docOf(best), references);
+    for (const hypothesis of hypotheses.slice(1)) {
+      const candidate = discoverNodes(hypothesis);
+      if (headSpan(candidate.nodes, text.length) < MIN_HEAD_SPAN) continue;
+      const score = endorsement(docOf(candidate), references);
+      if (score > bestScore) {
+        best = candidate;
+        bestScore = score;
+      }
+    }
+  }
+  const { nodes, schedules, ladder } = best;
 
   const doc = createSourceDoc({
     provider: null,
