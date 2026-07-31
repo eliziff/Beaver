@@ -2569,6 +2569,42 @@ cells ≤ champion + 2, then confirmed on the full bed. A cheap tie
 (luna@low within 0.01) is recorded as a cost result, not adopted
 pre-holdout.
 
+### Stage 18 R5 — contextual enrichment (registered 2026-07-30,
+before any header was generated; receipts
+`stage18-passage-context.jsonl`)
+
+Anthropic's contextual-retrieval pattern, aimed at the two measured
+weaknesses: maud's pool constraint is vocabulary mismatch (R1
+verdict), and chunk-matched lexical precision sits at/below the
+paper's embedding baselines (fair500 row). One offline flat-rate call
+per passage of the crowned index (~6k, luna@low, doc name + first
+1500 chars of the document + the chunk) writes a 1–2 sentence
+situating header. Headers live ONLY in the FTS `context` column of a
+content-hash-keyed sidecar variant
+(`PassageIndexOptions.contextJsonl`, unit-tested: distinct index
+identity, plain path byte-unchanged, returned text still the verbatim
+source slice) — retrieval output is unchanged in kind, so the
+verbatim contract is untouched. Generation runs in a machine-free
+window (background, low priority, API-bound).
+
+Measurement (deterministic once headers exist): lexical R@4 + pool
+R@48 on the enriched index at contextWeight ∈ {1, 2, 4} vs champion
+(weight 0), same frozen bars as R1 for comparability: adopt only if
+maud pool R@48 lifts ≥ +0.05 with contractnli pool regression within
+−0.06; any adopted variant rides a later grounded confirm, never the
+frozen G/holdout configs.
+
+Honest prior AGAINST: heading-path context at weight 2 measured
+slightly negative (R@4 0.2865 → 0.2763) — but those headings were
+regex-guessed local structure; LLM headers carry document identity,
+parties, and topic vocabulary the chunk itself lacks. Predictions
+(frozen): maud pool R@48 +0.03 to +0.10; contractnli within
+tolerance; weight 4 over-weights (worse than weight 1–2); enrichment
+never lowers pool recall on any source by more than 0.03. Falsified
+if maud pool moves < +0.03 at every weight — then vocabulary mismatch
+is not header-bridgeable and the dense/proposition lanes are the
+remaining levers.
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under

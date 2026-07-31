@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -295,5 +295,47 @@ describe("index + search round trip", () => {
       nameWeight: 8,
     });
     expect(hits[0]?.citation).toBe("cuad/services.txt");
+  });
+
+  it("contextJsonl headers key a distinct sidecar and add searchable words", () => {
+    const plainPath = passageIndexPath({ sourceDb, target: 400, overlap: 50 });
+    const plain = new DatabaseSync(plainPath, { readOnly: true });
+    const span = plain
+      .prepare(
+        "SELECT doc_id, language, start, end FROM passage WHERE doc_id = 2 ORDER BY id LIMIT 1",
+      )
+      .get() as { doc_id: number; language: string; start: number; end: number };
+    plain.close();
+    const contextJsonl = path.join(dir, "headers.jsonl");
+    writeFileSync(
+      contextJsonl,
+      `${JSON.stringify({
+        ...span,
+        header:
+          "Chunk of the Acme maintenance contract covering invoicing cadence.",
+      })}\n`,
+      "utf8",
+    );
+    const enrichedPath = passageIndexPath({
+      sourceDb,
+      target: 400,
+      overlap: 50,
+      contextJsonl,
+    });
+    expect(enrichedPath).not.toBe(plainPath);
+    // "invoicing cadence" appears in no passage text — only the header.
+    const hits = searchPassages({
+      sourceDb,
+      target: 400,
+      overlap: 50,
+      query: "invoicing cadence",
+      k: 2,
+      contextWeight: 2,
+      contextJsonl,
+    });
+    expect(hits[0]?.citation).toBe("cuad/services.txt");
+    expect(hits[0]?.start).toBe(span.start);
+    // Returned text is still the verbatim source slice, header-free.
+    expect(hits[0]?.text).toBe(other.slice(span.start, span.end));
   });
 });
