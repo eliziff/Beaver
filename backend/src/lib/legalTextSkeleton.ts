@@ -103,11 +103,33 @@ function splitLines(text: string): Line[] {
   return lines;
 }
 
-const CONTAINER_RE =
-  /^(ARTICLE|Article|PART|Part|DIVISION|Division)\s+([IVXLCDM]+|\d{1,3})\b\s*[—–\-.:]?\s*(.*)$/u;
-const SECTION_WORD_RE =
-  /^(?:Section|SECTION)\s+(\d{1,3}(?:\.\d{1,3})*[A-Za-z]?)[.)]?\s*[—–\-:]?\s*(.*)$/u;
-const SECTION_DECIMAL_RE = /^(\d{1,3}\.\d{1,3}(?:\.\d{1,3})*)\s+(\S.*)$/u;
+/**
+ * The head vocabularies live here as named constants because TWO things
+ * consume them: the per-line matchers below, and the segmentation recovery
+ * that has to know where a head COULD begin. A recovery carrying its own
+ * copy of the vocabulary would silently stop following the detector the
+ * first time a jurisdiction, era or house style added a word — the same
+ * drift `legalReferenceGrammar` was extracted to end.
+ */
+const CONTAINER_WORDS = "ARTICLE|Article|PART|Part|DIVISION|Division";
+const SCHEDULE_WORDS =
+  "SCHEDULE|Schedule|EXHIBIT|Exhibit|ANNEX|Annex|APPENDIX|Appendix";
+const SECTION_WORDS = "Section|SECTION";
+/** the numeric part of a decimal head, shared with SECTION_DECIMAL_RE */
+const DECIMAL_LABEL = String.raw`\d{1,3}\.\d{1,3}(?:\.\d{1,3})*`;
+
+const CONTAINER_RE = new RegExp(
+  String.raw`^(${CONTAINER_WORDS})\s+([IVXLCDM]+|\d{1,3})\b\s*[—–\-.:]?\s*(.*)$`,
+  "u",
+);
+const SECTION_WORD_RE = new RegExp(
+  String.raw`^(?:${SECTION_WORDS})\s+(\d{1,3}(?:\.\d{1,3})*[A-Za-z]?)[.)]?\s*[—–\-:]?\s*(.*)$`,
+  "u",
+);
+const SECTION_DECIMAL_RE = new RegExp(
+  String.raw`^(${DECIMAL_LABEL})\s+(\S.*)$`,
+  "u",
+);
 const SECTION_INTEGER_RE = /^(\d{1,3})[.)]\s+(.*)$/u;
 /**
  * Corpus-style dotless head for spine-less texts: a single provision
@@ -116,8 +138,10 @@ const SECTION_INTEGER_RE = /^(\d{1,3})[.)]\s+(.*)$/u;
  * marker no year, price, or page number produces.
  */
 const SECTION_BARE_SUBSECTION_RE = /^(\d{1,3}(?:\.\d{1,3}){0,3})[ \t]+(?=\(\d)/u;
-const SCHEDULE_RE =
-  /^(SCHEDULE|Schedule|EXHIBIT|Exhibit|ANNEX|Annex|APPENDIX|Appendix)\s+([A-Z0-9][\w.\-]*)\s*[—–\-.:]?\s*(.*)$/u;
+const SCHEDULE_RE = new RegExp(
+  String.raw`^(${SCHEDULE_WORDS})\s+([A-Z0-9][\w.\-]*)\s*[—–\-.:]?\s*(.*)$`,
+  "u",
+);
 const ENUM_RE =
   /^\((\d{1,3}|[a-z]{1,2}|[ivxlcdm]{1,6}|[A-Z]{1,2}|[IVXLCDM]{1,6})\)\s*(.*)$/u;
 /**
@@ -681,10 +705,16 @@ function recoverSpaceRuns(text: string): string {
  * heads instead of 272, while At Home goes 33 -> 96 with integrity 0.39 ->
  * 0.90 and BioTelemetry 0.75 -> 0.93.
  */
-const HEAD_WORD = String.raw`(?:ARTICLE|Article|PART|Part|DIVISION|Division|SECTION|Section|SCHEDULE|Schedule|EXHIBIT|Exhibit|ANNEX|Annex|APPENDIX|Appendix)`;
+const HEAD_WORD = `(?:${CONTAINER_WORDS}|${SECTION_WORDS}|${SCHEDULE_WORDS})`;
+/**
+ * A terminator is whatever ends a printed line before a heading. Kept wide
+ * on purpose — a full stop, a semicolon or colon in older drafting, and any
+ * closing quote or bracket after one — because the point of the guard is the
+ * ANTECEDENT, not the punctuation dialect.
+ */
 const SENTENCE_JOIN_RE = new RegExp(
-  String.raw`(?<=[.;:][)"'”’]?)[ \t]` +
-    String.raw`(?=${HEAD_WORD}\s+[IVXLCDM\d]|\d{1,3}\.\d{1,3}(?:\.\d{1,3})*\s+\S|\(\w{1,3}\)\s)`,
+  String.raw`(?<=[.;:][)\]"'”’»]?)[ \t]` +
+    String.raw`(?=${HEAD_WORD}\s+[IVXLCDM\d]|${DECIMAL_LABEL}\s+\S|\(\w{1,3}\)\s)`,
   "gu",
 );
 
