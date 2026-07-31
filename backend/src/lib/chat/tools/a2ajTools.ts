@@ -6,6 +6,10 @@ import {
   type A2AJLocatorLookup,
 } from "../../a2aj";
 import {
+  a2ajPassageLaneReady,
+  searchLocalA2AJPassages,
+} from "../../a2ajPassageSearch";
+import {
   createA2AJDocumentEvidence,
   createA2AJLookupEvidence,
   legalEvidenceExperimentTools,
@@ -86,6 +90,60 @@ function optionalNumber(value: unknown) {
   return typeof value === "number" ? value : undefined;
 }
 
+/**
+ * Opt-in passage lane for a2aj_search (MIKE_PASSAGE_SEARCH=1 plus a
+ * built sidecar). Returns the model-facing search shape with the ranked
+ * passage in `snippet` instead of a window around the first token hit.
+ * Returns null — silent fall-back to the document-level lane — whenever
+ * the lane is unavailable or cannot honour the request: the sidecar
+ * indexes full text only, so name search and the dataset/date/sort
+ * filters stay on the document lane rather than being dropped.
+ */
+async function passageLaneResults(
+  args: Record<string, unknown>,
+): Promise<A2AJToolExecution | null> {
+  const query = optionalString(args.query)?.trim();
+  const docType = args.doc_type === "laws" ? "laws" : "cases";
+  if (
+    !query ||
+    args.search_type === "name" ||
+    optionalString(args.dataset)?.trim() ||
+    optionalString(args.start_date)?.trim() ||
+    optionalString(args.end_date)?.trim() ||
+    (args.sort_results && args.sort_results !== "default") ||
+    !a2ajPassageLaneReady({ docType })
+  )
+    return null;
+  try {
+    const results = await searchLocalA2AJPassages({
+      query,
+      docType,
+      language: args.search_language === "fr" ? "fr" : "en",
+      size: optionalNumber(args.size),
+    });
+    if (!results.length) return null;
+    return {
+      payload: {
+        ok: true,
+        source: "A2AJ",
+        result_count: results.length,
+        results: results.map((result) => ({
+          dataset: result.dataset,
+          citation: result.citation,
+          name: result.name,
+          date: result.date,
+          url: undefined,
+          snippet: result.passage.text,
+          passage_start: result.passage.start,
+          passage_end: result.passage.end,
+        })),
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function executeA2AJTool(
   name: string,
   args: Record<string, unknown>,
@@ -94,6 +152,8 @@ export async function executeA2AJTool(
 
   try {
     if (name === A2AJ_TOOL_NAMES.search) {
+      const passages = await passageLaneResults(args);
+      if (passages) return passages;
       const results = await searchA2AJ({
         query: optionalString(args.query) ?? "",
         docType: args.doc_type === "laws" ? "laws" : "cases",

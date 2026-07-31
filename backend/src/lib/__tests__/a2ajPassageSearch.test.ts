@@ -71,6 +71,10 @@ function seed(file: string) {
 }
 
 beforeAll(() => {
+  // Literal-key behaviour only: never fall through to a real citator
+  // graph on the developer's box (alias expansion is covered by
+  // a2ajPassageWiring.test.ts against a fixture graph).
+  process.env.MIKE_CITATOR_DB = path.join(dir, "no-citator.sqlite");
   seed(sourceDb);
   seed(emptyDb);
   ensurePassageIndex({
@@ -82,13 +86,14 @@ beforeAll(() => {
 
 afterAll(() => {
   delete process.env.MIKE_A2AJ_BULK_DB;
+  delete process.env.MIKE_CITATOR_DB;
   rmSync(dir, { recursive: true, force: true });
 });
 
 describe("searchLocalA2AJPassages", () => {
-  it("returns product-shaped hits carrying verbatim passage offsets", () => {
+  it("returns product-shaped hits carrying verbatim passage offsets", async () => {
     process.env.MIKE_A2AJ_BULK_DB = sourceDb;
-    const hits = searchLocalA2AJPassages({
+    const hits = await searchLocalA2AJPassages({
       query: "notice served on every party",
       size: 4,
     });
@@ -109,21 +114,18 @@ describe("searchLocalA2AJPassages", () => {
     }
   });
 
-  it("refuses with a typed error when the sidecar is not built", () => {
+  it("refuses with a typed error when the sidecar is not built", async () => {
     process.env.MIKE_A2AJ_BULK_DB = emptyDb;
-    expect(() =>
+    await expect(
       searchLocalA2AJPassages({ query: "notice served on every party" }),
-    ).toThrow(MissingPassageIndexError);
-    try {
-      searchLocalA2AJPassages({ query: "notice served on every party" });
-    } catch (error) {
-      expect((error as MissingPassageIndexError).command).toContain(
-        "scripts/build-passage-index.ts",
-      );
-    }
+    ).rejects.toThrow(MissingPassageIndexError);
+    const error = await searchLocalA2AJPassages({
+      query: "notice served on every party",
+    }).catch((reason: unknown) => reason as MissingPassageIndexError);
+    expect(error.command).toContain("scripts/build-passage-index.ts");
   });
 
-  it("prepends the citation-resolved document ahead of the bm25 ranking", () => {
+  it("prepends the citation-resolved document ahead of the bm25 ranking", async () => {
     process.env.MIKE_A2AJ_BULK_DB = sourceDb;
     const query = "what did 2024 SCC 6 say about notice";
     const ranked = searchPassages({
@@ -136,7 +138,7 @@ describe("searchLocalA2AJPassages", () => {
     // Premise: lexical ranking alone puts the other document first.
     expect(ranked[0].docId).toBe(2);
 
-    const hits = searchLocalA2AJPassages({ query, size: 4 });
+    const hits = await searchLocalA2AJPassages({ query, size: 4 });
     expect(hits[0].citation).toBe("2024 SCC 6");
     expect(hits[0].passage.text).toContain("requirement of notice");
     expect(hits[0].passage.text).toBe(

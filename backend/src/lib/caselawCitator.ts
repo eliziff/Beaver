@@ -136,6 +136,20 @@ function keysForQuery(database: DatabaseSync, key: string): string[] {
 }
 
 /**
+ * `keysForQuery` for callers outside the graph: the key of `citation`
+ * plus its resolution-proven twins. Scanner contract, so it differs from
+ * the lookup surfaces here in two ways — text that normalizes to nothing
+ * returns [] instead of throwing (a substring scan hands in arbitrary
+ * text), and an absent citator graph degrades silently to the literal
+ * key rather than to null.
+ */
+export function citationAliasKeys(citation: string): string[] {
+  const key = sharedCitationLookupKey(citation);
+  if (!key) return [];
+  return withDatabase((database) => keysForQuery(database, key)) ?? [key];
+}
+
+/**
  * Later cases citing the given citation, newest first, one entry per citing
  * case (its excerpt/pinpoints are the first occurrence in that case).
  * Returns null when no note-up graph has been built, mirroring
