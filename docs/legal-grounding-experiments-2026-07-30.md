@@ -2276,6 +2276,19 @@ bottleneck and two measured levers removed most of it; next levers
 are W3/W4 (citation short-circuit; proposition surrogates on the
 product corpus, targeting the Stage 13 CLERC floor).
 
+### Stage 16b — reranker preview ablation (120 paired cells →
+`stage16b-preview1600.jsonl`)
+
+The listwise reranker showed candidates truncated at 500 chars —
+half-blind over 1600-char passages. Re-ran the rerank eval bed at
+preview 1600, paired on the same 120 cells (30 per source, luna@low):
+rerank R@4 **0.5624 → 0.7615**, zero parse fallbacks. Per source:
+cuad 0.63 → 0.92, privacy_qa 0.59 → 0.90, contractnli 0.84 → ~1.0,
+maud 0.18 → 0.23 (maud's ceiling is chunking, not the reranker —
+the clause-mode lever). `retrievalRerank.ts` default preview is now
+1600. Stage 17's frozen config predates this change and runs at
+preview 500; preview 1600 rides the Stage 18 bundle.
+
 ## Stage 17 — the full-bed honest verdict (pre-registered 2026-07-30;
 Eli: "drive us home ... tested honestly on the hardest benchmark
 tasks")
@@ -2338,6 +2351,7 @@ committed.
 | `stage15-lbrag-passage.jsonl` | `595C123915066647D739AB1A5388488C08A12909FE6DA5B33DC5524615C7DDB6` |
 | `stage16-rerank-eval.jsonl` | `107D021AEEA0594C95961F9F82CE7558ED95E56940FBAF1F75E637D905AE28E3` |
 | `stage16-lbrag-rerank.jsonl` | `8DB2AC1DF0EBF9D0227C0820CB79BA1E86BBAABE5B0BF3DB48C761AA07602174` |
+| `stage16b-preview1600.jsonl` | `C9C59D8EF859C1974457348FA66EA172F1466CC6D0109B579A51286175FBFDE4` |
 
 ## Validation and final selection gate
 
