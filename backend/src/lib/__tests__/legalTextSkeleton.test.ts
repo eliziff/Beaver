@@ -5,6 +5,7 @@ import {
   readSection,
   renderAgreementOutline,
 } from "../legalTextSkeleton";
+import { compileA2AJSourceDoc } from "../sourceDocA2AJ";
 
 const AGREEMENT = [
   "CREDIT AGREEMENT",
@@ -181,6 +182,151 @@ describe("compileAgreementSkeleton: ladder edge grammar", () => {
     expect(labels).toContain("sec2.05(b)(iii)");
     expect(labels).toContain("sec2.05(c)");
     expect(skeleton.ladder.midcounterOpens).toBe(1);
+  });
+});
+
+// Contract drafting's unbracketed enumerator dialects. Measured over 6,122
+// documents (69 LegalBench-RAG agreements + 6,053 A2AJ laws): +8,249 enumerator
+// nodes, and the non-subsection projection of every skeleton — container,
+// section and schedule labels, depths, spans and headings — byte-identical on
+// all 6,122, as is every compileA2AJSourceDoc block. The false-positive hunt
+// over all 8,249 new lines, using the shared detectors (citationsInText,
+// extractAnchors, isExternalReference), flagged none.
+describe("compileAgreementSkeleton: unbracketed enumerator dialects", () => {
+  it("reads a closing-paren tail ladder", () => {
+    const text = [
+      "Section 3.01 Confidential Information.",
+      "a) all technical and commercial information disclosed by either party;",
+      "b) all analyses, compilations and notes prepared by the Advisors;",
+      "c) the fact that discussions are taking place concerning the Purpose.",
+    ].join("\n");
+    const labels = compileAgreementSkeleton(text).nodes.map((n) => n.label);
+    expect(labels).toEqual([
+      "sec3.01",
+      "sec3.01(a)",
+      "sec3.01(b)",
+      "sec3.01(c)",
+    ]);
+  });
+
+  it("reads a dotted alpha ladder and a dotted roman ladder", () => {
+    const text = [
+      "Section 5.01 Obligations.",
+      "a. In general. Subject to the other terms of this agreement:",
+      "i. keep the Confidential Information secret and confidential;",
+      "ii. not use or exploit the Confidential Information in any way;",
+      "iii. establish and maintain adequate security measures.",
+      "b. Security precautions. Each of us agrees to the following.",
+    ].join("\n");
+    const labels = compileAgreementSkeleton(text).nodes.map((n) => n.label);
+    expect(labels).toContain("sec5.01(a)");
+    expect(labels).toContain("sec5.01(a)(i)");
+    expect(labels).toContain("sec5.01(a)(iii)");
+    expect(labels).toContain("sec5.01(b)");
+  });
+
+  // The ladder IS the filter. `Inc.`, `No.`, `v.` and `s. 231` are the same
+  // surface shape as a dotted enumerator; what they cannot do is run. No
+  // token blacklist exists or is needed.
+  it("never opens a ladder on isolated abbreviations or citations", () => {
+    const text = [
+      "Section 7.01 Notices.",
+      "v. Smith, the arbitrator named below, shall preside.",
+      "s. 231 of the Income Tax Act applies to this Agreement.",
+      "c. 1985 was the year the predecessor agreement was signed.",
+      "ss. 3 to 5 of the Schedule are incorporated by reference.",
+    ].join("\n");
+    const skeleton = compileAgreementSkeleton(text);
+    expect(skeleton.nodes.map((n) => n.label)).toEqual(["sec7.01"]);
+    expect(skeleton.ladder.levelOpens).toBe(0);
+  });
+
+  it("requires the run to open at value 1", () => {
+    const text = [
+      "Section 8.01 Fragments.",
+      "d. a fragment quoted out of a longer instrument;",
+      "e. another fragment quoted from the same instrument;",
+      "f. a third fragment, still with no opening item.",
+    ].join("\n");
+    expect(compileAgreementSkeleton(text).nodes.map((n) => n.label)).toEqual([
+      "sec8.01",
+    ]);
+  });
+
+  it("leaves a properly bracketed document to the canonical form", () => {
+    const text = [
+      "Section 9.01 Baskets.",
+      "(a) General Basket. The Borrower may incur Indebtedness.",
+      "(b) Ratio Basket. Subject to pro forma compliance.",
+      "(c) Acquisition Basket. Subject to the Acquisition Conditions.",
+    ].join("\n");
+    const labels = compileAgreementSkeleton(text).nodes.map((n) => n.label);
+    expect(labels).toEqual([
+      "sec9.01",
+      "sec9.01(a)",
+      "sec9.01(b)",
+      "sec9.01(c)",
+    ]);
+  });
+
+  // Both dialects carry only lowercase alpha/roman, so no dialect line can
+  // also match a section grammar (all of which need a digit or a
+  // container/schedule word). Sections cannot move; only subsections appear.
+  it("adds only subsections: the section projection is unchanged", () => {
+    const base = [
+      "ARTICLE I — DEFINITIONS",
+      "Section 1.01 Defined Terms.",
+      "Section 1.02 Interpretation.",
+      "SCHEDULE 2.01 — EXISTING INDEBTEDNESS",
+    ];
+    const withLadder = [
+      base[0],
+      base[1],
+      "a. the first interpretive rule stated in this agreement;",
+      "b. the second interpretive rule stated in this agreement;",
+      "c. the third interpretive rule stated in this agreement.",
+      base[2],
+      base[3],
+    ];
+    const projection = (lines: string[]) =>
+      compileAgreementSkeleton(lines.join("\n"))
+        .nodes.filter((n) => n.kind !== "subsection")
+        .map((n) => `${n.kind}|${n.label}|${n.depth}|${n.heading}`);
+    expect(projection(withLadder)).toEqual(projection(base));
+    expect(
+      compileAgreementSkeleton(withLadder.join("\n")).nodes.filter(
+        (n) => n.kind === "subsection",
+      ),
+    ).toHaveLength(3);
+  });
+});
+
+// The structural gate. sourceDocA2AJ imports sourceDoc and statuteSpine and
+// nothing else, so the A2AJ laws-and-cases compiler — the path the 225k-case
+// bulk corpus and the skeleton oracle gate travel — cannot reach the dialects
+// above. This pins that boundary behaviourally as well as by import graph.
+describe("enumerator dialects are unreachable from the A2AJ compiler", () => {
+  it("leaves compileA2AJSourceDoc's blocks free of dialect enumerators", () => {
+    const text = [
+      "1 In this Act, “plan” means the pension plan.",
+      "a. the first item of an unbracketed ladder;",
+      "b. the second item of an unbracketed ladder;",
+      "c. the third item of an unbracketed ladder.",
+      "2 The plan continues under this Act.",
+      "3 The board administers the plan.",
+    ].join("\n");
+    const doc = compileA2AJSourceDoc({
+      citation: "SO 2000, c 1",
+      dataset: "LEGISLATION-ON",
+      docType: "laws",
+      name: "Example Act",
+      text,
+    });
+    expect(doc.blocks.map((block) => block.label)).toEqual([
+      "sec1",
+      "sec2",
+      "sec3",
+    ]);
   });
 });
 

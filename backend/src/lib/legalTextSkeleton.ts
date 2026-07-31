@@ -116,6 +116,23 @@ const SCHEDULE_RE =
   /^(SCHEDULE|Schedule|EXHIBIT|Exhibit|ANNEX|Annex|APPENDIX|Appendix)\s+([A-Z0-9][\w.\-]*)\s*[—–\-.:]?\s*(.*)$/u;
 const ENUM_RE =
   /^\((\d{1,3}|[a-z]{1,2}|[ivxlcdm]{1,6}|[A-Z]{1,2}|[IVXLCDM]{1,6})\)\s*(.*)$/u;
+/**
+ * Contract drafting's two unbracketed enumerator dialects. `a) ...` is what a
+ * PDF extractor leaves when the opening bracket is lost, and what a drafter
+ * writes who never typed it; `a.` / `iv.` is the dotted convention (also
+ * Ontario's sub-paragraph ladder). Both require same-line content, mirroring
+ * the ALR SECTION_MARK_RE lookahead: a bare `a)` line is not an enumerator.
+ *
+ * Neither dialect carries digits or capitals, and that is a corpus decision,
+ * not caution: across 6,123 documents every one of the 105 `N)` lines is
+ * already claimed by SECTION_INTEGER_RE above, and `A)` occurs once in the
+ * whole corpus. Restricting to lowercase alpha/roman also makes the dialect
+ * candidate set provably DISJOINT from the section-head set — every section
+ * grammar here needs a digit or a container/schedule word — so these forms
+ * can only ever add subsections, never move a section.
+ */
+const ENUM_TAIL_RE = /^([a-z]{1,2}|[ivxlcdm]{1,6})\)[ \t]+(\S.*)$/u;
+const ENUM_DOT_RE = /^([a-z]{1,2}|[ivxlcdm]{1,6})\.[ \t]+(\S.*)$/u;
 
 /** "12.", "12.1" heading guards, mirroring collectNumberAnchors. */
 const headingLike = (rest: string) => rest === "" || /^["'“(A-Z]/u.test(rest);
@@ -196,6 +213,84 @@ function interpretationsOf(token: string): EnumInterpretation[] {
   );
 }
 
+type EnumDialect = "tail" | "dot";
+
+/**
+ * Document-level admission for the unbracketed dialects — the same shape of
+ * argument statuteSpine makes for bare-number section heads, one level down.
+ * No surface guard can tell an enumerator from an abbreviation: `Inc.`, `No.`,
+ * `v.` and `s. 231` are all lowercase-token-plus-dot at a line start. What
+ * they cannot do is RUN. A real ladder opens at value 1 and climbs
+ * monotonically in one family, so admission asks exactly that: a strictly
+ * increasing run of at least MIN_DIALECT_RUN readings (amendments delete
+ * items, so a gap of up to two is tolerated inside a live run) opening at
+ * value 1. The readings come from `interpretationsOf`, so the dialects
+ * inherit the (h)->(i) alphabet/roman disambiguation unchanged.
+ *
+ * Candidates exclude anything the canonical bracketed form already claims, so
+ * a document that enumerates properly never has its ladder reinterpreted.
+ */
+const MIN_DIALECT_RUN = 3;
+const MAX_DIALECT_GAP = 2;
+
+function longestOpeningRun(tokens: string[]): number {
+  const live = new Map<EnumFamily, { last: number; run: number }>();
+  let best = 0;
+  for (const token of tokens) {
+    for (const reading of interpretationsOf(token)) {
+      const state = live.get(reading.family) ?? { last: 0, run: 0 };
+      if (reading.value === 1) {
+        state.last = 1;
+        state.run = 1;
+      } else if (
+        state.run > 0 &&
+        reading.value > state.last &&
+        reading.value - state.last <= MAX_DIALECT_GAP
+      ) {
+        state.last = reading.value;
+        state.run += 1;
+      }
+      if (state.run > best) best = state.run;
+      live.set(reading.family, state);
+    }
+  }
+  return best;
+}
+
+function admitEnumDialects(lines: Line[]): ReadonlySet<EnumDialect> {
+  const tokens: Record<EnumDialect, string[]> = { tail: [], dot: [] };
+  for (const line of lines) {
+    const text = line.text.trim();
+    if (!text || ENUM_RE.test(text)) continue;
+    const tail = text.match(ENUM_TAIL_RE);
+    if (tail) {
+      tokens.tail.push(tail[1]);
+      continue;
+    }
+    const dot = text.match(ENUM_DOT_RE);
+    if (dot) tokens.dot.push(dot[1]);
+  }
+  const admitted = new Set<EnumDialect>();
+  for (const dialect of ["tail", "dot"] as const) {
+    if (longestOpeningRun(tokens[dialect]) >= MIN_DIALECT_RUN) {
+      admitted.add(dialect);
+    }
+  }
+  return admitted;
+}
+
+/** The enumerator on a line, in whichever dialect the document earned. */
+function matchEnumerator(
+  text: string,
+  dialects: ReadonlySet<EnumDialect>,
+): RegExpMatchArray | null {
+  return (
+    text.match(ENUM_RE) ??
+    (dialects.has("tail") ? text.match(ENUM_TAIL_RE) : null) ??
+    (dialects.has("dot") ? text.match(ENUM_DOT_RE) : null)
+  );
+}
+
 export interface LadderDiagnostics {
   increments: number;
   levelOpens: number;
@@ -222,6 +317,7 @@ export function compileAgreementSkeleton(
   // below only handle the styles it cannot claim (word/container/schedule).
   const spine = computeStatuteSpine(text);
   const spineByStart = new Map(spine.map((mark) => [mark.start, mark]));
+  const dialects = admitEnumDialects(lines);
 
   let container: SkeletonNode | null = null;
   let section: SkeletonNode | null = null;
@@ -515,7 +611,10 @@ export function compileAgreementSkeleton(
       continue;
     }
 
-    const enumMatch = trimmedLine.match(ENUM_RE);
+    // Last branch in the loop: a line only reaches the ladder after every
+    // container, schedule, spine and section matcher has declined it, so a
+    // new enumerator dialect cannot move a section boundary.
+    const enumMatch = matchEnumerator(trimmedLine, dialects);
     if (enumMatch && section) {
       openEnum(enumMatch[1], lineStart, enumMatch[2]);
     }
