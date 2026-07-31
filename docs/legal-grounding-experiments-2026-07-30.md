@@ -2838,6 +2838,41 @@ rides ONE grounded confirm run before the config freezes for the
 Stage 19 holdout; the dense lane remains a separately-registered
 open question (machine-free window required).
 
+### Stage 18 R5b grounded confirm (registered 2026-07-30 before the
+run; output `stage18-lbrag-grounded-ctx.jsonl`)
+
+One grounded confirm of the adopted retrieval delta over the full
+776-test bed: the G champion exactly (sol@medium composer,
+required_slot, k=6,
+`passage:t1600/o120/w16+rerank(luna)@p1600+stitch200`) plus the
+combined-medium context sidecar at weight 4. The runner gains
+`--context-jsonl`/`--context-weight`, and the retriever label
+carries `+ctx(w4@<sha12>)` so receipts can never silently mix
+header versions. Headers touch ONLY the FTS pool selection; the
+reranker still previews verbatim passage text, and composition is
+untouched.
+
+Frozen predictions (G baselines: answered 87.8%, answered-only
+P 0.5377 / R 0.5708; maud answered-only P 0.1626 / R 0.1070;
+retrieval-only P 0.0707 / R 0.8097):
+- maud answered-only R improves, band +0.01..+0.05 (the +0.069
+  pool lift converts only partially through rerank + composition);
+- non-maud sources move within ±0.02 answered-only P/R;
+- answered rate 85–91%; retrieval-only R ≥ 0.8097.
+
+Frozen confirm gates:
+- **KEEP the sidecar** iff maud answered-only R ≥ 0.1170 (G +0.01)
+  AND overall answered-only P ≥ 0.5277 AND R ≥ 0.5608 (G −0.01
+  each).
+- **DROP** if maud answered-only R < 0.1070 OR overall P < 0.5177
+  OR overall R < 0.5508 (G −0.02) — retrieval-level gains that do
+  not survive composition do not ship.
+- Middle band: judgment recorded honestly with a bias to DROP —
+  at config freeze, ambiguity favors the simpler champion.
+
+After the verdict the retrieval config freezes; Stage 19 timing
+still waits on the dense-lane decision per the lock-in rule.
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under
