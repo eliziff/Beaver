@@ -33,6 +33,7 @@ function flag(name: string, fallback?: string): string {
 }
 
 const model = flag("model", "codex:gpt-5.6-luna");
+const preview = Number(flag("preview", "500"));
 const limit = Number(flag("limit", "0"));
 const concurrency = Number(flag("concurrency", "6"));
 const output = flag(
@@ -114,6 +115,7 @@ async function main() {
           hits: pool,
           model,
           top: 4,
+          preview,
         });
         const score = charPrecisionRecall(spans(reranked.hits), test.gold);
         const goldDocs = new Set(test.gold.map((span) => span.filePath));
