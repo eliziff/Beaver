@@ -29,8 +29,9 @@ Re-scoring ≠ re-running: re-deriving fused gives 0.8392 vs 0.8625 re-scored.
 
 **Statistics from the wrong n.** The ±0.015 band was measured at 776 cells and
 applied to stages of 32–246. H5 — "harness carries grounding, not model family",
-premise #1 — is **8 cells over one item pair**, never replicated. flat_recency
-retired on p=0.264. H18 falsified on ≤1-cell deltas.
+premise #1 — was **8 cells over one item pair**; replicated at n=222 in Stage 20
+and **falsified**. flat_recency retired on p=0.264. H18 falsified on ≤1-cell
+deltas.
 
 **Detector blindness read as a result.** `statuteSpine`'s label-alone rule matches
 centred page numbers; a run of them wins the scope competition and suppresses real
@@ -79,9 +80,19 @@ documents refused, 8/17 on maud; figures are stale — taken before the enumerat
 work landed. Re-measure, then attack the causes (privacy_qa heading detection,
 6/7 falling back; two NDAs with no sections to attach to).
 
-**2. Premise #1: the checker-family crossing** *(in flight)*. Registered twice,
-never run, and runs on *banked compositions* — no re-composition. If it fails,
-every composed verdict in Stages 6–13 is single-family evidence.
+**2. ~~Premise #1: the checker-family crossing~~ — DONE, and it failed.**
+Stage 20 (`fc820b65`, 1,156 checker calls on 289 banked compositions, no
+composer call). Cross-family disagreement **35.8% [31.5, 40.4]** against a
+**6.3%** same-model floor; paired **+29.5 pp [23.2, 36.0]**. Direction is
+symmetric (45.9% fail-closed), so Stage 5's "crossing never introduced a false
+accept" is gone; on `housing:0` the *claude* checker false-accepts 6/16 and
+codex catches it. Aggregate accept rates match within 3 pp — which is how 8
+cells read as family-invariant. The deterministic tier is invariant by
+construction (0/4,951 mismatches). **Consequence: every per-cell verdict,
+disagreement audit and false-accept count in Stages 6–13 is single-family
+evidence.** Arm-level *rates* may still be family-stable; which cells pass is
+not. Open thread: 8 claude calls on 4 of 67 tier-cleared rows returned
+`unsupported` on all-verbatim answers — a grounding-level contradiction.
 
 **3. Free re-tests on banked data.** C4 ensemble/marginal-value study (zero model
 calls, data on disk). H7's decision-quality half — the gate was disjunctive and
