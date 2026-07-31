@@ -52,6 +52,11 @@ CREATE TABLE citation_lookup (
     document_id INTEGER NOT NULL,
     PRIMARY KEY (citation_key, document_id)
 ) WITHOUT ROWID;
+CREATE TABLE name_lookup (
+    name_key TEXT NOT NULL,
+    document_id INTEGER NOT NULL,
+    PRIMARY KEY (name_key, document_id)
+) WITHOUT ROWID;
 """
 
 
@@ -69,6 +74,14 @@ def citation_key(value: str) -> str:
     value = re.sub(r"(?<=\d)-(?=\d)", "dash", value)
     value = re.sub(r"(?<=\d)/(?=\d)", "slash", value)
     return re.sub(r"[^a-z0-9]+", "", value.casefold())
+
+
+def name_key(value: str) -> str:
+    value = re.sub(r"(\w)\.(\w)\.?", r"\1\2", value or "")
+    value = re.sub(r"\s+v\.?\s+", " v ", value, flags=re.IGNORECASE)
+    value = re.sub(r"[-\u2010-\u2015/]+", " ", value)
+    value = re.sub(r"[^\w\s]", "", value)
+    return " ".join(value.split()).casefold()
 
 
 def json_value(value: Any) -> str | None:
@@ -195,7 +208,7 @@ def document_values(
     dataset_hint: str,
     row: dict[str, Any],
     doc_type_override: str | None = None,
-) -> tuple[tuple[Any, ...], set[str]] | None:
+) -> tuple[tuple[Any, ...], set[str], set[str]] | None:
     dataset = (field(row, "dataset") or dataset_hint).strip()
     citations = {
         language: (field(row, "citation", language), field(row, "citation2", language))
@@ -209,6 +222,11 @@ def document_values(
     }
     if not keys:
         return None
+    names = {
+        name_key(value)
+        for value in (field(row, "name", "en"), field(row, "name", "fr"))
+        if value and name_key(value)
+    }
     doc_type = (
         doc_type_override
         or normalize_doc_type(row.get("doc_type"))
@@ -242,7 +260,7 @@ def document_values(
         row.get("citing_cases_count"),
         field(row, "upstream_license"),
     )
-    return values, keys
+    return values, keys, names
 
 
 def import_database(args: argparse.Namespace) -> None:
@@ -255,6 +273,7 @@ def import_database(args: argparse.Namespace) -> None:
     document_count = citation_count = skipped_count = 0
     document_batch: list[tuple[Any, ...]] = []
     citation_batch: list[tuple[str, int]] = []
+    name_batch: list[tuple[str, int]] = []
 
     def flush() -> None:
         if not document_batch:
@@ -266,8 +285,10 @@ def import_database(args: argparse.Namespace) -> None:
         connection.executemany(
             "INSERT INTO citation_lookup VALUES (?, ?)", citation_batch
         )
+        connection.executemany("INSERT INTO name_lookup VALUES (?, ?)", name_batch)
         document_batch.clear()
         citation_batch.clear()
+        name_batch.clear()
 
     try:
         connection.executescript(
@@ -285,10 +306,11 @@ def import_database(args: argparse.Namespace) -> None:
             if not imported:
                 skipped_count += 1
                 continue
-            values, keys = imported
+            values, keys, names = imported
             document_count += 1
             document_batch.append(values)
             citation_batch.extend((key, document_count) for key in keys)
+            name_batch.extend((key, document_count) for key in names)
             citation_count += len(keys)
             if len(document_batch) == 1_000:
                 flush()
@@ -319,13 +341,14 @@ def import_database(args: argparse.Namespace) -> None:
                 """
             )
         metadata = {
-            "schema_version": "2",
+            "schema_version": "3",
             "imported_at": datetime.now(timezone.utc).isoformat(),
             "fts": "true" if args.fts else "false",
             "file_count": str(len(inputs)),
             "document_count": str(document_count),
             "citation_count": str(citation_count),
             "skipped_count": str(skipped_count),
+            "metadata_only": "false",
         }
         connection.executemany("INSERT INTO meta VALUES (?, ?)", metadata.items())
         connection.commit()
