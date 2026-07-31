@@ -304,50 +304,89 @@
     .gnaw-scene { display: block; width: 6.25rem; height: 4.5rem; overflow: visible; }
     .gnaw-beaver,
     .gnaw-teeth,
-    .gnaw-log,
+    .gnaw-log-body,
+    .gnaw-log-end,
     .gnaw-chip { transform-box: fill-box; }
     .gnaw-beaver { transform-origin: 82% 78%; }
     .gnaw-teeth { transform-origin: center right; }
-    .gnaw-log { transform-origin: left center; }
+    .gnaw-log-body { transform-origin: left center; }
+    .gnaw-log-end { transform-origin: center; }
     .gnaw-chip { opacity: 0; transform-origin: center; }
     .gnaw-cut { fill: #fcfcfd; }
     @media (prefers-reduced-motion: no-preference) {
-      .gnaw-beaver { animation: gnaw-head 2.1s cubic-bezier(.4, 0, .2, 1) infinite; }
-      .gnaw-teeth { animation: gnaw-teeth 2.1s steps(1, end) infinite; }
-      .gnaw-log { animation: gnaw-log 2.1s steps(1, end) infinite; }
-      .gnaw-bite-one { animation: gnaw-bite-one 2.1s steps(1, end) infinite; }
-      .gnaw-bite-two { animation: gnaw-bite-two 2.1s steps(1, end) infinite; }
-      .gnaw-bite-three { animation: gnaw-bite-three 2.1s steps(1, end) infinite; }
-      .gnaw-chip-one { animation: gnaw-chip-one 2.1s ease-out infinite; }
-      .gnaw-chip-two { animation: gnaw-chip-two 2.1s ease-out infinite; }
+      .gnaw-scene { animation: gnaw-cycle 5.6s linear infinite; }
+      .gnaw-beaver { animation: gnaw-head 5.6s cubic-bezier(.4, 0, .2, 1) infinite; }
+      .gnaw-teeth { animation: gnaw-teeth 5.6s steps(1, end) infinite; }
+      .gnaw-log-body { animation: gnaw-log-shorten 5.6s steps(1, end) infinite; }
+      .gnaw-log-end { animation: gnaw-log-end 5.6s steps(1, end) infinite; }
+      .gnaw-bite-one { animation: gnaw-bite-one 5.6s steps(1, end) infinite; }
+      .gnaw-bite-two { animation: gnaw-bite-two 5.6s steps(1, end) infinite; }
+      .gnaw-bite-three { animation: gnaw-bite-three 5.6s steps(1, end) infinite; }
+      .gnaw-chip-one { animation: gnaw-chip-one 5.6s ease-out infinite; }
+      .gnaw-chip-two { animation: gnaw-chip-two 5.6s ease-out infinite; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .gnaw-beaver { transform: translate(-17px, -1px) rotate(2deg); }
+      .gnaw-log-body { transform: scaleX(.64); }
+      .gnaw-log-end { transform: translateX(-24px); }
+    }
+    @keyframes gnaw-cycle {
+      0%, 2%, 96%, 100% { opacity: 0; }
+      5%, 92% { opacity: 1; }
     }
     @keyframes gnaw-head {
-      0%, 8%, 25%, 42%, 59%, 96%, 100% { transform: translate(0) rotate(0); }
-      15%, 32%, 49% { transform: translate(-2.5px, 1px) rotate(-3deg); }
-      66%, 88% { transform: translate(7px, -1px) rotate(2deg); }
+      0%, 4% { transform: translate(0) rotate(0); }
+      8% { transform: translate(-3px, 1px) rotate(-3deg); }
+      12%, 16% { transform: translate(-4px) rotate(0); }
+      18% { transform: translate(-7px, 1px) rotate(-3deg); }
+      22%, 26% { transform: translate(-8px) rotate(0); }
+      28% { transform: translate(-11px, 1px) rotate(-3deg); }
+      32%, 36% { transform: translate(-12px) rotate(0); }
+      38% { transform: translate(-15px, 1px) rotate(-3deg); }
+      42%, 46% { transform: translate(-16px) rotate(0); }
+      48% { transform: translate(-19px, 1px) rotate(-3deg); }
+      52%, 56% { transform: translate(-20px) rotate(0); }
+      58% { transform: translate(-23px, 1px) rotate(-3deg); }
+      62% { transform: translate(-24px) rotate(0); }
+      66%, 96% { transform: translate(-17px, -1px) rotate(2deg); }
+      97%, 100% { transform: translate(0) rotate(0); }
     }
     @keyframes gnaw-teeth {
-      0%, 11%, 29%, 47%, 100% { transform: translateX(0); }
-      12%, 28%, 30%, 46%, 48%, 66% { transform: translateX(-2px); }
+      0%, 6%, 10%, 16%, 20%, 26%, 30%, 36%, 40%, 46%, 50%, 56%, 60%, 100% { transform: translateX(0); }
+      7%, 9%, 17%, 19%, 27%, 29%, 37%, 39%, 47%, 49%, 57%, 59% { transform: translateX(-2px); }
     }
-    @keyframes gnaw-log {
-      0%, 15%, 96%, 100% { transform: scaleX(1); }
-      16%, 32% { transform: scaleX(.98); }
-      33%, 49% { transform: scaleX(.955); }
-      50%, 95% { transform: scaleX(.92); }
+    @keyframes gnaw-log-shorten {
+      0%, 9% { transform: scaleX(1); }
+      10%, 19% { transform: scaleX(.94); }
+      20%, 29% { transform: scaleX(.88); }
+      30%, 39% { transform: scaleX(.82); }
+      40%, 49% { transform: scaleX(.76); }
+      50%, 59% { transform: scaleX(.70); }
+      60%, 96% { transform: scaleX(.64); }
+      97%, 100% { transform: scaleX(1); }
     }
-    @keyframes gnaw-bite-one { 0%, 17%, 96%, 100% { opacity: 0; } 18%, 95% { opacity: 1; } }
-    @keyframes gnaw-bite-two { 0%, 35%, 96%, 100% { opacity: 0; } 36%, 95% { opacity: 1; } }
-    @keyframes gnaw-bite-three { 0%, 53%, 96%, 100% { opacity: 0; } 54%, 95% { opacity: 1; } }
+    @keyframes gnaw-log-end {
+      0%, 9% { transform: translateX(0); }
+      10%, 19% { transform: translateX(-4px); }
+      20%, 29% { transform: translateX(-8px); }
+      30%, 39% { transform: translateX(-12px); }
+      40%, 49% { transform: translateX(-16px); }
+      50%, 59% { transform: translateX(-20px); }
+      60%, 96% { transform: translateX(-24px); }
+      97%, 100% { transform: translateX(0); }
+    }
+    @keyframes gnaw-bite-one { 0%, 9%, 97%, 100% { opacity: 0; } 10%, 96% { opacity: 1; } }
+    @keyframes gnaw-bite-two { 0%, 19%, 97%, 100% { opacity: 0; } 20%, 96% { opacity: 1; } }
+    @keyframes gnaw-bite-three { 0%, 29%, 97%, 100% { opacity: 0; } 30%, 96% { opacity: 1; } }
     @keyframes gnaw-chip-one {
-      0%, 17%, 100% { opacity: 0; transform: translate(0) rotate(0); }
-      18% { opacity: 1; transform: translate(0) rotate(0); }
-      34% { opacity: 0; transform: translate(-9px, -12px) rotate(-48deg); }
+      0%, 8%, 14%, 28%, 34%, 48%, 54%, 100% { opacity: 0; transform: translate(0) rotate(0); }
+      9%, 29%, 49% { opacity: 1; transform: translate(0) rotate(0); }
+      13%, 33%, 53% { opacity: 0; transform: translate(-9px, -12px) rotate(-48deg); }
     }
     @keyframes gnaw-chip-two {
-      0%, 35%, 100% { opacity: 0; transform: translate(0) rotate(0); }
-      36% { opacity: 1; transform: translate(0) rotate(0); }
-      52% { opacity: 0; transform: translate(-11px, 8px) rotate(62deg); }
+      0%, 18%, 24%, 38%, 44%, 58%, 64%, 100% { opacity: 0; transform: translate(0) rotate(0); }
+      19%, 39%, 59% { opacity: 1; transform: translate(0) rotate(0); }
+      23%, 43%, 63% { opacity: 0; transform: translate(-11px, 8px) rotate(62deg); }
     }
     .work-copy {
       display: grid;
@@ -536,10 +575,8 @@
       background: #fff;
     }
     .preview-eye:hover { color: var(--ink); background: #f2f4f7; }
-    .preview-eye:disabled,
-    .wording-details:disabled { opacity: .52; cursor: not-allowed; }
-    .preview-eye:disabled:hover,
-    .wording-details:disabled:hover {
+    .preview-eye:disabled { opacity: .52; cursor: not-allowed; }
+    .preview-eye:disabled:hover {
       color: #98a2b3;
       border-color: #e4e7ec;
       background: #f2f4f7;
@@ -572,11 +609,12 @@
     .exhibit-row {
       display: grid;
       position: relative;
-      grid-template-columns: 2.25rem minmax(0, 1fr) auto;
+      grid-template-columns: 2.25rem minmax(0, 1fr);
       align-items: start;
       gap: .6rem;
       min-width: 0;
       padding: .6rem .65rem;
+      padding-inline-end: 2.75rem;
       border: 1px solid var(--line);
       border-radius: .6rem;
       background: #fff;
@@ -693,28 +731,60 @@
     [data-dragging="true"] .drag-grip,
     [draggable="true"]:hover .drag-grip { color: var(--ink); }
     .letter-stack { display: grid; justify-items: center; gap: .25rem; }
-    .letter-stack .preview-eye,
-    .letter-stack .wording-details {
+    .letter-stack .preview-eye {
       width: 2.125rem;
       min-width: 2.125rem;
       min-height: 2.125rem;
     }
-    .wording-details {
-      padding: 0;
+    .wording-disclosure {
+      grid-column: 1 / -1;
+      min-width: 0;
+      padding-block-start: .3rem;
+      border-top: 1px solid #eaecf0;
+    }
+    .wording-disclosure summary {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) .55rem;
+      align-items: center;
+      gap: .35rem;
+      min-width: 0;
+      min-height: 1.5rem;
+      list-style: none;
       color: var(--muted);
-      border-color: var(--line);
-      background: #fff;
+      font-size: .75rem;
+      font-weight: 400;
     }
-    .wording-details:hover { color: var(--ink); background: #f2f4f7; }
-    .wording-details svg {
-      width: 1.2rem;
-      height: 1.2rem;
-      fill: none;
-      stroke: currentColor;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-      stroke-width: 1.75;
+    .wording-disclosure summary::-webkit-details-marker { display: none; }
+    .wording-disclosure summary::after {
+      width: .38rem;
+      height: .38rem;
+      border-inline-end: 1.5px solid currentColor;
+      border-block-end: 1.5px solid currentColor;
+      content: "";
+      rotate: 45deg;
+      transition: rotate 120ms ease-out;
     }
+    .wording-disclosure[open] summary::after { rotate: 225deg; }
+    .wording-label { color: var(--ink); font-weight: 600; white-space: nowrap; }
+    .wording-preview {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .wording-statements {
+      max-height: 8rem;
+      margin: .35rem 0 0;
+      padding: .5rem .65rem .5rem 1.65rem;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      border-radius: .4rem;
+      color: var(--muted);
+      background: #f9fafb;
+      font-size: .75rem;
+      line-height: 1.45;
+    }
+    .wording-statements li + li { margin-block-start: .35rem; }
     .slot-actions {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -739,8 +809,6 @@
     }
     .file-meta[data-kind="strong"] { color: var(--success); }
     .file-meta[data-kind="possible"] { color: var(--warning); }
-    .wording-list { margin: 0; padding-inline-start: 1.25rem; }
-    .wording-list li + li { margin-block-start: .6rem; }
     .delete-assigned {
       color: var(--danger);
       border-color: #fecdca;
@@ -748,15 +816,18 @@
       font-size: var(--text-sm);
     }
     .delete-slot {
-      width: 2.5rem;
-      min-width: 2.5rem;
-      min-height: 2.5rem;
+      position: absolute;
+      inset-block-start: .5rem;
+      inset-inline-end: .5rem;
+      width: 1.75rem;
+      min-width: 1.75rem;
+      min-height: 1.75rem;
       padding: 0;
       border-color: #fecdca;
       border-radius: 50%;
       color: var(--danger);
       background: #fff;
-      font-size: 1.25rem;
+      font-size: 1rem;
       line-height: 1;
     }
     button.delete-slot:hover,
@@ -871,6 +942,17 @@
       box-shadow: inset 0 0 0 1px var(--line);
     }
     .preview-toc h3 { margin: 0 0 .6rem; font-size: .875rem; }
+    .preview-title {
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+    }
+    .preview-tail {
+      width: 1.15rem;
+      height: 1.35rem;
+      overflow: visible;
+      transform: rotate(-10deg);
+    }
     .preview-toc-list { display: grid; gap: .35rem; }
     .preview-toc button {
       display: grid;
@@ -989,11 +1071,6 @@
       .slot-body { grid-column: 2; grid-row: 1; }
       .slot-body { grid-template-columns: 1fr; }
       .slot-actions { grid-column: 1; grid-row: 2; min-width: 0; }
-      .delete-slot {
-        position: absolute;
-        inset-block-end: .6rem;
-        inset-inline-start: .65rem;
-      }
       .output-card .primary { width: 100%; }
     }
   </style>
@@ -1055,16 +1132,20 @@
           <div class="work-mark" aria-hidden="true">
             <svg class="gnaw-scene" viewBox="0 0 128 72">
               <g class="gnaw-log">
-                <rect x="4" y="49" width="64" height="15" rx="7.5" fill="#8b4a35"/>
-                <circle cx="66" cy="56.5" r="6.3" fill="#c98a6e"/>
-                <path d="M12 54h25M18 59h14" fill="none" stroke="#c98a6e" stroke-width="1.5" stroke-linecap="round"/>
-                <circle class="gnaw-cut gnaw-bite-one" cx="70" cy="50.5" r="3.1"/>
-                <circle class="gnaw-cut gnaw-bite-two" cx="68.8" cy="56.5" r="3.1"/>
-                <circle class="gnaw-cut gnaw-bite-three" cx="70" cy="62.5" r="3.1"/>
+                <g class="gnaw-log-body">
+                  <rect x="4" y="49" width="64" height="15" rx="7.5" fill="#8b4a35"/>
+                  <path d="M12 54h25M18 59h14" fill="none" stroke="#c98a6e" stroke-width="1.5" stroke-linecap="round"/>
+                </g>
+                <g class="gnaw-log-end">
+                  <circle cx="66" cy="56.5" r="6.3" fill="#c98a6e"/>
+                  <circle class="gnaw-cut gnaw-bite-one" cx="70" cy="50.5" r="3.1"/>
+                  <circle class="gnaw-cut gnaw-bite-two" cx="68.8" cy="56.5" r="3.1"/>
+                  <circle class="gnaw-cut gnaw-bite-three" cx="70" cy="62.5" r="3.1"/>
+                </g>
               </g>
-              <path d="M101 43c13-6 24 1 24 12 0 10-11 15-25 10-3-8-2-16 1-22Z" fill="#8b4a35"/>
-              <path d="m108 44 12 11m-16-5 14 13m-15-5 7 7m5-21 9 8" fill="none" stroke="#c98a6e" stroke-width="1.2" stroke-linecap="round"/>
               <g class="gnaw-beaver">
+                <path d="M101 43c13-6 24 1 24 12 0 10-11 15-25 10-3-8-2-16 1-22Z" fill="#8b4a35"/>
+                <path d="m108 44 12 11m-16-5 14 13m-15-5 7 7m5-21 9 8" fill="none" stroke="#c98a6e" stroke-width="1.2" stroke-linecap="round"/>
                 <circle cx="88" cy="24" r="7" fill="#9f2118"/>
                 <path d="M109 54c-1-19-10-31-25-31-14 0-24 11-24 26 0 11 6 18 15 21h28c4-4 6-9 6-16Z" fill="currentColor"/>
                 <path d="M63 38c6-6 14-6 19 0 2 3 1 8-2 11-5 4-13 3-18-1-3-3-2-7 1-10Z" fill="#fecdca"/>
@@ -1173,16 +1254,20 @@
                 <div class="work-mark" aria-hidden="true">
                   <svg class="gnaw-scene" viewBox="0 0 128 72">
                     <g class="gnaw-log">
-                      <rect x="4" y="49" width="64" height="15" rx="7.5" fill="#8b4a35"/>
-                      <circle cx="66" cy="56.5" r="6.3" fill="#c98a6e"/>
-                      <path d="M12 54h25M18 59h14" fill="none" stroke="#c98a6e" stroke-width="1.5" stroke-linecap="round"/>
-                      <circle class="gnaw-cut gnaw-bite-one" cx="70" cy="50.5" r="3.1"/>
-                      <circle class="gnaw-cut gnaw-bite-two" cx="68.8" cy="56.5" r="3.1"/>
-                      <circle class="gnaw-cut gnaw-bite-three" cx="70" cy="62.5" r="3.1"/>
+                      <g class="gnaw-log-body">
+                        <rect x="4" y="49" width="64" height="15" rx="7.5" fill="#8b4a35"/>
+                        <path d="M12 54h25M18 59h14" fill="none" stroke="#c98a6e" stroke-width="1.5" stroke-linecap="round"/>
+                      </g>
+                      <g class="gnaw-log-end">
+                        <circle cx="66" cy="56.5" r="6.3" fill="#c98a6e"/>
+                        <circle class="gnaw-cut gnaw-bite-one" cx="70" cy="50.5" r="3.1"/>
+                        <circle class="gnaw-cut gnaw-bite-two" cx="68.8" cy="56.5" r="3.1"/>
+                        <circle class="gnaw-cut gnaw-bite-three" cx="70" cy="62.5" r="3.1"/>
+                      </g>
                     </g>
-                    <path d="M101 43c13-6 24 1 24 12 0 10-11 15-25 10-3-8-2-16 1-22Z" fill="#8b4a35"/>
-                    <path d="m108 44 12 11m-16-5 14 13m-15-5 7 7m5-21 9 8" fill="none" stroke="#c98a6e" stroke-width="1.2" stroke-linecap="round"/>
                     <g class="gnaw-beaver">
+                      <path d="M101 43c13-6 24 1 24 12 0 10-11 15-25 10-3-8-2-16 1-22Z" fill="#8b4a35"/>
+                      <path d="m108 44 12 11m-16-5 14 13m-15-5 7 7m5-21 9 8" fill="none" stroke="#c98a6e" stroke-width="1.2" stroke-linecap="round"/>
                       <circle cx="88" cy="24" r="7" fill="#9f2118"/>
                       <path d="M109 54c-1-19-10-31-25-31-14 0-24 11-24 26 0 11 6 18 15 21h28c4-4 6-9 6-16Z" fill="currentColor"/>
                       <path d="M63 38c6-6 14-6 19 0 2 3 1 8-2 11-5 4-13 3-18-1-3-3-2-7 1-10Z" fill="#fecdca"/>
@@ -1222,7 +1307,13 @@
 
       <aside class="card preview-card" aria-labelledby="preview-title">
         <div class="card-heading">
-          <h2 id="preview-title">Live preview</h2>
+          <h2 id="preview-title" class="preview-title">
+            <svg class="preview-tail" viewBox="0 0 24 28" aria-hidden="true">
+              <path d="M12 1.5c5.7 0 9.5 5.2 9.5 12.7 0 7-3.7 12.3-9.5 12.3S2.5 21.2 2.5 14.2C2.5 6.7 6.3 1.5 12 1.5Z" fill="#8b4a35"/>
+              <path d="m6.5 8 11 11M5 14l8.5 8.5M11 5l8 8M17.5 8l-11 11M19 14l-8.5 8.5M13 5l-8 8" fill="none" stroke="#c98a6e" stroke-width="1.15" stroke-linecap="round"/>
+            </svg>
+            Live preview
+          </h2>
           <span id="preview-count" class="count">Waiting for affidavit</span>
         </div>
         <div class="preview-layout">
@@ -1280,19 +1371,6 @@
             <small>Numbers certificate and exhibit pages in the upper-right corner.</small>
           </span>
         </label>
-      </div>
-      <div class="dialog-actions">
-        <button value="close" class="primary">Done</button>
-      </div>
-    </form>
-  </dialog>
-
-  <dialog id="wording-dialog" aria-labelledby="wording-title">
-    <form method="dialog">
-      <div class="dialog-body">
-        <h2 id="wording-title">Exhibit details</h2>
-        <p>Affidavit wording</p>
-        <ul id="wording-list" class="wording-list"></ul>
       </div>
       <div class="dialog-actions">
         <button value="close" class="primary">Done</button>
@@ -1485,9 +1563,6 @@
       });
       document.querySelectorAll(".preview-eye").forEach((control) => {
         control.disabled = busy || !control.dataset.id;
-      });
-      document.querySelectorAll(".wording-details").forEach((control) => {
-        control.disabled = busy || control.dataset.available !== "true";
       });
       $("#progress").classList.toggle("hidden", !(busy && kind === "build"));
       if (!busy) $("#progress").value = 0;
@@ -2178,27 +2253,13 @@
       </button>`;
     }
 
-    function wordingDetails(index, statements) {
-      const label = indexLabel(index);
-      const available = statements.length > 0;
-      const title = available ? `View Exhibit ${label} affidavit wording` : `No affidavit wording found for Exhibit ${label}`;
-      return `<button type="button" class="wording-details" data-index="${index}" data-available="${available}" aria-label="${title}" title="${title}" ${state.busy || !available ? "disabled" : ""}>
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M6.5 4.5h11a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-11a2 2 0 0 1-2-2v-11a2 2 0 0 1 2-2Z"/>
-          <path d="M8 9h8M8 12.5h8M8 16h5"/>
-        </svg>
-      </button>`;
-    }
-
-    function showWordingDetails(index) {
-      const label = indexLabel(index);
-      const statements = state.statements.get(label) || [];
-      if (!statements.length) return;
-      $("#wording-title").textContent = `Exhibit ${label} details`;
-      $("#wording-list").innerHTML = statements
-        .map((statement) => `<li>${escapeHtml(statement)}</li>`)
-        .join("");
-      $("#wording-dialog").showModal();
+    function wordingDisclosure(statements) {
+      if (!statements.length) return "";
+      const first = escapeHtml(statements[0]);
+      return `<details class="wording-disclosure">
+        <summary><span class="wording-label">From affidavit</span><span class="wording-preview" title="${first}">${first}</span></summary>
+        <ul class="wording-statements">${statements.map((statement) => `<li>${escapeHtml(statement)}</li>`).join("")}</ul>
+      </details>`;
     }
 
     function renderPool() {
@@ -2237,7 +2298,6 @@
             <div class="letter-stack">
               <div class="letter">${indexLabel(index)}</div>
               ${previewEye(entry?.id, filename)}
-              ${wordingDetails(index, statements)}
             </div>
             <div class="slot-body">
               <div class="slot-drop" data-index="${index}" draggable="${Boolean(entry) && !state.busy}"
@@ -2264,9 +2324,10 @@
                       <input class="slot-file" data-index="${index}" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" ${state.busy ? "disabled" : ""}>
                     </label>`}
               </div>
+              ${wordingDisclosure(statements)}
             </div>
             ${index === count - 1
-              ? `<button type="button" class="delete-slot" aria-label="Remove final Exhibit ${indexLabel(index)}" ${state.busy ? "disabled" : ""}><span aria-hidden="true">×</span></button>`
+              ? `<button type="button" class="delete-slot" aria-label="Remove final Exhibit ${indexLabel(index)}" title="Remove final Exhibit ${indexLabel(index)}" ${state.busy ? "disabled" : ""}><span aria-hidden="true">&times;</span></button>`
               : ""}
           </article>`;
       }).join("");
@@ -2768,7 +2829,6 @@
       if (event.target.closest(".delete-slot")) deleteExhibit(index);
       if (event.target.closest(".unassign-file")) unassignFile(index);
       if (event.target.closest(".delete-assigned")) deleteAssignedFile(index);
-      if (event.target.closest(".wording-details")) showWordingDetails(index);
       const preview = event.target.closest(".preview-eye");
       if (preview) previewEntry(preview.dataset.id);
     });
