@@ -507,13 +507,30 @@ export function searchPassages(options: PassageSearchOptions): PassageHit[] {
     const textStmt = source.prepare(
       `SELECT unofficial_text_${language} AS text FROM document WHERE id = ?`,
     );
+    // Document bodies are fetched once per call, not once per hit. Every hit
+    // needs only its own ~1.6 KB slice, but the row carries the WHOLE
+    // document: with perDocCap 24 over a 330 KB merger agreement, the
+    // unmemoized path pulled the same body 24 times — ~16 MB allocated per
+    // query to keep ~77 KB. Measured: it exhausted a 2 GB heap partway
+    // through a 776-query sweep. Pure memo, so hits and ordering are
+    // unchanged; the cache dies with the call, so nothing can go stale.
+    const bodies = new Map<number, string | null>();
+    const documentText = (docId: number): string | null => {
+      const cached = bodies.get(docId);
+      if (cached !== undefined) return cached;
+      const row = textStmt.get(docId) as { text?: string } | undefined;
+      const text = typeof row?.text === "string" ? row.text : null;
+      bodies.set(docId, text);
+      return text;
+    };
     for (const row of rows) {
       if (hits.length >= k) break;
       const docId = row.doc_id as number;
       const used = perDoc.get(docId) ?? 0;
       if (used >= perDocCap) continue;
-      const doc = textStmt.get(docId) as { text?: string } | undefined;
-      if (typeof doc?.text !== "string") continue;
+      const text = documentText(docId);
+      if (text === null) continue;
+      const doc = { text };
       perDoc.set(docId, used + 1);
       hits.push({
         docId,
