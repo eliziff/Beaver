@@ -61,6 +61,7 @@ import {
   type Span,
 } from "../src/lib/legalbenchRag";
 import { searchPassages } from "../src/lib/passageRetrieval";
+import { rerankPassages } from "../src/lib/retrievalRerank";
 import {
   streamChatWithTools,
   type NormalizedLlmUsage,
@@ -216,10 +217,13 @@ async function main() {
   const chunkTarget = Number(flag("chunk-target", "1000"));
   const chunkOverlap = Number(flag("chunk-overlap", "120"));
   const nameWeight = Number(flag("name-weight", "4"));
+  // Optional Stage 16 W2 reranking: pool k=48 lexical, one listwise
+  // call (this model) picks the top k. Empty string = off.
+  const rerankModel = flag("rerank", "");
   const retriever =
-    retrieverKind === "passage"
+    (retrieverKind === "passage"
       ? `passage:t${chunkTarget}/o${chunkOverlap}/w${nameWeight}`
-      : "product";
+      : "product") + (rerankModel ? `+rerank(${rerankModel})` : "");
   const timeoutMs = Number(flag("timeout-ms", "300000"));
   const concurrency = Number(flag("concurrency", "3"));
   const experimentsDir = path.join(
@@ -302,14 +306,25 @@ async function main() {
     // product doc-level path (snippets located back via indexOf).
     const retrieved: Array<Span & { snippet: string }> = [];
     if (retrieverKind === "passage") {
-      for (const hit of searchPassages({
+      let hits = searchPassages({
         sourceDb: database,
         query: test.query,
-        k,
+        k: rerankModel ? 48 : k,
         target: chunkTarget,
         overlap: chunkOverlap,
         nameWeight,
-      })) {
+        ...(rerankModel ? { perDocCap: 24 } : {}),
+      });
+      if (rerankModel)
+        hits = (
+          await rerankPassages({
+            query: test.query,
+            hits,
+            model: rerankModel,
+            top: k,
+          })
+        ).hits;
+      for (const hit of hits) {
         retrieved.push({
           filePath: hit.citation,
           start: hit.start,
