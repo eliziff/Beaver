@@ -11,7 +11,7 @@ export const GEMINI_MAIN_MODELS = [
     "gemini-3.1-pro-preview",
     "gemini-3-flash-preview",
 ] as const;
-export const OPENAI_MAIN_MODELS = ["gpt-5.5", "gpt-5.4"] as const;
+export const OPENAI_MAIN_MODELS = ["gpt-5.6-luna", "gpt-5.5", "gpt-5.4"] as const;
 export const DEEPSEEK_MAIN_MODELS = [
     "deepseek-v4-flash",
     "deepseek-v4-pro",
