@@ -248,9 +248,26 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
           maximum: 3,
           description: "Hops. Defaults to 1.",
         },
-        section: { type: "string", description: "Deprecated: use at." },
-        page: { type: "string", description: "Deprecated: use at='pdf:N' or at='printed:X'." },
-        offset: { type: "integer", minimum: 0, description: "Deprecated: use at='off:N'." },
+        // Legacy-arm parameters. They carry their OWN descriptions, not a
+        // pointer at the other arm's vocabulary: each arm strips the other's
+        // parameters, so a deprecation note here is both pointless and a
+        // leak — it teaches arm A about a parameter arm A does not have.
+        section: {
+          type: "string",
+          description:
+            "Structural locator from the document's own numbering ('8.01', 'Article VIII', 'Schedule 7.01', 's. 8(2)'). Returns only that span, children included. library_outline lists the exact handles.",
+        },
+        page: {
+          type: "string",
+          description:
+            "Printed page label, for paged documents. library_outline reports which pages exist.",
+        },
+        offset: {
+          type: "integer",
+          minimum: 0,
+          description:
+            "Character offset to start from (text mode, no section). Pairs with library_find hits' offsets.",
+        },
         max_chars: {
           type: "integer",
           minimum: 200,
@@ -281,7 +298,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
   ),
   tool(
     "library_links",
-    "Follow a document's own cross-references. With `section`, returns that provision's parent/siblings/children plus the references it makes and the references made to it, each as a handle library_read section= accepts. Without `section`, returns the reference census and the most-referenced provisions. Deterministic — the document's literal pointers, not a similarity guess.",
+    "Follow a document's own cross-references. With an address, returns that provision's parent/siblings/children plus the references it makes and the references made to it, each as a handle library_read accepts. Without one, returns the reference census and the most-referenced provisions. Deterministic — the document's literal pointers, not a similarity guess.",
     {
       type: "object",
       properties: {
@@ -291,7 +308,11 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
           description:
             "Structural locator to stand at ('8.01', 'Article VIII'). Omit for the document-level census and hubs.",
         },
-        section: { type: "string", description: "Deprecated: use at." },
+        section: {
+          type: "string",
+          description:
+            "Structural locator to stand at ('8.01', 'Article VIII'). Omit for the document-level census and hubs.",
+        },
         max_results: {
           type: "integer",
           minimum: 1,
@@ -324,8 +345,15 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
           description:
             "Restrict the search to one address: '8.01' for a provision and everything under it, 'pdf:12-18' or 'printed:47' for pages. Hit offsets stay document-wide.",
         },
-        pages: { type: "string", description: "Deprecated: use at." },
-        section: { type: "string", description: "Deprecated: use at." },
+        pages: {
+          type: "string",
+          description: "Restrict the search to pages, for paged documents.",
+        },
+        section: {
+          type: "string",
+          description:
+            "Restrict the search to one provision and everything under it ('8.01', 'Article VIII').",
+        },
         follow: {
           type: "string",
           enum: ["none", "out", "in", "both"],
@@ -777,7 +805,7 @@ const LEGACY_ONLY_PARAMS: Record<string, string[]> = {
  */
 const LEGACY_DESCRIPTIONS: Record<string, string> = {
   library_outline:
-    "Structural map of a Library document parsed from its own numbering: the ARTICLE/PART tree, every Section and (a)/(i) subsection with the handle library_read section= accepts, defined terms with their defining section, schedules/exhibits, and cross-reference counts. A ~100-page agreement maps to 1-3k tokens.",
+    "Structural map of a Library document parsed from its own numbering: the ARTICLE/PART tree, every Section and (a)/(i) subsection with the handle library_read accepts, defined terms with their defining section, schedules/exhibits, and cross-reference counts. A ~100-page agreement maps to 1-3k tokens.",
 };
 
 /**
