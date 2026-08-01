@@ -48,14 +48,44 @@ import {
 import type { FixtureId } from "./types";
 
 const PROSE_DIR = path.join(__dirname, "..", "fixtures", "prose");
+const REAL_DIR = path.join(__dirname, "..", "fixtures", "real");
+
+/**
+ * Provenance for a fixture cut from a real document. Required on the `real`
+ * family: a fixture whose licence cannot be established does not ship, and
+ * the manifest has to be able to say where every line came from.
+ */
+export type FixtureProvenance = {
+  /** Where the document came from, as a resolvable URL. */
+  source_url: string;
+  /** The licence, named exactly. */
+  licence: string;
+  /** REDISTRIBUTABLE with the stated attribution, or the fixture is dropped. */
+  licence_verdict: "redistributable";
+  /** Attribution line the licence requires. */
+  attribution: string;
+  /** What was done to the source: excerpted, truncated, renamed, nothing. */
+  modifications: string;
+  /**
+   * Contamination risk. A landmark document a model may have memorised is a
+   * worse fixture than an obscure one, and tasks must turn on THIS
+   * document's specifics either way.
+   */
+  obscurity: "obscure" | "moderate" | "well-known";
+  retrieved: string;
+};
 
 export type FixtureSpec = {
   id: FixtureId;
   /** Filename the model sees in the library. */
   filename: string;
-  family: "prose" | "pathology";
+  family: "prose" | "pathology" | "real";
   /** One line on what makes this document worth having. */
   character: string;
+  /** Jurisdiction, for breadth reporting. */
+  jurisdiction?: string;
+  /** Required on the `real` family, absent on generated fixtures. */
+  provenance?: FixtureProvenance;
   build: () => Promise<Buffer>;
 };
 
@@ -72,6 +102,47 @@ function prose(id: FixtureId, title: string, character: string): FixtureSpec {
       const rendered = await renderMarkdownDocx(title, source);
       if ("error" in rendered) throw new Error(`${id}: ${rendered.error}`);
       return rendered.bytes;
+    },
+  };
+}
+
+/**
+ * A fixture cut from a real document.
+ *
+ * Real legal text is not markdown: it has ALL-CAPS headings, "1." and "(a)"
+ * at the start of lines, and hard-wrapped paragraphs. Running it through the
+ * markdown renderer silently eats list markers and renumbers clauses, so the
+ * `real` family packs each source line as one paragraph, verbatim. That is
+ * also closer to what a scanned or exported document actually looks like.
+ */
+function realDocument(
+  id: FixtureId,
+  title: string,
+  file: string,
+  character: string,
+  jurisdiction: string,
+  provenance: FixtureProvenance,
+): FixtureSpec {
+  return {
+    id,
+    filename: `${title}.docx`,
+    family: "real",
+    character,
+    jurisdiction,
+    provenance,
+    build: async () => {
+      const source = readFileSync(path.join(REAL_DIR, file), "utf8");
+      return Packer.toBuffer(
+        new Document({
+          sections: [
+            {
+              children: source
+                .split(/\r?\n/u)
+                .map((line) => new Paragraph({ children: [new TextRun(line)] })),
+            },
+          ],
+        }),
+      );
     },
   };
 }

@@ -63,6 +63,10 @@ async function manifestRows() {
       filename: spec.filename,
       family: spec.family,
       character: spec.character,
+      jurisdiction: spec.jurisdiction ?? null,
+      /** Real-world documents carry their source and licence; generated ones do not. */
+      real_world: spec.family === "real",
+      provenance: spec.provenance ?? null,
       /** Authoritative identity: the plane checks and tools both see. */
       text_sha256: sha256(text),
       text_chars: text.length,
@@ -92,7 +96,10 @@ async function manifestRows() {
       benchmark_version: BENCH_VERSION,
       kind: "task",
       id: task.id,
+      set: task.set ?? "v1",
       task_version: task.version,
+      jurisdiction: task.jurisdiction ?? null,
+      practice_area: task.practice_area ?? null,
       difficulty: task.difficulty,
       floor_task: task.floor_task === true,
       categories: task.categories,

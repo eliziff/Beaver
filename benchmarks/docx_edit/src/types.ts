@@ -8,7 +8,16 @@
 export const TASK_SCHEMA = "mike.docx-edit.task.v1";
 export const MANIFEST_SCHEMA = "mike.docx-edit.manifest.v1";
 export const RECEIPT_SCHEMA = "mike.docx-edit.receipt.v1";
-export const BENCH_VERSION = "docx-edit-bench-v1";
+export const BENCH_VERSION = "docx-edit-bench-v2";
+
+/**
+ * Task sets are ADDITIVE. v1's tasks, fixtures and checks are frozen so its
+ * published result stays comparable; v2 adds tasks and fixtures in their own
+ * files and never edits v1's. A run selects a set, and a receipt records
+ * which one it scored.
+ */
+export const TASK_SETS = ["v1", "v2"] as const;
+export type TaskSet = (typeof TASK_SETS)[number];
 
 export type FixtureId = string;
 
@@ -97,8 +106,18 @@ export type NearMiss = {
 export type Task = {
   schema: typeof TASK_SCHEMA;
   id: string;
+  /** Which additive task set this belongs to. Set by the loader from the file. */
+  set?: TaskSet;
   /** Bumped whenever instruction or checks change. */
   version: number;
+  /**
+   * Jurisdiction the task is drawn from, for breadth reporting:
+   * "CA-federal", "CA-ON", "CA-QC", "CA-BC", "US-federal", "US-DE",
+   * "US-NY", "neutral". Free text; the report groups on it.
+   */
+  jurisdiction?: string;
+  /** Practice area, for breadth reporting. Free text. */
+  practice_area?: string;
   /** Documents loaded into the model's library, in order. */
   fixtures: FixtureId[];
   /** The document that is scored. */
