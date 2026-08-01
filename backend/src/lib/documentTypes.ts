@@ -13,14 +13,39 @@ export const ALLOWED_DOCUMENT_TYPES = new Set([
   "gif",
   "webp",
   "eml",
+  // Files that ARE their text. Legal work arrives as exported agreements,
+  // transcripts and markdown memos constantly; until now every one of them
+  // was rejected at upload and produced nothing.
+  "txt",
+  "text",
+  "md",
+  "markdown",
+  "mdown",
+  "rst",
+  "log",
 ]);
 
 export const ALLOWED_DOCUMENT_TYPES_LABEL =
-  "pdf, docx, doc, xlsx, xlsm, xls, pptx, ppt, jpg, jpeg, png, gif, webp, eml";
+  "pdf, docx, doc, xlsx, xlsm, xls, pptx, ppt, jpg, jpeg, png, gif, webp, eml, txt, md";
 
 const WORD_TYPES = new Set(["docx", "doc"]);
 const SPREADSHEET_TYPES = new Set(["xlsx", "xlsm", "xls"]);
 const PRESENTATION_TYPES = new Set(["pptx", "ppt"]);
+/**
+ * Files that ARE their text. No extraction step, no format to lose: the
+ * bytes decode to the characters every downstream layer already works on.
+ * Legal work arrives in these constantly -- exported agreements, transcripts,
+ * markdown memos, corpus files -- and until now they produced nothing.
+ */
+const PLAIN_TEXT_TYPES = new Set([
+  "txt",
+  "text",
+  "md",
+  "markdown",
+  "mdown",
+  "rst",
+  "log",
+]);
 
 export function isWordDocumentType(fileType: string | null | undefined) {
   return WORD_TYPES.has((fileType ?? "").toLowerCase());
@@ -32,6 +57,10 @@ export function isSpreadsheetDocumentType(fileType: string | null | undefined) {
 
 export function isPresentationDocumentType(fileType: string | null | undefined) {
   return PRESENTATION_TYPES.has((fileType ?? "").toLowerCase());
+}
+
+export function isPlainTextDocumentType(fileType: string | null | undefined) {
+  return PLAIN_TEXT_TYPES.has((fileType ?? "").toLowerCase());
 }
 
 export function shouldConvertToPdf(fileType: string | null | undefined) {
@@ -71,6 +100,15 @@ export function contentTypeForDocumentType(fileType: string | null | undefined) 
       return "image/webp";
     case "eml":
       return "message/rfc822";
+    case "md":
+    case "markdown":
+    case "mdown":
+      return "text/markdown; charset=utf-8";
+    case "txt":
+    case "text":
+    case "rst":
+    case "log":
+      return "text/plain; charset=utf-8";
     default:
       return "application/octet-stream";
   }

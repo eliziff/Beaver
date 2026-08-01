@@ -24,6 +24,7 @@ import {
 import { extractPresentationText } from "../../officeText";
 import { spreadsheetToLLMText } from "../../spreadsheet";
 import { extractDocxDraftingSource } from "../../docxDraftingSource";
+import { isPlainTextDocumentType } from "../../documentTypes";
 import { extractEmailText } from "../../emailText";
 import { cachedParse } from "../../parseCache";
 import {
@@ -113,6 +114,25 @@ export function textParserFor(fileType: string): {
           );
         }
         return text;
+      },
+    };
+  if (isPlainTextDocumentType(fileType))
+    return {
+      parser: "plain-text",
+      version: 1,
+      /**
+       * Decode and nothing else. A BOM is a byte-order mark, not content, so
+       * it goes; line endings STAY exactly as the file has them.
+       *
+       * Normalising CRLF here would be the same defect that silently
+       * corrupted a quarter of a benchmark for five stages: every offset a
+       * reader hands back has to index the stored bytes, and rewriting line
+       * endings moves all of them. The structural grammars already tolerate
+       * a trailing carriage return.
+       */
+      run: async (b) => {
+        const text = b.toString("utf8");
+        return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
       },
     };
   if (fileType === "eml")

@@ -3,6 +3,7 @@ import { apiFetch } from "@/app/lib/beaverApi";type DocResult =
     | { type: "pdf"; buffer: ArrayBuffer }
     | { type: "spreadsheet"; buffer: ArrayBuffer }
     | { type: "docx"; buffer: ArrayBuffer }
+    | { type: "text"; buffer: ArrayBuffer }
     | null;
 type LoadedDoc = Exclude<DocResult, null>;
 let cached: { key: string; result: LoadedDoc } | null = null;
@@ -39,6 +40,10 @@ async function loadSingleDoc(
                 type: "spreadsheet",
                 buffer: await response.arrayBuffer(),
             };
+        } else if (contentType.startsWith("text/")) {
+            // Plain text and Markdown ARE their content. Without this branch
+            // they fall through to the docx renderer, which cannot open them.
+            result = { type: "text", buffer: await response.arrayBuffer() };
         } else {
             result = { type: "docx", buffer: await response.arrayBuffer() };
         }
