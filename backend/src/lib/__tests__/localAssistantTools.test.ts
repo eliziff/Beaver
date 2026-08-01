@@ -7,6 +7,7 @@ let temporaryDirectory: string | null = null;
 
 afterEach(async () => {
   delete process.env.MIKE_LOCAL_DATA_DIR;
+  delete process.env.MIKE_NAV_SHAPE;
   vi.doUnmock("../tableOfAuthorities");
   vi.doUnmock("../convert");
   vi.doUnmock("../localDocumentStore");
@@ -84,6 +85,8 @@ describe("local assistant tools", () => {
    * sheet a table of contents cites.
    */
   it("addresses pages by both numbering schemes and follows the reference graph", async () => {
+    // The address arm is the subject here; pin it rather than inheriting it.
+    process.env.MIKE_NAV_SHAPE = "address";
     const sourcePath = path.join(os.tmpdir(), "paged-agreement.pdf");
     const parts = [
       { printed: "i", body: "TABLE OF CONTENTS\n\nARTICLE II — TERM ... 1" },
@@ -133,12 +136,13 @@ describe("local assistant tools", () => {
       return JSON.parse(response.content);
     };
 
-    // The two schemes are separate calls: bare digits are the PDF page.
-    const bare = await run("library_read", { page: "1" });
+    // The two schemes are separate calls, and a page must be named as one:
+    // a bare address is structural, so pages are qualified.
+    const bare = await run("library_read", { at: "pdf:1" });
     expect(bare).toMatchObject({ ok: true, pdf_page: 1, matched_on: "pdf" });
     expect(bare.text).toContain("TABLE OF CONTENTS");
 
-    const printed = await run("library_read", { page: "printed:1" });
+    const printed = await run("library_read", { at: "printed:1" });
     expect(printed).toMatchObject({
       ok: true,
       pdf_page: 2,
@@ -153,12 +157,14 @@ describe("local assistant tools", () => {
     // Search scoped to a page, with document-wide offsets preserved.
     const scoped = await run("library_find", {
       query: "Section",
-      pages: "printed:2",
+      at: "printed:2",
     });
     expect(scoped.pages_searched).toBe(1);
     expect(scoped.hits).toHaveLength(1);
     expect(scoped.hits[0].page).toBe('PDF page 3 (printed "2")');
-    expect(text.slice(scoped.hits[0].at)).toMatch(/^Section 2\.01/u);
+    // The address arm hands back a passable address plus the raw offset.
+    expect(scoped.hits[0].at).toBe(`off:${scoped.hits[0].offset}`);
+    expect(text.slice(scoped.hits[0].offset)).toMatch(/^Section 2\.01/u);
 
     // The orientation call carries the page map, including the divergence.
     const outline = await run("library_outline", {});
@@ -181,6 +187,16 @@ describe("local assistant tools", () => {
       at: "printed:2",
     });
     expect(scopedByAt.hits).toHaveLength(1);
+
+    // follow expands the address on read, not just on find.
+    const withRelated = await run("library_read", { at: "2.01", follow: "out" });
+    expect(withRelated.text).toContain("2.01 Term.");
+    expect(
+      withRelated.related.map((entry: { section: string }) => entry.section),
+    ).toEqual(["sec3.02"]);
+    const missing = await run("library_read", { at: "9.99", follow: "out" });
+    expect(missing.ok).toBe(false);
+    expect(missing.error).toMatch(/not found/u);
 
     const links = await run("library_links", { at: "2.01" });
     expect(links.ok).toBe(true);
