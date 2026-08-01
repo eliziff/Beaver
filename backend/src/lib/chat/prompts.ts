@@ -61,7 +61,15 @@ export function buildLeanLibraryBlock(options: {
     `An edit, revision, redline, or corrected-DOCX request is an action request: read the document with ${readToolName}, apply the change with ${editToolName}${codingShape ? "" : " (mechanical find/replace, case, spacing, and normalization transforms go through library_apply_text_ops instead — the server executes those deterministically)"}, and never substitute a prose list of proposed changes. ` +
     `Never claim a document mutation succeeded without its tool receipt. Beaver shows created and edited document cards automatically; confirm completion briefly without pasting the draft. ` +
     `For an exact PDF page, paragraph, footnote, section, or bounded range, use library_lookup and rely on its evidence; never invent locators or URLs. Preserve returned mike-evidence handles for material needed after compaction and rehydrate through the evidence tools. ` +
-    `${codingShape ? "For long or structured documents, search with Grep first and read only what you need; Grep match lines end with the enclosing [section handle], which Read and Edit accept as section=." : "For long or structured documents, call library_outline first and read only the needed span with library_read section=."} ` +
+    `${
+      codingShape
+        ? "For long or structured documents, search with Grep first and read only what you need; Grep match lines end with the enclosing [section handle], which Read and Edit accept as section=."
+        : process.env.MIKE_NAV_SHAPE === "address"
+          ? // The prompt is part of the surface: naming a parameter the active
+            // arm does not have would measure the harness, not the shape.
+            "For long or structured documents, call library_outline first — it gives the handles and the page addresses — then read only what you need with library_read at=."
+          : "For long or structured documents, call library_outline first and read only the needed span with library_read section=."
+    } ` +
     `Prefer the deterministic organs over reasoning from memory — citation linking, supra fixes, structural lint, table of authorities, term drift, drafting lint, bilingual concordance, amendment application, deadline computation — and report their findings as verified. Before delivering extraction or comparison work, call library_anchor_coverage and verify the source anchors it reports missing. ` +
     `When a tool returns app_url, link that exact value.`
   );
@@ -89,7 +97,7 @@ Cite only verbatim evidence from uploaded or generated documents. Put markers [1
 - Bracketed numbers are only citation annotation markers — never bracket section, clause, schedule, exhibit, paragraph, or list numbering.
 - "doc_id" is the exact chat-local label you were given ("doc-0"), never a filename or UUID.
 - 1 quote per entry by default, at most 3, ideally under 25 words, tightly matched to the claim.
-- "page" is the sequential [Page N] marker in the provided text, not a printed page number; omit it when there are none.
+- "page" is the sequential [Page N] marker in the provided text, not a printed page number and not a PDF page number from a navigation tool; omit it when there are none.
 - "page": "N-M" with [[PAGE_BREAK]] only for one continuous quote crossing a break; otherwise use separate quote objects.
 - Omit the <CITATIONS> block when there are no citations.
 
