@@ -54,16 +54,35 @@ export interface PageSpan {
 export interface PageMap {
   pages: PageSpan[];
   /**
-   * `artifact` carries both numbers and can answer "which PDF page is
-   * printed 47". `markers` is recovered from rendered text and knows only
-   * one number per page, without knowing which sense it is.
-   *
-   * `none` means the document HAS no pages — a DOCX has no fixed pagination
-   * until something renders it. `unavailable` means it has pages and we
-   * could not index them, which is a state of our pipeline and never a fact
-   * about the document. A PDF must never report `none`.
+   * Where the map came from. `artifact` is the engine's page records;
+   * `markers` is recovered from rendered text and knows one number per page
+   * without knowing which sense it is; `unpaginated` is a document with no
+   * fixed pages at all (a DOCX is not paginated until something renders
+   * it); `unindexed` is a paged document whose index could not be built,
+   * which is a state of our pipeline and never a fact about the document.
    */
-  source: "artifact" | "markers" | "none" | "unavailable";
+  source: "artifact" | "markers" | "unpaginated" | "unindexed";
+}
+
+/**
+ * Which addressing schemes actually work on this document.
+ *
+ * A PDF always has PDF page numbers. Printed labels are DETECTED — from
+ * headers and footers, and left unresolved when they conflict — so a PDF
+ * whose furniture carries no page number is not unaddressable, it is
+ * addressable by PDF page only. Saying otherwise reports a detection miss as
+ * a missing document feature.
+ */
+export interface PageSchemes {
+  pdfPages: boolean;
+  printedLabels: boolean;
+}
+
+export function pageSchemes(map: PageMap): PageSchemes {
+  return {
+    pdfPages: map.pages.some((page) => page.pdfPage !== null),
+    printedLabels: map.pages.some((page) => page.printedLabel !== null),
+  };
 }
 
 /**
@@ -98,7 +117,7 @@ export function pageMapFromMarkers(text: string): PageMap {
       end: text.length,
     });
   }
-  return { pages, source: pages.length ? "markers" : "none" };
+  return { pages, source: pages.length ? "markers" : "unpaginated" };
 }
 
 /**
@@ -121,7 +140,7 @@ export function pageMapFromSourceDoc(doc: {
   const pages: PageSpan[] = [];
   // A rendition whose provider compiler has not landed carries no blocks at
   // all; that is "this document has no pages", not a crash in a read tool.
-  if (!Array.isArray(doc?.blocks)) return { pages, source: "none" };
+  if (!Array.isArray(doc?.blocks)) return { pages, source: "unpaginated" };
   for (const block of doc.blocks) {
     if (block.kind !== "page") continue;
     const physical = /^page=(\d{1,6})$/u.exec(block.anchor ?? "");
@@ -140,7 +159,7 @@ export function pageMapFromSourceDoc(doc: {
   }
   pages.sort((left, right) => left.start - right.start);
   for (const [index, page] of pages.entries()) page.ordinal = index + 1;
-  return { pages, source: pages.length ? "artifact" : "none" };
+  return { pages, source: pages.length ? "artifact" : "unpaginated" };
 }
 
 export type PageLookup =
@@ -410,6 +429,84 @@ export function nodeLinks(graph: CrossReferenceGraph, label: string): NodeLinks 
     }
   }
   return { outgoing, incoming };
+}
+
+export type FollowDirection = "none" | "out" | "in" | "both";
+
+export interface GraphScope {
+  seed: SkeletonNode;
+  /** the seed first, then everything reached, in document order after it */
+  nodes: SkeletonNode[];
+  /** hops actually used — lower than asked when the neighbourhood closes */
+  depth: number;
+}
+
+/**
+ * The provisions reachable from one provision along the document's own
+ * literal references — the scope behind "search this clause and everything
+ * it depends on".
+ *
+ * Only RESOLVED edges expand the scope. An unresolved or external reference
+ * names no span in this document, so following it could only widen the
+ * search to nothing; and an abstained document has no trustworthy edges at
+ * all, which the caller sees as a scope of one.
+ *
+ * A node's span already contains its children, so a seeded scope covers the
+ * subtree without walking it.
+ */
+export function graphScope(
+  skeleton: AgreementSkeleton,
+  graph: CrossReferenceGraph,
+  seedLabel: string,
+  options: { follow?: FollowDirection; depth?: number } = {},
+): GraphScope | null {
+  const wanted = seedLabel.trim().toLowerCase();
+  const seed = skeleton.nodes.find(
+    (node) => node.label.toLowerCase() === wanted,
+  );
+  if (!seed) return null;
+
+  const follow = options.follow ?? "none";
+  const limit = Math.max(0, Math.min(options.depth ?? 1, 3));
+  const byLabel = new Map<string, SkeletonNode>();
+  for (const node of skeleton.nodes) {
+    if (!byLabel.has(node.label)) byLabel.set(node.label, node);
+  }
+
+  const reached = new Map<string, SkeletonNode>([[seed.label, seed]]);
+  let frontier = [seed.label];
+  let hops = 0;
+  for (; follow !== "none" && hops < limit && frontier.length; hops += 1) {
+    const next: string[] = [];
+    const inFrontier = new Set(frontier);
+    for (const edge of graph.edges) {
+      if (edge.status !== "resolved" || edge.selfLoop) continue;
+      const forward =
+        (follow === "out" || follow === "both") &&
+        edge.sourceLabel !== null &&
+        inFrontier.has(edge.sourceLabel);
+      const backward =
+        (follow === "in" || follow === "both") &&
+        edge.targetLabel !== null &&
+        inFrontier.has(edge.targetLabel);
+      const other = forward ? edge.targetLabel : backward ? edge.sourceLabel : null;
+      if (!other || reached.has(other)) continue;
+      const node = byLabel.get(other);
+      if (!node) continue;
+      reached.set(other, node);
+      next.push(other);
+    }
+    frontier = next;
+    if (!next.length) {
+      hops += 1;
+      break;
+    }
+  }
+
+  const rest = [...reached.values()]
+    .filter((node) => node.label !== seed.label)
+    .sort((left, right) => left.start - right.start);
+  return { seed, nodes: [seed, ...rest], depth: Math.min(hops, limit) };
 }
 
 export interface ReferenceHub {
