@@ -53,6 +53,7 @@ import {
   updateLocalDocument,
   type LocalTrackedEdit,
 } from "../localDocumentStore";
+import { DOMAIN_PROMPTS } from "./prompts";
 import { legalKnowledgeGraphStore } from "../legalKnowledgeGraphStore";
 import {
   LOCAL_PDF_LOCATOR_KINDS,
@@ -2193,9 +2194,17 @@ export async function runLocalAssistantTools(
           );
         }
         const opened = toolsForDomains(LOCAL_ASSISTANT_TOOLS, domains);
+        // Prose travels with its domain: the research instructions explain
+        // tools that were not loaded, so they arrive with them rather than
+        // being paid for on every turn of every session.
+        const guidance = domains
+          .map((domain) => DOMAIN_PROMPTS[domain])
+          .filter(Boolean)
+          .join("\n\n");
         return result(call, {
           ok: true,
           domains,
+          ...(guidance ? { guidance } : {}),
           // The caller adds these to the next request; naming them here is
           // what makes the disclosure legible in a transcript.
           opened: opened.map((entry) => entry.function.name),
