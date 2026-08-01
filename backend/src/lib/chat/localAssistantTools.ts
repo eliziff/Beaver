@@ -714,6 +714,61 @@ export const ASK_INPUTS_DISABLED =
  */
 export const CODING_TOOL_SHAPE = process.env.MIKE_TOOL_SHAPE === "coding";
 
+/**
+ * Navigation surface arm, for the A/B.
+ *
+ * "legacy" is the shape that shipped before 2026-07-31: read by section or
+ * offset, unscoped find, no page addressing, no graph. "address" is the one
+ * grammar shape: `at` everywhere, head/tail, page schemes, library_links,
+ * and edit scopes that name a provision instead of retyping its text.
+ *
+ * The model sees exactly one of them, and only one is callable. Shims that
+ * accept both would let an arm answer with the other arm's affordance and
+ * make the comparison meaningless.
+ */
+export const NAV_TOOL_SHAPE: "legacy" | "address" =
+  process.env.MIKE_NAV_SHAPE === "address" ? "address" : "legacy";
+
+/** Shown only in the address arm; stripped from legacy. */
+const ADDRESS_ONLY_PARAMS: Record<string, string[]> = {
+  library_read: ["at", "from", "page"],
+  library_find: ["at", "pages", "section", "follow", "depth"],
+  library_links: ["at", "section"],
+};
+
+/**
+ * Shown only in the legacy arm. The address arm drops these outright rather
+ * than carrying them as deprecated aliases: an arm that still accepts the
+ * other arm's vocabulary is not a separate condition, and a model that finds
+ * `section=` working has not been asked the question.
+ */
+const LEGACY_ONLY_PARAMS: Record<string, string[]> = {
+  library_read: ["section", "offset", "page"],
+  library_find: ["pages", "section"],
+  library_links: ["section"],
+};
+
+function forNavShape(tools: OpenAIToolSchema[]): OpenAIToolSchema[] {
+  const address = NAV_TOOL_SHAPE === "address";
+  const drop = address ? LEGACY_ONLY_PARAMS : ADDRESS_ONLY_PARAMS;
+  return tools
+    .filter((entry) => address || entry.function.name !== "library_links")
+    .map((entry) => {
+      const remove = drop[entry.function.name];
+      if (!remove) return entry;
+      const properties = { ...(entry.function.parameters?.properties ?? {}) };
+      for (const key of remove) delete (properties as Record<string, unknown>)[key];
+      return {
+        ...entry,
+        function: {
+          ...entry.function,
+          parameters: { ...entry.function.parameters, properties },
+        },
+      } as OpenAIToolSchema;
+    });
+}
+
+
 const CODING_SHAPE_REPLACES = new Set([
   "library_find",
   "library_read",
@@ -855,11 +910,13 @@ export const LOCAL_ASSISTANT_TOOLS: OpenAIToolSchema[] = [
   ...(CODING_TOOL_SHAPE
     ? [
         ...CODING_SHAPE_TOOLS,
-        ...LOCAL_LIBRARY_TOOLS.filter(
-          (entry) => !CODING_SHAPE_REPLACES.has(entry.function.name),
+        ...forNavShape(
+          LOCAL_LIBRARY_TOOLS.filter(
+            (entry) => !CODING_SHAPE_REPLACES.has(entry.function.name),
+          ),
         ),
       ]
-    : LOCAL_LIBRARY_TOOLS),
+    : forNavShape(LOCAL_LIBRARY_TOOLS)),
   ...LOCAL_DOCX_TOOLS,
   ...COMPARE_VERSIONS_TOOLS,
   ...(TEXT_OPS_TOOLS as OpenAIToolSchema[]),
