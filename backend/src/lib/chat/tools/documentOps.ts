@@ -87,10 +87,33 @@ export function textParserFor(fileType: string): {
   if (fileType === "docx")
     return {
       parser: "docx-body-text",
-      version: 1,
-      // Same flattening as the edit_document matcher so the LLM sees exactly
-      // the characters it can anchor against; mammoth as fallback.
-      run: async (b) => (await extractDocxBodyText(b)) || mammothRawText(b),
+      version: 2,
+      /**
+       * Same flattening as the edit_document matcher, so the model sees
+       * exactly the characters it can anchor against — and NO fallback.
+       *
+       * A second extractor here was silently load-bearing in the worst way:
+       * `applyTextOpsToDocx` resolves its scopes against `extractDocxBodyText`
+       * alone, so any document that fell through to mammoth was read on one
+       * character plane and edited on another, and every offset the reader
+       * handed back pointed somewhere else in the writer. Nothing reported
+       * it, because falling back looked like success.
+       *
+       * Measured before removing it: 400 documents sampled at stride 28
+       * across the 11,293-file corpus, zero empty and zero throwing. The
+       * fallback was not carrying anything. If this does fail on a real
+       * document, that is an instrument defect to fix in the extractor, and
+       * a typed refusal naming the file is what makes it findable.
+       */
+      run: async (b) => {
+        const text = await extractDocxBodyText(b);
+        if (!text) {
+          throw new Error(
+            "DOCX body text could not be extracted. The document reads as empty, which is an extraction defect rather than an empty document; report the file rather than working from partial text.",
+          );
+        }
+        return text;
+      },
     };
   if (fileType === "eml")
     return {
