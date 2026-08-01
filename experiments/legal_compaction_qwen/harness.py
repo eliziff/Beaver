@@ -501,10 +501,13 @@ class OllamaClient:
         messages: list[dict[str, Any]],
         include_grounding_tool: bool = False,
         include_rehydration_tool: bool = False,
+        include_span_tool: bool = False,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         request_tools = ollama_tools()
         if include_rehydration_tool:
             request_tools.append(REHYDRATE_EVIDENCE_TOOL)
+        if include_span_tool:
+            request_tools.append(SPAN_ANSWER_TOOL)
         if include_grounding_tool:
             request_tools.append(GROUNDED_ANSWER_TOOL)
         body = {
@@ -553,6 +556,7 @@ class OllamaClient:
 
 GROUNDED_ANSWER_TOOL_NAME = "submit_grounded_answer"
 REHYDRATE_EVIDENCE_TOOL_NAME = "rehydrate_evidence"
+SPAN_ANSWER_TOOL_NAME = "submit_quote_spans"
 REHYDRATE_EVIDENCE_TOOL = {
     "type": "function",
     "function": {
@@ -564,6 +568,36 @@ REHYDRATE_EVIDENCE_TOOL = {
             "additionalProperties": False,
             "properties": {"evidence_id": {"type": "string"}},
             "required": ["evidence_id"],
+        },
+    },
+}
+SPAN_ANSWER_TOOL = {
+    "type": "function",
+    "function": {
+        "name": SPAN_ANSWER_TOOL_NAME,
+        "strict": True,
+        "description": "Submit evidence handles and sentence ranges; the host will materialize the exact quotations.",
+        "parameters": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "claims": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 32,
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": {
+                            "evidence_id": {"type": "string"},
+                            "start_sentence": {"type": "integer", "minimum": 0},
+                            "end_sentence": {"type": "integer", "minimum": 0},
+                        },
+                        "required": ["evidence_id", "start_sentence", "end_sentence"],
+                    },
+                }
+            },
+            "required": ["claims"],
         },
     },
 }
@@ -688,6 +722,11 @@ class ToyMikeTools:
     @classmethod
     def _copy_ready_text(cls, value: str) -> str:
         return cls._quote_body(value)
+
+    @classmethod
+    def _sentences(cls, value: str) -> list[str]:
+        text = cls._copy_ready_text(value)
+        return [part.strip() for part in re.split(r"(?<=[.!?])\s+(?=[A-Z\"“\[])", text) if part.strip()]
 
     @classmethod
     def _repair_excerpt(cls, quote: str, source: str) -> str:
@@ -821,6 +860,7 @@ class ToyMikeTools:
             if item is None:
                 return json.dumps({"ok": False, "error": "unknown evidence handle"})
             _case, passage = item
+            sentences = self._sentences(passage)
             return json.dumps(
                 {
                     "ok": True,
@@ -829,7 +869,44 @@ class ToyMikeTools:
                     "content_sha256": sha256_text(passage),
                     "exact_text": passage,
                     "copy_text": self._copy_ready_text(passage),
+                    "sentences": [
+                        {"index": index, "text": sentence}
+                        for index, sentence in enumerate(sentences)
+                    ],
                 },
+                ensure_ascii=False,
+            )
+
+        if name == SPAN_ANSWER_TOOL_NAME:
+            claims = args.get("claims")
+            evidence = self._evidence_by_handle()
+            verified: list[dict[str, Any]] = []
+            errors: list[str] = []
+            if not isinstance(claims, list) or not claims:
+                errors.append("submit_quote_spans requires a non-empty claims array")
+                claims = []
+            for index, raw in enumerate(claims):
+                handle = raw.get("evidence_id") if isinstance(raw, dict) else None
+                start = raw.get("start_sentence") if isinstance(raw, dict) else None
+                end = raw.get("end_sentence") if isinstance(raw, dict) else None
+                if handle not in evidence or not isinstance(start, int) or not isinstance(end, int):
+                    errors.append(f"claims[{index}] has an invalid evidence handle or sentence range")
+                    continue
+                sentences = self._sentences(evidence[handle][1])
+                if start < 0 or end < start or end >= len(sentences):
+                    errors.append(f"claims[{index}] sentence range is outside the cited paragraph")
+                    continue
+                verified.append({
+                    "text": " ".join(sentences[start:end + 1]),
+                    "evidence_ids": [handle],
+                    "kind": "quotation",
+                })
+            self.verifier_attempts.append({"arguments": args, "errors": errors, "diagnostics": []})
+            if errors:
+                return json.dumps({"ok": False, "errors": errors}, ensure_ascii=False)
+            self.verified_claims = verified
+            return json.dumps(
+                {"ok": True, "terminal": True, "verified_claims": len(verified)},
                 ensure_ascii=False,
             )
 
@@ -985,6 +1062,7 @@ def run_turn(
     turn_number: int,
     include_grounding_tool: bool = False,
     include_rehydration_tool: bool = False,
+    include_span_tool: bool = False,
     max_tool_rounds: int = 10,
 ) -> tuple[str, list[dict[str, Any]]]:
     tools.set_phase(phase)
@@ -996,6 +1074,7 @@ def run_turn(
                 messages,
                 include_grounding_tool,
                 include_rehydration_tool,
+                include_span_tool,
             )
         except OllamaError as error:
             call_log.append(
@@ -1035,7 +1114,7 @@ def run_turn(
                     "content": result,
                 }
             )
-            if name == GROUNDED_ANSWER_TOOL_NAME:
+            if name in {GROUNDED_ANSWER_TOOL_NAME, SPAN_ANSWER_TOOL_NAME}:
                 try:
                     if json.loads(result).get("terminal"):
                         return tools.render_verified_answer(), messages
@@ -1258,6 +1337,8 @@ def run_live(args: argparse.Namespace, cases: dict[str, CaseDocument]) -> Path:
         final_prompt = TURN_FOUR
         if args.arm == "address_on_demand":
             final_prompt += " Before quoting, call rehydrate_evidence for each handle whose text you need, and copy quotations from its deterministic copy_text field. Omit paragraph labels from quotation text."
+        elif args.arm == "span_selector":
+            final_prompt += " Before submitting, call rehydrate_evidence to inspect sentence indexes, then use submit_quote_spans. Do not transcribe quotation text yourself."
         final_response, final_messages = run_turn(
             client,
             final_messages,
@@ -1266,8 +1347,9 @@ def run_live(args: argparse.Namespace, cases: dict[str, CaseDocument]) -> Path:
             executor,
             call_log,
             4,
-            include_grounding_tool=True,
-            include_rehydration_tool=args.arm == "address_on_demand",
+            include_grounding_tool=args.arm != "span_selector",
+            include_rehydration_tool=args.arm in {"address_on_demand", "span_selector"},
+            include_span_tool=args.arm == "span_selector",
             max_tool_rounds=args.max_tool_rounds,
         )
         turns.append({"turn": 4, "prompt": TURN_FOUR, "response": final_response})
@@ -1348,7 +1430,7 @@ def parse_args() -> argparse.Namespace:
     run.add_argument("--model", default=None)
     run.add_argument(
         "--arm",
-        choices=("full_history", "address_only", "address_rehydrate", "address_on_demand"),
+        choices=("full_history", "address_only", "address_rehydrate", "address_on_demand", "span_selector"),
         required=True,
     )
     run.add_argument("--base-url", default=None)
