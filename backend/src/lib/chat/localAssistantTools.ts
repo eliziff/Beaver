@@ -864,37 +864,60 @@ const RESIDENT_TOOLS = new Set([
 ]);
 
 /**
- * Deferred tools grouped the way a task arrives, not the way the code is
- * organised — a model asks "I need to research case law", never "I need the
+ * Deferred tools, grouped the way a task arrives rather than the way the code
+ * is organised — a model asks "what cites this case", never "I need the
  * courtlistener module".
+ *
+ * SHAPE. A flat list wins while the catalogue is small: no navigation hop and
+ * no semantic noise. Its token cost then grows near-linearly and its accuracy
+ * degrades as the catalogue grows, where a hierarchy stays flat on both.
+ * Research is where that bites here — half the deferred tools — so research
+ * is a tree and every other domain stays one level. Opening a parent returns
+ * its CHILDREN; opening a leaf returns tools.
  */
-const TOOL_DOMAINS: Record<string, string> = {
-  research: "case law, legislation, journals, Hansard, citation verification",
-  drafting: "create or revise Word, Excel and PowerPoint documents",
-  review: "conflict, term-drift, structure, anchor and drafting checks",
-  amendment: "apply amendments and compare versions",
-  authorities: "table of authorities submission and status",
-  deadlines: "deadline computation",
-  workflow: "saved workflows",
+type Domain = { blurb: string; children?: string[] };
+
+const TOOL_DOMAINS: Record<string, Domain> = {
+  research: {
+    blurb: "primary law and the record around it",
+    children: ["research.cases", "research.legislation", "research.commentary"],
+  },
+  "research.cases": {
+    blurb:
+      "decisions — search and read them, pull an exact paragraph, and see which later decisions cite one and what they said when they did",
+  },
+  "research.legislation": {
+    blurb:
+      "statutes and regulations — search and read them, pull an exact section, and the parliamentary debate behind them",
+  },
+  "research.commentary": {
+    blurb: "journals, secondary sources, and citation verification",
+  },
+  drafting: { blurb: "create or revise Word, Excel and PowerPoint documents" },
+  review: { blurb: "conflict, term-drift, structure, anchor and drafting checks" },
+  amendment: { blurb: "apply an amendment instrument, and compare versions" },
+  authorities: { blurb: "table of authorities submission and status" },
+  deadlines: { blurb: "deadline computation" },
+  workflow: { blurb: "saved workflows" },
 };
 
 const DOMAIN_OF: Record<string, string> = {
-  courtlistener_search_case_law: "research",
-  courtlistener_get_cases: "research",
-  courtlistener_find_in_case: "research",
-  courtlistener_lookup_case_locator: "research",
-  courtlistener_read_case: "research",
-  courtlistener_verify_citations: "research",
-  a2aj_search: "research",
-  a2aj_fetch: "research",
-  a2aj_lookup: "research",
-  caselaw_note_up: "research",
-  hansard_search: "research",
-  hansard_fetch: "research",
-  public_legal_source_search: "research",
-  public_legal_source_fetch: "research",
-  public_legal_source_lookup: "research",
-  legal_pdf_lookup: "research",
+  courtlistener_search_case_law: "research.cases",
+  courtlistener_get_cases: "research.cases",
+  courtlistener_find_in_case: "research.cases",
+  courtlistener_lookup_case_locator: "research.cases",
+  courtlistener_read_case: "research.cases",
+  caselaw_note_up: "research.cases",
+  a2aj_search: "research.cases",
+  a2aj_fetch: "research.cases",
+  a2aj_lookup: "research.cases",
+  legal_pdf_lookup: "research.cases",
+  hansard_search: "research.legislation",
+  hansard_fetch: "research.legislation",
+  public_legal_source_search: "research.commentary",
+  public_legal_source_fetch: "research.commentary",
+  public_legal_source_lookup: "research.commentary",
+  courtlistener_verify_citations: "research.commentary",
   library_create_docx: "drafting",
   library_revise_docx: "drafting",
   library_update_metadata: "drafting",
@@ -913,6 +936,14 @@ const DOMAIN_OF: Record<string, string> = {
   library_deadline: "deadlines",
   list_workflows: "workflow",
   read_workflow: "workflow",
+};
+
+/**
+ * The A2AJ tools serve both halves of primary law, so whichever leaf the
+ * caller opens, they are the way in.
+ */
+const ALSO_IN: Record<string, string[]> = {
+  "research.legislation": ["a2aj_search", "a2aj_fetch", "a2aj_lookup"],
 };
 
 /**
@@ -1175,8 +1206,11 @@ export function toolsForDomains(
   domains: string[],
 ): OpenAIToolSchema[] {
   const wanted = new Set(domains.map((domain) => domain.trim().toLowerCase()));
-  return tools.filter((entry) =>
-    wanted.has(DOMAIN_OF[entry.function.name] ?? ""),
+  const also = new Set([...wanted].flatMap((domain) => ALSO_IN[domain] ?? []));
+  return tools.filter(
+    (entry) =>
+      wanted.has(DOMAIN_OF[entry.function.name] ?? "") ||
+      also.has(entry.function.name),
   );
 }
 
@@ -2329,6 +2363,15 @@ export async function runLocalAssistantTools(
             `domains must name at least one of: ${Object.keys(TOOL_DOMAINS).join(", ")}`,
           );
         }
+        // A parent opens onto its children, not onto tools: naming the
+        // narrower domain costs one cheap turn, and it is what keeps the
+        // catalogue from flattening back out as it grows.
+        const branches = domains
+          .flatMap((domain) => TOOL_DOMAINS[domain].children ?? [])
+          .map((child) => ({
+            domain: child,
+            covers: TOOL_DOMAINS[child].blurb,
+          }));
         const opened = toolsForDomains(LOCAL_ASSISTANT_TOOLS, domains);
         // Prose travels with its domain: the research instructions explain
         // tools that were not loaded, so they arrive with them rather than
@@ -2340,6 +2383,7 @@ export async function runLocalAssistantTools(
         return result(call, {
           ok: true,
           domains,
+          ...(branches.length ? { open_next: branches } : {}),
           ...(guidance ? { guidance } : {}),
           // The caller adds these to the next request; naming them here is
           // what makes the disclosure legible in a transcript.

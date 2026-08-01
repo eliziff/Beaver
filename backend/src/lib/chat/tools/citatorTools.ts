@@ -17,7 +17,7 @@ const tool = (
 export const CITATOR_TOOLS: OpenAIToolSchema[] = [
   tool(
     "caselaw_note_up",
-    "Note up a Canadian case citation against the locally built citator graph: corpus decisions citing it, newest first, each with the citing case's citation/name/court/date, first-occurrence paragraph, the form cited, cited-side pinpoints, and a bounded excerpt. `provider` carries the corpus's own curated citation graph: citing_in_corpus (cases whose curated cited-list names this citation) and citing_reported (citations the corpus records as citing it, possibly outside the corpus). Citation occurrences only — no treatment labels (followed/overruled). Reports citator_not_installed when no graph exists.",
+    "A local citation graph over 224,970 Canadian decisions: 2,541,822 citation edges naming 540,948 distinct cited decisions, built offline with no network call. Given a decision's citation, returns the corpus decisions that cite it, newest first — each with the citing case's citation, name, court and date, the paragraph where the citation first appears, the form in which it was cited, the pinpoints it cited into, and a bounded excerpt of the citing passage. `provider` carries the corpus's own curated cited-lists alongside the extracted edges, including citations recorded as citing this decision from outside the corpus. What it records is citation OCCURRENCE and its context, not editorial treatment: there are no followed/overruled/distinguished labels, and the excerpt is the citing court's own words. Reports citator_not_installed when no graph is built.",
     {
       type: "object",
       properties: {
