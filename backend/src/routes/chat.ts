@@ -952,7 +952,11 @@ export async function streamAnonymousChat(params: {
     }Do not substitute a prose list of proposed or suggested changes; if clarification is materially required, call ask_inputs. Never claim a document mutation succeeded without its tool receipt. Beaver shows created and edited document cards automatically, so confirm completion briefly without pasting the draft, repeating the change list, or adding a document URL. For an exact PDF page, paragraph, footnote, proposition, section, or bounded range, use library_lookup instead of ${readToolName}; rely on its evidence and do not invent locators or URLs. Preserve returned mike-evidence handles when the material may be needed after compaction and rehydrate through the evidence tools. For a table or book of authorities from a Library Word document, or a book from a Library PDF, call toa_submit_library_document. When a tool returns app_url, use that exact value in a Markdown link instead of constructing a route. ${
       codingShape
         ? "For long or structured Library documents, search with Grep first and read only what you need: Grep match lines end with the enclosing [section handle], which Read and Edit accept as section= to scope to that section."
-        : "For long or structured Library documents, call library_outline first and read only the needed span with library_read section= rather than the whole document."
+        : process.env.MIKE_NAV_SHAPE === "address"
+          ? // The prompt is part of the surface under test: naming a parameter
+            // the active arm does not have measures the harness, not the shape.
+            "For long or structured Library documents, call library_outline first — it gives the handles and the page addresses — then read only what you need with library_read at= rather than the whole document."
+          : "For long or structured Library documents, call library_outline first and read only the needed span with library_read section= rather than the whole document."
     } Before delivering extraction or comparison work, call library_anchor_coverage and verify the source anchors it reports missing from your draft. Prefer the deterministic organs over reasoning from memory — citation linking, supra fixes, structural lint, term drift, drafting lint, bilingual concordance, amendment application, deadline computation — and report their findings as verified rather than recomputing them yourself.`;
   let systemPrompt =
     `${CLIENT_WORK_PRODUCT_PRESUMPTION}\n\n${libraryBlock}\n\n` +
