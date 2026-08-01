@@ -190,12 +190,41 @@ export interface CrossReferenceOptions {
 
 export const DEFAULT_INTEGRITY_GATE = 0.5;
 
+/**
+ * Graphs are memoized against the SKELETON they were resolved over, not
+ * against the text: the skeleton is the thing resolution actually depends on,
+ * and it is already deduplicated one layer down. A WeakMap needs no size
+ * policy — an entry dies with the skeleton that keyed it.
+ *
+ * `words` and `integrityThreshold` change the answer, so they are part of the
+ * key. Everything else about a graph is a function of the skeleton.
+ */
+const graphCache = new WeakMap<AgreementSkeleton, Map<string, CrossReferenceGraph>>();
+
 export function crossReferenceGraph(
   text: string,
   id = "",
   options: CrossReferenceOptions = {},
 ): CrossReferenceGraph {
   const skeleton = options.skeleton ?? compileAgreementSkeleton(text, id);
+  const variantKey = [
+    options.words ? [...options.words].join(",") : "",
+    options.integrityThreshold ?? "default",
+  ].join("\u0000");
+  const variants = graphCache.get(skeleton);
+  const memoized = variants?.get(variantKey);
+  if (memoized) return memoized;
+  const graph = crossReferenceGraphUncached(text, skeleton, options);
+  if (variants) variants.set(variantKey, graph);
+  else graphCache.set(skeleton, new Map([[variantKey, graph]]));
+  return graph;
+}
+
+function crossReferenceGraphUncached(
+  text: string,
+  skeleton: AgreementSkeleton,
+  options: CrossReferenceOptions = {},
+): CrossReferenceGraph {
   const nodes = skeleton.nodes;
   const byLabel = new Map<string, SkeletonNode>();
   for (const node of nodes) if (!byLabel.has(node.label)) byLabel.set(node.label, node);
