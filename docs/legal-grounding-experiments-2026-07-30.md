@@ -5084,3 +5084,90 @@ demonstrated quality difference in either direction; one robust
 behavioural difference (the current arm B reads ~75% less document);
 and the three novel affordances that motivated the arm were never used
 once, across 2,941 tool calls and every schema revision.**
+
+## Amendment 2026-07-31a â€” arm B redefined; benchmark unchanged
+
+Arm B grew after registration and before the campaign completed. The
+seven receipts taken against the old definition are set aside at
+`.../docx-edit-ab-armB-v1-SUPERSEDED/` and are **not** part of any
+result; the campaign restarts at `.../docx-edit-ab-v2/`.
+
+The benchmark is untouched by this: it takes a tool surface as
+configuration and the surface record did not change. What changed is the
+runner's conversation loop, which now has to drive disclosure, and the
+task records, which now carry two arm-agnostic fields.
+
+**What is new in arm B**, on top of `at` addressing, head/tail reads,
+`follow`/`depth`, `library_links`, and `scope:{kind:"at"}`:
+
+1. **Progressive tool disclosure.** `partitionTools` splits the catalogue
+   into a resident set shipped in the request and a deferred set revealed
+   by `describe_tools({domains})`. Measured on this bed, under the sealed
+   flag both arms run with (`MIKE_DISABLE_RESEARCH_TOOLS=1`):
+
+   | | arm A | arm B |
+   |---|---|---|
+   | tools in the first request | 27 | 10 |
+   | first-request schema bytes | 25,809 | 13,282 |
+
+   That is a **48.5% first-request schema saving**, not the 60.5% quoted
+   for the unsealed catalogue â€” the sealed flag has already removed the
+   whole research domain, which is the largest deferred block. Recorded
+   because the two numbers are not the same claim.
+
+   `library_apply_text_ops` is resident. `library_revise_docx` is
+   **deferred** under `drafting`, and the whole review cluster is
+   deferred under `review`. Deferred in arm B on this bed:
+   `library_update_metadata, legal_pdf_lookup, library_link_docx_citations,
+   library_fix_docx_supras, library_lint_docx_structure,
+   library_anchor_coverage, library_conflict_scan, library_apply_amendment,
+   library_deadline, library_term_drift, library_drafting_lint,
+   library_bilingual_concordance, toa_submit_library_document,
+   toa_job_status, library_create_docx, library_revise_docx,
+   library_compare_versions, list_workflows, read_workflow` (19 tools,
+   16,397 bytes).
+
+2. **Capability on contact.** An unaddressed opening read in arm B
+   returns an `addressable` block. Arm A gets nothing. Observed, not
+   scored.
+
+**Runner changes.** The provider adapter freezes its tool list when the
+call starts, so a domain opened mid-call cannot become callable inside
+that call. The runner therefore ends the provider call at the disclosure
+and continues in a new one, replaying the exchange so far; the replay's
+token cost is real and is counted, and `disclosure_restarts` records it.
+A surface that defers nothing never restarts, so one code path serves
+both arms. A call to a tool the surface has not served is **refused by
+the runner** rather than executed â€” the handlers dispatch on name alone,
+so without that guard a model that guessed a deferred tool's name would
+silently get it and the deferral would measure as free.
+
+**New scored dimension**, reported separately from ordinary failures
+because it is arm B's central risk:
+
+- `runs opening a domain`, `first disclosure at batch`,
+- `runs blocked on a hidden tool` (a call refused because its tool was
+  not served),
+- `opened but never called` (a domain that cost a turn and bought
+  nothing),
+- `schema bytes, 1st request` against `schema bytes, mean request` â€” the
+  saving is only real if the model does not open everything on turn one.
+
+**New task fields**, arm-agnostic and recorded as data:
+
+- `resident_route_exists` â€” **true for all 27 tasks**. Every reference
+  solution in v1 is a literal substitution, which the always-resident
+  deterministic text-op tool executes directly. So no task here
+  *requires* a deferred tool, and a disclosure failure on this bed is a
+  failure to discover a route, not a missing capability. Stated plainly
+  because it bounds what this campaign can say about deferral: it can
+  show the cost of hiding a tool a model wanted, and cannot show the cost
+  of hiding a tool a task actually needs.
+- `alternative_route_domains` â€” `["drafting"]` for every edit task,
+  because tracked-change revision is the tool a model is most likely to
+  reach for instead, and it is deferred in arm B.
+
+Task `version` bumped 1 -> 2 for all 27; checks, instructions, fixtures
+and reference solutions are unchanged, and self-test still reports 27/27
+solvable and 27/27 rejecting every wrong result.
+

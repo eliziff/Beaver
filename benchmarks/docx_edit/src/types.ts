@@ -111,6 +111,18 @@ export type Task = {
   categories: string[];
   /** What the task probes, and why it is hard. Required. */
   why: string;
+  /**
+   * True when a route using only tools a surface always keeps resident can
+   * solve the task. Recorded so a progressive-disclosure result reads
+   * correctly: where this is true, a run that failed for want of a deferred
+   * tool failed to DISCOVER a route, not for want of a capability.
+   */
+  resident_route_exists?: boolean;
+  /**
+   * Tool domains a natural alternative route reaches for. On a surface that
+   * defers those domains, this is what the model has to know to ask for.
+   */
+  alternative_route_domains?: string[];
   /** "edit" — the document must change. "refuse" — it must not. */
   expected: "edit" | "refuse";
   checks: Checks;
