@@ -275,7 +275,10 @@ export function judge(
     return { outcome: "schema_invalid", kinds: [] };
   }
   const kinds = ops.map((op) => op.kind);
-  const result = applyAmendOps(testCase.pre, ops);
+  // Every case's pre-text is A2AJ consolidation text (case 3 is the unit-test
+  // statute fixture), so the line breaks are the publisher's and there is no
+  // extraction damage to recover: the segmentation competition must not run.
+  const result = applyAmendOps(testCase.pre, ops, { recoverExtraction: false });
   if (result.failures.length)
     return { outcome: `apply_failed:${result.failures[0].code}`, kinds };
   return {

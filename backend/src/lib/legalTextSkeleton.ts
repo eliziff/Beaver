@@ -1139,9 +1139,19 @@ export interface CompileSkeletonOptions {
    * the publisher's and there is nothing to recover — the A2AJ lane passes
    * it so that legislation and case law cannot reach the competition BY
    * CONSTRUCTION rather than by a corpus diff showing they happened not to.
-   * (A whole-corpus differential says they do not: 23,531 statutes,
-   * 2,924,267 nodes, byte-identical. Scoping is still the right shape; a
-   * measurement is evidence about today's corpus, not a guarantee.)
+   *
+   * The construction is not ceremony. Re-measured over the whole A2AJ English
+   * statute corpus on 2026-07-31, the flag is NOT inert: 45 of 23,531
+   * statutes compile a different node inventory with the recovery on than
+   * with it off (2,923,700 nodes on, 2,924,267 off, 837 nodes of absolute
+   * difference; the largest single move is the Criminal Code, 10,861 nodes
+   * against 10,979). An earlier note here recorded that differential as
+   * byte-identical; that is no longer true, and the scoping is load-bearing
+   * for every consumer that can be handed publisher-lineated text.
+   *
+   * "Authoritative" means the FEED, not the subject matter: an Act uploaded
+   * as a PDF is extraction output like any other, and passing false for it
+   * would throw away the line breaks its extractor lost.
    */
   recoverExtraction?: boolean;
 }

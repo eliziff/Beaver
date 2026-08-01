@@ -729,6 +729,23 @@ interface Splice {
   receipt: AmendReceipt;
 }
 
+export interface ApplyAmendOptions {
+  /**
+   * Whether the source text may have lost its line breaks to an extractor
+   * (see `CompileSkeletonOptions.recoverExtraction`). Default true, because
+   * the contract dialect this applier also serves arrives from the Library's
+   * PDF/DOCX lane.
+   *
+   * A caller amending an instrument from an AUTHORITATIVE feed passes false:
+   * A2AJ consolidations and CourtListener bulk ship the publisher's line
+   * breaks, so there is nothing to recover and the segmentation competition
+   * must not run over them. The applied text inherits the source's
+   * provenance — it is the source with splices in it — so one flag governs
+   * both the before and after compiles.
+   */
+  recoverExtraction?: boolean;
+}
+
 /**
  * Apply parsed ops to source text. Every op either produces a receipt with
  * the exact spliced span or a typed failure; splices never overlap.
@@ -736,8 +753,10 @@ interface Splice {
 export function applyAmendOps(
   sourceText: string,
   ops: AmendOp[],
+  options: ApplyAmendOptions = {},
 ): ApplyAmendmentsResult {
-  const before = compileAgreementSkeleton(sourceText);
+  const compile = { recoverExtraction: options.recoverExtraction };
+  const before = compileAgreementSkeleton(sourceText, "", compile);
   const labels = before.doc;
   const splices: Splice[] = [];
   const failures: AmendFailure[] = [];
@@ -954,7 +973,7 @@ export function applyAmendOps(
     text = text.slice(0, splice.start) + splice.replacement + text.slice(splice.end);
   }
 
-  const after = compileAgreementSkeleton(text);
+  const after = compileAgreementSkeleton(text, "", compile);
   let newTextPresent = 0;
   let newTextMissing = 0;
   let oldTextGone = 0;
@@ -1001,8 +1020,9 @@ function ensureBlock(text: string): string {
 export function consolidateAmendment(
   sourceText: string,
   amendmentText: string,
+  options: ApplyAmendOptions = {},
 ): ApplyAmendmentsResult & { parse: AmendParseResult } {
   const parse = parseAmendmentInstructions(amendmentText);
-  const result = applyAmendOps(sourceText, parse.ops);
+  const result = applyAmendOps(sourceText, parse.ops, options);
   return { ...result, parse };
 }

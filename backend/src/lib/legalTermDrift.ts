@@ -193,6 +193,11 @@ export function termDriftReport(
     if (incorporatesDefinitions(doc.text)) incorporating.add(doc.name);
     const definitions = extractDefinitions(doc.text);
     definitionCounts[doc.name] = definitions.length;
+    // A deal stack is Library text: PDF/DOCX extraction output, including an
+    // uploaded Act, so the segmentation recovery is exactly right for it and
+    // stays on. Legislation is scoped out where it arrives from an
+    // AUTHORITATIVE feed with the publisher's line breaks (the A2AJ lane),
+    // and no such feed reaches this function.
     const nodes = definitions.length
       ? compileAgreementSkeleton(doc.text).nodes
       : [];

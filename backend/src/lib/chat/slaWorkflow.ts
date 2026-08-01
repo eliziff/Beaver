@@ -81,6 +81,9 @@ export async function buildSlaLedger(
     const document = await extractLocalDocument(userId, meta.id);
     if (!document?.text?.trim()) continue;
     documents.push({ name: document.filename, text: document.text });
+    // `extractLocalDocument` is the PDF/DOCX extraction lane: whatever the
+    // instrument is, an uploaded Act included, its line breaks are the
+    // extractor's and may be lost, so the segmentation recovery stays on.
     const skeleton = compileAgreementSkeleton(document.text);
     const tokens = Math.round(document.text.length / 4);
     inventory.push(

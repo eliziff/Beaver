@@ -171,6 +171,11 @@ type SectionAt = (at: number) => string | null;
  * Deepest skeleton node containing an offset, as a citable label. The
  * skeleton is compiled at most once per document and only when a finding
  * actually needs a handle, so clean documents pay nothing.
+ *
+ * The recovery stays on, for the reason it does in `legalConflictScan`: these
+ * documents are Library extraction output, where lost line breaks are real,
+ * and the authoritative feeds that must not be recovered (A2AJ, CourtListener
+ * bulk) do not reach this scan.
  */
 function sectionResolver(text: string): SectionAt {
   let nodes: SkeletonNode[] | null = null;
