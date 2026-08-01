@@ -5705,3 +5705,83 @@ bytes the scorer reads. EDGAR HTML carries `&#160;` and smart quotes,
 A2AJ Markdown carries `Â©` and `Â®`, and a CRLF/LF span defect once
 silently corrupted a quarter of a benchmark here for five stages.
 
+
+## Ablation result 2026-07-31 â€” what the 19% actually came from
+
+The v1 result said the address arm was 19% cheaper. Arm B bundled three
+changes, so that number was not attributable. `beaver-address-no-disclosure`
+holds the address grammar constant and removes only progressive
+disclosure: the whole catalogue ships in the first request.
+
+Complete matrix, 162 receipts, 27 tasks x 3 surfaces x 2 replicates,
+same model, same neutral prompt, matched on every task.
+
+| | legacy | address, no disclosure | address + disclosure |
+|---|---|---|---|
+| pass rate, excluding floor | 79% (38/48) | 79% (38/48) | 81% (39/48) |
+| **total tokens / run** | **69,281** | **79,425** | **56,149** |
+| schema bytes, first request | 25,809 | 28,802 | 13,282 |
+| tool calls / run | 5.5 | 5.7 | 6.7 |
+| retyped document chars / run | 276 | 327 | 126 |
+| runs with a misquoted string | 15/54 | 14/54 | 9/54 |
+| provider turns / run | 1.0 | 1.0 | 1.4 |
+
+### The finding inverts the natural reading
+
+**The address grammar, served whole, is 14.6% MORE expensive than the
+legacy surface it replaces** â€” 79,425 tokens against 69,281. It is not
+free: `library_links`, `describe_tools` and the extra parameters on
+`library_read` and `library_find` make its catalogue 28,802 bytes
+against legacy's 25,809, and every request carries the difference.
+
+**Progressive disclosure is what pays for it, and then some.** Holding
+the grammar constant, deferring 19 of 29 tools takes the same surface
+from 79,425 to 56,149 tokens â€” **a 29.3% saving** â€” which nets out to
+the 19% the headline reported against legacy.
+
+So the lever is **what ships in the first request**, not the addressing
+grammar. Anyone reading the v1 result as "address grammar saves tokens"
+would have drawn the wrong conclusion and optimised the wrong thing.
+
+### A second-order effect worth more than the token saving
+
+Retyped document characters per run, on identical tasks and the same
+grammar: **327 with the full catalogue resident, 126 with it deferred** â€”
+a 61% drop. Runs containing a misquoted locating string fall with it:
+14/54 against 9/54.
+
+The mechanism is visible in the traces. `library_revise_docx` anchors an
+edit by retyped `find` and context strings; `library_apply_text_ops` can
+scope by `at`. When both are on the table the model reaches for the
+retyping tool; when the retyping tool sits behind a domain it has to ask
+for, the model uses the addressed one instead and stops retyping.
+
+**Deferral is acting as a nudge toward the safer edit route, not merely
+as a token saving.** Every misquote in this campaign came from a
+retyping-based argument, so this is the more valuable half of the
+result. It also suggests the cheapest available fix for the misquote
+problem is not a new address form but a change in which tool is easiest
+to reach.
+
+### Correctness is unmoved
+
+81% / 79% / 79% excluding floor tasks â€” one run of forty-eight between
+best and worst, inside the replicate floor. **Correctness is undecided
+across all three surfaces.** No surface in this campaign made the model
+better at editing documents; they differ in what the same work costs and
+in which route the model takes to do it.
+
+### Cost of disclosure, stated plainly
+
+Disclosure is not free. It adds provider turns (1.4 against 1.0), tool
+calls (6.7 against 5.7) and wall clock, because each opened domain costs
+a restart with a transcript replay. 13 of 54 runs opened a domain and
+**12 of 22 openings bought nothing** â€” the domain was opened and no tool
+from it was ever called, `amendment` being the worst offender. The
+saving survives all of that.
+
+And the bound stated at registration still binds: every task here is
+solvable with resident tools alone, so this measures the cost of hiding
+a tool the model WANTED. It says nothing about hiding one a task NEEDS.
+The v2 deferred-tool-required family exists to close that gap.
+
