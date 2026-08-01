@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "registered_at": "2026-08-01T22:39:27Z",
+  "status": "registered_before_h9_model_calls",
+  "experiment_type": "bundled product-shape diagnostic followed by component ablations",
+  "objective": "Test whether a coding-native, append-only evidence union can retain upstream Mike's model familiarity while using legal structure to expose less repeated source text and automatic deterministic checks to correct real draft errors.",
+  "candidate_arm": "h9",
+  "candidate_environment": {
+    "MIKE_NAV_SHAPE": "address",
+    "MIKE_TOOL_SHAPE": "coding",
+    "MIKE_RETRIEVAL_EXPERIMENT": "h9-accretive-union",
+    "MIKE_SLA_WORKFLOW": "1",
+    "MIKE_SLA_STRATEGY": "working_set_first",
+    "MIKE_PROGRESSIVE_DISCLOSURE": "1"
+  },
+  "held_constant": {
+    "performer_model": "gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "base_prompt": "lean",
+    "tool_description_variant": "operational",
+    "research_tools_on_harvey": false,
+    "ask_inputs": false,
+    "split": "visible Harvey LAB development tasks only"
+  },
+  "provider_policy": {
+    "first_request": "OpenAI Responses API with service_tier=priority",
+    "receipt_requirement": "Record requested and provider-reported tiers. Do not label a run Fast unless the provider reports priority.",
+    "fallback": "A rejected or unreported priority request does not block the experiment. Relaunch on the ordinary tier under a distinct run id and exclude its latency from priority-tier comparisons.",
+    "comparison_constraint": "Latency and cache comparisons require the same actor model, effort, transport, and reported service tier. Existing non-priority results remain quality and behavior references, not formal latency controls."
+  },
+  "candidate_bundle": [
+    "The first targeted Grep working_set call creates one stable turn-local evidence file and includes a bounded file map compiled from provisions, headings, defined terms, and native table headers.",
+    "Later targeted searches append only source spans not already represented in the file and return a Read recipe for the new delta.",
+    "Matched-source budget is cumulative and monotonic; map text has a separate 12000-character ceiling.",
+    "The working set is append-only and exists only for the current turn; original documents remain the edit targets.",
+    "Automatic post-synthesis checks can trigger one repair pass only for draft-touching arithmetic, temporal, defined-term, or lint errors. Source-only anchors and source-source conflicts remain telemetry, not repair instructions.",
+    "insert_blocks creates tracked paragraphs with independently rejectable paragraph marks, avoiding whole-document retyping for common drafting operations.",
+    "H5 and the historical H8 arm retain their original hashed stateless working-set behavior and receive no file map."
+  ],
+  "diagnostic_tasks": [
+    "banking-finance/extract-credit-agreement-covenants",
+    "white-collar-defense-investigations/analyze-counterparty-markup-of-deferred-prosecution-agreement",
+    "capital-markets/compare-closing-documents-against-closing-checklist",
+    "tax/draft-transfer-pricing-documentation"
+  ],
+  "primary_observations": [
+    "native LAB score, per-criterion failures, deliverable validity, and whether a requested file was produced",
+    "whether the first source-content retrieval is a targeted working_set Grep and the returned delta is read",
+    "map, matched-source, already-present, omitted, and appended characters per working-set call",
+    "gross and unique source exposure, replay ratio, direct versus virtual document reads, and missed source documents",
+    "tool-call failures, redundant calls, provider rounds, tool argument/result bytes, input/output/cache tokens, and latency",
+    "which deterministic findings caused repair, whether the repair changed the artifact, and whether the change fixed or damaged a rubric item",
+    "whether block insertion or exact legal scopes avoid retyping and whether any model-visible schema field is unused or misunderstood"
+  ],
+  "diagnostic_failure_conditions": [
+    "The H9 runtime exposes H5's hashed stateless artifact or H5 receives H9's map/accretion behavior.",
+    "The working-set path changes within a turn, a repeated identical search appends source text, or simultaneous calls reorder additions.",
+    "A returned Read recipe cannot read the promised delta or loses source-qualified evidence segments.",
+    "Rejecting one inserted tracked paragraph leaves its text or an empty paragraph residue.",
+    "The compiler asks the model to repair source-only anchor absence or a conflict confined to source documents.",
+    "The upstream comparator receives any Beaver-only tool, prompt, progressive disclosure, or legal-structure affordance.",
+    "A priority run is reported as such without a provider receipt of priority."
+  ],
+  "interpretation_policy": "H9 deliberately bundles mutually supporting infrastructure and is not a clean component-level causal estimate. Trace inspection precedes attribution. A score gain does not validate every component; a loss does not invalidate legal structure. Retrieval misses, attention/synthesis misses, mutation failures, compiler regressions, and harness failures must be classified separately.",
+  "planned_ablations_after_diagnostic": [
+    "H9 without the compact file map",
+    "H9 without the automatic repair checkpoint",
+    "H9 with the same accretive union but an economy instruction grounded only in an observed redundancy or misunderstanding",
+    "H9 with the same accretive union but an accuracy instruction grounded only in an observed omission mechanism"
+  ],
+  "source_fingerprints": {
+    "base_commit": "5c376852cff6916d3e58d7be27c08b3217d37ede",
+    "backend/src/lib/chat/localAssistantTools.ts": "d72c7a301c5a9a32074bc472c805c78b4ec3e72cf0a2b6d88941d62a1655f719",
+    "backend/src/lib/chat/slaWorkflow.ts": "a1e8248e0889b70470921c54b4310d431f60edc1890da468bdb7f365ef1203e2",
+    "backend/src/lib/chat/tools/toolSchemas.ts": "29978b2d009c627f3e6781eeccb3aef08c129e23602bacbf1eccfe3039b2989b",
+    "backend/src/lib/docxTrackedChanges.ts": "9ab7a1fdf1f6565227a8c309d9943d218b0513fb740be17399bfb297df5fcce3",
+    "backend/scripts/lab-beaver-arm.ts": "26e2573548b3c4e669c8447816f6c8c2eb8141217bd591da45931f27e3d285cc"
+  },
+  "non_goals": [
+    "Cross-turn persistence of the evidence file",
+    "A semantic citator product or relevance model",
+    "Treating the four diagnostic cells as a final benchmark claim",
+    "Prompt micro-optimization before tool-level behavior is understood"
+  ]
+}

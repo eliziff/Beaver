@@ -47,7 +47,7 @@ export interface EditInput {
     exact_end?: number;
 }
 
-interface AppliedChange {
+export interface AppliedChange {
     id: string;
     delId?: string;
     insId?: string;
@@ -759,6 +759,13 @@ export interface DocxTableCellSpan {
     end: number;
 }
 
+export interface InsertTrackedBlocksInput {
+    blocks: string[];
+    position: "before" | "after";
+    anchorText?: string;
+    occurrence?: number;
+}
+
 export interface DocxBodyStructure {
     text: string;
     tableCells: DocxTableCellSpan[];
@@ -1418,6 +1425,107 @@ export async function applyTrackedEdits(
     };
 }
 
+function acceptedNodeText(node: XNode): string {
+    const name = elName(node);
+    if (!name || name === "w:del") return "";
+    if (name === "w:t") return getTextContent(node);
+    if (name === "w:tab") return "\t";
+    if (name === "w:br") return "\n";
+    return elChildren(node).map(acceptedNodeText).join("");
+}
+
+/** Insert new paragraphs as tracked text plus an inserted paragraph mark. */
+export async function insertTrackedBlocks(
+    bytes: Buffer,
+    input: InsertTrackedBlocksInput,
+    opts?: { author?: string },
+): Promise<ApplyTrackedEditsResult> {
+    if (!input.blocks.length || input.blocks.some((block) => !block.trim())) {
+        throw new Error("insert_blocks requires one or more non-empty blocks");
+    }
+    if (input.blocks.some((block) => /[\r\n]/u.test(block))) {
+        throw new Error("Each insert_blocks item must be one paragraph without a newline");
+    }
+    const zip = await loadDocxPackage(bytes);
+    const docXmlFile = getZipEntry(zip, "word/document.xml");
+    if (!docXmlFile) throw new Error("document.xml missing from docx");
+    const parser = createParser();
+    const tree = parser.parse(await docXmlFile.async("string")) as XNode[];
+    const body = findBodyChildren(tree);
+    if (!body) throw new Error("document body missing from docx");
+
+    const paragraphIndexes = body
+        .map((node, index) => ({ node, index }))
+        .filter(({ node }) => elName(node) === "w:p");
+    let insertionIndex: number;
+    let contextBefore = "";
+    let contextAfter = "";
+    if (input.anchorText?.trim()) {
+        const needle = normalizeWs(input.anchorText).norm;
+        const hits = paragraphIndexes.filter(({ node }) =>
+            normalizeWs(acceptedNodeText(node)).norm.includes(needle),
+        );
+        const chosen =
+            typeof input.occurrence === "number"
+                ? hits[input.occurrence - 1]
+                : hits.length === 1
+                  ? hits[0]
+                  : undefined;
+        if (!chosen) {
+            throw new Error(
+                hits.length
+                    ? `insert_blocks anchor is ambiguous (${hits.length} paragraphs); set occurrence`
+                    : "insert_blocks anchor paragraph was not found",
+            );
+        }
+        const anchor = acceptedNodeText(chosen.node);
+        contextBefore = input.position === "after" ? anchor.slice(-120) : "";
+        contextAfter = input.position === "before" ? anchor.slice(0, 120) : "";
+        insertionIndex = chosen.index + (input.position === "after" ? 1 : 0);
+    } else if (input.position === "before") {
+        insertionIndex = paragraphIndexes[0]?.index ?? 0;
+    } else {
+        const sectionProperties = body.findIndex(
+            (node) => elName(node) === "w:sectPr",
+        );
+        insertionIndex = sectionProperties < 0 ? body.length : sectionProperties;
+    }
+
+    const author = opts?.author ?? "Beaver";
+    const date = new Date().toISOString();
+    let nextId = maxTrackedId(tree) + 1;
+    const changes: AppliedChange[] = [];
+    const paragraphs = input.blocks.map((block) => {
+        const id = String(nextId++);
+        const attrs = { "w:id": id, "w:author": author, "w:date": date };
+        changes.push({
+            id,
+            insId: id,
+            deletedText: "",
+            insertedText: block,
+            contextBefore,
+            contextAfter,
+        });
+        return makeEl("w:p", [
+            makeEl("w:pPr", [makeEl("w:rPr", [makeEl("w:ins", [], attrs)])]),
+            makeEl("w:ins", [
+                makeEl("w:r", [
+                    makeEl("w:t", [makeText(block)], { "xml:space": "preserve" }),
+                ]),
+            ], attrs),
+        ]);
+    });
+    body.splice(insertionIndex, 0, ...paragraphs);
+    const rebuilt = ensureXmlDeclaration(createBuilder().build(tree));
+    setZipEntry(zip, "word/document.xml", rebuilt);
+    return {
+        bytes: await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" }),
+        changes,
+        errors: [],
+        comments: 0,
+    };
+}
+
 function maxCommentId(commentsXml: string): number {
     let max = 0;
     for (const match of commentsXml.matchAll(
@@ -1468,6 +1576,20 @@ function resolveInTree(
             if (!name) {
                 out.push(n);
                 continue;
+            }
+
+            if (name === "w:p" && mode === "reject") {
+                const paragraphMarkIds = elChildren(n)
+                    .filter((child) => elName(child) === "w:pPr")
+                    .flatMap((child) => elChildren(child))
+                    .filter((child) => elName(child) === "w:rPr")
+                    .flatMap((child) => elChildren(child))
+                    .filter((child) => elName(child) === "w:ins")
+                    .map((child) => String(elAttrs(child)["@_w:id"] ?? ""));
+                if (paragraphMarkIds.some((id) => ids.has(id))) {
+                    touched = true;
+                    continue;
+                }
             }
 
             // Recurse first so nested tables/sdts get processed

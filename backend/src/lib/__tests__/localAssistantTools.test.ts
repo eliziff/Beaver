@@ -998,11 +998,73 @@ describe("local assistant tools", () => {
     );
   });
 
-  it("materializes an immutable multi-document working set with source evidence", async () => {
+  it("keeps the frozen H5 working set stateless", async () => {
     process.env.MIKE_NAV_SHAPE = "address";
     process.env.MIKE_TOOL_SHAPE = "coding";
     process.env.MIKE_RETRIEVAL_EXPERIMENT = "h5-working-set";
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-h5-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    vi.resetModules();
+
+    const store = await import("../localDocumentStore");
+    await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "frozen.docx",
+      bytes: await Packer.toBuffer(
+        new Document({
+          sections: [{ children: [new Paragraph("Unique frozen evidence.")] }],
+        }),
+      ),
+    });
+    const tools = await import("../chat/localAssistantTools");
+    const state: import("../chat/localAssistantTools").LocalAssistantWorkingSetTurnState =
+      new Map();
+    const [created] = await tools.runLocalAssistantTools(
+      "local-user",
+      [{
+        id: "frozen-working-set",
+        name: "Grep",
+        input: { pattern: "(?i)unique", output_mode: "working_set" },
+      }],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      state,
+    );
+    const manifest = JSON.parse(created.content);
+    expect(manifest.path).toMatch(/^\.mike\/working-sets\/[a-f0-9]{16}\.txt$/u);
+    expect(manifest).not.toHaveProperty("added_map_chars");
+    const [read] = await tools.runLocalAssistantTools(
+      "local-user",
+      [{ id: "read-frozen", name: "Read", input: { file_path: manifest.path } }],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      state,
+    );
+    expect(read.content).not.toContain("FILE MAP");
+  });
+
+  it("accretes a source-deduplicated multi-document working set", async () => {
+    process.env.MIKE_NAV_SHAPE = "address";
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    process.env.MIKE_RETRIEVAL_EXPERIMENT = "h9-accretive-union";
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-h9-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     vi.resetModules();
 
@@ -1024,6 +1086,9 @@ describe("local assistant tools", () => {
               children: [
                 new Paragraph("1.01 Background."),
                 new Paragraph("The unique value is discussed here."),
+                new Paragraph("Context ".repeat(150)),
+                new Paragraph("2.01 Additional."),
+                new Paragraph("A later fact belongs to a distinct section."),
               ],
             },
           ],
@@ -1068,7 +1133,34 @@ describe("local assistant tools", () => {
       truncated: false,
     });
     expect(manifest).not.toHaveProperty("text");
-    expect(manifest.path).toMatch(/^\.mike\/working-sets\/[a-f0-9]+\.txt$/u);
+    expect(manifest.path).toBe(".mike/working-sets/evidence.txt");
+    expect(manifest.added_source_chars).toBeGreaterThan(0);
+    expect(manifest.already_present_chars).toBeGreaterThan(0);
+    expect(manifest.added_map_chars).toBeGreaterThan(0);
+
+    const [duplicate, expanded] = await run([
+      {
+        id: "repeat-working-set",
+        name: "Grep",
+        input: { pattern: "(?i)unique", output_mode: "working_set" },
+      },
+      {
+        id: "expand-working-set",
+        name: "Grep",
+        input: { pattern: "(?i)later fact", output_mode: "working_set" },
+      },
+    ]);
+    const repeated = JSON.parse(duplicate.content);
+    const addition = JSON.parse(expanded.content);
+    expect(repeated).toMatchObject({
+      path: manifest.path,
+      added_source_chars: 0,
+      next: null,
+    });
+    expect(repeated.already_present_chars).toBeGreaterThan(0);
+    expect(addition).toMatchObject({ path: manifest.path });
+    expect(addition.added_source_chars).toBeGreaterThan(0);
+    expect(addition.next).toMatch(/offset=\d+/u);
 
     const [read, refused] = await run([
       {
@@ -1087,13 +1179,16 @@ describe("local assistant tools", () => {
       },
     ]);
     expect(read.content).toContain("schedule.docx");
+    expect(read.content).toContain("FILE MAP");
+    expect(read.content).toContain("headers");
     expect(read.content).toContain("Alpha");
     expect(read.content).toContain("Unique cell value");
     expect(read.content).toContain("memo.docx");
+    expect(read.content).toContain("A later fact belongs to a distinct section.");
     expect(new Set(read.evidenceSegments?.map((item) => item.documentId))).toEqual(
       new Set([table.id, prose.id]),
     );
-    expect(refused.content).toContain("immutable");
+    expect(refused.content).toContain("append-only");
   });
 
   it("addresses spreadsheet cells through the same bounded Read contract", async () => {
