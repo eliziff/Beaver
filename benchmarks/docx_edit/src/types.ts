@@ -118,6 +118,19 @@ export type Task = {
   jurisdiction?: string;
   /** Practice area, for breadth reporting. Free text. */
   practice_area?: string;
+  /**
+   * Interaction class, from docs/deterministic-word-actions-catalog.md:
+   *   A  a direct UI action
+   *   B  a bounded deterministic tool the model invokes but never authors
+   *   C  preview or lint, then confirm, because intent is ambiguous
+   *   D  judgment — the result cannot be inferred from text or formatting
+   * The survey's rule is that only Class D deserves to stay a prompt. The
+   * benchmark's corollary: a task is only a legitimate model-evaluated item
+   * at Class C or D, and a Class A/B task must be labelled a floor task,
+   * because a deterministic tool should do it and the model's only job is to
+   * route to that tool.
+   */
+  interaction_class?: "A" | "B" | "C" | "D";
   /** Documents loaded into the model's library, in order. */
   fixtures: FixtureId[];
   /** The document that is scored. */

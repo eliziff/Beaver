@@ -55,6 +55,25 @@ function validate(task: Task, line: number): string[] {
   if (!Array.isArray(task.near_misses) || !task.near_misses.length) {
     problems.push(at("at least one near miss is required — a check never seen to fail is not a check"));
   }
+  // v2 onwards: the interaction class is what decides whether a task is a
+  // legitimate model-evaluated item at all, so it is required, and a task a
+  // deterministic tool should simply perform must say it is a floor task.
+  if ((task.set ?? "v1") !== "v1") {
+    if (!task.interaction_class) {
+      problems.push(at("interaction_class (A-D) is required from v2 onwards"));
+    } else if (
+      (task.interaction_class === "A" || task.interaction_class === "B") &&
+      task.floor_task !== true
+    ) {
+      problems.push(
+        at(
+          `interaction_class ${task.interaction_class} is a deterministic tool action; mark it floor_task or reclassify it`,
+        ),
+      );
+    }
+    if (!task.jurisdiction) problems.push(at("jurisdiction is required from v2 onwards"));
+    if (!task.practice_area) problems.push(at("practice_area is required from v2 onwards"));
+  }
   if (task.expected === "edit") {
     if (!task.reference_edits?.length) {
       problems.push(at("an edit task needs reference_edits: the demonstrated solution"));
