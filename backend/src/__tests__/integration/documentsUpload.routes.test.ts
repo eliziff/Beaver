@@ -41,9 +41,9 @@ describe("POST /single-documents — upload validation", () => {
         const res = await request(app)
             .post("/single-documents")
             .set("Authorization", "Bearer test")
-            .attach("file", Buffer.from("hello world"), {
-                filename: "notes.txt",
-                contentType: "text/plain",
+            .attach("file", Buffer.from("not an executable"), {
+                filename: "notes.exe",
+                contentType: "application/octet-stream",
             });
 
         expect(res.status).toBe(400);

@@ -45,6 +45,17 @@ export type NormalizedToolCall = {
 export type NormalizedToolResult = {
   tool_use_id: string;
   content: string;
+  /** Host-only durable mutation receipt; provider adapters send `content`. */
+  mutationReceipt?: string;
+  /** Host-only source ranges exposed by text-shaped navigation tools. */
+  evidenceSpans?: Array<[number, number]>;
+  /** Host-only original-source ranges for virtual multi-document projections. */
+  evidenceSegments?: Array<{
+    documentId: string;
+    versionId: string;
+    start: number;
+    end: number;
+  }>;
   /** End the provider loop after this result; the caller owns final rendering. */
   terminal?: boolean;
 };
@@ -96,6 +107,8 @@ export type StreamChatParams = {
   enableThinking?: boolean;
   /** Provider reasoning effort when the selected model supports it. */
   reasoningEffort?: string;
+  /** Host-selected service tier; adapters must gate it on model capability. */
+  serviceTier?: string;
   abortSignal?: AbortSignal;
   /**
    * Opt in to a provider-owned durable session. Callers remain responsible for
@@ -116,12 +129,35 @@ export type NormalizedLlmUsage = {
   cacheWriteInputTokens: number | null;
 };
 
+/** Content-free accounting for one provider request in a tool loop. */
+export type LlmContextRoundReceipt = {
+  iteration: number;
+  requestAttempts: number;
+  continuation: "none" | "provider";
+  instructionsBytes: number;
+  instructionsSha256: string;
+  inputItems: number;
+  inputBytes: number;
+  inputSha256: string;
+  toolCount: number;
+  toolBytes: number;
+  toolSha256: string;
+  toolCallCount: number;
+  toolArgumentBytes: number;
+  toolResultBytes: number;
+  usage: NormalizedLlmUsage;
+};
+
 export type StreamChatResult = {
   fullText: string;
   /** Provider-reported usage when an adapter can supply it. */
   usage?: NormalizedLlmUsage;
+  /** Provider-reported service tier actually used for the response. */
+  serviceTier?: string;
   /** Opaque provider request/thread ID for diagnostics, not automatic reuse. */
   providerInvocationId?: string;
   /** Opaque provider continuation identifier, when one survives this call. */
   continuationId?: string;
+  /** Content-free per-request receipts for diagnosing tool-loop context cost. */
+  contextRounds?: LlmContextRoundReceipt[];
 };

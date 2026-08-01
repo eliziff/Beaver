@@ -275,7 +275,7 @@ function crossReferenceGraphUncached(
       counts.abstained += 1;
       return { ...base, status: "abstained", reason: "no_containing_section" };
     }
-    const resolved = resolve(skeleton, byLabel, base.normalizedLocator);
+    const resolved = resolve(skeleton, base.normalizedLocator);
     if (resolved) {
       counts.resolved += 1;
       const selfLoop = resolved.label === sourceNode?.label;
@@ -419,7 +419,6 @@ interface ResolvedTarget {
 
 function resolve(
   skeleton: AgreementSkeleton,
-  byLabel: Map<string, SkeletonNode>,
   locator: string,
 ): ResolvedTarget | null {
   if (!locator) return null;
@@ -430,40 +429,26 @@ function resolve(
     const block = skeleton.doc.blocks[position];
     return { label: block.label, start: block.start, end: block.end };
   }
-  // 2. anchored descendants: a reference to "8" is satisfied by "8.01",
-  //    "8.02" even when "8" itself never heads a line. The target span is
-  //    the union of the descendants, which is what the reference denotes.
-  const prefix = `${locator.toLowerCase()}.`;
-  let start = Number.POSITIVE_INFINITY;
-  let end = -1;
-  let firstLabel: string | null = null;
-  for (const [label, node] of byLabel) {
-    if (!label.toLowerCase().startsWith(prefix)) continue;
-    if (node.start < start) {
-      start = node.start;
-      firstLabel = label;
-    }
-    if (node.end > end) end = node.end;
-  }
-  if (firstLabel !== null) return { label: firstLabel, start, end };
+  // Decimal labels are complete provision identifiers, not ancestry. Section
+  // 150 and section 150.1 are siblings; only parenthetical suffixes express
+  // children (150 -> 150(1) -> 150(1)(a)). A missing exact label therefore
+  // stays missing instead of borrowing the span of a dotted neighbour.
   return null;
 }
 
-/** Depth of a locator: "sec8" -> 1, "sec8.01" -> 2, "sec8.01(a)" -> 3. */
+/** Depth of a locator: decimals stay level; parentheses add child levels. */
 function labelDepth(locator: string): number {
   if (!locator.startsWith("sec")) return 1;
   const body = locator.slice(3).replace(/@\d+$/u, "");
-  const [numeric, ...subs] = body.split(/(?=\()/u);
-  return numeric.split(".").length + subs.length;
+  return 1 + (body.match(/\([^()]*\)/gu)?.length ?? 0);
 }
 
-/** Parent locator: "sec8.01(a)" -> "sec8.01", "sec8.01" -> "sec8", "sec8" -> "". */
+/** Parent locator: only parentheses express ancestry. */
 function labelParent(locator: string): string {
   if (!locator.startsWith("sec")) return "";
   const body = locator.slice(3).replace(/@\d+$/u, "");
   if (body.endsWith(")")) return `sec${body.replace(/\([^()]*\)$/u, "")}`;
-  const at = body.lastIndexOf(".");
-  return at < 0 ? "" : `sec${body.slice(0, at)}`;
+  return "";
 }
 
 interface NumberingUniverse {
@@ -477,7 +462,8 @@ interface NumberingUniverse {
   containers: number;
 }
 
-const TOP_LEVEL_NUMERIC = /^sec\d{1,3}[a-z]?$/iu;
+const TOP_LEVEL_NUMERIC =
+  /^sec\d{1,8}[a-z]{0,3}(?:[.-]\d{1,8}[a-z]{0,3}){0,3}$/iu;
 
 /**
  * Does the document number the FAMILY this reference belongs to? Only if it

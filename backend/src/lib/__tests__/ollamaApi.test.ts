@@ -1,6 +1,16 @@
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { OpenAIToolSchema } from "../llm/types";
+
+const tool = (name: string): OpenAIToolSchema => ({
+  type: "function",
+  function: {
+    name,
+    description: `${name} tool`,
+    parameters: { type: "object", properties: {} },
+  },
+});
 
 describe("Ollama model catalog", () => {
   beforeEach(() => {
@@ -224,6 +234,49 @@ describe("Ollama model catalog", () => {
     );
     expect(toolResults[0]?.content).toContain('"compacted":true');
     expect(toolResults[1]?.content).toContain("result-2:");
+  });
+
+  it("refreshes tools on the next tool-loop request", async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const fetchMock = vi.fn().mockImplementation(
+      async (_url: string, init?: RequestInit) => {
+        bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+        return {
+          ok: true,
+          json: async () => ({
+            message:
+              bodies.length === 1
+                ? {
+                    role: "assistant",
+                    content: "",
+                    tool_calls: [{
+                      function: { name: "discover", arguments: {} },
+                    }],
+                  }
+                : { role: "assistant", content: "done" },
+          }),
+        };
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const { streamOllama } = await import("../llm/ollamaApi");
+    let activeTools = [tool("discover")];
+
+    await streamOllama({
+      model: "ollama:qwen3.5:2b",
+      systemPrompt: "system",
+      messages: [{ role: "user", content: "research" }],
+      tools: activeTools,
+      resolveTools: () => activeTools,
+      runTools: async (calls) => {
+        activeTools = [...activeTools, tool("revealed")];
+        return [{ tool_use_id: calls[0].id, content: "opened" }];
+      },
+    });
+
+    expect(bodies.map((body) =>
+      (body.tools as OpenAIToolSchema[]).map((entry) => entry.function.name)
+    )).toEqual([["discover"], ["discover", "revealed"]]);
   });
 
   it("fails closed when the desktop is unavailable", async () => {

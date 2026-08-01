@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   finalizerHandleSets: [] as string[][],
   matterDocuments: undefined as string[] | undefined,
   preflightFailure: false,
+  progressiveDisclosure: false,
   providerMessages: [] as { role: string; content: string }[][],
   providerReferences: new Map<string, string[]>(),
   systemPrompts: [] as string[],
@@ -28,7 +29,27 @@ vi.mock("../lib/llm", () => ({
 }));
 vi.mock("../lib/chat/localAssistantTools", () => ({
   LOCAL_ASSISTANT_TOOLS: [],
+  NAV_TOOL_SHAPE: mocks.progressiveDisclosure ? "address" : "legacy",
+  PROGRESSIVE_DISCLOSURE_ENABLED: mocks.progressiveDisclosure,
   RESEARCH_TOOLS_DISABLED: false,
+  partitionTools: () =>
+    mocks.progressiveDisclosure
+      ? {
+          resident: [{ function: { name: "describe_tools" } }],
+          deferred: [{ function: { name: "library_revise_docx" } }],
+        }
+      : {
+          resident: [
+            "library_lookup",
+            "library_create_docx",
+            "library_revise_docx",
+            "library_apply_text_ops",
+            "Edit",
+          ].map((name) => ({ function: { name } })),
+          deferred: [],
+        },
+  toolsForDomains: (tools: unknown[], domains: string[]) =>
+    mocks.progressiveDisclosure && domains.includes("drafting") ? tools : [],
   runLocalAssistantTools: mocks.runLocalAssistantTools,
   extractLocalDocument: async () => null,
 }));
@@ -110,6 +131,7 @@ beforeEach(async () => {
   mocks.finalizerHandleSets.length = 0;
   mocks.matterDocuments = undefined;
   mocks.preflightFailure = false;
+  mocks.progressiveDisclosure = false;
   mocks.providerMessages.length = 0;
   mocks.providerReferences.clear();
   mocks.systemPrompts.length = 0;
@@ -163,6 +185,62 @@ afterEach(async () => {
 });
 
 describe("anonymous chat PDF evidence durability", () => {
+  it("enforces progressive tool disclosure across provider iterations", async () => {
+    mocks.progressiveDisclosure = true;
+    mocks.runLocalAssistantTools.mockImplementation(
+      async (_userId: unknown, calls: { id: string; name: string }[]) =>
+        calls.map((call) => ({
+          tool_use_id: call.id,
+          content: JSON.stringify(
+            call.name === "describe_tools"
+              ? { ok: true, domains: ["drafting"], opened: ["library_revise_docx"] }
+              : { ok: true, action: "revised" },
+          ),
+        })),
+    );
+    let initialNames: string[] = [];
+    let openedNames: string[] = [];
+    let sameBatch: Array<{ content: string }> = [];
+    let nextIteration: Array<{ content: string }> = [];
+    mocks.streamChatWithTools.mockImplementation(async (params) => {
+      initialNames = params.resolveTools().map((tool) => tool.function.name);
+      sameBatch = await params.runTools([
+        { id: "hidden-same-batch", name: "library_revise_docx", input: {} },
+        { id: "open-drafting", name: "describe_tools", input: { domains: ["drafting"] } },
+      ]);
+      openedNames = params.resolveTools().map((tool) => tool.function.name);
+      nextIteration = await params.runTools([
+        { id: "hidden-next-turn", name: "library_revise_docx", input: {} },
+      ]);
+      params.callbacks?.onContentDelta?.("Done.");
+      return { fullText: "Done." };
+    });
+    const loaded = await loadApp();
+    const created = await request(loaded.app).post("/chat/create").send({});
+
+    const response = await request(loaded.app).post("/chat").send({
+      chat_id: created.body.id,
+      expected_version: 0,
+      current_turn: {
+        kind: "message",
+        turn_id: "50000000-0000-4000-8000-000000000006",
+        content: "Revise the draft.",
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(initialNames).toEqual(["describe_tools"]);
+    expect(JSON.parse(sameBatch[0].content).error).toContain("not loaded");
+    expect(JSON.parse(sameBatch[1].content)).toMatchObject({ ok: true });
+    expect(openedNames).toEqual(["describe_tools", "library_revise_docx"]);
+    expect(JSON.parse(nextIteration[0].content)).toMatchObject({ ok: true });
+    expect(
+      mocks.runLocalAssistantTools.mock.calls.map((entry) =>
+        entry[1].map((call: { name: string }) => call.name),
+      ),
+    ).toEqual([["describe_tools"], ["library_revise_docx"]]);
+  });
+
   it("passes a selected document and system workflow into the provider turn", async () => {
     const localDocuments = await import("../lib/localDocumentStore");
     const document = await localDocuments.createLocalDocument({
@@ -179,6 +257,7 @@ describe("anonymous chat PDF evidence durability", () => {
       .send({
         chat_id: created.body.id,
         expected_version: 0,
+        service_tier: "fast",
         current_turn: {
           kind: "message",
           content: "extract key terms",
@@ -206,6 +285,9 @@ describe("anonymous chat PDF evidence durability", () => {
       });
 
     expect(response.status).toBe(200);
+    expect(mocks.streamChatWithTools.mock.calls[0]?.[0]).toMatchObject({
+      serviceTier: "fast",
+    });
     expect(mocks.providerMessages[0]?.at(-1)?.content).toContain(
       `- Lease.docx (document_id: ${document.id})`,
     );
@@ -1313,6 +1395,8 @@ describe("anonymous chat PDF evidence durability", () => {
             content: JSON.stringify({
               ok: true,
               receipt: "mike-document:v1",
+              action: "created",
+              version_id: "mock-version",
             }),
           })),
       );
@@ -1328,6 +1412,8 @@ describe("anonymous chat PDF evidence durability", () => {
             content: JSON.stringify({
               ok: true,
               receipt: "mike-document:v1",
+              action: "created",
+              version_id: "mock-version",
             }),
           },
         ]);
@@ -1421,12 +1507,74 @@ describe("anonymous chat PDF evidence durability", () => {
     },
   );
 
+  it("keeps a failed turn retryable after a successful no-op edit report", async () => {
+    mocks.runLocalAssistantTools.mockImplementation(
+      async (_userId: unknown, calls: { id: string }[]) =>
+        calls.map((call) => ({
+          tool_use_id: call.id,
+          content: JSON.stringify({
+            ok: true,
+            action: "no_changes",
+            change_count: 0,
+          }),
+        })),
+    );
+    let attempt = 0;
+    mocks.streamChatWithTools.mockImplementation(async (params) => {
+      if (attempt++ === 0) {
+        await params.runTools?.([
+          {
+            id: "no-op",
+            name: "library_apply_text_ops",
+            input: { document_id: DOCUMENT_ID, ops: [] },
+          },
+        ]);
+        throw new Error("Provider failed after no-op");
+      }
+      params.callbacks?.onContentDelta?.("Retried after no-op.");
+      return { fullText: "Retried after no-op." };
+    });
+    const loaded = await loadApp();
+    const created = await request(loaded.app).post("/chat/create").send({});
+    const currentTurn = {
+      kind: "message",
+      turn_id: "50000000-0000-4000-8000-000000000005",
+      content: "Normalize the document.",
+    };
+
+    const failed = await request(loaded.app).post("/chat").send({
+      chat_id: created.body.id,
+      expected_version: 0,
+      current_turn: currentTurn,
+    });
+    expect(failed.status).toBe(200);
+    expect(failed.text).not.toContain('"retryable":false');
+    const chat = loaded.store.getAnonymousChat(USER_ID, created.body.id)!;
+    expect(JSON.stringify(chat.messages)).not.toContain(
+      "local_mutation_committed",
+    );
+
+    const retried = await request(loaded.app).post("/chat").send({
+      chat_id: created.body.id,
+      expected_version: chat.transcript_version,
+      current_turn: currentTurn,
+    });
+    expect(retried.status).toBe(200);
+    expect(retried.text).toContain("Retried after no-op.");
+    expect(mocks.streamChatWithTools).toHaveBeenCalledTimes(2);
+  });
+
   it("recognizes a completed mutating normal turn after restart", async () => {
     mocks.runLocalAssistantTools.mockImplementation(
       async (_userId: unknown, calls: { id: string }[]) =>
         calls.map((call) => ({
           tool_use_id: call.id,
-          content: JSON.stringify({ ok: true, receipt: "created" }),
+          content: JSON.stringify({
+            ok: true,
+            receipt: "mike-document:v1",
+            action: "created",
+            version_id: "mock-version",
+          }),
         })),
     );
     mocks.streamChatWithTools.mockImplementation(async (params) => {
@@ -1546,7 +1694,12 @@ describe("anonymous chat PDF evidence durability", () => {
       async (_userId: unknown, calls: { id: string }[]) =>
         calls.map((call) => ({
           tool_use_id: call.id,
-          content: JSON.stringify({ ok: true, receipt: "created" }),
+          content: JSON.stringify({
+            ok: true,
+            receipt: "mike-document:v1",
+            action: "created",
+            version_id: "mock-version",
+          }),
         })),
     );
     mocks.streamChatWithTools.mockImplementation(async (params) => {
@@ -1648,7 +1801,17 @@ describe("anonymous chat PDF evidence durability", () => {
     });
   });
 
-  it("streams and persists the original Mike redline event contract", async () => {
+  it.each([
+    {
+      label: "the public revise tool",
+      toolName: "library_revise_docx",
+      codingResult: false,
+    },
+    { label: "coding-shaped Edit", toolName: "Edit", codingResult: true },
+  ])("streams and persists the Mike redline event contract for $label", async ({
+    toolName,
+    codingResult,
+  }) => {
     const annotation = {
       kind: "edit",
       edit_id: "60000000-0000-4000-8000-000000000001",
@@ -1664,28 +1827,32 @@ describe("anonymous chat PDF evidence durability", () => {
       context_after: " provision.",
       status: "pending",
     };
+    const mutationReceipt = JSON.stringify({
+      ok: true,
+      receipt: "mike-document:v1",
+      action: "revised",
+      document_id: DOCUMENT_ID,
+      version_id: VERSION_ID,
+      version_number: 2,
+      filename: "Draft.docx",
+      download_url:
+        `/single-documents/${DOCUMENT_ID}/file?version_id=${VERSION_ID}`,
+      annotations: [annotation],
+    });
     mocks.runLocalAssistantTools.mockImplementation(
       async (_userId: unknown, calls: { id: string }[]) =>
         calls.map((call) => ({
           tool_use_id: call.id,
-          content: JSON.stringify({
-            ok: true,
-            receipt: "mike-document:v1",
-            action: "revised",
-            document_id: DOCUMENT_ID,
-            version_id: VERSION_ID,
-            version_number: 2,
-            filename: "Draft.docx",
-            download_url:
-              `/single-documents/${DOCUMENT_ID}/file?version_id=${VERSION_ID}`,
-            annotations: [annotation],
-          }),
+          content: codingResult
+            ? "Updated Draft.docx: 1 tracked change applied."
+            : mutationReceipt,
+          ...(codingResult ? { mutationReceipt } : {}),
         })),
     );
     mocks.streamChatWithTools.mockImplementation(async (params) => {
       const call = {
         id: "revise-doc",
-        name: "library_revise_docx",
+        name: toolName,
         input: {
           document_id: DOCUMENT_ID,
           version_id: VERSION_ID,
@@ -1693,7 +1860,12 @@ describe("anonymous chat PDF evidence durability", () => {
         },
       };
       params.callbacks?.onToolCallStart?.(call);
-      await params.runTools?.([call]);
+      const [toolResult] = (await params.runTools?.([call])) ?? [];
+      if (codingResult) {
+        expect(toolResult.content).toBe(
+          "Updated Draft.docx: 1 tracked change applied.",
+        );
+      }
       params.callbacks?.onContentDelta?.("The tracked revision is ready.");
       return { fullText: "The tracked revision is ready." };
     });
@@ -1771,7 +1943,12 @@ describe("anonymous chat PDF evidence durability", () => {
       async (_userId: unknown, calls: { id: string }[]) =>
         calls.map((call) => ({
         tool_use_id: call.id,
-        content: JSON.stringify({ ok: true, receipt: "mike-document:v1" }),
+        content: JSON.stringify({
+          ok: true,
+          receipt: "mike-document:v1",
+          action: "created",
+          version_id: "mock-version",
+        }),
         })),
     );
     mocks.streamChatWithTools.mockImplementation(async (params) => {
@@ -1787,6 +1964,8 @@ describe("anonymous chat PDF evidence durability", () => {
           content: JSON.stringify({
             ok: true,
             receipt: "mike-document:v1",
+            action: "created",
+            version_id: "mock-version",
           }),
         },
       ]);

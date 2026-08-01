@@ -2,6 +2,7 @@ import { throwIfAborted } from "./abort";
 import { requireApiKey } from "./apiKeys";
 import { encodeToolV3, schemaEncodingVariant } from "./schemaEncoding";
 import type {
+  LlmContextRoundReceipt,
   LlmMessage,
   NormalizedLlmUsage,
   NormalizedToolCall,
@@ -11,6 +12,7 @@ import type {
   StreamChatResult,
 } from "./types";
 import { createLlmTrace } from "./rawStreamLog";
+import { sha256 } from "../hash";
 
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const MAX_OUTPUT_TOKENS = 16384;
@@ -61,6 +63,7 @@ type ResponseStreamEvent = {
     id?: string;
     output_text?: string;
     status?: string;
+    service_tier?: string;
     error?: { code?: string; message?: string } | null;
     usage?: ResponseUsage;
   };
@@ -82,6 +85,8 @@ export type ResponsesAdapterConfig = {
   persistent: boolean;
   reasoningSummary?: boolean;
   defaultReasoningEffort?: string;
+  /** Provider request value, after host-side capability validation. */
+  serviceTier?: string;
   /** Extra request headers (e.g. ChatGPT-Account-ID for the Codex backend). */
   headers?: Record<string, string>;
   /**
@@ -212,6 +217,7 @@ async function createResponse(params: {
   maxTokens?: number;
   previousResponseId?: string;
   reasoning?: { summary?: "auto"; effort?: string };
+  serviceTier?: string;
   apiKey: string;
   headers?: Record<string, string>;
   codexBackend?: boolean;
@@ -235,6 +241,7 @@ async function createResponse(params: {
         : { max_output_tokens: params.maxTokens ?? MAX_OUTPUT_TOKENS }),
       previous_response_id: params.previousResponseId,
       reasoning: params.reasoning,
+      service_tier: params.serviceTier,
     }),
     signal: params.signal,
   });
@@ -271,7 +278,10 @@ export async function streamResponsesApi(
   let input = toResponseInput(params.messages);
   let previousResponseId: string | undefined;
   let fullText = "";
+  let reportedServiceTier: string | undefined;
   let needsCourtlistenerCitationReminder = false;
+  const contextRounds: LlmContextRoundReceipt[] = [];
+  let activeRound: LlmContextRoundReceipt | null = null;
   // Accumulated across tool-loop iterations; null until a response reports it.
   let usage: NormalizedLlmUsage | null = null;
   const addUsage = (reported: ResponseUsage) => {
@@ -293,6 +303,18 @@ export async function streamResponsesApi(
     usage.cacheReadInputTokens =
       (usage.cacheReadInputTokens ?? 0) +
       (reported.input_tokens_details?.cached_tokens ?? 0);
+    if (activeRound) {
+      activeRound.usage.inputTokens =
+        (activeRound.usage.inputTokens ?? 0) + (reported.input_tokens ?? 0);
+      activeRound.usage.outputTokens =
+        (activeRound.usage.outputTokens ?? 0) + (reported.output_tokens ?? 0);
+      activeRound.usage.reasoningTokens =
+        (activeRound.usage.reasoningTokens ?? 0) +
+        (reported.output_tokens_details?.reasoning_tokens ?? 0);
+      activeRound.usage.cacheReadInputTokens =
+        (activeRound.usage.cacheReadInputTokens ?? 0) +
+        (reported.input_tokens_details?.cached_tokens ?? 0);
+    }
   };
   const trace = createLlmTrace({ provider: config.provider, model });
 
@@ -300,11 +322,42 @@ export async function streamResponsesApi(
     for (let iter = 0; iter < maxIter; iter++) {
       throwIfAborted(params.abortSignal);
       if (params.resolveTools) responseTools = toResponseTools(params.resolveTools());
+      const instructions = responseInstructions(
+        systemPrompt,
+        needsCourtlistenerCitationReminder,
+      );
+      const inputJson = JSON.stringify(input);
+      const toolsJson = JSON.stringify(responseTools);
+      activeRound = {
+        iteration: iter,
+        requestAttempts: 0,
+        continuation: config.persistent && previousResponseId ? "provider" : "none",
+        instructionsBytes: Buffer.byteLength(instructions),
+        instructionsSha256: sha256(instructions),
+        inputItems: input.length,
+        inputBytes: Buffer.byteLength(inputJson),
+        inputSha256: sha256(inputJson),
+        toolCount: responseTools.length,
+        toolBytes: Buffer.byteLength(toolsJson),
+        toolSha256: sha256(toolsJson),
+        toolCallCount: 0,
+        toolArgumentBytes: 0,
+        toolResultBytes: 0,
+        usage: {
+          inputTokens: null,
+          outputTokens: null,
+          reasoningTokens: null,
+          cacheReadInputTokens: null,
+          cacheWriteInputTokens: null,
+        },
+      };
+      contextRounds.push(activeRound);
       let toolCalls: NormalizedToolCall[] = [];
       let outputItems: ResponseInputItem[] = [];
       let reasoningBlockOpen = false;
       let emitted = false;
       const runAttempt = async () => {
+        if (activeRound) activeRound.requestAttempts += 1;
         toolCalls = [];
         outputItems = [];
         reasoningBlockOpen = false;
@@ -313,10 +366,7 @@ export async function streamResponsesApi(
           endpoint: config.endpoint,
           provider: config.provider,
           model,
-          instructions: responseInstructions(
-            systemPrompt,
-            needsCourtlistenerCitationReminder,
-          ),
+          instructions,
           input,
           tools: responseTools,
           stream: true,
@@ -335,6 +385,7 @@ export async function streamResponsesApi(
           apiKey: config.apiKey,
           headers: config.headers,
           codexBackend: config.codexBackend,
+          serviceTier: config.serviceTier,
           signal: params.abortSignal,
         });
         if (!response.body) throw new Error("OpenAI response had no body");
@@ -354,6 +405,13 @@ export async function streamResponsesApi(
 
           for (const event of extracted.events as ResponseStreamEvent[]) {
             trace.record({ iteration: iter, label: "sse_event", payload: event });
+
+            if (
+              typeof event.response?.service_tier === "string" &&
+              event.response.service_tier.trim()
+            ) {
+              reportedServiceTier = event.response.service_tier.trim();
+            }
 
             const failureMessage = openAIStreamFailureMessage(event);
             if (failureMessage) {
@@ -458,6 +516,11 @@ export async function streamResponsesApi(
 
       const results = await runTools(toolCalls);
       throwIfAborted(params.abortSignal);
+      activeRound.toolCallCount = toolCalls.length;
+      activeRound.toolArgumentBytes = toolCalls.reduce(
+        (total, call) => total + Buffer.byteLength(JSON.stringify(call.input)),
+        0,
+      );
       if (results.some((result) => result.terminal)) break;
       // The round budget is enforced silently by this loop; at halfway the
       // model gets told, so the remaining rounds are planned, not spent.
@@ -473,13 +536,22 @@ export async function streamResponsesApi(
         call_id: result.tool_use_id,
         output: result.content,
       }));
+      activeRound.toolResultBytes = results.reduce(
+        (total, result) => total + Buffer.byteLength(result.content),
+        0,
+      );
       input = config.persistent
         ? resultItems
         : [...input, ...outputItems, ...resultItems];
     }
 
     await trace.flush("completed");
-    return usage ? { fullText, usage } : { fullText };
+    return {
+      fullText,
+      ...(usage ? { usage } : {}),
+      ...(reportedServiceTier ? { serviceTier: reportedServiceTier } : {}),
+      contextRounds,
+    };
   } catch (error) {
     await trace.flush("error", error);
     throw error;
@@ -489,12 +561,16 @@ export async function streamResponsesApi(
 export async function streamOpenAI(
   params: StreamChatParams,
 ): Promise<StreamChatResult> {
+  const requestedTier = params.serviceTier?.trim().toLowerCase();
   return streamResponsesApi(params, {
     endpoint: OPENAI_RESPONSES_URL,
     provider: "OpenAI",
     apiKey: apiKey(params.apiKeys?.openai),
     persistent: true,
     reasoningSummary: true,
+    ...(requestedTier
+      ? { serviceTier: requestedTier === "fast" ? "priority" : requestedTier }
+      : {}),
   });
 }
 

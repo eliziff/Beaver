@@ -1,10 +1,16 @@
 import {
   fetchA2AJDocument,
+  getA2AJDocumentSourceDoc,
   lookupA2AJLocator,
   searchA2AJ,
   type A2AJDocument,
   type A2AJLocatorLookup,
 } from "../../a2aj";
+import {
+  bakedCrossReferenceGraph,
+  bakedSkeleton,
+} from "../../legalStructureSidecar";
+import { readSection, skeletonSubtreeLabels } from "../../legalTextSkeleton";
 import {
   a2ajPassageLaneReady,
   searchLocalA2AJPassages,
@@ -26,8 +32,162 @@ export type A2AJToolExecution = {
   payload: Record<string, unknown>;
   document?: A2AJDocument;
   lookup?: A2AJLocatorLookup;
+  lookups?: A2AJLocatorLookup[];
   evidence?: LegalEvidenceReceipt;
+  evidences?: LegalEvidenceReceipt[];
 };
+
+type ReferenceDirection = "none" | "inbound" | "outbound" | "both";
+
+const MAX_REFERENCE_SECTIONS = 50;
+const MAX_REFERENCE_TEXT_CHARS = 32_000;
+const REFERENCE_NEIGHBORHOOD_ENABLED =
+  !process.env.MIKE_RETRIEVAL_EXPERIMENT?.trim() ||
+  process.env.MIKE_RETRIEVAL_EXPERIMENT === "h4-legal-grep" ||
+  process.env.MIKE_RETRIEVAL_EXPERIMENT === "h5-working-set";
+
+async function referenceLookups(
+  lookup: A2AJLocatorLookup,
+  direction: ReferenceDirection,
+) {
+  if (
+    direction === "none" ||
+    lookup.status !== "found" ||
+    !lookup.block ||
+    lookup.requested.kind !== "section"
+  ) {
+    return {
+      lookups: [] as A2AJLocatorLookup[],
+      truncated: false,
+      failures: [] as string[],
+      omitted: [] as string[],
+      limitReason: null as "characters" | "sections" | null,
+    };
+  }
+  const document = await fetchA2AJDocument({
+    citation: lookup.citation,
+    docType: "laws",
+    language: lookup.language,
+    maxChars: 1,
+  });
+  const source = document ? getA2AJDocumentSourceDoc(document) : null;
+  if (!source) {
+    return {
+      lookups: [] as A2AJLocatorLookup[],
+      truncated: false,
+      failures: ["reference graph source unavailable"],
+      omitted: [] as string[],
+      limitReason: null as "characters" | "sections" | null,
+    };
+  }
+  const skeleton = await bakedSkeleton(source.text, source.id, {
+    recoverExtraction: false,
+  });
+  const seed = readSection(skeleton, lookup.requested.locator);
+  if (seed.status !== "found" || !seed.block) {
+    return {
+      lookups: [] as A2AJLocatorLookup[],
+      truncated: false,
+      failures: ["requested section is not addressable in the reference graph"],
+      omitted: [] as string[],
+      limitReason: null as "characters" | "sections" | null,
+    };
+  }
+  const graph = await bakedCrossReferenceGraph(source.text, source.id, {
+    recoverExtraction: false,
+  });
+  if (graph.documentAbstained) {
+    return {
+      lookups: [] as A2AJLocatorLookup[],
+      truncated: false,
+      failures: [graph.note ?? "reference graph abstained"],
+      omitted: [] as string[],
+      limitReason: null as "characters" | "sections" | null,
+    };
+  }
+  const seedNode = skeleton.nodes.find(
+    (node) =>
+      node.label === seed.block!.label &&
+      node.start === seed.block!.start &&
+      node.end === seed.block!.end,
+  );
+  if (!seedNode) {
+    return {
+      lookups: [] as A2AJLocatorLookup[],
+      truncated: false,
+      failures: ["requested section is not addressable in the reference graph"],
+      omitted: [] as string[],
+      limitReason: null as "characters" | "sections" | null,
+    };
+  }
+  const subtree = skeletonSubtreeLabels(skeleton, seedNode.label);
+  const labels: string[] = [];
+  if (direction === "inbound" || direction === "both") {
+    for (const edge of graph.edges) {
+      if (
+        edge.status === "resolved" &&
+        edge.targetLabel &&
+        subtree.has(edge.targetLabel) &&
+        edge.sourceLabel &&
+        !subtree.has(edge.sourceLabel)
+      ) {
+        labels.push(edge.sourceLabel);
+      }
+    }
+  }
+  if (direction === "outbound" || direction === "both") {
+    for (const edge of graph.edges) {
+      if (
+        edge.status === "resolved" &&
+        edge.sourceLabel &&
+        subtree.has(edge.sourceLabel) &&
+        edge.targetLabel &&
+        !subtree.has(edge.targetLabel) &&
+        !edge.selfLoop
+      ) {
+        labels.push(edge.targetLabel);
+      }
+    }
+  }
+  const unique = [...new Set(labels)].filter(
+    (label) => label.toLocaleLowerCase() !== seed.block!.label.toLocaleLowerCase(),
+  );
+  const selected = unique.slice(0, MAX_REFERENCE_SECTIONS);
+  const lookups: A2AJLocatorLookup[] = [];
+  const failures: string[] = [];
+  let chars = 0;
+  let limitReason: "characters" | "sections" | null =
+    unique.length > selected.length ? "sections" : null;
+  const omitted: string[] = unique.slice(selected.length);
+  for (const label of selected) {
+    const related = await lookupA2AJLocator({
+      citation: lookup.citation,
+      docType: "laws",
+      language: lookup.language,
+      dataset: lookup.dataset,
+      kind: "section",
+      locator: label,
+    });
+    if (!related || related.status !== "found" || !related.block) {
+      failures.push(`could not resolve ${label}`);
+      continue;
+    }
+    if (chars + related.block.text.length > MAX_REFERENCE_TEXT_CHARS) {
+      limitReason = "characters";
+      omitted.push(...selected.slice(selected.indexOf(label)));
+      break;
+    }
+    chars += related.block.text.length;
+    lookups.push(related);
+  }
+  return {
+    lookups,
+    truncated: omitted.length > 0,
+    failures,
+    omitted: [...new Set(omitted)],
+    limitReason,
+  };
+}
 
 function optionalString(value: unknown) {
   return typeof value === "string" ? value : undefined;
@@ -217,6 +377,18 @@ export async function executeA2AJTool(
       };
     }
 
+    if (
+      !REFERENCE_NEIGHBORHOOD_ENABLED &&
+      Object.prototype.hasOwnProperty.call(args, "references")
+    ) {
+      return {
+        payload: {
+          ok: false,
+          source: "A2AJ",
+          error: "a2aj_lookup does not expose reference expansion in this arm",
+        },
+      };
+    }
     const lookup = await lookupA2AJLocator({
       citation: optionalString(args.citation) ?? "",
       docType: args.doc_type === "laws" ? "laws" : "cases",
@@ -237,9 +409,39 @@ export async function executeA2AJTool(
           args.doc_type === "laws" ? "legislation" : "case",
         )
       : null;
+    const requestedReferences: ReferenceDirection =
+      REFERENCE_NEIGHBORHOOD_ENABLED &&
+      (args.references === "inbound" ||
+      args.references === "outbound" ||
+      args.references === "both")
+        ? args.references
+        : "none";
+    if (requestedReferences !== "none" && args.doc_type !== "laws") {
+      return {
+        payload: {
+          ok: false,
+          source: "A2AJ",
+          error: "references is available only for statutory sections",
+        },
+      };
+    }
+    const related = lookup
+      ? await referenceLookups(lookup, requestedReferences)
+      : {
+          lookups: [] as A2AJLocatorLookup[],
+          truncated: false,
+          failures: [] as string[],
+          omitted: [] as string[],
+          limitReason: null as "characters" | "sections" | null,
+        };
+    const relatedEvidence = related.lookups
+      .map((item) => createA2AJLookupEvidence(item, "legislation"))
+      .filter((item): item is LegalEvidenceReceipt => Boolean(item));
     return {
       lookup: lookup ?? undefined,
+      lookups: related.lookups,
       evidence: evidence ?? undefined,
+      evidences: relatedEvidence,
       payload: lookup
         ? {
             ok: lookup.status === "found",
@@ -247,6 +449,28 @@ export async function executeA2AJTool(
             ...(evidence ? { evidence_id: evidence.evidence_id } : {}),
             ...lookup,
             url: undefined,
+            ...(requestedReferences !== "none"
+              ? {
+                  reference_neighborhood: {
+                    direction: requestedReferences,
+                    depth: 1,
+                    returned: related.lookups.length,
+                    truncated: related.truncated,
+                    limit_reason: related.limitReason,
+                    omitted: related.omitted,
+                    budget: {
+                      sections: MAX_REFERENCE_SECTIONS,
+                      text_chars: MAX_REFERENCE_TEXT_CHARS,
+                    },
+                    failures: related.failures,
+                    sections: related.lookups.map((item, index) => ({
+                      label: item.block?.label,
+                      text: item.block?.text,
+                      evidence_id: relatedEvidence[index]?.evidence_id,
+                    })),
+                  },
+                }
+              : {}),
             ...(evidence
               ? {
                   next_required_action:
@@ -416,6 +640,16 @@ export const A2AJ_TOOLS = [
             description:
               "Optionally include up to two neighboring blocks on each side.",
           },
+          ...(REFERENCE_NEIGHBORHOOD_ENABLED
+            ? {
+                references: {
+                  type: "string",
+                  enum: ["none", "inbound", "outbound", "both"],
+                  description:
+                    "For an exact statutory section only, also return direct resolved internal provisions that cite it, that it cites, or both, up to the stated text budget. Reports any omitted labels. Defaults to none; not for case-law treatment.",
+                },
+              }
+            : {}),
         },
         required: ["citation", "locator_type", "locator"],
       },

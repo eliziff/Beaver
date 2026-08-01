@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "registered_at": "2026-08-01T20:00:00Z",
+  "status": "registered_before_task_model_calls",
+  "transport_smoke_excluded": {
+    "purpose": "Verify public Responses API Fast/Priority routing only",
+    "model": "gpt-5.6-luna",
+    "requested_service_tier": "fast",
+    "reported_service_tier": "priority",
+    "input_tokens": 18,
+    "output_tokens": 5
+  },
+  "objective": "Test whether coding-native retrieval plus exact legal boundaries can preserve or improve long-horizon legal task quality while materially reducing source and context exposure relative to fair upstream Mike whole-document retrieval.",
+  "held_constant": {
+    "performer_model": "gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "transport": "OpenAI Responses API",
+    "service_tier_requested": "fast",
+    "service_tier_required_in_receipt": "priority",
+    "base_prompt": "lean",
+    "progressive_disclosure": true,
+    "research_tools_on_harvey": false,
+    "ask_inputs": false,
+    "sandbox_engine": "docker",
+    "generator_parallelism": 3,
+    "judge": "codex-sol below-normal process priority",
+    "claude_calibration": "one fixed subset only if judge disagreement would change a decision"
+  },
+  "accepted_baselines": {
+    "policy": "Reuse the frozen upstream Mike and earlier coding/address Harvey cells. Rerun only if the parity audit identifies a concrete invalidation.",
+    "upstream_commit": "e89d3230db40193c540a6b38d8f301ae76377a1a",
+    "upstream_schema_sha256": "78f2e1df120c347689a6760a1ee75a8bcbdc9067a32ebfd671fe285114a7f7fc"
+  },
+  "arms": {
+    "h4": "Glob/Grep/Read/Edit plus optional exact section, page, table-row, and direct resolved reference scopes; deterministic compiler checks run after mutation.",
+    "h5": "H4 plus Grep working_set, an immutable turn-local projection with a 64000 source-character default and 128000 hard cap, round-robin document allocation, row promotion for cell hits, and original-source evidence coordinates."
+  },
+  "harvey_tasks": {
+    "anchor_four": [
+      "banking-finance/extract-credit-agreement-covenants",
+      "white-collar-defense-investigations/analyze-counterparty-markup-of-deferred-prosecution-agreement",
+      "capital-markets/compare-closing-documents-against-closing-checklist",
+      "tax/draft-transfer-pricing-documentation"
+    ],
+    "h5_long_multidoc": "antitrust-competition/prepare-antitrust-risk-assessment",
+    "split": "visible dev only; validation and sealed tasks forbidden"
+  },
+  "sequence": [
+    {
+      "stage": "fairness_gate",
+      "calls": 0,
+      "requirements": [
+        "focused boundary and tool-contract tests pass",
+        "backend build passes",
+        "source receipts include text, page-map, and table-cell hashes",
+        "multi-document evidence is source-qualified",
+        "requested Fast tier fails closed unless the provider reports priority"
+      ]
+    },
+    {
+      "stage": "h4_base",
+      "tasks": "anchor_four",
+      "replicates": 1,
+      "prompt": "neutral",
+      "tool_description": "operational"
+    },
+    {
+      "stage": "description_ablation",
+      "tasks": [
+        "banking-finance/extract-credit-agreement-covenants",
+        "tax/draft-transfer-pricing-documentation"
+      ],
+      "arms": ["operational", "terse"],
+      "replicates": 1,
+      "selection": "Prefer terse if no task loses more than 2 judge points and aggregate input tokens fall; otherwise retain operational. Treat ties as inconclusive, not a product decision."
+    },
+    {
+      "stage": "prompt_ablation",
+      "tasks": "anchor_four",
+      "arms": ["accuracy", "economy"],
+      "replicates": 2,
+      "paired_order": "Replicate 1 accuracy/economy; replicate 2 economy/accuracy.",
+      "selection": "Select accuracy at +3 or more aggregate judge points. Otherwise select economy if within 2 points and at least 15 percent lower input. Otherwise retain neutral."
+    },
+    {
+      "stage": "h5_test",
+      "tasks": [
+        "capital-markets/compare-closing-documents-against-closing-checklist",
+        "tax/draft-transfer-pricing-documentation",
+        "antitrust-competition/prepare-antitrust-risk-assessment"
+      ],
+      "arms": ["selected_h4", "h5"],
+      "replicates": 2,
+      "selection": "Retain H5 only if aggregate score is within 2 points, no task drops more than 5 points, and input tokens are at least 15 percent lower."
+    }
+  ],
+  "specialized_dev_checks": {
+    "contracts": "exact sections, table cells promoted to rows, cross-references, and tracked edits",
+    "legislation": "150 and 150.1 are siblings; 150(1) and 150(2) are children of 150; bounded direct-reference neighborhoods report omissions",
+    "citator": "30-citation deterministic scope/ranking audit plus a live newest-versus-most_discussed comparison; no treatment labels",
+    "short_forms": "Frozen 200-pair resolved-edge/style-of-cause sample. Unique mapping only; do not promote unless adjudicated precision is at least 0.95 with at least 100 adjudicated pairs.",
+    "legalrag": "Strip document names and filename clues from prompts and model-visible metadata; do not rerun older cells solely for a harmless opaque document id."
+  },
+  "outcomes": {
+    "quality": ["native LAB criterion score", "valid deliverable rate"],
+    "cost": ["provider input/output/cache tokens", "tool-result characters", "resident/deferred schema and prompt characters"],
+    "retrieval": ["unique original-source characters", "gross replay ratio", "documents reached", "failed calls by root cause"],
+    "latency": ["wall clock seconds", "tool calls", "tool rounds"]
+  },
+  "failure_policy": "Keep operational failures in receipts, separate them from retrieval misses, never replace tasks after seeing scores, and make no winner claim from partial or single-run noise."
+}

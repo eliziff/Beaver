@@ -1,0 +1,91 @@
+{
+  "schema_version": "beaver-retrieval-varied-pinpoint-design-1",
+  "registered_at": "2026-08-01",
+  "status": "registered_before_bed_or_arm_implementation_and_before_model_calls",
+  "objective": "Test retrieval behavior on Canadian case law and legislation with human-authored pinpoint gold before designing the final hybrid.",
+  "why_now": [
+    "LegalBench-RAG contains contracts and privacy policies but no case law, courts, citations, or statute-section gold.",
+    "The short DOCX projection exercised tables, bilingual text, pages, headings, and cross-references, but most files were cheap to read whole.",
+    "The description ablation selected the shared routed description, while two recovered calls showed that the nominal coding schema still advertised a project-specific section handle."
+  ],
+  "bed": {
+    "name": "beaver-can-pinpoint",
+    "source": "Every required_authorities entry in every committed benchmarks/beaver_can/tasks/dev task at implementation freeze time.",
+    "cell": "One cell per human-defined proposition and required source. The question is the human definitions[proposition_id] text prefixed only by an instruction to return the exact supporting passage.",
+    "documents": "The required A2AJ source text only, ingested through the real local DOCX path under a deterministic opaque doc-<hash>.docx filename. Citation, case name, statute name, task id, source id, role, and manifest filename are not exposed in the filename or question.",
+    "gold": "Every human-accepted pinpoint for the required authority resolves through the existing Beaver-CAN SourceDoc block map. Exact trimmed source slices are alternative acceptable passages, not passages the answer must reproduce cumulatively.",
+    "provenance_label": "human-gold-derived mechanism diagnostic; not a new independent human benchmark and not hidden holdout gold",
+    "fail_closed_checks": [
+      "All task, gold, and manifest contracts parse through loadBeaverCanTaskDir.",
+      "Every required source is an A2AJ fixture with a compiled SourceDoc.",
+      "Every acceptable pinpoint resolves to one exact non-empty source slice.",
+      "Every ingested DOCX text plane is byte-identical after LF normalization.",
+      "Every question is non-empty and contains neither its source citation nor its opaque filename.",
+      "No model call begins unless all checks pass."
+    ]
+  },
+  "baseline_arms": {
+    "upstream": {
+      "surface": "Pinned Will Chen Mike upstream retrieval schemas and harness adapter already frozen by the fair-baseline registration.",
+      "purpose": "External project-specific baseline."
+    },
+    "p0-pure-coding": {
+      "surface": ["Glob", "Grep", "Read"],
+      "read_contract": "File and 1-based line windows only. No provision, paragraph, table, row, cell, page, or graph parameter or result annotation.",
+      "description": "The selected routed rule, adapted only to remove unavailable structural vocabulary.",
+      "purpose": "Give familiar coding-agent tools a genuinely isolated baseline."
+    },
+    "d1-routed": {
+      "surface": ["Glob", "Grep", "Read"],
+      "read_contract": "The existing structure-enriched coding surface: line windows plus verified provision, paragraph, table, row, and cell handles emitted on matching lines.",
+      "description": "The selected routed description from the preregistered d0/d1/d2 ablation.",
+      "purpose": "Measure the marginal value and cost of legal structure inside the coding shape."
+    },
+    "address": {
+      "surface": "The current project-native address retrieval surface.",
+      "purpose": "Project-native comparison with legal structure exposed through dedicated tools."
+    }
+  },
+  "live_design": {
+    "model": "codex:gpt-5.6-luna",
+    "effort": "max",
+    "requested_service_tier": null,
+    "provider_tier_policy": "default economy tier; record actual tier",
+    "replicates": [1, 2],
+    "form": "stripped",
+    "maximum_simultaneous_model_calls": 3,
+    "per_process_concurrency": 1,
+    "maximum_iterations": 10
+  },
+  "outcomes": {
+    "primary": [
+      "best-alternative token F1",
+      "best-alternative token recall",
+      "any acceptable passage reproduced exactly",
+      "any acceptable pinpoint reached by a committed read"
+    ],
+    "efficiency": [
+      "total context tokens",
+      "tool-result characters",
+      "committed characters exposed",
+      "tool calls",
+      "latency",
+      "resident schema characters"
+    ],
+    "integrity": [
+      "transport errors",
+      "failed tool calls",
+      "off-schema keys",
+      "opaque-filename assertion",
+      "bed, implementation, schema, prompt, model, effort, and tier hashes per receipt"
+    ],
+    "subgroups": ["case versus legislation", "document-size band", "single versus multiple acceptable pinpoints", "task type"]
+  },
+  "decision_rule": [
+    "Do not design or implement the final hybrid until all four varied-baseline arms are complete and their trajectories are inspected.",
+    "Treat p0 versus d1 as the clean marginal test of legal structure inside a coding surface.",
+    "A richer surface must remain within 0.03 best-alternative F1 and exact-coverage of the best arm and show either an accuracy gain outside the replicate floor or a strict context/call reduction to earn default exposure.",
+    "A mechanism that is never invoked, emits non-executable coordinates, or increases rereads is not evidence for promotion.",
+    "Report this projection as diagnostic evidence only; do not relabel derived cells as independent human gold."
+  ]
+}

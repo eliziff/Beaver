@@ -3,9 +3,18 @@ import { describe, expect, it } from "vitest";
 import { applyTrackedEdits, extractDocxBodyText } from "../docxTrackedChanges";
 import { LOCAL_ASSISTANT_TOOLS } from "../chat/localAssistantTools";
 import { buildSystemPrompt } from "../chat/prompts";
-import { renderMarkdownDocx } from "../chat/tools/documentOps";
+import {
+  renderMarkdownDocx,
+  safeGeneratedFilename,
+} from "../chat/tools/documentOps";
 import { PROJECT_EXTRA_TOOLS, TOOLS } from "../chat/tools/toolSchemas";
 import { SYSTEM_WORKFLOWS } from "../systemWorkflows";
+
+it("does not duplicate a supplied generated-file extension", () => {
+  expect(safeGeneratedFilename("covenant-memo.docx", "docx")).toBe(
+    "covenant-memo.docx",
+  );
+});
 
 const agreementMarkdown = `# Parties and termination
 

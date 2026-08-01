@@ -167,7 +167,7 @@ export async function streamDeepSeek(
         apiKey: key,
         model,
         messages,
-        tools,
+        tools: params.resolveTools?.() ?? tools,
         stream: true,
         thinking: enableThinking,
         reasoningEffort: params.reasoningEffort,

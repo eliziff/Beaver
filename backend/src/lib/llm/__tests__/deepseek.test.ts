@@ -1,5 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { streamDeepSeek, toDeepSeekMessages } from "../deepseek";
+import type { OpenAIToolSchema } from "../types";
+
+const tool = (name: string): OpenAIToolSchema => ({
+  type: "function",
+  function: {
+    name,
+    description: `${name} tool`,
+    parameters: { type: "object", properties: {} },
+  },
+});
 
 function sse(events: unknown[]): Response {
   const body = events
@@ -108,6 +118,47 @@ describe("DeepSeek adapter", () => {
       }),
       { role: "tool", tool_call_id: "call-1", content: "Found." },
     ]));
+  });
+
+  it("refreshes tools on the next tool-loop request", async () => {
+    const bodies: Record<string, unknown>[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
+        bodies.push(JSON.parse(String(init.body)));
+        return bodies.length === 1
+          ? sse([{
+              choices: [{
+                delta: {
+                  tool_calls: [{
+                    index: 0,
+                    id: "call-1",
+                    function: { name: "discover", arguments: "{}" },
+                  }],
+                },
+              }],
+            }])
+          : sse([{ choices: [{ delta: { content: "done" } }] }]);
+      }),
+    );
+    let activeTools = [tool("discover")];
+
+    await streamDeepSeek({
+      model: "deepseek-v4-pro",
+      systemPrompt: "system",
+      messages: [{ role: "user", content: "research" }],
+      apiKeys: { deepseek: "test-key" },
+      tools: activeTools,
+      resolveTools: () => activeTools,
+      runTools: async () => {
+        activeTools = [...activeTools, tool("revealed")];
+        return [{ tool_use_id: "call-1", content: "opened" }];
+      },
+    });
+
+    expect(bodies.map((body) =>
+      (body.tools as OpenAIToolSchema[]).map((entry) => entry.function.name)
+    )).toEqual([["discover"], ["discover", "revealed"]]);
   });
 
   it("rejects image input before making a request", () => {

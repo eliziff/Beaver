@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "registered_at": "2026-08-01T15:55:00Z",
+  "status": "registered_before_live_model_calls",
+  "question": "On realistic long-horizon legal work, what retrieval surface best preserves task quality while reducing context and tool failure cost when the model, authoring tools, progressive disclosure policy, and tasks are held constant?",
+  "corpus": {
+    "source": "benchmarks/harvey-labs",
+    "split_manifest": "benchmarks/lab/corpus-split.json",
+    "tier": "dev",
+    "validation_access": "forbidden",
+    "sealed_access": "absent_and_forbidden",
+    "selection_seed": "lab-retrieval-surface-2026-08-01",
+    "selection_command": "npx tsx scripts/lab-select-tasks.ts --n 24 --seed lab-retrieval-surface-2026-08-01 --max-files 40 --lab-root ../benchmarks/harvey-labs",
+    "selection_rule": "Include every eligible visible genre once, then round-robin seeded candidates across practice areas. Require docx, md, or txt deliverables and at most 40 task files.",
+    "selected_count": 24,
+    "visible_dev_count": 60,
+    "task_ids": [
+      "white-collar-defense-investigations/analyze-counterparty-markup-of-deferred-prosecution-agreement",
+      "capital-markets/compare-closing-documents-against-closing-checklist",
+      "tax/draft-transfer-pricing-documentation",
+      "banking-finance/extract-credit-agreement-covenants",
+      "arbitration-international-dispute-resolution/identify-arbitration-agreement-markup",
+      "antitrust-competition/prepare-antitrust-risk-assessment",
+      "antitrust-competition/analyze-antitrust-hsr-strategy",
+      "arbitration-international-dispute-resolution/analyze-arbitration-award-for-new-york-convention-enforcement-defenses",
+      "bankruptcy-restructuring/extract-critical-vendor-terms-from-supply-contracts",
+      "corporate-governance/analyze-flsa-overtime-rule-gap-against-current-employee-classifications",
+      "corporate-ma/analyze-escrow-agreement-markup",
+      "data-privacy-cybersecurity/analyze-counterparty-markup-of-cross",
+      "emerging-companies-venture-capital/analyze-counterparty-markup-of-stock-purchase-agreement",
+      "employment-labor/analyze-counterparty-markup-of-executive-employment-agreement",
+      "energy-natural-resources/analyze-counterparty-markup-of-intercreditor-agreement",
+      "environmental-esg/analyze-counterparty-markup-of-settlement-agreement",
+      "funds-asset-management/analyze-counterparty-markup-of-limited-partnership-interest-transfer-agreement",
+      "healthcare-life-sciences/analyze-counterparty-markup-of-clinical-trial-agreement",
+      "immigration/compare-draft-eb",
+      "insurance/analyze-property-damage-claim-against-commercial-policy-exclusions",
+      "intellectual-property/analyze-counterparty-markup-of-technology-license-agreement",
+      "international-trade-sanctions/analyze-counterparty-markup-of-mitigation-agreement",
+      "litigation-dispute-resolution/analyze-counterparty-motion-to-dismiss",
+      "real-estate/analyze-counterparty-markup-of-commercial-real-estate-loan-agreement"
+    ]
+  },
+  "held_constant": {
+    "performer_model": "codex:gpt-5.6-luna",
+    "reasoning_effort": "max",
+    "service_tier": "default_economy",
+    "prompt_variant": "lean",
+    "progressive_disclosure": true,
+    "research_tools": false,
+    "ask_inputs": false,
+    "authoring_review_and_workflow_domains": "identical",
+    "task_instructions_and_filenames": "native_LAB",
+    "parallelism": 3,
+    "sandbox_engine": "docker"
+  },
+  "arms": {
+    "p0": "Strict coding retrieval: Glob, Grep, and line-window Read. No structural handles in Read, Edit, or prompt prose.",
+    "d1": "Routed coding retrieval: Glob, Grep, and Read plus verified legal structural handles for bounded reads and edits.",
+    "address": "Project-native retrieval: library outline, find, read, links, page/provision/table addresses, and graph following."
+  },
+  "execution": {
+    "smoke_task": "banking-finance/extract-credit-agreement-covenants",
+    "smoke_is_excluded_from_headline_scores": true,
+    "launch_gate": "All three smoke arms must finish, emit a surface receipt, have zero implementation-level tool failures, and produce an evaluator-readable deliverable.",
+    "run_id_prefix": "tool-surface-luna-max-v1",
+    "replicates": 1,
+    "paired_order": "All three arms run concurrently per task; task order is the registered list.",
+    "failure_policy": "Retain failed cells in operational metrics, never score missing output as a successful task, diagnose implementation failures separately, and do not replace tasks after score inspection."
+  },
+  "outcomes": {
+    "primary": [
+      "native_LAB_all_criteria_pass_rate",
+      "native_LAB_pooled_criterion_pass_rate"
+    ],
+    "secondary": [
+      "criterion_pass_rate_by_genre",
+      "valid_deliverable_rate",
+      "input_output_and_total_tokens",
+      "wall_clock_seconds",
+      "tool_call_count",
+      "failed_tool_calls",
+      "documents_accessed",
+      "resident_and_deferred_schema_hashes",
+      "system_prompt_hash_and_chars",
+      "domain_disclosures",
+      "whole_document_versus_bounded_reads"
+    ],
+    "judge": "Use the native LAB evaluator with codex/gpt-5.6-luna first. Scores are derivative LLM-judge labels, not human gold; calibrate a fixed subset with Claude before a winner claim.",
+    "decision_rule": "No arm is selected from token savings alone. Prefer the leanest arm whose paired task quality is not materially worse; if d1 preserves p0 efficiency while improving structure-heavy tasks, carry d1 forward as the hybrid base. Address must earn its extra calls and context on structure-sensitive criteria."
+  }
+}

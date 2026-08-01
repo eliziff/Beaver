@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "registered_at": "2026-08-01T21:46:00Z",
+  "status": "registered_before_h8_model_calls",
+  "experiment_type": "direct affordance ablation within the SLA hybrid",
+  "objective": "Give the immutable in-turn Grep evidence artifact a fair behavioral test by making it the first retrieval action instead of leaving a buried optional output mode the model never selects.",
+  "held_constant": {
+    "performer_model": "gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "transport": "OpenAI Responses API",
+    "service_tier_requested": "fast",
+    "service_tier_required_in_receipt": "priority",
+    "base_prompt": "lean",
+    "tool_description_variant": "operational",
+    "retrieval_surface": "H5 coding-native exact legal scopes",
+    "automatic_compiler": true,
+    "research_tools_on_harvey": false,
+    "ask_inputs": false,
+    "split": "visible Harvey LAB dev tasks only"
+  },
+  "reference": "H7 sla_hybrid. Its white-collar cell skipped the compiler because the model emitted an artifact with empty chat text; preserve that cell as an implementation-failure receipt and rerun it after the shared gate fix.",
+  "candidate_arm": "sla_working_set",
+  "candidate_difference": [
+    "After deriving the Spec, the first retrieval call must be Grep output_mode=working_set with a targeted union regex derived from the checklist.",
+    "The model must Read the returned immutable in-turn path before returning to exact source sections for gaps or verification.",
+    "Universal dot patterns are explicitly excluded; a second non-overlapping set is allowed only for truncation or remaining checklist gaps."
+  ],
+  "shared_fairness_fixes_applied_before_candidate": [
+    "Run the automatic compiler when an artifact exists even if chat text is empty.",
+    "Audit the artifact alone when one exists rather than concatenating status chat text.",
+    "Remove already-opened domains from the refreshed discovery schema.",
+    "Exclude reads of generated artifacts from original-source exposure metrics."
+  ],
+  "tasks": [
+    "banking-finance/extract-credit-agreement-covenants",
+    "white-collar-defense-investigations/analyze-counterparty-markup-of-deferred-prosecution-agreement",
+    "capital-markets/compare-closing-documents-against-closing-checklist",
+    "tax/draft-transfer-pricing-documentation"
+  ],
+  "primary_observations": [
+    "whether the first retrieval call creates a working set and the model reads it",
+    "working-set manifest size, units, documents, truncation, original-source union, and later gap-filling reads",
+    "native LAB score and valid artifact",
+    "tool-result/context bytes, input/cache/output tokens, calls, rounds, replay, and latency",
+    "whether the bounded projection omits material issues or reduces giant Grep/whole-read behavior"
+  ],
+  "interpretation_policy": "The working-set-first instruction is the intended treatment. Shared correctness fixes are disclosed, so historical H7 differences are not a perfectly isolated causal estimate. A feature that is merely present but receives zero calls is not treated as tested.",
+  "non_goal": "Cross-turn or restart persistence. The candidate is an immutable turn-local source projection that survives provider rounds and the SLA correction checkpoint; do not call it a durable stored artifact."
+}

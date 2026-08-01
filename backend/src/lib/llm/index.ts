@@ -13,6 +13,13 @@ export async function streamChatWithTools(
   const startedAtIso = new Date().toISOString();
   let firstContentAt: number | null = null;
   let streamedOutputBytes = 0;
+  // Progressive disclosure mutates the caller's active array between tool
+  // iterations. Telemetry describes the first request, so retain that exact
+  // schema inventory rather than observing the expanded array after return.
+  const manifestParams: StreamChatParams = {
+    ...params,
+    tools: params.tools ? [...params.tools] : params.tools,
+  };
   const measuredParams: StreamChatParams = {
     ...params,
     callbacks: {
@@ -54,7 +61,7 @@ export async function streamChatWithTools(
                       ).streamGemini(measuredParams);
     const finishedAt = performance.now();
     await recordManifest({
-      params,
+      params: manifestParams,
       provider,
       startedAt: startedAtIso,
       firstContentLatencyMs:
@@ -68,7 +75,7 @@ export async function streamChatWithTools(
   } catch (error) {
     const finishedAt = performance.now();
     await recordManifest({
-      params,
+      params: manifestParams,
       provider,
       startedAt: startedAtIso,
       firstContentLatencyMs:

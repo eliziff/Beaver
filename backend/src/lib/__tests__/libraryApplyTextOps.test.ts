@@ -150,6 +150,151 @@ describe("library_apply_text_ops tool flow", () => {
     });
   });
 
+  it("consolidates multiple edit tools into one assistant-turn version", async () => {
+    const tools = await setup();
+    const [createdResponse] = await tools.runLocalAssistantTools("local-user", [
+      {
+        id: "call-create",
+        name: "library_create_docx",
+        input: {
+          title: "Consolidated Draft",
+          markdown: "Alpha clause. Gamma clause.",
+        },
+      },
+    ]);
+    const created = JSON.parse(createdResponse.content);
+    const turnEditState = new Map();
+
+    const [revisedResponse, textOpsResponse] =
+      await tools.runLocalAssistantTools(
+        "local-user",
+        [
+          {
+            id: "call-revise",
+            name: "library_revise_docx",
+            input: {
+              document_id: created.document_id,
+              version_id: created.version_id,
+              edits: [
+                {
+                  find: "Alpha",
+                  replace: "Beta",
+                  context_before: "",
+                  context_after: " clause.",
+                },
+              ],
+            },
+          },
+          {
+            id: "call-text-ops",
+            name: "library_apply_text_ops",
+            input: {
+              document_id: created.document_id,
+              version_id: created.version_id,
+              ops: [
+                {
+                  op: "replace_text",
+                  find: "Gamma",
+                  replace: "Delta",
+                  scope: { kind: "whole_document" },
+                },
+              ],
+            },
+          },
+        ],
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        turnEditState,
+      );
+    const revised = JSON.parse(revisedResponse.content);
+    const textOps = JSON.parse(textOpsResponse.content);
+
+    expect(revised).toMatchObject({
+      ok: true,
+      parent_version_id: created.version_id,
+      version_number: 2,
+    });
+    expect(textOps).toMatchObject({
+      ok: true,
+      parent_version_id: created.version_id,
+      version_id: revised.version_id,
+      version_number: 2,
+    });
+    expect(turnEditState.get(created.document_id)).toEqual({
+      versionId: revised.version_id,
+      parentVersionId: created.version_id,
+    });
+
+    expect(
+      (await tools.extractLocalDocument("local-user", created.document_id))
+        ?.text,
+    ).toContain("Delta clause");
+    // Re-editing text inserted earlier in the same turn would erase the old
+    // w:id and leave its accept/reject receipt dangling, so it refuses while
+    // keeping the consolidated version intact.
+    const [thirdResponse] = await tools.runLocalAssistantTools(
+      "local-user",
+      [
+        {
+          id: "call-third",
+          name: "library_revise_docx",
+          input: {
+            document_id: created.document_id,
+            version_id: created.version_id,
+            edits: [
+              {
+                find: "Delta",
+                replace: "Epsilon",
+                context_before: "Beta clause. ",
+                context_after: " clause.",
+              },
+            ],
+          },
+        },
+      ],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      turnEditState,
+    );
+    expect(JSON.parse(thirdResponse.content)).toMatchObject({
+      ok: false,
+      error: expect.stringContaining("overlaps an earlier tracked change"),
+    });
+    expect(
+      (await tools.extractLocalDocument("local-user", created.document_id))
+        ?.text,
+    ).toContain("Delta clause");
+
+    const store = await import("../localDocumentStore");
+    const versions = await store.listLocalVersions(
+      "local-user",
+      created.document_id,
+    );
+    expect(versions?.versions).toHaveLength(2);
+    expect(versions?.versions[1].provenance).toMatchObject({
+      parent_version_id: created.version_id,
+      change_count: 2,
+    });
+    const persisted = JSON.parse(
+      await readFile(path.join(temporaryDirectory!, "library.json"), "utf8"),
+    );
+    expect(
+      persisted.documents[0].versions[1].provenance.trackedEdits,
+    ).toHaveLength(2);
+  });
+
   it("reports no-ops, invalid ops, and stale versions without mutating", async () => {
     const tools = await setup();
     const [createdResponse] = await tools.runLocalAssistantTools("local-user", [

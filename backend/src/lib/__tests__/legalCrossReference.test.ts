@@ -88,6 +88,23 @@ describe("crossReferenceGraph — literal edges", () => {
       counts.resolved + counts.external + counts.unresolved + counts.abstained,
     ).toBe(counts.detected);
   });
+
+  it("does not treat a decimal provision as the child or fallback target of an integer provision", () => {
+    const text = [
+      "Section 149 Previous. Section 150 applies.",
+      "Section 150.1 Distinct decimal provision.",
+      "Section 151 Following.",
+      "Section 152 Following.",
+      "Section 153 Following.",
+    ].join("\n\n");
+    const edge = crossReferenceGraph(text, "decimal-reference", {
+      integrityThreshold: 0,
+    }).edges.find((candidate) => candidate.raw === "Section 150");
+
+    expect(edge?.status).toBe("unresolved");
+    expect(edge?.targetLabel).toBeNull();
+    expect(edge?.reason).toBe("no_such_provision");
+  });
 });
 
 describe("crossReferenceGraph — typed refusals", () => {

@@ -22,7 +22,11 @@ import {
   compactLabelFr,
   joinLocator,
 } from "./legalReferenceGrammar";
-import { compileAgreementSkeleton } from "./legalTextSkeleton";
+import { crossReferenceGraph } from "./legalCrossReference";
+import {
+  compileAgreementSkeleton,
+  type SkeletonNode,
+} from "./legalTextSkeleton";
 
 export type AmendOpKind =
   | "strike_text"
@@ -1004,6 +1008,408 @@ export function applyAmendOps(
       oldTextLingers,
       ladderViolationsBefore: before.ladder.violations,
       ladderViolationsAfter: after.ladder.violations,
+    },
+  };
+}
+
+export type DeleteAndRenumberFailureCode =
+  | "target_not_found"
+  | "target_ambiguous"
+  | "unsupported_target"
+  | "sibling_ambiguous"
+  | "sibling_sequence_unsupported"
+  | "heading_not_found"
+  | "reference_to_deleted_target"
+  | "unresolved_reference"
+  | "ambiguous_reference"
+  | "external_reference"
+  | "overlapping_ops"
+  | "verification_failed";
+
+export interface DeleteAndRenumberFailure {
+  code: DeleteAndRenumberFailureCode;
+  detail: string;
+  start?: number;
+  end?: number;
+}
+
+export interface DeleteAndRenumberReceipt {
+  kind: "delete_provision" | "renumber_heading" | "update_cross_reference";
+  start: number;
+  end: number;
+  removed: string;
+  inserted: string;
+  from: string;
+  to: string | null;
+}
+
+export interface DeleteAndRenumberResult {
+  text: string;
+  mapping: Array<{ from: string; to: string }>;
+  applied: DeleteAndRenumberReceipt[];
+  failures: DeleteAndRenumberFailure[];
+  verification: {
+    headingsRenumbered: number;
+    referencesUpdated: number;
+  };
+}
+
+interface RenumberSplice {
+  start: number;
+  end: number;
+  replacement: string;
+  receipt: DeleteAndRenumberReceipt;
+}
+
+function occurrenceBase(label: string): string {
+  return label.replace(/@\d+$/u, "");
+}
+
+/** The numbering parent, independent of the skeleton's ARTICLE/PART parent. */
+function numberingParent(label: string): string {
+  const clean = occurrenceBase(label);
+  if (!clean.startsWith("sec")) return "";
+  const body = clean.slice(3);
+  if (body.endsWith(")")) {
+    return `sec${body.replace(/\([^()]*\)$/u, "")}`;
+  }
+  const dot = body.lastIndexOf(".");
+  return dot < 0 ? "" : `sec${body.slice(0, dot)}`;
+}
+
+function isAtOrBelow(label: string, root: string): boolean {
+  const clean = occurrenceBase(label);
+  return (
+    clean === root ||
+    clean.startsWith(`${root}(`) ||
+    clean.startsWith(`${root}.`)
+  );
+}
+
+function isInNumberingFamily(label: string, family: string): boolean {
+  const clean = occurrenceBase(label);
+  if (!clean.startsWith("sec")) return false;
+  return family ? clean !== family && isAtOrBelow(clean, family) : true;
+}
+
+/** Prove that `from` is the immediate numeric/alphabetic successor of `to`. */
+function closesOneSiblingStep(from: string, to: string): boolean {
+  const pair = [occurrenceBase(from), occurrenceBase(to)];
+  for (const pattern of [
+    /^(.*?)(\d+)$/u,
+    /^(.*)\((\d+)\)$/u,
+    /^(.*)\(([a-z])\)$/u,
+  ]) {
+    const [next, previous] = pair.map((label) => pattern.exec(label));
+    if (!next || !previous || next[1] !== previous[1]) continue;
+    const ordinal = (value: string) =>
+      /^\d+$/u.test(value) ? Number(value) : value.charCodeAt(0);
+    return ordinal(next[2]) === ordinal(previous[2]) + 1;
+  }
+  return false;
+}
+
+function mappedLocator(
+  locator: string,
+  mapping: Array<{ from: string; to: string }>,
+): string | null {
+  const move = [...mapping]
+    .sort((left, right) => right.from.length - left.from.length)
+    .find(({ from }) => isAtOrBelow(locator, from));
+  return move ? `${move.to}${locator.slice(move.from.length)}` : null;
+}
+
+function leadingLabelSpan(
+  sourceText: string,
+  node: SkeletonNode,
+): { start: number; end: number; token: string } | null {
+  const lead = sourceText.slice(node.start, Math.min(node.end, node.start + 100));
+  const match = /^(\s*(?:(?:Section|SECTION)\s+)?)(\([^\s()]{1,12}\)|\d+[A-Za-z]?(?:[.-]\d+[A-Za-z]?)*\.?)/u.exec(lead);
+  if (!match) return null;
+  const start = node.start + match[1].length;
+  return { start, end: start + match[2].length, token: match[2] };
+}
+
+function headingToken(label: string, oldToken: string): string {
+  const body = label.replace(/^sec/u, "");
+  const token = oldToken.startsWith("(")
+    ? body.match(/\([^()]+\)$/u)?.[0] ?? body
+    : body.replace(/\([^()]+\).*$/u, "");
+  return oldToken.endsWith(".") && !token.endsWith(".") ? `${token}.` : token;
+}
+
+function referenceText(raw: string, rawLabel: string, locator: string): string {
+  const full = locator.replace(/^sec/u, "");
+  let label = full;
+  if (rawLabel.startsWith("(")) {
+    const depth = [...rawLabel.matchAll(/\([^()]+\)/gu)].length;
+    const subs = [...full.matchAll(/\([^()]+\)/gu)].map((match) => match[0]);
+    label = subs.slice(-depth).join("");
+  }
+  if (label === rawLabel) return raw;
+  const at = raw.search(/[\d(]/u);
+  return at < 0 ? raw : `${raw.slice(0, at)}${label}`;
+}
+
+/**
+ * Delete one addressed provision, close the resulting gap using the actual
+ * following siblings, and rewrite pointers to those moved provisions in one
+ * atomic text plan. This deliberately does not imply insertion/open-gap
+ * semantics: a caller needing those must use a separately specified op.
+ */
+export function deleteProvisionAndRenumberSiblings(
+  sourceText: string,
+  target: string,
+  options: ApplyAmendOptions = {},
+): DeleteAndRenumberResult {
+  const failed = (
+    failures: DeleteAndRenumberFailure[],
+    mapping: Array<{ from: string; to: string }> = [],
+  ): DeleteAndRenumberResult => ({
+    text: sourceText,
+    mapping,
+    applied: [],
+    failures,
+    verification: { headingsRenumbered: 0, referencesUpdated: 0 },
+  });
+  const skeleton = compileAgreementSkeleton(sourceText, "", {
+    recoverExtraction: options.recoverExtraction,
+  });
+  const requested = target.toLowerCase().startsWith("sec")
+    ? target.toLowerCase()
+    : normalizeSourceDocLocator("section", target).toLowerCase();
+  const matches = skeleton.nodes.filter(
+    (node) => occurrenceBase(node.label).toLowerCase() === requested,
+  );
+  if (!requested || !matches.length) {
+    return failed([{ code: "target_not_found", detail: target }]);
+  }
+  if (matches.length > 1) {
+    return failed([{
+      code: "target_ambiguous",
+      detail: `${target} resolves to ${matches.length} provisions`,
+    }]);
+  }
+  const selected = matches[0];
+  if (selected.kind !== "section" && selected.kind !== "subsection") {
+    return failed([{
+      code: "unsupported_target",
+      detail: `${selected.label} is a ${selected.kind}, not a provision sibling`,
+    }]);
+  }
+
+  const family = numberingParent(selected.label);
+  const siblings = skeleton.nodes
+    .filter(
+      (node) =>
+        node.kind === selected.kind &&
+        node.depth === selected.depth &&
+        node.parentLabel === selected.parentLabel &&
+        numberingParent(node.label) === family,
+    )
+    .sort((left, right) => left.start - right.start);
+  const bases = siblings.map((node) => occurrenceBase(node.label));
+  if (new Set(bases).size !== bases.length) {
+    return failed([{
+      code: "sibling_ambiguous",
+      detail: `The sibling sequence containing ${selected.label} repeats a label`,
+    }]);
+  }
+  const selectedAt = siblings.indexOf(selected);
+  const following = siblings.slice(selectedAt + 1);
+  const mapping = following.map((node, index) => ({
+    from: node.label,
+    to: index === 0 ? selected.label : following[index - 1].label,
+  }));
+  const unsafeStep = mapping.find(
+    ({ from, to }) => !closesOneSiblingStep(from, to),
+  );
+  if (unsafeStep) {
+    return failed([{
+      code: "sibling_sequence_unsupported",
+      detail:
+        `Cannot prove that ${unsafeStep.from} immediately follows ` +
+        `${unsafeStep.to}; existing gaps or unsupported numbering must not be compressed`,
+    }], mapping);
+  }
+
+  const failures: DeleteAndRenumberFailure[] = [];
+  const splices: RenumberSplice[] = [{
+    start: selected.start,
+    end: selected.end,
+    replacement: "",
+    receipt: {
+      kind: "delete_provision",
+      start: selected.start,
+      end: selected.end,
+      removed: sourceText.slice(selected.start, selected.end),
+      inserted: "",
+      from: selected.label,
+      to: null,
+    },
+  }];
+
+  const headingSpans: Array<{ start: number; end: number }> = [];
+  for (const move of mapping) {
+    const node = siblings.find((candidate) => candidate.label === move.from)!;
+    const label = leadingLabelSpan(sourceText, node);
+    if (!label) {
+      failures.push({
+        code: "heading_not_found",
+        detail: `No leading label token at ${move.from}`,
+        start: node.start,
+        end: Math.min(node.end, node.start + 100),
+      });
+      continue;
+    }
+    const inserted = headingToken(move.to, label.token);
+    headingSpans.push({ start: label.start, end: label.end });
+    splices.push({
+      start: label.start,
+      end: label.end,
+      replacement: inserted,
+      receipt: {
+        kind: "renumber_heading",
+        start: label.start,
+        end: label.end,
+        removed: sourceText.slice(label.start, label.end),
+        inserted,
+        from: move.from,
+        to: move.to,
+      },
+    });
+  }
+
+  const graph = crossReferenceGraph(sourceText, "", { skeleton });
+  for (const edge of graph.edges) {
+    if (edge.sourceStart >= selected.start && edge.sourceEnd <= selected.end) {
+      continue;
+    }
+    const locator = occurrenceBase(edge.normalizedLocator);
+    if (!locator || !isInNumberingFamily(locator, family)) continue;
+    if (edge.status !== "resolved") {
+      const code: DeleteAndRenumberFailureCode =
+        edge.status === "external"
+          ? "external_reference"
+          : edge.reason === "ambiguous_label"
+            ? "ambiguous_reference"
+            : "unresolved_reference";
+      failures.push({
+        code,
+        detail: `${edge.raw}: ${edge.reason ?? edge.status}`,
+        start: edge.sourceStart,
+        end: edge.sourceEnd,
+      });
+      continue;
+    }
+    if (edge.targetLabel && isAtOrBelow(edge.targetLabel, selected.label)) {
+      failures.push({
+        code: "reference_to_deleted_target",
+        detail: `${edge.raw} points to ${selected.label}`,
+        start: edge.sourceStart,
+        end: edge.sourceEnd,
+      });
+      continue;
+    }
+    const moved = mappedLocator(locator, mapping);
+    if (!moved) continue;
+    if (
+      headingSpans.some(
+        (span) => edge.sourceStart < span.end && edge.sourceEnd > span.start,
+      )
+    ) {
+      continue;
+    }
+    const inserted = referenceText(edge.raw, edge.rawLabel, moved);
+    if (inserted === edge.raw) continue;
+    splices.push({
+      start: edge.sourceStart,
+      end: edge.sourceEnd,
+      replacement: inserted,
+      receipt: {
+        kind: "update_cross_reference",
+        start: edge.sourceStart,
+        end: edge.sourceEnd,
+        removed: sourceText.slice(edge.sourceStart, edge.sourceEnd),
+        inserted,
+        from: locator,
+        to: moved,
+      },
+    });
+  }
+  // The shared reference graph deliberately omits list continuations and
+  // bare labels. A mutation cannot share that retrieval-time precision
+  // tradeoff: an uncovered affected label may be a pointer we would leave
+  // stale, so refuse instead of guessing what the occurrence means.
+  const covered = [
+    { start: selected.start, end: selected.end },
+    ...headingSpans,
+    ...graph.edges.map((edge) => ({ start: edge.sourceStart, end: edge.sourceEnd })),
+  ];
+  for (const locator of [selected.label, ...mapping.map(({ from }) => from)]) {
+    const printed = locator.replace(/^sec/u, "").replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+    const pattern = new RegExp(
+      `(?<![\\p{L}\\p{N}.])${printed}(?!(?:[\\p{L}\\p{N}]|\\.\\d))`,
+      "gu",
+    );
+    for (const match of sourceText.matchAll(pattern)) {
+      const start = match.index;
+      const end = start + match[0].length;
+      if (covered.some((span) => start >= span.start && end <= span.end)) continue;
+      failures.push({
+        code: "ambiguous_reference",
+        detail: `Unclassified occurrence of ${match[0]}`,
+        start,
+        end,
+      });
+    }
+  }
+  if (failures.length) return failed(failures, mapping);
+
+  splices.sort((left, right) => left.start - right.start || left.end - right.end);
+  for (let index = 1; index < splices.length; index += 1) {
+    if (splices[index].start < splices[index - 1].end) {
+      return failed([{
+        code: "overlapping_ops",
+        detail: `${splices[index].start}-${splices[index].end} overlaps ` +
+          `${splices[index - 1].start}-${splices[index - 1].end}`,
+      }], mapping);
+    }
+  }
+
+  let text = sourceText;
+  for (const splice of [...splices].sort((left, right) => right.start - left.start)) {
+    text = text.slice(0, splice.start) + splice.replacement + text.slice(splice.end);
+  }
+  const after = compileAgreementSkeleton(text, "", {
+    recoverExtraction: options.recoverExtraction,
+  });
+  const counts = new Map<string, number>();
+  for (const node of after.nodes) {
+    const key = occurrenceBase(node.label);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const expected = mapping.map(({ to }) => to);
+  const vacated = mapping.at(-1)?.from ?? selected.label;
+  if (
+    expected.some((label) => counts.get(label) !== 1) ||
+    (counts.get(vacated) ?? 0) !== 0
+  ) {
+    return failed([{
+      code: "verification_failed",
+      detail: `Renumbered structure did not compile uniquely; vacated ${vacated}`,
+    }], mapping);
+  }
+
+  const applied = splices.map((splice) => splice.receipt);
+  return {
+    text,
+    mapping,
+    applied,
+    failures: [],
+    verification: {
+      headingsRenumbered: applied.filter((receipt) => receipt.kind === "renumber_heading").length,
+      referencesUpdated: applied.filter((receipt) => receipt.kind === "update_cross_reference").length,
     },
   };
 }

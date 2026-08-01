@@ -48,7 +48,10 @@ export type SkeletonNodeKind =
   | "division"
   | "section"
   | "subsection"
-  | "schedule";
+  | "schedule"
+  | "table"
+  | "row"
+  | "cell";
 
 export interface SkeletonNode {
   kind: SkeletonNodeKind;
@@ -61,6 +64,43 @@ export interface SkeletonNode {
   start: number;
   end: number;
   parentLabel?: string;
+}
+
+/** Labels in the explicit parent chain rooted at `seedLabel`. */
+export function skeletonSubtreeLabels(
+  skeleton: Pick<AgreementSkeleton, "nodes">,
+  seedLabel: string,
+): Set<string> {
+  const byLabel = new Map(skeleton.nodes.map((node) => [node.label, node]));
+  const labels = new Set<string>();
+  for (const node of skeleton.nodes) {
+    let current: SkeletonNode | undefined = node;
+    const seen = new Set<string>();
+    while (current && !seen.has(current.label)) {
+      seen.add(current.label);
+      if (current.label === seedLabel) {
+        labels.add(node.label);
+        break;
+      }
+      current = current.parentLabel ? byLabel.get(current.parentLabel) : undefined;
+    }
+  }
+  return labels;
+}
+
+/** Native table coordinates already projected onto this text's offset plane. */
+export interface TableCellSpan {
+  table: number;
+  /** Native table/sheet name when the source format has one. */
+  tableName?: string;
+  row: number;
+  column: number;
+  /** Native address such as A1 when the source format defines one. */
+  address?: string;
+  columnSpan?: number;
+  rowSpan?: number;
+  start: number;
+  end: number;
 }
 
 export interface DefinedTermEntry {
@@ -348,17 +388,39 @@ interface DiscoveredNodes {
   ladder: LadderDiagnostics;
 }
 
-function discoverNodes(text: string): DiscoveredNodes {
+/** Keep offsets and line breaks exact while removing native cells from heuristics. */
+function maskTableCells(text: string, cells: readonly TableCellSpan[]): string {
+  if (!cells.length) return text;
+  const ordered = [...cells].sort((a, b) => a.start - b.start);
+  let at = 0;
+  let masked = "";
+  for (const cell of ordered) {
+    const start = Math.max(at, cell.start);
+    const end = Math.max(start, Math.min(text.length, cell.end));
+    masked += text.slice(at, start);
+    masked += text.slice(start, end).replace(/[^\n]/gu, " ");
+    at = end;
+  }
+  return masked + text.slice(at);
+}
+
+function discoverNodes(
+  text: string,
+  tableCells: readonly TableCellSpan[] = [],
+): DiscoveredNodes {
   const lines = splitLines(text);
+  const structuralText = maskTableCells(text, tableCells);
+  const excluded = [...tableCells].sort((a, b) => a.start - b.start);
+  let excludedAt = 0;
   const nodes: SkeletonNode[] = [];
   const schedules: string[] = [];
   // Statute-style bare-number heads ("164 (1) Every one...") are decided by
   // a document-level scope competition, not per-line guards; when a spine
   // wins, it owns bare-number section detection and the per-line regexes
   // below only handle the styles it cannot claim (word/container/schedule).
-  const spine = computeStatuteSpine(text);
+  const spine = computeStatuteSpine(structuralText);
   const spineByStart = new Map(spine.map((mark) => [mark.start, mark]));
-  const dialects = admitEnumDialects(lines);
+  const dialects = admitEnumDialects(splitLines(structuralText));
 
   let container: SkeletonNode | null = null;
   let section: SkeletonNode | null = null;
@@ -504,6 +566,13 @@ function discoverNodes(text: string): DiscoveredNodes {
     const trimmedLine = line.text.trim();
     if (!trimmedLine) continue;
     const lineStart = line.start + (line.text.length - line.text.trimStart().length);
+    while (excluded[excludedAt]?.end <= lineStart) excludedAt += 1;
+    if (
+      excluded[excludedAt]?.start <= lineStart &&
+      lineStart < excluded[excludedAt].end
+    ) {
+      continue;
+    }
 
     const containerMatch = trimmedLine.match(CONTAINER_RE);
     if (containerMatch) {
@@ -1156,6 +1225,8 @@ export interface CompileSkeletonOptions {
    * would throw away the line breaks its extractor lost.
    */
   recoverExtraction?: boolean;
+  /** Exact native cells; plain text alone cannot recover table boundaries. */
+  tableCells?: readonly TableCellSpan[];
 }
 
 /**
@@ -1193,6 +1264,9 @@ function skeletonCacheKey(
     createHash("sha256").update(text).digest("hex"),
     id,
     options.recoverExtraction === false ? "norecover" : "recover",
+    options.tableCells?.length
+      ? createHash("sha256").update(JSON.stringify(options.tableCells)).digest("hex")
+      : "nocells",
   ].join("\u0000");
 }
 
@@ -1231,7 +1305,7 @@ function compileAgreementSkeletonUncached(
   const lines = splitLines(text);
   const hypotheses =
     options.recoverExtraction === false ? [text] : segmentations(text);
-  let best = discoverNodes(hypotheses[0]);
+  let best = discoverNodes(hypotheses[0], options.tableCells);
   if (hypotheses.length > 1) {
     const references = findProvisionReferences(text);
     const docOf = (found: DiscoveredNodes) =>
@@ -1243,7 +1317,7 @@ function compileAgreementSkeletonUncached(
       });
     let bestScore = endorsement(docOf(best), references);
     for (const hypothesis of hypotheses.slice(1)) {
-      const candidate = discoverNodes(hypothesis);
+      const candidate = discoverNodes(hypothesis, options.tableCells);
       if (headSpan(candidate.nodes, text.length) < MIN_HEAD_SPAN) continue;
       const score = endorsement(docOf(candidate), references);
       if (score > bestScore) {
@@ -1252,13 +1326,19 @@ function compileAgreementSkeletonUncached(
       }
     }
   }
-  const { nodes, schedules, ladder } = best;
+  const { schedules, ladder } = best;
+  const nodes = addTableNodes(text, best.nodes, options.tableCells ?? []);
 
   const doc = createSourceDoc({
     provider: null,
     id,
     text,
-    blocks: nodes.map(toBlock),
+    blocks: nodes
+      .filter(
+        (node) =>
+          node.kind !== "table" && node.kind !== "row" && node.kind !== "cell",
+      )
+      .map(toBlock),
   });
 
   const lineTexts = lines.map((line) => line.text);
@@ -1291,6 +1371,123 @@ function closeSpans(nodes: SkeletonNode[], textLength: number) {
     }
     if (nodes[i].end > textLength) nodes[i].end = textLength;
   }
+}
+
+function addTableNodes(
+  text: string,
+  provisions: SkeletonNode[],
+  cells: readonly TableCellSpan[],
+): SkeletonNode[] {
+  if (!cells.length) return provisions;
+  const seen = new Set<string>();
+  const occupied = new Set<string>();
+  const grouped = new Map<number, TableCellSpan[]>();
+  for (const cell of cells) {
+    const columnSpan = cell.columnSpan ?? 1;
+    const rowSpan = cell.rowSpan ?? 1;
+    if (
+      !Number.isSafeInteger(cell.table) || cell.table < 1 ||
+      !Number.isSafeInteger(cell.row) || cell.row < 1 ||
+      !Number.isSafeInteger(cell.column) || cell.column < 1 ||
+      !Number.isSafeInteger(columnSpan) || columnSpan < 1 ||
+      !Number.isSafeInteger(rowSpan) || rowSpan < 1 ||
+      !Number.isSafeInteger(cell.column + columnSpan - 1) ||
+      !Number.isSafeInteger(cell.row + rowSpan - 1) ||
+      !Number.isSafeInteger(cell.start) || cell.start < 0 ||
+      !Number.isSafeInteger(cell.end) || cell.end < cell.start ||
+      cell.end > text.length
+    ) {
+      throw new Error("Invalid table-cell coordinates or text bounds");
+    }
+    const label = `table:${cell.table}/row:${cell.row}/col:${cell.column}`;
+    if (seen.has(label)) throw new Error(`Duplicate table-cell address: ${label}`);
+    seen.add(label);
+    for (let row = cell.row; row < cell.row + rowSpan; row += 1) {
+      for (let column = cell.column; column < cell.column + columnSpan; column += 1) {
+        const coordinate = `${cell.table}:${row}:${column}`;
+        if (occupied.has(coordinate)) {
+          throw new Error(`Overlapping table-cell address: ${label}`);
+        }
+        occupied.add(coordinate);
+      }
+    }
+    const bucket = grouped.get(cell.table) ?? [];
+    bucket.push({ ...cell, columnSpan, rowSpan });
+    grouped.set(cell.table, bucket);
+  }
+
+  const added: SkeletonNode[] = [];
+  for (const [tableNumber, rawCells] of [...grouped].sort((a, b) => a[0] - b[0])) {
+    const tableCells = [...rawCells].sort(
+      (a, b) => a.start - b.start || a.row - b.row || a.column - b.column,
+    );
+    const start = Math.min(...tableCells.map((cell) => cell.start));
+    const end = Math.max(...tableCells.map((cell) => cell.end));
+    const owner = provisions
+      .filter((node) => node.start <= start && end <= node.end)
+      .sort((a, b) => b.depth - a.depth)[0];
+    const tableLabel = `table:${tableNumber}`;
+    const tableName = tableCells.find((cell) => cell.tableName)?.tableName;
+    const tableDisplay = tableName ? `Sheet ${tableName}` : `Table ${tableNumber}`;
+    const tableNode: SkeletonNode = {
+      kind: "table",
+      label: tableLabel,
+      display: tableDisplay,
+      heading: "",
+      depth: (owner?.depth ?? -1) + 1,
+      start,
+      end,
+      parentLabel: owner?.label,
+    };
+    added.push(tableNode);
+    const rows = new Map<number, TableCellSpan[]>();
+    for (const cell of tableCells) {
+      const row = rows.get(cell.row) ?? [];
+      row.push(cell);
+      rows.set(cell.row, row);
+    }
+    for (const [rowNumber, rawRowCells] of [...rows].sort(
+      (a, b) => a[0] - b[0],
+    )) {
+      const rowCells = [...rawRowCells].sort(
+        (a, b) => a.start - b.start || a.column - b.column,
+      );
+      const rowLabel = `${tableLabel}/row:${rowNumber}`;
+      const rowNode: SkeletonNode = {
+        kind: "row",
+        label: rowLabel,
+        display: `${tableDisplay}, row ${rowNumber}`,
+        heading: "",
+        depth: tableNode.depth + 1,
+        start: Math.min(...rowCells.map((cell) => cell.start)),
+        end: Math.max(...rowCells.map((cell) => cell.end)),
+        parentLabel: tableLabel,
+      };
+      added.push(rowNode);
+      for (const cell of rowCells) {
+        const columnSpan = cell.columnSpan ?? 1;
+        added.push({
+          kind: "cell",
+          label: `${rowLabel}/col:${cell.column}`,
+          display:
+            `${tableDisplay}, row ${cell.row}, column ${cell.column}` +
+            (columnSpan > 1 ? `-${cell.column + columnSpan - 1}` : ""),
+          heading: text
+            .slice(cell.start, cell.end)
+            .replace(/\s+/gu, " ")
+            .trim()
+            .slice(0, 80),
+          depth: rowNode.depth + 1,
+          start: cell.start,
+          end: cell.end,
+          parentLabel: rowLabel,
+        });
+      }
+    }
+  }
+  return [...provisions, ...added].sort(
+    (a, b) => a.start - b.start || a.depth - b.depth,
+  );
 }
 
 function toBlock(node: SkeletonNode): SourceDocBlock {
@@ -1344,6 +1541,9 @@ function buildDefinedTerms(
         (node) =>
           node.kind !== "article" &&
           node.kind !== "part" &&
+          node.kind !== "table" &&
+          node.kind !== "row" &&
+          node.kind !== "cell" &&
           node.start <= offset &&
           offset < node.end,
       )
@@ -1399,6 +1599,59 @@ export function readSection(
   locator: string,
   contextBlocks = 0,
 ): SourceDocLookup {
+  const tableLocator = locator.trim().toLowerCase();
+  if (tableLocator.startsWith("table:")) {
+    const available = skeleton.nodes.filter(
+      (node) =>
+        node.kind === "table" || node.kind === "row" || node.kind === "cell",
+    );
+    if (!available.length) {
+      return {
+        status: "unavailable",
+        requestedLabel: tableLocator,
+        matches: [],
+        block: null,
+        before: [],
+        after: [],
+      };
+    }
+    const selected = available.find(
+      (node) => node.label.toLowerCase() === tableLocator,
+    );
+    if (!selected) {
+      return {
+        status: "not_found",
+        requestedLabel: tableLocator,
+        matches: [],
+        block: null,
+        before: [],
+        after: [],
+      };
+    }
+    const materialize = (node: SkeletonNode) => ({
+      kind: "section" as const,
+      label: node.label,
+      start: node.start,
+      end: node.end,
+      origin: "native" as const,
+      parentLabel: node.parentLabel,
+      text: skeleton.doc.text.slice(node.start, node.end).trim(),
+    });
+    const order = available.indexOf(selected);
+    const context = Math.min(Math.max(Math.trunc(contextBlocks), 0), 2);
+    return {
+      status: "found",
+      requestedLabel: tableLocator,
+      matches: [selected.label],
+      block: materialize(selected),
+      before: available
+        .slice(Math.max(0, order - context), order)
+        .map(materialize),
+      after: available
+        .slice(order + 1, order + 1 + context)
+        .map(materialize),
+    };
+  }
   const normalized = normalizeSourceDocLocator("section", locator);
   if (normalized) {
     const found = lookupSourceDocLabel(
@@ -1407,7 +1660,10 @@ export function readSection(
       normalized,
       contextBlocks,
     );
-    if (found.status === "found") return found;
+    // Preserve an ambiguity discovered by normalization. Retrying the raw
+    // spelling (for example 8.03 after sec8.03 matched a TOC and body) turns
+    // a useful fail-closed result into the false claim "not found".
+    if (found.status !== "not_found") return found;
   }
   return lookupSourceDocLabel(
     skeleton.doc,
@@ -1430,12 +1686,20 @@ export function renderAgreementOutline(
   const maxChars = options?.maxChars ?? 8_000;
   const maxTerms = options?.maxDefinedTerms ?? 60;
   const lines: string[] = [];
+  const labelCounts = new Map<string, number>();
+  for (const node of skeleton.nodes) {
+    labelCounts.set(node.label, (labelCounts.get(node.label) ?? 0) + 1);
+  }
   for (const node of skeleton.nodes) {
     const size = node.end - node.start;
     const indent = "  ".repeat(node.depth);
     const heading = node.heading ? ` ${node.heading}` : "";
     const sizeNote = node.depth === 0 ? ` (${Math.round(size / 4)} tokens approx)` : "";
-    lines.push(`${indent}${node.display}${heading} [${node.label}]${sizeNote}`);
+    const handle =
+      (labelCounts.get(node.label) ?? 0) === 1
+        ? `[${node.label}]`
+        : `[repeated ${node.label}; use library_find]`;
+    lines.push(`${indent}${node.display}${heading} ${handle}${sizeNote}`);
   }
   let body = lines.join("\n");
   let truncated = false;
@@ -1475,7 +1739,7 @@ export function renderAgreementOutline(
     parts.push(
       `Ladder notes: ${skeleton.ladder.restarts} enumerator restart(s), ` +
         `${skeleton.ladder.violations} out-of-order enumerator(s); repeated ` +
-        `labels carry @n occurrence suffixes.`,
+        `subsection labels carry @n occurrence suffixes.`,
     );
   }
   return parts.join("\n\n");
