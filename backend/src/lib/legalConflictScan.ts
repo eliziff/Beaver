@@ -156,6 +156,12 @@ type SectionAt = (at: number) => string | null;
  * Deepest skeleton node containing an offset, as a citable label. The
  * skeleton is compiled at most once per document and only when a finding
  * actually needs a handle, so clean documents pay nothing.
+ *
+ * The recovery stays on: a `ConflictDocument` is Library text, i.e. PDF/DOCX
+ * extraction output — an uploaded Act included — and recovering line breaks
+ * an extractor lost is what it is for. Legislation is scoped out where it
+ * arrives from an AUTHORITATIVE feed carrying the publisher's line breaks
+ * (the A2AJ lane in `passageRetrieval`), and no such feed reaches this scan.
  */
 function sectionResolver(text: string): SectionAt {
   let nodes: SkeletonNode[] | null = null;
