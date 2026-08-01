@@ -274,6 +274,13 @@ async function main() {
       MIKE_SLA_WORKFLOW: "1",
       MIKE_SLA_STRATEGY: "working_set_first",
     },
+    h9: {
+      MIKE_NAV_SHAPE: "address",
+      MIKE_TOOL_SHAPE: "coding",
+      MIKE_RETRIEVAL_EXPERIMENT: "h9-accretive-union",
+      MIKE_SLA_WORKFLOW: "1",
+      MIKE_SLA_STRATEGY: "working_set_first",
+    },
     address: {
       MIKE_NAV_SHAPE: "address",
       MIKE_TOOL_SHAPE: "",
@@ -288,7 +295,7 @@ async function main() {
   };
   if (!armEnvironment[arm])
     throw new Error(
-      `unknown --arm ${arm}; expected p0, d1, hybrid, working_set, compiler_hybrid, sla_hybrid, sla_working_set, address, or upstream`,
+      `unknown --arm ${arm}; expected p0, d1, hybrid, working_set, compiler_hybrid, sla_hybrid, sla_working_set, h9, address, or upstream`,
     );
 
   // Re-spawn into the isolated anonymous-mode environment (same recipe as

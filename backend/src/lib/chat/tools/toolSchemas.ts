@@ -489,6 +489,7 @@ export const TEXT_OPS_TOOLS = [
                     "toggle_case",
                     "title_case",
                     "replace_text",
+                    "insert_blocks",
                     "sentence_spacing",
                     "check_spelling",
                     "straighten_quotes",
@@ -500,7 +501,7 @@ export const TEXT_OPS_TOOLS = [
                     "remove_trailing_whitespace",
                   ],
                   description:
-                    "Case ops mirror Word's Change Case menu; title_case lowercases small words unless first/last and preserves acronyms. replace_text is Word-style find/replace over the scope. check_spelling NEVER changes text — it reports possible misspellings (Canadian English) with context and suggestions; correct one with a follow-up replace_text.",
+                    "Case ops mirror Word's Change Case menu. replace_text is Word-style find/replace. insert_blocks inserts tracked paragraphs before or after a document boundary or exact anchor paragraph. check_spelling never changes text.",
                 },
                 scope: {
                   type: "object",
@@ -559,6 +560,20 @@ export const TEXT_OPS_TOOLS = [
                   type: "string",
                   description:
                     "replace_text only: replacement text. Empty string deletes the match.",
+                },
+                blocks: {
+                  type: "array",
+                  minItems: 1,
+                  maxItems: 20,
+                  items: { type: "string" },
+                  description:
+                    "insert_blocks only: one string per paragraph; no newline characters.",
+                },
+                position: {
+                  type: "string",
+                  enum: ["before", "after"],
+                  description:
+                    "insert_blocks only. With whole_document, before is document start and after is document end.",
                 },
                 match_case: {
                   type: "boolean",

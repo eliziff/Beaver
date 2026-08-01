@@ -64,6 +64,7 @@ import {
   applyTrackedEdits,
   extractDocxBodyStructure,
   extractDocxBodyText,
+  insertTrackedBlocks,
   type EditInput,
 } from "../docxTrackedChanges";
 import { isSpreadsheetDocumentType } from "../documentTypes";
@@ -856,6 +857,7 @@ export type RetrievalExperimentShape =
   | "h3-reference-impact"
   | "h4-legal-grep"
   | "h5-working-set"
+  | "h9-accretive-union"
   | "d0-generic"
   | "d1-routed"
   | "d2-concrete";
@@ -871,6 +873,7 @@ const RETRIEVAL_EXPERIMENT_SHAPES = new Set<RetrievalExperimentShape>([
   "h3-reference-impact",
   "h4-legal-grep",
   "h5-working-set",
+  "h9-accretive-union",
   "d0-generic",
   "d1-routed",
   "d2-concrete",
@@ -890,9 +893,13 @@ const PURE_CODING_EXPERIMENT =
   RETRIEVAL_EXPERIMENT_SHAPE === "p0-pure-coding";
 const LEGAL_GREP_EXPERIMENT =
   RETRIEVAL_EXPERIMENT_SHAPE === "h4-legal-grep" ||
-  RETRIEVAL_EXPERIMENT_SHAPE === "h5-working-set";
+  RETRIEVAL_EXPERIMENT_SHAPE === "h5-working-set" ||
+  RETRIEVAL_EXPERIMENT_SHAPE === "h9-accretive-union";
 const WORKING_SET_EXPERIMENT =
-  RETRIEVAL_EXPERIMENT_SHAPE === "h5-working-set";
+  RETRIEVAL_EXPERIMENT_SHAPE === "h5-working-set" ||
+  RETRIEVAL_EXPERIMENT_SHAPE === "h9-accretive-union";
+const ACCRETIVE_WORKING_SET_EXPERIMENT =
+  RETRIEVAL_EXPERIMENT_SHAPE === "h9-accretive-union";
 const TOOL_DESCRIPTION_VARIANT =
   process.env.MIKE_TOOL_DESCRIPTION_VARIANT?.trim() || "operational";
 if (!["operational", "terse"].includes(TOOL_DESCRIPTION_VARIANT)) {
@@ -1348,7 +1355,9 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
               ? ' "sections" returns unique executable Read recipes for the legal sections containing matches, without section prose.'
               : "") +
             (WORKING_SET_EXPERIMENT
-              ? ' "working_set" creates an immutable turn-local file from the smallest responsive legal units across matching documents and returns its manifest; Read the returned path.'
+              ? ACCRETIVE_WORKING_SET_EXPERIMENT
+                ? ' "working_set" appends matching legal units to one turn-local evidence file, without repeating source spans. The first call also adds a compact file map and returns a Read recipe for only the new text.'
+                : ' "working_set" creates an immutable turn-local file from the smallest responsive legal units across matching documents and returns its manifest; Read the returned path.'
               : ""),
         },
         "-i": { type: "boolean", description: "Case insensitive search" },
@@ -1375,7 +1384,9 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
                 minimum: 1_000,
                 maximum: 128_000,
                 description:
-                  "Source-text budget for working_set only. Defaults to 64000; maximum 128000.",
+                  ACCRETIVE_WORKING_SET_EXPERIMENT
+                    ? "Total matched-source budget for the turn-local working_set. Defaults to 64000; maximum 128000. Later calls may raise it."
+                    : "Source-text budget for working_set only. Defaults to 64000; maximum 128000.",
               },
             }
           : {}),
@@ -1821,12 +1832,18 @@ type WorkingSetEvidenceSegment = {
   sourceEnd: number;
 };
 
+const WORKING_SET_PATH = ".mike/working-sets/evidence.txt";
+
 export type LocalAssistantWorkingSetTurnState = Map<
   string,
   {
     path: string;
     text: string;
     sourceChars: number;
+    matchedSourceChars: number;
+    mapChars: number;
+    budgetChars: number;
+    mappedVersions: string[];
     segments: WorkingSetEvidenceSegment[];
   }
 >;
@@ -1950,6 +1967,66 @@ type WorkingSetCandidate = TextRange & {
   anchor: number;
 };
 
+type WorkingSetMapCandidate = {
+  documentId: string;
+  versionId: string;
+  filename: string;
+  sourceText: string;
+  rows: string[];
+};
+
+function workingSetMapRows(
+  skeleton: AgreementSkeleton,
+  tableCells: readonly TableCellSpan[],
+  sourceText: string,
+) {
+  const rows: string[] = [];
+  const seen = new Set<string>();
+  for (const node of skeleton.nodes) {
+    if (node.kind === "row" || node.kind === "cell") continue;
+    const row = `${node.kind}\t${node.label}\t${node.heading.trim().slice(0, 160)}`;
+    if (!seen.has(row)) rows.push(row);
+    seen.add(row);
+    if (rows.length >= 60) break;
+  }
+  const byTable = new Map<number, TableCellSpan[]>();
+  for (const cell of tableCells) {
+    const cells = byTable.get(cell.table) ?? [];
+    cells.push(cell);
+    byTable.set(cell.table, cells);
+  }
+  for (const [table, cells] of byTable) {
+    const maxRow = Math.max(...cells.map((cell) => cell.row));
+    const maxColumn = Math.max(...cells.map((cell) => cell.column));
+    const name = cells.find((cell) => cell.tableName)?.tableName;
+    const headers = cells
+      .filter((cell) => cell.row === 1)
+      .slice(0, 12)
+      .map((cell) => {
+        const address = cell.address ?? `r${cell.row}c${cell.column}`;
+        const value = sourceText.slice(cell.start, cell.end).trim().slice(0, 80);
+        return `${address}=${value}`;
+      })
+      .join(" | ");
+    rows.push(
+      `table\ttable:${table}${name ? `\t${name}` : ""}\t${maxRow}x${maxColumn}` +
+        (headers ? `\theaders ${headers}` : ""),
+    );
+  }
+  if (skeleton.definedTerms.length) {
+    rows.push(
+      `defined terms\t${skeleton.definedTerms
+        .slice(0, 30)
+        .map((entry) => entry.term)
+        .join("; ")}`,
+    );
+  }
+  if (skeleton.nodes.length > 60) {
+    rows.push(`… ${skeleton.nodes.length - 60} additional structural items`);
+  }
+  return rows;
+}
+
 function mergeWorkingSetCandidates(
   candidates: readonly WorkingSetCandidate[],
 ): WorkingSetCandidate[] {
@@ -2035,7 +2112,7 @@ function workingSetEvidenceSegments(
   return evidence;
 }
 
-function materializeWorkingSet(
+function materializeStatelessWorkingSet(
   candidates: readonly WorkingSetCandidate[],
   requestedBudget: unknown,
   state: LocalAssistantWorkingSetTurnState,
@@ -2127,7 +2204,16 @@ function materializeWorkingSet(
     cursor += source.length + 2;
   }
   const text = parts.join("");
-  state.set(path, { path, text, sourceChars, segments });
+  state.set(path, {
+    path,
+    text,
+    sourceChars,
+    matchedSourceChars: sourceChars,
+    mapChars: 0,
+    budgetChars: budget,
+    mappedVersions: [],
+    segments,
+  });
   return {
     ok: true,
     path,
@@ -2139,6 +2225,224 @@ function materializeWorkingSet(
     omitted_units: omitted,
     next: `Read(file_path=${JSON.stringify(path)})`,
   };
+}
+
+function materializeAccretiveWorkingSet(
+  candidates: readonly WorkingSetCandidate[],
+  maps: readonly WorkingSetMapCandidate[],
+  requestedBudget: unknown,
+  state: LocalAssistantWorkingSetTurnState,
+) {
+  const prior = state.get(WORKING_SET_PATH);
+  const requested = clampInt(requestedBudget, 1_000, 128_000, 64_000);
+  const budget = Math.max(prior?.budgetChars ?? 0, requested);
+  const coveredBySource = new Map<string, TextRange[]>();
+  for (const segment of prior?.segments ?? []) {
+    const key = `${segment.documentId}:${segment.versionId}`;
+    const covered = coveredBySource.get(key) ?? [];
+    addCoveredRange(covered, {
+      start: segment.sourceStart,
+      end: segment.sourceEnd,
+    });
+    coveredBySource.set(key, covered);
+  }
+  const mappedVersions = new Set(prior?.mappedVersions ?? []);
+  const newMaps = maps.filter(
+    (item) => !mappedVersions.has(`${item.documentId}:${item.versionId}`),
+  );
+  const mapParts: string[] = [];
+  const mapSegments: WorkingSetEvidenceSegment[] = [];
+  let mapCursor = prior?.text.length ?? 0;
+  let addedMapChars = 0;
+  let addedMapSourceChars = 0;
+  const mapBudgetRemaining = Math.max(0, 12_000 - (prior?.mapChars ?? 0));
+  const perMapBudget = newMaps.length
+    ? Math.min(
+        3_000,
+        Math.max(300, Math.floor(mapBudgetRemaining / newMaps.length)),
+      )
+    : 0;
+  for (const item of newMaps) {
+    if (addedMapChars >= mapBudgetRemaining || perMapBudget <= 0) break;
+    const key = `${item.documentId}:${item.versionId}`;
+    const cap = Math.min(perMapBudget, mapBudgetRemaining - addedMapChars);
+    const header = `=== FILE MAP ${item.filename} [version=${item.versionId}] ===\n`;
+    const openingCap = Math.min(800, Math.max(120, Math.floor(cap * 0.45)));
+    const opening = item.sourceText.slice(0, openingCap);
+    let rendered = `${header}opening:\n${opening}\nstructure:\n`;
+    for (const row of item.rows) {
+      const next = `${row}\n`;
+      if (rendered.length + next.length > cap) break;
+      rendered += next;
+    }
+    rendered += "\n";
+    mapParts.push(rendered);
+    const openingVirtualStart = mapCursor + header.length + "opening:\n".length;
+    mapSegments.push({
+      virtualStart: openingVirtualStart,
+      virtualEnd: openingVirtualStart + opening.length,
+      documentId: item.documentId,
+      versionId: item.versionId,
+      sourceStart: 0,
+      sourceEnd: opening.length,
+    });
+    const covered = coveredBySource.get(key) ?? [];
+    addCoveredRange(covered, { start: 0, end: opening.length });
+    coveredBySource.set(key, covered);
+    mappedVersions.add(key);
+    mapCursor += rendered.length;
+    addedMapChars += rendered.length;
+    addedMapSourceChars += opening.length;
+  }
+  const queues = new Map<string, WorkingSetCandidate[]>();
+  let alreadyPresentChars = 0;
+  for (const candidate of mergeWorkingSetCandidates(candidates)) {
+    const key = `${candidate.documentId}:${candidate.versionId}`;
+    const queue = queues.get(key) ?? [];
+    const open = uncoveredRanges(candidate, coveredBySource.get(key) ?? []);
+    alreadyPresentChars +=
+      candidate.end - candidate.start -
+      open.reduce((total, range) => total + range.end - range.start, 0);
+    for (const range of open) {
+      const whole = range.start === candidate.start && range.end === candidate.end;
+      queue.push({
+        ...candidate,
+        ...range,
+        ...(whole
+          ? {}
+          : {
+              projection: "window" as const,
+              handle: undefined,
+              contextLabel: undefined,
+            }),
+      });
+    }
+    queues.set(key, queue);
+  }
+  for (const queue of queues.values()) {
+    queue.sort((left, right) => left.start - right.start || left.end - right.end);
+  }
+
+  const selected: WorkingSetCandidate[] = [];
+  let addedSourceChars = 0;
+  let omitted = 0;
+  while ([...queues.values()].some((queue) => queue.length)) {
+    let advanced = false;
+    for (const queue of queues.values()) {
+      const candidate = queue.shift();
+      if (!candidate) continue;
+      advanced = true;
+      const remaining =
+        budget - (prior?.matchedSourceChars ?? 0) - addedSourceChars;
+      if (remaining <= 0) {
+        omitted += 1 + queue.length;
+        queue.length = 0;
+        continue;
+      }
+      let kept = candidate;
+      if (candidate.end - candidate.start > remaining) {
+        if (remaining < 1_000) {
+          omitted += 1;
+          continue;
+        }
+        const width = Math.min(4_000, remaining);
+        const start = Math.max(
+          candidate.start,
+          Math.min(candidate.anchor - Math.floor(width / 2), candidate.end - width),
+        );
+        kept = {
+          ...candidate,
+          start,
+          end: Math.min(candidate.end, start + width),
+          projection: "window",
+          handle: undefined,
+        };
+      }
+      selected.push(kept);
+      addedSourceChars += kept.end - kept.start;
+    }
+    if (!advanced) break;
+  }
+
+  const path = WORKING_SET_PATH;
+  const parts: string[] = [...mapParts];
+  const segments: WorkingSetEvidenceSegment[] = [
+    ...(prior?.segments ?? []),
+    ...mapSegments,
+  ];
+  let cursor = mapCursor;
+  const deltaOffset = (prior?.text.match(/\n/gu)?.length ?? 0) + 1;
+  for (const item of selected) {
+    const startLine = item.sourceText.slice(0, item.start).split(/\r?\n/u).length;
+    const endLine =
+      startLine + item.sourceText.slice(item.start, item.end).split(/\r?\n/u).length - 1;
+    const recipe = item.handle
+      ? `Read(file_path=${JSON.stringify(item.documentId)}, section=${JSON.stringify(item.handle)})`
+      : `Read(file_path=${JSON.stringify(item.documentId)}, offset=${startLine}, limit=${Math.max(1, endLine - startLine + 1)})`;
+    const context = item.contextLabel ? ` | ${item.contextLabel}` : "";
+    const header = `=== ${item.filename}${context} :: ${recipe} ===\n`;
+    parts.push(header);
+    cursor += header.length;
+    const source = item.sourceText.slice(item.start, item.end);
+    parts.push(source, "\n\n");
+    segments.push({
+      virtualStart: cursor,
+      virtualEnd: cursor + source.length,
+      documentId: item.documentId,
+      versionId: item.versionId,
+      sourceStart: item.start,
+      sourceEnd: item.end,
+    });
+    cursor += source.length + 2;
+  }
+  const delta = parts.join("");
+  const text = (prior?.text ?? "") + delta;
+  const matchedSourceChars =
+    (prior?.matchedSourceChars ?? 0) + addedSourceChars;
+  const sourceChars =
+    (prior?.sourceChars ?? 0) + addedMapSourceChars + addedSourceChars;
+  const mapChars = (prior?.mapChars ?? 0) + addedMapChars;
+  state.set(path, {
+    path,
+    text,
+    sourceChars,
+    matchedSourceChars,
+    mapChars,
+    budgetChars: budget,
+    mappedVersions: [...mappedVersions],
+    segments,
+  });
+  return {
+    ok: true,
+    path,
+    documents: new Set(segments.map((item) => item.documentId)).size,
+    units: segments.length,
+    added_units: selected.length + mapSegments.length,
+    added_source_chars: addedSourceChars + addedMapSourceChars,
+    added_match_chars: addedSourceChars,
+    added_map_chars: addedMapChars,
+    already_present_chars: alreadyPresentChars,
+    source_chars: sourceChars,
+    matched_source_chars: matchedSourceChars,
+    map_chars: mapChars,
+    budget_chars: budget,
+    truncated: omitted > 0,
+    omitted_units: omitted,
+    next: delta
+      ? `Read(file_path=${JSON.stringify(path)}, offset=${deltaOffset})`
+      : null,
+  };
+}
+
+function materializeWorkingSet(
+  candidates: readonly WorkingSetCandidate[],
+  maps: readonly WorkingSetMapCandidate[],
+  requestedBudget: unknown,
+  state: LocalAssistantWorkingSetTurnState,
+) {
+  return ACCRETIVE_WORKING_SET_EXPERIMENT
+    ? materializeAccretiveWorkingSet(candidates, maps, requestedBudget, state)
+    : materializeStatelessWorkingSet(candidates, requestedBudget, state);
 }
 
 function codingRangeLines(
@@ -2956,7 +3260,7 @@ async function runCodingShapeCall(
     if (resolveWorkingSet(requested)) {
       return result(
         call,
-        "Working sets are immutable. Edit the original file using the Read recipe in the source boundary.",
+        "The evidence file is append-only. Edit the original file using the Read recipe in the source boundary.",
       );
     }
     const matches = resolvePath(requested);
@@ -3282,6 +3586,7 @@ async function runCodingShapeCall(
 
   const rows: CodingOutputLine[] = [];
   const workingSetCandidates: WorkingSetCandidate[] = [];
+  const workingSetMaps: WorkingSetMapCandidate[] = [];
   let truncated = false;
   for (const meta of targets) {
     const document = await extractLocalDocument(userId, meta.id);
@@ -3290,10 +3595,29 @@ async function runCodingShapeCall(
     const starts = sourceLineStarts(document.text, lines);
     let scopeSpans: TextRange[] | null = null;
     let scopedSkeleton: AgreementSkeleton | null = null;
-    if (grepSection) {
-      scopedSkeleton = await documentStructure(document.text, meta.id, {
+    let mapSkeleton: AgreementSkeleton | null = null;
+    if (mode === "working_set" && ACCRETIVE_WORKING_SET_EXPERIMENT) {
+      mapSkeleton = await documentStructure(document.text, meta.id, {
         tableCells: document.tableCells,
       });
+      workingSetMaps.push({
+        documentId: meta.id,
+        versionId: meta.current_version_id,
+        filename: meta.filename,
+        sourceText: document.text,
+        rows: workingSetMapRows(
+          mapSkeleton,
+          document.tableCells,
+          document.text,
+        ),
+      });
+    }
+    if (grepSection) {
+      scopedSkeleton =
+        mapSkeleton ??
+        (await documentStructure(document.text, meta.id, {
+          tableCells: document.tableCells,
+        }));
       const lookup = readSection(scopedSkeleton, grepSection);
       if (lookup.status !== "found" || !lookup.block) {
         return result(
@@ -3371,6 +3695,7 @@ async function runCodingShapeCall(
     ) {
       const skeleton =
         scopedSkeleton ??
+        mapSkeleton ??
         (await documentStructure(document.text, meta.id, {
           tableCells: document.tableCells,
         }));
@@ -3558,11 +3883,15 @@ async function runCodingShapeCall(
     if (truncated) break;
   }
   if (mode === "working_set") {
-    if (!workingSetCandidates.length) return result(call, "No matches found");
     if (!workingSets) return fail(call, "Working-set state is unavailable");
     return result(
       call,
-      materializeWorkingSet(workingSetCandidates, args.max_chars, workingSets),
+      materializeWorkingSet(
+        workingSetCandidates,
+        workingSetMaps,
+        args.max_chars,
+        workingSets,
+      ),
     );
   }
   if (!rows.length) return result(call, "No matches found");
@@ -4008,6 +4337,54 @@ function invalidReviseEdit(raw: unknown) {
 
 const TEXT_OP_STRING_LIMIT = 5000;
 
+type InsertBlocksRequest = {
+  blocks: string[];
+  position: "before" | "after";
+  anchorText?: string;
+  occurrence?: number;
+};
+
+function parseInsertBlocksRequest(raw: unknown): InsertBlocksRequest | null | string {
+  if (!Array.isArray(raw)) return null;
+  const inserts = raw.filter(
+    (item) =>
+      item &&
+      typeof item === "object" &&
+      (item as Record<string, unknown>).op === "insert_blocks",
+  );
+  if (!inserts.length) return null;
+  if (raw.length !== 1) return "insert_blocks must be the only op in its call";
+  const item = inserts[0] as Record<string, unknown>;
+  const blocks = Array.isArray(item.blocks)
+    ? item.blocks.filter((block): block is string => typeof block === "string")
+    : [];
+  if (
+    !blocks.length ||
+    blocks.length > 20 ||
+    blocks.some(
+      (block) =>
+        !block.trim() || block.length > TEXT_OP_STRING_LIMIT || /[\r\n]/u.test(block),
+    )
+  ) {
+    return "insert_blocks.blocks must contain 1 to 20 non-empty single-paragraph strings";
+  }
+  const scope = item.scope as Record<string, unknown> | undefined;
+  if (!scope || (scope.kind !== "whole_document" && scope.kind !== "find_text")) {
+    return "insert_blocks scope must be whole_document or find_text";
+  }
+  if (scope.kind === "find_text" && !trimmed(scope.text)) {
+    return "insert_blocks find_text scope requires exact anchor text";
+  }
+  return {
+    blocks,
+    position: item.position === "before" ? "before" : "after",
+    ...(scope.kind === "find_text" ? { anchorText: trimmed(scope.text) } : {}),
+    ...(typeof scope.occurrence === "number"
+      ? { occurrence: Math.trunc(scope.occurrence) }
+      : {}),
+  };
+}
+
 /** Parse and bound-check the raw ops array; returns an error string on any
  *  malformed op so the model gets a correctable message. */
 function parseTextOpRequests(raw: unknown): TextOpRequest[] | string {
@@ -4389,6 +4766,7 @@ export async function runLocalAssistantTools(
 ): Promise<NormalizedToolResult[]> {
   const publicState = publicLegalState ?? createPublicLegalSourceState();
   let editTail: Promise<unknown> = Promise.resolve();
+  let workingSetTail: Promise<unknown> = Promise.resolve();
   return Promise.all(
     calls.map((call) => {
       const execute = async () => {
@@ -4913,7 +5291,9 @@ export async function runLocalAssistantTools(
           }
           versionId = turnVersion.versionId;
         }
-        const requests = parseTextOpRequests(args.ops);
+        const blockInsert = parseInsertBlocksRequest(args.ops);
+        if (typeof blockInsert === "string") return fail(call, blockInsert);
+        const requests = blockInsert ? [] : parseTextOpRequests(args.ops);
         if (typeof requests === "string") return fail(call, requests);
         try {
           const file = await getLocalVersionFile(
@@ -5006,7 +5386,33 @@ export async function runLocalAssistantTools(
             }
             resolvedRequests = mapped;
           }
-          const applied = await applyTextOpsToDocx(bytes, resolvedRequests);
+          const applied = blockInsert
+            ? await insertTrackedBlocks(bytes, blockInsert, { author: "Beaver" }).then(
+                (inserted) => ({
+                  bytes: inserted.bytes,
+                  edits: inserted.changes.map((change) => ({
+                    changeId: change.id,
+                    delWId: change.delId,
+                    insWId: change.insId,
+                    deletedText: change.deletedText,
+                    insertedText: change.insertedText,
+                    contextBefore: change.contextBefore,
+                    contextAfter: change.contextAfter,
+                  })),
+                  reports: [
+                    {
+                      op: "insert_blocks",
+                      replacements: inserted.changes.length,
+                      notes: [],
+                    },
+                  ],
+                  replacementCount: inserted.changes.length,
+                  editErrors: inserted.errors.map(
+                    (error) => `change ${error.index + 1}: ${error.reason}`,
+                  ),
+                }),
+              )
+            : await applyTextOpsToDocx(bytes, resolvedRequests);
           const opReports = applied.reports.map((report) => ({
             op: report.op,
             replacements: report.replacements,
@@ -5036,10 +5442,12 @@ export async function runLocalAssistantTools(
                 : {}),
             });
           }
-          const reason = requests
-            .map((request) => request.op)
-            .join(", ")
-            .slice(0, 100);
+          const reason = blockInsert
+            ? "insert_blocks"
+            : requests
+                .map((request) => request.op)
+                .join(", ")
+                .slice(0, 100);
           const trackedEdits: LocalTrackedEdit[] = applied.edits.map(
             (edit) => ({
               id: crypto.randomUUID(),
@@ -6302,6 +6710,17 @@ export async function runLocalAssistantTools(
 
       return result(call, { ok: false, error: `Unknown tool: ${call.name}` });
       };
+      if (
+        call.name === "Grep" &&
+        call.input.output_mode === "working_set"
+      ) {
+        const queued = workingSetTail.then(execute);
+        workingSetTail = queued.then(
+          () => undefined,
+          () => undefined,
+        );
+        return queued;
+      }
       if (!LOCAL_TURN_EDIT_TOOL_NAMES.has(call.name)) return execute();
       const queued = editTail.then(execute);
       editTail = queued.then(

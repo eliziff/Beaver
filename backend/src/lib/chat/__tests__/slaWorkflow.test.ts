@@ -24,20 +24,14 @@ const ledger: SlaLedger = {
 };
 
 describe("auditSlaDraft", () => {
-  it("flags source anchors missing from the draft and unsourced draft anchors", () => {
+  it("records lexical anchor differences without spending a repair pass", () => {
     const draft =
       "The covenant requires Minimum Liquidity of $5,000,000 under Section 6.02, tested against a threshold of $7,250,000.";
     const audit = auditSlaDraft(ledger, draft);
-    expect(audit.repairPrompt).toBeTruthy();
-    // Missing from the draft: the date anchors and Section 8.01.
-    expect(audit.repairPrompt).toContain("absent from your deliverable");
-    expect(audit.repairPrompt).toContain("no match in any source document");
-    expect(audit.repairPrompt).toContain("$7,250,000");
+    expect(audit.repairPrompt).toBeNull();
     expect(audit.receipt.source_only_total).toBeGreaterThan(0);
     expect(audit.receipt.draft_only_total).toBeGreaterThan(0);
     expect(audit.receipt.matched_total).toBeGreaterThan(0);
-    // Chat-text deliverable: repair asks for the full revised text.
-    expect(audit.repairPrompt).toContain("COMPLETE revised deliverable");
   });
 
   it("names the anchors in the receipt so totals can be checked", () => {
@@ -67,7 +61,7 @@ describe("auditSlaDraft", () => {
   });
 
   it("directs artifact deliverables to tool-based revision", () => {
-    const audit = auditSlaDraft(ledger, "Deliverable created.", {
+    const audit = auditSlaDraft(ledger, "The Borrower must shall comply.", {
       artifactDeliverable: true,
     });
     expect(audit.repairPrompt).toContain("library tools");
@@ -99,7 +93,7 @@ describe("auditSlaDraft composed organs", () => {
     expect(audit.receipt.conflict.finding_details[0]).toMatch(/^draft: /u);
   });
 
-  it("separates a source-vs-source disagreement from the drafter's own", () => {
+  it("records a source-vs-source disagreement without forcing it into the draft", () => {
     const audit = auditSlaDraft(
       ledgerOf({
         name: "note.docx",
@@ -107,8 +101,7 @@ describe("auditSlaDraft composed organs", () => {
       }),
       "The prepayment is described in the loan file.",
     );
-    expect(audit.repairPrompt).toContain("source documents disagree on");
-    expect(audit.repairPrompt).not.toContain("Arithmetic in your deliverable");
+    expect(audit.repairPrompt).toBeNull();
     expect(audit.receipt.conflict.finding_details[0]).toMatch(/^sources: /u);
   });
 
@@ -122,7 +115,7 @@ describe("auditSlaDraft composed organs", () => {
     );
     expect(audit.receipt.term_drift.divergent).toBe(1);
     expect(audit.receipt.term_drift.terms).toEqual(["Business Day"]);
-    expect(audit.repairPrompt).toContain("Defined terms whose definitions differ");
+    expect(audit.repairPrompt).toContain("Defined terms redefined by your deliverable");
     expect(audit.repairPrompt).toContain("Calgary");
   });
 
@@ -279,7 +272,7 @@ describe("collectSlaDeliverable", () => {
       'first source-content retrieval must be Grep with output_mode="working_set"',
     );
     expect(workingSet?.promptSection).toContain("Glob may enumerate filenames first");
-    expect(workingSet?.promptSection).toContain("Read the returned path");
+    expect(workingSet?.promptSection).toContain("Read the returned delta");
     expect(workingSet?.promptSection).toContain('never "." or ".*"');
   });
 });
@@ -291,7 +284,7 @@ describe("auditSlaDraft temporal organ", () => {
     baseline: new Map<string, string>(),
   });
 
-  it("flags deadline arithmetic that does not close and spends the pass", () => {
+  it("records source-only deadline conflicts without spending the pass", () => {
     const audit = auditSlaDraft(
       ledgerOf(
         "The review period runs forty-five (45) days after the Start Date of March 1, 2025, that is, until April 20, 2025.",
@@ -300,7 +293,7 @@ describe("auditSlaDraft temporal organ", () => {
     );
     expect(audit.receipt.temporal.findings).toBe(1);
     expect(audit.receipt.temporal.finding_details[0]).toContain("sources:");
-    expect(audit.repairPrompt).toContain("Deadline arithmetic");
+    expect(audit.repairPrompt).toBeNull();
   });
 
   it("stays silent when the stated date closes exactly", () => {

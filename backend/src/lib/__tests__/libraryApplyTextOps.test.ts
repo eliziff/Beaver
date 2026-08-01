@@ -42,6 +42,41 @@ describe("library_apply_text_ops tool flow", () => {
       "document_id",
       "ops",
     ]);
+    expect(
+      schema?.function.parameters.properties.ops.items.properties.op.enum,
+    ).toContain("insert_blocks");
+  });
+
+  it("appends multiple paragraphs without retyping a cross-paragraph replacement", async () => {
+    const tools = await setup();
+    const [createdResponse] = await tools.runLocalAssistantTools("local-user", [
+      {
+        id: "call-create-blocks",
+        name: "library_create_docx",
+        input: { title: "Block Insert Draft", markdown: "Opening paragraph." },
+      },
+    ]);
+    const created = JSON.parse(createdResponse.content);
+    const [response] = await tools.runLocalAssistantTools(
+      "local-user",
+      call({
+        document_id: created.document_id,
+        ops: [
+          {
+            op: "insert_blocks",
+            scope: { kind: "whole_document" },
+            position: "after",
+            blocks: ["First inserted paragraph.", "Second inserted paragraph."],
+          },
+        ],
+      }),
+    );
+    const receipt = JSON.parse(response.content);
+    expect(receipt).toMatchObject({ ok: true, action: "revised", change_count: 2 });
+    const file = await tools.extractLocalDocument("local-user", created.document_id);
+    expect(file?.text).toContain(
+      "Opening paragraph.\nFirst inserted paragraph.\nSecond inserted paragraph.",
+    );
   });
 
   it("persists a tracked-change version through the library_revise_docx path", async () => {
