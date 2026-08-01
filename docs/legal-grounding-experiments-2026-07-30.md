@@ -5409,3 +5409,178 @@ for reasons about the EDIT schema, not the NAVIGATION schema: no cell
 address, and locating arguments that require reconstructing invisible
 whitespace.
 
+
+## Registration 2026-07-31b â€” docx-edit-bench v2 task set
+
+**Additive.** v1's 27 tasks, their checks and their fixtures are frozen;
+the v1 result above stays comparable. v2 adds tasks in
+`benchmarks/docx_edit/tasks-v2.jsonl` and fixtures of a new `real`
+family, and never edits v1.
+
+### Step 1 finding: what practitioners actually ask for
+
+Two in-repo sources were surveyed â€” `docs/legal-skills-ecosystem-comparison.md`
+(a completed survey of Lawve AI, `lawve-ai/awesome-legal-skills` and
+`anthropics/claude-for-legal` against Beaver's surface) and Beaver's own
+`backend/src/lib/systemWorkflows.json`.
+
+**The headline is negative and it reshapes v2: not one of Beaver's 24
+shipped workflows produces an edited document.** Thirteen assistant
+workflows deliver an inline Markdown table; eleven tabular workflows
+deliver a spreadsheet. Six of the seven review workflows carry the
+identical instruction "Deliver the review inline in your chat response.
+Do not generate a downloadable Word document unless the user explicitly
+asks for one", and `builtin-proofread` says outright "Do not rewrite the
+whole document." The public skill ecosystem is the same shape: a survey
+of *analysis* skills whose deliverable is a table, a memo or a computed
+answer.
+
+Beaver's editing capability lives entirely in tooling â€” `docxTrackedChanges`,
+`library_link_docx_citations`, `library_fix_docx_supras`,
+`docxDeterministicCleanup` â€” that no shipped workflow exposes.
+
+**The exploitable asymmetry.** Nine of the thirteen assistant workflows
+terminate in a column that is a natural-language edit instruction
+against a cited location: `Recommended Change` (NDA, lease, credit,
+employment, guarantee, shareholder), `Proposed Change` (issues list â€”
+"must state the specific amendment ... drafted from that party's
+perspective"), `Recommended Fix` (proofread â€” "Where useful, include
+replacement wording"), `Recommended Action` (corporate approvals â€” "a
+specific cure, confirmation, document request, approval step, or
+drafting correction").
+
+**Beaver already generates the stimulus half of an editing benchmark at
+scale, with clause citations attached, and has nothing that consumes
+it.** That pair â€” a cited review finding, and the document it must be
+applied to â€” is the most realistic practitioner ask available, and it is
+what v2's largest family is built from.
+
+### Step 1 finding: the defect list to build tasks from
+
+The survey's "contract structural lint" enumerates exactly the defects a
+conforming-and-renumbering benchmark should target, and specifies
+detection only, never auto-fix:
+
+- defined terms declared-but-unused, used-but-undefined, or
+  inconsistently capitalised
+- broken internal cross-references
+- numbering discontinuities
+- references to missing schedules and exhibits
+- inconsistent party names
+- conflicting liability caps
+
+"Done" for the detect form is a row with Location, Issue and Recommended
+Fix. **"Done" for the mutation form is undefined in both sources.** That
+is the greenfield v2 occupies.
+
+### Step 1 finding: jurisdiction, honestly
+
+The survey contains **no Canadian document-editing ask at all**, and
+**no bilingual EN/FR grounding anywhere** â€” every one of the 24 Beaver
+workflows is `jurisdictions: ["General"]`, `language: "English"`. The
+only French item in the ecosystem is a set of France tribunal writs the
+survey lists as a bad default.
+
+So the bilingual and Quebec tasks in this benchmark are **not** grounded
+in the surveyed skill ecosystem, and it would be dishonest to imply they
+are. They are grounded instead in a statutory requirement the ecosystem
+has not caught up with: the Charter of the French Language as amended by
+Bill 96 requires French versions of adhesion contracts in Quebec, and
+federal instruments are enacted in both languages with both equally
+authoritative. Recorded as a deliberate extension beyond the survey, not
+as a finding from it.
+
+### Step 1 finding: the class taxonomy v2 scores against
+
+From `docs/deterministic-word-actions-catalog.md`, imported by the
+survey. Classes describe the safest default interaction, not technical
+feasibility:
+
+- **A** direct UI action; **B** bounded model-invoked deterministic tool
+  where the model never authors OOXML; **C** preview or lint, then
+  confirm, because detection or intent is ambiguous; **D** model or
+  human judgment, where the desired result cannot be inferred from
+  formatting or text alone.
+
+The survey's rule is that a capability only deserves to stay a prompt if
+it is Class D. **v2 adopts the corollary as a scoring rule: a task is a
+legitimate model-evaluated item only if it is Class C or Class D.** Every
+v2 task records its class, and any Class A/B task is marked as a floor
+task, because a deterministic tool should perform it and the model's only
+job is to route to that tool.
+
+v1 in hindsight: most of its tasks are Class B or C. v2 deliberately
+weights toward C and D.
+
+### v2 design
+
+Six families. Every task carries `set: "v2"`, a `class` (A-D), a
+`jurisdiction`, a `practice_area`, and everything v1 required â€”
+verbatim instruction, `why`, checks with a negative half, a verified
+reference solution, and at least one hand-written near miss.
+
+1. **Apply a review finding.** The stimulus is a real review-table row
+   in the shape Beaver's own workflows emit â€” Location, Issue,
+   Recommended Change â€” and the deliverable is that change applied to
+   the cited clause and nowhere else. This is the family the survey says
+   nobody has built.
+2. **Structural lint, mutation form.** One task per defect in the list
+   above: an undefined defined term, a broken cross-reference, a
+   numbering discontinuity, a dangling schedule reference, an
+   inconsistent party name, two conflicting liability caps.
+3. **Table-bound edits.** Directly targets the v1 finding that neither
+   surface can address a table cell: signing limits, fee schedules, rent
+   escalation tables, bilingual period columns. v1 had two such tasks and
+   both failed 0/2 in both arms; v2 makes the gap measurable rather than
+   incidental, so that a table-cell address can be shown to move it.
+4. **Deferred-tool-required.** Tasks whose only correct route runs
+   through a tool a surface may defer â€” `resident_route_exists: false`.
+   v1 could only measure the cost of hiding a tool the model wanted;
+   this family measures the cost of hiding one the task needs.
+5. **Multi-document.** Apply an amendment to a base agreement, conform a
+   schedule to the body, check an affidavit against the pleading it
+   supports.
+6. **Bilingual and Quebec.** Parallel EN/FR instruments where an edit to
+   one version that is not made to the other is a defect, grounded as
+   above.
+
+### Fixtures
+
+v2 adds a `real` family whose documents are cut from real sources. Every
+one carries provenance in the manifest â€” resolvable source URL, the
+licence named exactly, a `redistributable` verdict, the attribution the
+licence requires, what was modified, and a contamination note â€” and a
+fixture whose licence cannot be established does not ship. The README
+says which fixtures are real and which are generated.
+
+Real legal text is not markdown: it has ALL-CAPS headings and "1." and
+"(a)" at line starts, which the markdown renderer silently eats and
+renumbers. The `real` family therefore packs each source line as one
+paragraph, verbatim.
+
+**Recorded before selection:** the locally cached CUAD text corpus
+(`benchmarks/legalbench_rag/data/mini/corpus/cuad`) is real SEC EDGAR
+exhibit text, but its paragraph structure has already been destroyed â€”
+each file is roughly one giant line per printed page, and confidential
+terms are redacted to `[***]`. It is excellent evidence of what a bad
+PDF extraction looks like and poor material for clause-addressed
+editing tasks. Where it is used it is used for that property
+deliberately, and the manifest says so.
+
+### Contamination
+
+Prefer obscure filings over landmark ones, and make every task depend on
+THIS document's specifics â€” a figure, a defined term, a cross-reference
+in this instrument â€” rather than on anything recallable about it. Each
+real fixture records an `obscurity` judgement.
+
+### What stays true from v1
+
+Tasks are data, not code. Fixtures are hashed by the sha256 of their
+extracted body text. The benchmark stays surface-agnostic and does not
+know what `MIKE_NAV_SHAPE` is. Every task ships a verified reference
+solution; every checker is exercised against a near miss; every check
+has a negative half so a whole-document rewrite cannot pass; shortcuts
+blocked and left open are enumerated; floor tasks are labelled and
+excluded from any headline. Registration precedes running.
+
