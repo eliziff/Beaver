@@ -4705,3 +4705,141 @@ The full list, with each task's `why`, its checks and its reference
 solution, is `benchmarks/docx_edit/tasks.jsonl`; fingerprints are in
 `benchmarks/docx_edit/manifest.jsonl`.
 
+
+### Stage 21 result (2026-07-31/08-01): the address surface is UNDECIDED on every outcome metric, its registered disqualification trigger FIRED, and three of its four extra affordances were never called
+
+881 scored agentic cells. Paired **n=215** (`asis`) and **n=127**
+(`stripped`); `asis` replicate 1 ran the full pre-registered n=160 per
+arm. Model `codex:gpt-5.6-sol`, effort `low`, held constant. Both bed
+oracles passed before the first model call (1362/1362 gold spans;
+69/69 documents byte-identical through the library surface).
+
+**Instrument disclosure, printed first.** The Codex backend rate-limits
+in bursts; three storms (at 18, 12 and 12 concurrent requests â€” six ran
+clean) wrote 1,067 error rows. Those are transport failures, not
+answers: they are excluded from scoring rather than scored as 0, the
+harness now retries with bounded backoff, and **354 cells remain
+unrecovered** and simply absent. The factorial is therefore incomplete
+outside `asis` rep 1 â€” every number below carries the n it came from.
+Zero cells were dropped for any reason other than transport.
+
+**Contamination check: clean.** Across **4,117 tool calls in both
+arms, zero off-schema parameters were used.** The schema-only
+separation held in practice, despite the handler honouring either
+arm's vocabulary. The arms are comparable.
+
+#### Paired differences, `asis`, n=215
+
+| metric | legacy | address | diff | 95% CI (cluster bootstrap over documents) | within-arm replicate floor (mean abs) | verdict |
+|---|---|---|---|---|---|---|
+| f1_best | 0.6878 | 0.6982 | +0.0105 | [-0.0028, 0.0242] | 0.028 / 0.045 | **undecided** |
+| f1_all | 0.6390 | 0.6459 | +0.0069 | [-0.0052, 0.0186] | â€” | **undecided** |
+| reached_any | 0.9860 | 0.8884 | **-0.0977** | **[-0.1404, -0.0591]** | 0.162 / 0.026 | trigger fired; see below |
+| reached_all | 0.8977 | 0.7349 | **-0.1628** | **[-0.2262, -0.1014]** | â€” | trigger fired |
+| reached_by_read | 0.8093 | 0.8512 | +0.0419 | [-0.0165, 0.1038] | 0.132 / 0.141 | **undecided** |
+| n_tool_calls | 4.68 | 4.48 | -0.20 | [-0.4468, 0.0269] | 0.81 / 1.08 | **undecided** |
+| chars_exposed | 11,130 | 5,818 | **-5,312** | **[-7441, -3490]** | 4,327 / 3,239 | **real** |
+
+`stripped` (n=127) reproduces the same pattern: f1_best +0.0016
+[-0.0228, 0.0269], reached_any -0.0787 [-0.1367, -0.0308],
+reached_by_read 0.0000 [-0.0629, 0.0635], chars_exposed -4,253
+[-5725, -3148].
+
+**The registered disqualification trigger fired.** It was defined as a
+paired drop in `f1_best` or `reached_any` whose 95% CI excludes 0
+negatively on pooled `asis`. `reached_any` drops -0.0977 with CI
+[-0.1404, -0.0591]. Recorded as fired, not reinterpreted away.
+
+**And the same metric is unresolvable by this design.** The address
+arm's own rep1-vs-rep2 floor on `reached_any` is **0.162 mean
+absolute** â€” larger than the 0.098 between-arm gap. So the trigger
+fired on a metric whose run-to-run noise exceeds the effect. Both
+registered rules fired at once; both are reported.
+
+Post-hoc mechanism, flagged as post-hoc and not registered:
+`reached_any` counts gold appearing anywhere the model looked,
+including `library_find`'s context window. The address arm exposes
+**48% less document** (5,818 vs 11,130 chars, the one difference that
+clears its own floor and reproduces in both query forms), so it has
+fewer incidental windows in which gold can appear. The sharper metric
+â€” did a committed `library_read` land on gold â€” does *not* drop
+(+0.0419, CI spans 0). This is consistent with arm B looking at less
+and being no worse at landing, but the data does not establish it.
+
+#### Tokens
+
+| | legacy | address |
+|---|---|---|
+| measured schema cost | 544 tok/turn | 1,027 tok/turn (**+483**) |
+| input, total (`asis`) | 19,006 | 18,559 |
+| input, net of schema | 17,053 | 14,995 |
+| output | 540 | 556 |
+| model turns | 3.6 | 3.5 |
+
+Arm B is cheaper in **total** input tokens despite carrying 2,197 more
+schema chars, because it exposes less document text. The schema
+surcharge (+483/turn x ~3.5 turns = ~1,700 tokens) is roughly repaid by
+the ~2,050-token reduction in everything else.
+
+#### What arm B's extra affordances were actually used for
+
+Out of **2,085 address-arm tool calls**:
+
+| affordance | uptake |
+|---|---|
+| `library_links` (a whole tool, 791 schema chars) | **0 / 2,085 (0.0%)** |
+| `follow=` actually walked the graph | **3 / 1,350 find calls (0.2%)** |
+| `at=` scoped a find | 6 / 1,350 (0.4%) |
+| `from="end"` (tail read) | 2 / 610 reads (0.3%) |
+| `at=` named a PAGE | 0 / 610 (0.0%) â€” structurally inert on this bed, as pre-registered |
+| `depth=` passed | 1,553 times â€” but inert, since `follow` was `"none"` on all but 3 calls |
+
+The model filled in `follow: "none"`, `depth: 1` on **every single**
+find call: it paid the schema for the graph walk and declined to use
+it, 1,347 times out of 1,350. The only affordance with real uptake is
+`at=` on `library_read` â€” and its main effect is a shift toward offset
+addressing (194/608 = 32% of address-arm reads, vs 155/623 = 25% in
+legacy), which composes directly with a find hit's `at`.
+
+**A capability nobody calls is a finding: `library_links` was never
+called once.**
+
+#### Unsolvable cells and the shortcut census
+
+- **Never solved by either arm** (`f1_best` < 0.5): **59/215 = 27.4%**
+  (`asis`), 24/127 = 18.9% (`stripped`). Worst stratum privacy_qa
+  (26/50). Restricting to cells at least one arm solved does not change
+  the verdict: f1_best +0.0093 [-0.0068, 0.0265], n=156.
+- **Read-it-whole shortcut**: available on 67.5% of sampled cells but
+  **essentially never taken** â€” one read covering >=95% of the document
+  happened in 1/215 (legacy) and 4/215 (address) cells. The models
+  navigated even when they did not have to.
+- **Document length does not predict an arm advantage.** In band D
+  (>200k chars, navigation mandatory, all maud, n=49) the arms are dead
+  level: f1_best -0.0017 [-0.0181, 0.0123], read-hit 0.816 -> 0.796.
+  The only band with a positive f1_best CI is band A (<=24k, n=92,
+  +0.0247 [0.0057, 0.0511]) â€” the stratum where the surface matters
+  least. That is the opposite of the ordering the address arm would
+  need to justify itself.
+
+#### What this does and does not establish
+
+Nothing is retired. On this bed, at this n, with this model: **the
+2,197 extra schema chars and the fourth tool bought no measurable
+outcome improvement**, the registered disqualification trigger fired on
+`reached_any`, and the address arm's only reproducible effect is that
+it looks at roughly half as much document for the same answer quality.
+Three of its four novel affordances (`library_links`, `follow`, page
+addressing) were used essentially never â€” and page addressing *could
+not* be used here, which is a property of this corpus, not of the
+surface.
+
+Scope limits, stated plainly: one model, one effort setting, a
+contract/privacy-policy corpus with no pagination and shallow
+cross-reference structure, 354 cells lost to rate limiting, and a
+factorial completed only for `asis` rep 1. A cross-reference graph tool
+is exactly the affordance a corpus of heavily cross-referencing
+instruments might reward; this bed cannot speak to that. The honest
+summary is **undecided, with a fired disqualification trigger and a
+demonstrated 48% reduction in document exposure** â€” not "arm B is
+better", and not "the arms are the same".
