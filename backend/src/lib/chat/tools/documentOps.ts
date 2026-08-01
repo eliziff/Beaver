@@ -146,7 +146,7 @@ export function textParserFor(fileType: string): {
   if (isSpreadsheetDocumentType(fileType))
     return {
       parser: "spreadsheet-llm-text",
-      version: 1,
+      version: 2,
       // SheetJS reads .xlsx/.xlsm/.xls directly (no PDF detour), emitting a
       // cell-addressed markdown view with Excel-formatted values.
       run: (b) => spreadsheetToLLMText(b),
@@ -300,8 +300,12 @@ export async function generateDocx(
 
 export function safeGeneratedFilename(title: string, extension: string) {
   const rawTitle = typeof title === "string" ? title : "document";
+  const suffix = `.${extension}`;
+  const titleWithoutExtension = rawTitle.toLowerCase().endsWith(suffix.toLowerCase())
+    ? rawTitle.slice(0, -suffix.length)
+    : rawTitle;
   const safeTitle =
-    rawTitle
+    titleWithoutExtension
       .replace(/[^a-zA-Z0-9 -]/g, "")
       .trim()
       .slice(0, 64) || "document";

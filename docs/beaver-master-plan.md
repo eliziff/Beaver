@@ -316,6 +316,16 @@ Status: **Research**
 - Test prompt injection through retrieved opinions, PDFs, journal articles,
   tool receipts, and summaries.
 
+Implemented pre-live (2026-07-31): the address-mode tool surface now uses
+one-hop task domains, keeps only navigation/basic mutation tools resident,
+refuses guessed hidden calls, and refreshes schemas between tool-loop
+iterations across provider adapters. Domain discovery returns names and
+guidance, not duplicated schemas. With the full research catalogue enabled,
+the serialized initial schema is 15,975 bytes versus 43,649 bytes for the
+complete surface (63.4% smaller). This is an offline schema-size measurement,
+not a tool-recall or legal-correctness result; the frozen live tasks remain the
+gate for those claims.
+
 Acceptance:
 
 - A run can explain why compaction occurred and which exact state survived.
@@ -337,6 +347,11 @@ Work:
 - Save a compact versioned page, paragraph, section, footnote/proposition,
   diagnostics, parser configuration, and repair source beside the immutable
   PDF. Do not persist geometry-rich parser working state.
+- Parse PDF tables as true structural artifacts: sheet/table, row, cell,
+  row/column spans, reading order, source page, and provenance/confidence. Feed
+  that typed grid into a compact model-facing representation only after the
+  structure is proven. Never promote rows or cells guessed from flattened PDF
+  text into deterministic coordinates.
 - Reuse that structural source by source hash +
   parser/prompt/model/config version.
 - Keep the immutable PDF available if structural parsing fails.
@@ -353,6 +368,9 @@ Acceptance:
 - Restarting Beaver resumes or reports an interrupted parse deterministically.
 - An unchanged PDF does not repeat extraction or model calls.
 - A raster-only PDF degrades honestly and can be selectively OCRed.
+- A PDF table either yields a versioned typed grid that rehydrates to source
+  geometry, or reports table structure unavailable; flattened text is not a
+  successful table parse.
 
 ### P0.9 Exact structure tools
 
@@ -366,10 +384,20 @@ Expose compact tools for:
 - paragraph or paragraph range;
 - section, subsection, paragraph, subparagraph, clause, subclause, schedule,
   article, and provider-specific encoded variants;
+- native DOCX table, row, and cell coordinates without emitting an unbounded
+  inventory of unrelated cells;
+- native spreadsheet and structurally parsed PDF table, row, and cell
+  coordinates through the same format-neutral grid contract;
 - surrounding context by structural neighbor count, not arbitrary characters;
   and
 - deterministic source/evidence handles suitable for later citation or
   document mutation.
+
+Every structure query is narrowable at the source's legal level. Decimal
+provisions are complete sibling identifiers (`150` and `150.1`); only
+parenthetical levels express provision ancestry (`150` -> `150(1)`). Graph
+expansion is a separately requested, bounded, non-overlapping union and never
+silently widens an exact child lookup.
 
 These tools return only requested units plus stable IDs, version, confidence,
 and link metadata. The model does not parse the whole PDF to answer “footnote
@@ -381,6 +409,12 @@ Acceptance:
   notes, symbol notes, multi-column, and provider-native structure fixtures.
 - Every quoted result can be rehydrated from authoritative source bytes and
   linked without model-authored URL syntax.
+- A targeted table/section query exposes only responsive units and executable
+  follow-up coordinates, not a near-global outline.
+- Model-facing table output defaults to the smallest self-contained projection
+  that preserves exact addresses and displayed values. Rich formatting,
+  formulas, and geometry are disclosed only when the task requires them; the
+  projection is never the canonical table state.
 
 ### P0.10 Complete the structural benchmark
 
@@ -581,10 +615,62 @@ Status: **Research**
 - Keep vector outputs as candidates; authoritative source lookup supplies text
   and links.
 
+Citator/note-up retrieval stays deterministic and scoped before any semantic
+treatment product is considered:
+
+- filter citing decisions by normalized court level (`scc`, `appellate`,
+  `trial`, or `all`) and optional exact court code;
+- rank either newest-first or by auditable discussion density at the same
+  scope and budget;
+- start discussion density with resolved citation-occurrence count across
+  proven aliases, then ablate distinct citing paragraphs, pinpoints, and cheap
+  resolvable short-form mentions;
+- return component counts and bounded citing passages with evidence receipts;
+  never label this heuristic as followed/distinguished/overruled; and
+- add an offline temporal-integrity report: quarantine an edge when a known
+  citing-decision date is strictly earlier than the known cited-decision date,
+  while treating missing dates as unknown rather than wrong.
+
 Acceptance:
 
 - Add the vector dependency only if it produces a meaningful held-out win that
   lexical retrieval cannot match with simpler query expansion/reranking.
+- Court filtering and discussion-density ranking beat or tie newest-first on a
+  held-out note-up set at equal result and character budgets, or remain an
+  optional caller-selected sort rather than the default.
+- Temporal-impossibility counts and sampled receipts are zero or every defect
+  is quarantined and explained before citator ranking is promoted.
+
+### P1.4a Hybrid legal-agent retrieval and compiler loop
+
+Status: **Experiment in flight (2026-08-01)**
+
+- Keep the resident retrieval vocabulary coding-native (`Glob`, `Grep`,
+  `Read`, `Edit`) while allowing exact legal section, page, table-row, and
+  bounded reference scopes inside search and read.
+- Treat filenames as the ordinary model-facing identity. Reveal durable
+  document IDs only to disambiguate duplicate filenames; keep source/version
+  IDs in evidence and mutation receipts.
+- Split progressive domains by user intent: create a deliverable, revise an
+  existing document, or audit an existing document. Do not disclose a general
+  quality-tool bag merely because a task creates a DOCX.
+- Run existing deterministic anchor, arithmetic, temporal, defined-term, and
+  drafting checks like a compiler after synthesis. A bounded correction pass
+  retains the instructions, artifact, and typed findings while dropping old
+  tool payloads from model context.
+- Measure each provider round: tool-schema hash, arguments/results bytes,
+  cache tokens, source-qualified exposure union, replay, and truncation.
+
+Acceptance:
+
+- On varied long-horizon Harvey dev tasks, the bundled arm beats or identifies
+  a repeatable task-specific win over frozen upstream Mike and H4 without
+  hiding invalid deliverables or operational failures.
+- No rich coordinate is guessable across documents, and every truncated read
+  supplies an executable continuation.
+- Ablations identify whether inventory/domain routing, bounded structured
+  retrieval, or the deterministic compiler/checkpoint earns its context and
+  latency cost before the bundle becomes a default.
 
 ## Priority 1 — deterministic document and spreadsheet work
 
@@ -653,6 +739,18 @@ Implemented:
   dialog. It docks left/right, minimizes to a launcher, and leaves the Library
   interactive. A component test verifies background interaction, docking,
   minimize, and restore.
+- Native top-level DOCX table cells have stable
+  `table:N/row:N/col:N` handles on the same accepted-text offset plane used by
+  tracked edits. Empty cells, `gridBefore`, horizontal/vertical merges, and
+  nested-table text are covered without minting phantom addresses.
+- `library_delete_and_renumber_docx` atomically deletes one numbered provision,
+  closes a proven contiguous sibling gap, and updates resolved internal
+  pointers as tracked changes. It refuses ambiguous, unresolved, external,
+  already-gapped, and referenced-deleted targets. The contract is deliberately
+  delete/close-gap only; insertion/open-gap semantics remain unsupported.
+- One local assistant turn creates at most one assistant-edit version per
+  document. Later mutations in that turn update it only when earlier tracked
+  change IDs remain valid, so accept/reject receipts cannot dangle.
 
 - Build version-bound find handles so repeated changes do not resend whole
   documents or ambiguous before/after context.

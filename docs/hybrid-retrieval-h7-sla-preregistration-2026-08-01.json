@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "registered_at": "2026-08-01T21:32:00Z",
+  "status": "registered_before_h7_model_calls",
+  "experiment_type": "exploratory SLA-pattern arm; component ablation follows trace inspection",
+  "objective": "Test whether restoring explicit Spec-to-Ledger-to-Draft discipline improves the compiler hybrid by making source coverage deliberate before drafting and making deterministic findings actionable afterward.",
+  "held_constant": {
+    "performer_model": "gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "transport": "OpenAI Responses API",
+    "service_tier_requested": "fast",
+    "service_tier_required_in_receipt": "priority",
+    "base_prompt": "lean",
+    "tool_description_variant": "operational",
+    "retrieval_surface": "H5 coding-native legal scopes and immutable working sets",
+    "research_tools_on_harvey": false,
+    "ask_inputs": false,
+    "split": "visible Harvey LAB dev tasks only"
+  },
+  "comparison": {
+    "reference": "completed H6 compiler_hybrid cells",
+    "candidate_arm": "sla_hybrid",
+    "candidate_environment": {
+      "MIKE_NAV_SHAPE": "address",
+      "MIKE_TOOL_SHAPE": "coding",
+      "MIKE_RETRIEVAL_EXPERIMENT": "h5-working-set",
+      "MIKE_SLA_WORKFLOW": "1",
+      "MIKE_SLA_STRATEGY": "full",
+      "MIKE_PROGRESSIVE_DISCLOSURE": "1"
+    }
+  },
+  "candidate_contract": {
+    "spec": "Turn the instructions into a checklist of every required issue, comparison, calculation, and deliverable field.",
+    "ledger": "Gather each material checklist fact into a compact source-addressed working ledger with narrow Grep/Read legal scopes or a bounded cross-document working set; represent missing support as an explicit gap.",
+    "draft": "Create the exact requested artifact only after each material checklist item has evidence or an explicit gap.",
+    "audit": "Run anchor, arithmetic, temporal, defined-term, structure, and drafting checks automatically after synthesis; these checks are not model-callable tools in this arm.",
+    "grounding": "Return bounded typed findings, require exact-span verification, and revise the actual artifact for every grounded material issue while rejecting verified noise rather than blindly copying source-only anchors."
+  },
+  "bundled_difference_from_h6": [
+    "Restores the full explicit SLA reasoning sequence in coding-native terminology.",
+    "Hides the document_quality domain and its six callable tools because the same organs run automatically.",
+    "Strengthens the correction instruction from an optional-sounding pass to mandatory evaluation of every finding and revision of every material grounded issue."
+  ],
+  "tasks": [
+    "banking-finance/extract-credit-agreement-covenants",
+    "white-collar-defense-investigations/analyze-counterparty-markup-of-deferred-prosecution-agreement",
+    "capital-markets/compare-closing-documents-against-closing-checklist",
+    "tax/draft-transfer-pricing-documentation"
+  ],
+  "observations": [
+    "native LAB score and valid artifact",
+    "pre-draft document/span coverage and use of exact legal scopes or working sets",
+    "whether drafting begins before material checklist coverage",
+    "automatic findings accepted, rejected, or mishandled and whether the artifact is actually revised",
+    "tool/domain calls, schemas, source exposure, replay, per-round context bytes, cache tokens, and latency"
+  ],
+  "interpretation_policy": "This arm tests the coherent SLA product pattern, not isolated prompt sentences. Attribute no causal component win until later ablations. A result is useful even if aggregate score falls when traces identify whether coverage discipline, compiler noise, or the correction checkpoint caused the change.",
+  "failure_policy": "Fail closed unless Fast reports priority; retain failures and noisy findings in receipts; do not replace tasks or rerun completed cells to hide behavior."
+}

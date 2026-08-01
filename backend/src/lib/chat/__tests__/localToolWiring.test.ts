@@ -13,6 +13,11 @@ const userId = "00000000-0000-0000-0000-000000000001";
 afterEach(() => {
   delete process.env.MIKE_DISABLE_RESEARCH_TOOLS;
   delete process.env.MIKE_CITATOR_DB;
+  delete process.env.MIKE_NAV_SHAPE;
+  delete process.env.MIKE_TOOL_SHAPE;
+  delete process.env.MIKE_PROGRESSIVE_DISCLOSURE;
+  delete process.env.MIKE_SLA_WORKFLOW;
+  delete process.env.MIKE_SLA_STRATEGY;
   vi.resetModules();
 });
 
@@ -87,6 +92,133 @@ describe("local assistant tool wiring", () => {
       ok: false,
       error: "document_id is required",
     });
+  });
+
+  it("opens deferred domains from trusted schemas without echoing schemas", async () => {
+    process.env.MIKE_NAV_SHAPE = "address";
+    const tools = await loadTools();
+    const partition = tools.partitionTools(tools.LOCAL_ASSISTANT_TOOLS);
+    expect(names(partition.resident)).toContain("describe_tools");
+    expect(names(partition.resident)).not.toContain("library_revise_docx");
+    expect(names(partition.deferred)).toContain("library_revise_docx");
+
+    const describe = partition.resident.find(
+      (entry) => entry.function.name === "describe_tools",
+    )!;
+    expect(describe.function.description).not.toContain("[object Object]");
+    const domains = (
+      describe.function.parameters.properties as {
+        domains: { items: { enum: string[] } };
+      }
+    ).domains.items.enum;
+    expect(domains).toEqual(
+      expect.arrayContaining([
+        "cases",
+        "citations",
+        "output_document",
+        "drafting",
+        "document_quality",
+      ]),
+    );
+    expect(domains).not.toContain("research");
+
+    const [response] = await tools.runLocalAssistantTools(userId, [
+      {
+        id: "describe",
+        name: "describe_tools",
+        input: { domains: ["citations"] },
+      },
+    ]);
+    const payload = JSON.parse(response.content);
+    expect(payload.ok).toBe(true);
+    expect(payload).not.toHaveProperty("tools");
+    expect(payload.opened).toEqual(
+      names(tools.toolsForDomains(partition.deferred, ["citations"])),
+    );
+    expect(payload.opened).toEqual(
+      expect.arrayContaining([
+        "courtlistener_verify_citations",
+        "library_link_docx_citations",
+        "library_fix_docx_supras",
+        "toa_submit_library_document",
+      ]),
+    );
+  });
+
+  it("can hold progressive disclosure constant for a coding surface", async () => {
+    process.env.MIKE_NAV_SHAPE = "legacy";
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    process.env.MIKE_PROGRESSIVE_DISCLOSURE = "1";
+    const tools = await loadTools();
+    const partition = tools.partitionTools(tools.LOCAL_ASSISTANT_TOOLS);
+    expect(names(partition.resident)).toEqual(
+      expect.arrayContaining(["Glob", "Grep", "Read", "describe_tools"]),
+    );
+    expect(names(partition.resident)).not.toContain("Edit");
+    expect(names(partition.deferred)).toEqual(
+      expect.arrayContaining(["Edit", "library_create_docx"]),
+    );
+    expect(names(tools.toolsForDomains(partition.deferred, ["output_document"])))
+      .toEqual(["library_create_docx"]);
+    const create = tools
+      .toolsForDomains(partition.deferred, ["output_document"])
+      .find((schema) => schema.function.name === "library_create_docx");
+    const createProperties = create?.function.parameters.properties as Record<
+      string,
+      { description?: string }
+    >;
+    expect(createProperties.filename.description).toContain("exact output filename");
+    expect(createProperties.title.description).not.toContain("filename");
+    expect(names(tools.toolsForDomains(partition.deferred, ["drafting"])))
+      .not.toContain("library_create_docx");
+    expect(names(tools.toolsForDomains(partition.deferred, ["document_quality"])))
+      .toEqual(
+        expect.arrayContaining([
+          "library_lint_docx_structure",
+          "library_anchor_coverage",
+          "library_conflict_scan",
+          "library_term_drift",
+          "library_drafting_lint",
+        ]),
+      );
+    const withoutOutput = partition.deferred.filter(
+      (schema) => schema.function.name !== "library_create_docx",
+    );
+    const refreshed = tools.describeToolsTool(withoutOutput);
+    const refreshedDomains = (
+      refreshed.function.parameters.properties as {
+        domains: { items: { enum: string[] } };
+      }
+    ).domains.items.enum;
+    expect(refreshedDomains).not.toContain("output_document");
+  });
+
+  it("hides model-callable quality tools when the SLA compiler runs them", async () => {
+    process.env.MIKE_NAV_SHAPE = "address";
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    process.env.MIKE_SLA_WORKFLOW = "1";
+    const tools = await loadTools();
+    const partition = tools.partitionTools(tools.LOCAL_ASSISTANT_TOOLS);
+    const all = names([...partition.resident, ...partition.deferred]);
+    expect(all).not.toEqual(
+      expect.arrayContaining([
+        "library_lint_docx_structure",
+        "library_anchor_coverage",
+        "library_conflict_scan",
+        "library_term_drift",
+        "library_drafting_lint",
+        "library_bilingual_concordance",
+      ]),
+    );
+    const describe = partition.resident.find(
+      (entry) => entry.function.name === "describe_tools",
+    )!;
+    const domains = (
+      describe.function.parameters.properties as {
+        domains: { items: { enum: string[] } };
+      }
+    ).domains.items.enum;
+    expect(domains).not.toContain("document_quality");
   });
 });
 

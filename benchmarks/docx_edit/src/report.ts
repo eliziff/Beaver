@@ -12,8 +12,17 @@ import path from "node:path";
 import { loadTasks } from "./tasks";
 
 type Receipt = {
+  benchmark_version?: string;
+  run_at?: string;
   surface: string;
+  surface_env?: Record<string, string>;
+  tool_schema_sha256?: string;
+  resident_schema_sha256?: string;
+  repo_head?: string | null;
+  model?: string;
+  reasoning_effort?: string;
   task: string;
+  task_version?: number;
   replicate: number;
   difficulty: string;
   floor_task: boolean;
@@ -63,18 +72,75 @@ const argOf = (name: string, fallback = "") => {
 const mean = (values: number[]) =>
   values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
 
+function oneValue(receipts: Receipt[], label: string, value: (row: Receipt) => unknown) {
+  const values = new Set(receipts.map((row) => JSON.stringify(value(row))));
+  if (values.size !== 1) {
+    throw new Error(`${label} is mixed: ${[...values].join(", ")}`);
+  }
+}
+
+function cleanReceipts(rows: Receipt[]): Receipt[] {
+  const byCell = new Map<string, Receipt[]>();
+  for (const row of rows) {
+    const key = `${row.surface}|${row.task}|${row.replicate}`;
+    const cell = byCell.get(key) ?? [];
+    cell.push(row);
+    byCell.set(key, cell);
+  }
+  let retriesDropped = 0;
+  const receipts = [...byCell.entries()].map(([key, cell]) => {
+    const completed = cell.filter((row) => !row.run_error);
+    if (completed.length > 1) {
+      throw new Error(`duplicate completed receipts for ${key}`);
+    }
+    if (completed.length === 1) {
+      retriesDropped += cell.length - 1;
+      return completed[0];
+    }
+    return cell[cell.length - 1];
+  });
+  const failed = receipts.filter((row) => row.run_error);
+  if (failed.length) {
+    throw new Error(
+      `${failed.length} cell(s) have no completed run: ${failed
+        .slice(0, 5)
+        .map((row) => `${row.surface}/${row.task}/rep${row.replicate}`)
+        .join(", ")}`,
+    );
+  }
+  if (retriesDropped) console.log(`ignored ${retriesDropped} failed retry receipt(s)\n`);
+  return receipts;
+}
+
 function main() {
   const dirs = argOf("out")
     .split(",")
     .map((entry) => entry.trim())
     .filter(Boolean);
   if (!dirs.length) throw new Error("--out is required (comma-separate to pool campaigns)");
-  let receipts = dirs.flatMap((dir) =>
+  let receipts = cleanReceipts(dirs.flatMap((dir) =>
     readFileSync(path.join(dir, "receipts.jsonl"), "utf8")
       .split(/\r?\n/u)
       .filter((line) => line.trim())
       .map((line) => JSON.parse(line) as Receipt),
-  );
+  ));
+  oneValue(receipts, "benchmark version", (row) => row.benchmark_version);
+  oneValue(receipts, "model", (row) => row.model);
+  oneValue(receipts, "reasoning effort", (row) => row.reasoning_effort);
+  oneValue(receipts, "repository HEAD", (row) => row.repo_head);
+  for (const surface of new Set(receipts.map((row) => row.surface))) {
+    const arm = receipts.filter((row) => row.surface === surface);
+    oneValue(arm, `${surface} environment`, (row) => row.surface_env);
+    oneValue(arm, `${surface} tool schema`, (row) => row.tool_schema_sha256);
+    oneValue(arm, `${surface} resident schema`, (row) => row.resident_schema_sha256);
+  }
+  for (const task of new Set(receipts.map((row) => row.task))) {
+    oneValue(
+      receipts.filter((row) => row.task === task),
+      `${task} task version`,
+      (row) => row.task_version,
+    );
+  }
   const tasks = loadTasks();
   const surfaces = [...new Set(receipts.map((r) => r.surface))].sort();
   // Pooling campaigns only compares like with like if every surface ran the

@@ -195,6 +195,8 @@ export interface ProvisionReference {
   aliasKey: string;
   /** true when the text following the label names another instrument */
   external: boolean;
+  /** Start offset of the provision-word head for a coordinated-list member. */
+  continuationOf?: number;
 }
 
 export interface FindProvisionReferencesOptions {
@@ -227,6 +229,8 @@ export function findProvisionReferences(
     plural: boolean,
     rawLabel: string,
     shape: ProvisionReferenceShape,
+    externalOverride?: boolean,
+    continuationOf?: number,
   ) => {
     if (found.has(start)) return;
     const singular = word.toLowerCase().replace(/s$/u, "");
@@ -245,23 +249,91 @@ export function findProvisionReferences(
       shape,
       locator: shape === "roman" ? "" : normalizeSourceDocLocator("section", label),
       aliasKey: `${singular} ${label}`.toLowerCase(),
-      external: isExternalReferenceInContext({
-        before: preceding,
-        after: following,
-      }),
+      external:
+        externalOverride ??
+        isExternalReferenceInContext({
+          before: preceding,
+          after: following,
+        }),
+      ...(continuationOf !== undefined ? { continuationOf } : {}),
     });
   };
 
   for (const match of text.matchAll(REFERENCE_RE)) {
     const start = match.index ?? 0;
+    const rawLabel = match[3] ?? match[4] ?? "";
+    const end = start + match[0].length;
+    const following = text.slice(end, end + window);
+    const preceding = text.slice(Math.max(0, start - window), start);
+    const external = isExternalReferenceInContext({
+      before: preceding,
+      after: following,
+    });
     push(
       start,
       match[0],
       match[1],
       Boolean(match[2]),
-      match[3] ?? match[4] ?? "",
+      rawLabel,
       match[3] ? "numeric" : "sub-only",
+      external,
     );
+
+    const continuations: Array<{
+      start: number;
+      raw: string;
+      label: string;
+      connector: string;
+      shape: ProvisionReferenceShape;
+    }> = [];
+    let cursor = end;
+    const continuationRe = new RegExp(
+      String.raw`^\s*(,|and\b|or\b)\s*(${NUMERIC_LABEL}|${SUB_ONLY_LABEL})`,
+      "iu",
+    );
+    for (let count = 0; count < 50; count += 1) {
+      const continuation = continuationRe.exec(text.slice(cursor));
+      if (!continuation) break;
+      const label = continuation[2];
+      const labelAt = continuation[0].lastIndexOf(label);
+      const labelStart = cursor + labelAt;
+      const shape: ProvisionReferenceShape = label.startsWith("(")
+        ? "sub-only"
+        : "numeric";
+      continuations.push({
+        start: labelStart,
+        raw: label,
+        label,
+        connector: continuation[1].toLowerCase(),
+        shape,
+      });
+      cursor += continuation[0].length;
+    }
+    const safeToExpand =
+      Boolean(match[2]) ||
+      continuations.length > 1 ||
+      continuations.some(
+        (item) =>
+          item.connector !== "," || item.shape === "sub-only",
+      );
+    if (!safeToExpand) continue;
+    const numericHead = compactLabel(rawLabel).replace(/(?:\([^()]+\))+$/u, "");
+    for (const continuation of continuations) {
+      const label =
+        continuation.shape === "sub-only" && numericHead
+          ? `${numericHead}${compactLabel(continuation.label)}`
+          : continuation.label;
+      push(
+        continuation.start,
+        continuation.raw,
+        match[1],
+        false,
+        label,
+        "numeric",
+        external,
+        start,
+      );
+    }
   }
   for (const match of text.matchAll(ROMAN_REFERENCE_RE)) {
     const start = match.index ?? 0;

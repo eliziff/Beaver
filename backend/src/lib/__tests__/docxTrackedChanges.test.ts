@@ -54,6 +54,69 @@ describe("applyTrackedEdits minimal clusters", () => {
   });
 });
 
+describe("applyTrackedEdits trusted exact spans", () => {
+  it("targets one pinned occurrence without re-resolving duplicate text", async () => {
+    const bytes = await draft("Section 1. Rent. Section 2. Rent.");
+    const text = await extractDocxBodyText(bytes);
+    const start = text.lastIndexOf("Rent");
+    const edit = await applyTrackedEdits(bytes, [
+      {
+        find: "Rent",
+        replace: "Base Rent",
+        context_before: "",
+        context_after: "",
+        exact_start: start,
+        exact_end: start + 4,
+      },
+    ]);
+
+    expect(edit.errors).toEqual([]);
+    await expect(extractDocxBodyText(edit.bytes)).resolves.toContain(
+      "Section 1. Rent. Section 2. Base Rent.",
+    );
+  });
+
+  it("refuses a stale exact span", async () => {
+    const bytes = await draft("Section 1. Rent.");
+    const text = await extractDocxBodyText(bytes);
+    const start = text.indexOf("Rent");
+    const edit = await applyTrackedEdits(bytes, [
+      {
+        find: "Term",
+        replace: "Base Term",
+        context_before: "",
+        context_after: "",
+        exact_start: start,
+        exact_end: start + 4,
+      },
+    ]);
+
+    expect(edit.changes).toHaveLength(0);
+    expect(edit.errors[0].reason).toContain("no longer matches");
+  });
+
+  it("preserves the unchanged prefix of an exact numbering edit", async () => {
+    const bytes = await draft("1.03 Third provision.");
+    const text = await extractDocxBodyText(bytes);
+    const start = text.indexOf("1.03");
+    const edit = await applyTrackedEdits(bytes, [
+      {
+        find: "1.03",
+        replace: "1.02",
+        context_before: "",
+        context_after: "",
+        exact_start: start,
+        exact_end: start + 4,
+      },
+    ]);
+
+    expect(edit.errors).toEqual([]);
+    await expect(extractDocxBodyText(edit.bytes)).resolves.toContain(
+      "1.02 Third provision.",
+    );
+  });
+});
+
 describe("applyTrackedEdits annotate mode", () => {
   it("annotates only reasoned edits; unreasoned ones apply without a comment", async () => {
     const bytes = await draft(

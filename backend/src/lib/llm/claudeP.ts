@@ -415,11 +415,6 @@ export async function streamClaudeP(
   const { callbacks = {}, runTools, tools = [] } = params;
   const maxIter = params.maxIterations ?? 10;
 
-  const claudeTools = tools.map((tool) => ({
-    name: tool.function.name,
-    description: tool.function.description,
-    input_schema: tool.function.parameters,
-  }));
   // Images are not carried over this transport (modelSupportsImageInput
   // fails closed for claude-p models).
   const messages: Array<{ role: string; content: string | AnthropicBlock[] }> =
@@ -439,12 +434,27 @@ export async function streamClaudeP(
 
   const persist = persistEnabled();
   let session: ClaudePSession | null = null;
+  let priorToolKey = "";
   // Set when the previous iteration ended in tool calls: the compact
   // follow-up a live session can consume instead of a full replay.
   let continuation: string | null = null;
   try {
     for (let iter = 0; iter < maxIter; iter++) {
       throwIfAborted(params.abortSignal);
+      const claudeTools = (params.resolveTools?.() ?? tools).map((tool) => ({
+        name: tool.function.name,
+        description: tool.function.description,
+        input_schema: tool.function.parameters,
+      }));
+      const toolKey = JSON.stringify(claudeTools);
+      if (priorToolKey && toolKey !== priorToolKey) {
+        // A live claude -p continuation cannot receive a changed schema list.
+        // Replay the accumulated transcript once when disclosure changes it.
+        session?.dispose();
+        session = null;
+        continuation = null;
+      }
+      priorToolKey = toolKey;
       let blocks: AnthropicBlock[] | null = null;
       let lastError: unknown = null;
       // After a parse failure the retry payload carries the bad reply plus a

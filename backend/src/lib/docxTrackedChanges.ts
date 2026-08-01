@@ -42,6 +42,9 @@ export interface EditInput {
     context_before: string;
     context_after: string;
     reason?: string;
+    /** Trusted caller only: exact accepted-view offsets, within one paragraph. */
+    exact_start?: number;
+    exact_end?: number;
 }
 
 interface AppliedChange {
@@ -744,6 +747,151 @@ function diagnoseAnchor(params: {
     ].join("\n");
 }
 
+export interface DocxTableCellSpan {
+    /** 1-based top-level table, row, and grid-column coordinates. */
+    table: number;
+    row: number;
+    column: number;
+    /** Horizontal grid width; no phantom address is minted for covered columns. */
+    columnSpan: number;
+    /** Exact offsets in `extractDocxBodyText`'s accepted-view text. */
+    start: number;
+    end: number;
+}
+
+export interface DocxBodyStructure {
+    text: string;
+    tableCells: DocxTableCellSpan[];
+}
+
+const directChild = (node: XNode, name: string) =>
+    elChildren(node).find((child) => elName(child) === name);
+
+const positiveWordInt = (node: XNode | undefined, name: string) => {
+    const child = node && directChild(node, name);
+    const value = Number(child && elAttrs(child)["@_w:val"]);
+    return Number.isSafeInteger(value) && value > 0 ? value : 1;
+};
+
+/**
+ * The body text plus native DOCX table coordinates on the same offset plane.
+ * Nested tables remain part of the containing cell's text. Vertical and
+ * horizontal merge continuations remain in the global flattened text, but
+ * mint no independent address and do not extend the restart cell's span.
+ */
+export async function extractDocxBodyStructure(
+    bytes: Buffer,
+): Promise<DocxBodyStructure> {
+    const zip = await loadDocxPackage(bytes);
+    const docXmlFile = getZipEntry(zip, "word/document.xml");
+    if (!docXmlFile) return { text: "", tableCells: [] };
+    const docXmlRaw = await docXmlFile.async("string");
+    const parser = createParser();
+    const tree = parser.parse(docXmlRaw) as XNode[];
+    const bodyChildren = findBodyChildren(tree);
+    if (!bodyChildren) return { text: "", tableCells: [] };
+
+    const lines: string[] = [];
+    const lineStarts: number[] = [];
+    const tableCells: DocxTableCellSpan[] = [];
+    let cursor = 0;
+    let table = 0;
+
+    const pushParagraph = (node: XNode) => {
+        if (lines.length) cursor += 1;
+        lineStarts.push(cursor);
+        const value = flattenParagraph(elChildren(node)).paraText;
+        lines.push(value);
+        cursor += value.length;
+    };
+
+    const collect = (nodes: XNode[], tableDepth = 0) => {
+        for (const n of nodes) {
+            const name = elName(n);
+            if (!name) continue;
+            if (name === "w:p") {
+                pushParagraph(n);
+            } else if (name === "w:tbl" && tableDepth === 0) {
+                collectTable(n);
+            } else if (
+                name === "w:tbl" ||
+                name === "w:tr" ||
+                name === "w:tc" ||
+                name === "w:sdt" ||
+                name === "w:sdtContent"
+            ) {
+                collect(elChildren(n), tableDepth + (name === "w:tbl" ? 1 : 0));
+            }
+        }
+    };
+
+    const collectTable = (node: XNode) => {
+        table += 1;
+        const tableNumber = table;
+        let row = 0;
+
+        const collectRows = (nodes: XNode[]) => {
+            for (const child of nodes) {
+                const name = elName(child);
+                if (name === "w:tr") {
+                    row += 1;
+                    collectRow(child, tableNumber, row);
+                } else if (name === "w:sdt" || name === "w:sdtContent") {
+                    collectRows(elChildren(child));
+                }
+            }
+        };
+        collectRows(elChildren(node));
+    };
+
+    const collectRow = (node: XNode, tableNumber: number, rowNumber: number) => {
+        const trPr = directChild(node, "w:trPr");
+        const gridBefore = trPr && directChild(trPr, "w:gridBefore");
+        const skipped = Number(gridBefore && elAttrs(gridBefore)["@_w:val"]);
+        let column = Number.isSafeInteger(skipped) && skipped >= 0 ? skipped + 1 : 1;
+
+        const collectCells = (nodes: XNode[]) => {
+            for (const child of nodes) {
+                const name = elName(child);
+                if (name === "w:tc") {
+                    const tcPr = directChild(child, "w:tcPr");
+                    const columnSpan = positiveWordInt(tcPr, "w:gridSpan");
+                    const vMerge = tcPr && directChild(tcPr, "w:vMerge");
+                    const hMerge = tcPr && directChild(tcPr, "w:hMerge");
+                    const mergeValue = (merge: XNode | undefined) =>
+                        String(merge && elAttrs(merge)["@_w:val"] || "").toLowerCase();
+                    const continuation =
+                        (!!vMerge && mergeValue(vMerge) !== "restart") ||
+                        (!!hMerge && mergeValue(hMerge) !== "restart");
+                    const firstLine = lines.length;
+                    collect(elChildren(child), 1);
+                    const lastLine = lines.length - 1;
+                    if (!continuation) {
+                        tableCells.push({
+                            table: tableNumber,
+                            row: rowNumber,
+                            column,
+                            columnSpan,
+                            start: firstLine <= lastLine ? lineStarts[firstLine] : cursor,
+                            end:
+                                firstLine <= lastLine
+                                    ? lineStarts[lastLine] + lines[lastLine].length
+                                    : cursor,
+                        });
+                    }
+                    column += columnSpan;
+                } else if (name === "w:sdt" || name === "w:sdtContent") {
+                    collectCells(elChildren(child));
+                }
+            }
+        };
+        collectCells(elChildren(node));
+    };
+
+    collect(bodyChildren);
+    return { text: lines.join("\n"), tableCells };
+}
+
 /**
  * Extract the body text of a .docx using the same flattening rules as the
  * tracked-changes matcher. Paragraphs are joined by a single newline. The
@@ -752,36 +900,7 @@ function diagnoseAnchor(params: {
  * anchor matcher operates against.
  */
 export async function extractDocxBodyText(bytes: Buffer): Promise<string> {
-    const zip = await loadDocxPackage(bytes);
-    const docXmlFile = getZipEntry(zip, "word/document.xml");
-    if (!docXmlFile) return "";
-    const docXmlRaw = await docXmlFile.async("string");
-    const parser = createParser();
-    const tree = parser.parse(docXmlRaw) as XNode[];
-    const bodyChildren = findBodyChildren(tree);
-    if (!bodyChildren) return "";
-
-    const lines: string[] = [];
-    const collect = (nodes: XNode[]) => {
-        for (const n of nodes) {
-            const name = elName(n);
-            if (!name) continue;
-            if (name === "w:p") {
-                const flat = flattenParagraph(elChildren(n));
-                lines.push(flat.paraText);
-            } else if (
-                name === "w:tbl" ||
-                name === "w:tr" ||
-                name === "w:tc" ||
-                name === "w:sdt" ||
-                name === "w:sdtContent"
-            ) {
-                collect(elChildren(n));
-            }
-        }
-    };
-    collect(bodyChildren);
-    return lines.join("\n");
+    return (await extractDocxBodyStructure(bytes)).text;
 }
 
 /**
@@ -943,47 +1062,90 @@ export async function applyTrackedEdits(
             return { kind: "ok", hits };
         };
 
-        let selected: Hit | null = null;
-        const attempts = [
-            { cb: ctxBeforeNorm, ca: ctxAfterNorm },
-            { cb: ctxBeforeNorm, ca: "" },
-            { cb: "", ca: ctxAfterNorm },
-            { cb: "", ca: "" }, // find-only
-        ];
-        for (const { cb, ca } of attempts) {
-            const r = tryStrategy(cb, ca);
-            if (r.kind === "ok" && r.hits.length === 1) {
-                selected = r.hits[0];
-                break;
+        let paraIdx = -1;
+        let findStart = -1;
+        let findEnd = -1;
+        const hasExact =
+            Number.isSafeInteger(edit.exact_start) &&
+            Number.isSafeInteger(edit.exact_end);
+        if (hasExact) {
+            const exactStart = edit.exact_start!;
+            const exactEnd = edit.exact_end!;
+            if (exactStart < 0 || exactEnd < exactStart) {
+                errors.push({ index: editIdx, reason: "Invalid exact edit span." });
+                continue;
             }
-        }
+            const candidates = paragraphs
+                .map((paragraph, index) => ({ paragraph, index }))
+                .filter(({ paragraph }) => {
+                    const start = paragraph.globalStart;
+                    const end = start + paragraph.flat.paraText.length;
+                    return exactStart >= start && exactEnd <= end;
+                });
+            if (candidates.length !== 1) {
+                errors.push({
+                    index: editIdx,
+                    reason: "Exact edit span must resolve inside one paragraph.",
+                });
+                continue;
+            }
+            paraIdx = candidates[0].index;
+            findStart = exactStart - candidates[0].paragraph.globalStart;
+            findEnd = exactEnd - candidates[0].paragraph.globalStart;
+            if (
+                candidates[0].paragraph.flat.paraText.slice(findStart, findEnd) !==
+                find
+            ) {
+                errors.push({
+                    index: editIdx,
+                    reason: "Exact edit span no longer matches the pinned text.",
+                });
+                continue;
+            }
+        } else {
+            let selected: Hit | null = null;
+            const attempts = [
+                { cb: ctxBeforeNorm, ca: ctxAfterNorm },
+                { cb: ctxBeforeNorm, ca: "" },
+                { cb: "", ca: ctxAfterNorm },
+                { cb: "", ca: "" }, // find-only
+            ];
+            for (const { cb, ca } of attempts) {
+                const r = tryStrategy(cb, ca);
+                if (r.kind === "ok" && r.hits.length === 1) {
+                    selected = r.hits[0];
+                    break;
+                }
+            }
 
-        if (!selected) {
-            errors.push({
-                index: editIdx,
-                reason: diagnoseAnchor({
-                    paragraphs,
-                    paraNorms,
-                    find,
-                    findNorm,
-                    ctxBeforeNorm,
-                    ctxAfterNorm,
-                    replaceNorm: normalizeWs(replace).norm,
-                }),
-            });
-            continue;
-        }
+            if (!selected) {
+                errors.push({
+                    index: editIdx,
+                    reason: diagnoseAnchor({
+                        paragraphs,
+                        paraNorms,
+                        find,
+                        findNorm,
+                        ctxBeforeNorm,
+                        ctxAfterNorm,
+                        replaceNorm: normalizeWs(replace).norm,
+                    }),
+                });
+                continue;
+            }
 
-        const hit = selected;
-        const paraIdx = hit.paraIdx;
-        const paraNorm = paraNorms[paraIdx];
-        const origLen = paragraphs[paraIdx].flat.paraText.length;
-        const { start: findStart, end: findEnd } = mapNormRangeToOriginal(
-            paraNorm,
-            origLen,
-            hit.normStart,
-            hit.normEnd,
-        );
+            paraIdx = selected.paraIdx;
+            const paraNorm = paraNorms[paraIdx];
+            const origLen = paragraphs[paraIdx].flat.paraText.length;
+            const range = mapNormRangeToOriginal(
+                paraNorm,
+                origLen,
+                selected.normStart,
+                selected.normEnd,
+            );
+            findStart = range.start;
+            findEnd = range.end;
+        }
 
         // Use the actual original text in that range as `deletedText` —
         // this preserves the document's whitespace/quote style rather than

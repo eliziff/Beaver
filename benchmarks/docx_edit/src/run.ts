@@ -11,7 +11,7 @@
  *
  *   npx tsx ../benchmarks/docx_edit/src/run.ts \
  *     --surface beaver-address --task lease-cure-period \
- *     --model codex:gpt-5.6-sol --rep 1 --out <dir>
+ *     --model claude-p:claude-sonnet-4-6 --effort medium --rep 1 --out <dir>
  */
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -29,6 +29,7 @@ import {
   extractDocxBodyText,
   extractTrackedChangeIds,
   resolveTrackedChange,
+  type OpenAIToolSchema,
 } from "../../../backend/scripts/docx-edit-bench-bridge";
 import { scoreTask } from "./checks";
 import { fixtureBytes, fixtureSpec, fixtureText } from "./fixtures";
@@ -75,13 +76,17 @@ type CapturedCall = {
 async function child() {
   const surface = surfaceById(argOf("surface"));
   const task = taskById(argOf("task"));
-  const model = argOf("model", "codex:gpt-5.6-sol");
-  const effort = argOf("effort", "medium");
+  const model = argOf("model");
+  const effort = argOf("effort");
   const rep = Number(argOf("rep", "1"));
   const outDir = argOf("out");
 
-  const { LOCAL_ASSISTANT_TOOLS, runLocalAssistantTools, partitionTools } =
-    await import("../../../backend/src/lib/chat/localAssistantTools");
+  const {
+    LOCAL_ASSISTANT_TOOLS,
+    runLocalAssistantTools,
+    partitionTools,
+    toolsForDomains,
+  } = await import("../../../backend/src/lib/chat/localAssistantTools");
   const { createLocalDocument, getLocalVersionFile } = await import(
     "../../../backend/src/lib/localDocumentStore"
   );
@@ -124,158 +129,143 @@ async function child() {
   const residentSchemaBytes = Buffer.byteLength(JSON.stringify(partition.resident));
   const fullSchemaBytes = Buffer.byteLength(JSON.stringify(allTools));
   const schemaBytesPerRequest: number[] = [];
+  const schemaHashesPerRequest: string[] = [];
   const disclosure: { phase: number; batch: number; domains: string[]; opened: string[] }[] = [];
   const refusedUnserved: { batch: number; name: string }[] = [];
+  const refusedHeadless: { batch: number; name: string }[] = [];
 
   const calls: CapturedCall[] = [];
+  const turnEditState: import("../../../backend/src/lib/chat/localAssistantTools").LocalAssistantEditTurnState =
+    new Map();
   let iteration = 0;
   const started = Date.now();
   let answer = "";
   let runError: string | null = null;
 
-  // The provider adapter freezes its tool list when the call starts, so a
-  // domain opened mid-call cannot become callable inside that call. The loop
-  // therefore ends the provider call at the disclosure and continues in a new
-  // one, replaying the exchange so far. The replay's token cost is real and is
-  // counted; a surface that never defers never restarts.
-  const MAX_PHASES = 3;
-  const conversation: { role: "user" | "assistant"; content: string }[] = [
-    { role: "user", content: task.instruction },
-  ];
-  let phase = 0;
-  let restarts = 0;
-
-  while (phase < MAX_PHASES) {
-    phase += 1;
-    const abort = new AbortController();
-    const phaseExchange: { call: string; result: string }[] = [];
-    let disclosed = false;
-    let phaseText = "";
-    schemaBytesPerRequest.push(Buffer.byteLength(JSON.stringify(served)));
-    try {
-      await streamChatWithTools({
-        model,
-        systemPrompt: `${SYSTEM_PROMPT}\n\nDocuments in the library: ${task.fixtures
-          .map((id) => fixtureSpec(id).filename)
-          .join("; ")}.`,
-        messages: conversation,
-        tools: served,
-        maxIterations: 14,
-        reasoningEffort: effort,
-        enableThinking: true,
-        abortSignal: abort.signal,
-        callbacks: {
-          onContentDelta: (text: string) => {
-            answer += text;
-            phaseText += text;
-          },
+  try {
+    await streamChatWithTools({
+      model,
+      systemPrompt: `${SYSTEM_PROMPT}\n\nDocuments in the library: ${task.fixtures
+        .map((id) => fixtureSpec(id).filename)
+        .join("; ")}.`,
+      messages: [{ role: "user", content: task.instruction }],
+      tools: served,
+      resolveTools: () => {
+        schemaBytesPerRequest.push(Buffer.byteLength(JSON.stringify(served)));
+        schemaHashesPerRequest.push(
+          createHash("sha256").update(JSON.stringify(served)).digest("hex"),
+        );
+        return served;
+      },
+      maxIterations: 14,
+      reasoningEffort: effort,
+      enableThinking: true,
+      callbacks: {
+        onContentDelta: (text: string) => {
+          answer += text;
         },
-        runTools: async (batch) => {
-          iteration += 1;
-          // A tool the surface has not served is not callable, whatever the
-          // handlers would do with the name. Without this the deferral would
-          // measure as free for any model that guesses a name.
-          const allowed = batch.filter((call) => servedNames.has(call.name));
-          const blocked = batch.filter((call) => !servedNames.has(call.name));
-          for (const call of blocked) {
+      },
+      runTools: async (batch) => {
+        iteration += 1;
+        // Snapshot first: a describe_tools call may open a domain only for
+        // the next model turn, never for another call in this same batch.
+        const callable = new Set(servedNames);
+        const executable = batch.filter(
+          (call) => callable.has(call.name) && call.name !== "ask_inputs",
+        );
+        for (const call of batch) {
+          if (call.name === "ask_inputs") {
+            refusedHeadless.push({ batch: iteration, name: call.name });
+          } else if (!callable.has(call.name)) {
             refusedUnserved.push({ batch: iteration, name: call.name });
           }
-          const executed = allowed.length
-            ? await runLocalAssistantTools(userId, allowed)
-            : [];
-          const byId = new Map(executed.map((entry) => [entry.tool_use_id, entry.content]));
-          const results = batch.map((call) => ({
-            tool_use_id: call.id,
-            content:
-              byId.get(call.id) ??
-              JSON.stringify({
-                ok: false,
-                error: `Tool '${call.name}' is not available in this session.`,
-              }),
-          }));
-          for (const entry of results) {
-            const call = batch.find((item) => item.id === entry.tool_use_id)!;
-            const content = entry.content;
-            let ok: boolean | null = null;
-            let error: string | null = null;
-            try {
-              const parsed = JSON.parse(content) as { ok?: boolean; error?: string };
-              if (typeof parsed.ok === "boolean") ok = parsed.ok;
-              if (typeof parsed.error === "string") error = parsed.error;
-            } catch {
-              if (/^No such tool|not found|does not exist/iu.test(content)) {
-                ok = false;
-                error = content.slice(0, 300);
+        }
+        const executed = executable.length
+          ? await runLocalAssistantTools(
+              userId,
+              executable,
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              turnEditState,
+            )
+          : [];
+        const byId = new Map(executed.map((entry) => [entry.tool_use_id, entry.content]));
+        const results = batch.map((call) => ({
+          tool_use_id: call.id,
+          content:
+            call.name === "ask_inputs"
+              ? JSON.stringify({
+                  ok: false,
+                  error: "ask_inputs is unavailable in this headless benchmark.",
+                })
+              : byId.get(call.id) ??
+                JSON.stringify({
+                  ok: false,
+                  error: `Tool '${call.name}' is not loaded. Call describe_tools, then retry it on the next turn.`,
+                }),
+        }));
+
+        const domains = new Set<string>();
+        for (const entry of results) {
+          const call = batch.find((item) => item.id === entry.tool_use_id)!;
+          const content = entry.content;
+          let ok: boolean | null = null;
+          let error: string | null = null;
+          try {
+            const parsed = JSON.parse(content) as {
+              ok?: boolean;
+              error?: string;
+              domains?: string[];
+            };
+            if (typeof parsed.ok === "boolean") ok = parsed.ok;
+            if (typeof parsed.error === "string") error = parsed.error;
+            if (call.name === "describe_tools" && parsed.ok === true) {
+              for (const domain of parsed.domains ?? []) {
+                if (typeof domain === "string") domains.add(domain);
               }
             }
-            calls.push({
-              iteration,
-              name: call.name,
-              input: call.input,
-              ok,
-              error,
-              result_chars: content.length,
-            });
-            phaseExchange.push({
-              call: JSON.stringify({ name: call.name, arguments: call.input }),
-              // The replay carries the content the model already saw; capping
-              // it would change what the continuation knows.
-              result: content,
-            });
-            if (call.name === "describe_tools" && ok !== false) {
-              try {
-                const parsed = JSON.parse(content) as {
-                  domains?: string[];
-                  opened?: string[];
-                  tools?: OpenAIToolSchema[];
-                };
-                const opened = (parsed.tools ?? []).filter(
-                  (entry) => !servedNames.has(entry.function.name),
-                );
-                if (opened.length) {
-                  served = [...served, ...opened];
-                  for (const entry of opened) servedNames.add(entry.function.name);
-                  disclosed = true;
-                }
-                disclosure.push({
-                  phase,
-                  batch: iteration,
-                  domains: parsed.domains ?? [],
-                  opened: parsed.opened ?? [],
-                });
-              } catch {}
+          } catch {
+            if (/^No such tool|not found|does not exist/iu.test(content)) {
+              ok = false;
+              error = content.slice(0, 300);
             }
           }
-          if (disclosed) abort.abort();
-          return results;
-        },
-      });
-    } catch (error) {
-      if (!abort.signal.aborted) {
-        runError = error instanceof Error ? error.message : String(error);
-      }
-    }
-    if (!disclosed) break;
-    restarts += 1;
-    // Replay the exchange so far, then continue. Neutral wording, and it can
-    // only fire on a surface that defers, so it never touches a surface that
-    // does not.
-    if (phaseText.trim()) {
-      conversation.push({ role: "assistant", content: phaseText.trim() });
-    }
-    conversation.push({
-      role: "assistant",
-      content:
-        "Tool calls I made so far:\n" +
-        phaseExchange.map((entry) => entry.call).join("\n"),
+          calls.push({
+            iteration,
+            name: call.name,
+            input: call.input,
+            ok,
+            error,
+            result_chars: content.length,
+          });
+        }
+
+        if (domains.size) {
+          const opened = toolsForDomains(partition.deferred, [...domains]).filter(
+            (entry) => !servedNames.has(entry.function.name),
+          );
+          if (opened.length) {
+            served = [...served, ...opened];
+            for (const entry of opened) servedNames.add(entry.function.name);
+          }
+          disclosure.push({
+            phase: 1,
+            batch: iteration,
+            domains: [...domains],
+            opened: opened.map((entry) => entry.function.name),
+          });
+        }
+        return results;
+      },
     });
-    conversation.push({
-      role: "user",
-      content:
-        "Results of those tool calls:\n" +
-        phaseExchange.map((entry) => entry.result).join("\n---\n") +
-        "\n\nThe tools you asked for are now available. Continue and finish the task.",
-    });
+  } catch (error) {
+    runError = error instanceof Error ? error.message : String(error);
   }
   const wallClockSeconds = (Date.now() - started) / 1000;
 
@@ -291,7 +281,7 @@ async function child() {
       results.set(fixtureId, originals.get(fixtureId)!);
       continue;
     }
-    let bytes = readFileSync(file.path);
+    let bytes: Buffer = readFileSync(file.path);
     const ids = (await extractTrackedChangeIds(bytes)).map((entry) => entry.w_id);
     if (ids.length) bytes = (await resolveTrackedChange(bytes, ids, "accept")).bytes;
     results.set(fixtureId, await extractDocxBodyText(bytes));
@@ -385,16 +375,30 @@ async function child() {
     resident_schema_bytes: residentSchemaBytes,
     schema_bytes_first_request: schemaBytesPerRequest[0] ?? residentSchemaBytes,
     schema_bytes_per_request: schemaBytesPerRequest,
+    schema_sha256_per_request: schemaHashesPerRequest,
     schema_bytes_mean_request:
       schemaBytesPerRequest.reduce((a, b) => a + b, 0) /
       Math.max(1, schemaBytesPerRequest.length),
     disclosure_events: disclosure,
     disclosure_domains: [...new Set(disclosure.flatMap((entry) => entry.domains))],
     disclosure_first_batch: disclosure.length ? disclosure[0].batch : null,
-    disclosure_restarts: restarts,
+    disclosure_restarts: 0,
     refused_unserved_calls: refusedUnserved,
-    // Opened but never called: the domain cost a turn and bought nothing.
-    opened_never_called: [...new Set(disclosure.flatMap((entry) => entry.opened))].filter(
+    refused_headless_calls: refusedHeadless,
+    // A domain is useful when any of its schemas is called. Opening one
+    // member out of a small domain is not disclosure waste.
+    opened_domains_never_called: [
+      ...new Set(disclosure.flatMap((entry) => entry.domains)),
+    ].filter((domain) => {
+      const names = new Set(
+        toolsForDomains(partition.deferred, [domain]).map(
+          (entry) => entry.function.name,
+        ),
+      );
+      return !calls.some((call) => names.has(call.name));
+    }),
+    // Tool-level detail remains diagnostic, but is not the waste verdict.
+    opened_tools_never_called: [...new Set(disclosure.flatMap((entry) => entry.opened))].filter(
       (name) => !calls.some((call) => call.name === name),
     ),
     // Pins the served surface: a product change that reintroduces a dropped

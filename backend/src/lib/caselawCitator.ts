@@ -2,7 +2,10 @@ import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
-import { citationLookupKey as sharedCitationLookupKey } from "./citationKey";
+import {
+  citationLookupKey as sharedCitationLookupKey,
+  citationsInText,
+} from "./citationKey";
 import { classifyCitatorExcerpt } from "./citatorExcerpts";
 import { courtLevel } from "./courtLevels";
 import { withReadonlySqlite } from "./legalDataPath";
@@ -41,6 +44,10 @@ export type NoteUpEntry = {
   paragraph: number | null;
   /** occurrences of the cited decision inside this citing case */
   occurrences: number;
+  /** distinct numbered citing paragraphs containing the citation */
+  distinctParagraphs: number;
+  /** deterministic court hierarchy level; null when the corpus code is unknown */
+  courtLevel: number | null;
   /** how the citing text wrote the first occurrence, e.g. "2015 CSC 5" */
   citedAs: string;
   /** cited-side pinpoints of the first occurrence, e.g. "par86" */
@@ -65,6 +72,15 @@ export type NoteUpResult = {
     citingReported: string[];
   } | null;
 };
+
+export type NoteUpCourtScope =
+  | "all"
+  | "scc"
+  | "appellate"
+  | "trial"
+  | "tribunal";
+
+export type NoteUpSort = "newest" | "most_discussed";
 
 export type CitatorGraphStats = {
   cases_indexed: number;
@@ -92,7 +108,17 @@ function withDatabase<T>(operation: (database: DatabaseSync) => T): T | null {
  * survives normalization.
  */
 export function citationLookupKey(value: string): string {
-  const key = sharedCitationLookupKey(value);
+  const detected = citationsInText(value);
+  if (detected.length > 1) {
+    throw new Error(
+      "citation must identify one citation form; multiple citations were found",
+    );
+  }
+  // Tool inputs often carry a case name or pinpoint around the identity
+  // citation. Detection and identity stay separate shared contracts: strip
+  // the decoration here, then key the one detected citation exactly as the
+  // corpus index does.
+  const key = sharedCitationLookupKey(detected[0]?.text ?? value);
   if (!key) {
     throw new Error(
       "citation is required (no letters or digits survive normalization)",
@@ -183,42 +209,65 @@ export function citationAliasKeysBatch(citations: string[]): string[][] {
 export function noteUpCitations(args: {
   citation: string;
   size?: number;
+  courtScope?: NoteUpCourtScope;
+  courtCode?: string;
+  sort?: NoteUpSort;
 }): NoteUpResult | null {
   const key = citationLookupKey(args.citation);
   const wanted = Math.max(1, Math.min(50, Math.trunc(args.size ?? 10)));
+  const courtScope = args.courtScope ?? "all";
+  const courtCode = args.courtCode?.trim().toUpperCase() || null;
+  if (courtCode && courtScope !== "all") {
+    throw new Error("court_code cannot be combined with a non-all court_scope");
+  }
+  const sort = args.sort ?? "newest";
   return withDatabase((database) => {
     const keys = keysForQuery(database, key);
     const placeholders = keys.map(() => "?").join(", ");
-    // The page is capped; the count must not be. A note-up that reports its
-    // page size as the answer understates how heavily a case has been cited.
-    const total = Number(
-      (
-        database
-          .prepare(
-            `SELECT COUNT(DISTINCT case_id) AS total
-             FROM edge WHERE cited_key IN (${placeholders})`,
-          )
-          .get(...keys) as Row
-      ).total,
-    );
-    const groups = database
+    const groups = (database
       .prepare(
         `SELECT case_doc.citation, case_doc.name, case_doc.court, case_doc.date,
                 case_doc.url, case_doc.id AS case_id,
-                COUNT(*) AS occurrences, MIN(edge.text_offset) AS first_offset
+                COUNT(*) AS occurrences,
+                COUNT(DISTINCT edge.paragraph) AS distinct_paragraphs,
+                MIN(edge.text_offset) AS first_offset
          FROM edge
          JOIN case_doc ON case_doc.id = edge.case_id
          WHERE edge.cited_key IN (${placeholders})
-         GROUP BY edge.case_id
-         ORDER BY (case_doc.date IS NULL), case_doc.date DESC, case_doc.id
-         LIMIT ?`,
+         GROUP BY edge.case_id`,
       )
-      .all(...keys, wanted) as Row[];
+      .all(...keys) as Row[])
+      .filter((group) => {
+        const code = String(group.court ?? "").trim().toUpperCase();
+        if (courtCode) return code === courtCode;
+        if (courtScope === "all") return true;
+        const level = courtLevel(code)?.level ?? null;
+        if (courtScope === "scc") return level === 5;
+        if (courtScope === "appellate") return level === 4;
+        if (courtScope === "trial") return level === 2 || level === 3;
+        return level === 1;
+      });
+    const byNewest = (left: Row, right: Row) =>
+      (left.date === null ? 1 : 0) - (right.date === null ? 1 : 0) ||
+      String(right.date ?? "").localeCompare(String(left.date ?? "")) ||
+      Number(left.case_id) - Number(right.case_id);
+    groups.sort((left, right) =>
+      sort === "most_discussed"
+        ? Number(right.occurrences) - Number(left.occurrences) ||
+          Number(right.distinct_paragraphs) - Number(left.distinct_paragraphs) ||
+          (courtLevel(String(right.court ?? ""))?.level ?? 0) -
+            (courtLevel(String(left.court ?? ""))?.level ?? 0) ||
+          byNewest(left, right)
+        : byNewest(left, right),
+    );
+    // The page is capped; the count must not be. A note-up that reports its
+    // page size as the answer understates how many citing cases matched.
+    const total = groups.length;
     const firstOccurrence = database.prepare(
       `SELECT cited_citation, paragraph, pinpoints, excerpt
        FROM edge WHERE case_id = ? AND text_offset = ?`,
     );
-    const entries = groups.map((group) => {
+    const entries = groups.slice(0, wanted).map((group) => {
       const first = firstOccurrence.get(
         group.case_id as number,
         group.first_offset as number,
@@ -231,6 +280,8 @@ export function noteUpCitations(args: {
         url: (group.url as string | null) ?? null,
         paragraph: first.paragraph === null ? null : Number(first.paragraph),
         occurrences: Number(group.occurrences),
+        distinctParagraphs: Number(group.distinct_paragraphs),
+        courtLevel: courtLevel(group.court as string | null)?.level ?? null,
         citedAs: String(first.cited_citation),
         pinpoints: (first.pinpoints as string | null) ?? null,
         excerpt: String(first.excerpt),

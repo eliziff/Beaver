@@ -2,11 +2,30 @@ import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import { spawn } from "node:child_process";
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { streamClaudeP } from "../llm/claudeP";
+import type { OpenAIToolSchema } from "../llm/types";
 
 vi.mock("node:child_process", () => ({ spawn: vi.fn() }));
+
+const tool = (name: string): OpenAIToolSchema => ({
+  type: "function",
+  function: {
+    name,
+    description: `${name} tool`,
+    parameters: { type: "object", properties: {} },
+  },
+});
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  delete process.env.MIKE_CLAUDE_P_PERSIST;
+});
+
+afterEach(() => {
+  delete process.env.MIKE_CLAUDE_P_PERSIST;
+});
 
 describe("claude -p transport", () => {
   it("gives Claude only Beaver's transport protocol and tools", async () => {
@@ -103,5 +122,79 @@ describe("claude -p transport", () => {
     ]);
     expect(vi.mocked(spawn)).toHaveBeenCalledTimes(2);
     expect(result.fullText).toBe('A "quoted" answer');
+  });
+
+  it("restarts a persistent session and replays context when tools change", async () => {
+    process.env.MIKE_CLAUDE_P_PERSIST = "1";
+    const inputs: Buffer[][] = [];
+    const children: Array<{ kill: ReturnType<typeof vi.fn> }> = [];
+    vi.mocked(spawn).mockImplementation(() => {
+      const child = new EventEmitter() as EventEmitter & {
+        stdin: PassThrough;
+        stdout: PassThrough;
+        stderr: PassThrough;
+        kill: ReturnType<typeof vi.fn>;
+      };
+      child.stdin = new PassThrough();
+      child.stdout = new PassThrough();
+      child.stderr = new PassThrough();
+      child.kill = vi.fn();
+      const input: Buffer[] = [];
+      const session = inputs.length;
+      inputs.push(input);
+      children.push(child);
+      child.stdin.on("data", (chunk: Buffer) => {
+        input.push(chunk);
+        const reply = session === 0
+          ? `TOOL_CALLS\n${JSON.stringify({
+              calls: [{ id: "toolu_1", name: "discover", input: {} }],
+            })}`
+          : "FINAL\ndone";
+        queueMicrotask(() => {
+          child.stdout.write(
+            `${JSON.stringify({
+              type: "result",
+              result: reply,
+              usage: { input_tokens: 1, output_tokens: 1 },
+            })}\n`,
+          );
+        });
+      });
+      return child as never;
+    });
+    let activeTools = [tool("discover")];
+
+    const result = await streamClaudeP({
+      model: "claude-p:claude-sonnet-4-6",
+      systemPrompt: "system",
+      messages: [{ role: "user", content: "research" }],
+      tools: activeTools,
+      resolveTools: () => activeTools,
+      runTools: async () => {
+        activeTools = [...activeTools, tool("revealed")];
+        return [{ tool_use_id: "toolu_1", content: "opened" }];
+      },
+    });
+
+    expect(result.fullText).toBe("done");
+    expect(vi.mocked(spawn)).toHaveBeenCalledTimes(2);
+    expect(children[0].kill).toHaveBeenCalled();
+    const firstPayload = JSON.parse(
+      JSON.parse(Buffer.concat(inputs[0]).toString("utf8")).message.content[0]
+        .text,
+    );
+    const secondPayload = JSON.parse(
+      JSON.parse(Buffer.concat(inputs[1]).toString("utf8")).message.content[0]
+        .text,
+    );
+    expect(firstPayload.tools.map((entry: { name: string }) => entry.name))
+      .toEqual(["discover"]);
+    expect(secondPayload.tools.map((entry: { name: string }) => entry.name))
+      .toEqual(["discover", "revealed"]);
+    expect(secondPayload.messages).toHaveLength(3);
+    expect(secondPayload.messages[2]).toMatchObject({
+      role: "user",
+      content: [{ tool_use_id: "toolu_1", content: "opened" }],
+    });
   });
 });

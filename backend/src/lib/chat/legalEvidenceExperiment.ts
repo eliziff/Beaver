@@ -129,7 +129,8 @@ export type LegalEvidenceReceipt = {
   resolver_version:
     | "a2aj-inline-v1"
     | "benchmark-span-v1"
-    | "citator-standsfor-v1";
+    | "citator-standsfor-v1"
+    | "citator-noteup-v1";
 };
 
 type RegisteredEvidence = {
@@ -440,6 +441,46 @@ export function attestedCharacterizationReceipt(args: {
           }`,
     },
     resolver_version: "citator-standsfor-v1",
+  };
+}
+
+/** Exact citing passage returned by the deterministic note-up graph. */
+export function citatorNoteUpReceipt(args: {
+  citedCitation: string;
+  entry: {
+    citation: string | null;
+    name: string | null;
+    court: string | null;
+    date: string | null;
+    url: string | null;
+    paragraph: number | null;
+    excerpt: string;
+  };
+}): LegalEvidenceReceipt {
+  const source = args.entry.citation ?? args.entry.name ?? "unknown-citing-case";
+  const paragraph = args.entry.paragraph === null ? "passage" : `para:${args.entry.paragraph}`;
+  return {
+    evidence_id: evidenceId(),
+    provider: "citator",
+    jurisdiction: "CA",
+    source_class: "case",
+    stable_source_id: `citator:noteup:${normalizeWhitespace(source).toLowerCase()}`,
+    source_sha256: sha256(args.entry.excerpt),
+    scope: "passage",
+    block_id: `noteup:${source}:${paragraph}`,
+    span_sha256: sha256(normalizeWhitespace(args.entry.excerpt)),
+    span_text: args.entry.excerpt,
+    citation: args.entry.citation ?? args.citedCitation,
+    name: args.entry.name,
+    dataset: "citator",
+    language: "en",
+    version: args.entry.date,
+    external_url: args.entry.url,
+    locator: {
+      kind: "document",
+      label: `${source}${args.entry.paragraph === null ? "" : ` at para ${args.entry.paragraph}`}`,
+    },
+    resolver_version: "citator-noteup-v1",
   };
 }
 

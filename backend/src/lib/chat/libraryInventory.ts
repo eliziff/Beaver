@@ -9,7 +9,8 @@
 // from five to zero.
 //
 // Naming the documents up front costs ~20 tokens each and removes a whole
-// discovery round trip, since the ids the tools require are right there.
+// discovery round trip, since the identifiers the active tools require are
+// right there.
 // Per-document STRUCTURE stays on demand (library_outline) — this is an
 // inventory, not an outline.
 import { listLocalLibrary } from "../localDocumentStore";
@@ -37,19 +38,25 @@ export async function libraryInventoryPrompt(
       (document) => !allowedDocumentIds || allowedDocumentIds.has(document.id),
     );
     if (!inScope.length) return "";
+    const codingShape = process.env.MIKE_TOOL_SHAPE === "coding";
     if (inScope.length > MAX_LISTED_DOCUMENTS) {
       return (
         `\n\nThe user's Library holds ${inScope.length} documents available to you now. ` +
-        `Enumerate them with library_list and match loose references ("the lease", "her email") ` +
+        `Enumerate them with ${codingShape ? 'Glob(pattern="*")' : "library_list"} and match loose references ("the lease", "her email") ` +
         `against it rather than saying you have no access.\n`
       );
     }
     const lines = inScope.map(
-      (document) => `- ${document.filename} — document_id ${document.id}`,
+      (document) =>
+        codingShape
+          ? `- ${document.filename}`
+          : `- ${document.filename} — document_id ${document.id}`,
     );
     return (
       `\n\nThese documents are already in the user's Library and available to you now. ` +
-      `Use the document_id shown here directly instead of calling library_list. ` +
+      (codingShape
+        ? `Use the filename directly with Grep or Read; call Glob only if a name is ambiguous. `
+        : `Use the document_id shown here directly instead of calling library_list. `) +
       `Match a loose reference ("the lease", "her email") to one of these rather than saying you have no access.\n` +
       `${lines.join("\n")}\n`
     );

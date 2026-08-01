@@ -172,6 +172,10 @@ async function main() {
         console.log(`  deferred: ${partition.deferred.map((e) => e.function.name).join(", ")}`);
       }
       const interesting = new Set([
+        "Glob",
+        "Grep",
+        "Read",
+        "Edit",
         "library_list",
         "library_outline",
         "library_read",

@@ -5,12 +5,22 @@ type CodexReasoningLevel = {
   description?: string;
 };
 
+type CodexServiceTier = {
+  id: string;
+  name?: string;
+  description?: string;
+};
+
 type CodexCatalogModel = {
   slug: string;
   displayName: string;
   description?: string;
   defaultReasoningLevel?: string;
   supportedReasoningLevels: CodexReasoningLevel[];
+  serviceTiers: CodexServiceTier[];
+  defaultServiceTier?: string;
+  /** Deprecated catalog field retained for older picker metadata. */
+  additionalSpeedTiers: string[];
   visibility?: string;
   supportedInApi?: boolean;
 };
@@ -98,6 +108,49 @@ export function normalizeCodexCatalog(value: unknown): CodexModelCatalog {
         ? { defaultReasoningLevel: row.default_reasoning_level }
         : {}),
       supportedReasoningLevels: levels,
+      serviceTiers: Array.isArray(row.service_tiers)
+        ? row.service_tiers
+            .map((tier) => {
+              if (!tier || typeof tier !== "object" || Array.isArray(tier)) {
+                return null;
+              }
+              const item = tier as Record<string, unknown>;
+              const id =
+                typeof item.id === "string"
+                  ? item.id.trim().toLowerCase()
+                  : "";
+              return id
+                ? {
+                    id,
+                    ...(typeof item.name === "string" && item.name.trim()
+                      ? { name: item.name.trim() }
+                      : {}),
+                    ...(typeof item.description === "string" &&
+                    item.description.trim()
+                      ? { description: item.description.trim() }
+                      : {}),
+                  }
+                : null;
+            })
+            .filter((tier): tier is CodexServiceTier => !!tier)
+            .filter(
+              (tier, index, all) =>
+                all.findIndex((item) => item.id === tier.id) === index,
+            )
+        : [],
+      ...(typeof row.default_service_tier === "string" &&
+      row.default_service_tier.trim()
+        ? { defaultServiceTier: row.default_service_tier.trim().toLowerCase() }
+        : {}),
+      additionalSpeedTiers: Array.isArray(row.additional_speed_tiers)
+        ? row.additional_speed_tiers
+            .filter((tier): tier is string => typeof tier === "string")
+            .map((tier) => tier.trim().toLowerCase())
+            .filter(
+              (tier, index, all) =>
+                !!tier && all.indexOf(tier) === index,
+            )
+        : [],
       ...(typeof row.visibility === "string"
         ? { visibility: row.visibility }
         : {}),

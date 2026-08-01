@@ -135,6 +135,10 @@ describe("LLM context manifests", () => {
       cacheWriteInputTokens: null,
     });
     expect(first.providerInvocationId).toBeNull();
+    expect(first.schemaVersion).toBe(2);
+    expect(first.rounds).toEqual([]);
+    expect(first.serviceTierRequested).toBeNull();
+    expect(first.serviceTierReported).toBeNull();
     expect(first.compaction).toEqual({
       strategy: "none",
       reason: null,
@@ -179,6 +183,45 @@ describe("LLM context manifests", () => {
     expect(JSON.stringify(manifest)).not.toContain("PRIVATE_");
   });
 
+  it("records requested and provider-reported service tiers", () => {
+    const request = { ...params(), serviceTier: "fast" };
+    const manifest = buildContextManifest({
+      params: request,
+      provider: "codex",
+      startedAt: "2026-08-01T00:00:00.000Z",
+      firstContentLatencyMs: 1,
+      totalLatencyMs: 2,
+      outputBytes: 2,
+      status: "completed",
+      result: { fullText: "ok", serviceTier: "priority" },
+    });
+    expect(manifest.serviceTierRequested).toBe("fast");
+    expect(manifest.serviceTierReported).toBe("priority");
+  });
+
+  it("records the initial schema inventory when disclosure expands it", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "beaver-context-manifest-"));
+    tempDirs.push(dir);
+    const filename = path.join(dir, "turns.jsonl");
+    process.env.MIKE_LLM_CONTEXT_MANIFEST_PATH = filename;
+    mocks.streamGemini.mockImplementation(async (request: StreamChatParams) => {
+      request.tools!.push({
+        type: "function",
+        function: {
+          name: "revealed_later",
+          description: "deferred",
+          parameters: { type: "object", properties: {} },
+        },
+      });
+      return { fullText: "ok" };
+    });
+
+    await streamChatWithTools(params());
+
+    const manifest = JSON.parse((await readFile(filename, "utf8")).trim());
+    expect(manifest.components.tools.count).toBe(1);
+  });
+
   it("records provider errors and preserves the original rejection", async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), "beaver-context-manifest-"));
     tempDirs.push(dir);
@@ -219,7 +262,7 @@ describe("LLM context manifests", () => {
 
     const lines = (await readFile(filename, "utf8")).trim().split("\n");
     expect(lines).toHaveLength(8);
-    expect(lines.every((line) => JSON.parse(line).schemaVersion === 1)).toBe(
+    expect(lines.every((line) => JSON.parse(line).schemaVersion === 2)).toBe(
       true,
     );
   });

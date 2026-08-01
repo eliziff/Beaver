@@ -52,25 +52,56 @@ export function jurisdictionPreferencePrompt(
 export function buildLeanLibraryBlock(options: {
   connectedIntro: string;
   codingShape: boolean;
+  pureCoding?: boolean;
   readToolName: string;
   editToolName: string;
+  progressiveDisclosure?: boolean;
 }): string {
-  const { connectedIntro, codingShape, readToolName, editToolName } = options;
+  const {
+    connectedIntro,
+    codingShape,
+    pureCoding = false,
+    readToolName,
+    editToolName,
+    progressiveDisclosure = false,
+  } = options;
+  const editAction = progressiveDisclosure
+    ? "apply a mechanical change with library_apply_text_ops, or call describe_tools for drafting and use the revealed editor"
+    : `apply the change with ${editToolName}${codingShape ? "" : " (mechanical find/replace, case, spacing, and normalization transforms go through library_apply_text_ops instead — the server executes those deterministically)"}`;
+  const automaticCompiler = process.env.MIKE_SLA_WORKFLOW === "1";
+  const specialistGuidance = progressiveDisclosure
+    ? `Open a specialist domain only when the task needs it. Use output_document to create a new Word deliverable and drafting to revise an existing Word file. ${
+        automaticCompiler
+          ? "Document-quality checks run automatically after synthesis."
+          : "Use document_quality only when the user asks to audit an existing DOCX; created and edited files already return compiler checks."
+      } Other available domains cover research, citations, amendments, deadlines, and workflows.`
+    : "Prefer the deterministic organs over reasoning from memory — citation linking, supra fixes, structural lint, table of authorities, term drift, drafting lint, bilingual concordance, amendment application, deadline computation — and report their findings as verified. Before delivering extraction or comparison work, call library_anchor_coverage and verify the source anchors it reports missing.";
+  const retrievalVariant = process.env.MIKE_RETRIEVAL_PROMPT_VARIANT?.trim();
+  const retrievalGuidance =
+    retrievalVariant === "accuracy"
+      ? " Before final synthesis, check every requested issue and relevant document, including stated exceptions and cross-references; do not stop at the first match."
+      : retrievalVariant === "economy"
+        ? " Read a short file once; search a long file and read only responsive spans. Reuse prior results instead of repeating a read."
+        : "";
   return (
     `${connectedIntro} through the library tools. Use ${codingShape ? "Glob" : "library_list"} before claiming a document is unavailable. ` +
-    `An edit, revision, redline, or corrected-DOCX request is an action request: read the document with ${readToolName}, apply the change with ${editToolName}${codingShape ? "" : " (mechanical find/replace, case, spacing, and normalization transforms go through library_apply_text_ops instead — the server executes those deterministically)"}, and never substitute a prose list of proposed changes. ` +
+    `An edit, revision, redline, or corrected-DOCX request is an action request: read the document with ${readToolName}, ${editAction}, and never substitute a prose list of proposed changes. ` +
     `Never claim a document mutation succeeded without its tool receipt. Beaver shows created and edited document cards automatically; confirm completion briefly without pasting the draft. ` +
     `For an exact PDF page, paragraph, footnote, section, or bounded range, use library_lookup and rely on its evidence; never invent locators or URLs. Preserve returned mike-evidence handles for material needed after compaction and rehydrate through the evidence tools. ` +
     `${
       codingShape
-        ? "For long or structured documents, search with Grep first and read only what you need; Grep match lines end with the enclosing [section handle], which Read and Edit accept as section=."
+        ? progressiveDisclosure
+          ? pureCoding
+            ? "For long documents, search with Grep first and read only the needed line windows."
+            : "For long or structured documents, search with Grep first and read only what you need; Grep match lines end with an enclosing [structural handle], which Read and the revealed drafting editor accept as section=."
+          : "For long or structured documents, search with Grep first and read only what you need; Grep match lines end with an enclosing [structural handle], which Read and Edit accept as section=."
         : process.env.MIKE_NAV_SHAPE === "address"
           ? // The prompt is part of the surface: naming a parameter the active
             // arm does not have would measure the harness, not the shape.
             "For long or structured documents, call library_outline first — it gives the handles and the page addresses — then read only what you need with library_read at=."
           : "For long or structured documents, call library_outline first and read only the needed span with library_read section=."
     } ` +
-    `Prefer the deterministic organs over reasoning from memory — citation linking, supra fixes, structural lint, table of authorities, term drift, drafting lint, bilingual concordance, amendment application, deadline computation — and report their findings as verified. Before delivering extraction or comparison work, call library_anchor_coverage and verify the source anchors it reports missing. ` +
+    `${specialistGuidance}${retrievalGuidance} ` +
     `When a tool returns app_url, link that exact value.`
   );
 }
@@ -87,7 +118,9 @@ const DRAFTING_ROUTING = `DOCX GENERATION (routing; the schemas own the formats)
 - For slides, a presentation, pitch deck, board deck, or PowerPoint file, call generate_ppt.
 - To revise a document you just generated, call edit_document on it unless the user explicitly wants a brand-new document or the change is too broad for coherent editing.`;
 
-const DEFER_DOMAINS = process.env.MIKE_NAV_SHAPE === "address";
+const DEFER_DOMAINS =
+  process.env.MIKE_NAV_SHAPE === "address" ||
+  process.env.MIKE_PROGRESSIVE_DISCLOSURE === "1";
 const DRAFTING_ROUTING_BLOCK = DEFER_DOMAINS ? "" : `${DRAFTING_ROUTING}
 
 `;
@@ -159,8 +192,8 @@ Use A2AJ for Canadian case law and legislation; it is a public API needing no us
  * the static prompt does not carry cell/merged-range rules on every turn.
  */
 export const SPREADSHEET_CITATION_PROMPT = `SPREADSHEET CITATIONS:
-- For spreadsheet sources (content shown as "## Sheet: <name>" markdown tables with a "Row" column and column-letter headers), cite by cell instead of page: set "sheet" to the sheet name and "cell" to the A1 address or range you are quoting (e.g. "B7" or "B7:C9", combining the column-letter header with the "Row" number). Put the plain cell value in "quote" with no "Row"/column-letter labels or "|" separators. Omit "page" for spreadsheet citations.
-- A cell tagged "⟨merged A1:C1⟩" spans that whole range: its value belongs to the anchor cell and the other covered cells are shown blank. When citing anything in a merged range, set "cell" to the full range from the tag (e.g. "A1:C1"), not a covered cell like "B1". Do not include the "⟨merged ...⟩" tag text in "quote".`;
+- Cite spreadsheet evidence with {"sheet":"name","cell":"A1 or range","quote":"display value"}; omit page.
+- For a cell tagged ⟨merged A1:C1⟩, cite the full range and omit the tag from the quote.`;
 
 /**
  * Assemble the chat system prompt. When `includeResearchTools` is true the
@@ -170,6 +203,23 @@ export const SPREADSHEET_CITATION_PROMPT = `SPREADSHEET CITATIONS:
  */
 export const DOMAIN_PROMPTS: Record<string, string> = {
   research: `${COURTLISTENER_SYSTEM_PROMPT}\n\n${A2AJ_SYSTEM_PROMPT}\n\n${PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT}`,
+  cases: `${COURTLISTENER_SYSTEM_PROMPT}\n\n${A2AJ_SYSTEM_PROMPT}`,
+  legislation: A2AJ_SYSTEM_PROMPT,
+  commentary: PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT,
+  citations:
+    "Citation tools verify or repair citation mechanics and assemble authorities. They do not establish that a proposition is legally supported; open cases and read the decision for that.",
+  output_document:
+    "Create the requested Word deliverable once, using the exact requested filename and completed content. The creation receipt already includes compiler diagnostics.",
+  drafting:
+    "Before revising a Library document, read the active version and address the exact provision or table cell. For deletion plus sibling renumbering, use the atomic delete-and-renumber tool rather than issuing manual heading and pointer edits. Treat a successful version receipt—not proposed prose—as completion.",
+  document_quality:
+    "Use this domain only to audit an existing DOCX. Run the narrow deterministic check the user requested, report findings and abstentions, and do not silently convert a diagnostic into edits.",
+  amendment:
+    "Use amendment application only for a formal amending instrument, and version comparison only for saved versions. Ordinary drafting and clause renumbering belong elsewhere.",
+  deadlines:
+    "Use the returned date and derivation trace; state the supplied jurisdiction and counting convention rather than recomputing the deadline from memory.",
+  workflow:
+    "Open the selected workflow and follow its instructions against the documents actually in scope.",
 };
 
 export function buildSystemPrompt(includeResearchTools = true): string {

@@ -103,6 +103,130 @@ describe("compileAgreementSkeleton: agreement style", () => {
     expect(outline).toContain("Defined terms (2)");
     expect(outline).toContain("Schedules/Exhibits: SCHEDULE 7.01");
   });
+
+  it("preserves normalized ambiguity for repeated section labels", () => {
+    const repeated = compileAgreementSkeleton(
+      [
+        "Section 1.01 Contents entry.",
+        "Section 2.01 Another entry.",
+        "Section 1.01 Operative provision.",
+        "The operative text follows.",
+      ].join("\n"),
+    );
+
+    expect(readSection(repeated, "1.01")).toMatchObject({
+      status: "ambiguous",
+      matches: ["sec1.01", "sec1.01"],
+    });
+    expect(renderAgreementOutline(repeated)).toContain(
+      "[repeated sec1.01; use library_find]",
+    );
+  });
+});
+
+describe("compileAgreementSkeleton: native table cells", () => {
+  const text = [
+    "Section 4.1 Signing authority.",
+    "Officer",
+    "1. Limit tier",
+    "Secretary",
+    "$15,000",
+    "Section 4.2 Reports.",
+  ].join("\n");
+  const span = (value: string) => ({
+    start: text.indexOf(value),
+    end: text.indexOf(value) + value.length,
+  });
+  const skeleton = compileAgreementSkeleton(text, "table-fixture", {
+    tableCells: [
+      { table: 1, row: 2, column: 2, columnSpan: 2, ...span("$15,000") },
+      { table: 1, row: 1, column: 2, ...span("1. Limit tier") },
+      { table: 1, row: 2, column: 1, ...span("Secretary") },
+      { table: 1, row: 1, column: 1, ...span("Officer") },
+    ],
+  });
+
+  it("adds table, row, and cell handles without flattening neighbouring cells", () => {
+    expect(readSection(skeleton, "table:1")?.block?.text).toBe(
+      "Officer\n1. Limit tier\nSecretary\n$15,000",
+    );
+    expect(readSection(skeleton, "table:1/row:2")?.block?.text).toBe(
+      "Secretary\n$15,000",
+    );
+    expect(readSection(skeleton, "table:1/row:2/col:2")?.block?.text).toBe(
+      "$15,000",
+    );
+    const table = skeleton.nodes.find((node) => node.label === "table:1");
+    const row = skeleton.nodes.find(
+      (node) => node.label === "table:1/row:2",
+    );
+    const cell = skeleton.nodes.find(
+      (node) => node.label === "table:1/row:2/col:2",
+    );
+    expect(table?.parentLabel).toBe("sec4.1");
+    expect(skeleton.nodes.some((node) => node.label === "sec1")).toBe(false);
+    expect(
+      skeleton.nodes
+        .filter((node) => ["table", "row", "cell"].includes(node.kind))
+        .map((node) => node.label),
+    ).toEqual([
+      "table:1",
+      "table:1/row:1",
+      "table:1/row:1/col:1",
+      "table:1/row:1/col:2",
+      "table:1/row:2",
+      "table:1/row:2/col:1",
+      "table:1/row:2/col:2",
+    ]);
+    expect(skeleton.doc.blocks.every((block) => !block.label.startsWith("table:")))
+      .toBe(true);
+    expect(row).toMatchObject({
+      kind: "row",
+      start: span("Secretary").start,
+      end: span("$15,000").end,
+      parentLabel: "table:1",
+      display: "Table 1, row 2",
+    });
+    expect(cell).toMatchObject({
+      kind: "cell",
+      parentLabel: "table:1/row:2",
+      display: "Table 1, row 2, column 2-3",
+    });
+    expect(renderAgreementOutline(skeleton)).toContain("[table:1/row:2]");
+    expect(renderAgreementOutline(skeleton)).toContain(
+      "[table:1/row:2/col:2]",
+    );
+  });
+
+  it("fails closed on invalid bounds and duplicate coordinates", () => {
+    expect(() =>
+      compileAgreementSkeleton(text, "bad-row", {
+        tableCells: [{ table: 1, row: 0, column: 1, ...span("Officer") }],
+      }),
+    ).toThrow("Invalid table-cell");
+    expect(() =>
+      compileAgreementSkeleton(text, "duplicate-cell", {
+        tableCells: [
+          { table: 1, row: 1, column: 1, ...span("Officer") },
+          { table: 1, row: 1, column: 1, ...span("1. Limit tier") },
+        ],
+      }),
+    ).toThrow("Duplicate table-cell address");
+    expect(() =>
+      compileAgreementSkeleton(text, "overlapping-cell", {
+        tableCells: [
+          {
+            table: 1,
+            row: 1,
+            column: 1,
+            columnSpan: 2,
+            ...span("Officer"),
+          },
+          { table: 1, row: 1, column: 2, ...span("1. Limit tier") },
+        ],
+      }),
+    ).toThrow("Overlapping table-cell address");
+  });
 });
 
 describe("compileAgreementSkeleton: nested roman ladders", () => {
@@ -367,6 +491,36 @@ describe("compileAgreementSkeleton: statute style", () => {
     const subsection = readSection(skeleton, "s. 8(2)");
     expect(subsection.status).toBe("found");
     expect(subsection.block?.text).toContain("takes effect immediately");
+  });
+
+  it("keeps decimal provisions distinct from parenthetical children", () => {
+    const text = [
+      "149 Previous provision.",
+      "150 (1) First child of section 150.",
+      "(2) Second child of section 150.",
+      "150.1 A distinct provision.",
+      "151 Following provision.",
+    ].join("\n");
+    const skeleton = compileAgreementSkeleton(text, "decimal-statute", {
+      recoverExtraction: false,
+    });
+
+    expect(
+      skeleton.nodes.map(({ label, parentLabel }) => ({ label, parentLabel })),
+    ).toEqual(
+      expect.arrayContaining([
+        { label: "sec150", parentLabel: undefined },
+        { label: "sec150(1)", parentLabel: "sec150" },
+        { label: "sec150(2)", parentLabel: "sec150" },
+        { label: "sec150.1", parentLabel: undefined },
+      ]),
+    );
+    expect(readSection(skeleton, "150")?.block?.text).not.toContain(
+      "A distinct provision",
+    );
+    expect(readSection(skeleton, "150.1")?.block?.text).toContain(
+      "A distinct provision",
+    );
   });
 });
 

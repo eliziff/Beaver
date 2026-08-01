@@ -556,6 +556,22 @@ export const FIXTURES: FixtureSpec[] = [
     "Okafor Discovery Transcript",
     "page-marked transcript with no numbered structure; an answer runs across a sheet break",
   ),
+  realDocument(
+    "ferry-boats-remission",
+    "Ferry-Boats Remission Order 2016 (EN-FR)",
+    "ferry-boats-remission.txt",
+    "real bilingual federal instrument: English and French versions of the same order in one document, both equally authoritative, with a claim period stated in each",
+    "CA-federal",
+    {
+      source:
+        "A2AJ Canadian legal corpus, REGULATIONS-FED dataset, via the A2AJ MCP fetch_document tool (output_language=both); upstream https://laws-lois.justice.gc.ca/eng/XML/SOR-2016-140.xml and .../fra/XML/DORS-2016-140.xml",
+      citation: "SOR/2016-140 — DORS/2016-140",
+      modifications:
+        "The two language versions, returned separately by the corpus, are consolidated into one document under ENGLISH VERSION / VERSION FRANÇAISE headings, as a bilingual working copy reads. Footnote markers [a] and [b] on the enabling provision are dropped, superscript '1^er' is written '1er', and a closing note records that this is an unofficial consolidation. No operative wording is altered.",
+      obscurity: "obscure",
+      retrieved: "2026-07-31",
+    },
+  ),
   crossbridgeBylaw,
   fairmountSupplyRedline,
   bilingualNotice,

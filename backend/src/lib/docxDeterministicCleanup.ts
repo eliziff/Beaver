@@ -461,6 +461,20 @@ export async function fixDocxSupraCrossReferences(
 export async function fixLocalDocxSupraCrossReferences(
   userId: string,
   documentId: string,
+  options: {
+    saveVersion?: (input: {
+      sourceVersionId: string;
+      filename: string;
+      bytes: Buffer;
+    }) => Promise<{
+      id: string;
+      filename: string;
+      version_number?: number;
+      file_type?: string;
+      source_sha256?: string;
+      parentVersionId?: string;
+    } | null>;
+  } = {},
 ) {
   const file = await getLocalVersionFile(userId, documentId);
   if (!file) throw new Error("Document not found");
@@ -483,19 +497,39 @@ export async function fixLocalDocxSupraCrossReferences(
   }
 
   const baseName = file.document.filename.replace(/\.docx$/iu, "");
-  const version = await addLocalVersion({
-    userId,
-    documentId,
-    filename: `${baseName} - supras fixed.docx`,
-    bytes: cleanup.bytes,
-  });
+  const filename = `${baseName} - supras fixed.docx`;
+  const version = options.saveVersion
+    ? await options.saveVersion({
+        sourceVersionId: file.version.id,
+        filename,
+        bytes: cleanup.bytes,
+      })
+    : await addLocalVersion({
+        userId,
+        documentId,
+        filename,
+        bytes: cleanup.bytes,
+      });
   if (!version) throw new Error("Document disappeared before saving");
+  const downloadUrl =
+    `/single-documents/${encodeURIComponent(documentId)}/file` +
+    `?version_id=${encodeURIComponent(version.id)}`;
   return {
     ok: true,
+    receipt: "mike-document:v1",
+    action: "revised",
     changed: true,
     document_id: documentId,
+    parent_version_id:
+      ("parentVersionId" in version ? version.parentVersionId : undefined) ??
+      file.version.id,
     version_id: version.id,
+    version_number: version.version_number,
     filename: version.filename,
+    file_type: version.file_type ?? "docx",
+    source_sha256: version.source_sha256,
+    download_url: downloadUrl,
+    annotations: [],
     ...cleanup,
     bytes: undefined,
   };

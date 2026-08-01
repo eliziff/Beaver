@@ -170,6 +170,7 @@ describe("collectSlaDeliverable", () => {
   afterEach(async () => {
     delete process.env.MIKE_LOCAL_DATA_DIR;
     delete process.env.OPEN_LEGAL_DATA_HOME;
+    delete process.env.MIKE_SLA_STRATEGY;
     vi.resetModules();
     if (home) {
       await rm(home, { recursive: true, force: true });
@@ -210,6 +211,9 @@ describe("collectSlaDeliverable", () => {
     expect(built).not.toBeNull();
     const liveLedger = built!;
     expect(liveLedger.baseline.size).toBe(1);
+    expect(liveLedger.promptSection).toContain("deterministic compiler pass");
+    expect(liveLedger.promptSection).not.toContain("library_outline");
+    expect(liveLedger.promptSection).not.toContain("credit-agreement.docx");
 
     // The smoke-run shape: chat text alone carries no anchors.
     const chatOnly = await workflow.collectSlaDeliverable(
@@ -240,11 +244,43 @@ describe("collectSlaDeliverable", () => {
       "I've created the intake summary document.",
     );
     expect(withArtifact.artifacts).toEqual(["intake-summary.docx"]);
+    expect(withArtifact.text).not.toContain("I've created");
     const audit = workflow.auditSlaDraft(liveLedger, withArtifact.text, {
       artifactDeliverable: true,
     });
     expect(audit.receipt.source_only_total).toBe(0);
     expect(audit.receipt.matched_total).toBeGreaterThan(0);
+  });
+
+  it("expresses the full SLA strategy without legacy retrieval vocabulary", async () => {
+    home = await mkdtemp(path.join(os.tmpdir(), "beaver-sla-strategy-"));
+    process.env.MIKE_LOCAL_DATA_DIR = home;
+    process.env.OPEN_LEGAL_DATA_HOME = home;
+    process.env.MIKE_SLA_STRATEGY = "full";
+    vi.resetModules();
+    const store = await import("../../localDocumentStore");
+    const workflow = await import("../slaWorkflow");
+    await store.createLocalDocument({
+      userId,
+      kind: "file",
+      filename: "source.docx",
+      bytes: await docxFrom(["1. Source clause."]),
+    });
+    const built = await workflow.buildSlaLedger(userId, null);
+    expect(built?.promptSection).toContain("Spec → Ledger → Draft → Audit → Grounding");
+    expect(built?.promptSection).toContain("source-addressed working ledger");
+    expect(built?.promptSection).toContain("revise the actual artifact");
+    expect(built?.promptSection).not.toContain("library_outline");
+    expect(built?.promptSection).not.toContain("library_read");
+
+    process.env.MIKE_SLA_STRATEGY = "working_set_first";
+    const workingSet = await workflow.buildSlaLedger(userId, null);
+    expect(workingSet?.promptSection).toContain(
+      'first source-content retrieval must be Grep with output_mode="working_set"',
+    );
+    expect(workingSet?.promptSection).toContain("Glob may enumerate filenames first");
+    expect(workingSet?.promptSection).toContain("Read the returned path");
+    expect(workingSet?.promptSection).toContain('never "." or ".*"');
   });
 });
 

@@ -163,8 +163,6 @@ export async function streamGemini(
   } = params;
   const maxIter = params.maxIterations ?? 10;
   const ai = client(apiKeys?.gemini);
-  const functionDeclarations = toGeminiTools(tools);
-
   const contents: GeminiContent[] = toNativeContents(params.messages);
   let fullText = "";
   const trace = createLlmTrace({ provider: "gemini", model });
@@ -172,6 +170,9 @@ export async function streamGemini(
   try {
     for (let iter = 0; iter < maxIter; iter++) {
       throwIfAborted(params.abortSignal);
+      const functionDeclarations = toGeminiTools(
+        params.resolveTools?.() ?? tools,
+      );
       let stream: AsyncIterable<unknown>;
       try {
         stream = await ai.models.generateContentStream({
