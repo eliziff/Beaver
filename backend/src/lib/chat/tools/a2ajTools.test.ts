@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { a2ajActivityLabel } from "./a2ajTools";
+import { A2AJ_TOOLS, a2ajActivityLabel } from "./a2ajTools";
 
 describe("a2ajActivityLabel", () => {
   it.each([
@@ -47,5 +47,15 @@ describe("a2ajActivityLabel", () => {
 
   it("leaves unrelated tools alone", () => {
     expect(a2ajActivityLabel("read_document", {})).toBeUndefined();
+  });
+
+  it("keeps statutory reference expansion on exact section lookup", () => {
+    const lookup = A2AJ_TOOLS.find(
+      (entry) => entry.function.name === "a2aj_lookup",
+    )!;
+    expect(lookup.function.parameters.properties.references).toMatchObject({
+      enum: ["none", "inbound", "outbound", "both"],
+    });
+    expect(lookup.function.description).toContain("requested block");
   });
 });

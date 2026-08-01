@@ -289,7 +289,8 @@ export async function streamOllama(
 
   for (let iter = 0; iter < maxIter; iter++) {
     throwIfAborted(params.abortSignal);
-    compactOldToolResults(messages, tools, numCtx);
+    const activeTools = params.resolveTools?.() ?? tools;
+    compactOldToolResults(messages, activeTools, numCtx);
     const signals = [AbortSignal.timeout(CALL_TIMEOUT_MS)];
     if (params.abortSignal) signals.push(params.abortSignal);
     let response: Response;
@@ -301,7 +302,7 @@ export async function streamOllama(
           model: slug,
           messages,
           // OpenAIToolSchema is already ollama's expected tool shape.
-          tools,
+          tools: activeTools,
           stream: false,
           think: thinkingLevel(params),
           options: { temperature: 0, num_ctx: numCtx },

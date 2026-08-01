@@ -66,13 +66,20 @@ async function main() {
     scanned += 1;
     const id = row.id.toLowerCase();
     if (!wanted.some((needle) => id.includes(needle))) continue;
-    // Legislation reaches the compiler through feeds that did not lose their
-    // line breaks, so it is baked the way the A2AJ lane compiles it.
+    // BOTH constructions, because the same statute arrives two ways. The
+    // A2AJ lane compiles it with recovery off, since that feed kept its line
+    // breaks. The same Act uploaded as a PDF is extraction output and gets
+    // recovery on. They are different artifacts -- 45 of 23,531 statutes
+    // compile differently -- so baking one leaves the other paying in full.
     const report = await bakeStructure(row.text, row.id, {
       recoverExtraction: false,
     });
+    const recovered = await bakeStructure(row.text, row.id, {
+      recoverExtraction: true,
+    });
     baked += 1;
     totalMs += report.skeletonMs + report.graphMs;
+    totalMs += recovered.skeletonMs + recovered.graphMs;
     console.log(
       `${report.id}\n  ${report.chars.toLocaleString()} chars  ` +
         `${report.nodes.toLocaleString()} nodes  ${report.edges.toLocaleString()} edges  ` +

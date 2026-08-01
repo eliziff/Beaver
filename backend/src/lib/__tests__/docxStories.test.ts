@@ -24,7 +24,10 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import { scanDocxPathology } from "../docx/pathology";
 import { extractDocxStories, storiesBodyText } from "../docx/stories";
-import { extractDocxBodyText } from "../docxTrackedChanges";
+import {
+  extractDocxBodyStructure,
+  extractDocxBodyText,
+} from "../docxTrackedChanges";
 import { loadZip } from "../zip";
 
 const REVISION = { author: "Counsel", date: "2026-01-01T00:00:00Z" };
@@ -121,6 +124,54 @@ const builders: Record<string, () => Promise<Buffer>> = {
         ],
       }),
     ]),
+
+  /** Grid spans and a vertical continuation that must not mint a cell. */
+  "merged-table": () =>
+    pack([
+      new Table({
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({
+                columnSpan: 2,
+                children: [new Paragraph("Consideration")],
+              }),
+            ],
+          }),
+          new TableRow({
+            children: [
+              new TableCell({ rowSpan: 2, children: [new Paragraph("Cash")] }),
+              new TableCell({ children: [new Paragraph("On closing")] }),
+            ],
+          }),
+          new TableRow({
+            children: [new TableCell({ children: [new Paragraph("Deferred")] })],
+          }),
+        ],
+      }),
+    ]),
+
+  /** Empty cell and an omitted leading grid position (w:gridBefore). */
+  "cell-edges": async () =>
+    rewriteDocumentXml(
+      await pack([
+        new Table({
+          rows: [
+            new TableRow({
+              children: [
+                new TableCell({ children: [new Paragraph({ children: [] })] }),
+                new TableCell({ children: [new Paragraph("Ordinary")] }),
+              ],
+            }),
+          ],
+        }),
+      ]),
+      (xml) =>
+        xml.replace(
+          "<w:tr>",
+          '<w:tr><w:trPr><w:gridBefore w:val="2"/></w:trPr>',
+        ),
+    ),
 
   /** One block-level and one inline w:sdt. */
   "content-controls": () =>
@@ -339,6 +390,61 @@ describe("storiesBodyText byte parity with extractDocxBodyText", () => {
     // A real document that produced no text would pass parity vacuously.
     expect(expected.length).toBeGreaterThan(1000);
     expect(storiesBodyText(stories)).toBe(expected);
+  });
+});
+
+describe("native table-cell spans", () => {
+  it("keeps merged and nested content conservative on the body-text plane", async () => {
+    const structure = await extractDocxBodyStructure(fixture("tables"));
+    expect(structure.text).toBe(await extractDocxBodyText(fixture("tables")));
+    expect(
+      structure.tableCells.map(({ table, row, column, columnSpan }) => ({
+        table,
+        row,
+        column,
+        columnSpan,
+      })),
+    ).toEqual([
+      { table: 1, row: 1, column: 1, columnSpan: 2 },
+      { table: 1, row: 2, column: 1, columnSpan: 1 },
+      { table: 1, row: 2, column: 2, columnSpan: 1 },
+    ]);
+    expect(
+      structure.tableCells.map((cell) =>
+        structure.text.slice(cell.start, cell.end).trim(),
+      ),
+    ).toEqual(["Consideration", "Instalment", "On closing"]);
+  });
+
+  it("skips a vertical continuation and preserves the occupied column", async () => {
+    const structure = await extractDocxBodyStructure(fixture("merged-table"));
+    expect(
+      structure.tableCells.map((cell) => [
+        cell.row,
+        cell.column,
+        structure.text.slice(cell.start, cell.end).trim(),
+      ]),
+    ).toEqual([
+      [1, 1, "Consideration"],
+      [2, 1, "Cash"],
+      [2, 2, "On closing"],
+      [3, 2, "Deferred"],
+    ]);
+  });
+
+  it("keeps empty cells addressable and honours gridBefore", async () => {
+    const structure = await extractDocxBodyStructure(fixture("cell-edges"));
+    expect(structure.text).toBe("\nOrdinary");
+    expect(structure.tableCells.map((cell) => ({
+      row: cell.row,
+      column: cell.column,
+      start: cell.start,
+      end: cell.end,
+      text: structure.text.slice(cell.start, cell.end),
+    }))).toEqual([
+      { row: 1, column: 3, start: 0, end: 0, text: "" },
+      { row: 1, column: 4, start: 1, end: 9, text: "Ordinary" },
+    ]);
   });
 });
 

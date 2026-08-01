@@ -2,6 +2,7 @@ import { appendFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { legalDataHome } from "../legalDataPath";
 import type {
+  LlmContextRoundReceipt,
   NormalizedLlmUsage,
   Provider,
   StreamChatParams,
@@ -16,11 +17,13 @@ type ComponentMeasurement = {
 };
 
 export type LlmContextManifest = {
-  schemaVersion: 1;
+  schemaVersion: 2;
   startedAt: string;
   provider: Provider;
   model: string;
   reasoningEffort: string | null;
+  serviceTierRequested: string | null;
+  serviceTierReported: string | null;
   components: {
     system: ComponentMeasurement;
     messages: ComponentMeasurement;
@@ -39,6 +42,7 @@ export type LlmContextManifest = {
   status: "completed" | "error" | "aborted";
   usage: NormalizedLlmUsage;
   providerInvocationId: string | null;
+  rounds: LlmContextRoundReceipt[];
   compaction: { strategy: "none"; reason: null; checkpointId: null };
   continuation:
     | { strategy: "none"; id: null }
@@ -110,11 +114,13 @@ export function buildContextManifest(
   const inputBytes = systemBytes + messageBytes + toolBytes + imageBytes;
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     startedAt: args.startedAt,
     provider: args.provider,
     model: args.params.model,
     reasoningEffort: args.params.reasoningEffort?.trim() || null,
+    serviceTierRequested: args.params.serviceTier?.trim() || null,
+    serviceTierReported: args.result?.serviceTier?.trim() || null,
     components: {
       system: {
         count: 1,
@@ -150,6 +156,7 @@ export function buildContextManifest(
     status: args.status,
     usage: args.result?.usage ?? { ...EMPTY_USAGE },
     providerInvocationId: args.result?.providerInvocationId ?? null,
+    rounds: args.result?.contextRounds ?? [],
     compaction: { strategy: "none", reason: null, checkpointId: null },
     continuation: args.result?.continuationId
       ? { strategy: "provider", id: args.result.continuationId }

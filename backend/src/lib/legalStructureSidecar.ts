@@ -41,7 +41,9 @@ import { createSourceDoc, type SourceDocBlock } from "./sourceDoc";
  * applies to parser versions — the alternative is a cache that quietly
  * disagrees with the code that reads it.
  */
-const SIDECAR_VERSION = 1;
+// v2 added native table-row nodes. v3 corrects literal-reference graph
+// semantics: decimal provisions are siblings, not dotted descendants.
+const SIDECAR_VERSION = 3;
 
 type SkeletonPayload = {
   version: number;
@@ -65,18 +67,41 @@ function sidecarPath(digest: string, variant: string, kind: string) {
   return path.join(sidecarRoot(), `${digest}.${variant}.${kind}.v${SIDECAR_VERSION}.json`);
 }
 
-const variantOf = (id: string, options: CompileSkeletonOptions) =>
-  `${options.recoverExtraction === false ? "norecover" : "recover"}-${
-    createHash("sha256").update(id).digest("hex").slice(0, 8)
-  }`;
+/**
+ * The variant is the RECOVERY FLAG plus any native cell map — deliberately
+ * not the id.
+ *
+ * `recoverExtraction` genuinely changes the node inventory, so the two
+ * constructions are different artifacts and must not share a file. `id`
+ * changes nothing but `doc.id`, and keying on it made every bake unreachable:
+ * a bake made from an A2AJ row id could never be served to the tool layer,
+ * which passes a Library document id for the same text. The Criminal Code is
+ * the Criminal Code whichever row holds it, so the caller's id is stamped at
+ * rehydration instead.
+ */
+const variantOf = (options: CompileSkeletonOptions) => {
+  const recovery = options.recoverExtraction === false ? "norecover" : "recover";
+  const cells = options.tableCells?.length
+    ? `-cells-${createHash("sha256")
+        .update(JSON.stringify(options.tableCells))
+        .digest("hex")
+        .slice(0, 12)}`
+    : "";
+  return recovery + cells;
+};
 
 /** Rebuild a skeleton from its payload; `createSourceDoc` does not tokenize. */
-function rehydrate(text: string, payload: SkeletonPayload): AgreementSkeleton {
+function rehydrate(
+  text: string,
+  id: string,
+  payload: SkeletonPayload,
+): AgreementSkeleton {
   return {
     nodes: payload.nodes,
     doc: createSourceDoc({
       provider: null,
-      id: payload.id,
+      // The caller's id, not the baker's: a bake is about the TEXT.
+      id,
       text,
       blocks: payload.blocks,
     }),
@@ -100,12 +125,12 @@ export async function bakedSkeleton(
   id = "",
   options: CompileSkeletonOptions = {},
 ): Promise<AgreementSkeleton> {
-  const file = sidecarPath(textDigest(text), variantOf(id, options), "skeleton");
+  const file = sidecarPath(textDigest(text), variantOf(options), "skeleton");
   try {
     const payload = JSON.parse(await fs.readFile(file, "utf8")) as SkeletonPayload;
     if (payload.version === SIDECAR_VERSION && Array.isArray(payload.nodes)) {
       devLog(`[structure-cache] skeleton hit ${path.basename(file)}`);
-      return rehydrate(text, payload);
+      return rehydrate(text, id, payload);
     }
   } catch {
     // Miss, unreadable, or a version bump: compile for real.
@@ -120,7 +145,7 @@ export async function bakedCrossReferenceGraph(
   options: CompileSkeletonOptions = {},
 ): Promise<CrossReferenceGraph> {
   const digest = textDigest(text);
-  const variant = variantOf(id, options);
+  const variant = variantOf(options);
   const file = sidecarPath(digest, variant, "graph");
   const skeleton = await bakedSkeleton(text, id, options);
   try {
@@ -157,7 +182,7 @@ export async function bakeStructure(
   options: CompileSkeletonOptions = {},
 ): Promise<BakeReport> {
   const digest = textDigest(text);
-  const variant = variantOf(id, options);
+  const variant = variantOf(options);
 
   const skeletonStarted = performance.now();
   const skeleton = compileAgreementSkeleton(text, id, options);

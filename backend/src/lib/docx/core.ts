@@ -1,10 +1,7 @@
 /**
  * Shared OOXML kernel: the fast-xml-parser preserveOrder settings, the tiny
- * node helpers built on that tree shape, and package entry access.
- *
- * Extracted verbatim from docxTrackedChanges / docxCompareVersions /
- * docxDeterministicCleanup — byte-parity constraint: every helper here
- * behaves exactly as the copies it replaces. Extraction, not redesign.
+ * node helpers built on that tree shape, and package entry access. All DOCX
+ * consumers share it so OOXML text and attribute semantics stay identical.
  */
 
 import type JSZip from "jszip";
@@ -91,6 +88,11 @@ export function createParser() {
         attributeNamePrefix: "@_",
         preserveOrder: true,
         trimValues: false,
+        // Word text nodes are strings even when a run happens to contain
+        // only "1.0", "001", or another numeric-looking token. Letting the
+        // XML parser coerce them corrupts numbering and leading zeroes when
+        // tracked edits split a paragraph into smaller runs.
+        parseTagValue: false,
         parseAttributeValue: false,
         processEntities: true,
     });

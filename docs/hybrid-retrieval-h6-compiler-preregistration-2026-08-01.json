@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "registered_at": "2026-08-01T21:15:00Z",
+  "status": "registered_before_h6_model_calls",
+  "experiment_type": "exploratory bundled intervention; ablation follows behavior inspection",
+  "objective": "Test whether one coherent hybrid can keep coding-agent fluency while exploiting legal structure and deterministic compiler checks, improving long-horizon legal-task accuracy without uncontrolled context growth.",
+  "held_constant": {
+    "performer_model": "gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "transport": "OpenAI Responses API",
+    "service_tier_requested": "fast",
+    "service_tier_required_in_receipt": "priority",
+    "base_prompt": "lean",
+    "tool_description_variant": "operational",
+    "research_tools_on_harvey": false,
+    "ask_inputs": false,
+    "judge": "Codex Sol at below-normal process priority",
+    "split": "visible Harvey LAB dev tasks only"
+  },
+  "comparison": {
+    "reference": "completed H4 operational/neutral run on the same task; frozen upstream Mike remains the external baseline",
+    "candidate_arm": "compiler_hybrid",
+    "candidate_environment": {
+      "MIKE_NAV_SHAPE": "address",
+      "MIKE_TOOL_SHAPE": "coding",
+      "MIKE_RETRIEVAL_EXPERIMENT": "h5-working-set",
+      "MIKE_SLA_WORKFLOW": "1",
+      "MIKE_PROGRESSIVE_DISCLOSURE": "1"
+    }
+  },
+  "bundled_changes": [
+    "Glob/Grep/Read/Edit remain the resident coding vocabulary; library_list is removed from coding mode and Glob emits durable IDs only for duplicate filenames.",
+    "Grep/Read retain exact legal section, page, table-row, and bounded direct-reference scopes plus immutable source-qualified working sets.",
+    "Progressive domains distinguish creation of a new Word deliverable, revision of an existing Word document, and audit of an existing DOCX.",
+    "Newly created or edited files rely on their compiler receipt instead of prompting the model to repeat optional quality tools.",
+    "Read truncation is machine-obvious and supplies an executable continuation recipe.",
+    "The existing SLA anchor, arithmetic, temporal, defined-term, and drafting organs run host-side over up to 32 source documents and the completed artifact, then expose only bounded typed findings for at most one correction pass.",
+    "The correction pass is a context checkpoint: original instructions, current deliverable, and bounded compiler findings remain; prior tool-result payloads are not replayed."
+  ],
+  "tasks": [
+    "banking-finance/extract-credit-agreement-covenants",
+    "white-collar-defense-investigations/analyze-counterparty-markup-of-deferred-prosecution-agreement",
+    "capital-markets/compare-closing-documents-against-closing-checklist",
+    "tax/draft-transfer-pricing-documentation"
+  ],
+  "primary_observations": [
+    "native LAB criterion score and valid deliverable",
+    "which deterministic findings the correction pass accepts, rejects, or mishandles",
+    "documents and exact source spans reached, including per-document exposure",
+    "tool sequence, failed calls, duplicate reads, and unnecessary domain openings",
+    "provider input/output/cache tokens, per-round tool argument/result bytes, tool-schema variants, and wall-clock latency"
+  ],
+  "interpretation_policy": "This bundled run may identify a promising product shape but cannot attribute causality. Do not call any component proven from this comparison. If the bundle improves the aggregate or reveals task-specific wins, ablate inventory/domain routing, working-set retrieval, and compiler/checkpoint behavior separately; if it loses, inspect traces before removing structure or deterministic checks wholesale.",
+  "failure_policy": "Fail closed if Fast does not report priority, preserve operational failures in receipts, do not substitute tasks after seeing scores, and do not rerun a completed cell merely to hide an implementation failure."
+}

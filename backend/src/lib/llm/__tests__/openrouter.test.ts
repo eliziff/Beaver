@@ -1,5 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { streamOpenRouter } from "../openrouter";
+import type { OpenAIToolSchema } from "../types";
+
+const tool = (name: string): OpenAIToolSchema => ({
+  type: "function",
+  function: {
+    name,
+    description: `${name} tool`,
+    parameters: { type: "object", properties: {} },
+  },
+});
 
 function stream(...events: unknown[]) {
   const body = [
@@ -170,6 +180,45 @@ describe("Muse Spark through OpenRouter", () => {
         output: '{"count":2}',
       },
     ]);
+  });
+
+  it("refreshes the shared Responses tool schema on the next iteration", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        stream({
+          type: "response.output_item.done",
+          item: {
+            type: "function_call",
+            call_id: "call-1",
+            name: "discover",
+            arguments: "{}",
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        stream({ type: "response.output_text.delta", delta: "done" }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    let activeTools = [tool("discover")];
+
+    await streamOpenRouter({
+      model: "meta/muse-spark-1.1",
+      systemPrompt: "system",
+      messages: [{ role: "user", content: "research" }],
+      apiKeys: { openrouter: "test-key" },
+      tools: activeTools,
+      resolveTools: () => activeTools,
+      runTools: async () => {
+        activeTools = [...activeTools, tool("revealed")];
+        return [{ tool_use_id: "call-1", content: "opened" }];
+      },
+    });
+
+    expect(fetchMock.mock.calls.map(([, init]) =>
+      (JSON.parse(String((init as RequestInit).body)).tools as { name: string }[])
+        .map((entry) => entry.name)
+    )).toEqual([["discover"], ["discover", "revealed"]]);
   });
 
   it("announces a tool only after its complete arguments are available", async () => {

@@ -122,8 +122,6 @@ export async function streamClaude(
   } = params;
   const maxIter = params.maxIterations ?? 10;
   const anthropic = client(apiKeys?.claude);
-  const claudeTools = toClaudeTools(tools);
-
   const messages: NativeMessage[] = toNativeMessages(params.messages);
   let fullText = "";
   const trace = createLlmTrace({ provider: "claude", model });
@@ -131,6 +129,7 @@ export async function streamClaude(
   try {
     for (let iter = 0; iter < maxIter; iter++) {
       throwIfAborted(params.abortSignal);
+      const claudeTools = toClaudeTools(params.resolveTools?.() ?? tools);
       const stream = anthropic.messages.stream({
         model,
         system: systemPrompt,

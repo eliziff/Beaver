@@ -10,6 +10,13 @@ const luna = {
     { effort: "max" },
     { effort: "LOW" },
   ],
+  service_tiers: [
+    { id: "priority", name: "Fast", description: "1.5x speed" },
+    { id: "PRIORITY", name: "Duplicate" },
+    { id: "" },
+  ],
+  default_service_tier: "default",
+  additional_speed_tiers: ["fast", "FAST", ""],
 };
 
 describe("normalizeCodexCatalog", () => {
@@ -29,6 +36,11 @@ describe("normalizeCodexCatalog", () => {
     expect(result.models[0]).toMatchObject({
       slug: "gpt-5.6-luna",
       supportedReasoningLevels: [{ effort: "low" }, { effort: "max" }],
+      serviceTiers: [
+        { id: "priority", name: "Fast", description: "1.5x speed" },
+      ],
+      defaultServiceTier: "default",
+      additionalSpeedTiers: ["fast"],
     });
   });
 

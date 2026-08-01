@@ -7,7 +7,11 @@ import { linkLocalDocxCitations } from "../docxCitationLinking";
 import { fixLocalDocxSupraCrossReferences } from "../docxDeterministicCleanup";
 import { lintLocalDocxStructure } from "../docxStructuralLint";
 import { draftingLint } from "../legalDraftingLint";
-import { consolidateAmendment } from "../legalAmendOps";
+import {
+  consolidateAmendment,
+  deleteProvisionAndRenumberSiblings,
+  type DeleteAndRenumberReceipt,
+} from "../legalAmendOps";
 import { computeDeadline } from "../legalDeadlines";
 import type { DeadlineJurisdiction, DeadlineUnit } from "../legalDeadlines";
 import { conflictScan } from "../legalConflictScan";
@@ -15,10 +19,22 @@ import { anchorCoverage, bilingualConcordance } from "../legalTextAnchors";
 import {
   compileAgreementSkeleton,
   readSection,
+  skeletonSubtreeLabels,
   renderAgreementOutline,
   type AgreementSkeleton,
+  type CompileSkeletonOptions,
+  type TableCellSpan,
 } from "../legalTextSkeleton";
-import { crossReferenceGraph } from "../legalCrossReference";
+import {
+  crossReferenceGraph,
+  type CrossReferenceGraph,
+} from "../legalCrossReference";
+import {
+  documentMap,
+  referenceImpact,
+  type DocumentMapFocus,
+  type ReferenceImpactOperation,
+} from "../legalRetrievalHybrid";
 import {
   bakedCrossReferenceGraph,
   bakedSkeleton,
@@ -46,15 +62,19 @@ import { extractDocxDraftingSource } from "../docxDraftingSource";
 import { resolveDocxEvidenceCitations } from "../docxEvidenceCitations";
 import {
   applyTrackedEdits,
+  extractDocxBodyStructure,
   extractDocxBodyText,
   type EditInput,
 } from "../docxTrackedChanges";
+import { isSpreadsheetDocumentType } from "../documentTypes";
+import { spreadsheetToLLMStructure } from "../spreadsheet";
 import {
   addLocalVersion,
   createLocalDocument,
   deleteLocalDocument,
   getLocalVersionFile,
   listLocalLibrary,
+  updateLocalAssistantTurnVersion,
   updateLocalDocument,
   type LocalTrackedEdit,
 } from "../localDocumentStore";
@@ -86,6 +106,7 @@ import type {
   OpenAIToolSchema,
 } from "../llm";
 import { cachedParse } from "../parseCache";
+import { UPSTREAM_MIKE_LAB_TOOLS } from "./upstreamMikeBenchmarkSurface";
 import {
   getTableOfAuthoritiesJob,
   submitTableOfAuthoritiesDocument,
@@ -214,7 +235,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
   ),
   tool(
     "library_read",
-    "Read the active version of a local Beaver Library document. mode=drafting adapts a DOCX precedent: it preserves headings, lists, tables, emphasis, and note pairing for translation into semantic Markdown. mode=redline shows tracked changes, comments, and strike/colour redlines inline as markers.",
+    "Read the active version of a local Beaver Library document. Text mode supports bounded structural, page, offset, tail, and cross-reference reads. mode=drafting returns a whole-DOCX precedent view that preserves headings, lists, tables, emphasis, and note pairing for translation into semantic Markdown. mode=redline returns the whole DOCX with tracked changes, comments, and strike/colour redlines inline as markers.",
     {
       type: "object",
       properties: {
@@ -223,12 +244,12 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
           type: "string",
           enum: ["text", "drafting", "redline"],
           description:
-            "Defaults to text. drafting is DOCX-only, version-bound, and returns bounded semantic HTML as document data. redline is DOCX-only and returns the body text with editorial content visible: {++inserted++}, {--deleted--}, {>>author: comment<<}, [ink] for strike/colour formatting standing in for tracked changes.",
+            "Defaults to text. drafting and redline are DOCX-only whole-document views and do not combine with at/from/follow. drafting returns bounded semantic HTML as document data. redline returns body text with editorial content visible: {++inserted++}, {--deleted--}, {>>author: comment<<}, [ink] for strike/colour formatting standing in for tracked changes.",
         },
         at: {
           type: "string",
           description:
-            "Where to read: '8.01' or 'Article VIII' for a provision and everything under it, 'pdf:52' or 'printed:47' for a page, 'off:12000' for a raw window. Omit to read from the start. library_outline explains the addresses this document has.",
+            "Text mode only. Where to read: '8.01' or 'Article VIII' for a provision and everything under it, 'table:1/row:2/col:3' for an exact DOCX cell, 'pdf:52' or 'printed:47' for a page, 'off:12000' for a raw window. Omit to read from the start. library_outline explains the addresses this document has.",
         },
         from: {
           type: "string",
@@ -255,7 +276,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
         section: {
           type: "string",
           description:
-            "Structural locator from the document's own numbering ('8.01', 'Article VIII', 'Schedule 7.01', 's. 8(2)'). Returns only that span, children included. library_outline lists the exact handles.",
+            "Structural locator from the document's own numbering ('8.01', 'Article VIII', 'Schedule 7.01', 's. 8(2)') or an exact DOCX cell ('table:1/row:2/col:3'). Returns only that span, children included. library_outline lists the exact handles.",
         },
         page: {
           type: "string",
@@ -273,7 +294,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
           minimum: 200,
           maximum: 300000,
           description:
-            "Characters to return. Defaults to 24000 — a portion, not the whole document; the reply sets `truncated` when there is more.",
+            "Text mode only. Characters to return. Defaults to 24000 — a portion, not the whole document; the reply sets `truncated` when there is more.",
         },
       },
       required: ["document_id"],
@@ -281,7 +302,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
   ),
   tool(
     "library_outline",
-    "Orientation call, and where the address grammar is defined. Returns the ARTICLE/PART tree with every Section and (a)/(i) subsection, defined terms with their defining section, schedules, cross-reference counts, and the page map. Addresses:  a node handle ('8.01', 'Article VIII') names a provision and everything under it; 'pdf:52' names the sheet's position in the file; 'printed:47' names the number printed ON the sheet, which is what a pinpoint citation, index or exhibit stamp refers to and need not equal the PDF page. The page map says which of those this document has and where they diverge. `follow` on read and find widens an address along the document's own cross-references: out = what it points at, in = what points at it. A ~100-page agreement maps to 1-3k tokens.",
+    "Orientation call, and where the address grammar is defined. Returns the ARTICLE/PART tree with every Section and (a)/(i) subsection, exact handles for unambiguous provisions and DOCX table cells, defined terms with their defining section, schedules, cross-reference counts, and the page map. Repeated TOC/body labels are marked for library_find instead of advertised as handles. Addresses: a node handle ('8.01', 'Article VIII') names a provision and everything under it; 'table:1/row:2/col:3' names one native DOCX cell; 'pdf:52' names the sheet's position in the file; 'printed:47' names the number printed ON the sheet, which is what a pinpoint citation, index or exhibit stamp refers to and need not equal the PDF page. The page map says which of those this document has and where they diverge. `follow` on read and find widens an address along the document's own cross-references: out = what it points at, in = what points at it. A ~100-page agreement maps to 1-3k tokens.",
     {
       type: "object",
       properties: {
@@ -306,7 +327,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
         at: {
           type: "string",
           description:
-            "Structural locator to stand at ('8.01', 'Article VIII'). Omit for the document-level census and hubs.",
+            "Structural locator to stand at ('8.01', 'Article VIII', 'table:1/row:2/col:3'). Omit for the document-level census and hubs.",
         },
         section: {
           type: "string",
@@ -343,7 +364,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
         at: {
           type: "string",
           description:
-            "Restrict the search to one address: '8.01' for a provision and everything under it, 'pdf:12-18' or 'printed:47' for pages. Hit offsets stay document-wide.",
+            "Restrict the search to one address: '8.01' for a provision and everything under it, 'table:1/row:2/col:3' for an exact DOCX cell, or 'pdf:12-18'/'printed:47' for pages. Hit offsets stay document-wide.",
         },
         pages: {
           type: "string",
@@ -565,6 +586,23 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
     },
   ),
   tool(
+    "library_delete_and_renumber_docx",
+    "Delete one numbered provision from a local Library DOCX and close that exact sibling gap as tracked changes. The server renumbers following sibling headings and every resolved internal pointer in one atomic operation. It refuses the whole mutation if the target, sequence, or any affected reference is missing, ambiguous, external, or otherwise unsafe. This is deliberately delete-and-close-gap only; it does not insert provisions or open a numbering gap.",
+    {
+      type: "object",
+      properties: {
+        document_id: DOCUMENT_ID_PROPERTY,
+        version_id: OPTIONAL_VERSION_ID_PROPERTY,
+        target: {
+          type: "string",
+          description:
+            "Exact provision handle from library_outline, such as '8.02' or '8.02(a)'.",
+        },
+      },
+      required: ["document_id", "target"],
+    },
+  ),
+  tool(
     "library_deadline",
     "Compute a legal deadline with a derivation trace: Interpretation Act s. 27(2) exclude-first-include-last counting, s. 27(1) clear days, s. 28 month anniversaries with month-end clamping, s. 26 holiday rollover, and business days over statutory holiday tables (CA federal, CA-ON, CA-BC, CA-QC, US). Quote the returned trace.",
     {
@@ -697,6 +735,12 @@ const LOCAL_DOCX_TOOLS: OpenAIToolSchema[] = (
   TOOLS as OpenAIToolSchema[]
 ).flatMap((schema) => {
   if (schema.function.name === "generate_docx") {
+    const parameters = schema.function.parameters as {
+      type: string;
+      properties: Record<string, unknown>;
+      required?: string[];
+    };
+    const title = parameters.properties.title as Record<string, unknown>;
     return [
       {
         ...schema,
@@ -704,6 +748,22 @@ const LOCAL_DOCX_TOOLS: OpenAIToolSchema[] = (
           ...schema.function,
           name: "library_create_docx",
           description: `${schema.function.description} Stored as a durable new item in the local Library; matter chats attach it automatically.`,
+          parameters: {
+            ...parameters,
+            properties: {
+              ...parameters.properties,
+              title: {
+                ...title,
+                description:
+                  "Document title rendered once in the file. Do not repeat it in markdown.",
+              },
+              filename: {
+                type: "string",
+                description:
+                  "Optional exact output filename ending in .docx; omit to derive it from title.",
+              },
+            },
+          },
         },
       },
     ];
@@ -773,10 +833,73 @@ export const ASK_INPUTS_DISABLED =
  * MIKE_TOOL_SHAPE=coding swaps the library navigation surface for the
  * shapes coding agents are RL-trained on: Glob/Grep/Read over file paths,
  * line addressing, cat -n output. Handlers are shared; only the
- * model-facing schema changes. library_list stays as the document_id
- * bridge for the editing tools.
+ * model-facing schema changes. Glob discloses document IDs only when two
+ * files share a filename, so the ordinary path stays filename-native.
  */
 export const CODING_TOOL_SHAPE = process.env.MIKE_TOOL_SHAPE === "coding";
+
+/** Explicit LAB-only comparator; never selected by a product setting. */
+export const UPSTREAM_MIKE_TOOL_SHAPE =
+  process.env.MIKE_TOOL_SHAPE === "upstream-mike";
+
+/** Keep tool disclosure independent from navigation vocabulary in A/B runs. */
+export const PROGRESSIVE_DISCLOSURE_ENABLED =
+  NAV_TOOL_SHAPE === "address" ||
+  process.env.MIKE_PROGRESSIVE_DISCLOSURE === "1";
+
+export type RetrievalExperimentShape =
+  | ""
+  | "p0-pure-coding"
+  | "c0-routed-coding"
+  | "h1-contact"
+  | "h2-document-map"
+  | "h3-reference-impact"
+  | "h4-legal-grep"
+  | "h5-working-set"
+  | "d0-generic"
+  | "d1-routed"
+  | "d2-concrete";
+
+const requestedRetrievalExperiment =
+  process.env.MIKE_RETRIEVAL_EXPERIMENT?.trim() ?? "";
+const RETRIEVAL_EXPERIMENT_SHAPES = new Set<RetrievalExperimentShape>([
+  "",
+  "p0-pure-coding",
+  "c0-routed-coding",
+  "h1-contact",
+  "h2-document-map",
+  "h3-reference-impact",
+  "h4-legal-grep",
+  "h5-working-set",
+  "d0-generic",
+  "d1-routed",
+  "d2-concrete",
+]);
+if (
+  !RETRIEVAL_EXPERIMENT_SHAPES.has(
+    requestedRetrievalExperiment as RetrievalExperimentShape,
+  )
+) {
+  throw new Error(
+    `Unknown MIKE_RETRIEVAL_EXPERIMENT=${requestedRetrievalExperiment}`,
+  );
+}
+export const RETRIEVAL_EXPERIMENT_SHAPE =
+  requestedRetrievalExperiment as RetrievalExperimentShape;
+const PURE_CODING_EXPERIMENT =
+  RETRIEVAL_EXPERIMENT_SHAPE === "p0-pure-coding";
+const LEGAL_GREP_EXPERIMENT =
+  RETRIEVAL_EXPERIMENT_SHAPE === "h4-legal-grep" ||
+  RETRIEVAL_EXPERIMENT_SHAPE === "h5-working-set";
+const WORKING_SET_EXPERIMENT =
+  RETRIEVAL_EXPERIMENT_SHAPE === "h5-working-set";
+const TOOL_DESCRIPTION_VARIANT =
+  process.env.MIKE_TOOL_DESCRIPTION_VARIANT?.trim() || "operational";
+if (!["operational", "terse"].includes(TOOL_DESCRIPTION_VARIANT)) {
+  throw new Error(
+    `Unknown MIKE_TOOL_DESCRIPTION_VARIANT=${TOOL_DESCRIPTION_VARIANT}`,
+  );
+}
 
 
 /** Shown only in the address arm; stripped from legacy. */
@@ -805,7 +928,7 @@ const LEGACY_ONLY_PARAMS: Record<string, string[]> = {
  */
 const LEGACY_DESCRIPTIONS: Record<string, string> = {
   library_outline:
-    "Structural map of a Library document parsed from its own numbering: the ARTICLE/PART tree, every Section and (a)/(i) subsection with the handle library_read accepts, defined terms with their defining section, schedules/exhibits, and cross-reference counts. A ~100-page agreement maps to 1-3k tokens.",
+    "Structural map of a Library document parsed from its own numbering and native DOCX tables: the ARTICLE/PART tree, every Section and (a)/(i) subsection, exact table/cell handles library_read accepts, defined terms with their defining section, schedules/exhibits, and cross-reference counts. A ~100-page agreement maps to 1-3k tokens.",
 };
 
 /**
@@ -821,20 +944,75 @@ const LEGACY_DESCRIPTIONS: Record<string, string> = {
  * Legacy stays on the synchronous path: arm B is the whole product bet, and
  * this is part of it.
  */
-async function documentStructure(text: string, id = "") {
+async function documentStructure(
+  text: string,
+  id = "",
+  options: CompileSkeletonOptions = {},
+) {
   return NAV_TOOL_SHAPE === "address"
-    ? bakedSkeleton(text, id)
-    : compileAgreementSkeleton(text, id);
+    ? bakedSkeleton(text, id, options)
+    : compileAgreementSkeleton(text, id, options);
 }
 
 async function documentGraph(
   text: string,
   id: string,
   skeleton: AgreementSkeleton,
+  options: CompileSkeletonOptions = {},
 ) {
   return NAV_TOOL_SHAPE === "address"
-    ? bakedCrossReferenceGraph(text, id)
+    ? bakedCrossReferenceGraph(text, id, options)
     : crossReferenceGraph(text, id, { skeleton });
+}
+
+function oneHopLegalScope(
+  skeleton: AgreementSkeleton,
+  graph: CrossReferenceGraph,
+  seedLabel: string,
+  direction: "inbound" | "outbound" | "both",
+) {
+  const lookup = readSection(skeleton, seedLabel);
+  if (lookup.status !== "found" || !lookup.block) return null;
+  const seed = skeleton.nodes.find(
+    (node) =>
+      node.label === lookup.block!.label &&
+      node.start === lookup.block!.start &&
+      node.end === lookup.block!.end,
+  );
+  if (!seed) return null;
+  const subtree = skeletonSubtreeLabels(skeleton, seed.label);
+  const byLabel = new Map(skeleton.nodes.map((node) => [node.label, node]));
+  const reached = new Map<string, (typeof skeleton.nodes)[number]>();
+  for (const edge of graph.edges) {
+    if (edge.status !== "resolved" || edge.selfLoop) continue;
+    if (
+      (direction === "outbound" || direction === "both") &&
+      edge.sourceLabel &&
+      subtree.has(edge.sourceLabel) &&
+      edge.targetLabel &&
+      !subtree.has(edge.targetLabel)
+    ) {
+      const node = byLabel.get(edge.targetLabel);
+      if (node) reached.set(node.label, node);
+    }
+    if (
+      (direction === "inbound" || direction === "both") &&
+      edge.targetLabel &&
+      subtree.has(edge.targetLabel) &&
+      edge.sourceLabel &&
+      !subtree.has(edge.sourceLabel)
+    ) {
+      const node = byLabel.get(edge.sourceLabel);
+      if (node) reached.set(node.label, node);
+    }
+  }
+  return {
+    seed,
+    nodes: [
+      seed,
+      ...[...reached.values()].sort((left, right) => left.start - right.start),
+    ],
+  };
 }
 
 /**
@@ -846,11 +1024,14 @@ async function documentGraph(
  * starts with and defers the rest behind one discovery call.
  *
  * Resident = what you need before you know what the task is: find the
- * document, orient, read, search, follow, edit, ask. Everything else is a
+ * document, orient, read, search, follow, ask. Everything else is a
  * domain the model can open when the task turns out to need it.
  */
 const RESIDENT_TOOLS = new Set([
   "ask_inputs",
+  "Glob",
+  "Grep",
+  "Read",
   "library_list",
   "library_outline",
   "library_read",
@@ -868,71 +1049,92 @@ const RESIDENT_TOOLS = new Set([
  * is organised — a model asks "what cites this case", never "I need the
  * courtlistener module".
  *
- * SHAPE. A flat list wins while the catalogue is small: no navigation hop and
- * no semantic noise. Its token cost then grows near-linearly and its accuracy
- * degrades as the catalogue grows, where a hierarchy stays flat on both.
- * Research is where that bites here — half the deferred tools — so research
- * is a tree and every other domain stays one level. Opening a parent returns
- * its CHILDREN; opening a leaf returns tools.
+ * Keep this one hop while the catalogue is small. A second discovery turn is
+ * real latency; add hierarchy only when a measured routing failure justifies
+ * it.
  */
-type Domain = { blurb: string; children?: string[] };
+type Domain = { blurb: string };
 
 const TOOL_DOMAINS: Record<string, Domain> = {
-  research: {
-    blurb: "primary law and the record around it",
-    children: ["research.cases", "research.legislation", "research.commentary"],
-  },
-  "research.cases": {
+  document_map: {
     blurb:
-      "decisions — search and read them, pull an exact paragraph, and see which later decisions cite one and what they said when they did",
+      "map provisions, native table rows, or PDF-versus-printed pages when wording search cannot orient the task; not ordinary passage search",
   },
-  "research.legislation": {
+  cross_reference_impact: {
     blurb:
-      "statutes and regulations — search and read them, pull an exact section, and the parliamentary debate behind them",
+      "list literal inbound/outbound pointers or the exact impact set for deleting and closing one numbering gap; not similarity search",
   },
-  "research.commentary": {
-    blurb: "journals, secondary sources, and citation verification",
+  cases: {
+    blurb:
+      "find and read decisions, retrieve exact paragraphs, and see which later decisions cite a case; not citation-format checking",
   },
-  drafting: { blurb: "create or revise Word, Excel and PowerPoint documents" },
-  review: { blurb: "conflict, term-drift, structure, anchor and drafting checks" },
-  amendment: { blurb: "apply an amendment instrument, and compare versions" },
-  authorities: { blurb: "table of authorities submission and status" },
-  deadlines: { blurb: "deadline computation" },
-  workflow: { blurb: "saved workflows" },
+  legislation: {
+    blurb:
+      "find and read statutes, regulations, exact provisions, and related legislative debate",
+  },
+  commentary: {
+    blurb: "find and read journals and other public secondary sources",
+  },
+  citations: {
+    blurb:
+      "verify citation strings, link or repair citations in Word, and build a table or book of authorities; not case-law research",
+  },
+  output_document: {
+    blurb:
+      "create a new Word deliverable from completed content",
+  },
+  drafting: {
+    blurb:
+      "revise an existing Word document, delete and safely renumber a provision, or update Library metadata",
+  },
+  document_quality: {
+    blurb:
+      "audit an existing DOCX for structure, source anchors, conflicts, term drift, drafting, or bilingual concordance; not source-document analysis, and not a newly created file whose receipt already reports compiler checks",
+  },
+  amendment: {
+    blurb:
+      "apply a formal amending instrument or compare saved versions; not ordinary clause editing or renumbering",
+  },
+  deadlines: { blurb: "compute a legal deadline with a derivation trace" },
+  workflow: { blurb: "list or open saved workflows" },
 };
 
 const DOMAIN_OF: Record<string, string> = {
-  courtlistener_search_case_law: "research.cases",
-  courtlistener_get_cases: "research.cases",
-  courtlistener_find_in_case: "research.cases",
-  courtlistener_lookup_case_locator: "research.cases",
-  courtlistener_read_case: "research.cases",
-  caselaw_note_up: "research.cases",
-  a2aj_search: "research.cases",
-  a2aj_fetch: "research.cases",
-  a2aj_lookup: "research.cases",
-  legal_pdf_lookup: "research.cases",
-  hansard_search: "research.legislation",
-  hansard_fetch: "research.legislation",
-  public_legal_source_search: "research.commentary",
-  public_legal_source_fetch: "research.commentary",
-  public_legal_source_lookup: "research.commentary",
-  courtlistener_verify_citations: "research.commentary",
-  library_create_docx: "drafting",
+  DocumentMap: "document_map",
+  ReferenceImpact: "cross_reference_impact",
+  courtlistener_search_case_law: "cases",
+  courtlistener_get_cases: "cases",
+  courtlistener_find_in_case: "cases",
+  courtlistener_lookup_case_locator: "cases",
+  courtlistener_read_case: "cases",
+  caselaw_note_up: "cases",
+  a2aj_search: "cases",
+  a2aj_fetch: "cases",
+  a2aj_lookup: "cases",
+  legal_pdf_lookup: "cases",
+  hansard_search: "legislation",
+  hansard_fetch: "legislation",
+  public_legal_source_search: "commentary",
+  public_legal_source_fetch: "commentary",
+  public_legal_source_lookup: "commentary",
+  courtlistener_verify_citations: "citations",
+  library_create_docx: "output_document",
   library_revise_docx: "drafting",
+  Edit: "drafting",
   library_update_metadata: "drafting",
-  library_link_docx_citations: "review",
-  library_fix_docx_supras: "review",
-  library_lint_docx_structure: "review",
-  library_anchor_coverage: "review",
-  library_conflict_scan: "review",
-  library_term_drift: "review",
-  library_drafting_lint: "review",
-  library_bilingual_concordance: "review",
+  library_link_docx_citations: "citations",
+  library_fix_docx_supras: "citations",
+  library_lint_docx_structure: "document_quality",
+  library_anchor_coverage: "document_quality",
+  library_conflict_scan: "document_quality",
+  library_term_drift: "document_quality",
+  library_drafting_lint: "document_quality",
+  library_bilingual_concordance: "document_quality",
   library_apply_amendment: "amendment",
+  library_delete_and_renumber_docx: "drafting",
   library_compare_versions: "amendment",
-  toa_submit_library_document: "authorities",
-  toa_job_status: "authorities",
+  toa_submit_library_document: "citations",
+  toa_job_status: "citations",
   library_deadline: "deadlines",
   list_workflows: "workflow",
   read_workflow: "workflow",
@@ -943,7 +1145,7 @@ const DOMAIN_OF: Record<string, string> = {
  * caller opens, they are the way in.
  */
 const ALSO_IN: Record<string, string[]> = {
-  "research.legislation": ["a2aj_search", "a2aj_fetch", "a2aj_lookup"],
+  legislation: ["a2aj_search", "a2aj_fetch", "a2aj_lookup"],
 };
 
 /**
@@ -1030,25 +1232,70 @@ function forNavShape(tools: OpenAIToolSchema[]): OpenAIToolSchema[] {
 
 
 const CODING_SHAPE_REPLACES = new Set([
+  "library_list",
   "library_find",
   "library_read",
   "library_outline",
-  "library_list",
   "library_revise_docx",
 ]);
+
+// These organs become compile-time checks under the SLA workflow. Keeping a
+// second callable copy invites duplicate schemas, calls, and results.
+const SLA_COMPILER_REPLACES = new Set([
+  "library_lint_docx_structure",
+  "library_anchor_coverage",
+  "library_conflict_scan",
+  "library_term_drift",
+  "library_drafting_lint",
+  "library_bilingual_concordance",
+]);
+
+const forAutomaticCompiler = (tools: OpenAIToolSchema[]) =>
+  process.env.MIKE_SLA_WORKFLOW === "1"
+    ? tools.filter((entry) => !SLA_COMPILER_REPLACES.has(entry.function.name))
+    : tools;
 
 const CODING_SHAPE_SUGGESTIONS: Record<string, string> = {
   library_find: "Grep",
   library_read: "Read",
   library_outline: "Grep or Read",
-  library_list: "Glob",
   library_revise_docx: "Edit",
 };
+
+const ROUTED_CODING_DESCRIPTION =
+  RETRIEVAL_EXPERIMENT_SHAPE &&
+  RETRIEVAL_EXPERIMENT_SHAPE !== "d0-generic" &&
+  RETRIEVAL_EXPERIMENT_SHAPE !== "d2-concrete"
+  ? " File facts include character and line counts: start with one whole Read for files at or below 24000 characters or questions spanning the whole short document; for a localized target in a larger file, Grep first and then Read the smallest responsive span."
+  : "";
+
+const CONCRETE_GREP_DESCRIPTION =
+  RETRIEVAL_EXPERIMENT_SHAPE === "d2-concrete"
+    ? " For a localized question in a file over 24000 characters, show matching content, then Read the smallest windows covering every requested occurrence and any stated exclusion."
+    : "";
+
+const CONCRETE_READ_DESCRIPTION =
+  RETRIEVAL_EXPERIMENT_SHAPE === "d2-concrete"
+    ? " If the file has at most 24000 characters or the question concerns the whole short file, read it once from line 1. Example: for 'return both clauses, exclude the definition,' read every candidate clause before answering; do not stop at the first hit."
+    : "";
+
+const CONTACT_GREP_DESCRIPTION =
+  RETRIEVAL_EXPERIMENT_SHAPE === "h1-contact" || LEGAL_GREP_EXPERIMENT
+    ? " Content hits include a verified Read recipe."
+    : "";
+
+const LEGAL_GREP_DESCRIPTION = LEGAL_GREP_EXPERIMENT
+  ? " Optional section, page, and direct-reference scopes bound long legal documents; use ordinary Grep or whole-file Read when cheaper."
+  : "";
+
+const CODING_READ_DESCRIPTION = PURE_CODING_EXPERIMENT
+  ? "Reads a file. Reads up to 2000 lines by default. Results are returned using cat -n format, with line numbers starting at 1. When you already know which part of the file you need, pass offset and limit for a line window."
+  : "Reads a file. Reads up to 2000 lines by default. Results are returned using cat -n format, with line numbers starting at 1. When you already know which part of the file you need, pass a verified section handle shown in Grep results, or pass offset and limit for a line window.";
 
 const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
   tool(
     "Glob",
-    'Fast file pattern matching. Supports glob patterns like "*.docx". Returns matching file paths.',
+    'Fast file pattern matching. Supports glob patterns like "*.docx". Returns filenames; when filenames collide, also returns the document_id needed to disambiguate them.',
     {
       type: "object",
       properties: {
@@ -1062,18 +1309,25 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
   ),
   tool(
     "Grep",
-    'Content search. Full regex syntax (e.g. "Base Rent", "clause\\s+\\d+"). Filter files with glob. output_mode: "content" shows matching lines, "files_with_matches" shows file paths (default), "count" shows match counts.',
+    TOOL_DESCRIPTION_VARIANT === "terse"
+      ? "Search file contents with a regular expression."
+      : 'Content search with regular expressions. Filter by file or glob; choose content, matching files, counts, or a listed legal projection.' +
+        ROUTED_CODING_DESCRIPTION +
+        CONCRETE_GREP_DESCRIPTION +
+        CONTACT_GREP_DESCRIPTION +
+        LEGAL_GREP_DESCRIPTION,
     {
       type: "object",
       properties: {
         pattern: {
           type: "string",
           description:
-            "The regular expression pattern to search for in file contents",
+            "The regular expression pattern to search for in file contents. Do not use . or .* as a whole-file reader; use Read instead.",
         },
         path: {
           type: "string",
-          description: "File to search in. Defaults to all files.",
+          description:
+            "Filename to search, or the document_id shown by Glob when filenames are duplicated. Defaults to all files.",
         },
         glob: {
           type: "string",
@@ -1081,9 +1335,21 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
         },
         output_mode: {
           type: "string",
-          enum: ["content", "files_with_matches", "count"],
+          enum: [
+            "content",
+            "files_with_matches",
+            "count",
+            ...(LEGAL_GREP_EXPERIMENT ? ["sections"] : []),
+            ...(WORKING_SET_EXPERIMENT ? ["working_set"] : []),
+          ],
           description:
-            'Output mode: "content" shows matching lines (supports -C context, -n line numbers, head_limit), "files_with_matches" shows file paths (default), "count" shows match counts.',
+            'Output mode: "content" shows matching lines (supports -C context, -n line numbers, head_limit), "files_with_matches" shows file paths (default), "count" shows match counts.' +
+            (LEGAL_GREP_EXPERIMENT
+              ? ' "sections" returns unique executable Read recipes for the legal sections containing matches, without section prose.'
+              : "") +
+            (WORKING_SET_EXPERIMENT
+              ? ' "working_set" creates an immutable turn-local file from the smallest responsive legal units across matching documents and returns its manifest; Read the returned path.'
+              : ""),
         },
         "-i": { type: "boolean", description: "Case insensitive search" },
         "-n": {
@@ -1098,51 +1364,114 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
         },
         head_limit: {
           type: "number",
+          minimum: 1,
           description:
             "Limit output to first N lines/entries. Defaults to 250.",
         },
+        ...(WORKING_SET_EXPERIMENT
+          ? {
+              max_chars: {
+                type: "number",
+                minimum: 1_000,
+                maximum: 128_000,
+                description:
+                  "Source-text budget for working_set only. Defaults to 64000; maximum 128000.",
+              },
+            }
+          : {}),
+        ...(LEGAL_GREP_EXPERIMENT
+          ? {
+              section: {
+                type: "string",
+                description:
+                  "Optional exact section, subsection, table row, or cell handle copied from Grep. Searches that unit and its children.",
+              },
+              pages: {
+                type: "string",
+                description:
+                  'Optional page scope such as "pdf:12", "printed:47", "12-18", or "3,5,9". Never guess a page scheme.',
+              },
+              references: {
+                type: "string",
+                enum: ["none", "inbound", "outbound", "both"],
+                description:
+                  "With section, optionally search its direct literal reference neighborhood. Inbound means provisions that cite it; outbound means provisions it cites. Defaults to none.",
+              },
+            }
+          : {}),
       },
       required: ["pattern"],
     },
   ),
   tool(
     "Read",
-    "Reads a file. Reads up to 2000 lines by default. Results are returned using cat -n format, with line numbers starting at 1. When you already know which part of the file you need, only read that part — pass a section handle (shown in Grep results as [handle]) to read just that section.",
+    TOOL_DESCRIPTION_VARIANT === "terse"
+      ? "Read a file or an optional bounded scope."
+      : CODING_READ_DESCRIPTION +
+        ROUTED_CODING_DESCRIPTION +
+        CONCRETE_READ_DESCRIPTION,
     {
       type: "object",
       properties: {
         file_path: {
           type: "string",
-          description: "The path to the file to read",
+          description:
+            "The filename to read, or the document_id shown by Glob when filenames are duplicated",
         },
         offset: {
           type: "number",
+          minimum: 1,
           description:
-            "The line number to start reading from. Only provide if the file is too large to read at once",
+            PURE_CODING_EXPERIMENT
+              ? "Optional starting line."
+              : "Optional starting line. Omit when reading a section or page.",
         },
         limit: {
           type: "number",
+          minimum: 1,
           description:
             "The number of lines to read. Only provide if the file is too large to read at once.",
         },
-        section: {
-          type: "string",
-          description:
-            "Structural section handle (e.g. '3.1', 'sec8.01'). Returns only that section, numbered by document line.",
-        },
+        ...(PURE_CODING_EXPERIMENT
+          ? {}
+          : {
+              section: {
+                type: "string",
+                description:
+                  "A verified structural handle shown in Grep results, including an exact DOCX row such as 'table:1/row:2' or cell such as 'table:1/row:2/col:3'. Copy it exactly; do not infer parent or paragraph handles. Returns only that span, numbered by document line.",
+              },
+            }),
+        ...(LEGAL_GREP_EXPERIMENT
+          ? {
+              pages: {
+                type: "string",
+                description:
+                  'Read an exact page or page range such as "pdf:12", "printed:47", or "12-18". Do not combine with section or offset.',
+              },
+              references: {
+                type: "string",
+                enum: ["none", "inbound", "outbound", "both"],
+                description:
+                  "With section, include the target and every directly linked internal provision in one overlap-suppressed read. Inbound means provisions that cite it; outbound means provisions it cites. Defaults to none.",
+              },
+            }
+          : {}),
       },
       required: ["file_path"],
     },
   ),
   tool(
     "Edit",
-    "Performs exact string replacement in a file, recorded as a tracked change. old_string must match the file exactly and be unique — the edit fails otherwise; make it unique with more surrounding context, or pass section to scope the match to one section.",
+    PURE_CODING_EXPERIMENT
+      ? "Performs exact string replacement in a file, recorded as a tracked change. old_string must match the file exactly and be unique — the edit fails otherwise; make it unique with more surrounding context."
+      : "Performs exact string replacement in a file, recorded as a tracked change. old_string must match the file exactly and be unique — the edit fails otherwise; make it unique with more surrounding context, or pass section to scope the match to one section.",
     {
       type: "object",
       properties: {
         file_path: {
           type: "string",
-          description: "The path to the file to modify",
+          description:
+            "The filename to modify, or the document_id shown by Glob when filenames are duplicated",
         },
         old_string: { type: "string", description: "The text to replace" },
         new_string: {
@@ -1154,36 +1483,113 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
           type: "boolean",
           description: "Replace all occurrences of old_string (default false)",
         },
-        section: {
-          type: "string",
-          description:
-            "Structural section handle; old_string must be unique within it.",
-        },
+        ...(PURE_CODING_EXPERIMENT
+          ? {}
+          : {
+              section: {
+                type: "string",
+                description:
+                  "Structural handle (including an exact DOCX cell such as 'table:1/row:2/col:3'); old_string must be unique within it.",
+              },
+            }),
       },
       required: ["file_path", "old_string", "new_string"],
     },
   ),
 ];
 
-const DESCRIBE_TOOLS_TOOL: OpenAIToolSchema = tool(
-  "describe_tools",
-  `Open a domain of tools that are not loaded yet, and get their full schemas. Domains: ${Object.entries(
-    TOOL_DOMAINS,
-  )
-    .map(([name, blurb]) => `${name} (${blurb})`)
-    .join("; ")}. Call this the moment a task needs one of them; the tools become callable immediately after.`,
-  {
-    type: "object",
-    properties: {
-      domains: {
-        type: "array",
-        items: { type: "string", enum: Object.keys(TOOL_DOMAINS) },
-        description: "One or more domains to open.",
+const RETRIEVAL_EXPERIMENT_TOOLS: OpenAIToolSchema[] =
+  RETRIEVAL_EXPERIMENT_SHAPE === "h2-document-map"
+    ? [
+        tool(
+          "DocumentMap",
+          "Return a small legal coordinate map only when ordinary wording search cannot answer a provisions, native-table, page-label, or landmark-location question. Every row is an executable Read recipe; no document prose or general outline is returned.",
+          {
+            type: "object",
+            properties: {
+              file_path: {
+                type: "string",
+                description: "Opaque filename or document_id.",
+              },
+              focus: {
+                type: "string",
+                enum: ["provisions", "tables", "pages", "landmarks"],
+                description:
+                  "Required map: numbered provisions; native table/row/cell coordinates; PDF versus printed pages; or top-level articles, schedules, and exhibits.",
+              },
+              query: {
+                type: "string",
+                description:
+                  "Optional literal words that map rows must contain. Omit only for a genuinely global orientation task.",
+              },
+              max_results: {
+                type: "integer",
+                minimum: 1,
+                maximum: 25,
+                description: "Maximum rows. Defaults to 25.",
+              },
+            },
+            required: ["file_path", "focus"],
+          },
+        ),
+      ]
+    : RETRIEVAL_EXPERIMENT_SHAPE === "h3-reference-impact"
+      ? [
+          tool(
+            "ReferenceImpact",
+            "Return one bounded, deterministic set of literal cross-reference locations. Use only for inbound/outbound-reference questions or deletion plus closing a numbering gap; it returns Read recipes, typed ambiguities, and no clause prose or similarity guesses.",
+            {
+              type: "object",
+              properties: {
+                file_path: {
+                  type: "string",
+                  description: "Opaque filename or document_id.",
+                },
+                targets: {
+                  type: "array",
+                  items: { type: "string" },
+                  description:
+                    "One or more exact provision handles copied from Grep or Read.",
+                },
+                operation: {
+                  type: "string",
+                  enum: ["inbound", "outbound", "delete_and_close_gap"],
+                  description:
+                    "Literal pointers into the target, literal pointers made by it, or the complete deterministic delete-and-renumber impact plan.",
+                },
+              },
+              required: ["file_path", "targets", "operation"],
+            },
+          ),
+        ]
+      : [];
+
+function domainEntriesForTools(tools: OpenAIToolSchema[]) {
+  return Object.entries(TOOL_DOMAINS).filter(([name]) =>
+    toolsForDomains(tools, [name]).length,
+  );
+}
+
+export function describeToolsTool(tools: OpenAIToolSchema[]): OpenAIToolSchema {
+  const domains = domainEntriesForTools(tools);
+  return tool(
+    "describe_tools",
+    `Load a domain of tools that is not available yet. Domains: ${domains
+      .map(([name, domain]) => `${name} (${domain.blurb})`)
+      .join("; ")}. Call this the moment a task needs one of them; the tools become callable immediately after.`,
+    {
+      type: "object",
+      properties: {
+        domains: {
+          type: "array",
+          items: { type: "string", enum: domains.map(([name]) => name) },
+          description: "One or more domains to open.",
+        },
       },
+      required: ["domains"],
     },
-    required: ["domains"],
-  },
-);
+  );
+}
 
 /**
  * Split for the address arm: what ships in the request, and what
@@ -1194,10 +1600,11 @@ export function partitionTools(tools: OpenAIToolSchema[]): {
   resident: OpenAIToolSchema[];
   deferred: OpenAIToolSchema[];
 } {
-  if (NAV_TOOL_SHAPE !== "address") return { resident: tools, deferred: [] };
+  if (!PROGRESSIVE_DISCLOSURE_ENABLED)
+    return { resident: tools, deferred: [] };
   const resident = tools.filter((entry) => RESIDENT_TOOLS.has(entry.function.name));
   const deferred = tools.filter((entry) => !RESIDENT_TOOLS.has(entry.function.name));
-  return { resident: [...resident, DESCRIBE_TOOLS_TOOL], deferred };
+  return { resident: [...resident, describeToolsTool(tools)], deferred };
 }
 
 /** Schemas for the domains a `describe_tools` call asked for. */
@@ -1214,23 +1621,78 @@ export function toolsForDomains(
   );
 }
 
-export const LOCAL_ASSISTANT_TOOLS: OpenAIToolSchema[] = [
+const CODING_DOCUMENT_REFERENCE_FIELDS = new Set([
+  "document_id",
+  "source_document_id",
+  "amendment_document_id",
+  "english_document_id",
+  "french_document_id",
+]);
+const CODING_DOCUMENT_REFERENCE_ARRAY_FIELDS = new Set([
+  "document_ids",
+  "doc_ids",
+  "source_document_ids",
+  "draft_document_ids",
+]);
+
+function forCodingVocabulary(tools: OpenAIToolSchema[]): OpenAIToolSchema[] {
+  if (!CODING_TOOL_SHAPE) return tools;
+  const rewrite = (value: unknown, key = ""): unknown => {
+    if (Array.isArray(value)) return value.map((entry) => rewrite(entry));
+    if (!value || typeof value !== "object") {
+      if (key !== "description" || typeof value !== "string") return value;
+      return value
+        .replace(/library_outline/gu, "Grep")
+        .replace(/library_read/gu, "Read")
+        .replace(/library_find/gu, "Grep")
+        .replace(/library_revise_docx/gu, "Edit");
+    }
+    const rewritten = Object.fromEntries(
+      Object.entries(value).map(([name, entry]) => [
+        name,
+        rewrite(entry, name),
+      ]),
+    );
+    if (CODING_DOCUMENT_REFERENCE_FIELDS.has(key)) {
+      rewritten.description =
+        "Filename from Glob, or document_id when Glob reports a duplicate filename.";
+    } else if (CODING_DOCUMENT_REFERENCE_ARRAY_FIELDS.has(key)) {
+      rewritten.description =
+        "Filenames from Glob, or document_ids for duplicate filenames.";
+    }
+    return rewritten;
+  };
+  return tools.map((entry) => rewrite(entry) as OpenAIToolSchema);
+}
+
+const LOCAL_ASSISTANT_TOOL_CATALOG: OpenAIToolSchema[] = [
   ...(ASK_INPUTS_DISABLED ? [] : LOCAL_ASK_INPUTS_TOOLS),
-  ...(CODING_TOOL_SHAPE
+  ...(UPSTREAM_MIKE_TOOL_SHAPE
+    ? UPSTREAM_MIKE_LAB_TOOLS
+    : CODING_TOOL_SHAPE
     ? [
         ...CODING_SHAPE_TOOLS,
+        ...RETRIEVAL_EXPERIMENT_TOOLS,
         ...forNavShape(
-          LOCAL_LIBRARY_TOOLS.filter(
+          forAutomaticCompiler(LOCAL_LIBRARY_TOOLS).filter(
             (entry) => !CODING_SHAPE_REPLACES.has(entry.function.name),
           ),
         ),
       ]
-    : forNavShape(LOCAL_LIBRARY_TOOLS)),
-  ...LOCAL_DOCX_TOOLS,
-  ...COMPARE_VERSIONS_TOOLS,
-  ...forEditShape(TEXT_OPS_TOOLS as OpenAIToolSchema[]),
-  ...(WORKFLOW_TOOLS as OpenAIToolSchema[]),
-  ...(RESEARCH_TOOLS_DISABLED
+    : forNavShape(forAutomaticCompiler(LOCAL_LIBRARY_TOOLS))),
+  ...(UPSTREAM_MIKE_TOOL_SHAPE
+    ? []
+    : CODING_TOOL_SHAPE
+    ? LOCAL_DOCX_TOOLS.filter(
+        (entry) => !CODING_SHAPE_REPLACES.has(entry.function.name),
+      )
+    : LOCAL_DOCX_TOOLS),
+  ...(UPSTREAM_MIKE_TOOL_SHAPE ? [] : COMPARE_VERSIONS_TOOLS),
+  ...(UPSTREAM_MIKE_TOOL_SHAPE
+    ? []
+    : forEditShape(TEXT_OPS_TOOLS as OpenAIToolSchema[])),
+  ...(UPSTREAM_MIKE_TOOL_SHAPE ? [] : (WORKFLOW_TOOLS as OpenAIToolSchema[])),
+  ...(UPSTREAM_MIKE_TOOL_SHAPE || RESEARCH_TOOLS_DISABLED
     ? []
     : [
         ...(COURTLISTENER_TOOLS as OpenAIToolSchema[]),
@@ -1240,6 +1702,10 @@ export const LOCAL_ASSISTANT_TOOLS: OpenAIToolSchema[] = [
         ...CITATOR_TOOLS,
       ]),
 ];
+
+export const LOCAL_ASSISTANT_TOOLS = forCodingVocabulary(
+  LOCAL_ASSISTANT_TOOL_CATALOG,
+);
 
 const trimmed = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
@@ -1251,6 +1717,66 @@ const stringArray = (value: unknown): string[] =>
         .map((item) => item.trim())
         .filter(Boolean)
     : [];
+
+async function resolveCodingDocumentReferences(
+  userId: string,
+  input: Record<string, unknown>,
+  allowedDocumentIds?: ReadonlySet<string>,
+): Promise<{ input: Record<string, unknown>; error?: string }> {
+  const fields = Object.keys(input).filter(
+    (field) =>
+      CODING_DOCUMENT_REFERENCE_FIELDS.has(field) ||
+      CODING_DOCUMENT_REFERENCE_ARRAY_FIELDS.has(field),
+  );
+  if (!fields.length) return { input };
+
+  const collection = await listLocalLibrary(userId, "file");
+  const documents = collection.documents.filter(
+    (document) => !allowedDocumentIds || allowedDocumentIds.has(document.id),
+  );
+  const byFilename = new Map<string, typeof documents>();
+  for (const document of documents) {
+    const key = document.filename.toLocaleLowerCase();
+    byFilename.set(key, [...(byFilename.get(key) ?? []), document]);
+  }
+  const resolve = (reference: string): { value: string; error?: string } => {
+    if (documents.some((document) => document.id === reference)) {
+      return { value: reference };
+    }
+    const matches = byFilename.get(reference.toLocaleLowerCase()) ?? [];
+    if (matches.length === 1) return { value: matches[0].id };
+    if (matches.length > 1) {
+      return {
+        value: reference,
+        error: `Filename '${reference}' is ambiguous. Use Glob to obtain its document_id.`,
+      };
+    }
+    return { value: reference };
+  };
+
+  const resolved = { ...input };
+  for (const field of fields) {
+    if (CODING_DOCUMENT_REFERENCE_FIELDS.has(field)) {
+      const reference = trimmed(input[field]);
+      if (!reference) continue;
+      const next = resolve(reference);
+      if (next.error) return { input, error: next.error };
+      resolved[field] = next.value;
+      continue;
+    }
+    if (!Array.isArray(input[field])) continue;
+    const values: string[] = [];
+    for (const raw of input[field]) {
+      if (typeof raw !== "string") continue;
+      const next = resolve(raw);
+      if (next.error) return { input, error: next.error };
+      values.push(next.value);
+    }
+    resolved[field] = values;
+  }
+  return { input: resolved };
+}
+
 const optionalString = (value: unknown) =>
   typeof value === "string" ? value : undefined;
 const optionalNumber = (value: unknown) =>
@@ -1259,10 +1785,98 @@ const clampInt = (value: unknown, min: number, max: number, fallback: number) =>
   typeof value === "number"
     ? Math.min(Math.max(Math.trunc(value), min), max)
     : fallback;
+// Coding models commonly serialize an omitted optional number as 0. For
+// one-based Read arguments, 0 means "not supplied", not line 1 or a
+// one-line window. Positive values retain the ordinary clamped semantics.
+const positiveInt = (value: unknown, min: number, max: number, fallback: number) =>
+  typeof value === "number" && value > 0
+    ? Math.min(Math.max(Math.trunc(value), min), max)
+    : fallback;
 const sha256 = (value: string) =>
   crypto.createHash("sha256").update(value).digest("hex");
 const errorText = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
+
+export type LocalAssistantEditTurnState = Map<
+  string,
+  { versionId: string; parentVersionId: string }
+>;
+
+export type LocalAssistantReadTurnState = Map<
+  string,
+  {
+    documentId: string;
+    docLabel?: string;
+    versionId: string;
+    filename: string;
+  }
+>;
+
+type WorkingSetEvidenceSegment = {
+  virtualStart: number;
+  virtualEnd: number;
+  documentId: string;
+  versionId: string;
+  sourceStart: number;
+  sourceEnd: number;
+};
+
+export type LocalAssistantWorkingSetTurnState = Map<
+  string,
+  {
+    path: string;
+    text: string;
+    sourceChars: number;
+    segments: WorkingSetEvidenceSegment[];
+  }
+>;
+
+/** Create or update the one assistant-edit version for this document/turn. */
+export async function commitLocalAssistantTurnVersion(params: {
+  userId: string;
+  documentId: string;
+  sourceVersionId: string;
+  filename: string;
+  bytes: Buffer;
+  trackedEdits: LocalTrackedEdit[];
+  turnEditState?: LocalAssistantEditTurnState;
+}) {
+  const existing = params.turnEditState?.get(params.documentId);
+  if (existing && existing.versionId !== params.sourceVersionId) return null;
+  const parentVersionId = existing?.parentVersionId ?? params.sourceVersionId;
+  const version = existing
+    ? await updateLocalAssistantTurnVersion({
+        userId: params.userId,
+        documentId: params.documentId,
+        versionId: existing.versionId,
+        parentVersionId,
+        filename: params.filename,
+        bytes: params.bytes,
+        trackedEdits: params.trackedEdits,
+      })
+    : await addLocalVersion({
+        userId: params.userId,
+        documentId: params.documentId,
+        filename: params.filename,
+        bytes: params.bytes,
+        expectedVersionId: params.sourceVersionId,
+        provenance: {
+          schemaVersion: 1,
+          actor: "assistant",
+          action: "revised",
+          parentVersionId,
+          changeCount: params.trackedEdits.length,
+          trackedEdits: params.trackedEdits,
+        },
+      });
+  if (version) {
+    params.turnEditState?.set(params.documentId, {
+      versionId: version.id,
+      parentVersionId,
+    });
+  }
+  return version ? { version, parentVersionId } : null;
+}
 
 // ---------------------------------------------------------------------------
 // Coding-shape aliases: Glob/Grep/Read over the library, file-path addressed,
@@ -1274,6 +1888,9 @@ const errorText = (error: unknown, fallback: string) =>
 const globRegExp = (pattern: string) =>
   new RegExp(
     `^${pattern
+      // The Library is flat. Coding agents commonly emit **/*.docx, which
+      // should include files at that root just as a filesystem glob does.
+      .replace(/^(?:\.\/)?(?:\*\*\/)+/u, "")
       .replace(/[.+^${}()|[\]\\]/gu, "\\$&")
       .replace(/\*\*/gu, "\u0000")
       .replace(/\*/gu, "[^/]*")
@@ -1283,6 +1900,321 @@ const globRegExp = (pattern: string) =>
   );
 
 const GREP_LINE_CAP = 2_000;
+
+type CodingOutputLine = {
+  rendered: string;
+  span?: [number, number];
+  source?: {
+    documentId: string;
+    versionId: string;
+  };
+};
+
+function sourceLineStarts(text: string, lines: string[]): number[] {
+  const starts: number[] = [];
+  let cursor = 0;
+  for (const line of lines) {
+    starts.push(cursor);
+    cursor += line.length;
+    if (text.startsWith("\r\n", cursor)) cursor += 2;
+    else if (text[cursor] === "\n") cursor += 1;
+  }
+  return starts;
+}
+
+function takeCodingOutputLines(lines: CodingOutputLine[]) {
+  // Leave room for the continuation hint and never trigger the generic
+  // head/tail truncator, whose JSON envelope would obscure cat/rg output.
+  const budget = Math.max(1_000, MAX_TOOL_RESULT_CHARS - 1_000);
+  const kept: CodingOutputLine[] = [];
+  let chars = 0;
+  for (const line of lines) {
+    const added = line.rendered.length + (kept.length ? 1 : 0);
+    if (kept.length && chars + added > budget) break;
+    kept.push(line);
+    chars += added;
+  }
+  return { kept, truncated: kept.length < lines.length };
+}
+
+type TextRange = { start: number; end: number };
+
+type WorkingSetCandidate = TextRange & {
+  documentId: string;
+  versionId: string;
+  filename: string;
+  sourceText: string;
+  projection: "legal-unit" | "window";
+  handle?: string;
+  contextLabel?: string;
+  anchor: number;
+};
+
+function mergeWorkingSetCandidates(
+  candidates: readonly WorkingSetCandidate[],
+): WorkingSetCandidate[] {
+  const groups = new Map<string, WorkingSetCandidate[]>();
+  for (const candidate of candidates) {
+    const key = `${candidate.documentId}:${candidate.versionId}`;
+    const group = groups.get(key) ?? [];
+    group.push({ ...candidate });
+    groups.set(key, group);
+  }
+  const merged: WorkingSetCandidate[] = [];
+  for (const group of groups.values()) {
+    group.sort((left, right) => left.start - right.start || left.end - right.end);
+    for (const candidate of group) {
+      const prior = merged.at(-1);
+      if (
+        !prior ||
+        prior.documentId !== candidate.documentId ||
+        prior.versionId !== candidate.versionId ||
+        candidate.start > prior.end
+      ) {
+        merged.push(candidate);
+        continue;
+      }
+      prior.end = Math.max(prior.end, candidate.end);
+      if (prior.handle !== candidate.handle) {
+        prior.handle = undefined;
+        prior.contextLabel = undefined;
+        prior.projection = "window";
+      }
+    }
+  }
+  return merged;
+}
+
+function addCoveredRange(covered: TextRange[], added: TextRange) {
+  const ordered = [...covered, added].sort((left, right) => left.start - right.start);
+  const merged: TextRange[] = [];
+  for (const range of ordered) {
+    const last = merged.at(-1);
+    if (!last || range.start > last.end) merged.push({ ...range });
+    else last.end = Math.max(last.end, range.end);
+  }
+  covered.splice(0, covered.length, ...merged);
+}
+
+function uncoveredRanges(range: TextRange, covered: readonly TextRange[]) {
+  let cursor = range.start;
+  const open: TextRange[] = [];
+  for (const prior of covered) {
+    if (prior.end <= cursor) continue;
+    if (prior.start >= range.end) break;
+    if (prior.start > cursor) {
+      open.push({ start: cursor, end: Math.min(prior.start, range.end) });
+    }
+    cursor = Math.max(cursor, prior.end);
+    if (cursor >= range.end) break;
+  }
+  if (cursor < range.end) open.push({ start: cursor, end: range.end });
+  return open;
+}
+
+function workingSetEvidenceSegments(
+  set: LocalAssistantWorkingSetTurnState extends Map<string, infer Value>
+    ? Value
+    : never,
+  ranges: readonly [number, number][],
+) {
+  const evidence: NonNullable<NormalizedToolResult["evidenceSegments"]> = [];
+  for (const [start, end] of ranges) {
+    for (const segment of set.segments) {
+      const overlapStart = Math.max(start, segment.virtualStart);
+      const overlapEnd = Math.min(end, segment.virtualEnd);
+      if (overlapStart >= overlapEnd) continue;
+      evidence.push({
+        documentId: segment.documentId,
+        versionId: segment.versionId,
+        start: segment.sourceStart + overlapStart - segment.virtualStart,
+        end: segment.sourceStart + overlapEnd - segment.virtualStart,
+      });
+    }
+  }
+  return evidence;
+}
+
+function materializeWorkingSet(
+  candidates: readonly WorkingSetCandidate[],
+  requestedBudget: unknown,
+  state: LocalAssistantWorkingSetTurnState,
+) {
+  const budget = clampInt(requestedBudget, 1_000, 128_000, 64_000);
+  const queues = new Map<string, WorkingSetCandidate[]>();
+  for (const candidate of mergeWorkingSetCandidates(candidates)) {
+    const key = `${candidate.documentId}:${candidate.versionId}`;
+    const queue = queues.get(key) ?? [];
+    queue.push(candidate);
+    queues.set(key, queue);
+  }
+  for (const queue of queues.values()) {
+    queue.sort((left, right) => left.start - right.start || left.end - right.end);
+  }
+
+  const selected: WorkingSetCandidate[] = [];
+  let sourceChars = 0;
+  let omitted = 0;
+  while ([...queues.values()].some((queue) => queue.length)) {
+    let advanced = false;
+    for (const queue of queues.values()) {
+      const candidate = queue.shift();
+      if (!candidate) continue;
+      advanced = true;
+      const remaining = budget - sourceChars;
+      if (remaining <= 0) {
+        omitted += 1 + queue.length;
+        queue.length = 0;
+        continue;
+      }
+      let kept = candidate;
+      if (candidate.end - candidate.start > remaining) {
+        if (remaining < 1_000) {
+          omitted += 1;
+          continue;
+        }
+        const width = Math.min(4_000, remaining);
+        const start = Math.max(
+          candidate.start,
+          Math.min(candidate.anchor - Math.floor(width / 2), candidate.end - width),
+        );
+        kept = {
+          ...candidate,
+          start,
+          end: Math.min(candidate.end, start + width),
+          projection: "window",
+          handle: undefined,
+        };
+      }
+      selected.push(kept);
+      sourceChars += kept.end - kept.start;
+    }
+    if (!advanced) break;
+  }
+
+  const identity = selected.map((item) => ({
+    documentId: item.documentId,
+    versionId: item.versionId,
+    start: item.start,
+    end: item.end,
+    projection: item.projection,
+  }));
+  const path = `.mike/working-sets/${sha256(JSON.stringify(identity)).slice(0, 16)}.txt`;
+  const parts: string[] = [];
+  const segments: WorkingSetEvidenceSegment[] = [];
+  let cursor = 0;
+  for (const item of selected) {
+    const startLine = item.sourceText.slice(0, item.start).split(/\r?\n/u).length;
+    const endLine =
+      startLine + item.sourceText.slice(item.start, item.end).split(/\r?\n/u).length - 1;
+    const recipe = item.handle
+      ? `Read(file_path=${JSON.stringify(item.documentId)}, section=${JSON.stringify(item.handle)})`
+      : `Read(file_path=${JSON.stringify(item.documentId)}, offset=${startLine}, limit=${Math.max(1, endLine - startLine + 1)})`;
+    const context = item.contextLabel ? ` | ${item.contextLabel}` : "";
+    const header = `=== ${item.filename}${context} :: ${recipe} ===\n`;
+    parts.push(header);
+    cursor += header.length;
+    const source = item.sourceText.slice(item.start, item.end);
+    parts.push(source, "\n\n");
+    segments.push({
+      virtualStart: cursor,
+      virtualEnd: cursor + source.length,
+      documentId: item.documentId,
+      versionId: item.versionId,
+      sourceStart: item.start,
+      sourceEnd: item.end,
+    });
+    cursor += source.length + 2;
+  }
+  const text = parts.join("");
+  state.set(path, { path, text, sourceChars, segments });
+  return {
+    ok: true,
+    path,
+    documents: new Set(selected.map((item) => item.documentId)).size,
+    units: selected.length,
+    source_chars: sourceChars,
+    budget_chars: budget,
+    truncated: omitted > 0,
+    omitted_units: omitted,
+    next: `Read(file_path=${JSON.stringify(path)})`,
+  };
+}
+
+function codingRangeLines(
+  text: string,
+  starts: readonly number[],
+  range: TextRange,
+  header?: string,
+  source?: CodingOutputLine["source"],
+): CodingOutputLine[] {
+  const rows: CodingOutputLine[] = header ? [{ rendered: header }] : [];
+  let lineIndex = 0;
+  while (lineIndex + 1 < starts.length && starts[lineIndex + 1] <= range.start) {
+    lineIndex += 1;
+  }
+  for (let index = lineIndex; index < starts.length; index += 1) {
+    const lineStart = starts[index];
+    const nextStart = starts[index + 1] ?? text.length;
+    if (lineStart >= range.end) break;
+    const start = Math.max(lineStart, range.start);
+    let end = Math.min(nextStart, range.end);
+    while (end > start && (text[end - 1] === "\n" || text[end - 1] === "\r")) {
+      end -= 1;
+    }
+    if (end <= start) continue;
+    const full = text.slice(start, end);
+    const shown = full.slice(0, Math.max(GREP_LINE_CAP, MAX_TOOL_RESULT_CHARS - 2_000));
+    rows.push({
+      rendered:
+        `${String(index + 1).padStart(6, " ")}\t${start > lineStart ? "…" : ""}${shown}` +
+        (shown.length < full.length || end < nextStart ? "…" : ""),
+      span: [start, start + shown.length],
+      ...(source ? { source } : {}),
+    });
+  }
+  return rows;
+}
+
+async function compilerDiagnostics(
+  userId: string,
+  documentId: string,
+  versionId: string,
+) {
+  const [structure, document] = await Promise.all([
+    lintLocalDocxStructure(userId, documentId, versionId).catch(() => null),
+    extractLocalDocument(userId, documentId).catch(() => null),
+  ]);
+  const drafting = document ? draftingLint(document.text) : null;
+  const findings = [
+    ...(structure?.findings ?? []).map((finding) => ({
+      check: "structure",
+      code: finding.code,
+      severity: finding.severity,
+      subject: finding.subject,
+      excerpt: finding.excerpt,
+      message: finding.message,
+    })),
+    ...(drafting?.findings ?? []).map((finding) => ({
+      check: "drafting",
+      code: finding.rule,
+      severity: finding.severity,
+      subject: finding.match,
+      excerpt: finding.excerpt,
+      message: finding.message,
+    })),
+  ];
+  return {
+    checks_completed: [
+      ...(structure ? ["structure"] : []),
+      ...(drafting ? ["drafting"] : []),
+    ],
+    finding_count: findings.length,
+    ...(!structure && !drafting ? { unavailable: true } : {}),
+    ...(findings.length ? { findings: findings.slice(0, 8) } : {}),
+    ...(findings.length > 8 ? { truncated: true } : {}),
+  };
+}
 
 /**
  * The revise operation, callable without dispatch: the Edit alias uses it
@@ -1299,22 +2231,100 @@ function addressedEditsSchema(base: unknown): unknown {
   item.properties.at = {
     type: "string",
     description:
-      "Provision to edit inside ('8.01', 'Article VIII'). With `at`, give only `find` and `replace` — the server locates `find` within that provision and reads the surrounding text off the document, so never retype context.",
+      "Provision or exact DOCX cell to edit inside ('8.01', 'Article VIII', 'table:1/row:2/col:3'). With `at`, give only `find` and `replace` — the server locates one exact occurrence inside that address and reads the surrounding text off the document, so never retype context.",
   };
   item.required = ["find", "replace"];
   return edits;
 }
+
+/** Convert a verified text plan to exact, paragraph-local tracked edits. */
+function trackedEditsForRenumberPlan(
+  sourceText: string,
+  receipts: readonly DeleteAndRenumberReceipt[],
+): EditInput[] | string {
+  const edits: EditInput[] = [];
+  const add = (
+    start: number,
+    end: number,
+    replace: string,
+    reason: string,
+  ) => {
+    const find = sourceText.slice(start, end);
+    if (!find || find.includes("\n") || replace.includes("\n")) {
+      return false;
+    }
+    edits.push({
+      find,
+      replace,
+      context_before: "",
+      context_after: "",
+      reason,
+      exact_start: start,
+      exact_end: end,
+    });
+    return true;
+  };
+
+  for (const receipt of receipts) {
+    if (sourceText.slice(receipt.start, receipt.end) !== receipt.removed) {
+      return `Pinned text no longer matches ${receipt.kind} at ${receipt.start}-${receipt.end}`;
+    }
+    const reason =
+      receipt.kind === "delete_provision"
+        ? `Delete ${receipt.from} and close its numbering gap`
+        : receipt.kind === "renumber_heading"
+          ? `Renumber ${receipt.from} to ${receipt.to}`
+          : `Update pointer from ${receipt.from} to ${receipt.to}`;
+    if (receipt.kind !== "delete_provision") {
+      if (!add(receipt.start, receipt.end, receipt.inserted, reason)) {
+        return `${receipt.kind} crossed a paragraph boundary`;
+      }
+      continue;
+    }
+
+    let cursor = receipt.start;
+    while (cursor < receipt.end) {
+      const newline = sourceText.indexOf("\n", cursor);
+      const end =
+        newline < 0 || newline > receipt.end ? receipt.end : newline;
+      if (end > cursor && !add(cursor, end, "", reason)) {
+        return `Deletion of ${receipt.from} could not be split safely`;
+      }
+      cursor = end + 1;
+    }
+  }
+  return edits.length ? edits : "Renumber plan contained no trackable text";
+}
+
+const comparableAcceptedText = (value: string) =>
+  value
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .filter((line) => line.length > 0)
+    .join("\n");
 
 async function runLocalReviseDocx(
   call: NormalizedToolCall,
   userId: string,
   documentId: string,
   args: Record<string, unknown>,
+  turnEditState?: LocalAssistantEditTurnState,
 ): Promise<NormalizedToolResult> {
   let versionId = trimmed(args.version_id);
   const rawEdits = Array.isArray(args.edits) ? args.edits : [];
   if (!documentId || !rawEdits.length) {
     return fail(call, "document_id and edits are required");
+  }
+  const turnVersion = turnEditState?.get(documentId);
+  if (turnVersion) {
+    if (
+      versionId &&
+      versionId !== turnVersion.versionId &&
+      versionId !== turnVersion.parentVersionId
+    ) {
+      return fail(call, "version_id is not the active turn version");
+    }
+    versionId = turnVersion.versionId;
   }
   // The model never has to courier a version id: unstated means the
   // active version, resolved here. A provided id still asserts.
@@ -1359,50 +2369,76 @@ async function runLocalReviseDocx(
      * space where the document has a newline, or inventing a blank line. The
      * model has never seen those bytes; the server has.
      */
-    const docText = addressed
-      ? await extractDocxBodyText(await readFile(file.path))
-      : "";
+    const docxStructure = addressed
+      ? await extractDocxBodyStructure(await readFile(file.path))
+      : null;
+    const docText = docxStructure?.text ?? "";
     const skeleton = docText
-      ? await documentStructure(docText, documentId)
+      ? await documentStructure(docText, documentId, {
+          tableCells: docxStructure?.tableCells,
+        })
       : null;
     const CONTEXT = 40;
-    const edits: EditInput[] = rawEdits
-      .map((raw) => {
-        const edit = raw as Record<string, unknown>;
-        const at = addressed ? trimmed(edit.at) : "";
-        if (at && skeleton && docText) {
-          const address = parseAddress(at);
-          const seek =
-            address?.kind === "section"
-              ? readSection(skeleton, address.locator)
-              : null;
-          if (seek?.status === "found" && seek.block) {
-            const span = docText.slice(seek.block.start, seek.block.end);
-            const found = span.indexOf(edit.find as string);
-            if (found >= 0) {
-              const at0 = seek.block.start + found;
-              return {
-                find: edit.find as string,
-                replace: edit.replace as string,
-                context_before: docText.slice(Math.max(0, at0 - CONTEXT), at0),
-                context_after: docText.slice(
-                  at0 + (edit.find as string).length,
-                  at0 + (edit.find as string).length + CONTEXT,
-                ),
-                reason: typeof edit.reason === "string" ? edit.reason : undefined,
-              };
-            }
-          }
+    const edits: EditInput[] = [];
+    for (const raw of rawEdits) {
+      const edit = raw as Record<string, unknown>;
+      const at = addressed ? trimmed(edit.at) : "";
+      if (at) {
+        const address = parseAddress(at);
+        if (address?.kind !== "section" || !skeleton || !docText) {
+          return fail(
+            call,
+            `at=${JSON.stringify(at)} must name a provision or table cell`,
+          );
         }
-        return {
+        const seek = readSection(skeleton, address.locator);
+        if (seek.status !== "found" || !seek.block) {
+          return fail(
+            call,
+            `Could not resolve at=${JSON.stringify(at)} (${seek.status})`,
+          );
+        }
+        const find = edit.find as string;
+        const span = docText.slice(seek.block.start, seek.block.end);
+        const first = span.indexOf(find);
+        const second = first < 0 ? -1 : span.indexOf(find, first + find.length);
+        if (first < 0) {
+          return fail(
+            call,
+            `find text does not occur inside at=${JSON.stringify(at)}`,
+          );
+        }
+        if (second >= 0) {
+          return fail(
+            call,
+            `find text occurs more than once inside at=${JSON.stringify(at)}; use a narrower address or a longer exact find`,
+          );
+        }
+        const at0 = seek.block.start + first;
+        if (find !== edit.replace) {
+          edits.push({
+            find,
+            replace: edit.replace as string,
+            context_before: docText.slice(Math.max(0, at0 - CONTEXT), at0),
+            context_after: docText.slice(
+              at0 + find.length,
+              at0 + find.length + CONTEXT,
+            ),
+            reason: typeof edit.reason === "string" ? edit.reason : undefined,
+          });
+        }
+        continue;
+      }
+      if (edit.find !== edit.replace) {
+        edits.push({
           find: edit.find as string,
           replace: edit.replace as string,
           context_before: (edit.context_before as string) ?? "",
           context_after: (edit.context_after as string) ?? "",
           reason: typeof edit.reason === "string" ? edit.reason : undefined,
-        };
-      })
-      .filter((edit) => edit.find !== edit.replace);
+        });
+      }
+    }
     if (!edits.length) {
       return result(call, {
         ok: false,
@@ -1434,30 +2470,30 @@ async function runLocalReviseDocx(
       reason: change.reason,
       status: "pending",
     }));
-    const version = await addLocalVersion({
+    const committed = await commitLocalAssistantTurnVersion({
       userId,
       documentId,
       filename: file.version.filename,
       bytes: edited.bytes,
-      expectedVersionId: versionId,
-      provenance: {
-        schemaVersion: 1,
-        actor: "assistant",
-        action: "revised",
-        parentVersionId: versionId,
-        changeCount: edited.changes.length,
-        trackedEdits,
-      },
+      sourceVersionId: versionId,
+      trackedEdits,
+      turnEditState,
     });
-    if (!version) return fail(call, "version_id is no longer active");
+    if (!committed) return fail(call, "version_id is no longer active");
+    const { version, parentVersionId } = committed;
     // Every revision gets deterministic same-turn feedback: the
     // structural lint runs on the freshly produced version (the
     // determinism plan's receipt hook — not gated on annotate).
-    const lint = await lintLocalDocxStructure(
-      userId,
-      documentId,
-      version.id,
-    ).catch(() => null);
+    const lint = LEGAL_GREP_EXPERIMENT
+      ? null
+      : await lintLocalDocxStructure(
+          userId,
+          documentId,
+          version.id,
+        ).catch(() => null);
+    const diagnostics = LEGAL_GREP_EXPERIMENT
+      ? await compilerDiagnostics(userId, documentId, version.id)
+      : null;
     const downloadUrl =
       `/single-documents/${encodeURIComponent(documentId)}/file` +
       `?version_id=${encodeURIComponent(version.id)}`;
@@ -1466,7 +2502,7 @@ async function runLocalReviseDocx(
       receipt: "mike-document:v1",
       action: "revised",
       document_id: documentId,
-      parent_version_id: versionId,
+      parent_version_id: parentVersionId,
       version_id: version.id,
       version_number: version.version_number,
       filename: version.filename,
@@ -1478,7 +2514,7 @@ async function runLocalReviseDocx(
       // measurable variable (annotate mode forces it to zero by
       // rejecting reason-free edits).
       edits_without_reason: edits.filter((edit) => !edit.reason?.trim()).length,
-      structural_lint: lint
+      structural_lint: !diagnostics && lint
         ? {
             finding_count: lint.findings.length,
             findings: lint.findings
@@ -1492,6 +2528,7 @@ async function runLocalReviseDocx(
             notes: lint.notes,
           }
         : undefined,
+      ...(diagnostics ? { compiler_diagnostics: diagnostics } : {}),
       download_url: downloadUrl,
       annotations: trackedEdits.map((edit) => ({
         kind: "edit",
@@ -1511,8 +2548,8 @@ async function runLocalReviseDocx(
       })),
       
     });
-  } catch {
-    return fail(call, "DOCX revision failed");
+  } catch (error) {
+    return fail(call, errorText(error, "DOCX revision failed"));
   }
 }
 
@@ -1521,6 +2558,8 @@ async function runCodingShapeCall(
   args: Record<string, unknown>,
   userId: string,
   allowedDocumentIds?: Set<string>,
+  turnEditState?: LocalAssistantEditTurnState,
+  workingSets?: LocalAssistantWorkingSetTurnState,
 ): Promise<NormalizedToolResult> {
   const collection = await listLocalLibrary(userId, "file");
   const files = collection.documents.filter(
@@ -1528,34 +2567,227 @@ async function runCodingShapeCall(
   );
   const resolvePath = (raw: string) => {
     const wanted = raw.replace(/^\.?[\\/]/u, "").trim().toLowerCase();
-    return files.find((document) => document.filename.toLowerCase() === wanted);
+    const byId = files.filter((document) => document.id.toLowerCase() === wanted);
+    if (byId.length) return byId;
+    return files.filter(
+      (document) => document.filename.toLowerCase() === wanted,
+    );
   };
+  const resolveWorkingSet = (raw: string) => {
+    const wanted = raw.replace(/\\/gu, "/").trim().toLowerCase();
+    return [...(workingSets?.values() ?? [])].find(
+      (set) => set.path.toLowerCase() === wanted,
+    );
+  };
+
+  if (call.name === "DocumentMap" || call.name === "ReferenceImpact") {
+    const requested = trimmed(args.file_path);
+    const matches = resolvePath(requested);
+    if (matches.length !== 1) {
+      return result(
+        call,
+        matches.length
+          ? `File path is ambiguous: ${requested}. Use Glob(pattern="${requested}"), then pass the intended document_id as file_path.`
+          : `File does not exist: ${requested}`,
+      );
+    }
+    const meta = matches[0];
+    const document = await extractLocalDocument(userId, meta.id);
+    if (!document) return result(call, `File could not be read: ${requested}`);
+    const skeleton = await documentStructure(document.text, meta.id, {
+      tableCells: document.tableCells,
+    });
+    if (call.name === "DocumentMap") {
+      const mapped = documentMap({
+        text: document.text,
+        skeleton,
+        pageMap: document.pages,
+        focus: trimmed(args.focus) as DocumentMapFocus,
+        ...(typeof args.query === "string" ? { query: args.query } : {}),
+        ...(typeof args.max_results === "number"
+          ? { maxResults: args.max_results }
+          : {}),
+      });
+      return result(call, {
+        ok: mapped.failures.length === 0,
+        ...mapped,
+      });
+    }
+    const graph = await documentGraph(
+      document.text,
+      meta.id,
+      skeleton,
+      { tableCells: document.tableCells },
+    );
+    const impact = referenceImpact({
+      text: document.text,
+      skeleton,
+      graph,
+      targets: stringArray(args.targets),
+      operation: trimmed(args.operation) as ReferenceImpactOperation,
+    });
+    return result(call, {
+      ok: impact.failures.length === 0,
+      ...impact,
+    });
+  }
 
   if (call.name === "Glob") {
     const re = globRegExp(trimmed(args.pattern) || "*");
-    const names = files
-      .map((document) => document.filename)
-      .filter((name) => re.test(name));
+    const filenameCounts = new Map<string, number>();
+    for (const document of files) {
+      const key = document.filename.toLowerCase();
+      filenameCounts.set(key, (filenameCounts.get(key) ?? 0) + 1);
+    }
+    const names = [
+      ...files.map((document) =>
+        (filenameCounts.get(document.filename.toLowerCase()) ?? 0) > 1
+          ? `${document.filename}\t[document_id=${document.id}]`
+          : document.filename,
+      ),
+      ...[...(workingSets?.keys() ?? [])],
+    ]
+      .filter((name) => re.test(name.split("\t", 1)[0]));
     return result(call, names.length ? names.join("\n") : "No files found");
   }
 
   if (call.name === "Read") {
+    if (
+      PURE_CODING_EXPERIMENT &&
+      Object.prototype.hasOwnProperty.call(args, "section")
+    ) {
+      return fail(call, "Read accepts only file_path, offset, and limit");
+    }
+    if (
+      !LEGAL_GREP_EXPERIMENT &&
+      (Object.prototype.hasOwnProperty.call(args, "pages") ||
+        Object.prototype.hasOwnProperty.call(args, "references"))
+    ) {
+      return fail(call, "Read does not expose page or reference scopes in this arm");
+    }
     const requested = trimmed(args.file_path);
-    const meta = resolvePath(requested);
-    if (!meta) {
+    const workingSet = resolveWorkingSet(requested);
+    if (workingSet) {
+      if (
+        trimmed(args.section) ||
+        trimmed(args.pages) ||
+        (args.references && args.references !== "none")
+      ) {
+        return result(call, "Working sets accept only file_path, offset, and limit.");
+      }
+      const lines = workingSet.text.split(/\r?\n/u);
+      const starts = sourceLineStarts(workingSet.text, lines);
+      const offset = positiveInt(args.offset, 1, 100_000_000, 1);
+      const limit = positiveInt(args.limit, 1, 2_000, 2_000);
+      const candidates = lines
+        .slice(offset - 1, offset - 1 + limit)
+        .map((line, index): CodingOutputLine => {
+          const lineIndex = offset - 1 + index;
+          const start = starts[lineIndex];
+          return {
+            rendered: `${String(offset + index).padStart(6, " ")}\t${line}`,
+            span: [start, start + line.length],
+          };
+        });
+      if (!candidates.length) {
+        return result(
+          call,
+          offset > lines.length
+            ? `(offset ${offset} is past the end of the working set; total lines: ${lines.length})`
+            : "(empty working set)",
+        );
+      }
+      const { kept, truncated } = takeCodingOutputLines(candidates);
+      const rendered = kept.map((line) => line.rendered).join("\n");
+      const lastShown = offset - 1 + kept.length;
+      const content =
+        lastShown < lines.length
+          ? `${rendered}\n\n[TRUNCATED: returned lines ${offset}-${lastShown} of ${lines.length}; continue with Read(file_path="${workingSet.path}", offset=${lastShown + 1}).${truncated ? " Tool-result limit reached." : ""}]`
+          : rendered;
+      return {
+        ...result(call, content),
+        evidenceSegments: workingSetEvidenceSegments(
+          workingSet,
+          kept.flatMap((line) => (line.span ? [line.span] : [])),
+        ),
+      };
+    }
+    const matches = resolvePath(requested);
+    if (matches.length !== 1) {
       return result(
         call,
-        `File does not exist: ${requested}\nAvailable files:\n${files.map((document) => document.filename).join("\n")}`,
+        matches.length
+          ? `File path is ambiguous: ${requested}. Use Glob(pattern="${requested}"), then pass the intended document_id as file_path.`
+          : `File does not exist: ${requested}\nAvailable files:\n${files.map((document) => document.filename).join("\n")}`,
       );
     }
+    const meta = matches[0];
     const document = await extractLocalDocument(userId, meta.id);
     if (!document) return result(call, `File could not be read: ${requested}`);
     const lines = document.text.split(/\r?\n/u);
-    const offset = clampInt(args.offset, 1, 100_000_000, 1);
-    const limit = clampInt(args.limit, 1, 2_000, 2_000);
+    const starts = sourceLineStarts(document.text, lines);
+    const limit = positiveInt(args.limit, 1, 2_000, 2_000);
+    // Legal paragraphs are often several thousand characters on one source
+    // line. Keep each Read line intact whenever it fits in the result budget;
+    // Grep stays a compact, match-centred preview.
+    const readLineCap = Math.max(
+      GREP_LINE_CAP,
+      MAX_TOOL_RESULT_CHARS - 2_000,
+    );
     const sectionArg = trimmed(args.section);
+    const pagesArg = trimmed(args.pages);
+    const references =
+      args.references === "inbound" ||
+      args.references === "outbound" ||
+      args.references === "both"
+        ? args.references
+        : "none";
+    if (pagesArg) {
+      const nonDefaultOffset =
+        Object.prototype.hasOwnProperty.call(args, "offset") &&
+        typeof args.offset === "number" &&
+        args.offset > 1;
+      if (sectionArg || nonDefaultOffset) {
+        return result(
+          call,
+          "pages cannot be combined with section or offset; choose one exact scope.",
+        );
+      }
+      const selected = selectPages(document.pages, document.text, pagesArg);
+      if (selected.status !== "ok") {
+        return result(
+          call,
+          selected.status === "empty"
+            ? "pages is required"
+            : `Page '${selected.token}' could not be resolved (${selected.lookup.status}).`,
+        );
+      }
+      const candidates = selected.pages.flatMap((page) =>
+        codingRangeLines(
+          document.text,
+          starts,
+          { start: page.start, end: page.end },
+          `=== ${meta.filename} :: pdf:${page.pdfPage ?? "?"}${
+            page.printedLabel ? ` :: printed:${page.printedLabel}` : ""
+          } ===`,
+          { documentId: meta.id, versionId: meta.current_version_id },
+        ),
+      );
+      const { kept, truncated } = takeCodingOutputLines(candidates);
+      return codingTextResult(
+        call,
+        kept.map((line) => line.rendered).join("\n") +
+          (truncated ? "\n(Page read stopped at the tool-result limit.)" : ""),
+        kept,
+      );
+    }
+    if (references !== "none" && !sectionArg) {
+      return result(call, "references requires an exact section handle.");
+    }
     if (sectionArg) {
-      const skeleton = compileAgreementSkeleton(document.text);
+      const skeleton = await documentStructure(document.text, meta.id, {
+        tableCells: document.tableCells,
+      });
       const lookup = readSection(skeleton, sectionArg);
       if (lookup.status !== "found" || !lookup.block) {
         return result(
@@ -1567,25 +2799,138 @@ async function runCodingShapeCall(
             "). Grep for the wording, or Read without section.",
         );
       }
+      const block = lookup.block;
+      if (references !== "none") {
+        const graph = await documentGraph(
+          document.text,
+          meta.id,
+          skeleton,
+          { tableCells: document.tableCells },
+        );
+        const scope = oneHopLegalScope(
+          skeleton,
+          graph,
+          block.label,
+          references,
+        );
+        if (!scope) {
+          return result(call, `Section '${sectionArg}' could not seed a reference scope.`);
+        }
+        const covered: TextRange[] = [];
+        const candidates: CodingOutputLine[] = [];
+        for (const [index, node] of scope.nodes.entries()) {
+          const open = uncoveredRanges(
+            { start: node.start, end: node.end },
+            covered,
+          );
+          for (const range of open) {
+            candidates.push(
+              ...codingRangeLines(
+                document.text,
+                starts,
+                range,
+                `=== ${meta.filename} :: Read section="${node.label}" :: ${
+                  index === 0 ? "target" : "direct reference"
+                } ===`,
+                { documentId: meta.id, versionId: meta.current_version_id },
+              ),
+            );
+          }
+          addCoveredRange(covered, { start: node.start, end: node.end });
+        }
+        const { kept, truncated } = takeCodingOutputLines(candidates);
+        const note = graph.documentAbstained
+          ? `\n(Reference graph abstained: ${graph.note ?? "unresolved document structure"}.)`
+          : truncated
+            ? "\n(Reference read stopped at the tool-result limit; narrow the direction or read a returned section recipe.)"
+            : "";
+        return codingTextResult(
+          call,
+          kept.map((line) => line.rendered).join("\n") + note,
+          kept,
+        );
+      }
       const startLine =
-        document.text.slice(0, lookup.block.start).split(/\r?\n/u).length;
-      const blockLines = lookup.block.text.split(/\r?\n/u);
-      const window = blockLines.slice(0, limit);
-      const numbered = window.map((line, i) => {
-        const text =
-          line.length > GREP_LINE_CAP
-            ? `${line.slice(0, GREP_LINE_CAP)}… [line truncated]`
-            : line;
-        return `${String(startLine + i).padStart(6, " ")}\t${text}`;
-      });
+        document.text.slice(0, block.start).split(/\r?\n/u).length;
+      const blockLines = block.text.split(/\r?\n/u);
+      const endLine = startLine + blockLines.length - 1;
+      const offset = positiveInt(
+        args.offset,
+        1,
+        100_000_000,
+        startLine,
+      );
+      // Some tool-call providers populate every optional numeric field with its
+      // minimum. Preserve absolute line semantics for real windows, while
+      // treating that synthetic `1` like an omitted section offset.
+      const sectionOffset = offset === 1 && startLine > 1 ? startLine : offset;
+      // The same providers also materialize both optional numeric fields at
+      // their schema minima. In section mode `{ offset: 1, limit: 1 }` is the
+      // provider rendering of a section-only recipe, not a request to return
+      // only its heading line. A deliberate one-line section read can use the
+      // section's absolute line number instead.
+      const sectionLimit =
+        Number(args.offset) === 1 && Number(args.limit) === 1 ? 2_000 : limit;
+      if (sectionOffset < startLine || sectionOffset > endLine) {
+        return result(
+          call,
+          `(offset ${sectionOffset} is outside section ${block.label}; the section spans lines ${startLine}-${endLine})`,
+        );
+      }
+      const localStart = sectionOffset - startLine;
+      const blockStarts = sourceLineStarts(block.text, blockLines);
+      const candidates = blockLines
+        .slice(localStart, localStart + sectionLimit)
+        .map((line, i): CodingOutputLine => {
+          const blockIndex = localStart + i;
+          const sourceStart = block.start + blockStarts[blockIndex];
+          const shown = line.slice(0, readLineCap);
+          return {
+            rendered:
+              `${String(sectionOffset + i).padStart(6, " ")}\t${shown}` +
+              (line.length > readLineCap
+                ? "… [line truncated; Grep can locate text later on this line]"
+                : ""),
+            span: [sourceStart, sourceStart + shown.length],
+            source: {
+              documentId: meta.id,
+              versionId: meta.current_version_id,
+            },
+          };
+        });
+      const { kept, truncated } = takeCodingOutputLines(candidates);
+      const lastShown = sectionOffset + kept.length - 1;
       const more =
-        window.length < blockLines.length
-          ? `\n\n(Section continues. Read with offset=${startLine + window.length} for the rest; the section spans lines ${startLine}-${startLine + blockLines.length - 1}.)`
+        lastShown < endLine
+          ? `\n\n[TRUNCATED: returned section lines ${sectionOffset}-${lastShown} of ${startLine}-${endLine}; continue with Read(file_path="${requested}", section="${block.label}", offset=${lastShown + 1}).${truncated ? " Tool-result limit reached." : ""}]`
           : "";
-      return result(call, numbered.join("\n") + more);
+      return codingTextResult(
+        call,
+        kept.map((line) => line.rendered).join("\n") + more,
+        kept,
+      );
     }
-    const window = lines.slice(offset - 1, offset - 1 + limit);
-    if (!window.length) {
+    const offset = positiveInt(args.offset, 1, 100_000_000, 1);
+    const candidates = lines
+      .slice(offset - 1, offset - 1 + limit)
+      .map((line, i): CodingOutputLine => {
+        const lineIndex = offset - 1 + i;
+        const sourceStart = starts[lineIndex];
+        const shown = line.slice(0, readLineCap);
+        return {
+          rendered:
+            `${String(offset + i).padStart(6, " ")}\t${shown}` +
+            (line.length > readLineCap
+              ? "… [line truncated; Grep can locate text later on this line]"
+              : ""),
+          span: [sourceStart, sourceStart + shown.length],
+          source: {
+            documentId: meta.id,
+            versionId: meta.current_version_id,
+          },
+        };
+      });
+    if (!candidates.length) {
       return result(
         call,
         offset > lines.length
@@ -1593,25 +2938,37 @@ async function runCodingShapeCall(
           : "(empty file)",
       );
     }
-    const numbered = window.map((line, i) => {
-      const text =
-        line.length > GREP_LINE_CAP
-          ? `${line.slice(0, GREP_LINE_CAP)}… [line truncated]`
-          : line;
-      return `${String(offset + i).padStart(6, " ")}\t${text}`;
-    });
-    const lastShown = offset - 1 + window.length;
+    const { kept, truncated } = takeCodingOutputLines(candidates);
+    const lastShown = offset - 1 + kept.length;
     const more =
       lastShown < lines.length
-        ? `\n\n(File has more lines. Use 'offset' parameter to read beyond line ${lastShown}. Total lines: ${lines.length})`
+        ? `\n\n[TRUNCATED: returned lines ${offset}-${lastShown} of ${lines.length}; continue with Read(file_path="${requested}", offset=${lastShown + 1}).${truncated ? " Tool-result limit reached." : ""}]`
         : "";
-    return result(call, numbered.join("\n") + more);
+    return codingTextResult(
+      call,
+      kept.map((line) => line.rendered).join("\n") + more,
+      kept,
+    );
   }
 
   if (call.name === "Edit") {
     const requested = trimmed(args.file_path);
-    const meta = resolvePath(requested);
-    if (!meta) return result(call, `File does not exist: ${requested}`);
+    if (resolveWorkingSet(requested)) {
+      return result(
+        call,
+        "Working sets are immutable. Edit the original file using the Read recipe in the source boundary.",
+      );
+    }
+    const matches = resolvePath(requested);
+    if (matches.length !== 1) {
+      return result(
+        call,
+        matches.length
+          ? `File path is ambiguous: ${requested}. Use Glob(pattern="${requested}"), then pass the intended document_id as file_path.`
+          : `File does not exist: ${requested}`,
+      );
+    }
+    const meta = matches[0];
     const oldString =
       typeof args.old_string === "string" ? args.old_string : "";
     const newString =
@@ -1642,6 +2999,7 @@ async function runCodingShapeCall(
                   op: "replace_text",
                   find: oldString,
                   replace: newString,
+                  match_case: true,
                   scope: { kind: "whole_document" },
                 },
               ],
@@ -1653,21 +3011,36 @@ async function runCodingShapeCall(
         undefined,
         undefined,
         allowedDocumentIds,
+        undefined,
+        undefined,
+        undefined,
+        turnEditState,
       );
+      const receiptText = applied.mutationReceipt ?? applied.content;
       try {
-        const payload = JSON.parse(applied.content) as {
+        const payload = JSON.parse(receiptText) as {
           ok?: boolean;
+          action?: string;
           error?: string;
           change_count?: number;
           ops?: Array<{ replacements?: number }>;
         };
+        if (payload.ok && payload.action === "no_changes") {
+          return result(
+            call,
+            `No exact matches for old_string were found in ${meta.filename}; no change was made.`,
+          );
+        }
         if (payload.ok) {
           const count =
             payload.ops?.[0]?.replacements ?? payload.change_count ?? 0;
-          return result(
-            call,
-            `Updated ${meta.filename}: ${count} replacement(s) applied as tracked changes.`,
-          );
+          return {
+            ...result(
+              call,
+              `Updated ${meta.filename}: ${count} replacement(s) applied as tracked changes.`,
+            ),
+            mutationReceipt: receiptText,
+          };
         }
         return result(
           call,
@@ -1685,13 +3058,20 @@ async function runCodingShapeCall(
       replace: string;
       context_before?: string;
       context_after?: string;
-    } = { find: oldString, replace: newString };
+    } = {
+      find: oldString,
+      replace: newString,
+      context_before: "",
+      context_after: "",
+    };
     if (sectionArg) {
       const document = await extractLocalDocument(userId, meta.id);
       if (!document) {
         return result(call, `File could not be read: ${requested}`);
       }
-      const skeleton = compileAgreementSkeleton(document.text);
+      const skeleton = await documentStructure(document.text, meta.id, {
+        tableCells: document.tableCells,
+      });
       const lookup = readSection(skeleton, sectionArg);
       if (lookup.status !== "found" || !lookup.block) {
         return result(
@@ -1744,15 +3124,23 @@ async function runCodingShapeCall(
       userId,
       meta.id,
       { edits: [edit] },
+      turnEditState,
     );
+    const receiptText = revised.mutationReceipt ?? revised.content;
     try {
-      const payload = JSON.parse(revised.content) as {
+      const payload = JSON.parse(receiptText) as {
         ok?: boolean;
         error?: string;
         edit_errors?: string[];
       };
       if (payload.ok) {
-        return result(call, `Updated ${meta.filename}: 1 tracked change applied.`);
+        return {
+          ...result(
+            call,
+            `Updated ${meta.filename}: 1 tracked change applied.`,
+          ),
+          mutationReceipt: receiptText,
+        };
       }
       const reasons = payload.edit_errors?.length
         ? payload.edit_errors
@@ -1767,11 +3155,26 @@ async function runCodingShapeCall(
   }
 
   // Grep
-  const pattern = trimmed(args.pattern);
-  if (!pattern) return result(call, "pattern is required");
+  if (
+    !LEGAL_GREP_EXPERIMENT &&
+    (Object.prototype.hasOwnProperty.call(args, "section") ||
+      Object.prototype.hasOwnProperty.call(args, "pages") ||
+      Object.prototype.hasOwnProperty.call(args, "references"))
+  ) {
+    return fail(call, "Grep does not expose legal scopes in this arm");
+  }
+  const requestedPattern = trimmed(args.pattern);
+  if (!requestedPattern) return result(call, "pattern is required");
+  const inlineCaseInsensitive = requestedPattern.startsWith("(?i)");
+  const pattern = inlineCaseInsensitive
+    ? requestedPattern.slice("(?i)".length)
+    : requestedPattern;
   let re: RegExp;
   try {
-    re = new RegExp(pattern, args["-i"] === true ? "iu" : "u");
+    re = new RegExp(
+      pattern,
+      inlineCaseInsensitive || args["-i"] === true ? "iu" : "u",
+    );
   } catch (error) {
     return result(
       call,
@@ -1779,39 +3182,199 @@ async function runCodingShapeCall(
     );
   }
   const pathArg = trimmed(args.path);
+  const virtualTarget = pathArg ? resolveWorkingSet(pathArg) : undefined;
+  if (virtualTarget) {
+    if (
+      trimmed(args.section) ||
+      trimmed(args.pages) ||
+      (args.references && args.references !== "none")
+    ) {
+      return result(call, "Working-set Grep does not accept legal scopes.");
+    }
+    if (args.output_mode === "working_set") {
+      return result(call, "This path is already a materialized working set.");
+    }
+    const lines = virtualTarget.text.split(/\r?\n/u);
+    const starts = sourceLineStarts(virtualTarget.text, lines);
+    const matched = lines.flatMap((line, index) => (re.test(line) ? [index] : []));
+    if (!matched.length) return result(call, "No matches found");
+    if (args.output_mode === "count") {
+      return result(call, `${virtualTarget.path}:${matched.length}`);
+    }
+    if (args.output_mode !== "content") return result(call, virtualTarget.path);
+    const headLimit = positiveInt(args.head_limit, 1, 2_000, 250);
+    const context = clampInt(args["-C"], 0, 10, 0);
+    const rows: CodingOutputLine[] = [];
+    const emitted = new Set<number>();
+    for (const at of matched) {
+      for (
+        let index = Math.max(0, at - context);
+        index <= Math.min(lines.length - 1, at + context) && rows.length < headLimit;
+        index += 1
+      ) {
+        if (emitted.has(index)) continue;
+        emitted.add(index);
+        const separator = index === at ? ":" : "-";
+        const shown = lines[index].slice(0, GREP_LINE_CAP);
+        rows.push({
+          rendered: `${virtualTarget.path}${separator}${index + 1}${separator}${shown}`,
+          span: [starts[index], starts[index] + shown.length],
+        });
+      }
+    }
+    const { kept, truncated } = takeCodingOutputLines(rows);
+    const body = kept.map((line) => line.rendered).join("\n");
+    const content =
+      truncated || rows.length >= headLimit
+        ? `${body}\n(Results truncated; narrow the pattern.)`
+        : body;
+    return {
+      ...result(call, content),
+      evidenceSegments: workingSetEvidenceSegments(
+        virtualTarget,
+        kept.flatMap((line) => (line.span ? [line.span] : [])),
+      ),
+    };
+  }
   let targets = files;
   if (pathArg) {
-    const meta = resolvePath(pathArg);
-    if (!meta) return result(call, `File does not exist: ${pathArg}`);
-    targets = [meta];
+    const matches = resolvePath(pathArg);
+    if (matches.length !== 1) {
+      return result(
+        call,
+        matches.length
+          ? `File path is ambiguous: ${pathArg}. Use Glob(pattern="${pathArg}"), then pass the intended document_id as path.`
+          : `File does not exist: ${pathArg}`,
+      );
+    }
+    targets = [matches[0]];
   } else if (trimmed(args.glob)) {
     const globRe = globRegExp(trimmed(args.glob));
     targets = files.filter((document) => globRe.test(document.filename));
   }
+  const grepSection = trimmed(args.section);
+  const grepPages = trimmed(args.pages);
+  const grepReferences =
+    args.references === "inbound" ||
+    args.references === "outbound" ||
+    args.references === "both"
+      ? args.references
+      : "none";
+  if ((grepSection || grepPages || grepReferences !== "none") && !pathArg) {
+    return result(call, "Legal Grep scopes require one exact path.");
+  }
+  if (grepSection && grepPages) {
+    return result(call, "section and pages are alternative exact scopes; choose one.");
+  }
+  if (grepReferences !== "none" && !grepSection) {
+    return result(call, "references requires an exact section handle.");
+  }
   const mode =
-    args.output_mode === "content" || args.output_mode === "count"
+    args.output_mode === "content" ||
+    args.output_mode === "count" ||
+    (LEGAL_GREP_EXPERIMENT && args.output_mode === "sections") ||
+    (WORKING_SET_EXPERIMENT && args.output_mode === "working_set")
       ? args.output_mode
       : "files_with_matches";
-  const headLimit = clampInt(args.head_limit, 1, 2_000, 250);
+  const headLimit = positiveInt(args.head_limit, 1, 2_000, 250);
   const context = clampInt(args["-C"], 0, 10, 0);
   const numberLines = args["-n"] !== false;
 
-  const rows: string[] = [];
+  const rows: CodingOutputLine[] = [];
+  const workingSetCandidates: WorkingSetCandidate[] = [];
   let truncated = false;
   for (const meta of targets) {
     const document = await extractLocalDocument(userId, meta.id);
     if (!document) continue;
     const lines = document.text.split(/\r?\n/u);
+    const starts = sourceLineStarts(document.text, lines);
+    let scopeSpans: TextRange[] | null = null;
+    let scopedSkeleton: AgreementSkeleton | null = null;
+    if (grepSection) {
+      scopedSkeleton = await documentStructure(document.text, meta.id, {
+        tableCells: document.tableCells,
+      });
+      const lookup = readSection(scopedSkeleton, grepSection);
+      if (lookup.status !== "found" || !lookup.block) {
+        return result(
+          call,
+          `Section '${grepSection}' not found (${lookup.status}` +
+            (lookup.matches.length
+              ? `; candidates: ${lookup.matches.join(", ")}`
+              : "") +
+            ").",
+        );
+      }
+      if (grepReferences === "none") {
+        scopeSpans = [{ start: lookup.block.start, end: lookup.block.end }];
+      } else {
+        const graph = await documentGraph(
+          document.text,
+          meta.id,
+          scopedSkeleton,
+          { tableCells: document.tableCells },
+        );
+        const scope = oneHopLegalScope(
+          scopedSkeleton,
+          graph,
+          lookup.block.label,
+          grepReferences,
+        );
+        scopeSpans =
+          scope?.nodes.map((node) => ({ start: node.start, end: node.end })) ?? [];
+      }
+    } else if (grepPages) {
+      const selected = selectPages(document.pages, document.text, grepPages);
+      if (selected.status !== "ok") {
+        return result(
+          call,
+          selected.status === "empty"
+            ? "pages is required"
+            : `Page '${selected.token}' could not be resolved (${selected.lookup.status}).`,
+        );
+      }
+      scopeSpans = selected.pages.map((page) => ({
+        start: page.start,
+        end: page.end,
+      }));
+    }
     const matched: number[] = [];
     for (let i = 0; i < lines.length; i += 1) {
-      if (re.test(lines[i])) matched.push(i);
+      const lineStart = starts[i];
+      const lineEnd = starts[i + 1] ?? document.text.length;
+      if (
+        (!scopeSpans ||
+          scopeSpans.some(
+            (scope) => lineStart < scope.end && scope.start < lineEnd,
+          )) &&
+        re.test(lines[i])
+      ) {
+        matched.push(i);
+      }
     }
     if (!matched.length) continue;
-    // Match lines carry the enclosing section handle so the follow-up is
-    // Read section= rather than offset arithmetic.
-    let sectionOf: ((line: number) => string | null) | null = null;
-    if (mode === "content") {
-      const skeleton = compileAgreementSkeleton(document.text);
+    // A handle is emitted only when the paired Read resolver accepts it.
+    // Ambiguous TOC/body duplicates stay line-addressed instead of teaching
+    // the model an attractive handle that must fail on the next turn.
+    let sectionOf:
+        | ((line: number) => {
+          handle: string;
+          display: string;
+          firstLine: number;
+          lastLine: number;
+        } | null)
+      | null = null;
+    let unitSkeleton: AgreementSkeleton | null = null;
+    if (
+      (mode === "content" || mode === "sections" || mode === "working_set") &&
+      !PURE_CODING_EXPERIMENT
+    ) {
+      const skeleton =
+        scopedSkeleton ??
+        (await documentStructure(document.text, meta.id, {
+          tableCells: document.tableCells,
+        }));
+      unitSkeleton = skeleton;
       if (skeleton.nodes.length) {
         const offsets: number[] = [];
         let cursor = 0;
@@ -1829,18 +3392,100 @@ async function runCodingShapeCall(
               if (!best || span < best.span) best = { label: node.label, span };
             }
           }
-          return best?.label ?? null;
+          if (!best) return null;
+          // A native cell's row is the useful retrieval unit for a hit:
+          // models otherwise infer this parent themselves, which was the
+          // only repeatable DOCX failure in the fair coding baseline.
+          const row = /^(table:\d+\/row:\d+)\/col:\d+$/u.exec(best.label)?.[1];
+          const preferred =
+            row && readSection(skeleton, row).status === "found"
+              ? row
+              : best.label;
+          const lookup = readSection(skeleton, preferred);
+          if (lookup.status !== "found" || !lookup.block) return null;
+          const preferredNode = skeleton.nodes.find(
+            (node) => node.label === preferred,
+          );
+          const rowAddress = /^table:(\d+)\/row:(\d+)$/u.exec(preferred);
+          const addresses = rowAddress
+            ? document.tableCells
+                .filter(
+                  (cell) =>
+                    cell.table === Number(rowAddress[1]) &&
+                    cell.row === Number(rowAddress[2]) &&
+                    cell.address,
+                )
+                .map((cell) => cell.address)
+            : [];
+          const display =
+            (preferredNode?.display ?? preferred) +
+            (addresses.length ? `; cells ${addresses.join(", ")}` : "");
+          const firstLine =
+            document.text.slice(0, lookup.block.start).split(/\r?\n/u).length;
+          const lastLine =
+            firstLine + lookup.block.text.split(/\r?\n/u).length - 1;
+          return { handle: lookup.block.label, display, firstLine, lastLine };
         };
       }
     }
+    if (mode === "working_set") {
+      for (const line of matched) {
+        const section = sectionOf?.(line);
+        const lookup =
+          section && unitSkeleton
+            ? readSection(unitSkeleton, section.handle)
+            : null;
+        const lineStart = starts[line];
+        const lineEnd = starts[line + 1] ?? document.text.length;
+        const range =
+          lookup?.status === "found" && lookup.block
+            ? { start: lookup.block.start, end: lookup.block.end }
+            : {
+                start: Math.max(0, lineStart - 1_500),
+                end: Math.min(document.text.length, lineEnd + 1_500),
+              };
+        workingSetCandidates.push({
+          ...range,
+          documentId: meta.id,
+          versionId: meta.current_version_id,
+          filename: meta.filename,
+          sourceText: document.text,
+          projection: lookup?.status === "found" ? "legal-unit" : "window",
+          ...(lookup?.status === "found" && lookup.block
+            ? { handle: lookup.block.label, contextLabel: section?.display }
+            : {}),
+          anchor: lineStart,
+        });
+      }
+      continue;
+    }
     if (mode === "files_with_matches") {
-      rows.push(meta.filename);
+      rows.push({ rendered: meta.filename });
       continue;
     }
     if (mode === "count") {
-      rows.push(`${meta.filename}:${matched.length}`);
+      rows.push({ rendered: `${meta.filename}:${matched.length}` });
       continue;
     }
+    if (mode === "sections") {
+      const seen = new Set<string>();
+      for (const line of matched) {
+        const section = sectionOf?.(line);
+        const rendered = section
+          ? `${meta.filename}: Read section="${section.handle}"`
+          : `${meta.filename}: Read offset=${line + 1} limit=1`;
+        if (seen.has(rendered)) continue;
+        seen.add(rendered);
+        rows.push({ rendered });
+        if (rows.length >= headLimit) {
+          truncated = true;
+          break;
+        }
+      }
+      if (truncated) break;
+      continue;
+    }
+    const matchedLines = new Set(matched);
     let lastPrinted = -2;
     for (const at of matched) {
       if (rows.length >= headLimit) {
@@ -1849,28 +3494,87 @@ async function runCodingShapeCall(
       }
       const from = Math.max(0, at - context);
       const to = Math.min(lines.length - 1, at + context);
-      if (context && lastPrinted >= 0 && from > lastPrinted + 1) rows.push("--");
+      if (context && lastPrinted >= 0 && from > lastPrinted + 1) {
+        rows.push({ rendered: "--" });
+      }
       for (let i = Math.max(from, lastPrinted + 1); i <= to; i += 1) {
-        const sep = i === at ? ":" : "-";
+        const isMatch = matchedLines.has(i);
+        const sep = isMatch ? ":" : "-";
         const prefix = numberLines
           ? `${meta.filename}${sep}${i + 1}${sep}`
           : `${meta.filename}${sep}`;
-        const handle = sep === ":" ? sectionOf?.(i) : null;
-        rows.push(
-          `${prefix}${lines[i].slice(0, GREP_LINE_CAP)}${handle ? `  [${handle}]` : ""}`,
-        );
+        const section = isMatch ? sectionOf?.(i) : null;
+        const matchColumn = isMatch ? Math.max(0, lines[i].search(re)) : 0;
+        const sliceStart =
+          lines[i].length > GREP_LINE_CAP && isMatch
+            ? Math.min(
+                Math.max(0, matchColumn - Math.floor(GREP_LINE_CAP / 2)),
+                lines[i].length - GREP_LINE_CAP,
+              )
+            : 0;
+        const shown = lines[i].slice(sliceStart, sliceStart + GREP_LINE_CAP);
+        const contact =
+          isMatch &&
+          (RETRIEVAL_EXPERIMENT_SHAPE === "h1-contact" ||
+            LEGAL_GREP_EXPERIMENT)
+            ? (() => {
+                const recipe = section
+                  ? `Read section="${section.handle}"`
+                  : `Read offset=${i + 1} limit=1`;
+                const extent = section
+                  ? ` | lines ${section.firstLine}-${section.lastLine}`
+                  : "";
+                const page = pageAt(
+                  document.pages,
+                  starts[i] + matchColumn,
+                );
+                const pageFacts = page
+                  ? ` | pdf ${page.pdfPage ?? "?"} | printed ${page.printedLabel ?? "?"}`
+                  : "";
+                return [
+                  `  [${recipe}${extent}${pageFacts}]`,
+                  `  [${recipe}${extent}]`,
+                  `  [${recipe}]`,
+                  `  [Read offset=${i + 1} limit=1]`,
+                ].find((candidate) => candidate.length <= 120)!;
+              })()
+            : section
+              ? `  [${section.handle}]`
+              : "";
+        rows.push({
+          rendered:
+            `${prefix}${sliceStart ? "…" : ""}${shown}` +
+            (sliceStart + shown.length < lines[i].length ? "…" : "") +
+            contact,
+          span: [starts[i] + sliceStart, starts[i] + sliceStart + shown.length],
+          source: {
+            documentId: meta.id,
+            versionId: meta.current_version_id,
+          },
+        });
         lastPrinted = i;
       }
     }
     if (truncated) break;
   }
+  if (mode === "working_set") {
+    if (!workingSetCandidates.length) return result(call, "No matches found");
+    if (!workingSets) return fail(call, "Working-set state is unavailable");
+    return result(
+      call,
+      materializeWorkingSet(workingSetCandidates, args.max_chars, workingSets),
+    );
+  }
   if (!rows.length) return result(call, "No matches found");
-  const body = rows.slice(0, headLimit).join("\n");
-  return result(
+  const limited = rows.slice(0, headLimit);
+  const { kept, truncated: sizeTruncated } = takeCodingOutputLines(limited);
+  const body = kept.map((line) => line.rendered).join("\n");
+  return codingTextResult(
     call,
-    truncated || rows.length > headLimit
+    truncated || rows.length > headLimit || sizeTruncated
       ? `${body}\n(Results truncated, showing first ${headLimit} lines. Narrow the pattern or pass head_limit.)`
       : body,
+    kept,
   );
 }
 
@@ -1887,13 +3591,20 @@ function pdfLocatorParams(args: Record<string, unknown>) {
 
 const textCache = new Map<
   string,
-  { text: string; cautions: string[]; pages: PageMap }
+  {
+    text: string;
+    cautions: string[];
+    pages: PageMap;
+    tableCells: TableCellSpan[];
+  }
 >();
 
 export async function extractLocalDocument(userId: string, documentId: string) {
   const file = await getLocalVersionFile(userId, documentId);
   if (!file) return null;
-  const cacheKey = `${documentId}:${file.version.id}:${file.version.created_at}`;
+  const cacheKey =
+    `${documentId}:${file.version.id}:` +
+    (file.version.source_sha256 ?? file.version.created_at);
   const cached = textCache.get(cacheKey);
   if (cached !== undefined) {
     return { filename: file.document.filename, ...cached };
@@ -1907,8 +3618,17 @@ export async function extractLocalDocument(userId: string, documentId: string) {
       : null;
   let bytes: Buffer | undefined;
   const sourceBytes = async () => (bytes ??= await readFile(file.path));
+  const docxStructure =
+    fileType === "docx"
+      ? await extractDocxBodyStructure(await sourceBytes())
+      : null;
+  const spreadsheetStructure = isSpreadsheetDocumentType(fileType)
+    ? await spreadsheetToLLMStructure(await sourceBytes())
+    : null;
   const text: string =
     parsed?.text ??
+    docxStructure?.text ??
+    spreadsheetStructure?.text ??
     (parser
       ? await sourceBytes().then((value) =>
           cachedParse({
@@ -1955,12 +3675,20 @@ export async function extractLocalDocument(userId: string, documentId: string) {
         if (recovered.pages.length || fileType !== "pdf") return recovered;
         return { pages: [], source: "unindexed" as const };
       })();
+  const tableCells: TableCellSpan[] =
+    docxStructure?.tableCells ?? spreadsheetStructure?.tableCells ?? [];
 
   if (textCache.size >= 16) {
     textCache.delete(textCache.keys().next().value!);
   }
-  textCache.set(cacheKey, { text, cautions, pages });
-  return { filename: file.document.filename, text, cautions, pages };
+  textCache.set(cacheKey, { text, cautions, pages, tableCells });
+  return {
+    filename: file.document.filename,
+    text,
+    cautions,
+    pages,
+    tableCells,
+  };
 }
 
 /**
@@ -2036,19 +3764,33 @@ const MAX_TOOL_RESULT_CHARS = Number(
  * dropped and name the calls that fetch it back. Beaver can be more specific
  * than a byte offset: it has addressable section handles.
  */
-function continuationHint(call: NormalizedToolCall, omitted: number): string {
+function continuationHint(call: NormalizedToolCall): string {
   const documentId =
     typeof call.input?.document_id === "string" ? call.input.document_id : "";
   const target = documentId ? `document_id="${documentId}"` : "this document";
-  return (
-    `\n\n[This result was shortened. ${omitted.toLocaleString("en-CA")} characters from the middle are not shown here. ` +
-    `The document itself is complete and nothing has been lost — you are seeing part of it. ` +
-    `To see more, read one piece at a time instead of the whole document: ` +
-    `call library_outline with ${target} to list the document's sections, then call library_read with ${target} ` +
-    `and the section you want. To find specific wording, call library_find with ${target} and your search text; ` +
-    `each match includes a character position called "at", which you can pass to library_read as "offset" ` +
-    `to read the text around it.]`
-  );
+  if (call.name === "library_read") {
+    return NAV_TOOL_SHAPE === "address"
+      ? `Call library_outline with ${target}, then retry library_read with a narrower at address or max_chars; library_find can locate exact wording.`
+      : `Call library_outline with ${target}, then retry library_read with a narrower section or max_chars; library_find can locate exact wording and offsets.`;
+  }
+  if (call.name === "library_find") {
+    return NAV_TOOL_SHAPE === "address"
+      ? "Narrow query or at, or lower max_results/context_chars, then retry library_find."
+      : "Narrow query, pages, or section, or lower max_results/context_chars, then retry library_find.";
+  }
+  if (call.name === "library_outline") {
+    return `Use a handle visible in the preview with library_read for ${target}.`;
+  }
+  if (call.name === "library_links") {
+    return `Retry library_links for ${target} with one structural at address or a lower max_results.`;
+  }
+  if (/^(?:a2aj|caselaw|courtlistener|hansard|legal_pdf|public_legal_source)_/u.test(call.name)) {
+    return `Retry ${call.name} with a narrower query, exact source identifier, or locator; reuse identifiers visible in the preview.`;
+  }
+  if (call.name.startsWith("library_")) {
+    return `Retry ${call.name} with a smaller input batch or a more specific identifier.`;
+  }
+  return `Retry ${call.name} with narrower inputs.`;
 }
 
 function result(
@@ -2060,39 +3802,82 @@ function result(
   if (serialized.length <= MAX_TOOL_RESULT_CHARS) {
     return { tool_use_id: call.id, content: serialized };
   }
-  // Trim the one oversized string field rather than the envelope, so the
-  // result the model parses stays well-formed JSON.
-  if (content && typeof content === "object" && !Array.isArray(content)) {
-    const record = { ...(content as Record<string, unknown>) };
-    let widest: string | null = null;
-    for (const [key, value] of Object.entries(record)) {
-      if (
-        typeof value === "string" &&
-        (widest === null || value.length > (record[widest] as string).length)
-      ) {
-        widest = key;
-      }
-    }
-    const text = widest === null ? null : (record[widest] as string);
-    if (widest !== null && text !== null) {
-      const envelope = serialized.length - text.length;
-      const keep = MAX_TOOL_RESULT_CHARS - envelope - 900;
-      if (keep > 2_000) {
-        const head = Math.floor(keep * 0.7);
-        record[widest] =
-          text.slice(0, head) + "\n…\n" + text.slice(text.length - (keep - head));
-        record.truncated = true;
-        record.continuation = continuationHint(call, text.length - keep);
-        return { tool_use_id: call.id, content: JSON.stringify(record) };
-      }
+  const ok =
+    content && typeof content === "object" && !Array.isArray(content)
+      ? (content as Record<string, unknown>).ok
+      : undefined;
+  const mutationReceipt =
+    content &&
+    typeof content === "object" &&
+    !Array.isArray(content) &&
+    (content as Record<string, unknown>).receipt === "mike-document:v1"
+      ? serialized
+      : undefined;
+  const envelope = (keep: number) => {
+    const headLength = Math.ceil(keep * 0.7);
+    const tailLength = keep - headLength;
+    return JSON.stringify({
+      ...(typeof ok === "boolean" ? { ok } : {}),
+      truncated: true,
+      original_format: typeof content === "string" ? "text" : "json",
+      omitted_characters: serialized.length - keep,
+      preview: {
+        head: serialized.slice(0, headLength),
+        tail: tailLength ? serialized.slice(-tailLength) : "",
+      },
+      continuation: continuationHint(call),
+    });
+  };
+  // JSON escaping makes the payload size data-dependent. A tiny binary
+  // search keeps the most preview text that fits while preserving valid JSON.
+  let low = 0;
+  let high = Math.min(serialized.length, MAX_TOOL_RESULT_CHARS);
+  let shortened = envelope(0);
+  while (low <= high) {
+    const keep = Math.floor((low + high) / 2);
+    const candidate = envelope(keep);
+    if (candidate.length <= MAX_TOOL_RESULT_CHARS) {
+      shortened = candidate;
+      low = keep + 1;
+    } else {
+      high = keep - 1;
     }
   }
   return {
     tool_use_id: call.id,
     content:
-      serialized.slice(0, MAX_TOOL_RESULT_CHARS) +
-      continuationHint(call, serialized.length - MAX_TOOL_RESULT_CHARS),
+      shortened.length <= MAX_TOOL_RESULT_CHARS
+        ? shortened
+        : JSON.stringify({ truncated: true }),
+    ...(mutationReceipt ? { mutationReceipt } : {}),
   };
+}
+
+function codingTextResult(
+  call: NormalizedToolCall,
+  content: string,
+  lines: CodingOutputLine[],
+): NormalizedToolResult {
+  const rendered = result(call, content);
+  return rendered.content === content
+    ? {
+        ...rendered,
+        evidenceSpans: lines.flatMap((line) =>
+          line.span ? [line.span] : [],
+        ),
+        evidenceSegments: lines.flatMap((line) =>
+          line.span && line.source
+            ? [
+                {
+                  ...line.source,
+                  start: line.span[0],
+                  end: line.span[1],
+                },
+              ]
+            : [],
+        ),
+      }
+    : rendered;
 }
 
 const fail = (call: NormalizedToolCall, error: string) =>
@@ -2316,17 +4101,61 @@ const DOCX_WORKFLOWS: Record<
       userId: string,
       documentId: string,
       versionId: string | undefined,
+      turnEditState?: LocalAssistantEditTurnState,
     ) => Promise<unknown>;
     fallback: string;
   }
 > = {
   library_link_docx_citations: {
-    run: (userId, documentId) => linkLocalDocxCitations(userId, documentId),
+    run: (userId, documentId, _versionId, turnEditState) =>
+      linkLocalDocxCitations(userId, documentId, {
+        saveVersion: async ({ sourceVersionId, filename, bytes }) => {
+          const committed = await commitLocalAssistantTurnVersion({
+              userId,
+              documentId,
+              sourceVersionId,
+              filename,
+              bytes,
+              trackedEdits: [],
+              turnEditState,
+            });
+          if (!committed) {
+            throw new Error(
+              "The active version changed or the update would invalidate an earlier same-turn tracked-edit receipt",
+            );
+          }
+          return {
+            ...committed.version,
+            parentVersionId: committed.parentVersionId,
+          };
+        },
+      }),
     fallback: "DOCX citation linking failed",
   },
   library_fix_docx_supras: {
-    run: (userId, documentId) =>
-      fixLocalDocxSupraCrossReferences(userId, documentId),
+    run: (userId, documentId, _versionId, turnEditState) =>
+      fixLocalDocxSupraCrossReferences(userId, documentId, {
+        saveVersion: async ({ sourceVersionId, filename, bytes }) => {
+          const committed = await commitLocalAssistantTurnVersion({
+              userId,
+              documentId,
+              sourceVersionId,
+              filename,
+              bytes,
+              trackedEdits: [],
+              turnEditState,
+            });
+          if (!committed) {
+            throw new Error(
+              "The active version changed or the update would invalidate an earlier same-turn tracked-edit receipt",
+            );
+          }
+          return {
+            ...committed.version,
+            parentVersionId: committed.parentVersionId,
+          };
+        },
+      }),
     fallback: "DOCX supra cleanup failed",
   },
   library_lint_docx_structure: {
@@ -2335,6 +4164,213 @@ const DOCX_WORKFLOWS: Record<
     fallback: "DOCX structural lint failed",
   },
 };
+
+export const LOCAL_TURN_EDIT_TOOL_NAMES = new Set([
+  "library_revise_docx",
+  "library_apply_text_ops",
+  "library_delete_and_renumber_docx",
+  "library_link_docx_citations",
+  "library_fix_docx_supras",
+  "Edit",
+]);
+
+const upstreamMikeResult = (
+  call: NormalizedToolCall,
+  content: unknown,
+): NormalizedToolResult => ({
+  tool_use_id: call.id,
+  content: typeof content === "string" ? content : JSON.stringify(content),
+});
+
+function upstreamMikeSectionsMarkdown(value: unknown) {
+  if (!Array.isArray(value)) return "";
+  const blocks: string[] = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+    const section = raw as Record<string, unknown>;
+    if (section.pageBreak === true && blocks.length) blocks.push("---");
+    const heading = trimmed(section.heading);
+    if (heading) {
+      blocks.push(`${"#".repeat(clampInt(section.level, 1, 3, 1))} ${heading}`);
+    }
+    const content = trimmed(section.content);
+    if (content) blocks.push(content);
+    const table =
+      section.table &&
+      typeof section.table === "object" &&
+      !Array.isArray(section.table)
+        ? (section.table as Record<string, unknown>)
+        : null;
+    const headers = stringArray(table?.headers);
+    const rows = Array.isArray(table?.rows)
+      ? table.rows.filter(Array.isArray).map((row) => stringArray(row))
+      : [];
+    if (headers.length) {
+      const cell = (text: string) => text.replace(/\|/gu, "\\|").replace(/\r?\n/gu, " ");
+      blocks.push(
+        `| ${headers.map(cell).join(" | ")} |\n` +
+          `| ${headers.map(() => "---").join(" | ")} |` +
+          (rows.length
+            ? `\n${rows
+                .map(
+                  (row) =>
+                    `| ${headers.map((_, index) => cell(row[index] ?? "")).join(" | ")} |`,
+                )
+                .join("\n")}`
+            : ""),
+      );
+    }
+  }
+  return blocks.join("\n\n");
+}
+
+async function runUpstreamMikeRetrievalCall(params: {
+  call: NormalizedToolCall;
+  userId: string;
+  allowedDocumentIds?: Set<string>;
+  readState?: LocalAssistantReadTurnState;
+}): Promise<NormalizedToolResult | null> {
+  const { call, userId, allowedDocumentIds, readState } = params;
+  if (
+    ![
+      "list_documents",
+      "fetch_documents",
+      "read_document",
+      "find_in_document",
+    ].includes(call.name)
+  ) {
+    return null;
+  }
+
+  const storedDocuments = (await listLocalLibrary(userId, "file")).documents;
+  const storedById = new Map(
+    storedDocuments.map((document) => [document.id, document]),
+  );
+  // Upstream project chat exposes turn-local doc-N labels, not the durable
+  // database UUIDs used by Beaver's local store. Preserve attachment order so
+  // the AVAILABLE DOCUMENTS prompt and every tool agree on the same labels.
+  const documents = (
+    allowedDocumentIds
+      ? [...allowedDocumentIds].map((documentId) => storedById.get(documentId))
+      : storedDocuments
+  ).filter(
+    (document): document is (typeof storedDocuments)[number] => !!document,
+  );
+  const byId = new Map(documents.map((document) => [document.id, document]));
+  const labelledDocuments = documents.map((document, index) => ({
+    document,
+    docLabel: `doc-${index}`,
+  }));
+  const byLabel = new Map(
+    labelledDocuments.map(({ document, docLabel }) => [docLabel, document]),
+  );
+  const labelById = new Map(
+    labelledDocuments.map(({ document, docLabel }) => [document.id, docLabel]),
+  );
+  const resolveDocument = (requested: string) =>
+    byLabel.get(requested) ?? byId.get(requested);
+  const readOne = async (requested: string) => {
+    const listed = resolveDocument(requested);
+    const docLabel = listed ? labelById.get(listed.id) ?? requested : requested;
+    const documentId = listed?.id ?? "";
+    if (!listed) return `Document '${requested}' not found.`;
+    const file = await getLocalVersionFile(userId, documentId);
+    if (!file) return "Document could not be read.";
+    const key = `${documentId}:${file.version.id}`;
+    const prior = readState?.get(key);
+    if (prior) {
+      return JSON.stringify({
+        ok: true,
+        already_read: true,
+        doc_id: prior.docLabel ?? docLabel,
+        document_id: prior.documentId,
+        filename: prior.filename,
+        version_id: prior.versionId,
+        content:
+          "This document/version was already read earlier in this response. The full text is not repeated to avoid unnecessary token use.",
+        next_required_action:
+          "Use the prior read_document/fetch_documents result or call find_in_document for a targeted check.",
+      });
+    }
+    const document = await extractLocalDocument(userId, documentId);
+    if (!document) return "Document could not be read.";
+    readState?.set(key, {
+      documentId,
+      docLabel,
+      versionId: file.version.id,
+      filename: document.filename,
+    });
+    return document.text;
+  };
+
+  if (call.name === "list_documents") {
+    return upstreamMikeResult(
+      call,
+      labelledDocuments.map(({ document, docLabel }) => ({
+        doc_id: docLabel,
+        filename: document.filename,
+        file_type: document.file_type,
+      })),
+    );
+  }
+
+  if (call.name === "read_document") {
+    const documentId = trimmed(call.input.doc_id);
+    return upstreamMikeResult(call, await readOne(documentId));
+  }
+
+  if (call.name === "fetch_documents") {
+    const parts: string[] = [];
+    for (const requested of stringArray(call.input.doc_ids)) {
+      const document = resolveDocument(requested);
+      const docLabel = document
+        ? labelById.get(document.id) ?? requested
+        : requested;
+      const filename = document?.filename ?? requested;
+      parts.push(
+        `--- ${filename} (${docLabel}) ---\n${await readOne(requested)}`,
+      );
+    }
+    return upstreamMikeResult(call, parts.join("\n\n"));
+  }
+
+  const requested = trimmed(call.input.doc_id);
+  const query = trimmed(call.input.query);
+  if (!query) return upstreamMikeResult(call, { ok: false, error: "Empty query." });
+  const listed = resolveDocument(requested);
+  if (!listed) {
+    return upstreamMikeResult(call, {
+      ok: false,
+      error: `Document '${requested}' not found.`,
+    });
+  }
+  const documentId = listed.id;
+  const document = await extractLocalDocument(userId, documentId);
+  if (!document) {
+    return upstreamMikeResult(call, {
+      ok: false,
+      filename: listed.filename,
+      error: "Document could not be read.",
+    });
+  }
+  const maxResults = clampInt(call.input.max_results, 1, 100, 20);
+  const contextChars = clampInt(call.input.context_chars, 0, 10_000, 80);
+  const matches = findTextMatches({
+    text: document.text,
+    query,
+    maxResults,
+    contextChars,
+  });
+  return upstreamMikeResult(call, {
+    ok: true,
+    filename: listed.filename,
+    query,
+    total_matches: matches.totalMatches,
+    returned: matches.hits.length,
+    truncated: matches.totalMatches > matches.hits.length,
+    hits: matches.hits,
+  });
+}
 
 export async function runLocalAssistantTools(
   userId: string,
@@ -2347,32 +4383,54 @@ export async function runLocalAssistantTools(
   localPdfEvidenceHandles?: Set<string>,
   matterId?: string | null,
   legalEvidenceState?: LegalEvidenceTurnState,
+  turnEditState?: LocalAssistantEditTurnState,
+  turnReadState?: LocalAssistantReadTurnState,
+  workingSets?: LocalAssistantWorkingSetTurnState,
 ): Promise<NormalizedToolResult[]> {
   const publicState = publicLegalState ?? createPublicLegalSourceState();
+  let editTail: Promise<unknown> = Promise.resolve();
   return Promise.all(
-    calls.map(async (call) => {
-      const args = call.input;
+    calls.map((call) => {
+      const execute = async () => {
+      let args = call.input;
+
+      if (CODING_TOOL_SHAPE) {
+        const resolved = await resolveCodingDocumentReferences(
+          userId,
+          args,
+          allowedDocumentIds,
+        );
+        if (resolved.error) return fail(call, resolved.error);
+        args = resolved.input;
+      }
+
+      if (UPSTREAM_MIKE_TOOL_SHAPE) {
+        const upstream = await runUpstreamMikeRetrievalCall({
+          call,
+          userId,
+          allowedDocumentIds,
+          readState: turnReadState,
+        });
+        if (upstream) return upstream;
+      }
 
       if (call.name === "describe_tools") {
+        const availableDomains = domainEntriesForTools(LOCAL_ASSISTANT_TOOLS).map(
+          ([name]) => name,
+        );
         const domains = stringArray(args.domains).filter(
-          (domain) => domain in TOOL_DOMAINS,
+          (domain) => availableDomains.includes(domain),
         );
         if (!domains.length) {
           return fail(
             call,
-            `domains must name at least one of: ${Object.keys(TOOL_DOMAINS).join(", ")}`,
+            `domains must name at least one of: ${availableDomains.join(", ")}`,
           );
         }
-        // A parent opens onto its children, not onto tools: naming the
-        // narrower domain costs one cheap turn, and it is what keeps the
-        // catalogue from flattening back out as it grows.
-        const branches = domains
-          .flatMap((domain) => TOOL_DOMAINS[domain].children ?? [])
-          .map((child) => ({
-            domain: child,
-            covers: TOOL_DOMAINS[child].blurb,
-          }));
-        const opened = toolsForDomains(LOCAL_ASSISTANT_TOOLS, domains);
+        const opened = toolsForDomains(
+          partitionTools(LOCAL_ASSISTANT_TOOLS).deferred,
+          domains,
+        );
         // Prose travels with its domain: the research instructions explain
         // tools that were not loaded, so they arrive with them rather than
         // being paid for on every turn of every session.
@@ -2383,12 +4441,10 @@ export async function runLocalAssistantTools(
         return result(call, {
           ok: true,
           domains,
-          ...(branches.length ? { open_next: branches } : {}),
           ...(guidance ? { guidance } : {}),
-          // The caller adds these to the next request; naming them here is
-          // what makes the disclosure legible in a transcript.
+          // The host adds trusted schemas out of band. The transcript needs
+          // names and guidance, not a duplicate copy of every schema.
           opened: opened.map((entry) => entry.function.name),
-          tools: opened,
         });
       }
       if (call.name === LEGAL_EVIDENCE_PLAN_TOOL_NAME) {
@@ -2411,9 +4467,19 @@ export async function runLocalAssistantTools(
         (call.name === "Glob" ||
           call.name === "Grep" ||
           call.name === "Read" ||
+          (RETRIEVAL_EXPERIMENT_TOOLS.some(
+            (entry) => entry.function.name === call.name,
+          )) ||
           call.name === "Edit")
       ) {
-        return runCodingShapeCall(call, args, userId, allowedDocumentIds);
+        return runCodingShapeCall(
+          call,
+          args,
+          userId,
+          allowedDocumentIds,
+          turnEditState,
+          workingSets,
+        );
       }
       // Strict surface: names the shape swap removed must fail loudly, or a
       // prompt that still mentions them silently un-does the experiment.
@@ -2534,11 +4600,26 @@ export async function runLocalAssistantTools(
           });
         }
       }
-      if (call.name === "library_create_docx") {
+      if (
+        call.name === "library_create_docx" ||
+        (UPSTREAM_MIKE_TOOL_SHAPE && call.name === "generate_docx")
+      ) {
         const title = trimmed(args.title);
-        const markdown = trimmed(args.markdown);
+        const filename = trimmed(args.filename);
+        const markdown =
+          call.name === "generate_docx"
+            ? upstreamMikeSectionsMarkdown(args.sections)
+            : trimmed(args.markdown);
         if (!title || title.length > 256 || !markdown) {
           return fail(call, "DOCX title or Markdown is invalid");
+        }
+        if (
+          filename &&
+          (filename.length > 200 ||
+            !filename.toLocaleLowerCase().endsWith(".docx") ||
+            /[\\/:*?"<>|\u0000-\u001f]/u.test(filename))
+        ) {
+          return fail(call, "DOCX filename must be a plain .docx filename");
         }
         try {
           const evidence = await resolveDocxEvidenceCitations(
@@ -2559,7 +4640,7 @@ export async function runLocalAssistantTools(
           const document = await createLocalDocument({
             userId,
             kind: "file",
-            filename: rendered.filename,
+            filename: filename || rendered.filename,
             bytes: rendered.bytes,
             provenance: {
               schemaVersion: 1,
@@ -2602,6 +4683,13 @@ export async function runLocalAssistantTools(
             }
           }
           allowedDocumentIds?.add(document.id);
+          const diagnostics = LEGAL_GREP_EXPERIMENT
+            ? await compilerDiagnostics(
+                userId,
+                document.id,
+                document.current_version_id,
+              )
+            : null;
           const downloadUrl =
             `/single-documents/${encodeURIComponent(document.id)}/file` +
             `?version_id=${encodeURIComponent(document.current_version_id)}`;
@@ -2616,6 +4704,7 @@ export async function runLocalAssistantTools(
             file_type: document.file_type,
             source_sha256: document.source_sha256,
             attached_to_matter: Boolean(matterId),
+            ...(diagnostics ? { compiler_diagnostics: diagnostics } : {}),
             download_url: downloadUrl,
             
           });
@@ -2625,12 +4714,205 @@ export async function runLocalAssistantTools(
       }
 
       if (call.name === "library_revise_docx") {
-        return runLocalReviseDocx(call, userId, documentId, args);
+        return runLocalReviseDocx(
+          call,
+          userId,
+          documentId,
+          args,
+          turnEditState,
+        );
+      }
+
+      if (call.name === "library_delete_and_renumber_docx") {
+        let versionId = trimmed(args.version_id);
+        const target = trimmed(args.target);
+        if (!documentId || !target) {
+          return fail(call, "document_id and target are required");
+        }
+        const turnVersion = turnEditState?.get(documentId);
+        if (turnVersion) {
+          if (
+            versionId &&
+            versionId !== turnVersion.versionId &&
+            versionId !== turnVersion.parentVersionId
+          ) {
+            return fail(call, "version_id is not the active turn version");
+          }
+          versionId = turnVersion.versionId;
+        }
+        try {
+          const file = await getLocalVersionFile(
+            userId,
+            documentId,
+            versionId || undefined,
+          );
+          if (!file) return fail(call, "DOCX Library version not found");
+          if (file.document.current_version_id !== file.version.id) {
+            return fail(call, "version_id is not the active version");
+          }
+          if (file.fileType.toLowerCase() !== "docx") {
+            return fail(call, "Renumbering requires a DOCX Library version");
+          }
+
+          const bytes = await readFile(file.path);
+          const body = await extractDocxBodyStructure(bytes);
+          if (!body.text) {
+            return fail(call, "DOCX body text could not be extracted");
+          }
+          const plan = deleteProvisionAndRenumberSiblings(body.text, target);
+          if (plan.failures.length) {
+            return result(call, {
+              ok: false,
+              error: "Delete-and-renumber refused; the document is unchanged",
+              document_id: documentId,
+              version_id: file.version.id,
+              source_sha256: file.version.source_sha256,
+              target,
+              mapping: plan.mapping,
+              failures: plan.failures,
+            });
+          }
+          const edits = trackedEditsForRenumberPlan(body.text, plan.applied);
+          if (typeof edits === "string") return fail(call, edits);
+          const edited = await applyTrackedEdits(bytes, edits, {
+            author: "Beaver",
+          });
+          if (edited.errors.length || !edited.changes.length) {
+            return result(call, {
+              ok: false,
+              error: "Delete-and-renumber could not be represented as tracked changes; the document is unchanged",
+              edit_errors: edited.errors,
+            });
+          }
+          const acceptedText = await extractDocxBodyText(edited.bytes);
+          const actualComparable = comparableAcceptedText(acceptedText);
+          const expectedComparable = comparableAcceptedText(plan.text);
+          if (actualComparable !== expectedComparable) {
+            let mismatch = 0;
+            while (
+              mismatch < actualComparable.length &&
+              actualComparable[mismatch] === expectedComparable[mismatch]
+            ) {
+              mismatch += 1;
+            }
+            return result(call, {
+              ok: false,
+              error:
+                "Tracked-change verification disagreed with the renumber plan; the document is unchanged",
+              mismatch_at: mismatch,
+              expected_excerpt: expectedComparable.slice(
+                Math.max(0, mismatch - 80),
+                mismatch + 160,
+              ),
+              actual_excerpt: actualComparable.slice(
+                Math.max(0, mismatch - 80),
+                mismatch + 160,
+              ),
+              tracked_changes: edited.changes.map((change) => ({
+                deleted: change.deletedText,
+                inserted: change.insertedText,
+              })),
+            });
+          }
+
+          const trackedEdits: LocalTrackedEdit[] = edited.changes.map(
+            (change) => ({
+              id: crypto.randomUUID(),
+              changeId: change.id,
+              delWId: change.delId,
+              insWId: change.insId,
+              deletedText: change.deletedText,
+              insertedText: change.insertedText,
+              contextBefore: change.contextBefore,
+              contextAfter: change.contextAfter,
+              reason: change.reason,
+              status: "pending",
+            }),
+          );
+          const committed = await commitLocalAssistantTurnVersion({
+            userId,
+            documentId,
+            sourceVersionId: file.version.id,
+            filename: file.version.filename,
+            bytes: edited.bytes,
+            trackedEdits,
+            turnEditState,
+          });
+          if (!committed) {
+            return fail(call, "version_id is no longer active");
+          }
+          const { version, parentVersionId } = committed;
+          const downloadUrl =
+            `/single-documents/${encodeURIComponent(documentId)}/file` +
+            `?version_id=${encodeURIComponent(version.id)}`;
+          return result(call, {
+            ok: true,
+            receipt: "mike-document:v1",
+            operation_receipt: "mike-delete-and-renumber:v1",
+            action: "revised",
+            document_id: documentId,
+            parent_version_id: parentVersionId,
+            input_source_sha256: file.version.source_sha256,
+            version_id: version.id,
+            version_number: version.version_number,
+            filename: version.filename,
+            file_type: version.file_type,
+            source_sha256: version.source_sha256,
+            target,
+            mapping: plan.mapping,
+            verification: plan.verification,
+            plan_sha256: sha256(JSON.stringify(plan.applied)),
+            splices: plan.applied.map((receipt) => ({
+              kind: receipt.kind,
+              start: receipt.start,
+              end: receipt.end,
+              from: receipt.from,
+              to: receipt.to,
+              removed_sha256: sha256(receipt.removed),
+              inserted: receipt.inserted,
+            })),
+            change_count: trackedEdits.length,
+            download_url: downloadUrl,
+            annotations: trackedEdits.map((edit) => ({
+              kind: "edit",
+              edit_id: edit.id,
+              document_id: documentId,
+              version_id: version.id,
+              version_number: version.version_number,
+              change_id: edit.changeId,
+              del_w_id: edit.delWId,
+              ins_w_id: edit.insWId,
+              deleted_text:
+                edit.deletedText.length > 500
+                  ? `${edit.deletedText.slice(0, 500)}…`
+                  : edit.deletedText,
+              inserted_text: edit.insertedText,
+              reason: edit.reason,
+              status: edit.status,
+            })),
+          });
+        } catch (error) {
+          return fail(
+            call,
+            errorText(error, "Delete-and-renumber failed"),
+          );
+        }
       }
 
       if (call.name === "library_apply_text_ops") {
-        const versionId = trimmed(args.version_id);
+        let versionId = trimmed(args.version_id);
         if (!documentId) return fail(call, "document_id is required");
+        const turnVersion = turnEditState?.get(documentId);
+        if (turnVersion) {
+          if (
+            versionId &&
+            versionId !== turnVersion.versionId &&
+            versionId !== turnVersion.parentVersionId
+          ) {
+            return fail(call, "version_id is not the active turn version");
+          }
+          versionId = turnVersion.versionId;
+        }
         const requests = parseTextOpRequests(args.ops);
         if (typeof requests === "string") return fail(call, requests);
         try {
@@ -2648,7 +4930,7 @@ export async function runLocalAssistantTools(
           }
           const bytes = await readFile(file.path);
           // Addresses resolve against the PINNED version's own text, on the
-          // same plane the writer uses (extractDocxBodyText, no fallback),
+          // same plane the writer uses (extractDocxBodyStructure, no fallback),
           // so an offset that named a clause for reading names it for
           // editing. Resolution happens here rather than inside the op
           // engine, which needs offsets and not a skeleton.
@@ -2657,14 +4939,17 @@ export async function runLocalAssistantTools(
           );
           let resolvedRequests = requests;
           if (addressed) {
-            const docText = await extractDocxBodyText(bytes);
+            const body = await extractDocxBodyStructure(bytes);
+            const docText = body.text;
             if (!docText) {
               return fail(
                 call,
                 "DOCX body text could not be extracted, so an `at` scope cannot be resolved. Report the file rather than editing from partial text.",
               );
             }
-            const skeleton = compileAgreementSkeleton(docText);
+            const skeleton = compileAgreementSkeleton(docText, documentId, {
+              tableCells: body.tableCells,
+            });
             const map = pageMapFromMarkers(docText);
             const spansFor = (
               scope: { at: string; follow?: string; depth?: number },
@@ -2769,22 +5054,17 @@ export async function runLocalAssistantTools(
               status: "pending",
             }),
           );
-          const version = await addLocalVersion({
+          const committed = await commitLocalAssistantTurnVersion({
             userId,
             documentId,
             filename: file.version.filename,
             bytes: applied.bytes,
-            expectedVersionId: file.version.id,
-            provenance: {
-              schemaVersion: 1,
-              actor: "assistant",
-              action: "revised",
-              parentVersionId: file.version.id,
-              changeCount: trackedEdits.length,
-              trackedEdits,
-            },
+            sourceVersionId: file.version.id,
+            trackedEdits,
+            turnEditState,
           });
-          if (!version) return fail(call, "version_id is no longer active");
+          if (!committed) return fail(call, "version_id is no longer active");
+          const { version, parentVersionId } = committed;
           const downloadUrl =
             `/single-documents/${encodeURIComponent(documentId)}/file` +
             `?version_id=${encodeURIComponent(version.id)}`;
@@ -2793,7 +5073,7 @@ export async function runLocalAssistantTools(
             receipt: "mike-document:v1",
             action: "revised",
             document_id: documentId,
-            parent_version_id: file.version.id,
+            parent_version_id: parentVersionId,
             version_id: version.id,
             version_number: version.version_number,
             filename: version.filename,
@@ -2914,6 +5194,19 @@ export async function runLocalAssistantTools(
 
       if (call.name === "library_read" || call.name === "library_find") {
         if (!documentId) return fail(call, "document_id is required");
+        const projectionMode = trimmed(args.mode);
+        if (
+          call.name === "library_read" &&
+          (projectionMode === "drafting" || projectionMode === "redline") &&
+          (trimmed(args.at) ||
+            trimmed(args.from) === "end" ||
+            (trimmed(args.follow) && trimmed(args.follow) !== "none"))
+        ) {
+          return fail(
+            call,
+            `mode=${projectionMode} is a whole-document projection and cannot be combined with at, from=end, or follow. Use mode=text for addressed navigation.`,
+          );
+        }
         if (call.name === "library_read" && args.mode === "drafting") {
           try {
             const source = await extractLocalDraftingDocument(
@@ -2957,6 +5250,18 @@ export async function runLocalAssistantTools(
           // handler while the tool list looks clean.
           const addressArm = NAV_TOOL_SHAPE === "address";
           const address = addressArm ? parseAddress(trimmed(args.at)) : null;
+          const followRequested = trimmed(args.follow);
+          if (
+            addressArm &&
+            followRequested &&
+            followRequested !== "none" &&
+            address?.kind !== "section"
+          ) {
+            return fail(
+              call,
+              "follow and depth require a structural at address; page, offset, and omitted addresses cannot be graph-followed",
+            );
+          }
           const sectionLocator = addressArm
             ? address?.kind === "section"
               ? address.locator
@@ -2979,7 +5284,9 @@ export async function runLocalAssistantTools(
               : { body: body.slice(0, maxChars), cut: true, at: 0 };
           };
           if (sectionLocator) {
-            const skeleton = await documentStructure(document.text, documentId);
+            const skeleton = await documentStructure(document.text, documentId, {
+              tableCells: document.tableCells,
+            });
             const lookup = readSection(skeleton, sectionLocator);
             if (lookup.status !== "found" || !lookup.block) {
               return result(call, {
@@ -3004,7 +5311,9 @@ export async function runLocalAssistantTools(
             if (readFollow !== "none") {
               const walked = graphScope(
                 skeleton,
-                await documentGraph(document.text, documentId, skeleton),
+                await documentGraph(document.text, documentId, skeleton, {
+                  tableCells: document.tableCells,
+                }),
                 lookup.block.label,
                 { follow: readFollow, depth: clampInt(args.depth, 1, 3, 1) },
               );
@@ -3030,6 +5339,7 @@ export async function runLocalAssistantTools(
                 : {}),
               section: lookup.block.label,
               parent: lookup.block.parentLabel,
+              offset: lookup.block.start + view.at,
               ...(fromEnd && view.cut ? { read_from: "end" } : {}),
               text: view.body,
               ...(related.length ? { related } : {}),
@@ -3063,8 +5373,8 @@ export async function runLocalAssistantTools(
                 ok: false,
                 error:
                   document.pages.source === "unindexed"
-                    ? "This PDF has pages, but no page index could be built for it — the engine returned no page records for this file. Use section= for a provision or offset= for a window, and treat any page number in the text as unverified."
-                    : "This document has no fixed pagination (a DOCX is not paginated until something renders it). Use section= for a provision or offset= for a window.",
+                    ? 'This PDF has pages, but no page index could be built for it — the engine returned no page records for this file. Use at="<provision>" for a provision or at="off:<offset>" for a window, and treat any page number in the text as unverified.'
+                    : 'This document has no fixed pagination (a DOCX is not paginated until something renders it). Use at="<provision>" for a provision or at="off:<offset>" for a window.',
               });
             }
             if (lookup.status === "not_found") {
@@ -3079,7 +5389,9 @@ export async function runLocalAssistantTools(
             const pageBody = pageView.body;
             const pageCut = pageView.cut;
             const onPage = pageSections(
-              await documentStructure(document.text, documentId),
+              await documentStructure(document.text, documentId, {
+                tableCells: document.tableCells,
+              }),
               lookup.page,
             );
             return result(call, {
@@ -3092,6 +5404,7 @@ export async function runLocalAssistantTools(
               pdf_page: lookup.page.pdfPage,
               printed_label: lookup.page.printedLabel,
               matched_on: lookup.matchedOn,
+              offset: lookup.page.start + pageView.at,
               sections: onPage.starts
                 .slice(0, 24)
                 .map((node) => ({ section: node.label, display: node.display })),
@@ -3105,7 +5418,7 @@ export async function runLocalAssistantTools(
               truncated: pageCut,
               ...(pageCut
                 ? {
-                    continuation: `Page continues; call library_read with offset=${lookup.page.start + pageBody.length}, or read one of the listed sections.`,
+                    continuation: `Page continues; call library_read with at="off:${lookup.page.start + pageBody.length}", or read one of the listed sections.`,
                   }
                 : {}),
             });
@@ -3156,13 +5469,28 @@ export async function runLocalAssistantTools(
           const opening = addressArm && start === 0;
           let affords: Record<string, unknown> | null = null;
           if (opening) {
-            const skeletonNow = await documentStructure(document.text, documentId);
+            const skeletonNow = await documentStructure(
+              document.text,
+              documentId,
+              { tableCells: document.tableCells },
+            );
             const schemes = pageSchemes(document.pages);
             const sections = skeletonNow.nodes.filter(
-              (node) => node.kind !== "subsection",
+              (node) =>
+                node.kind !== "subsection" &&
+                node.kind !== "table" &&
+                node.kind !== "row" &&
+                node.kind !== "cell",
+            ).length;
+            const tables = skeletonNow.nodes.filter(
+              (node) => node.kind === "table",
+            ).length;
+            const cells = skeletonNow.nodes.filter(
+              (node) => node.kind === "cell",
             ).length;
             affords = {
               ...(sections ? { sections } : {}),
+              ...(tables ? { tables, cells } : {}),
               ...(document.pages.pages.length
                 ? {
                     pages: document.pages.pages.length,
@@ -3178,7 +5506,7 @@ export async function runLocalAssistantTools(
               ...(skeletonNow.outline?.entries?.length
                 ? { contents_outline: skeletonNow.outline.entries.length }
                 : {}),
-              ...(sections
+              ...(sections || tables
                 ? {}
                 : {
                     note: "No numbered structure detected; address by page or offset, or search.",
@@ -3210,13 +5538,31 @@ export async function runLocalAssistantTools(
         // first hits all sit outside the scope.
         const findArm = NAV_TOOL_SHAPE === "address";
         const findAddress = findArm ? parseAddress(trimmed(args.at)) : null;
+        if (findArm && findAddress?.kind === "offset") {
+          return fail(
+            call,
+            "library_find does not accept offset at addresses; use a structural or page at address, or omit at to search the whole document",
+          );
+        }
+        const findFollowRequested = trimmed(args.follow);
+        if (
+          findArm &&
+          findFollowRequested &&
+          findFollowRequested !== "none" &&
+          findAddress?.kind !== "section"
+        ) {
+          return fail(
+            call,
+            "follow and depth require a structural at address; page and omitted addresses cannot be graph-followed",
+          );
+        }
         const pageSpec =
           findArm && findAddress?.kind === "page" ? findAddress.spec : "";
         let scope: PageSpan[] | null = null;
         if (pageSpec) {
           const selection = selectPages(document.pages, document.text, pageSpec);
           if (selection.status === "empty") {
-            return fail(call, "pages was empty");
+            return fail(call, "The at page range was empty");
           }
           if (selection.status === "failed") {
             const lookup = selection.lookup;
@@ -3225,8 +5571,8 @@ export async function runLocalAssistantTools(
               error:
                 lookup.status === "no_pages"
                   ? document.pages.source === "unindexed"
-                    ? "This PDF has pages, but no page index could be built for it; drop `pages` and search the whole document."
-                    : "This document has no fixed pagination; drop `pages` and search the whole document."
+                    ? "This PDF has pages, but no page index could be built for it; omit at to search the whole document."
+                    : "This document has no fixed pagination; omit at to search the whole document."
                   : `Page '${selection.token}' not found. This document has ${lookup.status === "not_found" ? lookup.count : 0} pages, ${lookup.status === "not_found" ? lookup.first : "?"} through ${lookup.status === "not_found" ? lookup.last : "?"}.`,
             });
           }
@@ -3243,7 +5589,11 @@ export async function runLocalAssistantTools(
         let followed: { follow: string; depth: number; nodes: number } | null =
           null;
         if (seedLocator) {
-          const skeletonForScope = await documentStructure(document.text, documentId);
+          const skeletonForScope = await documentStructure(
+            document.text,
+            documentId,
+            { tableCells: document.tableCells },
+          );
           const seed = readSection(skeletonForScope, seedLocator);
           if (seed.status !== "found" || !seed.block) {
             return result(call, {
@@ -3270,6 +5620,7 @@ export async function runLocalAssistantTools(
                     document.text,
                     documentId,
                     skeletonForScope,
+                    { tableCells: document.tableCells },
                   ),
                   seed.block.label,
                   { follow, depth: clampInt(args.depth, 1, 3, 1) },
@@ -3320,7 +5671,9 @@ export async function runLocalAssistantTools(
         // The grep-analog composes like file:line does for code: each hit
         // carries its offset plus the deepest enclosing structural handle,
         // so the follow-up is a section read, not a whole-document read.
-        const skeleton = await documentStructure(document.text, documentId);
+        const skeleton = await documentStructure(document.text, documentId, {
+          tableCells: document.tableCells,
+        });
         const filtered = matches.hits.filter(
           (hit) =>
             (!scope ||
@@ -3383,7 +5736,9 @@ export async function runLocalAssistantTools(
         if (!documentId) return fail(call, "document_id is required");
         const document = await extractLocalDocument(userId, documentId);
         if (!document) return fail(call, "Document not found");
-        const skeleton = await documentStructure(document.text, documentId);
+        const skeleton = await documentStructure(document.text, documentId, {
+          tableCells: document.tableCells,
+        });
         if (!skeleton.nodes.length) {
           return result(call, {
             ok: true,
@@ -3408,6 +5763,12 @@ export async function runLocalAssistantTools(
             page.printedLabel !== null &&
             page.printedLabel !== String(page.pdfPage),
         );
+        const tableCount = skeleton.nodes.filter(
+          (node) => node.kind === "table",
+        ).length;
+        const cellCount = skeleton.nodes.filter(
+          (node) => node.kind === "cell",
+        ).length;
         return result(call, {
           ok: true,
           filename: document.filename,
@@ -3415,6 +5776,7 @@ export async function runLocalAssistantTools(
             ? { notes_of_caution: document.cautions }
             : {}),
           nodes: skeleton.nodes.length,
+          ...(tableCount ? { tables: tableCount, cells: cellCount } : {}),
           pages: map.pages.length
             ? {
                 count: map.pages.length,
@@ -3442,8 +5804,23 @@ export async function runLocalAssistantTools(
         if (!documentId) return fail(call, "document_id is required");
         const document = await extractLocalDocument(userId, documentId);
         if (!document) return fail(call, "Document not found");
-        const skeleton = await documentStructure(document.text, documentId);
-        const graph = await documentGraph(document.text, documentId, skeleton);
+        const linkAt = trimmed(args.at);
+        const linkAddress = parseAddress(linkAt);
+        if (linkAt && linkAddress?.kind !== "section") {
+          return fail(
+            call,
+            "library_links requires a structural at address; omit at for the document-level census",
+          );
+        }
+        const skeleton = await documentStructure(document.text, documentId, {
+          tableCells: document.tableCells,
+        });
+        const graph = await documentGraph(
+          document.text,
+          documentId,
+          skeleton,
+          { tableCells: document.tableCells },
+        );
         const cap = clampInt(args.max_results, 1, 200, 40);
         const handle = (node: { label: string; display: string }) => ({
           section: node.label,
@@ -3464,7 +5841,6 @@ export async function runLocalAssistantTools(
           ...(graph.note ? { note: graph.note } : {}),
         };
 
-        const linkAddress = parseAddress(trimmed(args.at));
         const locator = linkAddress?.kind === "section" ? linkAddress.locator : "";
         if (!locator) {
           return result(call, {
@@ -3824,6 +6200,7 @@ export async function runLocalAssistantTools(
               userId,
               documentId,
               trimmed(args.version_id) || undefined,
+              turnEditState,
             ),
           );
         } catch (error) {
@@ -3888,7 +6265,14 @@ export async function runLocalAssistantTools(
       if (hansard) return result(call, hansard);
 
       const citator = executeCitatorTool(call.name, args);
-      if (citator) return result(call, citator);
+      if (citator) {
+        if (legalEvidenceState) {
+          for (const evidence of citator.evidences ?? []) {
+            registerLegalEvidence(legalEvidenceState, evidence);
+          }
+        }
+        return result(call, citator.payload);
+      }
 
       const compared = await executeCompareVersionsTool(userId, call.name, args);
       if (compared) return result(call, compared);
@@ -3899,16 +6283,32 @@ export async function runLocalAssistantTools(
         if (a2aj.lookup?.status === "found" && a2aj.lookup.block) {
           a2ajLookups?.push(a2aj.lookup);
         }
+        for (const lookup of a2aj.lookups ?? []) {
+          if (lookup.status === "found" && lookup.block) a2ajLookups?.push(lookup);
+        }
         if (legalEvidenceState) {
           registerLegalEvidence(legalEvidenceState, a2aj.evidence, {
             document: a2aj.document,
             lookup: a2aj.lookup,
           });
+          for (let index = 0; index < (a2aj.evidences?.length ?? 0); index += 1) {
+            registerLegalEvidence(legalEvidenceState, a2aj.evidences?.[index], {
+              lookup: a2aj.lookups?.[index],
+            });
+          }
         }
         return result(call, a2aj.payload);
       }
 
       return result(call, { ok: false, error: `Unknown tool: ${call.name}` });
+      };
+      if (!LOCAL_TURN_EDIT_TOOL_NAMES.has(call.name)) return execute();
+      const queued = editTail.then(execute);
+      editTail = queued.then(
+        () => undefined,
+        () => undefined,
+      );
+      return queued;
     }),
   );
 }

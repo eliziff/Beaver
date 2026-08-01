@@ -89,18 +89,18 @@
         "finding": "Human review product, but current aggregate is failure-selected, duplicate-weighted, and the loader does not enforce human provenance."
       },
       "alr_supra_candidates": {
-        "sha256": "3e30d7886b3a4c6865e8b9a94bfddf32f860090eb501b7915f10f7989d02ea5f",
-        "rows": 1690,
+        "sha256": "d3aa94672dc12a1e706fde5493d8c700669ee624701dc0d3a74a2601d79966dc",
+        "rows": 1699,
         "statuses": {
-          "auto": 671,
-          "agent": 116,
-          "needs_review": 903
+          "auto": 633,
+          "agent": 181,
+          "needs_review": 885
         },
-        "normalized_text_duplicate_rows": 513,
-        "finding": "Derived from production/frozen outputs; not independent human target or pinpoint gold."
+        "normalized_text_duplicate_rows": 522,
+        "finding": "Derived from production/frozen outputs; the Martin slice adds explicitly provenance-tagged agent adjudications and remains provisional, not human gold."
       },
       "alr_field_provisional": {
-        "sha256": "4a0414f5cf79939d70a533c121376da19ed7a8b4a380a8902639fa15689e7145",
+        "sha256": "2faaeaa3399ccd67384ac721d12e6974e9c716e1ad51197860aba2a27ba30251",
         "rows": 423,
         "finding": "Provisional and inherited auto/agent fields; not accepted per-field gold."
       },

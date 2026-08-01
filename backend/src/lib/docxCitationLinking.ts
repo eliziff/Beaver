@@ -479,6 +479,20 @@ export async function resolveDocxCitationLinks(
 export async function linkLocalDocxCitations(
   userId: string,
   documentId: string,
+  options: {
+    saveVersion?: (input: {
+      sourceVersionId: string;
+      filename: string;
+      bytes: Buffer;
+    }) => Promise<{
+      id: string;
+      filename: string;
+      version_number?: number;
+      file_type?: string;
+      source_sha256?: string;
+      parentVersionId?: string;
+    } | null>;
+  } = {},
 ) {
   const file = await getLocalVersionFile(userId, documentId);
   if (!file) throw new Error("Document not found");
@@ -531,18 +545,39 @@ export async function linkLocalDocxCitations(
       ],
     );
     const original = file.document.filename.replace(/\.docx$/iu, "");
-    const version = await addLocalVersion({
-      userId,
-      documentId,
-      filename: `${original} - linked.docx`,
-      bytes: await readFile(outputPath),
-    });
+    const filename = `${original} - linked.docx`;
+    const outputBytes = await readFile(outputPath);
+    const version = options.saveVersion
+      ? await options.saveVersion({
+          sourceVersionId: file.version.id,
+          filename,
+          bytes: outputBytes,
+        })
+      : await addLocalVersion({
+          userId,
+          documentId,
+          filename,
+          bytes: outputBytes,
+        });
     if (!version) throw new Error("Document disappeared before saving");
+    const downloadUrl =
+      `/single-documents/${encodeURIComponent(documentId)}/file` +
+      `?version_id=${encodeURIComponent(version.id)}`;
     return {
       ok: true,
+      receipt: "mike-document:v1",
+      action: "revised",
       document_id: documentId,
+      parent_version_id:
+        ("parentVersionId" in version ? version.parentVersionId : undefined) ??
+        file.version.id,
       version_id: version.id,
+      version_number: version.version_number,
       filename: version.filename,
+      file_type: version.file_type ?? "docx",
+      source_sha256: version.source_sha256,
+      download_url: downloadUrl,
+      annotations: [],
       linked_citations: Object.keys(resolved.links).length,
       unresolved_citations: resolved.unresolved.length,
       providers: resolved.providers,

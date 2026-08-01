@@ -2,9 +2,8 @@
 // the deterministic organs that already exist (skeleton outlines, anchor
 // coverage). The LLM keeps judgment; it loses bookkeeping:
 //   Spec     the drafting contract rides in the system prompt (always-on
-//            rules + a document inventory; outlines stay on-demand behind
-//            library_outline so per-document state never becomes standing
-//            prompt weight)
+//            rules only; inventory and structure stay on demand so
+//            per-document state never becomes standing prompt weight)
 //   Ledger   the source documents' texts + the library snapshot, carried
 //            for the deterministic audit only — never into model context
 //   Draft    the normal provider tool loop, steered to section-scoped reads
@@ -26,13 +25,12 @@ import {
   type AnchorDocument,
   type AnchorRow,
 } from "../legalTextAnchors";
-import { compileAgreementSkeleton } from "../legalTextSkeleton";
 import { temporalScan, type TemporalFinding } from "../legalTemporalScan";
 import { termDriftReport } from "../legalTermDrift";
 import { listLocalLibrary } from "../localDocumentStore";
 import { extractLocalDocument } from "./localAssistantTools";
 
-const MAX_LEDGER_DOCUMENTS = 8;
+const MAX_LEDGER_DOCUMENTS = 32;
 const MAX_FINDING_ROWS_PER_CLASS = 12;
 /** Repair-prompt caps, per organ: findings are evidence, not a report. */
 const MAX_CONFLICT_FINDINGS = 8;
@@ -47,7 +45,7 @@ export function slaWorkflowEnabled(): boolean {
 
 export interface SlaLedger {
   documents: AnchorDocument[];
-  /** Appended to the system prompt: the Spec contract + document outlines. */
+  /** Appended to the system prompt: the compact Spec/compiler contract. */
   promptSection: string;
   /**
    * Library snapshot at ledger build (documentId -> currentVersionId), over
@@ -58,8 +56,9 @@ export interface SlaLedger {
 }
 
 /**
- * Ledger phase: outline every in-scope document and carry the raw texts for
- * the audit. Returns null when there is nothing to draft against.
+ * Ledger phase: carry in-scope source text for the host-side audit. Returns
+ * null when there is nothing to draft against. Nothing here enters model
+ * context unless the later audit reports a bounded finding.
  */
 export async function buildSlaLedger(
   userId: string,
@@ -76,34 +75,36 @@ export async function buildSlaLedger(
     (document) => !allowedDocumentIds || allowedDocumentIds.has(document.id),
   );
   const documents: AnchorDocument[] = [];
-  const inventory: string[] = [];
   for (const meta of inScope.slice(0, MAX_LEDGER_DOCUMENTS)) {
     const document = await extractLocalDocument(userId, meta.id);
     if (!document?.text?.trim()) continue;
     documents.push({ name: document.filename, text: document.text });
-    // `extractLocalDocument` is the PDF/DOCX extraction lane: whatever the
-    // instrument is, an uploaded Act included, its line breaks are the
-    // extractor's and may be lost, so the segmentation recovery stays on.
-    const skeleton = compileAgreementSkeleton(document.text);
-    const tokens = Math.round(document.text.length / 4);
-    inventory.push(
-      skeleton.nodes.length
-        ? `- ${document.filename} (~${tokens} tokens, ${skeleton.nodes.length} structural handles)`
-        : `- ${document.filename} (~${tokens} tokens, no numbered structure — use library_find or a bounded library_read)`,
-    );
   }
   if (!documents.length) return null;
   const dropped = inScope.length - documents.length;
-  // The system prompt carries only the always-on contract and a document
-  // inventory; outlines are per-document state the model fetches when it
-  // reaches for a document (library_outline), not standing prompt weight.
+  // The ordinary library prompt owns inventory. Repeating filenames, token
+  // estimates, and outlines here inflated every request and taught coding
+  // arms to call tools that were not on their surface.
+  const strategy = process.env.MIKE_SLA_STRATEGY;
+  const fullWorkflow = strategy === "full" || strategy === "working_set_first";
+  const workingSetFirst = strategy === "working_set_first";
+  const workflowPrompt = fullWorkflow
+    ? `\n\nFULL SLA WORKFLOW (Spec → Ledger → Draft → Audit → Grounding):\n` +
+      `- Spec: turn the instructions into a checklist of every required issue, comparison, calculation, and deliverable field.\n` +
+      `- Ledger: gather each material checklist fact into a compact source-addressed working ledger. ` +
+      (workingSetFirst
+        ? `Your first source-content retrieval must be Grep with output_mode="working_set" and a targeted union regex derived from the Spec (never "." or ".*"); if the inventory is abbreviated, Glob may enumerate filenames first. Read the returned path, then inspect exact source sections only for gaps or verification. Create another non-overlapping working set only if the manifest is truncated or the checklist still has gaps. `
+        : `Search long documents with Grep and Read the smallest responsive section, page, table row, or reference scope; use a working_set for a bounded cross-document union when cheaper. `) +
+      `Record an explicit source gap instead of guessing.\n` +
+      `- Draft: create the exact requested artifact only after every material checklist item has evidence or an explicit gap.\n` +
+      `- Audit and Grounding: deterministic checks run after synthesis. When findings arrive, evaluate every finding against exact source spans and revise the actual artifact for every material, source-grounded issue. Reject a finding only after verifying it is immaterial or a false positive.\n`
+    : `\n\nA deterministic compiler pass will check the completed deliverable against source anchors, arithmetic, dates, and defined-term drift. When findings arrive, evaluate every finding against exact source spans and revise the actual artifact for every material, source-grounded issue. Reject only verified immaterial or false-positive findings. `;
   const promptSection =
-    `\n\nSLA DRAFTING WORKFLOW is active (Spec→Ledger→Draft→Audit→Grounding).\n` +
-    `- Before reading any document, call library_outline on it; then pull only the spans you need with library_read section="<handle>". Avoid whole-document reads when a handle covers the need.\n` +
-    `- Work deliverable-first: enumerate the deliverable's required topics from the instructions, then read precisely against them.\n` +
-    `- After you produce the deliverable, a deterministic audit compares it to the source documents' anchors (amounts, dates, section references, citations) and you will get exactly one revision pass with typed findings. Expect it; keep judgment for it.\n` +
-    (dropped > 0 ? `- (${dropped} additional document(s) exceeded the ledger cap; list and read them yourself.)\n` : "") +
-    `\nMatter documents:\n${inventory.join("\n")}`;
+    workflowPrompt +
+    `The quality checks are automatic and are not model-callable tools.` +
+    (dropped > 0
+      ? ` (${dropped} source document(s) exceed the compiler's ${MAX_LEDGER_DOCUMENTS}-document audit cap.)`
+      : "");
   return { documents, promptSection, baseline };
 }
 
@@ -120,8 +121,8 @@ const MAX_DELIVERABLE_ARTIFACTS = 8;
  * The deliverable for a file-producing task is the artifact, not the chat
  * message ("I've created the document…" carries no anchors — the smoke run
  * that audited it read 0 matched / 0 draft_only against 59 source anchors).
- * Diff the library against the ledger baseline and fold new or revised
- * documents' text into the audited draft.
+ * Diff the library against the ledger baseline and audit new or revised
+ * documents; use chat text only when no artifact exists.
  */
 export async function collectSlaDeliverable(
   userId: string,
@@ -143,13 +144,14 @@ export async function collectSlaDeliverable(
     // Store trouble degrades to auditing the chat text alone.
   }
   return {
-    text: [
-      chatText,
-      ...artifacts.map(
-        (artifact) =>
-          `\n\n[deliverable document: ${artifact.name}]\n${artifact.text}`,
-      ),
-    ].join(""),
+    text: artifacts.length
+      ? artifacts
+          .map(
+            (artifact) =>
+              `[deliverable document: ${artifact.name}]\n${artifact.text}`,
+          )
+          .join("\n\n")
+      : chatText,
     artifacts: artifacts.map((artifact) => artifact.name),
   };
 }
@@ -354,7 +356,7 @@ export function auditSlaDraft(
       (lintLines.length
         ? `\nDrafting lint over your deliverable (exact spans; errors first):\n${lintLines.join("\n")}\n`
         : "") +
-      `\nThese are deterministic detections, not judgments — not every finding is material, and materiality stays yours. Re-read the exact sections involved via their outline handles, then ` +
+      `\nReview every finding; do not blindly copy source-only anchors into the deliverable. Re-read the exact source spans for each potentially material finding. Revise every grounded, material issue, and disregard a finding only after verifying that it is immaterial or a false positive. Then ` +
       (options?.artifactDeliverable
         ? `apply the corrections to the deliverable document itself with the library tools (revise the document; do not paste its content into chat).`
         : `output the COMPLETE revised deliverable (full text, same format), not a description of changes.`)

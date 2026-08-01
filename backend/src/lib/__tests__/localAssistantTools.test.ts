@@ -1,17 +1,125 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
+import {
+  Document,
+  Packer,
+  Paragraph,
+  Table,
+  TableCell,
+  TableRow,
+} from "docx";
+import * as XLSX from "xlsx";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 let temporaryDirectory: string | null = null;
 
+const nativeTableBytes = () =>
+  Packer.toBuffer(
+    new Document({
+      sections: [
+        {
+          children: [
+            new Paragraph("1.01 Schedule."),
+            new Table({
+              rows: [
+                new TableRow({
+                  children: [
+                    new TableCell({ children: [new Paragraph("Alpha")] }),
+                    new TableCell({
+                      children: [new Paragraph("Unique cell value")],
+                    }),
+                  ],
+                }),
+                new TableRow({
+                  children: [
+                    new TableCell({ children: [new Paragraph("Director")] }),
+                    new TableCell({ children: [new Paragraph("$10,000")] }),
+                    new TableCell({ children: [new Paragraph("$50,000")] }),
+                  ],
+                }),
+                new TableRow({
+                  children: [
+                    new TableCell({ children: [new Paragraph("Secretary")] }),
+                    new TableCell({ children: [new Paragraph("$15,000")] }),
+                    new TableCell({ children: [new Paragraph("$75,000")] }),
+                  ],
+                }),
+                new TableRow({
+                  children: [
+                    new TableCell({ children: [new Paragraph("Treasurer")] }),
+                    new TableCell({ children: [new Paragraph("$25,000")] }),
+                    new TableCell({ children: [new Paragraph("$100,000")] }),
+                  ],
+                }),
+              ],
+            }),
+            new Paragraph("2.01 Unique elsewhere."),
+          ],
+        },
+      ],
+    }),
+  );
+
+const numberedReferenceBytes = () =>
+  Packer.toBuffer(
+    new Document({
+      sections: [
+        {
+          children: [
+            "ARTICLE I",
+            "COVENANTS",
+            "",
+            "1.01 First. This points to Section 1.03.",
+            "",
+            "1.02 Delete Me. This provision is obsolete.",
+            "",
+            "1.03 Third. This provision remains.",
+            "",
+            "ARTICLE II",
+            "GENERAL",
+            "",
+            "2.01 Pointer. Section 1.03 controls.",
+          ].map((text) => new Paragraph(text)),
+        },
+      ],
+    }),
+  );
+
+async function expectReadRecipesAccepted(
+  tools: typeof import("../chat/localAssistantTools"),
+  filePath: string,
+  rows: Array<{ read: Record<string, unknown> }>,
+) {
+  const reads = await tools.runLocalAssistantTools(
+    "local-user",
+    rows.map((row, index) => ({
+      id: `recipe-${index}`,
+      name: "Read",
+      input: { file_path: filePath, ...row.read },
+    })),
+  );
+  expect(reads).toHaveLength(rows.length);
+  for (const read of reads) {
+    expect(read.evidenceSpans?.length, read.content).toBeGreaterThan(0);
+  }
+}
+
 afterEach(async () => {
   delete process.env.MIKE_LOCAL_DATA_DIR;
   delete process.env.MIKE_NAV_SHAPE;
+  delete process.env.MIKE_TOOL_SHAPE;
+  delete process.env.MIKE_RETRIEVAL_EXPERIMENT;
+  delete process.env.MIKE_PROGRESSIVE_DISCLOSURE;
+  delete process.env.MIKE_DISABLE_RESEARCH_TOOLS;
+  delete process.env.MIKE_DISABLE_ASK_INPUTS;
+  delete process.env.MIKE_TOOL_RESULT_CAP;
   vi.doUnmock("../tableOfAuthorities");
   vi.doUnmock("../convert");
   vi.doUnmock("../localDocumentStore");
   vi.doUnmock("../localPdfLookup");
+  vi.doUnmock("../legalStructureSidecar");
   vi.doUnmock("node:fs/promises");
   vi.unstubAllGlobals();
   vi.resetModules();
@@ -22,7 +130,1191 @@ afterEach(async () => {
 });
 
 describe("local assistant tools", () => {
+  it("runs the pinned upstream whole-document comparator and suppresses duplicate reads", async () => {
+    process.env.MIKE_TOOL_SHAPE = "upstream-mike";
+    process.env.MIKE_DISABLE_RESEARCH_TOOLS = "1";
+    process.env.MIKE_DISABLE_ASK_INPUTS = "1";
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-upstream-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const store = await import("../localDocumentStore");
+    const document = await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "agreement.docx",
+      bytes: await Packer.toBuffer(
+        new Document({
+          sections: [
+            { children: [new Paragraph("The borrower shall deliver reports.")] },
+          ],
+        }),
+      ),
+    });
+    const tools = await import("../chat/localAssistantTools");
+    const names = tools.LOCAL_ASSISTANT_TOOLS.map(
+      (entry) => entry.function.name,
+    );
+    expect(names).toEqual([
+      "read_document",
+      "find_in_document",
+      "list_documents",
+      "fetch_documents",
+      "generate_docx",
+    ]);
+    const upstream = await import("../chat/upstreamMikeBenchmarkSurface");
+    expect(
+      createHash("sha256")
+        .update(JSON.stringify(tools.LOCAL_ASSISTANT_TOOLS.slice(0, 4)))
+        .digest("hex"),
+    ).toBe(upstream.UPSTREAM_MIKE_SCHEMA_SHA256);
+    expect(upstream.UPSTREAM_MIKE_LAB_SYSTEM_PROMPT).not.toMatch(
+      /Beaver|library_|describe_tools|mike-evidence|\bGlob\b|\bGrep\b|progressive disclosure/u,
+    );
+
+    const [listed] = await tools.runLocalAssistantTools(
+      "local-user",
+      [{ id: "list", name: "list_documents", input: {} }],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      new Set([document.id]),
+    );
+    expect(JSON.parse(listed.content)).toEqual([
+      {
+        doc_id: "doc-0",
+        filename: "agreement.docx",
+        file_type: "docx",
+      },
+    ]);
+
+    const readState: import("../chat/localAssistantTools").LocalAssistantReadTurnState =
+      new Map();
+    const invoke = () =>
+      tools.runLocalAssistantTools(
+        "local-user",
+        [{ id: "read", name: "read_document", input: { doc_id: "doc-0" } }],
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        new Set([document.id]),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        readState,
+      );
+    const [first] = await invoke();
+    const [second] = await invoke();
+    expect(first.content).toContain("borrower shall deliver reports");
+    expect(JSON.parse(second.content)).toMatchObject({
+      ok: true,
+      already_read: true,
+      doc_id: "doc-0",
+      document_id: document.id,
+    });
+  });
+
+  it("uses only Edit in coding shape and retains its durable receipt", async () => {
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-edit-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const bytes = await Packer.toBuffer(
+      new Document({
+        sections: [{ children: [new Paragraph("Original provision.")] }],
+      }),
+    );
+    const store = await import("../localDocumentStore");
+    const document = await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "draft.docx",
+      bytes,
+    });
+    const { LOCAL_ASSISTANT_TOOLS, runLocalAssistantTools } =
+      await import("../chat/localAssistantTools");
+    const names = LOCAL_ASSISTANT_TOOLS.map((entry) => entry.function.name);
+
+    expect(names).toContain("Edit");
+    expect(names).not.toContain("library_revise_docx");
+
+    const [edited] = await runLocalAssistantTools("local-user", [
+      {
+        id: "coding-edit",
+        name: "Edit",
+        input: {
+          file_path: "draft.docx",
+          old_string: "Original",
+          new_string: "Revised",
+        },
+      },
+    ]);
+    expect(edited.content).toBe(
+      "Updated draft.docx: 1 tracked change applied.",
+    );
+    expect(JSON.parse(edited.mutationReceipt ?? "null")).toMatchObject({
+      ok: true,
+      receipt: "mike-document:v1",
+      action: "revised",
+      document_id: document.id,
+      version_number: 2,
+    });
+  });
+
+  it("resolves coding specialist document references from filenames", async () => {
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-code-ref-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const bytes = await Packer.toBuffer(
+      new Document({
+        sections: [{ children: [new Paragraph("Original provision.")] }],
+      }),
+    );
+    const store = await import("../localDocumentStore");
+    const document = await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "draft.docx",
+      bytes,
+    });
+    const { runLocalAssistantTools } = await import(
+      "../chat/localAssistantTools"
+    );
+
+    const [response] = await runLocalAssistantTools(
+      "local-user",
+      [
+        {
+          id: "coding-specialist-edit",
+          name: "library_apply_text_ops",
+          input: {
+            document_id: "draft.docx",
+            ops: [
+              {
+                op: "replace_text",
+                scope: { kind: "whole_document" },
+                find: "Original",
+                replace: "Revised",
+              },
+            ],
+          },
+        },
+      ],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      new Set([document.id]),
+    );
+
+    expect(JSON.parse(response.content)).toMatchObject({
+      ok: true,
+      action: "revised",
+      document_id: document.id,
+      version_number: 2,
+    });
+  });
+
+  it("gives coding mode the same progressive drafting gate and familiar globs", async () => {
+    process.env.MIKE_NAV_SHAPE = "address";
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-code-tools-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const bytes = await Packer.toBuffer(
+      new Document({ sections: [{ children: [new Paragraph("Draft.")] }] }),
+    );
+    await (await import("../localDocumentStore")).createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "draft.docx",
+      bytes,
+    });
+    const tools = await import("../chat/localAssistantTools");
+    const partition = tools.partitionTools(tools.LOCAL_ASSISTANT_TOOLS);
+    const resident = partition.resident.map((entry) => entry.function.name);
+    const drafting = tools
+      .toolsForDomains(partition.deferred, ["drafting"])
+      .map((entry) => entry.function.name);
+
+    expect(resident).toContain("Glob");
+    expect(resident).not.toContain("library_list");
+    expect(resident).not.toContain("Edit");
+    expect(drafting).toEqual(
+      expect.arrayContaining(["Edit", "library_delete_and_renumber_docx"]),
+    );
+    const [revealed, star, recursive] = await tools.runLocalAssistantTools(
+      "local-user",
+      [
+        {
+          id: "reveal-drafting",
+          name: "describe_tools",
+          input: { domains: ["drafting"] },
+        },
+        { id: "glob-star", name: "Glob", input: { pattern: "*.docx" } },
+        {
+          id: "glob-recursive",
+          name: "Glob",
+          input: { pattern: "**/*.docx" },
+        },
+      ],
+    );
+    expect(JSON.parse(revealed.content).opened).toEqual(
+      expect.arrayContaining(["Edit", "library_delete_and_renumber_docx"]),
+    );
+    expect(star.content).toBe("draft.docx");
+    expect(recursive.content).toBe("draft.docx");
+  });
+
+  it("keeps coding search and section pagination evidence-complete", async () => {
+    process.env.MIKE_NAV_SHAPE = "address";
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-code-read-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const longLine = `${"x".repeat(2_400)}NEEDLE${"y".repeat(100)}`;
+    const bytes = await Packer.toBuffer(
+      new Document({
+        sections: [
+          {
+            children: [
+              "Preamble.",
+              "1.01 Scope.",
+              "first",
+              "second",
+              "third",
+              longLine,
+              "fourth",
+              "2.01 End.",
+            ].map((text) => new Paragraph(text)),
+          },
+        ],
+      }),
+    );
+    const store = await import("../localDocumentStore");
+    const document = await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "long.docx",
+      bytes,
+    });
+    const tools = await import("../chat/localAssistantTools");
+    const [grep, inlineCaseGrep, read, providerDefaultRead, providerMinimumRead] =
+      await tools.runLocalAssistantTools("local-user", [
+      {
+        id: "grep-long-line",
+        name: "Grep",
+        input: {
+          pattern: "NEEDLE",
+          path: "long.docx",
+          output_mode: "content",
+        },
+      },
+      {
+        id: "grep-inline-case",
+        name: "Grep",
+        input: {
+          pattern: "(?i)needle",
+          path: "long.docx",
+          output_mode: "content",
+          "-i": false,
+          head_limit: 0,
+        },
+      },
+      {
+        id: "read-section-page",
+        name: "Read",
+        input: { file_path: "long.docx", section: "1.01", offset: 4, limit: 2 },
+      },
+      {
+        id: "read-section-provider-defaults",
+        name: "Read",
+        input: { file_path: "long.docx", section: "1.01", offset: 0, limit: 0 },
+      },
+      {
+        id: "read-section-provider-minimum",
+        name: "Read",
+        input: { file_path: "long.docx", section: "1.01", offset: 1, limit: 1 },
+      },
+    ]);
+    const extracted = await tools.extractLocalDocument("local-user", document.id);
+
+    expect(grep.content).toContain("NEEDLE");
+    expect(grep.content).toMatch(/^long\.docx:6:\u2026/u);
+    expect(grep.evidenceSpans?.some(([start, end]) =>
+      extracted!.text.slice(start, end).includes("NEEDLE"),
+    )).toBe(true);
+    expect(grep.evidenceSegments).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          documentId: document.id,
+          versionId: document.current_version_id,
+        }),
+      ]),
+    );
+    expect(inlineCaseGrep.content).toContain("NEEDLE");
+    expect(read.content).toMatch(/^\s*4\tsecond\n\s*5\tthird/mu);
+    expect(read.content).not.toContain("\tfirst");
+    expect(read.evidenceSpans).toHaveLength(2);
+    expect(
+      new Set(read.evidenceSegments?.map((segment) => segment.documentId)),
+    ).toEqual(new Set([document.id]));
+    expect(providerDefaultRead.content).toContain("\tfirst");
+    expect(providerDefaultRead.content).toContain("\tfourth");
+    expect(providerDefaultRead.content).toContain(`NEEDLE${"y".repeat(100)}`);
+    expect(providerDefaultRead.content).not.toContain("line truncated");
+    expect(providerDefaultRead.content).not.toContain("offset 1 is outside");
+    expect(providerMinimumRead.content).toMatch(/^\s*2\t1\.01 Scope\./mu);
+    expect(providerMinimumRead.content).toContain("\tfirst");
+    expect(providerMinimumRead.content).toContain("\tfourth");
+    expect(providerMinimumRead.content).toContain(`NEEDLE${"y".repeat(100)}`);
+  });
+
+  it("source-qualifies multi-document coding reads independently of aliases", async () => {
+    process.env.MIKE_NAV_SHAPE = "address";
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-code-evidence-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const store = await import("../localDocumentStore");
+    const first = await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "first.txt",
+      bytes: Buffer.from("shared needle in first", "utf8"),
+    });
+    const second = await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "second.txt",
+      bytes: Buffer.from("shared needle in second", "utf8"),
+    });
+    const tools = await import("../chat/localAssistantTools");
+    const [grep, byFilename, byId] = await tools.runLocalAssistantTools(
+      "local-user",
+      [
+        {
+          id: "grep-both",
+          name: "Grep",
+          input: { pattern: "needle", output_mode: "content" },
+        },
+        {
+          id: "read-name",
+          name: "Read",
+          input: { file_path: "first.txt" },
+        },
+        {
+          id: "read-id",
+          name: "Read",
+          input: { file_path: first.id },
+        },
+      ],
+    );
+
+    expect(new Set(grep.evidenceSegments?.map((item) => item.documentId))).toEqual(
+      new Set([first.id, second.id]),
+    );
+    expect(byFilename.evidenceSegments?.[0]).toMatchObject({
+      documentId: first.id,
+      versionId: first.current_version_id,
+    });
+    expect(byId.evidenceSegments?.[0]).toMatchObject({
+      documentId: first.id,
+      versionId: first.current_version_id,
+    });
+  });
+
+  it("reads a native DOCX table row and cell in coding mode", async () => {
+    process.env.MIKE_NAV_SHAPE = "address";
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    temporaryDirectory = await mkdtemp(
+      path.join(os.tmpdir(), "beaver-code-cell-"),
+    );
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const bytes = await nativeTableBytes();
+    const store = await import("../localDocumentStore");
+    const document = await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "cells.docx",
+      bytes,
+    });
+    const tools = await import("../chat/localAssistantTools");
+    const run = async (name: string, input: Record<string, unknown>) =>
+      (
+        await tools.runLocalAssistantTools("local-user", [
+          { id: `coding-cell-${name}`, name, input },
+        ])
+      )[0];
+
+    const grep = await run("Grep", {
+      pattern: "Unique cell value",
+      path: "cells.docx",
+      output_mode: "content",
+    });
+    expect(grep.content).toContain("[table:1/row:1]");
+    expect(grep.evidenceSpans).toHaveLength(1);
+    const read = await run("Read", {
+      file_path: "cells.docx",
+      offset: 0,
+      limit: 0,
+      section: "table:1/row:1/col:2",
+    });
+    expect(read.content).toContain("Unique cell value");
+
+    const rowRead = await run("Read", {
+      file_path: "cells.docx",
+      offset: 1,
+      limit: 10,
+      section: "table:1/row:4",
+    });
+    const extracted = await tools.extractLocalDocument(
+      "local-user",
+      document.id,
+    );
+    expect(
+      rowRead.evidenceSpans
+        ?.map(([start, end]) => extracted!.text.slice(start, end))
+        .filter(Boolean),
+    ).toEqual(["Treasurer", "$25,000", "$100,000"]);
+    expect(rowRead.content).not.toContain("not found");
+
+    const edited = await run("Edit", {
+      file_path: "cells.docx",
+      section: "table:1/row:1/col:2",
+      old_string: "Unique cell value",
+      new_string: "Revised cell value",
+    });
+    expect(JSON.parse(edited.mutationReceipt ?? "null")).toMatchObject({
+      ok: true,
+      document_id: document.id,
+      version_number: 2,
+    });
+    expect(
+      (
+        await run("Read", {
+          file_path: "cells.docx",
+          section: "table:1/row:1/col:2",
+        })
+      ).content,
+    ).toContain("Revised cell value");
+  });
+
+  it.each([
+    ["d0-generic", "", ""],
+    [
+      "d1-routed",
+      "start with one whole Read for files at or below 24000 characters",
+      "start with one whole Read for files at or below 24000 characters",
+    ],
+    [
+      "d2-concrete",
+      "covering every requested occurrence and any stated exclusion",
+      "do not stop at the first hit",
+    ],
+  ] as const)(
+    "isolates the %s description ablation without changing tools",
+    async (shape, grepNeedle, readNeedle) => {
+      process.env.MIKE_NAV_SHAPE = "address";
+      process.env.MIKE_TOOL_SHAPE = "coding";
+      process.env.MIKE_RETRIEVAL_EXPERIMENT = shape;
+      vi.resetModules();
+
+      const tools = await import("../chat/localAssistantTools");
+      const resident = tools.LOCAL_ASSISTANT_TOOLS.filter((entry) =>
+        ["Glob", "Grep", "Read"].includes(entry.function.name),
+      );
+      expect(resident.map((entry) => entry.function.name)).toEqual([
+        "Glob",
+        "Grep",
+        "Read",
+      ]);
+      const grep = resident.find((entry) => entry.function.name === "Grep")!;
+      const read = resident.find((entry) => entry.function.name === "Read")!;
+      if (grepNeedle) {
+        expect(grep.function.description).toContain(grepNeedle);
+        expect(read.function.description).toContain(readNeedle);
+      } else {
+        expect(grep.function.description).not.toContain("24000");
+        expect(read.function.description).not.toContain("24000");
+      }
+    },
+  );
+
+  it("keeps p0 as routed pure file coding with strict line-only Read", async () => {
+    process.env.MIKE_NAV_SHAPE = "address";
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    process.env.MIKE_RETRIEVAL_EXPERIMENT = "p0-pure-coding";
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-p0-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const store = await import("../localDocumentStore");
+    await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "cells.docx",
+      bytes: await nativeTableBytes(),
+    });
+    const bakedSkeleton = vi.fn(() => {
+      throw new Error("p0 compiled hidden structure");
+    });
+    vi.doMock("../legalStructureSidecar", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("../legalStructureSidecar")>()),
+      bakedSkeleton,
+    }));
+    vi.resetModules();
+
+    const tools = await import("../chat/localAssistantTools");
+    const nav = tools.LOCAL_ASSISTANT_TOOLS.filter((entry) =>
+      ["Glob", "Grep", "Read"].includes(entry.function.name),
+    );
+    expect(nav.map((entry) => entry.function.name)).toEqual([
+      "Glob",
+      "Grep",
+      "Read",
+    ]);
+    const grepSchema = nav.find((entry) => entry.function.name === "Grep")!;
+    const readSchema = nav.find((entry) => entry.function.name === "Read")!;
+    const editSchema = tools.LOCAL_ASSISTANT_TOOLS.find(
+      (entry) => entry.function.name === "Edit",
+    )!;
+    expect(grepSchema.function.description).toContain(
+      "start with one whole Read for files at or below 24000 characters",
+    );
+    expect(readSchema.function.description).toContain(
+      "start with one whole Read for files at or below 24000 characters",
+    );
+    const serializedRead = JSON.stringify(readSchema.function).toLowerCase();
+    for (const word of [
+      "section",
+      "provision",
+      "paragraph",
+      "table",
+      "cell",
+      "page",
+    ]) {
+      expect(serializedRead).not.toContain(word);
+    }
+    expect(JSON.stringify(editSchema.function).toLowerCase()).not.toContain(
+      "section",
+    );
+
+    const [grep, rejected, read] = await tools.runLocalAssistantTools(
+      "local-user",
+      [
+        {
+          id: "p0-grep",
+          name: "Grep",
+          input: {
+            pattern: "Treasurer",
+            path: "cells.docx",
+            output_mode: "content",
+          },
+        },
+        {
+          id: "p0-hidden-section",
+          name: "Read",
+          input: { file_path: "cells.docx", section: "table:1/row:4" },
+        },
+        {
+          id: "p0-line-read",
+          name: "Read",
+          input: { file_path: "cells.docx", offset: 1, limit: 2 },
+        },
+      ],
+    );
+    expect(grep.content).toContain("Treasurer");
+    expect(grep.content).not.toMatch(/\[(?:table|section|article|clause):/iu);
+    expect(bakedSkeleton).not.toHaveBeenCalled();
+    expect(JSON.parse(rejected.content)).toEqual({
+      ok: false,
+      error: "Read accepts only file_path, offset, and limit",
+    });
+    expect(read.evidenceSpans?.length).toBeGreaterThan(0);
+  });
+
+  it("keeps the H1 Grep contact executable and bounded", async () => {
+    process.env.MIKE_NAV_SHAPE = "address";
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    process.env.MIKE_RETRIEVAL_EXPERIMENT = "h1-contact";
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-h1-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    vi.resetModules();
+
+    const store = await import("../localDocumentStore");
+    const document = await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "cells.docx",
+      bytes: await nativeTableBytes(),
+    });
+    const tools = await import("../chat/localAssistantTools");
+    const [grep] = await tools.runLocalAssistantTools("local-user", [
+      {
+        id: "h1-grep",
+        name: "Grep",
+        input: {
+          pattern: "Treasurer",
+          path: "cells.docx",
+          output_mode: "content",
+        },
+      },
+    ]);
+    const contact = grep.content.match(/ {2}\[(Read[^\]\r\n]+)\]$/mu);
+    const recipe = contact?.[1].split(" |", 1)[0] ?? "";
+
+    expect(contact?.[0].length).toBeLessThanOrEqual(120);
+    expect(recipe).toBe('Read section="table:1/row:4"');
+
+    const section = /section="([^"]+)"/u.exec(recipe)?.[1];
+    const [read] = await tools.runLocalAssistantTools("local-user", [
+      {
+        id: "h1-read",
+        name: "Read",
+        input: { file_path: "cells.docx", section },
+      },
+    ]);
+    const extracted = await tools.extractLocalDocument(
+      "local-user",
+      document.id,
+    );
+    expect(
+      read.evidenceSpans
+        ?.map(([start, end]) => extracted!.text.slice(start, end))
+        .filter(Boolean),
+    ).toEqual(["Treasurer", "$25,000", "$100,000"]);
+  });
+
+  it("keeps H2 as one deferred bounded DocumentMap", async () => {
+    process.env.MIKE_NAV_SHAPE = "address";
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    process.env.MIKE_RETRIEVAL_EXPERIMENT = "h2-document-map";
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-h2-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    vi.resetModules();
+
+    const store = await import("../localDocumentStore");
+    await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "cells.docx",
+      bytes: await nativeTableBytes(),
+    });
+    const tools = await import("../chat/localAssistantTools");
+    const partition = tools.partitionTools(tools.LOCAL_ASSISTANT_TOOLS);
+    expect(partition.resident.map((entry) => entry.function.name)).toEqual(
+      expect.arrayContaining(["Glob", "Grep", "Read", "describe_tools"]),
+    );
+    expect(partition.deferred.map((entry) => entry.function.name)).toEqual(
+      expect.arrayContaining([
+        "DocumentMap",
+        "Edit",
+        "library_delete_and_renumber_docx",
+      ]),
+    );
+
+    const [described] = await tools.runLocalAssistantTools("local-user", [
+      {
+        id: "h2-open",
+        name: "describe_tools",
+        input: { domains: ["document_map"] },
+      },
+    ]);
+    expect(JSON.parse(described.content)).toMatchObject({
+      ok: true,
+      domains: ["document_map"],
+      opened: ["DocumentMap"],
+    });
+    const [mapped] = await tools.runLocalAssistantTools("local-user", [
+      {
+        id: "h2-map",
+        name: "DocumentMap",
+        input: {
+          file_path: "cells.docx",
+          focus: "tables",
+          max_results: 25,
+        },
+      },
+    ]);
+    expect(mapped.content.length).toBeLessThanOrEqual(4_000);
+    const payload = JSON.parse(mapped.content);
+    expect(payload).toMatchObject({ ok: true, failures: [] });
+    expect(payload.rows.length).toBeGreaterThan(0);
+    expect(payload.rows.length).toBeLessThanOrEqual(25);
+    expect(payload.rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "row", label: "table:1/row:4" }),
+      ]),
+    );
+    await expectReadRecipesAccepted(tools, "cells.docx", payload.rows);
+  });
+
+  it("keeps H3 as one deferred bounded ReferenceImpact", async () => {
+    process.env.MIKE_NAV_SHAPE = "address";
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    process.env.MIKE_RETRIEVAL_EXPERIMENT = "h3-reference-impact";
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-h3-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    vi.resetModules();
+
+    const store = await import("../localDocumentStore");
+    await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "references.docx",
+      bytes: await numberedReferenceBytes(),
+    });
+    const tools = await import("../chat/localAssistantTools");
+    const partition = tools.partitionTools(tools.LOCAL_ASSISTANT_TOOLS);
+    expect(partition.resident.map((entry) => entry.function.name)).toEqual(
+      expect.arrayContaining(["Glob", "Grep", "Read", "describe_tools"]),
+    );
+    expect(partition.deferred.map((entry) => entry.function.name)).toEqual(
+      expect.arrayContaining([
+        "ReferenceImpact",
+        "Edit",
+        "library_delete_and_renumber_docx",
+      ]),
+    );
+
+    const [described] = await tools.runLocalAssistantTools("local-user", [
+      {
+        id: "h3-open",
+        name: "describe_tools",
+        input: { domains: ["cross_reference_impact"] },
+      },
+    ]);
+    expect(JSON.parse(described.content)).toMatchObject({
+      ok: true,
+      domains: ["cross_reference_impact"],
+      opened: ["ReferenceImpact"],
+    });
+    const [impacted] = await tools.runLocalAssistantTools("local-user", [
+      {
+        id: "h3-impact",
+        name: "ReferenceImpact",
+        input: {
+          file_path: "references.docx",
+          targets: ["1.02"],
+          operation: "delete_and_close_gap",
+        },
+      },
+    ]);
+    expect(impacted.content.length).toBeLessThanOrEqual(4_000);
+    const payload = JSON.parse(impacted.content);
+    expect(payload).toMatchObject({ ok: true, failures: [] });
+    expect(payload.rows.length).toBeGreaterThan(0);
+    expect(payload.rows.length).toBeLessThanOrEqual(50);
+    expect(payload.rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "target",
+          target: "sec1.02",
+          label: "sec1.02",
+          read: { section: "sec1.02" },
+        }),
+        expect.objectContaining({
+          kind: "affected_sibling",
+          target: "sec1.02",
+          label: "sec1.03",
+          from: "sec1.03",
+          to: "sec1.02",
+          read: { section: "sec1.03" },
+        }),
+      ]),
+    );
+    expect(
+      payload.rows.filter((row: { kind: string }) => row.kind === "inbound"),
+    ).toHaveLength(2);
+    await expectReadRecipesAccepted(tools, "references.docx", payload.rows);
+  });
+
+  it("integrates legal sections and one-hop references into Grep and Read", async () => {
+    process.env.MIKE_NAV_SHAPE = "address";
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    process.env.MIKE_RETRIEVAL_EXPERIMENT = "h4-legal-grep";
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-h4-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    vi.resetModules();
+
+    const store = await import("../localDocumentStore");
+    const document = await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "references.docx",
+      bytes: await numberedReferenceBytes(),
+    });
+    const tools = await import("../chat/localAssistantTools");
+    const grepSchema = tools.LOCAL_ASSISTANT_TOOLS.find(
+      (entry) => entry.function.name === "Grep",
+    )!;
+    const readSchema = tools.LOCAL_ASSISTANT_TOOLS.find(
+      (entry) => entry.function.name === "Read",
+    )!;
+    expect(grepSchema.function.parameters.properties.output_mode.enum).toContain(
+      "sections",
+    );
+    expect(grepSchema.function.parameters.properties).toHaveProperty("references");
+    expect(readSchema.function.parameters.properties).toHaveProperty("references");
+
+    const [mapped, read] = await tools.runLocalAssistantTools("local-user", [
+      {
+        id: "h4-grep",
+        name: "Grep",
+        input: {
+          pattern: "Section 1\\.03|provision remains",
+          path: "references.docx",
+          output_mode: "sections",
+          section: "1.03",
+          references: "inbound",
+        },
+      },
+      {
+        id: "h4-read",
+        name: "Read",
+        input: {
+          file_path: "references.docx",
+          section: "1.03",
+          references: "inbound",
+        },
+      },
+    ]);
+    expect(mapped.content).toContain('Read section="sec1.01"');
+    expect(mapped.content).toContain('Read section="sec1.03"');
+    expect(mapped.content).toContain('Read section="sec2.01"');
+    expect(read.content).toContain("First. This points to Section 1.03.");
+    expect(read.content).toContain("Third. This provision remains.");
+    expect(read.content).toContain("Pointer. Section 1.03 controls.");
+    expect(read.content).not.toContain("Delete Me");
+
+    const extracted = await tools.extractLocalDocument("local-user", document.id);
+    const spans = read.evidenceSpans ?? [];
+    for (let left = 0; left < spans.length; left += 1) {
+      for (let right = left + 1; right < spans.length; right += 1) {
+        expect(
+          Math.max(spans[left][0], spans[right][0]) <
+            Math.min(spans[left][1], spans[right][1]),
+        ).toBe(false);
+      }
+    }
+    expect(spans.map(([start, end]) => extracted!.text.slice(start, end)).join(" ")).toContain(
+      "provision remains",
+    );
+  });
+
+  it("materializes an immutable multi-document working set with source evidence", async () => {
+    process.env.MIKE_NAV_SHAPE = "address";
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    process.env.MIKE_RETRIEVAL_EXPERIMENT = "h5-working-set";
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-h5-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    vi.resetModules();
+
+    const store = await import("../localDocumentStore");
+    const table = await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "schedule.docx",
+      bytes: await nativeTableBytes(),
+    });
+    const prose = await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "memo.docx",
+      bytes: await Packer.toBuffer(
+        new Document({
+          sections: [
+            {
+              children: [
+                new Paragraph("1.01 Background."),
+                new Paragraph("The unique value is discussed here."),
+              ],
+            },
+          ],
+        }),
+      ),
+    });
+    const tools = await import("../chat/localAssistantTools");
+    const state: import("../chat/localAssistantTools").LocalAssistantWorkingSetTurnState =
+      new Map();
+    const run = (calls: Parameters<typeof tools.runLocalAssistantTools>[1]) =>
+      tools.runLocalAssistantTools(
+        "local-user",
+        calls,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        state,
+      );
+
+    const [created] = await run([
+      {
+        id: "make-working-set",
+        name: "Grep",
+        input: {
+          pattern: "(?i)unique",
+          output_mode: "working_set",
+        },
+      },
+    ]);
+    const manifest = JSON.parse(created.content);
+    expect(manifest).toMatchObject({
+      ok: true,
+      documents: 2,
+      units: 3,
+      truncated: false,
+    });
+    expect(manifest).not.toHaveProperty("text");
+    expect(manifest.path).toMatch(/^\.mike\/working-sets\/[a-f0-9]+\.txt$/u);
+
+    const [read, refused] = await run([
+      {
+        id: "read-working-set",
+        name: "Read",
+        input: { file_path: manifest.path },
+      },
+      {
+        id: "edit-working-set",
+        name: "Edit",
+        input: {
+          file_path: manifest.path,
+          old_string: "unique",
+          new_string: "changed",
+        },
+      },
+    ]);
+    expect(read.content).toContain("schedule.docx");
+    expect(read.content).toContain("Alpha");
+    expect(read.content).toContain("Unique cell value");
+    expect(read.content).toContain("memo.docx");
+    expect(new Set(read.evidenceSegments?.map((item) => item.documentId))).toEqual(
+      new Set([table.id, prose.id]),
+    );
+    expect(refused.content).toContain("immutable");
+  });
+
+  it("addresses spreadsheet cells through the same bounded Read contract", async () => {
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    process.env.MIKE_RETRIEVAL_EXPERIMENT = "h4-legal-grep";
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-xlsx-cells-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    vi.resetModules();
+
+    const sheet = XLSX.utils.aoa_to_sheet([
+      ["Matter", "Status"],
+      ["Smith", "Unique spreadsheet value"],
+    ]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, sheet, "Ledger");
+    const bytes = XLSX.write(workbook, {
+      type: "buffer",
+      bookType: "xlsx",
+    }) as Buffer;
+    const store = await import("../localDocumentStore");
+    const document = await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "ledger.xlsx",
+      bytes,
+    });
+    const tools = await import("../chat/localAssistantTools");
+    const extracted = await tools.extractLocalDocument("local-user", document.id);
+    expect(extracted?.tableCells).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          tableName: "Ledger",
+          address: "B2",
+          row: 2,
+          column: 2,
+        }),
+      ]),
+    );
+
+    const [read] = await tools.runLocalAssistantTools("local-user", [
+      {
+        id: "read-xlsx-cell",
+        name: "Read",
+        input: {
+          file_path: document.id,
+          section: "table:1/row:2/col:2",
+        },
+      },
+    ]);
+    expect(read.content).toContain("Unique spreadsheet value");
+    expect(read.content).not.toContain("Matter");
+  });
+
+  it("keeps generic Grep output independent of ambiguous legal structure", async () => {
+    process.env.MIKE_NAV_SHAPE = "address";
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    temporaryDirectory = await mkdtemp(
+      path.join(os.tmpdir(), "beaver-code-duplicate-handle-"),
+    );
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const bytes = await Packer.toBuffer(
+      new Document({
+        sections: [
+          {
+            children: [
+              new Paragraph("1.01 First occurrence."),
+              new Paragraph("ordinary text"),
+              new Paragraph("1.01 Repeated occurrence."),
+              new Paragraph("UNIQUE NEEDLE"),
+            ],
+          },
+        ],
+      }),
+    );
+    const store = await import("../localDocumentStore");
+    await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "duplicate.docx",
+      bytes,
+    });
+    const tools = await import("../chat/localAssistantTools");
+    const [grep] = await tools.runLocalAssistantTools("local-user", [
+      {
+        id: "grep-duplicate-handle",
+        name: "Grep",
+        input: {
+          pattern: "UNIQUE NEEDLE",
+          path: "duplicate.docx",
+          output_mode: "content",
+        },
+      },
+    ]);
+
+    expect(grep.content).toContain("UNIQUE NEEDLE");
+    expect(grep.content).not.toMatch(/\[sec1\.01\]/u);
+  });
+
+  it("keeps coding replace_all exact-case and no-match versionless", async () => {
+    process.env.MIKE_NAV_SHAPE = "address";
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-code-all-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const bytes = await Packer.toBuffer(
+      new Document({
+        sections: [{ children: [new Paragraph("Term term TERM.")] }],
+      }),
+    );
+    const store = await import("../localDocumentStore");
+    const document = await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "case.docx",
+      bytes,
+    });
+    const tools = await import("../chat/localAssistantTools");
+    const editAll = async (oldString: string, newString: string) =>
+      (
+        await tools.runLocalAssistantTools("local-user", [
+          {
+            id: `replace-${oldString}`,
+            name: "Edit",
+            input: {
+              file_path: "case.docx",
+              old_string: oldString,
+              new_string: newString,
+              replace_all: true,
+            },
+          },
+        ])
+      )[0];
+
+    expect((await editAll("Missing", "Found")).content).toContain(
+      "No exact matches",
+    );
+    expect((await store.listLocalVersions("local-user", document.id))?.versions)
+      .toHaveLength(1);
+    expect((await editAll("Term", "Clause")).content).toContain(
+      "1 replacement(s)",
+    );
+    expect((await tools.extractLocalDocument("local-user", document.id))?.text)
+      .toContain("Clause term TERM.");
+  });
+
+  it("recovers duplicate filenames by id and consolidates a coding edit turn", async () => {
+    process.env.MIKE_NAV_SHAPE = "address";
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-code-turn-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const store = await import("../localDocumentStore");
+    const makeDoc = async (text: string) =>
+      store.createLocalDocument({
+        userId: "local-user",
+        kind: "file",
+        filename: "shared.docx",
+        bytes: await Packer.toBuffer(
+          new Document({ sections: [{ children: [new Paragraph(text)] }] }),
+        ),
+      });
+    const intended = await makeDoc("Alpha Beta.");
+    const other = await makeDoc("Other document.");
+    const tools = await import("../chat/localAssistantTools");
+    const [listed, ambiguous, recovered] = await tools.runLocalAssistantTools(
+      "local-user",
+      [
+        { id: "glob-duplicates", name: "Glob", input: { pattern: "shared.docx" } },
+        { id: "ambiguous-read", name: "Read", input: { file_path: "shared.docx" } },
+        { id: "id-read", name: "Read", input: { file_path: intended.id } },
+      ],
+    );
+    expect(listed.content).toContain(`shared.docx\t[document_id=${intended.id}]`);
+    expect(listed.content).toContain(`shared.docx\t[document_id=${other.id}]`);
+    expect(ambiguous.content).toContain("File path is ambiguous");
+    expect(ambiguous.content).toContain("Glob(pattern=");
+    expect(recovered.content).toContain("Alpha Beta.");
+
+    const turnState: import("../chat/localAssistantTools").LocalAssistantEditTurnState =
+      new Map();
+    const edits = await tools.runLocalAssistantTools(
+      "local-user",
+      [
+        {
+          id: "edit-alpha",
+          name: "Edit",
+          input: {
+            file_path: intended.id,
+            old_string: "Alpha",
+            new_string: "Gamma",
+          },
+        },
+        {
+          id: "edit-beta",
+          name: "Edit",
+          input: {
+            file_path: intended.id,
+            old_string: "Beta",
+            new_string: "Delta",
+          },
+        },
+      ],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      turnState,
+    );
+    expect(edits.every((edit) => edit.content.startsWith("Updated"))).toBe(true);
+    expect((await store.listLocalVersions("local-user", intended.id))?.versions)
+      .toHaveLength(2);
+    expect((await store.listLocalVersions("local-user", other.id))?.versions)
+      .toHaveLength(1);
+    expect((await tools.extractLocalDocument("local-user", intended.id))?.text)
+      .toContain("Gamma Delta.");
+  });
+
   it("uses verified PDF artifacts without loading the source into memory", async () => {
+    process.env.MIKE_NAV_SHAPE = "address";
     const sourcePath = path.join(os.tmpdir(), "verified-source.pdf");
     const sourceReads = vi.fn();
     vi.doMock("node:fs/promises", async (importOriginal) => {
@@ -62,7 +1354,7 @@ describe("local assistant tools", () => {
       })),
     }));
 
-    const { extractLocalDocument } =
+    const { extractLocalDocument, runLocalAssistantTools } =
       await import("../chat/localAssistantTools");
 
     await expect(
@@ -75,8 +1367,21 @@ describe("local assistant tools", () => {
       // "none": the file has pages, we just could not index them, and the
       // refusal must not claim otherwise.
       pages: { pages: [], source: "unindexed" },
+      tableCells: [],
     });
     expect(sourceReads).not.toHaveBeenCalled();
+
+    const [search] = await runLocalAssistantTools("local-user", [
+      {
+        id: "call-unindexed-page",
+        name: "library_find",
+        input: { document_id: "document-1", query: "Text", at: "pdf:1" },
+      },
+    ]);
+    const refusal = JSON.parse(search.content);
+    expect(refusal).toMatchObject({ ok: false });
+    expect(refusal.error).toContain("omit at");
+    expect(refusal.error).not.toContain("`pages`");
   });
 
   /**
@@ -188,6 +1493,49 @@ describe("local assistant tools", () => {
     });
     expect(scopedByAt.hits).toHaveLength(1);
 
+    // Some providers materialize every optional argument. `depth` has no
+    // effect when `follow` is none, so these calls must behave exactly like
+    // their omitted-default counterparts rather than being mistaken for
+    // graph traversal.
+    const defaultedFind = await run("library_find", {
+      query: "Section",
+      follow: "none",
+      depth: 1,
+    });
+    expect(defaultedFind.ok).toBe(true);
+    expect(defaultedFind.hits.length).toBeGreaterThan(0);
+    const defaultedScopedFind = await run("library_find", {
+      query: "Section",
+      at: "printed:2",
+      follow: "none",
+      depth: 1,
+    });
+    expect(defaultedScopedFind.ok).toBe(true);
+    expect(defaultedScopedFind.hits).toHaveLength(1);
+    const defaultedOpeningRead = await run("library_read", {
+      follow: "none",
+      depth: 1,
+    });
+    expect(defaultedOpeningRead.ok).toBe(true);
+    expect(defaultedOpeningRead.text).toContain("TABLE OF CONTENTS");
+    const defaultedOffsetRead = await run("library_read", {
+      at: "off:20",
+      follow: "none",
+      depth: 1,
+    });
+    expect(defaultedOffsetRead.ok).toBe(true);
+    expect(defaultedOffsetRead.offset).toBe(20);
+    const defaultedPageRead = await run("library_read", {
+      at: "printed:1",
+      follow: "none",
+      depth: 1,
+    });
+    expect(defaultedPageRead).toMatchObject({
+      ok: true,
+      pdf_page: 2,
+      matched_on: "printed",
+    });
+
     // follow expands the address on read, not just on find.
     const withRelated = await run("library_read", { at: "2.01", follow: "out" });
     expect(withRelated.text).toContain("2.01 Term.");
@@ -206,6 +1554,260 @@ describe("local assistant tools", () => {
     expect(links.references_in.map((edge: { from: string }) => edge.from)).toEqual([
       "sec3.02",
     ]);
+
+    // Address kinds are capabilities, not hints. Unsupported combinations
+    // refuse instead of quietly widening to the whole document or census.
+    const offsetFind = await run("library_find", {
+      query: "Section",
+      at: "off:20",
+    });
+    const pageFollow = await run("library_read", {
+      at: "printed:1",
+      follow: "out",
+    });
+    const pageDepth = await run("library_find", {
+      query: "Section",
+      at: "printed:2",
+      follow: "out",
+      depth: 2,
+    });
+    const pageLinks = await run("library_links", { at: "pdf:1" });
+    const offsetLinks = await run("library_links", { at: "off:20" });
+    for (const refused of [
+      offsetFind,
+      pageFollow,
+      pageDepth,
+      pageLinks,
+      offsetLinks,
+    ]) {
+      expect(refused.ok).toBe(false);
+      expect(refused.error).toContain("at");
+      expect(refused.error).not.toMatch(/(?:section|offset|pages)=|`(?:section|offset|pages)`/u);
+    }
+  });
+
+  it("reads, searches, and revises one native DOCX table cell by address", async () => {
+    process.env.MIKE_NAV_SHAPE = "address";
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-cells-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const bytes = await Packer.toBuffer(
+      new Document({
+        sections: [
+          {
+            children: [
+              new Paragraph("1.01 Schedule."),
+              new Table({
+                rows: [
+                  new TableRow({
+                    children: [
+                      new TableCell({ children: [new Paragraph("Alpha")] }),
+                      new TableCell({
+                        children: [new Paragraph("Unique cell value")],
+                      }),
+                    ],
+                  }),
+                ],
+              }),
+              new Paragraph("2.01 Other text with Unique elsewhere."),
+            ],
+          },
+        ],
+      }),
+    );
+    const store = await import("../localDocumentStore");
+    const document = await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "cells.docx",
+      bytes,
+    });
+    const allowed = new Set([document.id]);
+    const tools = await import("../chat/localAssistantTools");
+    const run = async (name: string, input: Record<string, unknown>) => {
+      const [response] = await tools.runLocalAssistantTools(
+        "local-user",
+        [{ id: `cell-${name}`, name, input: { document_id: document.id, ...input } }],
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        allowed,
+      );
+      return JSON.parse(response.content);
+    };
+
+    const outline = await run("library_outline", {});
+    expect(outline).toMatchObject({ ok: true, tables: 1, cells: 2 });
+    expect(outline.outline).toContain("table:1/row:1/col:2");
+
+    const read = await run("library_read", {
+      at: "table:1/row:1/col:2",
+    });
+    expect(read.text).toBe("Unique cell value");
+
+    const find = await run("library_find", {
+      query: "Unique",
+      at: "table:1/row:1/col:2",
+    });
+    expect(find.hits).toHaveLength(1);
+    expect(find.hits[0].section).toBe("table:1/row:1/col:2");
+
+    const links = await run("library_links", {
+      at: "table:1/row:1/col:2",
+    });
+    expect(links).toMatchObject({
+      ok: true,
+      section: "table:1/row:1/col:2",
+    });
+    expect(
+      links.ancestors.map((entry: { section: string }) => entry.section),
+    ).toContain("table:1");
+
+    const revised = await run("library_revise_docx", {
+      version_id: document.current_version_id,
+      edits: [
+        {
+          at: "table:1/row:1/col:2",
+          find: "Unique cell value",
+          replace: "Revised cell value",
+        },
+      ],
+    });
+    expect(revised).toMatchObject({
+      ok: true,
+      receipt: "mike-document:v1",
+      action: "revised",
+      version_number: 2,
+    });
+    const reread = await run("library_read", {
+      at: "table:1/row:1/col:2",
+    });
+    expect(reread.text).toBe("Revised cell value");
+  });
+
+  it("deletes and renumbers a DOCX atomically inside one turn version", async () => {
+    process.env.MIKE_NAV_SHAPE = "address";
+    temporaryDirectory = await mkdtemp(
+      path.join(os.tmpdir(), "beaver-renumber-"),
+    );
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const bytes = await numberedReferenceBytes();
+    const store = await import("../localDocumentStore");
+    const document = await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "renumber.docx",
+      bytes,
+    });
+    const tools = await import("../chat/localAssistantTools");
+    const turnState: import("../chat/localAssistantTools").LocalAssistantEditTurnState =
+      new Map();
+    const [renumberResponse, reviseResponse] =
+      await tools.runLocalAssistantTools(
+        "local-user",
+        [
+          {
+            id: "renumber",
+            name: "library_delete_and_renumber_docx",
+            input: {
+              document_id: document.id,
+              version_id: document.current_version_id,
+              target: "1.02",
+            },
+          },
+          {
+            id: "revise-after-renumber",
+            name: "library_revise_docx",
+            input: {
+              document_id: document.id,
+              version_id: document.current_version_id,
+              edits: [
+                {
+                  at: "1.02",
+                  find: "Third",
+                  replace: "Final",
+                },
+              ],
+            },
+          },
+        ],
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        new Set([document.id]),
+        undefined,
+        undefined,
+        undefined,
+        turnState,
+      );
+    const renumber = JSON.parse(renumberResponse.content);
+    const revise = JSON.parse(reviseResponse.content);
+    expect(renumber, JSON.stringify(renumber)).toMatchObject({
+      ok: true,
+      operation_receipt: "mike-delete-and-renumber:v1",
+      version_number: 2,
+      mapping: [{ from: "sec1.03", to: "sec1.02" }],
+      verification: { headingsRenumbered: 1, referencesUpdated: 2 },
+    });
+    expect(revise).toMatchObject({
+      ok: true,
+      version_id: renumber.version_id,
+      version_number: 2,
+      parent_version_id: document.current_version_id,
+    });
+
+    const versions = await store.listLocalVersions("local-user", document.id);
+    expect(versions?.versions).toHaveLength(2);
+    const active = await store.getLocalVersionFile("local-user", document.id);
+    const accepted = await (await import("../docxTrackedChanges"))
+      .extractDocxBodyText(await readFile(active!.path));
+    expect(accepted).not.toContain("Delete Me");
+    expect(accepted).toContain("1.02 Final.");
+    expect(accepted.match(/Section 1\.02/gu)).toHaveLength(2);
+    expect(accepted).not.toContain("1.03");
+  });
+
+  it("keeps oversized research results as valid JSON with research guidance", async () => {
+    process.env.MIKE_TOOL_RESULT_CAP = "1000";
+    vi.doMock("../chat/publicLegalSourceState", async (importOriginal) => ({
+      ...(await importOriginal<
+        typeof import("../chat/publicLegalSourceState")
+      >()),
+      createPublicLegalSourceState: vi.fn(() => ({})),
+      executePublicLegalSourceTool: vi.fn(async (name: string) =>
+        name === "public_legal_source_search"
+          ? {
+              ok: true,
+              hits: Array.from({ length: 100 }, (_, index) => ({
+                id: `source-${index}`,
+                excerpt: `research passage ${index} ${"x".repeat(100)}`,
+              })),
+            }
+          : null,
+      ),
+    }));
+    const { runLocalAssistantTools } =
+      await import("../chat/localAssistantTools");
+    const [response] = await runLocalAssistantTools("local-user", [
+      {
+        id: "call-research",
+        name: "public_legal_source_search",
+        input: { query: "research" },
+      },
+    ]);
+
+    expect(response.content.length).toBeLessThanOrEqual(1000);
+    const payload = JSON.parse(response.content);
+    expect(payload).toMatchObject({
+      ok: true,
+      truncated: true,
+      original_format: "json",
+    });
+    expect(payload.omitted_characters).toBeGreaterThan(0);
+    expect(payload.preview.head).toContain("source-0");
+    expect(payload.continuation).toContain("public_legal_source_search");
+    expect(payload.continuation).not.toContain("library_");
   });
 
   it("offers bounded deterministic DOCX actions", async () => {
@@ -230,6 +1832,12 @@ describe("local assistant tools", () => {
     expect(names).toContain("legal_pdf_lookup");
     expect(names).toContain("library_create_docx");
     expect(names).toContain("library_revise_docx");
+    expect(names).toContain("library_delete_and_renumber_docx");
+    expect(
+      LOCAL_ASSISTANT_TOOLS.find(
+        (tool) => tool.function.name === "library_delete_and_renumber_docx",
+      )?.function.description,
+    ).toContain("delete-and-close-gap only");
     expect(
       LOCAL_ASSISTANT_TOOLS.find(
         (tool) => tool.function.name === "library_revise_docx",
@@ -293,6 +1901,7 @@ describe("local assistant tools", () => {
             name: "library_create_docx",
             input: {
               title: "Opinion Draft",
+              filename: "opinion-draft.docx",
               markdown:
                 "# Background\n\nOriginal provision.\n\nEffective on {{effective_date}}.[^1]\n\n[^1]: The effective date remains editable.",
               fields: [
@@ -319,7 +1928,7 @@ describe("local assistant tools", () => {
         receipt: "mike-document:v1",
         action: "created",
         version_number: 1,
-        filename: "Opinion Draft.docx",
+        filename: "opinion-draft.docx",
         file_type: "docx",
         attached_to_matter: true,
       });
@@ -367,6 +1976,33 @@ describe("local assistant tools", () => {
         /<h1>(?:<strong>)?Background(?:<\/strong>)?<\/h1>/u,
       );
       expect(draftingRead.html).toContain("[^");
+
+      const [scopedDraftingResponse] = await tools.runLocalAssistantTools(
+        "local-user",
+        [
+          {
+            id: "call-scoped-drafting-read",
+            name: "library_read",
+            input: {
+              document_id: created.document_id,
+              mode: "drafting",
+              at: "art1",
+              from: "start",
+              follow: "none",
+              depth: 1,
+            },
+          },
+        ],
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        allowedDocumentIds,
+      );
+      expect(JSON.parse(scopedDraftingResponse.content)).toMatchObject({
+        ok: false,
+        error: expect.stringContaining("Use mode=text"),
+      });
 
       const [revisedResponse] = await tools.runLocalAssistantTools(
         "local-user",

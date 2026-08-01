@@ -151,6 +151,7 @@ export async function runLLMStream({
   model,
   apiKeys,
   reasoningEffort,
+  serviceTier,
   signal,
   projectId,
 }: {
@@ -168,6 +169,7 @@ export async function runLLMStream({
   model?: string;
   apiKeys?: import("../llm").UserApiKeys;
   reasoningEffort?: string;
+  serviceTier?: string;
   signal?: AbortSignal;
   /**
    * If set, generate_docx will attach created docs to this project so
@@ -337,6 +339,7 @@ export async function runLLMStream({
       maxIterations: 10,
       apiKeys,
       reasoningEffort,
+      serviceTier,
       enableThinking: true,
       abortSignal: signal,
       callbacks: {

@@ -20,7 +20,10 @@ import {
 } from "./localPdfIngestion";
 import { legalKnowledgeGraphStore } from "./legalKnowledgeGraphStore";
 import { removeDocumentFromLocalTabularReviews } from "./localTabularStore";
-import { resolveTrackedChange } from "./docxTrackedChanges";
+import {
+  extractTrackedChangeIds,
+  resolveTrackedChange,
+} from "./docxTrackedChanges";
 
 export type LocalLibraryKind = "file" | "template";
 
@@ -628,6 +631,119 @@ export async function addLocalVersion(params: {
   return localVersionResponse(saved.version);
 }
 
+async function overwriteLocalVersionFiles(
+  document: LocalDocument,
+  version: LocalVersion,
+  filename: string,
+  bytes: Buffer,
+) {
+  if (suffixFor(filename) !== version.fileType) return false;
+  const previousPaths = new Set(
+    [version.storagePath, version.pdfStoragePath].filter(
+      (item): item is string => !!item,
+    ),
+  );
+  const files = await writeVersionFiles(
+    document.id,
+    version.id,
+    filename,
+    bytes,
+  );
+  version.filename = filename.slice(0, 200);
+  version.sizeBytes = bytes.byteLength;
+  version.storagePath = files.relativeSource;
+  version.pdfStoragePath = files.relativePdf;
+  version.sourceSha256 = files.sourceSha256;
+  const nextPaths = new Set(
+    [version.storagePath, version.pdfStoragePath].filter(
+      (item): item is string => !!item,
+    ),
+  );
+  await Promise.all(
+    [...previousPaths]
+      .filter((item) => !nextPaths.has(item))
+      .flatMap((item) => {
+        const absolute = absoluteDataPath(item);
+        return [
+          rm(absolute, { force: true }),
+          removeLocalPdfParseArtifacts(absolute),
+        ];
+      }),
+  );
+  return true;
+}
+
+/** Overwrite the one assistant-edit version created for this turn. */
+export async function updateLocalAssistantTurnVersion(params: {
+  userId: string;
+  documentId: string;
+  versionId: string;
+  parentVersionId: string;
+  filename: string;
+  bytes: Buffer;
+  trackedEdits: LocalTrackedEdit[];
+}) {
+  const saved = await mutateStore(async (store) => {
+    const document = store.documents.find(
+      (item) => item.id === params.documentId && item.userId === params.userId,
+    );
+    const version = document?.versions.find(
+      (item) => item.id === params.versionId,
+    );
+    if (
+      !document ||
+      !version ||
+      document.currentVersionId !== version.id ||
+      version.provenance?.actor !== "assistant" ||
+      version.provenance.action !== "revised" ||
+      version.provenance.parentVersionId !== params.parentVersionId
+    ) {
+      return null;
+    }
+    const priorEdits = version.provenance.trackedEdits ?? [];
+    const retainedIds = new Set(
+      (await extractTrackedChangeIds(params.bytes)).map((entry) => entry.w_id),
+    );
+    if (
+      priorEdits.some((edit) =>
+        [edit.delWId, edit.insWId]
+          .filter((id): id is string => !!id)
+          .some((id) => !retainedIds.has(id)),
+      )
+    ) {
+      // A later same-turn edit touched an earlier tracked wrapper. Refuse the
+      // overwrite instead of leaving an accept/reject receipt pointing at an
+      // ID that no longer exists.
+      throw new Error(
+        "A later same-turn edit overlaps an earlier tracked change; split it into a new turn so every accept/reject receipt remains valid",
+      );
+    }
+    if (
+      !(await overwriteLocalVersionFiles(
+        document,
+        version,
+        params.filename,
+        params.bytes,
+      ))
+    ) {
+      return null;
+    }
+    version.provenance = {
+      schemaVersion: 1,
+      actor: "assistant",
+      action: "revised",
+      parentVersionId: params.parentVersionId,
+      changeCount:
+        (version.provenance.changeCount ?? priorEdits.length) +
+        params.trackedEdits.length,
+      trackedEdits: [...priorEdits, ...params.trackedEdits],
+    };
+    document.updatedAt = new Date().toISOString();
+    return version;
+  });
+  return saved ? localVersionResponse(saved) : null;
+}
+
 export async function renameLocalVersion(
   userId: string,
   documentId: string,
@@ -659,43 +775,19 @@ export async function replaceLocalVersion(params: {
     );
     const version = document?.versions.find((item) => item.id === params.versionId);
     if (!document || !version) return null;
-    const nextSuffix = suffixFor(params.filename);
-    if (nextSuffix !== version.fileType) return null;
-    const previousPaths = new Set(
-      [version.storagePath, version.pdfStoragePath].filter(
-        (item): item is string => !!item,
-      ),
-    );
-    const files = await writeVersionFiles(
-      document.id,
-      version.id,
-      params.filename,
-      params.bytes,
-    );
-    version.filename = params.filename.slice(0, 200);
-    version.sizeBytes = params.bytes.byteLength;
+    if (
+      !(await overwriteLocalVersionFiles(
+        document,
+        version,
+        params.filename,
+        params.bytes,
+      ))
+    ) {
+      return null;
+    }
     version.createdAt = new Date().toISOString();
-    version.storagePath = files.relativeSource;
-    version.pdfStoragePath = files.relativePdf;
-    version.sourceSha256 = files.sourceSha256;
     delete version.provenance;
     document.updatedAt = version.createdAt;
-    const nextPaths = new Set(
-      [version.storagePath, version.pdfStoragePath].filter(
-        (item): item is string => !!item,
-      ),
-    );
-    await Promise.all(
-      [...previousPaths]
-        .filter((item) => !nextPaths.has(item))
-        .flatMap((item) => {
-          const absolute = absoluteDataPath(item);
-          return [
-            rm(absolute, { force: true }),
-            removeLocalPdfParseArtifacts(absolute),
-          ];
-        }),
-    );
     return { document, version };
   });
   if (!saved) return null;

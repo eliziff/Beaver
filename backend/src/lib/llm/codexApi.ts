@@ -1,4 +1,5 @@
 import { borrowCodexKey } from "./codexAuth";
+import { getCodexModelCatalog } from "../codexCatalog";
 import { codexModelSlug } from "./models";
 import { streamResponsesApi } from "./openai";
 import type { StreamChatParams, StreamChatResult } from "./types";
@@ -13,11 +14,27 @@ import type { StreamChatParams, StreamChatResult } from "./types";
 const CODEX_BACKEND_RESPONSES_URL =
   "https://chatgpt.com/backend-api/codex/responses";
 
+async function requestServiceTier(slug: string, requested?: string) {
+  const alias = requested?.trim().toLowerCase();
+  if (!alias) return undefined;
+  const tier = alias === "fast" ? "priority" : alias;
+  const model = (await getCodexModelCatalog()).models.find(
+    (entry) => entry.slug.toLowerCase() === slug.toLowerCase(),
+  );
+  if (!model?.serviceTiers.some((entry) => entry.id === tier)) {
+    throw new Error(
+      `Codex model ${slug} does not advertise service tier ${tier}.`,
+    );
+  }
+  return tier;
+}
+
 export async function streamCodexApi(
   params: StreamChatParams,
 ): Promise<StreamChatResult> {
   const slug = codexModelSlug(params.model);
   if (!slug) throw new Error(`Not a codex model: ${params.model}`);
+  const serviceTier = await requestServiceTier(slug, params.serviceTier);
   const { accessToken, accountId } = await borrowCodexKey();
   return streamResponsesApi(
     { ...params, model: slug },
@@ -28,6 +45,7 @@ export async function streamCodexApi(
       persistent: false,
       codexBackend: true,
       reasoningSummary: true,
+      ...(serviceTier ? { serviceTier } : {}),
       ...(accountId ? { headers: { "ChatGPT-Account-ID": accountId } } : {}),
     },
   );

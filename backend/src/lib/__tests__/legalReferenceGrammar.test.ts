@@ -111,6 +111,40 @@ describe("findProvisionReferences", () => {
     ]);
   });
 
+  it("expands coordinated statutory lists without collapsing decimal provisions", () => {
+    const text =
+      "sections 150 and 150.1, subsection 160(2) or (3), and sections 170, 171 or 172";
+    const found = findProvisionReferences(text);
+    expect(found.map((reference) => reference.locator)).toEqual([
+      "sec150",
+      "sec150.1",
+      "sec160(2)",
+      "sec160(3)",
+      "sec170",
+      "sec171",
+      "sec172",
+    ]);
+    for (const reference of found) {
+      expect(text.slice(reference.start, reference.end)).toBe(reference.raw);
+    }
+  });
+
+  it("inherits external-instrument status across a coordinated list", () => {
+    const found = findProvisionReferences(
+      "Sections 302 and 906 of the Sarbanes-Oxley Act",
+    );
+    expect(found.map(({ locator, external }) => ({ locator, external }))).toEqual([
+      { locator: "sec302", external: true },
+      { locator: "sec906", external: true },
+    ]);
+  });
+
+  it("does not expand an ambiguous singleton comma", () => {
+    expect(findProvisionReferences("Section 5, 2020 was a difficult year")).toHaveLength(
+      1,
+    );
+  });
+
   it("reads roman container numbering, which the anchored dialect cannot", () => {
     const [reference] = findProvisionReferences(ACACIA_ROMAN);
     expect(reference.raw).toBe("Article VI");

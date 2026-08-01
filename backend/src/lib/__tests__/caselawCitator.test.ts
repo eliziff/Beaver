@@ -124,6 +124,16 @@ afterEach(async () => {
 });
 
 describe("caselaw citator note-up graph", () => {
+  it("keys one citation without surrounding case names or pinpoints", async () => {
+    const citator = await import("../caselawCitator");
+    expect(
+      citator.citationLookupKey("R v Tak, 2005 BCCA 293 at para 4"),
+    ).toBe("2005bcca293");
+    expect(() =>
+      citator.citationLookupKey("2015 SCC 5 and 2019 SCC 5"),
+    ).toThrow(/multiple citations/u);
+  });
+
   it(
     "builds the graph via the real script and notes up citations",
     { timeout: 60_000 },
@@ -233,6 +243,34 @@ describe("caselaw citator note-up graph", () => {
       const capped = citator.noteUpCitations({ citation: "2015 SCC 5", size: 1 });
       expect(capped!.entries).toMatchObject([{ citation: "2020 FC 100" }]);
       expect(capped!.total).toBe(2);
+      expect(
+        citator.noteUpCitations({
+          citation: "2015 SCC 5",
+          courtScope: "appellate",
+        }),
+      ).toMatchObject({
+        total: 1,
+        entries: [
+          {
+            citation: "2018 ONCA 50",
+            courtLevel: 4,
+            occurrences: 1,
+            distinctParagraphs: 0,
+          },
+        ],
+      });
+      expect(
+        citator.noteUpCitations({
+          citation: "2015 SCC 5",
+          courtCode: "fc",
+        }),
+      ).toMatchObject({ total: 1, entries: [{ citation: "2020 FC 100" }] });
+      expect(
+        citator.noteUpCitations({
+          citation: "2015 SCC 5",
+          sort: "most_discussed",
+        })!.entries.map((entry) => entry.citation),
+      ).toEqual(["2020 FC 100", "2018 ONCA 50"]);
       // ...but distinct forms are distinct nodes. Without resolution
       // evidence the French twin finds only French-keyed edges, and the
       // S.C.R. parallel citation only its own occurrences.
