@@ -5171,3 +5171,14 @@ Task `version` bumped 1 -> 2 for all 27; checks, instructions, fixtures
 and reference solutions are unchanged, and self-test still reports 27/27
 solvable and 27/27 rejecting every wrong result.
 
+
+**Final-receipt refresh (2026-08-01, after the last chains drained).** The
+addendum table was computed at 1,093 scored cells; the receipts settled
+at 1,100. Re-scored on the final set the later pairing is paired n=191
+and every figure is unchanged within rounding: reached_any -0.1780
+[-0.2258, -0.1319], reached_all -0.2827 [-0.3553, -0.2121],
+reached_by_read -0.0314 [-0.0898, 0.0335], chars_exposed -9,773
+[-12557, -7321], latency +1,464 ms. The one cosmetic move is f1_best,
++0.0013 [-0.0211, 0.0269] -> **-0.0011 [-0.0224, 0.0245]** — the point
+estimate crosses zero, which strengthens rather than weakens the
+"no demonstrated quality effect" reading. No conclusion changes.
