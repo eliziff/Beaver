@@ -160,7 +160,29 @@ describe("local assistant tools", () => {
     expect(scoped.hits[0].page).toBe('PDF page 3 (printed "2")');
     expect(text.slice(scoped.hits[0].at)).toMatch(/^Section 2\.01/u);
 
-    const links = await run("library_links", { section: "2.01" });
+    // The orientation call carries the page map, including the divergence.
+    const outline = await run("library_outline", {});
+    expect(outline.pages).toMatchObject({
+      count: 3,
+      addressable_by: ["pdf", "printed"],
+      printed_differs_from_pdf: 3,
+    });
+
+    // One address grammar across the tools, and tail reads.
+    const viaAt = await run("library_read", { at: "printed:1" });
+    expect(viaAt).toMatchObject({ ok: true, pdf_page: 2, matched_on: "printed" });
+    // 200 is the schema floor for max_chars; the tail is exactly the last
+    // window, so an execution page is reachable without a length probe.
+    const tail = await run("library_read", { from: "end", max_chars: 200 });
+    expect(tail.text).toBe(text.slice(text.length - 200));
+    expect(tail.offset).toBe(text.length - 200);
+    const scopedByAt = await run("library_find", {
+      query: "Section",
+      at: "printed:2",
+    });
+    expect(scopedByAt.hits).toHaveLength(1);
+
+    const links = await run("library_links", { at: "2.01" });
     expect(links.ok).toBe(true);
     expect(
       links.references_out.map((edge: { target: string }) => edge.target),
