@@ -675,12 +675,19 @@ async function run() {
 
   mkdirSync(RECEIPTS, { recursive: true });
   const output = path.join(RECEIPTS, `navshape-rag-${arm}-${form}-r${rep}.jsonl`);
+  // Resume on COMPLETED rows only. A transport failure (the Codex backend
+  // 429s under too much concurrency) writes an error row, and treating that
+  // as done would bake a scored zero into the arm mean for a cell the model
+  // never got to answer. Receipts are append-only, so the retry appends a
+  // second row for that cell and the report keeps the completed one.
   const done = new Set(
     existsSync(output)
       ? readFileSync(output, "utf8")
           .split("\n")
           .filter(Boolean)
-          .map((line) => String((JSON.parse(line) as Row).test_id))
+          .map((line) => JSON.parse(line) as Row)
+          .filter((row) => row.status === "completed")
+          .map((row) => String(row.test_id))
       : [],
   );
   const todo = cells.filter((cell) => !done.has(cell.id));
@@ -764,9 +771,15 @@ function clusterBootstrap(
   };
 }
 
-function loadRows(): Row[] {
-  if (!existsSync(RECEIPTS)) return [];
-  return readdirSync(RECEIPTS)
+/**
+ * Append-only receipts can hold a retried cell twice (a 429 error row plus the
+ * completed retry). Scoring keeps the completed row and counts the error rows
+ * separately as an instrument-failure rate — an error row scored as f1=0 would
+ * be a transport fault masquerading as an arm's answer.
+ */
+function loadRows(): { rows: Row[]; transportErrors: number; duplicates: number } {
+  if (!existsSync(RECEIPTS)) return { rows: [], transportErrors: 0, duplicates: 0 };
+  const all = readdirSync(RECEIPTS)
     .filter((name) => /^navshape-rag-.*\.jsonl$/u.test(name))
     .flatMap((name) =>
       readFileSync(path.join(RECEIPTS, name), "utf8")
@@ -774,6 +787,22 @@ function loadRows(): Row[] {
         .filter(Boolean)
         .map((line) => JSON.parse(line) as Row),
     );
+  const best = new Map<string, Row>();
+  let duplicates = 0;
+  for (const row of all) {
+    const k = `${row.arm}|${row.form}|${row.rep}|${row.test_id}`;
+    const held = best.get(k);
+    if (!held) best.set(k, row);
+    else {
+      duplicates += 1;
+      if (held.status !== "completed" && row.status === "completed") best.set(k, row);
+    }
+  }
+  return {
+    rows: [...best.values()],
+    transportErrors: all.filter((row) => row.status === "error").length,
+    duplicates,
+  };
 }
 
 const key = (row: Row) => `${row.form}|${row.rep}|${row.test_id}`;
@@ -785,6 +814,22 @@ const num = (value: unknown) => (typeof value === "number" ? value : value === t
  * evidence of arm equality, so they are counted and reported, never dropped. */
 const SOLVED = 0.5;
 const solved = (row: Row) => num(row.f1_best) >= SOLVED;
+
+/**
+ * Stricter navigation metric, derived from the stored traces (no re-run).
+ * `reached_any` counts library_find's +/-context window, which on a 10k
+ * document a couple of finds can blanket — it saturates at 1.000 and stops
+ * discriminating. `reached_by_read` asks the sharper question: did a
+ * library_read — the model committing to a location — land on gold?
+ */
+function reachedByRead(row: Row, goldSpans: [number, number][]): boolean {
+  const reads = ((row.tool_calls as ToolTrace[]) ?? [])
+    .filter((trace) => trace.name === "library_read")
+    .flatMap((trace) => trace.spans);
+  return goldSpans.some(([gs, ge]) =>
+    reads.some(([rs, re]) => Math.min(re, ge) > Math.max(rs, gs)),
+  );
+}
 
 /**
  * Shortcut census bands. library_read's default window is 24,000 chars and
@@ -800,7 +845,17 @@ const sizeBand = (chars: number) =>
         ? "C 60k-200k"
         : "D >200k nav-mandatory";
 
+/** test_id -> gold spans, for the derived `reached_by_read` metric. */
+const goldByTest = () =>
+  new Map(
+    loadCells().map((cell) => [
+      cell.id,
+      cell.gold.map((g) => [g.start, g.end] as [number, number]),
+    ]),
+  );
+
 function pairedTable(rows: Row[], schemaTokensByArm: Record<string, number>) {
+  const gold = goldByTest();
   const byArm = new Map<string, Map<string, Row>>();
   for (const row of rows) {
     const bucket = byArm.get(String(row.arm)) ?? new Map<string, Row>();
@@ -830,6 +885,22 @@ function pairedTable(rows: Row[], schemaTokensByArm: Record<string, number>) {
         `${metric.padEnd(14)} ${fmt(a).padStart(8)} ${fmt(b).padStart(9)} ${fmt(band.mean).padStart(8)}   [${fmt(band.lo)}, ${fmt(band.hi)}]`,
       );
     }
+    // Stricter navigation metric: did a committed library_read land on gold?
+    {
+      const units = keys.map((k) => ({
+        document: String(legacy.get(k)!.document),
+        value:
+          (reachedByRead(address.get(k)!, gold.get(String(address.get(k)!.test_id)) ?? []) ? 1 : 0) -
+          (reachedByRead(legacy.get(k)!, gold.get(String(legacy.get(k)!.test_id)) ?? []) ? 1 : 0),
+      }));
+      const band = clusterBootstrap(units);
+      const rate = (side: Map<string, Row>) =>
+        mean(keys.map((k) => (reachedByRead(side.get(k)!, gold.get(String(side.get(k)!.test_id)) ?? []) ? 1 : 0)));
+      console.log(
+        `reached_by_read ${rate(legacy).toFixed(4).padStart(8)} ${rate(address).toFixed(4).padStart(9)} ${band.mean.toFixed(4).padStart(8)}   [${band.lo.toFixed(4)}, ${band.hi.toFixed(4)}]`,
+      );
+    }
+
     // Tokens, with and without the arm's schema. The schema is re-sent every
     // model turn, so its cost is per-turn, not per-cell.
     console.log("\ntokens          legacy   address");
@@ -996,20 +1067,23 @@ function affordances(rows: Row[]) {
 }
 
 function report() {
-  const rows = loadRows();
+  const { rows, transportErrors, duplicates } = loadRows();
   if (!rows.length) {
     console.log("no receipts yet");
     return;
   }
-  console.log(`rows: ${rows.length}`);
+  console.log(`scored cells: ${rows.length}  (${duplicates} retried cell(s) de-duplicated)`);
   const cells = new Map<string, number>();
   for (const row of rows) {
     const k = `${row.arm}|${row.form}|r${row.rep}`;
     cells.set(k, (cells.get(k) ?? 0) + 1);
   }
   for (const [k, count] of [...cells].sort()) console.log(`  ${k}: ${count}`);
-  const errors = rows.filter((row) => row.status === "error");
-  if (errors.length) console.log(`  errors: ${errors.length}`);
+  const stillErrored = rows.filter((row) => row.status === "error");
+  console.log(
+    `  transport failures written to receipts (Codex 429 under concurrency): ${transportErrors}` +
+      `; still unrecovered after retry: ${stillErrored.length}`,
+  );
 
   const tokensFile = path.join(RECEIPTS, "navshape-rag-schema-tokens.json");
   const schemaTokensByArm: Record<string, number> = existsSync(tokensFile)
