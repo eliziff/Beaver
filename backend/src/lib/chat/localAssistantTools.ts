@@ -771,6 +771,84 @@ const LEGACY_DESCRIPTIONS: Record<string, string> = {
 };
 
 /**
+ * PROGRESSIVE DISCLOSURE, address arm only.
+ *
+ * Tool-selection accuracy is measured to degrade past roughly 20-25 tools,
+ * and this surface carries 44. That is very likely a larger effect than any
+ * wording in the schemas, so the address arm keeps only the verbs a task
+ * starts with and defers the rest behind one discovery call.
+ *
+ * Resident = what you need before you know what the task is: find the
+ * document, orient, read, search, follow, edit, ask. Everything else is a
+ * domain the model can open when the task turns out to need it.
+ */
+const RESIDENT_TOOLS = new Set([
+  "ask_inputs",
+  "library_list",
+  "library_outline",
+  "library_read",
+  "library_find",
+  "library_links",
+  "library_lookup",
+  "library_evidence",
+  "library_apply_text_ops",
+  "describe_tools",
+  "submit_grounded_answer",
+]);
+
+/**
+ * Deferred tools grouped the way a task arrives, not the way the code is
+ * organised — a model asks "I need to research case law", never "I need the
+ * courtlistener module".
+ */
+const TOOL_DOMAINS: Record<string, string> = {
+  research: "case law, legislation, journals, Hansard, citation verification",
+  drafting: "create or revise Word, Excel and PowerPoint documents",
+  review: "conflict, term-drift, structure, anchor and drafting checks",
+  amendment: "apply amendments and compare versions",
+  authorities: "table of authorities submission and status",
+  deadlines: "deadline computation",
+  workflow: "saved workflows",
+};
+
+const DOMAIN_OF: Record<string, string> = {
+  courtlistener_search_case_law: "research",
+  courtlistener_get_cases: "research",
+  courtlistener_find_in_case: "research",
+  courtlistener_lookup_case_locator: "research",
+  courtlistener_read_case: "research",
+  courtlistener_verify_citations: "research",
+  a2aj_search: "research",
+  a2aj_fetch: "research",
+  a2aj_lookup: "research",
+  caselaw_note_up: "research",
+  hansard_search: "research",
+  hansard_fetch: "research",
+  public_legal_source_search: "research",
+  public_legal_source_fetch: "research",
+  public_legal_source_lookup: "research",
+  legal_pdf_lookup: "research",
+  library_create_docx: "drafting",
+  library_revise_docx: "drafting",
+  library_update_metadata: "drafting",
+  library_link_docx_citations: "review",
+  library_fix_docx_supras: "review",
+  library_lint_docx_structure: "review",
+  library_anchor_coverage: "review",
+  library_conflict_scan: "review",
+  library_term_drift: "review",
+  library_drafting_lint: "review",
+  library_bilingual_concordance: "review",
+  library_apply_amendment: "amendment",
+  library_compare_versions: "amendment",
+  toa_submit_library_document: "authorities",
+  toa_job_status: "authorities",
+  library_deadline: "deadlines",
+  list_workflows: "workflow",
+  read_workflow: "workflow",
+};
+
+/**
  * The edit scope is part of the surface under test, not a constant. Legacy
  * names an edit site by RETYPING document text (find_text / range); address
  * names it structurally. Leaving `at` in both arms would have let legacy
@@ -988,6 +1066,52 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
     },
   ),
 ];
+
+const DESCRIBE_TOOLS_TOOL: OpenAIToolSchema = tool(
+  "describe_tools",
+  `Open a domain of tools that are not loaded yet, and get their full schemas. Domains: ${Object.entries(
+    TOOL_DOMAINS,
+  )
+    .map(([name, blurb]) => `${name} (${blurb})`)
+    .join("; ")}. Call this the moment a task needs one of them; the tools become callable immediately after.`,
+  {
+    type: "object",
+    properties: {
+      domains: {
+        type: "array",
+        items: { type: "string", enum: Object.keys(TOOL_DOMAINS) },
+        description: "One or more domains to open.",
+      },
+    },
+    required: ["domains"],
+  },
+);
+
+/**
+ * Split for the address arm: what ships in the request, and what
+ * `describe_tools` can reveal. Exported because the A/B harness owns the
+ * conversation loop and has to add revealed tools to the next request.
+ */
+export function partitionTools(tools: OpenAIToolSchema[]): {
+  resident: OpenAIToolSchema[];
+  deferred: OpenAIToolSchema[];
+} {
+  if (NAV_TOOL_SHAPE !== "address") return { resident: tools, deferred: [] };
+  const resident = tools.filter((entry) => RESIDENT_TOOLS.has(entry.function.name));
+  const deferred = tools.filter((entry) => !RESIDENT_TOOLS.has(entry.function.name));
+  return { resident: [...resident, DESCRIBE_TOOLS_TOOL], deferred };
+}
+
+/** Schemas for the domains a `describe_tools` call asked for. */
+export function toolsForDomains(
+  tools: OpenAIToolSchema[],
+  domains: string[],
+): OpenAIToolSchema[] {
+  const wanted = new Set(domains.map((domain) => domain.trim().toLowerCase()));
+  return tools.filter((entry) =>
+    wanted.has(DOMAIN_OF[entry.function.name] ?? ""),
+  );
+}
 
 export const LOCAL_ASSISTANT_TOOLS: OpenAIToolSchema[] = [
   ...(ASK_INPUTS_DISABLED ? [] : LOCAL_ASK_INPUTS_TOOLS),
@@ -2057,6 +2181,27 @@ export async function runLocalAssistantTools(
   return Promise.all(
     calls.map(async (call) => {
       const args = call.input;
+
+      if (call.name === "describe_tools") {
+        const domains = stringArray(args.domains).filter(
+          (domain) => domain in TOOL_DOMAINS,
+        );
+        if (!domains.length) {
+          return fail(
+            call,
+            `domains must name at least one of: ${Object.keys(TOOL_DOMAINS).join(", ")}`,
+          );
+        }
+        const opened = toolsForDomains(LOCAL_ASSISTANT_TOOLS, domains);
+        return result(call, {
+          ok: true,
+          domains,
+          // The caller adds these to the next request; naming them here is
+          // what makes the disclosure legible in a transcript.
+          opened: opened.map((entry) => entry.function.name),
+          tools: opened,
+        });
+      }
       if (call.name === LEGAL_EVIDENCE_PLAN_TOOL_NAME) {
         const planned = legalEvidenceState
           ? planLegalEvidence(args, legalEvidenceState)
@@ -2807,6 +2952,50 @@ export async function runLocalAssistantTools(
             : offset;
           const window = document.text.slice(start, start + maxChars);
           const windowCut = start + window.length < document.text.length;
+          /**
+           * CAPABILITY ON CONTACT. The schema can only advertise addressing
+           * in the abstract, identically for a paginated PDF and a DOCX with
+           * no pages at all. The document itself knows. On the opening read
+           * — the moment of contact — say what THIS document affords, so the
+           * model asks for things that exist instead of guessing from a
+           * generic description.
+           *
+           * Only on the opening read: it costs a skeleton compile, and
+           * repeating it on every windowed read would pay that per turn for
+           * information that has not changed.
+           */
+          const opening = addressArm && start === 0;
+          let affords: Record<string, unknown> | null = null;
+          if (opening) {
+            const skeletonNow = compileAgreementSkeleton(document.text);
+            const schemes = pageSchemes(document.pages);
+            const sections = skeletonNow.nodes.filter(
+              (node) => node.kind !== "subsection",
+            ).length;
+            affords = {
+              ...(sections ? { sections } : {}),
+              ...(document.pages.pages.length
+                ? {
+                    pages: document.pages.pages.length,
+                    page_addresses: [
+                      ...(schemes.pdfPages ? ["pdf"] : []),
+                      ...(schemes.printedLabels ? ["printed"] : []),
+                    ],
+                  }
+                : { pages: 0, pages_note: document.pages.source }),
+              ...(skeletonNow.crossReferences.internal
+                ? { cross_references: skeletonNow.crossReferences.internal }
+                : {}),
+              ...(skeletonNow.outline?.entries?.length
+                ? { contents_outline: skeletonNow.outline.entries.length }
+                : {}),
+              ...(sections
+                ? {}
+                : {
+                    note: "No numbered structure detected; address by page or offset, or search.",
+                  }),
+            };
+          }
           return result(call, {
             ok: true,
             filename: document.filename,
@@ -2814,6 +3003,7 @@ export async function runLocalAssistantTools(
               ? { notes_of_caution: document.cautions }
               : {}),
             ...(start > 0 ? { offset: start } : {}),
+            ...(affords ? { addressable: affords } : {}),
             text: window,
             truncated: windowCut,
             ...(windowCut
