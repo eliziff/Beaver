@@ -329,9 +329,13 @@ async function parent() {
   const surface = surfaceById(argOf("surface"));
   const dataHome = mkdtempSync(path.join(os.tmpdir(), "docx-edit-bench-"));
   const manifestPath = path.join(dataHome, "llm-manifest.jsonl");
+  // tsx lives in the backend workspace, not beside this file.
+  const tsxCli = require.resolve("tsx/cli", {
+    paths: [path.join(__dirname, "..", "..", "..", "backend")],
+  });
   const result = spawnSync(
     process.execPath,
-    [require.resolve("tsx/cli"), __filename, ...process.argv.slice(2)],
+    [tsxCli, __filename, ...process.argv.slice(2)],
     {
       env: {
         ...process.env,
