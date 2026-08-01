@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   compileAgreementSkeleton,
+  readContentsOutline,
   readSection,
   renderAgreementOutline,
 } from "../legalTextSkeleton";
@@ -507,6 +508,113 @@ describe("compileAgreementSkeleton: segmentation competition", () => {
       (n) => n.label,
     );
     expect(labels).not.toContain("sec12.01");
+  });
+});
+
+describe("the contents page as an outline", () => {
+  // The document from the segmentation test above, whose contents page the
+  // span compiler is right to refuse: twelve entries packed into a padded
+  // prefix, then a body that never heads a line.
+  const body = Array.from(
+    { length: 12 },
+    (_, i) => `Section ${i + 1}.01 is discussed at length. ${"Filler text. ".repeat(40)}`,
+  ).join(" ");
+  const contents =
+    "TABLE OF CONTENTS   " +
+    Array.from({ length: 12 }, (_, i) => `${i + 1}.01 Heading ${i + 1} ${i + 1}   `).join(
+      "",
+    );
+  const DOC = `${contents}${body}`;
+  const skeleton = compileAgreementSkeleton(DOC);
+
+  it("keeps the inventory the span compiler refuses, with its cited pages", () => {
+    const outline = skeleton.outline;
+    expect(outline).not.toBeNull();
+    expect(outline!.entries.map((entry) => entry.label)).toEqual(
+      Array.from({ length: 12 }, (_, i) => `sec${i + 1}.01`),
+    );
+    expect(outline!.entries.map((entry) => entry.page)).toEqual(
+      Array.from({ length: 12 }, (_, i) => i + 1),
+    );
+    expect(outline!.entries[3].heading).toBe("Heading 4");
+    expect(outline!.pagesCited).toBe(12);
+  });
+
+  it("is a separate product: no outline entry reaches the node inventory", () => {
+    const labels = new Set(skeleton.nodes.map((node) => node.label));
+    for (const entry of skeleton.outline!.entries) {
+      expect(labels.has(entry.label)).toBe(false);
+    }
+  });
+
+  it("gives an entry no span into the document", () => {
+    const entry = skeleton.outline!.entries[0];
+    expect(entry).not.toHaveProperty("start");
+    expect(entry).not.toHaveProperty("end");
+    // The one offset it carries is the contents LINE, not the provision.
+    expect(DOC.slice(entry.contentsLineStart, entry.contentsLineStart + 15)).toBe(
+      "1.01 Heading 1 ",
+    );
+  });
+
+  it("stops at the document's own body rather than walking into it", () => {
+    // The body's first sentence begins "Section 1.01", a label the contents
+    // already named: the walk ends there instead of naming it twice.
+    expect(skeleton.outline!.regionEnd).toBeLessThan(contents.length);
+  });
+
+  it("refuses, typed, when the document never says it has one", () => {
+    const withoutMarker = compileAgreementSkeleton(DOC.replace("TABLE OF CONTENTS", ""));
+    expect(withoutMarker.outline).toBeNull();
+    expect(withoutMarker.outlineRefusal).toBe("no_contents_marker");
+  });
+
+  it("refuses a clause list that cites no pages", () => {
+    // Same shape, no page numbers: a list of clauses is not a contents page,
+    // and there is nothing here for a page-addressed reader to use.
+    const clauses =
+      "CONTENTS\n" +
+      Array.from({ length: 12 }, (_, i) => `${i + 1}.01 Obligations of the parties`).join(
+        "\n",
+      );
+    const { outline, refusal } = readContentsOutline(`${clauses}\n\n${body}`);
+    expect(outline).toBeNull();
+    expect(refusal).toBe("no_contents_entries");
+  });
+
+  it("reads the packed dialect, where entries are joined by single spaces", () => {
+    // What a PDF extractor leaves: the whole contents page on one line.
+    const packed =
+      "TABLE OF CONTENTS Page ARTICLE I DEFINITIONS 2 Section 1.01 Defined Terms 2 " +
+      "Section 1.02 Interpretation 4 ARTICLE II THE MERGER 5 Section 2.01 The Merger 5 " +
+      "Section 2.02 Closing 6";
+    const { outline } = readContentsOutline(packed);
+    expect(outline!.entries.map((entry) => entry.label)).toEqual([
+      "art1",
+      "sec1.01",
+      "sec1.02",
+      "art2",
+      "sec2.01",
+      "sec2.02",
+    ]);
+    expect(outline!.entries[1].parentLabel).toBe("art1");
+    expect(outline!.entries[1].depth).toBe(1);
+    expect(outline!.entries[4].parentLabel).toBe("art2");
+    expect(outline!.entries[0].heading).toBe("DEFINITIONS");
+  });
+
+  it("does not read a page footer as the entry's page", () => {
+    // A printed folio between two contents lines reads as a page DECREASE if
+    // it is absorbed, which would end the region a third of the way in.
+    const withFooter =
+      "TABLE OF CONTENTS\nARTICLE I DEFINITIONS 60\nSection 1.01 Defined Terms 61\n\n" +
+      "2\n\nSection 1.02 Interpretation 62\nSection 1.03 Currency 63\n" +
+      "Section 1.04 Notices 64\nSection 1.05 Time 65";
+    const { outline } = readContentsOutline(withFooter);
+    expect(outline!.entries).toHaveLength(6);
+    expect(outline!.entries.map((entry) => entry.page)).toEqual([
+      60, 61, 62, 63, 64, 65,
+    ]);
   });
 });
 
