@@ -413,7 +413,7 @@ export async function streamClaudeP(
   const slug = claudePModelSlug(params.model);
   if (!slug) throw new Error(`Not a claude-p model: ${params.model}`);
   const { callbacks = {}, runTools, tools = [] } = params;
-  const maxIter = params.maxIterations ?? 10;
+  const maxIter = params.maxIterations;
 
   // Images are not carried over this transport (modelSupportsImageInput
   // fails closed for claude-p models).
@@ -439,7 +439,7 @@ export async function streamClaudeP(
   // follow-up a live session can consume instead of a full replay.
   let continuation: string | null = null;
   try {
-    for (let iter = 0; iter < maxIter; iter++) {
+    for (let iter = 0; maxIter === undefined || iter < maxIter; iter++) {
       throwIfAborted(params.abortSignal);
       const claudeTools = (params.resolveTools?.() ?? tools).map((tool) => ({
         name: tool.function.name,
@@ -582,14 +582,6 @@ export async function streamClaudeP(
       const results = await runTools(toolCalls);
       throwIfAborted(params.abortSignal);
       if (results.some((result) => result.terminal)) break;
-      // Halfway budget meter — same contract as the Responses adapter.
-      if (results.length && iter + 1 === Math.floor(maxIter / 2)) {
-        const last = results[results.length - 1];
-        results[results.length - 1] = {
-          ...last,
-          content: `${last.content}\n\n[Tool budget: ${iter + 1} of ${maxIter} rounds used. Plan the remaining rounds to end with the final answer.]`,
-        };
-      }
       messages.push({ role: "assistant", content: blocks });
       messages.push({
         role: "user",

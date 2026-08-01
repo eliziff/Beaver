@@ -161,7 +161,11 @@ export async function streamDeepSeek(
   let fullText = "";
 
   try {
-    for (let iteration = 0; iteration < (params.maxIterations ?? 10); iteration++) {
+    for (
+      let iteration = 0;
+      params.maxIterations === undefined || iteration < params.maxIterations;
+      iteration++
+    ) {
       throwIfAborted(params.abortSignal);
       const response = await createCompletion({
         apiKey: key,

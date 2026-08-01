@@ -271,7 +271,7 @@ export async function streamResponsesApi(
     runTools,
     enableThinking,
   } = params;
-  const maxIter = params.maxIterations ?? 10;
+  const maxIter = params.maxIterations;
   // Recomputed per iteration when `resolveTools` is supplied: a tool revealed
   // by a discovery call in iteration N must be callable in iteration N+1.
   let responseTools = toResponseTools(tools);
@@ -319,7 +319,7 @@ export async function streamResponsesApi(
   const trace = createLlmTrace({ provider: config.provider, model });
 
   try {
-    for (let iter = 0; iter < maxIter; iter++) {
+    for (let iter = 0; maxIter === undefined || iter < maxIter; iter++) {
       throwIfAborted(params.abortSignal);
       if (params.resolveTools) responseTools = toResponseTools(params.resolveTools());
       const instructions = responseInstructions(
@@ -522,15 +522,6 @@ export async function streamResponsesApi(
         0,
       );
       if (results.some((result) => result.terminal)) break;
-      // The round budget is enforced silently by this loop; at halfway the
-      // model gets told, so the remaining rounds are planned, not spent.
-      if (results.length && iter + 1 === Math.floor(maxIter / 2)) {
-        const last = results[results.length - 1];
-        results[results.length - 1] = {
-          ...last,
-          content: `${last.content}\n\n[Tool budget: ${iter + 1} of ${maxIter} rounds used. Plan the remaining rounds to end with the final answer.]`,
-        };
-      }
       const resultItems: ResponseInputItem[] = results.map((result) => ({
         type: "function_call_output",
         call_id: result.tool_use_id,

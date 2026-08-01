@@ -336,7 +336,6 @@ export async function runLLMStream({
       systemPrompt,
       messages: chatMessages,
       tools: activeTools as OpenAIToolSchema[],
-      maxIterations: 10,
       apiKeys,
       reasoningEffort,
       serviceTier,

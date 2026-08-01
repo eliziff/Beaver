@@ -265,7 +265,7 @@ export async function streamOllama(
   if (!slug) throw new Error(`Not an ollama model: ${params.model}`);
   const { callbacks = {}, runTools, tools = [] } = params;
   const numCtx = configuredNumCtx();
-  const maxIter = params.maxIterations ?? 10;
+  const maxIter = params.maxIterations;
 
   // Images are not carried over this transport (fails closed).
   const messages: OllamaMessage[] = [
@@ -287,7 +287,7 @@ export async function streamOllama(
     cacheWriteInputTokens: null,
   };
 
-  for (let iter = 0; iter < maxIter; iter++) {
+  for (let iter = 0; maxIter === undefined || iter < maxIter; iter++) {
     throwIfAborted(params.abortSignal);
     const activeTools = params.resolveTools?.() ?? tools;
     compactOldToolResults(messages, activeTools, numCtx);
