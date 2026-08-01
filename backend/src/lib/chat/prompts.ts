@@ -147,9 +147,18 @@ export const SPREADSHEET_CITATION_PROMPT = `SPREADSHEET CITATIONS:
  * false they are omitted entirely so the model is not told about tools it
  * does not have.
  */
+export const DOMAIN_PROMPTS: Record<string, string> = {
+  research: `${COURTLISTENER_SYSTEM_PROMPT}\n\n${A2AJ_SYSTEM_PROMPT}\n\n${PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT}`,
+};
+
 export function buildSystemPrompt(includeResearchTools = true): string {
-  return includeResearchTools
-    ? `${SYSTEM_PROMPT_BEFORE_RESEARCH}\n\n${COURTLISTENER_SYSTEM_PROMPT}\n\n${A2AJ_SYSTEM_PROMPT}\n\n${PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT}\n${SYSTEM_PROMPT_AFTER_RESEARCH}`
+  // Under progressive disclosure the research TOOLS are deferred, so their
+  // prose defers with them whatever the caller's flag says: instructions for
+  // tools that are not loaded are pure cost. Same rule
+  // SPREADSHEET_CITATION_PROMPT already follows.
+  const deferred = process.env.MIKE_NAV_SHAPE === "address";
+  return includeResearchTools && !deferred
+    ? `${SYSTEM_PROMPT_BEFORE_RESEARCH}\n\n${DOMAIN_PROMPTS.research}\n${SYSTEM_PROMPT_AFTER_RESEARCH}`
     : `${SYSTEM_PROMPT_BEFORE_RESEARCH}\n\n${SYSTEM_PROMPT_AFTER_RESEARCH}`;
 }
 
