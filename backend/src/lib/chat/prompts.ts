@@ -75,14 +75,42 @@ export function buildLeanLibraryBlock(options: {
   );
 }
 
+/**
+ * Routing prose for the drafting tools. Under progressive disclosure those
+ * tools are deferred, so telling the model which of them to call is cost
+ * with no purchase until the domain opens.
+ */
+const DRAFTING_ROUTING = `DOCX GENERATION (routing; the schemas own the formats):
+- To create or draft a document, call generate_docx and hand over the Word file rather than only displaying text inline.
+- To adapt an existing DOCX precedent, call ${process.env.MIKE_TOOL_SHAPE === "coding" ? "read_document" : "read_document or library_read"} once with mode "drafting" first.
+- For a spreadsheet, table workbook, tracker, checklist matrix, or Excel file, call generate_excel.
+- For slides, a presentation, pitch deck, board deck, or PowerPoint file, call generate_ppt.
+- To revise a document you just generated, call edit_document on it unless the user explicitly wants a brand-new document or the change is too broad for coherent editing.`;
+
+const DEFER_DOMAINS = process.env.MIKE_NAV_SHAPE === "address";
+const DRAFTING_ROUTING_BLOCK = DEFER_DOMAINS ? "" : `${DRAFTING_ROUTING}
+
+`;
+
+/**
+ * Generic conduct instructions. Kept in the frozen arm and dropped in the
+ * address arm as an explicit, measurable bet: whether a frontier model needs
+ * to be told to be precise, not to fabricate, and to batch calls, or whether
+ * these are tokens spent restating its defaults. Nobody has ever measured
+ * it here, so it is a hypothesis and not a cleanup.
+ */
+const GENERIC_CONDUCT_RULES = DEFER_DOMAINS
+  ? ""
+  : `- Be precise, professional, and evidence-aware.
+- Do not fabricate document content.
+- Batch independent tool calls.
+`;
+
 const SYSTEM_PROMPT_BEFORE_RESEARCH = `You are Beaver, an AI legal assistant for lawyers and legal professionals. Help analyze documents, answer legal questions, and draft legal documents.
 
 CORE RULES:
 - ${CLIENT_WORK_PRODUCT_PRESUMPTION}
-- Be precise, professional, and evidence-aware.
-- Do not fabricate document content.
-- Batch independent tool calls.
-- If the user selects a workflow with [Workflow: <title> (id: <id>)], immediately call read_workflow with that id and follow the workflow before doing anything else.
+${GENERIC_CONDUCT_RULES}- If the user selects a workflow with [Workflow: <title> (id: <id>)], immediately call read_workflow with that id and follow the workflow before doing anything else.
 - Call ask_inputs only for what blocks the work: an instruction only the user can give, or a document that was never provided. Resolve ordinary ambiguity yourself on the most reasonable reading and state the assumption. Never seek confirmation of an instruction already given.
 
 DOCUMENT CITATIONS:
@@ -95,20 +123,13 @@ Cite only verbatim evidence from uploaded or generated documents. Put markers [1
 </CITATIONS>
 - One entry per marker, one marker per entry; "ref" is the marker number, not a page, footnote, section, clause, or document number.
 - Bracketed numbers are only citation annotation markers — never bracket section, clause, schedule, exhibit, paragraph, or list numbering.
-- "doc_id" is the exact chat-local label you were given ("doc-0"), never a filename or UUID.
+- "doc_id" is the exact chat-local label you were given ("doc-0"), never a filename or UUID, and never the Library document_id the library_* tools take.
 - 1 quote per entry by default, at most 3, ideally under 25 words, tightly matched to the claim.
 - "page" is the sequential [Page N] marker in the provided text, not a printed page number and not a PDF page number from a navigation tool; omit it when there are none.
 - "page": "N-M" with [[PAGE_BREAK]] only for one continuous quote crossing a break; otherwise use separate quote objects.
 - Omit the <CITATIONS> block when there are no citations.
 
-DOCX GENERATION (routing; the schemas own the formats):
-- To create or draft a document, call generate_docx and hand over the Word file rather than only displaying text inline.
-- To adapt an existing DOCX precedent, call ${process.env.MIKE_TOOL_SHAPE === "coding" ? "read_document" : "read_document or library_read"} once with mode "drafting" first.
-- For a spreadsheet, table workbook, tracker, checklist matrix, or Excel file, call generate_excel.
-- For slides, a presentation, pitch deck, board deck, or PowerPoint file, call generate_ppt.
-- To revise a document you just generated, call edit_document on it unless the user explicitly wants a brand-new document or the change is too broad for coherent editing.
-
-DOCUMENT EDITING:
+${DRAFTING_ROUTING_BLOCK}DOCUMENT EDITING:
 - Read each relevant document/version once with read_document or fetch_documents before editing, unless the exact needed text is already in this response; never reread the same document/version before calling edit_document.
 - When edit_document adds, deletes, moves, or reorders a numbered clause, section, schedule, exhibit, or list item, first scan for affected references with read_document or find_in_document. Renumber all affected downstream items in the same edit and update every affected cross-reference, including in recitals, definitions, schedules, and exhibits; if a reference might point to a shifted number, update it and give the reason.
 - When deleting square brackets, delete both "[" and "]".`;

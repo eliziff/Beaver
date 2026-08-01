@@ -72,6 +72,17 @@ export type StreamChatParams = {
   systemPrompt: string;
   messages: LlmMessage[];
   tools?: OpenAIToolSchema[];
+  /**
+   * Re-read the tool list before every iteration of the tool loop, so a
+   * caller can REVEAL tools mid-conversation — progressive disclosure, where
+   * a discovery call opens a domain and its tools become callable on the
+   * next turn.
+   *
+   * Without this the list is snapshotted once and a revealed tool can never
+   * be called, which forces a caller to duplicate the provider loop. Purely
+   * additive: when absent, `tools` behaves exactly as before.
+   */
+  resolveTools?: () => OpenAIToolSchema[];
   maxIterations?: number;
   callbacks?: StreamCallbacks;
   runTools?: (calls: NormalizedToolCall[]) => Promise<NormalizedToolResult[]>;
