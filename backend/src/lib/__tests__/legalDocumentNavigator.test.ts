@@ -145,21 +145,12 @@ describe("resolvePage", () => {
   });
 
   /**
-   * THE case this exists for. In a document whose front matter is printed
-   * "i", "1" names two different sheets, and a table of contents means the
-   * second. Answering with either silently would hand back the wrong page.
+   * The two schemes are two different questions, not two readings of one.
+   * In a document whose front matter is printed "i", PDF page 1 and the
+   * sheet printed "1" are different sheets, and the caller says which it
+   * wants — nothing here decides on its behalf.
    */
-  it("refuses a request that names two different sheets", () => {
-    const { text, doc } = offsetPagedDoc();
-    const map = pageMapFromSourceDoc(doc);
-    const lookup = resolvePage(map, text, "1");
-    expect(lookup.status).toBe("ambiguous");
-    if (lookup.status !== "ambiguous") return;
-    expect(lookup.asPdfPage.printedLabel).toBe("i");
-    expect(lookup.asPrintedLabel.pdfPage).toBe(2);
-  });
-
-  it("takes a qualifier to settle it, in either direction", () => {
+  it("answers each numbering scheme separately", () => {
     const { text, doc } = offsetPagedDoc();
     const map = pageMapFromSourceDoc(doc);
     const printed = resolvePage(map, text, "printed:1");
@@ -168,6 +159,21 @@ describe("resolvePage", () => {
     const pdf = resolvePage(map, text, "pdf:1");
     expect(pdf.status === "found" && pdf.page.printedLabel).toBe("i");
     expect(pdf.status === "found" && pdf.matchedOn).toBe("pdf");
+  });
+
+  /**
+   * Unqualified, digits are the scheme every PDF has; a roman or prefixed
+   * label can only be printed. No guess, and no refusal.
+   */
+  it("reads a bare number as a PDF page and a bare label as printed", () => {
+    const { text, doc } = offsetPagedDoc();
+    const map = pageMapFromSourceDoc(doc);
+    const bare = resolvePage(map, text, "1");
+    expect(bare.status === "found" && bare.matchedOn).toBe("pdf");
+    expect(bare.status === "found" && bare.page.printedLabel).toBe("i");
+    const roman = resolvePage(map, text, "i");
+    expect(roman.status === "found" && roman.matchedOn).toBe("printed");
+    expect(roman.status === "found" && roman.page.pdfPage).toBe(1);
   });
 
   it("refuses an absent label and reports the range that exists", () => {
@@ -214,10 +220,10 @@ describe("selectPages", () => {
 
   it("propagates an endpoint refusal rather than dropping it", () => {
     const { text, doc } = offsetPagedDoc();
-    const failed = selectPages(pageMapFromSourceDoc(doc), text, "1");
+    const failed = selectPages(pageMapFromSourceDoc(doc), text, "printed:99");
     expect(failed.status).toBe("failed");
     if (failed.status !== "failed") return;
-    expect(failed.lookup.status).toBe("ambiguous");
+    expect(failed.lookup.status).toBe("not_found");
   });
 });
 
