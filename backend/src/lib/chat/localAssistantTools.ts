@@ -207,7 +207,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
         at: {
           type: "string",
           description:
-            "Where to read. Bare is structural, from the document's own numbering ('8.01', 'Article VIII', 'Schedule 7.01', 's. 8(2)'), and returns that span with its children. 'pdf:52' and 'printed:47' are the two page schemes — the printed label is the number on the sheet, which is what a pinpoint citation, an index or an exhibit stamp refers to, and it need not equal the PDF page. 'off:12000' is a raw window, and pairs with library_find hits' `at` offsets. Omit to read from the start. library_outline lists the handles and says which page schemes this document has.",
+            "Where to read: '8.01' or 'Article VIII' for a provision and everything under it, 'pdf:52' or 'printed:47' for a page, 'off:12000' for a raw window. Omit to read from the start. library_outline explains the addresses this document has.",
         },
         from: {
           type: "string",
@@ -231,7 +231,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
   ),
   tool(
     "library_outline",
-    "Orientation call: the structural map parsed from the document's own numbering — the ARTICLE/PART tree, every Section and (a)/(i) subsection with the handle library_read at= accepts, defined terms with their defining section, schedules/exhibits, cross-reference counts — plus the page map, which says whether this document is addressable by PDF page, by printed label, or both, and where the two diverge. A ~100-page agreement maps to 1-3k tokens.",
+    "Orientation call, and where the address grammar is defined. Returns the ARTICLE/PART tree with every Section and (a)/(i) subsection, defined terms with their defining section, schedules, cross-reference counts, and the page map. Addresses: a node handle ('8.01', 'Article VIII') names a provision and everything under it; 'pdf:52' names the sheet's position in the file; 'printed:47' names the number printed ON the sheet, which is what a pinpoint citation, index or exhibit stamp refers to and need not equal the PDF page. The page map says which of those this document has and where they diverge. A ~100-page agreement maps to 1-3k tokens.",
     {
       type: "object",
       properties: {
@@ -289,7 +289,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
         at: {
           type: "string",
           description:
-            "Restrict the search. Bare is structural — one provision and everything under it ('8.01', 'Article VIII'). 'pdf:12-18', 'printed:47', 'pdf:3,5,9' scope to pages. Give both `at` and `pages` to require BOTH. Hit offsets stay document-wide, so a hit still reads with library_read at='off:N'.",
+            "Restrict the search to one address: '8.01' for a provision and everything under it, 'pdf:12-18' or 'printed:47' for pages. Hit offsets stay document-wide.",
         },
         pages: { type: "string", description: "Deprecated: use at." },
         section: { type: "string", description: "Deprecated: use at." },
@@ -748,12 +748,31 @@ const LEGACY_ONLY_PARAMS: Record<string, string[]> = {
   library_links: ["section"],
 };
 
+/**
+ * Descriptions the legacy arm needs because the shared text advertises
+ * affordances it does not have. An arm that tells the model to call `at=`
+ * when `at` is not in its schema measures the harness, not the surface.
+ */
+const LEGACY_DESCRIPTIONS: Record<string, string> = {
+  library_outline:
+    "Structural map of a Library document parsed from its own numbering: the ARTICLE/PART tree, every Section and (a)/(i) subsection with the handle library_read section= accepts, defined terms with their defining section, schedules/exhibits, and cross-reference counts. A ~100-page agreement maps to 1-3k tokens.",
+};
+
 function forNavShape(tools: OpenAIToolSchema[]): OpenAIToolSchema[] {
   const address = NAV_TOOL_SHAPE === "address";
   const drop = address ? LEGACY_ONLY_PARAMS : ADDRESS_ONLY_PARAMS;
   return tools
     .filter((entry) => address || entry.function.name !== "library_links")
     .map((entry) => {
+      const legacyText = !address
+        ? LEGACY_DESCRIPTIONS[entry.function.name]
+        : undefined;
+      if (legacyText) {
+        entry = {
+          ...entry,
+          function: { ...entry.function, description: legacyText },
+        } as OpenAIToolSchema;
+      }
       const remove = drop[entry.function.name];
       if (!remove) return entry;
       const properties = { ...(entry.function.parameters?.properties ?? {}) };
@@ -2831,8 +2850,15 @@ export async function runLocalAssistantTools(
           const page = document.pages.pages.length
             ? pageAt(document.pages, hit.at)
             : null;
+          // `at` is a character offset here and an ADDRESS on library_read.
+          // In the address arm that collision is a trap — at="12345" parses
+          // as a structural locator, not an offset — so the address arm
+          // hands back something directly passable instead.
           return {
             ...hit,
+            ...(NAV_TOOL_SHAPE === "address"
+              ? { at: `off:${hit.at}`, offset: hit.at }
+              : {}),
             section: owner?.label ?? null,
             ...(page ? { page: pageLabel(page) } : {}),
           };
