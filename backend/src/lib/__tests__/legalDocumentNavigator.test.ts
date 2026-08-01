@@ -109,7 +109,7 @@ describe("pageMapFromMarkers", () => {
   it("is our own printed format, not a pattern found in prose", () => {
     expect(
       pageMapFromMarkers("The parties agree that [page 9] is a citation form."),
-    ).toEqual({ pages: [], source: "none" });
+    ).toEqual({ pages: [], source: "unpaginated" });
   });
 });
 

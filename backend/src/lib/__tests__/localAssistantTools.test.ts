@@ -73,7 +73,7 @@ describe("local assistant tools", () => {
       // A PDF whose artifact yields no page records reports UNAVAILABLE, not
       // "none": the file has pages, we just could not index them, and the
       // refusal must not claim otherwise.
-      pages: { pages: [], source: "unavailable" },
+      pages: { pages: [], source: "unindexed" },
     });
     expect(sourceReads).not.toHaveBeenCalled();
   });
