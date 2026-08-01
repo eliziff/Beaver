@@ -531,7 +531,7 @@ async function runCell(args: {
 }): Promise<Row> {
   const { cell, documentId, tools } = args;
   const text = corpusText(cell.document);
-  const traces: ToolTrace[] = [];
+  let traces: ToolTrace[] = [];
   const declared = new Map(
     tools.map((entry) => [
       entry.function.name,
@@ -549,8 +549,33 @@ async function runCell(args: {
   let error: string | null = null;
   let usage: import("../src/lib/llm").NormalizedLlmUsage | null = null;
 
+  /**
+   * The Codex backend 429s in bursts once a few harness processes overlap.
+   * Without backoff a burst is worse than slow: every queued cell fails in
+   * milliseconds, so one storm consumes the whole pass and leaves a receipt
+   * full of error rows. Retry the transport, never the scoring.
+   */
+  const attempt = async <T>(run: () => Promise<T>): Promise<T> => {
+    let wait = 4_000;
+    for (let tries = 0; ; tries += 1) {
+      try {
+        // A retried attempt is a fresh trajectory: discard the partial
+        // trace and turn count, or a cell that 429'd mid-loop would report
+        // one navigation as two.
+        traces = [];
+        modelTurns = 1;
+        return await run();
+      } catch (caught) {
+        const message = caught instanceof Error ? caught.message : String(caught);
+        if (tries >= 5 || !/\b429\b|rate limit/iu.test(message)) throw caught;
+        await new Promise((resolve) => setTimeout(resolve, wait + Math.random() * wait));
+        wait *= 2;
+      }
+    }
+  };
+
   try {
-    const outcome = await args.streamChatWithTools({
+    const outcome = await attempt(() => args.streamChatWithTools({
       model: MODEL,
       reasoningEffort: EFFORT,
       enableThinking: false,
@@ -604,7 +629,7 @@ async function runCell(args: {
         });
         return results;
       },
-    });
+    }));
     answer = outcome.fullText.trim();
     usage = outcome.usage ?? null;
   } catch (caught) {
