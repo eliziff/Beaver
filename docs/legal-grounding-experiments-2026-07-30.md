@@ -4332,3 +4332,156 @@ per-cell verdict, disagreement audit and false-accept count in Stages
 Caveat carried forward, same as Stage 5's: this crossing confounds family
 with that family's anchor model and cannot decompose the two. Nothing
 retired on this run.
+
+## Stage 21 â€” navigation-surface A/B on LegalBench-RAG-mini, AGENTIC (registered 2026-07-31 before the first arm call)
+
+Every stage above injects retrieved passages and prices the *composer*.
+This one removes the retriever: the model gets a document id, a
+question, and a navigation tool surface, and must reach the answer
+itself. What is being compared is the surface, not the pipeline.
+
+`MIKE_NAV_SHAPE` (`NAV_TOOL_SHAPE`, `backend/src/lib/chat/localAssistantTools.ts`)
+selects which schema the model sees. Verified by census, not taken on
+trust (`scripts/nav-shape-rag.ts arms`):
+
+- **arm A `legacy`** â€” `library_read(document_id, mode, section, offset,
+  max_chars)`, `library_find(document_id, query, regex, case_insensitive,
+  max_results, context_chars)`, `library_outline(document_id, max_chars)`.
+  3 tools; 2,716 chars of `function` bodies, **2,809** with the
+  `{"type":"function","function":}` wrappers.
+- **arm B `address`** â€” `library_read(document_id, mode, at, from,
+  max_chars)`, `library_find(..., at, follow, depth, ...)`,
+  `library_links(document_id, at, max_results)`, `library_outline` (same
+  schema, but its *result* now carries a page map). 4 tools; 4,882 chars
+  of bodies, **5,006** wrapped. Delta **+2,197 chars, +1 tool**.
+
+Measured provider-side schema cost on `codex:gpt-5.6-sol`, same system
+prompt, tools attached vs not: legacy **544** input tokens, address
+**1,027**. Delta **+483 tokens per model turn** â€” and the schema is
+re-sent every turn, so the price is per-turn, not per-cell.
+
+### Bed and its two oracles (both must be 100% before any model call)
+
+LegalBench-RAG mini, 69 documents / 776 tests over contractnli, cuad,
+maud, privacy_qa. A CRLF/LF defect silently corrupted 25% of this bed
+for five stages, so nothing here is assumed:
+
+1. **Gold-coordinate oracle** â€” `text.slice(start,end) === answer` on
+   the corpus loader's normalized bytes, per source.
+   `scripts/legalbench-gold-oracle-check.ts`: **1362/1362**, 17 maud
+   files carry CR so normalization is load-bearing. PASS.
+2. **Surface-fidelity oracle** â€” the library surface has no `.txt`
+   parser, so each corpus file is ingested as DOCX with one `w:p` per LF
+   line (`extractDocxBodyText` joins paragraphs with a newline). The text
+   `extractLocalDocument` hands the model must be byte-identical to the
+   corpus text gold indexes into: **69/69 documents identical**, and all
+   **1362/1362** gold spans still slice to their answer out of the
+   surface's own text. PASS. The model therefore navigates the exact
+   coordinate space gold describes.
+
+Ingest also fixes what the bed can and cannot ask: the DOCX has no fixed
+pagination, so arm B's page schemes (`at="pdf:N"`, `at="printed:X"`,
+`find(pages=)`) are **structurally inert here** and the outline's page
+map reports `count: 0`. Registered in advance: a share of arm B's
++2,197 chars cannot pay for itself on this corpus. Reported, not
+corrected for â€” and the page-vs-provision split of `at` is measured
+anyway, because an attempted page address that errors still costs a
+turn.
+
+### The separation is schema-only â€” measured, and it is a defect
+
+Direct handler probe (`runLocalAssistantTools`, both arms, same
+document): the shared handler honours **the other arm's vocabulary in
+both directions**. In arm A, `at="off:15054"` reads identically to
+`offset=15054`, `from="end"` works, and `library_links` â€” a tool arm A's
+schema does not list â€” executes normally. In arm B, `section=` and
+`offset=` dispatch down the same paths as `at=`. `forNavShape` strips
+parameters from the *schema* only; nothing rejects an out-of-schema
+argument at the boundary.
+
+So the arms are separated only by what the model is *shown*. That is a
+real experimental hazard: a model guessing the other arm's vocabulary
+silently crosses conditions. Registered instrument: every tool call
+records `off_schema_keys` (argument names the calling arm's schema does
+not declare). **Any run whose off-schema rate is materially nonzero is
+reported as contaminated rather than quietly averaged.** This is a
+finding about `backend/src`, not a change to it â€” nothing under
+`backend/src` is touched by this stage.
+
+### Design
+
+- **Sample** `n=160`: 40 per source, stratified, seeded
+  (`nav-shape-rag-2026-07-31`, per-source SHA-256 of `seed|source`),
+  60 distinct documents. Justification from the program's own bands, not
+  a round number: paired 1-sigma is +/-0.0065 at n=776, so sigma scales to
+  +/-0.0065 * sqrt(776/160) = **+/-0.0143** at 160, about **+/-0.028** at
+  95%. Two replicates per cell put the replicate-averaged paired
+  difference near +/-0.010 (1 sigma) *if* run-to-run noise is independent
+  â€” which is exactly what the replicate floor below measures rather than
+  assumes. 40/source is the largest stratum that keeps the full 2x2x2
+  factorial (arm x query-form x replicate = 1,280 agentic cells) inside
+  one laggy-machine session at concurrency 3. Per-source paired sigma is
+  +/-0.026 * sqrt(194/40) = +/-0.057, which is coarse; per-source numbers
+  are a breakdown, always printed with their n, never a headline.
+- **Query form, both reported as separate numbers.** Every mini query is
+  `Consider <document descriptor>; <question>`; stripping took document
+  recall 1.00 -> 0.71 on the retrieval plane (Stage 18 F1). Here the
+  document is pinned, so `asis` vs `stripped` prices the name's effect
+  on *within-document* navigation only. The split is fail-closed â€” a
+  query with no `; ` aborts the run (asserted: 776/776 split cleanly).
+  Scope stated in advance: **document selection is excluded by design**
+  (neither arm has a cross-document search tool, so it is not a
+  nav-shape-differentiating step), and the filename still appears in
+  every tool result, so `stripped` removes the name from the *prior*,
+  not from the document.
+- **Paired**: identical test, document, form and replicate in both arms.
+  Model held constant, flat-rate only: `codex:gpt-5.6-sol`, effort
+  `low`, `maxIterations` 10, no per-token API spend.
+- **Prompt is arm-neutral**: names no tool, no parameter and no
+  addressing vocabulary; identical bytes in both arms.
+- **At least 2 replicates per cell**, so the arm effect can be separated
+  from run-to-run stochasticity.
+
+### Measured per cell
+
+`f1_all` (token-F1 vs all gold snippets concatenated), `f1_best` (best
+single-snippet token-F1 â€” partial credit), `recall_all`; the token-F1
+scorer is the one Stages 6â€“20 already use
+(`scripts/legal-grounding-experiment.ts tokenF1`), reused verbatim, not
+rewritten. Navigation is scored separately from composition:
+**`reached_any`/`reached_all`** = whether the model's own calls ever put
+a gold span in front of it, computed from `library_read`'s
+`offset`+verbatim `text` and `library_find`'s per-hit `at`+excerpt+context
+window. Plus: tool-call count, per-call tool name and argument names,
+`at`-kind (page / provision / offset), whether `follow` fired, whether
+`library_links` was ever called, off-schema keys, input+output tokens
+(total, and net of the measured per-turn schema cost), model turns,
+wall-clock.
+
+Bands are a **cluster bootstrap over documents** (2,000 draws) â€” the bed
+has 7 privacy_qa documents carrying 194 tests, so per-test independence
+is false.
+
+### Registered reading rules
+
+- The **within-arm replicate floor** (|rep1-rep2| on the same arm, form
+  and test) is printed beside every between-arm difference. A paired
+  difference inside its own floor is reported as inside the noise, in
+  those words.
+- An **obvious regression disqualifies arm B**: registered in advance as
+  a paired drop in `f1_best` or `reached_any` whose 95% cluster-bootstrap
+  CI excludes 0 in the negative direction, on the pooled `asis` cells.
+- A capability nobody calls is a finding, and is reported as such:
+  `library_links` call count, `follow` fire count, and the
+  page-vs-provision split of `at` are printed whether or not they are
+  zero.
+- Nothing is retired on this stage. Every number is printed with the n
+  it came from.
+
+Harness `backend/scripts/nav-shape-rag.ts` (this stage only; the
+edit-side nav A/B and `backend/scripts/nav-shape-edit-*` are another
+agent's). Receipts, private and append-only, under the LOCALAPPDATA
+experiments dir as `navshape-rag-<arm>-<form>-r<rep>.jsonl`.
+Disclosed: a 4-cell throughput pilot (arm A, `asis`) ran before this
+registration was committed; those rows are the first four cells of
+`legacy-asis-r1` and are retained, not discarded.
