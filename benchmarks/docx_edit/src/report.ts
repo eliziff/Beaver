@@ -146,8 +146,28 @@ function main() {
   });
   metric("runs blocked on a hidden tool", (l) =>
     `${l.filter((r) => (r.refused_unserved_calls ?? []).length > 0).length}/${l.length}`);
-  metric("opened but never called", (l) =>
-    `${l.filter((r) => (r.opened_never_called ?? []).length > 0).length}/${l.length}`);
+  // Per DISCLOSURE, not per tool. Opening a domain reveals several tools and
+  // a model normally wants one of them, so a per-tool count is non-empty
+  // almost by construction and says nothing. The question worth asking is
+  // whether the domain bought anything at all.
+  const wastedDisclosures = (list: Receipt[]) => {
+    let events = 0;
+    let wasted = 0;
+    for (const receipt of list) {
+      for (const event of receipt.disclosure_events ?? []) {
+        events += 1;
+        const used = event.opened.some((name) =>
+          receipt.tools_used ? Boolean(receipt.tools_used[name]) : false,
+        );
+        if (!used) wasted += 1;
+      }
+    }
+    return { events, wasted };
+  };
+  metric("disclosures that bought nothing", (l) => {
+    const { events, wasted } = wastedDisclosures(l);
+    return events ? `${wasted}/${events}` : "n/a";
+  });
   table.push([
     "replicate disagreement (floor)",
     ...surfaces.map((s) => {
