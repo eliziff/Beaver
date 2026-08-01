@@ -1094,7 +1094,10 @@ function pairedTable(rows: Row[], schemaTokensByArm: Record<string, number>) {
 /** Within-arm replicate floor: the same arm, same form, same test, different
  * replicate. Any between-arm difference smaller than this is stochasticity. */
 function replicateFloor(rows: Row[]) {
+  const gold = goldByTest();
   console.log("\n--- within-arm replicate floor (|rep1 - rep2|, same arm/form/test) ---");
+  console.log("Read this FIRST: a between-arm difference smaller than the floor for the");
+  console.log("same metric is UNDECIDED at this n, not null.");
   console.log("arm      form      n   metric        mean|diff|   paired diff 95% CI");
   const byCell = new Map<string, Row[]>();
   for (const row of rows) {
@@ -1113,16 +1116,27 @@ function replicateFloor(rows: Row[]) {
   }
   for (const [k, group] of [...groups].sort()) {
     const [arm, form] = k.split("|");
-    for (const metric of ["f1_best", "reached_any", "n_tool_calls"] as const) {
-      const abs = group.map((entry) => Math.abs(num(entry.rows[0][metric]) - num(entry.rows[1][metric])));
+    // Same metrics the between-arm table reports, so the two are comparable
+    // line for line — including the derived navigation and exposure ones.
+    const pickers: Record<string, (row: Row) => number> = {
+      f1_best: (row) => num(row.f1_best),
+      reached_any: (row) => num(row.reached_any),
+      reached_by_read: (row) =>
+        reachedByRead(row, gold.get(String(row.test_id)) ?? []) ? 1 : 0,
+      n_tool_calls: (row) => num(row.n_tool_calls),
+      chars_exposed: charsExposed,
+    };
+    for (const [metric, pick] of Object.entries(pickers)) {
+      const abs = group.map((entry) => Math.abs(pick(entry.rows[0]) - pick(entry.rows[1])));
       const signed = group.map((entry) => ({
         document: entry.document,
-        value: num(entry.rows[1][metric]) - num(entry.rows[0][metric]),
+        value: pick(entry.rows[1]) - pick(entry.rows[0]),
       }));
       const band = clusterBootstrap(signed);
+      const fmt = (value: number) => (Math.abs(value) >= 100 ? value.toFixed(0) : value.toFixed(4));
       console.log(
-        `${arm.padEnd(8)} ${form.padEnd(9)} ${String(group.length).padStart(3)}  ${metric.padEnd(13)} ` +
-          `${mean(abs).toFixed(4).padStart(9)}   ${band.mean.toFixed(4)} [${band.lo.toFixed(4)}, ${band.hi.toFixed(4)}]`,
+        `${arm.padEnd(8)} ${form.padEnd(9)} ${String(group.length).padStart(3)}  ${metric.padEnd(15)} ` +
+          `${fmt(mean(abs)).padStart(9)}   ${fmt(band.mean)} [${fmt(band.lo)}, ${fmt(band.hi)}]`,
       );
     }
   }
