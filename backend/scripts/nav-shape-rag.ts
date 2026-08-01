@@ -810,9 +810,14 @@ function loadRows(): { rows: Row[]; transportErrors: number; duplicates: number 
       if (held.status !== "completed" && row.status === "completed") best.set(k, row);
     }
   }
+  // A transport failure is NOT an answer. Scoring an unrecovered 429 as
+  // f1=0 would let a rate limit masquerade as the arm failing the cell, and
+  // it moves the arm mean by however many cells the network dropped. Error
+  // rows leave the scored set entirely and are counted instead.
+  const scored = [...best.values()].filter((row) => row.status === "completed");
   return {
-    rows: [...best.values()],
-    transportErrors: all.filter((row) => row.status === "error").length,
+    rows: scored,
+    transportErrors: [...best.values()].length - scored.length,
     duplicates,
   };
 }
@@ -834,6 +839,35 @@ const solved = (row: Row) => num(row.f1_best) >= SOLVED;
  * discriminating. `reached_by_read` asks the sharper question: did a
  * library_read — the model committing to a location — land on gold?
  */
+/**
+ * Union of every document char the cell put in front of the model. Guards the
+ * obvious confound on `reached_by_read`: an arm could "navigate better" merely
+ * by reading wider windows. Union, not sum, so overlapping reads are not
+ * double-counted.
+ */
+function charsExposed(row: Row): number {
+  const spans = ((row.tool_calls as ToolTrace[]) ?? []).flatMap((trace) => trace.spans);
+  if (!spans.length) return 0;
+  const sorted = [...spans].sort((a, b) => a[0] - b[0]);
+  let total = 0;
+  let [start, end] = sorted[0];
+  for (const [s, e] of sorted.slice(1)) {
+    if (s > end) {
+      total += end - start;
+      [start, end] = [s, e];
+    } else if (e > end) end = e;
+  }
+  return total + (end - start);
+}
+
+/** Mean width of the windows a cell's library_read calls returned. */
+function meanReadWidth(row: Row): number {
+  const widths = ((row.tool_calls as ToolTrace[]) ?? [])
+    .filter((trace) => trace.name === "library_read")
+    .flatMap((trace) => trace.spans.map(([s, e]) => e - s));
+  return widths.length ? widths.reduce((a, b) => a + b, 0) / widths.length : 0;
+}
+
 function reachedByRead(row: Row, goldSpans: [number, number][]): boolean {
   const reads = ((row.tool_calls as ToolTrace[]) ?? [])
     .filter((trace) => trace.name === "library_read")
@@ -910,6 +944,24 @@ function pairedTable(rows: Row[], schemaTokensByArm: Record<string, number>) {
         mean(keys.map((k) => (reachedByRead(side.get(k)!, gold.get(String(side.get(k)!.test_id)) ?? []) ? 1 : 0)));
       console.log(
         `reached_by_read ${rate(legacy).toFixed(4).padStart(8)} ${rate(address).toFixed(4).padStart(9)} ${band.mean.toFixed(4).padStart(8)}   [${band.lo.toFixed(4)}, ${band.hi.toFixed(4)}]`,
+      );
+    }
+
+    // Exposure control: `reached_by_read` would be cheap to win by reading
+    // wider, so the amount of document each arm had to look at is paired too.
+    for (const [label, pick] of [
+      ["chars_exposed", charsExposed],
+      ["mean_read_width", meanReadWidth],
+    ] as const) {
+      const units = keys.map((k) => ({
+        document: String(legacy.get(k)!.document),
+        value: pick(address.get(k)!) - pick(legacy.get(k)!),
+      }));
+      const band = clusterBootstrap(units);
+      const a = mean(keys.map((k) => pick(legacy.get(k)!)));
+      const b = mean(keys.map((k) => pick(address.get(k)!)));
+      console.log(
+        `${label.padEnd(14)} ${a.toFixed(0).padStart(8)} ${b.toFixed(0).padStart(9)} ${band.mean.toFixed(0).padStart(8)}   [${band.lo.toFixed(0)}, ${band.hi.toFixed(0)}]`,
       );
     }
 
@@ -1111,10 +1163,8 @@ function report() {
     cells.set(k, (cells.get(k) ?? 0) + 1);
   }
   for (const [k, count] of [...cells].sort()) console.log(`  ${k}: ${count}`);
-  const stillErrored = rows.filter((row) => row.status === "error");
   console.log(
-    `  transport failures written to receipts (Codex 429 under concurrency): ${transportErrors}` +
-      `; still unrecovered after retry: ${stillErrored.length}`,
+    `  cells still unrecovered after retry (Codex 429; EXCLUDED from scoring, not scored as 0): ${transportErrors}`,
   );
 
   const tokensFile = path.join(RECEIPTS, "navshape-rag-schema-tokens.json");
