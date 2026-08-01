@@ -276,6 +276,31 @@ function main() {
     );
   }
 
+  if (process.argv.includes("--trace")) {
+    // Every failed run, in sequence: what it called, with what, and which
+    // check rejected it. This is the raw material for a schema
+    // recommendation — a recommendation not traceable to a line here is a
+    // preference.
+    console.log("\nFailed runs, in full:");
+    for (const receipt of receipts.filter((r) => !r.score.pass)) {
+      console.log(
+        `\n  ${receipt.surface} / ${receipt.task} rep${receipt.replicate} ` +
+          `[${receipt.difficulty}] targets ${receipt.score.sites_correct}/${receipt.score.targets_total}, ` +
+          `guards broken ${receipt.score.sites_wrong}, collateral ${receipt.score.foreign_line_removals}`,
+      );
+      for (const failure of (receipt as unknown as { score: { failures: string[] } }).score
+        .failures) {
+        console.log(`    ! ${failure}`);
+      }
+      for (const call of (receipt as unknown as { calls: { name: string; input: unknown; ok: boolean | null }[] })
+        .calls) {
+        console.log(
+          `    > ${call.name} ${JSON.stringify(call.input).slice(0, 200)}${call.ok === false ? "  [FAILED]" : ""}`,
+        );
+      }
+    }
+  }
+
   if (process.argv.includes("--json")) {
     console.log(JSON.stringify({ surfaces, rows }, null, 1));
   }
