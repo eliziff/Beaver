@@ -5015,3 +5015,72 @@ differ, and every row records `schema_hash`. Stage 21 lost a run because
 a concurrent session edited both arms mid-flight and each process
 silently picked up whatever the file said when it started. Verifying the
 arms once before a run is not enough on a shared tree.
+
+### Stage 21 addendum (2026-08-01): the SECOND frozen pairing disagrees with the first â€” arm B's quality edge does not survive its own revision
+
+Receipts kept filling before the chains were stopped: 1,093 scored
+cells, up from the 881 the correction used. The extra rows are all
+post-drift, so the first pinned subset is unchanged â€” but the later
+schemas now form a **second, larger internally-consistent pairing**:
+legacy 2,671ch (410 rows) x address 5,031ch (208 rows). These are the
+CURRENT definitions on the tree.
+
+#### Two frozen pairings, side by side (`asis`)
+
+| metric | early pairing 2809/5006 (n=100) | later pairing 2671/5031 (n=186) |
+|---|---|---|
+| f1_best | **+0.0231** [0.0070, 0.0426] | **+0.0013** [-0.0211, 0.0269] |
+| reached_any | **0.0000** [0, 0] | **-0.1774** [-0.2251, -0.1315] |
+| reached_all | -0.0300 [-0.0763, 0.0000] | **-0.2849** [-0.3556, -0.2129] |
+| reached_by_read | **+0.1000** [0.0200, 0.1827] | **-0.0269** [-0.0867, 0.0391] |
+| chars_exposed | -352 [-1122, 461] | **-9,789** [-12727, -7075] |
+| n_tool_calls | -0.48 [-0.835, -0.141] | -0.20 [-0.470, 0.053] |
+
+**Correction to the correction.** The correction above said "the
+disqualification trigger does NOT fire on the registered arms". That is
+true of the *early* pairing only. On the current arms it **fires
+robustly** on the largest frozen subset available (n=186): `reached_any`
+-0.1774 with CI [-0.2251, -0.1315], and `reached_all` -0.2849. Recorded
+as fired.
+
+As before, the same metric is unresolvable by this design: arm B's own
+rep1-vs-rep2 floor on `reached_any` is **0.2391 mean absolute**, larger
+than the 0.177 gap. Trigger fired; metric cannot be called at this n.
+
+#### What the disagreement means
+
+1. **Arm B's quality advantage is not reproducible across its own
+   revisions.** f1_best went +0.0231 -> +0.0013 and read-hit +0.1000 ->
+   -0.0269 between two arm B definitions edited hours apart. Neither
+   pairing's f1_best clears its within-arm floor (0.030-0.046 later,
+   0.044-0.076 early). The honest reading of both together is **no
+   demonstrated quality effect**, and the early positive should be
+   treated as a small-n fluctuation rather than a result that a later
+   revision erased.
+2. **The one effect that IS real on the current arms is exposure.**
+   `chars_exposed` -9,789 [-12727, -7075] against floors of 2,556 and
+   5,638 â€” it clears the floor decisively, which the early pairing's
+   -352 did not. The current arm B reads roughly **a quarter as much
+   document** (3,344 vs 13,133 chars) for statistically identical answer
+   quality. `reached_any` and `reached_all` fall as a direct consequence
+   â€” they count gold appearing anywhere the model looked, and it looked
+   far less â€” while `reached_by_read`, the committed-read metric, stays
+   flat. That is the coherent mechanism, and it is why the fired trigger
+   should not be read as "navigates worse".
+3. Arm B is **slower** on the current definitions: latency +1,383 ms
+   [-309, 3529], and its input tokens are only marginally lower
+   (20,665 vs 21,366) despite the far smaller reads.
+
+#### Unchanged on both pairings, and now on 2,941 tool calls
+
+`library_links` **0 calls**. `follow` walked the graph **0 times** in
+597 find calls. `at=` named a page **0 times**. `from="end"` once in
+286 reads. `depth: 1` passed on all 883 find calls with `follow:
+"none"`. Off-schema parameter usage **0**, so the schema-only
+separation held throughout.
+
+**Standing conclusion across everything Stage 21 can support: no
+demonstrated quality difference in either direction; one robust
+behavioural difference (the current arm B reads ~75% less document);
+and the three novel affordances that motivated the arm were never used
+once, across 2,941 tool calls and every schema revision.**
