@@ -6,12 +6,20 @@
  * requirements depend on — so a badly formed task fails at load rather than
  * quietly scoring as a pass.
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { FIXTURES } from "./fixtures";
-import { TASK_SCHEMA, type Task } from "./types";
+import { TASK_SCHEMA, TASK_SETS, type Task, type TaskSet } from "./types";
 
-const TASKS_PATH = path.join(__dirname, "..", "tasks.jsonl");
+/**
+ * One file per additive set. v1 is frozen — its published result depends on
+ * its tasks, checks and fixtures not moving — so a new task goes in the
+ * newest set's file, never into an older one.
+ */
+const TASK_FILES: { set: TaskSet; path: string }[] = TASK_SETS.map((set) => ({
+  set,
+  path: path.join(__dirname, "..", set === "v1" ? "tasks.jsonl" : `tasks-${set}.jsonl`),
+}));
 
 const KNOWN_FIXTURES = new Set(FIXTURES.map((entry) => entry.id));
 
@@ -90,21 +98,27 @@ export function loadTasks(): Task[] {
   const problems: string[] = [];
   const tasks: Task[] = [];
   const seen = new Set<string>();
-  const lines = readFileSync(TASKS_PATH, "utf8").split(/\r?\n/u);
-  lines.forEach((line, index) => {
-    if (!line.trim()) return;
-    let parsed: Task;
-    try {
-      parsed = JSON.parse(line) as Task;
-    } catch (error) {
-      problems.push(`tasks.jsonl:${index + 1}: ${String(error)}`);
-      return;
-    }
-    problems.push(...validate(parsed, index + 1));
-    if (seen.has(parsed.id)) problems.push(`tasks.jsonl:${index + 1}: duplicate id '${parsed.id}'`);
-    seen.add(parsed.id);
-    tasks.push(parsed);
-  });
+  for (const file of TASK_FILES) {
+    if (!existsSync(file.path)) continue;
+    const name = path.basename(file.path);
+    readFileSync(file.path, "utf8")
+      .split(/\r?\n/u)
+      .forEach((line, index) => {
+        if (!line.trim()) return;
+        let parsed: Task;
+        try {
+          parsed = JSON.parse(line) as Task;
+        } catch (error) {
+          problems.push(`${name}:${index + 1}: ${String(error)}`);
+          return;
+        }
+        parsed.set = file.set;
+        problems.push(...validate(parsed, index + 1).map((entry) => entry.replace("tasks.jsonl", name)));
+        if (seen.has(parsed.id)) problems.push(`${name}:${index + 1}: duplicate id '${parsed.id}'`);
+        seen.add(parsed.id);
+        tasks.push(parsed);
+      });
+  }
   if (problems.length) {
     throw new Error(`docx-edit-bench task validation failed:\n  ${problems.join("\n  ")}`);
   }
@@ -120,13 +134,18 @@ export function taskById(id: string): Task {
 
 export function selectTasks(filter: {
   ids?: string[];
+  set?: string[];
   difficulty?: string[];
   category?: string[];
   fixture?: string[];
+  jurisdiction?: string[];
   includeFloor?: boolean;
 }): Task[] {
   return loadTasks().filter((task) => {
     if (filter.ids?.length && !filter.ids.includes(task.id)) return false;
+    if (filter.set?.length && !filter.set.includes(task.set ?? "v1")) return false;
+    if (filter.jurisdiction?.length && !filter.jurisdiction.includes(task.jurisdiction ?? ""))
+      return false;
     if (filter.difficulty?.length && !filter.difficulty.includes(task.difficulty)) return false;
     if (filter.category?.length && !task.categories.some((c) => filter.category!.includes(c)))
       return false;
