@@ -420,6 +420,48 @@ export function nodeLinks(graph: CrossReferenceGraph, label: string): NodeLinks 
   return { outgoing, incoming };
 }
 
+// ---------------------------------------------------------------------------
+// Addresses
+// ---------------------------------------------------------------------------
+
+export type Address =
+  | { kind: "section"; locator: string }
+  | { kind: "page"; spec: string }
+  | { kind: "offset"; start: number };
+
+/**
+ * One address grammar for every navigation tool, so `read`, `find` and
+ * `links` name a place the same way.
+ *
+ * A bare address is STRUCTURAL — "8.01", "Article VIII", "s. 2(1)" — because
+ * that is what the tools already accepted and because a provision number is
+ * the address that survives re-pagination. Pages are asked for by name
+ * (`pdf:52`, `printed:47`, `p.47`), which is also what keeps the two page
+ * schemes separate: nothing has to guess whether "47" meant a clause or a
+ * sheet.
+ */
+export function parseAddress(spec: string): Address | null {
+  const raw = spec.trim();
+  if (!raw) return null;
+  // Longest alternative first, and a word boundary after it: "p" must not
+  // win against "printed", and "part 2" must stay a structural locator.
+  const page = /^(printed|pdf|page|pg|p)\b\s*[:.]?\s*(.+)$/iu.exec(raw);
+  if (page) {
+    const qualifier = page[1].toLowerCase();
+    const value = page[2].trim();
+    return {
+      kind: "page",
+      spec:
+        qualifier === "pdf" || qualifier === "printed"
+          ? `${qualifier}:${value}`
+          : value,
+    };
+  }
+  const offset = /^(?:off|offset)\s*[:.]?\s*(\d{1,9})$/iu.exec(raw);
+  if (offset) return { kind: "offset", start: Number(offset[1]) };
+  return { kind: "section", locator: raw.replace(/^(?:sec|art|sched)\s*[:.]\s*/iu, "") };
+}
+
 export type FollowDirection = "none" | "out" | "in" | "both";
 
 export interface GraphScope {
