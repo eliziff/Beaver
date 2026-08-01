@@ -5584,3 +5584,124 @@ has a negative half so a whole-document rewrite cannot pass; shortcuts
 blocked and left open are enumerated; floor tasks are labelled and
 excluded from any headline. Registration precedes running.
 
+
+## Amendment 2026-07-31c â€” Quebec is withdrawn from v2; bilingual moves to federal
+
+Step 2 established the licence position for every candidate fixture
+source before any document was cut. One result **withdraws a family I
+registered hours earlier in 2026-07-31b**, and it is recorded here
+rather than quietly dropped.
+
+### Quebec is out, and not only for redistribution
+
+LÃ©gisQuÃ©bec's copyright terms
+(https://www.legisquebec.gouv.qc.ca/fr/contenu/droit_auteur) require
+prior authorisation from Publications du QuÃ©bec, with royalties, to
+reproduce, download, store, translate, adapt or publish its content â€”
+expressly binding on for-profit **and non-profit** bodies alike. The
+terms go further and name this use case directly:
+
+> "quiconque dÃ©sire tÃ©lÃ©charger des informations contenues dans le site
+> LÃ©gisQuÃ©bec pour les traiter Ã  l'aide d'un outil d'intelligence
+> artificielle ou pour alimenter cet outil doit obtenir prÃ©alablement
+> une autorisation des Publications du QuÃ©bec."
+
+Anyone wishing to download LÃ©gisQuÃ©bec content **to process it with, or
+to feed, an AI tool** must obtain prior authorisation. Only hyperlinking
+is free.
+
+So Quebec material is not merely non-redistributable; it may not be used
+as unshipped processing input either. The registered "Bilingual and
+Quebec" family is **withdrawn**. No Quebec statute, regulation or form
+enters this benchmark, and none is read into a model.
+
+Corroboration that this is the settled reading among serious actors: the
+A2AJ Canadian corpus, an academic project from Osgoode Hall and Lincoln
+Alexander, **excludes Quebec and Nunavut entirely** â€” verified against
+the local copy, which has no `LEGISLATION-QC` or `REGULATIONS-QC`
+dataset and no Quebec court among its 29 case datasets.
+
+### Bilingual survives, on a cleaner footing
+
+The bilingual family was the point, not the province. Canadian **federal**
+enactments are made in English and French with both versions equally
+authoritative, and the Reproduction of Federal Law Order, SI/97-5,
+permits anyone to reproduce them "without charge or request for
+permission", subject only to accuracy diligence and not representing the
+reproduction as official. The A2AJ laws corpus carries the French mirror
+of every federal row (`citation_fr`, `name_fr`, `unofficial_sections_fr`).
+
+The family is therefore rebuilt on federal EN/FR instruments. The
+practitioner grounding stated in 2026-07-31b â€” that the surveyed skill
+ecosystem contains no bilingual ask at all, so this family is a
+deliberate extension beyond the survey rather than a finding from it â€”
+stands unchanged.
+
+### Licence verdicts, frozen before any fixture is cut
+
+Redistributable, with the stated attribution:
+
+- **CUAD** and **MAUD** â€” CC BY 4.0 (Atticus Project dataset card;
+  MAUD via Zenodo DOI 10.5281/zenodo.7500064). Recorded caveat: neither
+  GitHub repo carries a LICENSE file, so the grant rests on the dataset
+  card and Zenodo record, and those are what the manifest cites.
+- **SEC EDGAR exhibits** â€” redistributable in practice, not by grant.
+  The SEC's own terms permit copying and further distribution of
+  sec.gov information; 17 U.S.C. Â§ 105 does **not** apply, because a
+  privately drafted agreement is not a US Government work, and the
+  government edicts doctrine turns on the author's identity. What
+  copyright subsists in a negotiated commercial agreement is thin.
+  Mitigated by citing filer, CIK, accession number and EDGAR URL, and
+  by never using SEC or EDGAR marks. Stated as risk, not as licence.
+- **Canadian federal statutes, regulations and federal court decisions**
+  â€” Reproduction of Federal Law Order, SI/97-5, plus OGL-Canada on the
+  Justice Canada corpus. Every committed excerpt carries the
+  not-an-official-version notice SI/97-5 requires.
+- **Ontario statutes, regulations and judicial decisions** â€” the King's
+  Printer legal-materials policy permits reproduction without permission
+  or charge, with `Â© King's Printer for Ontario, 20__.` and a
+  not-official-version statement.
+- **US federal AO court forms** â€” 17 U.S.C. Â§ 105.
+
+Reference-only or excluded outright, and why:
+
+- **ContractNLI's corporate NDA templates** (Bosch, NSK, BCG, BT,
+  Eskom, Aspiegel, AfriGIS and the rest) â€” Stanford's CC BY 4.0 tag
+  cannot clear private templates scraped from company websites, and one
+  carries its own copyright notice. **Not committed.** An NDA fixture,
+  if needed, comes from EDGAR instead.
+- **PrivacyQA** â€” third-party website copyright, no licence.
+- **PSPC SACC and generic canada.ca forms** â€” the canada.ca terms are
+  non-commercial only and are *not* OGL; OGL applies only where a
+  dataset is explicitly released under it.
+- **Ontario court forms** (Rules of Civil Procedure) â€” published by the
+  Ministry of the Attorney General outside the regulation itself, with
+  no licence statement, so they fall to the default non-commercial
+  terms. Reference by URL and hash only.
+- **US state court forms** â€” Â§ 105 does not reach state works, and
+  California for one asserts copyright expressly. Reference-only unless
+  a given state publishes a grant.
+- **A2AJ British Columbia** (no upstream licence recorded), **Prince
+  Edward Island** (permission granted to A2AJ personally, not
+  transferable) and **Saskatchewan** (non-commercial) â€” not committed.
+
+### One repo-hygiene finding, outside this benchmark
+
+The CourtListener bulk database bundled under `%LOCALAPPDATA%` is
+licence-clean (Free Law Project publishes bulk data under a Public
+Domain Mark), but **carries no attribution anywhere in the repository** â€”
+not in the importer, not in the data directory, not in a NOTICE file,
+and the root LICENSE has no third-party section. The project performs
+exactly this diligence elsewhere. A `THIRD_PARTY_NOTICES.md` covering
+CourtListener, A2AJ's per-jurisdiction terms, CC BY 4.0 for CUAD and
+MAUD, OGL-Canada and the King's Printer for Ontario is the fix. Recorded
+here because it was found in the course of this work; it is not part of
+this benchmark.
+
+### Method note carried forward
+
+Before any v2 run, assert `text[start:end] == expected` on the exact
+bytes the scorer reads. EDGAR HTML carries `&#160;` and smart quotes,
+A2AJ Markdown carries `Â©` and `Â®`, and a CRLF/LF span defect once
+silently corrupted a quarter of a benchmark here for five stages.
+
