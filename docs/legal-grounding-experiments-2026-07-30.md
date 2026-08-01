@@ -4534,3 +4534,174 @@ between-arm difference smaller than the measured within-arm replicate
 floor is labelled **undecided**, not null: the design does not have the
 resolution to call it, which is a different claim from "the arms are
 the same".
+
+---
+
+# Experiment: document-editing tool surface (docx-edit-bench v1)
+
+**Registered 2026-07-31, before the first model call. Frozen after this
+commit; changes are dated amendments below.**
+
+## Question
+
+How well does a model edit an **arbitrary span of a real document** when
+it is given a tool surface and a semantic instruction? And what does the
+answer say about what an editing schema should look like?
+
+Eli's framing: "measure what the model actually leans on, how token
+efficient it is in both A and B, and what that might tell us about
+editing schema."
+
+## Deliverable
+
+Two things, in this order of value:
+
+1. **`benchmarks/docx_edit` â€” a reusable, surface-agnostic benchmark.**
+   Tasks are data; fixtures are built deterministically and hashed; the
+   checker library scores a produced document; the runner takes a tool
+   surface as configuration. The benchmark does not know what
+   `MIKE_NAV_SHAPE` is, so the next surface is measurable without
+   editing it. Its README carries the honest reporting: solvability
+   rate, per-checker sensitivity, shortcuts left open, floor-task
+   labels, statistical framing.
+2. **The A/B this instrument was built for**, below.
+
+A well-built benchmark with no run is worth more than a run on a thin
+one, so the benchmark ships first and is committed before any model
+call.
+
+## Arms
+
+`MIKE_NAV_SHAPE` selects the navigation surface the model is shown
+(`backend/src/lib/chat/localAssistantTools.ts`). The two arms are
+recorded in `benchmarks/docx_edit/surfaces.jsonl`, and the schema each
+one actually serves was printed with `cli.ts surface --id <arm>` before
+registration:
+
+| | `beaver-legacy` | `beaver-address` |
+|---|---|---|
+| `library_read` | `section`, `offset`, `max_chars`, `mode` | `at`, `from`, `max_chars`, `mode` |
+| `library_find` | unscoped: `query`, `regex`, `case_insensitive`, `max_results`, `context_chars` | plus `at`, `follow`, `depth` |
+| `library_links` | absent | `at`, `max_results` |
+| edit scope kinds | `whole_document`, `find_text`, `range` | plus `at` (with `follow`, `depth`) |
+| tools shown | 27 | 28 |
+
+Naming an edit site in `beaver-legacy` therefore means **retyping exact
+document text**; in `beaver-address` it means naming a provision or a
+page.
+
+**Recorded during setup, and resolved before registration:** an earlier
+read of `localAssistantTools.ts` showed `library_apply_text_ops`
+bypassing the arm filter, so the `at` edit scope leaked into the legacy
+arm and that arm was not the condition it claimed to be. A concurrent
+session landed `forEditShape` and `LEGACY_DESCRIPTIONS` while this
+benchmark was being built, which strips that scope and rewrites the
+`library_outline` description that had been teaching legacy an `at=`
+parameter it does not have. Verified by printing both surfaces. Because
+the product can change under a campaign, every receipt records the
+**sha256 of the tool schema actually served** and the repository HEAD;
+a regression shows up as a hash change rather than as an unexplained
+result.
+
+Remaining description leaks, NOT patched â€” they are part of the served
+surface, and patching them would invent a third condition â€” to be read
+against the results:
+
+- `beaver-address`: `library_links`'s description still says "With
+  `section`, returns ..." and "a handle library_read section= accepts",
+  which is legacy vocabulary in the address arm for a parameter that arm
+  does not have. If address-arm `library_links` calls fail, look here
+  first.
+- `beaver-legacy`: `library_read`'s `offset` description says
+  "Deprecated: use at='off:N'", naming a parameter that arm lacks.
+- Both: `library_find`'s description refers to `section` and `at` in
+  prose.
+
+## Design
+
+- **Model held constant** across arms: `codex:gpt-5.6-sol` through the
+  codex CLI route at `medium` effort. Flat-rate only; no per-token
+  spend.
+- **Prompt held constant and neutral.** The runner uses its own system
+  prompt, identical in both arms, which names no tool and no parameter.
+  The product's own `/chat` prompt hard-codes `library_read section=` in
+  prose, which would teach the address arm a parameter it does not have
+  and un-do the comparison; that is recorded as a product finding, not
+  used as the experimental prompt.
+- 27 tasks x 2 arms x **2 replicates** = 108 runs, at low concurrency.
+- Each run gets a fresh private document store; documents are seeded
+  from the fixture builders; edits execute through the real tool
+  handlers; the resulting DOCX is round-tripped, tracked changes
+  accepted, and scored.
+
+## Measurements, per run
+
+Frozen before the first call: pass by the frozen check; partial credit
+as (sites correctly changed, sites wrongly changed, sites missed);
+collateral line loss; tool calls with **full arguments**; which tools
+and which edit-scope kinds were used; every address argument passed;
+count and character volume of **document text retyped into arguments**;
+count of **misquoted** locating strings, meaning a long string in a
+`find` / `text` / `from_text` / `to_text` / `old_string` / context
+argument that appears in no document, which is arm A's retyping getting
+it wrong; failed tool calls with their error strings; input and output
+tokens from the provider usage manifest; provider turns; wall clock.
+
+## Reporting rules, frozen
+
+- Floor tasks are labelled and **excluded from the headline pass rate**.
+- The **within-arm replicate floor** â€” the share of (arm, task) cells
+  whose two replicates disagree on pass/fail â€” is printed beside every
+  between-arm difference. A difference inside that floor is
+  **undecided**, not null.
+- At n=27 this is **exploratory**. No significance claims.
+- An affordance that exists in an arm and is never used is a finding and
+  is reported as one.
+- Receipts go to
+  `%LOCALAPPDATA%\OpenLegalData\experiments\legal-grounding\2026-07-30\`
+  and are never committed.
+
+## Benchmark validity, established before the run
+
+From `cli.ts self-test`, following arXiv 2507.02825's separation of task
+validity from outcome validity:
+
+- **27/27 tasks have a verified reference solution.** Every task carries
+  its solution as literal edits; applying it finds every string it
+  claims to find and produces a document the checker passes. A task
+  without a demonstrated solution does not ship.
+- **27/27 tasks reject every wrong result**, and **0 site checks have
+  never been observed failing**. Wrong results come from the
+  hand-written near misses, two automatic probes â€” the untouched
+  document, and a partially regenerated document that satisfies the
+  positive half while destroying the tail â€” and one synthetic
+  sensitivity probe per guard that damages exactly what that guard
+  protects.
+- Shortcuts considered, blocked and left open are enumerated in the
+  benchmark README. The load-bearing one, a model that regenerates the
+  document and thereby satisfies any "X now says Y" assertion, is
+  blocked by a zero budget for destroying original lines the reference
+  solution keeps.
+
+## Task set
+
+27 tasks over 11 fixtures: 3 floor, 1 easy, 5 medium, 11 hard, 7
+devious. Instructions are semantic and name no tool, parameter or
+addressing form. Coverage: a single localized edit; the discrimination
+case with the decoy in the same sentence; heading-level scope; a clause
+and the clauses that cross-reference it; downstream renumbering after a
+deletion; propagation of a negotiated change across three registers
+including a spelled-out number; a global defined-term rename with a case
+trap; a cross-document read-one-revise-another; an edit at a page
+boundary where the instruction names the wrong page; a table cell; a
+bilingual pair that must move together; OCR damage; auto-numbering whose
+numbers exist only in `numbering.xml`; an edit into a file that already
+carries tracked changes, a manual redline and comments; and five
+refusals â€” a target that does not exist, a genuinely ambiguous
+instruction, struck text that reads as operative, an obligation already
+inside a tracked deletion, and a target off the addressable plane.
+
+The full list, with each task's `why`, its checks and its reference
+solution, is `benchmarks/docx_edit/tasks.jsonl`; fingerprints are in
+`benchmarks/docx_edit/manifest.jsonl`.
+
