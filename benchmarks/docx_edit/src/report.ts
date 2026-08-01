@@ -64,14 +64,36 @@ const mean = (values: number[]) =>
   values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
 
 function main() {
-  const dir = argOf("out");
-  if (!dir) throw new Error("--out is required");
-  const receipts = readFileSync(path.join(dir, "receipts.jsonl"), "utf8")
-    .split(/\r?\n/u)
-    .filter((line) => line.trim())
-    .map((line) => JSON.parse(line) as Receipt);
+  const dirs = argOf("out")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  if (!dirs.length) throw new Error("--out is required (comma-separate to pool campaigns)");
+  let receipts = dirs.flatMap((dir) =>
+    readFileSync(path.join(dir, "receipts.jsonl"), "utf8")
+      .split(/\r?\n/u)
+      .filter((line) => line.trim())
+      .map((line) => JSON.parse(line) as Receipt),
+  );
   const tasks = loadTasks();
   const surfaces = [...new Set(receipts.map((r) => r.surface))].sort();
+  // Pooling campaigns only compares like with like if every surface ran the
+  // same tasks. Restrict to the intersection and say how many were dropped,
+  // rather than averaging over a ragged matrix.
+  if (surfaces.length > 1 && process.argv.includes("--matched")) {
+    const perSurface = surfaces.map(
+      (surface) => new Set(receipts.filter((r) => r.surface === surface).map((r) => r.task)),
+    );
+    const shared = [...perSurface[0]].filter((task) =>
+      perSurface.every((set) => set.has(task)),
+    );
+    const before = receipts.length;
+    receipts = receipts.filter((r) => shared.includes(r.task));
+    console.log(
+      `matched-task mode: ${shared.length} tasks common to all ${surfaces.length} surfaces; ` +
+        `${before - receipts.length} receipts excluded\n`,
+    );
+  }
 
   // Within-arm floor: for each (surface, task) cell with >1 replicate, how
   // often did replicates of the SAME cell disagree on pass/fail?
