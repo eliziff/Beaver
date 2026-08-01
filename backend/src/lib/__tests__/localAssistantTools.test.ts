@@ -70,9 +70,10 @@ describe("local assistant tools", () => {
       filename: "verified-source.pdf",
       text: "Text from the verified PDF artifact.",
       cautions: [],
-      // A stub artifact carries no page records, so the map is empty rather
-      // than absent — page addressing refuses on "none", it does not throw.
-      pages: { pages: [], source: "none" },
+      // A PDF whose artifact yields no page records reports UNAVAILABLE, not
+      // "none": the file has pages, we just could not index them, and the
+      // refusal must not claim otherwise.
+      pages: { pages: [], source: "unavailable" },
     });
     expect(sourceReads).not.toHaveBeenCalled();
   });
