@@ -25,10 +25,12 @@ import {
   pageLabel,
   pageMapFromMarkers,
   pageMapFromSourceDoc,
+  graphScope,
   pageSections,
   referenceHubs,
   resolvePage,
   selectPages,
+  type FollowDirection,
   type PageMap,
   type PageSpan,
 } from "../legalDocumentNavigator";
@@ -283,6 +285,23 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
           type: "string",
           description:
             'Restrict the search to pages: "47", "12-18", "3,5,9", or a qualified form when the printed label and PDF page differ ("printed:47", "pdf:52", "printed:iv - printed:2"). Paged documents only. Hit offsets stay document-wide, so a hit still reads with library_read offset=.',
+        },
+        section: {
+          type: "string",
+          description:
+            "Restrict the search to one provision and everything under it ('8.01', 'Article VIII'). Combines with pages and follow; when both section and pages are given a hit must satisfy BOTH.",
+        },
+        follow: {
+          type: "string",
+          enum: ["none", "out", "in", "both"],
+          description:
+            "Widen `section` along the document's own cross-references: out = the provisions it points at, in = the provisions that point at it, both = either. Requires section. Defaults to none.",
+        },
+        depth: {
+          type: "integer",
+          minimum: 1,
+          maximum: 3,
+          description: "Hops to follow. Defaults to 1.",
         },
         max_results: { type: "integer", minimum: 1, maximum: 50 },
         context_chars: { type: "integer", minimum: 40, maximum: 2000 },
@@ -1496,7 +1515,7 @@ export async function extractLocalDocument(userId: string, documentId: string) {
     : (() => {
         const recovered = pageMapFromMarkers(text);
         if (recovered.pages.length || fileType !== "pdf") return recovered;
-        return { pages: [], source: "unavailable" as const };
+        return { pages: [], source: "unindexed" as const };
       })();
 
   if (textCache.size >= 16) {
@@ -2416,7 +2435,7 @@ export async function runLocalAssistantTools(
               return result(call, {
                 ok: false,
                 error:
-                  document.pages.source === "unavailable"
+                  document.pages.source === "unindexed"
                     ? "This PDF has pages, but no page index could be built for it — the engine returned no page records for this file. Use section= for a provision or offset= for a window, and treat any page number in the text as unverified."
                     : "This document has no fixed pagination (a DOCX is not paginated until something renders it). Use section= for a provision or offset= for a window.",
               });
@@ -2521,7 +2540,7 @@ export async function runLocalAssistantTools(
               ok: false,
               error:
                 lookup.status === "no_pages"
-                  ? document.pages.source === "unavailable"
+                  ? document.pages.source === "unindexed"
                     ? "This PDF has pages, but no page index could be built for it; drop `pages` and search the whole document."
                     : "This document has no fixed pagination; drop `pages` and search the whole document."
                   : lookup.status === "ambiguous"
@@ -2531,20 +2550,83 @@ export async function runLocalAssistantTools(
           }
           scope = selection.pages;
         }
+        // Structural scope, composed with the page scope by INTERSECTION:
+        // two filters both given read as "in these pages AND in this part of
+        // the document", which is the only reading under which asking for
+        // more narrowing does not widen the result.
+        const seedLocator = trimmed(args.section);
+        let structural: { label: string; start: number; end: number }[] | null =
+          null;
+        let followed: { follow: string; depth: number; nodes: number } | null =
+          null;
+        if (seedLocator) {
+          const skeletonForScope = compileAgreementSkeleton(document.text);
+          const seed = readSection(skeletonForScope, seedLocator);
+          if (seed.status !== "found" || !seed.block) {
+            return result(call, {
+              ok: false,
+              error:
+                `Section '${seedLocator}' not found (${seed.status}` +
+                (seed.matches.length
+                  ? `; candidates: ${seed.matches.join(", ")}`
+                  : "") +
+                "). Call library_outline for the available handles.",
+            });
+          }
+          const follow = (trimmed(args.follow) || "none") as FollowDirection;
+          // The graph is only compiled when it is actually going to be
+          // walked; a plain section scope costs a skeleton and nothing more.
+          const walked =
+            follow === "none"
+              ? null
+              : graphScope(
+                  skeletonForScope,
+                  crossReferenceGraph(document.text, documentId, {
+                    skeleton: skeletonForScope,
+                  }),
+                  seed.block.label,
+                  { follow, depth: clampInt(args.depth, 1, 3, 1) },
+                );
+          const scoped = walked?.nodes ?? [
+            skeletonForScope.nodes.find(
+              (node) => node.label === seed.block!.label,
+            ),
+          ];
+          structural = scoped
+            .filter((node): node is NonNullable<typeof node> => Boolean(node))
+            .map((node) => ({
+              label: node.label,
+              start: node.start,
+              end: node.end,
+            }));
+          if (!structural.length) {
+            // readSection resolved a SourceDoc block that no skeleton node
+            // backs — report it rather than searching the whole document.
+            return result(call, {
+              ok: false,
+              error: `Section '${seedLocator}' resolved to '${seed.block.label}', which is not a skeleton node.`,
+            });
+          }
+          followed = {
+            follow,
+            depth: walked?.depth ?? 0,
+            nodes: structural.length,
+          };
+        }
         const query = trimmed(args.query);
         const matches =
           args.regex === true
             ? findRegexMatches({
                 text: document.text,
                 pattern: query,
-                maxResults: scope ? 500 : clampInt(args.max_results, 1, 50, 20),
+                maxResults: scope || seedLocator ? 500 : clampInt(args.max_results, 1, 50, 20),
                 contextChars: clampInt(args.context_chars, 40, 2000, 500),
                 caseInsensitive: args.case_insensitive === true,
               })
             : findTextMatches({
                 text: document.text,
                 query,
-                maxResults: scope ? 500 : clampInt(args.max_results, 1, 50, 20),
+                maxResults: scope || seedLocator ? 500 : clampInt(args.max_results, 1, 50, 20),
                 contextChars: clampInt(args.context_chars, 40, 2000, 500),
               });
         if ("error" in matches) return fail(call, matches.error);
@@ -2552,13 +2634,17 @@ export async function runLocalAssistantTools(
         // carries its offset plus the deepest enclosing structural handle,
         // so the follow-up is a section read, not a whole-document read.
         const skeleton = compileAgreementSkeleton(document.text);
-        const inScope = scope
-          ? matches.hits.filter((hit) =>
-              scope!.some((page) => page.start <= hit.at && hit.at < page.end),
-            )
-          : matches.hits;
+        const filtered = matches.hits.filter(
+          (hit) =>
+            (!scope ||
+              scope.some((page) => page.start <= hit.at && hit.at < page.end)) &&
+            (!structural ||
+              structural.some((span) => span.start <= hit.at && hit.at < span.end)),
+        );
         const cap = clampInt(args.max_results, 1, 50, 20);
-        const kept = scope ? inScope.slice(0, cap) : inScope;
+        const narrowed = Boolean(scope || structural);
+        const inScope = filtered;
+        const kept = narrowed ? inScope.slice(0, cap) : inScope;
         const hits = kept.map((hit) => {
           const owner = skeleton.nodes
             .filter((node) => node.start <= hit.at && hit.at < node.end)
@@ -2580,10 +2666,18 @@ export async function runLocalAssistantTools(
             : {}),
           query,
           totalMatches: matches.totalMatches,
-          ...(scope
+          ...(narrowed
             ? {
-                pages_searched: scope.length,
-                matches_in_pages: inScope.length,
+                ...(scope ? { pages_searched: scope.length } : {}),
+                ...(followed
+                  ? {
+                      sections_searched: followed.nodes,
+                      ...(followed.follow !== "none"
+                        ? { followed: followed.follow, hops: followed.depth }
+                        : {}),
+                    }
+                  : {}),
+                matches_in_scope: inScope.length,
                 ...(inScope.length > kept.length ? { truncated: true } : {}),
               }
             : {}),
