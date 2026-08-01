@@ -4843,3 +4843,76 @@ instruments might reward; this bed cannot speak to that. The honest
 summary is **undecided, with a fired disqualification trigger and a
 demonstrated 48% reduction in document exposure** â€” not "arm B is
 better", and not "the arms are the same".
+
+### Stage 21 CORRECTION (2026-08-01): the arms were edited by a concurrent session WHILE the run was in flight; the fired disqualification trigger was a drift artifact
+
+**The result above is withdrawn as stated.** `schema_chars` is recorded
+on every row, which is what made this detectable instead of silently
+averaged. The census over the receipts:
+
+| arm | distinct schemas actually sent | rows each |
+|---|---|---|
+| legacy (supposedly FROZEN) | **2** â€” 2,809ch, 2,671ch | 147, 338 |
+| address | **4** â€” 5,006ch, 5,031ch, 4,742ch, 5,070ch | 188, 141, 111, 29 |
+
+Three commits to `backend/src/lib/chat/localAssistantTools.ts` landed
+between my registration (19:30:42) and my result (19:57:34) â€” 19:39:24,
+19:48:23, 19:57:39 â€” from the session that owns the edit-side A/B. My
+harness starts a fresh process per condition, so each condition picked
+up whatever the file said at *its* start. The n=215 paired `asis` table
+above therefore averages **four different arm B definitions against two
+different arm A definitions**, including cells where arm A itself was
+not the arm A that was registered.
+
+This is the hazard the house rule about concurrent sessions exists for,
+and I did not guard against it: I verified the arms once, before the
+run, and never re-checked identity during it. `schema_chars` per row was
+enough to detect it after the fact but not enough to prevent it. A
+future run of this shape must pin the arm by content hash at process
+start and refuse to append a row whose schema hash differs from the
+registered one.
+
+#### The registered arms, scored alone (legacy=2,809ch, address=5,006ch)
+
+Paired **n=100** (`asis`), **n=34** (`stripped`) â€” the cells where both
+arms saw the schemas Stage 21 actually registered.
+
+| metric | legacy | address | diff | 95% CI | replicate floor (mean abs) | verdict |
+|---|---|---|---|---|---|---|
+| f1_best | 0.7361 | 0.7592 | +0.0231 | [0.0070, 0.0426] | 0.044 / 0.076 | inside floor -> **undecided** |
+| reached_any | 1.0000 | 1.0000 | **0.0000** | [0.0000, 0.0000] | 0.000 | **no regression** |
+| reached_all | 0.9700 | 0.9400 | -0.0300 | [-0.0763, 0.0000] | â€” | undecided |
+| reached_by_read | 0.8200 | 0.9200 | +0.1000 | [0.0200, 0.1827] | 0.000 / 0.154 | undecided |
+| n_tool_calls | 4.83 | 4.35 | -0.48 | [-0.8353, -0.1412] | 0.57 / 1.00 | inside floor -> undecided |
+| chars_exposed | 8,269 | 7,917 | -352 | [-1122, 461] | 1,779 / 1,958 | undecided |
+
+`stripped` (n=34): f1_best +0.0590 [-0.0030, 0.1618], reached_any
+0.0000, reached_by_read +0.1176 [-0.0323, 0.2500].
+
+**Three claims in the withdrawn result do not survive.**
+
+1. **The disqualification trigger does NOT fire on the registered
+   arms.** `reached_any` is 1.0000 in both, difference exactly 0. The
+   -0.0977 [-0.1404, -0.0591] that fired it came from mixing arm B
+   definitions, not from arm B.
+2. **The "48% less document exposed" effect does not survive either.**
+   On the registered arms `chars_exposed` differs by -352 [-1122, 461]
+   â€” nothing. The -5,312 was drift.
+3. What *does* survive: every point estimate favours arm B slightly
+   (f1_best +0.023, read-hit +0.100, half a tool call fewer), and every
+   one of them sits inside its own within-arm replicate floor at this n.
+   The floor itself is estimated on only n=13-14 replicate pairs here,
+   so it is weak. **Undecided, leaning positive, resolvable only with
+   more replicates.**
+
+**What survives unchanged, because it is a count and not a contrast:**
+on the registered arm B's 849 tool calls, `library_links` was called
+**0 times**, `follow` walked the graph **0 times** out of 534 find
+calls, `at=` named a page **0 times**, and `from="end"` was used once.
+The model passed `depth: 1` on all 534 find calls while leaving
+`follow: "none"`. Arm B's novel affordances went unused on the clean
+subset too. Off-schema parameter usage remained **0 across 1,560 tool
+calls**, so the schema-only separation held.
+
+Also unchanged: 20.0% of the clean `asis` cells were never solved by
+either arm; the read-it-whole shortcut was taken 0/100 and 0/34 times.

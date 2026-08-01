@@ -1189,8 +1189,62 @@ function affordances(rows: Row[]) {
   }
 }
 
+/**
+ * Schema-identity census. Concurrent sessions share this tree, and both arms'
+ * schemas were edited under a run in flight on 2026-07-31 — arm A twice, arm B
+ * four times. `schema_chars` was recorded on every row precisely so that is
+ * detectable rather than silently averaged. A cell is only comparable against
+ * a cell that saw the same two schemas.
+ */
+function schemaCensus(rows: Row[]) {
+  console.log("\n--- schema identity actually sent (arm drift detector) ---");
+  for (const arm of ["legacy", "address"]) {
+    const seen = new Map<number, { n: number; first: string; last: string }>();
+    for (const row of rows.filter((r) => r.arm === arm)) {
+      const key = num(row.schema_chars);
+      const held = seen.get(key) ?? { n: 0, first: String(row.ts), last: String(row.ts) };
+      held.n += 1;
+      held.first = held.first < String(row.ts) ? held.first : String(row.ts);
+      held.last = held.last > String(row.ts) ? held.last : String(row.ts);
+      seen.set(key, held);
+    }
+    const variants = [...seen].sort((a, b) => b[1].n - a[1].n);
+    console.log(
+      `  ${arm.padEnd(8)} ${variants.length} distinct schema(s): ` +
+        variants.map(([chars, v]) => `${chars}ch x${v.n}`).join("  "),
+    );
+    if (variants.length > 1)
+      console.log(`           ^ ARM DRIFTED MID-RUN; only same-schema cells are comparable`);
+  }
+}
+
+/** `--pin-schema legacy=2809,address=5006` restricts scoring to one frozen
+ * pairing, which is the only way to read a drifted receipt set. */
+function schemaPins(): Record<string, number> {
+  const at = process.argv.indexOf("--pin-schema");
+  if (at < 0) return {};
+  const pins: Record<string, number> = {};
+  for (const part of (process.argv[at + 1] ?? "").split(",")) {
+    const [arm, chars] = part.split("=");
+    if (arm && chars) pins[arm.trim()] = Number(chars);
+  }
+  return pins;
+}
+
 function report() {
-  const { rows, transportErrors, duplicates } = loadRows();
+  const { rows: allRows, transportErrors, duplicates } = loadRows();
+  schemaCensus(allRows);
+  const pins = schemaPins();
+  const rows = Object.keys(pins).length
+    ? allRows.filter((row) => {
+        const pin = pins[String(row.arm)];
+        return pin === undefined || num(row.schema_chars) === pin;
+      })
+    : allRows;
+  if (Object.keys(pins).length)
+    console.log(
+      `\nPINNED to ${Object.entries(pins).map(([a, c]) => `${a}=${c}ch`).join(", ")}: ${rows.length} of ${allRows.length} rows retained\n`,
+    );
   if (!rows.length) {
     console.log("no receipts yet");
     return;
