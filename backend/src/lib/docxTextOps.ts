@@ -30,7 +30,18 @@ import { runTextOp, type TextOpNote, type TextOpParams } from "./textOps";
 export type TextOpScope =
   | { kind: "whole_document" }
   | { kind: "find_text"; text: string; occurrence?: number }
-  | { kind: "range"; from_text: string; to_text: string };
+  | { kind: "range"; from_text: string; to_text: string }
+  /**
+   * Spans already resolved by the address layer (`at: "8.01"`, a page, a
+   * clause plus what it references). Resolution needs a skeleton and a page
+   * map; execution needs neither, so the address layer resolves and hands
+   * down offsets and this module stays free of that dependency.
+   *
+   * Both layers project the DOCX with `extractDocxBodyText`, which is what
+   * makes an offset resolved for reading valid for editing. That shared
+   * plane is load-bearing: there is deliberately no second extractor.
+   */
+  | { kind: "spans"; spans: { start: number; end: number }[] };
 
 export type TextOpRequest = TextOpParams & { op: string; scope: TextOpScope };
 
@@ -91,6 +102,17 @@ function resolveScope(
 ): { start: number; end: number }[] {
   if (scope.kind === "whole_document") {
     return [{ start: 0, end: docText.length }];
+  }
+  if (scope.kind === "spans") {
+    const spans = scope.spans
+      .map((span) => ({
+        start: Math.max(0, Math.min(span.start, docText.length)),
+        end: Math.max(0, Math.min(span.end, docText.length)),
+      }))
+      .filter((span) => span.end > span.start)
+      .sort((left, right) => left.start - right.start);
+    if (!spans.length) throw new Error("Resolved scope is empty");
+    return spans;
   }
   if (scope.kind === "find_text") {
     const hits = findNormalized(docText, docNorm, scope.text);

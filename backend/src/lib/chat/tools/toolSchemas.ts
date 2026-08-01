@@ -505,11 +505,28 @@ export const TEXT_OPS_TOOLS = [
                 scope: {
                   type: "object",
                   description:
-                    "Where the op applies: whole_document; find_text (every occurrence unless occurrence is set); or range (start of from_text through end of to_text).",
+                    "Where the op applies: whole_document; at (a structural or page address, the same grammar library_read takes — prefer this, it needs no document text retyped); find_text (every occurrence unless occurrence is set); or range (start of from_text through end of to_text).",
                   properties: {
                     kind: {
                       type: "string",
-                      enum: ["whole_document", "find_text", "range"],
+                      enum: ["whole_document", "at", "find_text", "range"],
+                    },
+                    at: {
+                      type: "string",
+                      description:
+                        "at only: '8.01' or 'Article VIII' for a provision and everything under it; 'pdf:52' / 'printed:47' for a page. Resolved against the pinned version.",
+                    },
+                    follow: {
+                      type: "string",
+                      enum: ["none", "out", "in", "both"],
+                      description:
+                        "at only: also scope the provisions this one references (out), those referencing it (in), or both. Defaults to none.",
+                    },
+                    depth: {
+                      type: "integer",
+                      minimum: 1,
+                      maximum: 3,
+                      description: "at only: hops to follow. Defaults to 1.",
                     },
                     text: {
                       type: "string",

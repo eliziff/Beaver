@@ -39,7 +39,11 @@ import {
 import { termDriftReport } from "../legalTermDrift";
 import { extractDocxDraftingSource } from "../docxDraftingSource";
 import { resolveDocxEvidenceCitations } from "../docxEvidenceCitations";
-import { applyTrackedEdits, type EditInput } from "../docxTrackedChanges";
+import {
+  applyTrackedEdits,
+  extractDocxBodyText,
+  type EditInput,
+} from "../docxTrackedChanges";
 import {
   addLocalVersion,
   createLocalDocument,
@@ -1831,8 +1835,22 @@ function parseTextOpRequests(raw: unknown): TextOpRequest[] | string {
         from_text: rawScope.from_text as string,
         to_text: rawScope.to_text as string,
       };
+    } else if (rawScope.kind === "at") {
+      if (!boundedString(rawScope.at) || !(rawScope.at as string).trim()) {
+        return `${at}.scope.at is required for at`;
+      }
+      // Carried unresolved: resolution needs the pinned version's text, and
+      // the contract is that every scope resolves against THAT version.
+      scope = {
+        kind: "at",
+        at: (rawScope.at as string).trim(),
+        ...(typeof rawScope.follow === "string" ? { follow: rawScope.follow } : {}),
+        ...(typeof rawScope.depth === "number"
+          ? { depth: Math.trunc(rawScope.depth) }
+          : {}),
+      } as unknown as TextOpScope;
     } else {
-      return `${at}.scope.kind must be whole_document, find_text, or range`;
+      return `${at}.scope.kind must be whole_document, at, find_text, or range`;
     }
     if (op.op === "replace_text" && !boundedString(op.find)) {
       return `${at}.find is required for replace_text`;
@@ -2153,10 +2171,82 @@ export async function runLocalAssistantTools(
           if (file.fileType.toLowerCase() !== "docx") {
             return fail(call, "Text operations require a DOCX Library version");
           }
-          const applied = await applyTextOpsToDocx(
-            await readFile(file.path),
-            requests,
+          const bytes = await readFile(file.path);
+          // Addresses resolve against the PINNED version's own text, on the
+          // same plane the writer uses (extractDocxBodyText, no fallback),
+          // so an offset that named a clause for reading names it for
+          // editing. Resolution happens here rather than inside the op
+          // engine, which needs offsets and not a skeleton.
+          const addressed = requests.some(
+            (request) => (request.scope as { kind: string }).kind === "at",
           );
+          let resolvedRequests = requests;
+          if (addressed) {
+            const docText = await extractDocxBodyText(bytes);
+            if (!docText) {
+              return fail(
+                call,
+                "DOCX body text could not be extracted, so an `at` scope cannot be resolved. Report the file rather than editing from partial text.",
+              );
+            }
+            const skeleton = compileAgreementSkeleton(docText);
+            const map = pageMapFromMarkers(docText);
+            const spansFor = (
+              scope: { at: string; follow?: string; depth?: number },
+            ): { start: number; end: number }[] | string => {
+              const address = parseAddress(scope.at);
+              if (!address) return `scope.at '${scope.at}' is not an address`;
+              if (address.kind === "offset") {
+                return `scope.at '${scope.at}' is a raw offset; edits scope to a provision or a page, never a bare offset`;
+              }
+              if (address.kind === "page") {
+                const lookup = resolvePage(map, docText, address.spec);
+                if (lookup.status !== "found") {
+                  return `scope.at '${scope.at}' did not resolve to a page (${lookup.status})`;
+                }
+                return [{ start: lookup.page.start, end: lookup.page.end }];
+              }
+              const seed = readSection(skeleton, address.locator);
+              if (seed.status !== "found" || !seed.block) {
+                return `scope.at '${scope.at}' did not resolve to a provision (${seed.status})`;
+              }
+              const follow = (scope.follow ?? "none") as FollowDirection;
+              if (follow === "none") {
+                return [{ start: seed.block.start, end: seed.block.end }];
+              }
+              const walked = graphScope(
+                skeleton,
+                crossReferenceGraph(docText, documentId, { skeleton }),
+                seed.block.label,
+                { follow, depth: scope.depth ?? 1 },
+              );
+              if (!walked) return `scope.at '${scope.at}' is not a skeleton node`;
+              return walked.nodes.map((node) => ({
+                start: node.start,
+                end: node.end,
+              }));
+            };
+            const mapped: typeof requests = [];
+            for (const [index, request] of requests.entries()) {
+              const scope = request.scope as unknown as {
+                kind: string;
+                at: string;
+                follow?: string;
+                depth?: number;
+              };
+              if (scope.kind !== "at") {
+                mapped.push(request);
+                continue;
+              }
+              const spans = spansFor(scope);
+              if (typeof spans === "string") {
+                return fail(call, `ops[${index}].${spans}`);
+              }
+              mapped.push({ ...request, scope: { kind: "spans", spans } });
+            }
+            resolvedRequests = mapped;
+          }
+          const applied = await applyTextOpsToDocx(bytes, resolvedRequests);
           const opReports = applied.reports.map((report) => ({
             op: report.op,
             replacements: report.replacements,
