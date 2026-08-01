@@ -161,14 +161,14 @@ export async function streamGemini(
     apiKeys,
     enableThinking,
   } = params;
-  const maxIter = params.maxIterations ?? 10;
+  const maxIter = params.maxIterations;
   const ai = client(apiKeys?.gemini);
   const contents: GeminiContent[] = toNativeContents(params.messages);
   let fullText = "";
   const trace = createLlmTrace({ provider: "gemini", model });
 
   try {
-    for (let iter = 0; iter < maxIter; iter++) {
+    for (let iter = 0; maxIter === undefined || iter < maxIter; iter++) {
       throwIfAborted(params.abortSignal);
       const functionDeclarations = toGeminiTools(
         params.resolveTools?.() ?? tools,

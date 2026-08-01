@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "amends": "docs/hybrid-retrieval-h9-accretive-union-preregistration-2026-08-01.json",
+  "timing": "Registered after the first three H9 cells exhausted the shared ten-response adapter loop and before any natural-stop H9 rerun.",
+  "reason": "The fixed adapter horizon executed the tenth round's tools but never returned those results to the model for synthesis. This is a shared harness defect for long-horizon agents, not an H9 retrieval outcome.",
+  "observed_failures_preserved": [
+    {
+      "cell": "banking H9 Luna High/Fast",
+      "provider_rounds": 10,
+      "tool_calls": 14,
+      "input_tokens": 265891,
+      "output_tokens": 4392,
+      "reported_service_tier": "priority",
+      "outcome": "no final response or artifact"
+    },
+    {
+      "cell": "white-collar H9 Luna High/Fast",
+      "provider_rounds": 10,
+      "tool_calls": 17,
+      "input_tokens": 465029,
+      "output_tokens": 4800,
+      "reported_service_tier": "priority",
+      "outcome": "no final response or artifact"
+    },
+    {
+      "cell": "banking H9 Luna Low/Fast",
+      "provider_rounds": 10,
+      "tool_calls": 12,
+      "input_tokens": 305956,
+      "output_tokens": 1279,
+      "reported_service_tier": "priority",
+      "outcome": "no final response or artifact"
+    }
+  ],
+  "shared_fix": [
+    "Normal agent loops continue while the provider returns tool calls and stop when it returns no tool calls, a terminal tool ends the run, the user aborts, or the outer request terminates.",
+    "No provider adapter supplies an implicit ten-round default.",
+    "No tool result receives a model-visible round-budget message.",
+    "Callers that explicitly set maxIterations retain their finite cap."
+  ],
+  "fairness_policy": "Rerun H9 cells under natural-stop semantics. The completed pinned-upstream Low/Fast banking cell remains valid behavior evidence but is not a formal paired result until its H9 mate completes under the shared natural-stop policy. Future formal pairs give every arm the same natural-stop policy.",
+  "validation": [
+    "Backend TypeScript build passes.",
+    "Six provider and telemetry suites pass (32 tests).",
+    "An OpenAI regression performs eleven tool rounds and then completes with final text on round twelve without a budget injection."
+  ]
+}
