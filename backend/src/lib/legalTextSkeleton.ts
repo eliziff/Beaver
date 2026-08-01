@@ -82,6 +82,14 @@ export interface AgreementSkeleton {
   schedules: string[];
   crossReferences: CrossReferenceSummary;
   ladder: LadderDiagnostics;
+  /**
+   * The document's own table of contents, read as an OUTLINE — a separate
+   * product from `nodes`, never merged into it. Null when no contents region
+   * is identifiable, in which case `outlineRefusal` says why. See
+   * `readContentsOutline`.
+   */
+  outline: ContentsOutline | null;
+  outlineRefusal: ContentsRefusal | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -751,6 +759,313 @@ function headSpan(nodes: SkeletonNode[], length: number): number {
   return high < 0 ? 0 : (high - low) / length;
 }
 
+// ---------------------------------------------------------------------------
+// The contents page as an OUTLINE
+// ---------------------------------------------------------------------------
+
+/**
+ * A contents page is a legitimate OUTLINE and an illegitimate SPAN INDEX.
+ *
+ * `MIN_HEAD_SPAN` above is right to refuse a contents-only inventory as this
+ * document's structure — following one lands a reader on a page number. But
+ * refusing it as a span index threw away a real inventory: measured on the 69
+ * LegalBench-RAG mini documents, Boingo Wireless compiles 13 titled section
+ * heads and its contents page names 96 provisions; Cimarex (hold-out) compiles
+ * 16 and names 109. So the contents reading is kept, as a SEPARATE product
+ * that carries no offsets into the provisions it names.
+ *
+ * Three properties make the split safe:
+ *
+ *   - `nodes` never sees it. This reader runs on the ORIGINAL text, outside
+ *     the segmentation competition, and its output is never merged in.
+ *   - An entry has no span. `contentsLineStart` is the offset of the contents
+ *     LINE; a consumer that wants the provision's text must resolve `label`
+ *     through the real node inventory (`readSection`) or fail.
+ *   - It carries the page the contents cites, which is the thing a
+ *     page-addressed reader needs and the thing a span index cannot give.
+ *
+ * Refusal beats guessing (CLAUDE.md rule 5): with no identifiable contents
+ * region the result is a typed refusal, not a low-confidence outline.
+ */
+export type ContentsRefusal =
+  /** the document never says it has a table of contents */
+  | "no_contents_marker"
+  /** the marker is there, but no entry grammar follows it */
+  | "no_contents_entries"
+  /** an entry run too short to be an inventory */
+  | "too_few_contents_entries"
+  /** entries that cite no pages: a clause list, not a contents page */
+  | "contents_without_page_numbers";
+
+export interface ContentsEntry {
+  /** shared locator dialect, joinable to `SkeletonNode.label` ("sec8.01", "art8") */
+  label: string;
+  display: string;
+  heading: string;
+  depth: number;
+  parentLabel?: string;
+  /** the page this contents line cites, or null when it cites none */
+  page: number | null;
+  /**
+   * Offset of the CONTENTS LINE — deliberately NOT a provision span, and
+   * deliberately not a `start`/`end` pair. The contents entry knows where the
+   * document ADVERTISES the provision, never where the provision is.
+   */
+  contentsLineStart: number;
+}
+
+export interface ContentsOutline {
+  entries: ContentsEntry[];
+  /** span of the contents region itself (the contents page), never a provision */
+  regionStart: number;
+  regionEnd: number;
+  /** how many entries cite a page number */
+  pagesCited: number;
+}
+
+/**
+ * The document saying it has a contents page. "TABLE OF CONTENTS" anywhere
+ * (SEC filings repeat it as a running header, so the first one is taken and
+ * later ones are fallbacks), or a bare CONTENTS/INDEX alone on its line —
+ * standing alone is what separates the heading from the 84 documents here
+ * whose only "contents" is the prose of a headings-are-for-convenience clause.
+ */
+const CONTENTS_ANCHOR_RE =
+  /(?:(?<=^|[\r\n\t ])TABLE[ \t]+OF[ \t]+CONTENTS(?=[\r\n\t ]|$)|(?<=^|[\r\n])[ \t]*(?:CONTENTS|INDEX)[ \t]*(?=[\r\n]|$))/giu;
+
+/**
+ * A contents entry begins with a head in the same vocabularies the body
+ * grammars use, so the outline cannot drift from the span compiler. Entries
+ * are cut at the heads themselves rather than at line starts because the four
+ * extraction dialects in the corpus disagree about where an entry ends: packed
+ * into one line with single spaces (Alexion), separated by space runs (CAI),
+ * one token per cell (Constellation), or broken mid-entry (Anworth). All four
+ * agree that a head starts one and the previous one ends there.
+ *
+ * Schedule/exhibit heads need a line start or a space run in front of them.
+ * They are the one vocabulary that also appears INSIDE contents titles ("1.2
+ * Company Consent; Schedule 14D-9 5"), and admitting those mid-title cost
+ * Acceleron half its outline (55 entries instead of 107) before the guard.
+ *
+ * A bare integer needs a terminator ("1." not "1"), because in a contents
+ * region an un-terminated integer is far more often the PAGE of the previous
+ * entry. The cost is measured and accepted: 1 of 124 documents (AfriGIS, a
+ * dot-leader NDA whose entries read "1 INTERPRETATION ..... 3") refuses
+ * entirely for want of it, and one more loses its top level.
+ */
+const CONTENTS_HEAD_RE = new RegExp(
+  String.raw`(?:^|\s)(?:` +
+    String.raw`(${CONTAINER_WORDS})[ \t]+([IVXLCDM]{1,7}|\d{1,3})[.:]?` +
+    String.raw`|(?<=[\r\n]|[ \t]{2})(${SCHEDULE_WORDS})[ \t]+([A-Z0-9][\w.\-]{0,12}?)[.:]?` +
+    String.raw`|(?:${SECTION_WORDS})[ \t]+(\d{1,3}(?:\.\d{1,3})*[A-Za-z]?)[.)]?` +
+    String.raw`|(${DECIMAL_LABEL})[.)]?` +
+    String.raw`|(\d{1,3})[.)]` +
+    String.raw`)(?=[ \t\r\n]|$)`,
+  "gu",
+);
+
+/**
+ * An entry's own line ends at the first blank line. Printed page footers land
+ * between contents lines ("... Publicity 65 <blank> 2 <blank> Section 6.4"),
+ * and absorbing that "2" as the entry's page reads as a page DECREASE — which
+ * cost Cantel and Columbia a third of their outlines before this cut.
+ */
+const CONTENTS_UNIT_END_RE = /[^\S\n]*\n[^\S\n]*\n/u;
+
+/** the page a contents line cites, always its last token */
+const CONTENTS_PAGE_RE = /(?:^|\s)(\d{1,4})$/u;
+
+/**
+ * Contents lines are SHORT — that is what separates an inventory from the
+ * provisions it inventories. Measured over the 39 documents here that carry
+ * one, the largest gap between consecutive entries INSIDE a contents region is
+ * 28-176 characters, while the gap that ends one is 524-7,111. The threshold
+ * is inert across that whole band: 200, 400 and 800 produce byte-identical
+ * outlines on all 124 documents (3,786 entries), and only 3 documents move at
+ * 1,600. The structural stops below, not this one, decide the boundary.
+ */
+const CONTENTS_MAX_ENTRY_GAP = 400;
+/** contents pages sit at one place in a document; no need to read it all */
+const CONTENTS_WINDOW = 80_000;
+/** SEC filings repeat the running header; the real page is rarely past these */
+const CONTENTS_MAX_ANCHORS = 4;
+const MIN_CONTENTS_ENTRIES = 5;
+/**
+ * A contents entry points at a page. A run of numbered heads that points
+ * nowhere is the document itself, not its contents — this is the gate that
+ * keeps a marker matched in prose from walking the body. Accepted regions here
+ * cite pages on 0.84-1.00 of their entries.
+ */
+const MIN_CONTENTS_PAGE_SHARE = 0.6;
+/** an exhibits list may close a contents page without pages; a body cannot */
+const MAX_PAGELESS_RUN = 3;
+
+interface ContentsHead {
+  start: number;
+  end: number;
+  match: RegExpExecArray;
+}
+
+/**
+ * Read one candidate region. Returns null when nothing entry-shaped follows
+ * the marker at all; the caller applies the acceptance gates.
+ */
+function readContentsRegion(text: string, from: number): ContentsOutline | null {
+  const region = text.slice(from, Math.min(text.length, from + CONTENTS_WINDOW));
+  const heads: ContentsHead[] = [];
+  CONTENTS_HEAD_RE.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = CONTENTS_HEAD_RE.exec(region))) {
+    const lead = match[0].length - match[0].trimStart().length;
+    heads.push({ start: match.index + lead, end: match.index + match[0].length, match });
+    CONTENTS_HEAD_RE.lastIndex = match.index + match[0].length;
+  }
+  if (!heads.length || heads[0].start > CONTENTS_MAX_ENTRY_GAP) return null;
+
+  const entries: ContentsEntry[] = [];
+  const byLabel = new Map<string, ContentsEntry>();
+  let container: string | null = null;
+  let previousPage = 0;
+  let pageless = 0;
+  let pagelessFrom = 0;
+  let lastHead = -1;
+  for (let i = 0; i < heads.length; i += 1) {
+    // A contents line is short; a provision is not.
+    if (i > 0 && heads[i].start - heads[i - 1].end > CONTENTS_MAX_ENTRY_GAP) break;
+    const head = heads[i];
+    const until =
+      i + 1 < heads.length &&
+      heads[i + 1].start - head.end <= CONTENTS_MAX_ENTRY_GAP
+        ? heads[i + 1].start
+        : Math.min(region.length, head.end + 200);
+    const raw = region.slice(head.end, until);
+    const cut = raw.search(CONTENTS_UNIT_END_RE);
+    const unit = (cut < 0 ? raw : raw.slice(0, cut)).replace(/\s+/gu, " ").trim();
+    const pageMatch = unit.match(CONTENTS_PAGE_RE);
+    const page = pageMatch ? Number(pageMatch[1]) : null;
+    // A contents page counts up. A lower page means this is no longer one.
+    if (page !== null && page < previousPage) break;
+
+    const found = head.match;
+    let label: string;
+    let display: string;
+    let depth = 0;
+    let parentLabel: string | undefined;
+    if (found[1]) {
+      const word = found[1].toLowerCase();
+      const value = /^\d+$/u.test(found[2])
+        ? Number(found[2])
+        : romanToInt(found[2].toUpperCase());
+      if (value === null) continue;
+      const prefix = word === "article" ? "art" : word === "part" ? "part" : "div";
+      label = `${prefix}${value}`;
+      display = `${found[1].toUpperCase()} ${found[2]}`;
+    } else if (found[3]) {
+      const word = found[3].toLowerCase();
+      const prefix =
+        word === "schedule"
+          ? "sched"
+          : word === "exhibit"
+            ? "exh"
+            : word === "annex"
+              ? "annex"
+              : "app";
+      label = `${prefix}${found[4].toLowerCase()}`;
+      display = `${found[3].toUpperCase()} ${found[4]}`;
+    } else {
+      const number = (found[5] ?? found[6] ?? found[7] ?? "").replace(/\.$/u, "");
+      if (!number) continue;
+      label = `sec${number}`;
+      display = `Section ${number}`;
+      // Nest on the document's own numbering when it states it ("1.1" under
+      // "1."), otherwise under the container the entries sit in.
+      const numbered = number.includes(".")
+        ? byLabel.get(`sec${number.slice(0, number.lastIndexOf("."))}`)
+        : undefined;
+      if (numbered) {
+        parentLabel = numbered.label;
+        depth = numbered.depth + 1;
+      } else if (container) {
+        parentLabel = container;
+        depth = 1;
+      }
+    }
+    // A contents page names each provision once. A repeat means the walk has
+    // left it — the near-universal case being the index of defined terms that
+    // follows one.
+    if (byLabel.has(label)) break;
+    if (page === null) {
+      if (pageless === 0) pagelessFrom = entries.length;
+      pageless += 1;
+      if (pageless > MAX_PAGELESS_RUN) {
+        entries.length = pagelessFrom;
+        break;
+      }
+    } else {
+      pageless = 0;
+      previousPage = page;
+    }
+    if (found[1] || found[3]) container = label;
+    const heading = (pageMatch ? unit.slice(0, unit.length - pageMatch[0].length) : unit)
+      .replace(/[.…\s]+$/u, "")
+      .replace(/^[\s–—\-:.]+/u, "")
+      .trim();
+    const entry: ContentsEntry = {
+      label,
+      display,
+      heading,
+      depth,
+      parentLabel,
+      page,
+      contentsLineStart: from + head.start,
+    };
+    byLabel.set(label, entry);
+    entries.push(entry);
+    lastHead = i;
+  }
+  if (!entries.length) return null;
+  return {
+    entries,
+    regionStart: from + heads[0].start,
+    regionEnd: from + heads[Math.max(0, Math.min(lastHead, heads.length - 1))].end,
+    pagesCited: entries.filter((entry) => entry.page !== null).length,
+  };
+}
+
+/**
+ * The document's table of contents, read as an outline. Deterministic, no
+ * model calls, and independent of the segmentation competition — this runs on
+ * the text as given and never touches `nodes`.
+ */
+export function readContentsOutline(text: string): {
+  outline: ContentsOutline | null;
+  refusal: ContentsRefusal | null;
+} {
+  CONTENTS_ANCHOR_RE.lastIndex = 0;
+  const anchors: number[] = [];
+  let anchor: RegExpExecArray | null;
+  while ((anchor = CONTENTS_ANCHOR_RE.exec(text))) {
+    anchors.push(anchor.index + anchor[0].length);
+    if (anchors.length >= CONTENTS_MAX_ANCHORS) break;
+  }
+  if (!anchors.length) return { outline: null, refusal: "no_contents_marker" };
+  let refusal: ContentsRefusal = "no_contents_entries";
+  for (const from of anchors) {
+    const outline = readContentsRegion(text, from);
+    if (!outline) continue;
+    if (outline.entries.length < MIN_CONTENTS_ENTRIES) {
+      refusal = "too_few_contents_entries";
+      continue;
+    }
+    if (outline.pagesCited / outline.entries.length < MIN_CONTENTS_PAGE_SHARE) {
+      refusal = "contents_without_page_numbers";
+      continue;
+    }
+    return { outline, refusal: null };
+  }
+  return { outline: null, refusal };
+}
+
 /**
  * Segmentation hypotheses, in precedence order — the text as extracted
  * first, so a tie always keeps what the extractor produced. Each is the same
@@ -872,8 +1187,20 @@ export function compileAgreementSkeleton(
   const lineTexts = lines.map((line) => line.text);
   const definedTerms = buildDefinedTerms(lineTexts, lines, nodes);
   const crossReferences = buildCrossReferences(text, doc);
+  // Additive and independent: read from the ORIGINAL text, never merged into
+  // `nodes`, and no input to the competition that produced them.
+  const { outline, refusal } = readContentsOutline(text);
 
-  return { nodes, doc, definedTerms, schedules, crossReferences, ladder };
+  return {
+    nodes,
+    doc,
+    definedTerms,
+    schedules,
+    crossReferences,
+    ladder,
+    outline,
+    outlineRefusal: refusal,
+  };
 }
 
 /** each node ends where the next node of equal-or-shallower depth begins */
