@@ -690,7 +690,19 @@ async function run() {
           .map((row) => String(row.test_id))
       : [],
   );
-  const todo = cells.filter((cell) => !done.has(cell.id));
+  // Round-robin the work across sources. The sample is stratified but sorted
+  // by test id, so a run that stops early would leave a source-ORDERED prefix
+  // (all contractnli, no privacy_qa) — a partial result that is no longer
+  // stratified. Interleaving keeps every prefix balanced, so an interrupted
+  // condition is still a usable stratified sample.
+  const pending = cells.filter((cell) => !done.has(cell.id));
+  const queues = SOURCE_BENCHMARKS.map((source) =>
+    pending.filter((cell) => cell.source === source),
+  );
+  const todo: Cell[] = [];
+  for (let at = 0; todo.length < pending.length; at += 1) {
+    for (const queue of queues) if (at < queue.length) todo.push(queue[at]);
+  }
   console.log(
     `arm=${arm} form=${form} rep=${rep} shape=${shape} tools=${tools.length} schema_chars=${schemaChars} cells=${todo.length}/${cells.length} -> ${output}`,
   );
@@ -922,10 +934,12 @@ function pairedTable(rows: Row[], schemaTokensByArm: Record<string, number>) {
       if (!subset.length) continue;
       const cell = (metric: (typeof METRICS)[number], side: Map<string, Row>) =>
         mean(subset.map((k) => num(side.get(k)![metric])));
+      const rbr = (side: Map<string, Row>) =>
+        mean(subset.map((k) => (reachedByRead(side.get(k)!, gold.get(String(side.get(k)!.test_id)) ?? []) ? 1 : 0)));
       console.log(
         `  ${source.padEnd(12)} n=${String(subset.length).padStart(3)}  ` +
           `f1_best ${cell("f1_best", legacy).toFixed(3)} -> ${cell("f1_best", address).toFixed(3)}   ` +
-          `reached ${cell("reached_any", legacy).toFixed(3)} -> ${cell("reached_any", address).toFixed(3)}   ` +
+          `read-hit ${rbr(legacy).toFixed(3)} -> ${rbr(address).toFixed(3)}   ` +
           `calls ${cell("n_tool_calls", legacy).toFixed(2)} -> ${cell("n_tool_calls", address).toFixed(2)}`,
       );
     }
@@ -972,10 +986,13 @@ function pairedTable(rows: Row[], schemaTokensByArm: Record<string, number>) {
       const band = clusterBootstrap(units);
       const callsA = mean(subset.map((k) => num(legacy.get(k)!.n_tool_calls)));
       const callsB = mean(subset.map((k) => num(address.get(k)!.n_tool_calls)));
+      const rbr = (side: Map<string, Row>) =>
+        mean(subset.map((k) => (reachedByRead(side.get(k)!, gold.get(String(side.get(k)!.test_id)) ?? []) ? 1 : 0)));
       console.log(
         `  ${label.padEnd(30)} n=${String(subset.length).padStart(3)}  ` +
           `f1_best ${mean(subset.map((k) => num(legacy.get(k)!.f1_best))).toFixed(3)} -> ${mean(subset.map((k) => num(address.get(k)!.f1_best))).toFixed(3)}  ` +
-          `diff ${band.mean.toFixed(4)} [${band.lo.toFixed(4)}, ${band.hi.toFixed(4)}]  calls ${callsA.toFixed(1)} -> ${callsB.toFixed(1)}`,
+          `diff ${band.mean.toFixed(4)} [${band.lo.toFixed(4)}, ${band.hi.toFixed(4)}]  ` +
+          `read-hit ${rbr(legacy).toFixed(3)} -> ${rbr(address).toFixed(3)}  calls ${callsA.toFixed(1)} -> ${callsB.toFixed(1)}`,
       );
     }
     // How often a single read actually swallowed the document — the shortcut
@@ -1062,6 +1079,21 @@ function affordances(rows: Row[]) {
     console.log(`  by tool     : ${[...byName].sort((a, b) => b[1] - a[1]).map(([n, c]) => `${n}=${c}`).join("  ") || "(none)"}`);
     console.log(`  address kind: ${[...address].sort((a, b) => b[1] - a[1]).map(([n, c]) => `${n}=${c}`).join("  ") || "(none — every call unaddressed)"}`);
     console.log(`  follow fired: ${follow}   depth passed: ${depth}   from=end: ${fromEnd}`);
+    if (arm === "address") {
+      // The whole point of the arm: which of the extra affordances earned
+      // their schema chars. Denominators are the calls that COULD have used
+      // each one, so a zero here means "offered and declined", not "no data".
+      const finds = traces.filter((t) => t.name === "library_find").length;
+      const reads = traces.filter((t) => t.name === "library_read").length;
+      const scopedFinds = traces.filter((t) => t.name === "library_find" && t.address).length;
+      const pct = (n: number, d: number) => (d ? `${n}/${d} (${((100 * n) / d).toFixed(1)}%)` : "0/0");
+      console.log("  arm-B-only affordance uptake:");
+      console.log(`    library_links called          : ${pct(byName.get("library_links") ?? 0, traces.length)} of all tool calls`);
+      console.log(`    find follow= actually walked   : ${pct(follow, finds)} of find calls`);
+      console.log(`    find at= scoped the search     : ${pct(scopedFinds, finds)} of find calls`);
+      console.log(`    read from="end" (tail)         : ${pct(fromEnd, reads)} of read calls`);
+      console.log(`    read at= named a PAGE          : ${pct([...address].filter(([k]) => k.startsWith("page")).reduce((n, [, c]) => n + c, 0), reads)} of read calls`);
+    }
     console.log(`  OFF-SCHEMA params (the other arm's vocabulary, which the shared handler still honours): ${[...offSchema].sort((a, b) => b[1] - a[1]).map(([n, c]) => `${n}=${c}`).join("  ") || "(none)"}`);
   }
 }
