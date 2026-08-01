@@ -4485,3 +4485,52 @@ experiments dir as `navshape-rag-<arm>-<form>-r<rep>.jsonl`.
 Disclosed: a 4-cell throughput pilot (arm A, `asis`) ran before this
 registration was committed; those rows are the first four cells of
 `legacy-asis-r1` and are retained, not discarded.
+
+### Stage 21 amendment (registered 2026-07-31, after the `asis` rep-1 arms started but before any aggregate score was read; prompted by an agentic-benchmark audit, arXiv 2507.02825)
+
+Two defect classes from that audit are live on this bed. Both are
+reporting additions; no arm, prompt, sample, model or scorer changes.
+
+**1. Unsolvable cells get their own number.** The audit's most common
+defect is items no agent can complete. Here a cell can be unreachable
+because the gold span is not what the question asks for, or sits in a
+document neither surface can address. Such cells score zero in both
+arms and pull the paired difference toward zero, which reads as "no
+effect" when it is "no signal". Registered: a cell counts as **solved**
+at `f1_best >= 0.5`; the **never-solved rate** (no arm, no replicate,
+that form) is printed as its own number, and every paired difference is
+reported **twice** â€” over all sampled cells, and over the subset at
+least one arm solved. Never-solved cells are never silently dropped.
+
+**2. Shortcut census.** A cell can score without navigation working. The
+document-name artifact is already handled by the `asis`/`stripped`
+split. The second route is a document short enough to read whole, and it
+is **large and confounded with source** on this bed. Measured over the
+n=160 sample, against `library_read`'s 24,000-char default window and
+the 64,000-char tool-result ceiling:
+
+| band | condition | cells | share |
+|---|---|---|---|
+| A | <=24k â€” one *default* read returns the whole document | 63 | 39.4% |
+| B | 24kâ€“60k â€” one *deliberate* `max_chars` read returns it | 45 | 28.1% |
+| C | 60kâ€“200k | 12 | 7.5% |
+| D | >200k â€” navigation is mandatory | 40 | 25.0% |
+
+Per source: contractnli 38/40 in band A (median 10,715 chars); cuad
+12 A / 16 B / 12 C (median 29,454); privacy_qa 13 A / 27 B (median
+27,447); maud **40/40 in band D** (median 333,769).
+
+So **67.5% of sampled cells have a whole-document shortcut available**,
+and the only stratum where a navigation surface can decide anything is
+maud. Registered: the paired difference is reported **stratified by
+band**, band D is called out as the navigation-mandatory stratum with
+its own n, and if document length predicts the arm difference that is
+reported as a finding in its own right rather than folded into the
+pooled mean. The pooled number stays the headline only because it is
+the pre-registered one; it is printed with the band mix beside it.
+
+**3. Statistical labelling.** At n=160 this stage is exploratory. Any
+between-arm difference smaller than the measured within-arm replicate
+floor is labelled **undecided**, not null: the design does not have the
+resolution to call it, which is a different claim from "the arms are
+the same".
