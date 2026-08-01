@@ -780,6 +780,26 @@ const key = (row: Row) => `${row.form}|${row.rep}|${row.test_id}`;
 const METRICS = ["f1_all", "f1_best", "recall_all", "reached_any", "reached_all", "n_tool_calls", "latency_ms"] as const;
 const num = (value: unknown) => (typeof value === "number" ? value : value === true ? 1 : value === false ? 0 : 0);
 
+/** Registered at the Stage 21 amendment: a cell counts as solved at
+ * f1_best >= 0.5. Cells no arm ever solves are a signal-absence class, not
+ * evidence of arm equality, so they are counted and reported, never dropped. */
+const SOLVED = 0.5;
+const solved = (row: Row) => num(row.f1_best) >= SOLVED;
+
+/**
+ * Shortcut census bands. library_read's default window is 24,000 chars and
+ * the tool-result ceiling is 64,000, so a short enough document can be read
+ * whole and scored without the navigation surface doing any work.
+ */
+const sizeBand = (chars: number) =>
+  chars <= 24_000
+    ? "A <=24k default-read-whole"
+    : chars <= 60_000
+      ? "B 24k-60k one-deliberate-read"
+      : chars <= 200_000
+        ? "C 60k-200k"
+        : "D >200k nav-mandatory";
+
 function pairedTable(rows: Row[], schemaTokensByArm: Record<string, number>) {
   const byArm = new Map<string, Map<string, Row>>();
   for (const row of rows) {
@@ -836,6 +856,71 @@ function pairedTable(rows: Row[], schemaTokensByArm: Record<string, number>) {
           `f1_best ${cell("f1_best", legacy).toFixed(3)} -> ${cell("f1_best", address).toFixed(3)}   ` +
           `reached ${cell("reached_any", legacy).toFixed(3)} -> ${cell("reached_any", address).toFixed(3)}   ` +
           `calls ${cell("n_tool_calls", legacy).toFixed(2)} -> ${cell("n_tool_calls", address).toFixed(2)}`,
+      );
+    }
+
+    // Amendment 1: never-solved cells are signal absence, not arm equality.
+    const neverSolved = keys.filter((k) => !solved(legacy.get(k)!) && !solved(address.get(k)!));
+    const eitherSolved = keys.filter((k) => solved(legacy.get(k)!) || solved(address.get(k)!));
+    console.log(
+      `\nnever solved by either arm (f1_best < ${SOLVED}): ${neverSolved.length}/${keys.length} ` +
+        `(${((100 * neverSolved.length) / Math.max(1, keys.length)).toFixed(1)}%)`,
+    );
+    for (const source of SOURCE_BENCHMARKS) {
+      const all = keys.filter((k) => legacy.get(k)!.source === source);
+      if (!all.length) continue;
+      const none = all.filter((k) => !solved(legacy.get(k)!) && !solved(address.get(k)!));
+      console.log(`  ${source.padEnd(12)} ${none.length}/${all.length}`);
+    }
+    if (eitherSolved.length && eitherSolved.length < keys.length) {
+      console.log(`\nsame metrics over cells at least one arm solved (n=${eitherSolved.length})`);
+      for (const metric of ["f1_best", "reached_any", "n_tool_calls"] as const) {
+        const units = eitherSolved.map((k) => ({
+          document: String(legacy.get(k)!.document),
+          value: num(address.get(k)![metric]) - num(legacy.get(k)![metric]),
+        }));
+        const band = clusterBootstrap(units);
+        const a = mean(eitherSolved.map((k) => num(legacy.get(k)![metric])));
+        const b = mean(eitherSolved.map((k) => num(address.get(k)![metric])));
+        console.log(
+          `${metric.padEnd(14)} ${a.toFixed(4).padStart(8)} ${b.toFixed(4).padStart(9)} ${band.mean.toFixed(4).padStart(8)}   [${band.lo.toFixed(4)}, ${band.hi.toFixed(4)}]`,
+        );
+      }
+    }
+
+    // Amendment 2: does document length predict the arm difference? Band A/B
+    // cells can be read whole, so the surface has nothing to decide there.
+    console.log("\nby document-size band (the read-it-whole shortcut)");
+    const bands = [...new Set(keys.map((k) => sizeBand(num(legacy.get(k)!.document_chars))))].sort();
+    for (const label of bands) {
+      const subset = keys.filter((k) => sizeBand(num(legacy.get(k)!.document_chars)) === label);
+      const units = subset.map((k) => ({
+        document: String(legacy.get(k)!.document),
+        value: num(address.get(k)!.f1_best) - num(legacy.get(k)!.f1_best),
+      }));
+      const band = clusterBootstrap(units);
+      const callsA = mean(subset.map((k) => num(legacy.get(k)!.n_tool_calls)));
+      const callsB = mean(subset.map((k) => num(address.get(k)!.n_tool_calls)));
+      console.log(
+        `  ${label.padEnd(30)} n=${String(subset.length).padStart(3)}  ` +
+          `f1_best ${mean(subset.map((k) => num(legacy.get(k)!.f1_best))).toFixed(3)} -> ${mean(subset.map((k) => num(address.get(k)!.f1_best))).toFixed(3)}  ` +
+          `diff ${band.mean.toFixed(4)} [${band.lo.toFixed(4)}, ${band.hi.toFixed(4)}]  calls ${callsA.toFixed(1)} -> ${callsB.toFixed(1)}`,
+      );
+    }
+    // How often a single read actually swallowed the document — the shortcut
+    // taken, not merely available.
+    for (const [label, side] of [["legacy", legacy], ["address", address]] as const) {
+      const whole = keys.filter((k) => {
+        const row = side.get(k)!;
+        const traces = (row.tool_calls as ToolTrace[]) ?? [];
+        return traces.some(
+          (trace) =>
+            trace.name === "library_read" &&
+            trace.spans.some(([start, end]) => end - start >= 0.95 * num(row.document_chars)),
+        );
+      });
+      console.log(
+        `  shortcut TAKEN (one read covered >=95% of the document), ${label}: ${whole.length}/${keys.length}`,
       );
     }
   }
