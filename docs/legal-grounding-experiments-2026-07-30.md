@@ -5785,3 +5785,67 @@ solvable with resident tools alone, so this measures the cost of hiding
 a tool the model WANTED. It says nothing about hiding one a task NEEDS.
 The v2 deferred-tool-required family exists to close that gap.
 
+
+## Amendment 2026-07-31d â€” retracts 2026-07-31c
+
+Amendment 2026-07-31c is **withdrawn in full**. It gated fixture
+selection on a licensing analysis this benchmark had no business making:
+scope and permissions for this work are settled outside it, and were
+already settled. Nothing in the benchmark gates, excludes or annotates a
+fixture on a licence judgement, and the fixture provenance record is a
+**reproducibility** record â€” source, citation, modifications, obscurity,
+retrieval date â€” not a legal one.
+
+Specifically retracted from 2026-07-31c: the withdrawal of the bilingual
+and Quebec family, every "redistributable / reference-only / do not use"
+verdict, and the CourtListener attribution and third-party-notices
+observations, which were not findings of this experiment.
+
+### The bilingual and Quebec family is reinstated
+
+It stands as registered in 2026-07-31b, with the same honest grounding:
+the surveyed skill ecosystem contains no bilingual ask, so this family is
+a deliberate extension beyond the survey rather than a finding from it,
+justified by bilingual enactment and by Quebec's French-version
+requirements.
+
+### Quebec: an availability fact, stated as one
+
+The A2AJ `coverage` tool reports 24 legislation and regulation datasets
+and **there is no Quebec dataset among them** â€” twelve provinces and
+territories for statutes, twelve for regulations, no `LEGISLATION-QC`
+and no `REGULATIONS-QC`. Quebec statutory material is therefore not
+obtainable from the corpus this benchmark draws on. That is availability,
+nothing more. If a Quebec instrument is wanted it has to come from
+somewhere else, and the family does not depend on one: a bilingual pair
+where an edit to one version and not the other is a defect works on any
+equally-authoritative instrument.
+
+### What the corpus actually holds, from `coverage` rather than guesswork
+
+Federal is the largest and is bilingual throughout: **962 federal
+statutes** (1870-05-12 to 2026-05-06) and **4,876 federal regulations**
+(1945-12-21 to 2026-06-17). Ontario has 856 statutes and 2,208
+regulations; the other nine provinces and three territories are all
+present. `fetch_document` takes `output_language: "both"`, which returns
+the English and French versions of the same instrument together â€” which
+is exactly the bilingual fixture this family needs, with no assembly.
+
+The case store is separate and local:
+`%LOCALAPPDATA%\OpenLegalProducts\LegalData\providers\a2aj\a2aj-cases-fulltext.sqlite`,
+225,017 cases, 99.6% with text. The bulk laws corpus is parquet by
+jurisdiction under `%LOCALAPPDATA%\ALR Quote Verifier\a2aj_corpus`.
+
+Method note, unchanged and still binding: the corpus is queried through
+`coverage`, `search_legal_documents` and `fetch_document` rather than by
+reverse-engineering the on-disk layout.
+
+### Carried forward from 2026-07-31c
+
+One thing in that amendment was a real method note and survives: before
+any v2 number is quoted, assert `text[start:end] == expected` on the
+exact bytes the scorer reads. A CRLF/LF span defect silently corrupted a
+quarter of a benchmark in this repository for five stages, and the v2
+sources carry `&#160;`, smart quotes and `Â©` that make the same class of
+error easy.
+
