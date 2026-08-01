@@ -133,10 +133,10 @@ describe("local assistant tools", () => {
       return JSON.parse(response.content);
     };
 
-    // "1" names two sheets, so it is refused rather than guessed.
-    const ambiguous = await run("library_read", { page: "1" });
-    expect(ambiguous.ok).toBe(false);
-    expect(ambiguous.error).toContain('printed "1"');
+    // The two schemes are separate calls: bare digits are the PDF page.
+    const bare = await run("library_read", { page: "1" });
+    expect(bare).toMatchObject({ ok: true, pdf_page: 1, matched_on: "pdf" });
+    expect(bare.text).toContain("TABLE OF CONTENTS");
 
     const printed = await run("library_read", { page: "printed:1" });
     expect(printed).toMatchObject({
