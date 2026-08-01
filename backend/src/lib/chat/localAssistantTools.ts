@@ -215,6 +215,18 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
           description:
             "Which end of the addressed span to read when it is longer than max_chars. Defaults to start; 'end' gives the tail — signature blocks, execution pages, the close of a clause.",
         },
+        follow: {
+          type: "string",
+          enum: ["none", "out", "in", "both"],
+          description:
+            "Widen `at` along the document's cross-references (see library_outline). Defaults to none.",
+        },
+        depth: {
+          type: "integer",
+          minimum: 1,
+          maximum: 3,
+          description: "Hops. Defaults to 1.",
+        },
         section: { type: "string", description: "Deprecated: use at." },
         page: { type: "string", description: "Deprecated: use at='pdf:N' or at='printed:X'." },
         offset: { type: "integer", minimum: 0, description: "Deprecated: use at='off:N'." },
@@ -231,7 +243,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
   ),
   tool(
     "library_outline",
-    "Orientation call, and where the address grammar is defined. Returns the ARTICLE/PART tree with every Section and (a)/(i) subsection, defined terms with their defining section, schedules, cross-reference counts, and the page map. Addresses: a node handle ('8.01', 'Article VIII') names a provision and everything under it; 'pdf:52' names the sheet's position in the file; 'printed:47' names the number printed ON the sheet, which is what a pinpoint citation, index or exhibit stamp refers to and need not equal the PDF page. The page map says which of those this document has and where they diverge. A ~100-page agreement maps to 1-3k tokens.",
+    "Orientation call, and where the address grammar is defined. Returns the ARTICLE/PART tree with every Section and (a)/(i) subsection, defined terms with their defining section, schedules, cross-reference counts, and the page map. Addresses:  a node handle ('8.01', 'Article VIII') names a provision and everything under it; 'pdf:52' names the sheet's position in the file; 'printed:47' names the number printed ON the sheet, which is what a pinpoint citation, index or exhibit stamp refers to and need not equal the PDF page. The page map says which of those this document has and where they diverge. `follow` on read and find widens an address along the document's own cross-references: out = what it points at, in = what points at it. A ~100-page agreement maps to 1-3k tokens.",
     {
       type: "object",
       properties: {
@@ -297,13 +309,13 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
           type: "string",
           enum: ["none", "out", "in", "both"],
           description:
-            "Widen `section` along the document's own cross-references: out = the provisions it points at, in = the provisions that point at it, both = either. Requires section. Defaults to none.",
+            "Widen `at` along the document's cross-references (see library_outline). Defaults to none.",
         },
         depth: {
           type: "integer",
           minimum: 1,
           maximum: 3,
-          description: "Hops to follow. Defaults to 1.",
+          description: "Hops. Defaults to 1.",
         },
         max_results: { type: "integer", minimum: 1, maximum: 50 },
         context_chars: { type: "integer", minimum: 40, maximum: 2000 },
@@ -731,7 +743,7 @@ export const NAV_TOOL_SHAPE: "legacy" | "address" =
 
 /** Shown only in the address arm; stripped from legacy. */
 const ADDRESS_ONLY_PARAMS: Record<string, string[]> = {
-  library_read: ["at", "from", "page"],
+  library_read: ["at", "from", "follow", "depth", "page"],
   library_find: ["at", "pages", "section", "follow", "depth"],
   library_links: ["at", "section"],
 };
@@ -757,6 +769,59 @@ const LEGACY_DESCRIPTIONS: Record<string, string> = {
   library_outline:
     "Structural map of a Library document parsed from its own numbering: the ARTICLE/PART tree, every Section and (a)/(i) subsection with the handle library_read section= accepts, defined terms with their defining section, schedules/exhibits, and cross-reference counts. A ~100-page agreement maps to 1-3k tokens.",
 };
+
+/**
+ * The edit scope is part of the surface under test, not a constant. Legacy
+ * names an edit site by RETYPING document text (find_text / range); address
+ * names it structurally. Leaving `at` in both arms would have let legacy
+ * score with the affordance the comparison exists to measure.
+ */
+function forEditShape(tools: OpenAIToolSchema[]): OpenAIToolSchema[] {
+  if (NAV_TOOL_SHAPE === "address") return tools;
+  return tools.map((entry) => {
+    const ops = (entry.function.parameters as Record<string, any>)?.properties
+      ?.ops;
+    const scope = ops?.items?.properties?.scope;
+    if (!scope?.properties?.kind?.enum) return entry;
+    const properties = { ...scope.properties };
+    for (const key of ["at", "follow", "depth"]) delete properties[key];
+    return {
+      ...entry,
+      function: {
+        ...entry.function,
+        parameters: {
+          ...(entry.function.parameters as Record<string, unknown>),
+          properties: {
+            ...(entry.function.parameters as Record<string, any>).properties,
+            ops: {
+              ...ops,
+              items: {
+                ...ops.items,
+                properties: {
+                  ...ops.items.properties,
+                  scope: {
+                    ...scope,
+                    description:
+                      "Where the op applies: whole_document; find_text (every occurrence unless occurrence is set); or range (start of from_text through end of to_text).",
+                    properties: {
+                      ...properties,
+                      kind: {
+                        ...scope.properties.kind,
+                        enum: scope.properties.kind.enum.filter(
+                          (kind: string) => kind !== "at",
+                        ),
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    } as OpenAIToolSchema;
+  });
+}
 
 function forNavShape(tools: OpenAIToolSchema[]): OpenAIToolSchema[] {
   const address = NAV_TOOL_SHAPE === "address";
@@ -938,7 +1003,7 @@ export const LOCAL_ASSISTANT_TOOLS: OpenAIToolSchema[] = [
     : forNavShape(LOCAL_LIBRARY_TOOLS)),
   ...LOCAL_DOCX_TOOLS,
   ...COMPARE_VERSIONS_TOOLS,
-  ...(TEXT_OPS_TOOLS as OpenAIToolSchema[]),
+  ...forEditShape(TEXT_OPS_TOOLS as OpenAIToolSchema[]),
   ...(WORKFLOW_TOOLS as OpenAIToolSchema[]),
   ...(RESEARCH_TOOLS_DISABLED
     ? []
@@ -2552,11 +2617,18 @@ export async function runLocalAssistantTools(
         if (call.name === "library_read") {
           // One address grammar, with the three original parameters still
           // honoured so nothing calling the old shape breaks.
-          const address = parseAddress(trimmed(args.at));
-          const sectionLocator =
-            trimmed(args.section) ||
-            (address?.kind === "section" ? address.locator : "");
-          const fromEnd = trimmed(args.from) === "end";
+          // Arm isolation is enforced HERE as well as in the schema: an arm
+          // must not be able to use the other arm's vocabulary even if a
+          // parameter reaches it, or the comparison leaks through the
+          // handler while the tool list looks clean.
+          const addressArm = NAV_TOOL_SHAPE === "address";
+          const address = addressArm ? parseAddress(trimmed(args.at)) : null;
+          const sectionLocator = addressArm
+            ? address?.kind === "section"
+              ? address.locator
+              : ""
+            : trimmed(args.section);
+          const fromEnd = addressArm && trimmed(args.from) === "end";
           /**
            * head/tail over any addressed span. Reading the END of a span is
            * not a convenience: execution pages, schedules and the closing
@@ -2588,6 +2660,34 @@ export async function runLocalAssistantTools(
             }
             const maxChars = clampInt(args.max_chars, 200, 300_000, 60_000);
             const view = windowOf(lookup.block.text, maxChars);
+            // follow expands the ADDRESS, so it belongs here as much as on
+            // find: "read this clause and what it depends on" is one request,
+            // not a read followed by a graph walk the caller has to stitch.
+            const readFollow = (
+              addressArm ? trimmed(args.follow) || "none" : "none"
+            ) as FollowDirection;
+            let related: { section: string; display: string; text: string }[] = [];
+            if (readFollow !== "none") {
+              const walked = graphScope(
+                skeleton,
+                crossReferenceGraph(document.text, documentId, { skeleton }),
+                lookup.block.label,
+                { follow: readFollow, depth: clampInt(args.depth, 1, 3, 1) },
+              );
+              // One shared budget: following must not multiply what a read
+              // costs by the size of the neighbourhood.
+              let budget = Math.max(0, maxChars - view.body.length);
+              for (const node of walked?.nodes ?? []) {
+                if (node.label === lookup.block.label || budget <= 0) continue;
+                const body = document.text.slice(node.start, node.end).slice(0, budget);
+                budget -= body.length;
+                related.push({
+                  section: node.label,
+                  display: node.display,
+                  text: body,
+                });
+              }
+            }
             return result(call, {
               ok: true,
               filename: document.filename,
@@ -2598,6 +2698,10 @@ export async function runLocalAssistantTools(
               parent: lookup.block.parentLabel,
               ...(fromEnd && view.cut ? { read_from: "end" } : {}),
               text: view.body,
+              ...(related.length ? { related } : {}),
+              ...(readFollow !== "none" && !related.length
+                ? { related_note: "No resolved cross-references in that direction." }
+                : {}),
               truncated: view.cut,
               ...(view.cut
                 ? {
@@ -2613,8 +2717,7 @@ export async function runLocalAssistantTools(
           // the page so the next call can be a structural read, which is the
           // address that survives re-pagination.
           const pageRequest =
-            trimmed(args.page) ||
-            (address?.kind === "page" ? address.spec : "");
+            addressArm && address?.kind === "page" ? address.spec : "";
           if (pageRequest) {
             const lookup = resolvePage(
               document.pages,
@@ -2677,7 +2780,11 @@ export async function runLocalAssistantTools(
           // documents without numbered structure. Untargeted reads keep the
           // historical 300k head.
           const offset = clampInt(
-            address?.kind === "offset" ? address.start : args.offset,
+            addressArm
+              ? address?.kind === "offset"
+                ? address.start
+                : 0
+              : args.offset,
             0,
             100_000_000,
             0,
@@ -2722,10 +2829,10 @@ export async function runLocalAssistantTools(
         // you find. The internal cap is raised first, because applying
         // max_results before the filter would return nothing whenever the
         // first hits all sit outside the scope.
-        const findAddress = parseAddress(trimmed(args.at));
+        const findArm = NAV_TOOL_SHAPE === "address";
+        const findAddress = findArm ? parseAddress(trimmed(args.at)) : null;
         const pageSpec =
-          trimmed(args.pages) ||
-          (findAddress?.kind === "page" ? findAddress.spec : "");
+          findArm && findAddress?.kind === "page" ? findAddress.spec : "";
         let scope: PageSpan[] | null = null;
         if (pageSpec) {
           const selection = selectPages(document.pages, document.text, pageSpec);
@@ -2751,8 +2858,7 @@ export async function runLocalAssistantTools(
         // the document", which is the only reading under which asking for
         // more narrowing does not widen the result.
         const seedLocator =
-          trimmed(args.section) ||
-          (findAddress?.kind === "section" ? findAddress.locator : "");
+          findArm && findAddress?.kind === "section" ? findAddress.locator : "";
         let structural: { label: string; start: number; end: number }[] | null =
           null;
         let followed: { follow: string; depth: number; nodes: number } | null =
@@ -2771,7 +2877,9 @@ export async function runLocalAssistantTools(
                 "). Call library_outline for the available handles.",
             });
           }
-          const follow = (trimmed(args.follow) || "none") as FollowDirection;
+          const follow = (
+            findArm ? trimmed(args.follow) || "none" : "none"
+          ) as FollowDirection;
           // The graph is only compiled when it is actually going to be
           // walked; a plain section scope costs a skeleton and nothing more.
           const walked =
@@ -2978,9 +3086,7 @@ export async function runLocalAssistantTools(
         };
 
         const linkAddress = parseAddress(trimmed(args.at));
-        const locator =
-          trimmed(args.section) ||
-          (linkAddress?.kind === "section" ? linkAddress.locator : "");
+        const locator = linkAddress?.kind === "section" ? linkAddress.locator : "";
         if (!locator) {
           return result(call, {
             ...census,
