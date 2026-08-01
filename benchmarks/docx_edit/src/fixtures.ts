@@ -51,20 +51,17 @@ const PROSE_DIR = path.join(__dirname, "..", "fixtures", "prose");
 const REAL_DIR = path.join(__dirname, "..", "fixtures", "real");
 
 /**
- * Provenance for a fixture cut from a real document. Required on the `real`
- * family: a fixture whose licence cannot be established does not ship, and
- * the manifest has to be able to say where every line came from.
+ * Provenance for a fixture cut from a real document — recorded so a result is
+ * reproducible and so anyone can see where every line came from. It is a
+ * REPRODUCIBILITY record, not a legal one: scope and permissions are settled
+ * outside this benchmark and no fixture is gated on a judgement made here.
  */
 export type FixtureProvenance = {
-  /** Where the document came from, as a resolvable URL. */
-  source_url: string;
-  /** The licence, named exactly. */
-  licence: string;
-  /** REDISTRIBUTABLE with the stated attribution, or the fixture is dropped. */
-  licence_verdict: "redistributable";
-  /** Attribution line the licence requires. */
-  attribution: string;
-  /** What was done to the source: excerpted, truncated, renamed, nothing. */
+  /** Where the document came from: a resolvable URL, or a local corpus id. */
+  source: string;
+  /** Citation or identifier the source is addressed by. */
+  citation: string;
+  /** What was done to it: excerpted, truncated, renamed, nothing. */
   modifications: string;
   /**
    * Contamination risk. A landmark document a model may have memorised is a
