@@ -80,9 +80,8 @@ async function child() {
   const rep = Number(argOf("rep", "1"));
   const outDir = argOf("out");
 
-  const { LOCAL_ASSISTANT_TOOLS, runLocalAssistantTools } = await import(
-    "../../../backend/src/lib/chat/localAssistantTools"
-  );
+  const { LOCAL_ASSISTANT_TOOLS, runLocalAssistantTools, partitionTools } =
+    await import("../../../backend/src/lib/chat/localAssistantTools");
   const { createLocalDocument, getLocalVersionFile } = await import(
     "../../../backend/src/lib/localDocumentStore"
   );
@@ -101,61 +100,180 @@ async function child() {
     documentIdByFixture.set(fixtureId, (created as { id: string }).id);
   }
 
-  const tools = applySurface(LOCAL_ASSISTANT_TOOLS, surface);
+  const allTools = applySurface(LOCAL_ASSISTANT_TOOLS, surface);
+
+  /**
+   * Progressive disclosure. A surface may ship only part of its schema in the
+   * request and reveal the rest when the model asks. The conversation loop
+   * belongs to the caller, so it is driven here; a surface with no deferral
+   * reports everything resident, and the same code path serves both.
+   *
+   * Two things make the condition real rather than cosmetic:
+   *  - `served` starts at the resident set and only grows when the model
+   *    opens a domain, so the request genuinely carries fewer schemas;
+   *  - a call to a tool that is not currently served is REFUSED here instead
+   *    of executed. The handlers dispatch on name alone, so without this a
+   *    model that guessed a deferred tool's name would silently get it, and
+   *    the deferral would be measured as free.
+   */
+  const partition = partitionTools(allTools);
+  let served: OpenAIToolSchema[] = [...partition.resident];
+  const servedNames = new Set(served.map((entry) => entry.function.name));
+  const residentSchemaBytes = Buffer.byteLength(JSON.stringify(partition.resident));
+  const fullSchemaBytes = Buffer.byteLength(JSON.stringify(allTools));
+  const schemaBytesPerRequest: number[] = [];
+  const disclosure: { phase: number; batch: number; domains: string[]; opened: string[] }[] = [];
+  const refusedUnserved: { batch: number; name: string }[] = [];
+
   const calls: CapturedCall[] = [];
   let iteration = 0;
   const started = Date.now();
   let answer = "";
   let runError: string | null = null;
 
-  try {
-    await streamChatWithTools({
-      model,
-      systemPrompt: `${SYSTEM_PROMPT}\n\nDocuments in the library: ${task.fixtures
-        .map((id) => fixtureSpec(id).filename)
-        .join("; ")}.`,
-      messages: [{ role: "user", content: task.instruction }],
-      tools,
-      maxIterations: 14,
-      reasoningEffort: effort,
-      enableThinking: true,
-      callbacks: {
-        onContentDelta: (text: string) => {
-          answer += text;
+  // The provider adapter freezes its tool list when the call starts, so a
+  // domain opened mid-call cannot become callable inside that call. The loop
+  // therefore ends the provider call at the disclosure and continues in a new
+  // one, replaying the exchange so far. The replay's token cost is real and is
+  // counted; a surface that never defers never restarts.
+  const MAX_PHASES = 3;
+  const conversation: { role: "user" | "assistant"; content: string }[] = [
+    { role: "user", content: task.instruction },
+  ];
+  let phase = 0;
+  let restarts = 0;
+
+  while (phase < MAX_PHASES) {
+    phase += 1;
+    const abort = new AbortController();
+    const phaseExchange: { call: string; result: string }[] = [];
+    let disclosed = false;
+    let phaseText = "";
+    schemaBytesPerRequest.push(Buffer.byteLength(JSON.stringify(served)));
+    try {
+      await streamChatWithTools({
+        model,
+        systemPrompt: `${SYSTEM_PROMPT}\n\nDocuments in the library: ${task.fixtures
+          .map((id) => fixtureSpec(id).filename)
+          .join("; ")}.`,
+        messages: conversation,
+        tools: served,
+        maxIterations: 14,
+        reasoningEffort: effort,
+        enableThinking: true,
+        abortSignal: abort.signal,
+        callbacks: {
+          onContentDelta: (text: string) => {
+            answer += text;
+            phaseText += text;
+          },
         },
-      },
-      runTools: async (batch) => {
-        iteration += 1;
-        const results = await runLocalAssistantTools(userId, batch);
-        const byId = new Map(results.map((entry) => [entry.tool_use_id, entry.content]));
-        for (const call of batch) {
-          const content = byId.get(call.id) ?? "";
-          let ok: boolean | null = null;
-          let error: string | null = null;
-          try {
-            const parsed = JSON.parse(content) as { ok?: boolean; error?: string };
-            if (typeof parsed.ok === "boolean") ok = parsed.ok;
-            if (typeof parsed.error === "string") error = parsed.error;
-          } catch {
-            if (/^No such tool|not found|does not exist/iu.test(content)) {
-              ok = false;
-              error = content.slice(0, 300);
+        runTools: async (batch) => {
+          iteration += 1;
+          // A tool the surface has not served is not callable, whatever the
+          // handlers would do with the name. Without this the deferral would
+          // measure as free for any model that guesses a name.
+          const allowed = batch.filter((call) => servedNames.has(call.name));
+          const blocked = batch.filter((call) => !servedNames.has(call.name));
+          for (const call of blocked) {
+            refusedUnserved.push({ batch: iteration, name: call.name });
+          }
+          const executed = allowed.length
+            ? await runLocalAssistantTools(userId, allowed)
+            : [];
+          const byId = new Map(executed.map((entry) => [entry.tool_use_id, entry.content]));
+          const results = batch.map((call) => ({
+            tool_use_id: call.id,
+            content:
+              byId.get(call.id) ??
+              JSON.stringify({
+                ok: false,
+                error: `Tool '${call.name}' is not available in this session.`,
+              }),
+          }));
+          for (const entry of results) {
+            const call = batch.find((item) => item.id === entry.tool_use_id)!;
+            const content = entry.content;
+            let ok: boolean | null = null;
+            let error: string | null = null;
+            try {
+              const parsed = JSON.parse(content) as { ok?: boolean; error?: string };
+              if (typeof parsed.ok === "boolean") ok = parsed.ok;
+              if (typeof parsed.error === "string") error = parsed.error;
+            } catch {
+              if (/^No such tool|not found|does not exist/iu.test(content)) {
+                ok = false;
+                error = content.slice(0, 300);
+              }
+            }
+            calls.push({
+              iteration,
+              name: call.name,
+              input: call.input,
+              ok,
+              error,
+              result_chars: content.length,
+            });
+            phaseExchange.push({
+              call: JSON.stringify({ name: call.name, arguments: call.input }),
+              // The replay carries the content the model already saw; capping
+              // it would change what the continuation knows.
+              result: content,
+            });
+            if (call.name === "describe_tools" && ok !== false) {
+              try {
+                const parsed = JSON.parse(content) as {
+                  domains?: string[];
+                  opened?: string[];
+                  tools?: OpenAIToolSchema[];
+                };
+                const opened = (parsed.tools ?? []).filter(
+                  (entry) => !servedNames.has(entry.function.name),
+                );
+                if (opened.length) {
+                  served = [...served, ...opened];
+                  for (const entry of opened) servedNames.add(entry.function.name);
+                  disclosed = true;
+                }
+                disclosure.push({
+                  phase,
+                  batch: iteration,
+                  domains: parsed.domains ?? [],
+                  opened: parsed.opened ?? [],
+                });
+              } catch {}
             }
           }
-          calls.push({
-            iteration,
-            name: call.name,
-            input: call.input,
-            ok,
-            error,
-            result_chars: content.length,
-          });
-        }
-        return results;
-      },
+          if (disclosed) abort.abort();
+          return results;
+        },
+      });
+    } catch (error) {
+      if (!abort.signal.aborted) {
+        runError = error instanceof Error ? error.message : String(error);
+      }
+    }
+    if (!disclosed) break;
+    restarts += 1;
+    // Replay the exchange so far, then continue. Neutral wording, and it can
+    // only fire on a surface that defers, so it never touches a surface that
+    // does not.
+    if (phaseText.trim()) {
+      conversation.push({ role: "assistant", content: phaseText.trim() });
+    }
+    conversation.push({
+      role: "assistant",
+      content:
+        "Tool calls I made so far:\n" +
+        phaseExchange.map((entry) => entry.call).join("\n"),
     });
-  } catch (error) {
-    runError = error instanceof Error ? error.message : String(error);
+    conversation.push({
+      role: "user",
+      content:
+        "Results of those tool calls:\n" +
+        phaseExchange.map((entry) => entry.result).join("\n---\n") +
+        "\n\nThe tools you asked for are now available. Continue and finish the task.",
+    });
   }
   const wallClockSeconds = (Date.now() - started) / 1000;
 
@@ -257,12 +375,33 @@ async function child() {
     surface: surface.id,
     surface_env: surface.env,
     surface_tool_filter: surface.tools ?? {},
-    tools_shown: tools.map((entry) => entry.function.name),
-    tool_schema_bytes: Buffer.byteLength(JSON.stringify(tools)),
+    tools_shown: partition.resident.map((entry) => entry.function.name),
+    tools_deferred: partition.deferred.map((entry) => entry.function.name),
+    tool_schema_bytes: fullSchemaBytes,
+    // The saving is only real if the model does not open everything at once:
+    // first-request bytes against the mean across the run's requests.
+    resident_schema_bytes: residentSchemaBytes,
+    schema_bytes_first_request: schemaBytesPerRequest[0] ?? residentSchemaBytes,
+    schema_bytes_per_request: schemaBytesPerRequest,
+    schema_bytes_mean_request:
+      schemaBytesPerRequest.reduce((a, b) => a + b, 0) /
+      Math.max(1, schemaBytesPerRequest.length),
+    disclosure_events: disclosure,
+    disclosure_domains: [...new Set(disclosure.flatMap((entry) => entry.domains))],
+    disclosure_first_batch: disclosure.length ? disclosure[0].batch : null,
+    disclosure_restarts: restarts,
+    refused_unserved_calls: refusedUnserved,
+    // Opened but never called: the domain cost a turn and bought nothing.
+    opened_never_called: [...new Set(disclosure.flatMap((entry) => entry.opened))].filter(
+      (name) => !calls.some((call) => call.name === name),
+    ),
     // Pins the served surface: a product change that reintroduces a dropped
     // parameter shows up as a different hash rather than as a silent result.
     tool_schema_sha256: createHash("sha256")
-      .update(JSON.stringify(tools))
+      .update(JSON.stringify(allTools))
+      .digest("hex"),
+    resident_schema_sha256: createHash("sha256")
+      .update(JSON.stringify(partition.resident))
       .digest("hex"),
     repo_head: (() => {
       try {

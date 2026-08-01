@@ -147,10 +147,21 @@ async function main() {
     const surface = surfaceById(argOf("id"));
     {
       for (const [key, value] of Object.entries(surface.env)) process.env[key] = value;
-      const { LOCAL_ASSISTANT_TOOLS } = await import(
+      const { LOCAL_ASSISTANT_TOOLS, partitionTools } = await import(
         "../../../backend/src/lib/chat/localAssistantTools"
       );
       const tools = applySurface(LOCAL_ASSISTANT_TOOLS, surface);
+      const partition = partitionTools(tools);
+      const bytes = (list: unknown) => Buffer.byteLength(JSON.stringify(list));
+      console.log(
+        `\n[disclosure] resident ${partition.resident.length} tools / ${bytes(partition.resident).toLocaleString("en-CA")} schema bytes; ` +
+          `deferred ${partition.deferred.length} / ${bytes(partition.deferred).toLocaleString("en-CA")}; ` +
+          `full ${tools.length} / ${bytes(tools).toLocaleString("en-CA")}`,
+      );
+      if (partition.deferred.length) {
+        console.log(`  resident: ${partition.resident.map((e) => e.function.name).join(", ")}`);
+        console.log(`  deferred: ${partition.deferred.map((e) => e.function.name).join(", ")}`);
+      }
       const interesting = new Set([
         "library_list",
         "library_outline",

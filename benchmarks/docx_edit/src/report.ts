@@ -27,6 +27,16 @@ type Receipt = {
   tool_errors: { name: string; error: string }[];
   scope_kinds: Record<string, number>;
   address_args: string[];
+  resident_schema_bytes?: number;
+  tool_schema_bytes?: number;
+  schema_bytes_first_request?: number;
+  schema_bytes_mean_request?: number;
+  disclosure_events?: { phase: number; batch: number; domains: string[]; opened: string[] }[];
+  disclosure_domains?: string[];
+  disclosure_first_batch?: number | null;
+  disclosure_restarts?: number;
+  refused_unserved_calls?: { batch: number; name: string }[];
+  opened_never_called?: string[];
   retyped_arg_count: number;
   retyped_chars: number;
   misquoted_arg_count: number;
@@ -117,6 +127,27 @@ function main() {
   metric("runs with a misquote", (l) =>
     `${l.filter((r) => r.misquoted_arg_count > 0).length}/${l.length}`);
   metric("run errors", (l) => `${l.filter((r) => r.run_error).length}/${l.length}`);
+  // Progressive disclosure. The schema saving is only real if the model does
+  // not open everything on turn one, so the first request is reported beside
+  // the mean across the run's requests.
+  metric("resident schema bytes", (l) =>
+    Math.round(mean(l.map((r) => r.resident_schema_bytes ?? 0))).toLocaleString("en-CA"));
+  metric("full schema bytes", (l) =>
+    Math.round(mean(l.map((r) => r.tool_schema_bytes ?? 0))).toLocaleString("en-CA"));
+  metric("schema bytes, 1st request", (l) =>
+    Math.round(mean(l.map((r) => r.schema_bytes_first_request ?? 0))).toLocaleString("en-CA"));
+  metric("schema bytes, mean request", (l) =>
+    Math.round(mean(l.map((r) => r.schema_bytes_mean_request ?? 0))).toLocaleString("en-CA"));
+  metric("runs opening a domain", (l) =>
+    `${l.filter((r) => (r.disclosure_events ?? []).length > 0).length}/${l.length}`);
+  metric("first disclosure at batch", (l) => {
+    const fired = l.filter((r) => r.disclosure_first_batch != null);
+    return fired.length ? mean(fired.map((r) => r.disclosure_first_batch!)).toFixed(1) : "n/a";
+  });
+  metric("runs blocked on a hidden tool", (l) =>
+    `${l.filter((r) => (r.refused_unserved_calls ?? []).length > 0).length}/${l.length}`);
+  metric("opened but never called", (l) =>
+    `${l.filter((r) => (r.opened_never_called ?? []).length > 0).length}/${l.length}`);
   table.push([
     "replicate disagreement (floor)",
     ...surfaces.map((s) => {

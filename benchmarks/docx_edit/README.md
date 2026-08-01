@@ -133,6 +133,42 @@ Refusal tasks (`expected: refuse`) cover a target that does not exist
 (`credit-ambiguous-margin`), the two redline cases above, and a target that is
 off the addressable plane entirely (`factum-footnote-pinpoint`).
 
+## Progressive tool disclosure
+
+A surface may ship only part of its schema in the request and reveal the rest
+when the model asks for a domain. The runner drives that loop, because the
+provider adapter freezes its tool list when a call starts: a domain opened
+mid-call cannot become callable inside that call, so the runner ends the call
+at the disclosure and continues in a new one, replaying the exchange so far.
+The replay's token cost is real and is counted. A surface that defers nothing
+never restarts, so one code path serves both.
+
+Two things keep the condition honest:
+
+- a call to a tool the surface has not served is **refused by the runner**
+  rather than executed. The handlers dispatch on name alone, so without this a
+  model that guessed a deferred tool's name would silently get it;
+- the first request's schema size is reported beside the mean across the run's
+  requests, because the saving is only real if the model does not open
+  everything on turn one.
+
+Reported separately from ordinary failures: runs that opened a domain, the
+batch at which the first disclosure fired, runs blocked on a hidden tool, and
+domains opened but never used.
+
+Two task fields make a disclosure result readable, and they are properties of
+the task rather than of any arm:
+
+- `resident_route_exists` — whether a route using only always-resident tools
+  solves it. **True for all 27 tasks in v1**: every reference solution is a
+  literal substitution, which a deterministic text-op tool executes directly.
+  So v1 can show the cost of hiding a tool a model *wanted*; it cannot show
+  the cost of hiding a tool a task *needs*. A future task that genuinely
+  requires a deferred capability would set this false.
+- `alternative_route_domains` — the domains a natural alternative route
+  reaches for. `["drafting"]` on every edit task, because tracked-change
+  revision is the obvious thing to reach for and it is commonly deferred.
+
 ## Scoring
 
 Every check is programmatic and frozen before any model call. A task that

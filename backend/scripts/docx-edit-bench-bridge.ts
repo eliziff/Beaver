@@ -52,3 +52,11 @@ export { scanDocxPathology } from "../src/lib/docx/pathology";
 export { extractDocxStories, storiesBodyText } from "../src/lib/docx/stories";
 
 export type { OpenAIToolSchema } from "../src/lib/llm";
+
+/**
+ * NOT re-exported here: anything from `chat/localAssistantTools`. That module
+ * reads its shape from the environment at import time, and this bridge is
+ * imported before a surface's environment is applied — a static re-export
+ * would freeze the wrong surface. Callers import it dynamically, after the
+ * surface env is in place.
+ */
