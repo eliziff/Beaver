@@ -222,3 +222,47 @@ describe("applyTextOpsToDocx end to end", () => {
     expect(applied.bytes).toBe(bytes);
   });
 });
+
+/**
+ * The address layer resolves, the op engine executes. Both project the DOCX
+ * with extractDocxBodyText, which is what makes an offset resolved for
+ * reading valid for editing — the reason the second extractor was removed.
+ */
+describe("resolved-span scope", () => {
+  it("applies only inside the spans it was handed", async () => {
+    const bytes = await renderFixture();
+    const text = await extractDocxBodyText(bytes);
+    const start = text.indexOf("Purchaser shall pay");
+    const end = text.indexOf("The parties recieve");
+    expect(start).toBeGreaterThan(0);
+    expect(end).toBeGreaterThan(start);
+
+    const requests: TextOpRequest[] = [
+      {
+        op: "replace_text",
+        find: "purchaser",
+        replace: "buyer",
+        scope: { kind: "spans", spans: [{ start, end }] },
+      },
+    ];
+    const applied = await applyTextOpsToDocx(bytes, requests);
+    const after = await resolveAll(applied.bytes, applied.edits, "accept");
+    // Inside the span every occurrence moved; outside it none did.
+    expect(after).toContain("The buyer may not assign");
+    expect(after).toContain("Each buyer remains liable");
+    expect(after).toContain("The governing law clause controls");
+    expect(after.slice(0, start)).not.toContain("buyer");
+  });
+
+  it("refuses an empty resolved scope rather than falling back to the document", async () => {
+    const bytes = await renderFixture();
+    await expect(
+      applyTextOpsToDocx(bytes, [
+        {
+          op: "uppercase",
+          scope: { kind: "spans", spans: [{ start: 10, end: 10 }] },
+        },
+      ]),
+    ).rejects.toThrow(/Resolved scope is empty/u);
+  });
+});
