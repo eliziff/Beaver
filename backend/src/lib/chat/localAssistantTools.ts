@@ -16,8 +16,13 @@ import {
   compileAgreementSkeleton,
   readSection,
   renderAgreementOutline,
+  type AgreementSkeleton,
 } from "../legalTextSkeleton";
 import { crossReferenceGraph } from "../legalCrossReference";
+import {
+  bakedCrossReferenceGraph,
+  bakedSkeleton,
+} from "../legalStructureSidecar";
 import {
   nodeLinks,
   nodeNeighbourhood,
@@ -770,6 +775,35 @@ const LEGACY_DESCRIPTIONS: Record<string, string> = {
   library_outline:
     "Structural map of a Library document parsed from its own numbering: the ARTICLE/PART tree, every Section and (a)/(i) subsection with the handle library_read section= accepts, defined terms with their defining section, schedules/exhibits, and cross-reference counts. A ~100-page agreement maps to 1-3k tokens.",
 };
+
+/**
+ * Structure for a Library document, served from a pre-baked sidecar in the
+ * address arm.
+ *
+ * The sidecars exist because the in-memory memo only helps within a process:
+ * the Income Tax Act costs ~13.4s to compile cold and ~658ms to read baked,
+ * and those landmark statutes are exactly the documents a model must navigate
+ * rather than read. A miss falls through to a real compile, so correctness
+ * never depends on a bake — only speed does.
+ *
+ * Legacy stays on the synchronous path: arm B is the whole product bet, and
+ * this is part of it.
+ */
+async function documentStructure(text: string, id = "") {
+  return NAV_TOOL_SHAPE === "address"
+    ? bakedSkeleton(text, id)
+    : compileAgreementSkeleton(text, id);
+}
+
+async function documentGraph(
+  text: string,
+  id: string,
+  skeleton: AgreementSkeleton,
+) {
+  return NAV_TOOL_SHAPE === "address"
+    ? bakedCrossReferenceGraph(text, id)
+    : crossReferenceGraph(text, id, { skeleton });
+}
 
 /**
  * PROGRESSIVE DISCLOSURE, address arm only.
@@ -2799,7 +2833,7 @@ export async function runLocalAssistantTools(
               : { body: body.slice(0, maxChars), cut: true, at: 0 };
           };
           if (sectionLocator) {
-            const skeleton = compileAgreementSkeleton(document.text);
+            const skeleton = await documentStructure(document.text, documentId);
             const lookup = readSection(skeleton, sectionLocator);
             if (lookup.status !== "found" || !lookup.block) {
               return result(call, {
@@ -2824,7 +2858,7 @@ export async function runLocalAssistantTools(
             if (readFollow !== "none") {
               const walked = graphScope(
                 skeleton,
-                crossReferenceGraph(document.text, documentId, { skeleton }),
+                await documentGraph(document.text, documentId, skeleton),
                 lookup.block.label,
                 { follow: readFollow, depth: clampInt(args.depth, 1, 3, 1) },
               );
@@ -2899,7 +2933,7 @@ export async function runLocalAssistantTools(
             const pageBody = pageView.body;
             const pageCut = pageView.cut;
             const onPage = pageSections(
-              compileAgreementSkeleton(document.text),
+              await documentStructure(document.text, documentId),
               lookup.page,
             );
             return result(call, {
@@ -2976,7 +3010,7 @@ export async function runLocalAssistantTools(
           const opening = addressArm && start === 0;
           let affords: Record<string, unknown> | null = null;
           if (opening) {
-            const skeletonNow = compileAgreementSkeleton(document.text);
+            const skeletonNow = await documentStructure(document.text, documentId);
             const schemes = pageSchemes(document.pages);
             const sections = skeletonNow.nodes.filter(
               (node) => node.kind !== "subsection",
@@ -3063,7 +3097,7 @@ export async function runLocalAssistantTools(
         let followed: { follow: string; depth: number; nodes: number } | null =
           null;
         if (seedLocator) {
-          const skeletonForScope = compileAgreementSkeleton(document.text);
+          const skeletonForScope = await documentStructure(document.text, documentId);
           const seed = readSection(skeletonForScope, seedLocator);
           if (seed.status !== "found" || !seed.block) {
             return result(call, {
@@ -3086,9 +3120,11 @@ export async function runLocalAssistantTools(
               ? null
               : graphScope(
                   skeletonForScope,
-                  crossReferenceGraph(document.text, documentId, {
-                    skeleton: skeletonForScope,
-                  }),
+                  await documentGraph(
+                    document.text,
+                    documentId,
+                    skeletonForScope,
+                  ),
                   seed.block.label,
                   { follow, depth: clampInt(args.depth, 1, 3, 1) },
                 );
@@ -3138,7 +3174,7 @@ export async function runLocalAssistantTools(
         // The grep-analog composes like file:line does for code: each hit
         // carries its offset plus the deepest enclosing structural handle,
         // so the follow-up is a section read, not a whole-document read.
-        const skeleton = compileAgreementSkeleton(document.text);
+        const skeleton = await documentStructure(document.text, documentId);
         const filtered = matches.hits.filter(
           (hit) =>
             (!scope ||
@@ -3201,7 +3237,7 @@ export async function runLocalAssistantTools(
         if (!documentId) return fail(call, "document_id is required");
         const document = await extractLocalDocument(userId, documentId);
         if (!document) return fail(call, "Document not found");
-        const skeleton = compileAgreementSkeleton(document.text);
+        const skeleton = await documentStructure(document.text, documentId);
         if (!skeleton.nodes.length) {
           return result(call, {
             ok: true,
@@ -3260,10 +3296,8 @@ export async function runLocalAssistantTools(
         if (!documentId) return fail(call, "document_id is required");
         const document = await extractLocalDocument(userId, documentId);
         if (!document) return fail(call, "Document not found");
-        const skeleton = compileAgreementSkeleton(document.text);
-        const graph = crossReferenceGraph(document.text, documentId, {
-          skeleton,
-        });
+        const skeleton = await documentStructure(document.text, documentId);
+        const graph = await documentGraph(document.text, documentId, skeleton);
         const cap = clampInt(args.max_results, 1, 200, 40);
         const handle = (node: { label: string; display: string }) => ({
           section: node.label,
