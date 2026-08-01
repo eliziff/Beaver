@@ -139,6 +139,21 @@ import {
   type CourtlistenerToolState,
 } from "./courtlistenerToolRunner";
 
+/**
+ * Navigation surface arm, for the A/B.
+ *
+ * "legacy" is the shape that shipped before 2026-07-31: read by section or
+ * offset, unscoped find, no page addressing, no graph. "address" is the one
+ * grammar shape: `at` everywhere, head/tail, page schemes, library_links,
+ * and edit scopes that name a provision instead of retyping its text.
+ *
+ * The model sees exactly one of them, and only one is callable. Shims that
+ * accept both would let an arm answer with the other arm's affordance and
+ * make the comparison meaningless.
+ */
+export const NAV_TOOL_SHAPE: "legacy" | "address" =
+  process.env.MIKE_NAV_SHAPE === "address" ? "address" : "legacy";
+
 const tool = (
   name: string,
   description: string,
@@ -686,7 +701,10 @@ const LOCAL_DOCX_TOOLS: OpenAIToolSchema[] = (
               description:
                 "Optional. Omit for the active version; a specific id fails if it is no longer active.",
             },
-            edits: sharedProperties.edits,
+            edits:
+              NAV_TOOL_SHAPE === "address"
+                ? addressedEditsSchema(sharedProperties.edits)
+                : sharedProperties.edits,
             annotate: {
               type: "boolean",
               description:
@@ -732,20 +750,6 @@ export const ASK_INPUTS_DISABLED =
  */
 export const CODING_TOOL_SHAPE = process.env.MIKE_TOOL_SHAPE === "coding";
 
-/**
- * Navigation surface arm, for the A/B.
- *
- * "legacy" is the shape that shipped before 2026-07-31: read by section or
- * offset, unscoped find, no page addressing, no graph. "address" is the one
- * grammar shape: `at` everywhere, head/tail, page schemes, library_links,
- * and edit scopes that name a provision instead of retyping its text.
- *
- * The model sees exactly one of them, and only one is callable. Shims that
- * accept both would let an arm answer with the other arm's affordance and
- * make the comparison meaningless.
- */
-export const NAV_TOOL_SHAPE: "legacy" | "address" =
-  process.env.MIKE_NAV_SHAPE === "address" ? "address" : "legacy";
 
 /** Shown only in the address arm; stripped from legacy. */
 const ADDRESS_ONLY_PARAMS: Record<string, string[]> = {
@@ -1223,6 +1227,22 @@ const GREP_LINE_CAP = 2_000;
  * directly so the strict coding-shape surface can reject the public name
  * while the alias keeps the identical pinning, receipts, and lint hook.
  */
+/**
+ * Arm B's edit shape: `at` names the provision, and the context pair stops
+ * being required because the server derives it.
+ */
+function addressedEditsSchema(base: unknown): unknown {
+  const edits = JSON.parse(JSON.stringify(base)) as Record<string, any>;
+  const item = edits.items;
+  item.properties.at = {
+    type: "string",
+    description:
+      "Provision to edit inside ('8.01', 'Article VIII'). With `at`, give only `find` and `replace` — the server locates `find` within that provision and reads the surrounding text off the document, so never retype context.",
+  };
+  item.required = ["find", "replace"];
+  return edits;
+}
+
 async function runLocalReviseDocx(
   call: NormalizedToolCall,
   userId: string,
@@ -1243,7 +1263,19 @@ async function runLocalReviseDocx(
         ?.current_version_id ?? "";
     if (!versionId) return fail(call, "Document not found");
   }
-  if (rawEdits.length > 100 || rawEdits.some(invalidReviseEdit)) {
+  const addressed = NAV_TOOL_SHAPE === "address";
+  if (
+    rawEdits.length > 100 ||
+    rawEdits.some((raw) => {
+      const edit = raw as Record<string, unknown>;
+      // `at` replaces the context pair: the server derives the surrounding
+      // bytes from the document, so the model never retypes them.
+      if (addressed && trimmed(edit.at)) {
+        return typeof edit.find !== "string" || typeof edit.replace !== "string";
+      }
+      return invalidReviseEdit(raw);
+    })
+  ) {
     return fail(call, "edits are invalid");
   }
   try {
@@ -1255,14 +1287,56 @@ async function runLocalReviseDocx(
     if (file.fileType.toLowerCase() !== "docx") {
       return fail(call, "Revision requires a DOCX Library version");
     }
+    /**
+     * `at` names the provision; the server finds `find` INSIDE it and reads
+     * the surrounding characters off the document itself.
+     *
+     * This exists because retyping is where edits actually fail. Measured on
+     * the edit benchmark, every misquote was a context string the model
+     * reconstructed with the wrong whitespace — joining two lines with a
+     * space where the document has a newline, or inventing a blank line. The
+     * model has never seen those bytes; the server has.
+     */
+    const docText = addressed
+      ? await extractDocxBodyText(await readFile(file.path))
+      : "";
+    const skeleton = docText
+      ? await documentStructure(docText, documentId)
+      : null;
+    const CONTEXT = 40;
     const edits: EditInput[] = rawEdits
       .map((raw) => {
         const edit = raw as Record<string, unknown>;
+        const at = addressed ? trimmed(edit.at) : "";
+        if (at && skeleton && docText) {
+          const address = parseAddress(at);
+          const seek =
+            address?.kind === "section"
+              ? readSection(skeleton, address.locator)
+              : null;
+          if (seek?.status === "found" && seek.block) {
+            const span = docText.slice(seek.block.start, seek.block.end);
+            const found = span.indexOf(edit.find as string);
+            if (found >= 0) {
+              const at0 = seek.block.start + found;
+              return {
+                find: edit.find as string,
+                replace: edit.replace as string,
+                context_before: docText.slice(Math.max(0, at0 - CONTEXT), at0),
+                context_after: docText.slice(
+                  at0 + (edit.find as string).length,
+                  at0 + (edit.find as string).length + CONTEXT,
+                ),
+                reason: typeof edit.reason === "string" ? edit.reason : undefined,
+              };
+            }
+          }
+        }
         return {
           find: edit.find as string,
           replace: edit.replace as string,
-          context_before: edit.context_before as string,
-          context_after: edit.context_after as string,
+          context_before: (edit.context_before as string) ?? "",
+          context_after: (edit.context_after as string) ?? "",
           reason: typeof edit.reason === "string" ? edit.reason : undefined,
         };
       })
