@@ -265,7 +265,9 @@ export async function streamResponsesApi(
     enableThinking,
   } = params;
   const maxIter = params.maxIterations ?? 10;
-  const responseTools = toResponseTools(tools);
+  // Recomputed per iteration when `resolveTools` is supplied: a tool revealed
+  // by a discovery call in iteration N must be callable in iteration N+1.
+  let responseTools = toResponseTools(tools);
   let input = toResponseInput(params.messages);
   let previousResponseId: string | undefined;
   let fullText = "";
@@ -297,6 +299,7 @@ export async function streamResponsesApi(
   try {
     for (let iter = 0; iter < maxIter; iter++) {
       throwIfAborted(params.abortSignal);
+      if (params.resolveTools) responseTools = toResponseTools(params.resolveTools());
       let toolCalls: NormalizedToolCall[] = [];
       let outputItems: ResponseInputItem[] = [];
       let reasoningBlockOpen = false;
