@@ -5,8 +5,9 @@
  * (`compileAgreementSkeleton`) and a cross-reference graph
  * (`crossReferenceGraph`), and until now neither was reachable from a model
  * turn. `library_read section=` could read one node; nothing could ask for a
- * page, for a node's neighbours, or for a single edge — so a contents page
- * citing "Indemnification … 47" was a dead end, and 4,414 resolved
+ * page, for a node's neighbours, or for a single edge — so any printed page
+ * number, whether it reached us from a pinpoint citation, an index, an
+ * exhibit stamp or a contents page, was a dead end, and 4,414 resolved
  * references were invisible to the only consumer that could use them.
  *
  * This module is the join: one addressing scheme that a page number, a
@@ -166,14 +167,9 @@ export type PageLookup =
   | { status: "found"; page: PageSpan; matchedOn: "pdf" | "printed"; text: string }
   | { status: "no_pages" }
   | {
-      status: "ambiguous";
-      requested: string;
-      asPdfPage: PageSpan;
-      asPrintedLabel: PageSpan;
-    }
-  | {
       status: "not_found";
       requested: string;
+      sense: "pdf" | "printed";
       count: number;
       first: string | null;
       last: string | null;
@@ -189,14 +185,20 @@ export function pageLabel(page: PageSpan): string {
 }
 
 /**
- * Resolve a page request against BOTH numbering schemes.
+ * Resolve a page request in ONE numbering scheme, chosen by the caller.
  *
- * A table of contents cites the PRINTED number; a person looking at a viewer
- * cites the PDF page; front matter numbered i-viii makes them differ by a
- * constant, and an appendix can make them differ again. Answering with one
- * scheme silently would return the wrong sheet, so a request that matches
- * different sheets under the two readings is REFUSED as ambiguous and the
- * caller qualifies it ("pdf:52", "printed:47").
+ * The PDF page and the printed label are two different things to ask for,
+ * not two readings of one request. The printed label is the number ON THE
+ * SHEET, and it is what the record is cited by -- a pinpoint in a brief, an
+ * index, an exhibit stamp, a transcript line, a table of contents. The PDF
+ * page is where the sheet sits in the file. Front matter, inserted exhibits
+ * and re-scanned appendices all make them diverge, and each is the right
+ * answer to a different question. The caller says which it means; nothing
+ * here decides on its behalf.
+ *
+ * Unqualified, digits are a PDF page — the scheme every PDF has — and
+ * anything else ("iv", "A-3") can only be a printed label. `pdf:` and
+ * `printed:` override.
  */
 export function resolvePage(
   map: PageMap,
@@ -206,45 +208,32 @@ export function resolvePage(
   if (!map.pages.length) return { status: "no_pages" };
   const raw = requested.trim();
   const qualified = /^(pdf|printed)\s*[:=]\s*(.+)$/iu.exec(raw);
-  const sense = qualified?.[1].toLowerCase() as "pdf" | "printed" | undefined;
   const wanted = (qualified?.[2] ?? raw).trim();
-  const folded = wanted.toLowerCase();
+  const sense: "pdf" | "printed" =
+    (qualified?.[1].toLowerCase() as "pdf" | "printed" | undefined) ??
+    (/^\d{1,6}$/u.test(wanted) ? "pdf" : "printed");
 
-  const byPdf =
-    sense === "printed"
-      ? undefined
-      : map.pages.find((page) => String(page.pdfPage) === wanted);
-  const byPrinted =
+  const page =
     sense === "pdf"
-      ? undefined
+      ? map.pages.find((candidate) => String(candidate.pdfPage) === wanted)
       : map.pages.find(
-          (page) => page.printedLabel?.toLowerCase() === folded,
+          (candidate) =>
+            candidate.printedLabel?.toLowerCase() === wanted.toLowerCase(),
         );
-
-  if (byPdf && byPrinted && byPdf !== byPrinted) {
-    return {
-      status: "ambiguous",
-      requested: raw,
-      asPdfPage: byPdf,
-      asPrintedLabel: byPrinted,
-    };
-  }
-  const page = byPrinted ?? byPdf;
   if (!page) {
-    const first = map.pages[0];
-    const last = map.pages[map.pages.length - 1];
     return {
       status: "not_found",
       requested: raw,
+      sense,
       count: map.pages.length,
-      first: describePage(first),
-      last: describePage(last),
+      first: describePage(map.pages[0]),
+      last: describePage(map.pages[map.pages.length - 1]),
     };
   }
   return {
     status: "found",
     page,
-    matchedOn: byPrinted ? "printed" : "pdf",
+    matchedOn: sense,
     text: text.slice(page.start, page.end),
   };
 }

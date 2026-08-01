@@ -206,7 +206,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
         page: {
           type: "string",
           description:
-            "Printed page label ('47', 'iv', 'A-3') — what a table of contents cites. Returns that page and the section handles on it, so the follow-up can be a section read. Paged documents only (PDFs); a DOCX has no fixed pagination and will say so.",
+            "A page. Bare digits mean the PDF page; anything else ('iv', 'A-3') is the printed label, and 'pdf:52' / 'printed:47' say so explicitly. These are two different questions — the printed label is the number on the sheet, which is what a pinpoint citation, an index, an exhibit stamp or a table of contents refers to, and it need not equal the PDF page. library_outline reports which schemes this document has. Returns the page plus the section handles on it. Paged documents only.",
         },
         offset: {
           type: "integer",
@@ -284,7 +284,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
         pages: {
           type: "string",
           description:
-            'Restrict the search to pages: "47", "12-18", "3,5,9", or a qualified form when the printed label and PDF page differ ("printed:47", "pdf:52", "printed:iv - printed:2"). Paged documents only. Hit offsets stay document-wide, so a hit still reads with library_read offset=.',
+            'Restrict the search to pages: "47", "12-18", "3,5,9", "printed:47", "pdf:52", "printed:iv - printed:2". Bare digits are the PDF page; qualify to search by printed label. Hit offsets stay document-wide, so a hit still reads with library_read offset=.',
         },
         section: {
           type: "string",
@@ -2440,18 +2440,11 @@ export async function runLocalAssistantTools(
                     : "This document has no fixed pagination (a DOCX is not paginated until something renders it). Use section= for a provision or offset= for a window.",
               });
             }
-            if (lookup.status === "ambiguous") {
-              return result(call, {
-                ok: false,
-                error:
-                  `'${lookup.requested}' is ambiguous in this document: it is ${pageLabel(lookup.asPdfPage)} read as a PDF page, and ${pageLabel(lookup.asPrintedLabel)} read as a printed label. Re-ask as page="pdf:${lookup.asPdfPage.pdfPage}" or page="printed:${lookup.asPrintedLabel.printedLabel}".`,
-              });
-            }
             if (lookup.status === "not_found") {
               return result(call, {
                 ok: false,
                 error:
-                  `Page '${lookup.requested}' not found. This document has ${lookup.count} pages, ${lookup.first} through ${lookup.last}.`,
+                  `No ${lookup.sense === "pdf" ? "PDF page" : "printed page"} '${lookup.requested}'. This document has ${lookup.count} pages, ${lookup.first} through ${lookup.last}.`,
               });
             }
             const maxChars = clampInt(args.max_chars, 200, 300_000, 24_000);
@@ -2543,9 +2536,7 @@ export async function runLocalAssistantTools(
                   ? document.pages.source === "unindexed"
                     ? "This PDF has pages, but no page index could be built for it; drop `pages` and search the whole document."
                     : "This document has no fixed pagination; drop `pages` and search the whole document."
-                  : lookup.status === "ambiguous"
-                    ? `'${selection.token}' is ambiguous: ${pageLabel(lookup.asPdfPage)} as a PDF page, ${pageLabel(lookup.asPrintedLabel)} as a printed label. Qualify it as "pdf:${lookup.asPdfPage.pdfPage}" or "printed:${lookup.asPrintedLabel.printedLabel}".`
-                    : `Page '${selection.token}' not found. This document has ${lookup.status === "not_found" ? lookup.count : 0} pages, ${lookup.status === "not_found" ? lookup.first : "?"} through ${lookup.status === "not_found" ? lookup.last : "?"}.`,
+                  : `Page '${selection.token}' not found. This document has ${lookup.status === "not_found" ? lookup.count : 0} pages, ${lookup.status === "not_found" ? lookup.first : "?"} through ${lookup.status === "not_found" ? lookup.last : "?"}.`,
             });
           }
           scope = selection.pages;
