@@ -94,6 +94,7 @@ export type StreamChatParams = {
    * additive: when absent, `tools` behaves exactly as before.
    */
   resolveTools?: () => OpenAIToolSchema[];
+  /** Optional explicit provider-call cap. Omit for a natural-stop agent loop. */
   maxIterations?: number;
   callbacks?: StreamCallbacks;
   runTools?: (calls: NormalizedToolCall[]) => Promise<NormalizedToolResult[]>;

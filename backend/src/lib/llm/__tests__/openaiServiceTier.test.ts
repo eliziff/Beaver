@@ -15,6 +15,51 @@ afterEach(() => {
 });
 
 describe("OpenAI service tier", () => {
+  it("continues past ten tool rounds until the model naturally stops", async () => {
+    let round = 0;
+    const fetchMock = vi.fn().mockImplementation(async () => {
+      round += 1;
+      return round <= 11
+        ? stream({
+            type: "response.output_item.done",
+            item: {
+              type: "function_call",
+              call_id: `call-${round}`,
+              name: "inspect",
+              arguments: "{}",
+            },
+          })
+        : stream({ type: "response.output_text.delta", delta: "finished" });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await streamOpenAI({
+      model: "gpt-5.6-luna",
+      systemPrompt: "Finish when the work is complete.",
+      messages: [{ role: "user", content: "Inspect thoroughly." }],
+      tools: [{
+        type: "function",
+        function: {
+          name: "inspect",
+          description: "Inspect",
+          parameters: { type: "object", properties: {} },
+        },
+      }],
+      apiKeys: { openai: "test-key" },
+      runTools: async (calls) =>
+        calls.map((call) => ({ tool_use_id: call.id, content: "ok" })),
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(12);
+    expect(result.fullText).toBe("finished");
+    expect(result.contextRounds).toHaveLength(12);
+    expect(
+      fetchMock.mock.calls.some(([, init]) =>
+        String((init as RequestInit).body).includes("Tool budget"),
+      ),
+    ).toBe(false);
+  });
+
   it("maps fast to priority and returns the provider-reported tier", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       stream(
