@@ -178,6 +178,73 @@ function main() {
     rows.push({ task: task.id, difficulty: task.difficulty, cells });
   }
 
+  // Why runs failed, in the surface's own words. This is the half of the
+  // result that says what an editing schema should look like: an address
+  // that would not resolve and a retyped string that was not in the document
+  // are different diseases and want different fixes.
+  console.log("\nTool-error census (distinct error text, count), per surface:");
+  for (const surface of surfaces) {
+    const census = new Map<string, { count: number; tools: Set<string> }>();
+    for (const receipt of scoped(surface, () => true)) {
+      for (const entry of receipt.tool_errors) {
+        const key = entry.error.replace(/'[^']{0,80}'/gu, "'…'").slice(0, 150);
+        const row = census.get(key) ?? { count: 0, tools: new Set<string>() };
+        row.count += 1;
+        row.tools.add(entry.name);
+        census.set(key, row);
+      }
+    }
+    console.log(`  ${surface}:`);
+    if (!census.size) console.log("    (no tool errors)");
+    for (const [text, row] of [...census.entries()].sort((a, b) => b[1].count - a[1].count)) {
+      console.log(`    ${String(row.count).padStart(3)}x [${[...row.tools].join(",")}] ${text}`);
+    }
+  }
+
+  console.log("\nMisquoted locating strings (retyping that was wrong), per surface:");
+  for (const surface of surfaces) {
+    const list = scoped(surface, () => true).flatMap((receipt) =>
+      receipt.misquoted_args.map((entry) => ({ task: receipt.task, ...entry })),
+    );
+    console.log(`  ${surface}: ${list.length} across ${scoped(surface, () => true).length} runs`);
+    for (const entry of list.slice(0, 25)) {
+      console.log(`    ${entry.task} ${entry.path}: ${JSON.stringify(entry.value)}`);
+    }
+  }
+
+  console.log("\nAddress arguments used, per surface (form -> count):");
+  for (const surface of surfaces) {
+    const forms = new Map<string, number>();
+    for (const receipt of scoped(surface, () => true)) {
+      for (const raw of receipt.address_args) {
+        // Keep the parameter and the SHAPE of its value, not the value.
+        const [head, ...rest] = raw.split("=");
+        const value = rest.join("=");
+        const shape = !value
+          ? "(empty)"
+          : /^off:\d+$/u.test(value)
+            ? "off:N"
+            : /^(pdf|printed):/u.test(value)
+              ? value.split(":")[0] + ":N"
+              : /^\d+$/u.test(value)
+                ? "N"
+                : /^(sec|art|part|sched)/iu.test(value)
+                  ? "handle"
+                  : /^\d+\.\d+/u.test(value)
+                    ? "N.NN"
+                    : "text";
+        const key = `${head}=${shape}`;
+        forms.set(key, (forms.get(key) ?? 0) + 1);
+      }
+    }
+    console.log(
+      `  ${surface}: ${[...forms.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([form, count]) => `${form} ${count}`)
+        .join("  ") || "(none)"}`,
+    );
+  }
+
   if (process.argv.includes("--json")) {
     console.log(JSON.stringify({ surfaces, rows }, null, 1));
   }
