@@ -24,6 +24,14 @@ export type Surface = {
     drop_scope_kinds?: string[];
     /** Remove these properties from any `scope` object in a tool's schema. */
     drop_scope_params?: string[];
+    /**
+     * Serve the whole catalogue in the first request even if the product
+     * would defer part of it. The ablation switch: it holds everything else
+     * about a surface constant and removes only progressive disclosure, so a
+     * token difference can be attributed to schema size rather than to the
+     * grammar.
+     */
+    no_disclosure?: boolean;
     note?: string;
   };
 };

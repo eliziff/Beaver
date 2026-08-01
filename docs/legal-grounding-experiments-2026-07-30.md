@@ -5182,3 +5182,230 @@ reached_by_read -0.0314 [-0.0898, 0.0335], chars_exposed -9,773
 +0.0013 [-0.0211, 0.0269] -> **-0.0011 [-0.0224, 0.0245]** — the point
 estimate crosses zero, which strengthens rather than weakens the
 "no demonstrated quality effect" reading. No conclusion changes.
+
+## Result 2026-07-31 â€” docx-edit-bench v1, legacy vs address, n=108
+
+108 runs: 27 tasks x 2 surfaces x 2 replicates, `codex:gpt-5.6-sol` at
+medium effort, neutral prompt identical across arms. Receipts at
+`.../2026-07-30/docx-edit-ab-v2/`. Nothing changed in the benchmark
+between registration and the run except the arm B redefinition recorded
+in amendment 2026-07-31a.
+
+### Headline
+
+| | arm A legacy | arm B address |
+|---|---|---|
+| pass rate, excluding floor tasks | 79% (38/48) | 81% (39/48) |
+| pass rate, all tasks | 81% (44/54) | 83% (45/54) |
+| devious tasks | 63% (10/16) | 69% (11/16) |
+| refusal tasks | 80% (8/10) | 90% (9/10) |
+| **total tokens / run** | **69,281** | **56,149** |
+| input tokens / run | 68,162 | 55,130 |
+| tool calls / run | 5.5 | 6.7 |
+| failed tool calls / run | 0.50 | 0.61 |
+| provider turns / run | 1.0 | 1.4 |
+| wall clock / run | 34.1 s | 38.2 s |
+| document chars retyped into arguments / run | 276 | 126 |
+| runs containing a misquoted locating string | 15/54 | 9/54 |
+| schema bytes, first request | 25,809 | 13,282 |
+| schema bytes, mean request | 25,809 | 14,205 |
+| **within-arm replicate floor** | **0% of cells (0/27)** | **4% of cells (1/27)** |
+
+**The correctness difference is one run in forty-eight and sits inside
+the replicate floor. It is UNDECIDED, not a win.** Task by task the arms
+are identical everywhere except `redline-struck-carveout`, where address
+passed one replicate and legacy passed neither. Both arms failed exactly
+the same tasks otherwise: `spa-delete-and-renumber`,
+`bylaw-signing-limit-table`, `memo-against-agreement`,
+`bilingual-cure-period` â€” 0/2 each, in both.
+
+**The token difference is the result.** 19.0% fewer total tokens per
+run, consistent across 54 runs per arm, while arm B makes MORE tool
+calls (6.7 vs 5.5) and takes MORE wall clock. Arm B is not doing less
+work; it is carrying less schema and retyping less text.
+
+### Where the tokens go
+
+Two independent sources. The first-request schema is 13,282 bytes in arm
+B against 25,809 in arm A â€” a 48.5% saving that holds across the run
+(mean request 14,205, so disclosure adds back only ~7%). The second is
+retyping: 276 document characters per run in arm A against 126 in arm B,
+because an edit scoped by `at` carries no document text at all.
+
+The ablation surface `beaver-address-no-disclosure` (address grammar,
+whole catalogue resident) attributes the split and is reported
+separately below.
+
+### What the model actually leaned on
+
+Measured from the arguments, not inferred from the answers. Arm B, 54
+runs:
+
+- **`library_find.at` was passed as an empty string on every call.** The
+  scoped search â€” the affordance the address grammar exists for â€” was
+  never once scoped.
+- **`follow` and `depth` were passed on nearly every call and always at
+  their defaults.** Zero graph traversals in 54 runs.
+- **`library_links` was called 3 times in 54 runs** (0.06/run). The task
+  built for it, `spa-cap-and-crossrefs`, passed 2/2 in both arms without
+  it.
+- **`library_read.from` was always `"start"`.** The tail affordance was
+  never used, including on `credit-execution-page`, a read-the-execution-
+  page task that passed 2/2 in both arms anyway.
+- What WAS used: `scope.at` on 54 edit operations â€” skeleton handle
+  (`sec8.02`) 31, bare number (`8.02`) 4, `pdf:N` 2 â€” and
+  `library_read.at` 22 times in the same forms plus one `off:N`.
+
+Arm A leaned on `library_read.section` (20 calls) and `offset` (25), and
+on `library_revise_docx` (0.85/run against arm B's 0.26, because arm B
+must open a domain to reach it).
+
+**Four of arm B's five new affordances were ignored. The one that was
+used, `scope.at`, carries the entire measured benefit.**
+
+### Where the retyping went wrong
+
+55 misquoted locating strings across the campaign â€” a long string in a
+`find`, `scope.text`, `from_text` or context argument that appears in no
+document. 32 in arm A, 23 in arm B. Three distinct causes, and the tools
+report all three with the same message:
+
+1. **Wrong separator.** Two document lines joined with a space where
+   extraction has a newline: `". 8.02 Purchaser Indemnity."`,
+   `" 3.01 Standby Fee."`, `". 6.03 Waiver. Either party may waive"`. Or
+   a blank line invented: the memo misquotes are all
+   `"\n\nCap and threshold. "` where the text has a single `\n`.
+2. **Post-edit text.** On `bilingual-cure-period` the model passed
+   `scope.text: "B.2 Cure period. The party in default has 45 days â€¦"` â€”
+   what it wanted the document to say â€” into a FIND scope.
+3. **Cross-paragraph spans.** `"Secretary $10,000 $15,000 Treasurer "`
+   is four table cells flattened into one context string.
+
+Every one is the model reconstructing whitespace and paragraph structure
+it never saw. `No revision was saved` â€” 50 occurrences, the commonest
+error in the campaign â€” distinguishes none of the three.
+
+### Where addresses failed to resolve
+
+Rare and specific, 5 in 54 arm B runs:
+
+- `library_read at:'pdf:8'` on the transcript: "No PDF page 'â€¦'. This
+  document has 7 pages, PDF page 8 through PDF page 14." The page map's
+  ordinals and printed labels disagree; the error said so clearly enough
+  that the run recovered.
+- `library_apply_text_ops scope.at:'off:N'`: "is a raw offset; edits
+  scope to a provision or a page, never a bare offset" â€” a deliberate
+  typed refusal, working as designed.
+- One unknown section handle in arm A.
+
+Addressing is not where arm B loses. Its failed-tool-call rate (0.61 vs
+0.50) is HIGHER than arm A's, and the excess is `describe_tools` round
+trips and `find_text` scopes, not unresolved addresses.
+
+### Progressive disclosure
+
+13 of 54 arm B runs opened a domain, first disclosure at tool batch 4.4
+on average, 22 disclosure events in total.
+
+**12 of the 22 bought nothing** â€” the domain was opened and not one tool
+from it was ever called. The `amendment` domain accounts for most: its
+blurb, "apply amendments and compare versions", attracts a model doing
+renumbering or consolidation, and `library_apply_amendment` /
+`library_compare_versions` were the wrong tools every time.
+
+No run was ever blocked on a hidden tool (0/54). Each disclosure costs a
+provider restart with a transcript replay â€” runs took one or two â€” and
+arm B is still 19% cheaper overall.
+
+**What this bed cannot say.** Every task is solvable with only resident
+tools (`resident_route_exists` true for all 27), because every reference
+solution is a literal substitution the resident text-op tool executes.
+This measures the cost of hiding a tool the model WANTED, and says
+nothing about hiding one a task NEEDS. Addressed by the v2 block.
+
+### Task defect found by the run, and recorded not hidden
+
+`memo-against-agreement` failed 0/2 in both arms, and in one arm B
+replicate it failed **with 4/4 targets hit and no guard broken** â€” on
+collateral alone. The trace shows why: the model rewrote the memo's
+claim that the indemnity "is the Purchaser's only contractual recourse
+for a representation breach short of fraud", on the ground that the
+agreement contains no exclusive-remedy clause. It does not â€” the phrase
+appears nowhere in the fixture. The model found a third misstatement the
+task did not anticipate, and the task scored it as damage.
+
+The task is **defective as written**: its `why` asserts two of the
+memo's statements are wrong and three right, and that is false. Until it
+is repaired the headline is reported both ways:
+
+| excluding floor tasks | arm A | arm B |
+|---|---|---|
+| as registered | 79% (38/48) | 81% (39/48) |
+| also excluding the defective task | 83% (38/46) | 85% (39/46) |
+
+The comparison is unaffected â€” it fails in both arms â€” but the absolute
+number is.
+
+### Instrument defects found
+
+- `opened_never_called` was computed per tool rather than per domain, so
+  it was non-empty whenever a domain revealed more than one tool. Fixed
+  to count disclosures that bought nothing: 12/22 above.
+- `ask_inputs` is in the served schema but is not implemented by
+  `runLocalAssistantTools` â€” the product's chat route intercepts it
+  upstream and this runner does not. Two runs per arm got "Unknown tool:
+  ask_inputs". It affects both arms equally so the comparison stands,
+  but refusal tasks are scored slightly harshly.
+
+### What the failures say the editing schema should be
+
+Six recommendations, each traceable to runs in this campaign.
+
+1. **Give the schema a cell address.** Two of the four shared failures â€”
+   `bylaw-signing-limit-table` and `bilingual-cure-period`, 0/2 in both
+   arms â€” are one missing address form. Extraction puts each table cell
+   in its own paragraph; `library_revise_docx` anchors on
+   paragraph-internal context, so a context string spanning cells cannot
+   match, and a `find_text` scope spanning
+   `"Cure / Correction\n30 days\n30 jours"` matches nothing. Tables are
+   where signing limits, rate schedules and bilingual period summaries
+   live. Something in the existing handle idiom â€”
+   `at:"table:2/row:4/col:2"` â€” closes both.
+2. **Never require the model to reproduce whitespace it has not seen.**
+   All 55 misquotes are whitespace or paragraph-boundary guesses. Either
+   match `find` and context arguments whitespace-insensitively, or drop
+   context arguments and let `at` carry the location while `find` is a
+   short literal WITHIN that scope. The second is the better shape: it is
+   what `scope.at` already does, and `scope.at` never misquoted.
+3. **Make the failure message name the cause.** `No revision was saved`
+   fired 50 times for three unrelated reasons. It should say which:
+   differs only in whitespace, here is the nearest actual text; spans a
+   paragraph boundary, use an address; matches nothing, did you pass the
+   replacement text? The receipts show the model retrying blind after
+   this message, which is where most of the extra tool calls on failed
+   tasks go.
+4. **Delete `follow` and `depth`, or make them earn their place.**
+   Passed on nearly every call in 54 runs, never once at a non-default
+   value.
+5. **`library_find.at` needs a reason to be filled in.** Empty on every
+   call. Either the description does not connect it to a workflow the
+   model recognises, or the model reaches for search before it has an
+   address to scope by â€” in which case the outline should hand it one.
+6. **Split or rename the `amendment` domain.** Opened 5 times, used
+   zero. A domain blurb is the whole basis on which a model spends a
+   turn, and "apply amendments and compare versions" reads as "fix up a
+   document".
+
+Recommendations 1-3 would move the four shared failures. 4-6 are cost,
+not correctness.
+
+### Honest summary
+
+On this bed the address grammar does not make the model more correct â€”
+one run in forty-eight, inside the noise floor. It makes it **19%
+cheaper**, through exactly one of its five new affordances (`scope.at`);
+the other four went unused. The four tasks neither surface can do fail
+for reasons about the EDIT schema, not the NAVIGATION schema: no cell
+address, and locating arguments that require reconstructing invisible
+whitespace.
+
