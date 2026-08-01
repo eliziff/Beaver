@@ -26,7 +26,9 @@ import {
   pageMapFromMarkers,
   pageMapFromSourceDoc,
   graphScope,
+  pageSchemes,
   pageSections,
+  parseAddress,
   referenceHubs,
   resolvePage,
   selectPages,
@@ -198,28 +200,26 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
           description:
             "Defaults to text. drafting is DOCX-only, version-bound, and returns bounded semantic HTML as document data. redline is DOCX-only and returns the body text with editorial content visible: {++inserted++}, {--deleted--}, {>>author: comment<<}, [ink] for strike/colour formatting standing in for tracked changes.",
         },
-        section: {
+        at: {
           type: "string",
           description:
-            "Structural locator from the document's own numbering ('8.01', 'Article VIII', 'Schedule 7.01', 's. 8(2)'). Returns only that span, children included. library_outline lists the exact handles.",
+            "Where to read. Bare is structural, from the document's own numbering ('8.01', 'Article VIII', 'Schedule 7.01', 's. 8(2)'), and returns that span with its children. 'pdf:52' and 'printed:47' are the two page schemes — the printed label is the number on the sheet, which is what a pinpoint citation, an index or an exhibit stamp refers to, and it need not equal the PDF page. 'off:12000' is a raw window, and pairs with library_find hits' `at` offsets. Omit to read from the start. library_outline lists the handles and says which page schemes this document has.",
         },
-        page: {
+        from: {
           type: "string",
+          enum: ["start", "end"],
           description:
-            "A page. Bare digits mean the PDF page; anything else ('iv', 'A-3') is the printed label, and 'pdf:52' / 'printed:47' say so explicitly. These are two different questions — the printed label is the number on the sheet, which is what a pinpoint citation, an index, an exhibit stamp or a table of contents refers to, and it need not equal the PDF page. library_outline reports which schemes this document has. Returns the page plus the section handles on it. Paged documents only.",
+            "Which end of the addressed span to read when it is longer than max_chars. Defaults to start; 'end' gives the tail — signature blocks, execution pages, the close of a clause.",
         },
-        offset: {
-          type: "integer",
-          minimum: 0,
-          description:
-            "Character offset to start from (text mode, no section). Pairs with library_find hits' `at` offsets.",
-        },
+        section: { type: "string", description: "Deprecated: use at." },
+        page: { type: "string", description: "Deprecated: use at='pdf:N' or at='printed:X'." },
+        offset: { type: "integer", minimum: 0, description: "Deprecated: use at='off:N'." },
         max_chars: {
           type: "integer",
           minimum: 200,
           maximum: 300000,
           description:
-            "Characters to read from `offset`. Defaults to 24000 — a portion, not the whole document; the reply sets `truncated` when there is more.",
+            "Characters to return. Defaults to 24000 — a portion, not the whole document; the reply sets `truncated` when there is more.",
         },
       },
       required: ["document_id"],
@@ -227,7 +227,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
   ),
   tool(
     "library_outline",
-    "Structural map of a Library document parsed from its own numbering: the ARTICLE/PART tree, every Section and (a)/(i) subsection with the handle library_read section= accepts, defined terms with their defining section, schedules/exhibits, and cross-reference counts. A ~100-page agreement maps to 1-3k tokens.",
+    "Orientation call: the structural map parsed from the document's own numbering — the ARTICLE/PART tree, every Section and (a)/(i) subsection with the handle library_read at= accepts, defined terms with their defining section, schedules/exhibits, cross-reference counts — plus the page map, which says whether this document is addressable by PDF page, by printed label, or both, and where the two diverge. A ~100-page agreement maps to 1-3k tokens.",
     {
       type: "object",
       properties: {
@@ -249,11 +249,12 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
       type: "object",
       properties: {
         document_id: { type: "string" },
-        section: {
+        at: {
           type: "string",
           description:
             "Structural locator to stand at ('8.01', 'Article VIII'). Omit for the document-level census and hubs.",
         },
+        section: { type: "string", description: "Deprecated: use at." },
         max_results: {
           type: "integer",
           minimum: 1,
@@ -281,16 +282,13 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
           type: "boolean",
           description: "Regex mode only. Default false.",
         },
-        pages: {
+        at: {
           type: "string",
           description:
-            'Restrict the search to pages: "47", "12-18", "3,5,9", "printed:47", "pdf:52", "printed:iv - printed:2". Bare digits are the PDF page; qualify to search by printed label. Hit offsets stay document-wide, so a hit still reads with library_read offset=.',
+            "Restrict the search. Bare is structural — one provision and everything under it ('8.01', 'Article VIII'). 'pdf:12-18', 'printed:47', 'pdf:3,5,9' scope to pages. Give both `at` and `pages` to require BOTH. Hit offsets stay document-wide, so a hit still reads with library_read at='off:N'.",
         },
-        section: {
-          type: "string",
-          description:
-            "Restrict the search to one provision and everything under it ('8.01', 'Article VIII'). Combines with pages and follow; when both section and pages are given a hit must satisfy BOTH.",
-        },
+        pages: { type: "string", description: "Deprecated: use at." },
+        section: { type: "string", description: "Deprecated: use at." },
         follow: {
           type: "string",
           enum: ["none", "out", "in", "both"],
@@ -2386,7 +2384,28 @@ export async function runLocalAssistantTools(
         const document = await extractLocalDocument(userId, documentId);
         if (!document) return fail(call, "Document not found");
         if (call.name === "library_read") {
-          const sectionLocator = trimmed(args.section);
+          // One address grammar, with the three original parameters still
+          // honoured so nothing calling the old shape breaks.
+          const address = parseAddress(trimmed(args.at));
+          const sectionLocator =
+            trimmed(args.section) ||
+            (address?.kind === "section" ? address.locator : "");
+          const fromEnd = trimmed(args.from) === "end";
+          /**
+           * head/tail over any addressed span. Reading the END of a span is
+           * not a convenience: execution pages, schedules and the closing
+           * words of a clause are at the end, and reaching them by offset
+           * arithmetic costs a length probe and gets it wrong on a span
+           * whose length the caller cannot see.
+           */
+          const windowOf = (body: string, maxChars: number) => {
+            if (body.length <= maxChars) {
+              return { body, cut: false, at: 0 };
+            }
+            return fromEnd
+              ? { body: body.slice(body.length - maxChars), cut: true, at: body.length - maxChars }
+              : { body: body.slice(0, maxChars), cut: true, at: 0 };
+          };
           if (sectionLocator) {
             const skeleton = compileAgreementSkeleton(document.text);
             const lookup = readSection(skeleton, sectionLocator);
@@ -2401,8 +2420,8 @@ export async function runLocalAssistantTools(
                   "). Call library_outline for the available handles.",
               });
             }
-            const maxChars = 60_000;
-            const sectionTruncated = lookup.block.text.length > maxChars;
+            const maxChars = clampInt(args.max_chars, 200, 300_000, 60_000);
+            const view = windowOf(lookup.block.text, maxChars);
             return result(call, {
               ok: true,
               filename: document.filename,
@@ -2411,11 +2430,14 @@ export async function runLocalAssistantTools(
                 : {}),
               section: lookup.block.label,
               parent: lookup.block.parentLabel,
-              text: lookup.block.text.slice(0, maxChars),
-              truncated: sectionTruncated,
-              ...(sectionTruncated
+              ...(fromEnd && view.cut ? { read_from: "end" } : {}),
+              text: view.body,
+              truncated: view.cut,
+              ...(view.cut
                 ? {
-                    continuation: `Section continues; call library_read with offset=${lookup.block.start + maxChars} for the rest.`,
+                    continuation: fromEnd
+                      ? `Section head omitted; call library_read with at="${lookup.block.label}" for the start.`
+                      : `Section continues; call library_read with at="off:${lookup.block.start + maxChars}" for the rest, or from="end" for its tail.`,
                   }
                 : {}),
             });
@@ -2424,7 +2446,9 @@ export async function runLocalAssistantTools(
           // page cites it: the reply carries the section handles printed on
           // the page so the next call can be a structural read, which is the
           // address that survives re-pagination.
-          const pageRequest = trimmed(args.page);
+          const pageRequest =
+            trimmed(args.page) ||
+            (address?.kind === "page" ? address.spec : "");
           if (pageRequest) {
             const lookup = resolvePage(
               document.pages,
@@ -2448,8 +2472,9 @@ export async function runLocalAssistantTools(
               });
             }
             const maxChars = clampInt(args.max_chars, 200, 300_000, 24_000);
-            const pageBody = lookup.text.slice(0, maxChars);
-            const pageCut = pageBody.length < lookup.text.length;
+            const pageView = windowOf(lookup.text, maxChars);
+            const pageBody = pageView.body;
+            const pageCut = pageView.cut;
             const onPage = pageSections(
               compileAgreementSkeleton(document.text),
               lookup.page,
@@ -2485,7 +2510,12 @@ export async function runLocalAssistantTools(
           // Windowed read: offset composes with library_find's `at` for
           // documents without numbered structure. Untargeted reads keep the
           // historical 300k head.
-          const offset = clampInt(args.offset, 0, 100_000_000, 0);
+          const offset = clampInt(
+            address?.kind === "offset" ? address.start : args.offset,
+            0,
+            100_000_000,
+            0,
+          );
           // An untargeted read defaults to a window, not the whole document:
           // the ceiling stays 300k for a caller that deliberately asks, but
           // the default no longer spends a document's worth of transcript on
@@ -2496,20 +2526,26 @@ export async function runLocalAssistantTools(
             300_000,
             Number(process.env.MIKE_READ_DEFAULT_CHARS || 24_000),
           );
-          const window = document.text.slice(offset, offset + maxChars);
-          const windowCut = offset + window.length < document.text.length;
+          // from="end" on an unaddressed read is `tail` over the whole
+          // document, which is how a caller reaches an execution page
+          // without first asking how long the document is.
+          const start = fromEnd
+            ? Math.max(offset, document.text.length - maxChars)
+            : offset;
+          const window = document.text.slice(start, start + maxChars);
+          const windowCut = start + window.length < document.text.length;
           return result(call, {
             ok: true,
             filename: document.filename,
             ...(document.cautions.length
               ? { notes_of_caution: document.cautions }
               : {}),
-            ...(offset > 0 ? { offset } : {}),
+            ...(start > 0 ? { offset: start } : {}),
             text: window,
             truncated: windowCut,
             ...(windowCut
               ? {
-                  continuation: `Document continues (${document.text.length.toLocaleString("en-CA")} chars total); call library_read with offset=${offset + window.length} to keep reading, or library_outline / library_find to target a section.`,
+                  continuation: `Document continues (${document.text.length.toLocaleString("en-CA")} chars total); call library_read with at="off:${start + window.length}" to keep reading, from="end" for the tail, or library_outline / library_find to target a section.`,
                 }
               : {}),
           });
@@ -2520,7 +2556,10 @@ export async function runLocalAssistantTools(
         // you find. The internal cap is raised first, because applying
         // max_results before the filter would return nothing whenever the
         // first hits all sit outside the scope.
-        const pageSpec = trimmed(args.pages);
+        const findAddress = parseAddress(trimmed(args.at));
+        const pageSpec =
+          trimmed(args.pages) ||
+          (findAddress?.kind === "page" ? findAddress.spec : "");
         let scope: PageSpan[] | null = null;
         if (pageSpec) {
           const selection = selectPages(document.pages, document.text, pageSpec);
@@ -2545,7 +2584,9 @@ export async function runLocalAssistantTools(
         // two filters both given read as "in these pages AND in this part of
         // the document", which is the only reading under which asking for
         // more narrowing does not widen the result.
-        const seedLocator = trimmed(args.section);
+        const seedLocator =
+          trimmed(args.section) ||
+          (findAddress?.kind === "section" ? findAddress.locator : "");
         let structural: { label: string; start: number; end: number }[] | null =
           null;
         let followed: { follow: string; depth: number; nodes: number } | null =
@@ -2693,6 +2734,18 @@ export async function runLocalAssistantTools(
               "No numbered structure detected; use library_read or library_find.",
           });
         }
+        // The page map rides on the orientation call, because a page number
+        // is unusable until the caller knows WHICH schemes this document
+        // has: whether printed labels were detected at all, and where they
+        // diverge from the PDF page. Reporting it here is what lets a
+        // pinpoint citation, an index entry or a contents line be followed.
+        const map = document.pages;
+        const schemes = pageSchemes(map);
+        const divergent = map.pages.filter(
+          (page) =>
+            page.printedLabel !== null &&
+            page.printedLabel !== String(page.pdfPage),
+        );
         return result(call, {
           ok: true,
           filename: document.filename,
@@ -2700,6 +2753,23 @@ export async function runLocalAssistantTools(
             ? { notes_of_caution: document.cautions }
             : {}),
           nodes: skeleton.nodes.length,
+          pages: map.pages.length
+            ? {
+                count: map.pages.length,
+                addressable_by: [
+                  ...(schemes.pdfPages ? ["pdf"] : []),
+                  ...(schemes.printedLabels ? ["printed"] : []),
+                ],
+                first: pageLabel(map.pages[0]),
+                last: pageLabel(map.pages[map.pages.length - 1]),
+                ...(divergent.length
+                  ? {
+                      printed_differs_from_pdf: divergent.length,
+                      example: pageLabel(divergent[0]),
+                    }
+                  : {}),
+              }
+            : { count: 0, reason: map.source },
           outline: renderAgreementOutline(skeleton, {
             maxChars: clampInt(args.max_chars, 1_000, 40_000, 8_000),
           }),
@@ -2734,7 +2804,10 @@ export async function runLocalAssistantTools(
           ...(graph.note ? { note: graph.note } : {}),
         };
 
-        const locator = trimmed(args.section);
+        const linkAddress = parseAddress(trimmed(args.at));
+        const locator =
+          trimmed(args.section) ||
+          (linkAddress?.kind === "section" ? linkAddress.locator : "");
         if (!locator) {
           return result(call, {
             ...census,
