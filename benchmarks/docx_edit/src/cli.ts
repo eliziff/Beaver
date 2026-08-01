@@ -151,7 +151,9 @@ async function main() {
         "../../../backend/src/lib/chat/localAssistantTools"
       );
       const tools = applySurface(LOCAL_ASSISTANT_TOOLS, surface);
-      const partition = partitionTools(tools);
+      const partition = surface.tools?.no_disclosure
+        ? { resident: tools, deferred: [] }
+        : partitionTools(tools);
       const bytes = (list: unknown) => Buffer.byteLength(JSON.stringify(list));
       console.log(
         `\n[disclosure] resident ${partition.resident.length} tools / ${bytes(partition.resident).toLocaleString("en-CA")} schema bytes; ` +

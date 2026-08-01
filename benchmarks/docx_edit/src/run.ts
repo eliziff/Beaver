@@ -116,7 +116,9 @@ async function child() {
    *    model that guessed a deferred tool's name would silently get it, and
    *    the deferral would be measured as free.
    */
-  const partition = partitionTools(allTools);
+  const partition = surface.tools?.no_disclosure
+    ? { resident: allTools, deferred: [] as OpenAIToolSchema[] }
+    : partitionTools(allTools);
   let served: OpenAIToolSchema[] = [...partition.resident];
   const servedNames = new Set(served.map((entry) => entry.function.name));
   const residentSchemaBytes = Buffer.byteLength(JSON.stringify(partition.resident));
