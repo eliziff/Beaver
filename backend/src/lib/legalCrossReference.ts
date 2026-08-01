@@ -159,7 +159,15 @@ const ADDRESSABLE: ReadonlySet<SkeletonNode["kind"]> = new Set([
 ]);
 
 export interface CrossReferenceOptions {
-  /** reuse an already-compiled skeleton instead of compiling again */
+  /**
+   * Reuse an already-compiled skeleton instead of compiling again. This is
+   * also how a caller holding text from an AUTHORITATIVE source scopes the
+   * segmentation recovery out — pass
+   * `compileAgreementSkeleton(text, id, { recoverExtraction: false })` and the
+   * competition cannot run. The default compile below is the Library
+   * extraction lane, where recovering lost line breaks is the point; there is
+   * deliberately no second flag for it here.
+   */
   skeleton?: AgreementSkeleton;
   /** restrict the provision vocabulary (see findProvisionReferences) */
   words?: readonly string[];

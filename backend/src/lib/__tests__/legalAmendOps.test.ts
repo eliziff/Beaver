@@ -434,3 +434,30 @@ describe("bare-token list re-punctuation (SC 2021, c. 24, s. 1(1))", () => {
     expect(result.failures.map((f) => f.code)).toEqual(["unsupported_apply"]);
   });
 });
+
+describe("applyAmendOps: who says whether line breaks were lost", () => {
+  // One physical line with the headings behind space runs — the Library
+  // extraction dialect. Recovery finds 1.01-1.03; publisher-lineated text has
+  // no such damage and must not be re-segmented.
+  const COLLAPSED =
+    "AMENDING AGREEMENT   " +
+    "1.01 Term.  The term is one year, as set out in Section 1.01.   " +
+    "1.02 Notices.  Notice is given as described in Section 1.02.   " +
+    "1.03 Remedies.  The Agent may act under Section 1.03.";
+  const instruction =
+    "Section 1.02 of the Agreement is amended by striking out “as described”.";
+
+  it("addresses the recovered reading by default", () => {
+    const { ops } = parseAmendmentInstructions(instruction);
+    const result = applyAmendOps(COLLAPSED, ops);
+    expect(result.failures).toEqual([]);
+    expect(result.text).not.toContain("as described");
+  });
+
+  it("refuses the same op when the caller says the breaks are the publisher's", () => {
+    const { ops } = parseAmendmentInstructions(instruction);
+    const result = applyAmendOps(COLLAPSED, ops, { recoverExtraction: false });
+    expect(result.failures.map((f) => f.code)).toEqual(["target_not_found"]);
+    expect(result.text).toBe(COLLAPSED);
+  });
+});
