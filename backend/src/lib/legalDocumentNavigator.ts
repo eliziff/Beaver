@@ -57,8 +57,13 @@ export interface PageMap {
    * `artifact` carries both numbers and can answer "which PDF page is
    * printed 47". `markers` is recovered from rendered text and knows only
    * one number per page, without knowing which sense it is.
+   *
+   * `none` means the document HAS no pages — a DOCX has no fixed pagination
+   * until something renders it. `unavailable` means it has pages and we
+   * could not index them, which is a state of our pipeline and never a fact
+   * about the document. A PDF must never report `none`.
    */
-  source: "artifact" | "markers" | "none";
+  source: "artifact" | "markers" | "none" | "unavailable";
 }
 
 /**

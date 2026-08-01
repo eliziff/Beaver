@@ -1482,7 +1482,22 @@ export async function extractLocalDocument(userId: string, documentId: string) {
   // rendered text collapses them into one marker. Every consumer downstream
   // sees text only, so a map recovered later cannot tell "printed 47" from
   // "PDF page 47" — and a table of contents cites the printed one.
-  const pages = parsed ? pageMapFromSourceDoc(parsed) : pageMapFromMarkers(text);
+  //
+  // Both PDF routes end at the engine, so both can be indexed: the ingested
+  // artifact carries page BLOCKS, and the un-ingested route still renders
+  // `[page N]` markers into the text. Fall through from one to the other, and
+  // when a PDF yields neither, say the index is UNAVAILABLE — a PDF has
+  // pages whether or not we managed to read them, and reporting "no pages"
+  // would state a falsehood about the document to cover a gap in the
+  // pipeline.
+  const fromArtifact = parsed ? pageMapFromSourceDoc(parsed) : null;
+  const pages: PageMap = fromArtifact?.pages.length
+    ? fromArtifact
+    : (() => {
+        const recovered = pageMapFromMarkers(text);
+        if (recovered.pages.length || fileType !== "pdf") return recovered;
+        return { pages: [], source: "unavailable" as const };
+      })();
 
   if (textCache.size >= 16) {
     textCache.delete(textCache.keys().next().value!);
@@ -2401,7 +2416,9 @@ export async function runLocalAssistantTools(
               return result(call, {
                 ok: false,
                 error:
-                  "This document carries no page structure. Pages exist only where a compiler recorded them (PDFs, journal articles); a DOCX has no fixed pagination. Use section= for a provision or offset= for a window.",
+                  document.pages.source === "unavailable"
+                    ? "This PDF has pages, but no page index could be built for it — the engine returned no page records for this file. Use section= for a provision or offset= for a window, and treat any page number in the text as unverified."
+                    : "This document has no fixed pagination (a DOCX is not paginated until something renders it). Use section= for a provision or offset= for a window.",
               });
             }
             if (lookup.status === "ambiguous") {
@@ -2504,7 +2521,9 @@ export async function runLocalAssistantTools(
               ok: false,
               error:
                 lookup.status === "no_pages"
-                  ? "This document carries no page structure; drop `pages` and search the whole document."
+                  ? document.pages.source === "unavailable"
+                    ? "This PDF has pages, but no page index could be built for it; drop `pages` and search the whole document."
+                    : "This document has no fixed pagination; drop `pages` and search the whole document."
                   : lookup.status === "ambiguous"
                     ? `'${selection.token}' is ambiguous: ${pageLabel(lookup.asPdfPage)} as a PDF page, ${pageLabel(lookup.asPrintedLabel)} as a printed label. Qualify it as "pdf:${lookup.asPdfPage.pdfPage}" or "printed:${lookup.asPrintedLabel.printedLabel}".`
                     : `Page '${selection.token}' not found. This document has ${lookup.status === "not_found" ? lookup.count : 0} pages, ${lookup.status === "not_found" ? lookup.first : "?"} through ${lookup.status === "not_found" ? lookup.last : "?"}.`,
