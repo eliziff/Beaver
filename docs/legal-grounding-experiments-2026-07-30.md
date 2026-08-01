@@ -4916,3 +4916,102 @@ calls**, so the schema-only separation held.
 
 Also unchanged: 20.0% of the clean `asis` cells were never solved by
 either arm; the read-it-whole shortcut was taken 0/100 and 0/34 times.
+
+## Stage 22 â€” arm B becomes the whole product bet (registered 2026-08-01, before any Stage 22 model call)
+
+Eli's direction, via the coordinator: "none of the existing stuff is
+really tested. I am not afraid about testing multiple things at once.
+Make B our best guess at combining all of our ideas." Arm B is no longer
+a naming change against a naming change; it is the combined product bet
+against a frozen arm A. Stage 21 measured a strictly smaller thing (four
+nav tools, sent alone) and its result does not carry over.
+
+### What arm B now contains, verified by probe on this tree
+
+Beyond Stage 21's `at` / `from` / `follow` / `depth` / `library_links`:
+
+**1. Progressive tool disclosure.** `partitionTools(LOCAL_ASSISTANT_TOOLS)`
+splits the surface; 34 tools sit behind a `describe_tools({domains})`
+call over seven domains (research, drafting, review, amendment,
+authorities, deadlines, workflow). Measured here, not taken on trust â€”
+provider-reported `inputTokens` on `codex:gpt-5.6-sol`, same system
+prompt, tools attached vs not:
+
+| | arm A | arm B |
+|---|---|---|
+| tools in the first request | 43 | **11** (10 resident + `describe_tools`) |
+| schema chars | 38,936 | **15,290** |
+| **measured input tokens** | **6,709** | **2,888** |
+| deferred | 0 | 34 tools / 27,507 chars |
+
+**âˆ’3,821 tokens, âˆ’57.0% on the first request.** (The brief quoted 10,130
+-> 4,004, âˆ’60.5%; my figures are provider-measured on the actual model
+and arrive at the same direction and a similar magnitude from a
+different absolute base. Both are recorded; mine is the one this stage
+will use, because it is what this model is actually billed.)
+
+**2. Capability on contact.** In arm B an opening read (offset 0, no
+address) returns an `addressable` block â€” sections, page count and which
+schemes address them, resolved cross-references, contents entries, or a
+note when there is no numbering. Arm A gets nothing equivalent.
+
+### BLOCKER: the harness cannot grow the tool list mid-conversation
+
+Progressive disclosure requires the tool list to grow after
+`describe_tools` fires. It cannot, through the public API:
+
+- `backend/src/lib/llm/openai.ts:268` computes
+  `const responseTools = toResponseTools(tools)` **once, before** the
+  tool loop at line 298, and every iteration sends that snapshot
+  (line 318). Mutating the caller's array has no effect.
+- `LlmMessage` (`backend/src/lib/llm/types.ts:26`) is
+  `{ role: "user" | "assistant", content: string }` â€” there is no
+  tool-call or tool-result role, so a harness cannot reconstruct a
+  tool-using transcript and drive its own turn-by-turn loop either.
+
+So a runner can implement the loop only by (a) a one-line change in
+`backend/src` â€” move `toResponseTools` inside the iteration and read a
+mutable reference â€” or (b) duplicating the provider loop in
+`backend/scripts`, which AGENTS.md's "one implementation of each
+workflow" rule forbids for exactly this reason. **This is reported, not
+fixed: this stage does not touch `backend/src`.** Stage 22's model runs
+are BLOCKED on (a). The deterministic half of the stage â€” the token
+census above â€” is done and stands on its own.
+
+### Registered design, for when the seam exists
+
+Same bed, same oracles (both re-run before the first call, both must be
+100%), same seeded n=160 stratified sample, same paired structure, same
+model held constant (`codex:gpt-5.6-sol`, effort `low`, flat-rate),
+>= 2 replicates, both query forms, unsolvable rate reported separately,
+within-arm floor beside every between-arm difference. Research tools
+must NOT be disabled â€” Stage 21 set `MIKE_DISABLE_RESEARCH_TOOLS=1` and
+sent four tools, which is why it could not see this dimension at all.
+
+Additional measurements, registered now:
+
+- **Schema tokens actually sent per turn**, not once: in arm B the list
+  grows as domains open. Report first-request schema tokens and mean
+  per-turn schema tokens separately. The saving is real only if the
+  model does not open everything immediately.
+- **`describe_tools` behaviour**: call rate, which domains, and at which
+  turn. A model that opens every domain on turn one has converted a
+  token saving into an extra round trip, and that must be visible.
+- **THE DISQUALIFIER: a model does not call what it cannot see.** If a
+  cell needed a deferred tool and the model never opened its domain,
+  that is a failure *caused by the arm*, counted and reported separately
+  from ordinary misses. On this bed the deferred set is mostly research
+  organs and the exposure is small, so this number is expected to be
+  near zero here and to matter much more on the edit bed.
+- **`addressable` uptake**: how often the opening read returns it, and
+  whether the next call uses a handle it named â€” a block nobody acts on
+  is the same finding as a tool nobody calls.
+
+### Carried over from the Stage 21 correction, and now enforced
+
+Arms are pinned by content hash. `navSchemas()` hashes the exact schemas
+about to be sent; `--expect-hash <hex>` refuses to start when they
+differ, and every row records `schema_hash`. Stage 21 lost a run because
+a concurrent session edited both arms mid-flight and each process
+silently picked up whatever the file said when it started. Verifying the
+arms once before a run is not enough on a shared tree.

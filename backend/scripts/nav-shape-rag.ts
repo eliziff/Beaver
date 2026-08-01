@@ -332,10 +332,43 @@ async function ingest() {
 
 async function navSchemas() {
   const mod = await import("../src/lib/chat/localAssistantTools");
+  const tools = mod.LOCAL_ASSISTANT_TOOLS.filter((entry) =>
+    NAV_TOOLS.has(entry.function.name),
+  );
   return {
     shape: mod.NAV_TOOL_SHAPE,
-    tools: mod.LOCAL_ASSISTANT_TOOLS.filter((entry) => NAV_TOOLS.has(entry.function.name)),
+    tools,
+    /** Content identity of what the model will actually be shown. */
+    hash: createHash("sha256").update(JSON.stringify(tools)).digest("hex").slice(0, 16),
   };
+}
+
+/**
+ * Arm identity pin. Concurrent sessions share this tree, and on 2026-07-31 a
+ * run was invalidated because both arms' schemas were edited by another
+ * session mid-flight — arm A twice, arm B four times — and every process
+ * silently picked up whatever the file said when IT started. Verifying the
+ * arms once before the run was not enough.
+ *
+ * `--expect-hash <hex>` refuses to start unless the surface about to be sent
+ * is byte-identical to the one the run registered. Every row also carries the
+ * hash, so a drifted receipt stays detectable after the fact.
+ */
+function assertArmHash(actual: string) {
+  const at = process.argv.indexOf("--expect-hash");
+  if (at < 0) {
+    console.log(`  (no --expect-hash given; arm hash is ${actual})`);
+    return;
+  }
+  const expected = process.argv[at + 1];
+  if (expected !== actual) {
+    throw new Error(
+      `ARM DRIFT: schema hash is ${actual}, run registered ${expected}. ` +
+        `Another session edited the surface. Refusing to append rows that would ` +
+        `average two different arms.`,
+    );
+  }
+  console.log(`  arm hash ${actual} matches --expect-hash`);
 }
 
 async function arms() {
@@ -526,6 +559,7 @@ async function runCell(args: {
   rep: number;
   tools: Awaited<ReturnType<typeof navSchemas>>["tools"];
   schemaChars: number;
+  schemaHash: string;
   runLocalAssistantTools: typeof import("../src/lib/chat/localAssistantTools").runLocalAssistantTools;
   streamChatWithTools: typeof import("../src/lib/llm").streamChatWithTools;
 }): Promise<Row> {
@@ -652,6 +686,7 @@ async function runCell(args: {
     model: MODEL,
     effort: EFFORT,
     schema_chars: args.schemaChars,
+    schema_hash: args.schemaHash,
     tools_offered: tools.length,
     query: args.form === "asis" ? cell.query : cell.stripped,
     gold_snippets: cell.gold.length,
@@ -684,10 +719,11 @@ async function run() {
   const rep = Number(flag("rep", "1"));
   const perSource = Number(flag("n", "40"));
   const concurrency = Number(flag("concurrency", "3"));
-  const { shape, tools } = await navSchemas();
+  const { shape, tools, hash } = await navSchemas();
   if (shape !== arm) {
     throw new Error(`--arm ${arm} but NAV_TOOL_SHAPE=${shape}; set MIKE_NAV_SHAPE before the process starts`);
   }
+  assertArmHash(hash);
   if (!existsSync(BED_MAP)) throw new Error("bed not ingested; run `ingest` first");
   const map = JSON.parse(readFileSync(BED_MAP, "utf8")) as Record<
     string,
@@ -750,6 +786,7 @@ async function run() {
         rep,
         tools,
         schemaChars,
+        schemaHash: hash,
         runLocalAssistantTools,
         streamChatWithTools,
       });
