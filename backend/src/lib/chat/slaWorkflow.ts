@@ -23,7 +23,6 @@ import {
   anchorCoverage,
   type AnchorCoverageReport,
   type AnchorDocument,
-  type AnchorRow,
 } from "../legalTextAnchors";
 import { temporalScan, type TemporalFinding } from "../legalTemporalScan";
 import { termDriftReport } from "../legalTermDrift";
@@ -93,7 +92,7 @@ export async function buildSlaLedger(
       `- Spec: turn the instructions into a checklist of every required issue, comparison, calculation, and deliverable field.\n` +
       `- Ledger: gather each material checklist fact into a compact source-addressed working ledger. ` +
       (workingSetFirst
-        ? `Your first source-content retrieval must be Grep with output_mode="working_set" and a targeted union regex derived from the Spec (never "." or ".*"); if the inventory is abbreviated, Glob may enumerate filenames first. Read the returned path, then inspect exact source sections only for gaps or verification. Create another non-overlapping working set only if the manifest is truncated or the checklist still has gaps. `
+        ? `Your first source-content retrieval must be Grep with output_mode="working_set" and a targeted regex derived from the Spec (never "." or ".*"); if the inventory is abbreviated, Glob may enumerate filenames first. Read the returned delta, then add searches to the same evidence file for unresolved gaps. The tool removes overlap automatically. Inspect exact source sections only for verification. `
         : `Search long documents with Grep and Read the smallest responsive section, page, table row, or reference scope; use a working_set for a bounded cross-document union when cheaper. `) +
       `Record an explicit source gap instead of guessing.\n` +
       `- Draft: create the exact requested artifact only after every material checklist item has evidence or an explicit gap.\n` +
@@ -195,13 +194,6 @@ export interface SlaAudit {
   report: AnchorCoverageReport;
 }
 
-function findingRows(rows: AnchorRow[]): string {
-  return rows
-    .slice(0, MAX_FINDING_ROWS_PER_CLASS)
-    .map((row) => `${row.display} [${row.documents[0] ?? "?"}]`)
-    .join("; ");
-}
-
 /**
  * A conflict finding touching the draft is the drafter's own arithmetic; one
  * confined to the sources is a source-vs-source disagreement to surface.
@@ -240,8 +232,6 @@ export function auditSlaDraft(
   let sourceOnly = 0;
   let draftOnly = 0;
   let matched = 0;
-  const missingLines: string[] = [];
-  const unsourcedLines: string[] = [];
   for (const [cls, coverage] of Object.entries(report.classes)) {
     classes[cls] = {
       matched: coverage.matched,
@@ -257,14 +247,6 @@ export function auditSlaDraft(
     sourceOnly += coverage.source_only.length;
     draftOnly += coverage.draft_only.length;
     matched += coverage.matched;
-    if (coverage.source_only.length) {
-      missingLines.push(
-        `- ${cls}${coverage.source_only_truncated ? " (truncated list)" : ""}: ${findingRows(coverage.source_only)}`,
-      );
-    }
-    if (coverage.draft_only.length) {
-      unsourcedLines.push(`- ${cls}: ${findingRows(coverage.draft_only)}`);
-    }
   }
 
   const conflict = conflictScan(stack);
@@ -276,9 +258,6 @@ export function auditSlaDraft(
   // disagreement it merely inherited.
   const draftConflictLines = draftConflicts
     .slice(0, MAX_CONFLICT_FINDINGS)
-    .map((finding) => `- ${finding.detail}`);
-  const sourceConflictLines = sourceConflicts
-    .slice(0, MAX_CONFLICT_FINDINGS - draftConflictLines.length)
     .map((finding) => `- ${finding.detail}`);
 
   const temporal = temporalScan(stack);
@@ -293,13 +272,12 @@ export function auditSlaDraft(
   const draftTemporalLines = draftTemporal
     .slice(0, MAX_CONFLICT_FINDINGS)
     .map((finding) => `- ${finding.detail}`);
-  const sourceTemporalLines = sourceTemporal
-    .slice(0, MAX_CONFLICT_FINDINGS - draftTemporalLines.length)
-    .map((finding) => `- ${finding.detail}`);
-
   const drift = termDriftReport(stack);
   const divergent = drift.shared.filter((row) => row.status === "divergent");
-  const driftLines = divergent
+  const draftDivergent = divergent.filter((row) =>
+    row.definitions.some((definition) => definition.document === DRAFT_NAME),
+  );
+  const driftLines = draftDivergent
     .slice(0, MAX_DRIFT_TERMS)
     .map((row) =>
       row.divergence
@@ -324,39 +302,25 @@ export function auditSlaDraft(
   // Lint warnings alone do not buy a revision pass: they are style-grade and
   // the pass costs a whole model turn.
   const worthARevision =
-    missingLines.length > 0 ||
-    unsourcedLines.length > 0 ||
-    conflict.findings.length > 0 ||
-    temporal.findings.length > 0 ||
-    divergent.length > 0 ||
+    draftConflicts.length > 0 ||
+    draftTemporal.length > 0 ||
+    draftDivergent.length > 0 ||
     lintErrors.length > 0;
   const repairPrompt = worthARevision
-    ? `DETERMINISTIC AUDIT (no model involved; computed from the source documents and your deliverable):\n` +
-      (missingLines.length
-        ? `\nAnchors present in the source documents but absent from your deliverable:\n${missingLines.join("\n")}\n`
-        : "") +
-      (unsourcedLines.length
-        ? `\nAnchors in your deliverable with no match in any source document — verify each against the source and correct or remove what you cannot ground:\n${unsourcedLines.join("\n")}\n`
-        : "") +
+    ? `DETERMINISTIC CHECK (computed after synthesis; no model called it):\n` +
       (draftConflictLines.length
-        ? `\nArithmetic in your deliverable that does not close — your own error unless a source states it that way:\n${draftConflictLines.join("\n")}\n`
-        : "") +
-      (sourceConflictLines.length
-        ? `\nArithmetic the source documents disagree on — not yours to invent a number for; state the discrepancy where it bears on the deliverable:\n${sourceConflictLines.join("\n")}\n`
+        ? `\nArithmetic in your deliverable that does not close:\n${draftConflictLines.join("\n")}\n`
         : "") +
       (draftTemporalLines.length
         ? `\nDeadline arithmetic in your deliverable that does not close — a period and its resolved date disagree:\n${draftTemporalLines.join("\n")}\n`
         : "") +
-      (sourceTemporalLines.length
-        ? `\nDeadline arithmetic the source documents state inconsistently — flag it where it bears on the deliverable:\n${sourceTemporalLines.join("\n")}\n`
-        : "") +
       (driftLines.length
-        ? `\nDefined terms whose definitions differ across the stack — check which one your deliverable relies on:\n${driftLines.join("\n")}\n`
+        ? `\nDefined terms redefined by your deliverable — check which source definition controls:\n${driftLines.join("\n")}\n`
         : "") +
       (lintLines.length
         ? `\nDrafting lint over your deliverable (exact spans; errors first):\n${lintLines.join("\n")}\n`
         : "") +
-      `\nReview every finding; do not blindly copy source-only anchors into the deliverable. Re-read the exact source spans for each potentially material finding. Revise every grounded, material issue, and disregard a finding only after verifying that it is immaterial or a false positive. Then ` +
+      `\nVerify each finding against its source or calculation inputs and revise every material error. Preserve transparent derivations and professional recommendations; their wording need not appear verbatim in a source. Then ` +
       (options?.artifactDeliverable
         ? `apply the corrections to the deliverable document itself with the library tools (revise the document; do not paste its content into chat).`
         : `output the COMPLETE revised deliverable (full text, same format), not a description of changes.`)

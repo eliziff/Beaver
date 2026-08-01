@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { applyTrackedEdits, extractDocxBodyText } from "../docxTrackedChanges";
+import {
+  applyTrackedEdits,
+  extractDocxBodyText,
+  insertTrackedBlocks,
+  resolveTrackedChange,
+} from "../docxTrackedChanges";
 import { renderMarkdownDocx } from "../chat/tools/documentOps";
 
 async function draft(markdown: string): Promise<Buffer> {
@@ -51,6 +56,31 @@ describe("applyTrackedEdits minimal clusters", () => {
     expect(edit.changes).toHaveLength(1);
     expect(edit.changes[0].deletedText).toBe("plaintiff");
     expect(edit.changes[0].insertedText).toBe("defendant");
+  });
+});
+
+describe("insertTrackedBlocks", () => {
+  it("inserts real paragraphs and rejects an inserted paragraph without residue", async () => {
+    const bytes = await draft("Opening paragraph.");
+    const inserted = await insertTrackedBlocks(bytes, {
+      blocks: ["First inserted paragraph.", "Second inserted paragraph."],
+      position: "after",
+    });
+    expect(inserted.errors).toEqual([]);
+    expect(inserted.changes).toHaveLength(2);
+    await expect(extractDocxBodyText(inserted.bytes)).resolves.toContain(
+      "First inserted paragraph.\nSecond inserted paragraph.",
+    );
+
+    const rejected = await resolveTrackedChange(
+      inserted.bytes,
+      [inserted.changes[0].id],
+      "reject",
+    );
+    const rejectedText = await extractDocxBodyText(rejected.bytes);
+    expect(rejected.found).toBe(true);
+    expect(rejectedText).not.toContain("First inserted paragraph.");
+    expect(rejectedText).toContain("Second inserted paragraph.");
   });
 });
 
