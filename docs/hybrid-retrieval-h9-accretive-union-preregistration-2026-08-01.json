@@ -16,6 +16,7 @@
   "held_constant": {
     "performer_model": "gpt-5.6-luna",
     "reasoning_effort": "high",
+    "transport": "OpenAI Responses API using the project API key, not the Codex subscription backend",
     "base_prompt": "lean",
     "tool_description_variant": "operational",
     "research_tools_on_harvey": false,
@@ -74,7 +75,8 @@
     "backend/src/lib/chat/slaWorkflow.ts": "a1e8248e0889b70470921c54b4310d431f60edc1890da468bdb7f365ef1203e2",
     "backend/src/lib/chat/tools/toolSchemas.ts": "29978b2d009c627f3e6781eeccb3aef08c129e23602bacbf1eccfe3039b2989b",
     "backend/src/lib/docxTrackedChanges.ts": "9ab7a1fdf1f6565227a8c309d9943d218b0513fb740be17399bfb297df5fcce3",
-    "backend/scripts/lab-beaver-arm.ts": "26e2573548b3c4e669c8447816f6c8c2eb8141217bd591da45931f27e3d285cc"
+    "backend/scripts/lab-beaver-arm.ts": "26e2573548b3c4e669c8447816f6c8c2eb8141217bd591da45931f27e3d285cc",
+    "backend/src/lib/llm/models.ts": "64a9298736d8095aa3eef2a69fbfd54810ba52a6da22d30ede7f745fa35fc23a"
   },
   "non_goals": [
     "Cross-turn persistence of the evidence file",
