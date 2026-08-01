@@ -26,6 +26,8 @@ import {
   isExternalReference,
   romanToInt,
 } from "./docxStructuralLint";
+import { createHash } from "node:crypto";
+
 import {
   createSourceDoc,
   lookupSourceDocLabel,
@@ -1156,7 +1158,72 @@ export interface CompileSkeletonOptions {
   recoverExtraction?: boolean;
 }
 
+/**
+ * Compiling a skeleton is the most-repeated expensive thing in the tool
+ * layer, and until now it was repeated every single time: 20+ call sites in
+ * backend/src, none memoized, with `library_find` compiling the SAME document
+ * twice in one call and the coding-shape Grep compiling one per matching
+ * document. The extracted text beside it has been cached for ages
+ * (`textCache`, `parseCache`), so the string was free and the structure was
+ * not.
+ *
+ * The key is not the text alone. `id` becomes `doc.id`, and
+ * `recoverExtraction` genuinely changes the node inventory — 45 of 23,531
+ * A2AJ statutes compile differently with it on than off — so a key that
+ * ignored either would serve one caller another caller's document.
+ *
+ * Sharing the returned object is safe: nothing in backend/src, backend/scripts
+ * or the tests mutates a returned skeleton or its nodes. Every consumer that
+ * sorts copies first, and `readSection` materializes a copy of the block.
+ *
+ * The real cost of sharing is MEMORY, not correctness. A shared `SourceDoc`
+ * keeps its lazily-built `tokens` array (~14 bytes per character of source
+ * text) and any postings index built by a phrase query alive for as long as
+ * the entry lives — so the cap stays small deliberately.
+ */
+const SKELETON_CACHE_LIMIT = 8;
+const skeletonCache = new Map<string, AgreementSkeleton>();
+
+function skeletonCacheKey(
+  text: string,
+  id: string,
+  options: CompileSkeletonOptions,
+): string {
+  return [
+    createHash("sha256").update(text).digest("hex"),
+    id,
+    options.recoverExtraction === false ? "norecover" : "recover",
+  ].join("\u0000");
+}
+
 export function compileAgreementSkeleton(
+  text: string,
+  id = "",
+  options: CompileSkeletonOptions = {},
+): AgreementSkeleton {
+  const cacheKey = skeletonCacheKey(text, id, options);
+  const cached = skeletonCache.get(cacheKey);
+  if (cached) {
+    // Refresh recency: the tool layer reads one document repeatedly within a
+    // turn, then moves on.
+    skeletonCache.delete(cacheKey);
+    skeletonCache.set(cacheKey, cached);
+    return cached;
+  }
+  const compiled = compileAgreementSkeletonUncached(text, id, options);
+  skeletonCache.set(cacheKey, compiled);
+  if (skeletonCache.size > SKELETON_CACHE_LIMIT) {
+    skeletonCache.delete(skeletonCache.keys().next().value!);
+  }
+  return compiled;
+}
+
+/** Escape hatch for anything that must not share (tests, differentials). */
+export function clearSkeletonCache(): void {
+  skeletonCache.clear();
+}
+
+function compileAgreementSkeletonUncached(
   text: string,
   id = "",
   options: CompileSkeletonOptions = {},
