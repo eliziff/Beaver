@@ -165,7 +165,7 @@ POST_GATE_SYSTEM_PROMPT = "Cards and verified quotations are ready. Write the in
 POST_GATE_GRUG_SYSTEM_PROMPT = f"""{CAVEMAN_SYNTHESIS_CONTROL} CARDS READY. WRITE SMARTHEAD LEGAL ANSWER. NAME EACH SELECTED CASE. COMPARE DOCTRINE. USE VERIFIED QUOTATIONS. PROSE ONLY. DO NOT PRINT CARD FIELDS, HANDLES, JSON, OR TOOL SYNTAX."""
 PROTECTED_OPEN = "[[K]]"
 PROTECTED_CLOSE = "[[/K]]"
-STATE_COMPACTOR_SYSTEM_PROMPT = "STATE COMPACTOR ONLY. COMPACT THIS CONVERSATION. LEAVE [[K]]...[[/K]] INTACT. COMPRESS OUTSIDE [[K]] ONLY. DO NOT SOLVE, READ, DRAFT, CALL TOOLS, ASK QUESTIONS, OR INVENT. OUTPUT CHECKPOINT ONLY."
+STATE_COMPACTOR_SYSTEM_PROMPT = "YOU=COMPACTOR. ONE JOB: COMPACT THE JSON BEFORE K. K BETWEEN [[K]] AND [[/K]] IS OPAQUE BYTES: DO NOT READ, COPY, SUMMARIZE, REPAIR, OR REASON ABOUT K. DO NOT SOLVE LEGAL WORK. DO NOT CALL p OR d. CALL c ONCE: c({l:[{k:\"key\",v:\"short line\"},...]}); l=short ordered checkpoint lines from JSON BEFORE K ONLY. NO PROSE."
 
 
 def protected_state_block(payload: dict[str, Any]) -> str:
@@ -187,7 +187,34 @@ def strip_protected_state(value: str, expected: str) -> tuple[str, str]:
     return cleaned, "exact" if found == expected else "changed"
 DYNAMIC_MIKE_SYSTEM_PROMPT = MIKE_SYSTEM_PROMPT.replace("doc-0", "s1").replace("doc-1", "s2").replace("doc-2", "s3") + "\n\n" + DISCOVERY_STAGE + "\n" + NO_QUESTIONS
 DYNAMIC_DISCOVERY_TASK = "USER WANTS: Bhasin v Hrynew; Wastech Services v Greater Vancouver Sewerage and Drainage; C.M. Callow v Zollinger. ANALYZE EACH; COMPARE GOOD-FAITH DOCTRINE; PRESERVE FACTS/ISSUE/HOLDING/REASONING/LIMITS/EVIDENCE; USE EXACT QUOTATIONS WITH ANALYSIS."
-QWEN_DISCOVERY_PROTOCOL = "YOU=QWEN. DISCOVERY ONLY. CALL s({q:\"query\"}) TO SEARCH. CALL a({i:[ID,...]}) TO ADD 0-3 CONFIRMED IDS. h=hits; i=id; n=name; c=cite; r=remaining. NO READ/DRAFT. " + NO_QUESTIONS
+QWEN_DISCOVERY_PROTOCOL = "YOU=QWEN. DISCOVERY ONLY. CALL s({q:\"query\"}) TO SEARCH. CALL a({i:[ID,...]}) TO ADD 0-3 MATCHING IDS. a RESULT: i=ALL LOCKED IDS; m=NAME/CITATION FOR LOCKED CASES; r=SLOTS LEFT. SEARCH ONLY WHEN NO HIT MATCHES. SEARCH ROWS: I=id N=name C=citation. NO READ/DRAFT. " + NO_QUESTIONS
+STATE_COMPACTION_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "c",
+        "description": "Write compact checkpoint lines.",
+        "parameters": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "l": {
+                    "type": "array",
+                    "maxItems": 12,
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": {
+                            "k": {"type": "string"},
+                            "v": {"type": "string"},
+                        },
+                        "required": ["k", "v"],
+                    },
+                }
+            },
+            "required": ["l"],
+        },
+    },
+}
 
 
 def control_system_prompt(prompt_style: str, compact_vocab: bool = False) -> str:
@@ -474,6 +501,22 @@ def sha256_text(value: str) -> str:
 
 def collapse_ws(value: str) -> str:
     return WS_RE.sub(" ", value).strip()
+
+
+def parse_integer_list(value: Any) -> list[int] | None:
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError:
+            return None
+    if not isinstance(value, list):
+        return None
+    if any(isinstance(item, bool) or not isinstance(item, (int, str)) for item in value):
+        return None
+    try:
+        return [int(item) for item in value]
+    except (TypeError, ValueError):
+        return None
 
 
 def estimate_tokens(value: str) -> int:
@@ -776,20 +819,47 @@ def run_dynamic_selection(args: argparse.Namespace) -> Path:
     discovery_searches: dict[str, list[dict[str, Any]]] = {}
     discovery_ledger: list[str] = []
     search_cache: dict[str, list[dict[str, Any]]] = {}
+    search_repeat_counts: dict[str, int] = {}
+    search_repeat_notice = ""
+    selection_notice = ""
     search_tool_name = "s" if args.provider == "ollama" else "search_a2aj_cases"
     select_tool_name = "a" if args.provider == "ollama" else "select_a2aj_documents"
     model_hit_cap = {"1k": 2, "2k": 3, "4k": 5}.get(args.context_tier, 10)
     selected_ids: list[int] = []
 
+    def selected_case_metadata(ids: Iterable[int]) -> list[dict[str, Any]]:
+        """Echo only metadata already returned by the model's own searches."""
+
+        by_id: dict[int, dict[str, Any]] = {}
+        for hits in search_cache.values():
+            for hit in hits:
+                try:
+                    document_id = int(hit.get("i"))
+                except (TypeError, ValueError):
+                    continue
+                by_id[document_id] = hit
+        metadata: list[dict[str, Any]] = []
+        for document_id in ids:
+            hit = by_id.get(int(document_id))
+            metadata.append(
+                {
+                    "i": int(document_id),
+                    "n": hit.get("n", "-") if hit else "-",
+                    "c": hit.get("c", "-") if hit else "-",
+                }
+            )
+        return metadata
+
     def reset_discovery_messages() -> None:
         if args.provider == "ollama":
-            searches = [
-                "s " + query + " -> " + ";".join(
-                    f"{hit['i']}|{hit['n']}|{hit['c']}" for hit in hits[:model_hit_cap]
+            searches: list[str] = []
+            for query, hits in discovery_searches.items():
+                searches.append("Q=" + query)
+                searches.extend(
+                    f"I={hit['i']} N={hit['n']} C={hit['c']}"
+                    for hit in hits[:model_hit_cap]
                 )
-                for query, hits in discovery_searches.items()
-            ]
-            state = "s:q->i|n|c\n" + ("\n".join(searches) if searches else "-")
+            state = "SEARCH RESULTS: Q=query; each next line I=id N=name C=citation\n" + ("\n".join(searches) if searches else "-")
         else:
             searches = [
                 "SEARCH q=" + query + " -> " + json.dumps(hits, ensure_ascii=False, separators=(",", ":"))
@@ -798,15 +868,19 @@ def run_dynamic_selection(args: argparse.Namespace) -> Path:
             state = "SEARCH FORMAT: q=query -> i=id, n=name, c=citation\n" + ("\n".join(searches) if searches else "(none)")
         if discovery_ledger:
             state += "\n" + "\n".join(discovery_ledger[-3:])
+        if search_repeat_notice:
+            state += "\n" + search_repeat_notice
+        if selection_notice:
+            state += "\n" + selection_notice
         if args.provider == "ollama":
-            state += f"\nNEXT s missing; a(i) add confirmed IDs; r={3 - len(selected_ids)}"
+            state += f"\nNEXT: inspect hits; a({{i:[...]}}) adds 0-3 matching IDs; use s with a new query only if no hit matches; r={3 - len(selected_ids)} selection slots"
         else:
             state += f"\nNEXT search missing; select_a2aj_documents(ids); remaining={3 - len(selected_ids)}"
         discovery_messages[:] = [
             {"role": "system", "content": discovery_system},
             {
                 "role": "user",
-                "content": "L\n" + state + "\nU\n" + discovery_task,
+                "content": "USER TASK\n" + discovery_task + "\nYOUR (QWEN) PREVIOUS SEARCH RESULTS\n" + state,
             },
         ]
 
@@ -843,10 +917,14 @@ def run_dynamic_selection(args: argparse.Namespace) -> Path:
                 if name == search_tool_name:
                     query = collapse_ws(str(raw_args.get("q", ""))).casefold()
                     if query in search_cache:
+                        search_repeat_counts[query] = search_repeat_counts.get(query, 0) + 1
+                        search_repeat_notice = "REPEAT SEARCH: same q returned same hits; call a with matching IDs or use a new q."
                         full_hits = search_cache[query]
                         model_result = {"h": full_hits[:model_hit_cap]}
                         receipt_result = {"ok": True, "repeated": True, "hits": full_hits}
                     else:
+                        search_repeat_counts[query] = 0
+                        search_repeat_notice = ""
                         max_results = 10 if args.provider == "ollama" else int(raw_args.get("n", 10))
                         results = catalog.search(query, max_results)
                         full_hits = [
@@ -861,31 +939,45 @@ def run_dynamic_selection(args: argparse.Namespace) -> Path:
                         model_result = {"h": full_hits[:model_hit_cap]}
                         receipt_result = {"ok": True, "hits": full_hits}
                 elif name == select_tool_name:
-                    values = [int(value) for value in raw_args.get("i" if args.provider == "ollama" else "ids", [])]
-                    invalid = [value for value in values if value <= 0 or not catalog.document_exists(value)]
-                    if args.provider == "ollama":
-                        new_values = list(dict.fromkeys(value for value in values if value not in selected_ids))
-                        if invalid:
-                            model_result = {"e": "bad id " + ",".join(map(str, invalid))}
-                            receipt_result = {"ok": False, "error": "unknown A2AJ case IDs: " + ", ".join(map(str, invalid))}
-                        elif len(selected_ids) + len(new_values) > 3:
-                            model_result = {"e": "too many", "r": 3 - len(selected_ids)}
-                            receipt_result = {"ok": False, "error": "too many new IDs", "remaining": 3 - len(selected_ids)}
-                        else:
-                            selected_ids.extend(new_values)
-                            model_result = {"i": selected_ids, "r": 3 - len(selected_ids)}
-                            receipt_result = {"ok": True, "selected_document_ids": selected_ids, "added": new_values, "remaining": 3 - len(selected_ids)}
+                    key = "i" if args.provider == "ollama" else "ids"
+                    values = parse_integer_list(raw_args.get(key, []))
+                    if values is None:
+                        model_result = {"e": f"{key} must be integer list"}
+                        receipt_result = {"ok": False, "error": f"{key} must be a JSON array of integer document IDs"}
+                        selection_notice = f"BAD {key}: JSON integer list only; use IDs from h."
                     else:
-                        if len(values) != 3 or len(set(values)) != 3:
-                            model_result = {"ok": False, "error": "select exactly three unique A2AJ document IDs"}
-                            receipt_result = model_result
-                        elif invalid:
-                            model_result = {"ok": False, "error": "unknown A2AJ case IDs: " + ", ".join(map(str, invalid))}
-                            receipt_result = model_result
+                        invalid = [value for value in values if value <= 0 or not catalog.document_exists(value)]
+                        if args.provider == "ollama":
+                            new_values = list(dict.fromkeys(value for value in values if value not in selected_ids))
+                            if invalid:
+                                model_result = {"e": "bad id " + ",".join(map(str, invalid))}
+                                receipt_result = {"ok": False, "error": "unknown A2AJ case IDs: " + ", ".join(map(str, invalid))}
+                                selection_notice = "BAD a: unknown IDs; use IDs shown in h."
+                            elif len(selected_ids) + len(new_values) > 3:
+                                model_result = {"e": "too many", "r": 3 - len(selected_ids)}
+                                receipt_result = {"ok": False, "error": "too many new IDs", "remaining": 3 - len(selected_ids)}
+                                selection_notice = f"BAD a: only r={3 - len(selected_ids)} selection slots left."
+                            else:
+                                selected_ids.extend(new_values)
+                                metadata = selected_case_metadata(selected_ids)
+                                model_result = {"i": selected_ids, "m": metadata, "r": 3 - len(selected_ids)}
+                                receipt_result = {"ok": True, "selected_document_ids": selected_ids, "selected_case_metadata": metadata, "added": new_values, "remaining": 3 - len(selected_ids)}
+                                selection_notice = ""
                         else:
-                            selected_ids = values
-                            model_result = {"ok": True, "selected_document_ids": values}
-                            receipt_result = {"ok": True, "selected_document_ids": values, "text": "full text will be loaded one document at a time by the host"}
+                            if len(values) != 3 or len(set(values)) != 3:
+                                model_result = {"ok": False, "error": "select exactly three unique A2AJ document IDs"}
+                                receipt_result = model_result
+                                selection_notice = "BAD ids: select three unique integer IDs."
+                            elif invalid:
+                                model_result = {"ok": False, "error": "unknown A2AJ case IDs: " + ", ".join(map(str, invalid))}
+                                receipt_result = model_result
+                                selection_notice = "BAD ids: use IDs shown in search results."
+                            else:
+                                selected_ids = values
+                                metadata = selected_case_metadata(selected_ids)
+                                model_result = {"ok": True, "selected_document_ids": values, "selected_case_metadata": metadata}
+                                receipt_result = {"ok": True, "selected_document_ids": values, "selected_case_metadata": metadata, "text": "full text will be loaded one document at a time by the host"}
+                                selection_notice = ""
                 else:
                     model_result = {"e": "tool"}
                     receipt_result = {"ok": False, "error": "discovery tool unavailable"}
@@ -893,11 +985,26 @@ def run_dynamic_selection(args: argparse.Namespace) -> Path:
                 receipt_result_text = json.dumps(receipt_result, ensure_ascii=False, separators=(",", ":"))
                 selection_calls.append({"name": name, "arguments": raw_args, "result": receipt_result_text})
                 append_progress(progress_path, {"kind": "discovery_tool_result", "round": round_number + 1, "tool": name, "arguments": raw_args, "result_preview": receipt_result_text[:2000]})
+                if name == search_tool_name and receipt_result.get("repeated"):
+                    append_progress(
+                        progress_path,
+                        {
+                            "kind": "discovery_repeat",
+                            "round": round_number + 1,
+                            "query": query,
+                            "count": search_repeat_counts[query],
+                        },
+                    )
                 discovery_messages.append({"role": "tool", "tool_name": name, "content": model_result_text})
                 if name == search_tool_name:
                     discovery_searches[query] = search_cache.get(query, [])
-                elif name == select_tool_name:
-                    discovery_ledger.append("a " + ",".join(str(item) for item in selected_ids) + " r=" + str(3 - len(selected_ids)))
+                elif name == select_tool_name and receipt_result.get("ok"):
+                    metadata = selected_case_metadata(selected_ids)
+                    locked = " ".join(
+                        f"I={item['i']} N={item['n']} C={item['c']}"
+                        for item in metadata
+                    )
+                    discovery_ledger.append("A " + locked + " r=" + str(3 - len(selected_ids)))
             if len(selected_ids) < 3:
                 reset_discovery_messages()
             if len(selected_ids) == 3:
@@ -1418,6 +1525,7 @@ class OllamaClient:
         no_tools: bool = False,
         compact_vocab: bool = False,
         synthesis_source_search: bool = False,
+        compaction_mode: bool = False,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         request_tools = ollama_tools()
         if compact_card_mode:
@@ -1439,6 +1547,8 @@ class OllamaClient:
             request_tools = (
                 [FIND_SOURCE_SPANS_TOOL] if synthesis_source_search else []
             ) + [REHYDRATE_EVIDENCE_TOOL, SPAN_ANSWER_TOOL]
+        if compaction_mode:
+            request_tools = [STATE_COMPACTION_TOOL]
         if card_rebuild_mode and not card_prison:
             request_tools = [
                 tool for tool in request_tools
@@ -1558,7 +1668,8 @@ class CodexClient:
               omit_limits_unknowns: bool = False, auto_read_card: bool = False,
               host_register: bool = False, no_tools: bool = False,
               compact_vocab: bool = False,
-              synthesis_source_search: bool = False) -> tuple[dict[str, Any], dict[str, Any]]:
+              synthesis_source_search: bool = False,
+              compaction_mode: bool = False) -> tuple[dict[str, Any], dict[str, Any]]:
         tools = self._tools(
             include_grounding_tool, include_rehydration_tool, include_span_tool,
             card_rebuild_mode, discovery_mode, synthesis_mode, compact_card_mode,
@@ -1568,6 +1679,8 @@ class CodexClient:
         )
         if auto_read_card and compact_card_mode and micro_card:
             tools = list(micro_card_tools(omit_limits_unknowns, host_register))
+        if compaction_mode:
+            tools = [STATE_COMPACTION_TOOL]
         if no_tools:
             tools = []
         elif compact_vocab:
@@ -2326,6 +2439,9 @@ class ToyMikeTools:
                 feedback.update(
                     {
                         "closest_evidence_id": closest_evidence_id,
+                        "evidence_id": closest_evidence_id,
+                        "start_sentence": closest_start,
+                        "end_sentence": closest_end,
                         "valid_range": f"0..{last}",
                         "eid_prefix": prefix,
                         "closest_snippet": snippet,
@@ -2342,6 +2458,8 @@ class ToyMikeTools:
             "claim_index": claim_index,
             "status": "range_invalid",
             "evidence_id": evidence_id,
+            "start_sentence": closest_start,
+            "end_sentence": closest_end,
             "requested_range": f"{start}..{end}",
             "valid_range": f"0..{last}",
             "eid_prefix": prefix,
@@ -2843,6 +2961,27 @@ def assistant_tool_calls(message: dict[str, Any]) -> list[tuple[str, dict[str, A
     return calls
 
 
+def compaction_checkpoint(message: dict[str, Any]) -> tuple[str, str]:
+    """Read only the compactor's line tool; never trust model-written K state."""
+
+    for name, arguments in assistant_tool_calls(message):
+        if name != "c":
+            continue
+        raw_lines = arguments.get("l")
+        if not isinstance(raw_lines, list):
+            return "", "invalid_tool"
+        lines: list[str] = []
+        for item in raw_lines:
+            if not isinstance(item, dict):
+                continue
+            key = collapse_ws(str(item.get("k") or ""))
+            value = collapse_ws(str(item.get("v") or ""))
+            if key and value:
+                lines.append(f"{key}: {value}")
+        return "\n".join(lines), "tool"
+    return str(message.get("content") or "").strip(), "content"
+
+
 def run_turn(
     client: OllamaClient,
     messages: list[dict[str, Any]],
@@ -2950,13 +3089,39 @@ def run_turn(
                         else list(pending_span_repairs.values()),
                         ensure_ascii=False,
                     )
-                )
+            )
         return "\n\n" + "\n\n".join(sections) if sections else ""
+
+    def pending_span_repair_prompt() -> str:
+        """Project host-owned repairs as an explicit next action after compaction."""
+
+        if not pending_span_repairs:
+            return ""
+        lines: list[str] = []
+        for slot, item in sorted(pending_span_repairs.items()):
+            claim: dict[str, Any] = {}
+            evidence_id = item.get("evidence_id") or item.get("closest_evidence_id")
+            if evidence_id:
+                claim["evidence_id"] = evidence_id
+            if isinstance(item.get("start_sentence"), int):
+                claim["start_sentence"] = item["start_sentence"]
+            if isinstance(item.get("end_sentence"), int):
+                claim["end_sentence"] = item["end_sentence"]
+            if claim:
+                display = compact_model_value(claim) if compact_vocab else claim
+                line = json.dumps(display, ensure_ascii=False, separators=(",", ":"))
+            else:
+                line = compact_protocol_text(str(item.get("repair") or "Use a valid span in the active source."))
+            lines.append(f"{slot}: {line}")
+        return (
+            "[REPAIR NOW]\n"
+            + "\n".join(lines)
+            + "\nCALL p NOW WITH EACH EXACT SPAN. DO NOT CALL d UNTIL ALL REPAIRS ARE ACCEPTED."
+        )
 
     def card_repair_instruction() -> str:
         if pending_span_repairs:
-            fields = ", ".join(sorted({slot.split(":", 1)[0] for slot in pending_span_repairs}))
-            return f"CALL p NOW to repair the pending span(s) in field(s) {fields}; call d only after the repairs are accepted."
+            return pending_span_repair_prompt()
         if micro_card:
             field_order = ["f", "i", "h", "r", "e"] if omit_limits_unknowns else ["f", "i", "h", "r", "l", "u", "e"]
             missing = [field for field in field_order if not card_fields.get(field)]
@@ -3047,6 +3212,7 @@ def run_turn(
         )
         calls = assistant_tool_calls(message)
         if not calls:
+            gate_rejected = False
             if synthesis_mode and require_synthesis_tool:
                 synthesis_gate = (
                     "[QUOTE COVERAGE GATE] No prose answer counts yet. "
@@ -3090,9 +3256,8 @@ def run_turn(
                         "reason": "synthesis_tool_required",
                     },
                 )
-                continue
-            if synthesis_mode and final_min_chars > 0 and len(last_text.strip()) < final_min_chars:
-                messages.append(message)
+                gate_rejected = True
+            elif synthesis_mode and final_min_chars > 0 and len(last_text.strip()) < final_min_chars:
                 messages.append(
                     {
                         "role": "user",
@@ -3112,8 +3277,8 @@ def run_turn(
                         "reason": "final_goal_incomplete",
                     },
                 )
-                continue
-            if card_contract and not tools.card_queue_complete:
+                gate_rejected = True
+            elif card_contract and not tools.card_queue_complete:
                 gate = (
                     f"[GOAL GATE] Card incomplete; prose is rejected. {NO_QUESTIONS} "
                     + card_repair_instruction()
@@ -3133,7 +3298,6 @@ def run_turn(
                         },
                     ]
                 else:
-                    messages.append(message)
                     messages.append({"role": "user", "content": gate})
                 append_progress(
                     progress_path,
@@ -3144,8 +3308,9 @@ def run_turn(
                         "reason": "card_goal_incomplete",
                     },
                 )
-                continue
-            return last_text, messages
+                gate_rejected = True
+            if not gate_rejected:
+                return last_text, messages
         retry_feedback: list[dict[str, Any]] = []
         for name, arguments in calls:
             if compact_vocab:
@@ -3422,6 +3587,12 @@ def run_turn(
                     "content": model_result,
                 }
             )
+            if (
+                card_span_mode == "host_register"
+                and name == MICRO_PATCH_TOOL_NAME
+                and pending_span_repairs
+            ):
+                messages.append({"role": "user", "content": pending_span_repair_prompt()})
             if (
                 card_contract
                 and name == CARD_COMPLETE_TOOL_NAME
@@ -3721,11 +3892,13 @@ def run_turn(
             ]
             state_message, state_usage = client.chat(
                 state_input, False, False, False,
-                no_tools=True,
+                no_tools=False,
+                compaction_mode=True,
             )
-            state_text, protected_copy = strip_protected_state(
-                str(state_message.get("content") or ""), protected_block
-            )
+            raw_state_text, compactor_output = compaction_checkpoint(state_message)
+            state_text, protected_copy = strip_protected_state(raw_state_text, protected_block)
+            if not state_text:
+                state_text = "checkpoint: none; use locked state and current card status"
             state_text = state_text[:2200]
             state_thinking = model_thinking(state_message)
             if state_thinking:
@@ -3748,9 +3921,11 @@ def run_turn(
                     "tool_round": tool_round + 1,
                     "usage": state_usage,
                     "assistant_text": state_text,
-                    "tool_calls": [],
+                    "tool_calls": [name for name, _ in assistant_tool_calls(state_message)],
                     "state_compaction": True,
+                    "compactor_output": compactor_output,
                     "protected_copy": protected_copy,
+                    "protected_state_restored": True,
                     "input_estimate": estimate_tokens(json.dumps(state_input, ensure_ascii=False)),
                 }
             )
@@ -3761,7 +3936,9 @@ def run_turn(
                     "turn": turn_number,
                     "phase": phase,
                     "state_preview": state_text[:1600],
+                    "compactor_output": compactor_output,
                     "protected_copy": protected_copy,
+                    "protected_state_restored": True,
                     "cursor": state_cursor(card_doc_id, read_done, last_tool, micro_card),
                     "usage": state_usage,
                 },
@@ -3800,6 +3977,7 @@ def run_turn(
                             else ""
                         )
                         + card_span_state_prompt()
+                        + ("\n\n" + pending_span_repair_prompt() if pending_span_repairs else "")
                     ),
                 }
             ]
@@ -3910,6 +4088,9 @@ def self_test(cases: dict[str, CaseDocument], num_ctx: int) -> None:
     assert handle_id(cases["case-a"], 63) == "@63"
     assert re.fullmatch(EVIDENCE_ID_PATTERN, handle_id(cases["case-b"], 4))
     assert re.fullmatch(EVIDENCE_ID_PATTERN, handle_id(cases["case-c"], 37))
+    assert parse_integer_list("[1,2,3]") == [1, 2, 3]
+    assert parse_integer_list("[1, citation]") is None
+    assert parse_integer_list({"i": [1]}) is None
     protected = protected_state_block({"case": "s1", "sp": [{"@": "@63", "!ss": 0, "!es": 1}]})
     compacted, protected_status = strip_protected_state("short note\n" + protected, protected)
     assert compacted == "short note" and protected_status == "exact"
