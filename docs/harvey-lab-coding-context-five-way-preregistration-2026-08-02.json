@@ -3,6 +3,13 @@
   "preregistered_at": "2026-08-02T22:05:00Z",
   "status": "preregistered_before_new_model_calls",
   "implementation_commit": "3c5316489fb4951d9ad4353031ff3922d6685d3c",
+  "prelaunch_amendments": [
+    {
+      "commit": "759a83e9d04bc0523ece9a3b3ba9414d6139482a",
+      "reason": "Codex CLI 0.146.0 exposes approval_policy as a strict config key, not an exec flag.",
+      "new_model_calls_before_fix": 0
+    }
+  ],
   "objective": "Find a general harness that matches or exceeds pinned upstream Mike answer quality with fewer provider-reported logical tokens; up to 1.5x tokens is acceptable only for a decisive quality win across the three visible-development tasks.",
   "hypotheses": {
     "adaptive_mike_v1": "Whole reads remain the shortest path for small matters; optional bounded reads add only the context curation needed for larger matters.",
