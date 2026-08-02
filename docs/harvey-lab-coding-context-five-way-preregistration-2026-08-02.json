@@ -10,6 +10,13 @@
       "new_model_calls_before_fix": 0
     }
   ],
+  "runtime_amendments": [
+    {
+      "commit": "be980856f1f52e8ef1cfe4178cca0fd93eef71d7",
+      "reason": "The three native r1 containers lacked Docker --interactive, so Codex received no stdin and exited before a provider call. Only those cells were replaced with stamp 2026-08-02T22-10-00Z-r2.",
+      "r1_provider_calls": 0
+    }
+  ],
   "objective": "Find a general harness that matches or exceeds pinned upstream Mike answer quality with fewer provider-reported logical tokens; up to 1.5x tokens is acceptable only for a decisive quality win across the three visible-development tasks.",
   "hypotheses": {
     "adaptive_mike_v1": "Whole reads remain the shortest path for small matters; optional bounded reads add only the context curation needed for larger matters.",
