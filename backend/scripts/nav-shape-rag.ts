@@ -64,6 +64,10 @@ import type {
   OpenAIToolSchema,
 } from "../src/lib/llm/types";
 import { findTextMatches } from "../src/lib/chat/tools/documentOps";
+import {
+  UPSTREAM_MIKE_COMMIT,
+  UPSTREAM_MIKE_SCHEMA_SHA256,
+} from "../src/lib/chat/upstreamMikeBenchmarkSurface";
 
 import {
   LEGALBENCH_RAG_DATA_DIR,
@@ -179,9 +183,6 @@ const RETRIEVAL_EXPERIMENT_ARMS = new Set([
 /** Will Chen's upstream project-retrieval surface, frozen from origin/main at
  * the commit below. This comparator lives only in the harness: production
  * Beaver does not gain a second implementation of document retrieval. */
-const UPSTREAM_MIKE_COMMIT = "e89d3230db40193c540a6b38d8f301ae76377a1a";
-const UPSTREAM_MIKE_SCHEMA_SHA256 =
-  "78f2e1dfaa7f2c5a62dcc52531804373e998ee002fe783e7767a10113e7a87fc";
 const UPSTREAM_MIKE_TOOL_DECLARATIONS: OpenAIToolSchema[] = [
   {
     type: "function",
@@ -285,7 +286,9 @@ const UPSTREAM_MIKE_TOOLS = [
   return entry;
 });
 
-
+// Upstream sends base tools before project-extra tools. Preserve that order:
+// provider tool order can affect selection and prompt-cache identity even
+// when the four schemas are otherwise byte-identical.
 const flag = (name: string, fallback?: string): string => {
   const at = process.argv.indexOf(`--${name}`);
   if (at !== -1 && at + 1 < process.argv.length) return process.argv[at + 1];

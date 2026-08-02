@@ -625,16 +625,16 @@ export async function streamResponsesApi(
         (total, call) => total + Buffer.byteLength(JSON.stringify(call.input)),
         0,
       );
+      activeRound.toolResultBytes = results.reduce(
+        (total, result) => total + Buffer.byteLength(result.content),
+        0,
+      );
       if (results.some((result) => result.terminal)) break;
       const resultItems: ResponseInputItem[] = results.map((result) => ({
         type: "function_call_output",
         call_id: result.tool_use_id,
         output: result.content,
       }));
-      activeRound.toolResultBytes = results.reduce(
-        (total, result) => total + Buffer.byteLength(result.content),
-        0,
-      );
       const nextInput = config.persistent
         ? resultItems
         : [...input, ...outputItems, ...resultItems];

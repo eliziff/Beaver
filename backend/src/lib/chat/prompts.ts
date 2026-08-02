@@ -70,6 +70,7 @@ export function buildLeanLibraryBlock(options: {
     : `apply the change with ${editToolName}${codingShape ? "" : " (mechanical find/replace, case, spacing, and normalization transforms go through library_apply_text_ops instead — the server executes those deterministically)"}`;
   const automaticCompiler = process.env.MIKE_SLA_WORKFLOW === "1";
   const residentAuthoring = process.env.MIKE_RESIDENT_AUTHORING === "1";
+  const terminalAuthoring = process.env.MIKE_TERMINAL_AUTHORING === "1";
   const modelCoverageRouting =
     process.env.MIKE_MODEL_COVERAGE_ROUTING === "1";
   const specialistGuidance = progressiveDisclosure
@@ -93,7 +94,11 @@ export function buildLeanLibraryBlock(options: {
   return (
     `${connectedIntro} through the library tools. Use ${codingShape ? "Glob" : "library_list"} before claiming a document is unavailable. ` +
     `An edit, revision, redline, or corrected-DOCX request is an action request: read the document with ${readToolName}, ${editAction}, and never substitute a prose list of proposed changes. ` +
-    `Never claim a document mutation succeeded without its tool receipt. Beaver shows created and edited document cards automatically; confirm completion briefly without pasting the draft. ` +
+    `Never claim a document mutation succeeded without its tool receipt. Beaver shows created and edited document cards automatically; ${
+      terminalAuthoring
+        ? "a successful final create receipt ends the turn, so do not emit a completion message before calling it."
+        : "confirm completion briefly without pasting the draft."
+    } ` +
     `For an exact PDF page, paragraph, footnote, section, or bounded range, use library_lookup and rely on its evidence; never invent locators or URLs. Preserve returned mike-evidence handles for material needed after compaction and rehydrate through the evidence tools. ` +
     `${
       codingShape

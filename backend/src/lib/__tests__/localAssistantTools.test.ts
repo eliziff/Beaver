@@ -116,6 +116,7 @@ afterEach(async () => {
   delete process.env.MIKE_WHOLE_READ_MAX_CHARS;
   delete process.env.MIKE_SUPPRESS_DUPLICATE_WHOLE_READS;
   delete process.env.MIKE_RESIDENT_AUTHORING;
+  delete process.env.MIKE_TERMINAL_AUTHORING;
   delete process.env.MIKE_DISABLE_RESEARCH_TOOLS;
   delete process.env.MIKE_DISABLE_ASK_INPUTS;
   delete process.env.MIKE_TOOL_RESULT_CAP;
