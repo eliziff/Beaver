@@ -191,36 +191,8 @@ QWEN_DISCOVERY_PROTOCOL = "YOU=QWEN. DISCOVERY ONLY. CALL s({q:\"query\"}) TO SE
 DISCOVERY_GREP_CHARS = 320
 DISCOVERY_GREP_SNIPPETS = 2
 DISCOVERY_READ_NOTE_CHARS = 360
-DISCOVERY_READ_COMPACTOR_SYSTEM_PROMPT = "YOU=READ-NOTE COMPACTOR. COMPACT ONLY THE BOUNDED GREP RESULTS. DO NOT SEARCH, GREP, SELECT, READ, ANSWER, OR INVENT. CALL c ONCE: c({l:[{k:\"key\",v:\"short line\"},...]}); keep the note under the supplied character budget. NO PROSE."
-STATE_COMPACTION_TOOL = {
-    "type": "function",
-    "function": {
-        "name": "c",
-        "description": "Write compact checkpoint lines.",
-        "parameters": {
-            "type": "object",
-            "additionalProperties": False,
-            "properties": {
-                "l": {
-                    "type": "array",
-                    "maxItems": 12,
-                    "items": {
-                        "type": "object",
-                        "additionalProperties": False,
-                        "properties": {
-                            "k": {"type": "string"},
-                            "v": {"type": "string"},
-                        },
-                        "required": ["k", "v"],
-                    },
-                }
-            },
-            "required": ["l"],
-        },
-    },
-}
-
-
+DISCOVERY_READ_COMPACTOR_SYSTEM_PROMPT = "YOU=READ-NOTE COMPACTOR. COMPACT ONLY THE BOUNDED GREP RESULTS. RETURN ONLY A SHORT ORDERED NOTE UNDER THE CHARACTER BUDGET. DO NOT SEARCH, GREP, SELECT, READ, ANSWER, INVENT, OR USE TOOLS."
+MIN_STATE_COMPACT_CHARS = 240
 def control_system_prompt(prompt_style: str, compact_vocab: bool = False) -> str:
     base = GRUG_SYSTEM_PROMPT if prompt_style == "grug" else DYNAMIC_MIKE_SYSTEM_PROMPT
     return model_system_prompt(base, compact_vocab)
@@ -999,11 +971,11 @@ def run_dynamic_selection(args: argparse.Namespace) -> Path:
         ]
         note_message, note_usage = client.chat(
             read_state_input,
-            no_tools=False,
+            no_tools=True,
             compact_vocab=args.compact_vocabulary,
-            compaction_mode=True,
         )
-        note, compactor_output = compaction_checkpoint(note_message)
+        note = str(note_message.get("content") or "").strip()
+        compactor_output = "content"
         note = collapse_ws(note)[:DISCOVERY_READ_NOTE_CHARS]
         if not note:
             note = collapse_ws(
@@ -1699,7 +1671,6 @@ class OllamaClient:
         no_tools: bool = False,
         compact_vocab: bool = False,
         synthesis_source_search: bool = False,
-        compaction_mode: bool = False,
         discovery_read: bool = False,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         request_tools = ollama_tools()
@@ -1724,8 +1695,6 @@ class OllamaClient:
             request_tools = (
                 [FIND_SOURCE_SPANS_TOOL] if synthesis_source_search else []
             ) + [REHYDRATE_EVIDENCE_TOOL, SPAN_ANSWER_TOOL]
-        if compaction_mode:
-            request_tools = [STATE_COMPACTION_TOOL]
         if card_rebuild_mode and not card_prison:
             request_tools = [
                 tool for tool in request_tools
@@ -1846,7 +1815,6 @@ class CodexClient:
               host_register: bool = False, no_tools: bool = False,
               compact_vocab: bool = False,
               synthesis_source_search: bool = False,
-              compaction_mode: bool = False,
               discovery_read: bool = False) -> tuple[dict[str, Any], dict[str, Any]]:
         tools = self._tools(
             include_grounding_tool, include_rehydration_tool, include_span_tool,
@@ -1857,8 +1825,6 @@ class CodexClient:
         )
         if auto_read_card and compact_card_mode and micro_card:
             tools = list(micro_card_tools(omit_limits_unknowns, host_register))
-        if compaction_mode:
-            tools = [STATE_COMPACTION_TOOL]
         if no_tools:
             tools = []
         elif compact_vocab:
@@ -3155,27 +3121,6 @@ def assistant_tool_calls(message: dict[str, Any]) -> list[tuple[str, dict[str, A
     return calls
 
 
-def compaction_checkpoint(message: dict[str, Any]) -> tuple[str, str]:
-    """Read only the compactor's line tool; never trust model-written K state."""
-
-    for name, arguments in assistant_tool_calls(message):
-        if name != "c":
-            continue
-        raw_lines = arguments.get("l")
-        if not isinstance(raw_lines, list):
-            return "", "invalid_tool"
-        lines: list[str] = []
-        for item in raw_lines:
-            if not isinstance(item, dict):
-                continue
-            key = collapse_ws(str(item.get("k") or ""))
-            value = collapse_ws(str(item.get("v") or ""))
-            if key and value:
-                lines.append(f"{key}: {value}")
-        return "\n".join(lines), "tool"
-    return str(message.get("content") or "").strip(), "content"
-
-
 def run_turn(
     client: OllamaClient,
     messages: list[dict[str, Any]],
@@ -4062,7 +4007,7 @@ def run_turn(
             state_compact_every
             and estimate_tokens(json.dumps(messages, ensure_ascii=False))
             >= int(client.num_ctx * 0.75)
-            and (last_compactable_event.strip() or card_draft.strip())
+            and last_compactable_event.strip()
         ):
             field_order = ["f", "i", "h", "r", "e"] if omit_limits_unknowns else ["f", "i", "h", "r", "l", "u", "e"]
             pending_field = next((field for field in field_order if not card_fields.get(field)), "none")
@@ -4093,40 +4038,13 @@ def run_turn(
                 "turn": last_text,
                 "event": last_compactable_event,
             }
-            if card_draft:
-                state_packet["draft"] = card_draft
             compactable_packet = {
                 "turn": last_text,
                 "event": last_compactable_event,
-                "draft": card_draft,
             }
-            if not any(str(value).strip() for value in compactable_packet.values()):
-                append_progress(
-                    progress_path,
-                    {
-                        "kind": "state_compaction_skipped",
-                        "turn": turn_number,
-                        "phase": phase,
-                        "reason": "no_compactable_content",
-                    },
-                )
-                continue
             compaction_fingerprint = hashlib.sha256(
                 json.dumps(compactable_packet, ensure_ascii=False, sort_keys=True).encode("utf-8")
             ).hexdigest()
-            if compaction_fingerprint == last_compaction_fingerprint:
-                append_progress(
-                    progress_path,
-                    {
-                        "kind": "state_compaction_skipped",
-                        "turn": turn_number,
-                        "phase": phase,
-                        "reason": "duplicate_compactable_input",
-                        "input_sha256": compaction_fingerprint,
-                    },
-                )
-                continue
-            last_compaction_fingerprint = compaction_fingerprint
             state_input = [
                 {"role": "system", "content": STATE_COMPACTOR_SYSTEM_PROMPT},
                 {
@@ -4141,15 +4059,38 @@ def run_turn(
                     + protected_block,
                 },
             ]
-            state_message, state_usage = client.chat(
-                state_input, False, False, False,
-                no_tools=False,
-                compaction_mode=True,
+            compactable_chars = max(
+                len(last_text.strip()), len(last_compactable_event.strip())
             )
-            raw_state_text, compactor_output = compaction_checkpoint(state_message)
-            state_text, protected_copy = strip_protected_state(raw_state_text, protected_block)
-            if not state_text:
-                state_text = "checkpoint: none; use locked state and current card status"
+            duplicate_input = compaction_fingerprint == last_compaction_fingerprint
+            if compactable_chars < MIN_STATE_COMPACT_CHARS or duplicate_input:
+                state_message = {}
+                state_usage = {}
+                state_text = "host checkpoint: no new material outside K"
+                compactor_output = "host_skip"
+                protected_copy = "not_requested"
+                append_progress(
+                    progress_path,
+                    {
+                        "kind": "state_compaction_skipped",
+                        "turn": turn_number,
+                        "phase": phase,
+                        "reason": "duplicate_or_tiny_compactable_input" if duplicate_input else "tiny_compactable_input",
+                        "input_chars": compactable_chars,
+                        "input_sha256": compaction_fingerprint,
+                    },
+                )
+            else:
+                last_compaction_fingerprint = compaction_fingerprint
+                state_message, state_usage = client.chat(
+                    state_input, False, False, False,
+                    no_tools=True,
+                )
+                raw_state_text = str(state_message.get("content") or "").strip()
+                compactor_output = "content"
+                state_text, protected_copy = strip_protected_state(raw_state_text, protected_block)
+                if not state_text:
+                    state_text = last_compactable_event[:2200] or "host checkpoint: compactor returned no note"
             state_text = state_text[:2200]
             state_thinking = model_thinking(state_message)
             if state_thinking:
