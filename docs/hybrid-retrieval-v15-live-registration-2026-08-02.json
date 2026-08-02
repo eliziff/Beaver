@@ -1,0 +1,242 @@
+{
+  "schema_version": 1,
+  "registered_at": "2026-08-02T18:53:31Z",
+  "status": "preregistered_before_calls",
+  "experiment_class": "visible-development Codex-path side run",
+  "claim_scope": "One continuous Luna trajectory on the same three visible Harvey LAB development tasks. Do not pool with canonical Claude-product A/B cells, unseen tasks, or scores produced by a different judge configuration.",
+  "general_objective": "Match or beat isolated upstream Mike answer quality under one fixed Codex Sol judge while using fewer provider-reported logical tokens; a quality-dominant result may use up to 1.5x upstream tokens only if it decisively wins quality across the set.",
+  "parent_diagnostics": {
+    "v13": {
+      "score": "164/217",
+      "provider_reported_total_tokens": 2585275,
+      "upstream_score": "150/217",
+      "upstream_provider_reported_total_tokens": 1436478,
+      "finding": "The continuous trajectory beat aggregate upstream quality, but Tax replay and a late authoring-discovery round made the arm 1.80x upstream tokens."
+    },
+    "v14_unscored": {
+      "provider_reported_total_tokens": 3657733,
+      "compactions": 0,
+      "finding": "Native compaction never triggered, and a stable prompt-cache key improved cache accounting but not logical tokens. The three output-document discovery calls occurred at 146k, 195k, and 162k request inputs; revealing about 3k bytes of authoring schema forced another full logical-context round. Bulk fetch returned about 651k and 623k characters on Tax and indenture, after which the continuous agent kept reasoning over the large result for multiple rounds. These traces are behavior/cost diagnostics only and are not scored."
+    }
+  },
+  "hypothesis": "A conventional continuous coding-agent loop should not introduce a research/drafting boundary or a model-facing evidence union. Keep a stable core request shape, make ordinary artifact creation resident, and expose documents only through bounded Grep/Read results with exact continuation. Removing bulk fetch should prevent one tool call from flooding every later round; removing the authoring discovery call should remove one high-context round. Host-side exact evidence durability remains orthogonal to model-facing context.",
+  "candidate": {
+    "generation": "v15",
+    "cli_arm": "v15",
+    "performer_model": "codex:gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "service_tier_argument": null,
+    "required_service_tier_reported": "default",
+    "replicates": 1,
+    "run_ids": {
+      "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts": "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts/beaver-v15-codex-gpt-5-6-luna/2026-08-02T18-56-00Z-r1",
+      "tax/draft-transfer-pricing-documentation": "tax/draft-transfer-pricing-documentation/beaver-v15-codex-gpt-5-6-luna/2026-08-02T18-56-00Z-r1",
+      "capital-markets/draft-indenture-for-senior-secured-notes-offering": "capital-markets/draft-indenture-for-senior-secured-notes-offering/beaver-v15-codex-gpt-5-6-luna/2026-08-02T18-56-00Z-r1"
+    }
+  },
+  "candidate_environment": {
+    "MIKE_NAV_SHAPE": "address",
+    "MIKE_TOOL_SHAPE": "coding",
+    "MIKE_RETRIEVAL_EXPERIMENT": "p0-pure-coding",
+    "MIKE_MODEL_COVERAGE_ROUTING": "0",
+    "MIKE_TOOL_RESULT_CAP": "51200",
+    "MIKE_TOOL_DESCRIPTION_VARIANT": "terse",
+    "MIKE_SUPPRESS_DUPLICATE_WHOLE_READS": "0",
+    "MIKE_RESIDENT_AUTHORING": "1",
+    "MIKE_CONTEXT_HANDOFF": "0",
+    "MIKE_CONTINUOUS_EVIDENCE": "0",
+    "MIKE_OPENAI_COMPACT_THRESHOLD": "",
+    "MIKE_SLA_WORKFLOW": "0",
+    "MIKE_GREENFIELD_REVIEW": "0"
+  },
+  "architecture": {
+    "resident_tools": [
+      "Glob",
+      "Grep",
+      "Read",
+      "library_create_docx",
+      "describe_tools"
+    ],
+    "ordinary_path": "Glob once for immutable orientation; use parallel bounded Grep and Read calls as needed; call resident library_create_docx in the same continuous trajectory after the evidence is in model context.",
+    "discovery_scope": "describe_tools remains only for genuinely specialist domains. Its enum is derived from the deferred set, so it cannot advertise output_document after library_create_docx becomes resident.",
+    "read_contract": "Read returns at most 2,000 lines and is globally bounded by the 51,200-character result ceiling, preserves exact document/version evidence spans, and emits an executable next offset when truncated. Grep is bounded by the same ceiling and returns exact line-addressed evidence spans.",
+    "same_batch_contract": "If a model requests new evidence and a document mutation in the same parallel batch, Beaver executes the evidence first and returns evidence_review_required for the mutation. The model must review the result before authoring; there is no fresh agent or handoff.",
+    "durability": "Exact source bytes, extracted text, pages, native tables, versions, hashes, pinpoints, provider references, tool results, authored bytes, and receipts remain host-side. No evidence union or already-exposed suppression is model-facing.",
+    "cache": "One stable privacy-preserving session prompt_cache_key is sent on every Responses request. Provider-reported input remains the logical-token comparator; cached_tokens is a priced subset, not subtracted from logical input.",
+    "transport": "HTTP Responses remains in this arm. Official OpenAI guidance says WebSocket mode improves long tool-loop latency but all previous chain input is still billed, so transport is not confounded with the logical-token ablation.",
+    "compaction": "Disabled for this arm. Bounded retrieval is expected to stay below Luna's context ceiling; a failure is evidence against the architecture and must not be repaired post hoc."
+  },
+  "deltas_from_v14": [
+    "Remove fetch_documents and the 800,000-character cumulative whole-read budget by disabling model coverage routing.",
+    "Keep library_create_docx resident from the first request, avoiding output_document discovery and its schema-changing replay round.",
+    "Build describe_tools only from genuinely deferred tools and reject already-resident or empty domains.",
+    "Disable native standalone compaction so a transport/context rewrite cannot hide the effect of bounded tools."
+  ],
+  "held_constant": {
+    "task_split": "visible development",
+    "base_prompt": "lean",
+    "retrieval_prompt_variant": "neutral",
+    "research_tools_disabled": true,
+    "ask_inputs_disabled": true,
+    "progressive_disclosure_for_specialists": true,
+    "sandbox_engine": "docker",
+    "model": "codex:gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "provider_tier": "default as reported by provider",
+    "forbidden_architecture": [
+      "fresh drafting agent or stage",
+      "research checkpoint",
+      "hot evidence packet",
+      "model-facing evidence union or working set",
+      "bulk whole-document fetch tool",
+      "SLA compiler/repair pass",
+      "task-specific routing, schema, or prompt text",
+      "global already-read or already-exposed suppression"
+    ]
+  },
+  "external_basis": {
+    "codex_source_revision": "2b5bdcf67547860f2e5c5a605009a70026796b2b",
+    "pi_source_revision": "4c01c709380621c5ff2719162cd7a7973dcb2799",
+    "codex_inference": "Codex keeps its core tool request shape stable and uses incremental continuation; changing tools invalidates incremental request matching. This supports resident ordinary tools, not copying Codex wholesale.",
+    "pi_inference": "Pi exposes resident read/grep/find/ls tools with bounded byte/line output and actionable continuations. This supports bounded ordinary file access, not legal-specific routing.",
+    "openai_websocket_guide": "https://developers.openai.com/api/docs/guides/websocket-mode",
+    "openai_conversation_state": "https://developers.openai.com/api/docs/guides/conversation-state#previous_response_id-in-websocket-mode",
+    "openai_prompt_caching": "https://developers.openai.com/api/docs/guides/prompt-caching",
+    "openai_findings": "WebSocket mode sends only new items and can reduce latency in long tool loops, but previous chain input remains billable. Prompt caching requires exact stable prefixes, including identical tool definitions; cached reads/writes must be measured separately from logical input."
+  },
+  "tasks": [
+    {
+      "task": "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts",
+      "split_sha256": "c0d270c324eaaeb13a47eb2df309baf468270e4ca04b686e4ed27632a3d36f7d",
+      "instructions_chars": 200,
+      "instructions_sha256": "804acb88a976238cbdf65027b4c873142cfec3c84c9773992e256e40ae02c8a4",
+      "source_documents": 19,
+      "source_bundle_sha256": "f778c5ef888a841432ee70a34d1a8c0d4b0c947a0d19509b4a3834635b23f0e2"
+    },
+    {
+      "task": "tax/draft-transfer-pricing-documentation",
+      "split_sha256": "9886979ad0409f300ccb78413abc4bda020fcde1f288d879d61e59eff1c85957",
+      "instructions_chars": 202,
+      "instructions_sha256": "baa067a9d481a31b85cb9a47a3eebfbc6620e2c5cd23b87e71b2b4f1741d05b7",
+      "source_documents": 25,
+      "source_bundle_sha256": "bc8d591498a818501b7a388d5b93575c5a98f03b25edb2f009f9d166fe4a6647"
+    },
+    {
+      "task": "capital-markets/draft-indenture-for-senior-secured-notes-offering",
+      "split_sha256": "9eb0633b22a0a1e936eeba6980d7e44d23d7f89fc581dfd1697dd3420f34b62a",
+      "instructions_chars": 243,
+      "instructions_sha256": "d9b4b8460380ace783ca538f417843d2edf8f997f0ec3f622f5ea6aebf2f5675",
+      "source_documents": 14,
+      "source_bundle_sha256": "d30b7b0ad6d8c8327f80d8137d4e8c30db52816f8fdfd7b3f08f492a17a82303"
+    }
+  ],
+  "source_fingerprints": {
+    "base_commit": "f1685962b1f04dcdf65f8789c1b20555f1eab3b2",
+    "backend/scripts/lab-beaver-arm.ts": "509a4fa4acbbffd508356f41d71f6a2ff2b6a77417b1b7019075970615a524d6",
+    "backend/src/routes/chat.ts": "84365fc7312dd023c61c159fccfda0d342b86b3ca1844280976662c76e4288c1",
+    "backend/src/lib/chat/localAssistantTools.ts": "b04591923763136c041377bd534504d9e5277d06c5489b70a737a96dea560d82",
+    "backend/src/lib/chat/prompts.ts": "299afe9e1474097cc3eae8b75221700da554127036ffd309169fe3cddfde33d4",
+    "backend/src/lib/chat/evidenceExposure.ts": "5ff0c262a8b06e6cd8a3edbea5d5877cee098ade6f4ae6aeadcb377dae87169e",
+    "backend/src/lib/chat/slaWorkflow.ts": "561bbedb4aa088136cbc0a5349a4146113c39cb9db37844db84934b044c35af9",
+    "backend/src/lib/llm/codexApi.ts": "556ecb4ba11140f5b620f242b757ee4141f8aea075e2271feaa65b8b55612a16",
+    "backend/src/lib/llm/openai.ts": "0b223cc5aa9db6c9f534b302fc28a15303c6a1a88e51c1cbe2afb6b1bb86a5b7",
+    "backend/src/lib/llm/types.ts": "de11bfb94009d9725f7b62ff619bd66560941163b4f71c551b9b2579745ac996",
+    "backend/src/lib/llm/contextManifest.ts": "4a0c7a7112ff49be3610cfc7efd3a4c0c074f4088fb6952fc4a613545d0bfa86",
+    "benchmarks/harvey-labs/evaluation/judge.py": "61979c7613e519fcd37ecfba8d241f979f0320e575cd7a3923c0278aa4577cb7"
+  },
+  "dynamic_fingerprint_policy": "Before launch, recheck every static hash above. Each sealed result must preserve the exact task, source bundle, original instructions, rendered system-prompt variants, tool-schema variants, runtime environment, provider tier, prompt-cache-key hash, and composite SHA-256 fingerprints. Dynamic prompt/tool hashes depend on isolated uploaded document IDs and are therefore captured by the run rather than guessed in advance.",
+  "launch_commands": [
+    "npx tsx scripts/lab-beaver-arm.ts --task corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts --arm v15 --model codex:gpt-5.6-luna --effort high --retrieval-prompt neutral --run-id corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts/beaver-v15-codex-gpt-5-6-luna/2026-08-02T18-56-00Z-r1",
+    "npx tsx scripts/lab-beaver-arm.ts --task tax/draft-transfer-pricing-documentation --arm v15 --model codex:gpt-5.6-luna --effort high --retrieval-prompt neutral --run-id tax/draft-transfer-pricing-documentation/beaver-v15-codex-gpt-5-6-luna/2026-08-02T18-56-00Z-r1",
+    "npx tsx scripts/lab-beaver-arm.ts --task capital-markets/draft-indenture-for-senior-secured-notes-offering --arm v15 --model codex:gpt-5.6-luna --effort high --retrieval-prompt neutral --run-id capital-markets/draft-indenture-for-senior-secured-notes-offering/beaver-v15-codex-gpt-5-6-luna/2026-08-02T18-56-00Z-r1"
+  ],
+  "launch_policy": "Parse this registration, recheck every listed source fingerprint, then launch the three performer calls concurrently without changing code, prompts, sources, caps, model, effort, or service tier.",
+  "validity": {
+    "outer_provider_invocations": 1,
+    "required_reported_tier": "default",
+    "required_resident_tools": [
+      "Glob",
+      "Grep",
+      "Read",
+      "library_create_docx",
+      "describe_tools"
+    ],
+    "forbidden_tools": [
+      "fetch_documents"
+    ],
+    "required_surface": {
+      "trajectory_mode": "continuous",
+      "progressive_disclosure": true,
+      "resident_authoring": true,
+      "model_coverage_routing": false,
+      "context_handoff": false,
+      "continuous_evidence": false,
+      "draft_handoff_mode": "none",
+      "sla_workflow": false,
+      "greenfield_review": false,
+      "whole_read_max_chars": null,
+      "tool_result_max_chars": 51200,
+      "suppress_duplicate_whole_reads": false,
+      "openai_compact_threshold": null
+    },
+    "forbidden_events": [
+      "content_reset",
+      "research_context_refresh",
+      "research_checkpoint_request",
+      "research_checkpoint",
+      "evidence_handoff",
+      "evidence_working_set_receipt",
+      "evidence_working_set_update"
+    ],
+    "forbidden_result_flags": [
+      "already_read",
+      "already_exposed"
+    ],
+    "prompt_cache": "Exactly one session strategy and one SHA-256 key receipt per run; the raw key must not be persisted.",
+    "compactions": 0,
+    "required_outputs": "Every requested DOCX is evaluator-readable and has an exact bytes/SHA-256 receipt from a durable authored Library artifact, not answer-text fallback."
+  },
+  "trace_inspection_before_scoring": [
+    "Verify all static and dynamic fingerprints, one cache-key hash, and the default-tier receipt.",
+    "Verify one provider invocation, one continuous trajectory, no reset/checkpoint/handoff/union/SLA event, no bulk fetch, and no duplicate suppression.",
+    "Verify the resident schema is invariant across all rounds unless the model explicitly opens a genuinely specialist domain; output_document must not be advertised or opened.",
+    "Inspect every tool call/result for schema validity, error/selection paths, same-batch evidence-review behavior, result caps, exact continuation recipes, document/version evidence segments, and authored receipts.",
+    "Inspect logical input/output/reasoning tokens, cache reads/writes, per-round input and tool-result bytes, latency, context rounds, document/span coverage, and redundant reads.",
+    "Only a general tool/schema/protocol defect may create a newly preregistered version before scoring; do not patch task wording, source selection, or deliverable content."
+  ],
+  "preflight": {
+    "focused_tests": "105 passed across three suites after the v15 changes",
+    "backend_build": "passed",
+    "source_hashes_rechecked_after_tests": true
+  },
+  "judge": {
+    "model": "codex/gpt-5.6-sol",
+    "priority_class": "BelowNormal",
+    "parallel": 3,
+    "replicates": 1,
+    "temperature": null,
+    "same_configuration_for_all_candidate_outputs": true,
+    "score_only_after_structural_and_trace_validity": true
+  },
+  "comparators": {
+    "isolated_upstream_mike": {
+      "score": "150/217",
+      "provider_reported_total_tokens": 1436478
+    },
+    "v13_continuous_pure_coding": {
+      "score": "164/217",
+      "provider_reported_total_tokens": 2585275
+    },
+    "older_local_wins": {
+      "change_of_control_v5": "52/57 at 337,993 reported tokens",
+      "transfer_pricing_v6": "40/77 at 393,774 reported tokens",
+      "caveat": "These used fresh context/checkpoint variants and are diagnostic evidence about achievable task behavior, not pooled architecture comparators."
+    }
+  },
+  "acceptance_gate": {
+    "strict_win": "At least 150/217 aggregate, no task more than five points below isolated upstream, and no more than 1,436,478 aggregate logical tokens.",
+    "quality_dominant_candidate": "At least 160/217, no catastrophic task regression, and no more than 2,154,717 aggregate logical tokens (1.5x isolated upstream).",
+    "translation_success": "At least 160/217 and fewer logical tokens than v13, with Tax no worse than five points below upstream and no new tool/schema/protocol defect.",
+    "reporting_order": "Accuracy first; then logical context/tokens, cache-adjusted price equivalent, latency, coverage, context rounds, and tool use."
+  }
+}

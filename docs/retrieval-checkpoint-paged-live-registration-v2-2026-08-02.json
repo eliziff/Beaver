@@ -1,0 +1,161 @@
+{
+  "schema_version": 1,
+  "registered_at": "2026-08-02T10:31:32Z",
+  "status": "registered_before_performer_calls",
+  "experiment_class": "authorized_codex_luna_visible_development_side_run",
+  "claim_scope": "Separately labelled Codex/Luna visible-development comparison; not pooled with the canonical Claude-Code A/B and never treated as held-out evidence.",
+  "objective": "Test whether checkpointed research plus demand-paged exact drafting evidence matches or beats genuinely comparable frozen upstream Mike accuracy under one fixed Codex Sol judge while using fewer provider-reported total tokens.",
+  "supersedes_generation": {
+    "registration": "retrieval-checkpoint-paged-live-registration-2026-08-02.json",
+    "generation": "checkpoint_paged_v1",
+    "score_status": "excluded_before_scoring",
+    "general_defects_observed": [
+      "A research refresh could finish with research prose or a clarification instead of opening the drafting context.",
+      "The runner omitted phase from parsed tool-result telemetry.",
+      "The runner could synthesize a required DOCX from answer text and mask a missing checkpointed drafting handoff."
+    ],
+    "diagnostic_only": "The v1 CoC, tax, and indenture traces remain cost and behavior diagnostics. No v1 judge score is admissible."
+  },
+  "candidate": {
+    "generation": "checkpoint_paged_v2",
+    "cli_arm": "checkpoint_paged_v1",
+    "performer_model": "codex:gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "service_tier_argument": null,
+    "required_service_tier_reported": "default",
+    "research_checkpoint_max_chars": 12000,
+    "draft_hot_evidence_max_chars": 24000,
+    "exact_evidence_union_path": ".mike/working-sets/evidence.txt",
+    "exact_evidence_union_host_sidecar": "evidence-working-set.json",
+    "run_ids": {
+      "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts": "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts/beaver-checkpoint-paged-v2-codex-gpt-5-6-luna/2026-08-02T10-31-32Z-r1",
+      "tax/draft-transfer-pricing-documentation": "tax/draft-transfer-pricing-documentation/beaver-checkpoint-paged-v2-codex-gpt-5-6-luna/2026-08-02T10-31-32Z-r1",
+      "capital-markets/draft-indenture-for-senior-secured-notes-offering": "capital-markets/draft-indenture-for-senior-secured-notes-offering/beaver-checkpoint-paged-v2-codex-gpt-5-6-luna/2026-08-02T10-31-32Z-r1"
+    }
+  },
+  "v2_general_corrections": [
+    "Research refreshes explicitly retain the research-agent role and must open drafting/output_document with the compact drafting_brief instead of ending in research prose or ordinary confirmation questions.",
+    "Tool-result telemetry retains the server-provided research or drafting phase.",
+    "The checkpoint arm fails closed unless every checkpoint request succeeds, one bounded paged handoff and exact working-set receipt exist at the fixed path, and enough DOCX files were authored for the task's requested DOCX deliverables."
+  ],
+  "held_constant": {
+    "base_prompt": "lean",
+    "retrieval_prompt_variant": "neutral",
+    "tool_description_variant": "operational",
+    "navigation_shape": "address",
+    "tool_shape": "coding",
+    "retrieval_experiment": "h4-legal-grep",
+    "model_coverage_routing": true,
+    "whole_read_max_chars": 800000,
+    "progressive_disclosure": true,
+    "sla_workflow": "full",
+    "greenfield_review": false,
+    "provider_compaction": false,
+    "research_tools": false,
+    "ask_inputs": false,
+    "split": "visible Harvey LAB development tasks only"
+  },
+  "tasks": [
+    {
+      "task": "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts",
+      "split_sha256": "c0d270c324eaaeb13a47eb2df309baf468270e4ca04b686e4ed27632a3d36f7d",
+      "instructions_chars": 200,
+      "instructions_sha256": "804acb88a976238cbdf65027b4c873142cfec3c84c9773992e256e40ae02c8a4",
+      "source_documents": 19,
+      "source_bundle_sha256": "f778c5ef888a841432ee70a34d1a8c0d4b0c947a0d19509b4a3834635b23f0e2"
+    },
+    {
+      "task": "tax/draft-transfer-pricing-documentation",
+      "split_sha256": "9886979ad0409f300ccb78413abc4bda020fcde1f288d879d61e59eff1c85957",
+      "instructions_chars": 202,
+      "instructions_sha256": "baa067a9d481a31b85cb9a47a3eebfbc6620e2c5cd23b87e71b2b4f1741d05b7",
+      "source_documents": 25,
+      "source_bundle_sha256": "bc8d591498a818501b7a388d5b93575c5a98f03b25edb2f009f9d166fe4a6647"
+    },
+    {
+      "task": "capital-markets/draft-indenture-for-senior-secured-notes-offering",
+      "split_sha256": "9eb0633b22a0a1e936eeba6980d7e44d23d7f89fc581dfd1697dd3420f34b62a",
+      "instructions_chars": 243,
+      "instructions_sha256": "d9b4b8460380ace783ca538f417843d2edf8f997f0ec3f622f5ea6aebf2f5675",
+      "source_documents": 14,
+      "source_bundle_sha256": "d30b7b0ad6d8c8327f80d8137d4e8c30db52816f8fdfd7b3f08f492a17a82303"
+    }
+  ],
+  "performer_run_policy": {
+    "candidate_concurrency": 3,
+    "performer_replicates": 1,
+    "launch": "All three candidate cells start without a serialized slot wait.",
+    "trace_gate": "Inspect config, metrics, context rounds, phased tool events, checkpoints, exact-union sidecars, source receipts, and evaluator-readable deliverables before any scoring.",
+    "fix_policy": "If a trace exposes another defect, fix only request-independent shared behavior, issue another preregistered generation, and rerun affected cells.",
+    "score_exclusion": "All full-rehydration and checkpoint_paged_v1 judge scores are diagnostic-only and excluded from architectural claims."
+  },
+  "comparators": {
+    "upstream": {
+      "surface": "isolated pinned upstream Mike",
+      "required_match": [
+        "task and source bytes",
+        "codex:gpt-5.6-luna performer",
+        "high effort",
+        "default provider-reported tier",
+        "single visible-development replicate",
+        "fixed Sol judge configuration"
+      ],
+      "reuse_if_verified": "tool-surface-varied-luna-high-v1/upstream/tax/draft-transfer-pricing-documentation",
+      "fresh_cells_if_candidate_is_valid": [
+        "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts",
+        "capital-markets/draft-indenture-for-senior-secured-notes-offering"
+      ]
+    },
+    "pure_coding": {
+      "arm": "coding_finalist",
+      "fresh_default_tier_cells_if_candidate_is_valid": [
+        "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts",
+        "tax/draft-transfer-pricing-documentation",
+        "capital-markets/draft-indenture-for-senior-secured-notes-offering"
+      ]
+    }
+  },
+  "judge": {
+    "model": "codex/gpt-5.6-sol",
+    "parallel": 6,
+    "temperature": 0.0,
+    "process_priority_class": "BelowNormal",
+    "judge_replicates": 1,
+    "same_configuration_for_every_compared_cell": true,
+    "ranking_order": [
+      "passed criteria and all-pass status",
+      "context behavior",
+      "provider-reported total tokens",
+      "wall and provider latency",
+      "source coverage",
+      "tool behavior"
+    ]
+  },
+  "acceptance_gate": {
+    "accuracy": "Candidate aggregate passed criteria must match or exceed the verified comparable upstream aggregate; ties break task-by-task against regressions.",
+    "tokens": "Candidate aggregate provider-reported total tokens must be lower than comparable upstream.",
+    "structure": "Every expected deliverable exists, is non-empty, opens through the evaluator, was authored in the checkpointed drafting phase, and has a durable SHA-256 receipt.",
+    "checkpoint": "Every durable-union evidence delta has one successful bounded checkpoint before research continues or drafting/re-drafting opens; no checkpoint failures.",
+    "paging": "The complete exact evidence union remains host-side at the fixed path, first reads in each fresh context are visible, same-context duplicates are bounded, and mounted-union reads do not masquerade as new research.",
+    "fail_closed": "Missing default provider tier, invalid structure, fingerprint drift, or incomparable comparator metadata blocks the claim."
+  },
+  "source_fingerprints": {
+    "base_commit": "cbfa8f90528754264b0afc348c3c955bf24d4d60",
+    "backend/scripts/lab-beaver-arm.ts": "ec1dd3078beaeeee2fb14fd48ca9ff9fbb5796bddd8e63cba350fe273e636f2f",
+    "backend/src/routes/chat.ts": "d010dba9e535be2dab482b8c93dbfe33514d65838a32a50b7f16e375f417b1f8",
+    "backend/src/lib/chat/evidenceExposure.ts": "35e3d4ece74352a4f79e1296e58889f00a9d40be9d1354311cd1de6c0b767ce9",
+    "backend/src/lib/chat/localAssistantTools.ts": "837230385758587e714c95ca1097512da7796a383a7c4a5b2e1236077e51211e",
+    "backend/src/lib/chat/prompts.ts": "05f01db45d005d054b7d71bc3fd86d52f592fbb0b4187839d5879b0f90b99a83",
+    "backend/src/lib/chat/slaWorkflow.ts": "561bbedb4aa088136cbc0a5349a4146113c39cb9db37844db84934b044c35af9",
+    "backend/src/lib/llm/openai.ts": "f67d3d14f1b081f9f2ea1fb843998701e20eee0f4fab50480e2cf3f03c919892",
+    "backend/src/lib/llm/types.ts": "3ae23c053755a41250de400d3d06523c292650d8ee97eec9844a7ffe62a7564c",
+    "benchmarks/harvey-labs/evaluation/judge.py": "61979c7613e519fcd37ecfba8d241f979f0320e575cd7a3923c0278aa4577cb7"
+  },
+  "actual_dynamic_fingerprints": "Each run config must record exact system-prompt and tool-schema SHA-256 sets plus the combined run fingerprint; these depend on uploaded durable document IDs and are harvested from real context manifests rather than guessed before launch.",
+  "preflight": {
+    "focused_backend_tests": "112 passed across the evidence, wiring, route, and working-set suites after the v2 corrections",
+    "backend_build": "passed",
+    "full_backend_tests": "1640 passed, 8 skipped before the two v2 corrections; rerun at the final release gate",
+    "judge_regression": "1 passed"
+  }
+}

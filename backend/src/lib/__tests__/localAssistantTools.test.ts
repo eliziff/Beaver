@@ -114,9 +114,14 @@ afterEach(async () => {
   delete process.env.MIKE_PROGRESSIVE_DISCLOSURE;
   delete process.env.MIKE_MODEL_COVERAGE_ROUTING;
   delete process.env.MIKE_WHOLE_READ_MAX_CHARS;
+  delete process.env.MIKE_SUPPRESS_DUPLICATE_WHOLE_READS;
+  delete process.env.MIKE_RESIDENT_AUTHORING;
   delete process.env.MIKE_DISABLE_RESEARCH_TOOLS;
   delete process.env.MIKE_DISABLE_ASK_INPUTS;
   delete process.env.MIKE_TOOL_RESULT_CAP;
+  delete process.env.MIKE_CONTEXT_HANDOFF;
+  delete process.env.MIKE_DRAFT_HANDOFF_MODE;
+  delete process.env.MIKE_DRAFT_HOT_EVIDENCE_MAX_CHARS;
   vi.doUnmock("../tableOfAuthorities");
   vi.doUnmock("../convert");
   vi.doUnmock("../localDocumentStore");
@@ -132,6 +137,99 @@ afterEach(async () => {
 });
 
 describe("local assistant tools", () => {
+  it("keeps demand-paged Grep hits compact and leaves exact Read recipes", async () => {
+    process.env.MIKE_NAV_SHAPE = "address";
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    process.env.MIKE_RETRIEVAL_EXPERIMENT = "h4-legal-grep";
+    process.env.MIKE_CONTEXT_HANDOFF = "1";
+    process.env.MIKE_DRAFT_HANDOFF_MODE = "paged";
+    process.env.MIKE_DRAFT_HOT_EVIDENCE_MAX_CHARS = "24000";
+    temporaryDirectory = await mkdtemp(
+      path.join(os.tmpdir(), "beaver-paged-grep-"),
+    );
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    vi.resetModules();
+
+    const tools = await import("../chat/localAssistantTools");
+    const workingSetPath = ".mike/working-sets/evidence.txt";
+    const lines = Array.from(
+      { length: 40 },
+      (_, index) =>
+        `${index + 1} ${"prefix ".repeat(140)}NEEDLE ${"suffix ".repeat(140)}`,
+    );
+    const text = lines.join("\n");
+    const state: import("../chat/localAssistantTools").LocalAssistantWorkingSetTurnState =
+      new Map([
+        [
+          workingSetPath,
+          {
+            path: workingSetPath,
+            text,
+            sourceChars: text.length,
+            matchedSourceChars: text.length,
+            immutableSourceChars: text.length,
+            mapChars: 0,
+            budgetChars: 0,
+            mappedVersions: [],
+            segments: [],
+            refs: [],
+            demandPaged: true,
+            readGrants: new Set(),
+          },
+        ],
+      ]);
+    const [defaultPage, requestedLargePage] =
+      await tools.runLocalAssistantTools(
+        "local-user",
+        [
+          {
+            id: "default-page",
+            name: "Grep",
+            input: {
+              pattern: "NEEDLE",
+              path: workingSetPath,
+              output_mode: "content",
+            },
+          },
+          {
+            id: "requested-large-page",
+            name: "Grep",
+            input: {
+              pattern: "NEEDLE",
+              path: workingSetPath,
+              output_mode: "content",
+              head_limit: 2_000,
+            },
+          },
+        ],
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        state,
+      );
+
+    const recipeCount = (content: string) =>
+      content.match(/\[exact Read recipe:/gu)?.length ?? 0;
+    expect(tools.WORKING_SET_PAGE_MAX_CHARS).toBe(24_000);
+    expect(recipeCount(defaultPage.content)).toBe(
+      tools.WORKING_SET_GREP_DEFAULT_HEAD_LIMIT,
+    );
+    expect(recipeCount(requestedLargePage.content)).toBe(
+      tools.WORKING_SET_GREP_MAX_HEAD_LIMIT,
+    );
+    expect(defaultPage.content).toContain("Results truncated");
+    expect(defaultPage.content.length).toBeLessThan(10_000);
+    expect(requestedLargePage.content.length).toBeLessThanOrEqual(24_000);
+    expect(defaultPage.content).toContain("NEEDLE");
+  });
+
   it("runs the pinned upstream whole-document comparator and suppresses duplicate reads", async () => {
     process.env.MIKE_TOOL_SHAPE = "upstream-mike";
     process.env.MIKE_DISABLE_RESEARCH_TOOLS = "1";
@@ -274,6 +372,68 @@ describe("local assistant tools", () => {
         kind: "evidence",
       }),
     ]);
+  });
+
+  it("returns a repeated whole read when duplicate suppression is disabled", async () => {
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    process.env.MIKE_MODEL_COVERAGE_ROUTING = "1";
+    process.env.MIKE_WHOLE_READ_MAX_CHARS = "90";
+    process.env.MIKE_SUPPRESS_DUPLICATE_WHOLE_READS = "0";
+    temporaryDirectory = await mkdtemp(
+      path.join(os.tmpdir(), "beaver-repeat-read-"),
+    );
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const store = await import("../localDocumentStore");
+    const source = "R".repeat(40);
+    const document = await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "repeat.docx",
+      bytes: await Packer.toBuffer(
+        new Document({ sections: [{ children: [new Paragraph(source)] }] }),
+      ),
+    });
+    const tools = await import("../chat/localAssistantTools");
+    const readState: import("../chat/localAssistantTools").LocalAssistantReadTurnState =
+      new Map();
+    const invoke = (id: string) =>
+      tools.runLocalAssistantTools(
+        "local-user",
+        [
+          {
+            id,
+            name: "fetch_documents",
+            input: { doc_ids: ["repeat.docx"] },
+          },
+        ],
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        new Set([document.id]),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        readState,
+      );
+
+    const [first] = await invoke("repeat-1");
+    const [second] = await invoke("repeat-2");
+    const [third] = await invoke("repeat-3");
+
+    expect(tools.SUPPRESS_DUPLICATE_WHOLE_READS).toBe(false);
+    expect(first.content).toContain(source);
+    expect(second.content).toContain(source);
+    expect(second.content).not.toContain("already_read");
+    expect(JSON.parse(third.content)).toMatchObject({
+      ok: false,
+      status: "selection_required",
+      already_read_chars: 80,
+      requested_chars: 40,
+      projected_chars: 120,
+      max_chars: 90,
+    });
   });
 
   it("refuses an over-budget batch without exposing partial source text", async () => {
@@ -611,7 +771,13 @@ describe("local assistant tools", () => {
       {
         id: "read-section-provider-minimum",
         name: "Read",
-        input: { file_path: "long.docx", section: "1.01", offset: 1, limit: 1 },
+        input: {
+          file_path: "long.docx",
+          section: "1.01",
+          offset: 1,
+          limit: 1,
+          start_char: 0,
+        },
       },
     ]);
     const extracted = await tools.extractLocalDocument("local-user", document.id);
@@ -1383,6 +1549,59 @@ describe("local assistant tools", () => {
     expect(duplicate.content).toContain("No new evidence");
     expect(expanded.content).toContain("A later fact belongs to a distinct section.");
     expect(expanded.evidenceSegments?.some((item) => item.documentId === prose.id)).toBe(true);
+
+    const immutableChars = 129_000;
+    const pagedState: import("../chat/localAssistantTools").LocalAssistantWorkingSetTurnState =
+      new Map([
+        [
+          workingSetPath,
+          {
+            path: workingSetPath,
+            text: "x".repeat(immutableChars),
+            sourceChars: immutableChars,
+            matchedSourceChars: immutableChars,
+            immutableSourceChars: immutableChars,
+            mapChars: 0,
+            budgetChars: 0,
+            mappedVersions: [],
+            segments: [],
+            refs: [
+              {
+                virtualStart: 0,
+                virtualEnd: 1,
+                handle: "provider:immutable",
+                filename: "provider.html",
+                exactSha256: "immutable-hash",
+              },
+            ],
+          },
+        ],
+      ]);
+    const [pagedExpansion] = await tools.runLocalAssistantTools(
+      "local-user",
+      [
+        {
+          id: "expand-paged-working-set",
+          name: "Grep",
+          input: { pattern: "(?i)later fact", output_mode: "working_set" },
+        },
+      ],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      pagedState,
+    );
+    expect(pagedExpansion.content).toContain(
+      "A later fact belongs to a distinct section.",
+    );
+    expect(pagedState.get(workingSetPath)?.refs).toHaveLength(1);
 
     const [read, refused] = await run([
       {

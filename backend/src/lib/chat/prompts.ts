@@ -69,10 +69,15 @@ export function buildLeanLibraryBlock(options: {
     ? "apply a mechanical change with library_apply_text_ops, or call describe_tools for drafting and use the revealed editor"
     : `apply the change with ${editToolName}${codingShape ? "" : " (mechanical find/replace, case, spacing, and normalization transforms go through library_apply_text_ops instead — the server executes those deterministically)"}`;
   const automaticCompiler = process.env.MIKE_SLA_WORKFLOW === "1";
+  const residentAuthoring = process.env.MIKE_RESIDENT_AUTHORING === "1";
   const modelCoverageRouting =
     process.env.MIKE_MODEL_COVERAGE_ROUTING === "1";
   const specialistGuidance = progressiveDisclosure
-    ? `Open a specialist domain only when the task needs it. Use output_document to create a new Word deliverable and drafting to revise an existing Word file. ${
+    ? `${
+        residentAuthoring
+          ? "Create a requested Word deliverable with library_create_docx. "
+          : "Use output_document to create a new Word deliverable. "
+      }Open a specialist domain only when the task needs it. Use drafting to revise an existing Word file. ${
         automaticCompiler
           ? "Document-quality checks run automatically after synthesis."
           : "Use document_quality only when the user asks to audit an existing DOCX; created and edited files already return compiler checks."

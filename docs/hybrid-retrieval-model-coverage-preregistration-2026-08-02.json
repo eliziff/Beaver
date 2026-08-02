@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "registered_at": "2026-08-02T05:19:00Z",
+  "status": "registered_before_model_coverage_calls",
+  "objective": "Test whether one model-directed union of coding-native and legal-structural retrieval can beat pinned upstream Mike on Harvey LAB accuracy without a benchmark-shaped task router.",
+  "candidate_arm": "coverage_finalist",
+  "candidate_environment": {
+    "MIKE_NAV_SHAPE": "address",
+    "MIKE_TOOL_SHAPE": "coding",
+    "MIKE_RETRIEVAL_EXPERIMENT": "h4-legal-grep",
+    "MIKE_MODEL_COVERAGE_ROUTING": "1",
+    "MIKE_CONTEXT_HANDOFF": "1",
+    "MIKE_EVIDENCE_HANDOFF_MAX_CHARS": "800000",
+    "MIKE_OPENAI_COMPACT_THRESHOLD": "",
+    "MIKE_SLA_WORKFLOW": "1",
+    "MIKE_SLA_STRATEGY": "full",
+    "MIKE_GREENFIELD_REVIEW": "0"
+  },
+  "routing_policy": {
+    "classifier": "none",
+    "task_metadata_used": false,
+    "request_regexes_used": false,
+    "source_byte_threshold_used": false,
+    "model_choice": "After Glob reports filenames plus extracted character and line counts, the model may use complete fetch_documents reads, targeted Grep and bounded Read, or a mixed strategy.",
+    "accuracy_default": "When completeness is uncertain and the bounded source set fits, prefer complete coverage.",
+    "host_role": "Deduplicate repeated document/version reads, retain an exact evidence union for drafting handoff, and run deterministic post-synthesis checks. The host does not choose a route from task wording."
+  },
+  "held_constant": {
+    "performer_model": "gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "service_tier_requested": "fast",
+    "required_service_tier_receipt": "priority",
+    "base_prompt": "lean",
+    "retrieval_prompt_variant": "neutral",
+    "tool_description_variant": "operational",
+    "research_tools": false,
+    "ask_inputs": false,
+    "split": "visible Harvey LAB development tasks only",
+    "upstream_commit": "e89d3230db40193c540a6b38d8f301ae76377a1a",
+    "upstream_schema_sha256": "78f2e1dfaa7f2c5a62dcc52531804373e998ee002fe783e7767a10113e7a87fc"
+  },
+  "matrix": [
+    {
+      "task": "trusts-estates-private-client/extract-client-intake-facts/scenario-01",
+      "shape": "small three-source fact extraction"
+    },
+    {
+      "task": "banking-finance/extract-credit-agreement-covenants",
+      "shape": "three-source structured extraction"
+    },
+    {
+      "task": "healthcare-life-sciences/analyze-counterparty-markup-of-clinical-trial-agreement",
+      "shape": "five-source template, redline, playbook, and context comparison"
+    },
+    {
+      "task": "white-collar-defense-investigations/analyze-counterparty-markup-of-deferred-prosecution-agreement",
+      "shape": "six-source multi-version negotiation analysis"
+    },
+    {
+      "task": "capital-markets/compare-closing-documents-against-closing-checklist",
+      "shape": "eight-source completeness and discrepancy review"
+    },
+    {
+      "task": "antitrust-competition/analyze-antitrust-hsr-strategy",
+      "shape": "nine-source legal and factual strategy synthesis"
+    },
+    {
+      "task": "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts",
+      "shape": "nineteen-source exhaustive contract diligence"
+    },
+    {
+      "task": "capital-markets/draft-indenture-for-senior-secured-notes-offering",
+      "shape": "fourteen-source precedent-led instrument drafting plus issues memo"
+    },
+    {
+      "task": "tax/draft-transfer-pricing-documentation",
+      "shape": "twenty-five-source comprehensive review memorandum"
+    }
+  ],
+  "baseline_policy": {
+    "reuse": "Reuse an existing score only when it used pinned upstream Mike, gpt-5.6-luna, high effort, requested fast, and reported priority.",
+    "fresh_required": [
+      "capital-markets/compare-closing-documents-against-closing-checklist",
+      "antitrust-competition/analyze-antitrust-hsr-strategy",
+      "tax/draft-transfer-pricing-documentation"
+    ],
+    "candidate_runs": "Run coverage_finalist once on every matrix task before changing the arm."
+  },
+  "primary_accuracy_gate": {
+    "judge": "The same fixed LAB evaluator and judge model used for both fresh candidate and fresh upstream cells; existing reused upstream scores must have the same judge model.",
+    "win": "The candidate must exceed upstream Mike in both total criteria passed across the paired matrix and unweighted mean per-task pass rate. A tie is not a win.",
+    "regression_guard": "The candidate may not trail upstream by more than five percentage points on more than one task.",
+    "efficiency": "Tokens, cache use, tool calls, source exposure, and latency are secondary diagnostics and cannot compensate for lower accuracy."
+  },
+  "trace_questions": [
+    "Did the model choose complete, targeted, or mixed retrieval from the same neutral surface?",
+    "Were every relevant source and primary drafting scaffold exposed before synthesis?",
+    "Did exact evidence handoff preserve or discard facts needed by failed criteria?",
+    "Were failures retrieval misses, synthesis/attention misses, mutation defects, compiler regressions, or judge noise?",
+    "How much source text and duplicate context did the candidate expose relative to upstream?"
+  ],
+  "failure_policy": "If the frozen candidate loses, do not reinterpret efficiency as success. Classify failures, make only task-independent correctness changes justified by traces, preregister a new version, and rerun affected plus sentinel tasks.",
+  "source_fingerprints": {
+    "base_commit": "6bb85f27ebf7670f535a64f649292bf17dc12aa4",
+    "backend/src/lib/chat/localAssistantTools.ts": "9a00628d2f4c57066e9f017977174bc76f563823cdc8f3a2ddc9170d85c7bd13",
+    "backend/src/lib/chat/prompts.ts": "05f01db45d005d054b7d71bc3fd86d52f592fbb0b4187839d5879b0f90b99a83",
+    "backend/src/lib/chat/evidenceExposure.ts": "5c4ea0727ba475bf55d96f714b949e31238760b5913feb57a38bc0c4ffd51acb",
+    "backend/src/lib/chat/slaWorkflow.ts": "561bbedb4aa088136cbc0a5349a4146113c39cb9db37844db84934b044c35af9",
+    "backend/src/routes/chat.ts": "c4bdf28d73b6b44671be69681cbdf3cde227bb2139c4c779bcba841ceb74afbd",
+    "backend/scripts/lab-beaver-arm.ts": "ba73a4c78fedb7541f7c85c9f8ca3880c4300a19ee6a3aec2ce8014c033f69cd"
+  }
+}

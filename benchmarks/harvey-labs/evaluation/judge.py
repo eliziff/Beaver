@@ -203,10 +203,24 @@ class Judge:
                         "strict": True,
                     }
                 }
-            try:
-                response = self.client.responses.create(**kwargs)
-            except Exception as e:
-                last_err = e
+            while True:
+                try:
+                    response = self.client.responses.create(**kwargs)
+                    break
+                except Exception as e:
+                    # Reasoning models reject temperature. Retrying the same
+                    # invalid request only wastes a judge attempt; remove just
+                    # the provider-identified unsupported parameter.
+                    if (
+                        "temperature" in kwargs
+                        and "Unsupported parameter: 'temperature'" in str(e)
+                    ):
+                        kwargs.pop("temperature")
+                        continue
+                    last_err = e
+                    response = None
+                    break
+            if response is None:
                 continue
             text = response.output_text or ""
             try:

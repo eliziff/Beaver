@@ -12,13 +12,22 @@ const userId = "00000000-0000-0000-0000-000000000001";
 
 afterEach(() => {
   delete process.env.MIKE_DISABLE_RESEARCH_TOOLS;
+  delete process.env.MIKE_DISABLE_ASK_INPUTS;
   delete process.env.MIKE_CITATOR_DB;
   delete process.env.MIKE_NAV_SHAPE;
   delete process.env.MIKE_TOOL_SHAPE;
+  delete process.env.MIKE_RETRIEVAL_EXPERIMENT;
   delete process.env.MIKE_PROGRESSIVE_DISCLOSURE;
   delete process.env.MIKE_CONTEXT_HANDOFF;
+  delete process.env.MIKE_CONTINUOUS_EVIDENCE;
+  delete process.env.MIKE_DRAFT_HANDOFF_MODE;
+  delete process.env.MIKE_DRAFT_HOT_EVIDENCE_MAX_CHARS;
+  delete process.env.MIKE_EVIDENCE_PAGE_MAX_CHARS;
   delete process.env.MIKE_MODEL_COVERAGE_ROUTING;
   delete process.env.MIKE_WHOLE_READ_MAX_CHARS;
+  delete process.env.MIKE_TOOL_RESULT_CAP;
+  delete process.env.MIKE_SUPPRESS_DUPLICATE_WHOLE_READS;
+  delete process.env.MIKE_RESIDENT_AUTHORING;
   delete process.env.MIKE_SLA_WORKFLOW;
   delete process.env.MIKE_SLA_STRATEGY;
   vi.resetModules();
@@ -196,6 +205,39 @@ describe("local assistant tool wiring", () => {
     expect(refreshedDomains).not.toContain("output_document");
   });
 
+  it("keeps ordinary authoring resident without advertising an empty output domain", async () => {
+    process.env.MIKE_NAV_SHAPE = "legacy";
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    process.env.MIKE_PROGRESSIVE_DISCLOSURE = "1";
+    process.env.MIKE_RESIDENT_AUTHORING = "1";
+    const tools = await loadTools();
+    const partition = tools.partitionTools(tools.LOCAL_ASSISTANT_TOOLS);
+    const resident = names(partition.resident);
+    const deferred = names(partition.deferred);
+
+    expect(resident).toContain("library_create_docx");
+    expect(deferred).not.toContain("library_create_docx");
+    const describe = partition.resident.find(
+      (entry) => entry.function.name === "describe_tools",
+    )!;
+    const domains = (
+      describe.function.parameters.properties as {
+        domains: { items: { enum: string[] } };
+      }
+    ).domains.items.enum;
+    expect(domains).not.toContain("output_document");
+
+    const [response] = await tools.runLocalAssistantTools(userId, [
+      {
+        id: "describe-output",
+        name: "describe_tools",
+        input: { domains: ["output_document"] },
+      },
+    ]);
+    expect(response.status).toBe("error");
+    expect(response.content).not.toContain("library_create_docx");
+  });
+
   it("offers the same neutral coverage choices without classifying task wording", async () => {
     process.env.MIKE_NAV_SHAPE = "address";
     process.env.MIKE_TOOL_SHAPE = "coding";
@@ -229,6 +271,44 @@ describe("local assistant tool wiring", () => {
     expect(guidance).toContain("choose coverage from the evidence need");
     expect(guidance).toContain("primary instrument should stay whole");
     expect(guidance).not.toMatch(/change.of.control|clinical.trial|indenture/iu);
+  });
+
+  it("serves the frozen v13 resident surface without a context-memory layer", async () => {
+    process.env.MIKE_NAV_SHAPE = "address";
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    process.env.MIKE_RETRIEVAL_EXPERIMENT = "p0-pure-coding";
+    process.env.MIKE_PROGRESSIVE_DISCLOSURE = "1";
+    process.env.MIKE_MODEL_COVERAGE_ROUTING = "1";
+    process.env.MIKE_WHOLE_READ_MAX_CHARS = "800000";
+    process.env.MIKE_TOOL_RESULT_CAP = "51200";
+    process.env.MIKE_SUPPRESS_DUPLICATE_WHOLE_READS = "0";
+    process.env.MIKE_DISABLE_RESEARCH_TOOLS = "1";
+    process.env.MIKE_DISABLE_ASK_INPUTS = "1";
+    const tools = await loadTools();
+    const partition = tools.partitionTools(tools.LOCAL_ASSISTANT_TOOLS);
+
+    expect(names(partition.resident)).toEqual([
+      "Glob",
+      "fetch_documents",
+      "Grep",
+      "Read",
+      "describe_tools",
+    ]);
+    expect(tools.WHOLE_READ_MAX_CHARS).toBe(800_000);
+    expect(tools.MAX_TOOL_RESULT_CHARS).toBe(51_200);
+    expect(tools.SUPPRESS_DUPLICATE_WHOLE_READS).toBe(false);
+    expect(
+      partition.resident.find(
+        (entry) => entry.function.name === "fetch_documents",
+      )?.function.description,
+    ).toContain("repeated file/version read returns its exact text again");
+    expect(names(partition.resident)).not.toEqual(
+      expect.arrayContaining([
+        "checkpoint_research",
+        "library_evidence",
+        "library_revise_docx",
+      ]),
+    );
   });
 
   it("does not leak the coverage experiment into the frozen coding baseline", async () => {
@@ -306,9 +386,263 @@ describe("local assistant tool wiring", () => {
     expect(initialProperties).not.toHaveProperty("carry_evidence");
     expect(selectionProperties).toHaveProperty("carry_evidence");
   });
+
+  it("keeps the reviewed drafting checkpoint host-side in paged handoff mode", async () => {
+    process.env.MIKE_NAV_SHAPE = "address";
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    process.env.MIKE_PROGRESSIVE_DISCLOSURE = "1";
+    process.env.MIKE_CONTEXT_HANDOFF = "1";
+    process.env.MIKE_DRAFT_HANDOFF_MODE = "paged";
+    const tools = await loadTools();
+    const partition = tools.partitionTools(tools.LOCAL_ASSISTANT_TOOLS);
+    const describe = partition.resident.find(
+      (entry) => entry.function.name === "describe_tools",
+    )!;
+    const properties = describe.function.parameters.properties as Record<
+      string,
+      unknown
+    >;
+    const retryProperties = tools.describeToolsTool(
+      partition.deferred,
+      true,
+    ).function.parameters.properties as Record<string, unknown>;
+
+    expect(describe.function.description).toContain("demand-paged exact evidence");
+    expect(properties).not.toHaveProperty("drafting_brief");
+    expect(properties).not.toHaveProperty("carry_evidence");
+    expect(retryProperties).not.toHaveProperty("drafting_brief");
+    expect(retryProperties).not.toHaveProperty("carry_evidence");
+    const readProperties = (
+      tools.LOCAL_ASSISTANT_TOOLS.find(
+        (entry) => entry.function.name === "Read",
+      )!.function.parameters as { properties: Record<string, unknown> }
+    ).properties;
+    expect(readProperties).toHaveProperty("start_char");
+    expect(tools.WORKING_SET_PAGE_MAX_CHARS).toBe(24_000);
+  });
+
+  it("exposes bounded evidence recovery without enabling a context handoff", async () => {
+    process.env.MIKE_NAV_SHAPE = "address";
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    process.env.MIKE_CONTINUOUS_EVIDENCE = "1";
+    const tools = await loadTools();
+    const grep = tools.LOCAL_ASSISTANT_TOOLS.find(
+      (entry) => entry.function.name === "Grep",
+    )!;
+    const read = tools.LOCAL_ASSISTANT_TOOLS.find(
+      (entry) => entry.function.name === "Read",
+    )!;
+    const readProperties = (read.function.parameters as {
+      properties: Record<string, unknown>;
+    }).properties;
+
+    expect(tools.DEMAND_PAGED_EVIDENCE_ENABLED).toBe(true);
+    expect(grep.function.description).toContain(tools.WORKING_SET_PATH);
+    expect(readProperties).toHaveProperty("start_char");
+    expect(tools.WORKING_SET_PAGE_MAX_CHARS).toBe(24_000);
+    expect(process.env.MIKE_CONTEXT_HANDOFF).toBeUndefined();
+  });
 });
 
 describe("tool-result transport ceiling", () => {
+  it("centres paged working-set hits and continues oversized exact lines", async () => {
+    process.env.MIKE_NAV_SHAPE = "address";
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    process.env.MIKE_CONTEXT_HANDOFF = "1";
+    process.env.MIKE_DRAFT_HANDOFF_MODE = "paged";
+    process.env.MIKE_DRAFT_HOT_EVIDENCE_MAX_CHARS = "24000";
+    const tools = await loadTools();
+    const header = "=== long-contract.docx | section 9.2 ===\n";
+    const target = "TARGET_NEAR_TAIL";
+    const passage = `${"A".repeat(30_000)}${target}${"B".repeat(60_000)}`;
+    const text = `${header}${passage}\n`;
+    const workingSets = new Map([
+      [
+        tools.WORKING_SET_PATH,
+        {
+          path: tools.WORKING_SET_PATH,
+          text,
+          sourceChars: passage.length,
+          matchedSourceChars: passage.length,
+          immutableSourceChars: passage.length,
+          mapChars: header.length + 1,
+          budgetChars: 0,
+          mappedVersions: ["d1:v1"],
+          segments: [
+            {
+              virtualStart: header.length,
+              virtualEnd: header.length + passage.length,
+              documentId: "d1",
+              versionId: "v1",
+              sourceStart: 0,
+              sourceEnd: passage.length,
+              durableUnionBacked: true,
+            },
+          ],
+          refs: [],
+          demandPaged: true,
+          readGrants: new Set<string>(),
+        },
+      ],
+    ]);
+    const run = (calls: Array<{ id: string; name: string; input: any }>) =>
+      tools.runLocalAssistantTools(
+        userId,
+        calls,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        workingSets,
+      );
+
+    const [grep] = await run([
+      {
+        id: "g-long",
+        name: "Grep",
+        input: {
+          pattern: target,
+          path: tools.WORKING_SET_PATH,
+          output_mode: "content",
+        },
+      },
+    ]);
+    expect(grep.content).toContain(target);
+    expect(grep.content.length).toBeLessThanOrEqual(24_000);
+    expect(grep.evidenceSegments?.[0]).toEqual(
+      expect.objectContaining({
+        documentId: "d1",
+        versionId: "v1",
+        durableUnionBacked: true,
+      }),
+    );
+    expect(grep.evidenceSegments?.[0].start).toBeGreaterThan(28_000);
+    expect(grep.content).toContain("exact Read recipe");
+    const targetStart = Number(/start_char=(\d+)/u.exec(grep.content)?.[1]);
+    expect(targetStart).toBeGreaterThan(28_000);
+
+    const [unlocated] = await run([
+      {
+        id: "r-long-unlocated",
+        name: "Read",
+        input: { file_path: tools.WORKING_SET_PATH, offset: 2, limit: 1 },
+      },
+    ]);
+    expect(unlocated.status).toBe("selection_required");
+    expect(unlocated.content).toContain("Use Grep");
+
+    const [first] = await run([
+      {
+        id: "r-long-1",
+        name: "Read",
+        input: {
+          file_path: tools.WORKING_SET_PATH,
+          offset: 2,
+          limit: 1,
+          start_char: targetStart,
+        },
+      },
+    ]);
+    expect(first.content.length).toBeLessThanOrEqual(24_000);
+    expect(first.content).toContain(target);
+    expect(first.content).toContain("start_char=");
+    const nextChar = Number(/start_char=(\d+)/u.exec(first.content)?.[1]);
+    expect(nextChar).toBeGreaterThan(targetStart);
+
+    const [second] = await run([
+      {
+        id: "r-long-2",
+        name: "Read",
+        input: {
+          file_path: tools.WORKING_SET_PATH,
+          offset: 2,
+          limit: 1,
+          start_char: nextChar,
+        },
+      },
+    ]);
+    expect(second.content.length).toBeLessThanOrEqual(24_000);
+    expect(second.content).toContain("B".repeat(1_000));
+  });
+
+  it("preserves provider evidence receipts through virtual working-set Grep", async () => {
+    process.env.MIKE_NAV_SHAPE = "address";
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    const tools = await loadTools();
+    const header = "=== provider.html | para 12 ===\n";
+    const passage = "The exact provider passage controls.";
+    const text = `${header}${passage}\n`;
+    const workingSets = new Map([
+      [
+        tools.WORKING_SET_PATH,
+        {
+          path: tools.WORKING_SET_PATH,
+          text,
+          sourceChars: passage.length,
+          matchedSourceChars: passage.length,
+          mapChars: header.length + 1,
+          budgetChars: passage.length,
+          mappedVersions: [],
+          segments: [],
+          refs: [
+            {
+              virtualStart: header.length,
+              virtualEnd: header.length + passage.length,
+              handle: "provider:12",
+              filename: "provider.html",
+              locator: "para 12",
+              exactSha256: "original-hash",
+              durableUnionBacked: true,
+            },
+          ],
+        },
+      ],
+    ]);
+
+    const [grep] = await tools.runLocalAssistantTools(
+      userId,
+      [
+        {
+          id: "g1",
+          name: "Grep",
+          input: {
+            pattern: "provider passage",
+            path: tools.WORKING_SET_PATH,
+            output_mode: "content",
+          },
+        },
+      ],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      workingSets,
+    );
+
+    expect(grep.content).toContain(passage);
+    expect(grep.evidenceRefs).toEqual([
+      expect.objectContaining({
+        handle: `provider:12#chars=0-${passage.length}`,
+        filename: "provider.html",
+        locator: "para 12",
+        text: passage,
+        durableUnionBacked: true,
+      }),
+    ]);
+  });
+
   it("bounds an untargeted read and names the calls that fetch the rest", async () => {
     const home = await mkdtemp(path.join(os.tmpdir(), "beaver-cap-"));
     process.env.OPEN_LEGAL_DATA_HOME = home;
