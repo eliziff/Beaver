@@ -37,6 +37,9 @@
 - [Legal skill and plugin ecosystems compared to Beaver](legal-skills-ecosystem-comparison.md)
 - [Three-stage legal grounding experiment log](legal-grounding-experiments-2026-07-30.md)
   — three completed failure-driven experiments; no model-judge winner.
+- [Citation-framing signal synthesis](legal-grounding-framing-signal-synthesis-2026-08-02.md)
+  — heldout length, overlap, and role/status findings; no deterministic
+  detector promoted.
 - [DOCX benchmark design and first local results](docx-benchmark-design.md)
 - [DOCX live-model benchmark gate](docx-live-model-benchmark-2026-07-27.md)
 - [Runnable private-corpus harness](../benchmarks/docx_corpus/README.md)
