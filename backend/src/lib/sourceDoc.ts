@@ -1,5 +1,5 @@
-import crypto from "node:crypto";
 import { normalizeWhitespace } from "./text";
+import { sha256 } from "./hash";
 
 /**
  * One immutable, content-hashed artifact per fetched source (master plan
@@ -125,7 +125,7 @@ export function sourceDocQuoteWords(quote: string) {
 }
 
 function sourceDocRevision(text: string) {
-  return crypto.createHash("sha256").update(text).digest("hex");
+  return sha256(text);
 }
 
 function labelNumber(label: string) {

@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { sha256 } from "./hash";
 import type JSZip from "jszip";
 import { loadZip } from "./zip";
 import {
@@ -281,7 +281,7 @@ export async function extractDocxDraftingSource(
 
   return {
     format: DOCX_DRAFTING_SOURCE_FORMAT,
-    source_sha256: createHash("sha256").update(bytes).digest("hex"),
+    source_sha256: sha256(bytes),
     html,
     warnings: finalWarnings,
     requires_review: requiresReview,

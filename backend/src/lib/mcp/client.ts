@@ -15,6 +15,7 @@ import {
     type ToolCacheRow,
 } from "./types";
 import { guardedRemoteFetch, validateRemoteHttpsUrl } from "../remoteUrlSafety";
+import { sha256 } from "../hash";
 
 function encryptionSecret(): string {
     const secret =
@@ -404,7 +405,7 @@ export function base64Url(buffer: Buffer) {
 }
 
 export function stateHash(state: string) {
-    return crypto.createHash("sha256").update(state).digest("hex");
+    return sha256(state);
 }
 
 export async function loadConnector(

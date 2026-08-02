@@ -21,7 +21,7 @@
  * which is O(blocks) and does not tokenize. The graph is plain data and is
  * stored whole.
  */
-import { createHash } from "node:crypto";
+import { sha256 } from "./hash";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
@@ -60,8 +60,7 @@ type SkeletonPayload = {
 
 const sidecarRoot = () => path.join(mikeLocalDataHome(), "structure-cache");
 
-const textDigest = (text: string) =>
-  createHash("sha256").update(text).digest("hex");
+const textDigest = sha256;
 
 function sidecarPath(digest: string, variant: string, kind: string) {
   return path.join(sidecarRoot(), `${digest}.${variant}.${kind}.v${SIDECAR_VERSION}.json`);
@@ -82,10 +81,7 @@ function sidecarPath(digest: string, variant: string, kind: string) {
 const variantOf = (options: CompileSkeletonOptions) => {
   const recovery = options.recoverExtraction === false ? "norecover" : "recover";
   const cells = options.tableCells?.length
-    ? `-cells-${createHash("sha256")
-        .update(JSON.stringify(options.tableCells))
-        .digest("hex")
-        .slice(0, 12)}`
+    ? `-cells-${sha256(JSON.stringify(options.tableCells)).slice(0, 12)}`
     : "";
   return recovery + cells;
 };
