@@ -34,8 +34,10 @@ vi.mock("../lib/chat/localAssistantTools", () => ({
   PROGRESSIVE_DISCLOSURE_ENABLED: mocks.progressiveDisclosure,
   RESEARCH_TOOLS_DISABLED: false,
   MAX_TOOL_RESULT_CHARS: 64_000,
-    SUPPRESS_DUPLICATE_WHOLE_READS: true,
-    RESIDENT_AUTHORING_ENABLED: false,
+  SUPPRESS_DUPLICATE_WHOLE_READS: true,
+  RESIDENT_AUTHORING_ENABLED: false,
+  TERMINAL_AUTHORING_ENABLED:
+    process.env.MIKE_TERMINAL_AUTHORING === "1",
   UPSTREAM_MIKE_TOOL_SHAPE: false,
   WHOLE_READ_MAX_CHARS: 0,
   WORKING_SET_GREP_DEFAULT_HEAD_LIMIT: 8,
@@ -57,6 +59,7 @@ vi.mock("../lib/chat/localAssistantTools", () => ({
         }
       : {
           resident: [
+            "Read",
             "library_lookup",
             "library_create_docx",
             "library_revise_docx",
@@ -283,7 +286,7 @@ describe("anonymous chat PDF evidence durability", () => {
     ).toEqual([["describe_tools"], ["library_revise_docx"]]);
   });
 
-  it("requires evidence review before a same-batch mutation without a handoff", async () => {
+  it("executes evidence and mutation calls from the same model batch", async () => {
     mocks.runLocalAssistantTools.mockImplementation(
       async (_userId: unknown, calls: { id: string; name: string }[]) =>
         calls.map((call) =>
@@ -312,16 +315,15 @@ describe("anonymous chat PDF evidence durability", () => {
               },
         ),
     );
-    let rejectedMutationStatus = "";
+    let sameBatchMutationAction = "";
     mocks.streamChatWithTools.mockImplementation(async (params) => {
       const mixed = await params.runTools?.([
         { id: "evidence", name: "library_lookup", input: {} },
         { id: "early-edit", name: "library_revise_docx", input: {} },
       ]);
-      rejectedMutationStatus = JSON.parse(mixed?.[1]?.content ?? "{}").status;
-      await params.runTools?.([
-        { id: "reviewed-edit", name: "library_revise_docx", input: {} },
-      ]);
+      sameBatchMutationAction = JSON.parse(
+        mixed?.[1]?.content ?? "{}",
+      ).action;
       params.callbacks?.onContentDelta?.("Done.");
       return { fullText: "Done." };
     });
@@ -339,12 +341,12 @@ describe("anonymous chat PDF evidence durability", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(rejectedMutationStatus).toBe("evidence_review_required");
+    expect(sameBatchMutationAction).toBe("revised");
     expect(
       mocks.runLocalAssistantTools.mock.calls.map((entry) =>
         entry[1].map((call: { name: string }) => call.name),
       ),
-    ).toEqual([["library_lookup"], ["library_revise_docx"]]);
+    ).toEqual([["library_lookup", "library_revise_docx"]]);
     expect(response.text).not.toContain('"type":"content_reset"');
     expect(response.text).not.toContain('"type":"evidence_handoff"');
     expect(response.text).not.toContain('"type":"research_checkpoint_request"');
@@ -417,7 +419,7 @@ describe("anonymous chat PDF evidence durability", () => {
       },
     );
     let invocationCount = 0;
-    let rejectedMutationStatus = "";
+    let sameBatchMutationAction = "";
     mocks.streamChatWithTools.mockImplementation(async (params) => {
       invocationCount += 1;
       await params.runTools?.([
@@ -432,12 +434,9 @@ describe("anonymous chat PDF evidence durability", () => {
         { id: "new-evidence", name: "Grep", input: { pattern: "SECOND" } },
         { id: "too-early", name: "library_revise_docx", input: {} },
       ]);
-      rejectedMutationStatus = JSON.parse(
+      sameBatchMutationAction = JSON.parse(
         mixedResults?.[1]?.content ?? "{}",
-      ).status;
-      await params.runTools?.([
-        { id: "draft", name: "library_revise_docx", input: {} },
-      ]);
+      ).action;
       params.callbacks?.onContentDelta?.("Done.");
       return { fullText: "Done." };
     });
@@ -456,7 +455,7 @@ describe("anonymous chat PDF evidence durability", () => {
 
     expect(response.status).toBe(200);
     expect(invocationCount).toBe(1);
-    expect(rejectedMutationStatus).toBe("evidence_review_required");
+    expect(sameBatchMutationAction).toBe("revised");
     expect(mountedAfterFirstBatch).toContain("FIRST FACT");
     expect(
       mocks.runLocalAssistantTools.mock.calls.map((entry) =>
@@ -464,8 +463,7 @@ describe("anonymous chat PDF evidence durability", () => {
       ),
     ).toEqual([
       ["library_lookup", "describe_tools"],
-      ["Grep"],
-      ["library_revise_docx"],
+      ["Grep", "library_revise_docx"],
     ]);
     expect(response.text).toContain('"type":"evidence_working_set_receipt"');
     expect(response.text).toContain("FIRST FACT");
@@ -784,7 +782,6 @@ describe("anonymous chat PDF evidence durability", () => {
     let draftingMessages: Array<{ role: string; content: string }> = [];
     let draftingGrepResult = "";
     let duplicateDraftingGrepStatus = "";
-    let mutationGateStatus = "";
     let redraftingMessages: Array<{ role: string; content: string }> = [];
     mocks.streamChatWithTools.mockImplementation(async (params) => {
       invocation += 1;
@@ -877,20 +874,14 @@ describe("anonymous chat PDF evidence durability", () => {
         ]);
         draftingGrepResult = grep.content;
         duplicateDraftingGrepStatus = duplicate.status ?? "";
-        const [newEvidence, rejectedMutation] = await params.runTools?.([
+        const [newEvidence] = await params.runTools?.([
           {
             id: "draft-reresearch",
             name: "Grep",
             input: { pattern: "NEW", output_mode: "working_set" },
           },
-          {
-            id: "premature-mutation",
-            name: "library_revise_docx",
-            input: {},
-          },
         ]);
         expect(newEvidence.terminal).toBe(true);
-        mutationGateStatus = JSON.parse(rejectedMutation.content).status;
         return { fullText: "Discarded pre-checkpoint draft." };
       }
       if (invocation === 5) {
@@ -950,7 +941,6 @@ describe("anonymous chat PDF evidence durability", () => {
     expect(mountedEvidence).toContain("SECRET_TAIL");
     expect(draftingGrepResult).toBe("TARGET FACT");
     expect(duplicateDraftingGrepStatus).toBe("already_exposed");
-    expect(mutationGateStatus).toBe("evidence_review_required");
     expect(redraftingMessages[0].content).toContain(
       "Target fact and new fact control",
     );
@@ -2804,6 +2794,110 @@ describe("anonymous chat PDF evidence durability", () => {
       type: "content",
       text: expected,
     });
+  });
+
+  it("ends the provider loop only after a successful all-create batch", async () => {
+    vi.stubEnv("MIKE_TERMINAL_AUTHORING", "1");
+    mocks.runLocalAssistantTools.mockImplementation(
+      async (_userId: unknown, calls: { id: string }[]) =>
+        calls.map((call, index) => ({
+          tool_use_id: call.id,
+          content: JSON.stringify({
+            ok: true,
+            receipt: "mike-document:v1",
+            action: "created",
+            filename: `draft-${index + 1}.docx`,
+            document_id: `mock-document-${index + 1}`,
+            version_id: `mock-version-${index + 1}`,
+            version_number: 1,
+            download_url: `/documents/mock-document-${index + 1}`,
+          }),
+        })),
+    );
+    mocks.streamChatWithTools.mockImplementation(async (params) => {
+      const results = await params.runTools?.([
+        {
+          id: "create-one",
+          name: "library_create_docx",
+          input: { title: "First draft", sections: [] },
+        },
+        {
+          id: "create-two",
+          name: "library_create_docx",
+          input: { title: "Second draft", sections: [] },
+        },
+      ]);
+      expect(results).toHaveLength(2);
+      expect(results?.every((result) => result.terminal === true)).toBe(true);
+      return { fullText: "" };
+    });
+    const loaded = await loadApp();
+    const created = await request(loaded.app).post("/chat/create").send({});
+
+    const response = await request(loaded.app)
+      .post("/chat")
+      .send({
+        chat_id: created.body.id,
+        expected_version: 0,
+        current_turn: { kind: "message", content: "Create both drafts." },
+      });
+
+    expect(response.status).toBe(200);
+    expect(
+      response.text.match(/"type":"doc_created_start"/gu) ?? [],
+    ).toHaveLength(2);
+  });
+
+  it("executes every mixed-batch call without treating it as terminal", async () => {
+    vi.stubEnv("MIKE_TERMINAL_AUTHORING", "1");
+    mocks.runLocalAssistantTools.mockImplementation(
+      async (_userId: unknown, calls: { id: string; name: string }[]) =>
+        calls.map((call) =>
+          call.name === "library_create_docx"
+            ? {
+                tool_use_id: call.id,
+                content: JSON.stringify({
+                  ok: true,
+                  receipt: "mike-document:v1",
+                  action: "created",
+                  version_id: "mock-version",
+                }),
+              }
+            : {
+                tool_use_id: call.id,
+                content: JSON.stringify({ ok: true, text: "New evidence." }),
+                evidenceSegments: [{}],
+              },
+        ),
+    );
+    mocks.streamChatWithTools.mockImplementation(async (params) => {
+      const results = await params.runTools?.([
+        { id: "read", name: "Read", input: { file_path: "source.docx" } },
+        {
+          id: "create",
+          name: "library_create_docx",
+          input: { title: "Draft", sections: [] },
+        },
+      ]);
+      expect(results?.some((result) => result.terminal)).toBe(false);
+      expect(JSON.parse(results?.[1].content ?? "{}")).toMatchObject({
+        action: "created",
+      });
+      params.callbacks?.onContentDelta?.("Reviewed and created.");
+      return { fullText: "Reviewed and created." };
+    });
+    const loaded = await loadApp();
+    const created = await request(loaded.app).post("/chat/create").send({});
+
+    const response = await request(loaded.app)
+      .post("/chat")
+      .send({
+        chat_id: created.body.id,
+        expected_version: 0,
+        current_turn: { kind: "message", content: "Read and draft." },
+      });
+
+    expect(response.status).toBe(200);
   });
 
   it("does not pause Codex after a mutation has already committed", async () => {

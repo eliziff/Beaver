@@ -45,6 +45,7 @@ import {
   RESEARCH_TOOLS_DISABLED,
   RESIDENT_AUTHORING_ENABLED,
   SUPPRESS_DUPLICATE_WHOLE_READS,
+  TERMINAL_AUTHORING_ENABLED,
   UPSTREAM_MIKE_TOOL_SHAPE,
   WORKING_SET_GREP_DEFAULT_HEAD_LIMIT,
   WORKING_SET_GREP_LINE_MAX_CHARS,
@@ -319,6 +320,25 @@ function localDocumentMutationEvent(
 
 const mutationReceiptContent = (result: NormalizedToolResult | undefined) =>
   result?.mutationReceipt ?? result?.content;
+
+function committedMutationReceipt(result: NormalizedToolResult | undefined) {
+  try {
+    const payload = JSON.parse(mutationReceiptContent(result) ?? "{}") as {
+      ok?: unknown;
+      action?: unknown;
+      receipt?: unknown;
+      version_id?: unknown;
+    };
+    return payload.ok === true &&
+      payload.receipt === "mike-document:v1" &&
+      ["created", "revised"].includes(String(payload.action)) &&
+      trimmedString(payload.version_id)
+      ? payload
+      : null;
+  } catch {
+    return null;
+  }
+}
 
 function providerRegistryItem(
   item: LocalPdfEvidenceRegistryItem,
@@ -1811,12 +1831,6 @@ export async function streamAnonymousChat(params: {
         activeToolNames.has(call.name) &&
         (!initialResearchClosed || call.name === "describe_tools"),
     );
-    const mixedMutationBatch =
-      allowedCalls.some((call) => LOCAL_MUTATION_TOOL_NAMES.has(call.name)) &&
-      allowedCalls.some((call) => !LOCAL_MUTATION_TOOL_NAMES.has(call.name));
-    const firstCalls = mixedMutationBatch
-      ? allowedCalls.filter((call) => !LOCAL_MUTATION_TOOL_NAMES.has(call.name))
-      : allowedCalls;
     const runAllowedCalls = (batch: typeof allowedCalls) =>
       runLocalAssistantTools(
           userId,
@@ -1833,24 +1847,9 @@ export async function streamAnonymousChat(params: {
           localTurnReadState,
           localWorkingSets,
         );
-    const allowedResults = firstCalls.length
-      ? await runAllowedCalls(firstCalls)
+    const allowedResults = allowedCalls.length
+      ? await runAllowedCalls(allowedCalls)
       : [];
-    const evidenceReviewRequired =
-      mixedMutationBatch &&
-      allowedResults.some(
-        (result) =>
-          Boolean(result.evidenceSegments?.length) ||
-          Boolean(result.evidenceRefs?.length),
-      );
-    if (mixedMutationBatch && !evidenceReviewRequired) {
-      const mutationCalls = allowedCalls.filter((call) =>
-        LOCAL_MUTATION_TOOL_NAMES.has(call.name),
-      );
-      if (mutationCalls.length) {
-        allowedResults.push(...(await runAllowedCalls(mutationCalls)));
-      }
-    }
     let results: NormalizedToolResult[] = calls.map(
       (call) =>
         allowedResults.find(
@@ -1866,23 +1865,12 @@ export async function streamAnonymousChat(params: {
               }),
               status: "error" as const,
             }
-          :
-        (evidenceReviewRequired && LOCAL_MUTATION_TOOL_NAMES.has(call.name)
-          ? {
-              ...toolReply(call.id, {
-                ok: false,
-                status: "evidence_review_required",
-                error:
-                  "Evidence retrieval and document mutation must use separate tool-call batches so the evidence can be reviewed first.",
-              }),
-              status: "error" as const,
-            }
           : toolReply(call.id, {
               ok: false,
               error: progressiveDisclosure
                 ? `Tool '${call.name}' is not loaded. Call describe_tools for the matching domain, then retry it on the next tool-call iteration.`
                 : `Tool '${call.name}' is not available.`,
-            }))),
+            })),
     );
     if (pagedHandoffEnabled && draftingPhase) {
       const reviewedWorkingSet = localWorkingSets.get(WORKING_SET_PATH);
@@ -2420,6 +2408,7 @@ export async function streamAnonymousChat(params: {
           suppress_duplicate_whole_reads:
             SUPPRESS_DUPLICATE_WHOLE_READS,
           resident_authoring: RESIDENT_AUTHORING_ENABLED,
+          terminal_authoring: TERMINAL_AUTHORING_ENABLED,
           progressive_disclosure: progressiveDisclosure,
           context_handoff: contextHandoffEnabled,
           continuous_evidence: continuousEvidenceEnabled,
@@ -2584,24 +2573,23 @@ export async function streamAnonymousChat(params: {
           const toolResult = results.find(
             (result) => result.tool_use_id === call.id,
           );
-          const content = mutationReceiptContent(toolResult);
-          try {
-            // A mutation only counts as committed on an explicit receipt.
-            const payload = JSON.parse(content ?? "{}") as {
-              ok?: unknown;
-              action?: unknown;
-              receipt?: unknown;
-              version_id?: unknown;
-            };
-            if (
-              payload.ok === true &&
-              payload.receipt === "mike-document:v1" &&
-              ["created", "revised"].includes(String(payload.action)) &&
-              trimmedString(payload.version_id)
-            ) {
-              localMutationCommitted = true;
-            }
-          } catch {}
+          // A mutation only counts as committed on an explicit receipt.
+          if (committedMutationReceipt(toolResult)) {
+            localMutationCommitted = true;
+          }
+        }
+        const terminalCreateBatch =
+          TERMINAL_AUTHORING_ENABLED &&
+          calls.length > 0 &&
+          calls.every((call) => call.name === "library_create_docx") &&
+          calls.every((call) => {
+            const toolResult = results.find(
+              (result) => result.tool_use_id === call.id,
+            );
+            return committedMutationReceipt(toolResult)?.action === "created";
+          });
+        if (terminalCreateBatch) {
+          for (const result of results) result.terminal = true;
         }
         if (
           !mutationWasAlreadyCommitted &&

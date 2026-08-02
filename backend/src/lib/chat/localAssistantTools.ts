@@ -177,6 +177,14 @@ import {
 export const NAV_TOOL_SHAPE: "legacy" | "address" =
   process.env.MIKE_NAV_SHAPE === "address" ? "address" : "legacy";
 
+/**
+ * Benchmark opt-in: a successful final create receipt is the end of the
+ * provider loop. The document card is rendered from the durable receipt, so
+ * another model round would only restate completion with the full context.
+ */
+export const TERMINAL_AUTHORING_ENABLED =
+  process.env.MIKE_TERMINAL_AUTHORING === "1";
+
 const tool = (
   name: string,
   description: string,
@@ -749,7 +757,11 @@ const LOCAL_DOCX_TOOLS: OpenAIToolSchema[] = (
         function: {
           ...schema.function,
           name: "library_create_docx",
-          description: `${schema.function.description} Stored as a durable new item in the local Library; matter chats attach it automatically.`,
+          description: `${schema.function.description} Stored as a durable new item in the local Library; matter chats attach it automatically.${
+            TERMINAL_AUTHORING_ENABLED
+              ? " Call only when every requested deliverable is final; after a successful receipt, the turn ends without another model round."
+              : ""
+          }`,
           parameters: {
             ...parameters,
             properties: {
@@ -5250,6 +5262,22 @@ const upstreamMikeResult = (
   content: typeof content === "string" ? content : JSON.stringify(content),
 });
 
+function upstreamMikeCitationReminder(docLabel: string, filename: string) {
+  const isSpreadsheet = isSpreadsheetDocumentType(
+    filename.split(".").pop() ?? "",
+  );
+  const shapeLine = isSpreadsheet
+    ? `Use this citation object shape for this spreadsheet: {"ref": 1, "doc_id": "${docLabel}", "quotes": [{"sheet": "Sheet name", "cell": "B7", "quote": "plain cell value"}]}. Cite by "sheet" + "cell" (A1 address or range), not by page.`
+    : `Use this citation object shape: {"ref": 1, "doc_id": "${docLabel}", "quotes": [{"page": 1, "quote": "exact verbatim text from the document"}]}. Include top-level "page" and "quote" too only if they match the first quote.`;
+  return [
+    `[Citation requirement for ${docLabel} ("${filename}")]:`,
+    "If your final answer makes any factual claim from this document, include inline [N] markers and append a final <CITATIONS> JSON block.",
+    `Every citation entry for this document MUST use "doc_id": "${docLabel}".`,
+    shapeLine,
+    'Do not use "marker" or "text" keys in the citation block; use "ref" and "quotes".',
+  ].join("\n");
+}
+
 function upstreamMikeSectionsMarkdown(value: unknown) {
   if (!Array.isArray(value)) return "";
   const blocks: string[] = [];
@@ -5364,6 +5392,7 @@ async function runUpstreamMikeRetrievalCall(params: {
     if (!listed) {
       return {
         content: `Document '${requested}' not found.`,
+        duplicate: false,
         evidenceSegments: [] as NonNullable<
           NormalizedToolResult["evidenceSegments"]
         >,
@@ -5373,6 +5402,7 @@ async function runUpstreamMikeRetrievalCall(params: {
     if (!file) {
       return {
         content: "Document could not be read.",
+        duplicate: false,
         evidenceSegments: [] as NonNullable<
           NormalizedToolResult["evidenceSegments"]
         >,
@@ -5392,8 +5422,9 @@ async function runUpstreamMikeRetrievalCall(params: {
           content:
             "This document/version was already read earlier in this response. The full text is not repeated to avoid unnecessary token use.",
           next_required_action:
-            "Use the prior read_document/fetch_documents result or call find_in_document for a targeted check.",
+            "Use the prior read_document/fetch_documents result, call find_in_document for targeted checks, or proceed to edit_document.",
         }),
+        duplicate: true,
         evidenceSegments: [] as NonNullable<
           NormalizedToolResult["evidenceSegments"]
         >,
@@ -5403,6 +5434,7 @@ async function runUpstreamMikeRetrievalCall(params: {
     if (!document) {
       return {
         content: "Document could not be read.",
+        duplicate: false,
         evidenceSegments: [] as NonNullable<
           NormalizedToolResult["evidenceSegments"]
         >,
@@ -5422,6 +5454,7 @@ async function runUpstreamMikeRetrievalCall(params: {
     });
     return {
       content: document.text,
+      duplicate: false,
       evidenceSegments: document.text
         ? [
             {
@@ -5450,10 +5483,16 @@ async function runUpstreamMikeRetrievalCall(params: {
   }
 
   if (call.name === "read_document") {
-    const documentId = trimmed(call.input.doc_id);
-    const read = await readOne(documentId);
+    const requested = trimmed(call.input.doc_id);
+    const listed = resolveDocument(requested);
+    const docLabel = listed ? labelById.get(listed.id) ?? requested : requested;
+    const read = await readOne(requested);
+    const content =
+      listed && !read.duplicate
+        ? `${upstreamMikeCitationReminder(docLabel, listed.filename)}\n\n${read.content}`
+        : read.content;
     return {
-      ...upstreamMikeResult(call, read.content),
+      ...upstreamMikeResult(call, content),
       evidenceSegments: read.evidenceSegments,
     };
   }
@@ -5520,7 +5559,11 @@ async function runUpstreamMikeRetrievalCall(params: {
       const filename = document?.filename ?? requested;
       const read = await readOne(requested);
       parts.push(
-        `--- ${filename} (${docLabel}) ---\n${read.content}`,
+        `--- ${filename} (${docLabel}) ---\n${
+          read.duplicate
+            ? read.content
+            : `${upstreamMikeCitationReminder(docLabel, filename)}\n\n${read.content}`
+        }`,
       );
       evidenceSegments.push(...read.evidenceSegments);
     }
@@ -5913,7 +5956,7 @@ export async function runLocalAssistantTools(
           const downloadUrl =
             `/single-documents/${encodeURIComponent(document.id)}/file` +
             `?version_id=${encodeURIComponent(document.current_version_id)}`;
-          return result(call, {
+          const receipt = {
             ok: true,
             receipt: "mike-document:v1",
             action: "created",
@@ -5926,8 +5969,31 @@ export async function runLocalAssistantTools(
             attached_to_matter: Boolean(matterId),
             ...(diagnostics ? { compiler_diagnostics: diagnostics } : {}),
             download_url: downloadUrl,
-            
-          });
+          };
+          if (UPSTREAM_MIKE_TOOL_SHAPE && call.name === "generate_docx") {
+            const docLabel = `doc-${Math.max(
+              0,
+              [...(allowedDocumentIds ?? [])].indexOf(document.id),
+            )}`;
+            return {
+              ...result(call, {
+                filename: document.filename,
+                document_id: document.id,
+                version_id: document.current_version_id,
+                version_number: document.active_version_number,
+                message: `Document '${document.filename}' has been generated successfully.`,
+                doc_id: docLabel,
+                next_required_action: [
+                  `Before writing your final response, call read_document with doc_id "${docLabel}".`,
+                  "Base your description on the generated document's actual returned text, not on memory of what you intended to generate.",
+                  "Do not include download links, URLs, or markdown links to the document in your prose response; the document card is shown automatically by the UI.",
+                  `Give a concise description of the generated document and, if you make factual claims about its contents, cite it with [N] markers and a final <CITATIONS> block using doc_id "${docLabel}", not any source/template document.`,
+                ].join(" "),
+              }),
+              mutationReceipt: JSON.stringify(receipt),
+            };
+          }
+          return result(call, receipt);
         } catch {
           return fail(call, "DOCX creation failed");
         }
