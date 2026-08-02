@@ -15,14 +15,16 @@ vi.mock("../../codexCatalog", () => ({
 
 import { streamCodexApi } from "../codexApi";
 
-const response = (...events: unknown[]) =>
+const eventStream = (...events: unknown[]) =>
   new Response(
     `${events
-      .concat({ type: "response.output_text.delta", delta: "ok" })
       .map((event) => `data: ${JSON.stringify(event)}`)
       .join("\n\n")}\n\ndata: [DONE]\n\n`,
     { status: 200, headers: { "Content-Type": "text/event-stream" } },
   );
+
+const response = (...events: unknown[]) =>
+  eventStream(...events, { type: "response.output_text.delta", delta: "ok" });
 
 const params = (serviceTier?: string) => ({
   model: "codex:gpt-5.6-sol",
@@ -48,6 +50,7 @@ describe("Codex service tier", () => {
       String((fetchMock.mock.calls[0][1] as RequestInit).body),
     );
     expect(body).not.toHaveProperty("service_tier");
+    expect(body.prompt_cache_key).toMatch(/^[0-9a-f-]{36}$/u);
     expect(mocks.getCodexModelCatalog).not.toHaveBeenCalled();
   });
 
@@ -125,5 +128,158 @@ describe("Codex service tier", () => {
     );
     expect(fetchMock).not.toHaveBeenCalled();
     expect(mocks.borrowCodexKey).not.toHaveBeenCalled();
+  });
+});
+
+describe("Codex native compaction", () => {
+  it("replaces explicit history at the threshold and accounts for reported usage", async () => {
+    const compactedOutput = [
+      {
+        type: "compaction",
+        id: "compact-1",
+        encrypted_content: "sealed-summary",
+      },
+    ];
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        eventStream(
+          {
+            type: "response.output_item.done",
+            item: {
+              type: "function_call",
+              call_id: "call-1",
+              name: "inspect",
+              arguments: "{}",
+            },
+          },
+          {
+            type: "response.completed",
+            response: {
+              service_tier: "default",
+              usage: {
+                input_tokens: 245_000,
+                output_tokens: 50,
+                input_tokens_details: { cached_tokens: 1_000 },
+                output_tokens_details: { reasoning_tokens: 10 },
+              },
+            },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            output: compactedOutput,
+            usage: {
+              input_tokens: 245_500,
+              output_tokens: 400,
+              input_tokens_details: {
+                cached_tokens: 200_000,
+                cache_write_tokens: 20_000,
+              },
+              output_tokens_details: { reasoning_tokens: 100 },
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        eventStream(
+          { type: "response.output_text.delta", delta: "finished" },
+          {
+            type: "response.completed",
+            response: {
+              service_tier: "default",
+              usage: {
+                input_tokens: 2_000,
+                output_tokens: 100,
+                output_tokens_details: { reasoning_tokens: 20 },
+              },
+            },
+          },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await streamCodexApi({
+      ...params(),
+      enableThinking: true,
+      reasoningEffort: "high",
+      compactThreshold: 244_800,
+      promptCacheKey: "chat-cache-key",
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "inspect",
+            description: "Inspect evidence",
+            parameters: { type: "object", properties: {} },
+          },
+        },
+      ],
+      runTools: async (calls) =>
+        calls.map((call) => ({
+          tool_use_id: call.id,
+          content: "exact evidence",
+        })),
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(String(fetchMock.mock.calls[1][0])).toMatch(/responses\/compact$/u);
+    const initialBody = JSON.parse(
+      String((fetchMock.mock.calls[0][1] as RequestInit).body),
+    );
+    const compactBody = JSON.parse(
+      String((fetchMock.mock.calls[1][1] as RequestInit).body),
+    );
+    expect(compactBody).toMatchObject({
+      model: "gpt-5.6-sol",
+      prompt_cache_key: "chat-cache-key",
+      parallel_tool_calls: true,
+      reasoning: { effort: "high", summary: "auto" },
+    });
+    expect(compactBody.input).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "function_call" }),
+        expect.objectContaining({
+          type: "function_call_output",
+          output: "exact evidence",
+        }),
+      ]),
+    );
+    const continuedBody = JSON.parse(
+      String((fetchMock.mock.calls[2][1] as RequestInit).body),
+    );
+    expect(initialBody.prompt_cache_key).toBe("chat-cache-key");
+    expect(continuedBody.prompt_cache_key).toBe("chat-cache-key");
+    expect(continuedBody.input).toEqual(compactedOutput);
+    expect(result).toMatchObject({
+      fullText: "finished",
+      serviceTier: "default",
+      usage: {
+        inputTokens: 492_500,
+        outputTokens: 550,
+        reasoningTokens: 130,
+        cacheReadInputTokens: 201_000,
+        cacheWriteInputTokens: 20_000,
+      },
+      promptCacheKeySha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
+    });
+    expect(result.contextRounds).toHaveLength(2);
+    expect(result.compactions).toEqual([
+      expect.objectContaining({
+        iteration: 0,
+        thresholdTokens: 244_800,
+        triggerInputTokens: 245_000,
+        outputItems: 1,
+        estimatedInputTokens: expect.any(Number),
+        estimatedOutputTokens: expect.any(Number),
+        usage: expect.objectContaining({
+          inputTokens: 245_500,
+          outputTokens: 400,
+        }),
+      }),
+    ]);
   });
 });

@@ -31,17 +31,25 @@ import {
   streamChatWithTools,
   type LlmImage,
   type NormalizedToolResult,
+  type OpenAIToolSchema,
   type StreamChatResult,
 } from "../lib/llm";
 import { providerForModel } from "../lib/llm/models";
 import {
   WHOLE_READ_MAX_CHARS,
   LOCAL_ASSISTANT_TOOLS,
+  MAX_TOOL_RESULT_CHARS,
   MODEL_COVERAGE_ROUTING,
   NAV_TOOL_SHAPE,
   PROGRESSIVE_DISCLOSURE_ENABLED,
   RESEARCH_TOOLS_DISABLED,
+  RESIDENT_AUTHORING_ENABLED,
+  SUPPRESS_DUPLICATE_WHOLE_READS,
   UPSTREAM_MIKE_TOOL_SHAPE,
+  WORKING_SET_GREP_DEFAULT_HEAD_LIMIT,
+  WORKING_SET_GREP_LINE_MAX_CHARS,
+  WORKING_SET_GREP_MAX_HEAD_LIMIT,
+  WORKING_SET_PAGE_MAX_CHARS,
   WORKING_SET_PATH,
   partitionTools,
   describeToolsTool,
@@ -53,10 +61,17 @@ import {
   type LocalAssistantWorkingSetTurnState,
 } from "../lib/chat/localAssistantTools";
 import {
+  INITIAL_RESEARCH_CHECKPOINT_MAX_COUNT,
   applyEvidenceExposure,
+  compileCheckpointedEvidenceResearchRefresh,
   compileEvidenceHandoff,
+  compileEvidenceResearchCheckpoint,
   compileEvidenceResearchRefresh,
+  compileEvidenceWorkingSet,
+  compilePagedEvidenceHandoff,
+  continueInitialResearch,
   createEvidenceExposureState,
+  markReviewedUnionEvidence,
   renderEvidenceManifest,
 } from "../lib/chat/evidenceExposure";
 import { UPSTREAM_MIKE_LAB_SYSTEM_PROMPT } from "../lib/chat/upstreamMikeBenchmarkSurface";
@@ -163,6 +178,7 @@ const CHAT_RECYCLING_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const LOCAL_PDF_EVIDENCE_REGISTRY_EVENT = "local_pdf_evidence_handles";
 const LOCAL_MUTATION_COMMITTED_EVENT = "local_mutation_committed";
 const LOCAL_TURN_COMPLETED_EVENT = "local_turn_completed";
+const RESEARCH_CHECKPOINT_RECEIPT_EVENT = "research_checkpoint_receipt";
 const MAX_LOCAL_PDF_EVIDENCE_HANDLES = 20;
 const LOCAL_PDF_EVIDENCE_HANDLE = /^mike-evidence:v1:[0-9a-f]{64}$/u;
 const PROVIDER_PDF_SOURCE_REFERENCE =
@@ -446,6 +462,7 @@ const HIDDEN_LOCAL_EVENT_TYPES = new Set<unknown>([
   LOCAL_PDF_EVIDENCE_REGISTRY_EVENT,
   LOCAL_MUTATION_COMMITTED_EVENT,
   LOCAL_TURN_COMPLETED_EVENT,
+  RESEARCH_CHECKPOINT_RECEIPT_EVENT,
 ]);
 
 function visibleAnonymousMessages(messages: AnonymousChatMessage[]) {
@@ -1098,12 +1115,13 @@ export async function streamAnonymousChat(params: {
     }
     if (slaLedger) systemPrompt += slaLedger.promptSection;
   }
-  const isCodex = providerForModel(selectedModel) === "codex";
+  const responseProvider = providerForModel(selectedModel);
+  const isCodex = responseProvider === "codex";
   const configuredCompactThreshold = Number(
     process.env.MIKE_OPENAI_COMPACT_THRESHOLD || 0,
   );
   const openAICompactThreshold =
-    providerForModel(selectedModel) === "openai" &&
+    ["openai", "codex"].includes(responseProvider) &&
     Number.isFinite(configuredCompactThreshold) &&
     configuredCompactThreshold > 0
       ? Math.trunc(configuredCompactThreshold)
@@ -1338,7 +1356,19 @@ export async function streamAnonymousChat(params: {
   const contextHandoffEnabled =
     process.env.MIKE_CONTEXT_HANDOFF === "1" &&
     !UPSTREAM_MIKE_TOOL_SHAPE;
+  const continuousEvidenceEnabled =
+    process.env.MIKE_CONTINUOUS_EVIDENCE === "1" &&
+    !UPSTREAM_MIKE_TOOL_SHAPE;
+  const evidenceTrackingEnabled =
+    contextHandoffEnabled || continuousEvidenceEnabled;
+  const pagedHandoffEnabled =
+    contextHandoffEnabled && process.env.MIKE_DRAFT_HANDOFF_MODE === "paged";
+  // The durable union survives context replacement. The context-local guard
+  // resets whenever a fresh model context opens, so its first demand-paged
+  // read is visible while repeated reads in that same context remain bounded.
   const evidenceExposure = createEvidenceExposureState();
+  let contextEvidenceExposure = createEvidenceExposureState();
+  let continuousWorkingSetUpdates = 0;
   const loadEvidenceSource = async (documentId: string, versionId: string) => {
     const document = await extractLocalDocument(userId, documentId, versionId);
     return document
@@ -1352,19 +1382,142 @@ export async function streamAnonymousChat(params: {
     Number.isFinite(configuredHandoffCap) && configuredHandoffCap > 0
       ? Math.trunc(configuredHandoffCap)
       : 120_000;
+  const configuredCheckpointCap = Number(
+    process.env.MIKE_RESEARCH_CHECKPOINT_MAX_CHARS || 12_000,
+  );
+  const researchCheckpointMaxChars =
+    Number.isFinite(configuredCheckpointCap) && configuredCheckpointCap > 0
+      ? Math.min(24_000, Math.trunc(configuredCheckpointCap))
+      : 12_000;
+  const configuredHotEvidenceCap = Number(
+    process.env.MIKE_DRAFT_HOT_EVIDENCE_MAX_CHARS || 24_000,
+  );
+  const hotEvidenceMaxChars =
+    Number.isFinite(configuredHotEvidenceCap) && configuredHotEvidenceCap >= 0
+      ? Math.min(64_000, Math.trunc(configuredHotEvidenceCap))
+      : 24_000;
+  const researchCheckpointTool: OpenAIToolSchema = {
+    type: "function",
+    function: {
+      name: "checkpoint_research",
+      description:
+        "Replace the compact research checkpoint after reviewing the latest evidence.",
+      strict: true,
+      parameters: {
+        type: "object",
+        properties: {
+          brief: {
+            type: "string",
+            maxLength: researchCheckpointMaxChars,
+            description:
+              "Material findings, contradictions, numbers, source names or locators, open questions, and useful next checks.",
+          },
+          continue_research: {
+            type: "boolean",
+            description:
+              "True only when one or more concrete unresolved checks available from the inventory could materially change the requested deliverable; false when more research would only corroborate known findings.",
+          },
+        },
+        required: ["brief", "continue_research"],
+        additionalProperties: false,
+      },
+    },
+  };
+  const researchOrientation = new Map<
+    string,
+    { name: string; content: string }
+  >();
+  let researchBrief = "";
+  let initialResearchCheckpointCount = 0;
+  let initialResearchComplete = false;
+  let researchCheckpointPhase = false;
   let pendingEvidenceHandoff: {
     prompt: string;
     sourceChars: number;
     evidenceItems: number;
+    mode: "full" | "paged";
+    hotSourceChars: number;
+    hotPacketChars: number;
+    hotItems: Array<Record<string, unknown>>;
+    evidenceMapChars: number;
+    orientationChars: number;
+    workingSetPath: string | null;
+    workingSetChars: number;
+    workingSetMapChars: number;
+    workingSetSha256: string | null;
+    workingSetSegments: number;
+    workingSetRefs: number;
+    mappedVersions: string[];
+    checkpointChars: number;
+    checkpointSha256: string | null;
   } | null = null;
+  type ResearchCheckpointRequest = {
+    prompt: string;
+    sourceChars: number;
+    evidenceItems: number;
+    latestResultChars: number;
+    promptChars: number;
+    evidenceMapChars: number;
+    orientationChars: number;
+    priorBriefChars: number;
+    resumeDrafting: boolean;
+  };
+  let pendingResearchCheckpoint: ResearchCheckpointRequest | null = null;
+  let activeResearchCheckpoint: ResearchCheckpointRequest | null = null;
   let pendingResearchContextRefresh: {
     prompt: string;
     sourceChars: number;
     evidenceItems: number;
     latestResultChars: number;
+    promptChars: number;
+    evidenceMapChars: number;
+    orientationChars: number;
+    briefChars: number;
   } | null = null;
   let draftingContextPrompt: string | null = null;
+  let draftingDomainGuidance: string | undefined;
+  let draftingCorrectionContext: string | null = null;
   let draftingPhase = false;
+  const queuePagedEvidenceHandoff = async (domainGuidance?: string) => {
+    if (domainGuidance?.trim()) draftingDomainGuidance = domainGuidance.trim();
+    const handoff = await compilePagedEvidenceHandoff({
+      state: evidenceExposure,
+      load: loadEvidenceSource,
+      originalRequest: lastUser?.content ?? "",
+      researchBrief,
+      orientation: [...researchOrientation.values()],
+      workingSetPath: WORKING_SET_PATH,
+      hotMaxChars: hotEvidenceMaxChars,
+      domainGuidance: draftingDomainGuidance,
+    });
+    localWorkingSets.set(WORKING_SET_PATH, handoff.workingSet);
+    draftingContextPrompt = handoff.prompt;
+    pendingEvidenceHandoff = {
+      prompt: handoff.prompt,
+      sourceChars: handoff.sourceChars,
+      evidenceItems: handoff.manifest.length,
+      mode: "paged",
+      hotSourceChars: handoff.hotSourceChars,
+      hotPacketChars: handoff.hotPacketChars,
+      hotItems: handoff.hotItems,
+      evidenceMapChars: handoff.evidenceMapChars,
+      orientationChars: handoff.orientationChars,
+      workingSetPath: handoff.workingSet.path,
+      workingSetChars: handoff.workingSet.text.length,
+      workingSetMapChars: handoff.workingSet.mapChars,
+      workingSetSha256: createHash("sha256")
+        .update(handoff.workingSet.text)
+        .digest("hex"),
+      workingSetSegments: handoff.workingSet.segments.length,
+      workingSetRefs: handoff.workingSet.refs.length,
+      mappedVersions: handoff.workingSet.mappedVersions,
+      checkpointChars: researchBrief.length,
+      checkpointSha256: researchBrief
+        ? createHash("sha256").update(researchBrief).digest("hex")
+        : null,
+    };
+    return handoff;
+  };
   // A Codex continuation is valid only for the exact tool schema fingerprint
   // under which it was created. Progressive disclosure mutates that schema.
   let providerSessionCompatible = true;
@@ -1467,14 +1620,207 @@ export async function streamAnonymousChat(params: {
   const runTurnTools = async (
     calls: Parameters<typeof runLocalAssistantTools>[1],
   ) => {
+    if (researchCheckpointPhase) {
+      const checkpoint = calls.find(
+        (call) => call.name === researchCheckpointTool.function.name,
+      );
+      const brief =
+        typeof checkpoint?.input.brief === "string"
+          ? checkpoint.input.brief.trim()
+          : "";
+      const hasContinueResearch =
+        typeof checkpoint?.input.continue_research === "boolean";
+      const requestedContinueResearch =
+        checkpoint?.input.continue_research === true;
+      const resumeDrafting = activeResearchCheckpoint?.resumeDrafting === true;
+      const validCheckpoint =
+        Boolean(brief) &&
+        brief.length <= researchCheckpointMaxChars &&
+        hasContinueResearch;
+      const checkpointNumber =
+        validCheckpoint && !resumeDrafting
+          ? initialResearchCheckpointCount + 1
+          : initialResearchCheckpointCount;
+      const maxInitialResearchReached =
+        validCheckpoint &&
+        !resumeDrafting &&
+        checkpointNumber >= INITIAL_RESEARCH_CHECKPOINT_MAX_COUNT;
+      const continueResearch =
+        !resumeDrafting &&
+        continueInitialResearch(
+          requestedContinueResearch,
+          checkpointNumber,
+        );
+      let refresh: Awaited<
+        ReturnType<typeof compileCheckpointedEvidenceResearchRefresh>
+      > | null = null;
+      if (validCheckpoint) {
+        researchBrief = brief;
+        if (resumeDrafting) {
+          await queuePagedEvidenceHandoff(
+            draftingCorrectionContext ?? undefined,
+          );
+        } else {
+          initialResearchCheckpointCount = checkpointNumber;
+          initialResearchComplete = !continueResearch;
+          refresh = await compileCheckpointedEvidenceResearchRefresh({
+            state: evidenceExposure,
+            load: loadEvidenceSource,
+            originalRequest: lastUser?.content ?? "",
+            researchBrief,
+            continueResearch,
+            orientation: [...researchOrientation.values()],
+          });
+          pendingResearchContextRefresh = {
+            prompt: refresh.prompt,
+            sourceChars: refresh.sourceChars,
+            evidenceItems: refresh.manifest.length,
+            latestResultChars: 0,
+            promptChars: refresh.promptChars,
+            evidenceMapChars: refresh.evidenceMapChars,
+            orientationChars: refresh.orientationChars,
+            briefChars: refresh.briefChars,
+          };
+        }
+        turnDocumentEvents.push({
+          type: RESEARCH_CHECKPOINT_RECEIPT_EVENT,
+          schema_version: 1,
+          brief: researchBrief,
+          brief_sha256: createHash("sha256").update(researchBrief).digest("hex"),
+          brief_chars: researchBrief.length,
+          checkpoint_number: checkpointNumber,
+          initial_research_checkpoint_max_count:
+            INITIAL_RESEARCH_CHECKPOINT_MAX_COUNT,
+          continue_research: resumeDrafting ? false : continueResearch,
+          continue_research_requested: requestedContinueResearch,
+          resume_mode: resumeDrafting ? "drafting" : "research",
+          evidence_union_unique_source_chars:
+            evidenceExposure.uniqueSourceChars,
+        });
+      }
+      const results: NormalizedToolResult[] = calls.map((call) => {
+        if (call !== checkpoint) {
+          return {
+            ...toolReply(call.id, {
+              ok: false,
+              error: "Only checkpoint_research is available in this phase.",
+            }),
+            status: "error",
+          };
+        }
+        if (
+          !brief ||
+          brief.length > researchCheckpointMaxChars ||
+          !hasContinueResearch
+        ) {
+          return {
+            ...toolReply(call.id, {
+              ok: false,
+              error: `brief must contain 1-${researchCheckpointMaxChars} characters and continue_research must be boolean.`,
+            }),
+            status: "error",
+          };
+        }
+        return {
+          ...toolReply(call.id, {
+            ok: true,
+            status: "research_checkpoint_saved",
+            brief_chars: brief.length,
+            continue_research: continueResearch,
+            continue_research_requested: requestedContinueResearch,
+            checkpoint_number: checkpointNumber,
+            initial_research_checkpoint_max_count:
+              INITIAL_RESEARCH_CHECKPOINT_MAX_COUNT,
+            max_initial_research_reached: maxInitialResearchReached,
+          }),
+          status: "ok",
+          terminal: true,
+        };
+      });
+      if (process.env.MIKE_BENCHMARK_TRACE_TOOLS === "1") {
+        for (const [index, call] of calls.entries()) {
+          const toolResult = results[index];
+          sseWrite(res, {
+            type: "tool_call_result",
+            id: call.id,
+            name: call.name,
+            phase: "checkpoint",
+            ok: toolResult.status !== "error",
+            status: toolResult.status,
+            content_chars: toolResult.content.length,
+            content_sha256: createHash("sha256")
+              .update(toolResult.content)
+              .digest("hex"),
+            content_preview: toolResult.content,
+          });
+        }
+        if (refresh || pendingEvidenceHandoff) {
+          const checkpointInputChars =
+            (activeResearchCheckpoint?.priorBriefChars ?? 0) +
+            (activeResearchCheckpoint?.latestResultChars ?? 0);
+          sseWrite(res, {
+            type: "research_checkpoint",
+            brief: researchBrief,
+            brief_chars: researchBrief.length,
+            brief_sha256: createHash("sha256")
+              .update(researchBrief)
+              .digest("hex"),
+            continue_research: activeResearchCheckpoint?.resumeDrafting
+              ? false
+              : continueResearch,
+            continue_research_requested: requestedContinueResearch,
+            checkpoint_number: checkpointNumber,
+            initial_research_checkpoint_max_count:
+              INITIAL_RESEARCH_CHECKPOINT_MAX_COUNT,
+            max_initial_research_reached: maxInitialResearchReached,
+            prior_brief_chars:
+              activeResearchCheckpoint?.priorBriefChars ?? 0,
+            latest_result_chars:
+              activeResearchCheckpoint?.latestResultChars ?? 0,
+            checkpoint_input_chars: checkpointInputChars,
+            compression_ratio:
+              checkpointInputChars > 0
+                ? Math.round(
+                    (researchBrief.length / checkpointInputChars) * 10_000,
+                  ) / 10_000
+                : null,
+            prompt_chars: activeResearchCheckpoint?.promptChars ?? 0,
+            evidence_map_chars:
+              activeResearchCheckpoint?.evidenceMapChars ?? 0,
+            orientation_chars:
+              activeResearchCheckpoint?.orientationChars ?? 0,
+            evidence_items:
+              refresh?.manifest.length ?? pendingEvidenceHandoff?.evidenceItems ?? 0,
+            source_chars:
+              refresh?.sourceChars ?? pendingEvidenceHandoff?.sourceChars ?? 0,
+            resume_mode: activeResearchCheckpoint?.resumeDrafting
+              ? "drafting"
+              : "research",
+          });
+        }
+      }
+      return results;
+    }
     // The schemas on this request are the capability boundary. A model may
     // remember or guess a deferred name, but it cannot execute it until a
     // completed discovery call makes it active on the next iteration.
-    const allowedCalls = calls.filter((call) => activeToolNames.has(call.name));
-    const allowedResults = allowedCalls.length
-      ? await runLocalAssistantTools(
+    const initialResearchClosed =
+      pagedHandoffEnabled && !draftingPhase && initialResearchComplete;
+    const allowedCalls = calls.filter(
+      (call) =>
+        activeToolNames.has(call.name) &&
+        (!initialResearchClosed || call.name === "describe_tools"),
+    );
+    const mixedMutationBatch =
+      allowedCalls.some((call) => LOCAL_MUTATION_TOOL_NAMES.has(call.name)) &&
+      allowedCalls.some((call) => !LOCAL_MUTATION_TOOL_NAMES.has(call.name));
+    const firstCalls = mixedMutationBatch
+      ? allowedCalls.filter((call) => !LOCAL_MUTATION_TOOL_NAMES.has(call.name))
+      : allowedCalls;
+    const runAllowedCalls = (batch: typeof allowedCalls) =>
+      runLocalAssistantTools(
           userId,
-          allowedCalls,
+          batch,
           a2ajLookups,
           a2ajDocuments,
           courtlistenerState,
@@ -1486,30 +1832,154 @@ export async function streamAnonymousChat(params: {
           localTurnEditState,
           localTurnReadState,
           localWorkingSets,
-        )
+        );
+    const allowedResults = firstCalls.length
+      ? await runAllowedCalls(firstCalls)
       : [];
+    const evidenceReviewRequired =
+      mixedMutationBatch &&
+      allowedResults.some(
+        (result) =>
+          Boolean(result.evidenceSegments?.length) ||
+          Boolean(result.evidenceRefs?.length),
+      );
+    if (mixedMutationBatch && !evidenceReviewRequired) {
+      const mutationCalls = allowedCalls.filter((call) =>
+        LOCAL_MUTATION_TOOL_NAMES.has(call.name),
+      );
+      if (mutationCalls.length) {
+        allowedResults.push(...(await runAllowedCalls(mutationCalls)));
+      }
+    }
     let results: NormalizedToolResult[] = calls.map(
       (call) =>
         allowedResults.find(
           (candidate) => candidate.tool_use_id === call.id,
         ) ??
-        toolReply(call.id, {
-          ok: false,
-          error: progressiveDisclosure
-            ? `Tool '${call.name}' is not loaded. Call describe_tools for the matching domain, then retry it on the next tool-call iteration.`
-            : `Tool '${call.name}' is not available.`,
-        }),
+        (initialResearchClosed && call.name !== "describe_tools"
+          ? {
+              ...toolReply(call.id, {
+                ok: false,
+                status: "initial_research_complete",
+                error:
+                  "Initial research is complete. Open drafting with describe_tools; draft/check may reopen targeted research for a concrete gap.",
+              }),
+              status: "error" as const,
+            }
+          :
+        (evidenceReviewRequired && LOCAL_MUTATION_TOOL_NAMES.has(call.name)
+          ? {
+              ...toolReply(call.id, {
+                ok: false,
+                status: "evidence_review_required",
+                error:
+                  "Evidence retrieval and document mutation must use separate tool-call batches so the evidence can be reviewed first.",
+              }),
+              status: "error" as const,
+            }
+          : toolReply(call.id, {
+              ok: false,
+              error: progressiveDisclosure
+                ? `Tool '${call.name}' is not loaded. Call describe_tools for the matching domain, then retry it on the next tool-call iteration.`
+                : `Tool '${call.name}' is not available.`,
+            }))),
     );
-    if (contextHandoffEnabled) {
+    if (pagedHandoffEnabled && draftingPhase) {
+      const reviewedWorkingSet = localWorkingSets.get(WORKING_SET_PATH);
+      if (reviewedWorkingSet?.demandPaged) {
+        results = results.map((result) =>
+          markReviewedUnionEvidence(result, reviewedWorkingSet),
+        );
+      }
+    }
+    if (evidenceTrackingEnabled) {
       results = await Promise.all(
-        results.map((toolResult) =>
-          applyEvidenceExposure(
+        results.map(async (toolResult) => {
+          const unionResult = await applyEvidenceExposure(
             evidenceExposure,
             toolResult,
             loadEvidenceSource,
-          ),
-        ),
+            { skipDurableUnionBacked: true },
+          );
+          const mountedEvidence =
+            toolResult.evidenceSegments?.some(
+              (segment) => segment.durableUnionBacked,
+            ) ||
+            toolResult.evidenceRefs?.some((ref) => ref.durableUnionBacked);
+          // A mounted read is the recovery path after provider-native
+          // compaction. Keep it visible in the continuous session; its own
+          // Grep grants and small page cap bound duplicate reads.
+          const contextResult =
+            continuousEvidenceEnabled && mountedEvidence
+              ? toolResult
+              : await applyEvidenceExposure(
+                  contextEvidenceExposure,
+                  toolResult,
+                  loadEvidenceSource,
+                );
+          return {
+            ...contextResult,
+            ...(unionResult.exposure && {
+              unionExposure: unionResult.exposure,
+            }),
+          };
+        }),
       );
+    }
+    if (pagedHandoffEnabled && !draftingPhase) {
+      for (const call of calls) {
+        if (call.name !== "Glob") continue;
+        const toolResult = results.find(
+          (candidate) => candidate.tool_use_id === call.id,
+        );
+        if (
+          !toolResult ||
+          toolResult.status === "error" ||
+          toolResult.content.length > 8_000
+        ) {
+          continue;
+        }
+        const key = `${call.name}:${JSON.stringify(call.input)}`;
+        const next = new Map(researchOrientation);
+        next.set(key, { name: call.name, content: toolResult.content });
+        const totalChars = [...next.values()].reduce(
+          (total, item) => total + item.content.length,
+          0,
+        );
+        if (totalChars <= 12_000) {
+          researchOrientation.clear();
+          for (const [entryKey, value] of next) {
+            researchOrientation.set(entryKey, value);
+          }
+        }
+      }
+    }
+    const batchHasNewEvidence = results.some(
+      (result) => (result.unionExposure?.uniqueSourceChars ?? 0) > 0,
+    );
+    if (continuousEvidenceEnabled && batchHasNewEvidence) {
+      const workingSet = await compileEvidenceWorkingSet({
+        state: evidenceExposure,
+        load: loadEvidenceSource,
+        path: WORKING_SET_PATH,
+      });
+      localWorkingSets.set(WORKING_SET_PATH, workingSet);
+      continuousWorkingSetUpdates += 1;
+      if (process.env.MIKE_BENCHMARK_TRACE_TOOLS === "1") {
+        sseWrite(res, {
+          type: "evidence_working_set_update",
+          path: workingSet.path,
+          update: continuousWorkingSetUpdates,
+          source_chars: workingSet.sourceChars,
+          text_chars: workingSet.text.length,
+          text_sha256: createHash("sha256")
+            .update(workingSet.text)
+            .digest("hex"),
+          mapped_versions: workingSet.mappedVersions,
+          segment_count: workingSet.segments.length,
+          ref_count: workingSet.refs.length,
+        });
+      }
     }
     const traceToolResults = () => {
       if (process.env.MIKE_BENCHMARK_TRACE_TOOLS !== "1") return;
@@ -1531,6 +2001,11 @@ export async function streamAnonymousChat(params: {
           type: "tool_call_result",
           id: call.id,
           name: call.name,
+          phase: continuousEvidenceEnabled
+            ? "continuous"
+            : draftingPhase
+              ? "drafting"
+              : "research",
           ok:
             result?.status !== "error" &&
             (payload?.ok !== false ||
@@ -1544,6 +2019,9 @@ export async function streamAnonymousChat(params: {
               )),
           ...(result?.status && { status: result.status }),
           ...(typeof payload?.error === "string" && { error: payload.error }),
+          ...(["research_checkpoint_pending", "research_checkpoint_required"].includes(
+            String(payload?.status ?? ""),
+          ) && { checkpoint_gate: payload?.status }),
           content_chars: result?.content.length ?? 0,
           content_sha256: createHash("sha256").update(traceContent).digest("hex"),
           content_preview:
@@ -1565,6 +2043,16 @@ export async function streamAnonymousChat(params: {
               result?.exposure?.suppressedSourceChars ??
               payload?.suppressed_source_chars,
           }),
+          ...(result?.unionExposure && {
+            union_unique_source_chars:
+              result.unionExposure.uniqueSourceChars,
+            union_suppressed_source_chars:
+              result.unionExposure.suppressedSourceChars,
+          }),
+          ...((result?.reviewedUnionBackedSourceChars ?? 0) > 0 && {
+            reviewed_union_reuse_source_chars:
+              result?.reviewedUnionBackedSourceChars,
+          }),
           ...(typeof payload?.projection === "string" && {
             projection: payload.projection,
           }),
@@ -1577,8 +2065,28 @@ export async function streamAnonymousChat(params: {
               version_id: segment.versionId,
               start: segment.start,
               end: segment.end,
+              ...(segment.filename && { filename: segment.filename }),
               ...(segment.kind && { kind: segment.kind }),
               ...(segment.locator && { locator: segment.locator }),
+              ...(segment.projection && { projection: segment.projection }),
+              ...(segment.durableUnionBacked && {
+                durable_union_backed: true,
+              }),
+            })),
+          }),
+          ...(result?.evidenceRefs?.length && {
+            evidence_refs: result.evidenceRefs.map((ref) => ({
+              handle: ref.handle,
+              filename: ref.filename ?? ref.handle,
+              ...(ref.locator && { locator: ref.locator }),
+              chars: ref.text.length,
+              exact_sha256:
+                ref.exactSha256 ||
+                createHash("sha256").update(ref.text).digest("hex"),
+              ...(ref.kind && { kind: ref.kind }),
+              ...(ref.durableUnionBacked && {
+                durable_union_backed: true,
+              }),
             })),
           }),
         });
@@ -1616,47 +2124,108 @@ export async function streamAnonymousChat(params: {
                 (item): item is string => typeof item === "string",
               )
             : undefined;
-          let handoff = await compileEvidenceHandoff({
-            state: evidenceExposure,
-            load: loadEvidenceSource,
-            originalRequest: lastUser?.content ?? "",
-            maxChars: evidenceHandoffCap,
-            carryEvidence,
-            domainGuidance:
-              typeof payload.guidance === "string"
-                ? payload.guidance
-                : undefined,
-          });
-          if (handoff.status === "ready") {
-            draftingContextPrompt = handoff.prompt;
-            pendingEvidenceHandoff = {
-              prompt: handoff.prompt,
-              sourceChars: handoff.sourceChars,
-              evidenceItems: handoff.manifest.length,
-            };
-            toolResult.terminal = true;
-            toolResult.status = "ok";
-            toolResult.content = JSON.stringify({
-              ok: true,
-              status: "draft_handoff_ready",
-              evidence_items: handoff.manifest.length,
-              source_chars: handoff.sourceChars,
-            });
+          const domainGuidance =
+            typeof payload.guidance === "string"
+              ? payload.guidance
+              : undefined;
+          if (pagedHandoffEnabled) {
+            if (batchHasNewEvidence) {
+              needsEvidenceSelection = true;
+              toolResult.status = "ok";
+              toolResult.content = JSON.stringify({
+                ok: false,
+                status: "research_checkpoint_pending",
+                error:
+                  "New evidence in this batch must be checkpointed before drafting opens.",
+              });
+            } else {
+              // The checkpoint agent already reviewed the evidence under a
+              // bounded replacement contract. Do not let the subsequent
+              // capability-discovery call silently rewrite or shrink it.
+              const finalBrief = researchBrief;
+              if (
+                finalBrief.length > researchCheckpointMaxChars ||
+                (!finalBrief && evidenceExposure.uniqueSourceChars > 0)
+              ) {
+                needsEvidenceSelection = true;
+                toolResult.status = "error";
+                toolResult.content = JSON.stringify({
+                  ok: false,
+                  status: "research_checkpoint_required",
+                  error:
+                    `Opening drafting requires a reviewed research checkpoint of 1-${researchCheckpointMaxChars} characters after evidence review.`,
+                });
+              } else {
+                researchBrief = finalBrief;
+                const handoff = await queuePagedEvidenceHandoff(domainGuidance);
+                toolResult.terminal = true;
+                toolResult.status = "ok";
+                toolResult.content = JSON.stringify({
+                  ok: true,
+                  status: "draft_handoff_ready",
+                  mode: "paged",
+                  evidence_items: handoff.manifest.length,
+                  source_chars: handoff.sourceChars,
+                  hot_source_chars: handoff.hotSourceChars,
+                });
+              }
+            }
           } else {
-            needsEvidenceSelection = true;
-            toolResult.status =
-              handoff.status === "error" ? "error" : "selection_required";
-            toolResult.content = JSON.stringify({
-              ok: false,
-              status: handoff.status,
-              error: handoff.message,
-              ...(handoff.manifest.length
-                ? {
-                    evidence_manifest_items: handoff.manifest.length,
-                    evidence_manifest: renderEvidenceManifest(handoff.manifest),
-                  }
-                : {}),
+            const handoff = await compileEvidenceHandoff({
+              state: evidenceExposure,
+              load: loadEvidenceSource,
+              originalRequest: lastUser?.content ?? "",
+              maxChars: evidenceHandoffCap,
+              carryEvidence,
+              domainGuidance,
             });
+            if (handoff.status === "ready") {
+              draftingContextPrompt = handoff.prompt;
+              pendingEvidenceHandoff = {
+                prompt: handoff.prompt,
+                sourceChars: handoff.sourceChars,
+                evidenceItems: handoff.manifest.length,
+                mode: "full",
+                hotSourceChars: 0,
+                hotPacketChars: 0,
+                hotItems: [],
+                evidenceMapChars: 0,
+                orientationChars: 0,
+                workingSetPath: null,
+                workingSetChars: 0,
+                workingSetMapChars: 0,
+                workingSetSha256: null,
+                workingSetSegments: 0,
+                workingSetRefs: 0,
+                mappedVersions: [],
+                checkpointChars: 0,
+                checkpointSha256: null,
+              };
+              toolResult.terminal = true;
+              toolResult.status = "ok";
+              toolResult.content = JSON.stringify({
+                ok: true,
+                status: "draft_handoff_ready",
+                mode: "full",
+                evidence_items: handoff.manifest.length,
+                source_chars: handoff.sourceChars,
+              });
+            } else {
+              needsEvidenceSelection = true;
+              toolResult.status =
+                handoff.status === "error" ? "error" : "selection_required";
+              toolResult.content = JSON.stringify({
+                ok: false,
+                status: handoff.status,
+                error: handoff.message,
+                ...(handoff.manifest.length
+                  ? {
+                      evidence_manifest_items: handoff.manifest.length,
+                      evidence_manifest: renderEvidenceManifest(handoff.manifest),
+                    }
+                  : {}),
+              });
+            }
           }
         }
         // Do not reveal authoring tools while the exact evidence union is
@@ -1695,33 +2264,77 @@ export async function streamAnonymousChat(params: {
     }
     if (
       contextHandoffEnabled &&
-      !draftingPhase &&
+      (!draftingPhase || pagedHandoffEnabled) &&
       !pendingEvidenceHandoff &&
-      !results.some((result) =>
-        ["error", "selection_required"].includes(result.status ?? ""),
-      )
+      (pagedHandoffEnabled ||
+        !results.some((result) =>
+          ["error", "selection_required"].includes(result.status ?? ""),
+        ))
     ) {
       const refreshResult = results.find(
-        (result) => (result.exposure?.uniqueSourceChars ?? 0) > 0,
+        (result) => (result.unionExposure?.uniqueSourceChars ?? 0) > 0,
       );
       if (refreshResult) {
-        const refresh = await compileEvidenceResearchRefresh({
-          state: evidenceExposure,
-          load: loadEvidenceSource,
-          originalRequest: lastUser?.content ?? "",
-          latestResults: calls.map((call) => ({
-            name: call.name,
-            content:
-              results.find((result) => result.tool_use_id === call.id)?.content ??
-              "Tool result unavailable.",
-          })),
-        });
-        pendingResearchContextRefresh = {
-          prompt: refresh.prompt,
-          sourceChars: refresh.sourceChars,
-          evidenceItems: refresh.manifest.length,
-          latestResultChars: refresh.latestResultChars,
-        };
+        const latestResults = [
+          ...(draftingCorrectionContext
+            ? [
+                {
+                  name: "DRAFT/CHECK CONTINUATION",
+                  content: draftingCorrectionContext,
+                },
+              ]
+            : []),
+          ...calls
+            .filter(
+              (call) =>
+                !(
+                  pagedHandoffEnabled &&
+                  ["Glob", "describe_tools"].includes(call.name)
+                ),
+            )
+            .map((call) => ({
+              name: call.name,
+              content:
+                results.find((result) => result.tool_use_id === call.id)?.content ??
+                "Tool result unavailable.",
+            })),
+        ];
+        if (pagedHandoffEnabled) {
+          const checkpoint = await compileEvidenceResearchCheckpoint({
+            state: evidenceExposure,
+            load: loadEvidenceSource,
+            originalRequest: lastUser?.content ?? "",
+            priorBrief: researchBrief,
+            orientation: [...researchOrientation.values()],
+            latestResults,
+            maxBriefChars: researchCheckpointMaxChars,
+            forceComplete:
+              !draftingPhase &&
+              initialResearchCheckpointCount + 1 >=
+                INITIAL_RESEARCH_CHECKPOINT_MAX_COUNT,
+          });
+          pendingResearchCheckpoint = {
+            ...checkpoint,
+            resumeDrafting: draftingPhase,
+          };
+        } else {
+          const refresh = await compileEvidenceResearchRefresh({
+            state: evidenceExposure,
+            load: loadEvidenceSource,
+            originalRequest: lastUser?.content ?? "",
+            latestResults,
+          });
+          pendingResearchContextRefresh = {
+            prompt: refresh.prompt,
+            sourceChars: refresh.sourceChars,
+            evidenceItems: refresh.manifest.length,
+            latestResultChars: refresh.latestResultChars,
+            promptChars: refresh.promptChars,
+            evidenceMapChars: refresh.evidenceMapChars,
+            orientationChars: refresh.orientationChars,
+            briefChars: refresh.briefChars,
+          };
+        }
         refreshResult.terminal = true;
       }
     }
@@ -1796,11 +2409,53 @@ export async function streamAnonymousChat(params: {
           type: "benchmark_surface",
           navigation_shape: NAV_TOOL_SHAPE,
           coding_shape: codingShape,
+          retrieval_experiment:
+            process.env.MIKE_RETRIEVAL_EXPERIMENT || null,
+          tool_description_variant:
+            process.env.MIKE_TOOL_DESCRIPTION_VARIANT || "operational",
           upstream_mike_shape: UPSTREAM_MIKE_TOOL_SHAPE,
           model_coverage_routing: MODEL_COVERAGE_ROUTING,
           whole_read_max_chars: WHOLE_READ_MAX_CHARS || null,
+          tool_result_max_chars: MAX_TOOL_RESULT_CHARS,
+          suppress_duplicate_whole_reads:
+            SUPPRESS_DUPLICATE_WHOLE_READS,
+          resident_authoring: RESIDENT_AUTHORING_ENABLED,
           progressive_disclosure: progressiveDisclosure,
           context_handoff: contextHandoffEnabled,
+          continuous_evidence: continuousEvidenceEnabled,
+          trajectory_mode: contextHandoffEnabled ? "handoff" : "continuous",
+          draft_handoff_mode: contextHandoffEnabled
+            ? pagedHandoffEnabled
+              ? "paged"
+              : "full"
+            : "none",
+          sla_workflow: slaWorkflowEnabled(),
+          greenfield_review: process.env.MIKE_GREENFIELD_REVIEW === "1",
+          research_checkpoint_max_chars: pagedHandoffEnabled
+            ? researchCheckpointMaxChars
+            : null,
+          initial_research_checkpoint_max_count: pagedHandoffEnabled
+            ? INITIAL_RESEARCH_CHECKPOINT_MAX_COUNT
+            : null,
+          draft_hot_evidence_max_chars: pagedHandoffEnabled
+            ? hotEvidenceMaxChars
+            : null,
+          working_set_page_max_chars:
+            pagedHandoffEnabled || continuousEvidenceEnabled
+            ? WORKING_SET_PAGE_MAX_CHARS
+            : null,
+          working_set_grep_default_head_limit:
+            pagedHandoffEnabled || continuousEvidenceEnabled
+            ? WORKING_SET_GREP_DEFAULT_HEAD_LIMIT
+            : null,
+          working_set_grep_max_head_limit:
+            pagedHandoffEnabled || continuousEvidenceEnabled
+            ? WORKING_SET_GREP_MAX_HEAD_LIMIT
+            : null,
+          working_set_grep_line_max_chars:
+            pagedHandoffEnabled || continuousEvidenceEnabled
+            ? WORKING_SET_GREP_LINE_MAX_CHARS
+            : null,
           research_context_refresh: contextHandoffEnabled,
           evidence_handoff_max_chars: contextHandoffEnabled
             ? evidenceHandoffCap
@@ -1836,9 +2491,12 @@ export async function streamAnonymousChat(params: {
       continuationId?: string,
       slaRepair?: { draft: string; findings: string },
       freshPrompt?: string,
+      freshSystemPrompt?: string,
     ) => streamChatWithTools({
       model: selectedModel,
-      systemPrompt: continuationId ? "" : systemPrompt,
+      systemPrompt: continuationId
+        ? ""
+        : freshSystemPrompt ?? systemPrompt,
       messages: freshPrompt
         ? [{ role: "user" as const, content: freshPrompt }]
         : [
@@ -1863,6 +2521,13 @@ export async function streamAnonymousChat(params: {
       reasoningEffort: params.reasoningEffort,
       serviceTier: params.serviceTier,
       compactThreshold: openAICompactThreshold,
+      promptCacheKey: ["openai", "codex"].includes(responseProvider)
+        ? providerSessionCompatibilityKey({
+            schema_version: 1,
+            provider: responseProvider,
+            chat_id: chat.id,
+          })
+        : undefined,
       abortSignal: streamAbort.signal,
       tools: activeTools,
       resolveTools: progressiveDisclosure ? () => activeTools : undefined,
@@ -1980,6 +2645,13 @@ export async function streamAnonymousChat(params: {
             ...(process.env.MIKE_BENCHMARK_TRACE_TOOLS === "1" && {
               id: call.id,
               input: call.input,
+              phase: researchCheckpointPhase
+                ? "checkpoint"
+                : continuousEvidenceEnabled
+                  ? "continuous"
+                  : draftingPhase
+                    ? "drafting"
+                    : "research",
             }),
             ...(label && { label }),
           });
@@ -2003,15 +2675,104 @@ export async function streamAnonymousChat(params: {
       }
     }
 
-    while (!pendingAskInputs) {
+    const drainPendingEvidenceTransitions = async () => {
+      while (!pendingAskInputs) {
+      const checkpointRequest = pendingResearchCheckpoint as {
+        prompt: string;
+        sourceChars: number;
+        evidenceItems: number;
+        latestResultChars: number;
+        promptChars: number;
+        evidenceMapChars: number;
+        orientationChars: number;
+        priorBriefChars: number;
+        resumeDrafting: boolean;
+      } | null;
+      if (checkpointRequest) {
+        pendingResearchCheckpoint = null;
+        activeResearchCheckpoint = checkpointRequest;
+        providerSessionCompatible = false;
+        if (isCodex) discardProviderSession();
+        rawText = "";
+        visibleText = "";
+        contentBoundaryPending = false;
+        splitter.reset();
+        sseWrite(res, { type: "content_reset" });
+        if (process.env.MIKE_BENCHMARK_TRACE_TOOLS === "1") {
+          sseWrite(res, {
+            type: "research_checkpoint_request",
+            evidence_items: checkpointRequest.evidenceItems,
+            source_chars: checkpointRequest.sourceChars,
+            latest_result_chars: checkpointRequest.latestResultChars,
+            prior_brief_chars: checkpointRequest.priorBriefChars,
+            prompt_chars: checkpointRequest.promptChars,
+            evidence_map_chars: checkpointRequest.evidenceMapChars,
+            orientation_chars: checkpointRequest.orientationChars,
+            resume_mode: checkpointRequest.resumeDrafting
+              ? "drafting"
+              : "research",
+          });
+        }
+        const priorTools = [...activeTools];
+        const priorToolNames = [...activeToolNames];
+        activeTools.splice(0, activeTools.length, researchCheckpointTool);
+        activeToolNames.clear();
+        activeToolNames.add(researchCheckpointTool.function.name);
+        researchCheckpointPhase = true;
+        try {
+          providerActivity = false;
+          providerResult = await runProvider(
+            undefined,
+            undefined,
+            checkpointRequest.prompt,
+            "You maintain a compact research checkpoint. Call checkpoint_research with the replacement brief.",
+          );
+        } finally {
+          researchCheckpointPhase = false;
+          activeTools.splice(0, activeTools.length, ...priorTools);
+          activeToolNames.clear();
+          for (const name of priorToolNames) activeToolNames.add(name);
+        }
+        if (!pendingResearchContextRefresh && !pendingEvidenceHandoff) {
+          if (process.env.MIKE_BENCHMARK_TRACE_TOOLS === "1") {
+            sseWrite(res, {
+              type: "research_checkpoint_failed",
+              reason: "checkpoint_research was not completed",
+              prompt_chars: checkpointRequest.promptChars,
+            });
+          }
+          throw new Error(
+            "Research checkpoint was not saved; refusing to continue with unreviewed evidence.",
+          );
+        }
+        activeResearchCheckpoint = null;
+        continue;
+      }
+
       const completedHandoff = pendingEvidenceHandoff as {
         prompt: string;
         sourceChars: number;
         evidenceItems: number;
+        mode: "full" | "paged";
+        hotSourceChars: number;
+        hotPacketChars: number;
+        hotItems: Array<Record<string, unknown>>;
+        evidenceMapChars: number;
+        orientationChars: number;
+        workingSetPath: string | null;
+        workingSetChars: number;
+        workingSetMapChars: number;
+        workingSetSha256: string | null;
+        workingSetSegments: number;
+        workingSetRefs: number;
+        mappedVersions: string[];
+        checkpointChars: number;
+        checkpointSha256: string | null;
       } | null;
       if (completedHandoff) {
         pendingEvidenceHandoff = null;
         draftingPhase = true;
+        contextEvidenceExposure = createEvidenceExposureState();
         providerSessionCompatible = false;
         const describeIndex = activeTools.findIndex(
           (schema) => schema.function.name === "describe_tools",
@@ -2029,10 +2790,47 @@ export async function streamAnonymousChat(params: {
             type: "evidence_handoff",
             evidence_items: completedHandoff.evidenceItems,
             source_chars: completedHandoff.sourceChars,
+            handoff_mode: completedHandoff.mode,
+            hot_source_chars: completedHandoff.hotSourceChars,
+            hot_packet_chars: completedHandoff.hotPacketChars,
+            hot_items: completedHandoff.hotItems,
+            evidence_map_chars: completedHandoff.evidenceMapChars,
+            orientation_chars: completedHandoff.orientationChars,
+            initial_prompt_chars: completedHandoff.prompt.length,
+            checkpoint_chars: completedHandoff.checkpointChars,
+            checkpoint_sha256: completedHandoff.checkpointSha256,
+            initial_research_checkpoint_count:
+              initialResearchCheckpointCount,
+            initial_research_checkpoint_max_count:
+              INITIAL_RESEARCH_CHECKPOINT_MAX_COUNT,
+            working_set_path: completedHandoff.workingSetPath,
+            working_set_page_max_chars: WORKING_SET_PAGE_MAX_CHARS,
+            working_set_chars: completedHandoff.workingSetChars,
+            working_set_map_chars: completedHandoff.workingSetMapChars,
+            working_set_sha256: completedHandoff.workingSetSha256,
+            working_set_segment_count: completedHandoff.workingSetSegments,
+            working_set_ref_count: completedHandoff.workingSetRefs,
+            mapped_versions: completedHandoff.mappedVersions,
             prior_unique_source_chars: evidenceExposure.uniqueSourceChars,
             prior_suppressed_source_chars:
               evidenceExposure.suppressedSourceChars,
           });
+          const workingSetReceipt = completedHandoff.workingSetPath
+            ? localWorkingSets.get(completedHandoff.workingSetPath)
+            : null;
+          if (workingSetReceipt) {
+            sseWrite(res, {
+              type: "evidence_working_set_receipt",
+              path: workingSetReceipt.path,
+              text: workingSetReceipt.text,
+              text_sha256: completedHandoff.workingSetSha256,
+              source_chars: workingSetReceipt.sourceChars,
+              map_chars: workingSetReceipt.mapChars,
+              mapped_versions: workingSetReceipt.mappedVersions,
+              segments: workingSetReceipt.segments,
+              refs: workingSetReceipt.refs ?? [],
+            });
+          }
         }
         providerActivity = false;
         providerResult = await runProvider(
@@ -2048,9 +2846,14 @@ export async function streamAnonymousChat(params: {
         sourceChars: number;
         evidenceItems: number;
         latestResultChars: number;
+        promptChars: number;
+        evidenceMapChars: number;
+        orientationChars: number;
+        briefChars: number;
       } | null;
       if (!completedRefresh) break;
       pendingResearchContextRefresh = null;
+      contextEvidenceExposure = createEvidenceExposureState();
       if (isCodex) discardProviderSession();
       rawText = "";
       visibleText = "";
@@ -2063,6 +2866,10 @@ export async function streamAnonymousChat(params: {
           evidence_items: completedRefresh.evidenceItems,
           source_chars: completedRefresh.sourceChars,
           latest_result_chars: completedRefresh.latestResultChars,
+          prompt_chars: completedRefresh.promptChars,
+          evidence_map_chars: completedRefresh.evidenceMapChars,
+          orientation_chars: completedRefresh.orientationChars,
+          checkpoint_chars: completedRefresh.briefChars,
         });
       }
       providerActivity = false;
@@ -2071,7 +2878,9 @@ export async function streamAnonymousChat(params: {
         undefined,
         completedRefresh.prompt,
       );
-    }
+      }
+    };
+    await drainPendingEvidenceTransitions();
 
     flushTail();
     await finalizeLegalEvidenceExperiment({
@@ -2168,20 +2977,42 @@ export async function streamAnonymousChat(params: {
         visibleText = "";
         contentBoundaryPending = false;
         splitter.reset();
+        contextEvidenceExposure = createEvidenceExposureState();
         sseWrite(res, { type: "content_reset" });
+        draftingCorrectionContext = [
+          "You are resuming a deterministic draft-check correction. Revise the current durable artifact; do not restart unrelated research.",
+          ...(deliverable.artifacts.length
+            ? [
+                "CURRENT DURABLE ARTIFACTS",
+                deliverable.artifacts.join("\n"),
+                "Read an artifact by its exact filename if its current wording is needed.",
+              ]
+            : []),
+          "CHECK FINDINGS",
+          correctionPrompt,
+        ]
+          .join("\n\n")
+          .slice(0, researchCheckpointMaxChars);
         const findings =
           correctionPrompt +
           (localWorkingSets.has(WORKING_SET_PATH)
-            ? `\n\nReuse the evidence already gathered: first Read(file_path=${JSON.stringify(WORKING_SET_PATH)}). Add only targeted missing evidence with Grep output_mode="working_set".`
+            ? pagedHandoffEnabled
+              ? `\n\nReuse the reviewed evidence already gathered: search it with Grep(path=${JSON.stringify(WORKING_SET_PATH)}, output_mode="content"), then Read only an exact recipe returned by that Grep. Use source or provider tools beyond the mounted union only for a concrete missing fact; the host will checkpoint new evidence before correction resumes.`
+              : `\n\nReuse the evidence already gathered: first Read(file_path=${JSON.stringify(WORKING_SET_PATH)}). Add only targeted missing evidence.`
             : "");
-        if (draftingContextPrompt) {
-          await runProvider(
-            undefined,
-            undefined,
-            `${draftingContextPrompt}\n\nCANDIDATE DELIVERABLE\n${draft}\n\nCHECK FINDINGS\n${findings}\n\nReturn or apply the complete corrected deliverable.`,
-          );
-        } else {
-          await runProvider(undefined, { draft, findings });
+        try {
+          if (draftingContextPrompt) {
+            await runProvider(
+              undefined,
+              undefined,
+              `${draftingContextPrompt}\n\nCANDIDATE DELIVERABLE\n${draft}\n\nCHECK FINDINGS\n${findings}\n\nReturn or apply the complete corrected deliverable.`,
+            );
+          } else {
+            await runProvider(undefined, { draft, findings });
+          }
+          await drainPendingEvidenceTransitions();
+        } finally {
+          draftingCorrectionContext = null;
         }
         flushTail();
         const revisedAnswer = renderLegalEvidenceAnswer(legalEvidenceState);
@@ -2209,6 +3040,32 @@ export async function streamAnonymousChat(params: {
           ...auditSlaDraft(slaLedger, revised.text).receipt,
         });
       }
+    }
+    if (
+      continuousEvidenceEnabled &&
+      process.env.MIKE_BENCHMARK_TRACE_TOOLS === "1" &&
+      evidenceExposure.uniqueSourceChars > 0
+    ) {
+      const workingSet = await compileEvidenceWorkingSet({
+        state: evidenceExposure,
+        load: loadEvidenceSource,
+        path: WORKING_SET_PATH,
+      });
+      localWorkingSets.set(WORKING_SET_PATH, workingSet);
+      sseWrite(res, {
+        type: "evidence_working_set_receipt",
+        path: workingSet.path,
+        text: workingSet.text,
+        text_sha256: createHash("sha256")
+          .update(workingSet.text)
+          .digest("hex"),
+        source_chars: workingSet.sourceChars,
+        map_chars: workingSet.mapChars,
+        mapped_versions: workingSet.mappedVersions,
+        segments: workingSet.segments,
+        refs: workingSet.refs,
+        update_count: continuousWorkingSetUpdates,
+      });
     }
     const parsedCitations = parseCitations(rawText).map((citation) =>
       createCitation(

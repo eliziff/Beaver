@@ -1,0 +1,178 @@
+{
+  "schema_version": 1,
+  "registered_at": "2026-08-02T17:15:00Z",
+  "status": "preregistered_before_calls",
+  "experiment_class": "visible-development Codex-path side run",
+  "claim_scope": "One continuous Luna trajectory on three visible Harvey LAB development tasks. Do not pool with canonical Claude-product A/B cells, unseen tasks, or differently judged scores.",
+  "decision_record": "docs/hybrid-retrieval-v13-adversarial-audit-2026-08-02.md",
+  "comparators_registration": "docs/retrieval-checkpoint-paged-comparators-registration-2026-08-02.json",
+  "launch_amendment": {
+    "amended_at": "2026-08-02T17:19:00Z",
+    "reason": "The first sandboxed launch strings omitted the codex: provider prefix and failed at network fetch before any model response or result artifact. Before any authorized live call, the commands were corrected to match the already preregistered performer_model and the user-authorized Codex pathway. No model, prompt, source, arm, output path, or acceptance rule changed."
+  },
+  "candidate": {
+    "generation": "v13",
+    "cli_arm": "v13",
+    "performer_model": "codex:gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "service_tier_argument": null,
+    "required_service_tier_reported": "default",
+    "replicates": 1,
+    "run_ids": {
+      "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts": "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts/beaver-v13-codex-gpt-5-6-luna/2026-08-02T17-15-00Z-r1",
+      "tax/draft-transfer-pricing-documentation": "tax/draft-transfer-pricing-documentation/beaver-v13-codex-gpt-5-6-luna/2026-08-02T17-15-00Z-r1",
+      "capital-markets/draft-indenture-for-senior-secured-notes-offering": "capital-markets/draft-indenture-for-senior-secured-notes-offering/beaver-v13-codex-gpt-5-6-luna/2026-08-02T17-15-00Z-r1"
+    }
+  },
+  "candidate_environment": {
+    "MIKE_NAV_SHAPE": "address",
+    "MIKE_TOOL_SHAPE": "coding",
+    "MIKE_RETRIEVAL_EXPERIMENT": "p0-pure-coding",
+    "MIKE_MODEL_COVERAGE_ROUTING": "1",
+    "MIKE_WHOLE_READ_MAX_CHARS": "800000",
+    "MIKE_TOOL_RESULT_CAP": "51200",
+    "MIKE_TOOL_DESCRIPTION_VARIANT": "terse",
+    "MIKE_SUPPRESS_DUPLICATE_WHOLE_READS": "0",
+    "MIKE_CONTEXT_HANDOFF": "0",
+    "MIKE_CONTINUOUS_EVIDENCE": "0",
+    "MIKE_OPENAI_COMPACT_THRESHOLD": "",
+    "MIKE_SLA_WORKFLOW": "0",
+    "MIKE_GREENFIELD_REVIEW": "0"
+  },
+  "held_constant": {
+    "task_split": "visible development",
+    "base_prompt": "lean",
+    "retrieval_prompt_variant": "neutral",
+    "research_tools_disabled": true,
+    "ask_inputs_disabled": true,
+    "progressive_disclosure": true,
+    "sandbox_engine": "docker",
+    "source_selection_policy": "After a truthful Glob inventory, the model chooses complete, targeted, or mixed reads. The host applies one request-independent cumulative complete-text budget and no task classifier.",
+    "durability_policy": "Exact source bytes, extracted text, versions, hashes, pinpoints, provider receipts, tool results, and authored artifacts remain host-side. No model-facing evidence union is mounted."
+  },
+  "tasks": [
+    {
+      "task": "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts",
+      "split_sha256": "c0d270c324eaaeb13a47eb2df309baf468270e4ca04b686e4ed27632a3d36f7d",
+      "instructions_chars": 200,
+      "instructions_sha256": "804acb88a976238cbdf65027b4c873142cfec3c84c9773992e256e40ae02c8a4",
+      "source_documents": 19,
+      "source_bundle_sha256": "f778c5ef888a841432ee70a34d1a8c0d4b0c947a0d19509b4a3834635b23f0e2"
+    },
+    {
+      "task": "tax/draft-transfer-pricing-documentation",
+      "split_sha256": "9886979ad0409f300ccb78413abc4bda020fcde1f288d879d61e59eff1c85957",
+      "instructions_chars": 202,
+      "instructions_sha256": "baa067a9d481a31b85cb9a47a3eebfbc6620e2c5cd23b87e71b2b4f1741d05b7",
+      "source_documents": 25,
+      "source_bundle_sha256": "bc8d591498a818501b7a388d5b93575c5a98f03b25edb2f009f9d166fe4a6647"
+    },
+    {
+      "task": "capital-markets/draft-indenture-for-senior-secured-notes-offering",
+      "split_sha256": "9eb0633b22a0a1e936eeba6980d7e44d23d7f89fc581dfd1697dd3420f34b62a",
+      "instructions_chars": 243,
+      "instructions_sha256": "d9b4b8460380ace783ca538f417843d2edf8f997f0ec3f622f5ea6aebf2f5675",
+      "source_documents": 14,
+      "source_bundle_sha256": "d30b7b0ad6d8c8327f80d8137d4e8c30db52816f8fdfd7b3f08f492a17a82303"
+    }
+  ],
+  "source_fingerprints": {
+    "base_commit": "f1685962b1f04dcdf65f8789c1b20555f1eab3b2",
+    "backend/scripts/lab-beaver-arm.ts": "dcdd8030450a14122471a568537cf020ac00f37e2b04547c736a88d6e15e35d5",
+    "backend/src/routes/chat.ts": "093167ce170653715b890e6062e6c70384dbab4b6440577c2bb01653611dcea5",
+    "backend/src/lib/chat/localAssistantTools.ts": "9843036c8ff1e999a645a256daa04659acb0ec29e99fc771e0f270a44f8b799d",
+    "backend/src/lib/chat/prompts.ts": "05f01db45d005d054b7d71bc3fd86d52f592fbb0b4187839d5879b0f90b99a83",
+    "backend/src/lib/chat/evidenceExposure.ts": "5ff0c262a8b06e6cd8a3edbea5d5877cee098ade6f4ae6aeadcb377dae87169e",
+    "backend/src/lib/chat/slaWorkflow.ts": "561bbedb4aa088136cbc0a5349a4146113c39cb9db37844db84934b044c35af9",
+    "backend/src/lib/llm/openai.ts": "f67d3d14f1b081f9f2ea1fb843998701e20eee0f4fab50480e2cf3f03c919892",
+    "backend/src/lib/llm/codexApi.ts": "53b18e375e8d326d4eade21ade9eb697229110a8b27078a27f219f8f5411fed3",
+    "backend/src/lib/llm/types.ts": "6917ada864730d8a2091ea1eda1387fa973c52e74f24accfbd3343b6f1d7253e",
+    "benchmarks/harvey-labs/evaluation/judge.py": "61979c7613e519fcd37ecfba8d241f979f0320e575cd7a3923c0278aa4577cb7",
+    "docs/hybrid-retrieval-v13-adversarial-audit-2026-08-02.md": "02e9671d6c7dc01f2c4954b3bb1d6229811ad20b4d97e45a89d2ad5c47e23365"
+  },
+  "dynamic_fingerprint_policy": "Each result must preserve the exact task, source bundle, original instructions, system-prompt variants, tool-schema variants, harness sources, runtime configuration, provider tier, and composite SHA-256 fingerprints generated by the sealed run. Uploaded document IDs make dynamic prompt hashes unknowable before launch.",
+  "launch_commands": [
+    "npx tsx scripts/lab-beaver-arm.ts --task corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts --arm v13 --model codex:gpt-5.6-luna --effort high --retrieval-prompt neutral --run-id corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts/beaver-v13-codex-gpt-5-6-luna/2026-08-02T17-15-00Z-r1",
+    "npx tsx scripts/lab-beaver-arm.ts --task tax/draft-transfer-pricing-documentation --arm v13 --model codex:gpt-5.6-luna --effort high --retrieval-prompt neutral --run-id tax/draft-transfer-pricing-documentation/beaver-v13-codex-gpt-5-6-luna/2026-08-02T17-15-00Z-r1",
+    "npx tsx scripts/lab-beaver-arm.ts --task capital-markets/draft-indenture-for-senior-secured-notes-offering --arm v13 --model codex:gpt-5.6-luna --effort high --retrieval-prompt neutral --run-id capital-markets/draft-indenture-for-senior-secured-notes-offering/beaver-v13-codex-gpt-5-6-luna/2026-08-02T17-15-00Z-r1"
+  ],
+  "launch_policy": "Write and parse this registration, recheck every listed source fingerprint, then launch the three performer calls concurrently without changing code or prompts.",
+  "validity": {
+    "provider_invocations": 1,
+    "required_reported_tier": "default",
+    "required_resident_tools": [
+      "Glob",
+      "fetch_documents",
+      "Grep",
+      "Read",
+      "describe_tools"
+    ],
+    "forbidden_events": [
+      "content_reset",
+      "research_context_refresh",
+      "research_checkpoint_request",
+      "research_checkpoint",
+      "evidence_handoff",
+      "evidence_working_set_receipt",
+      "evidence_working_set_update"
+    ],
+    "forbidden_result_flags": [
+      "already_read",
+      "already_exposed"
+    ],
+    "required_surface": {
+      "trajectory_mode": "continuous",
+      "context_handoff": false,
+      "continuous_evidence": false,
+      "draft_handoff_mode": "none",
+      "sla_workflow": false,
+      "greenfield_review": false,
+      "whole_read_max_chars": 800000,
+      "tool_result_max_chars": 51200,
+      "suppress_duplicate_whole_reads": false
+    },
+    "required_outputs": "Every requested DOCX is evaluator-readable and has an exact bytes/SHA-256 receipt from a durable authored Library artifact, not answer-text fallback."
+  },
+  "trace_inspection_before_scoring": [
+    "Verify all static and dynamic fingerprints and default-tier receipts.",
+    "Verify one outer provider invocation, continuous reasoning/tool items, no hidden phase reset, and no checkpoint, handoff, union, or SLA events.",
+    "Inspect source inventory, complete-read selection responses, bounded Read/Grep continuations, duplicate-read behavior, tool errors, and progressive-disclosure schema changes.",
+    "Inspect which source documents and exact spans were exposed before drafting, whether evidence and mutation calls were separated, and whether every deliverable came from a successful authoring receipt.",
+    "Classify any defect as general harness, retrieval, synthesis, authoring/compiler, or evaluator compatibility. Only a general structural defect may create a newly preregistered version before scoring."
+  ],
+  "preflight": {
+    "focused_tests": "104 passed across three suites",
+    "backend_build": "passed after the final harness validity change",
+    "source_hashes_rechecked_after_tests": true
+  },
+  "judge": {
+    "model": "codex/gpt-5.6-sol",
+    "priority_class": "BelowNormal",
+    "parallel": 3,
+    "replicates": 1,
+    "temperature": null,
+    "same_configuration_for_all_candidate_outputs": true,
+    "score_only_after_structural_and_trace_validity": true
+  },
+  "comparators": {
+    "comparable_upstream": {
+      "score": "150/217",
+      "provider_reported_total_tokens": 1436478
+    },
+    "comparable_coding_finalist": {
+      "score": "95/217",
+      "provider_reported_total_tokens": 1611907,
+      "caveat": "Retained a context handoff and is not a true one-trajectory pure-coding cell."
+    },
+    "checkpoint_paged_v11": {
+      "score": "150/217",
+      "provider_reported_total_tokens": 1897694,
+      "diagnostic_only": true
+    }
+  },
+  "acceptance_gate": {
+    "strict_win": "At least 150/217 aggregate, no task more than five points below upstream, and no more than 1,436,478 aggregate provider-reported total tokens.",
+    "quality_dominant_candidate": "At least 160/217, no catastrophic task regression, and no more than 2,154,717 aggregate tokens. This earns wider validation but is not a production win on three visible tasks.",
+    "reporting_order": "Accuracy first; then context/tokens, latency, coverage, cache behavior, context rounds, and tool use."
+  }
+}
