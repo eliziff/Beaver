@@ -2539,7 +2539,7 @@ def run_turn(
                 if card_span_mode == "host_register":
                     arguments["_pending_span_repairs"] = list(pending_span_repairs.values())
                 if missing_fields:
-                    arguments["card"] = "CARD_INCOMPLETE; MISSING FIELDS: " + ", ".join(missing_fields)
+                    arguments["_missing_fields"] = missing_fields
                 name = CARD_COMPLETE_TOOL_NAME
             last_tool = name
             entered_card_rebuild = False
@@ -2618,9 +2618,11 @@ def run_turn(
                 required_labels = ("FACTS/PROCEDURE", "ISSUE", "HOLDING", "RULE/REASONING", "EVIDENCE HANDLES") if omit_limits_unknowns else ("FACTS/PROCEDURE", "ISSUE", "HOLDING", "RULE/REASONING", "LIMITS", "UNKNOWNS", "EVIDENCE HANDLES")
                 if not read_done:
                     result = json.dumps({"ok": False, "error": "read_required", "next_action": f"Call r {current_doc}."})
-                elif card_text.startswith("CARD_INCOMPLETE; MISSING FIELDS:"):
-                    missing_fields = card_text.split(":", 1)[1].strip()
-                    result = json.dumps({"ok": False, "error": "card_fields_missing", "missing_fields": missing_fields.split(", "), "next_action": "Patch every missing field with p(field,text), then call d."})
+                elif arguments.get("_missing_fields") or card_text.startswith("CARD_INCOMPLETE; MISSING FIELDS:"):
+                    missing_fields = arguments.get("_missing_fields")
+                    if not missing_fields:
+                        missing_fields = card_text.split(":", 1)[1].strip().split(", ")
+                    result = json.dumps({"ok": False, "error": "card_fields_missing", "missing_fields": missing_fields, "next_action": "Patch every missing field with p(field,text), then call d."})
                 elif len(card_text) < card_min_chars:
                     result = json.dumps({"ok": False, "error": "card_too_short", "length": len(card_text), "minimum_chars": card_min_chars, "next_action": f"Add substantive text to every field until the card is at least {card_min_chars} characters, then call card_done again."})
                 elif not all(label in card_text.upper() for label in required_labels):
@@ -2898,6 +2900,7 @@ def run_turn(
                                         "Use the completed cards and verified quotations below. Write the final answer now.\n\n"
                                         "[CARDS]\n" + cards
                                         + "\n\n[VERIFIED QUOTATIONS]\n" + quotes
+                                        + "\n\n[FINAL SYNTHESIS INSTRUCTIONS]\n" + prompt
                                     ),
                                 },
                             ]
