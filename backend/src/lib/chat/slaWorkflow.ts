@@ -295,7 +295,7 @@ export async function buildSlaLedger(
       `- Ledger: gather each material checklist fact into a compact source-addressed working ledger. ` +
       (workingSetFirst
         ? `Your first source-content retrieval must be Grep with output_mode="working_set" and a targeted regex derived from the Spec (never "." or ".*"); if the inventory is abbreviated, Glob may enumerate filenames first. The result contains the newly added evidence and persists it for later rehydration. Add searches for unresolved gaps; overlap is removed automatically. Inspect exact source sections only for verification. `
-        : `Search long documents with Grep and Read the smallest responsive section, page, table row, or reference scope; use a working_set for a bounded cross-document union when cheaper. `) +
+        : `Search long documents with Grep and Read the smallest responsive section, page, table row, or reference scope. `) +
       `Record an explicit source gap instead of guessing.\n` +
       `- Draft: create the exact requested artifact only after every material checklist item has evidence or an explicit gap.\n` +
       `- Audit and Grounding: gated deterministic checks run after synthesis. When actionable findings arrive, verify them against exact source spans and revise the actual artifact.\n`

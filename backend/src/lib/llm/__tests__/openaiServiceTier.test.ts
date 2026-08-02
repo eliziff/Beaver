@@ -126,5 +126,28 @@ describe("OpenAI service tier", () => {
       String((fetchMock.mock.calls[0][1] as RequestInit).body),
     );
     expect(body).not.toHaveProperty("service_tier");
+    expect(body).not.toHaveProperty("context_management");
+  });
+
+  it("sends the official server-side compaction shape when requested", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      stream({ type: "response.output_text.delta", delta: "ok" }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await streamOpenAI({
+      model: "gpt-5.6-luna",
+      systemPrompt: "Work until done.",
+      messages: [{ role: "user", content: "Inspect the documents." }],
+      compactThreshold: 120_000,
+      apiKeys: { openai: "test-key" },
+    });
+
+    const body = JSON.parse(
+      String((fetchMock.mock.calls[0][1] as RequestInit).body),
+    );
+    expect(body.context_management).toEqual([
+      { type: "compaction", compact_threshold: 120_000 },
+    ]);
   });
 });

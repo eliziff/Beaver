@@ -16,6 +16,9 @@ afterEach(() => {
   delete process.env.MIKE_NAV_SHAPE;
   delete process.env.MIKE_TOOL_SHAPE;
   delete process.env.MIKE_PROGRESSIVE_DISCLOSURE;
+  delete process.env.MIKE_CONTEXT_HANDOFF;
+  delete process.env.MIKE_MODEL_COVERAGE_ROUTING;
+  delete process.env.MIKE_WHOLE_READ_MAX_CHARS;
   delete process.env.MIKE_SLA_WORKFLOW;
   delete process.env.MIKE_SLA_STRATEGY;
   vi.resetModules();
@@ -193,6 +196,66 @@ describe("local assistant tool wiring", () => {
     expect(refreshedDomains).not.toContain("output_document");
   });
 
+  it("offers the same neutral coverage choices without classifying task wording", async () => {
+    process.env.MIKE_NAV_SHAPE = "address";
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    process.env.MIKE_PROGRESSIVE_DISCLOSURE = "1";
+    process.env.MIKE_MODEL_COVERAGE_ROUTING = "1";
+    process.env.MIKE_WHOLE_READ_MAX_CHARS = "800000";
+    const tools = await loadTools();
+    expect(tools.WHOLE_READ_MAX_CHARS).toBe(800000);
+    const partition = tools.partitionTools(tools.LOCAL_ASSISTANT_TOOLS);
+    expect(names(partition.resident)).toEqual(
+      expect.arrayContaining(["Glob", "Grep", "Read", "fetch_documents"]),
+    );
+    const batch = partition.resident.find(
+      (entry) => entry.function.name === "fetch_documents",
+    )!;
+    expect(batch.function.description).toContain("bounded source set");
+    expect(batch.function.description).toContain("localized evidence");
+    expect(batch.function.description).toContain("cumulative for this turn");
+    expect(batch.function.description).not.toMatch(
+      /change.of.control|clinical.trial|indenture/iu,
+    );
+
+    const prompts = await import("../prompts");
+    const guidance = prompts.buildLeanLibraryBlock({
+      connectedIntro: "The matter is connected",
+      codingShape: true,
+      readToolName: "Read",
+      editToolName: "Edit",
+      progressiveDisclosure: true,
+    });
+    expect(guidance).toContain("choose coverage from the evidence need");
+    expect(guidance).toContain("primary instrument should stay whole");
+    expect(guidance).not.toMatch(/change.of.control|clinical.trial|indenture/iu);
+  });
+
+  it("does not leak the coverage experiment into the frozen coding baseline", async () => {
+    process.env.MIKE_NAV_SHAPE = "address";
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    process.env.MIKE_PROGRESSIVE_DISCLOSURE = "1";
+    delete process.env.MIKE_MODEL_COVERAGE_ROUTING;
+    const tools = await loadTools();
+    expect(names(tools.LOCAL_ASSISTANT_TOOLS)).not.toContain(
+      "fetch_documents",
+    );
+  });
+
+  it("keeps the soft coverage lane free of a host whole-read cutoff", async () => {
+    process.env.MIKE_NAV_SHAPE = "address";
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    process.env.MIKE_PROGRESSIVE_DISCLOSURE = "1";
+    process.env.MIKE_MODEL_COVERAGE_ROUTING = "1";
+    const tools = await loadTools();
+    expect(tools.WHOLE_READ_MAX_CHARS).toBe(0);
+    const batch = tools.LOCAL_ASSISTANT_TOOLS.find(
+      (entry) => entry.function.name === "fetch_documents",
+    )!;
+    expect(batch.function.description).toContain("complete text");
+    expect(batch.function.description).not.toContain("whole-read budget");
+  });
+
   it("hides model-callable quality tools when the SLA compiler runs them", async () => {
     process.env.MIKE_NAV_SHAPE = "address";
     process.env.MIKE_TOOL_SHAPE = "coding";
@@ -219,6 +282,29 @@ describe("local assistant tool wiring", () => {
       }
     ).domains.items.enum;
     expect(domains).not.toContain("document_quality");
+  });
+
+  it("reveals evidence selection only after the host returns a manifest", async () => {
+    process.env.MIKE_NAV_SHAPE = "address";
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    process.env.MIKE_PROGRESSIVE_DISCLOSURE = "1";
+    process.env.MIKE_CONTEXT_HANDOFF = "1";
+    const tools = await loadTools();
+    const partition = tools.partitionTools(tools.LOCAL_ASSISTANT_TOOLS);
+    const initial = partition.resident.find(
+      (entry) => entry.function.name === "describe_tools",
+    )!;
+    const initialProperties = initial.function.parameters.properties as Record<
+      string,
+      unknown
+    >;
+    const selectionProperties = tools.describeToolsTool(
+      partition.deferred,
+      true,
+    ).function.parameters.properties as Record<string, unknown>;
+
+    expect(initialProperties).not.toHaveProperty("carry_evidence");
+    expect(selectionProperties).toHaveProperty("carry_evidence");
   });
 });
 

@@ -122,6 +122,7 @@ import {
   planLegalEvidence,
   registerLegalEvidence,
   submitLegalEvidenceAnswer,
+  type LegalEvidenceReceipt,
   type LegalEvidenceTurnState,
 } from "./legalEvidenceExperiment";
 import { COURTLISTENER_TOOLS } from "./tools/courtlistenerTools";
@@ -839,6 +840,30 @@ export const ASK_INPUTS_DISABLED =
  */
 export const CODING_TOOL_SHAPE = process.env.MIKE_TOOL_SHAPE === "coding";
 
+/**
+ * LAB arm: let the model choose complete, targeted, or mixed source coverage
+ * after Glob reports the actual inventory. The host does not classify task
+ * wording or legal domain.
+ */
+export const MODEL_COVERAGE_ROUTING =
+  process.env.MIKE_MODEL_COVERAGE_ROUTING === "1";
+
+const configuredWholeReadMaxChars = Number(
+  process.env.MIKE_WHOLE_READ_MAX_CHARS || 0,
+);
+
+/**
+ * Optional cumulative context budget for complete-document reads in one turn.
+ * This is a source-size guard, not a task router: every request sees the same
+ * limit and may still combine whole files with targeted Grep/Read evidence.
+ */
+export const WHOLE_READ_MAX_CHARS =
+  MODEL_COVERAGE_ROUTING &&
+  Number.isFinite(configuredWholeReadMaxChars) &&
+  configuredWholeReadMaxChars > 0
+    ? Math.trunc(configuredWholeReadMaxChars)
+    : 0;
+
 /** Explicit LAB-only comparator; never selected by a product setting. */
 export const UPSTREAM_MIKE_TOOL_SHAPE =
   process.env.MIKE_TOOL_SHAPE === "upstream-mike";
@@ -1039,16 +1064,12 @@ const RESIDENT_TOOLS = new Set([
   "Glob",
   "Grep",
   "Read",
+  "fetch_documents",
   "library_list",
   "library_outline",
   "library_read",
   "library_find",
-  "library_links",
-  "library_lookup",
-  "library_evidence",
-  "library_apply_text_ops",
   "describe_tools",
-  "submit_grounded_answer",
 ]);
 
 /**
@@ -1070,6 +1091,14 @@ const TOOL_DOMAINS: Record<string, Domain> = {
   cross_reference_impact: {
     blurb:
       "list literal inbound/outbound pointers or the exact impact set for deleting and closing one numbering gap; not similarity search",
+  },
+  source_evidence: {
+    blurb:
+      "resolve or rehydrate an exact PDF evidence handle after a targeted source lookup; not ordinary document reading",
+  },
+  document_links: {
+    blurb:
+      "inspect already resolved links attached to a Library document; not text search or inferred similarity",
   },
   cases: {
     blurb:
@@ -1109,6 +1138,12 @@ const TOOL_DOMAINS: Record<string, Domain> = {
 const DOMAIN_OF: Record<string, string> = {
   DocumentMap: "document_map",
   ReferenceImpact: "cross_reference_impact",
+  library_links: "document_links",
+  library_lookup: "source_evidence",
+  library_evidence: "source_evidence",
+  library_apply_text_ops: "drafting",
+  plan_grounded_evidence: "cases",
+  submit_grounded_answer: "cases",
   courtlistener_search_case_law: "cases",
   courtlistener_get_cases: "cases",
   courtlistener_find_in_case: "cases",
@@ -1270,6 +1305,7 @@ const CODING_SHAPE_SUGGESTIONS: Record<string, string> = {
 };
 
 const ROUTED_CODING_DESCRIPTION =
+  !MODEL_COVERAGE_ROUTING &&
   RETRIEVAL_EXPERIMENT_SHAPE &&
   RETRIEVAL_EXPERIMENT_SHAPE !== "d0-generic" &&
   RETRIEVAL_EXPERIMENT_SHAPE !== "d2-concrete"
@@ -1299,10 +1335,17 @@ const CODING_READ_DESCRIPTION = PURE_CODING_EXPERIMENT
   ? "Reads a file. Reads up to 2000 lines by default. Results are returned using cat -n format, with line numbers starting at 1. When you already know which part of the file you need, pass offset and limit for a line window."
   : "Reads a file. Reads up to 2000 lines by default. Results are returned using cat -n format, with line numbers starting at 1. When you already know which part of the file you need, pass a verified section handle shown in Grep results, or pass offset and limit for a line window.";
 
+const WHOLE_READ_BUDGET_DESCRIPTION = WHOLE_READ_MAX_CHARS
+  ? " The declared whole-read budget is cumulative for this turn, not per call; if a selection would exceed it, the call returns sizes without exposing text."
+  : "";
+
 const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
   tool(
     "Glob",
-    'Fast file pattern matching. Supports glob patterns like "*.docx". Returns filenames; when filenames collide, also returns the document_id needed to disambiguate them.',
+    'Fast file pattern matching. Supports glob patterns like "*.docx". Returns filenames with extracted-text character and line counts plus aggregate totals; when filenames collide, also returns the document_id needed to disambiguate them.' +
+      (MODEL_COVERAGE_ROUTING
+        ? " Use the inventory to choose complete, targeted, or mixed source coverage; when completeness is uncertain and the bounded source set fits, prefer complete coverage."
+        : ""),
     {
       type: "object",
       properties: {
@@ -1314,6 +1357,28 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
       required: ["pattern"],
     },
   ),
+  ...(MODEL_COVERAGE_ROUTING
+    ? [
+        tool(
+          "fetch_documents",
+          "Read the complete text of multiple selected files in one call. Use after Glob when most of a bounded source set is relevant, or to keep a primary draft or precedent whole. Use Grep and bounded Read for localized evidence or an oversized corpus; combine both approaches when appropriate." +
+            WHOLE_READ_BUDGET_DESCRIPTION +
+            " Read each file/version at most once.",
+          {
+            type: "object",
+            properties: {
+              doc_ids: {
+                type: "array",
+                items: { type: "string" },
+                description:
+                  "Filenames from Glob, or document_ids when filenames collide.",
+              },
+            },
+            required: ["doc_ids"],
+          },
+        ),
+      ]
+    : []),
   tool(
     "Grep",
     TOOL_DESCRIPTION_VARIANT === "terse"
@@ -1581,13 +1646,21 @@ function domainEntriesForTools(tools: OpenAIToolSchema[]) {
   );
 }
 
-export function describeToolsTool(tools: OpenAIToolSchema[]): OpenAIToolSchema {
+export function describeToolsTool(
+  tools: OpenAIToolSchema[],
+  allowEvidenceSelection = false,
+): OpenAIToolSchema {
   const domains = domainEntriesForTools(tools);
+  const contextHandoff = process.env.MIKE_CONTEXT_HANDOFF === "1";
   return tool(
     "describe_tools",
     `Load a domain of tools that is not available yet. Domains: ${domains
       .map(([name, domain]) => `${name} (${domain.blurb})`)
-      .join("; ")}. Call this the moment a task needs one of them; the tools become callable immediately after.`,
+      .join("; ")}. Call this the moment a task needs one of them; the tools become callable immediately after.${
+        contextHandoff
+          ? " Opening drafting or output_document starts a fresh drafting context containing the exact evidence read so far."
+          : ""
+      }`,
     {
       type: "object",
       properties: {
@@ -1596,6 +1669,16 @@ export function describeToolsTool(tools: OpenAIToolSchema[]): OpenAIToolSchema {
           items: { type: "string", enum: domains.map(([name]) => name) },
           description: "One or more domains to open.",
         },
+        ...(contextHandoff && allowEvidenceSelection
+          ? {
+              carry_evidence: {
+                type: "array",
+                items: { type: "string" },
+                description:
+                  "Exact evidence aliases from the host's selection manifest to carry into drafting. Copy each complete E-xxxxxxxx alias; wildcards and placeholders are invalid.",
+              },
+            }
+          : {}),
       },
       required: ["domains"],
     },
@@ -1820,6 +1903,7 @@ export type LocalAssistantReadTurnState = Map<
     docLabel?: string;
     versionId: string;
     filename: string;
+    sourceChars?: number;
   }
 >;
 
@@ -1938,9 +2022,13 @@ const GREP_LINE_CAP = 2_000;
 type CodingOutputLine = {
   rendered: string;
   span?: [number, number];
+  handoffCandidate?: boolean;
   source?: {
     documentId: string;
     versionId: string;
+    filename?: string;
+    locator?: string;
+    projection?: string;
   };
 };
 
@@ -2998,16 +3086,49 @@ async function runCodingShapeCall(
       const key = document.filename.toLowerCase();
       filenameCounts.set(key, (filenameCounts.get(key) ?? 0) + 1);
     }
-    const names = [
-      ...files.map((document) =>
-        (filenameCounts.get(document.filename.toLowerCase()) ?? 0) > 1
-          ? `${document.filename}\t[document_id=${document.id}]`
-          : document.filename,
-      ),
-      ...[...(workingSets?.keys() ?? [])],
-    ]
-      .filter((name) => re.test(name.split("\t", 1)[0]));
-    return result(call, names.length ? names.join("\n") : "No files found");
+    const matchedFiles = files.filter((document) => re.test(document.filename));
+    const fileRows = await Promise.all(
+      matchedFiles.map(async (meta) => {
+        const document = await extractLocalDocument(userId, meta.id);
+        const identity =
+          (filenameCounts.get(meta.filename.toLowerCase()) ?? 0) > 1
+            ? `${meta.filename}\t[document_id=${meta.id}]`
+            : meta.filename;
+        if (!document) {
+          return { row: `${identity}\tunreadable`, chars: 0, lines: 0 };
+        }
+        const chars = document.text.length;
+        const lines = document.text ? document.text.split(/\r?\n/u).length : 0;
+        return {
+          row: `${identity}\tchars=${chars}\tlines=${lines}`,
+          chars,
+          lines,
+        };
+      }),
+    );
+    const workingSetRows = [...(workingSets?.values() ?? [])]
+      .filter((set) => re.test(set.path))
+      .map((set) => ({
+        row: `${set.path}\tchars=${set.text.length}\tlines=${
+          set.text ? set.text.split(/\r?\n/u).length : 0
+        }`,
+        chars: set.text.length,
+        lines: set.text ? set.text.split(/\r?\n/u).length : 0,
+      }));
+    const rows = [...fileRows, ...workingSetRows];
+    if (!rows.length) return result(call, "No files found");
+    const totalChars = rows.reduce((total, row) => total + row.chars, 0);
+    const totalLines = rows.reduce((total, row) => total + row.lines, 0);
+    return result(
+      call,
+      [
+        ...rows.map((row) => row.row),
+        `TOTAL\tfiles=${rows.length}\tchars=${totalChars}\tlines=${totalLines}` +
+          (WHOLE_READ_MAX_CHARS
+            ? `\twhole_read_budget_chars=${WHOLE_READ_MAX_CHARS}`
+            : ""),
+      ].join("\n"),
+    );
   }
 
   if (call.name === "Read") {
@@ -3129,7 +3250,12 @@ async function runCodingShapeCall(
           `=== ${meta.filename} :: pdf:${page.pdfPage ?? "?"}${
             page.printedLabel ? ` :: printed:${page.printedLabel}` : ""
           } ===`,
-          { documentId: meta.id, versionId: meta.current_version_id },
+          {
+            documentId: meta.id,
+            versionId: meta.current_version_id,
+            locator: pageLabel(page),
+            projection: "canonical",
+          },
         ),
       );
       const { kept, truncated } = takeCodingOutputLines(candidates);
@@ -3191,7 +3317,12 @@ async function runCodingShapeCall(
                 `=== ${meta.filename} :: Read section="${node.label}" :: ${
                   index === 0 ? "target" : "direct reference"
                 } ===`,
-                { documentId: meta.id, versionId: meta.current_version_id },
+                {
+                  documentId: meta.id,
+                  versionId: meta.current_version_id,
+                  locator: node.label,
+                  projection: "canonical",
+                },
               ),
             );
           }
@@ -3254,6 +3385,8 @@ async function runCodingShapeCall(
             source: {
               documentId: meta.id,
               versionId: meta.current_version_id,
+              locator: block.label,
+              projection: "canonical",
             },
           };
         });
@@ -3892,11 +4025,14 @@ async function runCodingShapeCall(
       }
       for (let i = Math.max(from, lastPrinted + 1); i <= to; i += 1) {
         const isMatch = matchedLines.has(i);
+        const handoffCandidate =
+          isMatch || matchedLines.has(i - 1) || matchedLines.has(i + 1);
         const sep = isMatch ? ":" : "-";
         const prefix = numberLines
           ? `${meta.filename}${sep}${i + 1}${sep}`
           : `${meta.filename}${sep}`;
-        const section = isMatch ? sectionOf?.(i) : null;
+        const candidateSection = handoffCandidate ? sectionOf?.(i) : null;
+        const section = isMatch ? candidateSection : null;
         const matchColumn = isMatch ? Math.max(0, lines[i].search(re)) : 0;
         const sliceStart =
           lines[i].length > GREP_LINE_CAP && isMatch
@@ -3940,9 +4076,13 @@ async function runCodingShapeCall(
             (sliceStart + shown.length < lines[i].length ? "…" : "") +
             contact,
           span: [starts[i] + sliceStart, starts[i] + sliceStart + shown.length],
+          handoffCandidate,
           source: {
             documentId: meta.id,
             versionId: meta.current_version_id,
+            ...(candidateSection?.handle
+              ? { locator: candidateSection.handle }
+              : {}),
           },
         });
         lastPrinted = i;
@@ -4030,15 +4170,24 @@ const textCache = new Map<
   }
 >();
 
-export async function extractLocalDocument(userId: string, documentId: string) {
-  const file = await getLocalVersionFile(userId, documentId);
+export async function extractLocalDocument(
+  userId: string,
+  documentId: string,
+  versionId?: string,
+) {
+  const file = await getLocalVersionFile(userId, documentId, versionId);
   if (!file) return null;
   const cacheKey =
     `${documentId}:${file.version.id}:` +
     (file.version.source_sha256 ?? file.version.created_at);
   const cached = textCache.get(cacheKey);
   if (cached !== undefined) {
-    return { filename: file.document.filename, ...cached };
+    return {
+      filename: file.document.filename,
+      documentId,
+      versionId: file.version.id,
+      ...cached,
+    };
   }
 
   const fileType = file.fileType.toLowerCase();
@@ -4115,6 +4264,8 @@ export async function extractLocalDocument(userId: string, documentId: string) {
   textCache.set(cacheKey, { text, cautions, pages, tableCells });
   return {
     filename: file.document.filename,
+    documentId,
+    versionId: file.version.id,
     text,
     cautions,
     pages,
@@ -4230,8 +4381,45 @@ function result(
 ): NormalizedToolResult {
   const serialized =
     typeof content === "string" ? content : JSON.stringify(content);
+  const objectContent =
+    content && typeof content === "object" && !Array.isArray(content)
+      ? (content as Record<string, unknown>)
+      : null;
+  const reportedStatus =
+    typeof objectContent?.status === "string" &&
+    [
+      "ok",
+      "not_found",
+      "ambiguous",
+      "selection_required",
+      "truncated",
+      "past_end",
+      "already_exposed",
+      "error",
+    ].includes(objectContent.status)
+      ? (objectContent.status as NormalizedToolResult["status"])
+      : null;
+  const status: NormalizedToolResult["status"] =
+    reportedStatus ??
+    (objectContent?.ok === false
+      ? /ambiguous/iu.test(String(objectContent.error ?? ""))
+        ? "ambiguous"
+        : /not found|does not exist|no (?:matches|files)/iu.test(
+              String(objectContent.error ?? ""),
+            )
+          ? "not_found"
+          : "error"
+      : objectContent?.truncated === true
+        ? "truncated"
+        : /past the end|outside section/iu.test(serialized)
+          ? "past_end"
+          : /ambiguous/iu.test(serialized)
+            ? "ambiguous"
+            : /^No (?:matches|files)/iu.test(serialized)
+              ? "not_found"
+              : "ok");
   if (serialized.length <= MAX_TOOL_RESULT_CHARS) {
-    return { tool_use_id: call.id, content: serialized };
+    return { tool_use_id: call.id, content: serialized, status };
   }
   const ok =
     content && typeof content === "object" && !Array.isArray(content)
@@ -4280,6 +4468,7 @@ function result(
       shortened.length <= MAX_TOOL_RESULT_CHARS
         ? shortened
         : JSON.stringify({ truncated: true }),
+    status: "truncated",
     ...(mutationReceipt ? { mutationReceipt } : {}),
   };
 }
@@ -4290,19 +4479,24 @@ function codingTextResult(
   lines: CodingOutputLine[],
 ): NormalizedToolResult {
   const rendered = result(call, content);
+  const sourceLines =
+    call.name === "Grep"
+      ? lines.filter((line) => line.handoffCandidate === true)
+      : lines;
   return rendered.content === content
     ? {
         ...rendered,
-        evidenceSpans: lines.flatMap((line) =>
+        evidenceSpans: sourceLines.flatMap((line) =>
           line.span ? [line.span] : [],
         ),
-        evidenceSegments: lines.flatMap((line) =>
+        evidenceSegments: sourceLines.flatMap((line) =>
           line.span && line.source
             ? [
                 {
                   ...line.source,
                   start: line.span[0],
                   end: line.span[1],
+                  kind: call.name === "Grep" ? "candidate" : "evidence",
                 },
               ]
             : [],
@@ -4353,6 +4547,26 @@ function compactPdfLookup(filename: string, lookup: LocalPdfLookupResult) {
   const confidence = lookup.units
     .map((unit) => unit.confidence)
     .filter((value): value is number => typeof value === "number");
+  const compactUnit = (unit: (typeof lookup.units)[number]) => ({
+    kind: unit.kind,
+    locator: unit.locator,
+    text: unit.text,
+    ...(unit.page_numbers.length ? { pages: unit.page_numbers } : {}),
+    ...(unit.confidence !== null && unit.confidence < 1
+      ? { confidence: unit.confidence }
+      : {}),
+    ...(unit.proposition ? { proposition: unit.proposition } : {}),
+    ...(unit.note
+      ? {
+          note: {
+            label: unit.note.label,
+            ...(unit.note.warnings.length
+              ? { warnings: unit.note.warnings }
+              : {}),
+          },
+        }
+      : {}),
+  });
   return {
     ok: true,
     filename,
@@ -4360,8 +4574,15 @@ function compactPdfLookup(filename: string, lookup: LocalPdfLookupResult) {
     exact: true,
     handle: lookup.evidence.handle,
     version_id: lookup.source.version_id,
-    units: lookup.units,
-    context: { before: lookup.before, after: lookup.after },
+    units: lookup.units.map(compactUnit),
+    ...(lookup.before.length || lookup.after.length
+      ? {
+          context: {
+            before: lookup.before.map(compactUnit),
+            after: lookup.after.map(compactUnit),
+          },
+        }
+      : {}),
     confidence: confidence.length ? Math.min(...confidence) : null,
     link: {
       ...(lookup.evidence.page_text_sha256 &&
@@ -4371,6 +4592,96 @@ function compactPdfLookup(filename: string, lookup: LocalPdfLookupResult) {
       page_numbers: lookup.link.page_numbers,
     },
   };
+}
+
+function pdfEvidenceRefs(
+  filename: string,
+  lookup: LocalPdfLookupResult,
+): NonNullable<NormalizedToolResult["evidenceRefs"]> {
+  if (lookup.status !== "found") return [];
+  return [...lookup.before, ...lookup.units, ...lookup.after]
+    .filter((unit) => Boolean(unit.text))
+    .map((unit) => ({
+      handle: `${lookup.evidence.handle}#${unit.id}`,
+      filename,
+      locator: unit.locator,
+      text: unit.text,
+      exactSha256: sha256(unit.text),
+      kind: "evidence" as const,
+    }));
+}
+
+function receiptEvidenceRefs(
+  receipts: Array<LegalEvidenceReceipt | undefined>,
+): NonNullable<NormalizedToolResult["evidenceRefs"]> {
+  return receipts.flatMap((receipt) =>
+    receipt?.span_text
+      ? [
+          {
+            handle: receipt.evidence_id,
+            filename: receipt.name ?? receipt.citation,
+            locator: receipt.locator.label,
+            text: receipt.span_text,
+            exactSha256: sha256(receipt.span_text),
+            kind: "evidence" as const,
+          },
+        ]
+      : [],
+  );
+}
+
+function publicLegalEvidenceRefs(
+  payload: Record<string, unknown>,
+): NonNullable<NormalizedToolResult["evidenceRefs"]> {
+  const evidence =
+    payload.evidence &&
+    typeof payload.evidence === "object" &&
+    !Array.isArray(payload.evidence)
+      ? (payload.evidence as Record<string, unknown>)
+      : null;
+  const baseHandle =
+    typeof evidence?.handle === "string"
+      ? evidence.handle
+      : `public:${String(payload.provider ?? "source")}:${String(payload.identifier ?? "document")}`;
+  const filename = String(
+    payload.title ?? payload.identifier ?? "Public legal source",
+  );
+  const blocks = [
+    payload.block,
+    ...(Array.isArray(payload.before) ? payload.before : []),
+    ...(Array.isArray(payload.after) ? payload.after : []),
+  ];
+  const refs = blocks.flatMap((raw, index) => {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
+    const block = raw as Record<string, unknown>;
+    const text = typeof block.text === "string" ? block.text : "";
+    if (!text) return [];
+    const locator = String(block.label ?? `context ${index + 1}`);
+    return [
+      {
+        handle: `${baseHandle}#${locator}:${sha256(text)}`,
+        filename,
+        locator,
+        text,
+        exactSha256: sha256(text),
+        kind: "evidence" as const,
+      },
+    ];
+  });
+  if (refs.length) return refs;
+  const documentText = typeof payload.text === "string" ? payload.text : "";
+  return documentText
+    ? [
+        {
+          handle: `${baseHandle}#document:${sha256(documentText)}`,
+          filename,
+          locator: "document",
+          text: documentText,
+          exactSha256: sha256(documentText),
+          kind: "evidence" as const,
+        },
+      ]
+    : [];
 }
 
 type ReadyProviderPdfLookup = {
@@ -4708,8 +5019,15 @@ async function runUpstreamMikeRetrievalCall(params: {
   userId: string;
   allowedDocumentIds?: Set<string>;
   readState?: LocalAssistantReadTurnState;
+  wholeReadMaxChars?: number;
 }): Promise<NormalizedToolResult | null> {
-  const { call, userId, allowedDocumentIds, readState } = params;
+  const {
+    call,
+    userId,
+    allowedDocumentIds,
+    readState,
+    wholeReadMaxChars = 0,
+  } = params;
   if (
     ![
       "list_documents",
@@ -4743,43 +5061,98 @@ async function runUpstreamMikeRetrievalCall(params: {
   const byLabel = new Map(
     labelledDocuments.map(({ document, docLabel }) => [docLabel, document]),
   );
+  const filenameCounts = new Map<string, number>();
+  for (const { document } of labelledDocuments) {
+    const key = document.filename.toLocaleLowerCase("en-US");
+    filenameCounts.set(key, (filenameCounts.get(key) ?? 0) + 1);
+  }
+  const byFilename = new Map(
+    labelledDocuments.flatMap(({ document }) => {
+      const key = document.filename.toLocaleLowerCase("en-US");
+      return filenameCounts.get(key) === 1 ? [[key, document] as const] : [];
+    }),
+  );
   const labelById = new Map(
     labelledDocuments.map(({ document, docLabel }) => [document.id, docLabel]),
   );
   const resolveDocument = (requested: string) =>
-    byLabel.get(requested) ?? byId.get(requested);
+    byLabel.get(requested) ??
+    byId.get(requested) ??
+    byFilename.get(requested.toLocaleLowerCase("en-US"));
   const readOne = async (requested: string) => {
     const listed = resolveDocument(requested);
     const docLabel = listed ? labelById.get(listed.id) ?? requested : requested;
     const documentId = listed?.id ?? "";
-    if (!listed) return `Document '${requested}' not found.`;
+    if (!listed) {
+      return {
+        content: `Document '${requested}' not found.`,
+        evidenceSegments: [] as NonNullable<
+          NormalizedToolResult["evidenceSegments"]
+        >,
+      };
+    }
     const file = await getLocalVersionFile(userId, documentId);
-    if (!file) return "Document could not be read.";
+    if (!file) {
+      return {
+        content: "Document could not be read.",
+        evidenceSegments: [] as NonNullable<
+          NormalizedToolResult["evidenceSegments"]
+        >,
+      };
+    }
     const key = `${documentId}:${file.version.id}`;
     const prior = readState?.get(key);
     if (prior) {
-      return JSON.stringify({
-        ok: true,
-        already_read: true,
-        doc_id: prior.docLabel ?? docLabel,
-        document_id: prior.documentId,
-        filename: prior.filename,
-        version_id: prior.versionId,
-        content:
-          "This document/version was already read earlier in this response. The full text is not repeated to avoid unnecessary token use.",
-        next_required_action:
-          "Use the prior read_document/fetch_documents result or call find_in_document for a targeted check.",
-      });
+      return {
+        content: JSON.stringify({
+          ok: true,
+          already_read: true,
+          doc_id: prior.docLabel ?? docLabel,
+          document_id: prior.documentId,
+          filename: prior.filename,
+          version_id: prior.versionId,
+          content:
+            "This document/version was already read earlier in this response. The full text is not repeated to avoid unnecessary token use.",
+          next_required_action:
+            "Use the prior read_document/fetch_documents result or call find_in_document for a targeted check.",
+        }),
+        evidenceSegments: [] as NonNullable<
+          NormalizedToolResult["evidenceSegments"]
+        >,
+      };
     }
     const document = await extractLocalDocument(userId, documentId);
-    if (!document) return "Document could not be read.";
+    if (!document) {
+      return {
+        content: "Document could not be read.",
+        evidenceSegments: [] as NonNullable<
+          NormalizedToolResult["evidenceSegments"]
+        >,
+      };
+    }
     readState?.set(key, {
       documentId,
       docLabel,
       versionId: file.version.id,
       filename: document.filename,
+      sourceChars: document.text.length,
     });
-    return document.text;
+    return {
+      content: document.text,
+      evidenceSegments: document.text
+        ? [
+            {
+              documentId,
+              versionId: file.version.id,
+              filename: document.filename,
+              projection: "canonical",
+              kind: "evidence" as const,
+              start: 0,
+              end: document.text.length,
+            },
+          ]
+        : [],
+    };
   };
 
   if (call.name === "list_documents") {
@@ -4795,22 +5168,76 @@ async function runUpstreamMikeRetrievalCall(params: {
 
   if (call.name === "read_document") {
     const documentId = trimmed(call.input.doc_id);
-    return upstreamMikeResult(call, await readOne(documentId));
+    const read = await readOne(documentId);
+    return {
+      ...upstreamMikeResult(call, read.content),
+      evidenceSegments: read.evidenceSegments,
+    };
   }
 
   if (call.name === "fetch_documents") {
+    const requestedDocuments = stringArray(call.input.doc_ids);
+    if (wholeReadMaxChars > 0) {
+      const seenVersions = new Set<string>();
+      const alreadyReadChars = [...(readState?.values() ?? [])].reduce(
+        (total, read) => total + (read.sourceChars ?? 0),
+        0,
+      );
+      let requestedChars = 0;
+      let newFiles = 0;
+      for (const requested of requestedDocuments) {
+        const listed = resolveDocument(requested);
+        if (!listed) continue;
+        const file = await getLocalVersionFile(userId, listed.id);
+        if (!file) continue;
+        const key = `${listed.id}:${file.version.id}`;
+        if (seenVersions.has(key) || readState?.has(key)) continue;
+        seenVersions.add(key);
+        const document = await extractLocalDocument(userId, listed.id);
+        if (!document) continue;
+        requestedChars += document.text.length;
+        newFiles += 1;
+      }
+      const projectedChars = alreadyReadChars + requestedChars;
+      if (projectedChars > wholeReadMaxChars) {
+        return {
+          ...upstreamMikeResult(call, {
+            ok: false,
+            status: "selection_required",
+            code: "WHOLE_READ_OVER_CONTEXT_BUDGET",
+            requested_files: requestedDocuments.length,
+            new_files: newFiles,
+            already_read_chars: alreadyReadChars,
+            requested_chars: requestedChars,
+            projected_chars: projectedChars,
+            max_chars: wholeReadMaxChars,
+            next_required_action:
+              "Keep any primary instrument, draft, or precedent whole in a smaller fetch_documents call; use Grep and bounded Read for supporting sources.",
+          }),
+          status: "selection_required",
+        };
+      }
+    }
     const parts: string[] = [];
-    for (const requested of stringArray(call.input.doc_ids)) {
+    const evidenceSegments: NonNullable<
+      NormalizedToolResult["evidenceSegments"]
+    > = [];
+    for (const requested of requestedDocuments) {
       const document = resolveDocument(requested);
       const docLabel = document
         ? labelById.get(document.id) ?? requested
         : requested;
       const filename = document?.filename ?? requested;
+      const read = await readOne(requested);
       parts.push(
-        `--- ${filename} (${docLabel}) ---\n${await readOne(requested)}`,
+        `--- ${filename} (${docLabel}) ---\n${read.content}`,
       );
+      evidenceSegments.push(...read.evidenceSegments);
     }
-    return upstreamMikeResult(call, parts.join("\n\n"));
+    return {
+      ...upstreamMikeResult(call, parts.join("\n\n")),
+      evidenceSegments,
+    };
   }
 
   const requested = trimmed(call.input.doc_id);
@@ -4840,15 +5267,29 @@ async function runUpstreamMikeRetrievalCall(params: {
     maxResults,
     contextChars,
   });
-  return upstreamMikeResult(call, {
-    ok: true,
-    filename: listed.filename,
-    query,
-    total_matches: matches.totalMatches,
-    returned: matches.hits.length,
-    truncated: matches.totalMatches > matches.hits.length,
-    hits: matches.hits,
-  });
+  return {
+    ...upstreamMikeResult(call, {
+      ok: true,
+      filename: listed.filename,
+      query,
+      total_matches: matches.totalMatches,
+      returned: matches.hits.length,
+      truncated: matches.totalMatches > matches.hits.length,
+      hits: matches.hits,
+    }),
+    evidenceSegments: matches.hits.map((hit) => ({
+      documentId,
+      versionId: document.versionId,
+      filename: document.filename,
+      projection: "canonical",
+      kind: "candidate" as const,
+      start: Math.max(0, hit.at - contextChars),
+      end: Math.min(
+        document.text.length,
+        hit.at + hit.excerpt.length + contextChars,
+      ),
+    })),
+  };
 }
 
 export async function runLocalAssistantTools(
@@ -4869,6 +5310,7 @@ export async function runLocalAssistantTools(
   const publicState = publicLegalState ?? createPublicLegalSourceState();
   let editTail: Promise<unknown> = Promise.resolve();
   let workingSetTail: Promise<unknown> = Promise.resolve();
+  let wholeReadTail: Promise<unknown> = Promise.resolve();
   return Promise.all(
     calls.map((call) => {
       const execute = async () => {
@@ -4884,12 +5326,14 @@ export async function runLocalAssistantTools(
         args = resolved.input;
       }
 
-      if (UPSTREAM_MIKE_TOOL_SHAPE) {
+      if (UPSTREAM_MIKE_TOOL_SHAPE || call.name === "fetch_documents") {
         const upstream = await runUpstreamMikeRetrievalCall({
           call,
           userId,
           allowedDocumentIds,
           readState: turnReadState,
+          wholeReadMaxChars:
+            call.name === "fetch_documents" ? WHOLE_READ_MAX_CHARS : 0,
         });
         if (upstream) return upstream;
       }
@@ -4977,7 +5421,12 @@ export async function runLocalAssistantTools(
         publicState,
         userId,
       );
-      if (publicLegalResult) return result(call, publicLegalResult);
+      if (publicLegalResult) {
+        return {
+          ...result(call, publicLegalResult),
+          evidenceRefs: publicLegalEvidenceRefs(publicLegalResult),
+        };
+      }
       if (courtlistenerState) {
         const courtlistenerResult = await runLocalCourtlistenerTool(
           call,
@@ -5817,7 +6266,13 @@ export async function runLocalAssistantTools(
             const readFollow = (
               addressArm ? trimmed(args.follow) || "none" : "none"
             ) as FollowDirection;
-            let related: { section: string; display: string; text: string }[] = [];
+            let related: Array<{
+              section: string;
+              display: string;
+              text: string;
+              start: number;
+              end: number;
+            }> = [];
             if (readFollow !== "none") {
               const walked = graphScope(
                 skeleton,
@@ -5838,10 +6293,16 @@ export async function runLocalAssistantTools(
                   section: node.label,
                   display: node.display,
                   text: body,
+                  start: node.start,
+                  end: node.start + body.length,
                 });
               }
             }
-            return result(call, {
+            const relatedForModel = related.map(
+              ({ start: _start, end: _end, ...item }) => item,
+            );
+            return {
+              ...result(call, {
               ok: true,
               filename: document.filename,
               ...(document.cautions.length
@@ -5849,10 +6310,9 @@ export async function runLocalAssistantTools(
                 : {}),
               section: lookup.block.label,
               parent: lookup.block.parentLabel,
-              offset: lookup.block.start + view.at,
               ...(fromEnd && view.cut ? { read_from: "end" } : {}),
               text: view.body,
-              ...(related.length ? { related } : {}),
+              ...(relatedForModel.length ? { related: relatedForModel } : {}),
               ...(readFollow !== "none" && !related.length
                 ? { related_note: "No resolved cross-references in that direction." }
                 : {}),
@@ -5864,7 +6324,30 @@ export async function runLocalAssistantTools(
                       : `Section continues; call library_read with at="off:${lookup.block.start + maxChars}" for the rest, or from="end" for its tail.`,
                   }
                 : {}),
-            });
+              }),
+              evidenceSegments: [
+                {
+                  documentId,
+                  versionId: document.versionId,
+                  filename: document.filename,
+                  locator: lookup.block.label,
+                  projection: "canonical",
+                  kind: "evidence" as const,
+                  start: lookup.block.start + view.at,
+                  end: lookup.block.start + view.at + view.body.length,
+                },
+                ...related.map((item) => ({
+                  documentId,
+                  versionId: document.versionId,
+                  filename: document.filename,
+                  locator: item.section,
+                  projection: "canonical",
+                  kind: "evidence" as const,
+                  start: item.start,
+                  end: item.end,
+                })),
+              ],
+            };
           }
           // Page address. The point of pagination here is that a contents
           // page cites it: the reply carries the section handles printed on
@@ -5904,7 +6387,8 @@ export async function runLocalAssistantTools(
               }),
               lookup.page,
             );
-            return result(call, {
+            return {
+              ...result(call, {
               ok: true,
               filename: document.filename,
               ...(document.cautions.length
@@ -5914,7 +6398,6 @@ export async function runLocalAssistantTools(
               pdf_page: lookup.page.pdfPage,
               printed_label: lookup.page.printedLabel,
               matched_on: lookup.matchedOn,
-              offset: lookup.page.start + pageView.at,
               sections: onPage.starts
                 .slice(0, 24)
                 .map((node) => ({ section: node.label, display: node.display })),
@@ -5931,7 +6414,20 @@ export async function runLocalAssistantTools(
                     continuation: `Page continues; call library_read with at="off:${lookup.page.start + pageBody.length}", or read one of the listed sections.`,
                   }
                 : {}),
-            });
+              }),
+              evidenceSegments: [
+                {
+                  documentId,
+                  versionId: document.versionId,
+                  filename: document.filename,
+                  locator: pageLabel(lookup.page),
+                  projection: "canonical",
+                  kind: "evidence" as const,
+                  start: lookup.page.start + pageView.at,
+                  end: lookup.page.start + pageView.at + pageBody.length,
+                },
+              ],
+            };
           }
           // Windowed read: offset composes with library_find's `at` for
           // documents without numbered structure. Untargeted reads keep the
@@ -6023,7 +6519,8 @@ export async function runLocalAssistantTools(
                   }),
             };
           }
-          return result(call, {
+          return {
+            ...result(call, {
             ok: true,
             filename: document.filename,
             ...(document.cautions.length
@@ -6038,7 +6535,24 @@ export async function runLocalAssistantTools(
                   continuation: `Document continues (${document.text.length.toLocaleString("en-CA")} chars total); call library_read with at="off:${start + window.length}" to keep reading, from="end" for the tail, or library_outline / library_find to target a section.`,
                 }
               : {}),
-          });
+            }),
+            evidenceSegments: window.length
+              ? [
+                  {
+                    documentId,
+                    versionId: document.versionId,
+                    filename: document.filename,
+                    locator: start
+                      ? `window beginning at ${start}`
+                      : "opening window",
+                    projection: "canonical",
+                    kind: "evidence" as const,
+                    start,
+                    end: start + window.length,
+                  },
+                ]
+              : [],
+          };
         }
         // Page-scoped search. The filter runs on OFFSETS after the match, so
         // every `at` stays a document offset that library_read offset=
@@ -6663,7 +7177,10 @@ export async function runLocalAssistantTools(
         if (lookup.status === "found") {
           localPdfEvidenceHandles?.add(lookup.evidence.handle);
         }
-        return result(call, compactPdfLookup(file.version.filename, lookup));
+        return {
+          ...result(call, compactPdfLookup(file.version.filename, lookup)),
+          evidenceRefs: pdfEvidenceRefs(file.version.filename, lookup),
+        };
       }
 
       if (call.name === "library_evidence") {
@@ -6694,7 +7211,10 @@ export async function runLocalAssistantTools(
             artifactSession,
           );
           localPdfEvidenceHandles?.add(handle);
-          return result(call, compactPdfLookup(file.version.filename, lookup));
+          return {
+            ...result(call, compactPdfLookup(file.version.filename, lookup)),
+            evidenceRefs: pdfEvidenceRefs(file.version.filename, lookup),
+          };
         } catch (error) {
           return fail(call, pdfEvidenceError(error));
         }
@@ -6781,7 +7301,10 @@ export async function runLocalAssistantTools(
             registerLegalEvidence(legalEvidenceState, evidence);
           }
         }
-        return result(call, citator.payload);
+        return {
+          ...result(call, citator.payload),
+          evidenceRefs: receiptEvidenceRefs(citator.evidences ?? []),
+        };
       }
 
       const compared = await executeCompareVersionsTool(userId, call.name, args);
@@ -6807,7 +7330,13 @@ export async function runLocalAssistantTools(
             });
           }
         }
-        return result(call, a2aj.payload);
+        return {
+          ...result(call, a2aj.payload),
+          evidenceRefs: receiptEvidenceRefs([
+            a2aj.evidence,
+            ...(a2aj.evidences ?? []),
+          ]),
+        };
       }
 
       return result(call, { ok: false, error: `Unknown tool: ${call.name}` });
@@ -6818,6 +7347,14 @@ export async function runLocalAssistantTools(
       ) {
         const queued = workingSetTail.then(execute);
         workingSetTail = queued.then(
+          () => undefined,
+          () => undefined,
+        );
+        return queued;
+      }
+      if (WHOLE_READ_MAX_CHARS && call.name === "fetch_documents") {
+        const queued = wholeReadTail.then(execute);
+        wholeReadTail = queued.then(
           () => undefined,
           () => undefined,
         );

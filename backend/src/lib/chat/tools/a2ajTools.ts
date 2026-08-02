@@ -471,12 +471,6 @@ export async function executeA2AJTool(
                   },
                 }
               : {}),
-            ...(evidence
-              ? {
-                  next_required_action:
-                    "Call submit_grounded_answer now with prose-only support units and this evidence_id; do not answer separately.",
-                }
-              : {}),
           }
         : {
             ok: false,

@@ -658,8 +658,30 @@ Status: **Experiment in flight (2026-08-01)**
   drafting checks like a compiler after synthesis. A bounded correction pass
   retains the instructions, artifact, and typed findings while dropping old
   tool payloads from model context.
+- During research, replace accumulated tool history with the original request,
+  a compact index of durable exact evidence, and only the latest tool results.
+  Restore the full deduplicated evidence union for drafting; never make an
+  append-only transcript plus a second union masquerade as compaction.
 - Measure each provider round: tool-schema hash, arguments/results bytes,
   cache tokens, source-qualified exposure union, replay, and truncation.
+
+The current benchmark may hold a linear research-to-drafting handoff constant,
+but that is not the final work-product model. Production must eventually allow
+research, drafting, checking against the user's instructions and output
+requirements, targeted re-research, revision, and final refinement without
+replaying every earlier payload. Hidden benchmark rubrics are never available
+to the agent.
+
+After the lossless context-refresh path is measured, preregister a separate
+compact-phase ablation inspired by `experiments/legal_compaction_qwen`. Its
+4B-parameter, 4k-context, three-case result is a stress probe of interface
+information density, not a proposal to fit production long-horizon work into
+a tiny model or a fixed 4k budget. This does not require multi-agent
+orchestration: test the principles in a single model workflow whose host gives
+each step minimal task-local typed state and removes superseded payloads. Keep
+exact text, hashes, and pinpoints outside the active packet for deterministic
+rehydration and verification; do not silently summarize away controlling
+language in the main arm.
 
 Acceptance:
 

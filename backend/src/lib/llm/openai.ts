@@ -218,6 +218,7 @@ async function createResponse(params: {
   previousResponseId?: string;
   reasoning?: { summary?: "auto"; effort?: string };
   serviceTier?: string;
+  compactThreshold?: number;
   apiKey: string;
   headers?: Record<string, string>;
   codexBackend?: boolean;
@@ -242,6 +243,16 @@ async function createResponse(params: {
       previous_response_id: params.previousResponseId,
       reasoning: params.reasoning,
       service_tier: params.serviceTier,
+      ...(!params.codexBackend && params.compactThreshold
+        ? {
+            context_management: [
+              {
+                type: "compaction",
+                compact_threshold: params.compactThreshold,
+              },
+            ],
+          }
+        : {}),
     }),
     signal: params.signal,
   });
@@ -386,6 +397,7 @@ export async function streamResponsesApi(
           headers: config.headers,
           codexBackend: config.codexBackend,
           serviceTier: config.serviceTier,
+          compactThreshold: params.compactThreshold,
           signal: params.abortSignal,
         });
         if (!response.body) throw new Error("OpenAI response had no body");
