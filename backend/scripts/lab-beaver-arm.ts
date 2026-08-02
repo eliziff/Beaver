@@ -278,6 +278,7 @@ async function main() {
       MIKE_RETRIEVAL_EXPERIMENT: "h9-accretive-union",
       MIKE_SLA_WORKFLOW: "1",
       MIKE_SLA_STRATEGY: "working_set_first",
+      MIKE_GREENFIELD_REVIEW: "0",
     },
     h10: {
       MIKE_NAV_SHAPE: "address",
@@ -285,8 +286,11 @@ async function main() {
       MIKE_RETRIEVAL_EXPERIMENT: "h9-accretive-union",
       MIKE_SLA_WORKFLOW: "1",
       MIKE_SLA_STRATEGY: "working_set_first",
-      MIKE_GREENFIELD_REVIEW: "1",
-      MIKE_GREENFIELD_REVIEW_EFFORT: "low",
+      // The fresh-context reviewer was a failed side experiment: it added
+      // quality on two tasks only by triggering an expensive correction pass.
+      // Keep its code behind an explicit flag, but do not ship it in the core
+      // benchmark arm.
+      MIKE_GREENFIELD_REVIEW: "0",
     },
     address: {
       MIKE_NAV_SHAPE: "address",
