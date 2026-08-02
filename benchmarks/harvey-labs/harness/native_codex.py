@@ -191,6 +191,7 @@ def main(args: argparse.Namespace) -> None:
         "docker",
         "run",
         "--rm",
+        "--interactive",
         "--name",
         container_name,
         "--mount",
