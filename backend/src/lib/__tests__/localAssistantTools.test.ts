@@ -112,6 +112,8 @@ afterEach(async () => {
   delete process.env.MIKE_TOOL_SHAPE;
   delete process.env.MIKE_RETRIEVAL_EXPERIMENT;
   delete process.env.MIKE_PROGRESSIVE_DISCLOSURE;
+  delete process.env.MIKE_MODEL_COVERAGE_ROUTING;
+  delete process.env.MIKE_WHOLE_READ_MAX_CHARS;
   delete process.env.MIKE_DISABLE_RESEARCH_TOOLS;
   delete process.env.MIKE_DISABLE_ASK_INPUTS;
   delete process.env.MIKE_TOOL_RESULT_CAP;
@@ -207,12 +209,187 @@ describe("local assistant tools", () => {
     const [first] = await invoke();
     const [second] = await invoke();
     expect(first.content).toContain("borrower shall deliver reports");
+    expect(first.evidenceSegments).toEqual([
+      expect.objectContaining({
+        documentId: document.id,
+        start: 0,
+        end: expect.any(Number),
+        kind: "evidence",
+      }),
+    ]);
     expect(JSON.parse(second.content)).toMatchObject({
       ok: true,
       already_read: true,
       doc_id: "doc-0",
       document_id: document.id,
     });
+    expect(second.evidenceSegments).toEqual([]);
+  });
+
+  it("batch-fetches complete documents by filename in coding shape", async () => {
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    process.env.MIKE_DISABLE_RESEARCH_TOOLS = "1";
+    process.env.MIKE_DISABLE_ASK_INPUTS = "1";
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-bulk-read-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const store = await import("../localDocumentStore");
+    const document = await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "source-form.docx",
+      bytes: await Packer.toBuffer(
+        new Document({
+          sections: [{ children: [new Paragraph("Complete source text.")] }],
+        }),
+      ),
+    });
+    const tools = await import("../chat/localAssistantTools");
+    const [fetched] = await tools.runLocalAssistantTools(
+      "local-user",
+      [
+        {
+          id: "fetch",
+          name: "fetch_documents",
+          input: { doc_ids: ["source-form.docx"] },
+        },
+      ],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      new Set([document.id]),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      new Map(),
+    );
+
+    expect(fetched.content).toContain("Complete source text.");
+    expect(fetched.evidenceSegments).toEqual([
+      expect.objectContaining({
+        documentId: document.id,
+        start: 0,
+        end: expect.any(Number),
+        kind: "evidence",
+      }),
+    ]);
+  });
+
+  it("refuses an over-budget batch without exposing partial source text", async () => {
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    process.env.MIKE_MODEL_COVERAGE_ROUTING = "1";
+    process.env.MIKE_WHOLE_READ_MAX_CHARS = "10";
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-bulk-cap-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const store = await import("../localDocumentStore");
+    const document = await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "large-source.docx",
+      bytes: await Packer.toBuffer(
+        new Document({
+          sections: [{ children: [new Paragraph("This source exceeds ten characters.")] }],
+        }),
+      ),
+    });
+    const tools = await import("../chat/localAssistantTools");
+    const [fetched] = await tools.runLocalAssistantTools(
+      "local-user",
+      [
+        {
+          id: "fetch-over-cap",
+          name: "fetch_documents",
+          input: { doc_ids: ["large-source.docx"] },
+        },
+      ],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      new Set([document.id]),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      new Map(),
+    );
+
+    expect(JSON.parse(fetched.content)).toMatchObject({
+      ok: false,
+      code: "WHOLE_READ_OVER_CONTEXT_BUDGET",
+      requested_files: 1,
+      new_files: 1,
+      max_chars: 10,
+    });
+    expect(fetched.content).not.toContain("This source exceeds");
+    expect(fetched.evidenceSegments).toBeUndefined();
+    expect(fetched.status).toBe("selection_required");
+  });
+
+  it("cannot bypass the whole-read budget with parallel smaller batches", async () => {
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    process.env.MIKE_MODEL_COVERAGE_ROUTING = "1";
+    process.env.MIKE_WHOLE_READ_MAX_CHARS = "60";
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-bulk-union-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const store = await import("../localDocumentStore");
+    const first = await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "first.docx",
+      bytes: await Packer.toBuffer(
+        new Document({ sections: [{ children: [new Paragraph("A".repeat(40))] }] }),
+      ),
+    });
+    const second = await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "second.docx",
+      bytes: await Packer.toBuffer(
+        new Document({ sections: [{ children: [new Paragraph("B".repeat(40))] }] }),
+      ),
+    });
+    const tools = await import("../chat/localAssistantTools");
+    const readState: import("../chat/localAssistantTools").LocalAssistantReadTurnState =
+      new Map();
+    const [firstResult, secondResult] = await tools.runLocalAssistantTools(
+      "local-user",
+      [
+        {
+          id: "fetch-first",
+          name: "fetch_documents",
+          input: { doc_ids: ["first.docx"] },
+        },
+        {
+          id: "fetch-second",
+          name: "fetch_documents",
+          input: { doc_ids: ["second.docx"] },
+        },
+      ],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      new Set([first.id, second.id]),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      readState,
+    );
+
+    expect(firstResult.content).toContain("A".repeat(40));
+    expect(JSON.parse(secondResult.content)).toMatchObject({
+      ok: false,
+      status: "selection_required",
+      already_read_chars: 40,
+      requested_chars: 40,
+      projected_chars: 80,
+      max_chars: 60,
+    });
+    expect(secondResult.content).not.toContain("B".repeat(40));
+    expect(secondResult.status).toBe("selection_required");
   });
 
   it("uses only Edit in coding shape and retains its durable receipt", async () => {
@@ -361,8 +538,10 @@ describe("local assistant tools", () => {
     expect(JSON.parse(revealed.content).opened).toEqual(
       expect.arrayContaining(["Edit", "library_delete_and_renumber_docx"]),
     );
-    expect(star.content).toBe("draft.docx");
-    expect(recursive.content).toBe("draft.docx");
+    for (const inventory of [star.content, recursive.content]) {
+      expect(inventory).toMatch(/^draft\.docx\tchars=\d+\tlines=\d+$/mu);
+      expect(inventory).toMatch(/^TOTAL\tfiles=1\tchars=\d+\tlines=\d+$/mu);
+    }
   });
 
   it("keeps coding search and section pagination evidence-complete", async () => {
@@ -521,6 +700,42 @@ describe("local assistant tools", () => {
     });
   });
 
+  it("keeps broad Grep display context out of the drafting handoff", async () => {
+    process.env.MIKE_NAV_SHAPE = "address";
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-grep-focus-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const store = await import("../localDocumentStore");
+    const text = ["zero", "one", "two", "NEEDLE", "four", "five", "six"].join("\n");
+    const document = await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "focus.txt",
+      bytes: Buffer.from(text, "utf8"),
+    });
+    const tools = await import("../chat/localAssistantTools");
+    const [grep] = await tools.runLocalAssistantTools("local-user", [
+      {
+        id: "grep-focus",
+        name: "Grep",
+        input: {
+          pattern: "NEEDLE",
+          path: "focus.txt",
+          output_mode: "content",
+          "-C": 3,
+        },
+      },
+    ]);
+    const extracted = await tools.extractLocalDocument("local-user", document.id);
+    const carried = grep.evidenceSegments?.map((segment) =>
+      extracted!.text.slice(segment.start, segment.end),
+    );
+
+    expect(grep.content).toContain("focus.txt-1-zero");
+    expect(grep.content).toContain("focus.txt-7-six");
+    expect(carried).toEqual(["two", "NEEDLE", "four"]);
+  });
+
   it("reads a native DOCX table row and cell in coding mode", async () => {
     process.env.MIKE_NAV_SHAPE = "address";
     process.env.MIKE_TOOL_SHAPE = "coding";
@@ -558,6 +773,10 @@ describe("local assistant tools", () => {
       section: "table:1/row:1/col:2",
     });
     expect(read.content).toContain("Unique cell value");
+    expect(read.evidenceSegments?.[0]).toMatchObject({
+      locator: "table:1/row:1/col:2",
+      projection: "canonical",
+    });
 
     const rowRead = await run("Read", {
       file_path: "cells.docx",
@@ -1123,10 +1342,13 @@ describe("local assistant tools", () => {
         input: { pattern: "{schedule.docx,memo.docx}" },
       },
     ]);
-    expect(braced.content.split("\n").sort()).toEqual([
-      "memo.docx",
-      "schedule.docx",
-    ]);
+    expect(
+      braced.content
+        .split("\n")
+        .filter((line) => !line.startsWith("TOTAL\t"))
+        .map((line) => line.split("\t", 1)[0])
+        .sort(),
+    ).toEqual(["memo.docx", "schedule.docx"]);
 
     const [created] = await run([
       {
@@ -1553,6 +1775,8 @@ describe("local assistant tools", () => {
       extractLocalDocument("local-user", "document-1"),
     ).resolves.toEqual({
       filename: "verified-source.pdf",
+      documentId: "document-1",
+      versionId: "version-1",
       text: "Text from the verified PDF artifact.",
       cautions: [],
       // A PDF whose artifact yields no page records reports UNAVAILABLE, not

@@ -114,6 +114,8 @@ export type LegalEvidenceReceipt = {
   source_sha256: string;
   scope: "document" | "passage";
   block_id: string;
+  /** Exact-byte passage identity; `span_sha256` remains normalized for lint compatibility. */
+  exact_span_sha256?: string;
   span_sha256: string;
   span_text: string | null;
   citation: string;
@@ -259,8 +261,25 @@ function sha256(value: string) {
   return `sha256:${crypto.createHash("sha256").update(value).digest("hex")}`;
 }
 
-function evidenceId() {
-  return `e_${crypto.randomBytes(9).toString("base64url")}`;
+function evidenceId(
+  receipt: Omit<LegalEvidenceReceipt, "evidence_id">,
+) {
+  const identity = JSON.stringify([
+    receipt.provider,
+    receipt.stable_source_id,
+    receipt.source_sha256,
+    receipt.scope,
+    receipt.block_id,
+    receipt.exact_span_sha256 ?? receipt.span_sha256,
+    receipt.resolver_version,
+  ]);
+  return `e_${crypto.createHash("sha256").update(identity).digest("base64url").slice(0, 18)}`;
+}
+
+function withEvidenceId(
+  receipt: Omit<LegalEvidenceReceipt, "evidence_id">,
+): LegalEvidenceReceipt {
+  return { evidence_id: evidenceId(receipt), ...receipt };
 }
 
 function stableSourceId(source: {
@@ -281,8 +300,7 @@ export function createA2AJDocumentEvidence(
   sourceClass: LegalSourceClass = "case",
 ): LegalEvidenceReceipt {
   const sourceText = getA2AJDocumentSourceDoc(document).text;
-  return {
-    evidence_id: evidenceId(),
+  return withEvidenceId({
     provider: "a2aj",
     jurisdiction: "CA",
     source_class: sourceClass,
@@ -290,6 +308,7 @@ export function createA2AJDocumentEvidence(
     source_sha256: sha256(sourceText),
     scope: "document",
     block_id: "document",
+    exact_span_sha256: sha256(sourceText),
     span_sha256: sha256(normalizeWhitespace(sourceText)),
     span_text: null,
     citation: document.citation,
@@ -300,7 +319,7 @@ export function createA2AJDocumentEvidence(
     external_url: document.url,
     locator: { kind: "document", label: "document" },
     resolver_version: "a2aj-inline-v1",
-  };
+  });
 }
 
 export function createA2AJLookupEvidence(
@@ -310,8 +329,7 @@ export function createA2AJLookupEvidence(
   if (lookup.status !== "found" || !lookup.block) return null;
   const sourceText = getA2AJLookupDocument(lookup)?.text ?? lookup.block.text;
   const spanText = lookup.block.text;
-  return {
-    evidence_id: evidenceId(),
+  return withEvidenceId({
     provider: "a2aj",
     jurisdiction: "CA",
     source_class: sourceClass,
@@ -324,6 +342,7 @@ export function createA2AJLookupEvidence(
       lookup.block.start,
       lookup.block.end,
     ].join(":"),
+    exact_span_sha256: sha256(spanText),
     span_sha256: sha256(normalizeWhitespace(spanText)),
     span_text: spanText,
     citation: lookup.citation,
@@ -337,7 +356,7 @@ export function createA2AJLookupEvidence(
       label: lookup.requested.label,
     },
     resolver_version: "a2aj-inline-v1",
-  };
+  });
 }
 
 export function createBenchmarkEvidence(args: {
@@ -355,8 +374,7 @@ export function createBenchmarkEvidence(args: {
   locatorKind?: LegalEvidenceReceipt["locator"]["kind"];
   locatorLabel: string;
 }): LegalEvidenceReceipt {
-  return {
-    evidence_id: evidenceId(),
+  return withEvidenceId({
     provider: "benchmark",
     jurisdiction: args.jurisdiction,
     source_class: args.sourceClass,
@@ -364,6 +382,7 @@ export function createBenchmarkEvidence(args: {
     source_sha256: sha256(args.sourceText),
     scope: "passage",
     block_id: `${args.locatorKind ?? "section"}:${args.locatorLabel}`,
+    exact_span_sha256: sha256(args.spanText),
     span_sha256: sha256(normalizeWhitespace(args.spanText)),
     span_text: args.spanText,
     citation: args.citation,
@@ -377,7 +396,7 @@ export function createBenchmarkEvidence(args: {
       label: args.locatorLabel,
     },
     resolver_version: "benchmark-span-v1",
-  };
+  });
 }
 
 /**
@@ -413,8 +432,7 @@ export function attestedCharacterizationReceipt(args: {
     : (args.characterization.citingCitation ??
       args.characterization.citingName ??
       "unknown citing case");
-  return {
-    evidence_id: evidenceId(),
+  return withEvidenceId({
     provider: "citator",
     jurisdiction: args.jurisdiction ?? "CA",
     source_class: "case",
@@ -422,6 +440,7 @@ export function attestedCharacterizationReceipt(args: {
     source_sha256: sha256(args.characterization.text),
     scope: "passage",
     block_id: `standsfor:${citing}`,
+    exact_span_sha256: sha256(args.characterization.text),
     span_sha256: sha256(normalizeWhitespace(args.characterization.text)),
     span_text: args.characterization.text,
     citation: args.citedCitation,
@@ -441,7 +460,7 @@ export function attestedCharacterizationReceipt(args: {
           }`,
     },
     resolver_version: "citator-standsfor-v1",
-  };
+  });
 }
 
 /** Exact citing passage returned by the deterministic note-up graph. */
@@ -459,8 +478,7 @@ export function citatorNoteUpReceipt(args: {
 }): LegalEvidenceReceipt {
   const source = args.entry.citation ?? args.entry.name ?? "unknown-citing-case";
   const paragraph = args.entry.paragraph === null ? "passage" : `para:${args.entry.paragraph}`;
-  return {
-    evidence_id: evidenceId(),
+  return withEvidenceId({
     provider: "citator",
     jurisdiction: "CA",
     source_class: "case",
@@ -468,6 +486,7 @@ export function citatorNoteUpReceipt(args: {
     source_sha256: sha256(args.entry.excerpt),
     scope: "passage",
     block_id: `noteup:${source}:${paragraph}`,
+    exact_span_sha256: sha256(args.entry.excerpt),
     span_sha256: sha256(normalizeWhitespace(args.entry.excerpt)),
     span_text: args.entry.excerpt,
     citation: args.entry.citation ?? args.citedCitation,
@@ -481,7 +500,7 @@ export function citatorNoteUpReceipt(args: {
       label: `${source}${args.entry.paragraph === null ? "" : ` at para ${args.entry.paragraph}`}`,
     },
     resolver_version: "citator-noteup-v1",
-  };
+  });
 }
 
 /**
@@ -504,7 +523,6 @@ export function registerLegalEvidence(
   } = {},
 ) {
   if (!receipt) return;
-  state.mode ??= "citation_structure";
   state.evidence.set(receipt.evidence_id, { receipt, ...source });
 }
 
@@ -1619,6 +1637,29 @@ async function verificationPass(args: {
           terminal: "terminal" in submitted && submitted.terminal === true,
         };
       }),
+  });
+}
+
+/**
+ * Run the existing strict evidence checker over one or more already-atomic
+ * claims without invoking the answer-repair loop. Benchmark and routing
+ * callers use this entry point so their verdicts share the product prompt,
+ * tool schema, and receipt state instead of growing a second checker.
+ */
+export async function semanticClaimVerificationPass(args: {
+  state: LegalEvidenceTurnState;
+  model: string;
+  checkerModel?: string;
+  requestContext?: string;
+  apiKeys?: UserApiKeys;
+  reasoningEffort?: string;
+  abortSignal?: AbortSignal;
+}) {
+  if (!args.state.answer?.length)
+    throw new Error("semantic claim verification requires at least one claim");
+  return verificationPass({
+    ...args,
+    originText: args.state.answer.map((claim) => claim.text).join("\n\n"),
   });
 }
 

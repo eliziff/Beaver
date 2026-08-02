@@ -77,11 +77,15 @@ function sseEvents(body: string): SseEvent[] {
     .map((line) => JSON.parse(line.slice(6)) as SseEvent);
 }
 
-const visibleText = (events: SseEvent[]) =>
-  events
-    .filter((event) => event.type === "content_delta")
-    .map((event) => String(event.text ?? ""))
-    .join("");
+const visibleText = (events: SseEvent[]) => {
+  let text = "";
+  for (const event of events) {
+    if (event.type === "content_reset") text = "";
+    else if (event.type === "content_delta") text += String(event.text ?? "");
+    else if (event.type === "content_final") text = String(event.text ?? text);
+  }
+  return text;
+};
 
 const toolCalls = (events: SseEvent[]) =>
   events
@@ -100,6 +104,7 @@ const toolResults = (events: SseEvent[]) =>
       id: String(event.id ?? ""),
       name: String(event.name ?? ""),
       ok: event.ok !== false,
+      status: typeof event.status === "string" ? event.status : null,
       error: typeof event.error === "string" ? event.error : null,
       content_chars: Number(event.content_chars ?? 0),
       content_sha256:
@@ -237,6 +242,15 @@ async function main() {
       MIKE_TOOL_SHAPE: "coding",
       MIKE_RETRIEVAL_EXPERIMENT: "p0-pure-coding",
     },
+    coding_finalist: {
+      MIKE_NAV_SHAPE: "address",
+      MIKE_TOOL_SHAPE: "coding",
+      MIKE_RETRIEVAL_EXPERIMENT: "p0-pure-coding",
+      MIKE_CONTEXT_HANDOFF: "1",
+      MIKE_EVIDENCE_HANDOFF_MAX_CHARS: "120000",
+      MIKE_OPENAI_COMPACT_THRESHOLD: "120000",
+      MIKE_GREENFIELD_REVIEW: "0",
+    },
     d1: {
       MIKE_NAV_SHAPE: "address",
       MIKE_TOOL_SHAPE: "coding",
@@ -246,6 +260,63 @@ async function main() {
       MIKE_NAV_SHAPE: "address",
       MIKE_TOOL_SHAPE: "coding",
       MIKE_RETRIEVAL_EXPERIMENT: "h4-legal-grep",
+    },
+    hybrid_finalist: {
+      MIKE_NAV_SHAPE: "address",
+      MIKE_TOOL_SHAPE: "coding",
+      MIKE_RETRIEVAL_EXPERIMENT: "h4-legal-grep",
+      MIKE_CONTEXT_HANDOFF: "1",
+      MIKE_EVIDENCE_HANDOFF_MAX_CHARS: "120000",
+      MIKE_OPENAI_COMPACT_THRESHOLD: "120000",
+      MIKE_SLA_WORKFLOW: "1",
+      MIKE_SLA_STRATEGY: "full",
+      MIKE_GREENFIELD_REVIEW: "0",
+    },
+    coverage_finalist: {
+      MIKE_NAV_SHAPE: "address",
+      MIKE_TOOL_SHAPE: "coding",
+      MIKE_RETRIEVAL_EXPERIMENT: "h4-legal-grep",
+      // The model chooses complete, targeted, or mixed coverage after Glob.
+      // There is no request regex, task metadata, domain router, or source-size
+      // threshold in this arm.
+      MIKE_MODEL_COVERAGE_ROUTING: "1",
+      MIKE_CONTEXT_HANDOFF: "1",
+      // Accuracy gate first: a fresh drafting context may retain roughly
+      // 200k tokens of exact source text before selection is required.
+      MIKE_EVIDENCE_HANDOFF_MAX_CHARS: "800000",
+      MIKE_OPENAI_COMPACT_THRESHOLD: "",
+      MIKE_SLA_WORKFLOW: "1",
+      MIKE_SLA_STRATEGY: "full",
+      MIKE_GREENFIELD_REVIEW: "0",
+    },
+    coverage_hybrid_v2: {
+      MIKE_NAV_SHAPE: "address",
+      MIKE_TOOL_SHAPE: "coding",
+      MIKE_RETRIEVAL_EXPERIMENT: "h4-legal-grep",
+      // One request-independent surface: the model sees truthful extracted
+      // sizes and chooses whole, targeted, or mixed coverage itself.
+      MIKE_MODEL_COVERAGE_ROUTING: "1",
+      MIKE_WHOLE_READ_MAX_CHARS: "800000",
+      MIKE_CONTEXT_HANDOFF: "1",
+      MIKE_EVIDENCE_HANDOFF_MAX_CHARS: "800000",
+      MIKE_OPENAI_COMPACT_THRESHOLD: "",
+      MIKE_SLA_WORKFLOW: "1",
+      MIKE_SLA_STRATEGY: "full",
+      MIKE_GREENFIELD_REVIEW: "0",
+    },
+    coverage_soft_v2: {
+      MIKE_NAV_SHAPE: "address",
+      MIKE_TOOL_SHAPE: "coding",
+      MIKE_RETRIEVAL_EXPERIMENT: "h4-legal-grep",
+      // Minimal ablation: truthful source sizes plus model judgment. No host
+      // whole-read cutoff or selection response.
+      MIKE_MODEL_COVERAGE_ROUTING: "1",
+      MIKE_CONTEXT_HANDOFF: "1",
+      MIKE_EVIDENCE_HANDOFF_MAX_CHARS: "800000",
+      MIKE_OPENAI_COMPACT_THRESHOLD: "",
+      MIKE_SLA_WORKFLOW: "1",
+      MIKE_SLA_STRATEGY: "full",
+      MIKE_GREENFIELD_REVIEW: "0",
     },
     working_set: {
       MIKE_NAV_SHAPE: "address",
@@ -306,7 +377,7 @@ async function main() {
   };
   if (!armEnvironment[arm])
     throw new Error(
-      `unknown --arm ${arm}; expected p0, d1, hybrid, working_set, compiler_hybrid, sla_hybrid, sla_working_set, h9, h10, address, or upstream`,
+      `unknown --arm ${arm}; expected p0, coding_finalist, d1, hybrid, hybrid_finalist, coverage_finalist, coverage_hybrid_v2, coverage_soft_v2, working_set, compiler_hybrid, sla_hybrid, sla_working_set, h9, h10, address, or upstream`,
     );
 
   // Re-spawn into the isolated anonymous-mode environment (same recipe as
@@ -347,6 +418,17 @@ async function main() {
           MIKE_READ_DEFAULT_CHARS: "",
           MIKE_TOOL_RESULT_CAP: "",
           MIKE_BENCHMARK_TRACE_TOOLS: "1",
+          // Fail closed against ambient experiment flags. Each arm below
+          // opts in explicitly, so upstream Mike cannot inherit Beaver-only
+          // context or compiler behavior from the invoking shell.
+          MIKE_CONTEXT_HANDOFF: "0",
+          MIKE_MODEL_COVERAGE_ROUTING: "0",
+          MIKE_WHOLE_READ_MAX_CHARS: "",
+          MIKE_EVIDENCE_HANDOFF_MAX_CHARS: "",
+          MIKE_OPENAI_COMPACT_THRESHOLD: "",
+          MIKE_SLA_WORKFLOW: "0",
+          MIKE_SLA_STRATEGY: "",
+          MIKE_GREENFIELD_REVIEW: "0",
           ...armEnvironment[arm],
           MIKE_LLM_CONTEXT_MANIFEST_PATH: path.join(dataHome, "manifest.jsonl"),
           // SLA receipts land beside the run's other artifacts; inert
@@ -481,6 +563,11 @@ async function main() {
   }
   const exposure = exposureMetrics(calls, results, sourceAliases);
   const surface = events.find((event) => event.type === "benchmark_surface") ?? null;
+  const evidenceHandoff =
+    events.find((event) => event.type === "evidence_handoff") ?? null;
+  const researchContextRefreshes = events.filter(
+    (event) => event.type === "research_context_refresh",
+  );
   if (arm === "upstream") {
     const expectedTools = [
       "read_document",
@@ -532,7 +619,7 @@ async function main() {
       document_id: document.id,
       text_chars: extracted.text.length,
       text_sha256: createHash("sha256").update(extracted.text).digest("hex"),
-      pages: extracted.pages.length,
+      pages: extracted.pages.pages.length,
       pages_sha256: createHash("sha256")
         .update(JSON.stringify(extracted.pages))
         .digest("hex"),
@@ -661,6 +748,13 @@ async function main() {
         retrieval_prompt_variant: retrievalPromptVariant,
         tool_description_variant: toolDescriptionVariant,
         progressive_disclosure: arm !== "upstream",
+        model_coverage_routing: surface?.model_coverage_routing === true,
+        whole_read_max_chars: surface?.whole_read_max_chars ?? null,
+        context_handoff: surface?.context_handoff === true,
+        evidence_handoff_max_chars:
+          surface?.evidence_handoff_max_chars ?? null,
+        openai_compact_threshold:
+          surface?.openai_compact_threshold ?? null,
         upstream_mike_commit: arm === "upstream" ? UPSTREAM_MIKE_COMMIT : null,
         upstream_mike_schema_sha256:
           arm === "upstream" ? UPSTREAM_MIKE_SCHEMA_SHA256 : null,
@@ -689,6 +783,8 @@ async function main() {
         token_source: tokenSource,
         service_tier_requested: serviceTier || null,
         service_tiers_reported: [...reportedServiceTiers],
+        model_coverage_routing: surface?.model_coverage_routing === true,
+        whole_read_max_chars: surface?.whole_read_max_chars ?? null,
         wall_clock_seconds: Math.round(wallClock * 100) / 100,
         finished_cleanly: true,
         completed_at: new Date().toISOString(),
@@ -739,6 +835,21 @@ async function main() {
         duplicate_exposure_calls: results.filter(
           (result) => result.already_exposed,
         ).length,
+        not_found_tool_calls: results.filter(
+          (result) => result.status === "not_found",
+        ).length,
+        ambiguous_tool_calls: results.filter(
+          (result) => result.status === "ambiguous",
+        ).length,
+        evidence_selection_calls: results.filter(
+          (result) => result.status === "selection_required",
+        ).length,
+        past_end_tool_calls: results.filter(
+          (result) => result.status === "past_end",
+        ).length,
+        research_context_refresh_count: researchContextRefreshes.length,
+        research_context_refreshes: researchContextRefreshes,
+        evidence_handoff: evidenceHandoff,
         context_round_count: contextRounds.length,
         context_rounds: contextRounds,
         context_tool_schema_variants: new Set(
@@ -791,6 +902,8 @@ async function main() {
         tool_calls: calls,
         tool_results: results,
         surface,
+        research_context_refreshes: researchContextRefreshes,
+        evidence_handoff: evidenceHandoff,
         uploaded_documents: uploadedDocuments,
         source_receipts: sourceReceipts,
         context_rounds: contextRounds,

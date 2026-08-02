@@ -35,7 +35,9 @@ import {
 } from "../lib/llm";
 import { providerForModel } from "../lib/llm/models";
 import {
+  WHOLE_READ_MAX_CHARS,
   LOCAL_ASSISTANT_TOOLS,
+  MODEL_COVERAGE_ROUTING,
   NAV_TOOL_SHAPE,
   PROGRESSIVE_DISCLOSURE_ENABLED,
   RESEARCH_TOOLS_DISABLED,
@@ -43,12 +45,20 @@ import {
   WORKING_SET_PATH,
   partitionTools,
   describeToolsTool,
+  extractLocalDocument,
   runLocalAssistantTools,
   toolsForDomains,
   type LocalAssistantEditTurnState,
   type LocalAssistantReadTurnState,
   type LocalAssistantWorkingSetTurnState,
 } from "../lib/chat/localAssistantTools";
+import {
+  applyEvidenceExposure,
+  compileEvidenceHandoff,
+  compileEvidenceResearchRefresh,
+  createEvidenceExposureState,
+  renderEvidenceManifest,
+} from "../lib/chat/evidenceExposure";
 import { UPSTREAM_MIKE_LAB_SYSTEM_PROMPT } from "../lib/chat/upstreamMikeBenchmarkSurface";
 import { localAutomationEvent } from "../lib/chat/localAutomationEvent";
 import {
@@ -944,6 +954,7 @@ export async function streamAnonymousChat(params: {
     return fail(400, safeErrorMessage(error, "Invalid image attachment"));
   }
   const selectedModel = params.model || DEFAULT_MAIN_MODEL;
+  const codingShape = process.env.MIKE_TOOL_SHAPE === "coding";
   const toolPartition = partitionTools(LOCAL_ASSISTANT_TOOLS);
   const activeTools = [...toolPartition.resident];
   const activeToolNames = new Set(
@@ -965,7 +976,6 @@ export async function streamAnonymousChat(params: {
   // Prompt discipline for the tool-shape experiment: never teach tool names
   // the served surface does not carry (a prose mention overrides the schema
   // list in practice, and silently un-does the A/B).
-  const codingShape = process.env.MIKE_TOOL_SHAPE === "coding";
   const navigationTools = UPSTREAM_MIKE_TOOL_SHAPE
     ? "list_documents, fetch_documents, read_document, find_in_document"
     : codingShape
@@ -1089,6 +1099,15 @@ export async function streamAnonymousChat(params: {
     if (slaLedger) systemPrompt += slaLedger.promptSection;
   }
   const isCodex = providerForModel(selectedModel) === "codex";
+  const configuredCompactThreshold = Number(
+    process.env.MIKE_OPENAI_COMPACT_THRESHOLD || 0,
+  );
+  const openAICompactThreshold =
+    providerForModel(selectedModel) === "openai" &&
+    Number.isFinite(configuredCompactThreshold) &&
+    configuredCompactThreshold > 0
+      ? Math.trunc(configuredCompactThreshold)
+      : undefined;
   const codexCompatibilityKey = isCodex
     ? providerSessionCompatibilityKey({
         schema_version: 1,
@@ -1316,6 +1335,36 @@ export async function streamAnonymousChat(params: {
   const localTurnEditState: LocalAssistantEditTurnState = new Map();
   const localTurnReadState: LocalAssistantReadTurnState = new Map();
   const localWorkingSets: LocalAssistantWorkingSetTurnState = new Map();
+  const contextHandoffEnabled =
+    process.env.MIKE_CONTEXT_HANDOFF === "1" &&
+    !UPSTREAM_MIKE_TOOL_SHAPE;
+  const evidenceExposure = createEvidenceExposureState();
+  const loadEvidenceSource = async (documentId: string, versionId: string) => {
+    const document = await extractLocalDocument(userId, documentId, versionId);
+    return document
+      ? { filename: document.filename, text: document.text }
+      : null;
+  };
+  const configuredHandoffCap = Number(
+    process.env.MIKE_EVIDENCE_HANDOFF_MAX_CHARS || 120_000,
+  );
+  const evidenceHandoffCap =
+    Number.isFinite(configuredHandoffCap) && configuredHandoffCap > 0
+      ? Math.trunc(configuredHandoffCap)
+      : 120_000;
+  let pendingEvidenceHandoff: {
+    prompt: string;
+    sourceChars: number;
+    evidenceItems: number;
+  } | null = null;
+  let pendingResearchContextRefresh: {
+    prompt: string;
+    sourceChars: number;
+    evidenceItems: number;
+    latestResultChars: number;
+  } | null = null;
+  let draftingContextPrompt: string | null = null;
+  let draftingPhase = false;
   let pendingAskInputs: AskInputsEvent | null = null;
   let askInputsFinalized = false;
   let localMutationCommitted = false;
@@ -1436,7 +1485,7 @@ export async function streamAnonymousChat(params: {
           localWorkingSets,
         )
       : [];
-    const results: NormalizedToolResult[] = calls.map(
+    let results: NormalizedToolResult[] = calls.map(
       (call) =>
         allowedResults.find(
           (candidate) => candidate.tool_use_id === call.id,
@@ -1448,7 +1497,19 @@ export async function streamAnonymousChat(params: {
             : `Tool '${call.name}' is not available.`,
         }),
     );
-    if (process.env.MIKE_BENCHMARK_TRACE_TOOLS === "1") {
+    if (contextHandoffEnabled) {
+      results = await Promise.all(
+        results.map((toolResult) =>
+          applyEvidenceExposure(
+            evidenceExposure,
+            toolResult,
+            loadEvidenceSource,
+          ),
+        ),
+      );
+    }
+    const traceToolResults = () => {
+      if (process.env.MIKE_BENCHMARK_TRACE_TOOLS !== "1") return;
       for (const call of calls) {
         const result = results.find(
           (candidate) => candidate.tool_use_id === call.id,
@@ -1467,7 +1528,18 @@ export async function streamAnonymousChat(params: {
           type: "tool_call_result",
           id: call.id,
           name: call.name,
-          ok: payload?.ok !== false,
+          ok:
+            result?.status !== "error" &&
+            (payload?.ok !== false ||
+              [
+                "not_found",
+                "ambiguous",
+                "past_end",
+                "selection_required",
+              ].includes(
+                result?.status ?? "",
+              )),
+          ...(result?.status && { status: result.status }),
           ...(typeof payload?.error === "string" && { error: payload.error }),
           content_chars: result?.content.length ?? 0,
           content_sha256: createHash("sha256").update(traceContent).digest("hex"),
@@ -1478,11 +1550,17 @@ export async function streamAnonymousChat(params: {
           ...(zeroYield && { zero_yield: true }),
           ...(payload?.already_read === true && { already_read: true }),
           ...(payload?.already_exposed === true && { already_exposed: true }),
-          ...(typeof payload?.unique_source_chars === "number" && {
-            unique_source_chars: payload.unique_source_chars,
+          ...((result?.exposure ||
+            typeof payload?.unique_source_chars === "number") && {
+            unique_source_chars:
+              result?.exposure?.uniqueSourceChars ??
+              payload?.unique_source_chars,
           }),
-          ...(typeof payload?.suppressed_source_chars === "number" && {
-            suppressed_source_chars: payload.suppressed_source_chars,
+          ...((result?.exposure ||
+            typeof payload?.suppressed_source_chars === "number") && {
+            suppressed_source_chars:
+              result?.exposure?.suppressedSourceChars ??
+              payload?.suppressed_source_chars,
           }),
           ...(typeof payload?.projection === "string" && {
             projection: payload.projection,
@@ -1496,11 +1574,13 @@ export async function streamAnonymousChat(params: {
               version_id: segment.versionId,
               start: segment.start,
               end: segment.end,
+              ...(segment.kind && { kind: segment.kind }),
+              ...(segment.locator && { locator: segment.locator }),
             })),
           }),
         });
       }
-    }
+    };
     if (progressiveDisclosure) {
       for (const call of allowedCalls.filter(
         (candidate) => candidate.name === "describe_tools",
@@ -1518,13 +1598,75 @@ export async function streamAnonymousChat(params: {
         const domains = payload.domains.filter(
           (domain): domain is string => typeof domain === "string",
         );
-        for (const schema of toolsForDomains(
-          toolPartition.deferred,
-          domains,
-        )) {
-          if (activeToolNames.has(schema.function.name)) continue;
-          activeTools.push(schema);
-          activeToolNames.add(schema.function.name);
+        let needsEvidenceSelection = false;
+        const startsDraftingHandoff =
+          contextHandoffEnabled &&
+          !draftingPhase &&
+          domains.some((domain) =>
+            ["drafting", "output_document"].includes(domain),
+          ) &&
+          Boolean(toolResult);
+        if (startsDraftingHandoff && toolResult) {
+          const carryEvidence = Array.isArray(call.input.carry_evidence)
+            ? call.input.carry_evidence.filter(
+                (item): item is string => typeof item === "string",
+              )
+            : undefined;
+          let handoff = await compileEvidenceHandoff({
+            state: evidenceExposure,
+            load: loadEvidenceSource,
+            originalRequest: lastUser?.content ?? "",
+            maxChars: evidenceHandoffCap,
+            carryEvidence,
+            domainGuidance:
+              typeof payload.guidance === "string"
+                ? payload.guidance
+                : undefined,
+          });
+          if (handoff.status === "ready") {
+            draftingContextPrompt = handoff.prompt;
+            pendingEvidenceHandoff = {
+              prompt: handoff.prompt,
+              sourceChars: handoff.sourceChars,
+              evidenceItems: handoff.manifest.length,
+            };
+            toolResult.terminal = true;
+            toolResult.status = "ok";
+            toolResult.content = JSON.stringify({
+              ok: true,
+              status: "draft_handoff_ready",
+              evidence_items: handoff.manifest.length,
+              source_chars: handoff.sourceChars,
+            });
+          } else {
+            needsEvidenceSelection = true;
+            toolResult.status =
+              handoff.status === "error" ? "error" : "selection_required";
+            toolResult.content = JSON.stringify({
+              ok: false,
+              status: handoff.status,
+              error: handoff.message,
+              ...(handoff.manifest.length
+                ? {
+                    evidence_manifest_items: handoff.manifest.length,
+                    evidence_manifest: renderEvidenceManifest(handoff.manifest),
+                  }
+                : {}),
+            });
+          }
+        }
+        // Do not reveal authoring tools while the exact evidence union is
+        // still over cap. Otherwise the model can bypass the fresh-context
+        // boundary by drafting immediately after a selection request.
+        if (!needsEvidenceSelection) {
+          for (const schema of toolsForDomains(
+            toolPartition.deferred,
+            domains,
+          )) {
+            if (activeToolNames.has(schema.function.name)) continue;
+            activeTools.push(schema);
+            activeToolNames.add(schema.function.name);
+          }
         }
         const describeIndex = activeTools.findIndex(
           (schema) => schema.function.name === "describe_tools",
@@ -1533,7 +1675,12 @@ export async function streamAnonymousChat(params: {
           (schema) => !activeToolNames.has(schema.function.name),
         );
         if (describeIndex >= 0) {
-          if (remaining.length) {
+          if (needsEvidenceSelection) {
+            activeTools[describeIndex] = describeToolsTool(
+              toolPartition.deferred,
+              true,
+            );
+          } else if (remaining.length) {
             activeTools[describeIndex] = describeToolsTool(remaining);
           } else {
             activeTools.splice(describeIndex, 1);
@@ -1542,6 +1689,39 @@ export async function streamAnonymousChat(params: {
         }
       }
     }
+    if (
+      contextHandoffEnabled &&
+      !draftingPhase &&
+      !pendingEvidenceHandoff &&
+      !results.some((result) =>
+        ["error", "selection_required"].includes(result.status ?? ""),
+      )
+    ) {
+      const refreshResult = results.find(
+        (result) => (result.exposure?.uniqueSourceChars ?? 0) > 0,
+      );
+      if (refreshResult) {
+        const refresh = await compileEvidenceResearchRefresh({
+          state: evidenceExposure,
+          load: loadEvidenceSource,
+          originalRequest: lastUser?.content ?? "",
+          latestResults: calls.map((call) => ({
+            name: call.name,
+            content:
+              results.find((result) => result.tool_use_id === call.id)?.content ??
+              "Tool result unavailable.",
+          })),
+        });
+        pendingResearchContextRefresh = {
+          prompt: refresh.prompt,
+          sourceChars: refresh.sourceChars,
+          evidenceItems: refresh.manifest.length,
+          latestResultChars: refresh.latestResultChars,
+        };
+        refreshResult.terminal = true;
+      }
+    }
+    traceToolResults();
     for (const call of calls) {
       const toolResult = results.find(
         (candidate) => candidate.tool_use_id === call.id,
@@ -1613,7 +1793,16 @@ export async function streamAnonymousChat(params: {
           navigation_shape: NAV_TOOL_SHAPE,
           coding_shape: codingShape,
           upstream_mike_shape: UPSTREAM_MIKE_TOOL_SHAPE,
+          model_coverage_routing: MODEL_COVERAGE_ROUTING,
+          whole_read_max_chars: WHOLE_READ_MAX_CHARS || null,
           progressive_disclosure: progressiveDisclosure,
+          context_handoff: contextHandoffEnabled,
+          research_context_refresh: contextHandoffEnabled,
+          evidence_handoff_max_chars: contextHandoffEnabled
+            ? evidenceHandoffCap
+            : null,
+          openai_compact_threshold:
+            process.env.MIKE_OPENAI_COMPACT_THRESHOLD || null,
           resident_tools: activeTools.map((entry) => entry.function.name),
           deferred_tools: toolPartition.deferred.map(
             (entry) => entry.function.name,
@@ -1642,30 +1831,34 @@ export async function streamAnonymousChat(params: {
     const runProvider = (
       continuationId?: string,
       slaRepair?: { draft: string; findings: string },
+      freshPrompt?: string,
     ) => streamChatWithTools({
       model: selectedModel,
       systemPrompt: continuationId ? "" : systemPrompt,
-      messages: [
-        ...(continuationId ? messages.slice(-1) : messages).map(
-          (message) => ({
-            role:
-              message.role === "assistant"
-                ? ("assistant" as const)
-                : ("user" as const),
-            content: formatChatMessageContent(message),
-            images: imagesForMessage(message, imagesByDocumentId),
-          }),
-        ),
-        ...(slaRepair
-          ? [
-              { role: "assistant" as const, content: slaRepair.draft },
-              { role: "user" as const, content: slaRepair.findings },
-            ]
-          : []),
-      ],
+      messages: freshPrompt
+        ? [{ role: "user" as const, content: freshPrompt }]
+        : [
+            ...(continuationId ? messages.slice(-1) : messages).map(
+              (message) => ({
+                role:
+                  message.role === "assistant"
+                    ? ("assistant" as const)
+                    : ("user" as const),
+                content: formatChatMessageContent(message),
+                images: imagesForMessage(message, imagesByDocumentId),
+              }),
+            ),
+            ...(slaRepair
+              ? [
+                  { role: "assistant" as const, content: slaRepair.draft },
+                  { role: "user" as const, content: slaRepair.findings },
+                ]
+              : []),
+          ],
       enableThinking: true,
       reasoningEffort: params.reasoningEffort,
       serviceTier: params.serviceTier,
+      compactThreshold: openAICompactThreshold,
       abortSignal: streamAbort.signal,
       tools: activeTools,
       resolveTools: progressiveDisclosure ? () => activeTools : undefined,
@@ -1806,6 +1999,75 @@ export async function streamAnonymousChat(params: {
       }
     }
 
+    while (!pendingAskInputs) {
+      const completedHandoff = pendingEvidenceHandoff as {
+        prompt: string;
+        sourceChars: number;
+        evidenceItems: number;
+      } | null;
+      if (completedHandoff) {
+        pendingEvidenceHandoff = null;
+        draftingPhase = true;
+        const describeIndex = activeTools.findIndex(
+          (schema) => schema.function.name === "describe_tools",
+        );
+        if (describeIndex >= 0) activeTools.splice(describeIndex, 1);
+        activeToolNames.delete("describe_tools");
+        if (isCodex) discardProviderSession();
+        rawText = "";
+        visibleText = "";
+        contentBoundaryPending = false;
+        splitter.reset();
+        sseWrite(res, { type: "content_reset" });
+        if (process.env.MIKE_BENCHMARK_TRACE_TOOLS === "1") {
+          sseWrite(res, {
+            type: "evidence_handoff",
+            evidence_items: completedHandoff.evidenceItems,
+            source_chars: completedHandoff.sourceChars,
+            prior_unique_source_chars: evidenceExposure.uniqueSourceChars,
+            prior_suppressed_source_chars:
+              evidenceExposure.suppressedSourceChars,
+          });
+        }
+        providerActivity = false;
+        providerResult = await runProvider(
+          undefined,
+          undefined,
+          completedHandoff.prompt,
+        );
+        continue;
+      }
+
+      const completedRefresh = pendingResearchContextRefresh as {
+        prompt: string;
+        sourceChars: number;
+        evidenceItems: number;
+        latestResultChars: number;
+      } | null;
+      if (!completedRefresh) break;
+      pendingResearchContextRefresh = null;
+      if (isCodex) discardProviderSession();
+      rawText = "";
+      visibleText = "";
+      contentBoundaryPending = false;
+      splitter.reset();
+      sseWrite(res, { type: "content_reset" });
+      if (process.env.MIKE_BENCHMARK_TRACE_TOOLS === "1") {
+        sseWrite(res, {
+          type: "research_context_refresh",
+          evidence_items: completedRefresh.evidenceItems,
+          source_chars: completedRefresh.sourceChars,
+          latest_result_chars: completedRefresh.latestResultChars,
+        });
+      }
+      providerActivity = false;
+      providerResult = await runProvider(
+        undefined,
+        undefined,
+        completedRefresh.prompt,
+      );
+    }
+
     flushTail();
     await finalizeLegalEvidenceExperiment({
       state: legalEvidenceState,
@@ -1899,14 +2161,23 @@ export async function streamAnonymousChat(params: {
         legalEvidenceState.answer = null;
         rawText = "";
         visibleText = "";
-        await runProvider(undefined, {
-          draft,
-          findings:
-            correctionPrompt +
-            (localWorkingSets.has(WORKING_SET_PATH)
-              ? `\n\nReuse the evidence already gathered: first Read(file_path=${JSON.stringify(WORKING_SET_PATH)}). Add only targeted missing evidence with Grep output_mode="working_set".`
-              : ""),
-        });
+        contentBoundaryPending = false;
+        splitter.reset();
+        sseWrite(res, { type: "content_reset" });
+        const findings =
+          correctionPrompt +
+          (localWorkingSets.has(WORKING_SET_PATH)
+            ? `\n\nReuse the evidence already gathered: first Read(file_path=${JSON.stringify(WORKING_SET_PATH)}). Add only targeted missing evidence with Grep output_mode="working_set".`
+            : "");
+        if (draftingContextPrompt) {
+          await runProvider(
+            undefined,
+            undefined,
+            `${draftingContextPrompt}\n\nCANDIDATE DELIVERABLE\n${draft}\n\nCHECK FINDINGS\n${findings}\n\nReturn or apply the complete corrected deliverable.`,
+          );
+        } else {
+          await runProvider(undefined, { draft, findings });
+        }
         flushTail();
         const revisedAnswer = renderLegalEvidenceAnswer(legalEvidenceState);
         if (revisedAnswer !== null) {

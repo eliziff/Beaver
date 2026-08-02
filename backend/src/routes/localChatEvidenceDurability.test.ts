@@ -49,6 +49,31 @@ vi.mock("../lib/chat/localAssistantTools", () => ({
           ].map((name) => ({ function: { name } })),
           deferred: [],
         },
+  describeToolsTool: (_tools: unknown[], allowEvidenceSelection = false) => ({
+    type: "function",
+    function: {
+      name: "describe_tools",
+      description: "Load a deferred tool domain.",
+      parameters: {
+        type: "object",
+        properties: {
+          domains: {
+            type: "array",
+            items: { type: "string", enum: ["drafting"] },
+          },
+          ...(allowEvidenceSelection
+            ? {
+                carry_evidence: {
+                  type: "array",
+                  items: { type: "string" },
+                },
+              }
+            : {}),
+        },
+        required: ["domains"],
+      },
+    },
+  }),
   toolsForDomains: (tools: unknown[], domains: string[]) =>
     mocks.progressiveDisclosure && domains.includes("drafting") ? tools : [],
   runLocalAssistantTools: mocks.runLocalAssistantTools,
@@ -240,6 +265,281 @@ describe("anonymous chat PDF evidence durability", () => {
         entry[1].map((call: { name: string }) => call.name),
       ),
     ).toEqual([["describe_tools"], ["library_revise_docx"]]);
+  });
+
+  it("starts drafting in a fresh context with the exact evidence handoff", async () => {
+    vi.stubEnv("MIKE_CONTEXT_HANDOFF", "1");
+    mocks.progressiveDisclosure = true;
+    mocks.runLocalAssistantTools.mockImplementation(
+      async (_userId: unknown, calls: { id: string; name: string }[]) =>
+        calls.map((call) => ({
+          tool_use_id: call.id,
+          content: JSON.stringify({
+            ok: true,
+            domains: ["drafting"],
+            opened: ["library_revise_docx"],
+          }),
+        })),
+    );
+    let invocation = 0;
+    let terminal = false;
+    let freshMessages: Array<{ role: string; content: string }> = [];
+    let freshToolNames: string[] = [];
+    mocks.streamChatWithTools.mockImplementation(async (params) => {
+      invocation += 1;
+      if (invocation === 1) {
+        const [opened] = await params.runTools?.([
+          {
+            id: "open-drafting",
+            name: "describe_tools",
+            input: { domains: ["drafting"] },
+          },
+        ]);
+        terminal = opened.terminal === true;
+        params.callbacks?.onContentDelta?.("Research-phase preface.");
+        return { fullText: "Research-phase preface." };
+      }
+      freshMessages = params.messages;
+      freshToolNames = params.tools.map((tool) => tool.function.name);
+      params.callbacks?.onContentDelta?.("Final drafting answer.");
+      return { fullText: "Final drafting answer." };
+    });
+
+    const loaded = await loadApp();
+    const created = await request(loaded.app).post("/chat/create").send({});
+    const response = await request(loaded.app).post("/chat").send({
+      chat_id: created.body.id,
+      expected_version: 0,
+      current_turn: {
+        kind: "message",
+        turn_id: "50000000-0000-4000-8000-000000000007",
+        content: "Revise the draft from the evidence.",
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(terminal).toBe(true);
+    expect(mocks.streamChatWithTools).toHaveBeenCalledTimes(2);
+    expect(freshMessages).toHaveLength(1);
+    expect(freshMessages[0].content).toContain("ORIGINAL REQUEST");
+    expect(freshMessages[0].content).toContain(
+      "Revise the draft from the evidence.",
+    );
+    expect(freshMessages[0].content).toContain("already loaded");
+    expect(freshToolNames).toEqual(["library_revise_docx"]);
+    expect(response.text).toContain('"type":"content_reset"');
+    expect(response.text).toContain("Final drafting answer.");
+    const chat = loaded.store.getAnonymousChat(USER_ID, created.body.id)!;
+    expect(JSON.stringify(chat.messages)).not.toContain(
+      "Research-phase preface.",
+    );
+  });
+
+  it("replaces accumulated research history with a compact evidence checkpoint", async () => {
+    vi.stubEnv("MIKE_CONTEXT_HANDOFF", "1");
+    mocks.runLocalAssistantTools.mockImplementation(
+      async (_userId: unknown, calls: { id: string }[]) =>
+        calls.map((call) => ({
+          tool_use_id: call.id,
+          content: "latest exact result",
+          evidenceRefs: [
+            {
+              handle: "exact:research",
+              filename: "source.docx",
+              locator: "section 1",
+              text: "latest exact result",
+            },
+          ],
+        })),
+    );
+    let invocation = 0;
+    let terminal = false;
+    let refreshedMessages: Array<{ role: string; content: string }> = [];
+    mocks.streamChatWithTools.mockImplementation(async (params) => {
+      invocation += 1;
+      if (invocation === 1) {
+        const [result] = await params.runTools?.([
+          { id: "research", name: "library_lookup", input: {} },
+        ]);
+        terminal = result.terminal === true;
+        params.callbacks?.onContentDelta?.("Discarded research-phase chatter.");
+        return { fullText: "Discarded research-phase chatter." };
+      }
+      refreshedMessages = params.messages;
+      params.callbacks?.onContentDelta?.("Final answer.");
+      return { fullText: "Final answer." };
+    });
+
+    const loaded = await loadApp();
+    const created = await request(loaded.app).post("/chat/create").send({});
+    const response = await request(loaded.app).post("/chat").send({
+      chat_id: created.body.id,
+      expected_version: 0,
+      current_turn: {
+        kind: "message",
+        turn_id: "50000000-0000-4000-8000-000000000009",
+        content: "Analyze the source.",
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(terminal).toBe(true);
+    expect(mocks.streamChatWithTools).toHaveBeenCalledTimes(2);
+    expect(refreshedMessages).toHaveLength(1);
+    expect(refreshedMessages[0].content).toContain("Analyze the source.");
+    expect(refreshedMessages[0].content).toContain("DURABLE EVIDENCE INDEX");
+    expect(refreshedMessages[0].content).toContain("latest exact result");
+    expect(refreshedMessages[0].content).not.toContain(
+      "Discarded research-phase chatter.",
+    );
+    expect(response.text).toContain('"type":"content_reset"');
+    const chat = loaded.store.getAnonymousChat(USER_ID, created.body.id)!;
+    expect(JSON.stringify(chat.messages)).not.toContain(
+      "Discarded research-phase chatter.",
+    );
+  });
+
+  it("keeps repeated research continuations bounded to the latest result", async () => {
+    vi.stubEnv("MIKE_CONTEXT_HANDOFF", "1");
+    const firstEvidence = `FIRST_PREVIEW ${"x".repeat(160)} FIRST_SECRET_TAIL`;
+    const secondEvidence = `SECOND_PREVIEW ${"y".repeat(160)} SECOND_SECRET_TAIL`;
+    mocks.runLocalAssistantTools.mockImplementation(
+      async (_userId: unknown, calls: { id: string }[]) =>
+        calls.map((call) => {
+          const first = call.id === "first";
+          const text = first ? firstEvidence : secondEvidence;
+          return {
+            tool_use_id: call.id,
+            content: text,
+            evidenceRefs: [
+              {
+                handle: `exact:${call.id}`,
+                filename: `${call.id}.docx`,
+                locator: "section 1",
+                text,
+              },
+            ],
+          };
+        }),
+    );
+    let invocation = 0;
+    let finalMessages: Array<{ role: string; content: string }> = [];
+    mocks.streamChatWithTools.mockImplementation(async (params) => {
+      invocation += 1;
+      if (invocation === 1) {
+        await params.runTools?.([
+          { id: "first", name: "library_lookup", input: {} },
+        ]);
+        params.callbacks?.onContentDelta?.("FIRST_REASONING_TRANSCRIPT");
+        return { fullText: "FIRST_REASONING_TRANSCRIPT" };
+      }
+      if (invocation === 2) {
+        expect(params.messages).toHaveLength(1);
+        expect(params.messages[0].content).toContain("FIRST_SECRET_TAIL");
+        await params.runTools?.([
+          { id: "second", name: "library_lookup", input: {} },
+        ]);
+        params.callbacks?.onContentDelta?.("SECOND_REASONING_TRANSCRIPT");
+        return { fullText: "SECOND_REASONING_TRANSCRIPT" };
+      }
+      finalMessages = params.messages;
+      params.callbacks?.onContentDelta?.("Bounded final answer.");
+      return { fullText: "Bounded final answer." };
+    });
+
+    const loaded = await loadApp();
+    const created = await request(loaded.app).post("/chat/create").send({});
+    const response = await request(loaded.app).post("/chat").send({
+      chat_id: created.body.id,
+      expected_version: 0,
+      current_turn: {
+        kind: "message",
+        turn_id: "50000000-0000-4000-8000-000000000010",
+        content: "Analyze both sources.",
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(mocks.streamChatWithTools).toHaveBeenCalledTimes(3);
+    expect(finalMessages).toHaveLength(1);
+    expect(finalMessages[0].content).toContain("Analyze both sources.");
+    expect(finalMessages[0].content).toContain("first.docx");
+    expect(finalMessages[0].content).toContain("SECOND_SECRET_TAIL");
+    expect(finalMessages[0].content).not.toContain("FIRST_SECRET_TAIL");
+    expect(finalMessages[0].content).not.toContain("FIRST_REASONING_TRANSCRIPT");
+    expect(finalMessages[0].content).not.toContain("SECOND_REASONING_TRANSCRIPT");
+  });
+
+  it("withholds drafting tools until an over-cap evidence union is selected", async () => {
+    vi.stubEnv("MIKE_CONTEXT_HANDOFF", "1");
+    // A cap is exact. The host must not silently reinterpret it as 2x.
+    vi.stubEnv("MIKE_EVIDENCE_HANDOFF_MAX_CHARS", "10");
+    mocks.progressiveDisclosure = true;
+    mocks.runLocalAssistantTools.mockImplementation(
+      async (_userId: unknown, calls: { id: string; name: string }[]) =>
+        calls.map((call) => ({
+          tool_use_id: call.id,
+          content: JSON.stringify({
+            ok: true,
+            domains: ["drafting"],
+            opened: ["library_revise_docx"],
+          }),
+          evidenceRefs: [
+            {
+              handle: "exact:test",
+              filename: "source.docx",
+              locator: "section 1",
+              text: "evidence over cap",
+              kind: "evidence" as const,
+            },
+          ],
+        })),
+    );
+    let namesAfterSelection: string[] = [];
+    let selectionResult: { content: string; status?: string } | null = null;
+    let bypassResult: { content: string } | null = null;
+    mocks.streamChatWithTools.mockImplementation(async (params) => {
+      [selectionResult] = await params.runTools?.([
+        {
+          id: "open-drafting",
+          name: "describe_tools",
+          input: { domains: ["drafting"] },
+        },
+      ]);
+      namesAfterSelection = params.resolveTools().map(
+        (tool) => tool.function.name,
+      );
+      [bypassResult] = await params.runTools?.([
+        { id: "premature-draft", name: "library_revise_docx", input: {} },
+      ]);
+      params.callbacks?.onContentDelta?.("Research complete.");
+      return { fullText: "Research complete." };
+    });
+
+    const loaded = await loadApp();
+    const created = await request(loaded.app).post("/chat/create").send({});
+    const response = await request(loaded.app).post("/chat").send({
+      chat_id: created.body.id,
+      expected_version: 0,
+      current_turn: {
+        kind: "message",
+        turn_id: "50000000-0000-4000-8000-000000000008",
+        content: "Revise the draft from the evidence.",
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(selectionResult?.status).toBe("selection_required");
+    const selectionPayload = JSON.parse(selectionResult!.content);
+    expect(selectionPayload.status).toBe("selection_required");
+    expect(selectionPayload.evidence_manifest_items).toBe(1);
+    expect(selectionPayload.evidence_manifest).toContain(
+      "alias\tlocator\tchars\tpreview",
+    );
+    expect(namesAfterSelection).toEqual(["describe_tools"]);
+    expect(JSON.parse(bypassResult!.content).error).toContain("not loaded");
+    expect(mocks.streamChatWithTools).toHaveBeenCalledTimes(1);
+    expect(response.text).not.toContain('"type":"content_reset"');
   });
 
   it("passes a selected document and system workflow into the provider turn", async () => {

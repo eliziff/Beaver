@@ -11,6 +11,7 @@ import {
   queueProviderPdfAttachment,
   type ProviderPdfQueueResult,
 } from "../providerPdfLibraryBridge";
+import { sha256 } from "../hash";
 import { COURTLISTENER_TOOL_NAMES } from "./tools/courtlistenerTools";
 import { findTextMatches } from "./tools/documentOps";
 
@@ -70,11 +71,128 @@ function integers(value: unknown) {
 function result(
   call: NormalizedToolCall,
   content: unknown,
+  state?: CourtlistenerToolState,
 ): NormalizedToolResult {
+  const payload = record(content);
+  const reported = text(payload, "status");
+  const status: NormalizedToolResult["status"] =
+    reported === "not_found" || reported === "ambiguous"
+      ? reported
+      : payload?.ok === false
+        ? "error"
+        : "ok";
   return {
     tool_use_id: call.id,
     content: JSON.stringify(content),
+    status,
+    evidenceRefs: payload
+      ? courtlistenerEvidenceRefs(call, payload, state)
+      : [],
   };
+}
+
+function courtlistenerEvidenceRefs(
+  call: NormalizedToolCall,
+  payload: JsonRecord,
+  state?: CourtlistenerToolState,
+): NonNullable<NormalizedToolResult["evidenceRefs"]> {
+  const cluster = integer(payload.cluster_id);
+  const filename =
+    text(payload, "case_name") ??
+    (Array.isArray(payload.citations) && typeof payload.citations[0] === "string"
+      ? payload.citations[0]
+      : `CourtListener ${cluster ?? "case"}`);
+  if (call.name === COURTLISTENER_TOOL_NAMES.readCase) {
+    return (Array.isArray(payload.opinions) ? payload.opinions : []).flatMap(
+      (raw) => {
+        const opinion = record(raw);
+        const body = text(opinion, "text");
+        if (!opinion || !body) return [];
+        const opinionId = integer(opinion.opinion_id);
+        return [
+          {
+            handle: `courtlistener:${cluster ?? "case"}:${opinionId ?? "opinion"}:${sha256(body)}`,
+            filename,
+            locator: opinionId ? `opinion ${opinionId}` : "opinion",
+            text: body,
+            exactSha256: sha256(body),
+            kind: "evidence" as const,
+          },
+        ];
+      },
+    );
+  }
+  if (call.name === COURTLISTENER_TOOL_NAMES.lookupCaseLocator) {
+    const requested = record(payload.requested);
+    const blocks = [
+      payload.block,
+      ...(Array.isArray(payload.before) ? payload.before : []),
+      ...(Array.isArray(payload.after) ? payload.after : []),
+    ];
+    return blocks.flatMap((raw, index) => {
+      const block = record(raw);
+      const body = text(block, "text");
+      if (!block || !body) return [];
+      const locator =
+        text(block, "label") ??
+        text(requested, "locator") ??
+        `context ${index + 1}`;
+      return [
+        {
+          handle: `courtlistener:${cluster ?? "case"}:${integer(payload.opinion_id) ?? "opinion"}:${locator}:${sha256(body)}`,
+          filename,
+          locator,
+          text: body,
+          exactSha256: sha256(body),
+          kind: "evidence" as const,
+        },
+      ];
+    });
+  }
+  if (call.name === COURTLISTENER_TOOL_NAMES.findInCase) {
+    const cached = cluster === null ? undefined : state?.casesByClusterId.get(cluster);
+    const contextChars =
+      typeof call.input.context_chars === "number"
+        ? Math.min(Math.max(Math.trunc(call.input.context_chars), 40), 2_000)
+        : 160;
+    return (Array.isArray(payload.hits) ? payload.hits : []).flatMap(
+      (raw, index) => {
+        const hit = record(raw);
+        const excerpt = text(hit, "excerpt");
+        if (!hit || !excerpt) return [];
+        const hitOpinionId = integer(hit.opinion_id);
+        const opinion = cached?.opinions.find(
+          (candidate) => opinionId(candidate as JsonRecord) === hitOpinionId,
+        );
+        const fullText = opinion
+          ? getCourtlistenerOpinionDocumentText(opinion) ||
+            text(opinion as JsonRecord, "text") ||
+            ""
+          : "";
+        const at = integer(hit.at);
+        const exactContext =
+          at !== null &&
+          at >= 0 &&
+          fullText.slice(at, at + excerpt.length) === excerpt
+            ? fullText.slice(
+                Math.max(0, at - contextChars),
+                Math.min(fullText.length, at + excerpt.length + contextChars),
+              )
+            : excerpt;
+        return [
+          {
+            handle: `courtlistener:${cluster ?? "case"}:${hitOpinionId ?? "opinion"}:hit:${index}:${sha256(exactContext)}`,
+            filename,
+            locator: `${hitOpinionId ? `opinion ${hitOpinionId}, ` : ""}search hit ${index + 1}`,
+            text: exactContext,
+            exactSha256: sha256(exactContext),
+            kind: "candidate" as const,
+          },
+        ];
+      },
+    );
+  }
+  return [];
 }
 
 function opinionId(opinion: JsonRecord) {
@@ -432,7 +550,7 @@ export async function runLocalCourtlistenerTool(
   const payload = await executeCourtlistenerTool(call, state, {
     pdfFallbackUserId: userId,
   });
-  return payload ? result(call, payload) : null;
+  return payload ? result(call, payload, state) : null;
 }
 
 export async function executeCourtlistenerTool(
