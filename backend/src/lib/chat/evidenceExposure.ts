@@ -1139,6 +1139,7 @@ export async function compileEvidenceHandoff(args: {
   maxChars: number;
   carryEvidence?: string[];
   domainGuidance?: string;
+  promptVariant?: "current" | "legacy-v5";
 }): Promise<EvidenceHandoff> {
   const all = await handoffItems(args.state, args.load);
   const manifest = all.map(({ alias, filename, locator, chars, preview }) => ({
@@ -1202,20 +1203,35 @@ export async function compileEvidenceHandoff(args: {
         )
         .join("\n\n")
     : "(No source passage was committed during research.)";
+  const prompt =
+    args.promptVariant === "legacy-v5"
+      ? [
+          "Complete the requested deliverable in this fresh drafting context.",
+          "Use the exact evidence below as source material. Do not assume omitted research or tool output.",
+          "The tool domain that triggered this handoff is already loaded. Use it directly; discovery is closed in this drafting context.",
+          args.domainGuidance?.trim() || "",
+          "ORIGINAL REQUEST",
+          args.originalRequest.trim(),
+          "EXACT EVIDENCE UNION",
+          evidence,
+        ]
+          .filter(Boolean)
+          .join("\n\n")
+      : [
+          "You are the drafting agent. A previous research agent gathered the exact evidence below.",
+          "Produce the requested deliverable from the original request and this evidence. Do not rely on omitted material.",
+          args.domainGuidance?.trim() || "",
+          "ORIGINAL REQUEST",
+          args.originalRequest.trim(),
+          "EXACT EVIDENCE UNION",
+          evidence,
+        ]
+          .filter(Boolean)
+          .join("\n\n");
   return {
     status: "ready",
     manifest: selectedManifest,
     sourceChars,
-    prompt: [
-      "You are the drafting agent. A previous research agent gathered the exact evidence below.",
-      "Produce the requested deliverable from the original request and this evidence. Do not rely on omitted material.",
-      args.domainGuidance?.trim() || "",
-      "ORIGINAL REQUEST",
-      args.originalRequest.trim(),
-      "EXACT EVIDENCE UNION",
-      evidence,
-    ]
-      .filter(Boolean)
-      .join("\n\n"),
+    prompt,
   };
 }

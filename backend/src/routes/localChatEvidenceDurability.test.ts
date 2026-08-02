@@ -39,6 +39,12 @@ vi.mock("../lib/chat/localAssistantTools", () => ({
   TERMINAL_AUTHORING_ENABLED:
     process.env.MIKE_TERMINAL_AUTHORING === "1",
   UPSTREAM_MIKE_TOOL_SHAPE: false,
+  ADAPTIVE_MIKE_TOOL_SHAPE: false,
+  MIKE_GREP_FAMILY_TOOL_SHAPE: false,
+  MIKE_GREP_TOOL_SHAPE: false,
+  MIKE_LEGAL_TOOL_SHAPE: false,
+  MIKE_LEGAL_GUIDED_TOOL_SHAPE: false,
+  ORIGIN_MIKE_TOOL_SHAPE: false,
   WHOLE_READ_MAX_CHARS: 0,
   WORKING_SET_GREP_DEFAULT_HEAD_LIMIT: 8,
   WORKING_SET_GREP_MAX_HEAD_LIMIT: 24,
@@ -49,12 +55,20 @@ vi.mock("../lib/chat/localAssistantTools", () => ({
     mocks.progressiveDisclosure
       ? {
           resident:
-            process.env.MIKE_DRAFT_HANDOFF_MODE === "paged" ||
-            process.env.MIKE_CONTINUOUS_EVIDENCE === "1"
-              ? ["Glob", "Grep", "Read", "library_lookup", "describe_tools"].map(
-                  (name) => ({ function: { name } }),
-                )
-              : [{ function: { name: "describe_tools" } }],
+            process.env.MIKE_FULL_HANDOFF_PROMPT_VARIANT === "legacy-v5"
+              ? ["Glob", "Grep", "Read", "describe_tools"].map((name) => ({
+                  function: { name },
+                }))
+              : process.env.MIKE_DRAFT_HANDOFF_MODE === "paged" ||
+                  process.env.MIKE_CONTINUOUS_EVIDENCE === "1"
+                ? [
+                    "Glob",
+                    "Grep",
+                    "Read",
+                    "library_lookup",
+                    "describe_tools",
+                  ].map((name) => ({ function: { name } }))
+                : [{ function: { name: "describe_tools" } }],
           deferred: [{ function: { name: "library_revise_docx" } }],
         }
       : {
@@ -474,8 +488,9 @@ describe("anonymous chat PDF evidence durability", () => {
     expect(response.text).not.toContain('"type":"content_reset"');
   });
 
-  it("starts drafting in a fresh context with the exact evidence handoff", async () => {
+  it("can start drafting with the legacy v5 exact-evidence handoff", async () => {
     vi.stubEnv("MIKE_CONTEXT_HANDOFF", "1");
+    vi.stubEnv("MIKE_FULL_HANDOFF_PROMPT_VARIANT", "legacy-v5");
     mocks.progressiveDisclosure = true;
     mocks.runLocalAssistantTools.mockImplementation(
       async (_userId: unknown, calls: { id: string; name: string }[]) =>
@@ -532,15 +547,97 @@ describe("anonymous chat PDF evidence durability", () => {
     expect(freshMessages[0].content).toContain(
       "Revise the draft from the evidence.",
     );
-    expect(freshMessages[0].content).not.toContain("already loaded");
-    expect(freshMessages[0].content).not.toContain("tool domain");
-    expect(freshToolNames).toEqual(["library_revise_docx"]);
+    expect(freshMessages[0].content).toContain("fresh drafting context");
+    expect(freshMessages[0].content).toContain("already loaded");
+    expect(freshMessages[0].content).toContain("tool domain");
+    expect(freshMessages[0].content).not.toContain("previous research agent");
+    expect(freshToolNames).toEqual([
+      "Glob",
+      "Grep",
+      "Read",
+      "library_revise_docx",
+    ]);
     expect(response.text).toContain('"type":"content_reset"');
     expect(response.text).toContain("Final drafting answer.");
     const chat = loaded.store.getAnonymousChat(USER_ID, created.body.id)!;
     expect(JSON.stringify(chat.messages)).not.toContain(
       "Research-phase preface.",
     );
+  });
+
+  it("keeps v5 research continuous until its single drafting handoff", async () => {
+    vi.stubEnv("MIKE_CONTEXT_HANDOFF", "1");
+    vi.stubEnv("MIKE_RESEARCH_CONTEXT_REFRESH", "0");
+    vi.stubEnv("MIKE_FULL_HANDOFF_PROMPT_VARIANT", "legacy-v5");
+    vi.stubEnv("MIKE_BENCHMARK_TRACE_TOOLS", "1");
+    mocks.progressiveDisclosure = true;
+    mocks.runLocalAssistantTools.mockImplementation(
+      async (_userId: unknown, calls: { id: string; name: string }[]) =>
+        calls.map((call) =>
+          call.name === "describe_tools"
+            ? {
+                tool_use_id: call.id,
+                content: JSON.stringify({
+                  ok: true,
+                  domains: ["output_document"],
+                  opened: ["library_create_docx"],
+                }),
+              }
+            : {
+                tool_use_id: call.id,
+                content: "EXACT RESEARCH FACT",
+                evidenceRefs: [
+                  {
+                    handle: "exact:v5",
+                    filename: "source.docx",
+                    locator: "section 1",
+                    text: "EXACT RESEARCH FACT",
+                  },
+                ],
+              },
+        ),
+    );
+    let invocation = 0;
+    let draftingPrompt = "";
+    mocks.streamChatWithTools.mockImplementation(async (params) => {
+      invocation += 1;
+      if (invocation === 1) {
+        await params.runTools?.([
+          { id: "research", name: "Grep", input: { pattern: "FACT" } },
+        ]);
+        const [opened] = await params.runTools?.([
+          {
+            id: "open-output",
+            name: "describe_tools",
+            input: { domains: ["output_document"] },
+          },
+        ]);
+        expect(opened.terminal).toBe(true);
+        return { fullText: "Research complete." };
+      }
+      draftingPrompt = params.messages[0]?.content ?? "";
+      return { fullText: "Draft complete." };
+    });
+
+    const loaded = await loadApp();
+    const created = await request(loaded.app).post("/chat/create").send({});
+    const response = await request(loaded.app).post("/chat").send({
+      chat_id: created.body.id,
+      expected_version: 0,
+      current_turn: {
+        kind: "message",
+        turn_id: "50000000-0000-4000-8000-000000000017",
+        content: "Research and draft.",
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(mocks.streamChatWithTools).toHaveBeenCalledTimes(2);
+    expect(draftingPrompt).toContain("fresh drafting context");
+    expect(draftingPrompt).toContain("EXACT RESEARCH FACT");
+    expect(response.text).not.toContain('"type":"research_context_refresh"');
+    expect(response.text.match(/"type":"evidence_handoff"/gu)).toHaveLength(1);
+    expect(response.text.match(/"type":"content_reset"/gu)).toHaveLength(1);
   });
 
   it("replaces accumulated research history with a compact evidence checkpoint", async () => {

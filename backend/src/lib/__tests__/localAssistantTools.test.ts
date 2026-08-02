@@ -480,6 +480,132 @@ describe("local assistant tools", () => {
     );
   });
 
+  it("runs cross-document Grep and bounded Read on Mike doc labels", async () => {
+    process.env.MIKE_TOOL_SHAPE = "mike-legal-v1";
+    process.env.MIKE_RETRIEVAL_EXPERIMENT = "h4-legal-grep";
+    process.env.MIKE_DISABLE_RESEARCH_TOOLS = "1";
+    process.env.MIKE_DISABLE_ASK_INPUTS = "1";
+    process.env.MIKE_TERMINAL_AUTHORING = "1";
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-grep-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const store = await import("../localDocumentStore");
+    const makeDoc = async (text: string) =>
+      store.createLocalDocument({
+        userId: "local-user",
+        kind: "file",
+        filename: "shared.docx",
+        bytes: await Packer.toBuffer(
+          new Document({ sections: [{ children: [new Paragraph(text)] }] }),
+        ),
+      });
+    const first = await makeDoc("Alpha NEEDLE obligation.");
+    const second = await makeDoc("Beta NEEDLE covenant.");
+    const allowed = new Set([first.id, second.id]);
+    const tools = await import("../chat/localAssistantTools");
+    const [inventory, grep, read] = await tools.runLocalAssistantTools(
+      "local-user",
+      [
+        { id: "inventory", name: "list_documents", input: {} },
+        {
+          id: "grep",
+          name: "Grep",
+          input: { pattern: "NEEDLE", output_mode: "content" },
+        },
+        {
+          id: "read",
+          name: "Read",
+          input: { file_path: "doc-1", offset: 1, limit: 2 },
+        },
+      ],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      allowed,
+    );
+    expect(JSON.parse(inventory.content).documents).toEqual([
+      expect.objectContaining({ doc_id: "doc-0", filename: "shared.docx" }),
+      expect.objectContaining({ doc_id: "doc-1", filename: "shared.docx" }),
+    ]);
+    expect(grep.content).toContain("doc-0:");
+    expect(grep.content).toContain("doc-1:");
+    expect(grep.content).toContain('Read file_path="doc-1"');
+    expect(read.content).toContain("Beta NEEDLE covenant");
+    expect(read.evidenceSegments).toEqual([
+      expect.objectContaining({ documentId: second.id, kind: "evidence" }),
+    ]);
+    const [found] = await tools.runLocalAssistantTools(
+      "local-user",
+      [
+        {
+          id: "find",
+          name: "find_in_document",
+          input: { doc_id: "doc-1", query: "covenant" },
+        },
+      ],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      allowed,
+    );
+    expect(JSON.parse(found.content).hits[0].read).toEqual(
+      expect.objectContaining({
+        file_path: "doc-1",
+        offset: expect.any(Number),
+        limit: expect.any(Number),
+      }),
+    );
+    const [missing] = await tools.runLocalAssistantTools(
+      "local-user",
+      [
+        {
+          id: "missing",
+          name: "Grep",
+          input: { pattern: "NEEDLE", path: "missing.docx" },
+        },
+      ],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      allowed,
+    );
+    expect(missing.status).toBe("not_found");
+    expect(JSON.parse(missing.content)).toMatchObject({ ok: false });
+
+    const readState: import("../chat/localAssistantTools").LocalAssistantReadTurnState =
+      new Map();
+    const [whole, duplicateBatch] = await tools.runLocalAssistantTools(
+      "local-user",
+      [
+        {
+          id: "whole",
+          name: "read_document",
+          input: { doc_id: "doc-0" },
+        },
+        {
+          id: "duplicate-batch",
+          name: "fetch_documents",
+          input: { doc_ids: ["doc-0"] },
+        },
+      ],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      allowed,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      readState,
+    );
+    expect(whole.evidenceSegments).toHaveLength(1);
+    expect(duplicateBatch.evidenceSegments).toEqual([]);
+    expect(duplicateBatch.content).toContain('"already_read":true');
+  });
+
   it("batch-fetches complete documents by filename in coding shape", async () => {
     process.env.MIKE_TOOL_SHAPE = "coding";
     process.env.MIKE_DISABLE_RESEARCH_TOOLS = "1";

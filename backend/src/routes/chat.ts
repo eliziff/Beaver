@@ -40,6 +40,10 @@ import {
   LOCAL_ASSISTANT_TOOLS,
   ADAPTIVE_MIKE_TOOL_SHAPE,
   MAX_TOOL_RESULT_CHARS,
+  MIKE_GREP_FAMILY_TOOL_SHAPE,
+  MIKE_GREP_TOOL_SHAPE,
+  MIKE_LEGAL_GUIDED_TOOL_SHAPE,
+  MIKE_LEGAL_TOOL_SHAPE,
   MODEL_COVERAGE_ROUTING,
   NAV_TOOL_SHAPE,
   ORIGIN_MIKE_TOOL_SHAPE,
@@ -79,6 +83,8 @@ import {
 } from "../lib/chat/evidenceExposure";
 import {
   ADAPTIVE_MIKE_LAB_SYSTEM_PROMPT,
+  MIKE_GREP_LAB_SYSTEM_PROMPT,
+  MIKE_LEGAL_GUIDED_LAB_SYSTEM_PROMPT,
   UPSTREAM_MIKE_LAB_SYSTEM_PROMPT,
 } from "../lib/chat/upstreamMikeBenchmarkSurface";
 import { localAutomationEvent } from "../lib/chat/localAutomationEvent";
@@ -996,7 +1002,8 @@ export async function streamAnonymousChat(params: {
     return fail(400, safeErrorMessage(error, "Invalid image attachment"));
   }
   const selectedModel = params.model || DEFAULT_MAIN_MODEL;
-  const codingShape = process.env.MIKE_TOOL_SHAPE === "coding";
+  const codingShape =
+    process.env.MIKE_TOOL_SHAPE === "coding" || MIKE_GREP_FAMILY_TOOL_SHAPE;
   const toolPartition = partitionTools(LOCAL_ASSISTANT_TOOLS);
   const activeTools = [...toolPartition.resident];
   const activeToolNames = new Set(
@@ -1019,7 +1026,9 @@ export async function streamAnonymousChat(params: {
   // the served surface does not carry (a prose mention overrides the schema
   // list in practice, and silently un-does the A/B).
   const navigationTools = ORIGIN_MIKE_TOOL_SHAPE
-    ? "list_documents, fetch_documents, read_document, find_in_document"
+    ? MIKE_GREP_FAMILY_TOOL_SHAPE
+      ? "list_documents, fetch_documents, read_document, find_in_document, Grep, Read"
+      : "list_documents, fetch_documents, read_document, find_in_document"
     : codingShape
       ? "Glob, Grep, Read, Edit, library_lookup, library_evidence"
       : "library_list, library_lookup, library_evidence, library_read, library_find";
@@ -1063,7 +1072,11 @@ export async function streamAnonymousChat(params: {
           : "For long or structured Library documents, call library_outline first and read only the needed span with library_read section= rather than the whole document."
     } Before delivering extraction or comparison work, call library_anchor_coverage and verify the source anchors it reports missing from your draft. Prefer the deterministic organs over reasoning from memory — citation linking, supra fixes, structural lint, term drift, drafting lint, bilingual concordance, amendment application, deadline computation — and report their findings as verified rather than recomputing them yourself.`;
   let systemPrompt = ORIGIN_MIKE_TOOL_SHAPE
-    ? ADAPTIVE_MIKE_TOOL_SHAPE
+    ? MIKE_GREP_FAMILY_TOOL_SHAPE
+      ? MIKE_LEGAL_GUIDED_TOOL_SHAPE
+        ? MIKE_LEGAL_GUIDED_LAB_SYSTEM_PROMPT
+        : MIKE_GREP_LAB_SYSTEM_PROMPT
+      : ADAPTIVE_MIKE_TOOL_SHAPE
       ? ADAPTIVE_MIKE_LAB_SYSTEM_PROMPT
       : UPSTREAM_MIKE_LAB_SYSTEM_PROMPT
     : `${CLIENT_WORK_PRODUCT_PRESUMPTION}\n\n${libraryBlock}\n\n` +
@@ -1082,31 +1095,40 @@ export async function streamAnonymousChat(params: {
           "\n\n" +
           PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT);
   if (ORIGIN_MIKE_TOOL_SHAPE) {
-    const expected = [
-      "read_document",
-      "find_in_document",
-      "list_documents",
-      "fetch_documents",
-      "generate_docx",
-    ];
+    const expected = MIKE_GREP_FAMILY_TOOL_SHAPE
+      ? [
+          "read_document",
+          "find_in_document",
+          "list_documents",
+          "fetch_documents",
+          "Grep",
+          "Read",
+          "generate_docx",
+        ]
+      : [
+          "read_document",
+          "find_in_document",
+          "list_documents",
+          "fetch_documents",
+          "generate_docx",
+        ];
     const actual = activeTools.map((entry) => entry.function.name);
     if (
       progressiveDisclosure ||
       JSON.stringify(actual) !== JSON.stringify(expected)
     ) {
       throw new Error(
-        `Upstream Mike LAB surface leaked or drifted: ${actual.join(", ")}`,
+        `Mike LAB surface leaked or drifted: ${actual.join(", ")}`,
       );
     }
     const leaked = [
       "Beaver",
       "library_",
       "describe_tools",
-      "Glob",
-      "Grep",
       "mike-evidence",
       "library evidence",
       "progressive disclosure",
+      ...(MIKE_GREP_FAMILY_TOOL_SHAPE ? ["Glob"] : ["Glob", "Grep"]),
     ].find((term) => systemPrompt.includes(term));
     if (leaked) {
       throw new Error(`Upstream Mike LAB prompt leaked Beaver term: ${leaked}`);
@@ -1390,6 +1412,8 @@ export async function streamAnonymousChat(params: {
     contextHandoffEnabled || continuousEvidenceEnabled;
   const pagedHandoffEnabled =
     contextHandoffEnabled && process.env.MIKE_DRAFT_HANDOFF_MODE === "paged";
+  const researchContextRefreshEnabled =
+    process.env.MIKE_RESEARCH_CONTEXT_REFRESH !== "0";
   // The durable union survives context replacement. The context-local guard
   // resets whenever a fresh model context opens, so its first demand-paged
   // read is visible while repeated reads in that same context remain bounded.
@@ -2173,6 +2197,10 @@ export async function streamAnonymousChat(params: {
               maxChars: evidenceHandoffCap,
               carryEvidence,
               domainGuidance,
+              promptVariant:
+                process.env.MIKE_FULL_HANDOFF_PROMPT_VARIANT === "legacy-v5"
+                  ? "legacy-v5"
+                  : "current",
             });
             if (handoff.status === "ready") {
               draftingContextPrompt = handoff.prompt;
@@ -2259,6 +2287,7 @@ export async function streamAnonymousChat(params: {
     }
     if (
       contextHandoffEnabled &&
+      (pagedHandoffEnabled || researchContextRefreshEnabled) &&
       (!draftingPhase || pagedHandoffEnabled) &&
       !pendingEvidenceHandoff &&
       (pagedHandoffEnabled ||
@@ -2410,6 +2439,9 @@ export async function streamAnonymousChat(params: {
             process.env.MIKE_TOOL_DESCRIPTION_VARIANT || "operational",
           upstream_mike_shape: UPSTREAM_MIKE_TOOL_SHAPE,
           adaptive_mike_shape: ADAPTIVE_MIKE_TOOL_SHAPE,
+          mike_grep_shape: MIKE_GREP_TOOL_SHAPE,
+          mike_legal_shape: MIKE_LEGAL_TOOL_SHAPE,
+          mike_legal_guided_shape: MIKE_LEGAL_GUIDED_TOOL_SHAPE,
           model_coverage_routing: MODEL_COVERAGE_ROUTING,
           whole_read_max_chars: WHOLE_READ_MAX_CHARS || null,
           tool_result_max_chars: MAX_TOOL_RESULT_CHARS,
@@ -2419,6 +2451,8 @@ export async function streamAnonymousChat(params: {
           terminal_authoring: TERMINAL_AUTHORING_ENABLED,
           progressive_disclosure: progressiveDisclosure,
           context_handoff: contextHandoffEnabled,
+          full_handoff_prompt_variant:
+            process.env.MIKE_FULL_HANDOFF_PROMPT_VARIANT || "current",
           continuous_evidence: continuousEvidenceEnabled,
           trajectory_mode: contextHandoffEnabled ? "handoff" : "continuous",
           draft_handoff_mode: contextHandoffEnabled
@@ -2453,7 +2487,8 @@ export async function streamAnonymousChat(params: {
             pagedHandoffEnabled || continuousEvidenceEnabled
             ? WORKING_SET_GREP_LINE_MAX_CHARS
             : null,
-          research_context_refresh: contextHandoffEnabled,
+          research_context_refresh:
+            contextHandoffEnabled && researchContextRefreshEnabled,
           evidence_handoff_max_chars: contextHandoffEnabled
             ? evidenceHandoffCap
             : null,
