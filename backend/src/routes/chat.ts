@@ -55,6 +55,8 @@ import {
   auditSlaDraft,
   collectSlaDeliverable,
   buildSlaLedger,
+  greenfieldReviewRepairPrompt,
+  runGreenfieldStimulusReview,
   slaWorkflowEnabled,
   type SlaLedger,
 } from "../lib/chat/slaWorkflow";
@@ -1456,6 +1458,10 @@ export async function streamAnonymousChat(params: {
         } catch {
           payload = null;
         }
+        const traceContent = result?.content ?? "";
+        const zeroYield =
+          /^No (?:matches|files|new evidence)\b/iu.test(traceContent) ||
+          /\| added 0 units\b/iu.test(traceContent);
         sseWrite(res, {
           type: "tool_call_result",
           id: call.id,
@@ -1463,6 +1469,12 @@ export async function streamAnonymousChat(params: {
           ok: payload?.ok !== false,
           ...(typeof payload?.error === "string" && { error: payload.error }),
           content_chars: result?.content.length ?? 0,
+          content_sha256: createHash("sha256").update(traceContent).digest("hex"),
+          content_preview:
+            traceContent.length <= 2_000
+              ? traceContent
+              : `${traceContent.slice(0, 1_600)}\n…\n${traceContent.slice(-400)}`,
+          ...(zeroYield && { zero_yield: true }),
           ...(payload?.already_read === true && { already_read: true }),
           ...(payload?.already_exposed === true && { already_exposed: true }),
           ...(typeof payload?.unique_source_chars === "number" && {
@@ -1823,13 +1835,48 @@ export async function streamAnonymousChat(params: {
       );
       const draftAudit = auditSlaDraft(slaLedger, deliverable.text, {
         artifactDeliverable: deliverable.artifacts.length > 0,
+        requestContext: lastUser?.content,
+        artifactNames: deliverable.artifacts,
       });
       appendSlaReceipt({
         phase: "draft_audit",
         artifacts: deliverable.artifacts,
         ...draftAudit.receipt,
       });
-      if (draftAudit.repairPrompt) {
+      let reviewPrompt: string | null = null;
+      if (process.env.MIKE_GREENFIELD_REVIEW === "1") {
+        try {
+          const review = await runGreenfieldStimulusReview({
+            ledger: slaLedger,
+            request: lastUser?.content ?? "",
+            deliverable: deliverable.text,
+            model: selectedModel,
+            serviceTier: params.serviceTier,
+            abortSignal: streamAbort.signal,
+          });
+          appendSlaReceipt({
+            phase: "greenfield_review",
+            status: review.status,
+            finding_count: review.findings.length,
+            reason: review.reason ?? null,
+            usage: review.usage ?? null,
+          });
+          reviewPrompt = greenfieldReviewRepairPrompt(
+            review.findings,
+            deliverable.artifacts.length > 0,
+          );
+        } catch (error) {
+          appendSlaReceipt({
+            phase: "greenfield_review",
+            status: "unavailable",
+            error: safeErrorMessage(error),
+          });
+        }
+      }
+      const correctionPrompt = [draftAudit.repairPrompt, reviewPrompt]
+        .filter((value): value is string => Boolean(value))
+        .join("\n\n");
+      if (correctionPrompt) {
         const draft = visibleText;
         const submittedDraft = legalEvidenceState.answer;
         legalEvidenceState.answer = null;
@@ -1837,7 +1884,7 @@ export async function streamAnonymousChat(params: {
         visibleText = "";
         await runProvider(undefined, {
           draft,
-          findings: draftAudit.repairPrompt,
+          findings: correctionPrompt,
         });
         flushTail();
         const revisedAnswer = renderLegalEvidenceAnswer(legalEvidenceState);

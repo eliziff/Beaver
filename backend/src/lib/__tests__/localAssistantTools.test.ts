@@ -1115,6 +1115,18 @@ describe("local assistant tools", () => {
         state,
       );
 
+    const [braced] = await run([
+      {
+        id: "brace-glob",
+        name: "Glob",
+        input: { pattern: "{schedule.docx,memo.docx}" },
+      },
+    ]);
+    expect(braced.content.split("\n").sort()).toEqual([
+      "memo.docx",
+      "schedule.docx",
+    ]);
+
     const [created] = await run([
       {
         id: "make-working-set",
@@ -1125,18 +1137,12 @@ describe("local assistant tools", () => {
         },
       },
     ]);
-    const manifest = JSON.parse(created.content);
-    expect(manifest).toMatchObject({
-      ok: true,
-      documents: 2,
-      units: 3,
-      truncated: false,
-    });
-    expect(manifest).not.toHaveProperty("text");
-    expect(manifest.path).toBe(".mike/working-sets/evidence.txt");
-    expect(manifest.added_source_chars).toBeGreaterThan(0);
-    expect(manifest.already_present_chars).toBeGreaterThan(0);
-    expect(manifest.added_map_chars).toBeGreaterThan(0);
+    const workingSetPath = ".mike/working-sets/evidence.txt";
+    expect(created.content).toContain(`[WORKING SET ${workingSetPath}`);
+    expect(created.content).toContain("FILE MAP");
+    expect(created.content).toContain("Unique cell value");
+    expect(created.evidenceSegments?.some((item) => item.documentId === table.id)).toBe(true);
+    expect(state.get(workingSetPath)?.text).toContain("Unique cell value");
 
     const [duplicate, expanded] = await run([
       {
@@ -1150,29 +1156,21 @@ describe("local assistant tools", () => {
         input: { pattern: "(?i)later fact", output_mode: "working_set" },
       },
     ]);
-    const repeated = JSON.parse(duplicate.content);
-    const addition = JSON.parse(expanded.content);
-    expect(repeated).toMatchObject({
-      path: manifest.path,
-      added_source_chars: 0,
-      next: null,
-    });
-    expect(repeated.already_present_chars).toBeGreaterThan(0);
-    expect(addition).toMatchObject({ path: manifest.path });
-    expect(addition.added_source_chars).toBeGreaterThan(0);
-    expect(addition.next).toMatch(/offset=\d+/u);
+    expect(duplicate.content).toContain("No new evidence");
+    expect(expanded.content).toContain("A later fact belongs to a distinct section.");
+    expect(expanded.evidenceSegments?.some((item) => item.documentId === prose.id)).toBe(true);
 
     const [read, refused] = await run([
       {
         id: "read-working-set",
         name: "Read",
-        input: { file_path: manifest.path },
+        input: { file_path: workingSetPath },
       },
       {
         id: "edit-working-set",
         name: "Edit",
         input: {
-          file_path: manifest.path,
+          file_path: workingSetPath,
           old_string: "unique",
           new_string: "changed",
         },
@@ -1240,6 +1238,103 @@ describe("local assistant tools", () => {
     ]);
     expect(read.content).toContain("Unique spreadsheet value");
     expect(read.content).not.toContain("Matter");
+  });
+
+  it("maps a long flat instrument across its full structure", async () => {
+    process.env.MIKE_NAV_SHAPE = "address";
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    process.env.MIKE_RETRIEVAL_EXPERIMENT = "h9-accretive-union";
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-h9-map-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    vi.resetModules();
+
+    const store = await import("../localDocumentStore");
+    await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "long-agreement.docx",
+      bytes: await Packer.toBuffer(
+        new Document({
+          sections: [
+            {
+              children: Array.from(
+                { length: 80 },
+                (_, index) =>
+                  new Paragraph(
+                    `${index + 1}.01 Heading ${index + 1}${index === 79 ? " unique needle" : ""}`,
+                  ),
+              ),
+            },
+          ],
+        }),
+      ),
+    });
+    const tools = await import("../chat/localAssistantTools");
+    const state: import("../chat/localAssistantTools").LocalAssistantWorkingSetTurnState =
+      new Map();
+    const [grep] = await tools.runLocalAssistantTools(
+      "local-user",
+      [
+        {
+          id: "balanced-map",
+          name: "Grep",
+          input: { pattern: "needle", output_mode: "working_set" },
+        },
+      ],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      state,
+    );
+    expect(grep.content).toContain("section\tsec1.01");
+    expect(grep.content).toMatch(/section\tsec(?:3[5-9]|4[0-5])\.01/u);
+    expect(grep.content).toContain("80.01 Heading 80 unique needle");
+    expect(grep.content).not.toContain("opening:");
+  });
+
+  it("keeps semantic compiler advisories out of automatic mutation receipts", async () => {
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    process.env.MIKE_RETRIEVAL_EXPERIMENT = "h9-accretive-union";
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-h9-compiler-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    vi.resetModules();
+    const tools = await import("../chat/localAssistantTools");
+    const [warning, error] = await tools.runLocalAssistantTools("local-user", [
+      {
+        id: "warning-draft",
+        name: "library_create_docx",
+        input: {
+          title: "Analytical Memo",
+          filename: "analysis-memo.docx",
+          markdown: "# Analysis\n\nThe borrower may not have sufficient liquidity.",
+        },
+      },
+      {
+        id: "error-draft",
+        name: "library_create_docx",
+        input: {
+          title: "Agreement",
+          filename: "agreement.docx",
+          markdown: "# Covenant\n\nThe borrower must shall deliver notice.",
+        },
+      },
+    ]);
+    expect(JSON.parse(warning.content).compiler_diagnostics).toEqual({
+      status: "passed",
+      finding_count: 0,
+    });
+    expect(JSON.parse(error.content).compiler_diagnostics).toMatchObject({
+      status: "action_required",
+      finding_count: 1,
+      findings: [expect.objectContaining({ code: "stacked-modals" })],
+    });
   });
 
   it("keeps generic Grep output independent of ambiguous legal structure", async () => {

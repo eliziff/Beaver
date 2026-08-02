@@ -576,10 +576,6 @@ describe("deleteProvisionAndRenumberSiblings", () => {
       "external_reference",
       "\nSection 11.03 is subject to Section 8.05 of the Income Tax Act.",
     ],
-    [
-      "ambiguous_reference",
-      "\nSection 11.03 is subject to Sections 8.03 and 8.05.",
-    ],
   ])("refuses %s without applying a partial edit", (code, extra) => {
     const source = AGREEMENT_WITH_POINTERS + extra;
     const result = deleteProvisionAndRenumberSiblings(source, "8.02");
@@ -587,6 +583,18 @@ describe("deleteProvisionAndRenumberSiblings", () => {
     expect(result.failures.map((failure) => failure.code)).toContain(code);
     expect(result.text).toBe(source);
     expect(result.applied).toEqual([]);
+  });
+
+  it("updates every item in an explicit cross-reference list", () => {
+    const source =
+      AGREEMENT_WITH_POINTERS +
+      "\nSection 11.03 is subject to Sections 8.03 and 8.05.";
+    const result = deleteProvisionAndRenumberSiblings(source, "8.02");
+
+    expect(result.failures).toEqual([]);
+    expect(result.text).toContain(
+      "Section 11.03 is subject to Sections 8.02 and 8.04.",
+    );
   });
 
   it("refuses an ambiguous target without choosing an occurrence", () => {
