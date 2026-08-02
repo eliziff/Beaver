@@ -66,35 +66,23 @@ claims for 90.9% recall. Lower evidence overlap was somewhat more efficient at
 the same observed recall, but at 95% recall it also reviewed about 94% of the
 source-context arm.
 
-## What Opus was actually seeing
+## Operational readout
 
-The judge was not given the length rule. The scorer applied length only after
-Opus returned a verdict. A targeted substantive audit inspected 24 short
-adverse calls: 16 looked clearly correct, 3 clearly over-strict, and 5 were
-borderline. The ten shortest supported controls inspected all looked correctly
-supported.
+- Do not promote length to a grounding gate. It is a plausible queue-priority
+  feature, but its apparent lift is confounded by claim style and judge/source
+  mix, and its high-recall threshold reviews nearly everything.
+- Keep evidence overlap as a cheap secondary priority feature. It has the most
+  credible direction among the tested lexical signals, but still is not an
+  efficient detector at the recall legal work requires.
+- Treat semantic checking as the actual decision step for nontrivial framing.
+  Deterministic signals should order or widen that review, never clear a claim.
+- The best next deterministic hypothesis is quote-role/status mismatch: a
+  party argument becoming a holding, “may” becoming “must”, a reported fact
+  becoming an established fact, or one legal doctrine becoming another.
 
-The correct catches were real framing failures, for example:
-
-- treating declaratory relief sought by the Cheslatta as a right the court had
-  established;
-- turning a passage about litigation privilege into a proposition about
-  solicitor-client privilege;
-- turning a party's or an expert-evidence argument into a general legal rule;
-- changing a list of factors that “may be helpful” into factors courts “must
-  consider.”
-
-The clearest false positive was Ford: both the decision context and an
-independent journal characterization support the proposition that freedom of
-expression includes communicating in one's chosen language, including in the
-commercial setting. Opus nevertheless rejected Luna's concise paraphrases.
-Two other very short calls were close enough to make the result sensitive to
-whether strict attribution/modality standards are treated as errors.
-
-In the source-context arm, correcting only the clear Ford false positive lowers
-the content-word AUC from .664 to .630. Treating the two borderline cases as
-supported as well lowers it to .544. The apparent source-context length effect
-is therefore not robust to a handful of judge decisions at the short end.
+The semantic scores are provisional evaluation labels, not truth. They are
+useful for ranking hypotheses and finding examples, but the conclusion should
+not be stronger than the checker's calibration.
 
 ## Hypotheses to carry forward
 
@@ -116,6 +104,37 @@ is therefore not robust to a handful of judge decisions at the short end.
    privilege → solicitor-client privilege. A future shared, corpus-tested
    signal should identify these source roles from the local decision context
    and compare them with the generated framing.
+
+## Reuse as a benchmark
+
+This run already provides a benchmark seed. The reusable unit is not the
+semantic-checker receipt; it is a structured example containing:
+
+- the decision identifier and split, citation/source metadata, exact quote, and
+  local source context;
+- a generated framing claim, with its generation arm (quote-only or
+  source-context);
+- deterministic features such as content length, evidence overlap, modality,
+  novelty, and operator risk;
+- a semantic-checker verdict marked explicitly as a proxy label.
+
+The existing tools form a small benchmark pipeline:
+
+1. legal-grounding-quote-framing-benchmark.ts selects decision-disjoint quotes
+   and emits the frozen item manifest.
+2. legal-grounding-natural-framing.ts generates claims against that manifest.
+3. legal-grounding-semantic-benchmark.ts records an independent proxy score.
+4. legal-grounding-semantic-analysis.ts produces feature rankings and
+   operating-point tables.
+
+To make this seed durable, freeze the manifest and hashes, split by decision
+(and, where possible, citation family), add explicit role/status fields, and
+keep generated claims and scores as separate receipt layers. That supports
+three cheap, repeatable uses without re-adjudicating the whole corpus:
+compare detectors on a fixed holdout, test whether a signal survives a new
+generation model or citator, and sample only disagreement or short-tail strata
+for calibration. A future gold subset should be small and independently
+checked; the full proxy-labelled set is a development and stress-test suite.
 
 ## Next honest test, not run today
 
