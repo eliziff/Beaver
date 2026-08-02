@@ -1,8 +1,8 @@
-import crypto from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { mikeLocalDataHome } from "./legalDataPath";
 import { devLog } from "./chat/types";
+import { sha256 } from "./hash";
 
 /**
  * Content-addressed keyed cache (evaluation-context plan §12 — the
@@ -13,9 +13,6 @@ import { devLog } from "./chat/types";
  * results); immutable authorities may omit it. Cache failures fall back
  * to a real fetch; correctness never depends on a hit.
  */
-
-const sha256 = (data: string) =>
-  crypto.createHash("sha256").update(data).digest("hex");
 
 const cacheRoot = () => path.join(mikeLocalDataHome(), "content-cache");
 

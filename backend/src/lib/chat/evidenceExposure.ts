@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { sha256 } from "../hash";
 import type { NormalizedToolResult } from "../llm/types";
 
 type Range = { start: number; end: number };
@@ -180,10 +180,6 @@ export function createEvidenceExposureState(): EvidenceExposureState {
     suppressedSourceChars: 0,
     nextSequence: 0,
   };
-}
-
-function sha256(value: string) {
-  return createHash("sha256").update(value).digest("hex");
 }
 
 function mergeRange(ranges: Range[], added: Range) {

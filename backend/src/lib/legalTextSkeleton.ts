@@ -26,7 +26,7 @@ import {
   isExternalReference,
   romanToInt,
 } from "./docxStructuralLint";
-import { createHash } from "node:crypto";
+import { sha256 } from "./hash";
 
 import {
   createSourceDoc,
@@ -1261,11 +1261,11 @@ function skeletonCacheKey(
   options: CompileSkeletonOptions,
 ): string {
   return [
-    createHash("sha256").update(text).digest("hex"),
+    sha256(text),
     id,
     options.recoverExtraction === false ? "norecover" : "recover",
     options.tableCells?.length
-      ? createHash("sha256").update(JSON.stringify(options.tableCells)).digest("hex")
+      ? sha256(JSON.stringify(options.tableCells))
       : "nocells",
   ].join("\u0000");
 }

@@ -11,10 +11,10 @@
  * explicit nulls, never omitted.
  */
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { z } from "zod";
+export { sha256 as sha256Hex } from "./hash";
 
 const sha256 = z.string().regex(/^[0-9a-f]{64}$/u, "lowercase sha256 hex");
 const tokenCount = z.number().int().nonnegative().nullable();
@@ -68,10 +68,6 @@ export const TRACE_DIR = path.join(
   "benchmarks",
   "traces",
 );
-
-export function sha256Hex(data: string | Buffer): string {
-  return createHash("sha256").update(data).digest("hex");
-}
 
 /** Full commit SHA and dirty flag of the repository containing `cwd`. */
 export function gitRunState(cwd: string = __dirname): {

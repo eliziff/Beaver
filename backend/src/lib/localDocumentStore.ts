@@ -1,4 +1,3 @@
-import crypto from "node:crypto";
 import path from "node:path";
 import {
   mkdir,
@@ -8,6 +7,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { docxToPdf } from "./convert";
+import { sha256 } from "./hash";
 import {
   ALLOWED_DOCUMENT_TYPES,
   shouldConvertToPdf,
@@ -254,7 +254,7 @@ async function ensureLocalPdfRendition(
     const pdf = await docxToPdf(
       await readFile(absoluteDataPath(version.storagePath)),
     );
-    const hash = crypto.createHash("sha256").update(pdf).digest("hex");
+    const hash = sha256(pdf);
     const relativePath = path.join(
       "files",
       documentId,
@@ -297,7 +297,7 @@ async function writeVersionFiles(
   }
   if (isImageDocumentType(suffix)) validateImageBytes(filename, bytes);
 
-  const sourceSha256 = crypto.createHash("sha256").update(bytes).digest("hex");
+  const sourceSha256 = sha256(bytes);
   const relativeDirectory = path.join("files", documentId);
   const relativeSource = path.join(
     relativeDirectory,
@@ -310,7 +310,7 @@ async function writeVersionFiles(
   if (shouldConvertToPdf(suffix)) {
     try {
       const pdf = await docxToPdf(bytes);
-      const pdfHash = crypto.createHash("sha256").update(pdf).digest("hex");
+      const pdfHash = sha256(pdf);
       relativePdf = path.join(
         relativeDirectory,
         `${versionId}-${pdfHash.slice(0, 16)}.pdf`,
@@ -1174,20 +1174,16 @@ function legalSourceId(pointer: {
   dataset?: string | null;
   sourceId?: string | null;
 }) {
-  return crypto
-    .createHash("sha256")
-    .update(
-      JSON.stringify([
-        pointer.provider,
-        pointer.docType,
-        pointer.language,
-        pointer.dataset?.trim().toLowerCase() ?? "",
-        pointer.sourceId?.trim().toLowerCase() ?? "",
-        pointer.citation.trim().toLowerCase(),
-      ]),
-    )
-    .digest("hex")
-    .slice(0, 32);
+  return sha256(
+    JSON.stringify([
+      pointer.provider,
+      pointer.docType,
+      pointer.language,
+      pointer.dataset?.trim().toLowerCase() ?? "",
+      pointer.sourceId?.trim().toLowerCase() ?? "",
+      pointer.citation.trim().toLowerCase(),
+    ]),
+  ).slice(0, 32);
 }
 
 export async function listLocalLegalSources(userId: string) {

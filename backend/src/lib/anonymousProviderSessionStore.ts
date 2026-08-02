@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import {
   mkdirSync,
   readFileSync,
@@ -9,6 +9,7 @@ import {
 import path from "node:path";
 import { z } from "zod";
 import { legalDataHome } from "./legalDataPath";
+import { sha256 } from "./hash";
 
 const idSchema = z
   .string()
@@ -56,7 +57,7 @@ function canonicalJson(value: unknown): string {
 }
 
 export function providerSessionCompatibilityKey(value: unknown) {
-  return createHash("sha256").update(canonicalJson(value)).digest("hex");
+  return sha256(canonicalJson(value));
 }
 
 export function readAnonymousCodexSession(
