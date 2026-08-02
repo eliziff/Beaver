@@ -325,6 +325,161 @@ describe("local assistant tools", () => {
     expect(second.evidenceSegments).toEqual([]);
   });
 
+  it("keeps adaptive Mike whole reads simple while bounded reads remain repeatable", async () => {
+    process.env.MIKE_TOOL_SHAPE = "adaptive-mike-v1";
+    process.env.MIKE_DISABLE_RESEARCH_TOOLS = "1";
+    process.env.MIKE_DISABLE_ASK_INPUTS = "1";
+    process.env.MIKE_TERMINAL_AUTHORING = "1";
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-adaptive-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const store = await import("../localDocumentStore");
+    const document = await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "credit-agreement.docx",
+      bytes: await Packer.toBuffer(
+        new Document({
+          sections: [
+            {
+              children: [
+                new Paragraph("ARTICLE I"),
+                new Paragraph("Section 1.01 Reports."),
+                new Paragraph(`The borrower shall deliver ${"monthly reports ".repeat(40)}promptly.`),
+                new Paragraph("Section 1.02 Notices."),
+                new Paragraph("Every notice must be in writing."),
+              ],
+            },
+          ],
+        }),
+      ),
+    });
+    const tools = await import("../chat/localAssistantTools");
+    expect(
+      tools.LOCAL_ASSISTANT_TOOLS.map((entry) => entry.function.name),
+    ).toEqual([
+      "read_document",
+      "find_in_document",
+      "list_documents",
+      "fetch_documents",
+      "generate_docx",
+    ]);
+    const readSchema = tools.LOCAL_ASSISTANT_TOOLS[0].function.parameters as {
+      properties: Record<string, unknown>;
+    };
+    expect(readSchema.properties).toEqual(
+      expect.objectContaining({
+        section: expect.any(Object),
+        pages: expect.any(Object),
+        offset: expect.any(Object),
+        max_chars: expect.any(Object),
+      }),
+    );
+
+    const invoke = (
+      input: Record<string, unknown>,
+      state: import("../chat/localAssistantTools").LocalAssistantReadTurnState,
+    ) =>
+      tools.runLocalAssistantTools(
+        "local-user",
+        [{ id: `call-${Math.random()}`, name: "read_document", input }],
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        new Set([document.id]),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        state,
+      );
+
+    const [listed] = await tools.runLocalAssistantTools(
+      "local-user",
+      [{ id: "list", name: "list_documents", input: {} }],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      new Set([document.id]),
+    );
+    const inventory = JSON.parse(listed.content);
+    expect(inventory.documents[0]).toEqual(
+      expect.objectContaining({
+        doc_id: "doc-0",
+        filename: "credit-agreement.docx",
+        characters: expect.any(Number),
+        lines: expect.any(Number),
+        pages: 0,
+      }),
+    );
+    expect(inventory.totals.characters).toBe(
+      inventory.documents[0].characters,
+    );
+
+    const fullState: import("../chat/localAssistantTools").LocalAssistantReadTurnState =
+      new Map();
+    const [whole] = await invoke({ doc_id: "doc-0" }, fullState);
+    const [duplicateWhole] = await invoke({ doc_id: "doc-0" }, fullState);
+    expect(whole.content).toContain("borrower shall deliver");
+    expect(JSON.parse(duplicateWhole.content).already_read).toBe(true);
+
+    const boundedInput = {
+      doc_id: "doc-0",
+      section: "Section 1.01",
+      max_chars: 160,
+    };
+    const [boundedAfterWhole] = await invoke(boundedInput, fullState);
+    const [boundedAgain] = await invoke(boundedInput, fullState);
+    for (const bounded of [boundedAfterWhole, boundedAgain]) {
+      const payload = JSON.parse(bounded.content);
+      expect(payload.ok).toBe(true);
+      expect(payload.text).toContain("monthly reports");
+      expect(payload.returned_characters).toBeLessThanOrEqual(160);
+      expect(payload.next_read).toEqual(
+        expect.objectContaining({
+          doc_id: "doc-0",
+          section: "Section 1.01",
+          offset: expect.any(Number),
+        }),
+      );
+      expect(bounded.evidenceSegments).toHaveLength(1);
+    }
+
+    const boundedOnlyState: import("../chat/localAssistantTools").LocalAssistantReadTurnState =
+      new Map();
+    await invoke({ doc_id: "doc-0", offset: 10, max_chars: 80 }, boundedOnlyState);
+    const [wholeAfterBounded] = await invoke({ doc_id: "doc-0" }, boundedOnlyState);
+    expect(wholeAfterBounded.content).toContain("Section 1.02 Notices");
+    expect(() => JSON.parse(wholeAfterBounded.content)).toThrow();
+
+    const [found] = await tools.runLocalAssistantTools(
+      "local-user",
+      [
+        {
+          id: "find",
+          name: "find_in_document",
+          input: { doc_id: "doc-0", query: "in writing" },
+        },
+      ],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      new Set([document.id]),
+    );
+    expect(JSON.parse(found.content).hits[0]).toEqual(
+      expect.objectContaining({
+        locator: expect.stringMatching(/^chars /u),
+        read: expect.objectContaining({
+          doc_id: "doc-0",
+          offset: expect.any(Number),
+          max_chars: expect.any(Number),
+        }),
+      }),
+    );
+  });
+
   it("batch-fetches complete documents by filename in coding shape", async () => {
     process.env.MIKE_TOOL_SHAPE = "coding";
     process.env.MIKE_DISABLE_RESEARCH_TOOLS = "1";

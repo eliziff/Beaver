@@ -38,9 +38,11 @@ import { providerForModel } from "../lib/llm/models";
 import {
   WHOLE_READ_MAX_CHARS,
   LOCAL_ASSISTANT_TOOLS,
+  ADAPTIVE_MIKE_TOOL_SHAPE,
   MAX_TOOL_RESULT_CHARS,
   MODEL_COVERAGE_ROUTING,
   NAV_TOOL_SHAPE,
+  ORIGIN_MIKE_TOOL_SHAPE,
   PROGRESSIVE_DISCLOSURE_ENABLED,
   RESEARCH_TOOLS_DISABLED,
   RESIDENT_AUTHORING_ENABLED,
@@ -75,7 +77,10 @@ import {
   markReviewedUnionEvidence,
   renderEvidenceManifest,
 } from "../lib/chat/evidenceExposure";
-import { UPSTREAM_MIKE_LAB_SYSTEM_PROMPT } from "../lib/chat/upstreamMikeBenchmarkSurface";
+import {
+  ADAPTIVE_MIKE_LAB_SYSTEM_PROMPT,
+  UPSTREAM_MIKE_LAB_SYSTEM_PROMPT,
+} from "../lib/chat/upstreamMikeBenchmarkSurface";
 import { localAutomationEvent } from "../lib/chat/localAutomationEvent";
 import {
   appendSlaReceipt,
@@ -1013,7 +1018,7 @@ export async function streamAnonymousChat(params: {
   // Prompt discipline for the tool-shape experiment: never teach tool names
   // the served surface does not carry (a prose mention overrides the schema
   // list in practice, and silently un-does the A/B).
-  const navigationTools = UPSTREAM_MIKE_TOOL_SHAPE
+  const navigationTools = ORIGIN_MIKE_TOOL_SHAPE
     ? "list_documents, fetch_documents, read_document, find_in_document"
     : codingShape
       ? "Glob, Grep, Read, Edit, library_lookup, library_evidence"
@@ -1028,7 +1033,7 @@ export async function streamAnonymousChat(params: {
   const standingJurisdictionPrompt = jurisdictionPreferencePrompt(
     params.jurisdictionPreference ?? null,
   );
-  const libraryBlock = UPSTREAM_MIKE_TOOL_SHAPE
+  const libraryBlock = ORIGIN_MIKE_TOOL_SHAPE
     ? ""
     : leanPromptVariant
     ? buildLeanLibraryBlock({
@@ -1057,8 +1062,10 @@ export async function streamAnonymousChat(params: {
             "For long or structured Library documents, call library_outline first — it gives the handles and the page addresses — then read only what you need with library_read at= rather than the whole document."
           : "For long or structured Library documents, call library_outline first and read only the needed span with library_read section= rather than the whole document."
     } Before delivering extraction or comparison work, call library_anchor_coverage and verify the source anchors it reports missing from your draft. Prefer the deterministic organs over reasoning from memory — citation linking, supra fixes, structural lint, term drift, drafting lint, bilingual concordance, amendment application, deadline computation — and report their findings as verified rather than recomputing them yourself.`;
-  let systemPrompt = UPSTREAM_MIKE_TOOL_SHAPE
-    ? UPSTREAM_MIKE_LAB_SYSTEM_PROMPT
+  let systemPrompt = ORIGIN_MIKE_TOOL_SHAPE
+    ? ADAPTIVE_MIKE_TOOL_SHAPE
+      ? ADAPTIVE_MIKE_LAB_SYSTEM_PROMPT
+      : UPSTREAM_MIKE_LAB_SYSTEM_PROMPT
     : `${CLIENT_WORK_PRODUCT_PRESUMPTION}\n\n${libraryBlock}\n\n` +
       "If the user selects a workflow with [Workflow: <title> (id: <id>)], immediately call read_workflow with that id and follow it.\n\n" +
       "Call ask_inputs only for what blocks the work: an instruction only the user can give, or a document that was never provided. Resolve ordinary ambiguity on the most reasonable reading and state the assumption instead. Never seek confirmation of an instruction already given.\n\n" +
@@ -1074,7 +1081,7 @@ export async function streamAnonymousChat(params: {
           A2AJ_SYSTEM_PROMPT +
           "\n\n" +
           PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT);
-  if (UPSTREAM_MIKE_TOOL_SHAPE) {
+  if (ORIGIN_MIKE_TOOL_SHAPE) {
     const expected = [
       "read_document",
       "find_in_document",
@@ -1107,7 +1114,7 @@ export async function streamAnonymousChat(params: {
   }
   // Name the documents the user already has. Telling the model the tools
   // exist is not the same as telling it the matter exists.
-  if (UPSTREAM_MIKE_TOOL_SHAPE && allowedDocumentIds?.size) {
+  if (ORIGIN_MIKE_TOOL_SHAPE && allowedDocumentIds?.size) {
     const documents = await listLocalDocumentsById(userId, allowedDocumentIds);
     systemPrompt +=
       "\n\nAVAILABLE DOCUMENTS:\n" +
@@ -1375,10 +1382,10 @@ export async function streamAnonymousChat(params: {
   const localWorkingSets: LocalAssistantWorkingSetTurnState = new Map();
   const contextHandoffEnabled =
     process.env.MIKE_CONTEXT_HANDOFF === "1" &&
-    !UPSTREAM_MIKE_TOOL_SHAPE;
+    !ORIGIN_MIKE_TOOL_SHAPE;
   const continuousEvidenceEnabled =
     process.env.MIKE_CONTINUOUS_EVIDENCE === "1" &&
-    !UPSTREAM_MIKE_TOOL_SHAPE;
+    !ORIGIN_MIKE_TOOL_SHAPE;
   const evidenceTrackingEnabled =
     contextHandoffEnabled || continuousEvidenceEnabled;
   const pagedHandoffEnabled =
@@ -2402,6 +2409,7 @@ export async function streamAnonymousChat(params: {
           tool_description_variant:
             process.env.MIKE_TOOL_DESCRIPTION_VARIANT || "operational",
           upstream_mike_shape: UPSTREAM_MIKE_TOOL_SHAPE,
+          adaptive_mike_shape: ADAPTIVE_MIKE_TOOL_SHAPE,
           model_coverage_routing: MODEL_COVERAGE_ROUTING,
           whole_read_max_chars: WHOLE_READ_MAX_CHARS || null,
           tool_result_max_chars: MAX_TOOL_RESULT_CHARS,
@@ -2581,7 +2589,9 @@ export async function streamAnonymousChat(params: {
         const terminalCreateBatch =
           TERMINAL_AUTHORING_ENABLED &&
           calls.length > 0 &&
-          calls.every((call) => call.name === "library_create_docx") &&
+          calls.every((call) =>
+            ["library_create_docx", "generate_docx"].includes(call.name),
+          ) &&
           calls.every((call) => {
             const toolResult = results.find(
               (result) => result.tool_use_id === call.id,

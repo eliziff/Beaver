@@ -93,6 +93,18 @@ class OpenAIAdapter(ModelAdapter):
             text="\n".join(text_parts),
             input_tokens=response.usage.input_tokens if response.usage else 0,
             output_tokens=response.usage.output_tokens if response.usage else 0,
+            cached_input_tokens=(
+                getattr(getattr(response.usage, "input_tokens_details", None), "cached_tokens", 0) or 0
+                if response.usage
+                else 0
+            ),
+            reasoning_tokens=(
+                getattr(getattr(response.usage, "output_tokens_details", None), "reasoning_tokens", 0) or 0
+                if response.usage
+                else 0
+            ),
+            response_id=getattr(response, "id", None),
+            service_tier=getattr(response, "service_tier", None),
         )
 
     def make_tool_result_messages(self, results: list[tuple[str, str]]) -> list[dict]:

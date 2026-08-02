@@ -1,0 +1,6 @@
+ARG BASE_IMAGE=lab-sandbox:latest
+FROM ${BASE_IMAGE}
+
+ARG CODEX_VERSION=0.146.0
+RUN npm install --global "@openai/codex@${CODEX_VERSION}" \
+    && mkdir -p /root/.codex
