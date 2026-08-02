@@ -1832,7 +1832,7 @@ type WorkingSetEvidenceSegment = {
   sourceEnd: number;
 };
 
-const WORKING_SET_PATH = ".mike/working-sets/evidence.txt";
+export const WORKING_SET_PATH = ".mike/working-sets/evidence.txt";
 
 export type LocalAssistantWorkingSetTurnState = Map<
   string,
@@ -2260,6 +2260,7 @@ function materializeAccretiveWorkingSet(
   maps: readonly WorkingSetMapCandidate[],
   requestedBudget: unknown,
   state: LocalAssistantWorkingSetTurnState,
+  coverage?: { searched: number; matched: number },
 ) {
   const prior = state.get(WORKING_SET_PATH);
   const requested = clampInt(requestedBudget, 1_000, 128_000, 64_000);
@@ -2441,6 +2442,8 @@ function materializeAccretiveWorkingSet(
       budget_chars: budget,
       truncated: omitted > 0,
       omitted_units: omitted,
+      searched_documents: coverage?.searched ?? null,
+      matched_documents: coverage?.matched ?? null,
       next: delta
         ? `Read(file_path=${JSON.stringify(path)}, offset=${deltaOffset})`
         : null,
@@ -2457,7 +2460,10 @@ function accretiveWorkingSetResult(
 ): NormalizedToolResult {
   const { manifest, delta, deltaStart, set } = materialized;
   const header =
-    `[WORKING SET ${manifest.path} | added ${manifest.added_units} units | omitted ${manifest.omitted_units}]`;
+    `[WORKING SET ${manifest.path} | added ${manifest.added_units} units | omitted ${manifest.omitted_units}` +
+    (manifest.searched_documents === null
+      ? "]"
+      : ` | matched ${manifest.matched_documents}/${manifest.searched_documents} docs]`);
   if (!delta) {
     return result(
       call,
@@ -3629,11 +3635,17 @@ async function runCodingShapeCall(
     (WORKING_SET_EXPERIMENT && args.output_mode === "working_set")
       ? args.output_mode
       : "files_with_matches";
-  const headLimit = positiveInt(args.head_limit, 1, 2_000, 250);
+  const headLimit = positiveInt(
+    args.head_limit,
+    1,
+    2_000,
+    mode === "sections" ? 40 : 250,
+  );
   const context = clampInt(args["-C"], 0, 10, 0);
   const numberLines = args["-n"] !== false;
 
   const rows: CodingOutputLine[] = [];
+  const sectionQueues: { rendered: string; hits: number }[][] = [];
   const workingSetCandidates: WorkingSetCandidate[] = [];
   const workingSetMaps: WorkingSetMapCandidate[] = [];
   let truncated = false;
@@ -3847,21 +3859,23 @@ async function runCodingShapeCall(
       continue;
     }
     if (mode === "sections") {
-      const seen = new Set<string>();
+      const hitsByRecipe = new Map<string, number>();
       for (const line of matched) {
         const section = sectionOf?.(line);
         const rendered = section
           ? `${meta.filename}: Read section="${section.handle}"`
           : `${meta.filename}: Read offset=${line + 1} limit=1`;
-        if (seen.has(rendered)) continue;
-        seen.add(rendered);
-        rows.push({ rendered });
-        if (rows.length >= headLimit) {
-          truncated = true;
-          break;
-        }
+        hitsByRecipe.set(rendered, (hitsByRecipe.get(rendered) ?? 0) + 1);
       }
-      if (truncated) break;
+      sectionQueues.push(
+        [...hitsByRecipe.entries()]
+          .map(([rendered, hits]) => ({ rendered, hits }))
+          .sort(
+            (left, right) =>
+              right.hits - left.hits ||
+              left.rendered.localeCompare(right.rendered),
+          ),
+      );
       continue;
     }
     const matchedLines = new Set(matched);
@@ -3946,6 +3960,12 @@ async function runCodingShapeCall(
           workingSetMaps,
           args.max_chars,
           workingSets,
+          {
+            searched: targets.length,
+            matched: new Set(
+              workingSetCandidates.map((candidate) => candidate.documentId),
+            ).size,
+          },
         ),
       );
     }
@@ -3957,6 +3977,24 @@ async function runCodingShapeCall(
         workingSets,
       ),
     );
+  }
+  if (mode === "sections") {
+    let cursor = 0;
+    while (rows.length < headLimit) {
+      let advanced = false;
+      for (const queue of sectionQueues) {
+        const item = queue[cursor];
+        if (!item) continue;
+        advanced = true;
+        rows.push({ rendered: `${item.rendered} | hits=${item.hits}` });
+        if (rows.length >= headLimit) break;
+      }
+      if (!advanced) break;
+      cursor += 1;
+    }
+    truncated =
+      sectionQueues.reduce((total, queue) => total + queue.length, 0) >
+      rows.length;
   }
   if (!rows.length) return result(call, "No matches found");
   const limited = rows.slice(0, headLimit);

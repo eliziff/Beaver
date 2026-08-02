@@ -978,6 +978,7 @@ describe("local assistant tools", () => {
     expect(mapped.content).toContain('Read section="sec1.01"');
     expect(mapped.content).toContain('Read section="sec1.03"');
     expect(mapped.content).toContain('Read section="sec2.01"');
+    expect(mapped.content).toContain("hits=");
     expect(read.content).toContain("First. This points to Section 1.03.");
     expect(read.content).toContain("Third. This provision remains.");
     expect(read.content).toContain("Pointer. Section 1.03 controls.");
@@ -1139,6 +1140,7 @@ describe("local assistant tools", () => {
     ]);
     const workingSetPath = ".mike/working-sets/evidence.txt";
     expect(created.content).toContain(`[WORKING SET ${workingSetPath}`);
+    expect(created.content).toMatch(/matched \d+\/\d+ docs/);
     expect(created.content).toContain("FILE MAP");
     expect(created.content).toContain("Unique cell value");
     expect(created.evidenceSegments?.some((item) => item.documentId === table.id)).toBe(true);

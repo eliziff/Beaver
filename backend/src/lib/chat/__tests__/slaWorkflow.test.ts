@@ -365,6 +365,29 @@ describe("greenfield stimulus review contract", () => {
     expect(JSON.stringify(payload)).not.toMatch(/rubric|expected answer|tool trace/iu);
   });
 
+  it("can review a bounded evidence union instead of replaying the corpus", () => {
+    const payload = greenfieldReviewPayload(
+      ledgerOf({ name: "whole-corpus.docx", text: "Needlessly large source." }),
+      "Prepare the requested work product.",
+      "Candidate text.",
+      [
+        {
+          name: ".mike/working-sets/evidence.txt",
+          text: "Selected exact evidence.",
+        },
+        { name: "source-inventory.txt", text: "whole-corpus.docx" },
+      ],
+    );
+    expect(payload.source_documents).toEqual([
+      {
+        name: ".mike/working-sets/evidence.txt",
+        text: "Selected exact evidence.",
+      },
+      { name: "source-inventory.txt", text: "whole-corpus.docx" },
+    ]);
+    expect(JSON.stringify(payload)).not.toContain("Needlessly large source");
+  });
+
   it("caps and validates terse source-grounded findings", () => {
     const findings = normalizeGreenfieldFindings({
       findings: Array.from({ length: 8 }, (_, index) => ({
