@@ -1,0 +1,70 @@
+{
+  "experiment": "legal_compaction_qwen_four_case_post_cutoff",
+  "context_limit": 32768,
+  "packet_cap_chars": 72000,
+  "selection_rule": "Each source is below the one-case packet budget; the four packets together exceed 32K tokens.",
+  "knowledge_cutoff_rule": "All decisions are 2026 SCC decisions, after the dated model knowledge snapshots used for this experiment.",
+  "cases": [
+    {
+      "a2aj_document_id": 190682,
+      "citation": "2026 SCC 13",
+      "name": "Quebec (Attorney General) v. Lalande",
+      "source_ref": "a2aj:document:190682",
+      "source_url": "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/21476/index.do",
+      "source_chars": 44222,
+      "packet_chars": 30507,
+      "paragraphs_in_packet": [
+        1,
+        42
+      ],
+      "source_sha256": "a4d5d9aac4d45e239d2314428446d0f3f94b495a0ec5fc0fbaea7cf62d1b1bc7",
+      "packet_sha256": "963bab8470fb03719d25c0d9e455833e4fccf76aa1c1648aa2ad2fcd9804d9c1"
+    },
+    {
+      "a2aj_document_id": 190469,
+      "citation": "2026 SCC 18",
+      "name": "R. v. Saddleback",
+      "source_ref": "a2aj:document:190469",
+      "source_url": "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/21519/index.do",
+      "source_chars": 75953,
+      "packet_chars": 60759,
+      "paragraphs_in_packet": [
+        1,
+        97
+      ],
+      "source_sha256": "cdedba36c0dcd2c2b3e04b5aeeea598703665683a40ef901e30148f1ca797feb",
+      "packet_sha256": "5f912628eeb39e961d89e9b44eb97abed3c17a96b40dd2fefd842597fc9b753e"
+    },
+    {
+      "a2aj_document_id": 190687,
+      "citation": "2026 SCC 9",
+      "name": "Riddle v. ivari",
+      "source_ref": "a2aj:document:190687",
+      "source_url": "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/21464/index.do",
+      "source_chars": 94020,
+      "packet_chars": 71793,
+      "paragraphs_in_packet": [
+        1,
+        97
+      ],
+      "source_sha256": "593650509ecdfe9231f3e94b9fd96ebd160b4dcfb0cfd4acebf58cf1413cad98",
+      "packet_sha256": "88a5f9168ab2ed200417277152b413c0dec5288bb41facc1aaf937db26564d83"
+    },
+    {
+      "a2aj_document_id": 190675,
+      "citation": "2026 SCC 19",
+      "name": "R. v. Vrbanic",
+      "source_ref": "a2aj:document:190675",
+      "source_url": "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/21302/index.do",
+      "source_chars": 105655,
+      "packet_chars": 71631,
+      "paragraphs_in_packet": [
+        1,
+        142
+      ],
+      "source_sha256": "692ea1525bf2f4a33a0df1d3f340fa012cb37be5fc4a077edc29c7aa2d62d5b3",
+      "packet_sha256": "54437f102da36f733f4457633b46cc1982f24f36de03f297af4d142707a58525"
+    }
+  ],
+  "combined_packet_chars": 234690
+}
