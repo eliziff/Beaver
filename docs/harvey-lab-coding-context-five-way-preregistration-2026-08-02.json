@@ -15,6 +15,13 @@
       "commit": "be980856f1f52e8ef1cfe4178cca0fd93eef71d7",
       "reason": "The three native r1 containers lacked Docker --interactive, so Codex received no stdin and exited before a provider call. Only those cells were replaced with stamp 2026-08-02T22-10-00Z-r2.",
       "r1_provider_calls": 0
+    },
+    {
+      "commit": "13b49d9b",
+      "reason": "Docker's default seccomp profile blocked the user namespace required by Codex's inner Bubblewrap sandbox. All three r2 cells made one provider turn, repeatedly received the same bwrap setup error, and produced no deliverable. After an explicit user authorization, one indenture-only r3 trial will relax Docker seccomp while retaining Codex workspace-write, approval_policy=never, read-only task mounts, no host-repository mount, and web_search=disabled. If that single trial fails, the native arm ends without further replacement.",
+      "r2_provider_calls": 3,
+      "r2_deliverables": 0,
+      "trial_run_id": "capital-markets/draft-indenture-for-senior-secured-notes-offering/codex-native-v1-gpt-5-6-luna/2026-08-02T22-25-00Z-r3"
     }
   ],
   "objective": "Find a general harness that matches or exceeds pinned upstream Mike answer quality with fewer provider-reported logical tokens; up to 1.5x tokens is acceptable only for a decisive quality win across the three visible-development tasks.",
@@ -56,7 +63,9 @@
     "native_image": {
       "tag": "lab-codex-native:0.146.0",
       "id": "sha256:34604256d0fbdabcb3ad06ecb0402e77fa957081de9722d76d0eba90d2ab28e3",
-      "codex_version": "0.146.0"
+      "codex_version": "0.146.0",
+      "docker_security_opt_for_r3": "seccomp=unconfined",
+      "inner_sandbox_probe": "passed before model call"
     }
   },
   "fixed_surfaces": {
@@ -85,7 +94,8 @@
       "project_rules": "ignored",
       "sandbox": "workspace-write",
       "approval_policy": "never",
-      "web_search": "disabled"
+      "web_search": "disabled",
+      "r3_scope": "one indenture-only trial"
     }
   },
   "tasks": {
