@@ -24,6 +24,10 @@ __pycache__/
 # Keep the already-reviewed compaction evidence; ignore new timestamped runs.
 experiments/context_compaction_track_b/results/*.json
 
+# Local receipts for the legal-grounding framing experiment; model traces and
+# corpus-derived selection caches are never repository source.
+experiments/legal_grounding_framing/receipts/
+
 # User-supplied benchmark documents and derived local manifests can contain
 # privileged or otherwise non-redistributable material.  Keep the harness in
 # git, but never commit the private corpus.
