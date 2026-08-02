@@ -188,6 +188,10 @@ def strip_protected_state(value: str, expected: str) -> tuple[str, str]:
 DYNAMIC_MIKE_SYSTEM_PROMPT = MIKE_SYSTEM_PROMPT.replace("doc-0", "s1").replace("doc-1", "s2").replace("doc-2", "s3") + "\n\n" + DISCOVERY_STAGE + "\n" + NO_QUESTIONS
 DYNAMIC_DISCOVERY_TASK = "USER WANTS: Bhasin v Hrynew; Wastech Services v Greater Vancouver Sewerage and Drainage; C.M. Callow v Zollinger. ANALYZE EACH; COMPARE GOOD-FAITH DOCTRINE; PRESERVE FACTS/ISSUE/HOLDING/REASONING/LIMITS/EVIDENCE; USE EXACT QUOTATIONS WITH ANALYSIS."
 QWEN_DISCOVERY_PROTOCOL = "YOU=QWEN. DISCOVERY ONLY. CALL s({q:\"query\"}) TO SEARCH. CALL a({i:[ID,...]}) TO ADD 0-3 MATCHING IDS. a RESULT: i=ALL LOCKED IDS; m=NAME/CITATION FOR LOCKED CASES; r=SLOTS LEFT. SEARCH ONLY WHEN NO HIT MATCHES. SEARCH ROWS: I=id N=name C=citation. NO READ/DRAFT. " + NO_QUESTIONS
+DISCOVERY_GREP_CHARS = 320
+DISCOVERY_GREP_SNIPPETS = 2
+DISCOVERY_READ_NOTE_CHARS = 360
+DISCOVERY_READ_COMPACTOR_SYSTEM_PROMPT = "YOU=READ-NOTE COMPACTOR. COMPACT ONLY THE BOUNDED GREP RESULTS. DO NOT SEARCH, GREP, SELECT, READ, ANSWER, OR INVENT. CALL c ONCE: c({l:[{k:\"key\",v:\"short line\"},...]}); keep the note under the supplied character budget. NO PROSE."
 STATE_COMPACTION_TOOL = {
     "type": "function",
     "function": {
@@ -234,6 +238,7 @@ def style_control_tools(tools: list[dict[str, Any]], prompt_style: str) -> list[
         return styled
     descriptions = {
         "search_a2aj_cases": "Find case in A2AJ. Metadata only.",
+        "g": "Bounded grep in searched case.",
         "read_document": "Read active case.",
         "r": "Read active case.",
         "find_in_document": "Find text in active case.",
@@ -750,6 +755,57 @@ class A2AJCatalog:
             for row in rows
         ]
 
+    def grep(self, document_id: int, query: str, max_chars: int = DISCOVERY_GREP_CHARS) -> dict[str, Any]:
+        """Return a tiny deterministic text glimpse without selecting the case."""
+
+        query = collapse_ws(query)
+        tokens = [token.casefold() for token in re.findall(r"[\w.]+", query) if len(token) > 1]
+        if not tokens:
+            return {"ok": False, "error": "grep requires a non-empty query"}
+        with self._connect() as db:
+            row = db.execute(
+                "SELECT citation_en, name_en, unofficial_text_en FROM document WHERE id=? AND doc_type='cases'",
+                (int(document_id),),
+            ).fetchone()
+        if row is None or not row[2]:
+            return {"ok": False, "error": "unknown case ID"}
+        source = collapse_ws(str(row[2]))
+        folded = source.casefold()
+        positions: list[int] = []
+        for token in tokens:
+            start = 0
+            while len(positions) < DISCOVERY_GREP_SNIPPETS:
+                found = folded.find(token, start)
+                if found < 0:
+                    break
+                positions.append(found)
+                start = found + len(token)
+                break
+            if len(positions) >= DISCOVERY_GREP_SNIPPETS:
+                break
+        if not positions:
+            return {
+                "ok": True,
+                "i": int(document_id),
+                "n": row[1] or "-",
+                "c": row[0] or "-",
+                "q": query,
+                "t": "NO MATCH",
+            }
+        snippets: list[str] = []
+        for position in positions:
+            start = max(0, position - 100)
+            end = min(len(source), position + 180)
+            snippets.append(source[start:end].strip())
+        return {
+            "ok": True,
+            "i": int(document_id),
+            "n": row[1] or "-",
+            "c": row[0] or "-",
+            "q": query,
+            "t": collapse_ws(" ... ".join(snippets))[:max_chars],
+        }
+
     def load_selected(self, document_ids: list[int]) -> dict[str, CaseDocument]:
         cases: dict[str, CaseDocument] = {}
         with self._connect() as db:
@@ -782,6 +838,8 @@ class A2AJCatalog:
 
 
 def run_dynamic_selection(args: argparse.Namespace) -> Path:
+    if args.discovery_read_ablation and args.provider != "ollama":
+        raise ValueError("--discovery-read-ablation is currently an Ollama/Qwen arm")
     model = args.model or ("gpt-5.6-luna" if args.provider == "codex" else default_model())
     base_url = args.base_url or os.environ.get("OLLAMA_BASE_URL") or "http://127.0.0.1:11434"
     client = (
@@ -801,8 +859,16 @@ def run_dynamic_selection(args: argparse.Namespace) -> Path:
     acquire_run_lock(output)
     progress_path = output.with_suffix(".progress.jsonl")
     catalog = A2AJCatalog(args.a2aj_db or A2AJ_DB_DEFAULT, args.packet_chars)
+    discovery_protocol = QWEN_DISCOVERY_PROTOCOL
+    if args.discovery_read_ablation:
+        discovery_protocol = discovery_protocol.replace("NO READ/DRAFT.", "NO FULL READ/DRAFT.")
     discovery_system = (
-        QWEN_DISCOVERY_PROTOCOL
+        discovery_protocol
+        + (
+            f" OPTIONAL: CALL g({{i:ID,q:\"term\"}}) ONLY AFTER s; g RETURNS AT MOST {DISCOVERY_GREP_CHARS} CHARS FROM A SEARCHED CASE. IF g RETURNS AND YOU DO NOT CALL a THIS TURN, THE HOST WILL COMPACT THE READ NOTE FOR THE NEXT DISCOVERY TURN."
+            if args.discovery_read_ablation
+            else ""
+        )
         if args.provider == "ollama"
         else control_system_prompt(args.prompt_style, args.compact_vocabulary)
     )
@@ -822,6 +888,9 @@ def run_dynamic_selection(args: argparse.Namespace) -> Path:
     search_repeat_counts: dict[str, int] = {}
     search_repeat_notice = ""
     selection_notice = ""
+    discovery_read_notes: list[str] = []
+    discovery_grep_cache: dict[tuple[int, str], dict[str, Any]] = {}
+    discovery_read_compaction_fingerprints: set[str] = set()
     search_tool_name = "s" if args.provider == "ollama" else "search_a2aj_cases"
     select_tool_name = "a" if args.provider == "ollama" else "select_a2aj_documents"
     model_hit_cap = {"1k": 2, "2k": 3, "4k": 5}.get(args.context_tier, 10)
@@ -850,6 +919,14 @@ def run_dynamic_selection(args: argparse.Namespace) -> Path:
             )
         return metadata
 
+    def searched_case_ids() -> set[int]:
+        return {
+            int(hit["i"])
+            for hits in search_cache.values()
+            for hit in hits
+            if str(hit.get("i", "")).isdigit()
+        }
+
     def reset_discovery_messages() -> None:
         if args.provider == "ollama":
             searches: list[str] = []
@@ -872,6 +949,8 @@ def run_dynamic_selection(args: argparse.Namespace) -> Path:
             state += "\n" + search_repeat_notice
         if selection_notice:
             state += "\n" + selection_notice
+        if discovery_read_notes:
+            state += "\nREAD NOTES:\n" + "\n".join(discovery_read_notes[-2:])
         if args.provider == "ollama":
             state += f"\nNEXT: inspect hits; a({{i:[...]}}) adds 0-3 matching IDs; use s with a new query only if no hit matches; r={3 - len(selected_ids)} selection slots"
         else:
@@ -884,7 +963,70 @@ def run_dynamic_selection(args: argparse.Namespace) -> Path:
             },
         ]
 
-    append_progress(progress_path, {"kind": "run_started", "arm": "dynamic_selection", "provider": args.provider, "model": model, "effort": args.effort, "num_ctx": args.num_ctx})
+    def compact_discovery_reads(reads: list[dict[str, Any]]) -> str:
+        bounded_reads = [
+            {
+                "i": item.get("i"),
+                "n": item.get("n", "-"),
+                "c": item.get("c", "-"),
+                "q": item.get("q", ""),
+                "t": str(item.get("t", ""))[:DISCOVERY_GREP_CHARS],
+            }
+            for item in reads
+        ]
+        payload = {"budget": DISCOVERY_READ_NOTE_CHARS, "reads": bounded_reads}
+        fingerprint = hashlib.sha256(
+            json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
+        ).hexdigest()
+        if fingerprint in discovery_read_compaction_fingerprints:
+            append_progress(
+                progress_path,
+                {
+                    "kind": "discovery_read_compaction_skipped",
+                    "reason": "duplicate_read_input",
+                    "input_sha256": fingerprint,
+                },
+            )
+            return ""
+        discovery_read_compaction_fingerprints.add(fingerprint)
+        read_state_input = [
+            {"role": "system", "content": DISCOVERY_READ_COMPACTOR_SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": "READS="
+                + json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+            },
+        ]
+        note_message, note_usage = client.chat(
+            read_state_input,
+            no_tools=False,
+            compact_vocab=args.compact_vocabulary,
+            compaction_mode=True,
+        )
+        note, compactor_output = compaction_checkpoint(note_message)
+        note = collapse_ws(note)[:DISCOVERY_READ_NOTE_CHARS]
+        if not note:
+            note = collapse_ws(
+                " ".join(
+                    f"I={item.get('i')} T={item.get('t', '')}"
+                    for item in bounded_reads
+                )
+            )[:DISCOVERY_READ_NOTE_CHARS]
+        append_progress(
+            progress_path,
+            {
+                "kind": "discovery_read_compaction",
+                "read_count": len(bounded_reads),
+                "chars": len(note),
+                "compactor_output": compactor_output,
+                "input_sha256": fingerprint,
+                "note": note,
+                "usage": note_usage,
+            },
+        )
+        return note
+
+    append_progress(progress_path, {"kind": "run_started", "arm": "dynamic_selection", "provider": args.provider, "model": model, "effort": args.effort, "num_ctx": args.num_ctx, "discovery_read_ablation": args.discovery_read_ablation})
     try:
         for round_number in range(args.max_tool_rounds):
             message, usage = client.chat(
@@ -892,6 +1034,7 @@ def run_dynamic_selection(args: argparse.Namespace) -> Path:
                 discovery_mode=True,
                 prompt_style=args.prompt_style,
                 compact_vocab=args.compact_vocabulary,
+                discovery_read=args.discovery_read_ablation,
             )
             discovery_messages.append(message)
             thinking = model_thinking(message)
@@ -913,6 +1056,8 @@ def run_dynamic_selection(args: argparse.Namespace) -> Path:
                 # search state must not push it behind a growing transcript.
                 reset_discovery_messages()
                 continue
+            turn_grep_results: list[dict[str, Any]] = []
+            selected_tool_called = False
             for name, raw_args in calls:
                 if name == search_tool_name:
                     query = collapse_ws(str(raw_args.get("q", ""))).casefold()
@@ -938,6 +1083,25 @@ def run_dynamic_selection(args: argparse.Namespace) -> Path:
                         search_cache[query] = full_hits
                         model_result = {"h": full_hits[:model_hit_cap]}
                         receipt_result = {"ok": True, "hits": full_hits}
+                elif name == "g":
+                    document_id = raw_args.get("i")
+                    query = collapse_ws(str(raw_args.get("q", "")))
+                    if not isinstance(document_id, int) or isinstance(document_id, bool):
+                        model_result = {"e": "i must be integer"}
+                        receipt_result = {"ok": False, "error": "g needs integer i from prior s results"}
+                    elif document_id not in searched_case_ids():
+                        model_result = {"e": "search first"}
+                        receipt_result = {"ok": False, "error": "g only accepts IDs from prior s results"}
+                    else:
+                        grep_key = (document_id, query.casefold())
+                        grep_result = discovery_grep_cache.get(grep_key)
+                        if grep_result is None:
+                            grep_result = catalog.grep(document_id, query, DISCOVERY_GREP_CHARS)
+                            discovery_grep_cache[grep_key] = grep_result
+                        model_result = grep_result
+                        receipt_result = grep_result
+                        if grep_result.get("ok"):
+                            turn_grep_results.append(grep_result)
                 elif name == select_tool_name:
                     key = "i" if args.provider == "ollama" else "ids"
                     values = parse_integer_list(raw_args.get(key, []))
@@ -983,6 +1147,8 @@ def run_dynamic_selection(args: argparse.Namespace) -> Path:
                     receipt_result = {"ok": False, "error": "discovery tool unavailable"}
                 model_result_text = json.dumps(model_result, ensure_ascii=False, separators=(",", ":"))
                 receipt_result_text = json.dumps(receipt_result, ensure_ascii=False, separators=(",", ":"))
+                if name == select_tool_name and receipt_result.get("ok") and receipt_result.get("added"):
+                    selected_tool_called = True
                 selection_calls.append({"name": name, "arguments": raw_args, "result": receipt_result_text})
                 append_progress(progress_path, {"kind": "discovery_tool_result", "round": round_number + 1, "tool": name, "arguments": raw_args, "result_preview": receipt_result_text[:2000]})
                 if name == search_tool_name and receipt_result.get("repeated"):
@@ -1005,7 +1171,15 @@ def run_dynamic_selection(args: argparse.Namespace) -> Path:
                         for item in metadata
                     )
                     discovery_ledger.append("A " + locked + " r=" + str(3 - len(selected_ids)))
-            if len(selected_ids) < 3:
+            read_note_added = False
+            if args.discovery_read_ablation and turn_grep_results and not selected_tool_called:
+                note = compact_discovery_reads(turn_grep_results)
+                if note:
+                    discovery_read_notes.append(note)
+                    read_note_added = True
+            if len(selected_ids) < 3 and not read_note_added:
+                reset_discovery_messages()
+            elif read_note_added:
                 reset_discovery_messages()
             if len(selected_ids) == 3:
                 break
@@ -1526,6 +1700,7 @@ class OllamaClient:
         compact_vocab: bool = False,
         synthesis_source_search: bool = False,
         compaction_mode: bool = False,
+        discovery_read: bool = False,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         request_tools = ollama_tools()
         if compact_card_mode:
@@ -1543,6 +1718,8 @@ class OllamaClient:
             )
         if discovery_mode:
             request_tools = [QWEN_A2AJ_SEARCH_TOOL, QWEN_A2AJ_SELECT_TOOL]
+            if discovery_read:
+                request_tools.append(QWEN_A2AJ_GREP_TOOL)
         if synthesis_mode:
             request_tools = (
                 [FIND_SOURCE_SPANS_TOOL] if synthesis_source_search else []
@@ -1669,7 +1846,8 @@ class CodexClient:
               host_register: bool = False, no_tools: bool = False,
               compact_vocab: bool = False,
               synthesis_source_search: bool = False,
-              compaction_mode: bool = False) -> tuple[dict[str, Any], dict[str, Any]]:
+              compaction_mode: bool = False,
+              discovery_read: bool = False) -> tuple[dict[str, Any], dict[str, Any]]:
         tools = self._tools(
             include_grounding_tool, include_rehydration_tool, include_span_tool,
             card_rebuild_mode, discovery_mode, synthesis_mode, compact_card_mode,
@@ -2043,6 +2221,22 @@ QWEN_A2AJ_SELECT_TOOL = {
                 }
             },
             "required": ["i"],
+        },
+    },
+}
+QWEN_A2AJ_GREP_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "g",
+        "description": "Bounded grep in a searched case; short text only.",
+        "parameters": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "i": {"type": "integer"},
+                "q": {"type": "string"},
+            },
+            "required": ["i", "q"],
         },
     },
 }
@@ -3033,6 +3227,8 @@ def run_turn(
         card_contract = compact_prompt_text(card_contract, compact_vocab)
     messages.append({"role": "user", "content": prompt})
     last_text = ""
+    last_compactable_event = ""
+    last_compaction_fingerprint = ""
     retrieval_candidates: list[dict[str, Any]] = []
     read_done = False
     last_tool = "none"
@@ -3173,6 +3369,8 @@ def run_turn(
             raise
         messages.append(message)
         last_text = str(message.get("content") or "")
+        if last_text.strip():
+            last_compactable_event = "assistant: " + collapse_ws(last_text)[:1200]
         thinking = model_thinking(message)
         if thinking:
             append_thinking(
@@ -3298,6 +3496,21 @@ def run_turn(
                         },
                     ]
                 else:
+                    checkpoint_message = next(
+                        (
+                            item
+                            for item in reversed(messages[:-1])
+                            if item.get("role") == "user"
+                            and str(item.get("content") or "").startswith(
+                                ("[CARD CHECKPOINT]", "[CURRENT CARD DRAFT]", "[CARD REBUILD]", "[NEW CASE CARD]")
+                            )
+                        ),
+                        None,
+                    )
+                    if checkpoint_message is not None:
+                        messages[:] = [messages[0], checkpoint_message]
+                    else:
+                        messages[:] = messages[:-1]
                     messages.append({"role": "user", "content": gate})
                 append_progress(
                     progress_path,
@@ -3549,6 +3762,11 @@ def run_turn(
                     "arguments": arguments,
                     "result_preview": result[:1800],
                 },
+            )
+            last_compactable_event = json.dumps(
+                {"tool": name, "result": result[:1200]},
+                ensure_ascii=False,
+                separators=(",", ":"),
             )
             if name == "find_in_document":
                 try:
@@ -3844,6 +4062,7 @@ def run_turn(
             state_compact_every
             and estimate_tokens(json.dumps(messages, ensure_ascii=False))
             >= int(client.num_ctx * 0.75)
+            and (last_compactable_event.strip() or card_draft.strip())
         ):
             field_order = ["f", "i", "h", "r", "e"] if omit_limits_unknowns else ["f", "i", "h", "r", "l", "u", "e"]
             pending_field = next((field for field in field_order if not card_fields.get(field)), "none")
@@ -3871,11 +4090,43 @@ def run_turn(
                 else protected_payload
             )
             state_packet = {
-                "task": compact_prompt_text(prompt, compact_vocab),
                 "turn": last_text,
+                "event": last_compactable_event,
             }
             if card_draft:
                 state_packet["draft"] = card_draft
+            compactable_packet = {
+                "turn": last_text,
+                "event": last_compactable_event,
+                "draft": card_draft,
+            }
+            if not any(str(value).strip() for value in compactable_packet.values()):
+                append_progress(
+                    progress_path,
+                    {
+                        "kind": "state_compaction_skipped",
+                        "turn": turn_number,
+                        "phase": phase,
+                        "reason": "no_compactable_content",
+                    },
+                )
+                continue
+            compaction_fingerprint = hashlib.sha256(
+                json.dumps(compactable_packet, ensure_ascii=False, sort_keys=True).encode("utf-8")
+            ).hexdigest()
+            if compaction_fingerprint == last_compaction_fingerprint:
+                append_progress(
+                    progress_path,
+                    {
+                        "kind": "state_compaction_skipped",
+                        "turn": turn_number,
+                        "phase": phase,
+                        "reason": "duplicate_compactable_input",
+                        "input_sha256": compaction_fingerprint,
+                    },
+                )
+                continue
+            last_compaction_fingerprint = compaction_fingerprint
             state_input = [
                 {"role": "system", "content": STATE_COMPACTOR_SYSTEM_PROMPT},
                 {
@@ -3927,6 +4178,7 @@ def run_turn(
                     "protected_copy": protected_copy,
                     "protected_state_restored": True,
                     "input_estimate": estimate_tokens(json.dumps(state_input, ensure_ascii=False)),
+                    "input_sha256": compaction_fingerprint,
                 }
             )
             append_progress(
@@ -3939,10 +4191,12 @@ def run_turn(
                     "compactor_output": compactor_output,
                     "protected_copy": protected_copy,
                     "protected_state_restored": True,
+                    "input_sha256": compaction_fingerprint,
                     "cursor": state_cursor(card_doc_id, read_done, last_tool, micro_card),
                     "usage": state_usage,
                 },
             )
+            last_compactable_event = ""
             cursor = state_cursor(card_doc_id, read_done, last_tool, micro_card)
             micro_register = ""
             if micro_card:
@@ -3954,7 +4208,11 @@ def run_turn(
                     "\n\n[CARD STATUS]\n"
                     + "SAVED: " + (",".join(completed) or "none")
                     + "\nNEXT TOOL: " + next_tool
-                    + ("\nNEXT TOOL=d: CALL d NOW. DO NOT CALL p." if pending == "none" else "\nCALL p FOR NEXT TOOL ONLY.")
+                    + (
+                        "\nCARD MODE: CALL d NOW."
+                        if pending == "none"
+                        else f"\nCARD MODE: CALL p NOW WITH field={pending}; include text and claims."
+                    )
                 )
             # O(1) projection: retain only the standing Mike contract and the
             # current card status. Old turn prompts/tool messages can re-trigger the
@@ -3963,9 +4221,9 @@ def run_turn(
                 {
                     "role": "user",
                         "content": (
-                            "[CURRENT STATE]\n" + state_text + "\n\n" + cursor
+                            "[CARD CHECKPOINT]\n" + state_text + "\n\n" + cursor
                         + "\n\n[TASK]\n" + prompt
-                        + "\n\n[LOCKED STATE]\n" + protected_block
+                        + "\n\n[HOST RECOVERY]\nCard mode resumes. Use only the card contract, packet, draft, and verified spans below."
                         + micro_register
                         + ("\n\n[ACTIVE DOCUMENT PACKET]\n" + active_packet if active_packet else "")
                         + ("\n\n[CURRENT CARD DRAFT]\n" + card_draft if card_draft else "")
@@ -4529,6 +4787,7 @@ def parse_args() -> argparse.Namespace:
     run.add_argument("--omit-limits-unknowns", action="store_true")
     run.add_argument("--compact-vocabulary", action="store_true")
     run.add_argument("--synthesis-source-search", action="store_true")
+    run.add_argument("--discovery-read-ablation", action="store_true")
     run.add_argument("--rehydration-mode", choices=("prefix_snippet", "expanded_snippet"), default="prefix_snippet")
     run.add_argument("--post-verify-projection", action="store_true")
     run.add_argument("--base-url", default=None)
