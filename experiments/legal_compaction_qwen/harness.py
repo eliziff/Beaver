@@ -28,7 +28,7 @@ import urllib.request
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 try:
     from mike_baseline import (
@@ -87,7 +87,11 @@ CAVEMAN_CONTROL = "YOU=QWEN. QWEN USE FEWEST WORDS. SUBSTANCE ONLY. NO FILLER."
 CAVEMAN_SYNTHESIS_CONTROL = "YOU=QWEN. QWEN MUST TALK CAVEMAN LIKE."
 COMPACT_GLOSSARY = (
     "COMPACT: @=handle (@63); !ss=start sentence integer; !es=end sentence integer; "
-    "¶=paragraph; C=card; f/i/h/r/l/u/e=card fields. Use these JSON keys."
+    "¶=paragraph; c=case card; f/i/h/r/l/u/e=card fields. Use these JSON keys."
+)
+COMPACT_SYNTHESIS_GLOSSARY = (
+    "K=case roster; c=case card; @=evidence handle; !ss/!es=sentence bounds; "
+    "r=source check; v=verify @; q=quote list; A=answer."
 )
 EVIDENCE_ID_PATTERN = r"^@[0-9]+$"
 CARD_SPAN_CONTRACT = """Each card claim must cite one source span. Use this exact shape:
@@ -112,11 +116,16 @@ def compact_protocol_text(value: str) -> str:
     return value
 
 
-def model_system_prompt(value: str, compact_vocab: bool = False) -> str:
+def model_system_prompt(
+    value: str,
+    compact_vocab: bool = False,
+    synthesis: bool = False,
+) -> str:
     if not compact_vocab:
         return value
     value = compact_prompt_text(value, True)
-    return value if COMPACT_GLOSSARY in value else value + "\n" + COMPACT_GLOSSARY
+    glossary = COMPACT_SYNTHESIS_GLOSSARY if synthesis else COMPACT_GLOSSARY
+    return value if glossary in value else value + "\n" + glossary
 
 
 def dynamic_card_prompt(doc_id: str, opaque: bool = False, min_chars: int = CARD_MIN_CHARS, omit_limits_unknowns: bool = False, compact_vocab: bool = False) -> str:
@@ -157,11 +166,16 @@ CARD_PRISON_SYSTEM_PROMPT = f"""You are completing one legal case card. Produce 
 GRUG_SYSTEM_PROMPT = f"""{CAVEMAN_CONTROL} {DISCOVERY_STAGE} USE TOOLS. {NO_QUESTIONS}"""
 GRUG_CARD_PRISON_SYSTEM_PROMPT = f"""{CAVEMAN_CONTROL} CONTROL TEXT ONLY. CARD TEXT MUST BE COMPLETE, GRAMMATICAL SMARTHEAD LEGAL PROSE. MAKE 1 CASE CARD. USE CARD TOOL ONLY. KEEP FACTS, ANALYSIS, AND EXACT @n SPANS. {NO_QUESTIONS}"""
 GRUG_SYNTHESIS_SYSTEM_PROMPT = f"""{CAVEMAN_SYNTHESIS_CONTROL} CARDS READY. USE VERIFIED SPANS. MAKE ANSWER. {NO_QUESTIONS} WRITE SYNTHESIS LIKE SMARTHEAD."""
+COMPACT_SYNTHESIS_SYSTEM_PROMPT = f"""YOU=QWEN. SYNTHESIS. {COMPACT_SYNTHESIS_GLOSSARY} Use all c to answer user request. Interleave quotes with analysis (must v before A). Use r if source check needed. For A: full sentences. {NO_QUESTIONS}"""
+COMPACT_GRUG_SYNTHESIS_SYSTEM_PROMPT = f"""{CAVEMAN_SYNTHESIS_CONTROL} SYNTHESIS. {COMPACT_SYNTHESIS_GLOSSARY} Use all c to answer user request. Interleave quotes with analysis (must v before A). Use r if source check needed. For A: full sentences. {NO_QUESTIONS}"""
+DYNAMIC_SYNTHESIS_SYSTEM_PROMPT = f"""CARDS COMPLETE. SYNTHESIS ONLY. USE THE COMPLETED CARDS TO ANSWER THE USER'S TASK. Use rehydrate_evidence to check saved @ source text when needed. Use submit_quote_spans to verify quotations before writing the answer. {NO_QUESTIONS}"""
 DYNAMIC_FINAL_PROMPT = """Using the completed cards and VERIFIED SPANS, compare the doctrine and interleave verified exact quotes with @handles. Span JSON uses evidence_id="@digits", start_sentence and end_sentence as integer bounds. Copy the handles and bounds from the saved spans exactly. When rehydrating, pass the copied range; source search supplies a suggested range. Rehydrate only needed spans, then submit exact quotes with submit_quote_spans before the prose answer."""
-COMPACT_DYNAMIC_FINAL_PROMPT = """Use completed cards. Compare doctrine; mix verified exact quotes + @handles. Span JSON keys: @=handle, !ss=start integer, !es=end integer. Copy @, !ss, !es exactly. Rehydrate needed @ with !ss/!es, then call submit_quote_spans before answer."""
+LEGACY_COMPACT_DYNAMIC_FINAL_PROMPT = """Use completed cards. Compare doctrine; mix verified exact quotes + @handles. Span JSON keys: @=handle, !ss=start integer, !es=end integer. Copy @, !ss, !es exactly. Rehydrate needed @ with !ss/!es, then call submit_quote_spans before answer."""
+COMPACT_DYNAMIC_FINAL_PROMPT = """Use all c to answer user request. Interleave quotes with analysis (must v before A). Use r if source check needed. For A: full sentences."""
 GRUG_FINAL_PROMPT = f"""{CAVEMAN_SYNTHESIS_CONTROL} USE DONE CARDS + VERIFIED SPANS. COMPARE DOCTRINE. MIX EXACT QUOTATIONS + @handles. JSON: evidence_id=\"@digits\", start_sentence/end_sentence=integer bounds. COPY HANDLES/RANGES. REHYDRATE NEEDED SPANS. CALL submit_quote_spans FIRST. THEN WRITE ANSWER LIKE SMARTHEAD."""
 COMPACT_GRUG_FINAL_PROMPT = f"""{CAVEMAN_SYNTHESIS_CONTROL} USE DONE CARDS + VERIFIED SPANS. COMPARE DOCTRINE. MIX EXACT QUOTATIONS + @handles. JSON KEYS: @, !ss, !es. @=handle; !ss/!es=integer bounds. COPY THEM. REHYDRATE NEEDED @. CALL submit_quote_spans FIRST. THEN WRITE ANSWER LIKE SMARTHEAD."""
-POST_GATE_SYSTEM_PROMPT = "Cards and verified quotations are ready. Write the integrated legal answer in ordinary prose. Name each selected case, compare their doctrine, and interleave accepted exact quotations with analysis."
+POST_GATE_SYSTEM_PROMPT = "Cards and verified quotations are ready. Write the integrated legal answer."
+POST_GATE_COMPACT_SYSTEM_PROMPT = "SYNTHESIS COMPLETE. c=case card; q=verified quotation; A=answer. Use c and q to write A. For A: full sentences."
 POST_GATE_GRUG_SYSTEM_PROMPT = f"""{CAVEMAN_SYNTHESIS_CONTROL} CARDS READY. WRITE SMARTHEAD LEGAL ANSWER. NAME EACH SELECTED CASE. COMPARE DOCTRINE. USE VERIFIED QUOTATIONS. PROSE ONLY. DO NOT PRINT CARD FIELDS, HANDLES, JSON, OR TOOL SYNTAX."""
 PROTECTED_OPEN = "[[K]]"
 PROTECTED_CLOSE = "[[/K]]"
@@ -262,6 +276,7 @@ def style_control_tools(tools: list[dict[str, Any]], prompt_style: str) -> list[
 def compact_tool_schema(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
     styled = json.loads(json.dumps(tools, ensure_ascii=False))
     aliases = {
+        "card": "c",
         "evidence_id": "@",
         "evidence_ids": "@",
         "start_sentence": "!ss",
@@ -290,7 +305,7 @@ def compact_tool_schema(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 elif name == "paragraph":
                     spec["description"] = "¶ integer."
                 elif name == "card":
-                    spec["description"] = "C; complete card text."
+                    spec["description"] = "c; full card text."
                 elif name == "claims":
                     spec["description"] = "Evidence claim list."
                 elif "description" in spec:
@@ -1210,72 +1225,141 @@ def run_dynamic_selection(args: argparse.Namespace) -> Path:
         turns.append({"turn": 1, "prompt": first_card_prompt, "response": first_response})
         if not executor.card_queue_complete:
             raise RuntimeError("card queue did not complete before synthesis")
+        qwen_compact_synthesis = args.provider == "ollama" and args.compact_vocabulary
         final_prompt = (
-            COMPACT_GRUG_FINAL_PROMPT
+            COMPACT_DYNAMIC_FINAL_PROMPT
+            if qwen_compact_synthesis
+            else COMPACT_GRUG_FINAL_PROMPT
             if args.prompt_style == "grug" and args.compact_vocabulary
             else GRUG_FINAL_PROMPT
             if args.prompt_style == "grug"
-            else COMPACT_DYNAMIC_FINAL_PROMPT
+            else LEGACY_COMPACT_DYNAMIC_FINAL_PROMPT
             if args.compact_vocabulary
             else DYNAMIC_FINAL_PROMPT
         )
-        if args.rehydration_mode == "expanded_snippet":
+        if args.rehydration_mode == "expanded_snippet" and not qwen_compact_synthesis:
             final_prompt += " USE THE EXPANDED PREFIX + CLOSEST SNIPPET AS QUOTE CONTEXT; SUBMIT STABLE HANDLES/RANGES."
         if args.synthesis_source_search:
-            final_prompt += " SYNTHESIS MAY SEARCH THE FULL SELECTED SOURCES FOR QUOTES NOT IN CARDS: CALL find_source_spans, THEN rehydrate_evidence."
+            final_prompt += (
+                " f if source search needed."
+                if qwen_compact_synthesis
+                else " SYNTHESIS MAY SEARCH THE FULL SELECTED SOURCES FOR QUOTES NOT IN CARDS: CALL find_source_spans, THEN rehydrate_evidence."
+            )
         final_gate = (
-            "VERIFIER OK. WRITE SMARTHEAD LEGAL ANSWER IN ORDINARY PROSE. NAME EACH SELECTED CASE. COMPARE DOCTRINE. INTERLEAVE EXACT QUOTATIONS WITH ANALYSIS."
+            "For A: full sentences."
+            if qwen_compact_synthesis
+            else "VERIFIER OK. WRITE SMARTHEAD LEGAL ANSWER IN ORDINARY PROSE. NAME EACH SELECTED CASE. COMPARE DOCTRINE. INTERLEAVE EXACT QUOTATIONS WITH ANALYSIS."
             if args.prompt_style == "grug"
             else "The verifier accepted the quotes. Write the integrated legal answer in ordinary prose. Name each selected case, compare the doctrine, and interleave exact quotations with analysis."
         )
 
         def synthesis_checkpoint(missing: list[str]) -> list[dict[str, Any]]:
-            cards = "\n\n".join(
-                f"CARD {doc_id}:\n{card}\n\n[VERIFIED SPANS]\n"
-                + json.dumps(
+            task_text = ABLATION_TASK if args.omit_limits_unknowns else DYNAMIC_TASK
+
+            def prose_card(value: str) -> str:
+                return re.sub(
+                    r"\nEVIDENCE HANDLES:.*$",
+                    "",
+                    value,
+                    flags=re.IGNORECASE | re.DOTALL,
+                ).strip()
+
+            def card_spans(doc_id: str) -> str:
+                return json.dumps(
                     executor.model_claims(
                         executor.card_claims.get(doc_id, []),
-                        compact=args.compact_vocabulary,
+                        compact=qwen_compact_synthesis,
                     ),
                     ensure_ascii=False,
+                    separators=(",", ":"),
                 )
-                for doc_id, card in executor.card_cards.items()
+
+            if qwen_compact_synthesis:
+                roster = ";".join(
+                    f"{doc_id}={case.spec.citation}"
+                    for doc_id, case in executor.cases.items()
+                )
+                cards = "\n".join(
+                    f"{doc_id}|{prose_card(card)}"
+                    for doc_id, card in executor.card_cards.items()
+                )
+                evidence = "\n".join(
+                    f"{doc_id}={card_spans(doc_id)}"
+                    for doc_id in executor.card_cards
+                )
+                missing_block = (
+                    "\nM:" + ";".join(f"{doc_id}={card_spans(doc_id)}" for doc_id in missing)
+                    if missing
+                    else ""
+                )
+                content = (
+                    "K:" + roster
+                    + "\nc:\n" + cards
+                    + "\n@:\n" + evidence
+                    + "\nT:" + task_text
+                    + missing_block
+                    + ("\nF:source search available." if args.synthesis_source_search else "")
+                )
+            else:
+                cards = "\n\n".join(
+                    f"CARD {doc_id}:\n{card}\n\n[VERIFIED SPANS]\n"
+                    + json.dumps(
+                        executor.model_claims(
+                            executor.card_claims.get(doc_id, []),
+                            compact=args.compact_vocabulary,
+                        ),
+                        ensure_ascii=False,
+                    )
+                    for doc_id, card in executor.card_cards.items()
+                )
+                missing_block = (
+                    "\n\n[MISSING QUOTE COVERAGE]\n" + ", ".join(missing)
+                    if missing
+                    else ""
+                )
+                content = (
+                    "[ALL CARDS COMPLETE]\n"
+                    + cards
+                    + "\n\n[VERIFIED QUOTATIONS]\n"
+                    + json.dumps(
+                        executor.model_claims(
+                            executor.verified_claims or [],
+                            compact=args.compact_vocabulary,
+                        ),
+                        ensure_ascii=False,
+                    )
+                    + "\n\n[TASK]\n"
+                    + task_text
+                    + (
+                        "\n\n[SOURCE SEARCH OPEN]\nCard spans are not exhaustive. Search selected sources for additional quote spans."
+                        if args.synthesis_source_search
+                        else ""
+                    )
+                    + missing_block
+                )
+            synthesis_system = (
+                COMPACT_GRUG_SYNTHESIS_SYSTEM_PROMPT
+                if qwen_compact_synthesis and args.prompt_style == "grug"
+                else COMPACT_SYNTHESIS_SYSTEM_PROMPT
+                if qwen_compact_synthesis
+                else GRUG_SYNTHESIS_SYSTEM_PROMPT
+                if args.prompt_style == "grug"
+                else DYNAMIC_SYNTHESIS_SYSTEM_PROMPT
             )
-            missing_block = (
-                "\n\n[MISSING QUOTE COVERAGE]\n" + ", ".join(missing)
-                if missing
-                else ""
-            )
+            if qwen_compact_synthesis and args.synthesis_source_search:
+                synthesis_system += " f=source search."
             return [
                 {
                     "role": "system",
                     "content": model_system_prompt(
-                        GRUG_SYNTHESIS_SYSTEM_PROMPT
-                        if args.prompt_style == "grug"
-                        else DYNAMIC_MIKE_SYSTEM_PROMPT,
+                        synthesis_system,
                         args.compact_vocabulary,
+                        synthesis=qwen_compact_synthesis,
                     ),
                 },
                 {
                     "role": "user",
-                    "content": (
-                        "[ALL CARDS COMPLETE]\n"
-                        + cards
-                        + "\n\n[VERIFIED QUOTATIONS]\n"
-                        + json.dumps(
-                            executor.model_claims(
-                                executor.verified_claims or [],
-                                compact=args.compact_vocabulary,
-                            ),
-                            ensure_ascii=False,
-                        )
-                        + (
-                            "\n\n[SOURCE SEARCH OPEN]\nCard spans are not exhaustive. Search selected sources for additional quote spans."
-                            if args.synthesis_source_search
-                            else ""
-                        )
-                        + missing_block
-                    ),
+                    "content": content,
                 },
             ]
 
@@ -1286,7 +1370,11 @@ def run_dynamic_selection(args: argparse.Namespace) -> Path:
             if synthesis_attempt:
                 missing_text = ", ".join(missing_cases)
                 final_prompt = (
-                    "REPAIR REQUIRED. VERIFIED QUOTATION COVERAGE IS MISSING FOR: "
+                    "Some cases still lack verified quotes: "
+                    + missing_text
+                    + ". Use r if source check needed, v missing @, then A. For A: full sentences."
+                    if qwen_compact_synthesis
+                    else "REPAIR REQUIRED. VERIFIED QUOTATION COVERAGE IS MISSING FOR: "
                     + missing_text
                     + ". Rehydrate evidence from that case, submit exact quote span(s) for it, "
                     "then rewrite the complete integrated answer. Do not stop with a partial answer."
@@ -1313,6 +1401,7 @@ def run_dynamic_selection(args: argparse.Namespace) -> Path:
                 require_synthesis_tool=True,
                 compact_vocab=args.compact_vocabulary,
                 synthesis_source_search=args.synthesis_source_search,
+                synthesis_checkpoint_builder=synthesis_checkpoint,
             )
             turns.append({"turn": 2 + synthesis_attempt, "prompt": final_prompt, "response": final_response})
             if len(final_response) < args.final_min_chars:
@@ -1693,8 +1782,12 @@ class OllamaClient:
                 request_tools.append(QWEN_A2AJ_GREP_TOOL)
         if synthesis_mode:
             request_tools = (
-                [FIND_SOURCE_SPANS_TOOL] if synthesis_source_search else []
-            ) + [REHYDRATE_EVIDENCE_TOOL, SPAN_ANSWER_TOOL]
+                qwen_synthesis_tools(synthesis_source_search)
+                if compact_vocab
+                else (
+                    [FIND_SOURCE_SPANS_TOOL] if synthesis_source_search else []
+                ) + [REHYDRATE_EVIDENCE_TOOL, SPAN_ANSWER_TOOL]
+            )
         if card_rebuild_mode and not card_prison:
             request_tools = [
                 tool for tool in request_tools
@@ -1712,8 +1805,15 @@ class OllamaClient:
             request_tools.append(SPAN_ANSWER_TOOL)
         if include_grounding_tool and not card_rebuild_mode and not synthesis_mode and not discovery_mode:
             request_tools.append(GROUNDED_ANSWER_TOOL)
-        request_tools = [] if no_tools else style_control_tools(request_tools, prompt_style)
-        if compact_vocab and not no_tools:
+        compact_synthesis_tools = synthesis_mode and compact_vocab and not no_tools
+        request_tools = (
+            []
+            if no_tools
+            else request_tools
+            if compact_synthesis_tools
+            else style_control_tools(request_tools, prompt_style)
+        )
+        if compact_vocab and not no_tools and not compact_synthesis_tools:
             request_tools = compact_tool_schema(request_tools)
         body = {
             "model": self.model,
@@ -1892,6 +1992,10 @@ GROUNDED_ANSWER_TOOL_NAME = "submit_grounded_answer"
 REHYDRATE_EVIDENCE_TOOL_NAME = "rehydrate_evidence"
 FIND_SOURCE_SPANS_TOOL_NAME = "find_source_spans"
 SPAN_ANSWER_TOOL_NAME = "submit_quote_spans"
+QWEN_SYNTHESIS_REHYDRATE_TOOL_NAME = "r"
+QWEN_SYNTHESIS_VERIFY_TOOL_NAME = "v"
+QWEN_SYNTHESIS_SOURCE_SEARCH_TOOL_NAME = "f"
+QWEN_SYNTHESIS_QUOTE_LIST_KEY = "q"
 CARD_COMPLETE_TOOL_NAME = "card_done"
 MICRO_PATCH_TOOL_NAME = "p"
 MICRO_DONE_TOOL_NAME = "d"
@@ -1927,15 +2031,26 @@ def normalize_compact_span(value: Any) -> dict[str, Any]:
 
 def normalize_compact_arguments(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     normalized = dict(arguments)
-    if name == REHYDRATE_EVIDENCE_TOOL_NAME:
+    if name in {REHYDRATE_EVIDENCE_TOOL_NAME, QWEN_SYNTHESIS_REHYDRATE_TOOL_NAME}:
         normalized = normalize_compact_span(normalized)
+    if name in {FIND_SOURCE_SPANS_TOOL_NAME, QWEN_SYNTHESIS_SOURCE_SEARCH_TOOL_NAME}:
+        normalized = {
+            "doc_id": normalized.get("s", normalized.get("doc_id")),
+            "query": normalized.get("q", normalized.get("query")),
+            "max_results": normalized.get("n", normalized.get("max_results")),
+        }
     if name in {
         CARD_COMPLETE_TOOL_NAME,
         MICRO_PATCH_TOOL_NAME,
         MICRO_DONE_TOOL_NAME,
         SPAN_ANSWER_TOOL_NAME,
+        QWEN_SYNTHESIS_VERIFY_TOOL_NAME,
         GROUNDED_ANSWER_TOOL_NAME,
     }:
+        if name == CARD_COMPLETE_TOOL_NAME and "c" in normalized and "card" not in normalized:
+            normalized["card"] = normalized.pop("c")
+        if name == QWEN_SYNTHESIS_VERIFY_TOOL_NAME and "q" in normalized and "claims" not in normalized:
+            normalized["claims"] = normalized.pop("q")
         claims = normalized.get("claims")
         if isinstance(claims, list):
             normalized["claims"] = [normalize_compact_span(item) for item in claims]
@@ -1947,6 +2062,7 @@ def compact_model_value(value: Any) -> Any:
         compact: dict[str, Any] = {}
         for key, item in value.items():
             compact_key = {
+                "card": "c",
                 "evidence_id": "@",
                 "evidence_ids": "@",
                 "start_sentence": "!ss",
@@ -2274,6 +2390,61 @@ SPAN_ANSWER_TOOL = {
         },
     },
 }
+
+
+def qwen_synthesis_tools(include_source_search: bool = False) -> list[dict[str, Any]]:
+    """Expose the compact synthesis dialect; canonical host names stay internal."""
+
+    def compact_tool(tool: dict[str, Any], name: str, fields: dict[str, str]) -> dict[str, Any]:
+        result = compact_tool_schema([tool])[0]
+        function = result["function"]
+        function["name"] = name
+        function["description"] = {
+            QWEN_SYNTHESIS_REHYDRATE_TOOL_NAME: "Source check.",
+            QWEN_SYNTHESIS_VERIFY_TOOL_NAME: "Verify @.",
+            QWEN_SYNTHESIS_SOURCE_SEARCH_TOOL_NAME: "Source search.",
+        }[name]
+        parameters = function["parameters"]
+        properties = parameters.get("properties", {})
+        for old, new in fields.items():
+            if old in properties:
+                properties[new] = properties.pop(old)
+        if isinstance(parameters.get("required"), list):
+            parameters["required"] = [fields.get(key, key) for key in parameters["required"]]
+
+        def strip_descriptions(node: Any) -> None:
+            if not isinstance(node, dict):
+                return
+            node.pop("description", None)
+            for child in node.values():
+                strip_descriptions(child)
+        strip_descriptions(parameters)
+        return result
+
+    tools = [
+        compact_tool(
+            REHYDRATE_EVIDENCE_TOOL,
+            QWEN_SYNTHESIS_REHYDRATE_TOOL_NAME,
+            {"@": "@", "!ss": "!ss", "!es": "!es"},
+        ),
+        compact_tool(
+            SPAN_ANSWER_TOOL,
+            QWEN_SYNTHESIS_VERIFY_TOOL_NAME,
+            {"claims": QWEN_SYNTHESIS_QUOTE_LIST_KEY},
+        ),
+    ]
+    if include_source_search:
+        tools.insert(
+            0,
+            compact_tool(
+                FIND_SOURCE_SPANS_TOOL,
+                QWEN_SYNTHESIS_SOURCE_SEARCH_TOOL_NAME,
+                {"doc_id": "s", "query": "q", "max_results": "n"},
+            ),
+        )
+    return tools
+
+
 GROUNDED_ANSWER_TOOL = {
     "type": "function",
     "function": {
@@ -2338,9 +2509,32 @@ class ToyMikeTools:
         self.accepted_span_claims: list[dict[str, Any]] = []
         self.synthesis_source_search_active = False
 
-    def complete_card(self, doc_id: str, card: str, claims: list[dict[str, Any]] | None = None) -> str | None:
-        self.card_cards[doc_id] = card[:5000]
-        self.card_claims[doc_id] = list(claims or [])
+    def complete_card(
+        self,
+        doc_id: str,
+        card: str,
+        claims: list[dict[str, Any]] | None = None,
+        compact: bool = False,
+    ) -> str | None:
+        saved_claims = list(claims or [])
+        card_text = card[:5000]
+        if saved_claims:
+            handle_text = json.dumps(
+                self.model_claims(saved_claims, compact=compact),
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+            card_text, replaced = re.subn(
+                r"(EVIDENCE HANDLES:\s*).*$",
+                lambda match: match.group(1) + handle_text,
+                card_text,
+                count=1,
+                flags=re.IGNORECASE | re.DOTALL,
+            )
+            if not replaced:
+                card_text = card_text.rstrip() + "\n\nEVIDENCE HANDLES: " + handle_text
+        self.card_cards[doc_id] = card_text[:5000]
+        self.card_claims[doc_id] = saved_claims
         if doc_id == self.card_queue[self.card_index]:
             self.card_index += 1
         if self.card_index >= len(self.card_queue):
@@ -3153,6 +3347,7 @@ def run_turn(
     require_synthesis_tool: bool = False,
     compact_vocab: bool = False,
     synthesis_source_search: bool = False,
+    synthesis_checkpoint_builder: Callable[[list[str]], list[dict[str, Any]]] | None = None,
 ) -> tuple[str, list[dict[str, Any]]]:
     tools.set_phase(phase)
     if tools.card_queue_complete and phase != "final":
@@ -3160,12 +3355,20 @@ def run_turn(
     if compact_vocab and messages:
         messages[0] = {
             "role": "system",
-            "content": model_system_prompt(str(messages[0].get("content") or ""), True),
+            "content": model_system_prompt(
+                str(messages[0].get("content") or ""),
+                True,
+                synthesis=synthesis_mode and isinstance(client, OllamaClient),
+            ),
         }
     if synthesis_mode and prompt_style == "grug":
         messages[0] = {
             "role": "system",
-            "content": model_system_prompt(GRUG_SYNTHESIS_SYSTEM_PROMPT, compact_vocab),
+            "content": model_system_prompt(
+                GRUG_SYNTHESIS_SYSTEM_PROMPT,
+                compact_vocab,
+                synthesis=compact_vocab and isinstance(client, OllamaClient),
+            ),
         }
     prompt = compact_prompt_text(prompt, compact_vocab)
     if card_contract:
@@ -3186,7 +3389,9 @@ def run_turn(
     frozen_claims: list[dict[str, Any]] = []
     span_register: dict[str, dict[str, Any]] = {}
     pending_span_repairs: dict[str, dict[str, Any]] = {}
+    card_span_repairs: list[dict[str, Any]] = []
     done_tool = "d" if micro_card else CARD_COMPLETE_TOOL_NAME
+    qwen_synthesis_aliases = synthesis_mode and compact_vocab and isinstance(client, OllamaClient)
 
     def model_visible_spans(claims: Any) -> list[dict[str, Any]]:
         values = list(claims or [])
@@ -3263,12 +3468,50 @@ def run_turn(
     def card_repair_instruction() -> str:
         if pending_span_repairs:
             return pending_span_repair_prompt()
+        if card_span_repairs:
+            repairs = []
+            for item in card_span_repairs:
+                evidence_id = item.get("evidence_id") or item.get("closest_evidence_id")
+                start = item.get("start_sentence")
+                end = item.get("end_sentence")
+                if evidence_id and isinstance(start, int) and isinstance(end, int):
+                    repairs.append(f"{evidence_id}:{start}..{end}")
+            if repairs:
+                return "REPAIR d CLAIMS ONLY: use " + ", ".join(repairs) + ". CALL d AGAIN. CARD FIELDS ARE SAVED."
         if micro_card:
             field_order = ["f", "i", "h", "r", "e"] if omit_limits_unknowns else ["f", "i", "h", "r", "l", "u", "e"]
             missing = [field for field in field_order if not card_fields.get(field)]
             if missing:
                 return f"CALL p NOW for missing field(s): {', '.join(missing)}. Use p(field,text,claims); call d only after every field is filled."
+            return "CALL d NOW. ALL CARD FIELDS ARE SAVED. SUBMIT THE CARD WITH d."
         return f"Follow REPAIR FEEDBACK exactly. Use its named repair tool first; call {done_tool} only after the card is complete."
+
+    def rebuild_synthesis_checkpoint(feedback: str = "", gate: str = "") -> bool:
+        if not synthesis_checkpoint_builder:
+            return False
+        evidence = tools._evidence_by_handle()
+        covered = {
+            evidence[evidence_id][0].spec.doc_id
+            for claim in tools.verified_claims or []
+            for evidence_id in claim.get("evidence_ids", [])
+            if evidence_id in evidence
+        }
+        rebuilt = synthesis_checkpoint_builder(sorted(set(tools.cases) - covered))
+        if not rebuilt:
+            return False
+        content = str(rebuilt[-1].get("content") or "")
+        content += "\n\n" + prompt if qwen_synthesis_aliases else "\n\n[TASK]\n" + prompt
+        if feedback:
+            feedback_limit = 900 if qwen_synthesis_aliases else 1800
+            content += (
+                "\n\nF:" if qwen_synthesis_aliases else "\n\n[LAST TOOL FEEDBACK]\n"
+            ) + compact_tool_result(feedback, compact_vocab)[:feedback_limit]
+        if gate:
+            content += "\n\nG:" + gate if qwen_synthesis_aliases else "\n\n" + gate
+        rebuilt[-1] = {"role": "user", "content": content}
+        messages[:] = rebuilt
+        return True
+
     if auto_read_card and card_contract and card_doc_id in tools.cases:
         read_done = True
         active_packet = model_packet(tools.cases[card_doc_id])
@@ -3360,9 +3603,15 @@ def run_turn(
                 synthesis_gate = (
                     "[QUOTE COVERAGE GATE] No prose answer counts yet. "
                     + (
-                        "Call find_source_spans, rehydrate_evidence, or submit_quote_spans now; "
-                        if synthesis_source_search
-                        else "Call rehydrate_evidence or submit_quote_spans now; "
+                        "Use f, r, or v now; "
+                        if qwen_synthesis_aliases and synthesis_source_search
+                        else "Use r or v now; "
+                        if qwen_synthesis_aliases
+                        else (
+                            "Call find_source_spans, rehydrate_evidence, or submit_quote_spans now; "
+                            if synthesis_source_search
+                            else "Call rehydrate_evidence or submit_quote_spans now; "
+                        )
                     )
                     + "submit quote spans for every missing case before writing prose. "
                     + NO_QUESTIONS
@@ -3375,21 +3624,23 @@ def run_turn(
                     ),
                     "",
                 )
-                retry_messages = messages[:2]
-                if not any(
-                    item.get("role") == "user" and item.get("content") == prompt
-                    for item in retry_messages
-                ):
-                    retry_messages.append({"role": "user", "content": prompt})
-                if last_tool_feedback:
-                    retry_messages.append(
-                        {
-                            "role": "user",
-                            "content": "[LAST QUOTE TOOL FEEDBACK]\n" + last_tool_feedback,
-                        }
-                    )
-                retry_messages.append({"role": "user", "content": synthesis_gate})
-                messages[:] = retry_messages
+                rebuilt = rebuild_synthesis_checkpoint(last_tool_feedback, synthesis_gate)
+                if not rebuilt:
+                    retry_messages = messages[:2]
+                    if not any(
+                        item.get("role") == "user" and item.get("content") == prompt
+                        for item in retry_messages
+                    ):
+                        retry_messages.append({"role": "user", "content": prompt})
+                    if last_tool_feedback:
+                        retry_messages.append(
+                            {
+                                "role": "user",
+                                "content": "[LAST QUOTE TOOL FEEDBACK]\n" + last_tool_feedback,
+                            }
+                        )
+                    retry_messages.append({"role": "user", "content": synthesis_gate})
+                    messages[:] = retry_messages
                 append_progress(
                     progress_path,
                     {
@@ -3471,9 +3722,16 @@ def run_turn(
                 return last_text, messages
         retry_feedback: list[dict[str, Any]] = []
         for name, arguments in calls:
+            model_tool_name = name
             if compact_vocab:
                 arguments = normalize_compact_arguments(name, arguments)
-            if name == "r":
+            if qwen_synthesis_aliases:
+                name = {
+                    QWEN_SYNTHESIS_REHYDRATE_TOOL_NAME: REHYDRATE_EVIDENCE_TOOL_NAME,
+                    QWEN_SYNTHESIS_VERIFY_TOOL_NAME: SPAN_ANSWER_TOOL_NAME,
+                    QWEN_SYNTHESIS_SOURCE_SEARCH_TOOL_NAME: FIND_SOURCE_SPANS_TOOL_NAME,
+                }.get(name, name)
+            if name == "r" and not synthesis_mode:
                 name = "read_document"
             if micro_card and name == MICRO_DONE_TOOL_NAME:
                 labels = {
@@ -3511,8 +3769,11 @@ def run_turn(
                 )
                 if field not in allowed_fields or not text.strip():
                     result = json.dumps({"ok": False, "error": "bad_card_patch", "next_action": "Use p with one field and text."})
-                elif card_fields.get(field) and pending and field != pending and not field_has_pending_span:
-                    result = json.dumps({"ok": False, "error": "field_already_saved", "field": field, "completed": [key for key in field_order if card_fields.get(key)], "next_field": pending, "next_action": f"Patch {pending}, then call d."})
+                elif card_fields.get(field) and not field_has_pending_span:
+                    if pending:
+                        result = json.dumps({"ok": False, "error": "field_already_saved", "field": field, "completed": [key for key in field_order if card_fields.get(key)], "next_field": pending, "next_action": f"Patch {pending}, then call d."})
+                    else:
+                        result = json.dumps({"ok": False, "error": "all_fields_saved", "field": field, "completed": field_order, "next_action": "CALL d NOW. ALL CARD FIELDS ARE SAVED."})
                 else:
                     card_fields[field] = text
                     claims = [claim for claim in arguments.get("claims") or [] if isinstance(claim, dict)]
@@ -3569,7 +3830,17 @@ def run_turn(
                 SPAN_ANSWER_TOOL_NAME,
                 *({FIND_SOURCE_SPANS_TOOL_NAME} if synthesis_source_search else set()),
             }:
-                result = json.dumps({"ok": False, "error": "tool_unavailable_in_synthesis", "next_action": "Use rehydrate_evidence for exact text or submit_quote_spans for quotations; then write analysis."})
+                result = json.dumps(
+                    {
+                        "ok": False,
+                        "error": "tool_unavailable_in_synthesis",
+                        "next_action": (
+                            "Use r to check @ or v to verify @; then write A."
+                            if qwen_synthesis_aliases
+                            else "Use rehydrate_evidence for exact text or submit_quote_spans for quotations; then write analysis."
+                        ),
+                    }
+                )
             elif (card_rebuild_mode or card_contract) and name == CARD_COMPLETE_TOOL_NAME:
                 card_text = str(arguments.get("card") or "")[:card_max_chars]
                 card_draft = card_text
@@ -3632,6 +3903,7 @@ def run_turn(
                             known.setdefault(item["evidence_id"], item)
                         frozen_claims = list(known.values())
                     if errors:
+                        card_span_repairs[:] = span_repairs
                         result = json.dumps(
                             {
                                 "ok": False,
@@ -3647,18 +3919,20 @@ def run_turn(
                             }
                         )
                     else:
+                        card_span_repairs.clear()
                         submitted_claims = (
                             list(span_register.values())
                             if card_span_mode == "host_register"
                             else frozen_claims if card_span_mode == "immutable" else valid_claims
                         )
-                        next_doc = tools.complete_card(current_doc, card_text, submitted_claims) if current_doc in tools.cases else None
+                        next_doc = tools.complete_card(current_doc, card_text, submitted_claims, compact_vocab) if current_doc in tools.cases else None
+                        completed_card = tools.card_cards.get(current_doc, card_text)
                         result = json.dumps(
                             {
                                 "ok": True,
                                 "card_complete": True,
                                 "document_id": current_doc,
-                                "card": card_text,
+                                "card": completed_card,
                                 "claims": submitted_claims,
                                 "next_document_id": next_doc,
                             },
@@ -3746,7 +4020,7 @@ def run_turn(
             messages.append(
                 {
                     "role": "tool",
-                    "tool_name": name,
+                    "tool_name": model_tool_name,
                     "content": model_result,
                 }
             )
@@ -3798,6 +4072,7 @@ def run_turn(
                     card_draft = ""
                     card_fields.clear()
                     card_patch_claims.clear()
+                    card_span_repairs.clear()
                     frozen_claims = []
                     span_register.clear()
                     pending_span_repairs.clear()
@@ -3906,11 +4181,14 @@ def run_turn(
                                 ],
                                 ensure_ascii=False,
                             )
+                            compact_post = qwen_synthesis_aliases
                             messages[:] = [
                                 {
                                     "role": "system",
                                     "content": (
-                                        POST_GATE_GRUG_SYSTEM_PROMPT
+                                        POST_GATE_COMPACT_SYSTEM_PROMPT
+                                        if compact_post
+                                        else POST_GATE_GRUG_SYSTEM_PROMPT
                                         if prompt_style == "grug"
                                         else POST_GATE_SYSTEM_PROMPT
                                     ),
@@ -3918,15 +4196,22 @@ def run_turn(
                                 {
                                     "role": "user",
                                     "content": (
-                                        "[POST-VERIFICATION STATE]\n"
-                                        "Use the completed cards and verified quotations below. Write the final answer now.\n\n"
-                                        "[SELECTED CASES]\n" + case_roster
-                                        + "\n\n[CARDS]\n" + cards
-                                        + "\n\n[VERIFIED QUOTATIONS]\n" + quotes
-                                        + "\n\n[ANSWER CONTRACT]\n"
-                                        "WRITE ORDINARY LEGAL PROSE. NAME EACH SELECTED CASE. "
-                                        "COMPARE THEIR DOCTRINE. INTERLEAVE VERIFIED EXACT QUOTATIONS WITH ANALYSIS. "
-                                        "DO NOT PRINT CARD FIELDS, HANDLES, JSON, OR TOOL SYNTAX."
+                                        (
+                                            "K:\n" + case_roster
+                                            + "\nc:\n" + cards
+                                            + "\nq:\n" + quotes
+                                            + "\nFor A: full sentences."
+                                            if compact_post
+                                            else "[POST-VERIFICATION STATE]\n"
+                                            "Use the completed cards and verified quotations below. Write the final answer now.\n\n"
+                                            "[SELECTED CASES]\n" + case_roster
+                                            + "\n\n[CARDS]\n" + cards
+                                            + "\n\n[VERIFIED QUOTATIONS]\n" + quotes
+                                            + "\n\n[ANSWER CONTRACT]\n"
+                                            "WRITE ORDINARY LEGAL PROSE. NAME EACH SELECTED CASE. "
+                                            "COMPARE THEIR DOCTRINE. INTERLEAVE VERIFIED EXACT QUOTATIONS WITH ANALYSIS. "
+                                            "DO NOT PRINT CARD FIELDS, HANDLES, JSON, OR TOOL SYNTAX."
+                                        )
                                     ),
                                 },
                             ]
@@ -3980,6 +4265,16 @@ def run_turn(
                         )
                 except json.JSONDecodeError:
                     pass
+        if calls and synthesis_mode:
+            last_synthesis_feedback = next(
+                (
+                    str(item.get("content") or "")
+                    for item in reversed(messages)
+                    if item.get("role") == "tool"
+                ),
+                "",
+            )
+            rebuild_synthesis_checkpoint(last_synthesis_feedback)
         if (
             retrieval_compact_every
             and (tool_round + 1) % retrieval_compact_every == 0
@@ -4163,15 +4458,13 @@ def run_turn(
                     "role": "user",
                         "content": (
                             "[CARD CHECKPOINT]\n" + state_text + "\n\n" + cursor
-                        + "\n\n[TASK]\n" + prompt
                         + "\n\n[HOST RECOVERY]\nCard mode resumes. Use only the card contract, packet, draft, and verified spans below."
                         + micro_register
                         + ("\n\n[ACTIVE DOCUMENT PACKET]\n" + active_packet if active_packet else "")
                         + ("\n\n[CURRENT CARD DRAFT]\n" + card_draft if card_draft else "")
                         + (
                             "\n\n[CARD CONTRACT]\n"
-                            f"{card_contract}\n" +
-                            NO_QUESTIONS + f" Call {done_tool}."
+                            f"{card_contract}"
                             if card_contract
                             else ""
                         )
@@ -4321,6 +4614,21 @@ def self_test(cases: dict[str, CaseDocument], num_ctx: int) -> None:
     for case in cases.values():
         assert handle_id(case, case.spec.key_paragraphs[0]) in checkpoint
     executor = ToyMikeTools(cases)
+    alternate_number = next(
+        number
+        for number in cases["case-a"].paragraph_map
+        if handle_id(cases["case-a"], number) != "@63"
+    )
+    alternate_handle = handle_id(cases["case-a"], alternate_number)
+    synced = ToyMikeTools(cases)
+    synced.complete_card(
+        "case-a",
+        'FACTS/PROCEDURE: x\nEVIDENCE HANDLES: [{"@":"@63","!ss":0,"!es":1}]',
+        [{"evidence_id": alternate_handle, "start_sentence": 0, "end_sentence": 0}],
+        compact=True,
+    )
+    synced_handles = synced.card_cards["case-a"].split("EVIDENCE HANDLES:", 1)[1]
+    assert alternate_handle in synced_handles and "@63" not in synced_handles
     executor.set_phase("case-a")
     listing = json.loads(executor.execute("list_documents", {}))
     assert [row["id"] for row in listing["documents"]] == ["case-a"]
@@ -4392,6 +4700,10 @@ def self_test(cases: dict[str, CaseDocument], num_ctx: int) -> None:
     compact_span_item = compact_span_schema["properties"]["claims"]["items"]
     assert set(compact_span_item["properties"]) == {"@", "!ss", "!es"}
     assert compact_span_item["required"] == ["@", "!ss", "!es"]
+    qwen_synthesis_schema = qwen_synthesis_tools()
+    assert [tool["function"]["name"] for tool in qwen_synthesis_schema] == ["r", "v"]
+    assert set(qwen_synthesis_schema[0]["function"]["parameters"]["properties"]) == {"@", "!ss", "!es"}
+    assert set(qwen_synthesis_schema[1]["function"]["parameters"]["properties"]) == {"q"}
     compact_rehydrate_schema = compact_tool_schema([REHYDRATE_EVIDENCE_TOOL])[0]["function"]["parameters"]
     assert set(compact_rehydrate_schema["properties"]) == {"@", "!ss", "!es"}
     compact_arguments = normalize_compact_arguments(
@@ -4405,10 +4717,28 @@ def self_test(cases: dict[str, CaseDocument], num_ctx: int) -> None:
         REHYDRATE_EVIDENCE_TOOL_NAME,
         {"@@63": "", "!ss": 0, "!es": 0},
     ) == {"evidence_id": "@63", "start_sentence": 0, "end_sentence": 0}
+    assert normalize_compact_arguments(
+        QWEN_SYNTHESIS_VERIFY_TOOL_NAME,
+        {"q": [{"@": handle, "!ss": 0, "!es": 0}]},
+    ) == {"claims": [{"evidence_id": handle, "start_sentence": 0, "end_sentence": 0}]}
+    assert normalize_compact_arguments(
+        CARD_COMPLETE_TOOL_NAME,
+        {"c": "full card", "claims": []},
+    ) == {"card": "full card", "claims": []}
+    assert compact_model_value({"card": "full card"}) == {"c": "full card"}
     assert executor.model_claims(
         [{"evidence_id": handle, "start_sentence": 0, "end_sentence": 0}],
         compact=True,
     ) == [{"@": handle, "!ss": 0, "!es": 0}]
+    assert "rehydrate_evidence" in DYNAMIC_SYNTHESIS_SYSTEM_PROMPT
+    assert "Use all c to answer user request." in COMPACT_SYNTHESIS_SYSTEM_PROMPT
+    assert "v=verify @" in COMPACT_SYNTHESIS_SYSTEM_PROMPT
+    assert "For A: full sentences." in COMPACT_SYNTHESIS_SYSTEM_PROMPT
+    assert "ordinary legal prose" not in COMPACT_SYNTHESIS_SYSTEM_PROMPT
+    assert not any(
+        name in DYNAMIC_SYNTHESIS_SYSTEM_PROMPT
+        for name in ("list_documents", "fetch_documents", "read_document")
+    )
     assert "card_done" not in micro_card_prompt()
     assert "CALL d" in micro_card_prompt()
     valid_card_span, span_repair, span_error = executor.validate_card_span(
