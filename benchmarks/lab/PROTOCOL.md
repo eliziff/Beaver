@@ -206,7 +206,7 @@ across all three arms:
 
 1. LAB reference harness: the official six-tool file-workspace harness.
 2. Pinned upstream Mike: commit
-   `e89d3230db40193c540a6b38d8f301ae76377a1a`, schema SHA-256
+   `2266446b0d26f735865b8cd3bb153b28e7d11b17`, schema SHA-256
    `78f2e1dfaa7f2c5a62dcc52531804373e998ee002fe783e7767a10113e7a87fc`.
 3. Beaver candidate: one frozen commit and one pre-registered configuration.
 

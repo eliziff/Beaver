@@ -28,6 +28,7 @@ afterEach(() => {
   delete process.env.MIKE_TOOL_RESULT_CAP;
   delete process.env.MIKE_SUPPRESS_DUPLICATE_WHOLE_READS;
   delete process.env.MIKE_RESIDENT_AUTHORING;
+  delete process.env.MIKE_TERMINAL_AUTHORING;
   delete process.env.MIKE_SLA_WORKFLOW;
   delete process.env.MIKE_SLA_STRATEGY;
   vi.resetModules();
@@ -210,6 +211,7 @@ describe("local assistant tool wiring", () => {
     process.env.MIKE_TOOL_SHAPE = "coding";
     process.env.MIKE_PROGRESSIVE_DISCLOSURE = "1";
     process.env.MIKE_RESIDENT_AUTHORING = "1";
+    process.env.MIKE_TERMINAL_AUTHORING = "1";
     const tools = await loadTools();
     const partition = tools.partitionTools(tools.LOCAL_ASSISTANT_TOOLS);
     const resident = names(partition.resident);
@@ -217,6 +219,12 @@ describe("local assistant tool wiring", () => {
 
     expect(resident).toContain("library_create_docx");
     expect(deferred).not.toContain("library_create_docx");
+    expect(tools.TERMINAL_AUTHORING_ENABLED).toBe(true);
+    expect(
+      partition.resident.find(
+        (entry) => entry.function.name === "library_create_docx",
+      )?.function.description,
+    ).toContain("turn ends without another model round");
     const describe = partition.resident.find(
       (entry) => entry.function.name === "describe_tools",
     )!;

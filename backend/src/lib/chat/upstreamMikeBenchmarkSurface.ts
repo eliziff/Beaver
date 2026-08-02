@@ -10,7 +10,19 @@ import type { OpenAIToolSchema } from "../llm";
  *   backend/src/lib/chat/prompts.ts
  */
 export const UPSTREAM_MIKE_COMMIT =
-  "e89d3230db40193c540a6b38d8f301ae76377a1a";
+  "2266446b0d26f735865b8cd3bb153b28e7d11b17";
+export const UPSTREAM_MIKE_SOURCE_BLOBS = {
+  "backend/src/lib/chat/tools/toolSchemas.ts":
+    "302ceb9e66b7c1950d89522c59e6f1597d9d2b14",
+  "backend/src/lib/chat/prompts.ts":
+    "6b3f2fc3d44051b4e4ae0d4d65ec2cbfd621f39f",
+  "backend/src/lib/chat/streaming.ts":
+    "f6ddacb2d904e7d2fe8ad49b6fdb0bc6763e5e58",
+  "backend/src/lib/chat/tools/toolDispatcher.ts":
+    "3e6f674478fca8961b0c05afb374b04f923833c7",
+  "backend/src/lib/chat/tools/documentOps.ts":
+    "1ca2a55468efbb1a5bd1b9463d9f8fcb0cbbbcec",
+} as const;
 export const UPSTREAM_MIKE_SCHEMA_SHA256 =
   "78f2e1dfaa7f2c5a62dcc52531804373e998ee002fe783e7767a10113e7a87fc";
 

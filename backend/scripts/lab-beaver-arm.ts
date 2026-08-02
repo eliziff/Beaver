@@ -420,6 +420,26 @@ async function main() {
       MIKE_SLA_WORKFLOW: "0",
       MIKE_GREENFIELD_REVIEW: "0",
     },
+    v16: {
+      MIKE_NAV_SHAPE: "address",
+      MIKE_TOOL_SHAPE: "coding",
+      MIKE_RETRIEVAL_EXPERIMENT: "h4-legal-grep",
+      // One continuous agent chooses exact batch reads or legal-aware bounded
+      // reads from the truthful inventory. There is no host source-size cap.
+      MIKE_MODEL_COVERAGE_ROUTING: "1",
+      MIKE_TOOL_RESULT_CAP: "51200",
+      MIKE_TOOL_DESCRIPTION_VARIANT: "terse",
+      MIKE_SUPPRESS_DUPLICATE_WHOLE_READS: "0",
+      MIKE_RESIDENT_AUTHORING: "1",
+      // The durable document receipt is the response; do not pay for a final
+      // full-context acknowledgement round after all deliverables succeed.
+      MIKE_TERMINAL_AUTHORING: "1",
+      MIKE_CONTEXT_HANDOFF: "0",
+      MIKE_CONTINUOUS_EVIDENCE: "0",
+      MIKE_OPENAI_COMPACT_THRESHOLD: "",
+      MIKE_SLA_WORKFLOW: "0",
+      MIKE_GREENFIELD_REVIEW: "0",
+    },
     coverage_soft_v2: {
       MIKE_NAV_SHAPE: "address",
       MIKE_TOOL_SHAPE: "coding",
@@ -493,7 +513,7 @@ async function main() {
   };
   if (!armEnvironment[arm])
     throw new Error(
-      `unknown --arm ${arm}; expected p0, coding_finalist, d1, hybrid, hybrid_finalist, coverage_finalist, coverage_hybrid_v2, checkpoint_paged_v1, v13, v14, v15, coverage_soft_v2, working_set, compiler_hybrid, sla_hybrid, sla_working_set, h9, h10, address, or upstream`,
+      `unknown --arm ${arm}; expected p0, coding_finalist, d1, hybrid, hybrid_finalist, coverage_finalist, coverage_hybrid_v2, checkpoint_paged_v1, v13, v14, v15, v16, coverage_soft_v2, working_set, compiler_hybrid, sla_hybrid, sla_working_set, h9, h10, address, or upstream`,
     );
 
   // Re-spawn into the isolated anonymous-mode environment (same recipe as
@@ -547,6 +567,7 @@ async function main() {
           MIKE_WHOLE_READ_MAX_CHARS: "",
           MIKE_SUPPRESS_DUPLICATE_WHOLE_READS: "1",
           MIKE_RESIDENT_AUTHORING: "0",
+          MIKE_TERMINAL_AUTHORING: "0",
           MIKE_EVIDENCE_HANDOFF_MAX_CHARS: "",
           MIKE_OPENAI_COMPACT_THRESHOLD: "",
           MIKE_SLA_WORKFLOW: "0",
@@ -859,7 +880,7 @@ async function main() {
       );
     }
   }
-  if (["v13", "v14", "v15"].includes(arm)) {
+  if (["v13", "v14", "v15", "v16"].includes(arm)) {
     const expectedDocxCount = deliverables.filter((name) =>
       /\.docx$/iu.test(name),
     ).length;
@@ -872,11 +893,23 @@ async function main() {
     const expectedResidentTools =
       arm === "v15"
         ? ["Glob", "Grep", "Read", "library_create_docx", "describe_tools"]
+        : arm === "v16"
+          ? [
+              "Glob",
+              "fetch_documents",
+              "Grep",
+              "Read",
+              "library_create_docx",
+              "describe_tools",
+            ]
         : ["Glob", "fetch_documents", "Grep", "Read", "describe_tools"];
     if (
       surface?.navigation_shape !== "address" ||
       surface?.coding_shape !== true ||
       surface?.model_coverage_routing !== (arm !== "v15") ||
+      surface?.retrieval_experiment !==
+        (arm === "v16" ? "h4-legal-grep" : "p0-pure-coding") ||
+      surface?.tool_description_variant !== "terse" ||
       surface?.progressive_disclosure !== true ||
       JSON.stringify(residentTools) !== JSON.stringify(expectedResidentTools) ||
       surface?.trajectory_mode !== "continuous" ||
@@ -886,9 +919,10 @@ async function main() {
       surface?.sla_workflow !== false ||
       surface?.greenfield_review !== false ||
       surface?.suppress_duplicate_whole_reads !== false ||
-      surface?.resident_authoring !== (arm === "v15") ||
+      surface?.resident_authoring !== ["v15", "v16"].includes(arm) ||
+      surface?.terminal_authoring !== (arm === "v16") ||
       Number(surface?.whole_read_max_chars ?? 0) !==
-        (arm === "v15" ? 0 : 800_000) ||
+        (["v15", "v16"].includes(arm) ? 0 : 800_000) ||
       Number(surface?.tool_result_max_chars ?? 0) !== 51_200 ||
       (arm === "v14"
         ? String(surface?.openai_compact_threshold ?? "") !== "244800"
@@ -903,7 +937,7 @@ async function main() {
       results.some((result) => result.already_read || result.already_exposed)
     ) {
       throw new Error(
-        `${arm} trajectory invalid: resident=${residentTools.join(",")}; resident_authoring=${String(surface?.resident_authoring)}; trajectory=${String(surface?.trajectory_mode)}; continuous_evidence=${String(surface?.continuous_evidence)}; handoff=${String(surface?.context_handoff)}; mode=${String(surface?.draft_handoff_mode)}; sla=${String(surface?.sla_workflow)}; duplicate_suppression=${String(surface?.suppress_duplicate_whole_reads)}; whole_cap=${String(surface?.whole_read_max_chars)}; result_cap=${String(surface?.tool_result_max_chars)}; compact_threshold=${String(surface?.openai_compact_threshold)}; refreshes=${researchContextRefreshes.length}; checkpoint_requests=${researchCheckpointRequests.length}; checkpoints=${researchCheckpoints.length}; handoffs=${evidenceHandoffs.length}; working_sets=${evidenceWorkingSetReceipts.length}; resets=${contentResets.length}`,
+        `${arm} trajectory invalid: resident=${residentTools.join(",")}; resident_authoring=${String(surface?.resident_authoring)}; terminal_authoring=${String(surface?.terminal_authoring)}; trajectory=${String(surface?.trajectory_mode)}; continuous_evidence=${String(surface?.continuous_evidence)}; handoff=${String(surface?.context_handoff)}; mode=${String(surface?.draft_handoff_mode)}; sla=${String(surface?.sla_workflow)}; duplicate_suppression=${String(surface?.suppress_duplicate_whole_reads)}; whole_cap=${String(surface?.whole_read_max_chars)}; result_cap=${String(surface?.tool_result_max_chars)}; compact_threshold=${String(surface?.openai_compact_threshold)}; refreshes=${researchContextRefreshes.length}; checkpoint_requests=${researchCheckpointRequests.length}; checkpoints=${researchCheckpoints.length}; handoffs=${evidenceHandoffs.length}; working_sets=${evidenceWorkingSetReceipts.length}; resets=${contentResets.length}`,
       );
     }
     if (authoredDocxCount < expectedDocxCount) {
@@ -1188,13 +1222,16 @@ async function main() {
       });
     }
   }
-  if (["v13", "v14", "v15"].includes(arm) && providerInvocations.length !== 1) {
+  if (
+    ["v13", "v14", "v15", "v16"].includes(arm) &&
+    providerInvocations.length !== 1
+  ) {
     throw new Error(
       `${arm} trajectory used ${providerInvocations.length} provider invocations; expected exactly one`,
     );
   }
   if (
-    ["v13", "v14", "v15"].includes(arm) &&
+    ["v13", "v14", "v15", "v16"].includes(arm) &&
     (reportedServiceTiers.size !== 1 || !reportedServiceTiers.has("default"))
   ) {
     throw new Error(
@@ -1202,7 +1239,7 @@ async function main() {
     );
   }
   if (
-    ["v13", "v14", "v15"].includes(arm) &&
+    ["v13", "v14", "v15", "v16"].includes(arm) &&
     (promptCacheStrategies.size !== 1 ||
       !promptCacheStrategies.has("session") ||
       promptCacheKeyHashes.size !== 1)
