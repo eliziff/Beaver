@@ -13,6 +13,7 @@ import type { StreamChatParams, StreamChatResult } from "./types";
  */
 const CODEX_BACKEND_RESPONSES_URL =
   "https://chatgpt.com/backend-api/codex/responses";
+const CODEX_BACKEND_COMPACTION_URL = `${CODEX_BACKEND_RESPONSES_URL}/compact`;
 
 async function requestServiceTier(slug: string, requested?: string) {
   const alias = requested?.trim().toLowerCase();
@@ -44,6 +45,7 @@ export async function streamCodexApi(
       apiKey: accessToken,
       persistent: false,
       codexBackend: true,
+      remoteCompactionEndpoint: CODEX_BACKEND_COMPACTION_URL,
       reasoningSummary: true,
       ...(serviceTier ? { serviceTier } : {}),
       ...(accountId ? { headers: { "ChatGPT-Account-ID": accountId } } : {}),

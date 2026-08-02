@@ -864,6 +864,15 @@ export const WHOLE_READ_MAX_CHARS =
     ? Math.trunc(configuredWholeReadMaxChars)
     : 0;
 
+/**
+ * Legacy token optimization. It is safe only while the original bytes remain
+ * in active model context; a host-side turn map cannot know what compaction
+ * removed. Conventional continuous-agent arms disable it so a repeat read
+ * returns the requested bytes.
+ */
+export const SUPPRESS_DUPLICATE_WHOLE_READS =
+  process.env.MIKE_SUPPRESS_DUPLICATE_WHOLE_READS !== "0";
+
 /** Explicit LAB-only comparator; never selected by a product setting. */
 export const UPSTREAM_MIKE_TOOL_SHAPE =
   process.env.MIKE_TOOL_SHAPE === "upstream-mike";
@@ -872,6 +881,36 @@ export const UPSTREAM_MIKE_TOOL_SHAPE =
 export const PROGRESSIVE_DISCLOSURE_ENABLED =
   NAV_TOOL_SHAPE === "address" ||
   process.env.MIKE_PROGRESSIVE_DISCLOSURE === "1";
+
+export const DEMAND_PAGED_EVIDENCE_ENABLED =
+  process.env.MIKE_CONTINUOUS_EVIDENCE === "1" ||
+  (process.env.MIKE_CONTEXT_HANDOFF === "1" &&
+    process.env.MIKE_DRAFT_HANDOFF_MODE === "paged");
+
+export const WORKING_SET_PATH = ".mike/working-sets/evidence.txt";
+
+const configuredWorkingSetPageMaxChars = Number(
+  process.env.MIKE_EVIDENCE_PAGE_MAX_CHARS ||
+    process.env.MIKE_DRAFT_HOT_EVIDENCE_MAX_CHARS ||
+    24_000,
+);
+
+/** One demand-page packet is no larger than the configured hot packet. */
+export const WORKING_SET_PAGE_MAX_CHARS = DEMAND_PAGED_EVIDENCE_ENABLED
+  ? Number.isFinite(configuredWorkingSetPageMaxChars)
+    ? Math.max(
+        1_000,
+        Math.min(64_000, Math.trunc(configuredWorkingSetPageMaxChars)),
+      )
+    : 24_000
+  : 0;
+
+// Demand-paged Grep is an index into exact evidence, not another bulk read.
+// A compact centred hit is enough to answer directly or choose the attached
+// exact Read recipe; callers can request more hits, but one search stays small.
+export const WORKING_SET_GREP_DEFAULT_HEAD_LIMIT = 8;
+export const WORKING_SET_GREP_MAX_HEAD_LIMIT = 24;
+export const WORKING_SET_GREP_LINE_MAX_CHARS = 800;
 
 export type RetrievalExperimentShape =
   | ""
@@ -1071,6 +1110,15 @@ const RESIDENT_TOOLS = new Set([
   "library_find",
   "describe_tools",
 ]);
+
+/**
+ * Keep the core request shape stable for continuous-agent runs. Creating the
+ * requested artifact is the ordinary end of the same trajectory, not a
+ * specialist phase; benchmark arms opt in until the simpler surface wins its
+ * release gate.
+ */
+export const RESIDENT_AUTHORING_ENABLED =
+  process.env.MIKE_RESIDENT_AUTHORING === "1";
 
 /**
  * Deferred tools, grouped the way a task arrives rather than the way the code
@@ -1327,6 +1375,14 @@ const CONTACT_GREP_DESCRIPTION =
     ? " Content hits include a verified Read recipe."
     : "";
 
+const PAGED_GREP_DESCRIPTION = DEMAND_PAGED_EVIDENCE_ENABLED
+  ? ` Exact evidence already observed is mirrored at ${WORKING_SET_PATH}. Search that mounted union only to recover a narrow fact; content hits include executable Read recipes, default to ${WORKING_SET_GREP_DEFAULT_HEAD_LIMIT} centred hits, and never exceed ${WORKING_SET_GREP_MAX_HEAD_LIMIT}. Use the hit directly unless adjacent wording is necessary; never scan the union sequentially.`
+  : "";
+
+const PAGED_READ_DESCRIPTION = DEMAND_PAGED_EVIDENCE_ENABLED
+  ? " Mounted evidence working-set reads accept only an exact recipe returned by Grep or a same-line truncation continuation."
+  : "";
+
 const LEGAL_GREP_DESCRIPTION = LEGAL_GREP_EXPERIMENT
   ? " Optional section, page, and direct-reference scopes bound long legal documents; use ordinary Grep or whole-file Read when cheaper."
   : "";
@@ -1338,6 +1394,10 @@ const CODING_READ_DESCRIPTION = PURE_CODING_EXPERIMENT
 const WHOLE_READ_BUDGET_DESCRIPTION = WHOLE_READ_MAX_CHARS
   ? " The declared whole-read budget is cumulative for this turn, not per call; if a selection would exceed it, the call returns sizes without exposing text."
   : "";
+
+const WHOLE_READ_REPEAT_DESCRIPTION = SUPPRESS_DUPLICATE_WHOLE_READS
+  ? " Read each file/version at most once."
+  : " Avoid needless repeats, but a repeated file/version read returns its exact text again when earlier context is no longer available.";
 
 const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
   tool(
@@ -1363,7 +1423,7 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
           "fetch_documents",
           "Read the complete text of multiple selected files in one call. Use after Glob when most of a bounded source set is relevant, or to keep a primary draft or precedent whole. Use Grep and bounded Read for localized evidence or an oversized corpus; combine both approaches when appropriate." +
             WHOLE_READ_BUDGET_DESCRIPTION +
-            " Read each file/version at most once.",
+            WHOLE_READ_REPEAT_DESCRIPTION,
           {
             type: "object",
             properties: {
@@ -1382,11 +1442,13 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
   tool(
     "Grep",
     TOOL_DESCRIPTION_VARIANT === "terse"
-      ? "Search file contents with a regular expression."
+      ? "Search file contents with a regular expression." +
+        PAGED_GREP_DESCRIPTION
       : 'Content search with regular expressions. Filter by file or glob; choose content, matching files, counts, or a listed legal projection.' +
         ROUTED_CODING_DESCRIPTION +
         CONCRETE_GREP_DESCRIPTION +
         CONTACT_GREP_DESCRIPTION +
+        PAGED_GREP_DESCRIPTION +
         LEGAL_GREP_DESCRIPTION,
     {
       type: "object",
@@ -1440,7 +1502,7 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
           type: "number",
           minimum: 1,
           description:
-            "Limit output to first N lines/entries. Defaults to 250.",
+            `Limit output to first N lines/entries. Demand-paged evidence defaults to ${WORKING_SET_GREP_DEFAULT_HEAD_LIMIT} and permits at most ${WORKING_SET_GREP_MAX_HEAD_LIMIT}; other searches default to 250.`,
         },
         ...(WORKING_SET_EXPERIMENT
           ? {
@@ -1482,10 +1544,11 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
   tool(
     "Read",
     TOOL_DESCRIPTION_VARIANT === "terse"
-      ? "Read a file or an optional bounded scope."
+      ? "Read a file or an optional bounded scope." + PAGED_READ_DESCRIPTION
       : CODING_READ_DESCRIPTION +
         ROUTED_CODING_DESCRIPTION +
-        CONCRETE_READ_DESCRIPTION,
+        CONCRETE_READ_DESCRIPTION +
+        PAGED_READ_DESCRIPTION,
     {
       type: "object",
       properties: {
@@ -1508,6 +1571,16 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
           description:
             "The number of lines to read. Only provide if the file is too large to read at once.",
         },
+        ...(DEMAND_PAGED_EVIDENCE_ENABLED
+          ? {
+              start_char: {
+                type: "number",
+                minimum: 0,
+                description:
+                  "Virtual evidence working set only. Zero-based character offset within the first requested line; copy it from a truncated Read continuation.",
+              },
+            }
+          : {}),
         ...(PURE_CODING_EXPERIMENT
           ? {}
           : {
@@ -1652,13 +1725,17 @@ export function describeToolsTool(
 ): OpenAIToolSchema {
   const domains = domainEntriesForTools(tools);
   const contextHandoff = process.env.MIKE_CONTEXT_HANDOFF === "1";
+  const pagedHandoff =
+    contextHandoff && process.env.MIKE_DRAFT_HANDOFF_MODE === "paged";
   return tool(
     "describe_tools",
     `Load a domain of tools that is not available yet. Domains: ${domains
       .map(([name, domain]) => `${name} (${domain.blurb})`)
       .join("; ")}. Call this the moment a task needs one of them; the tools become callable immediately after.${
         contextHandoff
-          ? " Opening drafting or output_document starts a fresh drafting context containing the exact evidence read so far."
+          ? pagedHandoff
+            ? " Opening drafting or output_document starts a fresh drafting context with the research checkpoint and demand-paged exact evidence."
+            : " Opening drafting or output_document starts a fresh drafting context containing the exact evidence read so far."
           : ""
       }`,
     {
@@ -1669,7 +1746,7 @@ export function describeToolsTool(
           items: { type: "string", enum: domains.map(([name]) => name) },
           description: "One or more domains to open.",
         },
-        ...(contextHandoff && allowEvidenceSelection
+        ...(contextHandoff && !pagedHandoff && allowEvidenceSelection
           ? {
               carry_evidence: {
                 type: "array",
@@ -1696,9 +1773,13 @@ export function partitionTools(tools: OpenAIToolSchema[]): {
 } {
   if (!PROGRESSIVE_DISCLOSURE_ENABLED)
     return { resident: tools, deferred: [] };
-  const resident = tools.filter((entry) => RESIDENT_TOOLS.has(entry.function.name));
-  const deferred = tools.filter((entry) => !RESIDENT_TOOLS.has(entry.function.name));
-  return { resident: [...resident, describeToolsTool(tools)], deferred };
+  const isResident = (entry: OpenAIToolSchema) =>
+    RESIDENT_TOOLS.has(entry.function.name) ||
+    (RESIDENT_AUTHORING_ENABLED &&
+      entry.function.name === "library_create_docx");
+  const resident = tools.filter(isResident);
+  const deferred = tools.filter((entry) => !isResident(entry));
+  return { resident: [...resident, describeToolsTool(deferred)], deferred };
 }
 
 /** Schemas for the domains a `describe_tools` call asked for. */
@@ -1904,6 +1985,7 @@ export type LocalAssistantReadTurnState = Map<
     versionId: string;
     filename: string;
     sourceChars?: number;
+    deliveredChars?: number;
   }
 >;
 
@@ -1914,9 +1996,19 @@ type WorkingSetEvidenceSegment = {
   versionId: string;
   sourceStart: number;
   sourceEnd: number;
+  projection?: string;
+  durableUnionBacked?: boolean;
 };
 
-export const WORKING_SET_PATH = ".mike/working-sets/evidence.txt";
+type WorkingSetEvidenceRef = {
+  virtualStart: number;
+  virtualEnd: number;
+  handle: string;
+  filename: string;
+  locator?: string;
+  exactSha256: string;
+  durableUnionBacked?: boolean;
+};
 
 export type LocalAssistantWorkingSetTurnState = Map<
   string,
@@ -1925,10 +2017,14 @@ export type LocalAssistantWorkingSetTurnState = Map<
     text: string;
     sourceChars: number;
     matchedSourceChars: number;
+    immutableSourceChars?: number;
     mapChars: number;
     budgetChars: number;
     mappedVersions: string[];
     segments: WorkingSetEvidenceSegment[];
+    refs?: WorkingSetEvidenceRef[];
+    demandPaged?: boolean;
+    readGrants?: Set<string>;
   }
 >;
 
@@ -2022,6 +2118,7 @@ const GREP_LINE_CAP = 2_000;
 type CodingOutputLine = {
   rendered: string;
   span?: [number, number];
+  readGrant?: { line: number; startChar: number };
   handoffCandidate?: boolean;
   source?: {
     documentId: string;
@@ -2044,10 +2141,16 @@ function sourceLineStarts(text: string, lines: string[]): number[] {
   return starts;
 }
 
-function takeCodingOutputLines(lines: CodingOutputLine[]) {
+function takeCodingOutputLines(
+  lines: CodingOutputLine[],
+  maxChars = MAX_TOOL_RESULT_CHARS,
+) {
   // Leave room for the continuation hint and never trigger the generic
   // head/tail truncator, whose JSON envelope would obscure cat/rg output.
-  const budget = Math.max(1_000, MAX_TOOL_RESULT_CHARS - 1_000);
+  const budget = Math.max(
+    1_000,
+    Math.min(MAX_TOOL_RESULT_CHARS, maxChars) - 1_000,
+  );
   const kept: CodingOutputLine[] = [];
   let chars = 0;
   for (const line of lines) {
@@ -2222,6 +2325,40 @@ function workingSetEvidenceSegments(
         versionId: segment.versionId,
         start: segment.sourceStart + overlapStart - segment.virtualStart,
         end: segment.sourceStart + overlapEnd - segment.virtualStart,
+        ...(segment.projection && { projection: segment.projection }),
+        ...(segment.durableUnionBacked && { durableUnionBacked: true }),
+      });
+    }
+  }
+  return evidence;
+}
+
+function workingSetEvidenceRefs(
+  set: LocalAssistantWorkingSetTurnState extends Map<string, infer Value>
+    ? Value
+    : never,
+  ranges: readonly [number, number][],
+) {
+  const evidence: NonNullable<NormalizedToolResult["evidenceRefs"]> = [];
+  for (const [start, end] of ranges) {
+    for (const ref of set.refs ?? []) {
+      const overlapStart = Math.max(start, ref.virtualStart);
+      const overlapEnd = Math.min(end, ref.virtualEnd);
+      if (overlapStart >= overlapEnd) continue;
+      const text = set.text.slice(overlapStart, overlapEnd);
+      const localStart = overlapStart - ref.virtualStart;
+      const localEnd = overlapEnd - ref.virtualStart;
+      evidence.push({
+        handle: `${ref.handle}#chars=${localStart}-${localEnd}`,
+        text,
+        filename: ref.filename,
+        locator:
+          localStart === 0 && localEnd === ref.virtualEnd - ref.virtualStart
+            ? ref.locator
+            : `${ref.locator ?? ref.handle} chars ${localStart}-${localEnd}`,
+        exactSha256: sha256(text),
+        kind: "evidence",
+        ...(ref.durableUnionBacked && { durableUnionBacked: true }),
       });
     }
   }
@@ -2353,6 +2490,11 @@ function materializeAccretiveWorkingSet(
   const prior = state.get(WORKING_SET_PATH);
   const requested = clampInt(requestedBudget, 1_000, 128_000, 64_000);
   const budget = Math.max(prior?.budgetChars ?? 0, requested);
+  const immutableSourceChars = prior?.immutableSourceChars ?? 0;
+  const priorAppendedSourceChars = Math.max(
+    0,
+    (prior?.matchedSourceChars ?? 0) - immutableSourceChars,
+  );
   const coveredBySource = new Map<string, TextRange[]>();
   for (const segment of prior?.segments ?? []) {
     const key = `${segment.documentId}:${segment.versionId}`;
@@ -2436,7 +2578,7 @@ function materializeAccretiveWorkingSet(
       if (!candidate) continue;
       advanced = true;
       const remaining =
-        budget - (prior?.matchedSourceChars ?? 0) - addedSourceChars;
+        budget - priorAppendedSourceChars - addedSourceChars;
       if (remaining <= 0) {
         omitted += 1 + queue.length;
         queue.length = 0;
@@ -2508,10 +2650,12 @@ function materializeAccretiveWorkingSet(
     text,
     sourceChars,
     matchedSourceChars,
+    immutableSourceChars,
     mapChars,
     budgetChars: budget,
     mappedVersions: [...mappedVersions],
     segments,
+    refs: prior?.refs,
   });
   return {
     manifest: {
@@ -3153,23 +3297,23 @@ async function runCodingShapeCall(
         trimmed(args.pages) ||
         (args.references && args.references !== "none")
       ) {
-        return result(call, "Working sets accept only file_path, offset, and limit.");
+        return result(
+          call,
+          "Working sets accept only file_path, offset, limit, and start_char.",
+        );
       }
       const lines = workingSet.text.split(/\r?\n/u);
       const starts = sourceLineStarts(workingSet.text, lines);
       const offset = positiveInt(args.offset, 1, 100_000_000, 1);
       const limit = positiveInt(args.limit, 1, 2_000, 2_000);
-      const candidates = lines
-        .slice(offset - 1, offset - 1 + limit)
-        .map((line, index): CodingOutputLine => {
-          const lineIndex = offset - 1 + index;
-          const start = starts[lineIndex];
-          return {
-            rendered: `${String(offset + index).padStart(6, " ")}\t${line}`,
-            span: [start, start + line.length],
-          };
-        });
-      if (!candidates.length) {
+      const firstLine = lines[offset - 1];
+      const startChar = clampInt(
+        args.start_char,
+        0,
+        Number.MAX_SAFE_INTEGER,
+        0,
+      );
+      if (firstLine === undefined) {
         return result(
           call,
           offset > lines.length
@@ -3177,20 +3321,99 @@ async function runCodingShapeCall(
             : "(empty working set)",
         );
       }
-      const { kept, truncated } = takeCodingOutputLines(candidates);
-      const rendered = kept.map((line) => line.rendered).join("\n");
-      const lastShown = offset - 1 + kept.length;
-      const content =
-        lastShown < lines.length
-          ? `${rendered}\n\n[TRUNCATED: returned lines ${offset}-${lastShown} of ${lines.length}; continue with Read(file_path="${workingSet.path}", offset=${lastShown + 1}).${truncated ? " Tool-result limit reached." : ""}]`
-          : rendered;
+      if (startChar > firstLine.length) {
+        return result(
+          call,
+          `(start_char ${startChar} is past the end of working-set line ${offset}; line chars: ${firstLine.length})`,
+        );
+      }
+      if (
+        workingSet.demandPaged &&
+        !workingSet.readGrants?.has(`${offset}:${startChar}`)
+      ) {
+        return result(call, {
+          ok: true,
+          status: "selection_required",
+          error:
+            "Demand-paged evidence does not support sequential scans. Use Grep with output_mode=content, then copy an exact Read recipe from its hit.",
+        });
+      }
+      const pageMaxChars = WORKING_SET_PAGE_MAX_CHARS || MAX_TOOL_RESULT_CHARS;
+      const bodyBudget = Math.max(
+        1_000,
+        Math.min(MAX_TOOL_RESULT_CHARS, pageMaxChars) - 1_000,
+      );
+      const candidates: CodingOutputLine[] = [];
+      let used = 0;
+      let sameLineContinuation:
+        | { line: number; nextChar: number; totalChars: number }
+        | undefined;
+      for (
+        let index = 0;
+        index < limit && offset - 1 + index < lines.length;
+        index += 1
+      ) {
+        const lineIndex = offset - 1 + index;
+        const line = lines[lineIndex];
+        const localStart = index === 0 ? startChar : 0;
+        const prefix = `${String(lineIndex + 1).padStart(6, " ")}\t`;
+        const available =
+          bodyBudget - used - prefix.length - (candidates.length ? 1 : 0);
+        if (available <= 0) break;
+        const shown = line.slice(localStart, localStart + available);
+        candidates.push({
+          rendered: `${prefix}${shown}`,
+          span: [
+            starts[lineIndex] + localStart,
+            starts[lineIndex] + localStart + shown.length,
+          ],
+        });
+        used += prefix.length + shown.length + (candidates.length > 1 ? 1 : 0);
+        if (localStart + shown.length < line.length) {
+          sameLineContinuation = {
+            line: lineIndex + 1,
+            nextChar: localStart + shown.length,
+            totalChars: line.length,
+          };
+          break;
+        }
+      }
+      const rendered = candidates.map((line) => line.rendered).join("\n");
+      const lastShown = offset - 1 + candidates.length;
+      const continuation = sameLineContinuation
+        ? `[TRUNCATED: returned working-set line ${sameLineContinuation.line} through char ${sameLineContinuation.nextChar} of ${sameLineContinuation.totalChars}; continue with Read(file_path=${JSON.stringify(workingSet.path)}, offset=${sameLineContinuation.line}, limit=${limit}, start_char=${sameLineContinuation.nextChar}). Tool-result limit reached.]`
+        : lastShown < lines.length
+          ? workingSet.demandPaged
+            ? `[PAGE ENDED: returned lines ${offset}-${lastShown} of ${lines.length}. Use Grep to locate the next material fact; sequential continuation is disabled.]`
+            : `[TRUNCATED: returned lines ${offset}-${lastShown} of ${lines.length}; continue with Read(file_path=${JSON.stringify(workingSet.path)}, offset=${lastShown + 1}).]`
+          : "";
+      if (sameLineContinuation && workingSet.demandPaged) {
+        workingSet.readGrants?.add(
+          `${sameLineContinuation.line}:${sameLineContinuation.nextChar}`,
+        );
+      }
+      const content = continuation
+        ? `${rendered}\n\n${continuation}`
+        : rendered;
+      const exposedRanges = candidates.flatMap((line) =>
+        line.span ? [line.span] : [],
+      );
       return {
         ...result(call, content),
-        evidenceSegments: workingSetEvidenceSegments(
-          workingSet,
-          kept.flatMap((line) => (line.span ? [line.span] : [])),
-        ),
+        evidenceSegments: workingSetEvidenceSegments(workingSet, exposedRanges),
+        evidenceRefs: workingSetEvidenceRefs(workingSet, exposedRanges),
       };
+    }
+    if (
+      Object.prototype.hasOwnProperty.call(args, "start_char") &&
+      args.start_char !== 0 &&
+      args.start_char !== null &&
+      args.start_char !== undefined
+    ) {
+      return fail(
+        call,
+        "start_char is available only for virtual evidence working-set reads",
+      );
     }
     const matches = resolvePath(requested);
     if (matches.length !== 1) {
@@ -3688,17 +3911,34 @@ async function runCodingShapeCall(
     }
     const lines = virtualTarget.text.split(/\r?\n/u);
     const starts = sourceLineStarts(virtualTarget.text, lines);
-    const matched = lines.flatMap((line, index) => (re.test(line) ? [index] : []));
+    const matched = lines.flatMap((line, index) => {
+      const column = line.search(re);
+      return column >= 0 ? [{ line: index, column }] : [];
+    });
     if (!matched.length) return result(call, "No matches found");
     if (args.output_mode === "count") {
       return result(call, `${virtualTarget.path}:${matched.length}`);
     }
     if (args.output_mode !== "content") return result(call, virtualTarget.path);
-    const headLimit = positiveInt(args.head_limit, 1, 2_000, 250);
+    const headLimit = virtualTarget.demandPaged
+      ? Math.min(
+          WORKING_SET_GREP_MAX_HEAD_LIMIT,
+          positiveInt(
+            args.head_limit,
+            1,
+            2_000,
+            WORKING_SET_GREP_DEFAULT_HEAD_LIMIT,
+          ),
+        )
+      : positiveInt(args.head_limit, 1, 2_000, 250);
+    const lineCap = virtualTarget.demandPaged
+      ? WORKING_SET_GREP_LINE_MAX_CHARS
+      : GREP_LINE_CAP;
     const context = clampInt(args["-C"], 0, 10, 0);
     const rows: CodingOutputLine[] = [];
     const emitted = new Set<number>();
-    for (const at of matched) {
+    for (const match of matched) {
+      const at = match.line;
       for (
         let index = Math.max(0, at - context);
         index <= Math.min(lines.length - 1, at + context) && rows.length < headLimit;
@@ -3706,26 +3946,64 @@ async function runCodingShapeCall(
       ) {
         if (emitted.has(index)) continue;
         emitted.add(index);
-        const separator = index === at ? ":" : "-";
-        const shown = lines[index].slice(0, GREP_LINE_CAP);
+        const isMatch = index === at;
+        const separator = isMatch ? ":" : "-";
+        const sliceStart =
+          isMatch && lines[index].length > lineCap
+            ? Math.min(
+                Math.max(0, match.column - Math.floor(lineCap / 2)),
+                lines[index].length - lineCap,
+              )
+            : 0;
+        const shown = lines[index].slice(
+          sliceStart,
+          sliceStart + lineCap,
+        );
+        const readGrant = isMatch
+          ? { line: index + 1, startChar: sliceStart }
+          : undefined;
+        const recipe = readGrant
+          ? `\n  [exact Read recipe: Read(file_path=${JSON.stringify(virtualTarget.path)}, offset=${readGrant.line}, limit=1${readGrant.startChar ? `, start_char=${readGrant.startChar}` : ""})]`
+          : "";
         rows.push({
-          rendered: `${virtualTarget.path}${separator}${index + 1}${separator}${shown}`,
-          span: [starts[index], starts[index] + shown.length],
+          rendered: `${virtualTarget.path}${separator}${index + 1}${separator}${shown}${recipe}`,
+          span: [
+            starts[index] + sliceStart,
+            starts[index] + sliceStart + shown.length,
+          ],
+          ...(readGrant ? { readGrant } : {}),
         });
       }
     }
-    const { kept, truncated } = takeCodingOutputLines(rows);
+    const { kept, truncated } = takeCodingOutputLines(
+      rows,
+      WORKING_SET_PAGE_MAX_CHARS || MAX_TOOL_RESULT_CHARS,
+    );
+    if (virtualTarget.demandPaged) {
+      virtualTarget.readGrants ??= new Set();
+      for (const line of kept) {
+        if (line.readGrant) {
+          virtualTarget.readGrants.add(
+            `${line.readGrant.line}:${line.readGrant.startChar}`,
+          );
+        }
+      }
+    }
     const body = kept.map((line) => line.rendered).join("\n");
     const content =
       truncated || rows.length >= headLimit
         ? `${body}\n(Results truncated; narrow the pattern.)`
         : body;
+    const exposedRanges = kept.flatMap((line) =>
+      line.span ? [line.span] : [],
+    );
     return {
       ...result(call, content),
       evidenceSegments: workingSetEvidenceSegments(
         virtualTarget,
-        kept.flatMap((line) => (line.span ? [line.span] : [])),
+        exposedRanges,
       ),
+      evidenceRefs: workingSetEvidenceRefs(virtualTarget, exposedRanges),
     };
   }
   let targets = files;
@@ -4337,7 +4615,7 @@ async function extractLocalDraftingDocument(
  * else. Trimming takes the head AND the tail, because a clause's proviso lives
  * at its end.
  */
-const MAX_TOOL_RESULT_CHARS = Number(
+export const MAX_TOOL_RESULT_CHARS = Number(
   process.env.MIKE_TOOL_RESULT_CAP || 64_000,
 );
 
@@ -5102,7 +5380,7 @@ async function runUpstreamMikeRetrievalCall(params: {
     }
     const key = `${documentId}:${file.version.id}`;
     const prior = readState?.get(key);
-    if (prior) {
+    if (prior && SUPPRESS_DUPLICATE_WHOLE_READS) {
       return {
         content: JSON.stringify({
           ok: true,
@@ -5130,12 +5408,17 @@ async function runUpstreamMikeRetrievalCall(params: {
         >,
       };
     }
+    const previouslyDelivered =
+      prior?.deliveredChars ?? prior?.sourceChars ?? 0;
     readState?.set(key, {
       documentId,
       docLabel,
       versionId: file.version.id,
       filename: document.filename,
       sourceChars: document.text.length,
+      deliveredChars: SUPPRESS_DUPLICATE_WHOLE_READS
+        ? document.text.length
+        : previouslyDelivered + document.text.length,
     });
     return {
       content: document.text,
@@ -5180,7 +5463,8 @@ async function runUpstreamMikeRetrievalCall(params: {
     if (wholeReadMaxChars > 0) {
       const seenVersions = new Set<string>();
       const alreadyReadChars = [...(readState?.values() ?? [])].reduce(
-        (total, read) => total + (read.sourceChars ?? 0),
+        (total, read) =>
+          total + (read.deliveredChars ?? read.sourceChars ?? 0),
         0,
       );
       let requestedChars = 0;
@@ -5191,12 +5475,18 @@ async function runUpstreamMikeRetrievalCall(params: {
         const file = await getLocalVersionFile(userId, listed.id);
         if (!file) continue;
         const key = `${listed.id}:${file.version.id}`;
-        if (seenVersions.has(key) || readState?.has(key)) continue;
+        const seenInCall = seenVersions.has(key);
+        if (
+          SUPPRESS_DUPLICATE_WHOLE_READS &&
+          (seenInCall || readState?.has(key))
+        ) {
+          continue;
+        }
         seenVersions.add(key);
         const document = await extractLocalDocument(userId, listed.id);
         if (!document) continue;
         requestedChars += document.text.length;
-        newFiles += 1;
+        if (!seenInCall && !readState?.has(key)) newFiles += 1;
       }
       const projectedChars = alreadyReadChars + requestedChars;
       if (projectedChars > wholeReadMaxChars) {
@@ -5339,7 +5629,8 @@ export async function runLocalAssistantTools(
       }
 
       if (call.name === "describe_tools") {
-        const availableDomains = domainEntriesForTools(LOCAL_ASSISTANT_TOOLS).map(
+        const deferredTools = partitionTools(LOCAL_ASSISTANT_TOOLS).deferred;
+        const availableDomains = domainEntriesForTools(deferredTools).map(
           ([name]) => name,
         );
         const domains = stringArray(args.domains).filter(
@@ -5352,7 +5643,7 @@ export async function runLocalAssistantTools(
           );
         }
         const opened = toolsForDomains(
-          partitionTools(LOCAL_ASSISTANT_TOOLS).deferred,
+          deferredTools,
           domains,
         );
         // Prose travels with its domain: the research instructions explain

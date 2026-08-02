@@ -20,8 +20,8 @@
  *    creates none, the answer text is exported to the required filename
  *    (.docx via the docx package, .md/.txt verbatim). Tasks needing
  *    spreadsheet/slide deliverables are out of scope for this arm.
- *  - Token counts are context-manifest estimates (bytes/4), not API usage —
- *    the chat SSE stream does not report usage.
+ *  - Token counts use provider-reported context-manifest usage when present;
+ *    entries that fail before usage fall back to the manifest estimate.
  *
  * Usage (spawns itself into the isolated anonymous-mode environment):
  *   npx tsx scripts/lab-beaver-arm.ts \
@@ -93,6 +93,7 @@ const toolCalls = (events: SseEvent[]) =>
     .map((event) => ({
       id: String(event.id ?? ""),
       name: String(event.name ?? ""),
+      phase: typeof event.phase === "string" ? event.phase : null,
       input:
         event.input && typeof event.input === "object" ? event.input : null,
     }));
@@ -103,9 +104,14 @@ const toolResults = (events: SseEvent[]) =>
     .map((event) => ({
       id: String(event.id ?? ""),
       name: String(event.name ?? ""),
+      phase: typeof event.phase === "string" ? event.phase : null,
       ok: event.ok !== false,
       status: typeof event.status === "string" ? event.status : null,
       error: typeof event.error === "string" ? event.error : null,
+      checkpoint_gate:
+        typeof event.checkpoint_gate === "string"
+          ? event.checkpoint_gate
+          : null,
       content_chars: Number(event.content_chars ?? 0),
       content_sha256:
         typeof event.content_sha256 === "string" ? event.content_sha256 : null,
@@ -116,6 +122,15 @@ const toolResults = (events: SseEvent[]) =>
       already_exposed: event.already_exposed === true,
       unique_source_chars: Number(event.unique_source_chars ?? 0),
       suppressed_source_chars: Number(event.suppressed_source_chars ?? 0),
+      union_unique_source_chars: Number(
+        event.union_unique_source_chars ?? 0,
+      ),
+      union_suppressed_source_chars: Number(
+        event.union_suppressed_source_chars ?? 0,
+      ),
+      reviewed_union_reuse_source_chars: Number(
+        event.reviewed_union_reuse_source_chars ?? 0,
+      ),
       projection:
         typeof event.projection === "string" ? event.projection : null,
       evidence_spans: Array.isArray(event.evidence_spans)
@@ -137,7 +152,39 @@ const toolResults = (events: SseEvent[]) =>
             const start = Number(segment.start);
             const end = Number(segment.end);
             return documentId && Number.isFinite(start) && Number.isFinite(end)
-              ? [{ documentId, versionId, start, end }]
+              ? [
+                  {
+                    documentId,
+                    versionId,
+                    start,
+                    end,
+                    projection:
+                      typeof segment.projection === "string"
+                        ? segment.projection
+                        : null,
+                  },
+                ]
+              : [];
+          })
+        : [],
+      evidence_refs: Array.isArray(event.evidence_refs)
+        ? event.evidence_refs.flatMap((raw) => {
+            if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
+            const ref = raw as Record<string, unknown>;
+            const handle = String(ref.handle ?? "");
+            const exactSha256 = String(ref.exact_sha256 ?? "");
+            const chars = Number(ref.chars);
+            return handle && exactSha256 && Number.isFinite(chars)
+              ? [
+                  {
+                    handle,
+                    exactSha256,
+                    chars,
+                    filename: String(ref.filename ?? handle),
+                    locator:
+                      typeof ref.locator === "string" ? ref.locator : null,
+                  },
+                ]
               : [];
           })
         : [],
@@ -152,7 +199,9 @@ function exposureMetrics(
   const byDocument = new Map<string, Array<[number, number]>>();
   const sourceIds = new Set(sourceAliases.values());
   const exposedDocumentIds = new Set<string>();
+  const uniqueRefs = new Map<string, number>();
   let gross = 0;
+  let grossRefChars = 0;
   for (const result of results) {
     const call = byCall.get(result.id);
     const input = (call?.input ?? {}) as Record<string, unknown>;
@@ -162,6 +211,10 @@ function exposureMetrics(
       input.document_id,
       input.doc_id,
     ].find((value): value is string => typeof value === "string" && !!value);
+    for (const ref of result.evidence_refs) {
+      grossRefChars += ref.chars;
+      uniqueRefs.set(`${ref.handle}:${ref.exactSha256}`, ref.chars);
+    }
     for (const segment of result.evidence_segments) {
       if (!sourceIds.has(segment.documentId)) continue;
       exposedDocumentIds.add(segment.documentId);
@@ -207,6 +260,12 @@ function exposureMetrics(
     documents_exposed: exposedDocumentIds.size,
     exposed_document_ids: [...exposedDocumentIds],
     gross_replay_ratio: unique ? Math.round((gross / unique) * 10_000) / 10_000 : null,
+    gross_evidence_ref_chars: grossRefChars,
+    unique_evidence_ref_chars: [...uniqueRefs.values()].reduce(
+      (total, chars) => total + chars,
+      0,
+    ),
+    unique_evidence_refs: uniqueRefs.size,
   };
 }
 
@@ -236,6 +295,20 @@ async function main() {
     "run-id",
     `${task}/beaver-${arm}-${model.replace(/[:./]/gu, "-")}/${timestamp}`,
   );
+  const continuousCodingEnvironment = {
+    MIKE_NAV_SHAPE: "address",
+    MIKE_TOOL_SHAPE: "coding",
+    MIKE_RETRIEVAL_EXPERIMENT: "p0-pure-coding",
+    MIKE_MODEL_COVERAGE_ROUTING: "1",
+    MIKE_WHOLE_READ_MAX_CHARS: "800000",
+    MIKE_TOOL_RESULT_CAP: "51200",
+    MIKE_TOOL_DESCRIPTION_VARIANT: "terse",
+    MIKE_SUPPRESS_DUPLICATE_WHOLE_READS: "0",
+    MIKE_CONTEXT_HANDOFF: "0",
+    MIKE_CONTINUOUS_EVIDENCE: "0",
+    MIKE_SLA_WORKFLOW: "0",
+    MIKE_GREENFIELD_REVIEW: "0",
+  };
   const armEnvironment: Record<string, Record<string, string>> = {
     p0: {
       MIKE_NAV_SHAPE: "address",
@@ -302,6 +375,49 @@ async function main() {
       MIKE_OPENAI_COMPACT_THRESHOLD: "",
       MIKE_SLA_WORKFLOW: "1",
       MIKE_SLA_STRATEGY: "full",
+      MIKE_GREENFIELD_REVIEW: "0",
+    },
+    checkpoint_paged_v1: {
+      MIKE_NAV_SHAPE: "address",
+      MIKE_TOOL_SHAPE: "coding",
+      MIKE_RETRIEVAL_EXPERIMENT: "h4-legal-grep",
+      MIKE_MODEL_COVERAGE_ROUTING: "1",
+      MIKE_WHOLE_READ_MAX_CHARS: "800000",
+      MIKE_CONTEXT_HANDOFF: "1",
+      MIKE_DRAFT_HANDOFF_MODE: "paged",
+      MIKE_RESEARCH_CHECKPOINT_MAX_CHARS: "12000",
+      MIKE_DRAFT_HOT_EVIDENCE_MAX_CHARS: "24000",
+      MIKE_EVIDENCE_HANDOFF_MAX_CHARS: "800000",
+      MIKE_OPENAI_COMPACT_THRESHOLD: "",
+      MIKE_SLA_WORKFLOW: "1",
+      MIKE_SLA_STRATEGY: "full",
+      MIKE_GREENFIELD_REVIEW: "0",
+    },
+    v13: {
+      ...continuousCodingEnvironment,
+      MIKE_OPENAI_COMPACT_THRESHOLD: "",
+    },
+    v14: {
+      ...continuousCodingEnvironment,
+      // Match Codex's default 90% auto-compaction point for Luna's
+      // provider-advertised 272k raw context window.
+      MIKE_OPENAI_COMPACT_THRESHOLD: "244800",
+    },
+    v15: {
+      MIKE_NAV_SHAPE: "address",
+      MIKE_TOOL_SHAPE: "coding",
+      MIKE_RETRIEVAL_EXPERIMENT: "p0-pure-coding",
+      // Stable core surface: bounded file tools and direct authoring. No
+      // whole-document batch transport or model-facing memory layer.
+      MIKE_MODEL_COVERAGE_ROUTING: "0",
+      MIKE_TOOL_RESULT_CAP: "51200",
+      MIKE_TOOL_DESCRIPTION_VARIANT: "terse",
+      MIKE_SUPPRESS_DUPLICATE_WHOLE_READS: "0",
+      MIKE_RESIDENT_AUTHORING: "1",
+      MIKE_CONTEXT_HANDOFF: "0",
+      MIKE_CONTINUOUS_EVIDENCE: "0",
+      MIKE_OPENAI_COMPACT_THRESHOLD: "",
+      MIKE_SLA_WORKFLOW: "0",
       MIKE_GREENFIELD_REVIEW: "0",
     },
     coverage_soft_v2: {
@@ -377,7 +493,7 @@ async function main() {
   };
   if (!armEnvironment[arm])
     throw new Error(
-      `unknown --arm ${arm}; expected p0, coding_finalist, d1, hybrid, hybrid_finalist, coverage_finalist, coverage_hybrid_v2, coverage_soft_v2, working_set, compiler_hybrid, sla_hybrid, sla_working_set, h9, h10, address, or upstream`,
+      `unknown --arm ${arm}; expected p0, coding_finalist, d1, hybrid, hybrid_finalist, coverage_finalist, coverage_hybrid_v2, checkpoint_paged_v1, v13, v14, v15, coverage_soft_v2, working_set, compiler_hybrid, sla_hybrid, sla_working_set, h9, h10, address, or upstream`,
     );
 
   // Re-spawn into the isolated anonymous-mode environment (same recipe as
@@ -422,8 +538,15 @@ async function main() {
           // opts in explicitly, so upstream Mike cannot inherit Beaver-only
           // context or compiler behavior from the invoking shell.
           MIKE_CONTEXT_HANDOFF: "0",
+          MIKE_CONTINUOUS_EVIDENCE: "0",
+          MIKE_DRAFT_HANDOFF_MODE: "full",
+          MIKE_RESEARCH_CHECKPOINT_MAX_CHARS: "",
+          MIKE_DRAFT_HOT_EVIDENCE_MAX_CHARS: "",
+          MIKE_EVIDENCE_PAGE_MAX_CHARS: "",
           MIKE_MODEL_COVERAGE_ROUTING: "0",
           MIKE_WHOLE_READ_MAX_CHARS: "",
+          MIKE_SUPPRESS_DUPLICATE_WHOLE_READS: "1",
+          MIKE_RESIDENT_AUTHORING: "0",
           MIKE_EVIDENCE_HANDOFF_MAX_CHARS: "",
           MIKE_OPENAI_COMPACT_THRESHOLD: "",
           MIKE_SLA_WORKFLOW: "0",
@@ -518,7 +641,15 @@ async function main() {
 
   const started = Date.now();
   const wrappedUploads: string[] = [];
-  const uploadedDocuments: { source: string; uploaded: string; id: string }[] = [];
+  const uploadedDocuments: Array<{
+    source: string;
+    uploaded: string;
+    id: string;
+    source_bytes: number;
+    source_sha256: string;
+    uploaded_bytes: number;
+    uploaded_sha256: string;
+  }> = [];
   for (const rel of documents) {
     const bytes = readFileSync(path.join(docsDir, rel));
     const base = path.basename(rel);
@@ -539,6 +670,12 @@ async function main() {
       source: rel,
       uploaded: uploadName,
       id: String(upload.body?.id ?? ""),
+      source_bytes: bytes.length,
+      source_sha256: createHash("sha256").update(bytes).digest("hex"),
+      uploaded_bytes: uploadBytes.length,
+      uploaded_sha256: createHash("sha256")
+        .update(uploadBytes)
+        .digest("hex"),
     });
   }
 
@@ -563,10 +700,63 @@ async function main() {
   }
   const exposure = exposureMetrics(calls, results, sourceAliases);
   const surface = events.find((event) => event.type === "benchmark_surface") ?? null;
-  const evidenceHandoff =
-    events.find((event) => event.type === "evidence_handoff") ?? null;
+  const evidenceHandoffs = events.filter(
+    (event) => event.type === "evidence_handoff",
+  );
+  const evidenceHandoff = evidenceHandoffs.at(-1) ?? null;
+  const evidenceWorkingSetReceipts = events.filter(
+    (event) => event.type === "evidence_working_set_receipt",
+  );
+  const evidenceWorkingSetUpdates = events.filter(
+    (event) => event.type === "evidence_working_set_update",
+  );
+  const evidenceWorkingSetReceipt = evidenceWorkingSetReceipts.at(-1) ?? null;
+  const contentResets = events.filter((event) => event.type === "content_reset");
   const researchContextRefreshes = events.filter(
     (event) => event.type === "research_context_refresh",
+  );
+  const researchCheckpointRequests = events.filter(
+    (event) => event.type === "research_checkpoint_request",
+  );
+  const researchCheckpoints = events.filter(
+    (event) => event.type === "research_checkpoint",
+  );
+  const initialResearchCheckpoints = researchCheckpoints.filter(
+    (event) => event.resume_mode === "research",
+  );
+  const researchCheckpointFailures = events.filter(
+    (event) => event.type === "research_checkpoint_failed",
+  );
+  const checkpointHandoffAudit: Array<{
+    handoff_index: number;
+    reviewed_checkpoint_sha256: string | null;
+    handoff_checkpoint_sha256: string | null;
+    matches: boolean;
+  }> = [];
+  let latestReviewedCheckpointSha256: string | null = null;
+  for (const event of events) {
+    if (
+      event.type === "research_checkpoint" &&
+      typeof event.brief_sha256 === "string"
+    ) {
+      latestReviewedCheckpointSha256 = event.brief_sha256;
+    }
+    if (event.type !== "evidence_handoff") continue;
+    const handoffCheckpointSha256 =
+      typeof event.checkpoint_sha256 === "string"
+        ? event.checkpoint_sha256
+        : null;
+    checkpointHandoffAudit.push({
+      handoff_index: checkpointHandoffAudit.length + 1,
+      reviewed_checkpoint_sha256: latestReviewedCheckpointSha256,
+      handoff_checkpoint_sha256: handoffCheckpointSha256,
+      matches:
+        latestReviewedCheckpointSha256 !== null &&
+        latestReviewedCheckpointSha256 === handoffCheckpointSha256,
+    });
+  }
+  const checkpointHandoffMismatches = checkpointHandoffAudit.filter(
+    (receipt) => !receipt.matches,
   );
   if (arm === "upstream") {
     const expectedTools = [
@@ -601,12 +791,130 @@ async function main() {
     throw new Error(
       "Beaver paused for ask_inputs; the benchmark has no user to answer — run incomplete",
     );
+  const {
+    extractLocalDocument,
+    WORKING_SET_GREP_DEFAULT_HEAD_LIMIT,
+    WORKING_SET_GREP_LINE_MAX_CHARS,
+    WORKING_SET_GREP_MAX_HEAD_LIMIT,
+    WORKING_SET_PAGE_MAX_CHARS,
+    WORKING_SET_PATH,
+  } = await import("../src/lib/chat/localAssistantTools");
+  if (arm === "checkpoint_paged_v1") {
+    const expectedDocxCount = deliverables.filter((name) =>
+      /\.docx$/iu.test(name),
+    ).length;
+    const authoredDocxCount = authored.filter((document) =>
+      /\.docx$/iu.test(document.filename),
+    ).length;
+    const initialCheckpointMax = Number(
+      surface?.initial_research_checkpoint_max_count,
+    );
+    if (!Number.isInteger(initialCheckpointMax) || initialCheckpointMax < 1) {
+      throw new Error(
+        `checkpoint-paged surface omitted a valid initial checkpoint maximum: ${String(surface?.initial_research_checkpoint_max_count ?? "missing")}`,
+      );
+    }
+    if (
+      researchCheckpointRequests.length === 0 ||
+      researchCheckpointFailures.length > 0 ||
+      researchCheckpointRequests.length !== researchCheckpoints.length ||
+      initialResearchCheckpoints.length > initialCheckpointMax ||
+      checkpointHandoffMismatches.length > 0
+    ) {
+      throw new Error(
+        `checkpoint-paged validity failed: requests=${researchCheckpointRequests.length}; completed=${researchCheckpoints.length}; initial=${initialResearchCheckpoints.length}; failures=${researchCheckpointFailures.length}; handoff_hash_mismatches=${checkpointHandoffMismatches.length}`,
+      );
+    }
+    if (
+      evidenceHandoff?.handoff_mode !== "paged" ||
+      Number(evidenceHandoff.checkpoint_chars ?? Infinity) > 12_000 ||
+      Number(evidenceHandoff.hot_packet_chars ?? Infinity) > 24_000 ||
+      Number(evidenceHandoff.working_set_page_max_chars ?? 0) !== 24_000 ||
+      Number(surface?.working_set_grep_default_head_limit ?? 0) !==
+        WORKING_SET_GREP_DEFAULT_HEAD_LIMIT ||
+      Number(surface?.working_set_grep_max_head_limit ?? 0) !==
+        WORKING_SET_GREP_MAX_HEAD_LIMIT ||
+      Number(surface?.working_set_grep_line_max_chars ?? 0) !==
+        WORKING_SET_GREP_LINE_MAX_CHARS ||
+      Number(evidenceHandoff.initial_research_checkpoint_count ?? Infinity) >
+        initialCheckpointMax ||
+      Number(
+        evidenceHandoff.initial_research_checkpoint_max_count ?? 0,
+      ) !== initialCheckpointMax
+    ) {
+      throw new Error(
+        `checkpoint-paged handoff invalid: mode=${String(evidenceHandoff?.handoff_mode ?? "missing")}; checkpoint_chars=${String(evidenceHandoff?.checkpoint_chars ?? "missing")}; hot_packet_chars=${String(evidenceHandoff?.hot_packet_chars ?? "missing")}; page_max_chars=${String(evidenceHandoff?.working_set_page_max_chars ?? "missing")}; grep_default_heads=${String(surface?.working_set_grep_default_head_limit ?? "missing")}; grep_max_heads=${String(surface?.working_set_grep_max_head_limit ?? "missing")}; grep_line_chars=${String(surface?.working_set_grep_line_max_chars ?? "missing")}; initial_checkpoints=${String(evidenceHandoff?.initial_research_checkpoint_count ?? "missing")}; initial_checkpoint_max=${String(evidenceHandoff?.initial_research_checkpoint_max_count ?? "missing")}`,
+      );
+    }
+    if (
+      evidenceWorkingSetReceipt?.path !== ".mike/working-sets/evidence.txt" ||
+      typeof evidenceWorkingSetReceipt.text !== "string" ||
+      evidenceWorkingSetReceipt.text.length === 0
+    ) {
+      throw new Error("checkpoint-paged exact working-set receipt missing");
+    }
+    if (authoredDocxCount < expectedDocxCount) {
+      throw new Error(
+        `checkpoint-paged run authored ${authoredDocxCount}/${expectedDocxCount} required DOCX deliverables`,
+      );
+    }
+  }
+  if (["v13", "v14", "v15"].includes(arm)) {
+    const expectedDocxCount = deliverables.filter((name) =>
+      /\.docx$/iu.test(name),
+    ).length;
+    const authoredDocxCount = authored.filter((document) =>
+      /\.docx$/iu.test(document.filename),
+    ).length;
+    const residentTools = Array.isArray(surface?.resident_tools)
+      ? surface.resident_tools
+      : [];
+    const expectedResidentTools =
+      arm === "v15"
+        ? ["Glob", "Grep", "Read", "library_create_docx", "describe_tools"]
+        : ["Glob", "fetch_documents", "Grep", "Read", "describe_tools"];
+    if (
+      surface?.navigation_shape !== "address" ||
+      surface?.coding_shape !== true ||
+      surface?.model_coverage_routing !== (arm !== "v15") ||
+      surface?.progressive_disclosure !== true ||
+      JSON.stringify(residentTools) !== JSON.stringify(expectedResidentTools) ||
+      surface?.trajectory_mode !== "continuous" ||
+      surface?.continuous_evidence !== false ||
+      surface?.context_handoff !== false ||
+      surface?.draft_handoff_mode !== "none" ||
+      surface?.sla_workflow !== false ||
+      surface?.greenfield_review !== false ||
+      surface?.suppress_duplicate_whole_reads !== false ||
+      surface?.resident_authoring !== (arm === "v15") ||
+      Number(surface?.whole_read_max_chars ?? 0) !==
+        (arm === "v15" ? 0 : 800_000) ||
+      Number(surface?.tool_result_max_chars ?? 0) !== 51_200 ||
+      (arm === "v14"
+        ? String(surface?.openai_compact_threshold ?? "") !== "244800"
+        : surface?.openai_compact_threshold != null) ||
+      researchContextRefreshes.length > 0 ||
+      researchCheckpointRequests.length > 0 ||
+      researchCheckpoints.length > 0 ||
+      evidenceHandoffs.length > 0 ||
+      evidenceWorkingSetReceipts.length > 0 ||
+      evidenceWorkingSetUpdates.length > 0 ||
+      contentResets.length > 0 ||
+      results.some((result) => result.already_read || result.already_exposed)
+    ) {
+      throw new Error(
+        `${arm} trajectory invalid: resident=${residentTools.join(",")}; resident_authoring=${String(surface?.resident_authoring)}; trajectory=${String(surface?.trajectory_mode)}; continuous_evidence=${String(surface?.continuous_evidence)}; handoff=${String(surface?.context_handoff)}; mode=${String(surface?.draft_handoff_mode)}; sla=${String(surface?.sla_workflow)}; duplicate_suppression=${String(surface?.suppress_duplicate_whole_reads)}; whole_cap=${String(surface?.whole_read_max_chars)}; result_cap=${String(surface?.tool_result_max_chars)}; compact_threshold=${String(surface?.openai_compact_threshold)}; refreshes=${researchContextRefreshes.length}; checkpoint_requests=${researchCheckpointRequests.length}; checkpoints=${researchCheckpoints.length}; handoffs=${evidenceHandoffs.length}; working_sets=${evidenceWorkingSetReceipts.length}; resets=${contentResets.length}`,
+      );
+    }
+    if (authoredDocxCount < expectedDocxCount) {
+      throw new Error(
+        `${arm} run authored ${authoredDocxCount}/${expectedDocxCount} required DOCX deliverables`,
+      );
+    }
+  }
   if (!answer.trim() && !authored.length)
     throw new Error("empty assistant answer and no documents authored");
   const wallClock = (Date.now() - started) / 1000;
-  const { extractLocalDocument } = await import(
-    "../src/lib/chat/localAssistantTools"
-  );
   let sourceTextChars = 0;
   const sourceReceipts: Array<Record<string, unknown>> = [];
   for (const document of uploadedDocuments) {
@@ -617,6 +925,11 @@ async function main() {
       source: document.source,
       uploaded: document.uploaded,
       document_id: document.id,
+      version_id: extracted.versionId,
+      source_bytes: document.source_bytes,
+      source_sha256: document.source_sha256,
+      uploaded_bytes: document.uploaded_bytes,
+      uploaded_sha256: document.uploaded_sha256,
       text_chars: extracted.text.length,
       text_sha256: createHash("sha256").update(extracted.text).digest("hex"),
       pages: extracted.pages.pages.length,
@@ -633,6 +946,75 @@ async function main() {
   const runDir = path.join(labRoot, "results", ...runId.split("/"));
   const outputDir = path.join(runDir, "output");
   mkdirSync(outputDir, { recursive: true });
+  let evidenceWorkingSetArtifact: Record<string, unknown> | null = null;
+  const evidenceWorkingSetHistory = evidenceWorkingSetReceipts.map(
+    (receipt, index) => {
+      if (typeof receipt.text !== "string")
+        throw new Error(`evidence working-set receipt ${index + 1} has no text`);
+      const textSha256 = createHash("sha256").update(receipt.text).digest("hex");
+      if (
+        typeof receipt.text_sha256 === "string" &&
+        receipt.text_sha256 !== textSha256
+      ) {
+        throw new Error(`evidence working-set receipt ${index + 1} hash mismatch`);
+      }
+      return {
+        index: index + 1,
+        path: receipt.path ?? null,
+        text_chars: receipt.text.length,
+        text_sha256: textSha256,
+        source_chars: Number(receipt.source_chars ?? 0),
+        map_chars: Number(receipt.map_chars ?? 0),
+        mapped_versions: receipt.mapped_versions ?? [],
+        segment_count: Array.isArray(receipt.segments)
+          ? receipt.segments.length
+          : 0,
+        ref_count: Array.isArray(receipt.refs) ? receipt.refs.length : 0,
+      };
+    },
+  );
+  if (
+    evidenceWorkingSetReceipt &&
+    typeof evidenceWorkingSetReceipt.text === "string"
+  ) {
+    const text = evidenceWorkingSetReceipt.text;
+    const textSha256 = createHash("sha256").update(text).digest("hex");
+    if (
+      typeof evidenceWorkingSetReceipt.text_sha256 === "string" &&
+      evidenceWorkingSetReceipt.text_sha256 !== textSha256
+    ) {
+      throw new Error("evidence working-set receipt hash mismatch");
+    }
+    const filename = "evidence-working-set.json";
+    writeFileSync(
+      path.join(runDir, filename),
+      JSON.stringify(
+        {
+          ...evidenceWorkingSetReceipt,
+          receipt_history: evidenceWorkingSetHistory,
+        },
+        null,
+        2,
+      ),
+    );
+    evidenceWorkingSetArtifact = {
+      filename,
+      path: evidenceWorkingSetReceipt.path ?? null,
+      text_chars: text.length,
+      text_sha256: textSha256,
+      source_chars: Number(evidenceWorkingSetReceipt.source_chars ?? 0),
+      map_chars: Number(evidenceWorkingSetReceipt.map_chars ?? 0),
+      mapped_versions: evidenceWorkingSetReceipt.mapped_versions ?? [],
+      segment_count: Array.isArray(evidenceWorkingSetReceipt.segments)
+        ? evidenceWorkingSetReceipt.segments.length
+        : 0,
+      ref_count: Array.isArray(evidenceWorkingSetReceipt.refs)
+        ? evidenceWorkingSetReceipt.refs.length
+        : 0,
+      receipt_count: evidenceWorkingSetHistory.length,
+      receipt_history: evidenceWorkingSetHistory,
+    };
+  }
 
   // Save every document Beaver authored under its own filename; LAB's
   // evaluator resolves expected deliverables against actual files with the
@@ -670,17 +1052,35 @@ async function main() {
     else writeFileSync(target, answer, "utf8");
     deliverableSources[name] = "answer_text";
   }
+  const deliverableReceipts = readdirSync(outputDir, { encoding: "utf8" })
+    .sort((left, right) => left.localeCompare(right))
+    .map((filename) => {
+      const bytes = readFileSync(path.join(outputDir, filename));
+      return {
+        filename,
+        bytes: bytes.length,
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+        source: deliverableSources[filename] ?? "library",
+      };
+    });
 
   // Real usage from the context-manifest receipts (each streamChatWithTools
   // call appends one entry with provider-reported usage); the byte-based
   // inputEstimate is the fallback for entries that died before usage.
   let inputTokens = 0;
   let outputTokens = 0;
+  let reasoningTokens = 0;
   let cacheReadInputTokens = 0;
   let cacheWriteInputTokens = 0;
   let tokenSource = "context_manifest_usage";
+  let cacheReadReportingComplete = true;
+  let cacheWriteReportingComplete = true;
   const reportedServiceTiers = new Set<string>();
   const contextRounds: Array<Record<string, unknown>> = [];
+  const compactions: Array<Record<string, unknown>> = [];
+  const promptCacheKeyHashes = new Set<string>();
+  const promptCacheStrategies = new Set<string>();
+  const providerInvocations: Array<Record<string, unknown>> = [];
   const manifestPath = process.env.MIKE_LLM_CONTEXT_MANIFEST_PATH ?? "";
   if (manifestPath && existsSync(manifestPath)) {
     for (const line of readFileSync(manifestPath, "utf8").split(/\r?\n/u)) {
@@ -690,13 +1090,25 @@ async function main() {
         usage?: {
           inputTokens?: number;
           outputTokens?: number;
+          reasoningTokens?: number | null;
           cacheReadInputTokens?: number | null;
           cacheWriteInputTokens?: number | null;
         } | null;
-        inputEstimate?: { tokens?: number };
+        startedAt?: string;
+        firstContentLatencyMs?: number | null;
+        totalLatencyMs?: number;
+        status?: string;
+        providerInvocationId?: string | null;
+        components?: Record<string, unknown>;
+        inputEstimate?: { bytes?: number; tokens?: number };
         serviceTierRequested?: string | null;
         serviceTierReported?: string | null;
         rounds?: Array<Record<string, unknown>>;
+        compactions?: Array<Record<string, unknown>>;
+        promptCache?: {
+          strategy?: string;
+          keySha256?: string | null;
+        };
       };
       if (entry.usage?.inputTokens != null) {
         const cacheRead = entry.usage.cacheReadInputTokens ?? 0;
@@ -709,14 +1121,117 @@ async function main() {
           (entry.provider === "claude-p" ? cacheRead + cacheWrite : 0);
         cacheReadInputTokens += cacheRead;
         cacheWriteInputTokens += cacheWrite;
+        if (
+          ["openai", "codex"].includes(entry.provider ?? "") &&
+          entry.usage.cacheReadInputTokens == null
+        ) {
+          cacheReadReportingComplete = false;
+        }
+        if (
+          ["openai", "codex"].includes(entry.provider ?? "") &&
+          entry.usage.cacheWriteInputTokens == null
+        ) {
+          cacheWriteReportingComplete = false;
+        }
         outputTokens += entry.usage.outputTokens ?? 0;
+        reasoningTokens += entry.usage.reasoningTokens ?? 0;
       } else {
         inputTokens += entry.inputEstimate?.tokens ?? 0;
         tokenSource = "context_manifest_mixed_estimate";
+        if (["openai", "codex"].includes(entry.provider ?? "")) {
+          cacheReadReportingComplete = false;
+          cacheWriteReportingComplete = false;
+        }
       }
       if (entry.serviceTierReported)
         reportedServiceTiers.add(entry.serviceTierReported);
+      const firstRound = contextRounds.length;
       contextRounds.push(...(entry.rounds ?? []));
+      const firstCompaction = compactions.length;
+      for (const compaction of entry.compactions ?? []) {
+        compactions.push(compaction);
+        const compactionUsage = compaction.usage as
+          | {
+              inputTokens?: number | null;
+              outputTokens?: number | null;
+              cacheReadInputTokens?: number | null;
+              cacheWriteInputTokens?: number | null;
+            }
+          | undefined;
+        if (compactionUsage?.inputTokens == null) {
+          inputTokens += Number(compaction.estimatedInputTokens ?? 0);
+          outputTokens += Number(compaction.estimatedOutputTokens ?? 0);
+          tokenSource = "context_manifest_mixed_estimate";
+          cacheReadReportingComplete = false;
+          cacheWriteReportingComplete = false;
+        }
+      }
+      if (entry.promptCache?.strategy)
+        promptCacheStrategies.add(entry.promptCache.strategy);
+      if (entry.promptCache?.keySha256)
+        promptCacheKeyHashes.add(entry.promptCache.keySha256);
+      providerInvocations.push({
+        provider: entry.provider ?? null,
+        started_at: entry.startedAt ?? null,
+        status: entry.status ?? null,
+        first_content_latency_ms: entry.firstContentLatencyMs ?? null,
+        total_latency_ms: entry.totalLatencyMs ?? null,
+        provider_invocation_id: entry.providerInvocationId ?? null,
+        input_estimate: entry.inputEstimate ?? null,
+        components: entry.components ?? null,
+        usage: entry.usage ?? null,
+        context_round_start: firstRound,
+        context_round_count: (entry.rounds ?? []).length,
+        compaction_start: firstCompaction,
+        compaction_count: (entry.compactions ?? []).length,
+        prompt_cache: entry.promptCache ?? null,
+      });
+    }
+  }
+  if (["v13", "v14", "v15"].includes(arm) && providerInvocations.length !== 1) {
+    throw new Error(
+      `${arm} trajectory used ${providerInvocations.length} provider invocations; expected exactly one`,
+    );
+  }
+  if (
+    ["v13", "v14", "v15"].includes(arm) &&
+    (reportedServiceTiers.size !== 1 || !reportedServiceTiers.has("default"))
+  ) {
+    throw new Error(
+      `${arm} requires the provider-reported default tier; received ${[...reportedServiceTiers].join(",") || "no tier receipt"}`,
+    );
+  }
+  if (
+    ["v13", "v14", "v15"].includes(arm) &&
+    (promptCacheStrategies.size !== 1 ||
+      !promptCacheStrategies.has("session") ||
+      promptCacheKeyHashes.size !== 1)
+  ) {
+    throw new Error(
+      `${arm} requires one session-scoped prompt-cache key receipt; strategies=${[...promptCacheStrategies].join(",") || "none"}; keys=${promptCacheKeyHashes.size}`,
+    );
+  }
+  if (arm === "v14") {
+    const thresholdCrossingRounds = contextRounds.filter(
+      (round) =>
+        Number(
+          (round.usage as Record<string, unknown> | undefined)?.inputTokens ??
+            0,
+        ) >= 244_800 && Number(round.toolCallCount ?? 0) > 0,
+    );
+    const invalidCompactions = compactions.filter(
+      (compaction) =>
+        Number(compaction.thresholdTokens ?? 0) !== 244_800 ||
+        Number(compaction.outputItems ?? 0) < 1 ||
+        Number(compaction.outputBytes ?? 0) < 1,
+    );
+    if (
+      compactions.length !== thresholdCrossingRounds.length ||
+      invalidCompactions.length > 0
+    ) {
+      throw new Error(
+        `v14 compaction validity failed: threshold_crossings=${thresholdCrossingRounds.length}; compactions=${compactions.length}; invalid=${invalidCompactions.length}`,
+      );
     }
   }
   if (serviceTier) {
@@ -731,6 +1246,204 @@ async function main() {
     }
   }
 
+  const harnessSourceFiles = [
+    "scripts/lab-beaver-arm.ts",
+    "src/routes/chat.ts",
+    "src/lib/chat/evidenceExposure.ts",
+    "src/lib/chat/localAssistantTools.ts",
+    "src/lib/chat/prompts.ts",
+    "src/lib/chat/slaWorkflow.ts",
+    "src/lib/llm/codexApi.ts",
+    "src/lib/llm/contextManifest.ts",
+    "src/lib/llm/openai.ts",
+    "src/lib/llm/types.ts",
+  ];
+  const harnessSourceFingerprints = Object.fromEntries(
+    harnessSourceFiles.map((relative) => {
+      const bytes = readFileSync(path.join(__dirname, "..", relative));
+      return [relative, createHash("sha256").update(bytes).digest("hex")];
+    }),
+  );
+  const instructionsSha256 = createHash("sha256")
+    .update(instructions)
+    .digest("hex");
+  const sourceBundleSha256 = createHash("sha256")
+    .update(
+      JSON.stringify(
+        uploadedDocuments
+          .map((document) => ({
+            source: document.source,
+            source_sha256: document.source_sha256,
+            uploaded: document.uploaded,
+            uploaded_sha256: document.uploaded_sha256,
+          }))
+          .sort((left, right) => left.source.localeCompare(right.source)),
+      ),
+    )
+    .digest("hex");
+  const systemPromptFingerprints = [
+    ...new Set(
+      contextRounds.map((round) => String(round.instructionsSha256 ?? "")),
+    ),
+  ].filter(Boolean);
+  const toolSchemaFingerprints = [
+    ...new Set(contextRounds.map((round) => String(round.toolSha256 ?? ""))),
+  ].filter(Boolean);
+  const runFingerprintInput = {
+    task_sha256: splitEntry.sha256,
+    instructions_sha256: instructionsSha256,
+    source_bundle_sha256: sourceBundleSha256,
+    model,
+    effort,
+    service_tier_requested: serviceTier || null,
+    arm,
+    arm_environment: armEnvironment[arm],
+    harness_sources: harnessSourceFingerprints,
+    system_prompt_sha256s: systemPromptFingerprints,
+    tool_schema_sha256s: toolSchemaFingerprints,
+  };
+  const runFingerprintSha256 = createHash("sha256")
+    .update(JSON.stringify(runFingerprintInput))
+    .digest("hex");
+  const callsById = new Map(calls.map((call) => [call.id, call]));
+  const workingSetPagingResults = results.filter((result) => {
+    if (!["drafting", "continuous"].includes(result.phase ?? "")) return false;
+    const input = (callsById.get(result.id)?.input ?? {}) as Record<
+      string,
+      unknown
+    >;
+    return [input.path, input.file_path].some(
+      (value) =>
+        typeof value === "string" &&
+        value.replace(/\\/gu, "/").toLowerCase() ===
+          WORKING_SET_PATH.toLowerCase(),
+    );
+  });
+  const oversizedWorkingSetResults = workingSetPagingResults.filter(
+    (result) => result.content_chars > WORKING_SET_PAGE_MAX_CHARS,
+  );
+  if (
+    ["checkpoint_paged_v1", "continuous_coverage"].includes(arm) &&
+    oversizedWorkingSetResults.length
+  ) {
+    const diagnostics = oversizedWorkingSetResults.map((result) => ({
+      id: result.id,
+      name: result.name,
+      phase: result.phase,
+      content_chars: result.content_chars,
+      content_sha256: result.content_sha256,
+      input: callsById.get(result.id)?.input ?? null,
+    }));
+    writeFileSync(
+      path.join(runDir, "invalid-working-set-paging.json"),
+      JSON.stringify(
+        { cap_chars: WORKING_SET_PAGE_MAX_CHARS, results: diagnostics },
+        null,
+        2,
+      ),
+    );
+    throw new Error(
+      `working-set result exceeded ${WORKING_SET_PAGE_MAX_CHARS} chars: ${diagnostics
+        .map((result) => `${result.name}#${result.id}=${result.content_chars}`)
+        .join(", ")}`,
+    );
+  }
+  const providerTotalLatencyMs = providerInvocations.reduce(
+    (total, invocation) => total + Number(invocation.total_latency_ms ?? 0),
+    0,
+  );
+  const providerRequestCount =
+    contextRounds.reduce(
+      (total, round) => total + Number(round.requestAttempts ?? 0),
+      0,
+    ) + compactions.length;
+  const compactionUsageComplete = compactions.every((compaction) => {
+    const usage = compaction.usage as Record<string, unknown> | undefined;
+    return usage?.inputTokens != null && usage?.outputTokens != null;
+  });
+  const compactionReportedInputTokens = compactions.reduce(
+    (total, compaction) =>
+      total +
+      Number(
+        (compaction.usage as Record<string, unknown> | undefined)
+          ?.inputTokens ?? 0,
+      ),
+    0,
+  );
+  const compactionEstimatedInputTokens = compactions.reduce(
+    (total, compaction) => {
+      const usage = compaction.usage as Record<string, unknown> | undefined;
+      return (
+        total +
+        (usage?.inputTokens == null
+          ? Number(compaction.estimatedInputTokens ?? 0)
+          : 0)
+      );
+    },
+    0,
+  );
+  const compactionLatencyMs = compactions.reduce(
+    (total, compaction) => total + Number(compaction.latencyMs ?? 0),
+    0,
+  );
+  const cacheReadRatio =
+    cacheReadReportingComplete && inputTokens > 0
+      ? cacheReadInputTokens / inputTokens
+      : null;
+  const cacheWriteRatio =
+    cacheWriteReportingComplete && inputTokens > 0
+      ? cacheWriteInputTokens / inputTokens
+      : null;
+  const knownCacheReadTokens = Math.min(cacheReadInputTokens, inputTokens);
+  const nonReadInputTokens = Math.max(0, inputTokens - knownCacheReadTokens);
+  const knownCacheWriteTokens = Math.min(
+    cacheWriteInputTokens,
+    nonReadInputTokens,
+  );
+  const cacheAdjustedInputTokenEquivalent =
+    cacheReadReportingComplete && cacheWriteReportingComplete
+      ? nonReadInputTokens -
+        knownCacheWriteTokens +
+        knownCacheReadTokens * 0.1 +
+        knownCacheWriteTokens * 1.25
+      : null;
+  const cacheAdjustedInputLowerBound = cacheReadReportingComplete
+    ? nonReadInputTokens + knownCacheReadTokens * 0.1
+    : inputTokens * 0.1;
+  const cacheAdjustedInputUpperBound = cacheReadReportingComplete
+    ? nonReadInputTokens * 1.25 + knownCacheReadTokens * 0.1
+    : inputTokens * 1.25;
+  const canonicalModel = model.replace(/^codex:/u, "");
+  const gpt56ApiRates = canonicalModel.endsWith("-sol")
+    ? { inputPerMillionUsd: 5, outputPerMillionUsd: 30 }
+    : canonicalModel.endsWith("-terra")
+      ? { inputPerMillionUsd: 2.5, outputPerMillionUsd: 15 }
+      : canonicalModel.endsWith("-luna")
+        ? { inputPerMillionUsd: 1, outputPerMillionUsd: 6 }
+        : null;
+  const apiCostUsd = (adjustedInputTokens: number) =>
+    gpt56ApiRates
+      ? (adjustedInputTokens * gpt56ApiRates.inputPerMillionUsd +
+          outputTokens * gpt56ApiRates.outputPerMillionUsd) /
+        1_000_000
+      : null;
+  const apiPriceEquivalent = {
+    scope:
+      "GPT-5.6 public API price-equivalent; not Codex subscription quota or billing",
+    input_rate_per_million_usd:
+      gpt56ApiRates?.inputPerMillionUsd ?? null,
+    cached_read_multiplier: 0.1,
+    cache_write_multiplier: 1.25,
+    output_rate_per_million_usd:
+      gpt56ApiRates?.outputPerMillionUsd ?? null,
+    exact_usd:
+      cacheAdjustedInputTokenEquivalent == null
+        ? null
+        : apiCostUsd(cacheAdjustedInputTokenEquivalent),
+    lower_bound_usd: apiCostUsd(cacheAdjustedInputLowerBound),
+    upper_bound_usd: apiCostUsd(cacheAdjustedInputUpperBound),
+  };
+
   writeFileSync(
     path.join(runDir, "config.json"),
     JSON.stringify(
@@ -739,6 +1452,13 @@ async function main() {
         arm,
         task,
         task_sha256: splitEntry.sha256,
+        task_instructions_chars: instructions.length,
+        task_instructions_sha256: instructionsSha256,
+        source_bundle_sha256: sourceBundleSha256,
+        harness_source_fingerprints: harnessSourceFingerprints,
+        system_prompt_sha256s: systemPromptFingerprints,
+        tool_schema_sha256s: toolSchemaFingerprints,
+        run_fingerprint_sha256: runFingerprintSha256,
         run_id: runId,
         harness: "beaver-chat",
         reasoning_effort: effort,
@@ -746,15 +1466,39 @@ async function main() {
         service_tiers_reported: [...reportedServiceTiers],
         prompt_variant: arm === "upstream" ? "upstream-pinned" : "lean",
         retrieval_prompt_variant: retrievalPromptVariant,
-        tool_description_variant: toolDescriptionVariant,
+        tool_description_variant:
+          surface?.tool_description_variant ?? toolDescriptionVariant,
+        retrieval_experiment: surface?.retrieval_experiment ?? null,
         progressive_disclosure: arm !== "upstream",
         model_coverage_routing: surface?.model_coverage_routing === true,
         whole_read_max_chars: surface?.whole_read_max_chars ?? null,
+        tool_result_max_chars: surface?.tool_result_max_chars ?? null,
+        suppress_duplicate_whole_reads:
+          surface?.suppress_duplicate_whole_reads ?? null,
+        trajectory_mode: surface?.trajectory_mode ?? null,
         context_handoff: surface?.context_handoff === true,
+        continuous_evidence: surface?.continuous_evidence === true,
+        draft_handoff_mode: surface?.draft_handoff_mode ?? null,
+        research_checkpoint_max_chars:
+          surface?.research_checkpoint_max_chars ?? null,
+        initial_research_checkpoint_max_count:
+          surface?.initial_research_checkpoint_max_count ?? null,
+        draft_hot_evidence_max_chars:
+          surface?.draft_hot_evidence_max_chars ?? null,
+        working_set_page_max_chars:
+          surface?.working_set_page_max_chars ?? null,
+        working_set_grep_default_head_limit:
+          surface?.working_set_grep_default_head_limit ?? null,
+        working_set_grep_max_head_limit:
+          surface?.working_set_grep_max_head_limit ?? null,
+        working_set_grep_line_max_chars:
+          surface?.working_set_grep_line_max_chars ?? null,
         evidence_handoff_max_chars:
           surface?.evidence_handoff_max_chars ?? null,
         openai_compact_threshold:
           surface?.openai_compact_threshold ?? null,
+        prompt_cache_strategy: [...promptCacheStrategies],
+        prompt_cache_key_sha256s: [...promptCacheKeyHashes],
         upstream_mike_commit: arm === "upstream" ? UPSTREAM_MIKE_COMMIT : null,
         upstream_mike_schema_sha256:
           arm === "upstream" ? UPSTREAM_MIKE_SCHEMA_SHA256 : null,
@@ -776,18 +1520,89 @@ async function main() {
         run_id: runId,
         turn_count: 1,
         input_tokens: inputTokens,
+        logical_input_tokens: inputTokens,
         output_tokens: outputTokens,
+        reasoning_tokens: reasoningTokens,
         total_tokens: inputTokens + outputTokens,
         cache_read_input_tokens: cacheReadInputTokens,
         cache_write_input_tokens: cacheWriteInputTokens,
+        cache_read_reporting_complete: cacheReadReportingComplete,
+        cache_write_reporting_complete: cacheWriteReportingComplete,
+        cache_read_ratio: cacheReadRatio,
+        cache_write_ratio: cacheWriteRatio,
+        uncached_input_tokens:
+          cacheReadReportingComplete && cacheWriteReportingComplete
+            ? Math.max(
+                0,
+                inputTokens -
+                  cacheReadInputTokens -
+                  cacheWriteInputTokens,
+              )
+            : null,
+        cache_adjusted_input_token_equivalent:
+          cacheAdjustedInputTokenEquivalent,
+        cache_adjusted_input_lower_bound: cacheAdjustedInputLowerBound,
+        cache_adjusted_input_upper_bound: cacheAdjustedInputUpperBound,
+        api_price_equivalent: apiPriceEquivalent,
         token_source: tokenSource,
         service_tier_requested: serviceTier || null,
         service_tiers_reported: [...reportedServiceTiers],
         model_coverage_routing: surface?.model_coverage_routing === true,
         whole_read_max_chars: surface?.whole_read_max_chars ?? null,
+        tool_result_max_chars: surface?.tool_result_max_chars ?? null,
+        suppress_duplicate_whole_reads:
+          surface?.suppress_duplicate_whole_reads ?? null,
+        trajectory_mode: surface?.trajectory_mode ?? null,
+        continuous_evidence: surface?.continuous_evidence === true,
+        working_set_page_max_chars:
+          surface?.working_set_page_max_chars ?? null,
+        working_set_grep_default_head_limit:
+          surface?.working_set_grep_default_head_limit ?? null,
+        working_set_grep_max_head_limit:
+          surface?.working_set_grep_max_head_limit ?? null,
+        working_set_grep_line_max_chars:
+          surface?.working_set_grep_line_max_chars ?? null,
         wall_clock_seconds: Math.round(wallClock * 100) / 100,
+        provider_invocation_count: providerInvocations.length,
+        provider_request_count: providerRequestCount,
+        provider_total_latency_ms: providerTotalLatencyMs,
+        provider_invocations: providerInvocations,
+        prompt_cache_strategies: [...promptCacheStrategies],
+        prompt_cache_key_sha256s: [...promptCacheKeyHashes],
+        compaction_count: compactions.length,
+        compaction_usage_complete: compactionUsageComplete,
+        compaction_reported_input_tokens: compactionReportedInputTokens,
+        compaction_estimated_input_tokens: compactionEstimatedInputTokens,
+        compaction_latency_ms: compactionLatencyMs,
+        compaction_request_input_bytes: compactions.reduce(
+          (total, compaction) =>
+            total + Number(compaction.requestInputBytes ?? 0),
+          0,
+        ),
+        compaction_output_bytes: compactions.reduce(
+          (total, compaction) => total + Number(compaction.outputBytes ?? 0),
+          0,
+        ),
+        compaction_compression_ratio: compactions.length
+          ? compactions.reduce(
+              (total, compaction) =>
+                total + Number(compaction.outputBytes ?? 0),
+              0,
+            ) /
+            Math.max(
+              1,
+              compactions.reduce(
+                (total, compaction) =>
+                  total + Number(compaction.requestInputBytes ?? 0),
+                0,
+              ),
+            )
+          : null,
+        compactions,
         finished_cleanly: true,
         completed_at: new Date().toISOString(),
+        deliverable_count: deliverableReceipts.length,
+        deliverable_receipts: deliverableReceipts,
         documents_ingested: documents.length,
         documents_read_directly: new Set(
           calls.flatMap((call) => {
@@ -823,7 +1638,12 @@ async function main() {
         documents_exposed: exposure.documents_exposed,
         total_documents: documents.length,
         source_text_chars: sourceTextChars,
-        failed_tool_calls: results.filter((result) => !result.ok).length,
+        failed_tool_calls: results.filter(
+          (result) => !result.ok && !result.checkpoint_gate,
+        ).length,
+        checkpoint_gate_calls: results.filter(
+          (result) => Boolean(result.checkpoint_gate),
+        ).length,
         zero_yield_tool_calls: results.filter((result) => result.zero_yield).length,
         tool_call_count: calls.length,
         tool_result_chars: results.reduce(
@@ -833,6 +1653,27 @@ async function main() {
         duplicate_read_calls: results.filter((result) => result.already_read)
           .length,
         duplicate_exposure_calls: results.filter(
+          (result) => result.already_exposed,
+        ).length,
+        research_tool_calls: results.filter(
+          (result) => result.phase === "research",
+        ).length,
+        drafting_tool_calls: results.filter(
+          (result) => result.phase === "drafting",
+        ).length,
+        continuous_tool_calls: results.filter(
+          (result) => result.phase === "continuous",
+        ).length,
+        working_set_paging_calls: workingSetPagingResults.length,
+        working_set_paging_result_chars: workingSetPagingResults.reduce(
+          (total, result) => total + result.content_chars,
+          0,
+        ),
+        working_set_paging_max_result_chars: Math.max(
+          0,
+          ...workingSetPagingResults.map((result) => result.content_chars),
+        ),
+        working_set_paging_duplicate_calls: workingSetPagingResults.filter(
           (result) => result.already_exposed,
         ).length,
         not_found_tool_calls: results.filter(
@@ -849,7 +1690,27 @@ async function main() {
         ).length,
         research_context_refresh_count: researchContextRefreshes.length,
         research_context_refreshes: researchContextRefreshes,
+        research_checkpoint_request_count: researchCheckpointRequests.length,
+        research_checkpoint_requests: researchCheckpointRequests,
+        research_checkpoint_count: researchCheckpoints.length,
+        research_checkpoints: researchCheckpoints,
+        initial_research_checkpoint_count: initialResearchCheckpoints.length,
+        initial_research_checkpoint_max_count:
+          surface?.initial_research_checkpoint_max_count ?? null,
+        research_checkpoint_failure_count: researchCheckpointFailures.length,
+        research_checkpoint_failures: researchCheckpointFailures,
+        checkpoint_handoff_hash_mismatch_count:
+          checkpointHandoffMismatches.length,
+        checkpoint_handoff_hash_audit: checkpointHandoffAudit,
         evidence_handoff: evidenceHandoff,
+        evidence_handoff_count: evidenceHandoffs.length,
+        evidence_handoffs: evidenceHandoffs,
+        evidence_orientation_chars: Number(
+          evidenceHandoff?.orientation_chars ?? 0,
+        ),
+        evidence_working_set: evidenceWorkingSetArtifact,
+        evidence_working_set_update_count: evidenceWorkingSetUpdates.length,
+        evidence_working_set_updates: evidenceWorkingSetUpdates,
         context_round_count: contextRounds.length,
         context_rounds: contextRounds,
         context_tool_schema_variants: new Set(
@@ -869,6 +1730,22 @@ async function main() {
         ),
         suppressed_source_chars: results.reduce(
           (total, result) => total + result.suppressed_source_chars,
+          0,
+        ),
+        union_unique_source_chars: results.reduce(
+          (total, result) => total + result.union_unique_source_chars,
+          0,
+        ),
+        union_suppressed_source_chars: results.reduce(
+          (total, result) => total + result.union_suppressed_source_chars,
+          0,
+        ),
+        reviewed_union_reuse_calls: results.filter(
+          (result) => result.reviewed_union_reuse_source_chars > 0,
+        ).length,
+        reviewed_union_reuse_source_chars: results.reduce(
+          (total, result) =>
+            total + result.reviewed_union_reuse_source_chars,
           0,
         ),
         ...exposure,
@@ -903,14 +1780,33 @@ async function main() {
         tool_results: results,
         surface,
         research_context_refreshes: researchContextRefreshes,
+        research_checkpoint_requests: researchCheckpointRequests,
+        research_checkpoints: researchCheckpoints,
+        research_checkpoint_failures: researchCheckpointFailures,
+        checkpoint_handoff_hash_audit: checkpointHandoffAudit,
         evidence_handoff: evidenceHandoff,
+        evidence_handoffs: evidenceHandoffs,
+        evidence_working_set: evidenceWorkingSetArtifact,
+        evidence_working_set_updates: evidenceWorkingSetUpdates,
         uploaded_documents: uploadedDocuments,
         source_receipts: sourceReceipts,
         context_rounds: contextRounds,
+        compactions,
+        prompt_cache: {
+          strategies: [...promptCacheStrategies],
+          key_sha256s: [...promptCacheKeyHashes],
+          cache_read_reporting_complete: cacheReadReportingComplete,
+          cache_write_reporting_complete: cacheWriteReportingComplete,
+          api_price_equivalent: apiPriceEquivalent,
+        },
+        provider_invocations: providerInvocations,
+        run_fingerprint: runFingerprintInput,
+        run_fingerprint_sha256: runFingerprintSha256,
         wrapped_uploads: wrappedUploads,
         deliverables,
         docs_created: authored.map((doc) => doc.filename),
         deliverable_sources: deliverableSources,
+        deliverable_receipts: deliverableReceipts,
         research_tools_disabled: true,
         upstream_mike_commit: arm === "upstream" ? UPSTREAM_MIKE_COMMIT : null,
         upstream_mike_schema_sha256:

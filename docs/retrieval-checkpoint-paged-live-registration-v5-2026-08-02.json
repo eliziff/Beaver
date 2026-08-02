@@ -1,0 +1,186 @@
+{
+  "schema_version": 1,
+  "registered_at": "2026-08-02T11:59:00Z",
+  "status": "registered_before_performer_calls",
+  "experiment_class": "authorized_codex_luna_visible_development_side_run",
+  "claim_scope": "Codex/Luna visible-development comparison only; not pooled with canonical Claude-Code A/B cells or held-out evidence.",
+  "objective": "Test whether bounded checkpointed research plus exact demand paging matches or beats comparable frozen upstream Mike under one fixed Codex Sol judge while using fewer provider-reported total tokens.",
+  "supersedes": {
+    "checkpoint_paged_v1_v2_v3": "Excluded before scoring for missing handoff/phase validity, unbounded research, or an over-cap mounted result, as recorded in the prior registrations.",
+    "checkpoint_paged_v4": {
+      "registration": "retrieval-checkpoint-paged-live-registration-v4-2026-08-02.json",
+      "score_status": "excluded_before_scoring",
+      "reason": "CoC and tax were clean and efficient, but indenture requested a ninth initial evidence batch after eight checkpoints. The generation therefore failed the bounded-initial-research gate and its otherwise valid cells remain diagnostics only.",
+      "diagnostics": {
+        "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts": {
+          "total_tokens": 248383,
+          "provider_invocations": 8,
+          "context_rounds": 10,
+          "initial_checkpoints": 3,
+          "drafting_rounds": 2,
+          "working_set_paging_calls": 0,
+          "authored_docx": 1,
+          "service_tier_reported": "default"
+        },
+        "tax/draft-transfer-pricing-documentation": {
+          "total_tokens": 391290,
+          "provider_invocations": 8,
+          "context_rounds": 13,
+          "initial_checkpoints": 3,
+          "drafting_rounds": 2,
+          "working_set_paging_calls": 0,
+          "authored_docx": 1,
+          "service_tier_reported": "default"
+        },
+        "capital-markets/draft-indenture-for-senior-secured-notes-offering": {
+          "stopped_provider_invocations": 17,
+          "stopped_context_rounds": 20,
+          "stopped_total_tokens": 568439,
+          "completed_initial_checkpoints": 8,
+          "ninth_evidence_batch_calls": 6,
+          "authored_docx": 0,
+          "service_tier_reported": "default"
+        }
+      }
+    }
+  },
+  "candidate": {
+    "generation": "checkpoint_paged_v5",
+    "cli_arm": "checkpoint_paged_v1",
+    "performer_model": "codex:gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "service_tier_argument": null,
+    "required_service_tier_reported": "default",
+    "research_checkpoint_max_chars": 12000,
+    "initial_research_checkpoint_max_count": 4,
+    "draft_hot_evidence_max_chars": 24000,
+    "working_set_page_max_chars": 24000,
+    "exact_evidence_union_path": ".mike/working-sets/evidence.txt",
+    "exact_evidence_union_host_sidecar": "evidence-working-set.json",
+    "run_ids": {
+      "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts": "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts/beaver-checkpoint-paged-v5-codex-gpt-5-6-luna/2026-08-02T11-59-00Z-r1",
+      "tax/draft-transfer-pricing-documentation": "tax/draft-transfer-pricing-documentation/beaver-checkpoint-paged-v5-codex-gpt-5-6-luna/2026-08-02T11-59-00Z-r1",
+      "capital-markets/draft-indenture-for-senior-secured-notes-offering": "capital-markets/draft-indenture-for-senior-secured-notes-offering/beaver-checkpoint-paged-v5-codex-gpt-5-6-luna/2026-08-02T11-59-00Z-r1"
+    }
+  },
+  "v5_general_correction": [
+    "Initial research is capped at four successful evidence checkpoints for every task. The fourth checkpoint prompt preserves residual uncertainty and requires readiness for drafting.",
+    "The host overrides a fourth continue_research=true to false and blocks further initial research calls; it directs the agent to open drafting.",
+    "The cap does not close research permanently. A draft/check pass can still gather a concrete missing fact, checkpoint it, remount the accreted exact union, and redraft.",
+    "Checkpoint responses/events, benchmark surface, handoff, config, metrics, and fail-closed validation record the checkpoint number, requested/effective continuation, cap, and cap-reached status."
+  ],
+  "held_constant": {
+    "base_prompt": "lean",
+    "retrieval_prompt_variant": "neutral",
+    "tool_description_variant": "operational",
+    "navigation_shape": "address",
+    "tool_shape": "coding",
+    "retrieval_experiment": "h4-legal-grep",
+    "model_coverage_routing": true,
+    "whole_read_max_chars": 800000,
+    "progressive_disclosure": true,
+    "sla_workflow": "full",
+    "greenfield_review": false,
+    "provider_compaction": false,
+    "research_tools": false,
+    "ask_inputs": false,
+    "split": "visible Harvey LAB development tasks only"
+  },
+  "tasks": [
+    {
+      "task": "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts",
+      "split_sha256": "c0d270c324eaaeb13a47eb2df309baf468270e4ca04b686e4ed27632a3d36f7d",
+      "instructions_chars": 200,
+      "instructions_sha256": "804acb88a976238cbdf65027b4c873142cfec3c84c9773992e256e40ae02c8a4",
+      "source_documents": 19,
+      "source_bundle_sha256": "f778c5ef888a841432ee70a34d1a8c0d4b0c947a0d19509b4a3834635b23f0e2"
+    },
+    {
+      "task": "tax/draft-transfer-pricing-documentation",
+      "split_sha256": "9886979ad0409f300ccb78413abc4bda020fcde1f288d879d61e59eff1c85957",
+      "instructions_chars": 202,
+      "instructions_sha256": "baa067a9d481a31b85cb9a47a3eebfbc6620e2c5cd23b87e71b2b4f1741d05b7",
+      "source_documents": 25,
+      "source_bundle_sha256": "bc8d591498a818501b7a388d5b93575c5a98f03b25edb2f009f9d166fe4a6647"
+    },
+    {
+      "task": "capital-markets/draft-indenture-for-senior-secured-notes-offering",
+      "split_sha256": "9eb0633b22a0a1e936eeba6980d7e44d23d7f89fc581dfd1697dd3420f34b62a",
+      "instructions_chars": 243,
+      "instructions_sha256": "d9b4b8460380ace783ca538f417843d2edf8f997f0ec3f622f5ea6aebf2f5675",
+      "source_documents": 14,
+      "source_bundle_sha256": "d30b7b0ad6d8c8327f80d8137d4e8c30db52816f8fdfd7b3f08f492a17a82303"
+    }
+  ],
+  "run_policy": {
+    "candidate_concurrency": 3,
+    "replicates": 1,
+    "trace_gate": "Before scoring, inspect exact task/source/code/prompt/tool/config hashes, default tier, requested/effective checkpoint decisions, handoff/working-set receipts, page grants and sizes, phase behavior, cache/tokens/latency, and evaluator-readable artifacts.",
+    "fix_policy": "Only a request-independent shared defect permits another generation; no task-specific prompt, router, rubric, or benchmark hint is allowed.",
+    "scoring_exclusions": "Full-rehydration and checkpoint generations v1-v4 are diagnostics only."
+  },
+  "comparators": {
+    "upstream": {
+      "surface": "isolated pinned upstream Mike",
+      "reuse_if_verified": "tool-surface-varied-luna-high-v1/upstream/tax/draft-transfer-pricing-documentation",
+      "fresh_tasks": [
+        "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts",
+        "capital-markets/draft-indenture-for-senior-secured-notes-offering"
+      ],
+      "required_match": "Exact task/source bytes, codex:gpt-5.6-luna, high effort, actual default tier, one replicate, and fixed Sol judging."
+    },
+    "pure_coding": {
+      "arm": "coding_finalist",
+      "fresh_tasks": [
+        "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts",
+        "tax/draft-transfer-pricing-documentation",
+        "capital-markets/draft-indenture-for-senior-secured-notes-offering"
+      ]
+    }
+  },
+  "judge": {
+    "model": "codex/gpt-5.6-sol",
+    "parallel": 6,
+    "temperature": 0.0,
+    "process_priority_class": "BelowNormal",
+    "replicates": 1,
+    "same_configuration_for_all_cells": true,
+    "ranking_order": [
+      "passed criteria and all-pass status",
+      "context behavior",
+      "provider-reported total tokens",
+      "wall/provider latency",
+      "coverage",
+      "tool behavior"
+    ]
+  },
+  "acceptance_gate": {
+    "accuracy": "Candidate aggregate must match or exceed comparable upstream; an unexplained task regression fails a tie.",
+    "tokens": "Candidate aggregate must use fewer provider-reported total tokens than upstream and, absent an explained accuracy gain, fewer per task.",
+    "structure": "Every requested DOCX must be authored in drafting, non-empty, evaluator-readable, and have an exact SHA-256 receipt.",
+    "checkpoint": "Every evidence delta is reviewed and checkpointed; at most four initial checkpoints; targeted post-draft research remains checkpointed before redraft.",
+    "paging": "Exact union remains host-side; checkpoint <=12000, hot packet/page <=24000; only exact Grep grants and same-line continuations open mounted Read; first fresh reads remain visible and same-context duplicates are bounded.",
+    "fail_closed": "Tier, structure, receipts, fingerprints, caps, or comparator mismatch blocks scoring or the architectural claim."
+  },
+  "source_fingerprints": {
+    "base_commit": "cbfa8f90528754264b0afc348c3c955bf24d4d60",
+    "backend/scripts/lab-beaver-arm.ts": "29d23bce760c3992bce4beec4e53f319341f750dc375b869dea030870714551f",
+    "backend/src/routes/chat.ts": "01a54c9f8f1ef2de62002d0f151aeda6a666ba6ff625d90859da876e666864f0",
+    "backend/src/lib/chat/evidenceExposure.ts": "6cb8729a4c5451500d3bf3dc8a669e43a8af974ce979826d4d9792ed4abd5a54",
+    "backend/src/lib/chat/localAssistantTools.ts": "88c6dbefe2c4c326ad7a320be1c74508f98f167c14b976cc6154aa8b7c602b7c",
+    "backend/src/lib/chat/prompts.ts": "05f01db45d005d054b7d71bc3fd86d52f592fbb0b4187839d5879b0f90b99a83",
+    "backend/src/lib/chat/slaWorkflow.ts": "561bbedb4aa088136cbc0a5349a4146113c39cb9db37844db84934b044c35af9",
+    "backend/src/lib/llm/openai.ts": "f67d3d14f1b081f9f2ea1fb843998701e20eee0f4fab50480e2cf3f03c919892",
+    "backend/src/lib/llm/types.ts": "3ae23c053755a41250de400d3d06523c292650d8ee97eec9844a7ffe62a7564c",
+    "benchmarks/harvey-labs/evaluation/judge.py": "61979c7613e519fcd37ecfba8d241f979f0320e575cd7a3923c0278aa4577cb7",
+    "backend/src/lib/chat/__tests__/evidenceExposure.test.ts": "092009e7e53d98eb0b053426cd695b2496cc265e295cc564b9a2e93832bd24c5",
+    "backend/src/lib/chat/__tests__/localToolWiring.test.ts": "716628ee7e1101130926cb6028469ae9e55c6d0d77ce5f961a32b23ddc075f85"
+  },
+  "dynamic_fingerprint_policy": "Each result config must preserve exact system-prompt/tool-schema SHA-256 sets and the combined run fingerprint from the real sealed context manifest; random uploaded ids make these dynamic hashes unknowable until launch.",
+  "preflight": {
+    "focused_backend_tests": "115 passed",
+    "backend_build": "passed",
+    "full_backend_tests": "pending final release gate",
+    "judge_regression": "pending final release gate"
+  }
+}

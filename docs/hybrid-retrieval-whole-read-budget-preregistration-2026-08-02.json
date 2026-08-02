@@ -1,0 +1,134 @@
+{
+  "schema_version": 1,
+  "registered_at": "2026-08-02T06:23:59Z",
+  "status": "registered_before_v2_model_calls",
+  "experiment_class": "authorized_codex_luna_visible_development_side_run",
+  "claim_scope": "Not a canonical controlled A/B and not pooled with Claude/Qwen canonical harness results.",
+  "protocol_deviation": {
+    "recorded_after_first_pair_generation_before_scoring": true,
+    "reason": "The known Codex subscription /fast no-op recurred: both CoC arms requested fast and both provider receipts reported default. Because the actual tier was identical, the outputs are retained; later cells omit the dead convenience flag.",
+    "inference": "Tier is excluded as an experimental variable. Accuracy remains paired at provider-reported default; latency is reported as default-tier latency. No cell is rerun solely for this receipt mismatch."
+  },
+  "objective": "Combine the bounded-matter accuracy of complete reads with the large-corpus accuracy and efficiency of targeted legal retrieval, without classifying task wording or legal domain.",
+  "prior_evidence": {
+    "coverage_finalist_v1": "Beat pinned upstream Mike 444/548 to 432/548 across nine LAB tasks, but used 1.41x tokens and failed the preregistered regression guard on change-of-control and tax after reading 0.92M and 1.17M source characters completely.",
+    "targeted_change_of_control": "The earlier targeted hybrid scored 52/57 with about 338k tokens, versus 47/57 for upstream and 43/57 for the v1 complete-read hybrid.",
+    "complete_read_counterexample": "The current complete-read hybrid scored 72/83 on indenture drafting versus 71/83 upstream, while an earlier targeted indenture run scored 56/83. The primary precedent and drafting scaffold therefore must remain eligible for complete reads.",
+    "correctness_defect": "Glob claimed to report extracted character and line counts but returned filenames only. V2 fixes the model-facing contract before either arm runs."
+  },
+  "held_constant": {
+    "performer_model": "codex:gpt-5.6-luna",
+    "performer_route": "Codex subscription backend using the existing flat-rate provider adapter",
+    "reasoning_effort": "high",
+    "service_tier_requested": "fast on the first CoC pair, omitted thereafter",
+    "required_service_tier_receipt": "default for every counted cell",
+    "base_prompt": "lean",
+    "retrieval_prompt_variant": "neutral",
+    "tool_description_variant": "operational",
+    "retrieval_experiment": "h4-legal-grep",
+    "context_handoff": true,
+    "evidence_handoff_max_chars": 800000,
+    "handoff_cap_policy": "exact; the former undocumented 2x auto-carry exception is removed",
+    "sla_workflow": "full",
+    "greenfield_review": false,
+    "research_tools": false,
+    "ask_inputs": false,
+    "split": "visible Harvey LAB development tasks only",
+    "upstream_commit": "e89d3230db40193c540a6b38d8f301ae76377a1a",
+    "upstream_schema_sha256": "78f2e1dfaa7f2c5a62dcc52531804373e998ee002fe783e7767a10113e7a87fc"
+  },
+  "arms": {
+    "coverage_soft_v2": {
+      "purpose": "Minimal ablation: test whether truthful inventory sizes and neutral model guidance are sufficient.",
+      "policy": "The model may choose complete fetch_documents reads, Grep plus bounded Read, or both. The host does not enforce a whole-read budget.",
+      "environment": {
+        "MIKE_NAV_SHAPE": "address",
+        "MIKE_TOOL_SHAPE": "coding",
+        "MIKE_RETRIEVAL_EXPERIMENT": "h4-legal-grep",
+        "MIKE_MODEL_COVERAGE_ROUTING": "1",
+        "MIKE_WHOLE_READ_MAX_CHARS": "",
+        "MIKE_CONTEXT_HANDOFF": "1",
+        "MIKE_EVIDENCE_HANDOFF_MAX_CHARS": "800000",
+        "MIKE_OPENAI_COMPACT_THRESHOLD": "",
+        "MIKE_SLA_WORKFLOW": "1",
+        "MIKE_SLA_STRATEGY": "full",
+        "MIKE_GREENFIELD_REVIEW": "0"
+      }
+    },
+    "coverage_hybrid_v2": {
+      "purpose": "General mixed-coverage policy with one context-economic guardrail.",
+      "policy": "Complete-document reads share a cumulative 800000-character budget for the turn. A projected overage returns a typed selection_required receipt without exposing partial text. Grep and bounded Read remain available for supporting evidence beyond that budget.",
+      "environment": {
+        "MIKE_NAV_SHAPE": "address",
+        "MIKE_TOOL_SHAPE": "coding",
+        "MIKE_RETRIEVAL_EXPERIMENT": "h4-legal-grep",
+        "MIKE_MODEL_COVERAGE_ROUTING": "1",
+        "MIKE_WHOLE_READ_MAX_CHARS": "800000",
+        "MIKE_CONTEXT_HANDOFF": "1",
+        "MIKE_EVIDENCE_HANDOFF_MAX_CHARS": "800000",
+        "MIKE_OPENAI_COMPACT_THRESHOLD": "",
+        "MIKE_SLA_WORKFLOW": "1",
+        "MIKE_SLA_STRATEGY": "full",
+        "MIKE_GREENFIELD_REVIEW": "0"
+      }
+    }
+  },
+  "budget_rationale": {
+    "task_router": false,
+    "request_text_used": false,
+    "file_count_used": false,
+    "legal_domain_used": false,
+    "basis": "Reuse the 800000-character exact-evidence cap registered before the v1 matrix. The value is fixed for the held-constant performer model; it was not selected from a task name, keyword, or desired route.",
+    "shipping_note": "A production budget should eventually come from provider context capabilities and measured usable-context policy. This experiment tests the behavior before adding that capability plumbing."
+  },
+  "sentinel_matrix": [
+    {
+      "task": "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts",
+      "reason": "Large exhaustive contract set where targeted retrieval previously won decisively."
+    },
+    {
+      "task": "tax/draft-transfer-pricing-documentation",
+      "reason": "Largest source union and a v1 accuracy regression."
+    },
+    {
+      "task": "capital-markets/draft-indenture-for-senior-secured-notes-offering",
+      "reason": "Large drafting task where complete precedent coverage beat targeted retrieval."
+    },
+    {
+      "task": "white-collar-defense-investigations/analyze-counterparty-markup-of-deferred-prosecution-agreement",
+      "reason": "Medium source union where v1 complete coverage gained seven criteria."
+    },
+    {
+      "task": "antitrust-competition/analyze-antitrust-hsr-strategy",
+      "reason": "Medium-large synthesis task where v1 complete coverage gained five criteria."
+    }
+  ],
+  "run_policy": {
+    "performer_calls": "Run both v2 arms once on every sentinel before changing either arm.",
+    "scoring": "Use the same fixed Codex gpt-5.6-sol LAB judge for both v2 arms and the existing uniformly judged upstream/v1 cells.",
+    "expansion": "Expand the winning v2 lane to the remaining four registered LAB tasks only after the sentinel gate is assessed.",
+    "no_posthoc_prompt_edits": true
+  },
+  "primary_gate": {
+    "accuracy": "Across the five sentinels, the selected v2 lane must exceed pinned upstream Mike in total criteria and unweighted mean task pass rate.",
+    "large_context": "The selected lane must not trail upstream on the combined change-of-control plus tax criteria total.",
+    "preservation": "It may not trail upstream by more than five percentage points on any sentinel.",
+    "efficiency": "Among lanes that clear accuracy, prefer lower total tokens, source exposure, tool calls, and latency in that order. Efficiency cannot excuse lower accuracy."
+  },
+  "ablation_questions": [
+    "Does truthful source sizing alone cause the soft lane to stop reading oversized corpora completely?",
+    "Does the hard lane use its budget for primary instruments and Grep/Read for supporting sources, rather than repeatedly testing the guard?",
+    "Does either lane preserve the complete-read gains on DPA, HSR, and the indenture precedent?",
+    "Are any misses caused by retrieval absence, handoff selection, context attention, drafting, deterministic repair, or judge noise?",
+    "Does cumulative whole-read enforcement materially reduce context and tokens without reducing accuracy?"
+  ],
+  "source_fingerprints": {
+    "base_commit": "569a3a908dec842c240316e873206ac086eac318",
+    "backend/src/lib/chat/localAssistantTools.ts": "5619eab52bce1409c65b562aa41ee0252c207247731d005e51d77927ae8bbd66",
+    "backend/src/lib/chat/prompts.ts": "05f01db45d005d054b7d71bc3fd86d52f592fbb0b4187839d5879b0f90b99a83",
+    "backend/src/lib/chat/evidenceExposure.ts": "5c4ea0727ba475bf55d96f714b949e31238760b5913feb57a38bc0c4ffd51acb",
+    "backend/src/lib/chat/slaWorkflow.ts": "561bbedb4aa088136cbc0a5349a4146113c39cb9db37844db84934b044c35af9",
+    "backend/src/routes/chat.ts": "339a997fca795336988206ac8bf97a5621bb21d44022c531e07289c615a89081",
+    "backend/scripts/lab-beaver-arm.ts": "201d5c34bd3d645a563c4f71db005f5b9987c14b823d054f3e2be72a4287c17c"
+  }
+}

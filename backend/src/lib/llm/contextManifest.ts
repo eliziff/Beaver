@@ -2,6 +2,7 @@ import { appendFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { legalDataHome } from "../legalDataPath";
 import type {
+  LlmCompactionReceipt,
   LlmContextRoundReceipt,
   NormalizedLlmUsage,
   Provider,
@@ -43,6 +44,10 @@ export type LlmContextManifest = {
   usage: NormalizedLlmUsage;
   providerInvocationId: string | null;
   rounds: LlmContextRoundReceipt[];
+  compactions: LlmCompactionReceipt[];
+  promptCache:
+    | { strategy: "none"; keySha256: null }
+    | { strategy: "session"; keySha256: string };
   compaction:
     | { strategy: "none"; reason: null; checkpointId: null }
     | {
@@ -164,6 +169,13 @@ export function buildContextManifest(
     usage: args.result?.usage ?? { ...EMPTY_USAGE },
     providerInvocationId: args.result?.providerInvocationId ?? null,
     rounds: args.result?.contextRounds ?? [],
+    compactions: args.result?.compactions ?? [],
+    promptCache: args.result?.promptCacheKeySha256
+      ? {
+          strategy: "session",
+          keySha256: args.result.promptCacheKeySha256,
+        }
+      : { strategy: "none", keySha256: null },
     compaction: args.params.compactThreshold
       ? {
           strategy: "provider",

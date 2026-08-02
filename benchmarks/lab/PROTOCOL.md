@@ -196,3 +196,91 @@ Rules of engagement:
   once against a pre-registered harness commit.
 - Deterministic-grammar changes additionally validate on non-LAB corpora
   (A2AJ, Desktop/legal-generalization-corpus) before landing.
+
+## Publishable three-way extension (planned 2026-08-02)
+
+The engineering Luna runs are visible-development side runs. They can inform
+the candidate but are not pooled with, or presented as, the canonical harness
+comparison. A publishable claim uses one model and transport held constant
+across all three arms:
+
+1. LAB reference harness: the official six-tool file-workspace harness.
+2. Pinned upstream Mike: commit
+   `e89d3230db40193c540a6b38d8f301ae76377a1a`, schema SHA-256
+   `78f2e1dfaa7f2c5a62dcc52531804373e998ee002fe783e7767a10113e7a87fc`.
+3. Beaver candidate: one frozen commit and one pre-registered configuration.
+
+### Pre-spend conformance gates
+
+- Pin the LAB source. The existing split was made from upstream prerequisite
+  commit `83f9b389ba51db3af00fdad07f744d48f3951b2e`; published LAB v1.0 resolves
+  to `1da4750171bc5a534960b3d82d15ba7fd2cf653f`. Verify task hashes before
+  choosing either label; do not silently mix corpus revisions.
+- Use one neutral `claude -p` transport envelope, CLI version, account,
+  model slug, and HIGH effort for all arms. The current LAB adapter is not a
+  valid control yet: unlike Beaver, it does not disable Claude Code's native
+  tools, settings, skills, MCP servers, and slash commands. Align those flags,
+  retry semantics, and token accounting, then leave only each harness's own
+  prompt, tools, state, and document handling different.
+- Send identical task-instruction bytes and document bytes. Keep rubrics and
+  task configuration inaccessible to performers, disable network research,
+  and verify every input against `corpus-split.json`.
+- Give every arm the same host backstop (200 provider iterations and three
+  hours). Natural stopping and native prompt guidance remain part of the
+  harness; a capped or context-overflowed run counts as a failed run, not an
+  infrastructure rerun.
+- Gate upstream Mike by exact prompt, tool names, schema order, and hashes on
+  every run. For the primary retrieval claim, pre-register DOCX/Markdown
+  deliverable tasks that its pinned surface actually supports. A broader
+  artifact claim must add only upstream's own pinned Excel/PowerPoint tools,
+  not Beaver substitutes.
+- Run one unscored conformance smoke that asserts provider/model/effort,
+  disabled ambient tools, source hashes, tool-schema hashes, token basis,
+  output visibility, and evaluator inputs before touching validation or
+  sealed tasks.
+
+### Corpus and schedule
+
+- Tune only on the 60-task dev tier. Validation remains milestone-only and
+  blind to task documents and rubrics.
+- Freeze the winning Beaver commit before final evaluation. Select a
+  deterministic 120-task sealed sample, stratified without reading content by
+  practice area, work type, source bytes, document count, and output type.
+  Preserve the existing sibling-scenario grouping.
+- Interleave arms within task using a pre-generated balanced order. Run one
+  performer at a time for publishable latency; iteration runs may remain
+  parallel. Rerun only a pre-defined infrastructure failure that produced no
+  usable model output. A malformed call, bad retrieval choice, timeout after
+  model work, or invalid deliverable is system performance and stays scored.
+- Use one run per arm on all 120 sealed tasks, plus three repetitions on a
+  preselected 30-task stability subset. Do not inspect any sealed output until
+  all arms and repetitions have completed.
+
+### Scoring and claims
+
+- Blind arm identity before grading. Use the unchanged LAB rubric prompt and
+  identical deliverable extraction for every arm.
+- Primary judge: one fixed frontier judge over every criterion. Cross-family
+  audit: a second frontier judge scores every criterion once; persistent
+  disagreements are rerun twice per family and a stratified sample is reviewed
+  by a lawyer. Automatic rubric labels are never called human gold.
+- Headline metrics: task all-pass rate and macro mean per-task criterion pass
+  rate. Report paired arm deltas with 95% task-clustered bootstrap intervals;
+  criteria within a task are not independent observations.
+- Pre-register source-size quartiles. Report the top quartile separately to
+  test the actual doctrine: quality should rise or hold while unique source
+  exposure, gross replay, provider input, cache-miss input, tool failures, and
+  latency fall as matters grow.
+- Accuracy is the gate. Beaver must beat pinned upstream Mike in macro
+  criterion pass rate with a positive paired confidence interval and must not
+  trail it in all-pass rate. Efficiency breaks ties only after that gate.
+  Report LAB-reference results even if its pure coding tools win.
+- Publish commits, patches, manifests, configuration, aggregate scores,
+  confidence intervals, failure ledger, and metric definitions. Do not commit
+  corpora, credentials, model traces, caches, or generated deliverables.
+
+Harvey's private holdout numbers are a sanity check, not a replication target:
+the task sample differs. The closer methodological comparators are their
+120-task harness experiments, task-level bootstrap intervals, repeated
+cross-family grading, and separate reporting of quality, cost, latency, and
+agent behavior.

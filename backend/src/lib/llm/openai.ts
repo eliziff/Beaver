@@ -1,7 +1,9 @@
+import { randomUUID } from "node:crypto";
 import { throwIfAborted } from "./abort";
 import { requireApiKey } from "./apiKeys";
 import { encodeToolV3, schemaEncodingVariant } from "./schemaEncoding";
 import type {
+  LlmCompactionReceipt,
   LlmContextRoundReceipt,
   LlmMessage,
   NormalizedLlmUsage,
@@ -74,7 +76,10 @@ type ResponseStreamEvent = {
 type ResponseUsage = {
   input_tokens?: number;
   output_tokens?: number;
-  input_tokens_details?: { cached_tokens?: number };
+  input_tokens_details?: {
+    cached_tokens?: number;
+    cache_write_tokens?: number;
+  };
   output_tokens_details?: { reasoning_tokens?: number };
 };
 
@@ -89,6 +94,8 @@ export type ResponsesAdapterConfig = {
   serviceTier?: string;
   /** Extra request headers (e.g. ChatGPT-Account-ID for the Codex backend). */
   headers?: Record<string, string>;
+  /** Optional native `/responses/compact` endpoint for explicit-history transports. */
+  remoteCompactionEndpoint?: string;
   /**
    * The Codex subscription backend's Responses dialect: store must be false
    * and max_output_tokens is rejected as unsupported.
@@ -219,6 +226,7 @@ async function createResponse(params: {
   reasoning?: { summary?: "auto"; effort?: string };
   serviceTier?: string;
   compactThreshold?: number;
+  promptCacheKey?: string;
   apiKey: string;
   headers?: Record<string, string>;
   codexBackend?: boolean;
@@ -243,6 +251,7 @@ async function createResponse(params: {
       previous_response_id: params.previousResponseId,
       reasoning: params.reasoning,
       service_tier: params.serviceTier,
+      prompt_cache_key: params.promptCacheKey,
       ...(!params.codexBackend && params.compactThreshold
         ? {
             context_management: [
@@ -270,6 +279,75 @@ async function createResponse(params: {
   return response;
 }
 
+async function createCompactResponse(params: {
+  endpoint: string;
+  provider?: string;
+  model: string;
+  input: ResponseInputItem[];
+  instructions?: string;
+  tools?: ResponseFunctionTool[];
+  reasoning?: { summary?: "auto"; effort?: string };
+  serviceTier?: string;
+  promptCacheKey?: string;
+  apiKey: string;
+  headers?: Record<string, string>;
+  signal?: AbortSignal;
+}): Promise<{ output: ResponseInputItem[]; usage?: ResponseUsage }> {
+  const response = await fetch(params.endpoint, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${params.apiKey}`,
+      "Content-Type": "application/json",
+      ...params.headers,
+    },
+    body: JSON.stringify({
+      model: params.model,
+      input: params.input,
+      instructions: params.instructions || undefined,
+      tools: params.tools?.length ? params.tools : undefined,
+      parallel_tool_calls: true,
+      reasoning: params.reasoning,
+      service_tier: params.serviceTier,
+      prompt_cache_key: params.promptCacheKey,
+    }),
+    signal: params.signal,
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    const provider = params.provider ?? "OpenAI";
+    const err = new Error(
+      `${provider} compaction failed (${response.status}): ${text || response.statusText}`,
+    );
+    (err as { status?: number }).status = response.status;
+    throw err;
+  }
+
+  const payload = (await response.json()) as {
+    output?: unknown;
+    usage?: ResponseUsage;
+  };
+  if (!Array.isArray(payload.output)) {
+    throw new Error(`${params.provider ?? "OpenAI"} compaction returned no output`);
+  }
+  return {
+    output: payload.output as ResponseInputItem[],
+    ...(payload.usage ? { usage: payload.usage } : {}),
+  };
+}
+
+function normalizedUsage(reported?: ResponseUsage): NormalizedLlmUsage {
+  return {
+    inputTokens: reported?.input_tokens ?? null,
+    outputTokens: reported?.output_tokens ?? null,
+    reasoningTokens: reported?.output_tokens_details?.reasoning_tokens ?? null,
+    cacheReadInputTokens:
+      reported?.input_tokens_details?.cached_tokens ?? null,
+    cacheWriteInputTokens:
+      reported?.input_tokens_details?.cache_write_tokens ?? null,
+  };
+}
+
 export async function streamResponsesApi(
   params: StreamChatParams,
   config: ResponsesAdapterConfig,
@@ -292,10 +370,16 @@ export async function streamResponsesApi(
   let reportedServiceTier: string | undefined;
   let needsCourtlistenerCitationReminder = false;
   const contextRounds: LlmContextRoundReceipt[] = [];
+  const compactions: LlmCompactionReceipt[] = [];
+  const promptCacheKey = params.promptCacheKey?.trim() || randomUUID();
+  const promptCacheKeySha256 = sha256(promptCacheKey);
   let activeRound: LlmContextRoundReceipt | null = null;
   // Accumulated across tool-loop iterations; null until a response reports it.
   let usage: NormalizedLlmUsage | null = null;
-  const addUsage = (reported: ResponseUsage) => {
+  const addUsage = (
+    reported: ResponseUsage,
+    round: LlmContextRoundReceipt | null = activeRound,
+  ) => {
     // An all-zero report is "not reported", not a free request.
     if (!reported.input_tokens && !reported.output_tokens) return;
     usage ??= {
@@ -314,17 +398,26 @@ export async function streamResponsesApi(
     usage.cacheReadInputTokens =
       (usage.cacheReadInputTokens ?? 0) +
       (reported.input_tokens_details?.cached_tokens ?? 0);
-    if (activeRound) {
-      activeRound.usage.inputTokens =
-        (activeRound.usage.inputTokens ?? 0) + (reported.input_tokens ?? 0);
-      activeRound.usage.outputTokens =
-        (activeRound.usage.outputTokens ?? 0) + (reported.output_tokens ?? 0);
-      activeRound.usage.reasoningTokens =
-        (activeRound.usage.reasoningTokens ?? 0) +
+    const cacheWrite = reported.input_tokens_details?.cache_write_tokens;
+    if (cacheWrite != null) {
+      usage.cacheWriteInputTokens =
+        (usage.cacheWriteInputTokens ?? 0) + cacheWrite;
+    }
+    if (round) {
+      round.usage.inputTokens =
+        (round.usage.inputTokens ?? 0) + (reported.input_tokens ?? 0);
+      round.usage.outputTokens =
+        (round.usage.outputTokens ?? 0) + (reported.output_tokens ?? 0);
+      round.usage.reasoningTokens =
+        (round.usage.reasoningTokens ?? 0) +
         (reported.output_tokens_details?.reasoning_tokens ?? 0);
-      activeRound.usage.cacheReadInputTokens =
-        (activeRound.usage.cacheReadInputTokens ?? 0) +
+      round.usage.cacheReadInputTokens =
+        (round.usage.cacheReadInputTokens ?? 0) +
         (reported.input_tokens_details?.cached_tokens ?? 0);
+      if (cacheWrite != null) {
+        round.usage.cacheWriteInputTokens =
+          (round.usage.cacheWriteInputTokens ?? 0) + cacheWrite;
+      }
     }
   };
   const trace = createLlmTrace({ provider: config.provider, model });
@@ -337,6 +430,14 @@ export async function streamResponsesApi(
         systemPrompt,
         needsCourtlistenerCitationReminder,
       );
+      const reasoning =
+        enableThinking || params.reasoningEffort
+          ? {
+              summary:
+                enableThinking && config.reasoningSummary ? "auto" as const : undefined,
+              effort: params.reasoningEffort ?? config.defaultReasoningEffort,
+            }
+          : undefined;
       const inputJson = JSON.stringify(input);
       const toolsJson = JSON.stringify(responseTools);
       activeRound = {
@@ -382,22 +483,13 @@ export async function streamResponsesApi(
           tools: responseTools,
           stream: true,
           previousResponseId: config.persistent ? previousResponseId : undefined,
-          reasoning:
-            enableThinking || params.reasoningEffort
-              ? {
-                  summary:
-                    enableThinking && config.reasoningSummary
-                      ? "auto"
-                      : undefined,
-                  effort:
-                    params.reasoningEffort ?? config.defaultReasoningEffort,
-                }
-              : undefined,
+          reasoning,
           apiKey: config.apiKey,
           headers: config.headers,
           codexBackend: config.codexBackend,
           serviceTier: config.serviceTier,
           compactThreshold: params.compactThreshold,
+          promptCacheKey,
           signal: params.abortSignal,
         });
         if (!response.body) throw new Error("OpenAI response had no body");
@@ -543,9 +635,73 @@ export async function streamResponsesApi(
         (total, result) => total + Buffer.byteLength(result.content),
         0,
       );
-      input = config.persistent
+      const nextInput = config.persistent
         ? resultItems
         : [...input, ...outputItems, ...resultItems];
+      const compactThreshold = params.compactThreshold;
+      const triggerInputTokens = activeRound?.usage.inputTokens ?? 0;
+      if (
+        config.remoteCompactionEndpoint &&
+        compactThreshold &&
+        triggerInputTokens >= compactThreshold
+      ) {
+        const compactTools = params.resolveTools
+          ? toResponseTools(params.resolveTools())
+          : responseTools;
+        const requestInputJson = JSON.stringify(nextInput);
+        const requestToolsJson = JSON.stringify(compactTools);
+        const requestInputBytes = Buffer.byteLength(requestInputJson);
+        const requestInstructionsBytes = Buffer.byteLength(instructions);
+        const requestToolBytes = Buffer.byteLength(requestToolsJson);
+        const compactStarted = performance.now();
+        const compacted = await createCompactResponse({
+          endpoint: config.remoteCompactionEndpoint,
+          provider: config.provider,
+          model,
+          input: nextInput,
+          instructions,
+          tools: compactTools,
+          reasoning,
+          serviceTier: config.serviceTier,
+          promptCacheKey,
+          apiKey: config.apiKey,
+          headers: config.headers,
+          signal: params.abortSignal,
+        });
+        const outputJson = JSON.stringify(compacted.output);
+        const receipt: LlmCompactionReceipt = {
+          iteration: iter,
+          thresholdTokens: compactThreshold,
+          triggerInputTokens,
+          requestInputItems: nextInput.length,
+          requestInputBytes,
+          requestInputSha256: sha256(requestInputJson),
+          requestInstructionsBytes,
+          requestInstructionsSha256: sha256(instructions),
+          requestToolCount: compactTools.length,
+          requestToolBytes,
+          requestToolSha256: sha256(requestToolsJson),
+          outputItems: compacted.output.length,
+          outputBytes: Buffer.byteLength(outputJson),
+          outputSha256: sha256(outputJson),
+          estimatedInputTokens: Math.ceil(
+            (requestInputBytes + requestInstructionsBytes + requestToolBytes) / 4,
+          ),
+          estimatedOutputTokens: Math.ceil(Buffer.byteLength(outputJson) / 4),
+          latencyMs: performance.now() - compactStarted,
+          usage: normalizedUsage(compacted.usage),
+        };
+        compactions.push(receipt);
+        if (compacted.usage) addUsage(compacted.usage, null);
+        trace.record({
+          iteration: iter,
+          label: "compaction",
+          payload: receipt,
+        });
+        input = compacted.output;
+      } else {
+        input = nextInput;
+      }
     }
 
     await trace.flush("completed");
@@ -554,6 +710,8 @@ export async function streamResponsesApi(
       ...(usage ? { usage } : {}),
       ...(reportedServiceTier ? { serviceTier: reportedServiceTier } : {}),
       contextRounds,
+      compactions,
+      promptCacheKeySha256,
     };
   } catch (error) {
     await trace.flush("error", error);

@@ -137,6 +137,8 @@ describe("LLM context manifests", () => {
     expect(first.providerInvocationId).toBeNull();
     expect(first.schemaVersion).toBe(2);
     expect(first.rounds).toEqual([]);
+    expect(first.compactions).toEqual([]);
+    expect(first.promptCache).toEqual({ strategy: "none", keySha256: null });
     expect(first.serviceTierRequested).toBeNull();
     expect(first.serviceTierReported).toBeNull();
     expect(first.compaction).toEqual({

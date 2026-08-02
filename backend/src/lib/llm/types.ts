@@ -70,6 +70,8 @@ export type NormalizedToolResult = {
     projection?: string;
     /** Search previews orient; reads and exact passages support a draft. */
     kind?: "candidate" | "evidence";
+    /** This exact span is projected from the already-durable mounted union. */
+    durableUnionBacked?: boolean;
   }>;
   /** Exact provider/PDF passages that cannot be rehydrated from a local file. */
   evidenceRefs?: Array<{
@@ -79,12 +81,21 @@ export type NormalizedToolResult = {
     locator?: string;
     exactSha256?: string;
     kind?: "candidate" | "evidence";
+    /** This exact span is projected from the already-durable mounted union. */
+    durableUnionBacked?: boolean;
   }>;
   /** Host-only union accounting; never duplicated into provider context. */
   exposure?: {
     uniqueSourceChars: number;
     suppressedSourceChars: number;
   };
+  /** Host-only durable-union delta, separate from the current context guard. */
+  unionExposure?: {
+    uniqueSourceChars: number;
+    suppressedSourceChars: number;
+  };
+  /** Gross exact source bytes reread from the already-reviewed mounted union. */
+  reviewedUnionBackedSourceChars?: number;
   /** End the provider loop after this result; the caller owns final rendering. */
   terminal?: boolean;
 };
@@ -139,8 +150,14 @@ export type StreamChatParams = {
   reasoningEffort?: string;
   /** Host-selected service tier; adapters must gate it on model capability. */
   serviceTier?: string;
-  /** OpenAI Responses server-side compaction threshold. Other adapters ignore it. */
+  /** Responses compaction threshold. Unsupported adapters ignore it. */
   compactThreshold?: number;
+  /**
+   * Stable, privacy-preserving Responses prompt-cache routing key. The chat
+   * surface binds this to the durable chat; adapters generate an invocation-
+   * scoped fallback for one-shot callers.
+   */
+  promptCacheKey?: string;
   abortSignal?: AbortSignal;
   /**
    * Opt in to a provider-owned durable session. Callers remain responsible for
@@ -180,6 +197,28 @@ export type LlmContextRoundReceipt = {
   usage: NormalizedLlmUsage;
 };
 
+/** Content-free receipt for one provider compaction request. */
+export type LlmCompactionReceipt = {
+  iteration: number;
+  thresholdTokens: number;
+  triggerInputTokens: number;
+  requestInputItems: number;
+  requestInputBytes: number;
+  requestInputSha256: string;
+  requestInstructionsBytes: number;
+  requestInstructionsSha256: string;
+  requestToolCount: number;
+  requestToolBytes: number;
+  requestToolSha256: string;
+  outputItems: number;
+  outputBytes: number;
+  outputSha256: string;
+  estimatedInputTokens: number;
+  estimatedOutputTokens: number;
+  latencyMs: number;
+  usage: NormalizedLlmUsage;
+};
+
 export type StreamChatResult = {
   fullText: string;
   /** Provider-reported usage when an adapter can supply it. */
@@ -192,4 +231,8 @@ export type StreamChatResult = {
   continuationId?: string;
   /** Content-free per-request receipts for diagnosing tool-loop context cost. */
   contextRounds?: LlmContextRoundReceipt[];
+  /** Content-free receipts for actual provider compactions. */
+  compactions?: LlmCompactionReceipt[];
+  /** Hash only; the provider cache-routing key is never persisted. */
+  promptCacheKeySha256?: string;
 };

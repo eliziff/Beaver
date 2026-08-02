@@ -170,6 +170,7 @@ const RETRIEVAL_EXPERIMENT_ARMS = new Set([
   "h1-contact",
   "h2-document-map",
   "h3-reference-impact",
+  "h4-legal-grep",
   "d0-generic",
   "d1-routed",
   "d2-concrete",
