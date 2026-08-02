@@ -77,6 +77,33 @@ export interface AmendParseResult {
 const QUOTED =
   "(?:“([^”]*)”|``((?:[^']|'(?!'))*)''|‘([^’]*)’|\"([^\"]*)\")";
 
+// The static patterns below are compiled once; per-call recompilation of the
+// same constant source buys nothing (PROVISION_REF/QUOTED never vary).
+const QUOTED_G = new RegExp(QUOTED, "gu");
+const QUOTED_U = new RegExp(QUOTED, "u");
+const PROVISION_REF_U = new RegExp(PROVISION_REF, "iu");
+const LEAD_PROVISION_REF_U = new RegExp(`^(?:the\\s+)?${PROVISION_REF}`, "iu");
+const AT_END_OF_PROVISION_REF_U = new RegExp(
+  String.raw`^\s*at\s+the\s+end\s+of\s+(?:the\s+)?${PROVISION_REF}`,
+  "iu",
+);
+const AFTER_BEFORE_PROVISION_REF_U = new RegExp(
+  String.raw`(after|before)\s+${PROVISION_REF}`,
+  "iu",
+);
+const ADDING_QUOTED_AT_END_U = new RegExp(
+  String.raw`adding\s+${QUOTED}\s+at\s+the\s+end\s+of\s+(?:the\s+)?${PROVISION_REF}`,
+  "iu",
+);
+const LEAD_ANCHORED_PROVISION_REF_U = new RegExp(`^${PROVISION_REF}`, "iu");
+const REDESIGNATE_REF_U = new RegExp(
+  String.raw`redesignat(?:ing|ed)\s+${PROVISION_REF}[\s\S]{0,40}?\bas\s+${PROVISION_REF}`,
+  "iu",
+);
+const AS_PROVISION_REF_U = new RegExp(String.raw`as\s+${PROVISION_REF}`, "iu");
+const LEAD_TOKEN_U =
+  /^(\s*)(\(([^\s()]{1,12})\)|\d+[A-Za-z]?(?:\.\d+)*\.?)/u;
+
 function quotedValue(...groups: Array<string | undefined>): string | undefined {
   for (const group of groups) if (group !== undefined) return group;
   return undefined;
@@ -202,7 +229,7 @@ function splitClauses(body: string): Clause[] {
 
 function contextLabel(context: string | undefined): string | undefined {
   if (!context) return undefined;
-  const match = new RegExp(PROVISION_REF, "iu").exec(context);
+  const match = PROVISION_REF_U.exec(context);
   return match?.[1] ? compactLabel(match[1]) : undefined;
 }
 
@@ -216,7 +243,7 @@ function opFromClause(
   const every = EVERY_RE.test(text) || undefined;
 
   const q = (index: number, source: string): string | undefined => {
-    const matches = [...source.matchAll(new RegExp(QUOTED, "gu"))];
+    const matches = [...source.matchAll(QUOTED_G)];
     const hit = matches[index];
     return hit ? quotedValue(hit[1], hit[2], hit[3], hit[4]) : undefined;
   };
@@ -230,7 +257,7 @@ function opFromClause(
     // A provision ref directly after "striking" wins over any quoted
     // text further along ("striking subsection (u) and inserting the
     // following: “…”" strikes the PROVISION; the quote is the block).
-    const provisionFirst = new RegExp(`^(?:the\\s+)?${PROVISION_REF}`, "iu").exec(afterStrike);
+    const provisionFirst = LEAD_PROVISION_REF_U.exec(afterStrike);
     if (provisionFirst?.[1]) {
       const childTarget = joinLocator(head.label, compactLabel(provisionFirst[1]));
       if (/insert(?:ing)?\s+the\s+following/iu.test(afterStrike)) {
@@ -249,14 +276,11 @@ function opFromClause(
       // striking out “or” at the end of paragraph (d) — bare-token list
       // re-punctuation: scope to the named child, match whole words only,
       // and anchor to the last occurrence ("at the end").
-      const quoteHit = [...afterStrike.matchAll(new RegExp(QUOTED, "gu"))][0];
+      const quoteHit = [...afterStrike.matchAll(QUOTED_G)][0];
       const afterQuote = quoteHit
         ? afterStrike.slice((quoteHit.index ?? 0) + quoteHit[0].length)
         : "";
-      const endOf = new RegExp(
-        String.raw`^\s*at\s+the\s+end\s+of\s+(?:the\s+)?${PROVISION_REF}`,
-        "iu",
-      ).exec(afterQuote);
+      const endOf = AT_END_OF_PROVISION_REF_U.exec(afterQuote);
       const scopedTarget = endOf?.[1]
         ? joinLocator(head.label, compactLabel(endOf[1]))
         : target;
@@ -306,7 +330,7 @@ function opFromClause(
       return { kind: "strike_text", target, oldText: mark, anchorLast: true, raw };
     }
     // striking subsection (u) [and inserting the following:]
-    const provision = new RegExp(`^(?:the\\s+)?${PROVISION_REF}`, "iu").exec(afterStrike);
+    const provision = LEAD_PROVISION_REF_U.exec(afterStrike);
     if (provision?.[1]) {
       const childTarget = joinLocator(head.label, compactLabel(provision[1]));
       if (/insert(?:ing)?\s+the\s+following/iu.test(afterStrike)) {
@@ -354,7 +378,7 @@ function opFromClause(
       }
     }
     // inserting after subsection (2) the following: (block form)
-    const provision = new RegExp(String.raw`(after|before)\s+${PROVISION_REF}`, "iu").exec(rest);
+    const provision = AFTER_BEFORE_PROVISION_REF_U.exec(rest);
     if (provision && /the\s+following/iu.test(rest)) {
       return {
         kind: "add_provision",
@@ -373,10 +397,7 @@ function opFromClause(
 
   // adding “or” at the end of paragraph (e) — bare-token append; the
   // applier owns the list re-punctuation (a terminal "." becomes ";").
-  m = new RegExp(
-    String.raw`adding\s+${QUOTED}\s+at\s+the\s+end\s+of\s+(?:the\s+)?${PROVISION_REF}`,
-    "iu",
-  ).exec(text);
+  m = ADDING_QUOTED_AT_END_U.exec(text);
   if (m) {
     const token = quotedValue(m[1], m[2], m[3], m[4]);
     if (token !== undefined && m[5]) {
@@ -392,7 +413,7 @@ function opFromClause(
   // adding the following after subsection (4): (Canadian)
   m = /adding\s+the\s+following\s+(after|before)\s+/iu.exec(text);
   if (m) {
-    const provision = new RegExp(`^${PROVISION_REF}`, "iu").exec(text.slice(m.index + m[0].length));
+    const provision = LEAD_ANCHORED_PROVISION_REF_U.exec(text.slice(m.index + m[0].length));
     if (provision?.[1]) {
       return {
         kind: "add_provision",
@@ -419,7 +440,7 @@ function opFromClause(
   }
 
   // redesignating subsection (u) as subsection (v)
-  m = new RegExp(String.raw`redesignat(?:ing|ed)\s+${PROVISION_REF}[\s\S]{0,40}?\bas\s+${PROVISION_REF}`, "iu").exec(text);
+  m = REDESIGNATE_REF_U.exec(text);
   if (m) {
     return {
       kind: "redesignate",
@@ -498,7 +519,7 @@ export function parseAmendmentInstructions(text: string): AmendParseResult {
       continue;
     }
     if (head.verbTail === "redesignated" || head.verbTail === "renumbered") {
-      const asRef = new RegExp(String.raw`as\s+${PROVISION_REF}`, "iu").exec(body);
+      const asRef = AS_PROVISION_REF_U.exec(body);
       if (asRef?.[1]) {
         ops.push({ kind: "redesignate", target, newLabel: compactLabel(asRef[1]), raw });
       } else {
@@ -536,7 +557,7 @@ export function parseAmendmentInstructions(text: string): AmendParseResult {
 
 /** First quoted block: typographic-quoted multiline run, or “…” string. */
 function firstQuotedBlock(body: string): string | undefined {
-  const match = new RegExp(QUOTED, "u").exec(body);
+  const match = QUOTED_U.exec(body);
   if (!match) return undefined;
   return quotedValue(match[1], match[2], match[3], match[4]);
 }
@@ -942,7 +963,7 @@ export function applyAmendOps(
           break;
         }
         const lead = sourceText.slice(span[0], Math.min(span[1], span[0] + 40));
-        const oldToken = new RegExp(String.raw`^(\s*)(\(([^\s()]{1,12})\)|\d+[A-Za-z]?(?:\.\d+)*\.?)`, "u").exec(lead);
+        const oldToken = LEAD_TOKEN_U.exec(lead);
         if (!oldToken) {
           failures.push({ op, code: "unsupported_apply", detail: "no leading label token found" });
           break;
