@@ -26,7 +26,7 @@
  * Usage (spawns itself into the isolated anonymous-mode environment):
  *   npx tsx scripts/lab-beaver-arm.ts \
  *     --task trusts-estates-private-client/extract-client-intake-facts/scenario-01 \
- *     --arm p0 --model codex:gpt-5.6-luna --effort max \
+ *     --arm p0 --model gpt-5.6-luna --effort max \
  *     [--lab-root <dir>] [--run-id <id>]
  */
 import { spawnSync } from "node:child_process";
@@ -211,7 +211,7 @@ async function main() {
     process.env.ANONYMOUS_USER_ID ||
     "00000000-0000-0000-0000-000000000001";
   const arm = argument("arm", "address");
-  const model = argument("model", "codex:gpt-5.6-luna");
+  const model = argument("model", "gpt-5.6-luna");
   const effort = argument("effort", "max");
   const serviceTier = argument("service-tier", "");
   const retrievalPromptVariant = argument("retrieval-prompt", "neutral");
