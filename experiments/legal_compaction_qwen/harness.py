@@ -880,7 +880,7 @@ def run_dynamic_selection(args: argparse.Namespace) -> Path:
     discovery_read_compaction_fingerprints: set[str] = set()
     search_tool_name = "s" if args.provider == "ollama" else "search_a2aj_cases"
     select_tool_name = "a" if args.provider == "ollama" else "select_a2aj_documents"
-    model_hit_cap = {"1k": 2, "2k": 3, "4k": 5}.get(args.context_tier, 10)
+    model_hit_cap = {"1k": 1, "2k": 3, "4k": 5}.get(args.context_tier, 10)
     selected_ids: list[int] = []
 
     def selected_case_metadata(ids: Iterable[int]) -> list[dict[str, Any]]:
