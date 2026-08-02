@@ -1,0 +1,144 @@
+{
+  "experiment_id": "harvey-lab-coding-context-five-way-v1",
+  "preregistered_at": "2026-08-02T22:05:00Z",
+  "status": "preregistered_before_new_model_calls",
+  "implementation_commit": "3c5316489fb4951d9ad4353031ff3922d6685d3c",
+  "objective": "Find a general harness that matches or exceeds pinned upstream Mike answer quality with fewer provider-reported logical tokens; up to 1.5x tokens is acceptable only for a decisive quality win across the three visible-development tasks.",
+  "hypotheses": {
+    "adaptive_mike_v1": "Whole reads remain the shortest path for small matters; optional bounded reads add only the context curation needed for larger matters.",
+    "coding_plain_v1": "A literal coding-agent surface with deterministic text projections is sufficient; legal workflow machinery is unnecessary.",
+    "coding_legal_v1": "Optional exact page, section, reference, and table scopes improve retrieval without changing ordinary coding-tool behavior.",
+    "codex_native_v1": "The stock Codex harness is a strong lower-complexity architecture when the benchmark adapter only seals the task workspace."
+  },
+  "frozen_comparators": {
+    "upstream_mike_origin_commit": "2266446b0d26f735865b8cd3bb153b28e7d11b17",
+    "upstream_mike_paths": "<task>/comparable-upstream-pinned-default-codex-gpt-5-6-luna/2026-08-02T12-20-00Z-r1",
+    "isolated_coding_paths": "<task>/comparable-coding-finalist-default-codex-gpt-5-6-luna/2026-08-02T12-20-00Z-r1",
+    "eligibility": "Reuse only when task/source hashes, Luna/high, provider-reported default tier, and the pinned upstream snapshot match. Existing judge scores are not reused for the final comparison."
+  },
+  "performer": {
+    "model": "gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "provider_service_tier_requested": null,
+    "required_reported_tier": "default when the provider reports a tier",
+    "new_run_count": 12,
+    "concurrency": 12,
+    "local_process_priority": "BelowNormal"
+  },
+  "runtime": {
+    "coding_max_turns": 10,
+    "coding_skills": [
+      "docx"
+    ],
+    "adaptive_retrieval_prompt": "neutral",
+    "checkpoint_cap": null,
+    "hot_evidence_cap": null,
+    "reason": "This ablation intentionally removes research/drafting handoff and union machinery rather than silently carrying the earlier caps forward.",
+    "sandbox_engine": "docker",
+    "coding_image": {
+      "tag": "lab-sandbox:latest",
+      "id": "sha256:0695466b5b1278b2b979b78de0f845b6e81b9d3cbd70ee6a6ec6a430a0599b23"
+    },
+    "native_image": {
+      "tag": "lab-codex-native:0.146.0",
+      "id": "sha256:34604256d0fbdabcb3ad06ecb0402e77fa957081de9722d76d0eba90d2ab28e3",
+      "codex_version": "0.146.0"
+    }
+  },
+  "fixed_surfaces": {
+    "adaptive_mike_v1": {
+      "delta": "inventory-bounded-read-terminal-generate-v1",
+      "system_prompt_bytes": 3105,
+      "system_prompt_sha256": "366804195a37c1a64d3cfcf2de4135bc20f565579b377163bb7bf6af6edc20ef",
+      "tool_schema_bytes": 4698,
+      "tool_schema_sha256": "0bdde0a291ee0fbe63e66306fbcb2c1d2b96135b66779a38f4ec0950bd56b213"
+    },
+    "coding_plain_v1": {
+      "system_prompt_bytes": 10385,
+      "system_prompt_sha256": "01d3de10e1a3bc3950dc8ffe56a5668cbf46c9edd2dc3362703dc4aa0be82c35",
+      "tool_schema_bytes": 4742,
+      "tool_schema_sha256": "ffa9a19399d0783adacdc752c6cafb8e75098cc10e3e516d66c4fc18f5e8a327"
+    },
+    "coding_legal_v1": {
+      "system_prompt_bytes": 10385,
+      "system_prompt_sha256": "01d3de10e1a3bc3950dc8ffe56a5668cbf46c9edd2dc3362703dc4aa0be82c35",
+      "tool_schema_bytes": 5891,
+      "tool_schema_sha256": "b7e8a32da632bdde4ea51e5f2bbe1f8d560d307ba692a866526a0e6cc4e9b762"
+    },
+    "codex_native_v1": {
+      "adapter": "stock codex exec in task-only Docker mounts",
+      "user_config": "ignored",
+      "project_rules": "ignored",
+      "sandbox": "workspace-write",
+      "approval_policy": "never",
+      "web_search": "disabled"
+    }
+  },
+  "tasks": {
+    "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts": {
+      "instructions_sha256": "804acb88a976238cbdf65027b4c873142cfec3c84c9773992e256e40ae02c8a4",
+      "source_bundle_sha256": "68f2fee4cbb3953e7ab03cea5eb48b950e2a148660f44afb622d3175048d50f3",
+      "source_count": 19,
+      "source_bytes": 1061291,
+      "native_prompt_sha256": "efdf184256d4e87bca1681c2f744ce06fbd4fdd8ca7c5a328052e2a0bb7ac87a",
+      "native_prompt_bytes": 400
+    },
+    "tax/draft-transfer-pricing-documentation": {
+      "instructions_sha256": "baa067a9d481a31b85cb9a47a3eebfbc6620e2c5cd23b87e71b2b4f1741d05b7",
+      "source_bundle_sha256": "72e73cec716aa423fc7ae13315eb6493e5d7abb153a28c72aa9978fb433f1da6",
+      "source_count": 25,
+      "source_bytes": 1511738,
+      "native_prompt_sha256": "a1df42d0a3e561669ac6343e34845fe7a4637cc3a5c34fae36871c2e4c60eafe",
+      "native_prompt_bytes": 402
+    },
+    "capital-markets/draft-indenture-for-senior-secured-notes-offering": {
+      "instructions_sha256": "d9b4b8460380ace783ca538f417843d2edf8f997f0ec3f622f5ea6aebf2f5675",
+      "source_bundle_sha256": "ee27b2beaba924bffdd05ed90089fe88f7e5c9493c0ac770b7a871496651c928",
+      "source_count": 14,
+      "source_bytes": 730540,
+      "native_prompt_sha256": "0b038650c96a624efbdc81e355dc6c1173d62c30baae8b815b98785b78f4ce2a",
+      "native_prompt_bytes": 443
+    }
+  },
+  "run_ids": [
+    "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts/adaptive-mike-v1-codex-gpt-5-6-luna/2026-08-02T22-10-00Z-r1",
+    "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts/coding-plain-v1-codex-gpt-5-6-luna/2026-08-02T22-10-00Z-r1",
+    "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts/coding-legal-v1-codex-gpt-5-6-luna/2026-08-02T22-10-00Z-r1",
+    "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts/codex-native-v1-gpt-5-6-luna/2026-08-02T22-10-00Z-r1",
+    "tax/draft-transfer-pricing-documentation/adaptive-mike-v1-codex-gpt-5-6-luna/2026-08-02T22-10-00Z-r1",
+    "tax/draft-transfer-pricing-documentation/coding-plain-v1-codex-gpt-5-6-luna/2026-08-02T22-10-00Z-r1",
+    "tax/draft-transfer-pricing-documentation/coding-legal-v1-codex-gpt-5-6-luna/2026-08-02T22-10-00Z-r1",
+    "tax/draft-transfer-pricing-documentation/codex-native-v1-gpt-5-6-luna/2026-08-02T22-10-00Z-r1",
+    "capital-markets/draft-indenture-for-senior-secured-notes-offering/adaptive-mike-v1-codex-gpt-5-6-luna/2026-08-02T22-10-00Z-r1",
+    "capital-markets/draft-indenture-for-senior-secured-notes-offering/coding-plain-v1-codex-gpt-5-6-luna/2026-08-02T22-10-00Z-r1",
+    "capital-markets/draft-indenture-for-senior-secured-notes-offering/coding-legal-v1-codex-gpt-5-6-luna/2026-08-02T22-10-00Z-r1",
+    "capital-markets/draft-indenture-for-senior-secured-notes-offering/codex-native-v1-gpt-5-6-luna/2026-08-02T22-10-00Z-r1"
+  ],
+  "trace_gate_before_scoring": [
+    "Every output path exists and contains the requested artifact type.",
+    "Every run config matches the preregistered task, source, prompt, tool, image, model, effort, and tier fingerprints.",
+    "No worktree path, held-out data, web result, or task-specific routing appears in a transcript.",
+    "Tool calls and results are schema-correct; B/C unscoped calls remain behaviorally identical; legal scopes report exact source spans.",
+    "Only a general harness defect may be fixed; any rerun receives a new version and preregistration amendment."
+  ],
+  "judge": {
+    "model": "gpt-5.6-sol",
+    "configuration": "one fixed native LAB criterion-level configuration for every structurally valid candidate and comparator output",
+    "provider_service_tier_requested": null,
+    "local_process_priority": "BelowNormal",
+    "scores_are": "provisional derivative LLM-judge labels, not human gold"
+  },
+  "decision_rule": {
+    "ordering": [
+      "accuracy",
+      "context behavior",
+      "logical tokens",
+      "cache telemetry",
+      "latency",
+      "coverage",
+      "tool use"
+    ],
+    "token_target": "At or below upstream Mike while matching or beating quality.",
+    "quality_override": "At most 1.5x upstream logical tokens only if aggregate score improves by at least 10 points, at least two of three tasks improve, and no task materially collapses."
+  }
+}
