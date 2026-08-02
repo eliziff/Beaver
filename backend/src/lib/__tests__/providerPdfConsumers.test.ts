@@ -357,6 +357,13 @@ describe("provider PDF consumers", () => {
     );
     expect(queueProviderPdfAttachment).toHaveBeenCalledOnce();
     expect(JSON.parse(explored!.content).pdf_fallback).toEqual(fallback);
+    expect(explored?.evidenceRefs).toEqual([
+      expect.objectContaining({
+        locator: "opinion 8, search hit 1",
+        text: "Opinion text",
+        kind: "candidate",
+      }),
+    ]);
   });
 
   it("uses the shared CourtListener executor in cloud chat", async () => {

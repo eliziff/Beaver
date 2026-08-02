@@ -43,7 +43,14 @@ export type LlmContextManifest = {
   usage: NormalizedLlmUsage;
   providerInvocationId: string | null;
   rounds: LlmContextRoundReceipt[];
-  compaction: { strategy: "none"; reason: null; checkpointId: null };
+  compaction:
+    | { strategy: "none"; reason: null; checkpointId: null }
+    | {
+        strategy: "provider";
+        reason: "threshold_configured";
+        threshold: number;
+        checkpointId: null;
+      };
   continuation:
     | { strategy: "none"; id: null }
     | { strategy: "provider"; id: string };
@@ -157,7 +164,14 @@ export function buildContextManifest(
     usage: args.result?.usage ?? { ...EMPTY_USAGE },
     providerInvocationId: args.result?.providerInvocationId ?? null,
     rounds: args.result?.contextRounds ?? [],
-    compaction: { strategy: "none", reason: null, checkpointId: null },
+    compaction: args.params.compactThreshold
+      ? {
+          strategy: "provider",
+          reason: "threshold_configured",
+          threshold: args.params.compactThreshold,
+          checkpointId: null,
+        }
+      : { strategy: "none", reason: null, checkpointId: null },
     continuation: args.result?.continuationId
       ? { strategy: "provider", id: args.result.continuationId }
       : { strategy: "none", id: null },

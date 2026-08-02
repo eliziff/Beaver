@@ -54,6 +54,35 @@ const lookup: A2AJLocatorLookup = {
 };
 
 describe("provisional legal evidence contract", () => {
+  it("uses stable IDs while distinguishing exact passage bytes", () => {
+    const make = (spanText: string) =>
+      createBenchmarkEvidence({
+        jurisdiction: "CA",
+        sourceClass: "case",
+        stableSourceId: "case:1",
+        sourceText: "alpha  beta",
+        spanText,
+        citation: "2024 SCC 1",
+        dataset: "fixture",
+        locatorLabel: "para 1",
+      });
+    const first = make("alpha  beta");
+    const repeated = make("alpha  beta");
+    const normalizedTwin = make("alpha beta");
+
+    expect(repeated.evidence_id).toBe(first.evidence_id);
+    expect(repeated.exact_span_sha256).toBe(first.exact_span_sha256);
+    expect(normalizedTwin.span_sha256).toBe(first.span_sha256);
+    expect(normalizedTwin.exact_span_sha256).not.toBe(first.exact_span_sha256);
+    expect(normalizedTwin.evidence_id).not.toBe(first.evidence_id);
+  });
+
+  it("does not opt ordinary retrieval into a structured answer rewrite", () => {
+    const state = createLegalEvidenceTurnState(null);
+    registerLegalEvidence(state, createA2AJLookupEvidence(lookup)!);
+    expect(state.mode).toBeNull();
+  });
+
   it("renders only claims separately verified against turn-local passages", () => {
     const state = createLegalEvidenceTurnState("compose_check");
     const evidence = createA2AJLookupEvidence(lookup)!;
@@ -207,7 +236,7 @@ describe("provisional legal evidence contract", () => {
         counts: { paragraph: 0, page: 0, section: 0 },
       },
     };
-    const state = createLegalEvidenceTurnState(null);
+    const state = createLegalEvidenceTurnState("citation_structure");
     const evidence = createA2AJLookupEvidence(rangeLookup)!;
     registerLegalEvidence(state, evidence, { lookup: rangeLookup, document });
 

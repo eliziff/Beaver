@@ -45,6 +45,16 @@ export type NormalizedToolCall = {
 export type NormalizedToolResult = {
   tool_use_id: string;
   content: string;
+  /** Host-visible result state; adapters still send only `content`. */
+  status?:
+    | "ok"
+    | "not_found"
+    | "ambiguous"
+    | "selection_required"
+    | "truncated"
+    | "past_end"
+    | "already_exposed"
+    | "error";
   /** Host-only durable mutation receipt; provider adapters send `content`. */
   mutationReceipt?: string;
   /** Host-only source ranges exposed by text-shaped navigation tools. */
@@ -55,7 +65,26 @@ export type NormalizedToolResult = {
     versionId: string;
     start: number;
     end: number;
+    filename?: string;
+    locator?: string;
+    projection?: string;
+    /** Search previews orient; reads and exact passages support a draft. */
+    kind?: "candidate" | "evidence";
   }>;
+  /** Exact provider/PDF passages that cannot be rehydrated from a local file. */
+  evidenceRefs?: Array<{
+    handle: string;
+    text: string;
+    filename?: string;
+    locator?: string;
+    exactSha256?: string;
+    kind?: "candidate" | "evidence";
+  }>;
+  /** Host-only union accounting; never duplicated into provider context. */
+  exposure?: {
+    uniqueSourceChars: number;
+    suppressedSourceChars: number;
+  };
   /** End the provider loop after this result; the caller owns final rendering. */
   terminal?: boolean;
 };
@@ -110,6 +139,8 @@ export type StreamChatParams = {
   reasoningEffort?: string;
   /** Host-selected service tier; adapters must gate it on model capability. */
   serviceTier?: string;
+  /** OpenAI Responses server-side compaction threshold. Other adapters ignore it. */
+  compactThreshold?: number;
   abortSignal?: AbortSignal;
   /**
    * Opt in to a provider-owned durable session. Callers remain responsible for

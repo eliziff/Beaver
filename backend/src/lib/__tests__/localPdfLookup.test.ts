@@ -1554,11 +1554,9 @@ describe("exact local PDF structure lookup", () => {
       version_id: versionId,
       units: [
         {
-          id: "fn-a",
           proposition: { sentence: "The rule applies." },
         },
       ],
-      context: { before: [], after: [] },
       link: { page_numbers: [1, 2] },
     });
     expect(lookupPayload).not.toHaveProperty("source");
@@ -1590,7 +1588,7 @@ describe("exact local PDF structure lookup", () => {
       status: "found",
       handle: lookupPayload.handle,
       version_id: versionId,
-      units: [{ id: "fn-a", text: "First note body." }],
+      units: [{ text: "First note body." }],
     });
     const { appendLocalPdfPinpointLinks } = await import(
       "../chat/localPdfEvidenceState"

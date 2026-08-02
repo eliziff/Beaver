@@ -69,6 +69,8 @@ export function buildLeanLibraryBlock(options: {
     ? "apply a mechanical change with library_apply_text_ops, or call describe_tools for drafting and use the revealed editor"
     : `apply the change with ${editToolName}${codingShape ? "" : " (mechanical find/replace, case, spacing, and normalization transforms go through library_apply_text_ops instead — the server executes those deterministically)"}`;
   const automaticCompiler = process.env.MIKE_SLA_WORKFLOW === "1";
+  const modelCoverageRouting =
+    process.env.MIKE_MODEL_COVERAGE_ROUTING === "1";
   const specialistGuidance = progressiveDisclosure
     ? `Open a specialist domain only when the task needs it. Use output_document to create a new Word deliverable and drafting to revise an existing Word file. ${
         automaticCompiler
@@ -91,7 +93,9 @@ export function buildLeanLibraryBlock(options: {
     `${
       codingShape
         ? progressiveDisclosure
-          ? pureCoding
+          ? modelCoverageRouting
+            ? "After Glob reports source sizes, choose coverage from the evidence need: fetch complete text when most of a bounded source set is relevant; use Grep and bounded Read for localized evidence or an oversized corpus; combine them when one primary instrument should stay whole and supporting sources can be scoped. If completeness is uncertain and the set fits, prefer complete coverage."
+            : pureCoding
             ? "For long documents, search with Grep first and read only the needed line windows."
             : "For long or structured documents, search with Grep first and read only what you need; Grep match lines end with an enclosing [structural handle], which Read and the revealed drafting editor accept as section=."
           : "For long or structured documents, search with Grep first and read only what you need; Grep match lines end with an enclosing [structural handle], which Read and Edit accept as section=."
@@ -183,7 +187,7 @@ GENERAL GUIDANCE:
 export const A2AJ_SYSTEM_PROMPT = `CANADIAN LEGAL RESEARCH (A2AJ):
 Use A2AJ for Canadian case law and legislation; it is a public API needing no user key. Use a2aj_lookup for a specific decision paragraph, paragraph range (locator plus end_locator), reporter page, or statutory section/subsection/paragraph, in preference to refetching the whole document.
 - Base quoted or source-specific claims on text returned by a2aj_fetch or a2aj_lookup, not on search metadata or memory.
-- After retrieving exact passages with a2aj_lookup, finish with submit_grounded_answer. Put prose without citation text in each support unit and attach its evidence_id; Beaver places and links the complete citations from those receipts.
+- Use exact passages returned by a2aj_lookup as support. Beaver retains their source receipts and attaches verified links server-side.
 - If A2AJ returns no document, say the citation was not found; do not infer that the source or proposition does not exist.`;
 
 /**
