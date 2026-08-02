@@ -40,6 +40,7 @@ import {
   PROGRESSIVE_DISCLOSURE_ENABLED,
   RESEARCH_TOOLS_DISABLED,
   UPSTREAM_MIKE_TOOL_SHAPE,
+  WORKING_SET_PATH,
   partitionTools,
   describeToolsTool,
   runLocalAssistantTools,
@@ -1853,6 +1854,22 @@ export async function streamAnonymousChat(params: {
             model: selectedModel,
             serviceTier: params.serviceTier,
             abortSignal: streamAbort.signal,
+            sourceDocuments: (() => {
+              const evidence = localWorkingSets.get(WORKING_SET_PATH)?.text;
+              if (!evidence) return undefined;
+              return [
+                {
+                  name: `${WORKING_SET_PATH} (model-selected evidence union)`,
+                  text: evidence,
+                },
+                {
+                  name: "source-inventory.txt (names only; not evidence)",
+                  text: slaLedger.documents
+                    .map((document) => document.name)
+                    .join("\n"),
+                },
+              ];
+            })(),
           });
           appendSlaReceipt({
             phase: "greenfield_review",
@@ -1884,7 +1901,11 @@ export async function streamAnonymousChat(params: {
         visibleText = "";
         await runProvider(undefined, {
           draft,
-          findings: correctionPrompt,
+          findings:
+            correctionPrompt +
+            (localWorkingSets.has(WORKING_SET_PATH)
+              ? `\n\nReuse the evidence already gathered: first Read(file_path=${JSON.stringify(WORKING_SET_PATH)}). Add only targeted missing evidence with Grep output_mode="working_set".`
+              : ""),
         });
         flushTail();
         const revisedAnswer = renderLegalEvidenceAnswer(legalEvidenceState);
