@@ -423,13 +423,13 @@ export async function compileEvidenceResearchRefresh(args: {
     sourceChars: items.reduce((total, item) => total + item.chars, 0),
     latestResultChars,
     prompt: [
-      "Continue the original task in this fresh research context.",
-      "Earlier tool transcript was discarded. Exact evidence already gathered remains durable and will be restored in full for drafting. The compact index below is orientation only; use an available search or read tool to inspect a passage again.",
+      "Continue the original task.",
+      "The index lists prior evidence. Inspect an indexed passage again only when its exact text is needed.",
       "ORIGINAL REQUEST",
       args.originalRequest.trim(),
       "DURABLE EVIDENCE INDEX",
       renderEvidenceManifest(manifest) || "(No durable evidence yet.)",
-      "LATEST TOOL RESULTS",
+      "LATEST RESULTS",
       args.latestResults
         .map(
           (result, index) =>
@@ -515,9 +515,8 @@ export async function compileEvidenceHandoff(args: {
     manifest: selectedManifest,
     sourceChars,
     prompt: [
-      "Complete the requested deliverable in this fresh drafting context.",
-      "Use the exact evidence below as source material. Do not assume omitted research or tool output.",
-      "The tool domain that triggered this handoff is already loaded. Use it directly; discovery is closed in this drafting context.",
+      "Complete the requested deliverable.",
+      "Use the exact evidence below. Do not rely on omitted material.",
       args.domainGuidance?.trim() || "",
       "ORIGINAL REQUEST",
       args.originalRequest.trim(),

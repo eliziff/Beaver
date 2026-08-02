@@ -199,6 +199,9 @@ describe("evidence exposure union", () => {
     expect(refresh.prompt).toContain("Analyze the record.");
     expect(refresh.prompt).toContain("latest exact result");
     expect(refresh.prompt).toContain("prior.docx");
+    expect(refresh.prompt).toContain("Inspect an indexed passage again only");
+    expect(refresh.prompt).not.toContain("transcript");
+    expect(refresh.prompt).not.toContain("tool");
     expect(refresh.prompt).not.toContain("SECRET_TAIL");
     expect(refresh.prompt.length).toBeLessThan(priorText.length / 2);
 
@@ -211,6 +214,8 @@ describe("evidence exposure union", () => {
     expect(handoff.status).toBe("ready");
     if (handoff.status === "ready") {
       expect(handoff.prompt).toContain("SECRET_TAIL");
+      expect(handoff.prompt).not.toContain("tool domain");
+      expect(handoff.prompt).not.toContain("fresh drafting context");
     }
   });
 
