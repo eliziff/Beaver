@@ -366,8 +366,23 @@ async function main() {
   const taskDir = path.join(labRoot, "tasks", ...task.split("/"));
   const split = JSON.parse(
     readFileSync(path.join(labRoot, "..", "lab", "corpus-split.json"), "utf8"),
-  ) as { tasks: { task: string; tier: string; sha256: string }[] };
-  const splitEntry = split.tasks.find((entry) => entry.task === task);
+  ) as {
+    tasks: {
+      task: string;
+      tier: string;
+      sha256: string;
+      scenarios?: string[];
+    }[];
+  };
+  const splitEntry = split.tasks.find((entry) => {
+    if (entry.task === task) return true;
+    const scenario = task.slice(entry.task.length + 1);
+    return (
+      task.startsWith(`${entry.task}/`) &&
+      !scenario.includes("/") &&
+      entry.scenarios?.includes(scenario)
+    );
+  });
   if (!splitEntry || splitEntry.tier !== "dev")
     throw new Error(`LAB task ${task} is not in the visible dev tier`);
   const config = JSON.parse(
