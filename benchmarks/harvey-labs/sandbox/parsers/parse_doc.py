@@ -36,7 +36,11 @@ def parse_docx(path: str) -> str:
 def parse_pdf(path: str) -> str:
     parts: list[str] = []
     with pdfplumber.open(path) as pdf:
-        for page in pdf.pages:
+        for ordinal, page in enumerate(pdf.pages, 1):
+            # Exact physical-page boundary shared by both coding arms.  The
+            # plain arm sees ordinary text bytes; the structured arm may use
+            # these markers as an optional page scope without reparsing.
+            parts.append(f"[page {ordinal}]")
             text = page.extract_text()
             if text:
                 parts.append(text)

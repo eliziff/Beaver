@@ -204,6 +204,72 @@ export const UPSTREAM_MIKE_LAB_TOOLS = [
   UPSTREAM_MIKE_GENERATE_DOCX_TOOL,
 ];
 
+/** Small, explicit delta from the frozen comparator. */
+export const ADAPTIVE_MIKE_DELTA =
+  "inventory-bounded-read-terminal-generate-v1";
+
+export const ADAPTIVE_MIKE_READ_DOCUMENT_TOOL: OpenAIToolSchema = {
+  ...byName.get("read_document")!,
+  function: {
+    ...byName.get("read_document")!.function,
+    description:
+      "Read a project document. With only doc_id, returns the complete text. For large supporting sources, optionally select one legal section, one or more 1-based pages, or a character offset and max_chars. Bounded reads never prevent a later complete or bounded read.",
+    parameters: {
+      type: "object",
+      properties: {
+        doc_id: {
+          type: "string",
+          description: "Document ID from list_documents (for example doc-0).",
+        },
+        section: {
+          type: "string",
+          description:
+            "Optional section locator such as Section 8.01, Article IV, or Schedule A.",
+        },
+        pages: {
+          type: "array",
+          items: { type: "integer", minimum: 1 },
+          maxItems: 20,
+          description:
+            "Optional 1-based page ordinals. Available only when list_documents reports pages greater than zero.",
+        },
+        offset: {
+          type: "integer",
+          minimum: 0,
+          description:
+            "Optional character offset, relative to the selected section/pages or the full document.",
+        },
+        max_chars: {
+          type: "integer",
+          minimum: 1,
+          maximum: 200000,
+          description:
+            "Maximum characters to return. Defaults to 24000 for a bounded read; omitted on an unscoped read means the complete document.",
+        },
+      },
+      required: ["doc_id"],
+    },
+  },
+};
+
+export const ADAPTIVE_MIKE_GENERATE_DOCX_TOOL: OpenAIToolSchema = {
+  ...UPSTREAM_MIKE_GENERATE_DOCX_TOOL,
+  function: {
+    ...UPSTREAM_MIKE_GENERATE_DOCX_TOOL.function,
+    description:
+      `${UPSTREAM_MIKE_GENERATE_DOCX_TOOL.function.description} ` +
+      "Call only when every requested deliverable is final. A successful call ends the turn without another model round.",
+  },
+};
+
+export const ADAPTIVE_MIKE_LAB_TOOLS = [
+  ADAPTIVE_MIKE_READ_DOCUMENT_TOOL,
+  ...UPSTREAM_MIKE_RETRIEVAL_TOOLS.filter(
+    (tool) => tool.function.name !== "read_document",
+  ),
+  ADAPTIVE_MIKE_GENERATE_DOCX_TOOL,
+];
+
 export const UPSTREAM_MIKE_RETRIEVAL_PROMPT = `PROJECT RETRIEVAL (pinned upstream Mike):
 - Use at most 10 tool-use rounds per response. Batch independent tool calls and leave room for the final answer.
 - Read each relevant document/version at most once per response. After read_document or fetch_documents returns a document's full text, do not call either tool again for that same document/version in the same response; use the prior result, call find_in_document for targeted checks, or proceed to the next required tool.
@@ -240,3 +306,11 @@ DOCUMENT NAMES IN PROSE:
 GENERAL GUIDANCE:
 - Cite the exact document passage for evidence-backed claims.
 - Do not use emojis.`;
+
+export const ADAPTIVE_MIKE_LAB_SYSTEM_PROMPT = `${UPSTREAM_MIKE_LAB_SYSTEM_PROMPT}
+
+ADAPTIVE READING:
+- list_documents reports exact extracted sizes and page counts. Whole-document reads remain the simplest path when the relevant material fits comfortably. For large supporting sources, use read_document section/pages/offset/max_chars to retrieve only the needed evidence; follow its exact continuation recipe when necessary.
+
+TERMINAL DOCUMENT CREATION:
+- Call generate_docx only after every requested deliverable is final. A successful generate_docx call completes the turn; do not plan a later read_document or acknowledgement round.`;

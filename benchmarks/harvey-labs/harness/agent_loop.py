@@ -11,6 +11,7 @@ tool). The agent loop ends on:
 
 import time
 import json
+import hashlib
 from pathlib import Path
 
 from harness.adapters.base import ModelAdapter, ModelResponse
@@ -49,8 +50,18 @@ def run_agent(
 
     total_input_tokens = 0
     total_output_tokens = 0
+    total_cached_input_tokens = 0
+    total_cache_write_input_tokens = 0
+    total_reasoning_tokens = 0
     turn_count = 0
     start_time = time.time()
+    context_rounds = []
+    tool_call_count = 0
+    tool_result_characters = 0
+    tool_result_bytes = 0
+    tool_error_count = 0
+    tool_batches = []
+    response = None
 
     transcript_file = None
     if transcript_path:
@@ -64,7 +75,9 @@ def run_agent(
 
             # Call the model
             try:
+                request_started = time.time()
                 response = adapter.chat(messages, tools)
+                request_latency_ms = round((time.time() - request_started) * 1000, 2)
             except Exception as e:
                 err_msg = str(e)
                 if "prompt is too long" in err_msg or "context_length_exceeded" in err_msg:
@@ -76,6 +89,23 @@ def run_agent(
             messages.append(response.message)
             total_input_tokens += response.input_tokens
             total_output_tokens += response.output_tokens
+            total_cached_input_tokens += response.cached_input_tokens
+            total_cache_write_input_tokens += response.cache_write_input_tokens
+            total_reasoning_tokens += response.reasoning_tokens
+            context_rounds.append(
+                {
+                    "turn": turn_count,
+                    "response_id": response.response_id,
+                    "service_tier": response.service_tier,
+                    "input_tokens": response.input_tokens,
+                    "cached_input_tokens": response.cached_input_tokens,
+                    "cache_write_input_tokens": response.cache_write_input_tokens,
+                    "output_tokens": response.output_tokens,
+                    "reasoning_tokens": response.reasoning_tokens,
+                    "tool_call_count": len(response.tool_calls),
+                    "latency_ms": request_latency_ms,
+                }
+            )
 
             # Log to transcript
             if transcript_file:
@@ -89,11 +119,23 @@ def run_agent(
             tool_results = []
             for tc in response.tool_calls:
                 result = tool_executor.execute(tc.name, tc.arguments)
+                tool_call_count += 1
+                tool_result_characters += len(result)
+                tool_result_bytes += len(result.encode("utf-8"))
+                if result.startswith(("Error:", "SecurityError:")):
+                    tool_error_count += 1
 
                 if transcript_file:
                     _log_tool(transcript_file, turn_count, tc.name, tc.arguments, result)
 
                 tool_results.append((tc, result))
+            tool_batches.append(
+                {
+                    "turn": turn_count,
+                    "calls": len(tool_results),
+                    "names": [tc.name for tc, _ in tool_results],
+                }
+            )
 
             # Add tool results to message history via the adapter
             result_messages = adapter.make_tool_result_messages(
@@ -112,9 +154,18 @@ def run_agent(
         "turn_count": turn_count,
         "input_tokens": total_input_tokens,
         "output_tokens": total_output_tokens,
+        "cached_input_tokens": total_cached_input_tokens,
+        "cache_write_input_tokens": total_cache_write_input_tokens,
+        "reasoning_tokens": total_reasoning_tokens,
+        "context_rounds": context_rounds,
+        "tool_call_count": tool_call_count,
+        "tool_result_characters": tool_result_characters,
+        "tool_result_bytes": tool_result_bytes,
+        "tool_error_count": tool_error_count,
+        "tool_batches": tool_batches,
         "wall_clock_seconds": round(elapsed, 2),
         "finished_cleanly": (not context_overflow and
-                             (not response.tool_calls if turn_count > 0 else False)),
+                             (not response.tool_calls if response is not None else False)),
         "context_overflow": context_overflow,
         "tool_metrics": tool_executor.get_metrics(),
         "finish_summary": None,
@@ -126,13 +177,19 @@ def _log_turn(f, turn: int, role: str, response: ModelResponse):
     entry = {
         "turn": turn,
         "role": role,
-        "text": response.text[:500] if response.text else None,
+        "text": response.text or None,
+        "message": response.message,
         "tool_calls": [
             {"name": tc.name, "arguments": tc.arguments}
             for tc in response.tool_calls
         ] if response.tool_calls else None,
         "input_tokens": response.input_tokens,
+        "cached_input_tokens": response.cached_input_tokens,
+        "cache_write_input_tokens": response.cache_write_input_tokens,
         "output_tokens": response.output_tokens,
+        "reasoning_tokens": response.reasoning_tokens,
+        "response_id": response.response_id,
+        "service_tier": response.service_tier,
     }
     f.write(json.dumps(entry) + "\n")
     f.flush()
@@ -145,7 +202,10 @@ def _log_tool(f, turn: int, name: str, arguments: str, result: str):
         "role": "tool",
         "tool_name": name,
         "arguments": arguments if isinstance(arguments, str) else str(arguments),
-        "result_preview": result[:1000],
+        "result": result,
+        "result_characters": len(result),
+        "result_bytes": len(result.encode("utf-8")),
+        "result_sha256": hashlib.sha256(result.encode("utf-8")).hexdigest(),
     }
     f.write(json.dumps(entry) + "\n")
     f.flush()

@@ -33,6 +33,11 @@ class ModelResponse:
     # Token usage
     input_tokens: int = 0
     output_tokens: int = 0
+    cached_input_tokens: int = 0
+    cache_write_input_tokens: int = 0
+    reasoning_tokens: int = 0
+    response_id: str | None = None
+    service_tier: str | None = None
 
 
 class ModelAdapter(ABC):
