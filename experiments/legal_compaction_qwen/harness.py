@@ -842,6 +842,9 @@ def run_dynamic_selection(args: argparse.Namespace) -> Path:
             host_header=args.host_header or os.environ.get("OLLAMA_HOST_HEADER"),
         )
     )
+    task_text = str(args.task or "").strip() or (
+        ABLATION_TASK if args.omit_limits_unknowns else DYNAMIC_TASK
+    )
     output = resolve_output(args.out, "dynamic_selection")
     acquire_run_lock(output)
     progress_path = output.with_suffix(".progress.jsonl")
@@ -861,8 +864,9 @@ def run_dynamic_selection(args: argparse.Namespace) -> Path:
     )
     discovery_task = (
         DYNAMIC_DISCOVERY_TASK
-        if args.provider == "ollama"
-        else DYNAMIC_TASK + " Search the catalog first; do not read documents during selection."
+        if args.provider == "ollama" and not args.task
+        else task_text
+        + " Search the catalog first; do not read documents during selection."
     )
     discovery_messages: list[dict[str, Any]] = [
         {"role": "system", "content": discovery_system},
@@ -1254,8 +1258,6 @@ def run_dynamic_selection(args: argparse.Namespace) -> Path:
         )
 
         def synthesis_checkpoint(missing: list[str]) -> list[dict[str, Any]]:
-            task_text = ABLATION_TASK if args.omit_limits_unknowns else DYNAMIC_TASK
-
             def prose_card(value: str) -> str:
                 return re.sub(
                     r"\nEVIDENCE HANDLES:.*$",
@@ -1446,7 +1448,7 @@ def run_dynamic_selection(args: argparse.Namespace) -> Path:
             "post_verify_projection": args.post_verify_projection,
             "compact_vocabulary": args.compact_vocabulary,
             "synthesis_source_search": args.synthesis_source_search,
-            "task": ABLATION_TASK if args.omit_limits_unknowns else DYNAMIC_TASK,
+            "task": task_text,
             "selected_a2aj_document_ids": selected_ids,
             "selection_calls": selection_calls,
             "cases": [case_receipt(case) for case in cases.values()],
@@ -5043,6 +5045,7 @@ def parse_args() -> argparse.Namespace:
     run = subparsers.add_parser("run")
     run.add_argument("--provider", choices=("ollama", "codex"), default="ollama")
     run.add_argument("--model", default=None)
+    run.add_argument("--task", default=None)
     run.add_argument(
         "--arm",
         choices=("full_history", "address_only", "address_rehydrate", "address_on_demand", "span_selector", "case_card", "state_register", "dynamic_selection"),
