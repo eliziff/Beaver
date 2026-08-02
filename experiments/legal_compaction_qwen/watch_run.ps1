@@ -64,11 +64,13 @@ function Show-Event([string]$Line, [string]$ProgressPath) {
         'discovery_tool_result' {
             $value = [string]$e.result_preview
             try { $j = $value | ConvertFrom-Json } catch { $j = $null }
-            if ($e.tool -eq 'search_a2aj_cases' -and $j) {
+            if (($e.tool -eq 'search_a2aj_cases' -or $e.tool -eq 's') -and $j) {
                 Write-Host ("SEARCH | {0} | {1} hits" -f [string]$e.arguments.q, @($j.hits).Count) -ForegroundColor DarkCyan
-            } elseif ($e.tool -eq 'select_a2aj_documents' -and $j -and $j.ok -eq $true) {
-                Write-Host ("SELECT | {0} cases selected" -f @($j.selected_document_ids).Count) -ForegroundColor Green
-            } elseif ($e.tool -eq 'select_a2aj_documents') {
+            } elseif (($e.tool -eq 'select_a2aj_documents' -or $e.tool -eq 'a') -and $j -and $j.ok -eq $true) {
+                $names = @($j.selected_case_metadata | ForEach-Object { $_.n } | Where-Object { $_ -and $_ -ne '-' }) -join '; '
+                $suffix = if ($names) { " | $names" } else { '' }
+                Write-Host ("LOCK   | {0}/3 cases{1}" -f @($j.selected_document_ids).Count, $suffix) -ForegroundColor Green
+            } elseif ($e.tool -eq 'select_a2aj_documents' -or $e.tool -eq 'a') {
                 Write-Host ("SELECT | rejected | {0}" -f ($(if ($j -and $j.error) { $j.error } else { 'invalid selection' }))) -ForegroundColor Yellow
             }
         }
@@ -94,7 +96,7 @@ function Show-Event([string]$Line, [string]$ProgressPath) {
             try { $j = $value | ConvertFrom-Json } catch { $j = $null }
             if ($j -and $e.tool -eq 'p') {
                 Write-Host ("PATCH  | field {0} saved | {1} chars" -f $j.field, $j.saved) -ForegroundColor DarkCyan
-            } elseif ($j -and $e.tool -eq 'card_done') {
+            } elseif ($j -and ($e.tool -eq 'card_done' -or $e.tool -eq 'd')) {
                 if ($j.ok -eq $true) {
                     Write-Host ("CARD   accepted | case {0}" -f $j.document_id) -ForegroundColor Green
                 } else {
@@ -106,7 +108,7 @@ function Show-Event([string]$Line, [string]$ProgressPath) {
                     }
                     Write-Host ("CARD   rejected | {0}" -f $detail) -ForegroundColor Yellow
                 }
-            } elseif ($j -and $e.tool -eq 'read_document') {
+            } elseif ($j -and ($e.tool -eq 'read_document' -or $e.tool -eq 'r')) {
                 Write-Host 'SOURCE | host returned active packet' -ForegroundColor DarkCyan
             } elseif ($j -and $e.tool -eq 'rehydrate_evidence') {
                 Write-Host ("EVIDENCE | rehydrated | " + $j.locator) -ForegroundColor DarkCyan
