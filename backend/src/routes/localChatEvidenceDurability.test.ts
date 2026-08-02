@@ -325,7 +325,8 @@ describe("anonymous chat PDF evidence durability", () => {
     expect(freshMessages[0].content).toContain(
       "Revise the draft from the evidence.",
     );
-    expect(freshMessages[0].content).toContain("already loaded");
+    expect(freshMessages[0].content).not.toContain("already loaded");
+    expect(freshMessages[0].content).not.toContain("tool domain");
     expect(freshToolNames).toEqual(["library_revise_docx"]);
     expect(response.text).toContain('"type":"content_reset"');
     expect(response.text).toContain("Final drafting answer.");
@@ -2428,6 +2429,100 @@ describe("anonymous chat PDF evidence durability", () => {
     expect(calls[2].providerSession).toEqual({ persist: true });
     expect(calls[2].systemPrompt).toContain("library_lookup");
     expect(calls[2].messages).toHaveLength(5);
+  });
+
+  it("does not resume a Codex thread after progressive disclosure changes its tool schema", async () => {
+    vi.stubEnv("MIKE_CONTEXT_HANDOFF", "1");
+    mocks.progressiveDisclosure = true;
+    mocks.runLocalAssistantTools.mockImplementation(
+      async (_userId: unknown, calls: { id: string }[]) =>
+        calls.map((call) => ({
+          tool_use_id: call.id,
+          content: JSON.stringify({
+            ok: true,
+            domains: ["drafting"],
+            opened: ["library_revise_docx"],
+          }),
+        })),
+    );
+    const calls: {
+      providerSession?: { continuationId?: string };
+      systemPrompt: string;
+      messages: { role: string; content: string }[];
+    }[] = [];
+    let invocation = 0;
+    mocks.streamChatWithTools.mockImplementation(async (params) => {
+      calls.push({
+        providerSession: params.providerSession,
+        systemPrompt: params.systemPrompt,
+        messages: params.messages.map(({ role, content }) => ({ role, content })),
+      });
+      invocation += 1;
+      if (invocation === 1) {
+        await params.runTools?.([
+          {
+            id: "open-drafting",
+            name: "describe_tools",
+            input: { domains: ["drafting"] },
+          },
+        ]);
+        return {
+          fullText: "Research complete.",
+          continuationId: "50000000-0000-4000-8000-000000000010",
+        };
+      }
+      const text = invocation === 2 ? "Draft answer." : "Follow-up answer.";
+      params.callbacks?.onContentDelta?.(text);
+      return {
+        fullText: text,
+        continuationId:
+          invocation === 2
+            ? "50000000-0000-4000-8000-000000000011"
+            : "50000000-0000-4000-8000-000000000012",
+      };
+    });
+
+    let loaded = await loadApp();
+    const created = await request(loaded.app).post("/chat/create").send({});
+    const first = await request(loaded.app).post("/chat").send({
+      chat_id: created.body.id,
+      model: "codex:gpt-5.6-luna",
+      reasoning_effort: "high",
+      expected_version: 0,
+      current_turn: {
+        kind: "message",
+        turn_id: "60000000-0000-4000-8000-000000000010",
+        content: "Draft from the evidence.",
+      },
+    });
+    expect(first.status).toBe(200);
+    const sessions = await import("../lib/anonymousProviderSessionStore");
+    expect(
+      sessions.readAnonymousCodexSession(USER_ID, created.body.id),
+    ).toBeNull();
+
+    loaded = await loadApp();
+    const second = await request(loaded.app).post("/chat").send({
+      chat_id: created.body.id,
+      model: "codex:gpt-5.6-luna",
+      reasoning_effort: "high",
+      expected_version: 2,
+      current_turn: {
+        kind: "message",
+        turn_id: "60000000-0000-4000-8000-000000000011",
+        content: "Check one more point.",
+      },
+    });
+
+    expect(second.status).toBe(200);
+    expect(calls).toHaveLength(3);
+    expect(calls[2].providerSession).toEqual({ persist: true });
+    expect(calls[2].systemPrompt).toContain("describe_tools");
+    expect(calls[2].messages).toEqual([
+      { role: "user", content: "Draft from the evidence." },
+      { role: "assistant", content: "Draft answer." },
+      { role: "user", content: "Check one more point." },
+    ]);
   });
 
   it("rebuilds from the transcript when a claimed Codex resume fails before activity", async () => {

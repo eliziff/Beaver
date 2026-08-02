@@ -1365,6 +1365,9 @@ export async function streamAnonymousChat(params: {
   } | null = null;
   let draftingContextPrompt: string | null = null;
   let draftingPhase = false;
+  // A Codex continuation is valid only for the exact tool schema fingerprint
+  // under which it was created. Progressive disclosure mutates that schema.
+  let providerSessionCompatible = true;
   let pendingAskInputs: AskInputsEvent | null = null;
   let askInputsFinalized = false;
   let localMutationCommitted = false;
@@ -1585,6 +1588,7 @@ export async function streamAnonymousChat(params: {
       for (const call of allowedCalls.filter(
         (candidate) => candidate.name === "describe_tools",
       )) {
+        providerSessionCompatible = false;
         const toolResult = results.find(
           (candidate) => candidate.tool_use_id === call.id,
         );
@@ -2008,6 +2012,7 @@ export async function streamAnonymousChat(params: {
       if (completedHandoff) {
         pendingEvidenceHandoff = null;
         draftingPhase = true;
+        providerSessionCompatible = false;
         const describeIndex = activeTools.findIndex(
           (schema) => schema.function.name === "describe_tools",
         );
@@ -2264,6 +2269,7 @@ export async function streamAnonymousChat(params: {
     if (
       isCodex &&
       codexCompatibilityKey &&
+      providerSessionCompatible &&
       providerResult?.continuationId
     ) {
       try {
