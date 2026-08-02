@@ -1,20 +1,18 @@
 param(
     [string]$Progress,
-    [switch]$FromStart
+    [switch]$FromStart,
+    [switch]$Thinking
 )
 
 $fixedProgress = [bool]$Progress
-if (-not $Progress) {
-    $Progress = Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'runs') -Filter '*.progress.jsonl' |
-        Sort-Object LastWriteTime -Descending |
-        Select-Object -First 1 -ExpandProperty FullName
-}
 if ($Progress -and -not (Test-Path -LiteralPath $Progress)) {
     throw "Progress file not found: $Progress"
 }
+$runDirectory = Join-Path $PSScriptRoot 'runs'
 
 Write-Host "QWEN RUN WATCHER" -ForegroundColor White
-Write-Host ("Following: {0}" -f $(if ($Progress) { Split-Path -Leaf $Progress } else { 'newest progress file' })) -ForegroundColor DarkGray
+Write-Host ("Following: {0}" -f $(if ($fixedProgress) { Split-Path -Leaf $Progress } else { 'runs as they arrive' })) -ForegroundColor DarkGray
+Write-Host ("Thinking:  {0}" -f $(if ($Thinking) { 'shown' } else { 'hidden' })) -ForegroundColor DarkGray
 Write-Host ("Started:   {0}" -f (Get-Date)) -ForegroundColor DarkGray
 Write-Host (('-' * 72)) -ForegroundColor DarkGray
 
@@ -132,6 +130,7 @@ function Show-Event([string]$Line, [string]$ProgressPath) {
         'stop_rejected' { Write-Host ("RETRY  | {0}" -f $e.reason) -ForegroundColor DarkYellow }
         'post_gate_answer' { Write-Host 'ANSWER | post-verification synthesis generated' -ForegroundColor Green }
         'run_finished' {
+            $script:runFinished = $true
             if ($e.overflow -and $e.overflow.message) {
                 Write-Host ("`nRUN FAILED | {0}" -f $e.overflow.message) -ForegroundColor Red
             } else {
@@ -143,31 +142,144 @@ function Show-Event([string]$Line, [string]$ProgressPath) {
     }
 }
 
-$current = ''
-$offset = 0L
+function Show-ThinkingEvent([string]$Line) {
+    try { $e = $Line | ConvertFrom-Json } catch { return }
+    if ($e.kind -ne 'thinking') { return }
+    $where = if ($e.phase) { [string]$e.phase } else { 'run' }
+    $round = if ($null -ne $e.tool_round) { [string]$e.tool_round } elseif ($null -ne $e.round) { [string]$e.round } else { '-' }
+    $source = if ($e.source) { " | $($e.source)" } else { '' }
+    $stamp = if ($e.utc) { Get-Date ([datetime]$e.utc) -Format 'HH:mm:ss' } else { '--:--:--' }
+    Write-Host ("`n[{0}] THINK  {1}  round {2}{3}" -f $where, $stamp, $round, $source) -ForegroundColor Magenta
+    if ($e.text) { Write-Host ([string]$e.text) -ForegroundColor Gray }
+}
+
+function Get-ProgressPaths {
+    if ($fixedProgress) {
+        if (Test-Path -LiteralPath $Progress) { return @((Resolve-Path -LiteralPath $Progress).Path) }
+        return @()
+    }
+    if (-not (Test-Path -LiteralPath $runDirectory)) { return @() }
+    return @(Get-ChildItem -LiteralPath $runDirectory -Filter '*.progress.jsonl' |
+        Sort-Object -Property CreationTimeUtc, LastWriteTimeUtc, Name |
+        Select-Object -ExpandProperty FullName)
+}
+
+function Get-CompanionPath([string]$ProgressPath, [string]$Suffix) {
+    return ($ProgressPath -replace '\.progress\.jsonl$', $Suffix)
+}
+
+function Test-RunProcessAlive([string]$ProgressPath) {
+    $lockPath = Get-CompanionPath $ProgressPath '.lock'
+    if (-not (Test-Path -LiteralPath $lockPath)) { return $false }
+    try {
+        $pidText = (Get-Content -LiteralPath $lockPath -Raw).Trim()
+        $process = Get-Process -Id ([int]$pidText) -ErrorAction Stop
+        return $process.ProcessName -match '^python(\.exe)?$'
+    } catch {
+        return $false
+    }
+}
+
+function Test-CurrentRunAbandoned {
+    if (-not $script:current -or $script:runFinished) { return $false }
+    if (Test-RunProcessAlive $script:current) { return $false }
+    $item = Get-Item -LiteralPath $script:current -ErrorAction SilentlyContinue
+    if (-not $item) { return $false }
+    # Give a just-started process a moment to create its lock and append its
+    # first event. A missing/dead lock after that means the run was stopped or
+    # crashed without emitting run_finished.
+    return $item.LastWriteTimeUtc -lt [DateTime]::UtcNow.AddSeconds(-2)
+}
+
+$seen = @{}
+$pending = [System.Collections.Queue]::new()
+$script:initialized = $false
+$script:fixedQueued = $false
+$script:current = $null
+$script:offset = 0L
+$script:thinkingPath = $null
+$script:thinkingOffset = 0L
+$script:runFinished = $false
+$script:waiting = $false
+
+function Discover-Progress {
+    $paths = @(Get-ProgressPaths)
+    if ($fixedProgress) {
+        if ($paths.Count -gt 0 -and -not $script:fixedQueued) {
+            $pending.Enqueue($paths[0])
+            $script:fixedQueued = $true
+        }
+        return
+    }
+    if (-not $script:initialized) {
+        $script:initialized = $true
+        if ($paths.Count -gt 0) {
+            # Attach to the newest existing run; older receipts are history.
+            foreach ($path in $paths) { $seen[$path] = $true }
+            $pending.Enqueue($paths[-1])
+        }
+        return
+    }
+    foreach ($path in $paths) {
+        if (-not $seen.ContainsKey($path)) {
+            $seen[$path] = $true
+            $pending.Enqueue($path)
+            Write-Host ("QUEUED  {0}" -f (Split-Path -Leaf $path)) -ForegroundColor DarkYellow
+        }
+    }
+}
+
+function Start-NextProgress {
+    if ($pending.Count -eq 0) { return $false }
+    $script:current = [string]$pending.Dequeue()
+    $script:offset = 0L
+    $script:thinkingPath = $script:current -replace '\.progress\.jsonl$', '.thinking.jsonl'
+    $script:thinkingOffset = 0L
+    $script:runFinished = $false
+    $script:waiting = $false
+    $script:lastModel = $null
+    $script:repeatCount = 0
+    Write-Host ("`nFOLLOWING  {0}" -f (Split-Path -Leaf $script:current)) -ForegroundColor White
+    return $true
+}
+
 while ($true) {
-    $candidate = if ($fixedProgress) { (Resolve-Path -LiteralPath $Progress).Path } else {
-        Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'runs') -Filter '*.progress.jsonl' |
-            Sort-Object LastWriteTime -Descending |
-            Select-Object -First 1 -ExpandProperty FullName
-    }
-    if ($candidate -and $candidate -ne $current) {
-        $current = $candidate
-        $offset = if ($FromStart) { 0L } else { (Get-Item -LiteralPath $current).Length }
-        Write-Host ("`nFOLLOWING  {0}" -f (Split-Path -Leaf $current)) -ForegroundColor White
-    }
-    if ($current -and (Test-Path -LiteralPath $current)) {
-        $stream = [IO.File]::Open($current, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
+    Discover-Progress
+    if (-not $script:current) { Start-NextProgress | Out-Null }
+    if ($script:current -and (Test-Path -LiteralPath $script:current)) {
+        $stream = [IO.File]::Open($script:current, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
         try {
-            if ($stream.Length -lt $offset) { $offset = 0L }
-            if ($stream.Length -gt $offset) {
-                $stream.Seek($offset, [IO.SeekOrigin]::Begin) | Out-Null
+            if ($stream.Length -lt $script:offset) { $script:offset = 0L }
+            if ($stream.Length -gt $script:offset) {
+                $stream.Seek($script:offset, [IO.SeekOrigin]::Begin) | Out-Null
                 $reader = [IO.StreamReader]::new($stream)
-                while ($null -ne ($line = $reader.ReadLine())) { Show-Event $line $current }
-                $offset = $stream.Position
+                while ($null -ne ($line = $reader.ReadLine())) { Show-Event $line $script:current }
+                $script:offset = $stream.Position
                 $reader.Dispose()
             }
         } finally { $stream.Dispose() }
+    }
+    if ($Thinking -and $script:thinkingPath -and (Test-Path -LiteralPath $script:thinkingPath)) {
+        $stream = [IO.File]::Open($script:thinkingPath, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
+        try {
+            if ($stream.Length -lt $script:thinkingOffset) { $script:thinkingOffset = 0L }
+            if ($stream.Length -gt $script:thinkingOffset) {
+                $stream.Seek($script:thinkingOffset, [IO.SeekOrigin]::Begin) | Out-Null
+                $reader = [IO.StreamReader]::new($stream)
+                while ($null -ne ($line = $reader.ReadLine())) { Show-ThinkingEvent $line }
+                $script:thinkingOffset = $stream.Position
+                $reader.Dispose()
+            }
+        } finally { $stream.Dispose() }
+    }
+    if (Test-CurrentRunAbandoned) {
+        Write-Host ("`nRUN ABORTED | no live harness process for {0}" -f (Split-Path -Leaf $script:current)) -ForegroundColor Yellow
+        $script:runFinished = $true
+    }
+    if ($script:runFinished -and $pending.Count -gt 0) { Start-NextProgress | Out-Null }
+    if (-not $script:current -and -not $script:waiting) {
+        Write-Host "WAITING  next Qwen run..." -ForegroundColor DarkGray
+        $script:waiting = $true
     }
     Start-Sleep -Milliseconds 700
 }
