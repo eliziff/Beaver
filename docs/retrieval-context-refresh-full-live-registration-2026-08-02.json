@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "registered_at": "2026-08-02T08:07:36Z",
+  "status": "registered_before_performer_calls",
+  "experiment_class": "authorized_codex_luna_visible_development_side_run",
+  "claim_scope": "Separately labelled side run; not pooled with the canonical Claude-Code A/B.",
+  "objective": "Measure whether lossless research-context replacement stops research transcript accretion while preserving or improving long-horizon LAB accuracy before testing demand-paged drafting.",
+  "candidate": {
+    "generation": "context_refresh_full_v3",
+    "cli_arm": "coverage_hybrid_v2",
+    "cli_arm_note": "The legacy CLI label names the frozen retrieval/whole-read surface; source fingerprints below identify the post-fix context controller.",
+    "research_context": "After each evidence-bearing batch, continue from the original request, compact prior-evidence index, and latest results only.",
+    "drafting_context": "Fresh drafting role plus original request and the complete selected exact-evidence union when it fits the fixed cap.",
+    "evidence_handoff_max_chars": 800000,
+    "whole_read_max_chars": 800000,
+    "provider_compaction": false
+  },
+  "held_constant": {
+    "performer_model": "codex:gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "service_tier_requested": "default",
+    "expected_provider_tier": "default",
+    "base_prompt": "lean",
+    "retrieval_prompt_variant": "neutral",
+    "tool_description_variant": "operational",
+    "retrieval_experiment": "h4-legal-grep",
+    "model_coverage_routing": true,
+    "progressive_disclosure": true,
+    "sla_workflow": "full",
+    "greenfield_review": false,
+    "research_tools": false,
+    "ask_inputs": false,
+    "split": "visible Harvey LAB development tasks only"
+  },
+  "tasks": [
+    "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts",
+    "tax/draft-transfer-pricing-documentation",
+    "capital-markets/draft-indenture-for-senior-secured-notes-offering"
+  ],
+  "run_policy": {
+    "concurrency": "Launch all three performer cells without a serialized slot wait.",
+    "performer_replicates": 1,
+    "no_posthoc_prompt_edits": true,
+    "upstream": "Reuse a frozen upstream Mike result only when task, performer model, effort, transport, actual tier, and judge configuration are comparable.",
+    "scoring": "After deliverables land, use one fixed separately labelled Codex judge configuration for every compared cell; performer traces and hidden grading criteria remain isolated.",
+    "artifacts": "Results and traces remain uncommitted."
+  },
+  "primary_gate": {
+    "accuracy": "Match or beat comparable pinned upstream Mike on aggregate passed criteria; efficiency cannot excuse lower accuracy.",
+    "context": "Research per-round input must stop monotonically replaying older raw tool results; report refresh count and latest-result/evidence-union sizes.",
+    "drafting": "Inspect whether full exact rehydration creates attention dilution, unnecessary rereads, or missed evidence despite complete availability.",
+    "next_ablation": "Only after trace inspection, preregister a compact-map plus bounded-hot-evidence demand-paged drafting lane on the same tasks."
+  },
+  "source_fingerprints": {
+    "base_commit": "10ff1279ab7ea2ad454cbfac0441afeed8703820",
+    "backend/src/lib/chat/evidenceExposure.ts": "cee1bb2aabd4356fbbbf3afe22e579b74db6925dd3bf9667102be020333174d4",
+    "backend/src/routes/chat.ts": "c51fc6a70dbeba87971864370ce1cff51c2a2c7a4ce9c41f1e0c565aa2d99f62",
+    "backend/src/lib/chat/localAssistantTools.ts": "5619eab52bce1409c65b562aa41ee0252c207247731d005e51d77927ae8bbd66",
+    "backend/src/lib/chat/prompts.ts": "05f01db45d005d054b7d71bc3fd86d52f592fbb0b4187839d5879b0f90b99a83",
+    "backend/scripts/lab-beaver-arm.ts": "32163705ca109775c0d6db381cb69772b337c6910e2ffd418d54e21179fe9eda"
+  }
+}
