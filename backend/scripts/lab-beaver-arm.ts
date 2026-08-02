@@ -44,6 +44,7 @@ import path from "node:path";
 import { ALLOWED_DOCUMENT_TYPES } from "../src/lib/documentTypes";
 import {
   ADAPTIVE_MIKE_DELTA,
+  MIKE_GREP_DELTAS,
   UPSTREAM_MIKE_COMMIT,
   UPSTREAM_MIKE_SCHEMA_SHA256,
   UPSTREAM_MIKE_SOURCE_BLOBS,
@@ -507,10 +508,75 @@ async function main() {
       MIKE_SLA_WORKFLOW: "0",
       MIKE_GREENFIELD_REVIEW: "0",
     },
+    mike_grep_v1: {
+      MIKE_NAV_SHAPE: "legacy",
+      MIKE_TOOL_SHAPE: "mike-grep-v1",
+      MIKE_RETRIEVAL_EXPERIMENT: "p0-pure-coding",
+      MIKE_PROGRESSIVE_DISCLOSURE: "0",
+      MIKE_MODEL_COVERAGE_ROUTING: "0",
+      MIKE_WHOLE_READ_MAX_CHARS: "",
+      MIKE_TOOL_RESULT_CAP: "64000",
+      MIKE_SUPPRESS_DUPLICATE_WHOLE_READS: "1",
+      MIKE_TERMINAL_AUTHORING: "1",
+      MIKE_CONTEXT_HANDOFF: "0",
+      MIKE_CONTINUOUS_EVIDENCE: "0",
+      MIKE_OPENAI_COMPACT_THRESHOLD: "",
+      MIKE_SLA_WORKFLOW: "0",
+      MIKE_GREENFIELD_REVIEW: "0",
+    },
+    mike_legal_v1: {
+      MIKE_NAV_SHAPE: "legacy",
+      MIKE_TOOL_SHAPE: "mike-legal-v1",
+      MIKE_RETRIEVAL_EXPERIMENT: "h4-legal-grep",
+      MIKE_PROGRESSIVE_DISCLOSURE: "0",
+      MIKE_MODEL_COVERAGE_ROUTING: "0",
+      MIKE_WHOLE_READ_MAX_CHARS: "",
+      MIKE_TOOL_RESULT_CAP: "64000",
+      MIKE_SUPPRESS_DUPLICATE_WHOLE_READS: "1",
+      MIKE_TERMINAL_AUTHORING: "1",
+      MIKE_CONTEXT_HANDOFF: "0",
+      MIKE_CONTINUOUS_EVIDENCE: "0",
+      MIKE_OPENAI_COMPACT_THRESHOLD: "",
+      MIKE_SLA_WORKFLOW: "0",
+      MIKE_GREENFIELD_REVIEW: "0",
+    },
+    mike_legal_guided_v1: {
+      MIKE_NAV_SHAPE: "legacy",
+      MIKE_TOOL_SHAPE: "mike-legal-guided-v1",
+      MIKE_RETRIEVAL_EXPERIMENT: "h4-legal-grep",
+      MIKE_PROGRESSIVE_DISCLOSURE: "0",
+      MIKE_MODEL_COVERAGE_ROUTING: "0",
+      MIKE_WHOLE_READ_MAX_CHARS: "",
+      MIKE_TOOL_RESULT_CAP: "64000",
+      MIKE_SUPPRESS_DUPLICATE_WHOLE_READS: "1",
+      MIKE_TERMINAL_AUTHORING: "1",
+      MIKE_CONTEXT_HANDOFF: "0",
+      MIKE_CONTINUOUS_EVIDENCE: "0",
+      MIKE_OPENAI_COMPACT_THRESHOLD: "",
+      MIKE_SLA_WORKFLOW: "0",
+      MIKE_GREENFIELD_REVIEW: "0",
+    },
+    v5_reconstruction_v1: {
+      MIKE_NAV_SHAPE: "address",
+      MIKE_TOOL_SHAPE: "coding",
+      MIKE_RETRIEVAL_EXPERIMENT: "h4-legal-grep",
+      MIKE_PROGRESSIVE_DISCLOSURE: "1",
+      MIKE_MODEL_COVERAGE_ROUTING: "0",
+      MIKE_WHOLE_READ_MAX_CHARS: "",
+      MIKE_SUPPRESS_DUPLICATE_WHOLE_READS: "1",
+      MIKE_CONTEXT_HANDOFF: "1",
+      MIKE_RESEARCH_CONTEXT_REFRESH: "0",
+      MIKE_FULL_HANDOFF_PROMPT_VARIANT: "legacy-v5",
+      MIKE_EVIDENCE_HANDOFF_MAX_CHARS: "120000",
+      MIKE_OPENAI_COMPACT_THRESHOLD: "120000",
+      MIKE_SLA_WORKFLOW: "1",
+      MIKE_SLA_STRATEGY: "full",
+      MIKE_GREENFIELD_REVIEW: "0",
+    },
   };
   if (!armEnvironment[arm])
     throw new Error(
-      `unknown --arm ${arm}; expected p0, coding_finalist, d1, hybrid, hybrid_finalist, coverage_finalist, coverage_hybrid_v2, checkpoint_paged_v1, v13, v14, v15, coverage_soft_v2, working_set, compiler_hybrid, sla_hybrid, sla_working_set, h9, h10, address, upstream, or adaptive_mike_v1`,
+      `unknown --arm ${arm}; expected p0, coding_finalist, d1, hybrid, hybrid_finalist, coverage_finalist, coverage_hybrid_v2, checkpoint_paged_v1, v13, v14, v15, coverage_soft_v2, working_set, compiler_hybrid, sla_hybrid, sla_working_set, h9, h10, address, upstream, adaptive_mike_v1, mike_grep_v1, mike_legal_v1, mike_legal_guided_v1, or v5_reconstruction_v1`,
     );
 
   // Re-spawn into the isolated anonymous-mode environment (same recipe as
@@ -555,6 +621,8 @@ async function main() {
           // opts in explicitly, so upstream Mike cannot inherit Beaver-only
           // context or compiler behavior from the invoking shell.
           MIKE_CONTEXT_HANDOFF: "0",
+          MIKE_RESEARCH_CONTEXT_REFRESH: "1",
+          MIKE_FULL_HANDOFF_PROMPT_VARIANT: "current",
           MIKE_CONTINUOUS_EVIDENCE: "0",
           MIKE_DRAFT_HANDOFF_MODE: "full",
           MIKE_RESEARCH_CHECKPOINT_MAX_CHARS: "",
@@ -589,6 +657,29 @@ async function main() {
     );
     process.exit(child.status ?? 1);
   }
+
+  // Capture the executed source before app import or any model call. The
+  // prelaunch registration separately binds these hashes to the committed
+  // tree, so a run cannot silently fingerprint post-run edits.
+  const harnessSourceFiles = [
+    "scripts/lab-beaver-arm.ts",
+    "src/routes/chat.ts",
+    "src/lib/chat/evidenceExposure.ts",
+    "src/lib/chat/localAssistantTools.ts",
+    "src/lib/chat/upstreamMikeBenchmarkSurface.ts",
+    "src/lib/chat/prompts.ts",
+    "src/lib/chat/slaWorkflow.ts",
+    "src/lib/llm/codexApi.ts",
+    "src/lib/llm/contextManifest.ts",
+    "src/lib/llm/openai.ts",
+    "src/lib/llm/types.ts",
+  ];
+  const harnessSourceFingerprints = Object.fromEntries(
+    harnessSourceFiles.map((relative) => {
+      const bytes = readFileSync(path.join(__dirname, "..", relative));
+      return [relative, createHash("sha256").update(bytes).digest("hex")];
+    }),
+  );
 
   const taskDir = path.join(labRoot, "tasks", ...task.split("/"));
   const split = JSON.parse(
@@ -833,6 +924,100 @@ async function main() {
     ) {
       throw new Error(
         `adaptive Mike isolation failed: resident=${residentTools.join(",")}; deferred=${deferredTools.join(",")}; handoff=${String(surface?.context_handoff)}; terminal=${String(surface?.terminal_authoring)}`,
+      );
+    }
+  }
+  const mikeGrepArms = [
+    "mike_grep_v1",
+    "mike_legal_v1",
+    "mike_legal_guided_v1",
+  ];
+  if (mikeGrepArms.includes(arm)) {
+    const expectedTools = [
+      "read_document",
+      "find_in_document",
+      "list_documents",
+      "fetch_documents",
+      "Grep",
+      "Read",
+      "generate_docx",
+    ];
+    const residentTools = Array.isArray(surface?.resident_tools)
+      ? surface.resident_tools
+      : [];
+    const deferredTools = Array.isArray(surface?.deferred_tools)
+      ? surface.deferred_tools
+      : [];
+    const expectedFlags = {
+      mike_grep_shape: arm === "mike_grep_v1",
+      mike_legal_shape: arm === "mike_legal_v1",
+      mike_legal_guided_shape: arm === "mike_legal_guided_v1",
+    };
+    if (
+      surface?.upstream_mike_shape !== false ||
+      surface?.adaptive_mike_shape !== false ||
+      surface?.mike_grep_shape !== expectedFlags.mike_grep_shape ||
+      surface?.mike_legal_shape !== expectedFlags.mike_legal_shape ||
+      surface?.mike_legal_guided_shape !==
+        expectedFlags.mike_legal_guided_shape ||
+      surface?.coding_shape !== true ||
+      surface?.progressive_disclosure !== false ||
+      surface?.trajectory_mode !== "continuous" ||
+      surface?.context_handoff !== false ||
+      surface?.continuous_evidence !== false ||
+      surface?.sla_workflow !== false ||
+      surface?.greenfield_review !== false ||
+      surface?.model_coverage_routing !== false ||
+      Number(surface?.whole_read_max_chars ?? 0) !== 0 ||
+      Number(surface?.tool_result_max_chars ?? 0) !== 64_000 ||
+      surface?.suppress_duplicate_whole_reads !== true ||
+      surface?.terminal_authoring !== true ||
+      JSON.stringify(residentTools) !== JSON.stringify(expectedTools) ||
+      deferredTools.length > 0 ||
+      researchContextRefreshes.length > 0 ||
+      researchCheckpointRequests.length > 0 ||
+      researchCheckpoints.length > 0 ||
+      evidenceHandoffs.length > 0 ||
+      evidenceWorkingSetReceipts.length > 0 ||
+      contentResets.length > 0
+    ) {
+      throw new Error(
+        `${arm} isolation failed: resident=${residentTools.join(",")}; flags=${JSON.stringify(expectedFlags)}; handoff=${String(surface?.context_handoff)}; terminal=${String(surface?.terminal_authoring)}`,
+      );
+    }
+  }
+  if (arm === "v5_reconstruction_v1") {
+    const expectedTools = ["Glob", "Grep", "Read", "describe_tools"];
+    const residentTools = Array.isArray(surface?.resident_tools)
+      ? surface.resident_tools
+      : [];
+    if (
+      surface?.navigation_shape !== "address" ||
+      surface?.coding_shape !== true ||
+      surface?.retrieval_experiment !== "h4-legal-grep" ||
+      surface?.progressive_disclosure !== true ||
+      surface?.trajectory_mode !== "handoff" ||
+      surface?.context_handoff !== true ||
+      surface?.full_handoff_prompt_variant !== "legacy-v5" ||
+      surface?.research_context_refresh !== false ||
+      surface?.draft_handoff_mode !== "full" ||
+      surface?.continuous_evidence !== false ||
+      surface?.sla_workflow !== true ||
+      surface?.greenfield_review !== false ||
+      surface?.model_coverage_routing !== false ||
+      Number(surface?.whole_read_max_chars ?? 0) !== 0 ||
+      Number(surface?.tool_result_max_chars ?? 0) !== 64_000 ||
+      Number(surface?.evidence_handoff_max_chars ?? 0) !== 120_000 ||
+      Number(surface?.openai_compact_threshold ?? 0) !== 120_000 ||
+      surface?.suppress_duplicate_whole_reads !== true ||
+      surface?.terminal_authoring !== false ||
+      researchContextRefreshes.length > 0 ||
+      evidenceHandoffs.length !== 1 ||
+      contentResets.length < 1 ||
+      JSON.stringify(residentTools) !== JSON.stringify(expectedTools)
+    ) {
+      throw new Error(
+        `v5 reconstruction drifted: resident=${residentTools.join(",")}; trajectory=${String(surface?.trajectory_mode)}; handoff=${String(surface?.context_handoff)}; sla=${String(surface?.sla_workflow)}`,
       );
     }
   }
@@ -1244,16 +1429,26 @@ async function main() {
       });
     }
   }
-  if (
-    ["v13", "v14", "v15", "adaptive_mike_v1"].includes(arm) &&
-    providerInvocations.length !== 1
-  ) {
+  const singleInvocationArms = [
+    "v13",
+    "v14",
+    "v15",
+    "adaptive_mike_v1",
+    ...mikeGrepArms,
+  ];
+  const defaultTierArms = [...singleInvocationArms, "v5_reconstruction_v1"];
+  if (singleInvocationArms.includes(arm) && providerInvocations.length !== 1) {
     throw new Error(
       `${arm} trajectory used ${providerInvocations.length} provider invocations; expected exactly one`,
     );
   }
+  if (arm === "v5_reconstruction_v1" && providerInvocations.length < 2) {
+    throw new Error(
+      `v5 reconstruction used ${providerInvocations.length} provider invocations; expected research and fresh drafting contexts`,
+    );
+  }
   if (
-    ["v13", "v14", "v15", "adaptive_mike_v1"].includes(arm) &&
+    defaultTierArms.includes(arm) &&
     (reportedServiceTiers.size !== 1 || !reportedServiceTiers.has("default"))
   ) {
     throw new Error(
@@ -1261,13 +1456,23 @@ async function main() {
     );
   }
   if (
-    ["v13", "v14", "v15", "adaptive_mike_v1"].includes(arm) &&
+    singleInvocationArms.includes(arm) &&
     (promptCacheStrategies.size !== 1 ||
       !promptCacheStrategies.has("session") ||
       promptCacheKeyHashes.size !== 1)
   ) {
     throw new Error(
       `${arm} requires one session-scoped prompt-cache key receipt; strategies=${[...promptCacheStrategies].join(",") || "none"}; keys=${promptCacheKeyHashes.size}`,
+    );
+  }
+  if (
+    arm === "v5_reconstruction_v1" &&
+    (promptCacheStrategies.size !== 1 ||
+      !promptCacheStrategies.has("session") ||
+      promptCacheKeyHashes.size < 1)
+  ) {
+    throw new Error(
+      `v5 reconstruction requires session-scoped prompt-cache receipts; strategies=${[...promptCacheStrategies].join(",") || "none"}; keys=${promptCacheKeyHashes.size}`,
     );
   }
   if (arm === "v14") {
@@ -1305,24 +1510,6 @@ async function main() {
     }
   }
 
-  const harnessSourceFiles = [
-    "scripts/lab-beaver-arm.ts",
-    "src/routes/chat.ts",
-    "src/lib/chat/evidenceExposure.ts",
-    "src/lib/chat/localAssistantTools.ts",
-    "src/lib/chat/prompts.ts",
-    "src/lib/chat/slaWorkflow.ts",
-    "src/lib/llm/codexApi.ts",
-    "src/lib/llm/contextManifest.ts",
-    "src/lib/llm/openai.ts",
-    "src/lib/llm/types.ts",
-  ];
-  const harnessSourceFingerprints = Object.fromEntries(
-    harnessSourceFiles.map((relative) => {
-      const bytes = readFileSync(path.join(__dirname, "..", relative));
-      return [relative, createHash("sha256").update(bytes).digest("hex")];
-    }),
-  );
   const instructionsSha256 = createHash("sha256")
     .update(instructions)
     .digest("hex");
@@ -1348,7 +1535,15 @@ async function main() {
   const toolSchemaFingerprints = [
     ...new Set(contextRounds.map((round) => String(round.toolSha256 ?? ""))),
   ].filter(Boolean);
-  const upstreamDerived = ["upstream", "adaptive_mike_v1"].includes(arm);
+  const mikeGrepDerived = mikeGrepArms.includes(arm);
+  const upstreamDerived =
+    ["upstream", "adaptive_mike_v1"].includes(arm) || mikeGrepDerived;
+  const mikeGrepDelta = mikeGrepDerived
+    ? MIKE_GREP_DELTAS[
+        armEnvironment[arm]
+          .MIKE_TOOL_SHAPE as keyof typeof MIKE_GREP_DELTAS
+      ]
+    : null;
   const runFingerprintInput = {
     task_sha256: splitEntry.sha256,
     instructions_sha256: instructionsSha256,
@@ -1367,6 +1562,11 @@ async function main() {
       : null,
     adaptive_delta:
       arm === "adaptive_mike_v1" ? ADAPTIVE_MIKE_DELTA : null,
+    mike_grep_delta: mikeGrepDelta,
+    strategy_reconstruction:
+      arm === "v5_reconstruction_v1"
+        ? "finalist-luna-long-v5-hybrid-finalist"
+        : null,
   };
   const runFingerprintSha256 = createHash("sha256")
     .update(JSON.stringify(runFingerprintInput))
@@ -1535,6 +1735,10 @@ async function main() {
             ? "upstream-pinned"
             : arm === "adaptive_mike_v1"
               ? "adaptive-mike-v1"
+              : mikeGrepDerived
+                ? armEnvironment[arm].MIKE_TOOL_SHAPE
+                : arm === "v5_reconstruction_v1"
+                  ? "lean-v5-strategy-reconstruction"
               : "lean",
         retrieval_prompt_variant: retrievalPromptVariant,
         tool_description_variant:
@@ -1548,6 +1752,10 @@ async function main() {
           surface?.suppress_duplicate_whole_reads ?? null,
         trajectory_mode: surface?.trajectory_mode ?? null,
         context_handoff: surface?.context_handoff === true,
+        full_handoff_prompt_variant:
+          surface?.full_handoff_prompt_variant ?? null,
+        research_context_refresh:
+          surface?.research_context_refresh === true,
         continuous_evidence: surface?.continuous_evidence === true,
         draft_handoff_mode: surface?.draft_handoff_mode ?? null,
         research_checkpoint_max_chars:
@@ -1578,9 +1786,27 @@ async function main() {
           arm === "upstream" ? UPSTREAM_MIKE_SCHEMA_SHA256 : null,
         adaptive_mike_delta:
           arm === "adaptive_mike_v1" ? ADAPTIVE_MIKE_DELTA : null,
+        mike_grep_delta: mikeGrepDelta,
+        strategy_reconstruction:
+          arm === "v5_reconstruction_v1"
+            ? {
+                historical_run:
+                  "finalist-luna-long-v5/hybrid_finalist/high/corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts",
+                fidelity: "strategy reconstruction on current committed code",
+                deliberate_deviations: [
+                  "provider tier requested null instead of historical fast",
+                  "current source tree is fingerprinted because the historical dirty tree was not",
+                  "grouped 96-character selection previews replace the historical ungrouped manifest",
+                  "invalid evidence aliases do not replay the historical giant manifest",
+                ],
+              }
+            : null,
         upstream_mike_isolation_verified: arm === "upstream" ? true : null,
         adaptive_mike_isolation_verified:
           arm === "adaptive_mike_v1" ? true : null,
+        mike_grep_isolation_verified: mikeGrepDerived ? true : null,
+        v5_strategy_isolation_verified:
+          arm === "v5_reconstruction_v1" ? true : null,
         max_turns: 1,
         started_at: new Date(started).toISOString(),
       },
@@ -1894,6 +2120,9 @@ async function main() {
           arm === "upstream" ? UPSTREAM_MIKE_SCHEMA_SHA256 : null,
         adaptive_mike_delta:
           arm === "adaptive_mike_v1" ? ADAPTIVE_MIKE_DELTA : null,
+        mike_grep_delta: mikeGrepDelta,
+        v5_strategy_reconstruction:
+          arm === "v5_reconstruction_v1" ? true : null,
         service_tier_requested: serviceTier || null,
         service_tiers_reported: [...reportedServiceTiers],
         deviations: {

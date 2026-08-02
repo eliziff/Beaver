@@ -270,6 +270,172 @@ export const ADAPTIVE_MIKE_LAB_TOOLS = [
   ADAPTIVE_MIKE_GENERATE_DOCX_TOOL,
 ];
 
+export const MIKE_GREP_DELTAS = {
+  "mike-grep-v1":
+    "sized-inventory-global-grep-bounded-read-dedup-terminal-v1",
+  "mike-legal-v1":
+    "sized-inventory-global-grep-bounded-read-legal-scopes-dedup-terminal-v1",
+  "mike-legal-guided-v1":
+    "sized-inventory-global-grep-bounded-read-legal-scopes-guidance-dedup-terminal-v1",
+} as const;
+
+const MIKE_INVENTORY_TOOL: OpenAIToolSchema = {
+  ...byName.get("list_documents")!,
+  function: {
+    ...byName.get("list_documents")!.function,
+    description:
+      "List the project documents with IDs, filenames, file types, and exact extracted character, line, and page counts.",
+  },
+};
+
+const MIKE_COMPLETE_READ_TOOL: OpenAIToolSchema = {
+  ...byName.get("read_document")!,
+  function: {
+    ...byName.get("read_document")!.function,
+    description:
+      "Read the complete text of one project document. This is the simplest path when the document is broadly relevant; for localized evidence in a large source, Grep and bounded Read are also valid without a prior complete read.",
+  },
+};
+
+function mikeGrepTool(legalScopes: boolean): OpenAIToolSchema {
+  return {
+    type: "function",
+    function: {
+      name: "Grep",
+      description:
+        "Search project-document contents with a regular expression across every document by default, or filter by filename or glob. Returns matching lines with bounded context." +
+        (legalScopes
+          ? " Optional section and page scopes bound long legal documents; ordinary unscoped Grep remains available."
+          : ""),
+      parameters: {
+        type: "object",
+        properties: {
+          pattern: {
+            type: "string",
+            description: "Regular expression to search for.",
+          },
+          path: {
+            type: "string",
+            description:
+              "Optional filename, or the doc-N label from list_documents when filenames are duplicated. Omit to search every document.",
+          },
+          glob: {
+            type: "string",
+            description: 'Optional filename filter such as "*.docx".',
+          },
+          output_mode: {
+            type: "string",
+            enum: [
+              "content",
+              "files_with_matches",
+              "count",
+              ...(legalScopes ? ["sections"] : []),
+            ],
+            description:
+              "content returns matching lines; files_with_matches returns filenames; count returns match counts." +
+              (legalScopes
+                ? " sections returns executable Read recipes for the legal sections containing matches, without section prose."
+                : ""),
+          },
+          "-i": { type: "boolean", description: "Case-insensitive search." },
+          "-n": {
+            type: "boolean",
+            description: "Show line numbers in content mode; defaults to true.",
+          },
+          "-C": {
+            type: "number",
+            description: "Lines of context before and after each match.",
+          },
+          head_limit: {
+            type: "number",
+            minimum: 1,
+            description: "Maximum returned lines or entries; defaults to 250.",
+          },
+          ...(legalScopes
+            ? {
+                section: {
+                  type: "string",
+                  description:
+                    "Optional exact section, subsection, table row, or cell handle copied from Grep. Searches that unit and its children.",
+                },
+                pages: {
+                  type: "string",
+                  description:
+                    'Optional page scope such as "pdf:12", "printed:47", "12-18", or "3,5,9". Never guess a page scheme.',
+                },
+              }
+            : {}),
+        },
+        required: ["pattern"],
+      },
+    },
+  };
+}
+
+function mikeReadTool(legalScopes: boolean): OpenAIToolSchema {
+  return {
+    type: "function",
+    function: {
+      name: "Read",
+      description:
+        "Read a project document in cat -n format. Reads up to 2000 lines by default; pass offset and limit for a bounded line window." +
+        (legalScopes
+          ? " A verified section handle or exact page scope can select a legal unit instead."
+          : ""),
+      parameters: {
+        type: "object",
+        properties: {
+          file_path: {
+            type: "string",
+            description:
+              "Filename from list_documents, or its doc-N label when filenames are duplicated.",
+          },
+          offset: {
+            type: "number",
+            minimum: 1,
+            description: "Optional starting line.",
+          },
+          limit: {
+            type: "number",
+            minimum: 1,
+            description: "Optional number of lines to read.",
+          },
+          ...(legalScopes
+            ? {
+                section: {
+                  type: "string",
+                  description:
+                    "Verified structural handle copied from Grep, including an exact table row or cell. Do not infer handles.",
+                },
+                pages: {
+                  type: "string",
+                  description:
+                    'Exact page or range such as "pdf:12", "printed:47", or "12-18". Do not combine with section or offset.',
+                },
+              }
+            : {}),
+        },
+        required: ["file_path"],
+      },
+    },
+  };
+}
+
+function mikeGrepTools(legalScopes: boolean): OpenAIToolSchema[] {
+  return [
+    MIKE_COMPLETE_READ_TOOL,
+    byName.get("find_in_document")!,
+    MIKE_INVENTORY_TOOL,
+    byName.get("fetch_documents")!,
+    mikeGrepTool(legalScopes),
+    mikeReadTool(legalScopes),
+    ADAPTIVE_MIKE_GENERATE_DOCX_TOOL,
+  ];
+}
+
+export const MIKE_GREP_LAB_TOOLS = mikeGrepTools(false);
+export const MIKE_LEGAL_LAB_TOOLS = mikeGrepTools(true);
+
 export const UPSTREAM_MIKE_RETRIEVAL_PROMPT = `PROJECT RETRIEVAL (pinned upstream Mike):
 - Use at most 10 tool-use rounds per response. Batch independent tool calls and leave room for the final answer.
 - Read each relevant document/version at most once per response. After read_document or fetch_documents returns a document's full text, do not call either tool again for that same document/version in the same response; use the prior result, call find_in_document for targeted checks, or proceed to the next required tool.
@@ -314,3 +480,16 @@ ADAPTIVE READING:
 
 TERMINAL DOCUMENT CREATION:
 - Call generate_docx only after every requested deliverable is final. A successful generate_docx call completes the turn; do not plan a later read_document or acknowledgement round.`;
+
+export const MIKE_GREP_LAB_SYSTEM_PROMPT = `${UPSTREAM_MIKE_LAB_SYSTEM_PROMPT}
+
+SOURCE NAVIGATION:
+- list_documents reports exact extracted sizes and page counts. Complete reads remain the shortest path when the relevant source set fits comfortably. For a large or many-document source set, Grep plus bounded Read may supply exact evidence without a prior complete read.
+
+TERMINAL DOCUMENT CREATION:
+- Call generate_docx only after every requested deliverable is final. A successful generate_docx call completes the turn; do not plan a later read or acknowledgement round.`;
+
+export const MIKE_LEGAL_GUIDED_LAB_SYSTEM_PROMPT = `${MIKE_GREP_LAB_SYSTEM_PROMPT}
+
+SCOPED READING GUIDANCE:
+- Use a section scope when Grep supplies an exact structural handle and the needed evidence is concentrated in that provision. Use a page scope when the source or request makes pagination the meaningful locator. Use ordinary cross-document Grep and bounded line reads for wording distributed across sources. Keep a primary draft or precedent whole when its overall structure matters, and scope supporting sources when only localized evidence is needed. Never guess a section handle or page scheme.`;

@@ -144,6 +144,39 @@ describe("evidence exposure union", () => {
     expect(handoff.prompt).toContain("gamma");
   });
 
+  it("can reproduce the pre-checkpoint v5 drafting handoff prompt", async () => {
+    const state = createEvidenceExposureState();
+    await applyEvidenceExposure(
+      state,
+      {
+        tool_use_id: "r1",
+        content: "alpha beta",
+        evidenceSegments: [
+          { documentId: "d1", versionId: "v1", start: 0, end: 10 },
+        ],
+      },
+      load,
+    );
+    const handoff = await compileEvidenceHandoff({
+      state,
+      load,
+      originalRequest: "Draft the clause.",
+      maxChars: 100,
+      promptVariant: "legacy-v5",
+      domainGuidance: "Use output_document.",
+    });
+    expect(handoff.status).toBe("ready");
+    if (handoff.status !== "ready") return;
+    expect(handoff.prompt).toContain(
+      "Complete the requested deliverable in this fresh drafting context.",
+    );
+    expect(handoff.prompt).toContain(
+      "The tool domain that triggered this handoff is already loaded.",
+    );
+    expect(handoff.prompt).not.toContain("previous research agent");
+    expect(handoff.prompt).toContain("alpha beta");
+  });
+
   it("lets a stronger Read subsume the same Grep excerpt at handoff", async () => {
     const state = createEvidenceExposureState();
     await applyEvidenceExposure(
