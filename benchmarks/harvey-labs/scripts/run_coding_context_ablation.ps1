@@ -1,5 +1,7 @@
 param(
-    [switch]$DryRun
+    [switch]$DryRun,
+    [switch]$NativeOnly,
+    [string]$Stamp = "2026-08-02T22-10-00Z-r1"
 )
 
 $ErrorActionPreference = "Stop"
@@ -8,7 +10,6 @@ $lab = Join-Path $repo "benchmarks\harvey-labs"
 $backend = Join-Path $repo "backend"
 $python = Join-Path $lab ".venv\Scripts\python.exe"
 $node = (Get-Command node).Source
-$stamp = "2026-08-02T22-10-00Z-r1"
 $logRoot = Join-Path $repo ".tmp\harvey-five-way-logs\$stamp"
 $resultsRoot = Join-Path $lab "results"
 $env:LAB_SANDBOX_ENGINE = "docker"
@@ -66,31 +67,33 @@ function Start-LabRun {
 }
 
 foreach ($task in $tasks) {
-    $adaptiveRun = "$task/adaptive-mike-v1-codex-gpt-5-6-luna/$stamp"
-    Start-LabRun "adaptive_mike_v1" $task $adaptiveRun $node $backend @(
-        "node_modules/tsx/dist/cli.mjs", "scripts/lab-beaver-arm.ts",
-        "--task", $task,
-        "--arm", "adaptive_mike_v1",
-        "--model", "codex:gpt-5.6-luna",
-        "--effort", "high",
-        "--retrieval-prompt", "neutral",
-        "--run-id", $adaptiveRun
-    )
-
-    foreach ($surface in @("coding_plain_v1", "coding_legal_v1")) {
-        $slug = $surface -replace "_", "-"
-        $runId = "$task/$slug-codex-gpt-5-6-luna/$stamp"
-        Start-LabRun $surface $task $runId $python $lab @(
-            "-m", "harness.run",
-            "--model", "codex/gpt-5.6-luna",
+    if (-not $NativeOnly) {
+        $adaptiveRun = "$task/adaptive-mike-v1-codex-gpt-5-6-luna/$stamp"
+        Start-LabRun "adaptive_mike_v1" $task $adaptiveRun $node $backend @(
+            "node_modules/tsx/dist/cli.mjs", "scripts/lab-beaver-arm.ts",
             "--task", $task,
-            "--run-id", $runId,
-            "--max-turns", "10",
-            "--reasoning-effort", "high",
-            "--skills", "docx",
-            "--surface", $surface,
-            "--sandbox-image", "lab-sandbox:latest"
+            "--arm", "adaptive_mike_v1",
+            "--model", "codex:gpt-5.6-luna",
+            "--effort", "high",
+            "--retrieval-prompt", "neutral",
+            "--run-id", $adaptiveRun
         )
+
+        foreach ($surface in @("coding_plain_v1", "coding_legal_v1")) {
+            $slug = $surface -replace "_", "-"
+            $runId = "$task/$slug-codex-gpt-5-6-luna/$stamp"
+            Start-LabRun $surface $task $runId $python $lab @(
+                "-m", "harness.run",
+                "--model", "codex/gpt-5.6-luna",
+                "--task", $task,
+                "--run-id", $runId,
+                "--max-turns", "10",
+                "--reasoning-effort", "high",
+                "--skills", "docx",
+                "--surface", $surface,
+                "--sandbox-image", "lab-sandbox:latest"
+            )
+        }
     }
 
     $nativeRun = "$task/codex-native-v1-gpt-5-6-luna/$stamp"
