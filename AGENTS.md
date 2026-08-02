@@ -169,7 +169,9 @@ to improve a build number.
 - npm `.CMD` shims (e.g. `claude.CMD`) re-parse argv through cmd.exe:
   multi-line or quote-bearing args silently break (empty stdout). Keep
   CLI args single-line and quote-free; ship rich payloads via stdin.
-- LAB experiment design: harness A/B with the MODEL HELD CONSTANT
+- LAB experiment design: canonical harness A/B claims hold the MODEL CONSTANT
   (claude-code/claude-sonnet-4-6 via `claude -p`; ollama/qwen from the
-  desktop PC). Codex was pilot scaffolding only — never an experiment
-  cell. `cc-harness-*` results = Claude-Code-as-product side runs.
+  desktop PC). Separately labelled Codex/Luna API side runs are allowed on
+  visible-dev tasks when the user authorizes them, but must not be pooled with
+  or presented as those controlled A/B cells. Never expose held-out tasks.
+  `cc-harness-*` results = Claude-Code-as-product side runs.
