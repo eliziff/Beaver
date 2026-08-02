@@ -7,6 +7,7 @@ Usage:
 """
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -25,6 +26,7 @@ from harness.adapters.google import GoogleAdapter
 from harness.adapters.mistral import MistralAdapter
 from harness.adapters.openai import OpenAIAdapter
 from harness.agent_loop import run_agent
+from harness.ablation_tools import AblationToolExecutor, get_ablation_tool_definitions
 from harness.tools import ToolExecutor, get_all_tool_definitions
 from sandbox.sandbox import DEFAULT_IMAGE, ENGINE, Sandbox
 from utils.stdio import force_utf8_stdio
@@ -259,6 +261,12 @@ parser.add_argument("--skills", nargs="*", default=None,
 parser.add_argument("--sandbox-image", default=DEFAULT_IMAGE,
                     help="Container image tag for the sandbox (default: %(default)s); "
                          "pulled from ghcr.io and built locally as fallback.")
+parser.add_argument(
+    "--surface",
+    choices=("standard", "coding_plain_v1", "coding_legal_v1"),
+    default="standard",
+    help="Tool surface for a preregistered harness ablation.",
+)
 
 
 # ── Main ───────────────────────────────────────────────────────────────
@@ -328,6 +336,7 @@ def main(args):
         "reasoning_effort": args.reasoning_effort,
         "skills": skill_names,
         "sandbox_image": args.sandbox_image,
+        "surface": args.surface,
         "started_at": datetime.now(timezone.utc).isoformat(),
     }
     (results_dir / "config.json").write_text(json.dumps(config, indent=2))
@@ -340,24 +349,54 @@ def main(args):
         reasoning_effort=args.reasoning_effort,
     )
 
-    tool_executor = ToolExecutor(
-        sandbox=sandbox,
-        shell_timeout=args.shell_timeout,
-    )
-
-    # Load tool definitions
-    tools = get_all_tool_definitions()
+    if args.surface == "standard":
+        tool_executor = ToolExecutor(
+            sandbox=sandbox,
+            shell_timeout=args.shell_timeout,
+        )
+        tools = get_all_tool_definitions()
+    else:
+        tool_executor = AblationToolExecutor(
+            sandbox=sandbox,
+            shell_timeout=args.shell_timeout,
+            legal_scopes=args.surface == "coding_legal_v1",
+        )
+        tools = get_ablation_tool_definitions(
+            legal_scopes=args.surface == "coding_legal_v1"
+        )
 
     # Build the system prompt: preamble (workspace + tools + conventions)
     # + skill manuals. Capabilities only — no task content. The per-task
     # instructions go in the first user message so the model treats them as
     # an assignment, not as additional ambient context.
     system_prompt = SYSTEM_PROMPT_PREAMBLE
+    if args.surface != "standard":
+        system_prompt += (
+            "\n\n## Source projections\n\n"
+            "`/workspace/sources/manifest.json` maps every read-only original "
+            "document to a deterministic UTF-8 projection with exact hashes "
+            "and sizes. `glob` and `grep` default to those projections. Read a "
+            "small/few-document matter whole when useful; for a large matter, "
+            "use grep and bounded read calls to curate context. The original "
+            "documents remain under `/workspace/documents`; write every final "
+            "deliverable under `/workspace/output`.\n"
+        )
     if skill_names:
         skills_text = load_skills(skill_names)
         system_prompt += skills_text
         setup_skill_scripts(skill_names, workspace_dir)
     user_prompt = task["instructions"]
+    schema_bytes = json.dumps(tools, sort_keys=True, separators=(",", ":")).encode()
+    config.update(
+        {
+            "instructions_sha256": hashlib.sha256(user_prompt.encode()).hexdigest(),
+            "system_prompt_sha256": hashlib.sha256(system_prompt.encode()).hexdigest(),
+            "system_prompt_bytes": len(system_prompt.encode()),
+            "tool_schema_sha256": hashlib.sha256(schema_bytes).hexdigest(),
+            "tool_schema_bytes": len(schema_bytes),
+        }
+    )
+    (results_dir / "config.json").write_text(json.dumps(config, indent=2))
 
     # Run the agent
     print(f"Starting agent loop (max {args.max_turns} turns)...")
@@ -389,7 +428,41 @@ def main(args):
         "turn_count": result["turn_count"],
         "input_tokens": result["input_tokens"],
         "output_tokens": result["output_tokens"],
+        "reasoning_tokens": result["reasoning_tokens"],
         "total_tokens": result["input_tokens"] + result["output_tokens"],
+        "cached_input_tokens": result["cached_input_tokens"],
+        "cache_write_input_tokens": result["cache_write_input_tokens"],
+        "cache_read_ratio": (
+            result["cached_input_tokens"] / result["input_tokens"]
+            if result["input_tokens"]
+            else 0
+        ),
+        "uncached_input_tokens": max(
+            0,
+            result["input_tokens"]
+            - result["cached_input_tokens"]
+            - result["cache_write_input_tokens"],
+        ),
+        "context_rounds": result["context_rounds"],
+        "provider_request_count": len(result["context_rounds"]),
+        "service_tiers_reported": sorted(
+            {
+                round_["service_tier"]
+                for round_ in result["context_rounds"]
+                if round_["service_tier"]
+            }
+        ),
+        "tool_call_count": result["tool_call_count"],
+        "tool_result_characters": result["tool_result_characters"],
+        "tool_result_bytes": result["tool_result_bytes"],
+        "tool_error_count": result["tool_error_count"],
+        "tool_batches": result["tool_batches"],
+        "surface": args.surface,
+        "instructions_sha256": config["instructions_sha256"],
+        "system_prompt_sha256": config["system_prompt_sha256"],
+        "system_prompt_bytes": config["system_prompt_bytes"],
+        "tool_schema_sha256": config["tool_schema_sha256"],
+        "tool_schema_bytes": config["tool_schema_bytes"],
         "wall_clock_seconds": result["wall_clock_seconds"],
         "finished_cleanly": result["finished_cleanly"],
         "completed_at": datetime.now(timezone.utc).isoformat(),

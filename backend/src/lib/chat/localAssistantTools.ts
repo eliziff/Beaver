@@ -108,7 +108,10 @@ import type {
   OpenAIToolSchema,
 } from "../llm";
 import { cachedParse } from "../parseCache";
-import { UPSTREAM_MIKE_LAB_TOOLS } from "./upstreamMikeBenchmarkSurface";
+import {
+  ADAPTIVE_MIKE_LAB_TOOLS,
+  UPSTREAM_MIKE_LAB_TOOLS,
+} from "./upstreamMikeBenchmarkSurface";
 import {
   getTableOfAuthoritiesJob,
   submitTableOfAuthoritiesDocument,
@@ -889,6 +892,13 @@ export const SUPPRESS_DUPLICATE_WHOLE_READS =
 /** Explicit LAB-only comparator; never selected by a product setting. */
 export const UPSTREAM_MIKE_TOOL_SHAPE =
   process.env.MIKE_TOOL_SHAPE === "upstream-mike";
+
+/** Clean-fork LAB candidate; starts from the comparator's frozen surface. */
+export const ADAPTIVE_MIKE_TOOL_SHAPE =
+  process.env.MIKE_TOOL_SHAPE === "adaptive-mike-v1";
+
+export const ORIGIN_MIKE_TOOL_SHAPE =
+  UPSTREAM_MIKE_TOOL_SHAPE || ADAPTIVE_MIKE_TOOL_SHAPE;
 
 /** Keep tool disclosure independent from navigation vocabulary in A/B runs. */
 export const PROGRESSIVE_DISCLOSURE_ENABLED =
@@ -1855,8 +1865,10 @@ function forCodingVocabulary(tools: OpenAIToolSchema[]): OpenAIToolSchema[] {
 
 const LOCAL_ASSISTANT_TOOL_CATALOG: OpenAIToolSchema[] = [
   ...(ASK_INPUTS_DISABLED ? [] : LOCAL_ASK_INPUTS_TOOLS),
-  ...(UPSTREAM_MIKE_TOOL_SHAPE
-    ? UPSTREAM_MIKE_LAB_TOOLS
+  ...(ORIGIN_MIKE_TOOL_SHAPE
+    ? ADAPTIVE_MIKE_TOOL_SHAPE
+      ? ADAPTIVE_MIKE_LAB_TOOLS
+      : UPSTREAM_MIKE_LAB_TOOLS
     : CODING_TOOL_SHAPE
     ? [
         ...CODING_SHAPE_TOOLS,
@@ -1868,19 +1880,19 @@ const LOCAL_ASSISTANT_TOOL_CATALOG: OpenAIToolSchema[] = [
         ),
       ]
     : forNavShape(forAutomaticCompiler(LOCAL_LIBRARY_TOOLS))),
-  ...(UPSTREAM_MIKE_TOOL_SHAPE
+  ...(ORIGIN_MIKE_TOOL_SHAPE
     ? []
     : CODING_TOOL_SHAPE
     ? LOCAL_DOCX_TOOLS.filter(
         (entry) => !CODING_SHAPE_REPLACES.has(entry.function.name),
       )
     : LOCAL_DOCX_TOOLS),
-  ...(UPSTREAM_MIKE_TOOL_SHAPE ? [] : COMPARE_VERSIONS_TOOLS),
-  ...(UPSTREAM_MIKE_TOOL_SHAPE
+  ...(ORIGIN_MIKE_TOOL_SHAPE ? [] : COMPARE_VERSIONS_TOOLS),
+  ...(ORIGIN_MIKE_TOOL_SHAPE
     ? []
     : forEditShape(TEXT_OPS_TOOLS as OpenAIToolSchema[])),
-  ...(UPSTREAM_MIKE_TOOL_SHAPE ? [] : (WORKFLOW_TOOLS as OpenAIToolSchema[])),
-  ...(UPSTREAM_MIKE_TOOL_SHAPE || RESEARCH_TOOLS_DISABLED
+  ...(ORIGIN_MIKE_TOOL_SHAPE ? [] : (WORKFLOW_TOOLS as OpenAIToolSchema[])),
+  ...(ORIGIN_MIKE_TOOL_SHAPE || RESEARCH_TOOLS_DISABLED
     ? []
     : [
         ...(COURTLISTENER_TOOLS as OpenAIToolSchema[]),
@@ -5471,13 +5483,43 @@ async function runUpstreamMikeRetrievalCall(params: {
   };
 
   if (call.name === "list_documents") {
+    if (!ADAPTIVE_MIKE_TOOL_SHAPE) {
+      return upstreamMikeResult(
+        call,
+        labelledDocuments.map(({ document, docLabel }) => ({
+          doc_id: docLabel,
+          filename: document.filename,
+          file_type: document.file_type,
+        })),
+      );
+    }
+    const inventory = await Promise.all(
+      labelledDocuments.map(async ({ document, docLabel }) => {
+        const extracted = await extractLocalDocument(userId, document.id);
+        return {
+          doc_id: docLabel,
+          filename: document.filename,
+          file_type: document.file_type,
+          characters: extracted?.text.length ?? 0,
+          lines: extracted ? extracted.text.split(/\r?\n/u).length : 0,
+          pages: extracted?.pages.pages.length ?? 0,
+        };
+      }),
+    );
     return upstreamMikeResult(
       call,
-      labelledDocuments.map(({ document, docLabel }) => ({
-        doc_id: docLabel,
-        filename: document.filename,
-        file_type: document.file_type,
-      })),
+      {
+        documents: inventory,
+        totals: {
+          documents: inventory.length,
+          characters: inventory.reduce(
+            (sum, document) => sum + document.characters,
+            0,
+          ),
+          lines: inventory.reduce((sum, document) => sum + document.lines, 0),
+          pages: inventory.reduce((sum, document) => sum + document.pages, 0),
+        },
+      },
     );
   }
 
@@ -5485,6 +5527,164 @@ async function runUpstreamMikeRetrievalCall(params: {
     const requested = trimmed(call.input.doc_id);
     const listed = resolveDocument(requested);
     const docLabel = listed ? labelById.get(listed.id) ?? requested : requested;
+    const section = trimmed(call.input.section);
+    const pages = Array.isArray(call.input.pages)
+      ? call.input.pages
+          .map(Number)
+          .filter((page) => Number.isInteger(page) && page > 0)
+      : [];
+    const bounded =
+      ADAPTIVE_MIKE_TOOL_SHAPE &&
+      (section.length > 0 ||
+        pages.length > 0 ||
+        typeof call.input.offset === "number" ||
+        typeof call.input.max_chars === "number");
+    if (bounded) {
+      if (!listed) {
+        return upstreamMikeResult(call, {
+          ok: false,
+          error: `Document '${requested}' not found.`,
+        });
+      }
+      if (section && pages.length) {
+        return upstreamMikeResult(call, {
+          ok: false,
+          error: "Choose section or pages in one read, not both.",
+        });
+      }
+      const document = await extractLocalDocument(userId, listed.id);
+      if (!document) {
+        return upstreamMikeResult(call, {
+          ok: false,
+          error: "Document could not be read.",
+        });
+      }
+      let spans: Array<{ start: number; end: number; locator: string }> = [];
+      if (section) {
+        const skeleton = compileAgreementSkeleton(document.text, listed.id, {
+          tableCells: document.tableCells,
+        });
+        const selected = readSection(skeleton, section);
+        if (selected.status !== "found" || !selected.block) {
+          return upstreamMikeResult(call, {
+            ok: false,
+            status: selected.status,
+            requested_section: section,
+            matches: selected.matches,
+            error: `Section '${section}' could not be resolved exactly.`,
+          });
+        }
+        spans = [
+          {
+            start: selected.block.start,
+            end: selected.block.end,
+            locator: selected.block.label,
+          },
+        ];
+      } else if (pages.length) {
+        const byOrdinal = new Map(
+          document.pages.pages.map((page) => [page.ordinal, page]),
+        );
+        const missing = [...new Set(pages)].filter(
+          (page) => !byOrdinal.has(page),
+        );
+        if (missing.length) {
+          return upstreamMikeResult(call, {
+            ok: false,
+            error: `Page ordinal(s) unavailable: ${missing.join(", ")}.`,
+            available_pages: document.pages.pages.length,
+          });
+        }
+        spans = [...new Set(pages)]
+          .sort((left, right) => left - right)
+          .map((ordinal) => {
+            const page = byOrdinal.get(ordinal)!;
+            return {
+              start: page.start,
+              end: page.end,
+              locator: `page ${ordinal}`,
+            };
+          });
+      } else {
+        spans = [{ start: 0, end: document.text.length, locator: "document" }];
+      }
+
+      const selectedChars = spans.reduce(
+        (sum, span) => sum + Math.max(0, span.end - span.start),
+        0,
+      );
+      const offset = clampInt(call.input.offset, 0, selectedChars, 0);
+      const maxChars = clampInt(call.input.max_chars, 1, 200_000, 24_000);
+      let skip = offset;
+      let remaining = maxChars;
+      const chunks: string[] = [];
+      const evidenceSegments: NonNullable<
+        NormalizedToolResult["evidenceSegments"]
+      > = [];
+      for (const span of spans) {
+        const spanLength = Math.max(0, span.end - span.start);
+        if (skip >= spanLength) {
+          skip -= spanLength;
+          continue;
+        }
+        if (remaining <= 0) break;
+        const start = span.start + skip;
+        const end = Math.min(span.end, start + remaining);
+        const text = document.text.slice(start, end);
+        chunks.push(`--- ${span.locator} | chars ${start}-${end} ---\n${text}`);
+        evidenceSegments.push({
+          documentId: listed.id,
+          versionId: document.versionId,
+          filename: document.filename,
+          locator: `${span.locator}; chars ${start}-${end}`,
+          projection: "canonical",
+          kind: "evidence" as const,
+          start,
+          end,
+        });
+        remaining -= end - start;
+        skip = 0;
+      }
+      const deliveredChars = evidenceSegments.reduce(
+        (sum, span) => sum + span.end - span.start,
+        0,
+      );
+      const nextOffset = offset + deliveredChars;
+      const nextRead =
+        nextOffset < selectedChars
+          ? {
+              doc_id: docLabel,
+              ...(section ? { section } : {}),
+              ...(pages.length ? { pages: [...new Set(pages)].sort((a, b) => a - b) } : {}),
+              offset: nextOffset,
+              max_chars: maxChars,
+            }
+          : null;
+      return {
+        ...upstreamMikeResult(call, {
+          ok: true,
+          doc_id: docLabel,
+          filename: document.filename,
+          selection: section
+            ? { section }
+            : pages.length
+              ? { pages: [...new Set(pages)].sort((a, b) => a - b) }
+              : { document: true },
+          offset,
+          selected_characters: selectedChars,
+          returned_characters: deliveredChars,
+          truncated: nextRead !== null,
+          text: chunks.join("\n\n"),
+          ...(nextRead
+            ? {
+                next_read: nextRead,
+                continuation: `Call read_document with ${JSON.stringify(nextRead)}.`,
+              }
+            : {}),
+        }),
+        evidenceSegments,
+      };
+    }
     const read = await readOne(requested);
     const content =
       listed && !read.duplicate
@@ -5607,7 +5807,26 @@ async function runUpstreamMikeRetrievalCall(params: {
       total_matches: matches.totalMatches,
       returned: matches.hits.length,
       truncated: matches.totalMatches > matches.hits.length,
-      hits: matches.hits,
+      hits: matches.hits.map((hit) => {
+        const start = Math.max(0, hit.at - contextChars);
+        const end = Math.min(
+          document.text.length,
+          hit.at + hit.excerpt.length + contextChars,
+        );
+        const page = document.pages.pages.find(
+          (candidate) => candidate.start <= hit.at && hit.at < candidate.end,
+        );
+        return {
+          ...hit,
+          locator: `chars ${start}-${end}`,
+          ...(page ? { page: page.ordinal } : {}),
+          read: {
+            doc_id: labelById.get(documentId) ?? requested,
+            offset: start,
+            max_chars: Math.max(1, end - start),
+          },
+        };
+      }),
     }),
     evidenceSegments: matches.hits.map((hit) => ({
       documentId,
@@ -5658,7 +5877,7 @@ export async function runLocalAssistantTools(
         args = resolved.input;
       }
 
-      if (UPSTREAM_MIKE_TOOL_SHAPE || call.name === "fetch_documents") {
+      if (ORIGIN_MIKE_TOOL_SHAPE || call.name === "fetch_documents") {
         const upstream = await runUpstreamMikeRetrievalCall({
           call,
           userId,
@@ -5864,7 +6083,7 @@ export async function runLocalAssistantTools(
       }
       if (
         call.name === "library_create_docx" ||
-        (UPSTREAM_MIKE_TOOL_SHAPE && call.name === "generate_docx")
+        (ORIGIN_MIKE_TOOL_SHAPE && call.name === "generate_docx")
       ) {
         const title = trimmed(args.title);
         const filename = trimmed(args.filename);
@@ -5969,7 +6188,7 @@ export async function runLocalAssistantTools(
             ...(diagnostics ? { compiler_diagnostics: diagnostics } : {}),
             download_url: downloadUrl,
           };
-          if (UPSTREAM_MIKE_TOOL_SHAPE && call.name === "generate_docx") {
+          if (ORIGIN_MIKE_TOOL_SHAPE && call.name === "generate_docx") {
             const docLabel = `doc-${Math.max(
               0,
               [...(allowedDocumentIds ?? [])].indexOf(document.id),

@@ -43,8 +43,10 @@ import os from "node:os";
 import path from "node:path";
 import { ALLOWED_DOCUMENT_TYPES } from "../src/lib/documentTypes";
 import {
+  ADAPTIVE_MIKE_DELTA,
   UPSTREAM_MIKE_COMMIT,
   UPSTREAM_MIKE_SCHEMA_SHA256,
+  UPSTREAM_MIKE_SOURCE_BLOBS,
 } from "../src/lib/chat/upstreamMikeBenchmarkSurface";
 import { latestAuthoredDocuments } from "./lab-authored-documents";
 
@@ -420,26 +422,6 @@ async function main() {
       MIKE_SLA_WORKFLOW: "0",
       MIKE_GREENFIELD_REVIEW: "0",
     },
-    v16: {
-      MIKE_NAV_SHAPE: "address",
-      MIKE_TOOL_SHAPE: "coding",
-      MIKE_RETRIEVAL_EXPERIMENT: "h4-legal-grep",
-      // One continuous agent chooses exact batch reads or legal-aware bounded
-      // reads from the truthful inventory. There is no host source-size cap.
-      MIKE_MODEL_COVERAGE_ROUTING: "1",
-      MIKE_TOOL_RESULT_CAP: "51200",
-      MIKE_TOOL_DESCRIPTION_VARIANT: "terse",
-      MIKE_SUPPRESS_DUPLICATE_WHOLE_READS: "0",
-      MIKE_RESIDENT_AUTHORING: "1",
-      // The durable document receipt is the response; do not pay for a final
-      // full-context acknowledgement round after all deliverables succeed.
-      MIKE_TERMINAL_AUTHORING: "1",
-      MIKE_CONTEXT_HANDOFF: "0",
-      MIKE_CONTINUOUS_EVIDENCE: "0",
-      MIKE_OPENAI_COMPACT_THRESHOLD: "",
-      MIKE_SLA_WORKFLOW: "0",
-      MIKE_GREENFIELD_REVIEW: "0",
-    },
     coverage_soft_v2: {
       MIKE_NAV_SHAPE: "address",
       MIKE_TOOL_SHAPE: "coding",
@@ -510,10 +492,25 @@ async function main() {
       MIKE_RETRIEVAL_EXPERIMENT: "",
       MIKE_PROGRESSIVE_DISCLOSURE: "0",
     },
+    adaptive_mike_v1: {
+      MIKE_NAV_SHAPE: "legacy",
+      MIKE_TOOL_SHAPE: "adaptive-mike-v1",
+      MIKE_RETRIEVAL_EXPERIMENT: "",
+      MIKE_PROGRESSIVE_DISCLOSURE: "0",
+      MIKE_MODEL_COVERAGE_ROUTING: "0",
+      MIKE_WHOLE_READ_MAX_CHARS: "",
+      MIKE_SUPPRESS_DUPLICATE_WHOLE_READS: "1",
+      MIKE_TERMINAL_AUTHORING: "1",
+      MIKE_CONTEXT_HANDOFF: "0",
+      MIKE_CONTINUOUS_EVIDENCE: "0",
+      MIKE_OPENAI_COMPACT_THRESHOLD: "",
+      MIKE_SLA_WORKFLOW: "0",
+      MIKE_GREENFIELD_REVIEW: "0",
+    },
   };
   if (!armEnvironment[arm])
     throw new Error(
-      `unknown --arm ${arm}; expected p0, coding_finalist, d1, hybrid, hybrid_finalist, coverage_finalist, coverage_hybrid_v2, checkpoint_paged_v1, v13, v14, v15, v16, coverage_soft_v2, working_set, compiler_hybrid, sla_hybrid, sla_working_set, h9, h10, address, or upstream`,
+      `unknown --arm ${arm}; expected p0, coding_finalist, d1, hybrid, hybrid_finalist, coverage_finalist, coverage_hybrid_v2, checkpoint_paged_v1, v13, v14, v15, coverage_soft_v2, working_set, compiler_hybrid, sla_hybrid, sla_working_set, h9, h10, address, upstream, or adaptive_mike_v1`,
     );
 
   // Re-spawn into the isolated anonymous-mode environment (same recipe as
@@ -804,6 +801,41 @@ async function main() {
       );
     }
   }
+  if (arm === "adaptive_mike_v1") {
+    const expectedTools = [
+      "read_document",
+      "find_in_document",
+      "list_documents",
+      "fetch_documents",
+      "generate_docx",
+    ];
+    const residentTools = Array.isArray(surface?.resident_tools)
+      ? surface.resident_tools
+      : [];
+    const deferredTools = Array.isArray(surface?.deferred_tools)
+      ? surface.deferred_tools
+      : [];
+    if (
+      surface?.adaptive_mike_shape !== true ||
+      surface?.upstream_mike_shape !== false ||
+      surface?.progressive_disclosure !== false ||
+      surface?.trajectory_mode !== "continuous" ||
+      surface?.context_handoff !== false ||
+      surface?.continuous_evidence !== false ||
+      surface?.sla_workflow !== false ||
+      surface?.greenfield_review !== false ||
+      surface?.model_coverage_routing !== false ||
+      Number(surface?.whole_read_max_chars ?? 0) !== 0 ||
+      surface?.suppress_duplicate_whole_reads !== true ||
+      surface?.terminal_authoring !== true ||
+      JSON.stringify(residentTools) !== JSON.stringify(expectedTools) ||
+      deferredTools.length > 0
+    ) {
+      throw new Error(
+        `adaptive Mike isolation failed: resident=${residentTools.join(",")}; deferred=${deferredTools.join(",")}; handoff=${String(surface?.context_handoff)}; terminal=${String(surface?.terminal_authoring)}`,
+      );
+    }
+  }
   const authored = latestAuthoredDocuments(events);
   const askPause = events.find((event) =>
     String(event.type ?? "").startsWith("ask_inputs"),
@@ -880,7 +912,7 @@ async function main() {
       );
     }
   }
-  if (["v13", "v14", "v15", "v16"].includes(arm)) {
+  if (["v13", "v14", "v15"].includes(arm)) {
     const expectedDocxCount = deliverables.filter((name) =>
       /\.docx$/iu.test(name),
     ).length;
@@ -893,22 +925,12 @@ async function main() {
     const expectedResidentTools =
       arm === "v15"
         ? ["Glob", "Grep", "Read", "library_create_docx", "describe_tools"]
-        : arm === "v16"
-          ? [
-              "Glob",
-              "fetch_documents",
-              "Grep",
-              "Read",
-              "library_create_docx",
-              "describe_tools",
-            ]
         : ["Glob", "fetch_documents", "Grep", "Read", "describe_tools"];
     if (
       surface?.navigation_shape !== "address" ||
       surface?.coding_shape !== true ||
       surface?.model_coverage_routing !== (arm !== "v15") ||
-      surface?.retrieval_experiment !==
-        (arm === "v16" ? "h4-legal-grep" : "p0-pure-coding") ||
+      surface?.retrieval_experiment !== "p0-pure-coding" ||
       surface?.tool_description_variant !== "terse" ||
       surface?.progressive_disclosure !== true ||
       JSON.stringify(residentTools) !== JSON.stringify(expectedResidentTools) ||
@@ -919,10 +941,10 @@ async function main() {
       surface?.sla_workflow !== false ||
       surface?.greenfield_review !== false ||
       surface?.suppress_duplicate_whole_reads !== false ||
-      surface?.resident_authoring !== ["v15", "v16"].includes(arm) ||
-      surface?.terminal_authoring !== (arm === "v16") ||
+      surface?.resident_authoring !== (arm === "v15") ||
+      surface?.terminal_authoring !== false ||
       Number(surface?.whole_read_max_chars ?? 0) !==
-        (["v15", "v16"].includes(arm) ? 0 : 800_000) ||
+        (arm === "v15" ? 0 : 800_000) ||
       Number(surface?.tool_result_max_chars ?? 0) !== 51_200 ||
       (arm === "v14"
         ? String(surface?.openai_compact_threshold ?? "") !== "244800"
@@ -1223,7 +1245,7 @@ async function main() {
     }
   }
   if (
-    ["v13", "v14", "v15", "v16"].includes(arm) &&
+    ["v13", "v14", "v15", "adaptive_mike_v1"].includes(arm) &&
     providerInvocations.length !== 1
   ) {
     throw new Error(
@@ -1231,7 +1253,7 @@ async function main() {
     );
   }
   if (
-    ["v13", "v14", "v15", "v16"].includes(arm) &&
+    ["v13", "v14", "v15", "adaptive_mike_v1"].includes(arm) &&
     (reportedServiceTiers.size !== 1 || !reportedServiceTiers.has("default"))
   ) {
     throw new Error(
@@ -1239,7 +1261,7 @@ async function main() {
     );
   }
   if (
-    ["v13", "v14", "v15", "v16"].includes(arm) &&
+    ["v13", "v14", "v15", "adaptive_mike_v1"].includes(arm) &&
     (promptCacheStrategies.size !== 1 ||
       !promptCacheStrategies.has("session") ||
       promptCacheKeyHashes.size !== 1)
@@ -1326,6 +1348,7 @@ async function main() {
   const toolSchemaFingerprints = [
     ...new Set(contextRounds.map((round) => String(round.toolSha256 ?? ""))),
   ].filter(Boolean);
+  const upstreamDerived = ["upstream", "adaptive_mike_v1"].includes(arm);
   const runFingerprintInput = {
     task_sha256: splitEntry.sha256,
     instructions_sha256: instructionsSha256,
@@ -1338,6 +1361,12 @@ async function main() {
     harness_sources: harnessSourceFingerprints,
     system_prompt_sha256s: systemPromptFingerprints,
     tool_schema_sha256s: toolSchemaFingerprints,
+    upstream_mike_commit: upstreamDerived ? UPSTREAM_MIKE_COMMIT : null,
+    upstream_mike_source_blobs: upstreamDerived
+      ? UPSTREAM_MIKE_SOURCE_BLOBS
+      : null,
+    adaptive_delta:
+      arm === "adaptive_mike_v1" ? ADAPTIVE_MIKE_DELTA : null,
   };
   const runFingerprintSha256 = createHash("sha256")
     .update(JSON.stringify(runFingerprintInput))
@@ -1501,12 +1530,17 @@ async function main() {
         reasoning_effort: effort,
         service_tier_requested: serviceTier || null,
         service_tiers_reported: [...reportedServiceTiers],
-        prompt_variant: arm === "upstream" ? "upstream-pinned" : "lean",
+        prompt_variant:
+          arm === "upstream"
+            ? "upstream-pinned"
+            : arm === "adaptive_mike_v1"
+              ? "adaptive-mike-v1"
+              : "lean",
         retrieval_prompt_variant: retrievalPromptVariant,
         tool_description_variant:
           surface?.tool_description_variant ?? toolDescriptionVariant,
         retrieval_experiment: surface?.retrieval_experiment ?? null,
-        progressive_disclosure: arm !== "upstream",
+        progressive_disclosure: surface?.progressive_disclosure === true,
         model_coverage_routing: surface?.model_coverage_routing === true,
         whole_read_max_chars: surface?.whole_read_max_chars ?? null,
         tool_result_max_chars: surface?.tool_result_max_chars ?? null,
@@ -1536,10 +1570,17 @@ async function main() {
           surface?.openai_compact_threshold ?? null,
         prompt_cache_strategy: [...promptCacheStrategies],
         prompt_cache_key_sha256s: [...promptCacheKeyHashes],
-        upstream_mike_commit: arm === "upstream" ? UPSTREAM_MIKE_COMMIT : null,
+        upstream_mike_commit: upstreamDerived ? UPSTREAM_MIKE_COMMIT : null,
+        upstream_mike_source_blobs: upstreamDerived
+          ? UPSTREAM_MIKE_SOURCE_BLOBS
+          : null,
         upstream_mike_schema_sha256:
           arm === "upstream" ? UPSTREAM_MIKE_SCHEMA_SHA256 : null,
+        adaptive_mike_delta:
+          arm === "adaptive_mike_v1" ? ADAPTIVE_MIKE_DELTA : null,
         upstream_mike_isolation_verified: arm === "upstream" ? true : null,
+        adaptive_mike_isolation_verified:
+          arm === "adaptive_mike_v1" ? true : null,
         max_turns: 1,
         started_at: new Date(started).toISOString(),
       },
@@ -1845,9 +1886,14 @@ async function main() {
         deliverable_sources: deliverableSources,
         deliverable_receipts: deliverableReceipts,
         research_tools_disabled: true,
-        upstream_mike_commit: arm === "upstream" ? UPSTREAM_MIKE_COMMIT : null,
+        upstream_mike_commit: upstreamDerived ? UPSTREAM_MIKE_COMMIT : null,
+        upstream_mike_source_blobs: upstreamDerived
+          ? UPSTREAM_MIKE_SOURCE_BLOBS
+          : null,
         upstream_mike_schema_sha256:
           arm === "upstream" ? UPSTREAM_MIKE_SCHEMA_SHA256 : null,
+        adaptive_mike_delta:
+          arm === "adaptive_mike_v1" ? ADAPTIVE_MIKE_DELTA : null,
         service_tier_requested: serviceTier || null,
         service_tiers_reported: [...reportedServiceTiers],
         deviations: {
