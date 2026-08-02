@@ -31,6 +31,7 @@ import {
   searchLocalA2AJ,
 } from "./a2ajLocalBulk";
 import { legalProviderCache } from "./legalDataPath";
+import { sha256 } from "./hash";
 import {
   classifyLegalMarkdown,
   deriveOriginalPdfCandidates,
@@ -359,7 +360,7 @@ function requestCacheFile(
     ),
   );
   const identity = pythonStyleJson({ endpoint, params: compact });
-  const key = crypto.createHash("sha256").update(identity).digest("hex");
+  const key = sha256(identity);
   return path.join(legalProviderCache("a2aj"), "http", `${key}.json`);
 }
 

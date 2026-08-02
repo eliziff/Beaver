@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { appUrl } from "../appRoutes";
+import { sha256 } from "../hash";
 import { SYSTEM_ASSISTANT_WORKFLOWS } from "../systemWorkflows";
 import type { A2AJDocument, A2AJLocatorLookup } from "../a2aj";
 import { linkLocalDocxCitations } from "../docxCitationLinking";
@@ -1979,8 +1980,6 @@ const positiveInt = (value: unknown, min: number, max: number, fallback: number)
   typeof value === "number" && value > 0
     ? Math.min(Math.max(Math.trunc(value), min), max)
     : fallback;
-const sha256 = (value: string) =>
-  crypto.createHash("sha256").update(value).digest("hex");
 const errorText = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
 
