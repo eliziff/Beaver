@@ -110,6 +110,8 @@ import type {
 import { cachedParse } from "../parseCache";
 import {
   ADAPTIVE_MIKE_LAB_TOOLS,
+  MIKE_GREP_LAB_TOOLS,
+  MIKE_LEGAL_LAB_TOOLS,
   UPSTREAM_MIKE_LAB_TOOLS,
 } from "./upstreamMikeBenchmarkSurface";
 import {
@@ -854,7 +856,19 @@ export const ASK_INPUTS_DISABLED =
  * model-facing schema changes. Glob discloses document IDs only when two
  * files share a filename, so the ordinary path stays filename-native.
  */
-export const CODING_TOOL_SHAPE = process.env.MIKE_TOOL_SHAPE === "coding";
+export const MIKE_GREP_TOOL_SHAPE =
+  process.env.MIKE_TOOL_SHAPE === "mike-grep-v1";
+export const MIKE_LEGAL_TOOL_SHAPE =
+  process.env.MIKE_TOOL_SHAPE === "mike-legal-v1";
+export const MIKE_LEGAL_GUIDED_TOOL_SHAPE =
+  process.env.MIKE_TOOL_SHAPE === "mike-legal-guided-v1";
+export const MIKE_GREP_FAMILY_TOOL_SHAPE =
+  MIKE_GREP_TOOL_SHAPE ||
+  MIKE_LEGAL_TOOL_SHAPE ||
+  MIKE_LEGAL_GUIDED_TOOL_SHAPE;
+
+export const CODING_TOOL_SHAPE =
+  process.env.MIKE_TOOL_SHAPE === "coding" || MIKE_GREP_FAMILY_TOOL_SHAPE;
 
 /**
  * LAB arm: let the model choose complete, targeted, or mixed source coverage
@@ -898,7 +912,9 @@ export const ADAPTIVE_MIKE_TOOL_SHAPE =
   process.env.MIKE_TOOL_SHAPE === "adaptive-mike-v1";
 
 export const ORIGIN_MIKE_TOOL_SHAPE =
-  UPSTREAM_MIKE_TOOL_SHAPE || ADAPTIVE_MIKE_TOOL_SHAPE;
+  UPSTREAM_MIKE_TOOL_SHAPE ||
+  ADAPTIVE_MIKE_TOOL_SHAPE ||
+  MIKE_GREP_FAMILY_TOOL_SHAPE;
 
 /** Keep tool disclosure independent from navigation vocabulary in A/B runs. */
 export const PROGRESSIVE_DISCLOSURE_ENABLED =
@@ -1866,7 +1882,11 @@ function forCodingVocabulary(tools: OpenAIToolSchema[]): OpenAIToolSchema[] {
 const LOCAL_ASSISTANT_TOOL_CATALOG: OpenAIToolSchema[] = [
   ...(ASK_INPUTS_DISABLED ? [] : LOCAL_ASK_INPUTS_TOOLS),
   ...(ORIGIN_MIKE_TOOL_SHAPE
-    ? ADAPTIVE_MIKE_TOOL_SHAPE
+    ? MIKE_GREP_FAMILY_TOOL_SHAPE
+      ? MIKE_GREP_TOOL_SHAPE
+        ? MIKE_GREP_LAB_TOOLS
+        : MIKE_LEGAL_LAB_TOOLS
+      : ADAPTIVE_MIKE_TOOL_SHAPE
       ? ADAPTIVE_MIKE_LAB_TOOLS
       : UPSTREAM_MIKE_LAB_TOOLS
     : CODING_TOOL_SHAPE
@@ -1903,9 +1923,9 @@ const LOCAL_ASSISTANT_TOOL_CATALOG: OpenAIToolSchema[] = [
       ]),
 ];
 
-export const LOCAL_ASSISTANT_TOOLS = forCodingVocabulary(
-  LOCAL_ASSISTANT_TOOL_CATALOG,
-);
+export const LOCAL_ASSISTANT_TOOLS = MIKE_GREP_FAMILY_TOOL_SHAPE
+  ? LOCAL_ASSISTANT_TOOL_CATALOG
+  : forCodingVocabulary(LOCAL_ASSISTANT_TOOL_CATALOG);
 
 const trimmed = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
@@ -1948,7 +1968,9 @@ async function resolveCodingDocumentReferences(
     if (matches.length > 1) {
       return {
         value: reference,
-        error: `Filename '${reference}' is ambiguous. Use Glob to obtain its document_id.`,
+        error: MIKE_GREP_FAMILY_TOOL_SHAPE
+          ? `Filename '${reference}' is ambiguous. Use list_documents and pass its doc-N label.`
+          : `Filename '${reference}' is ambiguous. Use Glob to obtain its document_id.`,
       };
     }
     return { value: reference };
@@ -3176,11 +3198,48 @@ async function runCodingShapeCall(
   workingSets?: LocalAssistantWorkingSetTurnState,
 ): Promise<NormalizedToolResult> {
   const collection = await listLocalLibrary(userId, "file");
-  const files = collection.documents.filter(
-    (document) => !allowedDocumentIds || allowedDocumentIds.has(document.id),
+  const storedById = new Map(
+    collection.documents.map((document) => [document.id, document]),
   );
+  const files =
+    MIKE_GREP_FAMILY_TOOL_SHAPE && allowedDocumentIds
+      ? [...allowedDocumentIds]
+          .map((documentId) => storedById.get(documentId))
+          .filter(
+            (document): document is (typeof collection.documents)[number] =>
+              !!document,
+          )
+      : collection.documents.filter(
+          (document) =>
+            !allowedDocumentIds || allowedDocumentIds.has(document.id),
+        );
+  const mikeLabelById = new Map(
+    MIKE_GREP_FAMILY_TOOL_SHAPE
+      ? files.map((document, index) => [document.id, `doc-${index}`] as const)
+      : [],
+  );
+  const filenameCounts = new Map<string, number>();
+  for (const document of files) {
+    const key = document.filename.toLowerCase();
+    filenameCounts.set(key, (filenameCounts.get(key) ?? 0) + 1);
+  }
+  const codingPath = (document: (typeof files)[number]) =>
+    MIKE_GREP_FAMILY_TOOL_SHAPE &&
+    (filenameCounts.get(document.filename.toLowerCase()) ?? 0) > 1
+      ? mikeLabelById.get(document.id) ?? document.id
+      : document.filename;
+  const disambiguationHint = (requested: string, field: "file_path" | "path") =>
+    MIKE_GREP_FAMILY_TOOL_SHAPE
+      ? `File path is ambiguous: ${requested}. Use list_documents, then pass the intended doc-N label as ${field}.`
+      : `File path is ambiguous: ${requested}. Use Glob(pattern="${requested}"), then pass the intended document_id as ${field}.`;
   const resolvePath = (raw: string) => {
     const wanted = raw.replace(/^\.?[\\/]/u, "").trim().toLowerCase();
+    const mikeLabel = MIKE_GREP_FAMILY_TOOL_SHAPE
+      ? files.find(
+          (document) => mikeLabelById.get(document.id)?.toLowerCase() === wanted,
+        )
+      : undefined;
+    if (mikeLabel) return [mikeLabel];
     const byId = files.filter((document) => document.id.toLowerCase() === wanted);
     if (byId.length) return byId;
     return files.filter(
@@ -3198,16 +3257,16 @@ async function runCodingShapeCall(
     const requested = trimmed(args.file_path);
     const matches = resolvePath(requested);
     if (matches.length !== 1) {
-      return result(
+      return fail(
         call,
         matches.length
-          ? `File path is ambiguous: ${requested}. Use Glob(pattern="${requested}"), then pass the intended document_id as file_path.`
+          ? disambiguationHint(requested, "file_path")
           : `File does not exist: ${requested}`,
       );
     }
     const meta = matches[0];
     const document = await extractLocalDocument(userId, meta.id);
-    if (!document) return result(call, `File could not be read: ${requested}`);
+    if (!document) return fail(call, `File could not be read: ${requested}`);
     const skeleton = await documentStructure(document.text, meta.id, {
       tableCells: document.tableCells,
     });
@@ -3248,18 +3307,13 @@ async function runCodingShapeCall(
 
   if (call.name === "Glob") {
     const re = globRegExp(trimmed(args.pattern) || "*");
-    const filenameCounts = new Map<string, number>();
-    for (const document of files) {
-      const key = document.filename.toLowerCase();
-      filenameCounts.set(key, (filenameCounts.get(key) ?? 0) + 1);
-    }
     const matchedFiles = files.filter((document) => re.test(document.filename));
     const fileRows = await Promise.all(
       matchedFiles.map(async (meta) => {
         const document = await extractLocalDocument(userId, meta.id);
         const identity =
           (filenameCounts.get(meta.filename.toLowerCase()) ?? 0) > 1
-            ? `${meta.filename}\t[document_id=${meta.id}]`
+            ? `${meta.filename}\t[document_id=${mikeLabelById.get(meta.id) ?? meta.id}]`
             : meta.filename;
         if (!document) {
           return { row: `${identity}\tunreadable`, chars: 0, lines: 0 };
@@ -3440,16 +3494,16 @@ async function runCodingShapeCall(
     }
     const matches = resolvePath(requested);
     if (matches.length !== 1) {
-      return result(
+      return fail(
         call,
         matches.length
-          ? `File path is ambiguous: ${requested}. Use Glob(pattern="${requested}"), then pass the intended document_id as file_path.`
+          ? disambiguationHint(requested, "file_path")
           : `File does not exist: ${requested}\nAvailable files:\n${files.map((document) => document.filename).join("\n")}`,
       );
     }
     const meta = matches[0];
     const document = await extractLocalDocument(userId, meta.id);
-    if (!document) return result(call, `File could not be read: ${requested}`);
+    if (!document) return fail(call, `File could not be read: ${requested}`);
     const lines = document.text.split(/\r?\n/u);
     const starts = sourceLineStarts(document.text, lines);
     const limit = positiveInt(args.limit, 1, 2_000, 2_000);
@@ -3474,14 +3528,14 @@ async function runCodingShapeCall(
         typeof args.offset === "number" &&
         args.offset > 1;
       if (sectionArg || nonDefaultOffset) {
-        return result(
+        return fail(
           call,
           "pages cannot be combined with section or offset; choose one exact scope.",
         );
       }
       const selected = selectPages(document.pages, document.text, pagesArg);
       if (selected.status !== "ok") {
-        return result(
+        return fail(
           call,
           selected.status === "empty"
             ? "pages is required"
@@ -3513,7 +3567,7 @@ async function runCodingShapeCall(
       );
     }
     if (references !== "none" && !sectionArg) {
-      return result(call, "references requires an exact section handle.");
+      return fail(call, "references requires an exact section handle.");
     }
     if (sectionArg) {
       const skeleton = await documentStructure(document.text, meta.id, {
@@ -3521,7 +3575,7 @@ async function runCodingShapeCall(
       });
       const lookup = readSection(skeleton, sectionArg);
       if (lookup.status !== "found" || !lookup.block) {
-        return result(
+        return fail(
           call,
           `Section '${sectionArg}' not found (${lookup.status}` +
             (lookup.matches.length
@@ -3545,7 +3599,7 @@ async function runCodingShapeCall(
           references,
         );
         if (!scope) {
-          return result(call, `Section '${sectionArg}' could not seed a reference scope.`);
+          return fail(call, `Section '${sectionArg}' could not seed a reference scope.`);
         }
         const covered: TextRange[] = [];
         const candidates: CodingOutputLine[] = [];
@@ -3608,7 +3662,7 @@ async function runCodingShapeCall(
       const sectionLimit =
         Number(args.offset) === 1 && Number(args.limit) === 1 ? 2_000 : limit;
       if (sectionOffset < startLine || sectionOffset > endLine) {
-        return result(
+        return fail(
           call,
           `(offset ${sectionOffset} is outside section ${block.label}; the section spans lines ${startLine}-${endLine})`,
         );
@@ -3669,7 +3723,7 @@ async function runCodingShapeCall(
         };
       });
     if (!candidates.length) {
-      return result(
+      return fail(
         call,
         offset > lines.length
           ? `(offset ${offset} is past the end of the file; total lines: ${lines.length})`
@@ -3702,7 +3756,7 @@ async function runCodingShapeCall(
       return result(
         call,
         matches.length
-          ? `File path is ambiguous: ${requested}. Use Glob(pattern="${requested}"), then pass the intended document_id as file_path.`
+          ? disambiguationHint(requested, "file_path")
           : `File does not exist: ${requested}`,
       );
     }
@@ -3902,7 +3956,7 @@ async function runCodingShapeCall(
     return fail(call, "Grep does not expose legal scopes in this arm");
   }
   const requestedPattern = trimmed(args.pattern);
-  if (!requestedPattern) return result(call, "pattern is required");
+  if (!requestedPattern) return fail(call, "pattern is required");
   const inlineCaseInsensitive = requestedPattern.startsWith("(?i)");
   const pattern = inlineCaseInsensitive
     ? requestedPattern.slice("(?i)".length)
@@ -3914,7 +3968,7 @@ async function runCodingShapeCall(
       inlineCaseInsensitive || args["-i"] === true ? "iu" : "u",
     );
   } catch (error) {
-    return result(
+    return fail(
       call,
       `regex parse error: ${errorText(error, "invalid pattern")}`,
     );
@@ -3927,10 +3981,10 @@ async function runCodingShapeCall(
       trimmed(args.pages) ||
       (args.references && args.references !== "none")
     ) {
-      return result(call, "Working-set Grep does not accept legal scopes.");
+      return fail(call, "Working-set Grep does not accept legal scopes.");
     }
     if (args.output_mode === "working_set") {
-      return result(call, "This path is already a materialized working set.");
+      return fail(call, "This path is already a materialized working set.");
     }
     const lines = virtualTarget.text.split(/\r?\n/u);
     const starts = sourceLineStarts(virtualTarget.text, lines);
@@ -4033,10 +4087,10 @@ async function runCodingShapeCall(
   if (pathArg) {
     const matches = resolvePath(pathArg);
     if (matches.length !== 1) {
-      return result(
+      return fail(
         call,
         matches.length
-          ? `File path is ambiguous: ${pathArg}. Use Glob(pattern="${pathArg}"), then pass the intended document_id as path.`
+          ? disambiguationHint(pathArg, "path")
           : `File does not exist: ${pathArg}`,
       );
     }
@@ -4054,13 +4108,13 @@ async function runCodingShapeCall(
       ? args.references
       : "none";
   if ((grepSection || grepPages || grepReferences !== "none") && !pathArg) {
-    return result(call, "Legal Grep scopes require one exact path.");
+    return fail(call, "Legal Grep scopes require one exact path.");
   }
   if (grepSection && grepPages) {
-    return result(call, "section and pages are alternative exact scopes; choose one.");
+    return fail(call, "section and pages are alternative exact scopes; choose one.");
   }
   if (grepReferences !== "none" && !grepSection) {
-    return result(call, "references requires an exact section handle.");
+    return fail(call, "references requires an exact section handle.");
   }
   const mode =
     args.output_mode === "content" ||
@@ -4099,7 +4153,7 @@ async function runCodingShapeCall(
         }));
       const lookup = readSection(scopedSkeleton, grepSection);
       if (lookup.status !== "found" || !lookup.block) {
-        return result(
+        return fail(
           call,
           `Section '${grepSection}' not found (${lookup.status}` +
             (lookup.matches.length
@@ -4129,7 +4183,7 @@ async function runCodingShapeCall(
     } else if (grepPages) {
       const selected = selectPages(document.pages, document.text, grepPages);
       if (selected.status !== "ok") {
-        return result(
+        return fail(
           call,
           selected.status === "empty"
             ? "pages is required"
@@ -4285,20 +4339,26 @@ async function runCodingShapeCall(
       continue;
     }
     if (mode === "files_with_matches") {
-      rows.push({ rendered: meta.filename });
+      rows.push({ rendered: codingPath(meta) });
       continue;
     }
     if (mode === "count") {
-      rows.push({ rendered: `${meta.filename}:${matched.length}` });
+      rows.push({ rendered: `${codingPath(meta)}:${matched.length}` });
       continue;
     }
     if (mode === "sections") {
       const hitsByRecipe = new Map<string, number>();
       for (const line of matched) {
         const section = sectionOf?.(line);
-        const rendered = section
-          ? `${meta.filename}: Read section="${section.handle}"`
-          : `${meta.filename}: Read offset=${line + 1} limit=1`;
+        const filePath = codingPath(meta);
+        const recipe = MIKE_GREP_FAMILY_TOOL_SHAPE
+          ? section
+            ? `Read file_path=${JSON.stringify(filePath)} section="${section.handle}"`
+            : `Read file_path=${JSON.stringify(filePath)} offset=${line + 1} limit=1`
+          : section
+            ? `Read section="${section.handle}"`
+            : `Read offset=${line + 1} limit=1`;
+        const rendered = `${filePath}: ${recipe}`;
         hitsByRecipe.set(rendered, (hitsByRecipe.get(rendered) ?? 0) + 1);
       }
       sectionQueues.push(
@@ -4329,9 +4389,10 @@ async function runCodingShapeCall(
         const handoffCandidate =
           isMatch || matchedLines.has(i - 1) || matchedLines.has(i + 1);
         const sep = isMatch ? ":" : "-";
+        const filePath = codingPath(meta);
         const prefix = numberLines
-          ? `${meta.filename}${sep}${i + 1}${sep}`
-          : `${meta.filename}${sep}`;
+          ? `${filePath}${sep}${i + 1}${sep}`
+          : `${filePath}${sep}`;
         const candidateSection = handoffCandidate ? sectionOf?.(i) : null;
         const section = isMatch ? candidateSection : null;
         const matchColumn = isMatch ? Math.max(0, lines[i].search(re)) : 0;
@@ -4348,9 +4409,13 @@ async function runCodingShapeCall(
           (RETRIEVAL_EXPERIMENT_SHAPE === "h1-contact" ||
             LEGAL_GREP_EXPERIMENT)
             ? (() => {
-                const recipe = section
-                  ? `Read section="${section.handle}"`
-                  : `Read offset=${i + 1} limit=1`;
+                const recipe = MIKE_GREP_FAMILY_TOOL_SHAPE
+                  ? section
+                    ? `Read file_path=${JSON.stringify(filePath)} section="${section.handle}"`
+                    : `Read file_path=${JSON.stringify(filePath)} offset=${i + 1} limit=1`
+                  : section
+                    ? `Read section="${section.handle}"`
+                    : `Read offset=${i + 1} limit=1`;
                 const extent = section
                   ? ` | lines ${section.firstLine}-${section.lastLine}`
                   : "";
@@ -5483,7 +5548,7 @@ async function runUpstreamMikeRetrievalCall(params: {
   };
 
   if (call.name === "list_documents") {
-    if (!ADAPTIVE_MIKE_TOOL_SHAPE) {
+    if (!ADAPTIVE_MIKE_TOOL_SHAPE && !MIKE_GREP_FAMILY_TOOL_SHAPE) {
       return upstreamMikeResult(
         call,
         labelledDocuments.map(({ document, docLabel }) => ({
@@ -5799,6 +5864,10 @@ async function runUpstreamMikeRetrievalCall(params: {
     maxResults,
     contextChars,
   });
+  const candidateReadPath =
+    (filenameCounts.get(listed.filename.toLocaleLowerCase("en-US")) ?? 0) === 1
+      ? listed.filename
+      : labelById.get(documentId) ?? requested;
   return {
     ...upstreamMikeResult(call, {
       ok: true,
@@ -5816,15 +5885,31 @@ async function runUpstreamMikeRetrievalCall(params: {
         const page = document.pages.pages.find(
           (candidate) => candidate.start <= hit.at && hit.at < candidate.end,
         );
+        const candidateStartLine =
+          document.text.slice(0, start).split(/\r?\n/u).length;
+        const candidateEndLine =
+          document.text.slice(0, end).split(/\r?\n/u).length;
         return {
           ...hit,
           locator: `chars ${start}-${end}`,
           ...(page ? { page: page.ordinal } : {}),
-          read: {
-            doc_id: labelById.get(documentId) ?? requested,
-            offset: start,
-            max_chars: Math.max(1, end - start),
-          },
+          ...(MIKE_GREP_FAMILY_TOOL_SHAPE
+            ? {
+                read: {
+                  file_path: candidateReadPath,
+                  offset: candidateStartLine,
+                  limit: Math.max(1, candidateEndLine - candidateStartLine + 1),
+                },
+              }
+            : ADAPTIVE_MIKE_TOOL_SHAPE
+              ? {
+                  read: {
+                    doc_id: labelById.get(documentId) ?? requested,
+                    offset: start,
+                    max_chars: Math.max(1, end - start),
+                  },
+                }
+              : {}),
         };
       }),
     }),
@@ -7927,7 +8012,12 @@ export async function runLocalAssistantTools(
         );
         return queued;
       }
-      if (WHOLE_READ_MAX_CHARS && call.name === "fetch_documents") {
+      if (
+        (ORIGIN_MIKE_TOOL_SHAPE &&
+          SUPPRESS_DUPLICATE_WHOLE_READS &&
+          ["read_document", "fetch_documents"].includes(call.name)) ||
+        (WHOLE_READ_MAX_CHARS && call.name === "fetch_documents")
+      ) {
         const queued = wholeReadTail.then(execute);
         wholeReadTail = queued.then(
           () => undefined,

@@ -19,6 +19,8 @@ afterEach(() => {
   delete process.env.MIKE_RETRIEVAL_EXPERIMENT;
   delete process.env.MIKE_PROGRESSIVE_DISCLOSURE;
   delete process.env.MIKE_CONTEXT_HANDOFF;
+  delete process.env.MIKE_RESEARCH_CONTEXT_REFRESH;
+  delete process.env.MIKE_FULL_HANDOFF_PROMPT_VARIANT;
   delete process.env.MIKE_CONTINUOUS_EVIDENCE;
   delete process.env.MIKE_DRAFT_HANDOFF_MODE;
   delete process.env.MIKE_DRAFT_HOT_EVIDENCE_MAX_CHARS;
@@ -279,6 +281,87 @@ describe("local assistant tool wiring", () => {
     expect(guidance).toContain("choose coverage from the evidence need");
     expect(guidance).toContain("primary instrument should stay whole");
     expect(guidance).not.toMatch(/change.of.control|clinical.trial|indenture/iu);
+  });
+
+  it.each([
+    ["mike-grep-v1", "p0-pure-coding", false],
+    ["mike-legal-v1", "h4-legal-grep", true],
+    ["mike-legal-guided-v1", "h4-legal-grep", true],
+  ])("keeps the %s arm to Mike plus Grep and Read", async (shape, experiment, legal) => {
+    process.env.MIKE_TOOL_SHAPE = shape;
+    process.env.MIKE_RETRIEVAL_EXPERIMENT = experiment;
+    process.env.MIKE_PROGRESSIVE_DISCLOSURE = "0";
+    process.env.MIKE_TERMINAL_AUTHORING = "1";
+    process.env.MIKE_DISABLE_RESEARCH_TOOLS = "1";
+    process.env.MIKE_DISABLE_ASK_INPUTS = "1";
+    const tools = await loadTools();
+    expect(names(tools.LOCAL_ASSISTANT_TOOLS)).toEqual([
+      "read_document",
+      "find_in_document",
+      "list_documents",
+      "fetch_documents",
+      "Grep",
+      "Read",
+      "generate_docx",
+    ]);
+    const properties = (name: string) =>
+      Object.keys(
+        (
+          tools.LOCAL_ASSISTANT_TOOLS.find(
+            (entry) => entry.function.name === name,
+          )?.function.parameters as { properties: Record<string, unknown> }
+        ).properties,
+      );
+    expect(properties("Grep").includes("section")).toBe(legal);
+    expect(properties("Grep").includes("pages")).toBe(legal);
+    expect(properties("Read").includes("section")).toBe(legal);
+    expect(properties("Read").includes("pages")).toBe(legal);
+    expect(tools.ORIGIN_MIKE_TOOL_SHAPE).toBe(true);
+    expect(tools.CODING_TOOL_SHAPE).toBe(true);
+  });
+
+  it("changes only guidance between the two legal Mike candidates", async () => {
+    process.env.MIKE_TOOL_SHAPE = "mike-legal-v1";
+    process.env.MIKE_RETRIEVAL_EXPERIMENT = "h4-legal-grep";
+    process.env.MIKE_PROGRESSIVE_DISCLOSURE = "0";
+    process.env.MIKE_DISABLE_RESEARCH_TOOLS = "1";
+    process.env.MIKE_DISABLE_ASK_INPUTS = "1";
+    const unguided = await loadTools();
+    const unguidedSchema = JSON.stringify(unguided.LOCAL_ASSISTANT_TOOLS);
+    process.env.MIKE_TOOL_SHAPE = "mike-legal-guided-v1";
+    const guided = await loadTools();
+    const surface = await import("../upstreamMikeBenchmarkSurface");
+    expect(JSON.stringify(guided.LOCAL_ASSISTANT_TOOLS)).toBe(unguidedSchema);
+    expect(surface.MIKE_LEGAL_GUIDED_LAB_SYSTEM_PROMPT).toContain(
+      "SCOPED READING GUIDANCE",
+    );
+    expect(surface.MIKE_GREP_LAB_SYSTEM_PROMPT).not.toContain(
+      "SCOPED READING GUIDANCE",
+    );
+    expect(surface.MIKE_LEGAL_GUIDED_LAB_SYSTEM_PROMPT).not.toMatch(
+      /change.of.control|transfer.pric|indenture/iu,
+    );
+  });
+
+  it("reconstructs v5's four-tool resident research surface", async () => {
+    process.env.MIKE_NAV_SHAPE = "address";
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    process.env.MIKE_RETRIEVAL_EXPERIMENT = "h4-legal-grep";
+    process.env.MIKE_PROGRESSIVE_DISCLOSURE = "1";
+    process.env.MIKE_MODEL_COVERAGE_ROUTING = "0";
+    process.env.MIKE_CONTEXT_HANDOFF = "1";
+    process.env.MIKE_RESEARCH_CONTEXT_REFRESH = "0";
+    process.env.MIKE_FULL_HANDOFF_PROMPT_VARIANT = "legacy-v5";
+    process.env.MIKE_DISABLE_RESEARCH_TOOLS = "1";
+    process.env.MIKE_DISABLE_ASK_INPUTS = "1";
+    const tools = await loadTools();
+    const partition = tools.partitionTools(tools.LOCAL_ASSISTANT_TOOLS);
+    expect(names(partition.resident)).toEqual([
+      "Glob",
+      "Grep",
+      "Read",
+      "describe_tools",
+    ]);
   });
 
   it("serves the frozen v13 resident surface without a context-memory layer", async () => {
