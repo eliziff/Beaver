@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { mkdtemp, readdir, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   canonicalA2AJSourceUrl,
   clearA2AJCache,
@@ -17,6 +17,15 @@ import { createA2AJDocumentEvidence } from "../chat/legalEvidenceExperiment";
 import { normalizeWhitespace } from "../text";
 
 let temporaryLegalDataHome: string | null = null;
+
+beforeEach(() => {
+  // These tests exercise the HTTP contract. Keep a developer's installed
+  // local corpus from silently bypassing the mocked provider response.
+  vi.stubEnv(
+    "MIKE_A2AJ_BULK_DB",
+    path.join(os.tmpdir(), `beaver-a2aj-http-test-${crypto.randomUUID()}.sqlite`),
+  );
+});
 
 afterEach(async () => {
   clearA2AJCache();

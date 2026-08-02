@@ -4,7 +4,14 @@ import path from "node:path";
 import { Document, Packer, Paragraph, TextRun } from "docx";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { auditSlaDraft, type SlaLedger } from "../slaWorkflow";
+import {
+  auditSlaDraft,
+  greenfieldReviewPayload,
+  greenfieldReviewRepairPrompt,
+  normalizeGreenfieldFindings,
+  requestsOperativeDrafting,
+  type SlaLedger,
+} from "../slaWorkflow";
 
 const SOURCE = [
   "8.01 Financial Covenants.",
@@ -105,7 +112,7 @@ describe("auditSlaDraft composed organs", () => {
     expect(audit.receipt.conflict.finding_details[0]).toMatch(/^sources: /u);
   });
 
-  it("flags a defined term the draft redefines", () => {
+  it("records memo term drift without spending a repair pass", () => {
     const audit = auditSlaDraft(
       ledgerOf({
         name: "credit.docx",
@@ -115,8 +122,21 @@ describe("auditSlaDraft composed organs", () => {
     );
     expect(audit.receipt.term_drift.divergent).toBe(1);
     expect(audit.receipt.term_drift.terms).toEqual(["Business Day"]);
+    expect(audit.receipt.term_drift.repair_eligible).toBe(false);
+    expect(audit.repairPrompt).toBeNull();
+  });
+
+  it("repairs term drift for a blindly recognized operative drafting task", () => {
+    const audit = auditSlaDraft(
+      ledgerOf({
+        name: "credit.docx",
+        text: '"Business Day" means a day on which banks are open in Toronto.',
+      }),
+      '"Business Day" means a day on which banks are open in Calgary.',
+      { requestContext: "Please redline the credit agreement." },
+    );
+    expect(audit.receipt.term_drift.repair_eligible).toBe(true);
     expect(audit.repairPrompt).toContain("Defined terms redefined by your deliverable");
-    expect(audit.repairPrompt).toContain("Calgary");
   });
 
   it("counts lint warnings without spending a revision pass on them", () => {
@@ -147,7 +167,11 @@ describe("auditSlaDraft composed organs", () => {
       consistent: 0,
       finding_details: [],
     });
-    expect(audit.receipt.term_drift).toEqual({ divergent: 0, terms: [] });
+    expect(audit.receipt.term_drift).toEqual({
+      divergent: 0,
+      terms: [],
+      repair_eligible: false,
+    });
     expect(audit.receipt.drafting_lint).toEqual({
       errors: 0,
       warnings: 0,
@@ -164,6 +188,10 @@ describe("collectSlaDeliverable", () => {
     delete process.env.MIKE_LOCAL_DATA_DIR;
     delete process.env.OPEN_LEGAL_DATA_HOME;
     delete process.env.MIKE_SLA_STRATEGY;
+    delete process.env.MIKE_SLA_WORKFLOW;
+    delete process.env.MIKE_NAV_SHAPE;
+    delete process.env.MIKE_TOOL_SHAPE;
+    delete process.env.MIKE_RETRIEVAL_EXPERIMENT;
     vi.resetModules();
     if (home) {
       await rm(home, { recursive: true, force: true });
@@ -204,7 +232,7 @@ describe("collectSlaDeliverable", () => {
     expect(built).not.toBeNull();
     const liveLedger = built!;
     expect(liveLedger.baseline.size).toBe(1);
-    expect(liveLedger.promptSection).toContain("deterministic compiler pass");
+    expect(liveLedger.promptSection).toContain("Gated deterministic checks");
     expect(liveLedger.promptSection).not.toContain("library_outline");
     expect(liveLedger.promptSection).not.toContain("credit-agreement.docx");
 
@@ -272,8 +300,85 @@ describe("collectSlaDeliverable", () => {
       'first source-content retrieval must be Grep with output_mode="working_set"',
     );
     expect(workingSet?.promptSection).toContain("Glob may enumerate filenames first");
-    expect(workingSet?.promptSection).toContain("Read the returned delta");
+    expect(workingSet?.promptSection).toContain("result contains the newly added evidence");
     expect(workingSet?.promptSection).toContain('never "." or ".*"');
+  });
+
+  it("removes host-run quality checks from the callable surface", async () => {
+    process.env.MIKE_SLA_WORKFLOW = "1";
+    process.env.MIKE_NAV_SHAPE = "address";
+    process.env.MIKE_TOOL_SHAPE = "coding";
+    process.env.MIKE_RETRIEVAL_EXPERIMENT = "h9-accretive-union";
+    vi.resetModules();
+    const tools = await import("../localAssistantTools");
+    const names = tools.LOCAL_ASSISTANT_TOOLS.map((entry) => entry.function.name);
+    expect(names).toContain("Grep");
+    expect(names).not.toContain("library_anchor_coverage");
+    expect(names).not.toContain("library_conflict_scan");
+    expect(names).not.toContain("library_term_drift");
+    expect(names).not.toContain("library_drafting_lint");
+    expect(names).not.toContain("library_lint_docx_structure");
+  });
+});
+
+describe("requestsOperativeDrafting", () => {
+  it.each([
+    "Draft a loan agreement.",
+    "Please revise the confidentiality clause.",
+    "Mark up the lease for the tenant.",
+    "Conform the policy to the new regulation.",
+    "The parties are revising several covenants.",
+    "Prepare amendments to the leases.",
+  ])("recognizes operative work: %s", (request) => {
+    expect(requestsOperativeDrafting(request)).toBe(true);
+  });
+
+  it.each([
+    "Draft a memo analyzing this agreement.",
+    "Prepare a diligence report on the lease.",
+    "Summarize the definitions in the contract.",
+    "Research whether this clause is enforceable.",
+    "Prepare a review of the amendments to the leases.",
+  ])("does not turn analytical work into drafting: %s", (request) => {
+    expect(requestsOperativeDrafting(request)).toBe(false);
+  });
+
+  it("uses artifact semantics without benchmark-specific wording", () => {
+    expect(requestsOperativeDrafting("Please handle this.", ["lease-amendment.docx"])).toBe(true);
+    expect(requestsOperativeDrafting("Please handle this.", ["lease-analysis-memo.docx"])).toBe(false);
+    expect(requestsOperativeDrafting("Please handle this.", ["lease-review.docx"])).toBe(false);
+  });
+});
+
+describe("greenfield stimulus review contract", () => {
+  it("contains only the request, sources, and candidate deliverable", () => {
+    const payload = greenfieldReviewPayload(
+      ledgerOf({ name: "source.docx", text: "Source fact." }),
+      "Prepare the requested work product.",
+      "Candidate text.",
+    );
+    expect(Object.keys(payload).sort()).toEqual([
+      "candidate_deliverable",
+      "request",
+      "source_documents",
+    ]);
+    expect(JSON.stringify(payload)).not.toMatch(/rubric|expected answer|tool trace/iu);
+  });
+
+  it("caps and validates terse source-grounded findings", () => {
+    const findings = normalizeGreenfieldFindings({
+      findings: Array.from({ length: 8 }, (_, index) => ({
+        issue: `Issue ${index}`,
+        source_document: "source.docx",
+        source_excerpt: "Exact support.",
+        correction: "Correct it.",
+      })),
+    });
+    expect(findings).toHaveLength(6);
+    expect(
+      greenfieldReviewRepairPrompt(findings.slice(0, 1), true),
+    ).toContain("Revise the deliverable itself with the library tools");
+    expect(greenfieldReviewRepairPrompt([], false)).toBeNull();
   });
 });
 

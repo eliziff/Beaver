@@ -1356,7 +1356,7 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
               : "") +
             (WORKING_SET_EXPERIMENT
               ? ACCRETIVE_WORKING_SET_EXPERIMENT
-                ? ' "working_set" appends matching legal units to one turn-local evidence file, without repeating source spans. The first call also adds a compact file map and returns a Read recipe for only the new text.'
+                ? ' "working_set" returns newly added matching sections, rows, or bounded text windows and also persists them in one turn-local evidence file without repeating source spans. Read that file only for a truncation continuation or rehydration after compaction.'
                 : ' "working_set" creates an immutable turn-local file from the smallest responsive legal units across matching documents and returns its manifest; Read the returned path.'
               : ""),
         },
@@ -1902,9 +1902,22 @@ export async function commitLocalAssistantTurnVersion(params: {
 // interaction grammar, not just the schema names.
 // ---------------------------------------------------------------------------
 
-const globRegExp = (pattern: string) =>
-  new RegExp(
-    `^${pattern
+function globAlternatives(pattern: string): string[] {
+  const match = /\{([^{}]+)\}/u.exec(pattern);
+  if (!match || !match[1].includes(",")) return [pattern];
+  const values = match[1].split(",").map((value) => value.trim());
+  if (!values.length || values.length > 32 || values.some((value) => !value)) {
+    return [pattern];
+  }
+  return values.flatMap((value) =>
+    globAlternatives(
+      `${pattern.slice(0, match.index)}${value}${pattern.slice(match.index + match[0].length)}`,
+    ),
+  );
+}
+
+const globSource = (pattern: string) =>
+  pattern
       // The Library is flat. Coding agents commonly emit **/*.docx, which
       // should include files at that root just as a filesystem glob does.
       .replace(/^(?:\.\/)?(?:\*\*\/)+/u, "")
@@ -1912,7 +1925,11 @@ const globRegExp = (pattern: string) =>
       .replace(/\*\*/gu, "\u0000")
       .replace(/\*/gu, "[^/]*")
       .replace(/\?/gu, ".")
-      .replace(/\u0000/gu, ".*")}$`,
+      .replace(/\u0000/gu, ".*");
+
+const globRegExp = (pattern: string) =>
+  new RegExp(
+    `^(?:${globAlternatives(pattern).map(globSource).join("|")})$`,
     "iu",
   );
 
@@ -1960,18 +1977,19 @@ type WorkingSetCandidate = TextRange & {
   documentId: string;
   versionId: string;
   filename: string;
+  filePath: string;
   sourceText: string;
   projection: "legal-unit" | "window";
   handle?: string;
   contextLabel?: string;
   anchor: number;
+  hits: number;
 };
 
 type WorkingSetMapCandidate = {
   documentId: string;
   versionId: string;
   filename: string;
-  sourceText: string;
   rows: string[];
 };
 
@@ -1982,12 +2000,29 @@ function workingSetMapRows(
 ) {
   const rows: string[] = [];
   const seen = new Set<string>();
-  for (const node of skeleton.nodes) {
-    if (node.kind === "row" || node.kind === "cell") continue;
+  const structural = skeleton.nodes.filter(
+    (node) => node.kind !== "row" && node.kind !== "cell" && node.kind !== "table",
+  );
+  const containers = structural.filter((node) =>
+    ["article", "part", "division", "schedule"].includes(node.kind),
+  );
+  const sample = <T>(items: readonly T[], count: number): T[] =>
+    items.length <= count
+      ? [...items]
+      : Array.from({ length: count }, (_, index) =>
+          items[
+            Math.round((index * (items.length - 1)) / Math.max(1, count - 1))
+          ],
+        );
+  const selectedContainers = sample(containers, 16);
+  const remaining = structural.filter((node) => !containers.includes(node));
+  const selected = [...selectedContainers, ...sample(remaining, 24 - selectedContainers.length)]
+    .sort((left, right) => left.start - right.start)
+    .slice(0, 24);
+  for (const node of selected) {
     const row = `${node.kind}\t${node.label}\t${node.heading.trim().slice(0, 160)}`;
     if (!seen.has(row)) rows.push(row);
     seen.add(row);
-    if (rows.length >= 60) break;
   }
   const byTable = new Map<number, TableCellSpan[]>();
   for (const cell of tableCells) {
@@ -2013,16 +2048,8 @@ function workingSetMapRows(
         (headers ? `\theaders ${headers}` : ""),
     );
   }
-  if (skeleton.definedTerms.length) {
-    rows.push(
-      `defined terms\t${skeleton.definedTerms
-        .slice(0, 30)
-        .map((entry) => entry.term)
-        .join("; ")}`,
-    );
-  }
-  if (skeleton.nodes.length > 60) {
-    rows.push(`… ${skeleton.nodes.length - 60} additional structural items`);
+  if (structural.length > selected.length) {
+    rows.push(`… ${structural.length - selected.length} additional provisions`);
   }
   return rows;
 }
@@ -2052,6 +2079,7 @@ function mergeWorkingSetCandidates(
         continue;
       }
       prior.end = Math.max(prior.end, candidate.end);
+      prior.hits += candidate.hits;
       if (prior.handle !== candidate.handle) {
         prior.handle = undefined;
         prior.contextLabel = undefined;
@@ -2185,8 +2213,8 @@ function materializeStatelessWorkingSet(
     const endLine =
       startLine + item.sourceText.slice(item.start, item.end).split(/\r?\n/u).length - 1;
     const recipe = item.handle
-      ? `Read(file_path=${JSON.stringify(item.documentId)}, section=${JSON.stringify(item.handle)})`
-      : `Read(file_path=${JSON.stringify(item.documentId)}, offset=${startLine}, limit=${Math.max(1, endLine - startLine + 1)})`;
+      ? `Read(file_path=${JSON.stringify(item.filePath)}, section=${JSON.stringify(item.handle)})`
+      : `Read(file_path=${JSON.stringify(item.filePath)}, offset=${startLine}, limit=${Math.max(1, endLine - startLine + 1)})`;
     const context = item.contextLabel ? ` | ${item.contextLabel}` : "";
     const header = `=== ${item.filename}${context} :: ${recipe} ===\n`;
     parts.push(header);
@@ -2251,10 +2279,8 @@ function materializeAccretiveWorkingSet(
     (item) => !mappedVersions.has(`${item.documentId}:${item.versionId}`),
   );
   const mapParts: string[] = [];
-  const mapSegments: WorkingSetEvidenceSegment[] = [];
   let mapCursor = prior?.text.length ?? 0;
   let addedMapChars = 0;
-  let addedMapSourceChars = 0;
   const mapBudgetRemaining = Math.max(0, 12_000 - (prior?.mapChars ?? 0));
   const perMapBudget = newMaps.length
     ? Math.min(
@@ -2266,10 +2292,8 @@ function materializeAccretiveWorkingSet(
     if (addedMapChars >= mapBudgetRemaining || perMapBudget <= 0) break;
     const key = `${item.documentId}:${item.versionId}`;
     const cap = Math.min(perMapBudget, mapBudgetRemaining - addedMapChars);
-    const header = `=== FILE MAP ${item.filename} [version=${item.versionId}] ===\n`;
-    const openingCap = Math.min(800, Math.max(120, Math.floor(cap * 0.45)));
-    const opening = item.sourceText.slice(0, openingCap);
-    let rendered = `${header}opening:\n${opening}\nstructure:\n`;
+    const header = `=== FILE MAP ${item.filename} ===\n`;
+    let rendered = `${header}`;
     for (const row of item.rows) {
       const next = `${row}\n`;
       if (rendered.length + next.length > cap) break;
@@ -2277,22 +2301,9 @@ function materializeAccretiveWorkingSet(
     }
     rendered += "\n";
     mapParts.push(rendered);
-    const openingVirtualStart = mapCursor + header.length + "opening:\n".length;
-    mapSegments.push({
-      virtualStart: openingVirtualStart,
-      virtualEnd: openingVirtualStart + opening.length,
-      documentId: item.documentId,
-      versionId: item.versionId,
-      sourceStart: 0,
-      sourceEnd: opening.length,
-    });
-    const covered = coveredBySource.get(key) ?? [];
-    addCoveredRange(covered, { start: 0, end: opening.length });
-    coveredBySource.set(key, covered);
     mappedVersions.add(key);
     mapCursor += rendered.length;
     addedMapChars += rendered.length;
-    addedMapSourceChars += opening.length;
   }
   const queues = new Map<string, WorkingSetCandidate[]>();
   let alreadyPresentChars = 0;
@@ -2320,7 +2331,10 @@ function materializeAccretiveWorkingSet(
     queues.set(key, queue);
   }
   for (const queue of queues.values()) {
-    queue.sort((left, right) => left.start - right.start || left.end - right.end);
+    queue.sort(
+      (left, right) =>
+        right.hits - left.hits || left.start - right.start || left.end - right.end,
+    );
   }
 
   const selected: WorkingSetCandidate[] = [];
@@ -2368,7 +2382,6 @@ function materializeAccretiveWorkingSet(
   const parts: string[] = [...mapParts];
   const segments: WorkingSetEvidenceSegment[] = [
     ...(prior?.segments ?? []),
-    ...mapSegments,
   ];
   let cursor = mapCursor;
   const deltaOffset = (prior?.text.match(/\n/gu)?.length ?? 0) + 1;
@@ -2377,8 +2390,8 @@ function materializeAccretiveWorkingSet(
     const endLine =
       startLine + item.sourceText.slice(item.start, item.end).split(/\r?\n/u).length - 1;
     const recipe = item.handle
-      ? `Read(file_path=${JSON.stringify(item.documentId)}, section=${JSON.stringify(item.handle)})`
-      : `Read(file_path=${JSON.stringify(item.documentId)}, offset=${startLine}, limit=${Math.max(1, endLine - startLine + 1)})`;
+      ? `Read(file_path=${JSON.stringify(item.filePath)}, section=${JSON.stringify(item.handle)})`
+      : `Read(file_path=${JSON.stringify(item.filePath)}, offset=${startLine}, limit=${Math.max(1, endLine - startLine + 1)})`;
     const context = item.contextLabel ? ` | ${item.contextLabel}` : "";
     const header = `=== ${item.filename}${context} :: ${recipe} ===\n`;
     parts.push(header);
@@ -2399,8 +2412,7 @@ function materializeAccretiveWorkingSet(
   const text = (prior?.text ?? "") + delta;
   const matchedSourceChars =
     (prior?.matchedSourceChars ?? 0) + addedSourceChars;
-  const sourceChars =
-    (prior?.sourceChars ?? 0) + addedMapSourceChars + addedSourceChars;
+  const sourceChars = (prior?.sourceChars ?? 0) + addedSourceChars;
   const mapChars = (prior?.mapChars ?? 0) + addedMapChars;
   state.set(path, {
     path,
@@ -2413,36 +2425,62 @@ function materializeAccretiveWorkingSet(
     segments,
   });
   return {
-    ok: true,
-    path,
-    documents: new Set(segments.map((item) => item.documentId)).size,
-    units: segments.length,
-    added_units: selected.length + mapSegments.length,
-    added_source_chars: addedSourceChars + addedMapSourceChars,
-    added_match_chars: addedSourceChars,
-    added_map_chars: addedMapChars,
-    already_present_chars: alreadyPresentChars,
-    source_chars: sourceChars,
-    matched_source_chars: matchedSourceChars,
-    map_chars: mapChars,
-    budget_chars: budget,
-    truncated: omitted > 0,
-    omitted_units: omitted,
-    next: delta
-      ? `Read(file_path=${JSON.stringify(path)}, offset=${deltaOffset})`
-      : null,
+    manifest: {
+      ok: true,
+      path,
+      documents: new Set(segments.map((item) => item.documentId)).size,
+      units: segments.length,
+      added_units: selected.length,
+      added_source_chars: addedSourceChars,
+      added_match_chars: addedSourceChars,
+      added_map_chars: addedMapChars,
+      already_present_chars: alreadyPresentChars,
+      source_chars: sourceChars,
+      matched_source_chars: matchedSourceChars,
+      map_chars: mapChars,
+      budget_chars: budget,
+      truncated: omitted > 0,
+      omitted_units: omitted,
+      next: delta
+        ? `Read(file_path=${JSON.stringify(path)}, offset=${deltaOffset})`
+        : null,
+    },
+    delta,
+    deltaStart: prior?.text.length ?? 0,
+    set: state.get(path)!,
   };
 }
 
-function materializeWorkingSet(
-  candidates: readonly WorkingSetCandidate[],
-  maps: readonly WorkingSetMapCandidate[],
-  requestedBudget: unknown,
-  state: LocalAssistantWorkingSetTurnState,
-) {
-  return ACCRETIVE_WORKING_SET_EXPERIMENT
-    ? materializeAccretiveWorkingSet(candidates, maps, requestedBudget, state)
-    : materializeStatelessWorkingSet(candidates, requestedBudget, state);
+function accretiveWorkingSetResult(
+  call: NormalizedToolCall,
+  materialized: ReturnType<typeof materializeAccretiveWorkingSet>,
+): NormalizedToolResult {
+  const { manifest, delta, deltaStart, set } = materialized;
+  const header =
+    `[WORKING SET ${manifest.path} | added ${manifest.added_units} units | omitted ${manifest.omitted_units}]`;
+  if (!delta) {
+    return result(
+      call,
+      `${header}\nNo new evidence; ${manifest.already_present_chars} matching source chars were already present.`,
+    );
+  }
+  const available = Math.max(1_000, MAX_TOOL_RESULT_CHARS - header.length - 300);
+  let shown = delta.slice(0, available);
+  if (shown.length < delta.length) {
+    const boundary = shown.lastIndexOf("\n");
+    if (boundary > 0) shown = shown.slice(0, boundary + 1);
+  }
+  const shownEnd = deltaStart + shown.length;
+  const nextOffset = set.text.slice(0, shownEnd).split(/\r?\n/u).length;
+  const content =
+    `${header}\n${shown}` +
+    (shown.length < delta.length
+      ? `\n[TRUNCATED: continue with Read(file_path=${JSON.stringify(manifest.path)}, offset=${nextOffset})]`
+      : "");
+  return {
+    ...result(call, content),
+    evidenceSegments: workingSetEvidenceSegments(set, [[deltaStart, shownEnd]]),
+  };
 }
 
 function codingRangeLines(
@@ -2490,7 +2528,7 @@ async function compilerDiagnostics(
     extractLocalDocument(userId, documentId).catch(() => null),
   ]);
   const drafting = document ? draftingLint(document.text) : null;
-  const findings = [
+  const allFindings = [
     ...(structure?.findings ?? []).map((finding) => ({
       check: "structure",
       code: finding.code,
@@ -2508,13 +2546,24 @@ async function compilerDiagnostics(
       message: finding.message,
     })),
   ];
+  // Creation/revision receipts are an automatic compiler boundary, not an
+  // advisory inbox. Only high-confidence errors enter model context; warnings
+  // remain available through explicit audits and aggregate receipts.
+  const findings = allFindings.filter(
+    (finding) =>
+      finding.severity === "error" &&
+      ((finding.check === "drafting" && finding.code === "stacked-modals") ||
+        (finding.check === "structure" && finding.code === "numbering_duplicate")),
+  );
+  const unavailable = !structure && !drafting;
   return {
-    checks_completed: [
-      ...(structure ? ["structure"] : []),
-      ...(drafting ? ["drafting"] : []),
-    ],
+    status: unavailable
+      ? "unavailable"
+      : findings.length
+        ? "action_required"
+        : "passed",
     finding_count: findings.length,
-    ...(!structure && !drafting ? { unavailable: true } : {}),
+    ...(unavailable ? { unavailable: true } : {}),
     ...(findings.length ? { findings: findings.slice(0, 8) } : {}),
     ...(findings.length > 8 ? { truncated: true } : {}),
   };
@@ -3596,22 +3645,6 @@ async function runCodingShapeCall(
     let scopeSpans: TextRange[] | null = null;
     let scopedSkeleton: AgreementSkeleton | null = null;
     let mapSkeleton: AgreementSkeleton | null = null;
-    if (mode === "working_set" && ACCRETIVE_WORKING_SET_EXPERIMENT) {
-      mapSkeleton = await documentStructure(document.text, meta.id, {
-        tableCells: document.tableCells,
-      });
-      workingSetMaps.push({
-        documentId: meta.id,
-        versionId: meta.current_version_id,
-        filename: meta.filename,
-        sourceText: document.text,
-        rows: workingSetMapRows(
-          mapSkeleton,
-          document.tableCells,
-          document.text,
-        ),
-      });
-    }
     if (grepSection) {
       scopedSkeleton =
         mapSkeleton ??
@@ -3677,6 +3710,21 @@ async function runCodingShapeCall(
       }
     }
     if (!matched.length) continue;
+    if (mode === "working_set" && ACCRETIVE_WORKING_SET_EXPERIMENT) {
+      mapSkeleton ??= await documentStructure(document.text, meta.id, {
+        tableCells: document.tableCells,
+      });
+      workingSetMaps.push({
+        documentId: meta.id,
+        versionId: meta.current_version_id,
+        filename: meta.filename,
+        rows: workingSetMapRows(
+          mapSkeleton,
+          document.tableCells,
+          document.text,
+        ),
+      });
+    }
     // A handle is emitted only when the paired Read resolver accepts it.
     // Ambiguous TOC/body duplicates stay line-addressed instead of teaching
     // the model an attractive handle that must fail on the next turn.
@@ -3774,12 +3822,18 @@ async function runCodingShapeCall(
           documentId: meta.id,
           versionId: meta.current_version_id,
           filename: meta.filename,
+          filePath:
+            files.filter((candidate) => candidate.filename === meta.filename)
+              .length === 1
+              ? meta.filename
+              : meta.id,
           sourceText: document.text,
           projection: lookup?.status === "found" ? "legal-unit" : "window",
           ...(lookup?.status === "found" && lookup.block
             ? { handle: lookup.block.label, contextLabel: section?.display }
             : {}),
           anchor: lineStart,
+          hits: 1,
         });
       }
       continue;
@@ -3884,11 +3938,21 @@ async function runCodingShapeCall(
   }
   if (mode === "working_set") {
     if (!workingSets) return fail(call, "Working-set state is unavailable");
+    if (ACCRETIVE_WORKING_SET_EXPERIMENT) {
+      return accretiveWorkingSetResult(
+        call,
+        materializeAccretiveWorkingSet(
+          workingSetCandidates,
+          workingSetMaps,
+          args.max_chars,
+          workingSets,
+        ),
+      );
+    }
     return result(
       call,
-      materializeWorkingSet(
+      materializeStatelessWorkingSet(
         workingSetCandidates,
-        workingSetMaps,
         args.max_chars,
         workingSets,
       ),

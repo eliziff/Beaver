@@ -1,12 +1,24 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import crypto from "node:crypto";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearA2AJCache } from "../a2aj";
 import { A2AJ_TOOL_NAMES } from "../chat/tools/a2ajTools";
 import { runToolCalls } from "../chat/tools/toolDispatcher";
 import type { DocStore, ToolCall } from "../chat/types";
 
+beforeEach(() => {
+  // This suite probes provider truncation, not the machine's local corpus.
+  vi.stubEnv(
+    "MIKE_A2AJ_BULK_DB",
+    path.join(os.tmpdir(), `beaver-a2aj-fetch-test-${crypto.randomUUID()}.sqlite`),
+  );
+});
+
 afterEach(() => {
   clearA2AJCache();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 function stubA2AJText(text: string) {
