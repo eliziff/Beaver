@@ -15,7 +15,7 @@
  *    lib/emailText.ts, because wrapping a quoted-printable message verbatim
  *    splits numbers mid-digit and changes the facts the task is scored on.
  *  - Deliverables prefer documents Beaver authored itself via its
- *    library_create_docx tool (harvested from doc_created SSE events and
+ *    library_create_docx tool (the latest doc_created/doc_edited version is
  *    downloaded through the real /single-documents API); when the turn
  *    creates none, the answer text is exported to the required filename
  *    (.docx via the docx package, .md/.txt verbatim). Tasks needing
@@ -46,6 +46,7 @@ import {
   UPSTREAM_MIKE_COMMIT,
   UPSTREAM_MIKE_SCHEMA_SHA256,
 } from "../src/lib/chat/upstreamMikeBenchmarkSurface";
+import { latestAuthoredDocuments } from "./lab-authored-documents";
 
 function argument(name: string, fallback?: string): string {
   const index = process.argv.indexOf(`--${name}`);
@@ -101,6 +102,11 @@ const toolResults = (events: SseEvent[]) =>
       ok: event.ok !== false,
       error: typeof event.error === "string" ? event.error : null,
       content_chars: Number(event.content_chars ?? 0),
+      content_sha256:
+        typeof event.content_sha256 === "string" ? event.content_sha256 : null,
+      content_preview:
+        typeof event.content_preview === "string" ? event.content_preview : null,
+      zero_yield: event.zero_yield === true,
       already_read: event.already_read === true,
       already_exposed: event.already_exposed === true,
       unique_source_chars: Number(event.unique_source_chars ?? 0),
@@ -199,14 +205,6 @@ function exposureMetrics(
   };
 }
 
-const docsCreated = (events: SseEvent[]) =>
-  events
-    .filter((event) => event.type === "doc_created" && event.download_url)
-    .map((event) => ({
-      filename: String(event.filename ?? ""),
-      downloadUrl: String(event.download_url),
-    }));
-
 async function main() {
   const task = argument("task");
   const userId =
@@ -281,6 +279,15 @@ async function main() {
       MIKE_SLA_WORKFLOW: "1",
       MIKE_SLA_STRATEGY: "working_set_first",
     },
+    h10: {
+      MIKE_NAV_SHAPE: "address",
+      MIKE_TOOL_SHAPE: "coding",
+      MIKE_RETRIEVAL_EXPERIMENT: "h9-accretive-union",
+      MIKE_SLA_WORKFLOW: "1",
+      MIKE_SLA_STRATEGY: "working_set_first",
+      MIKE_GREENFIELD_REVIEW: "1",
+      MIKE_GREENFIELD_REVIEW_EFFORT: "low",
+    },
     address: {
       MIKE_NAV_SHAPE: "address",
       MIKE_TOOL_SHAPE: "",
@@ -295,7 +302,7 @@ async function main() {
   };
   if (!armEnvironment[arm])
     throw new Error(
-      `unknown --arm ${arm}; expected p0, d1, hybrid, working_set, compiler_hybrid, sla_hybrid, sla_working_set, h9, address, or upstream`,
+      `unknown --arm ${arm}; expected p0, d1, hybrid, working_set, compiler_hybrid, sla_hybrid, sla_working_set, h9, h10, address, or upstream`,
     );
 
   // Re-spawn into the isolated anonymous-mode environment (same recipe as
@@ -480,7 +487,7 @@ async function main() {
       );
     }
   }
-  const created = docsCreated(events);
+  const authored = latestAuthoredDocuments(events);
   const askPause = events.find((event) =>
     String(event.type ?? "").startsWith("ask_inputs"),
   );
@@ -488,8 +495,8 @@ async function main() {
     throw new Error(
       "Beaver paused for ask_inputs; the benchmark has no user to answer — run incomplete",
     );
-  if (!answer.trim() && !created.length)
-    throw new Error("empty assistant answer and no documents created");
+  if (!answer.trim() && !authored.length)
+    throw new Error("empty assistant answer and no documents authored");
   const wallClock = (Date.now() - started) / 1000;
   const { extractLocalDocument } = await import(
     "../src/lib/chat/localAssistantTools"
@@ -528,7 +535,7 @@ async function main() {
   // created nothing for.
   const deliverableSources: Record<string, string> = {};
   const saved: string[] = [];
-  for (const doc of created) {
+  for (const doc of authored) {
     const download = await request(app)
       .get(doc.downloadUrl)
       .buffer(true)
@@ -702,6 +709,7 @@ async function main() {
         total_documents: documents.length,
         source_text_chars: sourceTextChars,
         failed_tool_calls: results.filter((result) => !result.ok).length,
+        zero_yield_tool_calls: results.filter((result) => result.zero_yield).length,
         tool_call_count: calls.length,
         tool_result_chars: results.reduce(
           (total, result) => total + result.content_chars,
@@ -769,7 +777,7 @@ async function main() {
         context_rounds: contextRounds,
         wrapped_uploads: wrappedUploads,
         deliverables,
-        docs_created: created.map((doc) => doc.filename),
+        docs_created: authored.map((doc) => doc.filename),
         deliverable_sources: deliverableSources,
         research_tools_disabled: true,
         upstream_mike_commit: arm === "upstream" ? UPSTREAM_MIKE_COMMIT : null,

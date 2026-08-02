@@ -32,6 +32,7 @@ vi.mock("../lib/chat/localAssistantTools", () => ({
   NAV_TOOL_SHAPE: mocks.progressiveDisclosure ? "address" : "legacy",
   PROGRESSIVE_DISCLOSURE_ENABLED: mocks.progressiveDisclosure,
   RESEARCH_TOOLS_DISABLED: false,
+  UPSTREAM_MIKE_TOOL_SHAPE: false,
   partitionTools: () =>
     mocks.progressiveDisclosure
       ? {
@@ -232,7 +233,7 @@ describe("anonymous chat PDF evidence durability", () => {
     expect(initialNames).toEqual(["describe_tools"]);
     expect(JSON.parse(sameBatch[0].content).error).toContain("not loaded");
     expect(JSON.parse(sameBatch[1].content)).toMatchObject({ ok: true });
-    expect(openedNames).toEqual(["describe_tools", "library_revise_docx"]);
+    expect(openedNames).toEqual(["library_revise_docx"]);
     expect(JSON.parse(nextIteration[0].content)).toMatchObject({ ok: true });
     expect(
       mocks.runLocalAssistantTools.mock.calls.map((entry) =>
