@@ -10,6 +10,7 @@ production compaction implementation.
 from __future__ import annotations
 
 import argparse
+import atexit
 import difflib
 import hashlib
 import json
@@ -17,7 +18,9 @@ import math
 import os
 import re
 import sqlite3
+import subprocess
 import sys
+import tempfile
 import time
 import unicodedata
 import urllib.error
@@ -55,12 +58,16 @@ CARD_MIN_CHARS = 2000
 CARD_MAX_CHARS = 24000
 FINAL_MIN_CHARS = 1200
 COMPACTION_TIERS = {
+    "32k": {"num_ctx": 32768, "packet_chars": 65536, "card_min_chars": 2400, "card_max_chars": 30000, "final_min_chars": 1600},
+    "16k": {"num_ctx": 16384, "packet_chars": 32768, "card_min_chars": 2000, "card_max_chars": 24000, "final_min_chars": 1200},
     "8k": {"num_ctx": 8192, "packet_chars": 16384, "card_min_chars": 2000, "card_max_chars": 24000, "final_min_chars": 1200},
     "4k": {"num_ctx": 4096, "packet_chars": 8000, "card_min_chars": 1200, "card_max_chars": 10000, "final_min_chars": 800},
     "2k": {"num_ctx": 2048, "packet_chars": 3600, "card_min_chars": 700, "card_max_chars": 5200, "final_min_chars": 500},
     "1k": {"num_ctx": 1024, "packet_chars": 1600, "card_min_chars": 350, "card_max_chars": 2600, "final_min_chars": 250},
 }
 MICRO_TIERS = {
+    "32k": {"packet_chars": 12000, "card_min_chars": 1400, "card_max_chars": 14000, "final_min_chars": 1000, "num_predict": 5000},
+    "16k": {"packet_chars": 8000, "card_min_chars": 1200, "card_max_chars": 10000, "final_min_chars": 800, "num_predict": 3000},
     "4k": {"packet_chars": 2600, "card_min_chars": 900, "card_max_chars": 6000, "final_min_chars": 700, "num_predict": 1800},
     "2k": {"packet_chars": 1200, "card_min_chars": 500, "card_max_chars": 3200, "final_min_chars": 400, "num_predict": 1000},
     "1k": {"packet_chars": 650, "card_min_chars": 280, "card_max_chars": 1800, "final_min_chars": 250, "num_predict": 600},
@@ -75,6 +82,7 @@ WS_RE = re.compile(r"\s+")
 DYNAMIC_TASK = """Find Bhasin v. Hrynew, Wastech Services Ltd. v. Greater Vancouver Sewerage and Drainage District, and C.M. Callow Inc. v. Zollinger in A2AJ. Analyze each and compare their good-faith doctrine. Preserve facts, issue, holding, reasoning, limits, and evidence handles. Interleave verified exact quotes with analysis."""
 ABLATION_TASK = """Find Bhasin v. Hrynew, Wastech Services Ltd. v. Greater Vancouver Sewerage and Drainage District, and C.M. Callow Inc. v. Zollinger in A2AJ. Analyze each and compare their good-faith doctrine. Preserve facts, issue, holding, reasoning, and evidence handles. Interleave verified exact quotes with analysis."""
 NO_QUESTIONS = "NEVER ASK THE USER A QUESTION. UNDER NO CIRCUMSTANCES ASK FOR CLARIFICATION. USE THE AVAILABLE STATE, DOCUMENT, AND TOOLS; THEN CONTINUE OR COMPLETE THE REQUIRED TOOL ACTION."
+CAVEMAN_CONTROL = "YOU=QWEN. QWEN USE FEWEST WORDS. SUBSTANCE ONLY. NO FILLER."
 CARD_SPAN_CONTRACT = """Each card claim must cite one paragraph address and a sentence range inside that paragraph. Use this exact shape:
 evidence_id=\"<active>@session-snapshot#paragraph-1\", start_sentence=0, end_sentence=1.
 Use the full paragraph address exactly as returned by the source. Sentence indexes restart at 0 for each paragraph. Call card_done only after reading the document and selecting valid paragraph addresses."""
@@ -97,26 +105,36 @@ def grug_card_prompt(doc_id: str, opaque: bool = False, min_chars: int = CARD_MI
         else CARD_SPAN_CONTRACT.replace("<active>", doc_id)
     )
     fields = "FACTS/PROCEDURE; ISSUE; HOLDING; RULE/REASONING; EVIDENCE HANDLES" if omit_limits_unknowns else "FACTS/PROCEDURE; ISSUE; HOLDING; RULE/REASONING; LIMITS; UNKNOWNS; EVIDENCE HANDLES"
-    return f"""MAKE 1 COMPLETE CASE CARD. FILL EXACT LABELS: {fields}. {span_contract} CARD >= {min_chars} CHARS. NO FINAL ANSWER. NEVER ASK. CALL card_done WHEN CARD + VALID SPANS READY. TALK SELF CAVEMAN. CARD SMARTHEAD."""
+    return f"""MAKE 1 COMPLETE CASE CARD. FILL EXACT LABELS: {fields}. {span_contract} CARD >= {min_chars} CHARS. NO FINAL ANSWER. NEVER ASK. {CAVEMAN_CONTROL} CALL card_done WHEN CARD + VALID SPANS READY. CARD SMARTHEAD."""
 
 
-def micro_card_prompt(opaque: bool = False, min_chars: int = CARD_MIN_CHARS, omit_limits_unknowns: bool = False) -> str:
+def micro_card_prompt(
+    opaque: bool = False,
+    min_chars: int = CARD_MIN_CHARS,
+    omit_limits_unknowns: bool = False,
+    host_register: bool = False,
+) -> str:
     span_contract = (
         "Claims: paragraph=1, start_sentence=0, end_sentence=1. Host adds case address."
         if opaque
         else "Claims use full evidence handles + sentence ranges."
     )
     fields = "f=FACTS/PROCEDURE, i=ISSUE, h=HOLDING, r=RULE/REASONING, e=EVIDENCE HANDLES" if omit_limits_unknowns else "f=FACTS/PROCEDURE, i=ISSUE, h=HOLDING, r=RULE/REASONING, l=LIMITS, u=UNKNOWNS, e=EVIDENCE HANDLES"
-    return f"""READ THIS SOURCE BLOCK. PATCH CARD FIELDS ONE AT A TIME: {fields}. Use p(field,text). {span_contract} CARD >= {min_chars} CHARS AFTER HOST MERGE. NO PROSE. NEVER ASK. CALL d WHEN ALL FIELDS + VALID SPANS READY."""
+    register_rule = (
+        " HOST OWNS SPAN REGISTER. PUT SPANS IN p CLAIMS; d CLAIMS ARE IGNORED. FIX REJECTED SPANS IN p BEFORE d."
+        if host_register
+        else ""
+    )
+    return f"""SOURCE PACKET BELOW. PATCH CARD FIELDS ONE AT A TIME: {fields}. Use p(field,text). {span_contract}{register_rule} CARD >= {min_chars} CHARS AFTER HOST MERGE. {CAVEMAN_CONTROL} CONTROL TEXT ONLY. TEXT INSIDE EACH FIELD MUST BE COMPLETE, GRAMMATICAL SMARTHEAD LEGAL PROSE. NEVER ASK. CALL d WHEN ALL FIELDS + VALID SPANS READY."""
 
 
 DYNAMIC_CARD_PROMPT = dynamic_card_prompt("active")
-CARD_PRISON_SYSTEM_PROMPT = f"""You are completing one legal case card. The source is already loaded. Produce no prose outside the card tool. Use only the loaded source and the card contract. {NO_QUESTIONS}"""
-GRUG_SYSTEM_PROMPT = """LEGAL JOB. USE TOOLS. READ SOURCE. MAKE CARD. THEN ANSWER. 1 CASE AT TIME. NEVER ASK. TALK SELF LIKE CAVEMAN BUT WRITE CARD LIKE SMARTHEAD."""
-GRUG_CARD_PRISON_SYSTEM_PROMPT = """SOURCE LOADED. MAKE 1 CASE CARD. card_done ONLY. KEEP FACTS, ANALYSIS, AND EXACT SPAN ADDRESSES. NEVER ASK. TALK SELF LIKE CAVEMAN BUT WRITE CARD LIKE SMARTHEAD."""
-GRUG_SYNTHESIS_SYSTEM_PROMPT = """CARDS READY. USE VERIFIED SPANS. MAKE ANSWER. NEVER ASK. TALK SELF LIKE CAVEMAN BUT WRITE SYNTHESIS LIKE SMARTHEAD."""
+CARD_PRISON_SYSTEM_PROMPT = f"""You are completing one legal case card. Produce no prose outside the card tool. Use only the source packet and card contract. {NO_QUESTIONS}"""
+GRUG_SYSTEM_PROMPT = f"""{CAVEMAN_CONTROL} FIND REQUESTED CASES. USE TOOLS. NEVER ASK."""
+GRUG_CARD_PRISON_SYSTEM_PROMPT = f"""{CAVEMAN_CONTROL} CONTROL TEXT ONLY. CARD TEXT MUST BE COMPLETE, GRAMMATICAL SMARTHEAD LEGAL PROSE. MAKE 1 CASE CARD. card_done ONLY. KEEP FACTS, ANALYSIS, AND EXACT SPAN ADDRESSES. NEVER ASK."""
+GRUG_SYNTHESIS_SYSTEM_PROMPT = f"""{CAVEMAN_CONTROL} CARDS READY. USE VERIFIED SPANS. MAKE ANSWER. NEVER ASK. WRITE SYNTHESIS LIKE SMARTHEAD."""
 DYNAMIC_FINAL_PROMPT = """Using the completed cards and their VERIFIED SPANS registers, write the integrated answer: compare the doctrine and interleave verified exact quotes with para #s. Copy evidence handles and sentence ranges from the registers exactly. Rehydrate only the spans needed for the answer, then submit exact quotes with submit_quote_spans before the prose answer."""
-GRUG_FINAL_PROMPT = """USE DONE CARDS + VERIFIED SPANS. COMPARE DOCTRINE. MIX EXACT QUOTATIONS + PARA #S. COPY HANDLES/RANGES EXACTLY. REHYDRATE NEEDED SPANS. CALL submit_quote_spans FIRST. THEN WRITE SMARTHEAD ANSWER."""
+GRUG_FINAL_PROMPT = f"""{CAVEMAN_CONTROL} USE DONE CARDS + VERIFIED SPANS. COMPARE DOCTRINE. MIX EXACT QUOTATIONS + PARA #S. COPY HANDLES/RANGES EXACTLY. REHYDRATE NEEDED SPANS. CALL submit_quote_spans FIRST. THEN WRITE ANSWER LIKE SMARTHEAD."""
 DYNAMIC_MIKE_SYSTEM_PROMPT = MIKE_SYSTEM_PROMPT.replace("doc-0", "s1").replace("doc-1", "s2").replace("doc-2", "s3") + "\n\n" + NO_QUESTIONS
 
 
@@ -568,19 +586,32 @@ class A2AJCatalog:
                 cases[doc_id] = load_case(spec, self.max_chars, self.db_path)
         return cases
 
+    def document_exists(self, document_id: int) -> bool:
+        with self._connect() as db:
+            return db.execute(
+                "SELECT 1 FROM document WHERE id=? AND doc_type='cases'",
+                (int(document_id),),
+            ).fetchone() is not None
+
 
 def run_dynamic_selection(args: argparse.Namespace) -> Path:
-    model = args.model or default_model()
+    model = args.model or ("gpt-5.6-luna" if args.provider == "codex" else default_model())
     base_url = args.base_url or os.environ.get("OLLAMA_BASE_URL") or "http://127.0.0.1:11434"
-    client = OllamaClient(
-        base_url=base_url,
-        model=model,
-        num_ctx=args.num_ctx,
-        num_predict=args.num_predict,
-        temperature=args.temperature,
-        host_header=args.host_header or os.environ.get("OLLAMA_HOST_HEADER"),
+    client = (
+        CodexClient(model, args.effort, args.num_predict)
+        if args.provider == "codex"
+        else OllamaClient(
+            base_url=base_url,
+            model=model,
+            num_ctx=args.num_ctx,
+            num_predict=args.num_predict,
+            temperature=args.temperature,
+            think=args.think,
+            host_header=args.host_header or os.environ.get("OLLAMA_HOST_HEADER"),
+        )
     )
     output = resolve_output(args.out, "dynamic_selection")
+    acquire_run_lock(output)
     progress_path = output.with_suffix(".progress.jsonl")
     catalog = A2AJCatalog(args.a2aj_db or A2AJ_DB_DEFAULT, args.packet_chars)
     discovery_messages: list[dict[str, Any]] = [
@@ -591,7 +622,7 @@ def run_dynamic_selection(args: argparse.Namespace) -> Path:
     discovery_ledger: list[str] = []
     search_cache: dict[str, str] = {}
     selected_ids: list[int] | None = None
-    append_progress(progress_path, {"kind": "run_started", "arm": "dynamic_selection", "model": model, "num_ctx": args.num_ctx})
+    append_progress(progress_path, {"kind": "run_started", "arm": "dynamic_selection", "provider": args.provider, "model": model, "effort": args.effort, "num_ctx": args.num_ctx})
     try:
         for round_number in range(args.max_tool_rounds):
             message, usage = client.chat(discovery_messages, discovery_mode=True, prompt_style=args.prompt_style)
@@ -621,8 +652,11 @@ def run_dynamic_selection(args: argparse.Namespace) -> Path:
                         search_cache[query] = result
                 elif name == "select_a2aj_documents":
                     values = [int(value) for value in raw_args.get("ids", [])]
+                    invalid = [value for value in values if value <= 0 or not catalog.document_exists(value)]
                     if len(values) != 3 or len(set(values)) != 3:
                         result = json.dumps({"ok": False, "error": "select exactly three unique A2AJ document IDs"})
+                    elif invalid:
+                        result = json.dumps({"ok": False, "error": "unknown A2AJ case IDs: " + ", ".join(map(str, invalid))})
                     else:
                         selected_ids = values
                         result = json.dumps({"ok": True, "selected_document_ids": values, "text": "full text will be loaded one document at a time by the host"})
@@ -660,16 +694,21 @@ def run_dynamic_selection(args: argparse.Namespace) -> Path:
         turns: list[dict[str, Any]] = [{"phase": "discovery", "selected_document_ids": selected_ids}]
         first_key = next(iter(cases))
         if args.micro_card:
-            card_prompt = lambda _doc_id, _opaque, minimum: micro_card_prompt(_opaque, minimum, args.omit_limits_unknowns)
+            card_prompt = lambda _doc_id, _opaque, minimum: micro_card_prompt(
+                _opaque,
+                minimum,
+                args.omit_limits_unknowns,
+                args.card_span_mode == "host_register",
+            )
         else:
             card_prompt = (lambda doc_id, opaque, minimum: grug_card_prompt(doc_id, opaque, minimum, args.omit_limits_unknowns)) if args.prompt_style == "grug" else (lambda doc_id, opaque, minimum: dynamic_card_prompt(doc_id, opaque, minimum, args.omit_limits_unknowns))
         first_card_prompt = card_prompt(first_key, args.card_prison_opaque, args.card_min_chars)
         if not args.micro_card:
             first_card_prompt += f"\nCall r {first_key} once now; then complete the card."
         else:
-            first_card_prompt += "\nSOURCE IS ALREADY LOADED. Patch fields, then call d."
+            first_card_prompt += "\nPATCH FIELDS, THEN CALL d."
         first_response, messages = run_turn(
-            client, [{"role": "system", "content": control_system_prompt(args.prompt_style)}], first_card_prompt,
+            client, [{"role": "system", "content": card_prison_system_prompt(args.prompt_style)}], first_card_prompt,
             first_key, executor, call_log, 1, max_tool_rounds=args.max_tool_rounds,
             state_compact_every=4, progress_path=progress_path,
             card_contract=card_prompt(first_key, args.card_prison_opaque, args.card_min_chars),
@@ -696,25 +735,84 @@ def run_dynamic_selection(args: argparse.Namespace) -> Path:
             if args.prompt_style == "grug"
             else "The verifier accepted the quotes. Write the integrated legal answer now, with analysis and exact quotes interleaved."
         )
-        final_response, final_messages = run_turn(
-            client, messages, final_prompt, "final", executor, call_log, 2,
-            include_rehydration_tool=True, include_span_tool=True,
-            max_tool_rounds=args.max_tool_rounds,
-            synthesis_mode=True,
-            post_gate_prompt=final_gate,
-            progress_path=progress_path,
-            prompt_style=args.prompt_style,
-            card_prison_opaque=args.card_prison_opaque,
-            micro_card=args.micro_card,
-            omit_limits_unknowns=args.omit_limits_unknowns,
-            post_verify_projection=args.post_verify_projection,
-            auto_read_card=False,
-        )
-        if len(final_response) < args.final_min_chars:
-            raise RuntimeError(f"final answer below {args.final_min_chars} characters")
-        if not executor.verified_claims:
-            raise RuntimeError("final answer lacked verified quotation claims")
-        turns.append({"turn": 2, "prompt": final_prompt, "response": final_response})
+
+        def synthesis_checkpoint(missing: list[str]) -> list[dict[str, Any]]:
+            cards = "\n\n".join(
+                f"CARD {doc_id}:\n{card}\n\n[VERIFIED SPANS]\n"
+                + json.dumps(executor.card_claims.get(doc_id, []), ensure_ascii=False)
+                for doc_id, card in executor.card_cards.items()
+            )
+            missing_block = (
+                "\n\n[MISSING QUOTE COVERAGE]\n" + ", ".join(missing)
+                if missing
+                else ""
+            )
+            return [
+                {
+                    "role": "system",
+                    "content": (
+                        GRUG_SYNTHESIS_SYSTEM_PROMPT
+                        if args.prompt_style == "grug"
+                        else DYNAMIC_MIKE_SYSTEM_PROMPT
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        "[ALL CARDS COMPLETE]\n"
+                        + cards
+                        + "\n\n[VERIFIED QUOTE REGISTER]\n"
+                        + json.dumps(executor.verified_claims or [], ensure_ascii=False)
+                        + missing_block
+                    ),
+                },
+            ]
+
+        missing_cases: list[str] = []
+        final_messages = messages
+        for synthesis_attempt in range(1 + args.max_synthesis_revisions):
+            if synthesis_attempt:
+                missing_text = ", ".join(missing_cases)
+                final_prompt = (
+                    "REPAIR REQUIRED. VERIFIED QUOTATION COVERAGE IS MISSING FOR: "
+                    + missing_text
+                    + ". Rehydrate evidence from that case, submit exact quote span(s) for it, "
+                    "then rewrite the complete integrated answer. Do not stop with a partial answer."
+                )
+            final_messages = synthesis_checkpoint(missing_cases)
+            final_response, final_messages = run_turn(
+                client, final_messages, final_prompt, "final", executor, call_log, 2,
+                include_rehydration_tool=True, include_span_tool=True,
+                max_tool_rounds=args.max_tool_rounds,
+                synthesis_mode=True,
+                post_gate_prompt=final_gate,
+                progress_path=progress_path,
+                prompt_style=args.prompt_style,
+                card_prison_opaque=args.card_prison_opaque,
+                micro_card=args.micro_card,
+                omit_limits_unknowns=args.omit_limits_unknowns,
+                post_verify_projection=args.post_verify_projection,
+                auto_read_card=False,
+                require_synthesis_tool=True,
+            )
+            turns.append({"turn": 2 + synthesis_attempt, "prompt": final_prompt, "response": final_response})
+            if len(final_response) < args.final_min_chars:
+                raise RuntimeError(f"final answer below {args.final_min_chars} characters")
+            if not executor.verified_claims:
+                raise RuntimeError("final answer lacked verified quotation claims")
+            verified_cases = {
+                evidence_id.split("@", 1)[0]
+                for claim in executor.verified_claims
+                for evidence_id in claim.get("evidence_ids", [])
+            }
+            missing_cases = sorted(set(cases) - verified_cases)
+            if not missing_cases:
+                break
+            if synthesis_attempt >= args.max_synthesis_revisions:
+                raise RuntimeError(
+                    "final answer lacked verified quotation coverage for: "
+                    + ", ".join(missing_cases)
+                )
         record = {
             "experiment": "legal_compaction_qwen",
             "created_utc": datetime.now(timezone.utc).isoformat(),
@@ -724,6 +822,9 @@ def run_dynamic_selection(args: argparse.Namespace) -> Path:
             "num_ctx": args.num_ctx,
             "num_predict": args.num_predict,
             "temperature": args.temperature,
+            "think": args.think,
+            "provider": args.provider,
+            "effort": args.effort,
             "max_tool_rounds": args.max_tool_rounds,
             "card_span_mode": args.card_span_mode,
             "card_prison_opaque": args.card_prison_opaque,
@@ -748,7 +849,30 @@ def run_dynamic_selection(args: argparse.Namespace) -> Path:
             "overflow": None,
         }
     except (OllamaError, RuntimeError, ValueError) as error:
-        record = {"experiment": "legal_compaction_qwen", "created_utc": datetime.now(timezone.utc).isoformat(), "arm": "dynamic_selection", "model": model, "selected_a2aj_document_ids": selected_ids, "selection_calls": selection_calls, "overflow": {"message": str(error), "context_overflow": getattr(error, "context_overflow", False)}}
+        partial = locals()
+        partial_executor = partial.get("executor")
+        record = {
+            "experiment": "legal_compaction_qwen",
+            "created_utc": datetime.now(timezone.utc).isoformat(),
+            "arm": "dynamic_selection",
+            "model": model,
+            "base_url": base_url,
+            "num_ctx": args.num_ctx,
+            "num_predict": args.num_predict,
+            "think": args.think,
+            "provider": args.provider,
+            "effort": args.effort,
+            "selected_a2aj_document_ids": selected_ids,
+            "selection_calls": selection_calls,
+            "turns": partial.get("turns", []),
+            "calls": partial.get("call_log", []),
+            "tool_calls": partial_executor.tool_calls if partial_executor else [],
+            "verifier_attempts": partial_executor.verifier_attempts if partial_executor else [],
+            "verified_claims": partial_executor.verified_claims if partial_executor else None,
+            "final_answer": partial.get("final_response", ""),
+            "messages_at_end": partial.get("final_messages", partial.get("messages", [])),
+            "overflow": {"message": str(error), "context_overflow": getattr(error, "context_overflow", False)},
+        }
     append_progress(progress_path, {"kind": "run_finished", "overflow": record.get("overflow"), "final_answer_length": len(record.get("final_answer", ""))})
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -981,6 +1105,7 @@ class OllamaClient:
         num_ctx: int,
         num_predict: int,
         temperature: float,
+        think: str | bool | None = None,
         host_header: str | None = None,
         timeout_seconds: int = 900,
     ):
@@ -989,6 +1114,7 @@ class OllamaClient:
         self.num_ctx = num_ctx
         self.num_predict = num_predict
         self.temperature = temperature
+        self.think = think
         self.host_header = host_header
         self.timeout_seconds = timeout_seconds
 
@@ -1010,16 +1136,17 @@ class OllamaClient:
         micro_card: bool = False,
         omit_limits_unknowns: bool = False,
         auto_read_card: bool = False,
+        host_register: bool = False,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         request_tools = ollama_tools()
         if compact_card_mode:
             request_tools = compact_card_tools(card_max_chars, prompt_style, card_prison_opaque, card_min_chars)
             if micro_card and (auto_read_card or card_prison):
-                request_tools = list(micro_card_tools(omit_limits_unknowns))
+                request_tools = list(micro_card_tools(omit_limits_unknowns, host_register))
             elif micro_card:
                 request_tools = [tool for tool in request_tools if tool.get("function", {}).get("name") == "r"]
         if card_prison:
-            micro_tools = micro_card_tools(omit_limits_unknowns) if micro_card else None
+            micro_tools = micro_card_tools(omit_limits_unknowns, host_register) if micro_card else None
             request_tools = (
                 list(micro_tools)
                 if micro_card
@@ -1037,7 +1164,7 @@ class OllamaClient:
                     if not compact_card_mode else {"find_in_document", "r"}
                 )
             ] + [
-                *(list(micro_card_tools(omit_limits_unknowns)) if micro_card else [card_complete_tool(card_prison_opaque, card_min_chars, card_max_chars, omit_limits_unknowns)])
+                *(list(micro_card_tools(omit_limits_unknowns, host_register)) if micro_card else [card_complete_tool(card_prison_opaque, card_min_chars, card_max_chars, omit_limits_unknowns)])
             ]
 
         if include_rehydration_tool and not card_rebuild_mode and not synthesis_mode and not discovery_mode:
@@ -1058,6 +1185,10 @@ class OllamaClient:
                 "num_predict": self.num_predict,
             },
         }
+        if self.think is not None:
+            # Ollama's no-reasoning form is boolean false; "none" is not a
+            # valid value on the desktop service.
+            body["think"] = False if self.think == "none" else self.think
         headers = {"Content-Type": "application/json"}
         if self.host_header:
             headers["Host"] = self.host_header
@@ -1089,6 +1220,120 @@ class OllamaClient:
             "wall_seconds": round(elapsed, 3),
         }
         return message, usage
+
+
+class CodexClient:
+    """Codex/Luna transport using the same host turn and tool contracts."""
+
+    def __init__(self, model: str, effort: str, num_predict: int):
+        self.model = model
+        self.effort = effort
+        self.num_predict = num_predict
+        self.num_ctx = 32768
+
+    def _tools(self, include_grounding_tool: bool, include_rehydration_tool: bool,
+               include_span_tool: bool, card_rebuild_mode: bool, discovery_mode: bool,
+               synthesis_mode: bool, compact_card_mode: bool, card_max_chars: int,
+               card_min_chars: int, card_prison: bool, prompt_style: str,
+               card_prison_opaque: bool, micro_card: bool,
+               omit_limits_unknowns: bool, host_register: bool) -> list[dict[str, Any]]:
+        if discovery_mode:
+            return [A2AJ_SEARCH_TOOL, A2AJ_SELECT_TOOL]
+        if synthesis_mode:
+            return [REHYDRATE_EVIDENCE_TOOL, SPAN_ANSWER_TOOL]
+        if card_prison:
+            return list(micro_card_tools(omit_limits_unknowns, host_register)) if micro_card else [card_complete_tool(card_prison_opaque, card_min_chars, card_max_chars, omit_limits_unknowns)]
+        if compact_card_mode:
+            tools = compact_card_tools(card_max_chars, prompt_style, card_prison_opaque, card_min_chars)
+            if micro_card:
+                tools = [tool for tool in tools if tool.get("function", {}).get("name") == "r"]
+        else:
+            tools = ollama_tools()
+        if card_rebuild_mode:
+            tools = [tool for tool in tools if tool.get("function", {}).get("name") in {"find_in_document", "read_document", "r"}]
+            tools += list(micro_card_tools(omit_limits_unknowns, host_register)) if micro_card else [card_complete_tool(card_prison_opaque, card_min_chars, card_max_chars, omit_limits_unknowns)]
+        if include_rehydration_tool:
+            tools.append(REHYDRATE_EVIDENCE_TOOL)
+        if include_span_tool:
+            tools.append(SPAN_ANSWER_TOOL)
+        if include_grounding_tool:
+            tools.append(GROUNDED_ANSWER_TOOL)
+        return tools
+
+    def chat(self, messages: list[dict[str, Any]], include_grounding_tool: bool = False,
+              include_rehydration_tool: bool = False, include_span_tool: bool = False,
+              card_rebuild_mode: bool = False, discovery_mode: bool = False,
+              synthesis_mode: bool = False, compact_card_mode: bool = False,
+              card_max_chars: int = CARD_MAX_CHARS, card_min_chars: int = CARD_MIN_CHARS,
+              card_prison: bool = False, prompt_style: str = "normal",
+              card_prison_opaque: bool = False, micro_card: bool = False,
+              omit_limits_unknowns: bool = False, auto_read_card: bool = False,
+              host_register: bool = False) -> tuple[dict[str, Any], dict[str, Any]]:
+        tools = self._tools(
+            include_grounding_tool, include_rehydration_tool, include_span_tool,
+            card_rebuild_mode, discovery_mode, synthesis_mode, compact_card_mode,
+            card_max_chars, card_min_chars, card_prison, prompt_style,
+            card_prison_opaque, micro_card, omit_limits_unknowns, host_register,
+        )
+        if auto_read_card and compact_card_mode and micro_card:
+            tools = list(micro_card_tools(omit_limits_unknowns, host_register))
+        prompt = (
+            "You are one turn inside a legal compaction harness. Do not use shell, files, or external tools. "
+            "Return JSON matching the required schema. Emit at most the listed host tool calls; do not describe a tool call as prose.\n\n"
+            "AVAILABLE HOST TOOLS:\n" + json.dumps(tools, ensure_ascii=False, separators=(",", ":"))
+            + "\n\nCURRENT HARNESS MESSAGES:\n" + json.dumps(messages, ensure_ascii=False)
+        )
+        with tempfile.NamedTemporaryFile(prefix="codex-turn-", suffix=".json", delete=False) as output_file:
+            output_path = Path(output_file.name)
+        schema = ROOT / "experiments" / "legal_compaction_qwen" / "codex_turn_schema.json"
+        started = time.perf_counter()
+        try:
+            result = subprocess.run(
+                [r"C:\Users\elias\AppData\Roaming\npm\codex.cmd", "exec", "--ephemeral",
+                 "-m", self.model, "-c", f'model_reasoning_effort="{self.effort}"',
+                 "-s", "read-only", "--output-schema", str(schema),
+                 "-o", str(output_path), "-"],
+                input=prompt, text=True, encoding="utf-8", errors="replace",
+                capture_output=True, timeout=900,
+            )
+            if result.returncode:
+                raise OllamaError(f"Codex exec failed ({result.returncode}): {result.stderr[-2000:]}")
+            payload = json.loads(output_path.read_text(encoding="utf-8"))
+        except (OSError, subprocess.SubprocessError, json.JSONDecodeError) as error:
+            raise OllamaError(f"Codex turn failed: {error}") from error
+        finally:
+            output_path.unlink(missing_ok=True)
+        calls = []
+        allowed_names = {
+            tool.get("function", {}).get("name")
+            for tool in tools
+        }
+        for call in payload.get("tool_calls") or []:
+            name = str(call.get("name") or "")
+            if name not in allowed_names:
+                raise OllamaError(f"Codex returned unavailable tool: {name or '<empty>'}")
+            raw_arguments = call.get("arguments") or "{}"
+            if isinstance(raw_arguments, str):
+                try:
+                    arguments = json.loads(raw_arguments)
+                except json.JSONDecodeError as error:
+                    raise OllamaError(f"Codex returned invalid JSON arguments for {name}: {error}") from error
+            else:
+                arguments = raw_arguments
+            if not isinstance(arguments, dict):
+                raise OllamaError(f"Codex returned non-object arguments for {name}")
+            calls.append({"function": {"name": name, "arguments": json.dumps(arguments)}})
+        return {
+            "role": "assistant",
+            "content": str(payload.get("content") or ""),
+            "tool_calls": calls,
+        }, {
+            "prompt_eval_count": 0,
+            "eval_count": 0,
+            "wall_seconds": round(time.perf_counter() - started, 3),
+            "provider": "codex",
+            "effort": self.effort,
+        }
 
 
 GROUNDED_ANSWER_TOOL_NAME = "submit_grounded_answer"
@@ -1409,6 +1654,7 @@ class ToyMikeTools:
         self.verifier_attempts: list[dict[str, Any]] = []
         self.verified_claims: list[dict[str, Any]] | None = None
         self.accepted_claims: list[dict[str, Any]] = []
+        self.accepted_span_claims: list[dict[str, Any]] = []
 
     def complete_card(self, doc_id: str, card: str, claims: list[dict[str, Any]] | None = None) -> str | None:
         self.card_cards[doc_id] = card[:5000]
@@ -1505,6 +1751,155 @@ class ToyMikeTools:
     def _sentences(cls, value: str) -> list[str]:
         text = cls._copy_ready_text(value)
         return [part.strip() for part in re.split(r"(?<=[.!?])\s+(?=[A-Z\"“\[])", text) if part.strip()]
+
+    @classmethod
+    def _card_span_context(
+        cls,
+        paragraph_text: str,
+        start: Any,
+        end: Any,
+    ) -> tuple[str, str, int, int, int]:
+        """Return compact prefix/snippet plus nearest valid sentence range."""
+
+        copy_text = cls._copy_ready_text(paragraph_text)
+        prefix = copy_text[:140].rstrip()
+        if len(copy_text) > 140:
+            prefix += " ..."
+        sentences = cls._sentences(paragraph_text)
+        if not sentences:
+            return prefix, "", 0, 0, 0
+        last = len(sentences) - 1
+        requested_start = start if isinstance(start, int) else 0
+        requested_end = end if isinstance(end, int) else requested_start
+        closest_start = min(max(requested_start, 0), last)
+        closest_end = min(max(requested_end, closest_start), last)
+        snippet = collapse_ws(
+            " ".join(
+                f"S{index}: {sentences[index]}"
+                for index in range(closest_start, closest_end + 1)
+            )
+        )
+        if len(snippet) > 480:
+            snippet = snippet[:477].rstrip() + "..."
+        return prefix, snippet, closest_start, closest_end, last
+
+    def validate_card_span(
+        self,
+        doc_id: str,
+        raw_claim: Any,
+        claim_index: int,
+        opaque: bool,
+    ) -> tuple[dict[str, Any] | None, dict[str, Any] | None, str | None]:
+        claim = raw_claim if isinstance(raw_claim, dict) else {}
+        paragraph = claim.get("paragraph") if opaque else None
+        if opaque:
+            case = self.cases.get(doc_id)
+            handle = (
+                handle_id(case, paragraph)
+                if case is not None and isinstance(paragraph, int)
+                else ""
+            )
+        else:
+            handle = str(claim.get("evidence_id", ""))
+            match = re.search(r"#paragraph-(\d+)$", handle)
+            paragraph = int(match.group(1)) if match else None
+        evidence = self._evidence_by_handle()
+        if handle not in evidence or evidence[handle][0].spec.doc_id != doc_id:
+            location = (
+                f"paragraph {paragraph}"
+                if opaque and paragraph is not None
+                else (handle or "active case")
+            )
+            return (
+                None,
+                self.card_span_feedback(
+                    doc_id,
+                    claim_index,
+                    paragraph,
+                    claim.get("start_sentence"),
+                    claim.get("end_sentence"),
+                ),
+                f"claims[{claim_index}] has no matching source span at {location}",
+            )
+        start = claim.get("start_sentence")
+        end = claim.get("end_sentence")
+        sentences = self._sentences(evidence[handle][1])
+        if (
+            not isinstance(start, int)
+            or not isinstance(end, int)
+            or start < 0
+            or end < start
+            or end >= len(sentences)
+        ):
+            location = f"paragraph {paragraph}" if opaque else handle
+            return (
+                None,
+                self.card_span_feedback(doc_id, claim_index, paragraph, start, end),
+                f"claims[{claim_index}] sentence range is invalid at {location}; valid range is 0..{len(sentences) - 1}",
+            )
+        return (
+            {
+                "evidence_id": handle,
+                "start_sentence": start,
+                "end_sentence": end,
+            },
+            None,
+            None,
+        )
+
+    def card_span_feedback(
+        self,
+        doc_id: str,
+        claim_index: int,
+        paragraph: Any,
+        start: Any,
+        end: Any,
+    ) -> dict[str, Any]:
+        """Give card jail deterministic, compact repair context for one span."""
+
+        case = self.cases.get(doc_id)
+        try:
+            paragraph_number = int(paragraph)
+        except (TypeError, ValueError):
+            paragraph_number = None
+        if case is None or paragraph_number not in case.paragraph_map:
+            available = sorted(case.paragraph_map) if case else []
+            closest = min(available, key=lambda number: abs(number - paragraph_number)) if available and paragraph_number is not None else None
+            feedback: dict[str, Any] = {
+                "claim_index": claim_index,
+                "status": "no_match",
+                "requested_paragraph": paragraph_number,
+                "repair": "Use a paragraph number present in the active packet.",
+            }
+            if closest is not None:
+                prefix, snippet, closest_start, closest_end, last = self._card_span_context(case.paragraph_map[closest], start, end)
+                feedback.update(
+                    {
+                        "closest_paragraph": closest,
+                        "valid_range": f"0..{last}",
+                        "paragraph_prefix": prefix,
+                        "closest_snippet": snippet,
+                        "copy_text": f"{prefix} {snippet}".strip(),
+                        "contract": "paragraph prefix ... closest matching snippet; use supplied paragraph and sentence range, never guess",
+                        "repair": f"Use paragraph={closest}, start_sentence={closest_start}, end_sentence={closest_end}.",
+                    }
+                )
+            return feedback
+        prefix, snippet, closest_start, closest_end, last = self._card_span_context(
+            case.paragraph_map[paragraph_number], start, end
+        )
+        return {
+            "claim_index": claim_index,
+            "status": "range_invalid",
+            "paragraph": paragraph_number,
+            "requested_range": f"{start}..{end}",
+            "valid_range": f"0..{last}",
+            "paragraph_prefix": prefix,
+            "closest_snippet": snippet,
+            "copy_text": f"{prefix} {snippet}".strip(),
+            "contract": "paragraph prefix ... closest matching snippet; use supplied paragraph and sentence range, never guess",
+            "repair": f"Use paragraph={paragraph_number}, start_sentence={closest_start}, end_sentence={closest_end}.",
+        }
 
     @classmethod
     def _repair_excerpt(cls, quote: str, source: str) -> str:
@@ -1716,11 +2111,39 @@ class ToyMikeTools:
                     "kind": "quotation",
                 })
             self.verifier_attempts.append({"arguments": args, "errors": errors, "diagnostics": []})
+            for claim in verified:
+                key = (claim["kind"], claim["text"], tuple(claim["evidence_ids"]))
+                if not any(
+                    (old["kind"], old["text"], tuple(old["evidence_ids"])) == key
+                    for old in self.accepted_span_claims
+                ):
+                    self.accepted_span_claims.append(claim)
+            self.verified_claims = list(self.accepted_span_claims)
+            covered_cases = sorted(
+                {
+                    evidence_id.split("@", 1)[0]
+                    for claim in self.accepted_span_claims
+                    for evidence_id in claim["evidence_ids"]
+                }
+            )
             if errors:
-                return json.dumps({"ok": False, "errors": errors}, ensure_ascii=False)
-            self.verified_claims = verified
+                return json.dumps(
+                    {
+                        "ok": False,
+                        "errors": errors,
+                        "accepted_claims": len(self.accepted_span_claims),
+                        "covered_cases": covered_cases,
+                    },
+                    ensure_ascii=False,
+                )
             return json.dumps(
-                {"ok": True, "terminal": True, "verified_claims": len(verified), "verified_quotes": verified},
+                {
+                    "ok": True,
+                    "terminal": True,
+                    "verified_claims": len(self.accepted_span_claims),
+                    "verified_quotes": self.accepted_span_claims,
+                    "covered_cases": covered_cases,
+                },
                 ensure_ascii=False,
             )
 
@@ -1896,6 +2319,7 @@ def run_turn(
     omit_limits_unknowns: bool = False,
     post_verify_projection: bool = False,
     auto_read_card: bool = False,
+    require_synthesis_tool: bool = False,
 ) -> tuple[str, list[dict[str, Any]]]:
     tools.set_phase(phase)
     if tools.card_queue_complete and phase != "final":
@@ -1914,6 +2338,38 @@ def run_turn(
     card_patch_claims: list[dict[str, Any]] = []
     active_packet = ""
     frozen_claims: list[dict[str, Any]] = []
+    span_register: dict[str, dict[str, Any]] = {}
+    pending_span_repairs: dict[str, dict[str, Any]] = {}
+
+    def model_visible_spans(claims: Any) -> list[dict[str, Any]]:
+        values = list(claims or [])
+        if not card_prison_opaque or not values:
+            return values
+        try:
+            return json.loads(
+                opaque_card_result(json.dumps(values, ensure_ascii=False), card_doc_id)
+            )
+        except (TypeError, json.JSONDecodeError):
+            return values
+
+    def card_span_state_prompt() -> str:
+        sections: list[str] = []
+        if card_span_mode == "immutable" and frozen_claims:
+            sections.append(
+                "[VERIFIED SPANS — PRESERVE EXACTLY]\n"
+                + json.dumps(model_visible_spans(frozen_claims), ensure_ascii=False)
+            )
+        if card_span_mode == "host_register":
+            sections.append(
+                "[HOST SPAN REGISTER]\n"
+                + json.dumps(model_visible_spans(span_register.values()), ensure_ascii=False)
+            )
+            if pending_span_repairs:
+                sections.append(
+                    "[PENDING SPAN REPAIRS]\n"
+                    + json.dumps(list(pending_span_repairs.values()), ensure_ascii=False)
+                )
+        return "\n\n" + "\n\n".join(sections) if sections else ""
     if auto_read_card and card_contract and card_doc_id in tools.cases:
         read_done = True
         active_packet = tools.cases[card_doc_id].packet
@@ -1941,6 +2397,7 @@ def run_turn(
                 micro_card,
                 omit_limits_unknowns,
                 auto_read_card,
+                host_register=card_span_mode == "host_register",
             )
         except OllamaError as error:
             call_log.append(
@@ -1982,7 +2439,27 @@ def run_turn(
         )
         calls = assistant_tool_calls(message)
         if not calls:
-            if synthesis_mode and len(last_text.strip()) < final_min_chars:
+            if synthesis_mode and require_synthesis_tool:
+                synthesis_gate = (
+                    "[QUOTE COVERAGE GATE] No prose answer counts yet. "
+                    "Call rehydrate_evidence or submit_quote_spans now; "
+                    "submit quote spans for every missing case before writing prose. "
+                    + NO_QUESTIONS
+                )
+                messages[:] = messages[:2] + [
+                    {"role": "user", "content": synthesis_gate}
+                ]
+                append_progress(
+                    progress_path,
+                    {
+                        "kind": "stop_rejected",
+                        "turn": turn_number,
+                        "phase": phase,
+                        "reason": "synthesis_tool_required",
+                    },
+                )
+                continue
+            if synthesis_mode and final_min_chars > 0 and len(last_text.strip()) < final_min_chars:
                 messages.append(message)
                 messages.append(
                     {
@@ -2016,8 +2493,9 @@ def run_turn(
                             "role": "user",
                             "content": (
                                 "[CURRENT CARD DRAFT]\n" + card_draft
+                                + ("\n\n[ACTIVE SOURCE PACKET]\n" + active_packet if active_packet else "")
                                 + "\n\n[CARD CONTRACT]\n" + (card_contract or "")
-                                + ("\n\n[✓ VERIFIED SPANS — PRESERVE EXACTLY]\n" + json.dumps(frozen_claims, ensure_ascii=False) if card_span_mode == "immutable" and frozen_claims else "")
+                                + card_span_state_prompt()
                                 + "\n\n" + gate
                             ),
                         },
@@ -2050,10 +2528,18 @@ def run_turn(
                 }
                 if not omit_limits_unknowns:
                     labels = {**labels, "l": "LIMITS", "u": "UNKNOWNS"}
+                missing_fields = [key for key in labels if not str(card_fields.get(key) or "").strip()]
+                host_claims = list(span_register.values())
                 arguments = {
                     "card": "\n\n".join(f"{labels[key]}: {card_fields.get(key, '')}" for key in labels),
-                    "claims": arguments.get("claims") or card_patch_claims,
+                    "claims": host_claims
+                    if card_span_mode == "host_register"
+                    else arguments.get("claims") or card_patch_claims,
                 }
+                if card_span_mode == "host_register":
+                    arguments["_pending_span_repairs"] = list(pending_span_repairs.values())
+                if missing_fields:
+                    arguments["card"] = "CARD_INCOMPLETE; MISSING FIELDS: " + ", ".join(missing_fields)
                 name = CARD_COMPLETE_TOOL_NAME
             last_tool = name
             entered_card_rebuild = False
@@ -2063,61 +2549,122 @@ def run_turn(
                 allowed_fields = {"f", "i", "h", "r", "e"} if omit_limits_unknowns else {"f", "i", "h", "r", "l", "u", "e"}
                 field_order = ["f", "i", "h", "r", "e"] if omit_limits_unknowns else ["f", "i", "h", "r", "l", "u", "e"]
                 pending = next((key for key in field_order if not card_fields.get(key)), None)
+                field_has_pending_span = any(
+                    slot.startswith(field + ":") for slot in pending_span_repairs
+                )
                 if field not in allowed_fields or not text.strip():
                     result = json.dumps({"ok": False, "error": "bad_card_patch", "next_action": "Use p with one field and text."})
-                elif card_fields.get(field) and pending and field != pending:
+                elif card_fields.get(field) and pending and field != pending and not field_has_pending_span:
                     result = json.dumps({"ok": False, "error": "field_already_saved", "field": field, "completed": [key for key in field_order if card_fields.get(key)], "next_field": pending, "next_action": f"Patch {pending}, then call d."})
                 else:
                     card_fields[field] = text
-                    for claim in arguments.get("claims") or []:
-                        if isinstance(claim, dict):
+                    claims = [claim for claim in arguments.get("claims") or [] if isinstance(claim, dict)]
+                    if card_span_mode == "host_register" and "claims" in arguments:
+                        for slot in [key for key in pending_span_repairs if key.startswith(field + ":")]:
+                            pending_span_repairs.pop(slot, None)
+                        for slot in [key for key in span_register if key.startswith(field + ":")]:
+                            span_register.pop(slot, None)
+                        repairs: list[dict[str, Any]] = []
+                        for claim_index, claim in enumerate(claims):
+                            slot = f"{field}:{claim_index}"
+                            valid, repair, error = tools.validate_card_span(
+                                card_doc_id,
+                                claim,
+                                claim_index,
+                                card_prison_opaque,
+                            )
+                            if error:
+                                pending_span_repairs[slot] = {
+                                    "slot": slot,
+                                    **(repair or {"claim_index": claim_index}),
+                                    "error": error,
+                                }
+                                repairs.append(pending_span_repairs[slot])
+                            elif valid is not None:
+                                span_register[slot] = valid
+                        if repairs:
+                            result = json.dumps(
+                                {
+                                    "ok": False,
+                                    "error": "span_repair_required",
+                                    "field": field,
+                                    "field_saved": True,
+                                    "span_repairs": repairs,
+                                    "register_size": len(span_register),
+                                    "next_action": f"Patch {field} again with each supplied repair before moving on.",
+                                },
+                                ensure_ascii=False,
+                            )
+                        else:
+                            result = json.dumps(
+                                {
+                                    "ok": True,
+                                    "field": field,
+                                    "saved": len(text),
+                                    "register_size": len(span_register),
+                                    "next_action": "Patch next field or call d.",
+                                }
+                            )
+                    else:
+                        for claim in claims:
                             card_patch_claims.append(claim)
-                    result = json.dumps({"ok": True, "field": field, "saved": len(text), "next_action": "Patch next field or call d."})
+                        result = json.dumps({"ok": True, "field": field, "saved": len(text), "next_action": "Patch next field or call d."})
             elif synthesis_mode and name not in {REHYDRATE_EVIDENCE_TOOL_NAME, SPAN_ANSWER_TOOL_NAME}:
                 result = json.dumps({"ok": False, "error": "tool_unavailable_in_synthesis", "next_action": "Use rehydrate_evidence for exact text or submit_quote_spans for quotations; then write analysis."})
             elif (card_rebuild_mode or card_contract) and name == CARD_COMPLETE_TOOL_NAME:
                 card_text = str(arguments.get("card") or "")[:card_max_chars]
                 card_draft = card_text
                 current_doc = card_doc_id if card_doc_id in tools.cases else str(arguments.get("document_id") or "")
+                required_labels = ("FACTS/PROCEDURE", "ISSUE", "HOLDING", "RULE/REASONING", "EVIDENCE HANDLES") if omit_limits_unknowns else ("FACTS/PROCEDURE", "ISSUE", "HOLDING", "RULE/REASONING", "LIMITS", "UNKNOWNS", "EVIDENCE HANDLES")
                 if not read_done:
                     result = json.dumps({"ok": False, "error": "read_required", "next_action": f"Call r {current_doc}."})
+                elif card_text.startswith("CARD_INCOMPLETE; MISSING FIELDS:"):
+                    missing_fields = card_text.split(":", 1)[1].strip()
+                    result = json.dumps({"ok": False, "error": "card_fields_missing", "missing_fields": missing_fields.split(", "), "next_action": "Patch every missing field with p(field,text), then call d."})
                 elif len(card_text) < card_min_chars:
-                    result = json.dumps({"ok": False, "error": "card_too_short", "minimum_chars": card_min_chars, "next_action": "Fill every field, then call card_done again."})
-                required_labels = ("FACTS/PROCEDURE", "ISSUE", "HOLDING", "RULE/REASONING", "EVIDENCE HANDLES") if omit_limits_unknowns else ("FACTS/PROCEDURE", "ISSUE", "HOLDING", "RULE/REASONING", "LIMITS", "UNKNOWNS", "EVIDENCE HANDLES")
-                if not all(label in card_text.upper() for label in required_labels):
-                    result = json.dumps({"ok": False, "error": "card_fields_missing", "next_action": "Include all required card fields and evidence handles, then call card_done."})
+                    result = json.dumps({"ok": False, "error": "card_too_short", "length": len(card_text), "minimum_chars": card_min_chars, "next_action": f"Add substantive text to every field until the card is at least {card_min_chars} characters, then call card_done again."})
+                elif not all(label in card_text.upper() for label in required_labels):
+                    missing_labels = [label for label in required_labels if label not in card_text.upper()]
+                    result = json.dumps({"ok": False, "error": "card_fields_missing", "missing_fields": missing_labels, "next_action": "Patch the missing fields with p(field,text), include exact evidence spans, then call card_done again."})
+                elif card_span_mode == "host_register" and arguments.get("_pending_span_repairs"):
+                    result = json.dumps(
+                        {
+                            "ok": False,
+                            "error": "evidence_spans_invalid",
+                            "errors": [
+                                item.get("error", "span repair required")
+                                for item in arguments["_pending_span_repairs"]
+                            ],
+                            "verified_claims": list(span_register.values()),
+                            "span_repairs": arguments["_pending_span_repairs"],
+                            "next_action": "Patch each pending span in p; d submits the host register only.",
+                        },
+                        ensure_ascii=False,
+                    )
                 else:
-                    claims = arguments.get("claims")
-                    evidence = tools._evidence_by_handle()
+                    claims = (
+                        list(span_register.values())
+                        if card_span_mode == "host_register"
+                        else arguments.get("claims")
+                    )
                     valid_claims: list[dict[str, Any]] = []
                     errors: list[str] = []
+                    span_repairs: list[dict[str, Any]] = []
                     if not isinstance(claims, list) or not claims:
                         errors.append("card_done requires non-empty span claims")
                     for index, raw in enumerate(claims or []):
-                        if card_prison_opaque and isinstance(raw, dict):
-                            paragraph = raw.get("paragraph")
-                            handle = handle_id(tools.cases[current_doc], paragraph) if isinstance(paragraph, int) and current_doc in tools.cases else ""
-                        else:
-                            handle = str(raw.get("evidence_id", "")) if isinstance(raw, dict) else ""
-                        if handle not in evidence or evidence[handle][0].spec.doc_id != current_doc:
-                            errors.append(f"claims[{index}] has an invalid evidence handle")
-                            continue
-                        start = raw.get("start_sentence") if isinstance(raw, dict) else None
-                        end = raw.get("end_sentence") if isinstance(raw, dict) else None
-                        sentences = tools._sentences(evidence[handle][1])
-                        if not isinstance(start, int) or not isinstance(end, int) or start < 0 or end < start or end >= len(sentences):
-                            errors.append(
-                                f"claims[{index}] sentence range is invalid for {handle}; "
-                                f"valid range is 0..{len(sentences) - 1}"
-                            )
-                            continue
-                        valid_claims.append(
-                            {
-                                "evidence_id": handle,
-                                "start_sentence": start,
-                                "end_sentence": end,
-                            }
+                        valid, repair, error = tools.validate_card_span(
+                            current_doc,
+                            raw,
+                            index,
+                            card_prison_opaque and card_span_mode != "host_register",
                         )
+                        if error:
+                            errors.append(error)
+                            if repair is not None:
+                                span_repairs.append(repair)
+                        elif valid is not None:
+                            valid_claims.append(valid)
                     if card_span_mode == "immutable":
                         known = {item["evidence_id"]: item for item in frozen_claims}
                         for item in valid_claims:
@@ -2129,12 +2676,21 @@ def run_turn(
                                 "ok": False,
                                 "error": "evidence_spans_invalid",
                                 "errors": errors,
-                                "verified_claims": frozen_claims if card_span_mode == "immutable" else valid_claims,
-                                "next_action": "Repair only rejected spans; preserve verified spans exactly and call card_done again.",
+                                "verified_claims": (
+                                    list(span_register.values())
+                                    if card_span_mode == "host_register"
+                                    else frozen_claims if card_span_mode == "immutable" else valid_claims
+                                ),
+                                "span_repairs": span_repairs,
+                                "next_action": "Repair only listed spans using each valid range and closest snippet; preserve verified spans exactly and call card_done again.",
                             }
                         )
                     else:
-                        submitted_claims = frozen_claims if card_span_mode == "immutable" else valid_claims
+                        submitted_claims = (
+                            list(span_register.values())
+                            if card_span_mode == "host_register"
+                            else frozen_claims if card_span_mode == "immutable" else valid_claims
+                        )
                         next_doc = tools.complete_card(current_doc, card_text, submitted_claims) if current_doc in tools.cases else None
                         result = json.dumps(
                             {
@@ -2147,7 +2703,7 @@ def run_turn(
                             },
                             ensure_ascii=False,
                         )
-                        card_rebuild_mode = next_doc is not None
+                        card_rebuild_mode = False
             elif read_done and name == "list_documents":
                 result = json.dumps(
                     {
@@ -2241,8 +2797,9 @@ def run_turn(
                         "role": "user",
                         "content": (
                             "[CURRENT CARD DRAFT]\n" + card_draft
+                            + ("\n\n[ACTIVE SOURCE PACKET]\n" + active_packet if active_packet else "")
                             + "\n\n[CARD CONTRACT]\n" + (card_contract or "")
-                            + ("\n\n[✓ VERIFIED SPANS — PRESERVE EXACTLY]\n" + json.dumps(frozen_claims, ensure_ascii=False) if card_span_mode == "immutable" and frozen_claims else "")
+                            + card_span_state_prompt()
                             + "\n\n[REPAIR FEEDBACK]\n" + model_result
                             + f"\n\nResubmit the complete current card with {CARD_COMPLETE_TOOL_NAME}; preserve valid fields and claims."
                         ),
@@ -2265,26 +2822,39 @@ def run_turn(
                 next_doc = payload.get("next_document_id")
                 if next_doc:
                     card_draft = ""
+                    card_fields.clear()
+                    card_patch_claims.clear()
                     frozen_claims = []
+                    span_register.clear()
+                    pending_span_repairs.clear()
                     card_doc_id = str(next_doc)
+                    phase = str(next_doc)
+                    last_tool = "new_case"
                     card_contract = (
-                        micro_card_prompt(card_prison_opaque, card_min_chars, omit_limits_unknowns)
+                        micro_card_prompt(
+                            card_prison_opaque,
+                            card_min_chars,
+                            omit_limits_unknowns,
+                            card_span_mode == "host_register",
+                        )
                         if micro_card
                         else grug_card_prompt(card_doc_id, card_prison_opaque, card_min_chars)
                         if prompt_style == "grug"
                         else dynamic_card_prompt(card_doc_id, card_prison_opaque, card_min_chars)
                     )
-                    read_done = False
+                    # The host has already injected the next bounded packet;
+                    # do not force an impossible r->d loop in micro-card mode.
+                    read_done = True
                     tools.set_phase(str(next_doc))
                     next_case = tools.cases[str(next_doc)]
                     active_packet = next_case.packet
-                    messages[0] = {"role": "system", "content": control_system_prompt(prompt_style)}
+                    messages[0] = {"role": "system", "content": card_prison_system_prompt(prompt_style)}
                     messages[:] = messages[:1] + [
                         {
                             "role": "user",
                             "content": (
-                                "[CARD REBUILD]\n"
-                                f"Review the active packet, then call {CARD_COMPLETE_TOOL_NAME}.\n\n"
+                                "[NEW CASE CARD]\n"
+                                f"Start a fresh card from this packet. Patch every field, then call {CARD_COMPLETE_TOOL_NAME}.\n\n"
                                 + json.dumps(
                                     {
                                         "citation": next_case.spec.citation,
@@ -2409,6 +2979,7 @@ def run_turn(
                 micro_card=micro_card,
                 omit_limits_unknowns=omit_limits_unknowns,
                 auto_read_card=auto_read_card,
+                host_register=card_span_mode == "host_register",
             )
             state_text = str(state_message.get("content") or "")[:2200]
             call_log.append(
@@ -2430,11 +3001,11 @@ def run_turn(
                     "turn": turn_number,
                     "phase": phase,
                     "state_preview": state_text[:1600],
-                    "cursor": state_cursor(card_doc_id, read_done, last_tool),
+                    "cursor": state_cursor(card_doc_id, read_done, last_tool, micro_card),
                     "usage": state_usage,
                 },
             )
-            cursor = state_cursor(card_doc_id, read_done, last_tool)
+            cursor = state_cursor(card_doc_id, read_done, last_tool, micro_card)
             micro_register = ""
             if micro_card:
                 field_order = ["f", "i", "h", "r", "e"] if omit_limits_unknowns else ["f", "i", "h", "r", "l", "u", "e"]
@@ -2472,8 +3043,13 @@ def run_turn(
     )
 
 
-def state_cursor(phase: str, read_done: bool, last_tool: str) -> str:
+def state_cursor(phase: str, read_done: bool, last_tool: str, micro_card: bool = False) -> str:
     """Keep the tiny procedural state the model summary cannot reliably infer."""
+    if micro_card:
+        return (
+            "[PROCEDURAL CURSOR]\n"
+            f"last_tool={last_tool}; continue card fields for this packet. {NO_QUESTIONS} Call d when complete."
+        )
     if read_done:
         read_rule = "source already read; remain in card completion."
     else:
@@ -2513,12 +3089,17 @@ def case_receipt(case: CaseDocument) -> dict[str, Any]:
     }
 
 
-def micro_card_tools(omit_limits_unknowns: bool = False) -> tuple[dict[str, Any], dict[str, Any]]:
+def micro_card_tools(
+    omit_limits_unknowns: bool = False,
+    host_register: bool = False,
+) -> tuple[dict[str, Any], dict[str, Any]]:
     """Return the micro tools with the ablated field enum when requested."""
-    if not omit_limits_unknowns:
-        return MICRO_PATCH_TOOL, MICRO_DONE_TOOL
     patch = json.loads(json.dumps(MICRO_PATCH_TOOL))
-    patch["function"]["parameters"]["properties"]["field"]["enum"] = ["f", "i", "h", "r", "e"]
+    if omit_limits_unknowns:
+        patch["function"]["parameters"]["properties"]["field"]["enum"] = ["f", "i", "h", "r", "e"]
+    if host_register:
+        patch["function"]["description"] = "Patch one card field and submit its span claims."
+        patch["function"]["parameters"]["required"] = ["field", "text", "claims"]
     return patch, MICRO_DONE_TOOL
 
 
@@ -2653,6 +3234,7 @@ def run_live(args: argparse.Namespace, cases: dict[str, CaseDocument]) -> Path:
         num_ctx=args.num_ctx,
         num_predict=args.num_predict,
         temperature=args.temperature,
+        think=args.think,
         host_header=args.host_header or os.environ.get("OLLAMA_HOST_HEADER"),
     )
     executor = ToyMikeTools(cases)
@@ -2829,6 +3411,23 @@ def resolve_output(value: str | None, arm: str) -> Path:
     return Path(__file__).resolve().parent / "runs" / f"{stamp}-{arm}.json"
 
 
+def acquire_run_lock(output: Path) -> None:
+    lock = output.with_suffix(".lock")
+    if lock.exists():
+        try:
+            old_pid = int(lock.read_text(encoding="ascii").strip())
+            os.kill(old_pid, 0)
+        except (OSError, ValueError):
+            lock.unlink(missing_ok=True)
+    try:
+        descriptor = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError as error:
+        raise RuntimeError(f"run output already active: {output.name}") from error
+    with os.fdopen(descriptor, "w", encoding="ascii") as stream:
+        stream.write(str(os.getpid()))
+    atexit.register(lock.unlink, missing_ok=True)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -2841,6 +3440,7 @@ def parse_args() -> argparse.Namespace:
         sub.add_argument("--source-b", type=resolve_path, default=None)
 
     run = subparsers.add_parser("run")
+    run.add_argument("--provider", choices=("ollama", "codex"), default="ollama")
     run.add_argument("--model", default=None)
     run.add_argument(
         "--arm",
@@ -2848,11 +3448,12 @@ def parse_args() -> argparse.Namespace:
         required=True,
     )
     run.add_argument("--card-mode", choices=("standard", "ultra", "delta"), default="standard")
-    run.add_argument("--card-span-mode", choices=("mutable", "immutable"), default="mutable")
+    run.add_argument("--card-span-mode", choices=("mutable", "immutable", "host_register"), default="mutable")
     run.add_argument("--card-prison-opaque", action="store_true")
     run.add_argument("--prompt-style", choices=("normal", "grug"), default="normal")
     run.add_argument("--context-tier", choices=tuple(COMPACTION_TIERS), default="8k")
     run.add_argument("--micro-card", action="store_true")
+    run.add_argument("--no-final-minimum", action="store_true")
     run.add_argument("--omit-limits-unknowns", action="store_true")
     run.add_argument("--rehydration-mode", choices=("prefix_snippet", "expanded_snippet"), default="prefix_snippet")
     run.add_argument("--post-verify-projection", action="store_true")
@@ -2861,7 +3462,10 @@ def parse_args() -> argparse.Namespace:
     run.add_argument("--num-ctx", type=int, default=int(os.environ.get("OLLAMA_NUM_CTX", DEFAULT_NUM_CTX)))
     run.add_argument("--num-predict", type=int, default=DEFAULT_NUM_PREDICT)
     run.add_argument("--temperature", type=float, default=0.0)
+    run.add_argument("--think", choices=("none", "low", "medium", "high", "max"), default="none")
+    run.add_argument("--effort", choices=("low", "medium", "high", "max"), default="low")
     run.add_argument("--max-tool-rounds", type=int, default=10)
+    run.add_argument("--max-synthesis-revisions", type=int, default=1)
     run.add_argument("--packet-chars", type=int, default=DEFAULT_PACKET_CHARS)
     run.add_argument("--source-a", type=resolve_path, default=None)
     run.add_argument("--source-b", type=resolve_path, default=None)
@@ -2890,6 +3494,8 @@ def main() -> int:
                 args.card_max_chars = micro["card_max_chars"]
                 args.final_min_chars = micro["final_min_chars"]
                 args.num_predict = min(args.num_predict, micro["num_predict"])
+            if args.no_final_minimum:
+                args.final_min_chars = 0
             run_dynamic_selection(args)
             return 0
         if args.command == "run" and args.arm == "case_card":
