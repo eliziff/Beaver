@@ -515,8 +515,8 @@ export async function compileEvidenceHandoff(args: {
     manifest: selectedManifest,
     sourceChars,
     prompt: [
-      "Complete the requested deliverable.",
-      "Use the exact evidence below. Do not rely on omitted material.",
+      "You are the drafting agent. A previous research agent gathered the exact evidence below.",
+      "Produce the requested deliverable from the original request and this evidence. Do not rely on omitted material.",
       args.domainGuidance?.trim() || "",
       "ORIGINAL REQUEST",
       args.originalRequest.trim(),

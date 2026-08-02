@@ -214,6 +214,8 @@ describe("evidence exposure union", () => {
     expect(handoff.status).toBe("ready");
     if (handoff.status === "ready") {
       expect(handoff.prompt).toContain("SECRET_TAIL");
+      expect(handoff.prompt).toContain("You are the drafting agent");
+      expect(handoff.prompt).toContain("A previous research agent");
       expect(handoff.prompt).not.toContain("tool domain");
       expect(handoff.prompt).not.toContain("fresh drafting context");
     }
