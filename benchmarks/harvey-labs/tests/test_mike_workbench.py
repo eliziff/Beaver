@@ -175,6 +175,67 @@ def test_native_work_product_keeps_evidence_without_forcing_citations(tmp_path):
     assert "<task_reminder source=\"original-user-request\">" in fetched
 
 
+def test_quote_first_schema_puts_private_grounding_before_markdown():
+    prompt, tools, _ = get_mike_surface(
+        "mike_one_shot_quote_first_xhigh_v1", [("alpha.docx", "docx")]
+    )
+
+    assert [tool["name"] for tool in tools] == ["fetch_documents", "generate_docx"]
+    properties = tools[1]["parameters"]["properties"]
+    assert list(properties)[0] == "grounding"
+    assert "grounding" in tools[1]["parameters"]["required"]
+    assert "PRIVATE QUOTE-FIRST GROUNDING" in prompt
+
+
+def test_quote_first_verifies_private_quotes_without_inserting_them(tmp_path):
+    executor = _executor(tmp_path, surface="mike_one_shot_quote_first_xhigh_v1")
+    executor.execute("fetch_documents", {"doc_ids": ["doc-0", "doc-1"]})
+
+    receipt = json.loads(
+        executor.execute(
+            "generate_docx",
+            {
+                "grounding": [
+                    {
+                        "source": "alpha.txt",
+                        "quote": "Closing date is March 15, 2027.",
+                        "supports": "The closing date is March 15, 2027.",
+                    },
+                    {
+                        "source": "beta.txt",
+                        "quote": "This text is absent.",
+                        "supports": "An intentionally unverified claim.",
+                    },
+                ],
+                "title": "Memo",
+                "markdown": "# Conclusion\n\nComplete.",
+            },
+        )
+    )
+
+    assert receipt["terminal"] is True
+    draft = (tmp_path / "workspace" / ".mike" / "draft-1.md").read_text()
+    assert "March 15, 2027" not in draft
+    metrics = executor.get_metrics()
+    assert metrics["grounding_claims"] == 2
+    assert metrics["grounding_verified"] == 1
+    assert metrics["grounding_unverified"] == 1
+    assert metrics["grounding_receipts"][0]["locator"]
+    assert metrics["grounding_receipts"][1]["locator"] is None
+
+
+def test_quote_first_rejects_an_empty_private_ledger(tmp_path):
+    executor = _executor(tmp_path, surface="mike_one_shot_quote_first_xhigh_v1")
+
+    result = executor.execute(
+        "generate_docx",
+        {"grounding": [], "title": "Memo", "markdown": "# Conclusion\n\nComplete."},
+    )
+
+    assert result.startswith("Error: grounding")
+    assert not (tmp_path / "output" / "memo.docx").exists()
+
+
 def test_mike_batch_read_duplicate_guard_search_and_terminal_generation(tmp_path):
     executor = _executor(tmp_path)
     inventory = json.loads(executor.execute("list_documents", {}))
