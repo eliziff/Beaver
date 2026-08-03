@@ -36,13 +36,21 @@ MIKE_SURFACES = {
     "mike_one_shot_v1",
     "mike_one_shot_xhigh_v1",
     "mike_one_shot_fact_index_xhigh_v1",
+    "mike_one_shot_conflict_first_xhigh_v1",
 }
 
 ONE_SHOT_SURFACES = {
     "mike_one_shot_v1",
     "mike_one_shot_xhigh_v1",
     "mike_one_shot_fact_index_xhigh_v1",
+    "mike_one_shot_conflict_first_xhigh_v1",
 }
+
+CONFLICT_FIRST_PROMPT = """
+
+ATTENTION BUDGET:
+- Before writing, silently make a coverage ledger from the request and sources. Give first priority to inconsistencies between sources, exceptions or conditions that change a rule, open drafting points, and every requested issue and recommendation. Resolve each or flag the uncertainty accurately.
+- Prefer coverage of load-bearing specifics over expanding generic background or boilerplate. Do not expose the ledger."""
 
 ONE_SHOT_PROMPT = """You are a senior legal analyst. Complete the user's exact request from the project documents.
 
@@ -142,6 +150,8 @@ def get_mike_surface(name: str, document_inventory: list[tuple[str, str]]) -> tu
             _canonical_tool(frozen["compact_generate_docx_tool"]),
         ]
         prompt = ONE_SHOT_PROMPT
+        if name == "mike_one_shot_conflict_first_xhigh_v1":
+            prompt += CONFLICT_FIRST_PROMPT
     else:
         tools = [_canonical_tool(tool) for tool in frozen["tools"]]
         prompt = frozen["system_prompt"]
