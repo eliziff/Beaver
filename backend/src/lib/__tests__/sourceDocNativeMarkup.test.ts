@@ -387,6 +387,96 @@ describe("native markup compilation", () => {
     expect(summarizeLegalSourceDoc(doc).source).toBe("flat_text");
   });
 
+  it("recovers CourtListener's exact marker variants but fences HTML footnotes", () => {
+    const prose =
+      "contains enough substantive judicial reasoning words for reliable structural reconstruction and audit.";
+    const markup = [
+      "<article>",
+      `<p>1 Paragraph one ${prose}</p>`,
+      `<p>2 Paragraph two ${prose}</p>`,
+      `<p>3.Third paragraph ${prose}</p>`,
+      "<p>4. . . .</p>",
+      `<p>5 Paragraph five ${prose}</p>`,
+      `<p>6 Paragraph six ${prose}</p>`,
+      "</article>",
+      '<div class="footnotes"><h4>Footnotes</h4>',
+      ...Array.from(
+        { length: 6 },
+        (_, index) => `<p>${index + 1}. Footnote ${index + 1} ${prose}</p>`,
+      ),
+      "</div>",
+    ].join("");
+    const doc = compileNativeMarkupSourceDoc({
+      provider: "courtlistener",
+      id: "cluster-footnote-fence",
+      text: "",
+      markup,
+    });
+    const paragraphs = doc.blocks.filter(({ kind }) => kind === "paragraph");
+
+    expect(paragraphs.map(({ label }) => label)).toEqual([
+      "par1",
+      "par2",
+      "par3",
+      "par4",
+      "par5",
+      "par6",
+    ]);
+    expect(lookupLegalSourceDoc(doc, "paragraph", "6").block?.text).not.toContain(
+      "Footnotes",
+    );
+    expect(
+      lookupLegalSourceDoc(doc, "paragraph", "1").block?.text,
+    ).toContain("Paragraph one");
+  });
+
+  it("does not bridge an absent CourtListener paragraph label", () => {
+    const prose =
+      "contains enough substantive judicial reasoning words for reliable structural reconstruction and audit.";
+    const markup = [
+      "<article>",
+      ...[1, 2, 4, 5, 6, 7, 8].map(
+        (number) => `<p>${number} Paragraph ${number} ${prose}</p>`,
+      ),
+      "</article>",
+    ].join("");
+    const doc = compileNativeMarkupSourceDoc({
+      provider: "courtlistener",
+      id: "cluster-missing-marker",
+      text: "",
+      markup,
+    });
+
+    expect(
+      doc.blocks
+        .filter(({ kind }) => kind === "paragraph")
+        .map(({ label }) => label),
+    ).toEqual(["par4", "par5", "par6", "par7", "par8"]);
+    expect(lookupLegalSourceDoc(doc, "paragraph", "3").status).toBe(
+      "not_found",
+    );
+  });
+
+  it("does not promote a numeric CourtListener table to paragraphs", () => {
+    const markup = [
+      "<article>",
+      ...Array.from(
+        { length: 6 },
+        (_, index) =>
+          `<p>${1913 + index} $ ${134350 + index} $ ${8479 + index} $ ${6000 + index}</p>`,
+      ),
+      "</article>",
+    ].join("");
+    const doc = compileNativeMarkupSourceDoc({
+      provider: "courtlistener",
+      id: "cluster-numeric-table",
+      text: "",
+      markup,
+    });
+
+    expect(doc.ranges.paragraph.count).toBe(0);
+  });
+
   it("preserves native paragraphs and reconstructs missing labels", () => {
     const markup = [
       "<article>",
