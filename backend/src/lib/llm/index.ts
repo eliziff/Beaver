@@ -45,7 +45,7 @@ export async function streamChatWithTools(
                   await import("./openrouter")
                 ).streamOpenRouter(measuredParams)
               : provider === "codex"
-                ? await (await import("./codexApi")).streamCodexApi(
+                ? await (await import("./codex")).streamCodex(
                     measuredParams,
                   )
                 : provider === "claude-p"
@@ -120,15 +120,7 @@ export async function completeText(params: {
   if (provider === "openrouter")
     return (await import("./openrouter")).completeOpenRouterText(params);
   if (provider === "codex") {
-    const result = await (await import("./codexApi")).streamCodexApi({
-      model: params.model,
-      systemPrompt: params.systemPrompt ?? "",
-      messages: [{ role: "user", content: params.user }],
-      ...(params.reasoningEffort
-        ? { reasoningEffort: params.reasoningEffort }
-        : {}),
-    });
-    return result.fullText;
+    return (await import("./codex")).completeCodexText(params);
   }
   if (provider === "claude-p")
     return (await import("./claudeP")).completeClaudePText(params);
