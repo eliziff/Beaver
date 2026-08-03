@@ -37,6 +37,7 @@ MIKE_SURFACES = {
     "mike_one_shot_xhigh_v1",
     "mike_one_shot_fact_index_xhigh_v1",
     "mike_one_shot_conflict_first_xhigh_v1",
+    "mike_one_shot_native_xhigh_v1",
 }
 
 ONE_SHOT_SURFACES = {
@@ -44,6 +45,7 @@ ONE_SHOT_SURFACES = {
     "mike_one_shot_xhigh_v1",
     "mike_one_shot_fact_index_xhigh_v1",
     "mike_one_shot_conflict_first_xhigh_v1",
+    "mike_one_shot_native_xhigh_v1",
 }
 
 CONFLICT_FIRST_PROMPT = """
@@ -51,6 +53,11 @@ CONFLICT_FIRST_PROMPT = """
 ATTENTION BUDGET:
 - Before writing, silently make a coverage ledger from the request and sources. Give first priority to inconsistencies between sources, exceptions or conditions that change a rule, open drafting points, and every requested issue and recommendation. Resolve each or flag the uncertainty accurately.
 - Prefer coverage of load-bearing specifics over expanding generic background or boilerplate. Do not expose the ledger."""
+
+NATIVE_GROUNDING_PROMPT = """
+
+GROUNDING:
+- Ground the work in the exact source text. Include quotations or citations in the deliverable only when the request or professional genre calls for them."""
 
 ONE_SHOT_PROMPT = """You are a senior legal analyst. Complete the user's exact request from the project documents.
 
@@ -152,6 +159,8 @@ def get_mike_surface(name: str, document_inventory: list[tuple[str, str]]) -> tu
         prompt = ONE_SHOT_PROMPT
         if name == "mike_one_shot_conflict_first_xhigh_v1":
             prompt += CONFLICT_FIRST_PROMPT
+        if name == "mike_one_shot_native_xhigh_v1":
+            prompt += NATIVE_GROUNDING_PROMPT
     else:
         tools = [_canonical_tool(tool) for tool in frozen["tools"]]
         prompt = frozen["system_prompt"]
@@ -227,6 +236,7 @@ class MikeWorkbenchExecutor(ToolExecutor):
         self.source_fact_index_enabled = (
             surface_name == "mike_one_shot_fact_index_xhigh_v1"
         )
+        self.citation_reminders = surface_name != "mike_one_shot_native_xhigh_v1"
         self.terminal = False
         self._documents = self.sandbox.list_files(DOCUMENTS_PATH)
         self._by_id = {f"doc-{index}": path for index, path in enumerate(self._documents)}
@@ -399,7 +409,10 @@ class MikeWorkbenchExecutor(ToolExecutor):
         self._mark_exposed(path)
         label = self._label_by_path[path]
         filename = Path(path).name
-        return f"{self._citation_reminder(label, filename)}\n\n{self._text(path)}"
+        text = self._text(path)
+        if self.citation_reminders:
+            return f"{self._citation_reminder(label, filename)}\n\n{text}"
+        return text
 
     def _fetch_documents(self, values: object) -> str:
         if not isinstance(values, list) or not values:
@@ -418,7 +431,9 @@ class MikeWorkbenchExecutor(ToolExecutor):
             else:
                 self._whole_reads.add(path)
                 self._mark_exposed(path)
-                content = f"{self._citation_reminder(label, filename)}\n\n{self._text(path)}"
+                content = self._text(path)
+                if self.citation_reminders:
+                    content = f"{self._citation_reminder(label, filename)}\n\n{content}"
             parts.append(f"--- {filename} ({label}) ---\n{content}")
         if self.tail_reminder and len(self._whole_reads) == len(self._documents):
             if self.source_fact_index_enabled:

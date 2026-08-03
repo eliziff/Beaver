@@ -164,6 +164,17 @@ def test_conflict_first_changes_only_the_prompt():
     assert conflict_prompt.endswith(base_prompt[base_prompt.index("\n\nAVAILABLE DOCUMENTS:"):])
 
 
+def test_native_work_product_keeps_evidence_without_forcing_citations(tmp_path):
+    executor = _executor(tmp_path, surface="mike_one_shot_native_xhigh_v1")
+
+    fetched = executor.execute("fetch_documents", {"doc_ids": ["doc-0", "doc-1"]})
+
+    assert "$2 million" in fetched
+    assert "1.20x" in fetched
+    assert "Citation requirement" not in fetched
+    assert "<task_reminder source=\"original-user-request\">" in fetched
+
+
 def test_mike_batch_read_duplicate_guard_search_and_terminal_generation(tmp_path):
     executor = _executor(tmp_path)
     inventory = json.loads(executor.execute("list_documents", {}))
