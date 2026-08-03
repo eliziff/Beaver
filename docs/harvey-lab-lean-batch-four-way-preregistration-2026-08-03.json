@@ -7,8 +7,12 @@
   "claim_scope": "One fresh paired development experiment over three visible Harvey LAB tasks. Results are provisional derivative judge labels, are not human gold, and must not be pooled with canonical Claude-product A/B cells.",
   "objective": "Test the smallest causal path from frozen terminal upstream Mike to a continuous coding-style legal-document agent that preserves Mike's efficient complete batch read while removing redundant retrieval verbs and structured authoring overhead; separately test whether host-verified literal-reference hints add value without changing model-visible prompt or schema bytes.",
   "general_objective": "Match or beat upstream Mike answer quality under one fixed Sol criterion judge while using fewer tokens; up to 1.5x upstream cache-adjusted input is acceptable only for a clear, broad quality win.",
+  "implementation_commits_before_launch": [
+    "51ae999e299cee2e601bb2c452068d81d2e3b225",
+    "1fde4e52bafab18fd2b573b8d9cbddc815ba1484"
+  ],
   "code_binding": {
-    "mechanism": "The implementation, tests, and this record are committed together before any performer call. Every run also records exact per-file harness hashes and a run fingerprint.",
+    "mechanism": "The implementation, tests, fixes, and this record are committed before any performer call. Every run also records exact per-file harness hashes and a run fingerprint.",
     "upstream_mike_commit": "2266446b0d26f735865b8cd3bb153b28e7d11b17",
     "dirty_or_postlaunch_edits": "forbidden; any general defect fix requires a new versioned preregistration"
   },
