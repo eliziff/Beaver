@@ -24,14 +24,18 @@ MIKE_SURFACES = {
     "mike_control_v1",
     "mike_one_shot_native_xhigh_v1",
     "mike_one_shot_adaptive_review_xhigh_v1",
+    "mike_one_shot_large_context_plan_xhigh_v1",
 }
 
 ONE_SHOT_SURFACES = {
     "mike_one_shot_native_xhigh_v1",
     "mike_one_shot_adaptive_review_xhigh_v1",
+    "mike_one_shot_large_context_plan_xhigh_v1",
 }
 
 ADAPTIVE_REVIEW_BUDGET_CHARACTERS = 400_000
+LARGE_CONTEXT_PLAN_THRESHOLD_CHARACTERS = 400_000
+LARGE_CONTEXT_PLAN_MAX_CHARACTERS = 12_000
 
 NATIVE_GROUNDING_PROMPT = """
 
@@ -48,6 +52,14 @@ CONTEXT-BUDGETED FINALIZATION:
 - Treat every generate_docx submission as the complete final work product. Never defer content to a later pass.
 - After all initial drafts are generated, the host measures exact normalized source text plus draft text. When that total exceeds {ADAPTIVE_REVIEW_BUDGET_CHARACTERS:,} characters, generation is terminal: another full-context pass would consume too much attention.
 - Only below that fixed budget, the host freezes the initial drafts byte-for-byte and opens one omissions-only review. If opened, audit against the original request and evidence for material omissions, incorrect attribution, or missing qualifications; do not rewrite, shorten, duplicate, or polish existing text. Then call append_docx once per deliverable with only new source-supported Markdown, or an empty string. The initial draft cannot lose content."""
+
+LARGE_CONTEXT_PLAN_PROMPT = f"""
+
+LARGE-CONTEXT PLAN BEFORE AUTHORING:
+- The fetch result reports whether a private coverage plan is required from the exact normalized source size. It is required only above {LARGE_CONTEXT_PLAN_THRESHOLD_CHARACTERS:,} characters.
+- When required, in your next response call write_plan first and then call generate_docx for every deliverable in that same response. The plan is private working memory, not part of the work product.
+- Keep the plan under {LARGE_CONTEXT_PLAN_MAX_CHARACTERS:,} characters. Prefer a compact issue/requirement ledger over prose. Preserve material findings, source names or natural locators, exact numbers and dates, contradictions, rule-changing conditions or exceptions, uncertainties, priority, and intended placement. Omit generic background.
+- When no plan is required, call generate_docx directly. In either route, every generated deliverable must be complete and final."""
 
 ONE_SHOT_PROMPT = """You are a senior legal analyst. Complete the user's exact request from the project documents.
 
@@ -135,6 +147,30 @@ def _append_docx_tool() -> dict:
     }
 
 
+def _write_plan_tool() -> dict:
+    return {
+        "name": "write_plan",
+        "description": (
+            "Record a compact private coverage plan immediately before authoring a "
+            "large-context work product. Call it before generate_docx in the same response."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "markdown": {
+                    "type": "string",
+                    "description": (
+                        "Private issue and requirement ledger, at most "
+                        f"{LARGE_CONTEXT_PLAN_MAX_CHARACTERS:,} characters."
+                    ),
+                }
+            },
+            "required": ["markdown"],
+            "additionalProperties": False,
+        },
+    }
+
+
 def get_mike_surface(name: str, document_inventory: list[tuple[str, str]]) -> tuple[str, list[dict], dict]:
     if name not in MIKE_SURFACES:
         raise ValueError(f"unknown Mike surface: {name}")
@@ -146,7 +182,10 @@ def get_mike_surface(name: str, document_inventory: list[tuple[str, str]]) -> tu
         author = _canonical_tool(frozen["compact_generate_docx_tool"])
         tools = [_canonical_tool(fetch), author]
         prompt = ONE_SHOT_PROMPT + NATIVE_GROUNDING_PROMPT
-        if name == "mike_one_shot_native_xhigh_v1":
+        if name in {
+            "mike_one_shot_native_xhigh_v1",
+            "mike_one_shot_large_context_plan_xhigh_v1",
+        }:
             prompt += TERMINAL_GENERATION_PROMPT
         if name == "mike_one_shot_adaptive_review_xhigh_v1":
             author["description"] = (
@@ -155,6 +194,9 @@ def get_mike_surface(name: str, document_inventory: list[tuple[str, str]]) -> tu
             )
             tools.append(_append_docx_tool())
             prompt += ADAPTIVE_REVIEW_PROMPT
+        if name == "mike_one_shot_large_context_plan_xhigh_v1":
+            tools = [_canonical_tool(fetch), _write_plan_tool(), author]
+            prompt += LARGE_CONTEXT_PLAN_PROMPT
     else:
         tools = [_canonical_tool(tool) for tool in frozen["tools"]]
         prompt = frozen["system_prompt"]
@@ -206,7 +248,7 @@ def _sections_markdown(value: object) -> str:
 
 
 class MikeWorkbenchExecutor(ToolExecutor):
-    """Frozen Mike retrieval with optional context-budgeted final review."""
+    """Frozen Mike retrieval with two measured one-shot experiments."""
 
     def __init__(
         self,
@@ -222,6 +264,9 @@ class MikeWorkbenchExecutor(ToolExecutor):
         self.tail_reminder = surface_name in ONE_SHOT_SURFACES
         self.adaptive_review_enabled = (
             surface_name == "mike_one_shot_adaptive_review_xhigh_v1"
+        )
+        self.large_context_plan_enabled = (
+            surface_name == "mike_one_shot_large_context_plan_xhigh_v1"
         )
         self.citation_reminders = surface_name == "mike_control_v1"
         self.terminal = False
@@ -254,6 +299,14 @@ class MikeWorkbenchExecutor(ToolExecutor):
         self.review_budget_initial_characters = 0
         self.review_budget_total_characters = 0
         self.review_eligible: bool | None = None
+        self.plan_threshold_characters = LARGE_CONTEXT_PLAN_THRESHOLD_CHARACTERS
+        self.plan_max_characters = LARGE_CONTEXT_PLAN_MAX_CHARACTERS
+        self.plan_source_characters = 0
+        self.planning_required: bool | None = None
+        self._evidence_ready_pending = False
+        self._evidence_ready = False
+        self._plan_text: str | None = None
+        self._plan_receipt: dict | None = None
 
     def execute(self, tool_name: str, arguments: str | dict) -> str:
         if isinstance(arguments, str):
@@ -270,6 +323,8 @@ class MikeWorkbenchExecutor(ToolExecutor):
                 return self._fetch_documents(arguments.get("doc_ids"))
             if tool_name == "find_in_document":
                 return self._find_in_document(arguments)
+            if tool_name == "write_plan":
+                return self._write_plan(arguments)
             if tool_name == "generate_docx":
                 return self._generate_docx(arguments)
             if tool_name == "append_docx":
@@ -392,14 +447,75 @@ class MikeWorkbenchExecutor(ToolExecutor):
                 if self.citation_reminders:
                     content = f"{self._citation_reminder(label, filename)}\n\n{content}"
             parts.append(f"--- {filename} ({label}) ---\n{content}")
-        if self.tail_reminder and len(self._whole_reads) == len(self._documents):
-            parts.append(
+        all_read = len(self._whole_reads) == len(self._documents)
+        if self.large_context_plan_enabled and all_read and self.planning_required is None:
+            self.plan_source_characters = sum(
+                len(self._text(path)) for path in self._documents
+            )
+            self.planning_required = (
+                self.plan_source_characters > self.plan_threshold_characters
+            )
+            self._evidence_ready_pending = True
+        if self.tail_reminder and all_read:
+            next_step = "Now produce every requested deliverable together."
+            if self.large_context_plan_enabled and self.planning_required:
+                next_step = (
+                    "In your next response, call write_plan first and then produce "
+                    "every requested deliverable in that same response."
+                )
+            reminder = (
                 "<task_reminder source=\"original-user-request\">\n"
                 f"{self.task_instructions}\n"
                 "</task_reminder>\n"
-                "Now produce every requested deliverable together."
             )
+            if self.large_context_plan_enabled:
+                reminder += (
+                    f"<context_route source_characters=\"{self.plan_source_characters}\" "
+                    f"planning_required=\"{str(bool(self.planning_required)).lower()}\"/>\n"
+                )
+            parts.append(reminder + next_step)
         return "\n\n".join(parts)
+
+    def _write_plan(self, arguments: dict) -> str:
+        if not self.large_context_plan_enabled:
+            return "Error: write_plan is unavailable on this surface"
+        if self.planning_required is None:
+            return "Error: fetch every source document before planning"
+        if not self.planning_required:
+            return "Error: this source context does not require a separate plan"
+        if not self._evidence_ready:
+            return "Error: review the fetched evidence before writing the plan"
+        if self._plan_text is not None:
+            return "Error: the private plan is already frozen"
+        markdown = str(arguments.get("markdown") or "").strip()
+        if not markdown:
+            return "Error: private plan markdown is required"
+        if len(markdown) > self.plan_max_characters:
+            return (
+                "Error: private plan exceeds the "
+                f"{self.plan_max_characters:,}-character limit"
+            )
+        plan_bytes = markdown.encode("utf-8")
+        plan_path = f"{WORKSPACE_PATH}/.mike/private-plan.md"
+        self.sandbox.write_file(plan_path, plan_bytes)
+        persisted = self.sandbox.read_file(plan_path)
+        if persisted != plan_bytes:
+            raise RuntimeError("private plan bytes changed while writing")
+        self._plan_text = markdown
+        self._plan_receipt = {
+            "characters": len(markdown),
+            "bytes": len(persisted),
+            "sha256": hashlib.sha256(persisted).hexdigest(),
+            "text": markdown,
+        }
+        return json.dumps(
+            {
+                "accepted": True,
+                "characters": len(markdown),
+                "sha256": self._plan_receipt["sha256"],
+                "message": "Private plan frozen; author every final deliverable now.",
+            }
+        )
 
     def _find_in_document(self, arguments: dict) -> str:
         requested = str(arguments.get("doc_id", ""))
@@ -444,6 +560,11 @@ class MikeWorkbenchExecutor(ToolExecutor):
         )
 
     def _generate_docx(self, arguments: dict) -> str:
+        if self.large_context_plan_enabled:
+            if self.planning_required is None or not self._evidence_ready:
+                return "Error: fetch and review every source document before authoring"
+            if self.planning_required and self._plan_text is None:
+                return "Error: call write_plan before generate_docx in this response"
         title = str(arguments.get("title") or "").strip()
         markdown = str(arguments.get("markdown") or "").strip()
         if not markdown:
@@ -662,7 +783,10 @@ class MikeWorkbenchExecutor(ToolExecutor):
         )
 
     def after_tool_batch(self) -> None:
-        """Open append-only review after its generation receipt enters context."""
+        """Advance only gates whose evidence entered the conversation."""
+        if self._evidence_ready_pending:
+            self._evidence_ready = True
+            self._evidence_ready_pending = False
         if self._append_gate_pending:
             self._append_ready = True
             self._append_gate_pending = False
@@ -688,6 +812,13 @@ class MikeWorkbenchExecutor(ToolExecutor):
                 "append_ready": self._append_ready,
                 "finalized_deliverables": self._finalized,
                 "append_receipts": self._append_receipts,
+                "large_context_plan_enabled": self.large_context_plan_enabled,
+                "plan_threshold_characters": self.plan_threshold_characters,
+                "plan_max_characters": self.plan_max_characters,
+                "plan_source_characters": self.plan_source_characters,
+                "planning_required": self.planning_required,
+                "evidence_ready": self._evidence_ready,
+                "plan_receipt": self._plan_receipt,
             }
         )
         return metrics
