@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import re
 import shlex
@@ -22,9 +23,15 @@ MIKE_PARSE_STDIN = REPO_ROOT / "backend" / "scripts" / "lab-upstream-parse-stdin
 MIKE_SURFACES = {
     "mike_control_v1",
     "mike_one_shot_native_xhigh_v1",
+    "mike_one_shot_linked_grounding_xhigh_v1",
 }
 
-ONE_SHOT_SURFACES = {"mike_one_shot_native_xhigh_v1"}
+ONE_SHOT_SURFACES = {
+    "mike_one_shot_native_xhigh_v1",
+    "mike_one_shot_linked_grounding_xhigh_v1",
+}
+
+LINKED_GROUNDING_SURFACE = "mike_one_shot_linked_grounding_xhigh_v1"
 
 NATIVE_GROUNDING_PROMPT = """
 
@@ -34,6 +41,17 @@ GROUNDING:
 TERMINAL_GENERATION_PROMPT = """
 
 Successful generation of every requested deliverable is terminal."""
+
+LINKED_GROUNDING_PROMPT = """
+
+ATTENTION BUDGET:
+- Before writing, silently make a coverage ledger from the request and sources. Give first priority to inconsistencies between sources, exceptions or conditions that change a rule, open drafting points, and every requested issue and recommendation. Prefer load-bearing specifics over generic background or boilerplate.
+
+PRIVATE LINKED GROUNDING:
+- In each generate_docx call, put `grounding` before `markdown`. Select only 4–12 load-bearing source-dependent conclusions for that deliverable, prioritizing contradictions, exceptions, exact numbers or deadlines, and open drafting points.
+- Each entry needs a unique G1–G12 id, an exact source filename, one short contiguous verbatim quote with no ellipsis or edits, and the proposition it supports.
+- In `markdown`, place the matching marker such as `[[G1]]` immediately after the sentence or table text that embodies that proposition. Use every grounding id exactly once and no unknown ids. The host verifies quotes and links, then removes the private markers before rendering the professional work product.
+- The bounded ledger is an attention aid, not the whole analysis. Complete every requested issue and deliverable. Include visible quotations or citations only when the request or professional genre calls for them."""
 
 ONE_SHOT_PROMPT = """You are a senior legal analyst. Complete the user's exact request from the project documents.
 
@@ -103,8 +121,39 @@ def get_mike_surface(name: str, document_inventory: list[tuple[str, str]]) -> tu
             tool for tool in frozen["tools"] if tool["function"]["name"] == "fetch_documents"
         )
         author = _canonical_tool(frozen["compact_generate_docx_tool"])
+        if name == LINKED_GROUNDING_SURFACE:
+            parameters = author["parameters"]
+            parameters["properties"] = {
+                "grounding": {
+                    "type": "array",
+                    "description": (
+                        "Private linked evidence ledger, emitted before markdown and "
+                        "removed from the rendered work product."
+                    ),
+                    "minItems": 4,
+                    "maxItems": 12,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "pattern": "^G(?:[1-9]|1[0-2])$",
+                            },
+                            "source": {"type": "string", "maxLength": 260},
+                            "quote": {"type": "string", "maxLength": 240},
+                            "supports": {"type": "string", "maxLength": 220},
+                        },
+                        "required": ["id", "source", "quote", "supports"],
+                        "additionalProperties": False,
+                    },
+                },
+                **parameters["properties"],
+            }
+            parameters["required"] = ["grounding", *parameters["required"]]
         tools = [_canonical_tool(fetch), author]
         prompt = ONE_SHOT_PROMPT + NATIVE_GROUNDING_PROMPT + TERMINAL_GENERATION_PROMPT
+        if name == LINKED_GROUNDING_SURFACE:
+            prompt += LINKED_GROUNDING_PROMPT
     else:
         tools = [_canonical_tool(tool) for tool in frozen["tools"]]
         prompt = frozen["system_prompt"]
@@ -170,6 +219,7 @@ class MikeWorkbenchExecutor(ToolExecutor):
         self.surface_name = surface_name
         self.task_instructions = task_instructions
         self.tail_reminder = surface_name in ONE_SHOT_SURFACES
+        self.linked_grounding_enabled = surface_name == LINKED_GROUNDING_SURFACE
         self.citation_reminders = surface_name == "mike_control_v1"
         self.terminal = False
         self._documents = self.sandbox.list_files(DOCUMENTS_PATH)
@@ -190,6 +240,12 @@ class MikeWorkbenchExecutor(ToolExecutor):
         self._deliverables = [name for name in deliverables if name.lower().endswith(".docx")]
         self._generated: list[str] = []
         self.duplicate_whole_reads = 0
+        self.grounding_attempts = 0
+        self.grounding_claims = 0
+        self.grounding_verified = 0
+        self.grounding_linked = 0
+        self.grounding_private_characters = 0
+        self.grounding_receipts: list[dict] = []
 
     def execute(self, tool_name: str, arguments: str | dict) -> str:
         if isinstance(arguments, str):
@@ -378,6 +434,88 @@ class MikeWorkbenchExecutor(ToolExecutor):
             ensure_ascii=False,
         )
 
+    def _linked_grounding(
+        self, grounding: object, markdown: str, deliverable: str
+    ) -> tuple[str | None, str]:
+        if not self.linked_grounding_enabled:
+            return None, markdown
+        self.grounding_attempts += 1
+        rows = grounding if isinstance(grounding, list) else []
+        errors: list[str] = []
+        if not 4 <= len(rows) <= 12:
+            errors.append("grounding must contain 4–12 entries")
+        marker_ids = re.findall(r"\[\[(G\d+)\]\]", markdown)
+        seen: set[str] = set()
+        attempt_receipts: list[dict] = []
+        for index, raw in enumerate(rows[:12]):
+            entry = raw if isinstance(raw, dict) else {}
+            grounding_id = str(entry.get("id") or "").strip()
+            source = str(entry.get("source") or "").strip()
+            quote = str(entry.get("quote") or "").strip()
+            supports = str(entry.get("supports") or "").strip()
+            entry_errors: list[str] = []
+            if not re.fullmatch(r"G(?:[1-9]|1[0-2])", grounding_id):
+                entry_errors.append("invalid_id")
+            if grounding_id in seen:
+                entry_errors.append("duplicate_id")
+            seen.add(grounding_id)
+            path = self._resolve_document(source)
+            if path is None:
+                entry_errors.append("source_not_found")
+            if not quote or len(quote) > 240:
+                entry_errors.append("quote_bounds")
+            if "..." in quote or "…" in quote:
+                entry_errors.append("quote_has_ellipsis")
+            if not supports or len(supports) > 220:
+                entry_errors.append("supports_bounds")
+            match = None
+            source_text = self._text(path) if path is not None else ""
+            if quote and not any(
+                error in entry_errors
+                for error in ("quote_bounds", "quote_has_ellipsis", "source_not_found")
+            ):
+                pattern = r"\s+".join(
+                    re.escape(token) for token in re.split(r"\s+", quote)
+                )
+                match = re.search(pattern, source_text)
+                if match is None:
+                    entry_errors.append("quote_not_verbatim")
+            marker_count = marker_ids.count(grounding_id)
+            if marker_count != 1:
+                entry_errors.append("marker_count")
+            receipt = {
+                "deliverable": deliverable,
+                "id": grounding_id,
+                "source": self._relative(path) if path is not None else source,
+                "source_sha256": (
+                    hashlib.sha256(source_text.encode()).hexdigest() if path else None
+                ),
+                "quote_sha256": hashlib.sha256(quote.encode()).hexdigest(),
+                "supports_sha256": hashlib.sha256(supports.encode()).hexdigest(),
+                "quote_characters": len(quote),
+                "supports_characters": len(supports),
+                "verified": match is not None,
+                "linked": marker_count == 1,
+                "locator": f"chars {match.start()}-{match.end()}" if match else None,
+                "errors": entry_errors,
+            }
+            attempt_receipts.append(receipt)
+            errors.extend(f"entry {index + 1}: {error}" for error in entry_errors)
+        unknown = sorted(set(marker_ids) - seen)
+        if unknown:
+            errors.append(f"unknown markers: {', '.join(unknown)}")
+        self.grounding_private_characters += len(
+            json.dumps(rows, ensure_ascii=False, separators=(",", ":"))
+        )
+        self.grounding_receipts.extend(attempt_receipts)
+        self.grounding_claims += len(attempt_receipts)
+        self.grounding_verified += sum(row["verified"] for row in attempt_receipts)
+        self.grounding_linked += sum(row["linked"] for row in attempt_receipts)
+        if errors:
+            return "Error: linked grounding invalid: " + "; ".join(errors[:8]), markdown
+        cleaned = re.sub(r"[ \t]*\[\[G(?:[1-9]|1[0-2])\]\]", "", markdown)
+        return None, cleaned
+
     def _generate_docx(self, arguments: dict) -> str:
         title = str(arguments.get("title") or "").strip()
         markdown = str(arguments.get("markdown") or "").strip()
@@ -393,6 +531,11 @@ class MikeWorkbenchExecutor(ToolExecutor):
             filename = f"{stem}.docx"
         if Path(filename).name != filename:
             return "Error: deliverable filename must be plain"
+        grounding_error, markdown = self._linked_grounding(
+            arguments.get("grounding"), markdown, filename
+        )
+        if grounding_error:
+            return grounding_error
         source = f"% {title}\n\n{markdown}\n"
         draft_path = f"{WORKSPACE_PATH}/.mike/draft-{len(self._generated) + 1}.md"
         output_path = f"{OUTPUT_PATH}/{filename}"
@@ -430,6 +573,15 @@ class MikeWorkbenchExecutor(ToolExecutor):
                 "parse_receipts": self._parse_receipts,
                 "generated_deliverables": self._generated,
                 "terminal_generation": self.terminal,
+                "grounding_attempts": self.grounding_attempts,
+                "grounding_claims": self.grounding_claims,
+                "grounding_verified": self.grounding_verified,
+                "grounding_unverified": self.grounding_claims
+                - self.grounding_verified,
+                "grounding_linked": self.grounding_linked,
+                "grounding_unlinked": self.grounding_claims - self.grounding_linked,
+                "grounding_private_characters": self.grounding_private_characters,
+                "grounding_receipts": self.grounding_receipts,
             }
         )
         return metrics
