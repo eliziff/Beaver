@@ -139,13 +139,12 @@ class TestOpenAIAdapter:
             assert "name" in translated
             assert "description" in translated
 
-    def test_pro_mode_cache_identity_and_cache_telemetry(self):
+    def test_cache_identity_and_cache_telemetry(self):
         from harness.adapters.openai import OpenAIAdapter, prompt_cache_key_for
 
         adapter = OpenAIAdapter(
             "gpt-5.6-luna",
-            reasoning_effort="high",
-            reasoning_mode="pro",
+            reasoning_effort="xhigh",
         )
         adapter.client.responses.create.return_value = SimpleNamespace(
             output=[],
@@ -185,8 +184,7 @@ class TestOpenAIAdapter:
         assert kwargs["prompt_cache_key"] == expected_key
         assert kwargs["reasoning"] == {
             "summary": "auto",
-            "effort": "high",
-            "mode": "pro",
+            "effort": "xhigh",
         }
         assert response.cached_input_tokens == 4
         assert response.cache_write_input_tokens == 5

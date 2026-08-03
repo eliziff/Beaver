@@ -132,13 +132,15 @@ def test_surface_is_frozen_mike_plus_only_registered_deltas():
 def test_one_shot_surfaces_share_exact_two_tool_prompt_and_schema():
     inventory = [("alpha.docx", "docx"), ("beta.xlsx", "xlsx")]
     plain_prompt, plain_tools, _ = get_mike_surface("mike_one_shot_v1", inventory)
-    pro_prompt, pro_tools, _ = get_mike_surface("mike_one_shot_pro_v1", inventory)
+    xhigh_prompt, xhigh_tools, _ = get_mike_surface(
+        "mike_one_shot_xhigh_v1", inventory
+    )
     index_prompt, index_tools, _ = get_mike_surface(
-        "mike_one_shot_fact_index_v1", inventory
+        "mike_one_shot_fact_index_xhigh_v1", inventory
     )
 
-    assert plain_prompt == pro_prompt == index_prompt
-    assert plain_tools == pro_tools == index_tools
+    assert plain_prompt == xhigh_prompt == index_prompt
+    assert plain_tools == xhigh_tools == index_tools
     assert [tool["name"] for tool in plain_tools] == [
         "fetch_documents",
         "generate_docx",
@@ -207,7 +209,7 @@ def test_one_shot_fetch_repeats_exact_request_after_complete_evidence(tmp_path):
 
 
 def test_fact_index_is_bounded_source_only_and_in_band(tmp_path):
-    executor = _executor(tmp_path, surface="mike_one_shot_fact_index_v1")
+    executor = _executor(tmp_path, surface="mike_one_shot_fact_index_xhigh_v1")
     fetched = executor.execute("fetch_documents", {"doc_ids": ["doc-0", "doc-1"]})
 
     assert "<deterministic_source_index" in fetched
