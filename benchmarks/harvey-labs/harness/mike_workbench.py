@@ -593,6 +593,9 @@ class MikeWorkbenchExecutor(ToolExecutor):
             name in self._generated for name in self._deliverables
         )
         output_bytes = self.sandbox.read_file(output_path)
+        self.sandbox.write_file(
+            f"{WORKSPACE_PATH}/.mike/initial-output/{filename}", output_bytes
+        )
         self._initial_drafts[filename] = {
             "title": title,
             "source_sha256": hashlib.sha256(source.encode()).hexdigest(),

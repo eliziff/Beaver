@@ -319,6 +319,9 @@ def test_final_check_is_a_fresh_turn_and_can_preserve_the_initial_work(tmp_path)
     assert metrics["final_check_revisions"] == 0
     assert len(metrics["initial_draft_receipts"]) == 1
     assert (tmp_path / "output" / "memo.docx").read_bytes() == b"PK\x03\x04test-docx"
+    assert (
+        tmp_path / "workspace" / ".mike" / "initial-output" / "memo.docx"
+    ).read_bytes() == b"PK\x03\x04test-docx"
 
 
 def test_final_check_replaces_only_the_named_original_title(tmp_path):
