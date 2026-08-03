@@ -28,8 +28,11 @@ from harness.adapters.openai import OpenAIAdapter, prompt_cache_key_for
 from harness.agent_loop import run_agent
 from harness.ablation_tools import AblationToolExecutor, get_ablation_tool_definitions
 from harness.mike_workbench import (
+    FRESH_SCOUT_SYSTEM_PROMPT,
     MIKE_SURFACES,
     MikeWorkbenchExecutor,
+    fresh_scout_static_fingerprints,
+    get_fresh_scout_tool,
     get_mike_surface,
 )
 from harness.tools import ToolExecutor, get_all_tool_definitions
@@ -308,6 +311,7 @@ parser.add_argument(
         "mike_one_shot_native_xhigh_v1",
         "mike_one_shot_adaptive_review_xhigh_v1",
         "mike_one_shot_large_context_plan_xhigh_v1",
+        "mike_one_shot_fresh_scout_xhigh_v1",
     ),
     default="standard",
     help="Tool surface for a preregistered harness ablation.",
@@ -329,6 +333,180 @@ def _load_env():
                 key, value = key.strip(), value.strip().strip('"').strip("'")
                 if key and value:
                     os.environ.setdefault(key, value)
+
+
+def _run_fresh_scout_stage(args, executor, results_dir: Path) -> dict:
+    """Run one stateless review and admit only exact-source-backed additions."""
+    empty = {
+        "status": "not_applicable",
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
+        "cache_write_input_tokens": 0,
+        "reasoning_tokens": 0,
+        "context_rounds": [],
+        "tool_call_count": 0,
+        "tool_error_count": 0,
+        "transport_retry_count": 0,
+        "wall_clock_seconds": 0,
+        "prompt_cache_key": None,
+        "application": None,
+    }
+    if not executor.fresh_scout_eligible:
+        executor.mark_fresh_scout("skipped_small")
+        return {**empty, "status": "skipped_small"}
+
+    payload = executor.fresh_scout_payload()
+    payload_text = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    tool = get_fresh_scout_tool()
+    responses_tools = [{"type": "function", **tool}]
+    prompt_cache_key = prompt_cache_key_for(
+        args.model.split("/", 1)[-1],
+        FRESH_SCOUT_SYSTEM_PROMPT,
+        payload_text,
+        responses_tools,
+    )
+    reviewer = create_adapter(
+        model=args.model,
+        temperature=args.temperature,
+        reasoning_effort=args.reasoning_effort,
+    )
+    if hasattr(reviewer, "prompt_cache_key"):
+        reviewer.prompt_cache_key = prompt_cache_key
+
+    source_receipts = [
+        {
+            "source_path": row["source_path"],
+            "characters": len(row["text"]),
+            "bytes": len(row["text"].encode("utf-8")),
+            "sha256": hashlib.sha256(row["text"].encode("utf-8")).hexdigest(),
+        }
+        for row in payload["source_documents"]
+    ]
+    candidate_receipts = [
+        {
+            "filename": row["filename"],
+            "characters": len(row["markdown"]),
+            "bytes": len(row["markdown"].encode("utf-8")),
+            "sha256": hashlib.sha256(row["markdown"].encode("utf-8")).hexdigest(),
+        }
+        for row in payload["candidate_deliverables"]
+    ]
+    input_receipt = {
+        "payload_characters": len(payload_text),
+        "payload_bytes": len(payload_text.encode("utf-8")),
+        "payload_sha256": hashlib.sha256(payload_text.encode("utf-8")).hexdigest(),
+        "system_prompt_sha256": hashlib.sha256(
+            FRESH_SCOUT_SYSTEM_PROMPT.encode("utf-8")
+        ).hexdigest(),
+        "tool_schema_sha256": hashlib.sha256(
+            json.dumps(tool, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest(),
+        "prompt_cache_key": prompt_cache_key,
+        "source_receipts": source_receipts,
+        "candidate_receipts": candidate_receipts,
+    }
+    (results_dir / "fresh_scout_input_receipt.json").write_text(
+        json.dumps(input_receipt, indent=2), encoding="utf-8"
+    )
+
+    started = time.time()
+    try:
+        response = reviewer.chat(
+            [
+                reviewer.make_system_message(FRESH_SCOUT_SYSTEM_PROMPT),
+                reviewer.make_user_message(payload_text),
+            ],
+            [tool],
+        )
+    except Exception as error:
+        elapsed = round(time.time() - started, 2)
+        executor.mark_fresh_scout("unavailable")
+        (results_dir / "fresh_scout_transcript.jsonl").write_text(
+            json.dumps(
+                {
+                    "stage": "fresh_scout",
+                    "status": "unavailable",
+                    "error": f"{type(error).__name__}: {error}",
+                    "input_receipt": input_receipt,
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return {**empty, "status": "unavailable", "wall_clock_seconds": elapsed}
+
+    elapsed = round(time.time() - started, 2)
+    calls = response.tool_calls
+    status = "invalid_response"
+    application = None
+    tool_errors = 0
+    if len(calls) == 1 and calls[0].name == "submit_omissions" and not response.text.strip():
+        try:
+            application = executor.apply_fresh_scout(calls[0].arguments)
+            status = "completed"
+        except (json.JSONDecodeError, OSError, RuntimeError, ValueError) as error:
+            executor.mark_fresh_scout("invalid_response")
+            application = {"error": f"{type(error).__name__}: {error}"}
+            tool_errors = 1
+    else:
+        executor.mark_fresh_scout("invalid_response")
+        tool_errors = 1
+
+    transport_retries = int(
+        getattr(
+            getattr(getattr(reviewer, "client", None), "responses", None),
+            "transport_retry_count",
+            0,
+        )
+    )
+    context_round = {
+        "stage": "fresh_scout",
+        "turn": 1,
+        "response_id": response.response_id,
+        "service_tier": response.service_tier,
+        "input_tokens": response.input_tokens,
+        "cached_input_tokens": response.cached_input_tokens,
+        "cache_write_input_tokens": response.cache_write_input_tokens,
+        "output_tokens": response.output_tokens,
+        "reasoning_tokens": response.reasoning_tokens,
+        "tool_call_count": len(calls),
+        "latency_ms": round(elapsed * 1000, 2),
+    }
+    (results_dir / "fresh_scout_transcript.jsonl").write_text(
+        json.dumps(
+            {
+                **context_round,
+                "status": status,
+                "text": response.text or None,
+                "message": response.message,
+                "tool_calls": [
+                    {"name": call.name, "arguments": call.arguments}
+                    for call in calls
+                ],
+                "application": application,
+                "input_receipt": input_receipt,
+            },
+            ensure_ascii=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return {
+        "status": status,
+        "input_tokens": response.input_tokens,
+        "output_tokens": response.output_tokens,
+        "cached_input_tokens": response.cached_input_tokens,
+        "cache_write_input_tokens": response.cache_write_input_tokens,
+        "reasoning_tokens": response.reasoning_tokens,
+        "context_rounds": [context_round],
+        "tool_call_count": len(calls),
+        "tool_error_count": tool_errors,
+        "transport_retry_count": transport_retries,
+        "wall_clock_seconds": elapsed,
+        "prompt_cache_key": prompt_cache_key,
+        "application": application,
+    }
 
 
 def main(args):
@@ -398,6 +576,8 @@ def main(args):
             ).hexdigest(),
             "harness_source_receipts": harness_source_receipts,
         }
+        if args.surface == "mike_one_shot_fresh_scout_xhigh_v1":
+            harness_fingerprints.update(fresh_scout_static_fingerprints())
 
     if args.preflight_only:
         if not mike_surface:
@@ -615,6 +795,21 @@ def main(args):
     print(f"Output: {output_dir}")
     print()
 
+    scout = {
+        "status": "not_applicable",
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
+        "cache_write_input_tokens": 0,
+        "reasoning_tokens": 0,
+        "context_rounds": [],
+        "tool_call_count": 0,
+        "tool_error_count": 0,
+        "transport_retry_count": 0,
+        "wall_clock_seconds": 0,
+        "prompt_cache_key": None,
+        "application": None,
+    }
     try:
         result = run_agent(
             adapter=adapter,
@@ -625,6 +820,11 @@ def main(args):
             max_turns=effective_max_turns,
             transcript_path=str(results_dir / "transcript.jsonl"),
         )
+        if (
+            args.surface == "mike_one_shot_fresh_scout_xhigh_v1"
+            and result["finished_cleanly"]
+        ):
+            scout = _run_fresh_scout_stage(args, tool_executor, results_dir)
     finally:
         sandbox.stop()
 
@@ -636,42 +836,53 @@ def main(args):
             0,
         )
     )
+    input_tokens = result["input_tokens"] + scout["input_tokens"]
+    output_tokens = result["output_tokens"] + scout["output_tokens"]
+    cached_input_tokens = (
+        result["cached_input_tokens"] + scout["cached_input_tokens"]
+    )
+    cache_write_input_tokens = (
+        result["cache_write_input_tokens"] + scout["cache_write_input_tokens"]
+    )
+    context_rounds = [
+        {"stage": "primary", **round_} for round_ in result["context_rounds"]
+    ] + scout["context_rounds"]
     metrics = {
         "model": args.model,
         "task": args.task,
         "run_id": args.run_id,
         "turn_count": result["turn_count"],
-        "input_tokens": result["input_tokens"],
-        "output_tokens": result["output_tokens"],
-        "reasoning_tokens": result["reasoning_tokens"],
-        "total_tokens": result["input_tokens"] + result["output_tokens"],
-        "cached_input_tokens": result["cached_input_tokens"],
-        "cache_write_input_tokens": result["cache_write_input_tokens"],
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "reasoning_tokens": result["reasoning_tokens"] + scout["reasoning_tokens"],
+        "total_tokens": input_tokens + output_tokens,
+        "cached_input_tokens": cached_input_tokens,
+        "cache_write_input_tokens": cache_write_input_tokens,
         "cache_read_ratio": (
-            result["cached_input_tokens"] / result["input_tokens"]
-            if result["input_tokens"]
+            cached_input_tokens / input_tokens
+            if input_tokens
             else 0
         ),
         "uncached_input_tokens": max(
             0,
-            result["input_tokens"]
-            - result["cached_input_tokens"]
-            - result["cache_write_input_tokens"],
+            input_tokens - cached_input_tokens - cache_write_input_tokens,
         ),
-        "context_rounds": result["context_rounds"],
-        "provider_request_count": len(result["context_rounds"]),
-        "transport_retry_count": transport_retry_count,
+        "context_rounds": context_rounds,
+        "provider_request_count": len(context_rounds),
+        "transport_retry_count": (
+            transport_retry_count + scout["transport_retry_count"]
+        ),
         "service_tiers_reported": sorted(
             {
                 round_["service_tier"]
-                for round_ in result["context_rounds"]
+                for round_ in context_rounds
                 if round_["service_tier"]
             }
         ),
-        "tool_call_count": result["tool_call_count"],
+        "tool_call_count": result["tool_call_count"] + scout["tool_call_count"],
         "tool_result_characters": result["tool_result_characters"],
         "tool_result_bytes": result["tool_result_bytes"],
-        "tool_error_count": result["tool_error_count"],
+        "tool_error_count": result["tool_error_count"] + scout["tool_error_count"],
         "tool_batches": result["tool_batches"],
         "surface": args.surface,
         "prompt_cache_key": config["prompt_cache_key"],
@@ -683,8 +894,31 @@ def main(args):
         "task_config_sha256": config["task_config_sha256"],
         "source_bundle_sha256": config["source_bundle_sha256"],
         "run_fingerprint_sha256": config["run_fingerprint_sha256"],
-        "wall_clock_seconds": result["wall_clock_seconds"],
+        "wall_clock_seconds": (
+            result["wall_clock_seconds"] + scout["wall_clock_seconds"]
+        ),
         "finished_cleanly": result["finished_cleanly"],
+        "primary_input_tokens": result["input_tokens"],
+        "primary_output_tokens": result["output_tokens"],
+        "primary_reasoning_tokens": result["reasoning_tokens"],
+        "primary_cached_input_tokens": result["cached_input_tokens"],
+        "primary_wall_clock_seconds": result["wall_clock_seconds"],
+        "fresh_scout_model": args.model if scout["status"] != "not_applicable" else None,
+        "fresh_scout_reasoning_effort": (
+            args.reasoning_effort if scout["status"] != "not_applicable" else None
+        ),
+        "fresh_scout_stage_status": scout["status"],
+        "fresh_scout_input_tokens": scout["input_tokens"],
+        "fresh_scout_output_tokens": scout["output_tokens"],
+        "fresh_scout_reasoning_tokens": scout["reasoning_tokens"],
+        "fresh_scout_cached_input_tokens": scout["cached_input_tokens"],
+        "fresh_scout_cache_write_input_tokens": scout[
+            "cache_write_input_tokens"
+        ],
+        "fresh_scout_transport_retry_count": scout["transport_retry_count"],
+        "fresh_scout_wall_clock_seconds": scout["wall_clock_seconds"],
+        "fresh_scout_prompt_cache_key": scout["prompt_cache_key"],
+        "fresh_scout_application": scout["application"],
         "completed_at": datetime.now(timezone.utc).isoformat(),
         **result["tool_metrics"],
     }
@@ -696,9 +930,9 @@ def main(args):
     print(f"Run complete: {args.run_id}")
     print(f"  Model:          {args.model}")
     print(f"  Turns:          {result['turn_count']}")
-    print(f"  Input tokens:   {result['input_tokens']:,}")
-    print(f"  Output tokens:  {result['output_tokens']:,}")
-    print(f"  Wall clock:     {result['wall_clock_seconds']:.1f}s")
+    print(f"  Input tokens:   {input_tokens:,}")
+    print(f"  Output tokens:  {output_tokens:,}")
+    print(f"  Wall clock:     {metrics['wall_clock_seconds']:.1f}s")
     print(f"  Docs read:      {metrics['documents_read']}/{metrics['total_documents']}")
     print(f"  Finished:       {result['finished_cleanly']}")
     print(f"\nResults saved to: {results_dir}")
