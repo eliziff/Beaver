@@ -213,11 +213,40 @@ def test_fact_index_is_bounded_source_only_and_in_band(tmp_path):
     fetched = executor.execute("fetch_documents", {"doc_ids": ["doc-0", "doc-1"]})
 
     assert "<deterministic_source_index" in fetched
+    assert "</deterministic_source_index>" in fetched
     assert fetched.index("<deterministic_source_index") < fetched.index("<task_reminder")
     metrics = executor.get_metrics()
     assert metrics["source_fact_index_calls"] == 1
     assert metrics["source_fact_index_characters"] <= 6000
     assert metrics["source_fact_index_sha256"]
+
+
+def test_fact_index_bound_keeps_packet_closed(tmp_path, monkeypatch):
+    executor = _executor(tmp_path, surface="mike_one_shot_fact_index_xhigh_v1")
+    for path in executor._documents:
+        executor._texts[path] = "source text"
+
+    rows = [
+        {
+            "cls": "money",
+            "display": f"${index} million",
+            "documents": ["alpha.txt"],
+            "excerpt": "material context " * 500,
+        }
+        for index in range(8)
+    ]
+    monkeypatch.setattr(
+        "harness.mike_workbench._run_typescript",
+        lambda *args, **kwargs: json.dumps(
+            {"relevant_or_repeated_source_anchors_missing_from_draft": rows}
+        ),
+    )
+
+    packet = executor._source_fact_index()
+
+    assert len(packet) <= 6000
+    assert packet.endswith("</deterministic_source_index>")
+    assert executor.get_metrics()["source_fact_index_rows"] == 0
 
 
 def test_bash_materializes_exact_mike_normalized_sources_once(tmp_path):

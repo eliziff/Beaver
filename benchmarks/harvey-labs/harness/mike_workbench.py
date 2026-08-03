@@ -439,16 +439,23 @@ class MikeWorkbenchExecutor(ToolExecutor):
             '<deterministic_source_index method="typed-anchor-v1">',
             "Repeated exact anchors ranked by lexical overlap with the request. These are navigation cues, not requirements; use only material facts and verify attribution in the source text above.",
         ]
+        included = 0
+        closing = "</deterministic_source_index>"
         for row in rows[:8]:
             documents = ", ".join(str(item) for item in row.get("documents", []))
             excerpt = re.sub(r"\s+", " ", str(row.get("excerpt") or "")).strip()
-            lines.append(
-                f'- [{row.get("cls", "anchor")}] {row.get("display", "")} | {documents} | {excerpt}'
+            candidate = (
+                f'- [{row.get("cls", "anchor")}] {row.get("display", "")} '
+                f"| {documents} | {excerpt}"
             )
-        lines.append("</deterministic_source_index>")
-        output = "\n".join(lines)[:6000]
+            if len("\n".join([*lines, candidate, closing])) > 6000:
+                break
+            lines.append(candidate)
+            included += 1
+        lines.append(closing)
+        output = "\n".join(lines)
         self.source_fact_index_calls += 1
-        self.source_fact_index_rows = min(8, len(rows))
+        self.source_fact_index_rows = included
         self.source_fact_index_characters = len(output)
         self.source_fact_index_sha256 = hashlib.sha256(output.encode()).hexdigest()
         return output
