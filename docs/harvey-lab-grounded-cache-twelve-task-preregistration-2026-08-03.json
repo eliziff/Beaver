@@ -1,0 +1,285 @@
+{
+  "schema_version": 1,
+  "experiment_id": "harvey-lab-grounded-cache-twelve-task-v1",
+  "registered_at": "2026-08-03T03:47:41Z",
+  "status": "preregistered_before_performer_calls",
+  "experiment_class": "visible-development Codex-path side run",
+  "claim_scope": "One fresh paired development experiment over twelve visible Harvey LAB tasks. Results are provisional derivative judge labels, are not human gold, and must not be pooled with canonical Claude-product A/B cells.",
+  "objective": "Test whether one continuous agent with staged broad reads, ordinary coding-style retrieval, explicit GPT-5.6 prompt caching, and a compact grounding-first instruction can match or exceed terminal Mike quality while staying at or below 1.5x terminal Mike cache-adjusted input cost; compare separately with historical raw upstream Mike.",
+  "implementation_commits": [
+    "7d9e2ecdb195c3b2e962a40ad9e5f6a9915432af",
+    "cc6b7aaad15786f91fe57620b6ccf9bfc3bbb4af"
+  ],
+  "design": {
+    "same_agent": true,
+    "fresh_drafting_stage": false,
+    "checkpoint_or_handoff": false,
+    "evidence_union": false,
+    "automatic_context_refresh": false,
+    "same_batch_gate": false,
+    "sla_or_compiler_pass": false,
+    "task_router_or_task_specific_prompt": false,
+    "terminal_successful_generation": true,
+    "exact_host_evidence_receipts": true,
+    "retrieval_result_max_chars": 64000,
+    "explicit_prompt_cache": {
+      "mode": "explicit",
+      "models": "GPT-5.6 only",
+      "initial_boundary": "original user task",
+      "subsequent_boundary": "neutral user continuation after each completed tool-result batch",
+      "content_free_telemetry": [
+        "cache_breakpoint_count",
+        "cache_prefix_bytes",
+        "cache_prefix_sha256",
+        "cache_read_input_tokens",
+        "cache_write_input_tokens"
+      ]
+    }
+  },
+  "performer": {
+    "model": "codex:gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "provider_service_tier_requested": null,
+    "required_provider_service_tier_reported": "default",
+    "replicates": 1,
+    "arm_count": 3,
+    "task_count": 12,
+    "run_count": 36,
+    "max_concurrent_processes": 12,
+    "run_id_template": "2026-08-03-grounded-cache-v1--{task_slug}--{arm}",
+    "launch_order": "Four-task waves, all three paired arms in each wave; the first wave contains tax plus all three newly selected long tasks.",
+    "trace_gate": "No judge starts until each landed output is nonempty and required deliverables, provider usage, tool calls/results, context rounds, cache telemetry, prompt/tool fingerprints, and source receipts have been inspected. General defects may be fixed only in a new versioned experiment; task-specific fixes are forbidden."
+  },
+  "arms": {
+    "upstream_terminal_v1": {
+      "role": "simple Mike control",
+      "hypothesis": "Whole-document reads remain strongest when complete coverage is cheap.",
+      "system_prompt_sha256": "bab5a122a2e04969641775daa0c74bdc649f5806db63d4747b72a54e2ee971b4",
+      "tool_schema_sha256": "5b3ac1b5490592e11af64fcd9817d21274ae60ef79b3cf5d8b6f2ce7539d961a",
+      "tools": [
+        "read_document",
+        "find_in_document",
+        "list_documents",
+        "fetch_documents",
+        "generate_docx"
+      ]
+    },
+    "mike_structure_paths_v1": {
+      "role": "observed winning continuous-agent control",
+      "hypothesis": "Ordinary Grep and bounded Read plus optional host-verified legal paths let the same agent stage broad corpus reads without a handoff or evidence union.",
+      "system_prompt_sha256": "eacaa802bed9d1219a5ac04a31f9ac24145d72b83e719c1c76f1cebd831546fa",
+      "tool_schema_sha256": "37d04b4abcf30d15f03d044c42db3a294e73ec1bab1300776dd94328ee202302",
+      "tools": [
+        "read_document",
+        "find_in_document",
+        "list_documents",
+        "fetch_documents",
+        "Grep",
+        "Read",
+        "generate_docx"
+      ]
+    },
+    "grounded_structure_v1": {
+      "role": "candidate",
+      "hypothesis": "The same continuous tool surface gains accuracy when the agent first builds a compact internal map of passage, table, clause, calculation, conflict, and material-absence evidence and verifies issues, parties, dates, numbers, jurisdictions, exceptions, and conflicts before generation; visible quotations are required only when the requested genre calls for them.",
+      "delta_from_structure": "Prompt only; no tool, retrieval, context, cap, generation, or host-behavior change.",
+      "system_prompt_sha256": "2cbec7830a57074d7fffa466169faf7d708855586e13610684a59df883b6f204",
+      "tool_schema_sha256": "37d04b4abcf30d15f03d044c42db3a294e73ec1bab1300776dd94328ee202302",
+      "tools": [
+        "read_document",
+        "find_in_document",
+        "list_documents",
+        "fetch_documents",
+        "Grep",
+        "Read",
+        "generate_docx"
+      ]
+    }
+  },
+  "task_selection": {
+    "split_manifest": "benchmarks/lab/corpus-split.json",
+    "tier": "dev",
+    "validation_access": "forbidden",
+    "sealed_access": "absent_and_forbidden",
+    "selection_basis": "The prior nine-task breadth matrix plus three deliberately discriminating long tasks. The smaller merger-markup candidate was replaced by one true visible-development mega-suite at the user's request.",
+    "total_criteria": 1342,
+    "total_sources": 3648,
+    "total_source_bytes": 188771875,
+    "new_long_tasks": [
+      "corporate-ma/draft-acquisition-due-diligence",
+      "antitrust-competition/prepare-antitrust-risk-assessment",
+      "diligence/cybersecurity-tuck-in"
+    ],
+    "mega_suite_policy": "diligence/cybersecurity-tuck-in is retained even if it times out, exhausts context, or fails to land; that outcome is a harness result. It has 3,513 nested source files, 181,545,772 bytes, 635 criteria, and one Markdown red-flags report."
+  },
+  "task_fingerprints": {
+    "trusts-estates-private-client/extract-client-intake-facts/scenario-01": {
+      "split_sha256": "ea6a49d1afd0a6cd95cfa19f3ec42df538b2bb2a5c44459352b5702d587d7e00",
+      "task_config_sha256": "53c9249254ea277301cefaccf2b747f269e623153b80a5583c56011f05e5fbad",
+      "instructions_sha256": "56c37bbeffdbb5e5c3b257007a39a1d2fdf60e186037dae9dd7c8f72656185b7",
+      "source_bundle_sha256": "d33f735ceb3b20eb2848949028cabd5a488832d29d124e138170e3bd87539f71",
+      "source_count": 3,
+      "source_bytes": 100610,
+      "criteria": 56,
+      "deliverables": ["key-facts-memo.docx"]
+    },
+    "banking-finance/extract-credit-agreement-covenants": {
+      "split_sha256": "4fe134f47fc144da3f0ecf6f4b99ac89dcb8931c3d3df29795ac649e8c8a18f0",
+      "task_config_sha256": "4521248e6438e7649a0784299693284ece4bf98f693544bd7b62d9d55df0c598",
+      "instructions_sha256": "8b3afea95c4ea92f7a1ab9dd10aeb4ba81a03ad546aa1958aa899d042a5d0f2d",
+      "source_bundle_sha256": "a278edc390084fdfb0675f83f6c2a470e1ace91685342411bf9911f735022402",
+      "source_count": 3,
+      "source_bytes": 146996,
+      "criteria": 65,
+      "deliverables": ["covenant-extraction-memo.docx"]
+    },
+    "healthcare-life-sciences/analyze-counterparty-markup-of-clinical-trial-agreement": {
+      "split_sha256": "cb30162242c49ee2d4d85e035c2c9ceb4947e57b1a2734c6b76a5c6316d1bb6b",
+      "task_config_sha256": "04fe37e75f18aaf953da27372c6c9030841d833a9232d24cd5ae3c69d10189a3",
+      "instructions_sha256": "215937d4f0597bdc0d8241d1d716bba0e5bf5cf5893acf57ae364cbb04e40c24",
+      "source_bundle_sha256": "638d74ca50df0b032757713aa23904282d8b2b5a48097216aaf294b25f1e1817",
+      "source_count": 5,
+      "source_bytes": 217144,
+      "criteria": 70,
+      "deliverables": ["redline-analysis-memo.docx"]
+    },
+    "white-collar-defense-investigations/analyze-counterparty-markup-of-deferred-prosecution-agreement": {
+      "split_sha256": "9fd19fdb447640873ff265a7b01328b57a4e22db42a745be73f6f6caa0f92b9d",
+      "task_config_sha256": "1827c04ef4c19622dd2c9ccc20e397dc71c6e9a09dbbcf3778baeb2c5009eff6",
+      "instructions_sha256": "87c9d3d497dba8adbfb6fc6a0b673b71012d9452e26eb8ec8e46bb8f208f0a08",
+      "source_bundle_sha256": "d177c5a38cc50f056ce053ac0b3d4a826952c51e35f736eaf3a258e39dc84f61",
+      "source_count": 6,
+      "source_bytes": 286807,
+      "criteria": 58,
+      "deliverables": ["dpa-counter-markup-analysis-memo.docx"]
+    },
+    "capital-markets/compare-closing-documents-against-closing-checklist": {
+      "split_sha256": "1bafe85535eeb4ee107c033b7d0657f4478aaea696da2436e90605b10c1d9662",
+      "task_config_sha256": "fa2f278335bb75dd4bf005f48c777a3bfd6a80b0ed3d03c1610f51ff23ce3136",
+      "instructions_sha256": "2d0e8912d25ec485ac637d4d118b32bda1f2e2b80cc1dbecbf3ad0a9d741b80b",
+      "source_bundle_sha256": "975f34bc5cc285f0ae9e8ac63c0087ff43ac0289da669144aaea460327a4bc79",
+      "source_count": 8,
+      "source_bytes": 316921,
+      "criteria": 32,
+      "deliverables": ["closing-discrepancy-report.docx"]
+    },
+    "antitrust-competition/analyze-antitrust-hsr-strategy": {
+      "split_sha256": "9271e0955ecdde54316caa5d15b2979893b9cfdf2e948143e355ff8d903f4841",
+      "task_config_sha256": "24a23c660fe5b2ae5b296d4aa1c1079c98af8f529957de557b74dd4ec11f1311",
+      "instructions_sha256": "fbc6881a235600dedff33231188c71bd8cc0acfce87cb6c4bce784a3e1a68e4b",
+      "source_bundle_sha256": "fa05595b5355cb72acb7f66ce97e84ad750451dce1c61838e0885c64c79c7caa",
+      "source_count": 9,
+      "source_bytes": 497136,
+      "criteria": 50,
+      "deliverables": ["antitrust-risk-memo.docx"]
+    },
+    "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts": {
+      "split_sha256": "c0d270c324eaaeb13a47eb2df309baf468270e4ca04b686e4ed27632a3d36f7d",
+      "task_config_sha256": "88cbc55fc6bc6b455d6f7d4fbc98c298f00edc85be9079ad3f8152aceabbd72a",
+      "instructions_sha256": "804acb88a976238cbdf65027b4c873142cfec3c84c9773992e256e40ae02c8a4",
+      "source_bundle_sha256": "f778c5ef888a841432ee70a34d1a8c0d4b0c947a0d19509b4a3834635b23f0e2",
+      "source_count": 19,
+      "source_bytes": 1061291,
+      "criteria": 57,
+      "deliverables": ["coc-analysis-report.docx"]
+    },
+    "capital-markets/draft-indenture-for-senior-secured-notes-offering": {
+      "split_sha256": "9eb0633b22a0a1e936eeba6980d7e44d23d7f89fc581dfd1697dd3420f34b62a",
+      "task_config_sha256": "41b58ce7ca3c92ea825ddb22d5a1e4bc8b5c23e31df3e8f6efc54056c98775aa",
+      "instructions_sha256": "d9b4b8460380ace783ca538f417843d2edf8f997f0ec3f622f5ea6aebf2f5675",
+      "source_bundle_sha256": "d30b7b0ad6d8c8327f80d8137d4e8c30db52816f8fdfd7b3f08f492a17a82303",
+      "source_count": 14,
+      "source_bytes": 730540,
+      "criteria": 83,
+      "deliverables": ["indenture-draft.docx", "issues-memorandum.docx"]
+    },
+    "tax/draft-transfer-pricing-documentation": {
+      "split_sha256": "9886979ad0409f300ccb78413abc4bda020fcde1f288d879d61e59eff1c85957",
+      "task_config_sha256": "e860b4de7d37024a85dba093e569a893cf4806a190f073e53e9a61514fd5a962",
+      "instructions_sha256": "baa067a9d481a31b85cb9a47a3eebfbc6620e2c5cd23b87e71b2b4f1741d05b7",
+      "source_bundle_sha256": "bc8d591498a818501b7a388d5b93575c5a98f03b25edb2f009f9d166fe4a6647",
+      "source_count": 25,
+      "source_bytes": 1511738,
+      "criteria": 77,
+      "deliverables": ["memo.docx"]
+    },
+    "corporate-ma/draft-acquisition-due-diligence": {
+      "split_sha256": "1c7c84f7b7641d63d2e63a84e36be858e696be5ef0a2972af40faeee449f2614",
+      "task_config_sha256": "d9adc3cbdfbddf9c71e294daefc3fa5622785e0e09f7f0d156059f38fe3f6cc0",
+      "instructions_sha256": "fba0e88a9d0c1b2830088147dc51ffd46ed054978661405dd6a8ba415f229303",
+      "source_bundle_sha256": "95a51cf8db2f91d1be20be9fd1d25ea30c2e9f8dfba674099b90412e4385feb7",
+      "source_count": 31,
+      "source_bytes": 1372646,
+      "criteria": 64,
+      "deliverables": ["novabright-diligence-memorandum.docx"]
+    },
+    "antitrust-competition/prepare-antitrust-risk-assessment": {
+      "split_sha256": "7afa244085083ed066ecf706f9958a599e9ac989ed586f2b5be859daf67f7c3f",
+      "task_config_sha256": "35ca29aa848e153943cdbf1262adcc3a10bc32b608532775523aa8ef2854de80",
+      "instructions_sha256": "84fe22db1b8c692ad1bc0a58ed65055e025f7534f0329f48dd2ab39bfe57ffaa",
+      "source_bundle_sha256": "6b7acf7b42803b04ff0e425aeb489fcf992be7badb26b609b51b88a2aef3343f",
+      "source_count": 12,
+      "source_bytes": 984274,
+      "criteria": 95,
+      "deliverables": ["antitrust-risk-memorandum.docx", "client-advisory-letter.docx", "hsr-filing-timeline-and-checklist.docx", "market-analysis-workpapers.docx"]
+    },
+    "diligence/cybersecurity-tuck-in": {
+      "split_sha256": "e74cf689a48e8309da91c083c51a2724e7f4b85b7cec2081aaa0b63151c3e3f4",
+      "task_config_sha256": "a2152188e0ee8dbc69270c92577237ab7850c9b80a6d3b6a9dfa697bda0c85bc",
+      "instructions_sha256": "4c6cc7d577ae39906c037db624e1f8fe440f10e5af6efea3f6fa74894e62b43f",
+      "source_bundle_sha256": "3d88cb422f11ac0a5857975b5e6110df7f47e095265a9878d13c9251e715d2cb",
+      "source_count": 3513,
+      "source_bytes": 181545772,
+      "criteria": 635,
+      "deliverables": ["red-flags-report.md"]
+    }
+  },
+  "source_fingerprints": {
+    "backend/scripts/lab-beaver-arm.ts": "ae7b93c3f9802ad5547d454a606cf04cf1771bed41b7a109b91a8fb0dfab4655",
+    "backend/src/lib/chat/upstreamMikeBenchmarkSurface.ts": "4475d6a5dd9cc98c11b9e41c65d2bce4b5fc95bd35a6a7deae438297a0eb43ad",
+    "backend/src/lib/chat/localAssistantTools.ts": "5c5c60aa506c7aea44bf32baf2315fbc53c066bb2f55403f4c68c153dd62c26f",
+    "backend/src/routes/chat.ts": "d4fd50525c75eaeffcbc129d335ff1e824db7396215e4e7c9462b8b3cacef4af",
+    "backend/src/lib/llm/codexApi.ts": "7aae8efd3517a562fed51ebcd0c15c6dd03a5694808fff9f69196376341a7b8d",
+    "backend/src/lib/llm/openai.ts": "cefb64319a44222a705b58df4b7977c3bf41c4245adfa000c594b272b4fcd856",
+    "backend/src/lib/llm/types.ts": "c6a4a29d3a0c8b0d2c7a1d90b859c64140f91c965abfcdb2e3482039356a72ea",
+    "benchmarks/harvey-labs/evaluation/prompts/rubric_criterion.txt": "da0f2618d996ac5415a960dfc445e53b6fbd1b22602dd587bf6ecccbe139cb21",
+    "benchmarks/harvey-labs/evaluation/judge.py": "61979c7613e519fcd37ecfba8d241f979f0320e575cd7a3923c0278aa4577cb7",
+    "benchmarks/harvey-labs/evaluation/scoring.py": "e7f5e0accdaffe3ba9d350fb417f0c09f6f372ff5888def5908c73113291a9a3",
+    "benchmarks/lab/corpus-split.json": "ac277f52c2896f978e35db8d6f408b73ec9f7808a163009723d90c07de7d317a"
+  },
+  "metrics": {
+    "quality_primary": "fixed Sol criterion score, aggregated both micro and task-macro",
+    "efficiency_primary": "provider-reported logical input plus output tokens",
+    "cache_adjusted_input_equivalent": "uncached input + 0.1 * cache-read input + 1.25 * cache-write input",
+    "price_equivalent": "For Luna only: cache-adjusted input equivalent at $1/M plus output at $6/M. Public API price-equivalent, not Codex subscription billing.",
+    "other": [
+      "wall latency",
+      "provider latency",
+      "context rounds",
+      "provider requests",
+      "tool calls/results/errors",
+      "source coverage",
+      "whole versus bounded reads",
+      "legal structure path use",
+      "cache hit/write ratios",
+      "grounding behavior",
+      "required-deliverable validity"
+    ]
+  },
+  "decision_rule": {
+    "ordering": ["accuracy", "cache-adjusted input", "logical tokens", "coverage", "latency", "tool behavior"],
+    "candidate_quality": "grounded_structure_v1 must meet or exceed upstream_terminal_v1 in aggregate and must not show a systematic small-task regression; comparisons with historical raw upstream Mike are reported separately and provisionally.",
+    "candidate_efficiency": "grounded_structure_v1 aggregate cache-adjusted input equivalent must be <= 1.5x upstream_terminal_v1. Lower is preferred, and raw logical tokens remain visible so caching cannot conceal context churn.",
+    "mega_suite": "Report completion, validity, quality, coverage, context exhaustion, and cost separately; do not let its 635 criteria obscure task-macro behavior."
+  },
+  "judge": {
+    "start_condition": "trace gate passed for each landed cell",
+    "model": "codex/gpt-5.6-sol",
+    "reasoning_effort": "provider default",
+    "temperature": 0,
+    "criterion_parallelism_per_output": 1,
+    "max_concurrent_output_judges": 12,
+    "local_process_priority": "BelowNormal",
+    "pandoc_gate": "Resolve %LOCALAPPDATA%\\Pandoc\\pandoc.exe, prepend its directory to PATH, and fail closed before judging if any required output packet is blank or contains a file-read error sentinel."
+  }
+}
