@@ -211,7 +211,10 @@ def test_adaptive_empty_append_preserves_exact_initial_source(tmp_path):
     assert receipt["appended_characters"] == 0
     initial_source = (tmp_path / "workspace" / ".mike" / "initial" / "memo.docx.md").read_bytes()
     final_source = (tmp_path / "workspace" / ".mike" / "final" / "memo.docx.md").read_bytes()
+    initial_docx = (tmp_path / "workspace" / ".mike" / "initial" / "memo.docx").read_bytes()
+    final_docx = (tmp_path / "output" / "memo.docx").read_bytes()
     assert final_source == initial_source
+    assert final_docx == initial_docx
 
 
 def test_adaptive_large_context_skips_review_and_finalizes_exact_initial(tmp_path):
