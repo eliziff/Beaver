@@ -766,19 +766,39 @@ function looksLikeJoinedHeading(value: string) {
   );
 }
 
+function looksLikeSentenceHeading(value: string, following: string) {
+  const heading = value
+    .trim()
+    .replace(/^\([\p{L}\p{N}]+\)\s+/u, "");
+  const words = heading.split(/\s+/u);
+  return (
+    heading.length <= 120 &&
+    words.length >= 4 &&
+    words.length <= 18 &&
+    /^\p{Lu}/u.test(heading) &&
+    words.some((word) => /^\p{Ll}/u.test(word)) &&
+    !/[\[\].,;:!?]/u.test(heading) &&
+    /^\s*\p{Lu}/u.test(following)
+  );
+}
+
 /**
  * A2AJ occasionally joins a heading to the numbered paragraph that follows:
- * `Qualified Privilege [63] ...`. Recover only a unique missing marker
- * bracketed by an already-proven paragraph spine (or immediately before its
- * first marker). This stays fail-closed on bracketed quotations and citations.
+ * `Qualified Privilege [63] ...` or `COSTS 12. ...`. Recover only a unique
+ * missing marker bracketed by an already-proven paragraph spine (or immediately
+ * before its first marker). Sentence headings require adjacent numeric
+ * neighbours and an uppercase paragraph start, which keeps inline citations out.
  */
 function recoverHeadingJoinedParagraphs(
   text: string,
   spine: NumberedMarker[],
+  style: "bracket" | "dot",
 ) {
   const knownStarts = new Set(spine.map(({ start }) => start));
   const candidates = new Map<number, NumberedMarker[]>();
-  for (const match of text.matchAll(/\[(\d{1,4})\]/gu)) {
+  const markerRe =
+    style === "bracket" ? /\[(\d{1,4})\]/gu : /(\d{1,4})\.(?=\s)/gu;
+  for (const match of text.matchAll(markerRe)) {
     if (knownStarts.has(match.index)) continue;
     const number = Number(match[1]);
     let before: NumberedMarker | undefined;
@@ -801,7 +821,21 @@ function recoverHeadingJoinedParagraphs(
       after.start - match.index <= 2_000;
     if (!between && !leading) continue;
     const lineStart = text.lastIndexOf("\n", match.index - 1) + 1;
-    if (!looksLikeJoinedHeading(text.slice(lineStart, match.index))) continue;
+    const heading = text.slice(lineStart, match.index);
+    const formal =
+      looksLikeJoinedHeading(heading) &&
+      (style === "bracket" || !/\./u.test(heading));
+    const sentence =
+      style === "bracket" &&
+      !!before &&
+      !!after &&
+      before.number + 1 === number &&
+      number + 1 === after.number &&
+      looksLikeSentenceHeading(
+        heading,
+        text.slice(match.index + match[0].length),
+      );
+    if (!formal && !sentence) continue;
     candidates.set(number, [
       ...(candidates.get(number) ?? []),
       { number, start: match.index },
@@ -822,9 +856,9 @@ function paragraphSourceBlocks(
   style: ParagraphMarker["style"],
 ) {
   const selected =
-    style === "bracket"
-      ? recoverHeadingJoinedParagraphs(text, spine)
-      : spine;
+    style === "bare"
+      ? spine
+      : recoverHeadingJoinedParagraphs(text, spine, style);
   const boundaries = [
     ...new Set([
       ...allMarkers
