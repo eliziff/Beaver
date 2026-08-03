@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "experiment_id": "harvey-lab-mike-one-shot-fact-index-v1.1",
+  "registered_at": "2026-08-03T10:25:29Z",
+  "status": "preregistered_before_v1.1_performer_calls",
+  "parent": "docs/harvey-lab-mike-one-shot-preregistration-2026-08-03.json",
+  "scope": "Replace only the three deterministic fact-index cells. The nine control, high one-shot, and xhigh one-shot cells remain bound to the parent registration.",
+  "general_defect": "The original serializer applied a raw 6000-character slice after adding its closing marker. The Tax packet reached the bound and was cut mid-row with no closing marker. Banking and Indenture happened to remain below the bound, but all three cells are replaced to preserve one code version.",
+  "fix_commit_before_launch": "3f19b85f",
+  "fix": "Admit complete rows only while reserving space for the closing marker. The packet is always closed, remains at most 6000 characters, and reports the number of rows actually emitted.",
+  "unchanged": [
+    "model codex/gpt-5.6-luna",
+    "reasoning effort xhigh",
+    "provider-default tier",
+    "temperature request 0",
+    "task and source bytes",
+    "two-tool schema",
+    "one batch fetch followed by one all-deliverable generation response",
+    "fixed Sol judging configuration and decision rule"
+  ],
+  "surface": "mike_one_shot_fact_index_xhigh_v1",
+  "harness_source_bundle_sha256": "f65a518a58e323832a13f8a3f01ec061e639fdbb0d2136c244746e3366e55dc3",
+  "tool_schema_sha256": "7da650571cfd85d225720eb6f7b0549eae2309212394202a708d9ffa4b568298",
+  "run_id_template": "2026-08-03-mike-one-shot-fact-index-v1-1--{task_slug_with_slashes_replaced_by_double_hyphens}",
+  "tasks": {
+    "banking-finance/extract-credit-agreement-covenants": {
+      "system_prompt_sha256": "1d3acd0cc11db71f8c9b3a8ee31ac807cf90a8f448a71b812645a5ae0ec6dc53",
+      "prompt_cache_key": "lab-99b787eaa59ea30e84292e868eaf3e129a68577ddd3983b8e940efa4e7e01213",
+      "run_fingerprint_sha256": "72837ca66c153ad93d9237a59711a69d6bba3f3cc5767a4cea1b79dfabe9817b"
+    },
+    "tax/draft-transfer-pricing-documentation": {
+      "system_prompt_sha256": "acda8da959a534bff3050ff5e4abb174e28b789aa6268685a1a698ef6bc70614",
+      "prompt_cache_key": "lab-1fea79c2cfd5dd662432915d3a329b102aeeb93ce4335f07937c59030b8407f0",
+      "run_fingerprint_sha256": "0c58fbadecbbdd42814b14aaa1b348eb8552be86b190921516d8be206ad5dbf7"
+    },
+    "capital-markets/draft-indenture-for-senior-secured-notes-offering": {
+      "system_prompt_sha256": "0a97d58bb4c92e17d2d3ab66175962807adb7decdf41751256c2ade3632e0a74",
+      "prompt_cache_key": "lab-6d1b9226475a61412c24bd7a33460807631d6067afe66043943d36aa8a5db618",
+      "run_fingerprint_sha256": "7a1fc0364190b2ab7f996033399fc2de9ddcc0e0c5fa12cd0605eebad3ff72bf"
+    }
+  },
+  "trace_gate": "Each replacement must match its fingerprint, read all sources, emit a closed deterministic_source_index of at most 6000 characters before the exact request reminder, generate every required DOCX in the next response, report default provider tier, and have no tool, path, schema, context, or DOCX error."
+}
