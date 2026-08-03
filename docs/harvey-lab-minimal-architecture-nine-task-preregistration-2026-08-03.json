@@ -204,7 +204,7 @@
     "backend/src/lib/chat/__tests__/localToolWiring.test.ts": "f8ea45cdf9ec209b823d02fd93d7d4844da5f6d90859d366bf07bdc52c0bab97",
     "backend/src/lib/__tests__/localAssistantTools.test.ts": "def7c662ca0ee36fbe2f12269f237cc00603606fcfe0e7822b79580158d7d0d8",
     "backend/src/routes/localChatEvidenceDurability.test.ts": "58ca27d6e8edfffa673ec21b88181c3eb4c608feb2e732ada7105b80a2b35cfa",
-    "benchmarks/harvey-labs/scripts/run_minimal_architecture_nine_task.ps1": "e9726dbe8ef15e3216497f51e6ec07d7da3ebf09a3181cfeb78affc6cf4ddbe8",
+    "benchmarks/harvey-labs/scripts/run_minimal_architecture_nine_task.ps1": "0ced95b17fc046ca7b8cc6fa079ed0d67199bd88a91bd8a86a6260f50d7a94c3",
     "benchmarks/harvey-labs/evaluation/prompts/rubric_criterion.txt": "da0f2618d996ac5415a960dfc445e53b6fbd1b22602dd587bf6ecccbe139cb21",
     "benchmarks/harvey-labs/evaluation/judge.py": "61979c7613e519fcd37ecfba8d241f979f0320e575cd7a3923c0278aa4577cb7",
     "benchmarks/harvey-labs/evaluation/scoring.py": "e7f5e0accdaffe3ba9d350fb417f0c09f6f372ff5888def5908c73113291a9a3",
