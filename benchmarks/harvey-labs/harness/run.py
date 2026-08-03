@@ -847,6 +847,7 @@ def main(args):
     context_rounds = [
         {"stage": "primary", **round_} for round_ in result["context_rounds"]
     ] + scout["context_rounds"]
+    tool_metrics = tool_executor.get_metrics()
     metrics = {
         "model": args.model,
         "task": args.task,
@@ -920,7 +921,7 @@ def main(args):
         "fresh_scout_prompt_cache_key": scout["prompt_cache_key"],
         "fresh_scout_application": scout["application"],
         "completed_at": datetime.now(timezone.utc).isoformat(),
-        **result["tool_metrics"],
+        **tool_metrics,
     }
     (results_dir / "metrics.json").write_text(json.dumps(metrics, indent=2))
 
