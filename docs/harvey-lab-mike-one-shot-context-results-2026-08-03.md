@@ -12,7 +12,8 @@ set once, repeat the exact request at the evidence boundary, and author every
 deliverable in one terminal batch. The best observed prompt-only variant added
 a compact attention ledger and scored 178/225 at 628,072 logical tokens. The
 plain native-work-product variant scored 177/225 at 597,341 tokens. Fresh pinned
-Mike scored 172/225 at 590,911 tokens.
+Mike scored 172/225 at 590,911 tokens; two effort-matched Mike/xhigh replicates
+scored 172 and 169, so the candidate result is not explained by xhigh alone.
 
 That is a useful frontier, not a proved win. The one-point separation between
 the two candidates is below observed run variance. The production candidate is
@@ -28,6 +29,8 @@ tokens are provider-reported input plus output. No row received a cache hit.
 | Arm | Banking | Tax | Indenture | Total | Logical tokens | Versus fresh Mike |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | Fresh pinned Mike/high | 58 | 42 | 72 | 172/225 | 590,911 | 1.00x |
+| Frozen Mike/xhigh, replicate 1 | — | — | — | 172/225 | 610,323 | 1.03x |
+| Frozen Mike/xhigh, replicate 2 | — | — | — | 169/225 | 611,545 | 1.03x |
 | Native work product/xhigh | 57 | 45 | 75 | 177/225 | 597,341 | 1.01x |
 | Conflict-first attention/xhigh | 60 | 42 | 76 | **178/225** | 628,072 | 1.06x |
 | Deterministic fact index/xhigh | — | — | — | 165/225 | 615,820 | 1.04x |

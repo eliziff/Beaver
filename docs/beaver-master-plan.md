@@ -651,7 +651,9 @@ A fresh pinned-Mike control scored 172/225 at 590,911 logical tokens. The plain
 two-tool native-work-product arm scored 177/225 at 597,341; a 437-byte
 conflict-first attention prompt scored 178/225 at 628,072. The margin between
 those candidates is below observed run variance, so the plain arm is the live
-candidate and conflict-first remains replication-only.
+candidate and conflict-first remains replication-only. Effort-matched frozen
+Mike/xhigh replicates scored 172 and 169, so xhigh alone does not explain the
+candidate result.
 
 Every more elaborate context treatment failed to earn its cost. Fact indexing
 scored 165/225, two quote-first replicates scored 162 and 170, adaptive review
