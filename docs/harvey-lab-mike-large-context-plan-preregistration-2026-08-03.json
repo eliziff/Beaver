@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "experiment_id": "harvey-lab-mike-large-context-plan-v1",
+  "registered_at": "2026-08-03T13:23:38Z",
+  "status": "preregistered_before_performer_calls",
+  "experiment_class": "visible-development Codex-path Luna harness ablation",
+  "claim_scope": "A model-held-constant comparison against frozen Mike and prior Luna one-shot arms. Sol criterion labels are provisional and derivative, not human gold.",
+  "landed_basis": {
+    "best_simple_arms": "Fresh Mike/high scored 172/225 at 590,911 logical tokens; native one-shot/xhigh scored 177/225 at 597,341; conflict-first scored 178/225 at 628,072.",
+    "failed_post_draft_review": "A full append-only review scored 168/225 at 1,216,361 tokens. Context-size routing improved cost but scored only 175/225 at 688,751 tokens; its sole eligible review appended zero characters.",
+    "stable_long_context_omissions": "All Tax arms exposed all 25 documents, yet 22 rubric criteria failed across fresh Mike, native one-shot, conflict-first, adaptive review, and monotonic review. The stable misses disproportionately concern exact exposure amounts, deadlines, jurisdictional requirements, contradictory terms, conditions, and complete action-matrix fields.",
+    "complementary_coverage": "The fresh Mike/high and native one-shot criterion union is 189/225 despite individual scores of 172 and 177. The system has enough evidence and capacity for materially better coverage; initial attention allocation is the unresolved failure mode.",
+    "supported_invariant": "Review after prose allocation is too late, while a second full-context provider round is costly. An autoregressive plan emitted immediately before authoring in the same response can allocate coverage before prose without replaying source input. Determinism can enforce evidence-before-plan order, source-size routing, the plan bound, exact persistence, and plan-before-draft order; it does not select legal content."
+  },
+  "hypothesis": "Preserve the native whole-source trajectory for small contexts. Above 400,000 exact normalized source characters, require one private plan tool call of at most 12,000 characters immediately before all generate_docx calls in the same assistant response. The plan prioritizes material findings, source locators, exact numbers/dates, contradictions, exceptions, uncertainty, priority, and intended placement. This is one continuous plan-then-act trajectory: no extra provider round, checkpoint handoff, evidence union, quote ledger, fact packet, legal scope, linter, or content-scoring compiler.",
+  "implementation_commit_before_launch": "61119c8b57fccc8d810240ffb6596410d736f50c",
+  "surface": "mike_one_shot_large_context_plan_xhigh_v1",
+  "performer": {
+    "model": "codex/gpt-5.6-luna",
+    "reasoning_effort": "xhigh",
+    "temperature_requested": 0,
+    "temperature_transmitted": false,
+    "required_provider_service_tier_reported": "default",
+    "tools": ["fetch_documents", "write_plan", "generate_docx"],
+    "source_threshold_characters": 400000,
+    "plan_max_characters": 12000,
+    "run_count": 3,
+    "max_concurrent_processes": 3,
+    "run_id_template": "2026-08-03-mike-large-context-plan-v1--{task_slug_with_slashes_replaced_by_double-hyphens}",
+    "harness_source_bundle_sha256": "77195865ceaa9eb4c3a91810ece15b7afa94e6d136be98ca02a849fb67534c8d",
+    "tool_schema_sha256": "0507a608633644605cab9a2c269af8d15b0d505012c66b61edef18773872a562",
+    "tool_schema_bytes": 1487,
+    "system_mechanism": "The host rejects planning until the fetch result has entered conversation history, rejects authoring when a required plan is absent, accepts plan then author calls in one ordered tool batch, and persists the exact private plan text, byte count, and SHA-256 in metrics."
+  },
+  "tasks": {
+    "banking-finance/extract-credit-agreement-covenants": {
+      "expected_route": "direct terminal authoring",
+      "system_prompt_sha256": "3e85c7c6b7a9d8bdae11a655c811b8691d34038c585a767811f731479019636f",
+      "system_prompt_bytes": 2065,
+      "source_bundle_sha256": "b5c3605cfbe3d53377712d0db3463f945a5c69cf7caef0da01b45d7b9ee75296",
+      "prompt_cache_key": "lab-426ff4ac0e8680415a67b4692fb8f948ca7169e46207dfd60a37f94dc739e6a6",
+      "run_fingerprint_sha256": "4c7f6d0dbea19a11bb4ec6fa4353f66a37a59e16b17608451c84782a3885d338"
+    },
+    "tax/draft-transfer-pricing-documentation": {
+      "expected_route": "private plan then terminal authoring in one batch",
+      "system_prompt_sha256": "2cad7c0f14317ccd29e3d740485691490af0d78931a12ae4fe3070d365d5ae23",
+      "system_prompt_bytes": 3783,
+      "source_bundle_sha256": "0ebfa8f86d9bd3405d4ccd638471ded6f48a4748ca0cfba76b992f1a5ea15e3d",
+      "prompt_cache_key": "lab-ad952aee6c09df8cb1b2825e24313b7966f836857dae517d88727a1ebef0a8f8",
+      "run_fingerprint_sha256": "bffeaa20465a1b26245a7431f6ceffeb3419cab4a45073c22e95316eec6a68c0"
+    },
+    "capital-markets/draft-indenture-for-senior-secured-notes-offering": {
+      "expected_route": "private plan then all terminal authoring calls in one batch",
+      "system_prompt_sha256": "f58f6768d5ad3cd529643379107913aef6ca46e3d2def34dbc6857c4e3b44684",
+      "system_prompt_bytes": 2553,
+      "source_bundle_sha256": "c1319d3aec66399c21a7a1a00b64821d48e4eecc190bbc15474148e7da33d7fd",
+      "prompt_cache_key": "lab-e7435f579a893b631d204d4dc5859bb4a720d60f32cfd06c4c56b5e427c83f5c",
+      "run_fingerprint_sha256": "6c5a760302485236dee76d96d1be81b4a3ede3d9868d0068ea92046987555186"
+    }
+  },
+  "trace_gate": "Require one complete exact-source fetch before authoring; the recorded task-agnostic source-size route; no plan on Banking; one bounded persisted plan before generate_docx on Tax and Indenture; plan and all author calls in the same second assistant batch; valid requested DOCX files; exact default tier and fingerprints; and zero tool, schema, or path errors. Inspect plan substance, ordering, cache, retries, tokens, reasoning, output size, and latency before judging.",
+  "judge": {
+    "model": "codex/gpt-5.6-sol",
+    "reasoning_effort": "provider default",
+    "temperature_requested": 0,
+    "criterion_level": true,
+    "max_concurrent_outputs": 3,
+    "max_concurrent_criteria_per_output": 1,
+    "local_process_priority": "BelowNormal",
+    "prompt_sha256": "da0f2618d996ac5415a960dfc445e53b6fbd1b22602dd587bf6ecccbe139cb21",
+    "judge_source_sha256": "3546fec5ca1c4d655c8510d8cf2e0ca2201a94428c86d1628fbcdf5afe83a4b5",
+    "scoring_source_sha256": "e7f5e0accdaffe3ba9d350fb417f0c09f6f372ff5888def5908c73113291a9a3"
+  },
+  "decision_rule": "Advance only at 182/225 or better, with no task below 58 Banking, 42 Tax, and 72 Indenture; no more than 1.25x the fresh Mike/high logical-token total of 590,911; and a structurally valid trace. Replicate only if the first pass clears this rule or is within observed score noise while the plans contain concrete source-grounded coverage that the drafts actually use."
+}
