@@ -158,4 +158,70 @@ describe("legalDerivedValueScan", () => {
     // than guess (refusal beats guessing).
     expect(derivedValueScan([source], draft)).toHaveLength(0);
   });
+
+  it("closes an identity whose whole lives in a different source (C2 percent_without_amount)", () => {
+    const dealMemo: DerivedValueDocument = {
+      name: "deal-memo",
+      text: "The transaction consideration of $22.1 million represents 25.3% of total revenue.",
+    };
+    const exhibit: DerivedValueDocument = {
+      name: "financial-exhibit",
+      text: "For the fiscal year ended December 31, 2024, total revenue was $87,300,000.",
+    };
+    const draft: DerivedValueDocument = {
+      name: "draft",
+      text: "The transaction consideration represents 25.3% of total revenue.",
+    };
+    const findings = derivedValueScan([dealMemo, exhibit], draft);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].direction).toBe("percent_without_amount");
+    expect(findings[0].part.display).toContain("22.1");
+    expect(findings[0].whole.value).toBeCloseTo(87_300_000, 0);
+    expect(findings[0].whole.document).toBe("financial-exhibit");
+    expect(findings[0].detail).toContain("whole from financial-exhibit");
+  });
+
+  it("closes an amount-without-percent identity whose whole lives in another source (C2)", () => {
+    const termSheet: DerivedValueDocument = {
+      name: "term-sheet",
+      text: "The purchase price is $63,000,000, which equals 15% of enterprise value.",
+    };
+    const valuation: DerivedValueDocument = {
+      name: "valuation-report",
+      text: "Based on the latest round, enterprise value is $420,000,000.",
+    };
+    const draft: DerivedValueDocument = {
+      name: "draft",
+      text: "The purchase price is $63,000,000.",
+    };
+    const findings = derivedValueScan([termSheet, valuation], draft);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].direction).toBe("amount_without_percent");
+    expect(findings[0].percent.value).toBeCloseTo(15, 0);
+    expect(findings[0].whole.value).toBeCloseTo(420_000_000, 0);
+    expect(findings[0].whole.document).toBe("valuation-report");
+    expect(findings[0].detail).toContain("whole from valuation-report");
+  });
+
+  it("does not bind a cross-document money that fails arithmetic closure (C2)", () => {
+    const dealMemo: DerivedValueDocument = {
+      name: "deal-memo",
+      text: "The transaction consideration of $22.1 million represents 25.3% of total revenue.",
+    };
+    const exhibit: DerivedValueDocument = {
+      name: "financial-exhibit",
+      text: "For the fiscal year ended December 31, 2024, total revenue was $87,300,000, while total cost of sales was $41,000,000.",
+    };
+    const draft: DerivedValueDocument = {
+      name: "draft",
+      text: "The transaction consideration represents 25.3% of total revenue.",
+    };
+    // $22.1M / $41.0M = 53.9% — fails closure against 25.3%, so the exhibit's
+    // cost-of-sales figure must not bind as the whole. The identity closes only
+    // against $87.3M.
+    const findings = derivedValueScan([dealMemo, exhibit], draft);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].whole.value).toBeCloseTo(87_300_000, 0);
+    expect(findings[0].whole.document).toBe("financial-exhibit");
+  });
 });

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   extractProvisionGraph,
   compileProvisionGraph,
-  renderProvisionGraphSvg,
+  renderProvisionGraphHtml,
 } from "../legalProvisionGraph";
 import { compileAgreementSkeleton } from "../legalTextSkeleton";
 import { crossReferenceGraph } from "../legalCrossReference";
@@ -29,7 +29,6 @@ describe("extractProvisionGraph", () => {
     const xref = crossReferenceGraph(SAMPLE, "test", { skeleton });
     const graph = extractProvisionGraph(xref);
 
-    // Structural nodes only (no table/row/cell)
     expect(graph.nodes.length).toBeGreaterThan(0);
     for (const node of graph.nodes) {
       expect(["article", "part", "division", "section", "subsection", "schedule"]).toContain(node.kind);
@@ -38,7 +37,6 @@ describe("extractProvisionGraph", () => {
       expect(typeof node.depth).toBe("number");
     }
 
-    // Every edge should reference existing nodes
     const labels = new Set(graph.nodes.map((n) => n.label));
     for (const edge of graph.edges) {
       expect(labels.has(edge.from)).toBe(true);
@@ -46,7 +44,6 @@ describe("extractProvisionGraph", () => {
       expect(["parent", "cross-reference"]).toContain(edge.kind);
     }
 
-    // Should have parent edges
     const parents = graph.edges.filter((e) => e.kind === "parent");
     expect(parents.length).toBeGreaterThan(0);
   });
@@ -57,10 +54,6 @@ describe("extractProvisionGraph", () => {
     const graph = extractProvisionGraph(xref);
 
     const xrefEdges = graph.edges.filter((e) => e.kind === "cross-reference");
-    // "Section 6.01" should create edge from sec2.01 to sec6.01... but
-    // sec6.01 doesn't exist in this sample, so it'll be unresolved/abstained.
-    // "Section 7.02" — same.
-    // "Section 8.01" in sec1.01(a) -> sec8.01 — this should resolve.
     const to801 = xrefEdges.find(
       (e) => e.from === "sec1.01(a)" && e.to === "sec8.01",
     );
@@ -81,7 +74,6 @@ describe("extractProvisionGraph", () => {
   });
 
   it("handles documents that abstain", () => {
-    // A document with no section numbering at all
     const text = "This is a simple letter agreement with no numbered provisions.";
     const { graph, abstained } = compileProvisionGraph(text, "test");
     expect(abstained).toBe(true);
@@ -89,54 +81,51 @@ describe("extractProvisionGraph", () => {
   });
 });
 
-describe("renderProvisionGraphSvg", () => {
-  it("produces valid SVG for a populated graph", () => {
+describe("renderProvisionGraphHtml", () => {
+  it("produces valid HTML with cytoscape", () => {
     const skeleton = compileAgreementSkeleton(SAMPLE, "test");
     const xref = crossReferenceGraph(SAMPLE, "test", { skeleton });
     const graph = extractProvisionGraph(xref);
-    const svg = renderProvisionGraphSvg(graph);
+    const html = renderProvisionGraphHtml(graph);
 
-    expect(svg).toContain("<svg xmlns=\"http://www.w3.org/2000/svg\"");
-    expect(svg).toContain("</svg>");
-    expect(svg).toContain("pg-surface");
-    expect(svg).toContain("pg-edge-parent");
-    expect(svg).toContain("pg-edge-xref");
-    // Should contain node labels
-    expect(svg).toContain("sec2.01");
-    expect(svg).toContain("sec8.01");
-    // Dark mode support
-    expect(svg).toContain("prefers-color-scheme: dark");
+    expect(html).toContain("<!DOCTYPE html>");
+    expect(html).toContain("</html>");
+    expect(html).toContain("cytoscape");
+    expect(html).toContain("dagre");
+    // Should contain node data
+    expect(html).toContain("sec2.01");
+    expect(html).toContain("sec8.01");
+    // Should have view buttons
+    expect(html).toContain("btn-graph");
+    expect(html).toContain("btn-tree");
+    // Should have search
+    expect(html).toContain("search");
+    // Dark mode
+    expect(html).toContain("prefers-color-scheme");
   });
 
-  it("produces valid SVG for an empty graph", () => {
-    const svg = renderProvisionGraphSvg({ nodes: [], edges: [] });
-    expect(svg).toContain("<svg");
-    expect(svg).toContain("</svg>");
-    expect(svg).toContain("0 nodes, 0 parent, 0 xref edges");
+  it("produces valid HTML for an empty graph", () => {
+    const html = renderProvisionGraphHtml({ nodes: [], edges: [] });
+    expect(html).toContain("<!DOCTYPE html>");
+    expect(html).toContain("</html>");
   });
 
   it("truncates when exceeding maxNodes", () => {
     const skeleton = compileAgreementSkeleton(SAMPLE, "test");
     const xref = crossReferenceGraph(SAMPLE, "test", { skeleton });
     const graph = extractProvisionGraph(xref);
-    const svg = renderProvisionGraphSvg(graph, { maxNodes: 5 });
+    const html = renderProvisionGraphHtml(graph, { maxNodes: 5 });
 
-    expect(svg).toContain("Showing 5 of");
+    expect(html).toContain("Showing 5 of");
   });
 
-  it("accepts custom sizing options", () => {
+  it("accepts custom title", () => {
     const skeleton = compileAgreementSkeleton(SAMPLE, "test");
     const xref = crossReferenceGraph(SAMPLE, "test", { skeleton });
     const graph = extractProvisionGraph(xref);
-    const svg = renderProvisionGraphSvg(graph, {
-      width: 800,
-      columnGap: 60,
-      nodeHeight: 24,
-      fontSize: 10,
-    });
+    const html = renderProvisionGraphHtml(graph, { title: "My Agreement" });
 
-    expect(svg).toContain("width=\"800\"");
-    expect(svg).toContain("font-size: 10px");
+    expect(html).toContain("<title>My Agreement</title>");
   });
 });
 

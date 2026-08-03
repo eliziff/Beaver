@@ -9,10 +9,15 @@ drop costs the model.
 
 It is a **robustness** record, not a claim about the synthetic LAB corpus
 (0% auto-numbering): the load is carried by the real/pathology fixtures in
-`backend/src/lib/__tests__/fixtures/docx-pathologies/generate.ts` and by one
+`backend/src/lib/__tests__/fixtures/docx-pathologies/generate.ts`, by one
 genuine regulation from `benchmarks/docx_edit/fixtures/real/`
 (`ferry-boats-remission.txt`, packed line-by-line exactly as the docx-edit-bench
-`realDocument` builder packs it).
+`realDocument` builder packs it), and by three committed corruption fixtures in
+the same `real/` directory (`corrupt-style.docx`, `truncated.docx`,
+`malformed-body.docx`). Those pin the degradation contract for real-world
+damage: a dangling style reference warns and extracts best-effort; a truncated
+ZIP and a malformed `document.xml` fail closed with a readable typed error
+instead of leaking JSZip/mammoth parser internals.
 
 ## Evidence
 
@@ -20,7 +25,7 @@ The suite is deterministic — no LLM calls — and asserts both directions for
 every class:
 
 ```
-backend/src/lib/__tests__/docxCapabilityConformance.test.ts  (16 tests)
+backend/src/lib/__tests__/docxCapabilityConformance.test.ts  (20 tests)
 npx vitest run src/lib/__tests__/docxCapabilityConformance.test.ts   # from backend/
 ```
 
@@ -34,7 +39,7 @@ opening the package with JSZip).
 
 | Surface | Module | What it is |
 | --- | --- | --- |
-| `extractDocxDraftingSource` | `backend/src/lib/docxDraftingSource.ts` | The drafting-source HTML (`beaver-precedent-html-v1`): the precedent view the model reads. mammoth-based; omits images, headers/footers, comments, embedded objects with warnings; converts native notes to `[^N]` markers. |
+| `extractDocxDraftingSource` | `backend/src/lib/docxDraftingSource.ts` | The drafting-source Markdown (`pandoc-markdown-v1`): the precedent view the model reads. Pandoc-based (gfm); omits images, headers/footers, comments, embedded objects with warnings; footnotes round-trip as `[^N]` markers natively. Styles are auto-patched for Pandoc heading recognition (Normal default, lowercase heading names, outline levels). |
 | `extractDocxBodyText` | `backend/src/lib/docxTrackedChanges.ts` | Accepted-view body text (insertions in, deletions out), newline-joined. The plane `find` / `context_before` / `context_after` strings match against. |
 | `resolveDocxNumbering` + `applyNumberingToText` | `backend/src/lib/docx/numbering.ts` | Renders the labels ("1.", "(a)") that live only in `numbering.xml` and that no extractor synthesizes, aligned to `extractDocxBodyText` paragraph indexes. |
 | `projectDocxRedline` | `backend/src/lib/docx/redline.ts` | The marked-up read mode: `{++ins++}`, `{--del--}`, `{>>author: comment<<}`, `[ink]`. Deliberately NOT the drafting default. |
@@ -59,19 +64,14 @@ opening the package with JSZip).
 | **Footnotes** | Yes — `[^id]` markers + `[^id]:` definitions. | Native notes become `[^N]` markers with `[^N]:` definitions (`nativeNotesToMarkers`); multi-paragraph note bodies flatten to one line with a warning; endnotes raise *"may require manual review."* | `<w:footnoteReference w:id="N"/>` in the body plus a `<w:footnote w:id="N">` part (with the separator/continuationSeparator notes every package ships). | Multi-paragraph note bodies collapse to one native note (documented); markdown never synthesizes endnotes. |
 | **Text boxes** | No. | Text-box text is **off the body-text plane** (`extractDocxBodyText` drops it) yet **mammoth carries `w:txbxContent` into the drafting HTML** — an asymmetry: the model can read a text box in the drafting view but has no body-plane anchor to edit it. `extractDocxStories` reads text boxes as their own plane; no drafting warning is raised. | No `w:txbxContent` can be authored. | The drafting model sees text-box content (no warning) while the deterministic edit plane cannot address it — a review surface should reconcile the two, because the pathology sniffer's "invisible to body-text extraction" note is accurate only for the body plane, not the drafting view. |
 
-## Round-trip finding: render → ingest → render is not warning-free
+## Round-trip finding: render → ingest → render is clean (post-Pandoc migration)
 
 Re-ingesting a Beaver-rendered `.docx` through `extractDocxDraftingSource`
-preserves every feature class, but returns `requires_review: true` because
-mammoth flags the custom Beaver styles:
-
-```
-Unrecognised paragraph style: 'Title' (Style ID: Title)
-Unrecognised paragraph style: 'Legal Table Text' (Style ID: LegalTableText)
-```
-
-Cosmetic, but material when a generated document later becomes a drafting
-precedent: the cycle is exact on substance, noisy on style names.
+(pandoc gfm, post-2026-08-03) is now **warning-free** for the base round-trip.
+Pandoc does not produce mammoth-style "Unrecognised paragraph style" warnings.
+Heading styles are auto-patched (Normal default, lowercase `w:name`,
+`w:outlineLvl`) so round-tripped headings preserve `#` markers. Content
+controls still produce a flattening warning (unchanged).
 
 Out of the six scored classes: a content control `{{tag}}` does not survive a
 round-trip as a control — it renders as its placeholder text (`[Tag]`) and

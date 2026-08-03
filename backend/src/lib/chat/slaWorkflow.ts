@@ -51,6 +51,13 @@ const MAX_LINT_FINDINGS = 10;
 const MAX_DERIVED_FINDINGS = 8;
 const MAX_DEADLINE_FINDINGS = 8;
 const MAX_UNDEFINED_FINDINGS = 8;
+/**
+ * H6/M5: the repair prompt is severity-tagged and capped so a dense wall of
+ * findings never overwhelms the single repair pass. When the cap is hit, the
+ * lowest-severity findings are dropped and the cut is reported so the receipt
+ * remains the source of truth.
+ */
+const MAX_REPAIR_PROMPT_CHARS = 2000;
 /** The draft's document name inside every organ that takes a stack. */
 const DRAFT_NAME = "draft";
 // A second opinion stops being cheap or independent when it is handed an
@@ -215,9 +222,9 @@ export function greenfieldReviewRepairPrompt(
 }
 
 const OPERATIVE_ARTIFACT =
-  /\b(?:agreements?|contracts?|leases?|amendments?|deeds?|instruments?|polic(?:y|ies)|bylaws?|clauses?|provisions?|covenants?|statutes?|regulations?|terms(?:[- ]and[- ]conditions)?)\b/iu;
+  /\b(?:agreements?|contracts?|leases?|amendments?|deeds?|instruments?|polic(?:y|ies)|bylaws?|clauses?|provisions?|covenants?|statutes?|regulations?|terms(?:[- ]and[- ]conditions)?|indentures?|certificates?|prox(?:y|ies)|escrow\s+agreements?)\b/iu;
 const ANALYTICAL_ARTIFACT =
-  /\b(?:memos?|memoranda|reports?|reviews?|assessments?|comparisons?|briefs?|notes?|research|analys(?:is|es)|summar(?:y|ies)|advice|emails?|letters?|checklists?|presentations?|diligence)\b/iu;
+  /\b(?:memos?|memorandums?|memoranda|reports?|reviews?|assessments?|comparisons?|briefs?|notes?|research|analys(?:is|es)|summar(?:y|ies)|advice|emails?|letters?|checklists?|presentations?|diligence|workpapers?|timelines?)\b/iu;
 const OPERATIVE_ACTION =
   /\b(?:draft(?:ed|ing|s)?|prepar(?:e|ed|ing|es)|creat(?:e|ed|ing|es)|revis(?:e|ed|ing|es)|redraft(?:ed|ing|s)?|edit(?:ed|ing|s)?|updat(?:e|ed|ing|es)|amend(?:ed|ing|s)?|negotiat(?:e|ed|ing|es)|redlin(?:e|ed|ing|es)|mark(?:ed|ing|s)?[ -]?up|conform(?:ed|ing|s)?)\b/giu;
 
@@ -463,8 +470,73 @@ function touchesDraft(finding: ConflictFinding): boolean {
   ].some((figure) => figure?.document === DRAFT_NAME);
 }
 
+/** H6: lint findings are the structural rung of the severity ladder. */
 function lintLine(finding: DraftingFinding): string {
-  return `- [${finding.severity}] ${finding.rule}: ${finding.excerpt} — ${finding.message}`;
+  return `- [structural] [${finding.severity}] ${finding.rule}: ${finding.excerpt} — ${finding.message}`;
+}
+
+/**
+ * M2: the amount a derived-value omission leaves the reader unable to size —
+ * the computed product when the deliverable dropped the amount, the stated
+ * part when it dropped the percent share.
+ */
+function derivedAmount(finding: DerivedValueOmission): number {
+  return finding.direction === "percent_without_amount"
+    ? (finding.whole.value * finding.percent.value) / 100
+    : finding.part.value;
+}
+
+interface RepairSection {
+  header: string;
+  lines: string[];
+}
+
+const REPAIR_HEADER =
+  "DETERMINISTIC CHECK (computed after synthesis; no model called it):";
+
+/**
+ * H6/M5: assemble the severity-ordered repair prompt and cap it so the model
+ * is never handed a wall of findings. Sections are already severity-ordered
+ * (arithmetic > omission > definition > structural); when the prompt would
+ * exceed MAX_REPAIR_PROMPT_CHARS the lowest-severity findings are dropped
+ * first and the cut is reported, so the receipt stays the source of truth.
+ */
+export function buildRepairPrompt(
+  sections: readonly RepairSection[],
+  suffix: string,
+): string {
+  const body = (active: readonly RepairSection[]) =>
+    active
+      .filter((section) => section.lines.length > 0)
+      .map((section) => `\n${section.header}\n${section.lines.join("\n")}\n`)
+      .join("");
+  const full = REPAIR_HEADER + body(sections) + suffix;
+  if (full.length <= MAX_REPAIR_PROMPT_CHARS) return full;
+  const remaining = sections.map((section) => ({
+    header: section.header,
+    lines: [...section.lines],
+  }));
+  let dropped = 0;
+  for (let i = remaining.length - 1; i >= 0; i -= 1) {
+    while (remaining[i].lines.length > 0) {
+      remaining[i].lines.pop();
+      dropped += 1;
+      const prompt =
+        REPAIR_HEADER +
+        body(remaining) +
+        `\n…and ${dropped} more findings (see receipt)\n` +
+        suffix;
+      if (prompt.length <= MAX_REPAIR_PROMPT_CHARS) return prompt;
+    }
+  }
+  // Pathological: even an empty findings list overflows (the fixed text
+  // alone). Hard-truncate rather than hand the model an oversized wall.
+  return (
+    REPAIR_HEADER +
+    body(remaining) +
+    `\n…and ${dropped} more findings (see receipt)\n` +
+    suffix
+  ).slice(0, MAX_REPAIR_PROMPT_CHARS);
 }
 
 /**
@@ -519,7 +591,7 @@ export function auditSlaDraft(
   // disagreement it merely inherited.
   const draftConflictLines = draftConflicts
     .slice(0, MAX_CONFLICT_FINDINGS)
-    .map((finding) => `- ${finding.detail}`);
+    .map((finding) => `- [arithmetic] ${finding.detail}`);
 
   const temporal = temporalScan(stack);
   const touchesDraftTemporal = (finding: TemporalFinding) =>
@@ -532,7 +604,7 @@ export function auditSlaDraft(
   );
   const draftTemporalLines = draftTemporal
     .slice(0, MAX_CONFLICT_FINDINGS)
-    .map((finding) => `- ${finding.detail}`);
+    .map((finding) => `- [arithmetic] ${finding.detail}`);
   const drift = termDriftReport(stack);
   const divergent = drift.shared.filter((row) => row.status === "divergent");
   const draftDivergent = divergent.filter((row) =>
@@ -546,8 +618,8 @@ export function auditSlaDraft(
     .slice(0, MAX_DRIFT_TERMS)
     .map((row) =>
       row.divergence
-        ? `- "${row.term}" (${row.divergence.documents[0]} vs ${row.divergence.documents[1]}): "${row.divergence.excerpts[0]}" / "${row.divergence.excerpts[1]}"`
-        : `- "${row.term}" (defined in ${row.definitions.map((def) => def.document).join(", ")})`,
+        ? `- [definition] "${row.term}" (${row.divergence.documents[0]} vs ${row.divergence.documents[1]}): "${row.divergence.excerpts[0]}" / "${row.divergence.excerpts[1]}"`
+        : `- [definition] "${row.term}" (defined in ${row.definitions.map((def) => def.document).join(", ")})`,
     );
 
   // Derived-value carry-through: analytical deliverables that restate one
@@ -561,9 +633,15 @@ export function auditSlaDraft(
   const derived = derivedEligible
     ? derivedValueScan(ledger.documents, draftDocument)
     : [];
-  const derivedLines = derived
+  // M2: before capping, order derived-value omissions by the size of the
+  // amount the reader cannot size, so the cap keeps the material findings
+  // rather than the first the scan encountered.
+  const derivedByImpact = [...derived].sort(
+    (a, b) => derivedAmount(b) - derivedAmount(a),
+  );
+  const derivedLines = derivedByImpact
     .slice(0, MAX_DERIVED_FINDINGS)
-    .map((finding) => `- ${finding.detail}`);
+    .map((finding) => `- [arithmetic] ${finding.detail}`);
 
   // Deadline working-back: analytical deliverables that engage a stated
   // "date ± duration" relationship but never carry the resolved deadline.
@@ -576,9 +654,14 @@ export function auditSlaDraft(
   const deadline: DeadlineOmissionReport = deadlineEligible
     ? deadlineOmissionScan(ledger.documents, draftDocument)
     : { findings: [], resolved: 0, engaged: 0, refusals: [] };
-  const deadlineLines = deadline.findings
+  // M2: the most time-sensitive deadline omissions are the soonest resolved
+  // dates; cap to the nearest deadlines first, not the first encountered.
+  const deadlineByProximity = [...deadline.findings].sort((a, b) =>
+    a.resolved.localeCompare(b.resolved),
+  );
+  const deadlineLines = deadlineByProximity
     .slice(0, MAX_DEADLINE_FINDINGS)
-    .map((finding) => `- ${finding.detail}`);
+    .map((finding) => `- [omission] ${finding.detail}`);
 
   // Undefined defined terms: the draft operatively USES a capitalized
   // defined-term-style phrase ("Permitted Tax Distributions") that no source
@@ -588,9 +671,15 @@ export function auditSlaDraft(
   // organ's quoting/use boundary covers the markup-analysis kind, where the
   // deliverable legitimately QUOTES the counterparty's terms.
   const undefinedTerms = undefinedTermScan(ledger.documents, draftDocument);
-  const undefinedLines = undefinedTerms
+  // M2: the undefined term a reader hits most often (highest unquoted
+  // occurrence count) outranks a phrase used once; the cap keeps the
+  // most-frequent terms first.
+  const undefinedByOccurrence = [...undefinedTerms].sort(
+    (a, b) => b.occurrences - a.occurrences,
+  );
+  const undefinedLines = undefinedByOccurrence
     .slice(0, MAX_UNDEFINED_FINDINGS)
-    .map((finding) => `- ${finding.detail}`);
+    .map((finding) => `- [definition] ${finding.detail}`);
 
   const lint = draftingLint(draft);
   const lintErrors = lint.findings.filter(
@@ -608,41 +697,79 @@ export function auditSlaDraft(
 
   // Lint warnings alone do not buy a revision pass: they are style-grade and
   // the pass costs a whole model turn.
-  const worthARevision =
+  // M7: a lone single undefined-term finding is the classic probable false
+  // positive (M4: "British Columbia" fires H3 alone) and should not buy a
+  // token-expensive repair pass. A pass requires either (a) ≥2 organs firing
+  // or (b) one deterministic / historically high-precision organ — conflict,
+  // derived-value, and deadline are measured high-precision; temporal, drift,
+  // and lint errors are deterministic — so the only gated case is H3 alone
+  // with exactly one finding.
+  const firedOrgans =
+    (draftConflicts.length > 0 ? 1 : 0) +
+    (draftTemporal.length > 0 ? 1 : 0) +
+    (termDriftRepairEligible && draftDivergent.length > 0 ? 1 : 0) +
+    (derivedEligible && derived.length > 0 ? 1 : 0) +
+    (deadlineEligible && deadline.findings.length > 0 ? 1 : 0) +
+    (undefinedTerms.length > 0 ? 1 : 0) +
+    (lintErrors.length > 0 ? 1 : 0);
+  const highPrecisionFired =
     draftConflicts.length > 0 ||
-    draftTemporal.length > 0 ||
-    (termDriftRepairEligible && draftDivergent.length > 0) ||
     (derivedEligible && derived.length > 0) ||
-    (deadlineEligible && deadline.findings.length > 0) ||
-    undefinedTerms.length > 0 ||
-    lintErrors.length > 0;
+    (deadlineEligible && deadline.findings.length > 0);
+  const onlyH3SingleFinding = firedOrgans === 1 && undefinedTerms.length === 1;
+  const worthARevision =
+    !onlyH3SingleFinding &&
+    (firedOrgans >= 2 ||
+      highPrecisionFired ||
+      draftTemporal.length > 0 ||
+      (termDriftRepairEligible && draftDivergent.length > 0) ||
+      lintErrors.length > 0 ||
+      undefinedTerms.length > 0);
+  // H6: sections are severity-ordered (arithmetic > omission > definition >
+  // structural); M5 caps the assembled prompt and reports what was cut.
   const repairPrompt = worthARevision
-    ? `DETERMINISTIC CHECK (computed after synthesis; no model called it):\n` +
-      (draftConflictLines.length
-        ? `\nArithmetic in your deliverable that does not close:\n${draftConflictLines.join("\n")}\n`
-        : "") +
-      (draftTemporalLines.length
-        ? `\nDeadline arithmetic in your deliverable that does not close — a period and its resolved date disagree:\n${draftTemporalLines.join("\n")}\n`
-        : "") +
-      (driftLines.length
-        ? `\nDefined terms redefined by your deliverable — check which source definition controls:\n${driftLines.join("\n")}\n`
-        : "") +
-      (derivedLines.length
-        ? `\nQuantified amounts your deliverable cites by percent but never states (or vice versa):\n${derivedLines.join("\n")}\n`
-        : "") +
-      (deadlineLines.length
-        ? `\nDeadline relationships your deliverable engaged but never resolved to an actual date:\n${deadlineLines.join("\n")}\n`
-        : "") +
-      (undefinedLines.length
-        ? `\nDefined terms your deliverable uses but no source or the draft defines:\n${undefinedLines.join("\n")}\n`
-        : "") +
-      (lintLines.length
-        ? `\nDrafting lint over your deliverable (exact spans; errors first):\n${lintLines.join("\n")}\n`
-        : "") +
-      `\nVerify each finding against its source or calculation inputs and revise every material error. Preserve transparent derivations and professional recommendations; their wording need not appear verbatim in a source. Then ` +
-      (options?.artifactDeliverable
-        ? `apply the corrections to the deliverable document itself with the library tools (revise the document; do not paste its content into chat).`
-        : `output the COMPLETE revised deliverable (full text, same format), not a description of changes.`)
+    ? buildRepairPrompt(
+        [
+          {
+            header: "Arithmetic in your deliverable that does not close:",
+            lines: draftConflictLines,
+          },
+          {
+            header:
+              "Deadline arithmetic in your deliverable that does not close — a period and its resolved date disagree:",
+            lines: draftTemporalLines,
+          },
+          {
+            header:
+              "Quantified amounts your deliverable cites by percent but never states (or vice versa):",
+            lines: derivedLines,
+          },
+          {
+            header:
+              "Deadline relationships your deliverable engaged but never resolved to an actual date:",
+            lines: deadlineLines,
+          },
+          {
+            header:
+              "Defined terms redefined by your deliverable — check which source definition controls:",
+            lines: driftLines,
+          },
+          {
+            header:
+              "Defined terms your deliverable uses but no source or the draft defines:",
+            lines: undefinedLines,
+          },
+          {
+            header:
+              "Drafting lint over your deliverable (exact spans; errors first):",
+            lines: lintLines,
+          },
+        ],
+        `\nVerify each finding against its source or calculation inputs and revise every material error. Preserve transparent derivations and professional recommendations; their wording need not appear verbatim in a source. Then ` +
+          (options?.artifactDeliverable
+            ? `apply the corrections to the deliverable document itself with the library tools (revise the document; do not paste its content into chat).`
+            : `output the COMPLETE revised deliverable (full text, same format), not a description of changes.`),
+      )
     : null;
   return {
     repairPrompt,
@@ -674,22 +801,22 @@ export function auditSlaDraft(
       },
       derived_value: {
         findings: derived.length,
-        finding_details: derived
+        finding_details: derivedByImpact
           .slice(0, MAX_DERIVED_FINDINGS)
           .map((finding) => finding.detail),
-        part_displays: derived
+        part_displays: derivedByImpact
           .slice(0, MAX_DERIVED_FINDINGS)
           .map((finding) => finding.part.display),
-        percent_displays: derived
+        percent_displays: derivedByImpact
           .slice(0, MAX_DERIVED_FINDINGS)
           .map((finding) => finding.percent.display),
-        whole_displays: derived
+        whole_displays: derivedByImpact
           .slice(0, MAX_DERIVED_FINDINGS)
           .map((finding) => finding.whole.display),
       },
       deadline_omission: {
         findings: deadline.findings.length,
-        finding_details: deadline.findings
+        finding_details: deadlineByProximity
           .slice(0, MAX_DEADLINE_FINDINGS)
           .map((finding) => finding.detail),
         resolved: deadline.resolved,
@@ -698,10 +825,10 @@ export function auditSlaDraft(
       },
       undefined_term: {
         findings: undefinedTerms.length,
-        finding_details: undefinedTerms
+        finding_details: undefinedByOccurrence
           .slice(0, MAX_UNDEFINED_FINDINGS)
           .map((finding) => finding.detail),
-        terms: undefinedTerms
+        terms: undefinedByOccurrence
           .slice(0, MAX_UNDEFINED_FINDINGS)
           .map((finding) => finding.term),
       },
@@ -712,6 +839,82 @@ export function auditSlaDraft(
       },
     },
     report,
+  };
+}
+
+/**
+ * H7: feedback-loop drift between the pre-repair audit and the post-repair
+ * re-audit. The repair pass is one shot — no second repair is triggered — but
+ * the receipt reports which organs GAINED findings, so a fix that introduced a
+ * new defect (e.g. corrected the amount but broke the percent) is visible
+ * instead of being silently committed.
+ */
+export interface SlaRevisionDrift {
+  by_organ: {
+    conflict: number;
+    temporal: number;
+    term_drift: number;
+    derived_value: number;
+    deadline_omission: number;
+    undefined_term: number;
+    drafting_lint_errors: number;
+    drafting_lint_warnings: number;
+  };
+  /** Total new findings across every organ. */
+  total_new: number;
+}
+
+/** New details after the repair pass that the pre-repair audit did not carry. */
+function newFindingDetails(
+  previous: readonly string[],
+  revised: readonly string[],
+): number {
+  const seen = new Set(previous);
+  return revised.filter((detail) => !seen.has(detail)).length;
+}
+
+export function slaRevisionDrift(
+  previous: SlaAudit,
+  revised: SlaAudit,
+): SlaRevisionDrift {
+  const byOrgan: SlaRevisionDrift["by_organ"] = {
+    conflict: newFindingDetails(
+      previous.receipt.conflict.finding_details,
+      revised.receipt.conflict.finding_details,
+    ),
+    temporal: newFindingDetails(
+      previous.receipt.temporal.finding_details,
+      revised.receipt.temporal.finding_details,
+    ),
+    term_drift: newFindingDetails(
+      previous.receipt.term_drift.terms,
+      revised.receipt.term_drift.terms,
+    ),
+    derived_value: newFindingDetails(
+      previous.receipt.derived_value.finding_details,
+      revised.receipt.derived_value.finding_details,
+    ),
+    deadline_omission: newFindingDetails(
+      previous.receipt.deadline_omission.finding_details,
+      revised.receipt.deadline_omission.finding_details,
+    ),
+    undefined_term: newFindingDetails(
+      previous.receipt.undefined_term.finding_details,
+      revised.receipt.undefined_term.finding_details,
+    ),
+    drafting_lint_errors: Math.max(
+      0,
+      revised.receipt.drafting_lint.errors - previous.receipt.drafting_lint.errors,
+    ),
+    drafting_lint_warnings: Math.max(
+      0,
+      revised.receipt.drafting_lint.warnings -
+        previous.receipt.drafting_lint.warnings,
+    ),
+  };
+  return {
+    by_organ: byOrgan,
+    total_new: Object.values(byOrgan).reduce((sum, count) => sum + count, 0),
   };
 }
 

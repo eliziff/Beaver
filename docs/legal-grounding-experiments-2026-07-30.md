@@ -5849,3 +5849,316 @@ quarter of a benchmark in this repository for five stages, and the v2
 sources carry `&#160;`, smart quotes and `Â©` that make the same class of
 error easy.
 
+## Amendment 2026-08-01 — length-controlled alienness audit
+
+The archived C4 matrix was re-read without invoking current lint, retrieval,
+citator, checker, or model code. The input was verified against manifest hash
+`e0499a36791eaa1bcb285d3620ca3f2d3d897d3e85b11e83d61b4fd3b952f24a`.
+Post-revision `lint_in_loop` rows were excluded; claims below 12 content words
+were excluded; citator columns were not used. The analysis used leave-one-case-
+out isotonic residualization of alienness against claim length and 1,000
+cell-clustered bootstrap replicates.
+
+The primary checker-cell label produced a length-controlled alienness AUC of
+0.543 versus length-only 0.439 (delta +0.104), but the propagated claim label
+produced 0.676 versus 0.704 (delta −0.028). At the frozen alienness threshold
+`>0.823529`, the primary analysis recalled 0.4% of rejected claims and the
+propagated analysis recalled 0/86 positives. Stratified results also changed
+direction between Canadian and US case/legislation rows. Verdict:
+**unstable; no incremental detector value established**. Receipt:
+`alienness-length-audit-2026-08-01T22-56-52-090Z.json` under the private
+OpenLegalData experiment directory. This remains checker-derived exploratory
+evidence, not human gold and not a production threshold.
+
+## Amendment 2026-08-01 — current citator live smoke with Luna
+
+After the current citator normalization and graph were verified, a held-constant
+Codex Luna medium run compared `quote_first` with `attested_framing` on eight
+Canadian case-law CSLB items: four rich profiles, one thin profile, and three
+none profiles. The same 16-cell run completed with 0 errors and one checker
+call per cell. `quote_first` scored mean target-token F1 0.50 and
+`attested_framing` 0.51; both arms received supported verdicts on all eight
+items. The difference is not meaningful at this n.
+
+The current citation web behaved as expected: candidates were registered for
+all four rich cases, one for the thin case, and none for the three no-profile
+cases. Luna quoted zero attested characterization candidates, including the
+rich cases, so this run tests the suppression/availability contract but not
+the value of borrowed stands-for wording. Receipt:
+`results-2026-08-01T23-04-09-346Z.jsonl` in the private grounding experiment
+directory. No conclusion about citation-web quality is drawn from this smoke.
+
+## Amendment 2026-08-01 — 128-cell Luna citation-web expansion
+
+The eight-cell smoke was expanded to 128 live cells at Codex Luna medium with
+eight workers: 32 fixed cases (30 Canadian CSLB cases plus two US CLERC case
+controls), two arms (`quote_first` and `attested_framing`), and two independent
+replicates. Both 64-cell batches completed with zero transport errors.
+
+Across the 64 cells per arm, `quote_first` had 61 supported and 2
+partially-supported holistic verdicts, mean target-token F1 0.485, and mean
+latency 9.6 seconds. `attested_framing` had 57 supported and 4
+partially-supported verdicts, mean F1 0.508, and mean latency 10.7 seconds.
+The replicate means crossed: replicate 1 F1 was 0.469 vs 0.523 in favor of
+attested framing; replicate 2 was 0.502 vs 0.492 in favor of quote-first.
+
+The current citator offered candidates in 16 rich-profile cells across the two
+replicates, but Luna quoted zero attested characterization candidates. Thus
+the larger run confirms candidate availability and suppression behavior, not
+the value of citation-web wording. The result is **no demonstrated arm win**;
+the F1 difference is within the observed run variability. Receipts:
+`results-2026-08-01T23-08-25-843Z.jsonl` and
+`results-2026-08-01T23-10-05-065Z.jsonl` in the private grounding experiment
+directory.
+
+## Amendment 2026-08-02 — journal provenance v2 and live replication
+
+The journal benchmark now treats law-review provenance as a strong positive
+signal. Each positive carries the publication dataset, editorial legal-
+journal provenance, paired citation status, and a vetted-positive flag. The
+label remains `author_attested` for scorer compatibility: it means an
+editorially published law-review proposition was paired to a citation by the
+existing pipeline. That is strong evidence about provenance, while exact
+case-support remains a separate dimension.
+
+The 1,000-source journal smoke produced 2,945 rows: 1,000 author-attested
+positives and 1,945 constructed negatives. The generator self-test passed.
+
+The Luna instrument smoke completed 3/3 CSLB cells with zero errors (mean F1
+0.62, mean latency 10.4s). Larger fixed-model runs used eight workers and low
+effort. On validation, `quote_first` scored mean F1 0.46 with 87% pass versus
+`attested_framing` at 0.53 and 97% pass. On held-out test, the results were
+0.49/100% and 0.54/100%, respectively. These are composition checks, not
+journal-discriminator measurements; the journal benchmark is now ready for
+the next signal-scoring pass. Receipts:
+`results-2026-08-02T00-17-21-647Z.jsonl`,
+`results-2026-08-02T00-17-51-706Z.jsonl`, and
+`results-2026-08-02T00-19-21-834Z.jsonl`.
+
+## Plan — judge-, court-, and decision-specific alienness
+
+Deferred implementation plan: for each CSLB case-law benchmark item, resolve
+the decision author and court from local A2AJ/CourtListener metadata. Use the
+existing citation and local-text indexes, with conservative normalization of
+initials, periods, and whitespace; do not fuzzy-merge names across provinces.
+Build three held-out profiles: same judge within the same province plus
+Supreme Court decisions, same court, and the existing decision profile.
+Exclude the target decision and all mutated descendants from every profile.
+Report coverage, reference-document counts, raw and length-adjusted
+alienness, and grouped AUC/PR-AUC against the constructed CSLB mutations.
+Compare judge-only, court-only, decision-only, and simple combinations.
+
+The falsifiable question is whether judge-specific language adds signal after
+decision-specific alienness and length are controlled. Ambiguous judge
+metadata must remain missing rather than silently falling back to court or
+province text.
+
+## Amendment 2026-08-02 — CLERC/Housing Luna live calls
+
+The non-journal smoke used Luna low effort and completed all 3 cells with no
+transport errors: one CLERC case and two HousingQA cases. Mean F1 was 0.16;
+the small sample is dominated by HousingQA misses and is not a benchmark
+conclusion.
+
+A four-arm expansion then ran 12 cells at eight-worker concurrency. Every
+cell completed without transport errors. Per-arm results were:
+
+| arm | n | pass | support gate | mean F1 |
+| --- | ---: | ---: | ---: | ---: |
+| quote_first | 3 | 0.67 | 0.00 | 0.17 |
+| attested_framing | 3 | 0.67 | 0.00 | 0.17 |
+| holistic_check | 3 | 0.67 | 1.00 | 0.16 |
+| lint_gated | 3 | 0.67 | 0.00 | 0.15 |
+
+This is an instrument smoke, not a useful arm ranking: the available
+CLERC/Housing selection is only three cases. Receipts:
+`results-2026-08-02T00-23-09-113Z.jsonl` and
+`results-2026-08-02T00-23-39-963Z.jsonl`.
+
+## Amendment 2026-08-02 — oracle and journal-author benchmark lanes
+
+Implemented two no-adjudication benchmark generators. The CSLB generator in
+`backend/scripts/legal-grounding-honest-benchmark.ts` creates mechanically
+paired rows from exact CSLB evidence: a gold-span positive and controlled
+negative mutations (same-class passage substitution, unsupported qualifier,
+and unsupported clause). These labels are oracle-by-construction labels for
+the mutation, not human judgments about arbitrary model answers.
+
+The journal lane in `backend/scripts/journal-author-benchmark.ts` reuses the
+existing paired-footnote SQLite database. It emits an `author_attested` row
+for each paired proposition, plus same-journal citation swaps and unsupported
+qualifier mutations. It also records author-specific and journal-specific
+trigram alienness using a leave-one-article-out reference profile. The
+author-attested label means only that the proposition was paired with a
+footnote in that author's article; it is not a claim that the proposition is
+legally supported by the cited case.
+
+A 100-source smoke produced 225 rows: 100 author-attested positives and 125
+constructed negatives, with 31 positive/test rows and 55 negative/test rows.
+The generator self-test and the existing honest-benchmark self-test pass.
+This is a characterization/transfer benchmark, not yet a grounding gold
+set: the derived commentary database is interim, author metadata can be
+coarse, and the negative mutations are synthetic. The next honest test should
+freeze the generator, generate a much larger journal sample, keep articles
+disjoint across development and test, and evaluate whether author-specific
+alienness adds signal beyond generic alienness and length on the constructed
+CSLB lane.
+
+## Amendment 2026-08-02 — honest claim-level benchmark harness
+
+Added `backend/scripts/legal-grounding-honest-benchmark.ts`, a human-label-
+first harness. `--prepare-canlegal` converts the local CanLegalRAGBench answer
+and citation material into a claim-level annotation queue; the queue contains
+4,568 rows in this checkout and deliberately has no evidence text or labels.
+Reviewers must fill `evidence_texts`, `label`, `split`, and source/document
+metadata before scoring. Existing Luna, checker, and target-F1 values are not
+accepted as gold.
+
+`--score` supports frozen ablations for length, generic alienness,
+scope-mismatch, qualification drift, judge-specific alienness, and evidence
+overlap. It fits simple development-split standardization, evaluates an
+explicit held-out split, reports ROC-AUC, PR-AUC, and document-grouped bootstrap
+intervals, and refuses annotation rows or missing labels/evidence. The local
+LegalBench-RAG holdout remains a source/evidence pool and transfer slice, not
+an automatic citation-grounding gold set.
+
+## Amendment 2026-08-02 — 300-cell low-effort Luna discriminator run
+
+After a six-cell network smoke completed with 0 errors, a larger fixed-model
+run used Codex Luna low effort, 12 workers, five composition arms
+(`quote_first`, `attested_framing`, `required_slot`, `holistic_check`, and
+`lint_gated`), and 60 distinct CSLB cases: 30 validation and 30 test cases,
+balanced across Canadian case law, legislation, and adversarial false-premise
+items. All 300 cells completed with 0 transport errors. The old 256-cell bed
+was not included.
+
+Combined runner summaries were: `quote_first` n=60, F1 0.521, support 0.983;
+`attested_framing` n=60, F1 0.540, support 0.933; `required_slot` n=60, F1
+0.375, support 0.650; `holistic_check` n=60, F1 0.478, support 0.983; and
+`lint_gated` n=60, F1 0.550, support 0.750. These are composition diagnostics,
+not detector accuracy.
+
+The live signal scan was run separately on the two 150-cell files. Against
+the current checker rejection label, length-adjusted AUCs were:
+
+| signal | validation | test |
+| --- | ---: | ---: |
+| generic alienness | 0.899 | 0.851 |
+| citation-scope mismatch | 0.640 | 0.631 |
+| qualification drift | 0.742 | 0.423 |
+| evidence overlap | 0.186 | 0.150 |
+
+Generic alienness therefore survives this split change as a checker-behavior
+signal, while scope mismatch is a weaker but more stable candidate.
+Qualification drift did not replicate. Evidence overlap was directionally
+inverted because it measures support: raw AUC was 0.186 validation / 0.081
+test, equivalent to approximately 0.814 / 0.919 after reversing the score;
+length-adjusted reversed AUC was approximately 0.814 / 0.850. It is therefore
+a promising cheap candidate, though still lexical rather than semantic.
+These labels are still model-checker outcomes, not independent human
+grounding labels; no robust grounding claim is promoted from this run. Receipts:
+`results-2026-08-01T23-59-16-352Z.jsonl` and
+`results-2026-08-02T00-01-19-179Z.jsonl` in the private grounding experiment
+directory.
+
+## Amendment 2026-08-02 — source-resolved RegLab semantic benchmark
+
+The source-resolved RegLab lane is now wired through the existing strict
+semantic checker. From 1,704 segmented claims, 537 had at least one cited
+opinion with text and a deterministic top-three lexical passage receipt. This
+covers 121 of 201 responses: 106 response labels were `grounded`, 8
+`misgrounded`, and 7 `ungrounded`. The resulting 537 claim rows contain 456
+projected `supported` and 81 projected `unsupported` labels. These are
+response-level expert labels applied to member claims, not independent
+claim-level gold. 938 claims had no citation and 229 cited claims had no
+resolved opinion text and were excluded from this lane.
+
+Codex Luna low effort ran 1,074 checker calls (537 rows × two replicates) at
+eight-worker concurrency with no transport errors. Verdicts were 659
+`supported`, 297 `insufficient`, 29 `contradicted`, 75 `abstain`, and 14
+`invalid`; exact replicate agreement was 0.823. At claim level, one-call
+review recalled 49.4% of projected unsupported claims at a 36.8% review rate
+among projected supported claims. Reviewing when either replicate objected
+raised recall to 55.6% and the false-positive rate to 42.1%. At response level,
+the same policies recalled 93.3%/100% of the 15 response-level bad labels, but
+reviewed 79.2%/84.9% of the 106 response-level grounded labels. This supports
+semantic checking as a conservative routing stage only under the current
+weak-label/source-resolution protocol; it does not support a standalone
+first-pass clearance rule.
+
+The deterministic source-anchored recheck produced claim-level AUCs of 0.597
+against `misgrounded` and 0.637 against all non-grounded labels for
+`novel_content_fraction`. Max pooling by response produced 0.829 and 0.703,
+respectively; the other cheap signals were mostly near chance at claim level.
+The response-level result is consistent with the earlier alienness finding,
+but its adverse class is only 8/15 responses. It remains an exploratory
+provenance/response detector until an independent claim-level gold or a much
+larger natural-error sample is available.
+
+Receipts: `reglab-source-resolved-v1.jsonl`,
+`semantic-benchmark-2026-08-02T01-44-07-072Z.jsonl`, and
+`reglab-semantic-v1-score.json` under the private
+`%TEMP%\\beaver-legal-grounding` directory. The benchmark preparer records
+the source hash, citation resolution, selected span hashes, and label
+provenance in its manifest.
+
+## Amendment 2026-08-02 — exact-quote framing benchmark
+
+Implemented `backend/scripts/legal-grounding-quote-framing-benchmark.ts`, a
+no-model benchmark for the narrow product question: after a quotation is
+already verified exact, can cheap deterministic features detect unsupported
+framing around it? The frozen set has 256 paired groups and 512 rows, split
+128/128 by cited decision. It contains 128 Canadian judicial descriptions and
+128 Canadian law-review descriptions. Every authentic row contains one quote
+verified against the cited decision by the shipped deterministic evidence
+tier. Its paired negative keeps that quote and citation fixed and applies one
+of four balanced mutations: wrong-frame substitution, modal strengthening,
+scope universalization, or polarity reversal. Cited decisions and citing
+documents do not repeat across groups or mutation donors. These are strong
+attestation plus constructed-error labels, not human gold.
+
+A local feasibility pass found no exact US journal/case pairs from 132
+CourtListener-resolved candidates; the two candidates covered by cached CAP
+volumes also failed exact matching. The proposed 64-row US cell was therefore
+replaced with 64 additional Canadian journal rows rather than silently calling
+unverified pairs grounded. This version supports Canadian-prose conclusions
+only. A separate audit called the shipped `standsForProfile` surface for 32
+selected citations: all 32 profiles were available and rich, with no errors;
+the selected exact span was in the rank-capped top 24 for 16. Profile rank was
+recorded as provenance and was not allowed to create or veto a label.
+
+Held-out results were:
+
+| deterministic arm | ROC-AUC | grouped 95% interval | false-negative rate at dev-frozen >=95% recall | supported false-flag rate |
+| --- | ---: | ---: | ---: | ---: |
+| length only | 0.500 | 0.500–0.500 | 3.1% | 96.9% |
+| generic alienness | 0.507 | 0.473–0.544 | 8.6% | 93.8% |
+| novel-content residual | 0.546 | 0.515–0.580 | 5.5% | 92.2% |
+| residual or explicit operator risk | 0.710 | 0.658–0.767 | 2.3% | 72.7% |
+
+Length was intentionally equalized for three mutation families and held within
+15% for wrong-frame swaps, so its 0.500 result is a successful control, not a
+finding that length is useless on natural inference traffic. Length remains a
+valid cheap routing feature and should be calibrated on Beaver's natural
+outputs. Generic alienness and novel-content residual did not add useful
+general framing discrimination here. Explicit operator risk was the only
+surviving deterministic hypothesis: it improved the composite and caught all
+held-out modal, scope, and polarity mutations, but the composite still routed
+72.7% of supported controls. It is therefore a targeted high-recall review
+trigger, not a default framing detector. Wrong-frame substitution remains the
+hard case: its composite AUC was 0.611 and miss rate 9.4%.
+
+The Beaver recommendation is to keep exact-quote verification separate,
+retain length as a cheap inference-time router, discard generic alienness and
+residual novelty as universal quote-framing gates, and use explicit modal,
+scope, or polarity changes only to escalate review. No semantic/model call is
+justified by this deterministic benchmark itself.
+
+Focused verification passed with `--self-test`, `--dry-run`, `--prepare`, and
+`--score`; no broad test suite was run. Durable receipts are under
+`%LOCALAPPDATA%\\OpenLegalData\\experiments\\legal-grounding\\quote-framing-v1`.
+Hashes: rows
+`a9be53f4539206a07a54ca14abcde34deb124aeb00b5d9018bfd9445bd029e95`,
+manifest `7c558c2521dd3b088a767b4badf4cbc00dba4a1061cb86701b16948697db4a8a`,
+and score `554cf711f59c76244414ffede1a0eeefdda7386d3e2c0724075420ed2b8741f2`.
+

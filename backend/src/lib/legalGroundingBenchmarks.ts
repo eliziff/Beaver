@@ -275,3 +275,24 @@ export async function housingCases(
       })),
     }));
 }
+
+/** Build the canonical case-id -> prompt map used when banked answers are
+ * rechecked. Callers choose the benchmark files; case construction remains
+ * centralized here so the checker sees the original prompt verbatim. */
+export async function legalGroundingQuestionIndex(args: {
+  cslb?: { file: string; splits: string[]; perSource?: number };
+  clerc?: { file: string; count?: number };
+  housing?: { file: string; ids: number[] };
+}): Promise<Map<string, string>> {
+  const cases: BenchmarkCase[] = [];
+  if (args.cslb)
+    for (const split of args.cslb.splits)
+      cases.push(
+        ...cslbCases(args.cslb.file, split, args.cslb.perSource ?? 10_000),
+      );
+  if (args.clerc)
+    cases.push(...clercCases(args.clerc.file, args.clerc.count ?? 10_000));
+  if (args.housing)
+    cases.push(...(await housingCases(args.housing.file, args.housing.ids)));
+  return new Map(cases.map((item) => [item.id, item.prompt]));
+}

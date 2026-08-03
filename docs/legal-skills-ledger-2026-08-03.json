@@ -1,0 +1,128 @@
+[
+  {
+    "skill": "diligence-issue-extraction",
+    "sourceRepo": "anthropics/claude-for-legal",
+    "sourcePath": "corporate-legal/skills/diligence-issue-extraction/SKILL.md",
+    "taskSlug": "gaming-strategic-acquisition",
+    "taskId": "diligence/gaming-strategic-acquisition",
+    "match": "tight",
+    "rationale": "Skill's Step 1 inventory-VDR / Step 3 extraction sets (material contracts: change-of-control, assignment, exclusivity, termination; corporate: cap table, board consent) map to the 608 criteria on omitted commercial consents, CoC consents, assignment/termination notices. Step 4 severity (Red/Yellow/Green) maps to the red-flags deliverable. Same input kind (VDR), same deliverable kind (severity-graded issue report)."
+  },
+  {
+    "skill": "diligence-issue-extraction",
+    "sourceRepo": "anthropics/claude-for-legal",
+    "sourcePath": "corporate-legal/skills/diligence-issue-extraction/SKILL.md",
+    "taskSlug": "cybersecurity-tuck-in",
+    "taskId": "diligence/cybersecurity-tuck-in",
+    "match": "tight",
+    "rationale": "Rubric (635 criteria) spans IIA/undertaking consents, FedRAMP/BIS/sanctions compliance gaps. Skill's inventory->materiality-filter->extract->severity workflow and regulatory-compliance issue sets map directly; deliverable (severity-graded diligence issues memo) matches red-flags-report."
+  },
+  {
+    "skill": "diligence-issue-extraction",
+    "sourceRepo": "anthropics/claude-for-legal",
+    "sourcePath": "corporate-legal/skills/diligence-issue-extraction/SKILL.md",
+    "taskSlug": "enterprise-software-diversification",
+    "taskId": "diligence/enterprise-software-diversification",
+    "match": "tight",
+    "rationale": "Rubric (879 criteria) is almost entirely prior-consent requirements on customer/vendor contracts plus revenue-at-risk quantification. Skill's material-contract extraction set (CoC, assignment, consent) and per-finding 'Recommendation' closure map criterion-by-criterion."
+  },
+  {
+    "skill": "diligence-issue-extraction",
+    "sourceRepo": "anthropics/claude-for-legal",
+    "sourcePath": "corporate-legal/skills/diligence-issue-extraction/SKILL.md",
+    "taskSlug": "aerospace-vertical-integration",
+    "taskId": "diligence/aerospace-vertical-integration",
+    "match": "tight",
+    "rationale": "Rubric (498 criteria) focuses on license non-sublicensability/assignment gaps and IP ownership-chain issues. Skill's IP extraction set (ownership chain, licensed vs owned, assignment language) plus its consent/assignment handling map directly to the red-flags deliverable."
+  },
+  {
+    "skill": "diligence-issue-extraction",
+    "sourceRepo": "anthropics/claude-for-legal",
+    "sourcePath": "corporate-legal/skills/diligence-issue-extraction/SKILL.md",
+    "taskSlug": "draft-acquisition-due-diligence",
+    "taskId": "corporate-ma/draft-acquisition-due-diligence",
+    "match": "tight",
+    "rationale": "Task: comprehensive DD memo from NovaBright VDR. Rubric issues (missing Certificate of Designation/cap table, board quorum, CoC termination/assignment rights, IP) are exactly the skill's corporate + material-contracts + IP extraction sets, and the skill's per-category memo with findings + 'Recommendation:' closure matches the rubric's identify-and-recommend criteria."
+  },
+  {
+    "skill": "analyzing-covenant-compliance",
+    "sourceRepo": "casemark/skills",
+    "sourcePath": "skills/finance/analyzing-covenant-compliance/SKILL.md",
+    "taskSlug": "compare-compliance-certificate-against-financial-covenants",
+    "taskId": "banking-finance/compare-compliance-certificate-against-financial-covenants",
+    "match": "tight",
+    "rationale": "Skill prescribes: recalculate each covenant ratio independently from financials using the agreement's defined terms, verify each EBITDA add-back against its cap, and 'compare your result to the borrower's reported compliance certificate figure; investigate any variance exceeding 0.05x.' That is the task's verbatim operation (recalc LTM EBITDA, non-recurring add-back cap application, fixed-charge recalculation, deviation memo)."
+  },
+  {
+    "skill": "analyzing-covenant-compliance",
+    "sourceRepo": "casemark/skills",
+    "sourcePath": "skills/finance/analyzing-covenant-compliance/SKILL.md",
+    "taskSlug": "compare-borrower-covenant-compliance-analysis",
+    "taskId": "banking-finance/compare-borrower-covenant-compliance-analysis",
+    "match": "tight",
+    "rationale": "Skill's independent recalculation + definition-trace discipline ('Defined terms match the credit agreement exactly') covers the rubric's leverage-ratio-vs-certificate contradiction, omitted PIK/capital-lease debt (Total Funded Debt definition), EBITDA add-back cap violations, wrong interest-coverage denominator, and liquidity/revolver miscalculations. Default-trigger/cure step covers the default-analysis deliverable."
+  },
+  {
+    "skill": "analyzing-credit-agreement-terms",
+    "sourceRepo": "casemark/skills",
+    "sourcePath": "skills/capital/analyzing-credit-agreement-terms/SKILL.md",
+    "taskSlug": "compare-credit-agreement-against-term-sheet",
+    "taskId": "banking-finance/compare-credit-agreement-against-term-sheet",
+    "match": "tight",
+    "rationale": "Task is a credit-agreement-vs-term-sheet deviation report. Skill Step 6 'Perform documentation comparison — side-by-side matrix with deviation flags' with acceptance rule 'every material deviation is captured — err on over-inclusion' maps to the SOFR-floor, pricing-grid-tier, CapEx-cap, and ECF-sweep-threshold deviation criteria. Facility Overview Table covers pricing/covenant terms."
+  },
+  {
+    "skill": "analyzing-credit-agreement-terms",
+    "sourceRepo": "casemark/skills",
+    "sourcePath": "skills/capital/analyzing-credit-agreement-terms/SKILL.md",
+    "taskSlug": "compare-credit-agreement-to-commitment-letter",
+    "taskId": "banking-finance/compare-credit-agreement-to-commitment-letter",
+    "match": "tight",
+    "rationale": "Deviation report of draft credit agreement vs commitment letter/no-flex confirmation. Skill's documentation-comparison matrix + covenant/basket/equity-cure/asset-sale analysis covers the TLB margin, SOFR floor, ECF stepdown, asset-sale reinvestment, springing-covenant trigger, equity-cure-period, and RP-basket criteria."
+  },
+  {
+    "skill": "conducting-buy-side-due-diligence",
+    "sourceRepo": "casemark/skills",
+    "sourcePath": "skills/capital/conducting-buy-side-due-diligence/SKILL.md",
+    "taskSlug": "analyze-cim-deal-teaser/scenario-01",
+    "taskId": "corporate-ma/analyze-cim-deal-teaser/scenario-01",
+    "match": "tight",
+    "rationale": "Skill Step 3 'reconcile CIM to audited statements, identify QoE adjustments, validate revenue and customer concentration, assess key-person dependencies' and Step 5 'quantified impact table + go/no-go recommendation' map onto the rubric's EBITDA-bridge scrubbing, add-back recalculation, customer-concentration, key-person, revenue-at-risk, valuation-guardrail, and IOI-recommendation criteria."
+  },
+  {
+    "skill": "conducting-buy-side-due-diligence",
+    "sourceRepo": "casemark/skills",
+    "sourcePath": "skills/capital/conducting-buy-side-due-diligence/SKILL.md",
+    "taskSlug": "analyze-cim-deal-teaser/scenario-02",
+    "taskId": "corporate-ma/analyze-cim-deal-teaser/scenario-02",
+    "match": "tight",
+    "rationale": "Same correspondence as scenario-01: the skill's CIM-to-audited reconciliation, QoE adjustment identification, customer-concentration and key-person analysis, and go/no-go synthesis cover the rubric's issue identification, recalculation, and recommendation criteria."
+  },
+  {
+    "skill": "conducting-environmental-remediation-analysis",
+    "sourceRepo": "casemark/skills",
+    "sourcePath": "skills/capital/conducting-environmental-remediation-analysis/SKILL.md",
+    "taskSlug": "analyze-environmental-liability-exposure-in-targets-operations",
+    "taskId": "corporate-ma/analyze-environmental-liability-exposure-in-targets-operations",
+    "match": "tight",
+    "rationale": "Task: environmental liability DD memo for chemical target. Skill's 5 steps (classify contamination; regulatory framework; low/base/high remediation cost estimates; insurance-coverage adequacy; quantify liability vs transaction value with indemnity/escrow/holdback deal terms) cover the rubric's understated remediation accrual, expired indemnification, PFAS/AFFF exposure, missing-sampling data gaps, insurance, and price-adjustment criteria."
+  },
+  {
+    "skill": "modeling-tax-attribute-preservation",
+    "sourceRepo": "casemark/skills",
+    "sourcePath": "skills/capital/modeling-tax-attribute-preservation/SKILL.md",
+    "taskSlug": "analyze-section-382-analysis",
+    "taskId": "tax/analyze-section-382-analysis",
+    "match": "tight",
+    "rationale": "Skill's ownership-change test (5%+ shareholder identification, rolling testing period, 50-point threshold), Section 382 annual limitation computation, (l)(5)/(l)(6) exceptions, and NOL-utilization forecast map to the task's SPAC-merger ownership-change, threshold, limitation, and NOL-utilization criteria. The skill's Excel deliverable (ownership-change testing schedule, 382-limitation model, NOL utilization) matches the task's workbook tabs 1:1."
+  },
+  {
+    "skill": "proxy-statement",
+    "sourceRepo": "casemark/skills",
+    "sourcePath": "skills/legal/proxy-statement/SKILL.md",
+    "taskSlug": "draft-proxy-statement-disclosure",
+    "taskId": "capital-markets/draft-proxy-statement-disclosure",
+    "match": "tight",
+    "rationale": "Task: draft DEF 14A + flag gaps/conflicts. Skill prescribes the Regulation 14A / Rule 14a-3 proxy drafting workflow with section checklists — Board/Governance incl. independence (maps to the NYSE cooling-off independent-director criteria), Related-Party Transactions per Item 404(a) (maps to the Prism/Okafor $4.3M RPT criteria), Executive Compensation CD&A per Item 402(b), Shareholder Proposals per Rule 14a-8, say-on-pay cross-references — and a [TO FILL] gap-flagging convention matching the task's issues-and-inconsistencies memo."
+  }
+]
