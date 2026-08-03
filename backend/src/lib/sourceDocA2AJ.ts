@@ -669,13 +669,20 @@ const REPORT_PAGE_RE = /\b(?:S\.?C\.?R\.?|R\.?C\.?S\.?)\s+(\d{1,4})\b/iu;
 
 type NumberedMarker = { number: number; start: number; contentStart?: number };
 type ParagraphMarker = NumberedMarker & { style: "bracket" | "dot" | "bare" };
+type CaseParagraphMode = "legacy" | "a2aj" | "courtlistener";
+export type CaseBlockExcludedRange = Readonly<{ start: number; end: number }>;
 const DOT_PROVISION_OPENING_RE =
   /^\d{1,4}\.\s+\(\d{1,4}\)\s+/u;
 const PROVISION_LANGUAGE_RE =
   /\b(?:Act|Code|Regulations?|Rules?|shall|must)\b/iu;
+const TIGHT_DOT_PARAGRAPH_MARK_RE =
+  /^[ \t]*(\d{1,4})\.(?=\p{Lu})/gmu;
 
-function wordCount(text: string) {
-  return text.match(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu)?.length ?? 0;
+function wordCount(text: string, lettersOnly = false) {
+  const pattern = lettersOnly
+    ? /\p{L}+(?:['’][\p{L}]+)*/gu
+    : /[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu;
+  return text.match(pattern)?.length ?? 0;
 }
 
 function median(values: number[]) {
@@ -729,6 +736,63 @@ function monotoneScopes(markers: NumberedMarker[], maxGap = 8) {
     byLast.set(marker.number, [...(byLast.get(marker.number) ?? []), index]);
   }
   return scopes;
+}
+
+/** A reset closes a CourtListener candidate instead of reviving an old list. */
+function contiguousScopes(markers: NumberedMarker[]) {
+  const scopes: NumberedMarker[][] = [];
+  let current: NumberedMarker[] = [];
+  for (const marker of markers) {
+    if (
+      current.length &&
+      marker.number === current.at(-1)!.number + 1
+    ) {
+      current.push(marker);
+      continue;
+    }
+    if (current.length) scopes.push(current);
+    current = [marker];
+  }
+  if (current.length) scopes.push(current);
+  return scopes;
+}
+
+function paragraphMarkers(text: string, mode: CaseParagraphMode) {
+  const markers: ParagraphMarker[] = [];
+  for (const match of text.matchAll(PARAGRAPH_MARK_RE)) {
+    const [bracket, dot, bare] = match.slice(1);
+    const style = bracket ? "bracket" : dot ? "dot" : "bare";
+    markers.push({
+      start: match.index,
+      number: Number(bracket ?? dot ?? bare),
+      // CourtListener uses bare and dotted Arabic labels interchangeably.
+      style: mode === "courtlistener" && style === "bare" ? "dot" : style,
+    });
+  }
+  if (mode === "courtlistener") {
+    const knownStarts = new Set(markers.map(({ start }) => start));
+    for (const match of text.matchAll(TIGHT_DOT_PARAGRAPH_MARK_RE)) {
+      if (knownStarts.has(match.index)) continue;
+      markers.push({ number: Number(match[1]), start: match.index, style: "dot" });
+    }
+  }
+  return markers.sort((left, right) => left.start - right.start);
+}
+
+function outsideExcludedRanges(
+  markers: ParagraphMarker[],
+  ranges: readonly CaseBlockExcludedRange[],
+) {
+  const ordered = ranges
+    .filter(({ end, start }) => end > start)
+    .slice()
+    .sort((left, right) => left.start - right.start);
+  let index = 0;
+  return markers.filter((marker) => {
+    while (ordered[index] && ordered[index].end <= marker.start) index += 1;
+    const range = ordered[index];
+    return !range || marker.start < range.start || marker.start >= range.end;
+  });
 }
 
 /**
@@ -965,6 +1029,7 @@ function paragraphSourceBlocks(
   allMarkers: ParagraphMarker[],
   style: ParagraphMarker["style"],
   recoverHeadings = false,
+  extraBoundaries: readonly number[] = [],
 ) {
   const selected =
     recoverHeadings && style !== "bare"
@@ -976,6 +1041,7 @@ function paragraphSourceBlocks(
         .filter((marker) => marker.style === style)
         .map(({ start }) => start),
       ...selected.map(({ start }) => start),
+      ...extraBoundaries,
       text.length,
     ]),
   ].sort((left, right) => left - right);
@@ -997,22 +1063,17 @@ function paragraphSourceBlocks(
 function paragraphBlocks(
   text: string,
   minRun = 5,
-  strictA2AJ = false,
+  mode: CaseParagraphMode = "legacy",
+  excludedRanges: readonly CaseBlockExcludedRange[] = [],
 ): SourceDocBlock[] {
   if (!text) return [];
-  const markers: ParagraphMarker[] = [];
-  for (const match of text.matchAll(PARAGRAPH_MARK_RE)) {
-    const [bracket, dot, bare] = match.slice(1);
-    markers.push({
-      start: match.index,
-      number: Number(bracket ?? dot ?? bare),
-      style: bracket ? "bracket" : dot ? "dot" : "bare",
-    });
-  }
-  const quotedProvisionStarts = strictA2AJ
-    ? quotedDotProvisionStarts(text, markers)
+  const strict = mode !== "legacy";
+  const markers = paragraphMarkers(text, mode);
+  const visibleMarkers = outsideExcludedRanges(markers, excludedRanges);
+  const quotedProvisionStarts = strict
+    ? quotedDotProvisionStarts(text, visibleMarkers)
     : new Set<number>();
-  const eligibleMarkers = markers.filter(
+  const eligibleMarkers = visibleMarkers.filter(
     (marker) => !quotedProvisionStarts.has(marker.start),
   );
   const hypotheses: Array<{
@@ -1022,23 +1083,34 @@ function paragraphBlocks(
     shortComplete: boolean;
   }> = [];
   for (const style of ["bracket", "dot", "bare"] as const) {
-    const styleMarkers = strictA2AJ
-      ? style === "bare"
-        ? eligibleMarkers.filter((marker) => marker.style === style)
-        : recoverHeadingJoinedMarkers(text, eligibleMarkers, style)
+    const recovered =
+      strict && style !== "bare"
+        ? recoverHeadingJoinedMarkers(text, eligibleMarkers, style)
+        : eligibleMarkers.filter((marker) => marker.style === style);
+    // Recovery scans the rendered source for a missing label. CourtListener
+    // footnote containers are outside the decision spine, so do not let a
+    // recovered candidate put them back after the initial fence.
+    const styleMarkers = strict
+      ? mode === "courtlistener"
+        ? outsideExcludedRanges(recovered, excludedRanges)
+        : recovered
       : markers.filter((marker) => marker.style === style);
-    for (const scope of monotoneScopes(styleMarkers, strictA2AJ ? 1 : 8)) {
+    const scopes =
+      mode === "courtlistener"
+        ? contiguousScopes(styleMarkers)
+        : monotoneScopes(styleMarkers, mode === "a2aj" ? 1 : 8);
+    for (const scope of scopes) {
       if (scope.length >= minRun) {
         hypotheses.push({
           style,
           markers: scope,
-          allMarkers: strictA2AJ ? styleMarkers : markers,
+          allMarkers: strict ? styleMarkers : markers,
           shortComplete: false,
         });
       } else if (
         style === "bracket" &&
         scope.length >= 2 &&
-        (!strictA2AJ || scope.length === styleMarkers.length) &&
+        (!strict || scope.length === styleMarkers.length) &&
         scope.every((marker, index) => marker.number === index + 1)
       ) {
         // Complete short [1]..[N] ladders are real structure in short
@@ -1050,7 +1122,7 @@ function paragraphBlocks(
         hypotheses.push({
           style,
           markers: scope,
-          allMarkers: strictA2AJ ? styleMarkers : markers,
+          allMarkers: strict ? styleMarkers : markers,
           shortComplete: true,
         });
       }
@@ -1076,7 +1148,7 @@ function paragraphBlocks(
     ...[...short].sort(byStrength),
   ];
   for (const hypothesis of ordered) {
-    const allOffsets = (strictA2AJ ? hypothesis.allMarkers : markers)
+    const allOffsets = (strict ? hypothesis.allMarkers : markers)
       .filter((marker) => marker.style === hypothesis.style)
       .map((marker) => marker.start);
     const nextOffset = new Map(
@@ -1096,7 +1168,7 @@ function paragraphBlocks(
       (blocks.at(-1)!.start - blocks[0].start) / Math.max(text.length, 1);
     const startRatio = blocks[0].start / Math.max(text.length, 1);
     const counts = blocks.map((block) =>
-      wordCount(text.slice(block.start, block.end)),
+      wordCount(text.slice(block.start, block.end), mode === "courtlistener"),
     );
     const boundedCounts = blocks.length > 1 ? counts.slice(0, -1) : counts;
     const medianWords = median(boundedCounts);
@@ -1127,7 +1199,8 @@ function paragraphBlocks(
           hypothesis.markers,
           hypothesis.allMarkers,
           hypothesis.style,
-          !strictA2AJ,
+          !strict,
+          excludedRanges.map(({ start }) => start),
         );
       }
       continue;
@@ -1156,7 +1229,8 @@ function paragraphBlocks(
       hypothesis.markers,
       hypothesis.allMarkers,
       hypothesis.style,
-      !strictA2AJ,
+      !strict,
+      excludedRanges.map(({ start }) => start),
     );
   }
   return [];
@@ -1354,10 +1428,11 @@ function caseBlocks(
     alternateCitation?: string | null;
     dataset?: string | null;
   },
-  strictA2AJ = false,
+  mode: CaseParagraphMode = "legacy",
+  excludedRanges: readonly CaseBlockExcludedRange[] = [],
 ): SourceDocBlock[] {
   return [
-    ...paragraphBlocks(input.text, 5, strictA2AJ),
+    ...paragraphBlocks(input.text, 5, mode, excludedRanges),
     ...pageBlocks(
       input.text,
       reporterStartPage(input.citation, input.alternateCitation),
@@ -1374,6 +1449,19 @@ export function a2ajCaseBlocks(input: {
   dataset?: string | null;
 }): SourceDocBlock[] {
   return caseBlocks(input);
+}
+
+/** CourtListener's rendered HTML needs source-specific paragraph fences. */
+export function courtlistenerCaseBlocks(
+  input: {
+    text: string;
+    citation?: string | null;
+    alternateCitation?: string | null;
+    dataset?: string | null;
+  },
+  excludedRanges: readonly CaseBlockExcludedRange[] = [],
+): SourceDocBlock[] {
+  return caseBlocks(input, "courtlistener", excludedRanges);
 }
 
 export type A2AJStructureSummary = {
@@ -1412,7 +1500,7 @@ export function compileA2AJSourceDoc(input: CompileInput): SourceDoc {
     return createSourceDoc({
       ...identity,
       text: input.text,
-      blocks: caseBlocks(input, true),
+      blocks: caseBlocks(input, "a2aj"),
     });
   }
 

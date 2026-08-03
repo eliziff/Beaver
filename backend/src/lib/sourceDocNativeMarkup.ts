@@ -8,7 +8,11 @@ import {
   type SourceDocLookup,
   type SourceDocProvider,
 } from "./sourceDoc";
-import { a2ajCaseBlocks } from "./sourceDocA2AJ";
+import {
+  a2ajCaseBlocks,
+  courtlistenerCaseBlocks,
+  type CaseBlockExcludedRange,
+} from "./sourceDocA2AJ";
 
 /**
  * Native provider markup (Akoma Ntoso eIds, CourtListener paragraph ids and
@@ -61,6 +65,23 @@ const BREAK_TAGS = new Set([
   "section",
   "subsection",
   "tr",
+]);
+
+const VOID_TAGS = new Set([
+  "area",
+  "base",
+  "br",
+  "col",
+  "embed",
+  "hr",
+  "img",
+  "input",
+  "link",
+  "meta",
+  "param",
+  "source",
+  "track",
+  "wbr",
 ]);
 
 /**
@@ -186,10 +207,30 @@ function nativeIdentity(
     : null;
 }
 
+function courtlistenerFootnoteContainer(
+  provider: SourceDocProvider,
+  tag: string,
+  attrs: string,
+) {
+  if (
+    provider !== "courtlistener" ||
+    !["div", "li", "section"].includes(tag)
+  ) {
+    return false;
+  }
+  return (
+    /\bfootnotes\b/iu.test(attribute(attrs, "class")) ||
+    /^(?:fn|footnote)[_-]/iu.test(attribute(attrs, "id"))
+  );
+}
+
 function nativeMarkupBlocks(provider: SourceDocProvider, markup: string) {
   const parts: string[] = [];
   const blocks: SourceDocBlock[] = [];
   const open: PendingBlock[] = [];
+  const tagStack: string[] = [];
+  const openExcluded: Array<{ tag: string; depth: number; start: number }> = [];
+  const excludedRanges: CaseBlockExcludedRange[] = [];
   let position = 0;
   const appendText = (value: string) => {
     if (!value) return;
@@ -234,6 +275,24 @@ function nativeMarkupBlocks(provider: SourceDocProvider, markup: string) {
     const closing = raw.match(/^<\s*\/\s*([\w:-]+)/u);
     if (closing) {
       const tag = closing[1].split(":").at(-1)!.toLowerCase();
+      const depth = tagStack.lastIndexOf(tag);
+      if (depth >= 0) {
+        let excluded = -1;
+        for (let index = openExcluded.length - 1; index >= 0; index -= 1) {
+          const entry = openExcluded[index];
+          if (entry.tag === tag && entry.depth === depth) {
+            excluded = index;
+            break;
+          }
+        }
+        if (excluded >= 0) {
+          const pending = openExcluded.splice(excluded, 1)[0];
+          if (position > pending.start) {
+            excludedRanges.push({ start: pending.start, end: position });
+          }
+        }
+        tagStack.length = depth;
+      }
       for (let index = open.length - 1; index >= 0; index -= 1) {
         if (open[index].tag !== tag) continue;
         const pending = open.splice(index, 1)[0];
@@ -259,6 +318,14 @@ function nativeMarkupBlocks(provider: SourceDocProvider, markup: string) {
     if (!opening || raw.startsWith("<!")) continue;
     const tag = opening[1].split(":").at(-1)!.toLowerCase();
     const attrs = opening[2] ?? "";
+    const selfClosing = /\/\s*>$/u.test(raw) || VOID_TAGS.has(tag);
+    if (!selfClosing) {
+      const depth = tagStack.length;
+      tagStack.push(tag);
+      if (courtlistenerFootnoteContainer(provider, tag, attrs)) {
+        openExcluded.push({ tag, depth, start: position });
+      }
+    }
     const identity = nativeIdentity(provider, tag, attrs);
     if (identity?.kind === "page") {
       if (!identity.inline) appendBreak();
@@ -286,6 +353,11 @@ function nativeMarkupBlocks(provider: SourceDocProvider, markup: string) {
     .replace(/[ \t]+\n/gu, "\n")
     .replace(/\n{3,}/gu, "\n\n")
     .trim();
+  for (const pending of openExcluded) {
+    if (text.length > pending.start) {
+      excludedRanges.push({ start: pending.start, end: text.length });
+    }
+  }
   for (const pending of open) {
     if (text.length > pending.start) {
       blocks.push({
@@ -312,7 +384,36 @@ function nativeMarkupBlocks(provider: SourceDocProvider, markup: string) {
       });
     }
   });
-  return { text, blocks };
+  return { text, blocks, excludedRanges };
+}
+
+function hasGappedParagraphSpine(blocks: readonly SourceDocBlock[]) {
+  const labels = blocks
+    .filter(({ kind, label }) => kind === "paragraph" && /^par\d+$/u.test(label))
+    .sort((left, right) => left.start - right.start)
+    .map(({ label }) => Number(label.slice(3)));
+  return labels.some((label, index) => index > 0 && label !== labels[index - 1] + 1);
+}
+
+function clipParagraphsAtExcludedRanges(
+  blocks: readonly SourceDocBlock[],
+  ranges: readonly CaseBlockExcludedRange[],
+) {
+  const ordered = ranges
+    .filter(({ end, start }) => end > start)
+    .slice()
+    .sort((left, right) => left.start - right.start);
+  return blocks.flatMap((block) => {
+    if (block.kind !== "paragraph") return [block];
+    let end = block.end;
+    for (const range of ordered) {
+      if (range.start >= end) break;
+      if (range.end <= block.start) continue;
+      if (range.start <= block.start) return [];
+      end = range.start;
+    }
+    return end > block.start ? [{ ...block, end }] : [];
+  });
 }
 
 export function compileNativeMarkupSourceDoc(args: {
@@ -325,7 +426,11 @@ export function compileNativeMarkupSourceDoc(args: {
 }): SourceDoc {
   const native = args.markup?.trim()
     ? nativeMarkupBlocks(args.provider, args.markup)
-    : { text: "", blocks: [] as SourceDocBlock[] };
+    : {
+        text: "",
+        blocks: [] as SourceDocBlock[],
+        excludedRanges: [] as CaseBlockExcludedRange[],
+      };
   const text = native.text || args.text;
   const nativeLocators = new Set(
     native.blocks.flatMap((block) =>
@@ -334,10 +439,44 @@ export function compileNativeMarkupSourceDoc(args: {
       ),
     ),
   );
-  const heuristic = a2ajCaseBlocks({
-    text,
-    citation: args.citation,
-  }).filter(
+  // Harvard CAP casebody HTML has a frozen, receipt-bearing structure
+  // contract. Its own page/footnote markup already supplies that structure;
+  // keep its established fallback byte-for-byte while hardening the ordinary
+  // CourtListener opinion HTML that has no native paragraph labels.
+  const harvardCasebody = /<(?:\w+:)?(?:section|article)\b[^>]*\bcasebody\b/iu.test(
+    args.markup ?? "",
+  );
+  const legacyBlocks = a2ajCaseBlocks({ text, citation: args.citation });
+  const clippedLegacyBlocks =
+    args.provider === "courtlistener"
+      ? clipParagraphsAtExcludedRanges(legacyBlocks, native.excludedRanges)
+      : legacyBlocks;
+  const candidateLegacyBlocks =
+    args.provider === "courtlistener"
+      ? clippedLegacyBlocks.filter(
+          (block) =>
+            block.kind !== "paragraph" ||
+            /\p{L}/u.test(text.slice(block.start, block.end)),
+        )
+      : clippedLegacyBlocks;
+  // Leave an already-safe generic spine alone. The CourtListener profile is
+  // a ratchet: source-marked footnotes and numeric-only tables are removed
+  // deterministically; the stricter selector runs only for an absent or
+  // gapped remaining spine.
+  const needsCourtlistenerProfile =
+    args.provider === "courtlistener" &&
+    (!candidateLegacyBlocks.some(({ kind }) => kind === "paragraph") ||
+      hasGappedParagraphSpine(candidateLegacyBlocks));
+  const heuristicBlocks =
+    args.provider === "courtlistener" &&
+    !harvardCasebody &&
+    needsCourtlistenerProfile
+      ? courtlistenerCaseBlocks(
+          { text, citation: args.citation },
+          native.excludedRanges,
+        )
+      : candidateLegacyBlocks;
+  const heuristic = heuristicBlocks.filter(
     ({ kind, label }) =>
       !nativeLocators.has(`${kind}:${label.toLowerCase()}`),
   );
