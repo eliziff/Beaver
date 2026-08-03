@@ -37,6 +37,7 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import os from "node:os";
@@ -819,7 +820,10 @@ async function main() {
   const documents = readdirSync(docsDir, { recursive: true, encoding: "utf8" })
     .map((rel) => rel.replace(/\\/gu, "/"))
     .filter((rel) => !rel.endsWith("/"))
-    .filter((rel) => existsSync(path.join(docsDir, rel)))
+    .filter((rel) => {
+      const sourcePath = path.join(docsDir, rel);
+      return existsSync(sourcePath) && statSync(sourcePath).isFile();
+    })
     .sort(ordinalCompare);
 
   const deliverables = [
