@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "experiment_id": "harvey-lab-mike-control-xhigh-v1",
+  "registered_at": "2026-08-03T11:25:05Z",
+  "status": "preregistered_before_performer_calls",
+  "experiment_class": "visible-development Codex-path side run",
+  "reason": "The leading one-shot treatments use xhigh reasoning while the fresh frozen-Mike baseline used high. This adversarial control isolates whether the apparent gain is merely an effort-setting gain.",
+  "implementation_commit_before_launch": "d4a040f4a83ba151eb62d1960aaf6bed3f67d407",
+  "surface": "mike_control_v1",
+  "frozen_upstream_mike_commit": "2266446b0d26f735865b8cd3bb153b28e7d11b17",
+  "performer": {
+    "model": "codex/gpt-5.6-luna",
+    "reasoning_effort": "xhigh",
+    "temperature_requested": 0,
+    "temperature_transmitted": false,
+    "required_provider_service_tier_reported": "default",
+    "run_count": 3,
+    "max_concurrent_processes": 3,
+    "run_id_template": "2026-08-03-mike-control-xhigh-v1--{task_slug_with_slashes_replaced_by_double_hyphens}",
+    "harness_source_bundle_sha256": "3e95e2d2c9eca8833bff9a8cba21c215f0329ad73f7a58cb9814ff554e6d1ef3",
+    "tool_schema_sha256": "cecc7c7395d25e2aab4616ceed989615267657fb293d2be5470ba374fd36fdd5",
+    "tool_schema_bytes": 3876
+  },
+  "tasks": {
+    "banking-finance/extract-credit-agreement-covenants": {
+      "system_prompt_sha256": "299f95296b30428c3c99917961ba9ec83915f184327716134330c813a4d8583e",
+      "system_prompt_bytes": 2719,
+      "source_bundle_sha256": "b5c3605cfbe3d53377712d0db3463f945a5c69cf7caef0da01b45d7b9ee75296",
+      "prompt_cache_key": "lab-f953d52dfc0af56af18f9ee0c36c238061f50c4f4f31293f2b91345be0d2c6e0",
+      "run_fingerprint_sha256": "453f38cb270cad6cdcba2d8e75a3908de521c2a231ef0e235fc7863d79e14853"
+    },
+    "tax/draft-transfer-pricing-documentation": {
+      "system_prompt_sha256": "cb5b1e479edf22ec3ee42ada92af5d0dea0a0deb29788a0411401674c1e036c0",
+      "system_prompt_bytes": 4437,
+      "source_bundle_sha256": "0ebfa8f86d9bd3405d4ccd638471ded6f48a4748ca0cfba76b992f1a5ea15e3d",
+      "prompt_cache_key": "lab-0a8acb8f8a35abd18846cc469306e309b67f0efcfccded7e3398587d9196597f",
+      "run_fingerprint_sha256": "c14479db0d310070cafc9b76593ea542ba473f7ad5f710ce62b91efb3e254d1e"
+    },
+    "capital-markets/draft-indenture-for-senior-secured-notes-offering": {
+      "system_prompt_sha256": "22dc350de81aa94250f1a4566047f543e736ddc5715927bf672159592b21ab07",
+      "system_prompt_bytes": 3207,
+      "source_bundle_sha256": "c1319d3aec66399c21a7a1a00b64821d48e4eecc190bbc15474148e7da33d7fd",
+      "prompt_cache_key": "lab-83820b8596bcb0e816e0fbaf9eeb1953eca324ed3907931e05b0fddd503841fd",
+      "run_fingerprint_sha256": "f348a3b20e1f9c8bce9a64b018a4d1fc54c20d96a42ab946984499ad56af35b5"
+    }
+  },
+  "trace_gate": "Require complete source coverage, valid requested DOCX files, default reported tier, zero schema/path errors, exact registered fingerprints, and inspected token/cache/context/tool/latency telemetry before judging.",
+  "judge": {
+    "model": "codex/gpt-5.6-sol",
+    "reasoning_effort": "provider default",
+    "temperature_requested": 0,
+    "criterion_level": true,
+    "max_concurrent_outputs": 3,
+    "max_concurrent_criteria_per_output": 1,
+    "local_process_priority": "BelowNormal",
+    "prompt_sha256": "da0f2618d996ac5415a960dfc445e53b6fbd1b22602dd587bf6ecccbe139cb21",
+    "judge_source_sha256": "3546fec5ca1c4d655c8510d8cf2e0ca2201a94428c86d1628fbcdf5afe83a4b5",
+    "scoring_source_sha256": "e7f5e0accdaffe3ba9d350fb417f0c09f6f372ff5888def5908c73113291a9a3"
+  },
+  "decision_rule": "If xhigh frozen Mike matches or beats the candidate at comparable cost, do not attribute the gain to the candidate architecture."
+}
