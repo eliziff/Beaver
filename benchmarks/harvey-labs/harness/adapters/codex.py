@@ -155,12 +155,10 @@ class CodexAdapter(OpenAIAdapter):
         model: str,
         temperature: float = 0.0,
         reasoning_effort: str | None = None,
-        reasoning_mode: str | None = None,
     ):
         super().__init__(
             model=model,
             temperature=temperature,
             reasoning_effort=reasoning_effort,
-            reasoning_mode=reasoning_mode,
         )
         self.client = CodexClient()
