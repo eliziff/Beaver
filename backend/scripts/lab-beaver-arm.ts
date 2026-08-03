@@ -44,8 +44,14 @@ import path from "node:path";
 import { ALLOWED_DOCUMENT_TYPES } from "../src/lib/documentTypes";
 import {
   ADAPTIVE_MIKE_DELTA,
+  MIKE_GREP_LAB_SYSTEM_PROMPT,
+  MIKE_GREP_LAB_TOOLS,
   MIKE_GREP_DELTAS,
+  MIKE_STRUCTURE_PATHS_LAB_SYSTEM_PROMPT,
+  MIKE_STRUCTURE_PATHS_LAB_TOOLS,
   UPSTREAM_MIKE_COMMIT,
+  UPSTREAM_MIKE_LAB_SYSTEM_PROMPT,
+  UPSTREAM_MIKE_LAB_TOOLS,
   UPSTREAM_MIKE_SCHEMA_SHA256,
   UPSTREAM_MIKE_SOURCE_BLOBS,
   UPSTREAM_TERMINAL_DELTA,
@@ -63,6 +69,27 @@ function argument(name: string, fallback?: string): string {
 }
 
 const DEFAULT_LAB_ROOT = path.join(__dirname, "../../benchmarks/harvey-labs");
+
+type SourceBundleEntry = {
+  source: string;
+  source_sha256: string;
+  uploaded: string;
+  uploaded_sha256: string;
+};
+
+const ordinalCompare = (left: string, right: string) =>
+  left < right ? -1 : left > right ? 1 : 0;
+
+const sourceBundleSha256 = (entries: SourceBundleEntry[]) =>
+  createHash("sha256")
+    .update(
+      JSON.stringify(
+        [...entries].sort((left, right) =>
+          ordinalCompare(left.source, right.source),
+        ),
+      ),
+    )
+    .digest("hex");
 
 // Derived from the real gate rather than mirrored by hand: a stale copy is
 // how .eml ended up wrapped as .docx long after Beaver could read it.
@@ -162,9 +189,26 @@ const toolResults = (events: SseEvent[]) =>
                     versionId,
                     start,
                     end,
+                    filename:
+                      typeof segment.filename === "string"
+                        ? segment.filename
+                        : null,
+                    locator:
+                      typeof segment.locator === "string"
+                        ? segment.locator
+                        : null,
                     projection:
                       typeof segment.projection === "string"
                         ? segment.projection
+                        : null,
+                    kind:
+                      segment.kind === "candidate" ||
+                      segment.kind === "evidence"
+                        ? segment.kind
+                        : null,
+                    virtualPath:
+                      typeof segment.virtual_path === "string"
+                        ? segment.virtual_path
                         : null,
                   },
                 ]
@@ -299,6 +343,7 @@ async function main() {
     "run-id",
     `${task}/beaver-${arm}-${model.replace(/[:./]/gu, "-")}/${timestamp}`,
   );
+  const preflightOnly = process.argv.includes("--preflight-only");
   const continuousCodingEnvironment = {
     MIKE_NAV_SHAPE: "address",
     MIKE_TOOL_SHAPE: "coding",
@@ -564,6 +609,22 @@ async function main() {
       MIKE_SLA_WORKFLOW: "0",
       MIKE_GREENFIELD_REVIEW: "0",
     },
+    mike_structure_paths_v1: {
+      MIKE_NAV_SHAPE: "legacy",
+      MIKE_TOOL_SHAPE: "mike-structure-paths-v1",
+      MIKE_RETRIEVAL_EXPERIMENT: "s1-structure-paths",
+      MIKE_PROGRESSIVE_DISCLOSURE: "0",
+      MIKE_MODEL_COVERAGE_ROUTING: "0",
+      MIKE_WHOLE_READ_MAX_CHARS: "",
+      MIKE_TOOL_RESULT_CAP: "64000",
+      MIKE_SUPPRESS_DUPLICATE_WHOLE_READS: "1",
+      MIKE_TERMINAL_AUTHORING: "1",
+      MIKE_CONTEXT_HANDOFF: "0",
+      MIKE_CONTINUOUS_EVIDENCE: "0",
+      MIKE_OPENAI_COMPACT_THRESHOLD: "",
+      MIKE_SLA_WORKFLOW: "0",
+      MIKE_GREENFIELD_REVIEW: "0",
+    },
     v5_reconstruction_v1: {
       MIKE_NAV_SHAPE: "address",
       MIKE_TOOL_SHAPE: "coding",
@@ -584,7 +645,7 @@ async function main() {
   };
   if (!armEnvironment[arm])
     throw new Error(
-      `unknown --arm ${arm}; expected p0, coding_finalist, d1, hybrid, hybrid_finalist, coverage_finalist, coverage_hybrid_v2, checkpoint_paged_v1, v13, v14, v15, coverage_soft_v2, working_set, compiler_hybrid, sla_hybrid, sla_working_set, h9, h10, address, upstream, upstream_terminal_v1, adaptive_mike_v1, mike_grep_v1, mike_legal_v1, mike_legal_guided_v1, or v5_reconstruction_v1`,
+      `unknown --arm ${arm}; expected p0, coding_finalist, d1, hybrid, hybrid_finalist, coverage_finalist, coverage_hybrid_v2, checkpoint_paged_v1, v13, v14, v15, coverage_soft_v2, working_set, compiler_hybrid, sla_hybrid, sla_working_set, h9, h10, address, upstream, upstream_terminal_v1, adaptive_mike_v1, mike_grep_v1, mike_legal_v1, mike_legal_guided_v1, mike_structure_paths_v1, or v5_reconstruction_v1`,
     );
 
   // Re-spawn into the isolated anonymous-mode environment (same recipe as
@@ -646,6 +707,7 @@ async function main() {
           MIKE_SLA_WORKFLOW: "0",
           MIKE_SLA_STRATEGY: "",
           MIKE_GREENFIELD_REVIEW: "0",
+          MIKE_SCHEMA_ENCODING: "",
           ...armEnvironment[arm],
           MIKE_LLM_CONTEXT_MANIFEST_PATH: path.join(dataHome, "manifest.jsonl"),
           // SLA receipts land beside the run's other artifacts; inert
@@ -671,15 +733,23 @@ async function main() {
   // tree, so a run cannot silently fingerprint post-run edits.
   const harnessSourceFiles = [
     "scripts/lab-beaver-arm.ts",
+    "scripts/lab-authored-documents.ts",
     "src/routes/chat.ts",
+    "src/lib/documentTypes.ts",
     "src/lib/chat/evidenceExposure.ts",
     "src/lib/chat/localAssistantTools.ts",
     "src/lib/chat/upstreamMikeBenchmarkSurface.ts",
     "src/lib/chat/prompts.ts",
     "src/lib/chat/slaWorkflow.ts",
+    "src/lib/legalDocumentNavigator.ts",
+    "src/lib/legalStructureSidecar.ts",
+    "src/lib/legalTextSkeleton.ts",
+    "src/lib/localDocumentStore.ts",
+    "src/lib/localPdfLookup.ts",
     "src/lib/llm/codexApi.ts",
     "src/lib/llm/contextManifest.ts",
     "src/lib/llm/openai.ts",
+    "src/lib/llm/schemaEncoding.ts",
     "src/lib/llm/types.ts",
   ];
   const harnessSourceFingerprints = Object.fromEntries(
@@ -711,9 +781,14 @@ async function main() {
   });
   if (!splitEntry || splitEntry.tier !== "dev")
     throw new Error(`LAB task ${task} is not in the visible dev tier`);
-  const config = JSON.parse(
-    readFileSync(path.join(taskDir, "task.json"), "utf8"),
-  ) as {
+  const taskConfigText = readFileSync(
+    path.join(taskDir, "task.json"),
+    "utf8",
+  );
+  const taskConfigSha256 = createHash("sha256")
+    .update(taskConfigText)
+    .digest("hex");
+  const config = JSON.parse(taskConfigText) as {
     title: string;
     instructions?: string;
     criteria: { deliverables?: string[] }[];
@@ -725,7 +800,8 @@ async function main() {
   const documents = readdirSync(docsDir, { recursive: true, encoding: "utf8" })
     .map((rel) => rel.replace(/\\/gu, "/"))
     .filter((rel) => !rel.endsWith("/"))
-    .filter((rel) => existsSync(path.join(docsDir, rel)));
+    .filter((rel) => existsSync(path.join(docsDir, rel)))
+    .sort(ordinalCompare);
 
   const deliverables = [
     ...new Set(config.criteria.flatMap((c) => c.deliverables ?? [])),
@@ -738,8 +814,115 @@ async function main() {
       `deliverables out of scope for the beaver arm: ${unsupported.join(", ")}`,
     );
 
+  if (preflightOnly) {
+    const unsupportedSources = documents.filter(
+      (relative) =>
+        !UPLOADABLE.has(path.extname(relative).slice(1).toLowerCase()),
+    );
+    if (unsupportedSources.length) {
+      throw new Error(
+        `preflight cannot reproduce wrapped upload bytes: ${unsupportedSources.join(", ")}`,
+      );
+    }
+    let sourceBytes = 0;
+    const sourceEntries = documents.map((relative): SourceBundleEntry => {
+      const bytes = readFileSync(path.join(docsDir, relative));
+      sourceBytes += bytes.length;
+      const digest = createHash("sha256").update(bytes).digest("hex");
+      return {
+        source: relative,
+        source_sha256: digest,
+        uploaded: path.basename(relative),
+        uploaded_sha256: digest,
+      };
+    });
+    const surface = ["upstream", "upstream_terminal_v1"].includes(arm)
+      ? {
+          systemPrompt: UPSTREAM_MIKE_LAB_SYSTEM_PROMPT,
+          tools: UPSTREAM_MIKE_LAB_TOOLS,
+        }
+      : arm === "mike_grep_v1"
+        ? {
+            systemPrompt: MIKE_GREP_LAB_SYSTEM_PROMPT,
+            tools: MIKE_GREP_LAB_TOOLS,
+          }
+        : arm === "mike_structure_paths_v1"
+          ? {
+              systemPrompt: MIKE_STRUCTURE_PATHS_LAB_SYSTEM_PROMPT,
+              tools: MIKE_STRUCTURE_PATHS_LAB_TOOLS,
+            }
+          : null;
+    if (!surface) {
+      throw new Error(`--preflight-only is not registered for arm ${arm}`);
+    }
+    const inventoryPrompt =
+      "\n\nAVAILABLE DOCUMENTS:\n" +
+      documents
+        .map((relative, index) => {
+          const filename = path.basename(relative);
+          const fileType = path.extname(filename).slice(1).toLowerCase();
+          return `- doc-${index}: ${filename} (${fileType})`;
+        })
+        .join("\n") +
+      "\n";
+    const { toResponseTools } = await import("../src/lib/llm/openai");
+    const responseTools = toResponseTools(surface.tools);
+    console.log(
+      JSON.stringify({
+        task,
+        split_sha256: splitEntry.sha256,
+        task_config_sha256: taskConfigSha256,
+        instructions_sha256: createHash("sha256")
+          .update(instructions)
+          .digest("hex"),
+        source_bundle_sha256: sourceBundleSha256(sourceEntries),
+        source_count: sourceEntries.length,
+        source_bytes: sourceBytes,
+        arm,
+        system_prompt_sha256: createHash("sha256")
+          .update(surface.systemPrompt + inventoryPrompt)
+          .digest("hex"),
+        tool_schema_sha256: createHash("sha256")
+          .update(JSON.stringify(responseTools))
+          .digest("hex"),
+        tool_names: responseTools.map((tool) => tool.name),
+      }),
+    );
+    process.exit(0);
+  }
+
   if (process.env.MIKE_DISABLE_RESEARCH_TOOLS !== "1")
     throw new Error("expected MIKE_DISABLE_RESEARCH_TOOLS=1 (see parent env)");
+  const runDir = path.join(labRoot, "results", ...runId.split("/"));
+  mkdirSync(path.dirname(runDir), { recursive: true });
+  try {
+    mkdirSync(runDir);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+      throw new Error(`refusing to reuse existing run directory: ${runDir}`);
+    }
+    throw error;
+  }
+  writeFileSync(
+    path.join(runDir, "run-state.json"),
+    JSON.stringify(
+      {
+        status: "initializing",
+        task,
+        arm,
+        run_id: runId,
+        task_sha256: splitEntry.sha256,
+        task_config_sha256: taskConfigSha256,
+        instructions_sha256: createHash("sha256")
+          .update(instructions)
+          .digest("hex"),
+        harness_source_fingerprints: harnessSourceFingerprints,
+        started_at: new Date().toISOString(),
+      },
+      null,
+      2,
+    ),
+  );
   const { app } = await import("../src/app");
   const request = (await import("supertest")).default;
   const { Document, Packer, Paragraph, TextRun } = await import("docx");
@@ -796,6 +979,37 @@ async function main() {
     });
   }
 
+  writeFileSync(
+    path.join(runDir, "run-state.json"),
+    JSON.stringify(
+      {
+        status: "provider_call_pending",
+        task,
+        arm,
+        run_id: runId,
+        task_sha256: splitEntry.sha256,
+        task_config_sha256: taskConfigSha256,
+        instructions_sha256: createHash("sha256")
+          .update(instructions)
+          .digest("hex"),
+        source_bundle_sha256: sourceBundleSha256(
+          uploadedDocuments.map((document) => ({
+            source: document.source,
+            source_sha256: document.source_sha256,
+            uploaded: document.uploaded,
+            uploaded_sha256: document.uploaded_sha256,
+          })),
+        ),
+        uploaded_documents: uploadedDocuments,
+        harness_source_fingerprints: harnessSourceFingerprints,
+        provider_service_tier_requested: serviceTier || null,
+        updated_at: new Date().toISOString(),
+      },
+      null,
+      2,
+    ),
+  );
+
   const streamed = await request(app).post("/chat").send({
     model,
     reasoning_effort: effort,
@@ -803,6 +1017,14 @@ async function main() {
     expected_version: 0,
     current_turn: { kind: "message", content: instructions },
   });
+  writeFileSync(path.join(runDir, "raw-sse.txt"), streamed.text ?? "");
+  const liveManifestPath = process.env.MIKE_LLM_CONTEXT_MANIFEST_PATH ?? "";
+  if (liveManifestPath && existsSync(liveManifestPath)) {
+    writeFileSync(
+      path.join(runDir, "context-manifest.jsonl"),
+      readFileSync(liveManifestPath),
+    );
+  }
   if (streamed.status !== 200)
     throw new Error(`/chat: ${streamed.status} ${streamed.text}`);
   const events = sseEvents(streamed.text);
@@ -955,6 +1177,7 @@ async function main() {
     "mike_grep_v1",
     "mike_legal_v1",
     "mike_legal_guided_v1",
+    "mike_structure_paths_v1",
   ];
   if (mikeGrepArms.includes(arm)) {
     const expectedTools = [
@@ -976,6 +1199,7 @@ async function main() {
       mike_grep_shape: arm === "mike_grep_v1",
       mike_legal_shape: arm === "mike_legal_v1",
       mike_legal_guided_shape: arm === "mike_legal_guided_v1",
+      mike_structure_paths_shape: arm === "mike_structure_paths_v1",
     };
     if (
       surface?.upstream_mike_shape !== false ||
@@ -984,6 +1208,10 @@ async function main() {
       surface?.mike_legal_shape !== expectedFlags.mike_legal_shape ||
       surface?.mike_legal_guided_shape !==
         expectedFlags.mike_legal_guided_shape ||
+      surface?.mike_structure_paths_shape !==
+        expectedFlags.mike_structure_paths_shape ||
+      surface?.retrieval_experiment !==
+        armEnvironment[arm].MIKE_RETRIEVAL_EXPERIMENT ||
       surface?.coding_shape !== true ||
       surface?.progressive_disclosure !== false ||
       surface?.trajectory_mode !== "continuous" ||
@@ -1046,6 +1274,7 @@ async function main() {
     }
   }
   const authored = latestAuthoredDocuments(events);
+  let requiredDeliverableMapping: Record<string, string> | null = null;
   const askPause = events.find((event) =>
     String(event.type ?? "").startsWith("ask_inputs"),
   );
@@ -1053,6 +1282,7 @@ async function main() {
     throw new Error(
       "Beaver paused for ask_inputs; the benchmark has no user to answer — run incomplete",
     );
+
   const {
     extractLocalDocument,
     WORKING_SET_GREP_DEFAULT_HEAD_LIMIT,
@@ -1177,6 +1407,47 @@ async function main() {
       );
     }
   }
+  if (
+    [
+      "upstream",
+      "upstream_terminal_v1",
+      "mike_grep_v1",
+      "mike_structure_paths_v1",
+    ].includes(arm)
+  ) {
+    const expectedDocx = deliverables.filter((name) => /\.docx$/iu.test(name));
+    const authoredDocx = authored.filter((document) =>
+      /\.docx$/iu.test(document.filename),
+    );
+    if (
+      expectedDocx.length !== deliverables.length ||
+      authoredDocx.length !== expectedDocx.length
+    ) {
+      throw new Error(
+        `${arm} run authored ${authoredDocx.length}/${expectedDocx.length} required DOCX deliverables; answer-text fallback and extra artifacts are forbidden for this matrix`,
+      );
+    }
+    if (expectedDocx.length === 1) {
+      requiredDeliverableMapping = {
+        [expectedDocx[0]]: authoredDocx[0].filename,
+      };
+    } else {
+      requiredDeliverableMapping = Object.fromEntries(
+        expectedDocx.map((expected) => {
+          const match = authoredDocx.find(
+            (document) =>
+              document.filename.toLowerCase() === expected.toLowerCase(),
+          );
+          if (!match) {
+            throw new Error(
+              `${arm} run omitted required deliverable ${expected}; authored ${authoredDocx.map((document) => document.filename).join(", ")}`,
+            );
+          }
+          return [expected, match.filename];
+        }),
+      );
+    }
+  }
   if (!answer.trim() && !authored.length)
     throw new Error("empty assistant answer and no documents authored");
   const wallClock = (Date.now() - started) / 1000;
@@ -1208,7 +1479,6 @@ async function main() {
     });
   }
 
-  const runDir = path.join(labRoot, "results", ...runId.split("/"));
   const outputDir = path.join(runDir, "output");
   mkdirSync(outputDir, { recursive: true });
   let evidenceWorkingSetArtifact: Record<string, unknown> | null = null;
@@ -1457,11 +1727,16 @@ async function main() {
     "v13",
     "v14",
     "v15",
+    "upstream",
     "upstream_terminal_v1",
     "adaptive_mike_v1",
     ...mikeGrepArms,
   ];
-  const defaultTierArms = [...singleInvocationArms, "v5_reconstruction_v1"];
+  const defaultTierArms = [
+    "upstream",
+    ...singleInvocationArms,
+    "v5_reconstruction_v1",
+  ];
   if (singleInvocationArms.includes(arm) && providerInvocations.length !== 1) {
     throw new Error(
       `${arm} trajectory used ${providerInvocations.length} provider invocations; expected exactly one`,
@@ -1538,20 +1813,14 @@ async function main() {
   const instructionsSha256 = createHash("sha256")
     .update(instructions)
     .digest("hex");
-  const sourceBundleSha256 = createHash("sha256")
-    .update(
-      JSON.stringify(
-        uploadedDocuments
-          .map((document) => ({
-            source: document.source,
-            source_sha256: document.source_sha256,
-            uploaded: document.uploaded,
-            uploaded_sha256: document.uploaded_sha256,
-          }))
-          .sort((left, right) => left.source.localeCompare(right.source)),
-      ),
-    )
-    .digest("hex");
+  const sourceBundleFingerprint = sourceBundleSha256(
+    uploadedDocuments.map((document) => ({
+      source: document.source,
+      source_sha256: document.source_sha256,
+      uploaded: document.uploaded,
+      uploaded_sha256: document.uploaded_sha256,
+    })),
+  );
   const systemPromptFingerprints = [
     ...new Set(
       contextRounds.map((round) => String(round.instructionsSha256 ?? "")),
@@ -1572,8 +1841,9 @@ async function main() {
     : null;
   const runFingerprintInput = {
     task_sha256: splitEntry.sha256,
+    task_config_sha256: taskConfigSha256,
     instructions_sha256: instructionsSha256,
-    source_bundle_sha256: sourceBundleSha256,
+    source_bundle_sha256: sourceBundleFingerprint,
     model,
     effort,
     service_tier_requested: serviceTier || null,
@@ -1600,6 +1870,80 @@ async function main() {
     .update(JSON.stringify(runFingerprintInput))
     .digest("hex");
   const callsById = new Map(calls.map((call) => [call.id, call]));
+  const isStructurePath = (value: unknown) =>
+    typeof value === "string" &&
+    value
+      .replace(/\\/gu, "/")
+      .toLowerCase()
+      .startsWith(".mike/structure/");
+  const structurePathCalls = calls.filter((call) => {
+    const input = (call.input ?? {}) as Record<string, unknown>;
+    return isStructurePath(input.path) || isStructurePath(input.file_path);
+  });
+  const structurePathCallIds = new Set(
+    structurePathCalls.map((call) => call.id),
+  );
+  const structurePathSegments = results.flatMap((toolResult) =>
+    toolResult.evidence_segments.filter((segment) =>
+      isStructurePath(segment.virtualPath),
+    ),
+  );
+  const emittedStructurePathSegments = structurePathSegments.filter(
+    (segment) => segment.kind === "candidate",
+  );
+  const discoveredStructurePaths = new Set(
+    emittedStructurePathSegments.flatMap((segment) =>
+      segment.virtualPath ? [segment.virtualPath] : [],
+    ),
+  );
+  const followedStructurePaths = new Set(
+    structurePathCalls.flatMap((call) => {
+      const input = (call.input ?? {}) as Record<string, unknown>;
+      const value = isStructurePath(input.path)
+        ? input.path
+        : isStructurePath(input.file_path)
+          ? input.file_path
+          : null;
+      return typeof value === "string" ? [value.toLowerCase()] : [];
+    }),
+  );
+  const followedDiscoveredStructurePaths = new Set(
+    [...discoveredStructurePaths]
+      .filter((path) => followedStructurePaths.has(path.toLowerCase()))
+      .map((path) => path.toLowerCase()),
+  );
+  const structurePathLocatorKinds: Record<string, number> = {};
+  for (const path of discoveredStructurePaths) {
+    const locator = emittedStructurePathSegments.find(
+      (segment) => segment.virtualPath === path,
+    )?.locator;
+    const kind =
+      typeof locator !== "string"
+        ? "unknown"
+        : locator.startsWith("table:")
+          ? "table"
+          : locator.startsWith("pdf:")
+            ? "pdf-page"
+            : locator.startsWith("printed:") || locator.startsWith("page:")
+              ? "page"
+              : "section";
+    structurePathLocatorKinds[kind] =
+      (structurePathLocatorKinds[kind] ?? 0) + 1;
+  }
+  const structurePathEvidence = exposureMetrics(
+    calls,
+    results.map((toolResult) => ({
+      ...toolResult,
+      evidence_segments: toolResult.evidence_segments.filter(
+        (segment) =>
+          segment.kind === "evidence" &&
+          isStructurePath(segment.virtualPath),
+      ),
+      evidence_spans: [],
+      evidence_refs: [],
+    })),
+    sourceAliases,
+  );
   const workingSetPagingResults = results.filter((result) => {
     if (!["drafting", "continuous"].includes(result.phase ?? "")) return false;
     const input = (callsById.get(result.id)?.input ?? {}) as Record<
@@ -1746,9 +2090,10 @@ async function main() {
         arm,
         task,
         task_sha256: splitEntry.sha256,
+        task_config_sha256: taskConfigSha256,
         task_instructions_chars: instructions.length,
         task_instructions_sha256: instructionsSha256,
-        source_bundle_sha256: sourceBundleSha256,
+        source_bundle_sha256: sourceBundleFingerprint,
         harness_source_fingerprints: harnessSourceFingerprints,
         system_prompt_sha256s: systemPromptFingerprints,
         tool_schema_sha256s: toolSchemaFingerprints,
@@ -1941,6 +2286,7 @@ async function main() {
         finished_cleanly: true,
         completed_at: new Date().toISOString(),
         deliverable_count: deliverableReceipts.length,
+        required_deliverable_mapping: requiredDeliverableMapping,
         deliverable_receipts: deliverableReceipts,
         documents_ingested: documents.length,
         documents_read_directly: new Set(
@@ -1989,6 +2335,30 @@ async function main() {
           (total, result) => total + result.content_chars,
           0,
         ),
+        structure_paths_discovered: discoveredStructurePaths.size,
+        structure_paths_followed: followedDiscoveredStructurePaths.size,
+        structure_path_follow_rate:
+          discoveredStructurePaths.size > 0
+            ? followedDiscoveredStructurePaths.size /
+              discoveredStructurePaths.size
+            : null,
+        structure_path_locator_kinds: structurePathLocatorKinds,
+        structure_path_tool_calls: structurePathCalls.length,
+        structure_path_read_calls: structurePathCalls.filter(
+          (call) => call.name === "Read",
+        ).length,
+        structure_path_grep_calls: structurePathCalls.filter(
+          (call) => call.name === "Grep",
+        ).length,
+        structure_path_not_found_calls: results.filter(
+          (result) =>
+            structurePathCallIds.has(result.id) &&
+            result.status === "not_found",
+        ).length,
+        structure_path_evidence_chars:
+          structurePathEvidence.unique_source_span_chars,
+        structure_path_evidence_replay_ratio:
+          structurePathEvidence.gross_replay_ratio,
         duplicate_read_calls: results.filter((result) => result.already_read)
           .length,
         duplicate_exposure_calls: results.filter(
@@ -2143,6 +2513,7 @@ async function main() {
         run_fingerprint_sha256: runFingerprintSha256,
         wrapped_uploads: wrappedUploads,
         deliverables,
+        required_deliverable_mapping: requiredDeliverableMapping,
         docs_created: authored.map((doc) => doc.filename),
         deliverable_sources: deliverableSources,
         deliverable_receipts: deliverableReceipts,

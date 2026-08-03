@@ -44,6 +44,7 @@ import {
   MIKE_GREP_TOOL_SHAPE,
   MIKE_LEGAL_GUIDED_TOOL_SHAPE,
   MIKE_LEGAL_TOOL_SHAPE,
+  MIKE_STRUCTURE_PATHS_TOOL_SHAPE,
   MODEL_COVERAGE_ROUTING,
   NAV_TOOL_SHAPE,
   ORIGIN_MIKE_TOOL_SHAPE,
@@ -85,6 +86,7 @@ import {
   ADAPTIVE_MIKE_LAB_SYSTEM_PROMPT,
   MIKE_GREP_LAB_SYSTEM_PROMPT,
   MIKE_LEGAL_GUIDED_LAB_SYSTEM_PROMPT,
+  MIKE_STRUCTURE_PATHS_LAB_SYSTEM_PROMPT,
   UPSTREAM_MIKE_LAB_SYSTEM_PROMPT,
 } from "../lib/chat/upstreamMikeBenchmarkSurface";
 import { localAutomationEvent } from "../lib/chat/localAutomationEvent";
@@ -162,6 +164,7 @@ import {
 import { legalKnowledgeGraphStore } from "../lib/legalKnowledgeGraphStore";
 import {
   listLocalDocumentsById,
+  listLocalLibrary,
   localTrackedEditStatuses,
 } from "../lib/localDocumentStore";
 import { readLocalPdfEvidenceReceipt } from "../lib/localPdfLookup";
@@ -1073,9 +1076,11 @@ export async function streamAnonymousChat(params: {
     } Before delivering extraction or comparison work, call library_anchor_coverage and verify the source anchors it reports missing from your draft. Prefer the deterministic organs over reasoning from memory — citation linking, supra fixes, structural lint, term drift, drafting lint, bilingual concordance, amendment application, deadline computation — and report their findings as verified rather than recomputing them yourself.`;
   let systemPrompt = ORIGIN_MIKE_TOOL_SHAPE
     ? MIKE_GREP_FAMILY_TOOL_SHAPE
-      ? MIKE_LEGAL_GUIDED_TOOL_SHAPE
-        ? MIKE_LEGAL_GUIDED_LAB_SYSTEM_PROMPT
-        : MIKE_GREP_LAB_SYSTEM_PROMPT
+      ? MIKE_STRUCTURE_PATHS_TOOL_SHAPE
+        ? MIKE_STRUCTURE_PATHS_LAB_SYSTEM_PROMPT
+        : MIKE_LEGAL_GUIDED_TOOL_SHAPE
+          ? MIKE_LEGAL_GUIDED_LAB_SYSTEM_PROMPT
+          : MIKE_GREP_LAB_SYSTEM_PROMPT
       : ADAPTIVE_MIKE_TOOL_SHAPE
       ? ADAPTIVE_MIKE_LAB_SYSTEM_PROMPT
       : UPSTREAM_MIKE_LAB_SYSTEM_PROMPT
@@ -1136,8 +1141,10 @@ export async function streamAnonymousChat(params: {
   }
   // Name the documents the user already has. Telling the model the tools
   // exist is not the same as telling it the matter exists.
-  if (ORIGIN_MIKE_TOOL_SHAPE && allowedDocumentIds?.size) {
-    const documents = await listLocalDocumentsById(userId, allowedDocumentIds);
+  if (ORIGIN_MIKE_TOOL_SHAPE) {
+    const documents = allowedDocumentIds?.size
+      ? await listLocalDocumentsById(userId, allowedDocumentIds)
+      : (await listLocalLibrary(userId, "file")).documents;
     systemPrompt +=
       "\n\nAVAILABLE DOCUMENTS:\n" +
       documents
@@ -2087,6 +2094,9 @@ export async function streamAnonymousChat(params: {
               ...(segment.filename && { filename: segment.filename }),
               ...(segment.kind && { kind: segment.kind }),
               ...(segment.locator && { locator: segment.locator }),
+              ...(segment.virtualPath && {
+                virtual_path: segment.virtualPath,
+              }),
               ...(segment.projection && { projection: segment.projection }),
               ...(segment.durableUnionBacked && {
                 durable_union_backed: true,
@@ -2442,6 +2452,7 @@ export async function streamAnonymousChat(params: {
           mike_grep_shape: MIKE_GREP_TOOL_SHAPE,
           mike_legal_shape: MIKE_LEGAL_TOOL_SHAPE,
           mike_legal_guided_shape: MIKE_LEGAL_GUIDED_TOOL_SHAPE,
+          mike_structure_paths_shape: MIKE_STRUCTURE_PATHS_TOOL_SHAPE,
           model_coverage_routing: MODEL_COVERAGE_ROUTING,
           whole_read_max_chars: WHOLE_READ_MAX_CHARS || null,
           tool_result_max_chars: MAX_TOOL_RESULT_CHARS,
