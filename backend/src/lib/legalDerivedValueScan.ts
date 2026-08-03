@@ -84,12 +84,19 @@ const PCT_TOL = 0.55;
 const OF_REACH = 16;
 /** How far a part amount may sit from its percent. */
 const PART_REACH = 220;
+/**
+ * Cross-document whole index reach: how close a base noun must sit to a money
+ * anchor in ANOTHER source for that anchor to serve as the whole (C2). Wider
+ * than the single-document 60-char label window because the whole's label can
+ * be a sentence away ("total revenue was $87,300,000").
+ */
+const CROSS_DOC_BASE_REACH = 500;
 /** Percent is a threshold, not a share, when these precede it. */
 const THRESHOLD_RE =
   /\b(?:more than|less than|at least|not less than|at most|no more than|exceeding|equal to|up to|at or above|at or below|in excess of)\b/iu;
 /** Bases that can carry a money whole ("% of total revenue"). */
 const BASE_RE =
-  /\b(?:revenue|sales|income|earnings|ebitda?|value|net worth|assets?|capital|equity|interest|shares?|fees?|cost|price|expenses?|revenue share)\b/iu;
+  /\b(?:revenue|sales|income|earnings|ebitda?|value|net worth|assets?|capital|equity|interest|shares?|fees?|cost|price|expenses?|revenue share|turnover|profit|consideration|premium|principal|notional|commitment|market cap|enterprise value|aum)\b/iu;
 /** Stop words inside the base label ("of the Company's total 2024 revenue"). */
 const BASE_NORM_RE =
   /\b(?:total|annual|net|gross|adjusted|consolidated|fiscal|202[0-9]|the|company['’]?s|its)\b/giu;
@@ -176,6 +183,30 @@ const hasEngagedPct = (
 };
 
 /**
+ * Whether the base noun appears within `reach` chars around a money anchor.
+ * Used by the cross-document whole index (C2), where the whole may sit in a
+ * different source and its label can be a full sentence away from the amount.
+ */
+const baseNear = (
+  text: string,
+  m: MoneyAnchor,
+  base: string,
+  reach: number,
+): boolean => {
+  const start = Math.max(0, m.index - reach);
+  const end = Math.min(text.length, m.end + reach);
+  return text.slice(start, end).toLowerCase().includes(base);
+};
+
+/** A part + percent whose whole is not stated in the part's own document. */
+interface UnclosedIdentity {
+  source: DerivedValueDocument;
+  part: MoneyAnchor;
+  percent: PctAnchor;
+  base: string;
+}
+
+/**
  * Scan the source stack for stated (part, percent-of-base, whole) identities
  * and report the halves the drafted deliverable engaged but omitted. One
  * document's pair may be stated twice (prose + table): dedupe on identity.
@@ -196,21 +227,23 @@ export function derivedValueScan(
     part: MoneyAnchor,
     percent: PctAnchor,
     whole: MoneyAnchor,
+    wholeSource: string,
+    wholeText: string,
     base: string,
     direction: DerivedValueOmission["direction"],
   ) => {
     const key = `dv:${part.value}:${percent.value}:${whole.value}:${direction}`;
     if (seen.has(key)) return;
     seen.add(key);
-    const implied = (part.value / whole.value) * 100;
+    const wholeNote = wholeSource === source ? "" : `; whole from ${wholeSource}`;
     findings.push({
       kind: "derived_value_omission",
       direction,
       base,
       detail:
         direction === "percent_without_amount"
-          ? `${fmt(whole.value)} ${base} × ${percent.value}% = ${fmt((whole.value * percent.value) / 100)} — the deliverable states ${percent.value}% of ${base} but never the amount`
-          : `${part.raw} = ${percent.value}% of ${fmt(whole.value)} ${base} — the deliverable states the amount ${part.raw} but never the ${percent.value}% share`,
+          ? `${fmt(whole.value)} ${base} × ${percent.value}% = ${fmt((whole.value * percent.value) / 100)} — the deliverable states ${percent.value}% of ${base} but never the amount (${source}${wholeNote})`
+          : `${part.raw} = ${percent.value}% of ${fmt(whole.value)} ${base} — the deliverable states the amount ${part.raw} but never the ${percent.value}% share (${source}${wholeNote})`,
       part: {
         document: source,
         display: part.raw,
@@ -226,19 +259,25 @@ export function derivedValueScan(
         excerpt: excerptAt(text, percent.index, percent.raw.length),
       },
       whole: {
-        document: source,
+        document: wholeSource,
         display: whole.raw,
         value: whole.value,
         at: whole.index,
-        excerpt: excerptAt(text, whole.index, whole.raw.length),
+        excerpt: excerptAt(wholeText, whole.index, whole.raw.length),
       },
     });
     if (findings.length >= cap) return;
   };
 
-  for (const source of sources) {
-    const text = source.text;
-    const money = moneyAnchors(text);
+  // Money anchors are extracted once per source and reused by both the
+  // single-document pass and the cross-document whole index (C2).
+  const sourceMoney = sources.map((doc) => ({ doc, money: moneyAnchors(doc.text) }));
+  // Identities where part + percent close but the whole is not stated in the
+  // part's own document; the cross-document pass below binds them.
+  const unclosed: UnclosedIdentity[] = [];
+
+  for (const { doc, money } of sourceMoney) {
+    const text = doc.text;
     const pct = pctAnchors(text);
     for (const p of pct) {
       // Threshold percents ("more than fifty percent") are not shares.
@@ -273,7 +312,10 @@ export function derivedValueScan(
         whole = m;
         break;
       }
-      if (!whole) continue;
+      if (!whole) {
+        unclosed.push({ source: doc, part, percent: p, base });
+        continue;
+      }
       // Engagement gate: the draft must carry one half *of this identity*,
       // else this is a coverage gap, not a carry-through omission. The draft's
       // percent must be stated as "of <base>" matching the identity's base —
@@ -282,10 +324,40 @@ export function derivedValueScan(
       const draftHasPct = hasEngagedPct(draftPct, draft.text, p.value, base);
       const draftHasMoney = hasMoneyNear(draftMoney, part.value);
       if (draftHasPct && !draftHasMoney) {
-        push(source.name, text, part, p, whole, base, "percent_without_amount");
+        push(doc.name, text, part, p, whole, doc.name, text, base, "percent_without_amount");
       } else if (!draftHasPct && draftHasMoney) {
-        push(source.name, text, part, p, whole, base, "amount_without_percent");
+        push(doc.name, text, part, p, whole, doc.name, text, base, "amount_without_percent");
       }
+    }
+  }
+
+  // Cross-document whole index (audit finding C2): the whole amount is often
+  // stated in a SEPARATE source ("total revenue = $87.3M" in a financial
+  // exhibit) while the part + percent sit in the deal memo. When a source
+  // pairs part + percent without a closing whole, scan every source for a
+  // money anchor whose surrounding text carries the base noun and whose value
+  // closes the identity (part / whole ≈ percent). The finding then names the
+  // whole's document so the repair prompt can find it without re-searching.
+  for (const un of unclosed) {
+    let whole: MoneyAnchor | null = null;
+    let wholeDoc: DerivedValueDocument | null = null;
+    outer: for (const { doc, money } of sourceMoney) {
+      for (const m of money) {
+        if (m === un.part) continue;
+        if (!baseNear(doc.text, m, un.base, CROSS_DOC_BASE_REACH)) continue;
+        if (Math.abs((un.part.value / m.value) * 100 - un.percent.value) > PCT_TOL) continue;
+        whole = m;
+        wholeDoc = doc;
+        break outer;
+      }
+    }
+    if (!whole || !wholeDoc) continue;
+    const draftHasPct = hasEngagedPct(draftPct, draft.text, un.percent.value, un.base);
+    const draftHasMoney = hasMoneyNear(draftMoney, un.part.value);
+    if (draftHasPct && !draftHasMoney) {
+      push(un.source.name, un.source.text, un.part, un.percent, whole, wholeDoc.name, wholeDoc.text, un.base, "percent_without_amount");
+    } else if (!draftHasPct && draftHasMoney) {
+      push(un.source.name, un.source.text, un.part, un.percent, whole, wholeDoc.name, wholeDoc.text, un.base, "amount_without_percent");
     }
   }
 

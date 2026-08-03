@@ -40,6 +40,21 @@ Keep changes small, measured, and local-first.
 - Record before/after build, bundle, startup, and interaction measurements.
   Revert an optimization that is not a strict win.
 
+## Long-running scripts
+
+- Idempotent and resumable: persist progress per unit (atomic temp-file +
+  rename after each item or small batch, never only at the end). A killed run
+  must leave usable partial state and reproduce the same result when restarted.
+- Output as you go: print per-unit progress or heartbeats that flush. Background
+  runs write to an appended log file so a kill still leaves a trail showing
+  exactly how far the run got.
+- Guard every loop and draw against pathological inputs (zero/NaN counts,
+  sizes near the population) with typed errors and bounded iteration. A long
+  silent run is a defect, not a mystery to debug after the fact.
+- When running long scripts from the shell, never funnel output through
+  buffering wrappers (e.g. `Select-Object -Last`); redirect to an appended log
+  and tail it instead.
+
 ## UI content rule
 
 - Use a consistent text hierarchy whose visual prominence tracks informational importance, so titles, headings, body copy, labels, metadata, and controls never compete or receive arbitrary emphasis.
@@ -99,6 +114,7 @@ to improve a build number.
 
 - Never commit credentials, AppData, downloaded corpora, model traces, caches,
   generated PDFs, or managed runtimes.
+- Do not modify a README to add technical details unless the user explicitly requests it.
 - Preserve anonymous and cloud paths when changing shared behavior.
 - Commit nested repositories first, regenerate their bundle, update
   `subrepos.lock.json`, then commit the root gitlink.

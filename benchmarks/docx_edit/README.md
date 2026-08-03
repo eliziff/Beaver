@@ -37,7 +37,8 @@ npx tsx ../benchmarks/docx_edit/src/cli.ts self-test
 npx tsx ../benchmarks/docx_edit/src/cli.ts surface --id beaver-address
 npx tsx ../benchmarks/docx_edit/src/cli.ts manifest --write
 npx tsx ../benchmarks/docx_edit/src/run.ts --surface beaver-address `
-  --task lease-cure-period --model codex:gpt-5.6-sol --rep 1 --out <receipts-dir>
+  --task lease-cure-period --model claude-p:claude-sonnet-4-6 `
+  --effort medium --rep 1 --out <receipts-dir>
 npx tsx ../benchmarks/docx_edit/src/report.ts --out <receipts-dir>
 ```
 
@@ -136,12 +137,10 @@ off the addressable plane entirely (`factum-footnote-pinpoint`).
 ## Progressive tool disclosure
 
 A surface may ship only part of its schema in the request and reveal the rest
-when the model asks for a domain. The runner drives that loop, because the
-provider adapter freezes its tool list when a call starts: a domain opened
-mid-call cannot become callable inside that call, so the runner ends the call
-at the disclosure and continues in a new one, replaying the exchange so far.
-The replay's token cost is real and is counted. A surface that defers nothing
-never restarts, so one code path serves both.
+when the model asks for a domain. The runner resolves the served schema before
+each tool-call iteration. A domain opened in one batch becomes callable in the
+next iteration without restarting or replaying the conversation. A surface
+that defers nothing uses the same code path.
 
 Two things keep the condition honest:
 
@@ -160,7 +159,7 @@ Two task fields make a disclosure result readable, and they are properties of
 the task rather than of any arm:
 
 - `resident_route_exists` — whether a route using only always-resident tools
-  solves it. **True for all 27 tasks in v1**: every reference solution is a
+  solves it. **True for all 28 tasks in v1**: every reference solution is a
   literal substitution, which a deterministic text-op tool executes directly.
   So v1 can show the cost of hiding a tool a model *wanted*; it cannot show
   the cost of hiding a tool a task *needs*. A future task that genuinely

@@ -1,0 +1,8 @@
+runs/
+*.jsonl
+*.log
+__pycache__/
+scratch/.drawcache/
+scratch/.textcache/
+scratch/worker.bundle.mjs
+scratch/*.json

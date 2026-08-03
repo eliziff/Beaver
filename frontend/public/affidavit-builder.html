@@ -1,0 +1,3342 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Affidavit Builder</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #111827;
+      --muted: #667085;
+      --paper: #f3f4f6;
+      --card: #fff;
+      --line: #d0d5dd;
+      --brand: #d52b1e;
+      --brand-dark: #b42318;
+      --brand-soft: #fff1f0;
+      --success: #067647;
+      --warning: #b54708;
+      --danger: #b42318;
+      --shadow:
+        0 0 0 1px rgb(0 0 0 / 5%),
+        0 1px 2px -1px rgb(0 0 0 / 6%),
+        0 2px 4px rgb(0 0 0 / 4%);
+      --text-sm: .8125rem;
+      --text-base: 1rem;
+      --text-lg: 1.125rem;
+      --text-xl: 1.5rem;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-synthesis: none;
+    }
+
+    * { box-sizing: border-box; }
+    html {
+      min-width: 0;
+      background: var(--paper);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    body {
+      min-width: 0;
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font-size: var(--text-base);
+      line-height: 1.5;
+    }
+    button, input { font: inherit; }
+    button, .file-button { touch-action: manipulation; }
+    button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible {
+      outline: 2px solid var(--ink);
+      outline-offset: 2px;
+    }
+    ::selection { color: #fff; background: var(--brand); }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      min-height: 3.5rem;
+      padding: .65rem clamp(1rem, 4vw, 2rem);
+      color: #fff;
+      background: #17191c;
+    }
+    .topbar h1 {
+      margin: 0;
+      font-size: var(--text-lg);
+      line-height: 1.2;
+      font-weight: 650;
+      letter-spacing: -.01em;
+    }
+    .brand-lockup { display: flex; align-items: center; gap: .6rem; min-width: 0; }
+    .brand-name { font-weight: 700; letter-spacing: -.01em; white-space: nowrap; }
+    .brand-divider { color: #98a2b3; }
+    .beaver-mark { flex: 0 0 auto; width: 1.75rem; height: 1.75rem; color: var(--brand); }
+    .local-note { color: #d0d5dd; font-size: var(--text-sm); }
+
+    main {
+      width: min(96rem, 100%);
+      margin-inline: auto;
+      padding: clamp(1rem, 3vw, 2rem) clamp(1.5rem, 4vw, 3rem);
+    }
+    .intro {
+      max-width: 67ch;
+      margin-block-end: 1.5rem;
+    }
+    .intro h2 {
+      margin: 0 0 .35rem;
+      font-size: var(--text-xl);
+      line-height: 1.2;
+      letter-spacing: -.02em;
+      text-wrap: balance;
+    }
+    .intro p { margin: 0; color: var(--muted); text-wrap: pretty; }
+
+    .builder {
+      display: grid;
+      grid-template-columns: minmax(0, 34rem) minmax(32rem, 1fr);
+      align-items: start;
+      gap: 1.25rem;
+      min-width: 0;
+      margin-block-start: 1.25rem;
+    }
+    .editor-stack { display: grid; gap: 1rem; min-width: 0; }
+    .affidavit-card { max-width: 48rem; }
+    .card {
+      min-width: 0;
+      padding: 1rem;
+      border-radius: .75rem;
+      background: var(--card);
+      box-shadow: var(--shadow);
+    }
+    .card-heading {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: .75rem;
+      margin-block-end: .85rem;
+    }
+    .card h2 {
+      margin: 0;
+      font-size: var(--text-lg);
+      line-height: 1.3;
+    }
+    .count {
+      color: var(--muted);
+      font-size: var(--text-sm);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: .8rem;
+    }
+    .field { display: grid; align-content: start; gap: .3rem; min-width: 0; }
+    .field.wide { grid-column: 1 / -1; }
+    label, legend { font-size: var(--text-sm); font-weight: 600; }
+    input[type="text"] {
+      width: 100%;
+      min-width: 0;
+      min-height: 2.65rem;
+      padding: .55rem .65rem;
+      border: 1px solid var(--line);
+      border-radius: .5rem;
+      color: var(--ink);
+      background: #fff;
+    }
+    input::placeholder { color: #98a2b3; }
+    input[aria-invalid="true"] { border-color: var(--danger); }
+
+    button, .file-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 2.5rem;
+      padding: .5rem .8rem;
+      border: 1px solid transparent;
+      border-radius: .5rem;
+      color: #fff;
+      background: var(--ink);
+      cursor: pointer;
+      font-size: .875rem;
+      font-weight: 600;
+      text-align: center;
+      text-decoration: none;
+      transition-property: color, background-color, box-shadow, transform;
+      transition-duration: 120ms;
+      transition-timing-function: ease-out;
+    }
+    button:hover, .file-button:hover { background: #344054; }
+    button.primary, .file-button.primary { background: var(--brand); }
+    button.primary:hover, .file-button.primary:hover { background: var(--brand-dark); }
+    button.secondary, .file-button.secondary {
+      color: var(--ink);
+      border-color: var(--line);
+      background: #fff;
+    }
+    button.secondary:hover, .file-button.secondary:hover { background: #f9fafb; }
+    button:disabled {
+      color: #98a2b3;
+      border-color: #e4e7ec;
+      background: #f2f4f7;
+      cursor: not-allowed;
+    }
+    .file-button { position: relative; overflow: hidden; }
+    .file-button input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+    }
+    .file-button:has(input:focus-visible) {
+      outline: 2px solid var(--ink);
+      outline-offset: 2px;
+    }
+
+    .file-drop {
+      display: flex;
+      position: relative;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      min-width: 0;
+      min-height: 6.5rem;
+      padding: 1rem;
+      border: 1px dashed var(--line);
+      border-radius: .65rem;
+      background: #fcfcfd;
+      font-weight: 400;
+    }
+    .file-drop:has(input:focus-visible) {
+      outline: 2px solid var(--ink);
+      outline-offset: 2px;
+    }
+    .file-drop input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+    }
+    .file-drop input:focus-visible { outline: none; }
+    .file-drop[data-over="true"] {
+      border-color: var(--brand);
+      background: var(--brand-soft);
+      box-shadow: 0 0 0 1px var(--brand);
+    }
+    .file-drop > div { display: grid; gap: .2rem; min-width: 0; }
+    .file-drop strong {
+      overflow: hidden;
+      font-size: .9375rem;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .file-drop span:not(.file-button span) {
+      color: var(--muted);
+      font-size: var(--text-sm);
+    }
+    .affidavit-open-action {
+      display: inline-flex !important;
+      align-items: center;
+      gap: .45rem;
+      flex: 0 0 auto;
+      min-height: 2.5rem;
+      margin-top: 0 !important;
+      padding: .5rem .8rem;
+      border: 1px solid var(--line);
+      border-radius: .5rem;
+      color: var(--ink) !important;
+      background: #fff;
+      box-shadow: 0 1px 2px rgb(0 0 0 / 6%);
+      font-size: .875rem !important;
+      font-weight: 600;
+      transition-property: background-color, box-shadow, transform;
+      transition-duration: 120ms;
+      transition-timing-function: ease-out;
+    }
+    .affidavit-open-action span {
+      display: inline !important;
+      margin-top: 0 !important;
+      color: inherit !important;
+      font-size: inherit !important;
+    }
+    .affidavit-open-action svg {
+      width: 1rem;
+      height: 1rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-width: 1.8;
+    }
+    #affidavit-drop:hover .affidavit-open-action {
+      background: #f9fafb;
+      box-shadow: 0 2px 4px rgb(0 0 0 / 8%);
+    }
+    #affidavit-drop:active .affidavit-open-action {
+      transform: scale(.96);
+    }
+    .affidavit-stage,
+    .exhibit-import-stage {
+      display: grid;
+      min-width: 0;
+    }
+    .affidavit-stage > *,
+    .exhibit-import-stage > * { grid-area: 1 / 1; }
+    .affidavit-input { min-width: 0; }
+    #affidavit-drop {
+      min-height: 10.5rem;
+      cursor: pointer;
+    }
+    .affidavit-card .check { margin-block-start: 1rem; }
+    .check {
+      display: grid;
+      grid-template-columns: 1.25rem minmax(0, 1fr);
+      align-items: start;
+      gap: .55rem;
+      cursor: pointer;
+    }
+    .check input {
+      width: 1.15rem;
+      height: 1.15rem;
+      margin: .15rem 0 0;
+      accent-color: var(--brand);
+    }
+    .check span { display: grid; gap: .15rem; }
+    .check small {
+      color: var(--muted);
+      font-size: var(--text-sm);
+      font-weight: 400;
+      line-height: 1.4;
+      text-wrap: pretty;
+    }
+
+    details { min-width: 0; }
+    summary {
+      color: var(--muted);
+      cursor: pointer;
+      font-size: var(--text-sm);
+      font-weight: 600;
+    }
+
+    .exhibits-heading {
+      align-items: start;
+      margin-block-end: 1rem;
+    }
+    .exhibits-heading > div:first-child { display: grid; gap: .15rem; }
+    .work-panel {
+      display: grid;
+      grid-template-columns: 6.25rem minmax(0, 1fr);
+      align-items: center;
+      gap: 1rem;
+      min-width: 0;
+      min-height: 10.5rem;
+      padding: 1.25rem;
+      border-radius: .65rem;
+      background: #fcfcfd;
+      box-shadow: inset 0 0 0 1px var(--line);
+    }
+    .work-mark {
+      display: grid;
+      place-items: center;
+      width: 6.25rem;
+      min-height: 4.5rem;
+      color: #8b4a35;
+      background: transparent;
+    }
+    .gnaw-scene {
+      --gnaw-duration: 9.6s;
+      display: block;
+      width: 6.25rem;
+      height: 4.5rem;
+      overflow: visible;
+      color: inherit;
+    }
+    .gnaw-beaver,
+    .gnaw-teeth,
+    .gnaw-log-body,
+    .gnaw-log-end,
+    .gnaw-chip { transform-box: fill-box; }
+    .gnaw-beaver { transform-origin: 82% 78%; }
+    .gnaw-teeth { transform-origin: center right; }
+    .gnaw-log-body { transform-origin: left center; }
+    .gnaw-log-end { transform-origin: center; }
+    .gnaw-chip { opacity: 0; transform-origin: center; }
+    .gnaw-cut { fill: #fcfcfd; }
+    @media (prefers-reduced-motion: no-preference) {
+      .gnaw-scene { animation: gnaw-cycle var(--gnaw-duration) linear infinite; }
+      .gnaw-beaver { animation: gnaw-head var(--gnaw-duration) cubic-bezier(.4, 0, .2, 1) infinite; }
+      .gnaw-teeth { animation: gnaw-teeth var(--gnaw-duration) steps(1, end) infinite; }
+      .gnaw-log-body { animation: gnaw-log-shorten var(--gnaw-duration) steps(1, end) infinite; }
+      .gnaw-log-end { animation: gnaw-log-end var(--gnaw-duration) steps(1, end) infinite; }
+      .gnaw-bite-one { animation: gnaw-bite-one var(--gnaw-duration) steps(1, end) infinite; }
+      .gnaw-bite-two { animation: gnaw-bite-two var(--gnaw-duration) steps(1, end) infinite; }
+      .gnaw-bite-three { animation: gnaw-bite-three var(--gnaw-duration) steps(1, end) infinite; }
+      .gnaw-chip-one { animation: gnaw-chip-one var(--gnaw-duration) ease-out infinite; }
+      .gnaw-chip-two { animation: gnaw-chip-two var(--gnaw-duration) ease-out infinite; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .gnaw-beaver { transform: none; }
+      .gnaw-log-body { transform: none; }
+      .gnaw-log-end { opacity: 1; transform: none; }
+    }
+    @keyframes gnaw-cycle {
+      0%, 2%, 98%, 100% { opacity: 0; }
+      4%, 94% { opacity: 1; }
+    }
+    @keyframes gnaw-head {
+      0%, 4% { transform: translate(0) rotate(0); }
+      6% { transform: translate(-4px, 1px) rotate(-3deg); }
+      8%, 12% { transform: translate(-8px) rotate(0); }
+      14% { transform: translate(-12px, 1px) rotate(-3deg); }
+      16%, 20% { transform: translate(-16px) rotate(0); }
+      22% { transform: translate(-20px, 1px) rotate(-3deg); }
+      24%, 28% { transform: translate(-24px) rotate(0); }
+      30% { transform: translate(-28px, 1px) rotate(-3deg); }
+      32%, 36% { transform: translate(-32px) rotate(0); }
+      38% { transform: translate(-36px, 1px) rotate(-3deg); }
+      40%, 44% { transform: translate(-40px) rotate(0); }
+      46% { transform: translate(-44px, 1px) rotate(-3deg); }
+      48%, 52% { transform: translate(-48px) rotate(0); }
+      54% { transform: translate(-52px, 1px) rotate(-3deg); }
+      56%, 60% { transform: translate(-56px) rotate(0); }
+      62% { transform: translate(-60px, 1px) rotate(-3deg); }
+      64% { transform: translate(-62px) rotate(0); }
+      69% { transform: translate(-54px, -2px) rotate(2deg); }
+      74% { transform: translate(-54px) rotate(-1deg); }
+      79%, 90% { transform: translate(-54px, -1px) rotate(1deg); }
+      96%, 100% { transform: translate(0) rotate(0); }
+    }
+    @keyframes gnaw-teeth {
+      0%, 5%, 9%, 13%, 17%, 21%, 25%, 29%, 33%, 37%, 41%, 45%, 49%, 53%, 57%, 61%, 65%, 100% { transform: translateX(0); }
+      6%, 8%, 14%, 16%, 22%, 24%, 30%, 32%, 38%, 40%, 46%, 48%, 54%, 56%, 62%, 64% { transform: translateX(-2px); }
+    }
+    @keyframes gnaw-log-shorten {
+      0%, 7% { transform: scaleX(1); }
+      8%, 15% { transform: scaleX(.875); }
+      16%, 23% { transform: scaleX(.75); }
+      24%, 31% { transform: scaleX(.625); }
+      32%, 39% { transform: scaleX(.5); }
+      40%, 47% { transform: scaleX(.375); }
+      48%, 55% { transform: scaleX(.25); }
+      56%, 63% { transform: scaleX(.125); }
+      64%, 90% { transform: scaleX(0); }
+      96%, 100% { transform: scaleX(1); }
+    }
+    @keyframes gnaw-log-end {
+      0%, 7% { opacity: 1; transform: translateX(0); }
+      8%, 15% { opacity: 1; transform: translateX(-8px); }
+      16%, 23% { opacity: 1; transform: translateX(-16px); }
+      24%, 31% { opacity: 1; transform: translateX(-24px); }
+      32%, 39% { opacity: 1; transform: translateX(-32px); }
+      40%, 47% { opacity: 1; transform: translateX(-40px); }
+      48%, 55% { opacity: 1; transform: translateX(-48px); }
+      56%, 63% { opacity: 1; transform: translateX(-56px); }
+      64%, 90% { opacity: 0; transform: translateX(-62px); }
+      96%, 100% { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes gnaw-bite-one { 0%, 7%, 96%, 100% { opacity: 0; } 8%, 90% { opacity: 1; } }
+    @keyframes gnaw-bite-two { 0%, 15%, 96%, 100% { opacity: 0; } 16%, 90% { opacity: 1; } }
+    @keyframes gnaw-bite-three { 0%, 23%, 96%, 100% { opacity: 0; } 24%, 90% { opacity: 1; } }
+    @keyframes gnaw-chip-one {
+      0%, 5% { opacity: 0; transform: translate(0) rotate(0); }
+      6% { opacity: 1; transform: translate(0) rotate(0); }
+      10% { opacity: 0; transform: translate(-9px, -12px) rotate(-48deg); }
+      11%, 21% { opacity: 0; transform: translate(-16px) rotate(0); }
+      22% { opacity: 1; transform: translate(-16px) rotate(0); }
+      26% { opacity: 0; transform: translate(-25px, -12px) rotate(-48deg); }
+      27%, 37% { opacity: 0; transform: translate(-32px) rotate(0); }
+      38% { opacity: 1; transform: translate(-32px) rotate(0); }
+      42% { opacity: 0; transform: translate(-41px, -12px) rotate(-48deg); }
+      43%, 53% { opacity: 0; transform: translate(-48px) rotate(0); }
+      54% { opacity: 1; transform: translate(-48px) rotate(0); }
+      58% { opacity: 0; transform: translate(-57px, -12px) rotate(-48deg); }
+      59%, 100% { opacity: 0; transform: translate(-62px) rotate(0); }
+    }
+    @keyframes gnaw-chip-two {
+      0%, 13% { opacity: 0; transform: translate(-8px) rotate(0); }
+      14% { opacity: 1; transform: translate(-8px) rotate(0); }
+      18% { opacity: 0; transform: translate(-19px, 8px) rotate(62deg); }
+      19%, 29% { opacity: 0; transform: translate(-24px) rotate(0); }
+      30% { opacity: 1; transform: translate(-24px) rotate(0); }
+      34% { opacity: 0; transform: translate(-35px, 8px) rotate(62deg); }
+      35%, 45% { opacity: 0; transform: translate(-40px) rotate(0); }
+      46% { opacity: 1; transform: translate(-40px) rotate(0); }
+      50% { opacity: 0; transform: translate(-51px, 8px) rotate(62deg); }
+      51%, 61% { opacity: 0; transform: translate(-56px) rotate(0); }
+      62% { opacity: 1; transform: translate(-56px) rotate(0); }
+      66% { opacity: 0; transform: translate(-67px, 8px) rotate(62deg); }
+      67%, 100% { opacity: 0; transform: translate(-62px) rotate(0); }
+    }
+    .work-copy {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: .35rem .75rem;
+      min-width: 0;
+    }
+    .work-copy strong { grid-column: 1 / -1; font-size: .9375rem; }
+    .work-step {
+      min-width: 0;
+      overflow: hidden;
+      color: var(--muted);
+      font-size: var(--text-sm);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .work-percent {
+      color: var(--muted);
+      font-size: var(--text-sm);
+      font-variant-numeric: tabular-nums;
+    }
+    .work-copy progress { grid-column: 1 / -1; margin: .15rem 0 0; }
+    .exhibit-files-panel {
+      margin-block-end: 1rem;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: .65rem;
+      background: #fff;
+    }
+    .exhibit-import-stage { min-height: 15rem; }
+    .exhibit-import-controls { display: grid; align-content: start; min-width: 0; }
+    .files-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .75rem;
+      padding: .75rem;
+      border-bottom: 1px solid var(--line);
+    }
+    .files-toolbar > div:first-child {
+      display: flex;
+      align-items: baseline;
+      gap: .5rem;
+      min-width: 0;
+    }
+    .files-toolbar h3 { margin: 0; font-size: .9375rem; }
+    .files-actions { display: flex; gap: .5rem; }
+    .options-button {
+      width: 2.75rem;
+      min-width: 2.75rem;
+      height: 2.75rem;
+      padding: 0;
+    }
+    .options-button svg {
+      width: 1.2rem;
+      height: 1.2rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-width: 1.8;
+    }
+    .placement-mode {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: .35rem;
+      min-width: 0;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+    }
+    .placement-mode legend {
+      grid-column: 1 / -1;
+      width: 100%;
+      margin: 0;
+      padding: 0 0 .25rem;
+      color: var(--muted);
+      font-size: .75rem;
+    }
+    .placement-mode label {
+      display: grid;
+      grid-template-columns: 1rem minmax(0, 1fr);
+      align-items: center;
+      gap: .35rem;
+      min-width: 0;
+      min-height: 2.25rem;
+      padding: .35rem .45rem;
+      border: 1px solid var(--line);
+      border-radius: .5rem;
+      background: #fff;
+      cursor: pointer;
+      font-size: .75rem;
+      font-weight: 500;
+      line-height: 1.2;
+    }
+    .placement-mode label:has(input:checked) {
+      border-color: var(--brand);
+      background: var(--brand-soft);
+      box-shadow: inset 0 0 0 1px var(--brand);
+    }
+    .placement-mode input { margin: .15rem 0 0; accent-color: var(--brand); }
+    .placement-mode .sort-abstain {
+      grid-column: 1 / -1;
+      min-height: 2rem;
+      border-color: transparent;
+      background: transparent;
+    }
+    .placement-mode .sort-abstain:has(input:checked) {
+      border-color: transparent;
+      background: transparent;
+      box-shadow: none;
+    }
+    .placement-mode:has(input[value="auto"]:not(:checked)) .sort-abstain {
+      visibility: hidden;
+    }
+
+    .file-pool {
+      display: grid;
+      align-content: start;
+      gap: .75rem;
+      min-height: 9.5rem;
+      margin: .75rem;
+      padding: .85rem;
+      border: 2px dashed var(--line);
+      border-radius: .55rem;
+      background: #f9fafb;
+      box-shadow: none;
+      transition-property: background-color, box-shadow;
+      transition-duration: 120ms;
+    }
+    .file-pool:has(.pool-list:empty) {
+      align-content: center;
+      gap: 0;
+      justify-items: center;
+    }
+    .file-pool:has(.pool-list:empty) .pool-prompt { text-align: center; }
+    .file-pool[data-over="true"] {
+      background: var(--brand-soft);
+      box-shadow: inset 0 0 0 2px var(--brand), 0 0 0 3px rgb(213 43 30 / 12%);
+    }
+    .exhibit-files-panel .work-panel {
+      min-height: 15rem;
+      border-radius: 0;
+      box-shadow: inset 0 -1px var(--line);
+    }
+    .pool-prompt {
+      display: grid;
+      gap: .15rem;
+      color: var(--muted);
+      font-size: var(--text-sm);
+    }
+    .pool-prompt strong { color: var(--ink); font-size: .9375rem; }
+    .pool-help {
+      margin: 0;
+      color: var(--muted);
+      font-size: var(--text-sm);
+    }
+    .pool-list { display: grid; gap: .5rem; }
+    .pool-empty { margin: 0; color: var(--muted); font-size: var(--text-sm); }
+    .pool-file {
+      display: grid;
+      position: relative;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      align-items: center;
+      gap: .5rem;
+      min-width: 0;
+      padding: .5rem .5rem .5rem 3rem;
+      border-radius: .5rem;
+      background: #fff;
+      box-shadow: inset 0 0 0 1px var(--line);
+      cursor: grab;
+    }
+    .pool-file:active { cursor: grabbing; }
+    .pool-file[data-dragging="true"] { opacity: .55; }
+    .file-description {
+      display: grid;
+      gap: .1rem;
+      min-width: 0;
+      min-height: 2.75rem;
+      padding: .45rem .55rem;
+      text-align: start;
+    }
+    .preview-eye {
+      width: 2.75rem;
+      min-width: 2.75rem;
+      min-height: 2.75rem;
+      padding: 0;
+      color: var(--muted);
+      border-color: var(--line);
+      background: #fff;
+    }
+    .preview-eye:hover { color: var(--ink); background: #f2f4f7; }
+    .preview-eye:disabled { opacity: .52; cursor: not-allowed; }
+    .preview-eye:disabled:hover {
+      color: #98a2b3;
+      border-color: #e4e7ec;
+      background: #f2f4f7;
+    }
+    .preview-eye svg {
+      display: block;
+      width: 1.25rem;
+      height: 1.25rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-width: 1.75;
+    }
+    .delete-pool-file {
+      min-width: 2.75rem;
+      min-height: 2.75rem;
+      padding-inline: .7rem;
+      color: var(--danger);
+      border-color: #fecdca;
+      background: #fff;
+    }
+    .clear-exhibits { color: var(--danger); border-color: #fecdca; background: #fff; }
+
+    .exhibit-list {
+      display: grid;
+      gap: .5rem;
+      min-width: 0;
+    }
+    .exhibit-row {
+      display: grid;
+      position: relative;
+      grid-template-columns: 2.25rem minmax(0, 1fr);
+      align-items: start;
+      gap: .6rem;
+      min-width: 0;
+      padding: .6rem .65rem;
+      border: 1px solid var(--line);
+      border-radius: .6rem;
+      background: #fff;
+    }
+    .letter {
+      display: grid;
+      place-items: center;
+      width: 2.25rem;
+      min-height: 2.25rem;
+      border-radius: .45rem;
+      color: var(--brand-dark);
+      background: var(--brand-soft);
+      font-size: var(--text-lg);
+      font-weight: 700;
+    }
+    .slot-body {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: .45rem .65rem;
+      min-width: 0;
+    }
+    .slot-body > label {
+      display: inline-flex;
+      width: fit-content;
+      color: var(--ink);
+    }
+    .slot-body input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+    }
+    .slot-body > label:has(input:focus-visible) {
+      outline: 2px solid var(--ink);
+      outline-offset: 2px;
+    }
+    .slot-drop {
+      display: grid;
+      position: relative;
+      grid-template-columns: minmax(0, 1fr);
+      align-content: center;
+      align-items: center;
+      min-width: 0;
+      min-height: 4.5rem;
+      padding: .6rem .7rem;
+      border: 2px dashed var(--line);
+      border-radius: .5rem;
+      background: #fcfcfd;
+      cursor: copy;
+      transition-property: background-color, border-color, box-shadow;
+      transition-duration: 120ms;
+    }
+    .slot-drop[draggable="true"] {
+      cursor: grab;
+    }
+    .slot-drop[draggable="true"]:active {
+      cursor: grabbing;
+    }
+    .slot-drop[data-dragging="true"] {
+      opacity: .58;
+    }
+    .slot-drop[data-over="true"] {
+      border-color: var(--brand);
+      background: var(--brand-soft);
+      box-shadow: 0 0 0 3px rgb(213 43 30 / 12%);
+    }
+    .slot-drop:has(.file-description) {
+      align-content: stretch;
+      min-height: 5.25rem;
+      padding-inline-start: 3rem;
+      border-style: solid;
+      background: #fff;
+    }
+    .slot-drop:has(.file-description) .drag-grip { align-self: center; }
+    .slot-drop p { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: var(--text-sm); }
+    .slot-drop .file-description {
+      align-self: stretch;
+      align-content: center;
+      width: 100%;
+      min-height: 3.75rem;
+      padding: .3rem 0;
+    }
+    .slot-drop[role="button"]:hover {
+      border-color: #98a2b3;
+      background: #f9fafb;
+    }
+    .slot-drop[role="button"]:focus-visible {
+      outline: 2px solid var(--ink);
+      outline-offset: 2px;
+    }
+    .drag-grip {
+      display: grid;
+      position: absolute;
+      inset-block-start: 50%;
+      inset-inline-start: .7rem;
+      place-items: center;
+      width: .9rem;
+      min-height: 1.35rem;
+      color: #98a2b3;
+      border: 0;
+      background: transparent;
+      font-size: 0;
+      line-height: 1;
+      cursor: grab;
+      transform: translateY(-50%);
+      user-select: none;
+    }
+    .drag-grip::before {
+      width: .9rem;
+      height: 1.35rem;
+      background: radial-gradient(circle, currentColor .11rem, transparent .12rem) center / .45rem .45rem;
+      content: "";
+    }
+    [data-dragging="true"] .drag-grip,
+    [draggable="true"]:hover .drag-grip { color: var(--ink); }
+    .letter-stack { display: grid; justify-items: center; gap: .25rem; }
+    .exhibit-row:has(.delete-slot) .letter-stack { padding-block-end: 1.75rem; }
+    .letter-stack .preview-eye {
+      width: 2.125rem;
+      min-width: 2.125rem;
+      min-height: 2.125rem;
+    }
+    .wording-disclosure,
+    .wording-single {
+      --wording-label-width: 5.2rem;
+      grid-column: 1 / -1;
+      min-width: 0;
+      padding-block-start: .3rem;
+      border-top: 1px solid #eaecf0;
+    }
+    .wording-single {
+      display: grid;
+      grid-template-columns: var(--wording-label-width) minmax(0, 1fr);
+      align-items: center;
+      gap: .35rem;
+      min-height: 1.5rem;
+      margin: 0;
+      color: var(--muted);
+      font-size: .75rem;
+    }
+    .wording-disclosure summary {
+      display: grid;
+      grid-template-columns: var(--wording-label-width) minmax(0, 1fr) .55rem;
+      align-items: center;
+      gap: .35rem;
+      min-width: 0;
+      min-height: 1.5rem;
+      list-style: none;
+      color: var(--muted);
+      font-size: .75rem;
+      font-weight: 400;
+    }
+    .wording-disclosure summary::-webkit-details-marker { display: none; }
+    .wording-disclosure summary::after {
+      width: .38rem;
+      height: .38rem;
+      border-inline-end: 1.5px solid currentColor;
+      border-block-end: 1.5px solid currentColor;
+      content: "";
+      rotate: 45deg;
+      transition: rotate 120ms ease-out;
+    }
+    .wording-disclosure[open] summary::after { rotate: 225deg; }
+    .wording-label { color: var(--ink); font-weight: 600; white-space: nowrap; }
+    .wording-preview {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .wording-expanded {
+      display: grid;
+      grid-template-columns: var(--wording-label-width) minmax(0, 1fr) .55rem;
+      gap: .35rem;
+      min-width: 0;
+    }
+    .wording-statements {
+      grid-column: 2;
+      max-height: 8rem;
+      margin: .25rem 0 0;
+      padding: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      list-style: none;
+      color: var(--muted);
+      font-size: .75rem;
+      line-height: 1.45;
+    }
+    .wording-statements li + li {
+      margin-block-start: .3rem;
+      padding-block-start: .3rem;
+      border-top: 1px solid #eaecf0;
+    }
+    .slot-actions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-content: start;
+      gap: .35rem;
+      min-width: 10.5rem;
+    }
+    .slot-actions > * { width: 100%; }
+    .slot-actions > label { grid-column: 1 / -1; }
+    .file-name {
+      min-width: 0;
+      overflow: hidden;
+      font-size: .9375rem;
+      font-weight: 650;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .file-meta {
+      color: var(--muted);
+      font-size: var(--text-sm);
+      overflow-wrap: break-word;
+    }
+    .file-meta[data-kind="strong"] { color: var(--success); }
+    .file-meta[data-kind="possible"] { color: var(--warning); }
+    .delete-assigned {
+      color: var(--danger);
+      border-color: #fecdca;
+      background: #fff;
+      font-size: var(--text-sm);
+    }
+    .delete-slot {
+      position: absolute;
+      inset-block-end: .45rem;
+      inset-inline-start: .45rem;
+      width: 1.5rem;
+      min-width: 1.5rem;
+      min-height: 1.5rem;
+      padding: 0;
+      border-color: transparent;
+      border-radius: .375rem;
+      color: #fff;
+      background: var(--brand);
+      box-shadow: 0 1px 2px rgb(16 24 40 / 12%);
+    }
+    .delete-slot svg {
+      display: block;
+      width: .875rem;
+      height: .875rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-linecap: round;
+      stroke-width: 2.25;
+    }
+    button.delete-slot:hover {
+      color: #fff;
+      border-color: transparent;
+      background: var(--brand-dark);
+    }
+    button.delete-assigned:hover,
+    button.delete-pool-file:hover,
+    button.clear-exhibits:hover {
+      color: var(--danger);
+      border-color: #fda29b;
+      background: #fef3f2;
+    }
+    button:active,
+    .file-button:active { transform: scale(.96); }
+    .add-exhibit {
+      width: 100%;
+      margin-block-start: .75rem;
+      gap: .35rem;
+      color: var(--muted);
+      border: 1px dashed var(--line);
+      background: #fcfcfd;
+    }
+    .add-exhibit:hover { color: var(--ink); background: #f9fafb; }
+    .bumper-option { margin-block-start: 1rem; }
+    .output-card { display: grid; gap: .75rem; }
+    .output-card .card-heading { margin-block-end: 0; }
+    .output-card .primary { justify-self: start; }
+    .status {
+      min-height: 1.5rem;
+      color: var(--muted);
+      font-size: var(--text-sm);
+      overflow-wrap: break-word;
+    }
+    .status[data-tone="error"] { color: var(--danger); }
+    .status[data-tone="success"] { color: var(--success); }
+    progress { width: 100%; height: .45rem; margin-block-start: .5rem; accent-color: var(--brand); }
+
+    dialog {
+      width: min(34rem, calc(100% - 2rem));
+      padding: 0;
+      border: 0;
+      border-radius: .8rem;
+      color: var(--ink);
+      background: #fff;
+      box-shadow: 0 24px 64px rgb(0 0 0 / 24%);
+    }
+    dialog::backdrop { background: rgb(17 24 39 / 54%); }
+    .dialog-body { padding: 1.25rem; }
+    .dialog-body h2 { margin: 0 0 .5rem; font-size: var(--text-lg); }
+    .dialog-body p { margin: 0; color: var(--muted); }
+    .dialog-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: .65rem;
+      padding: 1rem 1.25rem;
+      background: #f9fafb;
+    }
+    .dialog-actions .danger { background: var(--brand); }
+    .file-preview-dialog {
+      width: min(50rem, calc(100% - 2rem));
+      height: min(44rem, calc(100% - 2rem));
+    }
+    .preview-dialog-shell {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      height: 100%;
+    }
+    .preview-dialog-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: .85rem 1rem;
+      box-shadow: inset 0 -1px var(--line);
+    }
+    .preview-dialog-heading h2 {
+      min-width: 0;
+      margin: 0;
+      overflow: hidden;
+      font-size: var(--text-base);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .preview-dialog-body {
+      min-height: 0;
+      overflow: auto;
+      background: #e4e7ec;
+    }
+    .preview-dialog-body > p { margin: 0; padding: 2rem; color: var(--muted); text-align: center; }
+    .preview-dialog-body .preview-pages { height: 100%; }
+    .preview-page img { display: block; width: 100%; height: 100%; object-fit: contain; }
+
+    .preview-card {
+      position: sticky;
+      top: 1rem;
+      min-height: 42rem;
+      container-type: inline-size;
+    }
+    .preview-card .card-heading { align-items: center; }
+    .preview-heading-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: .4rem;
+      min-width: 0;
+    }
+    .preview-zoom-select {
+      min-height: 2.25rem;
+      padding: .35rem 1.8rem .35rem .55rem;
+      border: 1px solid var(--line);
+      border-radius: .45rem;
+      color: var(--ink);
+      background: #fff;
+      font: inherit;
+      font-size: .75rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .preview-fullscreen {
+      width: 2.25rem;
+      min-width: 2.25rem;
+      min-height: 2.25rem;
+      padding: 0;
+    }
+    .preview-fullscreen svg {
+      width: 1rem;
+      height: 1rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-width: 1.8;
+    }
+    .preview-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 7.25rem;
+      align-items: start;
+      gap: .5rem;
+      min-width: 0;
+    }
+    .preview-toc {
+      min-width: 0;
+      height: clamp(36rem, calc(100vh - 7rem), 68rem);
+      padding: .5rem;
+      overflow-y: auto;
+      border-radius: .55rem;
+      background: #f9fafb;
+      box-shadow: inset 0 0 0 1px var(--line);
+    }
+    .preview-toc h3 { margin: 0 0 .4rem; font-size: .75rem; }
+    .preview-title {
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+    }
+    .preview-tail {
+      width: 1.15rem;
+      height: 1.35rem;
+      overflow: visible;
+      transform: rotate(-10deg);
+    }
+    .preview-toc-list { display: grid; gap: .2rem; }
+    .preview-toc button {
+      display: grid;
+      justify-items: start;
+      gap: .1rem;
+      width: 100%;
+      min-height: 2.5rem;
+      padding: .35rem .4rem;
+      color: var(--ink);
+      border-color: transparent;
+      background: transparent;
+      font-size: .75rem;
+      line-height: 1.25;
+      text-align: start;
+    }
+    .preview-toc button:hover { background: #fff; }
+    .preview-toc button small {
+      width: 100%;
+      overflow: hidden;
+      color: var(--muted);
+      font-size: .6875rem;
+      font-weight: 400;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .preview-toc-empty { color: var(--muted); font-size: .75rem; }
+    .preview-shell {
+      display: grid;
+      height: clamp(36rem, calc(100vh - 7rem), 68rem);
+      overflow: hidden;
+      border-radius: .55rem;
+      background: #d9dde3;
+      box-shadow: inset 0 0 0 1px rgb(0 0 0 / 8%);
+    }
+    .preview-shell > * { grid-area: 1 / 1; }
+    .preview-empty {
+      display: grid;
+      place-items: center;
+      min-height: 100%;
+      padding: 2rem;
+      color: var(--muted);
+      text-align: center;
+      text-wrap: pretty;
+    }
+    .preview-pages {
+      display: flex;
+      flex-direction: column;
+      gap: .9rem;
+      --preview-zoom: 1;
+      width: 100%;
+      min-width: 0;
+      height: 100%;
+      padding: 1rem;
+      overflow: auto;
+      overscroll-behavior: contain;
+    }
+    .preview-page {
+      position: relative;
+      flex: 0 0 auto;
+      width: calc(100% * var(--preview-zoom));
+      margin-inline: auto;
+      overflow: hidden;
+      background: #fff;
+      box-shadow: 0 0 0 1px rgb(0 0 0 / 10%), 0 4px 12px rgb(0 0 0 / 8%);
+    }
+    .preview-page canvas { display: block; width: 100%; height: 100%; }
+    .preview-card:fullscreen {
+      display: grid;
+      position: fixed;
+      inset: 0;
+      grid-template-rows: auto minmax(0, 1fr);
+      width: 100vw;
+      height: 100vh;
+      min-height: 0;
+      padding: 1rem;
+      overflow: hidden;
+      border-radius: 0;
+      background: var(--paper);
+    }
+    .preview-card:fullscreen .preview-layout {
+      grid-template-columns: minmax(0, 1fr) 10rem;
+      min-height: 0;
+      height: 100%;
+    }
+    .preview-card:fullscreen .preview-shell,
+    .preview-card:fullscreen .preview-toc { height: 100%; }
+    .docx-stage {
+      position: fixed;
+      inset-inline-start: -20000px;
+      top: 0;
+      width: 900px;
+      pointer-events: none;
+    }
+    .hidden { display: none !important; }
+
+    @media (max-width: 72rem) {
+      .builder { grid-template-columns: 1fr; }
+      .preview-card { position: static; }
+    }
+    @container (max-width: 23rem) {
+      .preview-layout { grid-template-columns: 1fr; }
+      .preview-toc {
+        grid-row: 1;
+        height: auto;
+        min-height: 0;
+        max-height: 9rem;
+      }
+      .preview-shell { grid-row: 2; height: 38rem; }
+    }
+    @media (max-width: 34rem) {
+      main { padding: 1rem; }
+      .topbar { align-items: flex-start; flex-wrap: wrap; }
+      .brand-lockup { gap: .45rem; }
+      .local-note { margin-inline-start: 2.05rem; }
+      .file-drop { align-items: stretch; flex-direction: column; }
+      .affidavit-open-action { align-self: flex-start; }
+      .work-panel { grid-template-columns: 5rem minmax(0, 1fr); gap: .75rem; padding: 1rem; }
+      .work-mark, .gnaw-scene { width: 5rem; }
+      .exhibit-import-stage,
+      .exhibit-files-panel .work-panel { min-height: 18rem; }
+      .files-toolbar { align-items: stretch; flex-direction: column; }
+      .files-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
+      .files-actions > * { width: 100%; }
+      .files-actions > .options-button { width: 2.75rem; align-self: start; }
+      .form-grid { grid-template-columns: 1fr; }
+      .field.wide { grid-column: auto; }
+      .exhibits-heading { display: grid; }
+      .exhibit-row { grid-template-columns: 2.25rem minmax(0, 1fr); }
+      .letter-stack { grid-column: 1; grid-row: 1; }
+      .slot-body { grid-column: 2; grid-row: 1; }
+      .slot-body { grid-template-columns: 1fr; }
+      .slot-actions { grid-column: 1; grid-row: 2; min-width: 0; }
+      .output-card .primary { width: 100%; }
+      .preview-card:fullscreen { padding: .65rem; }
+      .preview-card:fullscreen .card-heading { align-items: flex-start; flex-wrap: wrap; }
+      .preview-card:fullscreen .preview-layout {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(0, 1fr) 7rem;
+      }
+      .preview-card:fullscreen .preview-shell { grid-row: 1; height: 100%; }
+      .preview-card:fullscreen .preview-toc {
+        grid-row: 2;
+        height: 7rem;
+        max-height: 7rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand-lockup">
+      <svg class="beaver-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <circle cx="7.7" cy="8.2" r="4.2" fill="#9f2118"/>
+        <circle cx="24.3" cy="8.2" r="4.2" fill="#9f2118"/>
+        <path d="M16 4.6c7.4 0 12 5 12 12.8 0 7.3-4.8 11.4-12 11.4S4 24.7 4 17.4C4 9.6 8.6 4.6 16 4.6Z" fill="currentColor"/>
+        <circle cx="11.5" cy="14.3" r="1.15" fill="#101828"/>
+        <circle cx="20.5" cy="14.3" r="1.15" fill="#101828"/>
+        <path d="M8.7 18.3c0-2.3 2-3.9 4.5-3.9 1.1 0 2.1.4 2.8 1.1.7-.7 1.7-1.1 2.8-1.1 2.5 0 4.5 1.6 4.5 3.9 0 2.8-2.1 4.5-4.7 4.5h-5.2c-2.6 0-4.7-1.7-4.7-4.5Z" fill="#fecdca"/>
+        <path d="m13.4 18 2.6-1.4 2.6 1.4-2.6 2.2Z" fill="#101828"/>
+        <rect x="11.4" y="21.3" width="4.6" height="7.2" rx=".9" fill="#fff"/>
+        <rect x="16" y="21.3" width="4.6" height="7.2" rx=".9" fill="#fff"/>
+        <path d="M16 21.8v6.2" fill="none" stroke="#d0d5dd" stroke-width=".9"/>
+      </svg>
+      <span class="brand-name">Beaver</span>
+      <span class="brand-divider" aria-hidden="true">|</span>
+      <h1>Affidavit Builder</h1>
+    </div>
+    <span class="local-note">Files stay in this browser</span>
+  </header>
+
+  <main>
+    <section class="intro" aria-labelledby="intro-title">
+      <h2 id="intro-title">Build an affidavit with exhibits</h2>
+      <p>Start with the affidavit. Add each exhibit in order, review the combined PDF, then download it.</p>
+    </section>
+
+    <section id="affidavit-card" class="card affidavit-card" aria-labelledby="affidavit-title">
+      <div class="card-heading">
+        <h2 id="affidavit-title">1. Add the affidavit</h2>
+        <span id="affidavit-summary" class="count">PDF or DOCX</span>
+      </div>
+      <div class="affidavit-stage">
+        <div id="affidavit-input" class="affidavit-input">
+          <label id="affidavit-drop" class="file-drop" data-kind="affidavit">
+            <div>
+              <strong id="affidavit-name">Choose an affidavit</strong>
+              <span id="affidavit-hint">Drop a PDF or DOCX file here, or click anywhere to browse</span>
+            </div>
+            <span class="affidavit-open-action" aria-hidden="true">
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M3.5 6.5h4l1.5 1.5h7.5v8H3.5z" />
+                <path d="M6 11h8m-3-3 3 3-3 3" />
+              </svg>
+              <span>Open file</span>
+            </span>
+            <input id="affidavit-file" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+          </label>
+          <label class="check">
+            <input id="automatic" type="checkbox" checked>
+            <span>
+              Auto-fill from PDF
+              <small>Reads every affidavit page for case details and exhibit references. PDF OCR stays in this browser; DOCX also works.</small>
+            </span>
+          </label>
+        </div>
+        <div id="affidavit-loading" class="work-panel hidden">
+          <div class="work-mark" aria-hidden="true">
+            <svg class="gnaw-scene" viewBox="0 0 128 72">
+              <g class="gnaw-log">
+                <g class="gnaw-log-body">
+                  <rect x="4" y="49" width="64" height="15" rx="7.5" fill="currentColor"/>
+                  <path d="M12 54h25M18 59h14" fill="none" stroke="#fcfcfd" stroke-width="1.5" stroke-linecap="round"/>
+                </g>
+                <g class="gnaw-log-end">
+                  <circle cx="66" cy="56.5" r="6.3" fill="#c98a6e"/>
+                  <circle class="gnaw-cut gnaw-bite-one" cx="70" cy="50.5" r="3.1"/>
+                  <circle class="gnaw-cut gnaw-bite-two" cx="68.8" cy="56.5" r="3.1"/>
+                  <circle class="gnaw-cut gnaw-bite-three" cx="70" cy="62.5" r="3.1"/>
+                </g>
+              </g>
+              <g class="gnaw-beaver">
+                <path d="M101 43c13-6 24 1 24 12 0 10-11 15-25 10-3-8-2-16 1-22Z" fill="currentColor"/>
+                <path d="m108 44 12 11m-16-5 14 13m-15-5 7 7m5-21 9 8" fill="none" stroke="#fcfcfd" stroke-width="1.2" stroke-linecap="round"/>
+                <path d="M109 54c-1-19-10-31-25-31-14 0-24 11-24 26 0 11 6 18 15 21h28c4-4 6-9 6-16Z" fill="currentColor"/>
+                <path d="M63 38c6-6 14-6 19 0 2 3 1 8-2 11-5 4-13 3-18-1-3-3-2-7 1-10Z" fill="#d9dcdf"/>
+                <circle cx="76" cy="33" r="2.15" fill="#101828"/>
+                <circle cx="76.7" cy="32.4" r=".65" fill="#fff"/>
+                <path d="m61 39 4-2.8 3.2 3.3-3.7 3.1Z" fill="#101828"/>
+                <g class="gnaw-teeth">
+                  <rect x="59.2" y="43" width="5.1" height="9.5" rx="1.1" fill="#fff"/>
+                  <rect x="64.3" y="43" width="5.1" height="9.5" rx="1.1" fill="#fff"/>
+                  <path d="M64.3 44v7.5" stroke="#d0d5dd" stroke-width=".8"/>
+                </g>
+              </g>
+              <path class="gnaw-chip gnaw-chip-one" d="m58 47 4-2 1 4Z" fill="currentColor"/>
+              <path class="gnaw-chip gnaw-chip-two" d="m59 59 4 1-2 3Z" fill="currentColor"/>
+            </svg>
+          </div>
+          <div class="work-copy">
+            <strong>Reading affidavit</strong>
+            <span id="affidavit-work-step" class="work-step" role="status" aria-live="polite">Preparing document tools</span>
+            <output id="affidavit-work-percent" class="work-percent">0%</output>
+            <progress id="affidavit-work-progress" max="100" value="0" aria-label="Affidavit analysis progress"></progress>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div id="builder" class="builder hidden">
+      <div class="editor-stack">
+        <section class="card" aria-labelledby="case-title">
+          <div class="card-heading"><h2 id="case-title">2. Case details</h2></div>
+          <form id="details-form" class="form-grid">
+            <div class="field">
+              <label for="file-number">Court file number</label>
+              <input id="file-number" name="file-number" type="text" required>
+            </div>
+            <div class="field">
+              <label for="registry">Court registry</label>
+              <input id="registry" name="registry" type="text" required>
+            </div>
+            <div class="field wide">
+              <label for="court">Court</label>
+              <input id="court" name="court" type="text" required>
+            </div>
+            <div class="field wide">
+              <label for="claimant">Claimant</label>
+              <input id="claimant" name="claimant" type="text" required>
+            </div>
+            <div class="field wide">
+              <label for="respondent">Respondent</label>
+              <input id="respondent" name="respondent" type="text" required>
+            </div>
+            <div class="field">
+              <label for="affidavit-number">Affidavit number</label>
+              <input id="affidavit-number" name="affidavit-number" type="text" required>
+            </div>
+            <div class="field">
+              <label for="deponent">Deponent</label>
+              <input id="deponent" name="deponent" type="text" required>
+            </div>
+            <div class="field">
+              <label for="sworn-date">Sworn date</label>
+              <input id="sworn-date" name="sworn-date" type="text" placeholder="Month D, YYYY" required>
+            </div>
+            <div class="field">
+              <label for="sworn-place">Sworn at</label>
+              <input id="sworn-place" name="sworn-place" type="text" placeholder="City, province" required>
+            </div>
+          </form>
+        </section>
+
+        <section class="card order-card" aria-labelledby="order-title">
+          <div class="card-heading exhibits-heading">
+            <div>
+              <h2 id="order-title">3. Add the exhibits</h2>
+              <span id="exhibit-count" class="count">1 exhibit</span>
+            </div>
+          </div>
+          <div class="exhibit-files-panel">
+            <div class="exhibit-import-stage">
+              <div id="exhibit-import-controls" class="exhibit-import-controls">
+              <div class="files-toolbar">
+                <div>
+                  <h3 id="pool-title">Files</h3>
+                  <span id="pool-count" class="count">0 files</span>
+                </div>
+                <div class="files-actions">
+                  <label class="file-button primary">
+                    <span>Choose files</span>
+                    <input id="exhibit-files" type="file" multiple accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+                  </label>
+                  <button id="clear-exhibits" type="button" class="secondary clear-exhibits" disabled>Clear exhibit slots</button>
+                  <button id="file-options" type="button" class="secondary options-button" aria-label="File placement options" title="File placement options">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.09a2 2 0 0 1 1 1.74v.5a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2Z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <section id="exhibit-batch" class="file-pool" aria-labelledby="pool-title">
+                <div class="pool-prompt">
+                  <strong>Drop exhibit files here</strong>
+                  <span>PDF or DOCX. Drag an assigned exhibit back here to unassign it.</span>
+                </div>
+                <div id="pool-list" class="pool-list"></div>
+              </section>
+              </div>
+              <div id="exhibit-loading" class="work-panel hidden">
+                <div class="work-mark" aria-hidden="true">
+                  <svg class="gnaw-scene" viewBox="0 0 128 72">
+                    <g class="gnaw-log">
+                      <g class="gnaw-log-body">
+                      <rect x="4" y="49" width="64" height="15" rx="7.5" fill="currentColor"/>
+                      <path d="M12 54h25M18 59h14" fill="none" stroke="#fcfcfd" stroke-width="1.5" stroke-linecap="round"/>
+                      </g>
+                      <g class="gnaw-log-end">
+                        <circle cx="66" cy="56.5" r="6.3" fill="#c98a6e"/>
+                        <circle class="gnaw-cut gnaw-bite-one" cx="70" cy="50.5" r="3.1"/>
+                        <circle class="gnaw-cut gnaw-bite-two" cx="68.8" cy="56.5" r="3.1"/>
+                        <circle class="gnaw-cut gnaw-bite-three" cx="70" cy="62.5" r="3.1"/>
+                      </g>
+                    </g>
+                    <g class="gnaw-beaver">
+                    <path d="M101 43c13-6 24 1 24 12 0 10-11 15-25 10-3-8-2-16 1-22Z" fill="currentColor"/>
+                    <path d="m108 44 12 11m-16-5 14 13m-15-5 7 7m5-21 9 8" fill="none" stroke="#fcfcfd" stroke-width="1.2" stroke-linecap="round"/>
+                    <path d="M109 54c-1-19-10-31-25-31-14 0-24 11-24 26 0 11 6 18 15 21h28c4-4 6-9 6-16Z" fill="currentColor"/>
+                    <path d="M63 38c6-6 14-6 19 0 2 3 1 8-2 11-5 4-13 3-18-1-3-3-2-7 1-10Z" fill="#d9dcdf"/>
+                      <circle cx="76" cy="33" r="2.15" fill="#101828"/>
+                      <circle cx="76.7" cy="32.4" r=".65" fill="#fff"/>
+                      <path d="m61 39 4-2.8 3.2 3.3-3.7 3.1Z" fill="#101828"/>
+                      <g class="gnaw-teeth">
+                        <rect x="59.2" y="43" width="5.1" height="9.5" rx="1.1" fill="#fff"/>
+                        <rect x="64.3" y="43" width="5.1" height="9.5" rx="1.1" fill="#fff"/>
+                        <path d="M64.3 44v7.5" stroke="#d0d5dd" stroke-width=".8"/>
+                      </g>
+                    </g>
+                  <path class="gnaw-chip gnaw-chip-one" d="m58 47 4-2 1 4Z" fill="currentColor"/>
+                  <path class="gnaw-chip gnaw-chip-two" d="m59 59 4 1-2 3Z" fill="currentColor"/>
+                  </svg>
+                </div>
+                <div class="work-copy">
+                  <strong>Sorting exhibit files</strong>
+                  <span id="exhibit-work-step" class="work-step" role="status" aria-live="polite">Preparing document tools</span>
+                  <output id="exhibit-work-percent" class="work-percent">0%</output>
+                  <progress id="exhibit-work-progress" max="100" value="0" aria-label="Exhibit sorting progress"></progress>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="exhibit-list" class="exhibit-list" aria-label="Exhibits in order"></div>
+          <button id="add-slot" type="button" class="add-exhibit"><span aria-hidden="true">+</span> Add exhibit</button>
+        </section>
+
+        <section class="card output-card" aria-labelledby="output-title">
+          <div class="card-heading"><h2 id="output-title">4. Download</h2></div>
+          <div id="status" class="status" role="status" aria-live="polite"></div>
+          <progress id="progress" class="hidden" max="100" value="0" aria-label="Processing progress"></progress>
+          <button id="build" type="button" class="primary">Build and download PDF</button>
+        </section>
+      </div>
+
+      <aside class="card preview-card" aria-labelledby="preview-title">
+        <div class="card-heading">
+          <h2 id="preview-title" class="preview-title">
+            <svg class="preview-tail" viewBox="0 0 24 28" aria-hidden="true">
+              <path d="M12 1.5c5.7 0 9.5 5.2 9.5 12.7 0 7-3.7 12.3-9.5 12.3S2.5 21.2 2.5 14.2C2.5 6.7 6.3 1.5 12 1.5Z" fill="#8b4a35"/>
+              <path d="m6.5 8 11 11M5 14l8.5 8.5M11 5l8 8M17.5 8l-11 11M19 14l-8.5 8.5M13 5l-8 8" fill="none" stroke="#c98a6e" stroke-width="1.15" stroke-linecap="round"/>
+            </svg>
+            Live preview
+          </h2>
+          <div class="preview-heading-actions">
+            <span id="preview-count" class="count">Waiting for affidavit</span>
+            <select id="preview-zoom" class="preview-zoom-select" aria-label="Preview zoom">
+              <option value="1" selected>Fit</option>
+              <option value="1.25">125%</option>
+              <option value="1.5">150%</option>
+              <option value="1.75">175%</option>
+              <option value="2">200%</option>
+            </select>
+            <button id="preview-fullscreen" type="button" class="secondary preview-fullscreen" aria-label="Open preview fullscreen" title="Open preview fullscreen">
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M7 3H3v4m10-4h4v4M7 17H3v-4m10 4h4v-4"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="preview-layout">
+          <div class="preview-shell">
+            <div id="preview-empty" class="preview-empty">The assembled PDF will appear here.</div>
+            <div id="preview" class="preview-pages hidden" aria-label="Finished affidavit preview"></div>
+          </div>
+          <nav class="preview-toc" aria-labelledby="preview-toc-title">
+            <h3 id="preview-toc-title">Contents</h3>
+            <div id="preview-toc-list" class="preview-toc-list">
+              <span class="preview-toc-empty">Waiting for affidavit</span>
+            </div>
+          </nav>
+        </div>
+      </aside>
+    </div>
+    <div id="docx-stage" class="docx-stage" aria-hidden="true"></div>
+  </main>
+
+  <dialog id="clear-dialog" aria-labelledby="clear-title">
+    <form method="dialog">
+      <div class="dialog-body">
+        <h2 id="clear-title">Clear all exhibit slots?</h2>
+        <p>The files will become unassigned. No files or exhibit slots will be deleted.</p>
+      </div>
+      <div class="dialog-actions">
+        <button value="cancel" class="secondary">Cancel</button>
+        <button id="confirm-clear" value="confirm" class="danger">Clear exhibit slots</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="file-options-dialog" aria-labelledby="file-options-title">
+    <form method="dialog">
+      <div class="dialog-body">
+        <h2 id="file-options-title">File placement</h2>
+        <fieldset class="placement-mode">
+          <legend>When adding multiple files</legend>
+          <label><input type="radio" name="file-placement" value="auto" checked><span>Auto-sort</span></label>
+          <label><input type="radio" name="file-placement" value="sequence"><span>Selection order</span></label>
+          <label><input type="radio" name="file-placement" value="pool"><span>Unsorted</span></label>
+          <label class="sort-abstain"><input id="sort-abstain" type="checkbox" checked><span>Leave unmatched files unassigned</span></label>
+        </fieldset>
+        <label class="check bumper-option">
+          <input id="bumpers" type="checkbox" checked>
+          <span>
+            Start exhibit covers on right-hand pages
+            <small>Adds a blank page only when needed to place the next cover on the right.</small>
+          </span>
+        </label>
+        <label class="check bumper-option">
+          <input id="page-numbers" type="checkbox">
+          <span>
+            Print page numbers at the top
+            <small>Numbers certificate and exhibit pages in the upper-right corner.</small>
+          </span>
+        </label>
+      </div>
+      <div class="dialog-actions">
+        <button value="close" class="primary">Done</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="file-preview-dialog" class="file-preview-dialog" aria-labelledby="file-preview-title">
+    <div class="preview-dialog-shell">
+      <div class="preview-dialog-heading">
+        <h2 id="file-preview-title">File preview</h2>
+        <button id="close-file-preview" type="button" class="secondary">Close</button>
+      </div>
+      <div id="file-preview-body" class="preview-dialog-body">
+        <p id="file-preview-message"></p>
+        <div id="file-preview-pages" class="preview-pages hidden"></div>
+      </div>
+    </div>
+  </dialog>
+
+  <script>
+    const $ = (selector) => document.querySelector(selector);
+    const fields = [
+      "file-number", "registry", "court", "claimant", "respondent",
+      "affidavit-number", "deponent", "sworn-date", "sworn-place",
+    ];
+    const CDN = {
+      pdfLib: "https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js",
+      pdfJs: "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs",
+      pdfWorker: "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs",
+      fuzzy: "https://cdn.jsdelivr.net/npm/fastest-levenshtein@1.0.16/+esm",
+      tesseract: "https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/tesseract.min.js",
+      jszip: "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js",
+      docxPreview: "https://cdn.jsdelivr.net/npm/docx-preview@0.3.7/dist/docx-preview.min.js",
+      html2canvas: "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js",
+    };
+    const preferencesKey = "affidavitBuilder.courtPreferences.v1";
+    const state = {
+      affidavit: null,
+      entries: [],
+      order: [null],
+      statements: new Map(),
+      touchedFields: new Set(),
+      pdfJs: null,
+      fuzzy: null,
+      ocrWorker: null,
+      ocrContext: "",
+      ocrProgressBase: 0,
+      ocrProgressSpan: 0,
+      affidavitMeta: "PDF or DOCX",
+      scanning: false,
+      busy: false,
+      busyKind: null,
+      filePreviewDocument: null,
+      filePreviewGeneration: 0,
+      filePreviewRenderQueue: Promise.resolve(),
+      previewTimer: null,
+      previewGeneration: 0,
+      previewDocument: null,
+      previewObserver: null,
+      previewRenderVersion: 0,
+      previewZoom: 1,
+      previewVisibilityObserver: null,
+      previewNearViewport: false,
+      previewRenderQueue: Promise.resolve(),
+      docxQueue: Promise.resolve(),
+      docxCache: new Map(),
+      workTaskTimers: { affidavit: null, exhibit: null },
+      workTaskIndexes: { affidavit: 0, exhibit: 0 },
+    };
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (character) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+      })[character]);
+    }
+
+    function todayText(date = new Date()) {
+      return new Intl.DateTimeFormat("en-CA", {
+        month: "long", day: "numeric", year: "numeric",
+      }).format(date);
+    }
+
+    function ordinal(value) {
+      const number = Number(value);
+      if (number % 100 >= 11 && number % 100 <= 13) return `${number}th`;
+      return `${number}${({ 1: "st", 2: "nd", 3: "rd" })[number % 10] || "th"}`;
+    }
+
+    function legalDate(value) {
+      const raw = value.trim().replace(/^this\s+/iu, "");
+      const months = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December",
+      ];
+      let match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/u);
+      if (match) return `${ordinal(match[3])} day of ${months[Number(match[2]) - 1]} ${match[1]}`;
+      match = raw.match(/^([A-Za-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?[,]?\s+(\d{4})$/iu);
+      if (match) {
+        const month = months.find((name) => name.toLowerCase() === match[1].toLowerCase());
+        if (month) return `${ordinal(match[2])} day of ${month} ${match[3]}`;
+      }
+      match = raw.match(/^(\d{1,2})(?:st|nd|rd|th)?(?:\s+day\s+of)?\s+([A-Za-z]+)\s+(\d{4})$/iu);
+      if (match) {
+        const month = months.find((name) => name.toLowerCase() === match[2].toLowerCase());
+        if (month) return `${ordinal(match[1])} day of ${month} ${match[3]}`;
+      }
+      return raw;
+    }
+
+    function fieldValue(id) { return $(`#${id}`).value.trim(); }
+
+    function setStatus(message, tone = "") {
+      $("#status").textContent = message;
+      $("#status").dataset.tone = tone;
+    }
+
+    function setWorkLoading(kind, visible) {
+      const input = kind === "affidavit" ? $("#affidavit-input") : $("#exhibit-import-controls");
+      const panel = $(`#${kind}-loading`);
+      input.classList.toggle("hidden", visible);
+      panel.classList.toggle("hidden", !visible);
+      clearInterval(state.workTaskTimers[kind]);
+      state.workTaskTimers[kind] = null;
+      if (kind === "affidavit") {
+        $("#affidavit-card").setAttribute("aria-busy", String(visible));
+        $("#affidavit-summary").textContent = visible ? "Processing" : state.affidavitMeta;
+      }
+      if (visible) {
+        panel.querySelector(".gnaw-scene").getAnimations({ subtree: true }).forEach((animation) => {
+          animation.cancel();
+          animation.play();
+        });
+        state.workTaskIndexes[kind] = 0;
+        updateBeaverTask(kind);
+        state.workTaskTimers[kind] = setInterval(() => {
+          state.workTaskIndexes[kind] = (state.workTaskIndexes[kind] + 1) % beaverTasks(kind).length;
+          updateBeaverTask(kind);
+        }, 3200);
+        updateWorkProgress(kind, 0);
+      }
+    }
+
+    function beaverTasks(kind) {
+      const affidavit = [
+        "Sharpening the Beaver teeth",
+        "Putting on tiny reading glasses",
+        "Gnawing through the opening pages",
+        "Following the grain of the affidavit",
+        "Holding the page very close to the nose",
+        "Tucking useful woodchips behind one ear",
+        "Checking the margin for secret twigs",
+        "Straightening the little paper dam",
+        "Counting exhibit sticks twice",
+        "Paddling back for one more look",
+        "Stacking the useful bits by the pond",
+        "Giving the final pile an approving tail slap",
+      ];
+      const exhibits = [
+        "Rolling the exhibit logs into view",
+        "Sniffing for matching wood grain",
+        "Trying each log in its little slot",
+        "Comparing bark patterns carefully",
+        "Setting aside a suspiciously mysterious twig",
+        "Lining up the best-looking logs",
+        "Asking the pond for a second opinion",
+        "Leaving uncertain logs in the loose pile",
+        "Making a very tidy exhibit dam",
+        "Polishing the last woodchip",
+        "Giving the sorted pile an approving tail slap",
+      ];
+      return kind === "affidavit" ? affidavit : exhibits;
+    }
+
+    function updateBeaverTask(kind) {
+      $(`#${kind}-work-step`).textContent = beaverTasks(kind)[state.workTaskIndexes[kind]];
+    }
+
+    function updateWorkProgress(kind, value) {
+      const percent = Math.max(0, Math.min(100, Math.round(value)));
+      $(`#${kind}-work-percent`).textContent = `${percent}%`;
+      $(`#${kind}-work-progress`).value = percent;
+    }
+
+    function setBusy(busy, kind = "build") {
+      state.busy = busy;
+      state.busyKind = busy ? kind : null;
+      $("#build").disabled = busy;
+      $("#add-slot").disabled = busy;
+      $("#exhibit-files").disabled = busy;
+      $("#affidavit-file").disabled = busy;
+      $("#automatic").disabled = busy;
+      $("#file-options").disabled = busy;
+      $("#clear-exhibits").disabled = busy || !state.order.some(Boolean);
+      document.querySelectorAll(".slot-file, .delete-slot, .unassign-file, .delete-assigned, .delete-pool-file, #sort-abstain, input[name='file-placement']").forEach((control) => {
+        control.disabled = busy;
+      });
+      document.querySelectorAll(".preview-eye").forEach((control) => {
+        control.disabled = busy || !control.dataset.id;
+      });
+      $("#progress").classList.toggle("hidden", !(busy && kind === "build"));
+      if (!busy) $("#progress").value = 0;
+    }
+
+    function progress(message, completed, total) {
+      setStatus(message);
+      const percent = total ? (completed / total) * 100 : 0;
+      $("#progress").value = percent;
+      if (state.busyKind === "scan") updateWorkProgress("affidavit", percent);
+      if (state.busyKind === "sort") updateWorkProgress("exhibit", percent);
+    }
+
+    function script(src) {
+      return new Promise((resolve, reject) => {
+        const existing = document.querySelector(`script[src="${src}"]`);
+        if (existing) {
+          if (existing.dataset.loaded) resolve();
+          else existing.addEventListener("load", resolve, { once: true });
+          return;
+        }
+        const node = document.createElement("script");
+        node.src = src;
+        node.addEventListener("load", () => {
+          node.dataset.loaded = "true";
+          resolve();
+        }, { once: true });
+        node.addEventListener("error", () => reject(new Error("Unable to load the document tools. Check your connection and try again.")), { once: true });
+        document.head.append(node);
+      });
+    }
+
+    // ponytail: CDN libraries keep this a single publishable file; vendor them only if offline use becomes required.
+    async function pdfLib() {
+      if (!window.PDFLib) await script(CDN.pdfLib);
+      return window.PDFLib;
+    }
+
+    async function pdfJs() {
+      if (!state.pdfJs) {
+        state.pdfJs = await import(CDN.pdfJs);
+        state.pdfJs.GlobalWorkerOptions.workerSrc = CDN.pdfWorker;
+      }
+      return state.pdfJs;
+    }
+
+    async function fuzzyTools() {
+      if (!state.fuzzy) state.fuzzy = await import(CDN.fuzzy);
+      return state.fuzzy;
+    }
+
+    async function docxTools() {
+      if (!window.JSZip) await script(CDN.jszip);
+      if (!window.docx) await script(CDN.docxPreview);
+      if (!window.html2canvas) await script(CDN.html2canvas);
+    }
+
+    function isPdf(file) {
+      return file?.type === "application/pdf" || /\.pdf$/iu.test(file?.name || "");
+    }
+
+    function isDocx(file) {
+      return file?.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        || /\.docx$/iu.test(file?.name || "");
+    }
+
+    function isDocument(file) { return isPdf(file) || isDocx(file); }
+
+    function fileKey(file) { return `${file.name}:${file.size}:${file.lastModified}`; }
+
+    function fileKind(file) { return isDocx(file) ? "DOCX" : "PDF"; }
+
+    function withDocxStage(file, action) {
+      const run = state.docxQueue.then(async () => {
+        await docxTools();
+        const stage = $("#docx-stage");
+        stage.replaceChildren();
+        await window.docx.renderAsync(await file.arrayBuffer(), stage, stage, {
+          inWrapper: false,
+          breakPages: true,
+          ignoreLastRenderedPageBreak: false,
+          useBase64URL: true,
+          renderHeaders: true,
+          renderFooters: true,
+          renderFootnotes: true,
+          renderEndnotes: true,
+        });
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const sections = [...stage.querySelectorAll("section.docx")];
+        return action(stage, sections.length ? sections : [stage]);
+      });
+      state.docxQueue = run.then(() => undefined, () => undefined);
+      return run;
+    }
+
+    async function docxText(file) {
+      return withDocxStage(file, (_stage, sections) => {
+        const pages = sections.map((page) => page.textContent.replace(/\s+/g, " ").trim());
+        return { text: pages.join("\n\n"), pages, pageCount: pages.length };
+      });
+    }
+
+    function docxPages(file) {
+      const key = fileKey(file);
+      if (state.docxCache.has(key)) return state.docxCache.get(key);
+      const pending = withDocxStage(file, async (_stage, sections) => {
+        const pages = [];
+        for (const section of sections) {
+          const canvas = await window.html2canvas(section, {
+            backgroundColor: "#ffffff",
+            logging: false,
+            scale: 1.5,
+            useCORS: true,
+          });
+          const bounds = section.getBoundingClientRect();
+          pages.push({
+            data: canvas.toDataURL("image/png"),
+            width: Math.max(72, bounds.width * .75),
+            height: Math.max(72, bounds.height * .75),
+          });
+          canvas.width = canvas.height = 1;
+        }
+        return pages;
+      });
+      state.docxCache.set(key, pending);
+      pending.catch(() => state.docxCache.delete(key));
+      return pending;
+    }
+
+    function releaseFilePreview() {
+      state.filePreviewGeneration += 1;
+      state.filePreviewDocument?.destroy();
+      state.filePreviewDocument = null;
+      $("#file-preview-pages").replaceChildren();
+      $("#file-preview-pages").onscroll = null;
+      $("#file-preview-pages").classList.add("hidden");
+      $("#file-preview-message").textContent = "";
+      $("#file-preview-message").classList.remove("hidden");
+    }
+
+    async function previewEntry(id) {
+      const entry = entryById(id);
+      if (!entry) return;
+      const dialog = $("#file-preview-dialog");
+      releaseFilePreview();
+      const generation = state.filePreviewGeneration;
+      $("#file-preview-title").textContent = entry.file.name;
+      $("#file-preview-message").textContent = "Preparing preview…";
+      dialog.showModal();
+      try {
+        if (isPdf(entry.file)) {
+          const document = await openPdf(entry.file);
+          if (generation !== state.filePreviewGeneration) {
+            await document.destroy();
+            return;
+          }
+          state.filePreviewDocument = document;
+          await renderDocumentPreview(
+            document,
+            $("#file-preview-pages"),
+            () => generation === state.filePreviewGeneration,
+            "File preview page",
+          );
+        } else {
+          const pages = await docxPages(entry.file);
+          if (generation !== state.filePreviewGeneration) return;
+          const target = document.createDocumentFragment();
+          pages.forEach((page, index) => {
+            const shell = document.createElement("div");
+            shell.className = "preview-page";
+            shell.setAttribute("role", "img");
+            shell.setAttribute("aria-label", `File preview page ${index + 1} of ${pages.length}`);
+            shell.style.aspectRatio = `${page.width} / ${page.height}`;
+            const image = document.createElement("img");
+            image.src = page.data;
+            image.alt = "";
+            shell.append(image);
+            target.append(shell);
+          });
+          $("#file-preview-pages").replaceChildren(target);
+          $("#file-preview-pages").classList.remove("hidden");
+          $("#file-preview-message").classList.add("hidden");
+        }
+      } catch {
+        if (generation !== state.filePreviewGeneration) return;
+        $("#file-preview-pages").classList.add("hidden");
+        $("#file-preview-message").textContent = "Unable to preview this file. It is still available in the exhibit list.";
+        $("#file-preview-message").classList.remove("hidden");
+      }
+    }
+
+    async function ocrWorker() {
+      if (!window.Tesseract) await script(CDN.tesseract);
+      if (!state.ocrWorker) {
+        state.ocrWorker = await window.Tesseract.createWorker("eng", 1, {
+          logger: ({ status, progress: amount }) => {
+            if (status === "recognizing text") {
+              const value = state.ocrProgressBase + amount * state.ocrProgressSpan;
+              setStatus(`${state.ocrContext} — ${Math.round(value)}%`);
+              if (state.busyKind === "scan") updateWorkProgress("affidavit", value);
+              if (state.busyKind === "sort") updateWorkProgress("exhibit", value);
+            }
+          },
+        });
+      }
+      return state.ocrWorker;
+    }
+
+    async function openPdf(file) {
+      const library = await pdfJs();
+      return library.getDocument({
+        data: new Uint8Array(await file.arrayBuffer()),
+        useSystemFonts: true,
+      }).promise;
+    }
+
+    async function textFromPage(page) {
+      const content = await page.getTextContent();
+      return content.items.map((item) =>
+        `${typeof item.str === "string" ? item.str : ""}${item.hasEOL ? "\n" : " "}`
+      ).join("").trim();
+    }
+
+    async function ocrPage(page, context) {
+      state.ocrContext = context;
+      const base = page.getViewport({ scale: 1 });
+      const scale = Math.min(1.75, 1800 / base.width);
+      const viewport = page.getViewport({ scale });
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+      const worker = await ocrWorker();
+      const result = await worker.recognize(canvas);
+      canvas.width = canvas.height = 1;
+      return result.data.text.trim();
+    }
+
+    async function scanPdf(file, allPages, label, step, totalSteps, forceOcr = false) {
+      const document = await openPdf(file);
+      const pageCount = document.numPages;
+      const indexes = allPages
+        ? Array.from({ length: pageCount }, (_, index) => index + 1)
+        : [...new Set([1, pageCount])];
+      const pages = [];
+      for (let index = 0; index < indexes.length; index += 1) {
+        const pageNumber = indexes[index];
+        const page = await document.getPage(pageNumber);
+        progress(`${label}: page ${pageNumber} of ${pageCount}`, step + index / indexes.length, totalSteps);
+        const nativeText = await textFromPage(page);
+        let ocrText = "";
+        if (forceOcr || nativeText.replace(/\s/g, "").length < 80) {
+          state.ocrProgressBase = 100 * (step + index / indexes.length) / totalSteps;
+          state.ocrProgressSpan = 100 / (indexes.length * totalSteps);
+          ocrText = await ocrPage(page, `${label}: OCR page ${pageNumber} of ${pageCount}`);
+        }
+        pages.push([nativeText, ocrText].filter(Boolean).join("\n"));
+        page.cleanup();
+        progress(`${label}: page ${pageNumber} of ${pageCount}`, step + (index + 1) / indexes.length, totalSteps);
+      }
+      await document.destroy();
+      return { text: pages.join("\n\n"), pages, pageCount };
+    }
+
+    async function scanAffidavit(file) {
+      if (isPdf(file)) return scanPdf(file, true, "Affidavit", 0, 1, true);
+      progress("Reading affidavit", 0, 1);
+      const result = await docxText(file);
+      progress("Affidavit read", 1, 1);
+      return result;
+    }
+
+    function affidavitNumberFrom(text) {
+      return text.match(/\b(?:This\s+is\s+the\s+)?(\d{1,3})(?:st|nd|rd|th)?\s+Affidavit\b/iu)?.[1]
+        || text.match(/\bAffidavit\s*(?:(?:No\.?|Number|#)\s*)?[:#-]?\s*(\d{1,3})(?:st|nd|rd|th)?\b/iu)?.[1]
+        || "";
+    }
+
+    function caseDetails(scan) {
+      const pages = scan.pages?.length ? scan.pages : [scan.text];
+      const opening = pages.slice(0, 3).join("\n").replace(/\r/g, "");
+      const ending = pages.slice(-3).join("\n").replace(/\r/g, "");
+      const lines = (text) => text.split("\n").map((line) => line.replace(/\s+/g, " ").trim()).filter(Boolean);
+      const openingLines = lines(opening);
+      const endingLines = lines(ending);
+      const readable = (value) => {
+        const clean = value.replace(/\s+/g, " ").trim().replace(/^[,;:\s]+|[,;:\s]+$/gu, "");
+        return clean === clean.toUpperCase()
+          ? clean.toLowerCase()
+            .replace(/\b\p{L}/gu, (letter) => letter.toUpperCase())
+            .replace(/\b(?:Of|For|The|And)\b/gu, (word) => word.toLowerCase())
+          : clean;
+      };
+      const normalized = (value) => value.normalize("NFKD").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+      const closeLabel = (value, aliases) => aliases.some((alias) => {
+        const left = normalized(value);
+        const right = normalized(alias);
+        return left === right || state.fuzzy.distance(left, right) <= Math.max(1, Math.floor(right.length * .24));
+      });
+      const labelled = (source, aliases, valid) => {
+        for (let index = 0; index < source.length; index += 1) {
+          const divided = source[index].match(/^(.{2,35}?)(?:\s*[:|]\s*|\s+[â€“â€”-]\s+)(.+)$/u);
+          if (divided && closeLabel(divided[1], aliases) && valid(divided[2])) return readable(divided[2]);
+          if (closeLabel(source[index], aliases) && valid(source[index + 1] || "")) return readable(source[index + 1]);
+        }
+        return "";
+      };
+      const validFileNumber = (value) => /^(?=.*\d)[A-Z0-9][A-Z0-9./-]{1,30}$/iu.test(value.trim());
+      const validName = (value) => {
+        const clean = readable(value);
+        return clean.length >= 2 && clean.length <= 120 && /\p{L}/u.test(clean)
+          && !/\b(?:Court|Registry|Between|Affidavit|Claimant|Respondent|Plaintiff|Defendant)\b/iu.test(clean);
+      };
+      const validPlace = (value) => {
+        const clean = readable(value);
+        return clean.length >= 2 && clean.length <= 80 && /\p{L}/u.test(clean)
+          && !/\b(?:sworn|affirmed|before|date|affidavit)\b/iu.test(clean);
+      };
+      const openingFlat = openingLines.join(" ");
+      const endingFlat = endingLines.join(" ");
+      const fileNumber = openingFlat.match(/\bCourt\s+File\s+(?:No\.?|Number)\s*:?\s*([A-Z0-9][A-Z0-9./-]{1,30})\b/iu)?.[1]
+        || labelled(openingLines, ["court file no", "court file number"], validFileNumber);
+      let registry = labelled(openingLines, ["court registry", "registry"], validPlace);
+      if (!registry) {
+        registry = openingLines.map((line) => line.match(/^([\p{L}][\p{L} .'-]{1,49})\s+Registry$/iu)?.[1])
+          .find((value) => value && !/^Court$/iu.test(value)) || "";
+      }
+      const jurisdictions = "(?:British Columbia|Alberta|Saskatchewan|Manitoba|Ontario|Quebec|New Brunswick|Nova Scotia|Prince Edward Island|Newfoundland and Labrador|Yukon|Northwest Territories|Nunavut|Canada)";
+      const courtPatterns = [
+        /\bSupreme Court of (?:British Columbia|Canada)\b/iu,
+        /\bFederal Court of Appeal\b/iu,
+        /\bFederal Court(?: of Canada)?\b/iu,
+        new RegExp(`\\bCourt of Appeal (?:for|of) ${jurisdictions}\\b`, "iu"),
+        new RegExp(`\\bCourt of (?:King['â€™]s|Queen['â€™]s) Bench of ${jurisdictions}\\b`, "iu"),
+        /\b(?:Ontario )?Superior Court of Justice\b/iu,
+        new RegExp(`\\bProvincial Court of ${jurisdictions}\\b`, "iu"),
+        /\bTax Court of Canada\b/iu,
+      ];
+      const court = courtPatterns.map((pattern) => openingFlat.match(pattern)?.[0]).find(Boolean) || "";
+      const claimant = labelled(
+        openingLines,
+        ["claimant", "plaintiff", "petitioner", "applicant", "appellant"],
+        validName,
+      );
+      const respondent = labelled(openingLines, ["respondent", "defendant"], validName);
+      const affidavitNumber = affidavitNumberFrom(openingFlat)
+        || labelled(openingLines, ["affidavit number", "affidavit no"], (value) => /^\d{1,3}$/u.test(value.trim()));
+      let deponent = labelled(openingLines, ["deponent"], validName);
+      if (!deponent) {
+        deponent = openingLines.map((line) =>
+          line.match(/^(?:(?:This\s+is\s+the\s+)?\d+(?:st|nd|rd|th)?\s+Affidavit|Affidavit(?:\s*(?:(?:No\.?|Number|#)\s*)?[:#-]?\s*\d+(?:st|nd|rd|th)?)?)\s+of\s+(.+?)(?:\s+in\s+this\s+case.*)?$/iu)?.[1]
+        ).find((value) => value && validName(value)) || "";
+      }
+      if (!deponent) {
+        const heading = openingFlat.match(
+          /\b(?:(?:This\s+is\s+the\s+)?\d+(?:st|nd|rd|th)?\s+)?Affidavit(?:\s*(?:(?:No\.?|Number|#)\s*)?[:#-]?\s*\d+(?:st|nd|rd|th)?)?\s+of\s+([\p{L}][\p{L} .'-]{1,119}?)(?=\s+(?:in\s+this\s+case|I\b|sworn\b|affirmed\b|the\s+deponent\b)|$)/iu,
+        )?.[1];
+        if (heading && validName(heading)) deponent = heading;
+      }
+      if (!deponent) {
+        deponent = [...openingLines, openingFlat].map((value) =>
+          value.match(/\b(?:I,\s*|I\s+am\s+)(.+?)(?=\s*,?\s+(?:of|residing)\b)/iu)?.[1]
+        ).find((value) => value && validName(value)) || "";
+      }
+      const monthNames = "January|February|March|April|May|June|July|August|September|October|November|December";
+      const jurat = endingFlat.match(/\b(?:sworn|affirmed)(?:\s+or\s+affirmed)?(?:\s+before\s+me)?\s+at\s+(?:the\s+)?(?:City|Town|Village)?\s*(?:of\s+)?([\p{L}][\p{L} .,'-]{1,70}?)(?=\s+(?:in\s+the\s+Province|this|on)\b)/iu);
+      const swornPlace = jurat?.[1] && validPlace(jurat[1])
+        ? readable(jurat[1])
+        : labelled(endingLines, ["sworn at", "affirmed at"], validPlace);
+      const dateSource = `${endingFlat} ${openingFlat}`;
+      let date = dateSource.match(new RegExp(`\\b(?:this|on)\\s+(\\d{1,2})(?:st|nd|rd|th|e)?\\s+(?:day\\s+of\\s+)?(${monthNames})\\s*,?\\s*(\\d{4})\\b`, "iu"));
+      const swornDate = date
+        ? `${readable(date[2])} ${Number(date[1])}, ${date[3]}`
+        : labelled(endingLines, ["sworn date", "date sworn", "affirmed date"], (value) =>
+          /(?:\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}(?:st|nd|rd|th)?\b.*\b\d{4}\b|\b[A-Za-z]+\s+\d{1,2},?\s+\d{4}\b)/iu.test(value)
+        );
+      return {
+        fileNumber: fileNumber || "",
+        registry: registry ? readable(registry) : "",
+        court: court ? readable(court) : "",
+        claimant,
+        respondent,
+        affidavitNumber: affidavitNumber || "",
+        deponent: deponent ? readable(deponent) : "",
+        swornDate,
+        swornPlace,
+      };
+    }
+
+    function applyCaseDetails(scan) {
+      const details = caseDetails(scan);
+      const found = [];
+      [
+        ["file-number", "court file number", details.fileNumber],
+        ["registry", "registry", details.registry],
+        ["court", "court", details.court],
+        ["claimant", "claimant", details.claimant],
+        ["respondent", "respondent", details.respondent],
+        ["affidavit-number", "affidavit number", details.affidavitNumber],
+        ["deponent", "deponent", details.deponent],
+        ["sworn-date", "sworn date", details.swornDate],
+        ["sworn-place", "sworn place", details.swornPlace],
+      ].forEach(([id, label, value]) => {
+        if (!value) return;
+        found.push(label);
+        if (!state.touchedFields.has(id)) $(`#${id}`).value = value;
+      });
+      return found;
+    }
+
+    function statementTokens(value) {
+      return String(value)
+        .normalize("NFKC")
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}]+/gu, " ")
+        .trim()
+        .split(/\s+/)
+        .filter((word) => word.length > 2);
+    }
+
+    function sameStatement(left, right) {
+      const leftWords = new Set(statementTokens(left));
+      const rightWords = new Set(statementTokens(right));
+      if ([...leftWords].join(" ") === [...rightWords].join(" ")) return true;
+      const shorter = Math.min(leftWords.size, rightWords.size);
+      const longer = Math.max(leftWords.size, rightWords.size);
+      if (shorter < 5 || shorter / longer < .72) return false;
+      const overlap = [...leftWords].filter((word) => rightWords.has(word)).length;
+      if (overlap / shorter >= .9) return true;
+      if (leftWords.size !== rightWords.size || overlap !== shorter - 1) return false;
+      const [leftOnly] = [...leftWords].filter((word) => !rightWords.has(word));
+      const [rightOnly] = [...rightWords].filter((word) => !leftWords.has(word));
+      return Math.min(leftOnly.length, rightOnly.length) >= 5
+        && (leftOnly.startsWith(rightOnly)
+          || rightOnly.startsWith(leftOnly)
+          || state.fuzzy?.distance(leftOnly, rightOnly) <= 1);
+    }
+
+    function distinctStatements(statements) {
+      return statements
+        .map((statement) => String(statement).trim())
+        .filter((statement, index, values) => statement
+          && !values.slice(0, index).some((earlier) => sameStatement(earlier, statement)));
+    }
+
+    function statementWindows(text) {
+      const flat = text.replace(/\s+/g, " ").trim();
+      const marker = /\bExhibit\s*["“”'‘’]?\s*([A-Z]{1,2})\s*["“”'‘’]?\b/giu;
+      const output = new Map();
+      for (const match of flat.matchAll(marker)) {
+        const lowerBound = Math.max(0, match.index - 280);
+        const upperBound = Math.min(flat.length, match.index + match[0].length + 300);
+        const before = [".", "?", "!", ";"].reduce(
+          (position, character) => Math.max(position, flat.lastIndexOf(character, match.index - 1)),
+          -1,
+        );
+        const afterPositions = [".", "?", "!", ";"]
+          .map((character) => flat.indexOf(character, match.index + match[0].length))
+          .filter((position) => position >= 0);
+        const nearestAfter = afterPositions.length ? Math.min(...afterPositions) + 1 : upperBound;
+        const end = Math.min(upperBound, nearestAfter);
+        let start = before >= lowerBound ? before + 1 : lowerBound;
+        let window = flat.slice(start, end).replace(/^\s*\d+[.)]?\s*/, "").trim();
+        if (window.split(/\s+/).length < 5 && before >= lowerBound) {
+          const contextStart = [".", "?", "!", ";"].reduce(
+            (position, character) => Math.max(position, flat.lastIndexOf(character, before - 1)),
+            -1,
+          );
+          start = contextStart >= lowerBound ? contextStart + 1 : lowerBound;
+          window = flat.slice(start, end).replace(/^\s*\d+[.)]?\s*/, "").trim();
+        }
+        if (!window || /This is Exhibit\b.{0,120}\b(?:referred to in|to) the Affidavit/iu.test(window)) continue;
+        const label = match[1].toUpperCase();
+        const values = output.get(label) || [];
+        if (!values.some((value) => sameStatement(value, window))) values.push(window);
+        output.set(label, values);
+      }
+      return output;
+    }
+
+    function labelIndex(label) {
+      return [...label].reduce((value, character) => value * 26 + character.charCodeAt(0) - 64, 0) - 1;
+    }
+
+    function indexLabel(index) {
+      let value = index + 1;
+      let label = "";
+      while (value) {
+        value -= 1;
+        label = String.fromCharCode(65 + value % 26) + label;
+        value = Math.floor(value / 26);
+      }
+      return label;
+    }
+
+    function expectedSlotCount() {
+      return Math.max(0, ...[...state.statements.keys()].map((label) => labelIndex(label) + 1));
+    }
+
+    function entryById(id) { return state.entries.find((entry) => entry.id === id); }
+    function assignedIds() { return new Set(state.order.filter(Boolean)); }
+    function poolEntries() {
+      const assigned = assignedIds();
+      return state.entries.filter((entry) => !assigned.has(entry.id));
+    }
+    function addEntries(files) {
+      return files.map((file) => {
+        const entry = { id: crypto.randomUUID(), file, pageCount: null };
+        state.entries.push(entry);
+        return entry;
+      });
+    }
+
+    function setExhibitCount(value, announce = false) {
+      const count = Math.max(0, Math.min(52, Number(value) || 0));
+      if (count < state.order.length) {
+        state.order.length = count;
+      } else {
+        while (state.order.length < count) state.order.push(null);
+      }
+      renderExhibits();
+      if (announce) setStatus(`${count} exhibit field${count === 1 ? "" : "s"} ready.`);
+      schedulePreview();
+    }
+
+    function assignEntryToSlot(id, index) {
+      const previous = state.order.indexOf(id);
+      if (previous >= 0) state.order[previous] = null;
+      while (state.order.length <= index) state.order.push(null);
+      state.order[index] = id;
+    }
+
+    function moveOrSwapSlots(from, to) {
+      if (from === to || !state.order[from]) return;
+      [state.order[from], state.order[to]] = [state.order[to] || null, state.order[from]];
+      renderExhibits();
+      setStatus(`Exhibits ${indexLabel(from)} and ${indexLabel(to)} updated.`, "success");
+      schedulePreview();
+    }
+
+    function assignFiles(files, startIndex) {
+      const documents = files.filter(isDocument);
+      if (!documents.length) {
+        setStatus("Choose a PDF or DOCX file.", "error");
+        return;
+      }
+      addEntries(documents).forEach((entry, offset) => assignEntryToSlot(entry.id, startIndex + offset));
+      renderExhibits();
+      setStatus(`${documents.length} document${documents.length === 1 ? "" : "s"} added.`);
+      schedulePreview();
+    }
+
+    function placeInSelectionOrder(entries) {
+      entries.forEach((entry) => {
+        let index = state.order.indexOf(null);
+        if (index < 0) {
+          index = state.order.length;
+          state.order.push(null);
+        }
+        assignEntryToSlot(entry.id, index);
+      });
+    }
+
+    function explicitExhibitIndex(text) {
+      const match = text.match(/\b(?:Exhibit|Tab)\s*["“”']?\s*([A-Z]{1,2})\s*["“”']?\b/iu);
+      return match ? labelIndex(match[1].toUpperCase()) : -1;
+    }
+
+    function matchScore(text, statements) {
+      const ignored = new Set(["about", "after", "also", "attached", "before", "being", "copy", "dated", "document", "exhibit", "from", "have", "marked", "referred", "that", "this", "with"]);
+      const words = (value) => value.toLowerCase().match(/[\p{L}\p{N}]+/gu)
+        ?.filter((word) => word.length > 2 && !ignored.has(word)) || [];
+      const available = [...new Set(words(text))];
+      return Math.max(0, ...statements.map((statement) => {
+        const wanted = [...new Set(words(statement))].slice(0, 16);
+        if (!wanted.length) return 0;
+        const overlap = wanted.filter((word) => available.some((candidate) =>
+          candidate === word || (word.length >= 6 && state.fuzzy.distance(candidate, word) <= 1)
+        )).length;
+        return overlap / Math.min(wanted.length, 6);
+      }));
+    }
+
+    function confidentMatch(ranked) {
+      return ranked[0]?.score >= .34 && (!ranked[1] || ranked[0].score - ranked[1].score >= .08);
+    }
+
+    async function documentHint(file, index, total) {
+      const stem = file.name.replace(/\.(?:pdf|docx)$/iu, "").replace(/[_-]+/g, " ");
+      if (explicitExhibitIndex(stem) >= 0) return stem;
+      progress(`Checking ${file.name}`, index, total);
+      const probe = isPdf(file)
+        ? await scanPdf(file, false, `Checking ${file.name}`, index, total)
+        : await docxText(file);
+      return `${stem}\n${probe.text}`;
+    }
+
+    async function batchAssignFiles(files) {
+      const documents = files.filter(isDocument);
+      if (!documents.length) {
+        setStatus("Choose PDF or DOCX exhibit files.", "error");
+        return;
+      }
+      const entries = addEntries(documents);
+      const mode = document.querySelector('input[name="file-placement"]:checked').value;
+      if (mode === "pool") {
+        renderExhibits();
+        setStatus(`${documents.length} file${documents.length === 1 ? "" : "s"} added to Files.`);
+        return;
+      }
+      if (mode === "sequence") {
+        placeInSelectionOrder(entries);
+        renderExhibits();
+        setStatus(`${documents.length} file${documents.length === 1 ? "" : "s"} placed in selection order.`, "success");
+        schedulePreview();
+        return;
+      }
+      setWorkLoading("exhibit", true);
+      setBusy(true, "sort");
+      try {
+        await fuzzyTools();
+        const hinted = [];
+        for (let index = 0; index < documents.length; index += 1) {
+          hinted.push({
+            entry: entries[index],
+            text: await documentHint(documents[index], index, documents.length),
+          });
+          progress(`Checked ${documents[index].name}`, index + 1, documents.length);
+        }
+        const explicitLast = Math.max(-1, ...hinted.map((item) => explicitExhibitIndex(item.text)));
+        const slotCount = Math.max(state.order.length, documents.length, explicitLast + 1);
+        while (state.order.length < slotCount) state.order.push(null);
+        const free = () => state.order.map((id, index) => id ? -1 : index).filter((index) => index >= 0);
+        const assigned = new Map();
+        const remaining = [];
+        hinted.forEach((item) => {
+          const index = explicitExhibitIndex(item.text);
+          if (index >= 0 && index < state.order.length && !state.order[index] && !assigned.has(index)) {
+            assigned.set(index, item);
+          } else {
+            remaining.push(item);
+          }
+        });
+        remaining.forEach((item) => {
+          const ranked = free().filter((index) => !assigned.has(index)).map((index) => ({
+            index,
+            score: matchScore(item.text, state.statements.get(indexLabel(index)) || []),
+          })).sort((left, right) => right.score - left.score);
+          if (confidentMatch(ranked)) {
+            assigned.set(ranked[0].index, item);
+          }
+        });
+        if (!$("#sort-abstain").checked) {
+          const matched = new Set([...assigned.values()].map(({ entry }) => entry.id));
+          remaining.filter(({ entry }) => !matched.has(entry.id)).forEach((item) => {
+            const index = free().find((candidate) => !assigned.has(candidate));
+            if (index !== undefined) assigned.set(index, item);
+          });
+        }
+        assigned.forEach(({ entry }, index) => assignEntryToSlot(entry.id, index));
+        renderExhibits();
+        const sorted = assigned.size;
+        const pooled = documents.length - sorted;
+        setStatus(
+          pooled
+            ? `Auto-sorted ${sorted} file${sorted === 1 ? "" : "s"}. ${pooled} left unassigned under Files.`
+            : `Auto-sorted ${sorted} exhibit file${sorted === 1 ? "" : "s"}. Review the slots.`,
+          sorted ? "success" : ""
+        );
+      } catch (error) {
+        setStatus(error instanceof Error ? error.message : "Unable to sort the exhibit files. They remain unassigned under Files.", "error");
+      } finally {
+        if (state.ocrWorker) {
+          await state.ocrWorker.terminate();
+          state.ocrWorker = null;
+        }
+        setWorkLoading("exhibit", false);
+        setBusy(false);
+        renderExhibits();
+        schedulePreview();
+      }
+    }
+
+    function deleteExhibit(index) {
+      if (index !== state.order.length - 1) return;
+      const hadFile = Boolean(state.order[index]);
+      state.order.splice(index, 1);
+      renderExhibits();
+      setStatus(`Exhibit ${indexLabel(index)} removed.${hadFile ? " Its file is now unassigned." : ""}`);
+      schedulePreview();
+    }
+
+    function unassignFile(index) {
+      state.order[index] = null;
+      renderExhibits();
+      setStatus(`Exhibit ${indexLabel(index)} file unassigned.`);
+      schedulePreview();
+    }
+
+    function deleteAssignedFile(index) {
+      const id = state.order[index];
+      const entry = entryById(id);
+      if (!entry) return;
+      state.order[index] = null;
+      state.entries = state.entries.filter((item) => item.id !== id);
+      renderExhibits();
+      setStatus(`${entry.file.name} deleted.`);
+      schedulePreview();
+    }
+
+    function clearExhibits() {
+      state.order.fill(null);
+      renderExhibits();
+      setStatus("All exhibit files are unassigned.");
+      schedulePreview();
+    }
+
+    function deletePoolEntry(id) {
+      const entry = entryById(id);
+      if (!entry || assignedIds().has(id)) return;
+      state.entries = state.entries.filter((item) => item.id !== id);
+      renderExhibits();
+      setStatus(`${entry.file.name} deleted.`);
+    }
+
+    function previewEye(id = "", filename = "") {
+      const available = Boolean(id);
+      const label = available ? `Preview ${filename}` : "Preview unavailable until a file is added";
+      return `<button type="button" class="preview-eye" data-id="${id}" draggable="false" aria-label="${label}" title="${label}" ${state.busy || !available ? "disabled" : ""}>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/>
+          <circle cx="12" cy="12" r="2.75"/>
+        </svg>
+      </button>`;
+    }
+
+    function wordingDisclosure(statements) {
+      const distinct = distinctStatements(statements);
+      if (!distinct.length) return "";
+      const first = escapeHtml(distinct[0]);
+      if (distinct.length === 1) {
+        return `<p class="wording-single"><span class="wording-label">Affidavit said:</span><span class="wording-preview" title="${first}">${first}</span></p>`;
+      }
+      return `<details class="wording-disclosure">
+        <summary><span class="wording-label">Affidavit said:</span><span class="wording-preview" title="${first}">${first}</span></summary>
+        <div class="wording-expanded">
+          <ul class="wording-statements">${distinct.slice(1).map((statement) => `<li>${escapeHtml(statement)}</li>`).join("")}</ul>
+        </div>
+      </details>`;
+    }
+
+    function renderPool() {
+      const entries = poolEntries();
+      $("#pool-count").textContent = `${entries.length} file${entries.length === 1 ? "" : "s"}`;
+      $("#clear-exhibits").disabled = state.busy || !state.order.some(Boolean);
+      $("#pool-list").innerHTML = entries.length
+        ? entries.map((entry) => {
+          const filename = escapeHtml(entry.file.name);
+          return `
+            <article class="pool-file" draggable="${!state.busy}" data-id="${entry.id}">
+              <span class="drag-grip" aria-hidden="true">⋮</span>
+              <div class="file-description">
+                <span class="file-name" title="${filename}">${filename}</span>
+                <span class="file-meta">${fileKind(entry.file)} · Drag into an exhibit slot</span>
+              </div>
+              ${previewEye(entry.id, filename)}
+              <button type="button" class="delete-pool-file" data-id="${entry.id}" aria-label="Delete ${filename}" ${state.busy ? "disabled" : ""}>Delete</button>
+            </article>`;
+        }).join("")
+        : "";
+    }
+
+    function renderExhibits() {
+      const count = state.order.length;
+      $("#exhibit-count").textContent = `${count} exhibit${count === 1 ? "" : "s"}`;
+      $("#exhibit-list").innerHTML = state.order.map((id, index) => {
+        const entry = entryById(id);
+        const statements = state.statements.get(indexLabel(index)) || [];
+        const filename = entry ? escapeHtml(entry.file.name) : "";
+        const metadata = entry
+          ? `${fileKind(entry.file)}${entry.pageCount ? ` · ${entry.pageCount} page${entry.pageCount === 1 ? "" : "s"}` : ""}`
+          : "PDF or DOCX";
+        return `
+          <article class="exhibit-row" data-index="${index}" data-id="${entry?.id || ""}">
+            <div class="letter-stack">
+              <div class="letter">${indexLabel(index)}</div>
+              ${previewEye(entry?.id, filename)}
+            </div>
+            <div class="slot-body">
+              <div class="slot-drop" data-index="${index}" draggable="${Boolean(entry) && !state.busy}"
+                ${entry || state.busy ? "" : 'role="button" tabindex="0"'}
+                aria-label="${entry ? `Exhibit ${indexLabel(index)} file slot` : `Choose a file for Exhibit ${indexLabel(index)}`}">
+                ${entry
+                  ? `<span class="drag-grip" aria-hidden="true">⋮</span>
+                    <div class="file-description">
+                      <span class="file-name" title="${filename}">${filename}</span>
+                      <span class="file-meta">${metadata} · Drop to swap/replace</span>
+                    </div>`
+                  : `<p><strong>Drop into Exhibit ${indexLabel(index)}</strong><br>Use a file, another exhibit, or choose below.</p>`}
+              </div>
+              <div class="slot-actions">
+                ${entry
+                  ? `<label class="file-button secondary">
+                      <span>Replace file</span>
+                      <input class="slot-file" data-index="${index}" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" ${state.busy ? "disabled" : ""}>
+                    </label>
+                    <button type="button" class="secondary unassign-file" data-index="${index}" ${state.busy ? "disabled" : ""}>Unassign</button>
+                    <button type="button" class="secondary delete-assigned" data-index="${index}" ${state.busy ? "disabled" : ""}>Delete</button>`
+                  : `<label class="file-button secondary">
+                      <span>Choose file</span>
+                      <input class="slot-file" data-index="${index}" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" ${state.busy ? "disabled" : ""}>
+                    </label>`}
+              </div>
+              ${wordingDisclosure(statements)}
+            </div>
+            ${index === count - 1
+              ? `<button type="button" class="delete-slot" aria-label="Remove final Exhibit ${indexLabel(index)}" title="Remove final Exhibit ${indexLabel(index)}" ${state.busy ? "disabled" : ""}>
+                  <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8m0-8-8 8"/></svg>
+                </button>`
+              : ""}
+          </article>`;
+      }).join("");
+      renderPool();
+    }
+
+    async function autoFillFromAffidavit() {
+      if (!$("#automatic").checked || !state.affidavit) return;
+      state.scanning = true;
+      setWorkLoading("affidavit", true);
+      setBusy(true, "scan");
+      try {
+        await fuzzyTools();
+        const affidavit = await scanAffidavit(state.affidavit);
+        const details = applyCaseDetails(affidavit);
+        state.statements = statementWindows(affidavit.text);
+        const count = expectedSlotCount();
+        const detected = details.length ? ` Detected ${details.join(", ")}.` : "";
+        if (count) {
+          const lastFilled = state.order.findLastIndex(Boolean);
+          setExhibitCount(Math.max(count, lastFilled + 1));
+          setStatus(`Found ${count} exhibit${count === 1 ? "" : "s"}.${detected} Review the fields.`, "success");
+        } else {
+          renderExhibits();
+          setStatus(`${detected.trim()} No exhibit labels were found. Add exhibit fields manually.`.trim());
+        }
+      } catch (error) {
+        setStatus(error instanceof Error ? error.message : "Unable to auto-fill. Review the fields manually.", "error");
+      } finally {
+        if (state.ocrWorker) {
+          await state.ocrWorker.terminate();
+          state.ocrWorker = null;
+        }
+        setWorkLoading("affidavit", false);
+        state.scanning = false;
+        setBusy(false);
+        schedulePreview();
+      }
+    }
+
+    function validateBuild() {
+      if (!state.affidavit) {
+        setStatus("Add the affidavit before building the PDF.", "error");
+        $("#affidavit-file").focus();
+        return false;
+      }
+      const form = $("#details-form");
+      fields.forEach((id) => $(`#${id}`).removeAttribute("aria-invalid"));
+      if (!form.reportValidity()) {
+        const invalid = form.querySelector(":invalid");
+        invalid?.setAttribute("aria-invalid", "true");
+        invalid?.focus();
+        setStatus("Complete the case details before building the PDF.", "error");
+        return false;
+      }
+      const missing = state.order.findIndex((id) => !id);
+      if (missing >= 0) {
+        setStatus(`Add the PDF or DOCX file for Exhibit ${indexLabel(missing)} before building.`, "error");
+        document.querySelector(`.slot-file[data-index="${missing}"]`)?.focus();
+        return false;
+      }
+      return true;
+    }
+
+    function wrap(text, font, size, width) {
+      const words = text.split(/\s+/);
+      const lines = [];
+      let line = "";
+      for (const word of words) {
+        const candidate = line ? `${line} ${word}` : word;
+        if (line && font.widthOfTextAtSize(candidate, size) > width) {
+          lines.push(line);
+          line = word;
+        } else line = candidate;
+      }
+      if (line) lines.push(line);
+      return lines;
+    }
+
+    function centered(page, text, y, font, size) {
+      page.drawText(text, {
+        x: (page.getWidth() - font.widthOfTextAtSize(text, size)) / 2,
+        y, size, font,
+      });
+    }
+
+    function centeredAt(page, text, center, y, font, size) {
+      page.drawText(text, {
+        x: center - font.widthOfTextAtSize(text, size) / 2,
+        y, size, font,
+      });
+    }
+
+    function centeredBlock(page, text, y, font, size, width, lineHeight) {
+      const lines = wrap(text, font, size, width);
+      lines.forEach((line, index) => centered(page, line, y - index * lineHeight, font, size));
+      return y - lines.length * lineHeight;
+    }
+
+    function pageNumber(page, number, font) {
+      const text = String(number);
+      page.drawText(text, {
+        x: page.getWidth() - 72 - font.widthOfTextAtSize(text, 9),
+        y: page.getHeight() - 35,
+        size: 9,
+        font,
+      });
+    }
+
+    function certificatePage(document, fonts, exhibit, number) {
+      const page = document.addPage([612, 792]);
+      const { roman, bold, italic } = fonts;
+      if ($("#page-numbers").checked) pageNumber(page, number, roman);
+      centeredAt(page, `Court File No. ${fieldValue("file-number") || "—"}`, 474, 714, bold, 11);
+      centeredAt(page, `Court Registry: ${fieldValue("registry") || "—"}`, 474, 691, bold, 11);
+      centered(page, `In the ${fieldValue("court") || "Court"}`, 642, bold, 11.5);
+      page.drawText("Claimant:", { x: 70, y: 616, size: 11, font: bold });
+      centeredBlock(page, (fieldValue("claimant") || "—").toUpperCase(), 590, bold, 11.5, 410, 15);
+      page.drawText("Respondent:", { x: 70, y: 544, size: 11, font: bold });
+      centeredBlock(page, (fieldValue("respondent") || "—").toUpperCase(), 518, bold, 11.5, 410, 15);
+
+      const affidavit = fieldValue("affidavit-number").replace(/^#/, "");
+      centered(page, `This is Exhibit “${exhibit}” referred to in the`, 450, bold, 11.5);
+      centeredBlock(page, `Affidavit #${affidavit || "—"}`, 432, bold, 11.5, 420, 15);
+      centeredBlock(page, `sworn before me at ${fieldValue("sworn-place") || "—"}`, 414, bold, 11.5, 420, 15);
+      centered(page, `this ${legalDate(fieldValue("sworn-date")) || "—"}`, 396, bold, 11.5);
+      page.drawLine({ start: { x: 212, y: 370 }, end: { x: 400, y: 370 }, thickness: 1 });
+      centered(page, "A commissioner for taking Affidavits", 350, italic, 11);
+      centered(page, "Within British Columbia", 332, italic, 11);
+      return page;
+    }
+
+    async function appendDocument(output, file, onPage = null) {
+      const { PDFDocument } = await pdfLib();
+      if (isPdf(file)) {
+        const source = await PDFDocument.load(await file.arrayBuffer());
+        const pages = await output.copyPages(source, source.getPageIndices());
+        pages.forEach((page, index) => {
+          output.addPage(page);
+          onPage?.(page, index, pages.length);
+        });
+        return pages.length;
+      }
+      const rendered = await docxPages(file);
+      for (let index = 0; index < rendered.length; index += 1) {
+        const item = rendered[index];
+        const page = output.addPage([item.width, item.height]);
+        const image = await output.embedPng(item.data);
+        page.drawImage(image, { x: 0, y: 0, width: item.width, height: item.height });
+        onPage?.(page, index, rendered.length);
+      }
+      return rendered.length;
+    }
+
+    async function assemblePdf({ allowIncomplete = false, report = false } = {}) {
+      const { PDFDocument, StandardFonts } = await pdfLib();
+      const output = await PDFDocument.create();
+      const fonts = {
+        roman: await output.embedFont(StandardFonts.TimesRoman),
+        bold: await output.embedFont(StandardFonts.TimesRomanBold),
+        italic: await output.embedFont(StandardFonts.TimesRomanBoldItalic),
+      };
+      output.setTitle(fieldValue("file-number")
+        ? `Affidavit with exhibits - ${fieldValue("file-number")}`
+        : "Affidavit with exhibits");
+      output.setCreator("Affidavit Builder");
+      output.setProducer("pdf-lib");
+      output.setCreationDate(new Date());
+      output.setModificationDate(new Date());
+
+      if (report) progress("Adding affidavit", 0, state.order.length + 1);
+      await appendDocument(output, state.affidavit);
+      const toc = [{ label: "Affidavit", detail: state.affidavit.name, page: 1 }];
+
+      let exhibitPage = 1;
+      for (let index = 0; index < state.order.length; index += 1) {
+        const entry = entryById(state.order[index]);
+        if (report) progress(`Adding Exhibit ${indexLabel(index)}`, index + 1, state.order.length + 1);
+        if ($("#bumpers").checked && (output.getPageCount() + 1) % 2 === 0) {
+          output.addPage([612, 792]);
+        }
+        toc.push({
+          label: `Exhibit ${indexLabel(index)}`,
+          detail: entry?.file.name || "No file",
+          page: output.getPageCount() + 1,
+        });
+        certificatePage(output, fonts, indexLabel(index), exhibitPage);
+        exhibitPage += 1;
+        if (!entry) {
+          if (allowIncomplete) continue;
+          throw new Error(`Exhibit ${indexLabel(index)} has no file.`);
+        }
+        entry.pageCount = await appendDocument(output, entry.file, (page) => {
+          if ($("#page-numbers").checked) pageNumber(page, exhibitPage, fonts.roman);
+          exhibitPage += 1;
+        });
+      }
+      return { bytes: await output.save(), pageCount: output.getPageCount(), toc };
+    }
+
+    function schedulePreview() {
+      state.previewGeneration += 1;
+      clearTimeout(state.previewTimer);
+      state.previewObserver?.disconnect();
+      if (!state.affidavit) {
+        renderPreviewToc();
+        $("#preview-count").textContent = "Waiting for affidavit";
+        $("#preview-empty").textContent = "The assembled PDF will appear here.";
+        $("#preview-empty").classList.remove("hidden");
+        $("#preview").classList.add("hidden");
+        return;
+      }
+      if (!state.previewNearViewport) {
+        $("#preview-toc-list").innerHTML = '<span class="preview-toc-empty">Builds with preview</span>';
+        $("#preview-count").textContent = "Ready when viewed";
+        $("#preview-empty").textContent = "Preview builds when you reach it.";
+        $("#preview-empty").classList.remove("hidden");
+        $("#preview").classList.add("hidden");
+        return;
+      }
+      const generation = state.previewGeneration;
+      $("#preview-count").textContent = "Updating";
+      $("#preview-empty").textContent = "Building preview…";
+      $("#preview-empty").classList.remove("hidden");
+      $("#preview").classList.add("hidden");
+      state.previewTimer = setTimeout(() => updatePreview(generation), 450);
+    }
+
+    function renderPreviewToc(items = []) {
+      $("#preview-toc-list").innerHTML = items.length
+        ? items.map((item) => `
+          <button type="button" data-page="${item.page}">
+            <span>${escapeHtml(item.label)}</span>
+            <small title="${escapeHtml(item.detail)}">${escapeHtml(item.detail)}</small>
+          </button>`).join("")
+        : '<span class="preview-toc-empty">Waiting for affidavit</span>';
+    }
+
+    async function renderPreviewPage(document, shell, container, isCurrent) {
+      if (!isCurrent()) return;
+      const page = await document.getPage(Number(shell.dataset.page));
+      if (!isCurrent()) {
+        page.cleanup();
+        return;
+      }
+      const base = page.getViewport({ scale: 1 });
+      const pixelRatio = Math.min(1.5, window.devicePixelRatio || 1);
+      const cssWidth = Math.max(240, shell.clientWidth);
+      const viewport = page.getViewport({
+        scale: Math.min(2.5, cssWidth / base.width * pixelRatio),
+      });
+      const canvas = shell.querySelector("canvas");
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      const context = canvas.getContext("2d", { alpha: false });
+      context.fillStyle = "#fff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      await page.render({ canvasContext: context, viewport }).promise;
+      page.cleanup();
+    }
+
+    async function renderDocumentPreview(document, container, isCurrent, label) {
+      const target = window.document.createDocumentFragment();
+      for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+        const page = await document.getPage(pageNumber);
+        if (!isCurrent()) {
+          page.cleanup();
+          return;
+        }
+        const viewport = page.getViewport({ scale: 1 });
+        const shell = window.document.createElement("div");
+        shell.className = "preview-page";
+        shell.dataset.page = String(pageNumber);
+        shell.setAttribute("role", "img");
+        shell.setAttribute("aria-label", `${label} ${pageNumber} of ${document.numPages}`);
+        shell.style.aspectRatio = `${viewport.width} / ${viewport.height}`;
+        shell.append(window.document.createElement("canvas"));
+        target.append(shell);
+        page.cleanup();
+      }
+      container.replaceChildren(target);
+      container.classList.remove("hidden");
+      $("#file-preview-message").classList.add("hidden");
+      const renderVisible = () => {
+        const top = container.scrollTop - 200;
+        const bottom = container.scrollTop + container.clientHeight + 200;
+        container.querySelectorAll(".preview-page:not([data-queued])").forEach((page) => {
+          if (page.offsetTop > bottom || page.offsetTop + page.offsetHeight < top) return;
+          page.dataset.queued = "true";
+          state.filePreviewRenderQueue = state.filePreviewRenderQueue
+            .then(() => renderPreviewPage(document, page, container, isCurrent))
+            .catch(() => {});
+        });
+      };
+      container.onscroll = renderVisible;
+      requestAnimationFrame(renderVisible);
+    }
+
+    function observePreviewPages(document, preview, generation) {
+      state.previewObserver?.disconnect();
+      const renderVersion = ++state.previewRenderVersion;
+      preview.querySelectorAll(".preview-page").forEach((page) => {
+        delete page.dataset.queued;
+      });
+      state.previewObserver = new IntersectionObserver((entries, observer) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          observer.unobserve(entry.target);
+          entry.target.dataset.queued = "true";
+          state.previewRenderQueue = state.previewRenderQueue
+            .then(() => renderPreviewPage(
+              document,
+              entry.target,
+              preview,
+              () => generation === state.previewGeneration
+                && renderVersion === state.previewRenderVersion,
+            ))
+            .catch(() => {});
+        });
+      }, { root: preview, rootMargin: "600px 0px" });
+      preview.querySelectorAll(".preview-page").forEach((page) => state.previewObserver.observe(page));
+    }
+
+    function refreshPreviewPages() {
+      const preview = $("#preview");
+      if (!state.previewDocument || preview.classList.contains("hidden")) return;
+      requestAnimationFrame(() => observePreviewPages(
+        state.previewDocument,
+        preview,
+        state.previewGeneration,
+      ));
+    }
+
+    function setPreviewZoom(value) {
+      state.previewZoom = Math.max(1, Math.min(2, Number(value) || 1));
+      $("#preview").style.setProperty("--preview-zoom", state.previewZoom);
+      $("#preview-zoom").value = String(state.previewZoom);
+      refreshPreviewPages();
+    }
+
+    async function togglePreviewFullscreen() {
+      const card = $(".preview-card");
+      if (document.fullscreenElement === card) await document.exitFullscreen();
+      else await card.requestFullscreen();
+      syncPreviewFullscreen();
+    }
+
+    function syncPreviewFullscreen() {
+      const active = document.fullscreenElement === $(".preview-card");
+      const button = $("#preview-fullscreen");
+      const label = active ? "Exit preview fullscreen" : "Open preview fullscreen";
+      button.setAttribute("aria-label", label);
+      button.title = label;
+      requestAnimationFrame(() => requestAnimationFrame(refreshPreviewPages));
+    }
+
+    async function updatePreview(generation) {
+      try {
+        const result = await assemblePdf({ allowIncomplete: true });
+        if (generation !== state.previewGeneration) return;
+        const library = await pdfJs();
+        const document = await library.getDocument({
+          data: result.bytes.slice(),
+          useSystemFonts: true,
+        }).promise;
+        if (generation !== state.previewGeneration) {
+          await document.destroy();
+          return;
+        }
+        state.previewObserver?.disconnect();
+        if (state.previewDocument) await state.previewDocument.destroy();
+        state.previewDocument = document;
+
+        const preview = $("#preview");
+        const target = window.document.createDocumentFragment();
+        for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+          const page = await document.getPage(pageNumber);
+          const viewport = page.getViewport({ scale: 1 });
+          const shell = window.document.createElement("div");
+          shell.className = "preview-page";
+          shell.dataset.page = String(pageNumber);
+          shell.setAttribute("role", "img");
+          shell.setAttribute("aria-label", `Preview page ${pageNumber} of ${document.numPages}`);
+          shell.style.aspectRatio = `${viewport.width} / ${viewport.height}`;
+          shell.append(window.document.createElement("canvas"));
+          target.append(shell);
+          page.cleanup();
+        }
+        preview.replaceChildren(target);
+        preview.classList.remove("hidden");
+        $("#preview-empty").classList.add("hidden");
+        $("#preview-count").textContent = `${document.numPages} page${document.numPages === 1 ? "" : "s"}`;
+        renderPreviewToc(result.toc);
+
+        preview.style.setProperty("--preview-zoom", state.previewZoom);
+        observePreviewPages(document, preview, generation);
+        renderExhibits();
+      } catch (error) {
+        if (generation !== state.previewGeneration) return;
+        $("#preview-toc-list").innerHTML = '<span class="preview-toc-empty">Unavailable</span>';
+        $("#preview-count").textContent = "Preview unavailable";
+        $("#preview-empty").textContent = error instanceof Error
+          ? error.message
+          : "Unable to build the preview.";
+        $("#preview-empty").classList.remove("hidden");
+        $("#preview").classList.add("hidden");
+      }
+    }
+
+    function loadPreferences() {
+      let preferences = {};
+      try { preferences = JSON.parse(localStorage.getItem(preferencesKey) || "{}"); } catch {}
+      $("#registry").value = typeof preferences.registry === "string" && preferences.registry
+        ? preferences.registry
+        : "Vancouver";
+      $("#court").value = typeof preferences.court === "string" && preferences.court
+        ? preferences.court
+        : "Supreme Court of British Columbia";
+    }
+
+    function savePreferences() {
+      try {
+        localStorage.setItem(preferencesKey, JSON.stringify({
+          registry: fieldValue("registry"),
+          court: fieldValue("court"),
+        }));
+      } catch {}
+    }
+
+    async function setAffidavit(file) {
+      if (!isDocument(file)) {
+        setStatus("Choose an affidavit in PDF or DOCX format.", "error");
+        return;
+      }
+      state.affidavit = file;
+      state.statements.clear();
+      $("#affidavit-name").textContent = file.name;
+      state.affidavitMeta = `${fileKind(file)} · ${(file.size / 1048576).toFixed(1)} MB`;
+      $("#affidavit-summary").textContent = state.affidavitMeta;
+      $("#affidavit-hint").textContent = "Click to replace or drop a different file";
+      if ($("#automatic").checked) {
+        $("#builder").classList.add("hidden");
+        await autoFillFromAffidavit();
+      } else {
+        renderExhibits();
+        schedulePreview();
+      }
+      $("#builder").classList.remove("hidden");
+    }
+
+    function bindDropZone(element, onFiles) {
+      element.addEventListener("dragover", (event) => {
+        event.preventDefault();
+        element.dataset.over = "true";
+        event.dataTransfer.dropEffect = "copy";
+      });
+      element.addEventListener("dragleave", (event) => {
+        if (!element.contains(event.relatedTarget)) delete element.dataset.over;
+      });
+      element.addEventListener("drop", (event) => {
+        event.preventDefault();
+        delete element.dataset.over;
+        const files = [...event.dataTransfer.files];
+        if (files.length) onFiles(files);
+      });
+    }
+
+    async function buildAndDownload() {
+      if (!validateBuild()) return;
+      clearTimeout(state.previewTimer);
+      setBusy(true);
+      try {
+        const result = await assemblePdf({ report: true });
+        const url = URL.createObjectURL(new Blob([result.bytes], { type: "application/pdf" }));
+        const link = document.createElement("a");
+        const safeNumber = fieldValue("file-number").replace(/[<>:"/\\|?*\u0000-\u001F]/g, "-");
+        link.href = url;
+        link.download = `${safeNumber || "Court file"} - Affidavit with exhibits.pdf`;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 30_000);
+        savePreferences();
+        renderExhibits();
+        setStatus(`Downloaded ${state.order.length} exhibit${state.order.length === 1 ? "" : "s"}.`, "success");
+      } catch (error) {
+        setStatus(error instanceof Error ? error.message : "Unable to build the PDF. Check the source files and try again.", "error");
+      } finally {
+        setBusy(false);
+        schedulePreview();
+      }
+    }
+
+    $("#affidavit-file").addEventListener("change", (event) => {
+      const [file] = event.target.files;
+      if (file) setAffidavit(file);
+      event.target.value = "";
+    });
+    bindDropZone($("#affidavit-drop"), (files) => {
+      const file = files.find(isDocument);
+      if (file) setAffidavit(file);
+      else setStatus("Choose an affidavit in PDF or DOCX format.", "error");
+    });
+    $("#exhibit-files").addEventListener("change", (event) => {
+      if (event.target.files.length) batchAssignFiles([...event.target.files]);
+      event.target.value = "";
+    });
+    bindDropZone($("#exhibit-batch"), (files) => batchAssignFiles(files));
+    $("#automatic").addEventListener("change", async (event) => {
+      if (event.target.checked && state.affidavit) {
+        $("#builder").classList.add("hidden");
+        await autoFillFromAffidavit();
+        $("#builder").classList.remove("hidden");
+      } else if (!event.target.checked) {
+        state.statements.clear();
+        renderExhibits();
+        setStatus("Auto-fill is off. Add exhibit fields manually.");
+      }
+    });
+    $("#add-slot").addEventListener("click", () => setExhibitCount(state.order.length + 1, true));
+    ["bumpers", "page-numbers"].forEach((id) => $(`#${id}`).addEventListener("change", schedulePreview));
+    $("#preview-zoom").addEventListener("change", (event) => setPreviewZoom(event.target.value));
+    $("#preview-fullscreen").addEventListener("click", () => {
+      togglePreviewFullscreen().catch(() => setStatus("Fullscreen preview is unavailable.", "error"));
+    });
+    document.addEventListener("fullscreenchange", syncPreviewFullscreen);
+    $("#preview-fullscreen").disabled = !document.fullscreenEnabled;
+    $("#build").addEventListener("click", buildAndDownload);
+    fields.forEach((id) => {
+      $(`#${id}`).addEventListener("input", () => {
+        state.touchedFields.add(id);
+        schedulePreview();
+      });
+    });
+    ["registry", "court"].forEach((id) => {
+      $(`#${id}`).addEventListener("change", savePreferences);
+    });
+
+    $("#exhibit-list").addEventListener("change", (event) => {
+      if (!event.target.matches(".slot-file")) return;
+      const [file] = event.target.files;
+      if (file) assignFiles([file], Number(event.target.dataset.index));
+      event.target.value = "";
+    });
+    $("#exhibit-list").addEventListener("click", (event) => {
+      const row = event.target.closest(".exhibit-row");
+      if (!row) return;
+      const index = Number(row.dataset.index);
+      if (event.target.closest('.slot-drop[role="button"]')) {
+        row.querySelector(".slot-file")?.click();
+        return;
+      }
+      if (event.target.closest(".delete-slot")) deleteExhibit(index);
+      if (event.target.closest(".unassign-file")) unassignFile(index);
+      if (event.target.closest(".delete-assigned")) deleteAssignedFile(index);
+      const preview = event.target.closest(".preview-eye");
+      if (preview) previewEntry(preview.dataset.id);
+    });
+    $("#exhibit-list").addEventListener("keydown", (event) => {
+      if (!event.target.matches('.slot-drop[role="button"]') || !["Enter", " "].includes(event.key)) return;
+      event.preventDefault();
+      event.target.closest(".exhibit-row").querySelector(".slot-file")?.click();
+    });
+    $("#exhibit-list").addEventListener("dragstart", (event) => {
+      const drop = event.target.closest('.slot-drop[draggable="true"]');
+      if (!drop) return;
+      drop.dataset.dragging = "true";
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("application/x-beaver-slot", drop.dataset.index);
+    });
+    $("#exhibit-list").addEventListener("dragend", (event) => {
+      const drop = event.target.closest(".slot-drop");
+      if (drop) delete drop.dataset.dragging;
+      document.querySelectorAll("[data-over]").forEach((target) => delete target.dataset.over);
+    });
+    $("#exhibit-list").addEventListener("dragover", (event) => {
+      const drop = event.target.closest(".slot-drop");
+      if (!drop) return;
+      event.preventDefault();
+      drop.dataset.over = "true";
+      event.dataTransfer.dropEffect = event.dataTransfer.files.length ? "copy" : "move";
+    });
+    $("#exhibit-list").addEventListener("dragleave", (event) => {
+      const drop = event.target.closest(".slot-drop");
+      if (drop && !drop.contains(event.relatedTarget)) delete drop.dataset.over;
+    });
+    $("#exhibit-list").addEventListener("drop", (event) => {
+      const row = event.target.closest(".exhibit-row");
+      if (!row) return;
+      event.preventDefault();
+      const drop = row.querySelector(".slot-drop");
+      delete drop.dataset.over;
+      const index = Number(row.dataset.index);
+      if (event.dataTransfer.files.length) assignFiles([...event.dataTransfer.files], index);
+      else {
+        const from = Number(event.dataTransfer.getData("application/x-beaver-slot"));
+        if (Number.isInteger(from) && event.dataTransfer.getData("application/x-beaver-slot") !== "") {
+          moveOrSwapSlots(from, index);
+          return;
+        }
+        const id = event.dataTransfer.getData("application/x-beaver-exhibit");
+        if (!entryById(id) || assignedIds().has(id)) return;
+        assignEntryToSlot(id, index);
+        renderExhibits();
+        setStatus(`${entryById(id).file.name} placed in Exhibit ${indexLabel(index)}.`, "success");
+        schedulePreview();
+      }
+    });
+
+    $("#pool-list").addEventListener("click", (event) => {
+      const preview = event.target.closest(".preview-eye");
+      if (preview) previewEntry(preview.dataset.id);
+      const remove = event.target.closest(".delete-pool-file");
+      if (remove) deletePoolEntry(remove.dataset.id);
+    });
+    $("#pool-list").addEventListener("dragstart", (event) => {
+      const file = event.target.closest('.pool-file[draggable="true"]');
+      if (!file) return;
+      file.dataset.dragging = "true";
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("application/x-beaver-exhibit", file.dataset.id);
+    });
+    $("#pool-list").addEventListener("dragend", (event) => {
+      const file = event.target.closest(".pool-file");
+      if (file) delete file.dataset.dragging;
+      document.querySelectorAll(".slot-drop[data-over]").forEach((drop) => delete drop.dataset.over);
+    });
+    $(".file-pool").addEventListener("dragover", (event) => {
+      if ([...event.dataTransfer.types].includes("application/x-beaver-slot")) {
+        event.preventDefault();
+        $(".file-pool").dataset.over = "true";
+        event.dataTransfer.dropEffect = "move";
+      }
+    });
+    $(".file-pool").addEventListener("dragleave", (event) => {
+      if (!$(".file-pool").contains(event.relatedTarget)) delete $(".file-pool").dataset.over;
+    });
+    $(".file-pool").addEventListener("drop", (event) => {
+      const raw = event.dataTransfer.getData("application/x-beaver-slot");
+      if (raw === "") return;
+      event.preventDefault();
+      delete $(".file-pool").dataset.over;
+      unassignFile(Number(raw));
+    });
+
+    $("#clear-exhibits").addEventListener("click", () => $("#clear-dialog").showModal());
+    $("#file-options").addEventListener("click", () => $("#file-options-dialog").showModal());
+    $("#confirm-clear").addEventListener("click", clearExhibits);
+    $("#close-file-preview").addEventListener("click", () => $("#file-preview-dialog").close());
+    $("#file-preview-dialog").addEventListener("close", releaseFilePreview);
+    $("#preview-toc-list").addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-page]");
+      const page = button && $(`#preview .preview-page[data-page="${button.dataset.page}"]`);
+      if (!page) return;
+      page.scrollIntoView({
+        behavior: "auto",
+        block: "start",
+      });
+    });
+
+    loadPreferences();
+    $("#sworn-date").value = todayText();
+    renderExhibits();
+    state.previewVisibilityObserver = new IntersectionObserver((entries, observer) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      state.previewNearViewport = true;
+      observer.disconnect();
+      schedulePreview();
+    }, { rootMargin: "400px 0px" });
+    state.previewVisibilityObserver.observe($(".preview-card"));
+    window.addEventListener("beforeunload", () => {
+      releaseFilePreview();
+      state.previewObserver?.disconnect();
+      state.previewVisibilityObserver?.disconnect();
+      state.previewDocument?.destroy();
+    });
+
+    window.__affidavitBuilderSelfTest = async () => {
+      await fuzzyTools();
+      const text = [
+        "The January order is attached as Exhibit A.",
+        "The same order also records the parenting schedule and is marked as Exhibit A.",
+        "The email dated June 8 is attached as Exhibit B.",
+        "This is Exhibit “C” referred to in the Affidavit #9 of Example Person.",
+        "This is Exhibit D to the Affidavit of Example Person.",
+      ].join(" ");
+      const found = statementWindows(text);
+      if (found.get("A")?.length !== 2 || found.get("B")?.length !== 1 || found.has("C") || found.has("D")) {
+        throw new Error("Statement parser check failed");
+      }
+      const deduped = distinctStatements([
+        "The respondent's email is attached as Exhibit B.",
+        "The respondents email is attached as Exhibit B.",
+        "The email also records the mitigation deadline.",
+      ]);
+      if (deduped.length !== 2 || !deduped[1].includes("mitigation")) {
+        throw new Error("Statement deduplication check failed");
+      }
+      const details = caseDetails({ pages: [[
+        "Court File No. TEST-0001",
+        "NEW WESTMINSTER REGISTRY",
+        "IN THE SUPREME COURT OF BRITISH COLUMBIA",
+        "Clalmant: ALPHA PERSON",
+        "Responident: BETA PERSON",
+        "Affidavit #7 of SAMPLE DEPONENT",
+      ].join("\n"), "The order is attached as Exhibit A.", [
+        "SWORN BEFORE ME at New Westminster, British Columbia",
+        "this 2nd day of January 2026",
+      ].join("\n")] });
+      if (details.fileNumber !== "TEST-0001" || details.registry !== "New Westminster"
+        || details.court !== "Supreme Court of British Columbia" || details.claimant !== "Alpha Person"
+        || details.respondent !== "Beta Person" || details.affidavitNumber !== "7"
+        || details.deponent !== "Sample Deponent" || details.swornPlace !== "New Westminster, British Columbia"
+        || details.swornDate !== "January 2, 2026" || caseDetails({ text: "No. 12345" }).fileNumber) {
+        throw new Error(`Case detail parser check failed: ${JSON.stringify(details)}`);
+      }
+      if (![
+        "19th Affidavit of Sample Deponent",
+        "Affidavit 19 of Sample Deponent",
+        "Affidavit No. 19 of Sample Deponent",
+        "Affidavit #19 of Sample Deponent",
+      ].every((value) => affidavitNumberFrom(value) === "19")) {
+        throw new Error("Affidavit number parser check failed");
+      }
+      const numberedAffidavit = caseDetails({ text: "Affidavit 19 of Sample Deponent" });
+      if (numberedAffidavit.affidavitNumber !== "19" || numberedAffidavit.deponent !== "Sample Deponent") {
+        throw new Error(`Numbered affidavit heading check failed: ${JSON.stringify(numberedAffidavit)}`);
+      }
+      const firstPersonAffidavit = caseDetails({ text: "Court File No. TEST-0001 IN THE SUPREME COURT I, SAMPLE DEPONENT, of the City of Vancouver, swear as follows." });
+      if (firstPersonAffidavit.deponent !== "Sample Deponent") {
+        throw new Error(`First-person deponent check failed: ${JSON.stringify(firstPersonAffidavit)}`);
+      }
+      const inlineHeadingAffidavit = caseDetails({ text: "Court caption AFFIDAVIT OF INLINE DEPONENT I, INLINE DEPONENT, of Vancouver, swear as follows." });
+      if (inlineHeadingAffidavit.deponent !== "Inline Deponent") {
+        throw new Error(`Inline heading deponent check failed: ${JSON.stringify(inlineHeadingAffidavit)}`);
+      }
+      if (explicitExhibitIndex("Exhibit B - email.pdf") !== 1
+        || matchScore("respondent email.pdf", ["The respondent's email is attached as Exhibit B."]) < .5
+        || confidentMatch([{ score: .1 }])
+        || confidentMatch([{ score: .5 }, { score: .45 }])
+        || !confidentMatch([{ score: .5 }, { score: .2 }])) {
+        throw new Error("Exhibit sorter check failed");
+      }
+      if (ordinal(11) !== "11th" || ordinal(22) !== "22nd"
+        || legalDate("January 2, 2026") !== "2nd day of January 2026") {
+        throw new Error("Formatting helper check failed");
+      }
+      return { passed: true, exhibitAStatements: 2 };
+    };
+  </script>
+</body>
+</html>

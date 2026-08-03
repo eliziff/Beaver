@@ -1,25 +1,29 @@
 /**
  * Provision graph: extract the relationship graph latent in a contract's
- * skeleton and render it as a standalone SVG.
+ * skeleton and render it as an interactive HTML visualization.
  *
  * Two edge kinds are materialized from primitives already in the tree:
  *
  *   - **parent** — the explicit hierarchy the skeleton compiled (a section
  *     nested under an article, a subsection under its parent section).
  *   - **cross-reference** — internal provision references resolved by
- *     `crossReferenceGraph` (legalCrossReference.ts), which inherits the
- *     skeleton's SourceDoc index and its integrity gates, so "Section
- *     8.01(a)" becomes an edge from the section that mentions it to
- *     sec8.01(a) — or abstains when the numbering scheme is too thin to
- *     check against.
+ *     `crossReferenceGraph` (legalCrossReference.ts).
  *
- * The renderer produces a layered left-to-right digraph: each depth level
- * is a column, nodes are stacked vertically in document order, hierarchy
- * edges run straight between columns, and cross-reference edges are curved.
+ * The HTML renderer produces a self-contained page using Cytoscape.js
+ * (inlined from node_modules) with dagre hierarchical layout. Containers
+ * (ARTICLE, PART, DIVISION, SCHEDULE) render as COMPOUND NODES that
+ * visually group their child provisions. Two views:
+ *
+ *   - **Graph** — all edges visible; cross-references shown as curved
+ *     blue arrows over the hierarchy. Press `1` or click "Graph".
+ *   - **Tree** — parent-child edges only; a clean top-down taxonomy.
+ *     Press `2` or click "Tree".
  *
  * No model calls, no API spend — pure computation over the skeleton.
  */
 
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { compileAgreementSkeleton, type AgreementSkeleton, type SkeletonNodeKind } from "./legalTextSkeleton";
 import { crossReferenceGraph, type CrossReferenceGraph } from "./legalCrossReference";
 
@@ -33,7 +37,6 @@ export interface ProvisionGraphNode {
   heading: string;
   depth: number;
   kind: SkeletonNodeKind;
-  /** character offset in the source text */
   start: number;
 }
 
@@ -43,7 +46,6 @@ export interface ProvisionGraphEdge {
   from: string;
   to: string;
   kind: ProvisionGraphEdgeKind;
-  /** the raw reference text, only for cross-reference edges */
   refText?: string;
 }
 
@@ -52,19 +54,9 @@ export interface ProvisionGraph {
   edges: ProvisionGraphEdge[];
 }
 
-export interface GraphSvgOptions {
-  /** Maximum nodes to render before truncating (default 200). */
+export interface GraphHtmlOptions {
+  title?: string;
   maxNodes?: number;
-  /** SVG width in px (default computed from depth count). */
-  width?: number;
-  /** Column gap in px (default 100). */
-  columnGap?: number;
-  /** Node height in px (default 30). */
-  nodeHeight?: number;
-  /** Vertical gap between nodes in px (default 8). */
-  nodeGap?: number;
-  /** Font size for node labels in px (default 11). */
-  fontSize?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -80,17 +72,14 @@ const STRUCTURAL_KINDS = new Set<SkeletonNodeKind>([
   "schedule",
 ]);
 
-/**
- * Build a provision graph from an already-compiled cross-reference graph.
- *
- * Nodes are the structural provisions (articles, parts, sections,
- * subsections, schedules); table/row/cell nodes are excluded. Edges are
- * parent-child hierarchy links and resolved internal cross-references
- * (non-self-loop, non-external, non-abstained).
- */
-export function extractProvisionGraph(
-  xref: CrossReferenceGraph,
-): ProvisionGraph {
+const CONTAINER_KINDS = new Set<SkeletonNodeKind>([
+  "article",
+  "part",
+  "division",
+  "schedule",
+]);
+
+export function extractProvisionGraph(xref: CrossReferenceGraph): ProvisionGraph {
   const structural = xref.nodes.filter((n) => STRUCTURAL_KINDS.has(n.kind));
   const nodeMap = new Map(structural.map((n) => [n.label, n]));
 
@@ -106,7 +95,6 @@ export function extractProvisionGraph(
   const edges: ProvisionGraphEdge[] = [];
   const edgeSet = new Set<string>();
 
-  // Parent-child edges — each node points to its container.
   for (const node of structural) {
     if (node.parentLabel && nodeMap.has(node.parentLabel)) {
       const key = `${node.label}|${node.parentLabel}|parent`;
@@ -117,9 +105,6 @@ export function extractProvisionGraph(
     }
   }
 
-  // Cross-reference edges — resolved, non-self-loop edges from the
-  // crossReferenceGraph resolver, which has already applied the integrity
-  // gate and excluded external / abstained references.
   for (const edge of xref.edges) {
     if (edge.status !== "resolved" || edge.selfLoop) continue;
     if (!edge.sourceLabel || !edge.targetLabel) continue;
@@ -140,199 +125,21 @@ export function extractProvisionGraph(
   return { nodes, edges };
 }
 
-/**
- * Convenience: compile a skeleton, resolve its cross-reference graph, and
- * extract the provision graph in one call.
- */
 export function compileProvisionGraph(
   text: string,
   id = "",
 ): { graph: ProvisionGraph; abstained: boolean; note: string | null } {
   const skeleton = compileAgreementSkeleton(text, id);
   const xref = crossReferenceGraph(text, id, { skeleton });
-  const graph = extractProvisionGraph(xref);
   return {
-    graph,
+    graph: extractProvisionGraph(xref),
     abstained: xref.documentAbstained,
     note: xref.note,
   };
 }
 
 // ---------------------------------------------------------------------------
-// SVG rendering
-// ---------------------------------------------------------------------------
-
-interface LayoutNode {
-  label: string;
-  display: string;
-  heading: string;
-  depth: number;
-  kind: SkeletonNodeKind;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-interface LayoutEdge {
-  from: LayoutNode;
-  to: LayoutNode;
-  kind: ProvisionGraphEdgeKind;
-  refText?: string;
-}
-
-interface LayoutResult {
-  nodes: LayoutNode[];
-  edges: LayoutEdge[];
-  svgWidth: number;
-  svgHeight: number;
-}
-
-function layoutGraph(
-  graph: ProvisionGraph,
-  options: GraphSvgOptions,
-): LayoutResult {
-  const columnGap = options.columnGap ?? 100;
-  const nodeHeight = options.nodeHeight ?? 30;
-  const nodeGap = options.nodeGap ?? 8;
-  const fontSize = options.fontSize ?? 11;
-
-  // Group nodes by depth, ordered by document position within each level.
-  const byDepth = new Map<number, ProvisionGraphNode[]>();
-  for (const node of graph.nodes) {
-    const bucket = byDepth.get(node.depth) ?? [];
-    bucket.push(node);
-    byDepth.set(node.depth, bucket);
-  }
-
-  // Measure column widths: the widest label in each column.
-  // Estimate label pixel width: ~0.62 * fontSize per character for system-ui.
-  const charWidth = fontSize * 0.62;
-  const columnWidths = new Map<number, number>();
-  for (const [depth, bucket] of byDepth) {
-    let maxW = 0;
-    for (const node of bucket) {
-      const w = nodeLabelText(node).length * charWidth;
-      if (w > maxW) maxW = w;
-    }
-    columnWidths.set(depth, Math.max(maxW + 16, 60)); // 8px padding each side
-  }
-
-  // Compute x positions: cumulative column widths + gaps.
-  const sortedDepths = [...byDepth.keys()].sort((a, b) => a - b);
-  const depthX = new Map<number, number>();
-  let xCursor = 20; // left margin
-  for (const depth of sortedDepths) {
-    depthX.set(depth, xCursor);
-    xCursor += (columnWidths.get(depth) ?? 80) + columnGap;
-  }
-  const svgWidth = xCursor - columnGap + 20; // right margin
-
-  // Compute y positions: stack nodes within each column.
-  const labelToLayout = new Map<string, LayoutNode>();
-  let svgHeight = 20; // top margin
-  for (const depth of sortedDepths) {
-    const bucket = byDepth.get(depth)!;
-    const colX = depthX.get(depth)!;
-    const colW = columnWidths.get(depth) ?? 80;
-    let yCursor = 20;
-    for (const node of bucket) {
-      const layout: LayoutNode = {
-        label: node.label,
-        display: node.display,
-        heading: node.heading,
-        depth: node.depth,
-        kind: node.kind,
-        x: colX,
-        y: yCursor,
-        width: colW,
-        height: nodeHeight,
-      };
-      labelToLayout.set(node.label, layout);
-      yCursor += nodeHeight + nodeGap;
-    }
-    if (yCursor > svgHeight) svgHeight = yCursor;
-  }
-  svgHeight += 20; // bottom margin
-
-  // Build layout edges.
-  const layoutEdges: LayoutEdge[] = [];
-  for (const edge of graph.edges) {
-    const from = labelToLayout.get(edge.from);
-    const to = labelToLayout.get(edge.to);
-    if (from && to) {
-      layoutEdges.push({ from, to, kind: edge.kind, refText: edge.refText });
-    }
-  }
-
-  return { nodes: [...labelToLayout.values()], edges: layoutEdges, svgWidth, svgHeight };
-}
-
-// ---------------------------------------------------------------------------
-// Color palette (dataviz reference palette, light mode)
-// ---------------------------------------------------------------------------
-
-const COLORS = {
-  surface: "#fcfcfb",
-  primaryInk: "#0b0b0b",
-  secondaryInk: "#52514e",
-  muted: "#898781",
-  // Node fills by kind — sequential blue ramp for depth
-  article: "#cde2fb",
-  part: "#b7d3f6",
-  division: "#9ec5f4",
-  section: "#ffffff",
-  subsection: "#fafaf9",
-  schedule: "#fef3e4",
-  // Edge strokes
-  parentEdge: "#c3c2b7",
-  xrefEdge: "#2a78d6", // categorical blue
-  xrefEdgeAlpha: "0.45",
-  // Node text
-  nodeText: "#0b0b0b",
-  nodeStroke: "#e1e0d9",
-};
-
-function nodeFill(kind: SkeletonNodeKind): string {
-  switch (kind) {
-    case "article": return COLORS.article;
-    case "part": return COLORS.part;
-    case "division": return COLORS.division;
-    case "section": return COLORS.section;
-    case "subsection": return COLORS.subsection;
-    case "schedule": return COLORS.schedule;
-    default: return COLORS.section;
-  }
-}
-
-function nodeRadius(kind: SkeletonNodeKind): number {
-  switch (kind) {
-    case "article":
-    case "part":
-    case "division":
-    case "schedule":
-      return 6;
-    case "section":
-      return 4;
-    default:
-      return 3;
-  }
-}
-
-function nodeLabelText(node: { label: string; kind: SkeletonNodeKind; display: string }): string {
-  switch (node.kind) {
-    case "article":
-    case "part":
-    case "division":
-    case "schedule":
-      return node.display;
-    default:
-      return node.label;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// SVG string builder
+// HTML rendering
 // ---------------------------------------------------------------------------
 
 function esc(s: string): string {
@@ -340,34 +147,52 @@ function esc(s: string): string {
     .replace(/&/gu, "&amp;")
     .replace(/</gu, "&lt;")
     .replace(/>/gu, "&gt;")
-    .replace(/"/gu, "&quot;");
+    .replace(/"/gu, "&quot;")
+    .replace(/\\/gu, "\\\\");
 }
 
-function tooltipText(node: LayoutNode): string {
-  const parts = [node.display];
-  if (node.heading) parts.push(node.heading);
-  return parts.join(": ");
+function jsStr(s: string): string {
+  return JSON.stringify(s);
+}
+
+/** Resolve node_modules relative to the project root (backend/). */
+function vendorPath(relative: string): string {
+  return resolve(__dirname, "..", "..", "node_modules", relative);
+}
+
+let _cytoscapeJs: string | null = null;
+let _dagreJs: string | null = null;
+let _cytoscapeDagreJs: string | null = null;
+
+function loadVendorScripts(): { cy: string; dagre: string; cyDagre: string } {
+  if (_cytoscapeJs && _dagreJs && _cytoscapeDagreJs) {
+    return { cy: _cytoscapeJs, dagre: _dagreJs, cyDagre: _cytoscapeDagreJs };
+  }
+  _cytoscapeJs = readFileSync(vendorPath("cytoscape/dist/cytoscape.min.js"), "utf-8");
+  _dagreJs = readFileSync(vendorPath("dagre/dist/dagre.min.js"), "utf-8");
+  _cytoscapeDagreJs = readFileSync(
+    vendorPath("cytoscape-dagre/dist/cytoscape-dagre.min.js"),
+    "utf-8",
+  );
+  return { cy: _cytoscapeJs, dagre: _dagreJs, cyDagre: _cytoscapeDagreJs };
 }
 
 /**
- * Render a provision graph as a standalone SVG string.
+ * Render a provision graph as a self-contained HTML page using Cytoscape.js
+ * with dagre hierarchical layout. All JS is inlined — no network needed.
  *
- * The layout is a layered left-to-right digraph: each depth level is a
- * vertical column, nodes within a column are stacked in document order,
- * parent edges run straight between columns, and cross-reference edges
- * are drawn as quadratic bezier curves with arrowheads.
- *
- * Dark mode is supported via a `prefers-color-scheme: dark` media query
- * inlined in the SVG's `<style>` block.
+ * Containers (ARTICLE, PART, DIVISION, SCHEDULE) become compound parent
+ * nodes that visually group their children. Two views:
+ * - **Graph** (default): hierarchy + cross-reference edges
+ * - **Tree**: parent-child only, top-down taxonomy
  */
-export function renderProvisionGraphSvg(
+export function renderProvisionGraphHtml(
   graph: ProvisionGraph,
-  options: GraphSvgOptions = {},
+  options: GraphHtmlOptions = {},
 ): string {
-  const maxNodes = options.maxNodes ?? 200;
-  const fontSize = options.fontSize ?? 11;
+  const title = esc(options.title ?? "Provision Graph");
+  const maxNodes = options.maxNodes ?? 300;
 
-  // Truncate if needed.
   let rendered = graph;
   let truncationNote = "";
   if (graph.nodes.length > maxNodes) {
@@ -375,147 +200,379 @@ export function renderProvisionGraphSvg(
     const keptLabels = new Set(kept.map((n) => n.label));
     rendered = {
       nodes: kept,
-      edges: graph.edges.filter(
-        (e) => keptLabels.has(e.from) && keptLabels.has(e.to),
-      ),
+      edges: graph.edges.filter((e) => keptLabels.has(e.from) && keptLabels.has(e.to)),
     };
     truncationNote = `Showing ${maxNodes} of ${graph.nodes.length} provisions.`;
   }
 
-  const layout = layoutGraph(rendered, options);
-  const w = options.width ?? layout.svgWidth;
-  const h = layout.svgHeight;
-  const headerH = truncationNote ? 32 : 0;
-  const totalH = h + headerH;
+  const xrefCount = graph.edges.filter((e) => e.kind === "cross-reference").length;
+  const parentCount = graph.edges.length - xrefCount;
 
-  const lines: string[] = [];
-
-  // SVG opening
-  lines.push(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${totalH}" width="${w}" height="${totalH}">`,
-  );
-
-  // Inline styles
-  lines.push(`<style>
-  .pg-surface { fill: ${COLORS.surface}; }
-  .pg-edge-parent { stroke: ${COLORS.parentEdge}; stroke-width: 1.2; fill: none; }
-  .pg-edge-xref { stroke: ${COLORS.xrefEdge}; stroke-opacity: ${COLORS.xrefEdgeAlpha}; stroke-width: 1.4; fill: none; }
-  .pg-edge-xref-arrow { fill: ${COLORS.xrefEdge}; fill-opacity: ${COLORS.xrefEdgeAlpha}; }
-  .pg-node-text { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: ${fontSize}px; fill: ${COLORS.nodeText}; text-anchor: middle; dominant-baseline: central; }
-  .pg-title { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: ${fontSize}px; fill: ${COLORS.muted}; text-anchor: middle; }
-  .pg-legend-text { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: ${Math.max(fontSize - 1, 9)}px; fill: ${COLORS.secondaryInk}; }
-  .pg-abstain { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: ${fontSize}px; fill: ${COLORS.muted}; text-anchor: start; }
-  @media (prefers-color-scheme: dark) {
-    .pg-surface { fill: #1a1a19; }
-    .pg-edge-parent { stroke: #52514e; }
-    .pg-edge-xref { stroke: #3987e5; stroke-opacity: 0.55; }
-    .pg-edge-xref-arrow { fill: #3987e5; fill-opacity: 0.55; }
-    .pg-node-text { fill: #ffffff; }
-    .pg-title { fill: #898781; }
-    .pg-legend-text { fill: #c3c2b7; }
-    .pg-abstain { fill: #898781; }
+  // Build a node lookup and parent chain walker.
+  const nodeById = new Map(rendered.nodes.map((n) => [n.label, n]));
+  const parentEdgeByChild = new Map<string, string>();
+  for (const e of rendered.edges) {
+    if (e.kind === "parent") parentEdgeByChild.set(e.from, e.to);
   }
-</style>`);
 
-  // Background
-  lines.push(`<rect width="${w}" height="${totalH}" class="pg-surface" />`);
+  /** Walk up the parent chain to find the nearest container ancestor label. */
+  function containerAncestor(label: string): string | null {
+    const seen = new Set<string>();
+    let cursor: string | undefined = label;
+    while (cursor && !seen.has(cursor)) {
+      seen.add(cursor);
+      const parentLabel = parentEdgeByChild.get(cursor);
+      if (!parentLabel) return null;
+      const parentNode = nodeById.get(parentLabel);
+      if (parentNode && CONTAINER_KINDS.has(parentNode.kind)) return parentLabel;
+      cursor = parentLabel;
+    }
+    return null;
+  }
 
-  // Truncation note
-  if (truncationNote) {
-    lines.push(
-      `<text x="${w / 2}" y="16" class="pg-title">${esc(truncationNote)}</text>`,
+  // Build cytoscape elements.
+  const elements: Record<string, unknown>[] = [];
+
+  for (const node of rendered.nodes) {
+    const isContainer = CONTAINER_KINDS.has(node.kind);
+    const el: Record<string, unknown> = {
+      data: {
+        id: node.label,
+        label: isContainer ? node.display : node.label,
+        display: node.display,
+        heading: node.heading,
+        kind: node.kind,
+        depth: node.depth,
+        container: isContainer,
+      },
+    };
+    if (!isContainer) {
+      const ancestor = containerAncestor(node.label);
+      if (ancestor) el.data.parent = ancestor;
+    }
+    elements.push(el);
+  }
+
+  for (const edge of rendered.edges) {
+    const targetIsContainer = CONTAINER_KINDS.has(
+      nodeById.get(edge.to)?.kind ?? ("section" as SkeletonNodeKind),
     );
+    elements.push({
+      data: {
+        id: `${edge.from}|${edge.to}|${edge.kind}`,
+        source: edge.from,
+        target: edge.to,
+        kind: edge.kind,
+        refText: edge.refText ?? "",
+        hideInGraph: edge.kind === "parent" && targetIsContainer,
+      },
+    });
   }
 
-  const yOff = headerH;
+  const { cy: cyJs, dagre: dagreJs, cyDagre: cyDagreJs } = loadVendorScripts();
 
-  // Group for content with y-offset
-  lines.push(`<g transform="translate(0, ${yOff})">`);
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${title}</title>
+<style>
+:root {
+  --surface: #fcfcfb;
+  --surface2: #f5f4f1;
+  --ink: #0b0b0b;
+  --ink2: #52514e;
+  --muted: #898781;
+  --border: #e1e0d9;
+  --blue: #2a78d6;
+  --blue-bg: #cde2fb;
+  --orange: #eb6834;
+  --orange-bg: #fde8d6;
+  --xref: #2a78d6;
+  --parent-edge: #c3c2b7;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: #1a1a19;
+    --surface2: #222221;
+    --ink: #ffffff;
+    --ink2: #c3c2b7;
+    --muted: #898781;
+    --border: #383835;
+    --blue: #3987e5;
+    --blue-bg: #1c3a5e;
+    --orange: #d95926;
+    --orange-bg: #4a2818;
+    --xref: #3987e5;
+    --parent-edge: #52514e;
+  }
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--surface);
+  color: var(--ink);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+header h1 { font-size: 14px; font-weight: 600; white-space: nowrap; }
+header .stats { font-size: 11px; color: var(--ink2); white-space: nowrap; }
+header .spacer { flex: 1; }
+.toolbar { display: flex; align-items: center; gap: 6px; }
+.toolbar button {
+  font-family: inherit; font-size: 11px; padding: 4px 10px;
+  border: 1px solid var(--border); border-radius: 4px;
+  background: var(--surface); color: var(--ink); cursor: pointer;
+  white-space: nowrap;
+}
+.toolbar button:hover { background: var(--surface2); }
+.toolbar button.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+.toolbar input {
+  font-family: inherit; font-size: 11px; padding: 4px 8px;
+  border: 1px solid var(--border); border-radius: 4px;
+  background: var(--surface); color: var(--ink); width: 170px; outline: none;
+}
+.toolbar input:focus { border-color: var(--blue); }
+#cy { flex: 1; width: 100%; min-height: 0; background: var(--surface); }
+.tooltip {
+  position: fixed; pointer-events: none; z-index: 100;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 5px; padding: 7px 10px; font-size: 11px;
+  line-height: 1.35; max-width: 320px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+  display: none;
+}
+.tooltip.on { display: block; }
+.tooltip .tt-display { font-weight: 600; }
+.tooltip .tt-heading { color: var(--ink2); margin-top: 2px; }
+.tooltip .tt-kind { color: var(--muted); font-size: 10px; text-transform: uppercase; margin-top: 2px; }
+.tooltip .tt-xref { color: var(--blue); font-size: 10px; margin-top: 2px; }
+.truncation-note {
+  padding: 5px 18px; font-size: 11px; color: var(--orange);
+  background: var(--orange-bg); border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>${title}</h1>
+  <span class="stats">${graph.nodes.length} nodes &middot; ${graph.edges.length} edges &middot; ${parentCount} parent &middot; ${xrefCount} xref</span>
+  <span class="spacer"></span>
+  <div class="toolbar">
+    <button id="btn-graph" class="active">Graph</button>
+    <button id="btn-tree">Tree</button>
+    <input id="search" type="text" placeholder="Search…" autocomplete="off">
+    <button id="btn-fit">Fit</button>
+    <button id="btn-reset">Reset</button>
+  </div>
+</header>
+${truncationNote ? `<div class="truncation-note">${esc(truncationNote)}</div>` : ""}
+<div id="cy"></div>
+<div id="tooltip" class="tooltip"></div>
+<script>${cyJs}<\/script>
+<script>${dagreJs}<\/script>
+<script>${cyDagreJs}<\/script>
+<script>
+(function() {
+  var elements = ${JSON.stringify(elements)};
 
-  // Draw edges first (behind nodes).
-  // Parent edges: straight lines from right edge of child to left edge of parent.
-  for (const edge of layout.edges) {
-    if (edge.kind === "parent") {
-      const x1 = edge.from.x + edge.from.width;
-      const y1 = edge.from.y + edge.from.height / 2;
-      const x2 = edge.to.x;
-      const y2 = edge.to.y + edge.to.height / 2;
-      lines.push(
-        `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="pg-edge-parent" />`,
-      );
+  var cy = cytoscape({
+    container: document.getElementById('cy'),
+    elements: elements,
+    style: [
+      { selector: 'node[container]', style: {
+        'background-color': '#e8eef5', 'background-opacity': 0.45,
+        'border-color': '#b0afaa', 'border-width': 1.5, 'border-style': 'dashed',
+        'label': 'data(label)', 'font-size': '13px', 'font-weight': 'bold',
+        'color': '#52514e', 'text-valign': 'top', 'text-halign': 'center',
+        'text-margin-y': -7, 'padding': '22px', 'shape': 'round-rectangle',
+        'compound-sizing-wrt-labels': 'include'
+      }},
+      { selector: 'node[kind="section"]', style: {
+        'background-color': '#ffffff', 'border-color': '#c3c2b7', 'border-width': 1,
+        'label': 'data(label)', 'font-size': '11px', 'color': '#0b0b0b',
+        'text-valign': 'center', 'text-halign': 'center',
+        'shape': 'round-rectangle', 'width': 'label', 'height': 'label', 'padding': '7px'
+      }},
+      { selector: 'node[kind="subsection"]', style: {
+        'background-color': '#fafaf9', 'border-color': '#e1e0d9', 'border-width': 1,
+        'label': 'data(label)', 'font-size': '10px', 'color': '#52514e',
+        'text-valign': 'center', 'text-halign': 'center',
+        'shape': 'round-rectangle', 'width': 'label', 'height': 'label', 'padding': '5px'
+      }},
+      { selector: 'edge[hideInGraph]', style: { 'display': 'none' }},
+      { selector: 'edge[kind="parent"]', style: {
+        'width': 1, 'line-color': '#c3c2b7', 'target-arrow-color': '#c3c2b7',
+        'target-arrow-shape': 'triangle', 'arrow-scale': 0.7, 'curve-style': 'bezier'
+      }},
+      { selector: 'edge[kind="cross-reference"]', style: {
+        'width': 1.4, 'line-color': '#2a78d6', 'line-opacity': 0.4,
+        'target-arrow-color': '#2a78d6', 'target-arrow-opacity': 0.4,
+        'target-arrow-shape': 'triangle', 'arrow-scale': 0.8,
+        'curve-style': 'unbundled-bezier'
+      }},
+      { selector: 'node.highlighted', style: {
+        'border-color': '#2a78d6', 'border-width': 2.5
+      }},
+      { selector: 'edge.highlighted', style: {
+        'width': 2.5, 'line-opacity': 0.85, 'target-arrow-opacity': 0.85,
+        'line-color': '#2a78d6', 'target-arrow-color': '#2a78d6'
+      }},
+      { selector: 'node.dimmed', style: { 'opacity': 0.15 }},
+      { selector: 'edge.dimmed', style: { 'opacity': 0.06 }},
+      { selector: 'node.search-match', style: {
+        'border-color': '#eb6834', 'border-width': 3
+      }}
+    ],
+    layout: { name: 'dagre', rankDir: 'LR', spacingFactor: 1.2, nodeDimensionsIncludeLabels: true },
+    wheelSensitivity: 0.3,
+    minZoom: 0.08,
+    maxZoom: 3
+  });
+
+  // Tooltip
+  var tooltip = document.getElementById('tooltip');
+  cy.on('mouseover', 'node', function(evt) {
+    var d = evt.target.data();
+    var html = '<div class="tt-display">' + escH(d.display || d.label) + '</div>';
+    if (d.heading) html += '<div class="tt-heading">' + escH(d.heading) + '</div>';
+    html += '<div class="tt-kind">' + escH(d.kind) + '</div>';
+    tooltip.innerHTML = html;
+    tooltip.classList.add('on');
+  });
+  cy.on('mousemove', function(evt) {
+    tooltip.style.left = (evt.originalEvent.clientX + 14) + 'px';
+    tooltip.style.top = (evt.originalEvent.clientY + 14) + 'px';
+  });
+  cy.on('mouseout', 'node', function() { tooltip.classList.remove('on'); });
+
+  // Edge tooltips
+  cy.on('mouseover', 'edge[kind="cross-reference"]', function(evt) {
+    var d = evt.target.data();
+    if (d.refText) {
+      tooltip.innerHTML = '<div class="tt-xref">' + escH(d.refText) + '</div>';
+      tooltip.classList.add('on');
+    }
+  });
+  cy.on('mouseout', 'edge', function() { tooltip.classList.remove('on'); });
+
+  // Click to highlight neighbours
+  cy.on('tap', 'node', function(evt) {
+    var node = evt.target;
+    cy.elements().removeClass('highlighted dimmed search-match');
+    node.addClass('highlighted');
+    node.neighborhood().addClass('highlighted');
+    cy.elements().not(node).not(node.neighborhood()).addClass('dimmed');
+  });
+  cy.on('tap', function(evt) {
+    if (evt.target === cy) cy.elements().removeClass('highlighted dimmed');
+  });
+
+  // View switching
+  var currentView = 'graph';
+  document.getElementById('btn-graph').addEventListener('click', function() { setView('graph'); });
+  document.getElementById('btn-tree').addEventListener('click', function() { setView('tree'); });
+
+  function setView(view) {
+    if (view === currentView) return;
+    currentView = view;
+    document.getElementById('btn-graph').classList.toggle('active', view === 'graph');
+    document.getElementById('btn-tree').classList.toggle('active', view === 'tree');
+    cy.elements().removeClass('highlighted dimmed search-match');
+    if (view === 'tree') {
+      cy.edges('[kind="cross-reference"]').style({ 'display': 'none' });
+      cy.layout({ name: 'dagre', rankDir: 'TB', spacingFactor: 1.15, nodeDimensionsIncludeLabels: true }).run();
+    } else {
+      cy.edges('[kind="cross-reference"]').style({ 'display': 'element' });
+      cy.edges('[hideInGraph]').style({ 'display': 'none' });
+      cy.layout({ name: 'dagre', rankDir: 'LR', spacingFactor: 1.2, nodeDimensionsIncludeLabels: true }).run();
     }
   }
 
-  // Cross-reference edges: curved paths with arrowheads.
-  for (const edge of layout.edges) {
-    if (edge.kind === "cross-reference") {
-      const x1 = edge.from.x + edge.from.width;
-      const y1 = edge.from.y + edge.from.height / 2;
-      const x2 = edge.to.x;
-      const y2 = edge.to.y + edge.to.height / 2;
-      // Control point arcs the curve above or below depending on direction.
-      const sign = y2 >= y1 ? 1 : -1;
-      const cpy = (y1 + y2) / 2 - sign * Math.min(Math.abs(y2 - y1) * 0.3, 60);
-      lines.push(
-        `<path d="M${x1},${y1} Q${(x1 + x2) / 2},${cpy} ${x2},${y2}" class="pg-edge-xref" />`,
-      );
-      // Arrowhead at target
-      const arrowSize = 5;
-      const angle = Math.atan2(
-        y2 - cpy - (cpy - y1),
-        x2 - x1,
-      );
-      const ax1 = x2 - arrowSize * Math.cos(angle - 0.5);
-      const ay1 = y2 - arrowSize * Math.sin(angle - 0.5);
-      const ax2 = x2 - arrowSize * Math.cos(angle + 0.5);
-      const ay2 = y2 - arrowSize * Math.sin(angle + 0.5);
-      lines.push(
-        `<polygon points="${x2},${y2} ${ax1.toFixed(1)},${ay1.toFixed(1)} ${ax2.toFixed(1)},${ay2.toFixed(1)}" class="pg-edge-xref-arrow" />`,
-      );
+  // Search
+  var searchInput = document.getElementById('search');
+  var searchTimer;
+  searchInput.addEventListener('input', function() {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(function() {
+      var q = searchInput.value.trim().toLowerCase();
+      cy.elements().removeClass('search-match dimmed');
+      if (!q) return;
+      var matches = cy.nodes().filter(function(n) {
+        var d = n.data();
+        return (d.label||'').toLowerCase().indexOf(q) >= 0 ||
+               (d.display||'').toLowerCase().indexOf(q) >= 0 ||
+               (d.heading||'').toLowerCase().indexOf(q) >= 0;
+      });
+      if (matches.length) {
+        matches.addClass('search-match');
+        cy.elements().not(matches).addClass('dimmed');
+        cy.animate({ fit: { eles: matches, padding: 60 }, duration: 350 });
+      }
+    }, 200);
+  });
+  searchInput.addEventListener('keydown', function(evt) {
+    if (evt.key === 'Escape') { searchInput.value = ''; cy.elements().removeClass('search-match dimmed'); cy.fit(undefined, 40); }
+  });
+
+  // Fit / Reset
+  document.getElementById('btn-fit').addEventListener('click', function() { cy.fit(undefined, 40); });
+  document.getElementById('btn-reset').addEventListener('click', function() {
+    cy.elements().removeClass('highlighted dimmed search-match');
+    searchInput.value = '';
+    if (currentView === 'tree') setView('graph');
+    cy.fit(undefined, 40);
+  });
+
+  // Keyboard
+  document.addEventListener('keydown', function(evt) {
+    if (evt.key === 'f' && !evt.ctrlKey && !evt.metaKey && document.activeElement !== searchInput) {
+      evt.preventDefault(); searchInput.focus();
     }
+    if (evt.key === '1' && !evt.ctrlKey && !evt.metaKey && document.activeElement !== searchInput) setView('graph');
+    if (evt.key === '2' && !evt.ctrlKey && !evt.metaKey && document.activeElement !== searchInput) setView('tree');
+  });
+
+  cy.fit(undefined, 40);
+
+  function escH(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
+})();
+<\/script>
+</body>
+</html>`;
+}
 
-  // Draw nodes.
-  for (const node of layout.nodes) {
-    const rx = nodeRadius(node.kind);
-    const fill = nodeFill(node.kind);
-    const label = nodeLabelText(node);
-    const title = tooltipText(node);
+// ---------------------------------------------------------------------------
+// SVG rendering (deprecated stub)
+// ---------------------------------------------------------------------------
 
-    lines.push(
-      `<rect x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" rx="${rx}" ry="${rx}" fill="${fill}" stroke="${COLORS.nodeStroke}" stroke-width="1"><title>${esc(title)}</title></rect>`,
-    );
-    lines.push(
-      `<text x="${node.x + node.width / 2}" y="${node.y + node.height / 2}" class="pg-node-text">${esc(label)}</text>`,
-    );
-  }
+export interface GraphSvgOptions {
+  maxNodes?: number;
+  width?: number;
+  columnGap?: number;
+  nodeHeight?: number;
+  nodeGap?: number;
+  fontSize?: number;
+}
 
-  lines.push(`</g>`); // end y-offset group
-
-  // Legend
-  const legendY = totalH - 18;
-  let lx = 20;
-  const legendItems = [
-    { label: "parent/child", cls: "pg-edge-parent" },
-    { label: "cross-reference", cls: "pg-edge-xref" },
-  ];
-  for (const item of legendItems) {
-    lines.push(
-      `<line x1="${lx}" y1="${legendY}" x2="${lx + 24}" y2="${legendY}" class="${item.cls}" />`,
-    );
-    lx += 28;
-    lines.push(
-      `<text x="${lx}" y="${legendY}" class="pg-legend-text" dominant-baseline="central">${item.label}</text>`,
-    );
-    lx += item.label.length * (fontSize * 0.62) + 20;
-  }
-  // Node/edge counts
-  const xrefEdges = graph.edges.filter((e) => e.kind === "cross-reference").length;
-  const parentEdges = graph.edges.length - xrefEdges;
-  lines.push(
-    `<text x="${w - 20}" y="${legendY}" class="pg-legend-text" text-anchor="end" dominant-baseline="central">${graph.nodes.length} nodes, ${parentEdges} parent, ${xrefEdges} xref edges</text>`,
-  );
-
-  lines.push(`</svg>`);
-  return lines.join("\n");
+export function renderProvisionGraphSvg(
+  _graph: ProvisionGraph,
+  _options: GraphSvgOptions = {},
+): string {
+  return `<!-- SVG renderer deprecated; use renderProvisionGraphHtml() for interactive Cytoscape.js output -->`;
 }

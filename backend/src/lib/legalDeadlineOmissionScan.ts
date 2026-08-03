@@ -459,8 +459,8 @@ export function deadlineOmissionScan(
         engaged: sides,
         trigger: rel.trigger,
         detail:
-          `${rel.detail} — the deliverable engages ${subject} but never states ` +
-          `the resolved deadline ${rel.resolved}`,
+          `${rel.detail} (${rel.document}) — the deliverable engages ${subject} ` +
+          `but never states the resolved deadline ${rel.resolved}`,
         anchor: rel.base,
         duration: rel.duration,
         resolved: rel.resolved,

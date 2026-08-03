@@ -43,9 +43,7 @@ import {
 } from "../src/lib/chat/legalEvidenceExperiment";
 import { receiptPath } from "../src/lib/experimentReceipts";
 import {
-  clercCases,
-  cslbCases,
-  housingCases,
+  legalGroundingQuestionIndex,
   readJsonl,
 } from "../src/lib/legalGroundingBenchmarks";
 import type { NormalizedLlmUsage } from "../src/lib/llm";
@@ -175,12 +173,11 @@ async function questionIndex(): Promise<Map<string, string>> {
   const housingIds = flag("housing-ids", "0,1,5,57,58,163,286,290,354,356,590,595,605")
     .split(",")
     .map((value) => Number(value.trim()));
-  const cases = [
-    ...cslbCases(cslbFile, "validation", 10_000),
-    ...clercCases(clercFile, 10_000),
-    ...(await housingCases(housingFile, housingIds)),
-  ];
-  return new Map(cases.map((item) => [item.id, item.prompt]));
+  return legalGroundingQuestionIndex({
+    cslb: { file: cslbFile, splits: ["validation"] },
+    clerc: { file: clercFile },
+    housing: { file: housingFile, ids: housingIds },
+  });
 }
 
 function loadCandidates(store: string, files: string[]): Candidate[] {
