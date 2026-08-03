@@ -9,6 +9,7 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import time
 from pathlib import Path
 
@@ -33,6 +34,8 @@ _VERDICT_SCHEMA = {
 def _detect_provider(model: str) -> str:
     """Return 'anthropic', 'google', 'openai', 'mistral', or 'codex' from the model name."""
     name = model.lower()
+    if name.startswith("codex-cli"):
+        return "codex-cli"
     if name.startswith("codex"):
         return "codex"
     if name.startswith("claude-code"):
@@ -59,7 +62,13 @@ class Judge:
         """
         self.model = model
         self.provider = _detect_provider(model)
-        if self.provider == "codex":
+        if self.provider == "codex-cli":
+            self.client = None
+            self.model = model.split("/", 1)[1] if "/" in model else model
+            self._codex_cli = shutil.which("codex.cmd" if os.name == "nt" else "codex")
+            if not self._codex_cli:
+                raise RuntimeError("codex CLI not found on PATH for codex-cli judge")
+        elif self.provider == "codex":
             # `codex/<slug>` routes through the ChatGPT-subscription backend;
             # it shares the OpenAI Responses call shape, so _evaluate_openai
             # works unchanged against the sanitizing CodexClient.
@@ -109,6 +118,8 @@ class Judge:
             return self._evaluate_google(prompt, temperature, _retries)
         if self.provider in ("openai", "codex"):
             return self._evaluate_openai(prompt, temperature, _retries)
+        if self.provider == "codex-cli":
+            return self._evaluate_codex_cli(prompt, _retries)
         if self.provider == "claude-code":
             return self._evaluate_claude_code(prompt, _retries)
         return self._evaluate_mistral(prompt, temperature, _retries)
@@ -309,6 +320,80 @@ class Judge:
                     }
             except (ValueError, json.JSONDecodeError) as e:
                 last_err = e
+        raise ValueError(
+            f"Judge returned unparseable response after {_retries} attempts: {last_err}"
+        )
+
+    def _evaluate_codex_cli(self, prompt: str, _retries: int) -> dict:
+        last_err: Exception | None = None
+        instruction = (
+            "You are an evaluation judge. Respond only with the requested JSON. "
+            "Keep the reasoning field under 60 words.\n\n"
+        )
+        for attempt in range(max(_retries, 2)):
+            with tempfile.TemporaryDirectory(prefix="lab-codex-judge-") as workdir:
+                run = subprocess.run(
+                    [
+                        self._codex_cli,
+                        "exec",
+                        "--ephemeral",
+                        "--ignore-user-config",
+                        "--ignore-rules",
+                        "--strict-config",
+                        "--sandbox",
+                        "read-only",
+                        "--json",
+                        "--color",
+                        "never",
+                        "--skip-git-repo-check",
+                        "--cd",
+                        workdir,
+                        "--model",
+                        self.model,
+                        "--config",
+                        'approval_policy="never"',
+                        "--config",
+                        'web_search="disabled"',
+                        "-",
+                    ],
+                    input=instruction + prompt,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=600,
+                    creationflags=(
+                        subprocess.CREATE_NO_WINDOW
+                        | subprocess.BELOW_NORMAL_PRIORITY_CLASS
+                        if os.name == "nt"
+                        else 0
+                    ),
+                )
+            try:
+                if run.returncode != 0:
+                    raise ValueError(
+                        f"codex CLI exit {run.returncode}: {run.stderr.strip()[:300]}"
+                    )
+                messages = []
+                for line in run.stdout.splitlines():
+                    try:
+                        event = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    item = event.get("item") if isinstance(event, dict) else None
+                    if (
+                        isinstance(item, dict)
+                        and item.get("type") == "agent_message"
+                        and isinstance(item.get("text"), str)
+                    ):
+                        messages.append(item["text"])
+                if not messages:
+                    raise ValueError("codex CLI returned no agent message")
+                return self._parse_json(messages[-1])
+            except (ValueError, json.JSONDecodeError) as error:
+                last_err = error
+                if attempt + 1 < max(_retries, 2):
+                    time.sleep(2)
         raise ValueError(
             f"Judge returned unparseable response after {_retries} attempts: {last_err}"
         )
