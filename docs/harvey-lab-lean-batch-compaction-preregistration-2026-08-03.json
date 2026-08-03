@@ -1,0 +1,102 @@
+{
+  "schema_version": 1,
+  "experiment_id": "harvey-lab-lean-batch-compact-r1-2026-08-03",
+  "registered_at": "2026-08-03T06:37:55.1120466+00:00",
+  "status": "preregistered_before_performer_calls",
+  "supersedes_candidate_cells_from": "harvey-lab-lean-batch-four-way-2026-08-03",
+  "reason": "The threshold-null tax lean cell failed context_length_exceeded after 34 tool calls and 1524814 tool-result characters. The corrected transport compacts before projected overflow and retries one non-emitting context rejection once.",
+  "failed_run_receipts": {
+    "run_id": "2026-08-03-lean-batch-v1--tax--draft-transfer-pricing-documentation--lean_batch_v1",
+    "raw_sse_sha256": "aec64d2eab25e849d5fa3cbde8b6b8054d2de7fa0ad0dcec896a095332daaf54",
+    "context_manifest_sha256": "d5ad712dd29713c26f00a1e0919f6f2e79548b6a5c140b446f7336880456e1fc",
+    "error_log_sha256": "5e0c6fda77d6f933d9d732b18e1998e46a2d43eac145f16c1cee6ca2a2be9a43"
+  },
+  "implementation_commit_before_launch": null,
+  "source_hashes_before_launch": {
+    "backend/scripts/lab-beaver-arm.ts": "66ac20bbb13767c2ab3a8416802dd98f7859cc9663ec4d17cd277ca367cc8929",
+    "backend/src/lib/llm/openai.ts": "2f775d775ebb094f8d68cc3231503e85d2b42eb9ebf5b1364c2fad2af46b64f3",
+    "backend/src/lib/llm/types.ts": "37c426420ff003d769c1b6c1099f9d02e04189c0ed5a63738bdbc3b7ba2f196e",
+    "backend/src/lib/llm/__tests__/codexApi.test.ts": "4e290925bb9f9100faa55ba47d76f0033c9d8a17297161f4f544ea84ae46651a"
+  },
+  "correction": {
+    "candidate_compact_threshold_tokens": 244800,
+    "threshold_basis": "90 percent of Luna's provider-advertised 272000-token context",
+    "proactive_trigger": "provider-reported current-attempt input plus one-quarter of newly appended UTF-8 request bytes",
+    "reactive_trigger": "one context_length_exceeded retry only when no output was emitted",
+    "provider_compaction": "Codex /responses/compact opaque compaction item",
+    "controls_compaction_threshold": null,
+    "prompt_changes": false,
+    "tool_schema_changes": false,
+    "retrieval_changes": false,
+    "task_specific_changes": false
+  },
+  "performer": {
+    "model": "codex:gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "provider_service_tier_requested": null,
+    "required_provider_service_tier_reported": "default",
+    "max_concurrent_processes": 12,
+    "run_id_template": "2026-08-03-lean-batch-compact-r1--{task_slug_with_slashes_replaced_by_double_hyphens}--{arm}"
+  },
+  "arms": {
+    "upstream_terminal_v1": {
+      "tool_schema_sha256": "5b3ac1b5490592e11af64fcd9817d21274ae60ef79b3cf5d8b6f2ce7539d961a",
+      "compact_threshold_tokens": null
+    },
+    "mike_compact_author_v1": {
+      "tool_schema_sha256": "d10021b0d8a48dbee9eaeefc220057fe9d1e526d7185d466dfb7a2017911c46c",
+      "compact_threshold_tokens": null
+    },
+    "lean_batch_v1": {
+      "tool_schema_sha256": "6a8a5a62e340d0ceb4a821c1493c3cc1f9754d1a8265b049dffeca01e722709e",
+      "compact_threshold_tokens": 244800
+    },
+    "lean_batch_hardrefs_v1": {
+      "tool_schema_sha256": "6a8a5a62e340d0ceb4a821c1493c3cc1f9754d1a8265b049dffeca01e722709e",
+      "compact_threshold_tokens": 244800
+    }
+  },
+  "tasks": {
+    "banking-finance/extract-credit-agreement-covenants": {
+      "split_sha256": "4fe134f47fc144da3f0ecf6f4b99ac89dcb8931c3d3df29795ac649e8c8a18f0",
+      "task_config_sha256": "4521248e6438e7649a0784299693284ece4bf98f693544bd7b62d9d55df0c598",
+      "instructions_sha256": "8b3afea95c4ea92f7a1ab9dd10aeb4ba81a03ad546aa1958aa899d042a5d0f2d",
+      "source_bundle_sha256": "a278edc390084fdfb0675f83f6c2a470e1ace91685342411bf9911f735022402",
+      "source_count": 3,
+      "criteria": 65,
+      "lean_system_prompt_sha256": "988be251a19fae83399bfd5e32fb3bee7c209a7dad80e7544db29040e691d87c"
+    },
+    "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts": {
+      "split_sha256": "c0d270c324eaaeb13a47eb2df309baf468270e4ca04b686e4ed27632a3d36f7d",
+      "task_config_sha256": "88cbc55fc6bc6b455d6f7d4fbc98c298f00edc85be9079ad3f8152aceabbd72a",
+      "instructions_sha256": "804acb88a976238cbdf65027b4c873142cfec3c84c9773992e256e40ae02c8a4",
+      "source_bundle_sha256": "f778c5ef888a841432ee70a34d1a8c0d4b0c947a0d19509b4a3834635b23f0e2",
+      "source_count": 19,
+      "criteria": 57,
+      "lean_system_prompt_sha256": "a79e2876c9273dfd263457dd93174b8f812b73764fe8188b83f397e8cc7c04c8"
+    },
+    "tax/draft-transfer-pricing-documentation": {
+      "split_sha256": "9886979ad0409f300ccb78413abc4bda020fcde1f288d879d61e59eff1c85957",
+      "task_config_sha256": "e860b4de7d37024a85dba093e569a893cf4806a190f073e53e9a61514fd5a962",
+      "instructions_sha256": "baa067a9d481a31b85cb9a47a3eebfbc6620e2c5cd23b87e71b2b4f1741d05b7",
+      "source_bundle_sha256": "bc8d591498a818501b7a388d5b93575c5a98f03b25edb2f009f9d166fe4a6647",
+      "source_count": 25,
+      "criteria": 77,
+      "lean_system_prompt_sha256": "652404eea44353acfffedf4ddb58c04498102969666a87fb19ea5d92d1deed88"
+    }
+  },
+  "matrix_totals": {
+    "tasks": 3,
+    "arms": 4,
+    "performer_runs": 12
+  },
+  "trace_gate": "Before judging, require every cell to finish cleanly with one nonempty mapped DOCX, exact source/task/prompt/tool/run receipts, default reported tier, and inspect compaction, calls, errors, cache, tokens, and latency.",
+  "judge": {
+    "model": "codex/gpt-5.6-sol",
+    "reasoning_effort": "provider default",
+    "temperature": 0,
+    "criterion_parallelism_per_output": 1,
+    "max_concurrent_output_judges": 12,
+    "local_process_priority": "BelowNormal"
+  }
+}
