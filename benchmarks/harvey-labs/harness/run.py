@@ -644,6 +644,13 @@ def main(args):
         sandbox.stop()
 
     # Save metrics
+    transport_retry_count = int(
+        getattr(
+            getattr(getattr(adapter, "client", None), "responses", None),
+            "transport_retry_count",
+            0,
+        )
+    )
     metrics = {
         "model": args.model,
         "task": args.task,
@@ -668,6 +675,7 @@ def main(args):
         ),
         "context_rounds": result["context_rounds"],
         "provider_request_count": len(result["context_rounds"]),
+        "transport_retry_count": transport_retry_count,
         "service_tiers_reported": sorted(
             {
                 round_["service_tier"]

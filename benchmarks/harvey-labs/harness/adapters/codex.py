@@ -108,6 +108,9 @@ class _CodexResponses:
     events into the final Response so non-streaming callers work unchanged.
     """
 
+    def __init__(self):
+        self.transport_retry_count = 0
+
     def create(self, **kwargs):
         kwargs.pop("max_output_tokens", None)
         kwargs.pop("temperature", None)
@@ -147,6 +150,7 @@ class _CodexResponses:
             except (httpx.TransportError, openai.APIConnectionError):
                 if attempt:
                     raise
+                self.transport_retry_count += 1
                 time.sleep(1)
         raise AssertionError("unreachable")
 
@@ -154,7 +158,8 @@ class _CodexResponses:
 class CodexClient:
     """Minimal client exposing the one surface the harness and judge use."""
 
-    responses = _CodexResponses()
+    def __init__(self):
+        self.responses = _CodexResponses()
 
 
 class CodexAdapter(OpenAIAdapter):

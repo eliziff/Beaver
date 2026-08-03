@@ -21,8 +21,10 @@ def test_codex_stream_transport_failure_retries_without_partial_items():
     with patch("harness.adapters.codex.borrow_codex_key", return_value=("token", None)), patch(
         "harness.adapters.codex.openai.OpenAI", return_value=client
     ), patch("harness.adapters.codex.time.sleep"):
-        response = _CodexResponses().create(model="gpt-5.6-luna", input="test")
+        responses = _CodexResponses()
+        response = responses.create(model="gpt-5.6-luna", input="test")
 
     assert response is final_response
     assert response.output == ["final"]
     assert client.responses.create.call_count == 2
+    assert responses.transport_retry_count == 1
