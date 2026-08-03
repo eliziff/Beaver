@@ -283,6 +283,31 @@ describe("local assistant tool wiring", () => {
     expect(guidance).not.toMatch(/change.of.control|clinical.trial|indenture/iu);
   });
 
+  it("keeps the upstream-terminal prompt and tool schema byte-equal to upstream", async () => {
+    process.env.MIKE_TOOL_SHAPE = "upstream-mike";
+    process.env.MIKE_PROGRESSIVE_DISCLOSURE = "0";
+    process.env.MIKE_DISABLE_RESEARCH_TOOLS = "1";
+    process.env.MIKE_DISABLE_ASK_INPUTS = "1";
+    process.env.MIKE_TERMINAL_AUTHORING = "0";
+    const upstream = await loadTools();
+    const schema = JSON.stringify(upstream.LOCAL_ASSISTANT_TOOLS);
+    const surface = await import("../upstreamMikeBenchmarkSurface");
+
+    process.env.MIKE_TERMINAL_AUTHORING = "1";
+    const terminal = await loadTools();
+    const terminalSurface = await import("../upstreamMikeBenchmarkSurface");
+
+    expect(JSON.stringify(terminal.LOCAL_ASSISTANT_TOOLS)).toBe(schema);
+    expect(terminal.TERMINAL_AUTHORING_ENABLED).toBe(true);
+    expect(terminal.UPSTREAM_MIKE_TOOL_SHAPE).toBe(true);
+    expect(terminalSurface.UPSTREAM_MIKE_LAB_SYSTEM_PROMPT).toBe(
+      surface.UPSTREAM_MIKE_LAB_SYSTEM_PROMPT,
+    );
+    expect(terminalSurface.UPSTREAM_TERMINAL_DELTA).toBe(
+      "terminal-successful-generate-v1",
+    );
+  });
+
   it.each([
     ["mike-grep-v1", "p0-pure-coding", false],
     ["mike-legal-v1", "h4-legal-grep", true],
