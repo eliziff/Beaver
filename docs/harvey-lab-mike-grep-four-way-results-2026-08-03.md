@@ -1,7 +1,7 @@
 # Mike-plus-Grep four-way result (2026-08-03)
 
-Status: **complete, structurally valid, and provisional**. Scores are fixed-Sol
-criterion-judge labels, not human gold.
+Status: **candidate cells structurally valid; upstream comparison excluded**.
+Scores are fixed-Sol criterion-judge labels, not human gold.
 
 This experiment tested whether a small retrieval delta from pinned upstream
 Mike could preserve its answer quality while reducing provider-reported logical
@@ -19,8 +19,20 @@ immutable registration contains every run ID and fingerprint:
   through Pandoc. All traces were schema-correct, with zero failed tool calls,
   no worktree or held-out-data access, and matching task/source/tool/prompt/
   model/effort/tier/source fingerprints.
-- The pinned upstream and isolated coding comparators matched the current task,
-  instruction, source-bundle, model, effort, and reported-tier fingerprints.
+- The isolated coding comparator matched the current task, instruction,
+  source-bundle, model, effort, and reported-tier fingerprints.
+- A post-result provenance audit found that the three reused
+  `comparable-upstream-pinned-default` cells do **not** satisfy the registered
+  upstream-origin gate. Their actual `config.json` and
+  `beaver-receipts.json` identify commit
+  `e89d3230db40193c540a6b38d8f301ae76377a1a` and schema
+  `78f2e1dfaa7f2c5a62dcc52531804373e998ee002fe783e7767a10113e7a87fc`;
+  their run fingerprint contains no origin/source-blob proof. They predate
+  commit `171cd82d`, which restored the true-origin snapshot
+  `2266446b0d26f735865b8cd3bb153b28e7d11b17` and corrected tool-loop
+  semantics. The preregistration's eligibility assertion was therefore wrong.
+  These cells remain labelled legacy diagnostics and cannot establish a win or
+  loss against true upstream Mike.
 - The valid judge run is
   `.tmp/harvey-sol-judge/2026-08-03T01-10-00Z-sol-fixed-r4`: fixed
   `codex/gpt-5.6-sol`, requested temperature 0, provider-default judge effort,
@@ -41,13 +53,15 @@ immutable registration contains every run ID and fingerprint:
 | `mike_legal_v1` | 42 | 36 | 63 | **141** | -9 |
 | `mike_legal_guided_v1` | 43 | 40 | 70 | **153** | +3 |
 | `v5_reconstruction_v1` | 46 | 18 | 63 | **127** | -23 |
-| Frozen upstream Mike | 37 | 44 | 69 | **150** | control |
+| Legacy upstream-shaped comparator (excluded) | 37 | 44 | 69 | **150** | invalid control |
 | Frozen isolated coding finalist | 11 | 25 | 59 | **95** | -55 |
 
-No candidate wins under the preregistered rule. `mike_grep_v1` missed the
-quality floor. The guided arm's three-point gain cost 1.438x upstream tokens,
-well below the required decisive gain of at least ten points on at least two
-tasks without a material collapse. V5 exceeded the 1.5x hard token ceiling.
+The registered winner rule cannot be applied because its upstream control was
+ineligible. Against the legacy diagnostic only, `mike_grep_v1` trailed seven
+points; the guided arm's three-point gain cost 1.438x tokens; and V5 used
+1.698x tokens. Those comparisons explain why the complex arms were retired,
+but none is a claim about true upstream Mike. The next experiment reruns the
+control on every task.
 
 ## Context and cost telemetry
 
@@ -61,7 +75,7 @@ receipts.
 | `mike_legal_v1` | 1,325,527 (92.3%) | 13,312 | 1,313,546.2 | $1.567901 | 57/58 | 37 | 14 | 0 | 1,573.96 s |
 | `mike_legal_guided_v1` | 2,065,539 (143.8%) | 430,592 | 1,678,006.2 | $1.951376 | 52/58 | 63 | 19 | 0 | 1,659.31 s |
 | `v5_reconstruction_v1` | 2,439,211 (169.8%) | 340,992 | 2,132,318.2 | $2.460963 | 49/58 | 143 | 41 | 24 section | 1,920.91 s |
-| Frozen upstream Mike | 1,436,478 | 1,536 | 1,435,095.6 | $1.698766 | 58/58 | 10 | 12 | 0 | 1,129.25 s |
+| Legacy upstream-shaped comparator (excluded) | 1,436,478 | 1,536 | 1,435,095.6 | $1.698766 | 58/58 | 10 | 12 | 0 | 1,129.25 s |
 | Frozen isolated coding finalist | 1,611,907 | 26,624 | 1,587,945.4 | $1.828095 | 40/58 | 89 | 38 | 0 | 1,094.95 s |
 
 `mike_grep_v1` used 162,844, 285,946, and 224,369 logical tokens on the three
@@ -70,8 +84,9 @@ pricing run alone used 1,438,758 tokens; V5's used 1,412,720.
 
 ## Trace findings
 
-The simple Grep arm is the efficiency frontier, but not yet the quality
-frontier. Its change-of-control run gained ten points after two selective
+The simple Grep arm is the candidate efficiency frontier, but its margin over
+true upstream is not yet known. Its change-of-control run scored ten points
+higher than the legacy diagnostic after two selective
 searches and selected whole-document reads, covering 12 of 19 sources. On
 transfer pricing it exposed all 25 documents and all 1,166,898 exact source
 characters with no tool error, yet omitted requested numbers, jurisdictional
@@ -90,10 +105,11 @@ the current optional-coordinate schema and the checkpoint/handoff stack, not
 the possibility that host-resolved structure can help behind ordinary coding
 tool semantics.
 
-Terminal generation remains a promising isolated mechanical win. Upstream and
-`mike_grep_v1` both exposed every transfer-pricing document, but the terminal
-arm completed in three rounds and 285,946 tokens versus upstream's four rounds
-and 559,453. The next experiment should isolate that effect.
+Terminal generation remains a promising isolated mechanical hypothesis. The
+legacy comparator and `mike_grep_v1` both exposed every transfer-pricing
+document, but the terminal arm completed in three rounds and 285,946 tokens
+versus four rounds and 559,453. Because the comparator lineage is invalid, the
+next experiment tests that delta directly on the corrected upstream surface.
 
 The frozen coding finalist is not a clean stock-Codex/Pi control: it performed
 three, seven, and one research refreshes and handed off roughly 114--118k
@@ -120,9 +136,10 @@ small, independently attributable treatments:
    Deterministic diagnostics, if included, must be objective, bounded, and
    measured separately; safe silent fixes require exact version/hash receipts.
 
-The matrix should include pinned upstream, upstream-terminal,
-`mike_grep_v1`, and the structural arm; reuse eligible three-task cells where
-fingerprints match and add six diverse visible tasks.
+The matrix should include corrected pinned upstream, upstream-terminal,
+`mike_grep_v1`, and the structural arm. Rerun upstream on all nine tasks; do
+not reuse the three mislabelled comparator cells. Existing Mike-plus-Grep cells
+may be reused only under an explicit current-source equivalence audit.
 Accuracy remains primary. A token increase up to 1.5x upstream is acceptable
 only for a broad, decisive quality win; otherwise the smallest accurate arm
 wins.
