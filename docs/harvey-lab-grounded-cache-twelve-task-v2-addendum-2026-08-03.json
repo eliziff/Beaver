@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "experiment_id": "harvey-lab-grounded-cache-twelve-task-v2",
+  "registered_at": "2026-08-03T04:01:00Z",
+  "base_registration": "docs/harvey-lab-grounded-cache-twelve-task-preregistration-2026-08-03.json",
+  "base_experiment_reused": [
+    "objective",
+    "arms",
+    "task_selection",
+    "task_fingerprints",
+    "prompt_fingerprints",
+    "tool_fingerprints",
+    "metrics",
+    "decision_rule",
+    "judge"
+  ],
+  "v1_disposition": "Invalid transport attempt. The Codex subscription endpoint returned HTTP 400 Unsupported parameter: prompt_cache_options before inference in three cells; the remaining nine first-wave processes were stopped. No v1 output is scoreable.",
+  "only_change": "Do not send the public Responses API prompt_cache_options or prompt_cache_breakpoint fields to the Codex subscription backend. Preserve its stable prompt_cache_key, stateless exact history, provider-reported implicit cache telemetry, all model/tool/prompt settings, and all task/source fingerprints.",
+  "implementation_commit": "72423102f227c8344ad096858e27873cf2ee9a80",
+  "changed_source_fingerprints": {
+    "backend/src/lib/llm/codexApi.ts": "e1247f4934938dcf57d2ce719ef6c4c44671d091529fcf13df8dffe74fe71897",
+    "backend/src/lib/llm/__tests__/codexApi.test.ts": "552efe3315a7f0b0c19e68795f9beb463df23f1e25e3e1e728a02c32e035460e"
+  },
+  "checks": {
+    "codex_adapter_tests": "8 passed",
+    "backend_typescript_build": "passed"
+  },
+  "performer": {
+    "model": "codex:gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "provider_service_tier_requested": null,
+    "required_provider_service_tier_reported": "default",
+    "run_count": 36,
+    "max_concurrent_processes": 12,
+    "run_id_template": "2026-08-03-grounded-cache-v2--{task_slug}--{arm}"
+  },
+  "cache_interpretation": "Cache behavior is observational on this Codex pathway. Report provider cached input, logical tokens, latency, and the existing cache-adjusted bounds; do not claim explicit caching or infer missing cache-write counts.",
+  "status": "preregistered_before_v2_performer_calls"
+}
