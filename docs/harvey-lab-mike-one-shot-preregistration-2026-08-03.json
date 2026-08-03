@@ -1,0 +1,210 @@
+{
+  "schema_version": 1,
+  "experiment_id": "harvey-lab-mike-one-shot-v1",
+  "registered_at": "2026-08-03T10:06:35Z",
+  "status": "preregistered_before_performer_calls",
+  "experiment_class": "visible-development Codex-path side run",
+  "claim_scope": "One fresh paired development experiment over three visible Harvey LAB tasks. Results are provisional derivative Sol-judge labels, are not human gold, and must not be pooled with canonical Claude-product A/B cells.",
+  "general_objective": "Match or beat frozen upstream Mike answer quality under one fixed Sol criterion judge while using fewer tokens. Up to 2.0x paired-control cache-adjusted input is acceptable only for a substantial cross-task quality gain.",
+  "hypothesis": "The costly failure in prior hybrids was not missing evidence storage but extra inference rounds after the evidence packet. Force the useful work into one evidence-to-deliverable inference: expose only batch fetch and compact Markdown generation, append the exact original request after complete evidence, require all deliverables together, and spend additional reasoning inside that same inference. Test one bounded source-only typed-anchor index separately, in-band, because its prior packet surfaced real judged misses but its later revision round destroyed coverage.",
+  "implementation_commits_before_launch": [
+    "b41ea15f",
+    "64600028"
+  ],
+  "compatibility_probe_before_registration": {
+    "benchmark_content_used": false,
+    "model": "codex/gpt-5.6-luna",
+    "provider_service_tier_reported": "default",
+    "reasoning_mode_pro": "rejected by provider as unsupported for Luna; removed from the harness and experiment",
+    "reasoning_effort_xhigh": "accepted",
+    "prompt_cache_key": "accepted",
+    "response": "READY"
+  },
+  "landed_evidence": [
+    "In the immediately preceding 3-task experiment, frozen Mike control scored 163/225 at 520685 cache-adjusted input; Bash workbench scored 160/225 at 1040952; post-draft deterministic review scored 157/225 at 1439573.",
+    "Every useful post-read Bash or review operation forced another inference over the large evidence prefix. Indenture workbench used no Bash but still doubled input by emitting two deliverables in separate responses.",
+    "The prior typed-anchor packet identified concrete judged misses, including 0.07x and 3.15x source-reported values and distinct grace-period and maturity contexts; its Tax arm gained 3/77, but the later revision round shortened drafts and lost more coverage elsewhere.",
+    "The new deterministic arm therefore preserves only the supported source-only signal, caps it at 6000 characters, places it in the original fetch result, and adds no model round, draft scan, legal conclusion, or task route."
+  ],
+  "design": {
+    "same_agent": true,
+    "fresh_drafting_stage": false,
+    "checkpoint_or_handoff": false,
+    "evidence_union": false,
+    "after_read_analysis_tool": false,
+    "post_draft_review": false,
+    "tools_candidate": ["fetch_documents", "generate_docx"],
+    "whole_document_batch_read": true,
+    "exact_original_request_after_complete_evidence": true,
+    "compact_markdown_authoring": true,
+    "all_deliverables_same_response": true,
+    "terminal_successful_generation": true,
+    "stable_prompt_cache_key": true,
+    "full_response_item_replay": true,
+    "network": "disabled inside task sandbox",
+    "task_router_or_task_specific_prompt": false,
+    "benchmark_criteria_exposed": false,
+    "exact_host_source_and_harness_receipts": true
+  },
+  "performer": {
+    "model": "codex/gpt-5.6-luna",
+    "temperature_requested": 0,
+    "temperature_transmitted": false,
+    "provider_service_tier_requested": null,
+    "required_provider_service_tier_reported": "default",
+    "replicates": 1,
+    "arm_count": 4,
+    "task_count": 3,
+    "run_count": 12,
+    "max_concurrent_processes": 12,
+    "max_turns": 10,
+    "run_id_template": "2026-08-03-mike-one-shot-v1--{task_slug_with_slashes_replaced_by_double_hyphens}--{surface}",
+    "trace_gate": "No judge starts until every required DOCX is present, nonempty, structurally readable, and its trace confirms its preregistered fingerprints, provider tier, complete source read, task-reminder ordering, generation ordering, cache telemetry, exact receipts, no context overflow, and no tool/schema/path error."
+  },
+  "arms": {
+    "mike_control_v1": {
+      "role": "fresh paired frozen comparator",
+      "reasoning_effort": "high",
+      "tools": ["read_document", "find_in_document", "list_documents", "fetch_documents", "generate_docx"],
+      "tool_schema_sha256": "cecc7c7395d25e2aab4616ceed989615267657fb293d2be5470ba374fd36fdd5",
+      "tool_schema_bytes": 3876,
+      "harness_source_bundle_sha256": "520578bcfc24f854dbedbb0458500a1db024309d69205f3ee0535d90cd736ed8"
+    },
+    "mike_one_shot_v1": {
+      "role": "minimal candidate",
+      "reasoning_effort": "high",
+      "tools": ["fetch_documents", "generate_docx"],
+      "tool_schema_sha256": "7da650571cfd85d225720eb6f7b0549eae2309212394202a708d9ffa4b568298",
+      "tool_schema_bytes": 1091,
+      "harness_source_bundle_sha256": "520578bcfc24f854dbedbb0458500a1db024309d69205f3ee0535d90cd736ed8"
+    },
+    "mike_one_shot_xhigh_v1": {
+      "role": "same minimal candidate with more reasoning inside the single drafting inference",
+      "reasoning_effort": "xhigh",
+      "tools": ["fetch_documents", "generate_docx"],
+      "tool_schema_sha256": "7da650571cfd85d225720eb6f7b0549eae2309212394202a708d9ffa4b568298",
+      "tool_schema_bytes": 1091,
+      "harness_source_bundle_sha256": "520578bcfc24f854dbedbb0458500a1db024309d69205f3ee0535d90cd736ed8"
+    },
+    "mike_one_shot_fact_index_xhigh_v1": {
+      "role": "separately attributable deterministic candidate",
+      "reasoning_effort": "xhigh",
+      "delta": "Append at most eight task-ranked repeated typed anchors and source excerpts, capped at 6000 characters, between complete exact evidence and the exact request reminder. No extra inference round.",
+      "tools": ["fetch_documents", "generate_docx"],
+      "tool_schema_sha256": "7da650571cfd85d225720eb6f7b0549eae2309212394202a708d9ffa4b568298",
+      "tool_schema_bytes": 1091,
+      "harness_source_bundle_sha256": "e6330a3f03f602f2e11df259555be9776e6739e8e2446a85cd4f9eac16b449ee"
+    }
+  },
+  "tasks": {
+    "banking-finance/extract-credit-agreement-covenants": {
+      "task_config_sha256": "4521248e6438e7649a0784299693284ece4bf98f693544bd7b62d9d55df0c598",
+      "instructions_sha256": "8b3afea95c4ea92f7a1ab9dd10aeb4ba81a03ad546aa1958aa899d042a5d0f2d",
+      "source_bundle_sha256": "b5c3605cfbe3d53377712d0db3463f945a5c69cf7caef0da01b45d7b9ee75296",
+      "source_count": 3,
+      "source_bytes": 146996,
+      "criteria": 65,
+      "system_prompt_sha256": {
+        "mike_control_v1": "299f95296b30428c3c99917961ba9ec83915f184327716134330c813a4d8583e",
+        "mike_one_shot_v1": "1d3acd0cc11db71f8c9b3a8ee31ac807cf90a8f448a71b812645a5ae0ec6dc53",
+        "mike_one_shot_xhigh_v1": "1d3acd0cc11db71f8c9b3a8ee31ac807cf90a8f448a71b812645a5ae0ec6dc53",
+        "mike_one_shot_fact_index_xhigh_v1": "1d3acd0cc11db71f8c9b3a8ee31ac807cf90a8f448a71b812645a5ae0ec6dc53"
+      },
+      "prompt_cache_key": {
+        "mike_control_v1": "lab-f953d52dfc0af56af18f9ee0c36c238061f50c4f4f31293f2b91345be0d2c6e0",
+        "candidate": "lab-99b787eaa59ea30e84292e868eaf3e129a68577ddd3983b8e940efa4e7e01213"
+      },
+      "run_fingerprint_sha256": {
+        "mike_control_v1": "d9c6bf27ca599c4f5ce9268dead23b03afcbd45acc7bad16eeba1ab3135bfb2f",
+        "mike_one_shot_v1": "d7610e14b998b5020426980a9c58c2445ca6f20fe91f67d48da5b43003c9cfc1",
+        "mike_one_shot_xhigh_v1": "0af3756ca9249906db960b85c520f5656472976e501fa9fe518a0324a9119385",
+        "mike_one_shot_fact_index_xhigh_v1": "155b53d3c598e07ee79f087d1e038402751ebf9fd9a2a006b756f3ebeedb2a3e"
+      }
+    },
+    "tax/draft-transfer-pricing-documentation": {
+      "task_config_sha256": "e860b4de7d37024a85dba093e569a893cf4806a190f073e53e9a61514fd5a962",
+      "instructions_sha256": "baa067a9d481a31b85cb9a47a3eebfbc6620e2c5cd23b87e71b2b4f1741d05b7",
+      "source_bundle_sha256": "0ebfa8f86d9bd3405d4ccd638471ded6f48a4748ca0cfba76b992f1a5ea15e3d",
+      "source_count": 25,
+      "source_bytes": 1511738,
+      "criteria": 77,
+      "system_prompt_sha256": {
+        "mike_control_v1": "cb5b1e479edf22ec3ee42ada92af5d0dea0a0deb29788a0411401674c1e036c0",
+        "mike_one_shot_v1": "acda8da959a534bff3050ff5e4abb174e28b789aa6268685a1a698ef6bc70614",
+        "mike_one_shot_xhigh_v1": "acda8da959a534bff3050ff5e4abb174e28b789aa6268685a1a698ef6bc70614",
+        "mike_one_shot_fact_index_xhigh_v1": "acda8da959a534bff3050ff5e4abb174e28b789aa6268685a1a698ef6bc70614"
+      },
+      "prompt_cache_key": {
+        "mike_control_v1": "lab-0a8acb8f8a35abd18846cc469306e309b67f0efcfccded7e3398587d9196597f",
+        "candidate": "lab-1fea79c2cfd5dd662432915d3a329b102aeeb93ce4335f07937c59030b8407f0"
+      },
+      "run_fingerprint_sha256": {
+        "mike_control_v1": "a421633ce5f3fcb0c9f4e6549bd4c8933e9aa84a5c0107eb7b37a2f339443320",
+        "mike_one_shot_v1": "934b2cda1bbeff1b633304b7aaa6ffb8d555074f013a73a4c2446da2138442d5",
+        "mike_one_shot_xhigh_v1": "31e6ec17c062bc8a19cb2a2319a926f36bf5849488adf32df18e8bc724cde7f9",
+        "mike_one_shot_fact_index_xhigh_v1": "88e8b0df68298e2ce98aaf6bddfbefdad161ee44548c654b03725c4b74e4ced4"
+      }
+    },
+    "capital-markets/draft-indenture-for-senior-secured-notes-offering": {
+      "task_config_sha256": "41b58ce7ca3c92ea825ddb22d5a1e4bc8b5c23e31df3e8f6efc54056c98775aa",
+      "instructions_sha256": "d9b4b8460380ace783ca538f417843d2edf8f997f0ec3f622f5ea6aebf2f5675",
+      "source_bundle_sha256": "c1319d3aec66399c21a7a1a00b64821d48e4eecc190bbc15474148e7da33d7fd",
+      "source_count": 14,
+      "source_bytes": 730540,
+      "criteria": 83,
+      "system_prompt_sha256": {
+        "mike_control_v1": "22dc350de81aa94250f1a4566047f543e736ddc5715927bf672159592b21ab07",
+        "mike_one_shot_v1": "0a97d58bb4c92e17d2d3ab66175962807adb7decdf41751256c2ade3632e0a74",
+        "mike_one_shot_xhigh_v1": "0a97d58bb4c92e17d2d3ab66175962807adb7decdf41751256c2ade3632e0a74",
+        "mike_one_shot_fact_index_xhigh_v1": "0a97d58bb4c92e17d2d3ab66175962807adb7decdf41751256c2ade3632e0a74"
+      },
+      "prompt_cache_key": {
+        "mike_control_v1": "lab-83820b8596bcb0e816e0fbaf9eeb1953eca324ed3907931e05b0fddd503841fd",
+        "candidate": "lab-6d1b9226475a61412c24bd7a33460807631d6067afe66043943d36aa8a5db618"
+      },
+      "run_fingerprint_sha256": {
+        "mike_control_v1": "759cb17bb340e588fea1f41b6020805904b5e781aa122656e35a922dbc7b1f37",
+        "mike_one_shot_v1": "a0bbe51e1db3a02f7cbcd4366e28e541fee840bfc2c0f5b9289e194fd0cf11f6",
+        "mike_one_shot_xhigh_v1": "4b809b6702231d73066b808b52e6fac2c0f2bdf098533110825afc5079584d96",
+        "mike_one_shot_fact_index_xhigh_v1": "d88bad24e7bb920a0f1f97ad2bc7ff95477e71dc209ed13690ced826ada7ab59"
+      }
+    }
+  },
+  "matrix_totals": {
+    "criteria": 225,
+    "sources": 42,
+    "source_bytes": 2389274
+  },
+  "code_binding": {
+    "upstream_mike_commit": "2266446b0d26f735865b8cd3bb153b28e7d11b17",
+    "upstream_mike_schema_sha256": "78f2e1dfaa7f2c5a62dcc52531804373e998ee002fe783e7767a10113e7a87fc",
+    "docker_image": "lab-sandbox:latest",
+    "docker_image_id": "sha256:0695466b5b1278b2b979b78de0f845b6e81b9d3cbd70ee6a6ec6a430a0599b23",
+    "mechanism": "Every run records exact task, source, prompt, tool, cache-key, harness-file, parse, and composite fingerprints. Postlaunch code edits invalidate the cell."
+  },
+  "judge": {
+    "model": "codex/gpt-5.6-sol",
+    "reasoning_effort": "provider default",
+    "temperature_requested": 0,
+    "criterion_level": true,
+    "max_concurrent_outputs": 12,
+    "max_concurrent_criteria_per_output": 1,
+    "provider_service_tier_requested": null,
+    "prompt_sha256": "da0f2618d996ac5415a960dfc445e53b6fbd1b22602dd587bf6ecccbe139cb21",
+    "judge_source_sha256": "3546fec5ca1c4d655c8510d8cf2e0ca2201a94428c86d1628fbcdf5afe83a4b5",
+    "scoring_source_sha256": "e7f5e0accdaffe3ba9d350fb417f0c09f6f372ff5888def5908c73113291a9a3"
+  },
+  "metrics": {
+    "quality_primary": "fixed Sol criterion score, per task plus micro and task-macro aggregates",
+    "efficiency_primary": "provider-reported logical input plus output tokens",
+    "cache_adjusted_input_equivalent": "uncached input + 0.1 * cache-read input + 1.25 * cache-write input",
+    "secondary": ["valid deliverables", "source coverage", "turns", "tool batches and errors", "source-index size", "cache reads and writes", "reasoning tokens", "provider and wall latency"]
+  },
+  "decision_rule": {
+    "ordering": ["accuracy", "cache-adjusted input", "logical tokens", "coverage", "latency", "tool behavior"],
+    "advance": "Advance an architecture if aggregate quality meets or exceeds paired Mike with lower token use, or if a substantial cross-task quality gain remains at or below 2.0x paired Mike cache-adjusted input.",
+    "xhigh": "Advance xhigh only if added reasoning materially improves quality enough to justify its token delta.",
+    "deterministic": "Advance the fact index only if it improves judged accuracy beyond the otherwise identical xhigh arm and traces show use of material surfaced facts. Delete it if ignored or noisy.",
+    "task_specific_fixes": "forbidden"
+  }
+}
