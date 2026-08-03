@@ -618,15 +618,19 @@ class MikeWorkbenchExecutor(ToolExecutor):
         persisted_final_source = self.sandbox.read_file(draft_path)
         if persisted_final_source != final_source:
             raise RuntimeError("final draft source bytes changed while writing")
-        result = self.sandbox.exec(
-            f"pandoc {shlex.quote(draft_path)} -o {shlex.quote(output_path)}",
-            timeout=120,
-        )
-        if result.timed_out:
-            return "Error: DOCX generation timed out"
-        if result.returncode != 0 or not self.sandbox.exists(output_path):
-            detail = (result.stderr or result.stdout).strip()
-            return f"Error: DOCX generation failed: {detail[-500:]}"
+        if addition:
+            result = self.sandbox.exec(
+                f"pandoc {shlex.quote(draft_path)} -o {shlex.quote(output_path)}",
+                timeout=120,
+            )
+            if result.timed_out:
+                return "Error: DOCX generation timed out"
+            if result.returncode != 0 or not self.sandbox.exists(output_path):
+                detail = (result.stderr or result.stdout).strip()
+                return f"Error: DOCX generation failed: {detail[-500:]}"
+        else:
+            initial_docx_path = f"{WORKSPACE_PATH}/.mike/initial/{filename}"
+            self.sandbox.write_file(output_path, self.sandbox.read_file(initial_docx_path))
         final_docx = self.sandbox.read_file(output_path)
         receipt = {
             "filename": filename,
