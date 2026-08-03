@@ -236,6 +236,82 @@ def test_quote_first_rejects_an_empty_private_ledger(tmp_path):
     assert not (tmp_path / "output" / "memo.docx").exists()
 
 
+def test_monotonic_review_schema_and_prompt_are_append_only():
+    prompt, tools, _ = get_mike_surface(
+        "mike_one_shot_monotonic_review_xhigh_v1", [("alpha.docx", "docx")]
+    )
+
+    assert [tool["name"] for tool in tools] == [
+        "fetch_documents",
+        "generate_docx",
+        "append_docx",
+    ]
+    assert tools[2]["parameters"]["required"] == ["filename", "markdown"]
+    assert "ONE OMISSIONS-ONLY REVIEW" in prompt
+    assert "cannot lose content" in prompt
+
+
+def test_monotonic_review_freezes_initial_and_only_appends_after_next_round(tmp_path):
+    executor = _executor(
+        tmp_path, surface="mike_one_shot_monotonic_review_xhigh_v1"
+    )
+    initial_markdown = "# Findings\n\nDebt is $2 million."
+    generated = json.loads(
+        executor.execute(
+            "generate_docx",
+            {"title": "Memo", "markdown": initial_markdown},
+        )
+    )
+
+    assert generated["terminal"] is False
+    assert executor.terminal is False
+    assert not (tmp_path / "output" / "memo.docx").exists()
+    same_batch = executor.execute(
+        "append_docx",
+        {"filename": "memo.docx", "markdown": "## Correction\n\nRatio is 1.20x."},
+    )
+    assert same_batch.startswith("Error:")
+
+    executor.after_tool_batch()
+    finalized = json.loads(
+        executor.execute(
+            "append_docx",
+            {"filename": "memo.docx", "markdown": "## Correction\n\nRatio is 1.20x."},
+        )
+    )
+
+    assert finalized["terminal"] is True
+    final_source = (tmp_path / "workspace" / ".mike" / "final" / "memo.docx.md").read_text()
+    initial_source = (tmp_path / "workspace" / ".mike" / "initial" / "memo.docx.md").read_text()
+    assert final_source.startswith(initial_source.rstrip())
+    assert "Ratio is 1.20x" in final_source
+    metrics = executor.get_metrics()
+    assert metrics["initial_draft_receipts"][0]["source_sha256"] == generated["initial_source_sha256"]
+    assert metrics["append_receipts"][0]["initial_prefix_preserved"] is True
+    assert metrics["finalized_deliverables"] == ["memo.docx"]
+
+
+def test_monotonic_review_empty_append_preserves_exact_initial_source(tmp_path):
+    executor = _executor(
+        tmp_path, surface="mike_one_shot_monotonic_review_xhigh_v1"
+    )
+    executor.execute(
+        "generate_docx",
+        {"title": "Memo", "markdown": "# Complete\n\nNothing omitted."},
+    )
+    executor.after_tool_batch()
+    receipt = json.loads(
+        executor.execute(
+            "append_docx", {"filename": "memo.docx", "markdown": ""}
+        )
+    )
+
+    assert receipt["appended_characters"] == 0
+    initial_source = (tmp_path / "workspace" / ".mike" / "initial" / "memo.docx.md").read_text()
+    final_source = (tmp_path / "workspace" / ".mike" / "final" / "memo.docx.md").read_text()
+    assert final_source == initial_source
+
+
 def test_mike_batch_read_duplicate_guard_search_and_terminal_generation(tmp_path):
     executor = _executor(tmp_path)
     inventory = json.loads(executor.execute("list_documents", {}))
