@@ -643,15 +643,19 @@ Acceptance:
 
 ### P1.4a Minimal coding-native legal retrieval
 
-Status: **Four-way ablation complete; broader validation pending (2026-08-03)**
+Status: **Candidate ablation complete; upstream control rerun required (2026-08-03)**
 
 The fixed-Sol three-task result is recorded in
 [Mike-plus-Grep four-way result](harvey-lab-mike-grep-four-way-results-2026-08-03.md).
-No tested candidate won. Simple Mike-plus-Grep used 46.9% of upstream logical
-tokens but scored 143/217 versus 150/217. Optional section/page fields were
-never used by the two legal arms. The guided arm scored 153/217 but used 1.438x
-tokens, below the preregistered decisive-quality threshold. The reconstructed
-V5 handoff/checkpoint strategy scored 127/217 at 1.698x tokens.
+The 12 candidate cells are structurally valid, but a post-result audit excluded
+the reused 150/217 upstream comparator: its receipts identify the older
+`e89d3230` surface and predate `171cd82d`, which restored true-origin and
+tool-loop semantics. It cannot establish a win or loss against current pinned
+upstream. Candidate-only evidence still rejects the costly machinery: optional
+section/page fields were never used by the two legal arms; guided used
+2,065,539 tokens; and reconstructed V5 used 2,439,211 tokens for the lowest
+candidate score. Mike-plus-Grep remains the candidate efficiency frontier at
+673,159 tokens and 143/217, pending a valid control.
 
 Retire the optional-coordinate schema and the bundled research checkpoint,
 evidence-union, fresh drafting handoff, forced compiler correction, reviewer,
@@ -679,8 +683,9 @@ class so a non-contributing class can be removed.
 Acceptance:
 
 - Preregister nine diverse visible-development tasks, exact fingerprints, and
-  one fixed judge before new model calls; reuse old cells only when every
-  eligibility fingerprint matches.
+  one fixed judge before new model calls. Rerun true-origin upstream on all
+  nine; never reuse a cell whose own receipt lacks the registered origin and
+  source-blob proof.
 - Hold Luna/high and the provider-reported default tier constant, inspect tool
   and schema traces before scoring, and treat scores as provisional derivative
   labels rather than human gold.
