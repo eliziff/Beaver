@@ -641,58 +641,56 @@ Acceptance:
 - Temporal-impossibility counts and sampled receipts are zero or every defect
   is quarantined and explained before citator ranking is promoted.
 
-### P1.4a Hybrid legal-agent retrieval and compiler loop
+### P1.4a Minimal coding-native legal retrieval
 
-Status: **Experiment in flight (2026-08-01)**
+Status: **Four-way ablation complete; broader validation pending (2026-08-03)**
 
-- Keep the resident retrieval vocabulary coding-native (`Glob`, `Grep`,
-  `Read`, `Edit`) while allowing exact legal section, page, table-row, and
-  bounded reference scopes inside search and read.
-- Treat filenames as the ordinary model-facing identity. Reveal durable
-  document IDs only to disambiguate duplicate filenames; keep source/version
-  IDs in evidence and mutation receipts.
-- Split progressive domains by user intent: create a deliverable, revise an
-  existing document, or audit an existing document. Do not disclose a general
-  quality-tool bag merely because a task creates a DOCX.
-- Run existing deterministic anchor, arithmetic, temporal, defined-term, and
-  drafting checks like a compiler after synthesis. A bounded correction pass
-  retains the instructions, artifact, and typed findings while dropping old
-  tool payloads from model context.
-- During research, replace accumulated tool history with the original request,
-  a compact index of durable exact evidence, and only the latest tool results.
-  Restore the full deduplicated evidence union for drafting; never make an
-  append-only transcript plus a second union masquerade as compaction.
-- Measure each provider round: tool-schema hash, arguments/results bytes,
-  cache tokens, source-qualified exposure union, replay, and truncation.
+The fixed-Sol three-task result is recorded in
+[Mike-plus-Grep four-way result](harvey-lab-mike-grep-four-way-results-2026-08-03.md).
+No tested candidate won. Simple Mike-plus-Grep used 46.9% of upstream logical
+tokens but scored 143/217 versus 150/217. Optional section/page fields were
+never used by the two legal arms. The guided arm scored 153/217 but used 1.438x
+tokens, below the preregistered decisive-quality threshold. The reconstructed
+V5 handoff/checkpoint strategy scored 127/217 at 1.698x tokens.
 
-The current benchmark may hold a linear research-to-drafting handoff constant,
-but that is not the final work-product model. Production must eventually allow
-research, drafting, checking against the user's instructions and output
-requirements, targeted re-research, revision, and final refinement without
-replaying every earlier payload. Hidden benchmark rubrics are never available
-to the agent.
+Retire the optional-coordinate schema and the bundled research checkpoint,
+evidence-union, fresh drafting handoff, forced compiler correction, reviewer,
+and automatic context-refresh machinery from the candidate path. Preserve
+exact evidence, hashes, versions, pinpoints, and receipts host-side, but expose
+them on demand through ordinary tools instead of replaying them into context.
 
-After the lossless context-refresh path is measured, preregister a separate
-compact-phase ablation inspired by `experiments/legal_compaction_qwen`. Its
-4B-parameter, 4k-context, three-case result is a stress probe of interface
-information density, not a proposal to fit production long-horizon work into
-a tiny model or a fixed 4k budget. This does not require multi-agent
-orchestration: test the principles in a single model workflow whose host gives
-each step minimal task-local typed state and removes superseded payloads. Keep
-exact text, hashes, and pinpoints outside the active packet for deterministic
-rehydration and verification; do not silently summarize away controlling
-language in the main arm.
+The next ablation starts from pinned upstream Mike and keeps one continuous
+agent trajectory. It compares:
+
+- upstream Mike;
+- the measured Mike-plus-Grep efficiency frontier;
+- pinned upstream Mike with only successful document generation made terminal,
+  isolating the cost of its otherwise pointless post-generation replay; and
+- discovery-first legal structure behind ordinary Grep/Read semantics, where
+  the host returns verified locator metadata and executable paths after a
+  match rather than asking the model to guess a legal coordinate.
+
+Deterministic assistance must either apply a provably safe, version/hash-bound
+fix with a receipt or emit a short, objective, actionable diagnostic. Broad
+source-only anchor dumps, speculative term-drift lists, and compulsory repair
+passes are not model context. Keep independent telemetry for every diagnostic
+class so a non-contributing class can be removed.
 
 Acceptance:
 
-- On varied long-horizon Harvey dev tasks, the bundled arm beats or identifies
-  a repeatable task-specific win over frozen upstream Mike and H4 without
-  hiding invalid deliverables or operational failures.
-- No rich coordinate is guessable across documents, and every truncated read
-  supplies an executable continuation.
-- Ablations identify whether inventory/domain routing, bounded structured
-  retrieval, or the deterministic compiler/checkpoint earns its context and
-  latency cost before the bundle becomes a default.
+- Preregister nine diverse visible-development tasks, exact fingerprints, and
+  one fixed judge before new model calls; reuse old cells only when every
+  eligibility fingerprint matches.
+- Hold Luna/high and the provider-reported default tier constant, inspect tool
+  and schema traces before scoring, and treat scores as provisional derivative
+  labels rather than human gold.
+- Match or exceed pinned upstream accuracy with fewer logical tokens. Up to
+  1.5x tokens is acceptable only for a broad, decisive quality gain with no
+  task collapse.
+- Attribute wins separately to terminal generation, continuous deliberation,
+  host-resolved structure, and each deterministic diagnostic. Do not promote a
+  bundle whose individual contributors have not earned their context, token,
+  and latency cost.
 
 ## Priority 1 — deterministic document and spreadsheet work
 
