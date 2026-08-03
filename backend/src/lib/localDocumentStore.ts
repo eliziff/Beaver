@@ -307,7 +307,10 @@ async function writeVersionFiles(
   await writeFile(absoluteDataPath(relativeSource), bytes);
 
   let relativePdf: string | null = suffix === "pdf" ? relativeSource : null;
-  if (shouldConvertToPdf(suffix)) {
+  if (
+    shouldConvertToPdf(suffix) &&
+    process.env.MIKE_EAGER_OFFICE_PDF_RENDITION !== "0"
+  ) {
     try {
       const pdf = await docxToPdf(bytes);
       const pdfHash = sha256(pdf);
