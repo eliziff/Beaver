@@ -48,6 +48,7 @@ import {
   UPSTREAM_MIKE_COMMIT,
   UPSTREAM_MIKE_SCHEMA_SHA256,
   UPSTREAM_MIKE_SOURCE_BLOBS,
+  UPSTREAM_TERMINAL_DELTA,
 } from "../src/lib/chat/upstreamMikeBenchmarkSurface";
 import { latestAuthoredDocuments } from "./lab-authored-documents";
 
@@ -493,6 +494,13 @@ async function main() {
       MIKE_RETRIEVAL_EXPERIMENT: "",
       MIKE_PROGRESSIVE_DISCLOSURE: "0",
     },
+    upstream_terminal_v1: {
+      MIKE_NAV_SHAPE: "legacy",
+      MIKE_TOOL_SHAPE: "upstream-mike",
+      MIKE_RETRIEVAL_EXPERIMENT: "",
+      MIKE_PROGRESSIVE_DISCLOSURE: "0",
+      MIKE_TERMINAL_AUTHORING: "1",
+    },
     adaptive_mike_v1: {
       MIKE_NAV_SHAPE: "legacy",
       MIKE_TOOL_SHAPE: "adaptive-mike-v1",
@@ -576,7 +584,7 @@ async function main() {
   };
   if (!armEnvironment[arm])
     throw new Error(
-      `unknown --arm ${arm}; expected p0, coding_finalist, d1, hybrid, hybrid_finalist, coverage_finalist, coverage_hybrid_v2, checkpoint_paged_v1, v13, v14, v15, coverage_soft_v2, working_set, compiler_hybrid, sla_hybrid, sla_working_set, h9, h10, address, upstream, adaptive_mike_v1, mike_grep_v1, mike_legal_v1, mike_legal_guided_v1, or v5_reconstruction_v1`,
+      `unknown --arm ${arm}; expected p0, coding_finalist, d1, hybrid, hybrid_finalist, coverage_finalist, coverage_hybrid_v2, checkpoint_paged_v1, v13, v14, v15, coverage_soft_v2, working_set, compiler_hybrid, sla_hybrid, sla_working_set, h9, h10, address, upstream, upstream_terminal_v1, adaptive_mike_v1, mike_grep_v1, mike_legal_v1, mike_legal_guided_v1, or v5_reconstruction_v1`,
     );
 
   // Re-spawn into the isolated anonymous-mode environment (same recipe as
@@ -867,7 +875,7 @@ async function main() {
   const checkpointHandoffMismatches = checkpointHandoffAudit.filter(
     (receipt) => !receipt.matches,
   );
-  if (arm === "upstream") {
+  if (["upstream", "upstream_terminal_v1"].includes(arm)) {
     const expectedTools = [
       "read_document",
       "find_in_document",
@@ -881,14 +889,30 @@ async function main() {
     const deferredTools = Array.isArray(surface?.deferred_tools)
       ? surface.deferred_tools
       : [];
+    const expectedTerminal = arm === "upstream_terminal_v1";
     if (
       surface?.upstream_mike_shape !== true ||
       surface?.progressive_disclosure !== false ||
+      surface?.trajectory_mode !== "continuous" ||
+      surface?.context_handoff !== false ||
+      surface?.continuous_evidence !== false ||
+      surface?.sla_workflow !== false ||
+      surface?.greenfield_review !== false ||
+      surface?.model_coverage_routing !== false ||
+      Number(surface?.whole_read_max_chars ?? 0) !== 0 ||
+      surface?.suppress_duplicate_whole_reads !== true ||
+      surface?.terminal_authoring !== expectedTerminal ||
       JSON.stringify(residentTools) !== JSON.stringify(expectedTools) ||
-      deferredTools.length > 0
+      deferredTools.length > 0 ||
+      researchContextRefreshes.length > 0 ||
+      researchCheckpointRequests.length > 0 ||
+      researchCheckpoints.length > 0 ||
+      evidenceHandoffs.length > 0 ||
+      evidenceWorkingSetReceipts.length > 0 ||
+      contentResets.length > 0
     ) {
       throw new Error(
-        `upstream Mike isolation failed: resident=${residentTools.join(",")}; deferred=${deferredTools.join(",")}`,
+        `${arm} isolation failed: resident=${residentTools.join(",")}; deferred=${deferredTools.join(",")}; terminal=${String(surface?.terminal_authoring)}`,
       );
     }
   }
@@ -1433,6 +1457,7 @@ async function main() {
     "v13",
     "v14",
     "v15",
+    "upstream_terminal_v1",
     "adaptive_mike_v1",
     ...mikeGrepArms,
   ];
@@ -1537,7 +1562,8 @@ async function main() {
   ].filter(Boolean);
   const mikeGrepDerived = mikeGrepArms.includes(arm);
   const upstreamDerived =
-    ["upstream", "adaptive_mike_v1"].includes(arm) || mikeGrepDerived;
+    ["upstream", "upstream_terminal_v1", "adaptive_mike_v1"].includes(arm) ||
+    mikeGrepDerived;
   const mikeGrepDelta = mikeGrepDerived
     ? MIKE_GREP_DELTAS[
         armEnvironment[arm]
@@ -1562,6 +1588,8 @@ async function main() {
       : null,
     adaptive_delta:
       arm === "adaptive_mike_v1" ? ADAPTIVE_MIKE_DELTA : null,
+    upstream_terminal_delta:
+      arm === "upstream_terminal_v1" ? UPSTREAM_TERMINAL_DELTA : null,
     mike_grep_delta: mikeGrepDelta,
     strategy_reconstruction:
       arm === "v5_reconstruction_v1"
@@ -1731,7 +1759,7 @@ async function main() {
         service_tier_requested: serviceTier || null,
         service_tiers_reported: [...reportedServiceTiers],
         prompt_variant:
-          arm === "upstream"
+          ["upstream", "upstream_terminal_v1"].includes(arm)
             ? "upstream-pinned"
             : arm === "adaptive_mike_v1"
               ? "adaptive-mike-v1"
@@ -1783,7 +1811,11 @@ async function main() {
           ? UPSTREAM_MIKE_SOURCE_BLOBS
           : null,
         upstream_mike_schema_sha256:
-          arm === "upstream" ? UPSTREAM_MIKE_SCHEMA_SHA256 : null,
+          ["upstream", "upstream_terminal_v1"].includes(arm)
+            ? UPSTREAM_MIKE_SCHEMA_SHA256
+            : null,
+        upstream_terminal_delta:
+          arm === "upstream_terminal_v1" ? UPSTREAM_TERMINAL_DELTA : null,
         adaptive_mike_delta:
           arm === "adaptive_mike_v1" ? ADAPTIVE_MIKE_DELTA : null,
         mike_grep_delta: mikeGrepDelta,
@@ -1801,7 +1833,10 @@ async function main() {
                 ],
               }
             : null,
-        upstream_mike_isolation_verified: arm === "upstream" ? true : null,
+        upstream_mike_isolation_verified:
+          ["upstream", "upstream_terminal_v1"].includes(arm) ? true : null,
+        upstream_terminal_isolation_verified:
+          arm === "upstream_terminal_v1" ? true : null,
         adaptive_mike_isolation_verified:
           arm === "adaptive_mike_v1" ? true : null,
         mike_grep_isolation_verified: mikeGrepDerived ? true : null,
@@ -2117,7 +2152,11 @@ async function main() {
           ? UPSTREAM_MIKE_SOURCE_BLOBS
           : null,
         upstream_mike_schema_sha256:
-          arm === "upstream" ? UPSTREAM_MIKE_SCHEMA_SHA256 : null,
+          ["upstream", "upstream_terminal_v1"].includes(arm)
+            ? UPSTREAM_MIKE_SCHEMA_SHA256
+            : null,
+        upstream_terminal_delta:
+          arm === "upstream_terminal_v1" ? UPSTREAM_TERMINAL_DELTA : null,
         adaptive_mike_delta:
           arm === "adaptive_mike_v1" ? ADAPTIVE_MIKE_DELTA : null,
         mike_grep_delta: mikeGrepDelta,
