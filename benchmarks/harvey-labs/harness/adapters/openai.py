@@ -5,9 +5,30 @@ Reasoning control via reasoning.effort parameter:
 Works alongside temperature and tool calling with no constraints.
 """
 
+import hashlib
 import json
 import openai
 from harness.adapters.base import ModelAdapter, ModelResponse, ToolCall
+
+
+def prompt_cache_key_for(
+    model: str,
+    instructions: str,
+    user_input: str,
+    tools: list[dict],
+) -> str:
+    """Stable per-run cache routing key; exact prefixes remain provider-verified."""
+    payload = json.dumps(
+        {
+            "model": model,
+            "instructions": instructions,
+            "user_input": user_input,
+            "tools": tools,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    return f"lab-{hashlib.sha256(payload).hexdigest()}"
 
 
 class OpenAIAdapter(ModelAdapter):
@@ -19,13 +40,16 @@ class OpenAIAdapter(ModelAdapter):
         temperature: float = 0.0,
         max_tokens: int = 128000,  # GPT-5.x: reasoning tokens share this budget
         reasoning_effort: str | None = None,
+        reasoning_mode: str | None = None,
     ):
         super().__init__(model, temperature, reasoning_effort)
         self.max_tokens = max_tokens
+        self.reasoning_mode = reasoning_mode
         self.client = openai.OpenAI()
         # Accumulated context items for the Responses API
         self._context: list = []
         self._system_instructions: str | None = None
+        self.prompt_cache_key: str | None = None
 
     def chat(self, messages: list[dict], tools: list[dict]) -> ModelResponse:
         # On first call, extract system message and build initial context
@@ -41,6 +65,21 @@ class OpenAIAdapter(ModelAdapter):
                     })
 
         responses_tools = [self._translate_tool(t) for t in tools]
+        if self.prompt_cache_key is None:
+            first_user = next(
+                (
+                    item.get("content", "")
+                    for item in self._context
+                    if item.get("type") == "message" and item.get("role") == "user"
+                ),
+                "",
+            )
+            self.prompt_cache_key = prompt_cache_key_for(
+                self.model,
+                self._system_instructions or "",
+                str(first_user),
+                responses_tools,
+            )
 
         kwargs = dict(
             model=self.model,
@@ -48,10 +87,16 @@ class OpenAIAdapter(ModelAdapter):
             input=self._context,
             tools=responses_tools,
             max_output_tokens=self.max_tokens,
+            prompt_cache_key=self.prompt_cache_key,
         )
 
-        if self.reasoning_effort:
-            kwargs["reasoning"] = {"effort": self.reasoning_effort, "summary": "auto"}
+        if self.reasoning_effort or self.reasoning_mode:
+            reasoning = {"summary": "auto"}
+            if self.reasoning_effort:
+                reasoning["effort"] = self.reasoning_effort
+            if self.reasoning_mode:
+                reasoning["mode"] = self.reasoning_mode
+            kwargs["reasoning"] = reasoning
             # Some models don't support temperature with reasoning
         else:
             kwargs["temperature"] = self.temperature
@@ -95,6 +140,11 @@ class OpenAIAdapter(ModelAdapter):
             output_tokens=response.usage.output_tokens if response.usage else 0,
             cached_input_tokens=(
                 getattr(getattr(response.usage, "input_tokens_details", None), "cached_tokens", 0) or 0
+                if response.usage
+                else 0
+            ),
+            cache_write_input_tokens=(
+                getattr(getattr(response.usage, "input_tokens_details", None), "cache_write_tokens", 0) or 0
                 if response.usage
                 else 0
             ),

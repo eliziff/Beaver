@@ -71,7 +71,12 @@ class _FakeSandbox:
         return _ExecResult()
 
 
-def _executor(tmp_path: Path, *, anchor: bool = False) -> MikeWorkbenchExecutor:
+def _executor(
+    tmp_path: Path,
+    *,
+    anchor: bool = False,
+    surface: str | None = None,
+) -> MikeWorkbenchExecutor:
     sandbox = _FakeSandbox(tmp_path)
     (sandbox.documents_dir / "alpha.txt").write_text(
         "Debt is $2 million. Closing date is March 15, 2027.", encoding="utf-8"
@@ -84,7 +89,7 @@ def _executor(tmp_path: Path, *, anchor: bool = False) -> MikeWorkbenchExecutor:
         shell_timeout=5,
         deliverables=["memo.docx"],
         anchor_enabled=anchor,
-        surface_name=("mike_workbench_anchor_v1" if anchor else "mike_workbench_v1"),
+        surface_name=surface or ("mike_workbench_anchor_v1" if anchor else "mike_workbench_v1"),
         task_instructions="Extract every loan balance, ratio, and maturity date.",
     )
 
@@ -124,6 +129,26 @@ def test_surface_is_frozen_mike_plus_only_registered_deltas():
     assert frozen["commit"] == "2266446b0d26f735865b8cd3bb153b28e7d11b17"
 
 
+def test_one_shot_surfaces_share_exact_two_tool_prompt_and_schema():
+    inventory = [("alpha.docx", "docx"), ("beta.xlsx", "xlsx")]
+    plain_prompt, plain_tools, _ = get_mike_surface("mike_one_shot_v1", inventory)
+    pro_prompt, pro_tools, _ = get_mike_surface("mike_one_shot_pro_v1", inventory)
+    index_prompt, index_tools, _ = get_mike_surface(
+        "mike_one_shot_fact_index_v1", inventory
+    )
+
+    assert plain_prompt == pro_prompt == index_prompt
+    assert plain_tools == pro_tools == index_tools
+    assert [tool["name"] for tool in plain_tools] == [
+        "fetch_documents",
+        "generate_docx",
+    ]
+    assert "markdown" in plain_tools[1]["parameters"]["required"]
+    assert "sections" not in plain_tools[1]["parameters"]["properties"]
+    assert "AVAILABLE DOCUMENTS" in plain_prompt
+    assert "ANALYST WORKBENCH" not in plain_prompt
+
+
 def test_mike_batch_read_duplicate_guard_search_and_terminal_generation(tmp_path):
     executor = _executor(tmp_path)
     inventory = json.loads(executor.execute("list_documents", {}))
@@ -158,6 +183,39 @@ def test_mike_batch_read_duplicate_guard_search_and_terminal_generation(tmp_path
     }
     assert executor.terminal is True
     assert (tmp_path / "output" / "memo.docx").exists()
+
+
+def test_one_shot_fetch_repeats_exact_request_after_complete_evidence(tmp_path):
+    executor = _executor(tmp_path, surface="mike_one_shot_v1")
+
+    partial = executor.execute("fetch_documents", {"doc_ids": ["doc-0"]})
+    assert "<task_reminder" not in partial
+    complete = executor.execute("fetch_documents", {"doc_ids": ["doc-1"]})
+
+    assert "1.20x" in complete
+    assert "<task_reminder source=\"original-user-request\">" in complete
+    assert "Extract every loan balance, ratio, and maturity date." in complete
+    assert complete.rstrip().endswith("Now produce every requested deliverable together.")
+
+    receipt = json.loads(
+        executor.execute(
+            "generate_docx",
+            {"title": "Memo", "markdown": "# Conclusion\n\nComplete."},
+        )
+    )
+    assert receipt["terminal"] is True
+
+
+def test_fact_index_is_bounded_source_only_and_in_band(tmp_path):
+    executor = _executor(tmp_path, surface="mike_one_shot_fact_index_v1")
+    fetched = executor.execute("fetch_documents", {"doc_ids": ["doc-0", "doc-1"]})
+
+    assert "<deterministic_source_index" in fetched
+    assert fetched.index("<deterministic_source_index") < fetched.index("<task_reminder")
+    metrics = executor.get_metrics()
+    assert metrics["source_fact_index_calls"] == 1
+    assert metrics["source_fact_index_characters"] <= 6000
+    assert metrics["source_fact_index_sha256"]
 
 
 def test_bash_materializes_exact_mike_normalized_sources_once(tmp_path):
