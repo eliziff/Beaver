@@ -190,6 +190,11 @@ export type LlmContextRoundReceipt = {
   inputItems: number;
   inputBytes: number;
   inputSha256: string;
+  /** Explicit provider-cache boundaries present in this request. */
+  cacheBreakpointCount?: number;
+  /** Byte length and hash of the longest explicitly cacheable input prefix. */
+  cachePrefixBytes?: number;
+  cachePrefixSha256?: string;
   toolCount: number;
   toolBytes: number;
   toolSha256: string;

@@ -865,6 +865,8 @@ export const MIKE_LEGAL_GUIDED_TOOL_SHAPE =
   process.env.MIKE_TOOL_SHAPE === "mike-legal-guided-v1";
 export const MIKE_STRUCTURE_PATHS_TOOL_SHAPE =
   process.env.MIKE_TOOL_SHAPE === "mike-structure-paths-v1";
+export const GROUNDING_FIRST_ENABLED =
+  process.env.MIKE_GROUNDING_FIRST === "1";
 export const MIKE_GREP_FAMILY_TOOL_SHAPE =
   MIKE_GREP_TOOL_SHAPE ||
   MIKE_LEGAL_TOOL_SHAPE ||

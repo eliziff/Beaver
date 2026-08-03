@@ -44,6 +44,7 @@ import path from "node:path";
 import { ALLOWED_DOCUMENT_TYPES } from "../src/lib/documentTypes";
 import {
   ADAPTIVE_MIKE_DELTA,
+  GROUNDED_STRUCTURE_LAB_SYSTEM_PROMPT,
   MIKE_GREP_LAB_SYSTEM_PROMPT,
   MIKE_GREP_LAB_TOOLS,
   MIKE_GREP_DELTAS,
@@ -625,6 +626,23 @@ async function main() {
       MIKE_SLA_WORKFLOW: "0",
       MIKE_GREENFIELD_REVIEW: "0",
     },
+    grounded_structure_v1: {
+      MIKE_NAV_SHAPE: "legacy",
+      MIKE_TOOL_SHAPE: "mike-structure-paths-v1",
+      MIKE_RETRIEVAL_EXPERIMENT: "s1-structure-paths",
+      MIKE_GROUNDING_FIRST: "1",
+      MIKE_PROGRESSIVE_DISCLOSURE: "0",
+      MIKE_MODEL_COVERAGE_ROUTING: "0",
+      MIKE_WHOLE_READ_MAX_CHARS: "",
+      MIKE_TOOL_RESULT_CAP: "64000",
+      MIKE_SUPPRESS_DUPLICATE_WHOLE_READS: "1",
+      MIKE_TERMINAL_AUTHORING: "1",
+      MIKE_CONTEXT_HANDOFF: "0",
+      MIKE_CONTINUOUS_EVIDENCE: "0",
+      MIKE_OPENAI_COMPACT_THRESHOLD: "",
+      MIKE_SLA_WORKFLOW: "0",
+      MIKE_GREENFIELD_REVIEW: "0",
+    },
     v5_reconstruction_v1: {
       MIKE_NAV_SHAPE: "address",
       MIKE_TOOL_SHAPE: "coding",
@@ -645,7 +663,7 @@ async function main() {
   };
   if (!armEnvironment[arm])
     throw new Error(
-      `unknown --arm ${arm}; expected p0, coding_finalist, d1, hybrid, hybrid_finalist, coverage_finalist, coverage_hybrid_v2, checkpoint_paged_v1, v13, v14, v15, coverage_soft_v2, working_set, compiler_hybrid, sla_hybrid, sla_working_set, h9, h10, address, upstream, upstream_terminal_v1, adaptive_mike_v1, mike_grep_v1, mike_legal_v1, mike_legal_guided_v1, mike_structure_paths_v1, or v5_reconstruction_v1`,
+      `unknown --arm ${arm}; expected p0, coding_finalist, d1, hybrid, hybrid_finalist, coverage_finalist, coverage_hybrid_v2, checkpoint_paged_v1, v13, v14, v15, coverage_soft_v2, working_set, compiler_hybrid, sla_hybrid, sla_working_set, h9, h10, address, upstream, upstream_terminal_v1, adaptive_mike_v1, mike_grep_v1, mike_legal_v1, mike_legal_guided_v1, mike_structure_paths_v1, grounded_structure_v1, or v5_reconstruction_v1`,
     );
 
   // Re-spawn into the isolated anonymous-mode environment (same recipe as
@@ -707,6 +725,7 @@ async function main() {
           MIKE_SLA_WORKFLOW: "0",
           MIKE_SLA_STRATEGY: "",
           MIKE_GREENFIELD_REVIEW: "0",
+          MIKE_GROUNDING_FIRST: "0",
           MIKE_SCHEMA_ENCODING: "",
           ...armEnvironment[arm],
           MIKE_LLM_CONTEXT_MANIFEST_PATH: path.join(dataHome, "manifest.jsonl"),
@@ -846,9 +865,12 @@ async function main() {
             systemPrompt: MIKE_GREP_LAB_SYSTEM_PROMPT,
             tools: MIKE_GREP_LAB_TOOLS,
           }
-        : arm === "mike_structure_paths_v1"
+        : ["mike_structure_paths_v1", "grounded_structure_v1"].includes(arm)
           ? {
-              systemPrompt: MIKE_STRUCTURE_PATHS_LAB_SYSTEM_PROMPT,
+              systemPrompt:
+                arm === "grounded_structure_v1"
+                  ? GROUNDED_STRUCTURE_LAB_SYSTEM_PROMPT
+                  : MIKE_STRUCTURE_PATHS_LAB_SYSTEM_PROMPT,
               tools: MIKE_STRUCTURE_PATHS_LAB_TOOLS,
             }
           : null;
@@ -1178,6 +1200,7 @@ async function main() {
     "mike_legal_v1",
     "mike_legal_guided_v1",
     "mike_structure_paths_v1",
+    "grounded_structure_v1",
   ];
   if (mikeGrepArms.includes(arm)) {
     const expectedTools = [
@@ -1199,7 +1222,10 @@ async function main() {
       mike_grep_shape: arm === "mike_grep_v1",
       mike_legal_shape: arm === "mike_legal_v1",
       mike_legal_guided_shape: arm === "mike_legal_guided_v1",
-      mike_structure_paths_shape: arm === "mike_structure_paths_v1",
+      mike_structure_paths_shape: [
+        "mike_structure_paths_v1",
+        "grounded_structure_v1",
+      ].includes(arm),
     };
     if (
       surface?.upstream_mike_shape !== false ||
@@ -1210,6 +1236,7 @@ async function main() {
         expectedFlags.mike_legal_guided_shape ||
       surface?.mike_structure_paths_shape !==
         expectedFlags.mike_structure_paths_shape ||
+      surface?.grounding_first !== (arm === "grounded_structure_v1") ||
       surface?.retrieval_experiment !==
         armEnvironment[arm].MIKE_RETRIEVAL_EXPERIMENT ||
       surface?.coding_shape !== true ||
@@ -1413,6 +1440,7 @@ async function main() {
       "upstream_terminal_v1",
       "mike_grep_v1",
       "mike_structure_paths_v1",
+      "grounded_structure_v1",
     ].includes(arm)
   ) {
     const expectedDocx = deliverables.filter((name) => /\.docx$/iu.test(name));

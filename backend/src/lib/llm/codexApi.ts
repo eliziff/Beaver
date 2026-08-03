@@ -15,6 +15,14 @@ const CODEX_BACKEND_RESPONSES_URL =
   "https://chatgpt.com/backend-api/codex/responses";
 const CODEX_BACKEND_COMPACTION_URL = `${CODEX_BACKEND_RESPONSES_URL}/compact`;
 
+function supportsExplicitPromptCaching(model: string) {
+  const match = /^gpt-(\d+)\.(\d+)/u.exec(model);
+  if (!match) return false;
+  const major = Number(match[1]);
+  const minor = Number(match[2]);
+  return major > 5 || (major === 5 && minor >= 6);
+}
+
 async function requestServiceTier(slug: string, requested?: string) {
   const alias = requested?.trim().toLowerCase();
   if (!alias) return undefined;
@@ -45,6 +53,7 @@ export async function streamCodexApi(
       apiKey: accessToken,
       persistent: false,
       codexBackend: true,
+      explicitPromptCaching: supportsExplicitPromptCaching(slug),
       remoteCompactionEndpoint: CODEX_BACKEND_COMPACTION_URL,
       reasoningSummary: true,
       ...(serviceTier ? { serviceTier } : {}),
