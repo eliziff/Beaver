@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "experiment_id": "harvey-lab-mike-one-shot-quote-first-v1",
+  "registered_at": "2026-08-03T11:17:59Z",
+  "status": "preregistered_before_performer_calls",
+  "experiment_class": "visible-development Codex-path side run",
+  "parent": "docs/harvey-lab-mike-one-shot-preregistration-2026-08-03.json",
+  "claim_scope": "One fresh three-task follow-up against the landed fresh Mike and xhigh one-shot cells. Sol criterion labels are provisional and derivative, not human gold.",
+  "landed_basis": {
+    "fresh_mike": "172/225 at 590911 logical tokens",
+    "one_shot_xhigh": "176/225 at 614130 logical tokens",
+    "host_selected_fact_index": "165/225 at 615820 logical tokens; rejected",
+    "native_grounding_trigger": "No task requested citations. The xhigh Banking Markdown spent 17595 of 67417 characters on a citation block, while Tax and Indenture largely ignored the same repeated citation directions."
+  },
+  "hypothesis": "The failed fact index chose salience on the host, while repeated citation boilerplate spent attention on presentation rather than evidence selection. Require the model to select a compact private quote ledger before composing each deliverable in the same terminal inference. Deterministically verify those quotes against exact normalized sources and keep them out of the work product. This should gain grounding without a new agent, checkpoint, review round, context replay, or unwanted deliverable citations.",
+  "implementation_commit_before_launch": "d4a040f4a83ba151eb62d1960aaf6bed3f67d407",
+  "surface": "mike_one_shot_quote_first_xhigh_v1",
+  "design": {
+    "continuous_agent": true,
+    "provider_turns_expected": 2,
+    "tools": ["fetch_documents", "generate_docx"],
+    "complete_exact_evidence_fetch": true,
+    "original_request_repeated_after_evidence": true,
+    "private_grounding_before_markdown": true,
+    "grounding_fields": ["source", "quote", "supports"],
+    "grounding_max_entries_per_deliverable": 40,
+    "deterministic_verification": "Whitespace-tolerant, case-sensitive verbatim match against the named exact normalized source; record quote, hashes, support text, verified status, and parsed-text character locator.",
+    "grounding_in_deliverable": false,
+    "checkpoint_or_handoff": false,
+    "evidence_union": false,
+    "extra_model_review_round": false,
+    "task_router_or_benchmark_hint": false,
+    "legal_scope_tool": false,
+    "successful_generation_terminal": true
+  },
+  "performer": {
+    "model": "codex/gpt-5.6-luna",
+    "reasoning_effort": "xhigh",
+    "temperature_requested": 0,
+    "temperature_transmitted": false,
+    "required_provider_service_tier_reported": "default",
+    "run_count": 3,
+    "max_concurrent_processes": 3,
+    "run_id_template": "2026-08-03-mike-one-shot-quote-first-v1--{task_slug_with_slashes_replaced_by_double_hyphens}",
+    "harness_source_bundle_sha256": "3e95e2d2c9eca8833bff9a8cba21c215f0329ad73f7a58cb9814ff554e6d1ef3",
+    "tool_schema_sha256": "7c3c26f5d21ddf5f79decdd4ca2842d7bef9b7f9444dbef99cd1d860b3a3155c",
+    "tool_schema_bytes": 1590
+  },
+  "tasks": {
+    "banking-finance/extract-credit-agreement-covenants": {
+      "system_prompt_sha256": "c5efbbc6d9f427dd90ebbdb9a854301e749966e03359685694f0057ae760cbb6",
+      "system_prompt_bytes": 1584,
+      "source_bundle_sha256": "b5c3605cfbe3d53377712d0db3463f945a5c69cf7caef0da01b45d7b9ee75296",
+      "prompt_cache_key": "lab-d16932df76735281a0fa93863a1557b86f0dadba488fae2327496df30a549948",
+      "run_fingerprint_sha256": "31edb10be4955c0d461442e38a5c7c82908631e1be9406a06d0b378b72760dec"
+    },
+    "tax/draft-transfer-pricing-documentation": {
+      "system_prompt_sha256": "9fa00556f6ce267931ff1b49b67241845fc7543b110ac180542de156f0955e46",
+      "system_prompt_bytes": 3302,
+      "source_bundle_sha256": "0ebfa8f86d9bd3405d4ccd638471ded6f48a4748ca0cfba76b992f1a5ea15e3d",
+      "prompt_cache_key": "lab-428eb559fc70ac5f6245e5a82c21f12c7a38cf0d10a16df0d94b3011d5f8a622",
+      "run_fingerprint_sha256": "8ce1d35d52a999d70af6e0a5a1302847db63da072519b182db76bb340a20d0f3"
+    },
+    "capital-markets/draft-indenture-for-senior-secured-notes-offering": {
+      "system_prompt_sha256": "e3df5fd2ef292eddd0b1e4b37cbf85f8d3b8155eff876f8fae9cfc0816e17098",
+      "system_prompt_bytes": 2072,
+      "source_bundle_sha256": "c1319d3aec66399c21a7a1a00b64821d48e4eecc190bbc15474148e7da33d7fd",
+      "prompt_cache_key": "lab-9bf98b76c09060dec17bf6fccad3c01ca1f44059f0ad1c5a33fef31c26fb8b9f",
+      "run_fingerprint_sha256": "4b21feeda11bc939a99cc7c15fa6128c29e409a854d91fff2584939bab91f703"
+    }
+  },
+  "trace_gate": [
+    "Every configured source is read exactly once before drafting.",
+    "The first response contains only fetch_documents; the second contains all generate_docx calls.",
+    "Every requested DOCX is nonempty and passes ZIP/XML validation.",
+    "The provider reports default tier and all registered fingerprints match.",
+    "Tool errors, transport retries, cache reads/writes, context rounds, quote counts, verification rate, tokens, and latency are inspected before judging."
+  ],
+  "judge": {
+    "model": "codex/gpt-5.6-sol",
+    "reasoning_effort": "provider default",
+    "temperature_requested": 0,
+    "criterion_level": true,
+    "max_concurrent_outputs": 3,
+    "max_concurrent_criteria_per_output": 1,
+    "local_process_priority": "BelowNormal",
+    "prompt_sha256": "da0f2618d996ac5415a960dfc445e53b6fbd1b22602dd587bf6ecccbe139cb21",
+    "judge_source_sha256": "3546fec5ca1c4d655c8510d8cf2e0ca2201a94428c86d1628fbcdf5afe83a4b5",
+    "scoring_source_sha256": "e7f5e0accdaffe3ba9d350fb417f0c09f6f372ff5888def5908c73113291a9a3"
+  },
+  "decision_rule": "Advance if the aggregate exceeds 176/225, or ties 176 with fewer logical tokens. A result within ordinary judge/run noise is not a decisive win. Accuracy is primary; up to 2x fresh-Mike logical tokens is permitted only for a substantial broad gain."
+}
