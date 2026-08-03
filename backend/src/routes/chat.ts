@@ -39,6 +39,11 @@ import {
   WHOLE_READ_MAX_CHARS,
   LOCAL_ASSISTANT_TOOLS,
   ADAPTIVE_MIKE_TOOL_SHAPE,
+  CODING_TOOL_SHAPE,
+  COMPACT_AUTHOR_MIKE_TOOL_SHAPE,
+  LEAN_BATCH_FAMILY_TOOL_SHAPE,
+  LEAN_BATCH_HARDREFS_TOOL_SHAPE,
+  LEAN_BATCH_TOOL_SHAPE,
   MAX_TOOL_RESULT_CHARS,
   MIKE_GREP_FAMILY_TOOL_SHAPE,
   MIKE_GREP_TOOL_SHAPE,
@@ -85,7 +90,9 @@ import {
 } from "../lib/chat/evidenceExposure";
 import {
   ADAPTIVE_MIKE_LAB_SYSTEM_PROMPT,
+  COMPACT_AUTHOR_MIKE_LAB_SYSTEM_PROMPT,
   GROUNDED_STRUCTURE_LAB_SYSTEM_PROMPT,
+  LEAN_BATCH_LAB_SYSTEM_PROMPT,
   MIKE_GREP_LAB_SYSTEM_PROMPT,
   MIKE_LEGAL_GUIDED_LAB_SYSTEM_PROMPT,
   MIKE_STRUCTURE_PATHS_LAB_SYSTEM_PROMPT,
@@ -1007,8 +1014,7 @@ export async function streamAnonymousChat(params: {
     return fail(400, safeErrorMessage(error, "Invalid image attachment"));
   }
   const selectedModel = params.model || DEFAULT_MAIN_MODEL;
-  const codingShape =
-    process.env.MIKE_TOOL_SHAPE === "coding" || MIKE_GREP_FAMILY_TOOL_SHAPE;
+  const codingShape = CODING_TOOL_SHAPE;
   const toolPartition = partitionTools(LOCAL_ASSISTANT_TOOLS);
   const activeTools = [...toolPartition.resident];
   const activeToolNames = new Set(
@@ -1031,7 +1037,9 @@ export async function streamAnonymousChat(params: {
   // the served surface does not carry (a prose mention overrides the schema
   // list in practice, and silently un-does the A/B).
   const navigationTools = ORIGIN_MIKE_TOOL_SHAPE
-    ? MIKE_GREP_FAMILY_TOOL_SHAPE
+    ? LEAN_BATCH_FAMILY_TOOL_SHAPE
+      ? "list_documents, Grep, Read"
+      : MIKE_GREP_FAMILY_TOOL_SHAPE
       ? "list_documents, fetch_documents, read_document, find_in_document, Grep, Read"
       : "list_documents, fetch_documents, read_document, find_in_document"
     : codingShape
@@ -1077,7 +1085,11 @@ export async function streamAnonymousChat(params: {
           : "For long or structured Library documents, call library_outline first and read only the needed span with library_read section= rather than the whole document."
     } Before delivering extraction or comparison work, call library_anchor_coverage and verify the source anchors it reports missing from your draft. Prefer the deterministic organs over reasoning from memory — citation linking, supra fixes, structural lint, term drift, drafting lint, bilingual concordance, amendment application, deadline computation — and report their findings as verified rather than recomputing them yourself.`;
   let systemPrompt = ORIGIN_MIKE_TOOL_SHAPE
-    ? MIKE_GREP_FAMILY_TOOL_SHAPE
+    ? LEAN_BATCH_FAMILY_TOOL_SHAPE
+      ? LEAN_BATCH_LAB_SYSTEM_PROMPT
+      : COMPACT_AUTHOR_MIKE_TOOL_SHAPE
+        ? COMPACT_AUTHOR_MIKE_LAB_SYSTEM_PROMPT
+        : MIKE_GREP_FAMILY_TOOL_SHAPE
       ? MIKE_STRUCTURE_PATHS_TOOL_SHAPE
         ? GROUNDING_FIRST_ENABLED
           ? GROUNDED_STRUCTURE_LAB_SYSTEM_PROMPT
@@ -1104,7 +1116,9 @@ export async function streamAnonymousChat(params: {
           "\n\n" +
           PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT);
   if (ORIGIN_MIKE_TOOL_SHAPE) {
-    const expected = MIKE_GREP_FAMILY_TOOL_SHAPE
+    const expected = LEAN_BATCH_FAMILY_TOOL_SHAPE
+      ? ["list_documents", "Grep", "Read", "generate_docx"]
+      : MIKE_GREP_FAMILY_TOOL_SHAPE
       ? [
           "read_document",
           "find_in_document",
@@ -1137,7 +1151,9 @@ export async function streamAnonymousChat(params: {
       "mike-evidence",
       "library evidence",
       "progressive disclosure",
-      ...(MIKE_GREP_FAMILY_TOOL_SHAPE ? ["Glob"] : ["Glob", "Grep"]),
+      ...(MIKE_GREP_FAMILY_TOOL_SHAPE || LEAN_BATCH_FAMILY_TOOL_SHAPE
+        ? ["Glob"]
+        : ["Glob", "Grep"]),
     ].find((term) => systemPrompt.includes(term));
     if (leaked) {
       throw new Error(`Upstream Mike LAB prompt leaked Beaver term: ${leaked}`);
@@ -2122,6 +2138,9 @@ export async function streamAnonymousChat(params: {
               }),
             })),
           }),
+          ...(result?.retrievalHints?.length && {
+            retrieval_hints: result.retrievalHints,
+          }),
         });
       }
     };
@@ -2453,6 +2472,10 @@ export async function streamAnonymousChat(params: {
             process.env.MIKE_TOOL_DESCRIPTION_VARIANT || "operational",
           upstream_mike_shape: UPSTREAM_MIKE_TOOL_SHAPE,
           adaptive_mike_shape: ADAPTIVE_MIKE_TOOL_SHAPE,
+          compact_author_mike_shape: COMPACT_AUTHOR_MIKE_TOOL_SHAPE,
+          lean_batch_shape: LEAN_BATCH_TOOL_SHAPE,
+          lean_batch_hardrefs_shape: LEAN_BATCH_HARDREFS_TOOL_SHAPE,
+          hard_reference_hints: LEAN_BATCH_HARDREFS_TOOL_SHAPE,
           mike_grep_shape: MIKE_GREP_TOOL_SHAPE,
           mike_legal_shape: MIKE_LEGAL_TOOL_SHAPE,
           mike_legal_guided_shape: MIKE_LEGAL_GUIDED_TOOL_SHAPE,

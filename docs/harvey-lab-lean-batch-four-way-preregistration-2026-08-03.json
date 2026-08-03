@@ -1,0 +1,165 @@
+{
+  "schema_version": 1,
+  "experiment_id": "harvey-lab-lean-batch-four-way-v1",
+  "registered_at": "2026-08-03T05:56:31Z",
+  "status": "preregistered_before_performer_calls",
+  "experiment_class": "visible-development Codex-path side run",
+  "claim_scope": "One fresh paired development experiment over three visible Harvey LAB tasks. Results are provisional derivative judge labels, are not human gold, and must not be pooled with canonical Claude-product A/B cells.",
+  "objective": "Test the smallest causal path from frozen terminal upstream Mike to a continuous coding-style legal-document agent that preserves Mike's efficient complete batch read while removing redundant retrieval verbs and structured authoring overhead; separately test whether host-verified literal-reference hints add value without changing model-visible prompt or schema bytes.",
+  "general_objective": "Match or beat upstream Mike answer quality under one fixed Sol criterion judge while using fewer tokens; up to 1.5x upstream cache-adjusted input is acceptable only for a clear, broad quality win.",
+  "code_binding": {
+    "mechanism": "The implementation, tests, and this record are committed together before any performer call. Every run also records exact per-file harness hashes and a run fingerprint.",
+    "upstream_mike_commit": "2266446b0d26f735865b8cd3bb153b28e7d11b17",
+    "dirty_or_postlaunch_edits": "forbidden; any general defect fix requires a new versioned preregistration"
+  },
+  "design": {
+    "same_agent": true,
+    "fresh_drafting_stage": false,
+    "checkpoint_or_handoff": false,
+    "evidence_union": false,
+    "automatic_context_refresh": false,
+    "same_batch_gate": false,
+    "sla_or_compiler_pass": false,
+    "task_router_or_task_specific_prompt": false,
+    "progressive_tool_disclosure": false,
+    "terminal_successful_generation": true,
+    "exact_host_evidence_receipts": true,
+    "retrieval_result_max_chars": 64000,
+    "duplicate_whole_read_suppression": {
+      "upstream_and_compact": true,
+      "lean_and_hardrefs": false
+    }
+  },
+  "performer": {
+    "model": "codex:gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "provider_service_tier_requested": null,
+    "required_provider_service_tier_reported": "default",
+    "replicates": 1,
+    "arm_count": 4,
+    "task_count": 3,
+    "run_count": 12,
+    "max_concurrent_processes": 12,
+    "run_id_template": "2026-08-03-lean-batch-v1--{task_slug_with_slashes_replaced_by_double_hyphens}--{arm}",
+    "trace_gate": "No judge starts until each landed output is nonempty and required deliverables, provider usage, tool calls/results, context rounds, cache telemetry, prompt/tool fingerprints, source receipts, and hard-reference hint behavior have been inspected."
+  },
+  "arms": {
+    "upstream_terminal_v1": {
+      "role": "frozen simple control",
+      "hypothesis": "Whole-document reads remain hard to beat when complete coverage is cheap.",
+      "tools": ["read_document", "find_in_document", "list_documents", "fetch_documents", "generate_docx"],
+      "tool_schema_sha256": "5b3ac1b5490592e11af64fcd9817d21274ae60ef79b3cf5d8b6f2ce7539d961a"
+    },
+    "mike_compact_author_v1": {
+      "role": "author-schema isolation",
+      "hypothesis": "Replacing only upstream's nested sections authoring grammar with complete Markdown reduces tool argument and drafting overhead without harming retrieval or quality.",
+      "delta": "Frozen upstream retrieval and prompt behavior; compact Markdown generate_docx only.",
+      "tools": ["read_document", "find_in_document", "list_documents", "fetch_documents", "generate_docx"],
+      "tool_schema_sha256": "d10021b0d8a48dbee9eaeefc220057fe9d1e526d7185d466dfb7a2017911c46c"
+    },
+    "lean_batch_v1": {
+      "role": "minimal candidate",
+      "hypothesis": "One inventory, ordinary Grep, a Read that either batches complete documents or reads one bounded line window, and compact terminal authoring combine Mike's small-task efficiency with coding-agent control on long tasks.",
+      "tools": ["list_documents", "Grep", "Read", "generate_docx"],
+      "tool_schema_sha256": "6a8a5a62e340d0ceb4a821c1493c3cc1f9754d1a8265b049dffeca01e722709e"
+    },
+    "lean_batch_hardrefs_v1": {
+      "role": "one deterministic legal primitive",
+      "hypothesis": "When a Grep hit contains a resolved outbound provision reference, at most three host-only ordinary bounded-Read recipes remove reference-following work from the model without exposing target prose or adding schema choice entropy.",
+      "model_visible_delta_from_lean": "none; system prompt and tool schema fingerprints must be byte-identical on every task",
+      "tools": ["list_documents", "Grep", "Read", "generate_docx"],
+      "tool_schema_sha256": "6a8a5a62e340d0ceb4a821c1493c3cc1f9754d1a8265b049dffeca01e722709e"
+    }
+  },
+  "tasks": {
+    "banking-finance/extract-credit-agreement-covenants": {
+      "split_sha256": "4fe134f47fc144da3f0ecf6f4b99ac89dcb8931c3d3df29795ac649e8c8a18f0",
+      "task_config_sha256": "4521248e6438e7649a0784299693284ece4bf98f693544bd7b62d9d55df0c598",
+      "instructions_sha256": "8b3afea95c4ea92f7a1ab9dd10aeb4ba81a03ad546aa1958aa899d042a5d0f2d",
+      "source_bundle_sha256": "a278edc390084fdfb0675f83f6c2a470e1ace91685342411bf9911f735022402",
+      "source_count": 3,
+      "source_bytes": 146996,
+      "criteria": 65,
+      "system_prompt_sha256": {
+        "upstream_terminal_v1": "299f95296b30428c3c99917961ba9ec83915f184327716134330c813a4d8583e",
+        "mike_compact_author_v1": "7256efb47f68b3fcfa5230d121e373549de248b2e8108d36f442a2216b98d221",
+        "lean_batch_v1": "988be251a19fae83399bfd5e32fb3bee7c209a7dad80e7544db29040e691d87c",
+        "lean_batch_hardrefs_v1": "988be251a19fae83399bfd5e32fb3bee7c209a7dad80e7544db29040e691d87c"
+      }
+    },
+    "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts": {
+      "split_sha256": "c0d270c324eaaeb13a47eb2df309baf468270e4ca04b686e4ed27632a3d36f7d",
+      "task_config_sha256": "88cbc55fc6bc6b455d6f7d4fbc98c298f00edc85be9079ad3f8152aceabbd72a",
+      "instructions_sha256": "804acb88a976238cbdf65027b4c873142cfec3c84c9773992e256e40ae02c8a4",
+      "source_bundle_sha256": "f778c5ef888a841432ee70a34d1a8c0d4b0c947a0d19509b4a3834635b23f0e2",
+      "source_count": 19,
+      "source_bytes": 1061291,
+      "criteria": 57,
+      "system_prompt_sha256": {
+        "upstream_terminal_v1": "b67a9dc7df544f11f5684214a3b8f818a02ca367217885600b37f17efbfbadb4",
+        "mike_compact_author_v1": "2234fdbbd6315cca3b69aeb0773a48fb8598c12bfa758de3ef49bab5d01127db",
+        "lean_batch_v1": "a79e2876c9273dfd263457dd93174b8f812b73764fe8188b83f397e8cc7c04c8",
+        "lean_batch_hardrefs_v1": "a79e2876c9273dfd263457dd93174b8f812b73764fe8188b83f397e8cc7c04c8"
+      }
+    },
+    "tax/draft-transfer-pricing-documentation": {
+      "split_sha256": "9886979ad0409f300ccb78413abc4bda020fcde1f288d879d61e59eff1c85957",
+      "task_config_sha256": "e860b4de7d37024a85dba093e569a893cf4806a190f073e53e9a61514fd5a962",
+      "instructions_sha256": "baa067a9d481a31b85cb9a47a3eebfbc6620e2c5cd23b87e71b2b4f1741d05b7",
+      "source_bundle_sha256": "bc8d591498a818501b7a388d5b93575c5a98f03b25edb2f009f9d166fe4a6647",
+      "source_count": 25,
+      "source_bytes": 1511738,
+      "criteria": 77,
+      "system_prompt_sha256": {
+        "upstream_terminal_v1": "cb5b1e479edf22ec3ee42ada92af5d0dea0a0deb29788a0411401674c1e036c0",
+        "mike_compact_author_v1": "fbbbd507b0daf3c8d6f040938ba472683b7af906568eac0e4c9f8978879abd93",
+        "lean_batch_v1": "652404eea44353acfffedf4ddb58c04498102969666a87fb19ea5d92d1deed88",
+        "lean_batch_hardrefs_v1": "652404eea44353acfffedf4ddb58c04498102969666a87fb19ea5d92d1deed88"
+      }
+    }
+  },
+  "matrix_totals": {
+    "criteria": 199,
+    "sources": 47,
+    "source_bytes": 2720025
+  },
+  "source_fingerprints": {
+    "backend/scripts/lab-beaver-arm.ts": "a0ffb24a21a930b54a79b5841ef4977ec16b1b286f48b54d6ff099dcd58f01f3",
+    "backend/src/lib/chat/upstreamMikeBenchmarkSurface.ts": "ca7852f583da155e9f2c6e0d391a06048fb52c4d31c7748ef3ebfc326ba401bd",
+    "backend/src/lib/chat/localAssistantTools.ts": "ff643a88d993d33ed3455b071d00682cd31a5249c109ca47b6ca76e644f7e14d",
+    "backend/src/routes/chat.ts": "2741100d5efa3e2887c191882c133267338151203e3a30f42e4e4a42eb484994",
+    "backend/src/lib/llm/types.ts": "dd55710a9041be0264c508b4244793aceb96a1e43ceb44f7662939a2fd53cb4e",
+    "backend/src/lib/legalCrossReference.ts": "a9784e1daf3bf802d31b371801a419919320aaf7f764cc0f23bc61778c8ba584",
+    "backend/src/lib/legalTextSkeleton.ts": "e1cdc93f3582bb1c1c6ce53609ea9f5667c3356b0725b8dc103524eb2a0b3d5f",
+    "backend/src/lib/chat/__tests__/localToolWiring.test.ts": "e3c36f6c0ce9979f3042538cdd72626e83c7dcef89cb8d9f2505213a93ea60e4",
+    "backend/src/lib/__tests__/localAssistantTools.test.ts": "5b31d3f6fdfcefc8e7383dbc505cc8bf1eda1bf6857d73c3e69008fa5e919a93",
+    "backend/src/routes/localChatEvidenceDurability.test.ts": "cf1df4537ae951cb3b8c39be545f902795ae5660347aba0fc7b72b2f9de9d0ef",
+    "benchmarks/harvey-labs/evaluation/prompts/rubric_criterion.txt": "da0f2618d996ac5415a960dfc445e53b6fbd1b22602dd587bf6ecccbe139cb21",
+    "benchmarks/harvey-labs/evaluation/judge.py": "61979c7613e519fcd37ecfba8d241f979f0320e575cd7a3923c0278aa4577cb7",
+    "benchmarks/harvey-labs/evaluation/scoring.py": "e7f5e0accdaffe3ba9d350fb417f0c09f6f372ff5888def5908c73113291a9a3",
+    "benchmarks/lab/corpus-split.json": "ac277f52c2896f978e35db8d6f408b73ec9f7808a163009723d90c07de7d317a"
+  },
+  "metrics": {
+    "quality_primary": "fixed Sol criterion score, aggregated micro and task-macro",
+    "efficiency_primary": "provider-reported logical input plus output tokens",
+    "cache_adjusted_input_equivalent": "uncached input + 0.1 * cache-read input + 1.25 * cache-write input",
+    "secondary": ["valid deliverables", "context rounds", "tool calls and errors", "source coverage", "whole versus bounded reads", "hard-reference hints offered and followed", "cache read/write ratios", "provider and wall latency"]
+  },
+  "decision_rule": {
+    "ordering": ["accuracy", "cache-adjusted input", "logical tokens", "coverage", "latency", "tool behavior"],
+    "compact_author": "Keep only if quality is non-inferior to upstream and authoring/tool-argument cost is lower.",
+    "lean_batch": "Advance if aggregate quality meets or exceeds upstream with lower token use; accept up to 1.5x cache-adjusted input only for a clear cross-task quality win.",
+    "hardrefs": "Advance the hard-reference delta only if its byte-identical model surface improves quality or materially improves retrieval efficiency and the trace proves offered hints were useful; zero-use machinery is deleted.",
+    "task_specific_fixes": "forbidden"
+  },
+  "judge": {
+    "start_condition": "trace gate passed for each landed cell",
+    "model": "codex/gpt-5.6-sol",
+    "reasoning_effort": "provider default",
+    "temperature": 0,
+    "criterion_parallelism_per_output": 1,
+    "max_concurrent_output_judges": 12,
+    "local_process_priority": "BelowNormal",
+    "pandoc_gate": "Resolve the installed Pandoc executable and fail closed before judging if any required output packet is blank or contains a file-read error sentinel."
+  }
+}

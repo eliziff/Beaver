@@ -606,6 +606,117 @@ describe("local assistant tools", () => {
     expect(duplicateBatch.content).toContain('"already_read":true');
   });
 
+  it("batch-reads lean sources, preserves repeat reads, and authors Markdown", async () => {
+    process.env.MIKE_NAV_SHAPE = "legacy";
+    process.env.MIKE_TOOL_SHAPE = "lean-batch-v1";
+    process.env.MIKE_RETRIEVAL_EXPERIMENT = "p0-pure-coding";
+    process.env.MIKE_SUPPRESS_DUPLICATE_WHOLE_READS = "0";
+    process.env.MIKE_DISABLE_RESEARCH_TOOLS = "1";
+    process.env.MIKE_DISABLE_ASK_INPUTS = "1";
+    process.env.MIKE_TERMINAL_AUTHORING = "1";
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "lean-batch-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    vi.resetModules();
+
+    const store = await import("../localDocumentStore");
+    const makeDoc = async (filename: string, text: string) =>
+      store.createLocalDocument({
+        userId: "local-user",
+        kind: "file",
+        filename,
+        bytes: await Packer.toBuffer(
+          new Document({ sections: [{ children: [new Paragraph(text)] }] }),
+        ),
+      });
+    const first = await makeDoc("first.docx", "Alpha source text.");
+    const second = await makeDoc("second.docx", "Beta source text.");
+    const allowed = new Set([first.id, second.id]);
+    const tools = await import("../chat/localAssistantTools");
+    const readState: import("../chat/localAssistantTools").LocalAssistantReadTurnState =
+      new Map();
+    const run = (calls: Array<{ id: string; name: string; input: any }>) =>
+      tools.runLocalAssistantTools(
+        "local-user",
+        calls,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        allowed,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        readState,
+      );
+
+    const [inventory] = await run([
+      { id: "inventory", name: "list_documents", input: {} },
+    ]);
+    const listed = JSON.parse(inventory.content);
+    expect(listed.documents).toEqual([
+      expect.objectContaining({
+        filename: "first.docx",
+        opening_line: "Alpha source text.",
+      }),
+      expect.objectContaining({
+        filename: "second.docx",
+        opening_line: "Beta source text.",
+      }),
+    ]);
+    expect(inventory.evidenceSegments).toHaveLength(2);
+
+    const invokeWhole = (id: string) =>
+      run([
+        {
+          id,
+          name: "Read",
+          input: { paths: ["first.docx", "second.docx"] },
+        },
+      ]);
+    const [whole] = await invokeWhole("whole");
+    const [repeated] = await invokeWhole("repeated");
+    for (const read of [whole, repeated]) {
+      expect(read.content).toContain("Alpha source text.");
+      expect(read.content).toContain("Beta source text.");
+      expect(read.content).not.toContain("Citation requirement");
+      expect(read.evidenceSegments).toHaveLength(2);
+    }
+
+    const [bounded, invalid] = await run([
+      {
+        id: "bounded",
+        name: "Read",
+        input: { paths: ["second.docx"], offset: 1, limit: 2 },
+      },
+      {
+        id: "invalid",
+        name: "Read",
+        input: {
+          paths: ["first.docx", "second.docx"],
+          offset: 1,
+          limit: 2,
+        },
+      },
+    ]);
+    expect(bounded.content).toContain("Beta source text.");
+    expect(bounded.evidenceSegments).toHaveLength(1);
+    expect(JSON.parse(invalid.content)).toMatchObject({ ok: false });
+
+    const [authored] = await run([
+      {
+        id: "author",
+        name: "generate_docx",
+        input: { title: "Lean result", markdown: "# Finding\n\nComplete." },
+      },
+    ]);
+    expect(JSON.parse(authored.mutationReceipt!)).toMatchObject({
+      ok: true,
+      action: "created",
+      filename: "Lean result.docx",
+    });
+  });
+
   it("batch-fetches complete documents by filename in coding shape", async () => {
     process.env.MIKE_TOOL_SHAPE = "coding";
     process.env.MIKE_DISABLE_RESEARCH_TOOLS = "1";
@@ -1928,6 +2039,89 @@ describe("local assistant tools", () => {
     expect(spans.map(([start, end]) => extracted!.text.slice(start, end)).join(" ")).toContain(
       "provision remains",
     );
+  });
+
+  it("adds resolved hard-reference Read hints without exposing target prose", async () => {
+    process.env.MIKE_NAV_SHAPE = "legacy";
+    process.env.MIKE_TOOL_SHAPE = "lean-batch-v1";
+    process.env.MIKE_RETRIEVAL_EXPERIMENT = "p0-pure-coding";
+    process.env.MIKE_SUPPRESS_DUPLICATE_WHOLE_READS = "0";
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "lean-hardrefs-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    vi.resetModules();
+
+    const store = await import("../localDocumentStore");
+    const document = await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "references.docx",
+      bytes: await numberedReferenceBytes(),
+    });
+    const allowed = new Set([document.id]);
+    const grepWith = async (
+      tools: typeof import("../chat/localAssistantTools"),
+      id: string,
+    ) =>
+      (
+        await tools.runLocalAssistantTools(
+          "local-user",
+          [
+            {
+              id,
+              name: "Grep",
+              input: {
+                pattern: "First",
+                path: "references.docx",
+              },
+            },
+          ],
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          allowed,
+        )
+      )[0];
+
+    const lean = await import("../chat/localAssistantTools");
+    const base = await grepWith(lean, "base");
+    expect(base.content).not.toContain("literal reference");
+
+    process.env.MIKE_TOOL_SHAPE = "lean-batch-hardrefs-v1";
+    vi.resetModules();
+    const hardrefs = await import("../chat/localAssistantTools");
+    const hinted = await grepWith(hardrefs, "hinted");
+    expect(hinted.content).toContain("First. This points to Section 1.03.");
+    expect(hinted.content).toMatch(
+      /\[literal reference sec1\.03: Read\(paths=\["references\.docx"\], offset=\d+, limit=\d+\)\]/u,
+    );
+    expect(hinted.content).not.toContain("Third. This provision remains.");
+    expect(hinted.content).not.toContain(".mike/structure/");
+
+    const recipe =
+      /Read\(paths=\["references\.docx"\], offset=(\d+), limit=(\d+)\)/u.exec(
+        hinted.content,
+      )!;
+    const [target] = await hardrefs.runLocalAssistantTools(
+      "local-user",
+      [
+        {
+          id: "target",
+          name: "Read",
+          input: {
+            paths: ["references.docx"],
+            offset: Number(recipe[1]),
+            limit: Number(recipe[2]),
+          },
+        },
+      ],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      allowed,
+    );
+    expect(target.content).toContain("Third. This provision remains.");
   });
 
   it("keeps the frozen H5 working set stateless", async () => {
