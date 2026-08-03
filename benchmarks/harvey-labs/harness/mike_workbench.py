@@ -38,6 +38,7 @@ MIKE_SURFACES = {
     "mike_one_shot_fact_index_xhigh_v1",
     "mike_one_shot_conflict_first_xhigh_v1",
     "mike_one_shot_native_xhigh_v1",
+    "mike_one_shot_quote_first_xhigh_v1",
 }
 
 ONE_SHOT_SURFACES = {
@@ -46,6 +47,7 @@ ONE_SHOT_SURFACES = {
     "mike_one_shot_fact_index_xhigh_v1",
     "mike_one_shot_conflict_first_xhigh_v1",
     "mike_one_shot_native_xhigh_v1",
+    "mike_one_shot_quote_first_xhigh_v1",
 }
 
 CONFLICT_FIRST_PROMPT = """
@@ -58,6 +60,12 @@ NATIVE_GROUNDING_PROMPT = """
 
 GROUNDING:
 - Ground the work in the exact source text. Include quotations or citations in the deliverable only when the request or professional genre calls for them."""
+
+QUOTE_FIRST_PROMPT = """
+
+PRIVATE QUOTE-FIRST GROUNDING:
+- In each generate_docx call, complete `grounding` before `markdown`. For every material factual, numerical, or source-dependent conclusion in that deliverable, give a short verbatim source quote, its filename, and the proposition it supports. The host verifies this private ledger; it is not inserted into the work product.
+- Keep quotes short and exact. Resolve conflicting source statements deliberately. Put quotations or citations in the deliverable itself only when the request or professional genre calls for them."""
 
 ONE_SHOT_PROMPT = """You are a senior legal analyst. Complete the user's exact request from the project documents.
 
@@ -152,15 +160,45 @@ def get_mike_surface(name: str, document_inventory: list[tuple[str, str]]) -> tu
         fetch = next(
             tool for tool in frozen["tools"] if tool["function"]["name"] == "fetch_documents"
         )
-        tools = [
-            _canonical_tool(fetch),
-            _canonical_tool(frozen["compact_generate_docx_tool"]),
-        ]
+        author = _canonical_tool(frozen["compact_generate_docx_tool"])
+        if name == "mike_one_shot_quote_first_xhigh_v1":
+            parameters = author["parameters"]
+            parameters["properties"] = {
+                "grounding": {
+                    "type": "array",
+                    "description": "Private evidence ledger written before the deliverable; not included in the DOCX.",
+                    "minItems": 1,
+                    "maxItems": 40,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "source": {
+                                "type": "string",
+                                "description": "Exact source filename or document ID.",
+                            },
+                            "quote": {
+                                "type": "string",
+                                "description": "Short verbatim span from that source.",
+                            },
+                            "supports": {
+                                "type": "string",
+                                "description": "Material proposition supported by the quote.",
+                            },
+                        },
+                        "required": ["source", "quote", "supports"],
+                    },
+                },
+                **parameters["properties"],
+            }
+            parameters["required"] = ["grounding", *parameters["required"]]
+        tools = [_canonical_tool(fetch), author]
         prompt = ONE_SHOT_PROMPT
         if name == "mike_one_shot_conflict_first_xhigh_v1":
             prompt += CONFLICT_FIRST_PROMPT
         if name == "mike_one_shot_native_xhigh_v1":
             prompt += NATIVE_GROUNDING_PROMPT
+        if name == "mike_one_shot_quote_first_xhigh_v1":
+            prompt += QUOTE_FIRST_PROMPT
     else:
         tools = [_canonical_tool(tool) for tool in frozen["tools"]]
         prompt = frozen["system_prompt"]
@@ -236,7 +274,11 @@ class MikeWorkbenchExecutor(ToolExecutor):
         self.source_fact_index_enabled = (
             surface_name == "mike_one_shot_fact_index_xhigh_v1"
         )
-        self.citation_reminders = surface_name != "mike_one_shot_native_xhigh_v1"
+        self.quote_first_enabled = surface_name == "mike_one_shot_quote_first_xhigh_v1"
+        self.citation_reminders = surface_name not in {
+            "mike_one_shot_native_xhigh_v1",
+            "mike_one_shot_quote_first_xhigh_v1",
+        }
         self.terminal = False
         self._documents = self.sandbox.list_files(DOCUMENTS_PATH)
         self._by_id = {f"doc-{index}": path for index, path in enumerate(self._documents)}
@@ -269,6 +311,9 @@ class MikeWorkbenchExecutor(ToolExecutor):
         self.source_fact_index_rows = 0
         self.source_fact_index_characters = 0
         self.source_fact_index_sha256: str | None = None
+        self.grounding_receipts: list[dict] = []
+        self.grounding_claims = 0
+        self.grounding_verified = 0
 
     def execute(self, tool_name: str, arguments: str | dict) -> str:
         if isinstance(arguments, str):
@@ -558,6 +603,38 @@ class MikeWorkbenchExecutor(ToolExecutor):
         }
         return output
 
+    def _record_grounding(self, grounding: object, deliverable: str) -> str | None:
+        if not self.quote_first_enabled:
+            return None
+        if not isinstance(grounding, list) or not grounding:
+            return "Error: grounding must contain at least one private evidence entry"
+        for raw in grounding[:40]:
+            entry = raw if isinstance(raw, dict) else {}
+            source = str(entry.get("source") or "").strip()
+            quote = str(entry.get("quote") or "").strip()
+            supports = str(entry.get("supports") or "").strip()
+            path = self._resolve_document(source)
+            match = None
+            if path is not None and quote:
+                tokens = re.split(r"\s+", quote)
+                pattern = r"\s+".join(re.escape(token) for token in tokens)
+                match = re.search(pattern, self._text(path))
+            verified = match is not None
+            receipt = {
+                "deliverable": deliverable,
+                "source": self._relative(path) if path is not None else source,
+                "quote": quote,
+                "quote_sha256": hashlib.sha256(quote.encode()).hexdigest(),
+                "supports": supports,
+                "supports_sha256": hashlib.sha256(supports.encode()).hexdigest(),
+                "verified": verified,
+                "locator": f"chars {match.start()}-{match.end()}" if match else None,
+            }
+            self.grounding_receipts.append(receipt)
+            self.grounding_claims += 1
+            self.grounding_verified += int(verified)
+        return None
+
     def _generate_docx(self, arguments: dict) -> str:
         title = str(arguments.get("title") or "").strip()
         markdown = str(arguments.get("markdown") or "").strip()
@@ -586,6 +663,9 @@ class MikeWorkbenchExecutor(ToolExecutor):
             filename = f"{stem}.docx"
         if Path(filename).name != filename:
             return "Error: deliverable filename must be plain"
+        grounding_error = self._record_grounding(arguments.get("grounding"), filename)
+        if grounding_error:
+            return grounding_error
         draft_path = f"{WORKSPACE_PATH}/.mike/draft-{len(self._generated) + 1}.md"
         output_path = f"{OUTPUT_PATH}/{filename}"
         self.sandbox.write_file(draft_path, f"% {title}\n\n{markdown}\n")
@@ -640,6 +720,10 @@ class MikeWorkbenchExecutor(ToolExecutor):
                 "source_fact_index_rows": self.source_fact_index_rows,
                 "source_fact_index_characters": self.source_fact_index_characters,
                 "source_fact_index_sha256": self.source_fact_index_sha256,
+                "grounding_claims": self.grounding_claims,
+                "grounding_verified": self.grounding_verified,
+                "grounding_unverified": self.grounding_claims - self.grounding_verified,
+                "grounding_receipts": self.grounding_receipts,
             }
         )
         return metrics
