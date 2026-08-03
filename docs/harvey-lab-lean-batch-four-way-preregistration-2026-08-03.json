@@ -53,7 +53,7 @@
     "mike_compact_author_v1": {
       "role": "author-schema isolation",
       "hypothesis": "Replacing only upstream's nested sections authoring grammar with complete Markdown reduces tool argument and drafting overhead without harming retrieval or quality.",
-      "delta": "Frozen upstream retrieval and prompt behavior; compact Markdown generate_docx only.",
+      "delta": "Frozen upstream retrieval behavior; compact Markdown generate_docx plus the corresponding authoring instructions only.",
       "tools": ["read_document", "find_in_document", "list_documents", "fetch_documents", "generate_docx"],
       "tool_schema_sha256": "d10021b0d8a48dbee9eaeefc220057fe9d1e526d7185d466dfb7a2017911c46c"
     },
@@ -126,7 +126,7 @@
   "source_fingerprints": {
     "backend/scripts/lab-beaver-arm.ts": "a0ffb24a21a930b54a79b5841ef4977ec16b1b286f48b54d6ff099dcd58f01f3",
     "backend/src/lib/chat/upstreamMikeBenchmarkSurface.ts": "ca7852f583da155e9f2c6e0d391a06048fb52c4d31c7748ef3ebfc326ba401bd",
-    "backend/src/lib/chat/localAssistantTools.ts": "ff643a88d993d33ed3455b071d00682cd31a5249c109ca47b6ca76e644f7e14d",
+    "backend/src/lib/chat/localAssistantTools.ts": "2e7892fa5dc770a64b3f3296f0bb80f7d9f7e42c185d9685a6bbd7de1c38a51f",
     "backend/src/routes/chat.ts": "2741100d5efa3e2887c191882c133267338151203e3a30f42e4e4a42eb484994",
     "backend/src/lib/llm/types.ts": "dd55710a9041be0264c508b4244793aceb96a1e43ceb44f7662939a2fd53cb4e",
     "backend/src/lib/legalCrossReference.ts": "a9784e1daf3bf802d31b371801a419919320aaf7f764cc0f23bc61778c8ba584",
