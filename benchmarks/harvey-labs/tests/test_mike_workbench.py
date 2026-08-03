@@ -3,11 +3,15 @@ import json
 import shlex
 from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 
 from harness.adapters.base import ModelResponse, ToolCall
 from harness.agent_loop import run_agent
+from harness.run import _run_fresh_scout_stage
 from harness.mike_workbench import (
     ADAPTIVE_REVIEW_BUDGET_CHARACTERS,
+    FRESH_SCOUT_MAX_ADDITION_CHARACTERS,
+    FRESH_SCOUT_THRESHOLD_CHARACTERS,
     LARGE_CONTEXT_PLAN_MAX_CHARACTERS,
     LARGE_CONTEXT_PLAN_THRESHOLD_CHARACTERS,
     MikeWorkbenchExecutor,
@@ -107,6 +111,9 @@ def test_surface_is_frozen_mike_or_a_compact_native_delta():
     plan_prompt, plan, _ = get_mike_surface(
         "mike_one_shot_large_context_plan_xhigh_v1", inventory
     )
+    scout_prompt, scout, _ = get_mike_surface(
+        "mike_one_shot_fresh_scout_xhigh_v1", inventory
+    )
 
     assert [tool["name"] for tool in control] == [
         "read_document",
@@ -126,6 +133,8 @@ def test_surface_is_frozen_mike_or_a_compact_native_delta():
         "write_plan",
         "generate_docx",
     ]
+    assert scout == native
+    assert scout_prompt == native_prompt
     assert "Successful generation" in native_prompt
     assert "CONTEXT-BUDGETED FINALIZATION" in adaptive_prompt
     assert "Never defer content" in adaptive_prompt
@@ -144,6 +153,157 @@ def test_native_work_product_keeps_evidence_without_forcing_citations(tmp_path):
     assert "1.20x" in fetched
     assert "Citation requirement" not in fetched
     assert "<task_reminder source=\"original-user-request\">" in fetched
+
+
+def test_fresh_scout_skips_small_sources_without_changing_initial_docx(tmp_path):
+    executor = _executor(tmp_path, surface="mike_one_shot_fresh_scout_xhigh_v1")
+    executor.execute("fetch_documents", {"doc_ids": ["doc-0", "doc-1"]})
+    executor.execute(
+        "generate_docx", {"title": "Memo", "markdown": "# Complete\n\nDebt is $2 million."}
+    )
+
+    assert executor.fresh_scout_payload()["candidate_deliverables"][0][
+        "filename"
+    ] == "memo.docx"
+    metrics = executor.get_metrics()
+    assert metrics["fresh_scout_eligible"] is False
+    assert metrics["fresh_scout_source_characters"] < FRESH_SCOUT_THRESHOLD_CHARACTERS
+    assert metrics["fresh_scout_draft_receipts"][0]["docx_sha256"] == hashlib.sha256(
+        (tmp_path / "output" / "memo.docx").read_bytes()
+    ).hexdigest()
+
+
+def test_fresh_scout_admits_only_exact_bounded_append_only_findings(tmp_path):
+    executor = _executor(tmp_path, surface="mike_one_shot_fresh_scout_xhigh_v1")
+    for path in executor._documents:
+        executor._texts[path] = (
+            "Debt is $2 million. Closing date is March 15, 2027. "
+            + "x" * (FRESH_SCOUT_THRESHOLD_CHARACTERS // 2)
+        )
+    executor.execute("fetch_documents", {"doc_ids": ["doc-0", "doc-1"]})
+    executor.execute(
+        "generate_docx", {"title": "Memo", "markdown": "# Complete\n\nDebt is discussed."}
+    )
+    initial_source = executor._draft_sources["memo.docx"]
+    initial_docx = (tmp_path / "output" / "memo.docx").read_bytes()
+
+    addition = "## Closing\n\nThe closing date is March 15, 2027."
+    result = executor.apply_fresh_scout(
+        {
+            "findings": [
+                {
+                    "filename": "memo.docx",
+                    "source_path": "alpha.txt",
+                    "source_excerpt": "Closing date is March 15, 2027.",
+                    "markdown": addition,
+                },
+                {
+                    "filename": "memo.docx",
+                    "source_path": "alpha.txt",
+                    "source_excerpt": "not in source",
+                    "markdown": "Unsupported.",
+                },
+                {
+                    "filename": "memo.docx",
+                    "source_path": "beta.txt",
+                    "source_excerpt": "Debt is $2 million.",
+                    "markdown": "x" * (FRESH_SCOUT_MAX_ADDITION_CHARACTERS + 1),
+                },
+            ]
+        }
+    )
+
+    assert result == {
+        "accepted": 1,
+        "rejected": 2,
+        "accepted_characters": len(addition),
+    }
+    final_source = (
+        tmp_path / "workspace" / ".mike" / "fresh-scout" / "memo.docx.md"
+    ).read_bytes()
+    assert final_source.startswith(initial_source)
+    assert b"The closing date is March 15, 2027." in final_source
+    assert (tmp_path / "output" / "memo.docx").read_bytes() == initial_docx
+    metrics = executor.get_metrics()
+    assert metrics["fresh_scout_status"] == "completed"
+    assert [row["rejection"] for row in metrics["fresh_scout_receipts"]] == [
+        None,
+        "excerpt_not_exact",
+        "addition_bounds",
+    ]
+    assert metrics["fresh_scout_final_receipts"][0][
+        "initial_prefix_preserved"
+    ] is True
+
+
+def test_fresh_scout_stage_records_independent_usage_and_receipts(tmp_path, monkeypatch):
+    executor = _executor(tmp_path, surface="mike_one_shot_fresh_scout_xhigh_v1")
+    for path in executor._documents:
+        executor._texts[path] = "Exact closing date: March 15, 2027. " + "x" * (
+            FRESH_SCOUT_THRESHOLD_CHARACTERS // 2
+        )
+    executor.execute("fetch_documents", {"doc_ids": ["doc-0", "doc-1"]})
+    executor.execute(
+        "generate_docx", {"title": "Memo", "markdown": "# Complete\n\nDebt only."}
+    )
+
+    class _Responses:
+        transport_retry_count = 0
+
+    class _Reviewer:
+        prompt_cache_key = None
+        client = SimpleNamespace(responses=_Responses())
+
+        def make_system_message(self, content):
+            return {"role": "system", "content": content}
+
+        def make_user_message(self, content):
+            return {"role": "user", "content": content}
+
+        def chat(self, messages, tools):
+            finding = {
+                "findings": [
+                    {
+                        "filename": "memo.docx",
+                        "source_path": "alpha.txt",
+                        "source_excerpt": "Exact closing date: March 15, 2027.",
+                        "markdown": "## Closing\n\nClosing is March 15, 2027.",
+                    }
+                ]
+            }
+            return ModelResponse(
+                message={"role": "assistant"},
+                tool_calls=[
+                    ToolCall(
+                        id="review-1",
+                        name="submit_omissions",
+                        arguments=json.dumps(finding),
+                    )
+                ],
+                input_tokens=100,
+                output_tokens=20,
+                reasoning_tokens=5,
+                response_id="response-1",
+                service_tier="default",
+            )
+
+    monkeypatch.setattr("harness.run.create_adapter", lambda **kwargs: _Reviewer())
+    results = tmp_path / "results"
+    results.mkdir()
+    stage = _run_fresh_scout_stage(
+        SimpleNamespace(
+            model="codex/gpt-5.6-luna", temperature=0.0, reasoning_effort="xhigh"
+        ),
+        executor,
+        results,
+    )
+
+    assert stage["status"] == "completed"
+    assert stage["application"]["accepted"] == 1
+    assert stage["input_tokens"] == 100
+    assert stage["context_rounds"][0]["stage"] == "fresh_scout"
+    assert (results / "fresh_scout_input_receipt.json").exists()
+    assert (results / "fresh_scout_transcript.jsonl").exists()
 
 
 def test_adaptive_review_schema_and_prompt_are_bounded_and_append_only():
