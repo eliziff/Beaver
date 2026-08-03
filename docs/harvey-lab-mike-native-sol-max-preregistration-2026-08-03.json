@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "experiment_id": "harvey-lab-mike-native-sol-max-v1",
+  "registered_at": "2026-08-03T11:39:45Z",
+  "status": "preregistered_before_performer_calls",
+  "experiment_class": "visible-development Codex-path capability-scaled side run",
+  "claim_scope": "A production-candidate model-and-harness configuration, not a model-held-constant harness ablation. Sol judge labels are provisional and derivative, not human gold.",
+  "landed_basis": {
+    "same_arm_variance": "Two byte-identical Luna/high Mike runs scored 163/225 and 172/225 and flipped 31 criterion verdicts.",
+    "best_luna_harnesses": "Native one-shot scored 177/225 and conflict-first 178/225, margins too small to separate from observed volatility.",
+    "failed_determinism": "The host-selected fact index scored 165/225; model-selected private quote-first grounding scored 162/225. Both spent attention while rotating or increasing omissions.",
+    "diagnosis": "All relevant cells had complete evidence coverage and schema-correct tools. The remaining bottleneck is Luna's long-context salience and synthesis, not retrieval availability."
+  },
+  "hypothesis": "Stop adding context machinery. Apply the strongest available reasoning model to the smallest measured architecture: one exact whole-source fetch, exact-request recency, one evidence-to-all-deliverables inference, native professional grounding, compact Markdown authoring, and terminal success.",
+  "implementation_commit_before_launch": "d4a040f4a83ba151eb62d1960aaf6bed3f67d407",
+  "surface": "mike_one_shot_native_xhigh_v1",
+  "performer": {
+    "model": "codex/gpt-5.6-sol",
+    "reasoning_effort": "max",
+    "temperature_requested": 0,
+    "temperature_transmitted": false,
+    "required_provider_service_tier_reported": "default",
+    "tools": ["fetch_documents", "generate_docx"],
+    "run_count": 3,
+    "max_concurrent_processes": 3,
+    "run_id_template": "2026-08-03-mike-one-shot-native-sol-max-v1--{task_slug_with_slashes_replaced_by_double_hyphens}",
+    "harness_source_bundle_sha256": "3e95e2d2c9eca8833bff9a8cba21c215f0329ad73f7a58cb9814ff554e6d1ef3",
+    "tool_schema_sha256": "7da650571cfd85d225720eb6f7b0549eae2309212394202a708d9ffa4b568298",
+    "tool_schema_bytes": 1091
+  },
+  "tasks": {
+    "banking-finance/extract-credit-agreement-covenants": {
+      "system_prompt_sha256": "69470e9a59abcf3f7001f18f7e622114c9fb16ffbda572b9cde978cc356c8e05",
+      "system_prompt_bytes": 1197,
+      "source_bundle_sha256": "b5c3605cfbe3d53377712d0db3463f945a5c69cf7caef0da01b45d7b9ee75296",
+      "prompt_cache_key": "lab-5aafaae661fb1aab064c448a85eb118a8a9c3a040b4d28181ac7deed42f0f3fa",
+      "run_fingerprint_sha256": "d1be1432b1b787e29a3ab3f48db03de2f57d44bbfa06e35df47dd5310d49e7bd"
+    },
+    "tax/draft-transfer-pricing-documentation": {
+      "system_prompt_sha256": "fd0a61c81773004234dbd3b3366bedbbcc9bfd39296f6f7f71eb7feee06ab0a3",
+      "system_prompt_bytes": 2915,
+      "source_bundle_sha256": "0ebfa8f86d9bd3405d4ccd638471ded6f48a4748ca0cfba76b992f1a5ea15e3d",
+      "prompt_cache_key": "lab-5065fd812c399fe64607ba5347e173a1e4daaf663d60c7a26e28d18dc144e1e8",
+      "run_fingerprint_sha256": "5ee910d7414255dd220a7fb084cb6bcd1f0461078978e905e15ef1969762de30"
+    },
+    "capital-markets/draft-indenture-for-senior-secured-notes-offering": {
+      "system_prompt_sha256": "9eafe1a8104b0c98fd9720d6313e55497724dc95d494b1c461d540f0c4446a88",
+      "system_prompt_bytes": 1685,
+      "source_bundle_sha256": "c1319d3aec66399c21a7a1a00b64821d48e4eecc190bbc15474148e7da33d7fd",
+      "prompt_cache_key": "lab-33c6d34fd025539163e50d38088d933596bd0e648d4afbfc2607f38aebb1043b",
+      "run_fingerprint_sha256": "d2b149a0a34d372046d6672b36c4142a2d0b873ffc1ab85431dc07d0430a4cd9"
+    }
+  },
+  "trace_gate": "Require every exact source read once before drafting, two provider turns, all deliverables in the terminal second response, valid DOCX files, default reported tier, matching fingerprints, and zero tool/schema/path errors. Inspect cache, retries, tokens, reasoning, output size, and latency before judging.",
+  "judge": {
+    "model": "codex/gpt-5.6-sol",
+    "reasoning_effort": "provider default",
+    "temperature_requested": 0,
+    "criterion_level": true,
+    "max_concurrent_outputs": 3,
+    "max_concurrent_criteria_per_output": 1,
+    "local_process_priority": "BelowNormal",
+    "prompt_sha256": "da0f2618d996ac5415a960dfc445e53b6fbd1b22602dd587bf6ecccbe139cb21",
+    "judge_source_sha256": "3546fec5ca1c4d655c8510d8cf2e0ca2201a94428c86d1628fbcdf5afe83a4b5",
+    "scoring_source_sha256": "e7f5e0accdaffe3ba9d350fb417f0c09f6f372ff5888def5908c73113291a9a3"
+  },
+  "decision_rule": "Advance as a production candidate only at 184/225 or better, with no task scoring below fresh Luna/high Mike, and no more than 2.0x fresh-Mike logical tokens. Report the model change separately from the harness delta and flag same-model performer/judge preference as uncertainty."
+}
