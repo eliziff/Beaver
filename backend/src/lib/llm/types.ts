@@ -67,6 +67,8 @@ export type NormalizedToolResult = {
     end: number;
     filename?: string;
     locator?: string;
+    /** Immutable virtual source view used to expose this exact span. */
+    virtualPath?: string;
     projection?: string;
     /** Search previews orient; reads and exact passages support a draft. */
     kind?: "candidate" | "evidence";

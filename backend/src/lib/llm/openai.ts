@@ -107,7 +107,9 @@ function apiKey(override?: string | null): string {
   return requireApiKey(override, ["OPENAI_API_KEY"], "OpenAI");
 }
 
-function toResponseTools(tools: OpenAIToolSchema[]): ResponseFunctionTool[] {
+export function toResponseTools(
+  tools: OpenAIToolSchema[],
+): ResponseFunctionTool[] {
   if (schemaEncodingVariant() === "v3") {
     return tools.map((tool) => ({ type: "function", ...encodeToolV3(tool) }));
   }

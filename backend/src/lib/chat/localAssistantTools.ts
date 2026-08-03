@@ -112,6 +112,7 @@ import {
   ADAPTIVE_MIKE_LAB_TOOLS,
   MIKE_GREP_LAB_TOOLS,
   MIKE_LEGAL_LAB_TOOLS,
+  MIKE_STRUCTURE_PATHS_LAB_TOOLS,
   UPSTREAM_MIKE_LAB_TOOLS,
 } from "./upstreamMikeBenchmarkSurface";
 import {
@@ -862,10 +863,13 @@ export const MIKE_LEGAL_TOOL_SHAPE =
   process.env.MIKE_TOOL_SHAPE === "mike-legal-v1";
 export const MIKE_LEGAL_GUIDED_TOOL_SHAPE =
   process.env.MIKE_TOOL_SHAPE === "mike-legal-guided-v1";
+export const MIKE_STRUCTURE_PATHS_TOOL_SHAPE =
+  process.env.MIKE_TOOL_SHAPE === "mike-structure-paths-v1";
 export const MIKE_GREP_FAMILY_TOOL_SHAPE =
   MIKE_GREP_TOOL_SHAPE ||
   MIKE_LEGAL_TOOL_SHAPE ||
-  MIKE_LEGAL_GUIDED_TOOL_SHAPE;
+  MIKE_LEGAL_GUIDED_TOOL_SHAPE ||
+  MIKE_STRUCTURE_PATHS_TOOL_SHAPE;
 
 export const CODING_TOOL_SHAPE =
   process.env.MIKE_TOOL_SHAPE === "coding" || MIKE_GREP_FAMILY_TOOL_SHAPE;
@@ -961,6 +965,7 @@ export type RetrievalExperimentShape =
   | "h4-legal-grep"
   | "h5-working-set"
   | "h9-accretive-union"
+  | "s1-structure-paths"
   | "d0-generic"
   | "d1-routed"
   | "d2-concrete";
@@ -977,6 +982,7 @@ const RETRIEVAL_EXPERIMENT_SHAPES = new Set<RetrievalExperimentShape>([
   "h4-legal-grep",
   "h5-working-set",
   "h9-accretive-union",
+  "s1-structure-paths",
   "d0-generic",
   "d1-routed",
   "d2-concrete",
@@ -994,6 +1000,8 @@ export const RETRIEVAL_EXPERIMENT_SHAPE =
   requestedRetrievalExperiment as RetrievalExperimentShape;
 const PURE_CODING_EXPERIMENT =
   RETRIEVAL_EXPERIMENT_SHAPE === "p0-pure-coding";
+export const STRUCTURE_PATH_EXPERIMENT =
+  RETRIEVAL_EXPERIMENT_SHAPE === "s1-structure-paths";
 const LEGAL_GREP_EXPERIMENT =
   RETRIEVAL_EXPERIMENT_SHAPE === "h4-legal-grep" ||
   RETRIEVAL_EXPERIMENT_SHAPE === "h5-working-set" ||
@@ -1885,7 +1893,9 @@ const LOCAL_ASSISTANT_TOOL_CATALOG: OpenAIToolSchema[] = [
     ? MIKE_GREP_FAMILY_TOOL_SHAPE
       ? MIKE_GREP_TOOL_SHAPE
         ? MIKE_GREP_LAB_TOOLS
-        : MIKE_LEGAL_LAB_TOOLS
+        : MIKE_STRUCTURE_PATHS_TOOL_SHAPE
+          ? MIKE_STRUCTURE_PATHS_LAB_TOOLS
+          : MIKE_LEGAL_LAB_TOOLS
       : ADAPTIVE_MIKE_TOOL_SHAPE
       ? ADAPTIVE_MIKE_LAB_TOOLS
       : UPSTREAM_MIKE_LAB_TOOLS
@@ -2041,6 +2051,9 @@ type WorkingSetEvidenceSegment = {
   versionId: string;
   sourceStart: number;
   sourceEnd: number;
+  filename?: string;
+  locator?: string;
+  virtualPath?: string;
   projection?: string;
   durableUnionBacked?: boolean;
 };
@@ -2170,6 +2183,7 @@ type CodingOutputLine = {
     versionId: string;
     filename?: string;
     locator?: string;
+    virtualPath?: string;
     projection?: string;
   };
 };
@@ -2370,7 +2384,11 @@ function workingSetEvidenceSegments(
         versionId: segment.versionId,
         start: segment.sourceStart + overlapStart - segment.virtualStart,
         end: segment.sourceStart + overlapEnd - segment.virtualStart,
+        ...(segment.filename && { filename: segment.filename }),
+        ...(segment.locator && { locator: segment.locator }),
+        ...(segment.virtualPath && { virtualPath: segment.virtualPath }),
         ...(segment.projection && { projection: segment.projection }),
+        kind: "evidence",
         ...(segment.durableUnionBacked && { durableUnionBacked: true }),
       });
     }
@@ -3252,6 +3270,75 @@ async function runCodingShapeCall(
       (set) => set.path.toLowerCase() === wanted,
     );
   };
+  const registerStructurePath = (
+    meta: (typeof files)[number],
+    document: NonNullable<Awaited<ReturnType<typeof extractLocalDocument>>>,
+    unit: {
+      start: number;
+      end: number;
+      locator: string;
+      projection: "legal-unit" | "pdf-page";
+    },
+  ) => {
+    if (
+      !STRUCTURE_PATH_EXPERIMENT ||
+      !workingSets ||
+      unit.start < 0 ||
+      unit.end <= unit.start ||
+      unit.end > document.text.length
+    ) {
+      return null;
+    }
+    const versionId = document.versionId || meta.current_version_id;
+    const identity = {
+      documentId: meta.id,
+      versionId,
+      start: unit.start,
+      end: unit.end,
+      locator: unit.locator,
+    };
+    const path =
+      `.mike/structure/doc-${sha256(meta.id).slice(0, 12)}` +
+      `/v-${sha256(versionId).slice(0, 12)}` +
+      `/u-${sha256(JSON.stringify(identity)).slice(0, 16)}.txt`;
+    const text = document.text.slice(unit.start, unit.end);
+    const existing = resolveWorkingSet(path);
+    if (existing) {
+      const segment = existing.segments[0];
+      return existing.text === text &&
+        existing.segments.length === 1 &&
+        segment?.documentId === meta.id &&
+        segment.versionId === versionId &&
+        segment.sourceStart === unit.start &&
+        segment.sourceEnd === unit.end &&
+        segment.locator === unit.locator
+        ? existing.path
+        : null;
+    }
+    const segment: WorkingSetEvidenceSegment = {
+      virtualStart: 0,
+      virtualEnd: text.length,
+      documentId: meta.id,
+      versionId,
+      sourceStart: unit.start,
+      sourceEnd: unit.end,
+      filename: meta.filename,
+      locator: unit.locator,
+      virtualPath: path,
+      projection: unit.projection,
+    };
+    workingSets.set(path, {
+      path,
+      text,
+      sourceChars: text.length,
+      matchedSourceChars: text.length,
+      mapChars: 0,
+      budgetChars: text.length,
+      mappedVersions: [`${meta.id}:${versionId}`],
+      segments: [segment],
+    });
+    return path;
+  };
 
   if (call.name === "DocumentMap" || call.name === "ReferenceImpact") {
     const requested = trimmed(args.file_path);
@@ -3354,10 +3441,13 @@ async function runCodingShapeCall(
 
   if (call.name === "Read") {
     if (
-      PURE_CODING_EXPERIMENT &&
+      (PURE_CODING_EXPERIMENT || STRUCTURE_PATH_EXPERIMENT) &&
       Object.prototype.hasOwnProperty.call(args, "section")
     ) {
-      return fail(call, "Read accepts only file_path, offset, and limit");
+      return fail(
+        call,
+        "Read accepts only file_path, offset, limit, and start_char",
+      );
     }
     if (
       !LEGAL_GREP_EXPERIMENT &&
@@ -3482,15 +3572,16 @@ async function runCodingShapeCall(
       };
     }
     if (
-      Object.prototype.hasOwnProperty.call(args, "start_char") &&
-      args.start_char !== 0 &&
-      args.start_char !== null &&
-      args.start_char !== undefined
+      requested.replace(/\\/gu, "/").toLowerCase().startsWith(
+        ".mike/structure/",
+      )
     ) {
-      return fail(
-        call,
-        "start_char is available only for virtual evidence working-set reads",
-      );
+      return result(call, {
+        ok: false,
+        status: "not_found",
+        error:
+          "Structure path not found in this turn. Copy an exact .mike/structure/... path returned by Grep; never invent or alter one.",
+      });
     }
     const matches = resolvePath(requested);
     if (matches.length !== 1) {
@@ -3507,6 +3598,12 @@ async function runCodingShapeCall(
     const lines = document.text.split(/\r?\n/u);
     const starts = sourceLineStarts(document.text, lines);
     const limit = positiveInt(args.limit, 1, 2_000, 2_000);
+    const startChar = clampInt(
+      args.start_char,
+      0,
+      Number.MAX_SAFE_INTEGER,
+      0,
+    );
     // Legal paragraphs are often several thousand characters on one source
     // line. Keep each Read line intact whenever it fits in the result budget;
     // Grep stays a compact, match-centred preview.
@@ -3703,19 +3800,36 @@ async function runCodingShapeCall(
       );
     }
     const offset = positiveInt(args.offset, 1, 100_000_000, 1);
-    const candidates = lines
-      .slice(offset - 1, offset - 1 + limit)
+    const firstLine = lines[offset - 1];
+    if (firstLine !== undefined && startChar > firstLine.length) {
+      return fail(
+        call,
+        `(start_char ${startChar} is past the end of line ${offset}; line chars: ${firstLine.length})`,
+      );
+    }
+    const selectedLines = lines.slice(offset - 1, offset - 1 + limit);
+    const firstLineContinues =
+      selectedLines.length > 0 &&
+      startChar + readLineCap < selectedLines[0].length;
+    const candidates = (firstLineContinues
+      ? selectedLines.slice(0, 1)
+      : selectedLines
+    )
       .map((line, i): CodingOutputLine => {
         const lineIndex = offset - 1 + i;
         const sourceStart = starts[lineIndex];
-        const shown = line.slice(0, readLineCap);
+        const localStart = i === 0 ? startChar : 0;
+        const shown = line.slice(localStart, localStart + readLineCap);
         return {
           rendered:
             `${String(offset + i).padStart(6, " ")}\t${shown}` +
-            (line.length > readLineCap
-              ? "… [line truncated; Grep can locate text later on this line]"
+            (localStart + shown.length < line.length
+              ? "… [line truncated; continue with the exact Read recipe below]"
               : ""),
-          span: [sourceStart, sourceStart + shown.length],
+          span: [
+            sourceStart + localStart,
+            sourceStart + localStart + shown.length,
+          ],
           source: {
             documentId: meta.id,
             versionId: meta.current_version_id,
@@ -3732,8 +3846,13 @@ async function runCodingShapeCall(
     }
     const { kept, truncated } = takeCodingOutputLines(candidates);
     const lastShown = offset - 1 + kept.length;
-    const more =
-      lastShown < lines.length
+    const sameLineContinuation =
+      firstLineContinues && kept.length > 0
+        ? startChar + readLineCap
+        : null;
+    const more = sameLineContinuation !== null
+      ? `\n\n[TRUNCATED: returned line ${offset} through char ${sameLineContinuation} of ${selectedLines[0].length}; continue with Read(file_path=${JSON.stringify(requested)}, offset=${offset}, limit=${limit}, start_char=${sameLineContinuation}). Tool-result limit reached.]`
+      : lastShown < lines.length
         ? `\n\n[TRUNCATED: returned lines ${offset}-${lastShown} of ${lines.length}; continue with Read(file_path="${requested}", offset=${lastShown + 1}).${truncated ? " Tool-result limit reached." : ""}]`
         : "";
     return codingTextResult(
@@ -4083,6 +4202,18 @@ async function runCodingShapeCall(
       evidenceRefs: workingSetEvidenceRefs(virtualTarget, exposedRanges),
     };
   }
+  if (
+    pathArg.replace(/\\/gu, "/").toLowerCase().startsWith(
+      ".mike/structure/",
+    )
+  ) {
+    return result(call, {
+      ok: false,
+      status: "not_found",
+      error:
+        "Structure path not found in this turn. Copy an exact .mike/structure/... path returned by Grep; never invent or alter one.",
+    });
+  }
   let targets = files;
   if (pathArg) {
     const matches = resolvePath(pathArg);
@@ -4229,11 +4360,13 @@ async function runCodingShapeCall(
     // Ambiguous TOC/body duplicates stay line-addressed instead of teaching
     // the model an attractive handle that must fail on the next turn.
     let sectionOf:
-        | ((line: number) => {
+        | ((line: number, at?: number) => {
           handle: string;
           display: string;
           firstLine: number;
           lastLine: number;
+          start: number;
+          end: number;
         } | null)
       | null = null;
     let unitSkeleton: AgreementSkeleton | null = null;
@@ -4256,8 +4389,8 @@ async function runCodingShapeCall(
           const next = document.text.indexOf("\n", cursor + line.length);
           cursor = next === -1 ? document.text.length : next + 1;
         }
-        sectionOf = (line) => {
-          const pos = offsets[line] ?? 0;
+        sectionOf = (line, at) => {
+          const pos = at ?? offsets[line] ?? 0;
           let best: { label: string; span: number } | null = null;
           for (const node of skeleton.nodes) {
             if (pos >= node.start && pos < node.end) {
@@ -4297,7 +4430,14 @@ async function runCodingShapeCall(
             document.text.slice(0, lookup.block.start).split(/\r?\n/u).length;
           const lastLine =
             firstLine + lookup.block.text.split(/\r?\n/u).length - 1;
-          return { handle: lookup.block.label, display, firstLine, lastLine };
+          return {
+            handle: lookup.block.label,
+            display,
+            firstLine,
+            lastLine,
+            start: lookup.block.start,
+            end: lookup.block.end,
+          };
         };
       }
     }
@@ -4390,22 +4530,111 @@ async function runCodingShapeCall(
           isMatch || matchedLines.has(i - 1) || matchedLines.has(i + 1);
         const sep = isMatch ? ":" : "-";
         const filePath = codingPath(meta);
-        const prefix = numberLines
-          ? `${filePath}${sep}${i + 1}${sep}`
-          : `${filePath}${sep}`;
-        const candidateSection = handoffCandidate ? sectionOf?.(i) : null;
-        const section = isMatch ? candidateSection : null;
         const matchColumn = isMatch ? Math.max(0, lines[i].search(re)) : 0;
+        const section = isMatch
+          ? sectionOf?.(i, starts[i] + matchColumn)
+          : null;
+        const candidateSection = handoffCandidate
+          ? section ?? sectionOf?.(i)
+          : null;
+        const page =
+          isMatch &&
+          STRUCTURE_PATH_EXPERIMENT &&
+          !section &&
+          meta.file_type.toLowerCase() === "pdf"
+            ? pageAt(document.pages, starts[i] + matchColumn)
+            : null;
+        const pageLocator = page
+          ? page.pdfPage !== null
+            ? `pdf:${page.pdfPage}`
+            : page.printedLabel !== null
+              ? `printed:${page.printedLabel}`
+              : `page:${page.ordinal}`
+          : null;
+        const pageFirstLine = page
+          ? document.text.slice(0, page.start).split(/\r?\n/u).length
+          : 0;
+        const structureUnit = section
+          ? {
+              start: section.start,
+              end: section.end,
+              locator: section.handle,
+              display: `Section ${section.display} [${section.handle}]`,
+              firstLine: section.firstLine,
+              lastLine: section.lastLine,
+              projection: "legal-unit" as const,
+            }
+          : page && pageLocator
+            ? {
+                start: page.start,
+                end: page.end,
+                locator: pageLocator,
+                display:
+                  `PDF page ${page.pdfPage ?? page.ordinal}` +
+                  (page.printedLabel !== null
+                    ? ` (printed ${page.printedLabel})`
+                    : ""),
+                firstLine: pageFirstLine,
+                lastLine:
+                  pageFirstLine +
+                  document.text.slice(page.start, page.end).split(/\r?\n/u)
+                    .length -
+                  1,
+                projection: "pdf-page" as const,
+              }
+            : null;
+        const structurePath = structureUnit
+          ? registerStructurePath(meta, document, structureUnit)
+          : null;
+        let renderedPath = filePath;
+        let renderedLineNumber = i + 1;
+        let renderedLine = lines[i];
+        let renderedMatchColumn = matchColumn;
+        let sourceLineStart = starts[i];
+        if (structurePath && structureUnit) {
+          renderedPath = structurePath;
+          const unitText = document.text.slice(
+            structureUnit.start,
+            structureUnit.end,
+          );
+          const unitLines = unitText.split(/\r?\n/u);
+          const unitStarts = sourceLineStarts(unitText, unitLines);
+          const localMatch = Math.max(
+            0,
+            starts[i] + matchColumn - structureUnit.start,
+          );
+          let localLine = 0;
+          while (
+            localLine + 1 < unitStarts.length &&
+            unitStarts[localLine + 1] <= localMatch
+          ) {
+            localLine += 1;
+          }
+          renderedLineNumber = localLine + 1;
+          renderedLine = unitLines[localLine] ?? "";
+          renderedMatchColumn = Math.max(0, localMatch - unitStarts[localLine]);
+          sourceLineStart = structureUnit.start + unitStarts[localLine];
+        }
+        const prefix = numberLines
+          ? `${renderedPath}${sep}${renderedLineNumber}${sep}`
+          : `${renderedPath}${sep}`;
         const sliceStart =
-          lines[i].length > GREP_LINE_CAP && isMatch
+          renderedLine.length > GREP_LINE_CAP && isMatch
             ? Math.min(
-                Math.max(0, matchColumn - Math.floor(GREP_LINE_CAP / 2)),
-                lines[i].length - GREP_LINE_CAP,
+                Math.max(
+                  0,
+                  renderedMatchColumn - Math.floor(GREP_LINE_CAP / 2),
+                ),
+                renderedLine.length - GREP_LINE_CAP,
               )
             : 0;
-        const shown = lines[i].slice(sliceStart, sliceStart + GREP_LINE_CAP);
-        const contact =
-          isMatch &&
+        const shown = renderedLine.slice(
+          sliceStart,
+          sliceStart + GREP_LINE_CAP,
+        );
+        const contact = structurePath && structureUnit
+          ? `  [source=${meta.filename} | ${structureUnit.display} | source lines ${structureUnit.firstLine}-${structureUnit.lastLine}]`
+          : isMatch &&
           (RETRIEVAL_EXPERIMENT_SHAPE === "h1-contact" ||
             LEGAL_GREP_EXPERIMENT)
             ? (() => {
@@ -4433,22 +4662,31 @@ async function runCodingShapeCall(
                   `  [Read offset=${i + 1} limit=1]`,
                 ].find((candidate) => candidate.length <= 120)!;
               })()
-            : section
+            : section && !STRUCTURE_PATH_EXPERIMENT
               ? `  [${section.handle}]`
               : "";
         rows.push({
           rendered:
             `${prefix}${sliceStart ? "…" : ""}${shown}` +
-            (sliceStart + shown.length < lines[i].length ? "…" : "") +
+            (sliceStart + shown.length < renderedLine.length ? "…" : "") +
             contact,
-          span: [starts[i] + sliceStart, starts[i] + sliceStart + shown.length],
+          span: [
+            sourceLineStart + sliceStart,
+            sourceLineStart + sliceStart + shown.length,
+          ],
           handoffCandidate,
           source: {
             documentId: meta.id,
-            versionId: meta.current_version_id,
-            ...(candidateSection?.handle
-              ? { locator: candidateSection.handle }
-              : {}),
+            versionId: document.versionId || meta.current_version_id,
+            filename: meta.filename,
+            ...(structureUnit
+              ? { locator: structureUnit.locator }
+              : candidateSection?.handle
+                ? { locator: candidateSection.handle }
+                : {}),
+            ...(structurePath && { virtualPath: structurePath }),
+            ...(structurePath &&
+              structureUnit && { projection: structureUnit.projection }),
           },
         });
         lastPrinted = i;
@@ -4758,6 +4996,7 @@ function result(
       "not_found",
       "ambiguous",
       "selection_required",
+      "action_required",
       "truncated",
       "past_end",
       "already_exposed",
