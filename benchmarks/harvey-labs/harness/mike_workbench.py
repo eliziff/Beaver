@@ -24,14 +24,22 @@ MIKE_SURFACES = {
     "mike_control_v1",
     "mike_one_shot_native_xhigh_v1",
     "mike_one_shot_linked_grounding_xhigh_v1",
+    "mike_one_shot_final_check_xhigh_v1",
 }
 
 ONE_SHOT_SURFACES = {
     "mike_one_shot_native_xhigh_v1",
     "mike_one_shot_linked_grounding_xhigh_v1",
+    "mike_one_shot_final_check_xhigh_v1",
 }
 
 LINKED_GROUNDING_SURFACE = "mike_one_shot_linked_grounding_xhigh_v1"
+FINAL_CHECK_SURFACE = "mike_one_shot_final_check_xhigh_v1"
+FINAL_CHECK_INSTRUCTION = (
+    "Please double check that the work product matches the requested deliverable, "
+    "thoroughly checking all features of the request and using creative thinking to "
+    "ensure that no latent risk or problem has been left unaddressed."
+)
 
 NATIVE_GROUNDING_PROMPT = """
 
@@ -151,7 +159,9 @@ def get_mike_surface(name: str, document_inventory: list[tuple[str, str]]) -> tu
             }
             parameters["required"] = ["grounding", *parameters["required"]]
         tools = [_canonical_tool(fetch), author]
-        prompt = ONE_SHOT_PROMPT + NATIVE_GROUNDING_PROMPT + TERMINAL_GENERATION_PROMPT
+        prompt = ONE_SHOT_PROMPT + NATIVE_GROUNDING_PROMPT
+        if name != FINAL_CHECK_SURFACE:
+            prompt += TERMINAL_GENERATION_PROMPT
         if name == LINKED_GROUNDING_SURFACE:
             prompt += LINKED_GROUNDING_PROMPT
     else:
@@ -220,6 +230,7 @@ class MikeWorkbenchExecutor(ToolExecutor):
         self.task_instructions = task_instructions
         self.tail_reminder = surface_name in ONE_SHOT_SURFACES
         self.linked_grounding_enabled = surface_name == LINKED_GROUNDING_SURFACE
+        self.final_check_enabled = surface_name == FINAL_CHECK_SURFACE
         self.citation_reminders = surface_name == "mike_control_v1"
         self.terminal = False
         self._documents = self.sandbox.list_files(DOCUMENTS_PATH)
@@ -246,6 +257,12 @@ class MikeWorkbenchExecutor(ToolExecutor):
         self.grounding_linked = 0
         self.grounding_private_characters = 0
         self.grounding_receipts: list[dict] = []
+        self._initial_drafts: dict[str, dict] = {}
+        self._final_check_pending = False
+        self._final_check_ready = False
+        self._final_check_followup: str | None = None
+        self.final_check_revision_attempts = 0
+        self.final_check_receipts: list[dict] = []
 
     def execute(self, tool_name: str, arguments: str | dict) -> str:
         if isinstance(arguments, str):
@@ -267,6 +284,30 @@ class MikeWorkbenchExecutor(ToolExecutor):
             return super().execute(tool_name, arguments)
         except (OSError, RuntimeError, ValueError, PermissionError) as error:
             return f"Error: {type(error).__name__}: {error}"
+
+    def after_tool_batch(self) -> None:
+        if self._final_check_pending:
+            self._final_check_pending = False
+            self._final_check_ready = True
+            titles = ", ".join(
+                f'"{self._initial_drafts[name]["title"]}"'
+                for name in self._deliverables
+            )
+            self._final_check_followup = (
+                FINAL_CHECK_INSTRUCTION
+                + " If a correction is needed, call generate_docx with the same title "
+                + "and complete replacement Markdown for each deliverable you change. "
+                + f"The current deliverable title(s) are: {titles}. "
+                + "If no correction is needed, make no tool call."
+            )
+        elif self._final_check_ready and self.final_check_revision_attempts:
+            self._final_check_ready = False
+            self.terminal = True
+
+    def pop_followup_message(self) -> str | None:
+        message = self._final_check_followup
+        self._final_check_followup = None
+        return message
 
     def _resolve_document(self, value: str) -> str | None:
         return self._by_id.get(value) or self._by_filename.get(value.casefold())
@@ -523,6 +564,10 @@ class MikeWorkbenchExecutor(ToolExecutor):
             markdown = _sections_markdown(arguments.get("sections"))
         if not title or not markdown:
             return "Error: DOCX title or sections are invalid"
+        if self.final_check_enabled and self._final_check_pending:
+            return "Error: wait for the final-check turn before revising a deliverable"
+        if self.final_check_enabled and self._final_check_ready:
+            return self._revise_docx(title, markdown)
         remaining = [name for name in self._deliverables if name not in self._generated]
         if remaining:
             filename = remaining[0]
@@ -539,6 +584,37 @@ class MikeWorkbenchExecutor(ToolExecutor):
         source = f"% {title}\n\n{markdown}\n"
         draft_path = f"{WORKSPACE_PATH}/.mike/draft-{len(self._generated) + 1}.md"
         output_path = f"{OUTPUT_PATH}/{filename}"
+        error = self._render_docx(source, draft_path, output_path)
+        if error:
+            return error
+        self._generated.append(filename)
+        self.files_written += 1
+        all_generated = bool(self._deliverables) and all(
+            name in self._generated for name in self._deliverables
+        )
+        output_bytes = self.sandbox.read_file(output_path)
+        self._initial_drafts[filename] = {
+            "title": title,
+            "source_sha256": hashlib.sha256(source.encode()).hexdigest(),
+            "output_sha256": hashlib.sha256(output_bytes).hexdigest(),
+            "source_characters": len(source),
+            "output_bytes": len(output_bytes),
+        }
+        if self.final_check_enabled and all_generated:
+            self._final_check_pending = True
+            self.terminal = False
+        else:
+            self.terminal = all_generated
+        receipt = {
+            "filename": filename,
+            "message": f"Document '{filename}' has been generated successfully.",
+            "terminal": self.terminal,
+        }
+        if self.final_check_enabled:
+            receipt["final_check_follows"] = self._final_check_pending
+        return json.dumps(receipt)
+
+    def _render_docx(self, source: str, draft_path: str, output_path: str) -> str | None:
         self.sandbox.write_file(draft_path, source)
         result = self.sandbox.exec(
             f"pandoc {shlex.quote(draft_path)} -o {shlex.quote(output_path)}",
@@ -549,16 +625,50 @@ class MikeWorkbenchExecutor(ToolExecutor):
         if result.returncode != 0 or not self.sandbox.exists(output_path):
             detail = (result.stderr or result.stdout).strip()
             return f"Error: DOCX generation failed: {detail[-500:]}"
-        self._generated.append(filename)
-        self.files_written += 1
-        self.terminal = bool(self._deliverables) and all(
-            name in self._generated for name in self._deliverables
+        return None
+
+    def _revise_docx(self, title: str, markdown: str) -> str:
+        self.final_check_revision_attempts += 1
+        matches = [
+            filename
+            for filename, initial in self._initial_drafts.items()
+            if initial["title"].casefold() == title.casefold()
+        ]
+        if len(matches) != 1:
+            return "Error: final-check revision must use exactly the original title"
+        filename = matches[0]
+        if any(receipt["filename"] == filename for receipt in self.final_check_receipts):
+            return f"Error: final-check revision already supplied for '{filename}'"
+        source = f"% {title}\n\n{markdown}\n"
+        draft_path = (
+            f"{WORKSPACE_PATH}/.mike/final-check-{len(self.final_check_receipts) + 1}.md"
         )
+        output_path = f"{OUTPUT_PATH}/{filename}"
+        before_output = self.sandbox.read_file(output_path)
+        error = self._render_docx(source, draft_path, output_path)
+        if error:
+            return error
+        after_output = self.sandbox.read_file(output_path)
+        initial = self._initial_drafts[filename]
+        receipt = {
+            "filename": filename,
+            "initial_source_sha256": initial["source_sha256"],
+            "revised_source_sha256": hashlib.sha256(source.encode()).hexdigest(),
+            "initial_output_sha256": hashlib.sha256(before_output).hexdigest(),
+            "revised_output_sha256": hashlib.sha256(after_output).hexdigest(),
+            "initial_source_characters": initial["source_characters"],
+            "revised_source_characters": len(source),
+            "changed": initial["source_sha256"]
+            != hashlib.sha256(source.encode()).hexdigest(),
+        }
+        self.final_check_receipts.append(receipt)
+        self.files_written += 1
         return json.dumps(
             {
                 "filename": filename,
-                "message": f"Document '{filename}' has been generated successfully.",
-                "terminal": self.terminal,
+                "message": f"Document '{filename}' has been replaced after final check.",
+                "changed": receipt["changed"],
+                "terminal": False,
             }
         )
 
@@ -582,6 +692,23 @@ class MikeWorkbenchExecutor(ToolExecutor):
                 "grounding_unlinked": self.grounding_claims - self.grounding_linked,
                 "grounding_private_characters": self.grounding_private_characters,
                 "grounding_receipts": self.grounding_receipts,
+                "final_check_enabled": self.final_check_enabled,
+                "final_check_offered": bool(self._initial_drafts)
+                and self.final_check_enabled,
+                "final_check_pending_without_revision": self._final_check_ready
+                and not self.final_check_revision_attempts,
+                "final_check_revision_attempts": self.final_check_revision_attempts,
+                "final_check_revisions": len(self.final_check_receipts),
+                "final_check_changed": sum(
+                    receipt["changed"] for receipt in self.final_check_receipts
+                ),
+                "final_check_instruction_sha256": (
+                    hashlib.sha256(FINAL_CHECK_INSTRUCTION.encode()).hexdigest()
+                    if self.final_check_enabled
+                    else None
+                ),
+                "initial_draft_receipts": self._initial_drafts,
+                "final_check_receipts": self.final_check_receipts,
             }
         )
         return metrics
