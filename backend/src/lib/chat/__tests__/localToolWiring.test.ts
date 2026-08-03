@@ -312,6 +312,7 @@ describe("local assistant tool wiring", () => {
     ["mike-grep-v1", "p0-pure-coding", false],
     ["mike-legal-v1", "h4-legal-grep", true],
     ["mike-legal-guided-v1", "h4-legal-grep", true],
+    ["mike-structure-paths-v1", "s1-structure-paths", false],
   ])("keeps the %s arm to Mike plus Grep and Read", async (shape, experiment, legal) => {
     process.env.MIKE_TOOL_SHAPE = shape;
     process.env.MIKE_RETRIEVAL_EXPERIMENT = experiment;
@@ -341,8 +342,30 @@ describe("local assistant tool wiring", () => {
     expect(properties("Grep").includes("pages")).toBe(legal);
     expect(properties("Read").includes("section")).toBe(legal);
     expect(properties("Read").includes("pages")).toBe(legal);
+    expect(properties("Read").includes("start_char")).toBe(!legal);
     expect(tools.ORIGIN_MIKE_TOOL_SHAPE).toBe(true);
     expect(tools.CODING_TOOL_SHAPE).toBe(true);
+  });
+
+  it("keeps structure paths inside ordinary Grep and Read schemas", async () => {
+    process.env.MIKE_TOOL_SHAPE = "mike-structure-paths-v1";
+    process.env.MIKE_RETRIEVAL_EXPERIMENT = "s1-structure-paths";
+    process.env.MIKE_PROGRESSIVE_DISCLOSURE = "0";
+    process.env.MIKE_DISABLE_RESEARCH_TOOLS = "1";
+    process.env.MIKE_DISABLE_ASK_INPUTS = "1";
+    const tools = await loadTools();
+    const surface = await import("../upstreamMikeBenchmarkSurface");
+    const schemas = JSON.stringify(tools.LOCAL_ASSISTANT_TOOLS);
+
+    expect(schemas).toContain(".mike/structure/");
+    expect(schemas).not.toContain('"section"');
+    expect(schemas).not.toContain('"pages"');
+    expect(surface.MIKE_STRUCTURE_PATHS_LAB_SYSTEM_PROMPT).toContain(
+      "never invent one",
+    );
+    expect(surface.MIKE_STRUCTURE_PATHS_LAB_SYSTEM_PROMPT).not.toMatch(
+      /change.of.control|transfer.pric|indenture/iu,
+    );
   });
 
   it("changes only guidance between the two legal Mike candidates", async () => {

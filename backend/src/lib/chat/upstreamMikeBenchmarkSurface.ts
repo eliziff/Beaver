@@ -281,6 +281,8 @@ export const MIKE_GREP_DELTAS = {
     "sized-inventory-global-grep-bounded-read-legal-scopes-dedup-terminal-v1",
   "mike-legal-guided-v1":
     "sized-inventory-global-grep-bounded-read-legal-scopes-guidance-dedup-terminal-v1",
+  "mike-structure-paths-v1":
+    "sized-inventory-global-grep-immutable-structure-paths-bounded-read-dedup-terminal-v1",
 } as const;
 
 const MIKE_INVENTORY_TOOL: OpenAIToolSchema = {
@@ -301,7 +303,10 @@ const MIKE_COMPLETE_READ_TOOL: OpenAIToolSchema = {
   },
 };
 
-function mikeGrepTool(legalScopes: boolean): OpenAIToolSchema {
+function mikeGrepTool(
+  legalScopes: boolean,
+  structurePaths = false,
+): OpenAIToolSchema {
   return {
     type: "function",
     function: {
@@ -310,6 +315,8 @@ function mikeGrepTool(legalScopes: boolean): OpenAIToolSchema {
         "Search project-document contents with a regular expression across every document by default, or filter by filename or glob. Returns matching lines with bounded context." +
         (legalScopes
           ? " Optional section and page scopes bound long legal documents; ordinary unscoped Grep remains available."
+          : structurePaths
+            ? " Matches in verified legal units use immutable .mike/structure/... paths that can be passed unchanged to Read or Grep."
           : ""),
       parameters: {
         type: "object",
@@ -376,7 +383,10 @@ function mikeGrepTool(legalScopes: boolean): OpenAIToolSchema {
   };
 }
 
-function mikeReadTool(legalScopes: boolean): OpenAIToolSchema {
+function mikeReadTool(
+  legalScopes: boolean,
+  structurePaths = false,
+): OpenAIToolSchema {
   return {
     type: "function",
     function: {
@@ -385,6 +395,8 @@ function mikeReadTool(legalScopes: boolean): OpenAIToolSchema {
         "Read a project document in cat -n format. Reads up to 2000 lines by default; pass offset and limit for a bounded line window." +
         (legalScopes
           ? " A verified section handle or exact page scope can select a legal unit instead."
+          : structurePaths
+            ? " A .mike/structure/... path copied from Grep reads that exact immutable source unit."
           : ""),
       parameters: {
         type: "object",
@@ -404,6 +416,16 @@ function mikeReadTool(legalScopes: boolean): OpenAIToolSchema {
             minimum: 1,
             description: "Optional number of lines to read.",
           },
+          ...(!legalScopes
+            ? {
+                start_char: {
+                  type: "number",
+                  minimum: 0,
+                  description:
+                    "Optional character offset into the first selected line. Use only for an exact long-line continuation recipe returned by Read or Grep.",
+                },
+              }
+            : {}),
           ...(legalScopes
             ? {
                 section: {
@@ -425,20 +447,24 @@ function mikeReadTool(legalScopes: boolean): OpenAIToolSchema {
   };
 }
 
-function mikeGrepTools(legalScopes: boolean): OpenAIToolSchema[] {
+function mikeGrepTools(
+  legalScopes: boolean,
+  structurePaths = false,
+): OpenAIToolSchema[] {
   return [
     MIKE_COMPLETE_READ_TOOL,
     byName.get("find_in_document")!,
     MIKE_INVENTORY_TOOL,
     byName.get("fetch_documents")!,
-    mikeGrepTool(legalScopes),
-    mikeReadTool(legalScopes),
+    mikeGrepTool(legalScopes, structurePaths),
+    mikeReadTool(legalScopes, structurePaths),
     ADAPTIVE_MIKE_GENERATE_DOCX_TOOL,
   ];
 }
 
 export const MIKE_GREP_LAB_TOOLS = mikeGrepTools(false);
 export const MIKE_LEGAL_LAB_TOOLS = mikeGrepTools(true);
+export const MIKE_STRUCTURE_PATHS_LAB_TOOLS = mikeGrepTools(false, true);
 
 export const UPSTREAM_MIKE_RETRIEVAL_PROMPT = `PROJECT RETRIEVAL (pinned upstream Mike):
 - Use at most 10 tool-use rounds per response. Batch independent tool calls and leave room for the final answer.
@@ -497,3 +523,8 @@ export const MIKE_LEGAL_GUIDED_LAB_SYSTEM_PROMPT = `${MIKE_GREP_LAB_SYSTEM_PROMP
 
 SCOPED READING GUIDANCE:
 - Use a section scope when Grep supplies an exact structural handle and the needed evidence is concentrated in that provision. Use a page scope when the source or request makes pagination the meaningful locator. Use ordinary cross-document Grep and bounded line reads for wording distributed across sources. Keep a primary draft or precedent whole when its overall structure matters, and scope supporting sources when only localized evidence is needed. Never guess a section handle or page scheme.`;
+
+export const MIKE_STRUCTURE_PATHS_LAB_SYSTEM_PROMPT = `${MIKE_GREP_LAB_SYSTEM_PROMPT}
+
+STRUCTURED SOURCE PATHS:
+- When Grep returns a .mike/structure/... path, it is a verified immutable view of one exact source unit. Use it like any other file path in Read or Grep when the whole unit is useful; never invent one.`;

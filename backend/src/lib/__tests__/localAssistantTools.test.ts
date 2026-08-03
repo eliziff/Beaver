@@ -1391,7 +1391,7 @@ describe("local assistant tools", () => {
     expect(bakedSkeleton).not.toHaveBeenCalled();
     expect(JSON.parse(rejected.content)).toEqual({
       ok: false,
-      error: "Read accepts only file_path, offset, and limit",
+      error: "Read accepts only file_path, offset, limit, and start_char",
     });
     expect(read.evidenceSpans?.length).toBeGreaterThan(0);
   });
@@ -1446,6 +1446,270 @@ describe("local assistant tools", () => {
         ?.map(([start, end]) => extracted!.text.slice(start, end))
         .filter(Boolean),
     ).toEqual(["Treasurer", "$25,000", "$100,000"]);
+  });
+
+  it("exposes verified legal units as immutable Grep and Read paths", async () => {
+    process.env.MIKE_NAV_SHAPE = "legacy";
+    process.env.MIKE_TOOL_SHAPE = "mike-structure-paths-v1";
+    process.env.MIKE_RETRIEVAL_EXPERIMENT = "s1-structure-paths";
+    temporaryDirectory = await mkdtemp(
+      path.join(os.tmpdir(), "beaver-structure-paths-"),
+    );
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    vi.resetModules();
+
+    const store = await import("../localDocumentStore");
+    const document = await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "schedule.docx",
+      bytes: await nativeTableBytes(),
+    });
+    const tools = await import("../chat/localAssistantTools");
+    const state: import("../chat/localAssistantTools").LocalAssistantWorkingSetTurnState =
+      new Map();
+    const run = (calls: Parameters<typeof tools.runLocalAssistantTools>[1]) =>
+      tools.runLocalAssistantTools(
+        "local-user",
+        calls,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        state,
+      );
+
+    const [unmounted] = await tools.runLocalAssistantTools("local-user", [
+      {
+        id: "unmounted-structure-grep",
+        name: "Grep",
+        input: {
+          pattern: "Treasurer",
+          path: "schedule.docx",
+          output_mode: "content",
+        },
+      },
+    ]);
+    expect(unmounted.content).toContain("schedule.docx");
+    expect(unmounted.content).not.toContain(".mike/structure/");
+    expect(unmounted.content).not.toContain("table:1/row:4");
+
+    const [grep, repeated] = await run([
+      {
+        id: "structure-grep",
+        name: "Grep",
+        input: {
+          pattern: "Treasurer",
+          path: "schedule.docx",
+          output_mode: "content",
+        },
+      },
+      {
+        id: "repeated-structure-grep",
+        name: "Grep",
+        input: {
+          pattern: "Treasurer",
+          path: "schedule.docx",
+          output_mode: "content",
+        },
+      },
+    ]);
+    const structurePath = grep.content.match(
+      /\.mike\/structure\/[^:\r\n]+\.txt/u,
+    )?.[0];
+    expect(structurePath).toBeTruthy();
+    expect(repeated.content).toContain(structurePath);
+    expect(grep.content).toContain("source=schedule.docx");
+    expect(grep.content).toContain("table:1/row:4");
+    expect(grep.evidenceSegments).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          documentId: document.id,
+          virtualPath: structurePath,
+          locator: "table:1/row:4",
+          projection: "legal-unit",
+          kind: "candidate",
+        }),
+      ]),
+    );
+    expect(state.get(structurePath!)?.segments).toHaveLength(1);
+    expect(state.size).toBe(1);
+
+    const [
+      read,
+      bounded,
+      searched,
+      missingRead,
+      missingGrep,
+      hiddenReadScope,
+      hiddenGrepScope,
+    ] = await run([
+      {
+        id: "structure-read",
+        name: "Read",
+        input: { file_path: structurePath },
+      },
+      {
+        id: "bounded-structure-read",
+        name: "Read",
+        input: { file_path: structurePath, offset: 1, limit: 1 },
+      },
+      {
+        id: "structure-search",
+        name: "Grep",
+        input: {
+          pattern: "100,000",
+          path: structurePath,
+          output_mode: "content",
+        },
+      },
+      {
+        id: "missing-structure-read",
+        name: "Read",
+        input: { file_path: ".mike/structure/invented.txt" },
+      },
+      {
+        id: "missing-structure-grep",
+        name: "Grep",
+        input: {
+          pattern: "anything",
+          path: ".mike/structure/invented.txt",
+          output_mode: "content",
+        },
+      },
+      {
+        id: "hidden-structure-read-scope",
+        name: "Read",
+        input: { file_path: "schedule.docx", section: "table:1/row:4" },
+      },
+      {
+        id: "hidden-structure-grep-scope",
+        name: "Grep",
+        input: {
+          pattern: "Treasurer",
+          path: "schedule.docx",
+          section: "table:1/row:4",
+        },
+      },
+      ]);
+    expect(read.content).toContain("Treasurer");
+    expect(read.content).toContain("$25,000");
+    expect(read.content).toContain("$100,000");
+    expect(read.evidenceSegments).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          documentId: document.id,
+          virtualPath: structurePath,
+          locator: "table:1/row:4",
+          projection: "legal-unit",
+          kind: "evidence",
+        }),
+      ]),
+    );
+    const firstUnitLine = state.get(structurePath!)!.text.split(/\r?\n/u)[0];
+    expect(bounded.evidenceSegments).toEqual([
+      expect.objectContaining({
+        start: state.get(structurePath!)!.segments[0].sourceStart,
+        end:
+          state.get(structurePath!)!.segments[0].sourceStart +
+          firstUnitLine.length,
+      }),
+    ]);
+    expect(searched.content).toContain(structurePath);
+    expect(searched.content).toContain("100,000");
+    expect(missingRead.status).toBe("not_found");
+    expect(missingGrep.status).toBe("not_found");
+    expect(missingRead.content).toContain("never invent or alter one");
+    expect(JSON.parse(hiddenReadScope.content)).toMatchObject({ ok: false });
+    expect(JSON.parse(hiddenGrepScope.content)).toMatchObject({ ok: false });
+  });
+
+  it("falls back to an exact verified PDF page structure path", async () => {
+    process.env.MIKE_NAV_SHAPE = "legacy";
+    process.env.MIKE_TOOL_SHAPE = "mike-structure-paths-v1";
+    process.env.MIKE_RETRIEVAL_EXPERIMENT = "s1-structure-paths";
+    temporaryDirectory = await mkdtemp(
+      path.join(os.tmpdir(), "beaver-structure-page-"),
+    );
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+
+    const store = await import("../localDocumentStore");
+    const document = await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "source.pdf",
+      bytes: Buffer.from("%PDF-1.4\n% test fixture"),
+    });
+    const text = "[page 1]\nUnstructured target evidence on this page.\n";
+    vi.doMock("../localPdfLookup", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("../localPdfLookup")>()),
+      readLocalPdfSourceDoc: vi.fn(async () => ({
+        text,
+        blocks: [
+          {
+            kind: "page" as const,
+            label: "page1",
+            start: 0,
+            end: text.length,
+            origin: "native" as const,
+            anchor: "page=1",
+            aliases: ["1"],
+          },
+        ],
+      })),
+    }));
+    vi.resetModules();
+
+    const tools = await import("../chat/localAssistantTools");
+    const state: import("../chat/localAssistantTools").LocalAssistantWorkingSetTurnState =
+      new Map();
+    const [grep] = await tools.runLocalAssistantTools(
+      "local-user",
+      [
+        {
+          id: "page-structure-grep",
+          name: "Grep",
+          input: {
+            pattern: "target evidence",
+            path: "source.pdf",
+            output_mode: "content",
+          },
+        },
+      ],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      state,
+    );
+    const structurePath = grep.content.match(
+      /\.mike\/structure\/[^:\r\n]+\.txt/u,
+    )?.[0];
+    expect(structurePath).toBeTruthy();
+    expect(grep.content).toContain("PDF page 1");
+    expect(grep.evidenceSegments).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          documentId: document.id,
+          locator: "pdf:1",
+          projection: "pdf-page",
+          virtualPath: structurePath,
+        }),
+      ]),
+    );
+    expect(state.get(structurePath!)?.text).toBe(text);
   });
 
   it("keeps H2 as one deferred bounded DocumentMap", async () => {
