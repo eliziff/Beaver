@@ -172,6 +172,13 @@ class OpenAIAdapter(ModelAdapter):
     def make_user_message(self, content: str) -> dict:
         return {"role": "user", "content": content}
 
+    def make_followup_user_message(self, content: str) -> dict:
+        """Append a later user turn to the stateful Responses API context."""
+        self._context.append(
+            {"type": "message", "role": "user", "content": content}
+        )
+        return self.make_user_message(content)
+
     def _translate_tool(self, tool: dict) -> dict:
         """Translate canonical tool definition to Responses API format."""
         return {

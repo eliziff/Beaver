@@ -147,6 +147,14 @@ def run_agent(
             after_batch = getattr(tool_executor, "after_tool_batch", None)
             if callable(after_batch):
                 after_batch()
+            followup = getattr(tool_executor, "pop_followup_message", None)
+            if callable(followup):
+                followup_message = followup()
+                if followup_message:
+                    make_followup = getattr(
+                        adapter, "make_followup_user_message", adapter.make_user_message
+                    )
+                    messages.append(make_followup(followup_message))
             if getattr(tool_executor, "terminal", False):
                 terminal_completion = True
                 break
