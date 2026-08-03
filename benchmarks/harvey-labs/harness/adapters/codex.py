@@ -18,6 +18,7 @@ import time
 import urllib.request
 from pathlib import Path
 
+import httpx
 import openai
 
 from harness.adapters.openai import OpenAIAdapter
@@ -124,21 +125,30 @@ class _CodexResponses:
             api_key=access_token,
             default_headers={"ChatGPT-Account-ID": account_id} if account_id else None,
         )
-        stream = client.responses.create(stream=True, **kwargs)
-        # The backend's response.completed carries an empty `output`; the
-        # real items arrive one at a time via response.output_item.done.
-        items = []
-        for event in stream:
-            if event.type == "response.output_item.done":
-                items.append(event.item)
-            elif event.type == "response.completed":
-                response = event.response
-                if not response.output:
-                    response = response.model_copy(update={"output": items})
-                return response
-            elif event.type in ("response.failed", "error"):
-                raise RuntimeError(f"codex backend stream error: {event}")
-        raise RuntimeError("codex backend stream ended without response.completed")
+        for attempt in range(2):
+            try:
+                stream = client.responses.create(stream=True, **kwargs)
+                # The backend's response.completed carries an empty `output`;
+                # the real items arrive via response.output_item.done.
+                items = []
+                for event in stream:
+                    if event.type == "response.output_item.done":
+                        items.append(event.item)
+                    elif event.type == "response.completed":
+                        response = event.response
+                        if not response.output:
+                            response = response.model_copy(update={"output": items})
+                        return response
+                    elif event.type in ("response.failed", "error"):
+                        raise RuntimeError(f"codex backend stream error: {event}")
+                raise RuntimeError(
+                    "codex backend stream ended without response.completed"
+                )
+            except (httpx.TransportError, openai.APIConnectionError):
+                if attempt:
+                    raise
+                time.sleep(1)
+        raise AssertionError("unreachable")
 
 
 class CodexClient:
