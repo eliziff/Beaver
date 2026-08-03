@@ -308,6 +308,70 @@ describe("local assistant tool wiring", () => {
     );
   });
 
+  it("changes only upstream authoring to compact Markdown", async () => {
+    process.env.MIKE_TOOL_SHAPE = "mike-compact-author-v1";
+    process.env.MIKE_PROGRESSIVE_DISCLOSURE = "0";
+    process.env.MIKE_DISABLE_RESEARCH_TOOLS = "1";
+    process.env.MIKE_DISABLE_ASK_INPUTS = "1";
+    const tools = await loadTools();
+    const surface = await import("../upstreamMikeBenchmarkSurface");
+
+    expect(names(tools.LOCAL_ASSISTANT_TOOLS)).toEqual([
+      "read_document",
+      "find_in_document",
+      "list_documents",
+      "fetch_documents",
+      "generate_docx",
+    ]);
+    expect(
+      JSON.stringify(tools.LOCAL_ASSISTANT_TOOLS.slice(0, 4)),
+    ).toBe(JSON.stringify(surface.UPSTREAM_MIKE_RETRIEVAL_TOOLS));
+    const generate = tools.LOCAL_ASSISTANT_TOOLS.at(-1)!;
+    expect(generate.function.parameters.required).toEqual([
+      "title",
+      "markdown",
+    ]);
+    expect(generate.function.parameters.properties).toHaveProperty("markdown");
+    expect(generate.function.parameters.properties).not.toHaveProperty("sections");
+    expect(surface.COMPACT_AUTHOR_MIKE_LAB_SYSTEM_PROMPT).not.toMatch(
+      /pageBreak|sections/iu,
+    );
+  });
+
+  it("keeps lean and hard-reference model surfaces byte-identical", async () => {
+    process.env.MIKE_TOOL_SHAPE = "lean-batch-v1";
+    process.env.MIKE_RETRIEVAL_EXPERIMENT = "p0-pure-coding";
+    process.env.MIKE_PROGRESSIVE_DISCLOSURE = "0";
+    process.env.MIKE_DISABLE_RESEARCH_TOOLS = "1";
+    process.env.MIKE_DISABLE_ASK_INPUTS = "1";
+    const lean = await loadTools();
+    const leanSchema = JSON.stringify(lean.LOCAL_ASSISTANT_TOOLS);
+
+    process.env.MIKE_TOOL_SHAPE = "lean-batch-hardrefs-v1";
+    const hardrefs = await loadTools();
+    const surface = await import("../upstreamMikeBenchmarkSurface");
+
+    expect(names(lean.LOCAL_ASSISTANT_TOOLS)).toEqual([
+      "list_documents",
+      "Grep",
+      "Read",
+      "generate_docx",
+    ]);
+    expect(JSON.stringify(hardrefs.LOCAL_ASSISTANT_TOOLS)).toBe(leanSchema);
+    expect(JSON.stringify(surface.LEAN_BATCH_LAB_TOOLS)).toBe(leanSchema);
+    const schemas = JSON.stringify(lean.LOCAL_ASSISTANT_TOOLS);
+    expect(schemas).not.toMatch(/\.mike\/structure|"section"|"pages"/u);
+    const read = lean.LOCAL_ASSISTANT_TOOLS.find(
+      (entry) => entry.function.name === "Read",
+    )!;
+    expect(read.function.parameters.required).toEqual(["paths"]);
+    expect(read.function.parameters.properties).toHaveProperty("offset");
+    expect(read.function.parameters.properties).toHaveProperty("limit");
+    expect(surface.LEAN_BATCH_LAB_SYSTEM_PROMPT).not.toMatch(
+      /change.of.control|transfer.pric|indenture/iu,
+    );
+  });
+
   it.each([
     ["mike-grep-v1", "p0-pure-coding", false],
     ["mike-legal-v1", "h4-legal-grep", true],

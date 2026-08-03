@@ -45,7 +45,14 @@ import path from "node:path";
 import { ALLOWED_DOCUMENT_TYPES } from "../src/lib/documentTypes";
 import {
   ADAPTIVE_MIKE_DELTA,
+  COMPACT_AUTHOR_MIKE_DELTA,
+  COMPACT_AUTHOR_MIKE_LAB_SYSTEM_PROMPT,
+  COMPACT_AUTHOR_MIKE_LAB_TOOLS,
   GROUNDED_STRUCTURE_LAB_SYSTEM_PROMPT,
+  LEAN_BATCH_DELTA,
+  LEAN_BATCH_HARDREFS_DELTA,
+  LEAN_BATCH_LAB_SYSTEM_PROMPT,
+  LEAN_BATCH_LAB_TOOLS,
   MIKE_GREP_LAB_SYSTEM_PROMPT,
   MIKE_GREP_LAB_TOOLS,
   MIKE_GREP_DELTAS,
@@ -164,6 +171,29 @@ const toolResults = (events: SseEvent[]) =>
       reviewed_union_reuse_source_chars: Number(
         event.reviewed_union_reuse_source_chars ?? 0,
       ),
+      retrieval_hints: Array.isArray(event.retrieval_hints)
+        ? event.retrieval_hints.flatMap((raw) => {
+            if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
+            const hint = raw as Record<string, unknown>;
+            const offset = Number(hint.offset);
+            const limit = Number(hint.limit);
+            return hint.kind === "literal_reference" &&
+              typeof hint.label === "string" &&
+              typeof hint.path === "string" &&
+              Number.isInteger(offset) &&
+              Number.isInteger(limit)
+              ? [
+                  {
+                    kind: "literal_reference" as const,
+                    label: hint.label,
+                    path: hint.path,
+                    offset,
+                    limit,
+                  },
+                ]
+              : [];
+          })
+        : [],
       projection:
         typeof event.projection === "string" ? event.projection : null,
       evidence_spans: Array.isArray(event.evidence_spans)
@@ -552,6 +582,57 @@ async function main() {
       MIKE_PROGRESSIVE_DISCLOSURE: "0",
       MIKE_TERMINAL_AUTHORING: "1",
     },
+    mike_compact_author_v1: {
+      MIKE_NAV_SHAPE: "legacy",
+      MIKE_TOOL_SHAPE: "mike-compact-author-v1",
+      MIKE_RETRIEVAL_EXPERIMENT: "",
+      MIKE_PROGRESSIVE_DISCLOSURE: "0",
+      MIKE_MODEL_COVERAGE_ROUTING: "0",
+      MIKE_WHOLE_READ_MAX_CHARS: "",
+      MIKE_TOOL_RESULT_CAP: "64000",
+      MIKE_SUPPRESS_DUPLICATE_WHOLE_READS: "1",
+      MIKE_TERMINAL_AUTHORING: "1",
+      MIKE_CONTEXT_HANDOFF: "0",
+      MIKE_RESEARCH_CONTEXT_REFRESH: "0",
+      MIKE_CONTINUOUS_EVIDENCE: "0",
+      MIKE_OPENAI_COMPACT_THRESHOLD: "",
+      MIKE_SLA_WORKFLOW: "0",
+      MIKE_GREENFIELD_REVIEW: "0",
+    },
+    lean_batch_v1: {
+      MIKE_NAV_SHAPE: "legacy",
+      MIKE_TOOL_SHAPE: "lean-batch-v1",
+      MIKE_RETRIEVAL_EXPERIMENT: "p0-pure-coding",
+      MIKE_PROGRESSIVE_DISCLOSURE: "0",
+      MIKE_MODEL_COVERAGE_ROUTING: "0",
+      MIKE_WHOLE_READ_MAX_CHARS: "",
+      MIKE_TOOL_RESULT_CAP: "64000",
+      MIKE_SUPPRESS_DUPLICATE_WHOLE_READS: "0",
+      MIKE_TERMINAL_AUTHORING: "1",
+      MIKE_CONTEXT_HANDOFF: "0",
+      MIKE_RESEARCH_CONTEXT_REFRESH: "0",
+      MIKE_CONTINUOUS_EVIDENCE: "0",
+      MIKE_OPENAI_COMPACT_THRESHOLD: "",
+      MIKE_SLA_WORKFLOW: "0",
+      MIKE_GREENFIELD_REVIEW: "0",
+    },
+    lean_batch_hardrefs_v1: {
+      MIKE_NAV_SHAPE: "legacy",
+      MIKE_TOOL_SHAPE: "lean-batch-hardrefs-v1",
+      MIKE_RETRIEVAL_EXPERIMENT: "p0-pure-coding",
+      MIKE_PROGRESSIVE_DISCLOSURE: "0",
+      MIKE_MODEL_COVERAGE_ROUTING: "0",
+      MIKE_WHOLE_READ_MAX_CHARS: "",
+      MIKE_TOOL_RESULT_CAP: "64000",
+      MIKE_SUPPRESS_DUPLICATE_WHOLE_READS: "0",
+      MIKE_TERMINAL_AUTHORING: "1",
+      MIKE_CONTEXT_HANDOFF: "0",
+      MIKE_RESEARCH_CONTEXT_REFRESH: "0",
+      MIKE_CONTINUOUS_EVIDENCE: "0",
+      MIKE_OPENAI_COMPACT_THRESHOLD: "",
+      MIKE_SLA_WORKFLOW: "0",
+      MIKE_GREENFIELD_REVIEW: "0",
+    },
     adaptive_mike_v1: {
       MIKE_NAV_SHAPE: "legacy",
       MIKE_TOOL_SHAPE: "adaptive-mike-v1",
@@ -668,7 +749,7 @@ async function main() {
   };
   if (!armEnvironment[arm])
     throw new Error(
-      `unknown --arm ${arm}; expected p0, coding_finalist, d1, hybrid, hybrid_finalist, coverage_finalist, coverage_hybrid_v2, checkpoint_paged_v1, v13, v14, v15, coverage_soft_v2, working_set, compiler_hybrid, sla_hybrid, sla_working_set, h9, h10, address, upstream, upstream_terminal_v1, adaptive_mike_v1, mike_grep_v1, mike_legal_v1, mike_legal_guided_v1, mike_structure_paths_v1, grounded_structure_v1, or v5_reconstruction_v1`,
+      `unknown --arm ${arm}; expected a registered LAB arm, including upstream_terminal_v1, mike_compact_author_v1, lean_batch_v1, or lean_batch_hardrefs_v1`,
     );
 
   // Re-spawn into the isolated anonymous-mode environment (same recipe as
@@ -769,6 +850,7 @@ async function main() {
     "src/lib/chat/upstreamMikeBenchmarkSurface.ts",
     "src/lib/chat/prompts.ts",
     "src/lib/chat/slaWorkflow.ts",
+    "src/lib/legalCrossReference.ts",
     "src/lib/legalDocumentNavigator.ts",
     "src/lib/legalStructureSidecar.ts",
     "src/lib/legalTextSkeleton.ts",
@@ -872,6 +954,16 @@ async function main() {
           systemPrompt: UPSTREAM_MIKE_LAB_SYSTEM_PROMPT,
           tools: UPSTREAM_MIKE_LAB_TOOLS,
         }
+      : arm === "mike_compact_author_v1"
+        ? {
+            systemPrompt: COMPACT_AUTHOR_MIKE_LAB_SYSTEM_PROMPT,
+            tools: COMPACT_AUTHOR_MIKE_LAB_TOOLS,
+          }
+        : ["lean_batch_v1", "lean_batch_hardrefs_v1"].includes(arm)
+          ? {
+              systemPrompt: LEAN_BATCH_LAB_SYSTEM_PROMPT,
+              tools: LEAN_BATCH_LAB_TOOLS,
+            }
       : arm === "mike_grep_v1"
         ? {
             systemPrompt: MIKE_GREP_LAB_SYSTEM_PROMPT,
@@ -1073,6 +1165,29 @@ async function main() {
   }
   const exposure = exposureMetrics(calls, results, sourceAliases);
   const surface = events.find((event) => event.type === "benchmark_surface") ?? null;
+  const hardReferenceHints = [
+    ...new Map(
+      results
+        .flatMap((result) => result.retrieval_hints)
+        .map((hint) => [
+          `${hint.path}:${hint.offset}:${hint.limit}`,
+          hint,
+        ] as const),
+    ).values(),
+  ];
+  const followedHardReferenceHints = hardReferenceHints.filter((hint) =>
+    calls.some((call) => {
+      if (call.name !== "Read") return false;
+      const input = (call.input ?? {}) as Record<string, unknown>;
+      const paths = Array.isArray(input.paths) ? input.paths : [];
+      return (
+        paths.length === 1 &&
+        paths[0] === hint.path &&
+        Number(input.offset) === hint.offset &&
+        Number(input.limit) === hint.limit
+      );
+    }),
+  );
   const evidenceHandoffs = events.filter(
     (event) => event.type === "evidence_handoff",
   );
@@ -1204,6 +1319,94 @@ async function main() {
     ) {
       throw new Error(
         `adaptive Mike isolation failed: resident=${residentTools.join(",")}; deferred=${deferredTools.join(",")}; handoff=${String(surface?.context_handoff)}; terminal=${String(surface?.terminal_authoring)}`,
+      );
+    }
+  }
+  if (arm === "mike_compact_author_v1") {
+    const residentTools = Array.isArray(surface?.resident_tools)
+      ? surface.resident_tools
+      : [];
+    const deferredTools = Array.isArray(surface?.deferred_tools)
+      ? surface.deferred_tools
+      : [];
+    const expectedTools = [
+      "read_document",
+      "find_in_document",
+      "list_documents",
+      "fetch_documents",
+      "generate_docx",
+    ];
+    if (
+      surface?.compact_author_mike_shape !== true ||
+      surface?.upstream_mike_shape !== false ||
+      surface?.adaptive_mike_shape !== false ||
+      surface?.coding_shape !== false ||
+      surface?.progressive_disclosure !== false ||
+      surface?.trajectory_mode !== "continuous" ||
+      surface?.context_handoff !== false ||
+      surface?.continuous_evidence !== false ||
+      surface?.sla_workflow !== false ||
+      surface?.greenfield_review !== false ||
+      surface?.model_coverage_routing !== false ||
+      Number(surface?.whole_read_max_chars ?? 0) !== 0 ||
+      Number(surface?.tool_result_max_chars ?? 0) !== 64_000 ||
+      surface?.suppress_duplicate_whole_reads !== true ||
+      surface?.terminal_authoring !== true ||
+      JSON.stringify(residentTools) !== JSON.stringify(expectedTools) ||
+      deferredTools.length > 0 ||
+      researchContextRefreshes.length > 0 ||
+      researchCheckpointRequests.length > 0 ||
+      researchCheckpoints.length > 0 ||
+      evidenceHandoffs.length > 0 ||
+      evidenceWorkingSetReceipts.length > 0 ||
+      contentResets.length > 0
+    ) {
+      throw new Error(
+        `compact-author isolation failed: resident=${residentTools.join(",")}; terminal=${String(surface?.terminal_authoring)}`,
+      );
+    }
+  }
+  if (["lean_batch_v1", "lean_batch_hardrefs_v1"].includes(arm)) {
+    const residentTools = Array.isArray(surface?.resident_tools)
+      ? surface.resident_tools
+      : [];
+    const deferredTools = Array.isArray(surface?.deferred_tools)
+      ? surface.deferred_tools
+      : [];
+    const expectedTools = ["list_documents", "Grep", "Read", "generate_docx"];
+    const hardrefs = arm === "lean_batch_hardrefs_v1";
+    if (
+      surface?.lean_batch_shape !== !hardrefs ||
+      surface?.lean_batch_hardrefs_shape !== hardrefs ||
+      surface?.hard_reference_hints !== hardrefs ||
+      surface?.compact_author_mike_shape !== false ||
+      surface?.upstream_mike_shape !== false ||
+      surface?.adaptive_mike_shape !== false ||
+      surface?.coding_shape !== true ||
+      surface?.retrieval_experiment !== "p0-pure-coding" ||
+      surface?.progressive_disclosure !== false ||
+      surface?.trajectory_mode !== "continuous" ||
+      surface?.context_handoff !== false ||
+      surface?.continuous_evidence !== false ||
+      surface?.sla_workflow !== false ||
+      surface?.greenfield_review !== false ||
+      surface?.model_coverage_routing !== false ||
+      Number(surface?.whole_read_max_chars ?? 0) !== 0 ||
+      Number(surface?.tool_result_max_chars ?? 0) !== 64_000 ||
+      surface?.suppress_duplicate_whole_reads !== false ||
+      surface?.terminal_authoring !== true ||
+      JSON.stringify(residentTools) !== JSON.stringify(expectedTools) ||
+      deferredTools.length > 0 ||
+      researchContextRefreshes.length > 0 ||
+      researchCheckpointRequests.length > 0 ||
+      researchCheckpoints.length > 0 ||
+      evidenceHandoffs.length > 0 ||
+      evidenceWorkingSetReceipts.length > 0 ||
+      contentResets.length > 0 ||
+      results.some((result) => result.already_read || result.already_exposed)
+    ) {
+      throw new Error(
+        `${arm} isolation failed: resident=${residentTools.join(",")}; hardrefs=${String(surface?.hard_reference_hints)}; duplicate_suppression=${String(surface?.suppress_duplicate_whole_reads)}`,
       );
     }
   }
@@ -1450,6 +1653,9 @@ async function main() {
     [
       "upstream",
       "upstream_terminal_v1",
+      "mike_compact_author_v1",
+      "lean_batch_v1",
+      "lean_batch_hardrefs_v1",
       "mike_grep_v1",
       "mike_structure_paths_v1",
       "grounded_structure_v1",
@@ -1770,6 +1976,9 @@ async function main() {
     "upstream",
     "upstream_terminal_v1",
     "adaptive_mike_v1",
+    "mike_compact_author_v1",
+    "lean_batch_v1",
+    "lean_batch_hardrefs_v1",
     ...mikeGrepArms,
   ];
   const defaultTierArms = [
@@ -1870,9 +2079,15 @@ async function main() {
     ...new Set(contextRounds.map((round) => String(round.toolSha256 ?? ""))),
   ].filter(Boolean);
   const mikeGrepDerived = mikeGrepArms.includes(arm);
+  const leanBatchDerived = [
+    "mike_compact_author_v1",
+    "lean_batch_v1",
+    "lean_batch_hardrefs_v1",
+  ].includes(arm);
   const upstreamDerived =
     ["upstream", "upstream_terminal_v1", "adaptive_mike_v1"].includes(arm) ||
-    mikeGrepDerived;
+    mikeGrepDerived ||
+    leanBatchDerived;
   const mikeGrepDelta = mikeGrepDerived
     ? MIKE_GREP_DELTAS[
         armEnvironment[arm]
@@ -1901,6 +2116,14 @@ async function main() {
       arm === "adaptive_mike_v1" ? ADAPTIVE_MIKE_DELTA : null,
     upstream_terminal_delta:
       arm === "upstream_terminal_v1" ? UPSTREAM_TERMINAL_DELTA : null,
+    compact_author_delta:
+      arm === "mike_compact_author_v1" ? COMPACT_AUTHOR_MIKE_DELTA : null,
+    lean_batch_delta:
+      ["lean_batch_v1", "lean_batch_hardrefs_v1"].includes(arm)
+        ? LEAN_BATCH_DELTA
+        : null,
+    lean_batch_hardrefs_delta:
+      arm === "lean_batch_hardrefs_v1" ? LEAN_BATCH_HARDREFS_DELTA : null,
     mike_grep_delta: mikeGrepDelta,
     strategy_reconstruction:
       arm === "v5_reconstruction_v1"
@@ -2149,6 +2372,10 @@ async function main() {
             ? "upstream-pinned"
             : arm === "adaptive_mike_v1"
               ? "adaptive-mike-v1"
+              : arm === "mike_compact_author_v1"
+                ? "upstream-retrieval-compact-author-v1"
+                : ["lean_batch_v1", "lean_batch_hardrefs_v1"].includes(arm)
+                  ? "lean-batch-v1"
               : mikeGrepDerived
                 ? armEnvironment[arm].MIKE_TOOL_SHAPE
                 : arm === "v5_reconstruction_v1"
@@ -2165,6 +2392,7 @@ async function main() {
         tool_result_max_chars: surface?.tool_result_max_chars ?? null,
         suppress_duplicate_whole_reads:
           surface?.suppress_duplicate_whole_reads ?? null,
+        hard_reference_hints: surface?.hard_reference_hints === true,
         trajectory_mode: surface?.trajectory_mode ?? null,
         context_handoff: surface?.context_handoff === true,
         full_handoff_prompt_variant:
@@ -2203,6 +2431,16 @@ async function main() {
             : null,
         upstream_terminal_delta:
           arm === "upstream_terminal_v1" ? UPSTREAM_TERMINAL_DELTA : null,
+        compact_author_delta:
+          arm === "mike_compact_author_v1" ? COMPACT_AUTHOR_MIKE_DELTA : null,
+        lean_batch_delta:
+          ["lean_batch_v1", "lean_batch_hardrefs_v1"].includes(arm)
+            ? LEAN_BATCH_DELTA
+            : null,
+        lean_batch_hardrefs_delta:
+          arm === "lean_batch_hardrefs_v1"
+            ? LEAN_BATCH_HARDREFS_DELTA
+            : null,
         adaptive_mike_delta:
           arm === "adaptive_mike_v1" ? ADAPTIVE_MIKE_DELTA : null,
         mike_grep_delta: mikeGrepDelta,
@@ -2226,6 +2464,12 @@ async function main() {
           arm === "upstream_terminal_v1" ? true : null,
         adaptive_mike_isolation_verified:
           arm === "adaptive_mike_v1" ? true : null,
+        compact_author_isolation_verified:
+          arm === "mike_compact_author_v1" ? true : null,
+        lean_batch_isolation_verified:
+          ["lean_batch_v1", "lean_batch_hardrefs_v1"].includes(arm)
+            ? true
+            : null,
         mike_grep_isolation_verified: mikeGrepDerived ? true : null,
         v5_strategy_isolation_verified:
           arm === "v5_reconstruction_v1" ? true : null,
@@ -2278,6 +2522,7 @@ async function main() {
         tool_result_max_chars: surface?.tool_result_max_chars ?? null,
         suppress_duplicate_whole_reads:
           surface?.suppress_duplicate_whole_reads ?? null,
+        hard_reference_hints: surface?.hard_reference_hints === true,
         trajectory_mode: surface?.trajectory_mode ?? null,
         continuous_evidence: surface?.continuous_evidence === true,
         working_set_page_max_chars:
@@ -2340,6 +2585,7 @@ async function main() {
               input.document_id,
               input.doc_id,
               ...(Array.isArray(input.doc_ids) ? input.doc_ids : []),
+              ...(Array.isArray(input.paths) ? input.paths : []),
             ].filter((value): value is string => typeof value === "string");
             return uploadedDocuments
               .filter((doc) =>
@@ -2373,6 +2619,12 @@ async function main() {
         ).length,
         zero_yield_tool_calls: results.filter((result) => result.zero_yield).length,
         tool_call_count: calls.length,
+        hard_reference_hints_offered: hardReferenceHints.length,
+        hard_reference_hints_followed: followedHardReferenceHints.length,
+        hard_reference_hint_follow_rate:
+          hardReferenceHints.length > 0
+            ? followedHardReferenceHints.length / hardReferenceHints.length
+            : null,
         tool_result_chars: results.reduce(
           (total, result) => total + result.content_chars,
           0,
@@ -2571,6 +2823,16 @@ async function main() {
             : null,
         upstream_terminal_delta:
           arm === "upstream_terminal_v1" ? UPSTREAM_TERMINAL_DELTA : null,
+        compact_author_delta:
+          arm === "mike_compact_author_v1" ? COMPACT_AUTHOR_MIKE_DELTA : null,
+        lean_batch_delta:
+          ["lean_batch_v1", "lean_batch_hardrefs_v1"].includes(arm)
+            ? LEAN_BATCH_DELTA
+            : null,
+        lean_batch_hardrefs_delta:
+          arm === "lean_batch_hardrefs_v1"
+            ? LEAN_BATCH_HARDREFS_DELTA
+            : null,
         adaptive_mike_delta:
           arm === "adaptive_mike_v1" ? ADAPTIVE_MIKE_DELTA : null,
         mike_grep_delta: mikeGrepDelta,

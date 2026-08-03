@@ -204,6 +204,46 @@ export const UPSTREAM_MIKE_LAB_TOOLS = [
   UPSTREAM_MIKE_GENERATE_DOCX_TOOL,
 ];
 
+export const COMPACT_AUTHOR_MIKE_DELTA =
+  "compact-markdown-terminal-v1";
+export const LEAN_BATCH_DELTA =
+  "inventory-grep-batch-read-compact-terminal-v1";
+export const LEAN_BATCH_HARDREFS_DELTA =
+  "inventory-grep-batch-read-literal-reference-hints-compact-terminal-v1";
+
+export const COMPACT_GENERATE_DOCX_TOOL: OpenAIToolSchema = {
+  type: "function",
+  function: {
+    name: "generate_docx",
+    description:
+      "Create the final Word document from Markdown. A successful call ends the turn.",
+    parameters: {
+      type: "object",
+      properties: {
+        title: {
+          type: "string",
+          description: "Document title and filename.",
+        },
+        markdown: {
+          type: "string",
+          description:
+            "Complete document in Markdown. Use headings, paragraphs, lists, tables, and a final signature block as appropriate.",
+        },
+        landscape: {
+          type: "boolean",
+          description: "True only when a wide table requires landscape pages.",
+        },
+      },
+      required: ["title", "markdown"],
+    },
+  },
+};
+
+export const COMPACT_AUTHOR_MIKE_LAB_TOOLS = [
+  ...UPSTREAM_MIKE_RETRIEVAL_TOOLS,
+  COMPACT_GENERATE_DOCX_TOOL,
+];
+
 /** Small, explicit delta from the frozen comparator. */
 export const ADAPTIVE_MIKE_DELTA =
   "inventory-bounded-read-terminal-generate-v1";
@@ -291,6 +331,15 @@ const MIKE_INVENTORY_TOOL: OpenAIToolSchema = {
     ...byName.get("list_documents")!.function,
     description:
       "List the project documents with IDs, filenames, file types, and exact extracted character, line, and page counts.",
+  },
+};
+
+const LEAN_BATCH_INVENTORY_TOOL: OpenAIToolSchema = {
+  ...MIKE_INVENTORY_TOOL,
+  function: {
+    ...MIKE_INVENTORY_TOOL.function,
+    description:
+      "List project documents with filenames, types, exact extracted sizes, and a short opening line for orientation.",
   },
 };
 
@@ -466,6 +515,45 @@ export const MIKE_GREP_LAB_TOOLS = mikeGrepTools(false);
 export const MIKE_LEGAL_LAB_TOOLS = mikeGrepTools(true);
 export const MIKE_STRUCTURE_PATHS_LAB_TOOLS = mikeGrepTools(false, true);
 
+export const LEAN_BATCH_READ_TOOL: OpenAIToolSchema = {
+  type: "function",
+  function: {
+    name: "Read",
+    description:
+      "Read one or more project documents. Without offset or limit, returns every requested document completely in one batch. A bounded read accepts exactly one path and returns numbered lines.",
+    parameters: {
+      type: "object",
+      properties: {
+        paths: {
+          type: "array",
+          items: { type: "string" },
+          minItems: 1,
+          description:
+            "Filenames from list_documents, or doc-N labels for duplicate filenames.",
+        },
+        offset: {
+          type: "integer",
+          minimum: 1,
+          description: "Optional first line for a one-document bounded read.",
+        },
+        limit: {
+          type: "integer",
+          minimum: 1,
+          description: "Optional number of lines for a one-document bounded read.",
+        },
+      },
+      required: ["paths"],
+    },
+  },
+};
+
+export const LEAN_BATCH_LAB_TOOLS = [
+  LEAN_BATCH_INVENTORY_TOOL,
+  mikeGrepTool(false),
+  LEAN_BATCH_READ_TOOL,
+  COMPACT_GENERATE_DOCX_TOOL,
+];
+
 export const UPSTREAM_MIKE_RETRIEVAL_PROMPT = `PROJECT RETRIEVAL (pinned upstream Mike):
 - Use at most 10 tool-use rounds per response. Batch independent tool calls and leave room for the final answer.
 - Read each relevant document/version at most once per response. After read_document or fetch_documents returns a document's full text, do not call either tool again for that same document/version in the same response; use the prior result, call find_in_document for targeted checks, or proceed to the next required tool.
@@ -502,6 +590,39 @@ DOCUMENT NAMES IN PROSE:
 GENERAL GUIDANCE:
 - Cite the exact document passage for evidence-backed claims.
 - Do not use emojis.`;
+
+const UPSTREAM_DOCX_PROMPT = `DOCX GENERATION:
+- If the user asks you to create or draft a document, call generate_docx and provide the downloadable Word document rather than only displaying text inline.
+- Use heading levels in order; do not skip from Heading 1 to Heading 3.
+- Numbering starts at 1, never 0. The generator applies legal numbering automatically. Do not type numbering prefixes into headings.
+- Do not repeat the document title as the first section heading.
+- Contract preambles, party blocks, recitals, and WHEREAS clauses are unnumbered. Begin numbering at the first operative clause or section.
+- Contracts and agreements must end with an unnumbered signature block on a fresh page. Set pageBreak: true on the final section and include signature lines such as By, Name, Title, and Date for each party.`;
+
+const COMPACT_DOCX_PROMPT = `DOCX GENERATION:
+- If the user asks for a document, call generate_docx with the complete final Markdown rather than only displaying it inline.
+- Use clear headings, paragraphs, lists, and tables as the work product requires. Include a complete signature block when the requested genre requires one.
+- Call generate_docx only after every requested deliverable is final. A successful call ends the turn.`;
+
+export const COMPACT_AUTHOR_MIKE_LAB_SYSTEM_PROMPT =
+  UPSTREAM_MIKE_LAB_SYSTEM_PROMPT.replace(
+    UPSTREAM_DOCX_PROMPT,
+    COMPACT_DOCX_PROMPT,
+  );
+
+export const LEAN_BATCH_LAB_SYSTEM_PROMPT = `You are an AI legal assistant for lawyers and legal professionals. Produce precise, professional work from the project documents without fabricating content.
+
+SOURCE WORK:
+- Start with list_documents. If the relevant source set fits comfortably, Read all of it completely in one batch.
+- For a large or many-document source set, use one or a few Grep searches to orient, then use coherent bounded Read windows for the evidence you need.
+- After a complete Read, do not search that text again unless you can name a specific missing fact. Before drafting, make one internal completeness check for requested issues, parties, dates, numbers, exceptions, and conflicts.
+- Refer to documents by filename or a natural description in prose, not by internal IDs.
+
+DOCUMENT CREATION:
+- If the user asks for a document, call generate_docx with the complete final Markdown rather than only displaying it inline.
+- Match the requested professional genre and include all requested deliverables. Call generate_docx only when the work is final; a successful call ends the turn.
+
+Do not use emojis.`;
 
 export const ADAPTIVE_MIKE_LAB_SYSTEM_PROMPT = `${UPSTREAM_MIKE_LAB_SYSTEM_PROMPT}
 
