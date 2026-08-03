@@ -86,6 +86,14 @@ export type NormalizedToolResult = {
     /** This exact span is projected from the already-durable mounted union. */
     durableUnionBacked?: boolean;
   }>;
+  /** Host-only deterministic navigation hints offered alongside search hits. */
+  retrievalHints?: Array<{
+    kind: "literal_reference";
+    label: string;
+    path: string;
+    offset: number;
+    limit: number;
+  }>;
   /** Host-only union accounting; never duplicated into provider context. */
   exposure?: {
     uniqueSourceChars: number;

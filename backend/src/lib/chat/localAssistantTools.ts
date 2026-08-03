@@ -110,6 +110,8 @@ import type {
 import { cachedParse } from "../parseCache";
 import {
   ADAPTIVE_MIKE_LAB_TOOLS,
+  COMPACT_AUTHOR_MIKE_LAB_TOOLS,
+  LEAN_BATCH_LAB_TOOLS,
   MIKE_GREP_LAB_TOOLS,
   MIKE_LEGAL_LAB_TOOLS,
   MIKE_STRUCTURE_PATHS_LAB_TOOLS,
@@ -865,6 +867,14 @@ export const MIKE_LEGAL_GUIDED_TOOL_SHAPE =
   process.env.MIKE_TOOL_SHAPE === "mike-legal-guided-v1";
 export const MIKE_STRUCTURE_PATHS_TOOL_SHAPE =
   process.env.MIKE_TOOL_SHAPE === "mike-structure-paths-v1";
+export const COMPACT_AUTHOR_MIKE_TOOL_SHAPE =
+  process.env.MIKE_TOOL_SHAPE === "mike-compact-author-v1";
+export const LEAN_BATCH_TOOL_SHAPE =
+  process.env.MIKE_TOOL_SHAPE === "lean-batch-v1";
+export const LEAN_BATCH_HARDREFS_TOOL_SHAPE =
+  process.env.MIKE_TOOL_SHAPE === "lean-batch-hardrefs-v1";
+export const LEAN_BATCH_FAMILY_TOOL_SHAPE =
+  LEAN_BATCH_TOOL_SHAPE || LEAN_BATCH_HARDREFS_TOOL_SHAPE;
 export const GROUNDING_FIRST_ENABLED =
   process.env.MIKE_GROUNDING_FIRST === "1";
 export const MIKE_GREP_FAMILY_TOOL_SHAPE =
@@ -874,7 +884,9 @@ export const MIKE_GREP_FAMILY_TOOL_SHAPE =
   MIKE_STRUCTURE_PATHS_TOOL_SHAPE;
 
 export const CODING_TOOL_SHAPE =
-  process.env.MIKE_TOOL_SHAPE === "coding" || MIKE_GREP_FAMILY_TOOL_SHAPE;
+  process.env.MIKE_TOOL_SHAPE === "coding" ||
+  MIKE_GREP_FAMILY_TOOL_SHAPE ||
+  LEAN_BATCH_FAMILY_TOOL_SHAPE;
 
 /**
  * LAB arm: let the model choose complete, targeted, or mixed source coverage
@@ -920,7 +932,12 @@ export const ADAPTIVE_MIKE_TOOL_SHAPE =
 export const ORIGIN_MIKE_TOOL_SHAPE =
   UPSTREAM_MIKE_TOOL_SHAPE ||
   ADAPTIVE_MIKE_TOOL_SHAPE ||
+  COMPACT_AUTHOR_MIKE_TOOL_SHAPE ||
+  LEAN_BATCH_FAMILY_TOOL_SHAPE ||
   MIKE_GREP_FAMILY_TOOL_SHAPE;
+
+const MIKE_FILE_TOOL_SHAPE =
+  MIKE_GREP_FAMILY_TOOL_SHAPE || LEAN_BATCH_FAMILY_TOOL_SHAPE;
 
 /** Keep tool disclosure independent from navigation vocabulary in A/B runs. */
 export const PROGRESSIVE_DISCLOSURE_ENABLED =
@@ -1889,18 +1906,24 @@ function forCodingVocabulary(tools: OpenAIToolSchema[]): OpenAIToolSchema[] {
   return tools.map((entry) => rewrite(entry) as OpenAIToolSchema);
 }
 
-const LOCAL_ASSISTANT_TOOL_CATALOG: OpenAIToolSchema[] = [
-  ...(ASK_INPUTS_DISABLED ? [] : LOCAL_ASK_INPUTS_TOOLS),
-  ...(ORIGIN_MIKE_TOOL_SHAPE
-    ? MIKE_GREP_FAMILY_TOOL_SHAPE
+const ORIGIN_MIKE_ACTIVE_TOOLS = LEAN_BATCH_FAMILY_TOOL_SHAPE
+  ? LEAN_BATCH_LAB_TOOLS
+  : COMPACT_AUTHOR_MIKE_TOOL_SHAPE
+    ? COMPACT_AUTHOR_MIKE_LAB_TOOLS
+    : MIKE_GREP_FAMILY_TOOL_SHAPE
       ? MIKE_GREP_TOOL_SHAPE
         ? MIKE_GREP_LAB_TOOLS
         : MIKE_STRUCTURE_PATHS_TOOL_SHAPE
           ? MIKE_STRUCTURE_PATHS_LAB_TOOLS
           : MIKE_LEGAL_LAB_TOOLS
       : ADAPTIVE_MIKE_TOOL_SHAPE
-      ? ADAPTIVE_MIKE_LAB_TOOLS
-      : UPSTREAM_MIKE_LAB_TOOLS
+        ? ADAPTIVE_MIKE_LAB_TOOLS
+        : UPSTREAM_MIKE_LAB_TOOLS;
+
+const LOCAL_ASSISTANT_TOOL_CATALOG: OpenAIToolSchema[] = [
+  ...(ASK_INPUTS_DISABLED ? [] : LOCAL_ASK_INPUTS_TOOLS),
+  ...(ORIGIN_MIKE_TOOL_SHAPE
+    ? ORIGIN_MIKE_ACTIVE_TOOLS
     : CODING_TOOL_SHAPE
     ? [
         ...CODING_SHAPE_TOOLS,
@@ -1935,7 +1958,7 @@ const LOCAL_ASSISTANT_TOOL_CATALOG: OpenAIToolSchema[] = [
       ]),
 ];
 
-export const LOCAL_ASSISTANT_TOOLS = MIKE_GREP_FAMILY_TOOL_SHAPE
+export const LOCAL_ASSISTANT_TOOLS = MIKE_FILE_TOOL_SHAPE
   ? LOCAL_ASSISTANT_TOOL_CATALOG
   : forCodingVocabulary(LOCAL_ASSISTANT_TOOL_CATALOG);
 
@@ -3222,7 +3245,7 @@ async function runCodingShapeCall(
     collection.documents.map((document) => [document.id, document]),
   );
   const files =
-    MIKE_GREP_FAMILY_TOOL_SHAPE && allowedDocumentIds
+    MIKE_FILE_TOOL_SHAPE && allowedDocumentIds
       ? [...allowedDocumentIds]
           .map((documentId) => storedById.get(documentId))
           .filter(
@@ -3234,7 +3257,7 @@ async function runCodingShapeCall(
             !allowedDocumentIds || allowedDocumentIds.has(document.id),
         );
   const mikeLabelById = new Map(
-    MIKE_GREP_FAMILY_TOOL_SHAPE
+    MIKE_FILE_TOOL_SHAPE
       ? files.map((document, index) => [document.id, `doc-${index}`] as const)
       : [],
   );
@@ -3244,17 +3267,17 @@ async function runCodingShapeCall(
     filenameCounts.set(key, (filenameCounts.get(key) ?? 0) + 1);
   }
   const codingPath = (document: (typeof files)[number]) =>
-    MIKE_GREP_FAMILY_TOOL_SHAPE &&
+    MIKE_FILE_TOOL_SHAPE &&
     (filenameCounts.get(document.filename.toLowerCase()) ?? 0) > 1
       ? mikeLabelById.get(document.id) ?? document.id
       : document.filename;
   const disambiguationHint = (requested: string, field: "file_path" | "path") =>
-    MIKE_GREP_FAMILY_TOOL_SHAPE
+    MIKE_FILE_TOOL_SHAPE
       ? `File path is ambiguous: ${requested}. Use list_documents, then pass the intended doc-N label as ${field}.`
       : `File path is ambiguous: ${requested}. Use Glob(pattern="${requested}"), then pass the intended document_id as ${field}.`;
   const resolvePath = (raw: string) => {
     const wanted = raw.replace(/^\.?[\\/]/u, "").trim().toLowerCase();
-    const mikeLabel = MIKE_GREP_FAMILY_TOOL_SHAPE
+    const mikeLabel = MIKE_FILE_TOOL_SHAPE
       ? files.find(
           (document) => mikeLabelById.get(document.id)?.toLowerCase() === wanted,
         )
@@ -4255,7 +4278,9 @@ async function runCodingShapeCall(
     (LEGAL_GREP_EXPERIMENT && args.output_mode === "sections") ||
     (WORKING_SET_EXPERIMENT && args.output_mode === "working_set")
       ? args.output_mode
-      : "files_with_matches";
+      : LEAN_BATCH_FAMILY_TOOL_SHAPE
+        ? "content"
+        : "files_with_matches";
   const headLimit = positiveInt(
     args.head_limit,
     1,
@@ -4269,6 +4294,15 @@ async function runCodingShapeCall(
   const sectionQueues: { rendered: string; hits: number }[][] = [];
   const workingSetCandidates: WorkingSetCandidate[] = [];
   const workingSetMaps: WorkingSetMapCandidate[] = [];
+  const hardReferenceHints: Array<{
+    kind: "literal_reference";
+    label: string;
+    path: string;
+    offset: number;
+    limit: number;
+    rendered: string;
+  }> = [];
+  const hardReferenceSeeds = new Set<string>();
   let truncated = false;
   for (const meta of targets) {
     const document = await extractLocalDocument(userId, meta.id);
@@ -4374,7 +4408,7 @@ async function runCodingShapeCall(
     let unitSkeleton: AgreementSkeleton | null = null;
     if (
       (mode === "content" || mode === "sections" || mode === "working_set") &&
-      !PURE_CODING_EXPERIMENT
+      (!PURE_CODING_EXPERIMENT || LEAN_BATCH_HARDREFS_TOOL_SHAPE)
     ) {
       const skeleton =
         scopedSkeleton ??
@@ -4515,6 +4549,7 @@ async function runCodingShapeCall(
       continue;
     }
     const matchedLines = new Set(matched);
+    let hardReferenceGraph: CrossReferenceGraph | null = null;
     let lastPrinted = -2;
     for (const at of matched) {
       if (rows.length >= headLimit) {
@@ -4536,6 +4571,58 @@ async function runCodingShapeCall(
         const section = isMatch
           ? sectionOf?.(i, starts[i] + matchColumn)
           : null;
+        if (
+          isMatch &&
+          LEAN_BATCH_HARDREFS_TOOL_SHAPE &&
+          section &&
+          unitSkeleton &&
+          hardReferenceHints.length < 3
+        ) {
+          const seedKey = `${meta.id}:${section.handle}`;
+          if (!hardReferenceSeeds.has(seedKey)) {
+            hardReferenceSeeds.add(seedKey);
+            hardReferenceGraph ??= await documentGraph(
+              document.text,
+              meta.id,
+              unitSkeleton,
+              { tableCells: document.tableCells },
+            );
+            const scope = oneHopLegalScope(
+              unitSkeleton,
+              hardReferenceGraph,
+              section.handle,
+              "outbound",
+            );
+            for (const target of scope?.nodes.slice(1) ?? []) {
+              const firstLine =
+                document.text.slice(0, target.start).split(/\r?\n/u).length;
+              const lineCount = Math.min(
+                2_000,
+                document.text
+                  .slice(target.start, target.end)
+                  .split(/\r?\n/u).length,
+              );
+              const rendered =
+                `[literal reference ${target.label}: ` +
+                `Read(paths=[${JSON.stringify(filePath)}], offset=${firstLine}, limit=${lineCount})]`;
+              if (
+                !hardReferenceHints.some(
+                  (candidate) => candidate.rendered === rendered,
+                )
+              ) {
+                hardReferenceHints.push({
+                  kind: "literal_reference",
+                  label: target.label,
+                  path: filePath,
+                  offset: firstLine,
+                  limit: lineCount,
+                  rendered,
+                });
+              }
+              if (hardReferenceHints.length >= 3) break;
+            }
+          }
+        }
         const candidateSection = handoffCandidate
           ? section ?? sectionOf?.(i)
           : null;
@@ -4664,7 +4751,9 @@ async function runCodingShapeCall(
                   `  [Read offset=${i + 1} limit=1]`,
                 ].find((candidate) => candidate.length <= 120)!;
               })()
-            : section && !STRUCTURE_PATH_EXPERIMENT
+            : section &&
+                !STRUCTURE_PATH_EXPERIMENT &&
+                !LEAN_BATCH_HARDREFS_TOOL_SHAPE
               ? `  [${section.handle}]`
               : "";
         rows.push({
@@ -4745,14 +4834,25 @@ async function runCodingShapeCall(
   if (!rows.length) return result(call, "No matches found");
   const limited = rows.slice(0, headLimit);
   const { kept, truncated: sizeTruncated } = takeCodingOutputLines(limited);
-  const body = kept.map((line) => line.rendered).join("\n");
-  return codingTextResult(
+  const body = [
+    kept.map((line) => line.rendered).join("\n"),
+    ...hardReferenceHints.map((hint) => hint.rendered),
+  ].join("\n");
+  const output = codingTextResult(
     call,
     truncated || rows.length > headLimit || sizeTruncated
       ? `${body}\n(Results truncated, showing first ${headLimit} lines. Narrow the pattern or pass head_limit.)`
       : body,
     kept,
   );
+  return hardReferenceHints.length
+    ? {
+        ...output,
+        retrievalHints: hardReferenceHints.map(({ rendered: _, ...hint }) =>
+          hint,
+        ),
+      }
+    : output;
 }
 
 function pdfLocatorParams(args: Record<string, unknown>) {
@@ -5643,6 +5743,7 @@ async function runUpstreamMikeRetrievalCall(params: {
   allowedDocumentIds?: Set<string>;
   readState?: LocalAssistantReadTurnState;
   wholeReadMaxChars?: number;
+  citationReminders?: boolean;
 }): Promise<NormalizedToolResult | null> {
   const {
     call,
@@ -5650,6 +5751,7 @@ async function runUpstreamMikeRetrievalCall(params: {
     allowedDocumentIds,
     readState,
     wholeReadMaxChars = 0,
+    citationReminders = true,
   } = params;
   if (
     ![
@@ -5789,7 +5891,11 @@ async function runUpstreamMikeRetrievalCall(params: {
   };
 
   if (call.name === "list_documents") {
-    if (!ADAPTIVE_MIKE_TOOL_SHAPE && !MIKE_GREP_FAMILY_TOOL_SHAPE) {
+    if (
+      !ADAPTIVE_MIKE_TOOL_SHAPE &&
+      !MIKE_GREP_FAMILY_TOOL_SHAPE &&
+      !LEAN_BATCH_FAMILY_TOOL_SHAPE
+    ) {
       return upstreamMikeResult(
         call,
         labelledDocuments.map(({ document, docLabel }) => ({
@@ -5799,22 +5905,43 @@ async function runUpstreamMikeRetrievalCall(params: {
         })),
       );
     }
-    const inventory = await Promise.all(
+    const inventoryRows = await Promise.all(
       labelledDocuments.map(async ({ document, docLabel }) => {
         const extracted = await extractLocalDocument(userId, document.id);
+        const opening =
+          LEAN_BATCH_FAMILY_TOOL_SHAPE && extracted
+            ? /[^\s].*/u.exec(extracted.text)
+            : null;
+        const openingLine = opening?.[0].slice(0, 160) ?? "";
         return {
-          doc_id: docLabel,
-          filename: document.filename,
-          file_type: document.file_type,
-          characters: extracted?.text.length ?? 0,
-          lines: extracted ? extracted.text.split(/\r?\n/u).length : 0,
-          pages: extracted?.pages.pages.length ?? 0,
+          document: {
+            doc_id: docLabel,
+            filename: document.filename,
+            file_type: document.file_type,
+            characters: extracted?.text.length ?? 0,
+            lines: extracted ? extracted.text.split(/\r?\n/u).length : 0,
+            pages: extracted?.pages.pages.length ?? 0,
+            ...(openingLine ? { opening_line: openingLine } : {}),
+          },
+          evidence:
+            openingLine && extracted
+              ? {
+                  documentId: document.id,
+                  versionId: extracted.versionId,
+                  filename: document.filename,
+                  locator: "opening line",
+                  projection: "canonical" as const,
+                  kind: "candidate" as const,
+                  start: opening!.index,
+                  end: opening!.index + openingLine.length,
+                }
+              : null,
         };
       }),
     );
-    return upstreamMikeResult(
-      call,
-      {
+    const inventory = inventoryRows.map((row) => row.document);
+    return {
+      ...upstreamMikeResult(call, {
         documents: inventory,
         totals: {
           documents: inventory.length,
@@ -5825,8 +5952,11 @@ async function runUpstreamMikeRetrievalCall(params: {
           lines: inventory.reduce((sum, document) => sum + document.lines, 0),
           pages: inventory.reduce((sum, document) => sum + document.pages, 0),
         },
-      },
-    );
+      }),
+      evidenceSegments: inventoryRows.flatMap((row) =>
+        row.evidence ? [row.evidence] : [],
+      ),
+    };
   }
 
   if (call.name === "read_document") {
@@ -6067,7 +6197,9 @@ async function runUpstreamMikeRetrievalCall(params: {
         `--- ${filename} (${docLabel}) ---\n${
           read.duplicate
             ? read.content
-            : `${upstreamMikeCitationReminder(docLabel, filename)}\n\n${read.content}`
+            : citationReminders
+              ? `${upstreamMikeCitationReminder(docLabel, filename)}\n\n${read.content}`
+              : read.content
         }`,
       );
       evidenceSegments.push(...read.evidenceSegments);
@@ -6201,6 +6333,33 @@ export async function runLocalAssistantTools(
         );
         if (resolved.error) return fail(call, resolved.error);
         args = resolved.input;
+      }
+
+      if (LEAN_BATCH_FAMILY_TOOL_SHAPE && call.name === "Read") {
+        const paths = stringArray(args.paths);
+        if (!paths.length) return fail(call, "paths must name at least one document");
+        const bounded = args.offset !== undefined || args.limit !== undefined;
+        if (bounded && paths.length !== 1) {
+          return fail(
+            call,
+            "A bounded Read accepts exactly one path; omit offset and limit to read a batch completely.",
+          );
+        }
+        if (!bounded) {
+          const upstream = await runUpstreamMikeRetrievalCall({
+            call: {
+              ...call,
+              name: "fetch_documents",
+              input: { doc_ids: paths },
+            },
+            userId,
+            allowedDocumentIds,
+            readState: turnReadState,
+            citationReminders: false,
+          });
+          if (upstream) return upstream;
+        }
+        args = { ...args, file_path: paths[0] };
       }
 
       if (ORIGIN_MIKE_TOOL_SHAPE || call.name === "fetch_documents") {
@@ -6415,7 +6574,10 @@ export async function runLocalAssistantTools(
         const filename = trimmed(args.filename);
         const markdown =
           call.name === "generate_docx"
-            ? upstreamMikeSectionsMarkdown(args.sections)
+            ? COMPACT_AUTHOR_MIKE_TOOL_SHAPE ||
+              LEAN_BATCH_FAMILY_TOOL_SHAPE
+              ? trimmed(args.markdown)
+              : upstreamMikeSectionsMarkdown(args.sections)
             : trimmed(args.markdown);
         if (!title || title.length > 256 || !markdown) {
           return fail(call, "DOCX title or Markdown is invalid");
