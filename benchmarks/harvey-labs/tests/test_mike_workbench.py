@@ -151,6 +151,19 @@ def test_one_shot_surfaces_share_exact_two_tool_prompt_and_schema():
     assert "ANALYST WORKBENCH" not in plain_prompt
 
 
+def test_conflict_first_changes_only_the_prompt():
+    inventory = [("alpha.docx", "docx")]
+    base_prompt, base_tools, _ = get_mike_surface("mike_one_shot_xhigh_v1", inventory)
+    conflict_prompt, conflict_tools, _ = get_mike_surface(
+        "mike_one_shot_conflict_first_xhigh_v1", inventory
+    )
+
+    assert conflict_tools == base_tools
+    assert "ATTENTION BUDGET" not in base_prompt
+    assert "ATTENTION BUDGET" in conflict_prompt
+    assert conflict_prompt.endswith(base_prompt[base_prompt.index("\n\nAVAILABLE DOCUMENTS:"):])
+
+
 def test_mike_batch_read_duplicate_guard_search_and_terminal_generation(tmp_path):
     executor = _executor(tmp_path)
     inventory = json.loads(executor.execute("list_documents", {}))
