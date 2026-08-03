@@ -8,6 +8,8 @@ from harness.adapters.base import ModelResponse, ToolCall
 from harness.agent_loop import run_agent
 from harness.mike_workbench import (
     ADAPTIVE_REVIEW_BUDGET_CHARACTERS,
+    LARGE_CONTEXT_PLAN_MAX_CHARACTERS,
+    LARGE_CONTEXT_PLAN_THRESHOLD_CHARACTERS,
     MikeWorkbenchExecutor,
     get_mike_surface,
 )
@@ -102,6 +104,9 @@ def test_surface_is_frozen_mike_or_a_compact_native_delta():
     adaptive_prompt, adaptive, _ = get_mike_surface(
         "mike_one_shot_adaptive_review_xhigh_v1", inventory
     )
+    plan_prompt, plan, _ = get_mike_surface(
+        "mike_one_shot_large_context_plan_xhigh_v1", inventory
+    )
 
     assert [tool["name"] for tool in control] == [
         "read_document",
@@ -116,10 +121,17 @@ def test_surface_is_frozen_mike_or_a_compact_native_delta():
         "generate_docx",
         "append_docx",
     ]
+    assert [tool["name"] for tool in plan] == [
+        "fetch_documents",
+        "write_plan",
+        "generate_docx",
+    ]
     assert "Successful generation" in native_prompt
     assert "CONTEXT-BUDGETED FINALIZATION" in adaptive_prompt
     assert "Never defer content" in adaptive_prompt
     assert "Successful generation" not in adaptive_prompt
+    assert "LARGE-CONTEXT PLAN BEFORE AUTHORING" in plan_prompt
+    assert "in that same response" in plan_prompt
     assert frozen["commit"] == "2266446b0d26f735865b8cd3bb153b28e7d11b17"
 
 
@@ -148,6 +160,68 @@ def test_adaptive_review_schema_and_prompt_are_bounded_and_append_only():
     assert f"{ADAPTIVE_REVIEW_BUDGET_CHARACTERS:,} characters" in prompt
     assert "Never defer content" in prompt
     assert "cannot lose content" in prompt
+
+
+def test_large_context_plan_routes_small_sources_directly(tmp_path):
+    executor = _executor(
+        tmp_path, surface="mike_one_shot_large_context_plan_xhigh_v1"
+    )
+
+    fetched = executor.execute("fetch_documents", {"doc_ids": ["doc-0", "doc-1"]})
+
+    assert 'planning_required="false"' in fetched
+    assert executor.get_metrics()["planning_required"] is False
+    blocked = executor.execute(
+        "generate_docx", {"title": "Memo", "markdown": "# Complete"}
+    )
+    assert blocked.startswith("Error:")
+    executor.after_tool_batch()
+    receipt = json.loads(
+        executor.execute(
+            "generate_docx", {"title": "Memo", "markdown": "# Complete"}
+        )
+    )
+    assert receipt["terminal"] is True
+    assert executor.execute("write_plan", {"markdown": "Needless"}).startswith("Error:")
+
+
+def test_large_context_plan_is_bounded_frozen_and_precedes_authoring(tmp_path):
+    executor = _executor(
+        tmp_path, surface="mike_one_shot_large_context_plan_xhigh_v1"
+    )
+    for path in executor._documents:
+        executor._texts[path] = "x" * (
+            LARGE_CONTEXT_PLAN_THRESHOLD_CHARACTERS // 2 + 1
+        )
+
+    fetched = executor.execute("fetch_documents", {"doc_ids": ["doc-0", "doc-1"]})
+
+    assert 'planning_required="true"' in fetched
+    same_batch = executor.execute("write_plan", {"markdown": "# Findings"})
+    assert same_batch.startswith("Error:")
+    executor.after_tool_batch()
+    no_plan = executor.execute(
+        "generate_docx", {"title": "Memo", "markdown": "# Complete"}
+    )
+    assert no_plan.startswith("Error:")
+    too_long = executor.execute(
+        "write_plan", {"markdown": "x" * (LARGE_CONTEXT_PLAN_MAX_CHARACTERS + 1)}
+    )
+    assert too_long.startswith("Error:")
+
+    plan = "# Findings\n\n- Ratio discrepancy — alpha.txt — 1.20x."
+    plan_receipt = json.loads(executor.execute("write_plan", {"markdown": plan}))
+    generated = json.loads(
+        executor.execute(
+            "generate_docx", {"title": "Memo", "markdown": "# Complete"}
+        )
+    )
+
+    assert plan_receipt["accepted"] is True
+    assert generated["terminal"] is True
+    metrics = executor.get_metrics()
+    assert metrics["plan_receipt"]["text"] == plan
+    assert metrics["plan_receipt"]["sha256"] == hashlib.sha256(plan.encode()).hexdigest()
 
 
 def test_adaptive_small_context_freezes_initial_and_appends_after_next_round(tmp_path):
