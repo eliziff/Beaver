@@ -4845,10 +4845,13 @@ async function runCodingShapeCall(
       : body,
     kept,
   );
-  return hardReferenceHints.length
+  const visibleHints = hardReferenceHints.filter((hint) =>
+    output.content.includes(hint.rendered),
+  );
+  return visibleHints.length
     ? {
         ...output,
-        retrievalHints: hardReferenceHints.map(({ rendered: _, ...hint }) =>
+        retrievalHints: visibleHints.map(({ rendered: _, ...hint }) =>
           hint,
         ),
       }
