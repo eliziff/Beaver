@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "experiment_id": "harvey-lab-mike-adaptive-review-v1",
+  "registered_at": "2026-08-03T12:48:53Z",
+  "status": "preregistered_before_performer_calls",
+  "experiment_class": "visible-development Codex-path Luna harness ablation",
+  "claim_scope": "A model-held-constant comparison against frozen Mike and prior Luna one-shot arms. Sol criterion labels are provisional and derivative, not human gold.",
+  "landed_basis": {
+    "native_one_shot": "The minimal Luna/xhigh one-shot surface scored 177/225 at 597,341 logical tokens: 57/65 Banking, 45/77 Tax, and 75/83 Indenture.",
+    "fresh_mike_high": "The fresh frozen Mike/high replicate scored 172/225 at 590,911 logical tokens: 58/65 Banking, 42/77 Tax, and 72/83 Indenture.",
+    "monotonic_review": "A complete-draft-preserving review scored 61/65 on Banking but only 36/77 on Tax and 71/83 on Indenture, for 168/225 at 1,216,361 logical tokens.",
+    "measured_context_split": "In those review traces, exact fetch-result plus initial-draft text measured 239,192 characters for Banking, 1,224,778 for Tax, and 1,139,905 for Indenture. Review was a strict criterion superset on Banking and regressed 11 criteria on Tax.",
+    "supported_invariant": "A second full-evidence pass helped only the small-context trace and was both costly and harmful after roughly one million characters. Determinism can safely enforce byte preservation and choose whether that measured pass fits; the landed evidence does not support deterministic legal-content selection."
+  },
+  "hypothesis": "Keep the smallest whole-source, continuous one-shot trajectory. Every first draft is complete. Deterministically measure exact normalized source text plus persisted initial-draft text: at no more than 400,000 characters, freeze the draft and allow one append-only omissions review; above that budget, finalize the exact first draft immediately. The threshold is task-agnostic and lies conservatively between the observed 239,192-character helpful case and the two 1.1M-plus harmful cases. Add no legal classifier, checkpoint, handoff, evidence union, quote ledger, fact packet, legal scope, linter, or content-scoring compiler.",
+  "implementation_commit_before_launch": "43dc1a245fe5b4330eb9c8083e85bc0d7eaa57c2",
+  "surface": "mike_one_shot_adaptive_review_xhigh_v1",
+  "performer": {
+    "model": "codex/gpt-5.6-luna",
+    "reasoning_effort": "xhigh",
+    "temperature_requested": 0,
+    "temperature_transmitted": false,
+    "required_provider_service_tier_reported": "default",
+    "tools": ["fetch_documents", "generate_docx", "append_docx"],
+    "review_budget_characters": 400000,
+    "run_count": 3,
+    "max_concurrent_processes": 3,
+    "run_id_template": "2026-08-03-mike-adaptive-review-v1--{task_slug_with_slashes_replaced_by_double-hyphens}",
+    "harness_source_bundle_sha256": "e194f72f9f9264fbc2025f8fbd8a9473ce7b7da00c639c2c9188a18fb44af3f1",
+    "tool_schema_sha256": "987a92a3f0333adeb8c0fc1cd7068bbba039c037ce5e344a8fa3c125a46739f5",
+    "tool_schema_bytes": 1697,
+    "system_mechanism": "The host computes the budget only after all complete initial drafts exist. It either copies their exact bytes to final output or opens one later append batch. Initial and final source/DOCX hashes and the routing measurement remain in metrics."
+  },
+  "tasks": {
+    "banking-finance/extract-credit-agreement-covenants": {
+      "expected_route": "append-only review",
+      "system_prompt_sha256": "ab3915e7fc6fa49603fbac0bc753a7bd95309837cef981c813c88c708a16d982",
+      "system_prompt_bytes": 1996,
+      "source_bundle_sha256": "b5c3605cfbe3d53377712d0db3463f945a5c69cf7caef0da01b45d7b9ee75296",
+      "prompt_cache_key": "lab-dc99024494b0f5ff5499e5bfcb9565e8ca3b8dd47c240b1d258cf95e6d2478d5",
+      "run_fingerprint_sha256": "e5390bd5e6bd62035b6c9a8c8efe447beadd35bf4f64264df9419b874a28f8ca"
+    },
+    "tax/draft-transfer-pricing-documentation": {
+      "expected_route": "terminal initial draft",
+      "system_prompt_sha256": "eed03c5e72b26024addcf4e5dcd56938ab107ed782ab65a4f79ed6cc7f0526eb",
+      "system_prompt_bytes": 3714,
+      "source_bundle_sha256": "0ebfa8f86d9bd3405d4ccd638471ded6f48a4748ca0cfba76b992f1a5ea15e3d",
+      "prompt_cache_key": "lab-04a4da16a7c7daa939ec98ffb55d22cf498d5502155801c2cb980173eef16f2f",
+      "run_fingerprint_sha256": "5559afd3e89cb778c6b170793a5570f2809775a72067be412c5846d89539886a"
+    },
+    "capital-markets/draft-indenture-for-senior-secured-notes-offering": {
+      "expected_route": "terminal initial drafts",
+      "system_prompt_sha256": "ba56028c3ebbbfc0fe65ef040a2d132d40afd65a568d3314ea203b75898f8dd0",
+      "system_prompt_bytes": 2484,
+      "source_bundle_sha256": "c1319d3aec66399c21a7a1a00b64821d48e4eecc190bbc15474148e7da33d7fd",
+      "prompt_cache_key": "lab-11721cf9c38634d1d3190a4d65af6c34396201da8eb567ac55e828b31d1ea74e",
+      "run_fingerprint_sha256": "f861fd9501207d633946544816fa610416e484e19468755cfd7573da492cb5f5"
+    }
+  },
+  "trace_gate": "Require one complete exact-source fetch before drafting; complete initial generate_docx calls; routing solely from recorded exact character counts; a later append_docx only below budget; byte-identical no-review finalization above budget; valid requested DOCX files; default reported tier; matching fingerprints; and zero tool, schema, or path errors. Inspect routing, additions, receipts, cache, retries, tokens, reasoning, output size, and latency before judging.",
+  "judge": {
+    "model": "codex/gpt-5.6-sol",
+    "reasoning_effort": "provider default",
+    "temperature_requested": 0,
+    "criterion_level": true,
+    "max_concurrent_outputs": 3,
+    "max_concurrent_criteria_per_output": 1,
+    "local_process_priority": "BelowNormal",
+    "prompt_sha256": "da0f2618d996ac5415a960dfc445e53b6fbd1b22602dd587bf6ecccbe139cb21",
+    "judge_source_sha256": "3546fec5ca1c4d655c8510d8cf2e0ca2201a94428c86d1628fbcdf5afe83a4b5",
+    "scoring_source_sha256": "e7f5e0accdaffe3ba9d350fb417f0c09f6f372ff5888def5908c73113291a9a3"
+  },
+  "decision_rule": "Advance only at 180/225 or better, with no task below 58 Banking, 42 Tax, and 72 Indenture; no more than 1.25x the fresh Mike/high logical-token total of 590,911; and a structurally valid trace. Replicate only if the first pass clears this rule or is within observed score noise while showing the intended route."
+}
