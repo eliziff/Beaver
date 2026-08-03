@@ -35,8 +35,16 @@ type ResponseInputItem =
       content:
         | string
         | (
-            | { type: "input_text"; text: string }
-            | { type: "input_image"; image_url: string }
+            | {
+                type: "input_text";
+                text: string;
+                prompt_cache_breakpoint?: { mode: "explicit" };
+              }
+            | {
+                type: "input_image";
+                image_url: string;
+                prompt_cache_breakpoint?: { mode: "explicit" };
+              }
           )[];
     }
   | { type: "function_call_output"; call_id: string; output: string }
@@ -101,7 +109,69 @@ export type ResponsesAdapterConfig = {
    * and max_output_tokens is rejected as unsupported.
    */
   codexBackend?: boolean;
+  /** GPT-5.6+ explicit prefix caching for stateless Codex tool loops. */
+  explicitPromptCaching?: boolean;
 };
+
+const CACHE_CONTINUATION = "Continue from the tool results.";
+
+function markCacheBreakpoint(items: ResponseInputItem[]): ResponseInputItem[] {
+  const marked = [...items];
+  for (let index = marked.length - 1; index >= 0; index--) {
+    const item = marked[index] as {
+      role?: string;
+      content?: string | Array<Record<string, unknown>>;
+    };
+    if (!item.role || item.content === undefined) continue;
+    const content =
+      typeof item.content === "string"
+        ? [{ type: "input_text", text: item.content }]
+        : item.content.map((block) => ({ ...block }));
+    for (let blockIndex = content.length - 1; blockIndex >= 0; blockIndex--) {
+      if (content[blockIndex].type === "input_text" || content[blockIndex].type === "input_image") {
+        content[blockIndex].prompt_cache_breakpoint = { mode: "explicit" };
+        marked[index] = { ...item, content } as ResponseInputItem;
+        return marked;
+      }
+    }
+  }
+  return marked;
+}
+
+function cacheBoundaryItem(): ResponseInputItem {
+  return {
+    role: "user",
+    content: [
+      {
+        type: "input_text",
+        text: CACHE_CONTINUATION,
+        prompt_cache_breakpoint: { mode: "explicit" },
+      },
+    ],
+  };
+}
+
+function cachePrefixReceipt(input: ResponseInputItem[]) {
+  let count = 0;
+  let last = -1;
+  input.forEach((item, index) => {
+    if (
+      "content" in item &&
+      Array.isArray(item.content) &&
+      item.content.some((block) => block.prompt_cache_breakpoint?.mode === "explicit")
+    ) {
+      count += 1;
+      last = index;
+    }
+  });
+  if (last < 0) return { count: 0, bytes: 0, sha256: undefined };
+  const prefix = JSON.stringify(input.slice(0, last + 1));
+  return {
+    count,
+    bytes: Buffer.byteLength(prefix),
+    sha256: sha256(prefix),
+  };
+}
 
 function apiKey(override?: string | null): string {
   return requireApiKey(override, ["OPENAI_API_KEY"], "OpenAI");
@@ -229,6 +299,7 @@ async function createResponse(params: {
   serviceTier?: string;
   compactThreshold?: number;
   promptCacheKey?: string;
+  promptCacheOptions?: { mode: "explicit" };
   apiKey: string;
   headers?: Record<string, string>;
   codexBackend?: boolean;
@@ -254,6 +325,7 @@ async function createResponse(params: {
       reasoning: params.reasoning,
       service_tier: params.serviceTier,
       prompt_cache_key: params.promptCacheKey,
+      prompt_cache_options: params.promptCacheOptions,
       ...(!params.codexBackend && params.compactThreshold
         ? {
             context_management: [
@@ -367,6 +439,7 @@ export async function streamResponsesApi(
   // by a discovery call in iteration N must be callable in iteration N+1.
   let responseTools = toResponseTools(tools);
   let input = toResponseInput(params.messages);
+  if (config.explicitPromptCaching) input = markCacheBreakpoint(input);
   let previousResponseId: string | undefined;
   let fullText = "";
   let reportedServiceTier: string | undefined;
@@ -442,6 +515,7 @@ export async function streamResponsesApi(
           : undefined;
       const inputJson = JSON.stringify(input);
       const toolsJson = JSON.stringify(responseTools);
+      const cachePrefix = cachePrefixReceipt(input);
       activeRound = {
         iteration: iter,
         requestAttempts: 0,
@@ -451,6 +525,15 @@ export async function streamResponsesApi(
         inputItems: input.length,
         inputBytes: Buffer.byteLength(inputJson),
         inputSha256: sha256(inputJson),
+        ...(config.explicitPromptCaching
+          ? {
+              cacheBreakpointCount: cachePrefix.count,
+              cachePrefixBytes: cachePrefix.bytes,
+              ...(cachePrefix.sha256
+                ? { cachePrefixSha256: cachePrefix.sha256 }
+                : {}),
+            }
+          : {}),
         toolCount: responseTools.length,
         toolBytes: Buffer.byteLength(toolsJson),
         toolSha256: sha256(toolsJson),
@@ -492,6 +575,9 @@ export async function streamResponsesApi(
           serviceTier: config.serviceTier,
           compactThreshold: params.compactThreshold,
           promptCacheKey,
+          promptCacheOptions: config.explicitPromptCaching
+            ? { mode: "explicit" }
+            : undefined,
           signal: params.abortSignal,
         });
         if (!response.body) throw new Error("OpenAI response had no body");
@@ -639,7 +725,12 @@ export async function streamResponsesApi(
       }));
       const nextInput = config.persistent
         ? resultItems
-        : [...input, ...outputItems, ...resultItems];
+        : [
+            ...input,
+            ...outputItems,
+            ...resultItems,
+            ...(config.explicitPromptCaching ? [cacheBoundaryItem()] : []),
+          ];
       const compactThreshold = params.compactThreshold;
       const triggerInputTokens = activeRound?.usage.inputTokens ?? 0;
       if (

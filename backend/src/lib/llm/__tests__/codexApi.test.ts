@@ -51,7 +51,92 @@ describe("Codex service tier", () => {
     );
     expect(body).not.toHaveProperty("service_tier");
     expect(body.prompt_cache_key).toMatch(/^[0-9a-f-]{36}$/u);
+    expect(body.prompt_cache_options).toEqual({ mode: "explicit" });
+    expect(body.input[0].content[0]).toMatchObject({
+      type: "input_text",
+      text: "test",
+      prompt_cache_breakpoint: { mode: "explicit" },
+    });
     expect(mocks.getCodexModelCatalog).not.toHaveBeenCalled();
+  });
+
+  it("does not send GPT-5.6 cache controls to older Codex models", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(response());
+    vi.stubGlobal("fetch", fetchMock);
+
+    await streamCodexApi({ ...params(), model: "codex:gpt-5.4" });
+
+    const body = JSON.parse(
+      String((fetchMock.mock.calls[0][1] as RequestInit).body),
+    );
+    expect(body).not.toHaveProperty("prompt_cache_options");
+    expect(body.input).toEqual([
+      { role: "user", content: "test" },
+    ]);
+  });
+
+  it("carries immutable cache boundaries across stateless tool rounds", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        eventStream(
+          {
+            type: "response.output_item.done",
+            item: {
+              type: "function_call",
+              call_id: "call-1",
+              name: "inspect",
+              arguments: "{}",
+            },
+          },
+          {
+            type: "response.completed",
+            response: { usage: { input_tokens: 2_000, output_tokens: 20 } },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(response());
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await streamCodexApi({
+      ...params(),
+      promptCacheKey: "stable-key",
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "inspect",
+            description: "Inspect evidence",
+            parameters: { type: "object", properties: {} },
+          },
+        },
+      ],
+      runTools: async (calls) =>
+        calls.map((call) => ({
+          tool_use_id: call.id,
+          content: "exact evidence",
+        })),
+    });
+
+    const first = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body));
+    const second = JSON.parse(String((fetchMock.mock.calls[1][1] as RequestInit).body));
+    expect(second.prompt_cache_key).toBe(first.prompt_cache_key);
+    expect(second.prompt_cache_options).toEqual({ mode: "explicit" });
+    expect(second.input.slice(0, first.input.length)).toEqual(first.input);
+    expect(second.input.at(-1)).toMatchObject({
+      role: "user",
+      content: [
+        expect.objectContaining({
+          text: "Continue from the tool results.",
+          prompt_cache_breakpoint: { mode: "explicit" },
+        }),
+      ],
+    });
+    expect(result.contextRounds?.[1]).toMatchObject({
+      cacheBreakpointCount: 2,
+      cachePrefixBytes: expect.any(Number),
+      cachePrefixSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
+    });
   });
 
   it("maps advertised fast mode to the priority request value", async () => {

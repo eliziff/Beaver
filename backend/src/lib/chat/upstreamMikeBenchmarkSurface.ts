@@ -528,3 +528,12 @@ export const MIKE_STRUCTURE_PATHS_LAB_SYSTEM_PROMPT = `${MIKE_GREP_LAB_SYSTEM_PR
 
 STRUCTURED SOURCE PATHS:
 - When Grep returns a .mike/structure/... path, it is a verified immutable view of one exact source unit. Use it like any other file path in Read or Grep when the whole unit is useful; never invent one.`;
+
+/** Prompt-only ablation: grounding changes the reasoning process, not the
+ * requested work-product genre or the retrieval/tool contract. */
+export const GROUNDED_STRUCTURE_LAB_SYSTEM_PROMPT = `${MIKE_STRUCTURE_PATHS_LAB_SYSTEM_PROMPT}
+
+GROUNDING BEFORE DRAFTING:
+- Before drafting, build a compact internal evidence map for every material requested conclusion. Ground it in an exact passage, table fact, clause relationship, calculation with sourced inputs, cross-document contradiction, or meaningful source absence; retain the filename and locator.
+- Check that the evidence map covers the requested issues, parties, dates, numbers, jurisdictions, exceptions, and conflicting source versions before calling generate_docx. Resolve material conflicts or state them accurately in the work product.
+- Quotations and citations belong in the deliverable only when the request or professional genre calls for them. Otherwise use the grounded facts to draft the native work product without exposing the research apparatus.`;
