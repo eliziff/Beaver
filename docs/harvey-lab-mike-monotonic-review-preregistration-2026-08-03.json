@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "experiment_id": "harvey-lab-mike-monotonic-review-v1",
+  "registered_at": "2026-08-03T12:08:02Z",
+  "status": "preregistered_before_performer_calls",
+  "experiment_class": "visible-development Codex-path Luna harness ablation",
+  "claim_scope": "A model-held-constant comparison against the two frozen Mike xhigh replicates and prior Luna one-shot arms. Sol judge labels are provisional and derivative, not human gold.",
+  "landed_basis": {
+    "frozen_mike_high_replicates": "The same exact Mike/high prompt, sources, tools, and model scored 163/225 and 172/225. Their criterion-level oracle union is 183/225, with 31 flipped verdicts: 8 Banking, 14 Tax, and 9 Indenture.",
+    "frozen_mike_xhigh_replicates": "Two Mike/xhigh replicates scored 172/225 and 169/225. Their per-task oracle unions are 58/65 Banking, 48/77 Tax, and 77/83 Indenture.",
+    "failed_review": "The prior deterministic typed-anchor rewrite review made revisions shorter and lost correct material; its signal was not selective enough to justify another content linter.",
+    "failed_grounding_packets": "A host-selected fact index scored 165/225. Model-selected private quote-first ledgers scored 162/225 and 170/225 versus Mike/xhigh at 172/225 and 169/225, at nearly identical two-replicate token cost.",
+    "supported_invariant": "Independent drafts repeatedly contain complementary correct findings, while rewrite-style correction can regress. Deterministically preserving the complete first draft and permitting additions only directly targets that measured failure mode without predicting legal content."
+  },
+  "hypothesis": "One continuous evidence-bearing agent can recover complementary omissions in a single explicit audit if the host prevents review regressions. Keep exact whole-source retrieval and native professional grounding; freeze each complete initial draft; then allow exactly one append-only, omissions-only finalization round. Add no checkpoint, handoff, evidence union, router, quote ledger, fact packet, legal scope, or content-scoring compiler.",
+  "implementation_commit_before_launch": "50cef81df875c3173821861fd19aeb9ed261206c",
+  "surface": "mike_one_shot_monotonic_review_xhigh_v1",
+  "performer": {
+    "model": "codex/gpt-5.6-luna",
+    "reasoning_effort": "xhigh",
+    "temperature_requested": 0,
+    "temperature_transmitted": false,
+    "required_provider_service_tier_reported": "default",
+    "tools": ["fetch_documents", "generate_docx", "append_docx"],
+    "run_count": 3,
+    "max_concurrent_processes": 3,
+    "run_id_template": "2026-08-03-mike-monotonic-review-v1--{task_slug_with_slashes_replaced_by_double-hyphens}",
+    "harness_source_bundle_sha256": "284dfe1c11c20a4fc4536627f0981111a4b44975e283dad5b454997b1e97dc83",
+    "tool_schema_sha256": "1fc629b4c54b60969723476e8a941231dd9409f2037ed3ffafb54d9065909205",
+    "tool_schema_bytes": 1691,
+    "system_mechanism": "The first authoring batch is preserved under workspace/.mike/initial with exact source and DOCX hashes. append_docx is rejected until the batch result has entered conversation history. Final Markdown must have the exact initial source as a byte prefix; initial and final hashes remain in metrics."
+  },
+  "tasks": {
+    "banking-finance/extract-credit-agreement-covenants": {
+      "system_prompt_sha256": "fb9faa54c1a995d74b8a03bd1b01a26303f9dd0df8f4a44f97739860aaed4e64",
+      "system_prompt_bytes": 2029,
+      "source_bundle_sha256": "b5c3605cfbe3d53377712d0db3463f945a5c69cf7caef0da01b45d7b9ee75296",
+      "prompt_cache_key": "lab-c55b00790566e8eca98b364ae036f519e791a063b2891bd43c8ee84596475250",
+      "run_fingerprint_sha256": "cff786904b0bf190298714a93a0f3f119db774ac795a1e1bcb822e6ab5f73eae"
+    },
+    "tax/draft-transfer-pricing-documentation": {
+      "system_prompt_sha256": "c9557c5239ed41557ffcf3d951c7149d06c178cb02706574f7260dc34528602e",
+      "system_prompt_bytes": 3747,
+      "source_bundle_sha256": "0ebfa8f86d9bd3405d4ccd638471ded6f48a4748ca0cfba76b992f1a5ea15e3d",
+      "prompt_cache_key": "lab-2f31cbc87113706081774cb70cb01b38c3cd2fde23de5a070397cd45f449922e",
+      "run_fingerprint_sha256": "59ccebce647124ddd6160431382faec825e267327b2cf39f65aab54614398d46"
+    },
+    "capital-markets/draft-indenture-for-senior-secured-notes-offering": {
+      "system_prompt_sha256": "bdae2628ca25c9d81a9c8a883826b590663daa14c3993ada5a9d64b315f0d760",
+      "system_prompt_bytes": 2517,
+      "source_bundle_sha256": "c1319d3aec66399c21a7a1a00b64821d48e4eecc190bbc15474148e7da33d7fd",
+      "prompt_cache_key": "lab-2577f191189863838562f77bddc49ef2cb8c5fcdfba41aca6fb0afe6db1cca9e",
+      "run_fingerprint_sha256": "c41ac3726a1e2bc1d913d39d965c195636ba62f0bf028ce4617816a71a7e231b"
+    }
+  },
+  "trace_gate": "Require one complete exact-source fetch before drafting; a complete initial generate_docx batch; a distinct review round after initial receipts; one append_docx call per deliverable; exact initial-prefix preservation; valid requested DOCX files; default reported tier; matching fingerprints; and zero tool, schema, or path errors. Inspect the append text, whether it adds rather than duplicates content, cache, retries, tokens, reasoning, output size, and latency before judging.",
+  "judge": {
+    "model": "codex/gpt-5.6-sol",
+    "reasoning_effort": "provider default",
+    "temperature_requested": 0,
+    "criterion_level": true,
+    "max_concurrent_outputs": 3,
+    "max_concurrent_criteria_per_output": 1,
+    "local_process_priority": "BelowNormal",
+    "prompt_sha256": "da0f2618d996ac5415a960dfc445e53b6fbd1b22602dd587bf6ecccbe139cb21",
+    "judge_source_sha256": "3546fec5ca1c4d655c8510d8cf2e0ca2201a94428c86d1628fbcdf5afe83a4b5",
+    "scoring_source_sha256": "e7f5e0accdaffe3ba9d350fb417f0c09f6f372ff5888def5908c73113291a9a3"
+  },
+  "decision_rule": "Advance only at 184/225 or better, with no task below the fresh Mike/high scores of 58 Banking, 42 Tax, and 72 Indenture; no more than 2.0x the fresh Mike/high logical-token total of 590,911; and a structurally valid trace. A lower score rejects the extra review round even if some individual omissions are recovered. Replicate only if the first pass clears this rule or is within observed judge noise while showing a coherent non-duplicative append mechanism."
+}
