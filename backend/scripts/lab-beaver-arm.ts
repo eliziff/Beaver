@@ -27,7 +27,7 @@
  *   npx tsx scripts/lab-beaver-arm.ts \
  *     --task trusts-estates-private-client/extract-client-intake-facts/scenario-01 \
  *     --arm p0 --model gpt-5.6-luna --effort max \
- *     [--lab-root <dir>] [--run-id <id>]
+ *     [--lab-root <dir>] [--run-id <id>] [--office-pdf eager|lazy]
  */
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -335,6 +335,10 @@ async function main() {
   const toolDescriptionVariant = argument("tool-description", "operational");
   if (!["operational", "terse"].includes(toolDescriptionVariant)) {
     throw new Error("--tool-description must be operational or terse");
+  }
+  const officePdfRendition = argument("office-pdf", "eager");
+  if (!["eager", "lazy"].includes(officePdfRendition)) {
+    throw new Error("--office-pdf must be eager or lazy");
   }
   const labRoot = argument("lab-root", DEFAULT_LAB_ROOT);
   const timestamp = new Date()
@@ -728,6 +732,10 @@ async function main() {
           MIKE_GREENFIELD_REVIEW: "0",
           MIKE_GROUNDING_FIRST: "0",
           MIKE_SCHEMA_ENCODING: "",
+          // Compute-only ablation. It does not change tool schemas, prompts,
+          // or extracted text; a PDF is still created on the first paged read.
+          MIKE_EAGER_OFFICE_PDF_RENDITION:
+            officePdfRendition === "lazy" ? "0" : "1",
           ...armEnvironment[arm],
           MIKE_LLM_CONTEXT_MANIFEST_PATH: path.join(dataHome, "manifest.jsonl"),
           // SLA receipts land beside the run's other artifacts; inert
@@ -1880,6 +1888,7 @@ async function main() {
     effort,
     service_tier_requested: serviceTier || null,
     arm,
+    office_pdf_rendition: officePdfRendition,
     arm_environment: armEnvironment[arm],
     harness_sources: harnessSourceFingerprints,
     system_prompt_sha256s: systemPromptFingerprints,
@@ -2148,6 +2157,7 @@ async function main() {
         retrieval_prompt_variant: retrievalPromptVariant,
         tool_description_variant:
           surface?.tool_description_variant ?? toolDescriptionVariant,
+        office_pdf_rendition: officePdfRendition,
         retrieval_experiment: surface?.retrieval_experiment ?? null,
         progressive_disclosure: surface?.progressive_disclosure === true,
         model_coverage_routing: surface?.model_coverage_routing === true,
@@ -2544,6 +2554,7 @@ async function main() {
         run_fingerprint: runFingerprintInput,
         run_fingerprint_sha256: runFingerprintSha256,
         wrapped_uploads: wrappedUploads,
+        office_pdf_rendition: officePdfRendition,
         deliverables,
         required_deliverable_mapping: requiredDeliverableMapping,
         docs_created: authored.map((doc) => doc.filename),
