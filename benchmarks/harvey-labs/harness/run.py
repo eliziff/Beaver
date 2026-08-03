@@ -27,6 +27,11 @@ from harness.adapters.mistral import MistralAdapter
 from harness.adapters.openai import OpenAIAdapter
 from harness.agent_loop import run_agent
 from harness.ablation_tools import AblationToolExecutor, get_ablation_tool_definitions
+from harness.mike_workbench import (
+    MIKE_SURFACES,
+    MikeWorkbenchExecutor,
+    get_mike_surface,
+)
 from harness.tools import ToolExecutor, get_all_tool_definitions
 from sandbox.sandbox import DEFAULT_IMAGE, ENGINE, Sandbox
 from utils.stdio import force_utf8_stdio
@@ -35,6 +40,39 @@ from utils.stdio import force_utf8_stdio
 # ── Task Discovery ─────────────────────────────────────────────────────
 
 BENCH_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = BENCH_ROOT.parents[1]
+
+_MIKE_HARNESS_SOURCES = (
+    Path(__file__),
+    Path(__file__).with_name("agent_loop.py"),
+    Path(__file__).with_name("mike_workbench.py"),
+    Path(__file__).with_name("tools.py"),
+    Path(__file__).with_name("adapters") / "codex.py",
+    BENCH_ROOT / "sandbox" / "sandbox.py",
+    REPO_ROOT / "backend" / "scripts" / "lab-upstream-surface-json.ts",
+    REPO_ROOT / "backend" / "scripts" / "lab-upstream-parse-stdin.ts",
+    REPO_ROOT / "backend" / "src" / "lib" / "chat" / "tools" / "documentOps.ts",
+    REPO_ROOT / "backend" / "src" / "lib" / "chat" / "upstreamMikeBenchmarkSurface.ts",
+)
+
+
+def mike_harness_source_receipts(surface: str) -> list[dict]:
+    paths = list(_MIKE_HARNESS_SOURCES)
+    if surface == "mike_workbench_anchor_v1":
+        paths.extend(
+            [
+                REPO_ROOT / "backend" / "scripts" / "anchor-coverage-stdin.ts",
+                REPO_ROOT / "backend" / "src" / "lib" / "legalTextAnchors.ts",
+            ]
+        )
+    return [
+        {
+            "relative_path": path.relative_to(REPO_ROOT).as_posix(),
+            "bytes": path.stat().st_size,
+            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        }
+        for path in paths
+    ]
 
 def load_task(task_name: str) -> dict:
     """Load a benchmark task.
@@ -254,6 +292,11 @@ parser.add_argument("--run-id", default=None, help="Unique run identifier (auto-
 parser.add_argument("--max-turns", type=int, default=200, help="Max agent loop turns")
 parser.add_argument("--temperature", type=float, default=0.0, help="Model temperature")
 parser.add_argument("--shell-timeout", type=int, default=60, help="Shell command timeout (seconds)")
+parser.add_argument(
+    "--preflight-only",
+    action="store_true",
+    help="Print deterministic task/source/prompt/tool fingerprints without starting a sandbox or model call.",
+)
 parser.add_argument("--reasoning-effort", default=None,
                     help="Reasoning effort level (e.g., low/medium/high/max/xhigh — varies by provider)")
 parser.add_argument("--skills", nargs="*", default=None,
@@ -263,7 +306,14 @@ parser.add_argument("--sandbox-image", default=DEFAULT_IMAGE,
                          "pulled from ghcr.io and built locally as fallback.")
 parser.add_argument(
     "--surface",
-    choices=("standard", "coding_plain_v1", "coding_legal_v1"),
+    choices=(
+        "standard",
+        "coding_plain_v1",
+        "coding_legal_v1",
+        "mike_control_v1",
+        "mike_workbench_v1",
+        "mike_workbench_anchor_v1",
+    ),
     default="standard",
     help="Tool surface for a preregistered harness ablation.",
 )
@@ -301,6 +351,98 @@ def main(args):
     # Load task
     print(f"Loading task: {args.task}")
     task = load_task(task_name=args.task)
+    mike_surface = args.surface in MIKE_SURFACES
+    effective_max_turns = min(args.max_turns, 10) if mike_surface else args.max_turns
+
+    configured_deliverables = task["config"].get("deliverables") or {}
+    if isinstance(configured_deliverables, dict):
+        deliverables = list(configured_deliverables)
+    else:
+        deliverables = []
+    if not deliverables:
+        deliverables = list(
+            dict.fromkeys(
+                name
+                for criterion in task["config"].get("criteria", [])
+                for name in criterion.get("deliverables", [])
+            )
+        )
+    document_paths = sorted(
+        path for path in Path(task["docs_dir"]).rglob("*") if path.is_file()
+    )
+    document_inventory = [
+        (path.name, path.suffix.lstrip(".").lower()) for path in document_paths
+    ]
+    task_config_bytes = (Path(task["task_dir"]) / "task.json").read_bytes()
+    source_receipts = [
+        {
+            "relative_path": path.relative_to(Path(task["docs_dir"])).as_posix(),
+            "bytes": path.stat().st_size,
+            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        }
+        for path in document_paths
+    ]
+    source_bundle_bytes = json.dumps(
+        source_receipts, sort_keys=True, separators=(",", ":")
+    ).encode()
+    task_fingerprints = {
+        "task_config_sha256": hashlib.sha256(task_config_bytes).hexdigest(),
+        "instructions_sha256": hashlib.sha256(task["instructions"].encode()).hexdigest(),
+        "source_bundle_sha256": hashlib.sha256(source_bundle_bytes).hexdigest(),
+        "source_receipts": source_receipts,
+    }
+    harness_fingerprints = {}
+    if mike_surface:
+        harness_source_receipts = mike_harness_source_receipts(args.surface)
+        harness_source_bytes = json.dumps(
+            harness_source_receipts, sort_keys=True, separators=(",", ":")
+        ).encode()
+        harness_fingerprints = {
+            "harness_source_bundle_sha256": hashlib.sha256(
+                harness_source_bytes
+            ).hexdigest(),
+            "harness_source_receipts": harness_source_receipts,
+        }
+
+    if args.preflight_only:
+        if not mike_surface:
+            raise ValueError("--preflight-only currently supports the Mike workbench surfaces")
+        system_prompt, tools, frozen = get_mike_surface(
+            args.surface,
+            document_inventory,
+        )
+        schema_bytes = json.dumps(
+            tools, sort_keys=True, separators=(",", ":")
+        ).encode()
+        fingerprint_input = {
+            "model": args.model,
+            "reasoning_effort": args.reasoning_effort,
+            "task": args.task,
+            "surface": args.surface,
+            "max_turns": effective_max_turns,
+            "temperature": args.temperature,
+            "provider_service_tier": "default",
+            "sandbox_engine": ENGINE,
+            "sandbox_image": args.sandbox_image,
+            "deliverables": deliverables,
+            **task_fingerprints,
+            **harness_fingerprints,
+            "system_prompt_sha256": hashlib.sha256(system_prompt.encode()).hexdigest(),
+            "tool_schema_sha256": hashlib.sha256(schema_bytes).hexdigest(),
+            "upstream_mike_commit": frozen["commit"],
+            "upstream_mike_schema_sha256": frozen["schema_sha256"],
+            "upstream_mike_source_blobs": frozen["source_blobs"],
+        }
+        result = {
+            **fingerprint_input,
+            "system_prompt_bytes": len(system_prompt.encode()),
+            "tool_schema_bytes": len(schema_bytes),
+        }
+        result["run_fingerprint_sha256"] = hashlib.sha256(
+            json.dumps(fingerprint_input, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        print(json.dumps(result, indent=2))
+        return
 
     # Create output directory
     results_dir = BENCH_ROOT / "results" / args.run_id
@@ -312,7 +454,9 @@ def main(args):
     workspace_dir.mkdir(parents=True, exist_ok=True)
 
     # Resolve skills (default: all available)
-    skill_names = DEFAULT_SKILLS if args.skills is None else args.skills
+    skill_names = (
+        [] if mike_surface else DEFAULT_SKILLS if args.skills is None else args.skills
+    )
 
     # Open the sandbox first — it owns the per-run filesystem boundary.
     sandbox = Sandbox(
@@ -330,14 +474,18 @@ def main(args):
         "model": args.model,
         "task": args.task,
         "run_id": args.run_id,
-        "max_turns": args.max_turns,
+        "max_turns": effective_max_turns,
         "temperature": args.temperature,
         "shell_timeout": args.shell_timeout,
         "reasoning_effort": args.reasoning_effort,
         "skills": skill_names,
         "sandbox_image": args.sandbox_image,
+        "sandbox_engine": ENGINE,
+        "provider_service_tier": "default",
         "surface": args.surface,
         "started_at": datetime.now(timezone.utc).isoformat(),
+        **task_fingerprints,
+        **harness_fingerprints,
     }
     (results_dir / "config.json").write_text(json.dumps(config, indent=2))
 
@@ -349,12 +497,27 @@ def main(args):
         reasoning_effort=args.reasoning_effort,
     )
 
+    frozen_mike_surface = None
+    mike_system_prompt = None
     if args.surface == "standard":
         tool_executor = ToolExecutor(
             sandbox=sandbox,
             shell_timeout=args.shell_timeout,
         )
         tools = get_all_tool_definitions()
+    elif mike_surface:
+        mike_system_prompt, tools, frozen_mike_surface = get_mike_surface(
+            args.surface,
+            document_inventory,
+        )
+        tool_executor = MikeWorkbenchExecutor(
+            sandbox=sandbox,
+            shell_timeout=args.shell_timeout,
+            deliverables=deliverables,
+            anchor_enabled=args.surface == "mike_workbench_anchor_v1",
+            surface_name=args.surface,
+            task_instructions=task["instructions"],
+        )
     else:
         tool_executor = AblationToolExecutor(
             sandbox=sandbox,
@@ -369,8 +532,8 @@ def main(args):
     # + skill manuals. Capabilities only — no task content. The per-task
     # instructions go in the first user message so the model treats them as
     # an assignment, not as additional ambient context.
-    system_prompt = SYSTEM_PROMPT_PREAMBLE
-    if args.surface != "standard":
+    system_prompt = mike_system_prompt or SYSTEM_PROMPT_PREAMBLE
+    if args.surface != "standard" and not mike_surface:
         system_prompt += (
             "\n\n## Source projections\n\n"
             "`/workspace/sources/manifest.json` maps every read-only original "
@@ -394,8 +557,40 @@ def main(args):
             "system_prompt_bytes": len(system_prompt.encode()),
             "tool_schema_sha256": hashlib.sha256(schema_bytes).hexdigest(),
             "tool_schema_bytes": len(schema_bytes),
+            "deliverables": deliverables,
+            "upstream_mike_commit": (
+                frozen_mike_surface.get("commit") if frozen_mike_surface else None
+            ),
+            "upstream_mike_schema_sha256": (
+                frozen_mike_surface.get("schema_sha256") if frozen_mike_surface else None
+            ),
+            "upstream_mike_source_blobs": (
+                frozen_mike_surface.get("source_blobs") if frozen_mike_surface else None
+            ),
         }
     )
+    run_fingerprint_input = {
+        "model": args.model,
+        "reasoning_effort": args.reasoning_effort,
+        "task": args.task,
+        "surface": args.surface,
+        "max_turns": effective_max_turns,
+        "temperature": args.temperature,
+        "provider_service_tier": config["provider_service_tier"],
+        "sandbox_engine": config["sandbox_engine"],
+        "sandbox_image": config["sandbox_image"],
+        "deliverables": deliverables,
+        **task_fingerprints,
+        **harness_fingerprints,
+        "system_prompt_sha256": config["system_prompt_sha256"],
+        "tool_schema_sha256": config["tool_schema_sha256"],
+        "upstream_mike_commit": config["upstream_mike_commit"],
+        "upstream_mike_schema_sha256": config["upstream_mike_schema_sha256"],
+        "upstream_mike_source_blobs": config["upstream_mike_source_blobs"],
+    }
+    config["run_fingerprint_sha256"] = hashlib.sha256(
+        json.dumps(run_fingerprint_input, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
     (results_dir / "config.json").write_text(json.dumps(config, indent=2))
 
     # Run the agent
@@ -414,7 +609,7 @@ def main(args):
             user_prompt=user_prompt,
             tool_executor=tool_executor,
             tools=tools,
-            max_turns=args.max_turns,
+            max_turns=effective_max_turns,
             transcript_path=str(results_dir / "transcript.jsonl"),
         )
     finally:
@@ -463,6 +658,9 @@ def main(args):
         "system_prompt_bytes": config["system_prompt_bytes"],
         "tool_schema_sha256": config["tool_schema_sha256"],
         "tool_schema_bytes": config["tool_schema_bytes"],
+        "task_config_sha256": config["task_config_sha256"],
+        "source_bundle_sha256": config["source_bundle_sha256"],
+        "run_fingerprint_sha256": config["run_fingerprint_sha256"],
         "wall_clock_seconds": result["wall_clock_seconds"],
         "finished_cleanly": result["finished_cleanly"],
         "completed_at": datetime.now(timezone.utc).isoformat(),
