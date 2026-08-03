@@ -6,7 +6,7 @@ const loaded = vi.hoisted(() => ({
   openai: vi.fn(),
   deepseek: vi.fn(),
   openrouter: vi.fn(),
-  codexApi: vi.fn(),
+  codex: vi.fn(),
 }));
 
 afterEach(() => vi.unstubAllEnvs());
@@ -18,7 +18,7 @@ describe("LLM provider loading", () => {
       vi.doMock(`../${provider}`, () => {
         loaded[provider]();
         return {
-          streamCodexApi: vi.fn(async () => ({ fullText: "codex" })),
+          completeCodexText: vi.fn(async () => "codex"),
         };
       });
     }
@@ -30,10 +30,10 @@ describe("LLM provider loading", () => {
     await expect(
       llm.completeText({ model: "codex:gpt-5.2", user: "hello" }),
     ).resolves.toBe("codex");
-    expect(loaded.codexApi).toHaveBeenCalledOnce();
+    expect(loaded.codex).toHaveBeenCalledOnce();
     expect(
       Object.entries(loaded)
-        .filter(([provider]) => provider !== "codexApi")
+        .filter(([provider]) => provider !== "codex")
         .every(([, factory]) => !factory.mock.calls.length),
     ).toBe(true);
   });
