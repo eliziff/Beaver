@@ -612,7 +612,8 @@ async function main() {
       MIKE_CONTEXT_HANDOFF: "0",
       MIKE_RESEARCH_CONTEXT_REFRESH: "0",
       MIKE_CONTINUOUS_EVIDENCE: "0",
-      MIKE_OPENAI_COMPACT_THRESHOLD: "",
+      // Match Codex's 90% auto-compaction point for Luna's 272k context.
+      MIKE_OPENAI_COMPACT_THRESHOLD: "244800",
       MIKE_SLA_WORKFLOW: "0",
       MIKE_GREENFIELD_REVIEW: "0",
     },
@@ -629,7 +630,7 @@ async function main() {
       MIKE_CONTEXT_HANDOFF: "0",
       MIKE_RESEARCH_CONTEXT_REFRESH: "0",
       MIKE_CONTINUOUS_EVIDENCE: "0",
-      MIKE_OPENAI_COMPACT_THRESHOLD: "",
+      MIKE_OPENAI_COMPACT_THRESHOLD: "244800",
       MIKE_SLA_WORKFLOW: "0",
       MIKE_GREENFIELD_REVIEW: "0",
     },
@@ -1393,6 +1394,7 @@ async function main() {
       surface?.model_coverage_routing !== false ||
       Number(surface?.whole_read_max_chars ?? 0) !== 0 ||
       Number(surface?.tool_result_max_chars ?? 0) !== 64_000 ||
+      Number(surface?.openai_compact_threshold ?? 0) !== 244_800 ||
       surface?.suppress_duplicate_whole_reads !== false ||
       surface?.terminal_authoring !== true ||
       JSON.stringify(residentTools) !== JSON.stringify(expectedTools) ||
@@ -2032,18 +2034,28 @@ async function main() {
             0,
         ) >= 244_800 && Number(round.toolCallCount ?? 0) > 0,
     );
+    const uncompactedCrossingRounds = thresholdCrossingRounds.filter(
+      (round) =>
+        !compactions.some(
+          (compaction) =>
+            Number(compaction.iteration ?? -1) === Number(round.iteration),
+        ),
+    );
     const invalidCompactions = compactions.filter(
       (compaction) =>
         Number(compaction.thresholdTokens ?? 0) !== 244_800 ||
         Number(compaction.outputItems ?? 0) < 1 ||
-        Number(compaction.outputBytes ?? 0) < 1,
+        Number(compaction.outputBytes ?? 0) < 1 ||
+        (Number(compaction.triggerInputTokens ?? 0) < 244_800 &&
+          Number(compaction.projectedInputTokens ?? 0) < 244_800 &&
+          compaction.triggerReason !== "context_length_exceeded"),
     );
     if (
-      compactions.length !== thresholdCrossingRounds.length ||
+      uncompactedCrossingRounds.length > 0 ||
       invalidCompactions.length > 0
     ) {
       throw new Error(
-        `v14 compaction validity failed: threshold_crossings=${thresholdCrossingRounds.length}; compactions=${compactions.length}; invalid=${invalidCompactions.length}`,
+        `v14 compaction validity failed: threshold_crossings=${thresholdCrossingRounds.length}; uncompacted=${uncompactedCrossingRounds.length}; compactions=${compactions.length}; invalid=${invalidCompactions.length}`,
       );
     }
   }
