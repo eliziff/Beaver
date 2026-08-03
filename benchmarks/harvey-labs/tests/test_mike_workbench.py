@@ -5,7 +5,12 @@ from pathlib import Path
 
 from harness.adapters.base import ModelResponse, ToolCall
 from harness.agent_loop import run_agent
-from harness.mike_workbench import MikeWorkbenchExecutor, get_mike_surface
+from harness.mike_workbench import (
+    ANCHOR_STDIN,
+    MikeWorkbenchExecutor,
+    _run_typescript,
+    get_mike_surface,
+)
 from sandbox.sandbox import DOCUMENTS_PATH, OUTPUT_PATH, WORKSPACE_PATH
 
 
@@ -220,6 +225,40 @@ def test_compiler_review_reuses_normalized_text_and_allows_second_submission(tmp
     metrics = executor.get_metrics()
     assert metrics["compiler_review_calls"] == 1
     assert metrics["compiler_review_result_characters"] == len(output)
+
+
+def test_compiler_flags_same_anchor_under_uncovered_source_context():
+    review = json.loads(
+        _run_typescript(
+            ANCHOR_STDIN,
+            {
+                "sources": [
+                    {
+                        "name": "agreement.txt",
+                        "text": (
+                            "Interest payment defaults have a grace period of five Business Days. "
+                            "A pro forma compliance certificate is due five Business Days before an acquisition."
+                        ),
+                    }
+                ],
+                "drafts": [
+                    {
+                        "name": "draft.txt",
+                        "text": "Deliver the compliance certificate five Business Days before an acquisition.",
+                    }
+                ],
+                "compiler_review": True,
+                "attention_text": "Report payment defaults and acquisition conditions.",
+            },
+        )
+    )
+
+    candidates = review["repeated_anchor_contexts_not_evidenced_in_draft"]
+    five_days = next(row for row in candidates if "five Business Days" in row["display"])
+    assert five_days["source_occurrences"] == 2
+    assert five_days["draft_occurrences"] == 1
+    assert five_days["uncovered_source_contexts"] == 1
+    assert "Interest payment defaults" in five_days["contexts"][0]["excerpt"]
 
 
 class _OneCallAdapter:

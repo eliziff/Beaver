@@ -45,8 +45,8 @@ ANALYST WORKBENCH:
 ANCHOR_PROMPT = """
 
 BOUNDED DETERMINISTIC REVIEW:
-- On the first generate_docx submission, the host compares the proposed draft with the sources and, only if it finds bounded typed-anchor candidates, returns one review packet instead of writing the file.
-- Repeated source anchors missing from the draft are omission candidates, not requirements. Draft-only anchors may be legitimate calculations. Resolve only material findings, then call generate_docx again; an unchanged resubmission is allowed and the second valid submission is terminal.
+- On the first generate_docx submission, the host performs one bounded typed-anchor review. It is aimed specifically at repeated values used under different source provisions, repeated omissions, and numeral/word mismatches; it does not invent legal issues.
+- A matching value under the wrong facility or provision is not coverage. Findings are candidates, not requirements, and draft-only anchors may be legitimate calculations. Resolve only material findings, then call generate_docx again; an unchanged resubmission is allowed and the second valid submission is terminal.
 """.rstrip()
 
 
@@ -206,6 +206,8 @@ class MikeWorkbenchExecutor(ToolExecutor):
         self.compiler_review_calls = 0
         self.compiler_review_result_characters = 0
         self.compiler_review_result_sha256: list[str] = []
+        self.compiler_review_status: str | None = None
+        self.compiler_review_candidates: dict[str, int] = {}
 
     def execute(self, tool_name: str, arguments: str | dict) -> str:
         if isinstance(arguments, str):
@@ -428,6 +430,18 @@ class MikeWorkbenchExecutor(ToolExecutor):
         self.compiler_review_result_sha256.append(
             hashlib.sha256(output.encode()).hexdigest()
         )
+        parsed = json.loads(output)
+        self.compiler_review_status = parsed.get("status")
+        self.compiler_review_candidates = {
+            "repeated_source_only": len(
+                parsed.get("relevant_or_repeated_source_anchors_missing_from_draft", [])
+            ),
+            "draft_only": len(parsed.get("draft_anchors_absent_from_sources", [])),
+            "context_attribution": len(
+                parsed.get("repeated_anchor_contexts_not_evidenced_in_draft", [])
+            ),
+            "numeral_word_mismatches": len(parsed.get("numeral_word_mismatches", [])),
+        }
         return output
 
     def _generate_docx(self, arguments: dict) -> str:
@@ -500,6 +514,8 @@ class MikeWorkbenchExecutor(ToolExecutor):
                 "compiler_review_calls": self.compiler_review_calls,
                 "compiler_review_result_characters": self.compiler_review_result_characters,
                 "compiler_review_result_sha256": self.compiler_review_result_sha256,
+                "compiler_review_status": self.compiler_review_status,
+                "compiler_review_candidates": self.compiler_review_candidates,
                 "compiler_gate_done": self._compiler_gate_done,
                 "compiler_review_pending": self._compiler_review_pending,
                 "generated_deliverables": self._generated,
