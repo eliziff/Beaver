@@ -51,12 +51,8 @@ describe("Codex service tier", () => {
     );
     expect(body).not.toHaveProperty("service_tier");
     expect(body.prompt_cache_key).toMatch(/^[0-9a-f-]{36}$/u);
-    expect(body.prompt_cache_options).toEqual({ mode: "explicit" });
-    expect(body.input[0].content[0]).toMatchObject({
-      type: "input_text",
-      text: "test",
-      prompt_cache_breakpoint: { mode: "explicit" },
-    });
+    expect(body).not.toHaveProperty("prompt_cache_options");
+    expect(body.input).toEqual([{ role: "user", content: "test" }]);
     expect(mocks.getCodexModelCatalog).not.toHaveBeenCalled();
   });
 
@@ -75,7 +71,7 @@ describe("Codex service tier", () => {
     ]);
   });
 
-  it("carries immutable cache boundaries across stateless tool rounds", async () => {
+  it("carries explicit history across stateless tool rounds", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
@@ -121,22 +117,15 @@ describe("Codex service tier", () => {
     const first = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body));
     const second = JSON.parse(String((fetchMock.mock.calls[1][1] as RequestInit).body));
     expect(second.prompt_cache_key).toBe(first.prompt_cache_key);
-    expect(second.prompt_cache_options).toEqual({ mode: "explicit" });
+    expect(second).not.toHaveProperty("prompt_cache_options");
     expect(second.input.slice(0, first.input.length)).toEqual(first.input);
     expect(second.input.at(-1)).toMatchObject({
-      role: "user",
-      content: [
-        expect.objectContaining({
-          text: "Continue from the tool results.",
-          prompt_cache_breakpoint: { mode: "explicit" },
-        }),
-      ],
+      type: "function_call_output",
+      output: "exact evidence",
     });
-    expect(result.contextRounds?.[1]).toMatchObject({
-      cacheBreakpointCount: 2,
-      cachePrefixBytes: expect.any(Number),
-      cachePrefixSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
-    });
+    expect(result.contextRounds?.[1]).not.toHaveProperty(
+      "cacheBreakpointCount",
+    );
   });
 
   it("maps advertised fast mode to the priority request value", async () => {
