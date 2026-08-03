@@ -643,59 +643,56 @@ Acceptance:
 
 ### P1.4a Minimal coding-native legal retrieval
 
-Status: **Candidate ablation complete; upstream control rerun required (2026-08-03)**
+Status: **Minimal one-shot frontier established; context/compiler stack rejected (2026-08-03)**
 
-The fixed-Sol three-task result is recorded in
-[Mike-plus-Grep four-way result](harvey-lab-mike-grep-four-way-results-2026-08-03.md).
-The 12 candidate cells are structurally valid, but a post-result audit excluded
-the reused 150/217 upstream comparator: its receipts identify the older
-`e89d3230` surface and predate `171cd82d`, which restored true-origin and
-tool-loop semantics. It cannot establish a win or loss against current pinned
-upstream. Candidate-only evidence still rejects the costly machinery: optional
-section/page fields were never used by the two legal arms; guided used
-2,065,539 tokens; and reconstructed V5 used 2,439,211 tokens for the lowest
-candidate score. Mike-plus-Grep remains the candidate efficiency frontier at
-673,159 tokens and 143/217, pending a valid control.
+The consolidated fixed-Sol evidence is recorded in
+[Mike one-shot context results](harvey-lab-mike-one-shot-context-results-2026-08-03.md).
+A fresh pinned-Mike control scored 172/225 at 590,911 logical tokens. The plain
+two-tool native-work-product arm scored 177/225 at 597,341; a 437-byte
+conflict-first attention prompt scored 178/225 at 628,072. The margin between
+those candidates is below observed run variance, so the plain arm is the live
+candidate and conflict-first remains replication-only.
 
-Retire the optional-coordinate schema and the bundled research checkpoint,
-evidence-union, fresh drafting handoff, forced compiler correction, reviewer,
-and automatic context-refresh machinery from the candidate path. Preserve
-exact evidence, hashes, versions, pinpoints, and receipts host-side, but expose
-them on demand through ordinary tools instead of replaying them into context.
+Every more elaborate context treatment failed to earn its cost. Fact indexing
+scored 165/225, two quote-first replicates scored 162 and 170, adaptive review
+scored 175, large-context planning scored 174, monotonic review scored 168, and
+a preregistered fresh omissions scout scored 177 while consuming 1,181,068
+tokens. The scout's exact-excerpt verifier accepted 16 bounded findings and
+rejected 5, but its Tax gain and Indenture loss cancelled. Frozen primaries were
+177/225 before 570,890 reviewer tokens and 177/225 afterward.
 
-The next ablation starts from pinned upstream Mike and keeps one continuous
-agent trajectory. It compares:
+Retire the optional-coordinate schema, research checkpoint, evidence union,
+fresh drafting handoff, fact packet, quote ledger, forced compiler correction,
+reviewer, planning turn, and automatic context-refresh machinery from the live
+candidate. Preserve exact evidence, hashes, versions, pinpoints, and receipts
+host-side. Expose legal structure only as an optional navigation or exact-edit
+primitive through ordinary tool semantics.
 
-- upstream Mike;
-- the measured Mike-plus-Grep efficiency frontier;
-- pinned upstream Mike with only successful document generation made terminal,
-  isolating the cost of its otherwise pointless post-generation replay; and
-- discovery-first legal structure behind ordinary Grep/Read semantics, where
-  the host returns verified locator metadata and executable paths after a
-  match rather than asking the model to guess a legal coordinate.
+Deterministic assistance must have objectively testable semantics: exact
+normalization and source/version/hash receipts, substring and locator checks,
+duplicate/terminal guards, arithmetic or date transformations, or exact
+version-bound patches after a correction is selected. A verified path proves
+that an excerpt exists; it does not prove materiality or entailment. Broad
+source-only anchors, divergent-term lists, generic legal lint, and compulsory
+repair advice remain outside model context because the landed audits did not
+identify the actual omissions.
 
-Deterministic assistance must either apply a provably safe, version/hash-bound
-fix with a receipt or emit a short, objective, actionable diagnostic. Broad
-source-only anchor dumps, speculative term-drift lists, and compulsory repair
-passes are not model context. Keep independent telemetry for every diagnostic
-class so a non-contributing class can be removed.
+Acceptance for promotion:
 
-Acceptance:
-
-- Preregister nine diverse visible-development tasks, exact fingerprints, and
-  one fixed judge before new model calls. Rerun true-origin upstream on all
-  nine; never reuse a cell whose own receipt lacks the registered origin and
-  source-blob proof.
-- Hold Luna/high and the provider-reported default tier constant, inspect tool
-  and schema traces before scoring, and treat scores as provisional derivative
-  labels rather than human gold.
-- Match or exceed pinned upstream accuracy with fewer logical tokens. Up to
-  1.5x tokens is acceptable only for a broad, decisive quality gain with no
-  task collapse.
-- Attribute wins separately to terminal generation, continuous deliberation,
-  host-resolved structure, and each deterministic diagnostic. Do not promote a
-  bundle whose individual contributors have not earned their context, token,
-  and latency cost.
+- Preregister a broader paired matrix, emphasizing long discriminating tasks,
+  with exact task/source/tool/prompt fingerprints and one fixed judge before
+  calls. Compare only true pinned Mike, the retained native surface, and the
+  prompt-only conflict-first replicate.
+- Hold performer model, effort, provider-reported tier, retrieval settings, and
+  judge constant; inspect exact traces before scoring; label Sol criteria as
+  provisional derivative evidence rather than human gold.
+- Replicate performers so a one-point sampling fluctuation cannot select the
+  architecture. Never reuse a control whose receipt lacks the registered
+  origin and source-blob proof.
+- Match or exceed pinned Mike with fewer logical tokens. Up to 2x tokens is
+  acceptable only for a broad, substantial accuracy gain with no task collapse.
+- Add no context or deterministic stage without an independently attributable
+  score or correctness win that exceeds its token and latency cost.
 
 ## Priority 1 — deterministic document and spreadsheet work
 
