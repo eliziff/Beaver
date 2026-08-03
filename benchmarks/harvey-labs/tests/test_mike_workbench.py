@@ -304,14 +304,13 @@ def test_final_check_is_a_fresh_turn_and_can_preserve_the_initial_work(tmp_path)
 
     assert receipt["terminal"] is False
     assert receipt["final_check_follows"] is True
+    assert 'Current title(s): "Memo".' in receipt["revision_protocol"]
     assert executor.terminal is False
     assert executor.pop_followup_message() is None
 
     executor.after_tool_batch()
     followup = executor.pop_followup_message()
-    assert followup.startswith(FINAL_CHECK_INSTRUCTION)
-    assert '"Memo"' in followup
-    assert "If no correction is needed, make no tool call." in followup
+    assert followup == FINAL_CHECK_INSTRUCTION
 
     metrics = executor.get_metrics()
     assert metrics["final_check_enabled"] is True
@@ -453,7 +452,7 @@ def test_agent_loop_injects_final_check_as_a_fresh_user_turn(tmp_path):
     assert result["finished_cleanly"] is True
     assert result["finish_summary"] is None
     assert adapter.review_messages[-1]["role"] == "user"
-    assert adapter.review_messages[-1]["content"].startswith(FINAL_CHECK_INSTRUCTION)
+    assert adapter.review_messages[-1]["content"] == FINAL_CHECK_INSTRUCTION
 
 
 def test_openai_followup_user_turn_reaches_stateful_responses_context():
