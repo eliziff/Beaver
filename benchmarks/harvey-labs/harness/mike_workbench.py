@@ -345,7 +345,7 @@ class MikeWorkbenchExecutor(ToolExecutor):
         self._whole_reads: set[str] = set()
         self._deliverables = [name for name in deliverables if name.lower().endswith(".docx")]
         self._generated: list[str] = []
-        self._initial_sources: dict[str, str] = {}
+        self._initial_sources: dict[str, bytes] = {}
         self._initial_receipts: dict[str, dict] = {}
         self._append_gate_pending = False
         self._append_ready = False
@@ -730,7 +730,11 @@ class MikeWorkbenchExecutor(ToolExecutor):
         else:
             draft_path = f"{WORKSPACE_PATH}/.mike/draft-{len(self._generated) + 1}.md"
             output_path = f"{OUTPUT_PATH}/{filename}"
-        self.sandbox.write_file(draft_path, source)
+        source_bytes = source.encode("utf-8")
+        self.sandbox.write_file(
+            draft_path,
+            source_bytes if self.monotonic_review_enabled else source,
+        )
         result = self.sandbox.exec(
             f"pandoc {shlex.quote(draft_path)} -o {shlex.quote(output_path)}",
             timeout=120,
@@ -743,14 +747,18 @@ class MikeWorkbenchExecutor(ToolExecutor):
         self._generated.append(filename)
         if self.monotonic_review_enabled:
             initial_docx = self.sandbox.read_file(output_path)
+            persisted_source = self.sandbox.read_file(draft_path)
+            if persisted_source != source_bytes:
+                raise RuntimeError("initial draft source bytes changed while writing")
             receipt = {
                 "filename": filename,
                 "source_characters": len(source),
-                "source_sha256": hashlib.sha256(source.encode()).hexdigest(),
+                "source_bytes": len(persisted_source),
+                "source_sha256": hashlib.sha256(persisted_source).hexdigest(),
                 "docx_bytes": len(initial_docx),
                 "docx_sha256": hashlib.sha256(initial_docx).hexdigest(),
             }
-            self._initial_sources[filename] = source
+            self._initial_sources[filename] = persisted_source
             self._initial_receipts[filename] = receipt
             self._append_gate_pending = bool(self._deliverables) and all(
                 name in self._generated for name in self._deliverables
@@ -791,12 +799,16 @@ class MikeWorkbenchExecutor(ToolExecutor):
             return f"Error: '{filename}' is already finalized"
         addition = str(arguments.get("markdown") or "").strip()
         initial = self._initial_sources[filename]
-        final_source = initial if not addition else f"{initial}\n{addition}\n"
+        addition_bytes = addition.encode("utf-8")
+        final_source = initial if not addition else initial + b"\n" + addition_bytes + b"\n"
         if not final_source.startswith(initial):
             raise RuntimeError("append-only invariant failed")
         draft_path = f"{WORKSPACE_PATH}/.mike/final/{filename}.md"
         output_path = f"{OUTPUT_PATH}/{filename}"
         self.sandbox.write_file(draft_path, final_source)
+        persisted_final_source = self.sandbox.read_file(draft_path)
+        if persisted_final_source != final_source:
+            raise RuntimeError("final draft source bytes changed while writing")
         result = self.sandbox.exec(
             f"pandoc {shlex.quote(draft_path)} -o {shlex.quote(output_path)}",
             timeout=120,
@@ -812,9 +824,10 @@ class MikeWorkbenchExecutor(ToolExecutor):
             "initial_source_sha256": self._initial_receipts[filename]["source_sha256"],
             "initial_docx_sha256": self._initial_receipts[filename]["docx_sha256"],
             "append_characters": len(addition),
-            "append_sha256": hashlib.sha256(addition.encode()).hexdigest(),
-            "final_source_characters": len(final_source),
-            "final_source_sha256": hashlib.sha256(final_source.encode()).hexdigest(),
+            "append_sha256": hashlib.sha256(addition_bytes).hexdigest(),
+            "final_source_characters": len(final_source.decode("utf-8")),
+            "final_source_bytes": len(persisted_final_source),
+            "final_source_sha256": hashlib.sha256(persisted_final_source).hexdigest(),
             "final_docx_bytes": len(final_docx),
             "final_docx_sha256": hashlib.sha256(final_docx).hexdigest(),
             "initial_prefix_preserved": final_source.startswith(initial),

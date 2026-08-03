@@ -1,3 +1,4 @@
+import hashlib
 import json
 import shlex
 from dataclasses import dataclass
@@ -281,12 +282,14 @@ def test_monotonic_review_freezes_initial_and_only_appends_after_next_round(tmp_
     )
 
     assert finalized["terminal"] is True
-    final_source = (tmp_path / "workspace" / ".mike" / "final" / "memo.docx.md").read_text()
-    initial_source = (tmp_path / "workspace" / ".mike" / "initial" / "memo.docx.md").read_text()
-    assert final_source.startswith(initial_source.rstrip())
-    assert "Ratio is 1.20x" in final_source
+    final_source = (tmp_path / "workspace" / ".mike" / "final" / "memo.docx.md").read_bytes()
+    initial_source = (tmp_path / "workspace" / ".mike" / "initial" / "memo.docx.md").read_bytes()
+    assert final_source.startswith(initial_source)
+    assert b"Ratio is 1.20x" in final_source
     metrics = executor.get_metrics()
     assert metrics["initial_draft_receipts"][0]["source_sha256"] == generated["initial_source_sha256"]
+    assert metrics["initial_draft_receipts"][0]["source_sha256"] == hashlib.sha256(initial_source).hexdigest()
+    assert metrics["append_receipts"][0]["final_source_sha256"] == hashlib.sha256(final_source).hexdigest()
     assert metrics["append_receipts"][0]["initial_prefix_preserved"] is True
     assert metrics["finalized_deliverables"] == ["memo.docx"]
 
@@ -307,8 +310,8 @@ def test_monotonic_review_empty_append_preserves_exact_initial_source(tmp_path):
     )
 
     assert receipt["appended_characters"] == 0
-    initial_source = (tmp_path / "workspace" / ".mike" / "initial" / "memo.docx.md").read_text()
-    final_source = (tmp_path / "workspace" / ".mike" / "final" / "memo.docx.md").read_text()
+    initial_source = (tmp_path / "workspace" / ".mike" / "initial" / "memo.docx.md").read_bytes()
+    final_source = (tmp_path / "workspace" / ".mike" / "final" / "memo.docx.md").read_bytes()
     assert final_source == initial_source
 
 
