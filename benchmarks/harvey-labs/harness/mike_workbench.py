@@ -39,6 +39,7 @@ MIKE_SURFACES = {
     "mike_one_shot_conflict_first_xhigh_v1",
     "mike_one_shot_native_xhigh_v1",
     "mike_one_shot_quote_first_xhigh_v1",
+    "mike_one_shot_monotonic_review_xhigh_v1",
 }
 
 ONE_SHOT_SURFACES = {
@@ -48,6 +49,7 @@ ONE_SHOT_SURFACES = {
     "mike_one_shot_conflict_first_xhigh_v1",
     "mike_one_shot_native_xhigh_v1",
     "mike_one_shot_quote_first_xhigh_v1",
+    "mike_one_shot_monotonic_review_xhigh_v1",
 }
 
 CONFLICT_FIRST_PROMPT = """
@@ -66,6 +68,13 @@ QUOTE_FIRST_PROMPT = """
 PRIVATE QUOTE-FIRST GROUNDING:
 - In each generate_docx call, complete `grounding` before `markdown`. For every material factual, numerical, or source-dependent conclusion in that deliverable, give a short verbatim source quote, its filename, and the proposition it supports. The host verifies this private ledger; it is not inserted into the work product.
 - Keep quotes short and exact. Resolve conflicting source statements deliberately. Put quotations or citations in the deliverable itself only when the request or professional genre calls for them."""
+
+MONOTONIC_REVIEW_PROMPT = """
+
+ONE OMISSIONS-ONLY REVIEW:
+- Your generate_docx calls create complete initial drafts, which the host freezes byte-for-byte. Generation is not terminal for this workflow.
+- After the generation results arrive, audit the frozen drafts once against the original request and the source evidence. Look only for material omissions, incorrect source attribution, or missing qualifications that change the answer. Do not rewrite, shorten, duplicate, or polish existing text.
+- In the next response, call append_docx once for every deliverable. Supply only new, source-supported Markdown ready to append, with any headings needed for a coherent continuation. Use an empty string when no material correction is needed. The host permits append-only finalization, so the initial draft cannot lose content. Successful finalization is terminal."""
 
 ONE_SHOT_PROMPT = """You are a senior legal analyst. Complete the user's exact request from the project documents.
 
@@ -152,6 +161,33 @@ def _bash_tool() -> dict:
     return tool
 
 
+def _append_docx_tool() -> dict:
+    filename: dict = {
+        "type": "string",
+        "description": "Filename returned by the corresponding generate_docx call.",
+    }
+    return {
+        "name": "append_docx",
+        "description": (
+            "Finalize one frozen initial DOCX by appending only material, "
+            "source-supported omissions found during the single review. Existing "
+            "draft text is immutable. Pass empty markdown when no correction is needed."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "filename": filename,
+                "markdown": {
+                    "type": "string",
+                    "description": "New Markdown to append verbatim, or an empty string.",
+                },
+            },
+            "required": ["filename", "markdown"],
+            "additionalProperties": False,
+        },
+    }
+
+
 def get_mike_surface(name: str, document_inventory: list[tuple[str, str]]) -> tuple[str, list[dict], dict]:
     if name not in MIKE_SURFACES:
         raise ValueError(f"unknown Mike surface: {name}")
@@ -199,6 +235,13 @@ def get_mike_surface(name: str, document_inventory: list[tuple[str, str]]) -> tu
             prompt += NATIVE_GROUNDING_PROMPT
         if name == "mike_one_shot_quote_first_xhigh_v1":
             prompt += QUOTE_FIRST_PROMPT
+        if name == "mike_one_shot_monotonic_review_xhigh_v1":
+            author["description"] = (
+                "Create one complete initial DOCX draft. The host freezes it and "
+                "opens one omissions-only review; this call is not terminal."
+            )
+            tools.append(_append_docx_tool())
+            prompt += NATIVE_GROUNDING_PROMPT + MONOTONIC_REVIEW_PROMPT
     else:
         tools = [_canonical_tool(tool) for tool in frozen["tools"]]
         prompt = frozen["system_prompt"]
@@ -275,9 +318,13 @@ class MikeWorkbenchExecutor(ToolExecutor):
             surface_name == "mike_one_shot_fact_index_xhigh_v1"
         )
         self.quote_first_enabled = surface_name == "mike_one_shot_quote_first_xhigh_v1"
+        self.monotonic_review_enabled = (
+            surface_name == "mike_one_shot_monotonic_review_xhigh_v1"
+        )
         self.citation_reminders = surface_name not in {
             "mike_one_shot_native_xhigh_v1",
             "mike_one_shot_quote_first_xhigh_v1",
+            "mike_one_shot_monotonic_review_xhigh_v1",
         }
         self.terminal = False
         self._documents = self.sandbox.list_files(DOCUMENTS_PATH)
@@ -298,6 +345,12 @@ class MikeWorkbenchExecutor(ToolExecutor):
         self._whole_reads: set[str] = set()
         self._deliverables = [name for name in deliverables if name.lower().endswith(".docx")]
         self._generated: list[str] = []
+        self._initial_sources: dict[str, str] = {}
+        self._initial_receipts: dict[str, dict] = {}
+        self._append_gate_pending = False
+        self._append_ready = False
+        self._finalized: list[str] = []
+        self._append_receipts: list[dict] = []
         self._compiler_gate_done = False
         self._compiler_review_pending = False
         self._compiler_review_output = ""
@@ -335,6 +388,8 @@ class MikeWorkbenchExecutor(ToolExecutor):
                 return super().execute(tool_name, arguments)
             if tool_name == "generate_docx":
                 return self._generate_docx(arguments)
+            if tool_name == "append_docx":
+                return self._append_docx(arguments)
             return super().execute(tool_name, arguments)
         except (OSError, RuntimeError, ValueError, PermissionError) as error:
             return f"Error: {type(error).__name__}: {error}"
@@ -656,6 +711,8 @@ class MikeWorkbenchExecutor(ToolExecutor):
             self._compiler_gate_done = True
             self._compiler_review_pending = False
         remaining = [name for name in self._deliverables if name not in self._generated]
+        if self.monotonic_review_enabled and not remaining:
+            return "Error: initial drafts are frozen; use append_docx to finalize them"
         if remaining:
             filename = remaining[0]
         else:
@@ -666,9 +723,14 @@ class MikeWorkbenchExecutor(ToolExecutor):
         grounding_error = self._record_grounding(arguments.get("grounding"), filename)
         if grounding_error:
             return grounding_error
-        draft_path = f"{WORKSPACE_PATH}/.mike/draft-{len(self._generated) + 1}.md"
-        output_path = f"{OUTPUT_PATH}/{filename}"
-        self.sandbox.write_file(draft_path, f"% {title}\n\n{markdown}\n")
+        source = f"% {title}\n\n{markdown}\n"
+        if self.monotonic_review_enabled:
+            draft_path = f"{WORKSPACE_PATH}/.mike/initial/{filename}.md"
+            output_path = f"{WORKSPACE_PATH}/.mike/initial/{filename}"
+        else:
+            draft_path = f"{WORKSPACE_PATH}/.mike/draft-{len(self._generated) + 1}.md"
+            output_path = f"{OUTPUT_PATH}/{filename}"
+        self.sandbox.write_file(draft_path, source)
         result = self.sandbox.exec(
             f"pandoc {shlex.quote(draft_path)} -o {shlex.quote(output_path)}",
             timeout=120,
@@ -678,8 +740,34 @@ class MikeWorkbenchExecutor(ToolExecutor):
         if result.returncode != 0 or not self.sandbox.exists(output_path):
             detail = (result.stderr or result.stdout).strip()
             return f"Error: DOCX generation failed: {detail[-500:]}"
-        self.files_written += 1
         self._generated.append(filename)
+        if self.monotonic_review_enabled:
+            initial_docx = self.sandbox.read_file(output_path)
+            receipt = {
+                "filename": filename,
+                "source_characters": len(source),
+                "source_sha256": hashlib.sha256(source.encode()).hexdigest(),
+                "docx_bytes": len(initial_docx),
+                "docx_sha256": hashlib.sha256(initial_docx).hexdigest(),
+            }
+            self._initial_sources[filename] = source
+            self._initial_receipts[filename] = receipt
+            self._append_gate_pending = bool(self._deliverables) and all(
+                name in self._generated for name in self._deliverables
+            )
+            return json.dumps(
+                {
+                    "filename": filename,
+                    "message": (
+                        f"Initial draft '{filename}' is frozen. After every initial "
+                        "draft result arrives, perform the single omissions-only review "
+                        "and call append_docx for each deliverable."
+                    ),
+                    "initial_source_sha256": receipt["source_sha256"],
+                    "terminal": False,
+                }
+            )
+        self.files_written += 1
         self.terminal = bool(self._deliverables) and all(
             name in self._generated for name in self._deliverables
         )
@@ -691,11 +779,69 @@ class MikeWorkbenchExecutor(ToolExecutor):
             }
         )
 
+    def _append_docx(self, arguments: dict) -> str:
+        if not self.monotonic_review_enabled:
+            return "Error: append_docx is unavailable on this surface"
+        if not self._append_ready:
+            return "Error: generate every initial draft and review its returned result before append_docx"
+        filename = str(arguments.get("filename") or "").strip()
+        if filename not in self._initial_sources:
+            return f"Error: no frozen initial draft for '{filename}'"
+        if filename in self._finalized:
+            return f"Error: '{filename}' is already finalized"
+        addition = str(arguments.get("markdown") or "").strip()
+        initial = self._initial_sources[filename]
+        final_source = initial if not addition else f"{initial}\n{addition}\n"
+        if not final_source.startswith(initial):
+            raise RuntimeError("append-only invariant failed")
+        draft_path = f"{WORKSPACE_PATH}/.mike/final/{filename}.md"
+        output_path = f"{OUTPUT_PATH}/{filename}"
+        self.sandbox.write_file(draft_path, final_source)
+        result = self.sandbox.exec(
+            f"pandoc {shlex.quote(draft_path)} -o {shlex.quote(output_path)}",
+            timeout=120,
+        )
+        if result.timed_out:
+            return "Error: DOCX generation timed out"
+        if result.returncode != 0 or not self.sandbox.exists(output_path):
+            detail = (result.stderr or result.stdout).strip()
+            return f"Error: DOCX generation failed: {detail[-500:]}"
+        final_docx = self.sandbox.read_file(output_path)
+        receipt = {
+            "filename": filename,
+            "initial_source_sha256": self._initial_receipts[filename]["source_sha256"],
+            "initial_docx_sha256": self._initial_receipts[filename]["docx_sha256"],
+            "append_characters": len(addition),
+            "append_sha256": hashlib.sha256(addition.encode()).hexdigest(),
+            "final_source_characters": len(final_source),
+            "final_source_sha256": hashlib.sha256(final_source.encode()).hexdigest(),
+            "final_docx_bytes": len(final_docx),
+            "final_docx_sha256": hashlib.sha256(final_docx).hexdigest(),
+            "initial_prefix_preserved": final_source.startswith(initial),
+        }
+        self._append_receipts.append(receipt)
+        self._finalized.append(filename)
+        self.files_written += 1
+        self.terminal = bool(self._deliverables) and all(
+            name in self._finalized for name in self._deliverables
+        )
+        return json.dumps(
+            {
+                "filename": filename,
+                "message": f"Document '{filename}' has been finalized append-only.",
+                "appended_characters": len(addition),
+                "terminal": self.terminal,
+            }
+        )
+
     def after_tool_batch(self) -> None:
         """Open generation only after the model has received the review packet."""
         if self._compiler_review_pending:
             self._compiler_gate_done = True
             self._compiler_review_pending = False
+        if self._append_gate_pending:
+            self._append_ready = True
+            self._append_gate_pending = False
 
     def get_metrics(self) -> dict:
         metrics = super().get_metrics()
@@ -724,6 +870,11 @@ class MikeWorkbenchExecutor(ToolExecutor):
                 "grounding_verified": self.grounding_verified,
                 "grounding_unverified": self.grounding_claims - self.grounding_verified,
                 "grounding_receipts": self.grounding_receipts,
+                "monotonic_review_enabled": self.monotonic_review_enabled,
+                "initial_draft_receipts": list(self._initial_receipts.values()),
+                "append_ready": self._append_ready,
+                "finalized_deliverables": self._finalized,
+                "append_receipts": self._append_receipts,
             }
         )
         return metrics
