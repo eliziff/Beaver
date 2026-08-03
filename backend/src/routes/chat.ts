@@ -45,6 +45,7 @@ import {
   MIKE_LEGAL_GUIDED_TOOL_SHAPE,
   MIKE_LEGAL_TOOL_SHAPE,
   MIKE_STRUCTURE_PATHS_TOOL_SHAPE,
+  GROUNDING_FIRST_ENABLED,
   MODEL_COVERAGE_ROUTING,
   NAV_TOOL_SHAPE,
   ORIGIN_MIKE_TOOL_SHAPE,
@@ -84,6 +85,7 @@ import {
 } from "../lib/chat/evidenceExposure";
 import {
   ADAPTIVE_MIKE_LAB_SYSTEM_PROMPT,
+  GROUNDED_STRUCTURE_LAB_SYSTEM_PROMPT,
   MIKE_GREP_LAB_SYSTEM_PROMPT,
   MIKE_LEGAL_GUIDED_LAB_SYSTEM_PROMPT,
   MIKE_STRUCTURE_PATHS_LAB_SYSTEM_PROMPT,
@@ -1077,7 +1079,9 @@ export async function streamAnonymousChat(params: {
   let systemPrompt = ORIGIN_MIKE_TOOL_SHAPE
     ? MIKE_GREP_FAMILY_TOOL_SHAPE
       ? MIKE_STRUCTURE_PATHS_TOOL_SHAPE
-        ? MIKE_STRUCTURE_PATHS_LAB_SYSTEM_PROMPT
+        ? GROUNDING_FIRST_ENABLED
+          ? GROUNDED_STRUCTURE_LAB_SYSTEM_PROMPT
+          : MIKE_STRUCTURE_PATHS_LAB_SYSTEM_PROMPT
         : MIKE_LEGAL_GUIDED_TOOL_SHAPE
           ? MIKE_LEGAL_GUIDED_LAB_SYSTEM_PROMPT
           : MIKE_GREP_LAB_SYSTEM_PROMPT
@@ -2453,6 +2457,7 @@ export async function streamAnonymousChat(params: {
           mike_legal_shape: MIKE_LEGAL_TOOL_SHAPE,
           mike_legal_guided_shape: MIKE_LEGAL_GUIDED_TOOL_SHAPE,
           mike_structure_paths_shape: MIKE_STRUCTURE_PATHS_TOOL_SHAPE,
+          grounding_first: GROUNDING_FIRST_ENABLED,
           model_coverage_routing: MODEL_COVERAGE_ROUTING,
           whole_read_max_chars: WHOLE_READ_MAX_CHARS || null,
           tool_result_max_chars: MAX_TOOL_RESULT_CHARS,
