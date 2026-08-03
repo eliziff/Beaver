@@ -1,0 +1,175 @@
+{
+  "schema_version": 1,
+  "experiment_id": "harvey-lab-mike-workbench-v1",
+  "registered_at": "2026-08-03T09:22:26Z",
+  "status": "preregistered_before_performer_calls",
+  "experiment_class": "visible-development Codex-path side run",
+  "claim_scope": "One fresh paired development experiment over three visible Harvey LAB tasks. Results are provisional derivative Sol-judge labels, are not human gold, and must not be pooled with canonical Claude-product A/B cells.",
+  "general_objective": "Match or beat frozen upstream Mike answer quality under one fixed Sol criterion judge while using fewer tokens. Up to 2.0x upstream cache-adjusted input is acceptable only for a substantial, cross-task quality gain.",
+  "decisive_hypothesis": "Earlier coding arms paid coding-agent ingestion costs for work Mike already does efficiently. Preserve Mike's inventory and whole-document batch read unchanged, keep one continuous agent, and add only an optional ordinary Bash analysis scratchpad over the exact same Mike-normalized evidence. This separates cheap ingestion from deterministic calculation, reconciliation, filtering, and source-wide checks without checkpoints, handoffs, evidence unions, legal-scope tools, or retrieval choreography.",
+  "implementation_commits_before_launch": [
+    "4a417e3e4ae50da6dc7bf41f72f03726a7370c71",
+    "a14c3b9e4b8d87e58b9a6601c9bef3b98f78fca1"
+  ],
+  "code_binding": {
+    "upstream_mike_commit": "2266446b0d26f735865b8cd3bb153b28e7d11b17",
+    "upstream_mike_schema_sha256": "78f2e1dfaa7f2c5a62dcc52531804373e998ee002fe783e7767a10113e7a87fc",
+    "docker_image": "lab-sandbox:latest",
+    "docker_image_id": "sha256:0695466b5b1278b2b979b78de0f845b6e81b9d3cbd70ee6a6ec6a430a0599b23",
+    "mechanism": "Each preflight and run records exact per-file task-source and harness-source receipts plus task, instruction, source-bundle, system-prompt, tool-schema, and composite run fingerprints.",
+    "postlaunch_edits": "forbidden; a general defect fix requires a new versioned preregistration"
+  },
+  "landed_evidence": {
+    "architecture": [
+      "The latest Banking control reached 54/65 at 42,582 logical tokens while lean batch reached 59/65 at 116,445; whole reads retain a strong small-matter efficiency advantage.",
+      "The latest Indenture structure-path arm reached 74/83 at about 147k logical tokens without calling the structure tool, while coding-plain used about 2.1m; the useful gain was a compact continuous surface, not legal routing machinery.",
+      "The latest Tax frontier remained 44/77 despite broad source coverage; missing synthesis, calculations, and completeness rather than document availability were the dominant observed defects.",
+      "Prior coding arms used Bash productively for arithmetic and reconciliation, but also used coding calls for ingestion. The workbench tests Bash only as an analysis delta after preserving Mike's cheap complete-read path."
+    ],
+    "deterministic_arm": {
+      "positive_retrospective": "Against the landed 59/65 Banking draft, the bounded packet surfaced four concrete judged failure modes: source-reported 0.07x headroom, source-reported 3.15x leverage, the 5-Business-Day interest-default grace context, and separate Term Loan A/Revolver March 15, 2027 maturity contexts.",
+      "packet_characters": 11895,
+      "general_defect_target": "Global value coverage falsely treated an anchor as covered when the same value appeared in the draft under a different provision or facility.",
+      "negative_evidence": "Broad singleton anchor dumps were noisy, and prior conflict/temporal scanners produced zero relevant findings on these tasks. Those paths are excluded. The registered compiler retains only repeated omissions, repeated draft-only calculations, numeral/word mismatches, and at most ten class-balanced context-attribution candidates.",
+      "no_benchmark_leakage": "The implementation contains no task names, task values, criterion text, filenames, or task routes. Its material-context vocabulary is a fixed general legal/economic list and the arm remains separately attributable."
+    }
+  },
+  "design": {
+    "same_agent": true,
+    "fresh_drafting_stage": false,
+    "checkpoint_or_handoff": false,
+    "evidence_union": false,
+    "automatic_context_refresh": false,
+    "legal_scope_tools": false,
+    "task_router_or_task_specific_prompt": false,
+    "progressive_tool_disclosure": false,
+    "whole_document_batch_read": true,
+    "duplicate_whole_read_suppression": true,
+    "bash_materialization": "lazy on first Bash call; exact Mike-normalized UTF-8 projections and a receipt manifest are written under /workspace/.mike/sources while exact originals remain read-only under /workspace/documents",
+    "network": "disabled",
+    "terminal_successful_generation": true,
+    "exact_host_evidence_receipts": true
+  },
+  "performer": {
+    "model": "codex/gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "temperature_requested": 0,
+    "temperature_transmitted": false,
+    "provider_service_tier_requested": null,
+    "required_provider_service_tier_reported": "default",
+    "max_turns": 10,
+    "replicates": 1,
+    "arm_count": 3,
+    "task_count": 3,
+    "run_count": 9,
+    "max_concurrent_processes": 9,
+    "run_id_template": "2026-08-03-mike-workbench-v1--{task_slug_with_slashes_replaced_by_double_hyphens}--{surface}",
+    "trace_gate": "No judge starts until each required DOCX is present, nonempty, structurally readable, and its trace confirms matching fingerprints, no context overflow, exact parse receipts, provider usage, cache telemetry, tool calls/results, compiler behavior, and no source-path or tool-schema error."
+  },
+  "arms": {
+    "mike_control_v1": {
+      "role": "paired frozen simple control",
+      "tools": ["read_document", "find_in_document", "list_documents", "fetch_documents", "generate_docx"],
+      "tool_schema_sha256": "cecc7c7395d25e2aab4616ceed989615267657fb293d2be5470ba374fd36fdd5",
+      "harness_source_bundle_sha256": "81fe2730a09e2aa2f9a5a25c1dc10b5475dcbe0983441a2788d39f4d4eeb2de5"
+    },
+    "mike_workbench_v1": {
+      "role": "primary candidate",
+      "delta": "Frozen Mike plus one ordinary Bash tool and a 923-byte general workbench instruction; Bash is optional and evidence materialization is lazy.",
+      "tools": ["read_document", "find_in_document", "list_documents", "fetch_documents", "bash", "generate_docx"],
+      "tool_schema_sha256": "ff52f045753241e5fe8d42dd2edec1cd9ca270fa2b4bfb72afb8b77e4a51eef4",
+      "harness_source_bundle_sha256": "81fe2730a09e2aa2f9a5a25c1dc10b5475dcbe0983441a2788d39f4d4eeb2de5"
+    },
+    "mike_workbench_anchor_v1": {
+      "role": "separately attributable deterministic candidate",
+      "delta": "The primary candidate plus one bounded first-submit host review. The model-facing tool schema is byte-identical to mike_workbench_v1. If findings exist, same-batch duplicate submissions receive the same packet; after the packet is in history the model may revise or resubmit unchanged.",
+      "tools": ["read_document", "find_in_document", "list_documents", "fetch_documents", "bash", "generate_docx"],
+      "tool_schema_sha256": "ff52f045753241e5fe8d42dd2edec1cd9ca270fa2b4bfb72afb8b77e4a51eef4",
+      "harness_source_bundle_sha256": "0a8f812d62ac18f83a2125f423f1d2b052f478851de7c37c0e514ff750854b62"
+    }
+  },
+  "tasks": {
+    "banking-finance/extract-credit-agreement-covenants": {
+      "task_config_sha256": "4521248e6438e7649a0784299693284ece4bf98f693544bd7b62d9d55df0c598",
+      "instructions_sha256": "8b3afea95c4ea92f7a1ab9dd10aeb4ba81a03ad546aa1958aa899d042a5d0f2d",
+      "source_bundle_sha256": "b5c3605cfbe3d53377712d0db3463f945a5c69cf7caef0da01b45d7b9ee75296",
+      "source_count": 3,
+      "source_bytes": 146996,
+      "criteria": 65,
+      "system_prompt_sha256": {
+        "mike_control_v1": "299f95296b30428c3c99917961ba9ec83915f184327716134330c813a4d8583e",
+        "mike_workbench_v1": "a3800ed2d50bff7c7e4f86c07f03752b91c3fb5820c9391ff6007a5f3c02052b",
+        "mike_workbench_anchor_v1": "d24af0007dea0978be5c10ccce153e1a96f65d4bf9248d07f6be29efdcfb5dbf"
+      },
+      "run_fingerprint_sha256": {
+        "mike_control_v1": "40d523566f3613c83a607a13a6155aa6e111e440896e31f471aea7d2400b11ce",
+        "mike_workbench_v1": "dcb37012f81b662553290deebccc332a8394a8ea1b419e824e053d411683bad6",
+        "mike_workbench_anchor_v1": "93813dfd880332af4feea466f98e659947ce2df33240df0778768bdd72ed8ea4"
+      }
+    },
+    "tax/draft-transfer-pricing-documentation": {
+      "task_config_sha256": "e860b4de7d37024a85dba093e569a893cf4806a190f073e53e9a61514fd5a962",
+      "instructions_sha256": "baa067a9d481a31b85cb9a47a3eebfbc6620e2c5cd23b87e71b2b4f1741d05b7",
+      "source_bundle_sha256": "0ebfa8f86d9bd3405d4ccd638471ded6f48a4748ca0cfba76b992f1a5ea15e3d",
+      "source_count": 25,
+      "source_bytes": 1511738,
+      "criteria": 77,
+      "system_prompt_sha256": {
+        "mike_control_v1": "cb5b1e479edf22ec3ee42ada92af5d0dea0a0deb29788a0411401674c1e036c0",
+        "mike_workbench_v1": "6ecdd1ce5c3d2670551bde7d7f6f09e129ed1a9f51bfcb3c8eb42052eed3b959",
+        "mike_workbench_anchor_v1": "9beb381dc74782fb3ddd1cdb2a3e864dff60d10ba00344ac9179c5117e462d70"
+      },
+      "run_fingerprint_sha256": {
+        "mike_control_v1": "d255057e2ee14832458ea51be273e5f7fb135eaee30fbfb044748d5c40d3c79b",
+        "mike_workbench_v1": "529218f3243f984ec874703dfc96a646686b4f3e2b0d17d7d450fe3ab438572e",
+        "mike_workbench_anchor_v1": "b670d0fa7f0a3b00ac1289e4205d41bab5bbe7c3805982dc32ba1ac28a222e3b"
+      }
+    },
+    "capital-markets/draft-indenture-for-senior-secured-notes-offering": {
+      "task_config_sha256": "41b58ce7ca3c92ea825ddb22d5a1e4bc8b5c23e31df3e8f6efc54056c98775aa",
+      "instructions_sha256": "d9b4b8460380ace783ca538f417843d2edf8f997f0ec3f622f5ea6aebf2f5675",
+      "source_bundle_sha256": "c1319d3aec66399c21a7a1a00b64821d48e4eecc190bbc15474148e7da33d7fd",
+      "source_count": 14,
+      "source_bytes": 730540,
+      "criteria": 83,
+      "system_prompt_sha256": {
+        "mike_control_v1": "22dc350de81aa94250f1a4566047f543e736ddc5715927bf672159592b21ab07",
+        "mike_workbench_v1": "6d83c266cc50d50500dff80d03b929ab3bcd450f27e3b91e1b99b993d6f57571",
+        "mike_workbench_anchor_v1": "ec9847296a10a6ec661349dde542e9900919058b823e8d24237f0d1d8aa2a998"
+      },
+      "run_fingerprint_sha256": {
+        "mike_control_v1": "dfb148b60a22f550333cf30246b2a32655b85027da12ec27a62d35d37ee09ac8",
+        "mike_workbench_v1": "c79e657f790623710967bfce52c7e3db9afaa2a31670bd18fc8914cd07efe657",
+        "mike_workbench_anchor_v1": "74849dfda7ca7e7480b8686421066470e9e59fffd3524a71f6ed7d5cf7598532"
+      }
+    }
+  },
+  "matrix_totals": {
+    "criteria": 225,
+    "sources": 42,
+    "source_bytes": 2389274
+  },
+  "judge": {
+    "model": "codex/gpt-5.6-sol",
+    "reasoning_effort": "provider default",
+    "temperature_requested": 0,
+    "criterion_level": true,
+    "max_concurrent_criteria": 12,
+    "provider_service_tier_requested": null,
+    "prompt_sha256": "da0f2618d996ac5415a960dfc445e53b6fbd1b22602dd587bf6ecccbe139cb21",
+    "judge_source_sha256": "3546fec5ca1c4d655c8510d8cf2e0ca2201a94428c86d1628fbcdf5afe83a4b5",
+    "scoring_source_sha256": "e7f5e0accdaffe3ba9d350fb417f0c09f6f372ff5888def5908c73113291a9a3"
+  },
+  "metrics": {
+    "quality_primary": "fixed Sol criterion score, reported per task plus micro and task-macro aggregates",
+    "efficiency_primary": "provider-reported logical input plus output tokens",
+    "cache_adjusted_input_equivalent": "uncached input + 0.1 * cache-read input + 1.25 * cache-write input",
+    "secondary": ["valid deliverables", "source coverage", "whole and duplicate reads", "Bash use", "analysis-source materialization", "compiler packet size and candidate classes", "context rounds", "tool calls/errors/result bytes", "cache ratios", "provider and wall latency"]
+  },
+  "decision_rule": {
+    "ordering": ["accuracy", "cache-adjusted input", "logical tokens", "coverage", "latency", "tool behavior"],
+    "workbench": "Advance if aggregate quality meets or exceeds paired Mike with lower token use, or if a substantial cross-task quality gain stays within 2.0x paired Mike cache-adjusted input.",
+    "deterministic": "Advance only if it improves judged accuracy beyond workbench and the traces show the bounded packet addressed material findings. Delete it if it is ignored, adds noise, or merely adds a round.",
+    "task_specific_fixes": "forbidden"
+  }
+}
