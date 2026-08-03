@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "experiment_id": "harvey-lab-mike-final-check-v1",
+  "registered_at": "2026-08-03T16:19:44Z",
+  "status": "preregistered_before_performer_calls",
+  "experiment_class": "visible-development Codex-path Luna harness ablation",
+  "claim_scope": "A model-held-constant test of one fresh final verification turn after native one-shot drafting. Fixed-Sol criterion labels are provisional and derivative, not human gold.",
+  "hypothesis": "Native one-shot already retrieves all exact evidence efficiently, but some omissions arise at the final coverage and risk-check boundary rather than retrieval. One unconstrained fresh verification turn in the same conversation can recover latent requirements and risks without a research handoff, evidence replay, legal router, or deterministic semantic judge. It earns its cost only if its own retained pre-check work product is materially worse than the checked output or the checked output materially raises the landed frontier.",
+  "causal_isolation": {
+    "initial_path": "Identical tool schema and initial system prompt to mike_one_shot_native_xhigh_v1 except that successful initial generation is not terminal.",
+    "fresh_turn": "Only after every requested DOCX is successfully rendered, the harness appends one new user-role message containing exactly the registered 220-byte instruction. The instruction is absent from the initial system prompt.",
+    "instruction": "Please double check that the work product matches the requested deliverable, thoroughly checking all features of the request and using creative thinking to ensure that no latent risk or problem has been left unaddressed.",
+    "instruction_sha256": "2daa14f3e14e00de6487c6d21e77a4a9d23a48b54d9c3982e5c3321ba94461fd",
+    "revision_path": "The existing generate_docx tool can replace a deliverable only by its exact original title. No tool call preserves the initial output byte-for-byte.",
+    "causal_artifacts": "The host retains the exact initial Markdown, initial DOCX, source/output hashes and sizes, plus any final replacement Markdown and before/after receipts. Score changed initial snapshots as well as final outputs under the same frozen judge."
+  },
+  "implementation_commit_before_launch": "cf8212053547adf4e4e7d43b8469d0f3ed49b692",
+  "surface": "mike_one_shot_final_check_xhigh_v1",
+  "performer": {
+    "model": "codex/gpt-5.6-luna",
+    "reasoning_effort": "xhigh",
+    "temperature_requested": 0,
+    "temperature_transmitted": false,
+    "required_provider_service_tier_reported": "default",
+    "tools": ["fetch_documents", "generate_docx"],
+    "trajectory": "one complete exact-evidence fetch; one initial authoring batch; exactly one fresh final-check model turn; optional same-title replacements in that final turn",
+    "run_count": 3,
+    "max_concurrent_processes": 3,
+    "max_turns": 10,
+    "harness_source_bundle_sha256": "a1e0a608d41aa4230dd5aceac2ed197b589b9d3d9fd6900409eb8436d74ff978",
+    "tool_schema_sha256": "7da650571cfd85d225720eb6f7b0549eae2309212394202a708d9ffa4b568298",
+    "tool_schema_bytes": 1091,
+    "upstream_mike_commit": "2266446b0d26f735865b8cd3bb153b28e7d11b17",
+    "upstream_mike_schema_sha256": "78f2e1dfaa7f2c5a62dcc52531804373e998ee002fe783e7767a10113e7a87fc"
+  },
+  "tasks": {
+    "banking-finance/extract-credit-agreement-covenants": {
+      "run_id": "2026-08-03-mike-final-check-v1--banking-finance--extract-credit-agreement-covenants",
+      "task_config_sha256": "4521248e6438e7649a0784299693284ece4bf98f693544bd7b62d9d55df0c598",
+      "instructions_sha256": "8b3afea95c4ea92f7a1ab9dd10aeb4ba81a03ad546aa1958aa899d042a5d0f2d",
+      "source_bundle_sha256": "b5c3605cfbe3d53377712d0db3463f945a5c69cf7caef0da01b45d7b9ee75296",
+      "system_prompt_sha256": "ebcd149834eeb12b3eced53b3299335f8002ac1522f41cb3993d06a878ca10b2",
+      "system_prompt_bytes": 1162,
+      "prompt_cache_key": "lab-31baa0b9a460cbec5e8735a1bb40f1f6501770478463545d0279345ee82bb32d",
+      "run_fingerprint_sha256": "06cbac8969034649b1777307f1a963f509838d3925f94c1fa17075256842653c"
+    },
+    "tax/draft-transfer-pricing-documentation": {
+      "run_id": "2026-08-03-mike-final-check-v1--tax--draft-transfer-pricing-documentation",
+      "task_config_sha256": "e860b4de7d37024a85dba093e569a893cf4806a190f073e53e9a61514fd5a962",
+      "instructions_sha256": "baa067a9d481a31b85cb9a47a3eebfbc6620e2c5cd23b87e71b2b4f1741d05b7",
+      "source_bundle_sha256": "0ebfa8f86d9bd3405d4ccd638471ded6f48a4748ca0cfba76b992f1a5ea15e3d",
+      "system_prompt_sha256": "f0dadd3b9c51b4ba2d6361535b91a258e9ee59e9c3374fe2ebfff777c4bc7ad6",
+      "system_prompt_bytes": 2880,
+      "prompt_cache_key": "lab-c576ef298072a06c9f36adf644ba063acca4de326b7d26d10a55d5a0065fa7b5",
+      "run_fingerprint_sha256": "fc4ae8c13c05b6b0e2cf81b1e82ef08677e583e094058cb37bc449fbd547192c"
+    },
+    "capital-markets/draft-indenture-for-senior-secured-notes-offering": {
+      "run_id": "2026-08-03-mike-final-check-v1--capital-markets--draft-indenture-for-senior-secured-notes-offering",
+      "task_config_sha256": "41b58ce7ca3c92ea825ddb22d5a1e4bc8b5c23e31df3e8f6efc54056c98775aa",
+      "instructions_sha256": "d9b4b8460380ace783ca538f417843d2edf8f997f0ec3f622f5ea6aebf2f5675",
+      "source_bundle_sha256": "c1319d3aec66399c21a7a1a00b64821d48e4eecc190bbc15474148e7da33d7fd",
+      "system_prompt_sha256": "227ef53c507000874ea42199ddcbdd69f037b98225bf4f4c979e883589610a78",
+      "system_prompt_bytes": 1650,
+      "prompt_cache_key": "lab-daad7167d9670838b70e6d955cd1ffe2c4ef78cdb75413af3c7e42337319f43e",
+      "run_fingerprint_sha256": "315041a17dde3f61bca140b00cf673944dd0796ae6b454696758b197faf600b9"
+    }
+  },
+  "trace_gate": "Require exact registered fingerprints and Docker; exactly three successful model turns (complete fetch, complete initial authoring batch, one final check); all sources exposed before initial drafting; the exact registered instruction appears once as a new user-role message after initial DOCX generation and never in the initial system prompt; no fourth model turn; initial Markdown and DOCX snapshots exist with matching receipts; any revision targets an exact original title and has a complete before/after receipt; all requested final DOCX files are readable; default reported tier; zero schema, tool, path, context, or transport errors. Inspect initial/final diffs and the final-turn reasoning before judging.",
+  "judge": {
+    "model": "codex/gpt-5.6-sol",
+    "reasoning_effort": "provider default",
+    "temperature_requested": 0,
+    "criterion_level": true,
+    "max_concurrent_outputs": 3,
+    "max_concurrent_criteria_per_output": 4,
+    "maximum_total_concurrency": 12,
+    "local_process_priority": "Normal",
+    "prompt_sha256": "da0f2618d996ac5415a960dfc445e53b6fbd1b22602dd587bf6ecccbe139cb21",
+    "judge_source_sha256": "3546fec5ca1c4d655c8510d8cf2e0ca2201a94428c86d1628fbcdf5afe83a4b5",
+    "scoring_source_sha256": "e7f5e0accdaffe3ba9d350fb417f0c09f6f372ff5888def5908c73113291a9a3"
+  },
+  "comparators": {
+    "fresh_frozen_mike_high": {"score": 172, "max_score": 225, "logical_tokens": 590911},
+    "frozen_mike_xhigh_replicates": [
+      {"score": 172, "max_score": 225, "logical_tokens": 610323},
+      {"score": 169, "max_score": 225, "logical_tokens": 611545}
+    ],
+    "native_one_shot_xhigh": {"score": 177, "max_score": 225, "logical_tokens": 597341},
+    "conflict_first_xhigh": {"score": 178, "max_score": 225, "logical_tokens": 628072},
+    "fresh_scout_xhigh": {"score": 177, "max_score": 225, "logical_tokens": 1181068}
+  },
+  "decision_rule": "Promote only if the trace gate passes, fixed-Sol final aggregate is at least 184/225, no task falls below 56/65 Banking, 44/77 Tax, or 73/83 Indenture, and aggregate provider-reported logical tokens do not exceed 1,181,822 (2.0x fresh Mike/high). For any changed deliverable, compare the retained initial snapshot and final output under the same fixed judge; the final turn must add at least four aggregate criterion points over its own pre-check snapshots to attribute material value to review. Accuracy is primary. A structurally invalid or sub-floor result rejects and removes the final-check machinery; no task-specific fix or prompt tweak follows this pass."
+}
