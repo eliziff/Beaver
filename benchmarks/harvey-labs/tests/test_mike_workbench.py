@@ -4,8 +4,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from harness.adapters.base import ModelResponse, ToolCall
+from harness.adapters.openai import OpenAIAdapter
 from harness.agent_loop import run_agent
-from harness.mike_workbench import MikeWorkbenchExecutor, get_mike_surface
+from harness.mike_workbench import (
+    FINAL_CHECK_INSTRUCTION,
+    MikeWorkbenchExecutor,
+    get_mike_surface,
+)
 from sandbox.sandbox import DOCUMENTS_PATH, OUTPUT_PATH, WORKSPACE_PATH
 
 
@@ -126,6 +131,9 @@ def test_surface_is_frozen_mike_or_a_compact_native_delta():
     linked_prompt, linked, _ = get_mike_surface(
         "mike_one_shot_linked_grounding_xhigh_v1", inventory
     )
+    final_check_prompt, final_check, _ = get_mike_surface(
+        "mike_one_shot_final_check_xhigh_v1", inventory
+    )
 
     assert [tool["name"] for tool in control] == [
         "read_document",
@@ -136,11 +144,18 @@ def test_surface_is_frozen_mike_or_a_compact_native_delta():
     ]
     assert [tool["name"] for tool in native] == ["fetch_documents", "generate_docx"]
     assert [tool["name"] for tool in linked] == ["fetch_documents", "generate_docx"]
+    assert [tool["name"] for tool in final_check] == [
+        "fetch_documents",
+        "generate_docx",
+    ]
+    assert final_check == native
     grounding = linked[1]["parameters"]["properties"]["grounding"]
     assert grounding["minItems"] == 4
     assert grounding["maxItems"] == 12
     assert linked[1]["parameters"]["required"][0] == "grounding"
     assert "Successful generation" in native_prompt
+    assert "Successful generation" not in final_check_prompt
+    assert FINAL_CHECK_INSTRUCTION not in final_check_prompt
     assert "GROUNDING:" in native_prompt
     assert "GROUNDING:" not in control_prompt
     assert "PRIVATE LINKED GROUNDING" in linked_prompt
@@ -275,6 +290,75 @@ def test_one_shot_fetch_repeats_exact_request_after_complete_evidence(tmp_path):
     assert receipt["terminal"] is True
 
 
+def test_final_check_is_a_fresh_turn_and_can_preserve_the_initial_work(tmp_path):
+    executor = _executor(
+        tmp_path, surface="mike_one_shot_final_check_xhigh_v1"
+    )
+
+    receipt = json.loads(
+        executor.execute(
+            "generate_docx",
+            {"title": "Memo", "markdown": "# Conclusion\n\nComplete."},
+        )
+    )
+
+    assert receipt["terminal"] is False
+    assert receipt["final_check_follows"] is True
+    assert executor.terminal is False
+    assert executor.pop_followup_message() is None
+
+    executor.after_tool_batch()
+    followup = executor.pop_followup_message()
+    assert followup.startswith(FINAL_CHECK_INSTRUCTION)
+    assert '"Memo"' in followup
+    assert "If no correction is needed, make no tool call." in followup
+
+    metrics = executor.get_metrics()
+    assert metrics["final_check_enabled"] is True
+    assert metrics["final_check_pending_without_revision"] is True
+    assert metrics["final_check_revisions"] == 0
+    assert len(metrics["initial_draft_receipts"]) == 1
+    assert (tmp_path / "output" / "memo.docx").read_bytes() == b"PK\x03\x04test-docx"
+
+
+def test_final_check_replaces_only_the_named_original_title(tmp_path):
+    executor = _executor(
+        tmp_path, surface="mike_one_shot_final_check_xhigh_v1"
+    )
+    executor.execute(
+        "generate_docx",
+        {"title": "Memo", "markdown": "# Conclusion\n\nInitial."},
+    )
+    executor.after_tool_batch()
+    executor.pop_followup_message()
+
+    wrong = executor.execute(
+        "generate_docx",
+        {"title": "Different title", "markdown": "# Conclusion\n\nChanged."},
+    )
+    assert wrong == "Error: final-check revision must use exactly the original title"
+
+    revised = json.loads(
+        executor.execute(
+            "generate_docx",
+            {"title": "Memo", "markdown": "# Conclusion\n\nCorrected."},
+        )
+    )
+    assert revised["filename"] == "memo.docx"
+    assert revised["changed"] is True
+    executor.after_tool_batch()
+
+    assert executor.terminal is True
+    persisted = (tmp_path / "workspace" / ".mike" / "final-check-1.md").read_text(
+        encoding="utf-8"
+    )
+    assert "Corrected." in persisted
+    metrics = executor.get_metrics()
+    assert metrics["final_check_revision_attempts"] == 2
+    assert metrics["final_check_revisions"] == 1
+    assert metrics["final_check_changed"] == 1
+
+
 class _OneCallAdapter:
     def make_system_message(self, content):
         return {"role": "system", "content": content}
@@ -292,6 +376,33 @@ class _OneCallAdapter:
 
     def make_tool_result_messages(self, results):
         return [{"role": "tool", "content": result} for _, result in results]
+
+
+class _FinalCheckAdapter(_OneCallAdapter):
+    def __init__(self):
+        self.calls = 0
+        self.review_messages = None
+
+    def chat(self, messages, tools):
+        self.calls += 1
+        if self.calls == 1:
+            return ModelResponse(
+                message={"role": "assistant"},
+                tool_calls=[
+                    ToolCall(
+                        id="draft",
+                        name="generate_docx",
+                        arguments=json.dumps(
+                            {"title": "Memo", "markdown": "# Conclusion\n\nComplete."}
+                        ),
+                    )
+                ],
+            )
+        self.review_messages = list(messages)
+        return ModelResponse(
+            message={"role": "assistant", "content": "No correction needed."},
+            text="No correction needed.",
+        )
 
 
 class _TerminalExecutor:
@@ -318,3 +429,41 @@ def test_agent_loop_stops_cleanly_on_terminal_tool():
     assert result["turn_count"] == 1
     assert result["finished_cleanly"] is True
     assert result["finish_summary"] == "terminal_tool"
+
+
+def test_agent_loop_injects_final_check_as_a_fresh_user_turn(tmp_path):
+    adapter = _FinalCheckAdapter()
+    executor = _executor(
+        tmp_path, surface="mike_one_shot_final_check_xhigh_v1"
+    )
+
+    result = run_agent(
+        adapter=adapter,
+        system_prompt="system",
+        user_prompt="request",
+        tool_executor=executor,
+        tools=[],
+        max_turns=3,
+    )
+
+    assert result["turn_count"] == 2
+    assert result["finished_cleanly"] is True
+    assert result["finish_summary"] is None
+    assert adapter.review_messages[-1]["role"] == "user"
+    assert adapter.review_messages[-1]["content"].startswith(FINAL_CHECK_INSTRUCTION)
+
+
+def test_openai_followup_user_turn_reaches_stateful_responses_context():
+    adapter = OpenAIAdapter.__new__(OpenAIAdapter)
+    adapter._context = []
+
+    message = adapter.make_followup_user_message(FINAL_CHECK_INSTRUCTION)
+
+    assert message == {"role": "user", "content": FINAL_CHECK_INSTRUCTION}
+    assert adapter._context == [
+        {
+            "type": "message",
+            "role": "user",
+            "content": FINAL_CHECK_INSTRUCTION,
+        }
+    ]

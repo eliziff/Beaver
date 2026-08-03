@@ -306,6 +306,7 @@ parser.add_argument(
         "mike_control_v1",
         "mike_one_shot_native_xhigh_v1",
         "mike_one_shot_linked_grounding_xhigh_v1",
+        "mike_one_shot_final_check_xhigh_v1",
     ),
     default="standard",
     help="Tool surface for a preregistered harness ablation.",
