@@ -49,6 +49,8 @@ import {
   COMPACT_AUTHOR_MIKE_LAB_SYSTEM_PROMPT,
   COMPACT_AUTHOR_MIKE_LAB_TOOLS,
   GROUNDED_STRUCTURE_LAB_SYSTEM_PROMPT,
+  GROUNDED_STRUCTURE_OUTLINE_DELTA,
+  GROUNDED_STRUCTURE_OUTLINE_LAB_SYSTEM_PROMPT,
   LEAN_BATCH_DELTA,
   LEAN_BATCH_HARDREFS_DELTA,
   LEAN_BATCH_LAB_SYSTEM_PROMPT,
@@ -730,6 +732,26 @@ async function main() {
       MIKE_SLA_WORKFLOW: "0",
       MIKE_GREENFIELD_REVIEW: "0",
     },
+    grounded_structure_outline_v1: {
+      MIKE_NAV_SHAPE: "legacy",
+      MIKE_TOOL_SHAPE: "mike-structure-paths-v1",
+      MIKE_RETRIEVAL_EXPERIMENT: "s1-structure-paths",
+      MIKE_GROUNDING_FIRST: "1",
+      // H7: inject the compact outline + top-K cross-ref summary into the
+      // system context once; no new tools, no multi-turn churn.
+      MIKE_GROUNDED_OUTLINE_INJECTION: "1",
+      MIKE_PROGRESSIVE_DISCLOSURE: "0",
+      MIKE_MODEL_COVERAGE_ROUTING: "0",
+      MIKE_WHOLE_READ_MAX_CHARS: "",
+      MIKE_TOOL_RESULT_CAP: "64000",
+      MIKE_SUPPRESS_DUPLICATE_WHOLE_READS: "1",
+      MIKE_TERMINAL_AUTHORING: "1",
+      MIKE_CONTEXT_HANDOFF: "0",
+      MIKE_CONTINUOUS_EVIDENCE: "0",
+      MIKE_OPENAI_COMPACT_THRESHOLD: "",
+      MIKE_SLA_WORKFLOW: "0",
+      MIKE_GREENFIELD_REVIEW: "0",
+    },
     v5_reconstruction_v1: {
       MIKE_NAV_SHAPE: "address",
       MIKE_TOOL_SHAPE: "coding",
@@ -750,7 +772,7 @@ async function main() {
   };
   if (!armEnvironment[arm])
     throw new Error(
-      `unknown --arm ${arm}; expected a registered LAB arm, including upstream_terminal_v1, mike_compact_author_v1, lean_batch_v1, or lean_batch_hardrefs_v1`,
+      `unknown --arm ${arm}; expected a registered LAB arm, including upstream_terminal_v1, mike_compact_author_v1, lean_batch_v1, lean_batch_hardrefs_v1, or grounded_structure_outline_v1`,
     );
 
   // Re-spawn into the isolated anonymous-mode environment (same recipe as
@@ -813,6 +835,7 @@ async function main() {
           MIKE_SLA_STRATEGY: "",
           MIKE_GREENFIELD_REVIEW: "0",
           MIKE_GROUNDING_FIRST: "0",
+          MIKE_GROUNDED_OUTLINE_INJECTION: "0",
           MIKE_SCHEMA_ENCODING: "",
           // Compute-only ablation. It does not change tool schemas, prompts,
           // or extracted text; a PDF is still created on the first paged read.
@@ -848,6 +871,7 @@ async function main() {
     "src/lib/documentTypes.ts",
     "src/lib/chat/evidenceExposure.ts",
     "src/lib/chat/localAssistantTools.ts",
+    "src/lib/chat/labOutlineInjection.ts",
     "src/lib/chat/upstreamMikeBenchmarkSurface.ts",
     "src/lib/chat/prompts.ts",
     "src/lib/chat/slaWorkflow.ts",
@@ -971,12 +995,18 @@ async function main() {
             systemPrompt: MIKE_GREP_LAB_SYSTEM_PROMPT,
             tools: MIKE_GREP_LAB_TOOLS,
           }
-        : ["mike_structure_paths_v1", "grounded_structure_v1"].includes(arm)
+        : [
+              "mike_structure_paths_v1",
+              "grounded_structure_v1",
+              "grounded_structure_outline_v1",
+            ].includes(arm)
           ? {
               systemPrompt:
-                arm === "grounded_structure_v1"
-                  ? GROUNDED_STRUCTURE_LAB_SYSTEM_PROMPT
-                  : MIKE_STRUCTURE_PATHS_LAB_SYSTEM_PROMPT,
+                arm === "grounded_structure_outline_v1"
+                  ? GROUNDED_STRUCTURE_OUTLINE_LAB_SYSTEM_PROMPT
+                  : arm === "grounded_structure_v1"
+                    ? GROUNDED_STRUCTURE_LAB_SYSTEM_PROMPT
+                    : MIKE_STRUCTURE_PATHS_LAB_SYSTEM_PROMPT,
               tools: MIKE_STRUCTURE_PATHS_LAB_TOOLS,
             }
           : null;
@@ -1419,6 +1449,7 @@ async function main() {
     "mike_legal_guided_v1",
     "mike_structure_paths_v1",
     "grounded_structure_v1",
+    "grounded_structure_outline_v1",
   ];
   if (mikeGrepArms.includes(arm)) {
     const expectedTools = [
@@ -1443,6 +1474,7 @@ async function main() {
       mike_structure_paths_shape: [
         "mike_structure_paths_v1",
         "grounded_structure_v1",
+        "grounded_structure_outline_v1",
       ].includes(arm),
     };
     if (
@@ -1454,7 +1486,12 @@ async function main() {
         expectedFlags.mike_legal_guided_shape ||
       surface?.mike_structure_paths_shape !==
         expectedFlags.mike_structure_paths_shape ||
-      surface?.grounding_first !== (arm === "grounded_structure_v1") ||
+      surface?.grounding_first !==
+        ["grounded_structure_v1", "grounded_structure_outline_v1"].includes(
+          arm,
+        ) ||
+      surface?.grounded_outline_injection !==
+        (arm === "grounded_structure_outline_v1") ||
       surface?.retrieval_experiment !==
         armEnvironment[arm].MIKE_RETRIEVAL_EXPERIMENT ||
       surface?.coding_shape !== true ||
@@ -1662,6 +1699,7 @@ async function main() {
       "mike_grep_v1",
       "mike_structure_paths_v1",
       "grounded_structure_v1",
+      "grounded_structure_outline_v1",
     ].includes(arm)
   ) {
     const expectedDocx = deliverables.filter((name) => /\.docx$/iu.test(name));
@@ -2138,6 +2176,10 @@ async function main() {
     lean_batch_hardrefs_delta:
       arm === "lean_batch_hardrefs_v1" ? LEAN_BATCH_HARDREFS_DELTA : null,
     mike_grep_delta: mikeGrepDelta,
+    grounded_structure_outline_delta:
+      arm === "grounded_structure_outline_v1"
+        ? GROUNDED_STRUCTURE_OUTLINE_DELTA
+        : null,
     strategy_reconstruction:
       arm === "v5_reconstruction_v1"
         ? "finalist-luna-long-v5-hybrid-finalist"
@@ -2406,6 +2448,10 @@ async function main() {
         suppress_duplicate_whole_reads:
           surface?.suppress_duplicate_whole_reads ?? null,
         hard_reference_hints: surface?.hard_reference_hints === true,
+        grounded_outline_injection:
+          surface?.grounded_outline_injection === true,
+        grounded_outline_injection_chars:
+          surface?.grounded_outline_injection_chars ?? null,
         trajectory_mode: surface?.trajectory_mode ?? null,
         context_handoff: surface?.context_handoff === true,
         full_handoff_prompt_variant:
@@ -2457,6 +2503,10 @@ async function main() {
         adaptive_mike_delta:
           arm === "adaptive_mike_v1" ? ADAPTIVE_MIKE_DELTA : null,
         mike_grep_delta: mikeGrepDelta,
+        grounded_structure_outline_delta:
+          arm === "grounded_structure_outline_v1"
+            ? GROUNDED_STRUCTURE_OUTLINE_DELTA
+            : null,
         strategy_reconstruction:
           arm === "v5_reconstruction_v1"
             ? {
@@ -2536,6 +2586,10 @@ async function main() {
         suppress_duplicate_whole_reads:
           surface?.suppress_duplicate_whole_reads ?? null,
         hard_reference_hints: surface?.hard_reference_hints === true,
+        grounded_outline_injection:
+          surface?.grounded_outline_injection === true,
+        grounded_outline_injection_chars:
+          surface?.grounded_outline_injection_chars ?? null,
         trajectory_mode: surface?.trajectory_mode ?? null,
         continuous_evidence: surface?.continuous_evidence === true,
         working_set_page_max_chars:
@@ -2849,6 +2903,10 @@ async function main() {
         adaptive_mike_delta:
           arm === "adaptive_mike_v1" ? ADAPTIVE_MIKE_DELTA : null,
         mike_grep_delta: mikeGrepDelta,
+        grounded_structure_outline_delta:
+          arm === "grounded_structure_outline_v1"
+            ? GROUNDED_STRUCTURE_OUTLINE_DELTA
+            : null,
         v5_strategy_reconstruction:
           arm === "v5_reconstruction_v1" ? true : null,
         service_tier_requested: serviceTier || null,
