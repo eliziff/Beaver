@@ -110,6 +110,99 @@ describe("A2AJ compiler spine", () => {
     );
   });
 
+  it("recovers a sentence heading joined to a bracketed CITT paragraph", () => {
+    const body =
+      "This substantive judgment paragraph contains enough ordinary words for reliable structural validation throughout these reasons.";
+    const text = [
+      `[1] ${body}`,
+      `[2] ${body}`,
+      "The complaint relating to setting aside the contract is premature [3] In the email accompanying the complaint, the party explained why the requested relief remained unavailable.",
+      `[4] ${body}`,
+      `[5] ${body}`,
+      `[6] ${body}`,
+    ].join("\n");
+    const doc = compile({ text, docType: "cases", dataset: "CITT" });
+
+    expect(
+      doc.blocks
+        .filter((block) => block.kind === "paragraph")
+        .map((block) => block.label),
+    ).toEqual(["par1", "par2", "par3", "par4", "par5", "par6"]);
+    expect(doc.ranges.paragraph.missing).toEqual([]);
+    expect(lookupSourceDoc(doc, "paragraph", "3").block?.text).toMatch(
+      /^\[3\] In the email/u,
+    );
+  });
+
+  it("recovers formal dot-numbered headings", () => {
+    const body =
+      "The Tribunal applies the governing legal framework to the record and explains the resulting disposition in sufficient substantive detail.";
+    const paragraph = (number: number) => `${number}. ${body}`;
+    const text = [
+      ...Array.from({ length: 5 }, (_, index) => paragraph(index + 1)),
+      `PROCUREMENT PROCESS 6. ${body}`,
+      ...Array.from({ length: 5 }, (_, index) => paragraph(index + 7)),
+      `Costs 12. ${body}`,
+      ...Array.from({ length: 13 }, (_, index) => paragraph(index + 13)),
+      `Costs 26. ${body}`,
+      `DETERMINATION OF THE TRIBUNAL 27. ${body}`,
+      paragraph(28),
+    ].join("\n");
+    const doc = compile({ text, docType: "cases", dataset: "CITT" });
+
+    expect(
+      doc.blocks
+        .filter((block) => block.kind === "paragraph")
+        .map((block) => block.label),
+    ).toEqual(Array.from({ length: 28 }, (_, index) => `par${index + 1}`));
+    expect(doc.ranges.paragraph.missing).toEqual([]);
+    expect(lookupSourceDoc(doc, "paragraph", "27").block?.text).toMatch(
+      /^27\. The Tribunal/u,
+    );
+  });
+
+  it("does not promote inline case pinpoints to paragraphs", () => {
+    const body =
+      "This substantive judgment paragraph contains enough ordinary words for reliable structural validation throughout these reasons.";
+    const text = [
+      `[1] ${body}`,
+      `[2] ${body}`,
+      "The court relied on its earlier decision [3] in reaching the result after considering the parties' submissions.",
+      `[4] ${body}`,
+      `[5] ${body}`,
+      `[6] ${body}`,
+    ].join("\n");
+    const doc = compile({ text, docType: "cases" });
+
+    expect(
+      doc.blocks
+        .filter((block) => block.kind === "paragraph")
+        .map((block) => block.label),
+    ).toEqual(["par1", "par2", "par4", "par5", "par6"]);
+    expect(doc.ranges.paragraph.missing).toEqual(["par3"]);
+  });
+
+  it("does not promote dot-form case citations to paragraphs", () => {
+    const body =
+      "This substantive judgment paragraph contains enough ordinary words for reliable structural validation throughout these reasons.";
+    const text = [
+      `1. ${body}`,
+      `2. ${body}`,
+      "R. v. Example 3. The court relied on the earlier reasons when resolving the present dispute.",
+      `4. ${body}`,
+      `5. ${body}`,
+      `6. ${body}`,
+    ].join("\n");
+    const doc = compile({ text, docType: "cases" });
+
+    expect(
+      doc.blocks
+        .filter((block) => block.kind === "paragraph")
+        .map((block) => block.label),
+    ).toEqual(["par1", "par2", "par4", "par5", "par6"]);
+    expect(doc.ranges.paragraph.missing).toEqual(["par3"]);
+  });
+
   it("recovers a missing leading paragraph joined to its heading", () => {
     const body =
       "This substantive judgment paragraph contains enough ordinary words for reliable structural validation throughout these reasons.";
