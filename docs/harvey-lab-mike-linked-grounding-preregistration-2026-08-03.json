@@ -16,6 +16,12 @@
   "implementation_commit_before_launch": "cf8212053547adf4e4e7d43b8469d0f3ed49b692",
   "linked_grounding_implementation_commit": "9a36c283d66f3b1f2b49752db7efcbbd28be7ee1",
   "surface": "mike_one_shot_linked_grounding_xhigh_v1",
+  "artifact_storage": {
+    "root": "C:/tmp/harvey-labs-results",
+    "run_id_argument": "absolute artifact root plus the registered logical run_id basename",
+    "reason": "The checked-in LAB results directory is read-only to the execution sandbox; C:/tmp is the approved writable artifact root.",
+    "pre_model_launch_failures": "Two launcher attempts failed while creating result/log directories before sandbox startup, adapter construction, or any provider call. They produced no run artifacts and do not consume cells."
+  },
   "performer": {
     "model": "codex/gpt-5.6-luna",
     "reasoning_effort": "xhigh",
