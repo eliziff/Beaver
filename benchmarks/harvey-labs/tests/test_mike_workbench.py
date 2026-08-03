@@ -88,11 +88,43 @@ def _executor(
     )
 
 
+def _linked_grounding() -> list[dict]:
+    return [
+        {
+            "id": "G1",
+            "source": "alpha.txt",
+            "quote": "Debt is $2 million.",
+            "supports": "The reported debt is $2 million.",
+        },
+        {
+            "id": "G2",
+            "source": "alpha.txt",
+            "quote": "Closing date is March 15, 2027.",
+            "supports": "The closing date is March 15, 2027.",
+        },
+        {
+            "id": "G3",
+            "source": "beta.txt",
+            "quote": "Fixed charge coverage ratio is 1.20x.",
+            "supports": "The fixed charge coverage ratio is 1.20x.",
+        },
+        {
+            "id": "G4",
+            "source": "alpha.txt",
+            "quote": "Debt is $2 million. Closing date is March 15, 2027.",
+            "supports": "The debt and closing date are both source-reported.",
+        },
+    ]
+
+
 def test_surface_is_frozen_mike_or_a_compact_native_delta():
     inventory = [("alpha.docx", "docx")]
     control_prompt, control, frozen = get_mike_surface("mike_control_v1", inventory)
     native_prompt, native, _ = get_mike_surface(
         "mike_one_shot_native_xhigh_v1", inventory
+    )
+    linked_prompt, linked, _ = get_mike_surface(
+        "mike_one_shot_linked_grounding_xhigh_v1", inventory
     )
 
     assert [tool["name"] for tool in control] == [
@@ -103,9 +135,16 @@ def test_surface_is_frozen_mike_or_a_compact_native_delta():
         "generate_docx",
     ]
     assert [tool["name"] for tool in native] == ["fetch_documents", "generate_docx"]
+    assert [tool["name"] for tool in linked] == ["fetch_documents", "generate_docx"]
+    grounding = linked[1]["parameters"]["properties"]["grounding"]
+    assert grounding["minItems"] == 4
+    assert grounding["maxItems"] == 12
+    assert linked[1]["parameters"]["required"][0] == "grounding"
     assert "Successful generation" in native_prompt
     assert "GROUNDING:" in native_prompt
     assert "GROUNDING:" not in control_prompt
+    assert "PRIVATE LINKED GROUNDING" in linked_prompt
+    assert "[[G1]]" in linked_prompt
     assert frozen["commit"] == "2266446b0d26f735865b8cd3bb153b28e7d11b17"
 
 
@@ -118,6 +157,65 @@ def test_native_work_product_keeps_evidence_without_forcing_citations(tmp_path):
     assert "1.20x" in fetched
     assert "Citation requirement" not in fetched
     assert "<task_reminder source=\"original-user-request\">" in fetched
+
+
+def test_linked_grounding_verifies_links_and_strips_private_markers(tmp_path):
+    executor = _executor(
+        tmp_path, surface="mike_one_shot_linked_grounding_xhigh_v1"
+    )
+    markdown = """# Findings
+
+Debt is $2 million. [[G1]]
+Closing is March 15, 2027. [[G2]]
+The fixed charge coverage ratio is 1.20x. [[G3]]
+Both debt and closing require attention. [[G4]]"""
+
+    receipt = json.loads(
+        executor.execute(
+            "generate_docx",
+            {"title": "Memo", "grounding": _linked_grounding(), "markdown": markdown},
+        )
+    )
+
+    assert receipt["terminal"] is True
+    persisted = (tmp_path / "workspace" / ".mike" / "draft-1.md").read_text(
+        encoding="utf-8"
+    )
+    assert "[[G" not in persisted
+    metrics = executor.get_metrics()
+    assert metrics["grounding_attempts"] == 1
+    assert metrics["grounding_claims"] == 4
+    assert metrics["grounding_verified"] == 4
+    assert metrics["grounding_linked"] == 4
+    assert metrics["grounding_private_characters"] > 0
+
+
+def test_linked_grounding_fails_closed_on_elision_or_broken_links(tmp_path):
+    executor = _executor(
+        tmp_path, surface="mike_one_shot_linked_grounding_xhigh_v1"
+    )
+    grounding = _linked_grounding()
+    grounding[0]["quote"] = "Debt ... $2 million."
+    grounding[3]["quote"] = "This wording is not in the source."
+
+    result = executor.execute(
+        "generate_docx",
+        {
+            "title": "Memo",
+            "grounding": grounding,
+            "markdown": "G1 [[G1]] G2 [[G2]] G3 [[G3]] unknown [[G9]]",
+        },
+    )
+
+    assert result.startswith("Error: linked grounding invalid:")
+    assert "quote_has_ellipsis" in result
+    assert "quote_not_verbatim" in result
+    assert "marker_count" in result
+    assert not (tmp_path / "output" / "memo.docx").exists()
+    metrics = executor.get_metrics()
+    assert metrics["grounding_attempts"] == 1
+    assert metrics["grounding_unverified"] == 2
+    assert metrics["grounding_unlinked"] == 1
 
 
 def test_mike_batch_read_duplicate_guard_search_and_terminal_generation(tmp_path):
