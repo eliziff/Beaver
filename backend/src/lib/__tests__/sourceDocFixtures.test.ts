@@ -131,7 +131,7 @@ const MATRIX: Array<{
     file: "a2aj-case-scc-1986scr103-dot",
     docType: "cases",
     compiledSections: 0,
-    compiledParagraphs: 22,
+    compiledParagraphs: 27,
   },
   {
     file: "a2aj-case-scc-2021scc31-bracket",
@@ -461,6 +461,12 @@ describe("case spine corrections", () => {
     );
     expect(lookupSourceDoc(doc, "paragraph", "2").block?.text).toContain(
       "Before reviewing the factual context",
+    );
+    expect(lookupSourceDoc(doc, "paragraph", "3").block?.text).toContain(
+      "The respondent, David Edwin Oakes",
+    );
+    expect(lookupSourceDoc(doc, "paragraph", "4").block?.text).toContain(
+      "Following this finding, Mr. Oakes brought a motion",
     );
   });
 

@@ -669,6 +669,10 @@ const REPORT_PAGE_RE = /\b(?:S\.?C\.?R\.?|R\.?C\.?S\.?)\s+(\d{1,4})\b/iu;
 
 type NumberedMarker = { number: number; start: number; contentStart?: number };
 type ParagraphMarker = NumberedMarker & { style: "bracket" | "dot" | "bare" };
+const DOT_PROVISION_OPENING_RE =
+  /^\d{1,4}\.\s+\(\d{1,4}\)\s+/u;
+const PROVISION_LANGUAGE_RE =
+  /\b(?:Act|Code|Regulations?|Rules?|shall|must)\b/iu;
 
 function wordCount(text: string) {
   return text.match(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu)?.length ?? 0;
@@ -725,6 +729,25 @@ function monotoneScopes(markers: NumberedMarker[], maxGap = 8) {
     byLast.set(marker.number, [...(byLast.get(marker.number) ?? []), index]);
   }
   return scopes;
+}
+
+/**
+ * `3. (1) ...` in a case rendition is a quoted statutory provision, not a
+ * decision's dot-numbered paragraph. A subsection opening plus legislative
+ * language is specific enough to exclude it even when the source quotes only
+ * one provision.
+ */
+function quotedDotProvisionStarts(text: string, markers: ParagraphMarker[]) {
+  const dots = markers.filter((marker) => marker.style === "dot");
+  const quoted = new Set<number>();
+  for (const marker of dots) {
+    const next = text.indexOf("\n", marker.start);
+    const line = text.slice(marker.start, next < 0 ? text.length : next);
+    if (DOT_PROVISION_OPENING_RE.test(line) && PROVISION_LANGUAGE_RE.test(line)) {
+      quoted.add(marker.start);
+    }
+  }
+  return quoted;
 }
 
 const HEADING_CONNECTORS = new Set([
@@ -785,10 +808,97 @@ function looksLikeSentenceHeading(value: string, following: string) {
 /**
  * A2AJ occasionally joins a heading to the numbered paragraph that follows:
  * `Qualified Privilege [63] ...` or `COSTS 12. ...`. Recover only a unique
- * missing marker bracketed by an already-proven paragraph spine (or immediately
- * before its first marker). Sentence headings require adjacent numeric
- * neighbours and an uppercase paragraph start, which keeps inline citations out.
+ * missing marker bracketed by matching line-start neighbours (or immediately
+ * before the first marker). This happens before choosing the strict +1 spine,
+ * so a real heading join never splits it. Sentence headings require adjacent
+ * numeric neighbours and an uppercase paragraph start, which keeps inline
+ * citations out.
  */
+function recoverHeadingJoinedMarkers(
+  text: string,
+  markers: ParagraphMarker[],
+  style: "bracket" | "dot",
+) {
+  const lineMarkers = markers.filter((marker) => marker.style === style);
+  const knownStarts = new Set(lineMarkers.map(({ start }) => start));
+  const candidates = new Map<
+    number,
+    Array<ParagraphMarker & { formal: boolean; sentence: boolean }>
+  >();
+  const markerRe =
+    style === "bracket" ? /\[(\d{1,4})\]/gu : /(\d{1,4})\.(?=\s)/gu;
+  for (const match of text.matchAll(markerRe)) {
+    if (knownStarts.has(match.index)) continue;
+    const number = Number(match[1]);
+    const lineStart = text.lastIndexOf("\n", match.index - 1) + 1;
+    const heading = text.slice(lineStart, match.index);
+    const formal =
+      looksLikeJoinedHeading(heading) &&
+      (style === "bracket" || !/\./u.test(heading));
+    const sentence =
+      style === "bracket" &&
+      looksLikeSentenceHeading(
+        heading,
+        text.slice(match.index + match[0].length),
+      );
+    if (!formal && !sentence) continue;
+    candidates.set(number, [
+      ...(candidates.get(number) ?? []),
+      { number, start: match.index, style, formal, sentence },
+    ]);
+  }
+  const unique = new Map(
+    [...candidates.entries()]
+      .filter(([, matches]) => matches.length === 1)
+      .map(([number, matches]) => [number, matches[0]]),
+  );
+  const recovered = new Map<number, ParagraphMarker>();
+  const recover = (candidate: ParagraphMarker) => {
+    recovered.set(candidate.start, candidate);
+  };
+  // Formal headings may fill a complete short run (e.g. `Costs 26.` then
+  // `DETERMINATION 27.` before line-start `28.`). Every omitted number must
+  // have one matching formal heading, so a real source hole is never guessed.
+  for (let index = 1; index < lineMarkers.length; index += 1) {
+    const before = lineMarkers[index - 1];
+    const after = lineMarkers[index];
+    if (before.number >= after.number) continue;
+    const between: ParagraphMarker[] = [];
+    for (let number = before.number + 1; number < after.number; number += 1) {
+      const candidate = unique.get(number);
+      if (!candidate?.formal) {
+        between.length = 0;
+        break;
+      }
+      between.push(candidate);
+    }
+    for (const candidate of between) recover(candidate);
+  }
+  // A sentence-style heading is intentionally narrower: only one exactly
+  // bracketed label, with an uppercase paragraph start, is trustworthy.
+  for (let index = 1; index < lineMarkers.length; index += 1) {
+    const before = lineMarkers[index - 1];
+    const after = lineMarkers[index];
+    if (after.number !== before.number + 2) continue;
+    const candidate = unique.get(before.number + 1);
+    if (candidate?.sentence) recover(candidate);
+  }
+  const first = lineMarkers[0];
+  const leading = first && unique.get(first.number - 1);
+  if (
+    leading?.formal &&
+    leading.number > 0 &&
+    first.number === leading.number + 1 &&
+    first.start - leading.start <= 2_000
+  ) {
+    recover(leading);
+  }
+  return [...lineMarkers, ...recovered.values()].sort(
+    (left, right) => left.start - right.start,
+  );
+}
+
+/** The pre-existing permissive fallback used outside the A2AJ corpus. */
 function recoverHeadingJoinedParagraphs(
   text: string,
   spine: NumberedMarker[],
@@ -854,11 +964,12 @@ function paragraphSourceBlocks(
   spine: NumberedMarker[],
   allMarkers: ParagraphMarker[],
   style: ParagraphMarker["style"],
+  recoverHeadings = false,
 ) {
   const selected =
-    style === "bare"
-      ? spine
-      : recoverHeadingJoinedParagraphs(text, spine, style);
+    recoverHeadings && style !== "bare"
+      ? recoverHeadingJoinedParagraphs(text, spine, style)
+      : spine;
   const boundaries = [
     ...new Set([
       ...allMarkers
@@ -883,7 +994,11 @@ function paragraphSourceBlocks(
   }));
 }
 
-function paragraphBlocks(text: string, minRun = 5): SourceDocBlock[] {
+function paragraphBlocks(
+  text: string,
+  minRun = 5,
+  strictA2AJ = false,
+): SourceDocBlock[] {
   if (!text) return [];
   const markers: ParagraphMarker[] = [];
   for (const match of text.matchAll(PARAGRAPH_MARK_RE)) {
@@ -894,20 +1009,36 @@ function paragraphBlocks(text: string, minRun = 5): SourceDocBlock[] {
       style: bracket ? "bracket" : dot ? "dot" : "bare",
     });
   }
+  const quotedProvisionStarts = strictA2AJ
+    ? quotedDotProvisionStarts(text, markers)
+    : new Set<number>();
+  const eligibleMarkers = markers.filter(
+    (marker) => !quotedProvisionStarts.has(marker.start),
+  );
   const hypotheses: Array<{
     style: ParagraphMarker["style"];
     markers: NumberedMarker[];
+    allMarkers: ParagraphMarker[];
     shortComplete: boolean;
   }> = [];
   for (const style of ["bracket", "dot", "bare"] as const) {
-    for (const scope of monotoneScopes(
-      markers.filter((marker) => marker.style === style),
-    )) {
+    const styleMarkers = strictA2AJ
+      ? style === "bare"
+        ? eligibleMarkers.filter((marker) => marker.style === style)
+        : recoverHeadingJoinedMarkers(text, eligibleMarkers, style)
+      : markers.filter((marker) => marker.style === style);
+    for (const scope of monotoneScopes(styleMarkers, strictA2AJ ? 1 : 8)) {
       if (scope.length >= minRun) {
-        hypotheses.push({ style, markers: scope, shortComplete: false });
+        hypotheses.push({
+          style,
+          markers: scope,
+          allMarkers: strictA2AJ ? styleMarkers : markers,
+          shortComplete: false,
+        });
       } else if (
         style === "bracket" &&
         scope.length >= 2 &&
+        (!strictA2AJ || scope.length === styleMarkers.length) &&
         scope.every((marker, index) => marker.number === index + 1)
       ) {
         // Complete short [1]..[N] ladders are real structure in short
@@ -916,7 +1047,12 @@ function paragraphBlocks(text: string, minRun = 5): SourceDocBlock[] {
         // were exactly this shape, killed by minRun. Contiguity from 1
         // excludes quoted-fragment ladders and bracketed years ([1999]
         // parses as 1999).
-        hypotheses.push({ style, markers: scope, shortComplete: true });
+        hypotheses.push({
+          style,
+          markers: scope,
+          allMarkers: strictA2AJ ? styleMarkers : markers,
+          shortComplete: true,
+        });
       }
     }
   }
@@ -940,7 +1076,7 @@ function paragraphBlocks(text: string, minRun = 5): SourceDocBlock[] {
     ...[...short].sort(byStrength),
   ];
   for (const hypothesis of ordered) {
-    const allOffsets = markers
+    const allOffsets = (strictA2AJ ? hypothesis.allMarkers : markers)
       .filter((marker) => marker.style === hypothesis.style)
       .map((marker) => marker.start);
     const nextOffset = new Map(
@@ -989,8 +1125,9 @@ function paragraphBlocks(text: string, minRun = 5): SourceDocBlock[] {
         return paragraphSourceBlocks(
           text,
           hypothesis.markers,
-          markers,
+          hypothesis.allMarkers,
           hypothesis.style,
+          !strictA2AJ,
         );
       }
       continue;
@@ -1017,8 +1154,9 @@ function paragraphBlocks(text: string, minRun = 5): SourceDocBlock[] {
     return paragraphSourceBlocks(
       text,
       hypothesis.markers,
-      markers,
+      hypothesis.allMarkers,
       hypothesis.style,
+      !strictA2AJ,
     );
   }
   return [];
@@ -1205,24 +1343,37 @@ function coherentSectionMarkers(markers: SectionMarker[]) {
 }
 
 /**
- * The prose case spine (paragraphs, reporter pages), shared with the
- * native-markup compiler as the heuristic fallback for whatever a provider's
- * markup does not label.
+ * The generic prose case fallback (paragraphs, reporter pages), shared with
+ * native-markup compilers for whatever a provider's markup does not label.
+ * A2AJ compilation opts into its stricter source-specific paragraph mode below.
  */
-export function a2ajCaseBlocks(input: {
-  text: string;
-  citation?: string | null;
-  alternateCitation?: string | null;
-  dataset?: string | null;
-}): SourceDocBlock[] {
+function caseBlocks(
+  input: {
+    text: string;
+    citation?: string | null;
+    alternateCitation?: string | null;
+    dataset?: string | null;
+  },
+  strictA2AJ = false,
+): SourceDocBlock[] {
   return [
-    ...paragraphBlocks(input.text),
+    ...paragraphBlocks(input.text, 5, strictA2AJ),
     ...pageBlocks(
       input.text,
       reporterStartPage(input.citation, input.alternateCitation),
       (input.dataset ?? "").toUpperCase() === "SCC",
     ),
   ];
+}
+
+/** Generic fallback retained for native-markup, CourtListener and PDF paths. */
+export function a2ajCaseBlocks(input: {
+  text: string;
+  citation?: string | null;
+  alternateCitation?: string | null;
+  dataset?: string | null;
+}): SourceDocBlock[] {
+  return caseBlocks(input);
 }
 
 export type A2AJStructureSummary = {
@@ -1261,7 +1412,7 @@ export function compileA2AJSourceDoc(input: CompileInput): SourceDoc {
     return createSourceDoc({
       ...identity,
       text: input.text,
-      blocks: a2ajCaseBlocks(input),
+      blocks: caseBlocks(input, true),
     });
   }
 

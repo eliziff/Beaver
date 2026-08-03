@@ -61,10 +61,9 @@ describe("A2AJ compiler spine", () => {
     ).toContain("primary judgment resumes");
   });
 
-  it("breaks equal-start scope ties by the earliest scope", () => {
-    // ALR a2aj_structure.monotone_scopes chooses (first number, scope index).
-    // Candidate iteration order alternates here, so omitting the index
-    // tie-break produces the wrong [1], [2], [4], [6], [8] ladder.
+  it("chooses a contiguous candidate when repeated starts conflict", () => {
+    // A source ordering conflict must not turn into an advertised gapped
+    // paragraph range. The longest coherent +1 run is the safe result.
     const paragraph = (number: number, ordinal: string) =>
       `[${number}] The ${ordinal} substantive judgment paragraph contains enough ordinary words for reliable structural validation throughout these reasons.`;
     const text = [
@@ -84,7 +83,8 @@ describe("A2AJ compiler spine", () => {
       doc.blocks
         .filter((block) => block.kind === "paragraph")
         .map((block) => block.label),
-    ).toEqual(["par1", "par3", "par4", "par5", "par6", "par7", "par8"]);
+    ).toEqual(["par3", "par4", "par5", "par6", "par7", "par8"]);
+    expect(doc.ranges.paragraph.missing).toEqual([]);
   });
 
   it("recovers a numbered paragraph joined to its preceding heading", () => {
@@ -161,7 +161,7 @@ describe("A2AJ compiler spine", () => {
     );
   });
 
-  it("does not promote inline case pinpoints to paragraphs", () => {
+  it("refuses a fractured short source instead of promoting an inline pinpoint", () => {
     const body =
       "This substantive judgment paragraph contains enough ordinary words for reliable structural validation throughout these reasons.";
     const text = [
@@ -174,15 +174,13 @@ describe("A2AJ compiler spine", () => {
     ].join("\n");
     const doc = compile({ text, docType: "cases" });
 
-    expect(
-      doc.blocks
-        .filter((block) => block.kind === "paragraph")
-        .map((block) => block.label),
-    ).toEqual(["par1", "par2", "par4", "par5", "par6"]);
-    expect(doc.ranges.paragraph.missing).toEqual(["par3"]);
+    expect(doc.ranges.paragraph.count).toBe(0);
+    expect(lookupSourceDoc(doc, "paragraph", "3").status).toBe(
+      "unavailable",
+    );
   });
 
-  it("does not promote dot-form case citations to paragraphs", () => {
+  it("refuses a fractured dot source instead of promoting a case citation", () => {
     const body =
       "This substantive judgment paragraph contains enough ordinary words for reliable structural validation throughout these reasons.";
     const text = [
@@ -195,12 +193,25 @@ describe("A2AJ compiler spine", () => {
     ].join("\n");
     const doc = compile({ text, docType: "cases" });
 
-    expect(
-      doc.blocks
-        .filter((block) => block.kind === "paragraph")
-        .map((block) => block.label),
-    ).toEqual(["par1", "par2", "par4", "par5", "par6"]);
-    expect(doc.ranges.paragraph.missing).toEqual(["par3"]);
+    expect(doc.ranges.paragraph.count).toBe(0);
+    expect(lookupSourceDoc(doc, "paragraph", "3").status).toBe(
+      "unavailable",
+    );
+  });
+
+  it("does not promote a quoted dot-numbered statutory provision", () => {
+    const body =
+      "The court explains the record, the governing submissions, and the resulting disposition in enough detail to identify ordinary judicial reasons.";
+    const text = [
+      `1. ${body}`,
+      `2. ${body}`,
+      "3. (1) A person shall comply with the Act and the Regulations when the provision applies.",
+      ...Array.from({ length: 5 }, (_, index) => `${index + 4}. ${body}`),
+    ].join("\n");
+    const doc = compile({ text, docType: "cases" });
+
+    expect(lookupSourceDoc(doc, "paragraph", "3").status).toBe("not_found");
+    expect(doc.ranges.paragraph.missing).toEqual([]);
   });
 
   it("recovers a missing leading paragraph joined to its heading", () => {
@@ -296,6 +307,7 @@ describe("A2AJ compiler spine", () => {
         .filter((block) => block.kind === "paragraph")
         .map((block) => block.label),
     ).toEqual(["par1", "par2", "par3", "par4", "par5"]);
+    expect(doc.ranges.paragraph.missing).toEqual([]);
     expect(lookupSourceDoc(doc, "paragraph", "1").block?.text).toContain(
       "substantive decision paragraph",
     );
