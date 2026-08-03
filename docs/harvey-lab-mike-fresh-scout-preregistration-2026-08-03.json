@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "experiment_id": "harvey-lab-mike-fresh-scout-v1",
+  "registered_at": "2026-08-03T14:12:51Z",
+  "status": "preregistered_before_performer_calls",
+  "experiment_class": "visible-development Codex-path Luna harness ablation",
+  "claim_scope": "A model-held-constant comparison against frozen Mike and prior Luna one-shot arms. Fixed-Sol criterion labels are provisional and derivative, not human gold.",
+  "landed_basis": {
+    "complementary_coverage": "Fresh Mike/high and native one-shot/xhigh scored 172/225 and 177/225, but their criterion union is 189/225. The union is 61/65 Banking, 52/77 Tax, and 76/83 Indenture; Tax alone has 7 fresh-Mike-only and 10 native-only passes.",
+    "failed_same_context_mechanisms": "Quote-first replicated at 162/225 and 170/225; a host-selected fact index scored 165/225; full same-context append review scored 168/225 at 1,216,361 tokens; adaptive review scored 175/225; and large-context pre-planning scored 174/225 at 1,100,703 diagnostic tokens. Appending the otherwise strong Tax plan post hoc scored 45/77 versus 46/77 before append.",
+    "deterministic_audit": "The Tax fact packet contained only 7 repetitive generic rows in 5,927 characters. A post-run audit of the actual planned Tax draft found 206 source-only anchors, 17 draft-only anchors, 147 matches, zero arithmetic conflicts, zero temporal findings, 25 divergent terms, and no eligible repair. The planned Indenture audit found 179 source-only anchors, 2 draft-only anchors, 84 matches, zero arithmetic conflicts, zero temporal findings, 40 divergent terms, two warnings, and no repair. Existing deterministic legal organs therefore do not identify the observed coverage omissions and are excluded from this treatment.",
+    "supported_mechanism": "Independent generations recover different requested details even after every source was exposed, while continued work in the original large context anchors on the existing draft. A stateless omissions scout directly tests whether fresh attention can recover that complement without paying for a second complete work product or permitting rewrite regressions.",
+    "determinism_scope": "The host verifies that each admitted excerpt is an exact contiguous substring of the named normalized source, enforces target/bounds/deduplication, preserves the initial source as an immutable prefix, and records hashes. This proves provenance and byte monotonicity, not semantic entailment; the model remains responsible for whether the append-ready prose is supported. No generic legal linter or host content selector is used."
+  },
+  "hypothesis": "Keep the proven native two-turn one-shot authoring path unchanged. When and only when exact normalized source text exceeds 400,000 characters, start one fresh stateless Luna/xhigh reviewer with the original request, every exact normalized source, and the frozen complete candidate. It may submit at most 12 material omissions and 12,000 Markdown characters. Each row must target a requested deliverable and carry one exact source path/excerpt. The host rejects unverifiable or out-of-bounds rows and appends accepted Markdown without changing the initial draft. Small matters receive no extra call.",
+  "implementation_commit_before_launch": "4c317bab14a2c816b7a40e50987be77dbf6755ad",
+  "surface": "mike_one_shot_fresh_scout_xhigh_v1",
+  "performer": {
+    "model": "codex/gpt-5.6-luna",
+    "reasoning_effort": "xhigh",
+    "temperature_requested": 0,
+    "temperature_transmitted": false,
+    "required_provider_service_tier_reported": "default",
+    "primary_tools": ["fetch_documents", "generate_docx"],
+    "primary_trajectory": "one complete exact-evidence fetch, then all complete deliverables in one terminal authoring batch",
+    "fresh_scout_tool": "submit_omissions",
+    "source_threshold_characters": 400000,
+    "max_findings": 12,
+    "max_excerpt_characters": 600,
+    "max_characters_per_addition": 2000,
+    "max_total_addition_characters": 12000,
+    "run_count": 3,
+    "max_concurrent_processes": 3,
+    "run_id_template": "2026-08-03-mike-fresh-scout-v1--{task_slug_with_slashes_replaced_by_double-hyphens}",
+    "harness_source_bundle_sha256": "ee3531c7c68e902c85dd58d0168d19fe62b0777f8228635cb1f172295c051422",
+    "primary_tool_schema_sha256": "7da650571cfd85d225720eb6f7b0549eae2309212394202a708d9ffa4b568298",
+    "primary_tool_schema_bytes": 1091,
+    "fresh_scout_system_prompt_sha256": "d6babcd5c6c5572cb291931ed1a0275864c8b94cd48f084483136e407cc7072e",
+    "fresh_scout_system_prompt_bytes": 994,
+    "fresh_scout_tool_schema_sha256": "572b95baa658e1ba4b42e99b72be80ae0c555764508822bc63569f9ab2fc6dd4",
+    "fresh_scout_tool_schema_bytes": 581
+  },
+  "tasks": {
+    "banking-finance/extract-credit-agreement-covenants": {
+      "expected_route": "native one-shot; fresh scout skipped because prior exact normalized source size was 170,373 characters",
+      "run_id": "2026-08-03-mike-fresh-scout-v1--banking-finance--extract-credit-agreement-covenants",
+      "system_prompt_sha256": "820864c51c64d4fe082547e6b4a5cc53ba1e0d1f29adf1a3b59f2fe107cd9072",
+      "system_prompt_bytes": 1229,
+      "source_bundle_sha256": "b5c3605cfbe3d53377712d0db3463f945a5c69cf7caef0da01b45d7b9ee75296",
+      "prompt_cache_key": "lab-72a78db4298b20832209edd7cfb07effa5bd44492fa145e11477e33043cee300",
+      "run_fingerprint_sha256": "975c7a693ddee2bb2dba3877b80800ea5bed518178f3da25823299b3ace2b4e3"
+    },
+    "tax/draft-transfer-pricing-documentation": {
+      "expected_route": "native one-shot followed by one fresh omissions scout because prior exact normalized source size was 1,166,898 characters",
+      "run_id": "2026-08-03-mike-fresh-scout-v1--tax--draft-transfer-pricing-documentation",
+      "system_prompt_sha256": "e0d21303acf0f67279e933acf559180c5632c5080297d947fbcda35671873c7c",
+      "system_prompt_bytes": 2947,
+      "source_bundle_sha256": "0ebfa8f86d9bd3405d4ccd638471ded6f48a4748ca0cfba76b992f1a5ea15e3d",
+      "prompt_cache_key": "lab-fb40d74854fc2a1b6fbed9c4531fe0abcb8b9ac2e330d4bce28c6390f3162ca0",
+      "run_fingerprint_sha256": "f1948d68e805c7b4c2626310480547ac9077a711b62a624502adcc5147f0287a"
+    },
+    "capital-markets/draft-indenture-for-senior-secured-notes-offering": {
+      "expected_route": "native one-shot followed by one fresh omissions scout because prior exact normalized source size was 991,237 characters",
+      "run_id": "2026-08-03-mike-fresh-scout-v1--capital-markets--draft-indenture-for-senior-secured-notes-offering",
+      "system_prompt_sha256": "ce16c14256b43257f00b16e0d7fc41420a7e8b7459ccac85a3e44b43dc1ecf51",
+      "system_prompt_bytes": 1717,
+      "source_bundle_sha256": "c1319d3aec66399c21a7a1a00b64821d48e4eecc190bbc15474148e7da33d7fd",
+      "prompt_cache_key": "lab-9269b22fca3e520db4e8371967dd2d366bed68c6957a455a499b8d971c484c76",
+      "run_fingerprint_sha256": "d09f3ff49d09cbc4957ed08b3b7a04ecfedee5e5d7d95f7fd645672181f7c47d"
+    }
+  },
+  "trace_gate": "Require exact preflight fingerprints; Docker; one complete fetch followed by terminal complete authoring; all source documents exposed; Banking fresh_scout_stage_status=skipped_small with no reviewer call; Tax and Indenture exactly one stateless reviewer request, exactly one submit_omissions call and no reviewer prose; every accepted row has a valid target, exact source substring, bounded unique Markdown, and an append-only receipt; all requested DOCX files parse; reported tier is default; no schema/path/tool errors or unhandled transport failure. Inspect the actual findings and final additions before judging.",
+  "judge": {
+    "model": "codex/gpt-5.6-sol",
+    "reasoning_effort": "provider default",
+    "temperature_requested": 0,
+    "criterion_level": true,
+    "max_concurrent_outputs": 3,
+    "max_concurrent_criteria_per_output": 4,
+    "maximum_total_concurrency": 12,
+    "local_process_priority": "Normal",
+    "prompt_sha256": "da0f2618d996ac5415a960dfc445e53b6fbd1b22602dd587bf6ecccbe139cb21",
+    "judge_source_sha256": "3546fec5ca1c4d655c8510d8cf2e0ca2201a94428c86d1628fbcdf5afe83a4b5",
+    "scoring_source_sha256": "e7f5e0accdaffe3ba9d350fb417f0c09f6f372ff5888def5908c73113291a9a3"
+  },
+  "comparators": {
+    "fresh_frozen_mike_high": {"score": 172, "max_score": 225, "logical_tokens": 590911},
+    "native_one_shot_xhigh": {"score": 177, "max_score": 225, "logical_tokens": 597341},
+    "best_prior_single_pass": {"score": 178, "max_score": 225, "logical_tokens": 628072, "label": "conflict-first"}
+  },
+  "decision_rule": "Retain only if the trace gate passes, aggregate fixed-Sol score is at least 184/225, no task falls below 56/65 Banking, 44/77 Tax, or 73/83 Indenture, and aggregate provider-reported logical tokens do not exceed 1,181,822 (2.0x fresh Mike/high). Accuracy is primary. A result below the quality floor rejects the extra call even if some criteria improve; a result above the quality floor but above the token ceiling rejects it on cost. No prompt tweak or task-specific repair follows this pass."
+}
