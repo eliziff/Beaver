@@ -59,16 +59,6 @@ _MIKE_HARNESS_SOURCES = (
 
 def mike_harness_source_receipts(surface: str) -> list[dict]:
     paths = list(_MIKE_HARNESS_SOURCES)
-    if surface in {
-        "mike_workbench_anchor_v1",
-        "mike_one_shot_fact_index_xhigh_v1",
-    }:
-        paths.extend(
-            [
-                REPO_ROOT / "backend" / "scripts" / "anchor-coverage-stdin.ts",
-                REPO_ROOT / "backend" / "src" / "lib" / "legalTextAnchors.ts",
-            ]
-        )
     return [
         {
             "relative_path": path.relative_to(REPO_ROOT).as_posix(),
@@ -315,15 +305,8 @@ parser.add_argument(
         "coding_plain_v1",
         "coding_legal_v1",
         "mike_control_v1",
-        "mike_workbench_v1",
-        "mike_workbench_anchor_v1",
-        "mike_one_shot_v1",
-        "mike_one_shot_xhigh_v1",
-        "mike_one_shot_fact_index_xhigh_v1",
-        "mike_one_shot_conflict_first_xhigh_v1",
         "mike_one_shot_native_xhigh_v1",
-        "mike_one_shot_quote_first_xhigh_v1",
-        "mike_one_shot_monotonic_review_xhigh_v1",
+        "mike_one_shot_adaptive_review_xhigh_v1",
     ),
     default="standard",
     help="Tool surface for a preregistered harness ablation.",
@@ -533,7 +516,6 @@ def main(args):
             sandbox=sandbox,
             shell_timeout=args.shell_timeout,
             deliverables=deliverables,
-            anchor_enabled=args.surface == "mike_workbench_anchor_v1",
             surface_name=args.surface,
             task_instructions=task["instructions"],
         )

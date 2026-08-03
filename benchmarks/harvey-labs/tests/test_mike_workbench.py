@@ -7,9 +7,8 @@ from pathlib import Path
 from harness.adapters.base import ModelResponse, ToolCall
 from harness.agent_loop import run_agent
 from harness.mike_workbench import (
-    ANCHOR_STDIN,
+    ADAPTIVE_REVIEW_BUDGET_CHARACTERS,
     MikeWorkbenchExecutor,
-    _run_typescript,
     get_mike_surface,
 )
 from sandbox.sandbox import DOCUMENTS_PATH, OUTPUT_PATH, WORKSPACE_PATH
@@ -75,8 +74,8 @@ class _FakeSandbox:
 def _executor(
     tmp_path: Path,
     *,
-    anchor: bool = False,
     surface: str | None = None,
+    deliverables: list[str] | None = None,
 ) -> MikeWorkbenchExecutor:
     sandbox = _FakeSandbox(tmp_path)
     (sandbox.documents_dir / "alpha.txt").write_text(
@@ -88,18 +87,21 @@ def _executor(
     return MikeWorkbenchExecutor(
         sandbox=sandbox,
         shell_timeout=5,
-        deliverables=["memo.docx"],
-        anchor_enabled=anchor,
-        surface_name=surface or ("mike_workbench_anchor_v1" if anchor else "mike_workbench_v1"),
+        deliverables=deliverables or ["memo.docx"],
+        surface_name=surface or "mike_control_v1",
         task_instructions="Extract every loan balance, ratio, and maturity date.",
     )
 
 
-def test_surface_is_frozen_mike_plus_only_registered_deltas():
+def test_surface_is_frozen_mike_or_a_compact_native_delta():
     inventory = [("alpha.docx", "docx")]
     control_prompt, control, frozen = get_mike_surface("mike_control_v1", inventory)
-    workbench_prompt, workbench, _ = get_mike_surface("mike_workbench_v1", inventory)
-    anchor_prompt, anchor, _ = get_mike_surface("mike_workbench_anchor_v1", inventory)
+    native_prompt, native, _ = get_mike_surface(
+        "mike_one_shot_native_xhigh_v1", inventory
+    )
+    adaptive_prompt, adaptive, _ = get_mike_surface(
+        "mike_one_shot_adaptive_review_xhigh_v1", inventory
+    )
 
     assert [tool["name"] for tool in control] == [
         "read_document",
@@ -108,61 +110,17 @@ def test_surface_is_frozen_mike_plus_only_registered_deltas():
         "fetch_documents",
         "generate_docx",
     ]
-    assert [tool["name"] for tool in workbench] == [
-        "read_document",
-        "find_in_document",
-        "list_documents",
+    assert [tool["name"] for tool in native] == ["fetch_documents", "generate_docx"]
+    assert [tool["name"] for tool in adaptive] == [
         "fetch_documents",
-        "bash",
         "generate_docx",
+        "append_docx",
     ]
-    assert [tool["name"] for tool in anchor] == [
-        "read_document",
-        "find_in_document",
-        "list_documents",
-        "fetch_documents",
-        "bash",
-        "generate_docx",
-    ]
-    assert "ANALYST WORKBENCH" not in control_prompt
-    assert "ANALYST WORKBENCH" in workbench_prompt
-    assert "BOUNDED DETERMINISTIC REVIEW" in anchor_prompt
+    assert "Successful generation" in native_prompt
+    assert "CONTEXT-BUDGETED FINALIZATION" in adaptive_prompt
+    assert "Never defer content" in adaptive_prompt
+    assert "Successful generation" not in adaptive_prompt
     assert frozen["commit"] == "2266446b0d26f735865b8cd3bb153b28e7d11b17"
-
-
-def test_one_shot_surfaces_share_exact_two_tool_prompt_and_schema():
-    inventory = [("alpha.docx", "docx"), ("beta.xlsx", "xlsx")]
-    plain_prompt, plain_tools, _ = get_mike_surface("mike_one_shot_v1", inventory)
-    xhigh_prompt, xhigh_tools, _ = get_mike_surface(
-        "mike_one_shot_xhigh_v1", inventory
-    )
-    index_prompt, index_tools, _ = get_mike_surface(
-        "mike_one_shot_fact_index_xhigh_v1", inventory
-    )
-
-    assert plain_prompt == xhigh_prompt == index_prompt
-    assert plain_tools == xhigh_tools == index_tools
-    assert [tool["name"] for tool in plain_tools] == [
-        "fetch_documents",
-        "generate_docx",
-    ]
-    assert "markdown" in plain_tools[1]["parameters"]["required"]
-    assert "sections" not in plain_tools[1]["parameters"]["properties"]
-    assert "AVAILABLE DOCUMENTS" in plain_prompt
-    assert "ANALYST WORKBENCH" not in plain_prompt
-
-
-def test_conflict_first_changes_only_the_prompt():
-    inventory = [("alpha.docx", "docx")]
-    base_prompt, base_tools, _ = get_mike_surface("mike_one_shot_xhigh_v1", inventory)
-    conflict_prompt, conflict_tools, _ = get_mike_surface(
-        "mike_one_shot_conflict_first_xhigh_v1", inventory
-    )
-
-    assert conflict_tools == base_tools
-    assert "ATTENTION BUDGET" not in base_prompt
-    assert "ATTENTION BUDGET" in conflict_prompt
-    assert conflict_prompt.endswith(base_prompt[base_prompt.index("\n\nAVAILABLE DOCUMENTS:"):])
 
 
 def test_native_work_product_keeps_evidence_without_forcing_citations(tmp_path):
@@ -176,70 +134,9 @@ def test_native_work_product_keeps_evidence_without_forcing_citations(tmp_path):
     assert "<task_reminder source=\"original-user-request\">" in fetched
 
 
-def test_quote_first_schema_puts_private_grounding_before_markdown():
+def test_adaptive_review_schema_and_prompt_are_bounded_and_append_only():
     prompt, tools, _ = get_mike_surface(
-        "mike_one_shot_quote_first_xhigh_v1", [("alpha.docx", "docx")]
-    )
-
-    assert [tool["name"] for tool in tools] == ["fetch_documents", "generate_docx"]
-    properties = tools[1]["parameters"]["properties"]
-    assert list(properties)[0] == "grounding"
-    assert "grounding" in tools[1]["parameters"]["required"]
-    assert "PRIVATE QUOTE-FIRST GROUNDING" in prompt
-
-
-def test_quote_first_verifies_private_quotes_without_inserting_them(tmp_path):
-    executor = _executor(tmp_path, surface="mike_one_shot_quote_first_xhigh_v1")
-    executor.execute("fetch_documents", {"doc_ids": ["doc-0", "doc-1"]})
-
-    receipt = json.loads(
-        executor.execute(
-            "generate_docx",
-            {
-                "grounding": [
-                    {
-                        "source": "alpha.txt",
-                        "quote": "Closing date is March 15, 2027.",
-                        "supports": "The closing date is March 15, 2027.",
-                    },
-                    {
-                        "source": "beta.txt",
-                        "quote": "This text is absent.",
-                        "supports": "An intentionally unverified claim.",
-                    },
-                ],
-                "title": "Memo",
-                "markdown": "# Conclusion\n\nComplete.",
-            },
-        )
-    )
-
-    assert receipt["terminal"] is True
-    draft = (tmp_path / "workspace" / ".mike" / "draft-1.md").read_text()
-    assert "March 15, 2027" not in draft
-    metrics = executor.get_metrics()
-    assert metrics["grounding_claims"] == 2
-    assert metrics["grounding_verified"] == 1
-    assert metrics["grounding_unverified"] == 1
-    assert metrics["grounding_receipts"][0]["locator"]
-    assert metrics["grounding_receipts"][1]["locator"] is None
-
-
-def test_quote_first_rejects_an_empty_private_ledger(tmp_path):
-    executor = _executor(tmp_path, surface="mike_one_shot_quote_first_xhigh_v1")
-
-    result = executor.execute(
-        "generate_docx",
-        {"grounding": [], "title": "Memo", "markdown": "# Conclusion\n\nComplete."},
-    )
-
-    assert result.startswith("Error: grounding")
-    assert not (tmp_path / "output" / "memo.docx").exists()
-
-
-def test_monotonic_review_schema_and_prompt_are_append_only():
-    prompt, tools, _ = get_mike_surface(
-        "mike_one_shot_monotonic_review_xhigh_v1", [("alpha.docx", "docx")]
+        "mike_one_shot_adaptive_review_xhigh_v1", [("alpha.docx", "docx")]
     )
 
     assert [tool["name"] for tool in tools] == [
@@ -248,13 +145,14 @@ def test_monotonic_review_schema_and_prompt_are_append_only():
         "append_docx",
     ]
     assert tools[2]["parameters"]["required"] == ["filename", "markdown"]
-    assert "ONE OMISSIONS-ONLY REVIEW" in prompt
+    assert f"{ADAPTIVE_REVIEW_BUDGET_CHARACTERS:,} characters" in prompt
+    assert "Never defer content" in prompt
     assert "cannot lose content" in prompt
 
 
-def test_monotonic_review_freezes_initial_and_only_appends_after_next_round(tmp_path):
+def test_adaptive_small_context_freezes_initial_and_appends_after_next_round(tmp_path):
     executor = _executor(
-        tmp_path, surface="mike_one_shot_monotonic_review_xhigh_v1"
+        tmp_path, surface="mike_one_shot_adaptive_review_xhigh_v1"
     )
     initial_markdown = "# Findings\n\nDebt is $2 million."
     generated = json.loads(
@@ -265,6 +163,7 @@ def test_monotonic_review_freezes_initial_and_only_appends_after_next_round(tmp_
     )
 
     assert generated["terminal"] is False
+    assert executor.get_metrics()["review_eligible"] is True
     assert executor.terminal is False
     assert not (tmp_path / "output" / "memo.docx").exists()
     same_batch = executor.execute(
@@ -294,9 +193,9 @@ def test_monotonic_review_freezes_initial_and_only_appends_after_next_round(tmp_
     assert metrics["finalized_deliverables"] == ["memo.docx"]
 
 
-def test_monotonic_review_empty_append_preserves_exact_initial_source(tmp_path):
+def test_adaptive_empty_append_preserves_exact_initial_source(tmp_path):
     executor = _executor(
-        tmp_path, surface="mike_one_shot_monotonic_review_xhigh_v1"
+        tmp_path, surface="mike_one_shot_adaptive_review_xhigh_v1"
     )
     executor.execute(
         "generate_docx",
@@ -313,6 +212,63 @@ def test_monotonic_review_empty_append_preserves_exact_initial_source(tmp_path):
     initial_source = (tmp_path / "workspace" / ".mike" / "initial" / "memo.docx.md").read_bytes()
     final_source = (tmp_path / "workspace" / ".mike" / "final" / "memo.docx.md").read_bytes()
     assert final_source == initial_source
+
+
+def test_adaptive_large_context_skips_review_and_finalizes_exact_initial(tmp_path):
+    executor = _executor(
+        tmp_path, surface="mike_one_shot_adaptive_review_xhigh_v1"
+    )
+    for path in executor._documents:
+        executor._texts[path] = "x" * (ADAPTIVE_REVIEW_BUDGET_CHARACTERS // 2 + 1)
+
+    receipt = json.loads(
+        executor.execute(
+            "generate_docx",
+            {"title": "Memo", "markdown": "# Complete\n\nNothing omitted."},
+        )
+    )
+
+    assert receipt["terminal"] is True
+    assert executor.terminal is True
+    metrics = executor.get_metrics()
+    assert metrics["review_eligible"] is False
+    assert metrics["review_budget_total_characters"] > ADAPTIVE_REVIEW_BUDGET_CHARACTERS
+    assert metrics["append_receipts"][0]["review_skipped"] is True
+    initial = (tmp_path / "workspace" / ".mike" / "initial" / "memo.docx.md").read_bytes()
+    final = (tmp_path / "workspace" / ".mike" / "final" / "memo.docx.md").read_bytes()
+    assert final == initial
+    assert (tmp_path / "output" / "memo.docx").exists()
+
+
+def test_adaptive_large_multi_deliverable_batch_finalizes_together(tmp_path):
+    executor = _executor(
+        tmp_path,
+        surface="mike_one_shot_adaptive_review_xhigh_v1",
+        deliverables=["draft.docx", "issues.docx"],
+    )
+    for path in executor._documents:
+        executor._texts[path] = "x" * (ADAPTIVE_REVIEW_BUDGET_CHARACTERS // 2 + 1)
+
+    first = json.loads(
+        executor.execute(
+            "generate_docx", {"title": "Draft", "markdown": "# Draft\n\nComplete."}
+        )
+    )
+    second = json.loads(
+        executor.execute(
+            "generate_docx", {"title": "Issues", "markdown": "# Issues\n\nComplete."}
+        )
+    )
+
+    assert first["terminal"] is False
+    assert second["terminal"] is True
+    assert executor.terminal is True
+    assert (tmp_path / "output" / "draft.docx").exists()
+    assert (tmp_path / "output" / "issues.docx").exists()
+    assert executor.get_metrics()["finalized_deliverables"] == [
+        "draft.docx",
+        "issues.docx",
+    ]
 
 
 def test_mike_batch_read_duplicate_guard_search_and_terminal_generation(tmp_path):
@@ -352,7 +308,7 @@ def test_mike_batch_read_duplicate_guard_search_and_terminal_generation(tmp_path
 
 
 def test_one_shot_fetch_repeats_exact_request_after_complete_evidence(tmp_path):
-    executor = _executor(tmp_path, surface="mike_one_shot_v1")
+    executor = _executor(tmp_path, surface="mike_one_shot_native_xhigh_v1")
 
     partial = executor.execute("fetch_documents", {"doc_ids": ["doc-0"]})
     assert "<task_reminder" not in partial
@@ -370,148 +326,6 @@ def test_one_shot_fetch_repeats_exact_request_after_complete_evidence(tmp_path):
         )
     )
     assert receipt["terminal"] is True
-
-
-def test_fact_index_is_bounded_source_only_and_in_band(tmp_path):
-    executor = _executor(tmp_path, surface="mike_one_shot_fact_index_xhigh_v1")
-    fetched = executor.execute("fetch_documents", {"doc_ids": ["doc-0", "doc-1"]})
-
-    assert "<deterministic_source_index" in fetched
-    assert "</deterministic_source_index>" in fetched
-    assert fetched.index("<deterministic_source_index") < fetched.index("<task_reminder")
-    metrics = executor.get_metrics()
-    assert metrics["source_fact_index_calls"] == 1
-    assert metrics["source_fact_index_characters"] <= 6000
-    assert metrics["source_fact_index_sha256"]
-
-
-def test_fact_index_bound_keeps_packet_closed(tmp_path, monkeypatch):
-    executor = _executor(tmp_path, surface="mike_one_shot_fact_index_xhigh_v1")
-    for path in executor._documents:
-        executor._texts[path] = "source text"
-
-    rows = [
-        {
-            "cls": "money",
-            "display": f"${index} million",
-            "documents": ["alpha.txt"],
-            "excerpt": "material context " * 500,
-        }
-        for index in range(8)
-    ]
-    monkeypatch.setattr(
-        "harness.mike_workbench._run_typescript",
-        lambda *args, **kwargs: json.dumps(
-            {"relevant_or_repeated_source_anchors_missing_from_draft": rows}
-        ),
-    )
-
-    packet = executor._source_fact_index()
-
-    assert len(packet) <= 6000
-    assert packet.endswith("</deterministic_source_index>")
-    assert executor.get_metrics()["source_fact_index_rows"] == 0
-
-
-def test_bash_materializes_exact_mike_normalized_sources_once(tmp_path):
-    executor = _executor(tmp_path)
-
-    executor.execute("bash", {"command": "true"})
-    manifest_path = tmp_path / "workspace" / ".mike" / "sources" / "manifest.json"
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-
-    assert [entry["doc_id"] for entry in manifest] == ["doc-0", "doc-1"]
-    assert manifest[0]["parser"] == "plain-text"
-    assert (tmp_path / "workspace" / ".mike" / "sources" / "alpha.txt.txt").read_text(
-        encoding="utf-8"
-    ).startswith("Debt is $2 million")
-
-    executor.execute("bash", {"command": "true"})
-    assert executor.get_metrics()["analysis_sources_materialized"] is True
-    assert len(executor.get_metrics()["parse_receipts"]) == 2
-
-
-def test_compiler_review_reuses_normalized_text_and_allows_second_submission(tmp_path, monkeypatch):
-    executor = _executor(tmp_path, anchor=True)
-    observed = {}
-
-    def fake_run(script, payload=None, timeout=90):
-        if script.name == "lab-upstream-parse-stdin.ts":
-            text = Path(payload["path"]).read_text(encoding="utf-8")
-            return json.dumps(
-                {
-                    "text": text,
-                    "parser": "plain-text",
-                    "parser_version": 1,
-                    "text_chars": len(text),
-                    "text_sha256": "fixture",
-                }
-            )
-        observed.update(payload)
-        return '{"status":"review_required","relevant_or_repeated_source_anchors_missing_from_draft":[{"display":"$2 million"}]}'
-
-    monkeypatch.setattr("harness.mike_workbench._run_typescript", fake_run)
-    arguments = {
-        "title": "Memo",
-        "sections": [{"heading": "Conclusion", "level": 1, "content": "Done."}],
-    }
-    output = executor.execute("generate_docx", arguments)
-
-    assert "$2 million" in output
-    assert observed["compiler_review"] is True
-    assert observed["attention_text"].startswith("Extract every loan balance")
-    assert observed["drafts"][0]["text"] == "# Conclusion\n\nDone."
-    assert {source["name"] for source in observed["sources"]} == {
-        "alpha.txt",
-        "beta.txt",
-    }
-    assert not (tmp_path / "output" / "memo.docx").exists()
-
-    same_batch = executor.execute("generate_docx", arguments)
-    assert same_batch == output
-    assert not (tmp_path / "output" / "memo.docx").exists()
-
-    executor.after_tool_batch()
-    receipt = json.loads(executor.execute("generate_docx", arguments))
-    assert receipt["terminal"] is True
-    assert (tmp_path / "output" / "memo.docx").exists()
-    metrics = executor.get_metrics()
-    assert metrics["compiler_review_calls"] == 1
-    assert metrics["compiler_review_result_characters"] == len(output)
-
-
-def test_compiler_flags_same_anchor_under_uncovered_source_context():
-    review = json.loads(
-        _run_typescript(
-            ANCHOR_STDIN,
-            {
-                "sources": [
-                    {
-                        "name": "agreement.txt",
-                        "text": (
-                            "Interest payment defaults have a grace period of five Business Days. "
-                            "A pro forma compliance certificate is due five Business Days before an acquisition."
-                        ),
-                    }
-                ],
-                "drafts": [
-                    {
-                        "name": "draft.txt",
-                        "text": "Deliver the compliance certificate five Business Days before an acquisition.",
-                    }
-                ],
-                "compiler_review": True,
-                "attention_text": "Report payment defaults and acquisition conditions.",
-            },
-        )
-    )
-
-    candidates = review["repeated_anchor_contexts_not_evidenced_in_draft"]
-    five_days = next(row for row in candidates if "five Business Days" in row["display"])
-    assert five_days["source_occurrences"] == 2
-    assert five_days["draft_occurrences"] == 1
-    assert five_days["uncovered_source_contexts"] == 1
-    assert "Interest payment defaults" in five_days["contexts"][0]["excerpt"]
 
 
 class _OneCallAdapter:
