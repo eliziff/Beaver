@@ -24,11 +24,12 @@ from harness.adapters.ollama import OllamaAdapter
 from harness.adapters.fireworks import FireworksAdapter
 from harness.adapters.google import GoogleAdapter
 from harness.adapters.mistral import MistralAdapter
-from harness.adapters.openai import OpenAIAdapter
+from harness.adapters.openai import OpenAIAdapter, prompt_cache_key_for
 from harness.agent_loop import run_agent
 from harness.ablation_tools import AblationToolExecutor, get_ablation_tool_definitions
 from harness.mike_workbench import (
     MIKE_SURFACES,
+    PRO_SURFACES,
     MikeWorkbenchExecutor,
     get_mike_surface,
 )
@@ -48,6 +49,7 @@ _MIKE_HARNESS_SOURCES = (
     Path(__file__).with_name("mike_workbench.py"),
     Path(__file__).with_name("tools.py"),
     Path(__file__).with_name("adapters") / "codex.py",
+    Path(__file__).with_name("adapters") / "openai.py",
     BENCH_ROOT / "sandbox" / "sandbox.py",
     REPO_ROOT / "backend" / "scripts" / "lab-upstream-surface-json.ts",
     REPO_ROOT / "backend" / "scripts" / "lab-upstream-parse-stdin.ts",
@@ -58,7 +60,7 @@ _MIKE_HARNESS_SOURCES = (
 
 def mike_harness_source_receipts(surface: str) -> list[dict]:
     paths = list(_MIKE_HARNESS_SOURCES)
-    if surface == "mike_workbench_anchor_v1":
+    if surface in {"mike_workbench_anchor_v1", "mike_one_shot_fact_index_v1"}:
         paths.extend(
             [
                 REPO_ROOT / "backend" / "scripts" / "anchor-coverage-stdin.ts",
@@ -122,6 +124,7 @@ def create_adapter(
     model: str,
     temperature: float = 0.0,
     reasoning_effort: str | None = None,
+    reasoning_mode: str | None = None,
 ):
     """Create the right adapter based on the model string.
 
@@ -149,6 +152,7 @@ def create_adapter(
         return OpenAIAdapter(
             model=model_id, temperature=temperature,
             reasoning_effort=reasoning_effort,
+            reasoning_mode=reasoning_mode,
         )
 
     # ChatGPT-subscription Codex backend (chatgpt.com/backend-api/codex).
@@ -156,6 +160,7 @@ def create_adapter(
         return CodexAdapter(
             model=model_id, temperature=temperature,
             reasoning_effort=reasoning_effort,
+            reasoning_mode=reasoning_mode,
         )
 
     # Headless Claude Code transport (subscription flat rate, judge's surface).
@@ -209,6 +214,7 @@ def create_adapter(
         return OpenAIAdapter(
             model=model_id, temperature=temperature,
             reasoning_effort=reasoning_effort,
+            reasoning_mode=reasoning_mode,
         )
 
     elif model_id.startswith("gemini"):
@@ -313,6 +319,9 @@ parser.add_argument(
         "mike_control_v1",
         "mike_workbench_v1",
         "mike_workbench_anchor_v1",
+        "mike_one_shot_v1",
+        "mike_one_shot_pro_v1",
+        "mike_one_shot_fact_index_v1",
     ),
     default="standard",
     help="Tool surface for a preregistered harness ablation.",
@@ -352,6 +361,7 @@ def main(args):
     print(f"Loading task: {args.task}")
     task = load_task(task_name=args.task)
     mike_surface = args.surface in MIKE_SURFACES
+    reasoning_mode = "pro" if args.surface in PRO_SURFACES else None
     effective_max_turns = min(args.max_turns, 10) if mike_surface else args.max_turns
 
     configured_deliverables = task["config"].get("deliverables") or {}
@@ -414,9 +424,17 @@ def main(args):
         schema_bytes = json.dumps(
             tools, sort_keys=True, separators=(",", ":")
         ).encode()
+        responses_tools = [{"type": "function", **tool} for tool in tools]
+        prompt_cache_key = prompt_cache_key_for(
+            args.model.split("/", 1)[-1],
+            system_prompt,
+            task["instructions"],
+            responses_tools,
+        )
         fingerprint_input = {
             "model": args.model,
             "reasoning_effort": args.reasoning_effort,
+            "reasoning_mode": reasoning_mode,
             "task": args.task,
             "surface": args.surface,
             "max_turns": effective_max_turns,
@@ -429,6 +447,7 @@ def main(args):
             **harness_fingerprints,
             "system_prompt_sha256": hashlib.sha256(system_prompt.encode()).hexdigest(),
             "tool_schema_sha256": hashlib.sha256(schema_bytes).hexdigest(),
+            "prompt_cache_key": prompt_cache_key,
             "upstream_mike_commit": frozen["commit"],
             "upstream_mike_schema_sha256": frozen["schema_sha256"],
             "upstream_mike_source_blobs": frozen["source_blobs"],
@@ -478,6 +497,7 @@ def main(args):
         "temperature": args.temperature,
         "shell_timeout": args.shell_timeout,
         "reasoning_effort": args.reasoning_effort,
+        "reasoning_mode": reasoning_mode,
         "skills": skill_names,
         "sandbox_image": args.sandbox_image,
         "sandbox_engine": ENGINE,
@@ -495,6 +515,7 @@ def main(args):
         model=args.model,
         temperature=args.temperature,
         reasoning_effort=args.reasoning_effort,
+        reasoning_mode=reasoning_mode,
     )
 
     frozen_mike_surface = None
@@ -550,6 +571,15 @@ def main(args):
         setup_skill_scripts(skill_names, workspace_dir)
     user_prompt = task["instructions"]
     schema_bytes = json.dumps(tools, sort_keys=True, separators=(",", ":")).encode()
+    responses_tools = [{"type": "function", **tool} for tool in tools]
+    prompt_cache_key = prompt_cache_key_for(
+        args.model.split("/", 1)[-1],
+        system_prompt,
+        user_prompt,
+        responses_tools,
+    )
+    if hasattr(adapter, "prompt_cache_key"):
+        adapter.prompt_cache_key = prompt_cache_key
     config.update(
         {
             "instructions_sha256": hashlib.sha256(user_prompt.encode()).hexdigest(),
@@ -558,6 +588,7 @@ def main(args):
             "tool_schema_sha256": hashlib.sha256(schema_bytes).hexdigest(),
             "tool_schema_bytes": len(schema_bytes),
             "deliverables": deliverables,
+            "prompt_cache_key": prompt_cache_key,
             "upstream_mike_commit": (
                 frozen_mike_surface.get("commit") if frozen_mike_surface else None
             ),
@@ -572,6 +603,7 @@ def main(args):
     run_fingerprint_input = {
         "model": args.model,
         "reasoning_effort": args.reasoning_effort,
+        "reasoning_mode": reasoning_mode,
         "task": args.task,
         "surface": args.surface,
         "max_turns": effective_max_turns,
@@ -584,6 +616,7 @@ def main(args):
         **harness_fingerprints,
         "system_prompt_sha256": config["system_prompt_sha256"],
         "tool_schema_sha256": config["tool_schema_sha256"],
+        "prompt_cache_key": config["prompt_cache_key"],
         "upstream_mike_commit": config["upstream_mike_commit"],
         "upstream_mike_schema_sha256": config["upstream_mike_schema_sha256"],
         "upstream_mike_source_blobs": config["upstream_mike_source_blobs"],
@@ -653,6 +686,8 @@ def main(args):
         "tool_error_count": result["tool_error_count"],
         "tool_batches": result["tool_batches"],
         "surface": args.surface,
+        "reasoning_mode": reasoning_mode,
+        "prompt_cache_key": config["prompt_cache_key"],
         "instructions_sha256": config["instructions_sha256"],
         "system_prompt_sha256": config["system_prompt_sha256"],
         "system_prompt_bytes": config["system_prompt_bytes"],

@@ -5,6 +5,7 @@ the provider's native API format. These tests verify that translation
 without making any network requests.
 """
 
+from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -137,6 +138,58 @@ class TestOpenAIAdapter:
             assert translated["type"] == "function"
             assert "name" in translated
             assert "description" in translated
+
+    def test_pro_mode_cache_identity_and_cache_telemetry(self):
+        from harness.adapters.openai import OpenAIAdapter, prompt_cache_key_for
+
+        adapter = OpenAIAdapter(
+            "gpt-5.6-luna",
+            reasoning_effort="high",
+            reasoning_mode="pro",
+        )
+        adapter.client.responses.create.return_value = SimpleNamespace(
+            output=[],
+            usage=SimpleNamespace(
+                input_tokens=10,
+                output_tokens=3,
+                input_tokens_details=SimpleNamespace(
+                    cached_tokens=4,
+                    cache_write_tokens=5,
+                ),
+                output_tokens_details=SimpleNamespace(reasoning_tokens=2),
+            ),
+            id="resp-test",
+            service_tier="default",
+        )
+        tools = [
+            {
+                "name": "fetch_documents",
+                "description": "Fetch documents",
+                "parameters": {"type": "object", "properties": {}},
+            }
+        ]
+        messages = [
+            adapter.make_system_message("system"),
+            adapter.make_user_message("request"),
+        ]
+
+        response = adapter.chat(messages, tools)
+        kwargs = adapter.client.responses.create.call_args.kwargs
+        expected_key = prompt_cache_key_for(
+            "gpt-5.6-luna",
+            "system",
+            "request",
+            [adapter._translate_tool(tools[0])],
+        )
+
+        assert kwargs["prompt_cache_key"] == expected_key
+        assert kwargs["reasoning"] == {
+            "summary": "auto",
+            "effort": "high",
+            "mode": "pro",
+        }
+        assert response.cached_input_tokens == 4
+        assert response.cache_write_input_tokens == 5
 
 
 # ══════════════════════════════════════════════════════════════════════

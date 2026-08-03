@@ -1,5 +1,6 @@
 /** Emit the frozen upstream Mike LAB prompt and schemas for the Python LAB runner. */
 import {
+  COMPACT_GENERATE_DOCX_TOOL,
   UPSTREAM_MIKE_COMMIT,
   UPSTREAM_MIKE_LAB_SYSTEM_PROMPT,
   UPSTREAM_MIKE_LAB_TOOLS,
@@ -14,5 +15,6 @@ process.stdout.write(
     schema_sha256: UPSTREAM_MIKE_SCHEMA_SHA256,
     system_prompt: UPSTREAM_MIKE_LAB_SYSTEM_PROMPT,
     tools: UPSTREAM_MIKE_LAB_TOOLS,
+    compact_generate_docx_tool: COMPACT_GENERATE_DOCX_TOOL,
   }),
 );
