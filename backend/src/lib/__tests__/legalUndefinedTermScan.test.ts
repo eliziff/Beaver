@@ -202,4 +202,83 @@ describe("legalUndefinedTermScan", () => {
     expect(findings.length).toBe(12);
     expect(new Set(findings.map((f) => f.term)).size).toBe(12);
   });
+
+  it("stays silent on a company name with a dotted entity designator (Inc., L.P., N.A.)", () => {
+    const draft: UndefinedTermDocument = {
+      name: "draft",
+      text: "Triton Industrial Gas Distribution, Inc. is the target. Pinnacle Forensic Economics, L.P. prepared the report. Cascadia Trust Company, N.A. serves as trustee.",
+    };
+    // Each is a proper noun with an entity designator — not a defined term.
+    expect(undefinedTermScan([], draft)).toHaveLength(0);
+  });
+
+  it("stays silent on a long memo header block that fits within the 180-char caption ceiling", () => {
+    // Realistic extraction: memo fields on separate lines. Even when the Re:
+    // line contains lowercase prose ("acquisition"), the memo-header-field
+    // detector treats it as a heading.
+    const draft: UndefinedTermDocument = {
+      name: "draft",
+      text: [
+        "From: Mike, AI Legal Assistant",
+        "Date: April 2025",
+        "Re: Proposed acquisition of Triton Industrial Gas Distribution, Inc. — antitrust risk assessment",
+        "",
+        "The transaction presents horizontal overlap in the industrial gas distribution market.",
+      ].join("\n"),
+    };
+    expect(undefinedTermScan([], draft)).toHaveLength(0);
+  });
+
+  it("stays silent on an all-caps privilege legend spanning many words", () => {
+    const draft: UndefinedTermDocument = {
+      name: "draft",
+      text: "ATTORNEY-CLIENT PRIVILEGED AND CONFIDENTIAL ATTORNEY WORK PRODUCT — PREPARED FOR COUNSEL REVIEW\n\nThis memorandum analyzes the proposed transaction.",
+    };
+    // Both all-caps lines are legends, not defined terms.
+    expect(undefinedTermScan([], draft)).toHaveLength(0);
+  });
+
+  it("stays silent on statute names, form names, and court references", () => {
+    const draft: UndefinedTermDocument = {
+      name: "draft",
+      text: "The Hart-Scott-Rodino Act requires filing of a Notification and Report Form. The U.S. District Court for the Southern District of New York has jurisdiction.",
+    };
+    // "Hart-Scott-Rodino Act" ends in "Act" → regime word.
+    // "Notification and Report Form" ends in "Form" → regime word.
+    // "Southern District of New York" → jurisdiction name.
+    expect(undefinedTermScan([], draft)).toHaveLength(0);
+  });
+
+  it("stays silent on person names (all content words are non-common English)", () => {
+    const draft: UndefinedTermDocument = {
+      name: "draft",
+      text: "Frank Castellano signed the agreement. Maria Castellano-Ruiz provided the analysis.",
+    };
+    // "Frank" and "Castellano" are not common English words (as names);
+    // "Maria" and "Castellano-Ruiz" likewise. The common-words filter
+    // should skip both person names.
+    expect(undefinedTermScan([], draft)).toHaveLength(0);
+  });
+
+  it("stays silent on a corporate brand name without entity designator", () => {
+    const draft: UndefinedTermDocument = {
+      name: "draft",
+      text: "PetroStar Refining operates the Gulf Coast Shipbuilders facility.",
+    };
+    // "PetroStar" is not a common English word; neither is "Shipbuilders".
+    // Both phrases have all-non-common content words → proper nouns.
+    expect(undefinedTermScan([], draft)).toHaveLength(0);
+  });
+
+  it("still fires when a non-common acronym pairs with a common head noun (SOFR Rate)", () => {
+    const draft: UndefinedTermDocument = {
+      name: "draft",
+      text: "The SOFR Rate shall be the reference rate for the loan.",
+    };
+    // "SOFR" is not common English, but "Rate" IS. The phrase has a
+    // common-English head noun → passes the common-words filter → fires.
+    const findings = undefinedTermScan([], draft);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].term).toBe("SOFR Rate");
+  });
 });

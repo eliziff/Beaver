@@ -47,6 +47,7 @@
  * Distributions" is defined in term-sheet.docx and is correctly silent.
  */
 import { collectDefinedTerms } from "./docxStructuralLint";
+import { COMMON_ENGLISH } from "./commonEnglishWords";
 
 export interface UndefinedTermDocument {
   name: string;
@@ -119,7 +120,30 @@ const ENTITY_WORDS = new Set([
   "technologies", "communications", "energy", "properties", "insurance",
   "logistics", "global", "international", "media", "resources", "materials",
   "services", "ventures",
+  // International entity designators (M4): "GmbH" (DE), "Sàrl"/"SARL" (CH),
+  // "KK" (JP), "Pty" (AU/GB), "PLC" (GB/IE), "AG" (DE/CH), "SE" (EU),
+  // "BV"/"NV" (NL/BE), "S.p.A."/"SA" (IT/FR/ES), "AB" (SE), "AS" (NO),
+  // "KGaA" (DE), "Oy"/"Oyj" (FI), "ApS" (DK). "Limited" may appear as "Pty
+  // Limited" — "pty" is in the set so the compound carries a matched
+  // designator even where "Limited" is the name's last word.
+  "gmbh", "sàrl", "kk", "pty", "plc", "ag", "se", "sarl", "bv", "nv",
+  "unlimited", "spa", "sa", "ab", "as", "kgaa", "oy", "oyj", "aps",
+  // This set (like JURISDICTION_NAMES below) is best-effort and will keep
+  // needing additions. A proper-noun phrase that misses the set fires a
+  // tolerated false positive — the model can see it is an entity/jurisdiction
+  // name — while over-suppressing could hide a genuine undefined term, so
+  // entries are added deliberately, never by a sweeping regex.
 ]);
+
+/**
+ * Entity-designator abbreviations that commonly follow a comma after a
+ * company name ("Triton Industrial Gas Distribution, Inc.", "Cascadia Trust
+ * Company, N.A."). When a phrase is immediately followed by `, <word>` and
+ * the word matches this set (trailing period stripped), the phrase is part
+ * of a proper noun — not a defined term.
+ */
+const TRAILING_ENTITY_RE =
+  /^, [A-Z][A-Za-z0-9&'’\-\.]+/u;
 
 /** Officer / role titles in signature blocks and capacity clauses. */
 const OFFICE_TITLE_RE =
@@ -137,6 +161,64 @@ const JURISDICTION_NAMES = new Set([
   "washington", "wisconsin", "canada", "england", "scotland", "wales",
   "australia", "singapore", "hong kong", "netherlands", "germany", "france",
   "japan", "china", "india", "mexico", "brazil",
+  // US cities / metro areas that appear as place-of-business references in
+  // analytical memos and will never be defined terms.
+  "baton rouge", "new orleans", "gulfport", "biloxi", "hattiesburg",
+  "jackson", "mobile", "pensacola", "tallahassee", "birmingham",
+  "montgomery", "huntsville", "little rock", "fayetteville",
+  "atlanta", "savannah", "augusta", "macon", "charleston",
+  "columbia", "greenville", "charlotte", "raleigh", "durham",
+  "nashville", "memphis", "knoxville", "chattanooga", "louisville",
+  "lexington", "richmond", "norfolk", "baltimore", "annapolis",
+  "philadelphia", "pittsburgh", "harrisburg", "cleveland",
+  "cincinnati", "columbus", "dayton", "toledo", "detroit",
+  "grand rapids", "lansing", "chicago", "springfield", "peoria",
+  "indianapolis", "fort wayne", "milwaukee", "madison", "minneapolis",
+  "st. paul", "saint paul", "des moines", "kansas city", "st. louis",
+  "saint louis", "omaha", "lincoln", "wichita", "topeka",
+  "denver", "boulder", "phoenix", "tucson", "las vegas", "reno",
+  "salt lake city", "boise", "portland", "salem", "seattle",
+  "tacoma", "spokane", "anchorage", "honolulu", "san diego",
+  "los angeles", "san francisco", "sacramento", "san jose",
+  "oakland", "fresno", "palo alto", "mountain view", "cupertino",
+  "san antonio", "austin", "dallas", "fort worth", "el paso",
+  "houston", "corpus christi", "oklahoma city", "tulsa",
+  "albuquerque", "santa fe", "miami", "orlando", "tampa",
+  "jacksonville", "west palm beach", "fort lauderdale",
+  "washington dc", "washington d.c.", "boston", "cambridge",
+  "providence", "hartford", "new haven", "stamford",
+  "montreal", "toronto", "vancouver", "ottawa", "calgary",
+  "london", "paris", "berlin", "tokyo", "sydney", "melbourne",
+  // Canadian provinces and territories (M4): governing-law clauses reference
+  // them as "Province of British Columbia" / "Territory of Yukon" / "Province
+  // of Quebec". The full "Newfoundland and Labrador" compound is included so
+  // the "and"-joined Title-Case phrase resolves as a unit.
+  "british columbia", "nova scotia", "new brunswick", "manitoba",
+  "saskatchewan", "alberta", "newfoundland", "labrador",
+  "newfoundland and labrador", "prince edward island", "yukon", "nunavut",
+  "northwest territories", "quebec",
+  // Other offshore / civil-law jurisdictions commonly named in governing-law
+  // and choice-of-forum clauses. Compound forms ("Trinidad and Tobago",
+  // "Turks and Caicos Islands", "Antigua and Barbuda", "St. Kitts and
+  // Nevis") are included so the "and"-joined phrases resolve as a unit.
+  "cayman islands", "cayman", "isle of man", "channel islands",
+  "puerto rico", "bermuda", "bahamas", "barbados", "jamaica", "trinidad",
+  "tobago", "trinidad and tobago", "gibraltar", "luxembourg",
+  "liechtenstein", "monaco", "andorra", "san marino", "vatican",
+  "seychelles", "mauritius", "cyprus", "malta", "guernsey", "jersey",
+  "anguilla", "british virgin islands", "turks", "caicos",
+  "turks and caicos", "turks and caicos islands", "curacao", "aruba",
+  "st. kitts", "nevis", "st. kitts and nevis", "antigua", "barbuda",
+  "antigua and barbuda", "st. lucia", "grenada", "dominica",
+  "st. vincent", "grenadines", "st. vincent and the grenadines",
+  // Canadian cities / metro areas that appear as place-of-business
+  // references in legal documents and will never be defined terms.
+  "edmonton", "winnipeg", "hamilton", "waterloo", "kitchener",
+  "london ontario", "mississauga", "brampton", "markham", "vaughan",
+  "burnaby", "surrey", "richmond bc", "coquitlam", "delta", "langley",
+  "abbotsford", "kelowna", "regina", "saskatoon", "halifax", "dartmouth",
+  "st. john's", "fredericton", "moncton", "charlottetown",
+  "yellowknife", "whitehorse", "iqaluit",
 ]);
 
 /**
@@ -162,6 +244,11 @@ const REGIME_WORDS = new Set([
   "commission", "authority", "agency", "bureau", "department",
   "administration", "board", "exchange", "reserve", "association",
   "institute", "union", "office", "ministry", "regulator",
+  // Statute / regulation / form names ("Hart-Scott-Rodino Act",
+  // "Internal Revenue Code", "Notification and Report Form",
+  // "Federal Rules of Civil Procedure").
+  "act", "code", "rules", "regulations", "statute", "form",
+  "court", "circuit", "district",
 ]);
 
 /** Connector words that may glue defined terms into a descriptive run. */
@@ -283,6 +370,9 @@ function quoteMask(text: string): boolean[] {
 const CAPTION_CONNECTORS = new Set([
   "of", "and", "or", "to", "for", "in", "by", "with", "without", "upon",
   "under", "on", "at", "from", "as", "the", "a", "an",
+  // Legal caption-specific connectors (C3 fix): "In re Smith Corp.",
+  // "Doe vs. Roe", "Ex parte Motion", "Sub rosa", "Non disclosure".
+  "re", "vs", "ex", "per", "sub", "non",
 ]);
 
 /**
@@ -296,9 +386,21 @@ const CAPTION_CONNECTORS = new Set([
  */
 function isHeadingLine(line: string): boolean {
   const trimmed = line.trim();
-  if (trimmed.length === 0 || trimmed.length > 80) return false;
+  // 180-char ceiling: memo header blocks ("From: ... Date: ... Re: ...")
+  // can run 130+ chars on one line; real prose sentences over 180 chars
+  // are rare and, when they exist, their capitalized phrases are nearly
+  // always proper nouns, not defined terms — the strictness bias prefers
+  // a miss (suppressed phrase) over noise (spurious finding).
+  if (trimmed.length === 0 || trimmed.length > 180) return false;
   const words = trimmed.split(/\s+/u).filter(Boolean);
   if (words.length < 2) return false;
+  // Memo header fields: a line that begins with a memo/letter label
+  // ("From:", "Date:", "Re:", "To:", "Subject:", "cc:") is a metadata
+  // header, never operative prose, even when the field content carries
+  // lowercase words ("Re: Proposed acquisition of...").
+  if (/^(?:From|Date|Re|To|Subject|cc|Memo|File|Ref)\s*:/iu.test(trimmed)) {
+    return true;
+  }
   for (const word of words) {
     // A prose marker is a word that BEGINS lowercase and is not a caption
     // connector: Title-Case words ("Financial", "Covenants.") and all-caps
@@ -532,13 +634,60 @@ export function undefinedTermScan(
 
     // Proper nouns, titles, jurisdictions and regimes are not defined terms.
     const words = bare.split(/[ \t]+/u);
+    // Strip trailing punctuation from each word before the entity check
+    // so "Inc." / "L.P." / "N.A." resolve against the ENTITY_WORDS set.
     const hasEntityWord = words.some((word) =>
-      ENTITY_WORDS.has(word.toLowerCase()),
+      ENTITY_WORDS.has(word.toLowerCase().replace(/[.,;:!?]+$/u, "")),
     );
     if (hasEntityWord) continue;
+    // A company name whose entity designator sits across a comma from the
+    // name ("Triton Industrial Gas Distribution, Inc.") — the comma breaks
+    // the PHRASE_RE match, so the designator is never captured. Check the
+    // text immediately after the phrase for ", <entity word>".
+    const firstUse = uses[0];
+    const afterPhrase = draftText.slice(
+      firstUse.at + bare.length,
+      firstUse.at + bare.length + 30,
+    );
+    const trailingEntity = TRAILING_ENTITY_RE.exec(afterPhrase);
+    if (trailingEntity) {
+      // Normalize: strip leading ", ", then all punctuation, so "Inc.",
+      // "L.P.", and "N.A." all resolve against the dot-free ENTITY_WORDS.
+      const entityWord = trailingEntity[0]
+        .replace(/^, /u, "")
+        .replace(/[.,;:!?]+$/u, "")
+        .replace(/\./gu, "")
+        .toLowerCase();
+      if (ENTITY_WORDS.has(entityWord)) continue;
+    }
     if (OFFICE_TITLE_RE.test(bare)) continue;
     if (isJurisdiction(bare)) continue;
     if (words.some((word) => REGIME_WORDS.has(word.toLowerCase()))) continue;
+
+    // Common-English head-noun filter: a legal defined term's head noun is
+    // virtually always a common English word ("Permitted Tax Distributions",
+    // "Change of Control", "SOFR Rate"). Person names and company names
+    // typically have proper-noun heads ("Frank Castellano", "Gulf Coast
+    // Shipbuilders"). Requiring the last content word (the head noun) to be
+    // common English catches this distinction without a gazetteer.
+    // De-pluralization is tried before rejecting: "Distributions" →
+    // "distribution", "Securities" → "security", "Covenants" → "covenant".
+    const contentWordsForCommon = words.filter(
+      (word) => !CONNECTOR_WORDS.has(word.toLowerCase()),
+    );
+    if (contentWordsForCommon.length >= 2) {
+      const raw = contentWordsForCommon[contentWordsForCommon.length - 1].toLowerCase();
+      const headVariants = new Set([raw]);
+      // De-pluralize: -ies → -y (Securities → Security, Parties → Party)
+      if (/[^aeiou]ies$/u.test(raw)) headVariants.add(raw.replace(/ies$/u, "y"));
+      // Strip -s (Distributions → Distribution, Covenants → Covenant)
+      if (raw.endsWith("s") && !raw.endsWith("ss")) headVariants.add(raw.slice(0, -1));
+      // Add -s (Distribution → Distributions, Covenant → Covenants)
+      headVariants.add(`${raw}s`);
+      if (![...headVariants].some((variant) => COMMON_ENGLISH.has(variant))) {
+        continue;
+      }
+    }
 
     // A descriptive extension of a defined head ("Senior Secured Notes" ends
     // in the defined term "Notes") is comprehensible and left alone.
@@ -552,17 +701,34 @@ export function undefinedTermScan(
     // A caption-only phrase (appears solely as a section/caption title).
     if (uses.every((occurrence) => occurrence.heading)) continue;
 
+    // An all-caps legend or header block: when most non-connector words are
+    // fully uppercase (not just Title-Case), the phrase is a confidentiality
+    // legend, privilege header, or similar boilerplate — never a defined term.
+    // "SOFR Rate" has one all-caps word out of two (50%); "ATTORNEY-CLIENT
+    // PRIVILEGED AND CONFIDENTIAL" has ≥5 all-caps words out of 5 (100%).
+    // Threshold: ≥60% of non-connector words are all-caps AND the phrase has
+    // 4+ words (so "EBITDA Adjustment" and "SOFR Rate" are left alone).
+    const contentWords = words.filter(
+      (word) => !CONNECTOR_WORDS.has(word.toLowerCase()),
+    );
+    if (
+      contentWords.length >= 4 &&
+      contentWords.filter((word) => /^[A-Z][A-Z0-9&'’\-\.]+$/u.test(word)).length >=
+        contentWords.length * 0.6
+    ) {
+      continue;
+    }
+
     const key = `undefined-term:${lower}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    const first = uses[0];
     findings.push({
       kind: "undefined_defined_term",
       term: bare,
       occurrences: uses.length,
-      at: first.at,
-      excerpt: excerptAt(draftText, first.at, bare.length),
-      detail: `"${bare}" is used as a defined term in the draft but no source or the draft defines it; the reader cannot know what it means`,
+      at: firstUse.at,
+      excerpt: excerptAt(draftText, firstUse.at, bare.length),
+      detail: `"${bare}" is used as a defined term in the draft but is not defined in the draft or any of the ${sources.length} source document(s); the reader cannot know what it means`,
     });
     if (findings.length >= cap) break;
   }

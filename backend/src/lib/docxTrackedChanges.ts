@@ -789,7 +789,17 @@ const positiveWordInt = (node: XNode | undefined, name: string) => {
 export async function extractDocxBodyStructure(
     bytes: Buffer,
 ): Promise<DocxBodyStructure> {
-    const zip = await loadDocxPackage(bytes);
+    // A truncated or byte-corrupted package fails JSZip with an opaque
+    // "Corrupted zip: …" error; fail closed with a readable message instead.
+    const zip = await loadDocxPackage(bytes).catch((error: unknown) => {
+        const detail = String((error as { message?: unknown })?.message ?? error)
+            .replace(/\s+/gu, " ")
+            .trim()
+            .slice(0, 200);
+        throw new Error(
+            `DOCX is corrupted or truncated (not a readable ZIP archive): ${detail}`,
+        );
+    });
     const docXmlFile = getZipEntry(zip, "word/document.xml");
     if (!docXmlFile) return { text: "", tableCells: [] };
     const docXmlRaw = await docXmlFile.async("string");

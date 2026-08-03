@@ -6,10 +6,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   auditSlaDraft,
+  buildRepairPrompt,
   greenfieldReviewPayload,
   greenfieldReviewRepairPrompt,
   normalizeGreenfieldFindings,
   requestsOperativeDrafting,
+  slaRevisionDrift,
   type SlaLedger,
 } from "../slaWorkflow";
 
@@ -482,7 +484,7 @@ describe("auditSlaDraft undefined-term organ", () => {
     text: `"ABL Facility" means the revolving credit facility. "Asset Sale" means the sale of all or any part of the Company's assets. "Net Cash Proceeds" means the proceeds of an Asset Sale net of fees. "Business Day" means any day other than a Saturday, Sunday or legal holiday. "Borrower" means the Company. The Borrower shall apply the Net Cash Proceeds of any Asset Sale to repay outstanding Obligations.`,
   };
 
-  it("reports a defined term the draft uses but nothing defines, even in operative drafting", () => {
+  it("reports a lone single undefined term without spending a revision pass (M7)", () => {
     const audit = auditSlaDraft(
       ledgerOf(source),
       "The Asset Sale covenant requires the Borrower to deliver any Designated Non-Cash Consideration to the Company within ten Business Days.",
@@ -494,9 +496,22 @@ describe("auditSlaDraft undefined-term organ", () => {
     expect(audit.receipt.undefined_term.finding_details[0]).toContain(
       "Designated Non-Cash Consideration",
     );
+    // M7: a lone single H3 finding is the classic probable false positive (M4);
+    // it is recorded in the receipt but does not buy a token-expensive repair.
+    expect(audit.repairPrompt).toBeNull();
+  });
+
+  it("spends the revision pass when an undefined term fires alongside another organ", () => {
+    const audit = auditSlaDraft(
+      ledgerOf(source),
+      "The Asset Sale covenant requires the Borrower to deliver any Designated Non-Cash Consideration to the Company must shall within ten Business Days.",
+    );
+    expect(audit.receipt.undefined_term.findings).toBe(1);
+    expect(audit.receipt.drafting_lint.errors).toBeGreaterThanOrEqual(1);
     expect(audit.repairPrompt).toContain(
       "Defined terms your deliverable uses but no source or the draft defines",
     );
+    expect(audit.repairPrompt).toContain("Drafting lint");
   });
 
   it("stays silent when every term the draft uses is defined in the sources", () => {
@@ -505,5 +520,98 @@ describe("auditSlaDraft undefined-term organ", () => {
       "The Asset Sale covenant requires the Borrower to apply the Net Cash Proceeds to repay outstanding Obligations within ten Business Days.",
     );
     expect(audit.receipt.undefined_term.findings).toBe(0);
+  });
+});
+
+describe("SLA repair-prompt contract (H6/M2/M5/H7)", () => {
+  it("tags and severity-orders the repair prompt findings (H6)", () => {
+    const audit = auditSlaDraft(
+      ledgerOf({
+        name: "lease.docx",
+        text: "Tenant leases 30,000 SF of the 120,000 SF premises (25% of the premises).",
+      }),
+      "Tenant leases 30,000 SF of the 120,000 SF premises (30% of the premises). The Tenant must deliver any Notice of Lease Default promptly.",
+    );
+    const prompt = audit.repairPrompt ?? "";
+    expect(prompt).toContain("- [arithmetic]");
+    expect(prompt).toContain("- [definition]");
+    // Arithmetic conflicts always precede lower-severity classes.
+    expect(prompt.indexOf("[arithmetic]")).toBeLessThan(
+      prompt.indexOf("[definition]"),
+    );
+  });
+
+  it("caps derived-value findings by monetary magnitude (M2)", () => {
+    const audit = auditSlaDraft(
+      ledgerOf({
+        name: "overview.docx",
+        text: "Total revenue was $100,000,000. Module A generated $90,000,000, 90% of total revenue. Module B generated $10,000,000, 10% of total revenue.",
+      }),
+      "The A module supports 90% of total revenue. The B module supports 10% of total revenue.",
+    );
+    expect(audit.receipt.derived_value.findings).toBe(2);
+    expect(audit.receipt.derived_value.finding_details[0]).toContain("90%");
+    expect(audit.receipt.derived_value.finding_details[1]).toContain("10%");
+  });
+
+  it("caps deadline omissions by resolved-date proximity (M2)", () => {
+    const audit = auditSlaDraft(
+      ledgerOf({
+        name: "term-sheet.docx",
+        text: "Consent request due 30 days before March 30, 2025. Notice request due 10 days before April 1, 2025.",
+      }),
+      "The consent request and the notice request must be delivered in advance.",
+    );
+    expect(audit.receipt.deadline_omission.findings).toBe(2);
+    expect(audit.receipt.deadline_omission.finding_details[0]).toContain(
+      "2025-02-28",
+    );
+    expect(audit.receipt.deadline_omission.finding_details[1]).toContain(
+      "2025-03-22",
+    );
+  });
+
+  it("caps undefined terms by occurrence count (M2)", () => {
+    const audit = auditSlaDraft(
+      ledgerOf({ name: "msa.docx", text: "A simple agreement." }),
+      "Any Phantom Provision must be disclosed. The Phantom Provision is material. Any Rogue Covenant is void.",
+    );
+    expect(audit.receipt.undefined_term.findings).toBe(2);
+    expect(audit.receipt.undefined_term.terms[0]).toBe("Phantom Provision");
+    expect(audit.receipt.undefined_term.terms[1]).toBe("Rogue Covenant");
+  });
+
+  it("caps the assembled repair prompt and reports dropped findings (M5)", () => {
+    const sections = Array.from({ length: 40 }, (_, index) => ({
+      header: "Fake severity-ordered section:",
+      lines: [
+        `- [arithmetic] finding ${index} with a deliberately long detail string so the assembled prompt comfortably exceeds the character cap.`,
+      ],
+    }));
+    const prompt = buildRepairPrompt(sections, "\nFix every material error.");
+    expect(prompt.length).toBeLessThanOrEqual(2000);
+    expect(prompt).toMatch(/and \d+ more findings \(see receipt\)/u);
+  });
+
+  it("reports new findings introduced by the repair pass (H7)", () => {
+    const source = {
+      name: "overview.docx",
+      text: "Total revenue was $87,300,000. The module generated $22,100,000, 25.3% of total revenue.",
+    };
+    const pre = auditSlaDraft(
+      ledgerOf(source),
+      "The module supports 25.3% of total revenue.",
+    );
+    expect(pre.receipt.derived_value.findings).toBe(1);
+    // The repair resolves the omission but introduces a coined undefined term.
+    const post = auditSlaDraft(
+      ledgerOf(source),
+      "The module supports 25.3% of total revenue and generated $22,100,000. Any Phantom Provision must be reviewed.",
+    );
+    expect(post.receipt.derived_value.findings).toBe(0);
+    const drift = slaRevisionDrift(pre, post);
+    expect(drift.by_organ.derived_value).toBe(0);
+    expect(drift.by_organ.undefined_term).toBe(1);
+    expect(drift.total_new).toBe(1);
   });
 });

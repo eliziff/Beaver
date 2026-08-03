@@ -11,7 +11,7 @@ type DocxMarkdownInline =
 type DocxMarkdownBlock =
   | {
       type: "heading";
-      level: 1 | 2 | 3;
+      level: 1 | 2 | 3 | 4 | 5 | 6;
       numbered: boolean;
       bookmark?: string;
       children: DocxMarkdownInline[];
@@ -234,7 +234,7 @@ function normalizeMarkdownLines(lines: string[]) {
   for (let index = 0; index < normalized.length; index += 1) {
     if (
       normalized[index].trim() !== "{-}" &&
-      !/^#{1,3}\s+\{-\}\s*$/u.test(normalized[index])
+      !/^#{1,6}\s+\{-\}\s*$/u.test(normalized[index])
     ) {
       continue;
     }
@@ -242,7 +242,7 @@ function normalizeMarkdownLines(lines: string[]) {
     while (previous >= 0 && !normalized[previous].trim()) previous -= 1;
     if (
       previous >= 0 &&
-      /^#{1,3}\s+\S/u.test(normalized[previous]) &&
+      /^#{1,6}\s+\S/u.test(normalized[previous]) &&
       !/\s+\{[-#][^}]*\}\s*$/u.test(normalized[previous])
     ) {
       normalized[previous] = `${normalized[previous].trimEnd()} {-}`;
@@ -251,7 +251,7 @@ function normalizeMarkdownLines(lines: string[]) {
       while (next < normalized.length && !normalized[next].trim()) next += 1;
       if (
         next >= 0 &&
-        /^#{1,3}\s+\S/u.test(normalized[next]) &&
+        /^#{1,6}\s+\S/u.test(normalized[next]) &&
         !/\s+\{[-#][^}]*\}\s*$/u.test(normalized[next])
       ) {
         normalized[next] = `${normalized[next].trimEnd()} {-}`;
@@ -307,7 +307,7 @@ function parseHeading(
   bookmarks: Set<string>,
   state: ParseState,
 ): Extract<DocxMarkdownBlock, { type: "heading" }> | "skip" | null {
-  const match = line.match(/^(#{1,3})\s+(.+)$/u);
+  const match = line.match(/^(#{1,6})\s+(.+)$/u);
   if (!match) return null;
 
   let text = match[2].trim();
@@ -369,7 +369,7 @@ function parseHeading(
 
   return {
     type: "heading",
-    level: match[1].length as 1 | 2 | 3,
+    level: match[1].length as 1 | 2 | 3 | 4 | 5 | 6,
     numbered: numbered && !hasExplicitLegalNumbering(text),
     bookmark,
     children: parseInline(text, state),
@@ -425,7 +425,7 @@ function beginsBlock(lines: string[], index: number) {
   return (
     !trimmed ||
     trimmed === "<!-- pagebreak -->" ||
-    /^#{1,3}\s+/u.test(lines[index]) ||
+    /^#{1,6}\s+/u.test(lines[index]) ||
     CONTROL_ONLY_RE.test(lines[index]) ||
     listItem(lines[index]) !== null ||
     isTable(lines, index)
@@ -906,6 +906,9 @@ export async function renderDocxMarkdownDocument(
     HeadingLevel.HEADING_1,
     HeadingLevel.HEADING_2,
     HeadingLevel.HEADING_3,
+    HeadingLevel.HEADING_4,
+    HeadingLevel.HEADING_5,
+    HeadingLevel.HEADING_6,
   ];
   const headingNumbering = "markdown-headings";
   const blocks: (
@@ -1087,6 +1090,9 @@ export async function renderDocxMarkdownDocument(
     numberingLevel(0, LevelFormat.DECIMAL, "%1.", true, true),
     numberingLevel(1, LevelFormat.DECIMAL, "%1.%2", true, true),
     numberingLevel(2, LevelFormat.DECIMAL, "%1.%2.%3", true, true),
+    numberingLevel(3, LevelFormat.DECIMAL, "%1.%2.%3.%4", true, true),
+    numberingLevel(4, LevelFormat.DECIMAL, "%1.%2.%3.%4.%5", true, true),
+    numberingLevel(5, LevelFormat.DECIMAL, "%1.%2.%3.%4.%5.%6", true, true),
   ];
   const listFormats = [
     LevelFormat.DECIMAL,

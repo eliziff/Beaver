@@ -32,13 +32,20 @@ describe("DOCX drafting source", () => {
 
     expect(source.format).toBe(DOCX_DRAFTING_SOURCE_FORMAT);
     expect(source.source_sha256).toMatch(/^[a-f0-9]{64}$/u);
-    expect(source.html).toContain("<h1><strong>Agreement</strong></h1>");
-    expect(source.html).toContain("<strong>Vendor</strong>");
-    expect(source.html).toContain("<ul>");
-    expect(source.html).toContain("<table>");
-    expect(source.html).toContain("[^1]");
-    expect(source.html).toContain("[^1]: This is the source footnote.");
-    expect(source.html).not.toContain('href="#footnote-');
+    // Headings are preserved as # / ## markers (Pandoc resolves them
+    // from the style definitions after our styles patch).
+    expect(source.markdown).toMatch(/^# \*\*Agreement\*\*$/mu);
+    // Bold text preserved
+    expect(source.markdown).toContain("**Vendor**");
+    // Lists preserved
+    expect(source.markdown).toContain("- First obligation");
+    // Tables preserved (Pandoc emits grid tables by default)
+    expect(source.markdown).toContain("Price");
+    // Footnotes round-trip as [^N] / [^N]: markers natively
+    expect(source.markdown).toContain("[^1]");
+    expect(source.markdown).toContain("[^1]: This is the source footnote.");
+    // No mammoth-style footnote href noise
+    expect(source.markdown).not.toContain('href="#footnote-');
     expect(source.requires_review).toBe(false);
   });
 
@@ -69,9 +76,9 @@ describe("DOCX drafting source", () => {
 
     const source = await extractDocxDraftingSource(bytes);
 
-    expect(source.html).toContain("[Image omitted]");
-    expect(source.html).not.toMatch(/data:/iu);
-    expect(source.html).not.toContain(png.toString("base64"));
+    expect(source.markdown).toContain("[Image omitted]");
+    expect(source.markdown).not.toMatch(/data:/iu);
+    expect(source.markdown).not.toContain(png.toString("base64"));
     expect(source.warnings.join(" ")).toContain("embedded image");
     expect(source.requires_review).toBe(true);
   });

@@ -3342,15 +3342,15 @@ describe("local assistant tools", () => {
 
       expect(draftingRead).toMatchObject({
         ok: true,
-        format: "beaver-precedent-html-v1",
+        format: "pandoc-markdown-v1",
         document_id: created.document_id,
         version_id: created.version_id,
       });
       expect(draftingRead.source_sha256).toBe(created.source_sha256);
-      expect(draftingRead.html).toMatch(
-        /<h1>(?:<strong>)?Background(?:<\/strong>)?<\/h1>/u,
+      expect(draftingRead.markdown).toMatch(
+        /\*\*Background\*\*/u,
       );
-      expect(draftingRead.html).toContain("[^");
+      expect(draftingRead.markdown).toContain("[^");
 
       const [scopedDraftingResponse] = await tools.runLocalAssistantTools(
         "local-user",
