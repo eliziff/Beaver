@@ -289,17 +289,7 @@ class MikeWorkbenchExecutor(ToolExecutor):
         if self._final_check_pending:
             self._final_check_pending = False
             self._final_check_ready = True
-            titles = ", ".join(
-                f'"{self._initial_drafts[name]["title"]}"'
-                for name in self._deliverables
-            )
-            self._final_check_followup = (
-                FINAL_CHECK_INSTRUCTION
-                + " If a correction is needed, call generate_docx with the same title "
-                + "and complete replacement Markdown for each deliverable you change. "
-                + f"The current deliverable title(s) are: {titles}. "
-                + "If no correction is needed, make no tool call."
-            )
+            self._final_check_followup = FINAL_CHECK_INSTRUCTION
         elif self._final_check_ready and self.final_check_revision_attempts:
             self._final_check_ready = False
             self.terminal = True
@@ -615,6 +605,18 @@ class MikeWorkbenchExecutor(ToolExecutor):
         }
         if self.final_check_enabled:
             receipt["final_check_follows"] = self._final_check_pending
+            if self._final_check_pending:
+                receipt["revision_protocol"] = (
+                    "After the follow-up, call generate_docx with the same title and "
+                    "complete replacement Markdown for each deliverable that needs a "
+                    "correction. Make no tool call if no correction is needed. Current "
+                    "title(s): "
+                    + ", ".join(
+                        f'"{self._initial_drafts[name]["title"]}"'
+                        for name in self._deliverables
+                    )
+                    + "."
+                )
         return json.dumps(receipt)
 
     def _render_docx(self, source: str, draft_path: str, output_path: str) -> str | None:
