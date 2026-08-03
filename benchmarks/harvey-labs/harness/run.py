@@ -29,7 +29,6 @@ from harness.agent_loop import run_agent
 from harness.ablation_tools import AblationToolExecutor, get_ablation_tool_definitions
 from harness.mike_workbench import (
     MIKE_SURFACES,
-    PRO_SURFACES,
     MikeWorkbenchExecutor,
     get_mike_surface,
 )
@@ -60,7 +59,10 @@ _MIKE_HARNESS_SOURCES = (
 
 def mike_harness_source_receipts(surface: str) -> list[dict]:
     paths = list(_MIKE_HARNESS_SOURCES)
-    if surface in {"mike_workbench_anchor_v1", "mike_one_shot_fact_index_v1"}:
+    if surface in {
+        "mike_workbench_anchor_v1",
+        "mike_one_shot_fact_index_xhigh_v1",
+    }:
         paths.extend(
             [
                 REPO_ROOT / "backend" / "scripts" / "anchor-coverage-stdin.ts",
@@ -124,7 +126,6 @@ def create_adapter(
     model: str,
     temperature: float = 0.0,
     reasoning_effort: str | None = None,
-    reasoning_mode: str | None = None,
 ):
     """Create the right adapter based on the model string.
 
@@ -152,7 +153,6 @@ def create_adapter(
         return OpenAIAdapter(
             model=model_id, temperature=temperature,
             reasoning_effort=reasoning_effort,
-            reasoning_mode=reasoning_mode,
         )
 
     # ChatGPT-subscription Codex backend (chatgpt.com/backend-api/codex).
@@ -160,7 +160,6 @@ def create_adapter(
         return CodexAdapter(
             model=model_id, temperature=temperature,
             reasoning_effort=reasoning_effort,
-            reasoning_mode=reasoning_mode,
         )
 
     # Headless Claude Code transport (subscription flat rate, judge's surface).
@@ -214,7 +213,6 @@ def create_adapter(
         return OpenAIAdapter(
             model=model_id, temperature=temperature,
             reasoning_effort=reasoning_effort,
-            reasoning_mode=reasoning_mode,
         )
 
     elif model_id.startswith("gemini"):
@@ -320,8 +318,8 @@ parser.add_argument(
         "mike_workbench_v1",
         "mike_workbench_anchor_v1",
         "mike_one_shot_v1",
-        "mike_one_shot_pro_v1",
-        "mike_one_shot_fact_index_v1",
+        "mike_one_shot_xhigh_v1",
+        "mike_one_shot_fact_index_xhigh_v1",
     ),
     default="standard",
     help="Tool surface for a preregistered harness ablation.",
@@ -361,7 +359,6 @@ def main(args):
     print(f"Loading task: {args.task}")
     task = load_task(task_name=args.task)
     mike_surface = args.surface in MIKE_SURFACES
-    reasoning_mode = "pro" if args.surface in PRO_SURFACES else None
     effective_max_turns = min(args.max_turns, 10) if mike_surface else args.max_turns
 
     configured_deliverables = task["config"].get("deliverables") or {}
@@ -434,7 +431,6 @@ def main(args):
         fingerprint_input = {
             "model": args.model,
             "reasoning_effort": args.reasoning_effort,
-            "reasoning_mode": reasoning_mode,
             "task": args.task,
             "surface": args.surface,
             "max_turns": effective_max_turns,
@@ -497,7 +493,6 @@ def main(args):
         "temperature": args.temperature,
         "shell_timeout": args.shell_timeout,
         "reasoning_effort": args.reasoning_effort,
-        "reasoning_mode": reasoning_mode,
         "skills": skill_names,
         "sandbox_image": args.sandbox_image,
         "sandbox_engine": ENGINE,
@@ -515,7 +510,6 @@ def main(args):
         model=args.model,
         temperature=args.temperature,
         reasoning_effort=args.reasoning_effort,
-        reasoning_mode=reasoning_mode,
     )
 
     frozen_mike_surface = None
@@ -603,7 +597,6 @@ def main(args):
     run_fingerprint_input = {
         "model": args.model,
         "reasoning_effort": args.reasoning_effort,
-        "reasoning_mode": reasoning_mode,
         "task": args.task,
         "surface": args.surface,
         "max_turns": effective_max_turns,
@@ -686,7 +679,6 @@ def main(args):
         "tool_error_count": result["tool_error_count"],
         "tool_batches": result["tool_batches"],
         "surface": args.surface,
-        "reasoning_mode": reasoning_mode,
         "prompt_cache_key": config["prompt_cache_key"],
         "instructions_sha256": config["instructions_sha256"],
         "system_prompt_sha256": config["system_prompt_sha256"],

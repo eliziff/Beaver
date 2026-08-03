@@ -34,19 +34,14 @@ MIKE_SURFACES = {
     "mike_workbench_v1",
     "mike_workbench_anchor_v1",
     "mike_one_shot_v1",
-    "mike_one_shot_pro_v1",
-    "mike_one_shot_fact_index_v1",
+    "mike_one_shot_xhigh_v1",
+    "mike_one_shot_fact_index_xhigh_v1",
 }
 
 ONE_SHOT_SURFACES = {
     "mike_one_shot_v1",
-    "mike_one_shot_pro_v1",
-    "mike_one_shot_fact_index_v1",
-}
-
-PRO_SURFACES = {
-    "mike_one_shot_pro_v1",
-    "mike_one_shot_fact_index_v1",
+    "mike_one_shot_xhigh_v1",
+    "mike_one_shot_fact_index_xhigh_v1",
 }
 
 ONE_SHOT_PROMPT = """You are a senior legal analyst. Complete the user's exact request from the project documents.
@@ -219,7 +214,9 @@ class MikeWorkbenchExecutor(ToolExecutor):
         self.surface_name = surface_name
         self.task_instructions = task_instructions
         self.tail_reminder = surface_name in ONE_SHOT_SURFACES
-        self.source_fact_index_enabled = surface_name == "mike_one_shot_fact_index_v1"
+        self.source_fact_index_enabled = (
+            surface_name == "mike_one_shot_fact_index_xhigh_v1"
+        )
         self.terminal = False
         self._documents = self.sandbox.list_files(DOCUMENTS_PATH)
         self._by_id = {f"doc-{index}": path for index, path in enumerate(self._documents)}

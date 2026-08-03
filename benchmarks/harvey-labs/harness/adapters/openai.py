@@ -40,11 +40,9 @@ class OpenAIAdapter(ModelAdapter):
         temperature: float = 0.0,
         max_tokens: int = 128000,  # GPT-5.x: reasoning tokens share this budget
         reasoning_effort: str | None = None,
-        reasoning_mode: str | None = None,
     ):
         super().__init__(model, temperature, reasoning_effort)
         self.max_tokens = max_tokens
-        self.reasoning_mode = reasoning_mode
         self.client = openai.OpenAI()
         # Accumulated context items for the Responses API
         self._context: list = []
@@ -90,13 +88,11 @@ class OpenAIAdapter(ModelAdapter):
             prompt_cache_key=self.prompt_cache_key,
         )
 
-        if self.reasoning_effort or self.reasoning_mode:
-            reasoning = {"summary": "auto"}
-            if self.reasoning_effort:
-                reasoning["effort"] = self.reasoning_effort
-            if self.reasoning_mode:
-                reasoning["mode"] = self.reasoning_mode
-            kwargs["reasoning"] = reasoning
+        if self.reasoning_effort:
+            kwargs["reasoning"] = {
+                "effort": self.reasoning_effort,
+                "summary": "auto",
+            }
             # Some models don't support temperature with reasoning
         else:
             kwargs["temperature"] = self.temperature
