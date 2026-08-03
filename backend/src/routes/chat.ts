@@ -92,12 +92,18 @@ import {
   ADAPTIVE_MIKE_LAB_SYSTEM_PROMPT,
   COMPACT_AUTHOR_MIKE_LAB_SYSTEM_PROMPT,
   GROUNDED_STRUCTURE_LAB_SYSTEM_PROMPT,
+  GROUNDED_STRUCTURE_OUTLINE_LAB_SYSTEM_PROMPT,
   LEAN_BATCH_LAB_SYSTEM_PROMPT,
   MIKE_GREP_LAB_SYSTEM_PROMPT,
   MIKE_LEGAL_GUIDED_LAB_SYSTEM_PROMPT,
   MIKE_STRUCTURE_PATHS_LAB_SYSTEM_PROMPT,
   UPSTREAM_MIKE_LAB_SYSTEM_PROMPT,
 } from "../lib/chat/upstreamMikeBenchmarkSurface";
+import {
+  GROUNDED_STRUCTURE_OUTLINE_INJECTION_ENABLED,
+  buildLabOutlineInjectionBlock,
+  type LabOutlineSourceDocument,
+} from "../lib/chat/labOutlineInjection";
 import { localAutomationEvent } from "../lib/chat/localAutomationEvent";
 import {
   appendSlaReceipt,
@@ -1091,9 +1097,11 @@ export async function streamAnonymousChat(params: {
         ? COMPACT_AUTHOR_MIKE_LAB_SYSTEM_PROMPT
         : MIKE_GREP_FAMILY_TOOL_SHAPE
       ? MIKE_STRUCTURE_PATHS_TOOL_SHAPE
-        ? GROUNDING_FIRST_ENABLED
-          ? GROUNDED_STRUCTURE_LAB_SYSTEM_PROMPT
-          : MIKE_STRUCTURE_PATHS_LAB_SYSTEM_PROMPT
+        ? GROUNDED_STRUCTURE_OUTLINE_INJECTION_ENABLED
+          ? GROUNDED_STRUCTURE_OUTLINE_LAB_SYSTEM_PROMPT
+          : GROUNDING_FIRST_ENABLED
+            ? GROUNDED_STRUCTURE_LAB_SYSTEM_PROMPT
+            : MIKE_STRUCTURE_PATHS_LAB_SYSTEM_PROMPT
         : MIKE_LEGAL_GUIDED_TOOL_SHAPE
           ? MIKE_LEGAL_GUIDED_LAB_SYSTEM_PROMPT
           : MIKE_GREP_LAB_SYSTEM_PROMPT
@@ -1161,6 +1169,7 @@ export async function streamAnonymousChat(params: {
   }
   // Name the documents the user already has. Telling the model the tools
   // exist is not the same as telling it the matter exists.
+  let groundedOutlineBlock = "";
   if (ORIGIN_MIKE_TOOL_SHAPE) {
     const documents = allowedDocumentIds?.size
       ? await listLocalDocumentsById(userId, allowedDocumentIds)
@@ -1174,6 +1183,30 @@ export async function streamAnonymousChat(params: {
         )
         .join("\n") +
       "\n";
+    // H7 lean-understanding: inject the compact outline + top-K cross-ref
+    // summary ONCE for the LAB surface when the arm enables it. Deterministic,
+    // host-side, bounded; a refusing document simply contributes no entry, and
+    // an extraction failure falls back to no injection rather than failing the
+    // turn.
+    if (GROUNDED_STRUCTURE_OUTLINE_INJECTION_ENABLED) {
+      try {
+        const outlineSources: LabOutlineSourceDocument[] = [];
+        for (const [index, document] of documents.entries()) {
+          const extracted = await extractLocalDocument(userId, document.id);
+          if (!extracted) continue;
+          outlineSources.push({
+            label: `doc-${index}`,
+            filename: document.filename,
+            text: extracted.text,
+          });
+        }
+        groundedOutlineBlock = buildLabOutlineInjectionBlock(outlineSources);
+        if (groundedOutlineBlock)
+          systemPrompt += `\n\n${groundedOutlineBlock}\n`;
+      } catch {
+        groundedOutlineBlock = "";
+      }
+    }
   } else {
     systemPrompt += await libraryInventoryPrompt(
       userId,
@@ -2481,6 +2514,8 @@ export async function streamAnonymousChat(params: {
           mike_legal_guided_shape: MIKE_LEGAL_GUIDED_TOOL_SHAPE,
           mike_structure_paths_shape: MIKE_STRUCTURE_PATHS_TOOL_SHAPE,
           grounding_first: GROUNDING_FIRST_ENABLED,
+          grounded_outline_injection: GROUNDED_STRUCTURE_OUTLINE_INJECTION_ENABLED,
+          grounded_outline_injection_chars: groundedOutlineBlock.length,
           model_coverage_routing: MODEL_COVERAGE_ROUTING,
           whole_read_max_chars: WHOLE_READ_MAX_CHARS || null,
           tool_result_max_chars: MAX_TOOL_RESULT_CHARS,

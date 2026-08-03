@@ -658,3 +658,18 @@ GROUNDING BEFORE DRAFTING:
 - Before drafting, build a compact internal evidence map for every material requested conclusion. Ground it in an exact passage, table fact, clause relationship, calculation with sourced inputs, cross-document contradiction, or meaningful source absence; retain the filename and locator.
 - Check that the evidence map covers the requested issues, parties, dates, numbers, jurisdictions, exceptions, and conflicting source versions before calling generate_docx. Resolve material conflicts or state them accurately in the work product.
 - Quotations and citations belong in the deliverable only when the request or professional genre calls for them. Otherwise use the grounded facts to draft the native work product without exposing the research apparatus.`;
+
+/** Delta tag for the H7 one-time outline + top-K cross-reference injection. */
+export const GROUNDED_STRUCTURE_OUTLINE_DELTA =
+  "grounded-structure-outline-injection-v1";
+
+/** The H7 arm keeps the grounded structure-paths surface byte-identical and
+ * additionally documents that the host injects a compact, one-time structure
+ * block (see buildLabOutlineInjectionBlock). The model reads it once; no new
+ * tools, no multi-turn churn. */
+export const GROUNDED_STRUCTURE_OUTLINE_LAB_SYSTEM_PROMPT = `${GROUNDED_STRUCTURE_LAB_SYSTEM_PROMPT}
+
+INJECTED SOURCE OUTLINES:
+- The system context includes a compact per-document outline of numbered provisions and a most-referenced cross-reference summary, computed once by the host from the sources. Use it to orient before reading; a document with no outline entry has no usable numbered structure or was omitted as too large.
+- Section labels in the outline match the section handles Grep returns. Grep supplies the immutable .mike/structure/... path to Read for exact evidence; never invent a handle.
+- The outline is a one-time orientation aid, not a substitute for reading the exact provisions your deliverable quotes or relies on.`;

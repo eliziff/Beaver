@@ -42,6 +42,9 @@
   detector promoted.
 - [DOCX benchmark design and first local results](docx-benchmark-design.md)
 - [DOCX live-model benchmark gate](docx-live-model-benchmark-2026-07-27.md)
+- [DOCX capability conformance matrix](docx-capability-conformance-2026-08-03.md)
+  — which feature classes round-trip the simplified-markdown wire exactly and
+  which are documented drops, pinned by a deterministic vitest suite.
 - [Runnable private-corpus harness](../benchmarks/docx_corpus/README.md)
 
 The two context tracks are independent evidence appendices; the synthesis
