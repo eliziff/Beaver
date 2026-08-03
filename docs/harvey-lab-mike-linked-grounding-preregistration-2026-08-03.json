@@ -17,9 +17,9 @@
   "linked_grounding_implementation_commit": "9a36c283d66f3b1f2b49752db7efcbbd28be7ee1",
   "surface": "mike_one_shot_linked_grounding_xhigh_v1",
   "artifact_storage": {
-    "root": "C:/tmp/harvey-labs-results",
+    "root": "C:/Users/elias/AppData/Local/Temp/harvey-labs-results",
     "run_id_argument": "absolute artifact root plus the registered logical run_id basename",
-    "reason": "The checked-in LAB results directory is read-only to the execution sandbox; C:/tmp is the approved writable artifact root.",
+    "reason": "The checked-in LAB results directory is read-only to the execution sandbox; the session Temp directory is the verified writable artifact root.",
     "pre_model_launch_failures": "Two launcher attempts failed while creating result/log directories before sandbox startup, adapter construction, or any provider call. They produced no run artifacts and do not consume cells."
   },
   "performer": {
