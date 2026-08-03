@@ -208,6 +208,10 @@ export const UPSTREAM_MIKE_LAB_TOOLS = [
 export const ADAPTIVE_MIKE_DELTA =
   "inventory-bounded-read-terminal-generate-v1";
 
+/** Exact pinned comparator surface; only the provider loop terminates after a
+ * successful generate receipt. Prompt, tools, and retrieval stay byte-equal. */
+export const UPSTREAM_TERMINAL_DELTA = "terminal-successful-generate-v1";
+
 export const ADAPTIVE_MIKE_READ_DOCUMENT_TOOL: OpenAIToolSchema = {
   ...byName.get("read_document")!,
   function: {
