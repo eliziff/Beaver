@@ -7,6 +7,7 @@ The agent finishes when it stops making tool calls (no explicit `finish`
 tool). The agent loop ends on:
   1. No tool calls returned — the model has nothing more to do
   2. Max turns reached
+  3. A terminal tool reports that all required deliverables were written
 """
 
 import time
@@ -62,6 +63,7 @@ def run_agent(
     tool_error_count = 0
     tool_batches = []
     response = None
+    terminal_completion = False
 
     transcript_file = None
     if transcript_path:
@@ -142,6 +144,12 @@ def run_agent(
                 [(tc.id, result) for tc, result in tool_results]
             )
             messages.extend(result_messages)
+            after_batch = getattr(tool_executor, "after_tool_batch", None)
+            if callable(after_batch):
+                after_batch()
+            if getattr(tool_executor, "terminal", False):
+                terminal_completion = True
+                break
 
     finally:
         if transcript_file:
@@ -164,11 +172,16 @@ def run_agent(
         "tool_error_count": tool_error_count,
         "tool_batches": tool_batches,
         "wall_clock_seconds": round(elapsed, 2),
-        "finished_cleanly": (not context_overflow and
-                             (not response.tool_calls if response is not None else False)),
+        "finished_cleanly": (
+            not context_overflow
+            and (
+                terminal_completion
+                or (not response.tool_calls if response is not None else False)
+            )
+        ),
         "context_overflow": context_overflow,
         "tool_metrics": tool_executor.get_metrics(),
-        "finish_summary": None,
+        "finish_summary": "terminal_tool" if terminal_completion else None,
     }
 
 
