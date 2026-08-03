@@ -217,6 +217,11 @@ export type LlmCompactionReceipt = {
   iteration: number;
   thresholdTokens: number;
   triggerInputTokens: number;
+  triggerReason?:
+    | "reported_usage"
+    | "projected_input"
+    | "context_length_exceeded";
+  projectedInputTokens?: number;
   requestInputItems: number;
   requestInputBytes: number;
   requestInputSha256: string;

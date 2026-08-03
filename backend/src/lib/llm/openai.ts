@@ -496,6 +496,78 @@ export async function streamResponsesApi(
     }
   };
   const trace = createLlmTrace({ provider: config.provider, model });
+  const compactHistory = async (args: {
+    iteration: number;
+    sourceInput: ResponseInputItem[];
+    instructions: string;
+    tools: ResponseFunctionTool[];
+    reasoning?: { summary?: "auto"; effort?: string };
+    triggerInputTokens: number;
+    triggerReason: NonNullable<LlmCompactionReceipt["triggerReason"]>;
+    projectedInputTokens?: number;
+  }) => {
+    const thresholdTokens = params.compactThreshold;
+    const endpoint = config.remoteCompactionEndpoint;
+    if (!thresholdTokens || !endpoint) {
+      throw new Error("Provider compaction is unavailable");
+    }
+    const requestInputJson = JSON.stringify(args.sourceInput);
+    const requestToolsJson = JSON.stringify(args.tools);
+    const requestInputBytes = Buffer.byteLength(requestInputJson);
+    const requestInstructionsBytes = Buffer.byteLength(args.instructions);
+    const requestToolBytes = Buffer.byteLength(requestToolsJson);
+    const estimatedInputTokens = Math.ceil(
+      (requestInputBytes + requestInstructionsBytes + requestToolBytes) / 4,
+    );
+    const projectedInputTokens =
+      args.projectedInputTokens ?? estimatedInputTokens;
+    const compactStarted = performance.now();
+    const compacted = await createCompactResponse({
+      endpoint,
+      provider: config.provider,
+      model,
+      input: args.sourceInput,
+      instructions: args.instructions,
+      tools: args.tools,
+      reasoning: args.reasoning,
+      serviceTier: config.serviceTier,
+      promptCacheKey,
+      apiKey: config.apiKey,
+      headers: config.headers,
+      signal: params.abortSignal,
+    });
+    const outputJson = JSON.stringify(compacted.output);
+    const receipt: LlmCompactionReceipt = {
+      iteration: args.iteration,
+      thresholdTokens,
+      triggerInputTokens: args.triggerInputTokens,
+      triggerReason: args.triggerReason,
+      projectedInputTokens,
+      requestInputItems: args.sourceInput.length,
+      requestInputBytes,
+      requestInputSha256: sha256(requestInputJson),
+      requestInstructionsBytes,
+      requestInstructionsSha256: sha256(args.instructions),
+      requestToolCount: args.tools.length,
+      requestToolBytes,
+      requestToolSha256: sha256(requestToolsJson),
+      outputItems: compacted.output.length,
+      outputBytes: Buffer.byteLength(outputJson),
+      outputSha256: sha256(outputJson),
+      estimatedInputTokens,
+      estimatedOutputTokens: Math.ceil(Buffer.byteLength(outputJson) / 4),
+      latencyMs: performance.now() - compactStarted,
+      usage: normalizedUsage(compacted.usage),
+    };
+    compactions.push(receipt);
+    if (compacted.usage) addUsage(compacted.usage, null);
+    trace.record({
+      iteration: args.iteration,
+      label: "compaction",
+      payload: receipt,
+    });
+    return compacted.output;
+  };
 
   try {
     for (let iter = 0; maxIter === undefined || iter < maxIter; iter++) {
@@ -553,12 +625,14 @@ export async function streamResponsesApi(
       let outputItems: ResponseInputItem[] = [];
       let reasoningBlockOpen = false;
       let emitted = false;
+      let attemptInputTokens = 0;
       const runAttempt = async () => {
         if (activeRound) activeRound.requestAttempts += 1;
         toolCalls = [];
         outputItems = [];
         reasoningBlockOpen = false;
         emitted = false;
+        attemptInputTokens = 0;
         const response = await createResponse({
           endpoint: config.endpoint,
           provider: config.provider,
@@ -605,21 +679,23 @@ export async function streamResponsesApi(
               reportedServiceTier = event.response.service_tier.trim();
             }
 
-            const failureMessage = openAIStreamFailureMessage(event);
-            if (failureMessage) {
-              throw new Error(failureMessage);
-            }
-
             if (config.persistent && event.response?.id) {
               previousResponseId = event.response.id;
             }
 
             if (
               (event.type === "response.completed" ||
-                event.type === "response.incomplete") &&
+                event.type === "response.incomplete" ||
+                event.type === "response.failed") &&
               event.response?.usage
             ) {
+              attemptInputTokens += event.response.usage.input_tokens ?? 0;
               addUsage(event.response.usage);
+            }
+
+            const failureMessage = openAIStreamFailureMessage(event);
+            if (failureMessage) {
+              throw new Error(failureMessage);
             }
 
             if (
@@ -667,29 +743,60 @@ export async function streamResponsesApi(
       };
 
       // server_is_overloaded is upstream capacity, not a request defect —
-      // it killed five benchmark turns in one day. Retry the attempt only
-      // while nothing from it reached the caller; a replay after emitted
-      // deltas would duplicate output.
-      for (let attempt = 0; ; attempt++) {
+      // Context overflow gets one provider-compaction retry. Retry either
+      // case only before output reaches the caller; replaying emitted deltas
+      // would duplicate output.
+      let overloadAttempts = 0;
+      let contextCompactionRetried = false;
+      for (;;) {
         const checkpointResponseId = previousResponseId;
         try {
           await runAttempt();
           break;
         } catch (error) {
-          const retryable =
-            attempt < 2 &&
+          const contextTooLong =
+            !contextCompactionRetried &&
+            !emitted &&
+            error instanceof Error &&
+            error.message.includes("context_length_exceeded") &&
+            !!params.compactThreshold &&
+            !!config.remoteCompactionEndpoint;
+          if (contextTooLong) {
+            const compactTools = params.resolveTools
+              ? toResponseTools(params.resolveTools())
+              : responseTools;
+            input = await compactHistory({
+              iteration: iter,
+              sourceInput: input,
+              instructions,
+              tools: compactTools,
+              reasoning,
+              triggerInputTokens: attemptInputTokens,
+              triggerReason: "context_length_exceeded",
+            });
+            const retryInputJson = JSON.stringify(input);
+            activeRound.inputItems = input.length;
+            activeRound.inputBytes = Buffer.byteLength(retryInputJson);
+            activeRound.inputSha256 = sha256(retryInputJson);
+            previousResponseId = checkpointResponseId;
+            contextCompactionRetried = true;
+            continue;
+          }
+          const overloaded =
+            overloadAttempts < 2 &&
             !emitted &&
             error instanceof Error &&
             error.message.includes("server_is_overloaded");
-          if (!retryable) throw error;
+          if (!overloaded) throw error;
+          overloadAttempts += 1;
           previousResponseId = checkpointResponseId;
           trace.record({
             iteration: iter,
             label: "overload_retry",
-            payload: { attempt: attempt + 1 },
+            payload: { attempt: overloadAttempts },
           });
           await new Promise((resolve) =>
-            setTimeout(resolve, 20_000 * (attempt + 1)),
+            setTimeout(resolve, 20_000 * overloadAttempts),
           );
           throwIfAborted(params.abortSignal);
         }
@@ -732,66 +839,43 @@ export async function streamResponsesApi(
             ...(config.explicitPromptCaching ? [cacheBoundaryItem()] : []),
           ];
       const compactThreshold = params.compactThreshold;
-      const triggerInputTokens = activeRound?.usage.inputTokens ?? 0;
-      if (
-        config.remoteCompactionEndpoint &&
-        compactThreshold &&
-        triggerInputTokens >= compactThreshold
-      ) {
+      const triggerInputTokens = attemptInputTokens;
+      if (config.remoteCompactionEndpoint && compactThreshold) {
         const compactTools = params.resolveTools
           ? toResponseTools(params.resolveTools())
           : responseTools;
-        const requestInputJson = JSON.stringify(nextInput);
-        const requestToolsJson = JSON.stringify(compactTools);
-        const requestInputBytes = Buffer.byteLength(requestInputJson);
-        const requestInstructionsBytes = Buffer.byteLength(instructions);
-        const requestToolBytes = Buffer.byteLength(requestToolsJson);
-        const compactStarted = performance.now();
-        const compacted = await createCompactResponse({
-          endpoint: config.remoteCompactionEndpoint,
-          provider: config.provider,
-          model,
-          input: nextInput,
-          instructions,
-          tools: compactTools,
-          reasoning,
-          serviceTier: config.serviceTier,
-          promptCacheKey,
-          apiKey: config.apiKey,
-          headers: config.headers,
-          signal: params.abortSignal,
-        });
-        const outputJson = JSON.stringify(compacted.output);
-        const receipt: LlmCompactionReceipt = {
-          iteration: iter,
-          thresholdTokens: compactThreshold,
-          triggerInputTokens,
-          requestInputItems: nextInput.length,
-          requestInputBytes,
-          requestInputSha256: sha256(requestInputJson),
-          requestInstructionsBytes,
-          requestInstructionsSha256: sha256(instructions),
-          requestToolCount: compactTools.length,
-          requestToolBytes,
-          requestToolSha256: sha256(requestToolsJson),
-          outputItems: compacted.output.length,
-          outputBytes: Buffer.byteLength(outputJson),
-          outputSha256: sha256(outputJson),
-          estimatedInputTokens: Math.ceil(
-            (requestInputBytes + requestInstructionsBytes + requestToolBytes) / 4,
-          ),
-          estimatedOutputTokens: Math.ceil(Buffer.byteLength(outputJson) / 4),
-          latencyMs: performance.now() - compactStarted,
-          usage: normalizedUsage(compacted.usage),
-        };
-        compactions.push(receipt);
-        if (compacted.usage) addUsage(compacted.usage, null);
-        trace.record({
-          iteration: iter,
-          label: "compaction",
-          payload: receipt,
-        });
-        input = compacted.output;
+        const nextRequestBytes =
+          Buffer.byteLength(JSON.stringify(nextInput)) +
+          Buffer.byteLength(instructions) +
+          Buffer.byteLength(JSON.stringify(compactTools));
+        const currentRequestBytes =
+          activeRound.inputBytes +
+          activeRound.instructionsBytes +
+          activeRound.toolBytes;
+        const projectedInputTokens = triggerInputTokens
+          ? triggerInputTokens +
+            Math.ceil(Math.max(0, nextRequestBytes - currentRequestBytes) / 4)
+          : Math.ceil(nextRequestBytes / 4);
+        if (
+          triggerInputTokens >= compactThreshold ||
+          projectedInputTokens >= compactThreshold
+        ) {
+          input = await compactHistory({
+            iteration: iter,
+            sourceInput: nextInput,
+            instructions,
+            tools: compactTools,
+            reasoning,
+            triggerInputTokens,
+            projectedInputTokens,
+            triggerReason:
+              triggerInputTokens >= compactThreshold
+                ? "reported_usage"
+                : "projected_input",
+          });
+        } else {
+          input = nextInput;
+        }
       } else {
         input = nextInput;
       }
