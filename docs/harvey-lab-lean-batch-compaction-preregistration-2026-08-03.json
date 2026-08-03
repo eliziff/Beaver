@@ -2,7 +2,7 @@
   "schema_version": 1,
   "experiment_id": "harvey-lab-lean-batch-compact-r1-2026-08-03",
   "registered_at": "2026-08-03T06:37:55.1120466+00:00",
-  "status": "preregistered_before_performer_calls",
+  "status": "commit_bound_before_performer_calls",
   "supersedes_candidate_cells_from": "harvey-lab-lean-batch-four-way-2026-08-03",
   "reason": "The threshold-null tax lean cell failed context_length_exceeded after 34 tool calls and 1524814 tool-result characters. The corrected transport compacts before projected overflow and retries one non-emitting context rejection once.",
   "failed_run_receipts": {
@@ -11,7 +11,7 @@
     "context_manifest_sha256": "d5ad712dd29713c26f00a1e0919f6f2e79548b6a5c140b446f7336880456e1fc",
     "error_log_sha256": "5e0c6fda77d6f933d9d732b18e1998e46a2d43eac145f16c1cee6ca2a2be9a43"
   },
-  "implementation_commit_before_launch": null,
+  "implementation_commit_before_launch": "89644a6d383a81800d29b9abfe507ebbb2de2abb",
   "source_hashes_before_launch": {
     "backend/scripts/lab-beaver-arm.ts": "66ac20bbb13767c2ab3a8416802dd98f7859cc9663ec4d17cd277ca367cc8929",
     "backend/src/lib/llm/openai.ts": "2f775d775ebb094f8d68cc3231503e85d2b42eb9ebf5b1364c2fad2af46b64f3",
