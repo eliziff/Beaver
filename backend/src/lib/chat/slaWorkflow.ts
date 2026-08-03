@@ -7,10 +7,11 @@
 //   Ledger   the source documents' texts + the library snapshot, carried
 //            for the deterministic audit only — never into model context
 //   Draft    the normal provider tool loop, steered to section-scoped reads
-//   Audit    four deterministic organs over the draft and the sources —
+//   Audit    seven deterministic organs over the draft and the sources —
 //            anchor coverage, arithmetic conflicts, defined-term drift,
-//            drafting lint — typed findings returned for exactly one
-//            revision pass
+//            drafting lint, derived-value omissions, deadline working-back
+//            omissions, undefined defined-term use — typed findings returned
+//            for exactly one revision pass
 //   Grounding the final coverage report, persisted as a machine receipt
 // Enabled per-process with MIKE_SLA_WORKFLOW=1 (same pattern as the other
 // sealed-run gates); receipts append to MIKE_SLA_RECEIPT_PATH when set.
@@ -24,6 +25,12 @@ import {
 } from "../llm";
 
 import { conflictScan, type ConflictFinding } from "../legalConflictScan";
+import { derivedValueScan, type DerivedValueOmission } from "../legalDerivedValueScan";
+import {
+  deadlineOmissionScan,
+  type DeadlineOmissionReport,
+} from "../legalDeadlineOmissionScan";
+import { undefinedTermScan } from "../legalUndefinedTermScan";
 import { draftingLint, type DraftingFinding } from "../legalDraftingLint";
 import {
   anchorCoverage,
@@ -41,6 +48,9 @@ const MAX_FINDING_ROWS_PER_CLASS = 12;
 const MAX_CONFLICT_FINDINGS = 8;
 const MAX_DRIFT_TERMS = 6;
 const MAX_LINT_FINDINGS = 10;
+const MAX_DERIVED_FINDINGS = 8;
+const MAX_DEADLINE_FINDINGS = 8;
+const MAX_UNDEFINED_FINDINGS = 8;
 /** The draft's document name inside every organ that takes a stack. */
 const DRAFT_NAME = "draft";
 // A second opinion stops being cheap or independent when it is handed an
@@ -394,6 +404,46 @@ export interface SlaAudit {
       terms: string[];
       repair_eligible: boolean;
     };
+    /**
+     * Percent-of-base identities the draft engaged but omitted half of
+     * (analytical deliverables only), each row capped alongside the others.
+     */
+    derived_value: {
+      findings: number;
+      /** The human-readable arithmetic for each omission. */
+      finding_details: string[];
+      part_displays: string[];
+      percent_displays: string[];
+      whole_displays: string[];
+    };
+    /**
+     * Stated "date ± duration" relationships the draft engaged but never
+     * resolved to the actual deadline date (analytical deliverables only).
+     */
+    deadline_omission: {
+      findings: number;
+      /** The arithmetic and the omission for each finding. */
+      finding_details: string[];
+      /** Source relationships that resolved to a deadline date. */
+      resolved: number;
+      /** Resolved relationships the deliverable engaged. */
+      engaged: number;
+      /** Refused relationships (unstated anchor, calendar-dependent, …). */
+      refusals: number;
+    };
+    /**
+     * Capitalized defined-term-style phrases the draft operatively USES but
+     * no source or the draft defines (analytical and operative alike; the
+     * organ's quoting/use boundary handles markup-analysis deliverables that
+     * legitimately quote the counterparty's terms).
+     */
+    undefined_term: {
+      findings: number;
+      /** The phrase and the defect for each finding. */
+      finding_details: string[];
+      /** The undefined phrases themselves. */
+      terms: string[];
+    };
     /** Drafting lint over the draft alone, by severity. */
     drafting_lint: { errors: number; warnings: number; info: number };
   };
@@ -418,10 +468,11 @@ function lintLine(finding: DraftingFinding): string {
 }
 
 /**
- * Audit phase: four deterministic organs over the draft and the ledger
- * sources — anchor coverage, arithmetic conflicts, defined-term drift (all
- * three over sources + draft as one stack) and drafting lint (draft only).
- * Zero model calls.
+ * Audit phase: seven deterministic organs over the draft and the ledger
+ * sources — anchor coverage, arithmetic conflicts, defined-term drift,
+ * derived-value omissions, deadline working-back omissions, and undefined
+ * defined-term use (over sources + draft as one stack) plus drafting lint
+ * (draft only). Zero model calls.
  */
 export function auditSlaDraft(
   ledger: SlaLedger,
@@ -499,6 +550,48 @@ export function auditSlaDraft(
         : `- "${row.term}" (defined in ${row.definitions.map((def) => def.document).join(", ")})`,
     );
 
+  // Derived-value carry-through: analytical deliverables that restate one
+  // half of a source percent-of-base identity and drop the other. Operative
+  // drafting ("fee equal to 14% of Net Revenue") legitimately uses percent
+  // without amount, so the same blind work-type gate suppresses it there.
+  const derivedEligible = !requestsOperativeDrafting(
+    options?.requestContext,
+    options?.artifactNames,
+  );
+  const derived = derivedEligible
+    ? derivedValueScan(ledger.documents, draftDocument)
+    : [];
+  const derivedLines = derived
+    .slice(0, MAX_DERIVED_FINDINGS)
+    .map((finding) => `- ${finding.detail}`);
+
+  // Deadline working-back: analytical deliverables that engage a stated
+  // "date ± duration" relationship but never carry the resolved deadline.
+  // Operative drafting states the relationship and leaves the parties to
+  // compute the date, so the same blind work-type gate suppresses it there.
+  const deadlineEligible = !requestsOperativeDrafting(
+    options?.requestContext,
+    options?.artifactNames,
+  );
+  const deadline: DeadlineOmissionReport = deadlineEligible
+    ? deadlineOmissionScan(ledger.documents, draftDocument)
+    : { findings: [], resolved: 0, engaged: 0, refusals: [] };
+  const deadlineLines = deadline.findings
+    .slice(0, MAX_DEADLINE_FINDINGS)
+    .map((finding) => `- ${finding.detail}`);
+
+  // Undefined defined terms: the draft operatively USES a capitalized
+  // defined-term-style phrase ("Permitted Tax Distributions") that no source
+  // or the draft defines. Unlike the analytical-only organs above, an
+  // undefined term is a defect in operative drafting too — a reader cannot
+  // know what the term means — so this organ runs under both work types. The
+  // organ's quoting/use boundary covers the markup-analysis kind, where the
+  // deliverable legitimately QUOTES the counterparty's terms.
+  const undefinedTerms = undefinedTermScan(ledger.documents, draftDocument);
+  const undefinedLines = undefinedTerms
+    .slice(0, MAX_UNDEFINED_FINDINGS)
+    .map((finding) => `- ${finding.detail}`);
+
   const lint = draftingLint(draft);
   const lintErrors = lint.findings.filter(
     (finding) => finding.severity === "error",
@@ -519,6 +612,9 @@ export function auditSlaDraft(
     draftConflicts.length > 0 ||
     draftTemporal.length > 0 ||
     (termDriftRepairEligible && draftDivergent.length > 0) ||
+    (derivedEligible && derived.length > 0) ||
+    (deadlineEligible && deadline.findings.length > 0) ||
+    undefinedTerms.length > 0 ||
     lintErrors.length > 0;
   const repairPrompt = worthARevision
     ? `DETERMINISTIC CHECK (computed after synthesis; no model called it):\n` +
@@ -530,6 +626,15 @@ export function auditSlaDraft(
         : "") +
       (driftLines.length
         ? `\nDefined terms redefined by your deliverable — check which source definition controls:\n${driftLines.join("\n")}\n`
+        : "") +
+      (derivedLines.length
+        ? `\nQuantified amounts your deliverable cites by percent but never states (or vice versa):\n${derivedLines.join("\n")}\n`
+        : "") +
+      (deadlineLines.length
+        ? `\nDeadline relationships your deliverable engaged but never resolved to an actual date:\n${deadlineLines.join("\n")}\n`
+        : "") +
+      (undefinedLines.length
+        ? `\nDefined terms your deliverable uses but no source or the draft defines:\n${undefinedLines.join("\n")}\n`
         : "") +
       (lintLines.length
         ? `\nDrafting lint over your deliverable (exact spans; errors first):\n${lintLines.join("\n")}\n`
@@ -566,6 +671,39 @@ export function auditSlaDraft(
         divergent: divergent.length,
         terms: divergent.slice(0, MAX_DRIFT_TERMS).map((row) => row.term),
         repair_eligible: termDriftRepairEligible,
+      },
+      derived_value: {
+        findings: derived.length,
+        finding_details: derived
+          .slice(0, MAX_DERIVED_FINDINGS)
+          .map((finding) => finding.detail),
+        part_displays: derived
+          .slice(0, MAX_DERIVED_FINDINGS)
+          .map((finding) => finding.part.display),
+        percent_displays: derived
+          .slice(0, MAX_DERIVED_FINDINGS)
+          .map((finding) => finding.percent.display),
+        whole_displays: derived
+          .slice(0, MAX_DERIVED_FINDINGS)
+          .map((finding) => finding.whole.display),
+      },
+      deadline_omission: {
+        findings: deadline.findings.length,
+        finding_details: deadline.findings
+          .slice(0, MAX_DEADLINE_FINDINGS)
+          .map((finding) => finding.detail),
+        resolved: deadline.resolved,
+        engaged: deadline.engaged,
+        refusals: deadline.refusals.reduce((n, r) => n + r.count, 0),
+      },
+      undefined_term: {
+        findings: undefinedTerms.length,
+        finding_details: undefinedTerms
+          .slice(0, MAX_UNDEFINED_FINDINGS)
+          .map((finding) => finding.detail),
+        terms: undefinedTerms
+          .slice(0, MAX_UNDEFINED_FINDINGS)
+          .map((finding) => finding.term),
       },
       drafting_lint: {
         errors: lintErrors.length,

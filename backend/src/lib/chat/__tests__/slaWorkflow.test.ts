@@ -14,6 +14,10 @@ import {
 } from "../slaWorkflow";
 
 const SOURCE = [
+  // A credit agreement defines its covenant names; bodies stay lowercase so
+  // the definition lines introduce no new capitalized-phrase candidates.
+  '"Total Net Leverage Ratio" means the ratio of consolidated total debt to consolidated EBITDA.',
+  '"Minimum Liquidity" means unrestricted cash and cash equivalents on hand.',
   "8.01 Financial Covenants.",
   "",
   "(a) The Borrower shall not permit the Total Net Leverage Ratio to exceed 4.50:1.00 at any time before December 31, 2024.",
@@ -433,5 +437,73 @@ describe("auditSlaDraft temporal organ", () => {
     );
     expect(audit.receipt.temporal.findings).toBe(0);
     expect(audit.receipt.temporal.consistent).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("auditSlaDraft derived-value organ", () => {
+  const source = {
+    name: "overview-memo.docx",
+    text: "Aldersgate reported total revenue of $87,300,000 for fiscal year 2024. This demand forecasting module generates approximately $22.1 million in annual revenue, representing 25.3% of the Company's total 2024 revenue.",
+  };
+  const analyticalDraft =
+    "The Pinnacle license powers the demand forecasting module, supporting approximately 25.3% of total revenue.";
+
+  it("reports a percent-without-amount omission for an analytical draft", () => {
+    const audit = auditSlaDraft(ledgerOf(source), analyticalDraft);
+    expect(audit.receipt.derived_value.findings).toBe(1);
+    expect(audit.receipt.derived_value.finding_details[0]).toContain("25.3%");
+    expect(audit.receipt.derived_value.percent_displays).toEqual(["25.3%"]);
+    expect(audit.receipt.derived_value.whole_displays).toContain("$87,300,000");
+    expect(audit.receipt.derived_value.part_displays[0]).toContain("22.1");
+    expect(audit.repairPrompt).toContain(
+      "Quantified amounts your deliverable cites by percent but never states",
+    );
+  });
+
+  it("suppresses the organ for a blindly recognized operative draft", () => {
+    const audit = auditSlaDraft(ledgerOf(source), analyticalDraft, {
+      artifactNames: ["supply-agreement.docx"],
+    });
+    expect(audit.receipt.derived_value.findings).toBe(0);
+    expect(audit.receipt.derived_value.finding_details).toEqual([]);
+    expect(audit.repairPrompt ?? "").not.toContain(
+      "Quantified amounts your deliverable cites by percent",
+    );
+  });
+});
+
+describe("auditSlaDraft undefined-term organ", () => {
+  // Every capitalized phrase the draft uses is defined in the source EXCEPT
+  // the coined compound "Designated Non-Cash Consideration" — the defect the
+  // organ exists to catch. The organ's quoting/use boundary keeps a markup
+  // analysis that merely quotes the counterparty's terms from firing.
+  const source = {
+    name: "credit-agreement.docx",
+    text: `"ABL Facility" means the revolving credit facility. "Asset Sale" means the sale of all or any part of the Company's assets. "Net Cash Proceeds" means the proceeds of an Asset Sale net of fees. "Business Day" means any day other than a Saturday, Sunday or legal holiday. "Borrower" means the Company. The Borrower shall apply the Net Cash Proceeds of any Asset Sale to repay outstanding Obligations.`,
+  };
+
+  it("reports a defined term the draft uses but nothing defines, even in operative drafting", () => {
+    const audit = auditSlaDraft(
+      ledgerOf(source),
+      "The Asset Sale covenant requires the Borrower to deliver any Designated Non-Cash Consideration to the Company within ten Business Days.",
+    );
+    expect(audit.receipt.undefined_term.findings).toBe(1);
+    expect(audit.receipt.undefined_term.terms).toEqual([
+      "Designated Non-Cash Consideration",
+    ]);
+    expect(audit.receipt.undefined_term.finding_details[0]).toContain(
+      "Designated Non-Cash Consideration",
+    );
+    expect(audit.repairPrompt).toContain(
+      "Defined terms your deliverable uses but no source or the draft defines",
+    );
+  });
+
+  it("stays silent when every term the draft uses is defined in the sources", () => {
+    const audit = auditSlaDraft(
+      ledgerOf(source),
+      "The Asset Sale covenant requires the Borrower to apply the Net Cash Proceeds to repay outstanding Obligations within ten Business Days.",
+    );
+    expect(audit.receipt.undefined_term.findings).toBe(0);
   });
 });
