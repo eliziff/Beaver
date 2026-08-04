@@ -33,6 +33,7 @@ afterEach(() => {
   delete process.env.MIKE_TERMINAL_AUTHORING;
   delete process.env.MIKE_SLA_WORKFLOW;
   delete process.env.MIKE_SLA_STRATEGY;
+  delete process.env.MIKE_CONSULT_ATTESTATIONS;
   vi.resetModules();
 });
 
@@ -92,14 +93,24 @@ describe("local assistant tool wiring", () => {
     // Point the citator at a path with no graph so the reply is the executor's
     // own typed refusal — proof the dispatcher reached it.
     process.env.MIKE_CITATOR_DB = "C:/nonexistent-citator/noteup.sqlite";
+    process.env.MIKE_CONSULT_ATTESTATIONS = "1";
     const { runLocalAssistantTools } = await loadTools();
 
-    const [noteUp, compare] = await runLocalAssistantTools(userId, [
+    const [noteUp, consult, compare] = await runLocalAssistantTools(userId, [
       { id: "1", name: "caselaw_note_up", input: { citation: "2019 SCC 65" } },
-      { id: "2", name: "library_compare_versions", input: { document_id: "" } },
+      {
+        id: "2",
+        name: "consult_attested_characterization",
+        input: { citation: "2016 SCC 27" },
+      },
+      { id: "3", name: "library_compare_versions", input: { document_id: "" } },
     ]);
 
     expect(JSON.parse(noteUp.content)).toMatchObject({
+      ok: false,
+      error: "citator_not_installed",
+    });
+    expect(JSON.parse(consult.content)).toMatchObject({
       ok: false,
       error: "citator_not_installed",
     });
@@ -107,6 +118,30 @@ describe("local assistant tool wiring", () => {
       ok: false,
       error: "document_id is required",
     });
+  });
+
+  it("gates consult_attested_characterization behind its experiment flag", async () => {
+    delete process.env.MIKE_CONSULT_ATTESTATIONS;
+    delete process.env.MIKE_DISABLE_RESEARCH_TOOLS;
+    const off = await loadTools();
+    expect(names(off.LOCAL_ASSISTANT_TOOLS)).not.toContain(
+      "consult_attested_characterization",
+    );
+    // The citator tool itself is unaffected by the new flag.
+    expect(names(off.LOCAL_ASSISTANT_TOOLS)).toContain("caselaw_note_up");
+
+    process.env.MIKE_CONSULT_ATTESTATIONS = "1";
+    const on = await loadTools();
+    expect(names(on.LOCAL_ASSISTANT_TOOLS)).toContain(
+      "consult_attested_characterization",
+    );
+
+    // The research-tools gate still overrides the experiment flag.
+    process.env.MIKE_DISABLE_RESEARCH_TOOLS = "1";
+    const sealed = await loadTools();
+    expect(names(sealed.LOCAL_ASSISTANT_TOOLS)).not.toContain(
+      "consult_attested_characterization",
+    );
   });
 
   it("opens deferred domains from trusted schemas without echoing schemas", async () => {

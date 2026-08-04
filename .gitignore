@@ -63,3 +63,9 @@ backend/supabase/
 # Vendored LAB corpus: local venv and caches stay untracked
 benchmarks/harvey-labs/.venv/
 benchmarks/harvey-labs/**/__pycache__/
+
+# Harvey LAB launchpad generated artifacts — regenerable from the corpus via
+# benchmarks/harvey-labs/tools/generate_launchpad.py (the 86 MB materials JSON
+# embeds already-tracked task document text; history does not need a copy)
+benchmarks/harvey-labs/launchpad.html
+benchmarks/harvey-labs/launchpad_materials.json

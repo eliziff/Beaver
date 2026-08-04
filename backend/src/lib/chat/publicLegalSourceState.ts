@@ -31,6 +31,10 @@ import {
   queueProviderPdfAttachment,
   type ProviderPdfQueueResult,
 } from "../providerPdfLibraryBridge";
+import {
+  createPublicJournalDocumentEvidence,
+  type LegalEvidenceReceipt,
+} from "./legalEvidenceExperiment";
 import { PUBLIC_LEGAL_SOURCE_TOOL_NAMES } from "./tools/publicLegalSourceTools";
 
 export type PublicLegalProvider = "tna" | "govuk-et" | "govinfo" | "journal";
@@ -93,6 +97,8 @@ async function fetchExact(
           text: article.text,
           structure: article.structure,
           attachments: [],
+          citation: article.citation,
+          date: article.date,
         }
       : null;
   }
@@ -276,7 +282,10 @@ export async function executePublicLegalSourceTool(
   args: Record<string, unknown>,
   state: PublicLegalSourceState,
   userId?: string,
-): Promise<Record<string, unknown> | null> {
+): Promise<{
+  payload: Record<string, unknown>;
+  evidences?: LegalEvidenceReceipt[];
+} | null> {
   if (
     name !== PUBLIC_LEGAL_SOURCE_TOOL_NAMES.search &&
     name !== PUBLIC_LEGAL_SOURCE_TOOL_NAMES.fetch &&
@@ -288,32 +297,39 @@ export async function executePublicLegalSourceTool(
   if (name === PUBLIC_LEGAL_SOURCE_TOOL_NAMES.search) {
     if (source !== "journal") {
       return {
-        ok: false,
-        error: "Candidate search currently supports provider journal.",
+        payload: {
+          ok: false,
+          error: "Candidate search currently supports provider journal.",
+        },
       };
     }
     const query = typeof args.query === "string" ? args.query.trim() : "";
-    if (!query) return { ok: false, error: "query is required." };
+    if (!query)
+      return { payload: { ok: false, error: "query is required." } };
     try {
       return {
-        ok: true,
-        source: "Public legal source",
-        provider: source,
-        results: searchJournalArticles(
-          query,
-          typeof args.size === "number" ? args.size : 10,
-        ).map(({ url: _url, articleId, hitId, ...match }) => ({
-          ...match,
-          article_id: articleId,
-          hit_id: hitId,
-        })),
+        payload: {
+          ok: true,
+          source: "Public legal source",
+          provider: source,
+          results: searchJournalArticles(
+            query,
+            typeof args.size === "number" ? args.size : 10,
+          ).map(({ url: _url, articleId, hitId, ...match }) => ({
+            ...match,
+            article_id: articleId,
+            hit_id: hitId,
+          })),
+        },
       };
     } catch (error) {
       return {
-        ok: false,
-        source: "Public legal source",
-        provider: source,
-        error: error instanceof Error ? error.message : "Search failed.",
+        payload: {
+          ok: false,
+          source: "Public legal source",
+          provider: source,
+          error: error instanceof Error ? error.message : "Search failed.",
+        },
       };
     }
   }
@@ -321,8 +337,10 @@ export async function executePublicLegalSourceTool(
     typeof args.identifier === "string" ? args.identifier.trim() : "";
   if (!source || !identifier) {
     return {
-      ok: false,
-      error: "A supported provider and exact identifier are required.",
+      payload: {
+        ok: false,
+        error: "A supported provider and exact identifier are required.",
+      },
     };
   }
   const evidenceHandle =
@@ -337,12 +355,14 @@ export async function executePublicLegalSourceTool(
         key(source, restored.document.identity) !== key(source, identifier)
       ) {
         return {
-          ok: false,
-          source: "Public legal source",
-          provider: source,
-          identifier,
-          error:
-            "Provider evidence does not belong to the requested source identifier.",
+          payload: {
+            ok: false,
+            source: "Public legal source",
+            provider: source,
+            identifier,
+            error:
+              "Provider evidence does not belong to the requested source identifier.",
+          },
         };
       }
       state.documents.set(key(source, identifier), restored.document);
@@ -354,28 +374,56 @@ export async function executePublicLegalSourceTool(
         document: restored.document,
         lookup: restored.lookup,
       });
-      return safeLookup(
-        restored.document,
-        restored.lookup,
-        restored.receipt.lookup.locator_kind,
-        restored.receipt.lookup.locator,
-        [],
-        restored.receipt,
-      );
+      return {
+        payload: safeLookup(
+          restored.document,
+          restored.lookup,
+          restored.receipt.lookup.locator_kind,
+          restored.receipt.lookup.locator,
+          [],
+          restored.receipt,
+        ),
+      };
     }
     const document = await documentFor(state, source, identifier);
     if (!document) {
       return {
-        ok: false,
-        source: "Public legal source",
-        provider: source,
-        identifier,
-        error: "No unique exact provider match was found.",
+        payload: {
+          ok: false,
+          source: "Public legal source",
+          provider: source,
+          identifier,
+          error: "No unique exact provider match was found.",
+        },
       };
     }
     const pdfFallbacks = await pdfFallbacksFor(document, userId);
     if (name === PUBLIC_LEGAL_SOURCE_TOOL_NAMES.fetch) {
-      return safeDocument(document, pdfFallbacks);
+      const payload = safeDocument(document, pdfFallbacks);
+      if (source === "journal" && document.citation) {
+        // The pulled article becomes a registered, citeable passage receipt
+        // (parity with a2aj_fetch for citing cases). The model sees the
+        // evidence_id in the visible payload; the receipt's span is the
+        // article text it just read, so verbatim quotes verify against it.
+        const receipt = createPublicJournalDocumentEvidence({
+          citation: document.citation,
+          name: document.title,
+          date: document.date ?? null,
+          url: document.url || null,
+          text: payload.text,
+          articleId: document.identity,
+        });
+        return {
+          payload: {
+            ...payload,
+            evidence_id: receipt.evidence_id,
+            citation: document.citation,
+            date: document.date,
+          },
+          evidences: [receipt],
+        };
+      }
+      return { payload };
     }
 
     const kind: SourceDocLocatorKind =
@@ -388,7 +436,7 @@ export async function executePublicLegalSourceTool(
             : "paragraph";
     const locator = typeof args.locator === "string" ? args.locator.trim() : "";
     if (!locator) {
-      return { ok: false, error: "locator is required." };
+      return { payload: { ok: false, error: "locator is required." } };
     }
     const lookup =
       source === "journal"
@@ -409,8 +457,10 @@ export async function executePublicLegalSourceTool(
     }
     if ("hitId" in lookup) {
       return {
-        ...safeLookup(document, lookup, kind, locator, pdfFallbacks, null),
-        hit_id: lookup.hitId,
+        payload: {
+          ...safeLookup(document, lookup, kind, locator, pdfFallbacks, null),
+          hit_id: lookup.hitId,
+        },
       };
     }
     const evidence =
@@ -421,16 +471,19 @@ export async function executePublicLegalSourceTool(
             typeof args.context_blocks === "number" ? args.context_blocks : 0,
           )
         : null;
-    return safeLookup(document, lookup, kind, locator, pdfFallbacks, evidence);
+    return {
+      payload: safeLookup(document, lookup, kind, locator, pdfFallbacks, evidence),
+    };
   } catch (error) {
     return {
-      ok: false,
-      source: "Public legal source",
-      provider: source,
-      identifier,
-      error:
-        evidenceHandle
-          ? // The superseded-schema refusal is typed, path-free, and tells
+      payload: {
+        ok: false,
+        source: "Public legal source",
+        provider: source,
+        identifier,
+        error:
+          evidenceHandle
+            ? // The superseded-schema refusal is typed, path-free, and tells
             // the model the right recovery (re-run the lookup); every other
             // evidence failure stays behind the generic message so local
             // paths never leak.
@@ -441,6 +494,7 @@ export async function executePublicLegalSourceTool(
           : error instanceof Error
           ? error.message
           : "Public legal source request failed.",
+      },
     };
   }
 }

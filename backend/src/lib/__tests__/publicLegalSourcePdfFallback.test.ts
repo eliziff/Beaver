@@ -105,7 +105,7 @@ describe("public legal source PDF fallback", () => {
         title: "Appendix",
       }),
     );
-    expect(first?.pdf_fallbacks).toMatchObject([
+    expect(first?.payload.pdf_fallbacks).toMatchObject([
       {
         reference_id: "reference-1",
         attachment_title: "Decision",
@@ -117,7 +117,7 @@ describe("public legal source PDF fallback", () => {
         attachment_filename: null,
       },
     ]);
-    expect(second?.pdf_fallbacks).toHaveLength(2);
+    expect(second?.payload.pdf_fallbacks).toHaveLength(2);
   });
 
   it("does not import a PDF when TNA already supplied native structure", async () => {
@@ -161,6 +161,65 @@ describe("public legal source PDF fallback", () => {
     );
 
     expect(queueProviderPdfAttachment).not.toHaveBeenCalled();
-    expect(result?.pdf_fallbacks).toEqual([]);
+    expect(result?.payload.pdf_fallbacks).toEqual([]);
+  });
+
+  it("registers a citeable passage receipt when a journal article is fetched", async () => {
+    const document: PublicLegalDocument = {
+      provider: "journal",
+      identity: "8964",
+      title: "Jordan at Five",
+      url: "https://journal.example/8964.pdf",
+      text: "The Court recognized that the presumptive ceiling governs delay.",
+      citation: "(2020) 65:1 McGill LJ 1",
+      date: "2020",
+      structure: createSourceDoc({
+        provider: "journal",
+        id: "8964",
+        text: "The Court recognized that the presumptive ceiling governs delay.",
+        blocks: [],
+      }),
+      attachments: [],
+    };
+    const state = cachedState(document);
+    const result = await executePublicLegalSourceTool(
+      PUBLIC_LEGAL_SOURCE_TOOL_NAMES.fetch,
+      { provider: "journal", identifier: document.identity },
+      state,
+      "local-user",
+    );
+
+    // The pulled article is a citeable unit: the visible payload carries
+    // the evidence_id, and a passage-scope receipt (span = the article text
+    // the model just read) flows out for the dispatcher to register.
+    expect(result?.evidences).toHaveLength(1);
+    const receipt = result!.evidences![0];
+    expect(result?.payload.evidence_id).toBe(receipt.evidence_id);
+    expect(result?.payload.citation).toBe("(2020) 65:1 McGill LJ 1");
+    expect(receipt).toMatchObject({
+      provider: "journal",
+      source_class: "commentary",
+      scope: "passage",
+      resolver_version: "public-journal-v1",
+      citation: "(2020) 65:1 McGill LJ 1",
+      name: "Jordan at Five",
+      version: "2020",
+      span_text: document.text,
+    });
+    // A verbatim quote of the article clears the deterministic tier against
+    // this span — proof the receipt is genuinely citeable.
+    const { deterministicClaimSupport, createLegalEvidenceTurnState, registerLegalEvidence } =
+      await import("../chat/legalEvidenceExperiment");
+    const turnState = createLegalEvidenceTurnState("quote_first");
+    registerLegalEvidence(turnState, receipt);
+    expect(
+      deterministicClaimSupport(
+        {
+          text: "The Court recognized that the presumptive ceiling governs delay.",
+          evidence_ids: [receipt.evidence_id],
+        },
+        turnState,
+      ),
+    ).toBe(true);
   });
 });
