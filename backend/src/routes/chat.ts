@@ -77,6 +77,7 @@ import {
   type LocalAssistantReadTurnState,
   type LocalAssistantWorkingSetTurnState,
 } from "../lib/chat/localAssistantTools";
+import { STRUCTURE_INDEX_ENABLED } from "../lib/chat/structureIndexExperiment";
 import {
   INITIAL_RESEARCH_CHECKPOINT_MAX_COUNT,
   applyEvidenceExposure,
@@ -2513,6 +2514,7 @@ export async function streamAnonymousChat(params: {
           markdown_swap_shape: MARKDOWN_SWAP_MIKE_TOOL_SHAPE,
           markdown_e2e_shape: MARKDOWN_E2E_MIKE_TOOL_SHAPE,
           markdown_read_docx: MARKDOWN_READ_DOCX,
+          structure_index: STRUCTURE_INDEX_ENABLED,
           lean_batch_shape: LEAN_BATCH_TOOL_SHAPE,
           lean_batch_hardrefs_shape: LEAN_BATCH_HARDREFS_TOOL_SHAPE,
           hard_reference_hints: LEAN_BATCH_HARDREFS_TOOL_SHAPE,
