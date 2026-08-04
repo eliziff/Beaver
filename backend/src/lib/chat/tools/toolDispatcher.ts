@@ -635,16 +635,24 @@ export async function runToolCalls(
       tc.function.name === PUBLIC_LEGAL_SOURCE_TOOL_NAMES.fetch ||
       tc.function.name === PUBLIC_LEGAL_SOURCE_TOOL_NAMES.lookup
     ) {
-      const payload = await executePublicLegalSourceTool(
+      const publicLegalResult = await executePublicLegalSourceTool(
         tc.function.name,
         args,
         publicState,
       );
+      if (legalEvidenceState) {
+        for (const evidence of publicLegalResult?.evidences ?? []) {
+          registerLegalEvidence(legalEvidenceState, evidence);
+        }
+      }
       toolResults.push({
         role: "tool",
         tool_call_id: tc.id,
         content: JSON.stringify(
-          payload ?? { ok: false, error: "Public legal tool unavailable." },
+          publicLegalResult?.payload ?? {
+            ok: false,
+            error: "Public legal tool unavailable.",
+          },
         ),
       });
     } else if (a2aj) {

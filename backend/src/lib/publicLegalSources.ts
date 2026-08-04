@@ -71,6 +71,11 @@ export type PublicLegalDocument = {
   text: string;
   structure: SourceDoc;
   attachments: PublicLegalAttachment[];
+  /** journal provider only: the article's canonical citation and date,
+   * carried through so the pulled article can become a legal-evidence
+   * receipt. Absent for the other providers. */
+  citation?: string | null;
+  date?: string | null;
   /** Cited authorities the provider's markup states as data (TNA <ref>). */
   citedAuthorities?: NativeMarkupRef[];
   sourceVersion?: {

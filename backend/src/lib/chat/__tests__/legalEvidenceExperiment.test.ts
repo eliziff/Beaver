@@ -829,6 +829,47 @@ describe("attested characterizations (H12 widened tier)", () => {
     expect(receipt.span_text).toBe(characterization.text);
   });
 
+  it("renders the attested characterization with attribution and a source link", () => {
+    const state = createLegalEvidenceTurnState("citation_structure");
+    const receipt = attestedCharacterizationReceipt({
+      citedCitation: "2016 SCC 27",
+      characterization: {
+        ...characterization,
+        citingUrl:
+          "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/99999/index.do",
+      },
+    });
+    registerLegalEvidence(state, receipt);
+
+    expect(
+      submitLegalEvidenceAnswer(
+        {
+          claims: [
+            {
+              text:
+                "the Supreme Court has set a presumptive ceiling beyond which " +
+                "delay is presumed unreasonable unless exceptional circumstances " +
+                "justify it",
+              evidence_ids: [receipt.evidence_id],
+            },
+          ],
+        },
+        state,
+      ),
+    ).toEqual({ ok: true, terminal: true });
+
+    const rendered = renderLegalEvidenceAnswer(state)!;
+    // The attribution reads as its own locator after an em dash and links
+    // to the EXACT prose within the citing case via a text-fragment
+    // pinpoint — like any other citation (not presented as the assistant's
+    // own synthesis).
+    expect(rendered).toContain(
+      "[2016 SCC 27 — as characterized by 2023 SCC 30 (SCC)](" +
+        "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/99999/index.do" +
+        "?iframe=true&site_preference=mobile#:~:text=",
+    );
+  });
+
   it("clears a claim quoting the attested characterization verbatim", () => {
     const { state, receipt } = statePlusCharacterization();
     expect(

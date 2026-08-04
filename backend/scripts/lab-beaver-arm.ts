@@ -58,6 +58,7 @@ import {
   MARKDOWN_E2E_DELTA,
   MARKDOWN_E2E_INDEX_DELTA,
   MARKDOWN_E2E_INDEX_LAB_SYSTEM_PROMPT,
+  MARKDOWN_INDEX_LAB_TOOLS,
   MARKDOWN_SWAP_DELTA,
   MIKE_GREP_LAB_SYSTEM_PROMPT,
   MIKE_GREP_LAB_TOOLS,
@@ -1035,7 +1036,7 @@ async function main() {
         : arm === "mike_markdown_e2e_index_v1"
           ? {
               systemPrompt: MARKDOWN_E2E_INDEX_LAB_SYSTEM_PROMPT,
-              tools: UPSTREAM_MIKE_MARKDOWN_SWAP_LAB_TOOLS,
+              tools: MARKDOWN_INDEX_LAB_TOOLS,
             }
         : arm === "mike_compact_author_v1"
           ? {

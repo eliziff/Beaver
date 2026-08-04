@@ -1280,6 +1280,7 @@ const DOMAIN_OF: Record<string, string> = {
   courtlistener_lookup_case_locator: "cases",
   courtlistener_read_case: "cases",
   caselaw_note_up: "cases",
+  consult_attested_characterization: "cases",
   a2aj_search: "cases",
   a2aj_fetch: "cases",
   a2aj_lookup: "cases",
@@ -5825,7 +5826,21 @@ async function runUpstreamMikeRetrievalCall(params: {
     byLabel.get(requested) ??
     byId.get(requested) ??
     byFilename.get(requested.toLocaleLowerCase("en-US"));
-  const readOne = async (requested: string) => {
+  const readOne = async (
+    requested: string,
+    scoped?: {
+      offset?: number;
+      maxChars?: number;
+      head?: number;
+      tail?: number;
+    },
+  ) => {
+    const isBounded =
+      !!scoped &&
+      (scoped.head !== undefined ||
+        scoped.tail !== undefined ||
+        scoped.offset !== undefined ||
+        scoped.maxChars !== undefined);
     const listed = resolveDocument(requested);
     const docLabel = listed ? labelById.get(listed.id) ?? requested : requested;
     const documentId = listed?.id ?? "";
@@ -5850,7 +5865,12 @@ async function runUpstreamMikeRetrievalCall(params: {
     }
     const key = `${documentId}:${file.version.id}`;
     const prior = readState?.get(key);
-    if (prior && SUPPRESS_DUPLICATE_WHOLE_READS) {
+    const priorDeliveredFull =
+      !!prior && (prior.deliveredChars ?? 0) >= (prior.sourceChars ?? 0);
+    // A repeat read is suppressed only when a prior read delivered the FULL
+    // document. Bounded window/probe reads never fully deliver, so the scoped
+    // loop (orient index -> window-read sections) always stays open.
+    if (prior && priorDeliveredFull && SUPPRESS_DUPLICATE_WHOLE_READS) {
       return {
         content: JSON.stringify({
           ok: true,
@@ -5914,20 +5934,47 @@ async function runUpstreamMikeRetrievalCall(params: {
     }
     const previouslyDelivered =
       prior?.deliveredChars ?? prior?.sourceChars ?? 0;
+    const fullText = document.text;
+    let content = fullText;
+    let segStart = 0;
+    let segEnd = fullText.length;
+    if (isBounded) {
+      if (scoped!.head !== undefined) {
+        const lines = fullText.split("\n");
+        const count = Math.max(0, Math.min(scoped!.head, lines.length));
+        content = lines.slice(0, count).join("\n");
+        segEnd = content.length;
+      } else if (scoped!.tail !== undefined) {
+        const lines = fullText.split("\n");
+        const count = Math.max(0, Math.min(scoped!.tail, lines.length));
+        content = lines.slice(-count).join("\n");
+        segStart = fullText.length - content.length;
+      } else {
+        const offset = Math.max(0, scoped!.offset ?? 0);
+        const start = Math.min(offset, fullText.length);
+        const maxChars = Math.max(0, scoped!.maxChars ?? 24_000);
+        const end = Math.min(fullText.length, start + maxChars);
+        content = fullText.slice(start, end);
+        segStart = start;
+        segEnd = end;
+      }
+    }
     readState?.set(key, {
       documentId,
       docLabel,
       versionId: file.version.id,
       filename: document.filename,
-      sourceChars: document.text.length,
-      deliveredChars: SUPPRESS_DUPLICATE_WHOLE_READS
-        ? document.text.length
-        : previouslyDelivered + document.text.length,
+      sourceChars: fullText.length,
+      deliveredChars: isBounded
+        ? previouslyDelivered + content.length
+        : SUPPRESS_DUPLICATE_WHOLE_READS
+          ? fullText.length
+          : previouslyDelivered + fullText.length,
     });
     return {
-      content: document.text,
+      content,
       duplicate: false,
-      evidenceSegments: document.text
+      evidenceSegments: content
         ? [
             {
               documentId,
@@ -5935,8 +5982,8 @@ async function runUpstreamMikeRetrievalCall(params: {
               filename: document.filename,
               projection: "canonical",
               kind: "evidence" as const,
-              start: 0,
-              end: document.text.length,
+              start: segStart,
+              end: segEnd,
             },
           ]
         : [],
@@ -6022,6 +6069,33 @@ async function runUpstreamMikeRetrievalCall(params: {
           .map(Number)
           .filter((page) => Number.isInteger(page) && page > 0)
       : [];
+    // Index-arm scoped reads: offset/max_chars window + head/tail probes over
+    // the served markdown plane. Gated so other arms are byte-identical.
+    const scoped =
+      STRUCTURE_INDEX_ENABLED &&
+      (typeof call.input.offset === "number" ||
+        typeof call.input.max_chars === "number" ||
+        typeof call.input.head === "number" ||
+        typeof call.input.tail === "number")
+        ? {
+            offset:
+              typeof call.input.offset === "number"
+                ? Math.max(0, Math.trunc(call.input.offset))
+                : undefined,
+            maxChars:
+              typeof call.input.max_chars === "number"
+                ? clampInt(call.input.max_chars, 1, 200_000, 24_000)
+                : undefined,
+            head:
+              typeof call.input.head === "number"
+                ? Math.max(1, Math.trunc(call.input.head))
+                : undefined,
+            tail:
+              typeof call.input.tail === "number"
+                ? Math.max(1, Math.trunc(call.input.tail))
+                : undefined,
+          }
+        : undefined;
     const bounded =
       ADAPTIVE_MIKE_TOOL_SHAPE &&
       (section.length > 0 ||
@@ -6174,7 +6248,7 @@ async function runUpstreamMikeRetrievalCall(params: {
         evidenceSegments,
       };
     }
-    const read = await readOne(requested);
+    const read = await readOne(requested, scoped);
     const content =
       listed && !read.duplicate
         ? `${upstreamMikeCitationReminder(docLabel, listed.filename)}\n\n${read.content}`
@@ -6187,6 +6261,34 @@ async function runUpstreamMikeRetrievalCall(params: {
 
   if (call.name === "fetch_documents") {
     const requestedDocuments = stringArray(call.input.doc_ids);
+    // Index-arm batch scoped reads: the same window (offset/max_chars or
+    // head/tail) is applied to every requested document in one call. Gated so
+    // other arms are byte-identical.
+    const scoped =
+      STRUCTURE_INDEX_ENABLED &&
+      (typeof call.input.offset === "number" ||
+        typeof call.input.max_chars === "number" ||
+        typeof call.input.head === "number" ||
+        typeof call.input.tail === "number")
+        ? {
+            offset:
+              typeof call.input.offset === "number"
+                ? Math.max(0, Math.trunc(call.input.offset))
+                : undefined,
+            maxChars:
+              typeof call.input.max_chars === "number"
+                ? clampInt(call.input.max_chars, 1, 200_000, 24_000)
+                : undefined,
+            head:
+              typeof call.input.head === "number"
+                ? Math.max(1, Math.trunc(call.input.head))
+                : undefined,
+            tail:
+              typeof call.input.tail === "number"
+                ? Math.max(1, Math.trunc(call.input.tail))
+                : undefined,
+          }
+        : undefined;
     if (wholeReadMaxChars > 0) {
       const seenVersions = new Set<string>();
       const alreadyReadChars = [...(readState?.values() ?? [])].reduce(
@@ -6245,7 +6347,7 @@ async function runUpstreamMikeRetrievalCall(params: {
         ? labelById.get(document.id) ?? requested
         : requested;
       const filename = document?.filename ?? requested;
-      const read = await readOne(requested);
+      const read = await readOne(requested, scoped);
       parts.push(
         `--- ${filename} (${docLabel}) ---\n${
           read.duplicate
@@ -6512,9 +6614,17 @@ export async function runLocalAssistantTools(
         userId,
       );
       if (publicLegalResult) {
+        // A pulled journal article registers as citeable evidence (the
+        // article receipt's span is the text the model just read), so
+        // submit_grounded_answer can cite it — same path as citator/a2aj.
+        if (legalEvidenceState) {
+          for (const evidence of publicLegalResult.evidences ?? []) {
+            registerLegalEvidence(legalEvidenceState, evidence);
+          }
+        }
         return {
-          ...result(call, publicLegalResult),
-          evidenceRefs: publicLegalEvidenceRefs(publicLegalResult),
+          ...result(call, publicLegalResult.payload),
+          evidenceRefs: publicLegalEvidenceRefs(publicLegalResult.payload),
         };
       }
       if (courtlistenerState) {

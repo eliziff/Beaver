@@ -103,11 +103,11 @@ export function legalEvidenceExperimentMode():
     : null;
 }
 
-export type LegalSourceClass = "case" | "legislation";
+export type LegalSourceClass = "case" | "legislation" | "commentary";
 
 export type LegalEvidenceReceipt = {
   evidence_id: string;
-  provider: "a2aj" | "benchmark" | "citator";
+  provider: "a2aj" | "benchmark" | "citator" | "journal";
   jurisdiction: string;
   source_class: LegalSourceClass;
   stable_source_id: string;
@@ -132,7 +132,8 @@ export type LegalEvidenceReceipt = {
     | "a2aj-inline-v1"
     | "benchmark-span-v1"
     | "citator-standsfor-v1"
-    | "citator-noteup-v1";
+    | "citator-noteup-v1"
+    | "public-journal-v1";
 };
 
 type RegisteredEvidence = {
@@ -422,6 +423,9 @@ export function attestedCharacterizationReceipt(args: {
      * journal footnote's editor-verified proposition). */
     sourceKind?: "case" | "commentary";
     journalName?: string | null;
+    /** the citing case's own URL (case_doc.url); lets the rendered
+     * attribution link out to the case whose words these are. */
+    citingUrl?: string | null;
   };
   jurisdiction?: string;
   language?: "en" | "fr";
@@ -448,7 +452,7 @@ export function attestedCharacterizationReceipt(args: {
     dataset: commentary ? "journal-commentary" : "citator",
     language: args.language ?? "en",
     version: args.characterization.citingDate,
-    external_url: null,
+    external_url: args.characterization.citingUrl ?? null,
     locator: {
       kind: "document",
       label: commentary
@@ -500,6 +504,51 @@ export function citatorNoteUpReceipt(args: {
       label: `${source}${args.entry.paragraph === null ? "" : ` at para ${args.entry.paragraph}`}`,
     },
     resolver_version: "citator-noteup-v1",
+  });
+}
+
+/**
+ * Receipt for a law-journal article the agent pulled whole via
+ * public_legal_source_fetch (provider "journal"). A PASSAGE-scope receipt
+ * whose span is the article text the model saw — the passage scope is what
+ * makes it citeable by submit_grounded_answer (passageErrors rejects
+ * document-scope evidence). The citation/date/url are the article's own
+ * metadata, so a verbatim quote from the article renders attributed to the
+ * article. Complements (never replaces) the attestation receipts: the
+ * attestation is the curated proposition with "as characterized in ..."
+ * framing; this receipt is the source itself.
+ */
+export function createPublicJournalDocumentEvidence(args: {
+  /** the article's canonical citation, e.g. "(2020) 65:1 McGill LJ 1" */
+  citation: string;
+  name: string | null;
+  date: string | null;
+  url: string | null;
+  /** the exact article text bytes the agent received (span identity) */
+  text: string;
+  /** public_endpoint.db article id — the identifier the journal fetch accepts */
+  articleId: string;
+  language?: "en" | "fr";
+}): LegalEvidenceReceipt {
+  return withEvidenceId({
+    provider: "journal",
+    jurisdiction: "CA",
+    source_class: "commentary",
+    stable_source_id: `journal:${args.articleId}`,
+    source_sha256: sha256(args.text),
+    scope: "passage",
+    block_id: `article:${args.articleId}`,
+    exact_span_sha256: sha256(args.text),
+    span_sha256: sha256(normalizeWhitespace(args.text)),
+    span_text: args.text,
+    citation: args.citation,
+    name: args.name,
+    dataset: "journal",
+    language: args.language ?? "en",
+    version: args.date,
+    external_url: args.url,
+    locator: { kind: "document", label: "article" },
+    resolver_version: "public-journal-v1",
   });
 }
 
@@ -1923,6 +1972,13 @@ export function renderLegalEvidenceAnswer(
             /^par(\d+)(?:-|\u2013|\u2014)par(\d+)$/iu,
           )
         : null;
+    // Attested-characterization receipts carry WHOSE words they are in
+    // locator.label ("as characterized by the ONCA (2020)"); render that
+    // attribution after an em dash so borrowed framing is not presented as
+    // the assistant's own synthesis. Note-up receipts are excluded: their
+    // citation already names the citing case, so their label would repeat it.
+    const citatorAttribution =
+      receipt.resolver_version === "citator-standsfor-v1";
     const url =
       lookup && paragraphRange
         ? buildA2AJParagraphRangeUrl(
@@ -1934,18 +1990,37 @@ export function renderLegalEvidenceAnswer(
           )
         : lookup
           ? buildA2AJPinpointUrl(lookup, [])
-          : receipt.external_url;
+          : citatorAttribution &&
+              receipt.external_url &&
+              receipt.span_text &&
+              receipt.dataset !== "journal-commentary"
+            ? // A citing court's characterization deep-links to the exact
+              // prose within the citing case (text-fragment), like any other
+              // pinpoint. Journal commentary is excluded: the article URL is
+              // a PDF galley, where text-fragments cannot resolve.
+              buildLegalSourceMultiPassageUrl(receipt.external_url, [
+                {
+                  key: receipt.evidence_id,
+                  blockText: receipt.span_text,
+                  quotes: [receipt.span_text],
+                },
+              ]) ?? receipt.external_url
+            : receipt.external_url;
     const locator = paragraphRange
       ? `paras. ${Number(paragraphRange[1])}\u2013${Number(paragraphRange[2])}`
-      : receipt.locator.kind === "document"
-        ? ""
-        : formatLegalLocator(receipt.locator.kind, receipt.locator.label);
+      : citatorAttribution
+        ? receipt.locator.label
+        : receipt.locator.kind === "document"
+          ? ""
+          : formatLegalLocator(receipt.locator.kind, receipt.locator.label);
     const label = [
       receipt.citation,
       locator
         ? receipt.locator.kind === "section"
           ? `, ${locator}`
-          : ` at ${locator}`
+          : citatorAttribution
+            ? ` \u2014 ${locator}`
+            : ` at ${locator}`
         : "",
     ].join("");
     const markdown = url
