@@ -60,6 +60,12 @@ import {
 } from "../legalDocumentNavigator";
 import { termDriftReport } from "../legalTermDrift";
 import { extractDocxDraftingSource } from "../docxDraftingSource";
+import {
+  STRUCTURE_INDEX_ENABLED,
+  attachStructureIndex,
+  deriveSectionNodes,
+  renderStructureIndex,
+} from "./structureIndexExperiment";
 import { resolveDocxEvidenceCitations } from "../docxEvidenceCitations";
 import {
   applyTrackedEdits,
@@ -5866,9 +5872,18 @@ async function runUpstreamMikeRetrievalCall(params: {
     }
     const draftingMarkdown =
       MARKDOWN_READ_DOCX && file.fileType.toLowerCase() === "docx"
-        ? await extractDocxDraftingSource(await readFile(file.path))
-            .then((source) => source.markdown)
-            .catch(() => null)
+        ? await (async () => {
+            const bytes = await readFile(file.path);
+            const source = await extractDocxDraftingSource(bytes).catch(
+              () => null,
+            );
+            if (!source) return null;
+            if (!STRUCTURE_INDEX_ENABLED) return source.markdown;
+            return attachStructureIndex(
+              source.markdown,
+              renderStructureIndex(await deriveSectionNodes(bytes)),
+            );
+          })()
         : null;
     const document = draftingMarkdown
       ? {

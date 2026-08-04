@@ -240,6 +240,7 @@ export const UPSTREAM_MIKE_MARKDOWN_SWAP_LAB_TOOLS = [
 
 export const MARKDOWN_SWAP_DELTA = "upstream-markdown-generate-swap-v1";
 export const MARKDOWN_E2E_DELTA = "upstream-markdown-read-write-v1";
+export const MARKDOWN_E2E_INDEX_DELTA = "derived-section-index-orient-first-v1";
 
 export const COMPACT_AUTHOR_MIKE_DELTA =
   "compact-markdown-terminal-v1";
@@ -646,6 +647,14 @@ export const COMPACT_AUTHOR_MIKE_LAB_SYSTEM_PROMPT =
     UPSTREAM_DOCX_PROMPT,
     COMPACT_DOCX_PROMPT,
   );
+
+/** Orient-first ablation on the markdown-e2e surface: a derived SECT-INDEX is
+ * prepended to each docx read; the model is directed to orient by it and read
+ * selectively instead of whole-reading. */
+export const MARKDOWN_E2E_INDEX_LAB_SYSTEM_PROMPT = `${UPSTREAM_MIKE_LAB_SYSTEM_PROMPT}
+
+SECTION-ORIENTED READING:
+- Source documents open with a derived SECT-INDEX of numbered sections; orient by it, then use find_in_document to read only the sections your deliverable requires instead of the whole document.`;
 
 export const LEAN_BATCH_LAB_SYSTEM_PROMPT = `You are an AI legal assistant for lawyers and legal professionals. Produce precise, professional work from the project documents without fabricating content.
 
