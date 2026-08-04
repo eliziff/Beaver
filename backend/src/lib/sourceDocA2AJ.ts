@@ -832,12 +832,6 @@ const HEADING_CONNECTORS = new Set([
   "v.",
 ]);
 
-const ROMAN_NUMERAL_RE = /^(?:[IVXLCDM]{1,4})\.$/u;
-/** One uppercase word, optional trailing punctuation (comma/colon). */
-const UPPER_WORD_RE = /^\p{Lu}[\p{L}\p{M}’'’-]*[,:]?$/u;
-/** Single-letter ("A.") or short abbreviation ("Mr.") heading token. */
-const UPPER_ABBREV_RE = /^\p{Lu}(?:\p{Ll}{1,4}\.|\p{Lu}\.)$/u;
-
 function looksLikeJoinedHeading(value: string) {
   const heading = value
     .trim()
@@ -852,9 +846,8 @@ function looksLikeJoinedHeading(value: string) {
     words.every(
       (word) =>
         HEADING_CONNECTORS.has(word) ||
-        UPPER_WORD_RE.test(word) ||
-        UPPER_ABBREV_RE.test(word) ||
-        ROMAN_NUMERAL_RE.test(word) ||
+        /^\p{Lu}[\p{L}\p{M}’'’-]*:?$/u.test(word) ||
+        /^\p{Lu}\.$/u.test(word) ||
         /^\d+(?:\.\d+)*[.):]?$/u.test(word),
     )
   );
