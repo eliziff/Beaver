@@ -5879,10 +5879,17 @@ async function runUpstreamMikeRetrievalCall(params: {
             );
             if (!source) return null;
             if (!STRUCTURE_INDEX_ENABLED) return source.markdown;
-            return attachStructureIndex(
-              source.markdown,
-              renderStructureIndex(await deriveSectionNodes(bytes)),
-            );
+            // The index is best-effort orientation; if derivation ever fails
+            // on a docx the drafting source accepted, serve the plain markdown
+            // rather than failing the read (the arm must never be worse than e2e).
+            try {
+              return attachStructureIndex(
+                source.markdown,
+                renderStructureIndex(await deriveSectionNodes(bytes)),
+              );
+            } catch {
+              return source.markdown;
+            }
           })()
         : null;
     const document = draftingMarkdown
