@@ -33,6 +33,7 @@ import {
 } from "../providerPdfLibraryBridge";
 import {
   createPublicJournalDocumentEvidence,
+  createPublicJournalPassageEvidence,
   type LegalEvidenceReceipt,
 } from "./legalEvidenceExperiment";
 import { PUBLIC_LEGAL_SOURCE_TOOL_NAMES } from "./tools/publicLegalSourceTools";
@@ -256,7 +257,6 @@ function safeLookup(
     provider: document.provider,
     identifier: document.identity,
     requested: { kind, locator },
-    hit_id: `${document.provider}:${document.identity}:${kind}:${lookup.block?.label ?? lookup.requestedLabel}`,
     status: lookup.status,
     matches: lookup.matches,
     block: safeBlock(lookup.block),
@@ -315,10 +315,9 @@ export async function executePublicLegalSourceTool(
           results: searchJournalArticles(
             query,
             typeof args.size === "number" ? args.size : 10,
-          ).map(({ url: _url, articleId, hitId, ...match }) => ({
+          ).map(({ url: _url, articleId, hitId: _hitId, ...match }) => ({
             ...match,
             article_id: articleId,
-            hit_id: hitId,
           })),
         },
       };
@@ -456,12 +455,33 @@ export async function executePublicLegalSourceTool(
       state.lookups.push({ document, lookup });
     }
     if ("hitId" in lookup) {
-      return {
-        payload: {
-          ...safeLookup(document, lookup, kind, locator, pdfFallbacks, null),
-          hit_id: lookup.hitId,
-        },
-      };
+      // Journal lookups surface the looked-up passage as a registered,
+      // citeable evidence_id (the span is the block the model just read) —
+      // never a non-citeable "hit_id" that submit_grounded_answer cannot
+      // resolve.
+      const base = safeLookup(document, lookup, kind, locator, pdfFallbacks, null);
+      if (
+        lookup.status === "found" &&
+        lookup.block &&
+        source === "journal" &&
+        document.citation
+      ) {
+        const receipt = createPublicJournalPassageEvidence({
+          citation: document.citation,
+          name: document.title,
+          date: document.date ?? null,
+          url: document.url || null,
+          text: lookup.block.text,
+          articleId: document.identity,
+          locatorKind: kind,
+          locatorLabel: lookup.block.label,
+        });
+        return {
+          payload: { ...base, evidence_id: receipt.evidence_id },
+          evidences: [receipt],
+        };
+      }
+      return { payload: base };
     }
     const evidence =
       lookup.status === "found"
