@@ -340,6 +340,14 @@ export type StandsForCandidate = {
   paragraph: number | null;
   /** sha256 of `text`, for rendering receipts */
   spanSha256: string;
+  /** journal_commentary.sqlite article id (public_endpoint.db space) for
+   * commentary candidates — the identifier public_legal_source_fetch
+   * (provider "journal") accepts so an agent can pull the article this
+   * characterization is drawn from. Null for case candidates. */
+  sourceArticleId: string | null;
+  /** the citing case's own URL (case_doc.url) for case candidates — the
+   * identifier a2aj_fetch can re-pull. Null for commentary candidates. */
+  citingUrl: string | null;
 };
 
 /**
@@ -350,11 +358,17 @@ export type StandsForCandidate = {
  * - banded_recency: band = court level; commentary joins the HIGHEST
  *   band present in the profile; newest-first within every band.
  * - flat_recency: newest first regardless of source kind.
+ * - scc_journal_first: PRODUCTION consult ordering (Eli 2026-08-04) —
+ *   the two top case-law characterizations first (court-level band, then
+ *   occurrence count within the band, then recency), then journal
+ *   commentary, then remaining cases. A decided production policy, kept
+ *   on the H19 surface.
  */
 export type StandsForRankPolicy =
   | "authority"
   | "banded_recency"
-  | "flat_recency";
+  | "flat_recency"
+  | "scc_journal_first";
 
 export type StandsForProfile = {
   citation: string;
@@ -396,7 +410,8 @@ function commentaryCandidates(keys: string[]): {
     const rows = database
       .prepare(
         `SELECT note.proposition, article.citation, article.name,
-                article.date, article.journal_name
+                article.date, article.journal_name, article.article_id,
+                article.url
          FROM note_citation
          JOIN note ON note.id = note_citation.note_id
          JOIN article ON article.article_id = note.article_id
@@ -438,6 +453,9 @@ function commentaryCandidates(keys: string[]): {
         spanSha256: createHash("sha256")
           .update(proposition, "utf8")
           .digest("hex"),
+        sourceArticleId:
+          row.article_id == null ? null : String(row.article_id),
+        citingUrl: (row.url as string | null) ?? null,
         occurrences: 1,
       });
     }
@@ -487,7 +505,7 @@ export function standsForProfile(args: {
     const groups = database
       .prepare(
         `SELECT case_doc.citation, case_doc.name, case_doc.court, case_doc.date,
-                case_doc.id AS case_id,
+                case_doc.id AS case_id, case_doc.url,
                 COUNT(*) AS occurrences, MIN(edge.text_offset) AS first_offset,
                 edge.paragraph AS first_paragraph, edge.excerpt AS first_excerpt
          FROM edge
@@ -526,6 +544,8 @@ export function standsForProfile(args: {
         spanSha256: createHash("sha256")
           .update(verdict.proseWindow, "utf8")
           .digest("hex"),
+        sourceArticleId: null,
+        citingUrl: (group.url as string | null) ?? null,
         occurrences: Number(group.occurrences),
       });
     }
@@ -558,6 +578,35 @@ export function standsForProfile(args: {
       usable.sort(
         (a, b) =>
           band(b) - band(a) || byDate(a, b) || b.occurrences - a.occurrences,
+      );
+    } else if (rankPolicy === "scc_journal_first") {
+      // Production consult ordering (Eli 2026-08-04, refined after the
+      // real-corpus probe): the TWO top case-law characterizations come
+      // first, then journal commentary, then any remaining cases. The
+      // court-level BAND is primary — SCC (apex) before appellate before
+      // trial before tribunal, journal commentary sitting in the apex
+      // band's slot — and within a band, occurrence count is first (how
+      // often the citing case discusses the cited one: a crude stand-in
+      // for the DENSITY of discussion), then recency. A more sophisticated
+      // measure of how centrally each source discusses the cited case is
+      // a deliberate future improvement, not attempted here.
+      const caseCandidates = usable
+        .filter((candidate) => candidate.sourceKind === "case")
+        .sort(
+          (a, b) =>
+            (b.citingLevel ?? 0) - (a.citingLevel ?? 0) ||
+            b.occurrences - a.occurrences ||
+            byDate(a, b),
+        );
+      const commentaryCandidates = usable
+        .filter((candidate) => candidate.sourceKind === "commentary")
+        .sort((a, b) => byDate(a, b));
+      usable.splice(
+        0,
+        usable.length,
+        ...caseCandidates.slice(0, 2),
+        ...commentaryCandidates,
+        ...caseCandidates.slice(2),
       );
     } else {
       usable.sort(

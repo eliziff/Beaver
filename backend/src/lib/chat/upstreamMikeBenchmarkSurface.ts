@@ -238,6 +238,107 @@ export const UPSTREAM_MIKE_MARKDOWN_SWAP_LAB_TOOLS = [
   MARKDOWN_SWAP_GENERATE_DOCX_TOOL,
 ];
 
+/** read_document for the SILO'D derived-section-index arm: the frozen upstream
+ * schema reads a whole document only; the index arm's hypothesis needs scoped
+ * reads so the model can orient by the SECT-INDEX and window-read sections
+ * instead of whole-reading. offset/max_chars take a char window (feed them the
+ * offset from find_in_document); head/tail probe the first/last lines cheaply. */
+export const MARKDOWN_INDEX_READ_DOCUMENT_TOOL: OpenAIToolSchema = {
+  type: "function",
+  function: {
+    name: "read_document",
+    description:
+      "Read a document attached by the user. Without extra arguments, returns the full text. With offset/max_chars, returns a bounded character window (use the offset from a find_in_document match). With head or tail, returns the first or last N lines as a cheap orientation probe. Source documents carry a derived SECT-INDEX at the top; orient by it and window-read only the sections your deliverable requires.",
+    parameters: {
+      type: "object",
+      properties: {
+        doc_id: {
+          type: "string",
+          description: "The document ID to read (e.g. 'doc-0').",
+        },
+        offset: {
+          type: "integer",
+          description:
+            "0-based character offset into the document text to start reading from.",
+        },
+        max_chars: {
+          type: "integer",
+          description:
+            "Maximum characters to return in the window. Default 24000.",
+        },
+        head: {
+          type: "integer",
+          description:
+            "Read only the first N lines of the document (cheap orientation probe).",
+        },
+        tail: {
+          type: "integer",
+          description:
+            "Read only the last N lines of the document (cheap probe for signature blocks and endings).",
+        },
+      },
+      required: ["doc_id"],
+    },
+  },
+};
+
+/** fetch_documents variant for the SILO'D derived-section-index arm: batch a
+ * scoped window across several documents in ONE call, so the model can read
+ * multiple sections from multiple documents in a single turn (e.g. head: 20 to
+ * see every requested document's SECT-INDEX, or offset/max_chars for a window
+ * of each). Without extra args it keeps the upstream whole-read behaviour. */
+export const MARKDOWN_INDEX_FETCH_DOCUMENTS_TOOL: OpenAIToolSchema = {
+  type: "function",
+  function: {
+    name: "fetch_documents",
+    description:
+      "Read several documents in a single call. Without extra arguments, returns each document's full text. With offset/max_chars/head/tail, returns that same window of EVERY requested document — use it to read multiple sections from multiple documents in one turn (e.g. head: 20 to see each document's derived SECT-INDEX).",
+    parameters: {
+      type: "object",
+      properties: {
+        doc_ids: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Array of document IDs to read (e.g. ['doc-0', 'doc-2'])",
+        },
+        offset: {
+          type: "integer",
+          description:
+            "0-based character offset into each document's text to start reading from.",
+        },
+        max_chars: {
+          type: "integer",
+          description:
+            "Maximum characters to return per document. Default 24000.",
+        },
+        head: {
+          type: "integer",
+          description:
+            "Read only the first N lines of each requested document (cheap orientation probe).",
+        },
+        tail: {
+          type: "integer",
+          description:
+            "Read only the last N lines of each requested document (cheap probe for signature blocks and endings).",
+        },
+      },
+      required: ["doc_ids"],
+    },
+  },
+};
+
+export const MARKDOWN_INDEX_LAB_TOOLS: OpenAIToolSchema[] = [
+  ...UPSTREAM_MIKE_RETRIEVAL_TOOLS.filter(
+    (tool) =>
+      tool.function.name !== "read_document" &&
+      tool.function.name !== "fetch_documents",
+  ),
+  MARKDOWN_INDEX_READ_DOCUMENT_TOOL,
+  MARKDOWN_INDEX_FETCH_DOCUMENTS_TOOL,
+  MARKDOWN_SWAP_GENERATE_DOCX_TOOL,
+];
+
 export const MARKDOWN_SWAP_DELTA = "upstream-markdown-generate-swap-v1";
 export const MARKDOWN_E2E_DELTA = "upstream-markdown-read-write-v1";
 export const MARKDOWN_E2E_INDEX_DELTA = "derived-section-index-orient-first-v1";
@@ -650,11 +751,19 @@ export const COMPACT_AUTHOR_MIKE_LAB_SYSTEM_PROMPT =
 
 /** Orient-first ablation on the markdown-e2e surface: a derived SECT-INDEX is
  * prepended to each docx read; the model is directed to orient by it and read
- * selectively instead of whole-reading. */
+ * selectively instead of whole-reading.
+ *
+ * SECTION-ORIENTED READING:
+ * - Source documents open with a derived SECT-INDEX of numbered sections.
+ * - read_document takes offset/max_chars for a bounded window (feed it the
+ *   offset a find_in_document match returns) and head/tail to probe the first
+ *   or last lines of a document cheaply.
+ * - Orient by the index, then window-read only the sections your deliverable
+ *   requires instead of the whole document. */
 export const MARKDOWN_E2E_INDEX_LAB_SYSTEM_PROMPT = `${UPSTREAM_MIKE_LAB_SYSTEM_PROMPT}
 
 SECTION-ORIENTED READING:
-- Source documents open with a derived SECT-INDEX of numbered sections; orient by it, then use find_in_document to read only the sections your deliverable requires instead of the whole document.`;
+- Source documents open with a derived SECT-INDEX of numbered sections; orient by it, then use find_in_document for a section's offset and read_document with offset/max_chars to read only the sections your deliverable requires instead of the whole document. read_document also accepts head/tail to probe the first or last lines of a document cheaply.`;
 
 export const LEAN_BATCH_LAB_SYSTEM_PROMPT = `You are an AI legal assistant for lawyers and legal professionals. Produce precise, professional work from the project documents without fabricating content.
 

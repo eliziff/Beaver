@@ -538,6 +538,192 @@ describe("caselaw citator note-up graph", () => {
     },
   );
 
+  it(
+    "ranks scc_journal_first with SCC and journal at the top",
+    { timeout: 60_000 },
+    async () => {
+      temporaryDirectory = await mkdtemp(
+        path.join(os.tmpdir(), "beaver-citator-scc-journal-"),
+      );
+      const input = path.join(temporaryDirectory, "cases.jsonl");
+      const database = path.join(temporaryDirectory, "noteup.sqlite");
+      const rows: Array<Record<string, unknown>> = [
+        // The cited case itself: header self-citations are dropped.
+        {
+          dataset: "SCC",
+          citation_en: "2016 SCC 27",
+          name_en: "R. v. Jordan",
+          document_date_en: "2016-07-08",
+          url_en: "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/16202/index.do",
+          cases_citing_en: ["2023 SCC 1", "2022 ONCA 400", "2021 BCSC 999"],
+          unofficial_text_en:
+            "R. v. Jordan\nDate\n2016-07-08\nNeutral citation\n2016 SCC 27\n" +
+            "[1] The presumptive ceiling on delay applies.",
+        },
+        {
+          dataset: "SCC",
+          citation_en: "2023 SCC 1",
+          name_en: "R. v. New Matter",
+          document_date_en: "2023-01-15",
+          url_en: "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/19999/index.do",
+          cases_cited_en: ["2016 SCC 27"],
+          unofficial_text_en:
+            "R. v. New Matter\nDate\n2023-01-15\nNeutral citation\n2023 SCC 1\n" +
+            "[1] In R. v. Jordan, 2016 SCC 27, this Court confirmed that a presumptive ceiling on delay governs and that the framework must be applied from the date the charge was laid.",
+        },
+        {
+          dataset: "ONCA",
+          citation_en: "2022 ONCA 400",
+          name_en: "R. v. Second",
+          document_date_en: "2022-06-20",
+          url_en: "https://www.ontariocourts.ca/decisions/2022/2022ONCA0400.htm",
+          cases_cited_en: ["2016 SCC 27"],
+          unofficial_text_en:
+            "R. v. Second\nDate\n2022-06-20\nNeutral citation\n2022 ONCA 400\n" +
+            "[1] The Supreme Court's decision in R. v. Jordan, 2016 SCC 27 establishes a presumptive ceiling beyond which delay is presumed unreasonable, and this court must apply that framework to the present appeal.",
+        },
+        {
+          dataset: "ONCA",
+          citation_en: "2022 ONCA 401",
+          name_en: "R. v. Third",
+          document_date_en: "2022-06-25",
+          url_en: "https://www.ontariocourts.ca/decisions/2022/2022ONCA0401.htm",
+          cases_cited_en: ["2016 SCC 27"],
+          unofficial_text_en:
+            "R. v. Third\nDate\n2022-06-25\nNeutral citation\n2022 ONCA 401\n" +
+            "[1] This court has consistently applied R. v. Jordan, 2016 SCC 27 in each of the delay analyses that came before it this term.\n" +
+            "[2] The ceiling in 2016 SCC 27 was reaffirmed when the companion appeal was decided.\n" +
+            "[3] Counsel for the appellant invoked 2016 SCC 27 again in reply.",
+        },
+        {
+          dataset: "BCSC",
+          citation_en: "2021 BCSC 999",
+          name_en: "Third v. Fourth",
+          document_date_en: "2021-11-30",
+          url_en: "https://www.bccourts.ca/jdb-txt/sc/21/09/2021BCSC0999.htm",
+          cases_cited_en: ["2016 SCC 27"],
+          unofficial_text_en:
+            "Third v. Fourth\nDate\n2021-11-30\nNeutral citation\n2021 BCSC 999\n" +
+            "[1] The framework in R. v. Jordan, 2016 SCC 27 applies to this application, and the parties agree that the presumptive ceiling governs the delay analysis here.\n" +
+            "[2] This court applied 2016 SCC 27 again when weighing the total delay.",
+        },
+      ];
+      await writeFile(input, rows.map((row) => JSON.stringify(row)).join("\n"));
+      const built = spawnSync(
+        "python",
+        [
+          path.resolve("scripts/build_citator_graph.py"),
+          "--jsonl",
+          input,
+          "--output",
+          database,
+        ],
+        { encoding: "utf8" },
+      );
+      expect(built.status, built.stderr).toBe(0);
+      process.env.MIKE_CITATOR_DB = database;
+
+      const commentaryDb = path.join(
+        temporaryDirectory,
+        "journal_commentary_scc.sqlite",
+      );
+      const commentary = new DatabaseSync(commentaryDb);
+      commentary.exec(`
+        CREATE TABLE article (
+          article_id INTEGER PRIMARY KEY, dataset TEXT, citation TEXT,
+          name TEXT, date TEXT, journal_name TEXT, authors TEXT, url TEXT,
+          pages INTEGER, labels_candidates INTEGER, labels_selected INTEGER,
+          refs_assigned INTEGER, ambiguous_sites INTEGER, footnote_mode INTEGER,
+          crossrefs INTEGER, crossrefs_unresolved INTEGER);
+        CREATE TABLE note (
+          id INTEGER PRIMARY KEY, article_id INTEGER, label TEXT,
+          restart_sequence INTEGER, pair_status TEXT, note_page_label TEXT,
+          ref_page_label TEXT, body TEXT, body_sha256 TEXT,
+          truncated_at_page_end INTEGER, proposition TEXT,
+          proposition_sha256 TEXT, passage TEXT);
+        CREATE TABLE note_citation (
+          note_id INTEGER, rank INTEGER, kind TEXT, citation TEXT,
+          cited_key TEXT, case_short TEXT, pinpoints TEXT);
+        INSERT INTO article VALUES (1, 'MCGILL-LJ', '(2020) 65:1 McGill LJ 1',
+          'Jordan at Five', '2020', 'McGill Law Journal', 'A Scholar', NULL,
+          10, 5, 5, 5, 0, 1, 0, 0);
+        INSERT INTO note VALUES
+          (1, 1, '1', 1, 'paired', '2', '2', 'Jordan, supra note 1.', 'x', 0,
+           'The Court recognized that the presumptive ceiling governs delay.',
+           'y', NULL);
+        INSERT INTO note_citation VALUES
+          (1, 1, 'neutral', '2016 SCC 27', '2016scc27', NULL, NULL);
+      `);
+      commentary.close();
+      process.env.MIKE_JOURNAL_COMMENTARY_DB = commentaryDb;
+      const citator = await import("../caselawCitator");
+
+      // Production consult ordering (refined after the real-corpus probe):
+      // the two top case-law characterizations first, then journal
+      // commentary. The court-level BAND is primary, occurrence count the
+      // tiebreak WITHIN a band. So: SCC (level 5, single occurrence) beats
+      // ONCA 401 (level 4, three occurrences) — band wins across bands;
+      // among the same-band appellate cases, ONCA 401 (three occurrences)
+      // beats ONCA 400 (one) — occurrence wins within a band; BCSC (level
+      // 3, two occurrences) stays below every appellate case.
+      const profile = citator.standsForProfile({
+        citation: "2016 SCC 27",
+        rankPolicy: "scc_journal_first",
+      })!;
+      expect(profile.rankPolicy).toBe("scc_journal_first");
+      expect(profile.tier).toBe("rich");
+      expect(
+        profile.candidates.map(
+          (candidate) => candidate.citingCitation ?? candidate.sourceKind,
+        ),
+      ).toEqual([
+        "2023 SCC 1",
+        "2022 ONCA 401",
+        "(2020) 65:1 McGill LJ 1",
+        "2022 ONCA 400",
+        "2021 BCSC 999",
+      ]);
+      expect(profile.candidates[0]).toMatchObject({
+        sourceKind: "case",
+        citingLevel: 5,
+        citingUrl:
+          "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/19999/index.do",
+      });
+      // The commentary candidate carries the article id the journal fetch
+      // tool accepts (public_endpoint.db space, string-coerced from the
+      // INTEGER column); the second case candidate is the higher-occurrence
+      // appellate case.
+      expect(profile.candidates[2]).toMatchObject({
+        sourceKind: "commentary",
+        journalName: "McGill Law Journal",
+        sourceArticleId: "1",
+      });
+      expect(profile.candidates[1]).toMatchObject({
+        sourceKind: "case",
+        citingCitation: "2022 ONCA 401",
+      });
+      // size caps the profile the consult tool relies on (max 3): the two
+      // case slots then journal.
+      const capped = citator.standsForProfile({
+        citation: "2016 SCC 27",
+        size: 3,
+        rankPolicy: "scc_journal_first",
+      })!;
+      expect(
+        capped.candidates.map(
+          (candidate) => candidate.citingCitation ?? candidate.sourceKind,
+        ),
+      ).toEqual(["2023 SCC 1", "2022 ONCA 401", "(2020) 65:1 McGill LJ 1"]);
+      // A case nobody characterizes in prose is tier none (typed refusal).
+      const none = citator.standsForProfile({
+        citation: "2000 SCC 1",
+        rankPolicy: "scc_journal_first",
+      })!;
+      expect(none.tier).toBe("none");
+      expect(none.candidates).toHaveLength(0);
+    },
+  );
+
   it("returns null when no note-up graph has been built", async () => {
     process.env.MIKE_CITATOR_DB = path.join(
       os.tmpdir(),
