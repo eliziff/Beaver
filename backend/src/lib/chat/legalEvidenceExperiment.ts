@@ -125,7 +125,10 @@ export type LegalEvidenceReceipt = {
   version: string | null;
   external_url: string | null;
   locator: {
-    kind: "document" | A2AJLocatorLookup["requested"]["kind"];
+    kind:
+      | "document"
+      | A2AJLocatorLookup["requested"]["kind"]
+      | "footnote";
     label: string;
   };
   resolver_version:
@@ -548,6 +551,49 @@ export function createPublicJournalDocumentEvidence(args: {
     version: args.date,
     external_url: args.url,
     locator: { kind: "document", label: "article" },
+    resolver_version: "public-journal-v1",
+  });
+}
+
+/**
+ * Receipt for a SPECIFIC passage of a journal article the agent pulled via
+ * public_legal_source_lookup (provider "journal", locator_type page/footnote/
+ * paragraph/section). The span is the looked-up block's own text and the
+ * locator is the block's kind+label, so a quote of that passage renders with
+ * a real pinpoint locator and resolves against a turn-local evidence_id — the
+ * model never has to guess an id from a non-citeable "hit_id".
+ */
+export function createPublicJournalPassageEvidence(args: {
+  /** the article's canonical citation, e.g. "(2020) 65:1 McGill LJ 1" */
+  citation: string;
+  name: string | null;
+  date: string | null;
+  url: string | null;
+  /** the exact looked-up block text the agent received (span identity) */
+  text: string;
+  articleId: string;
+  locatorKind: "paragraph" | "section" | "page" | "footnote";
+  locatorLabel: string;
+  language?: "en" | "fr";
+}): LegalEvidenceReceipt {
+  return withEvidenceId({
+    provider: "journal",
+    jurisdiction: "CA",
+    source_class: "commentary",
+    stable_source_id: `journal:${args.articleId}`,
+    source_sha256: sha256(args.text),
+    scope: "passage",
+    block_id: `article:${args.articleId}:${args.locatorKind}:${args.locatorLabel}`,
+    exact_span_sha256: sha256(args.text),
+    span_sha256: sha256(normalizeWhitespace(args.text)),
+    span_text: args.text,
+    citation: args.citation,
+    name: args.name,
+    dataset: "journal",
+    language: args.language ?? "en",
+    version: args.date,
+    external_url: args.url,
+    locator: { kind: args.locatorKind, label: args.locatorLabel },
     resolver_version: "public-journal-v1",
   });
 }

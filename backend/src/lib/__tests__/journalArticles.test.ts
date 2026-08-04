@@ -417,14 +417,19 @@ describe("local journal articles", () => {
     const modelSearchPayload = JSON.parse(searchResult.content);
     expect(modelSearchPayload.results[0]).toMatchObject({
       article_id: 7,
-      hit_id: "journal:7",
     });
     expect(modelSearchPayload.results[0]).not.toHaveProperty("url");
     expect(modelSearchPayload.results[0]).not.toHaveProperty("articleId");
     expect(modelSearchPayload.results[0]).not.toHaveProperty("hitId");
+    // No separate non-citeable hit_id — the model must not mistake it for
+    // a turn-local evidence_id (the actionable handle is article_id).
+    expect(modelSearchPayload.results[0]).not.toHaveProperty("hit_id");
 
     const modelPayload = JSON.parse(toolResult.content);
-    expect(modelPayload.hit_id).toBe("journal:7:page:page101");
+    // The looked-up journal passage surfaces a real, registered evidence_id
+    // instead of a non-citeable hit_id.
+    expect(modelPayload.evidence_id).toMatch(/^e_/u);
+    expect(modelPayload).not.toHaveProperty("hit_id");
     expect(modelPayload).not.toHaveProperty("url");
 
     const [parsed] = parseCitations(
