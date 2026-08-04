@@ -204,6 +204,43 @@ export const UPSTREAM_MIKE_LAB_TOOLS = [
   UPSTREAM_MIKE_GENERATE_DOCX_TOOL,
 ];
 
+export const MARKDOWN_SWAP_GENERATE_DOCX_TOOL: OpenAIToolSchema = {
+  type: "function",
+  function: {
+    name: "generate_docx",
+    description:
+      "Generate a Word (.docx) document from Markdown. Use this when the user asks you to draft, create, or produce a legal document. Returns a download URL for the generated file.",
+    parameters: {
+      type: "object",
+      properties: {
+        title: {
+          type: "string",
+          description: "Document title (used as filename and heading)",
+        },
+        landscape: {
+          type: "boolean",
+          description:
+            "Set to true for landscape page orientation. Default is portrait.",
+        },
+        markdown: {
+          type: "string",
+          description:
+            "Complete document in Markdown. Use headings, paragraphs, lists, and tables as appropriate.",
+        },
+      },
+      required: ["title", "markdown"],
+    },
+  },
+};
+
+export const UPSTREAM_MIKE_MARKDOWN_SWAP_LAB_TOOLS = [
+  ...UPSTREAM_MIKE_RETRIEVAL_TOOLS,
+  MARKDOWN_SWAP_GENERATE_DOCX_TOOL,
+];
+
+export const MARKDOWN_SWAP_DELTA = "upstream-markdown-generate-swap-v1";
+export const MARKDOWN_E2E_DELTA = "upstream-markdown-read-write-v1";
+
 export const COMPACT_AUTHOR_MIKE_DELTA =
   "compact-markdown-terminal-v1";
 export const LEAN_BATCH_DELTA =

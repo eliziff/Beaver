@@ -116,6 +116,7 @@ import {
   MIKE_LEGAL_LAB_TOOLS,
   MIKE_STRUCTURE_PATHS_LAB_TOOLS,
   UPSTREAM_MIKE_LAB_TOOLS,
+  UPSTREAM_MIKE_MARKDOWN_SWAP_LAB_TOOLS,
 } from "./upstreamMikeBenchmarkSurface";
 import {
   getTableOfAuthoritiesJob,
@@ -869,6 +870,13 @@ export const MIKE_STRUCTURE_PATHS_TOOL_SHAPE =
   process.env.MIKE_TOOL_SHAPE === "mike-structure-paths-v1";
 export const COMPACT_AUTHOR_MIKE_TOOL_SHAPE =
   process.env.MIKE_TOOL_SHAPE === "mike-compact-author-v1";
+export const MARKDOWN_SWAP_MIKE_TOOL_SHAPE =
+  process.env.MIKE_TOOL_SHAPE === "mike-markdown-swap-v1";
+export const MARKDOWN_E2E_MIKE_TOOL_SHAPE =
+  process.env.MIKE_TOOL_SHAPE === "mike-markdown-e2e-v1";
+/** LAB read-format axis: serve Beaver's Pandoc drafting-source markdown on
+ * docx reads instead of upstream plain body text (end-to-end arm). */
+export const MARKDOWN_READ_DOCX = process.env.MIKE_READ_DOCX_MARKDOWN === "1";
 export const LEAN_BATCH_TOOL_SHAPE =
   process.env.MIKE_TOOL_SHAPE === "lean-batch-v1";
 export const LEAN_BATCH_HARDREFS_TOOL_SHAPE =
@@ -932,6 +940,8 @@ export const ADAPTIVE_MIKE_TOOL_SHAPE =
 export const ORIGIN_MIKE_TOOL_SHAPE =
   UPSTREAM_MIKE_TOOL_SHAPE ||
   ADAPTIVE_MIKE_TOOL_SHAPE ||
+  MARKDOWN_SWAP_MIKE_TOOL_SHAPE ||
+  MARKDOWN_E2E_MIKE_TOOL_SHAPE ||
   COMPACT_AUTHOR_MIKE_TOOL_SHAPE ||
   LEAN_BATCH_FAMILY_TOOL_SHAPE ||
   MIKE_GREP_FAMILY_TOOL_SHAPE;
@@ -1910,15 +1920,17 @@ const ORIGIN_MIKE_ACTIVE_TOOLS = LEAN_BATCH_FAMILY_TOOL_SHAPE
   ? LEAN_BATCH_LAB_TOOLS
   : COMPACT_AUTHOR_MIKE_TOOL_SHAPE
     ? COMPACT_AUTHOR_MIKE_LAB_TOOLS
-    : MIKE_GREP_FAMILY_TOOL_SHAPE
-      ? MIKE_GREP_TOOL_SHAPE
-        ? MIKE_GREP_LAB_TOOLS
-        : MIKE_STRUCTURE_PATHS_TOOL_SHAPE
-          ? MIKE_STRUCTURE_PATHS_LAB_TOOLS
-          : MIKE_LEGAL_LAB_TOOLS
-      : ADAPTIVE_MIKE_TOOL_SHAPE
-        ? ADAPTIVE_MIKE_LAB_TOOLS
-        : UPSTREAM_MIKE_LAB_TOOLS;
+    : MARKDOWN_SWAP_MIKE_TOOL_SHAPE || MARKDOWN_E2E_MIKE_TOOL_SHAPE
+      ? UPSTREAM_MIKE_MARKDOWN_SWAP_LAB_TOOLS
+      : MIKE_GREP_FAMILY_TOOL_SHAPE
+        ? MIKE_GREP_TOOL_SHAPE
+          ? MIKE_GREP_LAB_TOOLS
+          : MIKE_STRUCTURE_PATHS_TOOL_SHAPE
+            ? MIKE_STRUCTURE_PATHS_LAB_TOOLS
+            : MIKE_LEGAL_LAB_TOOLS
+        : ADAPTIVE_MIKE_TOOL_SHAPE
+          ? ADAPTIVE_MIKE_LAB_TOOLS
+          : UPSTREAM_MIKE_LAB_TOOLS;
 
 const LOCAL_ASSISTANT_TOOL_CATALOG: OpenAIToolSchema[] = [
   ...(ASK_INPUTS_DISABLED ? [] : LOCAL_ASK_INPUTS_TOOLS),
@@ -5852,7 +5864,23 @@ async function runUpstreamMikeRetrievalCall(params: {
         >,
       };
     }
-    const document = await extractLocalDocument(userId, documentId);
+    const draftingMarkdown =
+      MARKDOWN_READ_DOCX && file.fileType.toLowerCase() === "docx"
+        ? await extractDocxDraftingSource(await readFile(file.path))
+            .then((source) => source.markdown)
+            .catch(() => null)
+        : null;
+    const document = draftingMarkdown
+      ? {
+          filename: file.document.filename,
+          documentId,
+          versionId: file.version.id,
+          text: draftingMarkdown,
+          cautions: [],
+          pages: { pages: [], source: "unindexed" as const },
+          tableCells: [],
+        }
+      : await extractLocalDocument(userId, documentId);
     if (!document) {
       return {
         content: "Document could not be read.",
@@ -6578,7 +6606,9 @@ export async function runLocalAssistantTools(
         const markdown =
           call.name === "generate_docx"
             ? COMPACT_AUTHOR_MIKE_TOOL_SHAPE ||
-              LEAN_BATCH_FAMILY_TOOL_SHAPE
+              LEAN_BATCH_FAMILY_TOOL_SHAPE ||
+              MARKDOWN_SWAP_MIKE_TOOL_SHAPE ||
+              MARKDOWN_E2E_MIKE_TOOL_SHAPE
               ? trimmed(args.markdown)
               : upstreamMikeSectionsMarkdown(args.sections)
             : trimmed(args.markdown);

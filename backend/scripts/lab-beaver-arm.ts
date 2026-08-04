@@ -55,6 +55,8 @@ import {
   LEAN_BATCH_HARDREFS_DELTA,
   LEAN_BATCH_LAB_SYSTEM_PROMPT,
   LEAN_BATCH_LAB_TOOLS,
+  MARKDOWN_E2E_DELTA,
+  MARKDOWN_SWAP_DELTA,
   MIKE_GREP_LAB_SYSTEM_PROMPT,
   MIKE_GREP_LAB_TOOLS,
   MIKE_GREP_DELTAS,
@@ -63,6 +65,7 @@ import {
   UPSTREAM_MIKE_COMMIT,
   UPSTREAM_MIKE_LAB_SYSTEM_PROMPT,
   UPSTREAM_MIKE_LAB_TOOLS,
+  UPSTREAM_MIKE_MARKDOWN_SWAP_LAB_TOOLS,
   UPSTREAM_MIKE_SCHEMA_SHA256,
   UPSTREAM_MIKE_SOURCE_BLOBS,
   UPSTREAM_TERMINAL_DELTA,
@@ -584,6 +587,35 @@ async function main() {
       MIKE_PROGRESSIVE_DISCLOSURE: "0",
       MIKE_TERMINAL_AUTHORING: "1",
     },
+    mike_markdown_swap_v1: {
+      MIKE_NAV_SHAPE: "legacy",
+      MIKE_TOOL_SHAPE: "mike-markdown-swap-v1",
+      MIKE_RETRIEVAL_EXPERIMENT: "",
+      MIKE_PROGRESSIVE_DISCLOSURE: "0",
+      MIKE_TERMINAL_AUTHORING: "1",
+    },
+    mike_markdown_e2e_v1: {
+      MIKE_NAV_SHAPE: "legacy",
+      MIKE_TOOL_SHAPE: "mike-markdown-e2e-v1",
+      MIKE_RETRIEVAL_EXPERIMENT: "",
+      MIKE_PROGRESSIVE_DISCLOSURE: "0",
+      MIKE_TERMINAL_AUTHORING: "1",
+      MIKE_READ_DOCX_MARKDOWN: "1",
+    },
+    // Reverse swap: markdown READ (Pandoc drafting-source) + UPSTREAM Mike
+    // drafting (sections[] shape). Completes the 2x2 read/write matrix:
+    //   control          = upstream read  + upstream sections[] draft
+    //   mike_markdown_swap_v1 = upstream read + markdown draft
+    //   mike_markdown_e2e_v1  = markdown read + markdown draft
+    //   THIS arm               = markdown read + upstream sections[] draft
+    mike_markdown_read_upstream_draft_v1: {
+      MIKE_NAV_SHAPE: "legacy",
+      MIKE_TOOL_SHAPE: "upstream-mike",
+      MIKE_RETRIEVAL_EXPERIMENT: "",
+      MIKE_PROGRESSIVE_DISCLOSURE: "0",
+      MIKE_TERMINAL_AUTHORING: "1",
+      MIKE_READ_DOCX_MARKDOWN: "1",
+    },
     mike_compact_author_v1: {
       MIKE_NAV_SHAPE: "legacy",
       MIKE_TOOL_SHAPE: "mike-compact-author-v1",
@@ -772,7 +804,7 @@ async function main() {
   };
   if (!armEnvironment[arm])
     throw new Error(
-      `unknown --arm ${arm}; expected a registered LAB arm, including upstream_terminal_v1, mike_compact_author_v1, lean_batch_v1, lean_batch_hardrefs_v1, or grounded_structure_outline_v1`,
+      `unknown --arm ${arm}; expected a registered LAB arm, including upstream_terminal_v1, mike_markdown_swap_v1, mike_markdown_e2e_v1, mike_markdown_read_upstream_draft_v1, mike_compact_author_v1, lean_batch_v1, lean_batch_hardrefs_v1, or grounded_structure_outline_v1`,
     );
 
   // Re-spawn into the isolated anonymous-mode environment (same recipe as
@@ -980,8 +1012,13 @@ async function main() {
           systemPrompt: UPSTREAM_MIKE_LAB_SYSTEM_PROMPT,
           tools: UPSTREAM_MIKE_LAB_TOOLS,
         }
-      : arm === "mike_compact_author_v1"
+      : ["mike_markdown_swap_v1", "mike_markdown_e2e_v1"].includes(arm)
         ? {
+            systemPrompt: UPSTREAM_MIKE_LAB_SYSTEM_PROMPT,
+            tools: UPSTREAM_MIKE_MARKDOWN_SWAP_LAB_TOOLS,
+          }
+        : arm === "mike_compact_author_v1"
+          ? {
             systemPrompt: COMPACT_AUTHOR_MIKE_LAB_SYSTEM_PROMPT,
             tools: COMPACT_AUTHOR_MIKE_LAB_TOOLS,
           }
@@ -1398,6 +1435,51 @@ async function main() {
       );
     }
   }
+  if (["mike_markdown_swap_v1", "mike_markdown_e2e_v1"].includes(arm)) {
+    const expectedTools = [
+      "read_document",
+      "find_in_document",
+      "list_documents",
+      "fetch_documents",
+      "generate_docx",
+    ];
+    const residentTools = Array.isArray(surface?.resident_tools)
+      ? surface.resident_tools
+      : [];
+    const deferredTools = Array.isArray(surface?.deferred_tools)
+      ? surface.deferred_tools
+      : [];
+    const markdownE2e = arm === "mike_markdown_e2e_v1";
+    const markdownSwap = arm === "mike_markdown_swap_v1";
+    if (
+      surface?.markdown_swap_shape !== markdownSwap ||
+      surface?.markdown_e2e_shape !== markdownE2e ||
+      surface?.markdown_read_docx !== markdownE2e ||
+      surface?.upstream_mike_shape !== false ||
+      surface?.progressive_disclosure !== false ||
+      surface?.trajectory_mode !== "continuous" ||
+      surface?.context_handoff !== false ||
+      surface?.continuous_evidence !== false ||
+      surface?.sla_workflow !== false ||
+      surface?.greenfield_review !== false ||
+      surface?.model_coverage_routing !== false ||
+      Number(surface?.whole_read_max_chars ?? 0) !== 0 ||
+      surface?.suppress_duplicate_whole_reads !== true ||
+      surface?.terminal_authoring !== true ||
+      JSON.stringify(residentTools) !== JSON.stringify(expectedTools) ||
+      deferredTools.length > 0 ||
+      researchContextRefreshes.length > 0 ||
+      researchCheckpointRequests.length > 0 ||
+      researchCheckpoints.length > 0 ||
+      evidenceHandoffs.length > 0 ||
+      evidenceWorkingSetReceipts.length > 0 ||
+      contentResets.length > 0
+    ) {
+      throw new Error(
+        `${markdownE2e ? "markdown-e2e" : "markdown-swap"} isolation failed: resident=${residentTools.join(",")}; deferred=${deferredTools.join(",")}; terminal=${String(surface?.terminal_authoring)}`,
+      );
+    }
+  }
   if (["lean_batch_v1", "lean_batch_hardrefs_v1"].includes(arm)) {
     const residentTools = Array.isArray(surface?.resident_tools)
       ? surface.resident_tools
@@ -1567,6 +1649,9 @@ async function main() {
 
   const {
     extractLocalDocument,
+    MARKDOWN_E2E_MIKE_TOOL_SHAPE,
+    MARKDOWN_READ_DOCX,
+    MARKDOWN_SWAP_MIKE_TOOL_SHAPE,
     WORKING_SET_GREP_DEFAULT_HEAD_LIMIT,
     WORKING_SET_GREP_LINE_MAX_CHARS,
     WORKING_SET_GREP_MAX_HEAD_LIMIT,
@@ -1693,6 +1778,8 @@ async function main() {
     [
       "upstream",
       "upstream_terminal_v1",
+      "mike_markdown_swap_v1",
+      "mike_markdown_e2e_v1",
       "mike_compact_author_v1",
       "lean_batch_v1",
       "lean_batch_hardrefs_v1",
@@ -2010,12 +2097,23 @@ async function main() {
       });
     }
   }
+  // The default-tier and session prompt-cache receipt gates below were built
+  // for the Anthropic/codex lane, which reports service tiers and prompt-cache
+  // keys on every response. The deepseek provider structurally reports neither
+  // (serviceTierReported/promptCache stay null), so these receipts can never
+  // arrive; enforcing them on the deepseek lane would discard every run,
+  // including ones that authored their deliverable. The single-invocation
+  // count gate below still applies — it checks trajectory shape, not provider
+  // receipts, and deepseek runs are single-invocation anyway.
+  const deepSeekLane = model.startsWith("deepseek");
   const singleInvocationArms = [
     "v13",
     "v14",
     "v15",
     "upstream",
     "upstream_terminal_v1",
+    "mike_markdown_swap_v1",
+    "mike_markdown_e2e_v1",
     "adaptive_mike_v1",
     "mike_compact_author_v1",
     "lean_batch_v1",
@@ -2038,6 +2136,7 @@ async function main() {
     );
   }
   if (
+    !deepSeekLane &&
     defaultTierArms.includes(arm) &&
     (reportedServiceTiers.size !== 1 || !reportedServiceTiers.has("default"))
   ) {
@@ -2046,6 +2145,7 @@ async function main() {
     );
   }
   if (
+    !deepSeekLane &&
     singleInvocationArms.includes(arm) &&
     (promptCacheStrategies.size !== 1 ||
       !promptCacheStrategies.has("session") ||
@@ -2056,6 +2156,7 @@ async function main() {
     );
   }
   if (
+    !deepSeekLane &&
     arm === "v5_reconstruction_v1" &&
     (promptCacheStrategies.size !== 1 ||
       !promptCacheStrategies.has("session") ||
@@ -2169,6 +2270,12 @@ async function main() {
       arm === "upstream_terminal_v1" ? UPSTREAM_TERMINAL_DELTA : null,
     compact_author_delta:
       arm === "mike_compact_author_v1" ? COMPACT_AUTHOR_MIKE_DELTA : null,
+    markdown_swap_delta:
+      ["mike_markdown_swap_v1", "mike_markdown_e2e_v1"].includes(arm)
+        ? MARKDOWN_SWAP_DELTA
+        : null,
+    markdown_e2e_delta:
+      arm === "mike_markdown_e2e_v1" ? MARKDOWN_E2E_DELTA : null,
     lean_batch_delta:
       ["lean_batch_v1", "lean_batch_hardrefs_v1"].includes(arm)
         ? LEAN_BATCH_DELTA
@@ -2425,7 +2532,11 @@ async function main() {
         prompt_variant:
           ["upstream", "upstream_terminal_v1"].includes(arm)
             ? "upstream-pinned"
-            : arm === "adaptive_mike_v1"
+            : ["mike_markdown_swap_v1", "mike_markdown_e2e_v1"].includes(arm)
+              ? arm === "mike_markdown_e2e_v1"
+                ? "upstream-markdown-e2e-v1"
+                : "upstream-markdown-swap-v1"
+              : arm === "adaptive_mike_v1"
               ? "adaptive-mike-v1"
               : arm === "mike_compact_author_v1"
                 ? "upstream-retrieval-compact-author-v1"
@@ -2441,6 +2552,9 @@ async function main() {
           surface?.tool_description_variant ?? toolDescriptionVariant,
         office_pdf_rendition: officePdfRendition,
         retrieval_experiment: surface?.retrieval_experiment ?? null,
+        markdown_swap_shape: MARKDOWN_SWAP_MIKE_TOOL_SHAPE,
+        markdown_e2e_shape: MARKDOWN_E2E_MIKE_TOOL_SHAPE,
+        markdown_read_docx: MARKDOWN_READ_DOCX,
         progressive_disclosure: surface?.progressive_disclosure === true,
         model_coverage_routing: surface?.model_coverage_routing === true,
         whole_read_max_chars: surface?.whole_read_max_chars ?? null,
@@ -2492,6 +2606,12 @@ async function main() {
           arm === "upstream_terminal_v1" ? UPSTREAM_TERMINAL_DELTA : null,
         compact_author_delta:
           arm === "mike_compact_author_v1" ? COMPACT_AUTHOR_MIKE_DELTA : null,
+        markdown_swap_delta:
+          ["mike_markdown_swap_v1", "mike_markdown_e2e_v1"].includes(arm)
+            ? MARKDOWN_SWAP_DELTA
+            : null,
+        markdown_e2e_delta:
+          arm === "mike_markdown_e2e_v1" ? MARKDOWN_E2E_DELTA : null,
         lean_batch_delta:
           ["lean_batch_v1", "lean_batch_hardrefs_v1"].includes(arm)
             ? LEAN_BATCH_DELTA
@@ -2529,6 +2649,12 @@ async function main() {
           arm === "adaptive_mike_v1" ? true : null,
         compact_author_isolation_verified:
           arm === "mike_compact_author_v1" ? true : null,
+        markdown_swap_isolation_verified:
+          ["mike_markdown_swap_v1", "mike_markdown_e2e_v1"].includes(arm)
+            ? true
+            : null,
+        markdown_e2e_isolation_verified:
+          arm === "mike_markdown_e2e_v1" ? true : null,
         lean_batch_isolation_verified:
           ["lean_batch_v1", "lean_batch_hardrefs_v1"].includes(arm)
             ? true
@@ -2892,6 +3018,12 @@ async function main() {
           arm === "upstream_terminal_v1" ? UPSTREAM_TERMINAL_DELTA : null,
         compact_author_delta:
           arm === "mike_compact_author_v1" ? COMPACT_AUTHOR_MIKE_DELTA : null,
+        markdown_swap_delta:
+          ["mike_markdown_swap_v1", "mike_markdown_e2e_v1"].includes(arm)
+            ? MARKDOWN_SWAP_DELTA
+            : null,
+        markdown_e2e_delta:
+          arm === "mike_markdown_e2e_v1" ? MARKDOWN_E2E_DELTA : null,
         lean_batch_delta:
           ["lean_batch_v1", "lean_batch_hardrefs_v1"].includes(arm)
             ? LEAN_BATCH_DELTA
