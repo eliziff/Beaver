@@ -329,13 +329,14 @@ export const MARKDOWN_INDEX_FETCH_DOCUMENTS_TOOL: OpenAIToolSchema = {
 };
 
 export const MARKDOWN_INDEX_LAB_TOOLS: OpenAIToolSchema[] = [
-  ...UPSTREAM_MIKE_RETRIEVAL_TOOLS.filter(
-    (tool) =>
-      tool.function.name !== "read_document" &&
-      tool.function.name !== "fetch_documents",
-  ),
-  MARKDOWN_INDEX_READ_DOCUMENT_TOOL,
-  MARKDOWN_INDEX_FETCH_DOCUMENTS_TOOL,
+  // Replace read_document/fetch_documents in place to preserve the upstream
+  // tool ORDER — the backend's LAB preflight compares exact order.
+  ...UPSTREAM_MIKE_RETRIEVAL_TOOLS.map((tool) => {
+    const name = tool.function.name;
+    if (name === "read_document") return MARKDOWN_INDEX_READ_DOCUMENT_TOOL;
+    if (name === "fetch_documents") return MARKDOWN_INDEX_FETCH_DOCUMENTS_TOOL;
+    return tool;
+  }),
   MARKDOWN_SWAP_GENERATE_DOCX_TOOL,
 ];
 
