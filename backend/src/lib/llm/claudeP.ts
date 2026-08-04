@@ -83,6 +83,30 @@ type Envelope = {
   usage?: Record<string, number | undefined>;
 };
 
+/**
+ * Child env with every auth source removed, not blanked. The harness itself
+ * may run behind a proxy (ANTHROPIC_BASE_URL/AUTH_TOKEN for model routing);
+ * `claude -p` must NOT inherit that — it would take precedence over the
+ * claude.ai login and the CLI fails ("another auth source is set"). An empty
+ * ANTHROPIC_API_KEY string is still "set", so delete, don't blank.
+ */
+function authIsolatedEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  for (const key of [
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN",
+    "ANTHROPIC_BASE_URL",
+    "ANTHROPIC_CUSTOM_HEADERS",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+    "ANTHROPIC_SMALL_FAST_MODEL",
+  ]) {
+    delete env[key];
+  }
+  return env;
+}
+
 function runClaudeP(
   model: string,
   payload: string,
@@ -113,7 +137,7 @@ function runClaudeP(
   return new Promise((resolve, reject) => {
     const child = spawn(file, args, {
       shell,
-      env: { ...process.env, ANTHROPIC_API_KEY: "" },
+      env: authIsolatedEnv(),
       windowsHide: true,
     });
     let stdout = "";
@@ -223,7 +247,7 @@ class ClaudePSession {
     if (effort) args.push("--effort", effort);
     this.child = spawn(file, args, {
       shell,
-      env: { ...process.env, ANTHROPIC_API_KEY: "" },
+      env: authIsolatedEnv(),
       windowsHide: true,
     });
     this.watchdog = setInterval(() => {
@@ -277,7 +301,7 @@ class ClaudePSession {
     this.child.on("close", (code) =>
       this.fail(
         new Error(
-          `claude -p session closed (exit ${code}): ${this.stderrText.slice(0, 300)}`,
+          `claude -p session closed (exit ${code}): ${this.stderrText.slice(0, 800)}`,
         ),
       ),
     );
@@ -519,10 +543,21 @@ export async function streamClaudeP(
               params.reasoningEffort,
               params.abortSignal,
             );
-            if (run.code !== 0)
-              throw new Error(
-                `claude -p exit ${run.code}: ${run.stderr.slice(0, 300)}`,
-              );
+            if (run.code !== 0) {
+              // Non-zero exit with empty stderr: the CLI puts the real reason
+              // in the stdout result envelope (e.g. "Prompt is too long",
+              // terminal_reason blocking_limit). Surface it for telemetry and
+              // for queue classifiers that must not retry deterministic
+              // context-limit failures.
+              let hint = run.stderr.slice(0, 800);
+              if (!hint.trim()) {
+                const m = /"result"\s*:\s*"((?:[^"\\]|\\.)*)"/u.exec(
+                  run.stdout,
+                );
+                if (m) hint = m[1];
+              }
+              throw new Error(`claude -p exit ${run.code}: ${hint}`);
+            }
             envelope = resultEnvelope(run.stdout);
           }
           if (envelope.is_error)
