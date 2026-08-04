@@ -1,6 +1,7 @@
 import { abortError, throwIfAborted } from "./abort";
 import { requireApiKey } from "./apiKeys";
 import type {
+  NormalizedLlmUsage,
   NormalizedToolCall,
   OpenAIToolSchema,
   StreamChatParams,
@@ -9,7 +10,11 @@ import type {
 import { createLlmTrace } from "./rawStreamLog";
 
 const DEEPSEEK_CHAT_URL = "https://api.deepseek.com/chat/completions";
-const MAX_TOKENS = 16384;
+// DeepSeek's own default output budget for reasoning models is 32K tokens
+// (max 64K); at 16K the reasoning stream ate the entire budget before the
+// model could emit a tool call (LAB smoke run, 2026-08-03), truncating
+// mid-planning. Keep the provider default.
+const MAX_TOKENS = 32768;
 
 type DeepSeekToolCall = {
   id: string;
@@ -27,6 +32,14 @@ type DeepSeekMessage =
     }
   | { role: "tool"; tool_call_id: string; content: string };
 
+type DeepSeekUsage = {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+  prompt_cache_hit_tokens?: number;
+  prompt_cache_miss_tokens?: number;
+};
+
 type DeepSeekStreamChunk = {
   choices?: {
     delta?: {
@@ -39,6 +52,7 @@ type DeepSeekStreamChunk = {
       }[];
     };
   }[];
+  usage?: DeepSeekUsage;
   error?: { code?: string; message?: string };
 };
 
@@ -130,6 +144,9 @@ async function createCompletion(params: {
       tools: params.tools?.length ? params.tools : undefined,
       stream: params.stream,
       max_tokens: params.maxTokens ?? MAX_TOKENS,
+      stream_options: params.stream
+        ? { include_usage: true }
+        : undefined,
       thinking: { type: thinking ? "enabled" : "disabled" },
       reasoning_effort: thinking ? effort(params.reasoningEffort) : undefined,
     }),
@@ -159,6 +176,13 @@ export async function streamDeepSeek(
   const messages = toDeepSeekMessages(params.messages, systemPrompt);
   const trace = createLlmTrace({ provider: "deepseek", model });
   let fullText = "";
+  // Aggregated provider-reported usage across every response in the tool loop.
+  // DeepSeek streams one usage object per response (final chunk when
+  // stream_options.include_usage is set); cache hit/miss map to the harness's
+  // cacheRead/cacheWrite fields. DeepSeek does not break out reasoning tokens,
+  // so reasoningTokens stays null.
+  const totalUsage: DeepSeekUsage = {};
+  let sawUsage = false;
 
   try {
     for (
@@ -188,6 +212,7 @@ export async function streamDeepSeek(
       let content = "";
       let reasoning = "";
       let buffer = "";
+      let responseUsage: DeepSeekUsage | undefined;
 
       while (true) {
         throwIfAborted(params.abortSignal);
@@ -209,6 +234,9 @@ export async function streamDeepSeek(
               `DeepSeek error${chunk.error.code ? ` (${chunk.error.code})` : ""}: ${chunk.error.message || "Request failed."}`,
             );
           }
+          // Usage arrives on the stream's final chunk (no choices). Capture the
+          // last usage object of the response — that is the cumulative total.
+          if (chunk.usage) responseUsage = chunk.usage;
           const delta = chunk.choices?.[0]?.delta;
           if (typeof delta?.reasoning_content === "string") {
             reasoning += delta.reasoning_content;
@@ -235,6 +263,23 @@ export async function streamDeepSeek(
           }
         }
         if (done) break;
+      }
+
+      if (responseUsage) {
+        sawUsage = true;
+        totalUsage.prompt_tokens =
+          (totalUsage.prompt_tokens ?? 0) + (responseUsage.prompt_tokens ?? 0);
+        totalUsage.completion_tokens =
+          (totalUsage.completion_tokens ?? 0) +
+          (responseUsage.completion_tokens ?? 0);
+        totalUsage.total_tokens =
+          (totalUsage.total_tokens ?? 0) + (responseUsage.total_tokens ?? 0);
+        totalUsage.prompt_cache_hit_tokens =
+          (totalUsage.prompt_cache_hit_tokens ?? 0) +
+          (responseUsage.prompt_cache_hit_tokens ?? 0);
+        totalUsage.prompt_cache_miss_tokens =
+          (totalUsage.prompt_cache_miss_tokens ?? 0) +
+          (responseUsage.prompt_cache_miss_tokens ?? 0);
       }
 
       if (reasoning) callbacks.onReasoningBlockEnd?.();
@@ -267,7 +312,18 @@ export async function streamDeepSeek(
     }
 
     await trace.flush("completed");
-    return { fullText };
+    return {
+      fullText,
+      usage: sawUsage
+        ? {
+            inputTokens: totalUsage.prompt_tokens ?? null,
+            outputTokens: totalUsage.completion_tokens ?? null,
+            reasoningTokens: null,
+            cacheReadInputTokens: totalUsage.prompt_cache_hit_tokens ?? null,
+            cacheWriteInputTokens: null,
+          }
+        : undefined,
+    };
   } catch (error) {
     await trace.flush("error", error);
     if (params.abortSignal?.aborted) throw abortError();

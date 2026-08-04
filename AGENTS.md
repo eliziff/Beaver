@@ -177,6 +177,12 @@ to improve a build number.
   (default is podman and fails with WinError 2). `backend/.env`
   ANTHROPIC_API_KEY is a non-working stub (401) — flat-rate surfaces
   (codex CLI route, headless `claude -p`) are the sanctioned model paths.
+- NO OpenAI API spend, ever (rule 2026-08-04): `platform.openai.com`
+  per-token billing is forbidden, including the `backend/.env`
+  OPENAI_API_KEY (that key is credit-exhausted anyway). Do not launch
+  arms, judges, or probes against the OpenAI API. Replication/multi-model
+  work runs on flat-rate surfaces (codex CLI, `claude -p`) or the
+  authorized DeepSeek API lane only.
 - Windows shell traps: `grep -oP` dies on locale (use `sed -n
   's/^KEY=//p'`); vitest output may contain NULs (`| tr -d '\0'`);
   `PYTHONIOENCODING=utf-8` for cp1252 consoles; python can't open
