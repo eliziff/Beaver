@@ -63,6 +63,7 @@ import {
   SUPPRESS_DUPLICATE_WHOLE_READS,
   TERMINAL_AUTHORING_ENABLED,
   UPSTREAM_MIKE_TOOL_SHAPE,
+  UPSTREAM_NATIVE_MIKE_SHAPE,
   WORKING_SET_GREP_DEFAULT_HEAD_LIMIT,
   WORKING_SET_GREP_LINE_MAX_CHARS,
   WORKING_SET_GREP_MAX_HEAD_LIMIT,
@@ -106,6 +107,8 @@ import {
   MIKE_LEGAL_GUIDED_LAB_SYSTEM_PROMPT,
   MIKE_STRUCTURE_PATHS_LAB_SYSTEM_PROMPT,
   UPSTREAM_MIKE_LAB_SYSTEM_PROMPT,
+  UPSTREAM_NATIVE_MIKE_LAB_SYSTEM_PROMPT,
+  UPSTREAM_NATIVE_MIKE_LAB_TOOL_NAMES,
 } from "../lib/chat/upstreamMikeBenchmarkSurface";
 import {
   GROUNDED_STRUCTURE_OUTLINE_INJECTION_ENABLED,
@@ -1100,7 +1103,9 @@ export async function streamAnonymousChat(params: {
           : "For long or structured Library documents, call library_outline first and read only the needed span with library_read section= rather than the whole document."
     } Before delivering extraction or comparison work, call library_anchor_coverage and verify the source anchors it reports missing from your draft. Prefer the deterministic organs over reasoning from memory — citation linking, supra fixes, structural lint, term drift, drafting lint, bilingual concordance, amendment application, deadline computation — and report their findings as verified rather than recomputing them yourself.`;
   let systemPrompt = ORIGIN_MIKE_TOOL_SHAPE
-    ? LEAN_BATCH_FAMILY_TOOL_SHAPE
+    ? UPSTREAM_NATIVE_MIKE_SHAPE
+      ? UPSTREAM_NATIVE_MIKE_LAB_SYSTEM_PROMPT
+      : LEAN_BATCH_FAMILY_TOOL_SHAPE
       ? LEAN_BATCH_LAB_SYSTEM_PROMPT
       : COMPACT_AUTHOR_MIKE_TOOL_SHAPE
         ? COMPACT_AUTHOR_MIKE_LAB_SYSTEM_PROMPT
@@ -1139,7 +1144,9 @@ export async function streamAnonymousChat(params: {
           "\n\n" +
           PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT);
   if (ORIGIN_MIKE_TOOL_SHAPE) {
-    const expected = LEAN_BATCH_FAMILY_TOOL_SHAPE
+    const expected = UPSTREAM_NATIVE_MIKE_SHAPE
+      ? UPSTREAM_NATIVE_MIKE_LAB_TOOL_NAMES
+      : LEAN_BATCH_FAMILY_TOOL_SHAPE
       ? ["list_documents", "Grep", "Read", "generate_docx"]
       : MIKE_GREP_FAMILY_TOOL_SHAPE
       ? [
@@ -1189,15 +1196,24 @@ export async function streamAnonymousChat(params: {
     const documents = allowedDocumentIds?.size
       ? await listLocalDocumentsById(userId, allowedDocumentIds)
       : (await listLocalLibrary(userId, "file")).documents;
-    systemPrompt +=
-      "\n\nAVAILABLE DOCUMENTS:\n" +
-      documents
-        .map(
-          (document, index) =>
-            `- doc-${index}: ${document.filename} (${document.file_type})`,
-        )
-        .join("\n") +
-      "\n";
+    systemPrompt += UPSTREAM_NATIVE_MIKE_SHAPE
+      ? // Byte-identical to upstream's own inventory block
+        // (2266446b:backend/src/lib/chat/contextBuilders.ts:143-153): --- fences,
+        // no (file_type) suffix, and the read-once trailer. LAB documents carry
+        // no folder_path, so the label is the bare filename.
+        "\n\n---\nAVAILABLE DOCUMENTS:\n" +
+        documents
+          .map((document, index) => `- doc-${index}: ${document.filename}\n`)
+          .join("") +
+        "\nYou do NOT retain document content between conversation turns. You MUST call read_document (or fetch_documents) once at the start of every response that involves a document's content, even if you have read it in a previous turn. Within the same response, do not call read_document or fetch_documents again for a document/version that has already been read; use the prior tool result, find_in_document for targeted checks, or proceed to the next required tool. Failure to read once per turn will result in hallucinated or stale content.\n---\n"
+      : "\n\nAVAILABLE DOCUMENTS:\n" +
+        documents
+          .map(
+            (document, index) =>
+              `- doc-${index}: ${document.filename} (${document.file_type})`,
+          )
+          .join("\n") +
+        "\n";
     // H7 lean-understanding: inject the compact outline + top-K cross-ref
     // summary ONCE for the LAB surface when the arm enables it. Deterministic,
     // host-side, bounded; a refusing document simply contributes no entry, and
@@ -2519,6 +2535,8 @@ export async function streamAnonymousChat(params: {
           tool_description_variant:
             process.env.MIKE_TOOL_DESCRIPTION_VARIANT || "operational",
           upstream_mike_shape: UPSTREAM_MIKE_TOOL_SHAPE,
+          upstream_native_shape: UPSTREAM_NATIVE_MIKE_SHAPE,
+          max_iterations: UPSTREAM_NATIVE_MIKE_SHAPE ? 10 : null,
           adaptive_mike_shape: ADAPTIVE_MIKE_TOOL_SHAPE,
           compact_author_mike_shape: COMPACT_AUTHOR_MIKE_TOOL_SHAPE,
           markdown_swap_shape: MARKDOWN_SWAP_MIKE_TOOL_SHAPE,
@@ -2644,6 +2662,12 @@ export async function streamAnonymousChat(params: {
               : []),
           ],
       enableThinking: true,
+      // Upstream caps every chat turn at 10 provider rounds
+      // (2266446b:backend/src/lib/chat/streaming.ts:341 -> claude.ts:116,:128);
+      // Beaver's route never sets it, so claudeP.ts:502 runs unbounded. The
+      // native arm restores the cap; every other arm keeps undefined and stays
+      // byte-identical.
+      maxIterations: UPSTREAM_NATIVE_MIKE_SHAPE ? 10 : undefined,
       reasoningEffort: params.reasoningEffort,
       serviceTier: params.serviceTier,
       compactThreshold: openAICompactThreshold,
@@ -2697,6 +2721,22 @@ export async function streamAnonymousChat(params: {
           }
         }
         if (pendingAskInputs) {
+          // Native (2266446b:backend/src/lib/chat/streaming.ts:484-486 and
+          // toolDispatcher.ts:620-624): ask_inputs produces NO tool_result at
+          // all — the dispatcher `continue`s without pushing one and the turn
+          // is aborted with AssistantStreamAskInputsPause. With no user on the
+          // other end in LAB this ends the run with no deliverable, which is
+          // real upstream behaviour on an under-specified prompt; it is
+          // instrumented rather than suppressed so the rate is visible.
+          if (UPSTREAM_NATIVE_MIKE_SHAPE) {
+            sseWrite(res, {
+              type: "benchmark_turn_termination",
+              reason: "ask_inputs_terminated",
+              tool_call_ids: calls.map((call) => call.id),
+            });
+            streamAbort.abort();
+            return [];
+          }
           const results = calls.map((call) =>
             toolReply(call.id, { ok: true, status: "waiting_for_user" }),
           );

@@ -75,6 +75,10 @@ import {
   UPSTREAM_MIKE_MARKDOWN_SWAP_LAB_TOOLS,
   UPSTREAM_MIKE_SCHEMA_SHA256,
   UPSTREAM_MIKE_SOURCE_BLOBS,
+  UPSTREAM_NATIVE_DELTA,
+  UPSTREAM_NATIVE_MIKE_LAB_SYSTEM_PROMPT,
+  UPSTREAM_NATIVE_MIKE_LAB_TOOLS,
+  UPSTREAM_NATIVE_MIKE_LAB_TOOL_NAMES,
   UPSTREAM_TERMINAL_DELTA,
 } from "../src/lib/chat/upstreamMikeBenchmarkSurface";
 import { latestAuthoredDocuments } from "./lab-authored-documents";
@@ -106,7 +110,12 @@ let activeRunDir: string | null = null;
 function armExpectedSurface(
   arm: string,
 ): { systemPrompt: string; tools: OpenAIToolSchema[] } | null {
-  return ["upstream", "upstream_terminal_v1"].includes(arm)
+  return arm === "mike_upstream_native_v1"
+    ? {
+        systemPrompt: UPSTREAM_NATIVE_MIKE_LAB_SYSTEM_PROMPT,
+        tools: UPSTREAM_NATIVE_MIKE_LAB_TOOLS,
+      }
+    : ["upstream", "upstream_terminal_v1"].includes(arm)
     ? {
         systemPrompt: UPSTREAM_MIKE_LAB_SYSTEM_PROMPT,
         tools: UPSTREAM_MIKE_LAB_TOOLS,
@@ -166,7 +175,26 @@ function armExpectedSurface(
 // Byte-identical reproduction of the AVAILABLE DOCUMENTS block chat.ts appends
 // to the LAB system prompt (routes/chat.ts ~1185): doc index order follows the
 // upload order, which is the sorted documents[] order here.
-function inventoryPromptFor(documents: string[]): string {
+//
+// Two shapes, because the Beaver LAB block and upstream's own block differ.
+// The Beaver block (all arms except mike_upstream_native_v1) has no --- fences,
+// appends a (file_type) suffix upstream never emits, and omits the read-once
+// trailer entirely. The native block reproduces
+// 2266446b:backend/src/lib/chat/contextBuilders.ts:143-153 exactly. The earlier
+// version of this comment claimed byte-identity with upstream; that was true of
+// chat.ts and this function relative to each other, never of upstream.
+function inventoryPromptFor(documents: string[], arm?: string): string {
+  if (arm === "mike_upstream_native_v1") {
+    return (
+      "\n\n---\nAVAILABLE DOCUMENTS:\n" +
+      documents
+        .map(
+          (relative, index) => `- doc-${index}: ${path.basename(relative)}\n`,
+        )
+        .join("") +
+      "\nYou do NOT retain document content between conversation turns. You MUST call read_document (or fetch_documents) once at the start of every response that involves a document's content, even if you have read it in a previous turn. Within the same response, do not call read_document or fetch_documents again for a document/version that has already been read; use the prior tool result, find_in_document for targeted checks, or proceed to the next required tool. Failure to read once per turn will result in hallucinated or stale content.\n---\n"
+    );
+  }
   return (
     "\n\nAVAILABLE DOCUMENTS:\n" +
     documents
@@ -685,6 +713,27 @@ async function main() {
       MIKE_PROGRESSIVE_DISCLOSURE: "0",
       MIKE_TERMINAL_AUTHORING: "1",
     },
+    // The full pinned upstream chat surface at 2266446b, project composition,
+    // research tools off. One flag selects prompt + tools + inventory shape +
+    // native tool-result envelopes + maxIterations=10; everything else is
+    // switched OFF so no Beaver-side affordance leaks into the baseline.
+    // MIKE_TERMINAL_AUTHORING=0 because native has no terminal exit
+    // (claude.ts:239-241 breaks only when the model stops calling tools);
+    // MIKE_DISABLE_ASK_INPUTS=0 because ask_inputs is a native tool and its
+    // turn-terminating behaviour is measured, not suppressed.
+    mike_upstream_native_v1: {
+      MIKE_UPSTREAM_NATIVE: "1",
+      MIKE_NAV_SHAPE: "legacy",
+      MIKE_TOOL_SHAPE: "",
+      MIKE_RETRIEVAL_EXPERIMENT: "",
+      MIKE_PROGRESSIVE_DISCLOSURE: "0",
+      MIKE_TERMINAL_AUTHORING: "0",
+      MIKE_READ_DOCX_MARKDOWN: "0",
+      MIKE_STRUCTURE_INDEX: "0",
+      MIKE_COMPLETENESS_FLOOR: "0",
+      MIKE_DISABLE_ASK_INPUTS: "0",
+      MIKE_TOOL_RESULT_CAP: "",
+    },
     mike_markdown_swap_v1: {
       MIKE_NAV_SHAPE: "legacy",
       MIKE_TOOL_SHAPE: "mike-markdown-swap-v1",
@@ -938,7 +987,7 @@ async function main() {
   };
   if (!armEnvironment[arm])
     throw new Error(
-      `unknown --arm ${arm}; expected a registered LAB arm, including upstream_terminal_v1, mike_markdown_swap_v1, mike_markdown_e2e_v1, mike_markdown_e2e_index_v1, mike_markdown_e2e_floor_v1, mike_markdown_e2e_index_floor_v1, mike_markdown_read_upstream_draft_v1, mike_compact_author_v1, lean_batch_v1, lean_batch_hardrefs_v1, or grounded_structure_outline_v1`,
+      `unknown --arm ${arm}; expected a registered LAB arm, including upstream_terminal_v1, mike_upstream_native_v1, mike_markdown_swap_v1, mike_markdown_e2e_v1, mike_markdown_e2e_index_v1, mike_markdown_e2e_floor_v1, mike_markdown_e2e_index_floor_v1, mike_markdown_read_upstream_draft_v1, mike_compact_author_v1, lean_batch_v1, lean_batch_hardrefs_v1, or grounded_structure_outline_v1`,
     );
 
   // Re-spawn into the isolated anonymous-mode environment (same recipe as
@@ -1050,6 +1099,7 @@ async function main() {
     "src/lib/chat/localAssistantTools.ts",
     "src/lib/chat/labOutlineInjection.ts",
     "src/lib/chat/upstreamMikeBenchmarkSurface.ts",
+    "src/lib/chat/upstreamNativeDocxRenderer.ts",
     "src/lib/chat/prompts.ts",
     "src/lib/chat/slaWorkflow.ts",
     "src/lib/legalCrossReference.ts",
@@ -1156,7 +1206,7 @@ async function main() {
     if (!surface) {
       throw new Error(`--preflight-only is not registered for arm ${arm}`);
     }
-    const inventoryPrompt = inventoryPromptFor(documents);
+    const inventoryPrompt = inventoryPromptFor(documents, arm);
     const { toResponseTools } = await import("../src/lib/llm/openai");
     const responseTools = toResponseTools(surface.tools);
     console.log(
@@ -1367,6 +1417,15 @@ async function main() {
   );
   const evidenceWorkingSetReceipt = evidenceWorkingSetReceipts.at(-1) ?? null;
   const contentResets = events.filter((event) => event.type === "content_reset");
+  // Native ask_inputs terminates the turn with no tool_result and no
+  // deliverable (2266446b:streaming.ts:484-486). Recorded as a first-class
+  // outcome so the rate is reported rather than folded into "failed".
+  const turnTerminations = events.filter(
+    (event) => event.type === "benchmark_turn_termination",
+  );
+  const askInputsTerminated = turnTerminations.some(
+    (event) => event.reason === "ask_inputs_terminated",
+  );
   const researchContextRefreshes = events.filter(
     (event) => event.type === "research_context_refresh",
   );
@@ -1413,6 +1472,76 @@ async function main() {
   const checkpointHandoffMismatches = checkpointHandoffAudit.filter(
     (receipt) => !receipt.matches,
   );
+  if (arm === "mike_upstream_native_v1") {
+    const residentTools = Array.isArray(surface?.resident_tools)
+      ? surface.resident_tools
+      : [];
+    const deferredTools = Array.isArray(surface?.deferred_tools)
+      ? surface.deferred_tools
+      : [];
+    // The served prompt must be the arm's registered prompt, byte-for-byte —
+    // the same check the markdown family gets below, and the reason the
+    // SECT-INDEX arm's first wave silently ran on the wrong prompt.
+    const nativeSurface = armExpectedSurface(arm);
+    const nativePromptSha = nativeSurface
+      ? createHash("sha256")
+          .update(
+            nativeSurface.systemPrompt + inventoryPromptFor(documents, arm),
+          )
+          .digest("hex")
+      : null;
+    if (
+      nativePromptSha &&
+      surface?.system_prompt_sha256 !== nativePromptSha
+    ) {
+      throw new Error(
+        `${arm} served the wrong system prompt: receipt sha ${String(surface?.system_prompt_sha256)} != expected ${nativePromptSha}`,
+      );
+    }
+    if (
+      surface?.upstream_native_shape !== true ||
+      Number(surface?.max_iterations ?? 0) !== 10 ||
+      surface?.upstream_mike_shape !== false ||
+      surface?.adaptive_mike_shape !== false ||
+      surface?.compact_author_mike_shape !== false ||
+      surface?.markdown_swap_shape !== false ||
+      surface?.markdown_e2e_shape !== false ||
+      surface?.markdown_read_docx !== false ||
+      surface?.structure_index !== false ||
+      surface?.completeness_floor !== false ||
+      surface?.lean_batch_shape !== false ||
+      surface?.lean_batch_hardrefs_shape !== false ||
+      surface?.mike_grep_shape !== false ||
+      surface?.mike_legal_shape !== false ||
+      surface?.mike_legal_guided_shape !== false ||
+      surface?.mike_structure_paths_shape !== false ||
+      surface?.progressive_disclosure !== false ||
+      surface?.trajectory_mode !== "continuous" ||
+      surface?.context_handoff !== false ||
+      surface?.continuous_evidence !== false ||
+      surface?.sla_workflow !== false ||
+      surface?.greenfield_review !== false ||
+      surface?.model_coverage_routing !== false ||
+      Number(surface?.whole_read_max_chars ?? 0) !== 0 ||
+      surface?.suppress_duplicate_whole_reads !== true ||
+      // Native has no terminal-authoring exit: the turn ends only when the
+      // model stops calling tools (2266446b:claude.ts:239-241).
+      surface?.terminal_authoring !== false ||
+      JSON.stringify(residentTools) !==
+        JSON.stringify(UPSTREAM_NATIVE_MIKE_LAB_TOOL_NAMES) ||
+      deferredTools.length > 0 ||
+      researchContextRefreshes.length > 0 ||
+      researchCheckpointRequests.length > 0 ||
+      researchCheckpoints.length > 0 ||
+      evidenceHandoffs.length > 0 ||
+      evidenceWorkingSetReceipts.length > 0 ||
+      contentResets.length > 0
+    ) {
+      throw new Error(
+        `${arm} isolation failed: resident=${residentTools.join(",")}; deferred=${deferredTools.join(",")}; native=${String(surface?.upstream_native_shape)}; max_iterations=${String(surface?.max_iterations)}; terminal=${String(surface?.terminal_authoring)}`,
+      );
+    }
+  }
   if (["upstream", "upstream_terminal_v1"].includes(arm)) {
     const expectedTools = [
       "read_document",
@@ -1570,7 +1699,9 @@ async function main() {
     const expectedSurface = armExpectedSurface(arm);
     const expectedPromptSha = expectedSurface
       ? createHash("sha256")
-          .update(expectedSurface.systemPrompt + inventoryPromptFor(documents))
+          .update(
+            expectedSurface.systemPrompt + inventoryPromptFor(documents, arm),
+          )
           .digest("hex")
       : null;
     if (expectedPromptSha && surface?.system_prompt_sha256 !== expectedPromptSha) {
@@ -1908,6 +2039,7 @@ async function main() {
     [
       "upstream",
       "upstream_terminal_v1",
+      "mike_upstream_native_v1",
       "mike_markdown_swap_v1",
       "mike_markdown_e2e_v1",
       "mike_markdown_e2e_index_v1",
@@ -2436,6 +2568,8 @@ async function main() {
       arm === "adaptive_mike_v1" ? ADAPTIVE_MIKE_DELTA : null,
     upstream_terminal_delta:
       arm === "upstream_terminal_v1" ? UPSTREAM_TERMINAL_DELTA : null,
+    upstream_native_delta:
+      arm === "mike_upstream_native_v1" ? UPSTREAM_NATIVE_DELTA : null,
     compact_author_delta:
       arm === "mike_compact_author_v1" ? COMPACT_AUTHOR_MIKE_DELTA : null,
     markdown_swap_delta:
@@ -2799,6 +2933,8 @@ async function main() {
             : null,
         upstream_terminal_delta:
           arm === "upstream_terminal_v1" ? UPSTREAM_TERMINAL_DELTA : null,
+        upstream_native_delta:
+          arm === "mike_upstream_native_v1" ? UPSTREAM_NATIVE_DELTA : null,
         compact_author_delta:
           arm === "mike_compact_author_v1" ? COMPACT_AUTHOR_MIKE_DELTA : null,
         markdown_swap_delta:
@@ -3038,6 +3174,9 @@ async function main() {
         ).length,
         zero_yield_tool_calls: results.filter((result) => result.zero_yield).length,
         tool_call_count: calls.length,
+        ask_inputs_terminated: askInputsTerminated,
+        turn_termination_reason:
+          turnTerminations.at(-1)?.reason ?? null,
         hard_reference_hints_offered: hardReferenceHints.length,
         hard_reference_hints_followed: followedHardReferenceHints.length,
         hard_reference_hint_follow_rate:
@@ -3242,6 +3381,8 @@ async function main() {
             : null,
         upstream_terminal_delta:
           arm === "upstream_terminal_v1" ? UPSTREAM_TERMINAL_DELTA : null,
+        upstream_native_delta:
+          arm === "mike_upstream_native_v1" ? UPSTREAM_NATIVE_DELTA : null,
         compact_author_delta:
           arm === "mike_compact_author_v1" ? COMPACT_AUTHOR_MIKE_DELTA : null,
         markdown_swap_delta:
