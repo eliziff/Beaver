@@ -2040,17 +2040,35 @@ async function main() {
     else writeFileSync(target, answer, "utf8");
     deliverableSources[name] = "answer_text";
   }
-  const deliverableReceipts = readdirSync(outputDir, { encoding: "utf8" })
-    .sort((left, right) => left.localeCompare(right))
-    .map((filename) => {
-      const bytes = readFileSync(path.join(outputDir, filename));
-      return {
-        filename,
-        bytes: bytes.length,
-        sha256: createHash("sha256").update(bytes).digest("hex"),
-        source: deliverableSources[filename] ?? "library",
-      };
-    });
+  // text_chars is the deliverable's extracted text length (not zip bytes) —
+  // deliverable size is the strongest single score predictor in the deepseek
+  // family and was never recorded, so every arm comparison carried a hidden
+  // verbosity confound.
+  const { extractDocxBodyStructure } = await import(
+    "../src/lib/docxTrackedChanges"
+  );
+  const deliverableReceipts = await Promise.all(
+    readdirSync(outputDir, { encoding: "utf8" })
+      .sort((left, right) => left.localeCompare(right))
+      .map(async (filename) => {
+        const bytes = readFileSync(path.join(outputDir, filename));
+        let textChars: number | null = null;
+        if (/\.docx$/iu.test(filename)) {
+          textChars = await extractDocxBodyStructure(bytes)
+            .then((body) => body.text.length)
+            .catch(() => null);
+        } else if (/\.(md|txt)$/iu.test(filename)) {
+          textChars = bytes.toString("utf8").length;
+        }
+        return {
+          filename,
+          bytes: bytes.length,
+          text_chars: textChars,
+          sha256: createHash("sha256").update(bytes).digest("hex"),
+          source: deliverableSources[filename] ?? "library",
+        };
+      }),
+  );
 
   // Real usage from the context-manifest receipts (each streamChatWithTools
   // call appends one entry with provider-reported usage); the byte-based
@@ -2769,6 +2787,12 @@ async function main() {
         turn_count: 1,
         input_tokens: inputTokens,
         logical_input_tokens: inputTokens,
+        // Round count separated from invocation count: deepseek drives the
+        // loop as one invocation per round (rounds reported as invocations),
+        // claude-p as one invocation with per-iteration context rounds. The
+        // cache-adjusted input headline conflates context volume with turn
+        // count without this.
+        provider_round_count: contextRounds.length || providerInvocations.length,
         output_tokens: outputTokens,
         reasoning_tokens: reasoningTokens,
         total_tokens: inputTokens + outputTokens,
@@ -2855,6 +2879,10 @@ async function main() {
         finished_cleanly: true,
         completed_at: new Date().toISOString(),
         deliverable_count: deliverableReceipts.length,
+        deliverable_chars: deliverableReceipts.reduce(
+          (total, receipt) => total + (receipt.text_chars ?? 0),
+          0,
+        ),
         required_deliverable_mapping: requiredDeliverableMapping,
         deliverable_receipts: deliverableReceipts,
         documents_ingested: documents.length,
