@@ -9,6 +9,7 @@ export type ApiKeyProvider =
     | "openai"
     | "deepseek"
     | "openrouter"
+    | "meta"
     | "courtlistener";
 type ApiKeySource = "user" | "env" | null;
 export type ApiKeyStatus = Record<ApiKeyProvider, boolean> & {
@@ -28,6 +29,7 @@ const PROVIDERS: ApiKeyProvider[] = [
     "openai",
     "deepseek",
     "openrouter",
+    "meta",
     "courtlistener",
 ];
 
@@ -51,6 +53,12 @@ function envApiKey(provider: ApiKeyProvider): string | null {
             );
         case "openrouter":
             return process.env.OPENROUTER_API_KEY?.trim() || null;
+        case "meta":
+            return (
+                process.env.META_API_KEY?.trim() ||
+                process.env.MODEL_API_KEY?.trim() ||
+                null
+            );
         case "courtlistener":
             return process.env.COURTLISTENER_API_TOKEN?.trim() || null;
         default:
@@ -69,6 +77,7 @@ export function getEnvironmentApiKeyStatus(): ApiKeyStatus {
         openai: false,
         deepseek: false,
         openrouter: false,
+        meta: false,
         courtlistener: false,
         sources: {
             claude: null,
@@ -76,6 +85,7 @@ export function getEnvironmentApiKeyStatus(): ApiKeyStatus {
             openai: null,
             deepseek: null,
             openrouter: null,
+            meta: null,
             courtlistener: null,
         },
     };
@@ -94,6 +104,7 @@ export function getEnvironmentApiKeys(): UserApiKeys {
         openai: envApiKey("openai"),
         deepseek: envApiKey("deepseek"),
         openrouter: envApiKey("openrouter"),
+        meta: envApiKey("meta"),
         courtlistener: envApiKey("courtlistener"),
     };
 }

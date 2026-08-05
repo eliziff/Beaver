@@ -22,9 +22,11 @@ export const MODELS: ModelOption[] = [
         group: "DeepSeek",
     },
     { id: "deepseek-v4-pro", label: "DeepSeek V4 Pro", group: "DeepSeek" },
+    { id: "muse-spark-1.2", label: "Muse Spark 1.2", group: "Meta" },
+    { id: "muse-spark-1.1", label: "Muse Spark 1.1", group: "Meta" },
     {
         id: "meta/muse-spark-1.1",
-        label: "Muse Spark 1.1",
+        label: "Muse Spark 1.1 (OpenRouter)",
         group: "Meta",
     },
 ];
@@ -39,6 +41,13 @@ export const SETTINGS_MODELS: ModelOption[] = [
         group: "Google",
     },
     { id: "gpt-5.4-lite", label: "GPT-5.4 Lite", group: "OpenAI" },
+    // Contributor tier trades ~12x cheaper tokens for Meta training on the
+    // prompts and completions, so it stays out of the default picker.
+    {
+        id: "muse-spark-1.2-contributor",
+        label: "Muse Spark 1.2 (contributor · trains on input)",
+        group: "Meta",
+    },
 ];
 const configuredDefaultModel = process.env.NEXT_PUBLIC_DEFAULT_MODEL;
 const configuredDynamicModel =
@@ -197,13 +206,15 @@ export function ReasoningEffortToggle({
     const selectedDesktopModel = catalog?.ollama?.models.find(
         (item) => `ollama:${item.name}` === model,
     );
+    // Same reasoning ladder on both Muse Spark transports (direct + OpenRouter).
+    const isMuseSpark = model.includes("muse-spark-");
     const efforts = model.startsWith("deepseek-")
         ? [{ effort: "low" }, { effort: "high" }, { effort: "max" }]
         : selectedDesktopModel?.supportsThinking
           ? ["off", "low", "medium", "high", "max"].map((effort) => ({
                 effort,
             }))
-        : model === "meta/muse-spark-1.1"
+        : isMuseSpark
           ? [
                 { effort: "xhigh" },
                 { effort: "high" },
@@ -220,7 +231,7 @@ export function ReasoningEffortToggle({
             ? "high"
             : selectedDesktopModel?.supportsThinking
               ? "off"
-            : model === "meta/muse-spark-1.1"
+            : isMuseSpark
                   ? "medium"
                   : (selectedModel?.defaultReasoningLevel ??
                     efforts[0]?.effort));

@@ -386,7 +386,9 @@ describe("ModelToggle", () => {
         await userEvent.click(
             screen.getByRole("button", { name: /Muse Spark 1.1/ }),
         );
-        screen.getByRole("button", { name: "Muse Spark 1.1" });
+        screen.getByRole("button", {
+            name: "Muse Spark 1.1 (OpenRouter)",
+        });
     });
 
     it("keeps the searchable list bounded with keyboard dismissal", async () => {

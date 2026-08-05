@@ -51,6 +51,7 @@ const API_KEY_PROVIDERS: ApiKeyProvider[] = [
     "openai",
     "deepseek",
     "openrouter",
+    "meta",
     "courtlistener",
 ];
 function toApiKeys(status?: ApiUserProfile["apiKeyStatus"]): ApiKeyState {
