@@ -187,7 +187,8 @@ export const updateUserProfile = (
 export const updateUserMfaOnLogin = (enabled: boolean) =>
   patch<UserProfile>("/user/security/mfa-login", { enabled });
 export type ApiKeyProvider =
-  "claude" | "gemini" | "openai" | "deepseek" | "openrouter" | "courtlistener";
+  | "claude" | "gemini" | "openai" | "deepseek" | "openrouter" | "meta"
+  | "courtlistener";
 type ApiKeySource = "user" | "env" | null;
 export type ApiKeyState = Record<ApiKeyProvider, {
   configured: boolean; source: ApiKeySource;

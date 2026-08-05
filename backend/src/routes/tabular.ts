@@ -83,6 +83,7 @@ function providerLabel(provider: Provider): string {
     if (provider === "openai") return "OpenAI";
     if (provider === "deepseek") return "DeepSeek";
     if (provider === "openrouter") return "OpenRouter";
+    if (provider === "meta") return "Meta";
     if (provider === "codex") return "Codex";
     return "Gemini";
 }
