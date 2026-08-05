@@ -545,7 +545,7 @@ describe("ReasoningEffortToggle", () => {
         screen.getByRole("option", { name: "Automatic" });
     });
 
-    it("offers only high and max for DeepSeek, displaying high initially", async () => {
+    it("offers low, high, and max for DeepSeek, displaying high initially", async () => {
         const onChange = vi.fn();
         getCatalogMock.mockResolvedValue(catalog([]));
         render(
@@ -561,7 +561,7 @@ describe("ReasoningEffortToggle", () => {
         const items = within(trigger).getAllByRole("option").map((item) =>
             item.textContent?.trim(),
         );
-        expect(items).toEqual(["high", "max"]);
+        expect(items).toEqual(["low", "high", "max"]);
     });
 
     it("offers Muse Spark's supported efforts, displaying medium initially", async () => {

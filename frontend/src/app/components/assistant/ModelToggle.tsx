@@ -198,7 +198,7 @@ export function ReasoningEffortToggle({
         (item) => `ollama:${item.name}` === model,
     );
     const efforts = model.startsWith("deepseek-")
-        ? [{ effort: "high" }, { effort: "max" }]
+        ? [{ effort: "low" }, { effort: "high" }, { effort: "max" }]
         : selectedDesktopModel?.supportsThinking
           ? ["off", "low", "medium", "high", "max"].map((effort) => ({
                 effort,
