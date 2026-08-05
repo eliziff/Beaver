@@ -5840,7 +5840,7 @@ type ServedDrafting =
  * runLocalAssistantTools and is passed down, so it never outlives the turn and
  * a version change (new versionId) naturally re-derives.
  */
-async function servedDraftingText(
+export async function servedDraftingText(
   userId: string,
   documentId: string,
   cache?: Map<string, ServedDrafting>,

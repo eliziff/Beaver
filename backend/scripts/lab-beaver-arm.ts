@@ -379,10 +379,12 @@ function exposureMetrics(
     }
     for (const segment of result.evidence_segments) {
       if (!sourceIds.has(segment.documentId)) continue;
-      exposedDocumentIds.add(segment.documentId);
       const start = Math.max(0, Math.trunc(Math.min(segment.start, segment.end)));
       const end = Math.max(start, Math.trunc(Math.max(segment.start, segment.end)));
+      // Zero-length segments deliver no source text and must not mark the
+      // document exposed (a (0,0) segment once counted a doc as "read").
       if (end === start) continue;
+      exposedDocumentIds.add(segment.documentId);
       gross += end - start;
       const key = `${segment.documentId}:${segment.versionId}`;
       const spans = byDocument.get(key) ?? [];
@@ -392,12 +394,12 @@ function exposureMetrics(
     if (!document || result.evidence_segments.length) continue;
     const sourceId = sourceAliases.get(document);
     if (!sourceId) continue;
-    exposedDocumentIds.add(sourceId);
     const spans = byDocument.get(sourceId) ?? [];
     for (const [rawStart, rawEnd] of result.evidence_spans) {
       const start = Math.max(0, Math.trunc(Math.min(rawStart, rawEnd)));
       const end = Math.max(start, Math.trunc(Math.max(rawStart, rawEnd)));
       if (end === start) continue;
+      exposedDocumentIds.add(sourceId);
       gross += end - start;
       spans.push([start, end]);
     }
@@ -1713,6 +1715,7 @@ async function main() {
 
   const {
     extractLocalDocument,
+    servedDraftingText,
     MARKDOWN_E2E_MIKE_TOOL_SHAPE,
     MARKDOWN_READ_DOCX,
     MARKDOWN_SWAP_MIKE_TOOL_SHAPE,
@@ -1895,8 +1898,19 @@ async function main() {
   for (const document of uploadedDocuments) {
     const extracted = await extractLocalDocument(userId, document.id);
     if (!extracted) continue;
-    sourceTextChars += extracted.text.length;
+    // The exposure numerator lives on the served BODY plane (pandoc markdown
+    // for markdown arms, SECT-INDEX excluded). The denominator must be the
+    // same plane per document — the plaintext denominator made the ratio
+    // cross-plane, and shipped runs reported impossible values > 1.
+    const served = MARKDOWN_READ_DOCX
+      ? await servedDraftingText(userId, document.id)
+      : null;
+    const servedBodyChars = served
+      ? served.served.length - served.bodyOffset
+      : extracted.text.length;
+    sourceTextChars += servedBodyChars;
     sourceReceipts.push({
+      served_body_chars: servedBodyChars,
       source: document.source,
       uploaded: document.uploaded,
       document_id: document.id,
