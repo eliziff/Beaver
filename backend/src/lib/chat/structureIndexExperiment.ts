@@ -86,26 +86,84 @@ function stripLineDecor(line: string): string {
   return s;
 }
 
-/** Offset of the first line whose real first token is `display`, else null.
- *  The token must be followed by a non-alphanumeric boundary so a body
- *  cross-reference that merely starts a line with the number is rejected. */
+/** Heading-like continuation after a display: EOL, an em-dash heading
+ *  separator, or a closing bold/inline wrap — never `(x)` or space-then-prose
+ *  (a body sentence that merely opens with the section number, e.g. "Section
+ *  2.01(a) provides that...", must NOT anchor the parent). */
+function isHeadingishContinuation(rest: string): boolean {
+  const trimmed = rest.trimStart();
+  if (!trimmed) return true; // EOL
+  if (trimmed.startsWith("— ")) return true; // " — " heading separator
+  // closing bold/inline-wrap before the rest of the heading line
+  if (/^(\*\*|<\/?u>)/.test(trimmed)) return true;
+  return false;
+}
+
+/** Offset of the first line at or after `from` whose real first token is
+ *  `display` and whose continuation is heading-like (` — `, EOL, or a closing
+ *  bold wrap), else null. A body cross-reference that merely starts a line with
+ *  the number — "Section 2.01(a) provides..." or "Section 2.01 provides..." —
+ *  is rejected because the next char is `(`/space-then-prose, not a heading. */
 function anchorDisplayLineStart(
   markdown: string,
   display: string,
+  from = 0,
 ): number | null {
-  let pos = 0;
+  let pos = Math.max(0, from);
   while (pos <= markdown.length) {
     const nl = markdown.indexOf("\n", pos);
     const end = nl === -1 ? markdown.length : nl;
     const body = stripLineDecor(markdown.slice(pos, end));
     if (body.startsWith(display)) {
-      const after = body.slice(display.length).trimStart();
-      if (!after || !/[\p{L}\p{N}]/u.test(after[0])) return pos;
+      const rest = body.slice(display.length);
+      if (isHeadingishContinuation(rest)) return pos;
     }
     if (nl === -1) break;
     pos = nl + 1;
   }
   return null;
+}
+
+/** True when `pos` sits at the start of a line whose first real token (after a
+ *  short decoration run: whitespace, `**`, `\`, `(`, `*`, list markers) is the
+ *  `(x)`-style enum token — i.e. the token OPENS a heading, not an incidental
+ *  body cross-reference like "...10.01(b) and Section 10.01(c) below...". */
+function isEnumAtLineStart(
+  markdown: string,
+  pos: number,
+  token: string,
+): boolean {
+  const lineStart = markdown.lastIndexOf("\n", pos) + 1;
+  const prefix = markdown.slice(lineStart, pos);
+  // No prose or section number may precede the token — only a short run of
+  // markdown decoration.
+  const decorRun = prefix.replace(/\s+/g, "");
+  if (decorRun.length > 4) return false;
+  if (!/^[\s\\*(<>{}\[\]_#`|+\-.~=]*$/.test(prefix)) return false;
+  const rest = markdown.slice(pos);
+  const m = /^(?:\\?\(([^()\\]*)(?:\\?\)))/.exec(rest);
+  return m ? m[1] === token : false;
+}
+
+/** First index at or after `from` where `needle` begins a line (after a short
+ *  markdown decoration run is stripped), else -1. A body cross-reference that
+ *  merely contains the needle mid-line never qualifies. */
+function indexOfLineStart(
+  markdown: string,
+  needle: string,
+  from: number,
+): number {
+  let pos = Math.max(0, from);
+  while (pos <= markdown.length) {
+    const nl = markdown.indexOf("\n", pos);
+    const lineEnd = nl === -1 ? markdown.length : nl;
+    if (stripLineDecor(markdown.slice(pos, lineEnd)).startsWith(needle)) {
+      return pos;
+    }
+    if (nl === -1) break;
+    pos = nl + 1;
+  }
+  return -1;
 }
 
 /** The trailing enum token of a composed subsection display, e.g. "a" from
@@ -117,9 +175,12 @@ function subsectionToken(display: string): string | null {
 
 /**
  * Anchor a subsection relative to its parent: find the `(a)`-style enum token
- * at or after `from` (pandoc renders it `\(a\)` or `**(a)**`), falling back to
- * the leading fragment of the sub-heading title. Returns the anchor offset and
- * the position to start the next sibling's search.
+ * at or after `from` (pandoc renders it `\(a\)` or `**(a)**`), but ONLY when
+ * the token opens its line — an unescaped `(x)` anywhere in the body (a
+ * cross-reference like "...(b) and Section 10.01(c) below...") must never win
+ * over the real heading. Falls back to the leading fragment of the sub-heading
+ * title, also line-anchored. Returns the anchor offset and the position to
+ * start the next sibling's search.
  */
 function anchorSubsection(
   markdown: string,
@@ -132,16 +193,21 @@ function anchorSubsection(
     // pandoc escapes both parens: `\(a\)`; list items may render bold: `**(a)**`.
     const re = new RegExp(`\\\\?\\(${escaped}\\\\?\\)`, "g");
     re.lastIndex = from;
-    const hit = re.exec(markdown);
-    if (hit) return { at: hit.index, next: hit.index + hit[0].length };
+    let hit: RegExpExecArray | null;
+    while ((hit = re.exec(markdown))) {
+      if (isEnumAtLineStart(markdown, hit.index, token)) {
+        return { at: hit.index, next: hit.index + hit[0].length };
+      }
+    }
   }
   // Fallback: the skeleton holds heading = title + body text; use the leading
-  // fragment up to the first sentence boundary.
+  // fragment up to the first sentence boundary, anchored at a line start so a
+  // body cross-reference never wins over the real heading.
   const title = node.heading?.trim() ?? "";
   const boundary = title.search(/\.\s|\.$/);
   const frag = boundary >= 0 ? title.slice(0, boundary + 1) : title.slice(0, 32);
   if (frag.length >= 4) {
-    const idx = markdown.indexOf(frag, from);
+    const idx = indexOfLineStart(markdown, frag, from);
     if (idx >= 0) return { at: idx, next: idx + frag.length };
   }
   return null;
@@ -155,10 +221,18 @@ function anchorSpine(
   spine: SkeletonNode[],
 ): Map<string, number> {
   const anchors = new Map<string, number>();
+  // Two spine nodes with the same display (amended/restated docs) must anchor
+  // at DIFFERENT line starts: advance a per-display cursor so the second
+  // occurrence resolves to the second match, not the first.
+  const displayCursor = new Map<string, number>();
   for (const node of spine) {
     if (node.kind === "subsection") continue;
-    const at = anchorDisplayLineStart(markdown, node.display);
-    if (at !== null) anchors.set(node.label, at);
+    const from = displayCursor.get(node.display) ?? 0;
+    const at = anchorDisplayLineStart(markdown, node.display, from);
+    if (at !== null) {
+      anchors.set(node.label, at);
+      displayCursor.set(node.display, at + node.display.length);
+    }
   }
   let pending = spine.filter((node) => node.kind === "subsection");
   for (let pass = 0; pending.length && pass < 8; pass++) {

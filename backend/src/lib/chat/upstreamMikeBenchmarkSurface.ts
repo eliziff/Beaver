@@ -248,7 +248,7 @@ export const MARKDOWN_INDEX_READ_DOCUMENT_TOOL: OpenAIToolSchema = {
   function: {
     name: "read_document",
     description:
-      "Read a document attached by the user. Without extra arguments, returns the full text. With offset/max_chars, returns a bounded character window (use the offset from a find_in_document match). With head or tail, returns the first or last N lines as a cheap orientation probe. Source documents carry a derived SECT-INDEX at the top; orient by it and window-read only the sections your deliverable requires.",
+      "Read a document attached by the user. This arm requires SCOPED reads — unscoped reads are rejected. With offset/max_chars, returns a bounded character window (feed it the @N offset from the SECT-INDEX, or the offset a find_in_document match returns). With head or tail, returns the first or last N lines as a cheap orientation probe. Source documents carry a derived SECT-INDEX at the top — read the WHOLE index first with head: 200-400 lines (the index is at the top and can be long) to orient, then window-read only the sections your deliverable requires.",
     parameters: {
       type: "object",
       properties: {
@@ -292,7 +292,7 @@ export const MARKDOWN_INDEX_FETCH_DOCUMENTS_TOOL: OpenAIToolSchema = {
   function: {
     name: "fetch_documents",
     description:
-      "Read several documents in a single call. Without extra arguments, returns each document's full text. With offset/max_chars/head/tail, returns that same window of EVERY requested document — use it to read multiple sections from multiple documents in one turn (e.g. head: 20 to see each document's derived SECT-INDEX).",
+      "Read several documents in a single call. This arm requires SCOPED reads: offset/max_chars/head/tail returns that same window of EVERY requested document — use it to read multiple sections from multiple documents in one turn (e.g. head: 200-400 lines over each document's derived SECT-INDEX to orient, then window-read sections).",
     parameters: {
       type: "object",
       properties: {
@@ -315,7 +315,7 @@ export const MARKDOWN_INDEX_FETCH_DOCUMENTS_TOOL: OpenAIToolSchema = {
         head: {
           type: "integer",
           description:
-            "Read only the first N lines of each requested document (cheap orientation probe).",
+            "Read only the first N lines of each requested document (cheap orientation probe; use head: 200-400 to read a whole SECT-INDEX).",
         },
         tail: {
           type: "integer",
@@ -764,7 +764,7 @@ export const COMPACT_AUTHOR_MIKE_LAB_SYSTEM_PROMPT =
 export const MARKDOWN_E2E_INDEX_LAB_SYSTEM_PROMPT = `${UPSTREAM_MIKE_LAB_SYSTEM_PROMPT}
 
 SECTION-ORIENTED READING:
-- Orient first: read_document head: 20 of each document you may need — the derived SECT-INDEX names every numbered section with its body offset (@N).
+- Orient first: the derived SECT-INDEX can be long — read the WHOLE index of each document you may need with head: 200-400 lines (the index is at the top of the served text) to see every numbered section with its body offset (@N). Reading the index is orientation, not a body read.
 - Offsets are into the document body below the index: read a section directly with read_document offset=<@N> max_chars=<window>.
 - Batch: in one round, issue all the independent window reads the deliverable needs — several read_document offset/max_chars windows, or one fetch_documents with a window across documents — never one read per round.
 - Scoped only: every read must carry offset/max_chars or head/tail; unscoped reads are rejected. A windowed read is not a full read, so multiple windows of one document are allowed.

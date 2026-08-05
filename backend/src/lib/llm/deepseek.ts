@@ -188,17 +188,19 @@ export async function streamDeepSeek(
   let sawUsage = false;
 
   try {
-    // Snapshot the tool list once per tool-loop. A per-round resolveTools
-    // rebuild could shift the serialized tool-section bytes between rounds and
-    // break DeepSeek's prefix-cache identity; a stable prefix is what makes the
-    // automatic context cache hit on every round after the first.
-    const resolvedTools = params.resolveTools?.() ?? tools;
     for (
       let iteration = 0;
       params.maxIterations === undefined || iteration < params.maxIterations;
       iteration++
     ) {
       throwIfAborted(params.abortSignal);
+      // Per-round resolveTools, matching the other adapters (openai/claudeP/
+      // gemini/ollama): a tool revealed by a discovery call in round N must be
+      // callable in round N+1. DeepSeek's prefix-cache identity is on the
+      // SERIALIZED request bytes, not object identity — an unchanged tool array
+      // serializes identically each round, so per-round resolution does not
+      // hurt the automatic context cache.
+      const resolvedTools = params.resolveTools?.() ?? tools;
       const response = await createCompletion({
         apiKey: key,
         model,
