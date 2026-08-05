@@ -22,6 +22,33 @@ import type {
 const sha256 = (text: string) =>
   createHash("sha256").update(text).digest("hex");
 
+/**
+ * Deterministic CLI failures that retrying can never fix. context_overflow is
+ * a MEASURED OUTCOME for whole-read arms on 200K-class models — the harness
+ * records it as the result, it is not a transient error. quota_exhausted is
+ * the weekly subscription wall; a retry burns another spawn against a hard
+ * quota with zero chance of success.
+ */
+export type ClaudePFatalCode = "context_overflow" | "quota_exhausted";
+
+export class ClaudePFatalError extends Error {
+  constructor(
+    message: string,
+    public readonly code: ClaudePFatalCode,
+  ) {
+    super(message);
+    this.name = "ClaudePFatalError";
+  }
+}
+
+function fatalCode(text: string): ClaudePFatalCode | null {
+  if (/prompt is too long|blocking_limit/iu.test(text))
+    return "context_overflow";
+  if (/hit your (?:weekly |session )?limit/iu.test(text))
+    return "quota_exhausted";
+  return null;
+}
+
 // Single-line and quote-free by necessity: if the CLI resolves to the npm
 // .CMD shim, cmd.exe re-parses argv and mangles newlines/quotes.
 const SYSTEM_ARG =
@@ -575,14 +602,22 @@ export async function streamClaudeP(
                 );
                 if (m) hint = m[1];
               }
-              throw new Error(`claude -p exit ${run.code}: ${hint}`);
+              const fatal = fatalCode(hint);
+              const message = `claude -p exit ${run.code}: ${hint}`;
+              throw fatal
+                ? new ClaudePFatalError(message, fatal)
+                : new Error(message);
             }
             envelope = resultEnvelope(run.stdout);
           }
-          if (envelope.is_error)
-            throw new Error(
-              `claude -p error result: ${String(envelope.result).slice(0, 300)}`,
-            );
+          if (envelope.is_error) {
+            const detail = String(envelope.result).slice(0, 300);
+            const fatal = fatalCode(detail);
+            const message = `claude -p error result: ${detail}`;
+            throw fatal
+              ? new ClaudePFatalError(message, fatal)
+              : new Error(message);
+          }
           // Usage before parsing: a reply that fails to parse still spent
           // these tokens, and telemetry should see them.
           const e = envelope.usage ?? {};
@@ -607,6 +642,10 @@ export async function streamClaudeP(
             throw parseError;
           }
         } catch (error) {
+          // Deterministic failures are terminal: retrying a context overflow
+          // resends the same oversized prompt, and retrying a quota wall
+          // burns spawns against a hard weekly limit.
+          if (error instanceof ClaudePFatalError) throw error;
           lastError = error;
         }
       }
