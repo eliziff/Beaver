@@ -353,6 +353,10 @@ export const MARKDOWN_INDEX_LAB_TOOLS: OpenAIToolSchema[] = [
 export const MARKDOWN_SWAP_DELTA = "upstream-markdown-generate-swap-v1";
 export const MARKDOWN_E2E_DELTA = "upstream-markdown-read-write-v1";
 export const MARKDOWN_E2E_INDEX_DELTA = "derived-section-index-orient-first-v2";
+export const MARKDOWN_E2E_FLOOR_DELTA =
+  "upstream-markdown-read-write-completeness-floor-v1";
+export const MARKDOWN_E2E_INDEX_FLOOR_DELTA =
+  "derived-section-index-orient-first-completeness-floor-v2";
 
 export const COMPACT_AUTHOR_MIKE_DELTA =
   "compact-markdown-terminal-v1";
@@ -779,6 +783,24 @@ SECTION-ORIENTED READING:
 - Batch: in one round, issue all the independent reads the deliverable needs — several offset/max_chars windows, or one fetch_documents across documents — never one read per round.
 - Documents with an addressable SECT-INDEX require scoped reads (index=true, offset/max_chars, or head/tail); documents without one read whole. Multiple windows of one document are allowed.
 - Read every section the deliverable requires, and never guess an offset — use the @N from the SECT-INDEX, or find_in_document for a phrase inside a section.`;
+
+/**
+ * Write-discipline lever for the read-scope x write-discipline 2x2. The
+ * clause is verbatim from LEAN_BATCH_LAB_SYSTEM_PROMPT — the only arm ever
+ * carrying an explicit completeness check, and the best-ever scorer on the
+ * covenants family (59/65). Mechanism-only: no task-specific enumeration.
+ */
+export const COMPLETENESS_FLOOR_ENABLED =
+  process.env.MIKE_COMPLETENESS_FLOOR === "1";
+
+export const COMPLETENESS_FLOOR_BLOCK = `
+
+COMPLETENESS:
+- After a complete Read, do not search that text again unless you can name a specific missing fact. Before drafting, make one internal completeness check for requested issues, parties, dates, numbers, exceptions, and conflicts.`;
+
+export const MARKDOWN_E2E_FLOOR_LAB_SYSTEM_PROMPT = `${UPSTREAM_MIKE_LAB_SYSTEM_PROMPT}${COMPLETENESS_FLOOR_BLOCK}`;
+
+export const MARKDOWN_E2E_INDEX_FLOOR_LAB_SYSTEM_PROMPT = `${MARKDOWN_E2E_INDEX_LAB_SYSTEM_PROMPT}${COMPLETENESS_FLOOR_BLOCK}`;
 
 export const LEAN_BATCH_LAB_SYSTEM_PROMPT = `You are an AI legal assistant for lawyers and legal professionals. Produce precise, professional work from the project documents without fabricating content.
 
