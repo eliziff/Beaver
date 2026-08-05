@@ -79,11 +79,22 @@ def _load_env():
                     os.environ.setdefault(key, value)
 
 
-def evaluate_run(run_id: str, task: str, judge: Judge, parallel: int = 6) -> dict:
+def evaluate_run(
+    run_id: str,
+    task: str,
+    judge: Judge,
+    parallel: int = 6,
+    out_name: str = "scores.json",
+    force: bool = False,
+) -> dict:
     """Score a run against the rubric defined in task.json.
 
     Returns a scores dict with: run_id, task, score, max_score,
     criteria_results, summary, cost, doc_coverage.
+
+    Writes to run_dir/out_name. An existing file is never clobbered without
+    force=True — a re-judge used to overwrite scores.json in place, which
+    destroyed the prior sample and made judge-variance unmeasurable.
     """
     task_dir = _resolve_task_dir(task)
     run_dir = RESULTS_DIR / run_id
@@ -99,6 +110,13 @@ def evaluate_run(run_id: str, task: str, judge: Judge, parallel: int = 6) -> dic
 
     if not run_dir.exists():
         raise FileNotFoundError(f"run directory not found: {run_dir}")
+
+    scores_path = run_dir / out_name
+    if scores_path.exists() and not force:
+        raise FileExistsError(
+            f"{scores_path} already exists; pass --force to overwrite or use "
+            "--judge-samples/--out-suffix to write a new sample file"
+        )
 
     criteria = config["criteria"]
     task_desc = config["title"]
@@ -128,6 +146,7 @@ def evaluate_run(run_id: str, task: str, judge: Judge, parallel: int = 6) -> dic
         "n_criteria": n_criteria,
         "n_passed": n_passed,
         "criteria_results": result.criteria_results,
+        "deliverable_match": result.deliverable_match,
         "run_id": run_id,
         "task": task,
         "judge_model": judge.model,
@@ -151,8 +170,6 @@ def evaluate_run(run_id: str, task: str, judge: Judge, parallel: int = 6) -> dic
             "documents_skipped_list": metrics.get("documents_skipped_list", []),
         }
 
-    # Write scores.json
-    scores_path = run_dir / "scores.json"
     scores_path.write_text(json.dumps(scores, indent=2))
 
     return scores
@@ -197,6 +214,27 @@ def main():
         default=6,
         help="Number of judge calls to run concurrently.",
     )
+    parser.add_argument(
+        "--judge-samples",
+        type=int,
+        default=1,
+        help=(
+            "Judge the run K times. K>1 writes scores.k1.json..kK.json plus a "
+            "scores.majority.json aggregate (per-criterion majority verdicts + "
+            "flip telemetry); existing sample files are skipped, never "
+            "re-judged. K=1 writes scores.json (or scores.<suffix>.json)."
+        ),
+    )
+    parser.add_argument(
+        "--out-suffix",
+        default="",
+        help="Write scores.<suffix>.json instead of scores.json (K=1 only).",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite an existing scores file (default: refuse).",
+    )
     parser.add_argument("--verbose", action="store_true", help="Print detailed output")
     args = parser.parse_args()
 
@@ -208,11 +246,43 @@ def main():
 
     judge = Judge(model=args.judge_model)
 
+    if args.judge_samples > 1:
+        run_dir = RESULTS_DIR / args.run_id
+        for k in range(1, args.judge_samples + 1):
+            out_name = f"scores.k{k}.json"
+            if (run_dir / out_name).exists() and not args.force:
+                print(f"  Sample {k}/{args.judge_samples}: {out_name} exists, skipping")
+                continue
+            print(f"  Sample {k}/{args.judge_samples} -> {out_name}")
+            scores = evaluate_run(
+                run_id=args.run_id,
+                task=args.task,
+                judge=judge,
+                parallel=args.parallel,
+                out_name=out_name,
+                force=args.force,
+            )
+            _print_summary(scores)
+        from evaluation.aggregate_judgments import aggregate_run
+
+        majority = aggregate_run(run_dir)
+        print(
+            f"  Majority: {majority['n_passed']}/{majority['n_criteria']} "
+            f"({majority['n_samples']} samples, "
+            f"{majority['n_flipping_criteria']} flipping criteria, "
+            f"flip rate {majority['criterion_flip_rate']:.3f})"
+        )
+        print(f"  Written to results/{args.run_id}/scores.majority.json")
+        return
+
+    out_name = f"scores.{args.out_suffix}.json" if args.out_suffix else "scores.json"
     scores = evaluate_run(
         run_id=args.run_id,
         task=args.task,
         judge=judge,
         parallel=args.parallel,
+        out_name=out_name,
+        force=args.force,
     )
 
     if args.verbose:
