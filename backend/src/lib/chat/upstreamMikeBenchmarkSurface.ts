@@ -764,7 +764,11 @@ export const COMPACT_AUTHOR_MIKE_LAB_SYSTEM_PROMPT =
 export const MARKDOWN_E2E_INDEX_LAB_SYSTEM_PROMPT = `${UPSTREAM_MIKE_LAB_SYSTEM_PROMPT}
 
 SECTION-ORIENTED READING:
-- Source documents open with a derived SECT-INDEX of numbered sections; orient by it, then use find_in_document for a section's offset and read_document with offset/max_chars to read only the sections your deliverable requires instead of the whole document. read_document also accepts head/tail to probe the first or last lines of a document cheaply.`;
+- Orient first: read_document head: 20 of each document you may need — the derived SECT-INDEX names every numbered section with its body offset (@N).
+- Offsets are into the document body below the index: read a section directly with read_document offset=<@N> max_chars=<window>.
+- Batch: in one round, issue all the independent window reads the deliverable needs — several read_document offset/max_chars windows, or one fetch_documents with a window across documents — never one read per round.
+- Scoped only: every read must carry offset/max_chars or head/tail; unscoped reads are rejected. A windowed read is not a full read, so multiple windows of one document are allowed.
+- Read only the sections the deliverable requires, and never guess an offset — use the @N from the SECT-INDEX, or find_in_document for a phrase inside a section.`;
 
 export const LEAN_BATCH_LAB_SYSTEM_PROMPT = `You are an AI legal assistant for lawyers and legal professionals. Produce precise, professional work from the project documents without fabricating content.
 
