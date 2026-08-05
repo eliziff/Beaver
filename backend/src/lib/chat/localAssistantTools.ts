@@ -6099,6 +6099,19 @@ async function runUpstreamMikeRetrievalCall(params: {
                 : undefined,
           }
         : undefined;
+    // Index arm is scoped-only: a read without offset/max_chars/head/tail is a
+    // typed refusal so the model cannot whole-read and blow the context/output
+    // budget. The SECT-INDEX is reachable via head (or offset: 0 + max_chars).
+    if (STRUCTURE_INDEX_ENABLED && !scoped) {
+      return upstreamMikeResult(call, {
+        ok: false,
+        status: "scoped_read_required",
+        error:
+          "This arm requires scoped reads. Provide offset/max_chars for a character window or head/tail for the first/last N lines. Documents open with a derived SECT-INDEX — read head: 30 to see it, then window-read only the sections your deliverable requires.",
+        next_required_action:
+          "Retry read_document with offset/max_chars or head/tail.",
+      });
+    }
     const bounded =
       ADAPTIVE_MIKE_TOOL_SHAPE &&
       (section.length > 0 ||
@@ -6292,6 +6305,19 @@ async function runUpstreamMikeRetrievalCall(params: {
                 : undefined,
           }
         : undefined;
+    // Index arm is scoped-only: fetch without a window is a typed refusal so
+    // the model cannot whole-read several documents at once. Use head: N to
+    // see every requested document's SECT-INDEX, then window-read sections.
+    if (STRUCTURE_INDEX_ENABLED && !scoped) {
+      return upstreamMikeResult(call, {
+        ok: false,
+        status: "scoped_read_required",
+        error:
+          "This arm requires scoped reads. Provide offset/max_chars for a character window or head/tail for the first/last N lines of each document. Use head: 20 to see each requested document's derived SECT-INDEX, then window-read only the sections your deliverable requires.",
+        next_required_action:
+          "Retry fetch_documents with offset/max_chars or head/tail.",
+      });
+    }
     if (wholeReadMaxChars > 0) {
       const seenVersions = new Set<string>();
       const alreadyReadChars = [...(readState?.values() ?? [])].reduce(

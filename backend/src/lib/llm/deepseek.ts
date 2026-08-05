@@ -13,8 +13,10 @@ const DEEPSEEK_CHAT_URL = "https://api.deepseek.com/chat/completions";
 // DeepSeek's own default output budget for reasoning models is 32K tokens
 // (max 64K); at 16K the reasoning stream ate the entire budget before the
 // model could emit a tool call (LAB smoke run, 2026-08-03), truncating
-// mid-planning. Keep the provider default.
-const MAX_TOKENS = 32768;
+// mid-planning. Keep the provider default unless the experiment asks for more
+// (MIKE_DEEPSEEK_MAX_TOKENS raises the per-response output budget so heavy
+// analysis finishes before drafting).
+const MAX_TOKENS = Number(process.env.MIKE_DEEPSEEK_MAX_TOKENS) || 32768;
 
 type DeepSeekToolCall = {
   id: string;
@@ -64,10 +66,11 @@ function apiKey(override?: string | null): string {
   );
 }
 
-function effort(value?: string): "high" | "max" {
-  return ["max", "xhigh", "ultra"].includes(value?.toLowerCase() ?? "")
-    ? "max"
-    : "high";
+function effort(value?: string): string {
+  const normalized = value?.toLowerCase() ?? "";
+  if (["max", "xhigh", "ultra"].includes(normalized)) return "max";
+  if (["low", "medium", "high"].includes(normalized)) return normalized;
+  return "high";
 }
 
 export function toDeepSeekMessages(

@@ -617,6 +617,9 @@ async function main() {
       MIKE_TERMINAL_AUTHORING: "1",
       MIKE_READ_DOCX_MARKDOWN: "1",
       MIKE_STRUCTURE_INDEX: "1",
+      // Experiment: raise the per-response output budget so heavy section
+      // analysis finishes before drafting instead of truncating mid-reasoning.
+      MIKE_DEEPSEEK_MAX_TOKENS: "65536",
     },
     // Reverse swap: markdown READ (Pandoc drafting-source) + UPSTREAM Mike
     // drafting (sections[] shape). Completes the 2x2 read/write matrix:
