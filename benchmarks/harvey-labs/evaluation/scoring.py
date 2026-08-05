@@ -94,6 +94,11 @@ class RubricResult:
     score: float
     max_score: float
     criteria_results: list[dict] = field(default_factory=list)
+    # Per-deliverable resolution telemetry ("exact", "sole_extension",
+    # "fuzzy:<overlap>", "llm", "unmatched"). An "unmatched" deliverable makes
+    # the judge see "(File not found)" for every criterion tied to it — a
+    # silent mass-fail this field makes one grep away.
+    deliverable_match: dict | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -135,7 +140,7 @@ def _fuzzy_match_filename(expected: str, candidates: list[str]) -> tuple[str | N
     return best_match, best_score
 
 
-def _match_deliverables(deliverables_map: dict, actual_files: list[str], output_dir: Path | None = None) -> dict:
+def _match_deliverables(deliverables_map: dict, actual_files: list[str], output_dir: Path | None = None) -> tuple[dict, dict]:
     """Best-effort match expected deliverable filenames to actual output files.
 
     For each deliverable, if the expected filename exists exactly, use it.
@@ -145,14 +150,19 @@ def _match_deliverables(deliverables_map: dict, actual_files: list[str], output_
     3. If only one file of the matching extension exists, use it
     4. LLM-based matching for any remaining unmatched deliverables
 
-    Returns a new map with the same keys but resolved filenames.
+    Returns (resolved map, per-deliverable match-method map). Methods:
+    "exact", "sole_extension", "fuzzy:<overlap>", "llm", "unmatched" — an
+    unmatched deliverable mass-fails every criterion tied to it, so the
+    method must be visible in scores.json.
     """
     resolved = {}
+    methods = {}
     used = set()
 
     for name, expected in deliverables_map.items():
         if expected in actual_files:
             resolved[name] = expected
+            methods[name] = "exact"
             used.add(expected)
             continue
 
@@ -166,6 +176,7 @@ def _match_deliverables(deliverables_map: dict, actual_files: list[str], output_
 
         if len(candidates) == 1:
             resolved[name] = candidates[0]
+            methods[name] = "sole_extension"
             used.add(candidates[0])
             print(f"  Matched deliverable '{name}': {expected} -> {candidates[0]} (only file with {expected_ext})")
             continue
@@ -174,10 +185,12 @@ def _match_deliverables(deliverables_map: dict, actual_files: list[str], output_
 
         if best_match:
             resolved[name] = best_match
+            methods[name] = f"fuzzy:{best_score}"
             used.add(best_match)
             print(f"  Matched deliverable '{name}': {expected} -> {best_match} (fuzzy match, {best_score} words)")
         else:
             resolved[name] = expected
+            methods[name] = "unmatched"
             print(f"  No fuzzy match for deliverable '{name}': {expected}")
 
     # LLM-based matching for any unresolved deliverables
@@ -190,10 +203,11 @@ def _match_deliverables(deliverables_map: dict, actual_files: list[str], output_
         for name, matched_file in llm_matches.items():
             if matched_file and matched_file in actual_files:
                 resolved[name] = matched_file
+                methods[name] = "llm"
                 used.add(matched_file)
                 print(f"  Matched deliverable '{name}': {deliverables_map[name]} -> {matched_file} (LLM match)")
 
-    return resolved
+    return resolved, methods
 
 
 def _llm_match_deliverables(
@@ -360,9 +374,14 @@ def score_rubric(
     # Match expected deliverable filenames to actual output files
     if deliverables_map and output_dir.exists():
         actual_files = [f.name for f in output_dir.rglob("*") if f.is_file()]
-        resolved_map = _match_deliverables(deliverables_map, actual_files, output_dir=output_dir)
+        resolved_map, match_methods = _match_deliverables(deliverables_map, actual_files, output_dir=output_dir)
+        deliverable_match = {
+            name: {"resolved": resolved_map[name], "method": match_methods.get(name, "unknown")}
+            for name in resolved_map
+        }
     else:
         resolved_map = None
+        deliverable_match = None
 
     # Pre-load full output for tasks without per-criterion deliverables
     full_output = None
@@ -419,4 +438,5 @@ def score_rubric(
         score=score,
         max_score=1.0,
         criteria_results=[c.to_dict() for c in criteria_results],
+        deliverable_match=deliverable_match,
     )
