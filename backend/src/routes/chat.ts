@@ -98,6 +98,7 @@ import {
   GROUNDED_STRUCTURE_LAB_SYSTEM_PROMPT,
   GROUNDED_STRUCTURE_OUTLINE_LAB_SYSTEM_PROMPT,
   LEAN_BATCH_LAB_SYSTEM_PROMPT,
+  MARKDOWN_E2E_INDEX_LAB_SYSTEM_PROMPT,
   MIKE_GREP_LAB_SYSTEM_PROMPT,
   MIKE_LEGAL_GUIDED_LAB_SYSTEM_PROMPT,
   MIKE_STRUCTURE_PATHS_LAB_SYSTEM_PROMPT,
@@ -1112,7 +1113,9 @@ export async function streamAnonymousChat(params: {
           : MIKE_GREP_LAB_SYSTEM_PROMPT
       : ADAPTIVE_MIKE_TOOL_SHAPE
       ? ADAPTIVE_MIKE_LAB_SYSTEM_PROMPT
-      : UPSTREAM_MIKE_LAB_SYSTEM_PROMPT
+      : STRUCTURE_INDEX_ENABLED
+        ? MARKDOWN_E2E_INDEX_LAB_SYSTEM_PROMPT
+        : UPSTREAM_MIKE_LAB_SYSTEM_PROMPT
     : `${CLIENT_WORK_PRODUCT_PRESUMPTION}\n\n${libraryBlock}\n\n` +
       "If the user selects a workflow with [Workflow: <title> (id: <id>)], immediately call read_workflow with that id and follow it.\n\n" +
       "Call ask_inputs only for what blocks the work: an instruction only the user can give, or a document that was never provided. Resolve ordinary ambiguity on the most reasonable reading and state the assumption instead. Never seek confirmation of an instruction already given.\n\n" +

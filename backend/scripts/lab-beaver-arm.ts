@@ -75,6 +75,7 @@ import {
 } from "../src/lib/chat/upstreamMikeBenchmarkSurface";
 import { latestAuthoredDocuments } from "./lab-authored-documents";
 import { STRUCTURE_INDEX_ENABLED } from "../src/lib/chat/structureIndexExperiment";
+import type { OpenAIToolSchema } from "../src/lib/llm";
 
 function argument(name: string, fallback?: string): string {
   const index = process.argv.indexOf(`--${name}`);
@@ -87,6 +88,78 @@ function argument(name: string, fallback?: string): string {
 }
 
 const DEFAULT_LAB_ROOT = path.join(__dirname, "../../benchmarks/harvey-labs");
+
+// The expected LAB surface per arm: the system prompt the server must have
+// served and the tool schema it must have exposed. Shared by --preflight-only
+// and the post-run conformance gate so a prompt-wiring failure is a hard error,
+// never a silent fallback (the SECT-INDEX arm ran its whole first wave on the
+// upstream prompt because only the preflight referenced its prompt const).
+function armExpectedSurface(
+  arm: string,
+): { systemPrompt: string; tools: OpenAIToolSchema[] } | null {
+  return ["upstream", "upstream_terminal_v1"].includes(arm)
+    ? {
+        systemPrompt: UPSTREAM_MIKE_LAB_SYSTEM_PROMPT,
+        tools: UPSTREAM_MIKE_LAB_TOOLS,
+      }
+    : ["mike_markdown_swap_v1", "mike_markdown_e2e_v1"].includes(arm)
+      ? {
+          systemPrompt: UPSTREAM_MIKE_LAB_SYSTEM_PROMPT,
+          tools: UPSTREAM_MIKE_MARKDOWN_SWAP_LAB_TOOLS,
+        }
+      : arm === "mike_markdown_e2e_index_v1"
+        ? {
+            systemPrompt: MARKDOWN_E2E_INDEX_LAB_SYSTEM_PROMPT,
+            tools: MARKDOWN_INDEX_LAB_TOOLS,
+          }
+        : arm === "mike_compact_author_v1"
+          ? {
+              systemPrompt: COMPACT_AUTHOR_MIKE_LAB_SYSTEM_PROMPT,
+              tools: COMPACT_AUTHOR_MIKE_LAB_TOOLS,
+            }
+          : ["lean_batch_v1", "lean_batch_hardrefs_v1"].includes(arm)
+            ? {
+                systemPrompt: LEAN_BATCH_LAB_SYSTEM_PROMPT,
+                tools: LEAN_BATCH_LAB_TOOLS,
+              }
+            : arm === "mike_grep_v1"
+              ? {
+                  systemPrompt: MIKE_GREP_LAB_SYSTEM_PROMPT,
+                  tools: MIKE_GREP_LAB_TOOLS,
+                }
+              : [
+                    "mike_structure_paths_v1",
+                    "grounded_structure_v1",
+                    "grounded_structure_outline_v1",
+                  ].includes(arm)
+                ? {
+                    systemPrompt:
+                      arm === "grounded_structure_outline_v1"
+                        ? GROUNDED_STRUCTURE_OUTLINE_LAB_SYSTEM_PROMPT
+                        : arm === "grounded_structure_v1"
+                          ? GROUNDED_STRUCTURE_LAB_SYSTEM_PROMPT
+                          : MIKE_STRUCTURE_PATHS_LAB_SYSTEM_PROMPT,
+                    tools: MIKE_STRUCTURE_PATHS_LAB_TOOLS,
+                  }
+                : null;
+}
+
+// Byte-identical reproduction of the AVAILABLE DOCUMENTS block chat.ts appends
+// to the LAB system prompt (routes/chat.ts ~1185): doc index order follows the
+// upload order, which is the sorted documents[] order here.
+function inventoryPromptFor(documents: string[]): string {
+  return (
+    "\n\nAVAILABLE DOCUMENTS:\n" +
+    documents
+      .map((relative, index) => {
+        const filename = path.basename(relative);
+        const fileType = path.extname(filename).slice(1).toLowerCase();
+        return `- doc-${index}: ${filename} (${fileType})`;
+      })
+      .join("\n") +
+    "\n"
+  );
+}
 
 type SourceBundleEntry = {
   source: string;
@@ -1026,64 +1099,11 @@ async function main() {
         uploaded_sha256: digest,
       };
     });
-    const surface = ["upstream", "upstream_terminal_v1"].includes(arm)
-      ? {
-          systemPrompt: UPSTREAM_MIKE_LAB_SYSTEM_PROMPT,
-          tools: UPSTREAM_MIKE_LAB_TOOLS,
-        }
-      : ["mike_markdown_swap_v1", "mike_markdown_e2e_v1"].includes(arm)
-        ? {
-            systemPrompt: UPSTREAM_MIKE_LAB_SYSTEM_PROMPT,
-            tools: UPSTREAM_MIKE_MARKDOWN_SWAP_LAB_TOOLS,
-          }
-        : arm === "mike_markdown_e2e_index_v1"
-          ? {
-              systemPrompt: MARKDOWN_E2E_INDEX_LAB_SYSTEM_PROMPT,
-              tools: MARKDOWN_INDEX_LAB_TOOLS,
-            }
-        : arm === "mike_compact_author_v1"
-          ? {
-            systemPrompt: COMPACT_AUTHOR_MIKE_LAB_SYSTEM_PROMPT,
-            tools: COMPACT_AUTHOR_MIKE_LAB_TOOLS,
-          }
-        : ["lean_batch_v1", "lean_batch_hardrefs_v1"].includes(arm)
-          ? {
-              systemPrompt: LEAN_BATCH_LAB_SYSTEM_PROMPT,
-              tools: LEAN_BATCH_LAB_TOOLS,
-            }
-      : arm === "mike_grep_v1"
-        ? {
-            systemPrompt: MIKE_GREP_LAB_SYSTEM_PROMPT,
-            tools: MIKE_GREP_LAB_TOOLS,
-          }
-        : [
-              "mike_structure_paths_v1",
-              "grounded_structure_v1",
-              "grounded_structure_outline_v1",
-            ].includes(arm)
-          ? {
-              systemPrompt:
-                arm === "grounded_structure_outline_v1"
-                  ? GROUNDED_STRUCTURE_OUTLINE_LAB_SYSTEM_PROMPT
-                  : arm === "grounded_structure_v1"
-                    ? GROUNDED_STRUCTURE_LAB_SYSTEM_PROMPT
-                    : MIKE_STRUCTURE_PATHS_LAB_SYSTEM_PROMPT,
-              tools: MIKE_STRUCTURE_PATHS_LAB_TOOLS,
-            }
-          : null;
+    const surface = armExpectedSurface(arm);
     if (!surface) {
       throw new Error(`--preflight-only is not registered for arm ${arm}`);
     }
-    const inventoryPrompt =
-      "\n\nAVAILABLE DOCUMENTS:\n" +
-      documents
-        .map((relative, index) => {
-          const filename = path.basename(relative);
-          const fileType = path.extname(filename).slice(1).toLowerCase();
-          return `- doc-${index}: ${filename} (${fileType})`;
-        })
-        .join("\n") +
-      "\n";
+    const inventoryPrompt = inventoryPromptFor(documents);
     const { toResponseTools } = await import("../src/lib/llm/openai");
     const responseTools = toResponseTools(surface.tools);
     console.log(
@@ -1479,6 +1499,21 @@ async function main() {
       arm === "mike_markdown_e2e_v1" || arm === "mike_markdown_e2e_index_v1";
     const markdownSwap = arm === "mike_markdown_swap_v1";
     const structureIndex = arm === "mike_markdown_e2e_index_v1";
+    // The served prompt must be the arm's registered prompt, byte-for-byte.
+    // The SECT-INDEX arm's first wave ran entirely on the upstream prompt
+    // because only --preflight-only ever referenced its prompt const; this
+    // gate makes that class of miswiring a hard failure.
+    const expectedSurface = armExpectedSurface(arm);
+    const expectedPromptSha = expectedSurface
+      ? createHash("sha256")
+          .update(expectedSurface.systemPrompt + inventoryPromptFor(documents))
+          .digest("hex")
+      : null;
+    if (expectedPromptSha && surface?.system_prompt_sha256 !== expectedPromptSha) {
+      throw new Error(
+        `${arm} served the wrong system prompt: receipt sha ${String(surface?.system_prompt_sha256)} != expected ${expectedPromptSha}`,
+      );
+    }
     if (
       surface?.markdown_swap_shape !== markdownSwap ||
       surface?.markdown_e2e_shape !== markdownE2e ||
