@@ -2524,6 +2524,13 @@ export async function streamAnonymousChat(params: {
   };
   let providerActivity = false;
   let providerResult: StreamChatResult | undefined;
+  // ONE binding, used both by the provider call site below and by the
+  // benchmark_surface receipt, so the conformance gate's max_iterations
+  // assertion actually witnesses the value handed to the provider. Previously
+  // the receipt carried a second independent `10` literal re-derived from the
+  // same flag, which made the gate's check tautological: it could not fail, and
+  // it was not evidence of the loop cap it appeared to verify.
+  const nativeMaxIterations = UPSTREAM_NATIVE_MIKE_SHAPE ? 10 : undefined;
   const benchmarkSurface =
     process.env.MIKE_BENCHMARK_TRACE_TOOLS === "1"
       ? {
@@ -2536,7 +2543,7 @@ export async function streamAnonymousChat(params: {
             process.env.MIKE_TOOL_DESCRIPTION_VARIANT || "operational",
           upstream_mike_shape: UPSTREAM_MIKE_TOOL_SHAPE,
           upstream_native_shape: UPSTREAM_NATIVE_MIKE_SHAPE,
-          max_iterations: UPSTREAM_NATIVE_MIKE_SHAPE ? 10 : null,
+          max_iterations: nativeMaxIterations ?? null,
           adaptive_mike_shape: ADAPTIVE_MIKE_TOOL_SHAPE,
           compact_author_mike_shape: COMPACT_AUTHOR_MIKE_TOOL_SHAPE,
           markdown_swap_shape: MARKDOWN_SWAP_MIKE_TOOL_SHAPE,
@@ -2667,7 +2674,7 @@ export async function streamAnonymousChat(params: {
       // Beaver's route never sets it, so claudeP.ts:502 runs unbounded. The
       // native arm restores the cap; every other arm keeps undefined and stays
       // byte-identical.
-      maxIterations: UPSTREAM_NATIVE_MIKE_SHAPE ? 10 : undefined,
+      maxIterations: nativeMaxIterations,
       reasoningEffort: params.reasoningEffort,
       serviceTier: params.serviceTier,
       compactThreshold: openAICompactThreshold,
