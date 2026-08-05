@@ -188,6 +188,11 @@ export async function streamDeepSeek(
   let sawUsage = false;
 
   try {
+    // Snapshot the tool list once per tool-loop. A per-round resolveTools
+    // rebuild could shift the serialized tool-section bytes between rounds and
+    // break DeepSeek's prefix-cache identity; a stable prefix is what makes the
+    // automatic context cache hit on every round after the first.
+    const resolvedTools = params.resolveTools?.() ?? tools;
     for (
       let iteration = 0;
       params.maxIterations === undefined || iteration < params.maxIterations;
@@ -198,7 +203,7 @@ export async function streamDeepSeek(
         apiKey: key,
         model,
         messages,
-        tools: params.resolveTools?.() ?? tools,
+        tools: resolvedTools,
         stream: true,
         thinking: enableThinking,
         reasoningEffort: params.reasoningEffort,

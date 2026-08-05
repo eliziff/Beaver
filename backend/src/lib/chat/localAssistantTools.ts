@@ -5762,6 +5762,59 @@ function upstreamMikeSectionsMarkdown(value: unknown) {
   return blocks.join("\n\n");
 }
 
+/**
+ * Served text for the markdown drafting surface. For a .docx with a drafting
+ * source under MARKDOWN_READ_DOCX, returns the pandoc markdown — with the
+ * derived SECT-INDEX prepended in the index arm — plus the char offset where
+ * the markdown BODY begins (0 when no index was attached), so scoped reads and
+ * find_in_document can address the body with body-relative offsets. Null when
+ * the surface is off or the docx has no drafting source (callers fall back to
+ * extractLocalDocument). Best-effort: if index derivation fails on a docx the
+ * drafting source accepted, serve the plain markdown rather than failing.
+ */
+async function servedDraftingText(
+  userId: string,
+  documentId: string,
+): Promise<
+  | { served: string; bodyOffset: number; versionId: string; filename: string }
+  | null
+> {
+  if (!MARKDOWN_READ_DOCX) return null;
+  const file = await getLocalVersionFile(userId, documentId);
+  if (!file || file.fileType.toLowerCase() !== "docx") return null;
+  const bytes = await readFile(file.path);
+  const source = await extractDocxDraftingSource(bytes).catch(() => null);
+  if (!source) return null;
+  if (!STRUCTURE_INDEX_ENABLED) {
+    return {
+      served: source.markdown,
+      bodyOffset: 0,
+      versionId: file.version.id,
+      filename: file.document.filename,
+    };
+  }
+  try {
+    const index = renderStructureIndex(
+      await deriveSectionNodes(bytes),
+      source.markdown,
+    );
+    const served = attachStructureIndex(source.markdown, index);
+    return {
+      served,
+      bodyOffset: served.length - source.markdown.length,
+      versionId: file.version.id,
+      filename: file.document.filename,
+    };
+  } catch {
+    return {
+      served: source.markdown,
+      bodyOffset: 0,
+      versionId: file.version.id,
+      filename: file.document.filename,
+    };
+  }
+}
+
 async function runUpstreamMikeRetrievalCall(params: {
   call: NormalizedToolCall;
   userId: string;
@@ -5893,39 +5946,21 @@ async function runUpstreamMikeRetrievalCall(params: {
         >,
       };
     }
-    const draftingMarkdown =
-      MARKDOWN_READ_DOCX && file.fileType.toLowerCase() === "docx"
-        ? await (async () => {
-            const bytes = await readFile(file.path);
-            const source = await extractDocxDraftingSource(bytes).catch(
-              () => null,
-            );
-            if (!source) return null;
-            if (!STRUCTURE_INDEX_ENABLED) return source.markdown;
-            // The index is best-effort orientation; if derivation ever fails
-            // on a docx the drafting source accepted, serve the plain markdown
-            // rather than failing the read (the arm must never be worse than e2e).
-            try {
-              return attachStructureIndex(
-                source.markdown,
-                renderStructureIndex(await deriveSectionNodes(bytes)),
-              );
-            } catch {
-              return source.markdown;
-            }
-          })()
-        : null;
-    const document = draftingMarkdown
+    // Index arm: serve the pandoc markdown with the derived SECT-INDEX
+    // prepended; read offsets are into the markdown BODY below the index.
+    const drafting = await servedDraftingText(userId, documentId);
+    const document = drafting
       ? {
-          filename: file.document.filename,
+          filename: drafting.filename,
           documentId,
-          versionId: file.version.id,
-          text: draftingMarkdown,
+          versionId: drafting.versionId,
+          text: drafting.served,
           cautions: [],
           pages: { pages: [], source: "unindexed" as const },
           tableCells: [],
         }
       : await extractLocalDocument(userId, documentId);
+    const bodyOffset = drafting?.bodyOffset ?? 0;
     if (!document) {
       return {
         content: "Document could not be read.",
@@ -5953,8 +5988,12 @@ async function runUpstreamMikeRetrievalCall(params: {
         content = lines.slice(-count).join("\n");
         segStart = fullText.length - content.length;
       } else {
+        // Index arm: offsets are relative to the markdown body below the
+        // SECT-INDEX (offset 0 = first body line). Elsewhere bodyOffset is 0
+        // and the whole served plane is addressed, so this is a no-op.
+        const base = bodyOffset;
         const offset = Math.max(0, scoped!.offset ?? 0);
-        const start = Math.min(offset, fullText.length);
+        const start = Math.min(fullText.length, base + offset);
         const maxChars = Math.max(0, scoped!.maxChars ?? 24_000);
         const end = Math.min(fullText.length, start + maxChars);
         content = fullText.slice(start, end);
@@ -6107,7 +6146,7 @@ async function runUpstreamMikeRetrievalCall(params: {
         ok: false,
         status: "scoped_read_required",
         error:
-          "This arm requires scoped reads. Provide offset/max_chars for a character window or head/tail for the first/last N lines. Documents open with a derived SECT-INDEX — read head: 30 to see it, then window-read only the sections your deliverable requires.",
+          "This arm requires scoped reads. Provide offset/max_chars for a character window or head/tail for the first/last N lines. Documents open with a derived SECT-INDEX — read head: 20 to see each section's body offset (@N), then read_document offset=<@N> max_chars=<window> to read only the sections your deliverable requires.",
         next_required_action:
           "Retry read_document with offset/max_chars or head/tail.",
       });
@@ -6313,7 +6352,7 @@ async function runUpstreamMikeRetrievalCall(params: {
         ok: false,
         status: "scoped_read_required",
         error:
-          "This arm requires scoped reads. Provide offset/max_chars for a character window or head/tail for the first/last N lines of each document. Use head: 20 to see each requested document's derived SECT-INDEX, then window-read only the sections your deliverable requires.",
+          "This arm requires scoped reads. Provide offset/max_chars for a character window or head/tail for the first/last N lines of each document. Use head: 20 to see each requested document's derived SECT-INDEX with body offsets (@N), then read_document offset=<@N> max_chars=<window> to read only the sections your deliverable requires.",
         next_required_action:
           "Retry fetch_documents with offset/max_chars or head/tail.",
       });
@@ -6405,7 +6444,23 @@ async function runUpstreamMikeRetrievalCall(params: {
     });
   }
   const documentId = listed.id;
-  const document = await extractLocalDocument(userId, documentId);
+  // Index arm only: search the same served markdown body that read_document
+  // windows address, so a hit's offset feeds read_document offset/max_chars
+  // directly. Other arms keep the plaintext find surface byte-for-byte.
+  const drafting = STRUCTURE_INDEX_ENABLED
+    ? await servedDraftingText(userId, documentId)
+    : null;
+  const document = drafting
+    ? {
+        filename: drafting.filename,
+        documentId,
+        versionId: drafting.versionId,
+        text: drafting.served.slice(drafting.bodyOffset),
+        cautions: [],
+        pages: { pages: [], source: "unindexed" as const },
+        tableCells: [],
+      }
+    : await extractLocalDocument(userId, documentId);
   if (!document) {
     return upstreamMikeResult(call, {
       ok: false,
