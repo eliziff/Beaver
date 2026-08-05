@@ -18,6 +18,7 @@ vi.mock("@/app/contexts/UserProfileContext", () => ({
                 openai: { configured: false, source: null },
                 deepseek: { configured: true, source: "env" },
                 openrouter: { configured: false, source: null },
+                meta: { configured: false, source: null },
                 courtlistener: { configured: true, source: "env" },
             },
         },
@@ -34,7 +35,7 @@ describe("anonymous API-key settings", () => {
         render(<ApiKeysPage />);
 
         expect(screen.getAllByText("Configured")).toHaveLength(2);
-        expect(screen.getAllByText("Not configured")).toHaveLength(4);
+        expect(screen.getAllByText("Not configured")).toHaveLength(5);
         expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
         expect(
             screen.queryByRole("button", { name: "Save" }),
@@ -48,10 +49,10 @@ describe("anonymous API-key settings", () => {
             container.querySelectorAll<HTMLInputElement>('input[name="key"]'),
         );
 
-        expect(inputs).toHaveLength(6);
+        expect(inputs).toHaveLength(7);
         expect(inputs.filter((input) => input.disabled)).toHaveLength(2);
         expect(
             screen.getAllByRole("button", { name: "Save" }),
-        ).toHaveLength(6);
+        ).toHaveLength(7);
     });
 });

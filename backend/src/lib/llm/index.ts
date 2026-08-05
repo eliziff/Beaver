@@ -44,6 +44,8 @@ export async function streamChatWithTools(
               ? await (
                   await import("./openrouter")
                 ).streamOpenRouter(measuredParams)
+              : provider === "meta"
+                ? await (await import("./meta")).streamMeta(measuredParams)
               : provider === "codex"
                 ? await (await import("./codex")).streamCodex(
                     measuredParams,
@@ -119,6 +121,8 @@ export async function completeText(params: {
     return (await import("./deepseek")).completeDeepSeekText(params);
   if (provider === "openrouter")
     return (await import("./openrouter")).completeOpenRouterText(params);
+  if (provider === "meta")
+    return (await import("./meta")).completeMetaText(params);
   if (provider === "codex") {
     return (await import("./codex")).completeCodexText(params);
   }

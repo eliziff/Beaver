@@ -9,6 +9,7 @@ export type Provider =
   | "openai"
   | "deepseek"
   | "openrouter"
+  | "meta"
   | "codex"
   | "ollama";
 
@@ -124,6 +125,7 @@ export type UserApiKeys = {
   openai?: string | null;
   deepseek?: string | null;
   openrouter?: string | null;
+  meta?: string | null;
   courtlistener?: string | null;
   codex?: string | null;
 };

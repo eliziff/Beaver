@@ -90,6 +90,7 @@ describe("hasEnvApiKey", () => {
             openai: false,
             deepseek: true,
             openrouter: false,
+            meta: false,
             courtlistener: false,
             sources: {
                 claude: null,
@@ -97,6 +98,7 @@ describe("hasEnvApiKey", () => {
                 openai: null,
                 deepseek: "env",
                 openrouter: null,
+                meta: null,
                 courtlistener: null,
             },
         });

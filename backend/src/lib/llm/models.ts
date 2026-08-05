@@ -16,7 +16,19 @@ export const DEEPSEEK_MAIN_MODELS = [
     "deepseek-v4-flash",
     "deepseek-v4-pro",
 ] as const;
+/** Muse Spark reached over OpenRouter. The `meta/` prefix is OpenRouter's slug. */
 export const META_MAIN_MODELS = ["meta/muse-spark-1.1"] as const;
+/**
+ * Muse Spark reached directly on Meta Model API, which uses bare model ids.
+ * The `-contributor` tier is ~12x cheaper because Meta trains on the prompts
+ * and completions sent to it, so it is off the default picker and belongs
+ * nowhere near client documents.
+ */
+export const META_DIRECT_MODELS = [
+    "muse-spark-1.2",
+    "muse-spark-1.1",
+    "muse-spark-1.2-contributor",
+] as const;
 
 export const CLAUDE_MID_MODELS = ["claude-sonnet-4-6"] as const;
 export const GEMINI_MID_MODELS = ["gemini-3.5-flash", "gemini-3-flash-preview"] as const;
@@ -45,6 +57,7 @@ const ALL_MODELS = new Set<string>([
     ...OPENAI_LOW_MODELS,
     ...DEEPSEEK_MAIN_MODELS,
     ...META_MAIN_MODELS,
+    ...META_DIRECT_MODELS,
 ]);
 
 
@@ -56,7 +69,10 @@ export function providerForModel(model: string): Provider {
     if (model.startsWith("gemini")) return "gemini";
     if (model.startsWith("gpt-")) return "openai";
     if (model.startsWith("deepseek-")) return "deepseek";
+    // Transport is carried by the id shape: OpenRouter slugs are namespaced,
+    // Meta Model API takes the bare id.
     if (model.startsWith("meta/")) return "openrouter";
+    if (model.startsWith("muse-spark-")) return "meta";
     throw new Error(`Unknown model id: ${model}`);
 }
 

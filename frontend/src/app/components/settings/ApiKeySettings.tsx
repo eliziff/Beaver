@@ -38,6 +38,11 @@ const API_KEY_FIELDS = [
         placeholder: "sk-or-...",
     },
     {
+        provider: "meta",
+        label: "Meta (Muse Spark)",
+        placeholder: "LLM_...",
+    },
+    {
         provider: "courtlistener",
         label: "CourtListener",
         placeholder: "Token...",
