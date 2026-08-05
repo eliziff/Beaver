@@ -248,7 +248,7 @@ export const MARKDOWN_INDEX_READ_DOCUMENT_TOOL: OpenAIToolSchema = {
   function: {
     name: "read_document",
     description:
-      "Read a document attached by the user. This arm requires SCOPED reads — unscoped reads are rejected. With offset/max_chars, returns a bounded character window (feed it the @N offset from the SECT-INDEX, or the offset a find_in_document match returns). With head or tail, returns the first or last N lines as a cheap orientation probe. Source documents carry a derived SECT-INDEX at the top — read the WHOLE index first with head: 200-400 lines (the index is at the top and can be long) to orient, then window-read only the sections your deliverable requires.",
+      "Read a document attached by the user. Documents whose derived SECT-INDEX is addressable require SCOPED reads — an unscoped read of one is rejected. Orient with index=true (returns the SECT-INDEX alone: every numbered section with its body offset @N). Then read sections with offset/max_chars — a bounded character window into the document body (feed it the @N from the SECT-INDEX, or the offset a find_in_document match returns). head/tail return the first/last N lines of the body. Documents without a usable index read whole.",
     parameters: {
       type: "object",
       properties: {
@@ -256,10 +256,15 @@ export const MARKDOWN_INDEX_READ_DOCUMENT_TOOL: OpenAIToolSchema = {
           type: "string",
           description: "The document ID to read (e.g. 'doc-0').",
         },
+        index: {
+          type: "boolean",
+          description:
+            "true = return only the document's derived SECT-INDEX (cheap orientation: every numbered section with its @N body offset).",
+        },
         offset: {
           type: "integer",
           description:
-            "0-based character offset into the document text to start reading from.",
+            "0-based character offset into the document BODY to start reading from (use an @N from the SECT-INDEX or a find_in_document offset).",
         },
         max_chars: {
           type: "integer",
@@ -269,12 +274,12 @@ export const MARKDOWN_INDEX_READ_DOCUMENT_TOOL: OpenAIToolSchema = {
         head: {
           type: "integer",
           description:
-            "Read only the first N lines of the document (cheap orientation probe).",
+            "Read only the first N lines of the document body (cheap orientation probe).",
         },
         tail: {
           type: "integer",
           description:
-            "Read only the last N lines of the document (cheap probe for signature blocks and endings).",
+            "Read only the last N lines of the document body (cheap probe for signature blocks and endings).",
         },
       },
       required: ["doc_id"],
@@ -292,7 +297,7 @@ export const MARKDOWN_INDEX_FETCH_DOCUMENTS_TOOL: OpenAIToolSchema = {
   function: {
     name: "fetch_documents",
     description:
-      "Read several documents in a single call. This arm requires SCOPED reads: offset/max_chars/head/tail returns that same window of EVERY requested document — use it to read multiple sections from multiple documents in one turn (e.g. head: 200-400 lines over each document's derived SECT-INDEX to orient, then window-read sections).",
+      "Read several documents in a single call; the same scope (index=true, offset/max_chars, or head/tail) applies to EVERY requested document. Use index=true across documents to orient in one round (each document's SECT-INDEX with @N body offsets), then window-read the needed sections. An unscoped fetch serves documents without a usable index whole and refuses only the ones whose SECT-INDEX is addressable, per document.",
     parameters: {
       type: "object",
       properties: {
@@ -302,10 +307,15 @@ export const MARKDOWN_INDEX_FETCH_DOCUMENTS_TOOL: OpenAIToolSchema = {
           description:
             "Array of document IDs to read (e.g. ['doc-0', 'doc-2'])",
         },
+        index: {
+          type: "boolean",
+          description:
+            "true = return only each document's derived SECT-INDEX (cheap orientation across many documents in one round).",
+        },
         offset: {
           type: "integer",
           description:
-            "0-based character offset into each document's text to start reading from.",
+            "0-based character offset into each document's BODY to start reading from.",
         },
         max_chars: {
           type: "integer",
@@ -315,12 +325,12 @@ export const MARKDOWN_INDEX_FETCH_DOCUMENTS_TOOL: OpenAIToolSchema = {
         head: {
           type: "integer",
           description:
-            "Read only the first N lines of each requested document (cheap orientation probe; use head: 200-400 to read a whole SECT-INDEX).",
+            "Read only the first N lines of each requested document's body (cheap orientation probe).",
         },
         tail: {
           type: "integer",
           description:
-            "Read only the last N lines of each requested document (cheap probe for signature blocks and endings).",
+            "Read only the last N lines of each requested document's body (cheap probe for signature blocks and endings).",
         },
       },
       required: ["doc_ids"],
@@ -342,7 +352,7 @@ export const MARKDOWN_INDEX_LAB_TOOLS: OpenAIToolSchema[] = [
 
 export const MARKDOWN_SWAP_DELTA = "upstream-markdown-generate-swap-v1";
 export const MARKDOWN_E2E_DELTA = "upstream-markdown-read-write-v1";
-export const MARKDOWN_E2E_INDEX_DELTA = "derived-section-index-orient-first-v1";
+export const MARKDOWN_E2E_INDEX_DELTA = "derived-section-index-orient-first-v2";
 
 export const COMPACT_AUTHOR_MIKE_DELTA =
   "compact-markdown-terminal-v1";
@@ -764,11 +774,11 @@ export const COMPACT_AUTHOR_MIKE_LAB_SYSTEM_PROMPT =
 export const MARKDOWN_E2E_INDEX_LAB_SYSTEM_PROMPT = `${UPSTREAM_MIKE_LAB_SYSTEM_PROMPT}
 
 SECTION-ORIENTED READING:
-- Orient first: the derived SECT-INDEX can be long — read the WHOLE index of each document you may need with head: 200-400 lines (the index is at the top of the served text) to see every numbered section with its body offset (@N). Reading the index is orientation, not a body read.
-- Offsets are into the document body below the index: read a section directly with read_document offset=<@N> max_chars=<window>.
-- Batch: in one round, issue all the independent window reads the deliverable needs — several read_document offset/max_chars windows, or one fetch_documents with a window across documents — never one read per round.
-- Scoped only: every read must carry offset/max_chars or head/tail; unscoped reads are rejected. A windowed read is not a full read, so multiple windows of one document are allowed.
-- Read only the sections the deliverable requires, and never guess an offset — use the @N from the SECT-INDEX, or find_in_document for a phrase inside a section.`;
+- Orient first: source documents carry a derived SECT-INDEX naming every numbered section with its body offset (@N). Read it with read_document index=true, or fetch_documents index=true to orient across several documents in one round. Reading the index is orientation, not a body read.
+- Read sections directly with read_document offset=<@N> max_chars=<window>; offsets address the document body. find_in_document returns the body offset of a phrase. head/tail read the first/last N lines of the body.
+- Batch: in one round, issue all the independent reads the deliverable needs — several offset/max_chars windows, or one fetch_documents across documents — never one read per round.
+- Documents with an addressable SECT-INDEX require scoped reads (index=true, offset/max_chars, or head/tail); documents without one read whole. Multiple windows of one document are allowed.
+- Read every section the deliverable requires, and never guess an offset — use the @N from the SECT-INDEX, or find_in_document for a phrase inside a section.`;
 
 export const LEAN_BATCH_LAB_SYSTEM_PROMPT = `You are an AI legal assistant for lawyers and legal professionals. Produce precise, professional work from the project documents without fabricating content.
 

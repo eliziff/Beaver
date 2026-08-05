@@ -293,6 +293,37 @@ export function renderStructureIndex(
 }
 
 /**
+ * Scoped-only reads are enforced only when the index actually carries body
+ * addresses the model can use. Real corpora produce many spines with headings
+ * but few or no @N anchors (HSR: 4 of 5 docs at 0%, the EMP redline at 7%);
+ * forcing scoped reads there is a designed-in under-read with no way to
+ * address the body. Both thresholds must hold: an absolute floor so a
+ * three-line spine never gates, and a fraction floor so a 113-line index with
+ * 8 anchors (7% addressable) leaves the document whole-readable.
+ */
+export const INDEX_MIN_ANCHORED_LINES = 5;
+export const INDEX_MIN_ANCHORED_FRACTION = 0.25;
+
+export function indexIsAddressable(
+  served: string,
+  bodyOffset: number,
+): boolean {
+  if (bodyOffset <= 0) return false;
+  const lines = served
+    .slice(0, bodyOffset)
+    .split("\n")
+    .filter((line) => line.trim().length > 0);
+  // First line is the SECT-INDEX banner, not a section entry.
+  const entries = lines.slice(1);
+  if (!entries.length) return false;
+  const anchored = entries.filter((line) => /@\d+\s*$/u.test(line)).length;
+  return (
+    anchored >= INDEX_MIN_ANCHORED_LINES &&
+    anchored / entries.length >= INDEX_MIN_ANCHORED_FRACTION
+  );
+}
+
+/**
  * Consumes the existing .docx detectors to get the derived section tree.
  * Reads the same bytes the drafting-source read uses.
  */

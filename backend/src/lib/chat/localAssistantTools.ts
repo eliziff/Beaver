@@ -64,6 +64,7 @@ import {
   STRUCTURE_INDEX_ENABLED,
   attachStructureIndex,
   deriveSectionNodes,
+  indexIsAddressable,
   renderStructureIndex,
 } from "./structureIndexExperiment";
 import { resolveDocxEvidenceCitations } from "../docxEvidenceCitations";
@@ -2088,8 +2089,62 @@ export type LocalAssistantReadTurnState = Map<
     filename: string;
     sourceChars?: number;
     deliveredChars?: number;
+    // Body start of the served plane (the SECT-INDEX length when one is
+    // attached, else 0) and the union of delivered [start,end) intervals in
+    // served coordinates. "Fully read" is interval coverage of the body span,
+    // never a char-count sum — overlapping windows must not fake completeness.
+    bodyStart?: number;
+    intervals?: Array<[number, number]>;
   }
 >;
+
+export function mergeIntervals(
+  intervals: Array<[number, number]>,
+): Array<[number, number]> {
+  const sorted = intervals
+    .map(([start, end]): [number, number] =>
+      start <= end ? [start, end] : [end, start],
+    )
+    .filter(([start, end]) => end > start)
+    .sort((left, right) => left[0] - right[0]);
+  const merged: Array<[number, number]> = [];
+  for (const [start, end] of sorted) {
+    const last = merged[merged.length - 1];
+    if (last && start <= last[1]) last[1] = Math.max(last[1], end);
+    else merged.push([start, end]);
+  }
+  return merged;
+}
+
+export function coveredLength(
+  intervals: Array<[number, number]>,
+  start: number,
+  end: number,
+): number {
+  return mergeIntervals(intervals).reduce(
+    (total, [s, e]) =>
+      total + Math.max(0, Math.min(e, end) - Math.max(s, start)),
+    0,
+  );
+}
+
+export function readCoversBody(read: {
+  sourceChars?: number;
+  deliveredChars?: number;
+  bodyStart?: number;
+  intervals?: Array<[number, number]>;
+}): boolean {
+  const sourceChars = read.sourceChars ?? 0;
+  if (sourceChars <= 0) return false;
+  if (read.intervals) {
+    const bodyStart = read.bodyStart ?? 0;
+    return (
+      coveredLength(read.intervals, bodyStart, sourceChars) >=
+      sourceChars - bodyStart
+    );
+  }
+  return (read.deliveredChars ?? 0) >= sourceChars;
+}
 
 type WorkingSetEvidenceSegment = {
   virtualStart: number;
@@ -5909,6 +5964,7 @@ async function runUpstreamMikeRetrievalCall(params: {
       maxChars?: number;
       head?: number;
       tail?: number;
+      index?: boolean;
     },
   ) => {
     const isBounded =
@@ -5916,7 +5972,8 @@ async function runUpstreamMikeRetrievalCall(params: {
       (scoped.head !== undefined ||
         scoped.tail !== undefined ||
         scoped.offset !== undefined ||
-        scoped.maxChars !== undefined);
+        scoped.maxChars !== undefined ||
+        scoped.index === true);
     const listed = resolveDocument(requested);
     const docLabel = listed ? labelById.get(listed.id) ?? requested : requested;
     const documentId = listed?.id ?? "";
@@ -5941,11 +5998,11 @@ async function runUpstreamMikeRetrievalCall(params: {
     }
     const key = `${documentId}:${file.version.id}`;
     const prior = readState?.get(key);
-    const priorDeliveredFull =
-      !!prior && (prior.deliveredChars ?? 0) >= (prior.sourceChars ?? 0);
-    // A repeat read is suppressed only when a prior read delivered the FULL
-    // document. Bounded window/probe reads never fully deliver, so the scoped
-    // loop (orient index -> window-read sections) always stays open.
+    const priorDeliveredFull = !!prior && readCoversBody(prior);
+    // A repeat read is suppressed only when prior reads COVER the full body
+    // span (interval union, not a char-count sum — overlapping windows used to
+    // trip this refusal while a real hole stayed unread). The scoped loop
+    // (orient index -> window-read sections) stays open until true coverage.
     if (prior && priorDeliveredFull && SUPPRESS_DUPLICATE_WHOLE_READS) {
       return {
         content: JSON.stringify({
@@ -6001,16 +6058,30 @@ async function runUpstreamMikeRetrievalCall(params: {
     let segStart = 0;
     let segEnd = fullText.length;
     if (isBounded) {
-      if (scoped!.head !== undefined) {
-        const lines = fullText.split("\n");
+      if (scoped!.index === true) {
+        // Orientation read: exactly the SECT-INDEX block, no body text and no
+        // body evidence. The index used to be readable only via head:N over
+        // the served plane, which let it eat the whole head budget.
+        content = bodyOffset > 0
+          ? fullText.slice(0, bodyOffset)
+          : "(no SECT-INDEX for this document — read it directly)";
+        segStart = 0;
+        segEnd = 0;
+      } else if (scoped!.head !== undefined) {
+        // head/tail address the BODY below the SECT-INDEX. Slicing the served
+        // plane here delivered up to 100% index and 0% body (a head:120 fetch
+        // once returned 10,723 index chars and zero body chars).
+        const lines = fullText.slice(bodyOffset).split("\n");
         const count = Math.max(0, Math.min(scoped!.head, lines.length));
         content = lines.slice(0, count).join("\n");
-        segEnd = content.length;
+        segStart = bodyOffset;
+        segEnd = bodyOffset + content.length;
       } else if (scoped!.tail !== undefined) {
-        const lines = fullText.split("\n");
+        const lines = fullText.slice(bodyOffset).split("\n");
         const count = Math.max(0, Math.min(scoped!.tail, lines.length));
         content = lines.slice(-count).join("\n");
         segStart = fullText.length - content.length;
+        segEnd = fullText.length;
       } else {
         // Index arm: offsets are relative to the markdown body below the
         // SECT-INDEX (offset 0 = first body line). Elsewhere bodyOffset is 0
@@ -6036,6 +6107,11 @@ async function runUpstreamMikeRetrievalCall(params: {
         : SUPPRESS_DUPLICATE_WHOLE_READS
           ? fullText.length
           : previouslyDelivered + fullText.length,
+      bodyStart: bodyOffset,
+      intervals: mergeIntervals([
+        ...(prior?.intervals ?? []),
+        isBounded ? [segStart, segEnd] : [0, fullText.length],
+      ]),
     });
     // F3: evidence spans must live on the BODY plane, the same plane
     // find_in_document's hits use, so the harness can union read + find
@@ -6046,7 +6122,7 @@ async function runUpstreamMikeRetrievalCall(params: {
     return {
       content,
       duplicate: false,
-      evidenceSegments: content
+      evidenceSegments: content && segEnd > segStart
         ? [
             {
               documentId,
@@ -6141,15 +6217,18 @@ async function runUpstreamMikeRetrievalCall(params: {
           .map(Number)
           .filter((page) => Number.isInteger(page) && page > 0)
       : [];
-    // Index-arm scoped reads: offset/max_chars window + head/tail probes over
-    // the served markdown plane. Gated so other arms are byte-identical.
+    // Index-arm scoped reads: offset/max_chars window, head/tail body probes,
+    // or index=true for the SECT-INDEX alone. Gated so other arms are
+    // byte-identical.
     const scoped =
       STRUCTURE_INDEX_ENABLED &&
-      (typeof call.input.offset === "number" ||
+      (call.input.index === true ||
+        typeof call.input.offset === "number" ||
         typeof call.input.max_chars === "number" ||
         typeof call.input.head === "number" ||
         typeof call.input.tail === "number")
         ? {
+            index: call.input.index === true ? true : undefined,
             offset:
               typeof call.input.offset === "number"
                 ? Math.max(0, Math.trunc(call.input.offset))
@@ -6168,24 +6247,28 @@ async function runUpstreamMikeRetrievalCall(params: {
                 : undefined,
           }
         : undefined;
-    // Index arm is scoped-only for documents that carry a derived SECT-INDEX:
-    // a read without offset/max_chars/head/tail would whole-read and blow the
-    // context/output budget. A document with NO index (non-.docx, or a .docx
-    // with no derived spine — servedDraftingText returns plain text with
-    // bodyOffset 0) falls through to the ordinary read path, and the refusal
-    // text must never claim a SECT-INDEX exists for one.
+    // Index arm is scoped-only for documents whose derived SECT-INDEX is
+    // ADDRESSABLE (enough @N anchors to actually reach the body): a bare read
+    // there would whole-read and blow the context budget. A document with no
+    // index, or an index too sparse to address by (HSR had 4 of 5 docs at 0%
+    // anchors), falls through to the ordinary read path — forcing scoped-only
+    // reads on an unaddressable document is a designed-in under-read.
     if (STRUCTURE_INDEX_ENABLED && !scoped && listed) {
-      const hasIndex =
-        ((await servedDraftingText(userId, listed.id, servedDraftingCache))
-          ?.bodyOffset ?? 0) > 0;
-      if (hasIndex) {
+      const drafting = await servedDraftingText(
+        userId,
+        listed.id,
+        servedDraftingCache,
+      );
+      const addressable =
+        !!drafting && indexIsAddressable(drafting.served, drafting.bodyOffset);
+      if (addressable) {
         return upstreamMikeResult(call, {
           ok: false,
           status: "scoped_read_required",
           error:
-            "This arm requires scoped reads. Provide offset/max_chars for a character window or head/tail for the first/last N lines. Documents open with a derived SECT-INDEX — read the WHOLE index first with head: 200-400 lines (the index is at the top and can be long) to see every section's body offset (@N), then read_document offset=<@N> max_chars=<window> to read only the sections your deliverable requires.",
+            "This document's derived SECT-INDEX is addressable, so reads must be scoped. Call read_document index=true to get the SECT-INDEX (orientation, cheap), then read_document offset=<@N> max_chars=<window> for only the sections your deliverable requires; find_in_document returns the body offset of a phrase. head/tail read the first/last N lines of the body.",
           next_required_action:
-            "Retry read_document with offset/max_chars or head/tail.",
+            "Retry read_document with index=true, offset/max_chars, or head/tail.",
         });
       }
     }
@@ -6354,16 +6437,18 @@ async function runUpstreamMikeRetrievalCall(params: {
 
   if (call.name === "fetch_documents") {
     const requestedDocuments = stringArray(call.input.doc_ids);
-    // Index-arm batch scoped reads: the same window (offset/max_chars or
-    // head/tail) is applied to every requested document in one call. Gated so
-    // other arms are byte-identical.
+    // Index-arm batch scoped reads: the same window (offset/max_chars,
+    // head/tail, or index=true) is applied to every requested document in one
+    // call. Gated so other arms are byte-identical.
     const scoped =
       STRUCTURE_INDEX_ENABLED &&
-      (typeof call.input.offset === "number" ||
+      (call.input.index === true ||
+        typeof call.input.offset === "number" ||
         typeof call.input.max_chars === "number" ||
         typeof call.input.head === "number" ||
         typeof call.input.tail === "number")
         ? {
+            index: call.input.index === true ? true : undefined,
             offset:
               typeof call.input.offset === "number"
                 ? Math.max(0, Math.trunc(call.input.offset))
@@ -6382,32 +6467,22 @@ async function runUpstreamMikeRetrievalCall(params: {
                 : undefined,
           }
         : undefined;
-    // Index arm is scoped-only for documents that carry a derived SECT-INDEX:
-    // fetch without a window would whole-read several documents at once. A
-    // requested set with NO derived index (non-.docx / no spine) falls through
-    // to the ordinary whole-read path (subject to the context budget below).
+    // Index arm: an unscoped fetch refuses ONLY the documents whose SECT-INDEX
+    // is addressable, per document — never the whole batch (one indexed docx
+    // used to make the call refuse every non-indexed member with it). Docs
+    // with no usable index serve whole (subject to the context budget below).
+    const scopedRequired = new Set<string>();
     if (STRUCTURE_INDEX_ENABLED && !scoped) {
-      let hasIndex = false;
       for (const requested of requestedDocuments) {
         const listed = resolveDocument(requested);
         if (!listed) continue;
-        if (
-          ((await servedDraftingText(userId, listed.id, servedDraftingCache))
-            ?.bodyOffset ?? 0) > 0
-        ) {
-          hasIndex = true;
-          break;
-        }
-      }
-      if (hasIndex) {
-        return upstreamMikeResult(call, {
-          ok: false,
-          status: "scoped_read_required",
-          error:
-            "This arm requires scoped reads. Provide offset/max_chars for a character window or head/tail for the first/last N lines of each document. Read the WHOLE derived SECT-INDEX of each requested document with head: 200-400 lines (the index is at the top and can be long) to see its body offsets (@N), then read_document offset=<@N> max_chars=<window> to read only the sections your deliverable requires.",
-          next_required_action:
-            "Retry fetch_documents with offset/max_chars or head/tail.",
-        });
+        const drafting = await servedDraftingText(
+          userId,
+          listed.id,
+          servedDraftingCache,
+        );
+        if (drafting && indexIsAddressable(drafting.served, drafting.bodyOffset))
+          scopedRequired.add(listed.id);
       }
     }
     if (wholeReadMaxChars > 0) {
@@ -6422,6 +6497,9 @@ async function runUpstreamMikeRetrievalCall(params: {
       for (const requested of requestedDocuments) {
         const listed = resolveDocument(requested);
         if (!listed) continue;
+        // Per-doc scoped_read_required entries are refused, not served, so
+        // they cost nothing against the whole-read budget.
+        if (scopedRequired.has(listed.id)) continue;
         const file = await getLocalVersionFile(userId, listed.id);
         if (!file) continue;
         const key = `${listed.id}:${file.version.id}`;
@@ -6468,6 +6546,18 @@ async function runUpstreamMikeRetrievalCall(params: {
         ? labelById.get(document.id) ?? requested
         : requested;
       const filename = document?.filename ?? requested;
+      if (document && scopedRequired.has(document.id)) {
+        parts.push(
+          `--- ${filename} (${docLabel}) ---\n` +
+            JSON.stringify({
+              ok: false,
+              status: "scoped_read_required",
+              error:
+                "This document's derived SECT-INDEX is addressable, so its reads must be scoped. Call read_document index=true (or fetch_documents index=true) for the SECT-INDEX, then window-read offset=<@N> max_chars=<window>. Other documents in this call were served.",
+            }),
+        );
+        continue;
+      }
       const read = await readOne(requested, scoped);
       parts.push(
         `--- ${filename} (${docLabel}) ---\n${
