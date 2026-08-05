@@ -130,6 +130,7 @@ import {
 import {
   UPSTREAM_NATIVE_ALREADY_READ_CONTENT,
   UPSTREAM_NATIVE_ALREADY_READ_NEXT_ACTION,
+  applyUpstreamNativeTrackedEdits,
   extractUpstreamNativeDocxBodyText,
   renderUpstreamNativeDocx,
   upstreamNativeCitationReminder,
@@ -3113,6 +3114,20 @@ async function runUpstreamNativeEditDocument(
   // upstreamMikeResult, not result(): native envelopes must never be reshaped
   // by Beaver's MAX_TOOL_RESULT_CHARS truncator, exactly as the other native
   // tool results bypass it.
+  //
+  // The pin uses TWO different error envelopes for edit_document, and the
+  // difference is model-visible:
+  //  - the three dispatcher-level validations emit a BARE {"error": …} with no
+  //    `ok` key (2266446b:toolDispatcher.ts:1412-1433, three `JSON.stringify({
+  //    error: err })` pushes);
+  //  - only a runEditDocument failure emits {"ok": false, "error": …}
+  //    (toolDispatcher.ts:1530-1536), which is where "Could not load document
+  //    bytes." and the no-edits-applied message come from
+  //    (documentOps.ts:1141-1164).
+  // A model branching on the presence of `ok` sees a different signal, so the
+  // arm reproduces both shapes rather than collapsing them.
+  const nativePreDispatchError = (error: string) =>
+    upstreamMikeResult(call, { error });
   const nativeError = (error: string) =>
     upstreamMikeResult(call, { ok: false, error });
 
@@ -3132,13 +3147,28 @@ async function runUpstreamNativeEditDocument(
     : (storedById.get(requested) ??
       documents.find((document) => document.filename === requested));
 
+  // Pin order (toolDispatcher.ts:1412-1433): missing document, then empty
+  // edits, then non-docx — all three decided from docStore METADATA before any
+  // bytes are touched, and all three answered with the bare {error} envelope.
+  // The docx test is therefore made against the listed file_type here too, not
+  // against the loaded file, so a non-docx whose bytes also fail to load still
+  // reports the pin's "only supports .docx files." rather than a load error.
   if (!target) {
-    return nativeError(
+    return nativePreDispatchError(
       `Document '${requested}' not found in this chat's attachments.`,
     );
   }
   if (!editsRaw || editsRaw.length === 0) {
-    return nativeError("edits array is required and must not be empty.");
+    return nativePreDispatchError(
+      "edits array is required and must not be empty.",
+    );
+  }
+  // Case-insensitive where the pin compares exactly: Beaver's store is not
+  // guaranteed to normalise file_type, and being stricter than the pin could
+  // refuse a genuine .docx, which would be a divergence in the harmful
+  // direction.
+  if ((target.file_type ?? "").toLowerCase() !== "docx") {
+    return nativePreDispatchError("edit_document only supports .docx files.");
   }
   const documentId = target.id;
   const docLabel = labelMatch
@@ -3148,10 +3178,9 @@ async function runUpstreamNativeEditDocument(
   const turnVersion = turnEditState?.get(documentId);
   const versionId = turnVersion?.versionId ?? target.current_version_id;
   const file = await getLocalVersionFile(userId, documentId, versionId);
+  // A runEditDocument-stage failure: keeps the {ok:false} envelope, and the
+  // string is the pin's own (documentOps.ts:1147).
   if (!file) return nativeError("Could not load document bytes.");
-  if (file.fileType.toLowerCase() !== "docx") {
-    return nativeError("edit_document only supports .docx files.");
-  }
 
   const edits: EditInput[] = (editsRaw as Record<string, unknown>[]).map(
     (edit) => ({
@@ -3165,9 +3194,20 @@ async function runUpstreamNativeEditDocument(
 
   let edited;
   try {
-    edited = await applyTrackedEdits(await readFile(file.path), edits, {
-      author: "Mike",
-    });
+    // The arm's OWN applier, not Beaver's. Beaver's applyTrackedEdits parses
+    // through docx/core.ts, which adds `parseTagValue: false`; the plane this
+    // arm serves for read/find comes from the pinned parser, which lacks it and
+    // therefore coerces numeric-looking w:t ("1.10" -> "1.1"). Anchoring edits
+    // on Beaver's un-coerced plane made an edit whose `find` was copied
+    // verbatim out of the served text fail with applied=0 where upstream
+    // returns applied=1. At the pin both planes share one createParser()
+    // (2266446b:docxTrackedChanges.ts:647-656, used by :719 and :799) and the
+    // invariant is stated at documentOps.ts:1502-1503.
+    edited = await applyUpstreamNativeTrackedEdits(
+      await readFile(file.path),
+      edits,
+      { author: "Mike" },
+    );
   } catch (error) {
     return nativeError(String((error as Error)?.message ?? error));
   }

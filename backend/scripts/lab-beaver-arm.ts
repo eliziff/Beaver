@@ -1426,6 +1426,24 @@ async function main() {
   const askInputsTerminated = turnTerminations.some(
     (event) => event.reason === "ask_inputs_terminated",
   );
+  // A native ask_inputs termination is a FIRST-CLASS measured outcome, not a
+  // harness failure: upstream ends the turn on ask_inputs with no tool_result
+  // and therefore no deliverable (2266446b:streaming.ts:484-486, and
+  // toolDispatcher.ts:620-624 pushes no result). Three guards below would
+  // otherwise throw before the metrics object that carries
+  // ask_inputs_terminated / turn_termination_reason is written, so the rate
+  // this instrumentation exists to report could never be reported and the cell
+  // would be indistinguishable from a genuine failure.
+  //
+  // Only mike_upstream_native_v1 can reach this: it is the sole arm with
+  // MIKE_DISABLE_ASK_INPUTS="0", and the benchmark_turn_termination receipt is
+  // emitted only under UPSTREAM_NATIVE_MIKE_SHAPE. For every other arm this is
+  // constantly false, so `!false && <original>` is the original predicate and
+  // their fail-loud behaviour is byte-for-byte unchanged. A native run that
+  // paused for ask_inputs WITHOUT emitting the receipt still throws — that
+  // would mean the instrumentation itself broke, which must stay loud.
+  const askInputsNoDeliverable =
+    arm === "mike_upstream_native_v1" && askInputsTerminated;
   const researchContextRefreshes = events.filter(
     (event) => event.type === "research_context_refresh",
   );
@@ -1523,6 +1541,24 @@ async function main() {
       surface?.greenfield_review !== false ||
       surface?.model_coverage_routing !== false ||
       Number(surface?.whole_read_max_chars ?? 0) !== 0 ||
+      // The runtime tool-result cap the receipts actually carry. Upstream has
+      // no cap at all (2266446b:documentOps.ts:1567 returns bare text), and
+      // every native envelope bypasses Beaver's truncator by returning through
+      // upstreamMikeResult rather than result() — the sole exception,
+      // generate_docx, tops out near 1.2 KB. So this is an ISOLATION assertion,
+      // not a fidelity one: it pins the value an env leak would move. Note
+      // MIKE_TOOL_RESULT_CAP="" resolves to 64000, NOT 0 ("" is falsy, so the
+      // `|| 64_000` default wins); asserting the real number here is what makes
+      // that visible instead of implied.
+      Number(surface?.tool_result_max_chars ?? 0) !== 64_000 ||
+      // Further axes the receipt carries that an env leak could move. Each
+      // value was measured under the arm's own merged environment before being
+      // asserted here (.tmp-native-gate-probe.ts), not assumed.
+      surface?.navigation_shape !== "legacy" ||
+      (surface?.retrieval_experiment ?? null) !== null ||
+      surface?.tool_description_variant !== "operational" ||
+      surface?.resident_authoring !== false ||
+      surface?.grounded_outline_injection !== false ||
       surface?.suppress_duplicate_whole_reads !== true ||
       // Native has no terminal-authoring exit: the turn ends only when the
       // model stops calling tools (2266446b:claude.ts:239-241).
@@ -1535,10 +1571,16 @@ async function main() {
       researchCheckpoints.length > 0 ||
       evidenceHandoffs.length > 0 ||
       evidenceWorkingSetReceipts.length > 0 ||
-      contentResets.length > 0
+      // Accepting an ask_inputs event emits exactly one content_reset
+      // (chat.ts:2501, inside acceptPendingAskInputs) before the native turn
+      // aborts. That reset belongs to the native ask_inputs path itself, not to
+      // any Beaver context-reset affordance, so on a terminated run one is
+      // expected and must not read as isolation leakage — while a second one,
+      // or any reset at all on a normal run, still fails.
+      contentResets.length > (askInputsNoDeliverable ? 1 : 0)
     ) {
       throw new Error(
-        `${arm} isolation failed: resident=${residentTools.join(",")}; deferred=${deferredTools.join(",")}; native=${String(surface?.upstream_native_shape)}; max_iterations=${String(surface?.max_iterations)}; terminal=${String(surface?.terminal_authoring)}`,
+        `${arm} isolation failed: resident=${residentTools.join(",")}; deferred=${deferredTools.join(",")}; native=${String(surface?.upstream_native_shape)}; max_iterations=${String(surface?.max_iterations)}; terminal=${String(surface?.terminal_authoring)}; content_resets=${contentResets.length}; ask_inputs_terminated=${String(askInputsTerminated)}`,
       );
     }
   }
@@ -1902,7 +1944,12 @@ async function main() {
   const askPause = events.find((event) =>
     String(event.type ?? "").startsWith("ask_inputs"),
   );
-  if (askPause)
+  // The native arm reaches finalizePendingAskInputs via the aborted turn
+  // (chat.ts catch -> finalizePendingAskInputs -> sseWrite(event)), so an
+  // `ask_inputs` event IS present on a faithful native termination. Exempt it
+  // here too, or this throws before either of the two guards further down and
+  // the typed outcome is still lost.
+  if (askPause && !askInputsNoDeliverable)
     throw new Error(
       "Beaver paused for ask_inputs; the benchmark has no user to answer — run incomplete",
     );
@@ -2036,6 +2083,7 @@ async function main() {
     }
   }
   if (
+    !askInputsNoDeliverable &&
     [
       "upstream",
       "upstream_terminal_v1",
@@ -2087,7 +2135,10 @@ async function main() {
       );
     }
   }
-  if (!answer.trim() && !authored.length)
+  // Same exemption: an ask_inputs-terminated native turn legitimately produces
+  // neither prose nor a document (the abort fires before the model can emit a
+  // final message), so this guard would otherwise mask the typed outcome.
+  if (!askInputsNoDeliverable && !answer.trim() && !authored.length)
     throw new Error("empty assistant answer and no documents authored");
   const wallClock = (Date.now() - started) / 1000;
   let sourceTextChars = 0;
