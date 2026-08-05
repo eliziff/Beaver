@@ -1008,6 +1008,17 @@ async function main() {
           MIKE_EAGER_OFFICE_PDF_RENDITION:
             officePdfRendition === "lazy" ? "0" : "1",
           ...armEnvironment[arm],
+          // Lane-level transport setting, not an experimental variable: the
+          // stateless claude-p mode spawns a fresh CLI process per tool round
+          // and re-uploads the ENTIRE conversation each time. The persistent
+          // session sends only the new tool results to a live process; a dead
+          // session recovers statelessly with a full replay, and our arms'
+          // fixed tool schemas never trigger the session-killing condition.
+          // contextRounds receipts record continuation: "provider" vs "none",
+          // so the transport mode stays visible per round.
+          ...(model.startsWith("claude-p:")
+            ? { MIKE_CLAUDE_P_PERSIST: "1" }
+            : {}),
           MIKE_LLM_CONTEXT_MANIFEST_PATH: path.join(dataHome, "manifest.jsonl"),
           // SLA receipts land beside the run's other artifacts; inert
           // unless the parent also sets MIKE_SLA_WORKFLOW=1 (arm variant).
