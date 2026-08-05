@@ -24,9 +24,17 @@ pooled. Its misses are output-side: 31 criterion-required figures sat
 verbatim in *served* text and never reached the deliverable (19 on failed
 criteria); synthesis misses 30/106; judge-strict 20/106. Derived-figure
 arithmetic is a non-problem (97.8% exact; zero computed-date errors). The
-$210M/$90M banking case is **base selection inside one served paragraph**
-(percentages applied to the net figure two sentences after the gross one),
-not calculation. Read-side wings have nothing to fix here — every
+$210M/$90M case — white-collar/DPA, per Stage 0 replay (the design draft
+mis-attributed it to banking) — is **base selection inside one served
+paragraph** (percentages applied to the net figure two sentences after the
+gross one), not calculation. Stage 0 replay results:
+`harvey-lab-stage0-replay-validation-2026-08-05.md` — all three validators
+PASS at precision 1.00 (W4 2/2 true firings incl. banking C-011/C-012 on the
+archival `index_v1` arm; W5 4/4 true, separating DPA floor/index_floor FAIL
+cells from PASS cells, zero FPs out of 3,052 figures; W7 7/7 recovered,
+zero-hit census 16.0%→11.7%). W4 caveat for Stage 2: structurally blind
+where no addressable section spine exists (8/21 cells) — run an
+addressability check on the five no-fit corpora before relying on it. Read-side wings have nothing to fix here — every
 exposure-gap, unresolved-xref, and usage-without-definition defect in the
 census sits in scoped arms; whole-read cells have zero.
 
