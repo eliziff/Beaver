@@ -125,7 +125,16 @@ import {
   MIKE_STRUCTURE_PATHS_LAB_TOOLS,
   UPSTREAM_MIKE_LAB_TOOLS,
   UPSTREAM_MIKE_MARKDOWN_SWAP_LAB_TOOLS,
+  UPSTREAM_NATIVE_MIKE_LAB_TOOLS,
 } from "./upstreamMikeBenchmarkSurface";
+import {
+  UPSTREAM_NATIVE_ALREADY_READ_CONTENT,
+  UPSTREAM_NATIVE_ALREADY_READ_NEXT_ACTION,
+  extractUpstreamNativeDocxBodyText,
+  renderUpstreamNativeDocx,
+  upstreamNativeCitationReminder,
+  upstreamNativeEditedNextAction,
+} from "./upstreamNativeDocxRenderer";
 import {
   getTableOfAuthoritiesJob,
   submitTableOfAuthoritiesDocument,
@@ -945,7 +954,21 @@ export const UPSTREAM_MIKE_TOOL_SHAPE =
 export const ADAPTIVE_MIKE_TOOL_SHAPE =
   process.env.MIKE_TOOL_SHAPE === "adaptive-mike-v1";
 
+/**
+ * mike_upstream_native_v1: the full pinned upstream chat surface (prompt, the
+ * nine-tool array, the native inventory block, native tool-result envelopes,
+ * maxIterations=10). Deliberately a separate boolean rather than another
+ * MIKE_TOOL_SHAPE value: a new MIKE_TOOL_SHAPE case would force edits inside
+ * the ORIGIN_MIKE_TOOL_SHAPE disjunction and the ORIGIN_MIKE_ACTIVE_TOOLS
+ * ternary that every other arm reads. As a separate flag it is false under
+ * every existing arm's environment, so every existing arm is provably
+ * unaffected.
+ */
+export const UPSTREAM_NATIVE_MIKE_SHAPE =
+  process.env.MIKE_UPSTREAM_NATIVE === "1";
+
 export const ORIGIN_MIKE_TOOL_SHAPE =
+  UPSTREAM_NATIVE_MIKE_SHAPE ||
   UPSTREAM_MIKE_TOOL_SHAPE ||
   ADAPTIVE_MIKE_TOOL_SHAPE ||
   MARKDOWN_SWAP_MIKE_TOOL_SHAPE ||
@@ -1925,7 +1948,9 @@ function forCodingVocabulary(tools: OpenAIToolSchema[]): OpenAIToolSchema[] {
   return tools.map((entry) => rewrite(entry) as OpenAIToolSchema);
 }
 
-const ORIGIN_MIKE_ACTIVE_TOOLS = LEAN_BATCH_FAMILY_TOOL_SHAPE
+const ORIGIN_MIKE_ACTIVE_TOOLS = UPSTREAM_NATIVE_MIKE_SHAPE
+  ? UPSTREAM_NATIVE_MIKE_LAB_TOOLS
+  : LEAN_BATCH_FAMILY_TOOL_SHAPE
   ? LEAN_BATCH_LAB_TOOLS
   : COMPACT_AUTHOR_MIKE_TOOL_SHAPE
     ? COMPACT_AUTHOR_MIKE_LAB_TOOLS
@@ -1944,7 +1969,12 @@ const ORIGIN_MIKE_ACTIVE_TOOLS = LEAN_BATCH_FAMILY_TOOL_SHAPE
           : UPSTREAM_MIKE_LAB_TOOLS;
 
 const LOCAL_ASSISTANT_TOOL_CATALOG: OpenAIToolSchema[] = [
-  ...(ASK_INPUTS_DISABLED ? [] : LOCAL_ASK_INPUTS_TOOLS),
+  // The native arm carries ask_inputs inside UPSTREAM_NATIVE_MIKE_LAB_TOOLS at
+  // upstream's own position (TOOLS[0]); prepending the local copy as well would
+  // duplicate it and break the pinned nine-tool order.
+  ...(ASK_INPUTS_DISABLED || UPSTREAM_NATIVE_MIKE_SHAPE
+    ? []
+    : LOCAL_ASK_INPUTS_TOOLS),
   ...(ORIGIN_MIKE_TOOL_SHAPE
     ? ORIGIN_MIKE_ACTIVE_TOOLS
     : CODING_TOOL_SHAPE
@@ -3058,6 +3088,149 @@ const comparableAcceptedText = (value: string) =>
     .map((line) => line.trimEnd())
     .filter((line) => line.length > 0)
     .join("\n");
+
+/**
+ * mike_upstream_native_v1 only: upstream's `edit_document`, reproducing
+ * 2266446b:backend/src/lib/chat/tools/toolDispatcher.ts:1378-1540 plus
+ * runEditDocument (documentOps.ts:1106-…) on Beaver's local document store.
+ *
+ * Differences from runLocalReviseDocx that matter and are deliberate:
+ *  - partial success. Upstream applies every locatable edit and reports the
+ *    rest in errors[]; Beaver's reviser bails whenever any edit failed.
+ *  - tracked-change author is "Mike" (documentOps.ts:1151), not "Beaver".
+ *  - the read guard is cleared on success (toolDispatcher.ts:1467) so a
+ *    post-edit verification read is permitted.
+ *  - anchors are matched against the same plane read_document served.
+ */
+async function runUpstreamNativeEditDocument(
+  call: NormalizedToolCall,
+  userId: string,
+  args: Record<string, unknown>,
+  allowedDocumentIds?: Set<string>,
+  turnEditState?: LocalAssistantEditTurnState,
+  turnReadState?: LocalAssistantReadTurnState,
+): Promise<NormalizedToolResult> {
+  // upstreamMikeResult, not result(): native envelopes must never be reshaped
+  // by Beaver's MAX_TOOL_RESULT_CHARS truncator, exactly as the other native
+  // tool results bypass it.
+  const nativeError = (error: string) =>
+    upstreamMikeResult(call, { ok: false, error });
+
+  const requested = trimmed(args.doc_id);
+  const editsRaw = Array.isArray(args.edits) ? args.edits : undefined;
+
+  const stored = (await listLocalLibrary(userId, "file")).documents;
+  const storedById = new Map(stored.map((document) => [document.id, document]));
+  const documents = (
+    allowedDocumentIds
+      ? [...allowedDocumentIds].map((id) => storedById.get(id))
+      : stored
+  ).filter((document): document is (typeof stored)[number] => !!document);
+  const labelMatch = /^doc-(\d+)$/u.exec(requested);
+  const target = labelMatch
+    ? documents[Number(labelMatch[1])]
+    : (storedById.get(requested) ??
+      documents.find((document) => document.filename === requested));
+
+  if (!target) {
+    return nativeError(
+      `Document '${requested}' not found in this chat's attachments.`,
+    );
+  }
+  if (!editsRaw || editsRaw.length === 0) {
+    return nativeError("edits array is required and must not be empty.");
+  }
+  const documentId = target.id;
+  const docLabel = labelMatch
+    ? requested
+    : `doc-${Math.max(0, documents.findIndex((d) => d.id === documentId))}`;
+
+  const turnVersion = turnEditState?.get(documentId);
+  const versionId = turnVersion?.versionId ?? target.current_version_id;
+  const file = await getLocalVersionFile(userId, documentId, versionId);
+  if (!file) return nativeError("Could not load document bytes.");
+  if (file.fileType.toLowerCase() !== "docx") {
+    return nativeError("edit_document only supports .docx files.");
+  }
+
+  const edits: EditInput[] = (editsRaw as Record<string, unknown>[]).map(
+    (edit) => ({
+      find: String(edit.find ?? ""),
+      replace: String(edit.replace ?? ""),
+      context_before: String(edit.context_before ?? ""),
+      context_after: String(edit.context_after ?? ""),
+      reason: edit.reason ? String(edit.reason) : undefined,
+    }),
+  );
+
+  let edited;
+  try {
+    edited = await applyTrackedEdits(await readFile(file.path), edits, {
+      author: "Mike",
+    });
+  } catch (error) {
+    return nativeError(String((error as Error)?.message ?? error));
+  }
+  if (edited.changes.length === 0) {
+    return nativeError(
+      edited.errors[0]?.reason ??
+        "No edits could be applied. Refine context_before/context_after and retry.",
+    );
+  }
+
+  const committed = await commitLocalAssistantTurnVersion({
+    userId,
+    documentId,
+    filename: file.version.filename,
+    bytes: edited.bytes,
+    sourceVersionId: versionId,
+    trackedEdits: edited.changes.map((change) => ({
+      id: crypto.randomUUID(),
+      changeId: change.id,
+      delWId: change.delId,
+      insWId: change.insId,
+      deletedText: change.deletedText,
+      insertedText: change.insertedText,
+      contextBefore: change.contextBefore,
+      contextAfter: change.contextAfter,
+      reason: change.reason,
+      status: "pending",
+    })),
+    turnEditState,
+  });
+  if (!committed) return nativeError("version_id is no longer active");
+
+  // toolDispatcher.ts:1467 — a post-edit verification read must be possible.
+  for (const [key, entry] of turnReadState ?? []) {
+    if (entry.documentId === documentId) turnReadState?.delete(key);
+  }
+
+  return {
+    ...upstreamMikeResult(call, {
+      ok: true,
+      doc_id: docLabel,
+      document_id: documentId,
+      version_id: committed.version.id,
+      version_number: committed.version.version_number,
+      applied: edited.changes.length,
+      errors: edited.errors,
+      next_required_action: upstreamNativeEditedNextAction(docLabel),
+    }),
+    mutationReceipt: JSON.stringify({
+      ok: true,
+      receipt: "mike-document:v1",
+      action: "revised",
+      document_id: documentId,
+      parent_version_id: committed.parentVersionId,
+      version_id: committed.version.id,
+      version_number: committed.version.version_number,
+      filename: committed.version.filename,
+      file_type: committed.version.file_type,
+      source_sha256: committed.version.source_sha256,
+      change_count: edited.changes.length,
+    }),
+  };
+}
 
 async function runLocalReviseDocx(
   call: NormalizedToolCall,
@@ -5775,6 +5948,19 @@ function upstreamMikeCitationReminder(docLabel: string, filename: string) {
   ].join("\n");
 }
 
+/**
+ * mike_upstream_native_v1 serves the arm's own vendored copy of the pinned
+ * citationReminder (2266446b:documentOps.ts:33-47) instead of Beaver's. The two
+ * are byte-identical today — proven over docx/xlsx/pdf labels by
+ * .tmp-native-envelope-probe.ts — so this changes no bytes for any arm; it makes
+ * the native arm's fidelity structural, so a later edit to Beaver's copy for
+ * another arm cannot silently drift the pinned baseline (spec §1.4). With the
+ * flag off this is the same function reference every other arm already used.
+ */
+const activeCitationReminder = UPSTREAM_NATIVE_MIKE_SHAPE
+  ? upstreamNativeCitationReminder
+  : upstreamMikeCitationReminder;
+
 function upstreamMikeSectionsMarkdown(value: unknown) {
   if (!Array.isArray(value)) return "";
   const blocks: string[] = [];
@@ -6005,7 +6191,22 @@ async function runUpstreamMikeRetrievalCall(params: {
     // (orient index -> window-read sections) stays open until true coverage.
     if (prior && priorDeliveredFull && SUPPRESS_DUPLICATE_WHOLE_READS) {
       return {
-        content: JSON.stringify({
+        // Native key order is doc_id, filename, document_id, version_id
+        // (2266446b:backend/src/lib/chat/tools/documentOps.ts:1374-1392); ours
+        // swaps filename and document_id. Gated so every other arm's
+        // tool-result bytes stay unchanged.
+        content: UPSTREAM_NATIVE_MIKE_SHAPE
+          ? JSON.stringify({
+              ok: true,
+              already_read: true,
+              doc_id: prior.docLabel ?? docLabel,
+              filename: prior.filename,
+              document_id: prior.documentId,
+              version_id: prior.versionId ?? null,
+              content: UPSTREAM_NATIVE_ALREADY_READ_CONTENT,
+              next_required_action: UPSTREAM_NATIVE_ALREADY_READ_NEXT_ACTION,
+            })
+          : JSON.stringify({
           ok: true,
           already_read: true,
           doc_id: prior.docLabel ?? docLabel,
@@ -6030,6 +6231,18 @@ async function runUpstreamMikeRetrievalCall(params: {
       documentId,
       servedDraftingCache,
     );
+    // Native arm: DOCX reads go through upstream's own flattener, ported at
+    // the pin. Ours has since fixed an upstream parser defect (numeric-looking
+    // w:t coercion), and this is also the plane edit_document anchors against,
+    // so read and edit must be served from the same characters upstream serves.
+    const nativeBody =
+      UPSTREAM_NATIVE_MIKE_SHAPE &&
+      file.fileType?.toLowerCase() === "docx" &&
+      !drafting
+        ? await extractUpstreamNativeDocxBodyText(
+            await readFile(file.path),
+          ).catch(() => null)
+        : null;
     const document = drafting
       ? {
           filename: drafting.filename,
@@ -6040,7 +6253,17 @@ async function runUpstreamMikeRetrievalCall(params: {
           pages: { pages: [], source: "unindexed" as const },
           tableCells: [],
         }
-      : await extractLocalDocument(userId, documentId);
+      : nativeBody !== null
+        ? {
+            filename: listed.filename,
+            documentId,
+            versionId: file.version.id,
+            text: nativeBody,
+            cautions: [],
+            pages: { pages: [], source: "unindexed" as const },
+            tableCells: [],
+          }
+        : await extractLocalDocument(userId, documentId);
     const bodyOffset = drafting?.bodyOffset ?? 0;
     if (!document) {
       return {
@@ -6427,7 +6650,7 @@ async function runUpstreamMikeRetrievalCall(params: {
     const read = await readOne(requested, scoped);
     const content =
       listed && !read.duplicate
-        ? `${upstreamMikeCitationReminder(docLabel, listed.filename)}\n\n${read.content}`
+        ? `${activeCitationReminder(docLabel, listed.filename)}\n\n${read.content}`
         : read.content;
     return {
       ...upstreamMikeResult(call, content),
@@ -6564,7 +6787,7 @@ async function runUpstreamMikeRetrievalCall(params: {
           read.duplicate
             ? read.content
             : citationReminders
-              ? `${upstreamMikeCitationReminder(docLabel, filename)}\n\n${read.content}`
+              ? `${activeCitationReminder(docLabel, filename)}\n\n${read.content}`
               : read.content
         }`,
       );
@@ -6593,6 +6816,18 @@ async function runUpstreamMikeRetrievalCall(params: {
   const drafting = STRUCTURE_INDEX_ENABLED
     ? await servedDraftingText(userId, documentId, servedDraftingCache)
     : null;
+  // Native arm: find searches the same pinned plane read_document serves, so a
+  // hit's excerpt is exactly quotable against what the model was given
+  // (upstream re-reads through readDocumentContent for the same reason).
+  const nativeFindFile = UPSTREAM_NATIVE_MIKE_SHAPE
+    ? await getLocalVersionFile(userId, documentId)
+    : null;
+  const nativeFindText =
+    nativeFindFile && nativeFindFile.fileType?.toLowerCase() === "docx"
+      ? await extractUpstreamNativeDocxBodyText(
+          await readFile(nativeFindFile.path),
+        ).catch(() => null)
+      : null;
   const document = drafting
     ? {
         filename: drafting.filename,
@@ -6603,7 +6838,17 @@ async function runUpstreamMikeRetrievalCall(params: {
         pages: { pages: [], source: "unindexed" as const },
         tableCells: [],
       }
-    : await extractLocalDocument(userId, documentId);
+    : nativeFindText !== null && nativeFindFile
+      ? {
+          filename: listed.filename,
+          documentId,
+          versionId: nativeFindFile.version.id,
+          text: nativeFindText,
+          cautions: [],
+          pages: { pages: [], source: "unindexed" as const },
+          tableCells: [],
+        }
+      : await extractLocalDocument(userId, documentId);
   if (!document) {
     return upstreamMikeResult(call, {
       ok: false,
@@ -6644,6 +6889,12 @@ async function runUpstreamMikeRetrievalCall(params: {
           document.text.slice(0, start).split(/\r?\n/u).length;
         const candidateEndLine =
           document.text.slice(0, end).split(/\r?\n/u).length;
+        // Native hits carry exactly {index, excerpt, context}
+        // (2266446b:backend/src/lib/chat/tools/documentOps.ts:1758-1766); no
+        // locator, no page, no read hint.
+        if (UPSTREAM_NATIVE_MIKE_SHAPE) {
+          return { index: hit.index, excerpt: hit.excerpt, context: hit.context };
+        }
         return {
           ...hit,
           locator: `chars ${start}-${end}`,
@@ -6761,6 +7012,31 @@ export async function runLocalAssistantTools(
           servedDraftingCache,
         });
         if (upstream) return upstream;
+      }
+
+      if (UPSTREAM_NATIVE_MIKE_SHAPE && call.name === "edit_document") {
+        return runUpstreamNativeEditDocument(
+          call,
+          userId,
+          args,
+          allowedDocumentIds,
+          turnEditState,
+          turnReadState,
+        );
+      }
+
+      // Native list_workflows / read_workflow: upstream exposes both
+      // unconditionally (streaming.ts:191) over a workflow store the LAB
+      // surface leaves empty, so list_workflows returns [] and read_workflow
+      // reports the id as not found (toolDispatcher.ts:756-781).
+      if (UPSTREAM_NATIVE_MIKE_SHAPE && call.name === "list_workflows") {
+        return upstreamMikeResult(call, []);
+      }
+      if (UPSTREAM_NATIVE_MIKE_SHAPE && call.name === "read_workflow") {
+        return upstreamMikeResult(
+          call,
+          `Workflow '${trimmed(args.workflow_id)}' not found.`,
+        );
       }
 
       if (call.name === "describe_tools") {
@@ -6969,8 +7245,17 @@ export async function runLocalAssistantTools(
       ) {
         const title = trimmed(args.title);
         const filename = trimmed(args.filename);
-        const markdown =
-          call.name === "generate_docx"
+        // The native arm renders sections[] -> OOXML with upstream's own
+        // renderer (spec deviation D6), so it never builds a Markdown bridge;
+        // the serialized sections stand in as the provenance digest input.
+        const nativeDocx =
+          UPSTREAM_NATIVE_MIKE_SHAPE && call.name === "generate_docx";
+        const nativeSections = Array.isArray(args.sections)
+          ? (args.sections as unknown[])
+          : [];
+        const markdown = nativeDocx
+          ? JSON.stringify(nativeSections)
+          : call.name === "generate_docx"
             ? COMPACT_AUTHOR_MIKE_TOOL_SHAPE ||
               LEAN_BATCH_FAMILY_TOOL_SHAPE ||
               MARKDOWN_SWAP_MIKE_TOOL_SHAPE ||
@@ -6995,15 +7280,21 @@ export async function runLocalAssistantTools(
             args.sources,
             allowedDocumentIds,
           );
-          const rendered = await renderMarkdownDocx(
-            title,
-            markdown,
-            args.fields,
-            {
-              landscape: args.landscape === true,
-              citations: evidence.citations,
-            },
-          );
+          const rendered = nativeDocx
+            ? await (async () => {
+                const out = await renderUpstreamNativeDocx(
+                  title,
+                  nativeSections,
+                  { landscape: args.landscape === true },
+                );
+                return out.error !== undefined
+                  ? { error: out.error }
+                  : { bytes: out.buffer, filename: out.filename };
+              })()
+            : await renderMarkdownDocx(title, markdown, args.fields, {
+                landscape: args.landscape === true,
+                citations: evidence.citations,
+              });
           if ("error" in rendered) return fail(call, rendered.error);
           const document = await createLocalDocument({
             userId,
@@ -7015,6 +7306,11 @@ export async function runLocalAssistantTools(
               actor: "assistant",
               action: "created",
               generation: {
+                // The provenance literal is fixed by LocalDocumentVersion in
+                // localDocumentStore.ts, which is outside this arm's blast
+                // radius. The native arm's renderer is recorded instead by the
+                // benchmark_surface receipt (upstream_native_shape) and by
+                // harnessSourceFiles binding upstreamNativeDocxRenderer.ts.
                 rendererVersion: "beaver.docx-markdown.v1",
                 markdownSha256: sha256(markdown),
                 fieldValuesSha256: sha256(JSON.stringify(args.fields ?? [])),
