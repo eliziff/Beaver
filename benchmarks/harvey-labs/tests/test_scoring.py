@@ -246,7 +246,7 @@ class TestMatchDeliverables:
 
     def test_exact_match(self):
         """Exact filename match should be used directly."""
-        result = _match_deliverables(
+        result, _methods = _match_deliverables(
             {"memo": "memo.docx"},
             ["memo.docx", "other.pdf"],
         )
@@ -254,7 +254,7 @@ class TestMatchDeliverables:
 
     def test_hyphen_vs_underscore(self):
         """case-chronology.xlsx should match case_chronology.xlsx via extension (single file)."""
-        result = _match_deliverables(
+        result, _methods = _match_deliverables(
             {"chronology": "case-chronology.xlsx"},
             ["case_chronology.xlsx", "output.docx"],
         )
@@ -262,7 +262,7 @@ class TestMatchDeliverables:
 
     def test_single_file_with_extension(self):
         """When only one file has the expected extension, use it regardless of name."""
-        result = _match_deliverables(
+        result, _methods = _match_deliverables(
             {"spreadsheet": "financial-data.xlsx"},
             ["completely_different_name.xlsx", "output.docx", "notes.txt"],
         )
@@ -270,7 +270,7 @@ class TestMatchDeliverables:
 
     def test_fuzzy_keyword_overlap(self):
         """Fuzzy matching should pick the candidate with more keyword overlap."""
-        result = _match_deliverables(
+        result, _methods = _match_deliverables(
             {"report": "quarterly-financial-report.docx"},
             ["financial-report-q1.docx", "meeting-notes.docx", "output.docx"],
         )
@@ -278,7 +278,7 @@ class TestMatchDeliverables:
 
     def test_fuzzy_does_not_match_on_single_common_word(self):
         """A single common word overlap should not beat a better match."""
-        result = _match_deliverables(
+        result, _methods = _match_deliverables(
             {"cap_table": "cap-table-update.xlsx"},
             ["cap-table-final.xlsx", "table-of-contents.xlsx", "output.docx"],
         )
@@ -287,7 +287,7 @@ class TestMatchDeliverables:
 
     def test_no_match_preserves_expected(self):
         """When no match is found (no LLM), the expected filename is preserved."""
-        result = _match_deliverables(
+        result, _methods = _match_deliverables(
             {"memo": "legal-memo.docx"},
             ["spreadsheet.xlsx", "output.docx"],
         )
@@ -295,7 +295,7 @@ class TestMatchDeliverables:
 
     def test_output_md_excluded(self):
         """output.md should be excluded from matching, same as output.docx."""
-        result = _match_deliverables(
+        result, _methods = _match_deliverables(
             {"memo": "legal-memo.md"},
             ["spreadsheet.xlsx", "output.md"],
         )
@@ -303,7 +303,7 @@ class TestMatchDeliverables:
 
     def test_output_any_extension_excluded(self):
         """Any output.* file should be excluded from matching candidates."""
-        result = _match_deliverables(
+        result, _methods = _match_deliverables(
             {"data": "results.xlsx"},
             ["output.xlsx", "actual-results.xlsx"],
         )
@@ -311,7 +311,7 @@ class TestMatchDeliverables:
 
     def test_multiple_deliverables(self):
         """Multiple deliverables should each be matched independently without reuse."""
-        result = _match_deliverables(
+        result, _methods = _match_deliverables(
             {"memo": "memo.docx", "spreadsheet": "data.xlsx"},
             ["memo.docx", "data.xlsx", "output.docx"],
         )
@@ -320,7 +320,7 @@ class TestMatchDeliverables:
 
     def test_used_files_not_reused(self):
         """A file matched to one deliverable should not be reused for another."""
-        result = _match_deliverables(
+        result, _methods = _match_deliverables(
             {"report_a": "report-a.docx", "report_b": "report-b.docx"},
             ["report-a.docx", "summary.docx", "output.docx"],
         )
@@ -330,7 +330,7 @@ class TestMatchDeliverables:
 
     def test_extension_mismatch_no_false_positive(self):
         """Fuzzy matching should only consider files with the same extension."""
-        result = _match_deliverables(
+        result, _methods = _match_deliverables(
             {"chronology": "case-chronology.xlsx"},
             ["case-chronology-summary.docx", "unrelated.pdf"],
         )
@@ -339,7 +339,7 @@ class TestMatchDeliverables:
 
     def test_fuzzy_picks_highest_overlap(self):
         """With multiple candidates, highest keyword overlap wins."""
-        result = _match_deliverables(
+        result, _methods = _match_deliverables(
             {"letter": "side-letter-blackhawk-municipal.docx"},
             [
                 "DRAFT-Side-Letter-Blackhawk.docx",
