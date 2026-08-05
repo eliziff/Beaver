@@ -56,7 +56,11 @@ import {
   LEAN_BATCH_LAB_SYSTEM_PROMPT,
   LEAN_BATCH_LAB_TOOLS,
   MARKDOWN_E2E_DELTA,
+  MARKDOWN_E2E_FLOOR_DELTA,
+  MARKDOWN_E2E_FLOOR_LAB_SYSTEM_PROMPT,
   MARKDOWN_E2E_INDEX_DELTA,
+  MARKDOWN_E2E_INDEX_FLOOR_DELTA,
+  MARKDOWN_E2E_INDEX_FLOOR_LAB_SYSTEM_PROMPT,
   MARKDOWN_E2E_INDEX_LAB_SYSTEM_PROMPT,
   MARKDOWN_INDEX_LAB_TOOLS,
   MARKDOWN_SWAP_DELTA,
@@ -117,6 +121,16 @@ function armExpectedSurface(
             systemPrompt: MARKDOWN_E2E_INDEX_LAB_SYSTEM_PROMPT,
             tools: MARKDOWN_INDEX_LAB_TOOLS,
           }
+        : arm === "mike_markdown_e2e_floor_v1"
+          ? {
+              systemPrompt: MARKDOWN_E2E_FLOOR_LAB_SYSTEM_PROMPT,
+              tools: UPSTREAM_MIKE_MARKDOWN_SWAP_LAB_TOOLS,
+            }
+        : arm === "mike_markdown_e2e_index_floor_v1"
+          ? {
+              systemPrompt: MARKDOWN_E2E_INDEX_FLOOR_LAB_SYSTEM_PROMPT,
+              tools: MARKDOWN_INDEX_LAB_TOOLS,
+            }
         : arm === "mike_compact_author_v1"
           ? {
               systemPrompt: COMPACT_AUTHOR_MIKE_LAB_SYSTEM_PROMPT,
@@ -700,6 +714,28 @@ async function main() {
       // No MIKE_DEEPSEEK_MAX_TOKENS override: the 65536 lift was an
       // uncontrolled second delta vs every other arm (triple audit D2).
     },
+    // Read-scope x write-discipline 2x2, write-discipline cells: the e2e and
+    // index arms plus the LEAN_BATCH completeness clause appended to the
+    // prompt (MIKE_COMPLETENESS_FLOOR). ONE delta vs their parent arms.
+    mike_markdown_e2e_floor_v1: {
+      MIKE_NAV_SHAPE: "legacy",
+      MIKE_TOOL_SHAPE: "mike-markdown-e2e-v1",
+      MIKE_RETRIEVAL_EXPERIMENT: "",
+      MIKE_PROGRESSIVE_DISCLOSURE: "0",
+      MIKE_TERMINAL_AUTHORING: "1",
+      MIKE_READ_DOCX_MARKDOWN: "1",
+      MIKE_COMPLETENESS_FLOOR: "1",
+    },
+    mike_markdown_e2e_index_floor_v1: {
+      MIKE_NAV_SHAPE: "legacy",
+      MIKE_TOOL_SHAPE: "mike-markdown-e2e-v1",
+      MIKE_RETRIEVAL_EXPERIMENT: "",
+      MIKE_PROGRESSIVE_DISCLOSURE: "0",
+      MIKE_TERMINAL_AUTHORING: "1",
+      MIKE_READ_DOCX_MARKDOWN: "1",
+      MIKE_STRUCTURE_INDEX: "1",
+      MIKE_COMPLETENESS_FLOOR: "1",
+    },
     // Reverse swap: markdown READ (Pandoc drafting-source) + UPSTREAM Mike
     // drafting (sections[] shape). Completes the 2x2 read/write matrix:
     //   control          = upstream read  + upstream sections[] draft
@@ -902,7 +938,7 @@ async function main() {
   };
   if (!armEnvironment[arm])
     throw new Error(
-      `unknown --arm ${arm}; expected a registered LAB arm, including upstream_terminal_v1, mike_markdown_swap_v1, mike_markdown_e2e_v1, mike_markdown_e2e_index_v1, mike_markdown_read_upstream_draft_v1, mike_compact_author_v1, lean_batch_v1, lean_batch_hardrefs_v1, or grounded_structure_outline_v1`,
+      `unknown --arm ${arm}; expected a registered LAB arm, including upstream_terminal_v1, mike_markdown_swap_v1, mike_markdown_e2e_v1, mike_markdown_e2e_index_v1, mike_markdown_e2e_floor_v1, mike_markdown_e2e_index_floor_v1, mike_markdown_read_upstream_draft_v1, mike_compact_author_v1, lean_batch_v1, lean_batch_hardrefs_v1, or grounded_structure_outline_v1`,
     );
 
   // Re-spawn into the isolated anonymous-mode environment (same recipe as
@@ -1487,7 +1523,13 @@ async function main() {
     }
   }
   if (
-    ["mike_markdown_swap_v1", "mike_markdown_e2e_v1", "mike_markdown_e2e_index_v1"].includes(arm)
+    [
+      "mike_markdown_swap_v1",
+      "mike_markdown_e2e_v1",
+      "mike_markdown_e2e_index_v1",
+      "mike_markdown_e2e_floor_v1",
+      "mike_markdown_e2e_index_floor_v1",
+    ].includes(arm)
   ) {
     const expectedTools = [
       "read_document",
@@ -1502,10 +1544,14 @@ async function main() {
     const deferredTools = Array.isArray(surface?.deferred_tools)
       ? surface.deferred_tools
       : [];
-    const markdownE2e =
-      arm === "mike_markdown_e2e_v1" || arm === "mike_markdown_e2e_index_v1";
+    const markdownE2e = arm !== "mike_markdown_swap_v1";
     const markdownSwap = arm === "mike_markdown_swap_v1";
-    const structureIndex = arm === "mike_markdown_e2e_index_v1";
+    const structureIndex =
+      arm === "mike_markdown_e2e_index_v1" ||
+      arm === "mike_markdown_e2e_index_floor_v1";
+    const completenessFloor =
+      arm === "mike_markdown_e2e_floor_v1" ||
+      arm === "mike_markdown_e2e_index_floor_v1";
     // The served prompt must be the arm's registered prompt, byte-for-byte.
     // The SECT-INDEX arm's first wave ran entirely on the upstream prompt
     // because only --preflight-only ever referenced its prompt const; this
@@ -1526,6 +1572,7 @@ async function main() {
       surface?.markdown_e2e_shape !== markdownE2e ||
       surface?.markdown_read_docx !== markdownE2e ||
       surface?.structure_index !== structureIndex ||
+      surface?.completeness_floor !== completenessFloor ||
       surface?.upstream_mike_shape !== false ||
       surface?.progressive_disclosure !== false ||
       surface?.trajectory_mode !== "continuous" ||
@@ -1853,6 +1900,8 @@ async function main() {
       "mike_markdown_swap_v1",
       "mike_markdown_e2e_v1",
       "mike_markdown_e2e_index_v1",
+      "mike_markdown_e2e_floor_v1",
+      "mike_markdown_e2e_index_floor_v1",
       "mike_compact_author_v1",
       "lean_batch_v1",
       "lean_batch_hardrefs_v1",
@@ -2220,6 +2269,8 @@ async function main() {
     "mike_markdown_swap_v1",
     "mike_markdown_e2e_v1",
     "mike_markdown_e2e_index_v1",
+    "mike_markdown_e2e_floor_v1",
+    "mike_markdown_e2e_index_floor_v1",
     "adaptive_mike_v1",
     "mike_compact_author_v1",
     "lean_batch_v1",
@@ -2377,13 +2428,25 @@ async function main() {
     compact_author_delta:
       arm === "mike_compact_author_v1" ? COMPACT_AUTHOR_MIKE_DELTA : null,
     markdown_swap_delta:
-      ["mike_markdown_swap_v1", "mike_markdown_e2e_v1", "mike_markdown_e2e_index_v1"].includes(arm)
+      [
+        "mike_markdown_swap_v1",
+        "mike_markdown_e2e_v1",
+        "mike_markdown_e2e_index_v1",
+        "mike_markdown_e2e_floor_v1",
+        "mike_markdown_e2e_index_floor_v1",
+      ].includes(arm)
         ? MARKDOWN_SWAP_DELTA
         : null,
     markdown_e2e_delta:
       arm === "mike_markdown_e2e_v1" ? MARKDOWN_E2E_DELTA : null,
     markdown_e2e_index_delta:
       arm === "mike_markdown_e2e_index_v1" ? MARKDOWN_E2E_INDEX_DELTA : null,
+    markdown_e2e_floor_delta:
+      arm === "mike_markdown_e2e_floor_v1" ? MARKDOWN_E2E_FLOOR_DELTA : null,
+    markdown_e2e_index_floor_delta:
+      arm === "mike_markdown_e2e_index_floor_v1"
+        ? MARKDOWN_E2E_INDEX_FLOOR_DELTA
+        : null,
     lean_batch_delta:
       ["lean_batch_v1", "lean_batch_hardrefs_v1"].includes(arm)
         ? LEAN_BATCH_DELTA
@@ -2640,12 +2703,22 @@ async function main() {
         prompt_variant:
           ["upstream", "upstream_terminal_v1"].includes(arm)
             ? "upstream-pinned"
-            : ["mike_markdown_swap_v1", "mike_markdown_e2e_v1", "mike_markdown_e2e_index_v1"].includes(arm)
+            : [
+                  "mike_markdown_swap_v1",
+                  "mike_markdown_e2e_v1",
+                  "mike_markdown_e2e_index_v1",
+                  "mike_markdown_e2e_floor_v1",
+                  "mike_markdown_e2e_index_floor_v1",
+                ].includes(arm)
               ? arm === "mike_markdown_e2e_v1"
                 ? "upstream-markdown-e2e-v1"
                 : arm === "mike_markdown_e2e_index_v1"
                   ? "upstream-markdown-e2e-index-v1"
-                  : "upstream-markdown-swap-v1"
+                  : arm === "mike_markdown_e2e_floor_v1"
+                    ? "upstream-markdown-e2e-floor-v1"
+                    : arm === "mike_markdown_e2e_index_floor_v1"
+                      ? "upstream-markdown-e2e-index-floor-v1"
+                      : "upstream-markdown-swap-v1"
               : arm === "adaptive_mike_v1"
               ? "adaptive-mike-v1"
               : arm === "mike_compact_author_v1"
@@ -2718,13 +2791,25 @@ async function main() {
         compact_author_delta:
           arm === "mike_compact_author_v1" ? COMPACT_AUTHOR_MIKE_DELTA : null,
         markdown_swap_delta:
-          ["mike_markdown_swap_v1", "mike_markdown_e2e_v1", "mike_markdown_e2e_index_v1"].includes(arm)
+          [
+            "mike_markdown_swap_v1",
+            "mike_markdown_e2e_v1",
+            "mike_markdown_e2e_index_v1",
+            "mike_markdown_e2e_floor_v1",
+            "mike_markdown_e2e_index_floor_v1",
+          ].includes(arm)
             ? MARKDOWN_SWAP_DELTA
             : null,
         markdown_e2e_delta:
           arm === "mike_markdown_e2e_v1" ? MARKDOWN_E2E_DELTA : null,
         markdown_e2e_index_delta:
           arm === "mike_markdown_e2e_index_v1" ? MARKDOWN_E2E_INDEX_DELTA : null,
+        markdown_e2e_floor_delta:
+          arm === "mike_markdown_e2e_floor_v1" ? MARKDOWN_E2E_FLOOR_DELTA : null,
+        markdown_e2e_index_floor_delta:
+          arm === "mike_markdown_e2e_index_floor_v1"
+            ? MARKDOWN_E2E_INDEX_FLOOR_DELTA
+            : null,
         lean_batch_delta:
           ["lean_batch_v1", "lean_batch_hardrefs_v1"].includes(arm)
             ? LEAN_BATCH_DELTA
@@ -2767,7 +2852,12 @@ async function main() {
             ? true
             : null,
         markdown_e2e_isolation_verified:
-          arm === "mike_markdown_e2e_v1" || arm === "mike_markdown_e2e_index_v1"
+          [
+            "mike_markdown_e2e_v1",
+            "mike_markdown_e2e_index_v1",
+            "mike_markdown_e2e_floor_v1",
+            "mike_markdown_e2e_index_floor_v1",
+          ].includes(arm)
             ? true
             : null,
         lean_batch_isolation_verified:
@@ -3144,13 +3234,25 @@ async function main() {
         compact_author_delta:
           arm === "mike_compact_author_v1" ? COMPACT_AUTHOR_MIKE_DELTA : null,
         markdown_swap_delta:
-          ["mike_markdown_swap_v1", "mike_markdown_e2e_v1", "mike_markdown_e2e_index_v1"].includes(arm)
+          [
+            "mike_markdown_swap_v1",
+            "mike_markdown_e2e_v1",
+            "mike_markdown_e2e_index_v1",
+            "mike_markdown_e2e_floor_v1",
+            "mike_markdown_e2e_index_floor_v1",
+          ].includes(arm)
             ? MARKDOWN_SWAP_DELTA
             : null,
         markdown_e2e_delta:
           arm === "mike_markdown_e2e_v1" ? MARKDOWN_E2E_DELTA : null,
         markdown_e2e_index_delta:
           arm === "mike_markdown_e2e_index_v1" ? MARKDOWN_E2E_INDEX_DELTA : null,
+        markdown_e2e_floor_delta:
+          arm === "mike_markdown_e2e_floor_v1" ? MARKDOWN_E2E_FLOOR_DELTA : null,
+        markdown_e2e_index_floor_delta:
+          arm === "mike_markdown_e2e_index_floor_v1"
+            ? MARKDOWN_E2E_INDEX_FLOOR_DELTA
+            : null,
         lean_batch_delta:
           ["lean_batch_v1", "lean_batch_hardrefs_v1"].includes(arm)
             ? LEAN_BATCH_DELTA
