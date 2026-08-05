@@ -5,17 +5,22 @@
 // one `claude -p` call whose stdin JSON carries the transport protocol,
 // harness system prompt, conversation, and tool schemas.
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { jsonrepair } from "jsonrepair";
 
 import { abortError, throwIfAborted } from "./abort";
 import type {
+  LlmContextRoundReceipt,
   NormalizedLlmUsage,
   NormalizedToolCall,
   StreamChatParams,
   StreamChatResult,
 } from "./types";
+
+const sha256 = (text: string) =>
+  createHash("sha256").update(text).digest("hex");
 
 // Single-line and quote-free by necessity: if the CLI resolves to the npm
 // .CMD shim, cmd.exe re-parses argv and mangles newlines/quotes.
@@ -455,6 +460,10 @@ export async function streamClaudeP(
     cacheReadInputTokens: 0,
     cacheWriteInputTokens: 0,
   };
+  // Content-free per-iteration receipts. Without them the manifest reports
+  // rounds: [] for claude-p, context_round_count is 0, and the harness cannot
+  // separate context volume from turn count on this lane.
+  const contextRounds: LlmContextRoundReceipt[] = [];
 
   const persist = persistEnabled();
   let session: ClaudePSession | null = null;
@@ -479,6 +488,15 @@ export async function streamClaudeP(
         continuation = null;
       }
       priorToolKey = toolKey;
+      const usageBeforeRound = {
+        inputTokens: usage.inputTokens ?? 0,
+        outputTokens: usage.outputTokens ?? 0,
+        cacheReadInputTokens: usage.cacheReadInputTokens ?? 0,
+        cacheWriteInputTokens: usage.cacheWriteInputTokens ?? 0,
+      };
+      const continuationUsed =
+        !!(session && !session.dead && continuation);
+      let attemptsUsed = 0;
       let blocks: AnthropicBlock[] | null = null;
       let lastError: unknown = null;
       // After a parse failure the retry payload carries the bad reply plus a
@@ -488,6 +506,7 @@ export async function streamClaudeP(
       let corrective: { reply: string; problem: string } | null = null;
       for (let attempt = 0; attempt < 3 && !blocks; attempt++) {
         throwIfAborted(params.abortSignal);
+        attemptsUsed = attempt + 1;
         if (attempt > 0)
           await new Promise((resolve) => setTimeout(resolve, 15_000 * attempt));
         const correction = corrective as {
@@ -613,9 +632,48 @@ export async function streamClaudeP(
       }
       callbacks.onContentBlockEnd?.();
 
+      {
+        const system = params.systemPrompt ?? "";
+        const messagesJson = JSON.stringify(messages);
+        const argsJson = JSON.stringify(toolCalls.map((call) => call.input));
+        contextRounds.push({
+          iteration: iter,
+          requestAttempts: attemptsUsed,
+          continuation: continuationUsed ? "provider" : "none",
+          instructionsBytes: Buffer.byteLength(system),
+          instructionsSha256: sha256(system),
+          inputItems: messages.length,
+          inputBytes: Buffer.byteLength(messagesJson),
+          inputSha256: sha256(messagesJson),
+          toolCount: claudeTools.length,
+          toolBytes: Buffer.byteLength(toolKey),
+          toolSha256: sha256(toolKey),
+          toolCallCount: toolCalls.length,
+          toolArgumentBytes: Buffer.byteLength(argsJson),
+          toolResultBytes: 0,
+          usage: {
+            inputTokens:
+              (usage.inputTokens ?? 0) - usageBeforeRound.inputTokens,
+            outputTokens:
+              (usage.outputTokens ?? 0) - usageBeforeRound.outputTokens,
+            reasoningTokens: null,
+            cacheReadInputTokens:
+              (usage.cacheReadInputTokens ?? 0) -
+              usageBeforeRound.cacheReadInputTokens,
+            cacheWriteInputTokens:
+              (usage.cacheWriteInputTokens ?? 0) -
+              usageBeforeRound.cacheWriteInputTokens,
+          },
+        });
+      }
+
       if (!toolCalls.length || !runTools) break;
       const results = await runTools(toolCalls);
       throwIfAborted(params.abortSignal);
+      contextRounds[contextRounds.length - 1].toolResultBytes =
+        Buffer.byteLength(
+          JSON.stringify(results.map((result) => result.content)),
+        );
       if (results.some((result) => result.terminal)) break;
       messages.push({ role: "assistant", content: blocks });
       messages.push({
@@ -637,7 +695,7 @@ export async function streamClaudeP(
     session?.dispose();
   }
 
-  return { fullText, usage };
+  return { fullText, usage, contextRounds };
 }
 
 export async function completeClaudePText(params: {
