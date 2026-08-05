@@ -120,6 +120,32 @@ describe("DeepSeek adapter", () => {
     ]));
   });
 
+  it("sends reasoning_effort low when low effort is requested", async () => {
+    const bodies: Record<string, unknown>[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
+        bodies.push(JSON.parse(String(init.body)));
+        return sse([{ choices: [{ delta: { content: "done" } }] }]);
+      }),
+    );
+
+    await streamDeepSeek({
+      model: "deepseek-v4-flash",
+      systemPrompt: "system",
+      messages: [{ role: "user", content: "quick" }],
+      apiKeys: { deepseek: "sk-test" },
+      enableThinking: true,
+      reasoningEffort: "low",
+    });
+
+    expect(bodies[0]).toMatchObject({
+      model: "deepseek-v4-flash",
+      thinking: { type: "enabled" },
+      reasoning_effort: "low",
+    });
+  });
+
   it("refreshes tools on the next tool-loop request", async () => {
     const bodies: Record<string, unknown>[] = [];
     vi.stubGlobal(
