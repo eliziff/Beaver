@@ -18,11 +18,12 @@ reasoning effort passes through as --effort.
 import json
 import os
 import re
-import shutil
 import subprocess
 import threading
 import time
 import uuid
+
+from utils import claude_cli
 
 from harness.adapters.anthropic import AnthropicAdapter
 from harness.adapters.base import ModelResponse, ToolCall
@@ -77,23 +78,14 @@ class ClaudeCodeAdapter(AnthropicAdapter):
         super().__init__(model=model, temperature=temperature,
                          reasoning_effort=reasoning_effort)
         self.client = None  # no SDK client; subprocess transport
-        # Prefer the real claude.exe: PATH resolves to the npm .CMD shim,
-        # which puts cmd.exe between us and the CLI — watchdog kill() then
-        # hits the shim and orphans the live process (observed leaking
-        # -p calls mid-run).
-        appdata = os.environ.get("APPDATA", "")
-        exe = os.path.join(
-            appdata, "npm", "node_modules", "@anthropic-ai",
-            "claude-code", "bin", "claude.exe",
-        )
-        self._cli = (
-            exe if appdata and os.path.isfile(exe) else shutil.which("claude")
-        )
-        if not self._cli:
-            raise RuntimeError("claude CLI not found on PATH for claude-code adapter")
-        # Subscription auth: the repo .env Anthropic key is a stub, and a
-        # present ANTHROPIC_API_KEY would flip the CLI to metered billing.
-        self._env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
+        # Resolves to the real claude.exe rather than the npm .CMD shim, which
+        # matters here because the watchdog below kill()s the process tree.
+        self._cli = claude_cli.resolve_cli()
+        # Subscription auth: the repo .env Anthropic key is a stub and would
+        # flip the CLI to metered billing, but dropping it alone is not
+        # enough — ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN reroute the call
+        # to a third-party endpoint entirely. Strip the whole set.
+        self._env = claude_cli.auth_isolated_env()
 
     # A healthy generation streams partial chunks continuously; silence
     # means a wedged call. Deliverable-writing turns legitimately run
@@ -198,6 +190,7 @@ class ClaudeCodeAdapter(AnthropicAdapter):
             except json.JSONDecodeError:
                 continue
             if event.get("type") == "result":
+                claude_cli.verify_served_model(event, self.model)
                 return event
         raise ValueError("stream ended without a result envelope")
 

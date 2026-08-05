@@ -19,6 +19,8 @@ from google import genai
 from google.genai import types
 from mistralai.client import Mistral
 
+from utils import claude_cli
+
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 
 _VERDICT_SCHEMA = {
@@ -83,9 +85,9 @@ class Judge:
             # output — the shared _parse_json handles the verdict extraction.
             self.client = None
             self.model = model.split("/", 1)[1] if "/" in model else model
-            self._claude_cli = shutil.which("claude")
-            if not self._claude_cli:
-                raise RuntimeError("claude CLI not found on PATH for claude-code judge")
+            # Resolved once here so a missing CLI fails at construction rather
+            # than mid-round; the spawn itself re-resolves inside claude_cli.
+            claude_cli.resolve_cli()
         elif self.provider == "anthropic":
             self.client = anthropic.Anthropic(max_retries=1)
         elif self.provider == "google":
@@ -283,9 +285,9 @@ class Judge:
             # Prompt via stdin (judge prompts with deliverable text exceed
             # Windows argv limits); neutral system prompt replaces the
             # Claude Code default so the judge sees only the rubric task.
-            run = subprocess.run(
+            run = claude_cli.run(
                 [
-                    self._claude_cli, "-p",
+                    "-p",
                     "--model", self.model,
                     "--output-format", "json",
                     "--system-prompt",
@@ -293,7 +295,6 @@ class Judge:
                     " JSON. Keep the reasoning field under 60 words.",
                 ],
                 input=prompt,
-                capture_output=True, text=True, encoding="utf-8", errors="replace",
                 timeout=600,
             )
             try:
@@ -301,6 +302,10 @@ class Judge:
                     spawn_failures += 1
                     raise ValueError(f"claude CLI exit {run.returncode}: {run.stderr.strip()[:300]}")
                 envelope = json.loads(run.stdout)
+                # Before anything else: a misrouted call bills per token, and
+                # ForeignModelError is not caught below, so it aborts the whole
+                # judging round instead of retrying at the proxy's expense.
+                claude_cli.verify_served_model(envelope, self.model)
                 if envelope.get("is_error"):
                     raise ValueError(f"claude CLI error result: {str(envelope)[:300]}")
                 text = str(envelope.get("result", ""))
