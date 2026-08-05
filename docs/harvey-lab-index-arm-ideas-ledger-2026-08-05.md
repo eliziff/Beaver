@@ -617,3 +617,16 @@ live alternative (unblocked by A5) and matches the flat-rate directive.
 In flight: claude-p sonnet smoke of the corrected index arm
 (closing-checklist) — exercises A1/A2/A4/A5 end-to-end; k=5 sonnet judge
 probe on the EMP index run (Phase B noise floor).
+
+### Protocol amendment (Eli, 2026-08-05, same day)
+
+- **Deepseek retired by design** — the 402 was the intended end state. All
+  arm runs move to claude-p (sonnet-4-6 workhorse, opus-4-8 headline).
+- **k-fold judging dropped**: the k=5 EMP probe was stopped mid-flight. Judge
+  each run once (claude-code/claude-sonnet-4-6); spend the saved quota on
+  TASK DIVERSITY instead. Variance discipline = don't over-read small deltas
+  + read-gap-vs-synthesis separation, not majority verdicts. A6 machinery
+  stays available but is not the protocol.
+- Phase C reshaped: 4 arms x 10 fit-band tasks x n=1 on sonnet-4-6, single
+  judge pass, decided by per-task McNemar + cross-task sign test
+  (lab-compare.ts).
