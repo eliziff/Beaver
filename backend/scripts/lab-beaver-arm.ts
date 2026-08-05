@@ -89,6 +89,11 @@ function argument(name: string, fallback?: string): string {
 
 const DEFAULT_LAB_ROOT = path.join(__dirname, "../../benchmarks/harvey-labs");
 
+// Set once the run directory exists so the top-level failure handler can
+// record a typed terminal status (context_overflow / quota_exhausted / failed)
+// instead of leaving a permanent provider_call_pending stub.
+let activeRunDir: string | null = null;
+
 // The expected LAB surface per arm: the system prompt the server must have
 // served and the tool schema it must have exposed. Shared by --preflight-only
 // and the post-run conformance gate so a prompt-wiring failure is a hard error,
@@ -692,9 +697,8 @@ async function main() {
       MIKE_TERMINAL_AUTHORING: "1",
       MIKE_READ_DOCX_MARKDOWN: "1",
       MIKE_STRUCTURE_INDEX: "1",
-      // Experiment: raise the per-response output budget so heavy section
-      // analysis finishes before drafting instead of truncating mid-reasoning.
-      MIKE_DEEPSEEK_MAX_TOKENS: "65536",
+      // No MIKE_DEEPSEEK_MAX_TOKENS override: the 65536 lift was an
+      // uncontrolled second delta vs every other arm (triple audit D2).
     },
     // Reverse swap: markdown READ (Pandoc drafting-source) + UPSTREAM Mike
     // drafting (sections[] shape). Completes the 2x2 read/write matrix:
@@ -1135,6 +1139,7 @@ async function main() {
   if (process.env.MIKE_DISABLE_RESEARCH_TOOLS !== "1")
     throw new Error("expected MIKE_DISABLE_RESEARCH_TOOLS=1 (see parent env)");
   const runDir = path.join(labRoot, "results", ...runId.split("/"));
+  activeRunDir = runDir;
   mkdirSync(path.dirname(runDir), { recursive: true });
   try {
     mkdirSync(runDir);
@@ -2199,10 +2204,13 @@ async function main() {
   // keys on every response. The deepseek provider structurally reports neither
   // (serviceTierReported/promptCache stay null), so these receipts can never
   // arrive; enforcing them on the deepseek lane would discard every run,
-  // including ones that authored their deliverable. The single-invocation
-  // count gate below still applies — it checks trajectory shape, not provider
-  // receipts, and deepseek runs are single-invocation anyway.
-  const deepSeekLane = model.startsWith("deepseek");
+  // including ones that authored their deliverable. The claude-p lane is the
+  // same shape: the CLI envelope reports no service tier and no prompt-cache
+  // key, and the tier gate killed every claude-p run of the last wave. The
+  // single-invocation count gate below still applies — it checks trajectory
+  // shape, not provider receipts.
+  const flatRateLane =
+    model.startsWith("deepseek") || model.startsWith("claude-p:");
   const singleInvocationArms = [
     "v13",
     "v14",
@@ -2234,7 +2242,7 @@ async function main() {
     );
   }
   if (
-    !deepSeekLane &&
+    !flatRateLane &&
     defaultTierArms.includes(arm) &&
     (reportedServiceTiers.size !== 1 || !reportedServiceTiers.has("default"))
   ) {
@@ -2243,7 +2251,7 @@ async function main() {
     );
   }
   if (
-    !deepSeekLane &&
+    !flatRateLane &&
     singleInvocationArms.includes(arm) &&
     (promptCacheStrategies.size !== 1 ||
       !promptCacheStrategies.has("session") ||
@@ -2254,7 +2262,7 @@ async function main() {
     );
   }
   if (
-    !deepSeekLane &&
+    !flatRateLane &&
     arm === "v5_reconstruction_v1" &&
     (promptCacheStrategies.size !== 1 ||
       !promptCacheStrategies.has("session") ||
@@ -3182,5 +3190,42 @@ async function main() {
 
 main().catch((error) => {
   console.error("[lab-beaver-arm]", error);
+  // Typed terminal outcomes: a context overflow on a 200K-class model is the
+  // MEASURED RESULT of a whole-read arm on a no-fit task, and a quota wall
+  // must be distinguishable from a crashed run. Recorded in run-state.json so
+  // the results tree carries the reason instead of a permanent
+  // "provider_call_pending" stub.
+  const text = String((error as Error)?.message ?? error);
+  const status = /prompt is too long|blocking_limit/iu.test(text)
+    ? "context_overflow"
+    : /hit your (?:weekly |session )?limit/iu.test(text)
+      ? "quota_exhausted"
+      : "failed";
+  if (activeRunDir) {
+    try {
+      const statePath = path.join(activeRunDir, "run-state.json");
+      const prior = existsSync(statePath)
+        ? (JSON.parse(readFileSync(statePath, "utf8")) as Record<
+            string,
+            unknown
+          >)
+        : {};
+      writeFileSync(
+        statePath,
+        JSON.stringify(
+          {
+            ...prior,
+            status,
+            error: text.slice(0, 1_000),
+            failed_at: new Date().toISOString(),
+          },
+          null,
+          2,
+        ),
+      );
+    } catch {
+      // The typed receipt is best-effort; the console error above stands.
+    }
+  }
   process.exit(1);
 });
