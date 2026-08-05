@@ -95,9 +95,12 @@ import {
 import {
   ADAPTIVE_MIKE_LAB_SYSTEM_PROMPT,
   COMPACT_AUTHOR_MIKE_LAB_SYSTEM_PROMPT,
+  COMPLETENESS_FLOOR_ENABLED,
   GROUNDED_STRUCTURE_LAB_SYSTEM_PROMPT,
   GROUNDED_STRUCTURE_OUTLINE_LAB_SYSTEM_PROMPT,
   LEAN_BATCH_LAB_SYSTEM_PROMPT,
+  MARKDOWN_E2E_FLOOR_LAB_SYSTEM_PROMPT,
+  MARKDOWN_E2E_INDEX_FLOOR_LAB_SYSTEM_PROMPT,
   MARKDOWN_E2E_INDEX_LAB_SYSTEM_PROMPT,
   MIKE_GREP_LAB_SYSTEM_PROMPT,
   MIKE_LEGAL_GUIDED_LAB_SYSTEM_PROMPT,
@@ -1114,8 +1117,12 @@ export async function streamAnonymousChat(params: {
       : ADAPTIVE_MIKE_TOOL_SHAPE
       ? ADAPTIVE_MIKE_LAB_SYSTEM_PROMPT
       : STRUCTURE_INDEX_ENABLED
-        ? MARKDOWN_E2E_INDEX_LAB_SYSTEM_PROMPT
-        : UPSTREAM_MIKE_LAB_SYSTEM_PROMPT
+        ? COMPLETENESS_FLOOR_ENABLED
+          ? MARKDOWN_E2E_INDEX_FLOOR_LAB_SYSTEM_PROMPT
+          : MARKDOWN_E2E_INDEX_LAB_SYSTEM_PROMPT
+        : COMPLETENESS_FLOOR_ENABLED
+          ? MARKDOWN_E2E_FLOOR_LAB_SYSTEM_PROMPT
+          : UPSTREAM_MIKE_LAB_SYSTEM_PROMPT
     : `${CLIENT_WORK_PRODUCT_PRESUMPTION}\n\n${libraryBlock}\n\n` +
       "If the user selects a workflow with [Workflow: <title> (id: <id>)], immediately call read_workflow with that id and follow it.\n\n" +
       "Call ask_inputs only for what blocks the work: an instruction only the user can give, or a document that was never provided. Resolve ordinary ambiguity on the most reasonable reading and state the assumption instead. Never seek confirmation of an instruction already given.\n\n" +
@@ -2518,6 +2525,7 @@ export async function streamAnonymousChat(params: {
           markdown_e2e_shape: MARKDOWN_E2E_MIKE_TOOL_SHAPE,
           markdown_read_docx: MARKDOWN_READ_DOCX,
           structure_index: STRUCTURE_INDEX_ENABLED,
+          completeness_floor: COMPLETENESS_FLOOR_ENABLED,
           lean_batch_shape: LEAN_BATCH_TOOL_SHAPE,
           lean_batch_hardrefs_shape: LEAN_BATCH_HARDREFS_TOOL_SHAPE,
           hard_reference_hints: LEAN_BATCH_HARDREFS_TOOL_SHAPE,
