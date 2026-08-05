@@ -63,6 +63,70 @@ describe("structureIndexExperiment (silo'd LAB arm)", () => {
     });
   });
 
+  describe("renderStructureIndex with markdown (body-relative offsets)", () => {
+    const markdown = [
+      `**<u>ARTICLE I — DEFINITIONS AND ACCOUNTING TERMS</u>**`,
+      ``,
+      `"**Term Loan Commitment**" means, with respect to each Lender, the commitment of such Lender.`,
+      ``,
+      `**Section 2.01 — Term Loan Commitments**`,
+      ``,
+      `\\(a\\) *Commitment Fee.* The Borrower shall pay to each Lender a commitment fee.`,
+      ``,
+      `\\(b\\) *Voluntary Prepayments.* The Borrower may prepay.`,
+      ``,
+      `**Section 2.02 — Borrowing Procedures**`,
+      ``,
+      `The Borrower shall give the Administrative Agent written notice.`,
+    ].join("\n");
+
+    it("anchors top-level sections and articles by line-start display", () => {
+      const nodes: SkeletonNode[] = [
+        node({ kind: "article", label: "art1", display: "ARTICLE I", heading: "DEFINITIONS AND ACCOUNTING TERMS" }),
+        node({ kind: "section", label: "sec2.01", display: "Section 2.01", heading: "Term Loan Commitments" }),
+        node({ kind: "section", label: "sec2.02", display: "Section 2.02", heading: "Borrowing Procedures" }),
+      ];
+      const index = renderStructureIndex(nodes, markdown);
+      // the real heading line's offset — not the earlier body cross-reference
+      // to "Term Loan Commitment(s)" on the definition line
+      expect(index).toContain(`@${markdown.indexOf("**Section 2.01 — Term Loan Commitments**")}`);
+      expect(index).toContain(`@${markdown.indexOf("**Section 2.02 — Borrowing Procedures**")}`);
+      expect(index).not.toContain(`@${markdown.indexOf('"**Term Loan Commitment**"')}`);
+    });
+
+    it("does not anchor a display that is not a line's first token", () => {
+      const nodes: SkeletonNode[] = [
+        node({ kind: "section", label: "sec2.01", display: "Section 2.01", heading: "" }),
+      ];
+      // "Section 2.01" only appears mid-line ("see Section 2.01") → no offset
+      const md = "Borrower shall comply with the provisions of Section 2.01 hereof.";
+      const index = renderStructureIndex(nodes, md);
+      // the section line carries no offset — the token was not line-anchored
+      const line = index.split("\n").find((l) => l.includes("Section 2.01"));
+      expect(line).toMatch(/^  Section 2\.01$/);
+    });
+
+    it("anchors subsections relative to their parent in document order", () => {
+      const nodes: SkeletonNode[] = [
+        node({ kind: "section", label: "sec2.01", display: "Section 2.01", heading: "Term Loan Commitments" }),
+        node({ kind: "subsection", label: "sec2.01(a)", display: "Section 2.01(a)", heading: "Commitment Fee. The Borrower shall pay", parentLabel: "sec2.01", start: 5 }),
+        node({ kind: "subsection", label: "sec2.01(b)", display: "Section 2.01(b)", heading: "Voluntary Prepayments. The Borrower may prepay", parentLabel: "sec2.01", start: 6 }),
+      ];
+      const index = renderStructureIndex(nodes, markdown);
+      // each subsection anchors at its own `\(x\)` line, in document order
+      expect(index).toContain(`@${markdown.indexOf("\\(a\\)")}`);
+      expect(index).toContain(`@${markdown.indexOf("\\(b\\)")}`);
+    });
+
+    it("header states offsets are into the body below the index", () => {
+      const nodes = [
+        node({ kind: "section", label: "sec2.01", display: "Section 2.01", heading: "x" }),
+      ];
+      const index = renderStructureIndex(nodes, markdown);
+      expect(index).toContain("@N = offset into the body below this index");
+    });
+  });
+
   describe("attachStructureIndex", () => {
     it("prepends the index without altering the markdown body", () => {
       const markdown = "**Section 1.01 — Defined Terms**\n\nBody text.";
