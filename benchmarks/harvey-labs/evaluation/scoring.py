@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from enum import StrEnum
@@ -20,6 +19,8 @@ from pathlib import Path
 import pandas as pd
 import pdfplumber
 from markitdown import MarkItDown
+
+from utils import claude_cli
 
 
 # ── File reading helpers ──────────────────────────────────────────────
@@ -266,36 +267,28 @@ For each deliverable, provide the matching filename from the available files, or
         # rate), mirroring judge.py's claude-code provider. The CLI cannot
         # enforce output_schema, so the prompt demands bare JSON with the
         # exact keys and the first {...} block is extracted defensively.
-        cli = shutil.which("claude")
-        if not cli:
-            raise RuntimeError("no ANTHROPIC_API_KEY and no claude CLI on PATH")
-        run = subprocess.run(
-            [
-                cli, "-p",
-                "--model", "claude-sonnet-4-6",
-                "--output-format", "json",
-                "--system-prompt",
-                "You match filenames. Respond with only a JSON object, no prose.",
-            ],
-            input=(
+        envelope = claude_cli.run_json(
+            model="claude-sonnet-4-6",
+            system_prompt=(
+                "You match filenames. Respond with only a JSON object, no prose."
+            ),
+            prompt=(
                 prompt
                 + "\n\nRespond with ONLY a JSON object whose keys are exactly "
                 + json.dumps(deliverable_keys)
                 + " and whose values are a filename from the available files, or null."
             ),
-            capture_output=True, text=True, encoding="utf-8", errors="replace",
             timeout=300,
         )
-        if run.returncode != 0:
-            raise RuntimeError(f"claude CLI exit {run.returncode}: {run.stderr.strip()[:300]}")
-        envelope = json.loads(run.stdout)
-        if envelope.get("is_error"):
-            raise RuntimeError(f"claude CLI error result: {str(envelope)[:300]}")
         text = str(envelope.get("result", ""))
         start, end = text.find("{"), text.rfind("}")
         if start < 0 or end <= start:
             raise ValueError(f"no JSON object in matcher response: {text[:200]}")
         return json.loads(text[start : end + 1])
+    except claude_cli.ForeignModelError:
+        # Never degrade a billing leak into "matching failed" — this one has
+        # to reach the operator.
+        raise
     except Exception as e:
         print(f"  LLM matching failed: {e}")
 
