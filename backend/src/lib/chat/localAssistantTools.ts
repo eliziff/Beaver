@@ -1027,6 +1027,16 @@ export const INDEX_ATTACH_GATED = process.env.MIKE_INDEX_ATTACH_GATED === "1";
 export const FIND_QUERY_NORM_ENABLED =
   process.env.MIKE_FIND_QUERY_NORM === "1";
 
+/** Typed refusal for a scoped read whose offset is at/past the body end
+ *  (previously an empty payload with ok:true — a silent lost round). */
+export const TYPED_RANGE_ENABLED = process.env.MIKE_TYPED_RANGE === "1";
+
+/** Compact SECT-INDEX heading tails: cut at the first sentence/clause
+ *  boundary (max 40 chars) instead of 64 chars of truncated prose — index
+ *  entries are labels, not quotable summaries. */
+export const INDEX_COMPACT_HEADINGS =
+  process.env.MIKE_INDEX_COMPACT_HEADINGS === "1";
+
 /** Closest-excerpt suggestion for a zero-hit find, per the H16' rejection
  *  pattern: strip wrapping quotes from the query, scan the body in bounded
  *  overlapping chunks (the repair engine caps spans at ~4,000 tokens), and
@@ -6198,6 +6208,7 @@ export async function servedDraftingText(
       const index = renderStructureIndex(
         await deriveSectionNodes(bytes),
         source.markdown,
+        { compactHeadings: INDEX_COMPACT_HEADINGS },
       );
       const served = attachStructureIndex(source.markdown, index);
       const bodyOffset = served.length - source.markdown.length;
@@ -6468,6 +6479,25 @@ async function runUpstreamMikeRetrievalCall(params: {
         // and the whole served plane is addressed, so this is a no-op.
         const base = bodyOffset;
         const offset = Math.max(0, scoped!.offset ?? 0);
+        // Typed overshoot (flag-gated): an offset at/past the body end used
+        // to return an empty payload with ok:true — indistinguishable from
+        // an empty section (one lost round per occurrence in mined traces).
+        const bodyLength = fullText.length - base;
+        if (TYPED_RANGE_ENABLED && bodyLength > 0 && offset >= bodyLength) {
+          return {
+            content: JSON.stringify({
+              ok: false,
+              status: "out_of_range",
+              doc_id: docLabel,
+              filename: document.filename,
+              error: `offset ${offset} is beyond the document body (${bodyLength} chars). Use an @N from the SECT-INDEX, a find_in_document offset, or tail for the document's end.`,
+            }),
+            duplicate: false,
+            evidenceSegments: [] as NonNullable<
+              NormalizedToolResult["evidenceSegments"]
+            >,
+          };
+        }
         const start = Math.min(fullText.length, base + offset);
         const maxChars = Math.max(0, scoped!.maxChars ?? 24_000);
         const end = Math.min(fullText.length, start + maxChars);
