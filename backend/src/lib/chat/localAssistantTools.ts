@@ -124,6 +124,7 @@ import {
   MARKDOWN_INDEX_LAB_TOOLS,
   MIKE_STRUCTURE_PATHS_LAB_TOOLS,
   FETCH_REQUIREMENTS_TOOL,
+  NO_DEFERRAL_ECHO_NOTE,
   UPSTREAM_MIKE_LAB_TOOLS,
   UPSTREAM_MIKE_MARKDOWN_SWAP_LAB_TOOLS,
   UPSTREAM_NATIVE_MIKE_LAB_TOOLS,
@@ -993,6 +994,13 @@ export const CITATION_CONTRACT_ENABLED =
  */
 export const CITATION_CONTRACT_V2_ENABLED =
   process.env.MIKE_CITATION_CONTRACT_V2 === "1";
+
+/**
+ * TREATMENT mechanism 4 — no-deferral directive. Prompt block up top plus a
+ * draft-time restatement inside the fetch_requirements echo payload; changes
+ * no tool schema or executor behavior. Independent of the other mechanisms.
+ */
+export const NO_DEFERRAL_ENABLED = process.env.MIKE_NO_DEFERRAL === "1";
 
 /**
  * Turn-scoped bookkeeping for the requirements echo. Created once per assistant
@@ -7090,7 +7098,9 @@ async function runFetchRequirements(
     requirements: requirementsText ?? "",
     documents_read: readList ?? { unknown: true },
     documents_unread: unreadList ?? { unknown: true },
-    note: "Ensure the deliverable addresses each requested item.",
+    note: NO_DEFERRAL_ENABLED
+      ? `Ensure the deliverable addresses each requested item. ${NO_DEFERRAL_ECHO_NOTE}`
+      : "Ensure the deliverable addresses each requested item.",
   });
 }
 
