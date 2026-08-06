@@ -738,3 +738,20 @@ Probe: `.tmp-anchor-oracle-corpus.ts` (deterministic; full-corpus pass running s
   fetch_requirements serve when "the task" is a conversation, not a one-shot?) — task #57.
 - Upstream's 10-round cap is NOT sacred — ablation candidate (task #57). The scoped arm's
   batching economy is shaped by the cap; more/smaller rounds may suit it better.
+
+### Production index-exposure design (Eli question, same day — tracked as task #57)
+Framing directive: this and all similar threads are about a real viable product, not a
+benchmark MVP. Exposure tiers: (1) user-selected/displayed docs → push the full
+SECT-INDEX with the selection event, no tool call; (2) matter/project scope → push a
+SHALLOW triage inventory for every doc (~1–2 lines: type/title/size/top-level count,
+~150 chars/doc — scales to hundreds) inside AVAILABLE DOCUMENTS; full indexes are NOT
+pushed (mean 4.1k chars/doc → 100 docs ≈ 104k tok); (3) full index arrives FUSED with
+first touch — read_document on an untouched doc returns index + requested window in ONE
+result, so index-then-read is never a mandatory two-step; bare index:true and batched
+cross-doc orientation remain optional patterns (in vivo the batched orientation round
+paid for itself: one round, −50% input); (4) library scale → search-first, nothing
+pushed. Cache economics: the shallow inventory sits in the stable cached prefix; fused
+indexes cache from their first tool result onward. Staleness: recompute on doc version
+change (deterministic). UI dividend: the same SECT-INDEX powers a sidebar TOC. Indexes
+respect read ACLs (headings are content). Measurement: fused vs two-step ablation
+(rounds/latency/tokens); the #56 salting design stresses the triage layer directly.
