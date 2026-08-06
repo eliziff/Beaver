@@ -1037,6 +1037,12 @@ export const TYPED_RANGE_ENABLED = process.env.MIKE_TYPED_RANGE === "1";
 export const INDEX_COMPACT_HEADINGS =
   process.env.MIKE_INDEX_COMPACT_HEADINGS === "1";
 
+/** Swap the upstream read-once prompt clause for the scoped-reread wording
+ *  (multiple offset windows per document are the intended usage). Prompt-only:
+ *  the swap itself is applied inside withLabTreatmentPromptAdditions so the
+ *  served prompt and the arm expectation cannot diverge. */
+export const SCOPED_REREAD_ENABLED = process.env.MIKE_SCOPED_REREAD === "1";
+
 /** Closest-excerpt suggestion for a zero-hit find, per the H16' rejection
  *  pattern: strip wrapping quotes from the query, scan the body in bounded
  *  overlapping chunks (the repair engine caps spans at ~4,000 tokens), and
