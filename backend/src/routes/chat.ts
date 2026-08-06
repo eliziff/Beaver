@@ -61,6 +61,7 @@ import {
   RESEARCH_TOOLS_DISABLED,
   RESIDENT_AUTHORING_ENABLED,
   CITATION_CONTRACT_ENABLED,
+  CITATION_CONTRACT_V2_ENABLED,
   REQUIREMENTS_ECHO_ENABLED,
   createLocalAssistantRequirementsState,
   SUPPRESS_DUPLICATE_WHOLE_READS,
@@ -1157,6 +1158,7 @@ export async function streamAnonymousChat(params: {
   systemPrompt = withLabTreatmentPromptAdditions(systemPrompt, {
     requirementsEcho: REQUIREMENTS_ECHO_ENABLED,
     citationContract: CITATION_CONTRACT_ENABLED,
+    citationContractV2: CITATION_CONTRACT_V2_ENABLED,
   });
   if (ORIGIN_MIKE_TOOL_SHAPE) {
     const expectedBase = UPSTREAM_NATIVE_MIKE_SHAPE
@@ -2581,6 +2583,7 @@ export async function streamAnonymousChat(params: {
           // running one of them alone is legible from the receipt.
           requirements_echo: REQUIREMENTS_ECHO_ENABLED,
           citation_contract: CITATION_CONTRACT_ENABLED,
+          citation_contract_v2: CITATION_CONTRACT_V2_ENABLED,
           adaptive_mike_shape: ADAPTIVE_MIKE_TOOL_SHAPE,
           compact_author_mike_shape: COMPACT_AUTHOR_MIKE_TOOL_SHAPE,
           markdown_swap_shape: MARKDOWN_SWAP_MIKE_TOOL_SHAPE,
