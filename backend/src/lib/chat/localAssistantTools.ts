@@ -1005,6 +1005,19 @@ export const CITATION_CONTRACT_V2_ENABLED =
 export const NO_DEFERRAL_ENABLED = process.env.MIKE_NO_DEFERRAL === "1";
 
 /**
+ * TREATMENT mechanism — exposure accounting. The requirements echo's
+ * read/unread split counts BODY EXPOSURE (delivered [start,end) interval
+ * coverage past the SECT-INDEX) instead of tool touches, adds a
+ * documents_oriented_only bucket for index-only orientation reads, and arms a
+ * one-shot coverage check at the authoring boundary. Motivated by the
+ * 2026-08-06 acq-diligence sweep row (30/64): the touch-based echo reported
+ * "2 unread" while 12 of 31 documents had served nothing but SECT-INDEX
+ * headings, and the unexposed documents mapped ~1:1 onto the failed criteria
+ * clusters. Changes tool payloads only — no prompt text, no schema.
+ */
+export const EXPOSURE_ECHO_ENABLED = process.env.MIKE_EXPOSURE_ECHO === "1";
+
+/**
  * Completes the "no empty indexes" design for scoped arms: a document whose
  * derived SECT-INDEX carries entries but no usable @N addresses previously
  * still paid its full index as dead prefix weight (20.6% of index bytes
@@ -1071,12 +1084,21 @@ export type LocalAssistantRequirementsState = {
   /** documents_unread.length at the first echo; null until then, and null when
    * the read state was unavailable so the lists were served as unknown. */
   documentsUnreadAtEcho: number | null;
+  /** Exposure accounting only: documents_oriented_only.length at the first
+   * echo (touched but zero body chars served). Null when the mechanism is
+   * off or the read state was unavailable. */
+  documentsOrientedOnlyAtEcho: number | null;
+  /** Exposure accounting only: the authoring-boundary coverage check has
+   * refused once this turn; every later authoring call proceeds. */
+  exposureNudgeServed: boolean;
 };
 
 export const createLocalAssistantRequirementsState =
   (): LocalAssistantRequirementsState => ({
     echoCallCount: 0,
     documentsUnreadAtEcho: null,
+    documentsOrientedOnlyAtEcho: null,
+    exposureNudgeServed: false,
   });
 
 export const ORIGIN_MIKE_TOOL_SHAPE =
@@ -2296,6 +2318,64 @@ export function readCoversBody(read: {
     );
   }
   return (read.deliveredChars ?? 0) >= sourceChars;
+}
+
+/**
+ * Chars of BODY content (past the SECT-INDEX) delivered for one read-state
+ * entry. An index-only orientation read records a zero-length segment, so it
+ * scores 0 here while still counting as a touch. Entries from paths that
+ * never window (no intervals recorded) fall back to deliveredChars: any
+ * delivery there included body content.
+ */
+export function bodyExposedChars(read: {
+  sourceChars?: number;
+  deliveredChars?: number;
+  bodyStart?: number;
+  intervals?: Array<[number, number]>;
+}): number {
+  const sourceChars = read.sourceChars ?? 0;
+  if (sourceChars <= 0) return 0;
+  const bodyStart = read.bodyStart ?? 0;
+  if (read.intervals)
+    return coveredLength(read.intervals, bodyStart, sourceChars);
+  return Math.min(
+    read.deliveredChars ?? 0,
+    Math.max(0, sourceChars - bodyStart),
+  );
+}
+
+/**
+ * Exposure-accounting split of the allowed documents: `read` = some body
+ * content was served this turn; `orientedOnly` = touched (SECT-INDEX or a
+ * zero-body window) but no body chars served; `unread` = never touched.
+ * find_in_document hits are deliberately NOT exposure — excerpts are
+ * candidates for scoped reads, and counting them as coverage would recreate
+ * the false assurance this split exists to remove.
+ */
+export function splitReadExposure(
+  allowed: Array<{ id: string; filename: string }>,
+  turnReadState: LocalAssistantReadTurnState,
+): { read: string[]; orientedOnly: string[]; unread: string[] } {
+  const touchedIds = new Set<string>();
+  const exposedIds = new Set<string>();
+  for (const entry of turnReadState.values()) {
+    touchedIds.add(entry.documentId);
+    if (bodyExposedChars(entry) > 0) exposedIds.add(entry.documentId);
+  }
+  return {
+    read: allowed
+      .filter((document) => exposedIds.has(document.id))
+      .map((document) => document.filename),
+    orientedOnly: allowed
+      .filter(
+        (document) =>
+          !exposedIds.has(document.id) && touchedIds.has(document.id),
+      )
+      .map((document) => document.filename),
+    unread: allowed
+      .filter((document) => !touchedIds.has(document.id))
+      .map((document) => document.filename),
+  };
 }
 
 type WorkingSetEvidenceSegment = {
@@ -7181,22 +7261,35 @@ async function runFetchRequirements(
   requirementsState: LocalAssistantRequirementsState | undefined,
 ): Promise<NormalizedToolResult> {
   let readList: string[] | null = null;
+  let orientedList: string[] | null = null;
   let unreadList: string[] | null = null;
   if (turnReadState) {
     const stored = (await listLocalLibrary(userId, "file")).documents;
     const allowed = allowedDocumentIds
       ? stored.filter((document) => allowedDocumentIds.has(document.id))
       : stored;
-    // Read-state is keyed per document/version, so several entries can name one
-    // document; collapse to document ids before splitting.
-    const readIds = new Set<string>();
-    for (const entry of turnReadState.values()) readIds.add(entry.documentId);
-    readList = allowed
-      .filter((document) => readIds.has(document.id))
-      .map((document) => document.filename);
-    unreadList = allowed
-      .filter((document) => !readIds.has(document.id))
-      .map((document) => document.filename);
+    if (EXPOSURE_ECHO_ENABLED) {
+      // Exposure accounting: "read" means body chars were served, not that a
+      // tool call touched the document. Index-only orientation gets its own
+      // bucket so the model can see which documents it has only skimmed the
+      // headings of (the acq-diligence 30/64 failure mode).
+      const split = splitReadExposure(allowed, turnReadState);
+      readList = split.read;
+      orientedList = split.orientedOnly;
+      unreadList = split.unread;
+    } else {
+      // Read-state is keyed per document/version, so several entries can name
+      // one document; collapse to document ids before splitting.
+      const readIds = new Set<string>();
+      for (const entry of turnReadState.values())
+        readIds.add(entry.documentId);
+      readList = allowed
+        .filter((document) => readIds.has(document.id))
+        .map((document) => document.filename);
+      unreadList = allowed
+        .filter((document) => !readIds.has(document.id))
+        .map((document) => document.filename);
+    }
   }
 
   if (requirementsState) {
@@ -7208,6 +7301,9 @@ async function runFetchRequirements(
       requirementsState.documentsUnreadAtEcho = unreadList
         ? unreadList.length
         : null;
+      requirementsState.documentsOrientedOnlyAtEcho = orientedList
+        ? orientedList.length
+        : null;
     }
   }
 
@@ -7217,10 +7313,21 @@ async function runFetchRequirements(
     ok: true,
     requirements: requirementsText ?? "",
     documents_read: readList ?? { unknown: true },
+    // Present only under exposure accounting; spreading nothing keeps the
+    // frozen-arm payload byte-identical.
+    ...(orientedList !== null
+      ? { documents_oriented_only: orientedList }
+      : {}),
     documents_unread: unreadList ?? { unknown: true },
-    note: NO_DEFERRAL_ENABLED
-      ? `Ensure the deliverable addresses each requested item. ${NO_DEFERRAL_ECHO_NOTE}`
-      : "Ensure the deliverable addresses each requested item.",
+    note:
+      (orientedList?.length
+        ? "documents_oriented_only lists documents where only the SECT-INDEX" +
+          " headings were served — no body text from them has been read this" +
+          " turn. "
+        : "") +
+      (NO_DEFERRAL_ENABLED
+        ? `Ensure the deliverable addresses each requested item. ${NO_DEFERRAL_ECHO_NOTE}`
+        : "Ensure the deliverable addresses each requested item."),
   });
 }
 
@@ -7564,6 +7671,37 @@ export async function runLocalAssistantTools(
           return upstreamMikeResult(call, {
             error: "Call fetch_requirements before authoring the deliverable.",
           });
+        }
+        // Exposure accounting, authoring backstop: refuse the FIRST authoring
+        // call while documents remain with zero body chars served, naming
+        // them. One-shot by construction — the second call always proceeds —
+        // so the model keeps relevance authority and can never loop. This is
+        // the boundary where false coverage assurance became 30/64 (acq) and
+        // 39/77 (tax): both runs drafted with rounds of budget unused while
+        // the touch-based echo reported near-zero unread.
+        if (
+          EXPOSURE_ECHO_ENABLED &&
+          requirementsState &&
+          !requirementsState.exposureNudgeServed &&
+          turnReadState
+        ) {
+          const stored = (await listLocalLibrary(userId, "file")).documents;
+          const allowedForCheck = allowedDocumentIds
+            ? stored.filter((document) => allowedDocumentIds.has(document.id))
+            : stored;
+          const split = splitReadExposure(allowedForCheck, turnReadState);
+          const unexposed = [...split.orientedOnly, ...split.unread];
+          if (unexposed.length) {
+            requirementsState.exposureNudgeServed = true;
+            return upstreamMikeResult(call, {
+              error:
+                `coverage_check: ${unexposed.length} document(s) have had no` +
+                ` body content served this turn (headings only, or never` +
+                ` opened): ${unexposed.join(", ")}. Read the ones relevant to` +
+                ` the request first — scoped windows are fine. If none are` +
+                ` relevant, call this tool again and it will proceed.`,
+            });
+          }
         }
         const title = trimmed(args.title);
         const filename = trimmed(args.filename);

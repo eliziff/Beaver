@@ -1335,6 +1335,16 @@ export const NO_DEFERRAL_DELTA = "no-deferral-v1";
 /** Delta tag: the composite scoped-index treatment arm. */
 export const MARKDOWN_E2E_INDEX_TREATMENT_DELTA =
   "markdown-e2e-index-treatment-v1";
+/** Delta tag: exposure accounting (MIKE_EXPOSURE_ECHO). The echo's
+ * read/unread split counts body exposure instead of tool touches, adds a
+ * documents_oriented_only bucket, and arms a one-shot authoring-boundary
+ * coverage check. Tool payloads only — no prompt text, so the v2 arm's
+ * system_prompt_sha256 equals v1's by construction. */
+export const EXPOSURE_ECHO_DELTA = "exposure-echo-v1";
+/** Delta tag: the composite scoped-index treatment v2 arm (v1 + exposure
+ * accounting). */
+export const MARKDOWN_E2E_INDEX_TREATMENT_V2_DELTA =
+  "markdown-e2e-index-treatment-v2";
 
 /**
  * MIKE_NO_DEFERRAL=1 prompt addition. Motivated by the CoC index_floor pilot
