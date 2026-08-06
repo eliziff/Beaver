@@ -66,6 +66,7 @@ import {
   INDEX_ATTACH_GATED,
   INDEX_COMPACT_HEADINGS,
   NO_DEFERRAL_ENABLED,
+  EXPOSURE_ECHO_ENABLED,
   SCOPED_REREAD_ENABLED,
   TYPED_RANGE_ENABLED,
   REQUIREMENTS_ECHO_ENABLED,
@@ -2593,6 +2594,7 @@ export async function streamAnonymousChat(params: {
           citation_contract: CITATION_CONTRACT_ENABLED,
           citation_contract_v2: CITATION_CONTRACT_V2_ENABLED,
           no_deferral: NO_DEFERRAL_ENABLED,
+          exposure_echo: EXPOSURE_ECHO_ENABLED,
           scoped_reread: SCOPED_REREAD_ENABLED,
           adaptive_mike_shape: ADAPTIVE_MIKE_TOOL_SHAPE,
           compact_author_mike_shape: COMPACT_AUTHOR_MIKE_TOOL_SHAPE,
@@ -3397,6 +3399,8 @@ export async function streamAnonymousChat(params: {
         type: "benchmark_requirements_echo",
         echo_call_count: localRequirementsState.echoCallCount,
         documents_unread_at_echo: localRequirementsState.documentsUnreadAtEcho,
+        documents_oriented_only_at_echo:
+          localRequirementsState.documentsOrientedOnlyAtEcho,
       });
     }
     sseFinishTurn(citations);
