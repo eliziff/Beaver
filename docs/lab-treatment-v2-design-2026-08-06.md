@@ -155,3 +155,55 @@ caveat is gone.
 
 Verdict: v2 is the Phase D treatment arm. Banking/employment floor
 targets met, DPA win held, HSR validates the transport package live.
+
+## v3 candidate assessment (2026-08-06): quote-grounding organ — DON'T-BUILD
+
+Eli asked whether the existing grounding/closest-match systems (ALR
+lineage: quoteRepair.ts nearestVerbatimExcerpt/quoteRepairSuggestion,
+sourceDoc.ts offset-bearing quote location, the slaWorkflow
+audit->repair-prompt->one-revision-pass chassis — all dormant in lab
+arms) should be wired into the treatment. An opus design agent graded
+every one of v2's 26 confirm-run misses against the judges' reasoning
+and ran the real machinery over the four delivered drafts. Verdict:
+
+- 0/26 misses are quote-verbatim-shaped; 3/26 are figure-presence-shaped
+  (all DPA: C-028/C-031 dollar figures, C-047 18 U.S.C. § 1349); 23/26
+  are synthesis/depth/attribution — the model SAYING LESS than the
+  rubric wants, not saying something wrong.
+- Direct measurement: 195 quote candidates harvested from the four
+  drafts, ~90% verbatim-correct; zero of 232 judged criteria carry any
+  accuracy-flavored judge remark. The hard failures are cosmetic
+  ("80%–85%" vs "80% to 85%").
+- A submission-time gate would fire on 4/4 tasks, mostly on the model
+  quoting ITS OWN prose (untagged-quote classifier problem — the
+  mike_workbench 120/298 mass-failure reproduced), each revision
+  re-emitting the whole 40-52k-char markdown for +0 criteria.
+- Five misses LOOK figure-shaped but are attribution errors (the figure
+  is in the draft attached to the wrong referent) — structurally
+  invisible to presence diffs.
+
+Corrections and finds from the same investigation:
+
+- DPA v2 −2 vs v1 attribution CORRECTED: doc_coverage shows v2 read 5/6
+  documents, skipping cftc-settlement-order.docx (v1 read 6/6; control
+  4/6). C-017's required phrase exists only in that unread file. The
+  transport-level parse-failure discard did happen (59.2k-char first
+  draft vs 39.3k kept), but the specific lost criteria trace to the
+  skipped document and a thinner clawback section, not to
+  retry-compression per se.
+- THE REAL v3 CANDIDATE: the harness already told the model — the
+  fetch_requirements echo result carried documents_unread:
+  ["cftc-settlement-order.docx"] and the model drafted anyway on the
+  next event. A typed generate_docx-time error naming unread documents
+  ONCE (model free to read them or state why not) is 100%-precision on
+  this miss, costs nothing when clean, and is mechanism-only. n=1 task
+  so far; needs its own evidence check before building. Hard
+  "read-everything" rules stay out: benchmark folders are fully
+  relevant, real matter folders are not.
+- Hygiene (dormant-path bug): greenfieldReviewRepairPrompt interpolates
+  the reviewer model's source_excerpt into the repair prompt as quoted
+  source text without verification (slaWorkflow.ts:213). Unreachable
+  today (double-gated off). Fix with sourceDocContainsQuote +
+  quoteRepair the next time SLA is touched — that is the one spot where
+  those tools are unambiguously right, because the excerpt is a
+  machine-consumed claim about a source, not model prose.
