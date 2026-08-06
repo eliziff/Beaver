@@ -123,6 +123,7 @@ import {
   MIKE_LEGAL_LAB_TOOLS,
   MARKDOWN_INDEX_LAB_TOOLS,
   MIKE_STRUCTURE_PATHS_LAB_TOOLS,
+  FETCH_REQUIREMENTS_TOOL,
   UPSTREAM_MIKE_LAB_TOOLS,
   UPSTREAM_MIKE_MARKDOWN_SWAP_LAB_TOOLS,
   UPSTREAM_NATIVE_MIKE_LAB_TOOLS,
@@ -967,6 +968,41 @@ export const ADAPTIVE_MIKE_TOOL_SHAPE =
  */
 export const UPSTREAM_NATIVE_MIKE_SHAPE =
   process.env.MIKE_UPSTREAM_NATIVE === "1";
+
+/**
+ * TREATMENT mechanism 1 — requirements echo. Adds the fetch_requirements tool,
+ * one prompt line, and an authoring backstop that refuses generate_docx until
+ * the echo has been served this turn. Independent of mechanism 2 by design.
+ */
+export const REQUIREMENTS_ECHO_ENABLED =
+  process.env.MIKE_REQUIREMENTS_ECHO === "1";
+
+/**
+ * TREATMENT mechanism 2 — citation contract. Prompt-only: it adds a GROUNDING
+ * block and changes no tool, executor, or payload. Independent of mechanism 1.
+ */
+export const CITATION_CONTRACT_ENABLED =
+  process.env.MIKE_CITATION_CONTRACT === "1";
+
+/**
+ * Turn-scoped bookkeeping for the requirements echo. Created once per assistant
+ * turn by the route and handed to every tool batch, exactly like turnReadState,
+ * so a fetch_requirements call in round 1 is still visible to a generate_docx
+ * call in round 4.
+ */
+export type LocalAssistantRequirementsState = {
+  /** How many times fetch_requirements has been served this turn. */
+  echoCallCount: number;
+  /** documents_unread.length at the first echo; null until then, and null when
+   * the read state was unavailable so the lists were served as unknown. */
+  documentsUnreadAtEcho: number | null;
+};
+
+export const createLocalAssistantRequirementsState =
+  (): LocalAssistantRequirementsState => ({
+    echoCallCount: 0,
+    documentsUnreadAtEcho: null,
+  });
 
 export const ORIGIN_MIKE_TOOL_SHAPE =
   UPSTREAM_NATIVE_MIKE_SHAPE ||
@@ -1969,6 +2005,16 @@ const ORIGIN_MIKE_ACTIVE_TOOLS = UPSTREAM_NATIVE_MIKE_SHAPE
           ? ADAPTIVE_MIKE_LAB_TOOLS
           : UPSTREAM_MIKE_LAB_TOOLS;
 
+/**
+ * The requirements-echo mechanism appends ONE tool to whichever arm surface is
+ * active, rather than defining a new arm-specific array. With the flag off this
+ * is the same array object the selector produced, so every existing arm's tool
+ * list — and its tool_schema_sha256 — is untouched by construction.
+ */
+const ORIGIN_MIKE_SERVED_TOOLS: OpenAIToolSchema[] = REQUIREMENTS_ECHO_ENABLED
+  ? [...ORIGIN_MIKE_ACTIVE_TOOLS, FETCH_REQUIREMENTS_TOOL]
+  : ORIGIN_MIKE_ACTIVE_TOOLS;
+
 const LOCAL_ASSISTANT_TOOL_CATALOG: OpenAIToolSchema[] = [
   // The native arm carries ask_inputs inside UPSTREAM_NATIVE_MIKE_LAB_TOOLS at
   // upstream's own position (TOOLS[0]); prepending the local copy as well would
@@ -1977,7 +2023,7 @@ const LOCAL_ASSISTANT_TOOL_CATALOG: OpenAIToolSchema[] = [
     ? []
     : LOCAL_ASK_INPUTS_TOOLS),
   ...(ORIGIN_MIKE_TOOL_SHAPE
-    ? ORIGIN_MIKE_ACTIVE_TOOLS
+    ? ORIGIN_MIKE_SERVED_TOOLS
     : CODING_TOOL_SHAPE
     ? [
         ...CODING_SHAPE_TOOLS,
@@ -6974,6 +7020,70 @@ async function runUpstreamMikeRetrievalCall(params: {
   };
 }
 
+/**
+ * TREATMENT mechanism 1 — the fetch_requirements executor.
+ *
+ * Re-serves the task's own user message VERBATIM. The harness is the only
+ * author of this string: no paraphrase, no summary, no interpretation, because
+ * the mechanism under test is "does re-reading the requirements help", not
+ * "does our restatement of them help".
+ *
+ * The read/unread split is derived from the same turn read-state the
+ * duplicate-read suppression already maintains, intersected with the documents
+ * this turn is allowed to see. When the route did not supply that state the
+ * lists are served as `{unknown: true}` rather than an empty or invented array
+ * — a typed refusal beats a confident guess.
+ */
+async function runFetchRequirements(
+  call: NormalizedToolCall,
+  userId: string,
+  requirementsText: string | undefined,
+  allowedDocumentIds: Set<string> | undefined,
+  turnReadState: LocalAssistantReadTurnState | undefined,
+  requirementsState: LocalAssistantRequirementsState | undefined,
+): Promise<NormalizedToolResult> {
+  let readList: string[] | null = null;
+  let unreadList: string[] | null = null;
+  if (turnReadState) {
+    const stored = (await listLocalLibrary(userId, "file")).documents;
+    const allowed = allowedDocumentIds
+      ? stored.filter((document) => allowedDocumentIds.has(document.id))
+      : stored;
+    // Read-state is keyed per document/version, so several entries can name one
+    // document; collapse to document ids before splitting.
+    const readIds = new Set<string>();
+    for (const entry of turnReadState.values()) readIds.add(entry.documentId);
+    readList = allowed
+      .filter((document) => readIds.has(document.id))
+      .map((document) => document.filename);
+    unreadList = allowed
+      .filter((document) => !readIds.has(document.id))
+      .map((document) => document.filename);
+  }
+
+  if (requirementsState) {
+    requirementsState.echoCallCount += 1;
+    // Recorded at the FIRST echo only: the receipt answers "how much had the
+    // model still not read when it re-read the requirements", so a later echo
+    // must not overwrite it. Stays null when the split was unknown.
+    if (requirementsState.echoCallCount === 1) {
+      requirementsState.documentsUnreadAtEcho = unreadList
+        ? unreadList.length
+        : null;
+    }
+  }
+
+  // upstreamMikeResult, not result(): the requirements are re-served whole, so
+  // this payload must never be reshaped by MAX_TOOL_RESULT_CHARS.
+  return upstreamMikeResult(call, {
+    ok: true,
+    requirements: requirementsText ?? "",
+    documents_read: readList ?? { unknown: true },
+    documents_unread: unreadList ?? { unknown: true },
+    note: "Ensure the deliverable addresses each requested item.",
+  });
+}
+
 export async function runLocalAssistantTools(
   userId: string,
   calls: NormalizedToolCall[],
@@ -6988,6 +7098,10 @@ export async function runLocalAssistantTools(
   turnEditState?: LocalAssistantEditTurnState,
   turnReadState?: LocalAssistantReadTurnState,
   workingSets?: LocalAssistantWorkingSetTurnState,
+  // TREATMENT mechanism 1. Both optional and both undefined for every existing
+  // caller/arm, so adding them cannot change any existing behaviour.
+  requirementsText?: string,
+  requirementsState?: LocalAssistantRequirementsState,
 ): Promise<NormalizedToolResult[]> {
   const publicState = publicLegalState ?? createPublicLegalSourceState();
   // Per-turn cache for the derived SECT-INDEX (F5): .docx extraction + skeleton
@@ -7052,6 +7166,17 @@ export async function runLocalAssistantTools(
           servedDraftingCache,
         });
         if (upstream) return upstream;
+      }
+
+      if (REQUIREMENTS_ECHO_ENABLED && call.name === "fetch_requirements") {
+        return runFetchRequirements(
+          call,
+          userId,
+          requirementsText,
+          allowedDocumentIds,
+          turnReadState,
+          requirementsState,
+        );
       }
 
       if (UPSTREAM_NATIVE_MIKE_SHAPE && call.name === "edit_document") {
@@ -7283,6 +7408,23 @@ export async function runLocalAssistantTools(
         call.name === "library_create_docx" ||
         (ORIGIN_MIKE_TOOL_SHAPE && call.name === "generate_docx")
       ) {
+        // TREATMENT mechanism 1, enforcement backstop. The prompt line already
+        // instructs the model to echo first, so the cooperative path costs one
+        // round and never reaches this branch; only non-compliance pays a
+        // redraft. Refusing HERE — before createLocalDocument — is what makes
+        // it a real gate: no bytes are written, so no deliverable is captured,
+        // and because the refusal carries no mutation receipt the e2e
+        // terminal-authoring exit (chat.ts, which requires
+        // committedMutationReceipt(...).action === "created") does not fire
+        // either. The turn therefore continues and the model can comply.
+        if (
+          REQUIREMENTS_ECHO_ENABLED &&
+          (requirementsState?.echoCallCount ?? 0) === 0
+        ) {
+          return upstreamMikeResult(call, {
+            error: "Call fetch_requirements before authoring the deliverable.",
+          });
+        }
         const title = trimmed(args.title);
         const filename = trimmed(args.filename);
         // The native arm renders sections[] -> OOXML with upstream's own

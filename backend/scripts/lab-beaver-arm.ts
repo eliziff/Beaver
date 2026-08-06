@@ -80,6 +80,11 @@ import {
   UPSTREAM_NATIVE_MIKE_LAB_TOOLS,
   UPSTREAM_NATIVE_MIKE_LAB_TOOL_NAMES,
   UPSTREAM_TERMINAL_DELTA,
+  CITATION_CONTRACT_DELTA,
+  MARKDOWN_E2E_TREATMENT_DELTA,
+  MARKDOWN_E2E_TREATMENT_LAB_SYSTEM_PROMPT,
+  MARKDOWN_E2E_TREATMENT_LAB_TOOLS,
+  REQUIREMENTS_ECHO_DELTA,
 } from "../src/lib/chat/upstreamMikeBenchmarkSurface";
 import { latestAuthoredDocuments } from "./lab-authored-documents";
 import { STRUCTURE_INDEX_ENABLED } from "../src/lib/chat/structureIndexExperiment";
@@ -114,6 +119,16 @@ function armExpectedSurface(
     ? {
         systemPrompt: UPSTREAM_NATIVE_MIKE_LAB_SYSTEM_PROMPT,
         tools: UPSTREAM_NATIVE_MIKE_LAB_TOOLS,
+      }
+    : // TREATMENT: the e2e chassis plus both mechanisms. The prompt is composed
+      // by the SAME helper chat.ts serves through
+      // (MARKDOWN_E2E_TREATMENT_LAB_SYSTEM_PROMPT is
+      // withLabTreatmentPromptAdditions(e2e prompt, both on)), so the prompt-sha
+      // gate is satisfied by construction rather than by a parallel transcription.
+    arm === "mike_markdown_e2e_treatment_v1"
+    ? {
+        systemPrompt: MARKDOWN_E2E_TREATMENT_LAB_SYSTEM_PROMPT,
+        tools: MARKDOWN_E2E_TREATMENT_LAB_TOOLS,
       }
     : ["upstream", "upstream_terminal_v1"].includes(arm)
     ? {
@@ -749,6 +764,21 @@ async function main() {
       MIKE_TERMINAL_AUTHORING: "1",
       MIKE_READ_DOCX_MARKDOWN: "1",
     },
+    // TREATMENT arm: byte-for-byte the e2e env above plus the two mechanism
+    // flags, so any measured difference is attributable to the mechanisms and
+    // nothing else. The completeness floor deliberately stays OFF — the
+    // requirements echo supersedes it; the floor returns later as an ablation
+    // if the echo underperforms it.
+    mike_markdown_e2e_treatment_v1: {
+      MIKE_NAV_SHAPE: "legacy",
+      MIKE_TOOL_SHAPE: "mike-markdown-e2e-v1",
+      MIKE_RETRIEVAL_EXPERIMENT: "",
+      MIKE_PROGRESSIVE_DISCLOSURE: "0",
+      MIKE_TERMINAL_AUTHORING: "1",
+      MIKE_READ_DOCX_MARKDOWN: "1",
+      MIKE_REQUIREMENTS_ECHO: "1",
+      MIKE_CITATION_CONTRACT: "1",
+    },
     // SILO'D experiment: e2e + a derived SECT-INDEX prepended to each docx
     // read, plus an orient-first prompt. Deletes cleanly (see
     // structureIndexExperiment.ts).
@@ -987,7 +1017,7 @@ async function main() {
   };
   if (!armEnvironment[arm])
     throw new Error(
-      `unknown --arm ${arm}; expected a registered LAB arm, including upstream_terminal_v1, mike_upstream_native_v1, mike_markdown_swap_v1, mike_markdown_e2e_v1, mike_markdown_e2e_index_v1, mike_markdown_e2e_floor_v1, mike_markdown_e2e_index_floor_v1, mike_markdown_read_upstream_draft_v1, mike_compact_author_v1, lean_batch_v1, lean_batch_hardrefs_v1, or grounded_structure_outline_v1`,
+      `unknown --arm ${arm}; expected a registered LAB arm, including upstream_terminal_v1, mike_upstream_native_v1, mike_markdown_e2e_treatment_v1, mike_markdown_swap_v1, mike_markdown_e2e_v1, mike_markdown_e2e_index_v1, mike_markdown_e2e_floor_v1, mike_markdown_e2e_index_floor_v1, mike_markdown_read_upstream_draft_v1, mike_compact_author_v1, lean_batch_v1, lean_batch_hardrefs_v1, or grounded_structure_outline_v1`,
     );
 
   // Re-spawn into the isolated anonymous-mode environment (same recipe as
@@ -1426,6 +1456,14 @@ async function main() {
   const askInputsTerminated = turnTerminations.some(
     (event) => event.reason === "ask_inputs_terminated",
   );
+  // TREATMENT mechanism 1 outcome receipt (chat.ts emits it after the turn, so
+  // the counts are real rather than config echoes).
+  const requirementsEchoReceipt =
+    events.filter((event) => event.type === "benchmark_requirements_echo").at(-1) ??
+    null;
+  const echoCallCount = Number(requirementsEchoReceipt?.echo_call_count ?? 0);
+  const documentsUnreadAtEcho =
+    requirementsEchoReceipt?.documents_unread_at_echo ?? null;
   // A native ask_inputs termination is a FIRST-CLASS measured outcome, not a
   // harness failure: upstream ends the turn on ask_inputs with no tool_result
   // and therefore no deliverable (2266446b:streaming.ts:484-486, and
@@ -1782,6 +1820,78 @@ async function main() {
       );
     }
   }
+  // TREATMENT arm. Deliberately its OWN block rather than a member of the
+  // markdown family above: its resident list carries one extra tool and two
+  // extra receipt flags must be true, so folding it in would have forced the
+  // e2e arms' assertions to become conditional — the exact loosening this gate
+  // exists to prevent.
+  if (arm === "mike_markdown_e2e_treatment_v1") {
+    const residentTools = Array.isArray(surface?.resident_tools)
+      ? surface.resident_tools
+      : [];
+    const deferredTools = Array.isArray(surface?.deferred_tools)
+      ? surface.deferred_tools
+      : [];
+    const expectedTools = MARKDOWN_E2E_TREATMENT_LAB_TOOLS.map(
+      (tool) => tool.function.name,
+    );
+    const expectedSurface = armExpectedSurface(arm);
+    const expectedPromptSha = expectedSurface
+      ? createHash("sha256")
+          .update(
+            expectedSurface.systemPrompt + inventoryPromptFor(documents, arm),
+          )
+          .digest("hex")
+      : null;
+    if (expectedPromptSha && surface?.system_prompt_sha256 !== expectedPromptSha) {
+      throw new Error(
+        `${arm} served the wrong system prompt: receipt sha ${String(surface?.system_prompt_sha256)} != expected ${expectedPromptSha}`,
+      );
+    }
+    if (
+      // the two mechanisms under test
+      surface?.requirements_echo !== true ||
+      surface?.citation_contract !== true ||
+      // …on an otherwise byte-identical e2e chassis
+      surface?.markdown_e2e_shape !== true ||
+      surface?.markdown_read_docx !== true ||
+      surface?.markdown_swap_shape !== false ||
+      surface?.structure_index !== false ||
+      surface?.completeness_floor !== false ||
+      surface?.upstream_mike_shape !== false ||
+      surface?.upstream_native_shape !== false ||
+      surface?.progressive_disclosure !== false ||
+      surface?.trajectory_mode !== "continuous" ||
+      surface?.context_handoff !== false ||
+      surface?.continuous_evidence !== false ||
+      surface?.sla_workflow !== false ||
+      surface?.greenfield_review !== false ||
+      surface?.model_coverage_routing !== false ||
+      Number(surface?.whole_read_max_chars ?? 0) !== 0 ||
+      surface?.suppress_duplicate_whole_reads !== true ||
+      surface?.terminal_authoring !== true ||
+      JSON.stringify(residentTools) !== JSON.stringify(expectedTools) ||
+      deferredTools.length > 0 ||
+      researchContextRefreshes.length > 0 ||
+      researchCheckpointRequests.length > 0 ||
+      researchCheckpoints.length > 0 ||
+      evidenceHandoffs.length > 0 ||
+      evidenceWorkingSetReceipts.length > 0 ||
+      contentResets.length > 0
+    ) {
+      throw new Error(
+        `${arm} isolation failed: resident=${residentTools.join(",")}; deferred=${deferredTools.join(",")}; echo=${String(surface?.requirements_echo)}; citation=${String(surface?.citation_contract)}; e2e=${String(surface?.markdown_e2e_shape)}; floor=${String(surface?.completeness_floor)}; terminal=${String(surface?.terminal_authoring)}`,
+      );
+    }
+    // The mechanism must actually have run: the prompt instructs one echo, and
+    // the authoring backstop refuses the deliverable until it happens, so a
+    // completed treatment run with zero echoes means the tool never served.
+    if (echoCallCount < 1) {
+      throw new Error(
+        `${arm} produced no fetch_requirements echo (echo_call_count=${echoCallCount}); the requirements-echo mechanism did not run`,
+      );
+    }
+  }
   if (["lean_batch_v1", "lean_batch_hardrefs_v1"].includes(arm)) {
     const residentTools = Array.isArray(surface?.resident_tools)
       ? surface.resident_tools
@@ -2088,6 +2198,7 @@ async function main() {
       "upstream",
       "upstream_terminal_v1",
       "mike_upstream_native_v1",
+      "mike_markdown_e2e_treatment_v1",
       "mike_markdown_swap_v1",
       "mike_markdown_e2e_v1",
       "mike_markdown_e2e_index_v1",
@@ -2465,6 +2576,7 @@ async function main() {
     "mike_markdown_e2e_index_v1",
     "mike_markdown_e2e_floor_v1",
     "mike_markdown_e2e_index_floor_v1",
+    "mike_markdown_e2e_treatment_v1",
     "adaptive_mike_v1",
     "mike_compact_author_v1",
     "lean_batch_v1",
@@ -2621,6 +2733,14 @@ async function main() {
       arm === "upstream_terminal_v1" ? UPSTREAM_TERMINAL_DELTA : null,
     upstream_native_delta:
       arm === "mike_upstream_native_v1" ? UPSTREAM_NATIVE_DELTA : null,
+    requirements_echo_delta:
+      arm === "mike_markdown_e2e_treatment_v1" ? REQUIREMENTS_ECHO_DELTA : null,
+    citation_contract_delta:
+      arm === "mike_markdown_e2e_treatment_v1" ? CITATION_CONTRACT_DELTA : null,
+    markdown_e2e_treatment_delta:
+      arm === "mike_markdown_e2e_treatment_v1"
+        ? MARKDOWN_E2E_TREATMENT_DELTA
+        : null,
     compact_author_delta:
       arm === "mike_compact_author_v1" ? COMPACT_AUTHOR_MIKE_DELTA : null,
     markdown_swap_delta:
@@ -2986,6 +3106,18 @@ async function main() {
           arm === "upstream_terminal_v1" ? UPSTREAM_TERMINAL_DELTA : null,
         upstream_native_delta:
           arm === "mike_upstream_native_v1" ? UPSTREAM_NATIVE_DELTA : null,
+        requirements_echo_delta:
+          arm === "mike_markdown_e2e_treatment_v1"
+            ? REQUIREMENTS_ECHO_DELTA
+            : null,
+        citation_contract_delta:
+          arm === "mike_markdown_e2e_treatment_v1"
+            ? CITATION_CONTRACT_DELTA
+            : null,
+        markdown_e2e_treatment_delta:
+          arm === "mike_markdown_e2e_treatment_v1"
+            ? MARKDOWN_E2E_TREATMENT_DELTA
+            : null,
         compact_author_delta:
           arm === "mike_compact_author_v1" ? COMPACT_AUTHOR_MIKE_DELTA : null,
         markdown_swap_delta:
@@ -3228,6 +3360,8 @@ async function main() {
         ask_inputs_terminated: askInputsTerminated,
         turn_termination_reason:
           turnTerminations.at(-1)?.reason ?? null,
+        echo_call_count: echoCallCount,
+        documents_unread_at_echo: documentsUnreadAtEcho,
         hard_reference_hints_offered: hardReferenceHints.length,
         hard_reference_hints_followed: followedHardReferenceHints.length,
         hard_reference_hint_follow_rate:
@@ -3434,6 +3568,18 @@ async function main() {
           arm === "upstream_terminal_v1" ? UPSTREAM_TERMINAL_DELTA : null,
         upstream_native_delta:
           arm === "mike_upstream_native_v1" ? UPSTREAM_NATIVE_DELTA : null,
+        requirements_echo_delta:
+          arm === "mike_markdown_e2e_treatment_v1"
+            ? REQUIREMENTS_ECHO_DELTA
+            : null,
+        citation_contract_delta:
+          arm === "mike_markdown_e2e_treatment_v1"
+            ? CITATION_CONTRACT_DELTA
+            : null,
+        markdown_e2e_treatment_delta:
+          arm === "mike_markdown_e2e_treatment_v1"
+            ? MARKDOWN_E2E_TREATMENT_DELTA
+            : null,
         compact_author_delta:
           arm === "mike_compact_author_v1" ? COMPACT_AUTHOR_MIKE_DELTA : null,
         markdown_swap_delta:
