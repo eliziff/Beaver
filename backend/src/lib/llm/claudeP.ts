@@ -13,6 +13,7 @@ import { jsonrepair } from "jsonrepair";
 
 import { abortError, throwIfAborted } from "./abort";
 import type {
+  LlmCompactionReceipt,
   LlmContextRoundReceipt,
   NormalizedLlmUsage,
   NormalizedToolCall,
@@ -285,6 +286,7 @@ class ClaudePSession {
     model: string,
     effort: string | undefined,
     private readonly abortSignal?: AbortSignal,
+    private readonly onCompaction?: (event: ClaudePCompactionEvent) => void,
   ) {
     this.inactivityMs = inactivityLimitMs(effort);
     const { file, shell } = resolveCli();
@@ -344,11 +346,18 @@ class ClaudePSession {
         if (
           event.type === "stream_event" ||
           event.type === "assistant" ||
-          event.type === "result"
+          event.type === "result" ||
+          // System events (init, compact_boundary) are CLI liveness: a
+          // child mid-compaction is summarizing, not wedged. The pilot's
+          // second auto-compaction ran 377s — past the 240s inactivity
+          // limit — so without this the watchdog kills healthy sessions.
+          event.type === "system"
         ) {
           this.sawActivity = true;
           this.lastActivity = Date.now();
         }
+        const compaction = compactionFromStreamLine(line);
+        if (compaction) this.onCompaction?.(compaction);
         const stopReason = stopReasonFromLine(line);
         if (stopReason) this.lastStopReason = stopReason;
         if (event.type === "result" && this.pending) {
@@ -451,6 +460,66 @@ function lastStopReasonInStream(stdout: string): string | null {
     if (reason) last = reason;
   }
   return last;
+}
+
+/**
+ * CLI-side auto-compaction observed in one stream-json line, if any. The
+ * CLI emits `{"type":"system","subtype":"compact_boundary","compactMetadata":
+ * {"trigger":"auto","preTokens":N,"durationMs":M}}` when it summarizes the
+ * conversation in place (observed live 2026-08-06, coding_markdown_v1 acq
+ * pilot: two auto-compactions at preTokens 207,948 and 179,180 silently
+ * replaced whole-read document content with lossy summaries). Field access
+ * only, like stopReasonFromLine — never a regex over model-authored text.
+ * Snake_case fallbacks cover SDK serialization variants.
+ */
+export type ClaudePCompactionEvent = {
+  trigger: string | null;
+  preTokens: number | null;
+  durationMs: number | null;
+};
+
+export function compactionFromStreamLine(
+  line: string,
+): ClaudePCompactionEvent | null {
+  if (!line.startsWith("{") || !line.includes('"compact_boundary"'))
+    return null;
+  try {
+    const event = JSON.parse(line) as {
+      type?: string;
+      subtype?: string;
+      compactMetadata?: {
+        trigger?: string;
+        preTokens?: number;
+        durationMs?: number;
+      };
+      compact_metadata?: {
+        trigger?: string;
+        pre_tokens?: number;
+        duration_ms?: number;
+      };
+    };
+    if (event.type !== "system" || event.subtype !== "compact_boundary")
+      return null;
+    const camel = event.compactMetadata;
+    const snake = event.compact_metadata;
+    return {
+      trigger: camel?.trigger ?? snake?.trigger ?? null,
+      preTokens: camel?.preTokens ?? snake?.pre_tokens ?? null,
+      durationMs: camel?.durationMs ?? snake?.duration_ms ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Every CLI auto-compaction in a per-call stream-json transcript. */
+function compactionsInStream(stdout: string): ClaudePCompactionEvent[] {
+  const found: ClaudePCompactionEvent[] = [];
+  for (const line of stdout.split(/\r?\n/u)) {
+    const event = compactionFromStreamLine(line.trim());
+    if (event) found.push(event);
+  }
+  return found;
 }
 
 /** Last `type:"result"` event line of a stream-json transcript. */
@@ -851,6 +920,55 @@ export async function streamClaudeP(
   // rounds: [] for claude-p, context_round_count is 0, and the harness cannot
   // separate context volume from turn count on this lane.
   const contextRounds: LlmContextRoundReceipt[] = [];
+  // CLI auto-compactions ride the existing StreamChatResult.compactions
+  // rail (manifest passes them through; the LAB runner already ingests
+  // them). A compaction silently replaces conversation content with a
+  // lossy summary — on this lane that means served documents vanish from
+  // context mid-run, so every event must be visible downstream.
+  const compactions: LlmCompactionReceipt[] = [];
+  // The session outlives loop iterations; its sink stamps events with the
+  // iteration that was in flight when the CLI compacted.
+  const iterBox = { iter: 0 };
+  const recordCompaction = (event: ClaudePCompactionEvent) => {
+    console.warn(
+      `[claude-p] provider auto-compaction (trigger=${event.trigger ?? "?"}, ` +
+        `preTokens=${event.preTokens ?? "?"}, iteration=${iterBox.iter}) — ` +
+        "the CLI summarized the conversation in place; earlier tool results " +
+        "are now lossy",
+    );
+    compactions.push({
+      iteration: iterBox.iter,
+      // The CLI does not report its threshold; preTokens is the observed
+      // trigger point. Request/output fields describe harness compaction
+      // requests and have no analog here; usage stays zeroed (not null)
+      // because the spend is inside the turn envelope's usage and the
+      // runner's null-usage path would double-count via estimates.
+      thresholdTokens: 0,
+      triggerInputTokens: event.preTokens ?? 0,
+      triggerReason: "provider_auto",
+      requestInputItems: 0,
+      requestInputBytes: 0,
+      requestInputSha256: "",
+      requestInstructionsBytes: 0,
+      requestInstructionsSha256: "",
+      requestToolCount: 0,
+      requestToolBytes: 0,
+      requestToolSha256: "",
+      outputItems: 0,
+      outputBytes: 0,
+      outputSha256: "",
+      estimatedInputTokens: 0,
+      estimatedOutputTokens: 0,
+      latencyMs: event.durationMs ?? 0,
+      usage: {
+        inputTokens: 0,
+        outputTokens: 0,
+        reasoningTokens: null,
+        cacheReadInputTokens: 0,
+        cacheWriteInputTokens: 0,
+      },
+    });
+  };
 
   const persist = persistEnabled();
   let session: ClaudePSession | null = null;
@@ -860,6 +978,7 @@ export async function streamClaudeP(
   let continuation: string | null = null;
   try {
     for (let iter = 0; maxIter === undefined || iter < maxIter; iter++) {
+      iterBox.iter = iter;
       throwIfAborted(params.abortSignal);
       const claudeTools = (params.resolveTools?.() ?? tools).map((tool) => ({
         name: tool.function.name,
@@ -943,6 +1062,7 @@ export async function streamClaudeP(
                 slug,
                 params.reasoningEffort,
                 params.abortSignal,
+                recordCompaction,
               );
             }
             envelope = await session!.turn(
@@ -956,6 +1076,10 @@ export async function streamClaudeP(
               params.reasoningEffort,
               params.abortSignal,
             );
+            // Scan before the exit-code gate: a compaction can precede a
+            // failing turn, and the spend/visibility matter either way.
+            for (const event of compactionsInStream(run.stdout))
+              recordCompaction(event);
             if (run.code !== 0) {
               // Non-zero exit with empty stderr: the CLI puts the real reason
               // in the stdout result envelope (e.g. "Prompt is too long",
@@ -1131,7 +1255,7 @@ export async function streamClaudeP(
     session?.dispose();
   }
 
-  return { fullText, usage, contextRounds };
+  return { fullText, usage, contextRounds, compactions };
 }
 
 export async function completeClaudePText(params: {
