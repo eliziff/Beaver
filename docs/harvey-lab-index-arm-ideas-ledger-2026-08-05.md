@@ -966,3 +966,43 @@ needle-in-haystack workstream does not need synthetic salting to start —
 four native 1,600–2,300-doc matters are on disk. Salting stays useful for
 controlled M-sweeps, but the first completeness-at-scale measurements can
 run on real data-room structure (folder taxonomy included).
+
+### acq v2 judged 26/64 — forced exposure BACKFIRED (2026-08-06, the Goodhart row)
+
+Mechanism fired perfectly; quality fell. Paired v1↔v2 criterion diff:
+**fail→pass: 1** (Orion UCC-1, a find-level fact). **pass→fail: 5**
+(Axelion uncapped indemnity + its Radiance linkage, R&D credit
+quantification, shareholder-consent-for-CoC, Holloway equity
+acceleration) — all on docs v1 HAD read deeply. The v1 unexposed-doc
+clusters (Zenith, IP assignments, bylaws quorum, Calloway)**still failed
+in v2 even though v2 read those docs** — they were crammed in the last two
+rounds after the coverage_check refusal and contributed ~nothing.
+Deliverable SHRANK 68,481 → 61,667 chars while reading breadth rose 63%
+(19→31 docs; input 462k→620k).
+
+Verdict: **exposure was a correlate, not the cause.** Cells where the
+model organically read everything also integrated everything; FORCING
+exposure at the authoring boundary produces compliance reads, not
+integration, and dilutes depth on the docs that were carrying the score.
+The binding constraint on the cliff tasks is cross-doc SYNTHESIS budget
+(quorum ← bylaws×minutes; consent ← certificate×loan×deal-structure), not
+document coverage. A late gate is the wrong place for a coverage signal;
+if it matters at all it must shape the READING PLAN at orientation time,
+not trigger a cram at drafting time.
+
+Dispositions:
+- The honest-echo INSTRUMENT stays (true lists beat false ones; it is
+  also how we measure). The authoring-boundary GATE is presumptively
+  wrong — do not carry it into any v3 without a redesign that moves the
+  signal early.
+- Tax v2 (in flight when this judged) is now a genuine replication test
+  of the negative result. Registered prediction: exposure ≈ 25/25, score
+  ≈ flat-or-down vs 39/77. Judge once when it lands.
+- The live hypothesis for the NEXT arm is evidence-driven selection, not
+  coverage forcing: the treatment arm's only search is per-doc
+  find_in_document (literal Ctrl+F, no regex, no multi-doc). A coding
+  agent greps the corpus and reads hits. Grep machinery already exists
+  in-repo (lean_batch Grep+Read, mike_grep_v1, upstream project Grep,
+  working-set Grep) — compose a treatment-chassis + corpus-grep arm and
+  A/B it (native-tool-shapes hypothesis; also the only plausible shape at
+  diligence scale, where per-doc find across 2,300 docs is hopeless).
