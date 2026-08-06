@@ -893,3 +893,34 @@ which the v2 exposure-accounting arm targets (acq re-pilot in flight).
 Proof chain: docx conformance 20/20, structureIndex + localToolWiring
 39/39, exposure probe 15/15 both states, notes probe both states, tsc
 clean, tax/indenture judged once each.
+
+### Tax miss autopsy: the model skipped the PRIMARY INSTRUMENTS (2026-08-06)
+
+Doc-level mining of the tax 39/77 row sharpens the exposure-cliff story:
+the 11 exposed docs are the ANALYSES (benchmarking studies, restructuring
+memo, substance report, financial statements, audit summaries, master
+file); the 14 unexposed are almost all the OPERATIVE AGREEMENTS — both IP
+licenses (Germany, Japan), the US→NL→Germany sublicense, the QCSA
+agreement, both Singapore loan agreements + NL→Germany loan, the guarantee
+fee agreement, toll + contract manufacturing agreements, IT/engineering and
+management/shared services agreements, and the engagement letter.
+
+~26–28 of the 38 failed criteria require exactly those skipped instruments
+(German royalty vs refined IQR → Germany license; QCSA buy-in/participants
+→ QCSA agreement; Singapore thin-cap/negative spread → loan agreements;
+India markup inconsistency → India services agreement; conduit concern →
+sublicense; stale allocation keys → Germany management-services agreement;
+engagement-letter conflict → the letter). The rest: shallow windows on
+exposed docs (Mexico criteria despite the maquiladora doc read) + a few
+pure-synthesis misses.
+
+Failure shape: for a TP documentation-review task the issues live in
+AGREEMENT-vs-BENCHMARK comparisons; the model read the benchmark side only,
+and the touch-based echo ("0 unread") ratified the skip. Selection bias
+worth naming for #56/#57: name-based salience steered reads toward
+analysis-sounding titles and away from boilerplate-sounding contracts —
+in production, doc-TYPE priors (operative instrument vs commentary) may
+deserve a place in the shallow triage inventory. Tax re-pilot on
+mike_markdown_e2e_index_treatment_v2 launched (parallel with the acq v2
+re-pilot): the coverage_check will name all 14 skipped instruments at the
+authoring boundary.
