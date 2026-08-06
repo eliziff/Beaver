@@ -69,6 +69,7 @@ import {
   EXPOSURE_ECHO_ENABLED,
   CODING_NEUTRAL_PROMPT_ENABLED,
   CODING_PARITY_ENABLED,
+  CODING_TOC_FILES_ENABLED,
   GREP_SECTION_CONTEXT_ENABLED,
   SCOPED_REREAD_ENABLED,
   TYPED_RANGE_ENABLED,
@@ -109,6 +110,7 @@ import {
 } from "../lib/chat/evidenceExposure";
 import {
   ADAPTIVE_MIKE_LAB_SYSTEM_PROMPT,
+  CODING_MARKDOWN_BUDGET_LAB_SYSTEM_PROMPT,
   CODING_MARKDOWN_LAB_SYSTEM_PROMPT,
   COMPACT_AUTHOR_MIKE_LAB_SYSTEM_PROMPT,
   COMPLETENESS_FLOOR_ENABLED,
@@ -1123,7 +1125,9 @@ export async function streamAnonymousChat(params: {
       ? UPSTREAM_NATIVE_MIKE_LAB_SYSTEM_PROMPT
       : LEAN_BATCH_FAMILY_TOOL_SHAPE
       ? CODING_NEUTRAL_PROMPT_ENABLED
-        ? CODING_MARKDOWN_LAB_SYSTEM_PROMPT
+        ? CODING_TOC_FILES_ENABLED
+          ? CODING_MARKDOWN_BUDGET_LAB_SYSTEM_PROMPT
+          : CODING_MARKDOWN_LAB_SYSTEM_PROMPT
         : LEAN_BATCH_LAB_SYSTEM_PROMPT
       : COMPACT_AUTHOR_MIKE_TOOL_SHAPE
         ? COMPACT_AUTHOR_MIKE_LAB_SYSTEM_PROMPT
@@ -1224,7 +1228,11 @@ export async function streamAnonymousChat(params: {
       "library evidence",
       "progressive disclosure",
       ...(MIKE_GREP_FAMILY_TOOL_SHAPE || LEAN_BATCH_FAMILY_TOOL_SHAPE
-        ? ["Glob"]
+        ? // CC parity serves Glob, and v4's budget prompt legitimately
+          // names the tools it serves — a served tool is not a leak.
+          CODING_PARITY_ENABLED
+          ? []
+          : ["Glob"]
         : ["Glob", "Grep"]),
     ].find((term) => systemPrompt.includes(term));
     if (leaked) {
@@ -2608,6 +2616,7 @@ export async function streamAnonymousChat(params: {
           coding_neutral_prompt: CODING_NEUTRAL_PROMPT_ENABLED,
           coding_parity: CODING_PARITY_ENABLED,
           grep_section_context: GREP_SECTION_CONTEXT_ENABLED,
+          coding_toc_files: CODING_TOC_FILES_ENABLED,
           scoped_reread: SCOPED_REREAD_ENABLED,
           adaptive_mike_shape: ADAPTIVE_MIKE_TOOL_SHAPE,
           compact_author_mike_shape: COMPACT_AUTHOR_MIKE_TOOL_SHAPE,
