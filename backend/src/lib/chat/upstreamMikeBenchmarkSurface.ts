@@ -1233,11 +1233,21 @@ export const CITATION_CONTRACT_PROMPT_BLOCK = `GROUNDING:
  */
 export function withLabTreatmentPromptAdditions(
   base: string,
-  options: { requirementsEcho: boolean; citationContract: boolean },
+  options: {
+    requirementsEcho: boolean;
+    citationContract: boolean;
+    citationContractV2?: boolean;
+  },
 ): string {
+  if (options.citationContract && options.citationContractV2)
+    throw new Error(
+      "citation contract v1 and v2 are mutually exclusive prompt additions",
+    );
   let out = base;
   if (options.requirementsEcho) out += `\n\n${REQUIREMENTS_ECHO_PROMPT_LINE}`;
   if (options.citationContract) out += `\n\n${CITATION_CONTRACT_PROMPT_BLOCK}`;
+  if (options.citationContractV2)
+    out += `\n\n${CITATION_CONTRACT_V2_PROMPT_BLOCK}`;
   return out;
 }
 
@@ -1268,4 +1278,46 @@ export const MARKDOWN_E2E_TREATMENT_LAB_SYSTEM_PROMPT =
   withLabTreatmentPromptAdditions(UPSTREAM_MIKE_LAB_SYSTEM_PROMPT, {
     requirementsEcho: true,
     citationContract: true,
+  });
+
+/* ----------------------------------------------------------------------
+ * TREATMENT v2 (2026-08-06, docs/lab-treatment-v2-design-2026-08-06.md).
+ * The showdown forensics falsified "echo supersedes floor" (the floor arm
+ * recovered 7 of the treatment's 11 banking/employment criterion losses)
+ * and exposed a reported-vs-recomputed figures defect plus in-quote
+ * alteration residue in the v1 contract. v2 = the v1 chassis + the
+ * completeness floor + an amended grounding contract. Effort policy is a
+ * run config (high), not a prompt delta.
+ * ---------------------------------------------------------------------- */
+
+/** Delta tag: the amended citation contract. */
+export const CITATION_CONTRACT_V2_DELTA = "citation-contract-v2";
+/** Delta tag: the composite v2 treatment arm. */
+export const MARKDOWN_E2E_TREATMENT_V2_DELTA = "markdown-e2e-treatment-v2";
+
+/**
+ * MIKE_CITATION_CONTRACT_V2=1 prompt addition. Amends v1 with: stated
+ * figures reported verbatim and recomputations presented beside them,
+ * labeled, never substituted; exact reproduction inside quotation marks
+ * with ellipses for omissions and model-authored labels kept unquoted;
+ * source named by title or filename; soft 25-word / hard 40-word quote
+ * length. Mechanism-only: no benchmark, task, or rubric content.
+ */
+export const CITATION_CONTRACT_V2_PROMPT_BLOCK = `GROUNDING:
+- When the deliverable asserts a fact drawn from a source document (a date, amount, party, obligation, definition, or the presence or absence of a provision), place the exact supporting language beside the assertion as a short verbatim quote (aim for 25 words or fewer; never more than 40) naming the source document by its title or filename and, where available, the section or heading.
+- Report figures and dates exactly as the source states them. The deliverable's primary statement of a value that a source states is the source's own wording; if your independent recomputation disagrees with a stated value, present both figures, each labeled as stated or as computed — never substitute a recomputed value for the stated one.
+- Inside quotation marks, reproduce the source exactly: never paraphrase, normalize, or reword quoted text, and mark any omission with an ellipsis. Your own labels, summaries, and characterizations belong outside quotation marks.
+- If the deliverable is itself a drafted or revised instrument (contract, agreement, or amendment text), do not add quotes, citation markers, or source annotations to its operative text.
+- Never invent a quote. If you cannot locate exact language for an assertion, make the assertion without a quote.`;
+
+/**
+ * The v2 treatment arm's prompt: the FLOOR base (e2e + completeness check)
+ * with the echo line and the v2 grounding block appended by the same
+ * helper chat.ts serves through — the sha gate holds by construction.
+ */
+export const MARKDOWN_E2E_TREATMENT_V2_LAB_SYSTEM_PROMPT =
+  withLabTreatmentPromptAdditions(MARKDOWN_E2E_FLOOR_LAB_SYSTEM_PROMPT, {
+    requirementsEcho: true,
+    citationContract: false,
+    citationContractV2: true,
   });

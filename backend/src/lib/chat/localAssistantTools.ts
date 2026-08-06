@@ -985,6 +985,16 @@ export const CITATION_CONTRACT_ENABLED =
   process.env.MIKE_CITATION_CONTRACT === "1";
 
 /**
+ * TREATMENT mechanism 2, amended (v2 arm). Prompt-only like v1; mutually
+ * exclusive with it (the compose helper throws if both are on). Amendments
+ * per docs/lab-treatment-v2-design-2026-08-06.md: stated-vs-recomputed
+ * figures, in-quote integrity, title-or-filename attribution, soft-25/hard-40
+ * quote length.
+ */
+export const CITATION_CONTRACT_V2_ENABLED =
+  process.env.MIKE_CITATION_CONTRACT_V2 === "1";
+
+/**
  * Turn-scoped bookkeeping for the requirements echo. Created once per assistant
  * turn by the route and handed to every tool batch, exactly like turnReadState,
  * so a fetch_requirements call in round 1 is still visible to a generate_docx
