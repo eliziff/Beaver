@@ -1102,3 +1102,43 @@ Read (file_path, always cat-n); CC-cue descriptions (new arm-gated
 constants — frozen schemas have byte-equality tests); regex fallback
 (retry sans u-flag); -A/-B honored; minima guard; inventory on the served
 plane; exposure metrics exclude inventory/candidate segments.
+
+### coding_markdown_v2 — the CC parity pack lands same-day (2026-08-06 night)
+
+Per Eli ("let's not defer any work that we know is coming"), every audit
+finding that shapes the pure-coding experiment is wired in (8b61d8a6),
+one flag (MIKE_CODING_PARITY), frozen lean surfaces byte-untouched:
+
+- **Surface**: v2 serves Glob / Grep / Read / generate_docx — the CC
+  shapes. Read is single-file file_path, ALWAYS cat -n, 2000-line
+  default, and carries CC's own efficiency cue ("when you already know
+  which part you need, pass offset and limit"). Grep defaults to
+  files_with_matches like the trained environment, honors -A/-B, and
+  documents its modes. The lean paths[] batch Read — and its anti-native
+  "returns every requested document completely in one batch" invitation
+  — is gone from this arm. list_documents is not served (the system
+  prompt's AVAILABLE DOCUMENTS block already names the corpus), which
+  also removes the inventory-segment exposure saturation at the source.
+- **Executor parity** (flag-gated): ripgrep-legal patterns the JS u-flag
+  rejects retry without unicode strictness; -A/-B per-side context in
+  both grep render loops; provider-materialized {offset:1, limit:1}
+  minima read the default window (mirrors the section-mode guard).
+- **Metrics (all arms, future runs)**: kind=candidate segments (grep and
+  find hits, inventory opening lines) no longer count toward
+  documents_read/exposure — the audit's F1/F10 saturation; they surface
+  as documents_candidate_only + candidate_span_chars. Pre-fix and
+  post-fix documents_read are not comparable; noted here once.
+- **Harness**: route surface-drift guard expects the swapped list; F8
+  fail-closed env + lean prompt-sha gate landed separately (b2e6b7db).
+
+Proofs: plane probe md/plain/parity green (files_with_matches default,
+-A context rows rg-style, u-flag fallback match, minima guard reads 369
+lines); served-surface probe v2 6/6 + v1 5/5 + treatment 9/9;
+localToolWiring byte-equality + structureIndex 39/39; tsc clean.
+
+Open: v1 observational pilot still in flight (its Read schema is the
+lean paths[] one — pathway observations read against that surface); v2
+pilot on the same task follows for the paired comparison. F2 (inventory
+plane) is moot for v2 and deferred with the lean+markdown-no-parity
+combination it belongs to. find_in_document plaintext-plane hazard in
+five frozen arms remains filed under #51.
