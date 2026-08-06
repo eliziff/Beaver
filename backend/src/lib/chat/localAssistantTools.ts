@@ -119,6 +119,7 @@ import {
   ADAPTIVE_MIKE_LAB_TOOLS,
   COMPACT_AUTHOR_MIKE_LAB_TOOLS,
   LEAN_BATCH_LAB_TOOLS,
+  CODING_MARKDOWN_V2_LAB_TOOLS,
   MIKE_GREP_LAB_TOOLS,
   MIKE_LEGAL_LAB_TOOLS,
   MARKDOWN_INDEX_LAB_TOOLS,
@@ -912,6 +913,13 @@ export const LEAN_BATCH_FAMILY_TOOL_SHAPE =
  * one completeness check, terminal authoring) stays. */
 export const CODING_NEUTRAL_PROMPT_ENABLED =
   process.env.MIKE_CODING_NEUTRAL_PROMPT === "1";
+/** CC executor parity (coding_markdown_v2; adversarial audit 2026-08-06):
+ * Read takes file_path and always renders cat -n (the lean paths[] batch
+ * intercept is bypassed); Grep defaults to files_with_matches like the
+ * trained environment, honors -A/-B, retries ripgrep-legal patterns the
+ * JS u-flag rejects, and the provider-materialized {offset:1, limit:1}
+ * minima read the default window instead of one line. */
+export const CODING_PARITY_ENABLED = process.env.MIKE_CODING_PARITY === "1";
 export const GROUNDING_FIRST_ENABLED =
   process.env.MIKE_GROUNDING_FIRST === "1";
 export const MIKE_GREP_FAMILY_TOOL_SHAPE =
@@ -2104,7 +2112,13 @@ function forCodingVocabulary(tools: OpenAIToolSchema[]): OpenAIToolSchema[] {
 const ORIGIN_MIKE_ACTIVE_TOOLS = UPSTREAM_NATIVE_MIKE_SHAPE
   ? UPSTREAM_NATIVE_MIKE_LAB_TOOLS
   : LEAN_BATCH_FAMILY_TOOL_SHAPE
-  ? LEAN_BATCH_LAB_TOOLS
+  ? // CC parity (coding_markdown_v2): the Claude-Code-shaped surface —
+    // Glob, single file_path Read, Grep with -A/-B and the trained
+    // files_with_matches default — replaces the lean list. Frozen lean
+    // arms keep LEAN_BATCH_LAB_TOOLS byte-identically.
+    CODING_PARITY_ENABLED
+    ? CODING_MARKDOWN_V2_LAB_TOOLS
+    : LEAN_BATCH_LAB_TOOLS
   : COMPACT_AUTHOR_MIKE_TOOL_SHAPE
     ? COMPACT_AUTHOR_MIKE_LAB_TOOLS
     : STRUCTURE_INDEX_ENABLED
@@ -4364,6 +4378,17 @@ async function runCodingShapeCall(
       );
     }
     const offset = positiveInt(args.offset, 1, 100_000_000, 1);
+    // CC parity: some tool-call providers materialize every optional
+    // numeric field at its schema minimum, so {offset:1, limit:1} is the
+    // provider rendering of a plain read, not a request for line 1 alone
+    // (same rule as the section-mode guard above). A deliberate one-line
+    // read of line 1 can pass limit:1 without offset.
+    const effectiveLimit =
+      CODING_PARITY_ENABLED &&
+      Number(args.offset) === 1 &&
+      Number(args.limit) === 1
+        ? 2_000
+        : limit;
     const firstLine = lines[offset - 1];
     if (firstLine !== undefined && startChar > firstLine.length) {
       return fail(
@@ -4371,7 +4396,7 @@ async function runCodingShapeCall(
         `(start_char ${startChar} is past the end of line ${offset}; line chars: ${firstLine.length})`,
       );
     }
-    const selectedLines = lines.slice(offset - 1, offset - 1 + limit);
+    const selectedLines = lines.slice(offset - 1, offset - 1 + effectiveLimit);
     const firstLineContinues =
       selectedLines.length > 0 &&
       startChar + readLineCap < selectedLines[0].length;
@@ -4415,7 +4440,7 @@ async function runCodingShapeCall(
         ? startChar + readLineCap
         : null;
     const more = sameLineContinuation !== null
-      ? `\n\n[TRUNCATED: returned line ${offset} through char ${sameLineContinuation} of ${selectedLines[0].length}; continue with Read(file_path=${JSON.stringify(requested)}, offset=${offset}, limit=${limit}, start_char=${sameLineContinuation}). Tool-result limit reached.]`
+      ? `\n\n[TRUNCATED: returned line ${offset} through char ${sameLineContinuation} of ${selectedLines[0].length}; continue with Read(file_path=${JSON.stringify(requested)}, offset=${offset}, limit=${effectiveLimit}, start_char=${sameLineContinuation}). Tool-result limit reached.]`
       : lastShown < lines.length
         ? `\n\n[TRUNCATED: returned lines ${offset}-${lastShown} of ${lines.length}; continue with Read(file_path="${requested}", offset=${lastShown + 1}).${truncated ? " Tool-result limit reached." : ""}]`
         : "";
@@ -4645,16 +4670,29 @@ async function runCodingShapeCall(
     ? requestedPattern.slice("(?i)".length)
     : requestedPattern;
   let re: RegExp;
+  const regexFlags =
+    inlineCaseInsensitive || args["-i"] === true ? "iu" : "u";
   try {
-    re = new RegExp(
-      pattern,
-      inlineCaseInsensitive || args["-i"] === true ? "iu" : "u",
-    );
+    re = new RegExp(pattern, regexFlags);
   } catch (error) {
-    return fail(
-      call,
-      `regex parse error: ${errorText(error, "invalid pattern")}`,
-    );
+    // CC parity: ripgrep accepts escapes the JS u-flag rejects (\-, \%,
+    // escaped spaces, POSIX classes); retry without unicode strictness
+    // before failing so trained-prior patterns don't burn a round.
+    if (CODING_PARITY_ENABLED) {
+      try {
+        re = new RegExp(pattern, regexFlags.replace("u", ""));
+      } catch {
+        return fail(
+          call,
+          `regex parse error: ${errorText(error, "invalid pattern")}`,
+        );
+      }
+    } else {
+      return fail(
+        call,
+        `regex parse error: ${errorText(error, "invalid pattern")}`,
+      );
+    }
   }
   const pathArg = trimmed(args.path);
   const virtualTarget = pathArg ? resolveWorkingSet(pathArg) : undefined;
@@ -4695,13 +4733,21 @@ async function runCodingShapeCall(
       ? WORKING_SET_GREP_LINE_MAX_CHARS
       : GREP_LINE_CAP;
     const context = clampInt(args["-C"], 0, 10, 0);
+    // CC parity: -A (after) and -B (before) are honored per side; -C stays
+    // the symmetric fallback. Frozen arms keep -C-only semantics.
+    const contextBefore = CODING_PARITY_ENABLED
+      ? clampInt(args["-B"], 0, 10, context)
+      : context;
+    const contextAfter = CODING_PARITY_ENABLED
+      ? clampInt(args["-A"], 0, 10, context)
+      : context;
     const rows: CodingOutputLine[] = [];
     const emitted = new Set<number>();
     for (const match of matched) {
       const at = match.line;
       for (
-        let index = Math.max(0, at - context);
-        index <= Math.min(lines.length - 1, at + context) && rows.length < headLimit;
+        let index = Math.max(0, at - contextBefore);
+        index <= Math.min(lines.length - 1, at + contextAfter) && rows.length < headLimit;
         index += 1
       ) {
         if (emitted.has(index)) continue;
@@ -4817,7 +4863,9 @@ async function runCodingShapeCall(
     (LEGAL_GREP_EXPERIMENT && args.output_mode === "sections") ||
     (WORKING_SET_EXPERIMENT && args.output_mode === "working_set")
       ? args.output_mode
-      : LEAN_BATCH_FAMILY_TOOL_SHAPE
+      : // CC parity: the trained default is files_with_matches; the lean
+        // content default stays for the frozen lean arms only.
+        LEAN_BATCH_FAMILY_TOOL_SHAPE && !CODING_PARITY_ENABLED
         ? "content"
         : "files_with_matches";
   const headLimit = positiveInt(
@@ -4827,6 +4875,14 @@ async function runCodingShapeCall(
     mode === "sections" ? 40 : 250,
   );
   const context = clampInt(args["-C"], 0, 10, 0);
+  // CC parity: -A/-B honored per side, -C the symmetric fallback; frozen
+  // arms keep -C-only semantics.
+  const contextBefore = CODING_PARITY_ENABLED
+    ? clampInt(args["-B"], 0, 10, context)
+    : context;
+  const contextAfter = CODING_PARITY_ENABLED
+    ? clampInt(args["-A"], 0, 10, context)
+    : context;
   const numberLines = args["-n"] !== false;
 
   const rows: CodingOutputLine[] = [];
@@ -5095,9 +5151,13 @@ async function runCodingShapeCall(
         truncated = true;
         break;
       }
-      const from = Math.max(0, at - context);
-      const to = Math.min(lines.length - 1, at + context);
-      if (context && lastPrinted >= 0 && from > lastPrinted + 1) {
+      const from = Math.max(0, at - contextBefore);
+      const to = Math.min(lines.length - 1, at + contextAfter);
+      if (
+        (contextBefore || contextAfter) &&
+        lastPrinted >= 0 &&
+        from > lastPrinted + 1
+      ) {
         rows.push({ rendered: "--" });
       }
       for (let i = Math.max(from, lastPrinted + 1); i <= to; i += 1) {
@@ -7459,7 +7519,11 @@ export async function runLocalAssistantTools(
         args = resolved.input;
       }
 
-      if (LEAN_BATCH_FAMILY_TOOL_SHAPE && call.name === "Read") {
+      if (
+        LEAN_BATCH_FAMILY_TOOL_SHAPE &&
+        !CODING_PARITY_ENABLED &&
+        call.name === "Read"
+      ) {
         const paths = stringArray(args.paths);
         if (!paths.length) return fail(call, "paths must name at least one document");
         const bounded = args.offset !== undefined || args.limit !== undefined;
