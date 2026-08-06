@@ -924,3 +924,45 @@ deserve a place in the shallow triage inventory. Tax re-pilot on
 mike_markdown_e2e_index_treatment_v2 launched (parallel with the acq v2
 re-pilot): the coverage_check will name all 14 skipped instruments at the
 authoring boundary.
+
+### Full anchor-oracle sweep: 11,293 docs (2026-08-06, task #53 complete)
+
+Per-doc rows in `backend/.tmp-anchor-oracle-report.tsv`. Headlines:
+
+**Extraction (n=11,293):** ok 10,929 (96.8%), no_structure 355, extract
+errors 9 — and ALL NINE are `over_300k_cap`, i.e. today's cap removal
+(84dbfebf) fixes every extraction error in the corpus. 11,277 docs carried
+dropped warnings[] (the pre-fix population), including **294 docs served as
+the accepted view of tracked changes** — the conversion-notes flag has a
+real corpus-wide population, not a corner case.
+
+**Addressability (n=10,929 with an index):** gateBoth 8,392 pass (77%),
+zero-anchor 1,485 (13.6%, the non-contract genres), fraction-floor vetoes
+276 — the veto list is dominated by exactly the deep finance shapes
+(credit/intercreditor agreements, term sheets, REDLINES/markups at 6–19%
+anchored). Redline-heavy docs under-anchor systematically → ties to the
+mike-redline port plan and #50 extent work.
+
+**Anchor oracle (463,958 anchors):** `outOfBounds = 0` corpus-wide — the
+bounds invariant holds at scale. notLineStart 63,422 (13.7%) is the known
+oracle artifact (first-real-token after `**`/`<u>`). Real defect classes:
+nonMonotone 2.9%, dupAnchor 0.6%, contentMismatch ~0.95% across 3,134
+docs — same wrong-(a)/(b) subsection class as the targeted pass (plus an
+arabic-vs-roman `[ARTICLE 1]` => "article i" label class). The
+confirm-within-200-chars hardening candidate (#50) now has corpus-wide
+incidence numbers.
+
+**Orientation cost:** mean 3,122 chars/doc compact (17.1% saving); 50 docs
+≈ 39k tok, 100 ≈ 78k tok, 150 ≈ 117k tok of index alone — confirms
+index-everything dies before 100 docs and the triage-tier design (#57).
+Single-doc outliers: foreign constitutions/articles at 40–71k index chars
+(1,118 entries).
+
+**THE DISCOVERY — native haystack corpora exist in-repo:** the diligence/*
+tasks are full data rooms: enterprise-software-diversification **2,319
+docs** (6.9M index chars), cybersecurity-tuck-in 2,276, gaming-strategic-
+acquisition 1,979, aerospace-vertical-integration 1,674. The #56
+needle-in-haystack workstream does not need synthetic salting to start —
+four native 1,600–2,300-doc matters are on disk. Salting stays useful for
+controlled M-sweeps, but the first completeness-at-scale measurements can
+run on real data-room structure (folder taxonomy included).
