@@ -1346,6 +1346,34 @@ export const NO_DEFERRAL_PROMPT_BLOCK = `COMPLETE ANALYSIS:
 export const NO_DEFERRAL_ECHO_NOTE =
   "Do not defer: do not recommend documents or passages for further review unless the user explicitly asked for that; if a provision matters, read and analyze it before drafting.";
 
+/** The whole-read anti-re-read clause every mike arm inherits from the
+ *  upstream base prompt, byte-exact. Correct discipline for whole-read arms;
+ *  in a SCOPED arm it fights the design — multiple windows per document ARE
+ *  the intended usage, the harness already enforces true duplicate
+ *  suppression via interval-union refusals, and trace mining caught a model
+ *  widening a window specifically to honor this clause ("I cannot read doc-1
+ *  twice in this response... I should read a large enough window to capture
+ *  both sections"). */
+export const UPSTREAM_READ_ONCE_CLAUSE =
+  "- Read each relevant document/version at most once per response. After read_document or fetch_documents returns a document's full text, do not call either tool again for that same document/version in the same response; use the prior result, call find_in_document for targeted checks, or proceed to the next required tool.";
+
+/** Scoped-arm replacement: forbids re-requesting the SAME bytes, blesses
+ *  multiple different windows, and tells the model to size windows to the
+ *  section rather than widening one read to avoid a second call. */
+export const SCOPED_REREAD_CLAUSE =
+  "- Never re-request bytes you already have: once a document's full text or a window has been returned, use the prior result rather than fetching the same span again. Reading several different sections of the same document through separate read_document offset/max_chars windows is normal and expected — size each window to the section you need rather than widening one read to avoid a second call.";
+
+/** Replace the read-once clause for a scoped arm, loudly: if the upstream
+ *  base prompt ever changes the clause bytes, composing the arm throws at
+ *  module load instead of silently serving the stale contradiction. */
+function withScopedRereadClause(base: string): string {
+  if (!base.includes(UPSTREAM_READ_ONCE_CLAUSE))
+    throw new Error(
+      "scoped arm prompt: read-once clause not found in base prompt — upstream wording changed; re-derive SCOPED_REREAD_CLAUSE",
+    );
+  return base.replace(UPSTREAM_READ_ONCE_CLAUSE, SCOPED_REREAD_CLAUSE);
+}
+
 /** Index tools + fetch_requirements — the scoped-index treatment arm's tool
  *  list, mirroring how the server composes it (echo tool appended LAST). A
  *  separate array so the index arms' own tool_schema_sha256 is unchanged. */
@@ -1361,9 +1389,12 @@ export const MARKDOWN_INDEX_TREATMENT_LAB_TOOLS: OpenAIToolSchema[] = [
  * serves through — the sha gate holds by construction.
  */
 export const MARKDOWN_E2E_INDEX_TREATMENT_V1_LAB_SYSTEM_PROMPT =
-  withLabTreatmentPromptAdditions(MARKDOWN_E2E_INDEX_FLOOR_LAB_SYSTEM_PROMPT, {
-    requirementsEcho: true,
-    citationContract: false,
-    citationContractV2: true,
-    noDeferral: true,
-  });
+  withLabTreatmentPromptAdditions(
+    withScopedRereadClause(MARKDOWN_E2E_INDEX_FLOOR_LAB_SYSTEM_PROMPT),
+    {
+      requirementsEcho: true,
+      citationContract: false,
+      citationContractV2: true,
+      noDeferral: true,
+    },
+  );

@@ -865,6 +865,7 @@ async function main() {
       MIKE_TERMINAL_AUTHORING: "1",
       MIKE_READ_DOCX_MARKDOWN: "1",
       MIKE_STRUCTURE_INDEX: "1",
+      MIKE_INDEX_ATTACH_GATED: "1",
       MIKE_COMPLETENESS_FLOOR: "1",
       MIKE_REQUIREMENTS_ECHO: "1",
       MIKE_CITATION_CONTRACT_V2: "1",
@@ -1858,6 +1859,9 @@ async function main() {
       surface?.markdown_e2e_shape !== markdownE2e ||
       surface?.markdown_read_docx !== markdownE2e ||
       surface?.structure_index !== structureIndex ||
+      // Attachment gating is the index-treatment arm's mechanism; the frozen
+      // index arms must keep serving ungated indexes byte-for-byte.
+      surface?.index_attach_gated !== false ||
       surface?.completeness_floor !== completenessFloor ||
       surface?.upstream_mike_shape !== false ||
       surface?.progressive_disclosure !== false ||
@@ -2059,6 +2063,7 @@ async function main() {
       surface?.no_deferral !== true ||
       surface?.completeness_floor !== true ||
       surface?.structure_index !== true ||
+      surface?.index_attach_gated !== true ||
       // …on an otherwise byte-identical index chassis
       surface?.markdown_e2e_shape !== true ||
       surface?.markdown_read_docx !== true ||
