@@ -612,6 +612,31 @@ function lenientUnescapeJsonString(body: string): string {
   return out;
 }
 
+/**
+ * End index (exclusive) of the first string-aware balanced JSON object
+ * starting at `from`, or null if it never closes. Malformed strings (the
+ * dominant-string defect) derail the scan, so callers must accept the
+ * prefix only when it strictly parses; a generation truncated inside the
+ * envelope has an unterminated string or open braces and returns null.
+ */
+function scanBalancedJsonPrefix(s: string, from: number): number | null {
+  let depth = 0;
+  let inString = false;
+  for (let i = from; i < s.length; i += 1) {
+    const ch = s[i];
+    if (inString) {
+      if (ch === "\\") i += 1;
+      else if (ch === '"') inString = false;
+    } else if (ch === '"') inString = true;
+    else if (ch === "{") depth += 1;
+    else if (ch === "}") {
+      depth -= 1;
+      if (depth === 0) return i + 1;
+    }
+  }
+  return null;
+}
+
 type DominantStringSalvage = {
   parsed: { calls?: unknown };
   field: string;
@@ -703,7 +728,35 @@ export function parseReply(
   const end = rest.lastIndexOf("}");
   if (start < 0 || end <= start)
     throw new Error("TOOL_CALLS reply has no JSON object");
-  const raw = rest.slice(start, end + 1);
+  let raw = rest.slice(start, end + 1);
+  // Model-continued-transcript defect (2026-08-06 indenture cell): a valid
+  // TOOL_CALLS envelope followed by a hallucinated {"tool_results":...}
+  // continuation and citations. first-{..last-} spans both objects, and no
+  // repair path can parse the concatenation, so a completed 126KB two-call
+  // envelope was discarded. The balanced scan recovers the model's own
+  // first complete object; it is accepted only when it strictly parses
+  // with the downstream shape, so defective-string payloads still take
+  // the repair chain over the full span. This intentionally runs before
+  // the truncation refusal: if the output cap hit inside the hallucinated
+  // continuation, the envelope itself is complete and usable.
+  const prefixEnd = scanBalancedJsonPrefix(rest, start);
+  if (prefixEnd !== null && prefixEnd - start < raw.length) {
+    const prefix = rest.slice(start, prefixEnd);
+    try {
+      const candidate = JSON.parse(prefix) as { calls?: unknown };
+      if (callsShapeOk(candidate)) {
+        const file = preserveRawReply(text, `continued-iter${iteration}`);
+        console.warn(
+          `[claude-p] TOOL_CALLS envelope followed by ${rest.length - prefixEnd} ` +
+            "chars of model-continued transcript; kept the envelope, discarded " +
+            `the continuation${file ? ` (original preserved at ${file})` : ""}`,
+        );
+        raw = prefix;
+      }
+    } catch {
+      // Not a strict-JSON prefix — the full-span repair chain owns it.
+    }
+  }
   let parsed: { calls?: unknown };
   try {
     parsed = JSON.parse(raw) as { calls?: unknown };
