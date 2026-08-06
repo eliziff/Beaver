@@ -222,7 +222,12 @@ export type LlmCompactionReceipt = {
   triggerReason?:
     | "reported_usage"
     | "projected_input"
-    | "context_length_exceeded";
+    | "context_length_exceeded"
+    // The provider's own CLI/runtime compacted the conversation in place
+    // (claude -p auto-compact). Not a harness compaction request: request/
+    // output receipt fields are zeroed, and usage is zeroed because the
+    // spend is already inside the turn envelope's reported usage.
+    | "provider_auto";
   projectedInputTokens?: number;
   requestInputItems: number;
   requestInputBytes: number;
