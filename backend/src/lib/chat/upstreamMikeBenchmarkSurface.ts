@@ -845,6 +845,141 @@ DOCUMENT CREATION:
 
 Do not use emojis.`;
 
+/* ----------------------------------------------------------------------
+ * CODING-MARKDOWN v2 (parity pack; adversarial audit 2026-08-06). The v1
+ * arm served lean-batch's real tools — no Glob, a paths[] batch Read with
+ * two output formats, descriptions carrying none of the trained
+ * environment's efficiency cues and one anti-native whole-batch
+ * invitation. v2 serves a Claude-Code-shaped surface: Glob, a single
+ * file_path Read (always cat -n, 2000-line default, "read only the part
+ * you need"), Grep with files_with_matches default and -A/-B context,
+ * plus the same terminal generate_docx. NEW constants on purpose: the
+ * lean-batch schemas are frozen surfaces with byte-equality tests.
+ * ---------------------------------------------------------------------- */
+
+/** Delta tag: executor-level CC parity (regex fallback, -A/-B, grep
+ * default mode, minima guard) gated on MIKE_CODING_PARITY. */
+export const CODING_PARITY_DELTA = "coding-parity-v1";
+/** Delta tag: the composite v2 coding arm. */
+export const CODING_MARKDOWN_V2_DELTA = "coding-markdown-v2";
+
+export const CODING_GLOB_TOOL: OpenAIToolSchema = {
+  type: "function",
+  function: {
+    name: "Glob",
+    description:
+      'Fast file pattern matching over the project documents. Supports glob patterns like "*.docx" or "*.{docx,xlsx}". Returns matching files with their sizes on the same text plane Grep and Read address.',
+    parameters: {
+      type: "object",
+      properties: {
+        pattern: {
+          type: "string",
+          description: "The glob pattern to match filenames against",
+        },
+      },
+      required: ["pattern"],
+    },
+  },
+};
+
+export const CODING_GREP_TOOL: OpenAIToolSchema = {
+  type: "function",
+  function: {
+    name: "Grep",
+    description:
+      "Content search with regular expressions across every project document by default; filter with path or glob. Use it to locate evidence in large documents instead of reading them whole. Returns matching file names by default; use output_mode \"content\" for the matching lines with context.",
+    parameters: {
+      type: "object",
+      properties: {
+        pattern: {
+          type: "string",
+          description:
+            "The regular expression pattern to search for in document contents",
+        },
+        path: {
+          type: "string",
+          description: "A single filename to search. Defaults to all documents.",
+        },
+        glob: {
+          type: "string",
+          description: 'Glob pattern to filter documents (e.g. "*.docx")',
+        },
+        output_mode: {
+          type: "string",
+          enum: ["content", "files_with_matches", "count"],
+          description:
+            'Output mode: "content" shows matching lines (supports -A/-B/-C context, -n line numbers, head_limit), "files_with_matches" shows file names (default), "count" shows match counts.',
+        },
+        "-i": { type: "boolean", description: "Case insensitive search" },
+        "-n": {
+          type: "boolean",
+          description:
+            'Show line numbers in output. Requires output_mode: "content". Defaults to true.',
+        },
+        "-A": {
+          type: "number",
+          description:
+            'Number of lines to show after each match. Requires output_mode: "content".',
+        },
+        "-B": {
+          type: "number",
+          description:
+            'Number of lines to show before each match. Requires output_mode: "content".',
+        },
+        "-C": {
+          type: "number",
+          description:
+            'Number of lines to show before and after each match. Requires output_mode: "content".',
+        },
+        head_limit: {
+          type: "number",
+          minimum: 1,
+          description: "Limit output to the first N lines/entries. Defaults to 250.",
+        },
+      },
+      required: ["pattern"],
+    },
+  },
+};
+
+export const CODING_READ_TOOL: OpenAIToolSchema = {
+  type: "function",
+  function: {
+    name: "Read",
+    description:
+      "Reads a project document. Reads up to 2000 lines by default. Results are returned using cat -n format, with line numbers starting at 1. When you already know which part of the document you need — a Grep hit's line number, or a known section — pass offset and limit for that window; this matters for larger documents.",
+    parameters: {
+      type: "object",
+      properties: {
+        file_path: {
+          type: "string",
+          description: "The filename to read",
+        },
+        offset: {
+          type: "number",
+          minimum: 1,
+          description:
+            "The line number to start reading from. Only provide if the document is too large to read at once.",
+        },
+        limit: {
+          type: "number",
+          minimum: 1,
+          description:
+            "The number of lines to read. Only provide if the document is too large to read at once.",
+        },
+      },
+      required: ["file_path"],
+    },
+  },
+};
+
+export const CODING_MARKDOWN_V2_LAB_TOOLS: OpenAIToolSchema[] = [
+  CODING_GLOB_TOOL,
+  CODING_GREP_TOOL,
+  CODING_READ_TOOL,
+  COMPACT_GENERATE_DOCX_TOOL,
+];
+
 export const ADAPTIVE_MIKE_LAB_SYSTEM_PROMPT = `${UPSTREAM_MIKE_LAB_SYSTEM_PROMPT}
 
 ADAPTIVE READING:
