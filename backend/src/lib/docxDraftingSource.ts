@@ -20,7 +20,6 @@ import { spawn } from "child_process";
 export { MAX_DRAFTING_DOCX_BYTES, MAX_DRAFTING_XML_ENTRY_BYTES };
 
 export const DOCX_DRAFTING_SOURCE_FORMAT = "pandoc-markdown-v1";
-const MAX_DRAFTING_MD_CHARS = 300_000;
 const MAX_DRAFTING_ZIP_ENTRIES = 2_048;
 const MAX_DRAFTING_EXPANDED_BYTES = 96 * 1024 * 1024;
 const MAX_DRAFTING_XML_BYTES = 32 * 1024 * 1024;
@@ -451,8 +450,13 @@ export async function extractDocxDraftingSource(
 
   // Convert via Pandoc (markdown, not HTML).
   const mdRaw = await pandocMd(pandocInput).catch((error: unknown) => {
+    const message = cleanWarning(error);
+    // A missing converter is an environment fault, not a document defect:
+    // wrapping ENOENT as "malformed XML" sent operators hunting a healthy
+    // file. Conversion failures on real bytes keep naming the part.
+    if (/not found on PATH/u.test(message)) throw new Error(message);
     throw new Error(
-      `Precedent DOCX contains malformed XML in word/document.xml: ${cleanWarning(error)}`,
+      `Precedent DOCX contains malformed XML in word/document.xml: ${message}`,
     );
   });
 
@@ -469,12 +473,15 @@ export async function extractDocxDraftingSource(
     }
   }
 
-  if (!markdown || markdown.length > MAX_DRAFTING_MD_CHARS) {
-    throw new Error(
-      markdown
-        ? "Precedent structure exceeds the drafting read limit"
-        : "Precedent DOCX has no readable drafting structure",
-    );
+  // No markdown-size refusal: memory is bounded by the package guards above
+  // (input bytes, entry count, inflated XML bounds), and token exposure is a
+  // SERVING policy — scoped windows, whole-read gates — not an extraction
+  // concern. The old 300k cap's throw was swallowed by a catch(()=>null)
+  // upstream and silently swapped the document onto the plaintext whole-read
+  // plane, costing MORE tokens than the markdown it refused (the antitrust
+  // market-data report whole-read ~84k tokens on the fallback plane).
+  if (!markdown) {
+    throw new Error("Precedent DOCX has no readable drafting structure");
   }
 
   // Structural warnings based on raw OOXML (format-agnostic).
