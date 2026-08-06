@@ -1216,3 +1216,64 @@ contract. Smoke next: coding_markdown_v2 on capital-markets/
 compare-closing-documents-against-closing-checklist (34.5k tok,
 fits without compaction) to validate the wired surface end-to-end
 before the paired acq pilot.
+
+## v2 SMOKE + TAX PILOT + COMPACTION GUARD + v3 SECTION-CONTEXT (2026-08-06 evening, Fable)
+
+**Smoke (closing-checklist, 34.5k, run 2026-08-06T22-58-45): 29/32.**
+8 Reads + generate_docx straight {title, markdown} (the description cue
+worked; alias untriggered), context_compaction_count=0, candidate
+metrics live, 44k in / 17k out / 2 rounds. Misses: one synthesis depth
+(tax opinion's guarantor-payment omission unflagged) + two severity
+calibrations (Critical where the rubric wanted Significant). Zero
+read-gaps (8/8 docs).
+
+**Tax pilot (draft-transfer-pricing-documentation, 292k corpus, run
+2026-08-06T23-06-43): completed with ONE auto-compaction — the
+detection chain worked live end-to-end** (transport warn at iteration
+6, preTokens 167,683; runner warn; context_compaction_count=1 with a
+provider_auto receipt in metrics). Pathways: 17 Reads, ZERO Grep —
+second surface, second task, same verdict: models do not spontaneously
+search these corpora; they read documents whole even under CC
+descriptions with search-before-read steers. 12/25 docs read. The
+autopsy oracle answered in part: v2 DID reach three of the six
+operative instruments the treatment arm skipped (engagement letter —
+read early — QCSA agreement, guarantee-fee agreement) but IP licenses,
+loan agreements, and manufacturing/services agreements stayed unread.
+Micro-finding: the first three Read calls used "doc-N: filename"
+verbatim from the AVAILABLE DOCUMENTS block as file_path (wrong shape,
+self-corrected) — inventory-line format vs file_path is a small
+surface-polish item. 428k input tokens (compaction-inflated), 38k out.
+Judge pending (WinError 216 npm auto-update strike two — claude.exe
+2.1.223 settled, judge relaunched).
+
+**Compaction runaway guard (Eli directive: "make sure that doesn't
+loop forever")**: typed stop at 3 auto-compactions — ClaudePFatalError
+"compaction_limit", never retried, classified in run-state. A
+real-degradation bound: 1 compaction = tolerable lossiness (tax
+completed), 2 = summaries-of-summaries (v1 acq), and nothing else
+bounds the cycle (rounds uncapped; each compaction re-opens headroom).
+
+**coding_markdown_v3 (grep section-context) BUILT + verified, one
+flag MIKE_GREP_SECTION_CONTEXT over v2**: content-mode grep hits are
+preceded by their enclosing SECTION lead as an rg context row at its
+real line number — document-true, quotable, Read-able (zenith probe:
+`...docx-147-**Section 9.2 — Termination for Cause.**...` above the
+:149: hit). Resolver is two-plane (docx detector nodes anchored into
+served markdown via anchoredSectionStarts) because the skeleton
+compiler finds 0 nodes on pandoc markdown (probed); version-memoized;
+subsections excluded; soft degradation for non-docx. v3 Grep
+description documents the rows CC-style. Conformance: per-arm
+grep_section_context asserts; fail-closed reset gained
+MIKE_GREP_SECTION_CONTEXT + the previously missing MIKE_CODING_PARITY.
+Proofs: plane sect 14/14 + parity 14/14 (v2 emits no lead rows),
+served-surface coding3 7/7 / coding2 7/7 / treatment 9/9, suites
+57/57, tsc clean. Commit d33fd14a.
+
+**Standing question for the next move**: two coding-surface runs, zero
+Grep calls — v3's annotation only pays if grep happens. The lever list,
+in escalation order: (a) v3 as built (annotation makes search results
+richer, maybe self-reinforcing once tried), (b) prompt guidance toward
+scoped reads (Eli earlier: "we should still instruct it toward clean
+reads I think?"), (c) inventory-line sizes (the lean list_documents
+carried chars; the coding AVAILABLE DOCUMENTS block does not — a model
+that cannot see document sizes cannot budget reads).
