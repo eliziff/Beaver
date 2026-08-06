@@ -60,6 +60,9 @@ import {
   PROGRESSIVE_DISCLOSURE_ENABLED,
   RESEARCH_TOOLS_DISABLED,
   RESIDENT_AUTHORING_ENABLED,
+  CITATION_CONTRACT_ENABLED,
+  REQUIREMENTS_ECHO_ENABLED,
+  createLocalAssistantRequirementsState,
   SUPPRESS_DUPLICATE_WHOLE_READS,
   TERMINAL_AUTHORING_ENABLED,
   UPSTREAM_MIKE_TOOL_SHAPE,
@@ -109,6 +112,7 @@ import {
   UPSTREAM_MIKE_LAB_SYSTEM_PROMPT,
   UPSTREAM_NATIVE_MIKE_LAB_SYSTEM_PROMPT,
   UPSTREAM_NATIVE_MIKE_LAB_TOOL_NAMES,
+  withLabTreatmentPromptAdditions,
 } from "../lib/chat/upstreamMikeBenchmarkSurface";
 import {
   GROUNDED_STRUCTURE_OUTLINE_INJECTION_ENABLED,
@@ -1143,8 +1147,19 @@ export async function streamAnonymousChat(params: {
           A2AJ_SYSTEM_PROMPT +
           "\n\n" +
           PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT);
+  // TREATMENT prompt additions, applied through the SAME helper the preflight
+  // reproducer uses, so the served prompt and the arm's expected
+  // system_prompt_sha256 cannot drift apart — the order lives in one place.
+  // Both flags are off for every existing arm, so this is a no-op for them.
+  // Note this runs BEFORE the leak guard below, so the additions are
+  // leak-scanned like any other prompt text, and BEFORE the inventory append,
+  // which is the order lab-beaver-arm.ts reproduces.
+  systemPrompt = withLabTreatmentPromptAdditions(systemPrompt, {
+    requirementsEcho: REQUIREMENTS_ECHO_ENABLED,
+    citationContract: CITATION_CONTRACT_ENABLED,
+  });
   if (ORIGIN_MIKE_TOOL_SHAPE) {
-    const expected = UPSTREAM_NATIVE_MIKE_SHAPE
+    const expectedBase = UPSTREAM_NATIVE_MIKE_SHAPE
       ? UPSTREAM_NATIVE_MIKE_LAB_TOOL_NAMES
       : LEAN_BATCH_FAMILY_TOOL_SHAPE
       ? ["list_documents", "Grep", "Read", "generate_docx"]
@@ -1165,6 +1180,12 @@ export async function streamAnonymousChat(params: {
           "fetch_documents",
           "generate_docx",
         ];
+    // The requirements-echo mechanism appends exactly one tool to whatever arm
+    // surface is active, so the guard's expectation is extended the same way
+    // rather than duplicating any arm's list.
+    const expected = REQUIREMENTS_ECHO_ENABLED
+      ? [...expectedBase, "fetch_requirements"]
+      : expectedBase;
     const actual = activeTools.map((entry) => entry.function.name);
     if (
       progressiveDisclosure ||
@@ -1493,6 +1514,16 @@ export async function streamAnonymousChat(params: {
   const localTurnEditState: LocalAssistantEditTurnState = new Map();
   const localTurnReadState: LocalAssistantReadTurnState = new Map();
   const localWorkingSets: LocalAssistantWorkingSetTurnState = new Map();
+  // TREATMENT mechanism 1: turn-scoped, created beside the other turn states so
+  // an echo served in round 1 is still visible to the authoring gate in round N.
+  const localRequirementsState = createLocalAssistantRequirementsState();
+  // The task's own user message, captured verbatim for fetch_requirements to
+  // re-serve. This is the message as submitted — not the provider-facing copy,
+  // which has the attached-document manifest prepended.
+  const localRequirementsText =
+    params.currentTurn.kind === "message"
+      ? params.currentTurn.message.content
+      : params.currentTurn.content;
   const contextHandoffEnabled =
     process.env.MIKE_CONTEXT_HANDOFF === "1" &&
     !ORIGIN_MIKE_TOOL_SHAPE;
@@ -1968,6 +1999,8 @@ export async function streamAnonymousChat(params: {
           localTurnEditState,
           localTurnReadState,
           localWorkingSets,
+          localRequirementsText,
+          localRequirementsState,
         );
     const allowedResults = allowedCalls.length
       ? await runAllowedCalls(allowedCalls)
@@ -2544,6 +2577,10 @@ export async function streamAnonymousChat(params: {
           upstream_mike_shape: UPSTREAM_MIKE_TOOL_SHAPE,
           upstream_native_shape: UPSTREAM_NATIVE_MIKE_SHAPE,
           max_iterations: nativeMaxIterations ?? null,
+          // TREATMENT mechanisms. Reported independently so an ablation arm
+          // running one of them alone is legible from the receipt.
+          requirements_echo: REQUIREMENTS_ECHO_ENABLED,
+          citation_contract: CITATION_CONTRACT_ENABLED,
           adaptive_mike_shape: ADAPTIVE_MIKE_TOOL_SHAPE,
           compact_author_mike_shape: COMPACT_AUTHOR_MIKE_TOOL_SHAPE,
           markdown_swap_shape: MARKDOWN_SWAP_MIKE_TOOL_SHAPE,
@@ -3333,6 +3370,17 @@ export async function streamAnonymousChat(params: {
       }
     } else if (isCodex) {
       discardProviderSession();
+    }
+    // TREATMENT mechanism 1 outcome receipt. These two numbers are only known
+    // after the turn has run, so they cannot ride on benchmark_surface (which
+    // is emitted before the provider starts) — they get their own typed event,
+    // the same way the native arm reports its turn termination.
+    if (REQUIREMENTS_ECHO_ENABLED) {
+      sseWrite(res, {
+        type: "benchmark_requirements_echo",
+        echo_call_count: localRequirementsState.echoCallCount,
+        documents_unread_at_echo: localRequirementsState.documentsUnreadAtEcho,
+      });
     }
     sseFinishTurn(citations);
   } catch (error) {
