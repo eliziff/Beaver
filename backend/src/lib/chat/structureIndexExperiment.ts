@@ -352,6 +352,31 @@ export function renderStructureIndex(
 }
 
 /**
+ * Section-level anchored starts on a served plane, ascending by offset.
+ * Consumer for grep section-context annotation (MIKE_GREP_SECTION_CONTEXT):
+ * the enclosing-section lead for a hit offset is the last start at or below
+ * it. Subsections are excluded on purpose — a hit's own subsection line is
+ * usually the hit's neighborhood already; the section lead is the
+ * orientation a coding model cannot see from ±N context lines. Probe
+ * 2026-08-06 (zenith supply agreement): skeleton-on-markdown finds 0 nodes,
+ * so this MUST stay on the two-plane path (nodes from the docx detectors,
+ * anchored into the served markdown) — the oracle-swept design.
+ */
+export function anchoredSectionStarts(
+  nodes: SkeletonNode[],
+  markdown: string,
+): number[] {
+  const spine = nodes.filter(
+    (node) => INDEX_KINDS.has(node.kind) && node.kind !== "subsection",
+  );
+  if (!spine.length) return [];
+  const anchors = anchorSpine(markdown, spine);
+  const starts = [...anchors.values()];
+  starts.sort((a, b) => a - b);
+  return starts;
+}
+
+/**
  * Scoped-only reads are enforced only when the index actually carries body
  * addresses the model can use. Real corpora produce many spines with headings
  * but few or no @N anchors (HSR: 4 of 5 docs at 0%, the EMP redline at 7%);

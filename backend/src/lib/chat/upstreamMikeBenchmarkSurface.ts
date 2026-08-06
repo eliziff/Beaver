@@ -862,6 +862,11 @@ Do not use emojis.`;
 export const CODING_PARITY_DELTA = "coding-parity-v1";
 /** Delta tag: the composite v2 coding arm. */
 export const CODING_MARKDOWN_V2_DELTA = "coding-markdown-v2";
+/** Delta tag: grep section-context rows gated on
+ * MIKE_GREP_SECTION_CONTEXT (coding_markdown_v3). */
+export const GREP_SECTION_CONTEXT_DELTA = "grep-section-context-v1";
+/** Delta tag: the composite v3 coding arm (v2 + section-context grep). */
+export const CODING_MARKDOWN_V3_DELTA = "coding-markdown-v3";
 
 export const CODING_GLOB_TOOL: OpenAIToolSchema = {
   type: "function",
@@ -998,6 +1003,34 @@ export const CODING_GENERATE_DOCX_TOOL: OpenAIToolSchema = {
 export const CODING_MARKDOWN_V2_LAB_TOOLS: OpenAIToolSchema[] = [
   CODING_GLOB_TOOL,
   CODING_GREP_TOOL,
+  CODING_READ_TOOL,
+  CODING_GENERATE_DOCX_TOOL,
+];
+
+/**
+ * v3 (grep section-context): identical to the CC Grep except the
+ * description documents the section-lead context rows, CC-style — the
+ * behavior is mechanism, the description tells the model what the rows
+ * mean and how to use them (read from the lead's line). Same name, same
+ * schema.
+ */
+export const CODING_GREP_TOOL_SECTIONED: OpenAIToolSchema = {
+  type: "function",
+  function: {
+    name: "Grep",
+    description:
+      `${CODING_GREP_TOOL.function.description} In content mode, each match` +
+      " is preceded by its enclosing section lead as a context row at that" +
+      " row's own line number (e.g. a 'Section 9.2 — ...' line) — use it to" +
+      " cite the governing section and to Read from the section's start" +
+      " instead of an arbitrary window.",
+    parameters: CODING_GREP_TOOL.function.parameters,
+  },
+};
+
+export const CODING_MARKDOWN_V3_LAB_TOOLS: OpenAIToolSchema[] = [
+  CODING_GLOB_TOOL,
+  CODING_GREP_TOOL_SECTIONED,
   CODING_READ_TOOL,
   CODING_GENERATE_DOCX_TOOL,
 ];

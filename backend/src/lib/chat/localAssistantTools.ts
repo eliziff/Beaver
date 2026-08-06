@@ -62,6 +62,7 @@ import { termDriftReport } from "../legalTermDrift";
 import { extractDocxDraftingSource } from "../docxDraftingSource";
 import {
   STRUCTURE_INDEX_ENABLED,
+  anchoredSectionStarts,
   attachStructureIndex,
   deriveSectionNodes,
   indexIsAddressable,
@@ -120,6 +121,7 @@ import {
   COMPACT_AUTHOR_MIKE_LAB_TOOLS,
   LEAN_BATCH_LAB_TOOLS,
   CODING_MARKDOWN_V2_LAB_TOOLS,
+  CODING_MARKDOWN_V3_LAB_TOOLS,
   MIKE_GREP_LAB_TOOLS,
   MIKE_LEGAL_LAB_TOOLS,
   MARKDOWN_INDEX_LAB_TOOLS,
@@ -920,6 +922,16 @@ export const CODING_NEUTRAL_PROMPT_ENABLED =
  * JS u-flag rejects, and the provider-materialized {offset:1, limit:1}
  * minima read the default window instead of one line. */
 export const CODING_PARITY_ENABLED = process.env.MIKE_CODING_PARITY === "1";
+/**
+ * Grep section-context (coding_markdown_v3): content-mode hits are preceded
+ * by their enclosing SECTION lead rendered as an rg context row at its real
+ * line number — document-true text, quotable, zero fake-text hazard. The
+ * legal analog of the enclosing symbol a coding model expects to infer from
+ * ±N context lines, made explicit because legal sections outrun any context
+ * window. Off in every other arm; v2 stays byte-identical.
+ */
+export const GREP_SECTION_CONTEXT_ENABLED =
+  process.env.MIKE_GREP_SECTION_CONTEXT === "1";
 export const GROUNDING_FIRST_ENABLED =
   process.env.MIKE_GROUNDING_FIRST === "1";
 export const MIKE_GREP_FAMILY_TOOL_SHAPE =
@@ -1291,6 +1303,40 @@ async function documentStructure(
   return NAV_TOOL_SHAPE === "address"
     ? bakedSkeleton(text, id, options)
     : compileAgreementSkeleton(text, id, options);
+}
+
+/**
+ * Version-memoized section-lead offsets on the coding grep plane
+ * (MIKE_GREP_SECTION_CONTEXT). Two-plane on purpose: nodes come from the
+ * docx detectors, anchored into the served text — the skeleton compiler
+ * finds 0 nodes on pandoc markdown (probed 2026-08-06, zenith supply
+ * agreement), so a served-plane-only resolver would silently annotate
+ * nothing. Non-docx documents and extraction failures degrade soft: rows
+ * render without section leads.
+ */
+const grepSectionSpineCache = new Map<string, number[]>();
+
+async function grepSectionSpine(
+  userId: string,
+  meta: { id: string; current_version_id: string; file_type: string },
+  servedText: string,
+): Promise<number[]> {
+  if (meta.file_type.toLowerCase() !== "docx") return [];
+  const key = `${meta.current_version_id}:${servedText.length}`;
+  const cached = grepSectionSpineCache.get(key);
+  if (cached) return cached;
+  let leads: number[] = [];
+  try {
+    const file = await getLocalVersionFile(userId, meta.id);
+    if (file) {
+      const nodes = await deriveSectionNodes(await readFile(file.path));
+      leads = anchoredSectionStarts(nodes, servedText);
+    }
+  } catch {
+    // Soft degradation: no annotation for this document.
+  }
+  grepSectionSpineCache.set(key, leads);
+  return leads;
 }
 
 async function documentGraph(
@@ -2117,7 +2163,9 @@ const ORIGIN_MIKE_ACTIVE_TOOLS = UPSTREAM_NATIVE_MIKE_SHAPE
     // files_with_matches default — replaces the lean list. Frozen lean
     // arms keep LEAN_BATCH_LAB_TOOLS byte-identically.
     CODING_PARITY_ENABLED
-    ? CODING_MARKDOWN_V2_LAB_TOOLS
+    ? GREP_SECTION_CONTEXT_ENABLED
+      ? CODING_MARKDOWN_V3_LAB_TOOLS
+      : CODING_MARKDOWN_V2_LAB_TOOLS
     : LEAN_BATCH_LAB_TOOLS
   : COMPACT_AUTHOR_MIKE_TOOL_SHAPE
     ? COMPACT_AUTHOR_MIKE_LAB_TOOLS
@@ -5144,6 +5192,13 @@ async function runCodingShapeCall(
       continue;
     }
     const matchedLines = new Set(matched);
+    // Section-context rows (coding_markdown_v3): anchored section leads,
+    // computed once per hit-document; per hit, the enclosing lead is the
+    // last start at or below the hit's offset.
+    const sectionLeads = GREP_SECTION_CONTEXT_ENABLED
+      ? await grepSectionSpine(userId, meta, document.text)
+      : [];
+    const emittedSectionRows = new Set<number>();
     let hardReferenceGraph: CrossReferenceGraph | null = null;
     let lastPrinted = -2;
     for (const at of matched) {
@@ -5159,6 +5214,51 @@ async function runCodingShapeCall(
         from > lastPrinted + 1
       ) {
         rows.push({ rendered: "--" });
+      }
+      if (sectionLeads.length) {
+        const hitOffset = starts[at];
+        let lo = 0;
+        let hi = sectionLeads.length - 1;
+        let lead = -1;
+        while (lo <= hi) {
+          const mid = (lo + hi) >> 1;
+          if (sectionLeads[mid] <= hitOffset) {
+            lead = mid;
+            lo = mid + 1;
+          } else {
+            hi = mid - 1;
+          }
+        }
+        if (lead >= 0) {
+          let leadLine = 0;
+          lo = 0;
+          hi = lines.length - 1;
+          while (lo <= hi) {
+            const mid = (lo + hi) >> 1;
+            if (starts[mid] <= sectionLeads[lead]) {
+              leadLine = mid;
+              lo = mid + 1;
+            } else {
+              hi = mid - 1;
+            }
+          }
+          // The lead renders as an rg context row at its true line number —
+          // document text, quotable, Read-able at that coordinate. Skip it
+          // when this hit's own context window is about to print that line,
+          // or when it was already emitted for this document.
+          if (
+            leadLine < Math.max(from, lastPrinted + 1) &&
+            !emittedSectionRows.has(leadLine)
+          ) {
+            emittedSectionRows.add(leadLine);
+            const leadText = (lines[leadLine] ?? "").slice(0, GREP_LINE_CAP);
+            rows.push({
+              rendered: numberLines
+                ? `${codingPath(meta)}-${leadLine + 1}-${leadText}`
+                : `${codingPath(meta)}-${leadText}`,
+            });
+          }
+        }
       }
       for (let i = Math.max(from, lastPrinted + 1); i <= to; i += 1) {
         const isMatch = matchedLines.has(i);
