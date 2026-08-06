@@ -133,29 +133,33 @@ const MATRIX: Array<{
     compiledSections: 0,
     compiledParagraphs: 27,
   },
+  // These four carried hand-cut excerpts that opened mid-decision (paras
+  // 40-48 and the like), so they only ever exercised a spine starting far
+  // above 1. They now hold the full A2AJ records, and the expected counts are
+  // the corpus's own rooted ladder read straight off the text.
   {
     file: "a2aj-case-scc-2021scc31-bracket",
     docType: "cases",
     compiledSections: 0,
-    compiledParagraphs: 9,
+    compiledParagraphs: 64,
   },
   {
     file: "a2aj-case-scc-2014scc71-bracket",
     docType: "cases",
     compiledSections: 0,
-    compiledParagraphs: 13,
+    compiledParagraphs: 112,
   },
   {
     file: "a2aj-case-scc-2020scc45-bracket",
     docType: "cases",
     compiledSections: 0,
-    compiledParagraphs: 11,
+    compiledParagraphs: 238,
   },
   {
     file: "a2aj-case-scc-2014scc53-bracket",
     docType: "cases",
     compiledSections: 0,
-    compiledParagraphs: 8,
+    compiledParagraphs: 125,
   },
   {
     file: "a2aj-laws-fed-criminalcode-s231",

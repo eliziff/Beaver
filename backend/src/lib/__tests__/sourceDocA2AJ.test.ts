@@ -62,15 +62,16 @@ describe("A2AJ compiler spine", () => {
   });
 
   it("chooses a contiguous candidate when repeated starts conflict", () => {
-    // A source ordering conflict must not turn into an advertised gapped
-    // paragraph range. The longest coherent +1 run is the safe result.
+    // A repeated opening marker must not fracture the spine: the chain
+    // continues from whichever [1] the rest of the ladder follows, and the
+    // advertised range stays gapless.
     const paragraph = (number: number, ordinal: string) =>
       `[${number}] The ${ordinal} substantive judgment paragraph contains enough ordinary words for reliable structural validation throughout these reasons.`;
     const text = [
       paragraph(1, "first"),
       paragraph(1, "repeated"),
-      paragraph(3, "third"),
       paragraph(2, "second"),
+      paragraph(3, "third"),
       paragraph(4, "fourth"),
       paragraph(5, "fifth"),
       paragraph(6, "sixth"),
@@ -83,8 +84,41 @@ describe("A2AJ compiler spine", () => {
       doc.blocks
         .filter((block) => block.kind === "paragraph")
         .map((block) => block.label),
-    ).toEqual(["par3", "par4", "par5", "par6", "par7", "par8"]);
+    ).toEqual([
+      "par1",
+      "par2",
+      "par3",
+      "par4",
+      "par5",
+      "par6",
+      "par7",
+      "par8",
+    ]);
     expect(doc.ranges.paragraph.missing).toEqual([]);
+  });
+
+  it("refuses an out-of-order ladder rather than advertising a late start", () => {
+    // `[3]` printed before `[2]` leaves no chain rooted at 1 that reaches the
+    // tail. The previous selector answered par3..par8 — a paragraph range the
+    // decision never had, opening three paragraphs into a document that must
+    // begin at 1.
+    const paragraph = (number: number, ordinal: string) =>
+      `[${number}] The ${ordinal} substantive judgment paragraph contains enough ordinary words for reliable structural validation throughout these reasons.`;
+    const text = [
+      paragraph(1, "first"),
+      paragraph(3, "third"),
+      paragraph(2, "second"),
+      paragraph(4, "fourth"),
+      paragraph(5, "fifth"),
+      paragraph(6, "sixth"),
+      paragraph(7, "seventh"),
+      paragraph(8, "eighth"),
+    ].join("\n");
+
+    const doc = compile({ text, docType: "cases" });
+    expect(doc.blocks.filter((block) => block.kind === "paragraph")).toEqual(
+      [],
+    );
   });
 
   it("recovers a numbered paragraph joined to its preceding heading", () => {
@@ -210,7 +244,12 @@ describe("A2AJ compiler spine", () => {
     ].join("\n");
     const doc = compile({ text, docType: "cases" });
 
-    expect(lookupSourceDoc(doc, "paragraph", "3").status).toBe("not_found");
+    // Excluding the quoted provision leaves no `3.` for the chain to reach, so
+    // the numbering is refused outright rather than resurfacing as a spine
+    // that opens at `4.` — which is what "does not promote" has to mean when
+    // the provision list is the only dot numbering the document carries.
+    expect(doc.ranges.paragraph.count).toBe(0);
+    expect(lookupSourceDoc(doc, "paragraph", "3").status).toBe("unavailable");
     expect(doc.ranges.paragraph.missing).toEqual([]);
   });
 
@@ -239,11 +278,14 @@ describe("A2AJ compiler spine", () => {
   ] as const)(
     "does not recover a %s marker before the leading spine paragraph",
     (_shape, candidate) => {
+      // A heading-joined label sitting above paragraph 1 cannot belong to a
+      // chain rooted there — it precedes the root. It must not displace the
+      // real line-start marker that carries the same number.
       const body =
         "This substantive judgment paragraph contains enough ordinary words for reliable structural validation throughout these reasons.";
       const text = [
         `Overview [${candidate}] ${body}`,
-        ...Array.from({ length: 5 }, (_, index) => `[${index + 2}] ${body}`),
+        ...Array.from({ length: 5 }, (_, index) => `[${index + 1}] ${body}`),
       ].join("\n");
       const doc = compile({ text, docType: "cases" });
 
@@ -251,7 +293,10 @@ describe("A2AJ compiler spine", () => {
         doc.blocks
           .filter((block) => block.kind === "paragraph")
           .map((block) => block.label),
-      ).toEqual(["par2", "par3", "par4", "par5", "par6"]);
+      ).toEqual(["par1", "par2", "par3", "par4", "par5"]);
+      expect(
+        lookupSourceDoc(doc, "paragraph", String(candidate)).block?.text,
+      ).toMatch(new RegExp(`^\\[${candidate}\\] This substantive`, "u"));
     },
   );
 

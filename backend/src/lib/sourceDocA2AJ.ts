@@ -738,6 +738,205 @@ function monotoneScopes(markers: NumberedMarker[], maxGap = 8) {
   return scopes;
 }
 
+/**
+ * Is this short ladder the document's paragraph numbering, rather than one
+ * numbered fragment among several?
+ *
+ * The question used to be asked as "are there no other markers at all", which
+ * a reported citation answers wrongly: `[1936] SCR 4` and `[2021] 1 SCR 1`
+ * print the year at line start, so it parses as a marker and every modern
+ * four-paragraph SCC ruling failed. Ask it of the ladders instead — no other
+ * marker may form a run, and none may carry a number this ladder could have
+ * continued. A lone year is neither.
+ */
+function soleLadder(
+  scope: NumberedMarker[],
+  markers: NumberedMarker[],
+  scopes: NumberedMarker[][],
+) {
+  const last = scope[scope.length - 1].number;
+  return (
+    scopes.every((other) => other === scope || other.length === 1) &&
+    markers.every(
+      (marker) =>
+        scope.includes(marker) || marker.number < 1 || marker.number > last + 1,
+    )
+  );
+}
+
+/**
+ * Weights for the paragraph-label chain, mirroring the universal legal PDF
+ * engine's footnote backbone (`select_label_backbone` in
+ * legalpdf_engine/footnote_pairing.py). Evidence is priced rather than gated,
+ * so the spine is whichever ladder the document argues for most strongly
+ * instead of whichever one a threshold happens to admit.
+ *
+ * Two orderings were tried before this and both failed, in opposite
+ * directions, measured over all 224,972 A2AJ case documents: preferring
+ * early-opening ladders as a tier let a five-marker overview outrank the
+ * hundred-marker spine below it (340 decisions, up to 115 paragraphs each),
+ * and ranking on length alone pushed 7,576 decisions off paragraph 1.
+ *
+ * Neither is answered by pricing the opening number, because on a source that
+ * renders every glyph "the spine starts at 1" is not a preference to be
+ * outbid — it is an invariant. A chain may only begin at paragraph 1, so the
+ * score decides one question only: among the ladders that do start at 1,
+ * which is the document's spine. Being unable to find the 1 means something
+ * else is wrong (usually a heading-joined `[1]`, which is a candidate here),
+ * and relaxing the requirement would only hide that.
+ */
+const SPINE_SCORE = {
+  /** A marker the source itself put at the start of a line. */
+  lineStart: 1,
+  /** Recovered from `II. Judicial History [6]` — real, but weaker evidence. */
+  headingJoined: 0.6,
+  /** Recovered from a sentence-shaped heading; weaker still. */
+  sentenceJoined: 0.35,
+  /** Paid once per consecutive link, rewarding an unbroken ladder. */
+  adjacentLink: 0.3,
+} as const;
+
+type SpineCandidate = ParagraphMarker & { score: number };
+
+/**
+ * Every marker the document offers for one style, priced by how it presents
+ * itself. Heading-joined labels enter as ordinary weaker candidates rather
+ * than through a separate recovery pass with its own windowing rules.
+ */
+function spineCandidates(
+  text: string,
+  eligible: ParagraphMarker[],
+  style: ParagraphMarker["style"],
+): SpineCandidate[] {
+  const line = eligible
+    .filter((marker) => marker.style === style)
+    .map((marker) => ({ ...marker, score: SPINE_SCORE.lineStart }));
+  if (style === "bare") return line;
+  const known = new Set(line.map(({ start }) => start));
+  const joined = headingJoinedCandidates(text, known, style).map(
+    (candidate) => ({
+      number: candidate.number,
+      start: candidate.start,
+      style,
+      score: candidate.formal
+        ? SPINE_SCORE.headingJoined
+        : SPINE_SCORE.sentenceJoined,
+    }),
+  );
+  return [...line, ...joined];
+}
+
+/**
+ * The best-scoring chain of consecutive paragraph numbers rooted at 1.
+ *
+ * Neither end is negotiable. A chain may only open on paragraph 1, and a hole
+ * ends it rather than being bridged — on a source that renders every glyph,
+ * both a missing 1 and a missing middle mean the evidence is not what it
+ * appears to be. What the score decides is which of the competing ladders
+ * rooted at 1 the document actually argues for: a quoted ladder, a table of
+ * paragraph cross-references or a stray year forms its own chain and loses on
+ * weight, with no bespoke gate needed to exclude it.
+ */
+function selectSpineChain(candidates: SpineCandidate[]) {
+  const ordered = [...candidates].sort(
+    (left, right) => left.start - right.start || left.number - right.number,
+  );
+  const empty = { chain: [] as SpineCandidate[], score: 0 };
+  if (!ordered.length) return empty;
+  const best: number[] = [];
+  const parent: number[] = [];
+  // Best chain ending on each value so far in reading order. Only `value - 1`
+  // can extend a chain, so the predecessor lookup is a single probe.
+  const bestByValue = new Map<number, number>();
+  let group = 0;
+  while (group < ordered.length) {
+    let end = group;
+    while (end < ordered.length && ordered[end].start === ordered[group].start) {
+      end += 1;
+    }
+    for (let index = group; index < end; index += 1) {
+      const candidate = ordered[index];
+      // Only paragraph 1 may open a chain; everything else must be reached.
+      best[index] =
+        candidate.number === 1 ? candidate.score : Number.NEGATIVE_INFINITY;
+      parent[index] = -1;
+      const previous = bestByValue.get(candidate.number - 1);
+      if (previous !== undefined && best[previous] > Number.NEGATIVE_INFINITY) {
+        const linked =
+          best[previous] + candidate.score + SPINE_SCORE.adjacentLink;
+        if (linked > best[index] + 1e-9) {
+          best[index] = linked;
+          parent[index] = previous;
+        }
+      }
+    }
+    // Deferred so two candidates sharing an offset cannot chain to each other.
+    for (let index = group; index < end; index += 1) {
+      const prior = bestByValue.get(ordered[index].number);
+      if (prior === undefined || best[index] > best[prior] + 1e-9) {
+        bestByValue.set(ordered[index].number, index);
+      }
+    }
+    group = end;
+  }
+  let tail = -1;
+  for (let index = 0; index < ordered.length; index += 1) {
+    if (best[index] === Number.NEGATIVE_INFINITY) continue;
+    if (tail === -1 || best[index] > best[tail] + 1e-9) tail = index;
+  }
+  if (tail === -1) return empty;
+  const chain: SpineCandidate[] = [];
+  for (let cursor = tail; cursor !== -1; cursor = parent[cursor]) {
+    chain.push(ordered[cursor]);
+  }
+  chain.reverse();
+  return { chain, score: best[tail] };
+}
+
+/**
+ * Is this short chain the document's numbering, or one fragment among several?
+ *
+ * Being rooted at 1 does not settle it: a quoted statutory provision numbered
+ * `1.` `2.` is rooted too. The chain must also be the only ladder its style
+ * offers — nothing left over may carry a number this chain could have
+ * continued, and nothing left over may form a run of its own. A lone reported
+ * year is neither; the `[4] [5] [6]` below a fractured `[1] [2]` is both.
+ */
+function soleChain(
+  chain: readonly SpineCandidate[],
+  candidates: readonly SpineCandidate[],
+) {
+  const claimed = new Set(chain.map(({ start }) => start));
+  const last = chain[chain.length - 1].number;
+  const rest = candidates
+    .filter(({ start }) => !claimed.has(start))
+    .sort((left, right) => left.start - right.start);
+  if (rest.some(({ number }) => number >= 1 && number <= last + 1)) {
+    return false;
+  }
+  for (let index = 1; index < rest.length; index += 1) {
+    if (rest[index].number > rest[index - 1].number) return false;
+  }
+  return true;
+}
+
+/**
+ * The engine's endnote test (`detect_endnote_mode`), with character offset
+ * standing in for page number. A ladder that lives entirely in the document's
+ * tail is a note block, not the paragraph spine — the discrimination that
+ * separates `CITT PR-2014-016a`'s `[1]..[137]` endnotes from real reasons.
+ */
+const ENDNOTE_TAIL_FRACTION = 0.75;
+const ENDNOTE_MIN_LABELS = 8;
+const ENDNOTE_TAIL_SHARE = 0.7;
+
+function endnoteShaped(chain: readonly NumberedMarker[], length: number) {
+  if (chain.length < ENDNOTE_MIN_LABELS || length <= 0) return false;
+  const threshold = ENDNOTE_TAIL_FRACTION * length;
+  const tail = chain.filter((marker) => marker.start > threshold).length;
+  return tail / chain.length >= ENDNOTE_TAIL_SHARE;
+}
+
 /** A reset closes a CourtListener candidate instead of reviving an old list. */
 function contiguousScopes(markers: NumberedMarker[]) {
   const scopes: NumberedMarker[][] = [];
@@ -779,10 +978,10 @@ function paragraphMarkers(text: string, mode: CaseParagraphMode) {
   return markers.sort((left, right) => left.start - right.start);
 }
 
-function outsideExcludedRanges(
-  markers: ParagraphMarker[],
+function outsideExcludedRanges<Marker extends NumberedMarker>(
+  markers: Marker[],
   ranges: readonly CaseBlockExcludedRange[],
-) {
+): Marker[] {
   const ordered = ranges
     .filter(({ end, start }) => end > start)
     .slice()
@@ -814,50 +1013,151 @@ function quotedDotProvisionStarts(text: string, markers: ParagraphMarker[]) {
   return quoted;
 }
 
-const HEADING_CONNECTORS = new Set([
-  "a",
-  "an",
-  "and",
-  "as",
-  "at",
-  "by",
-  "for",
-  "from",
-  "in",
-  "of",
-  "on",
-  "or",
-  "the",
-  "to",
-  "v.",
-]);
+const HEADING_MAX_LENGTH = 120;
+const HEADING_LEVEL_WORD_CAP = 12;
+/**
+ * How long a level may run when nothing but its brevity says it is a heading.
+ * Courts write sentence-case headings in two to four words — `Standard of
+ * review`, `Decision under review`, `Factual background` — while prose that
+ * happens to reach a paragraph number mid-line runs longer: `The court relied
+ * on its earlier decision [3]`, `APPEAL from a judgment of the Court of Appeal
+ * for Ontario [1]`. Six words is where the two populations separate.
+ */
+const SENTENCE_LEVEL_WORD_CAP = 6;
 
-const ROMAN_NUMERAL_RE = /^(?:[IVXLCDM]{1,4})\.$/u;
-/** One uppercase word, optional trailing punctuation (comma/colon). */
-const UPPER_WORD_RE = /^\p{Lu}[\p{L}\p{M}’'’-]*[,:]?$/u;
-/** Single-letter ("A.") or short abbreviation ("Mr.") heading token. */
-const UPPER_ABBREV_RE = /^\p{Lu}(?:\p{Ll}{1,4}\.|\p{Lu}\.)$/u;
+/**
+ * A word a heading capitalises and prose does not. Only words of four letters
+ * or more count: a heading leaves `of`, `the`, `and` and `for` in lower case,
+ * so testing those would make every real title fail.
+ */
+const TITLE_WORD_RE = /^[^\p{L}]*\p{Lu}/u;
 
+/**
+ * Marks a heading does not carry. A semicolon or an exclamation joins or
+ * exclaims a clause, and square braces are the corpus's own reporter and
+ * editorial marks — `[Emphasis added.]`, or the paragraph numbers themselves,
+ * which is what keeps a prose line that already opens with `[8]` from being
+ * read as a heading for the `[12]` it cites later on.
+ */
+const NOT_IN_HEADING_RE = /[;!\[\]{}]/u;
+
+/** How a heading level opens: on a capital letter, or on a digit. */
+const LEVEL_OPENS_RE = /^[\p{Lu}\p{N}]/u;
+
+/**
+ * How prose closes and a heading does not. A trailing question mark is left
+ * out deliberately: courts pose questions as headings — `Is there merit in the
+ * appeal?` — and never end one with a full stop.
+ */
+const LEVEL_CLOSES_LIKE_PROSE_RE = /[.,;]$/u;
+/**
+ * A heading level opens with an enumerator: `II.`, `B.`, `3.`, `(2)`, `(iv)`.
+ * Courts number the lower levels in lower case and close them with a bracket
+ * as readily as with a stop — `a) Standard of Review`, `ii. Discussion`,
+ * `b. Background` — so a single letter or a roman numeral of either case, and
+ * either terminator, all count. A bare letter is admitted, which is also why
+ * the level below must then begin with a real title word.
+ */
+const HEADING_ENUMERATOR_RE =
+  /^(?:\([\p{L}\p{N}]{1,5}\)|\p{L}[.)]|[IVXLCDM]{1,4}[.)]|[ivxlcdm]{1,4}[.)]|\d{1,3}(?:\.\d{1,3})*[.)])$/u;
+
+/** The word that must follow an enumerator for it to have opened a level. */
+function headingLevelOpener(word: string | undefined) {
+  return (
+    !!word && !HEADING_ENUMERATOR_RE.test(word) && LEVEL_OPENS_RE.test(word)
+  );
+}
+
+/**
+ * One level of a heading path, once its enumerator has been taken off.
+ *
+ * A level is judged by its shape, not by the case of every word in it. Judging
+ * it word by word was this grammar's largest defect: it required Title Case
+ * throughout, and courts do not write headings that way. Measured over the
+ * whole A2AJ corpus, that rule rejected `Standard of review`, `The law`,
+ * `On appeal`, `Decision under review`, `A. Basis of the claim` and every
+ * French heading — roughly a quarter of a million real headings — because each
+ * carries a lowercase word after the first.
+ *
+ * What a heading does hold to is shape: it is short, it opens on a capital or
+ * a digit, and it does not close the way a sentence closes. How short it may
+ * be depends on how much else about it announces a heading.
+ */
+function headingLevel(level: readonly string[], enumerated = false) {
+  if (!level.length || level.length > HEADING_LEVEL_WORD_CAP) return false;
+  // A level that is nothing but its own enumerator is still a level: courts
+  // set `II.` on a line of its own above the title it numbers. The same rule
+  // is what lets a case-name heading parse, `R. v. Smith` splitting into `R.`
+  // and `Smith` around the `v.`
+  if (level.length === 1 && HEADING_ENUMERATOR_RE.test(level[0])) return true;
+  const text = level.join(" ");
+  if (!LEVEL_OPENS_RE.test(text) || LEVEL_CLOSES_LIKE_PROSE_RE.test(text)) {
+    return false;
+  }
+  // A question announces itself, and courts pose long ones — `Did the
+  // institution reasonably exercise its discretion?`. So does a colon, though
+  // that also admits judicial attributions (`GILLESE J.A.:`, `BY THE COURT:`),
+  // which are not headings at all; they are left in for now because recovering
+  // the paragraph they precede is right, but whether they should be reaching
+  // this grammar rather than a rule of their own is an open question.
+  if (/[?:]$/u.test(text)) return true;
+  // Title case says heading on its own and may run long. So does an enumerator
+  // the author put there: `A. Allegation that clause 1 of the agreement was not
+  // complied with` is a heading in sentence case running ten words, and prose
+  // does not open on `A.` or `I.`. The short cap is for a level with nothing
+  // but its brevity to recommend it, so a level that was numbered has already
+  // stopped being that case and keeps the long cap instead.
+  const titleCased = level.every(
+    (word) =>
+      word.replace(/[^\p{L}]/gu, "").length < 4 || TITLE_WORD_RE.test(word),
+  );
+  return titleCased || enumerated || level.length <= SENTENCE_LEVEL_WORD_CAP;
+}
+
+/**
+ * A2AJ renders a decision's heading path inline, so a joined heading is not
+ * one title but a stack of them: `II. Judicial History A. Judgments on the
+ * Application ...`. Reading it as a single title is what the twelve-word cap
+ * was measuring, and it is why real SCC headings were rejected.
+ *
+ * So parse the levels instead of widening the cap: split at enumerators, and
+ * require every level to be heading-shaped — an unenumerated prefix is exactly
+ * one level, which keeps single-title headings ("Qualified Privilege",
+ * "COSTS") deciding as they always have.
+ */
 function looksLikeJoinedHeading(value: string) {
   const heading = value
     .trim()
     .replace(/^\([\p{L}\p{N}]+\)\s+/u, "");
-  if (!heading || heading.length > 120 || /[\[\];!?]/u.test(heading)) {
+  if (
+    !heading ||
+    heading.length > HEADING_MAX_LENGTH ||
+    NOT_IN_HEADING_RE.test(heading)
+  ) {
     return false;
   }
   const words = heading.split(/\s+/u);
-  return (
-    words.length <= 12 &&
-    words.some((word) => /^\p{Lu}/u.test(word)) &&
-    words.every(
-      (word) =>
-        HEADING_CONNECTORS.has(word) ||
-        UPPER_WORD_RE.test(word) ||
-        UPPER_ABBREV_RE.test(word) ||
-        ROMAN_NUMERAL_RE.test(word) ||
-        /^\d+(?:\.\d+)*[.):]?$/u.test(word),
-    )
-  );
+  // `enumerated` records whether the author numbered this level, which is
+  // evidence about the level that its own words no longer carry once the
+  // enumerator has been split off.
+  const levels: { words: string[]; enumerated: boolean }[] = [
+    { words: [], enumerated: false },
+  ];
+  for (const [index, word] of words.entries()) {
+    if (
+      HEADING_ENUMERATOR_RE.test(word) &&
+      headingLevelOpener(words[index + 1])
+    ) {
+      if (levels[levels.length - 1].words.length) {
+        levels.push({ words: [], enumerated: true });
+      } else {
+        levels[levels.length - 1].enumerated = true;
+      }
+      continue;
+    }
+    levels[levels.length - 1].words.push(word);
+  }
+  return levels.every((level) => headingLevel(level.words, level.enumerated));
 }
 
 function looksLikeSentenceHeading(value: string, following: string) {
@@ -876,31 +1176,21 @@ function looksLikeSentenceHeading(value: string, following: string) {
   );
 }
 
-/**
- * A2AJ occasionally joins a heading to the numbered paragraph that follows:
- * `Qualified Privilege [63] ...` or `COSTS 12. ...`. Recover only a unique
- * missing marker bracketed by matching line-start neighbours (or immediately
- * before the first marker). This happens before choosing the strict +1 spine,
- * so a real heading join never splits it. Sentence headings require adjacent
- * numeric neighbours and an uppercase paragraph start, which keeps inline
- * citations out.
- */
-function recoverHeadingJoinedMarkers(
+type HeadingCandidate = ParagraphMarker & {
+  formal: boolean;
+  sentence: boolean;
+};
+
+function headingJoinedCandidates(
   text: string,
-  markers: ParagraphMarker[],
+  knownStarts: ReadonlySet<number>,
   style: "bracket" | "dot",
-) {
-  const lineMarkers = markers.filter((marker) => marker.style === style);
-  const knownStarts = new Set(lineMarkers.map(({ start }) => start));
-  const candidates = new Map<
-    number,
-    Array<ParagraphMarker & { formal: boolean; sentence: boolean }>
-  >();
+): HeadingCandidate[] {
+  const candidates: HeadingCandidate[] = [];
   const markerRe =
     style === "bracket" ? /\[(\d{1,4})\]/gu : /(\d{1,4})\.(?=\s)/gu;
   for (const match of text.matchAll(markerRe)) {
     if (knownStarts.has(match.index)) continue;
-    const number = Number(match[1]);
     const lineStart = text.lastIndexOf("\n", match.index - 1) + 1;
     const heading = text.slice(lineStart, match.index);
     const formal =
@@ -913,63 +1203,103 @@ function recoverHeadingJoinedMarkers(
         text.slice(match.index + match[0].length),
       );
     if (!formal && !sentence) continue;
-    candidates.set(number, [
-      ...(candidates.get(number) ?? []),
-      { number, start: match.index, style, formal, sentence },
-    ]);
+    candidates.push({
+      number: Number(match[1]),
+      start: match.index,
+      style,
+      formal,
+      sentence,
+    });
   }
-  const unique = new Map(
-    [...candidates.entries()]
-      .filter(([, matches]) => matches.length === 1)
-      .map(([number, matches]) => [number, matches[0]]),
+  return candidates;
+}
+
+/**
+ * A2AJ occasionally joins a heading to the numbered paragraph that follows:
+ * `Qualified Privilege [63] ...` or `II. Judicial History [6] ...`. Recover a
+ * missing marker only where the sequence itself asks for it: the number must
+ * be absent from the line-start run, and its one recovered occurrence must sit
+ * inside the gap its neighbours bracket.
+ *
+ * That window is the evidence. A candidate is admitted when it is the only
+ * marker of its number *between* the two line-start markers that surround the
+ * hole, not merely the only one in the document — a `[6]` in a later footnote
+ * cannot veto the real heading-joined paragraph 6, and a `[6]` sitting outside
+ * the gap can never fill it. Recovery runs before the strict +1 spine is
+ * chosen, so a real heading join never splits it, and a hole with no evidence
+ * still fractures the spine rather than being bridged.
+ */
+function recoverHeadingJoinedMarkers(
+  text: string,
+  markers: ParagraphMarker[],
+  style: "bracket" | "dot",
+) {
+  const lineMarkers = markers.filter((marker) => marker.style === style);
+  if (!lineMarkers.length) return lineMarkers;
+  const candidates = headingJoinedCandidates(
+    text,
+    new Set(lineMarkers.map(({ start }) => start)),
+    style,
   );
+  const within = (number: number, from: number, to: number) =>
+    candidates.filter(
+      (candidate) =>
+        candidate.number === number &&
+        candidate.start > from &&
+        candidate.start < to,
+    );
   const recovered = new Map<number, ParagraphMarker>();
   const recover = (candidate: ParagraphMarker) => {
     recovered.set(candidate.start, candidate);
   };
-  // Formal headings may fill a complete short run (e.g. `Costs 26.` then
+  // Formal headings may fill a complete run of holes (e.g. `Costs 26.` then
   // `DETERMINATION 27.` before line-start `28.`). Every omitted number must
-  // have one matching formal heading, so a real source hole is never guessed.
+  // have exactly one matching formal heading in the gap, so a real source hole
+  // is never guessed.
   for (let index = 1; index < lineMarkers.length; index += 1) {
     const before = lineMarkers[index - 1];
     const after = lineMarkers[index];
     if (before.number >= after.number) continue;
     const between: ParagraphMarker[] = [];
     for (let number = before.number + 1; number < after.number; number += 1) {
-      const candidate = unique.get(number);
-      if (!candidate?.formal) {
+      const found = within(number, before.start, after.start).filter(
+        (candidate) => candidate.formal,
+      );
+      if (found.length !== 1) {
         between.length = 0;
         break;
       }
-      between.push(candidate);
+      between.push(found[0]);
     }
     for (const candidate of between) recover(candidate);
   }
-  // A sentence-style heading is intentionally narrower: only one exactly
-  // bracketed label, with an uppercase paragraph start, is trustworthy.
+  // A sentence-style heading is intentionally narrower: one exactly bracketed
+  // label filling a single hole, with an uppercase paragraph start.
   for (let index = 1; index < lineMarkers.length; index += 1) {
     const before = lineMarkers[index - 1];
     const after = lineMarkers[index];
     if (after.number !== before.number + 2) continue;
-    const candidate = unique.get(before.number + 1);
-    if (candidate?.sentence) recover(candidate);
+    const found = within(
+      before.number + 1,
+      before.start,
+      after.start,
+    ).filter((candidate) => candidate.sentence);
+    if (found.length === 1) recover(found[0]);
   }
   const first = lineMarkers[0];
-  const leading = first && unique.get(first.number - 1);
-  if (
-    leading?.formal &&
-    leading.number > 0 &&
-    first.number === leading.number + 1 &&
-    first.start - leading.start <= 2_000
-  ) {
-    recover(leading);
-  }
+  const leading = within(first.number - 1, first.start - 2_000, first.start)
+    .filter((candidate) => candidate.formal);
+  if (leading.length === 1 && leading[0].number > 0) recover(leading[0]);
   return [...lineMarkers, ...recovered.values()].sort(
     (left, right) => left.start - right.start,
   );
 }
 
-/** The pre-existing permissive fallback used outside the A2AJ corpus. */
+/**
+ * The pre-existing permissive fallback, still used by the generic prose path
+ * (`legacy`). It recovers against an already-chosen spine rather than before
+ * scope selection, which is why the source-specific modes do not use it.
+ */
 function recoverHeadingJoinedParagraphs(
   text: string,
   spine: NumberedMarker[],
@@ -989,10 +1319,7 @@ function recoverHeadingJoinedParagraphs(
     }
     const after = spine.find((marker) => marker.start > match.index);
     const between =
-      !!before &&
-      !!after &&
-      before.number < number &&
-      number < after.number;
+      !!before && !!after && before.number < number && number < after.number;
     const leading =
       !before &&
       !!after &&
@@ -1074,6 +1401,11 @@ function paragraphBlocks(
   excludedRanges: readonly CaseBlockExcludedRange[] = [],
 ): SourceDocBlock[] {
   if (!text) return [];
+  // `legacy` is the generic prose fallback behind native markup and PDFs —
+  // input whose glyphs may not all have survived. The source-specific modes
+  // read a complete rendered text, so they alone assume an unbroken ladder.
+  // Measured over all 224,972 A2AJ case documents, holding legacy to the same
+  // strict +1 rule cost 910 whole spines and rewrote 45,565 more.
   const strict = mode !== "legacy";
   const markers = paragraphMarkers(text, mode);
   const visibleMarkers = outsideExcludedRanges(markers, excludedRanges);
@@ -1088,8 +1420,45 @@ function paragraphBlocks(
     markers: NumberedMarker[];
     allMarkers: ParagraphMarker[];
     shortComplete: boolean;
+    score: number;
   }> = [];
   for (const style of ["bracket", "dot", "bare"] as const) {
+    // The rooted chain is for the A2AJ bulk corpus, whose text is a complete
+    // rendered decision and which is the corpus this rule was measured against
+    // (224,972 documents). CourtListener keeps its existing contiguous-run
+    // selection: no CourtListener corpus is available to measure the rooted
+    // rule on, and its own fixtures already pin a longest-run answer that
+    // starts above 1, so imposing the invariant there would be a change made
+    // blind rather than a change shown to be right.
+    if (mode === "a2aj") {
+      const scoped = spineCandidates(text, eligibleMarkers, style);
+      const { chain, score } = selectSpineChain(scoped);
+      // A ladder confined to the document's tail is a note block.
+      if (chain.length < 2 || endnoteShaped(chain, text.length)) continue;
+      if (chain.length >= minRun) {
+        hypotheses.push({
+          style,
+          markers: chain,
+          allMarkers: scoped,
+          shortComplete: false,
+          score,
+        });
+      } else if (style === "bracket" && soleChain(chain, scoped)) {
+        // Complete short [1]..[N] ladders are real structure in short orders,
+        // oral reasons and costs rulings, which minRun alone would discard.
+        // Being rooted at 1 is not enough to admit one: a quoted statutory
+        // provision numbered `1.` `2.` is rooted too, so the ladder must also
+        // be the only numbering of its style the document offers.
+        hypotheses.push({
+          style,
+          markers: chain,
+          allMarkers: scoped,
+          shortComplete: true,
+          score,
+        });
+      }
+      continue;
+    }
     const recovered =
       strict && style !== "bare"
         ? recoverHeadingJoinedMarkers(text, eligibleMarkers, style)
@@ -1102,10 +1471,14 @@ function paragraphBlocks(
         ? outsideExcludedRanges(recovered, excludedRanges)
         : recovered
       : markers.filter((marker) => marker.style === style);
+    // A source-specific mode scopes on strict +1: a hole is filled by the
+    // heading-joined evidence above or it fractures the spine, because gap
+    // tolerance would silently advertise a paragraph range the source never
+    // had. The lossy generic path keeps its tolerance.
     const scopes =
       mode === "courtlistener"
         ? contiguousScopes(styleMarkers)
-        : monotoneScopes(styleMarkers, mode === "a2aj" ? 1 : 8);
+        : monotoneScopes(styleMarkers, strict ? 1 : 8);
     for (const scope of scopes) {
       if (scope.length >= minRun) {
         hypotheses.push({
@@ -1113,24 +1486,25 @@ function paragraphBlocks(
           markers: scope,
           allMarkers: strict ? styleMarkers : markers,
           shortComplete: false,
+          score: 0, // scope selection ranks on length, not evidence weight
         });
       } else if (
         style === "bracket" &&
         scope.length >= 2 &&
-        (!strict || scope.length === styleMarkers.length) &&
-        scope.every((marker, index) => marker.number === index + 1)
+        scope.every((marker, index) => marker.number === index + 1) &&
+        (!strict || soleLadder(scope, styleMarkers, scopes))
       ) {
         // Complete short [1]..[N] ladders are real structure in short
         // orders / oral reasons / costs rulings — the full-sweep
         // none-queue inspection found 17/29 sampled "no structure" docs
         // were exactly this shape, killed by minRun. Contiguity from 1
-        // excludes quoted-fragment ladders and bracketed years ([1999]
-        // parses as 1999).
+        // excludes quoted-fragment ladders.
         hypotheses.push({
           style,
           markers: scope,
           allMarkers: strict ? styleMarkers : markers,
           shortComplete: true,
+          score: 0, // scope selection ranks on length, not evidence weight
         });
       }
     }
@@ -1142,6 +1516,12 @@ function paragraphBlocks(
   // in a big doc would otherwise shadow the real ladder).
   const full = hypotheses.filter((item) => !item.shortComplete);
   const short = hypotheses.filter((item) => item.shortComplete);
+  // Evidence is ranked by weight, and opening near paragraph 1 is only the
+  // tiebreak inside `byStrength`. Filtering to early openers first — whether
+  // as an exclusion or merely as a preceding tier — lets a five-marker
+  // overview outrank the hundred-marker spine beneath it the moment recovery
+  // finds a `[1]`: measured over the corpus that cost 340 A2AJ decisions up to
+  // 115 paragraphs each (2016 ONCA 542 fell from 120 blocks to 5).
   const primary = full.filter((item) => item.markers[0].number <= 5);
   const byStrength = (
     left: (typeof hypotheses)[number],
@@ -1150,10 +1530,20 @@ function paragraphBlocks(
     right.markers.length - left.markers.length ||
     rank[right.style] - rank[left.style] ||
     left.markers[0].number - right.markers[0].number;
-  const ordered = [
-    ...[...(primary.length ? primary : full)].sort(byStrength),
-    ...[...short].sort(byStrength),
-  ];
+  // Every strict-mode chain is rooted at paragraph 1, so the opening number no
+  // longer separates them: rank on the weight of the evidence instead, with
+  // the style rank breaking exact ties.
+  const byScore = (
+    left: (typeof hypotheses)[number],
+    right: (typeof hypotheses)[number],
+  ) => right.score - left.score || rank[right.style] - rank[left.style];
+  const ordered =
+    mode === "a2aj"
+    ? [...[...full].sort(byScore), ...[...short].sort(byScore)]
+    : [
+        ...[...(primary.length ? primary : full)].sort(byStrength),
+        ...[...short].sort(byStrength),
+      ];
   for (const hypothesis of ordered) {
     const allOffsets = (strict ? hypothesis.allMarkers : markers)
       .filter((marker) => marker.style === hypothesis.style)
