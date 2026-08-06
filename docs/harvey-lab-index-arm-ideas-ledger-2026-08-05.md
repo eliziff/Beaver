@@ -1045,3 +1045,60 @@ Pilot design (pending go): one observational run on acq-diligence (the
 sonnet-4-6 effort high; judge once; mine the trajectory for pathway
 choices (grep-first? batch-read? bounded windows?) BEFORE any guidance is
 added.
+
+### Adversarial audit of coding_markdown_v1 (opus subagent, 2026-08-06 late)
+
+Full report in-conversation; 16 attacked-and-held non-findings (frozen-arm
+isolation, grep↔read coordinate consistency incl. index-attached case,
+glob translation, cat-n parity, claude-p no-collision via --tools "",
+exposure denominator plane). Ranked findings:
+
+**Structural**: the arm serves LEAN-BATCH's real tools, not CC's — no
+Glob (hard-refused if called; the CC-trained opening move burns a round),
+Read is paths[] batch (unbounded = UNNUMBERED whole-doc blobs via
+fetch_documents; bounded = cat-n) — two output formats behind one name,
+neither the file_path prior. The near-verbatim CC Read description
+(CODING_READ_DESCRIPTION) exists in-repo as DEAD CODE on the unserved
+CODING_SHAPE_TOOLS branch.
+
+**S1 measurement**: (F1) list_documents emits per-doc opening-line
+evidence segments → documents_read/exposed SATURATE for the whole lean
+family — the pathway-observation metric of the observational arm is dead;
+(F2) the inventory reports PLAINTEXT chars/lines while Read/Grep operate
+on markdown — measured 1.24–1.75× line divergence; a model sizing a
+"complete" read off the inventory under-reads by up to 43%.
+
+**S2 prior-misleading**: (F5) JS RegExp u-flag rejects ripgrep-legal
+patterns (\-, \%, escaped space, POSIX classes) — table measured; (F6)
+-A/-B/-o/multiline/type silently IGNORED (a -A:5 call returns bare lines,
+model concludes no continuation), default output_mode content vs CC's
+files_with_matches, undocumented; (F7) provider-materialized minima:
+offset=1&limit=1 → silent one-line "read"; batch+offset → refusal.
+
+**F8 fail-closed gaps — FIXED (b2e6b7db)**: child env now resets all
+treatment/serving flags ahead of per-arm spread; lean-family conformance
+gains the prompt-sha gate + six mechanism false-asserts.
+
+**Axis 3 (prompt-layer efficiency parity)**: our served descriptions
+carry NONE of CC's efficiency cues (no "read only the part you need", no
+stated defaults, no search-before-read steer) — removing SOURCE WORK left
+LESS efficiency signal than the trained environment has. Worse: the ONE
+navigation signal remaining is the Read description's "returns every
+requested document completely in one batch" — an anti-native whole-read
+invitation. The arm as-built is navigation-BIASED toward whole reads,
+against the hypothesis under test.
+
+**Adjacent pre-existing hazard**: find_in_document gates its plane on
+STRUCTURE_INDEX, not MARKDOWN_READ_DOCX → in five frozen markdown-read
+arms (e2e, treatment v1/v2, floor, read-upstream-draft) find searches and
+excerpts PLAINTEXT while read_document serves markdown — quotes drawn
+from a plane the model was never shown. Disposition needed (fold into
+#51).
+
+**Plan**: pilot (in flight) observes the as-built surface — interpret
+with the whole-read-bias caveat. Then coding_markdown_v2 = the parity
+pack per Eli's function-identical directive: serve Glob; single CC-shaped
+Read (file_path, always cat-n); CC-cue descriptions (new arm-gated
+constants — frozen schemas have byte-equality tests); regex fallback
+(retry sans u-flag); -A/-B honored; minima guard; inventory on the served
+plane; exposure metrics exclude inventory/candidate segments.
