@@ -4,8 +4,9 @@
  * For two arms on one or more tasks: per-criterion majority verdicts across
  * replicates, McNemar exact binomial on the discordant pairs (per task and
  * pooled, with the pooling caveat printed), per-run metrics, price-weighted
- * cost C = uncached + 0.1*cache_read + r*output at r in {1,2,4,6} (output
- * tokens are never cache-discounted and dominate real cost), and the
+ * cost C = uncached + 1.25*cache_write + 0.1*cache_read + r*output at r in
+ * {1,2,4,6} (output tokens are never cache-discounted and dominate real
+ * cost; cache writes bill at 1.25x, Anthropic-style), and the
  * deliverable-length confound (chars vs criteria passed).
  *
  * Score source preference per run: scores.majority.json > scores.json. Runs
@@ -34,6 +35,7 @@ type RunMetrics = {
   input_tokens?: number;
   output_tokens?: number;
   cache_read_input_tokens?: number;
+  cache_write_input_tokens?: number;
   uncached_input_tokens?: number | null;
   cache_adjusted_input_token_equivalent?: number | null;
   provider_round_count?: number;
@@ -115,12 +117,27 @@ function mcnemarExactP(b: number, c: number): number {
   return Math.min(1, p);
 }
 
+/**
+ * Price-weighted cost at output:input ratio r. The input side is the
+ * metrics' cache_adjusted_input_token_equivalent — true-uncached
+ * + 1.25*cache_write + 0.1*cache_read, null unless BOTH cache reporting
+ * streams are complete — so cache WRITES are billed at the Anthropic-style
+ * 1.25x, not silently dropped (they were dropped before 2026-08-05, which
+ * flattered big-prefix arms). Fallback reconstructs the same formula from
+ * components; a missing write stream is a null cost, never an estimate.
+ */
 function costAt(metrics: RunMetrics, r: number): number | null {
-  const uncached = metrics.uncached_input_tokens;
-  const cacheRead = metrics.cache_read_input_tokens ?? 0;
   const output = metrics.output_tokens ?? 0;
-  if (uncached == null) return null;
-  return uncached + 0.1 * cacheRead + r * output;
+  const adjustedInput =
+    metrics.cache_adjusted_input_token_equivalent ??
+    (metrics.uncached_input_tokens != null &&
+    metrics.cache_write_input_tokens != null
+      ? metrics.uncached_input_tokens +
+        1.25 * metrics.cache_write_input_tokens +
+        0.1 * (metrics.cache_read_input_tokens ?? 0)
+      : null);
+  if (adjustedInput == null) return null;
+  return adjustedInput + r * output;
 }
 
 function pearson(xs: number[], ys: number[]): number | null {
@@ -185,7 +202,7 @@ function main() {
         console.log(
           `  ${arm} ${path.basename(run.dir)} [${run.scoreSource}]: ` +
             `${passed}/${run.scores.n_criteria} | deliv=${fmt(m.deliverable_chars)}c ` +
-            `uncached=${fmt(m.uncached_input_tokens)} cacheRead=${fmt(m.cache_read_input_tokens)} ` +
+            `uncached=${fmt(m.uncached_input_tokens)} cacheW=${fmt(m.cache_write_input_tokens)} cacheRead=${fmt(m.cache_read_input_tokens)} ` +
             `out=${fmt(m.output_tokens)} rounds=${fmt(m.provider_round_count)} ` +
             `wall=${fmt(m.wall_clock_seconds)}s | ` +
             `C@1=${fmt(costAt(m, 1))} C@2=${fmt(costAt(m, 2))} C@4=${fmt(costAt(m, 4))} C@6=${fmt(costAt(m, 6))}`,
