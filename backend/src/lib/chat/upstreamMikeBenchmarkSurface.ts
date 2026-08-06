@@ -1237,6 +1237,7 @@ export function withLabTreatmentPromptAdditions(
     requirementsEcho: boolean;
     citationContract: boolean;
     citationContractV2?: boolean;
+    noDeferral?: boolean;
   },
 ): string {
   if (options.citationContract && options.citationContractV2)
@@ -1248,6 +1249,7 @@ export function withLabTreatmentPromptAdditions(
   if (options.citationContract) out += `\n\n${CITATION_CONTRACT_PROMPT_BLOCK}`;
   if (options.citationContractV2)
     out += `\n\n${CITATION_CONTRACT_V2_PROMPT_BLOCK}`;
+  if (options.noDeferral) out += `\n\n${NO_DEFERRAL_PROMPT_BLOCK}`;
   return out;
 }
 
@@ -1320,4 +1322,48 @@ export const MARKDOWN_E2E_TREATMENT_V2_LAB_SYSTEM_PROMPT =
     requirementsEcho: true,
     citationContract: false,
     citationContractV2: true,
+  });
+
+/** Delta tag: the no-deferral directive (TREATMENT mechanism 4). */
+export const NO_DEFERRAL_DELTA = "no-deferral-v1";
+/** Delta tag: the composite scoped-index treatment arm. */
+export const MARKDOWN_E2E_INDEX_TREATMENT_DELTA =
+  "markdown-e2e-index-treatment-v1";
+
+/**
+ * MIKE_NO_DEFERRAL=1 prompt addition. Motivated by the CoC index_floor pilot
+ * (2026-08-06): 6 of 14 judged misses were the model deferring with
+ * "recommend full text review of Section X" language while holding 55k tokens
+ * of unused window and a live scoped-read tool. Mechanism-only: a conduct
+ * norm; names no benchmark, task, or rubric content.
+ */
+export const NO_DEFERRAL_PROMPT_BLOCK = `COMPLETE ANALYSIS:
+- Do not recommend documents, sections, or passages for further review unless the user explicitly asked for a recommendation of that nature; it is your job to conduct the complete analysis yourself. If a provision matters to the deliverable, read it with the tools and analyze it now, in this same response, rather than flagging it for someone else to read later.`;
+
+/** Draft-time restatement of the same norm, appended to the
+ *  fetch_requirements echo payload so it is in view at the moment deferral
+ *  language would otherwise be written. */
+export const NO_DEFERRAL_ECHO_NOTE =
+  "Do not defer: do not recommend documents or passages for further review unless the user explicitly asked for that; if a provision matters, read and analyze it before drafting.";
+
+/** Index tools + fetch_requirements — the scoped-index treatment arm's tool
+ *  list, mirroring how the server composes it (echo tool appended LAST). A
+ *  separate array so the index arms' own tool_schema_sha256 is unchanged. */
+export const MARKDOWN_INDEX_TREATMENT_LAB_TOOLS: OpenAIToolSchema[] = [
+  ...MARKDOWN_INDEX_LAB_TOOLS,
+  FETCH_REQUIREMENTS_TOOL,
+];
+
+/**
+ * The scoped-index treatment arm's prompt: the INDEX FLOOR base (SECT-INDEX
+ * navigation + completeness check) with the echo line, the v2 grounding
+ * block, and the no-deferral directive appended by the same helper chat.ts
+ * serves through — the sha gate holds by construction.
+ */
+export const MARKDOWN_E2E_INDEX_TREATMENT_V1_LAB_SYSTEM_PROMPT =
+  withLabTreatmentPromptAdditions(MARKDOWN_E2E_INDEX_FLOOR_LAB_SYSTEM_PROMPT, {
+    requirementsEcho: true,
+    citationContract: false,
+    citationContractV2: true,
+    noDeferral: true,
   });
