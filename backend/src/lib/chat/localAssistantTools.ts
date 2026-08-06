@@ -177,9 +177,11 @@ import { TEXT_OP_NAMES } from "../textOps";
 import {
   findRegexMatches,
   findTextMatches,
+  findTextMatchesFolded,
   renderMarkdownDocx,
   textParserFor,
 } from "./tools/documentOps";
+import { quoteRepairSuggestion } from "./quoteRepair";
 import {
   docxCautionNotes,
   docxPathologyReportFor,
@@ -1012,6 +1014,34 @@ export const NO_DEFERRAL_ENABLED = process.env.MIKE_NO_DEFERRAL === "1";
  * unchanged — non-addressable documents were already whole-readable.
  */
 export const INDEX_ATTACH_GATED = process.env.MIKE_INDEX_ATTACH_GATED === "1";
+
+/**
+ * Find recovery for the served-markdown plane. Measured on the five no-fit
+ * corpora (9,095 replayed queries): defined-term queries hit 10.6% because
+ * markdown emphasis/escapes/smart quotes sit inside the phrase; the fold
+ * recovers 889/889 misses with clean precision. Literal-first — a literal
+ * hit is byte-identical to the unflagged tool — and a residual zero-hit
+ * carries the H16' closest-excerpt suggestion (quoteRepair) so a miss is a
+ * retryable "did you mean" instead of a silent false negative.
+ */
+export const FIND_QUERY_NORM_ENABLED =
+  process.env.MIKE_FIND_QUERY_NORM === "1";
+
+/** Closest-excerpt suggestion for a zero-hit find, per the H16' rejection
+ *  pattern: strip wrapping quotes from the query, scan the body in bounded
+ *  overlapping chunks (the repair engine caps spans at ~4,000 tokens), and
+ *  return quoteRepair's one bounded suggestion line, or null when nothing
+ *  overlaps enough to ground one. */
+function findNearestSuggestion(query: string, body: string): string | null {
+  const claim = query.replace(/^["'“‘]+|["'”’]+$/gu, "");
+  const spans: string[] = [];
+  const CHUNK = 15_000;
+  const STEP = 12_000; // overlap so a chunk boundary never hides the best span
+  for (let at = 0; at < body.length && spans.length < 40; at += STEP) {
+    spans.push(body.slice(at, at + CHUNK));
+  }
+  return quoteRepairSuggestion(claim, spans);
+}
 
 /**
  * Turn-scoped bookkeeping for the requirements echo. Created once per assistant
@@ -6985,12 +7015,28 @@ async function runUpstreamMikeRetrievalCall(params: {
   }
   const maxResults = clampInt(call.input.max_results, 1, 100, 20);
   const contextChars = clampInt(call.input.context_chars, 0, 10_000, 80);
-  const matches = findTextMatches({
-    text: document.text,
-    query,
-    maxResults,
-    contextChars,
-  });
+  const matches = FIND_QUERY_NORM_ENABLED
+    ? findTextMatchesFolded({
+        text: document.text,
+        query,
+        maxResults,
+        contextChars,
+      })
+    : {
+        ...findTextMatches({
+          text: document.text,
+          query,
+          maxResults,
+          contextChars,
+        }),
+        matchMode: "literal" as const,
+      };
+  // Residual zero-hit under the recovery flag: a "did you mean" instead of a
+  // silent false negative the model reads as "term not in document".
+  const zeroHitNearest =
+    FIND_QUERY_NORM_ENABLED && matches.totalMatches === 0
+      ? findNearestSuggestion(query, document.text)
+      : null;
   const candidateReadPath =
     (filenameCounts.get(listed.filename.toLocaleLowerCase("en-US")) ?? 0) === 1
       ? listed.filename
@@ -7003,6 +7049,21 @@ async function runUpstreamMikeRetrievalCall(params: {
       total_matches: matches.totalMatches,
       returned: matches.hits.length,
       truncated: matches.totalMatches > matches.hits.length,
+      // Recovery surface (flag-gated): folded matches are labeled so the
+      // model knows offsets address the raw body; a residual zero-hit
+      // carries the closest-excerpt suggestion and retry guidance.
+      ...(FIND_QUERY_NORM_ENABLED && matches.matchMode === "folded"
+        ? {
+            match_mode: "folded",
+            note: "Matched with markdown emphasis, escape backslashes, and smart quotes folded; offsets and excerpts address the raw document body.",
+          }
+        : {}),
+      ...(FIND_QUERY_NORM_ENABLED && matches.totalMatches === 0
+        ? {
+            ...(zeroHitNearest ? { nearest_match: zeroHitNearest } : {}),
+            note: "0 matches. Long phrases can differ from the source by punctuation or formatting; retry with a short distinctive phrase from the middle of the passage, or requote the closest excerpt exactly as shown.",
+          }
+        : {}),
       hits: matches.hits.map((hit) => {
         const start = Math.max(0, hit.at - contextChars);
         const end = Math.min(
