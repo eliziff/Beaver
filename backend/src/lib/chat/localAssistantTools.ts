@@ -1018,6 +1018,18 @@ export const NO_DEFERRAL_ENABLED = process.env.MIKE_NO_DEFERRAL === "1";
 export const EXPOSURE_ECHO_ENABLED = process.env.MIKE_EXPOSURE_ECHO === "1";
 
 /**
+ * Serving-boundary fidelity (adversarial audit #8): OFF in every frozen LAB
+ * arm; production-layer / future-arm candidate. The extraction's computed
+ * warnings[] (tracked changes served as the accepted view, text-box
+ * exclusions, flattened content controls, …) ride the FIRST read of each
+ * document as a CONVERSION NOTES line instead of being silently dropped.
+ * Prepended at the same layer as the citation reminder, so served-plane
+ * coordinates and evidence segments are untouched.
+ */
+export const SERVE_CONVERSION_NOTES =
+  process.env.MIKE_SERVE_CONVERSION_NOTES === "1";
+
+/**
  * Completes the "no empty indexes" design for scoped arms: a document whose
  * derived SECT-INDEX carries entries but no usable @N addresses previously
  * still paid its full index as dead prefix weight (20.6% of index bytes
@@ -6248,7 +6260,16 @@ function upstreamMikeSectionsMarkdown(value: unknown) {
  *  has no drafting source or the surface is off (callers fall back to
  *  extractLocalDocument). */
 type ServedDrafting =
-  | { served: string; bodyOffset: number; versionId: string; filename: string }
+  | {
+      served: string;
+      bodyOffset: number;
+      versionId: string;
+      filename: string;
+      /** Extraction warnings (accepted-view tracked changes, text-box
+       * exclusions, flattened controls, …); surfaced on first read only
+       * when SERVE_CONVERSION_NOTES is on. */
+      warnings: string[];
+    }
   | null;
 
 /**
@@ -6288,6 +6309,7 @@ export async function servedDraftingText(
       bodyOffset: 0,
       versionId: file.version.id,
       filename: file.document.filename,
+      warnings: source.warnings,
     };
   } else {
     try {
@@ -6308,12 +6330,14 @@ export async function servedDraftingText(
             bodyOffset,
             versionId: file.version.id,
             filename: file.document.filename,
+            warnings: source.warnings,
           }
         : {
             served: source.markdown,
             bodyOffset: 0,
             versionId: file.version.id,
             filename: file.document.filename,
+            warnings: source.warnings,
           };
     } catch {
       result = {
@@ -6321,6 +6345,7 @@ export async function servedDraftingText(
         bodyOffset: 0,
         versionId: file.version.id,
         filename: file.document.filename,
+        warnings: source.warnings,
       };
     }
   }
@@ -6609,6 +6634,17 @@ async function runUpstreamMikeRetrievalCall(params: {
         isBounded ? [segStart, segEnd] : [0, fullText.length],
       ]),
     });
+    // Serving fidelity: the extraction's warnings ride the FIRST read of the
+    // document as a notes line — prepended like the citation reminder, so
+    // served-plane coordinates and the evidence segments below are untouched.
+    if (
+      SERVE_CONVERSION_NOTES &&
+      !prior &&
+      drafting?.warnings?.length &&
+      content
+    ) {
+      content = `CONVERSION NOTES: ${drafting.warnings.join(" ")}\n\n${content}`;
+    }
     // F3: evidence spans must live on the BODY plane, the same plane
     // find_in_document's hits use, so the harness can union read + find
     // coverage in one coordinate space. segStart/segEnd are relative to the
@@ -7007,9 +7043,22 @@ async function runUpstreamMikeRetrievalCall(params: {
           continue;
         }
         seenVersions.add(key);
-        const document = await extractLocalDocument(userId, listed.id);
-        if (!document) continue;
-        requestedChars += document.text.length;
+        // Project on the plane the serving loop below will actually send:
+        // the markdown drafting surface when one exists, else the plaintext
+        // extraction. Projecting plaintext for a markdown-served doc charged
+        // the budget for bytes that are never delivered.
+        const drafting = await servedDraftingText(
+          userId,
+          listed.id,
+          servedDraftingCache,
+        );
+        if (drafting) {
+          requestedChars += drafting.served.length;
+        } else {
+          const document = await extractLocalDocument(userId, listed.id);
+          if (!document) continue;
+          requestedChars += document.text.length;
+        }
         if (!seenInCall && !readState?.has(key)) newFiles += 1;
       }
       const projectedChars = alreadyReadChars + requestedChars;
