@@ -94,9 +94,37 @@ function isHeadingishContinuation(rest: string): boolean {
   const trimmed = rest.trimStart();
   if (!trimmed) return true; // EOL
   if (trimmed.startsWith("— ")) return true; // " — " heading separator
+  if (/^-{2,3}\s/u.test(trimmed)) return true; // pandoc renders " — " as " --- "
   // closing bold/inline-wrap before the rest of the heading line
   if (/^(\*\*|<\/?u>)/.test(trimmed)) return true;
   return false;
+}
+
+/** Digit-led numeral variant of a display ("Section 1.1" -> "1.1"). Documents
+ *  that number sections bare (`**1.1** "Affiliate" means...`) never carry the
+ *  synthesized kind word, so the full display can never anchor them — the
+ *  no-fit sweep measured whole contract corpora at 0% addressable this way.
+ *  Digit-led only: stripping ARTICLE/Schedule kinds would leave single
+ *  romans/letters that prefix-match prose. */
+function displayNumeralVariant(display: string): string | null {
+  const m = /^[A-Za-z]+\s+(\d\S*)$/u.exec(display.trim());
+  return m ? m[1] : null;
+}
+
+/** Confirms a numeral-variant line is the real heading by its title text:
+ *  the skeleton knows the section's heading, so `1.1 Introduction and Scope`
+ *  anchors while a prose line that merely opens with the number does not.
+ *  Compared on an alphanumeric-normalized plane so bold wraps and smart
+ *  quotes in the markdown never break the match. */
+function headingConfirms(rest: string, heading: string | undefined): boolean {
+  const norm = (value: string) =>
+    value
+      .replace(/[^0-9A-Za-z]+/gu, " ")
+      .trim()
+      .toLowerCase();
+  const frag = norm(heading ?? "").slice(0, 16);
+  if (frag.length < 4) return false;
+  return norm(rest).startsWith(frag);
 }
 
 /** Offset of the first line at or after `from` whose real first token is
@@ -108,7 +136,9 @@ function anchorDisplayLineStart(
   markdown: string,
   display: string,
   from = 0,
-): number | null {
+  heading?: string,
+): { at: number; matched: number } | null {
+  const variant = displayNumeralVariant(display);
   let pos = Math.max(0, from);
   while (pos <= markdown.length) {
     const nl = markdown.indexOf("\n", pos);
@@ -116,7 +146,18 @@ function anchorDisplayLineStart(
     const body = stripLineDecor(markdown.slice(pos, end));
     if (body.startsWith(display)) {
       const rest = body.slice(display.length);
-      if (isHeadingishContinuation(rest)) return pos;
+      if (isHeadingishContinuation(rest))
+        return { at: pos, matched: display.length };
+    } else if (variant && body.startsWith(variant)) {
+      const rest = body.slice(variant.length);
+      // Token boundary: "1.1" must never claim "1.10" or "1.1.2"; then the
+      // line must either continue heading-like or carry the known title.
+      if (
+        !/^[\w.]/u.test(rest) &&
+        (isHeadingishContinuation(rest) || headingConfirms(rest, heading))
+      ) {
+        return { at: pos, matched: variant.length };
+      }
     }
     if (nl === -1) break;
     pos = nl + 1;
@@ -228,10 +269,15 @@ function anchorSpine(
   for (const node of spine) {
     if (node.kind === "subsection") continue;
     const from = displayCursor.get(node.display) ?? 0;
-    const at = anchorDisplayLineStart(markdown, node.display, from);
-    if (at !== null) {
-      anchors.set(node.label, at);
-      displayCursor.set(node.display, at + node.display.length);
+    const hit = anchorDisplayLineStart(
+      markdown,
+      node.display,
+      from,
+      node.heading ?? undefined,
+    );
+    if (hit !== null) {
+      anchors.set(node.label, hit.at);
+      displayCursor.set(node.display, hit.at + hit.matched);
     }
   }
   let pending = spine.filter((node) => node.kind === "subsection");
