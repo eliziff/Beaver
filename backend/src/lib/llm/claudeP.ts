@@ -6,7 +6,8 @@
 // harness system prompt, conversation, and tool schemas.
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { jsonrepair } from "jsonrepair";
 
@@ -81,9 +82,17 @@ code fences.`;
 // instantly at spawn, long before prompt/cache processing of a
 // Beaver-sized context finishes (observed >240s to first token) — so the
 // clock is generous until the first model event, tight afterwards.
+// At effort max the tight limit is wrong: HSR transcripts (2026-08-06)
+// prove healthy max-effort generations pause >240s at summarized-thinking
+// flush and internal continuation seams — sessions that had streamed
+// deltas for 1,310s+ were killed mid-generation, forfeiting the
+// server-side cache each time. So the inactivity limit scales with
+// effort; HARD_LIMIT_MS stays the per-turn runaway backstop.
 const FIRST_MODEL_EVENT_GRACE_MS = 900_000;
 const INACTIVITY_LIMIT_MS = 240_000;
 const HARD_LIMIT_MS = 3_600_000;
+const inactivityLimitMs = (effort?: string): number =>
+  effort === "max" ? FIRST_MODEL_EVENT_GRACE_MS : INACTIVITY_LIMIT_MS;
 
 export function claudePModelSlug(model: string): string | null {
   return model.startsWith("claude-p:")
@@ -122,7 +131,7 @@ type Envelope = {
  * claude.ai login and the CLI fails ("another auth source is set"). An empty
  * ANTHROPIC_API_KEY string is still "set", so delete, don't blank.
  */
-function authIsolatedEnv(): NodeJS.ProcessEnv {
+function authIsolatedEnv(model?: string): NodeJS.ProcessEnv {
   const env = { ...process.env };
   for (const key of [
     "ANTHROPIC_API_KEY",
@@ -135,6 +144,18 @@ function authIsolatedEnv(): NodeJS.ProcessEnv {
     "ANTHROPIC_SMALL_FAST_MODEL",
   ]) {
     delete env[key];
+  }
+  // The CLI's default 32k per-message output cap truncates one-shot
+  // whole-document drafts once max-effort thinking shares the budget
+  // (2026-08-06: 83%/72% of employment/insurance drafting output was
+  // discarded in truncate-rewrite cycles). Sonnet models support 64k
+  // output; other families keep the CLI default until measured. An
+  // operator-set value always wins.
+  if (
+    model?.includes("sonnet") &&
+    !env.CLAUDE_CODE_MAX_OUTPUT_TOKENS
+  ) {
+    env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = "64000";
   }
   return env;
 }
@@ -169,7 +190,7 @@ function runClaudeP(
   return new Promise((resolve, reject) => {
     const child = spawn(file, args, {
       shell,
-      env: authIsolatedEnv(),
+      env: authIsolatedEnv(model),
       windowsHide: true,
     });
     let stdout = "";
@@ -177,9 +198,10 @@ function runClaudeP(
     let sawActivity = false;
     let lastActivity = Date.now();
     const started = Date.now();
+    const inactivityMs = inactivityLimitMs(effort);
     const watchdog = setInterval(() => {
       const now = Date.now();
-      const limit = sawActivity ? INACTIVITY_LIMIT_MS : FIRST_MODEL_EVENT_GRACE_MS;
+      const limit = sawActivity ? inactivityMs : FIRST_MODEL_EVENT_GRACE_MS;
       if (now - lastActivity > limit) {
         child.kill();
         reject(new Error(`claude -p silent for ${limit / 1000}s — killed`));
@@ -201,7 +223,12 @@ function runClaudeP(
         lastActivity = Date.now();
       }
     });
-    child.stderr.on("data", (chunk: Buffer) => (stderr += chunk.toString("utf8")));
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString("utf8");
+      // CLI retry/backoff chatter is stderr-only; a child talking on
+      // stderr is not wedged. HARD_LIMIT_MS still bounds true wedges.
+      lastActivity = Date.now();
+    });
     child.on("error", (error) => {
       clearInterval(watchdog);
       abortSignal?.removeEventListener("abort", onAbort);
@@ -248,6 +275,7 @@ class ClaudePSession {
   private lastActivity = Date.now();
   private turnStarted = Date.now();
   private watchdog: NodeJS.Timeout;
+  private readonly inactivityMs: number;
   private readonly onAbort = () => this.fail(abortError());
   dead = false;
 
@@ -256,6 +284,7 @@ class ClaudePSession {
     effort: string | undefined,
     private readonly abortSignal?: AbortSignal,
   ) {
+    this.inactivityMs = inactivityLimitMs(effort);
     const { file, shell } = resolveCli();
     const args = [
       "-p",
@@ -279,14 +308,14 @@ class ClaudePSession {
     if (effort) args.push("--effort", effort);
     this.child = spawn(file, args, {
       shell,
-      env: authIsolatedEnv(),
+      env: authIsolatedEnv(model),
       windowsHide: true,
     });
     this.watchdog = setInterval(() => {
       if (!this.pending) return;
       const now = Date.now();
       const limit = this.sawActivity
-        ? INACTIVITY_LIMIT_MS
+        ? this.inactivityMs
         : FIRST_MODEL_EVENT_GRACE_MS;
       if (now - this.lastActivity > limit)
         this.fail(
@@ -325,10 +354,12 @@ class ClaudePSession {
         }
       }
     });
-    this.child.stderr?.on(
-      "data",
-      (chunk: Buffer) => (this.stderrText += chunk.toString("utf8")),
-    );
+    this.child.stderr?.on("data", (chunk: Buffer) => {
+      this.stderrText += chunk.toString("utf8");
+      // CLI retry/backoff chatter is stderr-only; a child talking on
+      // stderr is not wedged. HARD_LIMIT_MS still bounds true wedges.
+      this.lastActivity = Date.now();
+    });
     this.child.on("error", (error) => this.fail(error));
     this.child.on("close", (code) =>
       this.fail(
@@ -526,6 +557,10 @@ export async function streamClaudeP(
       let attemptsUsed = 0;
       let blocks: AnthropicBlock[] | null = null;
       let lastError: unknown = null;
+      // Per-attempt failure kinds. A three-failure round can mix causes
+      // (HSR 2026-08-06: parse failure, then two watchdog kills of the
+      // corrective replays) and the summary error must say which.
+      const attemptErrors: string[] = [];
       // After a parse failure the retry payload carries the bad reply plus a
       // typed correction naming the parse error — Stage 12 proved these
       // failures are content-shaped and deterministic, so an identical
@@ -536,6 +571,7 @@ export async function streamClaudeP(
         attemptsUsed = attempt + 1;
         if (attempt > 0)
           await new Promise((resolve) => setTimeout(resolve, 15_000 * attempt));
+        const correctiveBefore = corrective;
         const correction = corrective as {
           reply: string;
           problem: string;
@@ -639,6 +675,22 @@ export async function streamClaudeP(
                 (parseError as Error).message ?? parseError,
               ).slice(0, 200),
             };
+            // A parse failure discards a COMPLETED generation (HSR lost a
+            // 16-minute 58.7KB draft this way). Preserve the raw reply for
+            // post-mortem/manual recovery; never let preservation mask the
+            // parse error itself.
+            try {
+              const dir = path.join(tmpdir(), "beaver-claudep-badreplies");
+              mkdirSync(dir, { recursive: true });
+              const file = path.join(
+                dir,
+                `reply-${Date.now().toString(36)}-iter${iter}-attempt${attempt + 1}.txt`,
+              );
+              writeFileSync(file, rawReply, "utf8");
+              console.warn(
+                `[claude-p] parse failure on a completed generation; raw reply preserved at ${file}`,
+              );
+            } catch {}
             throw parseError;
           }
         } catch (error) {
@@ -647,11 +699,26 @@ export async function streamClaudeP(
           // burns spawns against a hard weekly limit.
           if (error instanceof ClaudePFatalError) throw error;
           lastError = error;
+          const detail = String((error as Error).message ?? error);
+          // corrective is (re)assigned only inside the parseReply catch, so
+          // reference inequality is an exact parse-failure marker.
+          const kind =
+            corrective !== correctiveBefore
+              ? "parse-failure"
+              : detail.includes("silent for")
+                ? "watchdog-kill"
+                : detail.includes("hard time limit")
+                  ? "hard-limit"
+                  : "transport";
+          attemptErrors.push(
+            `attempt ${attempt + 1}: ${kind} (${detail.slice(0, 160)})`,
+          );
         }
       }
       if (!blocks)
         throw new Error(
-          `claude-p transport: unparseable reply after retries: ${lastError}`,
+          `claude-p transport: unparseable reply after retries: ${lastError} ` +
+            `[${attemptErrors.join("; ")}]`,
         );
 
       const toolCalls: NormalizedToolCall[] = [];
