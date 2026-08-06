@@ -630,3 +630,37 @@ probe on the EMP index run (Phase B noise floor).
 - Phase C reshaped: 4 arms x 10 fit-band tasks x n=1 on sonnet-4-6, single
   judge pass, decided by per-task McNemar + cross-task sign test
   (lab-compare.ts).
+
+### INCIDENT + IN-VIVO RECEIPTS: scoped-reread wiring gap (2026-08-06)
+
+**Incident.** The first final-arm CoC re-pilot (run 17-31-54) completed all
+provider rounds and was then rejected by the A1 prompt-sha gate: c709ba6b
+applied the scoped-reread clause swap only to the arm CONSTANT (via a
+module-private wrapper), while chat.ts composes the served prompt from env
+flags and never swapped the clause. Cost: one full CoC run of sonnet quota;
+the gate did exactly what it was built for, but post-run. Fix `59d271ca`:
+the swap is now an option of withLabTreatmentPromptAdditions (the single
+helper both sides call), gated on MIKE_SCOPED_REREAD with a scoped_reread
+receipt field (treatment true, frozen family false). New probe
+`.tmp-probe-served-prompt-sha.ts` boots the REAL app with the arm env,
+forces a free provider failure after benchmark_surface emission, and proves
+served sha == sha256(constant + inventory) — 7/7, now a hard launch gate at
+the head of the Phase D sweep script. Rule captured in the helper docstring:
+every prompt-editing mechanism MUST be an option of the helper, never a
+one-sided wrapper.
+
+**In-vivo mechanism receipts** (the burned run had all four tool-side
+mechanisms live; prompt was pre-swap, so its quality is not attributable —
+mechanism behavior is):
+- Orientation: ONE fetch_documents(index:true) over all 19 docs = 77,619
+  chars (~19.4k tok) vs 126,717 pre-compaction on the same task —
+  **compact headings −38.7% in vivo** (probe predicted −37%).
+- Navigation: 26 scoped read_document windows (86,705 chars) at
+  @N-consistent offsets; 3 non-addressable docs whole-served (135,912
+  chars) through the attach gate, incl. one explicit "(no SECT-INDEX …)"
+  note; 2 memo head-reads (48,889 chars).
+- find_in_document: 1 call, literal hit; fold and nearest-match never
+  needed (no emphasis-bearing query issued). typed_range never triggered.
+- Total tool payload 354,871 chars (~88.7k tok) and drafting completed
+  (62,048-char markdown at iter6 structural salvage) — the scoped economy
+  holds with the full mechanism stack on.
