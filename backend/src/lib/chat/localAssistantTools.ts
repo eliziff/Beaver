@@ -62,6 +62,7 @@ import { termDriftReport } from "../legalTermDrift";
 import { extractDocxDraftingSource } from "../docxDraftingSource";
 import {
   STRUCTURE_INDEX_ENABLED,
+  anchoredSectionSpine,
   anchoredSectionStarts,
   attachStructureIndex,
   deriveSectionNodes,
@@ -932,6 +933,17 @@ export const CODING_PARITY_ENABLED = process.env.MIKE_CODING_PARITY === "1";
  */
 export const GREP_SECTION_CONTEXT_ENABLED =
   process.env.MIKE_GREP_SECTION_CONTEXT === "1";
+/**
+ * Companion .toc index files (coding_markdown_v4): every docx with an
+ * anchorable section spine gets a virtual "<name>.toc" file — its
+ * sections with markdown-plane line numbers — listed by Glob, served by
+ * Read. Orientation as demand-paged files instead of prompt injection:
+ * the model reads only the indexes it wants, tool results are not
+ * sha-gated, and body line numbers stay pure. Window-agnostic on
+ * purpose (no model/window constants anywhere in the mechanism).
+ */
+export const CODING_TOC_FILES_ENABLED =
+  process.env.MIKE_CODING_TOC_FILES === "1";
 export const GROUNDING_FIRST_ENABLED =
   process.env.MIKE_GROUNDING_FIRST === "1";
 export const MIKE_GREP_FAMILY_TOOL_SHAPE =
@@ -1337,6 +1349,55 @@ async function grepSectionSpine(
   }
   grepSectionSpineCache.set(key, leads);
   return leads;
+}
+
+/**
+ * Rendered .toc content for one document on the served plane, memoized
+ * per version. Same two-plane resolver as grepSectionSpine (docx
+ * detector nodes anchored into served markdown); non-docx and anchorless
+ * documents return "" and contribute no .toc file.
+ */
+const codingTocCache = new Map<string, string>();
+
+async function codingTocText(
+  userId: string,
+  meta: { id: string; current_version_id: string; file_type: string; filename: string },
+  servedText: string,
+): Promise<string> {
+  if (meta.file_type.toLowerCase() !== "docx") return "";
+  const key = `${meta.current_version_id}:${servedText.length}`;
+  const cached = codingTocCache.get(key);
+  if (cached !== undefined) return cached;
+  let rendered = "";
+  try {
+    const file = await getLocalVersionFile(userId, meta.id);
+    if (file) {
+      const nodes = await deriveSectionNodes(await readFile(file.path));
+      const spine = anchoredSectionSpine(nodes, servedText);
+      if (spine.length) {
+        // grep -n convention: "LINE:verbatim line text" — the exact output
+        // a coding agent gets from grepping section leads itself, verbatim
+        // document text (quotable; Read offset=<line> limit=1 returns the
+        // same line). No reconstructed labels.
+        const bodyLines = servedText.split("\n");
+        const lineOf = (offset: number) =>
+          servedText.slice(0, offset).split("\n").length;
+        const rows = spine.map((entry) => {
+          const line = lineOf(entry.offset);
+          return `${line}:${(bodyLines[line - 1] ?? "").slice(0, 150)}`;
+        });
+        rendered =
+          `# ${meta.filename} — ${spine.length} section leads ` +
+          `(${servedText.length} chars, ${bodyLines.length} lines; ` +
+          `Read offset=<line> to open a section)\n` +
+          rows.join("\n");
+      }
+    }
+  } catch {
+    // Soft degradation: no .toc for this document.
+  }
+  codingTocCache.set(key, rendered);
+  return rendered;
 }
 
 async function documentGraph(
@@ -4049,7 +4110,30 @@ async function runCodingShapeCall(
         chars: set.text.length,
         lines: set.text ? set.text.split(/\r?\n/u).length : 0,
       }));
-    const rows = [...fileRows, ...workingSetRows];
+    // Companion .toc index files (v4): one row per docx whose section
+    // spine anchored; the pattern matches against "<filename>.toc" so
+    // "*.toc" lists only indexes. Sizes are the rendered toc itself —
+    // orientation priced in-band, like everything else Glob reports.
+    const tocRows = CODING_TOC_FILES_ENABLED
+      ? (
+          await Promise.all(
+            files
+              .filter((meta) => re.test(`${meta.filename}.toc`))
+              .map(async (meta) => {
+                const document = await codingDocument(meta.id);
+                if (!document) return null;
+                const toc = await codingTocText(userId, meta, document.text);
+                if (!toc) return null;
+                return {
+                  row: `${meta.filename}.toc\tchars=${toc.length}\tlines=${toc.split("\n").length}`,
+                  chars: toc.length,
+                  lines: toc.split("\n").length,
+                };
+              }),
+          )
+        ).filter((row): row is NonNullable<typeof row> => row !== null)
+      : [];
+    const rows = [...fileRows, ...tocRows, ...workingSetRows];
     if (!rows.length) return result(call, "No files found");
     const totalChars = rows.reduce((total, row) => total + row.chars, 0);
     const totalLines = rows.reduce((total, row) => total + row.lines, 0);
@@ -4083,6 +4167,37 @@ async function runCodingShapeCall(
       return fail(call, "Read does not expose page or reference scopes in this arm");
     }
     const requested = trimmed(args.file_path);
+    // Companion .toc read (v4): serve the rendered index cat-n style.
+    // Derived metadata, not document text — no evidence segments, no
+    // body-exposure accounting; the body plane's line numbers stay pure.
+    if (CODING_TOC_FILES_ENABLED && /\.toc$/iu.test(requested)) {
+      const base = requested.replace(/\.toc$/iu, "");
+      const candidates = resolvePath(base);
+      if (candidates.length !== 1) {
+        return fail(
+          call,
+          candidates.length
+            ? disambiguationHint(requested, "file_path")
+            : `No .toc for '${base}' — Glob lists the available index files.`,
+        );
+      }
+      const meta = candidates[0];
+      const document = await codingDocument(meta.id);
+      const toc = document
+        ? await codingTocText(userId, meta, document.text)
+        : "";
+      if (!toc) {
+        return fail(
+          call,
+          `No .toc for '${base}' — this document has no anchorable section spine; read the document directly.`,
+        );
+      }
+      const rendered = toc
+        .split("\n")
+        .map((line, index) => `${String(index + 1).padStart(6)}\t${line}`)
+        .join("\n");
+      return result(call, rendered);
+    }
     const workingSet = resolveWorkingSet(requested);
     if (workingSet) {
       if (

@@ -845,6 +845,28 @@ DOCUMENT CREATION:
 
 Do not use emojis.`;
 
+/**
+ * v4 (context budget): the neutral prompt plus the budget/strategy block
+ * the two observational pilots earned — v1 (acq) and v2 (tax) both
+ * whole-read into auto-compaction with zero Grep calls, so the surface's
+ * in-band size data (Glob) and index files (.toc) go unstated no longer.
+ * Mechanism-only: true environment facts and general strategy; no task or
+ * rubric content.
+ */
+export const CODING_MARKDOWN_BUDGET_LAB_SYSTEM_PROMPT = `${CODING_MARKDOWN_LAB_SYSTEM_PROMPT}
+
+CONTEXT BUDGET:
+- Call tools with the bare filename as file_path, never the "doc-N:" inventory label.
+- Start with Glob: it reports each document's exact size and lists each document's companion "<name>.toc" index file (its sections with their line numbers).
+- A large corpus can exceed your working context; reading everything in full overflows it, and earlier tool results are then silently summarized (lossy). Read in full only the documents central to the deliverable. For the rest, Read the .toc, then Grep and Read scoped windows (offset/limit) from section start lines.
+- Batch related tool calls in a single turn — several Grep and Read calls at once beat one call per turn.`;
+
+/** Delta tag: companion .toc index files + budget prompt gated on
+ * MIKE_CODING_TOC_FILES (coding_markdown_v4). */
+export const CODING_TOC_FILES_DELTA = "coding-toc-files-v1";
+/** Delta tag: the composite v4 coding arm (v3 + toc files + budget). */
+export const CODING_MARKDOWN_V4_DELTA = "coding-markdown-v4";
+
 /* ----------------------------------------------------------------------
  * CODING-MARKDOWN v2 (parity pack; adversarial audit 2026-08-06). The v1
  * arm served lean-batch's real tools — no Glob, a paths[] batch Read with
