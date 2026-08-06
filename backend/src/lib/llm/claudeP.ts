@@ -31,7 +31,20 @@ const sha256 = (text: string) =>
  * the weekly subscription wall; a retry burns another spawn against a hard
  * quota with zero chance of success.
  */
-export type ClaudePFatalCode = "context_overflow" | "quota_exhausted";
+export type ClaudePFatalCode =
+  | "context_overflow"
+  | "quota_exhausted"
+  | "compaction_limit";
+
+/**
+ * Real-degradation bound, not an artificial cap: each CLI auto-compaction
+ * replaces served document content with a lossy summary, so by the third
+ * cycle the model is drafting from summaries-of-summaries (the 2026-08-06
+ * v1 acq pilot was already unusable after two). Rounds are otherwise
+ * unbounded on non-native arms, and compaction re-opens window headroom
+ * each time — without this bound a thrashing run can cycle indefinitely.
+ */
+const MAX_PROVIDER_COMPACTIONS = 3;
 
 export class ClaudePFatalError extends Error {
   constructor(
@@ -1109,6 +1122,18 @@ export async function streamClaudeP(
             throw fatal
               ? new ClaudePFatalError(message, fatal)
               : new Error(message);
+          }
+          // Typed stop when the CLI has compacted repeatedly: the turn that
+          // just completed is already summaries-of-summaries, and nothing
+          // else bounds the cycle. Thrown here (not in the stream callback)
+          // so it rides the fatal-error path: terminal, never retried.
+          if (compactions.length >= MAX_PROVIDER_COMPACTIONS) {
+            throw new ClaudePFatalError(
+              `claude -p provider compaction limit: ${compactions.length} ` +
+                "auto-compactions this run — conversation content has been " +
+                "summarized repeatedly; aborting instead of thrashing",
+              "compaction_limit",
+            );
           }
           // Usage before parsing: a reply that fails to parse still spent
           // these tokens, and telemetry should see them.
