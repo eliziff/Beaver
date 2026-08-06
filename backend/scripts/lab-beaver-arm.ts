@@ -873,6 +873,7 @@ async function main() {
       MIKE_REQUIREMENTS_ECHO: "1",
       MIKE_CITATION_CONTRACT_V2: "1",
       MIKE_NO_DEFERRAL: "1",
+      MIKE_SCOPED_REREAD: "1",
     },
     // Reverse swap: markdown READ (Pandoc drafting-source) + UPSTREAM Mike
     // drafting (sections[] shape). Completes the 2x2 read/write matrix:
@@ -1862,13 +1863,14 @@ async function main() {
       surface?.markdown_e2e_shape !== markdownE2e ||
       surface?.markdown_read_docx !== markdownE2e ||
       surface?.structure_index !== structureIndex ||
-      // Attachment gating, find recovery, typed range, and compact headings
-      // are the index-treatment arm's mechanisms; the frozen index arms must
-      // keep serving byte-for-byte.
+      // Attachment gating, find recovery, typed range, compact headings, and
+      // the scoped-reread clause swap are the index-treatment arm's
+      // mechanisms; the frozen index arms must keep serving byte-for-byte.
       surface?.index_attach_gated !== false ||
       surface?.find_query_norm !== false ||
       surface?.typed_range !== false ||
       surface?.index_compact_headings !== false ||
+      surface?.scoped_reread !== false ||
       surface?.completeness_floor !== completenessFloor ||
       surface?.upstream_mike_shape !== false ||
       surface?.progressive_disclosure !== false ||
@@ -2068,6 +2070,7 @@ async function main() {
       surface?.citation_contract !== false ||
       surface?.citation_contract_v2 !== true ||
       surface?.no_deferral !== true ||
+      surface?.scoped_reread !== true ||
       surface?.completeness_floor !== true ||
       surface?.structure_index !== true ||
       surface?.index_attach_gated !== true ||
@@ -2100,7 +2103,7 @@ async function main() {
       contentResets.length > 0
     ) {
       throw new Error(
-        `${arm} isolation failed: resident=${residentTools.join(",")}; deferred=${deferredTools.join(",")}; echo=${String(surface?.requirements_echo)}; citationV2=${String(surface?.citation_contract_v2)}; noDeferral=${String(surface?.no_deferral)}; floor=${String(surface?.completeness_floor)}; index=${String(surface?.structure_index)}; terminal=${String(surface?.terminal_authoring)}`,
+        `${arm} isolation failed: resident=${residentTools.join(",")}; deferred=${deferredTools.join(",")}; echo=${String(surface?.requirements_echo)}; citationV2=${String(surface?.citation_contract_v2)}; noDeferral=${String(surface?.no_deferral)}; scopedReread=${String(surface?.scoped_reread)}; floor=${String(surface?.completeness_floor)}; index=${String(surface?.structure_index)}; terminal=${String(surface?.terminal_authoring)}`,
       );
     }
     if (echoCallCount < 1) {
