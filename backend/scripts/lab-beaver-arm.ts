@@ -85,6 +85,8 @@ import {
   MARKDOWN_E2E_TREATMENT_DELTA,
   MARKDOWN_E2E_TREATMENT_V2_DELTA,
   MARKDOWN_E2E_INDEX_TREATMENT_DELTA,
+  MARKDOWN_E2E_INDEX_TREATMENT_V2_DELTA,
+  EXPOSURE_ECHO_DELTA,
   MARKDOWN_E2E_TREATMENT_LAB_SYSTEM_PROMPT,
   MARKDOWN_E2E_TREATMENT_V2_LAB_SYSTEM_PROMPT,
   MARKDOWN_E2E_INDEX_TREATMENT_V1_LAB_SYSTEM_PROMPT,
@@ -172,7 +174,10 @@ function armExpectedSurface(
         : // INDEX TREATMENT: the scoped-index floor chassis plus the echo,
           // amended grounding contract, and no-deferral mechanisms. Prompt and
           // tools composed by the same helpers chat.ts serves through.
-        arm === "mike_markdown_e2e_index_treatment_v1"
+          // v2 adds exposure accounting (tool payloads only), so it serves the
+          // SAME prompt and tool list — the sha gate expects equality.
+        arm === "mike_markdown_e2e_index_treatment_v1" ||
+          arm === "mike_markdown_e2e_index_treatment_v2"
           ? {
               systemPrompt: MARKDOWN_E2E_INDEX_TREATMENT_V1_LAB_SYSTEM_PROMPT,
               tools: MARKDOWN_INDEX_TREATMENT_LAB_TOOLS,
@@ -875,6 +880,33 @@ async function main() {
       MIKE_NO_DEFERRAL: "1",
       MIKE_SCOPED_REREAD: "1",
     },
+    // INDEX TREATMENT v2: v1 + exposure accounting. The echo's read/unread
+    // split counts BODY EXPOSURE instead of tool touches (index-only
+    // orientation gets a documents_oriented_only bucket) and the first
+    // authoring call is refused once while unexposed documents remain.
+    // Motivated by the 2026-08-06 Phase D sweep: acq-diligence 30/64 with
+    // 12/31 documents index-only at draft time (echo said "2 unread"), tax
+    // 39/77 with 14/25 unexposed (echo said "0 unread"), three-plus rounds
+    // of budget unused in both. Same prompt + tool list as v1.
+    mike_markdown_e2e_index_treatment_v2: {
+      MIKE_NAV_SHAPE: "legacy",
+      MIKE_TOOL_SHAPE: "mike-markdown-e2e-v1",
+      MIKE_RETRIEVAL_EXPERIMENT: "",
+      MIKE_PROGRESSIVE_DISCLOSURE: "0",
+      MIKE_TERMINAL_AUTHORING: "1",
+      MIKE_READ_DOCX_MARKDOWN: "1",
+      MIKE_STRUCTURE_INDEX: "1",
+      MIKE_INDEX_ATTACH_GATED: "1",
+      MIKE_FIND_QUERY_NORM: "1",
+      MIKE_TYPED_RANGE: "1",
+      MIKE_INDEX_COMPACT_HEADINGS: "1",
+      MIKE_COMPLETENESS_FLOOR: "1",
+      MIKE_REQUIREMENTS_ECHO: "1",
+      MIKE_CITATION_CONTRACT_V2: "1",
+      MIKE_NO_DEFERRAL: "1",
+      MIKE_SCOPED_REREAD: "1",
+      MIKE_EXPOSURE_ECHO: "1",
+    },
     // Reverse swap: markdown READ (Pandoc drafting-source) + UPSTREAM Mike
     // drafting (sections[] shape). Completes the 2x2 read/write matrix:
     //   control          = upstream read  + upstream sections[] draft
@@ -1077,7 +1109,7 @@ async function main() {
   };
   if (!armEnvironment[arm])
     throw new Error(
-      `unknown --arm ${arm}; expected a registered LAB arm, including upstream_terminal_v1, mike_upstream_native_v1, mike_markdown_e2e_treatment_v1, mike_markdown_e2e_treatment_v2, mike_markdown_swap_v1, mike_markdown_e2e_v1, mike_markdown_e2e_index_v1, mike_markdown_e2e_floor_v1, mike_markdown_e2e_index_floor_v1, mike_markdown_e2e_index_treatment_v1, mike_markdown_read_upstream_draft_v1, mike_compact_author_v1, lean_batch_v1, lean_batch_hardrefs_v1, or grounded_structure_outline_v1`,
+      `unknown --arm ${arm}; expected a registered LAB arm, including upstream_terminal_v1, mike_upstream_native_v1, mike_markdown_e2e_treatment_v1, mike_markdown_e2e_treatment_v2, mike_markdown_swap_v1, mike_markdown_e2e_v1, mike_markdown_e2e_index_v1, mike_markdown_e2e_floor_v1, mike_markdown_e2e_index_floor_v1, mike_markdown_e2e_index_treatment_v1, mike_markdown_e2e_index_treatment_v2, mike_markdown_read_upstream_draft_v1, mike_compact_author_v1, lean_batch_v1, lean_batch_hardrefs_v1, or grounded_structure_outline_v1`,
     );
 
   // Re-spawn into the isolated anonymous-mode environment (same recipe as
@@ -1533,6 +1565,8 @@ async function main() {
   const echoCallCount = Number(requirementsEchoReceipt?.echo_call_count ?? 0);
   const documentsUnreadAtEcho =
     requirementsEchoReceipt?.documents_unread_at_echo ?? null;
+  const documentsOrientedOnlyAtEcho =
+    requirementsEchoReceipt?.documents_oriented_only_at_echo ?? null;
   // A native ask_inputs termination is a FIRST-CLASS measured outcome, not a
   // harness failure: upstream ends the turn on ask_inputs with no tool_result
   // and therefore no deliverable (2266446b:streaming.ts:484-486, and
@@ -1929,6 +1963,8 @@ async function main() {
       // the two mechanisms under test
       surface?.requirements_echo !== true ||
       surface?.citation_contract !== true ||
+      // frozen arm: exposure accounting must stay off
+      surface?.exposure_echo !== false ||
       // …on an otherwise byte-identical e2e chassis
       surface?.markdown_e2e_shape !== true ||
       surface?.markdown_read_docx !== true ||
@@ -2001,6 +2037,8 @@ async function main() {
       surface?.citation_contract !== false ||
       surface?.citation_contract_v2 !== true ||
       surface?.completeness_floor !== true ||
+      // frozen arm: exposure accounting must stay off
+      surface?.exposure_echo !== false ||
       // …on an otherwise byte-identical e2e chassis
       surface?.markdown_e2e_shape !== true ||
       surface?.markdown_read_docx !== true ||
@@ -2040,8 +2078,13 @@ async function main() {
   // INDEX TREATMENT. Own block like v1/v2: the scoped-index chassis flags
   // (structure_index, completeness_floor) and all three treatment mechanisms
   // (echo, contract v2, no-deferral) must be TRUE together, contract v1
-  // FALSE, on the index tool list plus fetch_requirements.
-  if (arm === "mike_markdown_e2e_index_treatment_v1") {
+  // FALSE, on the index tool list plus fetch_requirements. Exposure
+  // accounting is asserted PER ARM: true on v2, false on the frozen v1, so
+  // a leaked MIKE_EXPOSURE_ECHO can never silently change a v1 cell.
+  if (
+    arm === "mike_markdown_e2e_index_treatment_v1" ||
+    arm === "mike_markdown_e2e_index_treatment_v2"
+  ) {
     const residentTools = Array.isArray(surface?.resident_tools)
       ? surface.resident_tools
       : [];
@@ -2071,6 +2114,8 @@ async function main() {
       surface?.citation_contract_v2 !== true ||
       surface?.no_deferral !== true ||
       surface?.scoped_reread !== true ||
+      surface?.exposure_echo !==
+        (arm === "mike_markdown_e2e_index_treatment_v2") ||
       surface?.completeness_floor !== true ||
       surface?.structure_index !== true ||
       surface?.index_attach_gated !== true ||
@@ -2103,7 +2148,7 @@ async function main() {
       contentResets.length > 0
     ) {
       throw new Error(
-        `${arm} isolation failed: resident=${residentTools.join(",")}; deferred=${deferredTools.join(",")}; echo=${String(surface?.requirements_echo)}; citationV2=${String(surface?.citation_contract_v2)}; noDeferral=${String(surface?.no_deferral)}; scopedReread=${String(surface?.scoped_reread)}; floor=${String(surface?.completeness_floor)}; index=${String(surface?.structure_index)}; terminal=${String(surface?.terminal_authoring)}`,
+        `${arm} isolation failed: resident=${residentTools.join(",")}; deferred=${deferredTools.join(",")}; echo=${String(surface?.requirements_echo)}; citationV2=${String(surface?.citation_contract_v2)}; noDeferral=${String(surface?.no_deferral)}; scopedReread=${String(surface?.scoped_reread)}; exposureEcho=${String(surface?.exposure_echo)}; floor=${String(surface?.completeness_floor)}; index=${String(surface?.structure_index)}; terminal=${String(surface?.terminal_authoring)}`,
       );
     }
     if (echoCallCount < 1) {
@@ -2426,6 +2471,7 @@ async function main() {
       "mike_markdown_e2e_floor_v1",
       "mike_markdown_e2e_index_floor_v1",
       "mike_markdown_e2e_index_treatment_v1",
+      "mike_markdown_e2e_index_treatment_v2",
       "mike_compact_author_v1",
       "lean_batch_v1",
       "lean_batch_hardrefs_v1",
@@ -2799,6 +2845,7 @@ async function main() {
     "mike_markdown_e2e_floor_v1",
     "mike_markdown_e2e_index_floor_v1",
     "mike_markdown_e2e_index_treatment_v1",
+    "mike_markdown_e2e_index_treatment_v2",
     "mike_markdown_e2e_treatment_v1",
     "mike_markdown_e2e_treatment_v2",
     "adaptive_mike_v1",
@@ -2961,6 +3008,7 @@ async function main() {
       "mike_markdown_e2e_treatment_v1",
       "mike_markdown_e2e_treatment_v2",
       "mike_markdown_e2e_index_treatment_v1",
+      "mike_markdown_e2e_index_treatment_v2",
     ].includes(arm)
       ? REQUIREMENTS_ECHO_DELTA
       : null,
@@ -2969,11 +3017,16 @@ async function main() {
     citation_contract_v2_delta: [
       "mike_markdown_e2e_treatment_v2",
       "mike_markdown_e2e_index_treatment_v1",
+      "mike_markdown_e2e_index_treatment_v2",
     ].includes(arm)
       ? CITATION_CONTRACT_V2_DELTA
       : null,
-    no_deferral_delta:
-      arm === "mike_markdown_e2e_index_treatment_v1" ? NO_DEFERRAL_DELTA : null,
+    no_deferral_delta: [
+      "mike_markdown_e2e_index_treatment_v1",
+      "mike_markdown_e2e_index_treatment_v2",
+    ].includes(arm)
+      ? NO_DEFERRAL_DELTA
+      : null,
     markdown_e2e_treatment_delta:
       arm === "mike_markdown_e2e_treatment_v1"
         ? MARKDOWN_E2E_TREATMENT_DELTA
@@ -2982,9 +3035,19 @@ async function main() {
       arm === "mike_markdown_e2e_treatment_v2"
         ? MARKDOWN_E2E_TREATMENT_V2_DELTA
         : null,
-    markdown_e2e_index_treatment_delta:
-      arm === "mike_markdown_e2e_index_treatment_v1"
-        ? MARKDOWN_E2E_INDEX_TREATMENT_DELTA
+    markdown_e2e_index_treatment_delta: [
+      "mike_markdown_e2e_index_treatment_v1",
+      "mike_markdown_e2e_index_treatment_v2",
+    ].includes(arm)
+      ? MARKDOWN_E2E_INDEX_TREATMENT_DELTA
+      : null,
+    markdown_e2e_index_treatment_v2_delta:
+      arm === "mike_markdown_e2e_index_treatment_v2"
+        ? MARKDOWN_E2E_INDEX_TREATMENT_V2_DELTA
+        : null,
+    exposure_echo_delta:
+      arm === "mike_markdown_e2e_index_treatment_v2"
+        ? EXPOSURE_ECHO_DELTA
         : null,
     compact_author_delta:
       arm === "mike_compact_author_v1" ? COMPACT_AUTHOR_MIKE_DELTA : null,
@@ -3011,6 +3074,7 @@ async function main() {
     markdown_e2e_index_floor_delta: [
       "mike_markdown_e2e_index_floor_v1",
       "mike_markdown_e2e_index_treatment_v1",
+      "mike_markdown_e2e_index_treatment_v2",
     ].includes(arm)
       ? MARKDOWN_E2E_INDEX_FLOOR_DELTA
       : null,
@@ -3361,6 +3425,7 @@ async function main() {
           "mike_markdown_e2e_treatment_v1",
           "mike_markdown_e2e_treatment_v2",
           "mike_markdown_e2e_index_treatment_v1",
+          "mike_markdown_e2e_index_treatment_v2",
         ].includes(arm)
           ? REQUIREMENTS_ECHO_DELTA
           : null,
@@ -3371,13 +3436,16 @@ async function main() {
         citation_contract_v2_delta: [
           "mike_markdown_e2e_treatment_v2",
           "mike_markdown_e2e_index_treatment_v1",
+          "mike_markdown_e2e_index_treatment_v2",
         ].includes(arm)
           ? CITATION_CONTRACT_V2_DELTA
           : null,
-        no_deferral_delta:
-          arm === "mike_markdown_e2e_index_treatment_v1"
-            ? NO_DEFERRAL_DELTA
-            : null,
+        no_deferral_delta: [
+          "mike_markdown_e2e_index_treatment_v1",
+          "mike_markdown_e2e_index_treatment_v2",
+        ].includes(arm)
+          ? NO_DEFERRAL_DELTA
+          : null,
         markdown_e2e_treatment_delta:
           arm === "mike_markdown_e2e_treatment_v1"
             ? MARKDOWN_E2E_TREATMENT_DELTA
@@ -3386,9 +3454,19 @@ async function main() {
           arm === "mike_markdown_e2e_treatment_v2"
             ? MARKDOWN_E2E_TREATMENT_V2_DELTA
             : null,
-        markdown_e2e_index_treatment_delta:
-          arm === "mike_markdown_e2e_index_treatment_v1"
-            ? MARKDOWN_E2E_INDEX_TREATMENT_DELTA
+        markdown_e2e_index_treatment_delta: [
+          "mike_markdown_e2e_index_treatment_v1",
+          "mike_markdown_e2e_index_treatment_v2",
+        ].includes(arm)
+          ? MARKDOWN_E2E_INDEX_TREATMENT_DELTA
+          : null,
+        markdown_e2e_index_treatment_v2_delta:
+          arm === "mike_markdown_e2e_index_treatment_v2"
+            ? MARKDOWN_E2E_INDEX_TREATMENT_V2_DELTA
+            : null,
+        exposure_echo_delta:
+          arm === "mike_markdown_e2e_index_treatment_v2"
+            ? EXPOSURE_ECHO_DELTA
             : null,
         compact_author_delta:
           arm === "mike_compact_author_v1" ? COMPACT_AUTHOR_MIKE_DELTA : null,
@@ -3415,6 +3493,7 @@ async function main() {
         markdown_e2e_index_floor_delta: [
           "mike_markdown_e2e_index_floor_v1",
           "mike_markdown_e2e_index_treatment_v1",
+          "mike_markdown_e2e_index_treatment_v2",
         ].includes(arm)
           ? MARKDOWN_E2E_INDEX_FLOOR_DELTA
           : null,
@@ -3644,6 +3723,7 @@ async function main() {
           turnTerminations.at(-1)?.reason ?? null,
         echo_call_count: echoCallCount,
         documents_unread_at_echo: documentsUnreadAtEcho,
+        documents_oriented_only_at_echo: documentsOrientedOnlyAtEcho,
         hard_reference_hints_offered: hardReferenceHints.length,
         hard_reference_hints_followed: followedHardReferenceHints.length,
         hard_reference_hint_follow_rate:
@@ -3860,6 +3940,7 @@ async function main() {
           "mike_markdown_e2e_treatment_v1",
           "mike_markdown_e2e_treatment_v2",
           "mike_markdown_e2e_index_treatment_v1",
+          "mike_markdown_e2e_index_treatment_v2",
         ].includes(arm)
           ? REQUIREMENTS_ECHO_DELTA
           : null,
@@ -3870,13 +3951,16 @@ async function main() {
         citation_contract_v2_delta: [
           "mike_markdown_e2e_treatment_v2",
           "mike_markdown_e2e_index_treatment_v1",
+          "mike_markdown_e2e_index_treatment_v2",
         ].includes(arm)
           ? CITATION_CONTRACT_V2_DELTA
           : null,
-        no_deferral_delta:
-          arm === "mike_markdown_e2e_index_treatment_v1"
-            ? NO_DEFERRAL_DELTA
-            : null,
+        no_deferral_delta: [
+          "mike_markdown_e2e_index_treatment_v1",
+          "mike_markdown_e2e_index_treatment_v2",
+        ].includes(arm)
+          ? NO_DEFERRAL_DELTA
+          : null,
         markdown_e2e_treatment_delta:
           arm === "mike_markdown_e2e_treatment_v1"
             ? MARKDOWN_E2E_TREATMENT_DELTA
@@ -3885,9 +3969,19 @@ async function main() {
           arm === "mike_markdown_e2e_treatment_v2"
             ? MARKDOWN_E2E_TREATMENT_V2_DELTA
             : null,
-        markdown_e2e_index_treatment_delta:
-          arm === "mike_markdown_e2e_index_treatment_v1"
-            ? MARKDOWN_E2E_INDEX_TREATMENT_DELTA
+        markdown_e2e_index_treatment_delta: [
+          "mike_markdown_e2e_index_treatment_v1",
+          "mike_markdown_e2e_index_treatment_v2",
+        ].includes(arm)
+          ? MARKDOWN_E2E_INDEX_TREATMENT_DELTA
+          : null,
+        markdown_e2e_index_treatment_v2_delta:
+          arm === "mike_markdown_e2e_index_treatment_v2"
+            ? MARKDOWN_E2E_INDEX_TREATMENT_V2_DELTA
+            : null,
+        exposure_echo_delta:
+          arm === "mike_markdown_e2e_index_treatment_v2"
+            ? EXPOSURE_ECHO_DELTA
             : null,
         compact_author_delta:
           arm === "mike_compact_author_v1" ? COMPACT_AUTHOR_MIKE_DELTA : null,
@@ -3914,6 +4008,7 @@ async function main() {
         markdown_e2e_index_floor_delta: [
           "mike_markdown_e2e_index_floor_v1",
           "mike_markdown_e2e_index_treatment_v1",
+          "mike_markdown_e2e_index_treatment_v2",
         ].includes(arm)
           ? MARKDOWN_E2E_INDEX_FLOOR_DELTA
           : null,
