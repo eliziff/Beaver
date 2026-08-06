@@ -780,3 +780,64 @@ respect read ACLs (headings are content). Measurement: fused vs two-step ablatio
   completeness cliff (#56): at 31 sources the read-rationing failed silently. The echo
   organ's own accounting was the proximate cause; the salting design must measure
   coverage on the exposure plane, never the touch plane.
+
+### Sweep close-out: tax confirms the exposure cliff; indenture infra failure; the exposure-accounting fix lands (2026-08-06 late)
+
+**Tax judged 39/77 (51%)** — the second mass-failure row, same disease as
+acq and worse: touches 25/25, body exposure 11/25 (`unique_source_exposure_ratio`
+0.0824, the lowest measured), echo reported **0 unread**, 6 rounds used with
+budget headroom, one 40k-char memo. Failed criteria cluster by ISSUE
+(Netherlands substance, India markup, Mexico maquiladora, QCSA buy-in,
+Singapore treasury, Japan deadlines) exactly like acq's unexposed-doc→failed-
+cluster mapping. Quality now tracks exposure across all four judged Phase D
+rows: CoC 19/19 exposed → 50/57; antitrust 12/12 → 75/95; acq 19/31 → 30/64;
+tax 11/25 → 39/77. The completeness cliff is doc-count-driven and
+coverage-accounting-mediated, measured twice.
+
+**Indenture cell failed on infra, not the arm**: the model completed a valid
+126KB TOOL_CALLS envelope batching BOTH required indenture deliverables, then
+hallucinated the harness reply (`{"tool_results":...}` with a fabricated CDN
+URL + citations block) after its own calls; first-{..last-} spanned the
+concatenation and no repair path parses that. Fixed in claudeP.ts
+(2b8d4642): string-aware balanced-prefix scan recovers the first complete
+object, accepted only on strict parse + shape, so truncation and
+dominant-string classes keep their paths; probed against the real bad reply
+(both calls recovered) + regressions. Also runs before the truncation
+refusal on purpose: a cap hit inside the hallucinated continuation leaves a
+complete, usable envelope. Indenture re-running on frozen v1 (cell stays
+comparable with its sweep siblings).
+
+**Judge-lane incident**: claude.exe auto-updated mid-judging (npm shim
+replaced the 280MB binary at 14:42); spawns hit a half-written PE and died
+as WinError 216 / silent exit-1. Settled on its own; 6/6 spawn probe passed;
+tax judged on the third attempt at --parallel 2. Also noted: judge.py:303
+surfaces only stderr while `--output-format json` errors land on stdout —
+fold into any future judge-harness pass.
+
+**Exposure-accounting fix (task #49) implemented and committed (388a2d82)**,
+flag `MIKE_EXPOSURE_ECHO`, new arm `mike_markdown_e2e_index_treatment_v2` =
+frozen v1 env + the flag, same prompt + tool list (payload-only mechanism):
+
+- `splitReadExposure()` classifies allowed docs read / oriented_only /
+  unread on the delivered-intervals plane (`bodyExposedChars` > 0 past
+  `bodyStart`); find_in_document hits deliberately do NOT count as exposure
+  (candidates, not coverage).
+- fetch_requirements payload: `documents_read` = body-exposed only, new
+  `documents_oriented_only` bucket + one explanatory note sentence;
+  `documents_unread` stays "never touched" in both modes so the receipt
+  field keeps one meaning. First-echo receipt gains
+  `documents_oriented_only_at_echo`.
+- Authoring boundary: FIRST generate_docx refuses once (`coverage_check:`)
+  naming unexposed docs; second call always proceeds — one-shot,
+  loop-proof, relevance authority stays with the model.
+- Conformance asserts `exposure_echo` per arm (v2 true, frozen family
+  false-asserted); fingerprint gains `exposure-echo-v1` +
+  `markdown-e2e-index-treatment-v2` deltas in all three clusters.
+- Proof: 15/15 behavior checks in both flag states (frozen payload
+  byte-identical, oriented bucket + gate correct); served-sha probe passes
+  in v1 AND v2 modes incl. frozen-floor historical-receipt equality.
+
+**In flight**: indenture re-run (v1, parser fixed) + acq-diligence re-pilot
+on v2 — the direct test of whether honest coverage accounting flips the
+15–18 unexposed-cluster criteria from the 30/64 row. Serving-boundary batch
+(#54) queued next as its own commit series.
