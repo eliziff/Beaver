@@ -664,3 +664,77 @@ mechanism behavior is):
 - Total tool payload 354,871 chars (~88.7k tok) and drafting completed
   (62,048-char markdown at iter6 structural salvage) — the scoped economy
   holds with the full mechanism stack on.
+
+---
+
+## ADVERSARIAL GENERALIZATION AUDIT + ANCHOR ORACLE + PHASE D GATE (2026-08-06)
+
+### Phase D gate cleared
+Fixed-wiring re-pilot `2026-08-06T18-06-18` (all 11 receipt flags incl. `scoped_reread`,
+served sha `62b9ec24…`): judged once (sonnet) **50/57** vs hybrid 51/57 and deepseek
+whole-read reference 51/57 — at **324.6k input** (hybrid: 662.3k), 5 rounds (hybrid: 9),
+19/19 docs, deliverable 75,684 chars. All 7 misses synthesis-tier (severity-rating calls,
+aggregate-exposure rollup), zero read-gaps. Threshold ≥49 → row-3 sweep launched
+(4 no-fit tasks, MAXJOBS=2, served-sha preflight passed).
+
+### Adversarial audit (opus subagent) — digest + dispositions
+15 findings. Corrections from artifacts outside its visibility: treatment arm HAS judged
+quality rows (hybrid 51/57, re-pilot 50/57 — its "only judged index run = 47/57" was the
+pre-treatment arm); treatment reads 19/19 docs (10/19 was index_v1); ask_inputs drop is
+deliberate LAB-surface design. Accepted code defects → task #54 (post-sweep, frozen arms
+never hot-edited): (1) `servedDraftingText` drops computed `warnings[]` (tracked-changes
+accepted view, text-box exclusion); (2) 300k `MAX_DRAFTING_MD_CHARS` throw is swallowed by
+`catch(()=>null)` → silent plaintext whole-read on the largest instruments; (3) missing
+pandoc misreported as "malformed XML"; (4) latent whole-read-budget bug: scoped
+fetch_documents charges FULL doc length if `MIKE_WHOLE_READ_MAX_CHARS` ever enabled;
+(5) find_in_document `index` (ordinal) vs read_document `index` (mode) naming collision.
+Couldn't break: body-plane coordinate discipline, conservative anchoring (absence over
+guess), attach-gate direction/granularity, interval-union already_read, prompt-sha gate,
+typed refusals.
+
+### Anchor oracle — targeted pass, five Phase D corpora (n=91 docs)
+Probe: `.tmp-anchor-oracle-corpus.ts` (deterministic; full-corpus pass running separately).
+- **Extraction**: 1 over_300k_cap = the antitrust market-data report — the known
+  "~84k-token fallback whole-read" caveat's mechanism is the cap throw. 1 no_structure
+  (offering-memorandum-excerpts). 88/91 docs carry dropped-warnings (benign classes:
+  headers/footers/page-breaks/merged-tables) + exactly ONE tracked-changes doc:
+  `precedent-indenture-markup.docx`, served accepted-view with no marker, LIVE in the
+  running indenture cell.
+- **Addressability**: 71/89 pass the real gate. 10 zero-anchor docs are ALL non-contract
+  genres (memos, summaries, term sheets, UCC search results, financial statements) —
+  attach gate behaving as designed, NOT auto-numbering. **VERDICT: bare auto-numbering
+  does not trigger on the benchmark surface → `resolveDocxNumbering` wiring deferred to
+  the production layer (Eli 2026-08-06).** Fraction-floor veto set = 4 docs (13–19
+  anchors, 96–117 entries, 14–20%) — the gate-shape critique is real but small here;
+  corpus-wide count pending.
+- **Anchor correctness** (n=5,484 anchors): outOfBounds 0. notLineStart 1,768 is an
+  ORACLE ARTIFACT (anchors point at the first real token after `**`/`<u>` formatting —
+  refine the check, not the anchors). Real defect classes: nonMonotone 59 + dup 12
+  (~1.3%) and a genuine wrong-(a)/(b) subsection mis-anchor class inside contentMismatch
+  156 — e.g. apex-msa `4.4(a)` → a termination `(a)`; great-lakes `1.1(a)` → revolving
+  credit `(a)`; pinnacle-credit `1.01(b)` → mandatory-prepayment `(b)`. Wrong window
+  under right label at ~1–3% of anchors, concentrated in deep credit-agreement shapes.
+  Hardening candidate (#50/#51 family): accept a subsection anchor only when the heading
+  fragment confirms within ~200 chars of the token; else emit the line unanchored
+  (honesty doctrine). Deterministic-grammar change → the oracle is the corpus instrument.
+- **Orientation cost**: mean 4,143 chars/doc compact (in-vivo CoC: 4,085), compact
+  saving 28.6% corpus-wide. Extrapolation: 50 docs ≈ 52k tok, 100 docs ≈ 104k tok →
+  index-everything orientation dies ~50–100 docs; triage cascade required beyond that.
+  Indenture task = 81k index chars over 10 docs (markup precedent alone 37k, 571 entries).
+
+### Eli directives (2026-08-06)
+- Coverage-disclosure prompt mechanisms: REJECTED — model honest enough as-is.
+- #54 serving-boundary batch: approved, post-sweep.
+- **Flagship generalization workstream = needle-in-haystack completeness**: the benchmark
+  makes read-most/all correct by construction; the real-world question is completeness of
+  findings when most available docs are irrelevant. Design (task #56): distractor-salted
+  matters — salt existing tasks with M docs from other tasks' matters (provenance =
+  near-free relevance labels); measure quality invariance at M∈{0,10,50,150}, reading
+  precision/recall via existing exposure machinery, cost curve f(M), 200K overflow point.
+  Salt tiers: cross-practice (easy) / same-practice (hard) / near-duplicate-wrong-version
+  (adversarial, interacts with native dup-suppression). Salt manifests seeded + pinned;
+  prompts stay mechanism-only (no "beware distractors" hint).
+- Requirements-echo must be re-scoped for real multi-turn conversations (what does
+  fetch_requirements serve when "the task" is a conversation, not a one-shot?) — task #57.
+- Upstream's 10-round cap is NOT sacred — ablation candidate (task #57). The scoped arm's
+  batching economy is shaped by the cap; more/smaller rounds may suit it better.
