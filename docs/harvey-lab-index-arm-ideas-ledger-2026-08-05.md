@@ -1006,3 +1006,42 @@ Dispositions:
   working-set Grep) — compose a treatment-chassis + corpus-grep arm and
   A/B it (native-tool-shapes hypothesis; also the only plausible shape at
   diligence scale, where per-doc find across 2,300 docs is hopeless).
+
+### Tax v2 replication + the coding_markdown_v1 build (2026-08-06 evening)
+
+**Tax v2 judged 42/77** (v1 39/77): +10/−7 paired. The gains ARE the
+previously-skipped agreements paying off on identification criteria (India
+markup + amend-recommendation, conduit concern, QCSA participants ×2,
+tangible goods, Form 3CEB deadline); the losses are again depth/synthesis
+(UK dual character ×2, prioritization ×2, guarantee-fee assessment,
+Netherlands quantification). **Pooled v2 vs v1 across both cliff tasks: 68
+vs 69 of 141 — exposure forcing is quality-NEUTRAL at +30–50% input, with
+heavy churn.** Identification-on-skipped-sources gains are real but paid
+for by depth losses under a fixed synthesis budget. Verdict stands:
+selection, not coverage pressure, is the live lever.
+
+**coding_markdown_v1 built and verified (cdb8063f)** — Eli's pure-coding
+directive: name and shape the tools exactly like the coding toolset the
+models were RL'd on; don't reinvent. Composition: the frozen lean-batch
+chassis verbatim (executors, tool list, p0-pure-coding descriptions) with
+two attributable deltas — (1) the coding executors honor
+MIKE_READ_DOCX_MARKDOWN and serve the pandoc-markdown plane through the
+shared per-turn drafting cache (grep hit at file:line → Read offset=line
+returns the same line, proven on the real Zenith agreement; Glob reports
+markdown chars; frozen lean-batch stays byte-on-plaintext), and (2) a
+navigation-neutral prompt (MIKE_CODING_NEUTRAL_PROMPT) that REMOVES the
+SOURCE WORK prescriptions per Eli — run 1 observes native pathway
+selection; only write-side discipline remains (grounding/clean reads, one
+completeness check, terminal authoring, filename-in-prose). Read contract
+inherited from lean-batch: paths[] = batch whole-read; offset/limit with
+one path = bounded line window. Conformance asserts both flags per arm
+across the lean family; deltas coding-markdown-v1 + coding-neutral-
+prompt-v1 in all three fingerprint clusters; served-surface probe (sha +
+flags + no-prescription assert) green in coding mode with treatment-mode
+regression intact.
+
+Pilot design (pending go): one observational run on acq-diligence (the
+30/64 baseline; also where selection bias was measured) on claude-p
+sonnet-4-6 effort high; judge once; mine the trajectory for pathway
+choices (grep-first? batch-read? bounded windows?) BEFORE any guidance is
+added.
