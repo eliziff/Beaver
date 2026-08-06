@@ -118,3 +118,40 @@ ablation suspect.
 - The DPA hallucination (C-002) and the contradicts/denies in-quote
   alteration show grounding reduces but does not eliminate fabrication; v2's
   integrity clause is a mitigation, not a guarantee.
+
+## CONFIRM RUN RESULT (2026-08-06 00:28 queue, judged 00:50-01:02)
+
+All four cells completed and all four targets hit. Transport fixes
+(d3b1076c) live; effort high both arms — the showdown's effort-asymmetry
+caveat is gone.
+
+| task | v2 | control | v1 | target | outcome |
+|---|---|---|---|---|---|
+| banking | **60/65** | 59 | 56 | ≥58 | beats control; floor+contract-v2 recovered the reported-vs-recomputed losses |
+| employment | **53/59** | 55 | 51 | ≥51 | half-recovered; residual −2 (control-only C-004/C-035/C-040) |
+| DPA | **45/58** | 35 | 47 | ≥ mid-40s | win preserved, +10 over control (p=0.0063); −2 vs v1 |
+| HSR | **48/50** | 48 | DNF ×2 | completes | ties control; 16.6 min where v1 burned 94+80 min DNF |
+
+- Paired control-vs-v2 (4 tasks): pooled b=6 c=15, exact p=0.078 — v2
+  ahead, not significant. Only decisive cell: DPA. v1-vs-v2 (3 tasks):
+  b=8 c=12, p=0.50.
+- Wall times 10.7–18.4 min per cell (v1 band was 30–90): the long tail
+  was transport tax (32k truncate-rewrite cycles, max-effort pauses,
+  watchdog kill-restarts), not task time.
+- Cost at C@2: banking 0.68x control, employment 0.84x, HSR 1.12x, DPA
+  1.90x — pooled 1.05x. DPA's overrun is the parse-failure retry (its
+  cache_write is 2.1x its siblings): the drafting round's completed 60KB
+  generation was discarded over ONE raw interior double quote
+  (`Accepted "material" qualifier`), and the corrective retry both
+  re-billed the context and drafted ~30% shorter (39,286 vs ~59,155
+  chars) — the plausible cause of the −2 vs v1. The structural-salvage
+  transport fix (parseReply dominant-string recovery, replay-proven on
+  the preserved artifact) removes this entire failure class; note that
+  contract v2's verbatim-quote demand RAISES quote density in drafts,
+  which is exactly the character class that breaks in-band JSON — the
+  two interact, which is why the salvage landed with the confirm.
+- Verbosity confound note: deliverable_chars vs pass-rate r=0.726 over
+  these 8 runs (descriptive; control's larger employment/HSR drafts).
+
+Verdict: v2 is the Phase D treatment arm. Banking/employment floor
+targets met, DPA win held, HSR validates the transport package live.
