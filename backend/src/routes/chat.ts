@@ -66,6 +66,7 @@ import {
   INDEX_ATTACH_GATED,
   INDEX_COMPACT_HEADINGS,
   NO_DEFERRAL_ENABLED,
+  SCOPED_REREAD_ENABLED,
   TYPED_RANGE_ENABLED,
   REQUIREMENTS_ECHO_ENABLED,
   createLocalAssistantRequirementsState,
@@ -1165,6 +1166,7 @@ export async function streamAnonymousChat(params: {
     citationContract: CITATION_CONTRACT_ENABLED,
     citationContractV2: CITATION_CONTRACT_V2_ENABLED,
     noDeferral: NO_DEFERRAL_ENABLED,
+    scopedReread: SCOPED_REREAD_ENABLED,
   });
   if (ORIGIN_MIKE_TOOL_SHAPE) {
     const expectedBase = UPSTREAM_NATIVE_MIKE_SHAPE
@@ -2591,6 +2593,7 @@ export async function streamAnonymousChat(params: {
           citation_contract: CITATION_CONTRACT_ENABLED,
           citation_contract_v2: CITATION_CONTRACT_V2_ENABLED,
           no_deferral: NO_DEFERRAL_ENABLED,
+          scoped_reread: SCOPED_REREAD_ENABLED,
           adaptive_mike_shape: ADAPTIVE_MIKE_TOOL_SHAPE,
           compact_author_mike_shape: COMPACT_AUTHOR_MIKE_TOOL_SHAPE,
           markdown_swap_shape: MARKDOWN_SWAP_MIKE_TOOL_SHAPE,

@@ -1223,13 +1223,18 @@ export const CITATION_CONTRACT_PROMPT_BLOCK = `GROUNDING:
 - Never invent a quote. If you cannot locate exact language for an assertion, make the assertion without a quote.`;
 
 /**
- * THE single definition of how the two mechanisms compose onto a base prompt.
+ * THE single definition of how the treatment mechanisms compose onto a base
+ * prompt.
  *
  * Both the serving route (chat.ts) and the preflight/conformance reproducer
  * (lab-beaver-arm.ts) call this, so the arm's expected system_prompt_sha256 and
  * the served prompt cannot drift apart by construction — the order is fixed
- * here once: requirements echo, then citation contract, each separated from the
- * base and from each other by a blank line.
+ * here once: scoped-reread clause swap on the base first, then requirements
+ * echo, citation contract, and no-deferral appended, each separated from the
+ * base and from each other by a blank line. Every mechanism that edits the
+ * prompt MUST be an option here rather than a wrapper applied on one side only
+ * — the 2026-08-06 CoC re-pilot burned a full run when the clause swap lived
+ * outside this helper and only the expectation carried it.
  */
 export function withLabTreatmentPromptAdditions(
   base: string,
@@ -1238,13 +1243,14 @@ export function withLabTreatmentPromptAdditions(
     citationContract: boolean;
     citationContractV2?: boolean;
     noDeferral?: boolean;
+    scopedReread?: boolean;
   },
 ): string {
   if (options.citationContract && options.citationContractV2)
     throw new Error(
       "citation contract v1 and v2 are mutually exclusive prompt additions",
     );
-  let out = base;
+  let out = options.scopedReread ? withScopedRereadClause(base) : base;
   if (options.requirementsEcho) out += `\n\n${REQUIREMENTS_ECHO_PROMPT_LINE}`;
   if (options.citationContract) out += `\n\n${CITATION_CONTRACT_PROMPT_BLOCK}`;
   if (options.citationContractV2)
@@ -1389,12 +1395,10 @@ export const MARKDOWN_INDEX_TREATMENT_LAB_TOOLS: OpenAIToolSchema[] = [
  * serves through — the sha gate holds by construction.
  */
 export const MARKDOWN_E2E_INDEX_TREATMENT_V1_LAB_SYSTEM_PROMPT =
-  withLabTreatmentPromptAdditions(
-    withScopedRereadClause(MARKDOWN_E2E_INDEX_FLOOR_LAB_SYSTEM_PROMPT),
-    {
-      requirementsEcho: true,
-      citationContract: false,
-      citationContractV2: true,
-      noDeferral: true,
-    },
-  );
+  withLabTreatmentPromptAdditions(MARKDOWN_E2E_INDEX_FLOOR_LAB_SYSTEM_PROMPT, {
+    requirementsEcho: true,
+    citationContract: false,
+    citationContractV2: true,
+    noDeferral: true,
+    scopedReread: true,
+  });
