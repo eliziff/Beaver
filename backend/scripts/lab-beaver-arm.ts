@@ -47,7 +47,10 @@ import {
   ADAPTIVE_MIKE_DELTA,
   CODING_MARKDOWN_DELTA,
   CODING_MARKDOWN_LAB_SYSTEM_PROMPT,
+  CODING_MARKDOWN_V2_DELTA,
+  CODING_MARKDOWN_V2_LAB_TOOLS,
   CODING_NEUTRAL_PROMPT_DELTA,
+  CODING_PARITY_DELTA,
   COMPACT_AUTHOR_MIKE_DELTA,
   COMPACT_AUTHOR_MIKE_LAB_SYSTEM_PROMPT,
   COMPACT_AUTHOR_MIKE_LAB_TOOLS,
@@ -202,6 +205,13 @@ function armExpectedSurface(
             ? {
                 systemPrompt: CODING_MARKDOWN_LAB_SYSTEM_PROMPT,
                 tools: LEAN_BATCH_LAB_TOOLS,
+              }
+          : // CODING-MARKDOWN v2 (parity pack): same neutral prompt over the
+            // Claude-Code-shaped tool surface.
+          arm === "coding_markdown_v2"
+            ? {
+                systemPrompt: CODING_MARKDOWN_LAB_SYSTEM_PROMPT,
+                tools: CODING_MARKDOWN_V2_LAB_TOOLS,
               }
             : arm === "mike_grep_v1"
               ? {
@@ -461,8 +471,10 @@ function exposureMetrics(
   const byDocument = new Map<string, Array<[number, number]>>();
   const sourceIds = new Set(sourceAliases.values());
   const exposedDocumentIds = new Set<string>();
+  const candidateDocumentIds = new Set<string>();
   const uniqueRefs = new Map<string, number>();
   let gross = 0;
+  let candidateChars = 0;
   let grossRefChars = 0;
   for (const result of results) {
     const call = byCall.get(result.id);
@@ -484,6 +496,16 @@ function exposureMetrics(
       // Zero-length segments deliver no source text and must not mark the
       // document exposed (a (0,0) segment once counted a doc as "read").
       if (end === start) continue;
+      // Candidates (grep/find hits, inventory opening lines) are pointers,
+      // not delivered coverage: counting them as exposure saturated
+      // documents_read the moment list_documents ran and let a single grep
+      // line mark a document "read" (2026-08-06 coding-arm audit F1/F10).
+      // They are tracked separately so selection behavior stays measurable.
+      if (segment.kind === "candidate") {
+        candidateDocumentIds.add(segment.documentId);
+        candidateChars += end - start;
+        continue;
+      }
       exposedDocumentIds.add(segment.documentId);
       gross += end - start;
       const key = `${segment.documentId}:${segment.versionId}`;
@@ -523,6 +545,12 @@ function exposureMetrics(
     unique_source_span_chars: unique,
     documents_exposed: exposedDocumentIds.size,
     exposed_document_ids: [...exposedDocumentIds],
+    // Docs the model only POINTED at (grep/find hits, inventory lines)
+    // without any delivered body coverage — the selection-behavior signal.
+    documents_candidate_only: [...candidateDocumentIds].filter(
+      (id) => !exposedDocumentIds.has(id),
+    ).length,
+    candidate_span_chars: candidateChars,
     gross_replay_ratio: unique ? Math.round((gross / unique) * 10_000) / 10_000 : null,
     gross_evidence_ref_chars: grossRefChars,
     unique_evidence_ref_chars: [...uniqueRefs.values()].reduce(
@@ -994,6 +1022,31 @@ async function main() {
       MIKE_READ_DOCX_MARKDOWN: "1",
       MIKE_CODING_NEUTRAL_PROMPT: "1",
     },
+    // CODING-MARKDOWN v2 (parity pack; adversarial audit 2026-08-06): v1 +
+    // MIKE_CODING_PARITY. Serves the CC-shaped surface (Glob, single
+    // file_path Read always cat -n, Grep with -A/-B and files_with_matches
+    // default, CC efficiency cues in the descriptions) and the executor
+    // parity behaviors (regex fallback, minima guard). Same neutral prompt.
+    coding_markdown_v2: {
+      MIKE_NAV_SHAPE: "legacy",
+      MIKE_TOOL_SHAPE: "lean-batch-v1",
+      MIKE_RETRIEVAL_EXPERIMENT: "p0-pure-coding",
+      MIKE_PROGRESSIVE_DISCLOSURE: "0",
+      MIKE_MODEL_COVERAGE_ROUTING: "0",
+      MIKE_WHOLE_READ_MAX_CHARS: "",
+      MIKE_TOOL_RESULT_CAP: "64000",
+      MIKE_SUPPRESS_DUPLICATE_WHOLE_READS: "0",
+      MIKE_TERMINAL_AUTHORING: "1",
+      MIKE_CONTEXT_HANDOFF: "0",
+      MIKE_RESEARCH_CONTEXT_REFRESH: "0",
+      MIKE_CONTINUOUS_EVIDENCE: "0",
+      MIKE_OPENAI_COMPACT_THRESHOLD: "244800",
+      MIKE_SLA_WORKFLOW: "0",
+      MIKE_GREENFIELD_REVIEW: "0",
+      MIKE_READ_DOCX_MARKDOWN: "1",
+      MIKE_CODING_NEUTRAL_PROMPT: "1",
+      MIKE_CODING_PARITY: "1",
+    },
     lean_batch_hardrefs_v1: {
       MIKE_NAV_SHAPE: "legacy",
       MIKE_TOOL_SHAPE: "lean-batch-hardrefs-v1",
@@ -1147,7 +1200,7 @@ async function main() {
   };
   if (!armEnvironment[arm])
     throw new Error(
-      `unknown --arm ${arm}; expected a registered LAB arm, including upstream_terminal_v1, mike_upstream_native_v1, mike_markdown_e2e_treatment_v1, mike_markdown_e2e_treatment_v2, mike_markdown_swap_v1, mike_markdown_e2e_v1, mike_markdown_e2e_index_v1, mike_markdown_e2e_floor_v1, mike_markdown_e2e_index_floor_v1, mike_markdown_e2e_index_treatment_v1, mike_markdown_e2e_index_treatment_v2, mike_markdown_read_upstream_draft_v1, mike_compact_author_v1, lean_batch_v1, lean_batch_hardrefs_v1, coding_markdown_v1, or grounded_structure_outline_v1`,
+      `unknown --arm ${arm}; expected a registered LAB arm, including upstream_terminal_v1, mike_upstream_native_v1, mike_markdown_e2e_treatment_v1, mike_markdown_e2e_treatment_v2, mike_markdown_swap_v1, mike_markdown_e2e_v1, mike_markdown_e2e_index_v1, mike_markdown_e2e_floor_v1, mike_markdown_e2e_index_floor_v1, mike_markdown_e2e_index_treatment_v1, mike_markdown_e2e_index_treatment_v2, mike_markdown_read_upstream_draft_v1, mike_compact_author_v1, lean_batch_v1, lean_batch_hardrefs_v1, coding_markdown_v1, coding_markdown_v2, or grounded_structure_outline_v1`,
     );
 
   // Re-spawn into the isolated anonymous-mode environment (same recipe as
@@ -2217,9 +2270,12 @@ async function main() {
     }
   }
   if (
-    ["lean_batch_v1", "lean_batch_hardrefs_v1", "coding_markdown_v1"].includes(
-      arm,
-    )
+    [
+      "lean_batch_v1",
+      "lean_batch_hardrefs_v1",
+      "coding_markdown_v1",
+      "coding_markdown_v2",
+    ].includes(arm)
   ) {
     const residentTools = Array.isArray(surface?.resident_tools)
       ? surface.resident_tools
@@ -2227,12 +2283,17 @@ async function main() {
     const deferredTools = Array.isArray(surface?.deferred_tools)
       ? surface.deferred_tools
       : [];
-    const expectedTools = ["list_documents", "Grep", "Read", "generate_docx"];
     const hardrefs = arm === "lean_batch_hardrefs_v1";
     // coding_markdown_v1 = the lean-batch chassis + markdown plane +
-    // navigation-neutral prompt; both flags are asserted PER ARM so a leak
+    // navigation-neutral prompt; v2 adds CC parity (Glob + file_path Read
+    // surface, executor parity). Every flag is asserted PER ARM so a leak
     // can never silently change a frozen lean-batch cell (and vice versa).
-    const codingMarkdown = arm === "coding_markdown_v1";
+    const codingParity = arm === "coding_markdown_v2";
+    const codingMarkdown =
+      arm === "coding_markdown_v1" || codingParity;
+    const expectedTools = codingParity
+      ? ["Glob", "Grep", "Read", "generate_docx"]
+      : ["list_documents", "Grep", "Read", "generate_docx"];
     // Prompt-sha gate (audit F8): the prompt-only treatment additions leave
     // no tool-list trace, so without this a leaked citation-contract or
     // no-deferral block would pass isolation silently.
@@ -2269,6 +2330,7 @@ async function main() {
       surface?.hard_reference_hints !== hardrefs ||
       surface?.markdown_read_docx !== codingMarkdown ||
       surface?.coding_neutral_prompt !== codingMarkdown ||
+      surface?.coding_parity !== codingParity ||
       surface?.exposure_echo !== false ||
       surface?.compact_author_mike_shape !== false ||
       surface?.upstream_mike_shape !== false ||
@@ -2576,6 +2638,7 @@ async function main() {
       "lean_batch_v1",
       "lean_batch_hardrefs_v1",
       "coding_markdown_v1",
+      "coding_markdown_v2",
       "mike_grep_v1",
       "mike_structure_paths_v1",
       "grounded_structure_v1",
@@ -2954,6 +3017,7 @@ async function main() {
     "lean_batch_v1",
     "lean_batch_hardrefs_v1",
     "coding_markdown_v1",
+    "coding_markdown_v2",
     ...mikeGrepArms,
   ];
   const defaultTierArms = [
@@ -3181,15 +3245,26 @@ async function main() {
       ? MARKDOWN_E2E_INDEX_FLOOR_DELTA
       : null,
     lean_batch_delta:
-      ["lean_batch_v1", "lean_batch_hardrefs_v1", "coding_markdown_v1"].includes(
-        arm,
-      )
+      [
+        "lean_batch_v1",
+        "lean_batch_hardrefs_v1",
+        "coding_markdown_v1",
+        "coding_markdown_v2",
+      ].includes(arm)
         ? LEAN_BATCH_DELTA
         : null,
     coding_markdown_delta:
-      arm === "coding_markdown_v1" ? CODING_MARKDOWN_DELTA : null,
+      ["coding_markdown_v1", "coding_markdown_v2"].includes(arm)
+        ? CODING_MARKDOWN_DELTA
+        : null,
     coding_neutral_prompt_delta:
-      arm === "coding_markdown_v1" ? CODING_NEUTRAL_PROMPT_DELTA : null,
+      ["coding_markdown_v1", "coding_markdown_v2"].includes(arm)
+        ? CODING_NEUTRAL_PROMPT_DELTA
+        : null,
+    coding_markdown_v2_delta:
+      arm === "coding_markdown_v2" ? CODING_MARKDOWN_V2_DELTA : null,
+    coding_parity_delta:
+      arm === "coding_markdown_v2" ? CODING_PARITY_DELTA : null,
     lean_batch_hardrefs_delta:
       arm === "lean_batch_hardrefs_v1" ? LEAN_BATCH_HARDREFS_DELTA : null,
     mike_grep_delta: mikeGrepDelta,
@@ -3610,13 +3685,22 @@ async function main() {
             "lean_batch_v1",
             "lean_batch_hardrefs_v1",
             "coding_markdown_v1",
+            "coding_markdown_v2",
           ].includes(arm)
             ? LEAN_BATCH_DELTA
             : null,
         coding_markdown_delta:
-          arm === "coding_markdown_v1" ? CODING_MARKDOWN_DELTA : null,
+          ["coding_markdown_v1", "coding_markdown_v2"].includes(arm)
+            ? CODING_MARKDOWN_DELTA
+            : null,
         coding_neutral_prompt_delta:
-          arm === "coding_markdown_v1" ? CODING_NEUTRAL_PROMPT_DELTA : null,
+          ["coding_markdown_v1", "coding_markdown_v2"].includes(arm)
+            ? CODING_NEUTRAL_PROMPT_DELTA
+            : null,
+        coding_markdown_v2_delta:
+          arm === "coding_markdown_v2" ? CODING_MARKDOWN_V2_DELTA : null,
+        coding_parity_delta:
+          arm === "coding_markdown_v2" ? CODING_PARITY_DELTA : null,
         lean_batch_hardrefs_delta:
           arm === "lean_batch_hardrefs_v1"
             ? LEAN_BATCH_HARDREFS_DELTA
@@ -3824,6 +3908,8 @@ async function main() {
           )
           .map((document) => document.source),
         documents_exposed: exposure.documents_exposed,
+        documents_candidate_only: exposure.documents_candidate_only,
+        candidate_span_chars: exposure.candidate_span_chars,
         total_documents: documents.length,
         source_text_chars: sourceTextChars,
         failed_tool_calls: results.filter(
@@ -4133,13 +4219,22 @@ async function main() {
             "lean_batch_v1",
             "lean_batch_hardrefs_v1",
             "coding_markdown_v1",
+            "coding_markdown_v2",
           ].includes(arm)
             ? LEAN_BATCH_DELTA
             : null,
         coding_markdown_delta:
-          arm === "coding_markdown_v1" ? CODING_MARKDOWN_DELTA : null,
+          ["coding_markdown_v1", "coding_markdown_v2"].includes(arm)
+            ? CODING_MARKDOWN_DELTA
+            : null,
         coding_neutral_prompt_delta:
-          arm === "coding_markdown_v1" ? CODING_NEUTRAL_PROMPT_DELTA : null,
+          ["coding_markdown_v1", "coding_markdown_v2"].includes(arm)
+            ? CODING_NEUTRAL_PROMPT_DELTA
+            : null,
+        coding_markdown_v2_delta:
+          arm === "coding_markdown_v2" ? CODING_MARKDOWN_V2_DELTA : null,
+        coding_parity_delta:
+          arm === "coding_markdown_v2" ? CODING_PARITY_DELTA : null,
         lean_batch_hardrefs_delta:
           arm === "lean_batch_hardrefs_v1"
             ? LEAN_BATCH_HARDREFS_DELTA

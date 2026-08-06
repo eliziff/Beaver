@@ -68,6 +68,7 @@ import {
   NO_DEFERRAL_ENABLED,
   EXPOSURE_ECHO_ENABLED,
   CODING_NEUTRAL_PROMPT_ENABLED,
+  CODING_PARITY_ENABLED,
   SCOPED_REREAD_ENABLED,
   TYPED_RANGE_ENABLED,
   REQUIREMENTS_ECHO_ENABLED,
@@ -1177,7 +1178,11 @@ export async function streamAnonymousChat(params: {
     const expectedBase = UPSTREAM_NATIVE_MIKE_SHAPE
       ? UPSTREAM_NATIVE_MIKE_LAB_TOOL_NAMES
       : LEAN_BATCH_FAMILY_TOOL_SHAPE
-      ? ["list_documents", "Grep", "Read", "generate_docx"]
+      ? // CC parity (coding_markdown_v2) swaps the lean list for the
+        // Claude-Code-shaped surface; the guard expects exactly that swap.
+        CODING_PARITY_ENABLED
+        ? ["Glob", "Grep", "Read", "generate_docx"]
+        : ["list_documents", "Grep", "Read", "generate_docx"]
       : MIKE_GREP_FAMILY_TOOL_SHAPE
       ? [
           "read_document",
@@ -2600,6 +2605,7 @@ export async function streamAnonymousChat(params: {
           no_deferral: NO_DEFERRAL_ENABLED,
           exposure_echo: EXPOSURE_ECHO_ENABLED,
           coding_neutral_prompt: CODING_NEUTRAL_PROMPT_ENABLED,
+          coding_parity: CODING_PARITY_ENABLED,
           scoped_reread: SCOPED_REREAD_ENABLED,
           adaptive_mike_shape: ADAPTIVE_MIKE_TOOL_SHAPE,
           compact_author_mike_shape: COMPACT_AUTHOR_MIKE_TOOL_SHAPE,
