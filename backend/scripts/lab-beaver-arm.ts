@@ -45,6 +45,9 @@ import path from "node:path";
 import { ALLOWED_DOCUMENT_TYPES } from "../src/lib/documentTypes";
 import {
   ADAPTIVE_MIKE_DELTA,
+  CODING_MARKDOWN_DELTA,
+  CODING_MARKDOWN_LAB_SYSTEM_PROMPT,
+  CODING_NEUTRAL_PROMPT_DELTA,
   COMPACT_AUTHOR_MIKE_DELTA,
   COMPACT_AUTHOR_MIKE_LAB_SYSTEM_PROMPT,
   COMPACT_AUTHOR_MIKE_LAB_TOOLS,
@@ -190,6 +193,14 @@ function armExpectedSurface(
           : ["lean_batch_v1", "lean_batch_hardrefs_v1"].includes(arm)
             ? {
                 systemPrompt: LEAN_BATCH_LAB_SYSTEM_PROMPT,
+                tools: LEAN_BATCH_LAB_TOOLS,
+              }
+          : // CODING-MARKDOWN: the lean-batch tool surface verbatim, with the
+            // navigation-neutral prompt (prompt is the only tool-facing
+            // difference; the markdown plane changes served text, not schema).
+          arm === "coding_markdown_v1"
+            ? {
+                systemPrompt: CODING_MARKDOWN_LAB_SYSTEM_PROMPT,
                 tools: LEAN_BATCH_LAB_TOOLS,
               }
             : arm === "mike_grep_v1"
@@ -956,6 +967,33 @@ async function main() {
       MIKE_SLA_WORKFLOW: "0",
       MIKE_GREENFIELD_REVIEW: "0",
     },
+    // CODING-MARKDOWN (pure-coding hypothesis, Eli 2026-08-06): the frozen
+    // lean-batch chassis — the coding-native tool surface the models were
+    // RL'd on — over the pandoc-markdown drafting plane, with the SOURCE
+    // WORK navigation prescriptions removed from the prompt. Motivated by
+    // the v2 exposure-forcing null (acq 26/64, tax 42/77; pooled ~0 vs v1
+    // at +30-50% input): breadth forcing reshuffles criteria under a fixed
+    // synthesis budget, so the live lever is evidence-driven SELECTION.
+    // Run 1 is observational — no navigation guidance, watch the pathways.
+    coding_markdown_v1: {
+      MIKE_NAV_SHAPE: "legacy",
+      MIKE_TOOL_SHAPE: "lean-batch-v1",
+      MIKE_RETRIEVAL_EXPERIMENT: "p0-pure-coding",
+      MIKE_PROGRESSIVE_DISCLOSURE: "0",
+      MIKE_MODEL_COVERAGE_ROUTING: "0",
+      MIKE_WHOLE_READ_MAX_CHARS: "",
+      MIKE_TOOL_RESULT_CAP: "64000",
+      MIKE_SUPPRESS_DUPLICATE_WHOLE_READS: "0",
+      MIKE_TERMINAL_AUTHORING: "1",
+      MIKE_CONTEXT_HANDOFF: "0",
+      MIKE_RESEARCH_CONTEXT_REFRESH: "0",
+      MIKE_CONTINUOUS_EVIDENCE: "0",
+      MIKE_OPENAI_COMPACT_THRESHOLD: "244800",
+      MIKE_SLA_WORKFLOW: "0",
+      MIKE_GREENFIELD_REVIEW: "0",
+      MIKE_READ_DOCX_MARKDOWN: "1",
+      MIKE_CODING_NEUTRAL_PROMPT: "1",
+    },
     lean_batch_hardrefs_v1: {
       MIKE_NAV_SHAPE: "legacy",
       MIKE_TOOL_SHAPE: "lean-batch-hardrefs-v1",
@@ -1109,7 +1147,7 @@ async function main() {
   };
   if (!armEnvironment[arm])
     throw new Error(
-      `unknown --arm ${arm}; expected a registered LAB arm, including upstream_terminal_v1, mike_upstream_native_v1, mike_markdown_e2e_treatment_v1, mike_markdown_e2e_treatment_v2, mike_markdown_swap_v1, mike_markdown_e2e_v1, mike_markdown_e2e_index_v1, mike_markdown_e2e_floor_v1, mike_markdown_e2e_index_floor_v1, mike_markdown_e2e_index_treatment_v1, mike_markdown_e2e_index_treatment_v2, mike_markdown_read_upstream_draft_v1, mike_compact_author_v1, lean_batch_v1, lean_batch_hardrefs_v1, or grounded_structure_outline_v1`,
+      `unknown --arm ${arm}; expected a registered LAB arm, including upstream_terminal_v1, mike_upstream_native_v1, mike_markdown_e2e_treatment_v1, mike_markdown_e2e_treatment_v2, mike_markdown_swap_v1, mike_markdown_e2e_v1, mike_markdown_e2e_index_v1, mike_markdown_e2e_floor_v1, mike_markdown_e2e_index_floor_v1, mike_markdown_e2e_index_treatment_v1, mike_markdown_e2e_index_treatment_v2, mike_markdown_read_upstream_draft_v1, mike_compact_author_v1, lean_batch_v1, lean_batch_hardrefs_v1, coding_markdown_v1, or grounded_structure_outline_v1`,
     );
 
   // Re-spawn into the isolated anonymous-mode environment (same recipe as
@@ -2157,7 +2195,11 @@ async function main() {
       );
     }
   }
-  if (["lean_batch_v1", "lean_batch_hardrefs_v1"].includes(arm)) {
+  if (
+    ["lean_batch_v1", "lean_batch_hardrefs_v1", "coding_markdown_v1"].includes(
+      arm,
+    )
+  ) {
     const residentTools = Array.isArray(surface?.resident_tools)
       ? surface.resident_tools
       : [];
@@ -2166,10 +2208,17 @@ async function main() {
       : [];
     const expectedTools = ["list_documents", "Grep", "Read", "generate_docx"];
     const hardrefs = arm === "lean_batch_hardrefs_v1";
+    // coding_markdown_v1 = the lean-batch chassis + markdown plane +
+    // navigation-neutral prompt; both flags are asserted PER ARM so a leak
+    // can never silently change a frozen lean-batch cell (and vice versa).
+    const codingMarkdown = arm === "coding_markdown_v1";
     if (
       surface?.lean_batch_shape !== !hardrefs ||
       surface?.lean_batch_hardrefs_shape !== hardrefs ||
       surface?.hard_reference_hints !== hardrefs ||
+      surface?.markdown_read_docx !== codingMarkdown ||
+      surface?.coding_neutral_prompt !== codingMarkdown ||
+      surface?.exposure_echo !== false ||
       surface?.compact_author_mike_shape !== false ||
       surface?.upstream_mike_shape !== false ||
       surface?.adaptive_mike_shape !== false ||
@@ -2198,7 +2247,7 @@ async function main() {
       results.some((result) => result.already_read || result.already_exposed)
     ) {
       throw new Error(
-        `${arm} isolation failed: resident=${residentTools.join(",")}; hardrefs=${String(surface?.hard_reference_hints)}; duplicate_suppression=${String(surface?.suppress_duplicate_whole_reads)}`,
+        `${arm} isolation failed: resident=${residentTools.join(",")}; hardrefs=${String(surface?.hard_reference_hints)}; markdownPlane=${String(surface?.markdown_read_docx)}; neutralPrompt=${String(surface?.coding_neutral_prompt)}; duplicate_suppression=${String(surface?.suppress_duplicate_whole_reads)}`,
       );
     }
   }
@@ -2475,6 +2524,7 @@ async function main() {
       "mike_compact_author_v1",
       "lean_batch_v1",
       "lean_batch_hardrefs_v1",
+      "coding_markdown_v1",
       "mike_grep_v1",
       "mike_structure_paths_v1",
       "grounded_structure_v1",
@@ -2852,6 +2902,7 @@ async function main() {
     "mike_compact_author_v1",
     "lean_batch_v1",
     "lean_batch_hardrefs_v1",
+    "coding_markdown_v1",
     ...mikeGrepArms,
   ];
   const defaultTierArms = [
@@ -3079,9 +3130,15 @@ async function main() {
       ? MARKDOWN_E2E_INDEX_FLOOR_DELTA
       : null,
     lean_batch_delta:
-      ["lean_batch_v1", "lean_batch_hardrefs_v1"].includes(arm)
+      ["lean_batch_v1", "lean_batch_hardrefs_v1", "coding_markdown_v1"].includes(
+        arm,
+      )
         ? LEAN_BATCH_DELTA
         : null,
+    coding_markdown_delta:
+      arm === "coding_markdown_v1" ? CODING_MARKDOWN_DELTA : null,
+    coding_neutral_prompt_delta:
+      arm === "coding_markdown_v1" ? CODING_NEUTRAL_PROMPT_DELTA : null,
     lean_batch_hardrefs_delta:
       arm === "lean_batch_hardrefs_v1" ? LEAN_BATCH_HARDREFS_DELTA : null,
     mike_grep_delta: mikeGrepDelta,
@@ -3498,9 +3555,17 @@ async function main() {
           ? MARKDOWN_E2E_INDEX_FLOOR_DELTA
           : null,
         lean_batch_delta:
-          ["lean_batch_v1", "lean_batch_hardrefs_v1"].includes(arm)
+          [
+            "lean_batch_v1",
+            "lean_batch_hardrefs_v1",
+            "coding_markdown_v1",
+          ].includes(arm)
             ? LEAN_BATCH_DELTA
             : null,
+        coding_markdown_delta:
+          arm === "coding_markdown_v1" ? CODING_MARKDOWN_DELTA : null,
+        coding_neutral_prompt_delta:
+          arm === "coding_markdown_v1" ? CODING_NEUTRAL_PROMPT_DELTA : null,
         lean_batch_hardrefs_delta:
           arm === "lean_batch_hardrefs_v1"
             ? LEAN_BATCH_HARDREFS_DELTA
@@ -4013,9 +4078,17 @@ async function main() {
           ? MARKDOWN_E2E_INDEX_FLOOR_DELTA
           : null,
         lean_batch_delta:
-          ["lean_batch_v1", "lean_batch_hardrefs_v1"].includes(arm)
+          [
+            "lean_batch_v1",
+            "lean_batch_hardrefs_v1",
+            "coding_markdown_v1",
+          ].includes(arm)
             ? LEAN_BATCH_DELTA
             : null,
+        coding_markdown_delta:
+          arm === "coding_markdown_v1" ? CODING_MARKDOWN_DELTA : null,
+        coding_neutral_prompt_delta:
+          arm === "coding_markdown_v1" ? CODING_NEUTRAL_PROMPT_DELTA : null,
         lean_batch_hardrefs_delta:
           arm === "lean_batch_hardrefs_v1"
             ? LEAN_BATCH_HARDREFS_DELTA

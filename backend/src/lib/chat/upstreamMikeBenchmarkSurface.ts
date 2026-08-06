@@ -816,6 +816,35 @@ DOCUMENT CREATION:
 
 Do not use emojis.`;
 
+/* ----------------------------------------------------------------------
+ * CODING-MARKDOWN arm (2026-08-06, Eli): the pure-coding hypothesis. The
+ * lean-batch tool surface (list_documents/Grep/Read/generate_docx),
+ * function-identical to the coding tools the models were RL'd on, over
+ * the pandoc-markdown drafting plane — with the SOURCE WORK navigation
+ * prescriptions REMOVED. Run 1 observes which pathways the model selects
+ * natively; guidance returns only if the observed trajectory is wasteful.
+ * Write-side discipline stays: grounding, one completeness check,
+ * terminal authoring, filename-in-prose.
+ * ---------------------------------------------------------------------- */
+
+/** Delta tag: the composite coding-markdown arm. */
+export const CODING_MARKDOWN_DELTA = "coding-markdown-v1";
+/** Delta tag: the navigation-neutral prompt mechanism. */
+export const CODING_NEUTRAL_PROMPT_DELTA = "coding-neutral-prompt-v1";
+
+export const CODING_MARKDOWN_LAB_SYSTEM_PROMPT = `You are an AI legal assistant for lawyers and legal professionals. Produce precise, professional work from the project documents without fabricating content.
+
+SOURCE WORK:
+- Ground the deliverable in document text you have retrieved this turn; quote names, figures, dates, and defined terms exactly as the sources state them.
+- Before drafting, make one internal completeness check for requested issues, parties, dates, numbers, exceptions, and conflicts.
+- Refer to documents by filename or a natural description in prose, not by internal IDs.
+
+DOCUMENT CREATION:
+- If the user asks for a document, call generate_docx with the complete final Markdown rather than only displaying it inline.
+- Match the requested professional genre and include all requested deliverables. Call generate_docx only when the work is final; a successful call ends the turn.
+
+Do not use emojis.`;
+
 export const ADAPTIVE_MIKE_LAB_SYSTEM_PROMPT = `${UPSTREAM_MIKE_LAB_SYSTEM_PROMPT}
 
 ADAPTIVE READING:
