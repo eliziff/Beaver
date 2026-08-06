@@ -1186,3 +1186,86 @@ export const UPSTREAM_NATIVE_MIKE_LAB_TOOLS: OpenAIToolSchema[] = [
  * conformance gate. */
 export const UPSTREAM_NATIVE_MIKE_LAB_TOOL_NAMES =
   UPSTREAM_NATIVE_MIKE_LAB_TOOLS.map((tool) => tool.function.name);
+
+/* ------------------------------------------------------------------------
+ * TREATMENT mechanisms — two independent, one-flag additions layered on an
+ * existing arm's surface. Nothing above this banner is touched: every existing
+ * arm hashes those constants, and both mechanisms are inert unless their own
+ * env flag is set.
+ *
+ * They are deliberately separable (future ablation arms will run each alone),
+ * so neither constant references the other and the compose helper below takes
+ * one boolean per mechanism.
+ * ---------------------------------------------------------------------- */
+
+/** Delta tag: the requirements-echo mechanism. */
+export const REQUIREMENTS_ECHO_DELTA = "requirements-echo-v1";
+/** Delta tag: the citation-contract mechanism. */
+export const CITATION_CONTRACT_DELTA = "citation-contract-v1";
+/** Delta tag: the composite treatment arm. */
+export const MARKDOWN_E2E_TREATMENT_DELTA = "markdown-e2e-treatment-v1";
+
+/**
+ * MIKE_REQUIREMENTS_ECHO=1 prompt addition. Mechanism-only: it names a tool and
+ * a sequencing rule, and says nothing about any benchmark, task, or rubric.
+ */
+export const REQUIREMENTS_ECHO_PROMPT_LINE =
+  "Before drafting the deliverable, call fetch_requirements once to re-read the task requirements; drafting tools are unavailable until you have.";
+
+/**
+ * MIKE_CITATION_CONTRACT=1 prompt addition, verbatim as specified. Describes
+ * how to ground assertions; names no benchmark, task content, or rubric.
+ */
+export const CITATION_CONTRACT_PROMPT_BLOCK = `GROUNDING:
+- When the deliverable asserts a fact drawn from a source document (a date, amount, party, obligation, definition, or the presence or absence of a provision), place the exact supporting language beside the assertion as a short verbatim quote (25 words or fewer) with the document name and, where available, the section or heading.
+- Quote figures and dates exactly as the source writes them; when a needed value appears verbatim in a source, use that value rather than recalculating it.
+- If the deliverable is itself a drafted or revised instrument (contract, agreement, or amendment text), do not add quotes, citation markers, or source annotations to its operative text.
+- Never invent a quote. If you cannot locate exact language for an assertion, make the assertion without a quote.`;
+
+/**
+ * THE single definition of how the two mechanisms compose onto a base prompt.
+ *
+ * Both the serving route (chat.ts) and the preflight/conformance reproducer
+ * (lab-beaver-arm.ts) call this, so the arm's expected system_prompt_sha256 and
+ * the served prompt cannot drift apart by construction — the order is fixed
+ * here once: requirements echo, then citation contract, each separated from the
+ * base and from each other by a blank line.
+ */
+export function withLabTreatmentPromptAdditions(
+  base: string,
+  options: { requirementsEcho: boolean; citationContract: boolean },
+): string {
+  let out = base;
+  if (options.requirementsEcho) out += `\n\n${REQUIREMENTS_ECHO_PROMPT_LINE}`;
+  if (options.citationContract) out += `\n\n${CITATION_CONTRACT_PROMPT_BLOCK}`;
+  return out;
+}
+
+/**
+ * The requirements-echo tool. No required arguments: it re-serves the task's
+ * own user message verbatim plus a read/unread split of the allowed documents,
+ * so calling it can never depend on the model getting an argument right.
+ */
+export const FETCH_REQUIREMENTS_TOOL: OpenAIToolSchema = {
+  type: "function",
+  function: {
+    name: "fetch_requirements",
+    description:
+      "Re-read the task requirements exactly as the user stated them, together with which of the available documents you have read so far in this response and which you have not. Call this once before drafting the deliverable.",
+    parameters: { type: "object", properties: {} },
+  },
+};
+
+/** e2e tools + fetch_requirements. A separate array so the e2e arm's own tool
+ * list — and therefore its tool_schema_sha256 — is unchanged. */
+export const MARKDOWN_E2E_TREATMENT_LAB_TOOLS: OpenAIToolSchema[] = [
+  ...UPSTREAM_MIKE_MARKDOWN_SWAP_LAB_TOOLS,
+  FETCH_REQUIREMENTS_TOOL,
+];
+
+/** The treatment arm's base prompt is the e2e arm's, with both mechanisms on. */
+export const MARKDOWN_E2E_TREATMENT_LAB_SYSTEM_PROMPT =
+  withLabTreatmentPromptAdditions(UPSTREAM_MIKE_LAB_SYSTEM_PROMPT, {
+    requirementsEcho: true,
+    citationContract: true,
+  });
