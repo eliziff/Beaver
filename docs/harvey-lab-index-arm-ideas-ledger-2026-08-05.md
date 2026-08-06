@@ -755,3 +755,28 @@ indexes cache from their first tool result onward. Staleness: recompute on doc v
 change (deterministic). UI dividend: the same SECT-INDEX powers a sidebar TOC. Indexes
 respect read ACLs (headings are content). Measurement: fused vs two-step ablation
 (rounds/latency/tokens); the #56 salting design stresses the triage layer directly.
+
+### Sweep rows 1-2 judged + the coverage-accounting defect (2026-08-06, same day)
+- **antitrust-risk-assessment: 75/95** (sonnet judge, judged once). 5 rounds, 464.0k in /
+  49.2k out, 12/12 docs exposed (ratio 0.62), 4 deliverables 81.1k chars. Misses are
+  synthesis/specific-fact tier (HHI arithmetic, filing-fee figure, SSNIP framing,
+  divestiture-remedy trio). The over-300k-cap market-data report (plaintext fallback
+  whole-read) did not sink the run.
+- **acquisition-due-diligence: 30/64** — the arm's worst quality row, and the diagnosis
+  is exact. 31 sources; documents_read_directly=29 (touches incl. index-only) but body
+  exposure only 19 (unique_source_exposure_ratio 0.177); fetch_requirements echo counted
+  TOUCHES, reported "2 unread" — 12 docs had served nothing but headings and the
+  coverage organ was blind to them. The 12 unexposed docs map ~1:1 onto the failed
+  clusters: zenith supply agreement → C-024..27 (all four Zenith criteria);
+  ip-assignment compilation → C-014..16; bylaws + certificate of incorporation →
+  C-004..07 quorum + C-031..32 consent; calloway → C-037..38; meridian-properties →
+  C-008; san-marcos → C-057. Rounds 8-10 were UNUSED and round 5 nearly empty — false
+  assurance, not budget exhaustion. Residual misses on touched docs (Pinnacle loan
+  terms, Orion UCC-1 inside the read lien-search) are the shallow-window class (#51).
+- **Disposition**: task #49 rescoped to the coverage-accounting fix (echo lists count
+  body exposure; index-only touches reported separately as "oriented only"; optional
+  typed generate_docx nudge) — flag-gated, post-sweep, frozen family asserts false.
+  This row is ALSO the first in-corpus measurement of the needle-in-haystack
+  completeness cliff (#56): at 31 sources the read-rationing failed silently. The echo
+  organ's own accounting was the proximate cause; the salting design must measure
+  coverage on the exposure plane, never the touch plane.
