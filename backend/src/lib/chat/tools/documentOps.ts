@@ -1357,6 +1357,83 @@ export type TextMatch = {
   at: number;
 };
 
+/**
+ * Fold the three MEASURED find-miss classes of the served-markdown plane —
+ * emphasis asterisks (92.7% of 889 corpus misses), pandoc backslash escapes
+ * before punctuation (3.4%), smart quotes (3.9%) — carrying a fold→raw offset
+ * map so a hit on the folded plane translates to an addressable raw offset.
+ * Deliberately nothing else: dash/invisible/whitespace folds recovered zero
+ * additional misses on 4.46M measured chars.
+ */
+export function foldFindPlane(text: string): {
+  folded: string;
+  rawIdx: number[];
+} {
+  const folded: string[] = [];
+  const rawIdx: number[] = [];
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === "*") continue;
+    if (
+      ch === "\\" &&
+      i + 1 < text.length &&
+      /[!-/:-@[-`{-~]/.test(text[i + 1])
+    ) {
+      continue;
+    }
+    let out = ch;
+    if (ch === "“" || ch === "”") out = '"';
+    else if (ch === "‘" || ch === "’") out = "'";
+    folded.push(out);
+    rawIdx.push(i);
+  }
+  return { folded: folded.join(""), rawIdx };
+}
+
+/**
+ * Literal-first folded find: byte-identical to findTextMatches whenever the
+ * literal pass hits; only a zero-hit literal pass runs the folded plane, and
+ * folded hits are re-anchored to RAW offsets (excerpt/context rebuilt from the
+ * raw text) so `at` stays composable with read_document offset windows.
+ */
+export function findTextMatchesFolded(params: {
+  text: string;
+  query: string;
+  maxResults: number;
+  contextChars: number;
+  startIndex?: number;
+}): { hits: TextMatch[]; totalMatches: number; matchMode: "literal" | "folded" } {
+  const literal = findTextMatches(params);
+  if (literal.totalMatches > 0) return { ...literal, matchMode: "literal" };
+  const { folded, rawIdx } = foldFindPlane(params.text);
+  const foldedQuery = foldFindPlane(params.query).folded;
+  const foldedRun = findTextMatches({
+    ...params,
+    text: folded,
+    query: foldedQuery,
+  });
+  if (foldedRun.totalMatches === 0) return { ...literal, matchMode: "literal" };
+  const hits = foldedRun.hits.map((hit) => {
+    const at = rawIdx[Math.min(hit.at, rawIdx.length - 1)] ?? 0;
+    const rawEnd =
+      rawIdx[
+        Math.min(hit.at + Math.max(1, hit.excerpt.length) - 1, rawIdx.length - 1)
+      ] ?? at;
+    const ctxStart = Math.max(0, at - params.contextChars);
+    const ctxEnd = Math.min(params.text.length, rawEnd + 1 + params.contextChars);
+    return {
+      index: hit.index,
+      excerpt: params.text.slice(at, rawEnd + 1),
+      context:
+        (ctxStart > 0 ? "…" : "") +
+        params.text.slice(ctxStart, ctxEnd).replace(/\s+/g, " ").trim() +
+        (ctxEnd < params.text.length ? "…" : ""),
+      at,
+    };
+  });
+  return { hits, totalMatches: foldedRun.totalMatches, matchMode: "folded" };
+}
+
 export function findTextMatches(params: {
   text: string;
   query: string;
