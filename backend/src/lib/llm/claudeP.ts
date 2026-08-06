@@ -277,6 +277,8 @@ class ClaudePSession {
   private watchdog: NodeJS.Timeout;
   private readonly inactivityMs: number;
   private readonly onAbort = () => this.fail(abortError());
+  /** Last non-null stop_reason seen since this turn started. */
+  lastStopReason: string | null = null;
   dead = false;
 
   constructor(
@@ -347,6 +349,8 @@ class ClaudePSession {
           this.sawActivity = true;
           this.lastActivity = Date.now();
         }
+        const stopReason = stopReasonFromLine(line);
+        if (stopReason) this.lastStopReason = stopReason;
         if (event.type === "result" && this.pending) {
           const { resolve } = this.pending;
           this.pending = null;
@@ -390,6 +394,7 @@ class ClaudePSession {
     this.sawActivity = false;
     this.lastActivity = Date.now();
     this.turnStarted = Date.now();
+    this.lastStopReason = null;
     return new Promise((resolve, reject) => {
       this.pending = { resolve, reject };
       this.child.stdin?.write(
@@ -414,6 +419,40 @@ class ClaudePSession {
   }
 }
 
+/**
+ * stop_reason carried by one stream-json line, if any. The CLI reports
+ * it in `assistant` events (message.stop_reason) and in `message_delta`
+ * stream events (event.delta.stop_reason); "max_tokens" means the
+ * generation was cut at the output cap. Field access only — never a
+ * regex over the transcript, which would false-hit model-authored text.
+ */
+function stopReasonFromLine(line: string): string | null {
+  if (!line.startsWith("{")) return null;
+  try {
+    const event = JSON.parse(line) as {
+      type?: string;
+      message?: { stop_reason?: string | null };
+      event?: { delta?: { stop_reason?: string | null } };
+    };
+    if (event.type === "assistant") return event.message?.stop_reason ?? null;
+    if (event.type === "stream_event")
+      return event.event?.delta?.stop_reason ?? null;
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+/** Last non-null stop_reason in a stream-json transcript. */
+function lastStopReasonInStream(stdout: string): string | null {
+  let last: string | null = null;
+  for (const line of stdout.split(/\r?\n/u)) {
+    const reason = stopReasonFromLine(line.trim());
+    if (reason) last = reason;
+  }
+  return last;
+}
+
 /** Last `type:"result"` event line of a stream-json transcript. */
 function resultEnvelope(stdout: string): Envelope {
   const lines = stdout.split(/\r?\n/u);
@@ -436,6 +475,207 @@ function stripFence(text: string): string {
   return match ? match[1].trim() : text.trim();
 }
 
+/** Preserve a problematic raw reply for post-mortem; never throws. */
+function preserveRawReply(rawReply: string, label: string): string | null {
+  try {
+    const dir = path.join(tmpdir(), "beaver-claudep-badreplies");
+    mkdirSync(dir, { recursive: true });
+    const file = path.join(dir, `reply-${Date.now().toString(36)}-${label}.txt`);
+    writeFileSync(file, rawReply, "utf8");
+    return file;
+  } catch {
+    return null;
+  }
+}
+
+/** A string value's closing quote followed only by closing brackets. */
+const TAIL_CLOSER_RE = /"(?:\s*[}\]])+\s*$/u;
+
+/** Payloads below this size keep the pre-salvage behavior exactly: small
+ * structural slips regenerate cheaply and lack a dominant string to
+ * salvage, so jsonrepair keeps sole authority there. */
+const SALVAGE_MIN_CHARS = 4096;
+
+/** Salvage tries at most this many openings, newest first. Real payloads
+ * have a handful; pathological lookalike-dense content is quadratic
+ * (2026-08-06 adversarial probe: 6000 lookalikes = 25s), so cap it. */
+const MAX_SALVAGE_CANDIDATES = 64;
+
+/** Multiset of `"key":` openings in raw text. Escaped quotes inside
+ * string values cannot match (a backslash sits between the identifier
+ * and its quote), so only structural keys — and raw-quote defect
+ * lookalikes, which over-count and therefore fail closed — are counted. */
+function keyOpeningCounts(raw: string): Map<string, number> {
+  const counts = new Map<string, number>();
+  const opening = /"([A-Za-z_][\w-]*)"\s*:/gu;
+  for (let m = opening.exec(raw); m; m = opening.exec(raw))
+    counts.set(m[1], (counts.get(m[1]) ?? 0) + 1);
+  return counts;
+}
+
+/** Count every object property name occurrence in a parsed JSON tree. */
+function parsedKeyCounts(
+  value: unknown,
+  counts = new Map<string, number>(),
+): Map<string, number> {
+  if (Array.isArray(value)) {
+    for (const item of value) parsedKeyCounts(item, counts);
+  } else if (value && typeof value === "object") {
+    for (const [key, child] of Object.entries(value)) {
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+      parsedKeyCounts(child, counts);
+    }
+  }
+  return counts;
+}
+
+/**
+ * A repaired/salvaged parse preserves the payload iff every `"key":`
+ * opening in the raw text still appears at least that many times as a
+ * key in the parse. A swallowed sibling field, a dropped call, or a
+ * duplicate-key collapse all surface as a shortfall (2026-08-06
+ * adversarial review F1-F3: salvage silently absorbed sibling fields
+ * and later calls into the draft before this check existed). One-sided
+ * on purpose: repairs legitimately ADD keys the raw scan cannot see —
+ * jsonrepair quoting an unquoted or single-quoted key — and forbidding
+ * that only recreates refusal regressions.
+ */
+function inventoryPreserved(
+  rawCounts: Map<string, number>,
+  parsed: unknown,
+): boolean {
+  const parsedCounts = parsedKeyCounts(parsed);
+  for (const [key, count] of rawCounts)
+    if ((parsedCounts.get(key) ?? 0) < count) return false;
+  return true;
+}
+
+/** The full downstream shape contract for a TOOL_CALLS parse. */
+function callsShapeOk(parsed: { calls?: unknown }): boolean {
+  return (
+    Array.isArray(parsed.calls) &&
+    parsed.calls.length > 0 &&
+    parsed.calls.every((rawCall) => {
+      const call = rawCall as Record<string, unknown>;
+      return (
+        typeof call.name === "string" &&
+        !!call.input &&
+        typeof call.input === "object" &&
+        !Array.isArray(call.input)
+      );
+    })
+  );
+}
+
+/**
+ * Decode a JSON string body tolerantly: valid escape sequences decode,
+ * invalid ones and raw specials (the defects being salvaged) pass
+ * through verbatim.
+ */
+function lenientUnescapeJsonString(body: string): string {
+  let out = "";
+  for (let i = 0; i < body.length; i += 1) {
+    const ch = body[i];
+    if (ch !== "\\") {
+      out += ch;
+      continue;
+    }
+    const next = body[i + 1];
+    if (next === '"' || next === "\\" || next === "/") {
+      out += next;
+      i += 1;
+    } else if (next === "n") {
+      out += "\n";
+      i += 1;
+    } else if (next === "t") {
+      out += "\t";
+      i += 1;
+    } else if (next === "r") {
+      out += "\r";
+      i += 1;
+    } else if (next === "b") {
+      out += "\b";
+      i += 1;
+    } else if (next === "f") {
+      out += "\f";
+      i += 1;
+    } else if (
+      next === "u" &&
+      /^[0-9A-Fa-f]{4}$/u.test(body.slice(i + 2, i + 6))
+    ) {
+      out += String.fromCharCode(parseInt(body.slice(i + 2, i + 6), 16));
+      i += 5;
+    } else {
+      out += ch;
+    }
+  }
+  return out;
+}
+
+type DominantStringSalvage = {
+  parsed: { calls?: unknown };
+  field: string;
+  valueChars: number;
+};
+
+/**
+ * Structural salvage for the dominant-string parse-failure class: a large
+ * TOOL_CALLS payload (in practice a generate_docx call whose `markdown`
+ * carries a whole legal draft) whose only defect is invalid escaping
+ * INSIDE one big string value — e.g. one raw interior double quote, which
+ * on 2026-08-06 discarded a completed 60KB DPA draft and bought a ~30%
+ * shorter corrective regeneration. Generic jsonrepair cannot know where
+ * such a string was meant to end; the envelope does: its closing quote is
+ * the last one followed only by closing brackets. Each `"key":"` opening
+ * is paired with that anchor; the value is re-derived from the model's
+ * own bytes (valid escapes decode, defective sequences pass through
+ * verbatim — nothing is invented), re-escaped strictly, and a candidate
+ * is accepted only if the whole reply then parses as strict JSON that
+ * satisfies the downstream shape contract AND preserves the raw
+ * payload's full key inventory. The latest surviving opening wins:
+ * earlier openings would swallow sibling fields into the value (the
+ * inventory check rejects them), and content-lookalike openings inside
+ * the value leave the defect in their prefix and self-eliminate on the
+ * strict re-parse. Truncated tails or zero survivors refuse (null) so
+ * the corrective-replay path keeps owning genuinely broken generations.
+ */
+function salvageDominantStringField(
+  raw: string,
+): DominantStringSalvage | null {
+  if (raw.length < SALVAGE_MIN_CHARS) return null;
+  const tail = TAIL_CLOSER_RE.exec(raw);
+  if (!tail) return null;
+  const closeQuote = tail.index;
+  const opening = /"([A-Za-z_][\w-]*)"\s*:\s*"/gu;
+  const candidates: Array<{ field: string; valueStart: number }> = [];
+  for (let m = opening.exec(raw); m; m = opening.exec(raw)) {
+    const valueStart = m.index + m[0].length;
+    if (valueStart >= closeQuote) break;
+    candidates.push({ field: m[1], valueStart });
+  }
+  const rawCounts = keyOpeningCounts(raw);
+  for (const { field, valueStart } of candidates
+    .slice(-MAX_SALVAGE_CANDIDATES)
+    .reverse()) {
+    const logical = lenientUnescapeJsonString(
+      raw.slice(valueStart, closeQuote),
+    );
+    const candidate =
+      raw.slice(0, valueStart) +
+      JSON.stringify(logical).slice(1, -1) +
+      raw.slice(closeQuote);
+    try {
+      const parsed = JSON.parse(candidate) as { calls?: unknown };
+      if (!callsShapeOk(parsed)) continue;
+      if (!inventoryPreserved(rawCounts, parsed)) continue;
+      return { parsed, field, valueChars: logical.length };
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
 /**
  * Tolerant reply parser. The contract is a FINAL/TOOL_CALLS marker line, but
  * models drift in content-shaped ways — code fences, preamble prose, the
@@ -446,7 +686,11 @@ function stripFence(text: string): string {
  * throws, and a repair that mutated quoted text fails the downstream
  * deterministic verbatim gate rather than passing falsely.
  */
-export function parseReply(text: string, iteration: number): AnthropicBlock[] {
+export function parseReply(
+  text: string,
+  iteration: number,
+  opts?: { truncated?: boolean },
+): AnthropicBlock[] {
   const reply = stripFence(text);
   const marker = /(?:^|\n)[ \t]*(FINAL|TOOL_CALLS)\b[ \t]*:?/u.exec(reply);
   if (!marker) throw new Error("reply did not contain FINAL or TOOL_CALLS");
@@ -464,12 +708,44 @@ export function parseReply(text: string, iteration: number): AnthropicBlock[] {
   try {
     parsed = JSON.parse(raw) as { calls?: unknown };
   } catch (parseError) {
+    // The transport saw the generation stop at the output cap: the JSON
+    // is incomplete by construction. Neither repair path may run —
+    // jsonrepair auto-closes partial structures, and the salvage anchor
+    // can be faked by content that mimics the envelope tail — so a
+    // partial draft must regenerate instead of passing as complete.
+    if (opts?.truncated)
+      throw new Error(
+        "TOOL_CALLS JSON incomplete: generation stopped at the output cap " +
+          `(${String((parseError as Error).message ?? parseError).slice(0, 120)})`,
+      );
+    // jsonrepair first: it correctly preserves all fields for small
+    // structural slips anywhere in the payload (trailing commas, missing
+    // closers, raw newlines in short fields). For large payloads its
+    // result must preserve the raw key inventory — a repair that
+    // swallowed a field or call is worse than no repair.
+    let repaired: { calls?: unknown } | null = null;
     try {
-      parsed = JSON.parse(jsonrepair(raw)) as { calls?: unknown };
+      repaired = JSON.parse(jsonrepair(raw)) as { calls?: unknown };
     } catch {
-      throw parseError;
+      repaired = null;
     }
-    console.warn("[claude-p] repaired malformed TOOL_CALLS JSON");
+    if (
+      repaired &&
+      (raw.length < SALVAGE_MIN_CHARS ||
+        inventoryPreserved(keyOpeningCounts(raw), repaired))
+    ) {
+      parsed = repaired;
+      console.warn("[claude-p] repaired malformed TOOL_CALLS JSON");
+    } else {
+      const salvage = salvageDominantStringField(raw);
+      if (!salvage) throw parseError;
+      const file = preserveRawReply(text, `salvaged-iter${iteration}`);
+      console.warn(
+        `[claude-p] structurally salvaged TOOL_CALLS JSON (field "${salvage.field}", ` +
+          `${salvage.valueChars} chars${file ? `; original preserved at ${file}` : ""})`,
+      );
+      parsed = salvage.parsed;
+    }
   }
   if (!Array.isArray(parsed.calls) || !parsed.calls.length)
     throw new Error("TOOL_CALLS reply has no calls");
@@ -601,6 +877,7 @@ export async function streamClaudeP(
         });
         try {
           let envelope: Envelope;
+          let stopReason: string | null = null;
           if (persist) {
             // A live session takes the compact follow-up; any dead or
             // absent session (including every retry) gets a fresh
@@ -618,6 +895,7 @@ export async function streamClaudeP(
             envelope = await session!.turn(
               liveContinuation ? continuation! : payload,
             );
+            stopReason = session!.lastStopReason;
           } else {
             const run = await runClaudeP(
               slug,
@@ -645,6 +923,7 @@ export async function streamClaudeP(
                 : new Error(message);
             }
             envelope = resultEnvelope(run.stdout);
+            stopReason = lastStopReasonInStream(run.stdout);
           }
           if (envelope.is_error) {
             const detail = String(envelope.result).slice(0, 300);
@@ -667,7 +946,9 @@ export async function streamClaudeP(
             (e.cache_creation_input_tokens ?? 0);
           const rawReply = String(envelope.result ?? "");
           try {
-            blocks = parseReply(rawReply, iter);
+            blocks = parseReply(rawReply, iter, {
+              truncated: stopReason === "max_tokens",
+            });
           } catch (parseError) {
             corrective = {
               reply: rawReply,
@@ -679,18 +960,14 @@ export async function streamClaudeP(
             // 16-minute 58.7KB draft this way). Preserve the raw reply for
             // post-mortem/manual recovery; never let preservation mask the
             // parse error itself.
-            try {
-              const dir = path.join(tmpdir(), "beaver-claudep-badreplies");
-              mkdirSync(dir, { recursive: true });
-              const file = path.join(
-                dir,
-                `reply-${Date.now().toString(36)}-iter${iter}-attempt${attempt + 1}.txt`,
-              );
-              writeFileSync(file, rawReply, "utf8");
+            const file = preserveRawReply(
+              rawReply,
+              `iter${iter}-attempt${attempt + 1}`,
+            );
+            if (file)
               console.warn(
                 `[claude-p] parse failure on a completed generation; raw reply preserved at ${file}`,
               );
-            } catch {}
             throw parseError;
           }
         } catch (error) {
