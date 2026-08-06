@@ -3453,12 +3453,16 @@ async function main() {
               ...(Array.isArray(input.paths) ? input.paths : []),
             ].filter((value): value is string => typeof value === "string");
             return uploadedDocuments
-              .filter((doc) =>
+              .filter((doc, index) =>
                 values.some(
                   (value) =>
                     value === doc.id ||
                     value === doc.uploaded ||
-                    value === doc.source,
+                    value === doc.source ||
+                    // The chat surface addresses documents positionally
+                    // (doc-0, doc-1, ... in upload order) — the only ID the
+                    // model ever sees for read_document/fetch_documents.
+                    value === `doc-${index}`,
                 ),
               )
               .map((doc) => doc.source);
@@ -3529,10 +3533,16 @@ async function main() {
           (result) => result.already_exposed,
         ).length,
         research_tool_calls: results.filter(
-          (result) => result.phase === "research",
+          (result) =>
+            result.phase === "research" && result.name !== "generate_docx",
         ).length,
+        // The single-conversation lab chassis never flips the harness
+        // draftingPhase flag, so tool_call_start stamps generate_docx as
+        // "research". The deliverable call IS the drafting phase here.
         drafting_tool_calls: results.filter(
-          (result) => result.phase === "drafting",
+          (result) =>
+            result.phase === "drafting" ||
+            (result.phase === "research" && result.name === "generate_docx"),
         ).length,
         continuous_tool_calls: results.filter(
           (result) => result.phase === "continuous",
