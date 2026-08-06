@@ -1428,6 +1428,15 @@ async function main() {
   if (streamed.status !== 200)
     throw new Error(`/chat: ${streamed.status} ${streamed.text}`);
   const events = sseEvents(streamed.text);
+  // A provider failure ends the SSE stream with a typed error event (the
+  // route logs and swallows the exception). Rethrow it HERE, before any
+  // conformance gate, so main()'s catch can classify it (context_overflow /
+  // quota_exhausted) instead of a downstream gate masking it with an
+  // untyped "0 deliverables" or "no echo" error.
+  const providerError = events.find((event) => event.type === "error");
+  if (providerError) {
+    throw new Error(String(providerError.message ?? "provider error"));
+  }
   const answer = visibleText(events);
   const calls = toolCalls(events);
   const results = toolResults(events);
