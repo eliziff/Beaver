@@ -905,6 +905,13 @@ export const LEAN_BATCH_HARDREFS_TOOL_SHAPE =
   process.env.MIKE_TOOL_SHAPE === "lean-batch-hardrefs-v1";
 export const LEAN_BATCH_FAMILY_TOOL_SHAPE =
   LEAN_BATCH_TOOL_SHAPE || LEAN_BATCH_HARDREFS_TOOL_SHAPE;
+/** Pure-coding observation arm (coding_markdown_v1): swaps the lean-batch
+ * prompt for a variant with NO navigation prescriptions — no read-once
+ * clause, no batch-vs-grep guidance — so run 1 observes the model's native
+ * pathway choices with the toolbox open. Write-side discipline (grounding,
+ * one completeness check, terminal authoring) stays. */
+export const CODING_NEUTRAL_PROMPT_ENABLED =
+  process.env.MIKE_CODING_NEUTRAL_PROMPT === "1";
 export const GROUNDING_FIRST_ENABLED =
   process.env.MIKE_GROUNDING_FIRST === "1";
 export const MIKE_GREP_FAMILY_TOOL_SHAPE =
@@ -3742,6 +3749,7 @@ async function runCodingShapeCall(
   allowedDocumentIds?: Set<string>,
   turnEditState?: LocalAssistantEditTurnState,
   workingSets?: LocalAssistantWorkingSetTurnState,
+  servedDraftingCache?: Map<string, ServedDrafting>,
 ): Promise<NormalizedToolResult> {
   const collection = await listLocalLibrary(userId, "file");
   const storedById = new Map(
@@ -3797,6 +3805,34 @@ async function runCodingShapeCall(
     return [...(workingSets?.values() ?? [])].find(
       (set) => set.path.toLowerCase() === wanted,
     );
+  };
+  // Markdown plane: when the arm serves docx as pandoc markdown
+  // (MIKE_READ_DOCX_MARKDOWN), Glob/Read/Grep list, search, and read the
+  // SAME text the mike read path would serve, so every file:line
+  // coordinate agrees arm-wide. The slice starts past any attached
+  // SECT-INDEX (bodyOffset is 0 when none is attached) so hits never land
+  // in a prosthetic prefix. Non-docx files and extraction failures keep
+  // the plaintext plane. Same document shape readOne builds for drafting.
+  const codingDocument = async (documentId: string) => {
+    if (MARKDOWN_READ_DOCX) {
+      const drafting = await servedDraftingText(
+        userId,
+        documentId,
+        servedDraftingCache,
+      );
+      if (drafting) {
+        return {
+          filename: drafting.filename,
+          documentId,
+          versionId: drafting.versionId,
+          text: drafting.served.slice(drafting.bodyOffset),
+          cautions: [],
+          pages: { pages: [], source: "unindexed" as const },
+          tableCells: [],
+        };
+      }
+    }
+    return extractLocalDocument(userId, documentId);
   };
   const registerStructurePath = (
     meta: (typeof files)[number],
@@ -3925,7 +3961,7 @@ async function runCodingShapeCall(
     const matchedFiles = files.filter((document) => re.test(document.filename));
     const fileRows = await Promise.all(
       matchedFiles.map(async (meta) => {
-        const document = await extractLocalDocument(userId, meta.id);
+        const document = await codingDocument(meta.id);
         const identity =
           (filenameCounts.get(meta.filename.toLowerCase()) ?? 0) > 1
             ? `${meta.filename}\t[document_id=${mikeLabelById.get(meta.id) ?? meta.id}]`
@@ -4121,7 +4157,7 @@ async function runCodingShapeCall(
       );
     }
     const meta = matches[0];
-    const document = await extractLocalDocument(userId, meta.id);
+    const document = await codingDocument(meta.id);
     if (!document) return fail(call, `File could not be read: ${requested}`);
     const lines = document.text.split(/\r?\n/u);
     const starts = sourceLineStarts(document.text, lines);
@@ -4808,7 +4844,7 @@ async function runCodingShapeCall(
   const hardReferenceSeeds = new Set<string>();
   let truncated = false;
   for (const meta of targets) {
-    const document = await extractLocalDocument(userId, meta.id);
+    const document = await codingDocument(meta.id);
     if (!document) continue;
     const lines = document.text.split(/\r?\n/u);
     const starts = sourceLineStarts(document.text, lines);
@@ -7566,6 +7602,7 @@ export async function runLocalAssistantTools(
           allowedDocumentIds,
           turnEditState,
           workingSets,
+          servedDraftingCache,
         );
       }
       // Strict surface: names the shape swap removed must fail loudly, or a
