@@ -1212,6 +1212,27 @@ async function main() {
           MIKE_GROUNDING_FIRST: "0",
           MIKE_GROUNDED_OUTLINE_INJECTION: "0",
           MIKE_SCHEMA_ENCODING: "",
+          // Fail closed on the treatment/serving mechanisms too (2026-08-06
+          // adversarial audit F8): every one of these is an explicit per-arm
+          // opt-in below, and an ambient value would silently change a frozen
+          // arm's prompt or serving plane — the citation-contract blocks are
+          // prompt-only and leave no tool-list trace, and a leaked
+          // STRUCTURE_INDEX turns lean-family unbounded Reads into
+          // scoped_read_required dead-ends naming tools those arms not serve.
+          MIKE_STRUCTURE_INDEX: "",
+          MIKE_INDEX_ATTACH_GATED: "",
+          MIKE_FIND_QUERY_NORM: "",
+          MIKE_TYPED_RANGE: "",
+          MIKE_INDEX_COMPACT_HEADINGS: "",
+          MIKE_COMPLETENESS_FLOOR: "",
+          MIKE_REQUIREMENTS_ECHO: "",
+          MIKE_CITATION_CONTRACT: "",
+          MIKE_CITATION_CONTRACT_V2: "",
+          MIKE_NO_DEFERRAL: "",
+          MIKE_SCOPED_REREAD: "",
+          MIKE_EXPOSURE_ECHO: "",
+          MIKE_READ_DOCX_MARKDOWN: "",
+          MIKE_CODING_NEUTRAL_PROMPT: "",
           // Compute-only ablation. It does not change tool schemas, prompts,
           // or extracted text; a PDF is still created on the first paged read.
           MIKE_EAGER_OFFICE_PDF_RENDITION:
@@ -2212,8 +2233,38 @@ async function main() {
     // navigation-neutral prompt; both flags are asserted PER ARM so a leak
     // can never silently change a frozen lean-batch cell (and vice versa).
     const codingMarkdown = arm === "coding_markdown_v1";
+    // Prompt-sha gate (audit F8): the prompt-only treatment additions leave
+    // no tool-list trace, so without this a leaked citation-contract or
+    // no-deferral block would pass isolation silently.
+    const leanExpectedSurface = armExpectedSurface(arm);
+    const leanExpectedPromptSha = leanExpectedSurface
+      ? createHash("sha256")
+          .update(
+            leanExpectedSurface.systemPrompt +
+              inventoryPromptFor(documents, arm),
+          )
+          .digest("hex")
+      : null;
+    if (
+      leanExpectedPromptSha &&
+      surface?.system_prompt_sha256 !== leanExpectedPromptSha
+    ) {
+      throw new Error(
+        `${arm} served the wrong system prompt: receipt sha ${String(surface?.system_prompt_sha256)} != expected ${leanExpectedPromptSha}`,
+      );
+    }
     if (
       surface?.lean_batch_shape !== !hardrefs ||
+      // Serving/prompt mechanisms that must stay off across the lean family
+      // (audit F8): a leaked STRUCTURE_INDEX turns unbounded Reads into
+      // scoped_read_required dead-ends naming unserved tools.
+      surface?.structure_index !== false ||
+      surface?.completeness_floor !== false ||
+      surface?.citation_contract !== false ||
+      surface?.citation_contract_v2 !== false ||
+      surface?.no_deferral !== false ||
+      surface?.scoped_reread !== false ||
+      surface?.requirements_echo !== false ||
       surface?.lean_batch_hardrefs_shape !== hardrefs ||
       surface?.hard_reference_hints !== hardrefs ||
       surface?.markdown_read_docx !== codingMarkdown ||
