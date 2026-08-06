@@ -2985,6 +2985,13 @@ async function main() {
       });
     }
   }
+  if (compactions.length) {
+    console.warn(
+      `[lab] ${compactions.length} provider compaction(s) recorded this run — ` +
+        "conversation content was summarized in place mid-run; coverage and " +
+        "drafting fidelity readings are compromised",
+    );
+  }
   // The default-tier and session prompt-cache receipt gates below were built
   // for the Anthropic/codex lane, which reports service tiers and prompt-cache
   // keys on every response. The deepseek provider structurally reports neither
@@ -4029,6 +4036,14 @@ async function main() {
         evidence_working_set_updates: evidenceWorkingSetUpdates,
         context_round_count: contextRounds.length,
         context_rounds: contextRounds,
+        // Provider-side compactions (claude -p auto-compact) silently
+        // replace conversation content with lossy summaries mid-run. A
+        // nonzero count means served documents vanished from context: the
+        // 200K-fit claim and any coverage/quality reading are void for
+        // whole-read arms, and a lean arm that compacts has failed its
+        // budget discipline. Surfaced top-level so no analysis misses it.
+        context_compaction_count: compactions.length,
+        context_compactions: compactions,
         context_tool_schema_variants: new Set(
           contextRounds.map((round) => String(round.toolSha256 ?? "")),
         ).size,

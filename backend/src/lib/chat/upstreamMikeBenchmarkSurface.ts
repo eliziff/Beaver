@@ -973,11 +973,33 @@ export const CODING_READ_TOOL: OpenAIToolSchema = {
   },
 };
 
+/**
+ * The compact authoring tool with its contract spelled out against the
+ * coding-surface Write prior. The v1 acq pilot (2026-08-06) drafted the
+ * full deliverable and called generate_docx with Claude Code's Write
+ * shape ({filename, content}) ten times straight, despite this schema
+ * being served — on a surface where every other tool is CC-native, the
+ * one custom tool needs its keys named in prose, the way CC tool
+ * descriptions state defaults and usage. Same name and schema otherwise.
+ */
+export const CODING_GENERATE_DOCX_TOOL: OpenAIToolSchema = {
+  type: "function",
+  function: {
+    name: "generate_docx",
+    description:
+      "Create the final Word document from Markdown. A successful call ends" +
+      " the turn. Input keys are exactly {title, markdown} — this is not a" +
+      " file Write: do not pass filename/content; put the complete document" +
+      " body in 'markdown'.",
+    parameters: COMPACT_GENERATE_DOCX_TOOL.function.parameters,
+  },
+};
+
 export const CODING_MARKDOWN_V2_LAB_TOOLS: OpenAIToolSchema[] = [
   CODING_GLOB_TOOL,
   CODING_GREP_TOOL,
   CODING_READ_TOOL,
-  COMPACT_GENERATE_DOCX_TOOL,
+  CODING_GENERATE_DOCX_TOOL,
 ];
 
 export const ADAPTIVE_MIKE_LAB_SYSTEM_PROMPT = `${UPSTREAM_MIKE_LAB_SYSTEM_PROMPT}

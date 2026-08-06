@@ -7853,7 +7853,7 @@ export async function runLocalAssistantTools(
             });
           }
         }
-        const title = trimmed(args.title);
+        let title = trimmed(args.title);
         const filename = trimmed(args.filename);
         // The native arm renders sections[] -> OOXML with upstream's own
         // renderer (spec deviation D6), so it never builds a Markdown bridge;
@@ -7863,7 +7863,7 @@ export async function runLocalAssistantTools(
         const nativeSections = Array.isArray(args.sections)
           ? (args.sections as unknown[])
           : [];
-        const markdown = nativeDocx
+        let markdown = nativeDocx
           ? JSON.stringify(nativeSections)
           : call.name === "generate_docx"
             ? COMPACT_AUTHOR_MIKE_TOOL_SHAPE ||
@@ -7873,7 +7873,49 @@ export async function runLocalAssistantTools(
               ? trimmed(args.markdown)
               : upstreamMikeSectionsMarkdown(args.sections)
             : trimmed(args.markdown);
+        // CC-parity aliasing: on the coding surface the model's Write-tool
+        // prior reaches this call (v1 acq pilot 2026-08-06: ten straight
+        // {filename, content} attempts; the conjunctive refusal below
+        // defeated its one-key-at-a-time debugging because no single key
+        // change could ever succeed). Accept the coding shape, teach the
+        // schema in the receipt, and make the refusal state the full
+        // contract plus what was actually received.
+        let codingAliasNote = "";
+        if (CODING_PARITY_ENABLED && call.name === "generate_docx") {
+          if (!markdown) {
+            const content = trimmed(args.content);
+            if (content) {
+              markdown = content;
+              codingAliasNote =
+                "accepted 'content' as the document body; the schema keys" +
+                " are {title, markdown}.";
+            }
+          }
+          if (!title && markdown) {
+            const stem = filename.replace(/\.docx$/iu, "").trim();
+            const heading =
+              /^#{1,6}\s+(.+)$/mu.exec(markdown)?.[1]?.trim() ?? "";
+            title = (stem || heading).slice(0, 256);
+            if (title) {
+              codingAliasNote = `${codingAliasNote} derived 'title' from ${
+                stem ? "the filename" : "the first heading"
+              }; pass title explicitly next time.`.trim();
+            }
+          }
+        }
         if (!title || title.length > 256 || !markdown) {
+          if (CODING_PARITY_ENABLED && call.name === "generate_docx") {
+            const received = Object.keys(
+              (call.input ?? {}) as Record<string, unknown>,
+            ).join(", ");
+            return fail(
+              call,
+              "generate_docx invalid input: expected {title: string" +
+                " (<=256 chars), markdown: string — the complete document" +
+                ` body}; received keys [${received}]. Resend the full` +
+                " document with 'title' and 'markdown'.",
+            );
+          }
           return fail(call, "DOCX title or Markdown is invalid");
         }
         if (
@@ -7979,6 +8021,7 @@ export async function runLocalAssistantTools(
             source_sha256: document.source_sha256,
             attached_to_matter: Boolean(matterId),
             ...(diagnostics ? { compiler_diagnostics: diagnostics } : {}),
+            ...(codingAliasNote ? { note: codingAliasNote } : {}),
             download_url: downloadUrl,
           };
           if (ORIGIN_MIKE_TOOL_SHAPE && call.name === "generate_docx") {
@@ -7992,6 +8035,7 @@ export async function runLocalAssistantTools(
                 document_id: document.id,
                 version_id: document.current_version_id,
                 version_number: document.active_version_number,
+                ...(codingAliasNote ? { note: codingAliasNote } : {}),
                 message: `Document '${document.filename}' has been generated successfully.`,
                 doc_id: docLabel,
                 next_required_action: [
