@@ -55,14 +55,26 @@ const INDEX_KINDS = new Set<string>([
 ]);
 
 const MAX_HEADING_CHARS = 64;
+const COMPACT_HEADING_CHARS = 40;
 
-function headingTail(node: SkeletonNode): string {
+function headingTail(node: SkeletonNode, compact = false): string {
   const heading = node.heading?.trim() ?? "";
   if (!heading) return "";
+  // Compact mode also stops at the first sentence/clause boundary: index
+  // entries are labels, and a truncated substantive sentence reads as a
+  // quotable summary the model may trust without reading the section.
+  const boundary = compact ? heading.search(/[.;:]\s/u) : -1;
+  const cut = compact
+    ? Math.min(
+        heading.length,
+        COMPACT_HEADING_CHARS,
+        boundary >= 0 ? boundary + 1 : Number.POSITIVE_INFINITY,
+      )
+    : heading.length <= MAX_HEADING_CHARS
+      ? heading.length
+      : MAX_HEADING_CHARS;
   const shown =
-    heading.length <= MAX_HEADING_CHARS
-      ? heading
-      : `${heading.slice(0, MAX_HEADING_CHARS).trimEnd()}…`;
+    cut >= heading.length ? heading : `${heading.slice(0, cut).trimEnd()}…`;
   return ` — ${shown}`;
 }
 
@@ -322,13 +334,14 @@ function anchorSpine(
 export function renderStructureIndex(
   nodes: SkeletonNode[],
   markdown?: string,
+  opts?: { compactHeadings?: boolean },
 ): string {
   const spine = nodes.filter((node) => INDEX_KINDS.has(node.kind));
   if (!spine.length) return "";
   const anchors = markdown ? anchorSpine(markdown, spine) : null;
   const lines = spine.map((node) => {
     const at = anchors?.get(node.label);
-    return `  ${node.display}${headingTail(node)}${
+    return `  ${node.display}${headingTail(node, opts?.compactHeadings === true)}${
       at !== undefined ? `  @${at}` : ""
     }`;
   });

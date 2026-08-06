@@ -867,6 +867,8 @@ async function main() {
       MIKE_STRUCTURE_INDEX: "1",
       MIKE_INDEX_ATTACH_GATED: "1",
       MIKE_FIND_QUERY_NORM: "1",
+      MIKE_TYPED_RANGE: "1",
+      MIKE_INDEX_COMPACT_HEADINGS: "1",
       MIKE_COMPLETENESS_FLOOR: "1",
       MIKE_REQUIREMENTS_ECHO: "1",
       MIKE_CITATION_CONTRACT_V2: "1",
@@ -1860,10 +1862,13 @@ async function main() {
       surface?.markdown_e2e_shape !== markdownE2e ||
       surface?.markdown_read_docx !== markdownE2e ||
       surface?.structure_index !== structureIndex ||
-      // Attachment gating and find recovery are the index-treatment arm's
-      // mechanisms; the frozen index arms must keep serving byte-for-byte.
+      // Attachment gating, find recovery, typed range, and compact headings
+      // are the index-treatment arm's mechanisms; the frozen index arms must
+      // keep serving byte-for-byte.
       surface?.index_attach_gated !== false ||
       surface?.find_query_norm !== false ||
+      surface?.typed_range !== false ||
+      surface?.index_compact_headings !== false ||
       surface?.completeness_floor !== completenessFloor ||
       surface?.upstream_mike_shape !== false ||
       surface?.progressive_disclosure !== false ||
@@ -2067,6 +2072,8 @@ async function main() {
       surface?.structure_index !== true ||
       surface?.index_attach_gated !== true ||
       surface?.find_query_norm !== true ||
+      surface?.typed_range !== true ||
+      surface?.index_compact_headings !== true ||
       // …on an otherwise byte-identical index chassis
       surface?.markdown_e2e_shape !== true ||
       surface?.markdown_read_docx !== true ||
