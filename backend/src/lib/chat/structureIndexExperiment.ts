@@ -362,18 +362,41 @@ export function renderStructureIndex(
  * so this MUST stay on the two-plane path (nodes from the docx detectors,
  * anchored into the served markdown) — the oracle-swept design.
  */
-export function anchoredSectionStarts(
+export type AnchoredSection = {
+  display: string;
+  heading: string | null;
+  offset: number;
+};
+
+/** Section-level anchors with their display/heading text, ascending. */
+export function anchoredSectionSpine(
   nodes: SkeletonNode[],
   markdown: string,
-): number[] {
+): AnchoredSection[] {
   const spine = nodes.filter(
     (node) => INDEX_KINDS.has(node.kind) && node.kind !== "subsection",
   );
   if (!spine.length) return [];
   const anchors = anchorSpine(markdown, spine);
-  const starts = [...anchors.values()];
-  starts.sort((a, b) => a - b);
-  return starts;
+  const out: AnchoredSection[] = [];
+  for (const node of spine) {
+    const at = anchors.get(node.label);
+    if (at !== undefined)
+      out.push({
+        display: node.display,
+        heading: node.heading ?? null,
+        offset: at,
+      });
+  }
+  out.sort((a, b) => a.offset - b.offset);
+  return out;
+}
+
+export function anchoredSectionStarts(
+  nodes: SkeletonNode[],
+  markdown: string,
+): number[] {
+  return anchoredSectionSpine(nodes, markdown).map((entry) => entry.offset);
 }
 
 /**
