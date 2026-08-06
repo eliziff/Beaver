@@ -1142,3 +1142,77 @@ pilot on the same task follows for the paired comparison. F2 (inventory
 plane) is moot for v2 and deferred with the lean+markdown-no-parity
 combination it belongs to. find_in_document plaintext-plane hazard in
 five frozen arms remains filed under #51.
+
+## v1 PILOT POST-MORTEM + AUTO-COMPACT DISCOVERY + AUTHORING PARITY (2026-08-06, Fable)
+
+coding_markdown_v1 acq-diligence pilot (claude-p sonnet-4-6 effort
+high, launched 15:45, killed 16:44, session
+ab9c3192-94e3-4402-8148-3b461143aa55.jsonl in the backend project dir —
+runner wrote no transcript because the run never terminated; the
+session file is the record). Three findings, each bigger than the run:
+
+- **Navigation: the coding surface elicited whole-read, not search.**
+  Rounds 1–5 (five minutes): ten batch Read paths[] calls covering all
+  31 docs (~981KB served), a tidy category sweep — corporate → equity/
+  employment → financials/IP → litigation/contracts → licenses/
+  insurance. Zero Grep. Zero Glob. Zero bounded reads. Audit caveat
+  applies: v1's lean Read description advertises the batch ("returns
+  every requested document completely in one batch") and carried no
+  efficiency cues, so this reads as invitation-following, not free
+  preference. v2 (CC descriptions, search-before-read steers, no batch
+  invitation) is the real test of the pure-coding navigation
+  hypothesis.
+- **claude -p AUTO-COMPACTED TWICE, silently** (system/compact_boundary
+  events 21:51:58 preTokens=207,948 and 22:08:57 preTokens=179,180;
+  durations 234s/377s). The whole-read blew the 200K window and the CLI
+  summarized the conversation in place — twice — so everything after
+  22:09 drafted from a summary-of-a-summary of the documents. The
+  runner saw nothing. Consequences: (1) the Phase D whole-read control
+  rows will NOT produce typed context_overflow on this transport —
+  growth-past-wall compacts instead of erroring (the 200K-wall memory
+  describes single-oversized-prompt refusal, a different path); (2) any
+  arm that overflows mid-run silently degrades instead of failing.
+  Detection now wired end-to-end (Eli: detect first, no autocompact
+  pinning yet): claudeP parses compact_boundary (real-fixture probed,
+  snake_case covered), receipts ride StreamChatResult.compactions with
+  triggerReason "provider_auto" and zeroed usage (spend already in turn
+  envelopes), manifest passes through, runner surfaces top-level
+  context_compaction_count/context_compactions + loud warn. System
+  events now count as watchdog liveness (compaction 2 ran 377s, past
+  the 240s inactivity kill — healthy sessions were killable
+  mid-compaction before).
+- **The CC Write prior captured the authoring tool.** At 22:02 the
+  model drafted the full memo (83KB) and called generate_docx with
+  {filename, content} — Claude Code's Write shape — despite the served
+  {title, markdown} schema. Ten straight rejections: full redrafts
+  decaying 83→70→66→36KB, then a genuinely rational minimal-repro probe
+  cascade (title+content; markdown alone; "Hello") that the CONJUNCTIVE
+  validator defeated — every single-key change failed identically, so
+  the model concluded "the parameter name isn't the issue" and started
+  hallucinating a 'template' param. The terse refusal ("DOCX title or
+  Markdown is invalid") named the fields but not the contract. Rounds
+  are unbounded on every non-native arm (chat.ts maxIterations
+  undefined), so nothing would have ended the loop before context
+  exhaustion — and with auto-compact, not even that cleanly.
+
+Fixes (commit 08385015, all CODING_PARITY-gated, frozen arms
+byte-identical): executor accepts 'content' as the body and derives
+'title' from filename/first heading, success receipt carries a
+schema-teaching note; refusal states the full expected contract plus
+received keys (typed-refusals doctrine: typed AND actionable);
+CODING_GENERATE_DOCX_TOOL description names its keys in prose against
+the Write prior ("this is not a file Write") — CC's own
+efficiency-cue-in-description pattern, same name and schema. Proofs:
+compaction fixtures 7/7; plane probe parity 12/12 (alias ok + note,
+straight ok no note, refusal actionable), md 5/5 (v1 keeps the frozen
+terse refusal), plain 3/3; served-surface coding2/coding/v2 green;
+suites 57/57; tsc clean.
+
+Verdict on v1: the observational question is answered and the arm is
+retired — its Read schema invites the exact pathology under test.
+Design lesson for #57: conjunctive validators + terse refusals turn
+model debugging into anti-learning; every refusal must state the full
+contract. Smoke next: coding_markdown_v2 on capital-markets/
+compare-closing-documents-against-closing-checklist (34.5k tok,
+fits without compaction) to validate the wired surface end-to-end
+before the paired acq pilot.
