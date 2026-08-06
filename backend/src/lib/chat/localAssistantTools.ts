@@ -1003,6 +1003,17 @@ export const CITATION_CONTRACT_V2_ENABLED =
 export const NO_DEFERRAL_ENABLED = process.env.MIKE_NO_DEFERRAL === "1";
 
 /**
+ * Completes the "no empty indexes" design for scoped arms: a document whose
+ * derived SECT-INDEX carries entries but no usable @N addresses previously
+ * still paid its full index as dead prefix weight (20.6% of index bytes
+ * corpus-wide) while whole-reading freely anyway. Gated attachment serves
+ * such documents as bare markdown; index=true on them answers with the
+ * existing typed "(no SECT-INDEX for this document)" note. Read gating is
+ * unchanged — non-addressable documents were already whole-readable.
+ */
+export const INDEX_ATTACH_GATED = process.env.MIKE_INDEX_ATTACH_GATED === "1";
+
+/**
  * Turn-scoped bookkeeping for the requirements echo. Created once per assistant
  * turn by the route and handed to every tool batch, exactly like turnReadState,
  * so a fetch_requirements call in round 1 is still visible to a generate_docx
@@ -6159,12 +6170,24 @@ export async function servedDraftingText(
         source.markdown,
       );
       const served = attachStructureIndex(source.markdown, index);
-      result = {
-        served,
-        bodyOffset: served.length - source.markdown.length,
-        versionId: file.version.id,
-        filename: file.document.filename,
-      };
+      const bodyOffset = served.length - source.markdown.length;
+      // Gated attachment: an index with entries but no usable addresses is
+      // pure prefix weight on a document that whole-reads freely anyway.
+      const attach =
+        !INDEX_ATTACH_GATED || indexIsAddressable(served, bodyOffset);
+      result = attach
+        ? {
+            served,
+            bodyOffset,
+            versionId: file.version.id,
+            filename: file.document.filename,
+          }
+        : {
+            served: source.markdown,
+            bodyOffset: 0,
+            versionId: file.version.id,
+            filename: file.document.filename,
+          };
     } catch {
       result = {
         served: source.markdown,
