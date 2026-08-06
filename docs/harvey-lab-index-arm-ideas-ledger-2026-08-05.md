@@ -841,3 +841,55 @@ frozen v1 env + the flag, same prompt + tool list (payload-only mechanism):
 on v2 — the direct test of whether honest coverage accounting flips the
 15–18 unexposed-cluster criteria from the 30/64 row. Serving-boundary batch
 (#54) queued next as its own commit series.
+
+### Indenture 67/83 completes the treatment matrix; serving-boundary batch lands; the drafting cap is gone (2026-08-06)
+
+**Indenture re-run (parser fixed, frozen v1) judged 67/83 (81%)** —
+13/14 docs exposed, both deliverables (110,615 chars), 5 rounds, 342k
+logical input, 13 min, clean generation (no salvage needed this time; the
+hallucinated-continuation defect is stochastic and now covered). Misses are
+synthesis-tier (TIA §310(b) machinery, IRC §956 flexibility, after-acquired
+property, continuing-directors) — not read-gaps.
+
+**Phase D treatment matrix complete (5/5 rows, sonnet-4-6, one judge each):**
+
+| task | docs exposed | score | verdict |
+|---|---|---|---|
+| CoC | 19/19 | 50/57 (88%) | healthy |
+| antitrust | 12/12 | 75/95 (79%) | healthy |
+| indenture | 13/14 | 67/83 (81%) | healthy |
+| acq-diligence | 19/31 | 30/64 (47%) | exposure cliff |
+| tax | 11/25 | 39/77 (51%) | exposure cliff |
+
+Exposure and quality separate perfectly. Every completed row fits the 200K
+window mechanically; quality at doc-count scale is coverage-mediated —
+which the v2 exposure-accounting arm targets (acq re-pilot in flight).
+
+**Serving-boundary batch (#54) landed (84dbfebf):**
+- **The 300k drafting cap is REMOVED, not raised** — Eli: "not one that is
+  random and artificial." It was token policy at the extraction layer whose
+  swallowed throw silently swapped docs onto the plaintext whole-read plane
+  (costing MORE than the markdown it refused). Memory stays bounded by the
+  real package guards (input bytes, entry count, per-entry + total inflated
+  XML ceilings). The market-data report now extracts (351,405 chars, 3.3s)
+  with an addressable 5,429-char SECT-INDEX → future antitrust-shaped runs
+  read it scoped instead of an ~84k-token fallback whole-read. Principle
+  recorded in memory: bounds derive from real constraints; token policy
+  lives at the serving layer.
+- pandoc-missing ENOENT passes through honestly (no longer "malformed XML");
+  real conversion failures keep naming the part (test-pinned).
+- Whole-read budget projects on the served plane (markdown drafting surface
+  when present), not plaintext (latent until MIKE_WHOLE_READ_MAX_CHARS is
+  ever enabled).
+- `MIKE_SERVE_CONVERSION_NOTES` (OFF everywhere; production/v3 candidate):
+  extraction warnings ride the FIRST read as a CONVERSION NOTES line at the
+  citation-reminder layer — served-plane coordinates untouched. Proven on
+  the real warnings-bearing doc, both flag states.
+- **Deferred to the production layer**: find_in_document `index` (ordinal)
+  vs read_document `index` (mode) rename — a tool-schema change cannot ride
+  v1/v2, whose tool sha must stay equal; same deferral class as the
+  numbering resolver.
+
+Proof chain: docx conformance 20/20, structureIndex + localToolWiring
+39/39, exposure probe 15/15 both states, notes probe both states, tsc
+clean, tax/indenture judged once each.
