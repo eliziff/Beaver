@@ -1762,3 +1762,53 @@ emit exactly one DOCX on this task's corpus on flash — flag as a task-specific
 blocker: **no native baseline available on flash for this cell.** (Contrast
 capital-closing, which recovered 0/1 -> 29/32 on attempt 2.) The paired
 treatment row exists; this native cell is left as a known-missing control.
+
+## CORRECTION (2026-08-07 late, Fable): DRAFT-EDIT WAS SHADOWED THROUGH ALL GEN-7 — EDIT CALLS NEVER APPLIED
+
+**Finding:** the in-memory draft-edit handler (`localAssistantTools.ts:8254`) was
+dead from day one. The lever commit `6e841c9e` added the handler but never
+touched the `CODING_TOOL_SHAPE` dispatch above it (`localAssistantTools.ts:8101-8121`),
+which returns `runCodingShapeCall(...)` for every Edit. `runCodingShapeCall`
+resolves paths against the filesystem; `draft.md` exists only in
+`requirementsState.draftMarkdown` (never on disk) — so every
+`Edit("draft.md", …)` answered `ok:true` with the 29-char string
+`"File does not exist: draft.md"`, and the in-memory handler never received the
+call. Trace-proof: `benchmarks/harvey-labs/.tmp/v5-trace.txt` (real-estate
+16-35-34) — 3 Edit calls, all `ok=True chars=29`, then `generate_docx` without
+markdown rendered the UN-EDITED draft.
+
+**Consequence for every gen-7 row that reports Edits** (acq 2, HSR 5, tax 3,
+real-estate 3, employment 2): ALL Edit calls failed. Final renders used the
+un-edited saved draft. The breadth-battery validation read-out's "edit count +
+ok:true + substantiveness" criterion was systematically **false-positive on the
+edit axis** — `ok:true` was the error-string wrapper, not an applied edit.
+
+**Corrected attribution:** any gen-7 gains (acq +3 linkage, employment +4 vs g5,
+closing +3 vs g5) are attributable to the echo/refinement CHECKPOINT loop — the
+honest coverage/refine pause + re-composition — NOT to applied edits. The acq
+"exactly the two Edits that run made… the +3 is causally traceable to the
+refinement loop" claim (C-015/C-032/C-033) is wrong in mechanism: the edits
+never touched the draft; the +3 is traceable to the checkpoint + re-composition
+alone.
+
+**Fix (commit `68cce2b4`, "fix(lab): route Edit by target so draft.md reaches
+the in-memory draft"):** one dispatch condition routes Edit by target — for
+`DRAFT_EDIT_ENABLED && file_path === "draft.md"`, the call falls through to the
+now-reachable in-memory handler; any real path resolves through
+`runCodingShapeCall`'s FS text-ops editor exactly as before. Both surfaces kept
+(real-document editing + in-memory drafting).
+
+**Deterministic proof:** new regression test in `localAssistantTools.test.ts`
+drives the real dispatch end-to-end: bodied `generate_docx` captures the draft →
+`Edit("draft.md", old, new)` returns `{ok:true, replacements:1}` and mutates the
+buffer → `generate_docx` without markdown renders the EDITED buffer. 48/49 pass
+(the 1 failure — "keeps oversized research results" — is pre-existing and
+unrelated, confirmed via stash). `tsc --noEmit` clean.
+
+**Post-fix validation:** v5 real-estate scenario-01 smoke (the exact task whose
+3 gen-7 Edits all failed) queued — first honest datapoint on whether the edit
+lever helps. Open design note (2026-08-07, Eli): the served `Edit` description
+still prescribes a single target ("always draft.md"); under discussion is a
+dead-simple surface (plain Claude Code semantics over `draft.md` AND source
+files, with source-edit events monitored distinctly) so the model never needs
+the in-memory backstory and unprompted source-file edits are observable.
