@@ -115,6 +115,7 @@ import {
 } from "../src/lib/chat/upstreamMikeBenchmarkSurface";
 import { latestAuthoredDocuments } from "./lab-authored-documents";
 import { STRUCTURE_INDEX_ENABLED } from "../src/lib/chat/structureIndexExperiment";
+import { isTransportError } from "../src/lib/llm/deepseek";
 import type { OpenAIToolSchema } from "../src/lib/llm";
 
 function argument(name: string, fallback?: string): string {
@@ -1411,6 +1412,7 @@ async function main() {
           MIKE_GREP_SECTION_CONTEXT: "",
           MIKE_CODING_TOC_FILES: "",
           MIKE_GREP_PER_FILE_BUDGET: "",
+          MIKE_DRAFT_EDIT: "",
           // Compute-only ablation. It does not change tool schemas, prompts,
           // or extracted text; a PDF is still created on the first paged read.
           MIKE_EAGER_OFFICE_PDF_RENDITION:
@@ -1443,7 +1445,53 @@ async function main() {
         timeout: 180 * 60_000,
       },
     );
-    process.exit(child.status ?? 1);
+    // Run-level transport backstop: two flash runs died tonight (2026-08-07)
+    // to mid-stream TLS resets — the adapter's zero-progress round retry
+    // cannot cover post-emission deaths (a retried round would duplicate
+    // streamed text), so a transport-class child failure relaunches the WHOLE
+    // run once, by re-execing this parent with its normal env-building path
+    // (fresh data home, same --run-id so the results dir is reused). The
+    // marker env prevents recursion; typed outcomes (context_overflow,
+    // quota_exhausted, compaction_limit) and timeout kills never relaunch.
+    const childStatus = child.status ?? 1;
+    if (childStatus !== 0 && !process.env.LAB_BEAVER_TRANSPORT_RELAUNCH) {
+      let transient = false;
+      let errorText = "";
+      try {
+        const state = JSON.parse(
+          readFileSync(
+            path.join(labRoot, "results", runId, "run-state.json"),
+            "utf8",
+          ),
+        ) as { status?: unknown; error?: unknown };
+        errorText = String(state.error ?? "");
+        transient =
+          state.status === "failed" && isTransportError(new Error(errorText));
+      } catch {
+        // No readable typed receipt — treat as non-transient and exit as-is.
+      }
+      if (transient) {
+        console.error(
+          `[lab-beaver-arm] transport-class failure — relaunching the run once: ${errorText.slice(0, 200)}`,
+        );
+        const relaunched = spawnSync(
+          process.execPath,
+          [
+            require.resolve("tsx/cli"),
+            __filename,
+            ...process.argv.slice(2),
+            "--run-id",
+            runId,
+          ],
+          {
+            env: { ...process.env, LAB_BEAVER_TRANSPORT_RELAUNCH: "1" },
+            stdio: "inherit",
+          },
+        );
+        process.exit(relaunched.status ?? 1);
+      }
+    }
+    process.exit(childStatus);
   }
 
   // Capture the executed source before app import or any model call. The
@@ -1470,6 +1518,7 @@ async function main() {
     "src/lib/llm/codex.ts",
     "src/lib/llm/codexToolBridge.ts",
     "src/lib/llm/contextManifest.ts",
+    "src/lib/llm/deepseek.ts",
     "src/lib/llm/openai.ts",
     "src/lib/llm/schemaEncoding.ts",
     "src/lib/llm/types.ts",
