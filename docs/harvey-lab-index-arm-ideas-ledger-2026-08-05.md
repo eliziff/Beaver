@@ -1739,6 +1739,7 @@ a row for that task exists. Run dir base:
 | white-collar-defense-investigations/analyze-counterparty-markup-of-deferred-prosecution-agreement | **43/58** | deepseek-v4-flash | 282,377 (255,087/27,290) | 6/6 | 247s | 2026-08-07T18-28-40 |
 | antitrust-competition/compare-expert-market-share-estimates-against-agency-data | **53/56** | deepseek-v4-flash | 322,154 (281,704/40,450) | 6/6 | 282s | 2026-08-07T18-38-52 |
 | antitrust-competition/analyze-counterparty-markup-of-protective-order | **43/49** | deepseek-v4-flash | 238,346 (202,468/35,878) | 6/6 | 358s | 2026-08-07T18-45-55 |
+| antitrust-competition/prepare-antitrust-risk-assessment | **36/95** | deepseek-v4-flash | 355,475 (295,499/59,976) | 25/25 | 553s | 2026-08-07T18-45-55 |
 
 **Failure → recovered (harness gate, not a score):** capital-markets/compare-closing-documents-against-closing-checklist
 first attempt (17-56-20) authored 0/1 DOCX — the model made one `fetch_documents`
