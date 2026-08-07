@@ -1575,6 +1575,13 @@ to save: HSR 431.9k vs 184.7k, acq 602.7k vs 438.6k, tax 710.4k vs
 454.0k — roughly +37-134% input burn for the fabricated unread list
 alone. A VALID T2 (honest echo-only) needs fresh runs post-ada6e7c8;
 whether to spend that is a #59 analysis call.
+RESULT (flash-judged ~07:55): HSR **49/50** (ties g4's all-time HSR
+best — echo-v1 rows are the two best HSR rows), acq **58/64** (above
+the 57 plateau, below the checkpoint 60s), tax **41/77** (replicates
+g4's 42 — the false-echo re-read + re-emission harm on tax is now
+n=2: no-echo 45 → false-echo 42/41; draft persistence rescued it to
+53). Echo-v1 stratum n=2 on all three tasks; scores sit within noise
+of their triage twins everywhere except tax, at +37-134% cost.
 
 **Lane state.** The 07:07-07:16 3-wide wave (tax rep2, DPA,
 insurance) was externally killed — dead run-state-only dirs, never
