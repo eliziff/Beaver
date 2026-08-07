@@ -1714,3 +1714,29 @@ native control; the native control still runs on real-estate).
 - **NATIVE CONTROL ON FLASH — FAILED (16-42-55, real-estate):** `mike_upstream_native_v1` on deepseek-v4-flash made ZERO tool calls after one fetch_documents and streamed plain text; harness gate hard-refused ("authored 0/1 required DOCX deliverables"). flash cannot drive the faithful OG-mike native arm. All existing native runs are claude-p-sonnet lane. The paired native control is UNAVAILABLE on flash; native-vs-lean comparisons must either use the existing claude-p-sonnet native rows (cross-lane, confounded by runner model) or wait for an explicit opus-4-8 claude-p ask (per memory: claude-p = opus-4-8 only on explicit ask).**
 
 **Weight-sensitivity caveat (standing, appended 2026-08-07):** all cacheadj columns above use weight 0.1 (uncached + 0.1·cache_read), the harness-stored value = OpenAI GPT-5.x / Anthropic cache discount (90% off). deepseek-v4-flash's TRUE cache weight is 0.02 (50×, official pricing $0.0028/$0.14/M), so deepseek-lane cost comparisons using these 0.1 columns overstate cache-heavy runs up to ~5×; gen-7-vs-g3 cost ratios @0.02/0.1/0.5 computed in the chat table (acq 1.03/1.33/1.75, tax 0.95/1.18/1.45, emp 0.48/0.69/1.71, HSR 0.66/0.91/1.82, ins 0.44/0.65/1.66, DPA 0.29/0.48/1.20 — g7 cheaper 5/6 @0.02, 4/6 @0.1, 0/6 @0.5). The "better AND cheaper" story is deepseek-cache-discount-specific; under luna (0.1) gen-7 is roughly cost-neutral on average, cost-positive on acq/tax.
+
+## RUN RESULT — mike_upstream_native_v1 DEEPSEEK-V4-FLASH BASELINE BATCH (2026-08-07, runner)
+
+Backlog fill for the UPSTREAM MIKE CONTROL lane: the faithful OG-mike arm
+(`mike_upstream_native_v1`, read_document/find_in_document, no markdown, no
+progressive disclosure, MIKE_DEEPSEEK_MAX_TOKENS=65536) run on the
+deepseek-v4-flash lane across the dev-tier backlog, judged ONCE per run by
+deepseek-v4-flash (explicit `--judge-model`; no default-sonnet judging).
+Paired treatment rows are `beaver-coding_markdown_v5-deepseek-v4-flash` where
+a row for that task exists. Run dir base:
+`benchmarks/harvey-labs/results/<task>/beaver-mike_upstream_native_v1-deepseek-v4-flash/<ts>`.
+
+| task | score | judge | tokens (in/out) | docs | wall | run dir (ts) |
+|---|---|---|---|---|---|---|
+| antitrust-competition/analyze-antitrust-hsr-strategy | **44/50** | deepseek-v4-flash | 436,814 (—/65,791) | 9/9 | 495s | 2026-08-07T17-45-36 |
+| arbitration-international-dispute-resolution/analyze-counterparty-markup-of-arbitration-agreement | **64/69** | deepseek-v4-flash | 177,408 (140,817/36,591) | 5/5 | 316s | 2026-08-07T17-45-41 |
+
+**Failure flagged (harness gate, not a score):** capital-markets/compare-closing-documents-against-closing-checklist
+first attempt (17-56-20) authored 0/1 DOCX — the model made one `fetch_documents`
+call then answered in plain text (4,742 chars) without calling `generate_docx`;
+harness gate hard-refused (ARM_EXIT=1). Judge artifacts were removed (a false
+0/32 would have polluted compare.py's `rglob("scores.json")`); the attempt is
+preserved as raw-sse.txt + run-state.json. Task re-run queued. Same failure
+signature as the 16-42-55 real-estate attempt (native-on-flash can decline to
+emit generate_docx); unlike 16-42-55 this was NOT an output-budget exhaustion —
+the budget fix (65536) held, the model just chose text over the tool.
