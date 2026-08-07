@@ -4038,6 +4038,7 @@ async function runCodingShapeCall(
   turnEditState?: LocalAssistantEditTurnState,
   workingSets?: LocalAssistantWorkingSetTurnState,
   servedDraftingCache?: Map<string, ServedDrafting>,
+  turnReadState?: LocalAssistantReadTurnState,
 ): Promise<NormalizedToolResult> {
   const collection = await listLocalLibrary(userId, "file");
   const storedById = new Map(
@@ -4503,6 +4504,36 @@ async function runCodingShapeCall(
     if (!document) return fail(call, `File could not be read: ${requested}`);
     const lines = document.text.split(/\r?\n/u);
     const starts = sourceLineStarts(document.text, lines);
+    // Exposure accounting (echo plane): every successful Read records its
+    // served spans into turnReadState — the state splitReadExposure consults
+    // at the generate_docx coverage gate. Without this the coding family
+    // served body text while the gate saw an empty map, so the echo refused
+    // every first draft with an all-documents "never opened" list regardless
+    // of what had actually been read. Grep hits stay non-exposure by
+    // doctrine; .toc reads stay derived-metadata-only. The coding plane is
+    // served body-only (no SECT-INDEX prefix), so bodyStart is 0 and spans
+    // are body coordinates already.
+    const recordReadExposure = (kept: CodingOutputLine[]) => {
+      if (!turnReadState) return;
+      const spans = kept.flatMap((line) => (line.span ? [line.span] : []));
+      if (!spans.length) return;
+      const stateKey = `coding:${meta.id}`;
+      const prior = turnReadState.get(stateKey);
+      const intervals = mergeIntervals([...(prior?.intervals ?? []), ...spans]);
+      turnReadState.set(stateKey, {
+        documentId: meta.id,
+        docLabel: codingPath(meta),
+        versionId: meta.current_version_id,
+        filename: meta.filename,
+        sourceChars: document.text.length,
+        deliveredChars: intervals.reduce(
+          (total, [start, end]) => total + (end - start),
+          0,
+        ),
+        bodyStart: 0,
+        intervals,
+      });
+    };
     const limit = positiveInt(args.limit, 1, 2_000, 2_000);
     const startChar = clampInt(
       args.start_char,
@@ -4562,6 +4593,7 @@ async function runCodingShapeCall(
         ),
       );
       const { kept, truncated } = takeCodingOutputLines(candidates);
+      recordReadExposure(kept);
       return codingTextResult(
         call,
         kept.map((line) => line.rendered).join("\n") +
@@ -4637,6 +4669,7 @@ async function runCodingShapeCall(
           : truncated
             ? "\n(Reference read stopped at the tool-result limit; narrow the direction or read a returned section recipe.)"
             : "";
+        recordReadExposure(kept);
         return codingTextResult(
           call,
           kept.map((line) => line.rendered).join("\n") + note,
@@ -4699,6 +4732,7 @@ async function runCodingShapeCall(
         lastShown < endLine
           ? `\n\n[TRUNCATED: returned section lines ${sectionOffset}-${lastShown} of ${startLine}-${endLine}; continue with Read(file_path="${requested}", section="${block.label}", offset=${lastShown + 1}).${truncated ? " Tool-result limit reached." : ""}]`
           : "";
+      recordReadExposure(kept);
       return codingTextResult(
         call,
         kept.map((line) => line.rendered).join("\n") + more,
@@ -4772,6 +4806,7 @@ async function runCodingShapeCall(
       : lastShown < lines.length
         ? `\n\n[TRUNCATED: returned lines ${offset}-${lastShown} of ${lines.length}; continue with Read(file_path="${requested}", offset=${lastShown + 1}).${truncated ? " Tool-result limit reached." : ""}]`
         : "";
+    recordReadExposure(kept);
     return codingTextResult(
       call,
       kept.map((line) => line.rendered).join("\n") + more,
@@ -8081,6 +8116,7 @@ export async function runLocalAssistantTools(
           turnEditState,
           workingSets,
           servedDraftingCache,
+          turnReadState,
         );
       }
       // Strict surface: names the shape swap removed must fail loudly, or a
