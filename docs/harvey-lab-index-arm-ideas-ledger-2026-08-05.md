@@ -1903,3 +1903,44 @@ must be shown on a task whose misses ARE edit-addressable
 genuinely new asset: it converts "drafted blind" into "read the 9
 named docs first" — that re-read discipline, not the edits, is what
 a post-g5 gap needs.
+
+## RUN RESULT — REQUIREMENTS ECHO ON TAX: NULL (2026-08-07, runner)
+
+**`coding_markdown_v5_reqecho_v1` @ 20-01-25 (deepseek-v4-flash, judge
+deepseek-v4-flash): 47/77.** The T2 requirements-echo contrast arm,
+wired in a0c1ab20. Mechanism VERIFIED live: the arm adds a
+`fetch_requirements` resident tool; the model called it once
+(`echo_call_count: 1`) and got the verbatim 202-char task prompt
+("…prepare a comprehensive review memorandum with findings, risk
+assessment, and prioritized remediation recommendations. Output:
+memo.docx.") plus its documents-read list. The exposure gate also
+fired once (`documents_unread_at_echo: 9`); the model read those 9,
+made 2 Edits, rendered. 0 compactions, 23/25 docs read, 734k cacheadj.
+
+**Score: dead-center of the no-echo band — null.** No-echo v5 deepseek
+tax = {45, 42, 53, 48, 51, 38, 48, 42} (mean 45.9, median 46.5,
+range 38-53, all judged deepseek-v4-flash). Reqecho 47 = +1.1 vs
+mean — an order of magnitude under the ~10-criterion judge spread
+established at fixed treatment (d153d596). Per that rule, no per-row
+tax delta under 10 is interpretable; 47 is a draw.
+
+**Criteria profile: a DIFFERENT 47, reading as variance.** Reqecho
+passes 7 criteria the no-echo majority misses (incl. C-001 risk
+quantification table, 2/8→pass; C-026 implicit-vs-explicit guarantee,
+1/8→pass; C-010, C-014, C-031, C-045, C-064) and loses 6 the majority
+gets (incl. C-030 flag-critical/urgent, 8/8→fail — a genuine downside
+draw; C-036, C-052, C-015, C-053, C-068). Net +1; the win/loss mix
+across orthogonal criteria is run-to-run noise, not a mechanism
+signature — the echoed prompt carries no content that could steer any
+of these (it is 202 generic chars, no table shapes, no named issues).
+
+**Cost:** +10% cacheadj (734k vs no-echo mean 667k) — the
+fetch_requirements round trip.
+
+**Verdict: the requirements echo does NOT move tax.** The mechanism
+is correct and cheap; the payload is content-free. As predicted by
+the length-vs-score analysis (afaf056c), an echo only has something
+to add when the prompt itself carries structural requirements. The
+draft-mode idea stays parked; a reqecho run is only worth spending
+on a task whose prompt names table shapes / deliverable format (none
+on the current panel).
