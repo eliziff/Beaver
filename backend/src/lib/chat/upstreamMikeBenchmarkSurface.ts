@@ -861,6 +861,18 @@ CONTEXT BUDGET:
 - A large corpus can exceed your working context; reading everything in full overflows it, and earlier tool results are then silently summarized (lossy). Read in full only the documents central to the deliverable. For the rest, Read the .toc, then Grep and Read scoped windows (offset/limit) from section start lines.
 - Batch related tool calls in a single turn — several Grep and Read calls at once beat one call per turn.`;
 
+/**
+ * v5 (grep routing): the budget block plus the corpus-grep routing line
+ * that the max-min fair per-file allocation makes truthful — one
+ * corpus-wide Grep now reaches every matching file instead of draining
+ * head_limit on the first verbose one. Motivated by the tax pilot, where
+ * scattered per-issue evidence sat inside documents the drafter opened
+ * but windowed past (zero Grep calls). Mechanism-only: tool economy and
+ * general strategy; no task or rubric content.
+ */
+export const CODING_MARKDOWN_GREP_ROUTE_LAB_SYSTEM_PROMPT = `${CODING_MARKDOWN_BUDGET_LAB_SYSTEM_PROMPT}
+- When the work needs specific facts, figures, or inconsistencies scattered across many documents, run corpus-wide Greps early — results are split fairly across matching files — and scope Reads to the hits rather than guessing windows.`;
+
 /** Delta tag: companion .toc index files + budget prompt gated on
  * MIKE_CODING_TOC_FILES (coding_markdown_v4). */
 export const CODING_TOC_FILES_DELTA = "coding-toc-files-v1";
@@ -869,6 +881,9 @@ export const CODING_MARKDOWN_V4_DELTA = "coding-markdown-v4";
 /** Delta tag: max-min fair per-file grep budget gated on
  * MIKE_GREP_PER_FILE_BUDGET (coding_markdown_v5). */
 export const GREP_PER_FILE_BUDGET_DELTA = "grep-per-file-budget-v1";
+/** Delta tag: corpus-grep routing line in the v5 prompt (consolidated
+ * into the arm 2026-08-06 — levers accrete in place, ablate later). */
+export const GREP_ROUTING_PROMPT_DELTA = "grep-routing-prompt-v1";
 /** Delta tag: the composite v5 coding arm (v4 + per-file grep budget). */
 export const CODING_MARKDOWN_V5_DELTA = "coding-markdown-v5";
 
