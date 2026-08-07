@@ -1765,7 +1765,11 @@ export const MARKDOWN_E2E_INDEX_TREATMENT_DELTA =
  * documents_oriented_only bucket, and arms a one-shot authoring-boundary
  * coverage check. Tool payloads only — no prompt text, so the v2 arm's
  * system_prompt_sha256 equals v1's by construction. */
-export const EXPOSURE_ECHO_DELTA = "exposure-echo-v1";
+// v2 (2026-08-07): the coding-family Read path now records body exposure
+// into turnReadState, so the echo measures REAL coverage. Under v1 that
+// plane was never written in the coding shape — the gate saw an empty map
+// and refused every first draft with an all-documents "never opened" list.
+export const EXPOSURE_ECHO_DELTA = "exposure-echo-v2";
 /** Delta tag: the composite scoped-index treatment v2 arm (v1 + exposure
  * accounting). */
 export const MARKDOWN_E2E_INDEX_TREATMENT_V2_DELTA =
