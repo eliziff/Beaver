@@ -1471,18 +1471,26 @@ async function main() {
         // No readable typed receipt — treat as non-transient and exit as-is.
       }
       if (transient) {
+        // Fresh run dir on purpose: run directories are append-only evidence
+        // (main refuses to reuse one), so the relaunch mints its own
+        // timestamp and the dead attempt's partial artifacts stay behind as
+        // forensics. Any operator-pinned --run-id is stripped for the same
+        // reason.
+        const forwarded: string[] = [];
+        const argvTail = process.argv.slice(2);
+        for (let index = 0; index < argvTail.length; index++) {
+          if (argvTail[index] === "--run-id") {
+            index++;
+            continue;
+          }
+          forwarded.push(argvTail[index]);
+        }
         console.error(
-          `[lab-beaver-arm] transport-class failure — relaunching the run once: ${errorText.slice(0, 200)}`,
+          `[lab-beaver-arm] transport-class failure — relaunching the run once in a fresh run dir: ${errorText.slice(0, 200)}`,
         );
         const relaunched = spawnSync(
           process.execPath,
-          [
-            require.resolve("tsx/cli"),
-            __filename,
-            ...process.argv.slice(2),
-            "--run-id",
-            runId,
-          ],
+          [require.resolve("tsx/cli"), __filename, ...forwarded],
           {
             env: { ...process.env, LAB_BEAVER_TRANSPORT_RELAUNCH: "1" },
             stdio: "inherit",
