@@ -1333,3 +1333,80 @@ read-everything pathway; kept as the contrast row).
 **Next (Eli directive): Opus 5 A/B, one task (CoC), same v4 arm** —
 window-agnostic prompt transfers unchanged; pre-flight = slug routing
 proof (deepclaude trap) + CLI window measurement (>200K?).
+
+## GEN-3 BATTERY + GEN-4 ECHO STRATUM + TRANSPORT BURST + DRAFT-EDIT LANDS (2026-08-07 pre-dawn, Fable)
+
+**Gen-3 battery (v5 pre-echo, flash runner + flash judge, all 7 tasks,
+03:15–03:20 launches): acq 56/64, HSR-antitrust 47/50, tax 45/77, DPA
+51/58, employment 54/59, insurance 55/57 — pooled 308/365 (84.4%) —
+plus closing 31/32 (claude-sonnet judge, its own stratum; the run_eval
+default slipped in; kept, matches the historical claude-judged closing
+row).** Every task full doc coverage INCLUDING tax 25/25 — correcting
+the earlier belief that tax underread: the 12/25 tax row was v2-era.
+The grep-first v5 chassis reads everything it needs unprompted; zero
+compactions anywhere.
+
+**Gen-4 = gen-3 + one-shot exposure echo (receipt
+`exposure_echo_delta: exposure-echo-v1`), 5 paired rows (03:42–04:30):
+acq 57/64, antitrust 49/50, tax 42/77, employment 53/59, insurance
+55/57 — pooled 256/307 vs gen-3's 257/307 on the same 5. Dead parity.**
+Coverage was already saturated pre-echo, so the echo bought no reads it
+needed to buy. Its measured cost is the SECOND EMISSION: output tokens
+up on every leg (acq 41.3k→65.4k, antitrust 20.5k→32.3k, tax
+39.4k→64.6k, employment 32.9k→41.6k, insurance 23.8k→37.0k); cache-adj
+input mixed (acq +210k, antitrust +123k, tax +225k, employment −32k,
+insurance −7k). Also visible: redraft compression drift — employment's
+deliverable shrank 59.7k→44.3k chars across the echo boundary and its
+score dropped a point. Tweak/add/pare input: the echo as pure refusal
+is score-neutral and emission-expensive HERE; its insurance value
+(catching a genuinely underread run) never got to fire on a chassis
+that already reads everything. DPA + closing have NO gen-4 rows —
+gen-4 was superseded by gen-5 before they ran; the echo ablation
+stands on 5 pairs.
+
+**Transport burst (~03:55–04:30): five deaths in ~35 min** — four
+deepseek undici `TypeError: terminated` (acq gen-4 pre-relaunch-fix,
+employment ×2, insurance ×1) plus the indenture claude-p leg
+(connection-closed → unparseable TOOL_CALLS → 900s watchdog kill,
+3-attempt fatal). Machinery landed in response, all committed:
+`d972f3e3` zero-progress round retry in deepseek.ts (retries transport
+errors only while NO delta has been forwarded — post-emission retry
+would duplicate text into the persisted turn; classifier probe 10/10);
+`6f65dd42` run-level single relaunch in lab-beaver-arm.ts (parent
+re-execs once on transport-class run-state failure, marker env guards
+recursion); `093be19d` relaunch strips `--run-id` and mints a fresh
+run dir (first live firing tripped main's append-only-evidence guard).
+Validated same night: employment and insurance relaunches each
+absorbed ANOTHER terminated death and completed. Run-state note:
+success paths leave `status: provider_call_pending` — terminal states
+are typed-failure-only; completion evidence is metrics.json +
+deliverables.
+
+**Indenture on claude-p sonnet-4-6 (v5 arm, Phase-D shakeout): died at
+the 200K wall** — auto-compaction twice at preTokens ≈198.8k on
+iteration 5, then the parse/transport cascade. Sonnet under v5 read
+~190k by round 5 on the 248k-corpus draft task — the grep-first
+discipline that holds on flash did not transfer. Relaunched once
+(fresh sample); if it dies the same way, that IS the Phase-D row for
+this cell: v5-on-sonnet whole-reads itself into compaction-thrash on
+the no-fit whale.
+
+**Draft-edit lever (gen-5) BUILT + FLIPPED INTO v5**: echo-refused
+generate_docx body persists as `draft.md` in per-turn state; `Edit`
+(Claude Code exact semantics: unique match or replace_all, typed
+refusals, $-literal splicing) revises it; markdown-less generate_docx
+renders the buffer. Taught just-in-time via refusal text + tool
+descriptions — NO system-prompt change, so the prompt sha carries
+across generations. Commits: `6e841c9e` mechanism flag-off (gen-4
+stratum stayed clean), `be06387a` env flip + `draft_edit_delta`
+receipts ×3 + conformance (surface.draft_edit per arm; v5 resident
+tools gain Edit), `c496e459` chat.ts leak-guard taught the append (the
+guard correctly rejected the unregistered 5-tool surface on smoke #1 —
+the flag-off construction was why gen-4 never saw it). Probe 7/7 on
+applyDraftEdit. Rationale from the grid: coverage is saturated, misses
+are output-side synthesis, and the echo's whole cost is re-emission —
+draft-edit keeps the echo's refusal insurance while converting
+revision from re-emission (~24k/run) into incremental edits, and kills
+the compression drift employment exhibited. Gen-5 smoke on employment
+in flight; battery (7 tasks incl. DPA/closing) next, then the deep
+tweak/add/pare over gen-3/4/5 receipt strata.
