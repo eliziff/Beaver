@@ -8098,6 +8098,14 @@ export async function runLocalAssistantTools(
           terminal: submitted.terminal === true,
         };
       }
+      // Edit is the one tool with two targets. A real library path resolves
+      // through the coding surface's text-ops editor (runCodingShapeCall
+      // below); the in-memory draft buffer — draft.md, which exists only in
+      // requirementsState.draftMarkdown and never on disk — is served by the
+      // DRAFT_EDIT handler further down this chain. Route by target: draft
+      // edits must fall through here, or the FS resolver answers every one
+      // with "File does not exist: draft.md" while the in-memory handler sits
+      // shadowed (the gen-7 bug — all Edit calls failed on every run).
       if (
         CODING_TOOL_SHAPE &&
         (call.name === "Glob" ||
@@ -8106,7 +8114,8 @@ export async function runLocalAssistantTools(
           (RETRIEVAL_EXPERIMENT_TOOLS.some(
             (entry) => entry.function.name === call.name,
           )) ||
-          call.name === "Edit")
+          (call.name === "Edit" &&
+            !(DRAFT_EDIT_ENABLED && trimmed(args.file_path) === "draft.md")))
       ) {
         return runCodingShapeCall(
           call,
