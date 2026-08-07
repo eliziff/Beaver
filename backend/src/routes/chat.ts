@@ -1217,9 +1217,14 @@ export async function streamAnonymousChat(params: {
     // The requirements-echo mechanism appends exactly one tool to whatever arm
     // surface is active, so the guard's expectation is extended the same way
     // rather than duplicating any arm's list.
-    const expected = REQUIREMENTS_ECHO_ENABLED
+    const expectedWithEcho = REQUIREMENTS_ECHO_ENABLED
       ? [...expectedBase, "fetch_requirements"]
       : expectedBase;
+    // Draft-edit appends Edit the same way; generate_docx is swapped in place
+    // for the optional-markdown variant, keeping its name and position.
+    const expected = DRAFT_EDIT_ENABLED
+      ? [...expectedWithEcho, "Edit"]
+      : expectedWithEcho;
     const actual = activeTools.map((entry) => entry.function.name);
     if (
       progressiveDisclosure ||
