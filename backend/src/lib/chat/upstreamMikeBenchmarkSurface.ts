@@ -1167,7 +1167,12 @@ export const CODING_GENERATE_DOCX_DRAFT_EDIT_TOOL: OpenAIToolSchema = {
 };
 
 /** Delta tag: saved-draft + Edit revision path gated on MIKE_DRAFT_EDIT. */
-export const DRAFT_EDIT_DELTA = "draft-edit-v3";
+// v4 (2026-08-07): universal refinement checkpoint — the first bodied
+// generate_docx always pauses once (draft saved), with honest coverage
+// contents either way (true unread list, or all-read confirmation). Under
+// v3 the pause existed only on coverage shortfall, which the honest
+// accounting would have removed from full-coverage runs entirely.
+export const DRAFT_EDIT_DELTA = "draft-edit-v4";
 
 /**
  * v3 (grep section-context): identical to the CC Grep except the
