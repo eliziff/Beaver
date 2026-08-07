@@ -1752,12 +1752,13 @@ fetch_documents -> generate_docx -> read_document, 4035 answer chars, 8/8 docs).
 Treating the first attempt as a stochastic native-on-flash refusal, not a
 task-specific blocker.
 
-**Task-specific native-on-flash harness refusals (employment-labor markup):**
+**BLOCKED — task-specific native-on-flash harness refusals (employment-labor markup):**
 employment-labor/analyze-counterparty-markup-of-executive-employment-agreement
-authored 0/1 DOCX on 18-11-08 (answered in text after ~8 min / 3.1 MB raw-sse,
-no generate_docx), then authored **3/1** DOCX on the 18-19-45 re-run (over-produced
-three deliverables; harness gate ARM_EXIT=1 at lab-beaver-arm.ts:2882 in both).
-Two distinct refusal signatures (0/1 then 3/1) — the model is erratic on this
-task's corpus, unlike capital-closing (0/1 -> 29/32). No judge artifacts (clean).
-3rd re-run queued; if it fails again, flag as a task-specific blocker (no native
-baseline available on flash for this cell).
+failed the DOCX gate on ALL THREE attempts (18-11-08 authored **0/1** after
+~8 min text answer; 18-19-45 authored **3/1** over-produced; 18-30-57 authored
+**0/1** again). Harness gate ARM_EXIT=1 at lab-beaver-arm.ts:2882 each time;
+no judge artifacts (clean, no compare.py pollution). The model cannot reliably
+emit exactly one DOCX on this task's corpus on flash — flag as a task-specific
+blocker: **no native baseline available on flash for this cell.** (Contrast
+capital-closing, which recovered 0/1 -> 29/32 on attempt 2.) The paired
+treatment row exists; this native cell is left as a known-missing control.
