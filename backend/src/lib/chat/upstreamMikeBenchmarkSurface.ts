@@ -884,6 +884,32 @@ export const GREP_PER_FILE_BUDGET_DELTA = "grep-per-file-budget-v1";
 /** Delta tag: corpus-grep routing line in the v5 prompt (consolidated
  * into the arm 2026-08-06 — levers accrete in place, ablate later). */
 export const GREP_ROUTING_PROMPT_DELTA = "grep-routing-prompt-v1";
+
+/**
+ * v5 gen-3 (triage workflow): ONE unified corpus-workflow block replacing
+ * the budget block + routing line, redesigned from the acq-diligence 49/64
+ * forensics (2026-08-07): 12/31 documents wholly unexamined (zero .toc
+ * reads, zero Greps) while ~70k of window headroom went unused and the
+ * missed criteria's evidence strings never entered any tool result; one
+ * fact about an unread contract asserted from another document's
+ * description, and wrong; dispersed provisions windowed past inside opened
+ * central documents; interaction and corpus-gap misses. Each bullet traces
+ * to a measured failure class (survey <- zero-grep pilots; cover <-
+ * unread-doc criteria deaths; verify <- second-hand assertion error;
+ * closing line <- the context-anxiety skip response). Mechanism-only: true
+ * tool mechanics and general workflow, no task or rubric content, and no
+ * compaction promise (the deepseek lane has no compaction valve).
+ */
+export const CODING_MARKDOWN_TRIAGE_LAB_SYSTEM_PROMPT = `${CODING_MARKDOWN_LAB_SYSTEM_PROMPT}
+
+CORPUS WORKFLOW:
+- Call tools with the bare filename as file_path, never the "doc-N:" inventory label. Batch related tool calls in a single turn — several Grep and Read calls at once beat one call per turn.
+- Survey first: Glob reports each document's exact size and its companion "<name>.toc" index file (its sections with their line numbers). Early on, Grep the corpus for the deliverable's key subjects — results are split fairly across matching files — then scope Reads (offset/limit) to the hits and to .toc section starts rather than guessing windows.
+- Cover everything: before drafting, every document must be read, or its .toc reviewed, or its Grep hits examined — none left wholly unexamined. Read the documents central to the deliverable in full, continuing past any truncation; window-sampling a central document loses dispersed provisions. Note materials the documents reference that the corpus does not contain.
+- Verify at the source: assert a specific name, figure, date, or term only after retrieving it from the document that governs it, never from another document's description of it. Where findings interact on the same instrument or event, present them together.
+- A large corpus can exceed your working context; the scoped workflow above is what keeps it inside. Budget pressure is never a reason to leave a document unexamined — a .toc review or a Grep pass costs almost nothing compared to a missed provision.`;
+/** Delta tag: the unified triage-workflow prompt (v5 gen-3). */
+export const TRIAGE_WORKFLOW_PROMPT_DELTA = "triage-workflow-prompt-v1";
 /** Delta tag: the composite v5 coding arm (v4 + per-file grep budget). */
 export const CODING_MARKDOWN_V5_DELTA = "coding-markdown-v5";
 
