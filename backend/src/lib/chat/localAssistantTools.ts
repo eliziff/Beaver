@@ -8308,20 +8308,24 @@ export async function runLocalAssistantTools(
                 requirementsState.draftMarkdown = body;
                 requirementsState.draftFilename =
                   trimmed(args.filename) || null;
-                // draft-edit-v2: the v1 note induced a serial full-read of
-                // every listed document followed by a byte-identical render
-                // (Edit went 0-for-7 in the gen-5 battery). Selective
-                // verification is the instruction now, and rendering without
-                // further reads is named as legitimate.
+                // draft-edit-v3: v1's note induced serial full-reads of every
+                // listed document followed by a byte-identical render — Edit
+                // went 0-for-7 in the gen-5 battery, so post-draft evidence
+                // never reached the deliverable. The phase is framed as
+                // refinement now: selective checks with incorporation as the
+                // expected outcome. (v2 briefly licensed rendering with no
+                // further reads; killed before any judged row — it optimized
+                // away the reads instead of fixing the missing edits.)
                 draftNote =
                   ` Your draft (${body.length} chars) is saved as draft.md —` +
-                  ` do NOT re-send the body. Verify the listed documents` +
-                  ` selectively: Grep or skim them only for facts that` +
-                  ` contradict or add to your draft, and apply what you find` +
-                  ` with Edit (old_string/new_string). Then call` +
-                  ` generate_docx without markdown to render the saved` +
-                  ` draft — if the draft already covers them, render without` +
-                  ` further reads.`;
+                  ` do NOT re-send the body. Now refine it against the` +
+                  ` listed documents: check them selectively (Grep or scoped` +
+                  ` Read) for facts that add to, sharpen, or contradict your` +
+                  ` draft, and fold each finding in with Edit` +
+                  ` (old_string/new_string) — precise small edits are cheap,` +
+                  ` use as many as the evidence deserves. When the draft` +
+                  ` reflects the full record, call generate_docx without` +
+                  ` markdown to render it.`;
               }
             }
             return upstreamMikeResult(call, {
