@@ -1733,6 +1733,7 @@ a row for that task exists. Run dir base:
 | banking-finance/extract-credit-agreement-covenants | **55/65** | deepseek-v4-flash | 258,410 (214,503/43,907) | 3/3 | 369s | 2026-08-07T17-56-17 |
 | capital-markets/compare-closing-documents-against-closing-checklist | **29/32** | deepseek-v4-flash | 218,736 (176,821/41,915) | 8/8 | 329s | 2026-08-07T18-01-14 |
 | corporate-governance/analyze-eu-ai-act-high | **64/66** | deepseek-v4-flash | 403,802 (368,715/35,087) | 7/7 | 274s | 2026-08-07T18-06-06 |
+| corporate-ma/draft-acquisition-due-diligence | **53/64** | deepseek-v4-flash | 794,641 (754,030/40,611) | 31/31 | 415s | 2026-08-07T18-07-54 |
 
 **Failure → recovered (harness gate, not a score):** capital-markets/compare-closing-documents-against-closing-checklist
 first attempt (17-56-20) authored 0/1 DOCX — the model made one `fetch_documents`
