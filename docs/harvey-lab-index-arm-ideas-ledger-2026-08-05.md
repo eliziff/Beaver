@@ -1522,3 +1522,62 @@ arms keep pure shortfall-refusal semantics. Argless probes at full
 coverage fall through to the typed invalid-input refusal (no empty
 render path). Gen-7 stratum = (exposure-echo-v2, draft-edit-v4);
 battery starting tax + acq (the discriminating tasks), then the rest.
+
+## GEN-7 RESULTS + FULL-DAY STRATA GRID + v5_echo DISPOSITION (2026-08-07 ~07:45, Fable)
+
+**Gen-7 rows (echo-v2 + draft-edit-v4, flash runner + flash judge).**
+- acq 06-52-15: **60/64** — ties the all-time best. `refine_check`
+  route (full coverage honestly reported), 2 Edits, ZERO re-reads,
+  cleanest trace of the family; 577.4k cacheadj, largest acq
+  deliverable (101.7k chars).
+- employment 07-07-07: **57/59** — identical to the 06-45-38
+  no-ceremony smoke (echo-v2 + edit-v3, also 57/59). The universal
+  checkpoint is score-neutral where the draft is already complete;
+  its cost was +16.8k cacheadj (84.3k vs 67.5k) for 2 Edits.
+- HSR 07-07-09: **48/50** — ceiling band (47-49 across all strata);
+  Grep + 5 Edits post-checkpoint.
+- tax 06-52-13: **38/77** n=1 — the honest `coverage_check` listed the
+  TRUE 9 unread docs; the model read exactly those 9, made 3 Edits —
+  mechanically perfect, yet 18 deep-synthesis criteria flipped down vs
+  g5's 53. Composition-coverage law: the flips live in what was
+  composed before the checkpoint, and tax judge noise is ±5 → rep2
+  required before 38 stands (in flight).
+
+**Full-day strata grid** (all 2026-08-07, score @ cacheadj; flash
+judge throughout except closing g3, which is sonnet-judged and
+excluded from cross-gen pools):
+
+| task | g3 no-echo | g4 echo-v1 | g5 +edit-v1 | v3 edit-v3 | g7 echo-v2+edit-v4 |
+|---|---|---|---|---|---|
+| acq | 56 @438k | 57 @648k | 57 @566k | 58 @637k, 60 @514k | **60** @577k |
+| tax | 45 @454k | 42 @679k | 53 @731k | 48 @980k, 51 @780k | 38 @620k (rep2 out) |
+| employment | 54 @122k | 53 @90k | 53 @99k | 57 @68k (echo-v2) | **57** @84k |
+| HSR | 47 @185k | 49 @307k | 48 @160k | 48 @158k | 48 @169k |
+| insurance | 55 @184k | 55 @177k | 55 @141k | — | queued |
+| DPA | 51 @324k | — | 52 @167k | — | in flight |
+| closing | (31/32 sonnet) | — | 27/32 @99k | — | queued |
+
+**Employment is the cleanest honest-echo signal.** Its only rows ≥57
+all-time are the two echo-v2 rows with draft-edit enabled. The
+false-echo rows (g4 53, g5 53) sit BELOW the no-echo g3 (54): on this
+small n, the fabricated ceremony cost ~1-4 criteria while the honest
+checkpoint added +3 over baseline. On acq the same shape: an honest
+v3 gate would never have paused (full coverage → silent), so g7's 60
+vs g4/g5's 57 IS the checkpoint's marginal contribution under honesty.
+
+**v5_echo (T2) disposition.** Three 03:20 runs (HSR/acq/tax) —
+the echo-only arm, v5 chassis + exposure-echo-v1, no draft
+persistence (config predates the draft-edit flag) — completed under
+the false-refusal echo and sat unjudged. First-judging them now
+(flash) as gen-4-stratum replicates. Their cacheadj vs same-wave
+triage twins isolates pure false-ceremony cost when there is no draft
+to save: HSR 431.9k vs 184.7k, acq 602.7k vs 438.6k, tax 710.4k vs
+454.0k — roughly +37-134% input burn for the fabricated unread list
+alone. A VALID T2 (honest echo-only) needs fresh runs post-ada6e7c8;
+whether to spend that is a #59 analysis call.
+
+**Lane state.** The 07:07-07:16 3-wide wave (tax rep2, DPA,
+insurance) was externally killed — dead run-state-only dirs, never
+judged, never in any grid. Resumed 2-wide per the
+less-parallelism directive: tax rep2 + DPA gen-7 in flight,
+insurance + closing gen-7 queued behind them.
