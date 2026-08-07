@@ -850,6 +850,12 @@ async function main() {
       MIKE_COMPLETENESS_FLOOR: "0",
       MIKE_DISABLE_ASK_INPUTS: "0",
       MIKE_TOOL_RESULT_CAP: "",
+      // deepseek lane: the 32768 default per-response output budget is consumed
+      // ENTIRELY by reasoning_content on this arm (flash + reasoning max + the
+      // 142k-char fetch result) and truncates before any tool_use is emitted —
+      // measured 2026-08-07T16-42-55 (authored 0/1 deliverables, empty content).
+      // Headroom is required to make the native control drivable on flash at all.
+      MIKE_DEEPSEEK_MAX_TOKENS: "65536",
     },
     mike_markdown_swap_v1: {
       MIKE_NAV_SHAPE: "legacy",
@@ -1437,6 +1443,11 @@ async function main() {
             ? { MIKE_CLAUDE_P_PERSIST: "1" }
             : {}),
           MIKE_LLM_CONTEXT_MANIFEST_PATH: path.join(dataHome, "manifest.jsonl"),
+          // Live SSE capture: the /chat route appends every event (reasoning
+          // deltas, tool calls, content) to this file as it streams, so a
+          // running run's raw-sse.txt can be tailed live (lab-sse-live.ts).
+          // The final writeFileSync after the request is the canonical record.
+          MIKE_LLM_RAW_SSE_PATH: path.join(labRoot, "results", runId, "raw-sse.txt"),
           // SLA receipts land beside the run's other artifacts; inert
           // unless the parent also sets MIKE_SLA_WORKFLOW=1 (arm variant).
           MIKE_SLA_RECEIPT_PATH: path.join(

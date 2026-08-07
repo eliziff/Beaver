@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { createHash } from "node:crypto";
+import { createWriteStream } from "node:fs";
 import { requireAuth } from "../middleware/auth";
 import { createServerSupabase } from "../lib/supabase";
 import { isAnonymousLocalMode } from "../lib/localMode";
@@ -877,9 +878,41 @@ type AccessibleChat = {
   project_id: string | null;
 } & Record<string, unknown>;
 
+/** Lazily-opened per-response append stream for live SSE capture. */
+const liveSseStreams = new WeakMap<
+  import("express").Response,
+  import("node:fs").WriteStream
+>();
+
+/**
+ * Returns a per-response append stream when MIKE_LLM_RAW_SSE_PATH is set (the
+ * lab harness sets it to the run's raw-sse.txt), so a running run can be
+ * tailed live. Inert — returns null — for every other caller.
+ */
+function liveSseStream(
+  res: import("express").Response,
+): import("node:fs").WriteStream | null {
+  const livePath = process.env.MIKE_LLM_RAW_SSE_PATH;
+  if (!livePath) return null;
+  let stream = liveSseStreams.get(res);
+  if (!stream) {
+    try {
+      stream = createWriteStream(livePath, { flags: "a" });
+    } catch {
+      return null;
+    }
+    liveSseStreams.set(res, stream);
+    res.once("finish", () => stream!.end());
+    res.once("close", () => stream!.end());
+  }
+  return stream;
+}
+
 function sseWrite(res: import("express").Response, payload: unknown) {
   if (res.destroyed || res.writableEnded) return;
-  res.write(`data: ${JSON.stringify(payload)}\n\n`);
+  const line = `data: ${JSON.stringify(payload)}\n\n`;
+  liveSseStream(res)?.write(line);
+  res.write(line);
 }
 
 /** Starts the SSE response and claims the chat's single-turn lock. */
