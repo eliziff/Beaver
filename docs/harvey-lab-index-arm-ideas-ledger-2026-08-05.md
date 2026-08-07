@@ -1944,3 +1944,47 @@ to add when the prompt itself carries structural requirements. The
 draft-mode idea stays parked; a reqecho run is only worth spending
 on a task whose prompt names table shapes / deliverable format (none
 on the current panel).
+
+## RUN RESULT — REQECHO NULL ACROSS ALL THREE DELIVERY MODES (2026-08-07, runner+judge deepseek-v4-flash)
+
+Eli's two corrections to the reqecho arm (7b820b94) implemented and
+re-run on tax concurrently; both judged simultaneously, judge-once.
+
+1. **Fix A — auto-echo, no roundtrip** (`coding_markdown_v5_reqecho_v1`
+   @ 20-41-04): `fetch_requirements` removed from the tool list; the
+   verbatim requirements ride the coverage gate instead. Verified
+   live: `echo_call_count: 1`, `unread_at_echo: 1` — auto-echo fired
+   exactly once at first generate_docx, model read the unread doc,
+   drafted. **48/77** (25/25 docs, 8.9M input / 320k uncached, wall
+   831s, deliverable 44,709 chars).
+2. **Fix B — drafting mode, echo before anything written**
+   (`coding_markdown_v5_reqecho_draft_v1` @ 20-41-10): first
+   generate_docx refused with requirements + unread list BEFORE the
+   body-capture block (body not saved, `documents_oriented_only_at_echo:
+   0`). Verified live: `echo_call_count: 1`, `unread_at_echo: 2`,
+   `drafting_tool_calls: 3`. **42/77** (25/25 docs, 5.5M input / 275k
+   uncached, wall 682s, deliverable 40,176 chars).
+
+**Both dead-center of the no-echo band — the echo is null in every
+delivery mode.** No-echo v5 tax = {45, 42, 53, 48, 51, 38, 48, 42}
+(mean 45.9, median 46.5, range 38-53). Fix A 48 = +2.1 vs mean; Fix B
+42 = -3.9 (low draw, still in range). Contrast across mechanisms:
+fetch_requirements roundtrip 47, automatic echo 48, drafting-mode
+pre-echo 42 — three delivery shapes, spread ~6, all under the ~10
+judge spread established at fixed treatment (d153d596). n=1 per row;
+no per-row delta interpretable.
+
+**What the run does establish:** the roundtrip was never the problem.
+Fix A proves the echo can be served automatically with zero tool
+roundtrip at identical score (48 vs broken 47) and Fix B proves it
+can be served before any body is captured (42) — neither changes
+anything, because the echoed payload is 202 generic chars with no
+table shapes, named issues, or deliverable format. Mechanism cost
+now zero (Fix A kills the fetch_requirements round trip; both runs'
+uncached ~275-320k, no compactions).
+
+**Verdict: reqecho thread closed on tax.** All three delivery modes
+null; further tax reqecho spend is unwarranted. The lever stays
+worth one run only on a task whose prompt names structural
+requirements (none on the current panel) — and that run, if ever,
+uses Fix A's zero-cost automatic echo, not the tool or draft modes.
