@@ -1076,6 +1076,99 @@ export const CODING_MARKDOWN_V2_LAB_TOOLS: OpenAIToolSchema[] = [
   CODING_GENERATE_DOCX_TOOL,
 ];
 
+/* ----------------------------------------------------------------------
+ * DRAFT-EDIT lever (MIKE_DRAFT_EDIT, coding surface only). Measured
+ * motivation (gen-4 acq/antitrust, 2026-08-07): the exposure echo refuses
+ * the first generate_docx, and the only revision path was re-emitting the
+ * entire deliverable — the draft was composed twice (65k vs 41k output
+ * tokens on acq), and a full redraft can silently compress detail out of
+ * draft #1. With the lever on, the refused draft is SAVED harness-side as
+ * "draft.md"; an Edit tool with Claude Code's exact semantics (unique
+ * old_string -> new_string) revises it in place, and generate_docx called
+ * without markdown renders the saved draft. Post-echo revisions cost diff
+ * tokens, and unchanged text survives byte-for-byte. No system-prompt
+ * change: the workflow is taught just-in-time by the echo refusal and the
+ * tool descriptions, so the gen-4 prompt sha is untouched.
+ * ---------------------------------------------------------------------- */
+
+export const CODING_EDIT_TOOL: OpenAIToolSchema = {
+  type: "function",
+  function: {
+    name: "Edit",
+    description:
+      "Performs exact string replacement in the saved draft (draft.md — the" +
+      " body a refused generate_docx call preserved). old_string must match" +
+      " the draft exactly, including whitespace, and must be unique — extend" +
+      " it with surrounding lines if needed, or set replace_all. After" +
+      " editing, call generate_docx without markdown to render the draft.",
+    parameters: {
+      type: "object",
+      properties: {
+        file_path: {
+          type: "string",
+          description: 'The file to modify — always "draft.md"',
+        },
+        old_string: {
+          type: "string",
+          description: "The text to replace (must match the draft exactly)",
+        },
+        new_string: {
+          type: "string",
+          description:
+            "The text to replace it with (must differ from old_string)",
+        },
+        replace_all: {
+          type: "boolean",
+          description: "Replace all occurrences of old_string (default false)",
+        },
+      },
+      required: ["file_path", "old_string", "new_string"],
+    },
+  },
+};
+
+/**
+ * generate_docx as served under the draft-edit lever: markdown becomes
+ * optional so the render-the-saved-draft call does not have to re-carry the
+ * whole body, and the description states both paths. Same name, same keys
+ * otherwise; the frozen CODING_GENERATE_DOCX_TOOL is untouched.
+ */
+export const CODING_GENERATE_DOCX_DRAFT_EDIT_TOOL: OpenAIToolSchema = {
+  type: "function",
+  function: {
+    name: "generate_docx",
+    description:
+      "Create the final Word document from Markdown. A successful call ends" +
+      " the turn. Input keys are exactly {title, markdown} — this is not a" +
+      " file Write: do not pass filename/content; put the complete document" +
+      " body in 'markdown'. If a draft was saved (draft.md), omit 'markdown'" +
+      " to render the draft as edited instead of re-sending the body.",
+    parameters: {
+      type: "object",
+      properties: {
+        title: {
+          type: "string",
+          description: "Document title and filename.",
+        },
+        markdown: {
+          type: "string",
+          description:
+            "Complete document in Markdown. Omit to render the saved draft" +
+            " (draft.md) after Edits.",
+        },
+        landscape: {
+          type: "boolean",
+          description: "True only when a wide table requires landscape pages.",
+        },
+      },
+      required: ["title"],
+    },
+  },
+};
+
+/** Delta tag: saved-draft + Edit revision path gated on MIKE_DRAFT_EDIT. */
+export const DRAFT_EDIT_DELTA = "draft-edit-v1";
+
 /**
  * v3 (grep section-context): identical to the CC Grep except the
  * description documents the section-lead context rows, CC-style — the

@@ -124,6 +124,8 @@ import {
   CODING_MARKDOWN_V2_LAB_TOOLS,
   CODING_MARKDOWN_V3_LAB_TOOLS,
   CODING_MARKDOWN_V5_LAB_TOOLS,
+  CODING_EDIT_TOOL,
+  CODING_GENERATE_DOCX_DRAFT_EDIT_TOOL,
   MIKE_GREP_LAB_TOOLS,
   MIKE_LEGAL_LAB_TOOLS,
   MARKDOWN_INDEX_LAB_TOOLS,
@@ -965,6 +967,16 @@ export const GREP_PER_FILE_BUDGET_ENABLED =
  */
 export const TRIAGE_WORKFLOW_ENABLED =
   process.env.MIKE_TRIAGE_WORKFLOW === "1";
+/**
+ * Draft-edit lever (coding surface): a generate_docx call refused by the
+ * exposure echo saves its body as "draft.md"; an Edit tool (Claude Code
+ * semantics) revises it in place and generate_docx without markdown renders
+ * it. Kills the measured double emission (gen-4 acq: deliverable composed
+ * twice, 65k vs 41k output tokens) and the compression risk of full
+ * redrafts. Taught just-in-time by the refusal text and tool descriptions —
+ * no system-prompt change.
+ */
+export const DRAFT_EDIT_ENABLED = process.env.MIKE_DRAFT_EDIT === "1";
 export const GROUNDING_FIRST_ENABLED =
   process.env.MIKE_GROUNDING_FIRST === "1";
 export const MIKE_GREP_FAMILY_TOOL_SHAPE =
@@ -1163,6 +1175,14 @@ export type LocalAssistantRequirementsState = {
   /** Exposure accounting only: the authoring-boundary coverage check has
    * refused once this turn; every later authoring call proceeds. */
   exposureNudgeServed: boolean;
+  /** Draft-edit lever only: the body/title/filename of the last generate_docx
+   * draft, saved when the coverage check refused it (and kept in sync when the
+   * model re-sends a full body). Null until a draft is captured. */
+  draftTitle: string | null;
+  draftMarkdown: string | null;
+  draftFilename: string | null;
+  /** Draft-edit lever only: successful Edit applications this turn. */
+  draftEditCount: number;
 };
 
 export const createLocalAssistantRequirementsState =
@@ -1171,7 +1191,54 @@ export const createLocalAssistantRequirementsState =
     documentsUnreadAtEcho: null,
     documentsOrientedOnlyAtEcho: null,
     exposureNudgeServed: false,
+    draftTitle: null,
+    draftMarkdown: null,
+    draftFilename: null,
+    draftEditCount: 0,
   });
+
+/**
+ * Exact-string draft edit with Claude Code's contract: old_string must be
+ * found, must differ from new_string, and must be unique unless replace_all.
+ * Index-based splicing, never String.replace with a string pattern — $-tokens
+ * in legal text (e.g. "$1,000,000") must not be interpreted as replacement
+ * patterns.
+ */
+export function applyDraftEdit(
+  draft: string,
+  oldString: string,
+  newString: string,
+  replaceAll: boolean,
+): { updated: string; replacements: number } | { error: string } {
+  if (!oldString) return { error: "old_string must be a non-empty string." };
+  if (oldString === newString)
+    return { error: "old_string and new_string are identical." };
+  const occurrences = draft.split(oldString).length - 1;
+  if (occurrences === 0)
+    return {
+      error:
+        "old_string not found in draft.md. It must match the draft exactly," +
+        " including whitespace.",
+    };
+  if (occurrences > 1 && !replaceAll)
+    return {
+      error:
+        `old_string appears ${occurrences} times in draft.md. Extend it with` +
+        " surrounding text until it is unique, or set replace_all: true.",
+    };
+  if (replaceAll) {
+    return {
+      updated: draft.split(oldString).join(newString),
+      replacements: occurrences,
+    };
+  }
+  const at = draft.indexOf(oldString);
+  return {
+    updated:
+      draft.slice(0, at) + newString + draft.slice(at + oldString.length),
+    replacements: 1,
+  };
+}
 
 export const ORIGIN_MIKE_TOOL_SHAPE =
   UPSTREAM_NATIVE_MIKE_SHAPE ||
@@ -2276,9 +2343,29 @@ const ORIGIN_MIKE_ACTIVE_TOOLS = UPSTREAM_NATIVE_MIKE_SHAPE
  * is the same array object the selector produced, so every existing arm's tool
  * list — and its tool_schema_sha256 — is untouched by construction.
  */
-const ORIGIN_MIKE_SERVED_TOOLS: OpenAIToolSchema[] = REQUIREMENTS_ECHO_ENABLED
-  ? [...ORIGIN_MIKE_ACTIVE_TOOLS, FETCH_REQUIREMENTS_TOOL]
-  : ORIGIN_MIKE_ACTIVE_TOOLS;
+const ORIGIN_MIKE_SERVED_TOOLS_BASE: OpenAIToolSchema[] =
+  REQUIREMENTS_ECHO_ENABLED
+    ? [...ORIGIN_MIKE_ACTIVE_TOOLS, FETCH_REQUIREMENTS_TOOL]
+    : ORIGIN_MIKE_ACTIVE_TOOLS;
+
+/**
+ * Draft-edit lever, same appended-tool pattern as the requirements echo: with
+ * the flag off this is the identical array object, so every existing arm's
+ * tool list and tool_schema_sha256 are untouched. With it on, generate_docx is
+ * swapped for the variant whose markdown is optional (render the saved draft)
+ * and the Edit tool joins the surface. Coding-surface lever: only the v5 env
+ * sets MIKE_DRAFT_EDIT, like every other arm-scoped flag here.
+ */
+const ORIGIN_MIKE_SERVED_TOOLS: OpenAIToolSchema[] = DRAFT_EDIT_ENABLED
+  ? [
+      ...ORIGIN_MIKE_SERVED_TOOLS_BASE.map((entry) =>
+        entry.function.name === "generate_docx"
+          ? CODING_GENERATE_DOCX_DRAFT_EDIT_TOOL
+          : entry,
+      ),
+      CODING_EDIT_TOOL,
+    ]
+  : ORIGIN_MIKE_SERVED_TOOLS_BASE;
 
 const LOCAL_ASSISTANT_TOOL_CATALOG: OpenAIToolSchema[] = [
   // The native arm carries ask_inputs inside UPSTREAM_NATIVE_MIKE_LAB_TOOLS at
@@ -8128,6 +8215,42 @@ export async function runLocalAssistantTools(
           });
         }
       }
+      if (DRAFT_EDIT_ENABLED && call.name === "Edit") {
+        const filePath = trimmed(args.file_path);
+        const oldString =
+          typeof args.old_string === "string" ? args.old_string : "";
+        const newString =
+          typeof args.new_string === "string" ? args.new_string : "";
+        const draft = requirementsState?.draftMarkdown;
+        if (!draft) {
+          return upstreamMikeResult(call, {
+            error:
+              "No draft exists yet. Call generate_docx first — a draft" +
+              " refused pending coverage is saved as draft.md for editing.",
+          });
+        }
+        if (filePath && filePath !== "draft.md") {
+          return upstreamMikeResult(call, {
+            error: `Unknown file "${filePath}" — only "draft.md" is editable.`,
+          });
+        }
+        const edited = applyDraftEdit(
+          draft,
+          oldString,
+          newString,
+          args.replace_all === true,
+        );
+        if ("error" in edited) {
+          return upstreamMikeResult(call, { error: edited.error });
+        }
+        requirementsState.draftMarkdown = edited.updated;
+        requirementsState.draftEditCount += 1;
+        return upstreamMikeResult(call, {
+          ok: true,
+          replacements: edited.replacements,
+          draft_chars: edited.updated.length,
+        });
+      }
       if (
         call.name === "library_create_docx" ||
         (ORIGIN_MIKE_TOOL_SHAPE && call.name === "generate_docx")
@@ -8170,18 +8293,41 @@ export async function runLocalAssistantTools(
           const unexposed = [...split.orientedOnly, ...split.unread];
           if (unexposed.length) {
             requirementsState.exposureNudgeServed = true;
+            // Draft-edit lever: the refused body is saved, not discarded.
+            // Minimal capture on purpose — the draft IS the markdown; title
+            // aliasing stays with the canonical parse below, which re-derives
+            // on the render call. Mirrors the coding-alias keys only.
+            let draftNote = "";
+            if (DRAFT_EDIT_ENABLED) {
+              const body = trimmed(args.markdown) || trimmed(args.content);
+              if (body) {
+                requirementsState.draftTitle =
+                  trimmed(args.title) ||
+                  trimmed(args.filename).replace(/\.docx$/iu, "").trim() ||
+                  (/^#{1,6}\s+(.+)$/mu.exec(body)?.[1]?.trim() ?? "");
+                requirementsState.draftMarkdown = body;
+                requirementsState.draftFilename =
+                  trimmed(args.filename) || null;
+                draftNote =
+                  ` Your draft (${body.length} chars) is saved as draft.md —` +
+                  ` do NOT re-send the body: revise it with Edit` +
+                  ` (old_string/new_string), then call generate_docx again` +
+                  ` without markdown to render the edited draft.`;
+              }
+            }
             return upstreamMikeResult(call, {
               error:
                 `coverage_check: ${unexposed.length} document(s) have had no` +
                 ` body content served this turn (headings only, or never` +
                 ` opened): ${unexposed.join(", ")}. Read the ones relevant to` +
                 ` the request first — scoped windows are fine. If none are` +
-                ` relevant, call this tool again and it will proceed.`,
+                ` relevant, call this tool again and it will proceed.` +
+                draftNote,
             });
           }
         }
         let title = trimmed(args.title);
-        const filename = trimmed(args.filename);
+        let filename = trimmed(args.filename);
         // The native arm renders sections[] -> OOXML with upstream's own
         // renderer (spec deviation D6), so it never builds a Markdown bridge;
         // the serialized sections stand in as the provenance digest input.
@@ -8228,6 +8374,21 @@ export async function runLocalAssistantTools(
                 stem ? "the filename" : "the first heading"
               }; pass title explicitly next time.`.trim();
             }
+          }
+        }
+        // Draft-edit lever: a render call may omit markdown to use the saved
+        // draft (as Edited); a call that re-sends a full body keeps the
+        // buffer in sync so later Edits work on the latest text.
+        if (DRAFT_EDIT_ENABLED && requirementsState && !nativeDocx) {
+          if (!markdown && requirementsState.draftMarkdown) {
+            markdown = requirementsState.draftMarkdown;
+            if (!title)
+              title = (requirementsState.draftTitle ?? "").slice(0, 256);
+            if (!filename) filename = requirementsState.draftFilename ?? "";
+          } else if (markdown) {
+            requirementsState.draftMarkdown = markdown;
+            if (title) requirementsState.draftTitle = title;
+            if (filename) requirementsState.draftFilename = filename;
           }
         }
         if (!title || title.length > 256 || !markdown) {
