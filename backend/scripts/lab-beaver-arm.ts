@@ -256,22 +256,25 @@ function armExpectedSurface(
             // (withLabTreatmentPromptAdditions), so the sha gate is satisfied
             // by construction; tools = v5 + fetch_requirements (the resident
             // list is validated separately in conformance).
-          arm === "coding_markdown_v5_reqecho_v1"
+          // Fix A: the reqecho arms serve NO fetch_requirements tool — the
+          // echo rides the first generate_docx refusal automatically, so the
+          // prompt uses the automatic line (exposureEcho:true) and the resident
+          // tools are exactly v5. The prompt-sha and tool-list expectations
+          // below are validated separately in conformance.
+          ["coding_markdown_v5_reqecho_v1", "coding_markdown_v5_reqecho_draft_v1"].includes(arm)
             ? {
                 systemPrompt: withLabTreatmentPromptAdditions(
                   CODING_MARKDOWN_TRIAGE_LAB_SYSTEM_PROMPT,
                   {
                     requirementsEcho: true,
+                    exposureEcho: true,
                     citationContract: false,
                     citationContractV2: false,
                     noDeferral: false,
                     scopedReread: false,
                   },
                 ),
-                tools: [
-                  ...CODING_MARKDOWN_V5_LAB_TOOLS,
-                  FETCH_REQUIREMENTS_TOOL,
-                ],
+                tools: CODING_MARKDOWN_V5_LAB_TOOLS,
               }
             : arm === "mike_grep_v1"
               ? {
@@ -1240,6 +1243,39 @@ async function main() {
       MIKE_DRAFT_EDIT: "1",
       MIKE_REQUIREMENTS_ECHO: "1",
     },
+    // T2b (v5_reqecho_draft, 2026-08-07): the reqecho arm's exact chassis, but
+    // drafting-mode — the FIRST generate_docx refusal serves the requirements
+    // echo BEFORE any draft body is captured (Fix B). Fix A applies here too:
+    // no fetch_requirements tool, the echo is fully automatic under the
+    // exposure gate. Contrast vs T2 isolates the echo-timing variable.
+    coding_markdown_v5_reqecho_draft_v1: {
+      MIKE_NAV_SHAPE: "legacy",
+      MIKE_TOOL_SHAPE: "lean-batch-v1",
+      MIKE_RETRIEVAL_EXPERIMENT: "p0-pure-coding",
+      MIKE_PROGRESSIVE_DISCLOSURE: "0",
+      MIKE_MODEL_COVERAGE_ROUTING: "0",
+      MIKE_WHOLE_READ_MAX_CHARS: "",
+      MIKE_TOOL_RESULT_CAP: "64000",
+      MIKE_SUPPRESS_DUPLICATE_WHOLE_READS: "0",
+      MIKE_TERMINAL_AUTHORING: "1",
+      MIKE_CONTEXT_HANDOFF: "0",
+      MIKE_RESEARCH_CONTEXT_REFRESH: "0",
+      MIKE_CONTINUOUS_EVIDENCE: "0",
+      MIKE_OPENAI_COMPACT_THRESHOLD: "244800",
+      MIKE_SLA_WORKFLOW: "0",
+      MIKE_GREENFIELD_REVIEW: "0",
+      MIKE_READ_DOCX_MARKDOWN: "1",
+      MIKE_CODING_NEUTRAL_PROMPT: "1",
+      MIKE_CODING_PARITY: "1",
+      MIKE_GREP_SECTION_CONTEXT: "1",
+      MIKE_CODING_TOC_FILES: "1",
+      MIKE_GREP_PER_FILE_BUDGET: "1",
+      MIKE_TRIAGE_WORKFLOW: "1",
+      MIKE_EXPOSURE_ECHO: "1",
+      MIKE_DRAFT_EDIT: "1",
+      MIKE_REQUIREMENTS_ECHO: "1",
+      MIKE_REQECHO_DRAFT_MODE: "1",
+    },
     lean_batch_hardrefs_v1: {
       MIKE_NAV_SHAPE: "legacy",
       MIKE_TOOL_SHAPE: "lean-batch-hardrefs-v1",
@@ -1393,7 +1429,7 @@ async function main() {
   };
   if (!armEnvironment[arm])
     throw new Error(
-      `unknown --arm ${arm}; expected a registered LAB arm, including upstream_terminal_v1, mike_upstream_native_v1, mike_markdown_e2e_treatment_v1, mike_markdown_e2e_treatment_v2, mike_markdown_swap_v1, mike_markdown_e2e_v1, mike_markdown_e2e_index_v1, mike_markdown_e2e_floor_v1, mike_markdown_e2e_index_floor_v1, mike_markdown_e2e_index_treatment_v1, mike_markdown_e2e_index_treatment_v2, mike_markdown_read_upstream_draft_v1, mike_compact_author_v1, lean_batch_v1, lean_batch_hardrefs_v1, coding_markdown_v1, coding_markdown_v2, coding_markdown_v3, coding_markdown_v4, coding_markdown_v5, coding_markdown_v5_reqecho_v1, or grounded_structure_outline_v1`,
+      `unknown --arm ${arm}; expected a registered LAB arm, including upstream_terminal_v1, mike_upstream_native_v1, mike_markdown_e2e_treatment_v1, mike_markdown_e2e_treatment_v2, mike_markdown_swap_v1, mike_markdown_e2e_v1, mike_markdown_e2e_index_v1, mike_markdown_e2e_floor_v1, mike_markdown_e2e_index_floor_v1, mike_markdown_e2e_index_treatment_v1, mike_markdown_e2e_index_treatment_v2, mike_markdown_read_upstream_draft_v1, mike_compact_author_v1, lean_batch_v1, lean_batch_hardrefs_v1, coding_markdown_v1, coding_markdown_v2, coding_markdown_v3, coding_markdown_v4, coding_markdown_v5, coding_markdown_v5_reqecho_v1, coding_markdown_v5_reqecho_draft_v1, or grounded_structure_outline_v1`,
     );
 
   // Re-spawn into the isolated anonymous-mode environment (same recipe as
@@ -1484,6 +1520,7 @@ async function main() {
           MIKE_CODING_TOC_FILES: "",
           MIKE_GREP_PER_FILE_BUDGET: "",
           MIKE_DRAFT_EDIT: "",
+          MIKE_REQECHO_DRAFT_MODE: "",
           // Compute-only ablation. It does not change tool schemas, prompts,
           // or extracted text; a PDF is still created on the first paged read.
           MIKE_EAGER_OFFICE_PDF_RENDITION:
@@ -2540,6 +2577,7 @@ async function main() {
       "coding_markdown_v4",
       "coding_markdown_v5",
       "coding_markdown_v5_reqecho_v1",
+      "coding_markdown_v5_reqecho_draft_v1",
     ].includes(arm)
   ) {
     const residentTools = Array.isArray(surface?.resident_tools)
@@ -2557,20 +2595,27 @@ async function main() {
     // v5 = v4 + the max-min fair per-file grep budget + the triage workflow
     // prompt + the one-shot exposure echo (consolidated arm). Everything
     // below in the stack is inherited, so each predicate cascades.
-    // v5_reqecho = v5 + the requirements echo (T2 contrast arm).
+    // v5_reqecho = v5 + the requirements echo (T2 contrast arm); the _draft
+    // variant is the same chassis with drafting-mode echo timing (Fix B).
     const grepPerFileBudget =
-      arm === "coding_markdown_v5" || arm === "coding_markdown_v5_reqecho_v1";
+      arm === "coding_markdown_v5" ||
+      arm === "coding_markdown_v5_reqecho_v1" ||
+      arm === "coding_markdown_v5_reqecho_draft_v1" ||
+      arm === "coding_markdown_v5_reqecho_draft_v1";
     const tocFiles = arm === "coding_markdown_v4" || grepPerFileBudget;
     const grepSectionContext = arm === "coding_markdown_v3" || tocFiles;
     const codingParity =
       arm === "coding_markdown_v2" || grepSectionContext;
     const codingMarkdown =
       arm === "coding_markdown_v1" || codingParity;
-    const requirementsEchoArm = arm === "coding_markdown_v5_reqecho_v1";
+    const requirementsEchoArm =
+      arm === "coding_markdown_v5_reqecho_v1" ||
+      arm === "coding_markdown_v5_reqecho_draft_v1";
+    const reqechoDraftArm = arm === "coding_markdown_v5_reqecho_draft_v1";
     const expectedTools = requirementsEchoArm
-      ? // v5 + requirements echo + draft-edit: fetch_requirements slots
-        // between generate_docx and Edit (chat.ts appends echo, then edit).
-        ["Glob", "Grep", "Read", "generate_docx", "fetch_requirements", "Edit"]
+      ? // Fix A: no fetch_requirements — the echo rides the generate_docx
+        // refusal, so the resident list is exactly v5 + draft-edit's Edit.
+        ["Glob", "Grep", "Read", "generate_docx", "Edit"]
       : grepPerFileBudget
       ? // v5 gen-5: draft-edit swaps generate_docx for the optional-markdown
         // variant (same name, same position) and appends Edit.
@@ -2621,6 +2666,7 @@ async function main() {
       surface?.triage_workflow !== grepPerFileBudget ||
       surface?.exposure_echo !== grepPerFileBudget ||
       surface?.draft_edit !== grepPerFileBudget ||
+      surface?.reqecho_draft_mode !== reqechoDraftArm ||
       surface?.compact_author_mike_shape !== false ||
       surface?.upstream_mike_shape !== false ||
       surface?.adaptive_mike_shape !== false ||
@@ -2656,7 +2702,7 @@ async function main() {
     // requirements are served inline by the first generate_docx refusal (which
     // bumps echo_call_count), so a completed reqecho run with zero echoes means
     // the gate never fired and the requirements were never re-served.
-    if (arm === "coding_markdown_v5_reqecho_v1" && echoCallCount < 1) {
+    if (requirementsEchoArm && echoCallCount < 1) {
       throw new Error(
         `${arm} produced no requirements echo (echo_call_count=${echoCallCount}); the requirements-echo mechanism did not run`,
       );
@@ -2941,6 +2987,7 @@ async function main() {
       "coding_markdown_v4",
       "coding_markdown_v5",
       "coding_markdown_v5_reqecho_v1",
+      "coding_markdown_v5_reqecho_draft_v1",
       "mike_grep_v1",
       "mike_structure_paths_v1",
       "grounded_structure_v1",
@@ -3331,6 +3378,7 @@ async function main() {
     "coding_markdown_v4",
     "coding_markdown_v5",
     "coding_markdown_v5_reqecho_v1",
+    "coding_markdown_v5_reqecho_draft_v1",
     ...mikeGrepArms,
   ];
   const defaultTierArms = [
@@ -3489,6 +3537,7 @@ async function main() {
       "mike_markdown_e2e_index_treatment_v1",
       "mike_markdown_e2e_index_treatment_v2",
       "coding_markdown_v5_reqecho_v1",
+      "coding_markdown_v5_reqecho_draft_v1",
     ].includes(arm)
       ? REQUIREMENTS_ECHO_DELTA
       : null,
@@ -3568,51 +3617,58 @@ async function main() {
         "coding_markdown_v4",
         "coding_markdown_v5",
         "coding_markdown_v5_reqecho_v1",
+        "coding_markdown_v5_reqecho_draft_v1",
       ].includes(arm)
         ? LEAN_BATCH_DELTA
         : null,
     coding_markdown_delta:
-      ["coding_markdown_v1", "coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1"].includes(arm)
+      ["coding_markdown_v1", "coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1", "coding_markdown_v5_reqecho_draft_v1"].includes(arm)
         ? CODING_MARKDOWN_DELTA
         : null,
     coding_neutral_prompt_delta:
-      ["coding_markdown_v1", "coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1"].includes(arm)
+      ["coding_markdown_v1", "coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1", "coding_markdown_v5_reqecho_draft_v1"].includes(arm)
         ? CODING_NEUTRAL_PROMPT_DELTA
         : null,
     coding_markdown_v2_delta:
-      ["coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1"].includes(arm) ? CODING_MARKDOWN_V2_DELTA : null,
+      ["coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1", "coding_markdown_v5_reqecho_draft_v1"].includes(arm) ? CODING_MARKDOWN_V2_DELTA : null,
     coding_parity_delta:
-      ["coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1"].includes(arm) ? CODING_PARITY_DELTA : null,
+      ["coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1", "coding_markdown_v5_reqecho_draft_v1"].includes(arm) ? CODING_PARITY_DELTA : null,
     coding_markdown_v3_delta:
-      ["coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1"].includes(arm) ? CODING_MARKDOWN_V3_DELTA : null,
+      ["coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1", "coding_markdown_v5_reqecho_draft_v1"].includes(arm) ? CODING_MARKDOWN_V3_DELTA : null,
     grep_section_context_delta:
-      ["coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1"].includes(arm) ? GREP_SECTION_CONTEXT_DELTA : null,
+      ["coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1", "coding_markdown_v5_reqecho_draft_v1"].includes(arm) ? GREP_SECTION_CONTEXT_DELTA : null,
     coding_markdown_v4_delta:
-      ["coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1"].includes(arm) ? CODING_MARKDOWN_V4_DELTA : null,
+      ["coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1", "coding_markdown_v5_reqecho_draft_v1"].includes(arm) ? CODING_MARKDOWN_V4_DELTA : null,
     coding_toc_files_delta:
-      ["coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1"].includes(arm) ? CODING_TOC_FILES_DELTA : null,
+      ["coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1", "coding_markdown_v5_reqecho_draft_v1"].includes(arm) ? CODING_TOC_FILES_DELTA : null,
     coding_markdown_v5_delta:
-      arm === "coding_markdown_v5" || arm === "coding_markdown_v5_reqecho_v1"
+      arm === "coding_markdown_v5" ||
+      arm === "coding_markdown_v5_reqecho_v1" ||
+      arm === "coding_markdown_v5_reqecho_draft_v1"
         ? CODING_MARKDOWN_V5_DELTA
         : null,
     grep_per_file_budget_delta:
       arm === "coding_markdown_v5" ||
-      arm === "coding_markdown_v5_reqecho_v1"
+      arm === "coding_markdown_v5_reqecho_v1" ||
+      arm === "coding_markdown_v5_reqecho_draft_v1"
         ? GREP_PER_FILE_BUDGET_DELTA
         : null,
     triage_workflow_prompt_delta:
       arm === "coding_markdown_v5" ||
-      arm === "coding_markdown_v5_reqecho_v1"
+      arm === "coding_markdown_v5_reqecho_v1" ||
+      arm === "coding_markdown_v5_reqecho_draft_v1"
         ? TRIAGE_WORKFLOW_PROMPT_DELTA
         : null,
     exposure_echo_delta:
       arm === "coding_markdown_v5" ||
-      arm === "coding_markdown_v5_reqecho_v1"
+      arm === "coding_markdown_v5_reqecho_v1" ||
+      arm === "coding_markdown_v5_reqecho_draft_v1"
         ? EXPOSURE_ECHO_DELTA
         : null,
     draft_edit_delta:
       arm === "coding_markdown_v5" ||
-      arm === "coding_markdown_v5_reqecho_v1"
+      arm === "coding_markdown_v5_reqecho_v1" ||
+      arm === "coding_markdown_v5_reqecho_draft_v1"
         ? DRAFT_EDIT_DELTA
         : null,
     lean_batch_hardrefs_delta:
@@ -3960,6 +4016,7 @@ async function main() {
           "mike_markdown_e2e_index_treatment_v1",
           "mike_markdown_e2e_index_treatment_v2",
           "coding_markdown_v5_reqecho_v1",
+          "coding_markdown_v5_reqecho_draft_v1",
         ].includes(arm)
           ? REQUIREMENTS_ECHO_DELTA
           : null,
@@ -4041,52 +4098,58 @@ async function main() {
             "coding_markdown_v4",
             "coding_markdown_v5",
             "coding_markdown_v5_reqecho_v1",
+            "coding_markdown_v5_reqecho_draft_v1",
           ].includes(arm)
             ? LEAN_BATCH_DELTA
             : null,
         coding_markdown_delta:
-          ["coding_markdown_v1", "coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1"].includes(arm)
+          ["coding_markdown_v1", "coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1", "coding_markdown_v5_reqecho_draft_v1"].includes(arm)
             ? CODING_MARKDOWN_DELTA
             : null,
         coding_neutral_prompt_delta:
-          ["coding_markdown_v1", "coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1"].includes(arm)
+          ["coding_markdown_v1", "coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1", "coding_markdown_v5_reqecho_draft_v1"].includes(arm)
             ? CODING_NEUTRAL_PROMPT_DELTA
             : null,
         coding_markdown_v2_delta:
-          ["coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1"].includes(arm) ? CODING_MARKDOWN_V2_DELTA : null,
+          ["coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1", "coding_markdown_v5_reqecho_draft_v1"].includes(arm) ? CODING_MARKDOWN_V2_DELTA : null,
         coding_parity_delta:
-          ["coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1"].includes(arm) ? CODING_PARITY_DELTA : null,
+          ["coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1", "coding_markdown_v5_reqecho_draft_v1"].includes(arm) ? CODING_PARITY_DELTA : null,
         coding_markdown_v3_delta:
-          ["coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1"].includes(arm) ? CODING_MARKDOWN_V3_DELTA : null,
+          ["coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1", "coding_markdown_v5_reqecho_draft_v1"].includes(arm) ? CODING_MARKDOWN_V3_DELTA : null,
         grep_section_context_delta:
-          ["coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1"].includes(arm) ? GREP_SECTION_CONTEXT_DELTA : null,
+          ["coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1", "coding_markdown_v5_reqecho_draft_v1"].includes(arm) ? GREP_SECTION_CONTEXT_DELTA : null,
         coding_markdown_v4_delta:
-          ["coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1"].includes(arm) ? CODING_MARKDOWN_V4_DELTA : null,
+          ["coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1", "coding_markdown_v5_reqecho_draft_v1"].includes(arm) ? CODING_MARKDOWN_V4_DELTA : null,
         coding_toc_files_delta:
-          ["coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1"].includes(arm) ? CODING_TOC_FILES_DELTA : null,
+          ["coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1", "coding_markdown_v5_reqecho_draft_v1"].includes(arm) ? CODING_TOC_FILES_DELTA : null,
         coding_markdown_v5_delta:
           arm === "coding_markdown_v5" ||
-          arm === "coding_markdown_v5_reqecho_v1"
+          arm === "coding_markdown_v5_reqecho_v1" ||
+          arm === "coding_markdown_v5_reqecho_draft_v1"
             ? CODING_MARKDOWN_V5_DELTA
             : null,
         grep_per_file_budget_delta:
           arm === "coding_markdown_v5" ||
-          arm === "coding_markdown_v5_reqecho_v1"
+          arm === "coding_markdown_v5_reqecho_v1" ||
+          arm === "coding_markdown_v5_reqecho_draft_v1"
             ? GREP_PER_FILE_BUDGET_DELTA
             : null,
         triage_workflow_prompt_delta:
           arm === "coding_markdown_v5" ||
-          arm === "coding_markdown_v5_reqecho_v1"
+          arm === "coding_markdown_v5_reqecho_v1" ||
+          arm === "coding_markdown_v5_reqecho_draft_v1"
             ? TRIAGE_WORKFLOW_PROMPT_DELTA
             : null,
         exposure_echo_delta:
           arm === "coding_markdown_v5" ||
-          arm === "coding_markdown_v5_reqecho_v1"
+          arm === "coding_markdown_v5_reqecho_v1" ||
+          arm === "coding_markdown_v5_reqecho_draft_v1"
             ? EXPOSURE_ECHO_DELTA
             : null,
         draft_edit_delta:
           arm === "coding_markdown_v5" ||
-          arm === "coding_markdown_v5_reqecho_v1"
+          arm === "coding_markdown_v5_reqecho_v1" ||
+          arm === "coding_markdown_v5_reqecho_draft_v1"
             ? DRAFT_EDIT_DELTA
             : null,
         lean_batch_hardrefs_delta:
@@ -4540,6 +4603,7 @@ async function main() {
           "mike_markdown_e2e_index_treatment_v1",
           "mike_markdown_e2e_index_treatment_v2",
           "coding_markdown_v5_reqecho_v1",
+          "coding_markdown_v5_reqecho_draft_v1",
         ].includes(arm)
           ? REQUIREMENTS_ECHO_DELTA
           : null,
@@ -4621,52 +4685,58 @@ async function main() {
             "coding_markdown_v4",
             "coding_markdown_v5",
             "coding_markdown_v5_reqecho_v1",
+            "coding_markdown_v5_reqecho_draft_v1",
           ].includes(arm)
             ? LEAN_BATCH_DELTA
             : null,
         coding_markdown_delta:
-          ["coding_markdown_v1", "coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1"].includes(arm)
+          ["coding_markdown_v1", "coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1", "coding_markdown_v5_reqecho_draft_v1"].includes(arm)
             ? CODING_MARKDOWN_DELTA
             : null,
         coding_neutral_prompt_delta:
-          ["coding_markdown_v1", "coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1"].includes(arm)
+          ["coding_markdown_v1", "coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1", "coding_markdown_v5_reqecho_draft_v1"].includes(arm)
             ? CODING_NEUTRAL_PROMPT_DELTA
             : null,
         coding_markdown_v2_delta:
-          ["coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1"].includes(arm) ? CODING_MARKDOWN_V2_DELTA : null,
+          ["coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1", "coding_markdown_v5_reqecho_draft_v1"].includes(arm) ? CODING_MARKDOWN_V2_DELTA : null,
         coding_parity_delta:
-          ["coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1"].includes(arm) ? CODING_PARITY_DELTA : null,
+          ["coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1", "coding_markdown_v5_reqecho_draft_v1"].includes(arm) ? CODING_PARITY_DELTA : null,
         coding_markdown_v3_delta:
-          ["coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1"].includes(arm) ? CODING_MARKDOWN_V3_DELTA : null,
+          ["coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1", "coding_markdown_v5_reqecho_draft_v1"].includes(arm) ? CODING_MARKDOWN_V3_DELTA : null,
         grep_section_context_delta:
-          ["coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1"].includes(arm) ? GREP_SECTION_CONTEXT_DELTA : null,
+          ["coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1", "coding_markdown_v5_reqecho_draft_v1"].includes(arm) ? GREP_SECTION_CONTEXT_DELTA : null,
         coding_markdown_v4_delta:
-          ["coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1"].includes(arm) ? CODING_MARKDOWN_V4_DELTA : null,
+          ["coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1", "coding_markdown_v5_reqecho_draft_v1"].includes(arm) ? CODING_MARKDOWN_V4_DELTA : null,
         coding_toc_files_delta:
-          ["coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1"].includes(arm) ? CODING_TOC_FILES_DELTA : null,
+          ["coding_markdown_v4", "coding_markdown_v5", "coding_markdown_v5_reqecho_v1", "coding_markdown_v5_reqecho_draft_v1"].includes(arm) ? CODING_TOC_FILES_DELTA : null,
         coding_markdown_v5_delta:
           arm === "coding_markdown_v5" ||
-          arm === "coding_markdown_v5_reqecho_v1"
+          arm === "coding_markdown_v5_reqecho_v1" ||
+          arm === "coding_markdown_v5_reqecho_draft_v1"
             ? CODING_MARKDOWN_V5_DELTA
             : null,
         grep_per_file_budget_delta:
           arm === "coding_markdown_v5" ||
-          arm === "coding_markdown_v5_reqecho_v1"
+          arm === "coding_markdown_v5_reqecho_v1" ||
+          arm === "coding_markdown_v5_reqecho_draft_v1"
             ? GREP_PER_FILE_BUDGET_DELTA
             : null,
         triage_workflow_prompt_delta:
           arm === "coding_markdown_v5" ||
-          arm === "coding_markdown_v5_reqecho_v1"
+          arm === "coding_markdown_v5_reqecho_v1" ||
+          arm === "coding_markdown_v5_reqecho_draft_v1"
             ? TRIAGE_WORKFLOW_PROMPT_DELTA
             : null,
         exposure_echo_delta:
           arm === "coding_markdown_v5" ||
-          arm === "coding_markdown_v5_reqecho_v1"
+          arm === "coding_markdown_v5_reqecho_v1" ||
+          arm === "coding_markdown_v5_reqecho_draft_v1"
             ? EXPOSURE_ECHO_DELTA
             : null,
         draft_edit_delta:
           arm === "coding_markdown_v5" ||
-          arm === "coding_markdown_v5_reqecho_v1"
+          arm === "coding_markdown_v5_reqecho_v1" ||
+          arm === "coding_markdown_v5_reqecho_draft_v1"
             ? DRAFT_EDIT_DELTA
             : null,
         lean_batch_hardrefs_delta:
