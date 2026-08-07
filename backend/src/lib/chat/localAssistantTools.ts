@@ -958,6 +958,13 @@ export const CODING_TOC_FILES_ENABLED =
  */
 export const GREP_PER_FILE_BUDGET_ENABLED =
   process.env.MIKE_GREP_PER_FILE_BUDGET === "1";
+/**
+ * v5 gen-3: serve the unified triage-workflow prompt (survey -> cover ->
+ * verify) in place of the budget block + routing line. Prompt selection
+ * only — tool behavior is unchanged by this flag.
+ */
+export const TRIAGE_WORKFLOW_ENABLED =
+  process.env.MIKE_TRIAGE_WORKFLOW === "1";
 export const GROUNDING_FIRST_ENABLED =
   process.env.MIKE_GROUNDING_FIRST === "1";
 export const MIKE_GREP_FAMILY_TOOL_SHAPE =
