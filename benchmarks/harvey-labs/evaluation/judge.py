@@ -99,10 +99,12 @@ class Judge:
         elif self.provider == "deepseek":
             # deepseek-* judges ride the OpenAI-compatible chat-completions
             # endpoint (no Responses API upstream); flash is the flat-cheap
-            # judging lane (Eli, 2026-08-06). The key comes from the same
-            # ambient env the backend runner lane already uses.
+            # judging lane (Eli, 2026-08-06). Key resolution mirrors the
+            # backend runner lane (deepseek.ts): DEEPSEEK_API_KEY with
+            # DEEPSEEK_OCR_KEY as the fallback actually present in the env.
             self.client = openai.OpenAI(
-                api_key=os.environ["DEEPSEEK_API_KEY"],
+                api_key=os.environ.get("DEEPSEEK_API_KEY")
+                or os.environ["DEEPSEEK_OCR_KEY"],
                 base_url=os.environ.get(
                     "DEEPSEEK_BASE_URL", "https://api.deepseek.com"
                 ),
