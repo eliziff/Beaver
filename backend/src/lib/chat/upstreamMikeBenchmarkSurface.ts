@@ -1167,7 +1167,7 @@ export const CODING_GENERATE_DOCX_DRAFT_EDIT_TOOL: OpenAIToolSchema = {
 };
 
 /** Delta tag: saved-draft + Edit revision path gated on MIKE_DRAFT_EDIT. */
-export const DRAFT_EDIT_DELTA = "draft-edit-v2";
+export const DRAFT_EDIT_DELTA = "draft-edit-v3";
 
 /**
  * v3 (grep section-context): identical to the CC Grep except the
