@@ -50,6 +50,8 @@ def _detect_provider(model: str) -> str:
         return "openai"
     if name.startswith("mistral"):
         return "mistral"
+    if name.startswith("deepseek"):
+        return "deepseek"
     raise ValueError(f"Unknown judge provider for model: {model!r}")
 
 class Judge:
@@ -94,6 +96,17 @@ class Judge:
             self.client = genai.Client()
         elif self.provider == "openai":
             self.client = openai.OpenAI()
+        elif self.provider == "deepseek":
+            # deepseek-* judges ride the OpenAI-compatible chat-completions
+            # endpoint (no Responses API upstream); flash is the flat-cheap
+            # judging lane (Eli, 2026-08-06). The key comes from the same
+            # ambient env the backend runner lane already uses.
+            self.client = openai.OpenAI(
+                api_key=os.environ["DEEPSEEK_API_KEY"],
+                base_url=os.environ.get(
+                    "DEEPSEEK_BASE_URL", "https://api.deepseek.com"
+                ),
+            )
         else:  # mistral
             self.client = Mistral(
                 api_key=os.environ["MISTRAL_API_KEY"],
@@ -120,6 +133,8 @@ class Judge:
             return self._evaluate_google(prompt, temperature, _retries)
         if self.provider in ("openai", "codex"):
             return self._evaluate_openai(prompt, temperature, _retries)
+        if self.provider == "deepseek":
+            return self._evaluate_deepseek(prompt, temperature, _retries)
         if self.provider == "codex-cli":
             return self._evaluate_codex_cli(prompt, _retries)
         if self.provider == "claude-code":
@@ -236,6 +251,34 @@ class Judge:
             if response is None:
                 continue
             text = response.output_text or ""
+            try:
+                return self._parse_json(text)
+            except (ValueError, json.JSONDecodeError) as e:
+                last_err = e
+        raise ValueError(
+            f"Judge returned unparseable response after {_retries} attempts: {last_err}"
+        )
+
+    def _evaluate_deepseek(self, prompt: str, temperature: float, _retries: int) -> dict:
+        # Chat-completions shape (deepseek has no Responses API); JSON mode on
+        # every attempt but the last so a schema-refusing reply still yields a
+        # parseable free-form verdict for _parse_json.
+        last_err: Exception | None = None
+        for attempt in range(_retries):
+            kwargs = {
+                "model": self.model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": temperature,
+                "max_tokens": 16384,
+            }
+            if attempt < _retries - 1:
+                kwargs["response_format"] = {"type": "json_object"}
+            try:
+                response = self.client.chat.completions.create(**kwargs)
+            except Exception as e:
+                last_err = e
+                continue
+            text = response.choices[0].message.content or ""
             try:
                 return self._parse_json(text)
             except (ValueError, json.JSONDecodeError) as e:
