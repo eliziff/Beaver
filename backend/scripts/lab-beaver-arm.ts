@@ -53,9 +53,12 @@ import {
   CODING_MARKDOWN_V3_DELTA,
   CODING_MARKDOWN_V3_LAB_TOOLS,
   CODING_MARKDOWN_V4_DELTA,
+  CODING_MARKDOWN_V5_DELTA,
+  CODING_MARKDOWN_V5_LAB_TOOLS,
   CODING_NEUTRAL_PROMPT_DELTA,
   CODING_PARITY_DELTA,
   CODING_TOC_FILES_DELTA,
+  GREP_PER_FILE_BUDGET_DELTA,
   GREP_SECTION_CONTEXT_DELTA,
   COMPACT_AUTHOR_MIKE_DELTA,
   COMPACT_AUTHOR_MIKE_LAB_SYSTEM_PROMPT,
@@ -232,6 +235,13 @@ function armExpectedSurface(
             ? {
                 systemPrompt: CODING_MARKDOWN_BUDGET_LAB_SYSTEM_PROMPT,
                 tools: CODING_MARKDOWN_V3_LAB_TOOLS,
+              }
+          : // CODING-MARKDOWN v5: v4 + the max-min fair per-file grep budget
+            // (the Grep description carries it; the prompt is unchanged).
+          arm === "coding_markdown_v5"
+            ? {
+                systemPrompt: CODING_MARKDOWN_BUDGET_LAB_SYSTEM_PROMPT,
+                tools: CODING_MARKDOWN_V5_LAB_TOOLS,
               }
             : arm === "mike_grep_v1"
               ? {
@@ -1123,6 +1133,31 @@ async function main() {
       MIKE_GREP_SECTION_CONTEXT: "1",
       MIKE_CODING_TOC_FILES: "1",
     },
+    // v5 = v4 + max-min fair per-file grep budget. One flag apart from v4 so
+    // the round-trip lever is the only thing the contrast can attribute.
+    coding_markdown_v5: {
+      MIKE_NAV_SHAPE: "legacy",
+      MIKE_TOOL_SHAPE: "lean-batch-v1",
+      MIKE_RETRIEVAL_EXPERIMENT: "p0-pure-coding",
+      MIKE_PROGRESSIVE_DISCLOSURE: "0",
+      MIKE_MODEL_COVERAGE_ROUTING: "0",
+      MIKE_WHOLE_READ_MAX_CHARS: "",
+      MIKE_TOOL_RESULT_CAP: "64000",
+      MIKE_SUPPRESS_DUPLICATE_WHOLE_READS: "0",
+      MIKE_TERMINAL_AUTHORING: "1",
+      MIKE_CONTEXT_HANDOFF: "0",
+      MIKE_RESEARCH_CONTEXT_REFRESH: "0",
+      MIKE_CONTINUOUS_EVIDENCE: "0",
+      MIKE_OPENAI_COMPACT_THRESHOLD: "244800",
+      MIKE_SLA_WORKFLOW: "0",
+      MIKE_GREENFIELD_REVIEW: "0",
+      MIKE_READ_DOCX_MARKDOWN: "1",
+      MIKE_CODING_NEUTRAL_PROMPT: "1",
+      MIKE_CODING_PARITY: "1",
+      MIKE_GREP_SECTION_CONTEXT: "1",
+      MIKE_CODING_TOC_FILES: "1",
+      MIKE_GREP_PER_FILE_BUDGET: "1",
+    },
     lean_batch_hardrefs_v1: {
       MIKE_NAV_SHAPE: "legacy",
       MIKE_TOOL_SHAPE: "lean-batch-hardrefs-v1",
@@ -1276,7 +1311,7 @@ async function main() {
   };
   if (!armEnvironment[arm])
     throw new Error(
-      `unknown --arm ${arm}; expected a registered LAB arm, including upstream_terminal_v1, mike_upstream_native_v1, mike_markdown_e2e_treatment_v1, mike_markdown_e2e_treatment_v2, mike_markdown_swap_v1, mike_markdown_e2e_v1, mike_markdown_e2e_index_v1, mike_markdown_e2e_floor_v1, mike_markdown_e2e_index_floor_v1, mike_markdown_e2e_index_treatment_v1, mike_markdown_e2e_index_treatment_v2, mike_markdown_read_upstream_draft_v1, mike_compact_author_v1, lean_batch_v1, lean_batch_hardrefs_v1, coding_markdown_v1, coding_markdown_v2, coding_markdown_v3, coding_markdown_v4, or grounded_structure_outline_v1`,
+      `unknown --arm ${arm}; expected a registered LAB arm, including upstream_terminal_v1, mike_upstream_native_v1, mike_markdown_e2e_treatment_v1, mike_markdown_e2e_treatment_v2, mike_markdown_swap_v1, mike_markdown_e2e_v1, mike_markdown_e2e_index_v1, mike_markdown_e2e_floor_v1, mike_markdown_e2e_index_floor_v1, mike_markdown_e2e_index_treatment_v1, mike_markdown_e2e_index_treatment_v2, mike_markdown_read_upstream_draft_v1, mike_compact_author_v1, lean_batch_v1, lean_batch_hardrefs_v1, coding_markdown_v1, coding_markdown_v2, coding_markdown_v3, coding_markdown_v4, coding_markdown_v5, or grounded_structure_outline_v1`,
     );
 
   // Re-spawn into the isolated anonymous-mode environment (same recipe as
@@ -1365,6 +1400,7 @@ async function main() {
           MIKE_CODING_PARITY: "",
           MIKE_GREP_SECTION_CONTEXT: "",
           MIKE_CODING_TOC_FILES: "",
+          MIKE_GREP_PER_FILE_BUDGET: "",
           // Compute-only ablation. It does not change tool schemas, prompts,
           // or extracted text; a PDF is still created on the first paged read.
           MIKE_EAGER_OFFICE_PDF_RENDITION:
@@ -2356,6 +2392,7 @@ async function main() {
       "coding_markdown_v2",
       "coding_markdown_v3",
       "coding_markdown_v4",
+      "coding_markdown_v5",
     ].includes(arm)
   ) {
     const residentTools = Array.isArray(surface?.resident_tools)
@@ -2370,7 +2407,10 @@ async function main() {
     // surface, executor parity); v3 adds grep section-context rows. Every
     // flag is asserted PER ARM so a leak can never silently change a
     // frozen lean-batch cell (and vice versa).
-    const tocFiles = arm === "coding_markdown_v4";
+    // v5 = v4 + the max-min fair per-file grep budget; everything below it
+    // in the stack is inherited, so each predicate cascades.
+    const grepPerFileBudget = arm === "coding_markdown_v5";
+    const tocFiles = arm === "coding_markdown_v4" || grepPerFileBudget;
     const grepSectionContext = arm === "coding_markdown_v3" || tocFiles;
     const codingParity =
       arm === "coding_markdown_v2" || grepSectionContext;
@@ -2418,6 +2458,7 @@ async function main() {
       surface?.coding_parity !== codingParity ||
       surface?.grep_section_context !== grepSectionContext ||
       surface?.coding_toc_files !== tocFiles ||
+      surface?.grep_per_file_budget !== grepPerFileBudget ||
       surface?.exposure_echo !== false ||
       surface?.compact_author_mike_shape !== false ||
       surface?.upstream_mike_shape !== false ||
@@ -2728,6 +2769,7 @@ async function main() {
       "coding_markdown_v2",
       "coding_markdown_v3",
       "coding_markdown_v4",
+      "coding_markdown_v5",
       "mike_grep_v1",
       "mike_structure_paths_v1",
       "grounded_structure_v1",
@@ -3116,6 +3158,7 @@ async function main() {
     "coding_markdown_v2",
     "coding_markdown_v3",
     "coding_markdown_v4",
+    "coding_markdown_v5",
     ...mikeGrepArms,
   ];
   const defaultTierArms = [
@@ -3350,29 +3393,34 @@ async function main() {
         "coding_markdown_v2",
         "coding_markdown_v3",
         "coding_markdown_v4",
+        "coding_markdown_v5",
       ].includes(arm)
         ? LEAN_BATCH_DELTA
         : null,
     coding_markdown_delta:
-      ["coding_markdown_v1", "coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4"].includes(arm)
+      ["coding_markdown_v1", "coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5"].includes(arm)
         ? CODING_MARKDOWN_DELTA
         : null,
     coding_neutral_prompt_delta:
-      ["coding_markdown_v1", "coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4"].includes(arm)
+      ["coding_markdown_v1", "coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5"].includes(arm)
         ? CODING_NEUTRAL_PROMPT_DELTA
         : null,
     coding_markdown_v2_delta:
-      ["coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4"].includes(arm) ? CODING_MARKDOWN_V2_DELTA : null,
+      ["coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5"].includes(arm) ? CODING_MARKDOWN_V2_DELTA : null,
     coding_parity_delta:
-      ["coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4"].includes(arm) ? CODING_PARITY_DELTA : null,
+      ["coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5"].includes(arm) ? CODING_PARITY_DELTA : null,
     coding_markdown_v3_delta:
-      ["coding_markdown_v3", "coding_markdown_v4"].includes(arm) ? CODING_MARKDOWN_V3_DELTA : null,
+      ["coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5"].includes(arm) ? CODING_MARKDOWN_V3_DELTA : null,
     grep_section_context_delta:
-      ["coding_markdown_v3", "coding_markdown_v4"].includes(arm) ? GREP_SECTION_CONTEXT_DELTA : null,
+      ["coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5"].includes(arm) ? GREP_SECTION_CONTEXT_DELTA : null,
     coding_markdown_v4_delta:
-      arm === "coding_markdown_v4" ? CODING_MARKDOWN_V4_DELTA : null,
+      ["coding_markdown_v4", "coding_markdown_v5"].includes(arm) ? CODING_MARKDOWN_V4_DELTA : null,
     coding_toc_files_delta:
-      arm === "coding_markdown_v4" ? CODING_TOC_FILES_DELTA : null,
+      ["coding_markdown_v4", "coding_markdown_v5"].includes(arm) ? CODING_TOC_FILES_DELTA : null,
+    coding_markdown_v5_delta:
+      arm === "coding_markdown_v5" ? CODING_MARKDOWN_V5_DELTA : null,
+    grep_per_file_budget_delta:
+      arm === "coding_markdown_v5" ? GREP_PER_FILE_BUDGET_DELTA : null,
     lean_batch_hardrefs_delta:
       arm === "lean_batch_hardrefs_v1" ? LEAN_BATCH_HARDREFS_DELTA : null,
     mike_grep_delta: mikeGrepDelta,
@@ -3796,29 +3844,34 @@ async function main() {
             "coding_markdown_v2",
             "coding_markdown_v3",
             "coding_markdown_v4",
+            "coding_markdown_v5",
           ].includes(arm)
             ? LEAN_BATCH_DELTA
             : null,
         coding_markdown_delta:
-          ["coding_markdown_v1", "coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4"].includes(arm)
+          ["coding_markdown_v1", "coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5"].includes(arm)
             ? CODING_MARKDOWN_DELTA
             : null,
         coding_neutral_prompt_delta:
-          ["coding_markdown_v1", "coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4"].includes(arm)
+          ["coding_markdown_v1", "coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5"].includes(arm)
             ? CODING_NEUTRAL_PROMPT_DELTA
             : null,
         coding_markdown_v2_delta:
-          ["coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4"].includes(arm) ? CODING_MARKDOWN_V2_DELTA : null,
+          ["coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5"].includes(arm) ? CODING_MARKDOWN_V2_DELTA : null,
         coding_parity_delta:
-          ["coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4"].includes(arm) ? CODING_PARITY_DELTA : null,
+          ["coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5"].includes(arm) ? CODING_PARITY_DELTA : null,
         coding_markdown_v3_delta:
-          ["coding_markdown_v3", "coding_markdown_v4"].includes(arm) ? CODING_MARKDOWN_V3_DELTA : null,
+          ["coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5"].includes(arm) ? CODING_MARKDOWN_V3_DELTA : null,
         grep_section_context_delta:
-          ["coding_markdown_v3", "coding_markdown_v4"].includes(arm) ? GREP_SECTION_CONTEXT_DELTA : null,
+          ["coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5"].includes(arm) ? GREP_SECTION_CONTEXT_DELTA : null,
         coding_markdown_v4_delta:
-          arm === "coding_markdown_v4" ? CODING_MARKDOWN_V4_DELTA : null,
+          ["coding_markdown_v4", "coding_markdown_v5"].includes(arm) ? CODING_MARKDOWN_V4_DELTA : null,
         coding_toc_files_delta:
-          arm === "coding_markdown_v4" ? CODING_TOC_FILES_DELTA : null,
+          ["coding_markdown_v4", "coding_markdown_v5"].includes(arm) ? CODING_TOC_FILES_DELTA : null,
+        coding_markdown_v5_delta:
+          arm === "coding_markdown_v5" ? CODING_MARKDOWN_V5_DELTA : null,
+        grep_per_file_budget_delta:
+          arm === "coding_markdown_v5" ? GREP_PER_FILE_BUDGET_DELTA : null,
         lean_batch_hardrefs_delta:
           arm === "lean_batch_hardrefs_v1"
             ? LEAN_BATCH_HARDREFS_DELTA
@@ -4348,29 +4401,34 @@ async function main() {
             "coding_markdown_v2",
             "coding_markdown_v3",
             "coding_markdown_v4",
+            "coding_markdown_v5",
           ].includes(arm)
             ? LEAN_BATCH_DELTA
             : null,
         coding_markdown_delta:
-          ["coding_markdown_v1", "coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4"].includes(arm)
+          ["coding_markdown_v1", "coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5"].includes(arm)
             ? CODING_MARKDOWN_DELTA
             : null,
         coding_neutral_prompt_delta:
-          ["coding_markdown_v1", "coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4"].includes(arm)
+          ["coding_markdown_v1", "coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5"].includes(arm)
             ? CODING_NEUTRAL_PROMPT_DELTA
             : null,
         coding_markdown_v2_delta:
-          ["coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4"].includes(arm) ? CODING_MARKDOWN_V2_DELTA : null,
+          ["coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5"].includes(arm) ? CODING_MARKDOWN_V2_DELTA : null,
         coding_parity_delta:
-          ["coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4"].includes(arm) ? CODING_PARITY_DELTA : null,
+          ["coding_markdown_v2", "coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5"].includes(arm) ? CODING_PARITY_DELTA : null,
         coding_markdown_v3_delta:
-          ["coding_markdown_v3", "coding_markdown_v4"].includes(arm) ? CODING_MARKDOWN_V3_DELTA : null,
+          ["coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5"].includes(arm) ? CODING_MARKDOWN_V3_DELTA : null,
         grep_section_context_delta:
-          ["coding_markdown_v3", "coding_markdown_v4"].includes(arm) ? GREP_SECTION_CONTEXT_DELTA : null,
+          ["coding_markdown_v3", "coding_markdown_v4", "coding_markdown_v5"].includes(arm) ? GREP_SECTION_CONTEXT_DELTA : null,
         coding_markdown_v4_delta:
-          arm === "coding_markdown_v4" ? CODING_MARKDOWN_V4_DELTA : null,
+          ["coding_markdown_v4", "coding_markdown_v5"].includes(arm) ? CODING_MARKDOWN_V4_DELTA : null,
         coding_toc_files_delta:
-          arm === "coding_markdown_v4" ? CODING_TOC_FILES_DELTA : null,
+          ["coding_markdown_v4", "coding_markdown_v5"].includes(arm) ? CODING_TOC_FILES_DELTA : null,
+        coding_markdown_v5_delta:
+          arm === "coding_markdown_v5" ? CODING_MARKDOWN_V5_DELTA : null,
+        grep_per_file_budget_delta:
+          arm === "coding_markdown_v5" ? GREP_PER_FILE_BUDGET_DELTA : null,
         lean_batch_hardrefs_delta:
           arm === "lean_batch_hardrefs_v1"
             ? LEAN_BATCH_HARDREFS_DELTA
