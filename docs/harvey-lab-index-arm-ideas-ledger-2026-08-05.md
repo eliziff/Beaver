@@ -1583,6 +1583,36 @@ n=2: no-echo 45 → false-echo 42/41; draft persistence rescued it to
 53). Echo-v1 stratum n=2 on all three tasks; scores sit within noise
 of their triage twins everywhere except tax, at +37-134% cost.
 
+**CRITERIA-FLIP ANATOMY (named flips over finalized pairs).** What
+the checkpoint actually buys, and what it cannot:
+- acq g5(57)→g7(60): **+3/-0, all three UPs are cross-doc LINKAGE
+  criteria** — C-015 "links missing IP assignments to pending patent
+  applications", C-032 "connects shareholder consent issue to board
+  quorum deficiency", C-033 "shareholder consent needed for
+  change-of-control" — exactly the two Edits that run made (CoC +
+  IP-indemnification). The +3 is causally traceable to the
+  refinement loop: its value is connective tissue between documents.
+- employment g5(53)→g7(57): +5/-1 — concrete identifications (bonus
+  75→100, cure 30→45, Good Reason trigger, Sponsor cash ceiling) +
+  the exec-summary apparatus (C-053); vs g3 also C-054 summary
+  table. Recurring loss: C-012 (profits-interest $0-cost-basis
+  ambiguity) — held in g3 AND g5, lost in g7.
+- tax g5(53)→g7(38): **+3/-18; the 18 DOWNs are quantification/
+  deep-synthesis criteria** (DEMPE analysis, India markup exposure
+  quantified, German adjustment quantified, NL spread ~$1.1M, QCSA
+  buy-in, PCT methodology, financing arm's-length, allocation-key
+  analysis...) while the 3 UPs are identifications (NL substance,
+  Singapore risks, BEPS refs). A ~3-edit refinement pass cannot
+  inject 18 quantifications missing from the composed draft —
+  the composition-coverage law, now visible criterion-by-criterion.
+- HSR g4(49)→g7(48): -1, noise-grade (an enforcement-posture note).
+
+Analysis consequence for #59: keep the checkpoint (cheap; buys
+linkage criteria at full coverage), and treat tax as a DIFFERENT
+problem — the lever there must put the quantitative cores of all 25
+docs into context BEFORE composition (the no-fit synthesis
+question), not refine after it.
+
 **Lane state.** The 07:07-07:16 3-wide wave (tax rep2, DPA,
 insurance) was externally killed — dead run-state-only dirs, never
 judged, never in any grid. Resumed 2-wide per the
