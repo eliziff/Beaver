@@ -1816,8 +1816,56 @@ unrelated, confirmed via stash). `tsc --noEmit` clean.
 
 **Post-fix validation:** v5 real-estate scenario-01 smoke (the exact task whose
 3 gen-7 Edits all failed) queued — first honest datapoint on whether the edit
-lever helps. Open design note (2026-08-07, Eli): the served `Edit` description
-still prescribes a single target ("always draft.md"); under discussion is a
-dead-simple surface (plain Claude Code semantics over `draft.md` AND source
-files, with source-edit events monitored distinctly) so the model never needs
-the in-memory backstory and unprompted source-file edits are observable.
+lever helps.
+
+## GEN-8 (2026-08-07, Fable): redesigned draft surface — dead-simple Edit, in-memory drafts map, source-edit monitoring
+
+**Design (Eli):** "the model never has to know that draft.md is handled
+in-memory; it should just appear as any other file" — plus handling for
+multiple drafts and NO `.md` graveyard. Drafts are an in-memory
+`Record<string,string>` keyed by lowercased filename (`draft.md` canonical +
+per-title aliases via `draftKeyFor(title)`); a second generate_docx refusal
+preserves earlier drafts under their own names. Read/Edit/Glob treat draft
+paths exactly like any other file — the tool descriptions carry no in-memory
+backstory. Edits to real files on disk (source .docx) go through the normal
+FS text-ops surface and are counted in `sourceEditCount`: a model editing a
+source .docx unprompted is observable behavior, not a hidden path.
+
+**Surface change:** `CODING_EDIT_TOOL` rewritten dead-simple (plain Claude
+Code semantics, both targets — file_path names "a source .docx or a draft
+file"); `requirementsState.draftMarkdown` → `drafts` map + `draftEditCount` +
+`sourceEditCount`; `draftTarget` computed at the top of the dispatch chain so
+the lean-batch Read handler can't intercept a draft path first (a fix the
+regression test caught immediately).
+
+**Generation marking (per Eli, don't break convention):** receipts carry the
+generation — arms don't fork. `DRAFT_EDIT_DELTA` bumped `draft-edit-v4` →
+`draft-edit-v8`; gen-8 = echo-v2 + draft-edit-v8 on the consolidated
+`coding_markdown_v5` arm. Commit `9e2e271e`.
+
+**Validation target (per Eli):** the task where the ledger reported the most
+edits with an HONEST echo. That is **HSR 07-07-09** (5 Edit calls — the most
+in gen-7 — and its echo was truthful: "All 9 document(s) have had body
+content served this turn — coverage is complete"; the 5 Edits were all
+substantive: market-share table reconciliation, medical-gas market analysis,
+entry-defense discussion, FTC-remedies paragraph). All 5 returned
+`ok=true chars=29` ("File does not exist: draft.md") and the final render used
+the un-edited draft.
+
+**RESULT (flash-judged ~13:17): HSR 48/50 — TIES gen-7's 48/50 exactly, at
+comparable cacheadj (162.7k vs 169k).** The now-working edits LAND: 3/3 Edit
+calls on draft.md returned `ok=true replacements=1` (vs gen-7's 5× `chars=29`
+"File does not exist"), and all three edit bodies are present verbatim in the
+rendered `antitrust-risk-memo.docx` (probe-verified): medical-gas licensing
+detail, Triton top-10 customers (34%/$93.16M), and the filing-deadline
+dual-filer clarification. The two misses are ORTHOGONAL to the edits made:
+C-001 (memo addressed to Marcus Dunleavy, not Roth→Chakravarti) and C-030 (no
+early-termination-likelihood assessment). **Score-neutral on HSR**: the
+refinement loop now works end-to-end but buys no criteria on this task —
+consistent with the composition-coverage law (a ~3-edit pass cannot inject
+criteria absent from the composed draft). vs the `mike_upstream_native_v1`
+control on the same task (**44/50** @436.8k raw, ledger row 17-45-36), g8
+leads +4 at 162.7k cacheadj. Mechanism verdict: FIXED and verified
+(edits apply + render); task-level verdict: no HSR score movement — the
+lever's value must be demonstrated on a task whose misses ARE edit-addressable
+(acq-style linkage criteria), not HSR.
