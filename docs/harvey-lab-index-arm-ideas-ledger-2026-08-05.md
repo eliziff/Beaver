@@ -1735,6 +1735,7 @@ a row for that task exists. Run dir base:
 | corporate-governance/analyze-eu-ai-act-high | **64/66** | deepseek-v4-flash | 403,802 (368,715/35,087) | 7/7 | 274s | 2026-08-07T18-06-06 |
 | corporate-ma/draft-acquisition-due-diligence | **53/64** | deepseek-v4-flash | 794,641 (754,030/40,611) | 31/31 | 415s | 2026-08-07T18-07-54 |
 | insurance/analyze-property-damage-claim-against-commercial-policy-exclusions | **54/57** | deepseek-v4-flash | 389,784 (353,003/36,781) | 7/7 | 306s | 2026-08-07T18-15-08 |
+| tax/draft-transfer-pricing-documentation | **40/77** | deepseek-v4-flash | 1,280,347 (1,225,947/54,400) | 25/25 | 476s | 2026-08-07T18-20-30 |
 
 **Failure → recovered (harness gate, not a score):** capital-markets/compare-closing-documents-against-closing-checklist
 first attempt (17-56-20) authored 0/1 DOCX — the model made one `fetch_documents`
