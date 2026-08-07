@@ -1700,3 +1700,5 @@ native control; the native control still runs on real-estate).
 - real-estate breadth-1 LEAN (16-35-34): checkpoint route clean (7 reads -> draft -> 2 greps + 3 Edits -> render), 25.6k out — judge in flight. Whole-read baseline (16-39-25) in flight for the pair.
 
 - real-estate breadth-1 LEAN judged: **67/75** @78.0k | 25.6k out | 44.4k uncached | 335k cache_read | 3/3 docs | checkpoint route (7 reads -> draft -> 2 greps + 3 Edits -> render). Standalone score, no strata on this task — mechanism row only. Paired NATIVE control + the accidental e2e row pending.
+
+- real-estate e2e row (16-39-25, accidental pre-correction launch, KEPT AS LABELED): **3 whole-read tool calls** (list/fetch/generate), 21.7k out, 33.1k cacheadj, 3/3 docs. Not the control — control-shaped whole-read datapoint only. Native control on real-estate in flight (first native-on-flash run).
