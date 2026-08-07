@@ -1751,8 +1751,12 @@ fetch_documents -> generate_docx -> read_document, 4035 answer chars, 8/8 docs).
 Treating the first attempt as a stochastic native-on-flash refusal, not a
 task-specific blocker.
 
-**Second stochastic refusal (same signature, 18-11-08):**
+**Task-specific native-on-flash harness refusals (employment-labor markup):**
 employment-labor/analyze-counterparty-markup-of-executive-employment-agreement
-authored 0/1 DOCX after ~8 min of heavy reasoning (3.1 MB raw-sse, no
-generate_docx; harness gate ARM_EXIT=1 at lab-beaver-arm.ts:2882). No judge
-artifacts (clean). Re-run queued — same recovery path as capital-closing.
+authored 0/1 DOCX on 18-11-08 (answered in text after ~8 min / 3.1 MB raw-sse,
+no generate_docx), then authored **3/1** DOCX on the 18-19-45 re-run (over-produced
+three deliverables; harness gate ARM_EXIT=1 at lab-beaver-arm.ts:2882 in both).
+Two distinct refusal signatures (0/1 then 3/1) — the model is erratic on this
+task's corpus, unlike capital-closing (0/1 -> 29/32). No judge artifacts (clean).
+3rd re-run queued; if it fails again, flag as a task-specific blocker (no native
+baseline available on flash for this cell).
