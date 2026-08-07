@@ -48,6 +48,7 @@ import {
   CODING_MARKDOWN_DELTA,
   CODING_MARKDOWN_LAB_SYSTEM_PROMPT,
   CODING_MARKDOWN_BUDGET_LAB_SYSTEM_PROMPT,
+  CODING_MARKDOWN_GREP_ROUTE_LAB_SYSTEM_PROMPT,
   CODING_MARKDOWN_V2_DELTA,
   CODING_MARKDOWN_V2_LAB_TOOLS,
   CODING_MARKDOWN_V3_DELTA,
@@ -59,6 +60,7 @@ import {
   CODING_PARITY_DELTA,
   CODING_TOC_FILES_DELTA,
   GREP_PER_FILE_BUDGET_DELTA,
+  GREP_ROUTING_PROMPT_DELTA,
   GREP_SECTION_CONTEXT_DELTA,
   COMPACT_AUTHOR_MIKE_DELTA,
   COMPACT_AUTHOR_MIKE_LAB_SYSTEM_PROMPT,
@@ -237,10 +239,11 @@ function armExpectedSurface(
                 tools: CODING_MARKDOWN_V3_LAB_TOOLS,
               }
           : // CODING-MARKDOWN v5: v4 + the max-min fair per-file grep budget
-            // (the Grep description carries it; the prompt is unchanged).
+            // + the corpus-grep routing prompt line (consolidated arm:
+            // levers accrete here and get ablated by analysis, not forked).
           arm === "coding_markdown_v5"
             ? {
-                systemPrompt: CODING_MARKDOWN_BUDGET_LAB_SYSTEM_PROMPT,
+                systemPrompt: CODING_MARKDOWN_GREP_ROUTE_LAB_SYSTEM_PROMPT,
                 tools: CODING_MARKDOWN_V5_LAB_TOOLS,
               }
             : arm === "mike_grep_v1"
@@ -3421,6 +3424,8 @@ async function main() {
       arm === "coding_markdown_v5" ? CODING_MARKDOWN_V5_DELTA : null,
     grep_per_file_budget_delta:
       arm === "coding_markdown_v5" ? GREP_PER_FILE_BUDGET_DELTA : null,
+    grep_routing_prompt_delta:
+      arm === "coding_markdown_v5" ? GREP_ROUTING_PROMPT_DELTA : null,
     lean_batch_hardrefs_delta:
       arm === "lean_batch_hardrefs_v1" ? LEAN_BATCH_HARDREFS_DELTA : null,
     mike_grep_delta: mikeGrepDelta,
@@ -3872,6 +3877,8 @@ async function main() {
           arm === "coding_markdown_v5" ? CODING_MARKDOWN_V5_DELTA : null,
         grep_per_file_budget_delta:
           arm === "coding_markdown_v5" ? GREP_PER_FILE_BUDGET_DELTA : null,
+        grep_routing_prompt_delta:
+          arm === "coding_markdown_v5" ? GREP_ROUTING_PROMPT_DELTA : null,
         lean_batch_hardrefs_delta:
           arm === "lean_batch_hardrefs_v1"
             ? LEAN_BATCH_HARDREFS_DELTA
@@ -4429,6 +4436,8 @@ async function main() {
           arm === "coding_markdown_v5" ? CODING_MARKDOWN_V5_DELTA : null,
         grep_per_file_budget_delta:
           arm === "coding_markdown_v5" ? GREP_PER_FILE_BUDGET_DELTA : null,
+        grep_routing_prompt_delta:
+          arm === "coding_markdown_v5" ? GREP_ROUTING_PROMPT_DELTA : null,
         lean_batch_hardrefs_delta:
           arm === "lean_batch_hardrefs_v1"
             ? LEAN_BATCH_HARDREFS_DELTA
