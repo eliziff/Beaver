@@ -1869,3 +1869,37 @@ leads +4 at 162.7k cacheadj. Mechanism verdict: FIXED and verified
 (edits apply + render); task-level verdict: no HSR score movement — the
 lever's value must be demonstrated on a task whose misses ARE edit-addressable
 (acq-style linkage criteria), not HSR.
+
+**Tax gen-8 landed (19-20-25): 42/77 @634k cacheadj (225k unc +
+4,091k cached, 59k out, 603s).** Same score as g6 echo-v1 42 @679k,
+inside the g7 fixed-treatment band {38, 48}. This is the strongest
+edit-lever test yet: tax gen-7's 3 Edits all returned dead
+`chars=29`, so the composition-coverage conclusion was drawn from a
+run where edits never applied. Gen-8's edits LAND: **5/5 Edit calls
+on draft.md returned `ok=true replacements=1`**, growing the draft
+35,667 → 40,616 chars, and **all 5 edit bodies are present verbatim
+in the rendered `memo.docx`** (probe-verified; an initial F-15
+probe-miss was the same en-dash encoding artifact as HSR's `&apos;`).
+And the
+coverage gate WORKED end-to-end: the first `generate_docx` (with a
+full inline body) was refused by `coverage_check` naming **9 unread
+docs** (the 7 intercompany agreements + master services + Northbridge
+tangible-goods study); the model then read exactly those 9, made all
+5 Edits, and re-rendered bare (no markdown → renders saved draft.md,
+the intended draft-edit path). Mechanism verdict: FIXED AND VERIFIED
+on a second, harder task — the edit lever now demonstrably works on
+both HSR (3/3) and tax (5/5) with real re-reads and real edits.
+
+**Score verdict: score-neutral on tax too (42 vs g7 {38,48}).** The
+post-g5 tax rows are {53, 48, 51, 38, 48, 42} across
+edit-v1/edit-v3/edit-v4/edit-v8 — every one below g5's 96%-coverage
+53, spread ~15 across judge + treatment. The now-working edits do
+not move tax (consistent with HSR): the refinement loop can fix
+what the composed draft already says, but cannot inject the
+deep-synthesis quantification criteria that the 96%-coverage g5
+caught and all post-g5 compositions miss. **The lever's value still
+must be shown on a task whose misses ARE edit-addressable
+(acq-style linkage criteria).** The g8 coverage gate is the 
+genuinely new asset: it converts "drafted blind" into "read the 9
+named docs first" — that re-read discipline, not the edits, is what
+a post-g5 gap needs.

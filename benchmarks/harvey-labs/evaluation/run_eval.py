@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from evaluation.judge import Judge
+from evaluation.receipt import write_receipt
 from evaluation.report import generate_report
 from evaluation.scoring import score_rubric
 from utils.stdio import force_utf8_stdio
@@ -273,6 +274,8 @@ def main():
             f"flip rate {majority['criterion_flip_rate']:.3f})"
         )
         print(f"  Written to results/{args.run_id}/scores.majority.json")
+        receipt_path = write_receipt(run_dir)
+        print(f"  Receipt:  {receipt_path.relative_to(BENCH_ROOT)}")
         return
 
     out_name = f"scores.{args.out_suffix}.json" if args.out_suffix else "scores.json"
@@ -292,6 +295,10 @@ def main():
 
     report_path = generate_report(run_id=args.run_id)
     print(f"  Report written to:  {report_path}")
+
+    run_dir = RESULTS_DIR / args.run_id
+    receipt_path = write_receipt(run_dir)
+    print(f"  Receipt:  {receipt_path.relative_to(BENCH_ROOT)}")
 
 
 if __name__ == "__main__":
