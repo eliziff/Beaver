@@ -1738,6 +1738,7 @@ a row for that task exists. Run dir base:
 | tax/draft-transfer-pricing-documentation | **40/77** | deepseek-v4-flash | 1,280,347 (1,225,947/54,400) | 25/25 | 476s | 2026-08-07T18-20-30 |
 | white-collar-defense-investigations/analyze-counterparty-markup-of-deferred-prosecution-agreement | **43/58** | deepseek-v4-flash | 282,377 (255,087/27,290) | 6/6 | 247s | 2026-08-07T18-28-40 |
 | antitrust-competition/compare-expert-market-share-estimates-against-agency-data | **53/56** | deepseek-v4-flash | 322,154 (281,704/40,450) | 6/6 | 282s | 2026-08-07T18-38-52 |
+| antitrust-competition/analyze-counterparty-markup-of-protective-order | **43/49** | deepseek-v4-flash | 238,346 (202,468/35,878) | 6/6 | 358s | 2026-08-07T18-45-55 |
 
 **Failure → recovered (harness gate, not a score):** capital-markets/compare-closing-documents-against-closing-checklist
 first attempt (17-56-20) authored 0/1 DOCX — the model made one `fetch_documents`
@@ -1764,10 +1765,11 @@ blocker: **no native baseline available on flash for this cell.** (Contrast
 capital-closing, which recovered 0/1 -> 29/32 on attempt 2.) The paired
 treatment row exists; this native cell is left as a known-missing control.
 
-**First-attempt refusal (18-33-00, stochastic):**
+**First-attempt refusal (18-33-00, stochastic) -> RECOVERED:**
 antitrust-competition/analyze-counterparty-markup-of-protective-order authored
-0/1 DOCX (harness gate ARM_EXIT=1, no judge artifacts, clean). First attempt on
-this task — re-run queued (capital-closing precedent: 0/1 -> 29/32 on retry).
+0/1 DOCX on first attempt (harness gate ARM_EXIT=1, no judge artifacts, clean).
+**Re-run (18-45-55) SUCCEEDED: 43/49** — recovered on retry, capital-closing
+precedent confirmed (2nd stochastic-refusal task to recover on attempt 2).
 
 ## CORRECTION (2026-08-07 late, Fable): DRAFT-EDIT WAS SHADOWED THROUGH ALL GEN-7 — EDIT CALLS NEVER APPLIED
 
