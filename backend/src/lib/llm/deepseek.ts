@@ -123,6 +123,35 @@ function ssePayloads(buffer: string): { payloads: string[]; rest: string } {
   };
 }
 
+/**
+ * Transport-class failures worth one more attempt: socket/DNS-level errors
+ * (undici surfaces mid-stream TLS resets as `TypeError: terminated`, request
+ * failures as `TypeError: fetch failed` with the errno on `cause`) plus
+ * transient HTTP statuses. Semantic failures — 4xx other than 429, provider
+ * `chunk.error` payloads — never match.
+ */
+const TRANSPORT_ERROR_PATTERN =
+  /\bterminated\b|fetch failed|socket hang up|other side closed|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EPIPE|EAI_AGAIN|UND_ERR_|DeepSeek request failed \((?:429|500|502|503|504)\)/i;
+
+const TRANSPORT_ATTEMPTS = 3;
+
+export function isTransportError(error: unknown): boolean {
+  const seen: string[] = [];
+  let cursor: unknown = error;
+  for (let depth = 0; cursor && depth < 4; depth++) {
+    if (cursor instanceof Error) {
+      seen.push(cursor.name, cursor.message);
+      const code = (cursor as { code?: unknown }).code;
+      if (typeof code === "string") seen.push(code);
+      cursor = cursor.cause;
+    } else {
+      seen.push(String(cursor));
+      break;
+    }
+  }
+  return TRANSPORT_ERROR_PATTERN.test(seen.join(" "));
+}
+
 async function createCompletion(params: {
   apiKey: string;
   model: string;
@@ -201,78 +230,113 @@ export async function streamDeepSeek(
       // serializes identically each round, so per-round resolution does not
       // hurt the automatic context cache.
       const resolvedTools = params.resolveTools?.() ?? tools;
-      const response = await createCompletion({
-        apiKey: key,
-        model,
-        messages,
-        tools: resolvedTools,
-        stream: true,
-        thinking: enableThinking,
-        reasoningEffort: params.reasoningEffort,
-        signal: params.abortSignal,
-      });
-      if (!response.body) throw new Error("DeepSeek response had no body.");
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
+      // A transient socket reset must not kill an hour-long run. Retry the
+      // round on transport-class failures, but only while nothing has been
+      // forwarded to callbacks/fullText: consumers accumulate deltas into the
+      // persisted turn, so a post-emission retry would duplicate text, and a
+      // resampled response cannot be stitched onto a partial one. The exposed
+      // window is dominated by prefill (minutes of silence on large contexts),
+      // which is exactly the zero-progress case this covers.
       const pending = new Map<
         number,
         { id: string; name: string; arguments: string }
       >();
       let content = "";
       let reasoning = "";
-      let buffer = "";
       let responseUsage: DeepSeekUsage | undefined;
+      let roundEmitted = false;
+      for (let attempt = 1; ; attempt++) {
+        pending.clear();
+        content = "";
+        reasoning = "";
+        responseUsage = undefined;
+        roundEmitted = false;
+        try {
+          const response = await createCompletion({
+            apiKey: key,
+            model,
+            messages,
+            tools: resolvedTools,
+            stream: true,
+            thinking: enableThinking,
+            reasoningEffort: params.reasoningEffort,
+            signal: params.abortSignal,
+          });
+          if (!response.body) throw new Error("DeepSeek response had no body.");
 
-      while (true) {
-        throwIfAborted(params.abortSignal);
-        const { done, value } = await reader.read();
-        buffer += decoder.decode(value, { stream: !done });
-        const parsed = ssePayloads(done ? `${buffer}\n\n` : buffer);
-        buffer = parsed.rest;
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
 
-        for (const payload of parsed.payloads) {
-          trace.record({ iteration, label: "sse_event", payload });
-          let chunk: DeepSeekStreamChunk;
-          try {
-            chunk = JSON.parse(payload) as DeepSeekStreamChunk;
-          } catch {
-            continue;
-          }
-          if (chunk.error) {
-            throw new Error(
-              `DeepSeek error${chunk.error.code ? ` (${chunk.error.code})` : ""}: ${chunk.error.message || "Request failed."}`,
-            );
-          }
-          // Usage arrives on the stream's final chunk (no choices). Capture the
-          // last usage object of the response — that is the cumulative total.
-          if (chunk.usage) responseUsage = chunk.usage;
-          const delta = chunk.choices?.[0]?.delta;
-          if (typeof delta?.reasoning_content === "string") {
-            reasoning += delta.reasoning_content;
-            callbacks.onReasoningDelta?.(delta.reasoning_content);
-          }
-          if (typeof delta?.content === "string") {
-            content += delta.content;
-            fullText += delta.content;
-            callbacks.onContentDelta?.(delta.content);
-          }
-          for (const part of delta?.tool_calls ?? []) {
-            const index = part.index ?? 0;
-            const current = pending.get(index) ?? {
-              id: "",
-              name: "",
-              arguments: "",
-            };
-            if (part.id) current.id = part.id;
-            if (part.function?.name) current.name += part.function.name;
-            if (part.function?.arguments) {
-              current.arguments += part.function.arguments;
+          while (true) {
+            throwIfAborted(params.abortSignal);
+            const { done, value } = await reader.read();
+            buffer += decoder.decode(value, { stream: !done });
+            const parsed = ssePayloads(done ? `${buffer}\n\n` : buffer);
+            buffer = parsed.rest;
+
+            for (const payload of parsed.payloads) {
+              trace.record({ iteration, label: "sse_event", payload });
+              let chunk: DeepSeekStreamChunk;
+              try {
+                chunk = JSON.parse(payload) as DeepSeekStreamChunk;
+              } catch {
+                continue;
+              }
+              if (chunk.error) {
+                throw new Error(
+                  `DeepSeek error${chunk.error.code ? ` (${chunk.error.code})` : ""}: ${chunk.error.message || "Request failed."}`,
+                );
+              }
+              // Usage arrives on the stream's final chunk (no choices). Capture the
+              // last usage object of the response — that is the cumulative total.
+              if (chunk.usage) responseUsage = chunk.usage;
+              const delta = chunk.choices?.[0]?.delta;
+              if (typeof delta?.reasoning_content === "string") {
+                if (delta.reasoning_content) roundEmitted = true;
+                reasoning += delta.reasoning_content;
+                callbacks.onReasoningDelta?.(delta.reasoning_content);
+              }
+              if (typeof delta?.content === "string") {
+                if (delta.content) roundEmitted = true;
+                content += delta.content;
+                fullText += delta.content;
+                callbacks.onContentDelta?.(delta.content);
+              }
+              for (const part of delta?.tool_calls ?? []) {
+                const index = part.index ?? 0;
+                const current = pending.get(index) ?? {
+                  id: "",
+                  name: "",
+                  arguments: "",
+                };
+                if (part.id) current.id = part.id;
+                if (part.function?.name) current.name += part.function.name;
+                if (part.function?.arguments) {
+                  current.arguments += part.function.arguments;
+                }
+                pending.set(index, current);
+              }
             }
-            pending.set(index, current);
+            if (done) break;
           }
+          break;
+        } catch (error) {
+          throwIfAborted(params.abortSignal);
+          if (
+            attempt >= TRANSPORT_ATTEMPTS ||
+            roundEmitted ||
+            !isTransportError(error)
+          ) {
+            throw error;
+          }
+          trace.record({
+            iteration,
+            label: "transport_retry",
+            payload: JSON.stringify({ attempt, error: String(error) }),
+          });
+          await new Promise((resolve) => setTimeout(resolve, attempt * 2000));
         }
-        if (done) break;
       }
 
       if (responseUsage) {
