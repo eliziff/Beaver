@@ -15,6 +15,7 @@
  * Usage:
  *   npx tsx scripts/lab-sse-live.ts            # auto-follow the newest running run
  *   npx tsx scripts/lab-sse-live.ts --arm mike_upstream_native_v1   # scope to an arm
+ *   npx tsx scripts/lab-sse-live.ts --exclude-arm mike_upstream_native_v1  # everything but an arm
  *   npx tsx scripts/lab-sse-live.ts --task real-estate/extract-psa-key-terms/scenario-01
  *   npx tsx scripts/lab-sse-live.ts --dir <capture-dir>  # tail raw-SSE files in a
  *                                           # non-results capture dir (one per chat),
@@ -205,6 +206,7 @@ function newestRunDir(
   task: string | null,
   arm: string | null,
   preferRunning = false,
+  excludeArm: string | null = null,
 ): string {
   const all: { path: string; mtime: number }[] = [];
   const running: { path: string; mtime: number }[] = [];
@@ -222,6 +224,7 @@ function newestRunDir(
         const pNorm = p.replace(/\\/g, "/");
         if (task && !pNorm.includes(task)) continue;
         if (arm && !pNorm.includes(`beaver-${arm}`)) continue;
+        if (excludeArm && pNorm.includes(`beaver-${excludeArm}`)) continue;
         const mtime = statSync(p).mtimeMs;
         all.push({ path: p, mtime });
         if (rawSseActive(p) && !isFinishedRun(p)) running.push({ path: p, mtime });
@@ -303,19 +306,25 @@ async function waitForNewerRun(
   task: string | null,
   arm: string | null,
   currentDir: string,
+  excludeArm: string | null = null,
 ): Promise<string> {
   for (;;) {
     await sleep(RESCAN_MS);
-    const next = newestRunDir(task, arm, true);
+    const next = newestRunDir(task, arm, true, excludeArm);
     if (next && next !== currentDir) return next;
   }
 }
 
 /** Auto-follow: keep attaching to whatever is currently running. */
-async function followRuns(task: string | null, arm: string | null, replay: boolean) {
+async function followRuns(
+  task: string | null,
+  arm: string | null,
+  replay: boolean,
+  excludeArm: string | null = null,
+) {
   let current = "";
   for (;;) {
-    const dir = newestRunDir(task, arm, true);
+    const dir = newestRunDir(task, arm, true, excludeArm);
     if (!dir) {
       if (!current) console.log(`${dim}no run dirs yet under ${RESULTS_ROOT} — waiting…${reset}`);
       await sleep(RESCAN_MS);
@@ -330,7 +339,7 @@ async function followRuns(task: string | null, arm: string | null, replay: boole
       // run; otherwise (just a slow pause) retry the same run after a beat.
       if (isFinishedRun(dir)) {
         console.log(`${dim}run finished — scanning for the next run…${reset}`);
-        current = await waitForNewerRun(task, arm, dir);
+        current = await waitForNewerRun(task, arm, dir, excludeArm);
       } else {
         await sleep(RESCAN_MS);
       }
@@ -386,6 +395,7 @@ function main() {
   let once = false;
   let task: string | null = null;
   let arm: string | null = null;
+  let excludeArm: string | null = null;
   let dir: string | null = null;
   let pathArg: string | null = null;
   for (let i = 0; i < argv.length; i++) {
@@ -394,6 +404,7 @@ function main() {
     else if (a === "--once") once = true;
     else if (a === "--task") task = argv[++i] ?? null;
     else if (a === "--arm") arm = argv[++i] ?? null;
+    else if (a === "--exclude-arm") excludeArm = argv[++i] ?? null;
     else if (a === "--dir") dir = argv[++i] ?? null;
     else if (!a.startsWith("--")) pathArg = a;
   }
@@ -416,14 +427,14 @@ function main() {
   }
 
   if (once) {
-    const filePath = join(newestRunDir(task, arm, false), "raw-sse.txt");
+    const filePath = join(newestRunDir(task, arm, false, excludeArm), "raw-sse.txt");
     if (!existsSync(filePath)) fail(`no run dirs found under ${RESULTS_ROOT}`);
     tailFile(filePath, replay).catch((e) => fail(String(e)));
     return;
   }
 
   // Default: auto-follow whatever is currently running.
-  followRuns(task, arm, replay).catch((e) => fail(String(e)));
+  followRuns(task, arm, replay, excludeArm).catch((e) => fail(String(e)));
 }
 
 main();
