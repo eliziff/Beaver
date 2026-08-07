@@ -1082,13 +1082,17 @@ export const CODING_MARKDOWN_V2_LAB_TOOLS: OpenAIToolSchema[] = [
  * the first generate_docx, and the only revision path was re-emitting the
  * entire deliverable — the draft was composed twice (65k vs 41k output
  * tokens on acq), and a full redraft can silently compress detail out of
- * draft #1. With the lever on, the refused draft is SAVED harness-side as
- * "draft.md"; an Edit tool with Claude Code's exact semantics (unique
- * old_string -> new_string) revises it in place, and generate_docx called
- * without markdown renders the saved draft. Post-echo revisions cost diff
- * tokens, and unchanged text survives byte-for-byte. No system-prompt
- * change: the workflow is taught just-in-time by the echo refusal and the
- * tool descriptions, so the gen-4 prompt sha is untouched.
+ * draft #1. With the lever on, the refused draft is preserved harness-side
+ * as the file "draft.md". Drafts live in memory only — the model never has
+ * to know that: Read/Edit/Glob treat draft.md (and any per-title draft
+ * alias) exactly like any other file, and generate_docx called without
+ * markdown renders the current draft. Edits to real files on disk (source
+ * .docx, other deliverables) go through the normal text-ops surface and are
+ * counted as source edits — observable behavior, never a hidden path.
+ * Post-echo revisions cost diff tokens, and unchanged text survives
+ * byte-for-byte. No system-prompt change: the workflow is taught
+ * just-in-time by the echo refusal and the tool descriptions, so the gen-4
+ * prompt sha is untouched.
  * ---------------------------------------------------------------------- */
 
 export const CODING_EDIT_TOOL: OpenAIToolSchema = {
@@ -1096,17 +1100,19 @@ export const CODING_EDIT_TOOL: OpenAIToolSchema = {
   function: {
     name: "Edit",
     description:
-      "Performs exact string replacement in the saved draft (draft.md — the" +
-      " body a refused generate_docx call preserved). old_string must match" +
-      " the draft exactly, including whitespace, and must be unique — extend" +
-      " it with surrounding lines if needed, or set replace_all. After" +
-      " editing, call generate_docx without markdown to render the draft.",
+      "Performs exact string replacement in a file. old_string must match" +
+      " the current file contents exactly, including whitespace, and must be" +
+      " unique — extend it with surrounding lines if needed, or set" +
+      " replace_all. After editing, call generate_docx without markdown to" +
+      " render the file you edited as the document.",
     parameters: {
       type: "object",
       properties: {
         file_path: {
           type: "string",
-          description: 'The file to modify — always "draft.md"',
+          description:
+            "Path of the file to modify (a source .docx or a draft file such" +
+            ' as "draft.md")',
         },
         old_string: {
           type: "string",
@@ -1172,7 +1178,16 @@ export const CODING_GENERATE_DOCX_DRAFT_EDIT_TOOL: OpenAIToolSchema = {
 // contents either way (true unread list, or all-read confirmation). Under
 // v3 the pause existed only on coverage shortfall, which the honest
 // accounting would have removed from full-coverage runs entirely.
-export const DRAFT_EDIT_DELTA = "draft-edit-v4";
+//
+// v8 (2026-08-08, gen-8): the redesigned edit surface. Drafts are an
+// in-memory map keyed by filename ("draft.md" canonical + per-title
+// aliases); Read/Edit/Glob treat them exactly like any other file (no
+// in-memory backstory in the tool descriptions); Edits to real files on
+// disk go through the normal text-ops surface and are counted separately
+// (sourceEditCount) — observable behavior, never a hidden path. Generation
+// markers live in receipt deltas, arms don't fork: this is still the
+// consolidated coding_markdown_v5 arm, its generation bumped v4→v8.
+export const DRAFT_EDIT_DELTA = "draft-edit-v8";
 
 /**
  * v3 (grep section-context): identical to the CC Grep except the

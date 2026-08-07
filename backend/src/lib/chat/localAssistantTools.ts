@@ -1179,10 +1179,19 @@ export type LocalAssistantRequirementsState = {
    * draft, saved when the coverage check refused it (and kept in sync when the
    * model re-sends a full body). Null until a draft is captured. */
   draftTitle: string | null;
-  draftMarkdown: string | null;
+  /** Draft-edit lever only: in-memory drafts keyed by lowercased filename
+   * ("draft.md" is the canonical path the refusal names). Held only here,
+   * never on disk — nothing is written until the final render. Multiple
+   * drafts coexist: the model may spin up named drafts and address each by
+   * path exactly like a workspace file. */
+  drafts: Record<string, string>;
   draftFilename: string | null;
-  /** Draft-edit lever only: successful Edit applications this turn. */
+  /** Draft-edit lever only: successful in-memory draft Edits this turn. */
   draftEditCount: number;
+  /** Draft-edit lever only: successful real-file (source) Edits applied this
+   * turn. Monitored distinctly from draft edits — a model editing a source
+   * .docx unprompted is observable behavior, not a hidden path. */
+  sourceEditCount: number;
 };
 
 export const createLocalAssistantRequirementsState =
@@ -1192,10 +1201,27 @@ export const createLocalAssistantRequirementsState =
     documentsOrientedOnlyAtEcho: null,
     exposureNudgeServed: false,
     draftTitle: null,
-    draftMarkdown: null,
+    drafts: {},
     draftFilename: null,
     draftEditCount: 0,
+    sourceEditCount: 0,
   });
+
+/** Canonical in-memory draft path; the refusal message names this file. */
+export const CANONICAL_DRAFT_FILE = "draft.md";
+
+/** Map key for a draft named by a title/filename: lowercased slug + ".md".
+ * Used to alias the canonical draft under the deliverable's own name, so a
+ * model that addresses its draft by a derived filename finds it. */
+function draftKeyFor(titleOrFilename: string | null | undefined): string {
+  const stem = (titleOrFilename ?? "draft")
+    .replace(/\.docx$/iu, "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/gu, "-")
+    .replace(/^-+|-+$/gu, "");
+  return `${stem || "draft"}.md`;
+}
 
 /**
  * Exact-string draft edit with Claude Code's contract: old_string must be
@@ -4039,6 +4065,7 @@ async function runCodingShapeCall(
   workingSets?: LocalAssistantWorkingSetTurnState,
   servedDraftingCache?: Map<string, ServedDrafting>,
   turnReadState?: LocalAssistantReadTurnState,
+  requirementsState?: LocalAssistantRequirementsState,
 ): Promise<NormalizedToolResult> {
   const collection = await listLocalLibrary(userId, "file");
   const storedById = new Map(
@@ -4299,7 +4326,18 @@ async function runCodingShapeCall(
           )
         ).filter((row): row is NonNullable<typeof row> => row !== null)
       : [];
-    const rows = [...fileRows, ...tocRows, ...workingSetRows];
+    const draftRows = DRAFT_EDIT_ENABLED
+      ? Object.entries(requirementsState?.drafts ?? {})
+          .filter(([name]) => re.test(name))
+          .map(([name, body]) => ({
+            row: `${name}\tchars=${body.length}\tlines=${
+              body ? body.split(/\r?\n/u).length : 0
+            }`,
+            chars: body.length,
+            lines: body ? body.split(/\r?\n/u).length : 0,
+          }))
+      : [];
+    const rows = [...fileRows, ...tocRows, ...workingSetRows, ...draftRows];
     if (!rows.length) return result(call, "No files found");
     const totalChars = rows.reduce((total, row) => total + row.chars, 0);
     const totalLines = rows.reduce((total, row) => total + row.lines, 0);
@@ -4897,6 +4935,7 @@ async function runCodingShapeCall(
         if (payload.ok) {
           const count =
             payload.ops?.[0]?.replacements ?? payload.change_count ?? 0;
+          if (requirementsState) requirementsState.sourceEditCount += 1;
           return {
             ...result(
               call,
@@ -4997,6 +5036,7 @@ async function runCodingShapeCall(
         edit_errors?: string[];
       };
       if (payload.ok) {
+        if (requirementsState) requirementsState.sourceEditCount += 1;
         return {
           ...result(
             call,
@@ -7968,10 +8008,32 @@ export async function runLocalAssistantTools(
         args = resolved.input;
       }
 
+      // Edit and Read are the two tools that can target an in-memory draft.
+      // A real library path resolves through the coding surface (the FS
+      // text-ops editor / read path below); a draft path — "draft.md" or any
+      // other name the model spun up, held only in requirementsState.drafts
+      // and never on disk — is served by the DRAFT_EDIT handler further down
+      // this chain. Route by target: draft calls must fall through here, or
+      // the FS resolver answers them with "File does not exist: <name>" while
+      // the in-memory handler sits shadowed (the gen-7 bug — every Edit
+      // failed on every run, and rendered docs used the un-edited draft).
+      // Computed at the top so the lean-batch Read handler below cannot
+      // intercept a draft path before the dispatch.
+      const draftTarget =
+        DRAFT_EDIT_ENABLED &&
+        requirementsState &&
+        (call.name === "Edit" || call.name === "Read") &&
+        typeof args.file_path === "string" &&
+        Object.prototype.hasOwnProperty.call(
+          requirementsState.drafts,
+          trimmed(args.file_path).toLowerCase(),
+        );
+
       if (
         LEAN_BATCH_FAMILY_TOOL_SHAPE &&
         !CODING_PARITY_ENABLED &&
-        call.name === "Read"
+        call.name === "Read" &&
+        !draftTarget
       ) {
         const paths = stringArray(args.paths);
         if (!paths.length) return fail(call, "paths must name at least one document");
@@ -8098,24 +8160,18 @@ export async function runLocalAssistantTools(
           terminal: submitted.terminal === true,
         };
       }
-      // Edit is the one tool with two targets. A real library path resolves
-      // through the coding surface's text-ops editor (runCodingShapeCall
-      // below); the in-memory draft buffer — draft.md, which exists only in
-      // requirementsState.draftMarkdown and never on disk — is served by the
-      // DRAFT_EDIT handler further down this chain. Route by target: draft
-      // edits must fall through here, or the FS resolver answers every one
-      // with "File does not exist: draft.md" while the in-memory handler sits
-      // shadowed (the gen-7 bug — all Edit calls failed on every run).
+      // draftTarget (computed at the top of this chain) routes Read/Edit on
+      // draft paths to the in-memory DRAFT_EDIT handler; every other Read/Edit
+      // goes to the coding surface below.
       if (
         CODING_TOOL_SHAPE &&
         (call.name === "Glob" ||
           call.name === "Grep" ||
-          call.name === "Read" ||
+          (call.name === "Read" && !draftTarget) ||
           (RETRIEVAL_EXPERIMENT_TOOLS.some(
             (entry) => entry.function.name === call.name,
           )) ||
-          (call.name === "Edit" &&
-            !(DRAFT_EDIT_ENABLED && trimmed(args.file_path) === "draft.md")))
+          (call.name === "Edit" && !draftTarget))
       ) {
         return runCodingShapeCall(
           call,
@@ -8126,6 +8182,7 @@ export async function runLocalAssistantTools(
           workingSets,
           servedDraftingCache,
           turnReadState,
+          requirementsState,
         );
       }
       // Strict surface: names the shape swap removed must fail loudly, or a
@@ -8260,41 +8317,44 @@ export async function runLocalAssistantTools(
           });
         }
       }
-      if (DRAFT_EDIT_ENABLED && call.name === "Edit") {
+      // In-memory drafts are ordinary files to the model: Read returns the
+      // buffer, Edit mutates it. Only draft paths reach here — the dispatch
+      // above routes any file_path present in requirementsState.drafts away
+      // from the FS surface — so both branches assume the key exists.
+      if (
+        DRAFT_EDIT_ENABLED &&
+        requirementsState &&
+        (call.name === "Edit" || call.name === "Read")
+      ) {
         const filePath = trimmed(args.file_path);
-        const oldString =
-          typeof args.old_string === "string" ? args.old_string : "";
-        const newString =
-          typeof args.new_string === "string" ? args.new_string : "";
-        const draft = requirementsState?.draftMarkdown;
-        if (!draft) {
+        const key = filePath.toLowerCase();
+        if (
+          Object.prototype.hasOwnProperty.call(requirementsState.drafts, key)
+        ) {
+          if (call.name === "Read") {
+            return upstreamMikeResult(call, requirementsState.drafts[key]);
+          }
+          const oldString =
+            typeof args.old_string === "string" ? args.old_string : "";
+          const newString =
+            typeof args.new_string === "string" ? args.new_string : "";
+          const edited = applyDraftEdit(
+            requirementsState.drafts[key],
+            oldString,
+            newString,
+            args.replace_all === true,
+          );
+          if ("error" in edited) {
+            return upstreamMikeResult(call, { error: edited.error });
+          }
+          requirementsState.drafts[key] = edited.updated;
+          requirementsState.draftEditCount += 1;
           return upstreamMikeResult(call, {
-            error:
-              "No draft exists yet. Call generate_docx first — a draft" +
-              " refused pending coverage is saved as draft.md for editing.",
+            ok: true,
+            replacements: edited.replacements,
+            draft_chars: edited.updated.length,
           });
         }
-        if (filePath && filePath !== "draft.md") {
-          return upstreamMikeResult(call, {
-            error: `Unknown file "${filePath}" — only "draft.md" is editable.`,
-          });
-        }
-        const edited = applyDraftEdit(
-          draft,
-          oldString,
-          newString,
-          args.replace_all === true,
-        );
-        if ("error" in edited) {
-          return upstreamMikeResult(call, { error: edited.error });
-        }
-        requirementsState.draftMarkdown = edited.updated;
-        requirementsState.draftEditCount += 1;
-        return upstreamMikeResult(call, {
-          ok: true,
-          replacements: edited.replacements,
-          draft_chars: edited.updated.length,
-        });
       }
       if (
         call.name === "library_create_docx" ||
@@ -8348,7 +8408,12 @@ export async function runLocalAssistantTools(
               trimmed(args.title) ||
               trimmed(args.filename).replace(/\.docx$/iu, "").trim() ||
               (/^#{1,6}\s+(.+)$/mu.exec(body)?.[1]?.trim() ?? "");
-            requirementsState.draftMarkdown = body;
+            // Canonical draft + a per-title alias, so a model that addresses
+            // its draft by a derived filename finds it like any other file.
+            requirementsState.drafts[CANONICAL_DRAFT_FILE] = body;
+            requirementsState.drafts[
+              draftKeyFor(requirementsState.draftTitle)
+            ] = body;
             requirementsState.draftFilename = trimmed(args.filename) || null;
           }
           // draft-edit-v4: the refinement checkpoint is universal. Under
@@ -8445,13 +8510,16 @@ export async function runLocalAssistantTools(
         // draft (as Edited); a call that re-sends a full body keeps the
         // buffer in sync so later Edits work on the latest text.
         if (DRAFT_EDIT_ENABLED && requirementsState && !nativeDocx) {
-          if (!markdown && requirementsState.draftMarkdown) {
-            markdown = requirementsState.draftMarkdown;
+          const canonical = requirementsState.drafts[CANONICAL_DRAFT_FILE];
+          if (!markdown && canonical) {
+            markdown = canonical;
             if (!title)
               title = (requirementsState.draftTitle ?? "").slice(0, 256);
             if (!filename) filename = requirementsState.draftFilename ?? "";
           } else if (markdown) {
-            requirementsState.draftMarkdown = markdown;
+            requirementsState.drafts[CANONICAL_DRAFT_FILE] = markdown;
+            requirementsState.drafts[draftKeyFor(title || filename)] =
+              markdown;
             if (title) requirementsState.draftTitle = title;
             if (filename) requirementsState.draftFilename = filename;
           }
