@@ -866,6 +866,11 @@ CONTEXT BUDGET:
 export const CODING_TOC_FILES_DELTA = "coding-toc-files-v1";
 /** Delta tag: the composite v4 coding arm (v3 + toc files + budget). */
 export const CODING_MARKDOWN_V4_DELTA = "coding-markdown-v4";
+/** Delta tag: max-min fair per-file grep budget gated on
+ * MIKE_GREP_PER_FILE_BUDGET (coding_markdown_v5). */
+export const GREP_PER_FILE_BUDGET_DELTA = "grep-per-file-budget-v1";
+/** Delta tag: the composite v5 coding arm (v4 + per-file grep budget). */
+export const CODING_MARKDOWN_V5_DELTA = "coding-markdown-v5";
 
 /* ----------------------------------------------------------------------
  * CODING-MARKDOWN v2 (parity pack; adversarial audit 2026-08-06). The v1
@@ -1053,6 +1058,50 @@ export const CODING_GREP_TOOL_SECTIONED: OpenAIToolSchema = {
 export const CODING_MARKDOWN_V3_LAB_TOOLS: OpenAIToolSchema[] = [
   CODING_GLOB_TOOL,
   CODING_GREP_TOOL_SECTIONED,
+  CODING_READ_TOOL,
+  CODING_GENERATE_DOCX_TOOL,
+];
+
+/**
+ * coding_markdown_v5: v3's sectioned Grep, with head_limit documented as
+ * what the per-file budget actually does — a total split evenly across
+ * matching files, not a first-come cap. The description carries the whole
+ * mechanism: a model that believes a corpus-wide grep starves its tail will
+ * re-issue the same pattern one path= at a time to buy each file its own
+ * allocation, and those extra rounds are the cost this arm removes.
+ */
+export const CODING_GREP_TOOL_FAIR_SHARE: OpenAIToolSchema = {
+  type: "function",
+  function: {
+    name: "Grep",
+    description:
+      `${CODING_GREP_TOOL_SECTIONED.function.description} head_limit is a` +
+      " total budget shared fairly across every matching file: each file is" +
+      " guaranteed its even share, and files matching fewer lines release" +
+      " the remainder to the rest. One corpus-wide search therefore reaches" +
+      " every file in a single call — scoping with path= narrows intent, it" +
+      " is not needed to keep a later file from being crowded out.",
+    parameters: {
+      ...CODING_GREP_TOOL.function.parameters,
+      properties: {
+        ...(CODING_GREP_TOOL.function.parameters.properties as Record<
+          string,
+          unknown
+        >),
+        head_limit: {
+          type: "number",
+          minimum: 1,
+          description:
+            "Total lines/entries to return, split evenly across the matching files. Defaults to 250.",
+        },
+      },
+    },
+  },
+};
+
+export const CODING_MARKDOWN_V5_LAB_TOOLS: OpenAIToolSchema[] = [
+  CODING_GLOB_TOOL,
+  CODING_GREP_TOOL_FAIR_SHARE,
   CODING_READ_TOOL,
   CODING_GENERATE_DOCX_TOOL,
 ];
