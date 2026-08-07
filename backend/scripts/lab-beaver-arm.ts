@@ -62,6 +62,7 @@ import {
   GREP_PER_FILE_BUDGET_DELTA,
   TRIAGE_WORKFLOW_PROMPT_DELTA,
   EXPOSURE_ECHO_DELTA,
+  DRAFT_EDIT_DELTA,
   GREP_SECTION_CONTEXT_DELTA,
   COMPACT_AUTHOR_MIKE_DELTA,
   COMPACT_AUTHOR_MIKE_LAB_SYSTEM_PROMPT,
@@ -1168,6 +1169,12 @@ async function main() {
       // 2026-08-06: never a separate contrast arm — analysis ablates via
       // the exposure_echo receipt flag, arms don't fork).
       MIKE_EXPOSURE_ECHO: "1",
+      // Draft-edit (gen-5): the echo-refused generate_docx body is saved as
+      // draft.md; Edit revises it; generate_docx without markdown renders the
+      // buffer. Kills the double emission + compression drift the gen-4 wave
+      // measured (tax synthesis-bound at full coverage). Same consolidated
+      // arm — the draft_edit receipt flag is the ablation stratum boundary.
+      MIKE_DRAFT_EDIT: "1",
     },
     lean_batch_hardrefs_v1: {
       MIKE_NAV_SHAPE: "legacy",
@@ -2259,6 +2266,7 @@ async function main() {
       surface?.citation_contract !== true ||
       // frozen arm: exposure accounting must stay off
       surface?.exposure_echo !== false ||
+      surface?.draft_edit !== false ||
       // …on an otherwise byte-identical e2e chassis
       surface?.markdown_e2e_shape !== true ||
       surface?.markdown_read_docx !== true ||
@@ -2333,6 +2341,7 @@ async function main() {
       surface?.completeness_floor !== true ||
       // frozen arm: exposure accounting must stay off
       surface?.exposure_echo !== false ||
+      surface?.draft_edit !== false ||
       // …on an otherwise byte-identical e2e chassis
       surface?.markdown_e2e_shape !== true ||
       surface?.markdown_read_docx !== true ||
@@ -2410,6 +2419,7 @@ async function main() {
       surface?.scoped_reread !== true ||
       surface?.exposure_echo !==
         (arm === "mike_markdown_e2e_index_treatment_v2") ||
+      surface?.draft_edit !== false ||
       surface?.completeness_floor !== true ||
       surface?.structure_index !== true ||
       surface?.index_attach_gated !== true ||
@@ -2484,7 +2494,11 @@ async function main() {
       arm === "coding_markdown_v2" || grepSectionContext;
     const codingMarkdown =
       arm === "coding_markdown_v1" || codingParity;
-    const expectedTools = codingParity
+    const expectedTools = grepPerFileBudget
+      ? // v5 gen-5: draft-edit swaps generate_docx for the optional-markdown
+        // variant (same name, same position) and appends Edit.
+        ["Glob", "Grep", "Read", "generate_docx", "Edit"]
+      : codingParity
       ? ["Glob", "Grep", "Read", "generate_docx"]
       : ["list_documents", "Grep", "Read", "generate_docx"];
     // Prompt-sha gate (audit F8): the prompt-only treatment additions leave
@@ -2529,6 +2543,7 @@ async function main() {
       surface?.grep_per_file_budget !== grepPerFileBudget ||
       surface?.triage_workflow !== grepPerFileBudget ||
       surface?.exposure_echo !== grepPerFileBudget ||
+      surface?.draft_edit !== grepPerFileBudget ||
       surface?.compact_author_mike_shape !== false ||
       surface?.upstream_mike_shape !== false ||
       surface?.adaptive_mike_shape !== false ||
@@ -3494,6 +3509,8 @@ async function main() {
       arm === "coding_markdown_v5" ? TRIAGE_WORKFLOW_PROMPT_DELTA : null,
     exposure_echo_delta:
       arm === "coding_markdown_v5" ? EXPOSURE_ECHO_DELTA : null,
+    draft_edit_delta:
+      arm === "coding_markdown_v5" ? DRAFT_EDIT_DELTA : null,
     lean_batch_hardrefs_delta:
       arm === "lean_batch_hardrefs_v1" ? LEAN_BATCH_HARDREFS_DELTA : null,
     mike_grep_delta: mikeGrepDelta,
@@ -3949,6 +3966,8 @@ async function main() {
           arm === "coding_markdown_v5" ? TRIAGE_WORKFLOW_PROMPT_DELTA : null,
         exposure_echo_delta:
           arm === "coding_markdown_v5" ? EXPOSURE_ECHO_DELTA : null,
+        draft_edit_delta:
+          arm === "coding_markdown_v5" ? DRAFT_EDIT_DELTA : null,
         lean_batch_hardrefs_delta:
           arm === "lean_batch_hardrefs_v1"
             ? LEAN_BATCH_HARDREFS_DELTA
@@ -4510,6 +4529,8 @@ async function main() {
           arm === "coding_markdown_v5" ? TRIAGE_WORKFLOW_PROMPT_DELTA : null,
         exposure_echo_delta:
           arm === "coding_markdown_v5" ? EXPOSURE_ECHO_DELTA : null,
+        draft_edit_delta:
+          arm === "coding_markdown_v5" ? DRAFT_EDIT_DELTA : null,
         lean_batch_hardrefs_delta:
           arm === "lean_batch_hardrefs_v1"
             ? LEAN_BATCH_HARDREFS_DELTA
