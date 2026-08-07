@@ -1410,3 +1410,55 @@ revision from re-emission (~24k/run) into incremental edits, and kills
 the compression drift employment exhibited. Gen-5 smoke on employment
 in flight; battery (7 tasks incl. DPA/closing) next, then the deep
 tweak/add/pare over gen-3/4/5 receipt strata.
+
+## GEN-5 BATTERY COMPLETE: DRAFT PERSISTENCE WINS, EDIT NEVER FIRES (2026-08-07 ~06:30, Fable)
+
+**Full 7-task gen-5 battery (receipt `draft_edit_delta: draft-edit-v1`,
+flash runner + flash judge, 05:15–06:07 launches): tax 53/77 (all-time
+best, +8 over gen-3 45, +11 over gen-4 42), acq 57/64 (ties best, −27%
+out vs gen-4), DPA 52/58 (new best), HSR-antitrust 48/50, insurance
+55/57, employment 53/59 — pooled 318/365 (87.1%) vs gen-3 308/365
+(84.4%) on the same 6; on the 5 gen-4-paired tasks gen-5 266/307 vs
+gen-4 256/307 vs gen-3 257/307. Closing 27/32 under flash stands
+UNPAIRED: its only prior row is the claude-sonnet-judged 31/32
+(run_eval default slip), and cross-judge comparisons are barred —
+verified `lab-compare.ts:190` throws on mixed judges, and the runner
+model is pinned by the arm-dir name, so both model confounds are
+guarded structurally (Eli 2026-08-07: "Do not allow model confound").**
+
+**The Edit tool went 0-for-7. The lever's measured value is DRAFT
+PERSISTENCE, not editing.** Two routes observed: (a) employment only —
+argless `generate_docx({})` probe consumed the echo pre-emission, then
+read-all + single draft; (b) the other six — full draft → refusal
+saves it as draft.md → model serially reads the listed unexposed docs
+→ markdown-less render of the UNTOUCHED buffer. Since the render is
+byte-identical to the pre-refusal draft, the post-echo reads provably
+contribute nothing to the deliverable; the gate is one-shot
+(exposureNudgeServed), so those reads are the model's compliance
+choice, not a requirement. Cache-adj cost of that ritual vs gen-3:
+tax +277k, acq +128k (25/31-doc tasks) — but DPA −158k, HSR −25k,
+insurance −43k, employment −22k, i.e. gen-5 is CHEAPER than gen-3 on
+every small-doc task while scoring ≥ gen-3 everywhere except
+employment −1. Out tokens: single emission everywhere (second `"markdown"`
+emission absent; e.g. acq 47.6k out vs gen-4's 65.4k double-emission).
+
+**The causal surprise: drafting EARLY beats drafting late.** Gen-3 tax
+also read 25/25 but composed once at the end — 45/77. Gen-5 composed
+mid-research from grep-scoped evidence, the buffer preserved it
+verbatim across 25 subsequent reads, and that early draft scored
+53/77. Gen-4's re-emission path scored 42/77 with compression drift.
+So the score gains ride on early composition + verbatim persistence;
+the echo-forced late reads are pure input spend. Tweak decided
+(gen-6, `draft-edit-v2` receipt): reword ONLY the refusal/draft notes
+— unread list becomes "verify selectively: grep/skim for anything
+that contradicts or adds to your draft," Edit named as the
+incorporation path, rendering without further reads stays legitimate.
+Targets the tax/acq waste while keeping what wins. Delta battery on
+tax/acq/HSR next.
+
+**Sonnet lane killed by order mid-battery** (Eli: "no more sonnet.
+stop that now"): the indenture v5-on-sonnet relaunch was process-tree
+killed; its `2026-08-07T05-05-06` dir stays as a killed artifact,
+never judged, never in any grid. Phase-D's sonnet-shakeout step is
+dead; any future claude-p leg is opus-4-8 only and only on Eli's
+explicit ask.
