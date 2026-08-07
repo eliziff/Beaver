@@ -1763,6 +1763,11 @@ blocker: **no native baseline available on flash for this cell.** (Contrast
 capital-closing, which recovered 0/1 -> 29/32 on attempt 2.) The paired
 treatment row exists; this native cell is left as a known-missing control.
 
+**First-attempt refusal (18-33-00, stochastic):**
+antitrust-competition/analyze-counterparty-markup-of-protective-order authored
+0/1 DOCX (harness gate ARM_EXIT=1, no judge artifacts, clean). First attempt on
+this task — re-run queued (capital-closing precedent: 0/1 -> 29/32 on retry).
+
 ## CORRECTION (2026-08-07 late, Fable): DRAFT-EDIT WAS SHADOWED THROUGH ALL GEN-7 — EDIT CALLS NEVER APPLIED
 
 **Finding:** the in-memory draft-edit handler (`localAssistantTools.ts:8254`) was
