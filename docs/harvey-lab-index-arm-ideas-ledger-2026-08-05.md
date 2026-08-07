@@ -1277,3 +1277,59 @@ scoped reads (Eli earlier: "we should still instruct it toward clean
 reads I think?"), (c) inventory-line sizes (the lean list_documents
 carried chars; the coding AVAILABLE DOCUMENTS block does not — a model
 that cannot see document sizes cannot budget reads).
+
+## v4 CoC PILOT: 51/57 — EQUAL-BEST THROUGH A 200K WINDOW (2026-08-06 night, Fable)
+
+**coding_markdown_v4 BUILT (commit 4f931f17), one flag
+MIKE_CODING_TOC_FILES over v3**: companion `.toc` virtual files
+(grep -n convention rows `LINE:verbatim section lead`, one
+`# filename — N section leads (chars, lines; Read offset=<line>…)`
+header) served through Glob (sizes in-band; `*.toc` filterable) and
+Read (cat -n, no evidence recording); plus
+CODING_MARKDOWN_BUDGET_LAB_SYSTEM_PROMPT — neutral prompt + CONTEXT
+BUDGET block (start with Glob; overflow/lossy-compaction stated as
+fact; scoped reads; batch calls per turn) — deliberately
+window-agnostic (zero 200K constants) for bigger-model transfer.
+Strategy-fix hypothesis after two zero-grep runs: sizes + budget frame
++ search-first cue should engage the CC-trained grep instinct.
+
+**CoC pilot (analyze-change-of-control, 230k corpus / 57 criteria,
+run 2026-08-06T23-44-53): 51/57 — ties the all-time best on this task
+(deepseek markdown-e2e whole-read, 51/57 @ 145k tok), beats treatment
+50/57 and reverse-swap 45/57 — through the 200K claude-p window with
+ZERO compactions.** The pathway flipped exactly as hypothesized: Glob
+`*.{docx,toc}` → corpus-wide triage grep (files_with_matches) → 2 memo
+whole-reads → corpus content grep -A 8 → 14 per-doc clause-harvest
+greps → 4 scoped offset reads → straight {title, markdown}
+generate_docx. 24 calls in 8 rounds (~3/round batching). 5/19 docs
+whole-read + 13 candidate-only (114,800 candidate chars); 469,536 in /
+28,271 out; wall 640s.
+
+**The demonstration inside the score: all five FCB Credit Agreement
+criteria passed (35% threshold, $23.75M acceleration, $475k
+make-whole, Sept-15 notice, mandatory-prepayment-not-consent) with
+that document never whole-read** — grep -A 8 windows + v3 section-lead
+rows carried criterion-grade detail. Lead rows fired live (10 in the
+session stream, e.g. `docx-29-**Section 1.1 — Definitions.**`).
+Misses: 5 synthesis/inference-depth (Pinnacle severity ranked below
+TerraNode C-009; Apex CoC-leverage-on-nonrenewal connection undrawn
+C-019; Orion protective-consent recommendation absent C-021; 280G
+named but not developed C-033; NovaBridge IL-enforceability question
+unraised C-034) + 1 candidate-only detail miss (C-047, Apex's second
+60-day effectiveness period — the run's single read-gap-class miss).
+Same miss class as every other arm; the scoped strategy added ~one.
+
+**Sub-finding: the .toc files went unread.** Grep-first made
+standalone orientation unnecessary — Glob sizes + the budget frame
+chose the strategy; grep -A context + lead rows carried section
+orientation inline. The toc's value this run was zero-cost presence
+(its Glob rows advertise per-doc size/line counts); whether it pays on
+structure-navigation tasks (indenture) stays open.
+
+**Tax v2 judged: 42/77 — ties exposure-v2's equal-best, beats
+treatment 39/77** (12/25 docs, 1 compaction, zero grep — the pre-v4
+read-everything pathway; kept as the contrast row).
+
+**Next (Eli directive): Opus 5 A/B, one task (CoC), same v4 arm** —
+window-agnostic prompt transfers unchanged; pre-flight = slug routing
+proof (deepclaude trap) + CLI window measurement (>200K?).
