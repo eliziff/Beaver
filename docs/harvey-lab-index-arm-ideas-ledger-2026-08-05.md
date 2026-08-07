@@ -1666,3 +1666,28 @@ Scores stand alone (no baselines exist on these tasks) — breadth
 validates the MECHANISM and surfaces task-genre failure modes;
 superiority claims stay on the 7-task panel where strata exist.
 Execution 2-wide, judge-as-they-land.
+
+## GEN-7 BREADTH BATTERY — results landing + cost columns + queue expansion (2026-08-07 late, Fable)
+
+**Token-cost reporting ON** (Eli directive): every run row carries
+`score @ cacheadj | out | uncached | cache_read` from metrics.json
+(uncached = first-touch input, cache_read = re-read hits; cacheadj =
+uncached + 0.1·cached, the price-weighted proxy). Grid columns go
+to: score / cacheadj / out-tok / uncached-in. No data-room job is
+queued (Eli retracted the 1-data-room ask; the 4 diligence tasks
+stay excluded at 2.8k-3.6k docs).
+
+**Panel rows landed:**
+- closing gen-7 (16-25-21): **30/32** @70.5k | 31.5k out | 36.6k uncached | 339k cache_read. Up from g5 27/32@99k — higher score AND cheaper. (g3 31/32 sonnet-excluded.)
+- insurance gen-7 (16-21-47): **55/57** @119.4k | 32.8k out | 69.9k uncached | 495k cache_read. Column closed FLAT: g3 55 / g4 55 / g5 55 / g7 55 — the fixed shape neither gains nor loses on insurance; insurance is saturated at 55/57 regardless of echo/edit treatment.
+- acq gen-7 rep2 (16-27-36, checkpoint route: 34 reads -> 5 greps -> draft -> 2 Edits -> render): 47.4k out | 245k uncached | 3.43M cache_read | **588.4k cacheadj** — judge in flight.
+
+**Queue expansion (Eli directive: baseline runs for a broader set):**
+whole-read `mike_markdown_e2e_v1` paired onto the breadth cells where
+whole-read fits 200K. Fit-band (census tok): real-estate 13.8k,
+banking-extract 13.8k, banking-compare 14.0k, arbitration 21.5k,
+privacy-audit 27.1k, trade-sanctions 25.2k, eu-ai-act 37.4k,
+bankruptcy 49.4k → all 8 get a paired whole-read baseline. The 4
+largest (IP 559KB, funds 570KB, litigation 576KB, energy 726KB) are
+no-fit (whole-read would overflow 200K) → lean-only, matching the
+phase-D overflow logic. Execution stays 2-wide, judge-as-they-land.
