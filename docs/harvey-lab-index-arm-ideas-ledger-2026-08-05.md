@@ -1730,13 +1730,19 @@ a row for that task exists. Run dir base:
 |---|---|---|---|---|---|---|
 | antitrust-competition/analyze-antitrust-hsr-strategy | **44/50** | deepseek-v4-flash | 436,814 (—/65,791) | 9/9 | 495s | 2026-08-07T17-45-36 |
 | arbitration-international-dispute-resolution/analyze-counterparty-markup-of-arbitration-agreement | **64/69** | deepseek-v4-flash | 177,408 (140,817/36,591) | 5/5 | 316s | 2026-08-07T17-45-41 |
+| banking-finance/extract-credit-agreement-covenants | **55/65** | deepseek-v4-flash | 258,410 (214,503/43,907) | 3/3 | 369s | 2026-08-07T17-56-17 |
+| capital-markets/compare-closing-documents-against-closing-checklist | **29/32** | deepseek-v4-flash | 218,736 (176,821/41,915) | 8/8 | 329s | 2026-08-07T18-01-14 |
 
-**Failure flagged (harness gate, not a score):** capital-markets/compare-closing-documents-against-closing-checklist
+**Failure → recovered (harness gate, not a score):** capital-markets/compare-closing-documents-against-closing-checklist
 first attempt (17-56-20) authored 0/1 DOCX — the model made one `fetch_documents`
 call then answered in plain text (4,742 chars) without calling `generate_docx`;
 harness gate hard-refused (ARM_EXIT=1). Judge artifacts were removed (a false
 0/32 would have polluted compare.py's `rglob("scores.json")`); the attempt is
-preserved as raw-sse.txt + run-state.json. Task re-run queued. Same failure
-signature as the 16-42-55 real-estate attempt (native-on-flash can decline to
-emit generate_docx); unlike 16-42-55 this was NOT an output-budget exhaustion —
-the budget fix (65536) held, the model just chose text over the tool.
+preserved as raw-sse.txt + run-state.json. Same failure signature as the 16-42-55
+real-estate attempt (native-on-flash can decline to emit generate_docx); unlike
+16-42-55 this was NOT an output-budget exhaustion — the budget fix (65536) held,
+the model just chose text over the tool. **RE-RUN (18-01-14) SUCCEEDED: 29/32**
+(90.6%) — the model emitted `generate_docx` on retry (tool sequence
+fetch_documents -> generate_docx -> read_document, 4035 answer chars, 8/8 docs).
+Treating the first attempt as a stochastic native-on-flash refusal, not a
+task-specific blocker.
