@@ -1748,3 +1748,9 @@ the model just chose text over the tool. **RE-RUN (18-01-14) SUCCEEDED: 29/32**
 fetch_documents -> generate_docx -> read_document, 4035 answer chars, 8/8 docs).
 Treating the first attempt as a stochastic native-on-flash refusal, not a
 task-specific blocker.
+
+**Second stochastic refusal (same signature, 18-11-08):**
+employment-labor/analyze-counterparty-markup-of-executive-employment-agreement
+authored 0/1 DOCX after ~8 min of heavy reasoning (3.1 MB raw-sse, no
+generate_docx; harness gate ARM_EXIT=1 at lab-beaver-arm.ts:2882). No judge
+artifacts (clean). Re-run queued — same recovery path as capital-closing.
