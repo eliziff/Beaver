@@ -123,6 +123,8 @@ afterEach(async () => {
   delete process.env.MIKE_CONTEXT_HANDOFF;
   delete process.env.MIKE_DRAFT_HANDOFF_MODE;
   delete process.env.MIKE_DRAFT_HOT_EVIDENCE_MAX_CHARS;
+  delete process.env.MIKE_DRAFT_EDIT;
+  delete process.env.MIKE_EXPOSURE_ECHO;
   vi.doUnmock("../tableOfAuthorities");
   vi.doUnmock("../convert");
   vi.doUnmock("../localDocumentStore");
@@ -988,6 +990,94 @@ describe("local assistant tools", () => {
       action: "revised",
       document_id: document.id,
       version_number: 2,
+    });
+  });
+
+  it("routes draft.md Edit to the in-memory draft and renders the edited buffer", async () => {
+    // Regression guard for the gen-7 draft-edit shadowing: the CODING_TOOL_SHAPE
+    // dispatch used to route EVERY Edit to runCodingShapeCall, whose FS resolver
+    // answered draft.md (an in-memory buffer, never on disk) with "File does
+    // not exist: draft.md", while the in-memory DRAFT_EDIT handler sat dead
+    // code behind the dispatch's early return. Real-path edits (test above)
+    // stay on the FS text-ops surface; draft.md must fall through to the
+    // in-memory handler.
+    process.env.MIKE_NAV_SHAPE = "legacy";
+    process.env.MIKE_TOOL_SHAPE = "lean-batch-v1";
+    process.env.MIKE_RETRIEVAL_EXPERIMENT = "p0-pure-coding";
+    process.env.MIKE_DISABLE_RESEARCH_TOOLS = "1";
+    process.env.MIKE_DISABLE_ASK_INPUTS = "1";
+    process.env.MIKE_DRAFT_EDIT = "1";
+    process.env.MIKE_EXPOSURE_ECHO = "1";
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-draft-edit-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    vi.resetModules();
+
+    const tools = await import("../chat/localAssistantTools");
+    const state = tools.createLocalAssistantRequirementsState();
+    const readState: import("../chat/localAssistantTools").LocalAssistantReadTurnState =
+      new Map();
+    const run = (calls: Array<{ id: string; name: string; input: any }>) =>
+      tools.runLocalAssistantTools(
+        "local-user",
+        calls,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        readState,
+        undefined,
+        undefined,
+        state,
+      );
+
+    // 1. First bodied generate_docx pauses: the draft is captured and the
+    //    refine_check refusal names draft.md.
+    const [refusal] = await run([
+      {
+        id: "draft",
+        name: "generate_docx",
+        input: {
+          title: "Term sheet",
+          markdown: "# Terms\n\nDeposit is $10,000.",
+        },
+      },
+    ]);
+    expect(refusal.content).toContain("draft.md");
+    expect(state.draftMarkdown).toContain("$10,000");
+
+    // 2. Edit(draft.md) mutates the in-memory buffer (pre-fix: "File does not
+    //    exist: draft.md" on every call).
+    const [edited] = await run([
+      {
+        id: "edit",
+        name: "Edit",
+        input: {
+          file_path: "draft.md",
+          old_string: "$10,000",
+          new_string: "$25,000",
+        },
+      },
+    ]);
+    expect(JSON.parse(edited.content)).toMatchObject({
+      ok: true,
+      replacements: 1,
+    });
+    expect(state.draftMarkdown).toContain("$25,000");
+    expect(state.draftMarkdown).not.toContain("$10,000");
+
+    // 3. generate_docx without markdown renders the edited buffer.
+    const [rendered] = await run([
+      { id: "render", name: "generate_docx", input: { title: "Term sheet" } },
+    ]);
+    expect(JSON.parse(rendered.mutationReceipt!)).toMatchObject({
+      ok: true,
+      action: "created",
+      filename: "Term sheet.docx",
     });
   });
 
