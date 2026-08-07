@@ -1000,7 +1000,9 @@ describe("local assistant tools", () => {
     // not exist: draft.md", while the in-memory DRAFT_EDIT handler sat dead
     // code behind the dispatch's early return. Real-path edits (test above)
     // stay on the FS text-ops surface; draft.md must fall through to the
-    // in-memory handler.
+    // in-memory handler. Under the redesign drafts are an in-memory map keyed
+    // by filename ("draft.md" canonical, per-title aliases too) and Read/Edit
+    // on those paths both hit the map — draft.md reads like any other file.
     process.env.MIKE_NAV_SHAPE = "legacy";
     process.env.MIKE_TOOL_SHAPE = "lean-batch-v1";
     process.env.MIKE_RETRIEVAL_EXPERIMENT = "p0-pure-coding";
@@ -1035,8 +1037,8 @@ describe("local assistant tools", () => {
         state,
       );
 
-    // 1. First bodied generate_docx pauses: the draft is captured and the
-    //    refine_check refusal names draft.md.
+    // 1. First bodied generate_docx pauses: the draft is captured (canonical
+    //    key + per-title alias) and the refine_check refusal names draft.md.
     const [refusal] = await run([
       {
         id: "draft",
@@ -1048,10 +1050,18 @@ describe("local assistant tools", () => {
       },
     ]);
     expect(refusal.content).toContain("draft.md");
-    expect(state.draftMarkdown).toContain("$10,000");
+    expect(state.drafts["draft.md"]).toContain("$10,000");
+    expect(state.drafts["term-sheet.md"]).toBe(state.drafts["draft.md"]);
 
-    // 2. Edit(draft.md) mutates the in-memory buffer (pre-fix: "File does not
-    //    exist: draft.md" on every call).
+    // 2. Read(draft.md) returns the buffer as plain text (pre-fix: every
+    //    draft-path call answered "File does not exist: draft.md").
+    const [readBack] = await run([
+      { id: "read", name: "Read", input: { file_path: "draft.md" } },
+    ]);
+    expect(readBack.content).toContain("Deposit is $10,000");
+
+    // 3. Edit(draft.md) mutates the in-memory buffer, counted as a draft edit
+    //    (never a source edit).
     const [edited] = await run([
       {
         id: "edit",
@@ -1067,10 +1077,36 @@ describe("local assistant tools", () => {
       ok: true,
       replacements: 1,
     });
-    expect(state.draftMarkdown).toContain("$25,000");
-    expect(state.draftMarkdown).not.toContain("$10,000");
+    expect(state.drafts["draft.md"]).toContain("$25,000");
+    expect(state.drafts["draft.md"]).not.toContain("$10,000");
+    expect(state.draftEditCount).toBe(1);
+    expect(state.sourceEditCount).toBe(0);
 
-    // 3. generate_docx without markdown renders the edited buffer.
+    // 4. The per-title alias is its own file: a refusal captured the body
+    //    under both "draft.md" (the live draft generate_docx renders) and
+    //    "term-sheet.md" (this deliverable's named draft). Editing the alias
+    //    mutates that buffer only — draft.md is untouched, so a model working
+    //    under either name never clobbers the other.
+    const [aliasEdited] = await run([
+      {
+        id: "alias-edit",
+        name: "Edit",
+        input: {
+          file_path: "term-sheet.md",
+          old_string: "Deposit",
+          new_string: "Purchase price deposit",
+        },
+      },
+    ]);
+    expect(JSON.parse(aliasEdited.content)).toMatchObject({ ok: true });
+    expect(state.drafts["term-sheet.md"]).toContain("Purchase price deposit");
+    expect(state.drafts["term-sheet.md"]).not.toContain("Deposit is $25,000");
+    expect(state.drafts["draft.md"]).toContain("Deposit is $25,000");
+    expect(state.draftEditCount).toBe(2);
+    expect(state.sourceEditCount).toBe(0);
+
+    // 5. generate_docx without markdown renders the live (draft.md) buffer —
+    //    the alias edit above is deliberately NOT reflected.
     const [rendered] = await run([
       { id: "render", name: "generate_docx", input: { title: "Term sheet" } },
     ]);
@@ -1079,6 +1115,17 @@ describe("local assistant tools", () => {
       action: "created",
       filename: "Term sheet.docx",
     });
+
+    // 6. Multi-draft handling: the map holds exactly the files that were
+    //    captured. Glob lists them side by side (canonical + per-title
+    //    alias), and a draft path that was never created is not invented.
+    const [glob] = await run([
+      { id: "glob", name: "Glob", input: { pattern: "*.md" } },
+    ]);
+    expect(glob.content).toContain("draft.md");
+    expect(glob.content).toContain("term-sheet.md");
+    expect(glob.content).not.toContain("no-such-draft.md");
+    expect(state.drafts["term-sheet.md"]).toContain("Purchase price deposit");
   });
 
   it("resolves coding specialist document references from filenames", async () => {
