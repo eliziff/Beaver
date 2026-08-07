@@ -1,0 +1,632 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LAB Run Viewer</title>
+<style>
+/* ---- palette (dark default, light via system or explicit toggle) ---- */
+:root{
+  --bg:#0d1117; --panel:#151b23; --panel2:#1a2230; --border:#2b3648;
+  --text:#dbe2ea; --dim:#8b98a9; --accent:#58a6ff; --teal:#4ec9b0;
+  --ok:#3fb950; --fail:#f85149; --warn:#d29922;
+  --reason:#a9b6c6; --reason-bg:rgba(122,138,153,.09);
+  --content:#dbe2ea; --content-bg:rgba(78,201,176,.07);
+  --read:#4ec9b0; --edit:#e3b341; --gen:#b48bf2; --neutral:#5b6470;
+  --pre-bg:#0a0e14; --pre-text:#c9d4e0;
+  --mono:ui-monospace,SFMono-Regular,"Cascadia Mono",Consolas,"Segoe UI Mono",Menlo,monospace;
+}
+:root[data-theme="dark"]{
+  --bg:#0d1117; --panel:#151b23; --panel2:#1a2230; --border:#2b3648;
+  --text:#dbe2ea; --dim:#8b98a9; --accent:#58a6ff; --teal:#4ec9b0;
+  --ok:#3fb950; --fail:#f85149; --warn:#d29922;
+  --reason:#a9b6c6; --reason-bg:rgba(122,138,153,.09);
+  --content:#dbe2ea; --content-bg:rgba(78,201,176,.07);
+  --read:#4ec9b0; --edit:#e3b341; --gen:#b48bf2; --neutral:#5b6470;
+  --pre-bg:#0a0e14; --pre-text:#c9d4e0;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme]){
+    --bg:#f6f8fa; --panel:#ffffff; --panel2:#eef1f6; --border:#d0d7de;
+    --text:#1f2328; --dim:#59636e; --accent:#0969da; --teal:#0e8174;
+    --ok:#1a7f37; --fail:#cf222e; --warn:#9a6700;
+    --reason:#4c5a68; --reason-bg:rgba(87,96,106,.08);
+    --content:#1f2328; --content-bg:rgba(14,129,116,.08);
+    --read:#0e8174; --edit:#9a6700; --gen:#6f42c1; --neutral:#8c959f;
+    --pre-bg:#fbfcfe; --pre-text:#24292f;
+  }
+}
+:root[data-theme="light"]{
+  --bg:#f6f8fa; --panel:#ffffff; --panel2:#eef1f6; --border:#d0d7de;
+  --text:#1f2328; --dim:#59636e; --accent:#0969da; --teal:#0e8174;
+  --ok:#1a7f37; --fail:#cf222e; --warn:#9a6700;
+  --reason:#4c5a68; --reason-bg:rgba(87,96,106,.08);
+  --content:#1f2328; --content-bg:rgba(14,129,116,.08);
+  --read:#0e8174; --edit:#9a6700; --gen:#6f42c1; --neutral:#8c959f;
+  --pre-bg:#fbfcfe; --pre-text:#24292f;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);
+  font:14px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  display:flex;flex-direction:column}
+header{flex:0 0 auto;padding:10px 16px;background:var(--panel);
+  border-bottom:1px solid var(--border);position:sticky;top:0;z-index:5}
+h1{margin:0 0 8px;font-size:15px;font-weight:600;letter-spacing:.02em}
+h1 .run-dir{font-family:var(--mono);font-weight:400;font-size:12px;color:var(--dim)}
+.meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.chip{font-family:var(--mono);font-size:11px;padding:2px 8px;border-radius:10px;
+  background:var(--panel2);border:1px solid var(--border);color:var(--dim);white-space:nowrap}
+.chip b{color:var(--text);font-weight:600}
+.chip .k{color:var(--dim);margin-right:4px}
+.chip.follow{color:var(--teal);border-color:var(--teal)}
+.chip.follow.wait{color:var(--dim);border-color:var(--border)}
+.chip.status-ok{color:var(--ok);border-color:var(--ok)}
+.chip.status-fail,.chip.status-failed{color:var(--fail);border-color:var(--fail)}
+.chip.status-warn,.chip.status-provider_call_pending,.chip.status-initializing{color:var(--warn);border-color:var(--warn)}
+.chip.status-running,.chip.status-completed,.chip.status-finished{color:var(--ok);border-color:var(--ok)}
+#conn{color:var(--teal)}
+#conn.reconnect{color:var(--warn)}
+.controls{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.controls label{font-family:var(--mono);font-size:11px;color:var(--dim);cursor:pointer;user-select:none}
+.ctl-btn{font-family:var(--mono);font-size:11px;color:var(--accent);background:transparent;
+  border:1px solid var(--border);border-radius:10px;padding:2px 10px;cursor:pointer;white-space:nowrap}
+.ctl-btn:hover{border-color:var(--accent);background:rgba(88,166,255,.1)}
+#resume{display:none}
+#feed{flex:1 1 auto;overflow-y:auto;padding:14px 16px 40px;max-width:1040px;width:100%;margin:0 auto}
+
+/* ---- narrative blocks (reasoning / answer text) ---- */
+.block{margin:0 0 10px;padding:8px 10px 8px 12px;border-left:3px solid var(--neutral);
+  background:var(--panel);border-radius:0 6px 6px 0;white-space:pre-wrap;word-wrap:break-word}
+.block .tag{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.08em;
+  text-transform:uppercase;margin-right:8px;vertical-align:1px}
+.block.reasoning{border-left-color:#5b6470;background:var(--reason-bg)}
+.block.reasoning .tag{color:#7c8a9a}
+.block.reasoning .r-text{color:var(--reason);font-style:italic}
+.block.content{border-left-color:var(--teal);background:var(--content-bg)}
+.block.content .tag{color:var(--teal)}
+.note{font-family:var(--mono);font-size:11px;color:var(--dim);margin:4px 0 10px;opacity:.85}
+.note.done{color:var(--teal)}
+
+/* ---- phase sections ---- */
+.phase{margin:0 0 14px}
+.phase-head{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--accent);
+  border-bottom:1px solid var(--border);padding:4px 2px;margin-bottom:8px}
+.phase-head::before{content:"";width:8px;height:8px;border-radius:2px;background:var(--accent);flex:0 0 auto}
+
+/* ---- tool cards ---- */
+.tool-card{margin:0 0 8px;background:var(--panel);border:1px solid var(--border);
+  border-left:3px solid var(--neutral);border-radius:6px;overflow:hidden}
+.tool-card.read{border-left-color:var(--read)}
+.tool-card.edit{border-left-color:var(--edit)}
+.tool-card.gen{border-left-color:var(--gen)}
+.tool-card.fail{background:rgba(248,81,73,.05)}
+.tool-head{display:flex;align-items:center;gap:8px;padding:6px 10px;font-family:var(--mono);font-size:12px;flex-wrap:wrap}
+.t-arrow{color:var(--accent);flex:0 0 auto}
+.t-name{font-weight:600;color:var(--text)}
+.t-phase{color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:.04em;border:1px solid var(--border);border-radius:8px;padding:0 6px}
+.t-status{font-size:10px;letter-spacing:.04em;text-transform:uppercase;padding:0 6px;border-radius:8px}
+.t-status.running{color:var(--warn);border:1px solid var(--warn)}
+.t-status.ok{color:var(--ok);border:1px solid var(--ok)}
+.t-status.fail{color:var(--fail);border:1px solid var(--fail)}
+.t-meta{font-family:var(--mono);font-size:11px;color:var(--dim);padding:0 10px 4px}
+.t-result{padding:0 10px 8px;border-top:1px solid var(--border)}
+.t-result.pending{color:var(--dim);font-family:var(--mono);font-size:11px;font-style:italic;border-top:none;padding-top:2px}
+
+/* ---- generic event cards (surface, doc, citations, unknown) ---- */
+.event-card{margin:0 0 10px;background:var(--panel);border:1px solid var(--border);
+  border-left:3px solid var(--accent);border-radius:6px;overflow:hidden}
+.event-card.read{border-left-color:var(--read)}
+.event-card.edit{border-left-color:var(--edit)}
+.event-card.gen{border-left-color:var(--gen)}
+.event-head{display:flex;align-items:center;gap:8px;padding:6px 10px;font-family:var(--mono);font-size:11px;flex-wrap:wrap}
+.event-name{font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--accent)}
+.event-meta{color:var(--dim);font-size:10px;opacity:.85}
+
+/* ---- payload blocks ---- */
+/* Lazy by construction: only the io-top label/meta row exists in the DOM; the
+ * <pre> body is built on first click ("show") and removed on second ("hide"),
+ * so a run replay never materialises the big text bodies until asked for. */
+.io{margin:4px 0}
+.io-top{display:flex;gap:8px;font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:2px;align-items:baseline}
+.io-label{color:var(--accent);text-transform:uppercase;letter-spacing:.05em;flex:0 0 auto}
+.io-meta{opacity:.7}
+.io-toggle{font-family:var(--mono);font-size:10px;color:var(--accent);background:transparent;
+  border:1px solid var(--border);border-radius:8px;padding:0 7px;cursor:pointer;line-height:1.6}
+.io-toggle:hover{border-color:var(--accent);background:rgba(88,166,255,.08)}
+.io-pre{margin:2px 0 0;padding:8px 10px;background:var(--pre-bg);border:1px solid var(--border);border-radius:4px;
+  font-family:var(--mono);font-size:11px;line-height:1.5;color:var(--pre-text);
+  white-space:pre-wrap;word-wrap:break-word;max-height:480px;overflow:auto}
+
+/* collapse-all control: hides any payload bodies that are currently expanded */
+body.payloads-collapsed .payload{display:none}
+</style>
+</head>
+<body>
+<header>
+  <h1>LAB Run Viewer <span class="run-dir" id="run-dir"></span></h1>
+  <div class="meta">
+    <span class="chip" id="status-chip"><span class="k">status</span>&mdash;</span>
+    <span class="chip"><span class="k">task</span><b id="task">&mdash;</b></span>
+    <span class="chip"><span class="k">arm</span><b id="arm">&mdash;</b></span>
+    <span class="chip"><span class="k">run</span><b id="runid">&mdash;</b></span>
+    <span class="chip"><span class="k">chat</span><b id="chat">&mdash;</b></span>
+    <span class="chip"><span class="k">events</span><b id="events">0</b></span>
+    <span class="chip" id="conn">&#9679; live</span>
+    <span class="chip follow wait" id="follow">detaching&hellip;</span>
+    <div class="controls">
+      <button class="ctl-btn" id="collapse-btn" type="button" title="Hide currently-expanded payload bodies">collapse all</button>
+      <button class="ctl-btn" id="theme-btn" type="button" title="Cycle light / dark / system theme">theme: system</button>
+      <label><input type="checkbox" id="autoscroll" checked> autoscroll</label>
+      <button class="ctl-btn" id="resume" type="button">resume auto-scroll</button>
+    </div>
+  </div>
+</header>
+<div id="feed"><div class="note">connecting&hellip;</div></div>
+<script>
+(function () {
+  "use strict";
+  var feed = document.getElementById("feed");
+  var statusChip = document.getElementById("status-chip");
+  var taskEl = document.getElementById("task");
+  var armEl = document.getElementById("arm");
+  var runIdEl = document.getElementById("runid");
+  var chatEl = document.getElementById("chat");
+  var eventsEl = document.getElementById("events");
+  var connEl = document.getElementById("conn");
+  var followEl = document.getElementById("follow");
+  var resumeBtn = document.getElementById("resume");
+  var autoToggle = document.getElementById("autoscroll");
+  var runDirEl = document.getElementById("run-dir");
+  var collapseBtn = document.getElementById("collapse-btn");
+  var themeBtn = document.getElementById("theme-btn");
+
+  var total = 0;
+  var autoScroll = true;
+  var queue = [];
+  var flushing = false;
+  var pendingNote = null;
+
+  var phaseSections = new Map(); // phase name -> cards container element
+  var toolCards = new Map();     // tool call id -> {card, resWrap, status, name}
+  var curReasoning = null;       // open reasoning block's text span
+  var curContent = null;         // open answer block's text span
+  var surfaceShown = false;
+
+  // Streaming text coalescing: reasoning/content arrive as hundreds of
+  // per-token deltas (a long run emits tens of thousands, many empty). Rather
+  // than one DOM text node per delta, buffer and flush as a single node on a
+  // short debounce — and skip empty deltas entirely.
+  var reasoningBuf = "";
+  var contentBuf = "";
+  var reasoningTimer = 0;
+  var contentTimer = 0;
+  var FLUSH_MS = 150;
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  function bump() {
+    if (autoScroll) feed.scrollTop = feed.scrollHeight;
+  }
+
+  function nearBottom() {
+    return feed.scrollHeight - feed.scrollTop - feed.clientHeight < 120;
+  }
+
+  // Compact char count: "49,494" and "104.3k" for the big ones.
+  function fmtChars(n) {
+    if (n == null) return "";
+    if (n >= 10000) return (n / 1000).toFixed(1) + "k";
+    return String(n);
+  }
+
+  // Colour a tool card by its family so read/edit/generate tool types are
+  // instantly distinguishable, independent of the ok/fail status chip.
+  function toolClass(name) {
+    name = String(name || "").toLowerCase();
+    if (name.indexOf("grep") >= 0 || name.indexOf("glob") >= 0 || name.indexOf("read") >= 0) return "read";
+    if (name.indexOf("edit") >= 0 || name.indexOf("write") >= 0 || name.indexOf("replace") >= 0) return "edit";
+    if (name.indexOf("docx") >= 0 || name.indexOf("generate") >= 0 || name.indexOf("doc") >= 0) return "gen";
+    return "";
+  }
+
+  // Lazy payload block: label + char-count row only; the <pre> body is created
+  // on the first "show" click and removed on "hide". Nothing heavy enters the
+  // DOM during a replay until the user asks for it.
+  function payloadBlock(label, text, extra) {
+    var wrap = el("div", "io" + (extra ? " " + extra : ""));
+    var top = el("div", "io-top");
+    top.appendChild(el("span", "io-label", label));
+    var t = text == null ? "" : String(text);
+    top.appendChild(el("span", "io-meta", fmtChars(t.length) + " chars"));
+    var btn = el("button", "io-toggle", "show");
+    top.appendChild(btn);
+    wrap.appendChild(top);
+    var pre = null;
+    btn.addEventListener("click", function () {
+      if (pre) {
+        pre.remove();
+        pre = null;
+        btn.textContent = "show";
+        return;
+      }
+      pre = el("pre", "io-pre payload");
+      pre.textContent = t;
+      wrap.appendChild(pre);
+      btn.textContent = "hide";
+    });
+    return wrap;
+  }
+
+  function phaseSection(phase) {
+    var body = phaseSections.get(phase);
+    if (body) return body;
+    var wrap = el("div", "phase");
+    wrap.appendChild(el("div", "phase-head", "phase: " + phase));
+    body = el("div", "phase-body");
+    wrap.appendChild(body);
+    phaseSections.set(phase, body);
+    feed.appendChild(wrap);
+    return body;
+  }
+
+  function renderToolStart(ev) {
+    var body = phaseSection(String(ev.phase || "?"));
+    var card = el("div", "tool-card " + toolClass(ev.name));
+    var head = el("div", "tool-head");
+    head.appendChild(el("span", "t-arrow", "▶"));
+    head.appendChild(el("span", "t-name", String(ev.name || "tool")));
+    head.appendChild(el("span", "t-phase", String(ev.phase || "")));
+    var status = el("span", "t-status running", "running");
+    head.appendChild(status);
+    card.appendChild(head);
+    card.appendChild(payloadBlock("input", ev.input != null ? JSON.stringify(ev.input) : ""));
+    var resWrap = el("div", "t-result pending");
+    resWrap.textContent = "— waiting for result —";
+    card.appendChild(resWrap);
+    body.appendChild(card);
+    toolCards.set(ev.id, { card: card, resWrap: resWrap, status: status, name: String(ev.name || "tool") });
+  }
+
+  function renderToolResult(ev) {
+    var ok = ev.ok === true;
+    var rec = toolCards.get(ev.id);
+    if (!rec) {
+      // Result without a seen start (unexpected ordering) — render a minimal card.
+      var body = phaseSection(String(ev.phase || "?"));
+      var card = el("div", "tool-card " + toolClass(ev.name));
+      var head = el("div", "tool-head");
+      head.appendChild(el("span", "t-arrow", ok ? "✓" : "✗"));
+      head.appendChild(el("span", "t-name", String(ev.name || "tool")));
+      head.appendChild(el("span", "t-phase", String(ev.phase || "")));
+      var status = el("span", "t-status " + (ok ? "ok" : "fail"), ok ? "ok" : "fail");
+      head.appendChild(status);
+      card.appendChild(head);
+      var resWrap = el("div", "t-result " + (ok ? "ok" : "fail"));
+      card.appendChild(resWrap);
+      body.appendChild(card);
+      rec = { card: card, resWrap: resWrap, status: status, name: String(ev.name || "tool") };
+      toolCards.set(ev.id, rec);
+    }
+    rec.card.className = "tool-card " + toolClass(rec.name) + (ok ? "" : " fail");
+    rec.status.className = "t-status " + (ok ? "ok" : "fail");
+    rec.status.textContent = ok ? "ok" : "fail";
+    var resWrap = rec.resWrap;
+    resWrap.className = "t-result " + (ok ? "ok" : "fail");
+    resWrap.textContent = "";
+    // Compact metadata row: ok/status/error/content size. This is the whole
+    // "result header" — enough to scan a tool's outcome without the body.
+    var bits = [];
+    if (ev.content_chars != null) bits.push(ev.content_chars + " chars");
+    if (ev.status) bits.push("status: " + ev.status);
+    if (ev.error) bits.push("error: " + ev.error);
+    if (bits.length) resWrap.appendChild(el("div", "t-meta", bits.join(" · ")));
+    // Result content, lazily expandable. NOTE: the full raw event payload is
+    // deliberately NOT dumped here — on markdown/coding arms the Read results
+    // carry huge `evidence_spans` character-offset arrays and line-numbered
+    // previews that are pure noise to a human. Show only what's meaningful.
+    var content = ev.content != null && String(ev.content) !== ""
+      ? String(ev.content)
+      : (ev.content_preview != null ? String(ev.content_preview) : "");
+    if (content) resWrap.appendChild(payloadBlock("result content", content));
+  }
+
+  function flushReason() {
+    reasoningTimer = 0;
+    if (reasoningBuf && curReasoning) {
+      curReasoning.appendChild(document.createTextNode(reasoningBuf));
+      reasoningBuf = "";
+    }
+  }
+  function flushContent() {
+    contentTimer = 0;
+    if (contentBuf && curContent) {
+      curContent.appendChild(document.createTextNode(contentBuf));
+      contentBuf = "";
+    }
+  }
+  function scheduleReason() {
+    if (!reasoningTimer) reasoningTimer = setTimeout(flushReason, FLUSH_MS);
+  }
+  function scheduleContent() {
+    if (!contentTimer) contentTimer = setTimeout(flushContent, FLUSH_MS);
+  }
+
+  function renderReasoning(text) {
+    if (!text) return; // empty deltas are the bulk of the noise — skip
+    if (!curReasoning) {
+      var block = el("div", "block reasoning");
+      block.appendChild(el("span", "tag", "reasoning"));
+      curReasoning = el("span", "r-text");
+      block.appendChild(curReasoning);
+      feed.appendChild(block);
+      reasoningBuf = "";
+    }
+    reasoningBuf += text;
+    scheduleReason();
+  }
+
+  function renderContent(text) {
+    if (!text) return;
+    if (!curContent) {
+      var block = el("div", "block content");
+      block.appendChild(el("span", "tag", "answer"));
+      curContent = el("span", "c-text");
+      block.appendChild(curContent);
+      feed.appendChild(block);
+      contentBuf = "";
+    }
+    contentBuf += text;
+    scheduleContent();
+  }
+
+  function setContent(text) {
+    flushContent();
+    if (!curContent) {
+      var block = el("div", "block content");
+      block.appendChild(el("span", "tag", "answer"));
+      curContent = el("span", "c-text");
+      block.appendChild(curContent);
+      feed.appendChild(block);
+    }
+    curContent.textContent = String(text == null ? "" : text);
+  }
+
+  function appendNote(text, cls) {
+    feed.appendChild(el("div", "note" + (cls ? " " + cls : ""), text));
+  }
+
+  function renderSurface(ev) {
+    if (surfaceShown) return;
+    surfaceShown = true;
+    var card = el("div", "event-card");
+    var head = el("div", "event-head");
+    head.appendChild(el("span", "event-name", "benchmark surface"));
+    var nav = ev.navigation_shape || "";
+    var coding = ev.coding_shape ? "coding" : "";
+    if (nav || coding) head.appendChild(el("span", "event-meta", [nav, coding].filter(Boolean).join(" · ")));
+    card.appendChild(head);
+    card.appendChild(payloadBlock("payload", JSON.stringify(ev)));
+    feed.appendChild(card);
+  }
+
+  function renderDoc(ev) {
+    var card = el("div", "event-card");
+    var head = el("div", "event-head");
+    head.appendChild(el("span", "event-name", "document " + (ev.type === "doc_created" ? "created" : "started")));
+    if (ev.filename) head.appendChild(el("span", "event-meta", String(ev.filename)));
+    card.appendChild(head);
+    card.appendChild(payloadBlock("payload", JSON.stringify(ev)));
+    feed.appendChild(card);
+  }
+
+  function renderCitations(ev) {
+    var card = el("div", "event-card");
+    var head = el("div", "event-head");
+    head.appendChild(el("span", "event-name", "citations"));
+    var meta = "status: " + (ev.status || "final");
+    if (Array.isArray(ev.citations)) meta += " · " + ev.citations.length + " items";
+    head.appendChild(el("span", "event-meta", meta));
+    card.appendChild(head);
+    card.appendChild(payloadBlock("citations", JSON.stringify(ev.citations || ev)));
+    feed.appendChild(card);
+  }
+
+  // Catch-all for event types the viewer does not special-case. Surface any
+  // text field it carries (lazily) but never dump the full raw event — the raw
+  // payloads on tool results are what produced the meaningless offset-pair
+  // noise (evidence_spans) that made the old viewer unusable.
+  function renderGeneric(ev) {
+    var card = el("div", "event-card");
+    var head = el("div", "event-head");
+    head.appendChild(el("span", "event-name", String(ev.type || "event")));
+    if (ev.id) head.appendChild(el("span", "event-meta", String(ev.id)));
+    card.appendChild(head);
+    var bodyText = null;
+    if (typeof ev.text === "string") bodyText = ev.text;
+    else if (typeof ev.content === "string") bodyText = ev.content;
+    else if (typeof ev.reasoning === "string") bodyText = ev.reasoning;
+    else if (typeof ev.message === "string") bodyText = ev.message;
+    else if (ev.message && typeof ev.message === "object") bodyText = JSON.stringify(ev.message);
+    if (bodyText != null && bodyText !== "") card.appendChild(payloadBlock("message", bodyText));
+    feed.appendChild(card);
+  }
+
+  function renderState(s) {
+    if (!s) return;
+    statusChip.className = "chip status-" + String(s.status || "unknown");
+    statusChip.innerHTML = '<span class="k">status</span>' + String(s.status || "—");
+    taskEl.textContent = s.task || "—";
+    armEl.textContent = s.arm || "—";
+    runIdEl.textContent = s.run_id || "—";
+    runDirEl.textContent = s.run_id ? "(" + String(s.run_id).split("/").slice(-2).join("/") + ")" : "";
+    if (s.error) appendNote("error: " + s.error, "done");
+  }
+
+  function renderAttached(ev) {
+    var base = "";
+    if (ev.run_dir) {
+      base = String(ev.run_dir).split(/[\\/]/).filter(Boolean).pop() || "";
+    }
+    if (base) {
+      followEl.textContent = "following " + base;
+      followEl.className = "chip follow";
+      followEl.title = String(ev.run_dir || "");
+      if (ev.stale) {
+        pendingNote = "attached to " + base + " — finished, nothing new in the 30-min window; watching for a newer run…";
+      }
+    } else {
+      followEl.textContent = "waiting for a run";
+      followEl.className = "chip follow wait";
+      pendingNote = "no run attached yet — watching for the next live run…";
+    }
+  }
+
+  function renderChatId(ev) {
+    if (chatEl.textContent !== "—") return; // keep the first chat id
+    chatEl.textContent = ev.chatId ? String(ev.chatId).slice(0, 8) : "—";
+  }
+
+  function resetFeed() {
+    if (reasoningTimer) clearTimeout(reasoningTimer);
+    if (contentTimer) clearTimeout(contentTimer);
+    reasoningTimer = contentTimer = 0;
+    reasoningBuf = contentBuf = "";
+    feed.innerHTML = "";
+    phaseSections.clear();
+    toolCards.clear();
+    curReasoning = null;
+    curContent = null;
+    surfaceShown = false;
+    chatEl.textContent = "—";
+    total = 0;
+    eventsEl.textContent = "0";
+    if (pendingNote) {
+      appendNote(pendingNote);
+      pendingNote = null;
+    }
+  }
+
+  function handle(ev) {
+    if (!ev || typeof ev !== "object") return;
+    total++;
+    eventsEl.textContent = String(total);
+    switch (ev.type) {
+      case "run_state": renderState(ev.data); break;
+      case "reset": resetFeed(); break;
+      case "run_attached": renderAttached(ev); break;
+      case "reasoning_delta": renderReasoning(firstString(ev, ["text", "reasoning", "content"])); break;
+      case "reasoning_block_end": flushReason(); curReasoning = null; break;
+      case "content_delta": renderContent(firstString(ev, ["text", "content"])); break;
+      case "content_final":
+      case "content_snapshot": setContent(firstString(ev, ["text", "content"])); break;
+      case "content_reset": flushContent(); curContent = null; break;
+      case "content_done": flushContent(); appendNote("content done", "done"); curContent = null; break;
+      case "tool_call_start": renderToolStart(ev); break;
+      case "tool_call_result": renderToolResult(ev); break;
+      case "chat_id": renderChatId(ev); break;
+      case "benchmark_surface": renderSurface(ev); break;
+      case "transcript_version": appendNote("transcript version " + ev.transcriptVersion); break;
+      case "doc_created_start":
+      case "doc_created": renderDoc(ev); break;
+      case "citations": renderCitations(ev); break;
+      case "done": appendNote("stream done", "done"); break;
+      default: renderGeneric(ev); break;
+    }
+  }
+
+  function firstString(ev, keys) {
+    for (var i = 0; i < keys.length; i++) {
+      var v = ev[keys[i]];
+      if (typeof v === "string") return v;
+    }
+    return "";
+  }
+
+  // Batched dispatch: the replay is bounded by the server (window + event cap)
+  // but can still be thousands of events, so render in per-frame batches.
+  function enqueue(ev) {
+    queue.push(ev);
+    if (!flushing) {
+      flushing = true;
+      setTimeout(flush, 0);
+    }
+  }
+
+  function flush() {
+    var n = Math.min(queue.length, 400);
+    for (var i = 0; i < n; i++) handle(queue[i]);
+    queue.splice(0, n);
+    if (queue.length) {
+      setTimeout(flush, 0);
+    } else {
+      flushing = false;
+      bump(); // force one final scroll once the replay fully drains
+    }
+  }
+
+  feed.addEventListener("scroll", function () {
+    if (!nearBottom() && autoScroll) {
+      autoScroll = false;
+      autoToggle.checked = false;
+      resumeBtn.style.display = "inline-block";
+    }
+  });
+  autoToggle.addEventListener("change", function () {
+    autoScroll = autoToggle.checked;
+    resumeBtn.style.display = "none";
+    if (autoScroll) bump();
+  });
+  resumeBtn.addEventListener("click", function () {
+    autoScroll = true;
+    autoToggle.checked = true;
+    resumeBtn.style.display = "none";
+    bump();
+  });
+
+  // Collapse-all control: payload bodies only exist once expanded, so this
+  // hides whatever is currently expanded — a quick way to un-bloat a long view.
+  collapseBtn.addEventListener("click", function () {
+    var collapsed = document.body.classList.toggle("payloads-collapsed");
+    collapseBtn.textContent = collapsed ? "expand all" : "collapse all";
+  });
+
+  // Theme: default follows the OS; button cycles system -> light -> dark -> system.
+  var themeState = null;
+  function setThemeLabel() {
+    themeBtn.textContent = "theme: " + (themeState === null ? "system" : themeState);
+  }
+  themeBtn.addEventListener("click", function () {
+    if (themeState === null) themeState = "light";
+    else if (themeState === "light") themeState = "dark";
+    else themeState = null;
+    if (themeState) document.documentElement.setAttribute("data-theme", themeState);
+    else document.documentElement.removeAttribute("data-theme");
+    setThemeLabel();
+  });
+  setThemeLabel();
+
+  var es = new EventSource("/events");
+  es.onmessage = function (e) {
+    var ev;
+    try { ev = JSON.parse(e.data); } catch (err) { return; }
+    enqueue(ev);
+  };
+  es.onopen = function () {
+    connEl.textContent = "● live";
+    connEl.className = "chip";
+  };
+  es.onerror = function () {
+    connEl.textContent = "● reconnecting";
+    connEl.className = "chip reconnect";
+  };
+})();
+</script>
+</body>
+</html>
