@@ -5,16 +5,22 @@
  * sets MIKE_LLM_RAW_SSE_PATH (which it does for every run), so point this at
  * a running run and watch the model think and act in real time.
  *
- * Usage:
- *   npx tsx scripts/lab-sse-live.ts <path-to-run-dir-or-raw-sse.txt>
- *   npx tsx scripts/lab-sse-live.ts --task real-estate/extract-psa-key-terms/scenario-01
- *   npx tsx scripts/lab-sse-live.ts --arm mike_upstream_native_v1
- *   npx tsx scripts/lab-sse-live.ts            # newest run under results/
- *   npx tsx scripts/lab-sse-live.ts --replay <path>   # start from byte 0
- *
- * Default: live (tail -f) semantics — attach at the current end of the file.
- * A file that stopped growing >=30s ago is replayed from the top instead.
+ * Default is AUTO-FOLLOW: it attaches to whatever LAB run is currently
+ * running under benchmarks/harvey-labs/results/ (newest run whose raw-sse.txt
+ * was modified in the last 30s and that has not finished), and when that run
+ * finishes or goes quiet it scans for a newer run and switches to it — so the
+ * viewer stays glued to "whatever is currently running" across a batch.
  * Ctrl-C to stop.
+ *
+ * Usage:
+ *   npx tsx scripts/lab-sse-live.ts            # auto-follow the newest running run
+ *   npx tsx scripts/lab-sse-live.ts --arm mike_upstream_native_v1   # scope to an arm
+ *   npx tsx scripts/lab-sse-live.ts --task real-estate/extract-psa-key-terms/scenario-01
+ *   npx tsx scripts/lab-sse-live.ts --dir <capture-dir>  # tail raw-SSE files in a
+ *                                           # non-results capture dir (one per chat),
+ *                                           # auto-following the newest
+ *   npx tsx scripts/lab-sse-live.ts --once <path>  # attach once, stop on idle
+ *   npx tsx scripts/lab-sse-live.ts --replay <path> # start from byte 0
  */
 import {
   createReadStream,
@@ -22,7 +28,7 @@ import {
   readdirSync,
   statSync,
 } from "node:fs";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 
 const RESULTS_ROOT = resolve(
   __dirname,
@@ -34,6 +40,7 @@ const RESULTS_ROOT = resolve(
 );
 const REPLAY_IF_STALE_MS = 30_000;
 const IDLE_STOP_MS = 10_000;
+const RESCAN_MS = 2_000;
 
 // ANSI palette: reasoning dim/italic, tools cyan, ok green, ! red, meta yellow.
 const dim = "\x1b[2m";
@@ -173,8 +180,34 @@ function readAll(stream: import("node:fs").ReadStream): Promise<string> {
   });
 }
 
-function newestRunDir(task: string | null, arm: string | null): string {
-  const candidates: { path: string; mtime: number }[] = [];
+function isFinishedRun(runDir: string): boolean {
+  return (
+    existsSync(join(runDir, "metrics.json")) ||
+    existsSync(join(runDir, "scores.json"))
+  );
+}
+
+function rawSseActive(runDir: string): boolean {
+  const p = join(runDir, "raw-sse.txt");
+  if (!existsSync(p)) return false;
+  return Date.now() - statSync(p).mtimeMs < REPLAY_IF_STALE_MS;
+}
+
+/**
+ * Find the newest candidate run dir under RESULTS_ROOT matching optional
+ * task/arm filters. Candidates are timestamp dirs named 2026-08-07T….
+ * When preferRunning is true (auto-follow), running runs (raw-sse.txt touched
+ * within REPLAY_IF_STALE_MS and no metrics.json yet) are preferred; the newest
+ * running run wins. If none are running, the newest overall is returned so a
+ * just-finished run still shows.
+ */
+function newestRunDir(
+  task: string | null,
+  arm: string | null,
+  preferRunning = false,
+): string {
+  const all: { path: string; mtime: number }[] = [];
+  const running: { path: string; mtime: number }[] = [];
   const walk = (dir: string) => {
     let entries;
     try {
@@ -186,24 +219,31 @@ function newestRunDir(task: string | null, arm: string | null): string {
       if (!e.isDirectory()) continue;
       const p = join(dir, e.name);
       if (/^\d{4}-\d{2}-\d{2}T/.test(e.name)) {
-        if (task && !p.includes(task)) continue;
-        if (arm && !p.includes(`beaver-${arm}`)) continue;
-        candidates.push({ path: p, mtime: statSync(p).mtimeMs });
+        const pNorm = p.replace(/\\/g, "/");
+        if (task && !pNorm.includes(task)) continue;
+        if (arm && !pNorm.includes(`beaver-${arm}`)) continue;
+        const mtime = statSync(p).mtimeMs;
+        all.push({ path: p, mtime });
+        if (rawSseActive(p) && !isFinishedRun(p)) running.push({ path: p, mtime });
       } else {
         walk(p);
       }
     }
   };
   if (existsSync(RESULTS_ROOT)) walk(RESULTS_ROOT);
-  candidates.sort((a, b) => b.mtime - a.mtime);
-  if (!candidates.length) {
-    console.error(`no run dirs found under ${RESULTS_ROOT}`);
-    process.exit(1);
-  }
-  return candidates[0].path;
+  const pool = preferRunning && running.length ? running : all;
+  pool.sort((a, b) => b.mtime - a.mtime);
+  if (!pool.length) return "";
+  return pool[0].path;
 }
 
-async function tail(filePath: string, replay: boolean) {
+/**
+ * Tail a raw-SSE file. Returns when the stream has been idle for IDLE_STOP_MS
+ * (or immediately when the file never appeared within 120s, which exits).
+ * Live semantics by default: attach at the current end. A file that stopped
+ * growing >=REPLAY_IF_STALE_MS ago is replayed from the top instead.
+ */
+async function tailFile(filePath: string, replay: boolean): Promise<void> {
   const start = Date.now();
   while (!existsSync(filePath)) {
     if (Date.now() - start > 120_000) {
@@ -258,31 +298,132 @@ async function tail(filePath: string, replay: boolean) {
   console.log(`\n${dim}— stream idle, stopped —${reset}`);
 }
 
+/** Wait until a run dir NEWER than `currentDir` appears (or differs). */
+async function waitForNewerRun(
+  task: string | null,
+  arm: string | null,
+  currentDir: string,
+): Promise<string> {
+  for (;;) {
+    await sleep(RESCAN_MS);
+    const next = newestRunDir(task, arm, true);
+    if (next && next !== currentDir) return next;
+  }
+}
+
+/** Auto-follow: keep attaching to whatever is currently running. */
+async function followRuns(task: string | null, arm: string | null, replay: boolean) {
+  let current = "";
+  for (;;) {
+    const dir = newestRunDir(task, arm, true);
+    if (!dir) {
+      if (!current) console.log(`${dim}no run dirs yet under ${RESULTS_ROOT} — waiting…${reset}`);
+      await sleep(RESCAN_MS);
+      continue;
+    }
+    if (dir !== current) {
+      current = dir;
+      console.log(`${yellow}${bold}══ attached to run: ${basename(dir)}${reset}`);
+      await tailFile(join(dir, "raw-sse.txt"), replay);
+      replay = false;
+      // tailFile returned on idle. If the run is finished, wait for a newer
+      // run; otherwise (just a slow pause) retry the same run after a beat.
+      if (isFinishedRun(dir)) {
+        console.log(`${dim}run finished — scanning for the next run…${reset}`);
+        current = await waitForNewerRun(task, arm, dir);
+      } else {
+        await sleep(RESCAN_MS);
+      }
+    } else {
+      // Same newest run; if it's finished and we've moved on, this only
+      // happens transiently — wait for a newer one.
+      await sleep(RESCAN_MS);
+    }
+  }
+}
+
+/** Tail the newest raw-SSE file in a capture directory, auto-following. */
+async function followDir(dir: string) {
+  let current = "";
+  for (;;) {
+    let newest = "";
+    let newestMtime = 0;
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      console.error(`${dir} not readable`);
+      process.exit(1);
+    }
+    for (const e of entries) {
+      if (!e.isFile()) continue;
+      if (!/\.(sse|txt|jsonl)$/.test(e.name)) continue;
+      const p = join(dir, e.name);
+      const m = statSync(p).mtimeMs;
+      if (m > newestMtime) {
+        newestMtime = m;
+        newest = p;
+      }
+    }
+    if (!newest) {
+      if (!current) console.log(`${dim}no capture files in ${dir} — waiting…${reset}`);
+      await sleep(RESCAN_MS);
+      continue;
+    }
+    if (newest !== current) {
+      current = newest;
+      console.log(`${yellow}${bold}══ attached to capture: ${basename(newest)}${reset}`);
+      await tailFile(newest, false);
+    } else {
+      await sleep(RESCAN_MS);
+    }
+  }
+}
+
 function main() {
   const argv = process.argv.slice(2);
   let replay = false;
+  let once = false;
   let task: string | null = null;
   let arm: string | null = null;
+  let dir: string | null = null;
   let pathArg: string | null = null;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--replay") replay = true;
+    else if (a === "--once") once = true;
     else if (a === "--task") task = argv[++i] ?? null;
     else if (a === "--arm") arm = argv[++i] ?? null;
+    else if (a === "--dir") dir = argv[++i] ?? null;
     else if (!a.startsWith("--")) pathArg = a;
   }
 
-  let filePath: string;
+  const fail = (msg: string): never => {
+    console.error(msg);
+    process.exit(1);
+  };
+
+  if (dir) {
+    followDir(resolve(dir)).catch((e) => fail(String(e)));
+    return;
+  }
+
   if (pathArg) {
     const p = resolve(pathArg);
-    filePath = /raw-sse\.txt$/.test(p) ? p : join(p, "raw-sse.txt");
-  } else {
-    filePath = join(newestRunDir(task, arm), "raw-sse.txt");
+    const filePath = /raw-sse\.txt$/.test(p) ? p : join(p, "raw-sse.txt");
+    tailFile(filePath, replay).catch((e) => fail(String(e)));
+    return;
   }
-  tail(filePath, replay).catch((e) => {
-    console.error(e);
-    process.exit(1);
-  });
+
+  if (once) {
+    const filePath = join(newestRunDir(task, arm, false), "raw-sse.txt");
+    if (!existsSync(filePath)) fail(`no run dirs found under ${RESULTS_ROOT}`);
+    tailFile(filePath, replay).catch((e) => fail(String(e)));
+    return;
+  }
+
+  // Default: auto-follow whatever is currently running.
+  followRuns(task, arm, replay).catch((e) => fail(String(e)));
 }
 
 main();
