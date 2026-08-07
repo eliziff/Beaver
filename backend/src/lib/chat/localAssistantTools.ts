@@ -123,6 +123,7 @@ import {
   LEAN_BATCH_LAB_TOOLS,
   CODING_MARKDOWN_V2_LAB_TOOLS,
   CODING_MARKDOWN_V3_LAB_TOOLS,
+  CODING_MARKDOWN_V5_LAB_TOOLS,
   MIKE_GREP_LAB_TOOLS,
   MIKE_LEGAL_LAB_TOOLS,
   MARKDOWN_INDEX_LAB_TOOLS,
@@ -944,6 +945,19 @@ export const GREP_SECTION_CONTEXT_ENABLED =
  */
 export const CODING_TOC_FILES_ENABLED =
   process.env.MIKE_CODING_TOC_FILES === "1";
+/**
+ * Per-file grep budget (coding_markdown_v5): head_limit is spent max-min
+ * fair across the matching files instead of first-come-first-served in
+ * corpus order. Without it one verbose early document drains the whole
+ * allowance and every later document emits nothing, so a corpus-wide grep
+ * silently starves its tail — which forces the model to re-issue the same
+ * pattern one path= at a time to buy each file its own allocation. Measured
+ * on the CoC run (2026-08-06): 14 identical greps spread over 4 rounds,
+ * 469.5k logical input against 258.2k for the same bytes in one round.
+ * Fairness here is a round-trip lever, not a formatting nicety.
+ */
+export const GREP_PER_FILE_BUDGET_ENABLED =
+  process.env.MIKE_GREP_PER_FILE_BUDGET === "1";
 export const GROUNDING_FIRST_ENABLED =
   process.env.MIKE_GROUNDING_FIRST === "1";
 export const MIKE_GREP_FAMILY_TOOL_SHAPE =
@@ -2225,7 +2239,12 @@ const ORIGIN_MIKE_ACTIVE_TOOLS = UPSTREAM_NATIVE_MIKE_SHAPE
     // arms keep LEAN_BATCH_LAB_TOOLS byte-identically.
     CODING_PARITY_ENABLED
     ? GREP_SECTION_CONTEXT_ENABLED
-      ? CODING_MARKDOWN_V3_LAB_TOOLS
+      ? // v5 documents head_limit as the fair per-file budget it now is;
+        // a model that still reads it as a first-come cap keeps paying for
+        // one-path-at-a-time greps the mechanism no longer needs.
+        GREP_PER_FILE_BUDGET_ENABLED
+        ? CODING_MARKDOWN_V5_LAB_TOOLS
+        : CODING_MARKDOWN_V3_LAB_TOOLS
       : CODING_MARKDOWN_V2_LAB_TOOLS
     : LEAN_BATCH_LAB_TOOLS
   : COMPACT_AUTHOR_MIKE_TOOL_SHAPE
@@ -2663,6 +2682,58 @@ type CodingOutputLine = {
     projection?: string;
   };
 };
+
+/**
+ * Max-min fair split of a row budget across per-file buckets
+ * (GREP_PER_FILE_BUDGET_ENABLED). Water-filling: every file wanting less
+ * than an equal share takes all it wants and releases the surplus to the
+ * files still contending, so a corpus where only three documents match
+ * still spends the whole budget on those three. Returns per-bucket counts
+ * in the caller's original (corpus) order.
+ */
+function fairFileAllocation(sizes: number[], budget: number): number[] {
+  const alloc = sizes.map(() => 0);
+  if (!sizes.length || budget <= 0) return alloc;
+  const order = sizes
+    .map((size, index) => ({ size, index }))
+    .sort((left, right) => left.size - right.size || left.index - right.index);
+  let remaining = budget;
+  let cursor = 0;
+  while (cursor < order.length) {
+    const entry = order[cursor];
+    const share = Math.floor(remaining / (order.length - cursor));
+    if (entry.size > share) break;
+    alloc[entry.index] = entry.size;
+    remaining -= entry.size;
+    cursor += 1;
+  }
+  const contenders = order.slice(cursor);
+  if (contenders.length) {
+    const share = Math.floor(remaining / contenders.length);
+    for (const entry of contenders) alloc[entry.index] = share;
+    // Largest-remainder: the floor division leaves up to n-1 rows unspent.
+    let spare = remaining - share * contenders.length;
+    for (const entry of contenders) {
+      if (spare <= 0) break;
+      if (alloc[entry.index] >= entry.size) continue;
+      alloc[entry.index] += 1;
+      spare -= 1;
+    }
+  }
+  return alloc;
+}
+
+/**
+ * Trim a truncated bucket back to its last real content row. Separator
+ * ("--") and section-lead rows carry no `source`; left dangling at a cut
+ * they read as a match with no body, which is exactly the fake-hit hazard
+ * the section-lead rows were built to avoid.
+ */
+function trimDanglingRows(lines: CodingOutputLine[]): CodingOutputLine[] {
+  let end = lines.length;
+  while (end > 0 && !lines[end - 1].source) end -= 1;
+  return end === lines.length ? lines : lines.slice(0, end);
+}
 
 function sourceLineStarts(text: string, lines: string[]): number[] {
   const starts: number[] = [];
@@ -5049,6 +5120,9 @@ async function runCodingShapeCall(
   const numberLines = args["-n"] !== false;
 
   const rows: CodingOutputLine[] = [];
+  // Per-file content buckets; only populated when the per-file budget is on.
+  // files_with_matches/count emit one row per document and are fair already.
+  const fileBuckets: CodingOutputLine[][] = [];
   const sectionQueues: { rendered: string; hits: number }[][] = [];
   const workingSetCandidates: WorkingSetCandidate[] = [];
   const workingSetMaps: WorkingSetMapCandidate[] = [];
@@ -5316,8 +5390,15 @@ async function runCodingShapeCall(
     const emittedSectionRows = new Set<number>();
     let hardReferenceGraph: CrossReferenceGraph | null = null;
     let lastPrinted = -2;
+    // Under the per-file budget every document renders into its own bucket
+    // and the split happens after the sweep, once the matching-file count is
+    // known. A single file still never needs more than the whole budget, so
+    // headLimit doubles as the per-file collection cap. The corpus sweep is
+    // never cut short here: stopping early is precisely the starvation the
+    // per-file budget exists to remove.
+    const sink: CodingOutputLine[] = GREP_PER_FILE_BUDGET_ENABLED ? [] : rows;
     for (const at of matched) {
-      if (rows.length >= headLimit) {
+      if (sink.length >= headLimit) {
         truncated = true;
         break;
       }
@@ -5328,7 +5409,7 @@ async function runCodingShapeCall(
         lastPrinted >= 0 &&
         from > lastPrinted + 1
       ) {
-        rows.push({ rendered: "--" });
+        sink.push({ rendered: "--" });
       }
       if (sectionLeads.length) {
         const hitOffset = starts[at];
@@ -5367,7 +5448,7 @@ async function runCodingShapeCall(
           ) {
             emittedSectionRows.add(leadLine);
             const leadText = (lines[leadLine] ?? "").slice(0, GREP_LINE_CAP);
-            rows.push({
+            sink.push({
               rendered: numberLines
                 ? `${codingPath(meta)}-${leadLine + 1}-${leadText}`
                 : `${codingPath(meta)}-${leadText}`,
@@ -5570,7 +5651,7 @@ async function runCodingShapeCall(
                 !LEAN_BATCH_HARDREFS_TOOL_SHAPE
               ? `  [${section.handle}]`
               : "";
-        rows.push({
+        sink.push({
           rendered:
             `${prefix}${sliceStart ? "…" : ""}${shown}` +
             (sliceStart + shown.length < renderedLine.length ? "…" : "") +
@@ -5597,7 +5678,29 @@ async function runCodingShapeCall(
         lastPrinted = i;
       }
     }
+    if (GREP_PER_FILE_BUDGET_ENABLED) {
+      if (sink.length) fileBuckets.push(sink);
+      // A file that filled its collection cap had more to give; that is a
+      // real truncation regardless of how the split lands below.
+      continue;
+    }
     if (truncated) break;
+  }
+  if (GREP_PER_FILE_BUDGET_ENABLED && fileBuckets.length) {
+    const alloc = fairFileAllocation(
+      fileBuckets.map((bucket) => bucket.length),
+      headLimit,
+    );
+    for (let i = 0; i < fileBuckets.length; i += 1) {
+      const bucket = fileBuckets[i];
+      const take = alloc[i];
+      if (take >= bucket.length) {
+        rows.push(...bucket);
+        continue;
+      }
+      truncated = true;
+      rows.push(...trimDanglingRows(bucket.slice(0, take)));
+    }
   }
   if (mode === "working_set") {
     if (!workingSets) return fail(call, "Working-set state is unavailable");
@@ -5655,7 +5758,9 @@ async function runCodingShapeCall(
   const output = codingTextResult(
     call,
     truncated || rows.length > headLimit || sizeTruncated
-      ? `${body}\n(Results truncated, showing first ${headLimit} lines. Narrow the pattern or pass head_limit.)`
+      ? GREP_PER_FILE_BUDGET_ENABLED && mode === "content"
+        ? `${body}\n(Results truncated: ${headLimit} lines split evenly across ${fileBuckets.length} matching file${fileBuckets.length === 1 ? "" : "s"}. Narrow the pattern, scope with path=, or raise head_limit.)`
+        : `${body}\n(Results truncated, showing first ${headLimit} lines. Narrow the pattern or pass head_limit.)`
       : body,
     kept,
   );
