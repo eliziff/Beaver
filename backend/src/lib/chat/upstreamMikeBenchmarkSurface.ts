@@ -1653,9 +1653,20 @@ export const MARKDOWN_E2E_TREATMENT_DELTA = "markdown-e2e-treatment-v1";
 /**
  * MIKE_REQUIREMENTS_ECHO=1 prompt addition. Mechanism-only: it names a tool and
  * a sequencing rule, and says nothing about any benchmark, task, or rubric.
+ * Used when the requirements echo is served by the fetch_requirements TOOL —
+ * the frozen markdown treatment arms, where the exposure gate is off.
  */
 export const REQUIREMENTS_ECHO_PROMPT_LINE =
   "Before drafting the deliverable, call fetch_requirements once to re-read the task requirements; drafting tools are unavailable until you have.";
+
+/**
+ * REQUIREMENTS_ECHO + EXPOSURE_ECHO both live (Fix A): there is no
+ * fetch_requirements tool — the verbatim task prompt is re-served automatically
+ * by the first generate_docx refusal, together with the documents still
+ * unread. The prompt line describes that mechanism instead of the tool.
+ */
+export const REQUIREMENTS_ECHO_AUTOMATIC_PROMPT_LINE =
+  "The full task requirements, together with the documents not yet read, are re-served to you at the authoring checkpoint. Re-read them before finalizing the deliverable.";
 
 /**
  * MIKE_CITATION_CONTRACT=1 prompt addition, verbatim as specified. Describes
@@ -1689,6 +1700,9 @@ export function withLabTreatmentPromptAdditions(
     citationContractV2?: boolean;
     noDeferral?: boolean;
     scopedReread?: boolean;
+    /** Fix A: true when the exposure gate is live — the echo is served
+     * automatically at the authoring checkpoint, so the prompt names no tool. */
+    exposureEcho?: boolean;
   },
 ): string {
   if (options.citationContract && options.citationContractV2)
@@ -1696,7 +1710,12 @@ export function withLabTreatmentPromptAdditions(
       "citation contract v1 and v2 are mutually exclusive prompt additions",
     );
   let out = options.scopedReread ? withScopedRereadClause(base) : base;
-  if (options.requirementsEcho) out += `\n\n${REQUIREMENTS_ECHO_PROMPT_LINE}`;
+  if (options.requirementsEcho)
+    out += `\n\n${
+      options.exposureEcho
+        ? REQUIREMENTS_ECHO_AUTOMATIC_PROMPT_LINE
+        : REQUIREMENTS_ECHO_PROMPT_LINE
+    }`;
   if (options.citationContract) out += `\n\n${CITATION_CONTRACT_PROMPT_BLOCK}`;
   if (options.citationContractV2)
     out += `\n\n${CITATION_CONTRACT_V2_PROMPT_BLOCK}`;

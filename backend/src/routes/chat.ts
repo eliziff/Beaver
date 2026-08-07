@@ -78,6 +78,7 @@ import {
   SCOPED_REREAD_ENABLED,
   TYPED_RANGE_ENABLED,
   REQUIREMENTS_ECHO_ENABLED,
+  REQECHO_DRAFT_MODE_ENABLED,
   createLocalAssistantRequirementsState,
   SUPPRESS_DUPLICATE_WHOLE_READS,
   TERMINAL_AUTHORING_ENABLED,
@@ -1216,6 +1217,10 @@ export async function streamAnonymousChat(params: {
   // which is the order lab-beaver-arm.ts reproduces.
   systemPrompt = withLabTreatmentPromptAdditions(systemPrompt, {
     requirementsEcho: REQUIREMENTS_ECHO_ENABLED,
+    // Fix A: under the exposure gate the echo is served automatically by the
+    // first generate_docx refusal (no fetch_requirements tool), so the prompt
+    // line must describe that mechanism instead of the tool.
+    exposureEcho: EXPOSURE_ECHO_ENABLED,
     citationContract: CITATION_CONTRACT_ENABLED,
     citationContractV2: CITATION_CONTRACT_V2_ENABLED,
     noDeferral: NO_DEFERRAL_ENABLED,
@@ -1247,12 +1252,15 @@ export async function streamAnonymousChat(params: {
           "fetch_documents",
           "generate_docx",
         ];
-    // The requirements-echo mechanism appends exactly one tool to whatever arm
-    // surface is active, so the guard's expectation is extended the same way
-    // rather than duplicating any arm's list.
-    const expectedWithEcho = REQUIREMENTS_ECHO_ENABLED
-      ? [...expectedBase, "fetch_requirements"]
-      : expectedBase;
+    // Fix A: fetch_requirements is appended ONLY when the requirements echo is
+    // on WITHOUT the exposure gate (the frozen markdown treatment arms, whose
+    // echo is the tool call). Under the exposure gate the verbatim requirements
+    // ride the first generate_docx refusal automatically — the tool is never
+    // served there, so it must not appear in the guard's expectation either.
+    const expectedWithEcho =
+      REQUIREMENTS_ECHO_ENABLED && !EXPOSURE_ECHO_ENABLED
+        ? [...expectedBase, "fetch_requirements"]
+        : expectedBase;
     // Draft-edit appends Edit the same way; generate_docx is swapped in place
     // for the optional-markdown variant, keeping its name and position.
     const expected = DRAFT_EDIT_ENABLED
@@ -2667,6 +2675,7 @@ export async function streamAnonymousChat(params: {
           grep_per_file_budget: GREP_PER_FILE_BUDGET_ENABLED,
           triage_workflow: TRIAGE_WORKFLOW_ENABLED,
           draft_edit: DRAFT_EDIT_ENABLED,
+          reqecho_draft_mode: REQECHO_DRAFT_MODE_ENABLED,
           scoped_reread: SCOPED_REREAD_ENABLED,
           adaptive_mike_shape: ADAPTIVE_MIKE_TOOL_SHAPE,
           compact_author_mike_shape: COMPACT_AUTHOR_MIKE_TOOL_SHAPE,

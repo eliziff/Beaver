@@ -1090,6 +1090,18 @@ export const NO_DEFERRAL_ENABLED = process.env.MIKE_NO_DEFERRAL === "1";
 export const EXPOSURE_ECHO_ENABLED = process.env.MIKE_EXPOSURE_ECHO === "1";
 
 /**
+ * REQECHO drafting-mode (T2b, 2026-08-07): the requirements echo is served on
+ * the FIRST authoring call, BEFORE any draft body is captured. Fix A already
+ * made the echo automatic under the exposure gate (no fetch_requirements tool);
+ * this flag only moves WHERE in the authoring boundary the echo lands — fixed
+ * reqecho captures the incoming draft and refines it, drafting-mode serves the
+ * echo, discards the incoming body, and lets the model write clean. No prompt
+ * text, no schema.
+ */
+export const REQECHO_DRAFT_MODE_ENABLED =
+  process.env.MIKE_REQECHO_DRAFT_MODE === "1";
+
+/**
  * Serving-boundary fidelity (adversarial audit #8): OFF in every frozen LAB
  * arm; production-layer / future-arm candidate. The extraction's computed
  * warnings[] (tracked changes served as the accepted view, text-box
@@ -2364,13 +2376,17 @@ const ORIGIN_MIKE_ACTIVE_TOOLS = UPSTREAM_NATIVE_MIKE_SHAPE
           : UPSTREAM_MIKE_LAB_TOOLS;
 
 /**
- * The requirements-echo mechanism appends ONE tool to whichever arm surface is
- * active, rather than defining a new arm-specific array. With the flag off this
- * is the same array object the selector produced, so every existing arm's tool
- * list — and its tool_schema_sha256 — is untouched by construction.
+ * Fix A: the requirements-echo mechanism appends fetch_requirements ONLY when
+ * the echo is served by the TOOL — the frozen markdown treatment arms, where
+ * REQUIREMENTS is on without the exposure gate. Under the exposure gate (both
+ * mechanisms live) the verbatim task prompt rides the first generate_docx
+ * refusal automatically, so the tool is never served and no arm-specific array
+ * is needed. Either way, with the flag combination off this is the same array
+ * object the selector produced, so every existing arm's tool list — and its
+ * tool_schema_sha256 — is untouched by construction.
  */
 const ORIGIN_MIKE_SERVED_TOOLS_BASE: OpenAIToolSchema[] =
-  REQUIREMENTS_ECHO_ENABLED
+  REQUIREMENTS_ECHO_ENABLED && !EXPOSURE_ECHO_ENABLED
     ? [...ORIGIN_MIKE_ACTIVE_TOOLS, FETCH_REQUIREMENTS_TOOL]
     : ORIGIN_MIKE_ACTIVE_TOOLS;
 
@@ -8401,6 +8417,35 @@ export async function runLocalAssistantTools(
             : stored;
           const split = splitReadExposure(allowedForCheck, turnReadState);
           const unexposed = [...split.orientedOnly, ...split.unread];
+          // Drafting-mode (Fix B): on the FIRST authoring call, serve the
+          // requirements echo BEFORE anything is written. Nothing is captured —
+          // no draft.md, no refine checkpoint — so the model's second
+          // generate_docx starts clean, with the verbatim task prompt and the
+          // unread list in front of it. echoCallCount 0 -> 1 here, so the
+          // later coverage/refine refusals below do not re-echo; the model is
+          // then free to draft, and the normal gate runs on its next call.
+          if (
+            REQECHO_DRAFT_MODE_ENABLED &&
+            REQUIREMENTS_ECHO_ENABLED &&
+            EXPOSURE_ECHO_ENABLED &&
+            requirementsText &&
+            (requirementsState?.echoCallCount ?? 0) === 0
+          ) {
+            requirementsState.echoCallCount += 1;
+            requirementsState.documentsUnreadAtEcho = unexposed.length;
+            requirementsState.documentsOrientedOnlyAtEcho =
+              split.orientedOnly.length;
+            return upstreamMikeResult(call, {
+              error:
+                `coverage_check: ${unexposed.length} document(s) have had no` +
+                ` body content served this turn (headings only, or never` +
+                ` opened): ${unexposed.join(", ")}. Read the ones relevant to` +
+                ` the request first — scoped windows are fine.\n\n` +
+                `TASK REQUIREMENTS (verbatim):\n${requirementsText}\n\n` +
+                `Now draft the deliverable, addressing every requirement` +
+                ` above. Call generate_docx again with the completed draft.`,
+            });
+          }
           // Draft-edit lever: the paused body is saved, not discarded.
           // Minimal capture on purpose — the draft IS the markdown; title
           // aliasing stays with the canonical parse below, which re-derives
