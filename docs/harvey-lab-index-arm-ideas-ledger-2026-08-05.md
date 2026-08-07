@@ -1732,6 +1732,7 @@ a row for that task exists. Run dir base:
 | arbitration-international-dispute-resolution/analyze-counterparty-markup-of-arbitration-agreement | **64/69** | deepseek-v4-flash | 177,408 (140,817/36,591) | 5/5 | 316s | 2026-08-07T17-45-41 |
 | banking-finance/extract-credit-agreement-covenants | **55/65** | deepseek-v4-flash | 258,410 (214,503/43,907) | 3/3 | 369s | 2026-08-07T17-56-17 |
 | capital-markets/compare-closing-documents-against-closing-checklist | **29/32** | deepseek-v4-flash | 218,736 (176,821/41,915) | 8/8 | 329s | 2026-08-07T18-01-14 |
+| corporate-governance/analyze-eu-ai-act-high | **64/66** | deepseek-v4-flash | 403,802 (368,715/35,087) | 7/7 | 274s | 2026-08-07T18-06-06 |
 
 **Failure → recovered (harness gate, not a score):** capital-markets/compare-closing-documents-against-closing-checklist
 first attempt (17-56-20) authored 0/1 DOCX — the model made one `fetch_documents`
