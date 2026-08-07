@@ -1647,6 +1647,16 @@ docs are a different weight class, excluded):
 11. litigation-dispute-resolution/build-litigation-case-timeline — many-doc synthesis, 15d, 66c
 12. energy-natural-resources/analyze-counterparty-markup-of-credit-agreement — LARGEST corpus stress, 12d, 83c
 
+**Tax gen-7 rep2 landed (16-13-27): 48/77.** The 38 was a LOW DRAW.
+Gen-7 tax = {38, 48} (mean 43), inside the v3 band {48, 51}; same
+route both reps (true coverage_check list → read exactly those docs
+→ 3-5 Edits → render). Consequences: (1) tax judge spread at FIXED
+treatment is ~10 criteria, not ±5 — no per-row tax delta under 10 is
+interpretable, only strata means; (2) the "-18 quantification flips"
+anatomy was partly judge draw, not all mechanism; (3) the
+composition-coverage cap STANDS (every post-g5 row sits below the
+96%-coverage 53) but the checkpoint-collapse narrative is retired.
+
 **Validation read-out per run** (mechanism scorecard, not just
 score): checkpoint route (`refine_check` vs `coverage_check` and
 whether the unread list is TRUE), edit count + ok:true +
