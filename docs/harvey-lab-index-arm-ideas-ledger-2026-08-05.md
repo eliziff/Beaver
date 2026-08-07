@@ -1682,12 +1682,21 @@ stay excluded at 2.8k-3.6k docs).
 - insurance gen-7 (16-21-47): **55/57** @119.4k | 32.8k out | 69.9k uncached | 495k cache_read. Column closed FLAT: g3 55 / g4 55 / g5 55 / g7 55 — the fixed shape neither gains nor loses on insurance; insurance is saturated at 55/57 regardless of echo/edit treatment.
 - acq gen-7 rep2 (16-27-36, checkpoint route: 34 reads -> 5 greps -> draft -> 2 Edits -> render): 47.4k out | 245k uncached | 3.43M cache_read | **588.4k cacheadj** — judge in flight.
 
-**Queue expansion (Eli directive: baseline runs for a broader set):**
-whole-read `mike_markdown_e2e_v1` paired onto the breadth cells where
-whole-read fits 200K. Fit-band (census tok): real-estate 13.8k,
+**Queue expansion (Eli directive — CORRECTED 2026-08-07 late: "more baseline" = more UPSTREAM MIKE NATIVE baseline runs, `mike_upstream_native_v1`, NOT e2e):**
+the faithful OG-mike control (read_document/find_in_document, no
+markdown, no progressive disclosure) paired onto the breadth cells
+where whole-read fits 200K. Fit-band (census tok): real-estate 13.8k,
 banking-extract 13.8k, banking-compare 14.0k, arbitration 21.5k,
 privacy-audit 27.1k, trade-sanctions 25.2k, eu-ai-act 37.4k,
-bankruptcy 49.4k → all 8 get a paired whole-read baseline. The 4
-largest (IP 559KB, funds 570KB, litigation 576KB, energy 726KB) are
-no-fit (whole-read would overflow 200K) → lean-only, matching the
-phase-D overflow logic. Execution stays 2-wide, judge-as-they-land.
+bankruptcy 49.4k → all 8 get a paired `mike_upstream_native_v1`
+control. The 4 largest (IP 559KB, funds 570KB, litigation 576KB,
+energy 726KB) are no-fit (whole-read would overflow 200K) → lean-only,
+matching the phase-D overflow logic. One `mike_markdown_e2e_v1`
+real-estate row was launched before this correction and is kept
+LABELED as an e2e whole-read row (a control-shaped datapoint, not the
+native control; the native control still runs on real-estate).
+
+- acq gen-7 rep2 (16-27-36) judged: **59/64** @588.4k | 47.4k out | 245k uncached. Gen-7 acq = {60, 59} mean 59.5 — the +3-linkage claim now rests on n=2 and STANDS; rep1's 60 was not a lucky draw. (Strata: g5 57@566k, v3 {58,60}, g7 {60,59}, T2 58.)
+- real-estate breadth-1 LEAN (16-35-34): checkpoint route clean (7 reads -> draft -> 2 greps + 3 Edits -> render), 25.6k out — judge in flight. Whole-read baseline (16-39-25) in flight for the pair.
+
+- real-estate breadth-1 LEAN judged: **67/75** @78.0k | 25.6k out | 44.4k uncached | 335k cache_read | 3/3 docs | checkpoint route (7 reads -> draft -> 2 greps + 3 Edits -> render). Standalone score, no strata on this task — mechanism row only. Paired NATIVE control + the accidental e2e row pending.
