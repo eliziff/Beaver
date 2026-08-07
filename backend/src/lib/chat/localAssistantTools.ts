@@ -8327,43 +8327,40 @@ export async function runLocalAssistantTools(
             : stored;
           const split = splitReadExposure(allowedForCheck, turnReadState);
           const unexposed = [...split.orientedOnly, ...split.unread];
+          // Draft-edit lever: the paused body is saved, not discarded.
+          // Minimal capture on purpose — the draft IS the markdown; title
+          // aliasing stays with the canonical parse below, which re-derives
+          // on the render call. Mirrors the coding-alias keys only.
+          const body = DRAFT_EDIT_ENABLED
+            ? trimmed(args.markdown) || trimmed(args.content)
+            : "";
+          if (body) {
+            requirementsState.draftTitle =
+              trimmed(args.title) ||
+              trimmed(args.filename).replace(/\.docx$/iu, "").trim() ||
+              (/^#{1,6}\s+(.+)$/mu.exec(body)?.[1]?.trim() ?? "");
+            requirementsState.draftMarkdown = body;
+            requirementsState.draftFilename = trimmed(args.filename) || null;
+          }
+          // draft-edit-v4: the refinement checkpoint is universal. Under
+          // v1-v3 it existed only when coverage fell short — which, once the
+          // exposure accounting became honest, would have silently removed
+          // the measured refinement gains on full-coverage runs (acq 58/60
+          // under v3 vs the 56-57 pre-refinement ceiling). One pause per
+          // turn, honest contents: the true unread list when coverage is
+          // short, an all-read confirmation when it is not.
+          const refineNote = body
+            ? ` Your draft (${body.length} chars) is saved as draft.md —` +
+              ` do NOT re-send the body. Refine it: check the record` +
+              ` selectively (Grep or scoped Read) for facts that add to,` +
+              ` sharpen, or contradict your draft, and fold each finding in` +
+              ` with Edit (old_string/new_string) — precise small edits are` +
+              ` cheap, use as many as the evidence deserves. When the draft` +
+              ` reflects the full record, call generate_docx without` +
+              ` markdown to render it.`
+            : "";
           if (unexposed.length) {
             requirementsState.exposureNudgeServed = true;
-            // Draft-edit lever: the refused body is saved, not discarded.
-            // Minimal capture on purpose — the draft IS the markdown; title
-            // aliasing stays with the canonical parse below, which re-derives
-            // on the render call. Mirrors the coding-alias keys only.
-            let draftNote = "";
-            if (DRAFT_EDIT_ENABLED) {
-              const body = trimmed(args.markdown) || trimmed(args.content);
-              if (body) {
-                requirementsState.draftTitle =
-                  trimmed(args.title) ||
-                  trimmed(args.filename).replace(/\.docx$/iu, "").trim() ||
-                  (/^#{1,6}\s+(.+)$/mu.exec(body)?.[1]?.trim() ?? "");
-                requirementsState.draftMarkdown = body;
-                requirementsState.draftFilename =
-                  trimmed(args.filename) || null;
-                // draft-edit-v3: v1's note induced serial full-reads of every
-                // listed document followed by a byte-identical render — Edit
-                // went 0-for-7 in the gen-5 battery, so post-draft evidence
-                // never reached the deliverable. The phase is framed as
-                // refinement now: selective checks with incorporation as the
-                // expected outcome. (v2 briefly licensed rendering with no
-                // further reads; killed before any judged row — it optimized
-                // away the reads instead of fixing the missing edits.)
-                draftNote =
-                  ` Your draft (${body.length} chars) is saved as draft.md —` +
-                  ` do NOT re-send the body. Now refine it against the` +
-                  ` listed documents: check them selectively (Grep or scoped` +
-                  ` Read) for facts that add to, sharpen, or contradict your` +
-                  ` draft, and fold each finding in with Edit` +
-                  ` (old_string/new_string) — precise small edits are cheap,` +
-                  ` use as many as the evidence deserves. When the draft` +
-                  ` reflects the full record, call generate_docx without` +
-                  ` markdown to render it.`;
-              }
-            }
             return upstreamMikeResult(call, {
               error:
                 `coverage_check: ${unexposed.length} document(s) have had no` +
@@ -8371,7 +8368,17 @@ export async function runLocalAssistantTools(
                 ` opened): ${unexposed.join(", ")}. Read the ones relevant to` +
                 ` the request first — scoped windows are fine. If none are` +
                 ` relevant, call this tool again and it will proceed.` +
-                draftNote,
+                refineNote,
+            });
+          }
+          if (body) {
+            requirementsState.exposureNudgeServed = true;
+            return upstreamMikeResult(call, {
+              error:
+                `refine_check: draft received. All ${allowedForCheck.length}` +
+                ` document(s) have had body content served this turn —` +
+                ` coverage is complete.` +
+                refineNote,
             });
           }
         }
