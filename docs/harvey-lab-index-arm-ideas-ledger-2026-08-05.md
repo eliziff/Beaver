@@ -1618,3 +1618,41 @@ insurance) was externally killed — dead run-state-only dirs, never
 judged, never in any grid. Resumed 2-wide per the
 less-parallelism directive: tax rep2 + DPA gen-7 in flight,
 insurance + closing gen-7 queued behind them.
+
+## GEN-7 BREADTH VALIDATION BATTERY (design, 2026-08-07 afternoon, Fable)
+
+**Eli's direction:** no tax-specific attack unless a simple idea
+generalizes; the spend goes to validating the fixed shape (echo-v2 +
+draft-edit-v4, arm `coding_markdown_v5`, flash runner + flash judge,
+judge-once) over a BROADER task set, with re-runs only where n=1
+leaves real ambiguity. Panel results so far: DPA gen-7 **51/58**
+(plateau band 51-52 — checkpoint score-neutral again); insurance +
+closing gen-7 and tax rep2 judgment in flight; acq gen-7 rep2 queued
+(the +3-linkage claim rests on one row).
+
+**Breadth set — 12 tasks, 11 new practice areas, chosen from the
+489-task launchpad census for verb/size/doc-count spread** (docx
+bytes as size rank; the 4 `diligence` data-room tasks at 2.8k-3.6k
+docs are a different weight class, excluded):
+1. real-estate/extract-psa-key-terms/scenario-01 — extract, 3d, 75c
+2. banking-finance/extract-credit-agreement-covenants — extract, 3d, 65c
+3. banking-finance/compare-credit-agreement-against-term-sheet — compare, 3d, 33c
+4. arbitration.../analyze-counterparty-markup-of-arbitration-agreement — markup, 5d, 69c
+5. data-privacy.../audit-privacy-policy-compliance/scenario-01 — audit, 5d, 50c
+6. international-trade-sanctions/compare-entity-details-against-ofac-sanctions-list — screening compare, 5d, 53c
+7. corporate-governance/analyze-eu-ai-act-high — regulatory gap, 7d, 66c
+8. bankruptcy.../compare-plan-treatment-across-creditor-classes — compare, 8d, 61c
+9. intellectual-property/analyze-restrictive-covenant-enforceability-across-multiple-jurisdictions — cross-doc analysis, 13d, 59c
+10. funds-asset-management/analyze-fund-economics-comparison — QUANTITATIVE stress, 14d, 106c (does the tax-class quantitative-synthesis collapse generalize, or was tax special?)
+11. litigation-dispute-resolution/build-litigation-case-timeline — many-doc synthesis, 15d, 66c
+12. energy-natural-resources/analyze-counterparty-markup-of-credit-agreement — LARGEST corpus stress, 12d, 83c
+
+**Validation read-out per run** (mechanism scorecard, not just
+score): checkpoint route (`refine_check` vs `coverage_check` and
+whether the unread list is TRUE), edit count + ok:true +
+substantiveness, re-read behavior after the checkpoint, single final
+render, no compaction/window failure on the flash lane, cacheadj.
+Scores stand alone (no baselines exist on these tasks) — breadth
+validates the MECHANISM and surfaces task-genre failure modes;
+superiority claims stay on the 7-task panel where strata exist.
+Execution 2-wide, judge-as-they-land.
