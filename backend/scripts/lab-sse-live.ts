@@ -221,11 +221,16 @@ function newestRunDir(
       if (!e.isDirectory()) continue;
       const p = join(dir, e.name);
       if (/^\d{4}-\d{2}-\d{2}T/.test(e.name)) {
+        let mtime: number;
+        try {
+          mtime = statSync(p).mtimeMs;
+        } catch {
+          continue; // run dir mid-creation/deletion — skip, rescan catches it
+        }
         const pNorm = p.replace(/\\/g, "/");
         if (task && !pNorm.includes(task)) continue;
         if (arm && !pNorm.includes(`beaver-${arm}`)) continue;
         if (excludeArm && pNorm.includes(`beaver-${excludeArm}`)) continue;
-        const mtime = statSync(p).mtimeMs;
         all.push({ path: p, mtime });
         if (rawSseActive(p) && !isFinishedRun(p)) running.push({ path: p, mtime });
       } else {
