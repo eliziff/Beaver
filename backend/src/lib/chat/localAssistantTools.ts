@@ -8308,11 +8308,20 @@ export async function runLocalAssistantTools(
                 requirementsState.draftMarkdown = body;
                 requirementsState.draftFilename =
                   trimmed(args.filename) || null;
+                // draft-edit-v2: the v1 note induced a serial full-read of
+                // every listed document followed by a byte-identical render
+                // (Edit went 0-for-7 in the gen-5 battery). Selective
+                // verification is the instruction now, and rendering without
+                // further reads is named as legitimate.
                 draftNote =
                   ` Your draft (${body.length} chars) is saved as draft.md —` +
-                  ` do NOT re-send the body: revise it with Edit` +
-                  ` (old_string/new_string), then call generate_docx again` +
-                  ` without markdown to render the edited draft.`;
+                  ` do NOT re-send the body. Verify the listed documents` +
+                  ` selectively: Grep or skim them only for facts that` +
+                  ` contradict or add to your draft, and apply what you find` +
+                  ` with Edit (old_string/new_string). Then call` +
+                  ` generate_docx without markdown to render the saved` +
+                  ` draft — if the draft already covers them, render without` +
+                  ` further reads.`;
               }
             }
             return upstreamMikeResult(call, {
