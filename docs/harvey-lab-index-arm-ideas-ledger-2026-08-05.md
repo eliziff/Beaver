@@ -1462,3 +1462,63 @@ killed; its `2026-08-07T05-05-06` dir stays as a killed artifact,
 never judged, never in any grid. Phase-D's sonnet-shakeout step is
 dead; any future claude-p leg is opus-4-8 only and only on Eli's
 explicit ask.
+
+## FALSE-REFUSAL DISCOVERY + COMPOSITION-COVERAGE LENS + v3/v4 REFINEMENT ARC (2026-08-07 ~07:00, Fable)
+
+**CORRECTION of the previous entry's causal claim.** "Drafting early
+beats drafting late" was a call-index artifact. The draft-timing table
+over all 21 judged runs (first bodied generate_docx position + distinct
+docs Read before it, from raw SSE) shows the real variable is EVIDENCE
+COVERAGE AT COMPOSITION: tax scored 96%-coverage 53 (g5), 92% w/
+re-emission 42 (g4), 64% + 2 edits 48 (v3 r1), 48% 45 (g3). Only tax
+varies below 100% — every other task self-achieves full coverage before
+drafting, which is why its scores barely move across generations.
+
+**BUG: every echo firing in the coding family was a FALSE refusal.**
+The coding-shape Read never wrote `turnReadState` — the state
+`splitReadExposure` consults at the generate_docx gate
+(`runCodingShapeCall` had no such parameter; the one recording site in
+the file was the mike-shape readOne). The gate always saw an empty map
+and refused the first bodied draft with an ALL-documents "never opened"
+list: verified tax g5 listed 25/25 with 24 actually read, acq v3 listed
+31/31 with 31 read. The model believed the list and serially re-read
+everything — the true source of tax +277k / acq +128k cacheadj. The
+echo never once measured coverage on this chassis; gen-4's "parity" and
+gen-5's routes all rode a fabricated refusal. Fix (`ada6e7c8`): the
+four coding Read success paths record served spans as merged intervals
+(body-only plane, bodyStart 0); Grep hits and .toc reads stay
+non-exposure by doctrine. Receipt `exposure-echo-v2`. Gen-7 smoke
+(employment 06-45-38, echo-v2 + draft-edit-v3): honest gate stayed
+SILENT at full coverage — single emission, zero ceremony, cacheadj
+67.5k = cheapest employment row of the night (g3 121.8k, g4 89.6k, g5
+99.5k).
+
+**Draft-edit-v3 wave (refinement-forward note; Eli's loop: draft →
+keep → selective reads → precise edits → render).** v2's
+"render-without-reads-is-fine" tail was killed before any judged row
+(3 part-run dirs are killed artifacts; receipt bumped v2→v3 so killed
+receipts never alias live bytes — `c19dafdb` superseded by
+`8e962c58`). v3 results, all flash: acq 58/64 then 60/64 — BOTH above
+the 56-57 ceiling of gens 3-5, second sample also cheapest (513.8k
+cacheadj); tax 48/77 + 51/77 (above g3 45/g4 42, below g5's
+96%-coverage 53); HSR 48/50 (ceiling band). Edits went 2/2/2/2/4, all
+ok:true, all substantive — including a genuine numerical correction
+(tax balance-sheet reconciliation figures) discovered by post-draft
+verification. Verdict: edits add +1..+3 ON TOP of full-coverage
+drafts; they cannot substitute for coverage at composition (both v3
+tax deliverables thin: 43.4k/38.9k chars vs g5's 50.1k).
+
+**draft-edit-v4 (`bc57d942`): universal refinement checkpoint.** The
+honest gate interacts destructively with v3: acq's refinement gains
+existed only because the FALSE refusal captured the draft at full
+coverage — an honest shortfall-only gate never pauses those runs, so
+the checkpoint (and the +1..+3) silently vanishes. v4 decouples
+capture from coverage: the first bodied generate_docx always pauses
+once — draft saved as draft.md, coverage reported honestly (true
+unread list when short; "all N documents served" when complete),
+refinement note (Grep/scoped-Read selectively, fold findings in with
+Edit, render markdown-less) — and the next call renders. Echo-only
+arms keep pure shortfall-refusal semantics. Argless probes at full
+coverage fall through to the typed invalid-input refusal (no empty
+render path). Gen-7 stratum = (exposure-echo-v2, draft-edit-v4);
+battery starting tax + acq (the discriminating tasks), then the rest.
