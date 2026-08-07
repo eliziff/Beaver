@@ -8369,8 +8369,13 @@ export async function runLocalAssistantTools(
         // terminal-authoring exit (chat.ts, which requires
         // committedMutationReceipt(...).action === "created") does not fire
         // either. The turn therefore continues and the model can comply.
+        // Under the exposure gate (both mechanisms live) this refusal would
+        // double-block the first authoring call: the coverage refusal below
+        // already re-serves the verbatim requirements, so the pre-refusal is
+        // skipped and that gate is the single enforcement point.
         if (
           REQUIREMENTS_ECHO_ENABLED &&
+          !EXPOSURE_ECHO_ENABLED &&
           (requirementsState?.echoCallCount ?? 0) === 0
         ) {
           return upstreamMikeResult(call, {
@@ -8433,7 +8438,31 @@ export async function runLocalAssistantTools(
               ` reflects the full record, call generate_docx without` +
               ` markdown to render it.`
             : "";
+          // REQUIREMENTS echo rides the same checkpoint as the coverage echo:
+          // when both mechanisms are live, the refusal that names unread
+          // coverage also re-serves the verbatim task prompt. The rubric-shaped
+          // misses (risk quantification table, action-item matrix) are
+          // composition choices — the model only revisits them if the
+          // deliverable requirements sit in front of it at the refine
+          // checkpoint, not just the record. Served once (echoCallCount 0 -> 1)
+          // so a fetch_requirements that already ran this turn is never
+          // double-paid, and the receipt's documentsUnreadAtEcho records how
+          // much remained unread at that first serve.
+          const requirementsEcho =
+            REQUIREMENTS_ECHO_ENABLED &&
+            EXPOSURE_ECHO_ENABLED &&
+            requirementsText &&
+            (requirementsState?.echoCallCount ?? 0) === 0
+              ? `\n\nTASK REQUIREMENTS (verbatim):\n${requirementsText}`
+              : "";
+          const serveRequirementsEcho = (unreadCount: number) => {
+            if (requirementsEcho && requirementsState) {
+              requirementsState.echoCallCount += 1;
+              requirementsState.documentsUnreadAtEcho = unreadCount;
+            }
+          };
           if (unexposed.length) {
+            serveRequirementsEcho(unexposed.length);
             requirementsState.exposureNudgeServed = true;
             return upstreamMikeResult(call, {
               error:
@@ -8442,17 +8471,20 @@ export async function runLocalAssistantTools(
                 ` opened): ${unexposed.join(", ")}. Read the ones relevant to` +
                 ` the request first — scoped windows are fine. If none are` +
                 ` relevant, call this tool again and it will proceed.` +
-                refineNote,
+                refineNote +
+                requirementsEcho,
             });
           }
           if (body) {
+            serveRequirementsEcho(0);
             requirementsState.exposureNudgeServed = true;
             return upstreamMikeResult(call, {
               error:
                 `refine_check: draft received. All ${allowedForCheck.length}` +
                 ` document(s) have had body content served this turn —` +
                 ` coverage is complete.` +
-                refineNote,
+                refineNote +
+                requirementsEcho,
             });
           }
         }
