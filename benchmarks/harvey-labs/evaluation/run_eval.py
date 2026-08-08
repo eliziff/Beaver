@@ -151,6 +151,7 @@ def evaluate_run(
         "run_id": run_id,
         "task": task,
         "judge_model": judge.model,
+        "judge_effort": judge.reasoning_effort,
         "scored_at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -210,6 +211,11 @@ def main():
         help="Model to use as LLM judge",
     )
     parser.add_argument(
+        "--judge-effort",
+        choices=("low", "medium", "high", "max"),
+        help="Reasoning effort sent to judges that support it.",
+    )
+    parser.add_argument(
         "--parallel",
         type=int,
         default=6,
@@ -243,9 +249,11 @@ def main():
 
     print(f"Evaluating run '{args.run_id}' on task '{args.task}'")
     print(f"Judge model: {args.judge_model}")
+    if args.judge_effort:
+        print(f"Judge effort: {args.judge_effort}")
     print()
 
-    judge = Judge(model=args.judge_model)
+    judge = Judge(model=args.judge_model, reasoning_effort=args.judge_effort)
 
     if args.judge_samples > 1:
         run_dir = RESULTS_DIR / args.run_id

@@ -41,6 +41,11 @@ def aggregate_run(run_dir: Path) -> dict:
             f"{run_dir}: samples were judged by different models: {judge_models} — "
             "majority across judges is not a defined quantity"
         )
+    judge_efforts = {s.get("judge_effort") for s in samples}
+    if len(judge_efforts) != 1:
+        raise ValueError(
+            f"{run_dir}: samples used different judge efforts: {judge_efforts}"
+        )
 
     # Criterion order and titles from the first sample; every sample must
     # cover the identical criterion set.
@@ -77,6 +82,7 @@ def aggregate_run(run_dir: Path) -> dict:
         "run_id": samples[0].get("run_id"),
         "task": samples[0].get("task"),
         "judge_model": samples[0].get("judge_model"),
+        "judge_effort": samples[0].get("judge_effort"),
         "aggregation": "majority",
         "n_samples": len(samples),
         "sample_files": [p.name for p in sample_paths],

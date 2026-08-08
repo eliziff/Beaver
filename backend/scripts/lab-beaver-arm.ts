@@ -50,6 +50,9 @@ import {
   CODING_MARKDOWN_BUDGET_LAB_SYSTEM_PROMPT,
   CODING_MARKDOWN_TRIAGE_LAB_SYSTEM_PROMPT,
   CODING_MARKDOWN_TRIAGE_FLOOR_LAB_SYSTEM_PROMPT,
+  CODING_MARKDOWN_FINAL_DELTA,
+  CODING_MARKDOWN_FINAL_LAB_SYSTEM_PROMPT,
+  CODING_MARKDOWN_FINAL_LAB_TOOLS,
   CODING_MARKDOWN_V2_DELTA,
   CODING_MARKDOWN_V2_LAB_TOOLS,
   CODING_MARKDOWN_V3_DELTA,
@@ -57,6 +60,7 @@ import {
   CODING_MARKDOWN_V4_DELTA,
   CODING_MARKDOWN_V5_DELTA,
   CODING_MARKDOWN_V5_LAB_TOOLS,
+  CODING_MARKDOWN_V5_DRAFT_EDIT_LAB_TOOLS,
   CODING_NEUTRAL_PROMPT_DELTA,
   CODING_PARITY_DELTA,
   CODING_TOC_FILES_DELTA,
@@ -253,7 +257,7 @@ function armExpectedSurface(
                 // v5 gen-6: the consolidated arm carries the completeness floor
                 // (receipt's completeness_floor flag is the ablation boundary).
                 systemPrompt: CODING_MARKDOWN_TRIAGE_FLOOR_LAB_SYSTEM_PROMPT,
-                tools: CODING_MARKDOWN_V5_LAB_TOOLS,
+                tools: CODING_MARKDOWN_V5_DRAFT_EDIT_LAB_TOOLS,
               }
           : // T3 (v5_comp): the FULL v5 chassis — completeness floor INCLUDED
             // (the floor is IN the treatment arm). Same floor triage const v5
@@ -261,7 +265,12 @@ function armExpectedSurface(
           arm === "coding_markdown_v5_comp"
             ? {
                 systemPrompt: CODING_MARKDOWN_TRIAGE_FLOOR_LAB_SYSTEM_PROMPT,
-                tools: CODING_MARKDOWN_V5_LAB_TOOLS,
+                tools: CODING_MARKDOWN_V5_DRAFT_EDIT_LAB_TOOLS,
+              }
+          : arm === "coding_markdown_final_v1"
+            ? {
+                systemPrompt: CODING_MARKDOWN_FINAL_LAB_SYSTEM_PROMPT,
+                tools: CODING_MARKDOWN_FINAL_LAB_TOOLS,
               }
           : // T2 (v5_echo): the same v5 chassis + requirements echo. Prompt is
             // composed by the same helper chat.ts serves through
@@ -286,7 +295,7 @@ function armExpectedSurface(
                     scopedReread: false,
                   },
                 ),
-                tools: CODING_MARKDOWN_V5_LAB_TOOLS,
+                tools: CODING_MARKDOWN_V5_DRAFT_EDIT_LAB_TOOLS,
               }
             : arm === "mike_grep_v1"
               ? {
@@ -1331,6 +1340,35 @@ async function main() {
       MIKE_COMPLETENESS_FLOOR: "1",
       MIKE_COMPOSITION_CHECK: "1",
     },
+    coding_markdown_final_v1: {
+      MIKE_NAV_SHAPE: "legacy",
+      MIKE_TOOL_SHAPE: "lean-batch-v1",
+      MIKE_RETRIEVAL_EXPERIMENT: "p0-pure-coding",
+      MIKE_PROGRESSIVE_DISCLOSURE: "0",
+      MIKE_MODEL_COVERAGE_ROUTING: "0",
+      MIKE_WHOLE_READ_MAX_CHARS: "",
+      MIKE_TOOL_RESULT_CAP: "64000",
+      MIKE_SUPPRESS_DUPLICATE_WHOLE_READS: "0",
+      MIKE_TERMINAL_AUTHORING: "1",
+      MIKE_CONTEXT_HANDOFF: "0",
+      MIKE_RESEARCH_CONTEXT_REFRESH: "0",
+      MIKE_CONTINUOUS_EVIDENCE: "0",
+      MIKE_OPENAI_COMPACT_THRESHOLD: "244800",
+      MIKE_SLA_WORKFLOW: "0",
+      MIKE_GREENFIELD_REVIEW: "0",
+      MIKE_READ_DOCX_MARKDOWN: "1",
+      MIKE_CODING_NEUTRAL_PROMPT: "1",
+      MIKE_CODING_PARITY: "1",
+      MIKE_GREP_SECTION_CONTEXT: "1",
+      MIKE_CODING_TOC_FILES: "1",
+      MIKE_GREP_PER_FILE_BUDGET: "1",
+      MIKE_TRIAGE_WORKFLOW: "1",
+      MIKE_EXPOSURE_ECHO: "1",
+      MIKE_DRAFT_EDIT: "1",
+      MIKE_COMPLETENESS_FLOOR: "0",
+      MIKE_COMPOSITION_CHECK: "0",
+      MIKE_FINAL_ARM: "1",
+    },
     lean_batch_hardrefs_v1: {
       MIKE_NAV_SHAPE: "legacy",
       MIKE_TOOL_SHAPE: "lean-batch-hardrefs-v1",
@@ -1484,7 +1522,7 @@ async function main() {
   };
   if (!armEnvironment[arm])
     throw new Error(
-      `unknown --arm ${arm}; expected a registered LAB arm, including upstream_terminal_v1, mike_upstream_native_v1, mike_markdown_e2e_treatment_v1, mike_markdown_e2e_treatment_v2, mike_markdown_swap_v1, mike_markdown_e2e_v1, mike_markdown_e2e_index_v1, mike_markdown_e2e_floor_v1, mike_markdown_e2e_index_floor_v1, mike_markdown_e2e_index_treatment_v1, mike_markdown_e2e_index_treatment_v2, mike_markdown_read_upstream_draft_v1, mike_compact_author_v1, lean_batch_v1, lean_batch_hardrefs_v1, coding_markdown_v1, coding_markdown_v2, coding_markdown_v3, coding_markdown_v4, coding_markdown_v5, coding_markdown_v5_comp, coding_markdown_v5_reqecho_v1, coding_markdown_v5_reqecho_draft_v1, or grounded_structure_outline_v1`,
+      `unknown --arm ${arm}; expected a registered LAB arm, including upstream_terminal_v1, mike_upstream_native_v1, mike_markdown_e2e_treatment_v1, mike_markdown_e2e_treatment_v2, mike_markdown_swap_v1, mike_markdown_e2e_v1, mike_markdown_e2e_index_v1, mike_markdown_e2e_floor_v1, mike_markdown_e2e_index_floor_v1, mike_markdown_e2e_index_treatment_v1, mike_markdown_e2e_index_treatment_v2, mike_markdown_read_upstream_draft_v1, mike_compact_author_v1, lean_batch_v1, lean_batch_hardrefs_v1, coding_markdown_v1, coding_markdown_v2, coding_markdown_v3, coding_markdown_v4, coding_markdown_v5, coding_markdown_v5_comp, coding_markdown_final_v1, coding_markdown_v5_reqecho_v1, coding_markdown_v5_reqecho_draft_v1, or grounded_structure_outline_v1`,
     );
 
   // Re-spawn into the isolated anonymous-mode environment (same recipe as
@@ -1576,6 +1614,8 @@ async function main() {
           MIKE_GREP_PER_FILE_BUDGET: "",
           MIKE_DRAFT_EDIT: "",
           MIKE_REQECHO_DRAFT_MODE: "",
+          MIKE_COMPOSITION_CHECK: "",
+          MIKE_FINAL_ARM: "",
           // Compute-only ablation. It does not change tool schemas, prompts,
           // or extracted text; a PDF is still created on the first paged read.
           MIKE_EAGER_OFFICE_PDF_RENDITION:
@@ -2065,6 +2105,38 @@ async function main() {
   );
   const compositionCheckFindings = Number(
     compositionCheckReceipt?.composition_check_findings ?? 0,
+  );
+  const finalArmReceipt =
+    events.filter((event) => event.type === "benchmark_final_arm").at(-1) ??
+    null;
+  const firstDraftCount = Number(finalArmReceipt?.first_draft_count ?? 0);
+  const finalFirstDraftCoverage =
+    finalArmReceipt?.first_draft_coverage &&
+    typeof finalArmReceipt.first_draft_coverage === "object"
+      ? (finalArmReceipt.first_draft_coverage as Record<string, unknown>)
+      : null;
+  const finalBodyEvidence = Array.isArray(
+    finalFirstDraftCoverage?.bodyEvidence,
+  )
+    ? finalFirstDraftCoverage.bodyEvidence
+    : [];
+  const finalTocOnly = Array.isArray(finalFirstDraftCoverage?.tocOnly)
+    ? finalFirstDraftCoverage.tocOnly
+    : [];
+  const finalUnseen = Array.isArray(finalFirstDraftCoverage?.unseen)
+    ? finalFirstDraftCoverage.unseen
+    : [];
+  const signalGateCount = Number(finalArmReceipt?.signal_gate_count ?? 0);
+  const finalDraftEditCount = Number(finalArmReceipt?.draft_edit_count ?? 0);
+  const finalSourceEditCount = Number(finalArmReceipt?.source_edit_count ?? 0);
+  const finalSourceEditRefusalCount = Number(
+    finalArmReceipt?.source_edit_refusal_count ?? 0,
+  );
+  const compositionCheckShadowCount = Number(
+    finalArmReceipt?.composition_check_shadow_count ?? 0,
+  );
+  const compositionCheckShadowFindings = Number(
+    finalArmReceipt?.composition_check_shadow_findings ?? 0,
   );
   // A native ask_inputs termination is a FIRST-CLASS measured outcome, not a
   // harness failure: upstream ends the turn on ask_inputs with no tool_result
@@ -2669,6 +2741,7 @@ async function main() {
       "coding_markdown_v4",
       "coding_markdown_v5",
       "coding_markdown_v5_comp",
+      "coding_markdown_final_v1",
       "coding_markdown_v5_reqecho_v1",
       "coding_markdown_v5_reqecho_draft_v1",
     ].includes(arm)
@@ -2693,6 +2766,7 @@ async function main() {
     const grepPerFileBudget =
       arm === "coding_markdown_v5" ||
       arm === "coding_markdown_v5_comp" ||
+      arm === "coding_markdown_final_v1" ||
       arm === "coding_markdown_v5_reqecho_v1" ||
       arm === "coding_markdown_v5_reqecho_draft_v1" ||
       arm === "coding_markdown_v5_reqecho_draft_v1";
@@ -2707,6 +2781,7 @@ async function main() {
       arm === "coding_markdown_v5_reqecho_draft_v1";
     const reqechoDraftArm = arm === "coding_markdown_v5_reqecho_draft_v1";
     const compositionCheckArm = arm === "coding_markdown_v5_comp";
+    const finalArm = arm === "coding_markdown_final_v1";
     // Completeness floor rides the consolidated v5 arm (gen-6 lever) and the
     // comp treatment arm (floor IN the treatment, per Eli); the reqecho T2
     // contrast stays floor-off so the echo variable is unconfounded.
@@ -2756,6 +2831,11 @@ async function main() {
       surface?.scoped_reread !== false ||
       surface?.requirements_echo !== requirementsEchoArm ||
       surface?.composition_check !== compositionCheckArm ||
+      surface?.final_arm !== finalArm ||
+      surface?.signal_gate !== finalArm ||
+      surface?.grep_body_exposure !== finalArm ||
+      surface?.source_immutable !== finalArm ||
+      surface?.composition_check_shadow !== finalArm ||
       surface?.lean_batch_hardrefs_shape !== hardrefs ||
       surface?.hard_reference_hints !== hardrefs ||
       surface?.markdown_read_docx !== codingMarkdown ||
@@ -2815,6 +2895,32 @@ async function main() {
       throw new Error(
         `${arm} produced no composition check (composition_check_count=${compositionCheckCount}); the checkpoint did not run`,
       );
+    }
+    if (finalArm) {
+      const coveredDocuments =
+        finalBodyEvidence.length + finalTocOnly.length + finalUnseen.length;
+      const expectedGateCount =
+        finalTocOnly.length + finalUnseen.length > 0 ? 1 : 0;
+      if (
+        !finalArmReceipt ||
+        firstDraftCount !== 1 ||
+        coveredDocuments !== documents.length ||
+        signalGateCount !== expectedGateCount ||
+        signalGateCount > 1 ||
+        finalSourceEditCount !== 0 ||
+        finalSourceEditRefusalCount !== 0 ||
+        compositionCheckShadowCount < 1
+      ) {
+        throw new Error(
+          `${arm} final receipt failed: firstDraft=${firstDraftCount};` +
+            ` body=${finalBodyEvidence.length}; tocOnly=${finalTocOnly.length};` +
+            ` unseen=${finalUnseen.length}; gate=${signalGateCount};` +
+            ` draftEdits=${finalDraftEditCount}; sourceEdits=${finalSourceEditCount};` +
+            ` sourceEditRefusals=${finalSourceEditRefusalCount};` +
+            ` shadowChecks=${compositionCheckShadowCount};` +
+            ` shadowFindings=${compositionCheckShadowFindings}`,
+        );
+      }
     }
   }
   const mikeGrepArms = [
@@ -3096,6 +3202,7 @@ async function main() {
       "coding_markdown_v4",
       "coding_markdown_v5",
       "coding_markdown_v5_comp",
+      "coding_markdown_final_v1",
       "coding_markdown_v5_reqecho_v1",
       "coding_markdown_v5_reqecho_draft_v1",
       "mike_grep_v1",
@@ -3303,17 +3410,23 @@ async function main() {
       .map(async (filename) => {
         const bytes = readFileSync(path.join(outputDir, filename));
         let textChars: number | null = null;
+        let textSha256: string | null = null;
         if (/\.docx$/iu.test(filename)) {
-          textChars = await extractDocxBodyStructure(bytes)
-            .then((body) => body.text.length)
-            .catch(() => null);
+          const body = await extractDocxBodyStructure(bytes).catch(() => null);
+          if (body) {
+            textChars = body.text.length;
+            textSha256 = createHash("sha256").update(body.text).digest("hex");
+          }
         } else if (/\.(md|txt)$/iu.test(filename)) {
-          textChars = bytes.toString("utf8").length;
+          const text = bytes.toString("utf8");
+          textChars = text.length;
+          textSha256 = createHash("sha256").update(text).digest("hex");
         }
         return {
           filename,
           bytes: bytes.length,
           text_chars: textChars,
+          text_sha256: textSha256,
           sha256: createHash("sha256").update(bytes).digest("hex"),
           source: deliverableSources[filename] ?? "library",
         };
@@ -3451,6 +3564,27 @@ async function main() {
         "drafting fidelity readings are compromised",
     );
   }
+  if (arm === "coding_markdown_final_v1") {
+    const resultIds = new Set(results.map((result) => result.id));
+    const missingResults = calls.filter((call) => !resultIds.has(call.id));
+    const hardFailures = results.filter((result) => !result.ok);
+    const truncatedResults = results.filter(
+      (result) => result.status === "truncated",
+    );
+    if (
+      compactions.length ||
+      missingResults.length ||
+      hardFailures.length ||
+      truncatedResults.length
+    ) {
+      throw new Error(
+        `${arm} execution receipt failed: compactions=${compactions.length};` +
+          ` missing_results=${missingResults.length};` +
+          ` failed_results=${hardFailures.length};` +
+          ` truncated_results=${truncatedResults.length}`,
+      );
+    }
+  }
   // The default-tier and session prompt-cache receipt gates below were built
   // for the Anthropic/codex lane, which reports service tiers and prompt-cache
   // keys on every response. The deepseek provider structurally reports neither
@@ -3488,6 +3622,7 @@ async function main() {
     "coding_markdown_v4",
     "coding_markdown_v5",
     "coding_markdown_v5_comp",
+    "coding_markdown_final_v1",
     "coding_markdown_v5_reqecho_v1",
     "coding_markdown_v5_reqecho_draft_v1",
     ...mikeGrepArms,
@@ -3760,6 +3895,8 @@ async function main() {
       arm === "coding_markdown_v5_reqecho_draft_v1"
         ? CODING_MARKDOWN_V5_DELTA
         : null,
+    coding_markdown_final_delta:
+      arm === "coding_markdown_final_v1" ? CODING_MARKDOWN_FINAL_DELTA : null,
     grep_per_file_budget_delta:
       arm === "coding_markdown_v5" ||
       arm === "coding_markdown_v5_comp" ||
@@ -4257,6 +4394,10 @@ async function main() {
           arm === "coding_markdown_v5_reqecho_draft_v1"
             ? CODING_MARKDOWN_V5_DELTA
             : null,
+        coding_markdown_final_delta:
+          arm === "coding_markdown_final_v1"
+            ? CODING_MARKDOWN_FINAL_DELTA
+            : null,
         grep_per_file_budget_delta:
           arm === "coding_markdown_v5" ||
           arm === "coding_markdown_v5_reqecho_v1" ||
@@ -4337,6 +4478,8 @@ async function main() {
           ["lean_batch_v1", "lean_batch_hardrefs_v1"].includes(arm)
             ? true
             : null,
+        final_arm_isolation_verified:
+          arm === "coding_markdown_final_v1" ? true : null,
         mike_grep_isolation_verified: mikeGrepDerived ? true : null,
         v5_strategy_isolation_verified:
           arm === "v5_reconstruction_v1" ? true : null,
@@ -4512,6 +4655,16 @@ async function main() {
         echo_call_count: echoCallCount,
         documents_unread_at_echo: documentsUnreadAtEcho,
         documents_oriented_only_at_echo: documentsOrientedOnlyAtEcho,
+        first_draft_count: firstDraftCount,
+        first_draft_body_evidence: finalBodyEvidence.length,
+        first_draft_toc_only: finalTocOnly.length,
+        first_draft_unseen: finalUnseen.length,
+        signal_gate_count: signalGateCount,
+        draft_edit_count: finalDraftEditCount,
+        source_edit_count: finalSourceEditCount,
+        source_edit_refusal_count: finalSourceEditRefusalCount,
+        composition_check_shadow_count: compositionCheckShadowCount,
+        composition_check_shadow_findings: compositionCheckShadowFindings,
         hard_reference_hints_offered: hardReferenceHints.length,
         hard_reference_hints_followed: followedHardReferenceHints.length,
         hard_reference_hint_follow_rate:
@@ -4689,6 +4842,7 @@ async function main() {
         tool_calls: calls,
         tool_results: results,
         surface,
+        final_arm_receipt: finalArmReceipt,
         research_context_refreshes: researchContextRefreshes,
         research_checkpoint_requests: researchCheckpointRequests,
         research_checkpoints: researchCheckpoints,
@@ -4850,6 +5004,10 @@ async function main() {
           arm === "coding_markdown_v5_reqecho_draft_v1"
             ? CODING_MARKDOWN_V5_DELTA
             : null,
+        coding_markdown_final_delta:
+          arm === "coding_markdown_final_v1"
+            ? CODING_MARKDOWN_FINAL_DELTA
+            : null,
         grep_per_file_budget_delta:
           arm === "coding_markdown_v5" ||
           arm === "coding_markdown_v5_reqecho_v1" ||
@@ -4898,6 +5056,26 @@ async function main() {
         deviations: {
           uploads_wrapped_as_docx: wrappedUploads,
         },
+      },
+      null,
+      2,
+    ),
+  );
+
+  // Close the typed lifecycle receipt only after every required artifact has
+  // been written. A clean run must not remain indistinguishable from a process
+  // killed during the provider call.
+  const completedStatePath = path.join(runDir, "run-state.json");
+  const completedState = JSON.parse(
+    readFileSync(completedStatePath, "utf8"),
+  ) as Record<string, unknown>;
+  writeFileSync(
+    completedStatePath,
+    JSON.stringify(
+      {
+        ...completedState,
+        status: "completed",
+        completed_at: new Date().toISOString(),
       },
       null,
       2,
