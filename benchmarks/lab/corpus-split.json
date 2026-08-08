@@ -4738,8 +4738,8 @@
    "genre": "aerospace",
    "scenarios": [],
    "files": 2864,
-   "bytes": 141940755,
-   "sha256": "ba442f1999ceba4224059a34e543a975da64bda2e8ea930c2bcee4929ae51153"
+   "bytes": 141940261,
+   "sha256": "33f5bcf6a235acd5e4c8e824b0f3b391aeeae7859c4bff02b1d33b53314c07c3"
   },
   {
    "task": "diligence/cybersecurity-tuck-in",
