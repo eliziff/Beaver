@@ -79,6 +79,7 @@ import {
   TYPED_RANGE_ENABLED,
   REQUIREMENTS_ECHO_ENABLED,
   REQECHO_DRAFT_MODE_ENABLED,
+  COMPOSITION_CHECK_ENABLED,
   createLocalAssistantRequirementsState,
   SUPPRESS_DUPLICATE_WHOLE_READS,
   TERMINAL_AUTHORING_ENABLED,
@@ -2691,6 +2692,7 @@ export async function streamAnonymousChat(params: {
           typed_range: TYPED_RANGE_ENABLED,
           index_compact_headings: INDEX_COMPACT_HEADINGS,
           completeness_floor: COMPLETENESS_FLOOR_ENABLED,
+          composition_check: COMPOSITION_CHECK_ENABLED,
           lean_batch_shape: LEAN_BATCH_TOOL_SHAPE,
           lean_batch_hardrefs_shape: LEAN_BATCH_HARDREFS_TOOL_SHAPE,
           hard_reference_hints: LEAN_BATCH_HARDREFS_TOOL_SHAPE,
@@ -3485,6 +3487,19 @@ export async function streamAnonymousChat(params: {
         documents_unread_at_echo: localRequirementsState.documentsUnreadAtEcho,
         documents_oriented_only_at_echo:
           localRequirementsState.documentsOrientedOnlyAtEcho,
+      });
+    }
+    // TREATMENT mechanism 2 (composition check) outcome receipt. Same
+    // post-turn-only rationale as the requirements echo: count/findings are
+    // known only after the draft boundary ran, so they cannot ride on the
+    // static benchmark_surface. count >= 1 proves the checkpoint executed; the
+    // findings count tells the analysis how often it had something to say.
+    if (COMPOSITION_CHECK_ENABLED) {
+      sseWrite(res, {
+        type: "benchmark_composition_check",
+        composition_check_count: localRequirementsState.compositionCheckCount,
+        composition_check_findings:
+          localRequirementsState.compositionCheckFindings,
       });
     }
     sseFinishTurn(citations);
