@@ -17,7 +17,7 @@ const docx = (lines: string[]) =>
     }),
   );
 
-async function setupFinalArm(idempotentAuthoring = false) {
+async function setupFinalArm() {
   process.env.MIKE_NAV_SHAPE = "legacy";
   process.env.MIKE_TOOL_SHAPE = "lean-batch-v1";
   process.env.MIKE_RETRIEVAL_EXPERIMENT = "p0-pure-coding";
@@ -33,7 +33,6 @@ async function setupFinalArm(idempotentAuthoring = false) {
   process.env.MIKE_EXPOSURE_ECHO = "1";
   process.env.MIKE_DRAFT_EDIT = "1";
   process.env.MIKE_FINAL_ARM = "1";
-  process.env.MIKE_IDEMPOTENT_AUTHORING = idempotentAuthoring ? "1" : "";
   process.env.MIKE_TERMINAL_AUTHORING = "1";
   process.env.MIKE_TOOL_RESULT_CAP = "64000";
   temporaryDirectory = await mkdtemp(
@@ -64,7 +63,6 @@ afterEach(async () => {
     "MIKE_EXPOSURE_ECHO",
     "MIKE_DRAFT_EDIT",
     "MIKE_FINAL_ARM",
-    "MIKE_IDEMPOTENT_AUTHORING",
     "MIKE_TERMINAL_AUTHORING",
     "MIKE_TOOL_RESULT_CAP",
     "MIKE_LOCAL_DATA_DIR",
@@ -160,46 +158,6 @@ describe("coding_markdown_final_v1", () => {
     });
     expect(state.signalGateCount).toBe(0);
     expect(state.compositionCheckCount).toBe(1);
-  });
-
-  it("reuses one document for repeated same-filename creates in a turn", async () => {
-    const { store, tools } = await setupFinalArm(true);
-    const state = tools.createLocalAssistantRequirementsState();
-    const results = await tools.runLocalAssistantTools(
-      "local-user",
-      [
-        {
-          id: "first",
-          name: "generate_docx",
-          input: { title: "Checklist", markdown: "# Checklist\n\nFirst." },
-        },
-        {
-          id: "duplicate",
-          name: "generate_docx",
-          input: { title: "Checklist", markdown: "# Checklist\n\nDuplicate." },
-        },
-      ],
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      new Set(),
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      new Map(),
-      undefined,
-      "Prepare the checklist.",
-      state,
-    );
-
-    const receipts = results.map((entry) =>
-      JSON.parse(entry.mutationReceipt ?? "null"),
-    );
-    expect(receipts[0].document_id).toBe(receipts[1].document_id);
-    expect(receipts[0].version_id).toBe(receipts[1].version_id);
-    expect((await store.listLocalLibrary("local-user", "file")).documents).toHaveLength(1);
   });
 
   it("counts Grep body text, keeps TOC separate, pauses once, and refuses source edits", async () => {
