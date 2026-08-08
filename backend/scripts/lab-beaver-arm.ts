@@ -144,6 +144,15 @@ const DEFAULT_LAB_ROOT = path.join(__dirname, "../../benchmarks/harvey-labs");
 // instead of leaving a permanent provider_call_pending stub.
 let activeRunDir: string | null = null;
 
+const CODING_MARKDOWN_FINAL_ARMS = new Set([
+  "coding_markdown_final_v1",
+  "coding_markdown_final_v2",
+]);
+
+function isCodingMarkdownFinalArm(arm: string): boolean {
+  return CODING_MARKDOWN_FINAL_ARMS.has(arm);
+}
+
 // The expected LAB surface per arm: the system prompt the server must have
 // served and the tool schema it must have exposed. Shared by --preflight-only
 // and the post-run conformance gate so a prompt-wiring failure is a hard error,
@@ -267,7 +276,7 @@ function armExpectedSurface(
                 systemPrompt: CODING_MARKDOWN_TRIAGE_FLOOR_LAB_SYSTEM_PROMPT,
                 tools: CODING_MARKDOWN_V5_DRAFT_EDIT_LAB_TOOLS,
               }
-          : arm === "coding_markdown_final_v1"
+          : isCodingMarkdownFinalArm(arm)
             ? {
                 systemPrompt: CODING_MARKDOWN_FINAL_LAB_SYSTEM_PROMPT,
                 tools: CODING_MARKDOWN_FINAL_LAB_TOOLS,
@@ -1369,6 +1378,36 @@ async function main() {
       MIKE_COMPOSITION_CHECK: "0",
       MIKE_FINAL_ARM: "1",
     },
+    coding_markdown_final_v2: {
+      MIKE_NAV_SHAPE: "legacy",
+      MIKE_TOOL_SHAPE: "lean-batch-v1",
+      MIKE_RETRIEVAL_EXPERIMENT: "p0-pure-coding",
+      MIKE_PROGRESSIVE_DISCLOSURE: "0",
+      MIKE_MODEL_COVERAGE_ROUTING: "0",
+      MIKE_WHOLE_READ_MAX_CHARS: "",
+      MIKE_TOOL_RESULT_CAP: "64000",
+      MIKE_SUPPRESS_DUPLICATE_WHOLE_READS: "0",
+      MIKE_TERMINAL_AUTHORING: "0",
+      MIKE_CONTEXT_HANDOFF: "0",
+      MIKE_RESEARCH_CONTEXT_REFRESH: "0",
+      MIKE_CONTINUOUS_EVIDENCE: "0",
+      MIKE_OPENAI_COMPACT_THRESHOLD: "244800",
+      MIKE_SLA_WORKFLOW: "0",
+      MIKE_GREENFIELD_REVIEW: "0",
+      MIKE_READ_DOCX_MARKDOWN: "1",
+      MIKE_CODING_NEUTRAL_PROMPT: "1",
+      MIKE_CODING_PARITY: "1",
+      MIKE_GREP_SECTION_CONTEXT: "1",
+      MIKE_CODING_TOC_FILES: "1",
+      MIKE_GREP_PER_FILE_BUDGET: "1",
+      MIKE_TRIAGE_WORKFLOW: "1",
+      MIKE_EXPOSURE_ECHO: "1",
+      MIKE_DRAFT_EDIT: "1",
+      MIKE_COMPLETENESS_FLOOR: "0",
+      MIKE_COMPOSITION_CHECK: "0",
+      MIKE_FINAL_ARM: "1",
+      MIKE_CODEX_TIMEOUT_MS: "600000",
+    },
     lean_batch_hardrefs_v1: {
       MIKE_NAV_SHAPE: "legacy",
       MIKE_TOOL_SHAPE: "lean-batch-hardrefs-v1",
@@ -1522,7 +1561,7 @@ async function main() {
   };
   if (!armEnvironment[arm])
     throw new Error(
-      `unknown --arm ${arm}; expected a registered LAB arm, including upstream_terminal_v1, mike_upstream_native_v1, mike_markdown_e2e_treatment_v1, mike_markdown_e2e_treatment_v2, mike_markdown_swap_v1, mike_markdown_e2e_v1, mike_markdown_e2e_index_v1, mike_markdown_e2e_floor_v1, mike_markdown_e2e_index_floor_v1, mike_markdown_e2e_index_treatment_v1, mike_markdown_e2e_index_treatment_v2, mike_markdown_read_upstream_draft_v1, mike_compact_author_v1, lean_batch_v1, lean_batch_hardrefs_v1, coding_markdown_v1, coding_markdown_v2, coding_markdown_v3, coding_markdown_v4, coding_markdown_v5, coding_markdown_v5_comp, coding_markdown_final_v1, coding_markdown_v5_reqecho_v1, coding_markdown_v5_reqecho_draft_v1, or grounded_structure_outline_v1`,
+      `unknown --arm ${arm}; expected a registered LAB arm, including upstream_terminal_v1, mike_upstream_native_v1, mike_markdown_e2e_treatment_v1, mike_markdown_e2e_treatment_v2, mike_markdown_swap_v1, mike_markdown_e2e_v1, mike_markdown_e2e_index_v1, mike_markdown_e2e_floor_v1, mike_markdown_e2e_index_floor_v1, mike_markdown_e2e_index_treatment_v1, mike_markdown_e2e_index_treatment_v2, mike_markdown_read_upstream_draft_v1, mike_compact_author_v1, lean_batch_v1, lean_batch_hardrefs_v1, coding_markdown_v1, coding_markdown_v2, coding_markdown_v3, coding_markdown_v4, coding_markdown_v5, coding_markdown_v5_comp, coding_markdown_final_v1, coding_markdown_final_v2, coding_markdown_v5_reqecho_v1, coding_markdown_v5_reqecho_draft_v1, or grounded_structure_outline_v1`,
     );
 
   // Re-spawn into the isolated anonymous-mode environment (same recipe as
@@ -1616,6 +1655,7 @@ async function main() {
           MIKE_REQECHO_DRAFT_MODE: "",
           MIKE_COMPOSITION_CHECK: "",
           MIKE_FINAL_ARM: "",
+          MIKE_CODEX_TIMEOUT_MS: "",
           // Compute-only ablation. It does not change tool schemas, prompts,
           // or extracted text; a PDF is still created on the first paged read.
           MIKE_EAGER_OFFICE_PDF_RENDITION:
@@ -2742,6 +2782,7 @@ async function main() {
       "coding_markdown_v5",
       "coding_markdown_v5_comp",
       "coding_markdown_final_v1",
+      "coding_markdown_final_v2",
       "coding_markdown_v5_reqecho_v1",
       "coding_markdown_v5_reqecho_draft_v1",
     ].includes(arm)
@@ -2766,7 +2807,7 @@ async function main() {
     const grepPerFileBudget =
       arm === "coding_markdown_v5" ||
       arm === "coding_markdown_v5_comp" ||
-      arm === "coding_markdown_final_v1" ||
+      isCodingMarkdownFinalArm(arm) ||
       arm === "coding_markdown_v5_reqecho_v1" ||
       arm === "coding_markdown_v5_reqecho_draft_v1" ||
       arm === "coding_markdown_v5_reqecho_draft_v1";
@@ -2781,7 +2822,8 @@ async function main() {
       arm === "coding_markdown_v5_reqecho_draft_v1";
     const reqechoDraftArm = arm === "coding_markdown_v5_reqecho_draft_v1";
     const compositionCheckArm = arm === "coding_markdown_v5_comp";
-    const finalArm = arm === "coding_markdown_final_v1";
+    const finalArm = isCodingMarkdownFinalArm(arm);
+    const terminalAuthoring = arm !== "coding_markdown_final_v2";
     // Completeness floor rides the consolidated v5 arm (gen-6 lever) and the
     // comp treatment arm (floor IN the treatment, per Eli); the reqecho T2
     // contrast stays floor-off so the echo variable is unconfounded.
@@ -2864,7 +2906,7 @@ async function main() {
       Number(surface?.tool_result_max_chars ?? 0) !== 64_000 ||
       Number(surface?.openai_compact_threshold ?? 0) !== 244_800 ||
       surface?.suppress_duplicate_whole_reads !== false ||
-      surface?.terminal_authoring !== true ||
+      surface?.terminal_authoring !== terminalAuthoring ||
       JSON.stringify(residentTools) !== JSON.stringify(expectedTools) ||
       deferredTools.length > 0 ||
       researchContextRefreshes.length > 0 ||
@@ -3203,6 +3245,7 @@ async function main() {
       "coding_markdown_v5",
       "coding_markdown_v5_comp",
       "coding_markdown_final_v1",
+      "coding_markdown_final_v2",
       "coding_markdown_v5_reqecho_v1",
       "coding_markdown_v5_reqecho_draft_v1",
       "mike_grep_v1",
@@ -3564,7 +3607,7 @@ async function main() {
         "drafting fidelity readings are compromised",
     );
   }
-  if (arm === "coding_markdown_final_v1") {
+  if (isCodingMarkdownFinalArm(arm)) {
     const resultIds = new Set(results.map((result) => result.id));
     const missingResults = calls.filter((call) => !resultIds.has(call.id));
     const hardFailures = results.filter((result) => !result.ok);
@@ -3623,6 +3666,7 @@ async function main() {
     "coding_markdown_v5",
     "coding_markdown_v5_comp",
     "coding_markdown_final_v1",
+    "coding_markdown_final_v2",
     "coding_markdown_v5_reqecho_v1",
     "coding_markdown_v5_reqecho_draft_v1",
     ...mikeGrepArms,
@@ -3896,7 +3940,7 @@ async function main() {
         ? CODING_MARKDOWN_V5_DELTA
         : null,
     coding_markdown_final_delta:
-      arm === "coding_markdown_final_v1" ? CODING_MARKDOWN_FINAL_DELTA : null,
+      isCodingMarkdownFinalArm(arm) ? CODING_MARKDOWN_FINAL_DELTA : null,
     grep_per_file_budget_delta:
       arm === "coding_markdown_v5" ||
       arm === "coding_markdown_v5_comp" ||
@@ -4395,7 +4439,7 @@ async function main() {
             ? CODING_MARKDOWN_V5_DELTA
             : null,
         coding_markdown_final_delta:
-          arm === "coding_markdown_final_v1"
+          isCodingMarkdownFinalArm(arm)
             ? CODING_MARKDOWN_FINAL_DELTA
             : null,
         grep_per_file_budget_delta:
@@ -4479,7 +4523,7 @@ async function main() {
             ? true
             : null,
         final_arm_isolation_verified:
-          arm === "coding_markdown_final_v1" ? true : null,
+          isCodingMarkdownFinalArm(arm) ? true : null,
         mike_grep_isolation_verified: mikeGrepDerived ? true : null,
         v5_strategy_isolation_verified:
           arm === "v5_reconstruction_v1" ? true : null,
@@ -5005,7 +5049,7 @@ async function main() {
             ? CODING_MARKDOWN_V5_DELTA
             : null,
         coding_markdown_final_delta:
-          arm === "coding_markdown_final_v1"
+          isCodingMarkdownFinalArm(arm)
             ? CODING_MARKDOWN_FINAL_DELTA
             : null,
         grep_per_file_budget_delta:
