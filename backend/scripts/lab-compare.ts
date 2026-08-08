@@ -4,9 +4,10 @@
  * For two arms on one or more tasks: per-criterion majority verdicts across
  * replicates, McNemar exact binomial on the discordant pairs (per task and
  * pooled, with the pooling caveat printed), per-run metrics, price-weighted
- * cost C = uncached + 1.25*cache_write + 0.1*cache_read + r*output at r in
+ * cost C = uncached + 1.25*cache_write + m*cache_read + r*output at r in
  * {1,2,4,6} (output tokens are never cache-discounted and dominate real
- * cost; cache writes bill at 1.25x, Anthropic-style), and the
+ * cost; cache writes bill at 1.25x, Anthropic-style; cache reads at m=0.02x
+ * for deepseek hits, m=0.1x otherwise), and the
  * deliverable-length confound (chars vs criteria passed).
  *
  * Score source preference per run: scores.majority.json > scores.json. Runs
@@ -32,6 +33,7 @@ type RunScores = {
   criteria_results?: CriterionVerdict[];
 };
 type RunMetrics = {
+  model?: string;
   input_tokens?: number;
   output_tokens?: number;
   cache_read_input_tokens?: number;
@@ -74,12 +76,14 @@ function loadRuns(task: string, arm: string, modelFilter: string | null): Run[] 
         .find((p) => existsSync(p));
       if (!scorePath) continue;
       const metricsPath = path.join(runDir, "metrics.json");
+      const metrics: RunMetrics | null = existsSync(metricsPath)
+        ? JSON.parse(readFileSync(metricsPath, "utf8"))
+        : null;
+      if (metrics) metrics.model = rest;
       runs.push({
         dir: runDir,
         scores: JSON.parse(readFileSync(scorePath, "utf8")),
-        metrics: existsSync(metricsPath)
-          ? JSON.parse(readFileSync(metricsPath, "utf8"))
-          : null,
+        metrics,
         scoreSource: path.basename(scorePath),
       });
     }
@@ -120,22 +124,33 @@ function mcnemarExactP(b: number, c: number): number {
 /**
  * Price-weighted cost at output:input ratio r. The input side is the
  * metrics' cache_adjusted_input_token_equivalent — true-uncached
- * + 1.25*cache_write + 0.1*cache_read, null unless BOTH cache reporting
- * streams are complete — so cache WRITES are billed at the Anthropic-style
- * 1.25x, not silently dropped (they were dropped before 2026-08-05, which
- * flattered big-prefix arms). Fallback reconstructs the same formula from
+ * + 1.25*cache_write + cache_read_multiplier*cache_read, null unless BOTH
+ * cache reporting streams are complete — so cache WRITES are billed at the
+ * Anthropic-style 1.25x, not silently dropped (they were dropped before
+ * 2026-08-05, which flattered big-prefix arms). Cache READS are lane-priced:
+ * DeepSeek charges hits at 2% of the miss rate (0.02x), other lanes at the
+ * Anthropic-style 0.1x. Fallback reconstructs the same formula from
  * components; a missing write stream is a null cost, never an estimate.
  */
 function costAt(metrics: RunMetrics, r: number): number | null {
   const output = metrics.output_tokens ?? 0;
-  const adjustedInput =
-    metrics.cache_adjusted_input_token_equivalent ??
-    (metrics.uncached_input_tokens != null &&
+  // DeepSeek bills cache hits at 0.02x the miss rate; the pre-2026-08-08
+  // runner baked the Anthropic-style 0.1x into the stored
+  // cache_adjusted_input_token_equivalent, so for deepseek runs recompute
+  // from components at the correct lane rate rather than trusting the field.
+  const cacheReadMultiplier =
+    metrics.model?.startsWith("deepseek") === true ? 0.02 : 0.1;
+  const isDeepseek = metrics.model?.startsWith("deepseek") === true;
+  const recomputed =
+    metrics.uncached_input_tokens != null &&
     metrics.cache_write_input_tokens != null
       ? metrics.uncached_input_tokens +
         1.25 * metrics.cache_write_input_tokens +
-        0.1 * (metrics.cache_read_input_tokens ?? 0)
-      : null);
+        cacheReadMultiplier * (metrics.cache_read_input_tokens ?? 0)
+      : null;
+  const adjustedInput = isDeepseek
+    ? recomputed
+    : (metrics.cache_adjusted_input_token_equivalent ?? recomputed);
   if (adjustedInput == null) return null;
   return adjustedInput + r * output;
 }
