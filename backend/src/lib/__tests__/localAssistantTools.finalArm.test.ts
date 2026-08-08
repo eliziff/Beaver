@@ -6,6 +6,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   CODING_MARKDOWN_FINAL_LAB_SYSTEM_PROMPT,
   CODING_MARKDOWN_FINAL_LAB_TOOLS,
+  CODING_MARKDOWN_FINAL_AGENT_LAB_SYSTEM_PROMPT,
+  CODING_MARKDOWN_FINAL_AGENT_LAB_TOOLS,
 } from "../chat/upstreamMikeBenchmarkSurface";
 
 let temporaryDirectory: string | null = null;
@@ -17,7 +19,7 @@ const docx = (lines: string[]) =>
     }),
   );
 
-async function setupFinalArm() {
+async function setupFinalArm(agentLoop = false) {
   process.env.MIKE_NAV_SHAPE = "legacy";
   process.env.MIKE_TOOL_SHAPE = "lean-batch-v1";
   process.env.MIKE_RETRIEVAL_EXPERIMENT = "p0-pure-coding";
@@ -33,7 +35,8 @@ async function setupFinalArm() {
   process.env.MIKE_EXPOSURE_ECHO = "1";
   process.env.MIKE_DRAFT_EDIT = "1";
   process.env.MIKE_FINAL_ARM = "1";
-  process.env.MIKE_TERMINAL_AUTHORING = "1";
+  process.env.MIKE_TERMINAL_AUTHORING = agentLoop ? "0" : "1";
+  process.env.MIKE_FINAL_AGENT_LOOP = agentLoop ? "1" : "";
   process.env.MIKE_TOOL_RESULT_CAP = "64000";
   temporaryDirectory = await mkdtemp(
     path.join(os.tmpdir(), "beaver-final-arm-"),
@@ -63,6 +66,7 @@ afterEach(async () => {
     "MIKE_EXPOSURE_ECHO",
     "MIKE_DRAFT_EDIT",
     "MIKE_FINAL_ARM",
+    "MIKE_FINAL_AGENT_LOOP",
     "MIKE_TERMINAL_AUTHORING",
     "MIKE_TOOL_RESULT_CAP",
     "MIKE_LOCAL_DATA_DIR",
@@ -298,5 +302,143 @@ describe("coding_markdown_final_v1", () => {
     expect(secondReceipt.filename).toBe("Action plan.docx");
     expect(firstReceipt.source_sha256).not.toBe(secondReceipt.source_sha256);
     expect(state.signalGateCount).toBe(1);
+  });
+});
+
+describe("coding_markdown_final_agent_loop", () => {
+  it("serves one honest write/edit contract with ordinary turn termination", () => {
+    const visibleSurface = [
+      CODING_MARKDOWN_FINAL_AGENT_LAB_SYSTEM_PROMPT,
+      JSON.stringify(CODING_MARKDOWN_FINAL_AGENT_LAB_TOOLS),
+    ].join("\n");
+    expect(visibleSurface).not.toMatch(
+      /successful call ends|turn ends|render|draft\.md|read_document|doc-N|account for every document|start with Glob/iu,
+    );
+    const generate = CODING_MARKDOWN_FINAL_AGENT_LAB_TOOLS.find(
+      (entry) => entry.function.name === "generate_docx",
+    );
+    expect(generate?.function.parameters).toEqual({
+      type: "object",
+      properties: {
+        filename: {
+          type: "string",
+          description: "Output filename ending in .docx.",
+        },
+        content: {
+          type: "string",
+          description: "Complete document content in Markdown.",
+        },
+      },
+      required: ["filename", "content"],
+    });
+  });
+
+  it("edits the pending DOCX path and commits that buffer once", async () => {
+    const { store, tools } = await setupFinalArm(true);
+    expect(tools.LOCAL_ASSISTANT_TOOLS).toEqual(
+      CODING_MARKDOWN_FINAL_AGENT_LAB_TOOLS,
+    );
+    const price = await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "price.docx",
+      bytes: await docx(["Purchase price is $10,000."]),
+    });
+    const terms = await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "terms.docx",
+      bytes: await docx(["The agreement continues for five years."]),
+    });
+    const allowed = new Set([price.id, terms.id]);
+    const readState: import("../chat/localAssistantTools").LocalAssistantReadTurnState =
+      new Map();
+    const state = tools.createLocalAssistantRequirementsState();
+    const run = (calls: Array<{ id: string; name: string; input: any }>) =>
+      tools.runLocalAssistantTools(
+        "local-user",
+        calls,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        allowed,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        readState,
+        undefined,
+        "Prepare the assessment.",
+        state,
+      );
+
+    await run([
+      {
+        id: "grep",
+        name: "Grep",
+        input: {
+          pattern: "Purchase price",
+          path: "price.docx",
+          output_mode: "content",
+        },
+      },
+    ]);
+    const [paused] = await run([
+      {
+        id: "write",
+        name: "generate_docx",
+        input: {
+          filename: "risk-assessment.docx",
+          content: "# Risk assessment\n\nPurchase price: $10,000.",
+        },
+      },
+    ]);
+    expect(paused.content).toContain(
+      "The pending output is risk-assessment.docx.",
+    );
+    expect(Object.keys(state.drafts)).toEqual(["risk-assessment.docx"]);
+
+    const [invalid] = await run([
+      { id: "empty", name: "generate_docx", input: {} },
+    ]);
+    expect(invalid.status).toBe("error");
+    expect(invalid.mutationReceipt).toBeUndefined();
+
+    const [edited] = await run([
+      {
+        id: "edit",
+        name: "Edit",
+        input: {
+          file_path: "risk-assessment.docx",
+          old_string: "Purchase price: $10,000.",
+          new_string:
+            "Purchase price: $10,000. The agreement continues for five years.",
+        },
+      },
+    ]);
+    expect(JSON.parse(edited.content)).toMatchObject({ ok: true });
+    const pending = tools.pendingFinalAgentDraft(state);
+    expect(pending).toEqual({
+      filename: "risk-assessment.docx",
+      content:
+        "# Risk assessment\n\nPurchase price: $10,000. The agreement continues for five years.",
+    });
+
+    const [flushed] = await run([
+      { id: "host-flush", name: "generate_docx", input: pending },
+    ]);
+    expect(JSON.parse(flushed.mutationReceipt ?? "null")).toMatchObject({
+      ok: true,
+      action: "created",
+      filename: "risk-assessment.docx",
+    });
+    expect(JSON.parse(flushed.content)).toEqual({
+      ok: true,
+      filename: "risk-assessment.docx",
+      message: "Written risk-assessment.docx successfully.",
+    });
+    expect(tools.pendingFinalAgentDraft(state)).toBeNull();
+    expect(state.compositionCheckCount).toBe(1);
   });
 });
