@@ -125,9 +125,7 @@ h1 .run-dir{font-family:var(--mono);font-weight:400;font-size:12px;color:var(--d
 .event-meta{color:var(--dim);font-size:10px;opacity:.85}
 
 /* ---- payload blocks ---- */
-/* Lazy by construction: only the io-top label/meta row exists in the DOM; the
- * <pre> body is built on first click ("show") and removed on second ("hide"),
- * so a run replay never materialises the big text bodies until asked for. */
+/* Tool arguments and results are evidence, so they are visible by default. */
 .io{margin:4px 0}
 .io-top{display:flex;gap:8px;font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:2px;align-items:baseline}
 .io-label{color:var(--accent);text-transform:uppercase;letter-spacing:.05em;flex:0 0 auto}
@@ -137,7 +135,7 @@ h1 .run-dir{font-family:var(--mono);font-weight:400;font-size:12px;color:var(--d
 .io-toggle:hover{border-color:var(--accent);background:rgba(88,166,255,.08)}
 .io-pre{margin:2px 0 0;padding:8px 10px;background:var(--pre-bg);border:1px solid var(--border);border-radius:4px;
   font-family:var(--mono);font-size:11px;line-height:1.5;color:var(--pre-text);
-  white-space:pre-wrap;word-wrap:break-word;max-height:480px;overflow:auto}
+  white-space:pre-wrap;word-wrap:break-word}
 
 /* collapse-all control: hides any payload bodies that are currently expanded */
 body.payloads-collapsed .payload{display:none}
@@ -236,19 +234,20 @@ body.payloads-collapsed .payload{display:none}
     return "";
   }
 
-  // Lazy payload block: label + char-count row only; the <pre> body is created
-  // on the first "show" click and removed on "hide". Nothing heavy enters the
-  // DOM during a replay until the user asks for it.
+  // Tool evidence is expanded by default; each block remains individually
+  // collapsible and the toolbar can collapse everything at once.
   function payloadBlock(label, text, extra) {
     var wrap = el("div", "io" + (extra ? " " + extra : ""));
     var top = el("div", "io-top");
     top.appendChild(el("span", "io-label", label));
     var t = text == null ? "" : String(text);
     top.appendChild(el("span", "io-meta", fmtChars(t.length) + " chars"));
-    var btn = el("button", "io-toggle", "show");
+    var btn = el("button", "io-toggle", "hide");
     top.appendChild(btn);
     wrap.appendChild(top);
-    var pre = null;
+    var pre = el("pre", "io-pre payload");
+    pre.textContent = t;
+    wrap.appendChild(pre);
     btn.addEventListener("click", function () {
       if (pre) {
         pre.remove();
@@ -286,7 +285,7 @@ body.payloads-collapsed .payload{display:none}
     var status = el("span", "t-status running", "running");
     head.appendChild(status);
     card.appendChild(head);
-    card.appendChild(payloadBlock("input", ev.input != null ? JSON.stringify(ev.input) : ""));
+    card.appendChild(payloadBlock("input", ev.input != null ? JSON.stringify(ev.input, null, 2) : ""));
     var resWrap = el("div", "t-result pending");
     resWrap.textContent = "— waiting for result —";
     card.appendChild(resWrap);
