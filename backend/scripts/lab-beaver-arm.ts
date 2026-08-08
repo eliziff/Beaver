@@ -49,6 +49,7 @@ import {
   CODING_MARKDOWN_LAB_SYSTEM_PROMPT,
   CODING_MARKDOWN_BUDGET_LAB_SYSTEM_PROMPT,
   CODING_MARKDOWN_TRIAGE_LAB_SYSTEM_PROMPT,
+  CODING_MARKDOWN_TRIAGE_FLOOR_LAB_SYSTEM_PROMPT,
   CODING_MARKDOWN_V2_DELTA,
   CODING_MARKDOWN_V2_LAB_TOOLS,
   CODING_MARKDOWN_V3_DELTA,
@@ -249,7 +250,9 @@ function armExpectedSurface(
             // get ablated by analysis, not forked.
           arm === "coding_markdown_v5"
             ? {
-                systemPrompt: CODING_MARKDOWN_TRIAGE_LAB_SYSTEM_PROMPT,
+                // v5 gen-6: the consolidated arm carries the completeness floor
+                // (receipt's completeness_floor flag is the ablation boundary).
+                systemPrompt: CODING_MARKDOWN_TRIAGE_FLOOR_LAB_SYSTEM_PROMPT,
                 tools: CODING_MARKDOWN_V5_LAB_TOOLS,
               }
           : // T2 (v5_echo): the same v5 chassis + requirements echo. Prompt is
@@ -1209,6 +1212,13 @@ async function main() {
       // measured (tax synthesis-bound at full coverage). Same consolidated
       // arm — the draft_edit receipt flag is the ablation stratum boundary.
       MIKE_DRAFT_EDIT: "1",
+      // Completeness floor (gen-6, Eli 2026-08-08): the one internal
+      // completeness check before drafting (issues/parties/dates/numbers/
+      // exceptions/conflicts). Verbatim clause from LEAN_BATCH, the best-ever
+      // covenants scorer. Same consolidated arm — completeness_floor receipt
+      // flag is the ablation boundary. T2 (reqecho) stays floor-off so the
+      // echo contrast is unconfounded.
+      MIKE_COMPLETENESS_FLOOR: "1",
     },
     // T2 (v5_echo, 2026-08-07): the consolidated v5 chassis + the requirements
     // echo. The mechanism appends fetch_requirements and the prompt line over
@@ -2613,6 +2623,9 @@ async function main() {
       arm === "coding_markdown_v5_reqecho_v1" ||
       arm === "coding_markdown_v5_reqecho_draft_v1";
     const reqechoDraftArm = arm === "coding_markdown_v5_reqecho_draft_v1";
+    // Completeness floor rides the consolidated v5 arm (gen-6 lever); the
+    // reqecho T2 contrast stays floor-off so the echo variable is unconfounded.
+    const completenessFloorCoding = arm === "coding_markdown_v5";
     const expectedTools = requirementsEchoArm
       ? // Fix A: no fetch_requirements — the echo rides the generate_docx
         // refusal, so the resident list is exactly v5 + draft-edit's Edit.
@@ -2650,7 +2663,7 @@ async function main() {
       // (audit F8): a leaked STRUCTURE_INDEX turns unbounded Reads into
       // scoped_read_required dead-ends naming unserved tools.
       surface?.structure_index !== false ||
-      surface?.completeness_floor !== false ||
+      surface?.completeness_floor !== completenessFloorCoding ||
       surface?.citation_contract !== false ||
       surface?.citation_contract_v2 !== false ||
       surface?.no_deferral !== false ||

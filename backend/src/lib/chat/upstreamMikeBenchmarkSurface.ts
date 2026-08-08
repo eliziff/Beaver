@@ -916,6 +916,11 @@ CORPUS WORKFLOW:
 - Survey first: Glob lists every document's exact size and its "<name>.toc" section index; Grep the corpus early for the deliverable's key subjects (results are split fairly across matching files); scope Reads (offset/limit) to the hits and .toc section starts. Use bare filenames as file_path, never "doc-N:" labels, and batch several tool calls per turn.
 - Cover everything before drafting: every document read, .toc-reviewed, or Grep-examined — a .toc or Grep pass is nearly free, so budget pressure never justifies skipping one. Read central documents in full, past any truncation. Note materials the documents reference that the corpus lacks.
 - Verify at the source: state a name, figure, date, or term only after retrieving it from the governing document, never from another document's description. Present interacting findings together.`;
+/** v5 + the completeness floor (consolidated T1 lever; the receipt's
+ * completeness_floor flag is the ablation boundary). The floor block is
+ * verbatim from COMPLETENESS_FLOOR_BLOCK, composed the same way as
+ * MARKDOWN_E2E_FLOOR_LAB_SYSTEM_PROMPT. */
+export const CODING_MARKDOWN_TRIAGE_FLOOR_LAB_SYSTEM_PROMPT = `${CODING_MARKDOWN_TRIAGE_LAB_SYSTEM_PROMPT}${COMPLETENESS_FLOOR_BLOCK}`;
 /** Delta tag: the unified triage-workflow prompt (v5 gen-3). */
 export const TRIAGE_WORKFLOW_PROMPT_DELTA = "triage-workflow-prompt-v1";
 /** Delta tag: the composite v5 coding arm (v4 + per-file grep budget). */
