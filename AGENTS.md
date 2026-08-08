@@ -55,6 +55,23 @@ Keep changes small, measured, and local-first.
   buffering wrappers (e.g. `Select-Object -Last`); redirect to an appended log
   and tail it instead.
 
+## LAB run discipline
+
+- Launch once the model-visible surface and real execution path are sound. Do
+  not delay runs for needless fingerprinting, prompt-hash ceremony, manual
+  bookkeeping, or telemetry that the launcher can record automatically.
+- Never stop, invalidate, relaunch, or call a run unjudgeable solely because of
+  a hash, receipt, telemetry, naming, or bookkeeping defect. Preserve and judge
+  valid outputs. Replace a run only for a real defect that affected model-visible
+  inputs/tools/results, provider execution, required deliverables, or judging.
+- Report landed A/B results in one compact table with actual columns:
+  `Provider`, `Task`, `Upstream criteria`, `Treatment criteria`, `Delta criteria`,
+  `Upstream cache-adjusted tokens`, `Treatment cache-adjusted tokens`, `Delta tokens`,
+  `Upstream wall clock`, `Treatment wall clock`, and `Delta wall clock`.
+  Say `criteria`, never `score`. Include only fully judged A/B pairs, then add a
+  final `TOTAL` row summing every upstream/treatment/delta column shown. DeepSeek
+  cache-adjusted tokens use uncached input + 0.02 * cached input + output.
+
 ## UI content rule
 
 - Use a consistent text hierarchy whose visual prominence tracks informational importance, so titles, headings, body copy, labels, metadata, and controls never compete or receive arbitrary emphasis.
