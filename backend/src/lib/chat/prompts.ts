@@ -223,7 +223,7 @@ export const DOMAIN_PROMPTS: Record<string, string> = {
   citations:
     "Citation tools verify or repair citation mechanics and assemble authorities. They do not establish that a proposition is legally supported; open cases and read the decision for that.",
   output_document:
-    "Create the requested Word deliverable once, using the exact requested filename and completed content. The creation receipt already includes compiler diagnostics.",
+    "Create each requested Word deliverable with the exact requested filename and completed content. The creation receipt already includes compiler diagnostics.",
   drafting:
     "Before revising a Library document, read the active version and address the exact provision or table cell. For deletion plus sibling renumbering, use the atomic delete-and-renumber tool rather than issuing manual heading and pointer edits. Treat a successful version receipt—not proposed prose—as completion.",
   document_quality:
