@@ -48,8 +48,8 @@ const POLL_MS = 250;            // file-growth poll cadence (fs.watch unreliable
 const RESCAN_MS = 2_000;        // follow-mode rescan cadence (TUI parity)
 const RUNNING_WINDOW_MS = 30_000; // raw-sse touched within this counts as "running"
 const IDLE_SWITCH_MS = 20_000;    // current run quiet this long before following a newer run
-const DEFAULT_WINDOW_MS = 30 * 60 * 1000; // 30-minute replay window
-const DEFAULT_MAX_EVENTS = 3_000;         // hard cap on replayed history
+const DEFAULT_WINDOW_MS = 0;              // preserve the complete trace
+const DEFAULT_MAX_EVENTS = 0;             // preserve the complete trace
 
 let runDir = "";
 let ssePath = "";
