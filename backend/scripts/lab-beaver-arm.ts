@@ -3862,18 +3862,23 @@ async function main() {
     cacheWriteInputTokens,
     nonReadInputTokens,
   );
+  // Cache-read multiplier is lane-priced: DeepSeek charges cache hits at 2%
+  // of the miss rate ($0.0028/M vs $0.14/M — a 50x discount, announced Aug
+  // 2026), not the Anthropic-style 10% this formula originally assumed.
+  // claude-p / other lanes keep 0.1.
+  const cacheReadMultiplier = model.startsWith("deepseek") ? 0.02 : 0.1;
   const cacheAdjustedInputTokenEquivalent =
     cacheReadReportingComplete && cacheWriteReportingComplete
       ? nonReadInputTokens -
         knownCacheWriteTokens +
-        knownCacheReadTokens * 0.1 +
+        knownCacheReadTokens * cacheReadMultiplier +
         knownCacheWriteTokens * 1.25
       : null;
   const cacheAdjustedInputLowerBound = cacheReadReportingComplete
-    ? nonReadInputTokens + knownCacheReadTokens * 0.1
-    : inputTokens * 0.1;
+    ? nonReadInputTokens + knownCacheReadTokens * cacheReadMultiplier
+    : inputTokens * cacheReadMultiplier;
   const cacheAdjustedInputUpperBound = cacheReadReportingComplete
-    ? nonReadInputTokens * 1.25 + knownCacheReadTokens * 0.1
+    ? nonReadInputTokens * 1.25 + knownCacheReadTokens * cacheReadMultiplier
     : inputTokens * 1.25;
   const canonicalModel = model.replace(/^codex:/u, "");
   const gpt56ApiRates = canonicalModel.endsWith("-sol")
@@ -3894,7 +3899,7 @@ async function main() {
       "GPT-5.6 public API price-equivalent; not Codex subscription quota or billing",
     input_rate_per_million_usd:
       gpt56ApiRates?.inputPerMillionUsd ?? null,
-    cached_read_multiplier: 0.1,
+    cached_read_multiplier: cacheReadMultiplier,
     cache_write_multiplier: 1.25,
     output_rate_per_million_usd:
       gpt56ApiRates?.outputPerMillionUsd ?? null,
