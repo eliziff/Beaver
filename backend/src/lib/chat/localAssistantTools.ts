@@ -8479,9 +8479,12 @@ export async function runLocalAssistantTools(
               ` selectively (Grep or scoped Read) for facts that add to,` +
               ` sharpen, or contradict your draft, and fold each finding in` +
               ` with Edit (old_string/new_string) — precise small edits are` +
-              ` cheap, use as many as the evidence deserves. When the draft` +
-              ` reflects the full record, call generate_docx without` +
-              ` markdown to render it.`
+              ` cheap, use as many as the evidence deserves. For a` +
+              ` single-deliverable request, call generate_docx without markdown` +
+              ` to render the refined draft. If the request names several` +
+              ` deliverables, the saved draft holds only the most recent` +
+              ` document — re-send each deliverable's complete body in its own` +
+              ` generate_docx call.`
             : "";
           // REQUIREMENTS echo rides the same checkpoint as the coverage echo:
           // when both mechanisms are live, the refusal that names unread
