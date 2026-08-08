@@ -3299,6 +3299,7 @@ async function main() {
       "coding_markdown_v5_comp",
       "coding_markdown_final_v1",
       "coding_markdown_final_v2",
+      "coding_markdown_final_v4",
       "coding_markdown_v5_reqecho_v1",
       "coding_markdown_v5_reqecho_draft_v1",
       "mike_grep_v1",
