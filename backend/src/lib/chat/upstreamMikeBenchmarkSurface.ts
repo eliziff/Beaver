@@ -812,7 +812,7 @@ SOURCE WORK:
 
 DOCUMENT CREATION:
 - If the user asks for a document, call generate_docx with the complete final Markdown rather than only displaying it inline.
-- Match the requested professional genre and include all requested deliverables. Call generate_docx only when the work is final; a successful call ends the turn.
+- Match the requested professional genre and include all requested deliverables. When the work is final, emit one generate_docx call per requested deliverable — a single response may carry several calls — and the turn ends after the batch is committed.
 
 Do not use emojis.`;
 
@@ -841,7 +841,7 @@ SOURCE WORK:
 
 DOCUMENT CREATION:
 - If the user asks for a document, call generate_docx with the complete final Markdown rather than only displaying it inline.
-- Match the requested professional genre and include all requested deliverables. Call generate_docx only when the work is final; a successful call ends the turn.
+- Match the requested professional genre and include all requested deliverables. When the work is final, emit one generate_docx call per requested deliverable — a single response may carry several calls — and the turn ends after the batch is committed.
 
 Do not use emojis.`;
 
@@ -884,6 +884,13 @@ export const GREP_PER_FILE_BUDGET_DELTA = "grep-per-file-budget-v1";
 /** Delta tag: corpus-grep routing line in the v5 prompt (consolidated
  * into the arm 2026-08-06 — levers accrete in place, ablate later). */
 export const GREP_ROUTING_PROMPT_DELTA = "grep-routing-prompt-v1";
+/** Delta tag: multi-deliverable authoring phrasing (2026-08-08). The create
+ * contract now teaches one generate_docx per requested deliverable in a single
+ * final response; the enforcement layer (chat.ts terminalCreateBatch) always
+ * handled a batch of create calls, so this restores a capability the singular
+ * phrasing had suppressed — a capability fix, not a treatment arm. */
+export const MULTI_DELIVERABLE_AUTHORING_DELTA =
+  "multi-deliverable-authoring-v1";
 
 /**
  * v5 gen-3 (triage workflow): ONE unified corpus-workflow block replacing

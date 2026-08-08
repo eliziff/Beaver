@@ -63,6 +63,7 @@ import {
   TRIAGE_WORKFLOW_PROMPT_DELTA,
   EXPOSURE_ECHO_DELTA,
   DRAFT_EDIT_DELTA,
+  MULTI_DELIVERABLE_AUTHORING_DELTA,
   GREP_SECTION_CONTEXT_DELTA,
   COMPACT_AUTHOR_MIKE_DELTA,
   COMPACT_AUTHOR_MIKE_LAB_SYSTEM_PROMPT,
@@ -3671,6 +3672,12 @@ async function main() {
       arm === "coding_markdown_v5_reqecho_draft_v1"
         ? DRAFT_EDIT_DELTA
         : null,
+    multi_deliverable_delta:
+      arm === "coding_markdown_v5" ||
+      arm === "coding_markdown_v5_reqecho_v1" ||
+      arm === "coding_markdown_v5_reqecho_draft_v1"
+        ? MULTI_DELIVERABLE_AUTHORING_DELTA
+        : null,
     lean_batch_hardrefs_delta:
       arm === "lean_batch_hardrefs_v1" ? LEAN_BATCH_HARDREFS_DELTA : null,
     mike_grep_delta: mikeGrepDelta,
@@ -4151,6 +4158,12 @@ async function main() {
           arm === "coding_markdown_v5_reqecho_v1" ||
           arm === "coding_markdown_v5_reqecho_draft_v1"
             ? DRAFT_EDIT_DELTA
+            : null,
+        multi_deliverable_delta:
+          arm === "coding_markdown_v5" ||
+          arm === "coding_markdown_v5_reqecho_v1" ||
+          arm === "coding_markdown_v5_reqecho_draft_v1"
+            ? MULTI_DELIVERABLE_AUTHORING_DELTA
             : null,
         lean_batch_hardrefs_delta:
           arm === "lean_batch_hardrefs_v1"
@@ -4738,6 +4751,12 @@ async function main() {
           arm === "coding_markdown_v5_reqecho_v1" ||
           arm === "coding_markdown_v5_reqecho_draft_v1"
             ? DRAFT_EDIT_DELTA
+            : null,
+        multi_deliverable_delta:
+          arm === "coding_markdown_v5" ||
+          arm === "coding_markdown_v5_reqecho_v1" ||
+          arm === "coding_markdown_v5_reqecho_draft_v1"
+            ? MULTI_DELIVERABLE_AUTHORING_DELTA
             : null,
         lean_batch_hardrefs_delta:
           arm === "lean_batch_hardrefs_v1"
