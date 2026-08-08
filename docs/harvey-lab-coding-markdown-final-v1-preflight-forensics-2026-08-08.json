@@ -1,0 +1,263 @@
+{
+  "schema_version": "harvey-lab-preflight-forensics-v1",
+  "experiment_id": "harvey-lab-coding-markdown-final-v1",
+  "created_at": "2026-08-08T06:21:50Z",
+  "status": "rejected_and_invalidated_before_stage_1",
+  "frozen_commit": "144512e60b23660791ce2ab55712751c7d2ac36a",
+  "registration": {
+    "path": "docs/harvey-lab-coding-markdown-final-v1-preregistration-2026-08-08.json",
+    "sha256": "9cdb256723947f95a518dc160cae6cbb379658d947896f318efba94522c83880",
+    "unchanged_after_first_inference": true
+  },
+  "scope": {
+    "task": "antitrust-competition/prepare-antitrust-risk-assessment",
+    "visibility": "visible_dev_preflight_only",
+    "split_sha256": "7afa244085083ed066ecf706f9958a599e9ac989ed586f2b5be859daf67f7c3f",
+    "task_config_sha256": "35ca29aa848e153943cdbf1262adcc3a10bc32b608532775523aa8ef2854de80",
+    "instructions_sha256": "84fe22db1b8c692ad1bc0a58ed65055e025f7534f0329f48dd2ab39bfe57ffaa",
+    "source_bundle_sha256": "6b7acf7b42803b04ff0e425aeb489fcf992be7badb26b609b51b88a2aef3343f",
+    "source_count": 12,
+    "source_bytes": 984274,
+    "required_deliverables": [
+      "antitrust-risk-memorandum.docx",
+      "market-analysis-workpapers.docx",
+      "hsr-filing-timeline-and-checklist.docx",
+      "client-advisory-letter.docx"
+    ]
+  },
+  "decision": {
+    "candidate_passed_preflight": false,
+    "stage_1_launched": false,
+    "stage_2_launched": false,
+    "performer_outputs_judged": false,
+    "judge_calls_launched": 0,
+    "retries_launched": 0,
+    "reasons": [
+      "DeepSeek authored only 2 of 4 required DOCX deliverables.",
+      "Luna High timed out after emitted content and completed tool calls, so its retry was ineligible.",
+      "The preregistered tool hash described an OpenAI Responses serialization rather than either lane's exact model-facing transport surface.",
+      "The Luna performer source closure omitted the Codex CLI and MCP bridge implementation actually used."
+    ]
+  },
+  "lanes": {
+    "deepseek": {
+      "model": "deepseek-v4-flash",
+      "effort": "max",
+      "inference_surface": "authorized DeepSeek API",
+      "run_id": "antitrust-competition/prepare-antitrust-risk-assessment/beaver-coding_markdown_final_v1-deepseek-v4-flash/2026-08-08T05-30-00Z-final-v1-deepseek-preflight-r1",
+      "terminal_state": "failed",
+      "failure_class": "post_emission_missing_deliverables",
+      "retry_eligible": false,
+      "tool_calls": {
+        "total": 25,
+        "by_name": {
+          "Glob": 1,
+          "Grep": 4,
+          "Read": 18,
+          "generate_docx": 2,
+          "Edit": 0
+        },
+        "results": 25,
+        "failed": 0,
+        "truncated": 0,
+        "ambiguous_but_successful": 3
+      },
+      "mechanism_receipt": {
+        "first_draft_count": 1,
+        "first_draft_body_evidence": 12,
+        "first_draft_toc_only": 0,
+        "first_draft_unseen": 0,
+        "signal_gate_count": 0,
+        "draft_edit_count": 0,
+        "source_edit_count": 0,
+        "source_edit_refusal_count": 0,
+        "composition_check_shadow_count": 2,
+        "composition_check_shadow_findings": 0
+      },
+      "created_deliverables": [
+        "antitrust-risk-memorandum.docx",
+        "market-analysis-workpapers.docx"
+      ],
+      "missing_deliverables": [
+        "hsr-filing-timeline-and-checklist.docx",
+        "client-advisory-letter.docx"
+      ],
+      "compactions": 0,
+      "provider_reported_usage": {
+        "raw_input_tokens": 1589261,
+        "cache_read_input_tokens": 1412864,
+        "uncached_input_tokens": 176397,
+        "output_tokens": 33032,
+        "actual_cache_multiplier": 0.02,
+        "actual_weighted_input_tokens": 204654.28,
+        "sensitivity_only_cache_multiplier": 0.1,
+        "sensitivity_only_weighted_input_tokens": 317683.4,
+        "decision_accounting_uses_sensitivity": false
+      }
+    },
+    "luna": {
+      "model": "codex:gpt-5.6-luna",
+      "effort": "high",
+      "inference_surface": "Codex CLI authenticated through the user's subscription",
+      "run_id": "antitrust-competition/prepare-antitrust-risk-assessment/beaver-coding_markdown_final_v1-codex-gpt-5-6-luna-high/2026-08-08T05-30-00Z-final-v1-luna-preflight-r1",
+      "terminal_state": "failed",
+      "failure_class": "post_emission_codex_exec_timeout",
+      "timeout_ms": 180000,
+      "retry_eligible": false,
+      "tool_calls": {
+        "total": 10,
+        "by_name": {
+          "Glob": 1,
+          "Grep": 5,
+          "Read": 4,
+          "generate_docx": 0,
+          "Edit": 0
+        },
+        "results": 10,
+        "failed": 0,
+        "truncated": 0,
+        "ambiguous_but_successful": 0
+      },
+      "created_deliverables": [],
+      "compactions": 0,
+      "provider_reported_usage": null,
+      "judge_launched": false
+    }
+  },
+  "upstream_primary_forensics": {
+    "role": "mechanism evidence only; not a newly preregistered pass cell",
+    "run_id": "antitrust-competition/prepare-antitrust-risk-assessment/beaver-mike_upstream_native_v1-deepseek-v4-flash/2026-08-07T18-45-55",
+    "same_task_and_source_fingerprints": true,
+    "model": "deepseek-v4-flash",
+    "effort": "max",
+    "terminal_authoring": false,
+    "tool_calls": 11,
+    "generate_docx_calls": 6,
+    "failed_tool_results": 2,
+    "created_deliverables": [
+      "antitrust-risk-memorandum.docx",
+      "client-advisory-letter.docx",
+      "market-analysis-workpapers.docx",
+      "hsr-filing-timeline-and-checklist.docx"
+    ],
+    "trajectory": "The first authoring batch made four create calls; two succeeded and two failed. Because upstream authoring was nonterminal, a follow-up round made two more create calls and completed the missing files.",
+    "current_hard_gate_would_accept_as_pass": false,
+    "current_hard_gate_rejection_reason": "Two failed tool calls"
+  },
+  "v5_secondary_forensics": {
+    "role": "secondary frozen ablation evidence",
+    "run_id": "antitrust-competition/prepare-antitrust-risk-assessment/beaver-coding_markdown_v5-deepseek-v4-flash/2026-08-08T00-15-06",
+    "same_task_and_source_fingerprints": true,
+    "terminal_authoring": true,
+    "tool_calls": 37,
+    "generate_docx_calls": 2,
+    "failed_tool_results": 0,
+    "created_deliverables": [
+      "antitrust-risk-memorandum.docx"
+    ],
+    "terminal_state": "failed_1_of_4_deliverables"
+  },
+  "causal_assessment": {
+    "finding": "Terminal authoring is causally implicated in the multi-deliverable failure.",
+    "strength": "direct code-path and same-task trajectory evidence",
+    "evidence": [
+      "The primary upstream baseline was nonterminal and recovered after a partial authoring batch.",
+      "Frozen v5 was terminal and stopped after 1 of 4 deliverables.",
+      "Final v1 was terminal and stopped after 2 of 4 deliverables despite complete body-evidence coverage and zero failed calls."
+    ],
+    "limit": "This establishes a completion-contract defect, not a quality win for any successor arm."
+  },
+  "surface_audit": {
+    "core_model_visible_surface": {
+      "semantic_leak_scan_passed": true,
+      "focused_tests": "3 passed",
+      "tool_names": [
+        "Glob",
+        "Grep",
+        "Read",
+        "generate_docx",
+        "Edit"
+      ],
+      "system_prompt_sha256_both_live_lanes": "2826f51da3b0d61b9409bbdf539fb7e58bd1a6b412de35bc3a1be6c5c15335a8",
+      "live_internal_schema_sha256_both_lanes": "fee064410c91f23c645a6997db98a1d4d5ab4f06b6a9441d617fa53bb0a0532c",
+      "live_internal_schema_chars": 4478,
+      "flags_both_lanes": {
+        "final_arm": true,
+        "signal_gate": true,
+        "source_immutable": true,
+        "composition_check_shadow": true,
+        "terminal_authoring": true
+      }
+    },
+    "hash_domains": {
+      "registered_openai_responses_function_array_sha256": "0cea515ae338409e8012cddc654768ae9303da1a66055bd080c1b33d830bc59d",
+      "live_openai_tool_wrapper_array_sha256": "fee064410c91f23c645a6997db98a1d4d5ab4f06b6a9441d617fa53bb0a0532c",
+      "telemetry_canonical_openai_tool_wrapper_array_sha256": "2a2c96734f420618a6ee41e2c99b565b29cc527180de02ec53a35c89012855f6",
+      "deepseek_actual_tool_array_sha256": "fee064410c91f23c645a6997db98a1d4d5ab4f06b6a9441d617fa53bb0a0532c",
+      "codex_mcp_list_tools_sha256": null,
+      "codex_full_prompt_envelope_sha256": null
+    },
+    "defects": [
+      {
+        "id": "surface-hash-domain",
+        "finding": "The preregistration called the OpenAI Responses-format hash the exact tool schema hash. DeepSeek instead sent the OpenAI Chat Completions wrapper array unchanged; Codex translated the same source schemas into MCP list_tools objects.",
+        "impact": "Exact lane-specific model-facing bytes were not fail-closed even though names, descriptions, parameters, and live core prompt were frozen."
+      },
+      {
+        "id": "codex-prompt-envelope",
+        "finding": "The live system receipt hashed the inner Beaver system prompt, but the Codex CLI performer prepended buildCodexPrompt instructions and labels that were not separately preregistered or receipted.",
+        "impact": "The independent Luna product side-run had an unreceipted model-visible prompt envelope."
+      },
+      {
+        "id": "codex-mcp-instructions",
+        "finding": "The MCP bridge added generic server instructions naming A2AJ, CourtListener, workflow, and connector operations even though the frozen resident surface exposed only five coding/document tools.",
+        "impact": "Unavailable-domain language leaked into the independently labelled Luna product surface."
+      },
+      {
+        "id": "codex-source-closure",
+        "finding": "The preregistered source fingerprints included codexApi.ts, but the performer dispatch used index.ts, codex.ts, and codexToolBridge.ts; those actual performer files were omitted.",
+        "impact": "The Luna implementation closure was not frozen by the registration."
+      }
+    ],
+    "post_hoc_omitted_source_hashes": {
+      "backend/src/lib/llm/index.ts": "83db0a81d61fdd98ed062102176117eee3344b3852982d0e96ddb884a936b52f",
+      "backend/src/lib/llm/models.ts": "8e554ebfe97af9f7885cc18dbf67e73d891fdab30aca3bc28916483e82758f5a",
+      "backend/src/lib/llm/codex.ts": "354989c52e9279268bef936de2ab78cd5f48e68e0ba739ba40e22e4ff41168ad",
+      "backend/src/lib/llm/codexToolBridge.ts": "a0543a97cb460ecadd20e87e15ee5423afd02bf5f38b11013327d9c70d4f22c4",
+      "backend/src/lib/llm/codexAuth.ts": "5c942a74a4ab1ac6656ea1acc0104e0265c44d2af278bb238cead392699a13aa",
+      "backend/src/lib/llm/contextManifest.ts": "4a0c7a7112ff49be3610cfc7efd3a4c0c074f4088fb6952fc4a613545d0bfa86"
+    },
+    "conclusion": "No task, rubric, benchmark, ablation, fixed-count, receipt, body-evidence, or signal-gate terminology was found in the final v1 core prompt/tool text. Nevertheless, exact transport-surface provenance failed closed only semantically, not byte-exactly, and the Codex product wrapper contained unrelated-domain instructions."
+  },
+  "successor_hypothesis": {
+    "status": "proposed_not_authorized",
+    "candidate_name": "coding_markdown_final_v2",
+    "preserve": "All final v1 retrieval, evidence-plane, one-shot signal-gate, source-immutability, draft-only Edit, exact-figure, shadow-check, and deliverable-integrity behavior.",
+    "treatment_delta": "Set terminal authoring off for the candidate so successful create receipts return to the model and remaining deliverables can be completed, matching the primary upstream baseline's completion semantics.",
+    "luna_infrastructure_delta": "Make the local Codex exec watchdog configurable; retain the production 180000 ms default and preregister 600000 ms for Luna High.",
+    "surface_provenance_delta": [
+      "Preregister and live-validate the exact DeepSeek Chat Completions tool array hash.",
+      "Preregister and live-validate the exact Codex prompt envelope, MCP list_tools objects, and MCP server instructions.",
+      "Fingerprint the actual Codex CLI performer dispatch and bridge files.",
+      "Replace the Codex MCP bridge's unavailable-domain inventory with a neutral instruction scoped to the tools actually served."
+    ],
+    "prompt_delta": "No fixed document count, benchmark term, task-specific parser, or experimental instruction.",
+    "next_inference": "None until explicit user approval and a fresh preregistration."
+  },
+  "evidence_sha256": {
+    "deepseek_raw_sse": "fffd60eeac5e18ce1402267c2ee32de3c7a5fd0c8c76a1899a3f2240989f81e8",
+    "deepseek_run_state": "eaa4533022af390e7dad6f5ea625fd722d77c394187565209fec9262107c4af3",
+    "deepseek_context_manifest": "313c8dbbff04588adecd9e39dec34b027d9995a8817ea7475e19f3c5666ee9b2",
+    "deepseek_preflight_log": "0cdf0541b23c341e5bfe411bac733ba932beff70d046674811d02551ea0cd37a",
+    "deepseek_decision_receipt": "5828efd38439aa1375de4f608efc7c160604f38470c889049ea6e088349e6853",
+    "luna_raw_sse": "cc1250f40d9859f51549da5add492c207da873a7c572e631f41b450286349519",
+    "luna_run_state": "fd35d7e1cb73f25641422b0e6cb5c5380c43726aa17cab0396fc602bd9a5c616",
+    "luna_context_manifest": "9d001823ec100c995628ebb7be5ca84f8428e572e18edd87d7124c17363edc48",
+    "luna_preflight_log": "50f889b90c3210174fb9f211565471e92632bf4119528443f1256d670f6cd30e",
+    "luna_decision_receipt": "141131b9c36dd83f2b37c654b41656cd10546f823896975e7a0621ff78517bf1",
+    "upstream_primary_raw_sse": "d8edc7a66668be57150fe9a6e07af2768e9da2254b67910e1469c897ca3afe25",
+    "upstream_primary_metrics": "f3ffe71c155bf197f7dda34a544feb4c1ab0a44378f07b5483f8077582c5142c",
+    "v5_secondary_raw_sse": "15f0eea1cc1e26e82ccec58fa9ab837c4b8132d66b84bacb28c9a0341e70af34",
+    "v5_secondary_run_state": "881af6c9f98ca9fde153b082c311fe906b00daba47331f6405f95bee5a2828a4"
+  }
+}
