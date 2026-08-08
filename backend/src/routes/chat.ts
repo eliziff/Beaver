@@ -75,6 +75,7 @@ import {
   TRIAGE_WORKFLOW_ENABLED,
   DRAFT_EDIT_ENABLED,
   FINAL_ARM_ENABLED,
+  FINAL_AGENT_LOOP_ENABLED,
   GREP_SECTION_CONTEXT_ENABLED,
   SCOPED_REREAD_ENABLED,
   TYPED_RANGE_ENABLED,
@@ -95,6 +96,7 @@ import {
   describeToolsTool,
   extractLocalDocument,
   runLocalAssistantTools,
+  pendingFinalAgentDraft,
   toolsForDomains,
   type LocalAssistantEditTurnState,
   type LocalAssistantReadTurnState,
@@ -120,6 +122,7 @@ import {
   CODING_MARKDOWN_BUDGET_LAB_SYSTEM_PROMPT,
   CODING_MARKDOWN_GREP_ROUTE_LAB_SYSTEM_PROMPT,
   CODING_MARKDOWN_FINAL_LAB_SYSTEM_PROMPT,
+  CODING_MARKDOWN_FINAL_AGENT_LAB_SYSTEM_PROMPT,
   CODING_MARKDOWN_TRIAGE_LAB_SYSTEM_PROMPT,
   CODING_MARKDOWN_TRIAGE_FLOOR_LAB_SYSTEM_PROMPT,
   CODING_MARKDOWN_LAB_SYSTEM_PROMPT,
@@ -1172,7 +1175,9 @@ export async function streamAnonymousChat(params: {
           ? GREP_PER_FILE_BUDGET_ENABLED
             ? TRIAGE_WORKFLOW_ENABLED
               ? FINAL_ARM_ENABLED
-                ? CODING_MARKDOWN_FINAL_LAB_SYSTEM_PROMPT
+                ? FINAL_AGENT_LOOP_ENABLED
+                  ? CODING_MARKDOWN_FINAL_AGENT_LAB_SYSTEM_PROMPT
+                  : CODING_MARKDOWN_FINAL_LAB_SYSTEM_PROMPT
                 : COMPLETENESS_FLOOR_ENABLED
                   ? CODING_MARKDOWN_TRIAGE_FLOOR_LAB_SYSTEM_PROMPT
                   : CODING_MARKDOWN_TRIAGE_LAB_SYSTEM_PROMPT
@@ -1609,6 +1614,7 @@ export async function streamAnonymousChat(params: {
   // TREATMENT mechanism 1: turn-scoped, created beside the other turn states so
   // an echo served in round 1 is still visible to the authoring gate in round N.
   const localRequirementsState = createLocalAssistantRequirementsState();
+  let finalAgentAutoFlushCount = 0;
   // The task's own user message, captured verbatim for fetch_requirements to
   // re-serve. This is the message as submitted — not the provider-facing copy,
   // which has the attached-document manifest prepended.
@@ -1884,6 +1890,7 @@ export async function streamAnonymousChat(params: {
   });
   const runTurnTools = async (
     calls: Parameters<typeof runLocalAssistantTools>[1],
+    options: { trace?: boolean } = {},
   ) => {
     if (researchCheckpointPhase) {
       const checkpoint = calls.find(
@@ -2584,7 +2591,7 @@ export async function streamAnonymousChat(params: {
         refreshResult.terminal = true;
       }
     }
-    traceToolResults();
+    if (options.trace !== false) traceToolResults();
     for (const call of calls) {
       const toolResult = results.find(
         (candidate) => candidate.tool_use_id === call.id,
@@ -2684,6 +2691,7 @@ export async function streamAnonymousChat(params: {
           triage_workflow: TRIAGE_WORKFLOW_ENABLED,
           draft_edit: DRAFT_EDIT_ENABLED,
           final_arm: FINAL_ARM_ENABLED,
+          final_agent_loop: FINAL_AGENT_LOOP_ENABLED,
           signal_gate: FINAL_ARM_ENABLED,
           grep_body_exposure: FINAL_ARM_ENABLED,
           source_immutable: FINAL_ARM_ENABLED,
@@ -3207,6 +3215,40 @@ export async function streamAnonymousChat(params: {
     };
     await drainPendingEvidenceTransitions();
 
+    // Normal coding-agent termination: after the model has edited a
+    // coverage-paused output and ends with a tool-free response, commit that
+    // dirty buffer once. This is host work, not a synthetic model tool call,
+    // so it emits the ordinary document receipt without a tool trace event.
+    const pendingFinalDraft = pendingFinalAgentDraft(localRequirementsState);
+    if (pendingFinalDraft) {
+      const [flushed] = await runTurnTools(
+        [
+          {
+            id: "host-final-agent-flush",
+            name: "generate_docx",
+            input: pendingFinalDraft,
+          },
+        ],
+        { trace: false },
+      );
+      const receipt = committedMutationReceipt(flushed);
+      if (receipt?.action !== "created") {
+        throw new Error("Pending DOCX output could not be committed.");
+      }
+      finalAgentAutoFlushCount += 1;
+      if (!localMutationCommitted) {
+        localMutationCommitted = true;
+        if (
+          !chatTurnWasDeleted(chat.id) &&
+          (params.currentTurn.kind === "ask_inputs_response" || normalTurnId)
+        ) {
+          persistTurnEvents([
+            { type: LOCAL_MUTATION_COMMITTED_EVENT, schema_version: 1 },
+          ]);
+        }
+      }
+    }
+
     flushTail();
     await finalizeLegalEvidenceExperiment({
       state: legalEvidenceState,
@@ -3517,6 +3559,7 @@ export async function streamAnonymousChat(params: {
         first_draft_count: localRequirementsState.firstDraftCount,
         first_draft_coverage: localRequirementsState.firstDraftCoverage,
         signal_gate_count: localRequirementsState.signalGateCount,
+        auto_flush_count: finalAgentAutoFlushCount,
         draft_edit_count: localRequirementsState.draftEditCount,
         source_edit_count: localRequirementsState.sourceEditCount,
         source_edit_refusal_count:

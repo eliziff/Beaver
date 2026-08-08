@@ -941,6 +941,28 @@ CORPUS WORKFLOW:
 /** Delta tag: coverage-first, signal-gated final treatment. */
 export const CODING_MARKDOWN_FINAL_DELTA = "coding-markdown-final-v1";
 
+/**
+ * Conventional coding-agent successor: retrieval tools expose files, the
+ * authoring tool writes one DOCX from Markdown, and a normal assistant reply
+ * ends the turn. The host may hold a coverage-paused write open for Edit, but
+ * rendering and turn-control mechanics are not part of the model contract.
+ */
+export const CODING_MARKDOWN_FINAL_AGENT_LAB_SYSTEM_PROMPT = `You are an AI legal assistant for lawyers and legal professionals. Produce precise, professional work from the project documents without fabricating content.
+
+SOURCE WORK:
+- Retrieve the sources the requested work actually depends on. Glob supplies exact sizes and companion .toc paths when useful. If the relevant text fits with room to synthesize, Read it fully. Otherwise use .toc files, corpus Grep, and scoped Read windows.
+- Verify names, figures, dates, and terms in the governing source rather than another document's description. Report source-stated values as stated; label any independent recomputation separately.
+- Before drafting, check the requested issues, parties, dates, numbers, exceptions, and conflicts.
+- Refer to documents by filename or a natural description in prose, not by internal IDs.
+
+DOCUMENT CREATION:
+- Write each requested .docx once with generate_docx, using its filename and complete Markdown content.
+
+Do not use emojis.`;
+
+export const CODING_MARKDOWN_FINAL_AGENT_DELTA =
+  "coding-markdown-final-agent-loop-v1";
+
 /* ----------------------------------------------------------------------
  * CODING-MARKDOWN v2 (parity pack; adversarial audit 2026-08-06). The v1
  * arm served lean-batch's real tools — no Glob, a paths[] batch Read with
@@ -1380,6 +1402,69 @@ export const CODING_MARKDOWN_FINAL_LAB_TOOLS: OpenAIToolSchema[] = [
   CODING_FINAL_READ_TOOL,
   CODING_FINAL_GENERATE_DOCX_TOOL,
   CODING_FINAL_EDIT_TOOL,
+];
+
+const CODING_FINAL_AGENT_GENERATE_DOCX_TOOL: OpenAIToolSchema = {
+  type: "function",
+  function: {
+    name: "generate_docx",
+    description:
+      "Write one .docx file. The content is the complete document in Markdown.",
+    parameters: {
+      type: "object",
+      properties: {
+        filename: {
+          type: "string",
+          description: "Output filename ending in .docx.",
+        },
+        content: {
+          type: "string",
+          description: "Complete document content in Markdown.",
+        },
+      },
+      required: ["filename", "content"],
+    },
+  },
+};
+
+const CODING_FINAL_AGENT_EDIT_TOOL: OpenAIToolSchema = {
+  type: "function",
+  function: {
+    name: "Edit",
+    description:
+      "Edit a pending output file by exact string replacement. Source documents are read-only. old_string must match exactly and be unique unless replace_all is true.",
+    parameters: {
+      type: "object",
+      properties: {
+        file_path: {
+          type: "string",
+          description: "Pending .docx output filename returned by generate_docx.",
+        },
+        old_string: {
+          type: "string",
+          description: "Exact text to replace.",
+        },
+        new_string: {
+          type: "string",
+          description: "Replacement text; it must differ from old_string.",
+        },
+        replace_all: {
+          type: "boolean",
+          description: "Replace every match; defaults to false.",
+        },
+      },
+      required: ["file_path", "old_string", "new_string"],
+    },
+  },
+};
+
+/** Exact live tool surface for the conventional agent-loop successor. */
+export const CODING_MARKDOWN_FINAL_AGENT_LAB_TOOLS: OpenAIToolSchema[] = [
+  CODING_FINAL_GLOB_TOOL,
+  CODING_FINAL_GREP_TOOL,
+  CODING_FINAL_READ_TOOL,
+  CODING_FINAL_AGENT_GENERATE_DOCX_TOOL,
+  CODING_FINAL_AGENT_EDIT_TOOL,
 ];
 
 export const ADAPTIVE_MIKE_LAB_SYSTEM_PROMPT = `${UPSTREAM_MIKE_LAB_SYSTEM_PROMPT}
