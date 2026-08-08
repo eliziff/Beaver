@@ -406,9 +406,8 @@ def complete_identifier(
 
 def log_root(spec: dict[str, Any], lane: str) -> Path:
     lane_spec = spec["lanes"][lane]
-    return LAB / "run-logs" / "coding-markdown-final-v1" / lane / lane_spec[
-        "run_stamp"
-    ]
+    experiment_slug = str(spec["experiment_id"]).removeprefix("harvey-lab-")
+    return LAB / "run-logs" / experiment_slug / lane / lane_spec["run_stamp"]
 
 
 def append_log(path: Path, message: str) -> None:
