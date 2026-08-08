@@ -277,7 +277,7 @@
     "benchmarks/harvey-labs/evaluation/scoring.py": "d3e045b5ff752482ea63b61e789bd010277460508abd5ceff234f4554cda7de1",
     "benchmarks/harvey-labs/evaluation/prompts/rubric_criterion.txt": "da0f2618d996ac5415a960dfc445e53b6fbd1b22602dd587bf6ecccbe139cb21",
     "benchmarks/harvey-labs/harness/adapters/codex.py": "451c021bcf6846baa6d3adfb6e9b7e39272414e3c9664f835b65df5de835ade5",
-    "benchmarks/harvey-labs/scripts/run_coding_markdown_final_v1.py": "245502ee09a31f27458bfab9a67c4baddddfb10bb88f16cfd1997e163f13a0ce",
+    "benchmarks/harvey-labs/scripts/run_coding_markdown_final_v1.py": "5b07a08dfb281a33da68259a147814a35764146fdbc973a5b3ae954f69a7088f",
     "benchmarks/lab/corpus-split.json": "ac277f52c2896f978e35db8d6f408b73ec9f7808a163009723d90c07de7d317a"
   },
   "prelaunch_commit_gate": {
