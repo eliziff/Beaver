@@ -3,6 +3,7 @@
   "experiment_id": "harvey-lab-coding-markdown-final-v4",
   "registered_at": "2026-08-08T15:50:00Z",
   "status": "preregistered_before_inference",
+  "administrative_amendment_2026_08_08": "After the frozen preflight produced all four exact deliverables, validation exposed two bookkeeping omissions: coding_markdown_final_v4 was absent from the shared exact-name mapping list, and the mutation audit did not recognize Edit against a generated .docx output name. This amendment changes no prompt, tool, provider, task, metric, gate, or model behavior; it only makes the preregistered gates evaluate the v4 contract as written.",
   "claim_scope": "Visible-development Harvey LAB evidence only. DeepSeek and Luna lanes are analyzed independently, are never pooled with each other, and are never pooled with canonical constant-model Claude A/B cells or represented as human gold.",
   "hypothesis": "A conventional coding-agent write/edit/end-turn loop can retain the final arm's source fidelity and single information-gap pause while eliminating duplicate authoring, hidden render semantics, and post-write tool leakage.",
   "successor_delta": {
@@ -815,7 +816,7 @@
     }
   },
   "source_fingerprints": {
-    "backend/scripts/lab-beaver-arm.ts": "ab5f2d1d25e8ffa5048dd28c080cdd69f4053da9bb1ee9057f385c7e05bda626",
+    "backend/scripts/lab-beaver-arm.ts": "9b13d051df0dbe2f9a561035588e3a2de48685f7922208c4964a4e914f23f0d8",
     "backend/scripts/lab-authored-documents.ts": "f9320ba6bef88e1b7bd10a20e27e6297bd2cf422a12842137cb064ff7aecd2a0",
     "backend/src/lib/chat/localAssistantTools.ts": "049f38c2426a1a5c0e5fd9c3b659f736c55ef7c3067b10f53b96f355b56e9d8a",
     "backend/src/lib/chat/upstreamMikeBenchmarkSurface.ts": "3dc8d3da63a3305ec2e27af17f1484e89efe9b1f4e476d55067582dd6509f4d5",
@@ -833,7 +834,7 @@
     "benchmarks/harvey-labs/evaluation/scoring.py": "d3e045b5ff752482ea63b61e789bd010277460508abd5ceff234f4554cda7de1",
     "benchmarks/harvey-labs/evaluation/prompts/rubric_criterion.txt": "da0f2618d996ac5415a960dfc445e53b6fbd1b22602dd587bf6ecccbe139cb21",
     "benchmarks/harvey-labs/harness/adapters/codex.py": "451c021bcf6846baa6d3adfb6e9b7e39272414e3c9664f835b65df5de835ade5",
-    "benchmarks/harvey-labs/scripts/run_coding_markdown_final_v1.py": "5b07a08dfb281a33da68259a147814a35764146fdbc973a5b3ae954f69a7088f",
+    "benchmarks/harvey-labs/scripts/run_coding_markdown_final_v1.py": "1acfe3e15ff36e13fab0e65b78543be1761bddfcd0e00c06f79812c919a6baf4",
     "benchmarks/lab/corpus-split.json": "ac277f52c2896f978e35db8d6f408b73ec9f7808a163009723d90c07de7d317a"
   },
   "prelaunch_commit_gate": {
