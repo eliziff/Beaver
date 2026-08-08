@@ -36,6 +36,11 @@ const suites = {
     directory: "core-additions-v1",
     runPrefix: "coding-agent-core-additions-v1",
   },
+  expansion: {
+    campaign: "coding-agent-defaults-v1-expansion-v1",
+    directory: "expansion-v1",
+    runPrefix: "coding-agent-expansion-v1",
+  },
   redlines: {
     campaign: "coding-agent-defaults-v1-redlines-v1",
     directory: "redlines-v1",
@@ -49,7 +54,7 @@ const suites = {
 };
 const suite = suites[suiteName];
 if (!suite) {
-  throw new Error(`Unknown --suite ${String(suiteName)}; expected current, additions, redlines, or data-room`);
+  throw new Error(`Unknown --suite ${String(suiteName)}; expected current, additions, expansion, redlines, or data-room`);
 }
 const campaignRoot = path.join(
   lab,
@@ -86,6 +91,20 @@ const tasks = {
   indenture: "capital-markets/draft-indenture-for-senior-secured-notes-offering",
   acquisitionDiligence: "corporate-ma/draft-acquisition-due-diligence",
   aerospaceDataRoom: "diligence/aerospace-vertical-integration",
+  antitrustRisk: "antitrust-competition/prepare-antitrust-risk-assessment",
+  criticalVendors:
+    "bankruptcy-restructuring/extract-critical-vendor-terms-from-supply-contracts",
+  covenantCompliance:
+    "banking-finance/compare-compliance-certificate-against-financial-covenants",
+  planDistributions:
+    "bankruptcy-restructuring/compare-distribution-amounts-against-plan-requirements",
+  conventionEnforcement:
+    "arbitration-international-dispute-resolution/analyze-arbitration-award-for-new-york-convention-enforcement-defenses",
+  flsaClassification:
+    "corporate-governance/analyze-flsa-overtime-rule-gap-against-current-employee-classifications",
+  ofacInvestigation:
+    "international-trade-sanctions/analyze-ofac-investigative-demand-and-related-transaction-records",
+  transferPricing: "tax/draft-transfer-pricing-documentation",
 };
 
 const currentCells = [
@@ -122,6 +141,17 @@ const cells =
           tasks.indenture,
           tasks.acquisitionDiligence,
         ])
+      : suiteName === "expansion"
+        ? pairedCells([
+            tasks.antitrustRisk,
+            tasks.criticalVendors,
+            tasks.covenantCompliance,
+            tasks.planDistributions,
+            tasks.conventionEnforcement,
+            tasks.flsaClassification,
+            tasks.ofacInvestigation,
+            tasks.transferPricing,
+          ])
       : suiteName === "redlines"
         ? pairedCells([tasks.dpa, tasks.protective])
         : pairedCells([tasks.aerospaceDataRoom]);
