@@ -1819,16 +1819,41 @@ async function main() {
 
   if (process.env.MIKE_DISABLE_RESEARCH_TOOLS !== "1")
     throw new Error("expected MIKE_DISABLE_RESEARCH_TOOLS=1 (see parent env)");
-  const runDir = path.join(labRoot, "results", ...runId.split("/"));
+  const baseRunDir = path.join(labRoot, "results", ...runId.split("/"));
+  let runDir = baseRunDir;
   activeRunDir = runDir;
   mkdirSync(path.dirname(runDir), { recursive: true });
   try {
     mkdirSync(runDir);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "EEXIST") {
-      throw new Error(`refusing to reuse existing run directory: ${runDir}`);
+      if (process.env.LAB_BEAVER_TRANSPORT_RELAUNCH === "1") {
+        // Transport-relaunch dirs are minted from a 1-second timestamp, so two
+        // concurrent relaunches (e.g. at 8-worker concurrency) can collide on
+        // the same second. A relaunch is forensics, not operator intent — bump
+        // the suffix until a fresh dir frees up instead of dying.
+        let n = 2;
+        while (true) {
+          const candidate = `${baseRunDir}-${n}`;
+          try {
+            mkdirSync(candidate);
+            runDir = candidate;
+            activeRunDir = runDir;
+            break;
+          } catch (inner) {
+            if ((inner as NodeJS.ErrnoException).code === "EEXIST") {
+              n += 1;
+              continue;
+            }
+            throw inner;
+          }
+        }
+      } else {
+        throw new Error(`refusing to reuse existing run directory: ${runDir}`);
+      }
+    } else {
+      throw error;
     }
-    throw error;
   }
   writeFileSync(
     path.join(runDir, "run-state.json"),
