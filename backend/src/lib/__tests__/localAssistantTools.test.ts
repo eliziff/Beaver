@@ -3290,11 +3290,13 @@ describe("local assistant tools", () => {
       executePublicLegalSourceTool: vi.fn(async (name: string) =>
         name === "public_legal_source_search"
           ? {
-              ok: true,
-              hits: Array.from({ length: 100 }, (_, index) => ({
-                id: `source-${index}`,
-                excerpt: `research passage ${index} ${"x".repeat(100)}`,
-              })),
+              payload: {
+                ok: true,
+                hits: Array.from({ length: 100 }, (_, index) => ({
+                  id: `source-${index}`,
+                  excerpt: `research passage ${index} ${"x".repeat(100)}`,
+                })),
+              },
             }
           : null,
       ),

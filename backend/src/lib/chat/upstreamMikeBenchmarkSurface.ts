@@ -926,6 +926,21 @@ export const TRIAGE_WORKFLOW_PROMPT_DELTA = "triage-workflow-prompt-v1";
 /** Delta tag: the composite v5 coding arm (v4 + per-file grep budget). */
 export const CODING_MARKDOWN_V5_DELTA = "coding-markdown-v5";
 
+/**
+ * Final-arm prompt: the base coding prompt's single completeness check plus
+ * concise, action-facing source navigation and figure-reporting rules.
+ */
+export const CODING_MARKDOWN_FINAL_LAB_SYSTEM_PROMPT = `${CODING_MARKDOWN_LAB_SYSTEM_PROMPT}
+
+CORPUS WORKFLOW:
+- Start with Glob, then search the corpus early for the deliverable's key subjects. Glob lists each document's size and any companion "<name>.toc" index; Grep with output_mode "content" returns matching source lines and divides its result budget across matching files. Use bare filenames as file_path, never "doc-N:" labels, and batch independent calls.
+- Account for every document before drafting: read it, inspect its .toc, or include it in a corpus search. If the relevant source text fits with room to synthesize, Read it fully. Otherwise, read central sources in full and use .toc files, content Grep, and scoped Read windows for the rest. Follow continuation markers when a result is truncated, and note materials referenced but absent from the corpus.
+- Verify at the source: state a name, figure, date, or term only after retrieving it from the governing document, never from another document's description. Present interacting findings together.
+- Report a source-stated figure or date as stated. If an independent recomputation differs, show both values labeled as stated and computed; never silently substitute one for the other.`;
+
+/** Delta tag: coverage-first, signal-gated final treatment. */
+export const CODING_MARKDOWN_FINAL_DELTA = "coding-markdown-final-v1";
+
 /* ----------------------------------------------------------------------
  * CODING-MARKDOWN v2 (parity pack; adversarial audit 2026-08-06). The v1
  * arm served lean-batch's real tools — no Glob, a paths[] batch Read with
@@ -1271,6 +1286,100 @@ export const CODING_MARKDOWN_V5_LAB_TOOLS: OpenAIToolSchema[] = [
   CODING_GREP_TOOL_FAIR_SHARE,
   CODING_READ_TOOL,
   CODING_GENERATE_DOCX_TOOL,
+];
+
+/** Exact live v5 surface after its frozen draft-edit lever is applied. */
+export const CODING_MARKDOWN_V5_DRAFT_EDIT_LAB_TOOLS: OpenAIToolSchema[] = [
+  CODING_GLOB_TOOL,
+  CODING_GREP_TOOL_FAIR_SHARE,
+  CODING_READ_TOOL,
+  CODING_GENERATE_DOCX_DRAFT_EDIT_TOOL,
+  CODING_EDIT_TOOL,
+];
+
+const CODING_FINAL_GLOB_TOOL: OpenAIToolSchema = {
+  ...CODING_GLOB_TOOL,
+  function: {
+    ...CODING_GLOB_TOOL.function,
+    description:
+      "List project files matching a glob pattern, with each file's size." +
+      " Grep and Read use the filenames returned here.",
+  },
+};
+
+const CODING_FINAL_GREP_TOOL: OpenAIToolSchema = {
+  ...CODING_GREP_TOOL_FAIR_SHARE,
+  function: {
+    ...CODING_GREP_TOOL_FAIR_SHARE.function,
+    description:
+      "Search project document text with a regular expression. The search" +
+      " covers all documents by default; path or glob narrows it. The default" +
+      " output lists matching filenames. Use output_mode \"content\" to" +
+      " retrieve matching lines and nearby context. In content mode, each" +
+      " match includes its enclosing section lead, and head_limit is divided" +
+      " across matching files so a corpus-wide search returns results from" +
+      " each file.",
+  },
+};
+
+const CODING_FINAL_READ_TOOL: OpenAIToolSchema = {
+  ...CODING_READ_TOOL,
+  function: {
+    ...CODING_READ_TOOL.function,
+    description:
+      "Read a project document or companion .toc file with numbered lines." +
+      " Reads up to 2000 lines by default. When you know the needed section" +
+      " or have a Grep line number, use offset and limit for that window.",
+  },
+};
+
+const CODING_FINAL_GENERATE_DOCX_TOOL: OpenAIToolSchema = {
+  ...CODING_GENERATE_DOCX_DRAFT_EDIT_TOOL,
+  function: {
+    ...CODING_GENERATE_DOCX_DRAFT_EDIT_TOOL.function,
+    description:
+      "Create a final Word document. Use exactly {title, markdown}; put the" +
+      " complete document body in markdown. For multiple requested" +
+      " deliverables, issue one call per deliverable in the same final" +
+      " response. If draft.md was saved, omit markdown to render that edited" +
+      " draft. A successful final batch ends the turn.",
+  },
+};
+
+const CODING_FINAL_EDIT_TOOL: OpenAIToolSchema = {
+  ...CODING_EDIT_TOOL,
+  function: {
+    ...CODING_EDIT_TOOL.function,
+    description:
+      "Edit a saved Markdown draft by exact string replacement. Only draft" +
+      " files such as draft.md may be modified; source documents are" +
+      " read-only. old_string must match exactly and be unique unless" +
+      " replace_all is true. After editing, call generate_docx without" +
+      " markdown to render the draft.",
+    parameters: {
+      ...CODING_EDIT_TOOL.function.parameters,
+      properties: {
+        ...(CODING_EDIT_TOOL.function.parameters.properties as Record<
+          string,
+          unknown
+        >),
+        file_path: {
+          type: "string",
+          description:
+            'Saved Markdown draft path, such as "draft.md". Source documents are read-only.',
+        },
+      },
+    },
+  },
+};
+
+/** Exact live tool surface for the final treatment. */
+export const CODING_MARKDOWN_FINAL_LAB_TOOLS: OpenAIToolSchema[] = [
+  CODING_FINAL_GLOB_TOOL,
+  CODING_FINAL_GREP_TOOL,
+  CODING_FINAL_READ_TOOL,
+  CODING_FINAL_GENERATE_DOCX_TOOL,
+  CODING_FINAL_EDIT_TOOL,
 ];
 
 export const ADAPTIVE_MIKE_LAB_SYSTEM_PROMPT = `${UPSTREAM_MIKE_LAB_SYSTEM_PROMPT}
