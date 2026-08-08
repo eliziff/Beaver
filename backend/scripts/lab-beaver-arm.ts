@@ -53,6 +53,8 @@ import {
   CODING_MARKDOWN_FINAL_DELTA,
   CODING_MARKDOWN_FINAL_LAB_SYSTEM_PROMPT,
   CODING_MARKDOWN_FINAL_LAB_TOOLS,
+  CODING_MARKDOWN_FINAL_AGENT_LAB_SYSTEM_PROMPT,
+  CODING_MARKDOWN_FINAL_AGENT_LAB_TOOLS,
   CODING_MARKDOWN_V2_DELTA,
   CODING_MARKDOWN_V2_LAB_TOOLS,
   CODING_MARKDOWN_V3_DELTA,
@@ -147,6 +149,7 @@ let activeRunDir: string | null = null;
 const CODING_MARKDOWN_FINAL_ARMS = new Set([
   "coding_markdown_final_v1",
   "coding_markdown_final_v2",
+  "coding_markdown_final_v4",
 ]);
 
 function isCodingMarkdownFinalArm(arm: string): boolean {
@@ -275,6 +278,11 @@ function armExpectedSurface(
             ? {
                 systemPrompt: CODING_MARKDOWN_TRIAGE_FLOOR_LAB_SYSTEM_PROMPT,
                 tools: CODING_MARKDOWN_V5_DRAFT_EDIT_LAB_TOOLS,
+              }
+          : arm === "coding_markdown_final_v4"
+            ? {
+                systemPrompt: CODING_MARKDOWN_FINAL_AGENT_LAB_SYSTEM_PROMPT,
+                tools: CODING_MARKDOWN_FINAL_AGENT_LAB_TOOLS,
               }
           : isCodingMarkdownFinalArm(arm)
             ? {
@@ -1408,6 +1416,38 @@ async function main() {
       MIKE_FINAL_ARM: "1",
       MIKE_CODEX_TIMEOUT_MS: "600000",
     },
+    coding_markdown_final_v4: {
+      MIKE_NAV_SHAPE: "legacy",
+      MIKE_TOOL_SHAPE: "lean-batch-v1",
+      MIKE_RETRIEVAL_EXPERIMENT: "p0-pure-coding",
+      MIKE_PROGRESSIVE_DISCLOSURE: "0",
+      MIKE_MODEL_COVERAGE_ROUTING: "0",
+      MIKE_WHOLE_READ_MAX_CHARS: "",
+      MIKE_TOOL_RESULT_CAP: "64000",
+      MIKE_SUPPRESS_DUPLICATE_WHOLE_READS: "0",
+      MIKE_TERMINAL_AUTHORING: "0",
+      MIKE_CONTEXT_HANDOFF: "0",
+      MIKE_RESEARCH_CONTEXT_REFRESH: "0",
+      MIKE_CONTINUOUS_EVIDENCE: "0",
+      MIKE_OPENAI_COMPACT_THRESHOLD: "244800",
+      MIKE_SLA_WORKFLOW: "0",
+      MIKE_GREENFIELD_REVIEW: "0",
+      MIKE_READ_DOCX_MARKDOWN: "1",
+      MIKE_CODING_NEUTRAL_PROMPT: "1",
+      MIKE_CODING_PARITY: "1",
+      MIKE_GREP_SECTION_CONTEXT: "1",
+      MIKE_CODING_TOC_FILES: "1",
+      MIKE_GREP_PER_FILE_BUDGET: "1",
+      MIKE_TRIAGE_WORKFLOW: "1",
+      MIKE_EXPOSURE_ECHO: "1",
+      MIKE_DRAFT_EDIT: "1",
+      MIKE_COMPLETENESS_FLOOR: "0",
+      MIKE_COMPOSITION_CHECK: "0",
+      MIKE_FINAL_ARM: "1",
+      MIKE_FINAL_AGENT_LOOP: "1",
+      MIKE_DEEPSEEK_MAX_TOKENS: "65536",
+      MIKE_CODEX_TIMEOUT_MS: "600000",
+    },
     lean_batch_hardrefs_v1: {
       MIKE_NAV_SHAPE: "legacy",
       MIKE_TOOL_SHAPE: "lean-batch-hardrefs-v1",
@@ -1655,6 +1695,8 @@ async function main() {
           MIKE_REQECHO_DRAFT_MODE: "",
           MIKE_COMPOSITION_CHECK: "",
           MIKE_FINAL_ARM: "",
+          MIKE_FINAL_AGENT_LOOP: "",
+          MIKE_DEEPSEEK_MAX_TOKENS: "",
           MIKE_CODEX_TIMEOUT_MS: "",
           // Compute-only ablation. It does not change tool schemas, prompts,
           // or extracted text; a PDF is still created on the first paged read.
@@ -2167,6 +2209,7 @@ async function main() {
     ? finalFirstDraftCoverage.unseen
     : [];
   const signalGateCount = Number(finalArmReceipt?.signal_gate_count ?? 0);
+  const finalAutoFlushCount = Number(finalArmReceipt?.auto_flush_count ?? 0);
   const finalDraftEditCount = Number(finalArmReceipt?.draft_edit_count ?? 0);
   const finalSourceEditCount = Number(finalArmReceipt?.source_edit_count ?? 0);
   const finalSourceEditRefusalCount = Number(
@@ -2783,6 +2826,7 @@ async function main() {
       "coding_markdown_v5_comp",
       "coding_markdown_final_v1",
       "coding_markdown_final_v2",
+      "coding_markdown_final_v4",
       "coding_markdown_v5_reqecho_v1",
       "coding_markdown_v5_reqecho_draft_v1",
     ].includes(arm)
@@ -2823,7 +2867,11 @@ async function main() {
     const reqechoDraftArm = arm === "coding_markdown_v5_reqecho_draft_v1";
     const compositionCheckArm = arm === "coding_markdown_v5_comp";
     const finalArm = isCodingMarkdownFinalArm(arm);
-    const terminalAuthoring = arm !== "coding_markdown_final_v2";
+    const finalAgentLoop = arm === "coding_markdown_final_v4";
+    const terminalAuthoring = ![
+      "coding_markdown_final_v2",
+      "coding_markdown_final_v4",
+    ].includes(arm);
     // Completeness floor rides the consolidated v5 arm (gen-6 lever) and the
     // comp treatment arm (floor IN the treatment, per Eli); the reqecho T2
     // contrast stays floor-off so the echo variable is unconfounded.
@@ -2874,6 +2922,7 @@ async function main() {
       surface?.requirements_echo !== requirementsEchoArm ||
       surface?.composition_check !== compositionCheckArm ||
       surface?.final_arm !== finalArm ||
+      surface?.final_agent_loop !== finalAgentLoop ||
       surface?.signal_gate !== finalArm ||
       surface?.grep_body_exposure !== finalArm ||
       surface?.source_immutable !== finalArm ||
@@ -2949,6 +2998,9 @@ async function main() {
         coveredDocuments !== documents.length ||
         signalGateCount !== expectedGateCount ||
         signalGateCount > 1 ||
+        (finalAgentLoop &&
+          (finalAutoFlushCount !== signalGateCount ||
+            (signalGateCount === 1 && finalDraftEditCount < 1))) ||
         finalSourceEditCount !== 0 ||
         finalSourceEditRefusalCount !== 0 ||
         compositionCheckShadowCount < 1
@@ -2957,7 +3009,8 @@ async function main() {
           `${arm} final receipt failed: firstDraft=${firstDraftCount};` +
             ` body=${finalBodyEvidence.length}; tocOnly=${finalTocOnly.length};` +
             ` unseen=${finalUnseen.length}; gate=${signalGateCount};` +
-            ` draftEdits=${finalDraftEditCount}; sourceEdits=${finalSourceEditCount};` +
+            ` autoFlush=${finalAutoFlushCount}; draftEdits=${finalDraftEditCount};` +
+            ` sourceEdits=${finalSourceEditCount};` +
             ` sourceEditRefusals=${finalSourceEditRefusalCount};` +
             ` shadowChecks=${compositionCheckShadowCount};` +
             ` shadowFindings=${compositionCheckShadowFindings}`,
@@ -4704,6 +4757,7 @@ async function main() {
         first_draft_toc_only: finalTocOnly.length,
         first_draft_unseen: finalUnseen.length,
         signal_gate_count: signalGateCount,
+        auto_flush_count: finalAutoFlushCount,
         draft_edit_count: finalDraftEditCount,
         source_edit_count: finalSourceEditCount,
         source_edit_refusal_count: finalSourceEditRefusalCount,

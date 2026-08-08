@@ -129,6 +129,7 @@ import {
   CODING_MARKDOWN_V3_LAB_TOOLS,
   CODING_MARKDOWN_V5_LAB_TOOLS,
   CODING_MARKDOWN_FINAL_LAB_TOOLS,
+  CODING_MARKDOWN_FINAL_AGENT_LAB_TOOLS,
   CODING_EDIT_TOOL,
   CODING_GENERATE_DOCX_DRAFT_EDIT_TOOL,
   MIKE_GREP_LAB_TOOLS,
@@ -984,6 +985,9 @@ export const TRIAGE_WORKFLOW_ENABLED =
 export const DRAFT_EDIT_ENABLED = process.env.MIKE_DRAFT_EDIT === "1";
 /** Harvey LAB coverage-first, signal-gated final treatment. */
 export const FINAL_ARM_ENABLED = process.env.MIKE_FINAL_ARM === "1";
+/** Conventional coding-agent write/edit/end-turn contract for the successor. */
+export const FINAL_AGENT_LOOP_ENABLED =
+  process.env.MIKE_FINAL_AGENT_LOOP === "1";
 export const GROUNDING_FIRST_ENABLED =
   process.env.MIKE_GROUNDING_FIRST === "1";
 export const MIKE_GREP_FAMILY_TOOL_SHAPE =
@@ -1265,6 +1269,22 @@ export const createLocalAssistantRequirementsState =
 
 /** Canonical in-memory draft path; the refusal message names this file. */
 export const CANONICAL_DRAFT_FILE = "draft.md";
+
+/** A coverage-paused output is committed only after at least one real Edit. */
+export function pendingFinalAgentDraft(
+  state: LocalAssistantRequirementsState,
+): { filename: string; content: string } | null {
+  if (
+    !FINAL_AGENT_LOOP_ENABLED ||
+    state.signalGateCount !== 1 ||
+    state.draftEditCount < 1 ||
+    !state.draftFilename
+  ) {
+    return null;
+  }
+  const content = state.drafts[state.draftFilename.toLowerCase()];
+  return content ? { filename: state.draftFilename, content } : null;
+}
 
 /** Map key for a draft named by a title/filename: lowercased slug + ".md".
  * Used to alias the canonical draft under the deliverable's own name, so a
@@ -2442,7 +2462,9 @@ const ORIGIN_MIKE_SERVED_TOOLS_BASE: OpenAIToolSchema[] =
  * and the Edit tool joins the surface. Coding-surface lever: only the v5 env
  * sets MIKE_DRAFT_EDIT, like every other arm-scoped flag here.
  */
-const ORIGIN_MIKE_SERVED_TOOLS: OpenAIToolSchema[] = FINAL_ARM_ENABLED
+const ORIGIN_MIKE_SERVED_TOOLS: OpenAIToolSchema[] = FINAL_AGENT_LOOP_ENABLED
+  ? CODING_MARKDOWN_FINAL_AGENT_LAB_TOOLS
+  : FINAL_ARM_ENABLED
   ? CODING_MARKDOWN_FINAL_LAB_TOOLS
   : DRAFT_EDIT_ENABLED
   ? [
@@ -8105,6 +8127,23 @@ export async function runLocalAssistantTools(
         args = resolved.input;
       }
 
+      // Claim the one final-agent authoring boundary before any later await.
+      // Sibling writes in the same tool batch remain independent; only the
+      // first valid bodied write can become the pending Edit target.
+      const claimsFinalAgentGate = Boolean(
+        FINAL_AGENT_LOOP_ENABLED &&
+          EXPOSURE_ECHO_ENABLED &&
+          requirementsState &&
+          turnReadState &&
+          call.name === "generate_docx" &&
+          !requirementsState.exposureNudgeServed &&
+          trimmed(args.filename) &&
+          trimmed(args.content),
+      );
+      if (claimsFinalAgentGate && requirementsState) {
+        requirementsState.exposureNudgeServed = true;
+      }
+
       // Edit and Read are the two tools that can target an in-memory draft.
       // A real library path resolves through the coding surface (the FS
       // text-ops editor / read path below); a draft path — "draft.md" or any
@@ -8130,7 +8169,9 @@ export async function runLocalAssistantTools(
         if (requirementsState) requirementsState.sourceEditRefusalCount += 1;
         return fail(
           call,
-          "Source files are immutable in this arm. Edit a saved Markdown draft, such as draft.md, instead.",
+          FINAL_AGENT_LOOP_ENABLED
+            ? "Source files are immutable. Edit the pending output filename returned by generate_docx."
+            : "Source files are immutable in this arm. Edit a saved Markdown draft, such as draft.md, instead.",
         );
       }
 
@@ -8497,7 +8538,8 @@ export async function runLocalAssistantTools(
         if (
           EXPOSURE_ECHO_ENABLED &&
           requirementsState &&
-          !requirementsState.exposureNudgeServed &&
+          (claimsFinalAgentGate ||
+            !requirementsState.exposureNudgeServed) &&
           turnReadState
         ) {
           const stored = (await listLocalLibrary(userId, "file")).documents;
@@ -8542,18 +8584,24 @@ export async function runLocalAssistantTools(
           const body = DRAFT_EDIT_ENABLED
             ? trimmed(args.markdown) || trimmed(args.content)
             : "";
-          if (body) {
+          if (body && (!FINAL_AGENT_LOOP_ENABLED || unexposed.length > 0)) {
             requirementsState.draftTitle =
               trimmed(args.title) ||
               trimmed(args.filename).replace(/\.docx$/iu, "").trim() ||
               (/^#{1,6}\s+(.+)$/mu.exec(body)?.[1]?.trim() ?? "");
-            // Canonical draft + a per-title alias, so a model that addresses
-            // its draft by a derived filename finds it like any other file.
-            requirementsState.drafts[CANONICAL_DRAFT_FILE] = body;
-            requirementsState.drafts[
-              draftKeyFor(requirementsState.draftTitle)
-            ] = body;
-            requirementsState.draftFilename = trimmed(args.filename) || null;
+            if (FINAL_AGENT_LOOP_ENABLED) {
+              const pendingFilename = trimmed(args.filename);
+              requirementsState.drafts[pendingFilename.toLowerCase()] = body;
+              requirementsState.draftFilename = pendingFilename;
+            } else {
+              // Frozen draft-edit arms retain their canonical + title aliases.
+              requirementsState.drafts[CANONICAL_DRAFT_FILE] = body;
+              requirementsState.drafts[
+                draftKeyFor(requirementsState.draftTitle)
+              ] = body;
+              requirementsState.draftFilename =
+                trimmed(args.filename) || null;
+            }
           }
           if (
             FINAL_ARM_ENABLED &&
@@ -8689,6 +8737,21 @@ export async function runLocalAssistantTools(
                 unexposed.length === 1
                   ? "1 source has"
                   : `${unexposed.length} sources have`;
+              if (FINAL_AGENT_LOOP_ENABLED) {
+                const pendingFilename = requirementsState.draftFilename ??
+                  trimmed(args.filename);
+                return upstreamMikeResult(call, {
+                  error:
+                    `${sourceCount} no source text retrieved.` +
+                    `${tocOnly}${unseen} The pending output is` +
+                    ` ${pendingFilename}. Review each named source for` +
+                    ` relevance; retrieve relevant text with Grep` +
+                    ` output_mode=content or Read, then use Edit on` +
+                    ` ${pendingFilename} to incorporate the concrete` +
+                    ` findings. When the output is complete, finish the task` +
+                    ` normally.`,
+                });
+              }
               return upstreamMikeResult(call, {
                 error:
                   `${sourceCount} no source text retrieved.` +
@@ -8785,7 +8848,12 @@ export async function runLocalAssistantTools(
         // Draft-edit lever: a render call may omit markdown to use the saved
         // draft (as Edited); a call that re-sends a full body keeps the
         // buffer in sync so later Edits work on the latest text.
-        if (DRAFT_EDIT_ENABLED && requirementsState && !nativeDocx) {
+        if (
+          DRAFT_EDIT_ENABLED &&
+          !FINAL_AGENT_LOOP_ENABLED &&
+          requirementsState &&
+          !nativeDocx
+        ) {
           const canonical = requirementsState.drafts[CANONICAL_DRAFT_FILE];
           if (!markdown && canonical) {
             markdown = canonical;
@@ -8799,6 +8867,21 @@ export async function runLocalAssistantTools(
             if (title) requirementsState.draftTitle = title;
             if (filename) requirementsState.draftFilename = filename;
           }
+        }
+        if (
+          FINAL_AGENT_LOOP_ENABLED &&
+          call.name === "generate_docx" &&
+          (!filename || !trimmed(args.content))
+        ) {
+          const received = Object.keys(
+            (call.input ?? {}) as Record<string, unknown>,
+          ).join(", ");
+          return fail(
+            call,
+            "generate_docx invalid input: expected {filename: string ending" +
+              " in .docx, content: string containing the complete Markdown" +
+              ` document}; received keys [${received}].`,
+          );
         }
         if (!title || title.length > 256 || !markdown) {
           if (CODING_PARITY_ENABLED && call.name === "generate_docx") {
@@ -8921,6 +9004,28 @@ export async function runLocalAssistantTools(
             ...(codingAliasNote ? { note: codingAliasNote } : {}),
             download_url: downloadUrl,
           };
+          if (
+            FINAL_AGENT_LOOP_ENABLED &&
+            ORIGIN_MIKE_TOOL_SHAPE &&
+            call.name === "generate_docx"
+          ) {
+            if (
+              requirementsState?.draftFilename?.toLowerCase() ===
+              document.filename.toLowerCase()
+            ) {
+              requirementsState.drafts = {};
+              requirementsState.draftTitle = null;
+              requirementsState.draftFilename = null;
+            }
+            return {
+              ...result(call, {
+                ok: true,
+                filename: document.filename,
+                message: `Written ${document.filename} successfully.`,
+              }),
+              mutationReceipt: JSON.stringify(receipt),
+            };
+          }
           if (ORIGIN_MIKE_TOOL_SHAPE && call.name === "generate_docx") {
             const docLabel = `doc-${Math.max(
               0,
