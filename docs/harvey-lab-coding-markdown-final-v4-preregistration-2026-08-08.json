@@ -3,7 +3,7 @@
   "experiment_id": "harvey-lab-coding-markdown-final-v4",
   "registered_at": "2026-08-08T15:50:00Z",
   "status": "preregistered_before_inference",
-  "administrative_amendment_2026_08_08": "After the frozen preflight produced all four exact deliverables, validation exposed two bookkeeping omissions: coding_markdown_final_v4 was absent from the shared exact-name mapping list, and the mutation audit did not recognize Edit against a generated .docx output name. This amendment changes no prompt, tool, provider, task, metric, gate, or model behavior; it only makes the preregistered gates evaluate the v4 contract as written.",
+  "administrative_amendment_2026_08_08": "After the frozen preflight produced all four exact deliverables, validation exposed two bookkeeping omissions: coding_markdown_final_v4 was absent from the shared exact-name mapping list, and the mutation audit did not recognize Edit against a generated .docx output name. This amendment changes no prompt, tool, provider, task, metric, gate, or model behavior; it only makes the preregistered gates evaluate the v4 contract as written. Fresh v4a run stamps preserve the original failed-validation artifact rather than rewriting its metrics.",
   "claim_scope": "Visible-development Harvey LAB evidence only. DeepSeek and Luna lanes are analyzed independently, are never pooled with each other, and are never pooled with canonical constant-model Claude A/B cells or represented as human gold.",
   "hypothesis": "A conventional coding-agent write/edit/end-turn loop can retain the final arm's source fidelity and single information-gap pause while eliminating duplicate authoring, hidden render semantics, and post-write tool leakage.",
   "successor_delta": {
@@ -46,7 +46,7 @@
       "judge_model": "deepseek-v4-flash",
       "judge_effort": "max",
       "result_slug": "deepseek-v4-flash",
-      "run_stamp": "2026-08-08T15-50-00Z-final-v4-deepseek",
+      "run_stamp": "2026-08-08T16-20-00Z-final-v4a-deepseek",
       "inference_surface": "authorized DeepSeek API lane",
       "cached_input_multiplier": 0.02,
       "cache_accounting": "Raw input tokens are reported separately. Weighted input is uncached + 0.02 * cache-read input. A 0.1 DeepSeek cache multiplier is forbidden."
@@ -57,7 +57,7 @@
       "judge_model": "codex/gpt-5.6-luna",
       "judge_effort": "high",
       "result_slug": "codex-gpt-5-6-luna-high",
-      "run_stamp": "2026-08-08T15-50-00Z-final-v4-luna",
+      "run_stamp": "2026-08-08T16-20-00Z-final-v4a-luna",
       "inference_surface": "ChatGPT Codex subscription backend at chatgpt.com/backend-api/codex; platform.openai.com API use is forbidden",
       "cached_input_multiplier": 0.1,
       "cache_accounting": "This is a context-equivalent sensitivity for the subscription transport, not API billing or spend.",
