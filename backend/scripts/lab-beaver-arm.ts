@@ -147,7 +147,6 @@ let activeRunDir: string | null = null;
 const CODING_MARKDOWN_FINAL_ARMS = new Set([
   "coding_markdown_final_v1",
   "coding_markdown_final_v2",
-  "coding_markdown_final_v3",
 ]);
 
 function isCodingMarkdownFinalArm(arm: string): boolean {
@@ -1560,13 +1559,9 @@ async function main() {
       MIKE_GREENFIELD_REVIEW: "0",
     },
   };
-  armEnvironment.coding_markdown_final_v3 = {
-    ...armEnvironment.coding_markdown_final_v2,
-    MIKE_IDEMPOTENT_AUTHORING: "1",
-  };
   if (!armEnvironment[arm])
     throw new Error(
-      `unknown --arm ${arm}; expected a registered LAB arm, including upstream_terminal_v1, mike_upstream_native_v1, mike_markdown_e2e_treatment_v1, mike_markdown_e2e_treatment_v2, mike_markdown_swap_v1, mike_markdown_e2e_v1, mike_markdown_e2e_index_v1, mike_markdown_e2e_floor_v1, mike_markdown_e2e_index_floor_v1, mike_markdown_e2e_index_treatment_v1, mike_markdown_e2e_index_treatment_v2, mike_markdown_read_upstream_draft_v1, mike_compact_author_v1, lean_batch_v1, lean_batch_hardrefs_v1, coding_markdown_v1, coding_markdown_v2, coding_markdown_v3, coding_markdown_v4, coding_markdown_v5, coding_markdown_v5_comp, coding_markdown_final_v1, coding_markdown_final_v2, coding_markdown_final_v3, coding_markdown_v5_reqecho_v1, coding_markdown_v5_reqecho_draft_v1, or grounded_structure_outline_v1`,
+      `unknown --arm ${arm}; expected a registered LAB arm, including upstream_terminal_v1, mike_upstream_native_v1, mike_markdown_e2e_treatment_v1, mike_markdown_e2e_treatment_v2, mike_markdown_swap_v1, mike_markdown_e2e_v1, mike_markdown_e2e_index_v1, mike_markdown_e2e_floor_v1, mike_markdown_e2e_index_floor_v1, mike_markdown_e2e_index_treatment_v1, mike_markdown_e2e_index_treatment_v2, mike_markdown_read_upstream_draft_v1, mike_compact_author_v1, lean_batch_v1, lean_batch_hardrefs_v1, coding_markdown_v1, coding_markdown_v2, coding_markdown_v3, coding_markdown_v4, coding_markdown_v5, coding_markdown_v5_comp, coding_markdown_final_v1, coding_markdown_final_v2, coding_markdown_v5_reqecho_v1, coding_markdown_v5_reqecho_draft_v1, or grounded_structure_outline_v1`,
     );
 
   // Re-spawn into the isolated anonymous-mode environment (same recipe as
@@ -1660,7 +1655,6 @@ async function main() {
           MIKE_REQECHO_DRAFT_MODE: "",
           MIKE_COMPOSITION_CHECK: "",
           MIKE_FINAL_ARM: "",
-          MIKE_IDEMPOTENT_AUTHORING: "",
           MIKE_CODEX_TIMEOUT_MS: "",
           // Compute-only ablation. It does not change tool schemas, prompts,
           // or extracted text; a PDF is still created on the first paged read.
@@ -2789,7 +2783,6 @@ async function main() {
       "coding_markdown_v5_comp",
       "coding_markdown_final_v1",
       "coding_markdown_final_v2",
-      "coding_markdown_final_v3",
       "coding_markdown_v5_reqecho_v1",
       "coding_markdown_v5_reqecho_draft_v1",
     ].includes(arm)
@@ -2830,8 +2823,7 @@ async function main() {
     const reqechoDraftArm = arm === "coding_markdown_v5_reqecho_draft_v1";
     const compositionCheckArm = arm === "coding_markdown_v5_comp";
     const finalArm = isCodingMarkdownFinalArm(arm);
-    const terminalAuthoring = arm === "coding_markdown_final_v1";
-    const idempotentAuthoring = arm === "coding_markdown_final_v3";
+    const terminalAuthoring = arm !== "coding_markdown_final_v2";
     // Completeness floor rides the consolidated v5 arm (gen-6 lever) and the
     // comp treatment arm (floor IN the treatment, per Eli); the reqecho T2
     // contrast stays floor-off so the echo variable is unconfounded.
@@ -2882,7 +2874,6 @@ async function main() {
       surface?.requirements_echo !== requirementsEchoArm ||
       surface?.composition_check !== compositionCheckArm ||
       surface?.final_arm !== finalArm ||
-      surface?.idempotent_authoring !== idempotentAuthoring ||
       surface?.signal_gate !== finalArm ||
       surface?.grep_body_exposure !== finalArm ||
       surface?.source_immutable !== finalArm ||
@@ -3255,7 +3246,6 @@ async function main() {
       "coding_markdown_v5_comp",
       "coding_markdown_final_v1",
       "coding_markdown_final_v2",
-      "coding_markdown_final_v3",
       "coding_markdown_v5_reqecho_v1",
       "coding_markdown_v5_reqecho_draft_v1",
       "mike_grep_v1",
@@ -3677,7 +3667,6 @@ async function main() {
     "coding_markdown_v5_comp",
     "coding_markdown_final_v1",
     "coding_markdown_final_v2",
-    "coding_markdown_final_v3",
     "coding_markdown_v5_reqecho_v1",
     "coding_markdown_v5_reqecho_draft_v1",
     ...mikeGrepArms,

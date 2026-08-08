@@ -984,9 +984,6 @@ export const TRIAGE_WORKFLOW_ENABLED =
 export const DRAFT_EDIT_ENABLED = process.env.MIKE_DRAFT_EDIT === "1";
 /** Harvey LAB coverage-first, signal-gated final treatment. */
 export const FINAL_ARM_ENABLED = process.env.MIKE_FINAL_ARM === "1";
-/** Repeated same-filename creates in one assistant turn reuse one document. */
-export const IDEMPOTENT_AUTHORING_ENABLED =
-  process.env.MIKE_IDEMPOTENT_AUTHORING === "1";
 export const GROUNDING_FIRST_ENABLED =
   process.env.MIKE_GROUNDING_FIRST === "1";
 export const MIKE_GREP_FAMILY_TOOL_SHAPE =
@@ -1238,12 +1235,6 @@ export type LocalAssistantRequirementsState = {
   } | null;
   /** Final arm: one only when a coverage gap paused the first draft. */
   signalGateCount: number;
-  /** Same-turn idempotent authoring: successful create results by normalized
-   * requested filename. The tool call id is replaced for each replay. */
-  authoredDocxResults: Record<
-    string,
-    Omit<NormalizedToolResult, "tool_use_id">
-  >;
   /** Composition-check lever only: how many times the draft-vs-served
    * reconcile ran this turn (once per authoring call, at most once per turn
    * under the exposure latch) and how many competing-base findings it served.
@@ -1268,7 +1259,6 @@ export const createLocalAssistantRequirementsState =
     firstDraftCount: 0,
     firstDraftCoverage: null,
     signalGateCount: 0,
-    authoredDocxResults: {},
     compositionCheckCount: 0,
     compositionCheckFindings: 0,
   });
@@ -8833,24 +8823,6 @@ export async function runLocalAssistantTools(
         ) {
           return fail(call, "DOCX filename must be a plain .docx filename");
         }
-        const authoringKey = (filename || `${title}.docx`)
-          .normalize("NFKC")
-          .trim()
-          .toLocaleLowerCase();
-        const priorAuthoringResult =
-          IDEMPOTENT_AUTHORING_ENABLED && requirementsState
-            ? requirementsState.authoredDocxResults[authoringKey]
-            : undefined;
-        if (priorAuthoringResult) {
-          return { tool_use_id: call.id, ...priorAuthoringResult };
-        }
-        const rememberAuthoringResult = (created: NormalizedToolResult) => {
-          if (IDEMPOTENT_AUTHORING_ENABLED && requirementsState) {
-            const { tool_use_id: _toolUseId, ...reusable } = created;
-            requirementsState.authoredDocxResults[authoringKey] = reusable;
-          }
-          return created;
-        };
         try {
           const evidence = await resolveDocxEvidenceCitations(
             userId,
@@ -8954,7 +8926,7 @@ export async function runLocalAssistantTools(
               0,
               [...(allowedDocumentIds ?? [])].indexOf(document.id),
             )}`;
-            return rememberAuthoringResult({
+            return {
               ...result(call, {
                 filename: document.filename,
                 document_id: document.id,
@@ -8971,9 +8943,9 @@ export async function runLocalAssistantTools(
                 ].join(" "),
               }),
               mutationReceipt: JSON.stringify(receipt),
-            });
+            };
           }
-          return rememberAuthoringResult(result(call, receipt));
+          return result(call, receipt);
         } catch {
           return fail(call, "DOCX creation failed");
         }
@@ -10697,17 +10669,6 @@ export async function runLocalAssistantTools(
       ) {
         const queued = wholeReadTail.then(execute);
         wholeReadTail = queued.then(
-          () => undefined,
-          () => undefined,
-        );
-        return queued;
-      }
-      if (
-        IDEMPOTENT_AUTHORING_ENABLED &&
-        ["generate_docx", "library_create_docx"].includes(call.name)
-      ) {
-        const queued = editTail.then(execute);
-        editTail = queued.then(
           () => undefined,
           () => undefined,
         );
