@@ -255,13 +255,12 @@ function armExpectedSurface(
                 systemPrompt: CODING_MARKDOWN_TRIAGE_FLOOR_LAB_SYSTEM_PROMPT,
                 tools: CODING_MARKDOWN_V5_LAB_TOOLS,
               }
-          : // T3 (v5_comp): the SAME v5 chassis but NO completeness floor — the
-            // non-floor triage const is exactly what chat.ts serves when
-            // MIKE_COMPLETENESS_FLOOR is unset, so the sha gate is active by
-            // construction (never skipped).
+          : // T3 (v5_comp): the FULL v5 chassis — completeness floor INCLUDED
+            // (the floor is IN the treatment arm). Same floor triage const v5
+            // serves, so the sha gate is active by construction (never skipped).
           arm === "coding_markdown_v5_comp"
             ? {
-                systemPrompt: CODING_MARKDOWN_TRIAGE_LAB_SYSTEM_PROMPT,
+                systemPrompt: CODING_MARKDOWN_TRIAGE_FLOOR_LAB_SYSTEM_PROMPT,
                 tools: CODING_MARKDOWN_V5_LAB_TOOLS,
               }
           : // T2 (v5_echo): the same v5 chassis + requirements echo. Prompt is
@@ -1296,14 +1295,14 @@ async function main() {
       MIKE_REQUIREMENTS_ECHO: "1",
       MIKE_REQECHO_DRAFT_MODE: "1",
     },
-    // T3 (v5_comp, 2026-08-08): the consolidated v5 chassis MINUS the
-    // completeness floor + the composition checkpoint. At the first authoring
-    // call the harness reconciles the captured draft against the served
-    // evidence plane (competingBases findings only, precision-1.00) and
-    // appends a ≤5-line findings note to the existing refine-gate refusal.
-    // Prompt = the NON-floor triage const (what chat.ts serves when the floor
-    // flag is unset); tools = v5. Per Eli 2026-08-07 this arm is measured
-    // against upstream mike ONLY — no floor, no other contrast.
+    // T3 (v5_comp, 2026-08-08): the FULL consolidated v5 chassis (completeness
+    // floor INCLUDED) + the composition checkpoint. At the first authoring call
+    // the harness reconciles the captured draft against the served evidence
+    // plane (competingBases findings only, precision-1.00) and appends a
+    // ≤5-line findings note to the existing refine-gate refusal. Prompt = the
+    // same floor triage const v5 serves (the floor is IN the treatment arm per
+    // Eli 2026-08-07); tools = v5. Measured against upstream mike ONLY — no
+    // separate floor contrast.
     coding_markdown_v5_comp: {
       MIKE_NAV_SHAPE: "legacy",
       MIKE_TOOL_SHAPE: "lean-batch-v1",
@@ -1329,6 +1328,7 @@ async function main() {
       MIKE_TRIAGE_WORKFLOW: "1",
       MIKE_EXPOSURE_ECHO: "1",
       MIKE_DRAFT_EDIT: "1",
+      MIKE_COMPLETENESS_FLOOR: "1",
       MIKE_COMPOSITION_CHECK: "1",
     },
     lean_batch_hardrefs_v1: {
@@ -2682,9 +2682,11 @@ async function main() {
       arm === "coding_markdown_v5_reqecho_draft_v1";
     const reqechoDraftArm = arm === "coding_markdown_v5_reqecho_draft_v1";
     const compositionCheckArm = arm === "coding_markdown_v5_comp";
-    // Completeness floor rides the consolidated v5 arm (gen-6 lever); the
-    // reqecho T2 contrast stays floor-off so the echo variable is unconfounded.
-    const completenessFloorCoding = arm === "coding_markdown_v5";
+    // Completeness floor rides the consolidated v5 arm (gen-6 lever) and the
+    // comp treatment arm (floor IN the treatment, per Eli); the reqecho T2
+    // contrast stays floor-off so the echo variable is unconfounded.
+    const completenessFloorCoding =
+      arm === "coding_markdown_v5" || arm === "coding_markdown_v5_comp";
     const expectedTools = requirementsEchoArm
       ? // Fix A: no fetch_requirements — the echo rides the generate_docx
         // refusal, so the resident list is exactly v5 + draft-edit's Edit.
