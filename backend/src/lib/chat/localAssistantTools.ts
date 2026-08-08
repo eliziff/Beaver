@@ -128,6 +128,7 @@ import {
   CODING_MARKDOWN_V2_LAB_TOOLS,
   CODING_MARKDOWN_V3_LAB_TOOLS,
   CODING_MARKDOWN_V5_LAB_TOOLS,
+  CODING_MARKDOWN_FINAL_LAB_TOOLS,
   CODING_EDIT_TOOL,
   CODING_GENERATE_DOCX_DRAFT_EDIT_TOOL,
   MIKE_GREP_LAB_TOOLS,
@@ -981,6 +982,8 @@ export const TRIAGE_WORKFLOW_ENABLED =
  * no system-prompt change.
  */
 export const DRAFT_EDIT_ENABLED = process.env.MIKE_DRAFT_EDIT === "1";
+/** Harvey LAB coverage-first, signal-gated final treatment. */
+export const FINAL_ARM_ENABLED = process.env.MIKE_FINAL_ARM === "1";
 export const GROUNDING_FIRST_ENABLED =
   process.env.MIKE_GROUNDING_FIRST === "1";
 export const MIKE_GREP_FAMILY_TOOL_SHAPE =
@@ -1221,6 +1224,17 @@ export type LocalAssistantRequirementsState = {
    * turn. Monitored distinctly from draft edits — a model editing a source
    * .docx unprompted is observable behavior, not a hidden path. */
   sourceEditCount: number;
+  /** Final arm: attempted source Edits refused at the immutable boundary. */
+  sourceEditRefusalCount: number;
+  /** Final arm: evidence state observed at the first bodied authoring call. */
+  firstDraftCount: number;
+  firstDraftCoverage: {
+    bodyEvidence: string[];
+    tocOnly: string[];
+    unseen: string[];
+  } | null;
+  /** Final arm: one only when a coverage gap paused the first draft. */
+  signalGateCount: number;
   /** Composition-check lever only: how many times the draft-vs-served
    * reconcile ran this turn (once per authoring call, at most once per turn
    * under the exposure latch) and how many competing-base findings it served.
@@ -1241,6 +1255,10 @@ export const createLocalAssistantRequirementsState =
     draftFilename: null,
     draftEditCount: 0,
     sourceEditCount: 0,
+    sourceEditRefusalCount: 0,
+    firstDraftCount: 0,
+    firstDraftCoverage: null,
+    signalGateCount: 0,
     compositionCheckCount: 0,
     compositionCheckFindings: 0,
   });
@@ -2424,7 +2442,9 @@ const ORIGIN_MIKE_SERVED_TOOLS_BASE: OpenAIToolSchema[] =
  * and the Edit tool joins the surface. Coding-surface lever: only the v5 env
  * sets MIKE_DRAFT_EDIT, like every other arm-scoped flag here.
  */
-const ORIGIN_MIKE_SERVED_TOOLS: OpenAIToolSchema[] = DRAFT_EDIT_ENABLED
+const ORIGIN_MIKE_SERVED_TOOLS: OpenAIToolSchema[] = FINAL_ARM_ENABLED
+  ? CODING_MARKDOWN_FINAL_LAB_TOOLS
+  : DRAFT_EDIT_ENABLED
   ? [
       ...ORIGIN_MIKE_SERVED_TOOLS_BASE.map((entry) =>
         entry.function.name === "generate_docx"
@@ -4192,6 +4212,29 @@ async function runCodingShapeCall(
     }
     return extractLocalDocument(userId, documentId);
   };
+  const recordCodingExposure = (
+    meta: (typeof files)[number],
+    sourceChars: number,
+    spans: Array<[number, number]>,
+  ) => {
+    if (!turnReadState) return;
+    const stateKey = `coding:${meta.id}`;
+    const prior = turnReadState.get(stateKey);
+    const intervals = mergeIntervals([...(prior?.intervals ?? []), ...spans]);
+    turnReadState.set(stateKey, {
+      documentId: meta.id,
+      docLabel: codingPath(meta),
+      versionId: meta.current_version_id,
+      filename: meta.filename,
+      sourceChars,
+      deliveredChars: intervals.reduce(
+        (total, [start, end]) => total + (end - start),
+        0,
+      ),
+      bodyStart: 0,
+      intervals,
+    });
+  };
   const registerStructurePath = (
     meta: (typeof files)[number],
     document: NonNullable<Awaited<ReturnType<typeof extractLocalDocument>>>,
@@ -4438,6 +4481,9 @@ async function runCodingShapeCall(
           `No .toc for '${base}' — this document has no anchorable section spine; read the document directly.`,
         );
       }
+      if (FINAL_ARM_ENABLED) {
+        recordCodingExposure(meta, document?.text.length ?? 0, []);
+      }
       const rendered = toc
         .split("\n")
         .map((line, index) => `${String(index + 1).padStart(6)}\t${line}`)
@@ -4594,25 +4640,9 @@ async function runCodingShapeCall(
     // served body-only (no SECT-INDEX prefix), so bodyStart is 0 and spans
     // are body coordinates already.
     const recordReadExposure = (kept: CodingOutputLine[]) => {
-      if (!turnReadState) return;
       const spans = kept.flatMap((line) => (line.span ? [line.span] : []));
       if (!spans.length) return;
-      const stateKey = `coding:${meta.id}`;
-      const prior = turnReadState.get(stateKey);
-      const intervals = mergeIntervals([...(prior?.intervals ?? []), ...spans]);
-      turnReadState.set(stateKey, {
-        documentId: meta.id,
-        docLabel: codingPath(meta),
-        versionId: meta.current_version_id,
-        filename: meta.filename,
-        sourceChars: document.text.length,
-        deliveredChars: intervals.reduce(
-          (total, [start, end]) => total + (end - start),
-          0,
-        ),
-        bodyStart: 0,
-        intervals,
-      });
+      recordCodingExposure(meta, document.text.length, spans);
     };
     const limit = positiveInt(args.limit, 1, 2_000, 2_000);
     const startChar = clampInt(
@@ -5331,6 +5361,7 @@ async function runCodingShapeCall(
   const numberLines = args["-n"] !== false;
 
   const rows: CodingOutputLine[] = [];
+  const grepSourceChars = new Map<string, number>();
   // Per-file content buckets; only populated when the per-file budget is on.
   // files_with_matches/count emit one row per document and are fair already.
   const fileBuckets: CodingOutputLine[][] = [];
@@ -5350,6 +5381,7 @@ async function runCodingShapeCall(
   for (const meta of targets) {
     const document = await codingDocument(meta.id);
     if (!document) continue;
+    grepSourceChars.set(meta.id, document.text.length);
     const lines = document.text.split(/\r?\n/u);
     const starts = sourceLineStarts(document.text, lines);
     let scopeSpans: TextRange[] | null = null;
@@ -5663,6 +5695,15 @@ async function runCodingShapeCall(
               rendered: numberLines
                 ? `${codingPath(meta)}-${leadLine + 1}-${leadText}`
                 : `${codingPath(meta)}-${leadText}`,
+              span: [
+                starts[leadLine],
+                starts[leadLine] + leadText.length,
+              ],
+              source: {
+                documentId: meta.id,
+                versionId: document.versionId || meta.current_version_id,
+                filename: meta.filename,
+              },
             });
           }
         }
@@ -5962,6 +6003,20 @@ async function runCodingShapeCall(
   if (!rows.length) return result(call, "No matches found");
   const limited = rows.slice(0, headLimit);
   const { kept, truncated: sizeTruncated } = takeCodingOutputLines(limited);
+  if (FINAL_ARM_ENABLED && mode === "content") {
+    const spansByDocument = new Map<string, Array<[number, number]>>();
+    for (const line of kept) {
+      if (!line.source || !line.span) continue;
+      const spans = spansByDocument.get(line.source.documentId) ?? [];
+      spans.push(line.span);
+      spansByDocument.set(line.source.documentId, spans);
+    }
+    for (const [documentId, spans] of spansByDocument) {
+      const meta = files.find((file) => file.id === documentId);
+      if (!meta) continue;
+      recordCodingExposure(meta, grepSourceChars.get(documentId) ?? 0, spans);
+    }
+  }
   const body = [
     kept.map((line) => line.rendered).join("\n"),
     ...hardReferenceHints.map((hint) => hint.rendered),
@@ -8071,6 +8126,14 @@ export async function runLocalAssistantTools(
           trimmed(args.file_path).toLowerCase(),
         );
 
+      if (FINAL_ARM_ENABLED && call.name === "Edit" && !draftTarget) {
+        if (requirementsState) requirementsState.sourceEditRefusalCount += 1;
+        return fail(
+          call,
+          "Source files are immutable in this arm. Edit a saved Markdown draft, such as draft.md, instead.",
+        );
+      }
+
       if (
         LEAN_BATCH_FAMILY_TOOL_SHAPE &&
         !CODING_PARITY_ENABLED &&
@@ -8492,6 +8555,18 @@ export async function runLocalAssistantTools(
             ] = body;
             requirementsState.draftFilename = trimmed(args.filename) || null;
           }
+          if (
+            FINAL_ARM_ENABLED &&
+            body &&
+            requirementsState.firstDraftCount === 0
+          ) {
+            requirementsState.firstDraftCount = 1;
+            requirementsState.firstDraftCoverage = {
+              bodyEvidence: split.read,
+              tocOnly: split.orientedOnly,
+              unseen: split.unread,
+            };
+          }
           // draft-edit-v4: the refinement checkpoint is universal. Under
           // v1-v3 it existed only when coverage fell short — which, once the
           // exposure accounting became honest, would have silently removed
@@ -8539,7 +8614,7 @@ export async function runLocalAssistantTools(
           // Counted even when findings are zero: the receipt proves it ran.
           const compositionNote = await (async () => {
             if (
-              !COMPOSITION_CHECK_ENABLED ||
+              (!COMPOSITION_CHECK_ENABLED && !FINAL_ARM_ENABLED) ||
               !body ||
               !requirementsState ||
               !turnReadState
@@ -8575,6 +8650,7 @@ export async function runLocalAssistantTools(
             });
             const findings = (reconciled.competingBases ?? []).slice(0, 5);
             requirementsState.compositionCheckFindings += findings.length;
+            if (FINAL_ARM_ENABLED) return "";
             if (!findings.length) return "";
             const money = (value: number) =>
               "$" + value.toLocaleString("en-US", { maximumFractionDigits: 2 });
@@ -8599,7 +8675,31 @@ export async function runLocalAssistantTools(
               requirementsState.documentsUnreadAtEcho = unreadCount;
             }
           };
-          if (unexposed.length) {
+          if (unexposed.length && (!FINAL_ARM_ENABLED || body)) {
+            if (FINAL_ARM_ENABLED) {
+              requirementsState.signalGateCount += 1;
+              requirementsState.exposureNudgeServed = true;
+              const tocOnly = split.orientedOnly.length
+                ? ` TOC-only: ${split.orientedOnly.join(", ")}.`
+                : "";
+              const unseen = split.unread.length
+                ? ` Unseen: ${split.unread.join(", ")}.`
+                : "";
+              const sourceCount =
+                unexposed.length === 1
+                  ? "1 source has"
+                  : `${unexposed.length} sources have`;
+              return upstreamMikeResult(call, {
+                error:
+                  `${sourceCount} no source text retrieved.` +
+                  `${tocOnly}${unseen} The draft is saved as draft.md.` +
+                  ` For each relevant named source, retrieve matching text with` +
+                  ` Grep output_mode=content or Read, then use Edit to add the` +
+                  ` concrete findings to draft.md. If a named source is not` +
+                  ` relevant, no retrieval is needed. Call generate_docx without` +
+                  ` markdown when the draft is final.`,
+              });
+            }
             serveRequirementsEcho(unexposed.length);
             requirementsState.exposureNudgeServed = true;
             return upstreamMikeResult(call, {
@@ -8615,9 +8715,12 @@ export async function runLocalAssistantTools(
             });
           }
           if (body) {
-            serveRequirementsEcho(0);
-            requirementsState.exposureNudgeServed = true;
-            return upstreamMikeResult(call, {
+            if (FINAL_ARM_ENABLED) {
+              requirementsState.exposureNudgeServed = true;
+            } else {
+              serveRequirementsEcho(0);
+              requirementsState.exposureNudgeServed = true;
+              return upstreamMikeResult(call, {
               error:
                 `refine_check: draft received. All ${allowedForCheck.length}` +
                 ` document(s) have had body content served this turn —` +
@@ -8625,7 +8728,8 @@ export async function runLocalAssistantTools(
                 refineNote +
                 requirementsEcho +
                 compositionNote,
-            });
+              });
+            }
           }
         }
         let title = trimmed(args.title);

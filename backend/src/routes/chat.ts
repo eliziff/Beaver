@@ -74,6 +74,7 @@ import {
   GREP_PER_FILE_BUDGET_ENABLED,
   TRIAGE_WORKFLOW_ENABLED,
   DRAFT_EDIT_ENABLED,
+  FINAL_ARM_ENABLED,
   GREP_SECTION_CONTEXT_ENABLED,
   SCOPED_REREAD_ENABLED,
   TYPED_RANGE_ENABLED,
@@ -118,6 +119,7 @@ import {
   ADAPTIVE_MIKE_LAB_SYSTEM_PROMPT,
   CODING_MARKDOWN_BUDGET_LAB_SYSTEM_PROMPT,
   CODING_MARKDOWN_GREP_ROUTE_LAB_SYSTEM_PROMPT,
+  CODING_MARKDOWN_FINAL_LAB_SYSTEM_PROMPT,
   CODING_MARKDOWN_TRIAGE_LAB_SYSTEM_PROMPT,
   CODING_MARKDOWN_TRIAGE_FLOOR_LAB_SYSTEM_PROMPT,
   CODING_MARKDOWN_LAB_SYSTEM_PROMPT,
@@ -1169,9 +1171,11 @@ export async function streamAnonymousChat(params: {
         ? CODING_TOC_FILES_ENABLED
           ? GREP_PER_FILE_BUDGET_ENABLED
             ? TRIAGE_WORKFLOW_ENABLED
-              ? COMPLETENESS_FLOOR_ENABLED
-                ? CODING_MARKDOWN_TRIAGE_FLOOR_LAB_SYSTEM_PROMPT
-                : CODING_MARKDOWN_TRIAGE_LAB_SYSTEM_PROMPT
+              ? FINAL_ARM_ENABLED
+                ? CODING_MARKDOWN_FINAL_LAB_SYSTEM_PROMPT
+                : COMPLETENESS_FLOOR_ENABLED
+                  ? CODING_MARKDOWN_TRIAGE_FLOOR_LAB_SYSTEM_PROMPT
+                  : CODING_MARKDOWN_TRIAGE_LAB_SYSTEM_PROMPT
               : CODING_MARKDOWN_GREP_ROUTE_LAB_SYSTEM_PROMPT
             : CODING_MARKDOWN_BUDGET_LAB_SYSTEM_PROMPT
           : CODING_MARKDOWN_LAB_SYSTEM_PROMPT
@@ -2679,6 +2683,11 @@ export async function streamAnonymousChat(params: {
           grep_per_file_budget: GREP_PER_FILE_BUDGET_ENABLED,
           triage_workflow: TRIAGE_WORKFLOW_ENABLED,
           draft_edit: DRAFT_EDIT_ENABLED,
+          final_arm: FINAL_ARM_ENABLED,
+          signal_gate: FINAL_ARM_ENABLED,
+          grep_body_exposure: FINAL_ARM_ENABLED,
+          source_immutable: FINAL_ARM_ENABLED,
+          composition_check_shadow: FINAL_ARM_ENABLED,
           reqecho_draft_mode: REQECHO_DRAFT_MODE_ENABLED,
           scoped_reread: SCOPED_REREAD_ENABLED,
           adaptive_mike_shape: ADAPTIVE_MIKE_TOOL_SHAPE,
@@ -3499,6 +3508,22 @@ export async function streamAnonymousChat(params: {
         type: "benchmark_composition_check",
         composition_check_count: localRequirementsState.compositionCheckCount,
         composition_check_findings:
+          localRequirementsState.compositionCheckFindings,
+      });
+    }
+    if (FINAL_ARM_ENABLED) {
+      sseWrite(res, {
+        type: "benchmark_final_arm",
+        first_draft_count: localRequirementsState.firstDraftCount,
+        first_draft_coverage: localRequirementsState.firstDraftCoverage,
+        signal_gate_count: localRequirementsState.signalGateCount,
+        draft_edit_count: localRequirementsState.draftEditCount,
+        source_edit_count: localRequirementsState.sourceEditCount,
+        source_edit_refusal_count:
+          localRequirementsState.sourceEditRefusalCount,
+        composition_check_shadow_count:
+          localRequirementsState.compositionCheckCount,
+        composition_check_shadow_findings:
           localRequirementsState.compositionCheckFindings,
       });
     }

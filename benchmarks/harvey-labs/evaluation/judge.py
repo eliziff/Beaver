@@ -57,7 +57,11 @@ def _detect_provider(model: str) -> str:
 class Judge:
     """LLM-as-judge that evaluates agent outputs against rubric criteria."""
 
-    def __init__(self, model: str = "claude-sonnet-4-6"):
+    def __init__(
+        self,
+        model: str = "claude-sonnet-4-6",
+        reasoning_effort: str | None = None,
+    ):
         """Initialize with a model ID. Picks the SDK client based on the model prefix.
 
         Args:
@@ -65,6 +69,7 @@ class Judge:
                 'gpt-5.4', 'mistral-medium-3.5').
         """
         self.model = model
+        self.reasoning_effort = reasoning_effort
         self.provider = _detect_provider(model)
         if self.provider == "codex-cli":
             self.client = None
@@ -224,6 +229,8 @@ class Judge:
                 "max_output_tokens": 16384,
                 "temperature": temperature,
             }
+            if self.reasoning_effort:
+                kwargs["reasoning"] = {"effort": self.reasoning_effort}
             if attempt < _retries - 1:
                 kwargs["text"] = {
                     "format": {
@@ -273,6 +280,11 @@ class Judge:
                 "temperature": temperature,
                 "max_tokens": 16384,
             }
+            if self.reasoning_effort:
+                kwargs["extra_body"] = {
+                    "thinking": {"type": "enabled"},
+                    "reasoning_effort": self.reasoning_effort,
+                }
             if attempt < _retries - 1:
                 kwargs["response_format"] = {"type": "json_object"}
             try:

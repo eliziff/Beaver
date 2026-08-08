@@ -121,10 +121,15 @@ def build_receipt(run_dir: Path) -> dict:
         "score": scores.get("score"),
         "all_pass": scores.get("all_pass"),
         "judge_model": scores.get("judge_model"),
-        "judged": scores.get("scored_at") is not None,
+        "judge_effort": scores.get("judge_effort"),
+        "judged": (
+            scores.get("scored_at") is not None
+            or scores.get("aggregated_at") is not None
+        ),
         "deliverable_match": scores.get("deliverable_match"),
         "draft_edit_delta": receipts.get("draft_edit_delta"),
         "exposure_echo_delta": receipts.get("exposure_echo_delta"),
+        "final_arm": receipts.get("final_arm_receipt"),
         "deltas": sorted(
             v
             for k, v in receipts.items()
@@ -138,6 +143,11 @@ def build_receipt(run_dir: Path) -> dict:
                 "structure_index",
                 "coding_toc_files",
                 "terminal_authoring",
+                "final_arm",
+                "signal_gate",
+                "grep_body_exposure",
+                "source_immutable",
+                "composition_check_shadow",
             )
         },
         "tools": _edit_totals(receipts),
