@@ -47,9 +47,9 @@ const suites = {
     runPrefix: "coding-agent-redlines-v1",
   },
   "data-room": {
-    campaign: "coding-agent-defaults-v1-data-room-v1",
-    directory: "data-room-v1",
-    runPrefix: "coding-agent-data-room-v1",
+    campaign: "coding-agent-defaults-v1-data-room-v2",
+    directory: "data-room-v2",
+    runPrefix: "coding-agent-data-room-v2",
   },
 };
 const suite = suites[suiteName];
