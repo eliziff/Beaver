@@ -9,6 +9,10 @@ import { fixLocalDocxSupraCrossReferences } from "../docxDeterministicCleanup";
 import { lintLocalDocxStructure } from "../docxStructuralLint";
 import { draftingLint } from "../legalDraftingLint";
 import {
+  reconcileFigures,
+  type ServedPassage,
+} from "../legalFigureReconciliation";
+import {
   consolidateAmendment,
   deleteProvisionAndRenumberSiblings,
   type DeleteAndRenumberReceipt,
@@ -1102,6 +1106,19 @@ export const REQECHO_DRAFT_MODE_ENABLED =
   process.env.MIKE_REQECHO_DRAFT_MODE === "1";
 
 /**
+ * TREATMENT mechanism (T3, 2026-08-08) — composition check. At the first
+ * authoring call the harness reconciles the captured draft against the served
+ * evidence plane (competingBases findings only, precision-1.00) and appends a
+ * ≤5-line findings note to the refine-gate refusal. No new tool, no prompt
+ * delta — the mechanism appears only as a note. Fires in BOTH refine-gate
+ * branches whenever a draft body is present. Per Eli 2026-08-07 this arm is
+ * measured against upstream mike only, with NO completeness floor in the
+ * chassis.
+ */
+export const COMPOSITION_CHECK_ENABLED =
+  process.env.MIKE_COMPOSITION_CHECK === "1";
+
+/**
  * Serving-boundary fidelity (adversarial audit #8): OFF in every frozen LAB
  * arm; production-layer / future-arm candidate. The extraction's computed
  * warnings[] (tracked changes served as the accepted view, text-box
@@ -1204,6 +1221,13 @@ export type LocalAssistantRequirementsState = {
    * turn. Monitored distinctly from draft edits — a model editing a source
    * .docx unprompted is observable behavior, not a hidden path. */
   sourceEditCount: number;
+  /** Composition-check lever only: how many times the draft-vs-served
+   * reconcile ran this turn (once per authoring call, at most once per turn
+   * under the exposure latch) and how many competing-base findings it served.
+   * Zero count with the mechanism on means the boundary never fired — the
+   * conformance gate treats that as a wiring failure. */
+  compositionCheckCount: number;
+  compositionCheckFindings: number;
 };
 
 export const createLocalAssistantRequirementsState =
@@ -1217,6 +1241,8 @@ export const createLocalAssistantRequirementsState =
     draftFilename: null,
     draftEditCount: 0,
     sourceEditCount: 0,
+    compositionCheckCount: 0,
+    compositionCheckFindings: 0,
   });
 
 /** Canonical in-memory draft path; the refusal message names this file. */
@@ -8503,6 +8529,70 @@ export async function runLocalAssistantTools(
             (requirementsState?.echoCallCount ?? 0) === 0
               ? `\n\nTASK REQUIREMENTS (verbatim):\n${requirementsText}`
               : "";
+          // COMPOSITION CHECK (T3): reconcile the captured draft against the
+          // served evidence plane at the first authoring call and append a
+          // findings-only note to the refusal. Fires in BOTH gate branches
+          // whenever a draft body is present — coverage state is irrelevant to
+          // served-plane findings. Slices the exact intervals the Read path
+          // served (turnReadState body coordinates) out of the SAME
+          // servedDraftingText plane, so the check reads what the model read.
+          // Counted even when findings are zero: the receipt proves it ran.
+          const compositionNote = await (async () => {
+            if (
+              !COMPOSITION_CHECK_ENABLED ||
+              !body ||
+              !requirementsState ||
+              !turnReadState
+            ) {
+              return "";
+            }
+            requirementsState.compositionCheckCount += 1;
+            const servedPassages: ServedPassage[] = [];
+            for (const entry of turnReadState.values()) {
+              if (!entry.intervals?.length) continue;
+              const drafting = await servedDraftingText(
+                userId,
+                entry.documentId,
+                servedDraftingCache,
+              );
+              if (!drafting?.served) continue;
+              const plane = drafting.served;
+              for (const [start, end] of entry.intervals) {
+                const s = Math.max(0, Math.min(start, plane.length));
+                const e = Math.max(0, Math.min(end, plane.length));
+                if (e <= s) continue;
+                servedPassages.push({
+                  document:
+                    entry.docLabel || entry.filename || entry.documentId,
+                  text: plane.slice(s, e),
+                  at: s,
+                });
+              }
+            }
+            const reconciled = reconcileFigures({
+              draft: body,
+              served: servedPassages,
+            });
+            const findings = (reconciled.competingBases ?? []).slice(0, 5);
+            requirementsState.compositionCheckFindings += findings.length;
+            if (!findings.length) return "";
+            const money = (value: number) =>
+              "$" + value.toLocaleString("en-US", { maximumFractionDigits: 2 });
+            const lines = findings.map((finding) => {
+              const otherSide =
+                finding.direction === "used-gross" ? "net" : "gross";
+              return (
+                `- "${finding.statedRaw}": ${finding.percent}% of the ${otherSide}` +
+                ` base is "${money(finding.competingValue)}" — both readings` +
+                ` are in the served passage. State which base you mean.`
+              );
+            });
+            return (
+              `\n\nCOMPOSITION CHECK (figures): ${findings.length} finding(s)` +
+              ` verified against served text.\n` +
+              lines.join("\n")
+            );
+          })();
           const serveRequirementsEcho = (unreadCount: number) => {
             if (requirementsEcho && requirementsState) {
               requirementsState.echoCallCount += 1;
@@ -8520,7 +8610,8 @@ export async function runLocalAssistantTools(
                 ` the request first — scoped windows are fine. If none are` +
                 ` relevant, call this tool again and it will proceed.` +
                 refineNote +
-                requirementsEcho,
+                requirementsEcho +
+                compositionNote,
             });
           }
           if (body) {
@@ -8532,7 +8623,8 @@ export async function runLocalAssistantTools(
                 ` document(s) have had body content served this turn —` +
                 ` coverage is complete.` +
                 refineNote +
-                requirementsEcho,
+                requirementsEcho +
+                compositionNote,
             });
           }
         }
