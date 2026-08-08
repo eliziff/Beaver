@@ -252,6 +252,13 @@ def validate_docx(path: Path) -> None:
 
 def source_mutation_attempts(receipts: dict[str, Any]) -> list[str]:
     attempts: list[str] = []
+    output_names = {
+        str((call.get("input") or {}).get("filename") or "").lower()
+        for call in receipts.get("tool_calls") or []
+        if isinstance(call, dict)
+        and call.get("name") == "generate_docx"
+        and isinstance(call.get("input"), dict)
+    }
     for call in receipts.get("tool_calls") or []:
         if not isinstance(call, dict):
             continue
@@ -261,7 +268,7 @@ def source_mutation_attempts(receipts: dict[str, Any]) -> list[str]:
             attempts.append(name)
         elif name == "Edit":
             target = str(inputs.get("file_path") or "")
-            if not target.lower().endswith(".md"):
+            if not target.lower().endswith(".md") and target.lower() not in output_names:
                 attempts.append(f"Edit:{target}")
     return attempts
 
