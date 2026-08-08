@@ -1,4 +1,4 @@
-"""Frozen, resumable runner for the coding_markdown_final_v1 experiment.
+"""Frozen, resumable runner for a registered coding-markdown-final experiment.
 
 The registration owns the cell order, fingerprints, model lanes, judging,
 retry policy, and pass gates. This script only executes that registration.
@@ -87,7 +87,9 @@ def git(*args: str) -> str:
 
 def registration() -> dict[str, Any]:
     value = load_json(REGISTRATION_PATH)
-    if value.get("experiment_id") != "harvey-lab-coding-markdown-final-v1":
+    if not str(value.get("experiment_id") or "").startswith(
+        "harvey-lab-coding-markdown-final-"
+    ):
         raise RuntimeError("Unexpected experiment registration")
     if value.get("status") != "preregistered_before_inference":
         raise RuntimeError("Registration is not launch-ready")
@@ -136,7 +138,7 @@ def parse_probe(stdout: str, stderr: str) -> dict[str, Any]:
     raise RuntimeError("Surface probe returned no JSON receipt")
 
 
-def verify_surfaces(spec: dict[str, Any], lane: str) -> None:
+def verify_surfaces(spec: dict[str, Any], lane: str, phase: str) -> None:
     lane_spec = spec["lanes"][lane]
     node = os.environ.get("NODE", "node")
     tsx = BACKEND / "node_modules" / "tsx" / "dist" / "cli.mjs"
@@ -149,8 +151,20 @@ def verify_surfaces(spec: dict[str, Any], lane: str) -> None:
         "source_count",
         "source_bytes",
     )
-    for task, expected_task in spec["task_fingerprints"].items():
-        for arm in spec["arms"]:
+    if phase == "preflight":
+        tasks = [spec["preflight"]["task"]]
+        arms = [spec["preflight"]["arm"]]
+    elif phase in spec["stages"]:
+        tasks = list(dict.fromkeys(
+            cell["task"] for cell in spec["stages"][phase]["cells"]
+        ))
+        arms = spec["arms"]
+    else:
+        tasks = list(spec["task_fingerprints"])
+        arms = spec["arms"]
+    for task in tasks:
+        expected_task = spec["task_fingerprints"][task]
+        for arm in arms:
             completed = run_checked(
                 [
                     node,
@@ -312,7 +326,7 @@ def validate_run(
     if len(semantic_hashes) != len(set(semantic_hashes)):
         raise RuntimeError(f"{identifier}: deliverables are semantic clones")
 
-    if cell["arm"] == "coding_markdown_final_v1":
+    if cell["arm"] == spec["comparisons"]["primary"]["candidate"]:
         final = receipts.get("final_arm_receipt")
         if not isinstance(final, dict):
             raise RuntimeError(f"{identifier}: missing final-arm receipt")
@@ -749,9 +763,9 @@ def analyze(spec: dict[str, Any], lane: str, final: bool) -> dict[str, Any]:
             )
 
     arms = list(spec["arms"])
-    candidate = "coding_markdown_final_v1"
-    upstream = "mike_upstream_native_v1"
-    v5 = "coding_markdown_v5"
+    candidate = spec["comparisons"]["primary"]["candidate"]
+    upstream = spec["comparisons"]["primary"]["control"]
+    v5 = spec["comparisons"]["secondary"]["control"]
     tasks = list(dict.fromkeys(record["cell"]["task"] for record in records))
     task_rates: dict[str, dict[str, float]] = {arm: {} for arm in arms}
     for arm in arms:
@@ -959,7 +973,13 @@ def print_status(spec: dict[str, Any], lane: str) -> None:
 
 
 def main() -> None:
+    global REGISTRATION_RELATIVE, REGISTRATION_PATH, ANALYSIS_DIR
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--registration",
+        default=REGISTRATION_RELATIVE.as_posix(),
+        help="Registration path relative to the repository root",
+    )
     parser.add_argument("--lane", choices=("deepseek", "luna"), required=True)
     parser.add_argument(
         "--phase",
@@ -976,18 +996,25 @@ def main() -> None:
         ),
         required=True,
     )
-    parser.add_argument("--max-performers", type=int, default=2)
+    parser.add_argument("--max-performers", type=int, default=8)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
-    if args.max_performers not in (1, 2):
-        raise RuntimeError("max-performers must be 1 or 2")
+    if not 1 <= args.max_performers <= 8:
+        raise RuntimeError("max-performers must be between 1 and 8")
 
+    requested_registration = (ROOT / args.registration).resolve()
+    requested_registration.relative_to(ROOT.resolve())
+    REGISTRATION_RELATIVE = requested_registration.relative_to(ROOT.resolve())
+    REGISTRATION_PATH = requested_registration
     spec = registration()
+    experiment_slug = str(spec["experiment_id"]).removeprefix("harvey-lab-")
+    ANALYSIS_DIR = LAB / "run-logs" / experiment_slug / "analysis"
     if args.phase == "status":
         print_status(spec, args.lane)
         return
     head = verify_commit_and_sources(spec)
-    verify_surfaces(spec, args.lane)
+    if args.phase in ("verify", "preflight", "run-stage1", "run-stage2"):
+        verify_surfaces(spec, args.lane, args.phase.removeprefix("run-"))
     write_claim(spec, args.lane, args.phase, head, args.dry_run)
     if args.phase == "verify":
         print(json.dumps({"ok": True, "head": head, "lane": args.lane}))
