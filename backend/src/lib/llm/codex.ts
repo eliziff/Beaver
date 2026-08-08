@@ -56,7 +56,18 @@ export type ParsedCodexEvent = {
   error?: string;
 };
 
-export const CODEX_TIMEOUT_MS = 180_000;
+const configuredCodexTimeoutMs = Number(
+  process.env.MIKE_CODEX_TIMEOUT_MS?.trim() || "",
+);
+export const CODEX_TIMEOUT_MS =
+  Number.isSafeInteger(configuredCodexTimeoutMs) &&
+  configuredCodexTimeoutMs >= 30_000
+    ? configuredCodexTimeoutMs
+    : 180_000;
+const CODEX_TOOL_TIMEOUT_SECONDS = Math.max(
+  180,
+  Math.ceil(CODEX_TIMEOUT_MS / 1_000),
+);
 export const CODEX_THREAD_ID =
   /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iu;
 
@@ -337,7 +348,7 @@ async function runCodex(params: {
       "-c",
       "mcp_servers.mike_runtime.startup_timeout_sec=10",
       "-c",
-      "mcp_servers.mike_runtime.tool_timeout_sec=180",
+      `mcp_servers.mike_runtime.tool_timeout_sec=${CODEX_TOOL_TIMEOUT_SECONDS}`,
     );
   }
   for (const imagePath of params.imagePaths ?? []) {
@@ -517,4 +528,3 @@ export async function completeCodexText(params: {
     })
   ).fullText;
 }
-
