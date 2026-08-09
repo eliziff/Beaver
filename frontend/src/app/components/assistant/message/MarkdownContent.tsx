@@ -10,12 +10,11 @@ import {
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
-    citationPinpoint,
     type AssistantEvent,
     type Citation,
 } from "../../shared/types";
-import { RESPONSE_GLASS_ANNOTATION, withoutMarkdownNode } from "./messageStyles";
-import { citationTooltip } from "./CitationSources";
+import { withoutMarkdownNode } from "./messageStyles";
+import { citationPillLabel, citationTooltip } from "./CitationSources";
 import { internalCaseHref } from "./citationUtils";
 export function GfmMarkdown(props: ComponentProps<typeof ReactMarkdown>) {
     const { remarkPlugins, ...rest } = props;
@@ -232,7 +231,6 @@ export function MarkdownContent({
                             const idx = parseInt(citMatch[1]);
                             const annotation = inlineCitationTargets[idx];
                             if (annotation) {
-                                const pinpoint = citationPinpoint(annotation);
                                 const tooltipText =
                                     citationTitle?.(annotation) ??
                                     citationTooltip(annotation);
@@ -243,11 +241,10 @@ export function MarkdownContent({
                                             onCitationClick?.(annotation)
                                         }
                                         data-citation-ref={annotation.ref}
-                                        className={`${RESPONSE_GLASS_ANNOTATION} mx-0.5 align-super`}
+                                        className={`${LEGAL_CITATION_PILL} mx-0.5 text-left`}
                                         title={tooltipText}
                                     >
-                                        {annotation.ref}
-                                        {pinpoint ? ` \u00b7 ${pinpoint}` : ""}
+                                        {citationPillLabel(annotation)}
                                     </button>
                                 );
                             }

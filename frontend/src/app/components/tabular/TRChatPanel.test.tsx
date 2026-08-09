@@ -230,7 +230,7 @@ it("renders streamed content before the response closes", async () => {
         );
         streamController.close();
     });
-    fireEvent.click(await screen.findByRole("button", { name: "1" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Lease.pdf" }));
     expect(onCitationClick).toHaveBeenCalledWith(2, 3);
     expect(onChatIdChange).toHaveBeenCalledOnce();
     expect(onChatIdChange).toHaveBeenCalledWith("chat-2");

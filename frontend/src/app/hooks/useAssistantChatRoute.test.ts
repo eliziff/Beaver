@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
     useAssistantChat: vi.fn(),
     setMessages: vi.fn(),
     setTranscriptVersion: vi.fn(),
+    resumeRunningTurn: vi.fn(),
     messages: [] as { role: string; content: string }[],
     loading: false,
     chats: [] as { id: string; title: string | null }[],
@@ -41,7 +42,31 @@ beforeEach(() => {
         isResponseLoading: mocks.loading,
         setMessages: mocks.setMessages,
         setTranscriptVersion: mocks.setTranscriptVersion,
+        resumeRunningTurn: mocks.resumeRunningTurn,
     }));
+});
+
+it("reconnects to a turn that kept running after navigation", async () => {
+    const messages = [{ role: "user", content: "Research this" }];
+    mocks.getChat.mockResolvedValue({
+        chat: {
+            id: "chat-1",
+            project_id: null,
+            user_id: "owner-1",
+            title: "Research",
+            transcript_version: 4,
+            turn_in_progress: true,
+            created_at: "",
+        },
+        messages,
+    });
+
+    renderHook(() => useAssistantChatRoute({ chatId: "chat-1" }));
+
+    await waitFor(() =>
+        expect(mocks.resumeRunningTurn).toHaveBeenCalledWith("chat-1", 4),
+    );
+    expect(mocks.setMessages).toHaveBeenCalledWith(messages);
 });
 
 it("loads one canonical standalone transcript and metadata", async () => {

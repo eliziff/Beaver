@@ -676,7 +676,7 @@ export function LegalSourceViewer({
                     )}
                 </div>
             </header>
-            {quoteItems.length > 0 && (
+            {quoteItems.length > 0 && !compact && (
                 <div className="shrink-0 py-2">
                     <CitationQuotesHeader
                         quotes={quoteItems}

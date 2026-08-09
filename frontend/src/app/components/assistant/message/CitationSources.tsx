@@ -25,7 +25,7 @@ function citationSourceKey(annotation: Citation): string {
     }
     return `document:${annotation.document_id}`;
 }
-function citationSourceLabel(annotation: Citation): string {
+export function citationSourceLabel(annotation: Citation): string {
     if (annotation.kind === "case") {
         const caseName = annotation.case_name?.trim();
         const citation = annotation.citation?.trim();
@@ -33,22 +33,32 @@ function citationSourceLabel(annotation: Citation): string {
         return caseName || citation || `Case ${annotation.cluster_id}`;
     }
     if (annotation.kind === "a2aj") {
-        return annotation.name || annotation.citation || "A2AJ source";
+        const name = annotation.name?.trim();
+        const citation = annotation.citation?.trim();
+        if (name && citation && name.toLowerCase() !== citation.toLowerCase())
+            return `${name}, ${citation}`;
+        return name || citation || "A2AJ source";
     }
     if (annotation.kind === "public_legal") {
-        return annotation.title || annotation.identifier;
+        const title = annotation.title?.trim();
+        const citation = annotation.citation?.trim();
+        if (title && citation && title.toLowerCase() !== citation.toLowerCase())
+            return `${title}, ${citation}`;
+        return title || citation || annotation.identifier;
     }
     return annotation.filename;
 }
-export function citationTooltip(annotation: Citation): string {
-    const source = formatCitationPage(annotation);
+export function citationPillLabel(annotation: Citation): string {
+    const source = citationSourceLabel(annotation);
     const pinpoint = citationPinpoint(annotation);
-    const locator =
-        annotation.kind === "case" ||
-        annotation.kind === "a2aj" ||
-        annotation.kind === "public_legal"
-            ? [source, pinpoint].filter(Boolean).join(", ")
-            : pinpoint || source;
+    if (!pinpoint || source.toLowerCase().includes(pinpoint.toLowerCase()))
+        return source;
+    if (annotation.kind === "case" && annotation.locator_kind === "paragraph")
+        return `${source} at ${pinpoint}`;
+    return `${source}, ${pinpoint}`;
+}
+export function citationTooltip(annotation: Citation): string {
+    const locator = citationPillLabel(annotation) || formatCitationPage(annotation);
     const quote = displayCitationQuote(annotation);
     return locator ? `${locator}: "${quote}"` : `"${quote}"`;
 }
@@ -176,8 +186,6 @@ export function CitationsBlock({
                                 </button>
                                 <div className="flex shrink-0 flex-wrap justify-end gap-1">
                                     {row.entries.map((annotation, index) => {
-                                        const pinpoint =
-                                            citationPinpoint(annotation);
                                         return (
                                             <button
                                                 key={`${row.key}:${index}`}
@@ -195,9 +203,6 @@ export function CitationsBlock({
                                                 )}
                                             >
                                                 {annotation.ref}
-                                                {pinpoint
-                                                    ? ` \u00b7 ${pinpoint}`
-                                                    : ""}
                                             </button>
                                         );
                                     })}

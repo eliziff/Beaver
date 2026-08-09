@@ -178,7 +178,8 @@ function reasoningSummary(item: CodexItem): string | undefined {
             typeof part.text === "string"),
       )
       .map((part) => (typeof part === "string" ? part : (part.text ?? "")))
-      .join("");
+      .filter(Boolean)
+      .join("\n\n");
     if (text) return text;
   }
 
