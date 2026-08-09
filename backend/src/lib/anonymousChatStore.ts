@@ -340,6 +340,59 @@ export function appendAnonymousAssistantEvents(
   return true;
 }
 
+export function upsertAnonymousSubagentEvent(
+  chat: AnonymousChat,
+  event: Record<string, unknown> & { type: "subagent_run"; id: string },
+  turnId: string,
+) {
+  const currentChat = assertTranscriptVersion(chat, undefined);
+  let index = -1;
+  for (
+    let current = currentChat.messages.length - 1;
+    current >= 0;
+    current -= 1
+  ) {
+    if (
+      currentChat.messages[current].role === "assistant" &&
+      currentChat.messages[current].turn_id === turnId
+    ) {
+      index = current;
+      break;
+    }
+  }
+  if (index < 0) {
+    appendAnonymousMessage(currentChat, {
+      turn_id: turnId,
+      role: "assistant",
+      content: [event],
+    });
+    if (chat !== currentChat) Object.assign(chat, currentChat);
+    return true;
+  }
+
+  const message = currentChat.messages[index];
+  const content = Array.isArray(message.content) ? [...message.content] : [];
+  const eventIndex = content.findIndex((value) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+    const row = value as Record<string, unknown>;
+    return row.type === "subagent_run" && row.id === event.id;
+  });
+  if (eventIndex < 0) content.push(event);
+  else content[eventIndex] = event;
+  const next = {
+    ...currentChat,
+    messages: currentChat.messages.map((value, currentIndex) =>
+      currentIndex === index ? { ...message, content } : value,
+    ),
+    updated_at: new Date().toISOString(),
+    transcript_version: currentChat.transcript_version + 1,
+  };
+  writeChat(next);
+  Object.assign(currentChat, next);
+  if (chat !== currentChat) Object.assign(chat, next);
+  return true;
+}
+
 export function resetAnonymousAssistantEvents(
   chat: AnonymousChat,
   turnId: string,

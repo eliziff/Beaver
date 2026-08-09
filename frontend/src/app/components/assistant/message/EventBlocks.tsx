@@ -4,7 +4,10 @@ import { ThinkingSpinner } from "@/app/components/chat/thinking-spinner";
 import { apiFetch } from "@/app/lib/beaverApi";
 import { downloadBlob } from "@/app/lib/download";
 import { RESPONSE_GLASS_SURFACE, withoutMarkdownNode } from "./messageStyles";
-import { GfmMarkdown } from "./MarkdownContent";
+import {
+    CitationPillMarkdown,
+    GfmMarkdown,
+} from "./MarkdownContent";
 import type { ActivityView } from "./eventUtils";
 
 export function ActivityDisclosure({
@@ -76,9 +79,13 @@ export function ActivityDisclosure({
 export function ActivityRow({
     view,
     onClick,
+    onSourceClick,
 }: {
     view: ActivityView;
     onClick?: () => void;
+    onSourceClick?: (
+        source: NonNullable<ActivityView["citationSources"]>[number],
+    ) => void;
 }) {
     const label = `${view.label}${view.busy && !view.markdown ? "..." : ""}`;
     const labelNode = onClick ? (
@@ -114,28 +121,36 @@ export function ActivityRow({
             <div className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]">
                 {view.markdown ? (
                     <>
-                        {view.panelAction && onClick && (
-                            <button
-                                type="button"
-                                onClick={onClick}
-                                className="mb-1 rounded text-xs font-medium text-gray-700 underline decoration-gray-300 underline-offset-2 hover:decoration-gray-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
-                            >
-                                Open panel
-                            </button>
-                        )}
-                        <div className="prose prose-sm max-w-none [&>*]:my-1 [&>*]:text-sm [&>*]:text-gray-600">
-                            <GfmMarkdown
-                                components={{
-                                    code: (props) => (
-                                        <code
-                                            className="font-serif text-gray-700"
-                                            {...withoutMarkdownNode(props)}
-                                        />
-                                    ),
-                                }}
-                            >
-                                {view.markdown}
-                            </GfmMarkdown>
+                        {view.panelAction && <div className="mb-1">{labelNode}</div>}
+                        <div className="prose prose-sm max-w-none [&>*]:my-1 [&>*]:text-sm [&>*]:text-gray-600 [&_h1]:text-sm [&_h2]:text-sm [&_h3]:text-sm [&_h4]:text-sm">
+                            {view.citationSources ? (
+                                <CitationPillMarkdown
+                                    text={view.markdown}
+                                    sources={view.citationSources}
+                                    onSourceClick={(source) => {
+                                        const exact = view.citationSources?.find(
+                                            (candidate) =>
+                                                candidate.citation ===
+                                                    source.citation &&
+                                                candidate.url === source.url,
+                                        );
+                                        if (exact) onSourceClick?.(exact);
+                                    }}
+                                />
+                            ) : (
+                                <GfmMarkdown
+                                    components={{
+                                        code: (props) => (
+                                            <code
+                                                className="font-serif text-gray-700"
+                                                {...withoutMarkdownNode(props)}
+                                            />
+                                        ),
+                                    }}
+                                >
+                                    {view.markdown}
+                                </GfmMarkdown>
+                            )}
                         </div>
                     </>
                 ) : (

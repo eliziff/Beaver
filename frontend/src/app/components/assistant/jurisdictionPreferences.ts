@@ -111,9 +111,10 @@ const OPTIONS: JurisdictionOption[] = JURISDICTION_GROUPS.flatMap((group) =>
     })),
 );
 const OPTION_BY_ID = new Map(OPTIONS.map((option) => [option.id, option]));
+const DEFAULT_JURISDICTIONS = JURISDICTION_GROUPS[0].options.map(([id]) => id);
 const DEFAULT_PREFERENCE: JurisdictionPreference = {
-    mode: "ask",
-    jurisdictions: [],
+    mode: "presume",
+    jurisdictions: DEFAULT_JURISDICTIONS,
     showAssistantPanel: false,
 };
 const STORAGE_KEY = "mike.jurisdiction.preference";
@@ -198,9 +199,12 @@ export function jurisdictionPreferenceForChat() {
     const standing =
         preference.mode === "presume" &&
         preference.jurisdictions.length > 0;
+    if (!standing) {
+        return { mode: "ask" as const, jurisdictions: ["Canada"] };
+    }
     return {
-        mode: standing ? "presume" as const : "ask" as const,
-        jurisdictions: (standing ? preference.jurisdictions : []).flatMap((id) => {
+        mode: "presume" as const,
+        jurisdictions: preference.jurisdictions.flatMap((id) => {
             const option = OPTION_BY_ID.get(id);
             return option ? [option.promptLabel] : [];
         }),

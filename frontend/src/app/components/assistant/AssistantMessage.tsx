@@ -49,6 +49,11 @@ interface Props {
     onSubagentClick?: (
         run: Extract<AssistantEvent, { type: "subagent_run" }>,
     ) => void;
+    onSubagentSourceClick?: (
+        source: NonNullable<
+            Extract<AssistantEvent, { type: "subagent_run" }>["sources"]
+        >[number],
+    ) => void;
     minHeight?: string;
     onWorkflowClick?: (workflowId: string) => void;
     onEditViewClick?: (
@@ -87,6 +92,7 @@ export function AssistantMessage({
     onCaseClick,
     onAutomationClick,
     onSubagentClick,
+    onSubagentSourceClick,
     minHeight = "0px",
     onWorkflowClick,
     onEditViewClick,
@@ -389,6 +395,7 @@ export function AssistantMessage({
                                         key={index}
                                         view={view}
                                         onClick={activityClick(event)}
+                                        onSourceClick={onSubagentSourceClick}
                                     />
                                 ))}
                             </ActivityDisclosure>

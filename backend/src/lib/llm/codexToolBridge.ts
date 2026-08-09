@@ -27,6 +27,7 @@ type ToolDispatcher = (
 type BridgeState = {
   toolCallCount: number;
   dispatchTail: Promise<void>;
+  parallelDispatches: Set<Promise<void>>;
   closed: boolean;
 };
 
@@ -137,17 +138,25 @@ function bridgeServer(
     };
 
     try {
-      const dispatch = state.dispatchTail.then(async () => {
+      const run = async () => {
         if (state.closed || params.abortSignal?.aborted) {
           throw new Error("Beaver tool dispatch was cancelled.");
         }
         params.callbacks?.onToolCallStart?.(call);
         return params.runTools([call]);
-      });
-      state.dispatchTail = dispatch.then(
+      };
+      const dispatch =
+        name === "delegate_read" ? run() : state.dispatchTail.then(run);
+      const settled = dispatch.then(
         () => undefined,
         () => undefined,
       );
+      if (name === "delegate_read") {
+        state.parallelDispatches.add(settled);
+        void settled.finally(() => state.parallelDispatches.delete(settled));
+      } else {
+        state.dispatchTail = settled;
+      }
       const results = await dispatch;
       const result = results.find(
         (candidate) => candidate.tool_use_id === call.id,
@@ -222,6 +231,7 @@ export async function startCodexToolBridge(
   const state: BridgeState = {
     toolCallCount: 0,
     dispatchTail: Promise.resolve(),
+    parallelDispatches: new Set(),
     closed: false,
   };
   const sockets = new Set<Socket>();
@@ -298,6 +308,7 @@ export async function startCodexToolBridge(
       closed = true;
       state.closed = true;
       await state.dispatchTail;
+      await Promise.all([...state.parallelDispatches]);
       for (const socket of sockets) socket.destroy();
       await new Promise<void>((resolve) => httpServer.close(() => resolve()));
     },

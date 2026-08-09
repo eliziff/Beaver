@@ -158,6 +158,8 @@ export type StreamChatParams = {
    * one-shot completions should leave this off to save tokens and latency.
    */
   enableThinking?: boolean;
+  /** Whether provider-generated reasoning summaries should be surfaced. */
+  reasoningSummary?: "auto" | "none";
   /** Provider reasoning effort when the selected model supports it. */
   reasoningEffort?: string;
   /** Host-selected service tier; adapters must gate it on model capability. */

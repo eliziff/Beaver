@@ -153,12 +153,14 @@ export type AutomationRunEvent = {
 };
 type Streamable<T> = T & { isStreaming?: boolean };
 export type AssistantEvent =
-  | Streamable<{ type: "reasoning"; text: string }>
+  | Streamable<{ type: "reasoning"; text: string; debug?: boolean }>
   | { type: "error"; message: string }
   | Streamable<{
       type: "tool_call_start";
       name: string;
       label?: string;
+      id?: string;
+      input?: Record<string, unknown>;
     }>
   | Streamable<{
       type: "mcp_tool_call";
@@ -371,6 +373,32 @@ export type AssistantEvent =
       status: "running" | "completed" | "error";
       output?: string;
       error?: string;
+      activities?: Array<{
+        id: string;
+        label: string;
+        status: "running" | "completed" | "error";
+        tool?: string;
+        input?: Record<string, unknown>;
+        source?: {
+          provider: string;
+          jurisdiction: string;
+          citation: string;
+          name: string | null;
+          dataset: string;
+          url: string | null;
+          clusterId?: number;
+        };
+      }>;
+      reasoning?: string[];
+      sources?: Array<{
+        provider: string;
+        jurisdiction: string;
+        citation: string;
+        name: string | null;
+        dataset: string;
+        url: string | null;
+        clusterId?: number;
+      }>;
       grounding?: {
         status: "passed" | "failed";
         evidence: unknown[];

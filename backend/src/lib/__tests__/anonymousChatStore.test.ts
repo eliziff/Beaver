@@ -100,6 +100,47 @@ describe("anonymous chat store", () => {
     ).toBe(2);
   });
 
+  it("replaces durable reading-agent progress by run ID", async () => {
+    const store = await loadStore();
+    const chat = store.createAnonymousChat(owner);
+    const turnId = randomUUID();
+    store.appendAnonymousMessage(chat, {
+      turn_id: turnId,
+      role: "user",
+      content: "Research this",
+    });
+    store.upsertAnonymousSubagentEvent(chat, {
+      type: "subagent_run",
+      id: "agent-1",
+      status: "running",
+    }, turnId);
+    store.upsertAnonymousSubagentEvent(chat, {
+      type: "subagent_run",
+      id: "agent-1",
+      status: "completed",
+      output: "Done",
+    }, turnId);
+    store.upsertAnonymousSubagentEvent(chat, {
+      type: "subagent_run",
+      id: "agent-2",
+      status: "running",
+    }, turnId);
+
+    const reloaded = await loadStore();
+    const events = reloaded
+      .getAnonymousChat(owner, chat.id)
+      ?.messages.find((message) => message.role === "assistant")?.content;
+    expect(events).toEqual([
+      {
+        type: "subagent_run",
+        id: "agent-1",
+        status: "completed",
+        output: "Done",
+      },
+      { type: "subagent_run", id: "agent-2", status: "running" },
+    ]);
+  });
+
   it("atomically rejects a stale transcript version without changing bytes", async () => {
     const store = await loadStore();
     const chat = store.createAnonymousChat(owner);

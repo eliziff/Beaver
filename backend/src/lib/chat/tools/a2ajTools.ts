@@ -246,6 +246,89 @@ export function a2ajActivityLabel(
   return undefined;
 }
 
+export function assistantToolActivityLabel(
+  name: string,
+  args: Record<string, unknown>,
+): string | null | undefined {
+  if (name === "Glob") return null;
+  if (name === "Grep") {
+    const query = activityText(args.pattern, 80);
+    const path = activityText(args.path, 80);
+    const glob = activityText(args.glob, 48);
+    const section = activityText(args.section, 48);
+    const pages = activityText(args.pages, 32);
+    const scope = path
+      ? `${path} in your Library`
+      : glob
+        ? `documents matching ${glob} in your Library`
+        : "all documents in your Library";
+    const within = section
+      ? ` in ${section}`
+      : pages
+        ? ` on pages ${pages}`
+        : "";
+    return query
+      ? `Searching ${scope}${within} for “${query}”`
+      : `Searching ${scope}${within}`;
+  }
+  if (name === "Read") {
+    const file = activityText(args.file_path, 80);
+    if (!file || file.startsWith(".mike/")) return null;
+    return `Reading ${file.replace(/^.*[\\/]/u, "")} from your Library`;
+  }
+  const query = activityText(args.query, 80);
+  if (name === "SearchSources") {
+    const sourceLabels: Record<string, string> = {
+      case: "case law",
+      legislation: "legislation",
+      journal: "journals",
+      hansard: "Hansard",
+    };
+    const sourceTypes = Array.isArray(args.source_types)
+      ? args.source_types
+          .filter((value): value is string => typeof value === "string")
+          .map((value) => sourceLabels[value] ?? value)
+          .join(" and ")
+      : "legal sources";
+    const location = [
+      activityText(args.jurisdiction, 40),
+      activityText(args.collection, 40),
+      activityText(args.court, 40),
+      activityText(args.court_level, 24),
+      activityText(args.speaker, 40),
+    ].filter(Boolean);
+    const dateRange = [
+      activityText(args.date_from, 16),
+      activityText(args.date_to, 16),
+    ].filter(Boolean).join("–");
+    const syntax = args.syntax === "boolean" ? "boolean query" : "";
+    const sort =
+      typeof args.sort === "string" && args.sort !== "relevance"
+        ? `sorted ${args.sort.replaceAll("_", " ")}`
+        : "";
+    const scope = [sourceTypes, ...location, dateRange, syntax, sort]
+      .filter(Boolean)
+      .join(" · ");
+    return query
+      ? `Searching ${scope} for “${activityText(args.query, 160)}”`
+      : `Searching ${scope}`;
+  }
+  if (name === "courtlistener_search_case_law")
+    return query ? `Searching US case law for “${query}”` : "Searching US case law";
+  if (name === "public_legal_source_search")
+    return query
+      ? `Searching public legal sources for “${query}”`
+      : "Searching public legal sources";
+  if (name === "hansard_search")
+    return query ? `Searching Hansard for “${query}”` : "Searching Hansard";
+  if (name === "library_find" || name === "find_in_document")
+    return query
+      ? `Searching the selected document for “${query}”`
+      : "Searching the selected document";
+  if (name === "submit_grounded_answer") return "Grounding findings";
+  return a2ajActivityLabel(name, args);
+}
+
 function optionalNumber(value: unknown) {
   return typeof value === "number" ? value : undefined;
 }

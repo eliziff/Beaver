@@ -493,11 +493,11 @@ describe("useAssistantChat local transcript boundary", () => {
       );
     mocks.getChat
       .mockResolvedValueOnce({
-        chat: { id: "chat-1", transcript_version: 1 },
+        chat: { id: "chat-1", transcript_version: 1, turn_in_progress: true },
         messages: [{ role: "user", content: "Accepted elsewhere" }],
       })
       .mockResolvedValueOnce({
-        chat: { id: "chat-1", transcript_version: 2 },
+        chat: { id: "chat-1", transcript_version: 2, turn_in_progress: false },
         messages: [
           { role: "user", content: "Accepted elsewhere" },
           { role: "assistant", content: "Completed elsewhere" },

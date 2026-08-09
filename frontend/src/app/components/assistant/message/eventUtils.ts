@@ -22,6 +22,9 @@ export type ActivityView = {
     busy?: boolean;
     error?: boolean;
     panelAction?: boolean;
+    citationSources?: NonNullable<
+        Extract<AssistantEvent, { type: "subagent_run" }>["sources"]
+    >;
 };
 
 type ActivityContext = {
@@ -61,21 +64,9 @@ const TOOLS: Record<string, readonly [string, string?]> = {
     delegate_read: ["Starting reading agent", "subagent_run"],
 };
 
-const GENERIC_LEGAL_SEARCH =
-    /^(?:searching|searched)\s+(?:canadian\s+)?(?:cases?|case law|legislation|legal sources)[.!]*$/iu;
-const INTERNAL_REASONING = /\bALL_TOOLS\b/u;
-
 function toolLabel(name: string) {
     if (TOOLS[name]) return TOOLS[name][0];
-    if (name.startsWith("mcp_")) return "Using connector";
-    const readable = name
-        .replace(/^(?:openai|codex|beaver|mike|library)[_:./-]+/iu, "")
-        .replace(/([a-z\d])([A-Z])/gu, "$1 $2")
-        .replace(/[_:./-]+/gu, " ")
-        .replace(/\s+/gu, " ")
-        .trim()
-        .toLowerCase();
-    return readable ? `Using ${readable}` : "Using tool";
+    return null;
 }
 
 function plainText(text: string) {
@@ -125,64 +116,75 @@ export function activityView(
     context: ActivityContext = {},
 ): ActivityView | null {
     if (event.type === "reasoning") {
+        if (!event.debug) return null;
         const markdown = event.text.replace(/\r\n?/gu, "\n").trim();
-        if (INTERNAL_REASONING.test(markdown)) return null;
         const label = plainText(markdown).slice(0, 120);
         return label
             ? { label, markdown, busy: !!event.isStreaming }
             : null;
     }
-    if (event.type === "tool_call_start")
+    if (event.type === "tool_call_start") {
+        const label = event.label ?? toolLabel(event.name);
+        if (!label) return null;
         return {
-            label: event.label ?? toolLabel(event.name),
+            label,
+            ...(event.input && {
+                detail: event.name,
+                markdown: `\`\`\`json\n${JSON.stringify(event.input, null, 2)}\n\`\`\``,
+            }),
             busy: !!event.isStreaming,
-        };
-    if (event.type === "thinking")
-        return { label: "Thinking", busy: true };
-    if (event.type === "mcp_tool_call") {
-        const error = event.status === "error";
-        return {
-            label: event.isStreaming
-                ? "Using connector"
-                : event.connector_name
-                  ? `${event.connector_name}: ${toolLabel(event.tool_name)}`
-                  : toolLabel(event.openai_tool_name),
-            detail: error ? event.error : undefined,
-            busy: !!event.isStreaming,
-            error,
         };
     }
+    if (event.type === "thinking")
+        return { label: "Thinking", busy: true };
+    if (event.type === "mcp_tool_call") return null;
     if (event.type === "doc_read")
         return {
             label: `${event.isStreaming ? "Reading" : "Read"} ${event.filename}`,
             busy: !!event.isStreaming,
         };
     if (event.type === "subagent_run") {
-        const role = `${event.agent[0].toUpperCase()}${event.agent.slice(1)}`;
         const failed = event.status === "error";
+        const running = event.status === "running";
+        const task = plainText(event.task).slice(0, 100);
+        if (running && context.events && context.index !== undefined) {
+            const latestById = new Map<
+                string,
+                {
+                    event: Extract<AssistantEvent, { type: "subagent_run" }>;
+                    index: number;
+                }
+            >();
+            context.events.forEach((candidate, index) => {
+                if (candidate.type === "subagent_run") {
+                    latestById.set(candidate.id, { event: candidate, index });
+                }
+            });
+            const active = [...latestById.values()]
+                .filter((entry) => entry.event.status === "running")
+                .sort((left, right) => left.index - right.index);
+            if (context.index !== active.at(-1)?.index) return null;
+            return {
+                label: `Waiting for ${count(active.length, "reading agent")}`,
+                busy: true,
+            };
+        }
         return {
-            label: event.isStreaming
-                ? `${role} reading`
-                : failed
-                  ? `${role} failed`
-                  : `${role} completed`,
+            label: failed
+                ? "Reading agent failed"
+                : `Reading agent completed: ${task}`,
             detail: failed
                 ? event.error
-                : `${event.task}${
-                      event.model
-                          ? ` · ${event.model}, ${event.effort} reasoning`
-                          : ""
-                  }${
-                      event.grounding?.status === "passed"
-                          ? ` · ${count(event.grounding.evidence.length, "verified passage")}`
-                          : ""
-                  }`,
+                : event.grounding?.status === "passed"
+                  ? count(event.grounding.evidence.length, "verified passage")
+                  : undefined,
             ...(event.output && {
-                markdown: `**${role} findings**\n\n${event.output}`,
+                markdown: event.output,
+                citationSources: event.sources ?? [],
             }),
-            busy: !!event.isStreaming,
+            busy: false,
             error: failed,
-            panelAction: !event.isStreaming,
+            panelAction: true,
         };
     }
     if (event.type === "doc_find")
@@ -387,6 +389,7 @@ export function dedupeActivityEntries<
     const result: T[] = [];
     for (let index = entries.length - 1; index >= 0; index--) {
         const entry = entries[index];
+        if (entry.event.type === "reasoning" && !entry.event.debug) continue;
         const isStreaming =
             "isStreaming" in entry.event && !!entry.event.isStreaming;
         const family = assistantActivityFamily(entry.event);
@@ -396,18 +399,6 @@ export function dedupeActivityEntries<
                 : assistantEventKey(entry.event);
         const nextEntry = result.at(-1);
         if (
-            (entry.event.type === "reasoning" &&
-                (/^analy[sz]ed (?:the )?request[.!:]*$/iu.test(
-                    plainText(entry.event.text),
-                ) ||
-                    GENERIC_LEGAL_SEARCH.test(
-                        plainText(entry.event.text),
-                    ))) ||
-            (entry.event.type === "reasoning" &&
-                INTERNAL_REASONING.test(entry.event.text)) ||
-            (entry.event.type === "reasoning" &&
-                nextEntry?.event.type === "tool_call_start" &&
-                nextEntry.event.name === "submit_grounded_answer") ||
             (entry.event.type === "thinking" && result.length > 0) ||
             (entry.event.type === "tool_call_start" &&
                 concreteFamilies.has(family)) ||

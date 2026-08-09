@@ -58,6 +58,7 @@ interface Props {
     onEditError?: EditResolveHandlers["onError"];
     onWarningDismiss?: (tabId: string) => void;
     onScrollChange?: (tabId: string, scrollTop: number) => void;
+    embedded?: boolean;
 }
 function tabTitle(tab: AssistantSidePanelTab): string {
     if (tab.kind === "automation") return "Automation";
@@ -83,13 +84,16 @@ export function AssistantSidePanel({
     onEditError,
     onWarningDismiss,
     onScrollChange,
+    embedded = false,
 }: Props) {
     const active = tabs.find((t) => t.id === activeTabId) ?? tabs[0];
     if (!active) return null;
     return (
         <div
             className={cn(
-                "relative flex h-full w-full shrink-0 flex-col md:my-3 md:mr-3 md:h-[calc(100%-1.5rem)] md:min-w-[360px] md:w-[min(46vw,680px)]",
+                embedded
+                    ? "relative flex min-h-0 w-full flex-1 flex-col"
+                    : "relative flex h-full w-full shrink-0 flex-col md:my-3 md:mr-3 md:h-[calc(100%-1.5rem)] md:min-w-[360px] md:w-[min(46vw,680px)]",
                 LIQUID_PANEL_SURFACE_CLASS,
                 "overflow-hidden",
             )}

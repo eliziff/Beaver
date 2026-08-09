@@ -14,7 +14,7 @@ export const SEARCH_SOURCES_TOOL: OpenAIToolSchema = {
   function: {
     name: SEARCH_SOURCES_TOOL_NAME,
     description:
-      "Discover candidates in one or two installed case-law, legislation, journal, or Hansard corpora. Apply filters here, start near 10 hits, then fetch plausible sources; refine instead of paging broadly. Exact known citations should be fetched directly. Results use SQLite FTS5/BM25 and are not evidence.",
+      "Default discovery tool for requests about cases, legislation, journal commentary, Hansard, or legal authorities. Searches one or two installed legal-source corpora, not the user's uploaded Library. Apply filters here, start near 10 hits, then fetch plausible sources; refine instead of paging broadly. Exact known citations should be fetched directly. Results use SQLite FTS5/BM25 and are not evidence.",
     strict: true,
     parameters: {
       type: "object",
