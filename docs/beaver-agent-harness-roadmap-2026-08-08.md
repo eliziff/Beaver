@@ -350,6 +350,23 @@ Three different comparisons must remain separately labelled:
    clean Codex CLI coding loop. It is useful, but it is neither Harvey's
    reference harness nor Stirrup and must never be labelled as either.
 
+The official audit pinned current Harvey commit
+`55510f0e609ffa5cf6f5df17d9a813ce4bb33d0c`. For the selected eight tasks, every
+task/source byte matches the local copy. The combined official system prompt
+plus all 29 skills has SHA-256 `c1a50b8e34e7f3534c54b16d11ea71b32afaa33dbeb84a6a7e17d37310208d05`;
+the six-tool schema is
+`e7f9594c80dd92c514b14caac1471d7010a2be02af5d88ba94e931bdb8f1e11b`.
+Both match the local reference files, and adapter parity checks pass 32/32.
+
+Harvey's published headline baseline is not exactly reproducible from the
+public repository. The post used an undisclosed holdout mirroring the public
+distribution and says grading was repeated across model families, but does not
+disclose task IDs/files, number of repeats, judge families, or the released
+judge prompt. The public code defaults to Claude Sonnet 4.6 criterion judging.
+Accordingly, a new run can be called a pinned **public Harvey-harness side run**,
+not a direct replication of Harvey's private headline. AA remains a third,
+separately labelled 120-private-task Stirrup/Gemini benchmark.
+
 Fair comparison order:
 
 - pin and record the public Harvey and Stirrup revisions;
@@ -427,8 +444,8 @@ The data-room runs establish two separate facts:
 
 | Provider | Upstream criteria | Treatment criteria | Upstream adjusted tokens | Treatment adjusted tokens | Upstream wall | Treatment attempt wall | Treatment provider wall |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| DeepSeek | 18/498 | pending recovered judge | 417,768.88 | 522,674.48 | 326.68s | 2,021.80s | 281.04s |
-| Luna | 13/498 | pending recovered judge | 409,803.80 | 549,113.00 | 395.12s | 2,096.42s | 354.55s |
+| DeepSeek | 18/498 | 36/498 | 417,768.88 | 522,674.48 | 326.68s | 2,021.80s | 281.04s |
+| Luna | 13/498 | 14/498 | 409,803.80 | 549,113.00 | 395.12s | 2,096.42s | 354.55s |
 
 Both treatment models completed substantive inference and created the exact
 required `red-flags-report.docx`. The large end-to-end wall time was mostly
@@ -436,8 +453,10 @@ about 29 minutes of eager 2,863-document normalization, not slow model work.
 The terminal error was the post-auto-flush receipt mismatch described above.
 Therefore the treatment did not fail to finish because of an inherent agent
 quality; it finished, then computational preprocessing and bookkeeping made the
-run look failed. Criteria remain unknown until the recovered same-provider
-judges finish all 498 criteria.
+run look failed. Recovered same-provider judging ultimately gave DeepSeek +18
+criteria and Luna +1, for +19/996 aggregate. That establishes a treatment gain,
+but 50/996 aggregate criteria is still poor room-scale recall. Faster ingest
+does not solve the attention/coverage architecture by itself.
 
 Smallest action:
 
