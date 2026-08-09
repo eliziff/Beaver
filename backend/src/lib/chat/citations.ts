@@ -694,11 +694,25 @@ function receiptLocator(receipt: LegalEvidenceReceipt) {
  * Project the existing strict evidence-id submission into the same citation
  * events used by document, CourtListener, A2AJ, and public-source JSON.
  */
-export function createLegalEvidenceCitations(state: LegalEvidenceTurnState) {
-  return legalEvidenceCitationEntries(state).flatMap(
+export function createLegalEvidenceCitations(
+  state: LegalEvidenceTurnState,
+): Record<string, unknown>[] {
+  return legalEvidenceCitationEntries(state).flatMap<Record<string, unknown>>(
     ({ ref, receipt, lookup, document }) => {
       const quote = receipt.span_text;
       if (!quote) return [];
+      if (receipt.provider === "library") {
+        return [{
+          type: "citation_data" as const,
+          kind: "document" as const,
+          ref,
+          doc_id: receipt.stable_source_id,
+          document_id: receipt.stable_source_id,
+          version_id: receipt.version,
+          filename: receipt.name ?? receipt.citation,
+          quotes: [{ quote }],
+        }];
+      }
       if (receipt.provider === "a2aj") {
         const built = createCitation(
           {
@@ -718,6 +732,7 @@ export function createLegalEvidenceCitations(state: LegalEvidenceTurnState) {
         return [{
           ...built,
           url: ("url" in built ? built.url : null) ?? receipt.external_url,
+          source_class: receipt.source_class,
           ...receiptLocator(receipt),
         }];
       }
@@ -734,6 +749,7 @@ export function createLegalEvidenceCitations(state: LegalEvidenceTurnState) {
           title: receipt.name,
           citation: receipt.citation,
           url: receipt.external_url,
+          source_class: receipt.source_class,
           quotes: [{ quote }],
           ...receiptLocator(receipt),
         }];
@@ -747,6 +763,7 @@ export function createLegalEvidenceCitations(state: LegalEvidenceTurnState) {
         name: receipt.name,
         dataset: receipt.dataset,
         url: receipt.external_url,
+        source_class: receipt.source_class,
         quotes: [{ quote }],
         ...receiptLocator(receipt),
       }];

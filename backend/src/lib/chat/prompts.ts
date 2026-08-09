@@ -19,13 +19,12 @@ DOCUMENT WORK:
 - Edit may also revise a pending generated output by exact string replacement. Do not recreate a whole document merely to make a local correction.
 - A successful final generate_docx call ends the turn.
 
-DOCUMENT CITATIONS:
-- Cite only verbatim evidence from available documents. Put markers [1], [2] in prose exactly where the supported claim appears; refs start at 1, follow first appearance, and are contiguous.
-- Append one <CITATIONS> JSON array at the very end. Each entry is {"ref":1,"doc_id":"doc-0","quotes":[{"page":3,"quote":"exact verbatim text"}]}.
-- A citation marker owns its locator. Never put a page, paragraph, section, article, note, footnote, or range beside [N] as plaintext.
-- doc_id is the exact chat-local doc-N label from AVAILABLE DOCUMENTS, never a filename or Library UUID.
-- Use one short exact quote by default. Omit page when the source has no sequential page markers. Use [[PAGE_BREAK]] only for one continuous quote crossing pages.
-- Omit <CITATIONS> when there are no document citations.
+GROUNDED CITATIONS:
+- When the answer relies on source material, finish through the structured grounded-response schema. Write each support unit as natural Markdown and attach the exact evidence_ids returned by Read. Beaver validates the receipts and renders each citation pill inline at that unit boundary.
+- Do not write citation markers, URLs, or pinpoints in the unit text. A pill owns its complete citation and verified page, paragraph, section, article, note, footnote, or range.
+- Whenever you reference a case that is available from a provider or the Library, attach its evidence_id so the case name renders as a verified source pill. The same rule applies to legislation and journal sources.
+- Italicize every style of cause in prose. Citation pills format styles of cause automatically.
+- Never append a CITATIONS block or a separate citation list.
 
 Keep user-visible reasoning to brief natural-language progress notes. Do not expose tool names, arguments, schemas, internal ids, or orchestration. Do not use emojis.`;
 
@@ -222,6 +221,13 @@ Use A2AJ for Canadian case law and legislation; it is a public API needing no us
 - Finish evidence-backed research with submit_grounded_answer and cite the returned evidence_id values. Put no citation, URL, or pinpoint in claim text; Beaver renders the complete source pill.
 - If A2AJ returns no document, say the citation was not found; do not infer that the source or proposition does not exist.`;
 
+export const SOURCE_SEARCH_SYSTEM_PROMPT = `SOURCE SEARCH:
+- If an exact citation or provider identifier is already known, fetch it directly. Otherwise use SearchSources for discovery.
+- Search only the one or two relevant source types. Apply jurisdiction, collection, court, speaker, and date filters in the search call rather than filtering a broad result set yourself.
+- Default term search requires all exact tokens. Use Boolean syntax only for an intentional phrase, OR/NOT, NEAR query, or prefix of at least three characters.
+- Start with about 10 candidates. Fetch and read only plausible hits; refine the query or filters instead of paging through broad results or raising the limit.
+- Search rank and snippets identify candidates, not evidence. Rely on fetched source text and verified pinpoints for conclusions.`;
+
 /**
  * Spreadsheet-specific citation syntax. Spliced into the system prompt by
  * buildMessages only when a spreadsheet document is actually in context, so
@@ -238,10 +244,10 @@ export const SPREADSHEET_CITATION_PROMPT = `SPREADSHEET CITATIONS:
  * does not have.
  */
 export const DOMAIN_PROMPTS: Record<string, string> = {
-  research: `${COURTLISTENER_SYSTEM_PROMPT}\n\n${A2AJ_SYSTEM_PROMPT}\n\n${PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT}`,
-  cases: `${COURTLISTENER_SYSTEM_PROMPT}\n\n${A2AJ_SYSTEM_PROMPT}`,
-  legislation: A2AJ_SYSTEM_PROMPT,
-  commentary: PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT,
+  research: `${SOURCE_SEARCH_SYSTEM_PROMPT}\n\n${COURTLISTENER_SYSTEM_PROMPT}\n\n${A2AJ_SYSTEM_PROMPT}\n\n${PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT}`,
+  cases: `${SOURCE_SEARCH_SYSTEM_PROMPT}\n\n${COURTLISTENER_SYSTEM_PROMPT}\n\n${A2AJ_SYSTEM_PROMPT}`,
+  legislation: `${SOURCE_SEARCH_SYSTEM_PROMPT}\n\n${A2AJ_SYSTEM_PROMPT}`,
+  commentary: `${SOURCE_SEARCH_SYSTEM_PROMPT}\n\n${PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT}`,
   citations:
     "Citation tools verify or repair citation mechanics and assemble authorities. They do not establish that a proposition is legally supported; open cases and read the decision for that.",
   output_document:

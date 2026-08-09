@@ -55,7 +55,6 @@ type LibraryWorkspaceContextValue = {
 export const LIBRARY_TABS = [
     { id: "files", label: "Files" },
     { id: "templates", label: "Templates" },
-    { id: "legal", label: "Cases & Legislation" },
 ] as const;
 export function libraryRoute(tab: (typeof LIBRARY_TABS)[number]["id"]) {
     return tab === "files" ? "/library" : `/library/${tab}`;

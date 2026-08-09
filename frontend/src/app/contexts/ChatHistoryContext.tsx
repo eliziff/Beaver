@@ -31,6 +31,7 @@ interface ChatHistoryContextType {
         newChatId: string,
         title?: string,
     ) => void;
+    setChatTurnInProgress: (chatId: string, active: boolean) => void;
     deleteChat: (chatId: string) => Promise<void>;
 }
 const ChatHistoryContext = createContext<ChatHistoryContextType | undefined>(
@@ -137,6 +138,15 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
                             return true;
                         });
                 });
+            },
+            setChatTurnInProgress: (chatId: string, active: boolean) => {
+                setChats((prev) =>
+                    prev?.map((chat) =>
+                        chat.id === chatId
+                            ? { ...chat, turn_in_progress: active }
+                            : chat,
+                    ) ?? prev,
+                );
             },
             stagePendingChatMessage: (chatId: string, message: Message) => {
                 pendingChatMessageRef.current = { chatId, message };

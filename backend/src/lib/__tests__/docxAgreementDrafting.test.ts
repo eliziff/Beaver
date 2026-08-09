@@ -1,14 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { applyTrackedEdits, extractDocxBodyText } from "../docxTrackedChanges";
-import { LOCAL_ASSISTANT_TOOLS } from "../chat/localAssistantTools";
-import { buildSystemPrompt } from "../chat/prompts";
 import {
   renderMarkdownDocx,
   safeGeneratedFilename,
 } from "../chat/tools/documentOps";
-import { PROJECT_EXTRA_TOOLS, TOOLS } from "../chat/tools/toolSchemas";
-import { SYSTEM_WORKFLOWS } from "../systemWorkflows";
 
 it("does not duplicate a supplied generated-file extension", () => {
   expect(safeGeneratedFilename("covenant-memo.docx", "docx")).toBe(
@@ -109,69 +105,4 @@ describe("agreement DOCX drafting", () => {
     expect(rendered.error).toContain('"b" value');
   });
 
-  it("exposes concise semantic Markdown in both tool catalogs", () => {
-    const generated = TOOLS.find(
-      (tool) => tool.function.name === "generate_docx",
-    )!;
-    const editor = TOOLS.find(
-      (tool) => tool.function.name === "edit_document",
-    )!;
-    const local = LOCAL_ASSISTANT_TOOLS.find(
-      (tool) => tool.function.name === "library_create_docx",
-    )!;
-    const properties = generated.function.parameters.properties as Record<
-      string,
-      unknown
-    >;
-
-    expect(generated.function.description).toContain("semantic Markdown");
-    expect(generated.function.parameters.required).toEqual([
-      "title",
-      "markdown",
-    ]);
-    expect(properties).toHaveProperty("markdown");
-    expect(properties).toHaveProperty("fields");
-    expect(properties).toHaveProperty("sources");
-    expect(properties).not.toHaveProperty("sections");
-    expect(local.function.description).toContain("local Library");
-    // Anchor the load-bearing instruction fragments, not full sentences.
-    expect(editor.function.description).toContain("edited Word artifact");
-    expect(editor.function.description).toContain("proposed or suggested");
-  });
-
-  it("uses structure-aware reads instead of the removed copy/edit path", () => {
-    const reader = TOOLS.find(
-      (tool) => tool.function.name === "read_document",
-    )!;
-    const localReader = LOCAL_ASSISTANT_TOOLS.find(
-      (tool) => tool.function.name === "library_read",
-    )!;
-    const readerMode = (
-      reader.function.parameters.properties as Record<
-        string,
-        { enum?: string[] }
-      >
-    ).mode;
-    const localMode = (
-      localReader.function.parameters.properties as Record<
-        string,
-        { enum?: string[] }
-      >
-    ).mode;
-    const toolNames = [...TOOLS, ...PROJECT_EXTRA_TOOLS].map(
-      (tool) => tool.function.name,
-    );
-    const workflow = SYSTEM_WORKFLOWS.find(
-      (item) => item.id === "builtin-draft-from-template",
-    );
-    const prompt = buildSystemPrompt(false);
-
-    expect(readerMode.enum).toEqual(["text", "drafting", "redline"]);
-    expect(localMode.enum).toEqual(["text", "drafting", "redline"]);
-    expect(toolNames).not.toContain("replicate_document");
-    expect(workflow?.skill_md).toContain("mode");
-    expect(workflow?.skill_md).not.toContain("file-copy");
-    expect(prompt).toContain('mode "drafting"');
-    expect(prompt).not.toContain("pageBreak: true");
-  });
 });

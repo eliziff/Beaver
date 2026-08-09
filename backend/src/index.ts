@@ -41,15 +41,18 @@ async function start() {
       { warmLocalDocumentStore },
       { legalKnowledgeGraphStore },
       { localTabularStore },
+      { warmSourceSearchIndexes },
     ] = await Promise.all([
       import("./lib/localDocumentStore"),
       import("./lib/legalKnowledgeGraphStore"),
       import("./lib/localTabularStore"),
+      import("./lib/chat/tools/sourceSearchTools"),
     ]);
     await Promise.all([
       warmLocalDocumentStore(),
       Promise.resolve(legalKnowledgeGraphStore()),
       Promise.resolve(localTabularStore()),
+      Promise.resolve(warmSourceSearchIndexes()),
     ]);
     void import("./lib/codexCatalog")
       .then(({ getCodexModelCatalog }) => getCodexModelCatalog())

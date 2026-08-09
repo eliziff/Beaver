@@ -14,7 +14,10 @@ import {
     type Citation,
 } from "../../shared/types";
 import { withoutMarkdownNode } from "./messageStyles";
-import { citationPillLabel, citationTooltip } from "./CitationSources";
+import {
+    citationPillParts,
+    citationTooltip,
+} from "./CitationSources";
 import { internalCaseHref } from "./citationUtils";
 export function GfmMarkdown(props: ComponentProps<typeof ReactMarkdown>) {
     const { remarkPlugins, ...rest } = props;
@@ -83,6 +86,14 @@ function paragraphFragment(url: string) {
         base,
         directives: url.slice(marker + 3).split("&").filter(Boolean),
     };
+}
+
+function unavailableLegalProvider(url: string) {
+    try {
+        return /(^|\.)getcaselaw\.com$/iu.test(new URL(url).hostname);
+    } catch {
+        return false;
+    }
 }
 
 function moveParagraphFragmentsToCitationPills() {
@@ -175,7 +186,7 @@ export function MarkdownContent({
     return (
         <div
             ref={divRef}
-            className="text-gray-900 mb-4 text-base prose prose-sm max-w-none font-serif"
+            className="mb-0 max-w-none text-base text-white prose prose-sm prose-invert font-serif"
         >
             <GfmMarkdown
                 remarkPlugins={[moveParagraphFragmentsToCitationPills]}
@@ -184,17 +195,17 @@ export function MarkdownContent({
                 }
                 components={{
                     table: (props) => (
-                        <div className="overflow-x-auto my-4 rounded-lg">
+                        <div className="my-4 overflow-x-auto rounded-lg bg-gray-900">
                             <table
-                                className="min-w-full divide-y divide-gray-300 overflow-hidden"
+                                className="min-w-full divide-y divide-gray-700 overflow-hidden"
                                 {...withoutMarkdownNode(props)}
                             />
                         </div>
                     ),
-                    thead: styled("thead", "bg-gray-100"),
-                    tbody: styled("tbody", "divide-y divide-gray-200"),
-                    th: styled("th", "px-3 py-3.5 text-left text-sm font-semibold text-gray-900"),
-                    td: styled("td", "whitespace-normal px-3 py-4 text-sm text-gray-900"),
+                    thead: styled("thead", "bg-gray-800"),
+                    tbody: styled("tbody", "divide-y divide-gray-700"),
+                    th: styled("th", "px-3 py-3.5 text-left text-sm font-semibold text-white"),
+                    td: styled("td", "whitespace-normal px-3 py-4 text-sm text-gray-100"),
                     h1: styled("h1", "mt-6 mb-4 text-3xl font-serif font-semibold"),
                     h2: styled("h2", "mt-5 mb-3 text-2xl font-serif font-semibold"),
                     h3: styled("h3", "text-xl font-semibold mt-4 mb-2"),
@@ -231,6 +242,7 @@ export function MarkdownContent({
                             const idx = parseInt(citMatch[1]);
                             const annotation = inlineCitationTargets[idx];
                             if (annotation) {
+                                const label = citationPillParts(annotation);
                                 const tooltipText =
                                     citationTitle?.(annotation) ??
                                     citationTooltip(annotation);
@@ -244,25 +256,35 @@ export function MarkdownContent({
                                         className={`${LEGAL_CITATION_PILL} mx-0.5 text-left`}
                                         title={tooltipText}
                                     >
-                                        {citationPillLabel(annotation)}
+                                        {label.styleOfCause ? (
+                                            <>
+                                                <em>{label.styleOfCause}</em>
+                                                {label.rest}
+                                            </>
+                                        ) : (
+                                            label.rest
+                                        )}
                                     </button>
                                 );
                             }
                         }
                         return (
                             <code
-                                className="bg-gray-100 px-1.5 py-0.5 rounded text-sm font-serif"
+                                className="rounded bg-gray-800 px-1.5 py-0.5 font-serif text-sm text-gray-100"
                                 {...codeProps}
                             >
                                 {children}
                             </code>
                         );
                     },
-                    blockquote: styled("blockquote", "border-l-4 border-gray-300 pl-4 italic my-4"),
+                    blockquote: styled("blockquote", "my-4 border-l-4 border-gray-600 pl-4 italic text-gray-200"),
                     a: (props) => {
                         const { href, children, ...anchorProps } =
                             withoutMarkdownNode(props);
                         if (href) {
+                            if (unavailableLegalProvider(href)) {
+                                return <>{children}</>;
+                            }
                             const isInternalCaseHref = !!internalCaseHref(href);
                             const citation = findCaseCitation(href);
                             const isLegalCitation =

@@ -10,11 +10,6 @@ import {
     Trash2,
 } from "lucide-react";
 import { PageHeader } from "@/app/components/shared/PageHeader";
-import { TableToolbar } from "@/app/components/shared/TableToolbar";
-import {
-    LIBRARY_TABS,
-    libraryRoute,
-} from "@/app/components/library/LibraryWorkspace";
 import {
     deleteLegalSource,
     getLegalSourceCoverage,
@@ -22,6 +17,7 @@ import {
     saveLegalSource,
     searchLegalSources,
     type LegalDocumentType,
+    type LegalSearchDocumentType,
     type LegalSourceCoverage,
     type LegalSourceReference,
     type LegalSourceSearchResult,
@@ -43,6 +39,14 @@ const FILTER_LABEL = "min-w-0 text-xs font-medium text-gray-600";
 const FILTER_INPUT =
     "mt-1 block h-9 w-full min-w-0 rounded-md border border-gray-300 bg-white px-2 text-sm font-normal text-gray-800";
 const DATE_FILTERS = [["from", "From"], ["to", "To"]] as const;
+type SourceTab = "all" | LegalSearchDocumentType;
+const SOURCE_TABS: Array<[SourceTab, string]> = [
+    ["all", "All"],
+    ["cases", "Cases"],
+    ["laws", "Legislation"],
+    ["articles", "Journals"],
+    ["hansard", "Hansard"],
+];
 
 function errorMessage(reason: unknown, fallback: string) {
     return reason instanceof Error ? reason.message : fallback;
@@ -57,7 +61,7 @@ function directSourceHref(result: LegalSourceSearchResult) {
     });
     if (result.dataset) query.set("dataset", result.dataset);
     if (result.source_id) query.set("source_id", result.source_id);
-    return `/library/legal/view?${query}`;
+    return `/sources/view?${query}`;
 }
 
 function savedSourceKey(source: {
@@ -76,7 +80,7 @@ export function LegalLibraryPage() {
     const [results, setResults] = useState<LegalSourceSearchResult[]>([]);
     const [coverage, setCoverage] = useState<LegalSourceCoverage[]>([]);
     const [filters, setFilters] = useState({
-        docType: "cases" as LegalDocumentType,
+        docType: "all" as SourceTab,
         jurisdiction: "",
         sourceKind: "",
         dataset: "",
@@ -87,11 +91,6 @@ export function LegalLibraryPage() {
     const { docType, jurisdiction, sourceKind, dataset } = filters;
     const updateFilters = (next: Partial<typeof filters>) =>
         setFilters((current) => ({ ...current, ...next }));
-    useEffect(() => {
-        for (const tab of LIBRARY_TABS) {
-            router.prefetch(libraryRoute(tab.id));
-        }
-    }, [router]);
     useEffect(() => {
         listLegalLibrary()
             .then(setReferences)
@@ -127,20 +126,29 @@ export function LegalLibraryPage() {
         setSearching(true);
         setError(null);
         try {
-            setResults(
-                await searchLegalSources({
+            const documentTypes: LegalSearchDocumentType[] =
+                docType === "all"
+                    ? ["cases", "laws", "articles", "hansard"]
+                    : [docType];
+            const found = await Promise.all(
+                documentTypes.map((type) =>
+                    searchLegalSources({
                     query,
-                    docType,
+                    docType: type,
                     datasets:
-                        docType === "articles" ? undefined : selectedDatasets,
+                        type === "articles" || docType === "all"
+                            ? undefined
+                            : selectedDatasets,
                     startDate: form.get("from")?.toString() || undefined,
                     endDate: form.get("to")?.toString() || undefined,
                     sortResults: (form.get("sort")?.toString() || "default") as
                         | "default"
                         | "newest_first"
                         | "oldest_first",
-                }),
+                    }),
+                ),
             );
+            setResults(found.flat());
         } catch (reason) {
             setError(errorMessage(reason, "Search failed"));
         } finally {
@@ -148,6 +156,7 @@ export function LegalLibraryPage() {
         }
     }
     async function saveResult(result: LegalSourceSearchResult) {
+        if (result.doc_type === "hansard") return;
         setSavingCitation(result.citation);
         setError(null);
         try {
@@ -181,15 +190,7 @@ export function LegalLibraryPage() {
     return (
         <div className="flex h-full min-h-0 flex-col">
             <PageHeader
-                breadcrumbs={[
-                    { label: "Library" },
-                    { label: "Legal Sources" },
-                ]}
-            />
-            <TableToolbar
-                items={LIBRARY_TABS}
-                active="legal"
-                onChange={(tab) => router.push(libraryRoute(tab))}
+                breadcrumbs={[{ label: "Sources" }]}
             />
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
                 <div className="mx-auto max-w-5xl space-y-6">
@@ -197,35 +198,46 @@ export function LegalLibraryPage() {
                         onSubmit={runSearch}
                         className="rounded-lg border border-gray-200 bg-white p-4"
                     >
+                        <div
+                            className="mb-3 grid grid-cols-5 rounded-lg bg-gray-100 p-1 sm:inline-grid"
+                            aria-label="Source category"
+                        >
+                            {SOURCE_TABS.map(([value, label]) => (
+                                <button
+                                    key={value}
+                                    type="button"
+                                    aria-pressed={docType === value}
+                                    onClick={() =>
+                                        updateFilters({
+                                            docType: value,
+                                            jurisdiction: "",
+                                            sourceKind: "",
+                                            dataset: "",
+                                        })
+                                    }
+                                    className={`h-8 rounded-md px-3 text-sm font-medium transition-colors ${
+                                        docType === value
+                                            ? "bg-white text-gray-900 shadow-sm"
+                                            : "text-gray-600 hover:text-gray-900"
+                                    }`}
+                                >
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
                         <div className="flex flex-col gap-2 sm:flex-row">
-                            <select
-                                value={docType}
-                                onChange={(event) => {
-                                    updateFilters({
-                                        docType: event.target
-                                            .value as LegalDocumentType,
-                                        jurisdiction: "",
-                                        sourceKind: "",
-                                        dataset: "",
-                                    });
-                                }}
-                                aria-label="Legal source type"
-                                className="h-10 w-40 shrink-0 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-800 outline-none focus:border-brand"
-                            >
-                                <option value="cases">Cases</option>
-                                <option value="laws">Legislation</option>
-                                <option value="articles">
-                                    Journal articles
-                                </option>
-                            </select>
                             <label className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 focus-within:border-brand">
                                 <Search className="h-4 w-4 shrink-0 text-gray-400" />
-                                <span className="sr-only">Search A2AJ</span>
+                                <span className="sr-only">Search sources</span>
                                 <input
                                     name="query"
                                     required
                                     placeholder={
-                                        docType === "laws"
+                                        docType === "all"
+                                            ? "Search cases, legislation, journals, and Hansard"
+                                            : docType === "hansard"
+                                              ? "Speaker, subject, or Hansard text"
+                                            : docType === "laws"
                                             ? "Statute title, citation, or provision"
                                             : docType === "articles"
                                               ? "Article title, author, journal, or citation"
@@ -247,10 +259,10 @@ export function LegalLibraryPage() {
                                 Search
                             </button>
                         </div>
-                        <div
-                            hidden={docType === "articles"}
-                            className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4"
-                        >
+                        {docType !== "all" &&
+                            docType !== "articles" &&
+                            docType !== "hansard" && (
+                            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                                 <label
                                     htmlFor="legal-jurisdiction"
                                     className={FILTER_LABEL}
@@ -359,7 +371,8 @@ export function LegalLibraryPage() {
                                         </option>
                                     </select>
                                 </label>
-                        </div>
+                            </div>
+                        )}
                     </form>
                     {error && (
                         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -405,13 +418,16 @@ export function LegalLibraryPage() {
                                                 )}
                                             </div>
                                             <div className="flex shrink-0 flex-wrap gap-2">
-                                                <Link
-                                                    href={directSourceHref(result)}
-                                                    className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-3 text-xs font-medium text-white hover:bg-brand-dark"
-                                                >
-                                                    View
-                                                </Link>
-                                                <button
+                                                {result.provider !== "hansard" && (
+                                                    <Link
+                                                        href={directSourceHref(result)}
+                                                        className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-3 text-xs font-medium text-white hover:bg-brand-dark"
+                                                    >
+                                                        View
+                                                    </Link>
+                                                )}
+                                                {result.provider !== "hansard" && (
+                                                    <button
                                                     type="button"
                                                     disabled={
                                                         savingCitation ===
@@ -430,7 +446,8 @@ export function LegalLibraryPage() {
                                                         <LibraryBig className="h-3.5 w-3.5" />
                                                     )}
                                                     {saved ? "Saved" : "Save"}
-                                                </button>
+                                                    </button>
+                                                )}
                                                 {result.url && (
                                                     <a
                                                         href={result.url}
@@ -461,7 +478,7 @@ export function LegalLibraryPage() {
                         ) : references.length ? (
                             <div className="overflow-hidden rounded-lg border border-gray-200 bg-white/60">
                                 {references.map((reference) => {
-                                    const href = `/library/legal/${reference.id}`;
+                                    const href = `/sources/${reference.id}`;
                                     return (
                                         <div
                                             key={reference.id}
@@ -503,8 +520,8 @@ export function LegalLibraryPage() {
                                                     void remove(reference)
                                                 }
                                                 className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-700"
-                                                aria-label={`Remove ${reference.citation} from Library`}
-                                                title="Remove from Library"
+                                                aria-label={`Remove ${reference.citation} from Sources`}
+                                                title="Remove from Sources"
                                             >
                                                 <Trash2 className="h-4 w-4" />
                                             </button>
@@ -534,12 +551,8 @@ export function LegalLibrarySourcePage({
             <PageHeader
                 breadcrumbs={[
                     {
-                        label: "Library",
-                        onClick: () => router.push("/library"),
-                    },
-                    {
-                        label: "Legal Sources",
-                        onClick: () => router.push("/library/legal"),
+                        label: "Sources",
+                        onClick: () => router.push("/sources"),
                     },
                     { label: "Source" },
                 ]}

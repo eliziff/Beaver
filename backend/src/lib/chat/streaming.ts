@@ -48,10 +48,20 @@ import {
 import {
   createLegalEvidenceTurnState,
   finalizeLegalEvidenceExperiment,
+  LEGAL_EVIDENCE_SUBMIT_TOOL,
   legalEvidenceReceiptEvent,
   renderLegalEvidenceAnswer,
   type LegalEvidenceReceiptEvent,
 } from "./legalEvidenceExperiment";
+import {
+  READ_SUBAGENT_SYSTEM_PROMPT,
+  READ_SUBAGENT_TOOL,
+  READ_SUBAGENT_TOOL_NAME,
+  readSubagentTools,
+  readSubagentActivityLabel,
+  runReadSubagent,
+  type ReadSubagentEvent,
+} from "./readSubagents";
 
 export type AssistantEvent =
   | { type: "reasoning"; text: string }
@@ -93,6 +103,7 @@ export type AssistantEvent =
   | CourtlistenerToolEvent
   | McpToolEvent
   | LegalEvidenceReceiptEvent
+  | ReadSubagentEvent
   | { type: "case_opinions"; cluster_id: number; case: unknown }
   | { type: "content"; text: string }
   | { type: "error"; message: string };
@@ -150,6 +161,9 @@ export async function runLLMStream({
   serviceTier,
   signal,
   projectId,
+  subagentsEnabled = false,
+  subagentModel,
+  subagentEffort,
 }: {
   apiMessages: unknown[];
   docStore: DocStore;
@@ -173,6 +187,9 @@ export async function runLLMStream({
    * generated docs still get persisted, but as standalone documents.
    */
   projectId?: string | null;
+  subagentsEnabled?: boolean;
+  subagentModel?: string;
+  subagentEffort?: string;
 }): Promise<{
   fullText: string;
   events: AssistantEvent[];
@@ -185,9 +202,12 @@ export async function runLLMStream({
     await import("../mcpConnectors")
   ).buildUserMcpTools(userId, db);
   const baseTools = [...TOOLS, ...researchTools, ...WORKFLOW_TOOLS];
-  const activeTools = extraTools?.length
+  const providerTools = extraTools?.length
     ? [...baseTools, ...mcpTools, ...extraTools]
     : [...baseTools, ...mcpTools];
+  const activeTools = subagentsEnabled
+    ? [...providerTools, READ_SUBAGENT_TOOL]
+    : providerTools;
 
   // Extract system prompt; pass remaining turns to the adapter as
   // plain user/assistant messages.
@@ -196,8 +216,11 @@ export async function runLLMStream({
     content: string | null;
     images?: import("../llm").LlmImage[];
   }[];
-  const systemPrompt =
+  const baseSystemPrompt =
     rawMsgs[0]?.role === "system" ? (rawMsgs[0].content ?? "") : "";
+  const systemPrompt = subagentsEnabled
+    ? `${baseSystemPrompt}\n\n${READ_SUBAGENT_SYSTEM_PROMPT}`
+    : baseSystemPrompt;
   const chatMessages: LlmMessage[] = rawMsgs
     .filter((m) => m.role !== "system")
     .map((m) => ({
@@ -341,7 +364,10 @@ export async function runLLMStream({
         // and the first tool-specific event.
         onToolCallStart: (call) => {
           flushText();
-          const label = a2ajActivityLabel(call.name, call.input);
+          const label =
+            call.name === READ_SUBAGENT_TOOL_NAME
+              ? readSubagentActivityLabel(call.input)
+              : a2ajActivityLabel(call.name, call.input);
           emit({
             type: "tool_call_start",
             name: call.name,
@@ -355,7 +381,13 @@ export async function runLLMStream({
         // UI sees it before the tool results stream in.
         flushText();
 
-        const toolCalls: ToolCall[] = calls.map((c) => ({
+        const directCalls = calls.filter(
+          (call) => call.name !== READ_SUBAGENT_TOOL_NAME,
+        );
+        const subagentCalls = calls.filter(
+          (call) => call.name === READ_SUBAGENT_TOOL_NAME,
+        );
+        const toolCalls: ToolCall[] = directCalls.map((c) => ({
           id: c.id,
           function: {
             name: c.name,
@@ -436,6 +468,78 @@ export async function runLLMStream({
         }
         events.push(...courtlistenerEvents, ...mcpEvents, ...caseCitationEvents);
 
+        const readTools = [
+          ...readSubagentTools(activeTools as OpenAIToolSchema[]),
+          LEGAL_EVIDENCE_SUBMIT_TOOL,
+        ];
+        const subagentResults = await Promise.all(
+          subagentCalls.map((call) => {
+            const childEditState: TurnEditState = new Map();
+            const childReadState: TurnReadState = new Map();
+            const childCourtlistenerState: CourtlistenerTurnState = {
+              casesByClusterId: new Map(),
+            };
+            const childPublicLegalState = createPublicLegalSourceState();
+            const childLegalEvidenceState = createLegalEvidenceTurnState(
+              "citation_structure",
+            );
+            return runReadSubagent({
+              call,
+              tools: readTools,
+              evidenceState: childLegalEvidenceState,
+              model: subagentModel,
+              effort: subagentEffort,
+              signal,
+              onEvent: (event) => {
+                emit(event);
+                if (event.status !== "running") events.push(event);
+              },
+              runTools: async (childCalls) => {
+                const childToolCalls: ToolCall[] = childCalls.map((child) => ({
+                  id: child.id,
+                  function: {
+                    name: child.name,
+                    arguments: JSON.stringify(child.input),
+                  },
+                }));
+                const childResult = await runToolCalls(
+                  childToolCalls,
+                  docStore,
+                  userId,
+                  db,
+                  () => undefined,
+                  workflowStore,
+                  tabularStore,
+                  docIndex,
+                  childEditState,
+                  childReadState,
+                  projectId,
+                  childCourtlistenerState,
+                  apiKeys,
+                  childPublicLegalState,
+                  childLegalEvidenceState,
+                );
+                return childCalls.map((child) => {
+                  const result = childResult.toolResults.find(
+                    (item) =>
+                      (item as { tool_call_id?: unknown }).tool_call_id ===
+                      child.id,
+                  ) as { content?: unknown } | undefined;
+                  return {
+                    tool_use_id: child.id,
+                    status: result ? ("ok" as const) : ("error" as const),
+                    content:
+                      String(result?.content ?? "") ||
+                      JSON.stringify({
+                        error: `Tool '${child.name}' is not available.`,
+                      }),
+                  };
+                });
+              },
+            });
+          }),
+        );
+
         if (askInputsEvents.length > 0) {
           throw new AssistantStreamAskInputsPause();
         }
@@ -455,12 +559,15 @@ export async function runLLMStream({
           };
           resultByCallId.set(row.tool_call_id, String(row.content ?? ""));
         }
-        return toolCalls.map((c) => ({
+        for (const result of subagentResults) {
+          resultByCallId.set(result.tool_use_id, result.content);
+        }
+        return calls.map((c) => ({
           tool_use_id: c.id,
           content:
             resultByCallId.get(c.id) ??
             JSON.stringify({
-              error: `Tool '${c.function.name}' is not available.`,
+              error: `Tool '${c.name}' is not available.`,
             }),
           terminal: toolResults.some(
             (result) =>

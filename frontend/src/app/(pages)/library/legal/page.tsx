@@ -1,1 +1,5 @@
-export { LegalLibraryPage as default } from "@/app/components/legal/LegalLibrary";
+import { redirect } from "next/navigation";
+
+export default function LegacyLegalLibraryPage() {
+    redirect("/sources");
+}

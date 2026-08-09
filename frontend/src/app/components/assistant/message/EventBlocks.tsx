@@ -113,20 +113,31 @@ export function ActivityRow({
             </span>
             <div className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]">
                 {view.markdown ? (
-                    <div className="prose prose-sm max-w-none [&>*]:my-1 [&>*]:text-sm [&>*]:text-gray-600">
-                        <GfmMarkdown
-                            components={{
-                                code: (props) => (
-                                    <code
-                                        className="font-serif text-gray-700"
-                                        {...withoutMarkdownNode(props)}
-                                    />
-                                ),
-                            }}
-                        >
-                            {view.markdown}
-                        </GfmMarkdown>
-                    </div>
+                    <>
+                        {view.panelAction && onClick && (
+                            <button
+                                type="button"
+                                onClick={onClick}
+                                className="mb-1 rounded text-xs font-medium text-gray-700 underline decoration-gray-300 underline-offset-2 hover:decoration-gray-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
+                            >
+                                Open panel
+                            </button>
+                        )}
+                        <div className="prose prose-sm max-w-none [&>*]:my-1 [&>*]:text-sm [&>*]:text-gray-600">
+                            <GfmMarkdown
+                                components={{
+                                    code: (props) => (
+                                        <code
+                                            className="font-serif text-gray-700"
+                                            {...withoutMarkdownNode(props)}
+                                        />
+                                    ),
+                                }}
+                            >
+                                {view.markdown}
+                            </GfmMarkdown>
+                        </div>
+                    </>
                 ) : (
                     labelNode
                 )}

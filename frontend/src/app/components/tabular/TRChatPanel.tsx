@@ -295,7 +295,6 @@ export function TRChatPanel({
                                         citations={(msg.annotations ?? []).map(
                                             toAssistantCitation,
                                         )}
-                                        showCitationList={false}
                                         showCopyAction={false}
                                         minHeight={
                                             i === lastAssistantIdx

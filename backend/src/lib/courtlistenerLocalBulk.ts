@@ -49,6 +49,12 @@ const CLUSTER_COLUMNS = `
   filepath_pdf_harvard
 `;
 
+const JOINED_CLUSTER_COLUMNS = `
+  cluster.id, cluster.case_name, cluster.case_name_short,
+  cluster.case_name_full, cluster.slug, cluster.date_filed,
+  cluster.filepath_pdf_harvard
+`;
+
 function courtlistenerLocalBulkPath() {
   const configured = process.env.MIKE_COURTLISTENER_BULK_DB?.trim();
   if (configured) return path.resolve(configured);
@@ -61,6 +67,32 @@ export function courtlistenerLocalBulkAvailable() {
 
 function withDatabase<T>(operation: (database: DatabaseSync) => T): T | null {
   return withReadonlySqlite(courtlistenerLocalBulkPath(), operation);
+}
+
+let searchConnection:
+  | { filename: string; database: DatabaseSync }
+  | undefined;
+
+function withSearchDatabase<T>(operation: (database: DatabaseSync) => T): T | null {
+  const filename = courtlistenerLocalBulkPath();
+  if (process.env.MIKE_COURTLISTENER_BULK_DB?.trim()) {
+    return withReadonlySqlite(filename, operation);
+  }
+  if (!existsSync(filename)) return null;
+  if (searchConnection?.filename !== filename) {
+    searchConnection?.database.close();
+    const { DatabaseSync } = require("node:sqlite") as typeof import("node:sqlite");
+    const database = new DatabaseSync(filename, { readOnly: true });
+    database.exec(
+      "PRAGMA query_only=ON; PRAGMA mmap_size=2147418112; PRAGMA cache_size=-131072",
+    );
+    searchConnection = { filename, database };
+  }
+  return operation(searchConnection.database);
+}
+
+export function warmLocalCourtlistenerSearch() {
+  return withSearchDatabase(() => true) ?? false;
 }
 
 function nullableString(value: unknown) {
@@ -166,30 +198,45 @@ export function getLocalCourtlistenerCase(
   });
 }
 
-function ftsQuery(query: string) {
+function ftsQuery(query: string, syntax: "terms" | "fts5" = "terms") {
+  if (syntax === "fts5") return query.trim();
   const tokens = query.match(/[\p{L}\p{N}]+/gu)?.slice(0, 12) ?? [];
   return tokens
-    .map((token) => `"${token.replace(/"/gu, '""')}"*`)
+    .map((token) => `"${token.replace(/"/gu, '""')}"`)
     .join(" AND ");
 }
 
 export function searchLocalCourtlistenerCases(args: {
   query: string;
   limit?: number;
+  syntax?: "terms" | "fts5";
+  filedAfter?: string;
+  filedBefore?: string;
 }): LocalCourtlistenerCluster[] | null {
-  const query = ftsQuery(args.query);
+  const query = ftsQuery(args.query, args.syntax);
   if (!query) return [];
-  return withDatabase((database) => {
+  return withSearchDatabase((database) => {
     const wanted = limit(args.limit, 10, 50);
+    const dateFilters: string[] = [];
+    const dateValues: string[] = [];
+    if (args.filedAfter?.trim()) {
+      dateFilters.push("cluster.date_filed >= ?");
+      dateValues.push(args.filedAfter.trim());
+    }
+    if (args.filedBefore?.trim()) {
+      dateFilters.push("cluster.date_filed <= ?");
+      dateValues.push(args.filedBefore.trim());
+    }
+    const dates = dateFilters.length ? ` AND ${dateFilters.join(" AND ")}` : "";
     const matches = database
       .prepare(
-        `SELECT cluster.*
+        `SELECT ${JOINED_CLUSTER_COLUMNS}
          FROM cluster_search JOIN cluster ON cluster.id = cluster_search.rowid
-         WHERE cluster_search MATCH ?
-         ORDER BY bm25(cluster_search), cluster.date_filed DESC
+         WHERE cluster_search MATCH ?${dates}
+         ORDER BY rank
          LIMIT ?`,
       )
-      .all(query, wanted)
+      .all(query, ...dateValues, wanted)
       .map((row) => cluster(row as Row));
     if (matches.length >= wanted) return matches;
     const hasOpinionSearch = database
@@ -201,14 +248,14 @@ export function searchLocalCourtlistenerCases(args: {
     const seen = new Set(matches.map(({ id }) => id));
     const opinionMatches = database
       .prepare(
-        `SELECT cluster.*
+        `SELECT ${JOINED_CLUSTER_COLUMNS}
          FROM opinion_search
          JOIN cluster ON cluster.id = CAST(opinion_search.cluster_id AS INTEGER)
-         WHERE opinion_search MATCH ?
-         ORDER BY bm25(opinion_search), cluster.date_filed DESC
+         WHERE opinion_search MATCH ?${dates}
+         ORDER BY rank
          LIMIT ?`,
       )
-      .all(query, Math.max(50, wanted * 4))
+      .all(query, ...dateValues, Math.max(50, wanted * 4))
       .map((row) => cluster(row as Row))
       .filter(({ id }) => !seen.has(id));
     const uniqueOpinionMatches = [

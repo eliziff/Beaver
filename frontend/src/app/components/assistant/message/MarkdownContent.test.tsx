@@ -17,7 +17,7 @@ function renderMarkdown(text: string, inlineCitationTargets: Citation[] = []) {
 describe("MarkdownContent links", () => {
     it("keeps Beaver app links in the current app and isolates external links", () => {
         renderMarkdown(
-            "[Open project](/projects/matter-1) [Open source](/library/legal/source-1) [External](https://example.com)",
+            "[Open project](/projects/matter-1) [Open source](/sources/source-1) [External](https://example.com)",
         );
 
         expect(screen.getByRole("link", { name: "Open project" })).not.toHaveAttribute(

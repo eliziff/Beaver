@@ -6,6 +6,9 @@ import { ChatView } from "@/app/components/assistant/ChatView";
 import { SelectAssistantProjectModal } from "@/app/components/assistant/SelectAssistantProjectModal";
 export default function AssistantChatPage() {
     const id = useParams<{ id: string }>().id;
+    return <AssistantChat key={id} id={id} />;
+}
+function AssistantChat({ id }: { id: string }) {
     const [projectModalOpen, setProjectModalOpen] = useState(false);
     const {
         messages,

@@ -12,6 +12,12 @@ import {
   type ProviderPdfQueueResult,
 } from "../providerPdfLibraryBridge";
 import { sha256 } from "../hash";
+import {
+  createBenchmarkEvidence,
+  registerLegalEvidence,
+  type LegalEvidenceReceipt,
+  type LegalEvidenceTurnState,
+} from "./legalEvidenceExperiment";
 import { COURTLISTENER_TOOL_NAMES } from "./tools/courtlistenerTools";
 import { findTextMatches } from "./tools/documentOps";
 
@@ -92,7 +98,7 @@ function result(
 }
 
 function courtlistenerEvidenceRefs(
-  call: NormalizedToolCall,
+  call: CourtlistenerCall,
   payload: JsonRecord,
   state?: CourtlistenerToolState,
 ): NonNullable<NormalizedToolResult["evidenceRefs"]> {
@@ -193,6 +199,27 @@ function courtlistenerEvidenceRefs(
     );
   }
   return [];
+}
+
+export function courtlistenerLegalEvidence(
+  call: CourtlistenerCall,
+  payload: Record<string, unknown>,
+  state?: CourtlistenerToolState,
+): LegalEvidenceReceipt[] {
+  return courtlistenerEvidenceRefs(call, payload, state).map((ref) =>
+    createBenchmarkEvidence({
+      jurisdiction: "US",
+      sourceClass: "case",
+      stableSourceId: ref.handle,
+      sourceText: ref.text,
+      spanText: ref.text,
+      citation: ref.filename ?? "CourtListener source",
+      name: ref.filename ?? "CourtListener source",
+      dataset: "courtlistener",
+      locatorKind: "document",
+      locatorLabel: ref.locator ?? "passage",
+    }),
+  );
 }
 
 function opinionId(opinion: JsonRecord) {
@@ -546,11 +573,23 @@ export async function runLocalCourtlistenerTool(
   call: NormalizedToolCall,
   state: CourtlistenerToolState,
   userId?: string,
+  legalEvidenceState?: LegalEvidenceTurnState,
 ): Promise<NormalizedToolResult | null> {
   const payload = await executeCourtlistenerTool(call, state, {
     pdfFallbackUserId: userId,
   });
-  return payload ? result(call, payload, state) : null;
+  if (!payload) return null;
+  const evidences = courtlistenerLegalEvidence(call, payload, state);
+  for (const evidence of evidences) {
+    if (legalEvidenceState) registerLegalEvidence(legalEvidenceState, evidence);
+  }
+  return result(
+    call,
+    evidences.length
+      ? { ...payload, evidence_ids: evidences.map((item) => item.evidence_id) }
+      : payload,
+    state,
+  );
 }
 
 export async function executeCourtlistenerTool(

@@ -7,6 +7,7 @@ import { executeA2AJTool } from "./a2ajTools";
 import {
   LEGAL_EVIDENCE_PLAN_TOOL_NAME,
   LEGAL_EVIDENCE_TOOL_NAME,
+  createLibraryEvidence,
   planLegalEvidence,
   registerLegalEvidence,
   submitLegalEvidenceAnswer,
@@ -20,6 +21,7 @@ import {
   type PublicLegalSourceState,
 } from "../publicLegalSourceState";
 import {
+  courtlistenerLegalEvidence,
   executeCourtlistenerTool,
   type CourtlistenerCase,
   type CourtlistenerToolState,
@@ -301,6 +303,46 @@ export async function runToolCalls(
     }
     turnReadState.set(key, { ...identity, passages: merged });
   };
+  const registerDocumentEvidence = (
+    identity: Awaited<ReturnType<typeof getTurnReadIdentity>>,
+    source?: CapturedDocumentSource,
+  ) => {
+    if (!legalEvidenceState || !identity || !source?.text.trim()) return null;
+    const receipt = createLibraryEvidence({
+      documentId: identity.documentId ?? identity.docLabel,
+      versionId: identity.versionId ?? identity.storagePath,
+      filename: identity.filename,
+      sourceText: source.text,
+      spanText: source.text,
+      start: 0,
+      end: source.text.length,
+    });
+    registerLegalEvidence(legalEvidenceState, receipt);
+    return receipt.evidence_id;
+  };
+  const groundCourtlistenerPayload = (
+    name: string,
+    input: Record<string, unknown>,
+    payload: Record<string, unknown> | null,
+  ) => {
+    const availablePayload =
+      payload ?? { ok: false, error: "CourtListener tool unavailable." };
+    if (!legalEvidenceState) return availablePayload;
+    const evidences = courtlistenerLegalEvidence(
+      { name, input },
+      availablePayload,
+      courtState,
+    );
+    for (const evidence of evidences) {
+      registerLegalEvidence(legalEvidenceState, evidence);
+    }
+    return evidences.length
+      ? {
+          ...availablePayload,
+          evidence_ids: evidences.map((item) => item.evidence_id),
+        }
+      : availablePayload;
+  };
   const sourceClosureForDraft = (draft: string) =>
     /\bassign/iu.test(draft)
       ? assignmentClosureReceipts(
@@ -542,6 +584,9 @@ export async function runToolCalls(
           captured[0] ? [{ ...captured[0], at: 0 }] : [],
         );
       }
+      const evidenceId = readSucceeded
+        ? registerDocumentEvidence(readIdentity, captured[0])
+        : null;
       if (readSucceeded && filename) {
         docsRead.push({ filename, document_id: documentId });
       }
@@ -550,7 +595,9 @@ export async function runToolCalls(
         tool_call_id: tc.id,
         content:
           filename && readMode === "text"
-            ? `${citationReminder(docId, filename)}\n\n${content}`
+            ? `${citationReminder(docId, filename)}\n\n${content}${
+                evidenceId ? `\n\nCitation evidence_id: ${evidenceId}` : ""
+              }`
             : content,
       });
     } else if (tc.function.name === "find_in_document") {
@@ -670,8 +717,11 @@ export async function runToolCalls(
             captured[0] ? [{ ...captured[0], at: 0 }] : [],
           );
         }
+        const evidenceId = registerDocumentEvidence(readIdentity, captured[0]);
         parts.push(
-          `--- ${filename} (${docId}) ---\n${citationReminder(docId, filename)}\n\n${content}`,
+          `--- ${filename} (${docId}) ---\n${citationReminder(docId, filename)}\n\n${content}${
+            evidenceId ? `\n\nCitation evidence_id: ${evidenceId}` : ""
+          }`,
         );
         if (docStore.get(docId)) {
           const documentId = docIndex?.[docId]?.document_id;
@@ -777,10 +827,14 @@ export async function runToolCalls(
     } else if (tc.function.name === COURTLISTENER_TOOL_NAMES.searchCaseLaw) {
       const query = typeof args.query === "string" ? args.query : "";
       emit({ type: "courtlistener_search_case_law_start", query });
-      const payload = await executeCourtlistenerTool(
-        { name: tc.function.name, input: args },
-        courtState,
-        { db, apiToken: apiKeys?.courtlistener },
+      const payload = groundCourtlistenerPayload(
+        tc.function.name,
+        args,
+        await executeCourtlistenerTool(
+          { name: tc.function.name, input: args },
+          courtState,
+          { db, apiToken: apiKeys?.courtlistener },
+        ),
       );
       const event: CourtlistenerToolEvent = {
         type: "courtlistener_search_case_law",
@@ -816,10 +870,14 @@ export async function runToolCalls(
         ),
       );
       emit({ type: "courtlistener_get_cases_start", cluster_ids: clusterIds });
-      const payload = await executeCourtlistenerTool(
-        { name: tc.function.name, input: args },
-        courtState,
-        { db, apiToken: apiKeys?.courtlistener },
+      const payload = groundCourtlistenerPayload(
+        tc.function.name,
+        args,
+        await executeCourtlistenerTool(
+          { name: tc.function.name, input: args },
+          courtState,
+          { db, apiToken: apiKeys?.courtlistener },
+        ),
       );
       const caseRecords = clusterIds.flatMap((clusterId) => {
         const record = courtState.casesByClusterId.get(clusterId);
@@ -887,10 +945,14 @@ export async function runToolCalls(
           query,
         });
       }
-      const payload = await executeCourtlistenerTool(
-        { name: tc.function.name, input: args },
-        courtState,
-        { db, apiToken: apiKeys?.courtlistener },
+      const payload = groundCourtlistenerPayload(
+        tc.function.name,
+        args,
+        await executeCourtlistenerTool(
+          { name: tc.function.name, input: args },
+          courtState,
+          { db, apiToken: apiKeys?.courtlistener },
+        ),
       );
       const event: CourtlistenerToolEvent = {
         type: "courtlistener_find_in_case",
@@ -931,10 +993,14 @@ export async function runToolCalls(
             ? "section"
             : "paragraph";
       const locator = typeof args.locator === "string" ? args.locator : "";
-      const payload = await executeCourtlistenerTool(
-        { name: tc.function.name, input: args },
-        courtState,
-        { db, apiToken: apiKeys?.courtlistener },
+      const payload = groundCourtlistenerPayload(
+        tc.function.name,
+        args,
+        await executeCourtlistenerTool(
+          { name: tc.function.name, input: args },
+          courtState,
+          { db, apiToken: apiKeys?.courtlistener },
+        ),
       );
       const event: CourtlistenerToolEvent = {
         type: "courtlistener_lookup_case_locator",
@@ -964,10 +1030,14 @@ export async function runToolCalls(
             ? Math.floor(args.cluster_id)
             : null;
       emit({ type: "courtlistener_read_case_start", cluster_id: clusterId });
-      const payload = await executeCourtlistenerTool(
-        { name: tc.function.name, input: args },
-        courtState,
-        { db, apiToken: apiKeys?.courtlistener },
+      const payload = groundCourtlistenerPayload(
+        tc.function.name,
+        args,
+        await executeCourtlistenerTool(
+          { name: tc.function.name, input: args },
+          courtState,
+          { db, apiToken: apiKeys?.courtlistener },
+        ),
       );
       const event: CourtlistenerToolEvent = {
         type: "courtlistener_read_case",
