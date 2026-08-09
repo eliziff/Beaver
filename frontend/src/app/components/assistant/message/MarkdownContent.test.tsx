@@ -57,7 +57,7 @@ describe("MarkdownContent links", () => {
             "https://www.canlii.org/en/ca/scc/doc/2024/2024scc6/2024scc6.html",
         );
         expect(citation).toHaveClass("rounded-full");
-        expect(citation).toHaveClass("bg-red-50", "text-red-700", "ring-red-200");
+        expect(citation).toHaveClass("bg-red-800", "text-red-50", "ring-red-600/70");
         expect(citation).not.toHaveClass("bg-blue-50");
         expect(citation).toHaveClass("focus-visible:outline-2");
         expect(screen.queryByText("at paras. 12\u201314")).toBeNull();
@@ -94,7 +94,7 @@ describe("MarkdownContent links", () => {
 
         const pill = document.querySelector('[data-citation-ref="1"]');
         expect(pill).toHaveTextContent("A Fixture Article, p. 101");
-        expect(pill).toHaveClass("rounded-full", "bg-red-50", "text-red-700");
+        expect(pill).toHaveClass("rounded-full", "bg-red-800", "text-red-50");
         expect(pill).toHaveAttribute(
             "title",
             'A Fixture Article, p. 101: "Quoted analysis"',

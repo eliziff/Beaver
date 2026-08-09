@@ -33,7 +33,7 @@ const LEGAL_CITATION =
 const LEGAL_CITATION_LINK =
     /\[([^\]\r\n]{1,180})\]\(([^)\r\n]+)\)(\s*,?\s*(?:at\s+)?para(?:graph)?s?\.?\s*\d{1,5}(?:\s*[-\u2013\u2014]\s*\d{1,5})?)/giu;
 const LEGAL_CITATION_PILL =
-    "not-prose inline-flex min-w-0 max-w-full items-baseline whitespace-normal break-words rounded-full bg-red-50 px-2 py-0.5 align-baseline font-sans text-[0.8125rem] font-medium leading-5 text-red-700 no-underline ring-1 ring-inset ring-red-200 hover:bg-red-100 hover:text-red-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600";
+    "not-prose inline-flex min-w-0 max-w-full items-baseline whitespace-normal break-words rounded-full bg-red-800 px-2 py-0.5 align-baseline font-sans text-[0.8125rem] font-medium leading-5 text-red-50 no-underline ring-1 ring-inset ring-red-600/70 hover:bg-red-700 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400";
 
 function nodeText(value: ReactNode): string {
     return Children.toArray(value)
