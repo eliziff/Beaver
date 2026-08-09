@@ -11,6 +11,7 @@ import {
   resolveJournalViewerDocument,
   searchJournalArticles,
 } from "../lib/journalArticles";
+import { searchLocalHansard } from "../lib/a2ajHansard";
 import {
   deleteLocalLegalSource,
   getLocalLegalSource,
@@ -176,6 +177,33 @@ legalLibraryRouter.get("/coverage", async (_req, res) => {
 legalLibraryRouter.get("/search", async (req, res) => {
   try {
     const wanted = Number.parseInt(String(req.query.size ?? "12"), 10);
+    if (req.query.doc_type === "hansard") {
+      const results = searchLocalHansard({
+        query: text(req.query.query, "query"),
+        size: Number.isFinite(wanted) ? Math.min(Math.max(wanted, 1), 20) : 10,
+        startDate: optionalText(req.query.start_date, 10),
+        endDate: optionalText(req.query.end_date, 10),
+        sortResults:
+          req.query.sort_results === "newest_first" ||
+          req.query.sort_results === "oldest_first"
+            ? req.query.sort_results
+            : "default",
+      });
+      res.json({
+        results: (results ?? []).map((result) => ({
+          provider: "hansard" as const,
+          doc_type: "hansard" as const,
+          source_id: result.id,
+          dataset: result.chamber ?? result.jurisdiction ?? "Hansard",
+          citation: [result.date, result.speaker].filter(Boolean).join(" — ") || result.id,
+          name: result.subjectOfBusiness ?? result.orderOfBusiness ?? result.speaker,
+          date: result.date,
+          url: result.sourceUrl,
+          snippet: result.snippet,
+        })),
+      });
+      return;
+    }
     const selectedDocType = docType(req.query.doc_type);
     if (selectedDocType === "articles") {
       const results = searchJournalArticles(

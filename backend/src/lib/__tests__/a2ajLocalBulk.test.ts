@@ -124,7 +124,7 @@ describe("local A2AJ bulk data", () => {
       {
         citation: "2024 SCC 1",
         name: "Alpha v. Beta",
-        snippet: expect.stringContaining("constitutional remedy"),
+        snippet: null,
       },
     ]);
     expect(

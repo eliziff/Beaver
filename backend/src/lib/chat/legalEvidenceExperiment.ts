@@ -107,7 +107,7 @@ export type LegalSourceClass = "case" | "legislation" | "commentary";
 
 export type LegalEvidenceReceipt = {
   evidence_id: string;
-  provider: "a2aj" | "benchmark" | "citator" | "journal";
+  provider: "a2aj" | "benchmark" | "citator" | "journal" | "library";
   jurisdiction: string;
   source_class: LegalSourceClass;
   stable_source_id: string;
@@ -136,7 +136,8 @@ export type LegalEvidenceReceipt = {
     | "benchmark-span-v1"
     | "citator-standsfor-v1"
     | "citator-noteup-v1"
-    | "public-journal-v1";
+    | "public-journal-v1"
+    | "library-read-v1";
 };
 
 export type RegisteredEvidence = {
@@ -400,6 +401,37 @@ export function createBenchmarkEvidence(args: {
       label: args.locatorLabel,
     },
     resolver_version: "benchmark-span-v1",
+  });
+}
+
+export function createLibraryEvidence(args: {
+  documentId: string;
+  versionId: string;
+  filename: string;
+  sourceText: string;
+  spanText: string;
+  start: number;
+  end: number;
+}): LegalEvidenceReceipt {
+  return withEvidenceId({
+    provider: "library",
+    jurisdiction: "matter",
+    source_class: "commentary",
+    stable_source_id: args.documentId,
+    source_sha256: sha256(args.sourceText),
+    scope: "passage",
+    block_id: `chars:${args.start}-${args.end}`,
+    exact_span_sha256: sha256(args.spanText),
+    span_sha256: sha256(normalizeWhitespace(args.spanText)),
+    span_text: args.spanText,
+    citation: args.filename,
+    name: args.filename,
+    dataset: "library",
+    language: "en",
+    version: args.versionId,
+    external_url: null,
+    locator: { kind: "document", label: "document" },
+    resolver_version: "library-read-v1",
   });
 }
 

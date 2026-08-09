@@ -164,8 +164,10 @@ import {
   executeA2AJTool,
 } from "./tools/a2ajTools";
 import {
+  createBenchmarkEvidence,
   LEGAL_EVIDENCE_PLAN_TOOL_NAME,
   LEGAL_EVIDENCE_TOOL_NAME,
+  createLibraryEvidence,
   planLegalEvidence,
   registerLegalEvidence,
   submitLegalEvidenceAnswer,
@@ -180,6 +182,10 @@ import {
 } from "./tools/compareVersionsTool";
 import { executeHansardTool, HANSARD_TOOLS } from "./tools/hansardTools";
 import { PUBLIC_LEGAL_SOURCE_TOOLS } from "./tools/publicLegalSourceTools";
+import {
+  SEARCH_SOURCES_TOOL,
+  executeSearchSourcesTool,
+} from "./tools/sourceSearchTools";
 import {
   createPublicLegalSourceState,
   executePublicLegalSourceTool,
@@ -1471,8 +1477,8 @@ const LEGACY_DESCRIPTIONS: Record<string, string> = {
 };
 
 /**
- * Structure for a Library document, served from a pre-baked sidecar in the
- * address arm.
+ * Structure for a source document, served from the existing pre-baked
+ * sidecar with a compile-on-miss fallback.
  *
  * The sidecars exist because the in-memory memo only helps within a process:
  * the Income Tax Act costs ~13.4s to compile cold and ~658ms to read baked,
@@ -1480,17 +1486,13 @@ const LEGACY_DESCRIPTIONS: Record<string, string> = {
  * rather than read. A miss falls through to a real compile, so correctness
  * never depends on a bake — only speed does.
  *
- * Legacy stays on the synchronous path: arm B is the whole product bet, and
- * this is part of it.
  */
 async function documentStructure(
   text: string,
   id = "",
   options: CompileSkeletonOptions = {},
 ) {
-  return NAV_TOOL_SHAPE === "address"
-    ? bakedSkeleton(text, id, options)
-    : compileAgreementSkeleton(text, id, options);
+  return bakedSkeleton(text, id, options);
 }
 
 /**
@@ -1582,9 +1584,7 @@ async function documentGraph(
   skeleton: AgreementSkeleton,
   options: CompileSkeletonOptions = {},
 ) {
-  return NAV_TOOL_SHAPE === "address"
-    ? bakedCrossReferenceGraph(text, id, options)
-    : crossReferenceGraph(text, id, { skeleton });
+  return bakedCrossReferenceGraph(text, id, options);
 }
 
 function oneHopLegalScope(
@@ -1705,7 +1705,7 @@ const TOOL_DOMAINS: Record<string, Domain> = {
   },
   legislation: {
     blurb:
-      "find and read statutes, regulations, exact provisions, and related legislative debate",
+      "find and read statutes, regulations, exact provisions, and related Hansard records",
   },
   commentary: {
     blurb: "find and read journals and other public secondary sources",
@@ -2504,6 +2504,34 @@ if (!PRODUCTION_EDIT_TOOL) throw new Error("Production Edit tool is missing");
 export const LOCAL_ASSISTANT_TOOLS = CODING_MARKDOWN_FINAL_AGENT_LAB_TOOLS.map(
   (entry) => (entry.function.name === "Edit" ? PRODUCTION_EDIT_TOOL : entry),
 );
+
+export const LOCAL_READ_SUBAGENT_TOOL_CATALOG: OpenAIToolSchema[] = [
+  ...new Map(
+    [
+      ...LOCAL_ASSISTANT_TOOLS,
+      ...forNavShape(LOCAL_LIBRARY_TOOLS),
+      ...(WORKFLOW_TOOLS as OpenAIToolSchema[]),
+      ...(RESEARCH_TOOLS_DISABLED
+        ? []
+        : [
+            SEARCH_SOURCES_TOOL,
+            ...(COURTLISTENER_TOOLS as OpenAIToolSchema[]).filter(
+              (tool) => tool.function.name !== "courtlistener_search_case_law",
+            ),
+            ...(A2AJ_TOOLS as OpenAIToolSchema[]).filter(
+              (tool) => tool.function.name !== "a2aj_search",
+            ),
+            ...(PUBLIC_LEGAL_SOURCE_TOOLS as OpenAIToolSchema[]).filter(
+              (tool) => tool.function.name !== "public_legal_source_search",
+            ),
+            ...HANSARD_TOOLS.filter(
+              (tool) => tool.function.name !== "hansard_search",
+            ),
+            ...CITATOR_TOOLS,
+          ]),
+    ].map((tool) => [tool.function.name, tool]),
+  ).values(),
+];
 
 const trimmed = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
@@ -3941,8 +3969,9 @@ async function runLocalReviseDocx(
      * space where the document has a newline, or inventing a blank line. The
      * model has never seen those bytes; the server has.
      */
+    const sourceBytes = await readFile(file.path);
     const docxStructure = addressed
-      ? await extractDocxBodyStructure(await readFile(file.path))
+      ? await extractDocxBodyStructure(sourceBytes)
       : null;
     const docText = docxStructure?.text ?? "";
     const skeleton = docText
@@ -4019,15 +4048,28 @@ async function runLocalReviseDocx(
       });
     }
     const annotate = args.annotate === true;
-    const edited = await applyTrackedEdits(await readFile(file.path), edits, {
+    const edited = await applyTrackedEdits(sourceBytes, edits, {
       author: "Beaver",
       annotate,
     });
     if (edited.errors.length || !edited.changes.length) {
+      const sourceText = docText || (await extractDocxBodyText(sourceBytes));
       return result(call, {
         ok: false,
         error: "No revision was saved",
-        edit_errors: edited.errors,
+        edit_errors: edited.errors.map((failure) => {
+          const attempted = edits[failure.index];
+          return {
+            ...failure,
+            attempted_quote: attempted?.find ?? "",
+            context_before: attempted?.context_before ?? "",
+            context_after: attempted?.context_after ?? "",
+            nearest_match:
+              attempted?.find && sourceText
+                ? findNearestSuggestion(attempted.find, sourceText)
+                : null,
+          };
+        }),
       });
     }
     const trackedEdits: LocalTrackedEdit[] = edited.changes.map((change) => ({
@@ -8440,7 +8482,7 @@ export async function runLocalAssistantTools(
           )) ||
           (call.name === "Edit" && !draftTarget))
       ) {
-        return runCodingShapeCall(
+        const codingResult = await runCodingShapeCall(
           call,
           args,
           userId,
@@ -8451,6 +8493,69 @@ export async function runLocalAssistantTools(
           turnReadState,
           requirementsState,
         );
+        if (
+          legalEvidenceState &&
+          call.name === "Read" &&
+          codingResult.status !== "error"
+        ) {
+          const bySource = new Map<
+            string,
+            NonNullable<NormalizedToolResult["evidenceSegments"]>
+          >();
+          for (const segment of codingResult.evidenceSegments ?? []) {
+            if (segment.end <= segment.start) continue;
+            const key = [
+              segment.documentId,
+              segment.versionId,
+              segment.projection ?? "canonical",
+            ].join(":");
+            bySource.set(key, [...(bySource.get(key) ?? []), segment]);
+          }
+          const evidenceIds: string[] = [];
+          for (const segments of bySource.values()) {
+            const first = segments[0];
+            const drafting =
+              first.projection === "drafting" ||
+              first.projection === "redline"
+                ? await servedDraftingText(
+                    userId,
+                    first.documentId,
+                    servedDraftingCache,
+                  )
+                : null;
+            const canonical = drafting
+              ? null
+              : await extractLocalDocument(
+                  userId,
+                  first.documentId,
+                  first.versionId,
+                );
+            const sourceText = drafting
+              ? drafting.served.slice(drafting.bodyOffset)
+              : canonical?.text;
+            if (!sourceText) continue;
+            const start = Math.min(...segments.map((segment) => segment.start));
+            const end = Math.max(...segments.map((segment) => segment.end));
+            const spanText = sourceText.slice(start, end);
+            if (!spanText.trim()) continue;
+            const receipt = createLibraryEvidence({
+              documentId: first.documentId,
+              versionId: first.versionId,
+              filename: first.filename ?? canonical?.filename ?? first.documentId,
+              sourceText,
+              spanText,
+              start,
+              end,
+            });
+            registerLegalEvidence(legalEvidenceState, receipt);
+            evidenceIds.push(receipt.evidence_id);
+          }
+          if (evidenceIds.length) {
+            codingResult.content +=
+              `\n\nCitation evidence_ids: ${evidenceIds.join(", ")}`;
+          }
+        }
+        return codingResult;
       }
       // Strict surface: names the shape swap removed must fail loudly, or a
       // prompt that still mentions them silently un-does the experiment.
@@ -8482,11 +8587,14 @@ export async function runLocalAssistantTools(
           evidenceRefs: publicLegalEvidenceRefs(publicLegalResult.payload),
         };
       }
+      const sourceSearchResult = await executeSearchSourcesTool(call.name, args);
+      if (sourceSearchResult) return result(call, sourceSearchResult);
       if (courtlistenerState) {
         const courtlistenerResult = await runLocalCourtlistenerTool(
           call,
           courtlistenerState,
           userId,
+          legalEvidenceState,
         );
         if (courtlistenerResult) return courtlistenerResult;
       }
@@ -10944,7 +11052,38 @@ export async function runLocalAssistantTools(
       }
 
       const hansard = executeHansardTool(call.name, args);
-      if (hansard) return result(call, hansard);
+      if (hansard) {
+        const intervention =
+          call.name === "hansard_fetch" &&
+          hansard.intervention &&
+          typeof hansard.intervention === "object"
+            ? (hansard.intervention as Record<string, unknown>)
+            : null;
+        const text =
+          typeof intervention?.text === "string" ? intervention.text : "";
+        if (legalEvidenceState && intervention && text.trim()) {
+          const id = trimmed(intervention.id) || trimmed(args.id);
+          const date = trimmed(intervention.date);
+          const speaker = trimmed(intervention.speaker);
+          const receipt = createBenchmarkEvidence({
+            jurisdiction: trimmed(intervention.jurisdiction) || "CA-ON",
+            sourceClass: "commentary",
+            stableSourceId: `hansard:${id}`,
+            sourceText: text,
+            spanText: text,
+            citation: ["Ontario Hansard", date, speaker].filter(Boolean).join(", "),
+            name: speaker || "Ontario Hansard",
+            dataset: "a2aj-hansard",
+            version: date || null,
+            externalUrl: trimmed(intervention.sourceUrl) || null,
+            locatorKind: "document",
+            locatorLabel: id || "intervention",
+          });
+          registerLegalEvidence(legalEvidenceState, receipt);
+          return result(call, { ...hansard, evidence_id: receipt.evidence_id });
+        }
+        return result(call, hansard);
+      }
 
       const citator = executeCitatorTool(call.name, args);
       if (citator) {

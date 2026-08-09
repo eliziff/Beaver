@@ -3,6 +3,7 @@ import { useSyncExternalStore } from "react";
 export const JURISDICTION_GROUPS = [
     {
         label: "Canada",
+        tabLabel: "Canada",
         options: [
             ["ca-federal", "Federal", "Canada (federal)"],
             ["ca-ab", "Alberta", "Alberta, Canada"],
@@ -22,6 +23,7 @@ export const JURISDICTION_GROUPS = [
     },
     {
         label: "United States",
+        tabLabel: "US",
         options: [
             ["us-federal", "Federal", "United States (federal)"],
             ["us-al", "Alabama", "Alabama, United States"],
@@ -75,6 +77,16 @@ export const JURISDICTION_GROUPS = [
             ["us-wv", "West Virginia", "West Virginia, United States"],
             ["us-wi", "Wisconsin", "Wisconsin, United States"],
             ["us-wy", "Wyoming", "Wyoming, United States"],
+        ],
+    },
+    {
+        label: "United Kingdom",
+        tabLabel: "UK",
+        options: [
+            ["uk", "United Kingdom", "United Kingdom"],
+            ["uk-ew", "England and Wales", "England and Wales"],
+            ["uk-sc", "Scotland", "Scotland, United Kingdom"],
+            ["uk-ni", "Northern Ireland", "Northern Ireland, United Kingdom"],
         ],
     },
 ] as const;

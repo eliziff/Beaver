@@ -90,6 +90,14 @@ export type CitatorGraphStats = {
   provider_edges: number | null;
 };
 
+export type CitationAuthorityMetric = {
+  citingCases: number;
+  distinctCitingParagraphs: number;
+  occurrences: number;
+};
+
+let defaultAuthorityMetricsAvailable: boolean | undefined;
+
 function citatorDatabasePath() {
   const configured = process.env.MIKE_CITATOR_DB?.trim();
   if (configured) return path.resolve(configured);
@@ -192,6 +200,49 @@ export function citationAliasKeysBatch(citations: string[]): string[][] {
     withDatabase((database) =>
       keys.map((key) => (key ? keysForQuery(database, key) : [])),
     ) ?? keys.map((key) => (key ? [key] : []))
+  );
+}
+
+/** Batch authority counts for ranked retrieval: one DB handle, no excerpts. */
+export function citationAuthorityMetricsBatch(
+  citations: string[],
+): Array<CitationAuthorityMetric | null> {
+  const keys = citations.map((citation) => sharedCitationLookupKey(citation));
+  if (!keys.some(Boolean)) return keys.map(() => null);
+  if (!process.env.MIKE_CITATOR_DB?.trim() && defaultAuthorityMetricsAvailable === false) {
+    return keys.map(() => null);
+  }
+  return (
+    withDatabase((database) => {
+      const unique = [...new Set(keys.filter((key): key is string => !!key))];
+      const placeholders = unique.map(() => "?").join(",");
+      const materialized = database
+        .prepare(
+          "SELECT 1 FROM sqlite_master WHERE type='table' AND name='authority_metric'",
+        )
+        .get();
+      if (!process.env.MIKE_CITATOR_DB?.trim()) {
+        defaultAuthorityMetricsAvailable = !!materialized;
+      }
+      if (!materialized) return keys.map(() => null);
+      const rows = database
+        .prepare(
+          `SELECT cited_key, citing_cases, citing_paragraphs, occurrences
+           FROM authority_metric WHERE cited_key IN (${placeholders})`,
+        )
+        .all(...unique) as Row[];
+      const byKey = new Map(rows.map((row) => [String(row.cited_key), row]));
+      return keys.map((key) => {
+        const row = key ? byKey.get(key) : null;
+        return row
+          ? {
+              citingCases: Number(row.citing_cases),
+              distinctCitingParagraphs: Number(row.citing_paragraphs),
+              occurrences: Number(row.occurrences),
+            }
+          : null;
+      });
+    }) ?? keys.map(() => null)
   );
 }
 

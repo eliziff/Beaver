@@ -237,6 +237,7 @@ def import_database(args: argparse.Namespace) -> None:
             );
             INSERT INTO cluster_search(rowid, case_name, case_name_short, case_name_full)
                 SELECT id, case_name, case_name_short, case_name_full FROM cluster;
+            INSERT INTO cluster_search(cluster_search) VALUES('optimize');
             """
         )
         if args.opinion_fts:
@@ -258,6 +259,7 @@ def import_database(args: argparse.Namespace) -> None:
                         ''
                     )
                     FROM opinion;
+                INSERT INTO opinion_search(opinion_search) VALUES('optimize');
                 """
             )
         metadata = {

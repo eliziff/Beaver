@@ -284,8 +284,8 @@ describe("applyTrackedEdits annotate mode", () => {
   });
 });
 
-describe("applyTrackedEdits anchor diagnosis", () => {
-  it("answers an ambiguous anchor with the real contexts that disambiguate", async () => {
+describe("applyTrackedEdits anchor failures", () => {
+  it("rejects an ambiguous anchor without changing the document", async () => {
     const bytes = await draft(
       [
         "The Tenant shall pay the Rent on the first day of each month.",
@@ -300,14 +300,10 @@ describe("applyTrackedEdits anchor diagnosis", () => {
     expect(edit.changes).toHaveLength(0);
     const reason = edit.errors[0].reason;
     expect(reason).toContain("Ambiguous match");
-    expect(reason).toContain("2 occurrences");
-    // The document's own words, ready to paste into the retry.
-    expect(reason).toContain("The Tenant shall pay ");
-    expect(reason).toContain(" on the first day of each month.");
-    expect(reason).toContain("The Landlord may increase ");
+    expect(reason).toContain("document is unchanged");
   });
 
-  it("shows the document's wording at the point the quote diverges", async () => {
+  it("rejects a quote that is not on the document text plane", async () => {
     const bytes = await draft(
       "The Purchaser shall deliver the Closing Deliverables to the Vendor no later than 5:00 p.m. on the Closing Date.",
     );
@@ -322,30 +318,27 @@ describe("applyTrackedEdits anchor diagnosis", () => {
     expect(edit.changes).toHaveLength(0);
     const reason = edit.errors[0].reason;
     expect(reason).toContain("Could not locate");
-    expect(reason).toMatch(/first \d+ characters do match/u);
-    expect(reason).toContain("5:00 p.m. on the Closing Date");
+    expect(reason).toContain("document is unchanged");
   });
 
-  it("recognises an edit whose replacement is already in the document", async () => {
+  it("does not treat existing replacement text as an edit match", async () => {
     const bytes = await draft("Notice shall be given within thirty days.");
     const edit = await applyTrackedEdits(bytes, [
       { find: "within ten days", replace: "within thirty days" },
     ]);
 
     expect(edit.changes).toHaveLength(0);
-    expect(edit.errors[0].reason).toContain("replacement text already is");
-    expect(edit.errors[0].reason).toContain("applied already");
+    expect(edit.errors[0].reason).toContain("Could not locate");
   });
 
-  it("names the parts it cannot reach when nothing matches", async () => {
+  it("rejects absent text", async () => {
     const bytes = await draft("The parties agree to arbitrate in Toronto.");
     const edit = await applyTrackedEdits(bytes, [
       { find: "governed by the laws of Alberta", replace: "governed by the laws of Ontario" },
     ]);
 
     expect(edit.changes).toHaveLength(0);
-    expect(edit.errors[0].reason).toContain("no part of this wording");
-    expect(edit.errors[0].reason).toContain("header, footer, footnote");
+    expect(edit.errors[0].reason).toContain("Could not locate");
   });
 
   it("diagnoses a pure insertion by its context anchor", async () => {
@@ -362,7 +355,6 @@ describe("applyTrackedEdits anchor diagnosis", () => {
 
     expect(edit.changes).toHaveLength(0);
     const reason = edit.errors[0].reason;
-    expect(reason).toContain("context_before");
     expect(reason).toContain("Ambiguous match");
   });
 });

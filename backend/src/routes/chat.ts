@@ -41,6 +41,7 @@ import { providerForModel } from "../lib/llm/models";
 import {
   WHOLE_READ_MAX_CHARS,
   LOCAL_ASSISTANT_TOOLS,
+  LOCAL_READ_SUBAGENT_TOOL_CATALOG,
   ADAPTIVE_MIKE_TOOL_SHAPE,
   CODING_TOOL_SHAPE,
   COMPACT_AUTHOR_MIKE_TOOL_SHAPE,
@@ -166,12 +167,22 @@ import {
 import { createVisibleStreamSplitter } from "../lib/chat/visibleStream";
 import { COURTLISTENER_SYSTEM_PROMPT } from "../lib/chat/tools/courtlistenerTools";
 import { a2ajActivityLabel } from "../lib/chat/tools/a2ajTools";
+import {
+  READ_SUBAGENT_SYSTEM_PROMPT,
+  READ_SUBAGENT_TOOL,
+  READ_SUBAGENT_TOOL_NAME,
+  readSubagentTools,
+  readSubagentActivityLabel,
+  runReadSubagent,
+} from "../lib/chat/readSubagents";
 import { PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT } from "../lib/chat/tools/publicLegalSourceTools";
 import type { CourtlistenerToolState } from "../lib/chat/courtlistenerToolRunner";
 import { createPublicLegalSourceState } from "../lib/chat/publicLegalSourceState";
 import {
   createLegalEvidenceTurnState,
   finalizeLegalEvidenceExperiment,
+  LEGAL_EVIDENCE_SUBMIT_TOOL,
+  LEGAL_EVIDENCE_TOOL_NAME,
   legalEvidenceReceiptEvent,
   renderLegalEvidenceAnswer,
 } from "../lib/chat/legalEvidenceExperiment";
@@ -938,6 +949,9 @@ export async function streamAnonymousChat(params: {
   displayedDocument?: { filename: string; document_id: string };
   attachedDocuments?: { filename: string; document_id: string }[];
   jurisdictionPreference?: JurisdictionPreference | null;
+  subagentsEnabled?: boolean;
+  subagentModel?: string;
+  subagentEffort?: string;
 }) {
   const { res, userId } = params;
   const fail = (status: number, detail: string) => {
@@ -1083,7 +1097,14 @@ export async function streamAnonymousChat(params: {
   }
   const selectedModel = params.model || DEFAULT_MAIN_MODEL;
   const codingShape = true;
-  const activeTools = [...LOCAL_ASSISTANT_TOOLS];
+  // The five action tools are the complete production work surface. The
+  // strict terminal schema is output formatting: it binds prose units to
+  // exact evidence receipts and is never shown as an assistant activity.
+  const activeTools = [
+    ...LOCAL_ASSISTANT_TOOLS,
+    ...(params.subagentsEnabled ? [READ_SUBAGENT_TOOL] : []),
+    LEGAL_EVIDENCE_SUBMIT_TOOL,
+  ];
   const toolPartition = {
     resident: activeTools,
     deferred: [] as OpenAIToolSchema[],
@@ -1110,6 +1131,7 @@ export async function streamAnonymousChat(params: {
   let systemPrompt = [
     CODING_PRODUCTION_SYSTEM_PROMPT,
     CLIENT_WORK_PRODUCT_PRESUMPTION,
+    params.subagentsEnabled ? READ_SUBAGENT_SYSTEM_PROMPT : "",
     standingJurisdictionPrompt,
     focusPrompt,
     priorEvidencePrompt,
@@ -1834,9 +1856,62 @@ export async function streamAnonymousChat(params: {
           localRequirementsText,
           localRequirementsState,
         );
-    const allowedResults = allowedCalls.length
-      ? await runAllowedCalls(allowedCalls)
+    const subagentCalls = allowedCalls.filter(
+      (call) => call.name === READ_SUBAGENT_TOOL_NAME,
+    );
+    const directCalls = allowedCalls.filter(
+      (call) => call.name !== READ_SUBAGENT_TOOL_NAME,
+    );
+    const directResults = directCalls.length
+      ? await runAllowedCalls(directCalls)
       : [];
+    if (!subagentCalls.length) return directResults;
+    const readTools = [
+      ...readSubagentTools(LOCAL_READ_SUBAGENT_TOOL_CATALOG),
+      LEGAL_EVIDENCE_SUBMIT_TOOL,
+    ];
+    const subagentResults = await Promise.all(
+      subagentCalls.map((call) => {
+        const childEvidenceState = createLegalEvidenceTurnState(
+          "citation_structure",
+        );
+        const childCourtlistenerState: CourtlistenerToolState = {
+          casesByClusterId: new Map(),
+        };
+        const childPublicLegalState = createPublicLegalSourceState();
+        return runReadSubagent({
+          call,
+          tools: readTools,
+          evidenceState: childEvidenceState,
+          model: params.subagentModel,
+          effort: params.subagentEffort,
+          runTools: (batch) =>
+            runLocalAssistantTools(
+              userId,
+              batch,
+              [],
+              [],
+              childCourtlistenerState,
+              childPublicLegalState,
+              allowedDocumentIds,
+              new Set<string>(),
+              projectId,
+              childEvidenceState,
+              new Map(),
+              new Map(),
+              new Map(),
+              localRequirementsText,
+              createLocalAssistantRequirementsState(),
+            ),
+          signal: streamAbort.signal,
+          onEvent: (event) => {
+            if (event.status !== "running") turnDocumentEvents.push(event);
+            sseWrite(res, event);
+          },
+        });
+      }),
+    );
+    const allowedResults = [...directResults, ...subagentResults];
     let results: NormalizedToolResult[] = calls.map(
       (call) =>
         allowedResults.find(
@@ -2342,6 +2417,21 @@ export async function streamAnonymousChat(params: {
         sseWrite(res, automation);
       }
     }
+    if (calls.some((call) => call.name === LEGAL_EVIDENCE_TOOL_NAME)) {
+      const grounded = renderLegalEvidenceAnswer(legalEvidenceState);
+      if (grounded !== null) {
+        rawText = grounded;
+        visibleText = grounded;
+        contentBoundaryPending = false;
+        splitter.reset();
+        sseWrite(res, { type: "content_snapshot", text: grounded });
+        sseWrite(res, {
+          type: "citations",
+          status: "partial",
+          citations: createLegalEvidenceCitations(legalEvidenceState),
+        });
+      }
+    }
     return results;
   };
   const acceptPendingAskInputs = (event: AskInputsEvent) => {
@@ -2689,8 +2779,12 @@ export async function streamAnonymousChat(params: {
         },
         onToolCallStart: (call) => {
           providerActivity = true;
+          if (call.name === LEGAL_EVIDENCE_TOOL_NAME) return;
           if (!isCodex && !pendingAskInputs) queueContentBoundary();
-          const label = a2ajActivityLabel(call.name, call.input);
+          const label =
+            call.name === READ_SUBAGENT_TOOL_NAME
+              ? readSubagentActivityLabel(call.input)
+              : a2ajActivityLabel(call.name, call.input);
           sseWrite(res, {
             type: "tool_call_start",
             name: call.name,
@@ -3830,6 +3924,29 @@ chatRouter.post("/", async (req, res) => {
   const jurisdictionPreference = parseJurisdictionPreference(
     body.jurisdiction_preference,
   );
+  if (
+    body.subagents_enabled !== undefined &&
+    typeof body.subagents_enabled !== "boolean"
+  ) {
+    return void res
+      .status(400)
+      .json({ detail: "subagents_enabled must be boolean" });
+  }
+  const subagentsEnabled = body.subagents_enabled === true;
+  if (
+    (body.subagent_model !== undefined &&
+      typeof body.subagent_model !== "string") ||
+    (body.subagent_effort !== undefined &&
+      typeof body.subagent_effort !== "string")
+  ) {
+    return void res
+      .status(400)
+      .json({ detail: "subagent_model and subagent_effort must be strings" });
+  }
+  const subagentModel =
+    trimmedString(body.subagent_model).slice(0, 128) || undefined;
+  const subagentEffort =
+    trimmedString(body.subagent_effort).slice(0, 32) || undefined;
   const displayedRow = asRecord(body.displayed_doc);
   const displayedDocument =
     displayedRow &&
@@ -3895,6 +4012,9 @@ chatRouter.post("/", async (req, res) => {
         displayedDocument,
         attachedDocuments,
         jurisdictionPreference,
+        subagentsEnabled,
+        subagentModel,
+        subagentEffort,
       });
     } catch (error) {
       console.error("[chat/anonymous] preflight", safeErrorLog(error));
@@ -4150,6 +4270,9 @@ chatRouter.post("/", async (req, res) => {
       serviceTier,
       signal: streamAbort.signal,
       projectId: resolvedProjectId,
+      subagentsEnabled,
+      subagentModel,
+      subagentEffort,
     });
 
     devLog("[chat/stream] LLM stream finished", {

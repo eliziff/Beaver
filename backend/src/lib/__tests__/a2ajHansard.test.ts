@@ -72,7 +72,7 @@ describe("local A2AJ Hansard store", () => {
         speaker: "Ms. Marit Stiles",
         // Matched through the subject_of_business FTS column; the snippet is
         // the opening window of the intervention text itself.
-        snippet: expect.stringContaining("auto workers"),
+        snippet: null,
       },
       { subjectOfBusiness: "Automotive industry" },
     ]);

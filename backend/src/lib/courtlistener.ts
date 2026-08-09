@@ -1078,15 +1078,22 @@ export async function searchCourtlistenerCaseLaw(args: {
   filedAfter?: string;
   filedBefore?: string;
   limit?: number;
+  querySyntax?: "terms" | "fts5";
   apiToken?: string | null;
 }) {
   const query = args.query?.trim();
   if (!query) return { error: "query is required." };
   const limit = Math.max(1, Math.min(20, Math.floor(args.limit ?? 10)));
   const local =
-    args.court?.trim() || args.filedAfter?.trim() || args.filedBefore?.trim()
+    args.court?.trim()
       ? null
-      : searchLocalCourtlistenerCases({ query, limit });
+      : searchLocalCourtlistenerCases({
+          query,
+          limit,
+          syntax: args.querySyntax,
+          filedAfter: args.filedAfter,
+          filedBefore: args.filedBefore,
+        });
   if (
     local?.length ||
     (local !== null && !courtlistenerApiTokenAvailable(args.apiToken))

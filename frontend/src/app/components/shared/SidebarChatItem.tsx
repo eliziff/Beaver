@@ -13,6 +13,7 @@ import { OwnerOnlyPopup } from "@/app/components/popups/OwnerOnlyPopup";
 import { ChatDeleteWarning } from "@/app/components/assistant/ChatDeleteWarning";
 import type { Chat } from "@/app/components/shared/types";
 import { ChatSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
+import { ThinkingSpinner } from "@/app/components/chat/thinking-spinner";
 import { cn } from "@/app/lib/utils";
 import {
     APP_SURFACE_ACTIVE_CLASS,
@@ -118,7 +119,13 @@ export function SidebarChatItem({
                 </div>
             ) : (
                 <>
-                    <ChatSkeuoIcon className="ml-2.5 h-3.5 w-3.5 shrink-0" />
+                    <span className="ml-2.5 grid h-3.5 w-3.5 shrink-0 place-items-center">
+                        {chat.turn_in_progress ? (
+                            <ThinkingSpinner size={14} />
+                        ) : (
+                            <ChatSkeuoIcon className="h-3.5 w-3.5" />
+                        )}
+                    </span>
                     <Link
                         href={href}
                         onClick={(event) => {
@@ -150,7 +157,7 @@ export function SidebarChatItem({
                             }
                         }}
                         aria-current={isActive ? "page" : undefined}
-                        aria-label={`${projectName ? `${projectName}: ` : ""}${chat.title ?? "Untitled chat"}${isSelected ? ", selected" : ""}`}
+                        aria-label={`${projectName ? `${projectName}: ` : ""}${chat.title ?? "Untitled chat"}${chat.turn_in_progress ? ", responding" : ""}${isSelected ? ", selected" : ""}`}
                         aria-keyshortcuts="Control+Space Meta+Space Shift+Space"
                         className={cn(
                             "min-w-0 flex-1 truncate py-1 pl-2 pr-1 text-left text-xs",

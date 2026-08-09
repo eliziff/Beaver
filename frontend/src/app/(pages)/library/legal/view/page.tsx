@@ -1,5 +1,4 @@
-import { LegalLibrarySourcePage } from "@/app/components/legal/LegalLibrary";
-import type { LegalDocumentType } from "@/app/lib/beaverApi";
+import { redirect } from "next/navigation";
 export default async function DirectLegalSourcePage({
     searchParams,
 }: {
@@ -10,19 +9,17 @@ export default async function DirectLegalSourcePage({
         const raw = params[name];
         return typeof raw === "string" ? raw : "";
     };
-    const rawType = value("doc_type");
-    const docType: LegalDocumentType | "auto" =
-        rawType === "laws" || rawType === "articles" || rawType === "auto"
-            ? rawType
-            : "cases";
-    return (
-        <LegalLibrarySourcePage
-            provider={value("provider") === "journal" ? "journal" : "a2aj"}
-            citation={value("citation")}
-            sourceId={value("source_id") || null}
-            docType={docType}
-            language={value("language") === "fr" ? "fr" : "en"}
-            dataset={value("dataset") || null}
-        />
-    );
+    const query = new URLSearchParams();
+    for (const key of [
+        "provider",
+        "citation",
+        "source_id",
+        "doc_type",
+        "language",
+        "dataset",
+    ]) {
+        const item = value(key);
+        if (item) query.set(key, item);
+    }
+    redirect(`/sources/view${query.size ? `?${query}` : ""}`);
 }

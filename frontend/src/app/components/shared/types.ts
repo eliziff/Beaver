@@ -361,6 +361,21 @@ export type AssistantEvent =
       failure: string | null;
     }>
   | AutomationRunEvent
+  | Streamable<{
+      type: "subagent_run";
+      id: string;
+      agent: "scout" | "planner" | "reviewer";
+      task: string;
+      model: string;
+      effort: string;
+      status: "running" | "completed" | "error";
+      output?: string;
+      error?: string;
+      grounding?: {
+        status: "passed" | "failed";
+        evidence: unknown[];
+      };
+    }>
   | Streamable<{ type: "content"; text: string }>;
 export type CaseCitationQuote = {
   opinionId: number | null;
@@ -391,7 +406,11 @@ type DocumentCitationQuote = {
   sheet?: string;
   cell?: string;
 };
-export type DocumentCitation = {
+type CitationDisplay = {
+  display_form?: "full" | "pinpoint" | "supra";
+  source_class?: "case" | "legislation" | "commentary";
+};
+export type DocumentCitation = CitationDisplay & {
   type: "citation_data";
   kind?: "document";
   ref: number;
@@ -406,7 +425,7 @@ type LegalCitationLocator = {
   locator_kind?: "paragraph" | "page" | "section" | "footnote";
   locator?: string | null;
   pinpoint?: string | null;
-};
+} & CitationDisplay;
 export type CaseCitation = LegalCitationLocator & {
   type: "citation_data";
   kind: "case";
