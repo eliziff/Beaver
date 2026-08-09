@@ -624,6 +624,8 @@ def run_performers(
                 }
                 append_log(event_log, f"FAIL {hard_failure}")
             atomic_json(state_path(spec, lane, phase), state)
+        if hard_failure and not active:
+            break
         if active:
             time.sleep(2)
     if hard_failure:
