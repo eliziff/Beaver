@@ -8,6 +8,12 @@ export default defineConfig({
     resolve: {
         alias: [
             {
+                find: "docx-preview",
+                replacement: resolvePath(
+                    "./vendor/docx-preview/index.ts",
+                ),
+            },
+            {
                 find: /^@\/(.*)$/,
                 replacement: resolvePath("./src/$1"),
             },
