@@ -224,16 +224,14 @@ import {
  * accept both would let an arm answer with the other arm's affordance and
  * make the comparison meaningless.
  */
-export const NAV_TOOL_SHAPE: "legacy" | "address" =
-  process.env.MIKE_NAV_SHAPE === "address" ? "address" : "legacy";
+export const NAV_TOOL_SHAPE: string = "coding";
 
 /**
  * Benchmark opt-in: a successful final create receipt is the end of the
  * provider loop. The document card is rendered from the durable receipt, so
  * another model round would only restate completion with the full context.
  */
-export const TERMINAL_AUTHORING_ENABLED =
-  process.env.MIKE_TERMINAL_AUTHORING === "1";
+export const TERMINAL_AUTHORING_ENABLED = true;
 
 const tool = (
   name: string,
@@ -315,7 +313,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
           type: "string",
           enum: ["start", "end"],
           description:
-            "Which end of the addressed span to read when it is longer than max_chars. Defaults to start; 'end' gives the tail — signature blocks, execution pages, the close of a clause.",
+            "Which end of a host-bounded addressed span to read. Defaults to start; 'end' gives the tail — signature blocks, execution pages, the close of a clause.",
         },
         follow: {
           type: "string",
@@ -916,7 +914,7 @@ export const MARKDOWN_E2E_MIKE_TOOL_SHAPE =
   process.env.MIKE_TOOL_SHAPE === "mike-markdown-e2e-v1";
 /** LAB read-format axis: serve Beaver's Pandoc drafting-source markdown on
  * docx reads instead of upstream plain body text (end-to-end arm). */
-export const MARKDOWN_READ_DOCX = process.env.MIKE_READ_DOCX_MARKDOWN === "1";
+export const MARKDOWN_READ_DOCX = true;
 export const LEAN_BATCH_TOOL_SHAPE =
   process.env.MIKE_TOOL_SHAPE === "lean-batch-v1";
 export const LEAN_BATCH_HARDREFS_TOOL_SHAPE =
@@ -936,7 +934,7 @@ export const CODING_NEUTRAL_PROMPT_ENABLED =
  * trained environment, honors -A/-B, retries ripgrep-legal patterns the
  * JS u-flag rejects, and the provider-materialized {offset:1, limit:1}
  * minima read the default window instead of one line. */
-export const CODING_PARITY_ENABLED = process.env.MIKE_CODING_PARITY === "1";
+export const CODING_PARITY_ENABLED = true;
 /**
  * Grep section-context (coding_markdown_v3): content-mode hits are preceded
  * by their enclosing SECTION lead rendered as an rg context row at its real
@@ -945,8 +943,7 @@ export const CODING_PARITY_ENABLED = process.env.MIKE_CODING_PARITY === "1";
  * ±N context lines, made explicit because legal sections outrun any context
  * window. Off in every other arm; v2 stays byte-identical.
  */
-export const GREP_SECTION_CONTEXT_ENABLED =
-  process.env.MIKE_GREP_SECTION_CONTEXT === "1";
+export const GREP_SECTION_CONTEXT_ENABLED = true;
 /**
  * Companion .toc index files (coding_markdown_v4): every docx with an
  * anchorable section spine gets a virtual "<name>.toc" file — its
@@ -956,8 +953,7 @@ export const GREP_SECTION_CONTEXT_ENABLED =
  * sha-gated, and body line numbers stay pure. Window-agnostic on
  * purpose (no model/window constants anywhere in the mechanism).
  */
-export const CODING_TOC_FILES_ENABLED =
-  process.env.MIKE_CODING_TOC_FILES === "1";
+export const CODING_TOC_FILES_ENABLED = true;
 /**
  * Per-file grep budget (coding_markdown_v5): head_limit is spent max-min
  * fair across the matching files instead of first-come-first-served in
@@ -969,8 +965,7 @@ export const CODING_TOC_FILES_ENABLED =
  * 469.5k logical input against 258.2k for the same bytes in one round.
  * Fairness here is a round-trip lever, not a formatting nicety.
  */
-export const GREP_PER_FILE_BUDGET_ENABLED =
-  process.env.MIKE_GREP_PER_FILE_BUDGET === "1";
+export const GREP_PER_FILE_BUDGET_ENABLED = true;
 /**
  * v5 gen-3: serve the unified triage-workflow prompt (survey -> cover ->
  * verify) in place of the budget block + routing line. Prompt selection
@@ -987,12 +982,11 @@ export const TRIAGE_WORKFLOW_ENABLED =
  * redrafts. Taught just-in-time by the refusal text and tool descriptions —
  * no system-prompt change.
  */
-export const DRAFT_EDIT_ENABLED = process.env.MIKE_DRAFT_EDIT === "1";
+export const DRAFT_EDIT_ENABLED = true;
 /** Harvey LAB coverage-first, signal-gated final treatment. */
-export const FINAL_ARM_ENABLED = process.env.MIKE_FINAL_ARM === "1";
+export const FINAL_ARM_ENABLED = true;
 /** Conventional coding-agent write/edit/end-turn contract for the successor. */
-export const FINAL_AGENT_LOOP_ENABLED =
-  process.env.MIKE_FINAL_AGENT_LOOP === "1";
+export const FINAL_AGENT_LOOP_ENABLED = true;
 export const GROUNDING_FIRST_ENABLED =
   process.env.MIKE_GROUNDING_FIRST === "1";
 export const MIKE_GREP_FAMILY_TOOL_SHAPE =
@@ -1001,10 +995,7 @@ export const MIKE_GREP_FAMILY_TOOL_SHAPE =
   MIKE_LEGAL_GUIDED_TOOL_SHAPE ||
   MIKE_STRUCTURE_PATHS_TOOL_SHAPE;
 
-export const CODING_TOOL_SHAPE =
-  process.env.MIKE_TOOL_SHAPE === "coding" ||
-  MIKE_GREP_FAMILY_TOOL_SHAPE ||
-  LEAN_BATCH_FAMILY_TOOL_SHAPE;
+export const CODING_TOOL_SHAPE = true;
 
 /**
  * LAB arm: let the model choose complete, targeted, or mixed source coverage
@@ -1036,8 +1027,7 @@ export const WHOLE_READ_MAX_CHARS =
  * removed. Conventional continuous-agent arms disable it so a repeat read
  * returns the requested bytes.
  */
-export const SUPPRESS_DUPLICATE_WHOLE_READS =
-  process.env.MIKE_SUPPRESS_DUPLICATE_WHOLE_READS !== "0";
+export const SUPPRESS_DUPLICATE_WHOLE_READS = false;
 
 /** Explicit LAB-only comparator; never selected by a product setting. */
 export const UPSTREAM_MIKE_TOOL_SHAPE =
@@ -1103,7 +1093,7 @@ export const NO_DEFERRAL_ENABLED = process.env.MIKE_NO_DEFERRAL === "1";
  * headings, and the unexposed documents mapped ~1:1 onto the failed criteria
  * clusters. Changes tool payloads only — no prompt text, no schema.
  */
-export const EXPOSURE_ECHO_ENABLED = process.env.MIKE_EXPOSURE_ECHO === "1";
+export const EXPOSURE_ECHO_ENABLED = true;
 
 /**
  * REQECHO drafting-mode (T2b, 2026-08-07): the requirements echo is served on
@@ -1347,23 +1337,13 @@ export function applyDraftEdit(
   };
 }
 
-export const ORIGIN_MIKE_TOOL_SHAPE =
-  UPSTREAM_NATIVE_MIKE_SHAPE ||
-  UPSTREAM_MIKE_TOOL_SHAPE ||
-  ADAPTIVE_MIKE_TOOL_SHAPE ||
-  MARKDOWN_SWAP_MIKE_TOOL_SHAPE ||
-  MARKDOWN_E2E_MIKE_TOOL_SHAPE ||
-  COMPACT_AUTHOR_MIKE_TOOL_SHAPE ||
-  LEAN_BATCH_FAMILY_TOOL_SHAPE ||
-  MIKE_GREP_FAMILY_TOOL_SHAPE;
+export const ORIGIN_MIKE_TOOL_SHAPE = true;
 
 const MIKE_FILE_TOOL_SHAPE =
   MIKE_GREP_FAMILY_TOOL_SHAPE || LEAN_BATCH_FAMILY_TOOL_SHAPE;
 
 /** Keep tool disclosure independent from navigation vocabulary in A/B runs. */
-export const PROGRESSIVE_DISCLOSURE_ENABLED =
-  NAV_TOOL_SHAPE === "address" ||
-  process.env.MIKE_PROGRESSIVE_DISCLOSURE === "1";
+export const PROGRESSIVE_DISCLOSURE_ENABLED = false;
 
 export const DEMAND_PAGED_EVIDENCE_ENABLED =
   process.env.MIKE_CONTINUOUS_EVIDENCE === "1" ||
@@ -1474,8 +1454,9 @@ const ADDRESS_ONLY_PARAMS: Record<string, string[]> = {
  * `section=` working has not been asked the question.
  */
 const LEGACY_ONLY_PARAMS: Record<string, string[]> = {
-  library_read: ["section", "offset", "page"],
-  library_find: ["pages", "section"],
+  library_read: ["section", "offset", "page", "max_chars"],
+  library_outline: ["max_chars"],
+  library_find: ["pages", "section", "context_chars"],
   library_links: ["section"],
 };
 
@@ -1905,22 +1886,6 @@ const CODING_SHAPE_REPLACES = new Set([
   "library_outline",
   "library_revise_docx",
 ]);
-
-// These organs become compile-time checks under the SLA workflow. Keeping a
-// second callable copy invites duplicate schemas, calls, and results.
-const SLA_COMPILER_REPLACES = new Set([
-  "library_lint_docx_structure",
-  "library_anchor_coverage",
-  "library_conflict_scan",
-  "library_term_drift",
-  "library_drafting_lint",
-  "library_bilingual_concordance",
-]);
-
-const forAutomaticCompiler = (tools: OpenAIToolSchema[]) =>
-  process.env.MIKE_SLA_WORKFLOW === "1"
-    ? tools.filter((entry) => !SLA_COMPILER_REPLACES.has(entry.function.name))
-    : tools;
 
 const CODING_SHAPE_SUGGESTIONS: Record<string, string> = {
   library_find: "Grep",
@@ -2502,12 +2467,12 @@ const LOCAL_ASSISTANT_TOOL_CATALOG: OpenAIToolSchema[] = [
         ...CODING_SHAPE_TOOLS,
         ...RETRIEVAL_EXPERIMENT_TOOLS,
         ...forNavShape(
-          forAutomaticCompiler(LOCAL_LIBRARY_TOOLS).filter(
+          LOCAL_LIBRARY_TOOLS.filter(
             (entry) => !CODING_SHAPE_REPLACES.has(entry.function.name),
           ),
         ),
       ]
-    : forNavShape(forAutomaticCompiler(LOCAL_LIBRARY_TOOLS))),
+    : forNavShape(LOCAL_LIBRARY_TOOLS)),
   ...(ORIGIN_MIKE_TOOL_SHAPE
     ? []
     : CODING_TOOL_SHAPE
@@ -2531,9 +2496,14 @@ const LOCAL_ASSISTANT_TOOL_CATALOG: OpenAIToolSchema[] = [
       ]),
 ];
 
-export const LOCAL_ASSISTANT_TOOLS = MIKE_FILE_TOOL_SHAPE
-  ? LOCAL_ASSISTANT_TOOL_CATALOG
-  : forCodingVocabulary(LOCAL_ASSISTANT_TOOL_CATALOG);
+const PRODUCTION_EDIT_TOOL = CODING_SHAPE_TOOLS.find(
+  (entry) => entry.function.name === "Edit",
+);
+if (!PRODUCTION_EDIT_TOOL) throw new Error("Production Edit tool is missing");
+
+export const LOCAL_ASSISTANT_TOOLS = CODING_MARKDOWN_FINAL_AGENT_LAB_TOOLS.map(
+  (entry) => (entry.function.name === "Edit" ? PRODUCTION_EDIT_TOOL : entry),
+);
 
 const trimmed = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
@@ -8325,16 +8295,6 @@ export async function runLocalAssistantTools(
           requirementsState.drafts,
           trimmed(args.file_path).toLowerCase(),
         );
-
-      if (FINAL_ARM_ENABLED && call.name === "Edit" && !draftTarget) {
-        if (requirementsState) requirementsState.sourceEditRefusalCount += 1;
-        return fail(
-          call,
-          FINAL_AGENT_LOOP_ENABLED
-            ? "Source files are immutable. Edit the pending output filename returned by generate_docx."
-            : "Source files are immutable in this arm. Edit a saved Markdown draft, such as draft.md, instead.",
-        );
-      }
 
       if (
         LEAN_BATCH_FAMILY_TOOL_SHAPE &&

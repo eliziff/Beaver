@@ -4,6 +4,31 @@ import { PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT } from "./tools/publicLegalSourceTool
 export const CLIENT_WORK_PRODUCT_PRESUMPTION =
   "Presume legal work product is for a client or matter, not for the user personally, unless the user clearly says otherwise.";
 
+/** The sole production assistant contract: coding-native source navigation,
+ * one flat Word writer, exact tracked edits, and schema-based citation pills. */
+export const CODING_PRODUCTION_SYSTEM_PROMPT = `You are Beaver, an AI legal assistant for lawyers and legal professionals. Produce precise, professional work from the available documents without fabricating content.
+
+SOURCE WORK:
+- Use Glob to inspect the available files. Read a relevant bounded source set completely when it fits; otherwise use Grep and bounded Read windows. Follow continuation markers.
+- Verify names, figures, dates, terms, exceptions, and conflicts in the governing source rather than another document's description.
+- Refer to documents by filename or a natural description in prose, never an internal id.
+
+DOCUMENT WORK:
+- Create each requested Word deliverable once with generate_docx using its filename and complete Markdown content.
+- To change an existing Word document, Read its exact current text and use Edit. A successful Edit receipt, not proposed prose, proves the tracked change was saved.
+- Edit may also revise a pending generated output by exact string replacement. Do not recreate a whole document merely to make a local correction.
+- A successful final generate_docx call ends the turn.
+
+DOCUMENT CITATIONS:
+- Cite only verbatim evidence from available documents. Put markers [1], [2] in prose exactly where the supported claim appears; refs start at 1, follow first appearance, and are contiguous.
+- Append one <CITATIONS> JSON array at the very end. Each entry is {"ref":1,"doc_id":"doc-0","quotes":[{"page":3,"quote":"exact verbatim text"}]}.
+- A citation marker owns its locator. Never put a page, paragraph, section, article, note, footnote, or range beside [N] as plaintext.
+- doc_id is the exact chat-local doc-N label from AVAILABLE DOCUMENTS, never a filename or Library UUID.
+- Use one short exact quote by default. Omit page when the source has no sequential page markers. Use [[PAGE_BREAK]] only for one continuous quote crossing pages.
+- Omit <CITATIONS> when there are no document citations.
+
+Keep user-visible reasoning to brief natural-language progress notes. Do not expose tool names, arguments, schemas, internal ids, or orchestration. Do not use emojis.`;
+
 export type JurisdictionPreference = {
   mode: "ask" | "presume";
   jurisdictions: string[];
@@ -68,7 +93,6 @@ export function buildLeanLibraryBlock(options: {
   const editAction = progressiveDisclosure
     ? "apply a mechanical change with library_apply_text_ops, or call describe_tools for drafting and use the revealed editor"
     : `apply the change with ${editToolName}${codingShape ? "" : " (mechanical find/replace, case, spacing, and normalization transforms go through library_apply_text_ops instead — the server executes those deterministically)"}`;
-  const automaticCompiler = process.env.MIKE_SLA_WORKFLOW === "1";
   const residentAuthoring = process.env.MIKE_RESIDENT_AUTHORING === "1";
   const terminalAuthoring = process.env.MIKE_TERMINAL_AUTHORING === "1";
   const modelCoverageRouting =
@@ -78,11 +102,7 @@ export function buildLeanLibraryBlock(options: {
         residentAuthoring
           ? "Create a requested Word deliverable with library_create_docx. "
           : "Use output_document to create a new Word deliverable. "
-      }Open a specialist domain only when the task needs it. Use drafting to revise an existing Word file. ${
-        automaticCompiler
-          ? "Document-quality checks run automatically after synthesis."
-          : "Use document_quality only when the user asks to audit an existing DOCX; created and edited files already return compiler checks."
-      } Other available domains cover research, citations, amendments, deadlines, and workflows.`
+      }Open a specialist domain only when the task needs it. Use drafting to revise an existing Word file. Use document_quality only when the user asks to audit an existing DOCX; created and edited files already return compiler checks. Other available domains cover research, citations, amendments, deadlines, and workflows.`
     : "Prefer the deterministic organs over reasoning from memory — citation linking, supra fixes, structural lint, table of authorities, term drift, drafting lint, bilingual concordance, amendment application, deadline computation — and report their findings as verified. Before delivering extraction or comparison work, call library_anchor_coverage and verify the source anchors it reports missing.";
   const retrievalVariant = process.env.MIKE_RETRIEVAL_PROMPT_VARIANT?.trim();
   const retrievalGuidance =
