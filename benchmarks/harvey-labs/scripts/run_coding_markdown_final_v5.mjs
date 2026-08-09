@@ -67,6 +67,11 @@ const suites = {
     directory: "witness-v1",
     runPrefix: "coding-agent-witness-v1",
   },
+  "legal-primitives-v1": {
+    campaign: "coding-agent-defaults-v1-legal-primitives-v1",
+    directory: "legal-primitives-v1",
+    runPrefix: "coding-agent-legal-primitives-v1",
+  },
 };
 const suite = suites[suiteName];
 if (!suite) {
@@ -179,6 +184,16 @@ const witnessCells = [
   ["08", tasks.dpa, "coding_markdown_final_v5_read_breadcrumb_v1"],
 ].map(([order, task, arm]) => ({ order, task, arm, replicate: 1 }));
 
+const legalPrimitivesCells = [
+  ["01", tasks.covenants, "coding_markdown_final_v5"],
+  ["02", tasks.covenants, "coding_markdown_final_v5_legal_unit_v1"],
+  ["03", tasks.dpa, "coding_markdown_final_v5"],
+  ["04", tasks.dpa, "coding_markdown_final_v5_legal_unit_v1"],
+  ["05", tasks.dpa, "coding_markdown_final_v5_w5_grounding_v1"],
+  ["06", tasks.indenture, "coding_markdown_final_v5"],
+  ["07", tasks.indenture, "coding_markdown_final_v5_legal_unit_v1"],
+].map(([order, task, arm]) => ({ order, task, arm, replicate: 1 }));
+
 function pairedCells(taskList) {
   return taskList.flatMap((task, index) => {
     const first = String(index * 2 + 1).padStart(2, "0");
@@ -197,6 +212,8 @@ const cells =
       ? nearTermCells
       : suiteName === "witness-v1"
         ? witnessCells
+        : suiteName === "legal-primitives-v1"
+          ? legalPrimitivesCells
         : suiteName === "beaver-max"
           ? beaverMaxCells
           : suiteName === "additions"
