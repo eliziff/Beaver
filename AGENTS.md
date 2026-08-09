@@ -127,6 +127,17 @@ Use focused checks while iterating; full builds are release gates. Measure UI
 or bundle changes before keeping them, and do not remove useful warmup merely
 to improve a build number.
 
+### Test discipline
+
+- Do not create tests whose only purpose is to assert that a feature, UI
+  element, tool, label, or absence exists in the current implementation.
+- Every test must protect useful behaviour, a safety invariant, a durable data
+  contract, or a demonstrated regression. Delete obsolete presence tests
+  instead of rewriting them to mirror routine product changes.
+- Example: a test that clicks a remove button but identifies it by incidental
+  copy such as `Remove … from Library` is still UI-presence bloat when a rename
+  to `Sources` breaks it. Delete that test; do not update the expected label.
+
 ## Repository hygiene
 
 - Never commit credentials, AppData, downloaded corpora, model traces, caches,

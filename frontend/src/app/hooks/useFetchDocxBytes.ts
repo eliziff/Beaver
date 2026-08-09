@@ -30,6 +30,41 @@ function cachedState(key: string | null): FetchState {
         error: null,
     };
 }
+export function preloadDocxBytes(
+    documentId: string,
+    versionId?: string | null,
+    refetchKey?: string | number,
+): Promise<ArrayBuffer> {
+    const key = cacheKey(documentId, versionId, refetchKey);
+    const cached = bytesCache.get(key);
+    if (cached) return Promise.resolve(cached);
+    const existing = inFlight.get(key);
+    if (existing) return existing;
+    const query = versionId
+        ? `?version_id=${encodeURIComponent(versionId)}`
+        : "";
+    const path = `/single-documents/${documentId}/docx${query}`;
+    const fetchDocx = () =>
+        apiFetch(path, { headers: { Accept: "*/*" } }).then((response) => {
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return response.arrayBuffer();
+        });
+    const pending = (isAnonymousMode
+        ? preloadSingleDoc(documentId, versionId, refetchKey).then((result) =>
+              result.type === "docx" ? result.buffer : fetchDocx(),
+          )
+        : fetchDocx()
+    ).then((bytes) => {
+        bytesCache.set(key, bytes);
+        return bytes;
+    });
+    inFlight.set(key, pending);
+    const cleanup = () => {
+        if (inFlight.get(key) === pending) inFlight.delete(key);
+    };
+    void pending.then(cleanup, cleanup);
+    return pending;
+}
 export function useFetchDocxBytes(
     documentId: string | null | undefined,
     versionId?: string | null,
@@ -45,31 +80,7 @@ export function useFetchDocxBytes(
     useEffect(() => {
         if (!documentId || !key || !path || bytesCache.has(key)) return;
         let cancelled = false;
-        const pending =
-            inFlight.get(key) ??
-            (async () => {
-                const fetchDocx = () => apiFetch(path, {
-                    headers: { Accept: "*/*" },
-                }).then((response) => {
-                    if (!response.ok)
-                        throw new Error(`HTTP ${response.status}`);
-                    return response.arrayBuffer();
-                });
-                const buf = isAnonymousMode
-                    ? await preloadSingleDoc(
-                          documentId,
-                          versionId,
-                          refetchKey,
-                      ).then((result) =>
-                          result.type === "docx"
-                              ? result.buffer
-                              : fetchDocx(),
-                      )
-                    : await fetchDocx();
-                bytesCache.set(key, buf);
-                return buf;
-            })();
-        if (!inFlight.has(key)) inFlight.set(key, pending);
+        const pending = preloadDocxBytes(documentId, versionId, refetchKey);
         pending
             .then((buf) => {
                 if (cancelled) return;
@@ -82,8 +93,7 @@ export function useFetchDocxBytes(
                     bytes: null,
                     error: e instanceof Error ? e.message : String(e),
                 });
-            })
-            .finally(() => inFlight.delete(key));
+            });
         return () => {
             cancelled = true;
         };

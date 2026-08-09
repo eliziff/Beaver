@@ -42,6 +42,17 @@ function AssistantGreeting({ username }: { username: string }) {
 }
 export default function ProjectAssistantChatPage({ params }: Props) {
     const { id: projectId, chatId } = use(params);
+    return (
+        <ProjectAssistantChat key={chatId} projectId={projectId} chatId={chatId} />
+    );
+}
+function ProjectAssistantChat({
+    projectId,
+    chatId,
+}: {
+    projectId: string;
+    chatId: string;
+}) {
     const router = useRouter();
     const { setSidebarOpen } = useSidebar();
     const { user } = useAuth();

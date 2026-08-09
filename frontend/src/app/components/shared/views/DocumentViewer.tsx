@@ -1,1 +1,100 @@
-import { lazy, Suspense, type ComponentProps } from "react";import type { DocxView } from "./DocxView";import type { PdfView } from "./PdfView";import type { SpreadsheetView } from "./SpreadsheetView";import type { TextView } from "./TextView";const DocxRenderer = lazy(() =>    import("./DocxView").then(({ DocxView }) => ({ default: DocxView })),);const PdfRenderer = lazy(() =>    import("./PdfView").then(({ PdfView }) => ({ default: PdfView })),);const TextRenderer = lazy(() =>    import("./TextView").then(({ TextView }) => ({ default: TextView })),);const SpreadsheetRenderer = lazy(() =>    import("./SpreadsheetView").then(({ SpreadsheetView }) => ({        default: SpreadsheetView,    })),);export type DocumentViewerKind = "docx" | "pdf" | "spreadsheet" | "text";type ViewerOptions = Partial<    ComponentProps<typeof DocxView> &        ComponentProps<typeof PdfView> &        ComponentProps<typeof SpreadsheetView> &        ComponentProps<typeof TextView>>;export type DocumentViewerProps = ViewerOptions & {    documentId: string;    kind: DocumentViewerKind;    versionId?: string | null;};export function DocumentViewer({    documentId,    kind,    versionId,    ...options}: DocumentViewerProps) {    const renderer =        kind === "docx" ? (            <DocxRenderer                documentId={documentId}                versionId={versionId}                {...options}            />        ) : kind === "text" ? (            <TextRenderer                documentId={documentId}                versionId={versionId}                {...options}            />        ) : kind === "spreadsheet" ? (            <SpreadsheetRenderer                documentId={documentId}                versionId={versionId}                {...options}            />        ) : (            <PdfRenderer                doc={{ document_id: documentId, version_id: versionId }}                {...options}            />        );    return (        <Suspense fallback={<ViewerLoading />}>            {renderer}        </Suspense>    );}function ViewerLoading() {    return (        <div            className="flex h-full min-h-0 items-center justify-center text-sm text-gray-500"            role="status"        >            Loading document…        </div>    );}
+import {
+    lazy,
+    Suspense,
+    useEffect,
+    type ComponentProps,
+} from "react";
+import { preloadDocxBytes } from "@/app/hooks/useFetchDocxBytes";
+import type { DocxView } from "./DocxView";
+import type { PdfView } from "./PdfView";
+import type { SpreadsheetView } from "./SpreadsheetView";
+import type { TextView } from "./TextView";
+
+const loadDocxRenderer = () =>
+    import("./DocxView").then(({ DocxView }) => ({ default: DocxView }));
+const DocxRenderer = lazy(loadDocxRenderer);
+const PdfRenderer = lazy(() =>
+    import("./PdfView").then(({ PdfView }) => ({ default: PdfView })),
+);
+const TextRenderer = lazy(() =>
+    import("./TextView").then(({ TextView }) => ({ default: TextView })),
+);
+const SpreadsheetRenderer = lazy(() =>
+    import("./SpreadsheetView").then(({ SpreadsheetView }) => ({
+        default: SpreadsheetView,
+    })),
+);
+
+export type DocumentViewerKind = "docx" | "pdf" | "spreadsheet" | "text";
+type ViewerOptions = Partial<
+    ComponentProps<typeof DocxView> &
+        ComponentProps<typeof PdfView> &
+        ComponentProps<typeof SpreadsheetView> &
+        ComponentProps<typeof TextView>
+>;
+export type DocumentViewerProps = ViewerOptions & {
+    documentId: string;
+    kind: DocumentViewerKind;
+    versionId?: string | null;
+};
+
+export function preloadDocxViewer(
+    documentId: string,
+    versionId?: string | null,
+    revision?: string | number,
+) {
+    return Promise.all([
+        loadDocxRenderer(),
+        preloadDocxBytes(documentId, versionId, revision),
+    ]);
+}
+
+export function DocumentViewer({
+    documentId,
+    kind,
+    versionId,
+    ...options
+}: DocumentViewerProps) {
+    useEffect(() => {
+        if (kind === "docx") {
+            void preloadDocxViewer(documentId, versionId).catch(() => {});
+        }
+    }, [documentId, kind, versionId]);
+    const renderer =
+        kind === "docx" ? (
+            <DocxRenderer
+                documentId={documentId}
+                versionId={versionId}
+                {...options}
+            />
+        ) : kind === "text" ? (
+            <TextRenderer
+                documentId={documentId}
+                versionId={versionId}
+                {...options}
+            />
+        ) : kind === "spreadsheet" ? (
+            <SpreadsheetRenderer
+                documentId={documentId}
+                versionId={versionId}
+                {...options}
+            />
+        ) : (
+            <PdfRenderer
+                doc={{ document_id: documentId, version_id: versionId }}
+                {...options}
+            />
+        );
+    return <Suspense fallback={<ViewerLoading />}>{renderer}</Suspense>;
+}
+
+function ViewerLoading() {
+    return (
+        <div
+            className="flex h-full min-h-0 items-center justify-center text-sm text-gray-500"
+            role="status"
+        >
+            Loading document…
+        </div>
+    );
+}

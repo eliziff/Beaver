@@ -24,6 +24,7 @@ import {
   readSelectedReasoningEffort,
 } from "./useSelectedModel";
 import { jurisdictionPreferenceForChat } from "@/app/components/assistant/jurisdictionPreferences";
+import { readReadSubagentPreference } from "@/app/components/assistant/readSubagentPreferences";
 interface UseAssistantChatOptions {
   initialMessages?: Message[];
   chatId?: string;
@@ -65,6 +66,7 @@ export function useAssistantChat({
     claimPendingChatMessage,
     peekPendingChatMessage,
     replaceChatId,
+    setChatTurnInProgress,
     loadChats,
     renameChat,
     saveChat,
@@ -184,6 +186,7 @@ export function useAssistantChat({
             transcriptVersionRef.current = latestVersion;
             setMessages(latest.messages);
             setIsResponseLoading(false);
+            setChatTurnInProgress?.(targetChatId, false);
             void loadChats();
             return;
           }
@@ -224,6 +227,7 @@ export function useAssistantChat({
     setRejectedTurn(null);
     flushPendingEventsSnapshot();
     setIsResponseLoading(true);
+    if (chatId) setChatTurnInProgress?.(chatId, true);
     const lastMessage = messages[messages.length - 1];
     const isMessageAlreadyAdded =
       lastMessage &&
@@ -277,6 +281,7 @@ export function useAssistantChat({
       const model = message.model ?? readSelectedModel();
       const reasoningEffort =
         message.reasoningEffort ?? readSelectedReasoningEffort();
+      const readSubagents = readReadSubagentPreference();
       const displayedDoc = turnOptions?.displayedDoc ?? null;
       const attachedDocs = (
         message.files?.filter((f) => !!f.document_id) ?? []
@@ -310,6 +315,9 @@ export function useAssistantChat({
         model,
         reasoning_effort: reasoningEffort,
         jurisdiction_preference: jurisdictionPreferenceForChat(),
+        subagents_enabled: readSubagents.enabled,
+        subagent_model: readSubagents.model,
+        subagent_effort: readSubagents.effort,
         displayed_doc: displayedDoc
           ? {
               filename: displayedDoc.filename,
@@ -401,6 +409,7 @@ export function useAssistantChat({
             if (data.type === "chat_id") {
               streamedChatId = data.chatId;
               setChatId(data.chatId);
+              setChatTurnInProgress?.(data.chatId, true);
               if (Number.isSafeInteger(data.transcriptVersion)) {
                 transcriptVersionRef.current = data.transcriptVersion;
               }
@@ -436,6 +445,9 @@ export function useAssistantChat({
                 { error: streamErrorMessage },
               );
               setIsResponseLoading(false);
+              if (streamedChatId || chatId) {
+                setChatTurnInProgress?.(streamedChatId || chatId!, false);
+              }
               continue;
             }
             if (
@@ -529,6 +541,7 @@ export function useAssistantChat({
       else publishEvents(finishedEvents);
       setIsResponseLoading(false);
       const finalChatId = streamedChatId || chatId || null;
+      if (finalChatId) setChatTurnInProgress?.(finalChatId, false);
       if (finalChatId && finalChatId !== chatId) {
         if (chatId) {
           replaceChatId(

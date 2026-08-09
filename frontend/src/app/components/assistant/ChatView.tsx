@@ -38,6 +38,12 @@ import type { RejectedAssistantTurn } from "@/app/hooks/useAssistantChat";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import { legalSourceLocatorFromUrl } from "@/app/components/legal/LegalSourceViewer";
+import { useFootnoteCitationPreference } from "./citationDisplayPreference";
+import {
+    ReadSubagentDock,
+    type ReadSubagentPanel,
+} from "./ReadSubagentDock";
+import { useReadSubagentPreference } from "./readSubagentPreferences";
 interface Props {
     chatId?: string | null;
     messages: Message[];
@@ -156,7 +162,14 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     },
     ref,
 ) {
+    const footnoteCitations = useFootnoteCitationPreference();
+    const readSubagents = useReadSubagentPreference();
     const [tabs, setTabs] = useState<AssistantSidePanelTab[]>([]);
+    const [readSubagentPanels, setReadSubagentPanels] = useState<
+        ReadSubagentPanel[]
+    >([]);
+    const [readSubagentPanelLimitOpen, setReadSubagentPanelLimitOpen] =
+        useState(false);
     const [activeTabId, setActiveTabId] = useState<string | null>(null);
     const [workflowModalId, setWorkflowModalId] = useState<string | null>(null);
     const [hiddenAskInputKey, setHiddenAskInputKey] = useState<string | null>(
@@ -164,6 +177,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     );
     const [responseAnnouncement, setResponseAnnouncement] = useState("");
     const wasResponseLoadingRef = useRef(false);
+    const dismissedReadSubagentIds = useRef(new Set<string>());
     const [editState, setEditState] = useState(() => ({
         docIds: new Set<string>(),
         editIds: new Set<string>(),
@@ -243,12 +257,8 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             opinions: streamed ? citation.case?.opinions : undefined,
         });
     };
-    const openCitation = (
-        citation: Citation,
-        showQuotes = true,
-    ) => {
+    const openCitation = (citation: Citation) => {
         const exactProviderUrl =
-            showQuotes &&
             "url" in citation &&
             citation.url?.includes(":~:text=")
                 ? citation.url
@@ -257,12 +267,12 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             window.open(exactProviderUrl, "_blank", "noopener,noreferrer");
             return;
         }
-        if (citation.kind === "case") return openCase(citation, showQuotes);
+        if (citation.kind === "case") return openCase(citation, false);
         if (citation.kind === "document" || !citation.kind) {
-            return upsertTab(documentCitationTab(citation, showQuotes));
+            return upsertTab(documentCitationTab(citation, false));
         }
         if (citation.kind === "a2aj" || citation.kind === "public_legal") {
-            const tab = legalCitationTab(citation, showQuotes);
+            const tab = legalCitationTab(citation, false);
             if (tab) upsertTab(tab);
             else if ("url" in citation && citation.url)
                 window.open(citation.url, "_blank", "noopener,noreferrer");
@@ -534,6 +544,43 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             ],
         });
     };
+    useEffect(() => {
+        if (!readSubagents.showDock) return;
+        const latestById = new Map<string, ReadSubagentPanel>();
+        for (const message of messages) {
+            for (const event of message.events ?? []) {
+                if (event.type === "subagent_run") latestById.set(event.id, event);
+            }
+        }
+        setReadSubagentPanels((current) => {
+            const next = current.map(
+                (panel) => latestById.get(panel.id) ?? panel,
+            );
+            for (const panel of latestById.values()) {
+                if (
+                    !dismissedReadSubagentIds.current.has(panel.id) &&
+                    !next.some((current) => current.id === panel.id)
+                ) {
+                    next.push(panel);
+                }
+            }
+            return next.slice(-3);
+        });
+    }, [messages, readSubagents.showDock]);
+    const openReadSubagentPanel = (panel: ReadSubagentPanel) => {
+        dismissedReadSubagentIds.current.delete(panel.id);
+        const withoutCurrent = readSubagentPanels.filter(
+            (candidate) => candidate.id !== panel.id,
+        );
+        if (
+            withoutCurrent.length === readSubagentPanels.length &&
+            readSubagentPanels.length >= 3
+        ) {
+            setReadSubagentPanelLimitOpen(true);
+            return;
+        }
+        setReadSubagentPanels([...withoutCurrent, panel]);
+    };
     return (
         <div className="h-full w-full flex relative">
             <div
@@ -605,13 +652,17 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                                                     : undefined
                                             }
                                             citations={msg.citations}
-                                            citationStatus={msg.citationStatus}
-                                            onCitationClick={openCitation}
-                                            onOpenCitationSource={(citation) =>
-                                                openCitation(citation, false)
+                                            showCitationList={
+                                                footnoteCitations.enabled
                                             }
+                                            onCitationClick={openCitation}
                                             onCaseClick={openCase}
                                             onAutomationClick={openAutomation}
+                                            onSubagentClick={
+                                                readSubagents.showDock
+                                                    ? openReadSubagentPanel
+                                                    : undefined
+                                            }
                                             minHeight={
                                                 i === lastAssistantIndex
                                                     ? LATEST_ASSISTANT_MIN_HEIGHT
@@ -708,6 +759,19 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                 onSelect={() => setWorkflowModalId(null)}
                 initialWorkflowId={workflowModalId ?? undefined}
             />
+            <ReadSubagentDock
+                panels={
+                    readSubagents.showDock && tabs.length === 0
+                        ? readSubagentPanels
+                        : []
+                }
+                onClose={(id) => {
+                    dismissedReadSubagentIds.current.add(id);
+                    setReadSubagentPanels((current) =>
+                        current.filter((panel) => panel.id !== id),
+                    );
+                }}
+            />
             {tabs.length > 0 && (
                 <div className="fixed inset-0 z-40 flex justify-center p-3 md:relative md:inset-auto md:z-auto md:block md:h-full md:min-w-0 md:flex-shrink-0 md:p-0">
                     <AssistantSidePanel
@@ -764,6 +828,12 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                           }
                         : undefined
                 }
+            />
+            <WarningPopup
+                open={readSubagentPanelLimitOpen}
+                title="Three panels are already open"
+                message="Close a reading-agent panel before opening another."
+                onClose={() => setReadSubagentPanelLimitOpen(false)}
             />
         </div>
     );

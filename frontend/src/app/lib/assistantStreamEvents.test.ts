@@ -15,6 +15,42 @@ function reduce(
 }
 
 describe("reduceAssistantStreamEvent", () => {
+  it("replaces a running reading agent with its cited findings", () => {
+    let events: AssistantEvent[] = [];
+    events = reduce(events, {
+      type: "subagent_run",
+      id: "read-1",
+      agent: "scout",
+      task: "Find the renewal clause.",
+      model: "GPT-5.6 Luna",
+      effort: "high",
+      status: "running",
+    });
+    events = reduce(events, {
+      type: "subagent_run",
+      id: "read-1",
+      agent: "scout",
+      task: "Find the renewal clause.",
+      model: "GPT-5.6 Luna",
+      effort: "high",
+      status: "completed",
+      output: "Lease.pdf, p. 4: \"Renews yearly.\"",
+      grounding: { status: "passed", evidence: [{ evidence_id: "e_lease" }] },
+    });
+
+    expect(events[0]).toMatchObject({
+      type: "subagent_run",
+      id: "read-1",
+      status: "completed",
+      isStreaming: false,
+      grounding: {
+        status: "passed",
+        evidence: [{ evidence_id: "e_lease" }],
+      },
+    });
+    expect(events).toHaveLength(2);
+  });
+
   it("keeps interleaved reasoning, tools, and content ordered", () => {
     let events: AssistantEvent[] = [];
     events = reduce(events, { type: "reasoning_delta", text: "Checking" });

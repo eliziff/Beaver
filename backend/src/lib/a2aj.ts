@@ -1168,6 +1168,7 @@ export async function searchA2AJ(args: {
   startDate?: string;
   endDate?: string;
   sortResults?: "default" | "newest_first" | "oldest_first";
+  querySyntax?: "terms" | "fts5";
 }): Promise<A2AJSearchResult[]> {
   const query = args.query.trim();
   if (!query) throw new Error("query is required");

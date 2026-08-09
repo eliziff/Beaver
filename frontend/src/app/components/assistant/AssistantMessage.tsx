@@ -13,9 +13,13 @@ import {
     activityView,
     dedupeActivityEntries,
 } from "./message/eventUtils";
-import { preprocessCitations, internalCaseHref } from "./message/citationUtils";
+import {
+    preprocessCitations,
+    internalCaseHref,
+    type CitationHistory,
+} from "./message/citationUtils";
 import { MarkdownContent } from "./message/MarkdownContent";
-import { CitationsBlock, buildCitationAppendix } from "./message/CitationSources";
+import { CitationsBlock } from "./message/CitationSources";
 import { EditCardsSection } from "./message/EditCardsSection";
 import {
     AutomationRunButton,
@@ -32,17 +36,18 @@ interface Props {
     isError?: boolean;
     errorMessage?: string;
     citations?: Citation[];
-    citationStatus?: "started" | "partial" | "final";
     onCitationClick?: (citation: Citation) => void;
     citationTitle?: (citation: Citation) => string;
     showCitationList?: boolean;
     showCopyAction?: boolean;
-    onOpenCitationSource?: (citation: Citation) => void;
     onCaseClick?: (
         citation: Extract<AssistantEvent, { type: "case_citation" }>,
     ) => void;
     onAutomationClick?: (
         run: Extract<AssistantEvent, { type: "automation_run" }>,
+    ) => void;
+    onSubagentClick?: (
+        run: Extract<AssistantEvent, { type: "subagent_run" }>,
     ) => void;
     minHeight?: string;
     onWorkflowClick?: (workflowId: string) => void;
@@ -75,14 +80,13 @@ export function AssistantMessage({
     isError = false,
     errorMessage,
     citations = [],
-    citationStatus,
     onCitationClick,
     citationTitle,
-    showCitationList = true,
+    showCitationList = false,
     showCopyAction = true,
-    onOpenCitationSource,
     onCaseClick,
     onAutomationClick,
+    onSubagentClick,
     minHeight = "0px",
     onWorkflowClick,
     onEditViewClick,
@@ -111,6 +115,10 @@ export function AssistantMessage({
         citation: Citation,
     ): citation is DocumentCitation => !citation.kind || citation.kind === "document";
     const inlineCitationTargets: Citation[] = [];
+    const citationHistory: CitationHistory = {
+        seen: new Set(),
+        previous: null,
+    };
     const citationsByRef = new Map<number, Citation>();
     const documentCitations = new Map<string, Citation>();
     for (const citation of citations) {
@@ -172,6 +180,7 @@ export function AssistantMessage({
                     event.text,
                     citationsByRef,
                     inlineCitationTargets,
+                    citationHistory,
                 ),
             });
             continue;
@@ -196,22 +205,6 @@ export function AssistantMessage({
         if (event.type !== "reasoning" || event.text.trim())
             rawActivityEntries.push({ event, index });
     }
-    const handleOpenCitationSource = (citation: Citation) => {
-        if (onOpenCitationSource) {
-            onOpenCitationSource(citation);
-            return;
-        }
-        if (!isDocumentCitation(citation) || !onOpenDocument) return;
-        onOpenDocument({
-            documentId: citation.document_id,
-            filename: citation.filename,
-            versionId: citation.version_id ?? null,
-            versionNumber: citation.version_number ?? null,
-        });
-    };
-    const canOpenCitationSource = (citation: Citation) =>
-        !!onOpenCitationSource ||
-        (isDocumentCitation(citation) && !!onOpenDocument);
     const handleCopy = async () => {
         try {
             let html = "";
@@ -219,18 +212,13 @@ export function AssistantMessage({
             if (contentDivRef.current) {
                 const clone = contentDivRef.current.cloneNode(true) as HTMLElement;
                 clone.querySelectorAll("[data-citation-ref]").forEach((el) => {
-                    const ref = el.getAttribute("data-citation-ref");
-                    if (!ref) return;
-                    const sup = document.createElement("sup");
-                    sup.textContent = ref;
-                    el.replaceWith(sup);
+                    const span = document.createElement("span");
+                    span.innerHTML = el.innerHTML;
+                    el.replaceWith(span);
                 });
                 html = clone.innerHTML;
                 plainText = clone.textContent || "";
             }
-            const appendix = buildCitationAppendix(citations);
-            html += appendix.html;
-            plainText += appendix.text;
             await navigator.clipboard.write([
                 new ClipboardItem({
                     "text/html": new Blob([html], { type: "text/html" }),
@@ -262,6 +250,13 @@ export function AssistantMessage({
         activityIsStreaming ||= !!view.busy;
     }
     const activityClick = (event: AssistantEvent) => {
+        if (
+            event.type === "subagent_run" &&
+            event.status !== "running" &&
+            onSubagentClick
+        ) {
+            return () => onSubagentClick(event);
+        }
         if (event.type === "workflow_applied" && onWorkflowClick)
             return () => onWorkflowClick(event.workflow_id);
         if (event.type !== "doc_read" || event.isStreaming) return;
@@ -334,27 +329,10 @@ export function AssistantMessage({
         eventErrorMessage ??
         (isError ? "Response failed." : null);
     return (
-        <div style={{ minHeight }}>
+        <div style={{ minHeight }} className="w-full max-w-[46rem]">
             <div className="relative mt-2 w-full font-inter">
-                {events && events.length > 0 ? (
+                {(events?.length || isStreaming) ? (
                     <div className="flex flex-col gap-4">
-                        {activityRows.length > 0 && (
-                            <ActivityDisclosure
-                                isStreaming={activityIsStreaming}
-                                label={
-                                    activityRows[activityRows.length - 1]?.view
-                                        .label ?? "Thinking"
-                                }
-                            >
-                                {activityRows.map(({ event, index, view }) => (
-                                    <ActivityRow
-                                        key={index}
-                                        view={view}
-                                        onClick={activityClick(event)}
-                                    />
-                                ))}
-                            </ActivityDisclosure>
-                        )}
                         {[...automationByRun.values()].map((event) => (
                             <AutomationRunButton
                                 key={automationRunKey(event)}
@@ -363,7 +341,10 @@ export function AssistantMessage({
                             />
                         ))}
                         {contentEntries.map(({ index, text }, contentIndex) => (
-                            <div key={`c-${index}`}>
+                            <div
+                                key={`c-${index}`}
+                                className="w-fit max-w-full rounded-[18px] bg-gray-950 px-4 py-3 text-white shadow-sm"
+                            >
                                 <MarkdownContent
                                     text={text}
                                     inlineCitationTargets={inlineCitationTargets}
@@ -395,13 +376,27 @@ export function AssistantMessage({
                         ) : (
                             editCards
                         )}
+                        {activityRows.length > 0 ? (
+                            <ActivityDisclosure
+                                isStreaming={activityIsStreaming}
+                                label={
+                                    activityRows[activityRows.length - 1]?.view
+                                        .label ?? "Thinking"
+                                }
+                            >
+                                {activityRows.map(({ event, index, view }) => (
+                                    <ActivityRow
+                                        key={index}
+                                        view={view}
+                                        onClick={activityClick(event)}
+                                    />
+                                ))}
+                            </ActivityDisclosure>
+                        ) : isStreaming && automationByRun.size === 0 ? (
+                            <ActivityDisclosure isStreaming label="Thinking" />
+                        ) : null}
                     </div>
                 ) : null}
-                {isStreaming &&
-                    activityRows.length === 0 &&
-                    automationByRun.size === 0 && (
-                        <ActivityDisclosure isStreaming label="Thinking" />
-                    )}
                 {responseError && (
                     <p
                         role="alert"
@@ -427,21 +422,12 @@ export function AssistantMessage({
                         )}
                     </div>
                 )}
-                {showCitationList &&
-                    (!!citationStatus ||
-                        (!isStreaming && citations.length > 0)) && (
+                {!isStreaming && showCitationList && citations.length > 0 && (
                     <CitationsBlock
                         citations={citations}
                         onCitationClick={onCitationClick}
-                        onOpenSource={handleOpenCitationSource}
-                        canOpenSource={canOpenCitationSource}
-                        showWhenEmpty={!!citationStatus}
-                        isLoading={
-                            citationStatus === "started" ||
-                            citationStatus === "partial"
-                        }
                     />
-                    )}
+                )}
                 {showCopyAction && (
                     <div className="flex items-center gap-2 py-2 font-sans justify-start">
                     {!isStreaming && (

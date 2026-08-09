@@ -21,6 +21,7 @@ export type ActivityView = {
     items?: ActivityItem[];
     busy?: boolean;
     error?: boolean;
+    panelAction?: boolean;
 };
 
 type ActivityContext = {
@@ -57,6 +58,7 @@ const TOOLS: Record<string, readonly [string, string?]> = {
     library_link_docx_citations: ["Adding citation links", "automation_run"],
     library_fix_docx_supras: ["Fixing supra references", "automation_run"],
     submit_grounded_answer: ["Finalizing answer"],
+    delegate_read: ["Starting reading agent", "subagent_run"],
 };
 
 const GENERIC_LEGAL_SEARCH =
@@ -155,6 +157,34 @@ export function activityView(
             label: `${event.isStreaming ? "Reading" : "Read"} ${event.filename}`,
             busy: !!event.isStreaming,
         };
+    if (event.type === "subagent_run") {
+        const role = `${event.agent[0].toUpperCase()}${event.agent.slice(1)}`;
+        const failed = event.status === "error";
+        return {
+            label: event.isStreaming
+                ? `${role} reading`
+                : failed
+                  ? `${role} failed`
+                  : `${role} completed`,
+            detail: failed
+                ? event.error
+                : `${event.task}${
+                      event.model
+                          ? ` · ${event.model}, ${event.effort} reasoning`
+                          : ""
+                  }${
+                      event.grounding?.status === "passed"
+                          ? ` · ${count(event.grounding.evidence.length, "verified passage")}`
+                          : ""
+                  }`,
+            ...(event.output && {
+                markdown: `**${role} findings**\n\n${event.output}`,
+            }),
+            busy: !!event.isStreaming,
+            error: failed,
+            panelAction: !event.isStreaming,
+        };
+    }
     if (event.type === "doc_find")
         return {
             label: `${event.isStreaming ? "Searching" : "Searched"} ${event.filename}`,

@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAssistantChat } from "./useAssistantChat";
 import { setJurisdictionPreference } from "@/app/components/assistant/jurisdictionPreferences";
+import { setReadSubagentPreference } from "@/app/components/assistant/readSubagentPreferences";
 
 const mocks = vi.hoisted(() => ({
   getChat: vi.fn(),
@@ -143,6 +144,30 @@ describe("useAssistantChat local transcript boundary", () => {
           ],
         },
       }),
+    );
+  });
+
+  it("sends the opt-in reading-agent preference with the turn", async () => {
+    setReadSubagentPreference(true);
+    mocks.streamChat.mockResolvedValueOnce(
+      streamResponse([
+        { type: "chat_id", chatId: "chat-1", transcriptVersion: 1 },
+        { type: "transcript_version", transcriptVersion: 2 },
+      ]),
+    );
+    const { result } = renderHook(() =>
+      useAssistantChat({ chatId: "chat-1" }),
+    );
+
+    await act(async () => {
+      await result.current.handleChat({
+        role: "user",
+        content: "Compare these sources",
+      });
+    });
+
+    expect(mocks.streamChat).toHaveBeenCalledWith(
+      expect.objectContaining({ subagents_enabled: true }),
     );
   });
 

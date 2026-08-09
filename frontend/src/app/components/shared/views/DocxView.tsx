@@ -1,5 +1,9 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";import { Loader2 } from "lucide-react";
-import type { Options as DocxPreviewOptions } from "docx-preview";
+import {
+    parseAsync,
+    renderDocument,
+    type Options as DocxPreviewOptions,
+} from "docx-preview";
 import { useFetchDocxBytes } from "@/app/hooks/useFetchDocxBytes";
 import { apiFetch } from "@/app/lib/beaverApi";import {
     clearDocxQuoteHighlights,
@@ -308,8 +312,6 @@ export function DocxView({
         const thisRender = ++renderKeyRef.current;
         (async () => {
             try {
-                const { parseAsync, renderDocument } =
-                    await import("docx-preview");
                 const doc = await parseDocx(bytes, parseAsync);
                 if (cancelled) return;
                 await renderDocument(

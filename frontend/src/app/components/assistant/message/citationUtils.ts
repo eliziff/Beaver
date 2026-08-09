@@ -1,8 +1,33 @@
-import type { Citation } from "../../shared/types";
+import { citationPinpoint, type Citation } from "../../shared/types";
+
+export type CitationHistory = {
+    seen: Set<string>;
+    previous: string | null;
+};
+
+export function citationSourceKey(annotation: Citation): string {
+    if (annotation.kind === "case") return `case:${annotation.cluster_id}`;
+    if (annotation.kind === "a2aj")
+        return `a2aj:${annotation.url ?? annotation.citation ?? annotation.ref}`;
+    if (annotation.kind === "public_legal")
+        return `public:${annotation.provider}:${annotation.identifier}`;
+    return `document:${annotation.document_id}:${annotation.version_id ?? ""}`;
+}
+
+function usesSupra(annotation: Citation): boolean {
+    return (
+        annotation.kind === "case" ||
+        annotation.source_class === "case" ||
+        annotation.source_class === "commentary" ||
+        (annotation.kind === "public_legal" && annotation.provider === "journal")
+    );
+}
+
 export function preprocessCitations(
     text: string,
     citations: Map<number, Citation>,
     inlineCitationTargets: Citation[],
+    history: CitationHistory = { seen: new Set(), previous: null },
 ): string {
     return text.replace(/\[(\d+(?:,\s*\d+)*)\]/g, (full, refsStr) => {
         const refs = (refsStr as string)
@@ -11,8 +36,20 @@ export function preprocessCitations(
         const tokens = refs.flatMap((ref: number) => {
             const citation = citations.get(ref);
             if (!citation) return [];
+            const sourceKey = citationSourceKey(citation);
+            const displayForm =
+                sourceKey === history.previous && citationPinpoint(citation)
+                    ? "pinpoint"
+                    : history.seen.has(sourceKey) && usesSupra(citation)
+                      ? "supra"
+                      : "full";
             const idx = inlineCitationTargets.length;
-            inlineCitationTargets.push(citation);
+            inlineCitationTargets.push({
+                ...citation,
+                display_form: displayForm,
+            });
+            history.seen.add(sourceKey);
+            history.previous = sourceKey;
             return [`\`§${idx}§\`\u200B`];
         });
         return tokens.length > 0 ? tokens.join("") : full;

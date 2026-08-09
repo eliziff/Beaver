@@ -175,6 +175,14 @@ export interface ModelCatalog {
     }[];
     error?: string;
   };
+  readSubagents?: {
+    available: boolean;
+    serverEnabled: boolean;
+    model: string;
+    displayName: string;
+    effort: string;
+    reason?: string;
+  };
 }
 export const getModelCatalog = () => apiRequest<ModelCatalog>("/models");
 export const getUserProfile = () => apiRequest<UserProfile>("/user/profile");
@@ -280,6 +288,7 @@ export const renameProjectDocument = (
 export type LibraryKind = "files" | "templates";
 interface LibraryCollection { documents: Document[]; folders: LibraryFolder[] }
 export type LegalDocumentType = "cases" | "laws" | "articles";
+export type LegalSearchDocumentType = LegalDocumentType | "hansard";
 export interface LegalSourceReference {
   id: string;
   provider: "a2aj" | "journal";
@@ -289,8 +298,8 @@ export interface LegalSourceReference {
   dataset: string | null;
 }
 export interface LegalSourceSearchResult {
-  provider: "a2aj" | "journal";
-  doc_type: LegalDocumentType;
+  provider: "a2aj" | "journal" | "hansard";
+  doc_type: LegalSearchDocumentType;
   source_id?: string | null;
   dataset: string;
   citation: string;
@@ -362,7 +371,7 @@ export const getLegalSourceCoverage = async () =>
   (await apiRequest<{ coverage: LegalSourceCoverage[] }>("/library/legal/coverage")).coverage;
 export const searchLegalSources = async (args: {
   query: string;
-  docType: LegalDocumentType;
+  docType: LegalSearchDocumentType;
   language?: "en" | "fr";
   datasets?: string[];
   startDate?: string;
@@ -715,6 +724,9 @@ export const streamChat = (payload: {
     mode: "ask" | "presume";
     jurisdictions: string[];
   };
+  subagents_enabled?: boolean;
+  subagent_model?: string;
+  subagent_effort?: string;
   displayed_doc?: { filename: string; document_id: string };
   attached_documents?: { filename: string; document_id: string }[];
   ask_inputs_response?: Extract<

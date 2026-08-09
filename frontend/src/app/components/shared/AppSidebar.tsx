@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState, type DragEvent } from "react";import { PanelLeft, Settings, Trash2 } from "lucide-react";
+import { lazy, Suspense, useEffect, useRef, useState, type DragEvent } from "react";import { BookOpenText, PanelLeft, Settings, Trash2 } from "lucide-react";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -22,6 +22,7 @@ const NAV_ITEMS = [
   { href: "/assistant", label: "Assistant", icon: ChatSkeuoIcon },
   { href: "/projects", label: "Projects", icon: FolderSvgIcon },
   { href: "/library", label: "Library", icon: LibrarySkeuoIcon },
+  { href: "/sources", label: "Sources", icon: BookOpenText },
   {
     href: "/table-of-authorities",
     label: "Authorities",

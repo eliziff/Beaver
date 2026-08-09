@@ -290,6 +290,7 @@ function sourceUrl(rawUrl: string, anchor?: string): string | null {
   } catch {
     return null;
   }
+  if (/(^|\.)getcaselaw\.com$/iu.test(url.hostname)) return null;
   if (
     !["http:", "https:"].includes(url.protocol) ||
     (local && url.origin !== "http://mike.local")

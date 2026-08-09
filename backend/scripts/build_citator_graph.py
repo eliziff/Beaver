@@ -548,6 +548,12 @@ CREATE TABLE provider_edge (
     citation TEXT NOT NULL,
     citation_key TEXT NOT NULL
 );
+CREATE TABLE authority_metric (
+    cited_key TEXT PRIMARY KEY,
+    citing_cases INTEGER NOT NULL,
+    citing_paragraphs INTEGER NOT NULL,
+    occurrences INTEGER NOT NULL
+) WITHOUT ROWID;
 """
 
 INDEXES = """
@@ -751,9 +757,17 @@ def build(args: argparse.Namespace) -> None:
                 set(keys) & {row[0] for row in resolution_rows}
             )
         connection.executescript(INDEXES)
+        connection.execute(
+            """INSERT INTO authority_metric
+               SELECT cited_key, COUNT(DISTINCT case_id),
+                      COUNT(DISTINCT CAST(case_id AS TEXT) || ':' ||
+                        COALESCE(CAST(paragraph AS TEXT), '')),
+                      COUNT(*)
+               FROM edge GROUP BY cited_key"""
+        )
         resolution_keys = len({row[0] for row in resolution_rows})
         metadata = {
-            "schema_version": "2",
+            "schema_version": "3",
             "built_at": datetime.now(timezone.utc).isoformat(),
             "source": source,
             "inputs": ", ".join(inputs),

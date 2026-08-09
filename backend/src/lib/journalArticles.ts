@@ -117,9 +117,21 @@ function journalDatabasePath() {
   const configured =
     process.env.MIKE_PUBLIC_ENDPOINT_DB?.trim() ||
     process.env.ALR_PUBLIC_ENDPOINT_DB?.trim();
-  return configured
-    ? path.resolve(configured)
-    : legalProviderDatabase("journals", "public_endpoint.db");
+  if (configured) return path.resolve(configured);
+  const shared = legalProviderDatabase("journals", "public_endpoint.db");
+  if (existsSync(shared)) return shared;
+  const search = journalSearchDatabasePath();
+  if (!existsSync(search)) return shared;
+  const connection = new DatabaseSync(search, { readOnly: true });
+  try {
+    const row = connection
+      .prepare("SELECT value FROM meta WHERE key='source_path'")
+      .get() as { value?: unknown } | undefined;
+    const indexed = typeof row?.value === "string" ? row.value : "";
+    return indexed && existsSync(indexed) ? path.resolve(indexed) : shared;
+  } finally {
+    connection.close();
+  }
 }
 
 function journalSearchDatabasePath() {
@@ -234,6 +246,11 @@ function searchDatabase() {
   return connection;
 }
 
+export function warmJournalSearch() {
+  database();
+  return !!searchDatabase();
+}
+
 function finalContractDatabase() {
   const filename = journalFinalContractDatabasePath();
   if (!existsSync(filename)) return null;
@@ -316,6 +333,11 @@ function result(row: Row, query: string): JournalArticleSearchResult {
 export function searchJournalArticles(
   query: string,
   size = 10,
+  options: {
+    querySyntax?: "terms" | "fts5";
+    startDate?: string;
+    endDate?: string;
+  } = {},
 ): JournalArticleSearchResult[] {
   query = query.trim();
   if (!query) throw new Error("query is required");
@@ -338,9 +360,14 @@ export function searchJournalArticles(
   const wanted = Math.min(Math.max(Math.trunc(size), 1), 25);
   const search = searchDatabase();
   if (search) {
-    const ftsQuery = tokens
-      .map((token) => `"${token.replace(/"/gu, '""')}"*`)
-      .join(" AND ");
+    const ftsQuery =
+      options.querySyntax === "fts5"
+        ? query
+        : tokens
+            .map((token) => `"${token.replace(/"/gu, '""')}"`)
+            .join(" AND ");
+    const candidateLimit =
+      options.startDate || options.endDate ? Math.min(250, wanted * 10) : wanted;
     const ids = (
       search
         .prepare(
@@ -350,7 +377,7 @@ export function searchJournalArticles(
            ORDER BY bm25(article_search, 4.0, 1.0)
            LIMIT ?`,
         )
-        .all(ftsQuery, wanted) as Array<{ article_id: number }>
+        .all(ftsQuery, candidateLimit) as Array<{ article_id: number }>
     ).map(({ article_id }) => article_id);
     if (!ids.length) return [];
     const rows = database()
@@ -358,14 +385,23 @@ export function searchJournalArticles(
         `SELECT article_id, dataset, citation_en, name_en, authors,
                 document_date_en, volume, first_page, journal_name,
                 journal_abbrev, galley_url, url_en, abstract
-         FROM articles WHERE article_id IN (${ids.map(() => "?").join(",")})`,
+         FROM articles WHERE article_id IN (${ids.map(() => "?").join(",")})
+           ${options.startDate ? "AND document_date_en >= ?" : ""}
+           ${options.endDate ? "AND document_date_en <= ?" : ""}`,
       )
-      .all(...ids) as Row[];
+      .all(
+        ...ids,
+        ...(options.startDate ? [options.startDate] : []),
+        ...(options.endDate ? [options.endDate] : []),
+      ) as Row[];
     const byId = new Map(rows.map((row) => [integer(row.article_id), row]));
     return ids.flatMap((id) => {
       const row = byId.get(id);
       return row ? [result(row, query)] : [];
-    });
+    }).slice(0, wanted);
+  }
+  if (options.querySyntax === "fts5") {
+    throw new Error("Boolean search requires the journal FTS index");
   }
   const haystack = `LOWER(
     COALESCE(name_en, '') || ' ' || COALESCE(citation_en, '') || ' ' ||

@@ -1,4 +1,4 @@
-// Local A2AJ Hansard chat tools — the read path for the imported debates
+// Local A2AJ Hansard chat tools — the read path for imported Hansard records.
 // plane (lib/a2ajHansard.ts; imported by scripts/import_a2aj_hansard.py).
 // Research-gated alongside the other legal-source tools: sealed benchmark
 // runs must not see information sources beyond the matter documents.
@@ -20,7 +20,7 @@ const tool = (
 export const HANSARD_TOOLS: OpenAIToolSchema[] = [
   tool(
     "hansard_search",
-    "Search the locally imported A2AJ Hansard corpus (Ontario Legislative Assembly debates), with optional speaker and date filters. Returns snippets with stable ids for hansard_fetch. Reports hansard_not_installed when no local database has been imported.",
+    "Search the locally imported A2AJ Hansard corpus (Ontario Legislative Assembly), with optional speaker and date filters. Returns snippets with stable ids for hansard_fetch. Reports hansard_not_installed when no local database has been imported.",
     {
       type: "object",
       properties: {

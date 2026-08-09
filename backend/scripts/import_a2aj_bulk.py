@@ -338,6 +338,7 @@ def import_database(args: argparse.Namespace) -> None:
                     id, citation_en, citation_fr, citation2_en, citation2_fr,
                     name_en, name_fr, unofficial_text_en, unofficial_text_fr
                 FROM document;
+                INSERT INTO document_search(document_search) VALUES('optimize');
                 """
             )
         metadata = {

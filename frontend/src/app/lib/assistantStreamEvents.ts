@@ -87,6 +87,7 @@ const TOOL_ACTIVITY_FAMILIES: Record<string, string> = {
   toa_job_status: "automation_run",
   library_link_docx_citations: "automation_run",
   library_fix_docx_supras: "automation_run",
+  delegate_read: "subagent_run",
 };
 
 function parseAutomationRunEvent(
@@ -225,6 +226,7 @@ export function assistantEventKey(event: AssistantEvent) {
     return `tool:${event.name}:${event.label ?? ""}`;
   if (event.type === "automation_run")
     return `automation:${event.job_id ?? event.id}`;
+  if (event.type === "subagent_run") return `subagent:${event.id}`;
   if (event.type === "courtlistener_search_case_law")
     return `case-search:${event.query}`;
   if (event.type === "courtlistener_get_cases")
@@ -352,6 +354,43 @@ export function reduceAssistantStreamEvent(
   if (rawType === "ask_inputs") {
     const event = parseAskInputs(data);
     return event ? reduceEvent(events, event) : null;
+  }
+  if (rawType === "subagent_run") {
+    const agent = data.agent;
+    const status = data.status;
+    const grounding =
+      data.grounding &&
+      typeof data.grounding === "object" &&
+      !Array.isArray(data.grounding)
+        ? (data.grounding as Record<string, unknown>)
+        : null;
+    if (
+      (agent !== "scout" && agent !== "planner" && agent !== "reviewer") ||
+      (status !== "running" && status !== "completed" && status !== "error")
+    ) {
+      return null;
+    }
+    return reduceEvent(events, {
+      type: "subagent_run",
+      id: clean(data.id) ?? `${agent}:${text(data.task)}`,
+      agent,
+      task: text(data.task),
+      model: text(data.model),
+      effort: text(data.effort),
+      status,
+      ...(clean(data.output) && { output: clean(data.output) }),
+      ...(clean(data.error) && { error: clean(data.error) }),
+      ...(grounding &&
+        (grounding.status === "passed" || grounding.status === "failed") && {
+          grounding: {
+            status: grounding.status,
+            evidence: Array.isArray(grounding.evidence)
+              ? grounding.evidence
+              : [],
+          },
+        }),
+      isStreaming: status === "running",
+    });
   }
 
   if (type === "workflow_applied")

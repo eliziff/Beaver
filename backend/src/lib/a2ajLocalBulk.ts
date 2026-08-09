@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import type { A2AJDocument, A2AJSearchResult } from "./a2aj";
@@ -30,6 +31,44 @@ export function a2ajLocalBulkPath() {
 
 function withDatabase<T>(operation: (database: DatabaseSync) => T): T | null {
   return withReadonlySqlite(a2ajLocalBulkPath(), operation);
+}
+
+function searchDatabasePath(docType: DocType) {
+  const primary = a2ajLocalBulkPath();
+  const indexed = path.join(
+    path.dirname(primary),
+    `a2aj-${docType}-fulltext.sqlite`,
+  );
+  return existsSync(indexed) ? indexed : primary;
+}
+
+let searchConnection:
+  | { filename: string; database: DatabaseSync }
+  | undefined;
+
+function withSearchDatabase<T>(
+  docType: DocType,
+  operation: (database: DatabaseSync) => T,
+): T | null {
+  const filename = searchDatabasePath(docType);
+  if (process.env.MIKE_A2AJ_BULK_DB?.trim()) {
+    return withReadonlySqlite(filename, operation);
+  }
+  if (!existsSync(filename)) return null;
+  if (searchConnection?.filename !== filename) {
+    searchConnection?.database.close();
+    const { DatabaseSync } = require("node:sqlite") as typeof import("node:sqlite");
+    const database = new DatabaseSync(filename, { readOnly: true });
+    database.exec(
+      "PRAGMA query_only=ON; PRAGMA mmap_size=2147418112; PRAGMA cache_size=-131072",
+    );
+    searchConnection = { filename, database };
+  }
+  return operation(searchConnection.database);
+}
+
+export function warmLocalA2AJSearch() {
+  return withSearchDatabase("cases", hasFts) ?? false;
 }
 
 function string(row: Row, field: string) {
@@ -270,7 +309,7 @@ function searchTokens(query: string) {
 
 function ftsQuery(tokens: string[], searchType: "full_text" | "name") {
   const fields = searchType === "name" ? "{name_en name_fr} : " : "";
-  return tokens.map((token) => `${fields}"${token}"*`).join(" AND ");
+  return tokens.map((token) => `${fields}"${token}"`).join(" AND ");
 }
 
 function hasFts(database: DatabaseSync) {
@@ -326,6 +365,7 @@ export function searchLocalA2AJ(args: {
   startDate?: string;
   endDate?: string;
   sortResults?: "default" | "newest_first" | "oldest_first";
+  querySyntax?: "terms" | "fts5";
 }): A2AJSearchResult[] | null {
   const query = args.query.trim();
   if (!query) throw new Error("query is required");
@@ -333,10 +373,14 @@ export function searchLocalA2AJ(args: {
   if (!tokens.length) return [];
   const language = args.language === "fr" ? "fr" : "en";
   const wanted = boundedSize(args.size, 10, 50);
-  return withDatabase((database) => {
+  const docType = args.docType ?? "cases";
+  const dedicatedIndex =
+    path.basename(searchDatabasePath(docType)) ===
+    `a2aj-${docType}-fulltext.sqlite`;
+  return withSearchDatabase(docType, (database) => {
     const fts = hasFts(database);
-    const filters = ["document.doc_type = ?"];
-    const values: Array<string | number> = [args.docType ?? "cases"];
+    const filters = dedicatedIndex ? [] : ["document.doc_type = ?"];
+    const values: Array<string | number> = dedicatedIndex ? [] : [docType];
     addDatasetFilter(filters, values, args.dataset);
     const date = dateExpression(language);
     if (args.startDate?.trim()) {
@@ -352,29 +396,16 @@ export function searchLocalA2AJ(args: {
       from =
         "document_search JOIN document ON document.id = document_search.rowid";
       filters.unshift("document_search MATCH ?");
-      values.unshift(ftsQuery(tokens, args.searchType ?? "full_text"));
+      values.unshift(
+        args.querySyntax === "fts5"
+          ? query
+          : ftsQuery(tokens, args.searchType ?? "full_text"),
+      );
     } else {
-      // ponytail: this is a linear fallback; build with --fts when corpus search matters.
-      const fields =
-        args.searchType === "name"
-          ? ["name_en", "name_fr"]
-          : [
-              "citation_en",
-              "citation_fr",
-              "citation2_en",
-              "citation2_fr",
-              "name_en",
-              "name_fr",
-              "unofficial_text_en",
-              "unofficial_text_fr",
-            ];
-      const haystack = `LOWER(${fields
-        .map((field) => `COALESCE(document.${field}, '')`)
-        .join(" || ' ' || ")})`;
-      for (const token of tokens) {
-        filters.push(`${haystack} LIKE ?`);
-        values.push(`%${token.toLocaleLowerCase()}%`);
+      if (args.querySyntax === "fts5") {
+        throw new Error("Local A2AJ full-text index is unavailable");
       }
+      return null;
     }
     const order =
       args.sortResults === "newest_first"
@@ -382,12 +413,18 @@ export function searchLocalA2AJ(args: {
         : args.sortResults === "oldest_first"
           ? `${date} ASC, document.id`
           : fts
-            ? `bm25(document_search), ${date} DESC, document.id`
+            ? "rank"
             : `${date} DESC, document.id`;
     values.push(wanted);
     return database
       .prepare(
-        `SELECT document.* FROM ${from}
+        `SELECT document.id, document.doc_type, document.dataset,
+                document.citation_en, document.citation_fr,
+                document.citation2_en, document.citation2_fr,
+                document.name_en, document.name_fr,
+                document.document_date_en, document.document_date_fr,
+                document.url_en, document.url_fr
+         FROM ${from}
          WHERE ${filters.join(" AND ")}
          ORDER BY ${order}
          LIMIT ?`,

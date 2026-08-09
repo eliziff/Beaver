@@ -31,6 +31,7 @@ import { CheckboxControl } from "@/app/components/ui/checkbox";
 import { pillButtonClassName } from "@/app/components/ui/pill-button";
 import { preloadSingleDoc } from "@/app/hooks/useFetchSingleDoc";
 import { getPdfJs } from "@/app/components/shared/views/highlightQuote";
+import { preloadDocxViewer } from "@/app/components/shared/views/DocumentViewer";
 import { buildDocumentTree, descendantFolderIds, DOCUMENT_DRAG_TYPE,
     documentTreeDropFolder, FOLDER_DRAG_TYPE, hasDocumentTreeDrag,
     wouldCreateFolderCycle } from "./documentTree";
@@ -79,7 +80,13 @@ function prewarmDocumentView(doc: Document) {
         void getPdfJs();
         void preloadSingleDoc(doc.id, doc.current_version_id, doc.updated_at)
             .catch(() => {});
-    } else if (type === "doc" || type === "docx") void import("docx-preview");
+    } else if (type === "doc" || type === "docx") {
+        void preloadDocxViewer(
+            doc.id,
+            doc.current_version_id ?? undefined,
+            doc.updated_at ?? undefined,
+        ).catch(() => {});
+    }
 }
 type InlineNameInputProps = {
     kind: "document" | "folder" | "new-folder";

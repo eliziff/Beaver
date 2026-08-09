@@ -440,6 +440,24 @@ interface ParagraphRef {
     globalStart: number; // where this paragraph starts in the full doc text
 }
 
+function paragraphIndexForRange(
+    paragraphs: ParagraphRef[],
+    start: number,
+    end: number,
+): number {
+    let low = 0;
+    let high = paragraphs.length - 1;
+    while (low <= high) {
+        const index = (low + high) >>> 1;
+        const paragraph = paragraphs[index];
+        const paragraphEnd = paragraph.globalStart + paragraph.flat.paraText.length;
+        if (start < paragraph.globalStart) high = index - 1;
+        else if (start > paragraphEnd) low = index + 1;
+        else return end <= paragraphEnd ? index : -1;
+    }
+    return -1;
+}
+
 // --- Whitespace / punctuation normalization for anchor matching -------------
 // The text LLMs see (via mammoth's extractRawText) does not line up 1:1 with
 // the raw w:t concatenation: smart quotes, non-breaking spaces, tabs, and
@@ -499,7 +517,7 @@ function findUniqueAnchor(
     ctxBeforeNorm: string,
     ctxAfterNorm: string,
 ): { start: number; end: number } | { error: "none" | "ambiguous" } {
-    const candidates: number[] = [];
+    let match = -1;
 
     const checkCtx = (pos: number): boolean => {
         if (ctxBeforeNorm) {
@@ -516,26 +534,34 @@ function findUniqueAnchor(
     };
 
     if (findNorm.length === 0) {
-        // Pure insertion — scan every position
-        for (let i = 0; i <= hayNorm.length; i++) {
-            if (checkCtx(i)) candidates.push(i);
+        const anchor = ctxBeforeNorm || ctxAfterNorm;
+        let from = 0;
+        while (from <= hayNorm.length - anchor.length) {
+            const index = hayNorm.indexOf(anchor, from);
+            if (index < 0) break;
+            const position = ctxBeforeNorm ? index + ctxBeforeNorm.length : index;
+            if (checkCtx(position)) {
+                if (match >= 0) return { error: "ambiguous" };
+                match = position;
+            }
+            from = index + 1;
         }
     } else {
         let from = 0;
         while (from <= hayNorm.length - findNorm.length) {
             const idx = hayNorm.indexOf(findNorm, from);
             if (idx < 0) break;
-            if (checkCtx(idx)) candidates.push(idx);
+            if (checkCtx(idx)) {
+                if (match >= 0) return { error: "ambiguous" };
+                match = idx;
+            }
             from = idx + 1;
         }
     }
 
-    if (candidates.length === 0) return { error: "none" };
-    if (candidates.length > 1) return { error: "ambiguous" };
-    return {
-        start: candidates[0],
-        end: candidates[0] + findNorm.length,
-    };
+    return match < 0
+        ? { error: "none" }
+        : { start: match, end: match + findNorm.length };
 }
 
 /** Map a normalized [start, end) range back to the original string range. */
@@ -556,195 +582,6 @@ function mapNormRangeToOriginal(
               ? paraNorm.origIdx[normEnd - 1] + 1
               : origLen;
     return { start: origStart, end: origEnd };
-}
-
-// --- Anchor failure diagnosis ----------------------------------------------
-// A failed anchor is the most expensive event in a drafting turn: without new
-// information the model can only guess again at the same wording. So a failure
-// answers in the document's own words — either the exact context_before /
-// context_after that would disambiguate, or the point at which the quoted text
-// stops matching. The probes below are bounded so diagnosis stays cheap enough
-// to run unconditionally on every miss.
-
-/** Occurrence sites counted before we stop counting and say "20+". */
-const SITE_SCAN_LIMIT = 20;
-/** Sites quoted back to the model. */
-const MAX_REPORTED_SITES = 3;
-/** Characters of the document's own text shown either side of a site. */
-const SITE_CONTEXT_CHARS = 60;
-/**
- * Shortest match worth reporting as a near miss, and the seed length used to
- * shortlist paragraphs for the divergence probe. The two are deliberately the
- * same number: a match shorter than this is not reportable anyway, so seeding
- * on it costs no fidelity.
- */
-const MIN_USEFUL_AFFIX = 12;
-/** Paragraphs the divergence probe will binary-search per side. */
-const CANDIDATE_LIMIT = 8;
-
-/** Every paragraph offset where `needle` occurs, capped for cost. */
-function occurrencesOf(
-    paraNorms: Normalized[],
-    needle: string,
-    limit: number,
-): { paraIdx: number; normStart: number }[] {
-    const out: { paraIdx: number; normStart: number }[] = [];
-    if (!needle) return out;
-    for (let pi = 0; pi < paraNorms.length && out.length < limit; pi++) {
-        const hay = paraNorms[pi].norm;
-        let from = 0;
-        for (;;) {
-            const idx = hay.indexOf(needle, from);
-            if (idx < 0) break;
-            out.push({ paraIdx: pi, normStart: idx });
-            if (out.length >= limit) break;
-            from = idx + 1;
-        }
-    }
-    return out;
-}
-
-/**
- * Longest prefix (or suffix) of `needle` present in `hay`. Presence is
- * monotone in length, so binary search brackets the divergence point in
- * log(len) scans.
- */
-function longestAffix(
-    hay: string,
-    needle: string,
-    kind: "prefix" | "suffix",
-): { len: number; at: number } {
-    let lo = 0;
-    let hi = needle.length;
-    let at = -1;
-    while (lo < hi) {
-        const mid = Math.ceil((lo + hi) / 2);
-        const probe =
-            kind === "prefix"
-                ? needle.slice(0, mid)
-                : needle.slice(needle.length - mid);
-        const found = hay.indexOf(probe);
-        if (found >= 0) {
-            lo = mid;
-            at = found;
-        } else {
-            hi = mid - 1;
-        }
-    }
-    return { len: lo, at };
-}
-
-/** The document's own words either side of a normalized match, verbatim. */
-function siteContext(
-    para: ParagraphRef,
-    paraNorm: Normalized,
-    normStart: number,
-    normLen: number,
-): { before: string; after: string } {
-    const text = para.flat.paraText;
-    const { start, end } = mapNormRangeToOriginal(
-        paraNorm,
-        text.length,
-        normStart,
-        normStart + normLen,
-    );
-    return {
-        before: text.slice(Math.max(0, start - SITE_CONTEXT_CHARS), start),
-        after: text.slice(end, Math.min(text.length, end + SITE_CONTEXT_CHARS)),
-    };
-}
-
-/**
- * Explain a failed anchor. Returns the whole reason string for the edit error:
- * ambiguity is answered with the real disambiguating contexts, absence with
- * either "already applied" or the document's wording at the divergence point.
- */
-function diagnoseAnchor(params: {
-    paragraphs: ParagraphRef[];
-    paraNorms: Normalized[];
-    find: string;
-    findNorm: string;
-    ctxBeforeNorm: string;
-    ctxAfterNorm: string;
-    replaceNorm: string;
-}): string {
-    const { paragraphs, paraNorms, find, findNorm, replaceNorm } = params;
-
-    // For a pure insertion the context IS the anchor, so diagnose whichever
-    // side the caller supplied.
-    const anchor = findNorm || params.ctxBeforeNorm || params.ctxAfterNorm;
-    const label = findNorm
-        ? `find="${truncate(find, 80)}"`
-        : `context_${params.ctxBeforeNorm ? "before" : "after"}`;
-
-    const sites = occurrencesOf(paraNorms, anchor, SITE_SCAN_LIMIT);
-
-    if (sites.length > 1) {
-        const count =
-            sites.length >= SITE_SCAN_LIMIT ? `${SITE_SCAN_LIMIT}+` : `${sites.length}`;
-        const shown = sites.slice(0, MAX_REPORTED_SITES).map((site, i) => {
-            const { before, after } = siteContext(
-                paragraphs[site.paraIdx],
-                paraNorms[site.paraIdx],
-                site.normStart,
-                anchor.length,
-            );
-            return `  ${i + 1}. context_before: "…${before}"  context_after: "${after}…"`;
-        });
-        return [
-            `Ambiguous match for ${label}: ${count} occurrences, and the context you gave singled out none of them.`,
-            `Copy context_before / context_after verbatim from the site you meant:`,
-            ...shown,
-        ].join("\n");
-    }
-
-    if (replaceNorm && occurrencesOf(paraNorms, replaceNorm, 1).length) {
-        return `${label} is not in the document, but the replacement text already is — this edit looks like one that was applied already. Do not re-send it; re-read the document to confirm.`;
-    }
-
-    // Shortlist by seed, then binary-search only those paragraphs. A seed that
-    // matches nowhere already proves the best affix is under MIN_USEFUL_AFFIX.
-    const seedLen = Math.min(MIN_USEFUL_AFFIX, anchor.length);
-    let best = { len: 0, at: -1, paraIdx: -1, kind: "prefix" as "prefix" | "suffix" };
-    for (const kind of ["prefix", "suffix"] as const) {
-        const seed =
-            kind === "prefix"
-                ? anchor.slice(0, seedLen)
-                : anchor.slice(anchor.length - seedLen);
-        for (const cand of occurrencesOf(paraNorms, seed, CANDIDATE_LIMIT)) {
-            const probe = longestAffix(paraNorms[cand.paraIdx].norm, anchor, kind);
-            if (probe.len > best.len) best = { ...probe, paraIdx: cand.paraIdx, kind };
-        }
-    }
-
-    if (best.len < MIN_USEFUL_AFFIX || best.paraIdx < 0) {
-        return `Could not locate ${label}: no part of this wording appears in the document body. Re-read the document — the text may be in a header, footer, footnote or text box (which tracked-change editing does not reach), or in a different document than the one you are editing.`;
-    }
-
-    const para = paragraphs[best.paraIdx];
-    const paraNorm = paraNorms[best.paraIdx];
-    const { start, end } = mapNormRangeToOriginal(
-        paraNorm,
-        para.flat.paraText.length,
-        best.at,
-        best.at + best.len,
-    );
-    // Show the document either side of where the match ran out, so the quoted
-    // window always spans the divergence.
-    const windowStart =
-        best.kind === "prefix" ? start : Math.max(0, start - SITE_CONTEXT_CHARS);
-    const windowEnd = Math.min(
-        para.flat.paraText.length,
-        best.kind === "prefix" ? end + SITE_CONTEXT_CHARS : end,
-    );
-    const side = best.kind === "prefix" ? "first" : "last";
-    const lead = windowStart > 0 ? "…" : "";
-    const tail = windowEnd < para.flat.paraText.length ? "…" : "";
-    return [
-        `Could not locate ${label}. Its ${side} ${best.len} characters do match, in this paragraph — but the wording then diverges. The document reads:`,
-        `  "${lead}${para.flat.paraText.slice(windowStart, windowEnd)}${tail}"`,
-        `Copy the document's wording verbatim, including punctuation and spacing.`,
-    ].join("\n");
 }
 
 export interface DocxTableCellSpan {
@@ -1010,11 +847,6 @@ export async function applyTrackedEdits(
         }
     }
 
-    // Precompute normalized forms per paragraph for reuse across edits.
-    const paraNorms: Normalized[] = paragraphs.map((p) =>
-        normalizeWs(p.flat.paraText),
-    );
-
     // Word tracks text inside paragraphs. The assistant, however, reads the
     // document on the canonical paragraph stream and may copy several adjacent
     // paragraphs into one edit. Resolve that edit once on the same stream,
@@ -1035,46 +867,28 @@ export async function applyTrackedEdits(
             continue;
         }
 
-        const attempts = [
-            {
-                before: normalizeWs(source.context_before ?? "").norm,
-                after: normalizeWs(source.context_after ?? "").norm,
-            },
-            {
-                before: normalizeWs(source.context_before ?? "").norm,
-                after: "",
-            },
-            {
-                before: "",
-                after: normalizeWs(source.context_after ?? "").norm,
-            },
-            { before: "", after: "" },
-        ];
-        let matched: { start: number; end: number } | null = null;
-        for (const attempt of attempts) {
-            const candidate = findUniqueAnchor(
-                bodyNorm.norm,
-                normalizeWs(find).norm,
-                attempt.before,
-                attempt.after,
-            );
-            if (!("error" in candidate)) {
-                matched = mapNormRangeToOriginal(
-                    bodyNorm,
-                    bodyText.length,
-                    candidate.start,
-                    candidate.end,
-                );
-                break;
-            }
-        }
-        if (!matched) {
+        const candidate = findUniqueAnchor(
+            bodyNorm.norm,
+            normalizeWs(find).norm,
+            normalizeWs(source.context_before ?? "").norm,
+            normalizeWs(source.context_after ?? "").norm,
+        );
+        if ("error" in candidate) {
             errors.push({
                 index: sourceIndex,
-                reason: "Could not uniquely locate the multi-paragraph edit on the document text plane.",
+                reason:
+                    candidate.error === "ambiguous"
+                        ? "Ambiguous match for the multi-paragraph edit; the document is unchanged."
+                        : "Could not locate the multi-paragraph edit; the document is unchanged.",
             });
             continue;
         }
+        const matched = mapNormRangeToOriginal(
+            bodyNorm,
+            bodyText.length,
+            candidate.start,
+            candidate.end,
+        );
 
         const actualFind = bodyText.slice(matched.start, matched.end);
         const findLines = actualFind.split("\n");
@@ -1151,42 +965,6 @@ export async function applyTrackedEdits(
         const ctxBeforeNorm = normalizeWs(ctxBefore).norm;
         const ctxAfterNorm = normalizeWs(ctxAfter).norm;
 
-        // Strategy:
-        //   1) find + full context  (strictest — preferred)
-        //   2) find + half context  (drop whichever context side is shorter)
-        //   3) find alone           (only if globally unique across doc)
-        // At each stage we scan every paragraph. "Unique across the doc"
-        // means exactly one paragraph yields exactly one match.
-        type Hit = { paraIdx: number; normStart: number; normEnd: number };
-
-        /**
-         * Search every paragraph with the given context sides. If any
-         * paragraph returns a match AND no paragraph is internally ambiguous,
-         * return the collected hits; otherwise signal ambiguous.
-         */
-        const tryStrategy = (
-            cb: string,
-            ca: string,
-        ): { kind: "ok"; hits: Hit[] } | { kind: "ambiguous" } => {
-            const hits: Hit[] = [];
-            let ambiguous = false;
-            for (let pi = 0; pi < paragraphs.length; pi++) {
-                const r = findUniqueAnchor(
-                    paraNorms[pi].norm,
-                    findNorm,
-                    cb,
-                    ca,
-                );
-                if ("error" in r) {
-                    if (r.error === "ambiguous") ambiguous = true;
-                    continue;
-                }
-                hits.push({ paraIdx: pi, normStart: r.start, normEnd: r.end });
-            }
-            if (ambiguous || hits.length > 1) return { kind: "ambiguous" };
-            return { kind: "ok", hits };
-        };
-
         let paraIdx = -1;
         let findStart = -1;
         let findEnd = -1;
@@ -1200,26 +978,19 @@ export async function applyTrackedEdits(
                 errors.push({ index: editIdx, reason: "Invalid exact edit span." });
                 continue;
             }
-            const candidates = paragraphs
-                .map((paragraph, index) => ({ paragraph, index }))
-                .filter(({ paragraph }) => {
-                    const start = paragraph.globalStart;
-                    const end = start + paragraph.flat.paraText.length;
-                    return exactStart >= start && exactEnd <= end;
-                });
-            if (candidates.length !== 1) {
+            paraIdx = paragraphIndexForRange(paragraphs, exactStart, exactEnd);
+            if (paraIdx < 0) {
                 errors.push({
                     index: editIdx,
                     reason: "Exact edit span must resolve inside one paragraph.",
                 });
                 continue;
             }
-            paraIdx = candidates[0].index;
-            findStart = exactStart - candidates[0].paragraph.globalStart;
-            findEnd = exactEnd - candidates[0].paragraph.globalStart;
+            const paragraph = paragraphs[paraIdx];
+            findStart = exactStart - paragraph.globalStart;
+            findEnd = exactEnd - paragraph.globalStart;
             if (
-                candidates[0].paragraph.flat.paraText.slice(findStart, findEnd) !==
-                find
+                paragraph.flat.paraText.slice(findStart, findEnd) !== find
             ) {
                 errors.push({
                     index: editIdx,
@@ -1228,48 +999,40 @@ export async function applyTrackedEdits(
                 continue;
             }
         } else {
-            let selected: Hit | null = null;
-            const attempts = [
-                { cb: ctxBeforeNorm, ca: ctxAfterNorm },
-                { cb: ctxBeforeNorm, ca: "" },
-                { cb: "", ca: ctxAfterNorm },
-                { cb: "", ca: "" }, // find-only
-            ];
-            for (const { cb, ca } of attempts) {
-                const r = tryStrategy(cb, ca);
-                if (r.kind === "ok" && r.hits.length === 1) {
-                    selected = r.hits[0];
-                    break;
+            const hit = findUniqueAnchor(
+                bodyNorm.norm,
+                findNorm,
+                ctxBeforeNorm,
+                ctxAfterNorm,
+            );
+            if (!("error" in hit)) {
+                const global = mapNormRangeToOriginal(
+                    bodyNorm,
+                    bodyText.length,
+                    hit.start,
+                    hit.end,
+                );
+                paraIdx = paragraphIndexForRange(
+                    paragraphs,
+                    global.start,
+                    global.end,
+                );
+                if (paraIdx >= 0) {
+                    findStart = global.start - paragraphs[paraIdx].globalStart;
+                    findEnd = global.end - paragraphs[paraIdx].globalStart;
                 }
             }
 
-            if (!selected) {
+            if (paraIdx < 0) {
                 errors.push({
                     index: editIdx,
-                    reason: diagnoseAnchor({
-                        paragraphs,
-                        paraNorms,
-                        find,
-                        findNorm,
-                        ctxBeforeNorm,
-                        ctxAfterNorm,
-                        replaceNorm: normalizeWs(replace).norm,
-                    }),
+                    reason:
+                        "error" in hit && hit.error === "ambiguous"
+                            ? "Ambiguous match for this edit; the document is unchanged."
+                            : "Could not locate this edit on the current document text plane; the document is unchanged.",
                 });
                 continue;
             }
-
-            paraIdx = selected.paraIdx;
-            const paraNorm = paraNorms[paraIdx];
-            const origLen = paragraphs[paraIdx].flat.paraText.length;
-            const range = mapNormRangeToOriginal(
-                paraNorm,
-                origLen,
-                selected.normStart,
-                selected.normEnd,
-            );
-            findStart = range.start;
-            findEnd = range.end;
         }
 
         // Use the actual original text in that range as `deletedText` —
