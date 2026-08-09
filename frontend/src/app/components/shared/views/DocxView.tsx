@@ -15,7 +15,6 @@ import {
     type DocxNoteModel,
 } from "./docxNotes";
 import type { CitationQuote } from "../types";
-import { PdfView } from "./PdfView";
 interface Props {
     documentId: string;
     versionId?: string | null;
@@ -186,19 +185,13 @@ export function DocxView({
         onScrollChange,
         quotes,
     }));
-    const unavailableRenditionsRef = useRef(new Set<string>());
-    const [pdfRenditionKey, setPdfRenditionKey] = useState<string | null>(null);
     const [unsupportedMediaKey, setUnsupportedMediaKey] = useState<
         string | null
     >(null);
     const renditionKey = `${documentId}:${versionId ?? ""}:${refetchKey ?? ""}`;
-    const showPdfRendition =
-        !highlightEdit &&
-        pdfRenditionKey === renditionKey &&
-        !unavailableRenditionsRef.current.has(renditionKey);
     const quoteKey = (quotes ?? []).map((q) => q.quote).join("||");
     const { bytes, loading, error } = useFetchDocxBytes(
-        showPdfRendition ? null : documentId,
+        documentId,
         versionId,
         refetchKey,
     );
@@ -249,7 +242,7 @@ export function DocxView({
             if (raf) cancelAnimationFrame(raf);
             ro.disconnect();
         };
-    }, [showPdfRendition]);
+    }, []);
     useEffect(() => {
         let cancelled = false;
         if (!bytes || !containerRef.current || !scrollRef.current) return;
@@ -271,14 +264,7 @@ export function DocxView({
                 const rendered = finalizeDocxDom(containerEl);
                 pageElementsRef.current = rendered.pages;
                 quietBrokenDocxImages(rendered.images, () => {
-                    const { highlightEdit: currentEdit } = current();
-                    if (
-                        cancelled ||
-                        currentEdit ||
-                        unavailableRenditionsRef.current.has(renditionKey)
-                    )
-                        return;
-                    setPdfRenditionKey(renditionKey);
+                    if (!cancelled) setUnsupportedMediaKey(renditionKey);
                 });
                 applyDocxScale();
                 if (cancelled) return;
@@ -326,7 +312,7 @@ export function DocxView({
         return () => {
             cancelled = true;
         };
-    }, [bytes, showPdfRendition]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [bytes]); // eslint-disable-line react-hooks/exhaustive-deps
     useEffect(() => {
         if (!highlightEdit || !containerRef.current || !scrollRef.current)
             return;
@@ -359,23 +345,7 @@ export function DocxView({
         };
         el.addEventListener("scroll", onScroll, { passive: true });
         return () => el.removeEventListener("scroll", onScroll);
-    }, [showPdfRendition]);
-    if (showPdfRendition) {
-        return (
-            <PdfView
-                doc={{ document_id: documentId, version_id: versionId }}
-                revision={refetchKey}
-                quotes={quotes}
-                quoteFocusKey={quoteFocusKey}
-                rounded={rounded}
-                onUnavailable={() => {
-                    unavailableRenditionsRef.current.add(renditionKey);
-                    setPdfRenditionKey(null);
-                    setUnsupportedMediaKey(renditionKey);
-                }}
-            />
-        );
-    }
+    }, []);
     const displayedWarning =
         warning ??
         (unsupportedMediaKey === renditionKey

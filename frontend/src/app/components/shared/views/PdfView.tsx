@@ -366,7 +366,7 @@ export function PdfView({
             setCurrentPage(1);
             setNumPages(0);
         });
-        (async () => {
+        void (async () => {
             const lib = await getPdfJs();
             if (cancelled) return;
             const pdfDoc = await lib.getDocument({
@@ -377,7 +377,11 @@ export function PdfView({
             pdfDocRef.current = pdfDoc;
             setNumPages(pdfDoc.numPages);
             await renderPDF(list);
-        })();
+        })().catch((cause) => {
+            if (cancelled) return;
+            console.error("PDF render error", cause);
+            notifyUnavailable();
+        });
         return () => {
             cancelled = true;
             renderGenerationRef.current += 1;
