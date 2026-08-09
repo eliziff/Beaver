@@ -5,11 +5,15 @@ import {
     type Options as DocxPreviewOptions,
 } from "docx-preview";
 import { useFetchDocxBytes } from "@/app/hooks/useFetchDocxBytes";
-import { apiFetch } from "@/app/lib/beaverApi";import {
+import {
     clearDocxQuoteHighlights,
     highlightDocxQuote,
 } from "./highlightDocxQuote";
-import { linkDocxNotes, tagDocxNotes, type DocxNoteModel } from "./docxNotes";
+import {
+    finalizeDocxDom,
+    tagDocxMarkers,
+    type DocxNoteModel,
+} from "./docxNotes";
 import type { CitationQuote } from "../types";
 import { PdfView } from "./PdfView";
 interface Props {
@@ -42,16 +46,12 @@ export const DOCX_RENDER_OPTIONS = {
     renderEndnotes: true,
     renderChanges: true,
     experimental: false,
+    trimXmlDeclaration: false,
 } satisfies Partial<DocxPreviewOptions>;
 export function fitDocxPages(
-    container: HTMLElement,
+    pages: readonly HTMLElement[],
     viewport: HTMLElement,
 ): void {
-    const pages = Array.from(
-        container.querySelectorAll<HTMLElement>(
-            ".docx-wrapper > section.docx",
-        ),
-    );
     if (pages.length === 0) return;
     const styles = window.getComputedStyle(viewport);
     const available =
@@ -59,21 +59,35 @@ export function fitDocxPages(
         (parseFloat(styles.paddingLeft) || 0) -
         (parseFloat(styles.paddingRight) || 0);
     if (available <= 0) return;
-    for (const page of pages) {
-        let width = Number(page.dataset.docxNaturalWidth);
-        if (!Number.isFinite(width) || width <= 0) {
-            page.style.zoom = "1";
-            width = Math.max(page.offsetWidth, page.scrollWidth);
-            if (width > 0) page.dataset.docxNaturalWidth = String(width);
+    const sizes = pages.map((page) => ({
+        page,
+        width: Number(page.dataset.docxNaturalWidth),
+    }));
+    for (const entry of sizes) {
+        if (!Number.isFinite(entry.width) || entry.width <= 0) {
+            entry.page.style.zoom = "1";
         }
+    }
+    for (const entry of sizes) {
+        if (!Number.isFinite(entry.width) || entry.width <= 0) {
+            entry.width = Math.max(
+                entry.page.offsetWidth,
+                entry.page.scrollWidth,
+            );
+            if (entry.width > 0) {
+                entry.page.dataset.docxNaturalWidth = String(entry.width);
+            }
+        }
+    }
+    for (const { page, width } of sizes) {
         if (width > 0) page.style.zoom = String(Math.min(1, available / width));
     }
 }
 export function quietBrokenDocxImages(
-    container: HTMLElement,
+    images: readonly HTMLImageElement[],
     onUnsupported?: () => void,
 ): void {
-    for (const image of container.querySelectorAll<HTMLImageElement>("img")) {
+    for (const image of images) {
         const quiet = () => {
             image.classList.add("docx-media-unavailable");
             image.closest<HTMLElement>("span")?.setAttribute(
@@ -86,53 +100,11 @@ export function quietBrokenDocxImages(
         else image.addEventListener("error", quiet, { once: true });
     }
 }
-const parsedDocxCache = new WeakMap<ArrayBuffer, Promise<DocxNoteModel>>();
-function parseDocx(
-    bytes: ArrayBuffer,
-    parseAsync: (data: ArrayBuffer, options: Partial<DocxPreviewOptions>) => Promise<unknown>,
-): Promise<DocxNoteModel> {
-    let pending = parsedDocxCache.get(bytes);
-    if (!pending) {
-        pending = parseAsync(bytes, DOCX_RENDER_OPTIONS)
-            .then(async (doc) => {
-                await tagDocxNotes(doc as DocxNoteModel);
-                return doc as DocxNoteModel;
-            })
-            .catch((error: unknown) => {
-                parsedDocxCache.delete(bytes);
-                throw error;
-            });
-        parsedDocxCache.set(bytes, pending);
-    }
-    return pending;
-}
-type TrackedChangeId = { kind: "ins" | "del"; w_id: string };
-const trackedChangeIdsCache = new Map<
-    string,
-    Promise<TrackedChangeId[]>
->();
-async function loadTrackedChangeIds(
-    documentId: string,
-    versionId: string | null | undefined,
-    refetchKey?: string | number,
-): Promise<TrackedChangeId[]> {
-    const key = `${documentId}:${versionId ?? ""}:${refetchKey ?? ""}`;
-    const cached = trackedChangeIdsCache.get(key);
-    if (cached) return cached;
-    const pending = (async () => {
-        const qs = versionId            ? `?version_id=${encodeURIComponent(versionId)}`            : "";        const response = await apiFetch(            `/single-documents/${documentId}/tracked-change-ids${qs}`,        );        if (!response.ok) {
-            throw new Error(`tracked-change-ids HTTP ${response.status}`);
-        }
-        const data = (await response.json()) as { ids?: TrackedChangeId[] };
-        return data.ids ?? [];
-    })();
-    trackedChangeIdsCache.set(key, pending);
-    try {
-        return await pending;
-    } catch (error) {
-        trackedChangeIdsCache.delete(key);
-        throw error;
-    }
+function parseDocx(bytes: ArrayBuffer): Promise<DocxNoteModel> {
+    return parseAsync(bytes, DOCX_RENDER_OPTIONS).then((doc) => {
+        tagDocxMarkers(doc as DocxNoteModel);
+        return doc as DocxNoteModel;
+    });
 }
 function findEditElement(
     root: HTMLElement,
@@ -188,32 +160,6 @@ function scrollToHighlight(
         flashed.forEach((el) => el.classList.remove("docx-edit-flash"));
     }, 2000);
 }
-async function tagWIdsOnRenderedDom(
-    container: HTMLElement,
-    documentId: string,
-    versionId: string | null | undefined,
-    refetchKey?: string | number,
-): Promise<void> {
-    try {
-        const domEls = Array.from(
-            container.querySelectorAll("ins, del"),
-        ) as HTMLElement[];
-        if (domEls.length === 0) return;
-        const ids = await loadTrackedChangeIds(
-            documentId,
-            versionId,
-            refetchKey,
-        );
-        for (let i = 0; i < Math.min(domEls.length, ids.length); i++) {
-            const el = domEls[i];
-            const info = ids[i];
-            if (el.tagName.toLowerCase() !== info.kind) continue;
-            el.setAttribute("data-w-id", info.w_id);
-        }
-    } catch (e) {
-        console.warn("[DocxView] tagWIdsOnRenderedDom failed", e);
-    }
-}
 export function DocxView({
     documentId,
     versionId,
@@ -231,6 +177,7 @@ export function DocxView({
 }: Props) {
     const scrollRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    const pageElementsRef = useRef<HTMLElement[]>([]);
     const lastScrollTopRef = useRef(0);
     const renderKeyRef = useRef(0);
     const current = useEffectEvent(() => ({
@@ -250,7 +197,8 @@ export function DocxView({
         !highlightEdit &&
         (preferPdfRendition || pdfRenditionKey === renditionKey) &&
         !unavailableRenditionsRef.current.has(renditionKey);
-    const quoteKey = (quotes ?? []).map((q) => q.quote).join("||");    const { bytes, loading, error } = useFetchDocxBytes(
+    const quoteKey = (quotes ?? []).map((q) => q.quote).join("||");
+    const { bytes, loading, error } = useFetchDocxBytes(
         showPdfRendition ? null : documentId,
         versionId,
         refetchKey,
@@ -286,7 +234,7 @@ export function DocxView({
         const containerEl = containerRef.current;
         const scrollEl = scrollRef.current;
         if (!containerEl || !scrollEl) return;
-        fitDocxPages(containerEl, scrollEl);
+        fitDocxPages(pageElementsRef.current, scrollEl);
     };
     useEffect(() => {
         const scrollEl = scrollRef.current;
@@ -312,7 +260,7 @@ export function DocxView({
         const thisRender = ++renderKeyRef.current;
         (async () => {
             try {
-                const doc = await parseDocx(bytes, parseAsync);
+                const doc = await parseDocx(bytes);
                 if (cancelled) return;
                 await renderDocument(
                     doc,
@@ -321,8 +269,9 @@ export function DocxView({
                     DOCX_RENDER_OPTIONS,
                 );
                 if (cancelled) return;
-                linkDocxNotes(containerEl);
-                quietBrokenDocxImages(containerEl, () => {
+                const rendered = finalizeDocxDom(containerEl);
+                pageElementsRef.current = rendered.pages;
+                quietBrokenDocxImages(rendered.images, () => {
                     const { highlightEdit: currentEdit } = current();
                     if (
                         cancelled ||
@@ -333,12 +282,6 @@ export function DocxView({
                     setPdfRenditionKey(renditionKey);
                 });
                 applyDocxScale();
-                await tagWIdsOnRenderedDom(
-                    containerEl,
-                    documentId,
-                    versionId ?? null,
-                    refetchKey,
-                );
                 if (cancelled) return;
                 requestAnimationFrame(() => {
                     if (
