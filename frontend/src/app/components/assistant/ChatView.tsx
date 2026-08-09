@@ -99,7 +99,8 @@ function legalCitationTab(
             language: "en",
             citationRef: citation.ref,
             quotes,
-            initialLocator: legalSourceLocatorFromUrl(citation.url),
+            initialLocator:
+                citation.locator ?? legalSourceLocatorFromUrl(citation.url),
         };
     }
     if (citation.kind === "public_legal" && citation.provider === "journal") {
@@ -115,6 +116,7 @@ function legalCitationTab(
             language: "en",
             citationRef: citation.ref,
             quotes,
+            initialLocator: citation.locator ?? null,
         };
     }
     return null;

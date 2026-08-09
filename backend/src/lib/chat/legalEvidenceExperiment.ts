@@ -139,7 +139,7 @@ export type LegalEvidenceReceipt = {
     | "public-journal-v1";
 };
 
-type RegisteredEvidence = {
+export type RegisteredEvidence = {
   receipt: LegalEvidenceReceipt;
   document?: A2AJDocument;
   lookup?: A2AJLocatorLookup;
@@ -945,6 +945,33 @@ export function submitLegalEvidenceAnswer(
     }
     return claimErrors;
   });
+  if (state.mode === null) {
+    const pillText = (value: string) =>
+      normalizeWhitespace(value)
+        .replace(/[\u2013\u2014]/gu, "-")
+        .toLocaleLowerCase("en-CA");
+    for (const [index, claim] of parsed.claims.entries()) {
+      const normalized = pillText(claim.text);
+      for (const evidenceId of claim.evidence_ids) {
+        const receipt = state.evidence.get(evidenceId)?.receipt;
+        if (!receipt) continue;
+        const formal = [
+          receipt.citation,
+          receipt.locator.kind === "document"
+            ? ""
+            : formatLegalLocator(receipt.locator.kind, receipt.locator.label),
+        ]
+          .map(pillText)
+          .filter(Boolean);
+        if (formal.some((value) => normalized.includes(value))) {
+          errors.push(
+            `claims[${index}].text contains citation or pinpoint text owned by ${evidenceId}; omit it and let Beaver render the source pill`,
+          );
+          break;
+        }
+      }
+    }
+  }
   if (errors.length) return reject(errors.slice(0, 12), parsed.claims);
   // Typed premise anchoring (Stage 8b, every mode the harness arms with
   // premiseContext): a premise_correction claim whose premise_text is
@@ -1302,7 +1329,7 @@ export const LEGAL_EVIDENCE_SUBMIT_TOOL: OpenAIToolSchema = {
     name: LEGAL_EVIDENCE_TOOL_NAME,
     strict: true,
     description:
-      "Finish a Canadian legal answer as independently checkable support units tied to exact passage evidence. Do not write citations in text; Beaver appends each evidence receipt's complete citation at the end of its unit. Every substantive proposition needs evidence. This call is the final answer, so do not emit a separate copy.",
+      "Finish a legal answer as independently checkable support units tied to exact passage evidence. Do not write citations or pinpoints in text; Beaver renders each evidence receipt as one complete source pill. Every substantive proposition needs evidence. This call is the final answer, so do not emit a separate copy.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -2262,8 +2289,51 @@ export function renderLegalEvidenceAnswer(
       : state.failure;
   }
   if (!state.answer) return null;
+  if (state.mode === null) {
+    const refs = new Map(
+      legalEvidenceCitationEntries(state).map(({ ref, receipt }) => [
+        receipt.evidence_id,
+        ref,
+      ]),
+    );
+    return state.answer
+      .map((claim) => {
+        const markers = [
+          ...new Set(
+            claim.evidence_ids.flatMap((id) => {
+              const ref = refs.get(id);
+              return ref === undefined ? [] : [`[${ref}]`];
+            }),
+          ),
+        ];
+        return decorate(
+          claim,
+          `${claim.text}${markers.length ? ` ${markers.join("")}` : ""}`,
+        );
+      })
+      .join("\n\n");
+  }
   if (state.mode && !allClaimsSupported(state)) return null;
   return state.answer.map(renderClaim).join("\n\n");
+}
+
+/** First-use citation order for the strict production evidence schema. */
+export function legalEvidenceCitationEntries(
+  state: LegalEvidenceTurnState,
+): Array<RegisteredEvidence & { ref: number }> {
+  if (!state.answer) return [];
+  const entries: Array<RegisteredEvidence & { ref: number }> = [];
+  const seen = new Set<string>();
+  for (const claim of state.answer) {
+    for (const evidenceId of claim.evidence_ids) {
+      if (seen.has(evidenceId)) continue;
+      const entry = state.evidence.get(evidenceId);
+      if (!entry) continue;
+      seen.add(evidenceId);
+      entries.push({ ...entry, ref: entries.length + 1 });
+    }
+  }
+  return entries;
 }
 
 export type LegalEvidenceReceiptEvent = {

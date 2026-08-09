@@ -384,7 +384,9 @@ export interface CitationQuote {
   page?: number;
   quote: string;
 }
-type DocumentCitationQuote = {  page?: number | string;  quote: string;
+type DocumentCitationQuote = {
+  page?: number | string;
+  quote: string;
   sheet?: string;
   cell?: string;
 };
@@ -395,8 +397,16 @@ export type DocumentCitation = {
   doc_id: string;
   document_id: string;
   version_id?: string | null;
-  version_number?: number | null;  filename: string;  quotes: DocumentCitationQuote[];};
-export type CaseCitation = {
+  version_number?: number | null;
+  filename: string;
+  quotes: DocumentCitationQuote[];
+};
+type LegalCitationLocator = {
+  locator_kind?: "paragraph" | "page" | "section" | "footnote";
+  locator?: string | null;
+  pinpoint?: string | null;
+};
+export type CaseCitation = LegalCitationLocator & {
   type: "citation_data";
   kind: "case";
   ref: number;
@@ -408,7 +418,7 @@ export type CaseCitation = {
   dateFiled?: string | null;
   quotes: CaseCitationQuote[];
 };
-type A2AJCitation = {
+type A2AJCitation = LegalCitationLocator & {
   type: "citation_data";
   kind: "a2aj";
   ref: number;
@@ -418,7 +428,7 @@ type A2AJCitation = {
   url?: string | null;
   quotes: { quote: string }[];
 };
-type PublicLegalCitation = {
+type PublicLegalCitation = LegalCitationLocator & {
   type: "citation_data";
   kind: "public_legal";
   ref: number;
@@ -504,7 +514,31 @@ export function formatCitationPage(a: Citation): string {
   );
   if (pages.length > 1) return `Pages ${pages.join(", ")}`;
   if (pages.length === 1) return `Page ${pages[0]}`;
-  return "";}
+  return "";
+}
+export function citationPinpoint(a: Citation): string {
+  if (a.kind === "case" || a.kind === "a2aj" || a.kind === "public_legal") {
+    return a.pinpoint?.trim() ?? "";
+  }
+  const quotes = getDocumentCitationQuotes(a);
+  if (isSpreadsheetFilename(a.filename)) {
+    return Array.from(
+      new Set(
+        quotes.map((q) => formatCellLocator(q.sheet, q.cell)).filter(Boolean),
+      ),
+    ).join(", ");
+  }
+  const pages = Array.from(
+    new Set(
+      quotes.flatMap((q) =>
+        q.page === undefined || q.page === null ? [] : [String(q.page)],
+      ),
+    ),
+  );
+  if (pages.length === 1)
+    return `p. ${pages[0].replace(/\s*-\s*/gu, "\u2013")}`;
+  return pages.length > 1 ? `pp. ${pages.join(", ")}` : "";
+}
 export function formatCitationQuotePage(
   a: Citation,
   page: number | string | undefined,  quote?: DocumentCitationQuote,

@@ -169,6 +169,7 @@ Cite only verbatim evidence from uploaded or generated documents. Put markers [1
 ]
 </CITATIONS>
 - One entry per marker, one marker per entry; "ref" is the marker number, not a page, footnote, section, clause, or document number.
+- A citation marker owns its verified locator. Never put a page, paragraph, section, article, note, footnote, or range beside [N] as plaintext.
 - Bracketed numbers are only citation annotation markers — never bracket section, clause, schedule, exhibit, paragraph, or list numbering.
 - "doc_id" is the exact chat-local label you were given ("doc-0"), never a filename or UUID, and never the Library document_id the library_* tools take.
 - 1 quote per entry by default, at most 3, ideally under 25 words, tightly matched to the claim.
@@ -198,6 +199,7 @@ export const A2AJ_SYSTEM_PROMPT = `CANADIAN LEGAL RESEARCH (A2AJ):
 Use A2AJ for Canadian case law and legislation; it is a public API needing no user key. Use a2aj_lookup for a specific decision paragraph, paragraph range (locator plus end_locator), reporter page, or statutory section/subsection/paragraph, in preference to refetching the whole document.
 - Base quoted or source-specific claims on text returned by a2aj_fetch or a2aj_lookup, not on search metadata or memory.
 - Use exact passages returned by a2aj_lookup as support. Beaver retains their source receipts and attaches verified links server-side.
+- Finish evidence-backed research with submit_grounded_answer and cite the returned evidence_id values. Put no citation, URL, or pinpoint in claim text; Beaver renders the complete source pill.
 - If A2AJ returns no document, say the citation was not found; do not infer that the source or proposition does not exist.`;
 
 /**

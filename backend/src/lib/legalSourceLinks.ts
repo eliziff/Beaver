@@ -92,19 +92,24 @@ export function formatLegalLocator(
   kind: "paragraph" | "section" | "page" | "footnote",
   label: string,
 ) {
+  const prefixes = {
+    paragraph: /^(?:paragraph|para|par)[\s._=-]*/iu,
+    section: /^(?:section|sec|s)[\s._=-]*/iu,
+    page: /^(?:page|p)[\s._=-]*/iu,
+    footnote: /^(?:footnote|note|fn)[\s._=-]*/iu,
+  };
+  const markers = {
+    paragraph: ["para.", "paras."],
+    section: ["s.", "ss."],
+    page: ["p.", "pp."],
+    footnote: ["n.", "nn."],
+  };
   const value = label
     .trim()
-    .replace(
-      kind === "paragraph"
-        ? /^(?:para?[\s._-]*)/iu
-        : kind === "section"
-          ? /^(?:s(?:ec(?:tion)?)?[\s._-]*)/iu
-          : kind === "page"
-            ? /^(?:p(?:age)?[\s=_-]*)/iu
-            : /^(?:fn|footnote|note)[\s._-]*/iu,
-      "",
-    );
-  return `${kind === "paragraph" ? "para." : kind === "section" ? "s." : kind === "page" ? "p." : "n."} ${value || label.trim()}`;
+    .replace(prefixes[kind], "")
+    .replace(/\s*[-\u2013\u2014]\s*/gu, "\u2013")
+    .replace(/\u2013(?:paragraph|para|par|section|sec|page|p|footnote|note|fn)[\s._=-]*/giu, "\u2013");
+  return `${markers[kind][value.includes("\u2013") ? 1 : 0]} ${value || label.trim()}`;
 }
 
 export type CourtlistenerCitationIdentity = {
@@ -624,6 +629,13 @@ function lookupBlocks(lookup: A2AJLocatorLookup): A2AJLookupBlock[] {
 /** A quote is "in" a passage when it selects exactly one span of it. */
 function quoteMatchesBlock(block: SourceDoc, quote: string) {
   return Boolean(chooseSourceSpan(block, quote));
+}
+
+export function legalSourceQuoteMatchesBlock(
+  block: QuoteSource,
+  quote: string,
+) {
+  return quoteMatchesBlock(asDoc(block), quote);
 }
 
 function blockMatchingQuotes(lookup: A2AJLocatorLookup, quotes: string[]) {
@@ -1166,7 +1178,10 @@ export function buildA2AJParagraphRangeUrl(
       )
     ) {
       const source = getA2AJDocumentSourceDoc(document);
-      sources.set(source.id, { source, metadata: document });
+      const current = sources.get(source.id);
+      if (!current || source.blocks.length > current.source.blocks.length) {
+        sources.set(source.id, { source, metadata: document });
+      }
     }
   }
   const candidates = [...sources.values()].flatMap(({ source, metadata }) => {
@@ -1184,18 +1199,35 @@ export function buildA2AJParagraphRangeUrl(
       ? [{ source, metadata, startBlock, endBlock }]
       : [];
   });
-  if (candidates.length !== 1) return null;
-  const { source, metadata, startBlock, endBlock } = candidates[0];
-  const startTarget = uniqueParagraphEdge(
-    sourceDocBlockText(source, startBlock),
-    source,
-    "start",
+  const structured = candidates.length === 1 ? candidates[0] : null;
+  const rangeLookup = lookups.filter(
+    (lookup) =>
+      lookup.status === "found" &&
+      lookup.block &&
+      lookup.requested.kind === "paragraph" &&
+      lookup.requested.locator === `${Number(start)}-${Number(end)}` &&
+      identityMatches(
+        { citation, name: null, dataset: null, url: null, quotes: [] },
+        lookup,
+      ),
   );
-  const endTarget = uniqueParagraphEdge(
-    sourceDocBlockText(source, endBlock),
-    source,
-    "end",
-  );
+  if (!structured && rangeLookup.length !== 1) return null;
+  const metadata = structured?.metadata ?? rangeLookup[0];
+  const source =
+    structured?.source ??
+    getA2AJLookupDocument(rangeLookup[0]) ??
+    createTextSourceDoc(rangeLookup[0].block!.text);
+  const lines = structured
+    ? []
+    : rangeLookup[0].block!.text.split(/\r?\n/u).filter((line) => line.trim());
+  const startSource = structured
+    ? sourceDocBlockText(source, structured.startBlock)
+    : (lines[0] ?? "");
+  const endSource = structured
+    ? sourceDocBlockText(source, structured.endBlock)
+    : (lines.at(-1) ?? "");
+  const startTarget = uniqueParagraphEdge(startSource, source, "start");
+  const endTarget = uniqueParagraphEdge(endSource, source, "end");
   if (!startTarget || !endTarget) return null;
   const anchor = `par${Number(start)}`;
   const preferred = preferredA2AJUrl(metadata, true, anchor);
