@@ -57,6 +57,16 @@ const suites = {
     directory: "near-term-v1",
     runPrefix: "coding-agent-near-term-v1",
   },
+  "beaver-max": {
+    campaign: "coding-agent-defaults-v1-beaver-max-v1",
+    directory: "beaver-max-v1",
+    runPrefix: "coding-agent-beaver-max-v1",
+  },
+  "witness-v1": {
+    campaign: "coding-agent-defaults-v1-witness-v1",
+    directory: "witness-v1",
+    runPrefix: "coding-agent-witness-v1",
+  },
 };
 const suite = suites[suiteName];
 if (!suite) {
@@ -142,6 +152,33 @@ const nearTermCells = [
   ["13", tasks.indenture, "coding_markdown_final_v5_grep_line_500_v1"],
 ].map(([order, task, arm]) => ({ order, task, arm, replicate: 1 }));
 
+const beaverMaxCells = [
+  tasks.closing,
+  tasks.covenants,
+  tasks.dpa,
+  tasks.protective,
+  tasks.psa,
+  tasks.arbitrationMarkup,
+  tasks.indenture,
+  tasks.acquisitionDiligence,
+].map((task, index) => ({
+  order: String(index + 1).padStart(2, "0"),
+  task,
+  arm: "coding_markdown_final_v5",
+  replicate: 1,
+}));
+
+const witnessCells = [
+  ["01", tasks.acquisitionDiligence, "coding_markdown_final_v5"],
+  ["02", tasks.acquisitionDiligence, "coding_markdown_final_v5_witness_closure_v1"],
+  ["03", tasks.acquisitionDiligence, "coding_markdown_final_v5_read_breadcrumb_v1"],
+  ["04", tasks.indenture, "coding_markdown_final_v5"],
+  ["05", tasks.indenture, "coding_markdown_final_v5_witness_closure_v1"],
+  ["06", tasks.indenture, "coding_markdown_final_v5_read_breadcrumb_v1"],
+  ["07", tasks.dpa, "coding_markdown_final_v5"],
+  ["08", tasks.dpa, "coding_markdown_final_v5_read_breadcrumb_v1"],
+].map(([order, task, arm]) => ({ order, task, arm, replicate: 1 }));
+
 function pairedCells(taskList) {
   return taskList.flatMap((task, index) => {
     const first = String(index * 2 + 1).padStart(2, "0");
@@ -158,29 +195,33 @@ const cells =
     ? currentCells
     : suiteName === "near-term"
       ? nearTermCells
-      : suiteName === "additions"
-        ? pairedCells([
-            tasks.psa,
-            tasks.arbitrationMarkup,
-            tasks.indenture,
-            tasks.acquisitionDiligence,
-          ])
-        : suiteName === "expansion"
-          ? pairedCells([
-              tasks.antitrustRisk,
-              tasks.criticalVendors,
-              tasks.covenantCompliance,
-              tasks.planDistributions,
-              tasks.conventionEnforcement,
-              tasks.flsaClassification,
-              tasks.ofacInvestigation,
-              tasks.transferPricing,
-            ])
-          : suiteName === "redlines"
-            ? pairedCells([tasks.dpa, tasks.protective])
-            : pairedCells([tasks.aerospaceDataRoom]);
+      : suiteName === "witness-v1"
+        ? witnessCells
+        : suiteName === "beaver-max"
+          ? beaverMaxCells
+          : suiteName === "additions"
+            ? pairedCells([
+                tasks.psa,
+                tasks.arbitrationMarkup,
+                tasks.indenture,
+                tasks.acquisitionDiligence,
+              ])
+            : suiteName === "expansion"
+              ? pairedCells([
+                  tasks.antitrustRisk,
+                  tasks.criticalVendors,
+                  tasks.covenantCompliance,
+                  tasks.planDistributions,
+                  tasks.conventionEnforcement,
+                  tasks.flsaClassification,
+                  tasks.ofacInvestigation,
+                  tasks.transferPricing,
+                ])
+              : suiteName === "redlines"
+                ? pairedCells([tasks.dpa, tasks.protective])
+                : pairedCells([tasks.aerospaceDataRoom]);
 
-const lanes = [
+const defaultLanes = [
   {
     id: "deepseek",
     performerModel: "deepseek-v4-flash",
@@ -194,6 +235,17 @@ const lanes = [
     effort: "high",
   },
 ];
+
+const lanes = suiteName === "beaver-max"
+  ? [
+      {
+        id: "luna-max",
+        performerModel: "codex:gpt-5.6-luna",
+        judgeModel: "codex/gpt-5.6-luna",
+        effort: "max",
+      },
+    ]
+  : defaultLanes;
 
 for (const required of [lab, runner, tsx, python]) {
   if (!existsSync(required)) throw new Error(`Missing required path: ${required}`);
