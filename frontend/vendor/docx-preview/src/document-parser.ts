@@ -11,7 +11,7 @@ import xml from './parser/xml-parser';
 import { parseRunProperties, WmlRun } from './document/run';
 import { parseBookmarkEnd, parseBookmarkStart } from './document/bookmarks';
 import { IDomStyle, IDomSubStyle } from './document/style';
-import { WmlFieldChar, WmlFieldSimple, WmlInstructionText } from './document/fields';
+import { WmlFieldChar, WmlInstructionText } from './document/fields';
 import { convertLength, LengthUsage, LengthUsageType } from './document/common';
 import { parseVmlElement } from './vml/vml';
 import { WmlComment, WmlCommentRangeEnd, WmlCommentRangeStart, WmlCommentReference } from './comments/elements';
@@ -551,10 +551,81 @@ export class DocumentParser {
 				case "del":
 					result.children.push(this.parseDeleted(el, e => this.parseParagraph(e)));
 					break;
+
+				case "fldSimple":
+					result.children.push(this.parseSimplePageField(el, result));
+					break;
 			}
 		}
 
+		this.processPageFields(result.children);
 		return result;
+	}
+
+	parseSimplePageField(node: Element, parent: OpenXmlElement): WmlRun {
+		const fieldType = this.pageFieldType(xml.attr(node, "instr"));
+		const runs = xml.elements(node)
+			.filter(x => x.localName === "r")
+			.map(x => this.parseRun(x, parent));
+		if (!fieldType)
+			return <WmlRun>{ type: DomType.Run, parent, children: runs };
+
+		const style = runs[0];
+		return <WmlRun>{
+			type: DomType.Run,
+			parent,
+			children: [<WmlText>{ type: DomType.Text, text: "0" }],
+			fieldInfo: { fieldType },
+			cssStyle: style?.cssStyle,
+			styleName: style?.styleName,
+			verticalAlign: style?.verticalAlign,
+		};
+	}
+
+	pageFieldType(instruction: string): "PAGE" | "NUMPAGES" | null {
+		const match = instruction?.trim().match(/^(PAGE|NUMPAGES)\b/i);
+		return match ? match[1].toUpperCase() as "PAGE" | "NUMPAGES" : null;
+	}
+
+	processPageFields(children: OpenXmlElement[]) {
+		for (let i = 0; i < children.length; i++) {
+			const run = children[i] as WmlRun;
+			const begins = run.type === DomType.Run && run.children?.some(x =>
+				x.type === DomType.ComplexField && (x as WmlFieldChar).charType === "begin");
+			if (!begins) continue;
+
+			let instruction = "";
+			let displayRun: WmlRun = null;
+			let separated = false;
+			for (let end = i + 1; end < children.length; end++) {
+				const next = children[end] as WmlRun;
+				if (next.type !== DomType.Run) continue;
+				if (!separated) {
+					const text = next.children?.find(x => x.type === DomType.Instruction) as WmlInstructionText;
+					if (text) instruction += text.text || "";
+				}
+				if (next.children?.some(x => x.type === DomType.ComplexField &&
+					(x as WmlFieldChar).charType === "separate")) separated = true;
+				if (separated && !displayRun && next.children?.some(x => x.type === DomType.Text)) displayRun = next;
+				if (!next.children?.some(x => x.type === DomType.ComplexField &&
+					(x as WmlFieldChar).charType === "end")) continue;
+
+				const fieldType = this.pageFieldType(instruction);
+				if (fieldType) {
+					const style = displayRun ?? run;
+					children.splice(i, end - i + 1, <WmlRun>{
+						type: DomType.Run,
+						parent: run.parent,
+						children: [<WmlText>{ type: DomType.Text, text: "0" }],
+						fieldInfo: { fieldType },
+						cssStyle: style.cssStyle,
+						styleName: style.styleName,
+						verticalAlign: style.verticalAlign,
+					});
+				}
+				break;
+			}
+		}
 	}
 
 	parseParagraphProperties(elem: Element, paragraph: WmlParagraph) {
@@ -659,12 +730,7 @@ export class DocumentParser {
 					break;
 
 				case "fldSimple":
-					result.children.push(<WmlFieldSimple>{
-						type: DomType.SimpleField,
-						instruction: xml.attr(c, "instr"),
-						lock: xml.boolAttr(c, "lock", false),
-						dirty: xml.boolAttr(c, "dirty", false)
-					});
+					result.children.push(this.parseSimplePageField(c, result));
 					break;
 
 				case "instrText":

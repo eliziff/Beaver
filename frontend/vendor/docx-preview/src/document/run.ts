@@ -6,6 +6,7 @@ export interface WmlRun extends OpenXmlElement, RunProperties {
     id?: string;
     verticalAlign?: string;
 	fieldRun?: boolean;
+	fieldInfo?: { fieldType: "PAGE" | "NUMPAGES" };
 }
 
 export interface RunProperties extends CommonProperties {

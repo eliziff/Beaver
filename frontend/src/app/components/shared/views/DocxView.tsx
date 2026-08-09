@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useRef, useState } from "react";import { Loader2 } from "lucide-react";
+import { useEffect, useEffectEvent, useRef } from "react";import { Loader2 } from "lucide-react";
 import {
     parseAsync,
     renderDocument,
@@ -185,10 +185,6 @@ export function DocxView({
         onScrollChange,
         quotes,
     }));
-    const [unsupportedMediaKey, setUnsupportedMediaKey] = useState<
-        string | null
-    >(null);
-    const renditionKey = `${documentId}:${versionId ?? ""}:${refetchKey ?? ""}`;
     const quoteKey = (quotes ?? []).map((q) => q.quote).join("||");
     const { bytes, loading, error } = useFetchDocxBytes(
         documentId,
@@ -263,9 +259,7 @@ export function DocxView({
                 if (cancelled) return;
                 const rendered = finalizeDocxDom(containerEl);
                 pageElementsRef.current = rendered.pages;
-                quietBrokenDocxImages(rendered.images, () => {
-                    if (!cancelled) setUnsupportedMediaKey(renditionKey);
-                });
+                quietBrokenDocxImages(rendered.images);
                 applyDocxScale();
                 if (cancelled) return;
                 requestAnimationFrame(() => {
@@ -346,28 +340,21 @@ export function DocxView({
         el.addEventListener("scroll", onScroll, { passive: true });
         return () => el.removeEventListener("scroll", onScroll);
     }, []);
-    const displayedWarning =
-        warning ??
-        (unsupportedMediaKey === renditionKey
-            ? "An embedded vector image is unavailable in this browser preview."
-            : null);
     return (
         <div
             className={`relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 ${rounded ? "rounded-lg" : ""}`}
         >
-            {displayedWarning && (
+            {warning && (
                 <div className="absolute top-2 left-2 z-10 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800 shadow-sm">
-                    <span>{displayedWarning}</span>
-                    {warning && (
-                        <button
-                            type="button"
-                            onClick={() => onWarningDismiss?.()}
-                            className="text-amber-600 hover:text-amber-900"
-                            aria-label="Dismiss warning"
-                        >
-                            {"\u00d7"}
-                        </button>
-                    )}
+                    <span>{warning}</span>
+                    <button
+                        type="button"
+                        onClick={() => onWarningDismiss?.()}
+                        className="text-amber-600 hover:text-amber-900"
+                        aria-label="Dismiss warning"
+                    >
+                        {"\u00d7"}
+                    </button>
                 </div>
             )}
             <div

@@ -258,7 +258,7 @@ describe("DocxView", () => {
         expect(onUnsupported).toHaveBeenCalledOnce();
     });
 
-    it("keeps the Word view stable and states an unsupported-media limitation", async () => {
+    it("keeps the Word view stable when media is unsupported", async () => {
         mocks.withBrokenImage = true;
 
         const { container } = render(
@@ -273,10 +273,8 @@ describe("DocxView", () => {
             expect(container.querySelector("section.docx")).not.toBeNull(),
         );
         expect(
-            screen.getByText(
-                "An embedded vector image is unavailable in this browser preview.",
-            ),
-        ).toBeInTheDocument();
+            screen.queryByText(/embedded vector image/i),
+        ).not.toBeInTheDocument();
         expect(screen.queryByTestId("pdf-rendition")).not.toBeInTheDocument();
     });
 

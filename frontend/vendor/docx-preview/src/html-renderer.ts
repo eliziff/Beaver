@@ -72,6 +72,9 @@ export class HtmlRenderer {
 
 	tasks: Promise<any>[] = [];
 	postRenderTasks: any[] = [];
+	currentPageNumber = 0;
+	totalPages = 0;
+	currentSectionProps: SectionProperties = null;
 
 	constructor(public htmlDocument: Document) {
 	}
@@ -333,12 +336,19 @@ export class HtmlRenderer {
 		const sections = this.splitBySection(document.children, document.props);
 		const pages = this.groupByPageBreaks(sections);
 		let prevProps = null;
+		let prevNumberProps = null;
+		this.currentPageNumber = 0;
+		this.totalPages = pages.length;
 
 		for (let i = 0, l = pages.length; i < l; i++) {
 			this.currentFootnoteIds = [];
 
 			const section = pages[i][0];
 			let props = section.sectProps;
+			this.currentPageNumber = props !== prevNumberProps && props?.pageNumber?.start != null
+				? props.pageNumber.start
+				: this.currentPageNumber + 1;
+			this.currentSectionProps = props;
 			const pageElement = this.createPageElement(this.className, props);
 			this.renderStyleValues(document.cssStyle, pageElement);
 
@@ -360,11 +370,13 @@ export class HtmlRenderer {
 				this.renderNotes(this.currentEndnoteIds, this.endnoteMap, pageElement);
 			}
 
+			this.currentSectionProps = props;
 			this.options.renderFooters && this.renderHeaderFooter(props.footerRefs, props,
 				result.length, prevProps != props, pageElement);
 
 			result.push(pageElement);
 			prevProps = props;
+			prevNumberProps = section.sectProps;
 		}
 
 		return result;
@@ -1141,6 +1153,23 @@ section.${c}>footer { z-index: 1; }
 		if (elem.fieldRun)
 			return null;
 
+		if (elem.fieldInfo) {
+			const result = this.createElement("span");
+			this.renderClass(elem, result);
+			this.renderStyleValues(elem.cssStyle, result);
+			const text = elem.fieldInfo.fieldType === "PAGE"
+				? formatPageNumber(this.currentPageNumber, this.currentSectionProps?.pageNumber?.format)
+				: String(this.totalPages);
+			const verticalAlign = elem.verticalAlign
+				|| (elem.styleName && this.findStyle(elem.styleName)?.runProps?.verticalAlign);
+			if (verticalAlign) {
+				const wrapper = this.createElement(verticalAlign as any);
+				wrapper.textContent = text;
+				result.appendChild(wrapper);
+			} else result.textContent = text;
+			return result;
+		}
+
 		const result = this.createElement("span");
 
 		if (elem.id)
@@ -1556,6 +1585,23 @@ section.${c}>footer { z-index: 1; }
 }
 
 type ChildType = Node | string;
+
+function formatPageNumber(value: number, format: string): string {
+	if (format === "decimalZero") return String(value).padStart(2, "0");
+	if (format === "lowerRoman" || format === "upperRoman") {
+		let n = value, result = "";
+		for (const [glyph, amount] of [["M",1000],["CM",900],["D",500],["CD",400],["C",100],["XC",90],["L",50],["XL",40],["X",10],["IX",9],["V",5],["IV",4],["I",1]] as const) {
+			while (n >= amount) { result += glyph; n -= amount; }
+		}
+		return format === "lowerRoman" ? result.toLowerCase() : result;
+	}
+	if (format === "lowerLetter" || format === "upperLetter") {
+		let n = value, result = "";
+		while (n > 0) { n--; result = String.fromCharCode(65 + n % 26) + result; n = Math.floor(n / 26); }
+		return format === "lowerLetter" ? result.toLowerCase() : result;
+	}
+	return String(value);
+}
 
 function removeAllElements(elem: HTMLElement) {
 	elem.innerHTML = '';
