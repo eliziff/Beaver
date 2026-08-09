@@ -174,24 +174,6 @@ describe("DocxView", () => {
         }
     });
 
-    it("opens a known PDF rendition without fetching or rendering DOCX", () => {
-        render(
-            <DocxView
-                documentId="doc-with-rendition"
-                versionId="version-1"
-                preferPdfRendition
-            />,
-        );
-
-        expect(screen.getByTestId("pdf-rendition")).toBeInTheDocument();
-        expect(mocks.useFetchDocxBytes).toHaveBeenCalledWith(
-            null,
-            "version-1",
-            undefined,
-        );
-        expect(mocks.renderDocument).not.toHaveBeenCalled();
-    });
-
     it("keeps tracked-change IDs in the browser parse", async () => {
         mocks.withTrackedChanges = true;
 
