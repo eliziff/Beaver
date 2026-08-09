@@ -61,9 +61,10 @@ const configuredCodexTimeoutMs = Number(
 );
 export const CODEX_TIMEOUT_MS =
   Number.isSafeInteger(configuredCodexTimeoutMs) &&
-  configuredCodexTimeoutMs >= 30_000
+    configuredCodexTimeoutMs >= 30_000
     ? configuredCodexTimeoutMs
-    : 180_000;
+    : 1_800_000;
+export const CODEX_IDLE_TIMEOUT_MS = Math.min(CODEX_TIMEOUT_MS, 600_000);
 const CODEX_TOOL_TIMEOUT_SECONDS = Math.max(
   180,
   Math.ceil(CODEX_TIMEOUT_MS / 1_000),
@@ -303,7 +304,7 @@ async function runCodex(params: {
   let eventError: string | null = null;
   let usage: NormalizedLlmUsage | undefined;
   let providerInvocationId: string | undefined;
-  let timedOut = false;
+  let timeoutKind: "total" | "idle" | null = null;
   let streamError: unknown;
   const reasoningByItemId = new Map<string, string>();
   let streamStatus: "completed" | "error" = "error";
@@ -388,21 +389,39 @@ async function runCodex(params: {
   }>((resolve) => {
     child.once("close", (code, signal) => resolve({ code, signal }));
   });
-  const timeout = setTimeout(() => {
-    timedOut = true;
+  const stopForTimeout = (kind: "total" | "idle") => {
+    if (timeoutKind) return;
+    timeoutKind = kind;
     terminateProcessTree(child);
-  }, CODEX_TIMEOUT_MS);
+  };
+  const totalTimeout = setTimeout(
+    () => stopForTimeout("total"),
+    CODEX_TIMEOUT_MS,
+  );
+  let idleTimeout = setTimeout(
+    () => stopForTimeout("idle"),
+    CODEX_IDLE_TIMEOUT_MS,
+  );
+  const markActivity = () => {
+    clearTimeout(idleTimeout);
+    idleTimeout = setTimeout(
+      () => stopForTimeout("idle"),
+      CODEX_IDLE_TIMEOUT_MS,
+    );
+  };
   const abort = () => terminateProcessTree(child);
   params.abortSignal?.addEventListener("abort", abort, { once: true });
 
   try {
     child.stdin.end(params.prompt);
     child.stderr.on("data", (chunk: Buffer | string) => {
+      markActivity();
       stderr = `${stderr}${chunk}`.slice(-4000);
     });
 
     const output = createInterface({ input: child.stdout });
     for await (const line of output) {
+      markActivity();
       throwIfAborted(params.abortSignal);
       const rawLine = String(line);
       trace.record({ iteration: 0, label: "jsonl_line", payload: rawLine });
@@ -441,7 +460,10 @@ async function runCodex(params: {
     const exit = await exitPromise;
     throwIfAborted(params.abortSignal);
 
-    if (timedOut) throw new Error("Codex exec timed out.");
+    if (timeoutKind)
+      throw new Error(
+        `Codex exec ${timeoutKind === "idle" ? "idle" : "total"} timed out.`,
+      );
     const spawnError = childError as Error | null;
     if (spawnError) throw new Error(`Codex exec failed: ${spawnError.message}`);
     if (exit.code !== 0) {
@@ -471,7 +493,8 @@ async function runCodex(params: {
     streamError = error;
     throw error;
   } finally {
-    clearTimeout(timeout);
+    clearTimeout(totalTimeout);
+    clearTimeout(idleTimeout);
     params.abortSignal?.removeEventListener("abort", abort);
     await bridge?.close();
     endReasoning();
