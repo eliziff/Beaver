@@ -173,7 +173,6 @@ export function DocxView({
     initialScrollTop,
     onScrollChange,
     rounded = true,
-    preferPdfRendition = true,
 }: Props) {
     const scrollRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -195,7 +194,7 @@ export function DocxView({
     const renditionKey = `${documentId}:${versionId ?? ""}:${refetchKey ?? ""}`;
     const showPdfRendition =
         !highlightEdit &&
-        (preferPdfRendition || pdfRenditionKey === renditionKey) &&
+        pdfRenditionKey === renditionKey &&
         !unavailableRenditionsRef.current.has(renditionKey);
     const quoteKey = (quotes ?? []).map((q) => q.quote).join("||");
     const { bytes, loading, error } = useFetchDocxBytes(
