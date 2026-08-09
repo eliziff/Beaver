@@ -38,7 +38,8 @@ TASKS = ROOT / "tasks"
 SPLIT = REPO_ROOT / "benchmarks" / "lab" / "corpus-split.json"
 DEFAULT_RUN_DIR = ROOT / "run-logs" / "judge-taste-gemini31-20260808"
 MODEL = "gemini-3.1-pro-preview"
-HARD_CAP_USD = 13.50
+# Conservative ceiling for the user's C$10 authorization.
+HARD_CAP_USD = 7.00
 MAX_OUTPUT_TOKENS = 4096
 SEED = "judge-taste-v1-20260808"
 
@@ -317,10 +318,11 @@ def conservative_gemini_spend(state: dict) -> float:
     return total
 
 
-def load_gemini_key() -> str:
+def gemini_client():
     for name in ("GEMINI_API_KEY", "GOOGLE_API_KEY"):
-        if os.environ.get(name):
-            return os.environ[name]
+        value = os.environ.get(name, "").strip()
+        if value and value != "your-gemini-key":
+            return genai.Client(api_key=value)
     env_path = REPO_ROOT / "backend" / ".env"
     if env_path.exists():
         for raw in env_path.read_text(encoding="utf-8").splitlines():
@@ -328,8 +330,17 @@ def load_gemini_key() -> str:
                 continue
             key, value = raw.split("=", 1)
             if key.strip() in ("GEMINI_API_KEY", "GOOGLE_API_KEY"):
-                return value.strip().strip('"').strip("'")
-    raise RuntimeError("GEMINI_API_KEY/GOOGLE_API_KEY not found")
+                value = value.strip().strip('"').strip("'")
+                if value and value != "your-gemini-key":
+                    return genai.Client(api_key=value)
+    project = os.environ.get("GOOGLE_CLOUD_PROJECT", "").strip()
+    if project:
+        return genai.Client(
+            vertexai=True,
+            project=project,
+            location=os.environ.get("GOOGLE_CLOUD_LOCATION", "global"),
+        )
+    raise RuntimeError("valid Gemini API key or GOOGLE_CLOUD_PROJECT not found")
 
 
 def response_text(response) -> str:
@@ -347,8 +358,7 @@ def response_text(response) -> str:
 
 
 def run_gemini(run_dir: Path, state: dict, order: list[dict], limit: int) -> None:
-    api_key = load_gemini_key()
-    client = genai.Client(api_key=api_key)
+    client = gemini_client()
     log_path = run_dir / "progress.jsonl"
     successful = sum(1 for record in state["gemini"]["items"].values() if record.get("verdict"))
     for item in order:
@@ -361,8 +371,7 @@ def run_gemini(run_dir: Path, state: dict, order: list[dict], limit: int) -> Non
         system, user = materialize(item)
         counted = client.models.count_tokens(
             model=MODEL,
-            contents=user,
-            config=types.CountTokensConfig(system_instruction=system),
+            contents=f"{system}\n\n{user}",
         )
         prompt_tokens = int(counted.total_tokens or 0)
         input_price, output_price = prices(prompt_tokens)

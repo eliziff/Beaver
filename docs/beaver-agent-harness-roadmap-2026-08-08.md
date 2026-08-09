@@ -387,6 +387,17 @@ may occur without explicit approval to transmit the visible-dev instructions,
 criteria, and generated work-product text to Google. Source documents, sealed
 tasks, private keys, and client/user data are out of scope.
 
+The completed stock-Codex side baseline gives an early same-task orientation,
+not a reference-harness verdict. On the selected eight tasks (467 criteria),
+Luna High stock Codex passed 394 criteria; the corresponding Beaver treatment
+High cells passed 388, a six-criterion stock advantage. Luna Max stock Codex
+passed 406/467. Neither stock lane all-passed any of the eight tasks. AA's Luna
+Max figure is about 87.90% criteria and 5% all-pass on 120 different private
+tasks under Gemini judging, so numerical proximity must not be presented as an
+A/B. The important result is that Beaver High is within six criteria of a clean
+general coding harness on this small matched set; the actual Harvey/Stirrup
+transport-controlled pair is still required.
+
 ## 2. Fixed design constraints
 
 These rules apply to every phase:
