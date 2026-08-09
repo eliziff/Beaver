@@ -40,6 +40,10 @@ import { normalizeAskInputsEvent } from "../askInputs";
 import { readTabularCells } from "../tabularCells";
 import { type EditInput } from "../../docxTrackedChanges";
 import { resolveDocxEvidenceCitations } from "../../docxEvidenceCitations";
+import {
+  assignmentClosureCandidates,
+  assignmentClosureReceipts,
+} from "../../legalAssignmentClosure";
 import { appUrl } from "../../appRoutes";
 import {
   citationReminder,
@@ -72,6 +76,11 @@ type CourtlistenerCaseInput = {
 };
 
 export type CourtlistenerTurnState = CourtlistenerToolState;
+
+type CapturedDocumentSource = {
+  text: string;
+  projection: "canonical" | "drafting" | "redline";
+};
 
 function nonEmpty(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -256,6 +265,58 @@ export async function runToolCalls(
   const mcpEvents: McpToolEvent[] = [];
   const a2ajLookups: A2AJLocatorLookup[] = [];
   const a2ajDocuments: A2AJDocument[] = [];
+  const rememberPassages = (
+    identity: Awaited<ReturnType<typeof getTurnReadIdentity>>,
+    key: string | null,
+    passages: Array<CapturedDocumentSource & { at: number }>,
+  ) => {
+    if (!identity || !key || !turnReadState) return;
+    const prior = turnReadState.get(key);
+    const merged = [...(prior?.passages ?? [])];
+    const candidates = passages.flatMap((passage) =>
+      assignmentClosureCandidates({
+        document: identity.filename,
+        documentId: identity.documentId,
+        versionId: identity.versionId,
+        projection: passage.projection,
+        text: passage.text,
+        at: passage.at,
+      }),
+    );
+    for (const passage of candidates) {
+      if (
+        !merged.some(
+          (item) =>
+            item.at === passage.at &&
+            item.projection === passage.projection &&
+            item.text === passage.text,
+        )
+      ) {
+        merged.push({
+          text: passage.text,
+          at: passage.at,
+          projection: passage.projection as CapturedDocumentSource["projection"],
+        });
+      }
+    }
+    turnReadState.set(key, { ...identity, passages: merged });
+  };
+  const sourceClosureForDraft = (draft: string) =>
+    /\bassign/iu.test(draft)
+      ? assignmentClosureReceipts(
+          [...(turnReadState?.values() ?? [])].flatMap((entry) =>
+            (entry.passages ?? []).map((passage) => ({
+              document: entry.filename || entry.docLabel,
+              documentId: entry.documentId,
+              versionId: entry.versionId,
+              projection: passage.projection,
+              text: passage.text,
+              at: passage.at,
+            })),
+          ),
+          draft,
+        )
+      : [];
   const courtState: CourtlistenerTurnState = courtlistenerState ?? {
     casesByClusterId: new Map(),
   };
@@ -339,13 +400,18 @@ export async function runToolCalls(
     }
 
     const { download_url, storage_path, ...safeToolResult } = result;
+    const hasSourceClosure =
+      Array.isArray(safeToolResult.source_closure) &&
+      safeToolResult.source_closure.length > 0;
     const toolResultPayload = newDocLabel
       ? {
           ...safeToolResult,
           doc_id: newDocLabel,
           // Only what the prompt cannot already teach: this doc_id, and that
           // the rendered text — not your intent — is the source of truth.
-          next_required_action: `Read doc_id "${newDocLabel}" before describing or citing it; describe what it actually renders, not what you intended.`,
+          next_required_action: hasSourceClosure
+            ? `Review source_closure; if material, edit doc_id "${newDocLabel}", then read it before describing or citing it.`
+            : `Read doc_id "${newDocLabel}" before describing or citing it; describe what it actually renders, not what you intended.`,
         }
       : safeToolResult;
     toolResults.push({
@@ -449,13 +515,14 @@ export async function runToolCalls(
         });
         continue;
       }
+      const captured: CapturedDocumentSource[] = [];
       const content = await readDocumentContent(
         docId,
         docStore,
         emit,
         docIndex,
         db,
-        { mode: readMode },
+        { mode: readMode, captureSource: (source) => captured.push(source) },
       );
       const filename = docStore.get(docId)?.filename;
       const documentId = docIndex?.[docId]?.document_id;
@@ -469,7 +536,11 @@ export async function runToolCalls(
         }
       }
       if (readSucceeded && readIdentity && readKey && turnReadState) {
-        turnReadState.set(readKey, readIdentity);
+        rememberPassages(
+          readIdentity,
+          readKey,
+          captured[0] ? [{ ...captured[0], at: 0 }] : [],
+        );
       }
       if (readSucceeded && filename) {
         docsRead.push({ filename, document_id: documentId });
@@ -506,8 +577,34 @@ export async function runToolCalls(
         try {
           const parsed = JSON.parse(content) as {
             total_matches?: number;
+            hits?: Array<{
+              at?: number;
+              excerpt?: string;
+              paragraph_tail?: string;
+            }>;
           };
           totalMatches = parsed.total_matches ?? 0;
+          const identity = await getTurnReadIdentity({
+            docLabel: docId,
+            docStore,
+            docIndex,
+            db,
+          });
+          rememberPassages(
+            identity,
+            identity ? `${identity.key}:find` : null,
+            (parsed.hits ?? []).flatMap((hit) =>
+              typeof hit.at === "number" && typeof hit.excerpt === "string"
+                ? [
+                    {
+                      at: hit.at,
+                      projection: "canonical" as const,
+                      text: hit.excerpt + (hit.paragraph_tail ?? ""),
+                    },
+                  ]
+                : [],
+            ),
+          );
         } catch {
           /* ignore — still record the find attempt */
         }
@@ -556,16 +653,22 @@ export async function runToolCalls(
           );
           continue;
         }
+        const captured: CapturedDocumentSource[] = [];
         const content = await readDocumentContent(
           docId,
           docStore,
           emit,
           docIndex,
           db,
+          { captureSource: (source) => captured.push(source) },
         );
         const filename = docStore.get(docId)?.filename ?? docId;
         if (readIdentity && readKey && turnReadState) {
-          turnReadState.set(readKey, readIdentity);
+          rememberPassages(
+            readIdentity,
+            readKey,
+            captured[0] ? [{ ...captured[0], at: 0 }] : [],
+          );
         }
         parts.push(
           `--- ${filename} (${docId}) ---\n${citationReminder(docId, filename)}\n\n${content}`,
@@ -1094,7 +1197,6 @@ export async function runToolCalls(
             versionNumber: result.version_number,
             storagePath: result.storage_path,
           });
-          clearTurnReadsForDocument(turnReadState, indexed.document_id);
           // Keep the chat-local doc label pointed at the latest
           // edited version so any follow-up read_document call in
           // the same assistant turn reads and cites the same bytes.
@@ -1112,6 +1214,23 @@ export async function runToolCalls(
               storage_path: result.storage_path,
             });
           }
+          const finalSources: CapturedDocumentSource[] = [];
+          await readDocumentContent(
+            docId,
+            docStore,
+            () => undefined,
+            docIndex,
+            db,
+            {
+              emitEvents: false,
+              includeNotes: false,
+              captureSource: (source) => finalSources.push(source),
+            },
+          );
+          const sourceClosure = finalSources[0]
+            ? sourceClosureForDraft(finalSources[0].text)
+            : [];
+          clearTurnReadsForDocument(turnReadState, indexed.document_id);
           const payload: DocEditedResult = {
             filename: docInfo.filename,
             document_id: indexed.document_id,
@@ -1136,7 +1255,12 @@ export async function runToolCalls(
               version_number: result.version_number,
               applied: result.annotations.length,
               errors: result.errors,
-              next_required_action: `Read doc_id "${docId}" before making factual claims about the edited contents.`,
+              ...(sourceClosure.length
+                ? { source_closure: sourceClosure }
+                : {}),
+              next_required_action: sourceClosure.length
+                ? `Review source_closure; if material, edit doc_id "${docId}" again, then read it before making factual claims.`
+                : `Read doc_id "${docId}" before making factual claims about the edited contents.`,
             }),
           });
         } else {
@@ -1190,9 +1314,19 @@ export async function runToolCalls(
         db,
         { landscape, projectId: projectId ?? null },
       );
+      const generated = result as Record<string, unknown>;
+      const sourceClosure =
+        generated.error === undefined
+          ? sourceClosureForDraft(
+              typeof args.markdown === "string" ? args.markdown : "",
+            )
+          : [];
       registerGeneratedDocument(
         tc,
-        result as Record<string, unknown>,
+        {
+          ...generated,
+          ...(sourceClosure.length ? { source_closure: sourceClosure } : {}),
+        },
         previewFilename,
         "docx",
       );

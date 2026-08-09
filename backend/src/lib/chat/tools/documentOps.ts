@@ -1159,6 +1159,11 @@ export async function readDocumentContent(
      * (find_in_document) pass false so offsets anchor into pure text.
      */
     includeNotes?: boolean;
+    /** Exact source plane actually returned, before host notes/envelopes. */
+    captureSource?: (source: {
+      text: string;
+      projection: "canonical" | "drafting" | "redline";
+    }) => void;
   },
 ): Promise<string> {
   const emitEvents = opts?.emitEvents ?? true;
@@ -1231,6 +1236,7 @@ export async function readDocumentContent(
         });
       }
       const source = await extractDocxDraftingSource(Buffer.from(raw));
+      opts?.captureSource?.({ text: source.markdown, projection: "drafting" });
       emitDocRead();
       return JSON.stringify({
         ok: true,
@@ -1252,6 +1258,7 @@ export async function readDocumentContent(
         });
       }
       const projection = await projectDocxRedline(Buffer.from(raw));
+      opts?.captureSource?.({ text: projection.text, projection: "redline" });
       emitDocRead();
       return JSON.stringify({
         ok: true,
@@ -1281,6 +1288,7 @@ export async function readDocumentContent(
       bytes,
       parse: () => parser.run(bytes),
     });
+    opts?.captureSource?.({ text, projection: "canonical" });
     // Additive metadata only: the extracted text stays byte-identical and
     // the sniffer's cautions announce themselves ahead of it.
     const cautions =
@@ -1478,6 +1486,21 @@ export function findTextMatches(params: {
   return { hits, totalMatches };
 }
 
+/** Extend only a nearby clipped paragraph tail; never guess a legal section. */
+export function boundedParagraphTail(
+  text: string,
+  end: number,
+  maxChars = 1_500,
+) {
+  if (end <= 0 || end >= text.length || maxChars <= 0) return null;
+  const newline = text.indexOf("\n", end);
+  const tailEnd = newline < 0 ? text.length : newline;
+  const tail = text.slice(end, tailEnd);
+  return tail.length <= maxChars && /\S/u.test(tail)
+    ? { text: tail, start: end, end: tailEnd }
+    : null;
+}
+
 /**
  * Grep-mode sibling of findTextMatches: the pattern runs line by line over
  * the ORIGINAL text (grep semantics — ^ and $ anchor to lines, runaway
@@ -1607,6 +1630,16 @@ export async function findInDocumentContent(params: {
     maxResults,
     contextChars,
   });
+  const completedHits =
+    totalMatches === 1 && /\.docx$/iu.test(docInfo.filename) && hits.length === 1
+      ? hits.map((hit) => {
+          const tail = boundedParagraphTail(
+            text,
+            hit.at + hit.excerpt.length,
+          );
+          return tail ? { ...hit, paragraph_tail: tail.text } : hit;
+        })
+      : hits;
 
   emit({
     type: "doc_find",
@@ -1620,9 +1653,9 @@ export async function findInDocumentContent(params: {
     filename: docInfo.filename,
     query,
     total_matches: totalMatches,
-    returned: hits.length,
-    truncated: totalMatches > hits.length,
-    hits,
+    returned: completedHits.length,
+    truncated: totalMatches > completedHits.length,
+    hits: completedHits,
   });
 }
 
@@ -1648,6 +1681,11 @@ export type TurnReadState = Map<
     documentId?: string;
     versionId?: string | null;
     storagePath: string;
+    passages?: Array<{
+      text: string;
+      at: number;
+      projection: "canonical" | "drafting" | "redline";
+    }>;
   }
 >;
 
