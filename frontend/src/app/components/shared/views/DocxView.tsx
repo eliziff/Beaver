@@ -227,7 +227,7 @@ export function DocxView({
     initialScrollTop,
     onScrollChange,
     rounded = true,
-    preferPdfRendition = false,
+    preferPdfRendition = true,
 }: Props) {
     const scrollRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
