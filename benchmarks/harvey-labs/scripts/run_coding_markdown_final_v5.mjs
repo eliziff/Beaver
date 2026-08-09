@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   appendFileSync,
   closeSync,
@@ -296,9 +297,15 @@ function requiredDeliverables(task) {
   return deliverablesByTask.get(task);
 }
 
-function validDocx(file) {
+function validDocx(file, receipt, recoveredSha256) {
   if (!existsSync(file) || statSync(file).size < 4) return false;
-  return readFileSync(file).subarray(0, 2).toString("ascii") === "PK";
+  const bytes = readFileSync(file);
+  if (bytes.subarray(0, 2).toString("ascii") !== "PK") return false;
+  const sha256 = createHash("sha256").update(bytes).digest("hex");
+  return (
+    (receipt?.sha256 === sha256 && /^[0-9a-f]{64}$/u.test(receipt?.text_sha256)) ||
+    recoveredSha256 === sha256
+  );
 }
 
 function usableRun(runId, lane, cell) {
@@ -320,9 +327,19 @@ function usableRun(runId, lane, cell) {
   }
   const metrics = readJson(path.join(directory, "metrics.json"));
   const mapping = metrics?.required_deliverable_mapping ?? {};
-  return requiredDeliverables(cell.task).every((name) =>
-    validDocx(path.join(directory, "output", mapping[name] || name)),
-  );
+  return requiredDeliverables(cell.task).every((name) => {
+    const filename = mapping[name] || name;
+    const receipt = metrics?.deliverable_receipts?.find(
+      (candidate) => candidate?.filename === filename,
+    );
+    return validDocx(
+      path.join(directory, "output", filename),
+      receipt,
+      metrics?.recovered_from_valid_autoflush
+        ? metrics.recovered_output_sha256
+        : null,
+    );
+  });
 }
 
 function judgeComplete(runId, lane) {
