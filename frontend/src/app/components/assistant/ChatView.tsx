@@ -7,7 +7,12 @@ import {
     useRef,
     useState,
 } from "react";
-import { ArrowDown } from "lucide-react";
+import {
+    ArrowDown,
+    PanelRightClose,
+    PanelRightOpen,
+    PanelsTopLeft,
+} from "lucide-react";
 import { UserMessage } from "./UserMessage";
 import { AssistantMessage } from "./AssistantMessage";
 import { automationRunKey } from "./AutomationRun";
@@ -42,8 +47,12 @@ import { useFootnoteCitationPreference } from "./citationDisplayPreference";
 import {
     ReadSubagentDock,
     type ReadSubagentPanel,
+    type ReadSubagentSource,
 } from "./ReadSubagentDock";
 import { useReadSubagentPreference } from "./readSubagentPreferences";
+import { JurisdictionDock } from "./JurisdictionDock";
+import { useJurisdictionPreference } from "./jurisdictionPreferences";
+import { Modal } from "@/app/components/modals/Modal";
 interface Props {
     chatId?: string | null;
     messages: Message[];
@@ -77,6 +86,34 @@ export interface ChatViewHandle {
 const MOBILE_BREAKPOINT_PX = 768;
 const DEFAULT_ASSISTANT_BOTTOM_PADDING = 116;
 const LATEST_ASSISTANT_MIN_HEIGHT = "calc(100dvh - 16rem)";
+const READ_SUBAGENT_PANELS_KEY = "beaver.readSubagentPanels.v1";
+
+function readStoredSubagentPanels(storageKey: string): ReadSubagentPanel[] {
+    if (typeof window === "undefined") return [];
+    try {
+        const stored = JSON.parse(
+            window.localStorage.getItem(storageKey) ?? "[]",
+        ) as unknown;
+        if (!Array.isArray(stored)) return [];
+        return stored
+            .filter(
+                (panel): panel is ReadSubagentPanel =>
+                    !!panel &&
+                    typeof panel === "object" &&
+                    (panel as ReadSubagentPanel).type === "subagent_run" &&
+                    typeof (panel as ReadSubagentPanel).id === "string" &&
+                    typeof (panel as ReadSubagentPanel).task === "string" &&
+                    typeof (panel as ReadSubagentPanel).model === "string" &&
+                    typeof (panel as ReadSubagentPanel).effort === "string" &&
+                    ["running", "completed", "error"].includes(
+                        (panel as ReadSubagentPanel).status,
+                    ),
+            )
+            .slice(-3);
+    } catch {
+        return [];
+    }
+}
 function without<T>(items: Set<T>, item: T) {
     if (!items.has(item)) return items;
     const next = new Set(items);
@@ -164,11 +201,17 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
 ) {
     const footnoteCitations = useFootnoteCitationPreference();
     const readSubagents = useReadSubagentPreference();
+    const { preference: jurisdictionPreference } = useJurisdictionPreference();
+    const readSubagentPanelStorageKey = `${READ_SUBAGENT_PANELS_KEY}:${chatId ?? "new"}`;
     const [tabs, setTabs] = useState<AssistantSidePanelTab[]>([]);
     const [readSubagentPanels, setReadSubagentPanels] = useState<
         ReadSubagentPanel[]
     >([]);
     const [readSubagentPanelLimitOpen, setReadSubagentPanelLimitOpen] =
+        useState(false);
+    const [assistantSideGutterCollapsed, setAssistantSideGutterCollapsed] =
+        useState(false);
+    const [assistantPanelsModalOpen, setAssistantPanelsModalOpen] =
         useState(false);
     const [activeTabId, setActiveTabId] = useState<string | null>(null);
     const [workflowModalId, setWorkflowModalId] = useState<string | null>(null);
@@ -178,6 +221,11 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     const [responseAnnouncement, setResponseAnnouncement] = useState("");
     const wasResponseLoadingRef = useRef(false);
     const dismissedReadSubagentIds = useRef(new Set<string>());
+    const skipSubagentPanelPersist = useRef(true);
+    const readSubagentPanelStorageKeyRef = useRef(
+        readSubagentPanelStorageKey,
+    );
+    const readSubagentPanelsRef = useRef(readSubagentPanels);
     const [editState, setEditState] = useState(() => ({
         docIds: new Set<string>(),
         editIds: new Set<string>(),
@@ -346,6 +394,9 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             }
         }
     }
+    useEffect(() => {
+        readSubagentPanelsRef.current = readSubagentPanels;
+    }, [readSubagentPanels]);
     useEffect(() => {
         const wasLoading = wasResponseLoadingRef.current;
         if (isResponseLoading) {
@@ -544,6 +595,87 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             ],
         });
     };
+    const openReadSubagentSource = (source: ReadSubagentSource) => {
+        if (source.clusterId && chatId) {
+            upsertTab({
+                kind: "case",
+                id: `case:${source.clusterId}`,
+                chatId,
+                clusterId: source.clusterId,
+                caseName: source.name,
+                citation: source.citation,
+                url: source.url,
+                dateFiled: null,
+                pdfUrl: null,
+            });
+            return;
+        }
+        if (
+            source.citation &&
+            (source.provider === "a2aj" ||
+                source.provider === "citator" ||
+                source.jurisdiction.toLocaleUpperCase().startsWith("CA"))
+        ) {
+            upsertTab({
+                kind: "legal",
+                id: `legal:${source.dataset}:${source.citation}`,
+                citation: source.citation,
+                name: source.name,
+                dataset: source.dataset || null,
+                docType: "cases",
+                language: "en",
+                quotes: undefined,
+                initialLocator: null,
+            });
+            return;
+        }
+        if (source.url) window.open(source.url, "_blank", "noopener,noreferrer");
+    };
+    useEffect(() => {
+        skipSubagentPanelPersist.current = true;
+        dismissedReadSubagentIds.current.clear();
+        const restored = readStoredSubagentPanels(
+            readSubagentPanelStorageKey,
+        );
+        const movedFromNewChat =
+            readSubagentPanelStorageKeyRef.current.endsWith(":new") &&
+            !readSubagentPanelStorageKey.endsWith(":new");
+        const next = movedFromNewChat
+            ? [
+                  ...new Map(
+                      [...restored, ...readSubagentPanelsRef.current].map(
+                          (panel) => [panel.id, panel],
+                      ),
+                  ).values(),
+              ].slice(-3)
+            : restored;
+        setReadSubagentPanels(next);
+        if (movedFromNewChat) {
+            try {
+                window.localStorage.setItem(
+                    readSubagentPanelStorageKey,
+                    JSON.stringify(next),
+                );
+            } catch {
+                // The server-persisted terminal event remains the fallback.
+            }
+        }
+        readSubagentPanelStorageKeyRef.current = readSubagentPanelStorageKey;
+    }, [readSubagentPanelStorageKey]);
+    useEffect(() => {
+        if (skipSubagentPanelPersist.current) {
+            skipSubagentPanelPersist.current = false;
+            return;
+        }
+        try {
+            window.localStorage.setItem(
+                readSubagentPanelStorageKey,
+                JSON.stringify(readSubagentPanels),
+            );
+        } catch {
+            // The server-persisted terminal event remains the fallback.
+        }
+    }, [readSubagentPanelStorageKey, readSubagentPanels]);
     useEffect(() => {
         if (!readSubagents.showDock) return;
         const latestById = new Map<string, ReadSubagentPanel>();
@@ -580,7 +712,45 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             return;
         }
         setReadSubagentPanels([...withoutCurrent, panel]);
+        if (!window.matchMedia("(min-width: 1536px)").matches) {
+            setAssistantPanelsModalOpen(true);
+        }
     };
+    const closeReadSubagentPanel = (id: string) => {
+        dismissedReadSubagentIds.current.add(id);
+        setReadSubagentPanels((current) =>
+            current.filter((panel) => panel.id !== id),
+        );
+    };
+    const hasAssistantPanels =
+        jurisdictionPreference.showAssistantPanel ||
+        (readSubagents.showDock && readSubagentPanels.length > 0);
+    const showAssistantSideGutter = tabs.length > 0 || hasAssistantPanels;
+    const assistantSideGutterVisible =
+        showAssistantSideGutter && !assistantSideGutterCollapsed;
+    const readerPanel = (embedded = false) =>
+        tabs.length ? (
+            <AssistantSidePanel
+                embedded={embedded}
+                tabs={visibleTabs}
+                activeTabId={activeTabId}
+                projectId={projectId}
+                onActivateTab={setActiveTabId}
+                onCloseTab={closeTab}
+                onCloseAll={closeAllTabs}
+                isEditorReloading={(documentId) =>
+                    editState.docIds.has(documentId)
+                }
+                isEditReloading={(editId) => editState.editIds.has(editId)}
+                onEditResolveStart={handleEditResolveStart}
+                onEditResolved={handleEditResolved}
+                onEditError={handleEditError}
+                onWarningDismiss={(tabId) => patchTab(tabId, { warning: null })}
+                onScrollChange={(tabId, initialScrollTop) =>
+                    patchTab(tabId, { initialScrollTop })
+                }
+            />
+        ) : null;
     return (
         <div className="h-full w-full flex relative">
             <div
@@ -617,7 +787,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                     style={{ scrollbarGutter: "stable both-edges" }}
                 >
                     <div
-                        className="w-full max-w-4xl mx-auto px-6 pt-6 md:px-8 md:pt-8 min-h-full flex flex-col relative"
+                        className={`w-full max-w-4xl px-6 pt-6 md:px-8 md:pt-8 min-h-full flex flex-col relative ${assistantSideGutterVisible ? "ms-auto me-0" : "mx-auto"}`}
                         style={{
                             paddingBottom: DEFAULT_ASSISTANT_BOTTOM_PADDING,
                         }}
@@ -663,6 +833,9 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                                                     ? openReadSubagentPanel
                                                     : undefined
                                             }
+                                            onSubagentSourceClick={
+                                                openReadSubagentSource
+                                            }
                                             minHeight={
                                                 i === lastAssistantIndex
                                                     ? LATEST_ASSISTANT_MIN_HEIGHT
@@ -694,7 +867,9 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                     </div>
                 </div>
                 <div className="absolute bottom-3 left-0 right-0 w-full z-30">
-                    <div className="relative mx-auto w-full max-w-4xl px-4 md:px-6">
+                    <div
+                        className={`relative w-full max-w-4xl px-4 md:px-6 ${assistantSideGutterVisible ? "ms-auto me-0" : "mx-auto"}`}
+                    >
                         {showScrollButton && !activeInput && (
                             <button
                                 type="button"
@@ -727,6 +902,23 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                                 />
                             </div>
                         )}
+                        {tabs.length === 0 &&
+                            hasAssistantPanels &&
+                            !activeInput && (
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        setAssistantPanelsModalOpen(true)
+                                    }
+                                    className="absolute bottom-[calc(100%+0.75rem)] right-4 z-20 inline-flex min-h-10 items-center gap-2 rounded-full border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 md:right-6 2xl:hidden"
+                                >
+                                    <PanelsTopLeft
+                                        className="size-4"
+                                        aria-hidden="true"
+                                    />
+                                    Panels
+                                </button>
+                            )}
                         <ChatInput
                             ref={chatInputRef}
                             onSubmit={submitMessage}
@@ -759,44 +951,77 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                 onSelect={() => setWorkflowModalId(null)}
                 initialWorkflowId={workflowModalId ?? undefined}
             />
-            <ReadSubagentDock
-                panels={
-                    readSubagents.showDock && tabs.length === 0
-                        ? readSubagentPanels
-                        : []
-                }
-                onClose={(id) => {
-                    dismissedReadSubagentIds.current.add(id);
-                    setReadSubagentPanels((current) =>
-                        current.filter((panel) => panel.id !== id),
-                    );
-                }}
-            />
-            {tabs.length > 0 && (
-                <div className="fixed inset-0 z-40 flex justify-center p-3 md:relative md:inset-auto md:z-auto md:block md:h-full md:min-w-0 md:flex-shrink-0 md:p-0">
-                    <AssistantSidePanel
-                        tabs={visibleTabs}
-                        activeTabId={activeTabId}
-                        projectId={projectId}
-                        onActivateTab={setActiveTabId}
-                        onCloseTab={closeTab}
-                        onCloseAll={closeAllTabs}
-                        isEditorReloading={(documentId) =>
-                            editState.docIds.has(documentId)
+            {assistantSideGutterVisible && (
+                    <aside
+                        aria-label="Assistant side panels"
+                        className="hidden h-full min-w-[360px] w-[min(46vw,680px)] shrink-0 flex-col gap-2 overflow-hidden px-3 py-3 2xl:flex"
+                    >
+                        <button
+                            type="button"
+                            onClick={() => setAssistantSideGutterCollapsed(true)}
+                            className="flex min-h-10 shrink-0 items-center justify-end gap-2 rounded-md px-2 text-xs font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
+                        >
+                            Collapse panels
+                            <PanelRightClose
+                                className="size-4"
+                                aria-hidden="true"
+                            />
+                        </button>
+                        {hasAssistantPanels && (
+                            <div className={`${tabs.length ? "max-h-[42%]" : "flex-1"} shrink-0 space-y-2 overflow-y-auto`}>
+                                {jurisdictionPreference.showAssistantPanel && (
+                                    <JurisdictionDock />
+                                )}
+                                <ReadSubagentDock
+                                    idPrefix="reading-agent-side"
+                                    panels={
+                                        readSubagents.showDock
+                                            ? readSubagentPanels
+                                            : []
+                                    }
+                                    onClose={closeReadSubagentPanel}
+                                    onSourceClick={openReadSubagentSource}
+                                />
+                            </div>
+                        )}
+                        {readerPanel(true)}
+                    </aside>
+                )}
+            {showAssistantSideGutter && assistantSideGutterCollapsed && (
+                <div className="hidden h-full w-14 shrink-0 justify-center py-3 pe-3 2xl:flex">
+                    <button
+                        type="button"
+                        onClick={() => setAssistantSideGutterCollapsed(false)}
+                        className="grid size-10 place-items-center rounded-md border border-gray-300 bg-white text-gray-600 shadow-sm hover:bg-gray-50 hover:text-gray-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
+                        aria-label="Expand side panels"
+                    >
+                        <PanelRightOpen className="size-4" aria-hidden="true" />
+                    </button>
+                </div>
+            )}
+            <Modal
+                open={assistantPanelsModalOpen}
+                onClose={() => setAssistantPanelsModalOpen(false)}
+                breadcrumbs={["Panels"]}
+                size="md"
+            >
+                <div className="space-y-3 pb-5">
+                    {jurisdictionPreference.showAssistantPanel && (
+                        <JurisdictionDock />
+                    )}
+                    <ReadSubagentDock
+                        idPrefix="reading-agent-modal"
+                        panels={
+                            readSubagents.showDock ? readSubagentPanels : []
                         }
-                        isEditReloading={(editId) =>
-                            editState.editIds.has(editId)
-                        }
-                        onEditResolveStart={handleEditResolveStart}
-                        onEditResolved={handleEditResolved}
-                        onEditError={handleEditError}
-                        onWarningDismiss={(tabId) =>
-                            patchTab(tabId, { warning: null })
-                        }
-                        onScrollChange={(tabId, initialScrollTop) =>
-                            patchTab(tabId, { initialScrollTop })
-                        }
+                        onClose={closeReadSubagentPanel}
+                        onSourceClick={openReadSubagentSource}
                     />
+                </div>
+            </Modal>
+            {tabs.length > 0 && (
+                <div className="fixed inset-0 z-40 flex justify-center p-3 md:relative md:inset-auto md:z-auto md:block md:h-full md:min-w-0 md:flex-shrink-0 md:p-0 2xl:hidden">
+                    {readerPanel()}
                 </div>
             )}
             <WarningPopup

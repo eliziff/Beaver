@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { A2AJ_TOOLS, a2ajActivityLabel } from "./a2ajTools";
+import {
+  A2AJ_TOOLS,
+  a2ajActivityLabel,
+  assistantToolActivityLabel,
+} from "./a2ajTools";
 
 describe("a2ajActivityLabel", () => {
   it.each([
@@ -47,6 +51,26 @@ describe("a2ajActivityLabel", () => {
 
   it("leaves unrelated tools alone", () => {
     expect(a2ajActivityLabel("read_document", {})).toBeUndefined();
+  });
+
+  it("hides inventory reads and describes document searches from their input", () => {
+    expect(assistantToolActivityLabel("Glob", { pattern: "*" })).toBeNull();
+    expect(
+      assistantToolActivityLabel("Grep", { pattern: "termination clause" }),
+    ).toBe('Searching all documents in your Library for “termination clause”');
+    expect(
+      assistantToolActivityLabel("Read", { file_path: "contracts/Lease.docx" }),
+    ).toBe("Reading Lease.docx from your Library");
+    expect(
+      assistantToolActivityLabel("SearchSources", {
+        query: "fentanyl skin contact",
+        source_types: ["case"],
+        jurisdiction: "Canada",
+        collection: "ONCA",
+      }),
+    ).toBe(
+      'Searching case law · Canada · ONCA for “fentanyl skin contact”',
+    );
   });
 
   it("keeps statutory reference expansion on exact section lookup", () => {

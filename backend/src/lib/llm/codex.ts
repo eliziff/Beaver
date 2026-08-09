@@ -221,6 +221,7 @@ export function buildCodexPrompt(params: {
 export function codexStreamCallbacks(params: {
   callbacks?: StreamChatParams["callbacks"];
   enableThinking?: boolean;
+  reasoningSummary?: "auto" | "none";
 }) {
   let reasoningOpen = false;
   const endReasoning = () => {
@@ -288,6 +289,7 @@ async function runCodex(params: {
   apiKeys?: StreamChatParams["apiKeys"];
   abortSignal?: AbortSignal;
   enableThinking?: boolean;
+  reasoningSummary?: "auto" | "none";
   reasoningEffort?: string;
   maxIterations?: number;
   imagePaths?: string[];
@@ -298,7 +300,10 @@ async function runCodex(params: {
   if (params.continuationId && !CODEX_THREAD_ID.test(params.continuationId)) {
     throw new Error("Invalid Codex continuation ID.");
   }
-  const maxIterations = Math.max(1, params.maxIterations ?? 10);
+  const maxToolCalls =
+    params.maxIterations === undefined
+      ? undefined
+      : Math.max(1, params.maxIterations);
   let bridge: CodexToolBridge | null = null;
   let stderr = "";
   let fullText = "";
@@ -318,7 +323,7 @@ async function runCodex(params: {
       runTools: params.runTools,
       callbacks,
       abortSignal: params.abortSignal,
-      maxToolCalls: maxIterations,
+      maxToolCalls,
     });
   }
 
@@ -334,7 +339,10 @@ async function runCodex(params: {
   if (params.enableThinking) {
     const effort = params.reasoningEffort?.trim() || "max";
     args.push("-c", `model_reasoning_effort=${JSON.stringify(effort)}`);
-    args.push("-c", 'model_reasoning_summary="auto"');
+    args.push(
+      "-c",
+      `model_reasoning_summary=${JSON.stringify(params.reasoningSummary ?? "auto")}`,
+    );
     args.push("-c", "show_raw_agent_reasoning=false");
   }
   if (bridge) {
@@ -521,6 +529,7 @@ export async function streamCodex(
         apiKeys: params.apiKeys,
         abortSignal: controller.signal,
         enableThinking: params.enableThinking,
+        reasoningSummary: params.reasoningSummary,
         reasoningEffort: params.reasoningEffort,
         maxIterations: params.maxIterations,
         imagePaths,

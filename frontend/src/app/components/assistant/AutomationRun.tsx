@@ -98,6 +98,8 @@ export function AutomationRunPanel({ run }: { run: AutomationRunEvent }) {
                             <a
                                 key={`${output.name}:${output.url}`}
                                 href={output.url}
+                                target={/^https?:\/\//iu.test(output.url) ? "_blank" : undefined}
+                                rel={/^https?:\/\//iu.test(output.url) ? "noopener noreferrer" : undefined}
                                 className="block truncate text-sm text-blue-700 underline decoration-blue-300 underline-offset-2"
                             >
                                 {output.name}
@@ -116,6 +118,8 @@ export function AutomationRunPanel({ run }: { run: AutomationRunEvent }) {
             {run.app_url && (
                 <a
                     href={run.app_url}
+                    target={/^https?:\/\//iu.test(run.app_url) ? "_blank" : undefined}
+                    rel={/^https?:\/\//iu.test(run.app_url) ? "noopener noreferrer" : undefined}
                     className="inline-flex h-9 items-center gap-1.5 rounded-md bg-gray-950 px-3 text-sm font-medium text-white hover:bg-black"
                 >
                     Open full Authorities

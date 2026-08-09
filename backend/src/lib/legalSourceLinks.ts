@@ -1010,15 +1010,18 @@ function paragraphLookupKey(
   return `${normalizedIdentity(citation)}|${Number(locator.match(/\d+/u)?.[0])}`;
 }
 
-function stripModelCanadianDecisionUrls(answer: string) {
+function rewriteModelCanadianDecisionUrls(answer: string) {
+  let found = false;
   const strip = (rawUrl: string) => {
     try {
-      return isCanadianDecisionUrl(new URL(rawUrl)) ? "" : rawUrl;
+      if (!isCanadianDecisionUrl(new URL(rawUrl))) return rawUrl;
+      found = true;
+      return "";
     } catch {
       return rawUrl;
     }
   };
-  return answer
+  const text = answer
     .replace(
       /\[([^\]\r\n]+)\]\(([^)\r\n]*)\)/gu,
       (full, label: string, url: string) =>
@@ -1035,6 +1038,15 @@ function stripModelCanadianDecisionUrls(answer: string) {
     })
     .replace(/^[\t ]+$/gmu, "")
     .replace(/\n{3,}/gu, "\n\n");
+  return { found, text };
+}
+
+function stripModelCanadianDecisionUrls(answer: string) {
+  return rewriteModelCanadianDecisionUrls(answer).text;
+}
+
+export function hasCanadianDecisionLink(answer: string) {
+  return rewriteModelCanadianDecisionUrls(answer).found;
 }
 
 function uniqueTextEnd(answer: string, text: string) {

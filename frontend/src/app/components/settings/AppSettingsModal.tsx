@@ -15,6 +15,7 @@ import { SubagentSettings } from "./SubagentSettings";
 import { isAnonymousMode } from "@/app/lib/authMode";
 import { AccountSection } from "@/app/(pages)/account/AccountSection";
 import { useFootnoteCitationPreference } from "@/app/components/assistant/citationDisplayPreference";
+import { useActivityDetail } from "@/app/components/assistant/activityDisplayPreference";
 
 const TABS = ["General", "Providers", "Subagents"] as const;
 type SettingsTab = (typeof TABS)[number];
@@ -27,6 +28,7 @@ export function AppSettingsModal({
     onClose: () => void;
 }) {
     const footnotes = useFootnoteCitationPreference();
+    const activity = useActivityDetail();
     const [selectedTab, setSelectedTab] = useState<SettingsTab>("General");
     const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
     const idPrefix = useId();
@@ -61,6 +63,39 @@ export function AppSettingsModal({
                     </p>
                     <AccountSection className="p-4">
                         <JurisdictionPreferenceEditor />
+                    </AccountSection>
+                </section>
+                <section>
+                    <h2 className="mb-2 font-serif text-2xl font-medium text-gray-900">
+                        Activity detail
+                    </h2>
+                    <AccountSection className="p-4">
+                        <label className="grid gap-2 text-sm text-gray-900 sm:grid-cols-[minmax(0,1fr)_12rem] sm:items-center">
+                            <span>
+                                <span className="block font-medium">
+                                    Assistant activity
+                                </span>
+                                <span className="mt-0.5 block text-xs leading-5 text-gray-500">
+                                    Full trace includes available provider reasoning summaries and complete tool arguments.
+                                </span>
+                            </span>
+                            <select
+                                value={activity.detail}
+                                onChange={(event) =>
+                                    activity.setDetail(
+                                        event.currentTarget.value as
+                                            | "standard"
+                                            | "tools"
+                                            | "trace",
+                                    )
+                                }
+                                className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
+                            >
+                                <option value="standard">Standard</option>
+                                <option value="tools">Tool calls</option>
+                                <option value="trace">Full trace</option>
+                            </select>
+                        </label>
                     </AccountSection>
                 </section>
                 <section>

@@ -5,7 +5,7 @@ import { useAuth } from "@/app/contexts/AuthContext";
 import { isAnonymousMode, requiresAccount } from "@/app/lib/authMode";
 import { ChatHistoryProvider } from "@/app/contexts/ChatHistoryContext";
 import { SidebarContext } from "@/app/contexts/SidebarContext";
-import { AppSidebar } from "@/app/components/shared/AppSidebar";import { KeyboardShortcuts } from "@/app/components/shared/KeyboardShortcuts";import { AssistantAutomationActivity } from "@/app/components/assistant/AutomationRun";import { JurisdictionDock } from "@/app/components/assistant/JurisdictionDock";const TableOfAuthoritiesHost = lazy(() =>    import("@/app/components/shared/TableOfAuthoritiesHost").then((module) => ({        default: module.TableOfAuthoritiesHost,    })),);export default function BeaverLayout({
+import { AppSidebar } from "@/app/components/shared/AppSidebar";import { KeyboardShortcuts } from "@/app/components/shared/KeyboardShortcuts";import { AssistantAutomationActivity } from "@/app/components/assistant/AutomationRun";const TableOfAuthoritiesHost = lazy(() =>    import("@/app/components/shared/TableOfAuthoritiesHost").then((module) => ({        default: module.TableOfAuthoritiesHost,    })),);export default function BeaverLayout({
     children,
 }: {
     children: React.ReactNode;
@@ -114,6 +114,6 @@ import { AppSidebar } from "@/app/components/shared/AppSidebar";import { Keyboar
                                     )}
                                 </main>
                                 {authoritiesVisible && (                                    <Suspense                                        fallback={                                            <div                                                aria-hidden="true"                                                className="absolute inset-0 bg-[#f3f4f6]"                                            />                                        }                                    >                                        <TableOfAuthoritiesHost                                            active={                                                authoritiesActive &&                                                !authLoading &&                                                isAuthenticated                                            }                                            pending={authoritiesIntent}                                            enabled={                                                !authLoading &&                                                isAuthenticated &&                                                (isAnonymousMode ||                                                    authoritiesActive ||                                                    authoritiesIntent)                                            }                                        />                                    </Suspense>                                )}                            </div>                        </div>                    </div>
-                </div>                <JurisdictionDock />                <AssistantAutomationActivity />            </SidebarContext.Provider>        </ChatHistoryProvider>
+                </div>                <AssistantAutomationActivity />            </SidebarContext.Provider>        </ChatHistoryProvider>
     );
 }

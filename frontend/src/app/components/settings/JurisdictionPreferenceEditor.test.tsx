@@ -16,16 +16,15 @@ it("stores multiple standing jurisdictions and can return to asking", async () =
     await user.click(
         screen.getByRole("radio", { name: /Use selected jurisdictions/ }),
     );
+    await user.click(screen.getByRole("switch", { name: "All of Canada" }));
     await user.type(
-        screen.getByRole("searchbox", { name: "Find a province or state" }),
+        screen.getByRole("searchbox"),
         "Alberta",
     );
     await user.click(screen.getByRole("checkbox", { name: "Alberta" }));
-    await user.clear(
-        screen.getByRole("searchbox", { name: "Find a province or state" }),
-    );
+    await user.click(screen.getByRole("tab", { name: "US" }));
     await user.type(
-        screen.getByRole("searchbox", { name: "Find a province or state" }),
+        screen.getByRole("searchbox"),
         "New York",
     );
     await user.click(screen.getByRole("checkbox", { name: "New York" }));
@@ -41,7 +40,7 @@ it("stores multiple standing jurisdictions and can return to asking", async () =
     await user.click(screen.getByRole("radio", { name: /Ask when needed/ }));
     expect(jurisdictionPreferenceForChat()).toEqual({
         mode: "ask",
-        jurisdictions: [],
+        jurisdictions: ["Canada"],
     });
     expect(readJurisdictionPreference().jurisdictions).toHaveLength(2);
 });
