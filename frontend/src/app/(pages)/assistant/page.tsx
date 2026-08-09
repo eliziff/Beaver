@@ -1,5 +1,6 @@
-"use client";import { useRouter } from "next/navigation";import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";import { InitialView } from "@/app/components/assistant/InitialView";import type { Message } from "@/app/components/shared/types";export default function AssistantPage() {    const router = useRouter();
+"use client";import { useState } from "react";import { useRouter } from "next/navigation";import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";import { InitialView } from "@/app/components/assistant/InitialView";import { takeNewChatDocuments } from "@/app/components/assistant/assistantLaunch";import type { Message } from "@/app/components/shared/types";export default function AssistantPage() {    const router = useRouter();
     const { saveChat, stagePendingChatMessage } = useChatHistoryContext();
+    const [initialDocuments] = useState(takeNewChatDocuments);
     async function handleInitialSubmit(message: Message) {
         if (!message.content.trim()) return;
         const chatId = await saveChat();
@@ -7,5 +8,5 @@
         stagePendingChatMessage(chatId, message);
         router.push(`/assistant/chat/${chatId}`);
     }
-    return <InitialView onSubmit={(message) => void handleInitialSubmit(message)} />;
+    return <InitialView initialDocuments={initialDocuments} onSubmit={(message) => void handleInitialSubmit(message)} />;
 }

@@ -45,12 +45,12 @@ it("stores multiple standing jurisdictions and can return to asking", async () =
     expect(readJurisdictionPreference().jurisdictions).toHaveLength(2);
 });
 
-it("persists the optional Assistant panel control", async () => {
+it("controls whether the chat box shows the jurisdiction shortcut", async () => {
     render(<JurisdictionPreferenceEditor />);
 
     await userEvent.click(
-        screen.getByRole("checkbox", { name: /Show in Assistant/ }),
+        screen.getByRole("checkbox", { name: /Show in chat box/ }),
     );
 
-    expect(readJurisdictionPreference().showAssistantPanel).toBe(true);
+    expect(readJurisdictionPreference().showChatControl).toBe(false);
 });

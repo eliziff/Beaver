@@ -655,6 +655,81 @@ export function registerLegalEvidence(
   state.evidence.set(receipt.evidence_id, { receipt, ...source });
 }
 
+function storedLegalEvidenceReceipt(value: unknown): LegalEvidenceReceipt | null {
+  const row = object(value);
+  const locator = object(row?.locator);
+  if (
+    !row ||
+    typeof row.evidence_id !== "string" ||
+    !row.evidence_id.startsWith("e_") ||
+    typeof row.stable_source_id !== "string" ||
+    typeof row.source_sha256 !== "string" ||
+    typeof row.span_sha256 !== "string" ||
+    (row.span_text !== null && typeof row.span_text !== "string") ||
+    typeof row.citation !== "string" ||
+    typeof row.dataset !== "string" ||
+    typeof row.jurisdiction !== "string" ||
+    !locator ||
+    typeof locator.kind !== "string" ||
+    typeof locator.label !== "string"
+  ) {
+    return null;
+  }
+  return row as LegalEvidenceReceipt;
+}
+
+/** Recover every verified receipt persisted by either the parent or a reader. */
+export function priorLegalEvidenceReceipts(events: readonly unknown[]) {
+  const receipts = new Map<string, LegalEvidenceReceipt>();
+  for (const value of events) {
+    const event = object(value);
+    if (!event) continue;
+    const source =
+      event.type === "legal_evidence_receipt" && event.status === "passed"
+        ? event
+        : event.type === "subagent_run" && event.status === "completed"
+          ? object(event.grounding)
+          : null;
+    if (!source || source.status !== "passed" || !Array.isArray(source.evidence)) {
+      continue;
+    }
+    for (const item of source.evidence) {
+      const receipt = storedLegalEvidenceReceipt(item);
+      if (receipt) receipts.set(receipt.evidence_id, receipt);
+    }
+  }
+  return [...receipts.values()];
+}
+
+export function registerPriorLegalEvidence(
+  state: LegalEvidenceTurnState,
+  receipts: readonly LegalEvidenceReceipt[],
+) {
+  for (const receipt of receipts) registerLegalEvidence(state, receipt);
+}
+
+export function priorLegalEvidencePrompt(
+  receipts: readonly LegalEvidenceReceipt[],
+) {
+  const passages = receipts.filter(
+    (receipt) => receipt.scope === "passage" && receipt.span_text,
+  );
+  if (!passages.length) return "";
+  return [
+    "VERIFIED EVIDENCE AVAILABLE FROM PRIOR TURNS:",
+    "These exact passages and evidence_ids are already registered in this turn. Use them directly in submit_grounded_answer. Do not re-fetch them, ask the user to resend them, or delegate work merely to recover or restate them. Treat reader findings as candidates: test each exact passage against every element of the current request and omit merely analogous, adjacent, or conceptually related material.",
+    ...passages.map((receipt) =>
+      JSON.stringify({
+        evidence_id: receipt.evidence_id,
+        citation: receipt.citation,
+        name: receipt.name,
+        locator: receipt.locator,
+        exact_passage: receipt.span_text,
+      }),
+    ),
+  ].join("\n");
+}
+
 function object(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -999,7 +1074,7 @@ export function submitLegalEvidenceAnswer(
           .filter(Boolean);
         if (formal.some((value) => normalized.includes(value))) {
           errors.push(
-            `claims[${index}].text contains citation or pinpoint text owned by ${evidenceId}; omit it and let Beaver render the source pill`,
+            `claims[${index}].text contains citation or pinpoint text for ${evidenceId}; omit it and keep the source only in evidence_ids`,
           );
           break;
         }
@@ -1325,7 +1400,7 @@ const claimItems = {
       type: "string",
       maxLength: 4_000,
       description:
-        "One independently checkable support unit in natural Markdown. Preserve meaning-critical context, but omit formal citation and pinpoint text (for example, '2010 BCCA 170' or 'paras. 10-12'); Beaver appends it from evidence_ids.",
+        "One independently checkable support unit in natural Markdown. Preserve meaning-critical context, but omit formal citation and pinpoint text (for example, '2010 BCCA 170' or 'paras. 10-12'); keep sources only in evidence_ids.",
     },
     evidence_ids: {
       type: "array",
@@ -1363,7 +1438,7 @@ export const LEGAL_EVIDENCE_SUBMIT_TOOL: OpenAIToolSchema = {
     name: LEGAL_EVIDENCE_TOOL_NAME,
     strict: true,
     description:
-      "Finish a legal answer as independently checkable support units tied to exact passage evidence. Do not write citations or pinpoints in text; Beaver renders each evidence receipt as one complete source pill. Every substantive proposition needs evidence. This call is the final answer, so do not emit a separate copy.",
+      "Finish a legal answer as independently checkable support units tied to exact passage evidence. Put citations and pinpoints only in evidence_ids, not in text. Every substantive proposition needs evidence. This call is the final answer, so do not emit a separate copy.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -2384,7 +2459,7 @@ export function legalEvidenceCitationEntries(
 export type LegalEvidenceReceiptEvent = {
   type: "legal_evidence_receipt";
   schema_version: 6;
-  mode: LegalEvidenceMode;
+  mode: LegalEvidenceMode | null;
   status: "passed" | "failed";
   verification: {
     reference: "verified";
@@ -2425,12 +2500,12 @@ export type LegalEvidenceReceiptEvent = {
 export function legalEvidenceReceiptEvent(
   state: LegalEvidenceTurnState,
 ): LegalEvidenceReceiptEvent | null {
-  if (!state.mode || !state.attempted) return null;
+  if (!state.attempted) return null;
   const claims = state.answer ?? state.rejectedAnswer ?? [];
   const ids = new Set(claims.flatMap((claim) => claim.evidence_ids));
   const passed =
     Boolean(state.answer) &&
-    allClaimsSupported(state);
+    (state.mode === null || allClaimsSupported(state));
   return {
     type: "legal_evidence_receipt",
     schema_version: 6,

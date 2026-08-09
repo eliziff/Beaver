@@ -11,7 +11,6 @@ import {
   PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT,
   PUBLIC_LEGAL_SOURCE_TOOL_NAMES,
 } from "../chat/tools/publicLegalSourceTools";
-import { createCitation, parseCitations } from "../chat/citations";
 import { runToolCalls } from "../chat/tools/toolDispatcher";
 import { readPublicLegalEvidenceReceipt } from "../publicLegalSources";
 
@@ -131,31 +130,6 @@ describe("public legal source tool integration", () => {
     expect(modelPayload.block).not.toHaveProperty("anchor");
     expect(state.documents.size).toBeGreaterThan(0);
     expect(state.lookups[0]?.lookup.anchor).toBe("para_24");
-
-    const [parsed] = parseCitations(
-      `<CITATIONS>${JSON.stringify([
-        {
-          ref: 1,
-          source: "public_legal",
-          provider: "tna",
-          identifier: "[2024] UKSC 1",
-          url: "https://attacker.invalid/fake",
-          quotes: [
-            { quote: "First exact proposition appears here." },
-            { quote: "Second exact holding appears here." },
-          ],
-        },
-      ])}</CITATIONS>`,
-    );
-    const citation = createCitation(parsed, {}, undefined, [], [], state) as {
-      url: string;
-    };
-
-    expect(citation.url).toContain(
-      "https://caselaw.nationalarchives.gov.uk/uksc/2024/1#para_24",
-    );
-    expect(citation.url).not.toContain("attacker.invalid");
-    expect(citation.url.match(/text=/gu)).toHaveLength(2);
 
     const withoutCitationJson = appendPublicLegalPinpointLinks(
       'The court said "First exact proposition appears here" and "Second exact holding appears here" [1].',

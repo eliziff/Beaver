@@ -1,5 +1,5 @@
 import { createPortal } from "react-dom";
-import { useState, type ComponentType } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import { BookOpen, Link2, Loader2, RefreshCw, WandSparkles, X } from "lucide-react";
 import { isAnonymousMode } from "@/app/lib/authMode";
 import {
@@ -19,7 +19,7 @@ import {
     automationLabel,
     publishAutomationRun,
 } from "@/app/components/assistant/AutomationRun";
-type DocumentAutomationTarget = {
+export type DocumentAutomationTarget = {
     id: string;
     filename: string;
     file_type?: string | null;
@@ -112,9 +112,11 @@ export function DocumentAutomation({
     document,
     onDocumentChanged,
     showWhenUnavailable = false,
+    embedded = false,
 }: {
     document: DocumentAutomationTarget | null;
     showWhenUnavailable?: boolean;
+    embedded?: boolean;
     onDocumentChanged?: (
         result: DeterministicDocxActionResult,
     ) => Promise<void> | void;
@@ -128,14 +130,17 @@ export function DocumentAutomation({
         <DocumentAutomationMenu
             document={eligibleDocument}
             onDocumentChanged={onDocumentChanged}
+            embedded={embedded}
         />
     );
 }
 function DocumentAutomationMenu({
     document,
     onDocumentChanged,
+    embedded,
 }: {
     document: DocumentAutomationTarget | null;
+    embedded: boolean;
     onDocumentChanged?: (
         result: DeterministicDocxActionResult,
     ) => Promise<void> | void;
@@ -154,6 +159,40 @@ function DocumentAutomationMenu({
     const inspectionError =
         document && failure?.documentId === document.id ? failure.message : "";
     const pdf = documentAutomationKind(document) === "pdf";
+    useEffect(() => {
+        if (!embedded || !document) return;
+        let active = true;
+        setFailure(null);
+        if (pdf) {
+            setMenu({ documentId: document.id, showSupras: false });
+            return;
+        }
+        setInspecting(true);
+        void inspectLibraryDocumentAutomation(document.id)
+            .then((capabilities) => {
+                if (active)
+                    setMenu({
+                        documentId: document.id,
+                        showSupras: capabilities.supra_references === true,
+                    });
+            })
+            .catch((error: unknown) => {
+                if (active)
+                    setFailure({
+                        documentId: document.id,
+                        message:
+                            error instanceof Error
+                                ? error.message
+                                : "Could not inspect this document.",
+                    });
+            })
+            .finally(() => {
+                if (active) setInspecting(false);
+            });
+        return () => {
+            active = false;
+        };
+    }, [document, embedded, pdf]);
     async function openAutomation() {
         if (!document || inspecting) return;
         if (pdf) {
@@ -244,7 +283,7 @@ function DocumentAutomationMenu({
     );
     return (
         <>
-            <button
+            {!embedded && <button
                 type="button"
                 aria-busy={inspecting}
                 disabled={!document || !!running || inspecting}
@@ -262,15 +301,34 @@ function DocumentAutomationMenu({
                     )}
                 </span>
                 Automation
-            </button>
+            </button>}
             <WarningPopup
                 open={!!inspectionError}
                 onClose={() => setFailure(null)}
                 title="Automation unavailable"
                 message={inspectionError}
             />
-            {open &&
-                createPortal(
+            {open && (embedded ? (
+                <div className="h-full overflow-y-auto bg-white">
+                    <p className="border-b border-gray-200 px-4 py-3 text-sm text-gray-600">
+                        {document.filename}
+                    </p>
+                    <div className="grid gap-1 p-2">
+                        {actions.map(({ tool, icon: Icon }) => (
+                            <button
+                                key={tool}
+                                type="button"
+                                disabled={!!running}
+                                onClick={() => void runAction(tool)}
+                                className="flex min-h-10 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-sm font-medium text-gray-900 hover:bg-gray-100 disabled:opacity-50"
+                            >
+                                <Icon className="h-4 w-4 shrink-0" />
+                                {automationLabel(tool)}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            ) : createPortal(
                     <aside
                         aria-label="Automation"
                         data-shortcut-layer
@@ -307,7 +365,7 @@ function DocumentAutomationMenu({
                         </div>
                     </aside>,
                     globalThis.document.body,
-                )}
+                ))}
         </>
     );
 }

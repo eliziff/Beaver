@@ -360,6 +360,41 @@ function sourceUrl(rawUrl: string, anchor?: string): string | null {
   }
 
   const existingAnchor = url.hash.slice(1).split(":~:", 1)[0];
+  const bclaws = /(^|\.)bclaws\.gov\.bc\.ca$/iu.test(url.hostname);
+  if (bclaws && url.pathname.endsWith("/xml")) {
+    url.pathname = url.pathname.slice(0, -4);
+  }
+  let justiceLawsHtml = false;
+  if (/^laws-lois\.justice\.gc\.ca$/iu.test(url.hostname)) {
+    const justiceXml = url.pathname.match(/^\/(eng|fra)\/XML\/([^/]+)\.xml$/iu);
+    if (justiceXml) {
+      const language = justiceXml[1].toLocaleLowerCase();
+      const identifier = justiceXml[2];
+      let decodedIdentifier = identifier;
+      try {
+        decodedIdentifier = decodeURIComponent(identifier);
+      } catch {
+        // Keep the literal path segment; URL parsing already validated it.
+      }
+      const regulation = /^(?:SOR|SI|C\.?R\.?C\.?|DORS|TR)\b/iu.test(
+        decodedIdentifier,
+      );
+      const collection = language === "fra"
+        ? regulation ? "reglements" : "lois"
+        : regulation ? "regulations" : "acts";
+      url.pathname = `/${language}/${collection}/${identifier}/FullText.html`;
+      justiceLawsHtml = true;
+    }
+  }
+  if (/^(?:www\.)?ontario\.ca$/iu.test(url.hostname)) {
+    const elaws = url.pathname.match(
+      /^\/laws\/api\/v2\/legislation\/en\/doc-search\/(statute|regulation)\/([^/]+)$/iu,
+    );
+    if (elaws) {
+      url.hostname = "www.ontario.ca";
+      url.pathname = `/laws/${elaws[1].toLocaleLowerCase()}/${elaws[2]}`;
+    }
+  }
   const canliiPdf =
     /(^|\.)canlii\.org$/iu.test(url.hostname) &&
     url.pathname.toLowerCase().endsWith(".pdf");
@@ -383,8 +418,14 @@ function sourceUrl(rawUrl: string, anchor?: string): string | null {
     url.searchParams.set("site_preference", "mobile");
   }
 
-  const resolvedAnchor =
+  let resolvedAnchor =
     anchor !== undefined ? anchor : convertedCanliiPdf ? "" : existingAnchor;
+  if (bclaws) {
+    resolvedAnchor = resolvedAnchor.replace(/^sec(?=\d)/iu, "section");
+  }
+  if (justiceLawsHtml) {
+    resolvedAnchor = /^h-\d+$/iu.test(existingAnchor) ? existingAnchor : "";
+  }
   url.hash = resolvedAnchor ? `#${resolvedAnchor}` : "";
   return local ? `${url.pathname}${url.search}${url.hash}` : url.toString();
 }
@@ -445,8 +486,18 @@ function buildDirective(
   document: SourceDoc,
   pageScoped: boolean,
 ) {
-  const span = chooseSourceSpan(block, quote);
-  if (!span) return null;
+  const selected = chooseSourceSpan(block, quote);
+  if (!selected) return null;
+  const leadingMarker = block.text
+    .slice(selected.start, selected.end)
+    .match(/^\s*(?:\[\s*\d{1,4}\s*\]|\d{1,4}\])\s*/u)?.[0];
+  const markerEnd = selected.start + (leadingMarker?.length ?? 0);
+  const firstWord = leadingMarker
+    ? block.tokens.findIndex((token) => token.start >= markerEnd)
+    : selected.firstWord;
+  const span = leadingMarker && firstWord >= 0
+    ? { ...selected, start: markerEnd, firstWord }
+    : selected;
   const target = normalizeWhitespace(block.text.slice(span.start, span.end));
   const targetWords = sourceDocQuoteWords(target);
   if (!targetWords.length) return null;

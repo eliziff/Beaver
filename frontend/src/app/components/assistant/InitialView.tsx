@@ -16,7 +16,7 @@ import {
     type QuickActionId,
     useQuickActionsPreference,
 } from "./quickActionsPreferences";
-import type { Message, Workflow } from "../shared/types";
+import type { Document, Message, Workflow } from "../shared/types";
 const loadNewTRModal = () => import("../tabular/NewTRModal");
 const loadSelectAssistantProjectModal = () => import("./SelectAssistantProjectModal");
 const loadNewProjectModal = () => import("../projects/NewProjectModal");
@@ -59,8 +59,10 @@ const DOCUMENT_WORKFLOW_ACTIONS: Partial<
 };
 export function InitialView({
     onSubmit,
+    initialDocuments = [],
 }: {
     onSubmit: (message: Message) => void;
+    initialDocuments?: Document[];
 }) {
     const { user } = useAuth();
     const { profile } = useUserProfile();
@@ -81,6 +83,11 @@ export function InitialView({
             loadNewProjectModal(),
         ]));
     }, []);
+    useEffect(() => {
+        for (const document of initialDocuments) {
+            chatInputRef.current?.addDoc(document);
+        }
+    }, [initialDocuments]);
     function handleDocumentWorkflowClick(id: QuickActionId) {
         const config = DOCUMENT_WORKFLOW_ACTIONS[id];
         if (!config) return;

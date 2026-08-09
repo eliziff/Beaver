@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { MessageSquarePlus } from "lucide-react";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import {
     listProjects,
@@ -32,6 +33,7 @@ import { CheckboxControl } from "@/app/components/ui/checkbox";
 import { PillButton } from "@/app/components/ui/pill-button";
 import { SearchBar } from "@/app/components/ui/search-bar";
 import { formatDate } from "@/app/lib/utils";
+import { TabPillButton } from "@/app/components/ui/tab-pill-button";
 function isProjectOwner(project: Project, currentUserId?: string | null) {
     return project.is_owner ?? project.user_id === currentUserId;
 }
@@ -194,16 +196,28 @@ export function ProjectsOverview() {
         );
     }
     const toolbarActions = (
-        <span className="inline-flex h-8 w-28">
-            {selectedIds.size > 0 && (
-                <PillButton
-                    tone="danger"
-                    className="h-8 w-full"
-                    onClick={() => void handleDeleteSelected()}
-                >
-                    Delete selected
-                </PillButton>
-            )}
+        <span
+            aria-label="Selected project actions"
+            className="inline-flex h-8 w-[17rem] items-center justify-end gap-1.5"
+        >
+            <TabPillButton
+                disabled={selectedIds.size !== 1}
+                onClick={() =>
+                    router.push(`/projects/${[...selectedIds][0]}/assistant`)
+                }
+            >
+                <MessageSquarePlus className="h-3.5 w-3.5" />
+                Open in new chat
+            </TabPillButton>
+            <PillButton
+                tone="danger"
+                className={`h-8 ${selectedIds.size ? "" : "invisible pointer-events-none"}`}
+                onClick={() => void handleDeleteSelected()}
+                aria-hidden={!selectedIds.size}
+                tabIndex={selectedIds.size ? undefined : -1}
+            >
+                Delete selected
+            </PillButton>
         </span>
     );
     return (

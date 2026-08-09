@@ -15,7 +15,7 @@ vi.mock("../llm", async (importOriginal) => ({
 }));
 
 import {
-  allowedReadSubagentForeignRegions,
+  allowedReadSubagentRegions,
   createReadSubagentAdmission,
   getReadSubagentCapability,
   readSubagentTools,
@@ -118,7 +118,7 @@ describe("reading agents", () => {
     });
   });
 
-  it("allows document and legal research tools but excludes mutations", () => {
+  it("exposes only legal research tools inside the assigned country boundary", () => {
     const tools = [
       schema("Read"),
       schema("library_find"),
@@ -130,15 +130,17 @@ describe("reading agents", () => {
       schema("submit_grounded_answer"),
     ];
     expect(readSubagentTools(tools).map((tool) => tool.function.name)).toEqual([
-      "Read",
-      "library_find",
+      "SearchSources",
+      "public_legal_source_lookup",
+    ]);
+    expect(readSubagentTools(tools, "US").map((tool) => tool.function.name)).toEqual([
       "SearchSources",
       "courtlistener_find_in_case",
       "public_legal_source_lookup",
     ]);
   });
 
-  it("admits at most three distinct reading scopes per turn", () => {
+  it("admits multiple rounds of two or three distinct reading scopes", () => {
     const admit = createReadSubagentAdmission();
     const calls = ["Supreme Court", "appellate courts", "commentary", "trial courts"].map(
       (scope, index) => ({
@@ -154,9 +156,39 @@ describe("reading agents", () => {
       "commentary",
     ]);
     expect(first.rejected[0]?.content).toContain("at most 3");
+    const later = admit([
+      {
+        id: "later-1",
+        name: "delegate_read",
+        input: { task: "Try the exact phrase.", scope: "phrase search" },
+      },
+      {
+        id: "later-2",
+        name: "delegate_read",
+        input: { task: "Check citing cases.", scope: "citator search" },
+      },
+    ]);
+    expect(later.accepted).toHaveLength(2);
+    expect(admit([
+      { ...calls[0], id: "later-duplicate" },
+      {
+        id: "later-new",
+        name: "delegate_read",
+        input: { task: "Inspect dockets.", scope: "docket search" },
+      },
+    ]).rejected.map((result) => result.content).join("\n")).toContain(
+      "duplicates",
+    );
     expect(
-      admit([{ ...calls[0], id: "duplicate" }]).rejected[0]?.content,
+      createReadSubagentAdmission()([
+        calls[0],
+        { ...calls[0], id: "duplicate" },
+      ]).rejected[0]?.content,
     ).toContain("duplicates");
+    expect(createReadSubagentAdmission()([calls[0]])).toMatchObject({
+      accepted: [calls[0]],
+      rejected: [],
+    });
   });
 
   it("keeps delegated reading in Canada unless the user or settings select a foreign region", () => {
@@ -167,36 +199,45 @@ describe("reading agents", () => {
         input: { task: "Find responsive authorities.", scope: "Ontario courts" },
       },
       {
+        id: "ca-2",
+        name: "delegate_read",
+        input: { task: "Find responsive authorities.", scope: "Quebec courts" },
+      },
+      {
         id: "us",
         name: "delegate_read",
-        input: { task: "Find US decisions.", scope: "United States courts" },
+        input: { task: "Find US decisions.", scope: "United States courts", jurisdiction: "US" },
       },
       {
         id: "uk",
         name: "delegate_read",
-        input: { task: "Find UK decisions.", scope: "English law" },
+        input: { task: "Find UK decisions.", scope: "English law", jurisdiction: "UK" },
       },
     ];
 
     const canadian = createReadSubagentAdmission()(calls);
-    expect(canadian.accepted.map((call) => call.id)).toEqual(["ca"]);
+    expect(canadian.accepted.map((call) => call.id)).toEqual(["ca", "ca-2"]);
     expect(canadian.rejected.map((result) => result.content)).toEqual([
-      expect.stringContaining("US law was not requested"),
-      expect.stringContaining("UK law was not requested"),
+      expect.stringContaining("US law is outside"),
+      expect.stringContaining("UK law is outside"),
     ]);
 
     const request = "Compare Canadian, US and UK decisions.";
-    const selected = allowedReadSubagentForeignRegions(
+    const selected = allowedReadSubagentRegions(
       { mode: "ask", jurisdictions: ["Canada"] },
       request,
     );
-    expect(createReadSubagentAdmission(3, selected)(calls).accepted).toHaveLength(3);
     expect(
-      allowedReadSubagentForeignRegions(
+      createReadSubagentAdmission(3, selected)(
+        calls.slice(0, 1).concat(calls.slice(2)),
+      ).accepted,
+    ).toHaveLength(3);
+    expect(
+      allowedReadSubagentRegions(
         { mode: "ask", jurisdictions: ["Canada"] },
         "Survey the relevant jurisdictions.",
       ),
-    ).toEqual(new Set());
+    ).toEqual(new Set(["CA"]));
   });
 
   it("returns only the receipt-backed grounded submission", async () => {
@@ -251,7 +292,7 @@ describe("reading agents", () => {
       onEvent: (event) => events.push(event),
     });
 
-    expect(result.status).toBe("ok");
+    expect(result.status, result.content).toBe("ok");
     expect(mocks.stream).toHaveBeenCalledWith(
       expect.objectContaining({
         model: "codex:gpt-5.6-luna",
@@ -310,7 +351,7 @@ describe("reading agents", () => {
       }]);
       return { fullText: "" };
     });
-    await runReadSubagent({
+    const result = await runReadSubagent({
       call: {
         id: "read-case",
         name: "delegate_read",
@@ -362,6 +403,17 @@ describe("reading agents", () => {
         }),
       ]),
     });
+    expect(JSON.parse(result.content)).toMatchObject({
+      evidence: [expect.objectContaining({
+        evidence_id: "e_lease",
+        exact_passage: expect.stringContaining("successive one-year terms"),
+      })],
+      searches: [expect.objectContaining({
+        tool: "SearchSources",
+        query: expect.stringContaining("fentanyl contact"),
+        summary: expect.stringContaining("2020 BCSC 1122"),
+      })],
+    });
   });
 
   it("keeps revising until a grounded submission passes", async () => {
@@ -411,7 +463,7 @@ describe("reading agents", () => {
         }),
     });
 
-    expect(result.status).toBe("ok");
+    expect(result.status, result.content).toBe("ok");
     expect(mocks.stream).toHaveBeenCalledTimes(3);
     expect(mocks.stream.mock.calls[1]?.[0]).toEqual(
       expect.objectContaining({
@@ -468,7 +520,7 @@ describe("reading agents", () => {
       }),
     });
 
-    expect(result.status).toBe("ok");
+    expect(result.status, result.content).toBe("ok");
     expect(result.content).toContain("e_lease");
   });
 });

@@ -727,7 +727,7 @@ export const streamChat = (payload: {
   subagents_enabled?: boolean;
   subagent_model?: string;
   subagent_effort?: string;
-  activity_detail?: "standard" | "tools" | "trace";
+  activity_detail?: "auto" | "standard" | "tools" | "trace";
   displayed_doc?: { filename: string; document_id: string };
   attached_documents?: { filename: string; document_id: string }[];
   ask_inputs_response?: Extract<

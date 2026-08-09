@@ -14,6 +14,10 @@ import {
 import { cn } from "@/app/lib/utils";
 import { LIQUID_PANEL_SURFACE_CLASS } from "@/app/components/ui/liquid-surface";
 import { AutomationRunPanel } from "./AutomationRun";
+import {
+    DocumentAutomation,
+    type DocumentAutomationTarget,
+} from "@/app/components/documents/DocumentAutomation";
 type CommonTab = {
     id: string;
     documentId: string;
@@ -38,12 +42,18 @@ type AutomationTab = {
     id: string;
     run: AutomationRunEvent;
 };
+type AutomationMenuTab = {
+    kind: "automation-menu";
+    id: string;
+    document: DocumentAutomationTarget;
+};
 export type AssistantDocumentTab = DocumentTab | CitationTab | EditTab;
 export type AssistantSidePanelTab =
     | AssistantDocumentTab
     | CaseTab
     | LegalSourceTab
-    | AutomationTab;
+    | AutomationTab
+    | AutomationMenuTab;
 interface Props {
     tabs: AssistantSidePanelTab[];
     activeTabId: string | null;
@@ -61,6 +71,7 @@ interface Props {
     embedded?: boolean;
 }
 function tabTitle(tab: AssistantSidePanelTab): string {
+    if (tab.kind === "automation-menu") return "Automations";
     if (tab.kind === "automation") return "Automation";
     if (tab.kind === "case") {
         return tab.caseName || tab.citation || "Case";
@@ -164,6 +175,14 @@ export function AssistantSidePanel({
                 {tabs.map((tab) => {
                     const isActive = tab.id === active.id;
                     const body = (() => {
+                        if (tab.kind === "automation-menu") {
+                            return (
+                                <DocumentAutomation
+                                    document={tab.document}
+                                    embedded
+                                />
+                            );
+                        }
                         if (tab.kind === "automation") {
                             return <AutomationRunPanel run={tab.run} />;
                         }
@@ -216,7 +235,8 @@ export function AssistantSidePanel({
                             key={tab.id}
                             className={cn(
                                 "absolute inset-0",
-                                tab.kind === "automation"
+                                tab.kind === "automation" ||
+                                tab.kind === "automation-menu"
                                     ? "overflow-y-auto"
                                     : "flex flex-col",
                                 !isActive && "invisible pointer-events-none",

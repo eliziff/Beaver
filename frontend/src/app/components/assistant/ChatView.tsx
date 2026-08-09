@@ -43,15 +43,12 @@ import type { RejectedAssistantTurn } from "@/app/hooks/useAssistantChat";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import { legalSourceLocatorFromUrl } from "@/app/components/legal/LegalSourceViewer";
-import { useFootnoteCitationPreference } from "./citationDisplayPreference";
 import {
     ReadSubagentDock,
     type ReadSubagentPanel,
     type ReadSubagentSource,
 } from "./ReadSubagentDock";
 import { useReadSubagentPreference } from "./readSubagentPreferences";
-import { JurisdictionDock } from "./JurisdictionDock";
-import { useJurisdictionPreference } from "./jurisdictionPreferences";
 import { Modal } from "@/app/components/modals/Modal";
 interface Props {
     chatId?: string | null;
@@ -199,9 +196,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     },
     ref,
 ) {
-    const footnoteCitations = useFootnoteCitationPreference();
     const readSubagents = useReadSubagentPreference();
-    const { preference: jurisdictionPreference } = useJurisdictionPreference();
     const readSubagentPanelStorageKey = `${READ_SUBAGENT_PANELS_KEY}:${chatId ?? "new"}`;
     const [tabs, setTabs] = useState<AssistantSidePanelTab[]>([]);
     const [readSubagentPanels, setReadSubagentPanels] = useState<
@@ -307,6 +302,8 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     };
     const openCitation = (citation: Citation) => {
         const exactProviderUrl =
+            citation.kind !== "document" &&
+            !(citation.kind === "public_legal" && citation.provider === "journal") &&
             "url" in citation &&
             citation.url?.includes(":~:text=")
                 ? citation.url
@@ -315,12 +312,12 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             window.open(exactProviderUrl, "_blank", "noopener,noreferrer");
             return;
         }
-        if (citation.kind === "case") return openCase(citation, false);
+        if (citation.kind === "case") return openCase(citation);
         if (citation.kind === "document" || !citation.kind) {
             return upsertTab(documentCitationTab(citation, false));
         }
         if (citation.kind === "a2aj" || citation.kind === "public_legal") {
-            const tab = legalCitationTab(citation, false);
+            const tab = legalCitationTab(citation, true);
             if (tab) upsertTab(tab);
             else if ("url" in citation && citation.url)
                 window.open(citation.url, "_blank", "noopener,noreferrer");
@@ -550,6 +547,29 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     useEffect(() => {
         onActiveDocumentChange?.(activeDocument?.documentId ?? null);
     }, [activeDocument?.documentId, onActiveDocumentChange]);
+    const openAutomations = (document?: Document) => {
+        const target = document
+            ? {
+                  id: document.id,
+                  filename: document.filename,
+                  file_type: document.file_type,
+                  library_kind: document.library_kind,
+                  project_id: document.project_id,
+              }
+            : activeDocument
+              ? {
+                    id: activeDocument.documentId,
+                    filename: activeDocument.filename,
+                    project_id: projectId ?? null,
+                }
+              : null;
+        if (!target) return;
+        upsertTab({
+            kind: "automation-menu",
+            id: `automation-menu:${target.id}`,
+            document: target,
+        });
+    };
     useImperativeHandle(
         ref,
         () => ({
@@ -723,8 +743,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         );
     };
     const hasAssistantPanels =
-        jurisdictionPreference.showAssistantPanel ||
-        (readSubagents.showDock && readSubagentPanels.length > 0);
+        readSubagents.showDock && readSubagentPanels.length > 0;
     const showAssistantSideGutter = tabs.length > 0 || hasAssistantPanels;
     const assistantSideGutterVisible =
         showAssistantSideGutter && !assistantSideGutterCollapsed;
@@ -822,9 +841,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                                                     : undefined
                                             }
                                             citations={msg.citations}
-                                            showCitationList={
-                                                footnoteCitations.enabled
-                                            }
                                             onCitationClick={openCitation}
                                             onCaseClick={openCase}
                                             onAutomationClick={openAutomation}
@@ -934,6 +950,8 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                                 cancel();
                             }}
                             isLoading={isResponseLoading || !!activeInput}
+                            automationsAvailable={!!activeDocument}
+                            onOpenAutomations={openAutomations}
                             projectName={projectName ?? undefined}
                             projectCmNumber={projectCmNumber}
                             restoreDraft={
@@ -969,9 +987,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                         </button>
                         {hasAssistantPanels && (
                             <div className={`${tabs.length ? "max-h-[42%]" : "flex-1"} shrink-0 space-y-2 overflow-y-auto`}>
-                                {jurisdictionPreference.showAssistantPanel && (
-                                    <JurisdictionDock />
-                                )}
                                 <ReadSubagentDock
                                     idPrefix="reading-agent-side"
                                     panels={
@@ -1006,9 +1021,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                 size="md"
             >
                 <div className="space-y-3 pb-5">
-                    {jurisdictionPreference.showAssistantPanel && (
-                        <JurisdictionDock />
-                    )}
                     <ReadSubagentDock
                         idPrefix="reading-agent-modal"
                         panels={

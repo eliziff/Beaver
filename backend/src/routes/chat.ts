@@ -90,11 +90,6 @@ import {
   TERMINAL_AUTHORING_ENABLED,
   UPSTREAM_MIKE_TOOL_SHAPE,
   UPSTREAM_NATIVE_MIKE_SHAPE,
-  WORKING_SET_GREP_DEFAULT_HEAD_LIMIT,
-  WORKING_SET_GREP_LINE_MAX_CHARS,
-  WORKING_SET_GREP_MAX_HEAD_LIMIT,
-  WORKING_SET_PAGE_MAX_CHARS,
-  WORKING_SET_PATH,
   partitionTools,
   describeToolsTool,
   extractLocalDocument,
@@ -107,17 +102,10 @@ import {
 } from "../lib/chat/localAssistantTools";
 import { STRUCTURE_INDEX_ENABLED } from "../lib/chat/structureIndexExperiment";
 import {
-  INITIAL_RESEARCH_CHECKPOINT_MAX_COUNT,
   applyEvidenceExposure,
-  compileCheckpointedEvidenceResearchRefresh,
   compileEvidenceHandoff,
-  compileEvidenceResearchCheckpoint,
   compileEvidenceResearchRefresh,
-  compileEvidenceWorkingSet,
-  compilePagedEvidenceHandoff,
-  continueInitialResearch,
   createEvidenceExposureState,
-  markReviewedUnionEvidence,
   renderEvidenceManifest,
 } from "../lib/chat/evidenceExposure";
 import {
@@ -160,21 +148,25 @@ import type { A2AJDocument, A2AJLocatorLookup } from "../lib/a2aj";
 import {
   citationUrls,
   createLegalEvidenceCitations,
-  createCitation,
-  isResolvedCitation,
-  parseCitations,
 } from "../lib/chat/citations";
-import { createVisibleStreamSplitter } from "../lib/chat/visibleStream";
+import { hideLegalSourceUrls } from "../lib/chat/legalToolResultVisibility";
+import {
+  GROUNDED_LEGAL_REPAIR_INSTRUCTION,
+  UNVERIFIED_LEGAL_ANSWER,
+  hasModelAuthoredLegalSourceUrl,
+} from "../lib/chat/legalOutputGate";
 import { COURTLISTENER_SYSTEM_PROMPT } from "../lib/chat/tools/courtlistenerTools";
 import { assistantToolActivityLabel } from "../lib/chat/tools/a2ajTools";
 import {
   READ_SUBAGENT_SYSTEM_PROMPT,
   READ_SUBAGENT_TOOL,
   READ_SUBAGENT_TOOL_NAME,
-  allowedReadSubagentForeignRegions,
+  allowedReadSubagentRegions,
   createReadSubagentAdmission,
   readSubagentTools,
   readSubagentActivityLabel,
+  readSubagentJurisdiction,
+  readSubagentSourceTypes,
   runReadSubagent,
 } from "../lib/chat/readSubagents";
 import { PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT } from "../lib/chat/tools/publicLegalSourceTools";
@@ -186,6 +178,9 @@ import {
   LEGAL_EVIDENCE_SUBMIT_TOOL,
   LEGAL_EVIDENCE_TOOL_NAME,
   legalEvidenceReceiptEvent,
+  priorLegalEvidencePrompt,
+  priorLegalEvidenceReceipts,
+  registerPriorLegalEvidence,
   renderLegalEvidenceAnswer,
 } from "../lib/chat/legalEvidenceExperiment";
 import { getUserModelSettings } from "../lib/userSettings";
@@ -268,7 +263,6 @@ const LOCAL_MUTATION_TOOL_NAMES = new Set([
   "generate_docx",
   "library_create_docx",
   "library_revise_docx",
-  "library_apply_text_ops",
   "library_delete_and_renumber_docx",
   "library_link_docx_citations",
   "library_fix_docx_supras",
@@ -323,7 +317,6 @@ function localDocumentMutationEvent(
       "generate_docx",
       "library_create_docx",
       "library_revise_docx",
-      "library_apply_text_ops",
       "library_delete_and_renumber_docx",
       "library_link_docx_citations",
       "library_fix_docx_supras",
@@ -363,7 +356,6 @@ function localDocumentMutationEvent(
     if (
       ![
         "library_revise_docx",
-        "library_apply_text_ops",
         "library_delete_and_renumber_docx",
         "library_link_docx_citations",
         "library_fix_docx_supras",
@@ -955,10 +947,10 @@ export async function streamAnonymousChat(params: {
   subagentsEnabled?: boolean;
   subagentModel?: string;
   subagentEffort?: string;
-  activityDetail?: "standard" | "tools" | "trace";
+  activityDetail?: "auto" | "standard" | "tools" | "trace";
 }) {
   const { res, userId } = params;
-  const activityDetail = params.activityDetail ?? "standard";
+  const activityDetail = params.activityDetail ?? "auto";
   const fail = (status: number, detail: string) => {
     res.status(status).json({ detail });
   };
@@ -1064,6 +1056,12 @@ export async function streamAnonymousChat(params: {
   // prepends the attached-document manifest (filename + document_id) when the
   // message reaches the provider, and the model pulls content through the
   // Library tools only when it needs it.
+  const priorLegalEvidence = priorLegalEvidenceReceipts(
+    (existingChat?.messages ?? []).flatMap((message) =>
+      Array.isArray(message.content) ? message.content : [],
+    ),
+  );
+  const evidenceCarryoverPrompt = priorLegalEvidencePrompt(priorLegalEvidence);
   const currentProviderMessage: ChatMessage =
     params.currentTurn.kind === "message"
       ? {
@@ -1084,6 +1082,9 @@ export async function streamAnonymousChat(params: {
         allowedDocumentIds.has(file.document_id),
     ),
   });
+  if (evidenceCarryoverPrompt) {
+    currentProviderMessage.content = `${currentProviderMessage.content}\n\n${evidenceCarryoverPrompt}`;
+  }
   const proposedMessages = [
     ...projectAnonymousTranscript(existingChat?.messages ?? []).map(
       withinMatter,
@@ -1354,6 +1355,17 @@ export async function streamAnonymousChat(params: {
         )
       : chat.messages,
   ).map(withinMatter);
+  if (evidenceCarryoverPrompt) {
+    const latestUserIndex = messages
+      .map((message) => message.role)
+      .lastIndexOf("user");
+    if (latestUserIndex >= 0) {
+      messages[latestUserIndex] = {
+        ...messages[latestUserIndex],
+        content: `${messages[latestUserIndex].content}\n\n${evidenceCarryoverPrompt}`,
+      };
+    }
+  }
   const lastUser = [...messages]
     .reverse()
     .find((m) => m.role === "user" && typeof m.content === "string");
@@ -1366,13 +1378,8 @@ export async function streamAnonymousChat(params: {
   let contentBoundaryPending = false;
   const a2ajLookups: A2AJLocatorLookup[] = [];
   const a2ajDocuments: A2AJDocument[] = [];
-  const splitter = createVisibleStreamSplitter({
-    onVisible: (visible) => {
-      visibleText += visible;
-      sseWrite(res, { type: "content_delta", text: visible });
-    },
-  });
   const legalEvidenceState = createLegalEvidenceTurnState();
+  registerPriorLegalEvidence(legalEvidenceState, priorLegalEvidence);
   const courtlistenerState: CourtlistenerToolState = {
     casesByClusterId: new Map(),
   };
@@ -1394,7 +1401,7 @@ export async function streamAnonymousChat(params: {
       : params.currentTurn.content;
   const admitReadSubagents = createReadSubagentAdmission(
     3,
-    allowedReadSubagentForeignRegions(
+    allowedReadSubagentRegions(
       params.jurisdictionPreference ?? null,
       localRequirementsText,
     ),
@@ -1402,21 +1409,10 @@ export async function streamAnonymousChat(params: {
   const contextHandoffEnabled =
     process.env.MIKE_CONTEXT_HANDOFF === "1" &&
     !ORIGIN_MIKE_TOOL_SHAPE;
-  const continuousEvidenceEnabled =
-    process.env.MIKE_CONTINUOUS_EVIDENCE === "1" &&
-    !ORIGIN_MIKE_TOOL_SHAPE;
-  const evidenceTrackingEnabled =
-    contextHandoffEnabled || continuousEvidenceEnabled;
-  const pagedHandoffEnabled =
-    contextHandoffEnabled && process.env.MIKE_DRAFT_HANDOFF_MODE === "paged";
+  const evidenceTrackingEnabled = contextHandoffEnabled;
   const researchContextRefreshEnabled =
     process.env.MIKE_RESEARCH_CONTEXT_REFRESH !== "0";
-  // The durable union survives context replacement. The context-local guard
-  // resets whenever a fresh model context opens, so its first demand-paged
-  // read is visible while repeated reads in that same context remain bounded.
   const evidenceExposure = createEvidenceExposureState();
-  let contextEvidenceExposure = createEvidenceExposureState();
-  let continuousWorkingSetUpdates = 0;
   const loadEvidenceSource = async (documentId: string, versionId: string) => {
     const document = await extractLocalDocument(userId, documentId, versionId);
     return document
@@ -1430,88 +1426,11 @@ export async function streamAnonymousChat(params: {
     Number.isFinite(configuredHandoffCap) && configuredHandoffCap > 0
       ? Math.trunc(configuredHandoffCap)
       : 120_000;
-  const configuredCheckpointCap = Number(
-    process.env.MIKE_RESEARCH_CHECKPOINT_MAX_CHARS || 12_000,
-  );
-  const researchCheckpointMaxChars =
-    Number.isFinite(configuredCheckpointCap) && configuredCheckpointCap > 0
-      ? Math.min(24_000, Math.trunc(configuredCheckpointCap))
-      : 12_000;
-  const configuredHotEvidenceCap = Number(
-    process.env.MIKE_DRAFT_HOT_EVIDENCE_MAX_CHARS || 24_000,
-  );
-  const hotEvidenceMaxChars =
-    Number.isFinite(configuredHotEvidenceCap) && configuredHotEvidenceCap >= 0
-      ? Math.min(64_000, Math.trunc(configuredHotEvidenceCap))
-      : 24_000;
-  const researchCheckpointTool: OpenAIToolSchema = {
-    type: "function",
-    function: {
-      name: "checkpoint_research",
-      description:
-        "Replace the compact research checkpoint after reviewing the latest evidence.",
-      strict: true,
-      parameters: {
-        type: "object",
-        properties: {
-          brief: {
-            type: "string",
-            maxLength: researchCheckpointMaxChars,
-            description:
-              "Material findings, contradictions, numbers, source names or locators, open questions, and useful next checks.",
-          },
-          continue_research: {
-            type: "boolean",
-            description:
-              "True only when one or more concrete unresolved checks available from the inventory could materially change the requested deliverable; false when more research would only corroborate known findings.",
-          },
-        },
-        required: ["brief", "continue_research"],
-        additionalProperties: false,
-      },
-    },
-  };
-  const researchOrientation = new Map<
-    string,
-    { name: string; content: string }
-  >();
-  let researchBrief = "";
-  let initialResearchCheckpointCount = 0;
-  let initialResearchComplete = false;
-  let researchCheckpointPhase = false;
   let pendingEvidenceHandoff: {
     prompt: string;
     sourceChars: number;
     evidenceItems: number;
-    mode: "full" | "paged";
-    hotSourceChars: number;
-    hotPacketChars: number;
-    hotItems: Array<Record<string, unknown>>;
-    evidenceMapChars: number;
-    orientationChars: number;
-    workingSetPath: string | null;
-    workingSetChars: number;
-    workingSetMapChars: number;
-    workingSetSha256: string | null;
-    workingSetSegments: number;
-    workingSetRefs: number;
-    mappedVersions: string[];
-    checkpointChars: number;
-    checkpointSha256: string | null;
   } | null = null;
-  type ResearchCheckpointRequest = {
-    prompt: string;
-    sourceChars: number;
-    evidenceItems: number;
-    latestResultChars: number;
-    promptChars: number;
-    evidenceMapChars: number;
-    orientationChars: number;
-    priorBriefChars: number;
-    resumeDrafting: boolean;
-  };
-  let pendingResearchCheckpoint: ResearchCheckpointRequest | null = null;
-  let activeResearchCheckpoint: ResearchCheckpointRequest | null = null;
   let pendingResearchContextRefresh: {
     prompt: string;
     sourceChars: number;
@@ -1526,46 +1445,6 @@ export async function streamAnonymousChat(params: {
   let draftingDomainGuidance: string | undefined;
   let draftingCorrectionContext: string | null = null;
   let draftingPhase = false;
-  const queuePagedEvidenceHandoff = async (domainGuidance?: string) => {
-    if (domainGuidance?.trim()) draftingDomainGuidance = domainGuidance.trim();
-    const handoff = await compilePagedEvidenceHandoff({
-      state: evidenceExposure,
-      load: loadEvidenceSource,
-      originalRequest: lastUser?.content ?? "",
-      researchBrief,
-      orientation: [...researchOrientation.values()],
-      workingSetPath: WORKING_SET_PATH,
-      hotMaxChars: hotEvidenceMaxChars,
-      domainGuidance: draftingDomainGuidance,
-    });
-    localWorkingSets.set(WORKING_SET_PATH, handoff.workingSet);
-    draftingContextPrompt = handoff.prompt;
-    pendingEvidenceHandoff = {
-      prompt: handoff.prompt,
-      sourceChars: handoff.sourceChars,
-      evidenceItems: handoff.manifest.length,
-      mode: "paged",
-      hotSourceChars: handoff.hotSourceChars,
-      hotPacketChars: handoff.hotPacketChars,
-      hotItems: handoff.hotItems,
-      evidenceMapChars: handoff.evidenceMapChars,
-      orientationChars: handoff.orientationChars,
-      workingSetPath: handoff.workingSet.path,
-      workingSetChars: handoff.workingSet.text.length,
-      workingSetMapChars: handoff.workingSet.mapChars,
-      workingSetSha256: createHash("sha256")
-        .update(handoff.workingSet.text)
-        .digest("hex"),
-      workingSetSegments: handoff.workingSet.segments.length,
-      workingSetRefs: handoff.workingSet.refs.length,
-      mappedVersions: handoff.workingSet.mappedVersions,
-      checkpointChars: researchBrief.length,
-      checkpointSha256: researchBrief
-        ? createHash("sha256").update(researchBrief).digest("hex")
-        : null,
-    };
-    return handoff;
-  };
   // A Codex continuation is valid only for the exact tool schema fingerprint
   // under which it was created. Progressive disclosure mutates that schema.
   let providerSessionCompatible = true;
@@ -1573,18 +1452,7 @@ export async function streamAnonymousChat(params: {
   let askInputsFinalized = false;
   let localMutationCommitted = false;
   const turnDocumentEvents: Record<string, unknown>[] = [];
-  // Flushes the splitter's held-back tail into visibleText; sseWrite
-  // already no-ops on a destroyed/ended response.
-  const flushTail = (emit = true) => {
-    const tail = splitter.takeTail();
-    if (!tail) return;
-    visibleText += tail;
-    if (emit) {
-      sseWrite(res, { type: "content_delta", text: tail });
-    }
-  };
   const queueContentBoundary = () => {
-    flushTail();
     if (visibleText) contentBoundaryPending = true;
   };
   const appendProviderContent = (text: string) => {
@@ -1594,11 +1462,13 @@ export async function streamAnonymousChat(params: {
       const separator = contentBoundarySeparator(rawText, text);
       if (separator) {
         rawText += separator;
-        splitter.push(separator);
+        visibleText += separator;
+        sseWrite(res, { type: "content_delta", text: separator });
       }
     }
     rawText += text;
-    splitter.push(text);
+    visibleText += text;
+    sseWrite(res, { type: "content_delta", text });
   };
   const withEvidenceRegistry = async (events: unknown[]) => {
     const registry = mergeLocalPdfEvidenceRegistries(
@@ -1682,206 +1552,34 @@ export async function streamAnonymousChat(params: {
     calls: Parameters<typeof runLocalAssistantTools>[1],
     options: { trace?: boolean } = {},
   ) => {
-    if (researchCheckpointPhase) {
-      const checkpoint = calls.find(
-        (call) => call.name === researchCheckpointTool.function.name,
-      );
-      const brief =
-        typeof checkpoint?.input.brief === "string"
-          ? checkpoint.input.brief.trim()
-          : "";
-      const hasContinueResearch =
-        typeof checkpoint?.input.continue_research === "boolean";
-      const requestedContinueResearch =
-        checkpoint?.input.continue_research === true;
-      const resumeDrafting = activeResearchCheckpoint?.resumeDrafting === true;
-      const validCheckpoint =
-        Boolean(brief) &&
-        brief.length <= researchCheckpointMaxChars &&
-        hasContinueResearch;
-      const checkpointNumber =
-        validCheckpoint && !resumeDrafting
-          ? initialResearchCheckpointCount + 1
-          : initialResearchCheckpointCount;
-      const maxInitialResearchReached =
-        validCheckpoint &&
-        !resumeDrafting &&
-        checkpointNumber >= INITIAL_RESEARCH_CHECKPOINT_MAX_COUNT;
-      const continueResearch =
-        !resumeDrafting &&
-        continueInitialResearch(
-          requestedContinueResearch,
-          checkpointNumber,
-        );
-      let refresh: Awaited<
-        ReturnType<typeof compileCheckpointedEvidenceResearchRefresh>
-      > | null = null;
-      if (validCheckpoint) {
-        researchBrief = brief;
-        if (resumeDrafting) {
-          await queuePagedEvidenceHandoff(
-            draftingCorrectionContext ?? undefined,
-          );
-        } else {
-          initialResearchCheckpointCount = checkpointNumber;
-          initialResearchComplete = !continueResearch;
-          refresh = await compileCheckpointedEvidenceResearchRefresh({
-            state: evidenceExposure,
-            load: loadEvidenceSource,
-            originalRequest: lastUser?.content ?? "",
-            researchBrief,
-            continueResearch,
-            orientation: [...researchOrientation.values()],
-          });
-          pendingResearchContextRefresh = {
-            prompt: refresh.prompt,
-            sourceChars: refresh.sourceChars,
-            evidenceItems: refresh.manifest.length,
-            latestResultChars: 0,
-            promptChars: refresh.promptChars,
-            evidenceMapChars: refresh.evidenceMapChars,
-            orientationChars: refresh.orientationChars,
-            briefChars: refresh.briefChars,
-          };
-        }
-        turnDocumentEvents.push({
-          type: RESEARCH_CHECKPOINT_RECEIPT_EVENT,
-          schema_version: 1,
-          brief: researchBrief,
-          brief_sha256: createHash("sha256").update(researchBrief).digest("hex"),
-          brief_chars: researchBrief.length,
-          checkpoint_number: checkpointNumber,
-          initial_research_checkpoint_max_count:
-            INITIAL_RESEARCH_CHECKPOINT_MAX_COUNT,
-          continue_research: resumeDrafting ? false : continueResearch,
-          continue_research_requested: requestedContinueResearch,
-          resume_mode: resumeDrafting ? "drafting" : "research",
-          evidence_union_unique_source_chars:
-            evidenceExposure.uniqueSourceChars,
-        });
-      }
-      const results: NormalizedToolResult[] = calls.map((call) => {
-        if (call !== checkpoint) {
-          return {
-            ...toolReply(call.id, {
-              ok: false,
-              error: "Only checkpoint_research is available in this phase.",
-            }),
-            status: "error",
-          };
-        }
-        if (
-          !brief ||
-          brief.length > researchCheckpointMaxChars ||
-          !hasContinueResearch
-        ) {
-          return {
-            ...toolReply(call.id, {
-              ok: false,
-              error: `brief must contain 1-${researchCheckpointMaxChars} characters and continue_research must be boolean.`,
-            }),
-            status: "error",
-          };
-        }
-        return {
-          ...toolReply(call.id, {
-            ok: true,
-            status: "research_checkpoint_saved",
-            brief_chars: brief.length,
-            continue_research: continueResearch,
-            continue_research_requested: requestedContinueResearch,
-            checkpoint_number: checkpointNumber,
-            initial_research_checkpoint_max_count:
-              INITIAL_RESEARCH_CHECKPOINT_MAX_COUNT,
-            max_initial_research_reached: maxInitialResearchReached,
-          }),
-          status: "ok",
-          terminal: true,
-        };
-      });
-      if (process.env.MIKE_BENCHMARK_TRACE_TOOLS === "1") {
-        for (const [index, call] of calls.entries()) {
-          const toolResult = results[index];
-          sseWrite(res, {
-            type: "tool_call_result",
-            id: call.id,
-            name: call.name,
-            phase: "checkpoint",
-            ok: toolResult.status !== "error",
-            status: toolResult.status,
-            content_chars: toolResult.content.length,
-            content_sha256: createHash("sha256")
-              .update(toolResult.content)
-              .digest("hex"),
-            content_preview: toolResult.content,
-          });
-        }
-        if (refresh || pendingEvidenceHandoff) {
-          const checkpointInputChars =
-            (activeResearchCheckpoint?.priorBriefChars ?? 0) +
-            (activeResearchCheckpoint?.latestResultChars ?? 0);
-          sseWrite(res, {
-            type: "research_checkpoint",
-            brief: researchBrief,
-            brief_chars: researchBrief.length,
-            brief_sha256: createHash("sha256")
-              .update(researchBrief)
-              .digest("hex"),
-            continue_research: activeResearchCheckpoint?.resumeDrafting
-              ? false
-              : continueResearch,
-            continue_research_requested: requestedContinueResearch,
-            checkpoint_number: checkpointNumber,
-            initial_research_checkpoint_max_count:
-              INITIAL_RESEARCH_CHECKPOINT_MAX_COUNT,
-            max_initial_research_reached: maxInitialResearchReached,
-            prior_brief_chars:
-              activeResearchCheckpoint?.priorBriefChars ?? 0,
-            latest_result_chars:
-              activeResearchCheckpoint?.latestResultChars ?? 0,
-            checkpoint_input_chars: checkpointInputChars,
-            compression_ratio:
-              checkpointInputChars > 0
-                ? Math.round(
-                    (researchBrief.length / checkpointInputChars) * 10_000,
-                  ) / 10_000
-                : null,
-            prompt_chars: activeResearchCheckpoint?.promptChars ?? 0,
-            evidence_map_chars:
-              activeResearchCheckpoint?.evidenceMapChars ?? 0,
-            orientation_chars:
-              activeResearchCheckpoint?.orientationChars ?? 0,
-            evidence_items:
-              refresh?.manifest.length ?? pendingEvidenceHandoff?.evidenceItems ?? 0,
-            source_chars:
-              refresh?.sourceChars ?? pendingEvidenceHandoff?.sourceChars ?? 0,
-            resume_mode: activeResearchCheckpoint?.resumeDrafting
-              ? "drafting"
-              : "research",
-          });
-        }
-      }
-      return results;
-    }
     const allowedCalls = calls.filter((call) => activeToolNames.has(call.name));
-    const runAllowedCalls = (batch: typeof allowedCalls) =>
-      runLocalAssistantTools(
-          userId,
-          batch,
-          a2ajLookups,
-          a2ajDocuments,
-          courtlistenerState,
-          publicLegalState,
-          allowedDocumentIds,
-          localPdfEvidenceHandles,
-          projectId,
-          legalEvidenceState,
-          localTurnEditState,
-          localTurnReadState,
-          localWorkingSets,
-          localRequirementsText,
-          localRequirementsState,
-        );
+    const runAllowedCalls = async (batch: typeof allowedCalls) => {
+      const results = await runLocalAssistantTools(
+        userId,
+        batch,
+        a2ajLookups,
+        a2ajDocuments,
+        courtlistenerState,
+        publicLegalState,
+        allowedDocumentIds,
+        localPdfEvidenceHandles,
+        projectId,
+        legalEvidenceState,
+        localTurnEditState,
+        localTurnReadState,
+        localWorkingSets,
+        localRequirementsText,
+        localRequirementsState,
+      );
+      return results.map((result, index) =>
+        hideLegalSourceUrls(
+          batch.find((call) => call.id === result.tool_use_id)?.name ??
+            batch[index]?.name ??
+            "",
+          result,
+        ),
+      );
+    };
     const subagentCandidates = allowedCalls.filter(
       (call) => call.name === READ_SUBAGENT_TOOL_NAME,
     );
@@ -1896,10 +1594,6 @@ export async function streamAnonymousChat(params: {
       ? await runAllowedCalls(directCalls)
       : [];
     if (!subagentCalls.length) return [...directResults, ...rejectedSubagentResults];
-    const readTools = [
-      ...readSubagentTools(LOCAL_READ_SUBAGENT_TOOL_CATALOG),
-      LEGAL_EVIDENCE_SUBMIT_TOOL,
-    ];
     const subagentResults = await Promise.all(
       subagentCalls.map((call) => {
         const childEvidenceState = createLegalEvidenceTurnState(
@@ -1911,15 +1605,22 @@ export async function streamAnonymousChat(params: {
         const childPublicLegalState = createPublicLegalSourceState();
         return runReadSubagent({
           call,
-          tools: readTools,
+          tools: [
+            ...readSubagentTools(
+              LOCAL_READ_SUBAGENT_TOOL_CATALOG,
+              readSubagentJurisdiction(call),
+              readSubagentSourceTypes(call),
+            ),
+            LEGAL_EVIDENCE_SUBMIT_TOOL,
+          ],
           evidenceState: childEvidenceState,
           publishEvidenceTo: legalEvidenceState,
           model: params.subagentModel,
           effort: params.subagentEffort,
           activityDetail,
           jurisdictionPrompt: standingJurisdictionPrompt,
-          runTools: (batch) =>
-            runLocalAssistantTools(
+          runTools: async (batch) => {
+            const results = await runLocalAssistantTools(
               userId,
               batch,
               [],
@@ -1935,7 +1636,14 @@ export async function streamAnonymousChat(params: {
               new Map(),
               localRequirementsText,
               createLocalAssistantRequirementsState(),
-            ),
+            );
+            return results.map((result, index) =>
+              hideLegalSourceUrls(
+                batch.find((item) => item.id === result.tool_use_id)?.name ?? batch[index]?.name ?? "",
+                result,
+              ),
+            );
+          },
           signal: streamAbort.signal,
           onEvent: (event) => {
             const index = turnDocumentEvents.findIndex(
@@ -1967,103 +1675,16 @@ export async function streamAnonymousChat(params: {
           error: `Tool '${call.name}' is not available.`,
         }),
     );
-    if (pagedHandoffEnabled && draftingPhase) {
-      const reviewedWorkingSet = localWorkingSets.get(WORKING_SET_PATH);
-      if (reviewedWorkingSet?.demandPaged) {
-        results = results.map((result) =>
-          markReviewedUnionEvidence(result, reviewedWorkingSet),
-        );
-      }
-    }
     if (evidenceTrackingEnabled) {
       results = await Promise.all(
-        results.map(async (toolResult) => {
-          const unionResult = await applyEvidenceExposure(
-            evidenceExposure,
-            toolResult,
-            loadEvidenceSource,
-            { skipDurableUnionBacked: true },
-          );
-          const mountedEvidence =
-            toolResult.evidenceSegments?.some(
-              (segment) => segment.durableUnionBacked,
-            ) ||
-            toolResult.evidenceRefs?.some((ref) => ref.durableUnionBacked);
-          // A mounted read is the recovery path after provider-native
-          // compaction. Keep it visible in the continuous session; its own
-          // Grep grants and small page cap bound duplicate reads.
-          const contextResult =
-            continuousEvidenceEnabled && mountedEvidence
-              ? toolResult
-              : await applyEvidenceExposure(
-                  contextEvidenceExposure,
-                  toolResult,
-                  loadEvidenceSource,
-                );
-          return {
-            ...contextResult,
-            ...(unionResult.exposure && {
-              unionExposure: unionResult.exposure,
-            }),
-          };
-        }),
+        results.map((toolResult) =>
+          applyEvidenceExposure(evidenceExposure, toolResult, loadEvidenceSource),
+        ),
       );
     }
-    if (pagedHandoffEnabled && !draftingPhase) {
-      for (const call of calls) {
-        if (call.name !== "Glob") continue;
-        const toolResult = results.find(
-          (candidate) => candidate.tool_use_id === call.id,
-        );
-        if (
-          !toolResult ||
-          toolResult.status === "error" ||
-          toolResult.content.length > 8_000
-        ) {
-          continue;
-        }
-        const key = `${call.name}:${JSON.stringify(call.input)}`;
-        const next = new Map(researchOrientation);
-        next.set(key, { name: call.name, content: toolResult.content });
-        const totalChars = [...next.values()].reduce(
-          (total, item) => total + item.content.length,
-          0,
-        );
-        if (totalChars <= 12_000) {
-          researchOrientation.clear();
-          for (const [entryKey, value] of next) {
-            researchOrientation.set(entryKey, value);
-          }
-        }
-      }
-    }
     const batchHasNewEvidence = results.some(
-      (result) => (result.unionExposure?.uniqueSourceChars ?? 0) > 0,
+      (result) => (result.exposure?.uniqueSourceChars ?? 0) > 0,
     );
-    if (continuousEvidenceEnabled && batchHasNewEvidence) {
-      const workingSet = await compileEvidenceWorkingSet({
-        state: evidenceExposure,
-        load: loadEvidenceSource,
-        path: WORKING_SET_PATH,
-      });
-      localWorkingSets.set(WORKING_SET_PATH, workingSet);
-      continuousWorkingSetUpdates += 1;
-      if (process.env.MIKE_BENCHMARK_TRACE_TOOLS === "1") {
-        sseWrite(res, {
-          type: "evidence_working_set_update",
-          path: workingSet.path,
-          update: continuousWorkingSetUpdates,
-          source_chars: workingSet.sourceChars,
-          text_chars: workingSet.text.length,
-          text_sha256: createHash("sha256")
-            .update(workingSet.text)
-            .digest("hex"),
-          mapped_versions: workingSet.mappedVersions,
-          segment_count: workingSet.segments.length,
-          ref_count: workingSet.refs.length,
-        });
-      }
-    }
     const traceToolResults = () => {
       if (process.env.MIKE_BENCHMARK_TRACE_TOOLS !== "1") return;
       for (const call of calls) {
@@ -2084,11 +1705,7 @@ export async function streamAnonymousChat(params: {
           type: "tool_call_result",
           id: call.id,
           name: call.name,
-          phase: continuousEvidenceEnabled
-            ? "continuous"
-            : draftingPhase
-              ? "drafting"
-              : "research",
+          phase: draftingPhase ? "drafting" : "research",
           ok:
             result?.status !== "error" &&
             (payload?.ok !== false ||
@@ -2126,16 +1743,6 @@ export async function streamAnonymousChat(params: {
               result?.exposure?.suppressedSourceChars ??
               payload?.suppressed_source_chars,
           }),
-          ...(result?.unionExposure && {
-            union_unique_source_chars:
-              result.unionExposure.uniqueSourceChars,
-            union_suppressed_source_chars:
-              result.unionExposure.suppressedSourceChars,
-          }),
-          ...((result?.reviewedUnionBackedSourceChars ?? 0) > 0 && {
-            reviewed_union_reuse_source_chars:
-              result?.reviewedUnionBackedSourceChars,
-          }),
           ...(typeof payload?.projection === "string" && {
             projection: payload.projection,
           }),
@@ -2155,9 +1762,6 @@ export async function streamAnonymousChat(params: {
                 virtual_path: segment.virtualPath,
               }),
               ...(segment.projection && { projection: segment.projection }),
-              ...(segment.durableUnionBacked && {
-                durable_union_backed: true,
-              }),
             })),
           }),
           ...(result?.evidenceRefs?.length && {
@@ -2170,9 +1774,6 @@ export async function streamAnonymousChat(params: {
                 ref.exactSha256 ||
                 createHash("sha256").update(ref.text).digest("hex"),
               ...(ref.kind && { kind: ref.kind }),
-              ...(ref.durableUnionBacked && {
-                durable_union_backed: true,
-              }),
             })),
           }),
           ...(result?.retrievalHints?.length && {
@@ -2217,50 +1818,7 @@ export async function streamAnonymousChat(params: {
             typeof payload.guidance === "string"
               ? payload.guidance
               : undefined;
-          if (pagedHandoffEnabled) {
-            if (batchHasNewEvidence) {
-              needsEvidenceSelection = true;
-              toolResult.status = "ok";
-              toolResult.content = JSON.stringify({
-                ok: false,
-                status: "research_checkpoint_pending",
-                error:
-                  "New evidence in this batch must be checkpointed before drafting opens.",
-              });
-            } else {
-              // The checkpoint agent already reviewed the evidence under a
-              // bounded replacement contract. Do not let the subsequent
-              // capability-discovery call silently rewrite or shrink it.
-              const finalBrief = researchBrief;
-              if (
-                finalBrief.length > researchCheckpointMaxChars ||
-                (!finalBrief && evidenceExposure.uniqueSourceChars > 0)
-              ) {
-                needsEvidenceSelection = true;
-                toolResult.status = "error";
-                toolResult.content = JSON.stringify({
-                  ok: false,
-                  status: "research_checkpoint_required",
-                  error:
-                    `Opening drafting requires a reviewed research checkpoint of 1-${researchCheckpointMaxChars} characters after evidence review.`,
-                });
-              } else {
-                researchBrief = finalBrief;
-                const handoff = await queuePagedEvidenceHandoff(domainGuidance);
-                toolResult.terminal = true;
-                toolResult.status = "ok";
-                toolResult.content = JSON.stringify({
-                  ok: true,
-                  status: "draft_handoff_ready",
-                  mode: "paged",
-                  evidence_items: handoff.manifest.length,
-                  source_chars: handoff.sourceChars,
-                  hot_source_chars: handoff.hotSourceChars,
-                });
-              }
-            }
-          } else {
-            const handoff = await compileEvidenceHandoff({
+          const handoff = await compileEvidenceHandoff({
               state: evidenceExposure,
               load: loadEvidenceSource,
               originalRequest: lastUser?.content ?? "",
@@ -2278,21 +1836,6 @@ export async function streamAnonymousChat(params: {
                 prompt: handoff.prompt,
                 sourceChars: handoff.sourceChars,
                 evidenceItems: handoff.manifest.length,
-                mode: "full",
-                hotSourceChars: 0,
-                hotPacketChars: 0,
-                hotItems: [],
-                evidenceMapChars: 0,
-                orientationChars: 0,
-                workingSetPath: null,
-                workingSetChars: 0,
-                workingSetMapChars: 0,
-                workingSetSha256: null,
-                workingSetSegments: 0,
-                workingSetRefs: 0,
-                mappedVersions: [],
-                checkpointChars: 0,
-                checkpointSha256: null,
               };
               toolResult.terminal = true;
               toolResult.status = "ok";
@@ -2319,9 +1862,8 @@ export async function streamAnonymousChat(params: {
                   : {}),
               });
             }
-          }
         }
-        // Do not reveal authoring tools while the exact evidence union is
+        // Do not reveal authoring tools while the selected exact evidence is
         // still over cap. Otherwise the model can bypass the fresh-context
         // boundary by drafting immediately after a selection request.
         if (!needsEvidenceSelection) {
@@ -2357,16 +1899,15 @@ export async function streamAnonymousChat(params: {
     }
     if (
       contextHandoffEnabled &&
-      (pagedHandoffEnabled || researchContextRefreshEnabled) &&
-      (!draftingPhase || pagedHandoffEnabled) &&
+      researchContextRefreshEnabled &&
+      !draftingPhase &&
       !pendingEvidenceHandoff &&
-      (pagedHandoffEnabled ||
-        !results.some((result) =>
-          ["error", "selection_required"].includes(result.status ?? ""),
-        ))
+      !results.some((result) =>
+        ["error", "selection_required"].includes(result.status ?? ""),
+      )
     ) {
       const refreshResult = results.find(
-        (result) => (result.unionExposure?.uniqueSourceChars ?? 0) > 0,
+        (result) => (result.exposure?.uniqueSourceChars ?? 0) > 0,
       );
       if (refreshResult) {
         const latestResults = [
@@ -2379,13 +1920,6 @@ export async function streamAnonymousChat(params: {
               ]
             : []),
           ...calls
-            .filter(
-              (call) =>
-                !(
-                  pagedHandoffEnabled &&
-                  ["Glob", "describe_tools"].includes(call.name)
-                ),
-            )
             .map((call) => ({
               name: call.name,
               content:
@@ -2393,42 +1927,22 @@ export async function streamAnonymousChat(params: {
                 "Tool result unavailable.",
             })),
         ];
-        if (pagedHandoffEnabled) {
-          const checkpoint = await compileEvidenceResearchCheckpoint({
-            state: evidenceExposure,
-            load: loadEvidenceSource,
-            originalRequest: lastUser?.content ?? "",
-            priorBrief: researchBrief,
-            orientation: [...researchOrientation.values()],
-            latestResults,
-            maxBriefChars: researchCheckpointMaxChars,
-            forceComplete:
-              !draftingPhase &&
-              initialResearchCheckpointCount + 1 >=
-                INITIAL_RESEARCH_CHECKPOINT_MAX_COUNT,
-          });
-          pendingResearchCheckpoint = {
-            ...checkpoint,
-            resumeDrafting: draftingPhase,
-          };
-        } else {
-          const refresh = await compileEvidenceResearchRefresh({
-            state: evidenceExposure,
-            load: loadEvidenceSource,
-            originalRequest: lastUser?.content ?? "",
-            latestResults,
-          });
-          pendingResearchContextRefresh = {
-            prompt: refresh.prompt,
-            sourceChars: refresh.sourceChars,
-            evidenceItems: refresh.manifest.length,
-            latestResultChars: refresh.latestResultChars,
-            promptChars: refresh.promptChars,
-            evidenceMapChars: refresh.evidenceMapChars,
-            orientationChars: refresh.orientationChars,
-            briefChars: refresh.briefChars,
-          };
-        }
+        const refresh = await compileEvidenceResearchRefresh({
+          state: evidenceExposure,
+          load: loadEvidenceSource,
+          originalRequest: lastUser?.content ?? "",
+          latestResults,
+        });
+        pendingResearchContextRefresh = {
+          prompt: refresh.prompt,
+          sourceChars: refresh.sourceChars,
+          evidenceItems: refresh.manifest.length,
+          latestResultChars: refresh.latestResultChars,
+          promptChars: refresh.promptChars,
+          evidenceMapChars: refresh.evidenceMapChars,
+          orientationChars: refresh.orientationChars,
+          briefChars: refresh.briefChars,
+        };
         refreshResult.terminal = true;
       }
     }
@@ -2468,7 +1982,6 @@ export async function streamAnonymousChat(params: {
         rawText = grounded;
         visibleText = grounded;
         contentBoundaryPending = false;
-        splitter.reset();
         sseWrite(res, { type: "content_snapshot", text: grounded });
         sseWrite(res, {
           type: "citations",
@@ -2485,14 +1998,12 @@ export async function streamAnonymousChat(params: {
     rawText = "";
     visibleText = "";
     contentBoundaryPending = false;
-    splitter.reset();
     sseWrite(res, { type: "content_reset" });
   };
   const finalizePendingAskInputs = async () => {
     const event = pendingAskInputs;
     if (!event || askInputsFinalized) return Boolean(event);
     if (isCodex) discardProviderSession();
-    flushTail();
     const assistantEvents = await withEvidenceRegistry([
       ...(visibleText ? [{ type: "content", text: visibleText }] : []),
       ...turnDocumentEvents,
@@ -2587,38 +2098,8 @@ export async function streamAnonymousChat(params: {
           context_handoff: contextHandoffEnabled,
           full_handoff_prompt_variant:
             process.env.MIKE_FULL_HANDOFF_PROMPT_VARIANT || "current",
-          continuous_evidence: continuousEvidenceEnabled,
           trajectory_mode: contextHandoffEnabled ? "handoff" : "continuous",
-          draft_handoff_mode: contextHandoffEnabled
-            ? pagedHandoffEnabled
-              ? "paged"
-              : "full"
-            : "none",
-          research_checkpoint_max_chars: pagedHandoffEnabled
-            ? researchCheckpointMaxChars
-            : null,
-          initial_research_checkpoint_max_count: pagedHandoffEnabled
-            ? INITIAL_RESEARCH_CHECKPOINT_MAX_COUNT
-            : null,
-          draft_hot_evidence_max_chars: pagedHandoffEnabled
-            ? hotEvidenceMaxChars
-            : null,
-          working_set_page_max_chars:
-            pagedHandoffEnabled || continuousEvidenceEnabled
-            ? WORKING_SET_PAGE_MAX_CHARS
-            : null,
-          working_set_grep_default_head_limit:
-            pagedHandoffEnabled || continuousEvidenceEnabled
-            ? WORKING_SET_GREP_DEFAULT_HEAD_LIMIT
-            : null,
-          working_set_grep_max_head_limit:
-            pagedHandoffEnabled || continuousEvidenceEnabled
-            ? WORKING_SET_GREP_MAX_HEAD_LIMIT
-            : null,
-          working_set_grep_line_max_chars:
-            pagedHandoffEnabled || continuousEvidenceEnabled
-            ? WORKING_SET_GREP_LINE_MAX_CHARS
-            : null,
+          draft_handoff_mode: contextHandoffEnabled ? "full" : "none",
           research_context_refresh:
             contextHandoffEnabled && researchContextRefreshEnabled,
           evidence_handoff_max_chars: contextHandoffEnabled
@@ -2682,7 +2163,8 @@ export async function streamAnonymousChat(params: {
               : []),
           ],
       enableThinking: true,
-      reasoningSummary: activityDetail === "trace" ? "auto" : "none",
+      reasoningSummary:
+        activityDetail === "auto" || activityDetail === "trace" ? "auto" : "none",
       // Upstream caps every chat turn at 10 provider rounds
       // (2266446b:backend/src/lib/chat/streaming.ts:341 -> claude.ts:116,:128);
       // Beaver's route never sets it, so claudeP.ts:502 runs unbounded. The
@@ -2813,14 +2295,14 @@ export async function streamAnonymousChat(params: {
           if (!pendingAskInputs) queueContentBoundary();
         },
         onReasoningDelta: (text: string) => {
-          if (activityDetail !== "trace") return;
+          if (activityDetail !== "auto" && activityDetail !== "trace") return;
           if (text) providerActivity = true;
           if (!pendingAskInputs) {
             sseWrite(res, { type: "reasoning_delta", text, debug: true });
           }
         },
         onReasoningBlockEnd: () => {
-          if (activityDetail !== "trace") return;
+          if (activityDetail !== "auto" && activityDetail !== "trace") return;
           if (!pendingAskInputs) {
             sseWrite(res, { type: "reasoning_block_end" });
           }
@@ -2841,19 +2323,13 @@ export async function streamAnonymousChat(params: {
           sseWrite(res, {
             type: "tool_call_start",
             name: call.name,
-            ...((activityDetail !== "standard" ||
+            ...(((activityDetail === "tools" || activityDetail === "trace") ||
               process.env.MIKE_BENCHMARK_TRACE_TOOLS === "1") && {
               id: call.id,
               input: call.input,
             }),
             ...(process.env.MIKE_BENCHMARK_TRACE_TOOLS === "1" && {
-              phase: researchCheckpointPhase
-                ? "checkpoint"
-                : continuousEvidenceEnabled
-                  ? "continuous"
-                  : draftingPhase
-                    ? "drafting"
-                    : "research",
+              phase: draftingPhase ? "drafting" : "research",
             }),
             ...(label && { label }),
           });
@@ -2879,102 +2355,14 @@ export async function streamAnonymousChat(params: {
 
     const drainPendingEvidenceTransitions = async () => {
       while (!pendingAskInputs) {
-      const checkpointRequest = pendingResearchCheckpoint as {
-        prompt: string;
-        sourceChars: number;
-        evidenceItems: number;
-        latestResultChars: number;
-        promptChars: number;
-        evidenceMapChars: number;
-        orientationChars: number;
-        priorBriefChars: number;
-        resumeDrafting: boolean;
-      } | null;
-      if (checkpointRequest) {
-        pendingResearchCheckpoint = null;
-        activeResearchCheckpoint = checkpointRequest;
-        providerSessionCompatible = false;
-        if (isCodex) discardProviderSession();
-        rawText = "";
-        visibleText = "";
-        contentBoundaryPending = false;
-        splitter.reset();
-        sseWrite(res, { type: "content_reset" });
-        if (process.env.MIKE_BENCHMARK_TRACE_TOOLS === "1") {
-          sseWrite(res, {
-            type: "research_checkpoint_request",
-            evidence_items: checkpointRequest.evidenceItems,
-            source_chars: checkpointRequest.sourceChars,
-            latest_result_chars: checkpointRequest.latestResultChars,
-            prior_brief_chars: checkpointRequest.priorBriefChars,
-            prompt_chars: checkpointRequest.promptChars,
-            evidence_map_chars: checkpointRequest.evidenceMapChars,
-            orientation_chars: checkpointRequest.orientationChars,
-            resume_mode: checkpointRequest.resumeDrafting
-              ? "drafting"
-              : "research",
-          });
-        }
-        const priorTools = [...activeTools];
-        const priorToolNames = [...activeToolNames];
-        activeTools.splice(0, activeTools.length, researchCheckpointTool);
-        activeToolNames.clear();
-        activeToolNames.add(researchCheckpointTool.function.name);
-        researchCheckpointPhase = true;
-        try {
-          providerActivity = false;
-          providerResult = await runProvider(
-            undefined,
-            undefined,
-            checkpointRequest.prompt,
-            "You maintain a compact research checkpoint. Call checkpoint_research with the replacement brief.",
-          );
-        } finally {
-          researchCheckpointPhase = false;
-          activeTools.splice(0, activeTools.length, ...priorTools);
-          activeToolNames.clear();
-          for (const name of priorToolNames) activeToolNames.add(name);
-        }
-        if (!pendingResearchContextRefresh && !pendingEvidenceHandoff) {
-          if (process.env.MIKE_BENCHMARK_TRACE_TOOLS === "1") {
-            sseWrite(res, {
-              type: "research_checkpoint_failed",
-              reason: "checkpoint_research was not completed",
-              prompt_chars: checkpointRequest.promptChars,
-            });
-          }
-          throw new Error(
-            "Research checkpoint was not saved; refusing to continue with unreviewed evidence.",
-          );
-        }
-        activeResearchCheckpoint = null;
-        continue;
-      }
-
       const completedHandoff = pendingEvidenceHandoff as {
         prompt: string;
         sourceChars: number;
         evidenceItems: number;
-        mode: "full" | "paged";
-        hotSourceChars: number;
-        hotPacketChars: number;
-        hotItems: Array<Record<string, unknown>>;
-        evidenceMapChars: number;
-        orientationChars: number;
-        workingSetPath: string | null;
-        workingSetChars: number;
-        workingSetMapChars: number;
-        workingSetSha256: string | null;
-        workingSetSegments: number;
-        workingSetRefs: number;
-        mappedVersions: string[];
-        checkpointChars: number;
-        checkpointSha256: string | null;
       } | null;
       if (completedHandoff) {
         pendingEvidenceHandoff = null;
         draftingPhase = true;
-        contextEvidenceExposure = createEvidenceExposureState();
         providerSessionCompatible = false;
         const describeIndex = activeTools.findIndex(
           (schema) => schema.function.name === "describe_tools",
@@ -2985,54 +2373,18 @@ export async function streamAnonymousChat(params: {
         rawText = "";
         visibleText = "";
         contentBoundaryPending = false;
-        splitter.reset();
         sseWrite(res, { type: "content_reset" });
         if (process.env.MIKE_BENCHMARK_TRACE_TOOLS === "1") {
           sseWrite(res, {
             type: "evidence_handoff",
             evidence_items: completedHandoff.evidenceItems,
             source_chars: completedHandoff.sourceChars,
-            handoff_mode: completedHandoff.mode,
-            hot_source_chars: completedHandoff.hotSourceChars,
-            hot_packet_chars: completedHandoff.hotPacketChars,
-            hot_items: completedHandoff.hotItems,
-            evidence_map_chars: completedHandoff.evidenceMapChars,
-            orientation_chars: completedHandoff.orientationChars,
+            handoff_mode: "full",
             initial_prompt_chars: completedHandoff.prompt.length,
-            checkpoint_chars: completedHandoff.checkpointChars,
-            checkpoint_sha256: completedHandoff.checkpointSha256,
-            initial_research_checkpoint_count:
-              initialResearchCheckpointCount,
-            initial_research_checkpoint_max_count:
-              INITIAL_RESEARCH_CHECKPOINT_MAX_COUNT,
-            working_set_path: completedHandoff.workingSetPath,
-            working_set_page_max_chars: WORKING_SET_PAGE_MAX_CHARS,
-            working_set_chars: completedHandoff.workingSetChars,
-            working_set_map_chars: completedHandoff.workingSetMapChars,
-            working_set_sha256: completedHandoff.workingSetSha256,
-            working_set_segment_count: completedHandoff.workingSetSegments,
-            working_set_ref_count: completedHandoff.workingSetRefs,
-            mapped_versions: completedHandoff.mappedVersions,
             prior_unique_source_chars: evidenceExposure.uniqueSourceChars,
             prior_suppressed_source_chars:
               evidenceExposure.suppressedSourceChars,
           });
-          const workingSetReceipt = completedHandoff.workingSetPath
-            ? localWorkingSets.get(completedHandoff.workingSetPath)
-            : null;
-          if (workingSetReceipt) {
-            sseWrite(res, {
-              type: "evidence_working_set_receipt",
-              path: workingSetReceipt.path,
-              text: workingSetReceipt.text,
-              text_sha256: completedHandoff.workingSetSha256,
-              source_chars: workingSetReceipt.sourceChars,
-              map_chars: workingSetReceipt.mapChars,
-              mapped_versions: workingSetReceipt.mappedVersions,
-              segments: workingSetReceipt.segments,
-              refs: workingSetReceipt.refs ?? [],
-            });
-          }
         }
         providerActivity = false;
         providerResult = await runProvider(
@@ -3055,12 +2407,10 @@ export async function streamAnonymousChat(params: {
       } | null;
       if (!completedRefresh) break;
       pendingResearchContextRefresh = null;
-      contextEvidenceExposure = createEvidenceExposureState();
       if (isCodex) discardProviderSession();
       rawText = "";
       visibleText = "";
       contentBoundaryPending = false;
-      splitter.reset();
       sseWrite(res, { type: "content_reset" });
       if (process.env.MIKE_BENCHMARK_TRACE_TOOLS === "1") {
         sseWrite(res, {
@@ -3083,6 +2433,27 @@ export async function streamAnonymousChat(params: {
       }
     };
     await drainPendingEvidenceTransitions();
+
+    if (
+      renderLegalEvidenceAnswer(legalEvidenceState) === null &&
+      hasModelAuthoredLegalSourceUrl(visibleText)
+    ) {
+      const rejectedDraft = visibleText;
+      rawText = "";
+      visibleText = "";
+      contentBoundaryPending = false;
+      sseWrite(res, { type: "content_reset" });
+      providerResult = await runProvider(providerResult?.continuationId, {
+        draft: rejectedDraft,
+        findings: GROUNDED_LEGAL_REPAIR_INSTRUCTION,
+      });
+      await drainPendingEvidenceTransitions();
+      if (renderLegalEvidenceAnswer(legalEvidenceState) === null) {
+        rawText = UNVERIFIED_LEGAL_ANSWER;
+        visibleText = UNVERIFIED_LEGAL_ANSWER;
+        contentBoundaryPending = false;
+      }
+    }
 
     // Normal coding-agent termination: after the model has edited a
     // coverage-paused output and ends with a tool-free response, commit that
@@ -3118,7 +2489,6 @@ export async function streamAnonymousChat(params: {
       }
     }
 
-    flushTail();
     await finalizeLegalEvidenceExperiment({
       state: legalEvidenceState,
       model: selectedModel,
@@ -3132,65 +2502,12 @@ export async function streamAnonymousChat(params: {
       rawText = submittedAnswer;
       visibleText = submittedAnswer;
       contentBoundaryPending = false;
-      splitter.reset();
     }
     if (await finalizePendingAskInputs()) return;
-    if (
-      continuousEvidenceEnabled &&
-      process.env.MIKE_BENCHMARK_TRACE_TOOLS === "1" &&
-      evidenceExposure.uniqueSourceChars > 0
-    ) {
-      const workingSet = await compileEvidenceWorkingSet({
-        state: evidenceExposure,
-        load: loadEvidenceSource,
-        path: WORKING_SET_PATH,
-      });
-      localWorkingSets.set(WORKING_SET_PATH, workingSet);
-      sseWrite(res, {
-        type: "evidence_working_set_receipt",
-        path: workingSet.path,
-        text: workingSet.text,
-        text_sha256: createHash("sha256")
-          .update(workingSet.text)
-          .digest("hex"),
-        source_chars: workingSet.sourceChars,
-        map_chars: workingSet.mapChars,
-        mapped_versions: workingSet.mappedVersions,
-        segments: workingSet.segments,
-        refs: workingSet.refs,
-        update_count: continuousWorkingSetUpdates,
-      });
-    }
-    const citationDocuments = allowedDocumentIds
-      ? await listLocalDocumentsById(userId, allowedDocumentIds)
-      : (await listLocalLibrary(userId, "file")).documents;
-    const citationDocIndex: DocIndex = Object.fromEntries(
-      citationDocuments.map((document, index) => [
-        `doc-${index}`,
-        {
-          document_id: document.id,
-          filename: document.filename,
-          version_id: document.current_version_id,
-          version_number: document.active_version_number,
-        },
-      ]),
-    );
-    const parsedCitations = parseCitations(rawText)
-      .map((citation) =>
-        createCitation(
-          citation,
-          citationDocIndex,
-          courtlistenerState.casesByClusterId,
-          a2ajLookups,
-          a2ajDocuments,
-          publicLegalState,
-        ),
-      )
-      .filter(isResolvedCitation);
     const finalEvidenceAnswer = renderLegalEvidenceAnswer(legalEvidenceState);
     const citations = finalEvidenceAnswer
       ? createLegalEvidenceCitations(legalEvidenceState)
-      : parsedCitations;
+      : [];
     const citationBaseText = finalEvidenceAnswer ?? visibleText.trimEnd();
     const urls = citationUrls(citations);
     const linkedText = await appendLocalPdfPinpointLinks(
@@ -3310,7 +2627,6 @@ export async function streamAnonymousChat(params: {
     const message = safeErrorMessage(error, "Model request failed");
     console.error("[chat/anonymous]", safeErrorLog(error));
     const deleted = chatTurnWasDeleted(chat.id);
-    flushTail(!deleted && !streamAbort.signal.aborted);
     if (deleted) {
       // Deletion is authoritative; do not recreate or write to the chat.
       return;
@@ -4005,16 +3321,18 @@ chatRouter.post("/", async (req, res) => {
     trimmedString(body.subagent_effort).slice(0, 32) || undefined;
   if (
     body.activity_detail !== undefined &&
-    !["standard", "tools", "trace"].includes(String(body.activity_detail))
+    !["auto", "standard", "tools", "trace"].includes(String(body.activity_detail))
   ) {
     return void res.status(400).json({
-      detail: "activity_detail must be standard, tools, or trace",
+      detail: "activity_detail must be auto, standard, tools, or trace",
     });
   }
   const activityDetail =
-    body.activity_detail === "tools" || body.activity_detail === "trace"
+    body.activity_detail === "auto" ||
+    body.activity_detail === "tools" ||
+    body.activity_detail === "trace"
       ? body.activity_detail
-      : "standard";
+      : "auto";
   const displayedRow = asRecord(body.displayed_doc);
   const displayedDocument =
     displayedRow &&
@@ -4110,7 +3428,7 @@ chatRouter.post("/", async (req, res) => {
     buildProjectDocContext,
     buildWorkflowStore,
     enrichWithPriorEvents,
-    extractCitations,
+    loadPriorLegalEvidence,
     stripTransientAssistantEvents,
   } = cloudContext;
   const { AssistantStreamError, runLLMStream } = cloudStreaming;
@@ -4266,7 +3584,9 @@ chatRouter.post("/", async (req, res) => {
     ...message,
     images: imagesForMessage(message, imagesByDocumentId),
   }));
-  const messagesForLlm = resolvedProjectId && displayedDocument
+  const cloudPriorLegalEvidence = await loadPriorLegalEvidence(chatId, db);
+  const cloudEvidencePrompt = priorLegalEvidencePrompt(cloudPriorLegalEvidence);
+  let messagesForLlm = resolvedProjectId && displayedDocument
     ? enrichedMessages.map((message, index) =>
         index === enrichedMessages.length - 1 && message.role === "user"
           ? {
@@ -4276,6 +3596,18 @@ chatRouter.post("/", async (req, res) => {
           : message,
       )
     : enrichedMessages;
+  if (cloudEvidencePrompt) {
+    const latestUserIndex = messagesForLlm
+      .map((message) => message.role)
+      .lastIndexOf("user");
+    if (latestUserIndex >= 0) {
+      messagesForLlm = messagesForLlm.slice();
+      messagesForLlm[latestUserIndex] = {
+        ...messagesForLlm[latestUserIndex],
+        content: `${messagesForLlm[latestUserIndex].content}\n\n${cloudEvidencePrompt}`,
+      };
+    }
+  }
   let systemPromptExtra = resolvedProjectId
     ? PROJECT_SYSTEM_PROMPT_EXTRA
     : undefined;
@@ -4344,6 +3676,7 @@ chatRouter.post("/", async (req, res) => {
       subagentEffort,
       jurisdictionPreference,
       activityDetail,
+      priorLegalEvidence: cloudPriorLegalEvidence,
     });
 
     devLog("[chat/stream] LLM stream finished", {
@@ -4365,10 +3698,7 @@ chatRouter.post("/", async (req, res) => {
       devLog("[chat/stream] client aborted stream", { chatId });
       if (err instanceof AssistantStreamError) {
         const partial = buildCancelledAssistantMessage({
-          fullText: err.fullText,
           events: err.events,
-          buildCitations: (fullText, events) =>
-            extractCitations(fullText, docIndex, events),
         });
         const saveError = await persistAssistantTurn(
           partial.events,
@@ -4389,11 +3719,8 @@ chatRouter.post("/", async (req, res) => {
       err instanceof AssistantStreamError
         ? stripTransientAssistantEvents(err.events)
         : [{ type: "error" as const, message }];
-    const errorFullText =
-      err instanceof AssistantStreamError ? err.fullText : "";
     try {
-      const citations = extractCitations(errorFullText, docIndex, errorEvents);
-      const saveError = await persistAssistantTurn(errorEvents, citations);
+      const saveError = await persistAssistantTurn(errorEvents, []);
       if (saveError)
         console.error("[chat/stream] failed to save error", saveError);
     } catch (saveErr) {

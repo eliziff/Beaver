@@ -130,15 +130,13 @@ describe("ProjectsOverview", () => {
     it("keeps the action slot mounted and deletes without a one-item menu", async () => {
         listProjects.mockResolvedValue([createdProject]);
         const { container } = render(<ProjectsOverview />);
-        const slot = container.querySelector<HTMLSpanElement>(
-            "span.inline-flex.h-8.w-28",
-        );
+        const slot = screen.getByLabelText("Selected project actions");
 
         expect(slot).not.toBeNull();
         await screen.findByText(createdProject.name);
         fireEvent.click(screen.getAllByRole("checkbox")[1]);
 
-        expect(container.querySelector("span.inline-flex.h-8.w-28")).toBe(slot);
+        expect(screen.getByLabelText("Selected project actions")).toBe(slot);
         expect(
             screen.queryByRole("combobox", { name: "Actions" }),
         ).not.toBeInTheDocument();

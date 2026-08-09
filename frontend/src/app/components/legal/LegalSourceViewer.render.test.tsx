@@ -274,6 +274,32 @@ describe("legal source reader", () => {
         );
     });
 
+    it("keeps every verified quote span highlighted in the internal reader", async () => {
+        api.direct.mockResolvedValue(multiSlicePayload());
+        const { container } = render(
+            <LegalSourceViewer
+                citation="2099 SCC 1"
+                docType="cases"
+                quotes={[
+                    { quote: "First proposition." },
+                    { quote: "Third proposition." },
+                ]}
+            />,
+        );
+
+        await waitFor(() =>
+            expect(
+                container.querySelectorAll(".docx-text-highlight"),
+            ).toHaveLength(2),
+        );
+        expect(container.querySelector('[data-qspan="0"]')).toHaveTextContent(
+            "First proposition.",
+        );
+        expect(container.querySelector('[data-qspan="1"]')).toHaveTextContent(
+            "Third proposition.",
+        );
+    });
+
     it("renders only safe inline links and no literal Markdown markers", () => {
         const { container } = render(
             <p>

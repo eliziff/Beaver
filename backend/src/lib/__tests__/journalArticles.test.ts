@@ -20,7 +20,6 @@ import {
   lookupJournalArticle,
   searchJournalArticles,
 } from "../journalArticles";
-import { createCitation, parseCitations } from "../chat/citations";
 import {
   appendPublicLegalPinpointLinks,
   buildPublicLegalCitationUrl,
@@ -432,25 +431,6 @@ describe("local journal articles", () => {
     expect(modelPayload).not.toHaveProperty("hit_id");
     expect(modelPayload).not.toHaveProperty("url");
 
-    const [parsed] = parseCitations(
-      `<CITATIONS>${JSON.stringify([
-        {
-          ref: 1,
-          source: "public_legal",
-          provider: "journal",
-          identifier: "7",
-          quotes: [
-            { quote: "first quoted phrase" },
-            { quote: "second quoted phrase" },
-          ],
-        },
-      ])}</CITATIONS>`,
-    );
-    const citation = createCitation(parsed, {}, undefined, [], [], state) as {
-      url: string;
-    };
-    expect(citation.url).toContain("#page=2:~:text=");
-    expect(citation.url.match(/text=/gu)).toHaveLength(2);
   });
 
   it("appends one verified multi-text page link when citation JSON is omitted", async () => {

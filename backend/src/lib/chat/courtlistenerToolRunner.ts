@@ -409,8 +409,8 @@ async function execute(
       // The schemas teach probe shape and opinion selection; only the cache
       // fact and the multi-opinion warning are new here.
       next_required_action: cases.some(({ opinions }) => opinions.length > 1)
-        ? "Opinion text is cached server-side only; at least one case has multiple opinions."
-        : "Opinion text is cached server-side only.",
+        ? "This result does not include opinion text; at least one case has multiple opinions."
+        : "This result does not include opinion text.",
     };
   }
 

@@ -11,10 +11,11 @@ import {
     useState,
 } from "react";
 import { useRouter } from "next/navigation";
-import { Upload } from "lucide-react";
+import { MessageSquarePlus, Upload } from "lucide-react";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import { DocTable } from "@/app/components/documents/DocTable";
 import { DocumentAutomation } from "@/app/components/documents/DocumentAutomation";
+import { stageNewChatDocuments } from "@/app/components/assistant/assistantLaunch";
 import type {
     DocTableFolder,
     DocTableSelectionActions,
@@ -217,6 +218,18 @@ export function LibraryCollectionPage({ kind }: { kind: LibraryKind }) {
                     }}
                     actions={
                         <div className="flex items-center gap-1.5">
+                            <TabPillButton
+                                disabled={!selectionActions?.selectedCount}
+                                onClick={() => {
+                                    stageNewChatDocuments(
+                                        selectionActions?.selectedDocuments ?? [],
+                                    );
+                                    router.push("/assistant");
+                                }}
+                            >
+                                <MessageSquarePlus className="h-3.5 w-3.5" />
+                                <span className="hidden sm:inline">Open in new chat</span>
+                            </TabPillButton>
                             {kind === "files" && (
                                 <DocumentAutomation
                                     document={

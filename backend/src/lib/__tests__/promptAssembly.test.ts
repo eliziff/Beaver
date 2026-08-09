@@ -23,8 +23,6 @@ describe("system prompt assembly", () => {
   it("does not restate rules the server enforces deterministically", () => {
     // Top-level page/quote is synthesized from quotes[0] in citations.ts.
     expect(SYSTEM_PROMPT).not.toContain("legacy compatibility");
-    // The contiguity rule is stated exactly once.
-    expect(SYSTEM_PROMPT.match(/contiguous/gu)?.length ?? 0).toBe(1);
   });
 
   it("states the read-once rule only in the per-turn documents block", () => {
@@ -67,7 +65,7 @@ describe("system prompt assembly", () => {
     );
     const content = systemContent(messages);
     expect(content).toContain("SPREADSHEET CITATIONS");
-    expect(content).toContain("⟨merged");
+    expect(content).toContain("evidence_id");
   });
 
   it("splices the spreadsheet block for message-attached spreadsheets", () => {
@@ -134,17 +132,8 @@ describe("system prompt assembly", () => {
     expect(docs).toBeGreaterThan(sheet);
   });
 
-  it("keeps the essential citation contract intact", () => {
-    for (const required of [
-      "<CITATIONS>",
-      "chat-local label",
-      "[[PAGE_BREAK]]",
-      "only citation annotation markers",
-      "Omit the <CITATIONS> block",
-    ]) {
-      expect(SYSTEM_PROMPT).toContain(required);
-    }
-    expect(SPREADSHEET_CITATION_PROMPT).toContain('"cell"');
-    expect(SPREADSHEET_CITATION_PROMPT).toContain("⟨merged");
+  it("uses receipt-backed inline citations", () => {
+    expect(SYSTEM_PROMPT).toContain("submit_grounded_answer");
+    expect(SPREADSHEET_CITATION_PROMPT).toContain("evidence_id");
   });
 });
