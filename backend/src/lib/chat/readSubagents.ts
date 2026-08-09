@@ -561,9 +561,25 @@ export async function runReadSubagent(params: {
     let rendered: string | null = null;
     let grounding: LegalEvidenceReceiptEvent | null = null;
     while (!rendered || grounding?.status !== "passed") {
-      await run(prompt);
+      let runError: unknown = null;
+      try {
+        await run(prompt);
+      } catch (error) {
+        runError = error;
+      }
       rendered = renderLegalEvidenceAnswer(params.evidenceState);
       grounding = legalEvidenceReceiptEvent(params.evidenceState);
+      if (
+        runError &&
+        !(
+          runError instanceof Error &&
+          runError.message === "Codex exec returned no response." &&
+          rendered &&
+          grounding?.status === "passed"
+        )
+      ) {
+        throw runError;
+      }
       if (rendered && grounding?.status === "passed") break;
       const priorFeedback = feedback.join("\n\n").slice(-MAX_REPAIR_CONTEXT_CHARS);
       const rejection =
