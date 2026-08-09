@@ -62,6 +62,12 @@ export function useAssistantChatRoute({
                     finishProjectMove(chat.project_id);
                 } else if (messages.length > 0) {
                     assistant.setMessages(messages);
+                    if (chat.turn_in_progress) {
+                        assistant.resumeRunningTurn(
+                            chat.id,
+                            chat.transcript_version ?? 0,
+                        );
+                    }
                 } else if (!projectId) {
                     router.replace("/assistant");
                 }

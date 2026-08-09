@@ -253,6 +253,52 @@ describe("AssistantMessage activity", () => {
         expect(screen.queryByRole("button")).not.toBeInTheDocument();
     });
 
+    it("hides terminal evidence IDs while retaining a natural finalization step", async () => {
+        render(
+            <AssistantMessage
+                events={[
+                    {
+                        type: "reasoning",
+                        text: "Submitting conclusion with ID 3.",
+                    },
+                    {
+                        type: "tool_call_start",
+                        name: "submit_grounded_answer",
+                        isStreaming: false,
+                    },
+                ]}
+            />,
+        );
+
+        const disclosure = screen.getByRole("button", {
+            name: "Activity \u2014 Finalizing answer",
+        });
+        await userEvent.click(disclosure);
+        expect(screen.getByRole("list")).toHaveTextContent("Finalizing answer");
+        expect(document.body).not.toHaveTextContent("ID 3");
+        expect(document.body).not.toHaveTextContent("submit_grounded_answer");
+    });
+
+    it("keeps the host tool registry out of user-facing reasoning", () => {
+        render(
+            <AssistantMessage
+                events={[
+                    {
+                        type: "reasoning",
+                        text: "Using an ALL_TOOLS filter to inspect deferred tools.",
+                    },
+                    {
+                        type: "reasoning",
+                        text: "Checking the requested authorities.",
+                    },
+                ]}
+            />,
+        );
+
+        expect(document.body).not.toHaveTextContent("ALL_TOOLS");
+        expect(document.body).toHaveTextContent("Checking the requested authorities");
+    });
+
     it("names the copy action and exposes its completed state", async () => {
         const write = vi.fn().mockResolvedValue(undefined);
         Object.defineProperty(navigator, "clipboard", {

@@ -109,7 +109,8 @@ function legalCitationTab(
             id: `legal:journal:${citation.identifier}`,
             provider: "journal",
             sourceId: citation.identifier,
-            citation: citation.title ?? citation.identifier,
+            citation:
+                citation.citation ?? citation.title ?? citation.identifier,
             name: citation.title ?? null,
             dataset: null,
             docType: "articles",
@@ -246,6 +247,16 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         citation: Citation,
         showQuotes = true,
     ) => {
+        const exactProviderUrl =
+            showQuotes &&
+            "url" in citation &&
+            citation.url?.includes(":~:text=")
+                ? citation.url
+                : null;
+        if (exactProviderUrl) {
+            window.open(exactProviderUrl, "_blank", "noopener,noreferrer");
+            return;
+        }
         if (citation.kind === "case") return openCase(citation, showQuotes);
         if (citation.kind === "document" || !citation.kind) {
             return upsertTab(documentCitationTab(citation, showQuotes));

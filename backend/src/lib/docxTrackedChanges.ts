@@ -1015,13 +1015,121 @@ export async function applyTrackedEdits(
         normalizeWs(p.flat.paraText),
     );
 
+    // Word tracks text inside paragraphs. The assistant, however, reads the
+    // document on the canonical paragraph stream and may copy several adjacent
+    // paragraphs into one edit. Resolve that edit once on the same stream,
+    // then pin one exact replacement to each paragraph. This preserves the
+    // document's paragraph/list structure and keeps the existing writer small.
+    type ConcreteEdit = { edit: EditInput; sourceIndex: number };
+    const concreteEdits: ConcreteEdit[] = [];
+    const errors: EditError[] = [];
+    const bodyText = paragraphs.map((p) => p.flat.paraText).join("\n");
+    const bodyNorm = normalizeWs(bodyText);
+
+    for (let sourceIndex = 0; sourceIndex < edits.length; sourceIndex++) {
+        const source = edits[sourceIndex];
+        const find = (source.find ?? "").replace(/\r\n?/g, "\n");
+        const replace = (source.replace ?? "").replace(/\r\n?/g, "\n");
+        if (!find.includes("\n") && !replace.includes("\n")) {
+            concreteEdits.push({ edit: source, sourceIndex });
+            continue;
+        }
+
+        const attempts = [
+            {
+                before: normalizeWs(source.context_before ?? "").norm,
+                after: normalizeWs(source.context_after ?? "").norm,
+            },
+            {
+                before: normalizeWs(source.context_before ?? "").norm,
+                after: "",
+            },
+            {
+                before: "",
+                after: normalizeWs(source.context_after ?? "").norm,
+            },
+            { before: "", after: "" },
+        ];
+        let matched: { start: number; end: number } | null = null;
+        for (const attempt of attempts) {
+            const candidate = findUniqueAnchor(
+                bodyNorm.norm,
+                normalizeWs(find).norm,
+                attempt.before,
+                attempt.after,
+            );
+            if (!("error" in candidate)) {
+                matched = mapNormRangeToOriginal(
+                    bodyNorm,
+                    bodyText.length,
+                    candidate.start,
+                    candidate.end,
+                );
+                break;
+            }
+        }
+        if (!matched) {
+            errors.push({
+                index: sourceIndex,
+                reason: "Could not uniquely locate the multi-paragraph edit on the document text plane.",
+            });
+            continue;
+        }
+
+        const actualFind = bodyText.slice(matched.start, matched.end);
+        const findLines = actualFind.split("\n");
+        const replaceLines = replace.split("\n");
+        if (findLines.length !== replaceLines.length) {
+            errors.push({
+                index: sourceIndex,
+                reason: `Multi-paragraph replacement must preserve the paragraph count (${findLines.length} found, ${replaceLines.length} supplied).`,
+            });
+            continue;
+        }
+
+        let cursor = matched.start;
+        let changed = false;
+        for (let line = 0; line < findLines.length; line++) {
+            const original = findLines[line];
+            const replacement = replaceLines[line];
+            if (original !== replacement) {
+                changed = true;
+                concreteEdits.push({
+                    sourceIndex,
+                    edit: {
+                        find: original,
+                        replace: replacement,
+                        context_before: bodyText.slice(Math.max(0, cursor - 40), cursor),
+                        context_after: bodyText.slice(
+                            cursor + original.length,
+                            cursor + original.length + 40,
+                        ),
+                        reason: source.reason,
+                        exact_start: cursor,
+                        exact_end: cursor + original.length,
+                    },
+                });
+            }
+            cursor += original.length + (line + 1 < findLines.length ? 1 : 0);
+        }
+        if (!changed) {
+            errors.push({
+                index: sourceIndex,
+                reason: "Replacement does not change the matched text.",
+            });
+        }
+    }
+
     let nextWId = maxTrackedId(tree) + 1;
     const plansPerParagraph = new Map<number, PlannedChange[]>();
-    const appliedChanges: AppliedChange[] = [];
-    const errors: EditError[] = [];
+    const appliedChangesByEdit = new Map<number, AppliedChange>();
+    const revisionIdsByEdit = new Map<
+        number,
+        { changeId: string; delWId?: string; insWId?: string }
+    >();
 
-    for (let editIdx = 0; editIdx < edits.length; editIdx++) {
-        const edit = edits[editIdx];
+    for (let concreteIndex = 0; concreteIndex < concreteEdits.length; concreteIndex++) {
+        const { edit, sourceIndex: editIdx } = concreteEdits[concreteIndex];
         const find = edit.find ?? "";
         const replace = edit.replace ?? "";
         const ctxBefore = edit.context_before ?? "";
@@ -1210,7 +1318,16 @@ export async function applyTrackedEdits(
             continue;
         }
 
-        const editPlans: PlannedChange[] = clusters.map((cluster, clusterIdx) => ({
+        const revision = revisionIdsByEdit.get(editIdx) ?? {
+            changeId: `mike-${editIdx}-${Date.now()}`,
+        };
+        if (clusters.some((cluster) => cluster.deleted) && !revision.delWId)
+            revision.delWId = String(nextWId++);
+        if (clusters.some((cluster) => cluster.inserted) && !revision.insWId)
+            revision.insWId = String(nextWId++);
+        revisionIdsByEdit.set(editIdx, revision);
+
+        const editPlans: PlannedChange[] = clusters.map((cluster) => ({
             editIndex: editIdx,
             deleteStart: findStart + cluster.offset,
             deleteEnd: findStart + cluster.offset + cluster.deleted.length,
@@ -1219,9 +1336,9 @@ export async function applyTrackedEdits(
             contextBefore: edit.context_before ?? "",
             contextAfter: edit.context_after ?? "",
             reason: edit.reason,
-            changeId: `mike-${editIdx}-${clusterIdx}-${Date.now()}`,
-            delWId: cluster.deleted ? String(nextWId++) : undefined,
-            insWId: cluster.inserted ? String(nextWId++) : undefined,
+            changeId: revision.changeId,
+            delWId: cluster.deleted ? revision.delWId : undefined,
+            insWId: cluster.inserted ? revision.insWId : undefined,
         }));
 
         // Check for overlap with earlier edits' plans in the same paragraph.
@@ -1244,16 +1361,33 @@ export async function applyTrackedEdits(
         existing.sort((a, b) => a.deleteStart - b.deleteStart);
         plansPerParagraph.set(paraIdx, existing);
 
-        for (const plan of editPlans) {
-            appliedChanges.push({
-                id: plan.changeId,
-                delId: plan.delWId,
-                insId: plan.insWId,
-                deletedText: plan.deletedText,
-                insertedText: plan.insertedText,
-                contextBefore: plan.contextBefore,
-                contextAfter: plan.contextAfter,
-                reason: plan.reason,
+        const deletedText = clusters
+            .map((cluster) => cluster.deleted)
+            .filter(Boolean)
+            .join(" â€¦ ");
+        const insertedText = clusters
+            .map((cluster) => cluster.inserted)
+            .filter(Boolean)
+            .join(" â€¦ ");
+        const applied = appliedChangesByEdit.get(editIdx);
+        if (applied) {
+            applied.delId = revision.delWId;
+            applied.insId = revision.insWId;
+            if (deletedText)
+                applied.deletedText += `${applied.deletedText ? "\n" : ""}${deletedText}`;
+            if (insertedText)
+                applied.insertedText += `${applied.insertedText ? "\n" : ""}${insertedText}`;
+            applied.contextAfter = edit.context_after ?? "";
+        } else {
+            appliedChangesByEdit.set(editIdx, {
+                id: revision.changeId,
+                delId: revision.delWId,
+                insId: revision.insWId,
+                deletedText,
+                insertedText,
+                contextBefore: edit.context_before ?? "",
+                contextAfter: edit.context_after ?? "",
+                reason: edit.reason,
             });
         }
     }
@@ -1429,7 +1563,7 @@ export async function applyTrackedEdits(
     });
     return {
         bytes: outBuf,
-        changes: appliedChanges,
+        changes: [...appliedChangesByEdit.values()],
         errors,
         comments: commentsAdded,
     };
