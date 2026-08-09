@@ -11,6 +11,7 @@ import {
 import {
   A2AJ_SYSTEM_PROMPT,
   CLIENT_WORK_PRODUCT_PRESUMPTION,
+  CODING_PRODUCTION_SYSTEM_PROMPT,
   buildLeanLibraryBlock,
   jurisdictionPreferencePrompt,
   parseJurisdictionPreference,
@@ -149,17 +150,6 @@ import {
   type LabOutlineSourceDocument,
 } from "../lib/chat/labOutlineInjection";
 import { localAutomationEvent } from "../lib/chat/localAutomationEvent";
-import {
-  appendSlaReceipt,
-  auditSlaDraft,
-  collectSlaDeliverable,
-  buildSlaLedger,
-  greenfieldReviewRepairPrompt,
-  runGreenfieldStimulusReview,
-  slaRevisionDrift,
-  slaWorkflowEnabled,
-  type SlaLedger,
-} from "../lib/chat/slaWorkflow";
 import { libraryInventoryPrompt } from "../lib/chat/libraryInventory";
 import {
   appendLocalPdfPinpointLinks,
@@ -1092,14 +1082,17 @@ export async function streamAnonymousChat(params: {
     return fail(400, safeErrorMessage(error, "Invalid image attachment"));
   }
   const selectedModel = params.model || DEFAULT_MAIN_MODEL;
-  const codingShape = CODING_TOOL_SHAPE;
-  const toolPartition = partitionTools(LOCAL_ASSISTANT_TOOLS);
-  const activeTools = [...toolPartition.resident];
+  const codingShape = true;
+  const activeTools = [...LOCAL_ASSISTANT_TOOLS];
+  const toolPartition = {
+    resident: activeTools,
+    deferred: [] as OpenAIToolSchema[],
+  };
+  const progressiveDisclosure = false;
+  const groundedOutlineBlock = "";
   const activeToolNames = new Set(
     activeTools.map((entry) => entry.function.name),
   );
-  const progressiveDisclosure =
-    PROGRESSIVE_DISCLOSURE_ENABLED && toolPartition.deferred.length > 0;
   if (imagesByDocumentId.size && !modelSupportsImageInput(selectedModel)) {
     return fail(400, `Model "${selectedModel}" does not support image input.`);
   }
@@ -1111,263 +1104,30 @@ export async function streamAnonymousChat(params: {
   const priorEvidencePrompt = localPdfEvidenceRegistryPrompt(
     priorEvidenceRegistry,
   );
-  // Prompt discipline for the tool-shape experiment: never teach tool names
-  // the served surface does not carry (a prose mention overrides the schema
-  // list in practice, and silently un-does the A/B).
-  const navigationTools = ORIGIN_MIKE_TOOL_SHAPE
-    ? LEAN_BATCH_FAMILY_TOOL_SHAPE
-      ? "list_documents, Grep, Read"
-      : MIKE_GREP_FAMILY_TOOL_SHAPE
-      ? "list_documents, fetch_documents, read_document, find_in_document, Grep, Read"
-      : "list_documents, fetch_documents, read_document, find_in_document"
-    : codingShape
-      ? "Glob, Grep, Read, Edit, library_lookup, library_evidence"
-      : "library_list, library_lookup, library_evidence, library_read, library_find";
-  const readToolName = codingShape ? "Read" : "library_read";
-  const editToolName = codingShape ? "Edit" : "library_revise_docx";
-  const connectedIntro = projectId
-    ? "The current Beaver matter is connected through its attached Library documents"
-    : "The user's local Beaver Library is connected";
-  const leanPromptVariant =
-    process.env.MIKE_PROMPT_VARIANT === "lean" || progressiveDisclosure;
   const standingJurisdictionPrompt = jurisdictionPreferencePrompt(
     params.jurisdictionPreference ?? null,
   );
-  const libraryBlock = ORIGIN_MIKE_TOOL_SHAPE
-    ? ""
-    : leanPromptVariant
-    ? buildLeanLibraryBlock({
-        connectedIntro,
-        codingShape,
-        pureCoding:
-          process.env.MIKE_RETRIEVAL_EXPERIMENT === "p0-pure-coding",
-        readToolName,
-        editToolName,
-        progressiveDisclosure,
-      })
-    : `${connectedIntro} through the library tools. Use ${codingShape ? "Glob" : "library_list"} before claiming a Library document is unavailable. Create requested Word drafts with library_create_docx. An edit, revision, redline, request to apply changes, or request for a corrected DOCX is an action request: read the selected Library DOCX with ${readToolName}, then ${
-      codingShape
-        ? "call Edit with the exact old text and its replacement"
-        : "call library_revise_docx using its exact active version_id"
-    }. ${
-      codingShape
-        ? ""
-        : "Route mechanical transforms — case changes, find-and-replace, spelling review, sentence spacing, quote/dash/ellipsis/whitespace normalization — through library_apply_text_ops instead; the server executes those deterministically. "
-    }Do not substitute a prose list of proposed or suggested changes; if clarification is materially required, call ask_inputs. Never claim a document mutation succeeded without its tool receipt. Beaver shows created and edited document cards automatically, so confirm completion briefly without pasting the draft, repeating the change list, or adding a document URL. For an exact PDF page, paragraph, footnote, proposition, section, or bounded range, use library_lookup instead of ${readToolName}; rely on its evidence and do not invent locators or URLs. Preserve returned mike-evidence handles when the material may be needed after compaction and rehydrate through the evidence tools. For a table or book of authorities from a Library Word document, or a book from a Library PDF, call toa_submit_library_document. When a tool returns app_url, use that exact value in a Markdown link instead of constructing a route. ${
-      codingShape
-        ? "For long or structured Library documents, search with Grep first and read only what you need: Grep match lines end with the enclosing [section handle], which Read and Edit accept as section= to scope to that section."
-        : process.env.MIKE_NAV_SHAPE === "address"
-          ? // The prompt is part of the surface under test: naming a parameter
-            // the active arm does not have measures the harness, not the shape.
-            "For long or structured Library documents, call library_outline first — it gives the handles and the page addresses — then read only what you need with library_read at= rather than the whole document."
-          : "For long or structured Library documents, call library_outline first and read only the needed span with library_read section= rather than the whole document."
-    } Before delivering extraction or comparison work, call library_anchor_coverage and verify the source anchors it reports missing from your draft. Prefer the deterministic organs over reasoning from memory — citation linking, supra fixes, structural lint, term drift, drafting lint, bilingual concordance, amendment application, deadline computation — and report their findings as verified rather than recomputing them yourself.`;
-  let systemPrompt = ORIGIN_MIKE_TOOL_SHAPE
-    ? UPSTREAM_NATIVE_MIKE_SHAPE
-      ? UPSTREAM_NATIVE_MIKE_LAB_SYSTEM_PROMPT
-      : LEAN_BATCH_FAMILY_TOOL_SHAPE
-      ? CODING_NEUTRAL_PROMPT_ENABLED
-        ? CODING_TOC_FILES_ENABLED
-          ? GREP_PER_FILE_BUDGET_ENABLED
-            ? TRIAGE_WORKFLOW_ENABLED
-              ? FINAL_ARM_ENABLED
-                ? FINAL_AGENT_LOOP_ENABLED
-                  ? CODING_MARKDOWN_FINAL_AGENT_LAB_SYSTEM_PROMPT
-                  : CODING_MARKDOWN_FINAL_LAB_SYSTEM_PROMPT
-                : COMPLETENESS_FLOOR_ENABLED
-                  ? CODING_MARKDOWN_TRIAGE_FLOOR_LAB_SYSTEM_PROMPT
-                  : CODING_MARKDOWN_TRIAGE_LAB_SYSTEM_PROMPT
-              : CODING_MARKDOWN_GREP_ROUTE_LAB_SYSTEM_PROMPT
-            : CODING_MARKDOWN_BUDGET_LAB_SYSTEM_PROMPT
-          : CODING_MARKDOWN_LAB_SYSTEM_PROMPT
-        : LEAN_BATCH_LAB_SYSTEM_PROMPT
-      : COMPACT_AUTHOR_MIKE_TOOL_SHAPE
-        ? COMPACT_AUTHOR_MIKE_LAB_SYSTEM_PROMPT
-        : MIKE_GREP_FAMILY_TOOL_SHAPE
-      ? MIKE_STRUCTURE_PATHS_TOOL_SHAPE
-        ? GROUNDED_STRUCTURE_OUTLINE_INJECTION_ENABLED
-          ? GROUNDED_STRUCTURE_OUTLINE_LAB_SYSTEM_PROMPT
-          : GROUNDING_FIRST_ENABLED
-            ? GROUNDED_STRUCTURE_LAB_SYSTEM_PROMPT
-            : MIKE_STRUCTURE_PATHS_LAB_SYSTEM_PROMPT
-        : MIKE_LEGAL_GUIDED_TOOL_SHAPE
-          ? MIKE_LEGAL_GUIDED_LAB_SYSTEM_PROMPT
-          : MIKE_GREP_LAB_SYSTEM_PROMPT
-      : ADAPTIVE_MIKE_TOOL_SHAPE
-      ? ADAPTIVE_MIKE_LAB_SYSTEM_PROMPT
-      : STRUCTURE_INDEX_ENABLED
-        ? COMPLETENESS_FLOOR_ENABLED
-          ? MARKDOWN_E2E_INDEX_FLOOR_LAB_SYSTEM_PROMPT
-          : MARKDOWN_E2E_INDEX_LAB_SYSTEM_PROMPT
-        : COMPLETENESS_FLOOR_ENABLED
-          ? MARKDOWN_E2E_FLOOR_LAB_SYSTEM_PROMPT
-          : UPSTREAM_MIKE_LAB_SYSTEM_PROMPT
-    : `${CLIENT_WORK_PRODUCT_PRESUMPTION}\n\n${libraryBlock}\n\n` +
-      "If the user selects a workflow with [Workflow: <title> (id: <id>)], immediately call read_workflow with that id and follow it.\n\n" +
-      "Call ask_inputs only for what blocks the work: an instruction only the user can give, or a document that was never provided. Resolve ordinary ambiguity on the most reasonable reading and state the assumption instead. Never seek confirmation of an instruction already given.\n\n" +
-      (standingJurisdictionPrompt
-        ? standingJurisdictionPrompt + "\n\n"
-        : "") +
-      focusPrompt +
-      priorEvidencePrompt +
-      (RESEARCH_TOOLS_DISABLED || progressiveDisclosure
-        ? ""
-        : COURTLISTENER_SYSTEM_PROMPT +
-          "\n\n" +
-          A2AJ_SYSTEM_PROMPT +
-          "\n\n" +
-          PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT);
-  // TREATMENT prompt additions, applied through the SAME helper the preflight
-  // reproducer uses, so the served prompt and the arm's expected
-  // system_prompt_sha256 cannot drift apart — the order lives in one place.
-  // Both flags are off for every existing arm, so this is a no-op for them.
-  // Note this runs BEFORE the leak guard below, so the additions are
-  // leak-scanned like any other prompt text, and BEFORE the inventory append,
-  // which is the order lab-beaver-arm.ts reproduces.
-  systemPrompt = withLabTreatmentPromptAdditions(systemPrompt, {
-    requirementsEcho: REQUIREMENTS_ECHO_ENABLED,
-    // Fix A: under the exposure gate the echo is served automatically by the
-    // first generate_docx refusal (no fetch_requirements tool), so the prompt
-    // line must describe that mechanism instead of the tool.
-    exposureEcho: EXPOSURE_ECHO_ENABLED,
-    citationContract: CITATION_CONTRACT_ENABLED,
-    citationContractV2: CITATION_CONTRACT_V2_ENABLED,
-    noDeferral: NO_DEFERRAL_ENABLED,
-    scopedReread: SCOPED_REREAD_ENABLED,
-  });
-  if (ORIGIN_MIKE_TOOL_SHAPE) {
-    const expectedBase = UPSTREAM_NATIVE_MIKE_SHAPE
-      ? UPSTREAM_NATIVE_MIKE_LAB_TOOL_NAMES
-      : LEAN_BATCH_FAMILY_TOOL_SHAPE
-      ? // CC parity (coding_markdown_v2) swaps the lean list for the
-        // Claude-Code-shaped surface; the guard expects exactly that swap.
-        CODING_PARITY_ENABLED
-        ? ["Glob", "Grep", "Read", "generate_docx"]
-        : ["list_documents", "Grep", "Read", "generate_docx"]
-      : MIKE_GREP_FAMILY_TOOL_SHAPE
-      ? [
-          "read_document",
-          "find_in_document",
-          "list_documents",
-          "fetch_documents",
-          "Grep",
-          "Read",
-          "generate_docx",
-        ]
-      : [
-          "read_document",
-          "find_in_document",
-          "list_documents",
-          "fetch_documents",
-          "generate_docx",
-        ];
-    // Fix A: fetch_requirements is appended ONLY when the requirements echo is
-    // on WITHOUT the exposure gate (the frozen markdown treatment arms, whose
-    // echo is the tool call). Under the exposure gate the verbatim requirements
-    // ride the first generate_docx refusal automatically — the tool is never
-    // served there, so it must not appear in the guard's expectation either.
-    const expectedWithEcho =
-      REQUIREMENTS_ECHO_ENABLED && !EXPOSURE_ECHO_ENABLED
-        ? [...expectedBase, "fetch_requirements"]
-        : expectedBase;
-    // Draft-edit appends Edit the same way; generate_docx is swapped in place
-    // for the optional-markdown variant, keeping its name and position.
-    const expected = DRAFT_EDIT_ENABLED
-      ? [...expectedWithEcho, "Edit"]
-      : expectedWithEcho;
-    const actual = activeTools.map((entry) => entry.function.name);
-    if (
-      progressiveDisclosure ||
-      JSON.stringify(actual) !== JSON.stringify(expected)
-    ) {
-      throw new Error(
-        `Mike LAB surface leaked or drifted: ${actual.join(", ")}`,
-      );
-    }
-    const leaked = [
-      "Beaver",
-      "library_",
-      "describe_tools",
-      "mike-evidence",
-      "library evidence",
-      "progressive disclosure",
-      ...(MIKE_GREP_FAMILY_TOOL_SHAPE || LEAN_BATCH_FAMILY_TOOL_SHAPE
-        ? // CC parity serves Glob, and v4's budget prompt legitimately
-          // names the tools it serves — a served tool is not a leak.
-          CODING_PARITY_ENABLED
-          ? []
-          : ["Glob"]
-        : ["Glob", "Grep"]),
-    ].find((term) => systemPrompt.includes(term));
-    if (leaked) {
-      throw new Error(`Upstream Mike LAB prompt leaked Beaver term: ${leaked}`);
-    }
-  }
-  // Name the documents the user already has. Telling the model the tools
-  // exist is not the same as telling it the matter exists.
-  let groundedOutlineBlock = "";
-  if (ORIGIN_MIKE_TOOL_SHAPE) {
-    const documents = allowedDocumentIds?.size
-      ? await listLocalDocumentsById(userId, allowedDocumentIds)
-      : (await listLocalLibrary(userId, "file")).documents;
-    systemPrompt += UPSTREAM_NATIVE_MIKE_SHAPE
-      ? // Byte-identical to upstream's own inventory block
-        // (2266446b:backend/src/lib/chat/contextBuilders.ts:143-153): --- fences,
-        // no (file_type) suffix, and the read-once trailer. LAB documents carry
-        // no folder_path, so the label is the bare filename.
-        "\n\n---\nAVAILABLE DOCUMENTS:\n" +
-        documents
-          .map((document, index) => `- doc-${index}: ${document.filename}\n`)
-          .join("") +
-        "\nYou do NOT retain document content between conversation turns. You MUST call read_document (or fetch_documents) once at the start of every response that involves a document's content, even if you have read it in a previous turn. Within the same response, do not call read_document or fetch_documents again for a document/version that has already been read; use the prior tool result, find_in_document for targeted checks, or proceed to the next required tool. Failure to read once per turn will result in hallucinated or stale content.\n---\n"
-      : "\n\nAVAILABLE DOCUMENTS:\n" +
-        documents
-          .map(
-            (document, index) =>
-              `- doc-${index}: ${document.filename} (${document.file_type})`,
-          )
-          .join("\n") +
-        "\n";
-    // H7 lean-understanding: inject the compact outline + top-K cross-ref
-    // summary ONCE for the LAB surface when the arm enables it. Deterministic,
-    // host-side, bounded; a refusing document simply contributes no entry, and
-    // an extraction failure falls back to no injection rather than failing the
-    // turn.
-    if (GROUNDED_STRUCTURE_OUTLINE_INJECTION_ENABLED) {
-      try {
-        const outlineSources: LabOutlineSourceDocument[] = [];
-        for (const [index, document] of documents.entries()) {
-          const extracted = await extractLocalDocument(userId, document.id);
-          if (!extracted) continue;
-          outlineSources.push({
-            label: `doc-${index}`,
-            filename: document.filename,
-            text: extracted.text,
-          });
-        }
-        groundedOutlineBlock = buildLabOutlineInjectionBlock(outlineSources);
-        if (groundedOutlineBlock)
-          systemPrompt += `\n\n${groundedOutlineBlock}\n`;
-      } catch {
-        groundedOutlineBlock = "";
-      }
-    }
-  } else {
-    systemPrompt += await libraryInventoryPrompt(
-      userId,
-      allowedDocumentIds ?? null,
-    );
-  }
-  // SLA workflow (Spec→Ledger): outline the in-scope documents into the
-  // prompt and keep their texts for the deterministic post-draft audit.
-  let slaLedger: SlaLedger | null = null;
-  if (slaWorkflowEnabled()) {
-    try {
-      slaLedger = await buildSlaLedger(userId, allowedDocumentIds ?? null);
-    } catch {
-      slaLedger = null;
-    }
-    if (slaLedger) systemPrompt += slaLedger.promptSection;
+  let systemPrompt = [
+    CODING_PRODUCTION_SYSTEM_PROMPT,
+    CLIENT_WORK_PRODUCT_PRESUMPTION,
+    standingJurisdictionPrompt,
+    focusPrompt,
+    priorEvidencePrompt,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+  const documents = allowedDocumentIds?.size
+    ? await listLocalDocumentsById(userId, allowedDocumentIds)
+    : (await listLocalLibrary(userId, "file")).documents;
+  if (documents.length) {
+    systemPrompt +=
+      "\n\nAVAILABLE DOCUMENTS:\n" +
+      documents
+        .map(
+          (document, index) =>
+            `- doc-${index}: ${document.filename} (${document.file_type})`,
+        )
+        .join("\n");
   }
   const responseProvider = providerForModel(selectedModel);
   const isCodex = responseProvider === "codex";
@@ -2055,16 +1815,7 @@ export async function streamAnonymousChat(params: {
       }
       return results;
     }
-    // The schemas on this request are the capability boundary. A model may
-    // remember or guess a deferred name, but it cannot execute it until a
-    // completed discovery call makes it active on the next iteration.
-    const initialResearchClosed =
-      pagedHandoffEnabled && !draftingPhase && initialResearchComplete;
-    const allowedCalls = calls.filter(
-      (call) =>
-        activeToolNames.has(call.name) &&
-        (!initialResearchClosed || call.name === "describe_tools"),
-    );
+    const allowedCalls = calls.filter((call) => activeToolNames.has(call.name));
     const runAllowedCalls = (batch: typeof allowedCalls) =>
       runLocalAssistantTools(
           userId,
@@ -2091,22 +1842,10 @@ export async function streamAnonymousChat(params: {
         allowedResults.find(
           (candidate) => candidate.tool_use_id === call.id,
         ) ??
-        (initialResearchClosed && call.name !== "describe_tools"
-          ? {
-              ...toolReply(call.id, {
-                ok: false,
-                status: "initial_research_complete",
-                error:
-                  "Initial research is complete. Open drafting with describe_tools; draft/check may reopen targeted research for a concrete gap.",
-              }),
-              status: "error" as const,
-            }
-          : toolReply(call.id, {
-              ok: false,
-              error: progressiveDisclosure
-                ? `Tool '${call.name}' is not loaded. Call describe_tools for the matching domain, then retry it on the next tool-call iteration.`
-                : `Tool '${call.name}' is not available.`,
-            })),
+        toolReply(call.id, {
+          ok: false,
+          error: `Tool '${call.name}' is not available.`,
+        }),
     );
     if (pagedHandoffEnabled && draftingPhase) {
       const reviewedWorkingSet = localWorkingSets.get(WORKING_SET_PATH);
@@ -2720,8 +2459,6 @@ export async function streamAnonymousChat(params: {
               ? "paged"
               : "full"
             : "none",
-          sla_workflow: slaWorkflowEnabled(),
-          greenfield_review: process.env.MIKE_GREENFIELD_REVIEW === "1",
           research_checkpoint_max_chars: pagedHandoffEnabled
             ? researchCheckpointMaxChars
             : null,
@@ -3248,157 +2985,6 @@ export async function streamAnonymousChat(params: {
       splitter.reset();
     }
     if (await finalizePendingAskInputs()) return;
-    // SLA Audit→Grounding: deterministic anchor coverage of the draft, one
-    // typed-findings revision pass, and machine receipts for both stages.
-    if (slaLedger && (visibleText.trim() || turnDocumentEvents.length > 0)) {
-      // The audited deliverable is the chat text PLUS any library document
-      // created or revised since the ledger snapshot — for file-producing
-      // tasks the artifact carries the anchors, not the chat message.
-      const deliverable = await collectSlaDeliverable(
-        userId,
-        slaLedger,
-        visibleText,
-      );
-      const draftAudit = auditSlaDraft(slaLedger, deliverable.text, {
-        artifactDeliverable: deliverable.artifacts.length > 0,
-        requestContext: lastUser?.content,
-        artifactNames: deliverable.artifacts,
-      });
-      appendSlaReceipt({
-        phase: "draft_audit",
-        artifacts: deliverable.artifacts,
-        ...draftAudit.receipt,
-      });
-      let reviewPrompt: string | null = null;
-      if (process.env.MIKE_GREENFIELD_REVIEW === "1") {
-        try {
-          const review = await runGreenfieldStimulusReview({
-            ledger: slaLedger,
-            request: lastUser?.content ?? "",
-            deliverable: deliverable.text,
-            model: selectedModel,
-            serviceTier: params.serviceTier,
-            abortSignal: streamAbort.signal,
-            sourceDocuments: (() => {
-              const evidence = localWorkingSets.get(WORKING_SET_PATH)?.text;
-              if (!evidence) return undefined;
-              return [
-                {
-                  name: `${WORKING_SET_PATH} (model-selected evidence union)`,
-                  text: evidence,
-                },
-                {
-                  name: "source-inventory.txt (names only; not evidence)",
-                  text: slaLedger.documents
-                    .map((document) => document.name)
-                    .join("\n"),
-                },
-              ];
-            })(),
-          });
-          appendSlaReceipt({
-            phase: "greenfield_review",
-            status: review.status,
-            finding_count: review.findings.length,
-            reason: review.reason ?? null,
-            usage: review.usage ?? null,
-          });
-          reviewPrompt = greenfieldReviewRepairPrompt(
-            review.findings,
-            deliverable.artifacts.length > 0,
-          );
-        } catch (error) {
-          appendSlaReceipt({
-            phase: "greenfield_review",
-            status: "unavailable",
-            error: safeErrorMessage(error),
-          });
-        }
-      }
-      const correctionPrompt = [draftAudit.repairPrompt, reviewPrompt]
-        .filter((value): value is string => Boolean(value))
-        .join("\n\n");
-      if (correctionPrompt) {
-        const draft = visibleText;
-        const submittedDraft = legalEvidenceState.answer;
-        legalEvidenceState.answer = null;
-        rawText = "";
-        visibleText = "";
-        contentBoundaryPending = false;
-        splitter.reset();
-        contextEvidenceExposure = createEvidenceExposureState();
-        sseWrite(res, { type: "content_reset" });
-        draftingCorrectionContext = [
-          "You are resuming a deterministic draft-check correction. Revise the current durable artifact; do not restart unrelated research.",
-          ...(deliverable.artifacts.length
-            ? [
-                "CURRENT DURABLE ARTIFACTS",
-                deliverable.artifacts.join("\n"),
-                "Read an artifact by its exact filename if its current wording is needed.",
-              ]
-            : []),
-          "CHECK FINDINGS",
-          correctionPrompt,
-        ]
-          .join("\n\n")
-          .slice(0, researchCheckpointMaxChars);
-        const findings =
-          correctionPrompt +
-          (localWorkingSets.has(WORKING_SET_PATH)
-            ? pagedHandoffEnabled
-              ? `\n\nReuse the reviewed evidence already gathered: search it with Grep(path=${JSON.stringify(WORKING_SET_PATH)}, output_mode="content"), then Read only an exact recipe returned by that Grep. Use source or provider tools beyond the mounted union only for a concrete missing fact; the host will checkpoint new evidence before correction resumes.`
-              : `\n\nReuse the evidence already gathered: first Read(file_path=${JSON.stringify(WORKING_SET_PATH)}). Add only targeted missing evidence.`
-            : "");
-        try {
-          if (draftingContextPrompt) {
-            await runProvider(
-              undefined,
-              undefined,
-              `${draftingContextPrompt}\n\nCANDIDATE DELIVERABLE\n${draft}\n\nCHECK FINDINGS\n${findings}\n\nReturn or apply the complete corrected deliverable.`,
-            );
-          } else {
-            await runProvider(undefined, { draft, findings });
-          }
-          await drainPendingEvidenceTransitions();
-        } finally {
-          draftingCorrectionContext = null;
-        }
-        flushTail();
-        const revisedAnswer = renderLegalEvidenceAnswer(legalEvidenceState);
-        if (revisedAnswer !== null) {
-          rawText = revisedAnswer;
-          visibleText = revisedAnswer;
-          contentBoundaryPending = false;
-          splitter.reset();
-        }
-        if (await finalizePendingAskInputs()) return;
-        if (!visibleText.trim()) {
-          // The revision pass produced nothing usable — keep the draft.
-          rawText = draft;
-          visibleText = draft;
-          legalEvidenceState.answer = submittedDraft;
-        }
-        const revised = await collectSlaDeliverable(
-          userId,
-          slaLedger,
-          visibleText,
-        );
-        // H7 feedback loop: re-audit the revised draft with the SAME eligibility
-        // gates as the draft audit and log the drift. One repair pass only — a
-        // fix that introduced a NEW finding is reported, never re-repaired.
-        const revisedAudit = auditSlaDraft(slaLedger, revised.text, {
-          artifactDeliverable: revised.artifacts.length > 0,
-          requestContext: lastUser?.content,
-          artifactNames: revised.artifacts,
-        });
-        appendSlaReceipt({
-          phase: "final_grounding",
-          artifacts: revised.artifacts,
-          ...revisedAudit.receipt,
-          drift: slaRevisionDrift(draftAudit, revisedAudit),
-        });
-      }
-    }
     if (
       continuousEvidenceEnabled &&
       process.env.MIKE_BENCHMARK_TRACE_TOOLS === "1" &&
