@@ -130,8 +130,8 @@ describe("MarkdownContent links", () => {
     it("leaves ordinary external links visually ordinary", () => {
         renderMarkdown("[Project website](https://example.com)");
 
-        expect(
-            screen.getByRole("link", { name: "Project website" }),
-        ).not.toHaveClass("rounded-full");
+        const link = screen.getByRole("link", { name: "Project website" });
+        expect(link).not.toHaveClass("rounded-full");
+        expect(link).toHaveClass("text-red-300", "decoration-red-500/70");
     });
 });
