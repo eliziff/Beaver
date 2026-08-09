@@ -1,14 +1,16 @@
 import { useSyncExternalStore } from "react";
 
-export type ActivityDetail = "standard" | "tools" | "trace";
+export type ActivityDetail = "auto" | "standard" | "tools" | "trace";
 
 const KEY = "beaver.activityDetail";
 const EVENT = "beaver:activity-detail-updated";
 
 export function readActivityDetail(): ActivityDetail {
-    if (typeof window === "undefined") return "standard";
+    if (typeof window === "undefined") return "auto";
     const stored = window.localStorage.getItem(KEY);
-    return stored === "tools" || stored === "trace" ? stored : "standard";
+    return stored === "standard" || stored === "tools" || stored === "trace"
+        ? stored
+        : "auto";
 }
 
 export function setActivityDetail(detail: ActivityDetail) {
@@ -29,7 +31,7 @@ export function useActivityDetail() {
     const detail = useSyncExternalStore(
         subscribe,
         readActivityDetail,
-        () => "standard" as const,
+        () => "auto" as const,
     );
     return { detail, setDetail: setActivityDetail };
 }

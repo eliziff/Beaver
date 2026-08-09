@@ -43,8 +43,7 @@ const MAX_REFERENCE_SECTIONS = 50;
 const MAX_REFERENCE_TEXT_CHARS = 32_000;
 const REFERENCE_NEIGHBORHOOD_ENABLED =
   !process.env.MIKE_RETRIEVAL_EXPERIMENT?.trim() ||
-  process.env.MIKE_RETRIEVAL_EXPERIMENT === "h4-legal-grep" ||
-  process.env.MIKE_RETRIEVAL_EXPERIMENT === "h5-working-set";
+  process.env.MIKE_RETRIEVAL_EXPERIMENT === "h4-legal-grep";
 
 async function referenceLookups(
   lookup: A2AJLocatorLookup,

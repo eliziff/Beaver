@@ -83,33 +83,3 @@ export function citationTooltip(annotation: Citation): string {
     const quote = displayCitationQuote(annotation);
     return locator ? `${locator}: "${quote}"` : `"${quote}"`;
 }
-
-export function CitationsBlock({
-    citations,
-    onCitationClick,
-}: {
-    citations: Citation[];
-    onCitationClick?: (citation: Citation) => void;
-}) {
-    return (
-        <section aria-label="Citations" className="mt-3 border-t border-gray-300 pt-3">
-            <ol className="space-y-1 text-sm text-gray-600">
-                {citations.map((citation) => (
-                    <li key={citation.ref} className="flex items-baseline gap-2">
-                        <span className="w-5 shrink-0 text-right tabular-nums">
-                            {citation.ref}.
-                        </span>
-                        <button
-                            type="button"
-                            onClick={() => onCitationClick?.(citation)}
-                            className="min-w-0 text-left underline decoration-gray-300 underline-offset-2 hover:text-gray-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-700"
-                            title={citationTooltip(citation)}
-                        >
-                            {citationPillLabel({ ...citation, display_form: "full" })}
-                        </button>
-                    </li>
-                ))}
-            </ol>
-        </section>
-    );
-}

@@ -1,5 +1,5 @@
 /**
- * Deterministic text-operation registry for `library_apply_text_ops`.
+ * Deterministic text-operation registry for DOCX editing.
  *
  * Contract: an op is a named pure function `(text, params) => string` (or
  * `{ text, notes }` when it has ambiguous sites to report). Ops never see

@@ -3,8 +3,9 @@ import DOMPurify from "dompurify";
 import { ExternalLink } from "lucide-react";
 import { ThinkingSpinner } from "@/app/components/chat/thinking-spinner";
 import type { CaseCitationQuote } from "@/app/components/shared/types";
-import { clearDocxQuoteHighlights, highlightDocxQuote } from "@/app/components/shared/views/highlightDocxQuote";
+import { clearDocxQuoteHighlights, highlightDocxQuotes } from "@/app/components/shared/views/highlightDocxQuote";
 import { CitationQuotesHeader } from "@/app/components/assistant/CitationQuotesHeader";
+import { formatLongDate } from "@/app/lib/utils";
 import {
     getCourtlistenerOpinions,
     getDirectLegalSourceDocument,
@@ -82,16 +83,8 @@ function friendlyCaseError(message: string) {
         return "CourtListener authentication is not configured correctly.";
     return "Could not load this case from CourtListener. Please try again shortly.";
 }
-const CASE_DATE_FORMAT = new Intl.DateTimeFormat("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-});
 function formatCaseDate(value: string | null) {
-    if (!value) return null;
-    const date = new Date(`${value}T00:00:00`);
-    return Number.isNaN(date.getTime()) ? value : CASE_DATE_FORMAT.format(date);
+    return formatLongDate(value);
 }
 function opinionTypeLabel(value: string | null) {
     if (!value) return "Opinion";
@@ -551,9 +544,11 @@ export function LegalSourceViewer({
         const root = contentRef.current;
         if (!root || (!payload && !activeOpinion)) return;
         clearDocxQuoteHighlights(root);
-        const quote = sourceQuotes[activeQuote]?.quote;
-        if (!quote) return;
-        const match = highlightDocxQuote(root, quote);
+        const matches = highlightDocxQuotes(
+            root,
+            sourceQuotes.map(({ quote }) => quote),
+        );
+        const match = matches[activeQuote];
         if (match) window.setTimeout(
             () => match.scrollIntoView({ behavior: "smooth", block: "center" }),
             40,
@@ -609,18 +604,12 @@ export function LegalSourceViewer({
         pdfUrl: caseTab?.pdfUrl ?? null,
         language: "en",
     };
-    const kindLabel = legalSourceKindLabel(payload?.reference.docType);
     const actions = legalSourceViewerActions(metadata);
-    const details = (
-        caseTab
-            ? [formatCaseDate(metadata.date)]
-            : [
-                  metadata.dataset,
-                  metadata.date?.match(/^\d{4}-\d{2}-\d{2}/u)?.[0] ??
-                      metadata.date,
-                  metadata.language.toUpperCase(),
-              ]
-    ).filter(Boolean);
+    const details = [
+        metadata.title !== metadata.citation ? metadata.citation : null,
+        metadata.alternateCitation,
+        formatCaseDate(metadata.date),
+    ].filter(Boolean);
     const selectQuote = (index: number) => {
         setActiveQuote(index);
         const opinionId = caseTab?.quotes?.[index]?.opinionId;
@@ -642,17 +631,13 @@ export function LegalSourceViewer({
             >
                 <div className="mx-auto flex max-w-5xl flex-wrap items-start gap-x-5 gap-y-3">
                     <div className="min-w-0 flex-1 basis-80">
-                        <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-brand">
-                            {kindLabel}</p>
                         <h1 className="text-xl font-semibold leading-tight text-gray-950 sm:text-2xl">
                             {metadata.title}</h1>
-                        <p className="mt-1 text-sm italic leading-snug text-gray-600">
-                            {metadata.citation}
-                            {metadata.alternateCitation
-                                ? ` / ${metadata.alternateCitation}`
-                                : ""}
-                        </p>
-                        {!!details.length && <p className="mt-2 text-xs text-gray-500">{details.join(" · ")}</p>}
+                        {!!details.length && (
+                            <p className="mt-2 text-sm leading-5 text-gray-600">
+                                {details.join(" · ")}
+                            </p>
+                        )}
                     </div>
                     {!!actions.length && (
                         <nav aria-label="Source links" className="flex max-w-full flex-wrap items-center gap-2">

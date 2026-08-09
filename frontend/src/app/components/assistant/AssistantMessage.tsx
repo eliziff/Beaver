@@ -19,7 +19,6 @@ import {
     type CitationHistory,
 } from "./message/citationUtils";
 import { MarkdownContent } from "./message/MarkdownContent";
-import { CitationsBlock } from "./message/CitationSources";
 import { EditCardsSection } from "./message/EditCardsSection";
 import {
     AutomationRunButton,
@@ -38,7 +37,6 @@ interface Props {
     citations?: Citation[];
     onCitationClick?: (citation: Citation) => void;
     citationTitle?: (citation: Citation) => string;
-    showCitationList?: boolean;
     showCopyAction?: boolean;
     onCaseClick?: (
         citation: Extract<AssistantEvent, { type: "case_citation" }>,
@@ -87,7 +85,6 @@ export function AssistantMessage({
     citations = [],
     onCitationClick,
     citationTitle,
-    showCitationList = false,
     showCopyAction = true,
     onCaseClick,
     onAutomationClick,
@@ -428,12 +425,6 @@ export function AssistantMessage({
                             downloadBlock(event, index),
                         )}
                     </div>
-                )}
-                {!isStreaming && showCitationList && citations.length > 0 && (
-                    <CitationsBlock
-                        citations={citations}
-                        onCitationClick={onCitationClick}
-                    />
                 )}
                 {showCopyAction && (
                     <div className="flex items-center gap-2 py-2 font-sans justify-start">

@@ -29,12 +29,12 @@ import {
 import { TOOLS, WORKFLOW_TOOLS } from "./tools/toolSchemas";
 import {
   createLegalEvidenceCitations,
-  createCitation,
-  isResolvedCitation,
-  parseCitationsWithDiagnostics,
-  parsePartialCitationObjects,
 } from "./citations";
-import { createVisibleStreamSplitter } from "./visibleStream";
+import { hideLegalSourceUrls } from "./legalToolResultVisibility";
+import {
+  UNVERIFIED_LEGAL_ANSWER,
+  hasModelAuthoredLegalSourceUrl,
+} from "./legalOutputGate";
 import {
   runToolCalls,
   type CourtlistenerTurnState,
@@ -50,17 +50,21 @@ import {
   finalizeLegalEvidenceExperiment,
   LEGAL_EVIDENCE_SUBMIT_TOOL,
   legalEvidenceReceiptEvent,
+  registerPriorLegalEvidence,
   renderLegalEvidenceAnswer,
+  type LegalEvidenceReceipt,
   type LegalEvidenceReceiptEvent,
 } from "./legalEvidenceExperiment";
 import {
   READ_SUBAGENT_SYSTEM_PROMPT,
   READ_SUBAGENT_TOOL,
   READ_SUBAGENT_TOOL_NAME,
-  allowedReadSubagentForeignRegions,
+  allowedReadSubagentRegions,
   createReadSubagentAdmission,
   readSubagentTools,
   readSubagentActivityLabel,
+  readSubagentJurisdiction,
+  readSubagentSourceTypes,
   runReadSubagent,
   type ReadSubagentEvent,
 } from "./readSubagents";
@@ -171,7 +175,8 @@ export async function runLLMStream({
   subagentModel,
   subagentEffort,
   jurisdictionPreference = null,
-  activityDetail = "standard",
+  activityDetail = "auto",
+  priorLegalEvidence = [],
 }: {
   apiMessages: unknown[];
   docStore: DocStore;
@@ -199,7 +204,8 @@ export async function runLLMStream({
   subagentModel?: string;
   subagentEffort?: string;
   jurisdictionPreference?: JurisdictionPreference | null;
-  activityDetail?: "standard" | "tools" | "trace";
+  activityDetail?: "auto" | "standard" | "tools" | "trace";
+  priorLegalEvidence?: LegalEvidenceReceipt[];
 }): Promise<{
   fullText: string;
   events: AssistantEvent[];
@@ -211,21 +217,26 @@ export async function runLLMStream({
   const mcpTools = await (
     await import("../mcpConnectors")
   ).buildUserMcpTools(userId, db);
-  const baseTools = [...TOOLS, ...researchTools, ...WORKFLOW_TOOLS];
-  const providerTools = extraTools?.length
-    ? [...baseTools, ...mcpTools, ...extraTools]
-    : [...baseTools, ...mcpTools];
-  const activeTools = subagentsEnabled
-    ? [...providerTools, READ_SUBAGENT_TOOL]
-    : providerTools;
-
-  // Extract system prompt; pass remaining turns to the adapter as
-  // plain user/assistant messages.
   const rawMsgs = apiMessages as {
     role: string;
     content: string | null;
     images?: import("../llm").LlmImage[];
+    files?: unknown[];
   }[];
+  const baseTools = [
+    ...(TOOLS as OpenAIToolSchema[]),
+    ...researchTools,
+    ...WORKFLOW_TOOLS,
+  ];
+  const providerTools = extraTools?.length
+    ? [...baseTools, ...mcpTools, ...extraTools]
+    : [...baseTools, ...mcpTools];
+  const activeTools = subagentsEnabled
+    ? [...providerTools, READ_SUBAGENT_TOOL, LEGAL_EVIDENCE_SUBMIT_TOOL]
+    : [...providerTools, LEGAL_EVIDENCE_SUBMIT_TOOL];
+
+  // Extract system prompt; pass remaining turns to the adapter as
+  // plain user/assistant messages.
   const baseSystemPrompt =
     rawMsgs[0]?.role === "system" ? (rawMsgs[0].content ?? "") : "";
   const systemPrompt = subagentsEnabled
@@ -256,6 +267,7 @@ export async function runLLMStream({
   const a2ajLookups: A2AJLocatorLookup[] = [];
   const a2ajDocuments: A2AJDocument[] = [];
   const legalEvidenceState = createLegalEvidenceTurnState();
+  registerPriorLegalEvidence(legalEvidenceState, priorLegalEvidence);
   const standingJurisdictionPrompt = jurisdictionPreferencePrompt(
     jurisdictionPreference,
   );
@@ -264,7 +276,7 @@ export async function runLLMStream({
       ?.content ?? "";
   const admitReadSubagents = createReadSubagentAdmission(
     3,
-    allowedReadSubagentForeignRegions(
+    allowedReadSubagentRegions(
       jurisdictionPreference,
       currentRequest,
     ),
@@ -275,70 +287,17 @@ export async function runLLMStream({
   let iterText = "";
   let iterVisibleText = "";
   let iterReasoning = "";
-  let streamingCitationsBuffer = "";
-  let streamedCitationCount = 0;
 
   const emit = (payload: unknown) =>
     write(`data: ${JSON.stringify(payload)}\n\n`);
-  const emitCitationStreamSnapshot = (
-    status: "started" | "partial",
-    citations: unknown[],
-  ) => {
-    if (!buildCitations) emit({ type: "citations", status, citations });
-  };
-
-  const streamHiddenCitationContent = (delta: string) => {
-    if (buildCitations || !delta) return;
-    streamingCitationsBuffer += delta;
-    const partial = parsePartialCitationObjects(streamingCitationsBuffer);
-    if (partial.length <= streamedCitationCount) return;
-    streamedCitationCount = partial.length;
-    const citations = partial
-      .map((c) =>
-        createCitation(
-          c,
-          docIndex,
-          courtlistenerTurnState.casesByClusterId,
-          a2ajLookups,
-          a2ajDocuments,
-          publicLegalState,
-        ),
-      )
-      .filter(isResolvedCitation);
-    emitCitationStreamSnapshot("partial", citations);
-  };
-
-  const splitter = createVisibleStreamSplitter({
-    onVisible: (visible) => {
-      iterVisibleText += visible;
-      emit({ type: "content_delta", text: visible });
-    },
-    onOpen: () => {
-      streamingCitationsBuffer = "";
-      streamedCitationCount = 0;
-      emitCitationStreamSnapshot("started", []);
-    },
-    onHidden: streamHiddenCitationContent,
-  });
-
   const flushText = (opts: { emit?: boolean } = {}) => {
     if (!iterText) return;
     fullText += iterText;
-    const tail = splitter.takeTail();
-    if (tail) {
-      iterVisibleText += tail;
-      if (opts.emit ?? true) {
-        emit({ type: "content_delta", text: tail });
-      }
-    }
     if (iterVisibleText) {
       events.push({ type: "content", text: iterVisibleText });
     }
     iterText = "";
     iterVisibleText = "";
-    splitter.reset();
-    streamingCitationsBuffer = "";
-    streamedCitationCount = 0;
   };
 
   const flushPartialTurn = (opts: { emit?: boolean } = {}) => {
@@ -362,21 +321,23 @@ export async function runLLMStream({
       reasoningEffort,
       serviceTier,
       enableThinking: true,
-      reasoningSummary: activityDetail === "trace" ? "auto" : "none",
+      reasoningSummary:
+        activityDetail === "auto" || activityDetail === "trace" ? "auto" : "none",
       abortSignal: signal,
       callbacks: {
         onContentDelta: (delta) => {
           iterText += delta;
-          splitter.push(delta);
+          iterVisibleText += delta;
+          emit({ type: "content_delta", text: delta });
         },
         onContentBlockEnd: () => flushText(),
         onReasoningDelta: (delta) => {
-          if (activityDetail !== "trace") return;
+          if (activityDetail !== "auto" && activityDetail !== "trace") return;
           iterReasoning += delta;
           emit({ type: "reasoning_delta", text: delta, debug: true });
         },
         onReasoningBlockEnd: () => {
-          if (activityDetail !== "trace") return;
+          if (activityDetail !== "auto" && activityDetail !== "trace") return;
           if (!iterReasoning) return;
           events.push({ type: "reasoning", text: iterReasoning, debug: true });
           emit({ type: "reasoning_block_end" });
@@ -403,7 +364,7 @@ export async function runLLMStream({
             type: "tool_call_start",
             name: call.name,
             ...(label && { label }),
-            ...(activityDetail !== "standard" && {
+            ...((activityDetail === "tools" || activityDetail === "trace") && {
               id: call.id,
               input: call.input,
             }),
@@ -507,10 +468,6 @@ export async function runLLMStream({
         }
         events.push(...courtlistenerEvents, ...mcpEvents, ...caseCitationEvents);
 
-        const readTools = [
-          ...readSubagentTools(activeTools as OpenAIToolSchema[]),
-          LEGAL_EVIDENCE_SUBMIT_TOOL,
-        ];
         const subagentResults = await Promise.all(
           subagentCalls.map((call) => {
             const childEditState: TurnEditState = new Map();
@@ -524,7 +481,14 @@ export async function runLLMStream({
             );
             return runReadSubagent({
               call,
-              tools: readTools,
+              tools: [
+                ...readSubagentTools(
+                  activeTools as OpenAIToolSchema[],
+                  readSubagentJurisdiction(call),
+                  readSubagentSourceTypes(call),
+                ),
+                LEGAL_EVIDENCE_SUBMIT_TOOL,
+              ],
               evidenceState: childLegalEvidenceState,
               publishEvidenceTo: legalEvidenceState,
               model: subagentModel,
@@ -567,7 +531,7 @@ export async function runLLMStream({
                       (item as { tool_call_id?: unknown }).tool_call_id ===
                       child.id,
                   ) as { content?: unknown } | undefined;
-                  return {
+                  return hideLegalSourceUrls(child.name, {
                     tool_use_id: child.id,
                     status: result ? ("ok" as const) : ("error" as const),
                     content:
@@ -575,7 +539,7 @@ export async function runLLMStream({
                       JSON.stringify({
                         error: `Tool '${child.name}' is not available.`,
                       }),
-                  };
+                  });
                 });
               },
             });
@@ -610,20 +574,25 @@ export async function runLLMStream({
         for (const result of subagentResults) {
           resultByCallId.set(result.tool_use_id, result.content);
         }
-        return calls.map((c) => ({
-          tool_use_id: c.id,
-          content:
-            resultByCallId.get(c.id) ??
-            JSON.stringify({
-              error: `Tool '${c.name}' is not available.`,
-            }),
-          terminal: toolResults.some(
-            (result) =>
-              (result as { tool_call_id?: unknown; terminal?: unknown })
-                .tool_call_id === c.id &&
-              (result as { terminal?: unknown }).terminal === true,
-          ),
-        }));
+        return calls.map((c) => {
+          const visible = hideLegalSourceUrls(c.name, {
+            tool_use_id: c.id,
+            status: "ok",
+            content:
+              resultByCallId.get(c.id) ??
+              JSON.stringify({ error: `Tool '${c.name}' is not available.` }),
+          });
+          return {
+            tool_use_id: c.id,
+            content: visible.content,
+            terminal: toolResults.some(
+              (result) =>
+                (result as { tool_call_id?: unknown; terminal?: unknown })
+                  .tool_call_id === c.id &&
+                (result as { terminal?: unknown }).terminal === true,
+            ),
+          };
+        });
       },
     });
   } catch (err) {
@@ -657,32 +626,20 @@ export async function runLLMStream({
 
   const evidenceAnswer = renderLegalEvidenceAnswer(legalEvidenceState);
   if (evidenceAnswer !== null) fullText = evidenceAnswer;
+  const blockedLegalLink =
+    evidenceAnswer === null && hasModelAuthoredLegalSourceUrl(fullText);
+  if (blockedLegalLink) fullText = UNVERIFIED_LEGAL_ANSWER;
 
-  // Parse and emit citations from <CITATIONS> block
-  const { citations: parsedCitations, diagnostics: citationDiagnostics } =
-    parseCitationsWithDiagnostics(fullText);
   const visibleText =
     evidenceAnswer ??
-    events
-      .flatMap((event) => (event.type === "content" ? [event.text] : []))
-      .join("\n\n");
-  const parsedCitationData = buildCitations
-    ? buildCitations(fullText)
-    : parsedCitations
-        .map((c) =>
-          createCitation(
-            c,
-            docIndex,
-            courtlistenerTurnState.casesByClusterId,
-            a2ajLookups,
-            a2ajDocuments,
-            publicLegalState,
-          ),
-        )
-        .filter(isResolvedCitation);
+    (blockedLegalLink
+      ? fullText
+      : events
+          .flatMap((event) => (event.type === "content" ? [event.text] : []))
+          .join("\n\n"));
   const citations = evidenceAnswer
     ? createLegalEvidenceCitations(legalEvidenceState)
-    : parsedCitationData;
+    : [];
   const linkedText = visibleText;
   const contentIndexes = events.flatMap((event, index) =>
     event.type === "content" ? [index] : [],
@@ -700,12 +657,7 @@ export async function runLLMStream({
   if (evidenceReceipt) events.push(evidenceReceipt);
   emit({ type: "content_final", text: linkedText });
   devLog("[chat/stream] final citations", {
-    hasCitationsBlock: citationDiagnostics.hasBlock,
-    citationsBlockLength: citationDiagnostics.rawLength,
-    parseError: citationDiagnostics.error,
-    parsedCitationCount: parsedCitations.length,
     emittedCitationCount: citations.length,
-    usedCustomCitationBuilder: !!buildCitations,
   });
   emit({ type: "citations", status: "final", citations });
   write("data: [DONE]\n\n");

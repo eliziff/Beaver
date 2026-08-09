@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { MarkdownContent } from "./MarkdownContent";
 import type { Citation } from "../../shared/types";
+import { preprocessCitations } from "./citationUtils";
 
 function renderMarkdown(text: string, inlineCitationTargets: Citation[] = []) {
     return render(
@@ -15,7 +16,7 @@ function renderMarkdown(text: string, inlineCitationTargets: Citation[] = []) {
 }
 
 describe("MarkdownContent links", () => {
-    it("keeps Beaver app links in the current app and isolates external links", () => {
+    it("keeps Beaver app links and suppresses unverified external links", () => {
         renderMarkdown(
             "[Open project](/projects/matter-1) [Open source](/sources/source-1) [External](https://example.com)",
         );
@@ -26,14 +27,8 @@ describe("MarkdownContent links", () => {
         expect(screen.getByRole("link", { name: "Open source" })).not.toHaveAttribute(
             "rel",
         );
-        expect(screen.getByRole("link", { name: "External" })).toHaveAttribute(
-            "target",
-            "_blank",
-        );
-        expect(screen.getByRole("link", { name: "External" })).toHaveAttribute(
-            "rel",
-            "noopener noreferrer",
-        );
+        expect(screen.queryByRole("link", { name: "External" })).toBeNull();
+        expect(screen.getByText("External")).toBeInTheDocument();
     });
 
     it("renders the complete streamed text, including terminal punctuation", () => {
@@ -42,37 +37,6 @@ describe("MarkdownContent links", () => {
         renderMarkdown(text);
 
         expect(screen.getByText(text)).toHaveTextContent(text);
-    });
-
-    it("renders a complete legal citation and pinpoint as one clickable pill", () => {
-        renderMarkdown(
-            "See [2024 SCC 6](https://www.canlii.org/en/ca/scc/doc/2024/2024scc6/2024scc6.html) at paras. 12\u201314.",
-        );
-
-        const citation = screen.getByRole("link", {
-            name: "2024 SCC 6 at paras. 12\u201314",
-        });
-        expect(citation).toHaveAttribute(
-            "href",
-            "https://www.canlii.org/en/ca/scc/doc/2024/2024scc6/2024scc6.html",
-        );
-        expect(citation).toHaveClass("rounded-full");
-        expect(citation).toHaveClass("bg-red-800", "text-red-50", "ring-red-600/70");
-        expect(citation).not.toHaveClass("bg-blue-50");
-        expect(citation).toHaveClass("focus-visible:outline-2");
-        expect(screen.queryByText("at paras. 12\u201314")).toBeNull();
-    });
-
-    it("renders a linked legislation citation as one clickable pill", () => {
-        renderMarkdown(
-            "[Franchises Act, SBC 2015, c 35, s. 14](https://www.bclaws.gov.bc.ca/civix/document/id/complete/statreg/15035_01#section14)",
-        );
-
-        expect(
-            screen.getByRole("link", {
-                name: "Franchises Act, SBC 2015, c 35, s. 14",
-            }),
-        ).toHaveClass("rounded-full");
     });
 
     it("keeps a verified journal page inside the citation pill", () => {
@@ -101,37 +65,86 @@ describe("MarkdownContent links", () => {
         );
     });
 
-    it("moves saved same-paragraph quote fragments onto one citation pill", () => {
-        const base =
-            "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/2311/index.do?iframe=true&site_preference=mobile#par109";
-        renderMarkdown(
-            `> “[First supporting passage](${base}:~:text=First%20supporting%20passage)”\n\n` +
-                `> “[Second supporting passage](${base}:~:text=Second%20supporting%20passage)”\n\n` +
-                "— [2006 SCC 37](https://www.canlii.org/en/ca/scc/doc/2006/2006scc37/2006scc37.html) at para. 109.",
-        );
+    it("uses only the pinpoint for consecutive passages from one decision", () => {
+        const citations = new Map<number, Citation>([
+            [1, {
+                type: "citation_data",
+                kind: "a2aj",
+                source_class: "case",
+                ref: 1,
+                citation: "2017 BCSC 2477",
+                name: "R. v. Retvedt",
+                url: "https://www.canlii.org/example#par28:~:text=first",
+                pinpoint: "para. 28",
+                quotes: [{ quote: "First passage" }],
+            }],
+            [2, {
+                type: "citation_data",
+                kind: "a2aj",
+                source_class: "case",
+                ref: 2,
+                citation: "2017 BCSC 2477",
+                name: "R. v. Retvedt",
+                url: "https://www.canlii.org/example#par29:~:text=second",
+                pinpoint: "para. 29",
+                quotes: [{ quote: "Second passage" }],
+            }],
+        ]);
+        const targets: Citation[] = [];
+        const text = preprocessCitations("First [1], then [2].", citations, targets);
 
-        const citation = screen.getByRole("link", {
-            name: "2006 SCC 37 at para. 109",
-        });
-        expect(citation).toHaveAttribute(
-            "href",
-            `${base}:~:text=First%20supporting%20passage&text=Second%20supporting%20passage`,
+        renderMarkdown(text, targets);
+
+        expect(document.querySelector('[data-citation-ref="2"]')).toHaveTextContent(
+            "para. 29",
         );
-        expect(
-            screen.queryByRole("link", { name: "First supporting passage" }),
-        ).toBeNull();
-        expect(
-            screen.queryByRole("link", { name: "Second supporting passage" }),
-        ).toBeNull();
-        expect(document.body).toHaveTextContent("First supporting passage");
-        expect(document.body).toHaveTextContent("Second supporting passage");
+        expect(document.querySelector('[data-citation-ref="2"]')).not.toHaveTextContent(
+            "Retvedt",
+        );
     });
 
-    it("leaves ordinary external links visually ordinary", () => {
+    it("compresses repeated legislation citations like other authorities", () => {
+        const citations = new Map<number, Citation>([
+            [1, {
+                type: "citation_data",
+                kind: "a2aj",
+                source_class: "legislation",
+                ref: 1,
+                citation: "SBC 2011, c 25",
+                name: "Family Law Act",
+                url: "https://www.bclaws.gov.bc.ca/example#section19.15",
+                pinpoint: "s. 19.15",
+                quotes: [{ quote: "First provision" }],
+            }],
+            [2, {
+                type: "citation_data",
+                kind: "a2aj",
+                source_class: "legislation",
+                ref: 2,
+                citation: "SBC 2011, c 25",
+                name: "Family Law Act",
+                url: "https://www.bclaws.gov.bc.ca/example#section19.16",
+                pinpoint: "s. 19.16",
+                quotes: [{ quote: "Second provision" }],
+            }],
+        ]);
+        const targets: Citation[] = [];
+        const text = preprocessCitations("First [1], then [2].", citations, targets);
+
+        renderMarkdown(text, targets);
+
+        expect(document.querySelector('[data-citation-ref="2"]')).toHaveTextContent(
+            "s. 19.16",
+        );
+        expect(document.querySelector('[data-citation-ref="2"]')).not.toHaveTextContent(
+            "Family Law Act",
+        );
+    });
+
+    it("does not make model-authored external URLs clickable", () => {
         renderMarkdown("[Project website](https://example.com)");
 
-        const link = screen.getByRole("link", { name: "Project website" });
-        expect(link).not.toHaveClass("rounded-full");
-        expect(link).toHaveClass("text-red-300", "decoration-red-500/70");
+        expect(screen.queryByRole("link", { name: "Project website" })).toBeNull();
+        expect(screen.getByText("Project website")).toBeInTheDocument();
     });
 });

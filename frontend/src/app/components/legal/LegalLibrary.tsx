@@ -29,6 +29,7 @@ import {
     type LegalSourceViewerProps,
 } from "./LegalSourceViewer";
 import { ModalSelect } from "@/app/components/modals/ModalSelect";
+import { formatLongDate } from "@/app/lib/utils";
 
 const SOURCE_KINDS = {
     cases: [["court", "Courts"], ["tribunal", "Tribunals and boards"]],
@@ -381,7 +382,7 @@ export function LegalLibraryPage() {
                     )}
                     {results.length > 0 && (
                         <section>
-                            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            <h2 className="mb-2 text-base font-semibold text-gray-900">
                                 Search results
                             </h2>
                             <div className="grid gap-2">
@@ -389,6 +390,13 @@ export function LegalLibraryPage() {
                                     const saved = savedSources.has(
                                         savedSourceKey(result),
                                     );
+                                    const metadata = [
+                                        result.name && result.name !== result.citation
+                                            ? result.citation
+                                            : null,
+                                        result.dataset,
+                                        formatLongDate(result.date),
+                                    ].filter(Boolean);
                                     return (
                                         <article
                                             key={`${result.provider}:${result.source_id ?? ""}:${result.dataset}:${result.citation}`}
@@ -400,17 +408,11 @@ export function LegalLibraryPage() {
                                                     {result.name ||
                                                         result.citation}
                                                 </h3>
-                                                <p className="mt-1 text-sm text-gray-600">
-                                                    {result.citation}
-                                                </p>
-                                                <p className="mt-1 text-xs text-gray-400">
-                                                    {[
-                                                        result.dataset,
-                                                        result.date,
-                                                    ]
-                                                        .filter(Boolean)
-                                                        .join(" / ")}
-                                                </p>
+                                                {!!metadata.length && (
+                                                    <p className="mt-1 text-sm leading-5 text-gray-600">
+                                                        {metadata.join(" · ")}
+                                                    </p>
+                                                )}
                                                 {result.snippet && (
                                                     <p className="mt-2 line-clamp-3 text-sm leading-6 text-gray-600">
                                                         {result.snippet}
@@ -468,7 +470,7 @@ export function LegalLibraryPage() {
                         </section>
                     )}
                     <section>
-                        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        <h2 className="mb-2 text-base font-semibold text-gray-900">
                             Saved sources
                         </h2>
                         {references === null ? (
@@ -489,19 +491,18 @@ export function LegalLibraryPage() {
                                                 href={href}
                                                 className="min-w-0 flex-1"
                                             >
-                                                <p className="truncate font-serif text-sm text-gray-900">
+                                                <p className="truncate text-sm font-medium text-gray-900">
                                                     {reference.citation}
                                                 </p>
-                                                <p className="mt-0.5 text-[11px] text-gray-400">
+                                                <p className="mt-0.5 text-xs text-gray-500">
                                                     {[
                                                         legalSourceKindLabel(
                                                             reference.doc_type,
                                                         ),
                                                         reference.dataset,
-                                                        reference.language.toUpperCase(),
                                                     ]
                                                         .filter(Boolean)
-                                                        .join(" / ")}
+                                                        .join(" · ")}
                                                 </p>
                                             </Link>
                                             <a
@@ -530,7 +531,7 @@ export function LegalLibraryPage() {
                                 })}
                             </div>
                         ) : (
-                            <p className="rounded-lg border border-dashed border-gray-200 py-10 text-center font-serif text-sm text-gray-400">
+                            <p className="rounded-lg border border-dashed border-gray-200 py-10 text-center text-sm text-gray-500">
                                 Search above to add a legal source.
                             </p>
                         )}

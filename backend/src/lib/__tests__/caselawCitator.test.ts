@@ -268,6 +268,28 @@ describe("caselaw citator note-up graph", () => {
       expect(
         citator.noteUpCitations({
           citation: "2015 SCC 5",
+          citedParagraph: 86,
+        }),
+      ).toMatchObject({
+        total: 1,
+        citedParagraph: 86,
+        provider: null,
+        entries: [{
+          citation: "2020 FC 100",
+          paragraph: 3,
+          occurrences: 1,
+          pinpoints: "par86",
+        }],
+      });
+      expect(
+        citator.noteUpCitations({
+          citation: "2015 SCC 5",
+          citedParagraph: 81,
+        }),
+      ).toMatchObject({ total: 0, citedParagraph: 81, entries: [] });
+      expect(
+        citator.noteUpCitations({
+          citation: "2015 SCC 5",
           sort: "most_discussed",
         })!.entries.map((entry) => entry.citation),
       ).toEqual(["2020 FC 100", "2018 ONCA 50"]);

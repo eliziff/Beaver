@@ -41,18 +41,10 @@ import {
 import { extractLegalPdfText } from "../../legalPdfSourceDoc";
 
 export function citationReminder(docLabel: string, filename: string): string {
-  const isSpreadsheet = isSpreadsheetDocumentType(
-    filename.split(".").pop() ?? "",
-  );
-  const shapeLine = isSpreadsheet
-    ? `Use this citation object shape for this spreadsheet: {"ref": 1, "doc_id": "${docLabel}", "quotes": [{"sheet": "Sheet name", "cell": "B7", "quote": "plain cell value"}]}. Cite by "sheet" + "cell" (A1 address or range), not by page.`
-    : `Use this citation object shape: {"ref": 1, "doc_id": "${docLabel}", "quotes": [{"page": 1, "quote": "exact verbatim text from the document"}]}. Include top-level "page" and "quote" too only if they match the first quote.`;
   return [
     `[Citation requirement for ${docLabel} ("${filename}")]:`,
-    `If your final answer makes any factual claim from this document, include inline [N] markers and append a final <CITATIONS> JSON block.`,
-    `Every citation entry for this document MUST use "doc_id": "${docLabel}".`,
-    shapeLine,
-    `Do not use "marker" or "text" keys in the citation block; use "ref" and "quotes".`,
+    "Use the returned Citation evidence_id in submit_grounded_answer for any factual claim from this document.",
+    "Do not write citation markers, citation JSON, URLs, or pinpoints in prose.",
   ].join("\n");
 }
 

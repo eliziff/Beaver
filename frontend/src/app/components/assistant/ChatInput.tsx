@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useId, useImperativeHandle, useRef, useState } from "react";
-import { ArrowRight, Check, Library, Loader2, Plus, Square, Waypoints, X } from "lucide-react";
+import { ArrowRight, Check, Library, Loader2, MapPinned, Plus, Square, WandSparkles, Waypoints, X } from "lucide-react";
 import { FileTypeIcon } from "../shared/FileTypeIcon";
 import { AddDocumentsModal } from "../modals/AddDocumentsModal";
 import { AssistantWorkflowModal } from "./AssistantWorkflowModal";
@@ -14,6 +14,9 @@ import type { DirectoryTab } from "../shared/useDirectoryData";
 import { cn } from "@/app/lib/utils";
 import { uploadStandaloneDocument } from "@/app/lib/beaverApi";
 import { formatUnsupportedDocumentWarning, partitionSupportedDocumentFiles } from "@/app/lib/documentUploadValidation";
+import { Modal } from "@/app/components/modals/Modal";
+import { JurisdictionPreferenceEditor } from "@/app/components/settings/JurisdictionPreferenceEditor";
+import { useJurisdictionPreference } from "./jurisdictionPreferences";
 type Workflow = NonNullable<Message["workflow"]>;
 
 function mergeDocuments(...groups: Document[][]) {
@@ -64,11 +67,14 @@ interface Props {
     restoreDraft?: Message | null;
     onDraftRestored?: () => void;
     promptHistory?: string[];
+    automationsAvailable?: boolean;
+    onOpenAutomations?: (document?: Document) => void;
 }
 export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     { onSubmit, onCancel, isLoading, showContextTools = true, rows = 1,
         projectName, projectCmNumber, restoreDraft, onDraftRestored,
-        promptHistory = [] }: Props,
+        promptHistory = [], automationsAvailable = false,
+        onOpenAutomations }: Props,
     ref,
 ) {
     const [hasValue, setHasValue] = useState(false);
@@ -82,6 +88,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     const textareaId = useId();
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const [picker, setPicker] = useState<DirectoryTab | "workflows" | null>(null);
+    const [jurisdictionOpen, setJurisdictionOpen] = useState(false);
+    const { preference: jurisdictionPreference } = useJurisdictionPreference();
     const [apiKeyModalProvider, setApiKeyModalProvider] = useState<ModelProvider | null>(null);
     const [uploadingFilenames, setUploadingFilenames] = useState<string[]>([]);
     const [uploadWarning, setUploadWarning] = useState<string | null>(null);
@@ -380,6 +388,42 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                         Workflows
                                     </span>
                                 </button>
+                                {jurisdictionPreference.showChatControl && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setJurisdictionOpen(true)}
+                                        aria-label="Choose jurisdiction"
+                                        className="flex h-8 items-center gap-1.5 rounded-lg px-2 text-sm text-gray-600 hover:text-gray-900"
+                                    >
+                                        <MapPinned className="h-3.5 w-3.5" />
+                                        <span className="chat-input-control-label hidden sm:inline">
+                                            Jurisdiction
+                                        </span>
+                                    </button>
+                                )}
+                                {onOpenAutomations && (
+                                    <button
+                                        type="button"
+                                        disabled={
+                                            !automationsAvailable &&
+                                            attachedDocs.length !== 1
+                                        }
+                                        onClick={() =>
+                                            onOpenAutomations(
+                                                attachedDocs.length === 1
+                                                    ? attachedDocs[0]
+                                                    : undefined,
+                                            )
+                                        }
+                                        aria-label="Open automations"
+                                        className="flex h-8 items-center gap-1.5 rounded-lg px-2 text-sm text-gray-600 hover:text-gray-900 disabled:cursor-default disabled:text-gray-300"
+                                    >
+                                        <WandSparkles className="h-3.5 w-3.5" />
+                                        <span className="chat-input-control-label hidden sm:inline">
+                                            Automations
+                                        </span>
+                                    </button>
+                                )}
                             </div>
                         )}
                         <div className="ml-auto flex w-full flex-wrap items-center justify-end gap-1 sm:w-auto sm:flex-nowrap">
@@ -438,6 +482,16 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                     projectCmNumber={projectCmNumber}
                 />
             )}
+            <Modal
+                open={jurisdictionOpen}
+                onClose={() => setJurisdictionOpen(false)}
+                breadcrumbs={["Jurisdiction"]}
+                size="md"
+            >
+                <div className="pb-5 pt-1">
+                    <JurisdictionPreferenceEditor showChatControl={false} />
+                </div>
+            </Modal>
             <ApiKeyMissingPopup open={apiKeyModalProvider !== null} provider={apiKeyModalProvider}
                 onClose={() => setApiKeyModalProvider(null)}
             />

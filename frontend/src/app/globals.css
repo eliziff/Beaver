@@ -1,5 +1,8 @@
-@import "tailwindcss";.overflow-y-auto,
-.overflow-auto {
+@import "tailwindcss";
+
+.overflow-y-auto,
+.overflow-auto,
+.modal-scroll-body {
     scrollbar-gutter: stable;
 }
 @theme inline {
@@ -49,12 +52,16 @@
     --input: oklch(0.922 0 0);
     --ring: var(--brand-red);
 }
-@layer base {    html {
+@layer base {
+    html {
         font-size: 17px;
+        scrollbar-gutter: stable;
         @apply border-border outline-ring/50;
     }
     body {
         @apply bg-background text-foreground;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
     }
     button {
         cursor: pointer;
