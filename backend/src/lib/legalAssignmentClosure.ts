@@ -2,12 +2,20 @@ import { normalizeWhitespace } from "./text";
 
 export type AssignmentClosureSource = {
   document: string;
+  documentId?: string;
+  versionId?: string | null;
+  sourceSha256?: string | null;
+  projection?: string;
   text: string;
   at: number;
 };
 
 export type AssignmentClosureFinding = {
   document: string;
+  documentId?: string;
+  versionId?: string | null;
+  sourceSha256?: string | null;
+  projection?: string;
   at: number;
   omitted: string[];
   excerpt: string;
@@ -37,6 +45,32 @@ function engaged(source: string, draft: string) {
   return false;
 }
 
+/** Keep only bounded source lines that can ever produce this organ's receipt. */
+export function assignmentClosureCandidates(
+  source: AssignmentClosureSource,
+): AssignmentClosureSource[] {
+  if (!ASSIGNMENT.test(source.text)) return [];
+  return [...source.text.matchAll(/[^\r\n]+/gu)].flatMap((match) => {
+    const raw = match[0];
+    const excerpt = raw.trim();
+    if (
+      excerpt.length > 1_500 ||
+      !ASSIGNMENT.test(excerpt) ||
+      !RESTRICTION.test(excerpt) ||
+      TRIGGERS.filter(([, pattern]) => pattern.test(excerpt)).length < 2
+    ) {
+      return [];
+    }
+    return [
+      {
+        ...source,
+        text: excerpt,
+        at: source.at + (match.index ?? 0) + raw.indexOf(excerpt),
+      },
+    ];
+  });
+}
+
 /**
  * Exact anti-assignment trigger closure. It reports source-stated triggers
  * only after the draft repeats the source provision's assignment wording;
@@ -48,28 +82,26 @@ export function assignmentTriggerClosure(
 ): AssignmentClosureFinding[] {
   const normalizedDraft = normalizeWhitespace(draft).toLocaleLowerCase("en-US");
   const findings: AssignmentClosureFinding[] = [];
+  const seen = new Set<string>();
   for (const source of sources) {
-    if (!ASSIGNMENT.test(source.text)) continue;
-    for (const match of source.text.matchAll(/[^\r\n]+/gu)) {
-      const raw = match[0];
-      const excerpt = raw.trim();
-      if (
-        excerpt.length > 1_500 ||
-        !ASSIGNMENT.test(excerpt) ||
-        !RESTRICTION.test(excerpt) ||
-        !engaged(excerpt, normalizedDraft)
-      ) {
-        continue;
-      }
+    for (const candidate of assignmentClosureCandidates(source)) {
+      const excerpt = candidate.text;
+      if (!engaged(excerpt, normalizedDraft)) continue;
       const present = TRIGGERS.filter(([, pattern]) => pattern.test(excerpt));
-      if (present.length < 2) continue;
       const omitted = present
         .filter(([, pattern]) => !pattern.test(normalizedDraft))
         .map(([label]) => label);
       if (!omitted.length) continue;
+      const key = `${candidate.documentId ?? candidate.document}:${candidate.versionId ?? ""}:${candidate.at}:${omitted.join(",")}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
       findings.push({
-        document: source.document,
-        at: source.at + (match.index ?? 0) + raw.indexOf(excerpt),
+        document: candidate.document,
+        documentId: candidate.documentId,
+        versionId: candidate.versionId,
+        sourceSha256: candidate.sourceSha256,
+        projection: candidate.projection,
+        at: candidate.at,
         omitted,
         excerpt,
       });
@@ -77,4 +109,28 @@ export function assignmentTriggerClosure(
     }
   }
   return findings;
+}
+
+export function assignmentClosureReceipts(
+  sources: readonly AssignmentClosureSource[],
+  draft: string,
+) {
+  return assignmentTriggerClosure(sources, draft).map((finding) => ({
+    kind: "anti_assignment_trigger_omission" as const,
+    source_document: finding.document,
+    ...(finding.documentId
+      ? { source_document_id: finding.documentId }
+      : {}),
+    ...(finding.versionId ? { source_version_id: finding.versionId } : {}),
+    ...(finding.sourceSha256
+      ? { source_sha256: finding.sourceSha256 }
+      : {}),
+    ...(finding.projection
+      ? { source_projection: finding.projection }
+      : {}),
+    source_offset: finding.at,
+    source_end: finding.at + finding.excerpt.length,
+    omitted_triggers: finding.omitted,
+    source_excerpt: finding.excerpt,
+  }));
 }
