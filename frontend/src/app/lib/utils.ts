@@ -19,3 +19,16 @@ export function formatDate(iso: string | null | undefined): string | null {
         year: "numeric",
     });
 }
+
+export function formatLongDate(iso: string | null | undefined): string | null {
+    if (!iso) return null;
+    const date = new Date(/^\d{4}-\d{2}-\d{2}$/u.test(iso) ? `${iso}T00:00:00Z` : iso);
+    return Number.isNaN(date.getTime())
+        ? iso
+        : date.toLocaleDateString(undefined, {
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+              timeZone: "UTC",
+          });
+}

@@ -14,7 +14,6 @@ import { JurisdictionPreferenceEditor } from "./JurisdictionPreferenceEditor";
 import { SubagentSettings } from "./SubagentSettings";
 import { isAnonymousMode } from "@/app/lib/authMode";
 import { AccountSection } from "@/app/(pages)/account/AccountSection";
-import { useFootnoteCitationPreference } from "@/app/components/assistant/citationDisplayPreference";
 import { useActivityDetail } from "@/app/components/assistant/activityDisplayPreference";
 
 const TABS = ["General", "Providers", "Subagents"] as const;
@@ -27,7 +26,6 @@ export function AppSettingsModal({
     open: boolean;
     onClose: () => void;
 }) {
-    const footnotes = useFootnoteCitationPreference();
     const activity = useActivityDetail();
     const [selectedTab, setSelectedTab] = useState<SettingsTab>("General");
     const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -52,12 +50,12 @@ export function AppSettingsModal({
 
     const panels: Record<SettingsTab, ReactNode> = {
         General: (
-            <div className="space-y-8">
+            <div className="space-y-6">
                 <section>
-                    <h2 className="mb-2 font-serif text-2xl font-medium text-gray-900">
+                    <h2 className="mb-1 text-base font-semibold text-gray-900">
                         Jurisdiction preference
                     </h2>
-                    <p className="mb-4 max-w-2xl text-sm leading-5 text-gray-500">
+                    <p className="mb-4 max-w-2xl text-sm leading-6 text-gray-600">
                         This gives the Assistant a standing assumption. A
                         jurisdiction named in your message still takes priority.
                     </p>
@@ -66,7 +64,7 @@ export function AppSettingsModal({
                     </AccountSection>
                 </section>
                 <section>
-                    <h2 className="mb-2 font-serif text-2xl font-medium text-gray-900">
+                    <h2 className="mb-3 text-base font-semibold text-gray-900">
                         Activity detail
                     </h2>
                     <AccountSection className="p-4">
@@ -76,7 +74,7 @@ export function AppSettingsModal({
                                     Assistant activity
                                 </span>
                                 <span className="mt-0.5 block text-xs leading-5 text-gray-500">
-                                    Full trace includes available provider reasoning summaries and complete tool arguments.
+                                    Auto shows available model thinking summaries without exposing tool arguments.
                                 </span>
                             </span>
                             <select
@@ -84,6 +82,7 @@ export function AppSettingsModal({
                                 onChange={(event) =>
                                     activity.setDetail(
                                         event.currentTarget.value as
+                                            | "auto"
                                             | "standard"
                                             | "tools"
                                             | "trace",
@@ -91,30 +90,11 @@ export function AppSettingsModal({
                                 }
                                 className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
                             >
+                                <option value="auto">Auto</option>
                                 <option value="standard">Standard</option>
                                 <option value="tools">Tool calls</option>
                                 <option value="trace">Full trace</option>
                             </select>
-                        </label>
-                    </AccountSection>
-                </section>
-                <section>
-                    <h2 className="mb-2 font-serif text-2xl font-medium text-gray-900">
-                        Citation display
-                    </h2>
-                    <AccountSection className="p-4">
-                        <label className="flex min-h-11 cursor-pointer items-center justify-between gap-4 text-sm text-gray-900">
-                            <span>Show footnote citation list</span>
-                            <input
-                                type="checkbox"
-                                checked={footnotes.enabled}
-                                onChange={(event) =>
-                                    footnotes.setEnabled(
-                                        event.currentTarget.checked,
-                                    )
-                                }
-                                className="h-4 w-4 shrink-0 accent-gray-950"
-                            />
                         </label>
                     </AccountSection>
                 </section>
@@ -165,9 +145,9 @@ export function AppSettingsModal({
                             onKeyDown={(event) =>
                                 handleTabKeyDown(event, index)
                             }
-                            className={`min-h-10 rounded-md border-2 px-2 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 ${
+                            className={`min-h-10 rounded-md border px-2 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 ${
                                 selected
-                                    ? "border-gray-900 bg-gray-100 text-gray-950"
+                                    ? "border-gray-300 bg-gray-100 text-gray-950"
                                     : "border-transparent text-gray-500 hover:bg-gray-50 hover:text-gray-900"
                             }`}
                         >
@@ -184,7 +164,7 @@ export function AppSettingsModal({
                     aria-labelledby={`${idPrefix}-tab-${index}`}
                     tabIndex={0}
                     hidden={tab !== selectedTab}
-                    className="min-w-0 py-5 focus-visible:outline-none"
+                    className="min-w-0 py-4 focus-visible:outline-none"
                 >
                     {panels[tab]}
                 </div>

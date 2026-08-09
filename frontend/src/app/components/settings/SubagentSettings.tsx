@@ -50,13 +50,12 @@ export function SubagentSettings() {
         <section aria-labelledby="reading-agents-heading">
             <h2
                 id="reading-agents-heading"
-                className="mb-2 font-serif text-2xl font-medium text-gray-900"
+                className="mb-1 text-base font-semibold text-gray-900"
             >
                 Reading agents
             </h2>
-            <p className="mb-4 max-w-2xl text-sm leading-5 text-gray-500">
-                The Assistant can delegate bounded source review when a separate
-                context window would materially help. Agents cannot edit files.
+            <p className="mb-4 max-w-2xl text-sm leading-6 text-gray-600">
+                Delegate bounded source review when parallel research would materially help. Agents cannot edit files.
             </p>
             <AccountSection className="divide-y divide-gray-200 p-0">
                 <label

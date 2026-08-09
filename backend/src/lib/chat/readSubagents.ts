@@ -114,14 +114,14 @@ export type ReadSubagentCapability = {
 };
 
 const ROLE_INSTRUCTIONS =
-  "Read or find exactly what the assigned task requests. Return condensed context for the main assistant, preserving legally material qualifications and contrary text. Do not broaden the assignment, plan work, or recommend next steps.";
+  "Read or find exactly what the assigned task requests. Return condensed context for the main assistant, preserving legally material qualifications and contrary text. Treat every element of the assignment as required: omit merely analogous, adjacent, or conceptually related material that does not satisfy it. Do not broaden the assignment, plan work, or recommend next steps.";
 
 export const READ_SUBAGENT_TOOL: OpenAIToolSchema = {
   type: "function",
   function: {
     name: READ_SUBAGENT_TOOL_NAME,
     description:
-      "Delegate one bounded, read-only slice to an independent reading agent. A turn may use at most three reading agents total. Use multiple agents only for genuinely non-overlapping courts within the standing region, source collections, periods, or search strategies; never repeat the same assignment. An unqualified request about multiple jurisdictions means jurisdictions within the standing region, not different countries or world regions. Use fewer than three when useful independent slices do not exist. Do not use it for simple lookups, deterministic operations, or any write task. Completed results are already grounded; synthesize their claims with the returned evidence IDs without re-fetching them.",
+      "Delegate one bounded, read-only slice to an independent reading agent. Delegation is worthwhile only when at least two genuinely independent slices can run concurrently; never dispatch a lone reading agent. Each round may dispatch two or three agents. Later rounds are allowed only when the prior search ledger identifies a concrete gap and the new assignments materially change the query, scope, source collection, period, or strategy; never repeat the same assignment. An unqualified request about multiple jurisdictions means jurisdictions within the standing region, not different countries or world regions. Keep work in the main turn when fewer than two useful independent slices exist. Do not use it for simple lookups, deterministic operations, or any write task. Completed results include exact grounded passages and a compact search ledger; review them against every element of the user's request, omit non-responsive candidates, and reuse their evidence IDs without re-fetching them.",
     strict: true,
     parameters: {
       type: "object",
@@ -140,6 +140,33 @@ export const READ_SUBAGENT_TOOL: OpenAIToolSchema = {
           description:
             "The distinct slice assigned to this agent, such as a named court set, source collection, date period, or search strategy. Sibling calls must not overlap.",
         },
+        jurisdiction: {
+          type: "string",
+          enum: ["CA", "US", "UK"],
+          description:
+            "Country whose legal-source tools this reader may use. Defaults to CA when omitted.",
+        },
+        collections: {
+          type: "array",
+          minItems: 1,
+          maxItems: 8,
+          uniqueItems: true,
+          items: { type: "string", minLength: 1, maxLength: 40 },
+          description:
+            "Optional exact provider collection or court codes this reader is confined to, such as BCSC and BCCA. Omit for a country-wide or strategy-only scope.",
+        },
+        source_types: {
+          type: "array",
+          minItems: 1,
+          maxItems: 4,
+          uniqueItems: true,
+          items: {
+            type: "string",
+            enum: ["case", "legislation", "journal", "hansard"],
+          },
+          description:
+            "Authority classes assigned to this reader. Defaults to case law, legislation, and journals; Hansard must be assigned explicitly.",
+        },
       },
       required: ["task", "scope"],
       additionalProperties: false,
@@ -148,14 +175,19 @@ export const READ_SUBAGENT_TOOL: OpenAIToolSchema = {
 };
 
 export const READ_SUBAGENT_SYSTEM_PROMPT =
-  "When broad research has independent lanes, delegate at most three sibling reading tasks in the same tool turn so they run concurrently. Give each a specific, non-overlapping scope by court or jurisdiction within the standing region, source collection, period, or genuinely different search strategy. Never turn an unqualified request about multiple jurisdictions into different countries or world regions. Never use United States or United Kingdom law as a lane unless the user's current request or selected regions expressly include it. Never clone or lightly rephrase one assignment. Use one or two agents when that is the useful division, and keep tasks without independent lanes in the main turn. Wait for all sibling results, then compile and compare their grounded claims. Reuse their evidence IDs directly; do not re-read a source merely to verify a completed reader result. Re-fetch only when a needed proposition lacks an evidence ID or the reader results conflict.";
+  "Do ordinary legal research yourself with the direct legal-source and citator tools. Delegate only when the requested scale genuinely benefits from parallelism, such as an exhaustive scan, a bulk query, or broad research with at least two worthwhile independent lanes. Dispatch two or three sibling reading tasks in each concurrent round; never dispatch one agent and never delegate merely to recover or restate evidence already returned earlier in the conversation. Give each agent a specific, non-overlapping scope by court or jurisdiction within the standing region, source collection, period, or genuinely different search strategy. Never turn an unqualified request about multiple jurisdictions into different countries or world regions. Never use United States or United Kingdom law as a lane unless the user's current request or selected regions expressly include it. Never clone or lightly rephrase one assignment. Keep work without at least two useful lanes in the main turn. Wait for all sibling results, then skeptically compare each exact passage against every required element of the user's request. Report only responsive results; omit merely analogous, adjacent, or conceptually related candidates. A reader miss is not proof that no result exists: inspect the returned search ledgers and, when a concrete untried query or scope could materially help, dispatch another two-or-three-agent round with meaningfully revised assignments. Do not force a result when thorough searches leave no honest answer; state the verified shortfall. Reuse returned evidence IDs directly and submit the final grounded answer yourself. Do not re-read a completed reader source unless its exact passages conflict.";
 
-export type ReadSubagentForeignRegion = "US" | "UK";
+export type ReadSubagentRegion = "CA" | "US" | "UK";
+export type ReadSubagentForeignRegion = Exclude<ReadSubagentRegion, "CA">;
 
-const FOREIGN_REGION_TERMS: Record<
-  ReadSubagentForeignRegion,
+const REGION_TERMS: Record<
+  ReadSubagentRegion,
   readonly RegExp[]
 > = {
+  CA: [
+    /\b(?:Canada|Canadian|SCC|Federal Court of Canada)\b/iu,
+    /\b(?:Alberta|British Columbia|Manitoba|New Brunswick|Newfoundland(?: and Labrador)?|Nova Scotia|Ontario|Prince Edward Island|Quebec|Saskatchewan|Yukon|Nunavut|Northwest Territories)\b/iu,
+  ],
   US: [
     /\bUS\b/u,
     /\b(?:United States|U\.S\.|USA|American(?: law| cases?| decisions?| courts?)|SCOTUS|CourtListener)\b/iu,
@@ -166,35 +198,76 @@ const FOREIGN_REGION_TERMS: Record<
   ],
 };
 
-function mentionsForeignRegion(region: ReadSubagentForeignRegion, text: string) {
-  return FOREIGN_REGION_TERMS[region].some((pattern) => pattern.test(text));
+function mentionsRegion(region: ReadSubagentRegion, text: string) {
+  return REGION_TERMS[region].some((pattern) => pattern.test(text));
 }
 
-export function allowedReadSubagentForeignRegions(
+function preferenceRegion(value: string): ReadSubagentRegion | null {
+  const folded = value.trim().toLocaleLowerCase();
+  if (folded === "ca" || folded === "canada" || folded.startsWith("ca-")) return "CA";
+  if (folded === "us" || folded === "united states" || folded.startsWith("us-")) return "US";
+  if (folded === "uk" || folded === "united kingdom" || folded.startsWith("uk-")) return "UK";
+  return null;
+}
+
+export function allowedReadSubagentRegions(
   preference: { mode: "ask" | "presume"; jurisdictions: string[] } | null,
   currentRequest: string,
 ) {
-  const allowed = new Set<ReadSubagentForeignRegion>();
-  const context = [
-    currentRequest,
-    ...(preference?.mode === "presume" ? preference.jurisdictions : []),
-  ].join("\n");
-  for (const region of Object.keys(
-    FOREIGN_REGION_TERMS,
-  ) as ReadSubagentForeignRegion[]) {
-    if (mentionsForeignRegion(region, context)) allowed.add(region);
+  const explicit = new Set<ReadSubagentRegion>();
+  for (const region of Object.keys(REGION_TERMS) as ReadSubagentRegion[]) {
+    if (mentionsRegion(region, currentRequest)) explicit.add(region);
   }
-  return allowed;
+  if (explicit.size) return explicit;
+  if (preference?.mode === "presume") {
+    const selected = new Set(
+      preference.jurisdictions.flatMap((value) => {
+        const region = preferenceRegion(value);
+        return region ? [region] : [];
+      }),
+    );
+    if (selected.size) return selected;
+  }
+  return new Set<ReadSubagentRegion>(["CA"]);
+}
+
+export function readSubagentJurisdiction(call: NormalizedToolCall) {
+  return call.input.jurisdiction === "US" || call.input.jurisdiction === "UK"
+    ? call.input.jurisdiction
+    : "CA";
+}
+
+function readSubagentCollections(call: NormalizedToolCall) {
+  return new Set(
+    (Array.isArray(call.input.collections) ? call.input.collections : [])
+      .filter((value): value is string => typeof value === "string")
+      .map((value) => value.trim().toLocaleLowerCase())
+      .filter(Boolean),
+  );
+}
+
+export function readSubagentSourceTypes(call: NormalizedToolCall) {
+  const selected = Array.isArray(call.input.source_types)
+    ? call.input.source_types.filter(
+        (value): value is string =>
+          typeof value === "string" &&
+          ["case", "legislation", "journal", "hansard"].includes(value),
+      )
+    : [];
+  return new Set(selected.length ? selected : ["case", "legislation", "journal"]);
 }
 
 export function createReadSubagentAdmission(
   maxAgents = 3,
-  allowedForeignRegions: ReadonlySet<ReadSubagentForeignRegion> = new Set(),
+  allowedRegions: ReadonlySet<ReadSubagentRegion> = new Set(["CA"]),
 ) {
-  let admitted = 0;
-  const scopes = new Set<string>();
+  const assignments = new Set<string>();
   return (calls: NormalizedToolCall[]) => {
+    if (!calls.length) return { accepted: [], rejected: [] };
+    let admitted = 0;
+    const scopes = new Set<string>();
     const accepted: NormalizedToolCall[] = [];
+    const acceptedAssignmentKeys: string[] = [];
     const rejected: NormalizedToolResult[] = [];
     for (const call of calls) {
       const scope =
@@ -202,22 +275,21 @@ export function createReadSubagentAdmission(
           ? call.input.scope.replace(/\s+/gu, " ").trim().toLocaleLowerCase()
           : "";
       const assignment = `${scope}\n${typeof call.input.task === "string" ? call.input.task : ""}`;
-      const blockedRegion = (
-        Object.keys(FOREIGN_REGION_TERMS) as ReadSubagentForeignRegion[]
-      ).find(
-        (region) =>
-          !allowedForeignRegions.has(region) &&
-          mentionsForeignRegion(region, assignment),
-      );
+      const assignmentKey = assignment.replace(/\s+/gu, " ").trim().toLocaleLowerCase();
+      const jurisdiction = readSubagentJurisdiction(call);
+      const namedRegion = (Object.keys(REGION_TERMS) as ReadSubagentRegion[])
+        .find((region) => mentionsRegion(region, assignment));
       const error =
         !scope
           ? "Reading agents require a distinct scope."
-          : blockedRegion
-            ? `${blockedRegion} law was not requested. Keep reading-agent assignments within the standing region.`
-          : scopes.has(scope)
-            ? "This reading-agent scope duplicates one already assigned in this turn."
+          : !allowedRegions.has(jurisdiction)
+            ? `${jurisdiction} law is outside the jurisdictions selected for this request.`
+          : namedRegion && namedRegion !== jurisdiction
+            ? `The assignment names ${namedRegion} law but its jurisdiction boundary is ${jurisdiction}.`
+          : scopes.has(scope) || assignments.has(assignmentKey)
+            ? "This reading-agent assignment duplicates one already assigned in this turn."
             : admitted >= maxAgents
-              ? `A turn may use at most ${maxAgents} reading agents.`
+              ? `A reading-agent round may use at most ${maxAgents} agents.`
               : null;
       if (error) {
         rejected.push({
@@ -230,32 +302,61 @@ export function createReadSubagentAdmission(
       scopes.add(scope);
       admitted += 1;
       accepted.push(call);
+      acceptedAssignmentKeys.push(assignmentKey);
+    }
+    if (accepted.length) {
+      for (const assignmentKey of acceptedAssignmentKeys) {
+        assignments.add(assignmentKey);
+      }
     }
     return { accepted, rejected };
   };
 }
 
-const GROUNDED_ANSWER_INSTRUCTIONS =
-  "Finish only with submit_grounded_answer. Its top-level object contains only claims. Every claim requires text, evidence_ids, kind, premise_source, and premise_text. Use exact evidence_id values returned by retrieval tools. kind is quotation, conclusion, or premise_correction; premise_source and premise_text must be null unless correcting a premise. Do not put citation or pinpoint prose in text because Beaver renders it from the evidence receipts.";
-
-const READ_TOOL_NAMES = new Set([
+const SEARCH_LEDGER_TOOLS = new Set([
   "Glob",
   "Grep",
-  "Read",
-  "list_documents",
-  "fetch_documents",
-  "read_document",
   "find_in_document",
-  "list_workflows",
-  "read_workflow",
-  "library_list",
-  "library_read",
-  "library_outline",
-  "library_links",
   "library_find",
-  "library_lookup",
-  "library_evidence",
-  "legal_pdf_lookup",
+  "SearchSources",
+  "a2aj_search",
+  "courtlistener_search_case_law",
+  "courtlistener_find_in_case",
+  "caselaw_note_up",
+]);
+
+function compactSearchRequest(input: Record<string, unknown>) {
+  const keys = ["query", "pattern", "citation", "path", "doc_id", "clusterId"];
+  const selected = Object.fromEntries(
+    keys.flatMap((key) => input[key] === undefined ? [] : [[key, input[key]]]),
+  );
+  return JSON.stringify(Object.keys(selected).length ? selected : input).slice(0, 320);
+}
+
+function compactSearchResult(result: NormalizedToolResult) {
+  try {
+    const payload = JSON.parse(result.content) as Record<string, unknown>;
+    if (Array.isArray(payload.results)) {
+      const labels = payload.results.slice(0, 3).flatMap((value) => {
+        if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+        const row = value as Record<string, unknown>;
+        const label = row.citation ?? row.title ?? row.name ?? row.identifier;
+        return typeof label === "string" ? [label] : [];
+      });
+      return `${payload.results.length} result${payload.results.length === 1 ? "" : "s"}${labels.length ? `: ${labels.join("; ")}` : ""}`;
+    }
+    const count = payload.total ?? payload.total_matches ?? payload.count;
+    if (typeof count === "number") return `${count} match${count === 1 ? "" : "es"}`;
+  } catch {
+    // Plain-text tool results are summarized below.
+  }
+  return result.content.replace(/\s+/gu, " ").trim().slice(0, 240) || result.status;
+}
+
+const GROUNDED_ANSWER_INSTRUCTIONS =
+  "Finish only with submit_grounded_answer. Its top-level object contains only claims. Every claim requires text, evidence_ids, kind, premise_source, and premise_text. Use exact evidence_id values returned by retrieval tools. kind is quotation, conclusion, or premise_correction; premise_source and premise_text must be null unless correcting a premise. Put sources only in evidence_ids; do not put citation or pinpoint prose in text.";
+
+const READ_TOOL_NAMES = new Set([
   "SearchSources",
   "a2aj_fetch",
   "a2aj_lookup",
@@ -272,8 +373,86 @@ const READ_TOOL_NAMES = new Set([
 ]);
 
 /** Fail-closed allowlist: new tools never reach a reading agent by accident. */
-export function readSubagentTools(tools: OpenAIToolSchema[]) {
-  return tools.filter((tool) => READ_TOOL_NAMES.has(tool.function.name));
+export function readSubagentTools(
+  tools: OpenAIToolSchema[],
+  jurisdiction: ReadSubagentRegion = "CA",
+  sourceTypes: ReadonlySet<string> = new Set(["case", "legislation", "journal"]),
+) {
+  return tools.filter((tool) => {
+    const name = tool.function.name;
+    if (!READ_TOOL_NAMES.has(name)) return false;
+    if (name === "SearchSources") return jurisdiction !== "UK";
+    if (name === "hansard_fetch") {
+      return jurisdiction === "CA" && sourceTypes.has("hansard");
+    }
+    if (name.startsWith("a2aj_") || name === "caselaw_note_up") {
+      return jurisdiction === "CA";
+    }
+    if (name.startsWith("courtlistener_")) return jurisdiction === "US";
+    if (name.startsWith("public_legal_source_")) return true;
+    if (name === "consult_attested_characterization") return jurisdiction === "CA";
+    return true;
+  });
+}
+
+function publicProviderAllowed(
+  jurisdiction: ReadSubagentRegion,
+  input: Record<string, unknown>,
+) {
+  if (typeof input.provider !== "string") return false;
+  return jurisdiction === "CA"
+    ? input.provider === "journal"
+    : jurisdiction === "US"
+    ? input.provider === "govinfo"
+    : jurisdiction === "UK"
+      ? input.provider === "tna" || input.provider === "govuk-et"
+      : false;
+}
+
+const COLLECTION_SCOPED_TOOLS = new Set([
+  "SearchSources",
+  "a2aj_fetch",
+  "a2aj_lookup",
+  "courtlistener_search_case_law",
+  "courtlistener_get_cases",
+  "courtlistener_find_in_case",
+  "courtlistener_lookup_case_locator",
+  "courtlistener_read_case",
+  "caselaw_note_up",
+]);
+
+function collectionScopeError(
+  call: NormalizedToolCall,
+  collections: ReadonlySet<string>,
+  discoveredSources: ReadonlyMap<string, ReadSubagentSource>,
+) {
+  if (!collections.size || !COLLECTION_SCOPED_TOOLS.has(call.name)) return null;
+  const selected = [call.input.collection, call.input.dataset, call.input.court]
+    .find((value): value is string =>
+      typeof value === "string" && Boolean(value.trim()),
+    );
+  if (selected) {
+    return collections.has(selected.trim().toLocaleLowerCase())
+      ? null
+      : `${selected} is outside this reader's assigned collections.`;
+  }
+  const citation = typeof call.input.citation === "string"
+    ? call.input.citation.trim().toLocaleLowerCase()
+    : "";
+  const clusterIds = Array.isArray(call.input.clusterIds)
+    ? call.input.clusterIds
+    : typeof call.input.clusterId === "number"
+      ? [call.input.clusterId]
+      : [];
+  const source = citation
+    ? discoveredSources.get(`citation:${citation}`)
+    : [...discoveredSources.values()].find(
+        (candidate) =>
+          candidate.clusterId !== undefined && clusterIds.includes(candidate.clusterId),
+      );
+  return source && collections.has(source.dataset.trim().toLocaleLowerCase())
+    ? null
+    : "This source call lacks a collection within the reader's assigned collection boundary.";
 }
 
 export async function getReadSubagentCapability(
@@ -358,7 +537,7 @@ export async function runReadSubagent(params: {
   publishEvidenceTo?: LegalEvidenceTurnState;
   model?: string;
   effort?: string;
-  activityDetail?: "standard" | "tools" | "trace";
+  activityDetail?: "auto" | "standard" | "tools" | "trace";
   jurisdictionPrompt?: string;
 }): Promise<NormalizedToolResult> {
   const role: ReadSubagentRole = "scout";
@@ -370,6 +549,9 @@ export async function runReadSubagent(params: {
     typeof params.call.input.scope === "string"
       ? params.call.input.scope.trim().slice(0, 240)
       : "";
+  const jurisdiction = readSubagentJurisdiction(params.call);
+  const collections = readSubagentCollections(params.call);
+  const sourceTypes = readSubagentSourceTypes(params.call);
   if (!task || !scope) {
     return {
       tool_use_id: params.call.id,
@@ -403,6 +585,7 @@ export async function runReadSubagent(params: {
   };
   const activities: ReadSubagentActivity[] = [];
   const discoveredSources = new Map<string, ReadSubagentSource>();
+  const searches: { tool: string; query: string; summary: string }[] = [];
   const reasoning: string[] = [];
   let currentReasoning = "";
   const eventActivities = () => activities.map((item) => ({ ...item }));
@@ -436,7 +619,8 @@ export async function runReadSubagent(params: {
     ];
   };
   const debugEvent = () =>
-    params.activityDetail === "trace" && eventReasoning().length
+    (params.activityDetail === "auto" || params.activityDetail === "trace") &&
+    eventReasoning().length
       ? { reasoning: eventReasoning() }
       : {};
   const sourceEvent = () => {
@@ -477,7 +661,8 @@ export async function runReadSubagent(params: {
             id: call.id,
             label,
             status: "running",
-            ...(params.activityDetail !== "standard" && {
+            ...((params.activityDetail === "tools" ||
+              params.activityDetail === "trace") && {
               tool: call.name,
               input: call.input,
             }),
@@ -491,11 +676,52 @@ export async function runReadSubagent(params: {
         ...debugEvent(),
         ...sourceEvent(),
       });
-      const results = await params.runTools(calls);
+      const rejectedCalls = calls.filter(
+        (call) =>
+          (call.name.startsWith("public_legal_source_") &&
+            !publicProviderAllowed(jurisdiction, call.input)) ||
+          Boolean(collectionScopeError(call, collections, discoveredSources)) ||
+          (call.name === "SearchSources" &&
+            Array.isArray(call.input.source_types) &&
+            call.input.source_types.some(
+              (value) => typeof value !== "string" || !sourceTypes.has(value),
+            )),
+      );
+      const constrainedCalls = calls
+        .filter((call) => !rejectedCalls.includes(call))
+        .map((call) =>
+        call.name === "SearchSources"
+          ? { ...call, input: { ...call.input, jurisdiction } }
+          : call,
+        );
+      const results = [
+        ...(constrainedCalls.length ? await params.runTools(constrainedCalls) : []),
+        ...rejectedCalls.map((call) => ({
+          tool_use_id: call.id,
+          status: "error" as const,
+          content: JSON.stringify({
+            ok: false,
+            error:
+              collectionScopeError(call, collections, discoveredSources) ??
+              (call.name === "SearchSources"
+                ? "This search requests a source class outside the reader's assignment."
+                : null) ??
+              `${String(call.input.provider ?? "Unknown")} is outside this reader's ${jurisdiction} source boundary.`,
+          }),
+        })),
+      ];
       for (const [index, result] of results.entries()) {
-        const call = calls.find((candidate) => candidate.id === result.tool_use_id) ??
-          calls[index];
+        const call = constrainedCalls.find((candidate) => candidate.id === result.tool_use_id) ??
+          rejectedCalls.find((candidate) => candidate.id === result.tool_use_id) ??
+          constrainedCalls[index];
         if (!call) continue;
+        if (SEARCH_LEDGER_TOOLS.has(call.name) && searches.length < 24) {
+          searches.push({
+            tool: call.name,
+            query: compactSearchRequest(call.input),
+            summary: compactSearchResult(result) ?? "No result summary.",
+          });
+        }
         for (const source of discoveredCaseSources(call, result)) {
           discoveredSources.set(
             `citation:${source.citation.toLocaleLowerCase()}`,
@@ -531,13 +757,17 @@ export async function runReadSubagent(params: {
         model: `codex:${capability.model}`,
         reasoningEffort: capability.effort,
         enableThinking: true,
-        reasoningSummary: params.activityDetail === "trace" ? "auto" : "none",
+        reasoningSummary:
+          params.activityDetail === "auto" || params.activityDetail === "trace"
+            ? "auto"
+            : "none",
         abortSignal: params.signal,
         systemPrompt: `${ROLE_INSTRUCTIONS}\n\n${params.jurisdictionPrompt ? `${params.jurisdictionPrompt}\n\n` : ""}${SOURCE_SEARCH_SYSTEM_PROMPT}\n\nRemain strictly read-only and use only the supplied retrieval tools. ${GROUNDED_ANSWER_INSTRUCTIONS}`,
         messages: [{ role: "user", content }],
         tools: params.tools,
         runTools,
-        ...(params.activityDetail === "trace" && {
+        ...((params.activityDetail === "auto" ||
+          params.activityDetail === "trace") && {
           callbacks: {
             onReasoningDelta: (text: string) => {
               currentReasoning += text;
@@ -617,12 +847,14 @@ export async function runReadSubagent(params: {
         ok: true,
         agent: role,
         findings: grounding.claims,
-        sources: grounding.evidence.map((receipt) => ({
+        evidence: grounding.evidence.map((receipt) => ({
           evidence_id: receipt.evidence_id,
           citation: receipt.citation,
           name: receipt.name,
           locator: receipt.locator,
+          exact_passage: receipt.span_text,
         })),
+        searches,
       }),
     };
   } catch (error) {

@@ -212,7 +212,11 @@ import {
   REDLINE_VIEW_LEGEND,
 } from "./tools/docxPathologyNotes";
 import { projectDocxRedline } from "../docx/redline";
-import { TEXT_OPS_TOOLS, TOOLS, WORKFLOW_TOOLS } from "./tools/toolSchemas";
+import {
+  DETERMINISTIC_DOCX_EDIT_SCHEMA,
+  TOOLS,
+  WORKFLOW_TOOLS,
+} from "./tools/toolSchemas";
 import {
   runLocalCourtlistenerTool,
   type CourtlistenerToolState,
@@ -811,7 +815,7 @@ const LOCAL_DOCX_TOOLS: OpenAIToolSchema[] = (
         function: {
           ...schema.function,
           name: "library_create_docx",
-          description: `${schema.function.description} Stored as a durable new item in the local Library; matter chats attach it automatically.${
+          description: `${schema.function.description} Stored as a durable new item in the local Library; do not attach it again in a matter chat.${
             TERMINAL_AUTHORING_ENABLED
               ? " Call only when every requested deliverable is final; after a successful receipt, the turn ends without another model round."
               : ""
@@ -844,7 +848,7 @@ const LOCAL_DOCX_TOOLS: OpenAIToolSchema[] = (
     return [
       tool(
         "library_revise_docx",
-        "Apply requested edits, revisions, or redlines to an existing local Library DOCX as tracked changes. Use this for action requests instead of replying with proposed or suggested changes in prose. Beaver shows the resulting document card; the server edits the active version and non-DOCX documents fail unchanged.",
+        "Apply requested edits, revisions, or redlines to an existing local Library DOCX as tracked changes. Use this for action requests instead of replying with proposed or suggested changes in prose. Edits apply to the active version; non-DOCX documents fail unchanged. Do not repeat the edited document in prose.",
         {
           type: "object",
           properties: {
@@ -1351,36 +1355,6 @@ const MIKE_FILE_TOOL_SHAPE =
 /** Keep tool disclosure independent from navigation vocabulary in A/B runs. */
 export const PROGRESSIVE_DISCLOSURE_ENABLED = false;
 
-export const DEMAND_PAGED_EVIDENCE_ENABLED =
-  process.env.MIKE_CONTINUOUS_EVIDENCE === "1" ||
-  (process.env.MIKE_CONTEXT_HANDOFF === "1" &&
-    process.env.MIKE_DRAFT_HANDOFF_MODE === "paged");
-
-export const WORKING_SET_PATH = ".mike/working-sets/evidence.txt";
-
-const configuredWorkingSetPageMaxChars = Number(
-  process.env.MIKE_EVIDENCE_PAGE_MAX_CHARS ||
-    process.env.MIKE_DRAFT_HOT_EVIDENCE_MAX_CHARS ||
-    24_000,
-);
-
-/** One demand-page packet is no larger than the configured hot packet. */
-export const WORKING_SET_PAGE_MAX_CHARS = DEMAND_PAGED_EVIDENCE_ENABLED
-  ? Number.isFinite(configuredWorkingSetPageMaxChars)
-    ? Math.max(
-        1_000,
-        Math.min(64_000, Math.trunc(configuredWorkingSetPageMaxChars)),
-      )
-    : 24_000
-  : 0;
-
-// Demand-paged Grep is an index into exact evidence, not another bulk read.
-// A compact centred hit is enough to answer directly or choose the attached
-// exact Read recipe; callers can request more hits, but one search stays small.
-export const WORKING_SET_GREP_DEFAULT_HEAD_LIMIT = 8;
-export const WORKING_SET_GREP_MAX_HEAD_LIMIT = 24;
-export const WORKING_SET_GREP_LINE_MAX_CHARS = 800;
-
 export type RetrievalExperimentShape =
   | ""
   | "p0-pure-coding"
@@ -1389,8 +1363,6 @@ export type RetrievalExperimentShape =
   | "h2-document-map"
   | "h3-reference-impact"
   | "h4-legal-grep"
-  | "h5-working-set"
-  | "h9-accretive-union"
   | "s1-structure-paths"
   | "d0-generic"
   | "d1-routed"
@@ -1406,8 +1378,6 @@ const RETRIEVAL_EXPERIMENT_SHAPES = new Set<RetrievalExperimentShape>([
   "h2-document-map",
   "h3-reference-impact",
   "h4-legal-grep",
-  "h5-working-set",
-  "h9-accretive-union",
   "s1-structure-paths",
   "d0-generic",
   "d1-routed",
@@ -1429,14 +1399,7 @@ const PURE_CODING_EXPERIMENT =
 export const STRUCTURE_PATH_EXPERIMENT =
   RETRIEVAL_EXPERIMENT_SHAPE === "s1-structure-paths";
 const LEGAL_GREP_EXPERIMENT =
-  RETRIEVAL_EXPERIMENT_SHAPE === "h4-legal-grep" ||
-  RETRIEVAL_EXPERIMENT_SHAPE === "h5-working-set" ||
-  RETRIEVAL_EXPERIMENT_SHAPE === "h9-accretive-union";
-const WORKING_SET_EXPERIMENT =
-  RETRIEVAL_EXPERIMENT_SHAPE === "h5-working-set" ||
-  RETRIEVAL_EXPERIMENT_SHAPE === "h9-accretive-union";
-const ACCRETIVE_WORKING_SET_EXPERIMENT =
-  RETRIEVAL_EXPERIMENT_SHAPE === "h9-accretive-union";
+  RETRIEVAL_EXPERIMENT_SHAPE === "h4-legal-grep";
 const TOOL_DESCRIPTION_VARIANT =
   process.env.MIKE_TOOL_DESCRIPTION_VARIANT?.trim() || "operational";
 if (!["operational", "terse"].includes(TOOL_DESCRIPTION_VARIANT)) {
@@ -1740,7 +1703,6 @@ const DOMAIN_OF: Record<string, string> = {
   library_links: "document_links",
   library_lookup: "source_evidence",
   library_evidence: "source_evidence",
-  library_apply_text_ops: "drafting",
   plan_grounded_evidence: "cases",
   submit_grounded_answer: "cases",
   courtlistener_search_case_law: "cases",
@@ -1917,14 +1879,6 @@ const CONTACT_GREP_DESCRIPTION =
     ? " Content hits include a verified Read recipe."
     : "";
 
-const PAGED_GREP_DESCRIPTION = DEMAND_PAGED_EVIDENCE_ENABLED
-  ? ` Exact evidence already observed is mirrored at ${WORKING_SET_PATH}. Search that mounted union only to recover a narrow fact; content hits include executable Read recipes, default to ${WORKING_SET_GREP_DEFAULT_HEAD_LIMIT} centred hits, and never exceed ${WORKING_SET_GREP_MAX_HEAD_LIMIT}. Use the hit directly unless adjacent wording is necessary; never scan the union sequentially.`
-  : "";
-
-const PAGED_READ_DESCRIPTION = DEMAND_PAGED_EVIDENCE_ENABLED
-  ? " Mounted evidence working-set reads accept only an exact recipe returned by Grep or a same-line truncation continuation."
-  : "";
-
 const LEGAL_GREP_DESCRIPTION = LEGAL_GREP_EXPERIMENT
   ? " Optional section, page, and direct-reference scopes bound long legal documents; use ordinary Grep or whole-file Read when cheaper."
   : "";
@@ -1984,13 +1938,11 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
   tool(
     "Grep",
     TOOL_DESCRIPTION_VARIANT === "terse"
-      ? "Search the user's uploaded Library file contents with a regular expression. This is not legal-source discovery." +
-        PAGED_GREP_DESCRIPTION
+      ? "Search the user's uploaded Library file contents with a regular expression. This is not legal-source discovery."
       : 'Search the user\'s uploaded Library file contents with regular expressions. This is not legal-source discovery; use SearchSources for cases, legislation, Hansard, and commentary. Filter by file or glob; choose content, matching files, counts, or a listed legal projection.' +
         ROUTED_CODING_DESCRIPTION +
         CONCRETE_GREP_DESCRIPTION +
         CONTACT_GREP_DESCRIPTION +
-        PAGED_GREP_DESCRIPTION +
         LEGAL_GREP_DESCRIPTION,
     {
       type: "object",
@@ -2016,17 +1968,11 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
             "files_with_matches",
             "count",
             ...(LEGAL_GREP_EXPERIMENT ? ["sections"] : []),
-            ...(WORKING_SET_EXPERIMENT ? ["working_set"] : []),
           ],
           description:
             'Output mode: "content" shows matching lines (supports -C context, -n line numbers, head_limit), "files_with_matches" shows file paths (default), "count" shows match counts.' +
             (LEGAL_GREP_EXPERIMENT
               ? ' "sections" returns unique executable Read recipes for the legal sections containing matches, without section prose.'
-              : "") +
-            (WORKING_SET_EXPERIMENT
-              ? ACCRETIVE_WORKING_SET_EXPERIMENT
-                ? ' "working_set" returns newly added matching sections, rows, or bounded text windows and also persists them in one turn-local evidence file without repeating source spans. Read that file only for a truncation continuation or rehydration after compaction.'
-                : ' "working_set" creates an immutable turn-local file from the smallest responsive legal units across matching documents and returns its manifest; Read the returned path.'
               : ""),
         },
         "-i": { type: "boolean", description: "Case insensitive search" },
@@ -2044,21 +1990,8 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
           type: "number",
           minimum: 1,
           description:
-            `Limit output to first N lines/entries. Demand-paged evidence defaults to ${WORKING_SET_GREP_DEFAULT_HEAD_LIMIT} and permits at most ${WORKING_SET_GREP_MAX_HEAD_LIMIT}; other searches default to 250.`,
+            "Limit output to the first N lines or entries. Defaults to 250.",
         },
-        ...(WORKING_SET_EXPERIMENT
-          ? {
-              max_chars: {
-                type: "number",
-                minimum: 1_000,
-                maximum: 128_000,
-                description:
-                  ACCRETIVE_WORKING_SET_EXPERIMENT
-                    ? "Total matched-source budget for the turn-local working_set. Defaults to 64000; maximum 128000. Later calls may raise it."
-                    : "Source-text budget for working_set only. Defaults to 64000; maximum 128000.",
-              },
-            }
-          : {}),
         ...(LEGAL_GREP_EXPERIMENT
           ? {
               section: {
@@ -2086,11 +2019,10 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
   tool(
     "Read",
     TOOL_DESCRIPTION_VARIANT === "terse"
-      ? "Read a file or an optional bounded scope." + PAGED_READ_DESCRIPTION
+      ? "Read a file or an optional bounded scope."
       : CODING_READ_DESCRIPTION +
         ROUTED_CODING_DESCRIPTION +
-        CONCRETE_READ_DESCRIPTION +
-        PAGED_READ_DESCRIPTION,
+        CONCRETE_READ_DESCRIPTION,
     {
       type: "object",
       properties: {
@@ -2113,16 +2045,6 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
           description:
             "The number of lines to read. Only provide if the file is too large to read at once.",
         },
-        ...(DEMAND_PAGED_EVIDENCE_ENABLED
-          ? {
-              start_char: {
-                type: "number",
-                minimum: 0,
-                description:
-                  "Virtual evidence working set only. Zero-based character offset within the first requested line; copy it from a truncated Read continuation.",
-              },
-            }
-          : {}),
         ...(PURE_CODING_EXPERIMENT
           ? {}
           : {
@@ -2481,9 +2403,6 @@ const LOCAL_ASSISTANT_TOOL_CATALOG: OpenAIToolSchema[] = [
       )
     : LOCAL_DOCX_TOOLS),
   ...(ORIGIN_MIKE_TOOL_SHAPE ? [] : COMPARE_VERSIONS_TOOLS),
-  ...(ORIGIN_MIKE_TOOL_SHAPE
-    ? []
-    : forEditShape(TEXT_OPS_TOOLS as OpenAIToolSchema[])),
   ...(ORIGIN_MIKE_TOOL_SHAPE ? [] : (WORKFLOW_TOOLS as OpenAIToolSchema[])),
   ...(ORIGIN_MIKE_TOOL_SHAPE || RESEARCH_TOOLS_DISABLED
     ? []
@@ -2500,9 +2419,36 @@ const PRODUCTION_EDIT_TOOL = CODING_SHAPE_TOOLS.find(
   (entry) => entry.function.name === "Edit",
 );
 if (!PRODUCTION_EDIT_TOOL) throw new Error("Production Edit tool is missing");
+const deterministicOpsSchema = (
+  DETERMINISTIC_DOCX_EDIT_SCHEMA[0]?.function.parameters.properties as
+    | Record<string, unknown>
+    | undefined
+)?.ops;
+if (!deterministicOpsSchema) {
+  throw new Error("Deterministic DOCX operation schema is missing");
+}
+const EDIT_TOOL: OpenAIToolSchema = {
+  ...PRODUCTION_EDIT_TOOL,
+  function: {
+    ...PRODUCTION_EDIT_TOOL.function,
+    description:
+      "Edit a Library DOCX or pending draft. For exact prose changes, pass old_string and new_string. For deterministic DOCX transforms such as case, spacing, punctuation normalization, spelling checks, block insertion, or scoped replacement, pass ops instead. Do not pass both forms.",
+    parameters: {
+      ...PRODUCTION_EDIT_TOOL.function.parameters,
+      properties: {
+        ...(PRODUCTION_EDIT_TOOL.function.parameters.properties as Record<
+          string,
+          unknown
+        >),
+        ops: deterministicOpsSchema,
+      },
+      required: ["file_path"],
+    },
+  },
+};
 
 export const LOCAL_ASSISTANT_TOOLS = CODING_MARKDOWN_FINAL_AGENT_LAB_TOOLS.map(
-  (entry) => (entry.function.name === "Edit" ? PRODUCTION_EDIT_TOOL : entry),
+  (entry) => (entry.function.name === "Edit" ? EDIT_TOOL : entry),
 );
 
 export const LOCAL_READ_SUBAGENT_TOOL_CATALOG: OpenAIToolSchema[] = [
@@ -2765,7 +2711,6 @@ type WorkingSetEvidenceSegment = {
   locator?: string;
   virtualPath?: string;
   projection?: string;
-  durableUnionBacked?: boolean;
 };
 
 type WorkingSetEvidenceRef = {
@@ -2775,7 +2720,6 @@ type WorkingSetEvidenceRef = {
   filename: string;
   locator?: string;
   exactSha256: string;
-  durableUnionBacked?: boolean;
 };
 
 export type LocalAssistantWorkingSetTurnState = Map<
@@ -2784,15 +2728,8 @@ export type LocalAssistantWorkingSetTurnState = Map<
     path: string;
     text: string;
     sourceChars: number;
-    matchedSourceChars: number;
-    immutableSourceChars?: number;
-    mapChars: number;
-    budgetChars: number;
-    mappedVersions: string[];
     segments: WorkingSetEvidenceSegment[];
     refs?: WorkingSetEvidenceRef[];
-    demandPaged?: boolean;
-    readGrants?: Set<string>;
   }
 >;
 
@@ -2985,123 +2922,6 @@ function takeCodingOutputLines(
 
 type TextRange = { start: number; end: number };
 
-type WorkingSetCandidate = TextRange & {
-  documentId: string;
-  versionId: string;
-  filename: string;
-  filePath: string;
-  sourceText: string;
-  projection: "legal-unit" | "window";
-  handle?: string;
-  contextLabel?: string;
-  anchor: number;
-  hits: number;
-};
-
-type WorkingSetMapCandidate = {
-  documentId: string;
-  versionId: string;
-  filename: string;
-  rows: string[];
-};
-
-function workingSetMapRows(
-  skeleton: AgreementSkeleton,
-  tableCells: readonly TableCellSpan[],
-  sourceText: string,
-) {
-  const rows: string[] = [];
-  const seen = new Set<string>();
-  const structural = skeleton.nodes.filter(
-    (node) => node.kind !== "row" && node.kind !== "cell" && node.kind !== "table",
-  );
-  const containers = structural.filter((node) =>
-    ["article", "part", "division", "schedule"].includes(node.kind),
-  );
-  const sample = <T>(items: readonly T[], count: number): T[] =>
-    items.length <= count
-      ? [...items]
-      : Array.from({ length: count }, (_, index) =>
-          items[
-            Math.round((index * (items.length - 1)) / Math.max(1, count - 1))
-          ],
-        );
-  const selectedContainers = sample(containers, 16);
-  const remaining = structural.filter((node) => !containers.includes(node));
-  const selected = [...selectedContainers, ...sample(remaining, 24 - selectedContainers.length)]
-    .sort((left, right) => left.start - right.start)
-    .slice(0, 24);
-  for (const node of selected) {
-    const row = `${node.kind}\t${node.label}\t${node.heading.trim().slice(0, 160)}`;
-    if (!seen.has(row)) rows.push(row);
-    seen.add(row);
-  }
-  const byTable = new Map<number, TableCellSpan[]>();
-  for (const cell of tableCells) {
-    const cells = byTable.get(cell.table) ?? [];
-    cells.push(cell);
-    byTable.set(cell.table, cells);
-  }
-  for (const [table, cells] of byTable) {
-    const maxRow = Math.max(...cells.map((cell) => cell.row));
-    const maxColumn = Math.max(...cells.map((cell) => cell.column));
-    const name = cells.find((cell) => cell.tableName)?.tableName;
-    const headers = cells
-      .filter((cell) => cell.row === 1)
-      .slice(0, 12)
-      .map((cell) => {
-        const address = cell.address ?? `r${cell.row}c${cell.column}`;
-        const value = sourceText.slice(cell.start, cell.end).trim().slice(0, 80);
-        return `${address}=${value}`;
-      })
-      .join(" | ");
-    rows.push(
-      `table\ttable:${table}${name ? `\t${name}` : ""}\t${maxRow}x${maxColumn}` +
-        (headers ? `\theaders ${headers}` : ""),
-    );
-  }
-  if (structural.length > selected.length) {
-    rows.push(`… ${structural.length - selected.length} additional provisions`);
-  }
-  return rows;
-}
-
-function mergeWorkingSetCandidates(
-  candidates: readonly WorkingSetCandidate[],
-): WorkingSetCandidate[] {
-  const groups = new Map<string, WorkingSetCandidate[]>();
-  for (const candidate of candidates) {
-    const key = `${candidate.documentId}:${candidate.versionId}`;
-    const group = groups.get(key) ?? [];
-    group.push({ ...candidate });
-    groups.set(key, group);
-  }
-  const merged: WorkingSetCandidate[] = [];
-  for (const group of groups.values()) {
-    group.sort((left, right) => left.start - right.start || left.end - right.end);
-    for (const candidate of group) {
-      const prior = merged.at(-1);
-      if (
-        !prior ||
-        prior.documentId !== candidate.documentId ||
-        prior.versionId !== candidate.versionId ||
-        candidate.start > prior.end
-      ) {
-        merged.push(candidate);
-        continue;
-      }
-      prior.end = Math.max(prior.end, candidate.end);
-      prior.hits += candidate.hits;
-      if (prior.handle !== candidate.handle) {
-        prior.handle = undefined;
-        prior.contextLabel = undefined;
-        prior.projection = "window";
-      }
-    }
-  }
-  return merged;
-}
-
 function addCoveredRange(covered: TextRange[], added: TextRange) {
   const ordered = [...covered, added].sort((left, right) => left.start - right.start);
   const merged: TextRange[] = [];
@@ -3151,7 +2971,6 @@ function workingSetEvidenceSegments(
         ...(segment.virtualPath && { virtualPath: segment.virtualPath }),
         ...(segment.projection && { projection: segment.projection }),
         kind: "evidence",
-        ...(segment.durableUnionBacked && { durableUnionBacked: true }),
       });
     }
   }
@@ -3183,367 +3002,10 @@ function workingSetEvidenceRefs(
             : `${ref.locator ?? ref.handle} chars ${localStart}-${localEnd}`,
         exactSha256: sha256(text),
         kind: "evidence",
-        ...(ref.durableUnionBacked && { durableUnionBacked: true }),
       });
     }
   }
   return evidence;
-}
-
-function materializeStatelessWorkingSet(
-  candidates: readonly WorkingSetCandidate[],
-  requestedBudget: unknown,
-  state: LocalAssistantWorkingSetTurnState,
-) {
-  const budget = clampInt(requestedBudget, 1_000, 128_000, 64_000);
-  const queues = new Map<string, WorkingSetCandidate[]>();
-  for (const candidate of mergeWorkingSetCandidates(candidates)) {
-    const key = `${candidate.documentId}:${candidate.versionId}`;
-    const queue = queues.get(key) ?? [];
-    queue.push(candidate);
-    queues.set(key, queue);
-  }
-  for (const queue of queues.values()) {
-    queue.sort((left, right) => left.start - right.start || left.end - right.end);
-  }
-
-  const selected: WorkingSetCandidate[] = [];
-  let sourceChars = 0;
-  let omitted = 0;
-  while ([...queues.values()].some((queue) => queue.length)) {
-    let advanced = false;
-    for (const queue of queues.values()) {
-      const candidate = queue.shift();
-      if (!candidate) continue;
-      advanced = true;
-      const remaining = budget - sourceChars;
-      if (remaining <= 0) {
-        omitted += 1 + queue.length;
-        queue.length = 0;
-        continue;
-      }
-      let kept = candidate;
-      if (candidate.end - candidate.start > remaining) {
-        if (remaining < 1_000) {
-          omitted += 1;
-          continue;
-        }
-        const width = Math.min(4_000, remaining);
-        const start = Math.max(
-          candidate.start,
-          Math.min(candidate.anchor - Math.floor(width / 2), candidate.end - width),
-        );
-        kept = {
-          ...candidate,
-          start,
-          end: Math.min(candidate.end, start + width),
-          projection: "window",
-          handle: undefined,
-        };
-      }
-      selected.push(kept);
-      sourceChars += kept.end - kept.start;
-    }
-    if (!advanced) break;
-  }
-
-  const identity = selected.map((item) => ({
-    documentId: item.documentId,
-    versionId: item.versionId,
-    start: item.start,
-    end: item.end,
-    projection: item.projection,
-  }));
-  const path = `.mike/working-sets/${sha256(JSON.stringify(identity)).slice(0, 16)}.txt`;
-  const parts: string[] = [];
-  const segments: WorkingSetEvidenceSegment[] = [];
-  let cursor = 0;
-  for (const item of selected) {
-    const startLine = item.sourceText.slice(0, item.start).split(/\r?\n/u).length;
-    const endLine =
-      startLine + item.sourceText.slice(item.start, item.end).split(/\r?\n/u).length - 1;
-    const recipe = item.handle
-      ? `Read(file_path=${JSON.stringify(item.filePath)}, section=${JSON.stringify(item.handle)})`
-      : `Read(file_path=${JSON.stringify(item.filePath)}, offset=${startLine}, limit=${Math.max(1, endLine - startLine + 1)})`;
-    const context = item.contextLabel ? ` | ${item.contextLabel}` : "";
-    const header = `=== ${item.filename}${context} :: ${recipe} ===\n`;
-    parts.push(header);
-    cursor += header.length;
-    const source = item.sourceText.slice(item.start, item.end);
-    parts.push(source, "\n\n");
-    segments.push({
-      virtualStart: cursor,
-      virtualEnd: cursor + source.length,
-      documentId: item.documentId,
-      versionId: item.versionId,
-      sourceStart: item.start,
-      sourceEnd: item.end,
-    });
-    cursor += source.length + 2;
-  }
-  const text = parts.join("");
-  state.set(path, {
-    path,
-    text,
-    sourceChars,
-    matchedSourceChars: sourceChars,
-    mapChars: 0,
-    budgetChars: budget,
-    mappedVersions: [],
-    segments,
-  });
-  return {
-    ok: true,
-    path,
-    documents: new Set(selected.map((item) => item.documentId)).size,
-    units: selected.length,
-    source_chars: sourceChars,
-    budget_chars: budget,
-    truncated: omitted > 0,
-    omitted_units: omitted,
-    next: `Read(file_path=${JSON.stringify(path)})`,
-  };
-}
-
-function materializeAccretiveWorkingSet(
-  candidates: readonly WorkingSetCandidate[],
-  maps: readonly WorkingSetMapCandidate[],
-  requestedBudget: unknown,
-  state: LocalAssistantWorkingSetTurnState,
-  coverage?: { searched: number; matched: number },
-) {
-  const prior = state.get(WORKING_SET_PATH);
-  const requested = clampInt(requestedBudget, 1_000, 128_000, 64_000);
-  const budget = Math.max(prior?.budgetChars ?? 0, requested);
-  const immutableSourceChars = prior?.immutableSourceChars ?? 0;
-  const priorAppendedSourceChars = Math.max(
-    0,
-    (prior?.matchedSourceChars ?? 0) - immutableSourceChars,
-  );
-  const coveredBySource = new Map<string, TextRange[]>();
-  for (const segment of prior?.segments ?? []) {
-    const key = `${segment.documentId}:${segment.versionId}`;
-    const covered = coveredBySource.get(key) ?? [];
-    addCoveredRange(covered, {
-      start: segment.sourceStart,
-      end: segment.sourceEnd,
-    });
-    coveredBySource.set(key, covered);
-  }
-  const mappedVersions = new Set(prior?.mappedVersions ?? []);
-  const newMaps = maps.filter(
-    (item) => !mappedVersions.has(`${item.documentId}:${item.versionId}`),
-  );
-  const mapParts: string[] = [];
-  let mapCursor = prior?.text.length ?? 0;
-  let addedMapChars = 0;
-  const mapBudgetRemaining = Math.max(0, 12_000 - (prior?.mapChars ?? 0));
-  const perMapBudget = newMaps.length
-    ? Math.min(
-        3_000,
-        Math.max(300, Math.floor(mapBudgetRemaining / newMaps.length)),
-      )
-    : 0;
-  for (const item of newMaps) {
-    if (addedMapChars >= mapBudgetRemaining || perMapBudget <= 0) break;
-    const key = `${item.documentId}:${item.versionId}`;
-    const cap = Math.min(perMapBudget, mapBudgetRemaining - addedMapChars);
-    const header = `=== FILE MAP ${item.filename} ===\n`;
-    let rendered = `${header}`;
-    for (const row of item.rows) {
-      const next = `${row}\n`;
-      if (rendered.length + next.length > cap) break;
-      rendered += next;
-    }
-    rendered += "\n";
-    mapParts.push(rendered);
-    mappedVersions.add(key);
-    mapCursor += rendered.length;
-    addedMapChars += rendered.length;
-  }
-  const queues = new Map<string, WorkingSetCandidate[]>();
-  let alreadyPresentChars = 0;
-  for (const candidate of mergeWorkingSetCandidates(candidates)) {
-    const key = `${candidate.documentId}:${candidate.versionId}`;
-    const queue = queues.get(key) ?? [];
-    const open = uncoveredRanges(candidate, coveredBySource.get(key) ?? []);
-    alreadyPresentChars +=
-      candidate.end - candidate.start -
-      open.reduce((total, range) => total + range.end - range.start, 0);
-    for (const range of open) {
-      const whole = range.start === candidate.start && range.end === candidate.end;
-      queue.push({
-        ...candidate,
-        ...range,
-        ...(whole
-          ? {}
-          : {
-              projection: "window" as const,
-              handle: undefined,
-              contextLabel: undefined,
-            }),
-      });
-    }
-    queues.set(key, queue);
-  }
-  for (const queue of queues.values()) {
-    queue.sort(
-      (left, right) =>
-        right.hits - left.hits || left.start - right.start || left.end - right.end,
-    );
-  }
-
-  const selected: WorkingSetCandidate[] = [];
-  let addedSourceChars = 0;
-  let omitted = 0;
-  while ([...queues.values()].some((queue) => queue.length)) {
-    let advanced = false;
-    for (const queue of queues.values()) {
-      const candidate = queue.shift();
-      if (!candidate) continue;
-      advanced = true;
-      const remaining =
-        budget - priorAppendedSourceChars - addedSourceChars;
-      if (remaining <= 0) {
-        omitted += 1 + queue.length;
-        queue.length = 0;
-        continue;
-      }
-      let kept = candidate;
-      if (candidate.end - candidate.start > remaining) {
-        if (remaining < 1_000) {
-          omitted += 1;
-          continue;
-        }
-        const width = Math.min(4_000, remaining);
-        const start = Math.max(
-          candidate.start,
-          Math.min(candidate.anchor - Math.floor(width / 2), candidate.end - width),
-        );
-        kept = {
-          ...candidate,
-          start,
-          end: Math.min(candidate.end, start + width),
-          projection: "window",
-          handle: undefined,
-        };
-      }
-      selected.push(kept);
-      addedSourceChars += kept.end - kept.start;
-    }
-    if (!advanced) break;
-  }
-
-  const path = WORKING_SET_PATH;
-  const parts: string[] = [...mapParts];
-  const segments: WorkingSetEvidenceSegment[] = [
-    ...(prior?.segments ?? []),
-  ];
-  let cursor = mapCursor;
-  const deltaOffset = (prior?.text.match(/\n/gu)?.length ?? 0) + 1;
-  for (const item of selected) {
-    const startLine = item.sourceText.slice(0, item.start).split(/\r?\n/u).length;
-    const endLine =
-      startLine + item.sourceText.slice(item.start, item.end).split(/\r?\n/u).length - 1;
-    const recipe = item.handle
-      ? `Read(file_path=${JSON.stringify(item.filePath)}, section=${JSON.stringify(item.handle)})`
-      : `Read(file_path=${JSON.stringify(item.filePath)}, offset=${startLine}, limit=${Math.max(1, endLine - startLine + 1)})`;
-    const context = item.contextLabel ? ` | ${item.contextLabel}` : "";
-    const header = `=== ${item.filename}${context} :: ${recipe} ===\n`;
-    parts.push(header);
-    cursor += header.length;
-    const source = item.sourceText.slice(item.start, item.end);
-    parts.push(source, "\n\n");
-    segments.push({
-      virtualStart: cursor,
-      virtualEnd: cursor + source.length,
-      documentId: item.documentId,
-      versionId: item.versionId,
-      sourceStart: item.start,
-      sourceEnd: item.end,
-    });
-    cursor += source.length + 2;
-  }
-  const delta = parts.join("");
-  const text = (prior?.text ?? "") + delta;
-  const matchedSourceChars =
-    (prior?.matchedSourceChars ?? 0) + addedSourceChars;
-  const sourceChars = (prior?.sourceChars ?? 0) + addedSourceChars;
-  const mapChars = (prior?.mapChars ?? 0) + addedMapChars;
-  state.set(path, {
-    path,
-    text,
-    sourceChars,
-    matchedSourceChars,
-    immutableSourceChars,
-    mapChars,
-    budgetChars: budget,
-    mappedVersions: [...mappedVersions],
-    segments,
-    refs: prior?.refs,
-  });
-  return {
-    manifest: {
-      ok: true,
-      path,
-      documents: new Set(segments.map((item) => item.documentId)).size,
-      units: segments.length,
-      added_units: selected.length,
-      added_source_chars: addedSourceChars,
-      added_match_chars: addedSourceChars,
-      added_map_chars: addedMapChars,
-      already_present_chars: alreadyPresentChars,
-      source_chars: sourceChars,
-      matched_source_chars: matchedSourceChars,
-      map_chars: mapChars,
-      budget_chars: budget,
-      truncated: omitted > 0,
-      omitted_units: omitted,
-      searched_documents: coverage?.searched ?? null,
-      matched_documents: coverage?.matched ?? null,
-      next: delta
-        ? `Read(file_path=${JSON.stringify(path)}, offset=${deltaOffset})`
-        : null,
-    },
-    delta,
-    deltaStart: prior?.text.length ?? 0,
-    set: state.get(path)!,
-  };
-}
-
-function accretiveWorkingSetResult(
-  call: NormalizedToolCall,
-  materialized: ReturnType<typeof materializeAccretiveWorkingSet>,
-): NormalizedToolResult {
-  const { manifest, delta, deltaStart, set } = materialized;
-  const header =
-    `[WORKING SET ${manifest.path} | added ${manifest.added_units} units | omitted ${manifest.omitted_units}` +
-    (manifest.searched_documents === null
-      ? "]"
-      : ` | matched ${manifest.matched_documents}/${manifest.searched_documents} docs]`);
-  if (!delta) {
-    return result(
-      call,
-      `${header}\nNo new evidence; ${manifest.already_present_chars} matching source chars were already present.`,
-    );
-  }
-  const available = Math.max(1_000, MAX_TOOL_RESULT_CHARS - header.length - 300);
-  let shown = delta.slice(0, available);
-  if (shown.length < delta.length) {
-    const boundary = shown.lastIndexOf("\n");
-    if (boundary > 0) shown = shown.slice(0, boundary + 1);
-  }
-  const shownEnd = deltaStart + shown.length;
-  const nextOffset = set.text.slice(0, shownEnd).split(/\r?\n/u).length;
-  const content =
-    `${header}\n${shown}` +
-    (shown.length < delta.length
-      ? `\n[TRUNCATED: continue with Read(file_path=${JSON.stringify(manifest.path)}, offset=${nextOffset})]`
-      : "");
-  return {
-    ...result(call, content),
-    evidenceSegments: workingSetEvidenceSegments(set, [[deltaStart, shownEnd]]),
-  };
 }
 
 function codingRangeLines(
@@ -4362,10 +3824,6 @@ async function runCodingShapeCall(
       path,
       text,
       sourceChars: text.length,
-      matchedSourceChars: text.length,
-      mapChars: 0,
-      budgetChars: text.length,
-      mappedVersions: [`${meta.id}:${versionId}`],
       segments: [segment],
     });
     return path;
@@ -4573,7 +4031,7 @@ async function runCodingShapeCall(
       ) {
         return result(
           call,
-          "Working sets accept only file_path, offset, limit, and start_char.",
+          "Structure projections accept only file_path, offset, and limit.",
         );
       }
       const lines = workingSet.text.split(/\r?\n/u);
@@ -4581,12 +4039,7 @@ async function runCodingShapeCall(
       const offset = positiveInt(args.offset, 1, 100_000_000, 1);
       const limit = positiveInt(args.limit, 1, 2_000, 2_000);
       const firstLine = lines[offset - 1];
-      const startChar = clampInt(
-        args.start_char,
-        0,
-        Number.MAX_SAFE_INTEGER,
-        0,
-      );
+      const startChar = 0;
       if (firstLine === undefined) {
         return result(
           call,
@@ -4601,21 +4054,9 @@ async function runCodingShapeCall(
           `(start_char ${startChar} is past the end of working-set line ${offset}; line chars: ${firstLine.length})`,
         );
       }
-      if (
-        workingSet.demandPaged &&
-        !workingSet.readGrants?.has(`${offset}:${startChar}`)
-      ) {
-        return result(call, {
-          ok: true,
-          status: "selection_required",
-          error:
-            "Demand-paged evidence does not support sequential scans. Use Grep with output_mode=content, then copy an exact Read recipe from its hit.",
-        });
-      }
-      const pageMaxChars = WORKING_SET_PAGE_MAX_CHARS || MAX_TOOL_RESULT_CHARS;
       const bodyBudget = Math.max(
         1_000,
-        Math.min(MAX_TOOL_RESULT_CHARS, pageMaxChars) - 1_000,
+        MAX_TOOL_RESULT_CHARS - 1_000,
       );
       const candidates: CodingOutputLine[] = [];
       let used = 0;
@@ -4655,17 +4096,10 @@ async function runCodingShapeCall(
       const rendered = candidates.map((line) => line.rendered).join("\n");
       const lastShown = offset - 1 + candidates.length;
       const continuation = sameLineContinuation
-        ? `[TRUNCATED: returned working-set line ${sameLineContinuation.line} through char ${sameLineContinuation.nextChar} of ${sameLineContinuation.totalChars}; continue with Read(file_path=${JSON.stringify(workingSet.path)}, offset=${sameLineContinuation.line}, limit=${limit}, start_char=${sameLineContinuation.nextChar}). Tool-result limit reached.]`
+        ? `[TRUNCATED: structure-projection line ${sameLineContinuation.line} exceeds the tool-result limit; narrow the projection with Grep.]`
         : lastShown < lines.length
-          ? workingSet.demandPaged
-            ? `[PAGE ENDED: returned lines ${offset}-${lastShown} of ${lines.length}. Use Grep to locate the next material fact; sequential continuation is disabled.]`
-            : `[TRUNCATED: returned lines ${offset}-${lastShown} of ${lines.length}; continue with Read(file_path=${JSON.stringify(workingSet.path)}, offset=${lastShown + 1}).]`
+          ? `[TRUNCATED: returned lines ${offset}-${lastShown} of ${lines.length}; continue with Read(file_path=${JSON.stringify(workingSet.path)}, offset=${lastShown + 1}).]`
           : "";
-      if (sameLineContinuation && workingSet.demandPaged) {
-        workingSet.readGrants?.add(
-          `${sameLineContinuation.line}:${sameLineContinuation.nextChar}`,
-        );
-      }
       const content = continuation
         ? `${rendered}\n\n${continuation}`
         : rendered;
@@ -5034,6 +4468,46 @@ async function runCodingShapeCall(
       );
     }
     const meta = matches[0];
+    if (Array.isArray(args.ops)) {
+      if (
+        Object.prototype.hasOwnProperty.call(args, "old_string") ||
+        Object.prototype.hasOwnProperty.call(args, "new_string")
+      ) {
+        return result(
+          call,
+          "Pass either ops or old_string/new_string, not both.",
+        );
+      }
+      const [applied] = await runLocalAssistantTools(
+        userId,
+        [
+          {
+            id: `${call.id}-deterministic`,
+            name: INTERNAL_DETERMINISTIC_EDIT,
+            input: { document_id: meta.id, ops: args.ops },
+          },
+        ],
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        allowedDocumentIds,
+        undefined,
+        undefined,
+        undefined,
+        turnEditState,
+        turnReadState,
+      );
+      if (requirementsState && applied.status !== "error") {
+        requirementsState.sourceEditCount += 1;
+      }
+      return {
+        ...result(call, applied.content),
+        status: applied.status,
+        terminal: applied.terminal,
+        mutationReceipt: applied.mutationReceipt ?? applied.content,
+      };
+    }
     const oldString =
       typeof args.old_string === "string" ? args.old_string : "";
     const newString =
@@ -5056,7 +4530,7 @@ async function runCodingShapeCall(
         [
           {
             id: `${call.id}-textops`,
-            name: "library_apply_text_ops",
+            name: INTERNAL_DETERMINISTIC_EDIT,
             input: {
               document_id: meta.id,
               ops: [
@@ -5280,10 +4754,7 @@ async function runCodingShapeCall(
       trimmed(args.pages) ||
       (args.references && args.references !== "none")
     ) {
-      return fail(call, "Working-set Grep does not accept legal scopes.");
-    }
-    if (args.output_mode === "working_set") {
-      return fail(call, "This path is already a materialized working set.");
+      return fail(call, "Structure-projection Grep does not accept legal scopes.");
     }
     const lines = virtualTarget.text.split(/\r?\n/u);
     const starts = sourceLineStarts(virtualTarget.text, lines);
@@ -5296,20 +4767,8 @@ async function runCodingShapeCall(
       return result(call, `${virtualTarget.path}:${matched.length}`);
     }
     if (args.output_mode !== "content") return result(call, virtualTarget.path);
-    const headLimit = virtualTarget.demandPaged
-      ? Math.min(
-          WORKING_SET_GREP_MAX_HEAD_LIMIT,
-          positiveInt(
-            args.head_limit,
-            1,
-            2_000,
-            WORKING_SET_GREP_DEFAULT_HEAD_LIMIT,
-          ),
-        )
-      : positiveInt(args.head_limit, 1, 2_000, 250);
-    const lineCap = virtualTarget.demandPaged
-      ? WORKING_SET_GREP_LINE_MAX_CHARS
-      : GREP_LINE_CAP;
+    const headLimit = positiveInt(args.head_limit, 1, 2_000, 250);
+    const lineCap = GREP_LINE_CAP;
     const context = clampInt(args["-C"], 0, 10, 0);
     // CC parity: -A (after) and -B (before) are honored per side; -C stays
     // the symmetric fallback. Frozen arms keep -C-only semantics.
@@ -5343,36 +4802,16 @@ async function runCodingShapeCall(
           sliceStart,
           sliceStart + lineCap,
         );
-        const readGrant = isMatch
-          ? { line: index + 1, startChar: sliceStart }
-          : undefined;
-        const recipe = readGrant
-          ? `\n  [exact Read recipe: Read(file_path=${JSON.stringify(virtualTarget.path)}, offset=${readGrant.line}, limit=1${readGrant.startChar ? `, start_char=${readGrant.startChar}` : ""})]`
-          : "";
         rows.push({
-          rendered: `${virtualTarget.path}${separator}${index + 1}${separator}${shown}${recipe}`,
+          rendered: `${virtualTarget.path}${separator}${index + 1}${separator}${shown}`,
           span: [
             starts[index] + sliceStart,
             starts[index] + sliceStart + shown.length,
           ],
-          ...(readGrant ? { readGrant } : {}),
         });
       }
     }
-    const { kept, truncated } = takeCodingOutputLines(
-      rows,
-      WORKING_SET_PAGE_MAX_CHARS || MAX_TOOL_RESULT_CHARS,
-    );
-    if (virtualTarget.demandPaged) {
-      virtualTarget.readGrants ??= new Set();
-      for (const line of kept) {
-        if (line.readGrant) {
-          virtualTarget.readGrants.add(
-            `${line.readGrant.line}:${line.readGrant.startChar}`,
-          );
-        }
-      }
-    }
+    const { kept, truncated } = takeCodingOutputLines(rows);
     const body = kept.map((line) => line.rendered).join("\n");
     const content =
       truncated || rows.length >= headLimit
@@ -5438,8 +4877,7 @@ async function runCodingShapeCall(
   const mode =
     args.output_mode === "content" ||
     args.output_mode === "count" ||
-    (LEGAL_GREP_EXPERIMENT && args.output_mode === "sections") ||
-    (WORKING_SET_EXPERIMENT && args.output_mode === "working_set")
+    (LEGAL_GREP_EXPERIMENT && args.output_mode === "sections")
       ? args.output_mode
       : // CC parity: the trained default is files_with_matches; the lean
         // content default stays for the frozen lean arms only.
@@ -5473,8 +4911,6 @@ async function runCodingShapeCall(
   // files_with_matches/count emit one row per document and are fair already.
   const fileBuckets: CodingOutputLine[][] = [];
   const sectionQueues: { rendered: string; hits: number }[][] = [];
-  const workingSetCandidates: WorkingSetCandidate[] = [];
-  const workingSetMaps: WorkingSetMapCandidate[] = [];
   const hardReferenceHints: Array<{
     kind: "literal_reference";
     label: string;
@@ -5563,21 +4999,6 @@ async function runCodingShapeCall(
       }
     }
     if (!matched.length) continue;
-    if (mode === "working_set" && ACCRETIVE_WORKING_SET_EXPERIMENT) {
-      mapSkeleton ??= await documentStructure(document.text, meta.id, {
-        tableCells: document.tableCells,
-      });
-      workingSetMaps.push({
-        documentId: meta.id,
-        versionId: meta.current_version_id,
-        filename: meta.filename,
-        rows: workingSetMapRows(
-          mapSkeleton,
-          document.tableCells,
-          document.text,
-        ),
-      });
-    }
     // A handle is emitted only when the paired Read resolver accepts it.
     // Ambiguous TOC/body duplicates stay line-addressed instead of teaching
     // the model an attractive handle that must fail on the next turn.
@@ -5593,7 +5014,7 @@ async function runCodingShapeCall(
       | null = null;
     let unitSkeleton: AgreementSkeleton | null = null;
     if (
-      (mode === "content" || mode === "sections" || mode === "working_set") &&
+      (mode === "content" || mode === "sections") &&
       (!PURE_CODING_EXPERIMENT || LEAN_BATCH_HARDREFS_TOOL_SHAPE)
     ) {
       const skeleton =
@@ -5662,43 +5083,6 @@ async function runCodingShapeCall(
           };
         };
       }
-    }
-    if (mode === "working_set") {
-      for (const line of matched) {
-        const section = sectionOf?.(line);
-        const lookup =
-          section && unitSkeleton
-            ? readSection(unitSkeleton, section.handle)
-            : null;
-        const lineStart = starts[line];
-        const lineEnd = starts[line + 1] ?? document.text.length;
-        const range =
-          lookup?.status === "found" && lookup.block
-            ? { start: lookup.block.start, end: lookup.block.end }
-            : {
-                start: Math.max(0, lineStart - 1_500),
-                end: Math.min(document.text.length, lineEnd + 1_500),
-              };
-        workingSetCandidates.push({
-          ...range,
-          documentId: meta.id,
-          versionId: meta.current_version_id,
-          filename: meta.filename,
-          filePath:
-            files.filter((candidate) => candidate.filename === meta.filename)
-              .length === 1
-              ? meta.filename
-              : meta.id,
-          sourceText: document.text,
-          projection: lookup?.status === "found" ? "legal-unit" : "window",
-          ...(lookup?.status === "found" && lookup.block
-            ? { handle: lookup.block.label, contextLabel: section?.display }
-            : {}),
-          anchor: lineStart,
-          hits: 1,
-        });
-      }
-      continue;
     }
     if (mode === "files_with_matches") {
       rows.push({ rendered: codingPath(meta) });
@@ -6064,34 +5448,6 @@ async function runCodingShapeCall(
       truncated = true;
       rows.push(...trimDanglingRows(bucket.slice(0, take)));
     }
-  }
-  if (mode === "working_set") {
-    if (!workingSets) return fail(call, "Working-set state is unavailable");
-    if (ACCRETIVE_WORKING_SET_EXPERIMENT) {
-      return accretiveWorkingSetResult(
-        call,
-        materializeAccretiveWorkingSet(
-          workingSetCandidates,
-          workingSetMaps,
-          args.max_chars,
-          workingSets,
-          {
-            searched: targets.length,
-            matched: new Set(
-              workingSetCandidates.map((candidate) => candidate.documentId),
-            ).size,
-          },
-        ),
-      );
-    }
-    return result(
-      call,
-      materializeStatelessWorkingSet(
-        workingSetCandidates,
-        args.max_chars,
-        workingSets,
-      ),
-    );
   }
   if (mode === "sections") {
     let cursor = 0;
@@ -6970,12 +6326,13 @@ const DOCX_WORKFLOWS: Record<
 
 export const LOCAL_TURN_EDIT_TOOL_NAMES = new Set([
   "library_revise_docx",
-  "library_apply_text_ops",
   "library_delete_and_renumber_docx",
   "library_link_docx_citations",
   "library_fix_docx_supras",
   "Edit",
 ]);
+
+const INTERNAL_DETERMINISTIC_EDIT = "__deterministic_docx_edit";
 
 const upstreamMikeResult = (
   call: NormalizedToolCall,
@@ -6986,18 +6343,10 @@ const upstreamMikeResult = (
 });
 
 function upstreamMikeCitationReminder(docLabel: string, filename: string) {
-  const isSpreadsheet = isSpreadsheetDocumentType(
-    filename.split(".").pop() ?? "",
-  );
-  const shapeLine = isSpreadsheet
-    ? `Use this citation object shape for this spreadsheet: {"ref": 1, "doc_id": "${docLabel}", "quotes": [{"sheet": "Sheet name", "cell": "B7", "quote": "plain cell value"}]}. Cite by "sheet" + "cell" (A1 address or range), not by page.`
-    : `Use this citation object shape: {"ref": 1, "doc_id": "${docLabel}", "quotes": [{"page": 1, "quote": "exact verbatim text from the document"}]}. Include top-level "page" and "quote" too only if they match the first quote.`;
   return [
     `[Citation requirement for ${docLabel} ("${filename}")]:`,
-    "If your final answer makes any factual claim from this document, include inline [N] markers and append a final <CITATIONS> JSON block.",
-    `Every citation entry for this document MUST use "doc_id": "${docLabel}".`,
-    shapeLine,
-    'Do not use "marker" or "text" keys in the citation block; use "ref" and "quotes".',
+    "Use the returned evidence_id in submit_grounded_answer for factual claims from this document.",
+    "Do not write citation markers, citation JSON, URLs, or pinpoints in prose.",
   ].join("\n");
 }
 
@@ -8283,7 +7632,6 @@ export async function runLocalAssistantTools(
   // this batch, so it never outlives the turn.
   const servedDraftingCache = new Map<string, ServedDrafting>();
   let editTail: Promise<unknown> = Promise.resolve();
-  let workingSetTail: Promise<unknown> = Promise.resolve();
   let wholeReadTail: Promise<unknown> = Promise.resolve();
   return Promise.all(
     calls.map((call) => {
@@ -9285,8 +8633,8 @@ export async function runLocalAssistantTools(
                     : []),
                   `Before writing your final response, call read_document with doc_id "${docLabel}".`,
                   "Base your description on the generated document's actual returned text, not on memory of what you intended to generate.",
-                  "Do not include download links, URLs, or markdown links to the document in your prose response; the document card is shown automatically by the UI.",
-                  `Give a concise description of the generated document and, if you make factual claims about its contents, cite it with [N] markers and a final <CITATIONS> block using doc_id "${docLabel}", not any source/template document.`,
+                  "Do not include download links, URLs, or markdown links to the document in your prose response.",
+                  `Give a concise description of the generated document and, if you make factual claims about its contents, use the generated document's returned evidence_id in submit_grounded_answer.`,
                 ].join(" "),
                 ...(sourceClosure.length
                   ? { source_closure: sourceClosure }
@@ -9489,7 +8837,7 @@ export async function runLocalAssistantTools(
         }
       }
 
-      if (call.name === "library_apply_text_ops") {
+      if (call.name === INTERNAL_DETERMINISTIC_EDIT) {
         let versionId = trimmed(args.version_id);
         if (!documentId) return fail(call, "document_id is required");
         const turnVersion = turnEditState?.get(documentId);
@@ -11170,17 +10518,6 @@ export async function runLocalAssistantTools(
         }
         return output;
       };
-      if (
-        call.name === "Grep" &&
-        call.input.output_mode === "working_set"
-      ) {
-        const queued = workingSetTail.then(executeAndRecord);
-        workingSetTail = queued.then(
-          () => undefined,
-          () => undefined,
-        );
-        return queued;
-      }
       if (
         (ORIGIN_MIKE_TOOL_SHAPE &&
           SUPPRESS_DUPLICATE_WHOLE_READS &&

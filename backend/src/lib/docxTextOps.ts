@@ -1,5 +1,5 @@
 /**
- * Shared pipeline for `library_apply_text_ops`.
+ * Shared deterministic DOCX edit pipeline.
  *
  * The model names an operation and a scope; the server does the rest, so
  * document text is never retyped for mechanical transforms:

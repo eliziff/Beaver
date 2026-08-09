@@ -634,7 +634,7 @@ export function upstreamNativeCitationReminder(
     : `Use this citation object shape: {"ref": 1, "doc_id": "${docLabel}", "quotes": [{"page": 1, "quote": "exact verbatim text from the document"}]}. Include top-level "page" and "quote" too only if they match the first quote.`;
   return [
     `[Citation requirement for ${docLabel} ("${filename}")]:`,
-    `If your final answer makes any factual claim from this document, include inline [N] markers and append a final <CITATIONS> JSON block.`,
+    `If your final answer makes any factual claim from this document, use its returned evidence_id in submit_grounded_answer.`,
     `Every citation entry for this document MUST use "doc_id": "${docLabel}".`,
     shapeLine,
     `Do not use "marker" or "text" keys in the citation block; use "ref" and "quotes".`,
@@ -650,8 +650,8 @@ export function upstreamNativeGeneratedNextAction(docLabel: string): string {
   return [
     `Before writing your final response, call read_document with doc_id "${docLabel}".`,
     `Base your description on the generated document's actual returned text, not on memory of what you intended to generate.`,
-    `Do not include download links, URLs, or markdown links to the document in your prose response; the document card is shown automatically by the UI.`,
-    `Give a concise description of the generated document and, if you make factual claims about its contents, cite it with [N] markers and a final <CITATIONS> block using doc_id "${docLabel}", not any source/template document.`,
+    `Do not include download links, URLs, or markdown links to the document in your prose response.`,
+    `Give a concise description of the generated document and, if you make factual claims about its contents, use the generated document's returned evidence_id in submit_grounded_answer.`,
   ].join(" ");
 }
 
@@ -663,8 +663,8 @@ export function upstreamNativeEditedNextAction(docLabel: string): string {
   return [
     `The edited document remains available as doc_id "${docLabel}".`,
     `Before making factual claims about the edited document's final contents, call read_document with doc_id "${docLabel}" and base the response on that returned text.`,
-    `Do not include download links or URLs in your prose response; the edited document card is shown automatically by the UI.`,
-    `If you describe specific content from the edited document, cite it with [N] markers and a final <CITATIONS> block using doc_id "${docLabel}".`,
+    `Do not include download links or URLs in your prose response.`,
+    `If you describe specific content from the edited document, use its returned evidence_id in submit_grounded_answer.`,
   ].join(" ");
 }
 

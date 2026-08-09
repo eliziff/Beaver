@@ -23,11 +23,7 @@ const COURTLISTENER_CITATION_REMINDER_TOOL_NAMES = new Set([
   "courtlistener_read_case",
 ]);
 const COURTLISTENER_CITATION_REMINDER = `COURTLISTENER CITATION REMINDER:
-If your final answer relies on any CourtListener case, add an inline [N] marker. Do not construct a CourtListener link; Beaver attaches the verified link server-side.
-Assign new refs in first-use order as much as possible: [1], then [2], then [3]. Reuse an existing ref when citing the same case/passage again, even if that means a later sentence cites [3] and then [1] again.
-End the response with a <CITATIONS> block containing one matching case entry per [N] marker:
-{"ref": N, "cluster_id": 123, "quotes": [{"opinion_id": 456, "quote": "exact verbatim opinion text"}]}.
-Do not use doc_id, page, top-level quote, case_name, or citation fields for CourtListener case entries.`;
+If your final answer relies on any CourtListener case, use the returned evidence_ids in submit_grounded_answer. Do not construct a CourtListener link, citation marker, citation JSON, or pinpoint; Beaver attaches the verified link server-side.`;
 
 type ResponseInputItem =
   | {

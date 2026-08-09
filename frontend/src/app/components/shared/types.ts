@@ -334,7 +334,8 @@ export type AssistantEvent =
         | "compose_check"
         | "evidence_first"
         | "holistic_check"
-        | "tiered_check";
+        | "tiered_check"
+        | null;
       status: "passed" | "failed";
       verification: {
         reference: "verified";

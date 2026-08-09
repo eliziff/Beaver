@@ -451,13 +451,13 @@ export const TOOLS = [
   },
 ];
 
-export const TEXT_OPS_TOOLS = [
+export const DETERMINISTIC_DOCX_EDIT_SCHEMA = [
   {
     type: "function",
     function: {
-      name: "library_apply_text_ops",
+      name: "Edit",
       description:
-        "Apply deterministic mechanical text operations to a local Library DOCX as native tracked changes. The server resolves each scope against the pinned version and executes the transform itself — NEVER retype or re-supply document text for these. Returns a new version with Accept/Reject cards, per-op replacement counts, and skipped-site notes.",
+        "Apply deterministic mechanical text operations to a local Library DOCX as native tracked changes. Supply only the operation and its scope; never retype or re-supply document text. Returns a new version with Accept/Reject cards, per-op replacement counts, and skipped-site notes.",
       parameters: {
         type: "object",
         properties: {

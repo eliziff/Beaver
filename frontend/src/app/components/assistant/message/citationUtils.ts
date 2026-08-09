@@ -7,8 +7,10 @@ export type CitationHistory = {
 
 export function citationSourceKey(annotation: Citation): string {
     if (annotation.kind === "case") return `case:${annotation.cluster_id}`;
-    if (annotation.kind === "a2aj")
-        return `a2aj:${annotation.url ?? annotation.citation ?? annotation.ref}`;
+    if (annotation.kind === "a2aj") {
+        const identity = annotation.citation?.trim().toLocaleLowerCase();
+        return `a2aj:${identity || annotation.url?.split("#", 1)[0] || annotation.ref}`;
+    }
     if (annotation.kind === "public_legal")
         return `public:${annotation.provider}:${annotation.identifier}`;
     return `document:${annotation.document_id}:${annotation.version_id ?? ""}`;
@@ -18,6 +20,7 @@ function usesSupra(annotation: Citation): boolean {
     return (
         annotation.kind === "case" ||
         annotation.source_class === "case" ||
+        annotation.source_class === "legislation" ||
         annotation.source_class === "commentary" ||
         (annotation.kind === "public_legal" && annotation.provider === "journal")
     );

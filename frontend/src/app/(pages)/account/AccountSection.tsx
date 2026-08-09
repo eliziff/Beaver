@@ -16,7 +16,7 @@ export function AccountSection({
     );
     return heading ? (
         <section className="space-y-3">
-            <h2 className="text-2xl font-medium font-serif text-gray-900">
+            <h2 className="text-lg font-semibold text-gray-900">
                 {heading}
             </h2>
             {panel}

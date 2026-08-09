@@ -404,18 +404,11 @@ export function MarkdownContent({
                                 );
                             }
                             const isBeaverAppHref = /^\/(?!\/)/.test(href);
+                            if (!isBeaverAppHref) return <>{children}</>;
                             return (
                                 <a
                                     href={href}
                                     className={className}
-                                    target={
-                                        isBeaverAppHref ? undefined : "_blank"
-                                    }
-                                    rel={
-                                        isBeaverAppHref
-                                            ? undefined
-                                            : "noopener noreferrer"
-                                    }
                                     {...anchorProps}
                                 >
                                     {children}

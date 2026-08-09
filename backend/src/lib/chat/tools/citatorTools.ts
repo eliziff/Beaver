@@ -42,7 +42,7 @@ const tool = (
 export const CITATOR_TOOLS: OpenAIToolSchema[] = [
   tool(
     "caselaw_note_up",
-    "Find Canadian decisions that cite one case. Filter by court level or exact court code; sort by date or by how often each decision discusses the cited case. Returns bounded citing passages and occurrence counts, not editorial treatment labels.",
+    "Find Canadian decisions that cite one case, optionally limited to occurrences that pinpoint one exact paragraph of the cited case. Filter by court level or exact court code; sort by date or by how often each decision discusses the cited case. Returns bounded citing passages and occurrence counts, not editorial treatment labels.",
     {
       type: "object",
       properties: {
@@ -50,6 +50,12 @@ export const CITATOR_TOOLS: OpenAIToolSchema[] = [
           type: "string",
           description:
             "The cited decision's citation on its own ('2019 SCC 65'), not prose around it.",
+        },
+        cited_paragraph: {
+          type: "integer",
+          minimum: 1,
+          description:
+            "Optional paragraph number on the cited side. For example, 81 returns only occurrences that cite paragraph 81 of the target decision.",
         },
         size: {
           type: "number",
@@ -137,6 +143,10 @@ export function executeCitatorTool(
   try {
     const result = noteUpCitations({
       citation,
+      citedParagraph:
+        typeof args.cited_paragraph === "number"
+          ? args.cited_paragraph
+          : undefined,
       size: typeof args.size === "number" ? args.size : undefined,
       courtScope,
       courtCode: courtCode || undefined,
@@ -160,6 +170,10 @@ export function executeCitatorTool(
       payload: {
         ok: true,
         citation,
+        cited_paragraph:
+          typeof args.cited_paragraph === "number"
+            ? Math.trunc(args.cited_paragraph)
+            : null,
         court_scope: courtScope,
         court_code: courtCode || null,
         sort,

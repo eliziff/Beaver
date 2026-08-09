@@ -55,10 +55,10 @@ export function ApiKeySettings() {
     const { runMfa, mfaPopup } = useMfaAction();
     return (
         <div>
-            <h2 className="mb-3 font-serif text-2xl font-medium text-gray-900">
+            <h2 className="mb-1 text-base font-semibold text-gray-900">
                 API keys
             </h2>
-            <p className="mb-4 text-sm text-gray-500">
+            <p className="mb-4 text-sm leading-6 text-gray-600">
                 {isAnonymousMode
                     ? "Read from the server environment."
                     : "Stored keys are encrypted. Server environment keys take precedence."}

@@ -356,7 +356,7 @@ export async function searchSources(args: Record<string, unknown>) {
   }
 
   if (types.has("journal")) {
-    if (jurisdiction || args.court || args.collection) {
+    if (jurisdiction === "US" || args.court || args.collection) {
       unavailable.push("journal: jurisdiction and court metadata are not indexed");
     } else {
       try {

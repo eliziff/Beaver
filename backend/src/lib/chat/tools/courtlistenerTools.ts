@@ -83,10 +83,7 @@ Use CourtListener for US-law questions that need case law. Verify reporter citat
 
 Citation rules:
 - Cite a case only from opinion text or snippets supplied in this turn — never from memory, metadata, search results, citationLinks, or verification results. If you have no text for a useful case, fetch or read it, or say you could not read it and do not rely on it.
-- Add an inline [N] marker for a case used as legal support. Do not construct or repeat a CourtListener link; Beaver attaches a verified opinion-text link automatically.
-- Do not put a page, paragraph, section, or other pinpoint beside [N] as plaintext; Beaver puts the verified locator inside the source pill.
-- Assign refs in first-use order where possible, and reuse an existing ref when citing the same case or passage again.
-- Each [N] case marker needs one <CITATIONS> entry: {"ref": N, "cluster_id": 123, "quotes": [{"opinion_id": 456, "quote": "exact verbatim opinion text"}]}. Case entries carry no doc_id, page, top-level quote, case_name, or citation fields.
+- Use the returned evidence_ids in submit_grounded_answer. Do not construct or repeat a CourtListener link, marker, citation JSON, or plaintext pinpoint.
 - On any rate-limit/throttling/429 error, stop all CourtListener calls for that turn and answer from what you already have.`;
 
 export const COURTLISTENER_TOOLS = [

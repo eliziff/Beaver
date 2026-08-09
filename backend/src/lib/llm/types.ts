@@ -73,8 +73,6 @@ export type NormalizedToolResult = {
     projection?: string;
     /** Search previews orient; reads and exact passages support a draft. */
     kind?: "candidate" | "evidence";
-    /** This exact span is projected from the already-durable mounted union. */
-    durableUnionBacked?: boolean;
   }>;
   /** Exact provider/PDF passages that cannot be rehydrated from a local file. */
   evidenceRefs?: Array<{
@@ -84,8 +82,6 @@ export type NormalizedToolResult = {
     locator?: string;
     exactSha256?: string;
     kind?: "candidate" | "evidence";
-    /** This exact span is projected from the already-durable mounted union. */
-    durableUnionBacked?: boolean;
   }>;
   /** Host-only deterministic navigation hints offered alongside search hits. */
   retrievalHints?: Array<{
@@ -95,18 +91,11 @@ export type NormalizedToolResult = {
     offset: number;
     limit: number;
   }>;
-  /** Host-only union accounting; never duplicated into provider context. */
+  /** Host-only exact-evidence accounting; never duplicated into provider context. */
   exposure?: {
     uniqueSourceChars: number;
     suppressedSourceChars: number;
   };
-  /** Host-only durable-union delta, separate from the current context guard. */
-  unionExposure?: {
-    uniqueSourceChars: number;
-    suppressedSourceChars: number;
-  };
-  /** Gross exact source bytes reread from the already-reviewed mounted union. */
-  reviewedUnionBackedSourceChars?: number;
   /** End the provider loop after this result; the caller owns final rendering. */
   terminal?: boolean;
 };

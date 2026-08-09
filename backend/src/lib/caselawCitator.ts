@@ -59,6 +59,8 @@ export type NoteUpEntry = {
 export type NoteUpResult = {
   /** every citing case in the graph, not just the page returned */
   total: number;
+  /** cited-side paragraph filter, when the caller requested one */
+  citedParagraph?: number;
   entries: NoteUpEntry[];
   /**
    * The corpus's own curated citation graph (cases_cited/cases_citing
@@ -259,6 +261,7 @@ export function citationAuthorityMetricsBatch(
  */
 export function noteUpCitations(args: {
   citation: string;
+  citedParagraph?: number;
   size?: number;
   courtScope?: NoteUpCourtScope;
   courtCode?: string;
@@ -268,6 +271,12 @@ export function noteUpCitations(args: {
   const wanted = Math.max(1, Math.min(50, Math.trunc(args.size ?? 10)));
   const courtScope = args.courtScope ?? "all";
   const courtCode = args.courtCode?.trim().toUpperCase() || null;
+  const citedParagraph = args.citedParagraph === undefined
+    ? null
+    : Math.trunc(args.citedParagraph);
+  if (citedParagraph !== null && citedParagraph < 1) {
+    throw new Error("cited_paragraph must be a positive integer");
+  }
   if (courtCode && courtScope !== "all") {
     throw new Error("court_code cannot be combined with a non-all court_scope");
   }
@@ -285,9 +294,10 @@ export function noteUpCitations(args: {
          FROM edge
          JOIN case_doc ON case_doc.id = edge.case_id
          WHERE edge.cited_key IN (${placeholders})
+           ${citedParagraph === null ? "" : "AND instr(',' || edge.pinpoints || ',', ?) > 0"}
          GROUP BY edge.case_id`,
       )
-      .all(...keys) as Row[])
+      .all(...keys, ...(citedParagraph === null ? [] : [`,par${citedParagraph},`])) as Row[])
       .filter((group) => {
         const code = String(group.court ?? "").trim().toUpperCase();
         if (courtCode) return code === courtCode;
@@ -339,7 +349,7 @@ export function noteUpCitations(args: {
       };
     });
     let provider: NoteUpResult["provider"] = null;
-    if (hasProviderEdges(database)) {
+    if (citedParagraph === null && hasProviderEdges(database)) {
       const citingInCorpus = Number(
         (
           database
@@ -365,7 +375,12 @@ export function noteUpCitations(args: {
         citingReported: reported.map((row) => String(row.citation)),
       };
     }
-    return { total, entries, provider };
+    return {
+      total,
+      entries,
+      ...(citedParagraph === null ? {} : { citedParagraph }),
+      provider,
+    };
   });
 }
 

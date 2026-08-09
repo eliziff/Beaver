@@ -15,8 +15,29 @@ export {
   parseAskInputsResponsePayload,
 } from "./messageFormatting";
 import { buildSystemPrompt, SPREADSHEET_CITATION_PROMPT } from "./prompts";
-import { parseCitations, createCitation } from "./citations";
 import type { AssistantEvent } from "./streaming";
+import { priorLegalEvidenceReceipts } from "./legalEvidenceExperiment";
+
+export async function loadPriorLegalEvidence(
+  chatId: string | null | undefined,
+  db: ReturnType<typeof createServerSupabase>,
+) {
+  if (!chatId) return [];
+  const { data: rows } = await db
+    .from("chat_messages")
+    .select("content, created_at")
+    .eq("chat_id", chatId)
+    .eq("role", "assistant")
+    .order("created_at", { ascending: true });
+  if (!Array.isArray(rows)) return [];
+  return priorLegalEvidenceReceipts(
+    rows.flatMap((row) =>
+      Array.isArray((row as { content?: unknown }).content)
+        ? ((row as { content: unknown[] }).content)
+        : [],
+    ),
+  );
+}
 
 
 export async function enrichWithPriorEvents(
@@ -172,16 +193,6 @@ export function buildMessages(
   return formatted;
 }
 
-export function extractCitations(
-  fullText: string,
-  docIndex: DocIndex,
-  _events?: ({ type: string } & Record<string, unknown>[]) | unknown[],
-): unknown[] {
-  return parseCitations(fullText).map((c) =>
-    createCitation(c, docIndex),
-  );
-}
-
 export function stripTransientAssistantEvents(events: AssistantEvent[]) {
   return events.filter((event) => event.type !== "case_opinions");
 }
@@ -261,16 +272,18 @@ function appendCancelledAssistantEvent(events: AssistantEvent[]) {
 }
 
 export function buildCancelledAssistantMessage(args: {
-  fullText: string;
   events: AssistantEvent[];
-  buildCitations: (fullText: string, events: AssistantEvent[]) => unknown[];
+  fullText?: string;
+  buildCitations?: (fullText: string, events: AssistantEvent[]) => unknown[];
 }) {
   const events = appendCancelledAssistantEvent(
     stripTransientAssistantEvents(args.events),
   );
   return {
     events,
-    citations: args.buildCitations(args.fullText, events),
+    citations: args.buildCitations
+      ? args.buildCitations(args.fullText ?? "", events)
+      : [],
   };
 }
 

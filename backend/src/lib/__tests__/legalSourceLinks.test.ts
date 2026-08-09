@@ -9,7 +9,6 @@ import {
   buildLegalSourceMultiPassageUrl,
   buildLegalSourcePinpointUrl,
 } from "../legalSourceLinks";
-import { createCitation, parseCitations } from "../chat/citations";
 
 function lookupFixture({
   text,
@@ -55,6 +54,47 @@ function lookupFixture({
 }
 
 describe("verified legal-source links", () => {
+  it("uses BCLaws HTML section anchors", () => {
+    const result = buildLegalSourcePinpointUrl(
+      {
+        url: "https://www.bclaws.gov.bc.ca/civix/document/id/complete/statreg/00_11025_00_multi/xml",
+        anchor: "sec19.15",
+        blockText: "19.15 (1) An arbitrator may correct an award on application.",
+      },
+      ["An arbitrator may correct an award on application."],
+    );
+
+    expect(result).toContain("00_11025_00_multi#section19.15:~:text=");
+  });
+
+  it("uses the Justice Laws public page instead of its raw XML feed", () => {
+    const result = buildLegalSourcePinpointUrl(
+      {
+        url: "https://laws-lois.justice.gc.ca/eng/XML/SOR-97-175.xml",
+        blockText: "The applicable table is determined under these Guidelines.",
+      },
+      ["The applicable table is determined under these Guidelines."],
+    );
+
+    expect(result).toContain(
+      "https://laws-lois.justice.gc.ca/eng/regulations/SOR-97-175/FullText.html#:~:text=",
+    );
+    expect(result).not.toContain("/XML/");
+  });
+
+  it("keeps paragraph markers out of CanLII text targets", () => {
+    const result = buildLegalSourcePinpointUrl(
+      {
+        url: "https://www.canlii.org/en/bc/bcsc/doc/2024/2024bcsc2224/2024bcsc2224.html",
+        anchor: "par38",
+        blockText: "[38] I will note that fentanyl and some other controlled substances are inherently toxic, whether in the control of the accused or not.",
+      },
+      ["[38] I will note that fentanyl and some other controlled substances are inherently toxic, whether in the control of the accused or not."],
+    );
+
+    expect(result).toContain("#par38:~:text=I%20will%20note");
+    expect(result).not.toContain("text=38%5D");
+  });
   it.each([
     [
       "paragraph",
@@ -720,18 +760,11 @@ describe("verified legal-source links", () => {
     ];
     const quote =
       "neighboring paragraph states the distinctive controlling rule";
-    const [parsed] = parseCitations(
-      `<CITATIONS>[{"ref":1,"source":"a2aj","citation":"2099 SCC 1",` +
-        `"dataset":"SCC","quote":"${quote}"}]</CITATIONS>`,
-    );
-
-    const authenticated = createCitation(parsed, {}, undefined, [lookup]).url;
     const anonymous = addA2AJInlineCitations(
       `The court said "${quote}".`,
       [lookup],
     );
 
-    expect(authenticated).toContain("#par41:~:text=");
     expect(anonymous.text).toContain(`"${quote}"[1]`);
     expect((anonymous.citations[0] as { url: string }).url).toContain(
       "#par41:~:text=",
@@ -739,23 +772,6 @@ describe("verified legal-source links", () => {
     expect((anonymous.citations[0] as { url: string }).url).not.toContain(
       "#par42",
     );
-  });
-
-  it("replaces a model URL with the server-built trusted pinpoint URL", () => {
-    const text =
-      "The distinctive source words establish this proposition conclusively.";
-    const lookup = lookupFixture({ text });
-    const [parsed] = parseCitations(
-      '<CITATIONS>[{"ref":1,"source":"a2aj","citation":"2099 SCC 1",' +
-        '"dataset":"SCC","url":"https://untrusted.example/model-link",' +
-        '"quote":"distinctive source words establish this proposition"}]</CITATIONS>',
-    );
-    const result = createCitation(parsed, {}, undefined, [lookup]);
-
-    expect(result.url).toContain(
-      "https://www.canlii.org/en/ca/scc/doc/2099/2099scc1/2099scc1.html#par42:~:text=",
-    );
-    expect(result.url).not.toContain("untrusted.example");
   });
 
   it("uses verified range boundaries for long CanLII paragraphs", () => {
@@ -774,40 +790,6 @@ describe("verified legal-source links", () => {
     expect(result).toBe(
       "https://www.canlii.org/en/on/onca/doc/2021/2021onca518/2021onca518.html#par41:~:text=The%20evidence%20also%20established%20that,safety%20guidelines%20for%20handling%20fentanyl.",
     );
-  });
-
-  it("uses a fetched-document URL only when server evidence verifies it", () => {
-    const lookup = lookupFixture({
-      text: "Paragraph 42 contains a different proposition entirely.",
-    });
-    const document: A2AJDocument = {
-      dataset: "SCC",
-      citation: "2099 SCC 1",
-      alternateCitation: null,
-      name: "Example v. Example",
-      date: "2099-01-01",
-      url: "https://example.test/full-case",
-      text: "Paragraph 99 contains text from paragraph 99.",
-      language: "en",
-      upstreamLicense: null,
-      structure: {
-        status: "unavailable",
-        source: "flat_text",
-        counts: { paragraph: 0, page: 0, section: 0 },
-      },
-    };
-    const [parsed] = parseCitations(
-      '<CITATIONS>[{"ref":1,"source":"a2aj",' +
-        '"url":"https://example.test/full-case","quote":"text from paragraph 99"}]' +
-        "</CITATIONS>",
-    );
-
-    expect(
-      createCitation(parsed, {}, undefined, [lookup], [document]).url,
-    ).toContain(
-      "https://www.canlii.org/en/ca/scc/doc/2099/2099scc1/2099scc1.html#:~:text=text%20from%20paragraph%2099",
-    );
-    expect(createCitation(parsed, {}, undefined, [lookup]).url).toBeNull();
   });
 
   it("falls back to the trusted CourtListener case URL on a quote mismatch", () => {

@@ -37,6 +37,14 @@ export function highlightDocxQuote(
     quote: string,
 ): HTMLElement | null {
     clearDocxQuoteHighlights(root);
+    return addDocxQuoteHighlight(root, quote);
+}
+
+function addDocxQuoteHighlight(
+    root: HTMLElement,
+    quote: string,
+    quoteIndex?: number,
+): HTMLElement | null {
     if (!quote) return null;
     const segments = quote
         .split(/\.{3}|…/)
@@ -85,9 +93,21 @@ export function highlightDocxQuote(
         mid.splitText(r.origEnd - r.origStart);
         const span = document.createElement("span");
         span.className = HIGHLIGHT_CLASS;
+        if (quoteIndex !== undefined) span.dataset.qspan = String(quoteIndex);
         mid.parentNode?.insertBefore(span, mid);
         span.appendChild(mid);
         spans.push(span);
     }
     return spans[spans.length - 1] ?? null;
+}
+
+/** Highlight every verified text directive without one span erasing another. */
+export function highlightDocxQuotes(
+    root: HTMLElement,
+    quotes: readonly string[],
+): Array<HTMLElement | null> {
+    clearDocxQuoteHighlights(root);
+    return quotes.map((quote, index) =>
+        addDocxQuoteHighlight(root, quote, index),
+    );
 }

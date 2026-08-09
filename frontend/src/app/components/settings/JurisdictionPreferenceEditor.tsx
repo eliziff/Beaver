@@ -10,10 +10,10 @@ import { cn } from "@/app/lib/utils";
 
 export function JurisdictionPreferenceEditor({
     compact = false,
-    showPanelControl = true,
+    showChatControl = true,
 }: {
     compact?: boolean;
-    showPanelControl?: boolean;
+    showChatControl?: boolean;
 }) {
     const id = useId();
     const [query, setQuery] = useState("");
@@ -242,24 +242,24 @@ export function JurisdictionPreferenceEditor({
                 </div>
             </div>
 
-            {showPanelControl && (
+            {showChatControl && (
                 <label className="flex min-h-10 cursor-pointer items-start gap-3 border-t border-gray-200 pt-3">
                     <CheckboxInput
-                        checked={preference.showAssistantPanel}
+                        checked={preference.showChatControl}
                         onChange={(event) =>
                             setPreference({
                                 ...preference,
-                                showAssistantPanel: event.currentTarget.checked,
+                                showChatControl: event.currentTarget.checked,
                             })
                         }
                         className="mt-0.5"
                     />
                     <span className="min-w-0">
                         <span className="block text-sm font-medium text-gray-900">
-                            Show in Assistant
+                            Show in chat box
                         </span>
                         <span className="mt-0.5 block text-sm leading-5 text-gray-500">
-                            Keep a side panel available for changing this preference.
+                            Keep a Jurisdiction button beside Workflows.
                         </span>
                     </span>
                 </label>
