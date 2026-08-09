@@ -20,7 +20,6 @@ interface ModalProps {
     breadcrumbs?: ReactNode[];
     headerAction?: ReactNode;
     size?: ModalSize;
-    contentSized?: boolean;
     className?: string;
     footerStatus?: ReactNode;
     primaryAction?: ModalAction;
@@ -42,7 +41,6 @@ export function Modal({
     breadcrumbs,
     headerAction,
     size = "lg",
-    contentSized = false,
     className,
     footerStatus,
     primaryAction,
@@ -102,11 +100,8 @@ export function Modal({
                 if (event.target === event.currentTarget) onClose();
             }}
             className={cn(
-                "m-auto w-[calc(100%-2rem)] flex-col rounded-lg p-0 backdrop:bg-gray-950/20",
+                "m-auto h-[min(600px,calc(100dvh-2rem))] w-[calc(100%-2rem)] flex-col rounded-lg p-0 backdrop:bg-gray-950/20",
                 open && "flex",
-                contentSized
-                    ? "h-auto max-h-[calc(100dvh-2rem)]"
-                    : "h-[min(600px,calc(100dvh-2rem))]",
                 sizeClassName[size],
                 "border border-gray-300 bg-white",
                 className,
@@ -158,12 +153,7 @@ export function Modal({
                         </button>
                     </div>
                 )}
-                <div
-                    className={cn(
-                        "modal-scroll-body flex min-h-0 flex-col overflow-y-auto px-5",
-                        contentSized ? "flex-none" : "flex-1",
-                    )}
-                >
+                <div className="modal-scroll-body flex min-h-0 flex-1 flex-col overflow-y-auto px-5">
                     {children}
                 </div>
                 {hasFooter && (
