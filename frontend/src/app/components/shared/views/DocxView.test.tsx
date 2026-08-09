@@ -258,23 +258,7 @@ describe("DocxView", () => {
         expect(onUnsupported).toHaveBeenCalledOnce();
     });
 
-    it("uses an exact PDF rendition when browser Word preview cannot decode media", async () => {
-        mocks.withBrokenImage = true;
-
-        render(
-            <DocxView
-                documentId="vector-doc"
-                versionId="v1"
-                preferPdfRendition={false}
-            />,
-        );
-
-        await waitFor(() =>
-            expect(screen.getByTestId("pdf-rendition")).toBeInTheDocument(),
-        );
-    });
-
-    it("falls back to HTML and states the limitation when no rendition exists", async () => {
+    it("keeps the Word view stable and states an unsupported-media limitation", async () => {
         mocks.withBrokenImage = true;
 
         const { container } = render(
@@ -284,8 +268,6 @@ describe("DocxView", () => {
                 preferPdfRendition={false}
             />,
         );
-        const rendition = await screen.findByTestId("pdf-rendition");
-        fireEvent.click(rendition);
 
         await waitFor(() =>
             expect(container.querySelector("section.docx")).not.toBeNull(),

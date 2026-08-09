@@ -309,6 +309,9 @@ export function DocTable({
         loadingRef.current = loading;
         renderAddDocumentsModalRef.current = renderAddDocumentsModal;
     }, [loading, renderAddDocumentsModal]);
+    useEffect(() => {
+        void getPdfJs().catch(() => {});
+    }, []);
     const openAddDocuments = useCallback(() => {
         if (loadingRef.current) return;
         if (renderAddDocumentsModalRef.current) {

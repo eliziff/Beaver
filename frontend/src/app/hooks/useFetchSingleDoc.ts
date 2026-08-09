@@ -93,7 +93,7 @@ export function useFetchSingleDoc(
         error: null,
     }));
     useEffect(() => {
-        if (!documentId || !key || cached?.key === key) return;
+        if (!documentId || !key) return;
         let cancelled = false;
         loadSingleDoc(documentId, versionId, revision)
             .then((loaded) => {
