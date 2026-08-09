@@ -1,6 +1,10 @@
 import { Loader2, Scale } from "lucide-react";
 import { FileTypeIcon } from "../../shared/FileTypeIcon";
-import { displayCitationQuote, formatCitationPage } from "../../shared/types";
+import {
+    citationPinpoint,
+    displayCitationQuote,
+    formatCitationPage,
+} from "../../shared/types";
 import type { Citation } from "../../shared/types";
 import { RESPONSE_GLASS_ANNOTATION, RESPONSE_GLASS_SURFACE } from "./messageStyles";
 type CitationSourceRow = {
@@ -37,7 +41,14 @@ function citationSourceLabel(annotation: Citation): string {
     return annotation.filename;
 }
 export function citationTooltip(annotation: Citation): string {
-    const locator = formatCitationPage(annotation);
+    const source = formatCitationPage(annotation);
+    const pinpoint = citationPinpoint(annotation);
+    const locator =
+        annotation.kind === "case" ||
+        annotation.kind === "a2aj" ||
+        annotation.kind === "public_legal"
+            ? [source, pinpoint].filter(Boolean).join(", ")
+            : pinpoint || source;
     const quote = displayCitationQuote(annotation);
     return locator ? `${locator}: "${quote}"` : `"${quote}"`;
 }
@@ -164,8 +175,10 @@ export function CitationsBlock({
                                     </span>
                                 </button>
                                 <div className="flex shrink-0 flex-wrap justify-end gap-1">
-                                    {row.entries.map(
-                                        (annotation, index) => (
+                                    {row.entries.map((annotation, index) => {
+                                        const pinpoint =
+                                            citationPinpoint(annotation);
+                                        return (
                                             <button
                                                 key={`${row.key}:${index}`}
                                                 type="button"
@@ -182,9 +195,12 @@ export function CitationsBlock({
                                                 )}
                                             >
                                                 {annotation.ref}
+                                                {pinpoint
+                                                    ? ` \u00b7 ${pinpoint}`
+                                                    : ""}
                                             </button>
-                                        ),
-                                    )}
+                                        );
+                                    })}
                                 </div>
                             </div>
                         );

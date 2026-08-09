@@ -28,10 +28,11 @@ import {
 } from "./types";
 import { TOOLS, WORKFLOW_TOOLS } from "./tools/toolSchemas";
 import {
+  createLegalEvidenceCitations,
+  createCitation,
+  isResolvedCitation,
   parseCitationsWithDiagnostics,
   parsePartialCitationObjects,
-  createCitation,
-  citationUrls,
 } from "./citations";
 import { createVisibleStreamSplitter } from "./visibleStream";
 import {
@@ -41,11 +42,6 @@ import {
 import { type TurnEditState, type TurnReadState } from "./tools/documentOps";
 import type { A2AJDocument, A2AJLocatorLookup } from "../a2aj";
 import {
-  addA2AJInlineLinks,
-  a2ajInlineLinkSnapshot,
-} from "../legalSourceLinks";
-import {
-  appendPublicLegalPinpointLinks,
   createPublicLegalSourceState,
   type PublicLegalSourceState,
 } from "./publicLegalSourceState";
@@ -235,29 +231,9 @@ export async function runLLMStream({
   let iterReasoning = "";
   let streamingCitationsBuffer = "";
   let streamedCitationCount = 0;
-  let inlineLinkSnapshotSignature = "";
 
   const emit = (payload: unknown) =>
     write(`data: ${JSON.stringify(payload)}\n\n`);
-  const emitInlineLinkSnapshot = () => {
-    const draft = [
-      ...events.flatMap((event) =>
-        event.type === "content" ? [event.text] : [],
-      ),
-      iterVisibleText,
-    ]
-      .filter(Boolean)
-      .join("\n\n");
-    const snapshot = a2ajInlineLinkSnapshot(
-      draft,
-      a2ajLookups,
-      a2ajDocuments,
-      inlineLinkSnapshotSignature,
-    );
-    if (!snapshot) return;
-    inlineLinkSnapshotSignature = snapshot.signature;
-    emit({ type: "content_snapshot", text: snapshot.text });
-  };
   const emitCitationStreamSnapshot = (
     status: "started" | "partial",
     citations: unknown[],
@@ -271,16 +247,18 @@ export async function runLLMStream({
     const partial = parsePartialCitationObjects(streamingCitationsBuffer);
     if (partial.length <= streamedCitationCount) return;
     streamedCitationCount = partial.length;
-    const citations = partial.map((c) =>
-      createCitation(
-        c,
-        docIndex,
-        courtlistenerTurnState.casesByClusterId,
-        a2ajLookups,
-        a2ajDocuments,
-        publicLegalState,
-      ),
-    );
+    const citations = partial
+      .map((c) =>
+        createCitation(
+          c,
+          docIndex,
+          courtlistenerTurnState.casesByClusterId,
+          a2ajLookups,
+          a2ajDocuments,
+          publicLegalState,
+        ),
+      )
+      .filter(isResolvedCitation);
     emitCitationStreamSnapshot("partial", citations);
   };
 
@@ -288,7 +266,6 @@ export async function runLLMStream({
     onVisible: (visible) => {
       iterVisibleText += visible;
       emit({ type: "content_delta", text: visible });
-      if (visible.includes("\n")) emitInlineLinkSnapshot();
     },
     onOpen: () => {
       streamingCitationsBuffer = "";
@@ -306,7 +283,6 @@ export async function runLLMStream({
       iterVisibleText += tail;
       if (opts.emit ?? true) {
         emit({ type: "content_delta", text: tail });
-        emitInlineLinkSnapshot();
       }
     }
     if (iterVisibleText) {
@@ -537,37 +513,22 @@ export async function runLLMStream({
       .join("\n\n");
   const parsedCitationData = buildCitations
     ? buildCitations(fullText)
-    : parsedCitations.map((c) =>
-        createCitation(
-          c,
-          docIndex,
-          courtlistenerTurnState.casesByClusterId,
-          a2ajLookups,
-          a2ajDocuments,
-          publicLegalState,
-        ),
-      );
-  const a2ajLinked =
-    evidenceAnswer === null
-      ? addA2AJInlineLinks(
-          visibleText,
-          a2ajLookups,
-          parsedCitationData,
-          a2ajDocuments,
+    : parsedCitations
+        .map((c) =>
+          createCitation(
+            c,
+            docIndex,
+            courtlistenerTurnState.casesByClusterId,
+            a2ajLookups,
+            a2ajDocuments,
+            publicLegalState,
+          ),
         )
-      : { text: visibleText, citations: parsedCitationData };
-  const citations = a2ajLinked.citations;
-  const linkedText = appendPublicLegalPinpointLinks(
-    a2ajLinked.text,
-    publicLegalState,
-    citationUrls(citations),
-  );
-  const appendedLinkDelta = linkedText.startsWith(a2ajLinked.text)
-    ? linkedText.slice(a2ajLinked.text.length)
-    : "";
-  if (appendedLinkDelta) {
-    emit({ type: "content_delta", text: appendedLinkDelta });
-  }
+        .filter(isResolvedCitation);
+  const citations = evidenceAnswer
+    ? createLegalEvidenceCitations(legalEvidenceState)
+    : parsedCitationData;
+  const linkedText = visibleText;
   const contentIndexes = events.flatMap((event, index) =>
     event.type === "content" ? [index] : [],
   );

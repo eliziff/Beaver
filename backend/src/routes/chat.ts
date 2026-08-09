@@ -22,6 +22,7 @@ import {
   type AskInputsEvent,
   type AskInputsResponseRequest,
   type ChatMessage,
+  type DocIndex,
 } from "../lib/chat/types";
 import { normalizeAskInputsEvent } from "../lib/chat/askInputs";
 import { isAbortError } from "../lib/llm/abort";
@@ -164,14 +165,12 @@ import {
   appendLocalPdfPinpointLinks,
   providerPdfReferencesForTurn,
 } from "../lib/chat/localPdfEvidenceState";
-import {
-  addA2AJInlineLinks,
-  a2ajInlineLinkSnapshot,
-} from "../lib/legalSourceLinks";
 import type { A2AJDocument, A2AJLocatorLookup } from "../lib/a2aj";
 import {
   citationUrls,
+  createLegalEvidenceCitations,
   createCitation,
+  isResolvedCitation,
   parseCitations,
 } from "../lib/chat/citations";
 import { createVisibleStreamSplitter } from "../lib/chat/visibleStream";
@@ -179,10 +178,7 @@ import { COURTLISTENER_SYSTEM_PROMPT } from "../lib/chat/tools/courtlistenerTool
 import { a2ajActivityLabel } from "../lib/chat/tools/a2ajTools";
 import { PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT } from "../lib/chat/tools/publicLegalSourceTools";
 import type { CourtlistenerToolState } from "../lib/chat/courtlistenerToolRunner";
-import {
-  appendPublicLegalPinpointLinks,
-  createPublicLegalSourceState,
-} from "../lib/chat/publicLegalSourceState";
+import { createPublicLegalSourceState } from "../lib/chat/publicLegalSourceState";
 import {
   createLegalEvidenceTurnState,
   finalizeLegalEvidenceExperiment,
@@ -1581,25 +1577,12 @@ export async function streamAnonymousChat(params: {
   let rawText = "";
   let visibleText = "";
   let contentBoundaryPending = false;
-  let inlineLinkSnapshotSignature = "";
   const a2ajLookups: A2AJLocatorLookup[] = [];
   const a2ajDocuments: A2AJDocument[] = [];
-  const emitInlineLinkSnapshot = () => {
-    const snapshot = a2ajInlineLinkSnapshot(
-      visibleText,
-      a2ajLookups,
-      a2ajDocuments,
-      inlineLinkSnapshotSignature,
-    );
-    if (!snapshot) return;
-    inlineLinkSnapshotSignature = snapshot.signature;
-    sseWrite(res, { type: "content_snapshot", text: snapshot.text });
-  };
   const splitter = createVisibleStreamSplitter({
     onVisible: (visible) => {
       visibleText += visible;
       sseWrite(res, { type: "content_delta", text: visible });
-      if (visible.includes("\n")) emitInlineLinkSnapshot();
     },
   });
   const legalEvidenceState = createLegalEvidenceTurnState();
@@ -1804,7 +1787,6 @@ export async function streamAnonymousChat(params: {
     visibleText += tail;
     if (emit) {
       sseWrite(res, { type: "content_delta", text: tail });
-      emitInlineLinkSnapshot();
     }
   };
   const queueContentBoundary = () => {
@@ -3443,41 +3425,47 @@ export async function streamAnonymousChat(params: {
         update_count: continuousWorkingSetUpdates,
       });
     }
-    const parsedCitations = parseCitations(rawText).map((citation) =>
-      createCitation(
-        citation,
-        {},
-        courtlistenerState.casesByClusterId,
-        a2ajLookups,
-        a2ajDocuments,
-        publicLegalState,
-      ),
+    const citationDocuments = allowedDocumentIds
+      ? await listLocalDocumentsById(userId, allowedDocumentIds)
+      : (await listLocalLibrary(userId, "file")).documents;
+    const citationDocIndex: DocIndex = Object.fromEntries(
+      citationDocuments.map((document, index) => [
+        `doc-${index}`,
+        {
+          document_id: document.id,
+          filename: document.filename,
+          version_id: document.current_version_id,
+          version_number: document.active_version_number,
+        },
+      ]),
     );
+    const parsedCitations = parseCitations(rawText)
+      .map((citation) =>
+        createCitation(
+          citation,
+          citationDocIndex,
+          courtlistenerState.casesByClusterId,
+          a2ajLookups,
+          a2ajDocuments,
+          publicLegalState,
+        ),
+      )
+      .filter(isResolvedCitation);
     const finalEvidenceAnswer = renderLegalEvidenceAnswer(legalEvidenceState);
-    const a2ajLinked =
-      finalEvidenceAnswer === null
-        ? addA2AJInlineLinks(
-            visibleText.trimEnd(),
-            a2ajLookups,
-            parsedCitations,
-            a2ajDocuments,
-          )
-        : { text: finalEvidenceAnswer, citations: parsedCitations };
-    const citations = a2ajLinked.citations;
+    const citations = finalEvidenceAnswer
+      ? createLegalEvidenceCitations(legalEvidenceState)
+      : parsedCitations;
+    const citationBaseText = finalEvidenceAnswer ?? visibleText.trimEnd();
     const urls = citationUrls(citations);
     const linkedText = await appendLocalPdfPinpointLinks(
-      appendPublicLegalPinpointLinks(
-        a2ajLinked.text,
-        publicLegalState,
-        urls,
-      ),
+      citationBaseText,
       userId,
       localPdfEvidenceHandles,
       allowedDocumentIds,
       urls,
     );
-    const appendedLinkDelta = linkedText.startsWith(a2ajLinked.text)
-      ? linkedText.slice(a2ajLinked.text.length)
+    const appendedLinkDelta = linkedText.startsWith(citationBaseText)
+      ? linkedText.slice(citationBaseText.length)
       : "";
     if (appendedLinkDelta) {
       sseWrite(res, { type: "content_delta", text: appendedLinkDelta });

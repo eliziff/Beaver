@@ -1,12 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { MarkdownContent } from "./MarkdownContent";
+import type { Citation } from "../../shared/types";
 
-function renderMarkdown(text: string) {
+function renderMarkdown(text: string, inlineCitationTargets: Citation[] = []) {
     return render(
         <MarkdownContent
             text={text}
-            inlineCitationTargets={[]}
+            inlineCitationTargets={inlineCitationTargets}
             caseCitations={new Map()}
             caseOpinions={new Map()}
         />,
@@ -72,6 +73,31 @@ describe("MarkdownContent links", () => {
                 name: "Franchises Act, SBC 2015, c 35, s. 14",
             }),
         ).toHaveClass("rounded-full");
+    });
+
+    it("keeps a verified journal page inside the citation pill", () => {
+        renderMarkdown("Quoted analysis `\u00a70\u00a7`.", [
+            {
+                type: "citation_data",
+                kind: "public_legal",
+                ref: 1,
+                provider: "journal",
+                identifier: "article-7",
+                title: "A Fixture Article",
+                url: "https://example.test/article.pdf#page=2",
+                locator_kind: "page",
+                locator: "page101",
+                pinpoint: "p. 101",
+                quotes: [{ quote: "Quoted analysis" }],
+            },
+        ]);
+
+        const pill = document.querySelector('[data-citation-ref="1"]');
+        expect(pill).toHaveTextContent("1 \u00b7 p. 101");
+        expect(pill).toHaveAttribute(
+            "title",
+            'A Fixture Article, p. 101: "Quoted analysis"',
+        );
     });
 
     it("moves saved same-paragraph quote fragments onto one citation pill", () => {
