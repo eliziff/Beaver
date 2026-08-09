@@ -758,6 +758,24 @@ describe("verified legal-source links", () => {
     expect(result.url).not.toContain("untrusted.example");
   });
 
+  it("uses verified range boundaries for long CanLII paragraphs", () => {
+    const quote =
+      "[41] The evidence also established that, because fentanyl can be inhaled and absorbed through the skin, it presents serious risks to anyone who handles it or is near to it. For this reason, the Centre of Forensic Sciences has implemented strict safety guidelines for handling fentanyl.";
+    const result = buildLegalSourcePinpointUrl(
+      {
+        url: "https://www.canlii.org/en/on/onca/doc/2021/2021onca518/2021onca518.html",
+        anchor: "par41",
+        blockText: quote,
+        documentText: quote,
+      },
+      [quote],
+    );
+
+    expect(result).toBe(
+      "https://www.canlii.org/en/on/onca/doc/2021/2021onca518/2021onca518.html#par41:~:text=The%20evidence%20also%20established%20that,safety%20guidelines%20for%20handling%20fentanyl.",
+    );
+  });
+
   it("uses a fetched-document URL only when server evidence verifies it", () => {
     const lookup = lookupFixture({
       text: "Paragraph 42 contains a different proposition entirely.",

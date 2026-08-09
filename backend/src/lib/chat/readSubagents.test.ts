@@ -429,4 +429,46 @@ describe("reading agents", () => {
       "Continue revising",
     );
   });
+
+  it("accepts a tool-only Codex ending after grounding passes", async () => {
+    const evidenceState = leaseEvidenceState();
+    mocks.stream.mockImplementationOnce(async (params) => {
+      await params.runTools?.([{
+        id: "submit-only",
+        name: "submit_grounded_answer",
+        input: {
+          claims: [{
+            text: "The lease renews for successive one-year terms.",
+            evidence_ids: ["e_lease"],
+            kind: "conclusion",
+            premise_source: null,
+            premise_text: null,
+          }],
+        },
+      }]);
+      throw new Error("Codex exec returned no response.");
+    });
+
+    const result = await runReadSubagent({
+      call: {
+        id: "read-tool-only",
+        name: "delegate_read",
+        input: { task: "Find the renewal clause.", scope: "The lease" },
+      },
+      tools: [LEGAL_EVIDENCE_SUBMIT_TOOL],
+      evidenceState,
+      runTools: async (calls) => calls.map((call) => {
+        const submitted = submitLegalEvidenceAnswer(call.input, evidenceState);
+        return {
+          tool_use_id: call.id,
+          status: submitted.ok ? ("ok" as const) : ("error" as const),
+          content: JSON.stringify(submitted),
+          terminal: submitted.terminal,
+        };
+      }),
+    });
+
+    expect(result.status).toBe("ok");
+    expect(result.content).toContain("e_lease");
+  });
 });

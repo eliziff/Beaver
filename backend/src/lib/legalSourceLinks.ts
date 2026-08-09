@@ -124,6 +124,9 @@ export type CourtlistenerCaseEvidence = {
 type A2AJLookupBlock = NonNullable<A2AJLocatorLookup["block"]>;
 
 const CONTEXT_WINDOWS = [4, 2, 8, 12, 16, 24, 32];
+const LONG_FRAGMENT_WORDS = 30;
+const LONG_FRAGMENT_CHARS = 220;
+const RANGE_BOUNDARY_WORDS = 5;
 // Decisia/Norma deployments (SCC, FCA, FC, TCC, ONCA, NSCA, tribunals, and
 // decisia.lexum.com tenants). Their default document URL is an iframe shell
 // with no text and no anchors; `?iframe=true` serves the document inline
@@ -209,6 +212,64 @@ function textDirective(target: string, prefix = "", suffix = "") {
 
 function textRangeDirective(start: string, end: string) {
   return `text=${encodeTextFragment(normalizeWhitespace(start))},${encodeTextFragment(normalizeWhitespace(end))}`;
+}
+
+function textRangeTargets(block: SourceDoc, span: SourceDocQuoteSpan) {
+  let firstWord = span.firstWord;
+  const secondWord = block.tokens[firstWord + 1];
+  if (
+    secondWord &&
+    /^(?:\[\s*)?\d{1,4}(?:\s*\])?[.)]?\s*$/u.test(
+      block.text.slice(span.start, secondWord.start),
+    )
+  ) {
+    firstWord += 1;
+  }
+  const words = block.tokens.slice(firstWord, span.lastWord + 1);
+  if (words.length < RANGE_BOUNDARY_WORDS * 2) return null;
+  const count = Math.min(
+    RANGE_BOUNDARY_WORDS,
+    Math.max(3, Math.floor(words.length / 3)),
+  );
+  const first = words.slice(0, count);
+  const last = words.slice(-count);
+  if (first.at(-1)!.end >= last[0].start) return null;
+  return {
+    start: normalizeWhitespace(
+      block.text.slice(first[0].start, first.at(-1)!.end),
+    ),
+    end: normalizeWhitespace(
+      block.text.slice(last[0].start, span.end),
+    ),
+  };
+}
+
+function rangeDirectiveMatchCount(
+  document: SourceDoc,
+  start: string,
+  end: string,
+) {
+  const starts = sourceDocPhraseSpans(document, sourceDocQuoteWords(start), {
+    sameLine: true,
+    limit: 2,
+  });
+  const ends = sourceDocPhraseSpans(document, sourceDocQuoteWords(end), {
+    sameLine: true,
+  });
+  let count = 0;
+  for (const startSpan of starts) {
+    if (
+      ends.some(
+        (endSpan) =>
+          endSpan.start >= startSpan.end &&
+          !document.text.slice(startSpan.end, endSpan.end).includes("\n"),
+      )
+    ) {
+      count += 1;
+      if (count === 2) break;
+    }
+  }
+  return count;
 }
 
 function locatorAnchor(
@@ -391,6 +452,22 @@ function buildDirective(
   if (!targetWords.length) return null;
 
   const targetCount = directiveMatchCount(document, target);
+  if (
+    targetCount === 1 &&
+    (targetWords.length >= LONG_FRAGMENT_WORDS ||
+      target.length >= LONG_FRAGMENT_CHARS)
+  ) {
+    const range = textRangeTargets(block, span);
+    if (
+      range &&
+      rangeDirectiveMatchCount(document, range.start, range.end) === 1
+    ) {
+      return {
+        directive: textRangeDirective(range.start, range.end),
+        start: span.start,
+      };
+    }
+  }
   const needsContext =
     targetWords.length <= 3 ||
     targetCount !== 1 ||
