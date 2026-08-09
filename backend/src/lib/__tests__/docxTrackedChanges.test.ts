@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyTrackedEdits,
   extractDocxBodyText,
+  extractTrackedChangeIds,
   insertTrackedBlocks,
   resolveTrackedChange,
 } from "../docxTrackedChanges";
@@ -29,12 +30,15 @@ describe("applyTrackedEdits minimal clusters", () => {
     ]);
 
     expect(edit.errors).toEqual([]);
+    expect(edit.changes).toHaveLength(1);
+    expect(edit.changes[0].deletedText).toContain("3");
+    expect(edit.changes[0].deletedText).toContain("i");
+    expect(edit.changes[0].insertedText).toBe("y");
+    const revisionIds = await extractTrackedChangeIds(edit.bytes);
     expect(
-      edit.changes.map((c) => ({ del: c.deletedText, ins: c.insertedText })),
-    ).toEqual([
-      { del: "3", ins: "" },
-      { del: "i", ins: "y" },
-    ]);
+      new Set(revisionIds.map((revision) => `${revision.kind}:${revision.w_id}`))
+        .size,
+    ).toBe(2);
     // The untouched middle stays out of the tracked ranges entirely.
     await expect(extractDocxBodyText(edit.bytes)).resolves.toContain(
       "at paras 332-34 and the answer in R v Smyth",
@@ -56,6 +60,36 @@ describe("applyTrackedEdits minimal clusters", () => {
     expect(edit.changes).toHaveLength(1);
     expect(edit.changes[0].deletedText).toBe("plaintiff");
     expect(edit.changes[0].insertedText).toBe("defendant");
+  });
+
+  it("tracks one shape-preserving edit across adjacent paragraphs", async () => {
+    const bytes = await draft("First old term.\n\nSecond old term.\n\nThird old term.");
+    const edit = await applyTrackedEdits(bytes, [
+      {
+        find: "First old term.\nSecond old term.\nThird old term.",
+        replace: "First new term.\nSecond new term.\nThird new term.",
+        context_before: "",
+        context_after: "",
+      },
+    ]);
+
+    expect(edit.errors).toEqual([]);
+    expect(edit.changes.length).toBeGreaterThan(0);
+    await expect(extractDocxBodyText(edit.bytes)).resolves.toContain(
+      "First new term.\nSecond new term.\nThird new term.",
+    );
+
+    const ids = edit.changes.flatMap((change) =>
+      [change.delId, change.insId].filter((id): id is string => Boolean(id)),
+    );
+    const accepted = await resolveTrackedChange(edit.bytes, ids, "accept");
+    const rejected = await resolveTrackedChange(edit.bytes, ids, "reject");
+    await expect(extractDocxBodyText(accepted.bytes)).resolves.toContain(
+      "First new term.\nSecond new term.\nThird new term.",
+    );
+    await expect(extractDocxBodyText(rejected.bytes)).resolves.toContain(
+      "First old term.\nSecond old term.\nThird old term.",
+    );
   });
 });
 

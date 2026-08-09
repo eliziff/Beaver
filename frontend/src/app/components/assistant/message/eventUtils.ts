@@ -56,10 +56,12 @@ const TOOLS: Record<string, readonly [string, string?]> = {
     toa_job_status: ["Creating authorities", "automation_run"],
     library_link_docx_citations: ["Adding citation links", "automation_run"],
     library_fix_docx_supras: ["Fixing supra references", "automation_run"],
+    submit_grounded_answer: ["Finalizing answer"],
 };
 
 const GENERIC_LEGAL_SEARCH =
     /^(?:searching|searched)\s+(?:canadian\s+)?(?:cases?|case law|legislation|legal sources)[.!]*$/iu;
+const INTERNAL_REASONING = /\bALL_TOOLS\b/u;
 
 function toolLabel(name: string) {
     if (TOOLS[name]) return TOOLS[name][0];
@@ -122,6 +124,7 @@ export function activityView(
 ): ActivityView | null {
     if (event.type === "reasoning") {
         const markdown = event.text.replace(/\r\n?/gu, "\n").trim();
+        if (INTERNAL_REASONING.test(markdown)) return null;
         const label = plainText(markdown).slice(0, 120);
         return label
             ? { label, markdown, busy: !!event.isStreaming }
@@ -370,6 +373,11 @@ export function dedupeActivityEntries<
                     GENERIC_LEGAL_SEARCH.test(
                         plainText(entry.event.text),
                     ))) ||
+            (entry.event.type === "reasoning" &&
+                INTERNAL_REASONING.test(entry.event.text)) ||
+            (entry.event.type === "reasoning" &&
+                nextEntry?.event.type === "tool_call_start" &&
+                nextEntry.event.name === "submit_grounded_answer") ||
             (entry.event.type === "thinking" && result.length > 0) ||
             (entry.event.type === "tool_call_start" &&
                 concreteFamilies.has(family)) ||

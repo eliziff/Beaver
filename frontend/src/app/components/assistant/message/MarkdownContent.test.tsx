@@ -93,7 +93,8 @@ describe("MarkdownContent links", () => {
         ]);
 
         const pill = document.querySelector('[data-citation-ref="1"]');
-        expect(pill).toHaveTextContent("1 \u00b7 p. 101");
+        expect(pill).toHaveTextContent("A Fixture Article, p. 101");
+        expect(pill).toHaveClass("rounded-full", "bg-red-50", "text-red-700");
         expect(pill).toHaveAttribute(
             "title",
             'A Fixture Article, p. 101: "Quoted analysis"',

@@ -83,6 +83,7 @@ export interface Chat {
   project_id: string | null;
   user_id: string;
   transcript_version?: number;
+  turn_in_progress?: boolean;
   creator_display_name?: string | null;
   title: string | null;
   created_at: string;
@@ -435,6 +436,7 @@ type PublicLegalCitation = LegalCitationLocator & {
   provider: "tna" | "govuk-et" | "govinfo" | "journal";
   identifier: string;
   title?: string | null;
+  citation?: string | null;
   url?: string | null;
   quotes: { quote: string }[];
 };

@@ -147,9 +147,10 @@ export function useAssistantChat({
     }));
   };
   const cancel = () => {
-    if (abortControllerRef.current) {
+    if (abortControllerRef.current || isResponseLoading) {
       if (chatId) void stopChat(chatId).catch(() => undefined);
-      abortControllerRef.current.abort();
+      transcriptPollGenerationRef.current += 1;
+      abortControllerRef.current?.abort();
       publishEvents(finishAssistantStreamEvents(eventsRef.current));
       setIsResponseLoading(false);
     }
@@ -163,13 +164,13 @@ export function useAssistantChat({
     );
     publishEvents(snapshot, { content: "" });
   };
-  const pollForCompletedAnonymousTurn = (
+  const pollForCompletedTurn = (
     targetChatId: string,
     baselineVersion: number,
   ) => {
     const generation = ++transcriptPollGenerationRef.current;
     void (async () => {
-      for (let attempt = 0; attempt < 60; attempt += 1) {
+      while (generation === transcriptPollGenerationRef.current) {
         if (generation !== transcriptPollGenerationRef.current) return;
         try {
           const latest = await getChat(targetChatId);
@@ -177,11 +178,12 @@ export function useAssistantChat({
             latest.chat.transcript_version ?? baselineVersion;
           const last = latest.messages[latest.messages.length - 1];
           if (
-            latestVersion > baselineVersion &&
-            last?.role === "assistant"
+            (latestVersion > baselineVersion && last?.role === "assistant") ||
+            latest.chat.turn_in_progress === false
           ) {
             transcriptVersionRef.current = latestVersion;
             setMessages(latest.messages);
+            setIsResponseLoading(false);
             void loadChats();
             return;
           }
@@ -190,6 +192,24 @@ export function useAssistantChat({
         await new Promise<void>((resolve) => setTimeout(resolve, 1_000));
       }
     })();
+  };
+  const resumeRunningTurn = (
+    targetChatId: string,
+    baselineVersion: number,
+  ) => {
+    setIsResponseLoading(true);
+    setMessages((current) => {
+      if (current.at(-1)?.role === "assistant") return current;
+      return [
+        ...current,
+        {
+          role: "assistant",
+          content: "",
+          events: [{ type: "thinking", isStreaming: true }],
+        },
+      ];
+    });
+    pollForCompletedTurn(targetChatId, baselineVersion);
   };
   const handleChat = async (
     message: Message,
@@ -360,7 +380,7 @@ export function useAssistantChat({
           }
           setMessages(reloaded);
           if (conflict.code === "chat_turn_in_progress") {
-            pollForCompletedAnonymousTurn(chatId, currentVersion);
+            pollForCompletedTurn(chatId, currentVersion);
           }
           setIsResponseLoading(false);
           return null;
@@ -557,7 +577,7 @@ export function useAssistantChat({
         );
         const interruptedChatId = streamedChatId || chatId;
         if (isAnonymousMode && interruptedChatId) {
-          pollForCompletedAnonymousTurn(
+          pollForCompletedTurn(
             interruptedChatId,
             transcriptVersionRef.current,
           );
@@ -637,6 +657,7 @@ export function useAssistantChat({
         transcriptVersionRef.current = version;
       }
     },
+    resumeRunningTurn,
     cancel,
     chatId,
   };

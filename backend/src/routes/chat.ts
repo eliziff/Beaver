@@ -3822,7 +3822,7 @@ chatRouter.get("/:chatId", async (req, res) => {
     const { messages, ...chatData } = chat;
     const visible = visibleAnonymousMessages(messages);
     res.json({
-      chat: chatData,
+      chat: { ...chatData, turn_in_progress: chatTurnInProgress(chatId) },
       messages: await hydrateLocalEditStatuses(visible, userId),
     });
     return;
@@ -3839,7 +3839,10 @@ chatRouter.get("/:chatId", async (req, res) => {
     .order("created_at", { ascending: true });
 
   const hydrated = await hydrateEditStatuses(messages ?? [], db);
-  res.json({ chat, messages: hydrated });
+  res.json({
+    chat: { ...chat, turn_in_progress: chatTurnInProgress(chatId) },
+    messages: hydrated,
+  });
 });
 
 chatRouter.post("/:chatId/stop", async (req, res) => {
