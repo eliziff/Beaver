@@ -1,7 +1,6 @@
 import {
     lazy,
     Suspense,
-    useEffect,
     type ComponentProps,
 } from "react";
 import { preloadDocxBytes } from "@/app/hooks/useFetchDocxBytes";
@@ -55,11 +54,6 @@ export function DocumentViewer({
     versionId,
     ...options
 }: DocumentViewerProps) {
-    useEffect(() => {
-        if (kind === "docx") {
-            void preloadDocxViewer(documentId, versionId).catch(() => {});
-        }
-    }, [documentId, kind, versionId]);
     const renderer =
         kind === "docx" ? (
             <DocxRenderer

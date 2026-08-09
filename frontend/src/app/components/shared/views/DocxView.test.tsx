@@ -8,7 +8,6 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-    apiFetch: vi.fn(),
     parseAsync: vi.fn(),
     renderDocument: vi.fn(),
     useFetchDocxBytes: vi.fn(),
@@ -23,10 +22,6 @@ vi.mock("docx-preview", () => ({
 
 vi.mock("@/app/hooks/useFetchDocxBytes", () => ({
     useFetchDocxBytes: mocks.useFetchDocxBytes,
-}));
-
-vi.mock("@/app/lib/beaverApi", () => ({
-    apiFetch: mocks.apiFetch,
 }));
 
 vi.mock("./PdfView", () => ({
@@ -69,9 +64,22 @@ describe("DocxView", () => {
             loading: false,
             error: null,
         });
-        mocks.parseAsync.mockImplementation(async () => ({}));
+        mocks.parseAsync.mockImplementation(async () => {
+            if (!mocks.withTrackedChanges) return {};
+            return {
+                documentPart: {
+                    _xmlDocument: new DOMParser().parseFromString(
+                        '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:ins w:id="17" /></w:body></w:document>',
+                        "application/xml",
+                    ),
+                    body: {
+                        children: [{ type: "inserted", id: "17", children: [] }],
+                    },
+                },
+            };
+        });
         mocks.renderDocument.mockImplementation(
-            async (_doc: unknown, container: HTMLElement) => {
+            async (doc: any, container: HTMLElement) => {
                 container.innerHTML = "";
                 const wrapper = document.createElement("div");
                 wrapper.className = "docx-wrapper";
@@ -83,7 +91,10 @@ describe("DocxView", () => {
                         value: 816,
                     });
                     if (index === 0 && mocks.withTrackedChanges) {
-                        page.appendChild(document.createElement("ins"));
+                        const change = document.createElement("ins");
+                        change.dataset.wId =
+                            doc.documentPart.body.children[0].id;
+                        page.appendChild(change);
                     }
                     if (index === 0 && mocks.withBrokenImage) {
                         const frame = document.createElement("span");
@@ -161,7 +172,6 @@ describe("DocxView", () => {
             expect(page).not.toHaveAttribute("data-page-number");
             expect(page).not.toHaveAttribute("aria-label");
         }
-        expect(mocks.apiFetch).not.toHaveBeenCalled();
     });
 
     it("opens a known PDF rendition without fetching or rendering DOCX", () => {
@@ -182,14 +192,8 @@ describe("DocxView", () => {
         expect(mocks.renderDocument).not.toHaveBeenCalled();
     });
 
-    it("reuses tracked-change IDs for the same document version", async () => {
+    it("keeps tracked-change IDs in the browser parse", async () => {
         mocks.withTrackedChanges = true;
-        mocks.apiFetch.mockResolvedValue({
-            ok: true,
-            json: async () => ({
-                ids: [{ kind: "ins", w_id: "17" }],
-            }),
-        });
 
         const firstReady = vi.fn();
         const first = render(
@@ -220,9 +224,7 @@ describe("DocxView", () => {
         );
         await waitFor(() => expect(secondReady).toHaveBeenCalledOnce());
 
-        expect(mocks.apiFetch).toHaveBeenCalledOnce();
-        // The same bytes are parsed once and re-rendered from cache.
-        expect(mocks.parseAsync).toHaveBeenCalledOnce();
+        expect(mocks.parseAsync).toHaveBeenCalledTimes(2);
         expect(mocks.renderDocument).toHaveBeenCalledTimes(2);
     });
 
@@ -242,7 +244,7 @@ describe("DocxView", () => {
             scrollWidth: { configurable: true, value: 1000 },
         });
 
-        fitDocxPages(container, viewport);
+        fitDocxPages([page], viewport);
 
         expect(page.dataset.docxNaturalWidth).toBe("1000");
         expect(Number(page.style.zoom)).toBeCloseTo(0.46);
@@ -259,7 +261,7 @@ describe("DocxView", () => {
         });
 
         const onUnsupported = vi.fn();
-        quietBrokenDocxImages(container, onUnsupported);
+        quietBrokenDocxImages([image], onUnsupported);
         image.dispatchEvent(new Event("error"));
 
         expect(image).toHaveClass("docx-media-unavailable");

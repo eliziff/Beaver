@@ -2,39 +2,22 @@ const REF_MARK = "dxnr-";
 const BODY_MARK = "dxnb-";
 const REF_ID = /^dxnr-([nc])([fe])\d+-(.+)$/;
 const BODY_ID = /^dxnb-([nc])([fe])-(.+)$/;
+const ELEMENT_NODE = 1;
 interface ModelNode {
     type?: string;
     id?: string;
     name?: string;
     noteType?: string;
+    customMarkFollows?: boolean;
     children?: ModelNode[];
 }
-interface RawPart {
-    path?: string;
-    _package?: { load(path: string): Promise<unknown> };
-}
 export interface DocxNoteModel {
-    documentPart?: RawPart & { body?: ModelNode };
+    documentPart?: { body?: ModelNode };
     footnotesPart?: { notes?: ModelNode[] };
     endnotesPart?: { notes?: ModelNode[] };
 }
-async function customMarkedNotes(doc: DocxNoteModel): Promise<Set<string>> {
-    const marked = new Set<string>();
-    const part = doc.documentPart;
-    if (!part?.path || !part._package) return marked;
-    const xml: unknown = await part._package.load(part.path).catch(() => null);
-    if (typeof xml !== "string") return marked;
-    for (const match of xml.matchAll(
-        /<w:(footnote|endnote)Reference\b[^>]*>/g,
-    )) {
-        if (!/\bw:customMarkFollows="(?:1|true|on)"/.test(match[0])) continue;
-        const id = /\bw:id="(-?\d+)"/.exec(match[0])?.[1];
-        if (id) marked.add(`${match[1][0]}-${id}`);
-    }
-    return marked;
-}
-export async function tagDocxNotes(doc: DocxNoteModel): Promise<void> {
-    const custom = await customMarkedNotes(doc);
+export function tagDocxMarkers(doc: DocxNoteModel): void {
+    const custom = new Set<string>();
     const flagFor = (key: string) => (custom.has(key) ? "c" : "n");
     let seq = 0;
     const tag = (nodes: ModelNode[]): ModelNode[] => {
@@ -49,12 +32,14 @@ export async function tagDocxNotes(doc: DocxNoteModel): Promise<void> {
                       : null;
             if (kind) {
                 const key = `${kind}-${node.id}`;
+                if (node.customMarkFollows) custom.add(key);
                 out ??= nodes.slice(0, i);
                 out.push({
                     type: "bookmarkStart",
                     name: `${REF_MARK}${flagFor(key)}${kind}${seq++}-${node.id}`,
                 });
-            } else if (node.children?.length) {
+            }
+            if (node.children?.length) {
                 node.children = tag(node.children);
             }
             out?.push(node);
@@ -78,13 +63,35 @@ export async function tagDocxNotes(doc: DocxNoteModel): Promise<void> {
         }
     }
 }
-export function linkDocxNotes(container: HTMLElement): void {
+export function finalizeDocxDom(container: HTMLElement): {
+    pages: HTMLElement[];
+    images: HTMLImageElement[];
+} {
     const doc = container.ownerDocument;
+    const pages: HTMLElement[] = [];
+    const images: HTMLImageElement[] = [];
+    const refs: HTMLElement[] = [];
+    const bodies: HTMLElement[] = [];
+    const walker = doc.createTreeWalker(container, ELEMENT_NODE);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const element = node as HTMLElement;
+        if (
+            element.tagName === "SECTION" &&
+            element.classList.contains("docx") &&
+            element.parentElement?.classList.contains("docx-wrapper")
+        ) {
+            pages.push(element);
+        } else if (element.tagName === "IMG") {
+            images.push(element as HTMLImageElement);
+        } else if (element.id.startsWith(REF_MARK)) {
+            refs.push(element);
+        } else if (element.id.startsWith(BODY_MARK)) {
+            bodies.push(element);
+        }
+    }
     const numbers = new Map<string, number>();
     const counters: Record<string, number> = { f: 0, e: 0 };
-    for (const mark of container.querySelectorAll<HTMLElement>(
-        `span[id^="${REF_MARK}"]`,
-    )) {
+    for (const mark of refs) {
         const parsed = REF_ID.exec(mark.id);
         const sup = mark.nextElementSibling;
         mark.remove();
@@ -111,9 +118,7 @@ export function linkDocxNotes(container: HTMLElement): void {
     }
     const rendered = new Set<string>();
     const lists = new Set<HTMLElement>();
-    for (const mark of container.querySelectorAll<HTMLElement>(
-        `span[id^="${BODY_MARK}"]`,
-    )) {
+    for (const mark of bodies) {
         const parsed = BODY_ID.exec(mark.id);
         const item = mark.closest("li");
         if (!parsed || !item) {
@@ -144,4 +149,5 @@ export function linkDocxNotes(container: HTMLElement): void {
         if (list.childElementCount === 0) list.remove();
         else list.classList.add("docx-notes");
     }
+    return { pages, images };
 }
