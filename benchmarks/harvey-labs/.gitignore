@@ -208,6 +208,7 @@ __marimo__/
 
 # Project-specific
 results/
+run-logs/
 .claude/
 ~$*
 .DS_Store
