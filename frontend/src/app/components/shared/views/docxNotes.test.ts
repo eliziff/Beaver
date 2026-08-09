@@ -10,30 +10,34 @@ import { parseAsync, renderDocument } from "docx-preview";
 import { describe, expect, it } from "vitest";
 
 import { DOCX_RENDER_OPTIONS } from "./DocxView";
-import { linkDocxNotes, tagDocxNotes } from "./docxNotes";
+import { finalizeDocxDom, tagDocxMarkers } from "./docxNotes";
 
 /**
  * Mirrors DocxView's pipeline: parse once, tag, render, link.
- * `editXml` rewrites `document.xml` on the way past, for attributes the
- * `docx` builder cannot emit.
+ * `customMarkFirst` supplies the one run property the fixture builder cannot emit.
  */
 async function renderFixture(
     bytes: ArrayBuffer,
-    editXml?: (xml: string) => string,
+    customMarkFirst = false,
 ): Promise<HTMLElement> {
     const doc = await parseAsync(bytes, DOCX_RENDER_OPTIONS);
-    if (editXml) {
-        const pkg = doc.documentPart._package;
-        const load = pkg.load.bind(pkg);
-        pkg.load = async (path: string) => {
-            const xml = await load(path);
-            return typeof xml === "string" ? editXml(xml) : xml;
+    if (customMarkFirst) {
+        const visit = (nodes: any[]): boolean => {
+            for (const node of nodes) {
+                if (node.type === "footnoteReference") {
+                    node.customMarkFollows = true;
+                    return true;
+                }
+                if (node.children && visit(node.children)) return true;
+            }
+            return false;
         };
+        visit(doc.documentPart.body.children);
     }
-    await tagDocxNotes(doc);
+    tagDocxMarkers(doc);
     const container = document.createElement("div");
     await renderDocument(doc, container, undefined, DOCX_RENDER_OPTIONS);
-    linkDocxNotes(container);
+    finalizeDocxDom(container);
     return container;
 }
 
@@ -266,11 +270,7 @@ describe("DOCX notes", () => {
         });
         const container = await renderFixture(
             await Packer.toArrayBuffer(source),
-            (xml) =>
-                xml.replace(
-                    "<w:footnoteReference ",
-                    '<w:footnoteReference w:customMarkFollows="1" ',
-                ),
+            true,
         );
 
         // The star reference renders no number at all, and does not consume

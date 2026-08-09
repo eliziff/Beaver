@@ -15,7 +15,6 @@ import {
   resolveLocalTrackedEdit,
 } from "../lib/localDocumentStore";
 import { contentTypeForDocumentType } from "../lib/documentTypes";
-import { extractTrackedChangeIds } from "../lib/docxTrackedChanges";
 import { buildContentDisposition } from "../lib/storage";
 import { singleFileUpload } from "../lib/upload";
 import { imageValidationError } from "../lib/llm/images";
@@ -450,20 +449,6 @@ localDocumentsRouter.delete(
       deleted_version_id: req.params.versionId,
       current_version_id: result.currentVersionId,
     });
-  }),
-);
-
-localDocumentsRouter.get(
-  "/:documentId/tracked-change-ids",
-  asyncRoute(async (req, res) => {
-    const file = await getLocalVersionFile(
-      res.locals.userId as string,
-      req.params.documentId,
-      requestedVersionId(req),
-    );
-    if (!file) return void res.status(404).json({ detail: "Document not found" });
-    if (file.fileType !== "docx") return void res.json({ ids: [] });
-    res.json({ ids: await extractTrackedChangeIds(await readFile(file.path)) });
   }),
 );
 

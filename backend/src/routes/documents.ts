@@ -11,10 +11,7 @@ import {
   versionStorageKey,
 } from "../lib/storage";
 import { docxToPdf, convertedPdfKey } from "../lib/convert";
-import {
-  extractTrackedChangeIds,
-  resolveTrackedChange,
-} from "../lib/docxTrackedChanges";
+import { resolveTrackedChange } from "../lib/docxTrackedChanges";
 import { buildDownloadUrl } from "../lib/downloadTokens";
 import {
   attachActiveVersionPaths,
@@ -875,32 +872,6 @@ documentsRouter.delete(
       current_version_id: nextCurrentVersionId,
       deleted_at: deletedAt,
     });
-  },
-);
-
-// Returns the ordered list of { kind, w_id } for every w:ins / w:del in
-// the current (or specified) version's document.xml. The frontend uses
-// this to tag each rendered <ins>/<del> with data-w-id, since
-// docx-preview drops the w:id attribute during parsing.
-documentsRouter.get(
-  "/:documentId/tracked-change-ids",
-  async (req, res) => {
-    const { documentId } = req.params;
-    const db = createServerSupabase();
-    if (!(await requireDoc(res, db, documentId))) return;
-
-    const active = await loadActiveVersion(documentId, db, versionIdQuery(req));
-    if (!active)
-      return void res.status(404).json({ detail: "No file available" });
-
-    const raw = await downloadFile(active.storage_path);
-    if (!raw)
-      return void res
-        .status(404)
-        .json({ detail: "Document bytes not available" });
-
-    const ids = await extractTrackedChangeIds(Buffer.from(raw));
-    res.json({ ids });
   },
 );
 
