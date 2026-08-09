@@ -11,8 +11,10 @@ import {
   buildA2AJPinpointUrl,
   buildLegalSourceMultiPassageUrl,
   formatLegalLocator,
+  hasCanadianDecisionLink,
   legalSourceQuoteCandidates,
 } from "../legalSourceLinks";
+import { hasCitationInText } from "../citationKey";
 import {
   createTextSourceDoc,
   sourceDocContainsQuote,
@@ -1893,6 +1895,17 @@ async function finalizeLegalEvidenceExperimentUnsafe(args: {
   const { state } = args;
   let usage = emptyUsage();
   let modelCalls = 0;
+  if (
+    !state.mode &&
+    !state.answer &&
+    (hasCitationInText(args.draft) ||
+      hasCanadianDecisionLink(args.draft) ||
+      [...state.evidence.values()].some(
+        ({ receipt }) => receipt.provider !== "library",
+      ))
+  ) {
+    state.mode = "citation_structure";
+  }
   if (!state.mode)
     return { passed: true, modelCalls, usage, diagnostic: null };
   state.attempted = true;

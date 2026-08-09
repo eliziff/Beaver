@@ -193,7 +193,14 @@ const withoutPlaceholders = (events: AssistantEvent[]) =>
 const finalizeReasoning = (events: AssistantEvent[]) => {
   const last = events.at(-1);
   return last?.type === "reasoning" && last.isStreaming
-    ? [...events.slice(0, -1), { type: "reasoning" as const, text: last.text }]
+    ? [
+        ...events.slice(0, -1),
+        {
+          type: "reasoning" as const,
+          text: last.text,
+          ...(last.debug && { debug: true }),
+        },
+      ]
     : events;
 };
 const append = (events: AssistantEvent[], event: AssistantEvent) => [
@@ -223,7 +230,9 @@ export function assistantEventKey(event: AssistantEvent) {
   if (event.type === "mcp_tool_call")
     return `mcp:${event.openai_tool_name}`;
   if (event.type === "tool_call_start")
-    return `tool:${event.name}:${event.label ?? ""}`;
+    return event.id
+      ? `tool:${event.id}`
+      : `tool:${event.name}:${event.label ?? ""}`;
   if (event.type === "automation_run")
     return `automation:${event.job_id ?? event.id}`;
   if (event.type === "subagent_run") return `subagent:${event.id}`;
@@ -269,6 +278,20 @@ const reduceEvent = (events: AssistantEvent[], event: AssistantEvent) =>
     ? track(events, event)
     : { events: append(events, event) };
 
+function upsertSubagentEvent(
+  events: AssistantEvent[],
+  event: EventOf<"subagent_run">,
+): StreamEventReduction {
+  const key = assistantEventKey(event);
+  const index = events.findLastIndex(
+    (candidate) => assistantEventKey(candidate) === key,
+  );
+  if (index < 0) return { events: append(events, event) };
+  const next = [...events];
+  next[index] = event;
+  return { events: next };
+}
+
 export function reduceAssistantStreamEvent(
   events: AssistantEvent[],
   data: Record<string, unknown>,
@@ -291,11 +314,20 @@ export function reduceAssistantStreamEvent(
         last?.type === "reasoning" && last.isStreaming
           ? [
               ...cleaned.slice(0, -1),
-              { ...last, text: last.text + text(data.text) },
+              {
+                ...last,
+                text: last.text + text(data.text),
+                ...(data.debug === true && { debug: true }),
+              },
             ]
           : [
               ...finalizeReasoning(cleaned),
-              { type: "reasoning", text: text(data.text), isStreaming: true },
+              {
+                type: "reasoning",
+                text: text(data.text),
+                ...(data.debug === true && { debug: true }),
+                isStreaming: true,
+              },
             ],
     };
   }
@@ -324,6 +356,12 @@ export function reduceAssistantStreamEvent(
       type: "tool_call_start",
       name: text(data.name),
       ...(clean(data.label) && { label: clean(data.label) }),
+      ...(clean(data.id) && { id: clean(data.id) }),
+      ...(data.input &&
+      typeof data.input === "object" &&
+      !Array.isArray(data.input)
+        ? { input: data.input as Record<string, unknown> }
+        : {}),
       isStreaming: true,
     });
   if (rawType === "mcp_tool_start") {
@@ -364,13 +402,86 @@ export function reduceAssistantStreamEvent(
       !Array.isArray(data.grounding)
         ? (data.grounding as Record<string, unknown>)
         : null;
+    const activities: NonNullable<
+      EventOf<"subagent_run">["activities"]
+    > = Array.isArray(data.activities)
+      ? data.activities.flatMap<
+          NonNullable<EventOf<"subagent_run">["activities"]>[number]
+        >((value) => {
+          if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+          const activity = value as Record<string, unknown>;
+          const activityStatus = activity.status;
+          const id = clean(activity.id);
+          const label = clean(activity.label);
+          const tool = clean(activity.tool);
+          const input =
+            activity.input &&
+            typeof activity.input === "object" &&
+            !Array.isArray(activity.input)
+              ? (activity.input as Record<string, unknown>)
+              : null;
+          const sourceRow =
+            activity.source &&
+            typeof activity.source === "object" &&
+            !Array.isArray(activity.source)
+              ? (activity.source as Record<string, unknown>)
+              : null;
+          const sourceCitation = clean(sourceRow?.citation);
+          const source = sourceCitation
+            ? {
+                provider: text(sourceRow?.provider),
+                jurisdiction: text(sourceRow?.jurisdiction),
+                citation: sourceCitation,
+                name: clean(sourceRow?.name) || null,
+                dataset: text(sourceRow?.dataset),
+                url: clean(sourceRow?.url) || null,
+                ...(typeof sourceRow?.clusterId === "number" && {
+                  clusterId: sourceRow.clusterId,
+                }),
+              }
+            : null;
+          return id && label &&
+            (activityStatus === "running" ||
+              activityStatus === "completed" ||
+              activityStatus === "error")
+            ? [{
+                id,
+                label,
+                status: activityStatus,
+                ...(tool && { tool }),
+                ...(input && { input }),
+                ...(source && { source }),
+              }]
+            : [];
+        })
+      : [];
+    const sources: NonNullable<EventOf<"subagent_run">["sources"]> =
+      Array.isArray(data.sources)
+        ? data.sources.flatMap((value) => {
+            if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+            const source = value as Record<string, unknown>;
+            const citation = clean(source.citation);
+            if (!citation) return [];
+            return [{
+              provider: text(source.provider),
+              jurisdiction: text(source.jurisdiction),
+              citation,
+              name: clean(source.name) || null,
+              dataset: text(source.dataset),
+              url: clean(source.url) || null,
+              ...(typeof source.clusterId === "number" && {
+                clusterId: source.clusterId,
+              }),
+            }];
+          })
+        : [];
     if (
       (agent !== "scout" && agent !== "planner" && agent !== "reviewer") ||
       (status !== "running" && status !== "completed" && status !== "error")
     ) {
       return null;
     }
-    return reduceEvent(events, {
+    return upsertSubagentEvent(events, {
       type: "subagent_run",
       id: clean(data.id) ?? `${agent}:${text(data.task)}`,
       agent,
@@ -378,6 +489,14 @@ export function reduceAssistantStreamEvent(
       model: text(data.model),
       effort: text(data.effort),
       status,
+      ...(activities.length && { activities }),
+      ...(sources.length && { sources }),
+      ...(Array.isArray(data.reasoning) && {
+        reasoning: data.reasoning.flatMap((value) => {
+          const item = clean(value);
+          return item ? [item] : [];
+        }),
+      }),
       ...(clean(data.output) && { output: clean(data.output) }),
       ...(clean(data.error) && { error: clean(data.error) }),
       ...(grounding &&

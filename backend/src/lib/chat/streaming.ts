@@ -14,7 +14,7 @@ import {
   type CaseCitationEvent,
   type CourtlistenerToolEvent,
 } from "./tools/courtlistenerTools";
-import { A2AJ_TOOLS, a2ajActivityLabel } from "./tools/a2ajTools";
+import { A2AJ_TOOLS, assistantToolActivityLabel } from "./tools/a2ajTools";
 import { PUBLIC_LEGAL_SOURCE_TOOLS } from "./tools/publicLegalSourceTools";
 import {
   type DocStore,
@@ -57,14 +57,20 @@ import {
   READ_SUBAGENT_SYSTEM_PROMPT,
   READ_SUBAGENT_TOOL,
   READ_SUBAGENT_TOOL_NAME,
+  allowedReadSubagentForeignRegions,
+  createReadSubagentAdmission,
   readSubagentTools,
   readSubagentActivityLabel,
   runReadSubagent,
   type ReadSubagentEvent,
 } from "./readSubagents";
+import {
+  jurisdictionPreferencePrompt,
+  type JurisdictionPreference,
+} from "./prompts";
 
 export type AssistantEvent =
-  | { type: "reasoning"; text: string }
+  | { type: "reasoning"; text: string; debug?: boolean }
   | AskInputsEvent
   | {
       type: "ask_inputs_response";
@@ -164,6 +170,8 @@ export async function runLLMStream({
   subagentsEnabled = false,
   subagentModel,
   subagentEffort,
+  jurisdictionPreference = null,
+  activityDetail = "standard",
 }: {
   apiMessages: unknown[];
   docStore: DocStore;
@@ -190,6 +198,8 @@ export async function runLLMStream({
   subagentsEnabled?: boolean;
   subagentModel?: string;
   subagentEffort?: string;
+  jurisdictionPreference?: JurisdictionPreference | null;
+  activityDetail?: "standard" | "tools" | "trace";
 }): Promise<{
   fullText: string;
   events: AssistantEvent[];
@@ -246,6 +256,19 @@ export async function runLLMStream({
   const a2ajLookups: A2AJLocatorLookup[] = [];
   const a2ajDocuments: A2AJDocument[] = [];
   const legalEvidenceState = createLegalEvidenceTurnState();
+  const standingJurisdictionPrompt = jurisdictionPreferencePrompt(
+    jurisdictionPreference,
+  );
+  const currentRequest =
+    [...chatMessages].reverse().find((message) => message.role === "user")
+      ?.content ?? "";
+  const admitReadSubagents = createReadSubagentAdmission(
+    3,
+    allowedReadSubagentForeignRegions(
+      jurisdictionPreference,
+      currentRequest,
+    ),
+  );
   const publicLegalState: PublicLegalSourceState =
     createPublicLegalSourceState();
   let fullText = "";
@@ -321,7 +344,7 @@ export async function runLLMStream({
   const flushPartialTurn = (opts: { emit?: boolean } = {}) => {
     flushText(opts);
     if (iterReasoning) {
-      events.push({ type: "reasoning", text: iterReasoning });
+      events.push({ type: "reasoning", text: iterReasoning, debug: true });
       iterReasoning = "";
     }
   };
@@ -339,6 +362,7 @@ export async function runLLMStream({
       reasoningEffort,
       serviceTier,
       enableThinking: true,
+      reasoningSummary: activityDetail === "trace" ? "auto" : "none",
       abortSignal: signal,
       callbacks: {
         onContentDelta: (delta) => {
@@ -347,12 +371,14 @@ export async function runLLMStream({
         },
         onContentBlockEnd: () => flushText(),
         onReasoningDelta: (delta) => {
+          if (activityDetail !== "trace") return;
           iterReasoning += delta;
-          emit({ type: "reasoning_delta", text: delta });
+          emit({ type: "reasoning_delta", text: delta, debug: true });
         },
         onReasoningBlockEnd: () => {
+          if (activityDetail !== "trace") return;
           if (!iterReasoning) return;
-          events.push({ type: "reasoning", text: iterReasoning });
+          events.push({ type: "reasoning", text: iterReasoning, debug: true });
           emit({ type: "reasoning_block_end" });
           iterReasoning = "";
         },
@@ -364,14 +390,23 @@ export async function runLLMStream({
         // and the first tool-specific event.
         onToolCallStart: (call) => {
           flushText();
+          if (
+            call.name === READ_SUBAGENT_TOOL_NAME &&
+            activityDetail === "standard"
+          ) return;
           const label =
             call.name === READ_SUBAGENT_TOOL_NAME
               ? readSubagentActivityLabel(call.input)
-              : a2ajActivityLabel(call.name, call.input);
+              : assistantToolActivityLabel(call.name, call.input);
+          if (label === null) return;
           emit({
             type: "tool_call_start",
             name: call.name,
             ...(label && { label }),
+            ...(activityDetail !== "standard" && {
+              id: call.id,
+              input: call.input,
+            }),
           });
         },
       },
@@ -384,9 +419,13 @@ export async function runLLMStream({
         const directCalls = calls.filter(
           (call) => call.name !== READ_SUBAGENT_TOOL_NAME,
         );
-        const subagentCalls = calls.filter(
+        const subagentCandidates = calls.filter(
           (call) => call.name === READ_SUBAGENT_TOOL_NAME,
         );
+        const {
+          accepted: subagentCalls,
+          rejected: rejectedSubagentResults,
+        } = admitReadSubagents(subagentCandidates);
         const toolCalls: ToolCall[] = directCalls.map((c) => ({
           id: c.id,
           function: {
@@ -487,8 +526,11 @@ export async function runLLMStream({
               call,
               tools: readTools,
               evidenceState: childLegalEvidenceState,
+              publishEvidenceTo: legalEvidenceState,
               model: subagentModel,
               effort: subagentEffort,
+              activityDetail,
+              jurisdictionPrompt: standingJurisdictionPrompt,
               signal,
               onEvent: (event) => {
                 emit(event);
@@ -550,6 +592,12 @@ export async function runLLMStream({
         // that directly — and fall back to an error result for any
         // tool_use that didn't produce one, so Claude's next request
         // has a tool_result for every tool_use it sent.
+        toolResults.push(
+          ...rejectedSubagentResults.map((result) => ({
+            tool_call_id: result.tool_use_id,
+            content: result.content,
+          })),
+        );
         const resultByCallId = new Map<string, string>();
         for (const r of toolResults) {
           const row = r as {

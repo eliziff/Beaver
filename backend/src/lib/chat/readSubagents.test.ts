@@ -15,6 +15,8 @@ vi.mock("../llm", async (importOriginal) => ({
 }));
 
 import {
+  allowedReadSubagentForeignRegions,
+  createReadSubagentAdmission,
   getReadSubagentCapability,
   readSubagentTools,
   runReadSubagent,
@@ -47,6 +49,32 @@ const schema = (name: string): OpenAIToolSchema => ({
     parameters: { type: "object", properties: {} },
   },
 });
+
+function leaseEvidenceState() {
+  const state = createLegalEvidenceTurnState("citation_structure");
+  registerLegalEvidence(state, {
+    evidence_id: "e_lease",
+    provider: "library",
+    jurisdiction: "CA",
+    source_class: "commentary",
+    stable_source_id: "library:lease:v1",
+    source_sha256: "sha256:source",
+    scope: "passage",
+    block_id: "page:4",
+    exact_span_sha256: "sha256:exact",
+    span_sha256: "sha256:normalized",
+    span_text: "The lease renews automatically for successive one-year terms.",
+    citation: "Lease.pdf",
+    name: null,
+    dataset: "library",
+    language: "en",
+    version: "v1",
+    external_url: null,
+    locator: { kind: "page", label: "4" },
+    resolver_version: "library-read-v1",
+  });
+  return state;
+}
 
 describe("reading agents", () => {
   beforeEach(() => {
@@ -110,30 +138,71 @@ describe("reading agents", () => {
     ]);
   });
 
+  it("admits at most three distinct reading scopes per turn", () => {
+    const admit = createReadSubagentAdmission();
+    const calls = ["Supreme Court", "appellate courts", "commentary", "trial courts"].map(
+      (scope, index) => ({
+        id: `read-${index}`,
+        name: "delegate_read",
+        input: { task: "Find responsive authorities.", scope },
+      }),
+    );
+    const first = admit(calls);
+    expect(first.accepted.map((call) => call.input.scope)).toEqual([
+      "Supreme Court",
+      "appellate courts",
+      "commentary",
+    ]);
+    expect(first.rejected[0]?.content).toContain("at most 3");
+    expect(
+      admit([{ ...calls[0], id: "duplicate" }]).rejected[0]?.content,
+    ).toContain("duplicates");
+  });
+
+  it("keeps delegated reading in Canada unless the user or settings select a foreign region", () => {
+    const calls = [
+      {
+        id: "ca",
+        name: "delegate_read",
+        input: { task: "Find responsive authorities.", scope: "Ontario courts" },
+      },
+      {
+        id: "us",
+        name: "delegate_read",
+        input: { task: "Find US decisions.", scope: "United States courts" },
+      },
+      {
+        id: "uk",
+        name: "delegate_read",
+        input: { task: "Find UK decisions.", scope: "English law" },
+      },
+    ];
+
+    const canadian = createReadSubagentAdmission()(calls);
+    expect(canadian.accepted.map((call) => call.id)).toEqual(["ca"]);
+    expect(canadian.rejected.map((result) => result.content)).toEqual([
+      expect.stringContaining("US law was not requested"),
+      expect.stringContaining("UK law was not requested"),
+    ]);
+
+    const request = "Compare Canadian, US and UK decisions.";
+    const selected = allowedReadSubagentForeignRegions(
+      { mode: "ask", jurisdictions: ["Canada"] },
+      request,
+    );
+    expect(createReadSubagentAdmission(3, selected)(calls).accepted).toHaveLength(3);
+    expect(
+      allowedReadSubagentForeignRegions(
+        { mode: "ask", jurisdictions: ["Canada"] },
+        "Survey the relevant jurisdictions.",
+      ),
+    ).toEqual(new Set());
+  });
+
   it("returns only the receipt-backed grounded submission", async () => {
     const events: unknown[] = [];
-    const evidenceState = createLegalEvidenceTurnState("citation_structure");
-    registerLegalEvidence(evidenceState, {
-      evidence_id: "e_lease",
-      provider: "library",
-      jurisdiction: "CA",
-      source_class: "commentary",
-      stable_source_id: "library:lease:v1",
-      source_sha256: "sha256:source",
-      scope: "passage",
-      block_id: "page:4",
-      exact_span_sha256: "sha256:exact",
-      span_sha256: "sha256:normalized",
-      span_text: "The lease renews automatically for successive one-year terms.",
-      citation: "Lease.pdf",
-      name: null,
-      dataset: "library",
-      language: "en",
-      version: "v1",
-      external_url: null,
-      locator: { kind: "page", label: "4" },
-      resolver_version: "library-read-v1",
-    });
+    const evidenceState = leaseEvidenceState();
+    const parentEvidenceState = createLegalEvidenceTurnState(null);
     mocks.stream.mockImplementationOnce(async (params) => {
       await params.runTools?.([
         {
@@ -158,10 +227,14 @@ describe("reading agents", () => {
       call: {
         id: "read-1",
         name: "delegate_read",
-        input: { task: "Find the renewal clause." },
+        input: {
+          task: "Find the renewal clause.",
+          scope: "The attached lease",
+        },
       },
       tools: [schema("a2aj_search"), LEGAL_EVIDENCE_SUBMIT_TOOL],
       evidenceState,
+      publishEvidenceTo: parentEvidenceState,
       runTools: async (calls) =>
         calls.map((call) => {
           const submitted = submitLegalEvidenceAnswer(
@@ -183,37 +256,163 @@ describe("reading agents", () => {
       expect.objectContaining({
         model: "codex:gpt-5.6-luna",
         reasoningEffort: "high",
-        maxIterations: 8,
         systemPrompt: expect.stringContaining("submit_grounded_answer"),
       }),
     );
-    expect(events).toEqual([
+    expect(mocks.stream.mock.calls[0]?.[0].maxIterations).toBeUndefined();
+    expect(events[0]).toEqual(
       expect.objectContaining({ id: "read-1", status: "running" }),
+    );
+    expect(events.at(-1)).toEqual(
       expect.objectContaining({
         id: "read-1",
         status: "completed",
+        activities: [
+          expect.objectContaining({
+            label: "Grounding findings",
+            status: "completed",
+          }),
+        ],
         grounding: expect.objectContaining({ status: "passed" }),
       }),
-    ]);
+    );
     expect(result.content).toContain("successive one-year terms");
     expect(result.content).not.toContain("ungrounded prose");
+    expect(parentEvidenceState.evidence.has("e_lease")).toBe(true);
   });
 
-  it("fails closed when the agent emits prose without a grounded submission", async () => {
+  it("carries discovered case metadata into the later read activity", async () => {
+    const evidenceState = leaseEvidenceState();
+    const events: unknown[] = [];
+    mocks.stream.mockImplementationOnce(async (params) => {
+      await params.runTools?.([{
+        id: "search-1",
+        name: "SearchSources",
+        input: { query: "fentanyl contact", source_types: ["case"] },
+      }]);
+      await params.runTools?.([{
+        id: "fetch-1",
+        name: "a2aj_fetch",
+        input: { citation: "2020 BCSC 1122", doc_type: "cases" },
+      }]);
+      await params.runTools?.([{
+        id: "submit-1",
+        name: "submit_grounded_answer",
+        input: {
+          claims: [{
+            text: "The lease renews for successive one-year terms.",
+            evidence_ids: ["e_lease"],
+            kind: "conclusion",
+            premise_source: null,
+            premise_text: null,
+          }],
+        },
+      }]);
+      return { fullText: "" };
+    });
+    await runReadSubagent({
+      call: {
+        id: "read-case",
+        name: "delegate_read",
+        input: { task: "Find the case.", scope: "British Columbia" },
+      },
+      tools: [schema("SearchSources"), schema("a2aj_fetch"), LEGAL_EVIDENCE_SUBMIT_TOOL],
+      evidenceState,
+      runTools: async (calls) => calls.map((call) => {
+        if (call.name === "SearchSources") {
+          return {
+            tool_use_id: call.id,
+            status: "ok" as const,
+            content: JSON.stringify({
+              results: [{
+                provider: "a2aj",
+                source_type: "case",
+                identifier: "2020 BCSC 1122",
+                title: "Royal Bank of Canada v. Mysak",
+                citation: "2020 BCSC 1122",
+                collection: "BCSC",
+                url: "https://example.test/2020BCSC1122",
+              }],
+            }),
+          };
+        }
+        if (call.name === "submit_grounded_answer") {
+          const submitted = submitLegalEvidenceAnswer(call.input, evidenceState);
+          return {
+            tool_use_id: call.id,
+            status: submitted.ok ? ("ok" as const) : ("error" as const),
+            content: JSON.stringify(submitted),
+          };
+        }
+        return { tool_use_id: call.id, status: "ok" as const, content: "{}" };
+      }),
+      onEvent: (event) => events.push(event),
+    });
+
+    expect(events.at(-1)).toMatchObject({
+      sources: [{
+        citation: "2020 BCSC 1122",
+        name: "Royal Bank of Canada v. Mysak",
+      }],
+      activities: expect.arrayContaining([
+        expect.objectContaining({
+          id: "fetch-1",
+          label: "Reading Royal Bank of Canada v. Mysak, 2020 BCSC 1122",
+          source: expect.objectContaining({ citation: "2020 BCSC 1122" }),
+        }),
+      ]),
+    });
+  });
+
+  it("keeps revising until a grounded submission passes", async () => {
+    const evidenceState = leaseEvidenceState();
+    mocks.stream.mockImplementation(async (params) => {
+      if (mocks.stream.mock.calls.length === 3) {
+        await params.runTools?.([
+          {
+            id: "submit-3",
+            name: "submit_grounded_answer",
+            input: {
+              claims: [
+                {
+                  text: "The lease renews for successive one-year terms.",
+                  evidence_ids: ["e_lease"],
+                  kind: "conclusion",
+                  premise_source: null,
+                  premise_text: null,
+                },
+              ],
+            },
+          },
+        ]);
+      }
+      return { fullText: "" };
+    });
     const result = await runReadSubagent({
       call: {
         id: "read-2",
         name: "delegate_read",
-        input: { task: "Review the authorities." },
+        input: {
+          task: "Review the authorities.",
+          scope: "Canadian appellate cases",
+        },
       },
       tools: [LEGAL_EVIDENCE_SUBMIT_TOOL],
-      evidenceState: createLegalEvidenceTurnState("citation_structure"),
-      runTools: vi.fn(),
+      evidenceState,
+      runTools: async (calls) =>
+        calls.map((call) => {
+          const submitted = submitLegalEvidenceAnswer(call.input, evidenceState);
+          return {
+            tool_use_id: call.id,
+            status: submitted.ok ? ("ok" as const) : ("error" as const),
+            content: JSON.stringify(submitted),
+            terminal: submitted.terminal,
+          };
+        }),
     });
 
-    expect(result.status).toBe("error");
-    expect(result.content).toContain("did not submit");
-    expect(mocks.stream).toHaveBeenCalledTimes(2);
+    expect(result.status).toBe("ok");
+    expect(mocks.stream).toHaveBeenCalledTimes(3);
     expect(mocks.stream.mock.calls[1]?.[0]).toEqual(
       expect.objectContaining({
         messages: [
@@ -225,6 +424,9 @@ describe("reading agents", () => {
         ],
         systemPrompt: expect.stringContaining("premise_source"),
       }),
+    );
+    expect(mocks.stream.mock.calls[2]?.[0].messages[0].content).toContain(
+      "Continue revising",
     );
   });
 });

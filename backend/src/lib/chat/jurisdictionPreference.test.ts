@@ -22,7 +22,7 @@ describe("standing jurisdiction preference", () => {
     });
   });
 
-  it("keeps the preference advisory and lets an explicit request override it", () => {
+  it("keeps presumed research within the selected regions", () => {
     const prompt = jurisdictionPreferencePrompt({
       mode: "presume",
       jurisdictions: ["Alberta, Canada", "Ontario, Canada"],
@@ -30,14 +30,17 @@ describe("standing jurisdiction preference", () => {
 
     expect(prompt).toContain("Alberta, Canada; Ontario, Canada");
     expect(prompt).toContain("An explicit jurisdiction overrides");
-    expect(prompt).toContain("not a restriction on research sources");
+    expect(prompt).toContain("Keep research and delegated reading within");
   });
 
-  it("asks only when a user with no default needs a material jurisdiction", () => {
-    expect(
-      jurisdictionPreferencePrompt({ mode: "ask", jurisdictions: [] }),
-    ).toContain(
+  it("uses Canada as the default and excludes unsolicited US and UK law", () => {
+    const prompt = jurisdictionPreferencePrompt({ mode: "ask", jurisdictions: [] });
+    expect(prompt).toContain("FALLBACK: Canada");
+    expect(prompt).toContain(
       "Ask only when jurisdiction is material and cannot be reliably inferred",
     );
+    expect(prompt).toContain("United States or United Kingdom law");
+    expect(jurisdictionPreferencePrompt(null)).toBe(prompt);
+    expect(prompt).toContain("multiple Canadian jurisdictions");
   });
 });

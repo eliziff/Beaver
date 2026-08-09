@@ -166,11 +166,13 @@ import {
 } from "../lib/chat/citations";
 import { createVisibleStreamSplitter } from "../lib/chat/visibleStream";
 import { COURTLISTENER_SYSTEM_PROMPT } from "../lib/chat/tools/courtlistenerTools";
-import { a2ajActivityLabel } from "../lib/chat/tools/a2ajTools";
+import { assistantToolActivityLabel } from "../lib/chat/tools/a2ajTools";
 import {
   READ_SUBAGENT_SYSTEM_PROMPT,
   READ_SUBAGENT_TOOL,
   READ_SUBAGENT_TOOL_NAME,
+  allowedReadSubagentForeignRegions,
+  createReadSubagentAdmission,
   readSubagentTools,
   readSubagentActivityLabel,
   runReadSubagent,
@@ -203,6 +205,7 @@ import {
   updateAnonymousChatProject,
   updateAnonymousChatTitle,
   resetAnonymousAssistantEvents,
+  upsertAnonymousSubagentEvent,
   type AnonymousChat,
   type AnonymousChatMessage,
 } from "../lib/anonymousChatStore";
@@ -952,8 +955,10 @@ export async function streamAnonymousChat(params: {
   subagentsEnabled?: boolean;
   subagentModel?: string;
   subagentEffort?: string;
+  activityDetail?: "standard" | "tools" | "trace";
 }) {
   const { res, userId } = params;
+  const activityDetail = params.activityDetail ?? "standard";
   const fail = (status: number, detail: string) => {
     res.status(status).json({ detail });
   };
@@ -1387,6 +1392,13 @@ export async function streamAnonymousChat(params: {
     params.currentTurn.kind === "message"
       ? params.currentTurn.message.content
       : params.currentTurn.content;
+  const admitReadSubagents = createReadSubagentAdmission(
+    3,
+    allowedReadSubagentForeignRegions(
+      params.jurisdictionPreference ?? null,
+      localRequirementsText,
+    ),
+  );
   const contextHandoffEnabled =
     process.env.MIKE_CONTEXT_HANDOFF === "1" &&
     !ORIGIN_MIKE_TOOL_SHAPE;
@@ -1615,17 +1627,31 @@ export async function streamAnonymousChat(params: {
     if (params.currentTurn.kind === "ask_inputs_response") {
       appendAnonymousAssistantEvents(chat, events, opts.citations);
     } else if (normalTurnId) {
-      appendAnonymousNormalTurnEvents(
-        chat,
-        normalTurnId,
-        opts.complete
-          ? [
-              ...events,
-              { type: LOCAL_TURN_COMPLETED_EVENT, schema_version: 1 },
-            ]
-          : events,
-        opts.citations,
+      const subagentEvents = events.flatMap((event) => {
+        const row = asRecord(event);
+        return row?.type === "subagent_run" && typeof row.id === "string"
+          ? [row as Record<string, unknown> & { type: "subagent_run"; id: string }]
+          : [];
+      });
+      for (const event of subagentEvents) {
+        upsertAnonymousSubagentEvent(chat, event, normalTurnId);
+      }
+      const appendedEvents = events.filter(
+        (event) => asRecord(event)?.type !== "subagent_run",
       );
+      if (appendedEvents.length || opts.citations?.length || opts.complete) {
+        appendAnonymousNormalTurnEvents(
+          chat,
+          normalTurnId,
+          opts.complete
+            ? [
+                ...appendedEvents,
+                { type: LOCAL_TURN_COMPLETED_EVENT, schema_version: 1 },
+              ]
+            : appendedEvents,
+          opts.citations,
+        );
+      }
     } else {
       appendAnonymousMessage(chat, {
         role: "assistant",
@@ -1856,16 +1882,20 @@ export async function streamAnonymousChat(params: {
           localRequirementsText,
           localRequirementsState,
         );
-    const subagentCalls = allowedCalls.filter(
+    const subagentCandidates = allowedCalls.filter(
       (call) => call.name === READ_SUBAGENT_TOOL_NAME,
     );
+    const {
+      accepted: subagentCalls,
+      rejected: rejectedSubagentResults,
+    } = admitReadSubagents(subagentCandidates);
     const directCalls = allowedCalls.filter(
       (call) => call.name !== READ_SUBAGENT_TOOL_NAME,
     );
     const directResults = directCalls.length
       ? await runAllowedCalls(directCalls)
       : [];
-    if (!subagentCalls.length) return directResults;
+    if (!subagentCalls.length) return [...directResults, ...rejectedSubagentResults];
     const readTools = [
       ...readSubagentTools(LOCAL_READ_SUBAGENT_TOOL_CATALOG),
       LEGAL_EVIDENCE_SUBMIT_TOOL,
@@ -1883,8 +1913,11 @@ export async function streamAnonymousChat(params: {
           call,
           tools: readTools,
           evidenceState: childEvidenceState,
+          publishEvidenceTo: legalEvidenceState,
           model: params.subagentModel,
           effort: params.subagentEffort,
+          activityDetail,
+          jurisdictionPrompt: standingJurisdictionPrompt,
           runTools: (batch) =>
             runLocalAssistantTools(
               userId,
@@ -1905,13 +1938,25 @@ export async function streamAnonymousChat(params: {
             ),
           signal: streamAbort.signal,
           onEvent: (event) => {
-            if (event.status !== "running") turnDocumentEvents.push(event);
+            const index = turnDocumentEvents.findIndex(
+              (candidate) =>
+                candidate.type === "subagent_run" && candidate.id === event.id,
+            );
+            if (index < 0) turnDocumentEvents.push(event);
+            else turnDocumentEvents[index] = event;
+            if (normalTurnId && !chatTurnWasDeleted(chat.id)) {
+              persistTurnEvents([event]);
+            }
             sseWrite(res, event);
           },
         });
       }),
     );
-    const allowedResults = [...directResults, ...subagentResults];
+    const allowedResults = [
+      ...directResults,
+      ...subagentResults,
+      ...rejectedSubagentResults,
+    ];
     let results: NormalizedToolResult[] = calls.map(
       (call) =>
         allowedResults.find(
@@ -2637,6 +2682,7 @@ export async function streamAnonymousChat(params: {
               : []),
           ],
       enableThinking: true,
+      reasoningSummary: activityDetail === "trace" ? "auto" : "none",
       // Upstream caps every chat turn at 10 provider rounds
       // (2266446b:backend/src/lib/chat/streaming.ts:341 -> claude.ts:116,:128);
       // Beaver's route never sets it, so claudeP.ts:502 runs unbounded. The
@@ -2767,30 +2813,40 @@ export async function streamAnonymousChat(params: {
           if (!pendingAskInputs) queueContentBoundary();
         },
         onReasoningDelta: (text: string) => {
+          if (activityDetail !== "trace") return;
           if (text) providerActivity = true;
           if (!pendingAskInputs) {
-            sseWrite(res, { type: "reasoning_delta", text });
+            sseWrite(res, { type: "reasoning_delta", text, debug: true });
           }
         },
         onReasoningBlockEnd: () => {
+          if (activityDetail !== "trace") return;
           if (!pendingAskInputs) {
             sseWrite(res, { type: "reasoning_block_end" });
           }
         },
         onToolCallStart: (call) => {
           providerActivity = true;
-          if (call.name === LEGAL_EVIDENCE_TOOL_NAME) return;
+          if (
+            call.name === LEGAL_EVIDENCE_TOOL_NAME ||
+            (call.name === READ_SUBAGENT_TOOL_NAME &&
+              activityDetail === "standard")
+          ) return;
           if (!isCodex && !pendingAskInputs) queueContentBoundary();
           const label =
             call.name === READ_SUBAGENT_TOOL_NAME
               ? readSubagentActivityLabel(call.input)
-              : a2ajActivityLabel(call.name, call.input);
+              : assistantToolActivityLabel(call.name, call.input);
+          if (label === null) return;
           sseWrite(res, {
             type: "tool_call_start",
             name: call.name,
-            ...(process.env.MIKE_BENCHMARK_TRACE_TOOLS === "1" && {
+            ...((activityDetail !== "standard" ||
+              process.env.MIKE_BENCHMARK_TRACE_TOOLS === "1") && {
               id: call.id,
               input: call.input,
+            }),
+            ...(process.env.MIKE_BENCHMARK_TRACE_TOOLS === "1" && {
               phase: researchCheckpointPhase
                 ? "checkpoint"
                 : continuousEvidenceEnabled
@@ -3947,6 +4003,18 @@ chatRouter.post("/", async (req, res) => {
     trimmedString(body.subagent_model).slice(0, 128) || undefined;
   const subagentEffort =
     trimmedString(body.subagent_effort).slice(0, 32) || undefined;
+  if (
+    body.activity_detail !== undefined &&
+    !["standard", "tools", "trace"].includes(String(body.activity_detail))
+  ) {
+    return void res.status(400).json({
+      detail: "activity_detail must be standard, tools, or trace",
+    });
+  }
+  const activityDetail =
+    body.activity_detail === "tools" || body.activity_detail === "trace"
+      ? body.activity_detail
+      : "standard";
   const displayedRow = asRecord(body.displayed_doc);
   const displayedDocument =
     displayedRow &&
@@ -4015,6 +4083,7 @@ chatRouter.post("/", async (req, res) => {
         subagentsEnabled,
         subagentModel,
         subagentEffort,
+        activityDetail,
       });
     } catch (error) {
       console.error("[chat/anonymous] preflight", safeErrorLog(error));
@@ -4273,6 +4342,8 @@ chatRouter.post("/", async (req, res) => {
       subagentsEnabled,
       subagentModel,
       subagentEffort,
+      jurisdictionPreference,
+      activityDetail,
     });
 
     devLog("[chat/stream] LLM stream finished", {

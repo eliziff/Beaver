@@ -25,6 +25,36 @@ describe("reduceAssistantStreamEvent", () => {
       model: "GPT-5.6 Luna",
       effort: "high",
       status: "running",
+      activities: [
+        {
+          id: "search-1",
+          label: "Searching Canadian case law",
+          status: "completed",
+        },
+        {
+          id: "read-1",
+          label: "Reading Lease.pdf",
+          status: "running",
+        },
+      ],
+    });
+    expect(events.filter((event) => event.type === "subagent_run")).toHaveLength(1);
+
+    events = reduce(events, {
+      type: "subagent_run",
+      id: "read-1",
+      agent: "scout",
+      task: "Find the renewal clause.",
+      model: "GPT-5.6 Luna",
+      effort: "high",
+      status: "running",
+      activities: [
+        {
+          id: "search-1",
+          label: "Searching case law · Canada for “renewal clauses”",
+          status: "running",
+        },
+      ],
     });
     events = reduce(events, {
       type: "subagent_run",
@@ -35,20 +65,46 @@ describe("reduceAssistantStreamEvent", () => {
       effort: "high",
       status: "completed",
       output: "Lease.pdf, p. 4: \"Renews yearly.\"",
+      activities: [
+        {
+          id: "search-1",
+          label: "Searching case law · Canada for “renewal clauses”",
+          status: "completed",
+          source: {
+            provider: "courtlistener",
+            jurisdiction: "US",
+            citation: "410 U.S. 113",
+            name: "Roe v. Wade",
+            dataset: "scotus",
+            url: "https://example.test/roe",
+            clusterId: 108713,
+          },
+        },
+      ],
       grounding: { status: "passed", evidence: [{ evidence_id: "e_lease" }] },
     });
 
     expect(events[0]).toMatchObject({
       type: "subagent_run",
       id: "read-1",
-      status: "completed",
-      isStreaming: false,
+        status: "completed",
+        isStreaming: false,
+        activities: [
+          expect.objectContaining({
+            id: "search-1",
+            status: "completed",
+            source: expect.objectContaining({
+              citation: "410 U.S. 113",
+              clusterId: 108713,
+            }),
+          }),
+        ],
       grounding: {
         status: "passed",
         evidence: [{ evidence_id: "e_lease" }],
       },
     });
-    expect(events).toHaveLength(2);
+    expect(events).toHaveLength(1);
   });
 
   it("keeps interleaved reasoning, tools, and content ordered", () => {

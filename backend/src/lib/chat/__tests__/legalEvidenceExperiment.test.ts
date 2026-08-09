@@ -3,7 +3,14 @@ import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+const llm = vi.hoisted(() => ({ streamChatWithTools: vi.fn() }));
+
+vi.mock("../../llm", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../llm")>()),
+  streamChatWithTools: llm.streamChatWithTools,
+}));
 
 import type { A2AJDocument, A2AJLocatorLookup } from "../../a2aj";
 import { fnv1a64 } from "../../legalClaimLint";
@@ -81,6 +88,23 @@ describe("provisional legal evidence contract", () => {
     const state = createLegalEvidenceTurnState(null);
     registerLegalEvidence(state, createA2AJLookupEvidence(lookup)!);
     expect(state.mode).toBeNull();
+  });
+
+  it.each([
+    "See 2020 BCSC 1122.",
+    "[Royal Bank of Canada v. Mysak](https://www.bccourts.ca/jdb-txt/sc/20/11/2020BCSC1122.htm)",
+  ])("rejects authority text that bypasses grounded citation rendering: %s", async (draft) => {
+    llm.streamChatWithTools.mockResolvedValueOnce({ fullText: "" });
+    const state = createLegalEvidenceTurnState(null);
+
+    await expect(
+      finalizeLegalEvidenceExperiment({ state, model: "test", draft }),
+    ).resolves.toMatchObject({ passed: false, modelCalls: 1 });
+
+    expect(state.mode).toBe("citation_structure");
+    expect(renderLegalEvidenceAnswer(state)).toBe(
+      "The model did not submit a grounded answer.",
+    );
   });
 
   it("renders only claims separately verified against turn-local passages", () => {

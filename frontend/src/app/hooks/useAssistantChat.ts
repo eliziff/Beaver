@@ -25,6 +25,7 @@ import {
 } from "./useSelectedModel";
 import { jurisdictionPreferenceForChat } from "@/app/components/assistant/jurisdictionPreferences";
 import { readReadSubagentPreference } from "@/app/components/assistant/readSubagentPreferences";
+import { readActivityDetail } from "@/app/components/assistant/activityDisplayPreference";
 interface UseAssistantChatOptions {
   initialMessages?: Message[];
   chatId?: string;
@@ -172,17 +173,19 @@ export function useAssistantChat({
   ) => {
     const generation = ++transcriptPollGenerationRef.current;
     void (async () => {
+      let seenVersion = baselineVersion;
       while (generation === transcriptPollGenerationRef.current) {
         if (generation !== transcriptPollGenerationRef.current) return;
         try {
           const latest = await getChat(targetChatId);
           const latestVersion =
             latest.chat.transcript_version ?? baselineVersion;
-          const last = latest.messages[latest.messages.length - 1];
-          if (
-            (latestVersion > baselineVersion && last?.role === "assistant") ||
-            latest.chat.turn_in_progress === false
-          ) {
+          if (latestVersion > seenVersion) {
+            seenVersion = latestVersion;
+            transcriptVersionRef.current = latestVersion;
+            setMessages(latest.messages);
+          }
+          if (latest.chat.turn_in_progress === false) {
             transcriptVersionRef.current = latestVersion;
             setMessages(latest.messages);
             setIsResponseLoading(false);
@@ -318,6 +321,7 @@ export function useAssistantChat({
         subagents_enabled: readSubagents.enabled,
         subagent_model: readSubagents.model,
         subagent_effort: readSubagents.effort,
+        activity_detail: readActivityDetail(),
         displayed_doc: displayedDoc
           ? {
               filename: displayedDoc.filename,

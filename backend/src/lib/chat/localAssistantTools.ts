@@ -1944,7 +1944,7 @@ const WHOLE_READ_REPEAT_DESCRIPTION = SUPPRESS_DUPLICATE_WHOLE_READS
 const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
   tool(
     "Glob",
-    'Fast file pattern matching. Supports glob patterns like "*.docx". Returns filenames with extracted-text character and line counts plus aggregate totals; when filenames collide, also returns the document_id needed to disambiguate them.' +
+    'Lists files in the user\'s uploaded Library only. Use when the user explicitly refers to their Library, an uploaded or attached document, or a named Library file. Never use it to discover cases, legislation, Hansard, commentary, or other legal authorities; use SearchSources for those. Supports glob patterns like "*.docx". Returns filenames with extracted-text character and line counts plus aggregate totals; when filenames collide, also returns the document_id needed to disambiguate them.' +
       (MODEL_COVERAGE_ROUTING
         ? " Use the inventory to choose complete, targeted, or mixed source coverage; when completeness is uncertain and the bounded source set fits, prefer complete coverage."
         : ""),
@@ -1984,9 +1984,9 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
   tool(
     "Grep",
     TOOL_DESCRIPTION_VARIANT === "terse"
-      ? "Search file contents with a regular expression." +
+      ? "Search the user's uploaded Library file contents with a regular expression. This is not legal-source discovery." +
         PAGED_GREP_DESCRIPTION
-      : 'Content search with regular expressions. Filter by file or glob; choose content, matching files, counts, or a listed legal projection.' +
+      : 'Search the user\'s uploaded Library file contents with regular expressions. This is not legal-source discovery; use SearchSources for cases, legislation, Hansard, and commentary. Filter by file or glob; choose content, matching files, counts, or a listed legal projection.' +
         ROUTED_CODING_DESCRIPTION +
         CONCRETE_GREP_DESCRIPTION +
         CONTACT_GREP_DESCRIPTION +
