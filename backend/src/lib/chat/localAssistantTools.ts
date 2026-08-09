@@ -20,7 +20,10 @@ import {
 import { computeDeadline } from "../legalDeadlines";
 import type { DeadlineJurisdiction, DeadlineUnit } from "../legalDeadlines";
 import { conflictScan } from "../legalConflictScan";
-import { assignmentTriggerClosure } from "../legalAssignmentClosure";
+import {
+  assignmentClosureReceipts,
+  type AssignmentClosureSource,
+} from "../legalAssignmentClosure";
 import { anchorCoverage, bilingualConcordance } from "../legalTextAnchors";
 import {
   compileAgreementSkeleton,
@@ -189,6 +192,7 @@ import {
 } from "../docxTextOps";
 import { TEXT_OP_NAMES } from "../textOps";
 import {
+  boundedParagraphTail,
   findRegexMatches,
   findTextMatches,
   findTextMatchesFolded,
@@ -2633,6 +2637,8 @@ export type LocalAssistantReadTurnState = Map<
     docLabel?: string;
     versionId: string;
     filename: string;
+    /** Coordinate plane for intervals. Missing means the legacy served plane. */
+    projection?: "canonical" | "drafting" | "redline";
     sourceChars?: number;
     deliveredChars?: number;
     // Body start of the served plane (the SECT-INDEX length when one is
@@ -3903,6 +3909,8 @@ async function runLocalReviseDocx(
   documentId: string,
   args: Record<string, unknown>,
   turnEditState?: LocalAssistantEditTurnState,
+  turnReadState?: LocalAssistantReadTurnState,
+  servedDraftingCache = new Map<string, ServedDrafting>(),
 ): Promise<NormalizedToolResult> {
   let versionId = trimmed(args.version_id);
   const rawEdits = Array.isArray(args.edits) ? args.edits : [];
@@ -4075,6 +4083,12 @@ async function runLocalReviseDocx(
     });
     if (!committed) return fail(call, "version_id is no longer active");
     const { version, parentVersionId } = committed;
+    const sourceClosure = await sourceClosureForDraft(
+      userId,
+      await extractDocxBodyText(edited.bytes),
+      turnReadState,
+      servedDraftingCache,
+    );
     // Every revision gets deterministic same-turn feedback: the
     // structural lint runs on the freshly produced version (the
     // determinism plan's receipt hook — not gated on annotate).
@@ -4123,6 +4137,7 @@ async function runLocalReviseDocx(
           }
         : undefined,
       ...(diagnostics ? { compiler_diagnostics: diagnostics } : {}),
+      ...(sourceClosure.length ? { source_closure: sourceClosure } : {}),
       download_url: downloadUrl,
       annotations: trackedEdits.map((edit) => ({
         kind: "edit",
@@ -4140,7 +4155,12 @@ async function runLocalReviseDocx(
         reason: edit.reason,
         status: edit.status,
       })),
-      
+      ...(sourceClosure.length
+        ? {
+            next_required_action:
+              "Review source_closure and apply another document edit only if material.",
+          }
+        : {}),
     });
   } catch (error) {
     return fail(call, errorText(error, "DOCX revision failed"));
@@ -4236,25 +4256,30 @@ async function runCodingShapeCall(
           cautions: [],
           pages: { pages: [], source: "unindexed" as const },
           tableCells: [],
+          projection: "drafting" as const,
         };
       }
     }
-    return extractLocalDocument(userId, documentId);
+    const extracted = await extractLocalDocument(userId, documentId);
+    return extracted ? { ...extracted, projection: "canonical" as const } : null;
   };
   const recordCodingExposure = (
     meta: (typeof files)[number],
+    versionId: string,
+    projection: "canonical" | "drafting",
     sourceChars: number,
     spans: Array<[number, number]>,
   ) => {
     if (!turnReadState) return;
-    const stateKey = `coding:${meta.id}`;
+    const stateKey = `${projection}:${meta.id}:${versionId}`;
     const prior = turnReadState.get(stateKey);
     const intervals = mergeIntervals([...(prior?.intervals ?? []), ...spans]);
     turnReadState.set(stateKey, {
       documentId: meta.id,
       docLabel: codingPath(meta),
-      versionId: meta.current_version_id,
+      versionId,
       filename: meta.filename,
+      projection,
       sourceChars,
       deliveredChars: intervals.reduce(
         (total, [start, end]) => total + (end - start),
@@ -4511,7 +4536,15 @@ async function runCodingShapeCall(
         );
       }
       if (FINAL_ARM_ENABLED) {
-        recordCodingExposure(meta, document?.text.length ?? 0, []);
+        if (document) {
+          recordCodingExposure(
+            meta,
+            document.versionId || meta.current_version_id,
+            document.projection,
+            document.text.length,
+            [],
+          );
+        }
       }
       const rendered = toc
         .split("\n")
@@ -4671,7 +4704,13 @@ async function runCodingShapeCall(
     const recordReadExposure = (kept: CodingOutputLine[]) => {
       const spans = kept.flatMap((line) => (line.span ? [line.span] : []));
       if (!spans.length) return;
-      recordCodingExposure(meta, document.text.length, spans);
+      recordCodingExposure(
+        meta,
+        document.versionId || meta.current_version_id,
+        document.projection,
+        document.text.length,
+        spans,
+      );
     };
     const limit = positiveInt(args.limit, 1, 2_000, 2_000);
     const startChar = clampInt(
@@ -4901,12 +4940,10 @@ async function runCodingShapeCall(
     // DOCX paragraphs are one served line. Preserve the ordinary cap for long
     // lines, but do not cut off a short proviso or exception at the end.
     const shownChars = (line: string, from: number) => {
-      const remaining = line.length - from;
-      return /\.docx$/iu.test(meta.filename) &&
-        remaining > readLineCap &&
-        remaining <= readLineCap + 1_500
-        ? remaining
-        : readLineCap;
+      const tail = /\.docx$/iu.test(meta.filename)
+        ? boundedParagraphTail(line, from + readLineCap)
+        : null;
+      return readLineCap + (tail?.text.length ?? 0);
     };
     const firstLineContinues =
       selectedLines.length > 0 &&
@@ -5031,6 +5068,7 @@ async function runCodingShapeCall(
         undefined,
         undefined,
         turnEditState,
+        turnReadState,
       );
       const receiptText = applied.mutationReceipt ?? applied.content;
       try {
@@ -5040,6 +5078,7 @@ async function runCodingShapeCall(
           error?: string;
           change_count?: number;
           ops?: Array<{ replacements?: number }>;
+          source_closure?: unknown[];
         };
         if (payload.ok && payload.action === "no_changes") {
           return result(
@@ -5054,7 +5093,10 @@ async function runCodingShapeCall(
           return {
             ...result(
               call,
-              `Updated ${meta.filename}: ${count} replacement(s) applied as tracked changes.`,
+              `Updated ${meta.filename}: ${count} replacement(s) applied as tracked changes.` +
+                (payload.source_closure?.length
+                  ? `\nSource closure: ${JSON.stringify(payload.source_closure)}`
+                  : ""),
             ),
             mutationReceipt: receiptText,
           };
@@ -5142,6 +5184,8 @@ async function runCodingShapeCall(
       meta.id,
       { edits: [edit] },
       turnEditState,
+      turnReadState,
+      servedDraftingCache,
     );
     const receiptText = revised.mutationReceipt ?? revised.content;
     try {
@@ -5149,13 +5193,17 @@ async function runCodingShapeCall(
         ok?: boolean;
         error?: string;
         edit_errors?: string[];
+        source_closure?: unknown[];
       };
       if (payload.ok) {
         if (requirementsState) requirementsState.sourceEditCount += 1;
         return {
           ...result(
             call,
-            `Updated ${meta.filename}: 1 tracked change applied.`,
+            `Updated ${meta.filename}: 1 tracked change applied.` +
+              (payload.source_closure?.length
+                ? `\nSource closure: ${JSON.stringify(payload.source_closure)}`
+                : ""),
           ),
           mutationReceipt: receiptText,
         };
@@ -5405,6 +5453,10 @@ async function runCodingShapeCall(
 
   const rows: CodingOutputLine[] = [];
   const grepSourceChars = new Map<string, number>();
+  const grepSources = new Map<
+    string,
+    { versionId: string; projection: "canonical" | "drafting" }
+  >();
   // Per-file content buckets; only populated when the per-file budget is on.
   // files_with_matches/count emit one row per document and are fair already.
   const fileBuckets: CodingOutputLine[][] = [];
@@ -5425,6 +5477,10 @@ async function runCodingShapeCall(
     const document = await codingDocument(meta.id);
     if (!document) continue;
     grepSourceChars.set(meta.id, document.text.length);
+    grepSources.set(meta.id, {
+      versionId: document.versionId || meta.current_version_id,
+      projection: document.projection,
+    });
     const lines = document.text.split(/\r?\n/u);
     const starts = sourceLineStarts(document.text, lines);
     let scopeSpans: TextRange[] | null = null;
@@ -6046,7 +6102,7 @@ async function runCodingShapeCall(
   if (!rows.length) return result(call, "No matches found");
   const limited = rows.slice(0, headLimit);
   const { kept, truncated: sizeTruncated } = takeCodingOutputLines(limited);
-  if (FINAL_ARM_ENABLED && mode === "content") {
+  if (!ORIGIN_MIKE_TOOL_SHAPE && CODING_TOOL_SHAPE && mode === "content") {
     const spansByDocument = new Map<string, Array<[number, number]>>();
     for (const line of kept) {
       if (!line.source || !line.span) continue;
@@ -6056,8 +6112,15 @@ async function runCodingShapeCall(
     }
     for (const [documentId, spans] of spansByDocument) {
       const meta = files.find((file) => file.id === documentId);
-      if (!meta) continue;
-      recordCodingExposure(meta, grepSourceChars.get(documentId) ?? 0, spans);
+      const source = grepSources.get(documentId);
+      if (!meta || !source) continue;
+      recordCodingExposure(
+        meta,
+        source.versionId,
+        source.projection,
+        grepSourceChars.get(documentId) ?? 0,
+        spans,
+      );
     }
   }
   const body = [
@@ -7082,23 +7145,56 @@ async function turnServedPassages(
   userId: string,
   readState: LocalAssistantReadTurnState,
   cache: Map<string, ServedDrafting>,
-): Promise<ServedPassage[]> {
-  const passages: ServedPassage[] = [];
+): Promise<Array<ServedPassage & AssignmentClosureSource>> {
+  const passages: Array<ServedPassage & AssignmentClosureSource> = [];
   for (const entry of readState.values()) {
     if (!entry.intervals?.length) continue;
-    const drafting = await servedDraftingText(userId, entry.documentId, cache);
-    const extracted = drafting
-      ? null
-      : await extractLocalDocument(userId, entry.documentId);
-    const versionId = drafting?.versionId ?? extracted?.versionId;
-    const plane = drafting?.served ?? extracted?.text;
-    if (!plane || versionId !== entry.versionId) continue;
+    const file = await getLocalVersionFile(
+      userId,
+      entry.documentId,
+      entry.versionId,
+    );
+    if (!file || file.version.id !== entry.versionId) continue;
+    let plane = "";
+    if (entry.projection === "drafting") {
+      plane = (
+        await extractDocxDraftingSource(await readFile(file.path)).catch(
+          () => null,
+        )
+      )?.markdown ?? "";
+    } else if (entry.projection === "redline") {
+      plane = (
+        await projectDocxRedline(await readFile(file.path)).catch(() => null)
+      )?.text ?? "";
+    } else if (entry.projection === "canonical") {
+      plane =
+        (await extractLocalDocument(userId, entry.documentId, entry.versionId))
+          ?.text ?? "";
+    } else {
+      // Preserve legacy benchmark read-state coordinates.
+      const drafting = await servedDraftingText(userId, entry.documentId, cache);
+      plane =
+        drafting?.versionId === entry.versionId
+          ? drafting.served
+          : (
+              await extractLocalDocument(
+                userId,
+                entry.documentId,
+                entry.versionId,
+              )
+            )?.text ?? "";
+    }
+    if (!plane) continue;
     for (const [start, end] of mergeIntervals(entry.intervals)) {
       const from = Math.max(0, Math.min(start, plane.length));
       const to = Math.max(from, Math.min(end, plane.length));
       if (to > from) {
         passages.push({
           document: entry.docLabel || entry.filename || entry.documentId,
+          documentId: entry.documentId,
+          versionId: entry.versionId,
+          sourceSha256: file.version.source_sha256,
+          projection: entry.projection,
           text: plane.slice(from, to),
           at: from,
         });
@@ -7106,6 +7202,20 @@ async function turnServedPassages(
     }
   }
   return passages;
+}
+
+async function sourceClosureForDraft(
+  userId: string,
+  draft: string,
+  readState?: LocalAssistantReadTurnState,
+  cache = new Map<string, ServedDrafting>(),
+) {
+  return readState && /\bassign/iu.test(draft)
+    ? assignmentClosureReceipts(
+        await turnServedPassages(userId, readState, cache),
+        draft,
+      )
+    : [];
 }
 
 async function runUpstreamMikeRetrievalCall(params: {
@@ -8942,21 +9052,13 @@ export async function runLocalAssistantTools(
         }
         try {
           const sourceClosure =
-            !nativeDocx && turnReadState && /\bassign/iu.test(markdown)
-              ? assignmentTriggerClosure(
-                  await turnServedPassages(
-                    userId,
-                    turnReadState,
-                    servedDraftingCache,
-                  ),
+            !nativeDocx
+              ? await sourceClosureForDraft(
+                  userId,
                   markdown,
-                ).map((finding) => ({
-                  kind: "anti_assignment_trigger_omission" as const,
-                  source_document: finding.document,
-                  source_offset: finding.at,
-                  omitted_triggers: finding.omitted,
-                  source_excerpt: finding.excerpt,
-                }))
+                  turnReadState,
+                  servedDraftingCache,
+                )
               : [];
           const evidence = await resolveDocxEvidenceCitations(
             userId,
@@ -9054,6 +9156,12 @@ export async function runLocalAssistantTools(
             ...(sourceClosure.length
               ? { source_closure: sourceClosure }
               : {}),
+            ...(sourceClosure.length
+              ? {
+                  next_required_action:
+                    "Review source_closure and apply a document edit only if material.",
+                }
+              : {}),
             ...(diagnostics ? { compiler_diagnostics: diagnostics } : {}),
             ...(codingAliasNote ? { note: codingAliasNote } : {}),
             download_url: downloadUrl,
@@ -9132,6 +9240,8 @@ export async function runLocalAssistantTools(
           documentId,
           args,
           turnEditState,
+          turnReadState,
+          servedDraftingCache,
         );
       }
 
@@ -9507,6 +9617,12 @@ export async function runLocalAssistantTools(
           });
           if (!committed) return fail(call, "version_id is no longer active");
           const { version, parentVersionId } = committed;
+          const sourceClosure = await sourceClosureForDraft(
+            userId,
+            await extractDocxBodyText(applied.bytes),
+            turnReadState,
+            servedDraftingCache,
+          );
           const downloadUrl =
             `/single-documents/${encodeURIComponent(documentId)}/file` +
             `?version_id=${encodeURIComponent(version.id)}`;
@@ -9527,6 +9643,7 @@ export async function runLocalAssistantTools(
             ...(applied.editErrors.length
               ? { edit_errors: applied.editErrors }
               : {}),
+            ...(sourceClosure.length ? { source_closure: sourceClosure } : {}),
             annotations: trackedEdits.map((edit) => ({
               kind: "edit",
               edit_id: edit.id,
@@ -9543,8 +9660,9 @@ export async function runLocalAssistantTools(
               reason: edit.reason,
               status: edit.status,
             })),
-            next_required_action:
-              "Mention any unchanged_sites when you confirm.",
+            next_required_action: sourceClosure.length
+              ? "Review source_closure and apply another document edit only if material."
+              : "Mention any unchanged_sites when you confirm.",
           });
         } catch (error) {
           return fail(
@@ -9655,9 +9773,24 @@ export async function runLocalAssistantTools(
               userId,
               documentId,
             );
-            return source
-              ? result(call, { ok: true, ...source })
-              : fail(call, "Document not found");
+            if (!source) return fail(call, "Document not found");
+            const output = result(call, { ok: true, ...source });
+            return output.status === "truncated"
+              ? output
+              : {
+                  ...output,
+                  evidenceSegments: [
+                    {
+                      documentId,
+                      versionId: source.version_id,
+                      filename: source.filename,
+                      projection: "drafting",
+                      kind: "evidence" as const,
+                      start: 0,
+                      end: source.markdown.length,
+                    },
+                  ],
+                };
           } catch (error) {
             return fail(
               call,
@@ -9671,9 +9804,24 @@ export async function runLocalAssistantTools(
               userId,
               documentId,
             );
-            return projection
-              ? result(call, { ok: true, ...projection })
-              : fail(call, "Document not found");
+            if (!projection) return fail(call, "Document not found");
+            const output = result(call, { ok: true, ...projection });
+            return output.status === "truncated"
+              ? output
+              : {
+                  ...output,
+                  evidenceSegments: [
+                    {
+                      documentId,
+                      versionId: projection.version_id,
+                      filename: projection.filename,
+                      projection: "redline",
+                      kind: "evidence" as const,
+                      start: 0,
+                      end: projection.text.length,
+                    },
+                  ],
+                };
           } catch (error) {
             return fail(
               call,
@@ -9721,9 +9869,25 @@ export async function runLocalAssistantTools(
             if (body.length <= maxChars) {
               return { body, cut: false, at: 0 };
             }
-            return fromEnd
-              ? { body: body.slice(body.length - maxChars), cut: true, at: body.length - maxChars }
-              : { body: body.slice(0, maxChars), cut: true, at: 0 };
+            if (fromEnd) {
+              return {
+                body: body.slice(body.length - maxChars),
+                cut: true,
+                at: body.length - maxChars,
+              };
+            }
+            const tail = /\.docx$/iu.test(document.filename)
+              ? boundedParagraphTail(
+                  body,
+                  maxChars,
+                  Math.min(
+                    1_500,
+                    Math.max(0, MAX_TOOL_RESULT_CHARS - maxChars - 2_000),
+                  ),
+                )
+              : null;
+            const end = tail?.end ?? maxChars;
+            return { body: body.slice(0, end), cut: end < body.length, at: 0 };
           };
           if (sectionLocator) {
             const skeleton = await documentStructure(document.text, documentId, {
@@ -9804,7 +9968,7 @@ export async function runLocalAssistantTools(
                 ? {
                     continuation: fromEnd
                       ? `Section head omitted; call library_read with at="${lookup.block.label}" for the start.`
-                      : `Section continues; call library_read with at="off:${lookup.block.start + maxChars}" for the rest, or from="end" for its tail.`,
+                      : `Section continues; call library_read with at="off:${lookup.block.start + view.body.length}" for the rest, or from="end" for its tail.`,
                   }
                 : {}),
               }),
@@ -9941,7 +10105,20 @@ export async function runLocalAssistantTools(
           const start = fromEnd
             ? Math.max(offset, document.text.length - maxChars)
             : offset;
-          const window = document.text.slice(start, start + maxChars);
+          const requestedEnd = Math.min(document.text.length, start + maxChars);
+          const paragraphTail =
+            !fromEnd && /\.docx$/iu.test(document.filename)
+              ? boundedParagraphTail(
+                  document.text,
+                  requestedEnd,
+                  Math.min(
+                    1_500,
+                    Math.max(0, MAX_TOOL_RESULT_CHARS - maxChars - 2_000),
+                  ),
+                )
+              : null;
+          const windowEnd = paragraphTail?.end ?? requestedEnd;
+          const window = document.text.slice(start, windowEnd);
           const windowCut = start + window.length < document.text.length;
           /**
            * CAPABILITY ON CONTACT. The schema can only advertise addressing
@@ -10192,7 +10369,19 @@ export async function runLocalAssistantTools(
         const narrowed = Boolean(scope || structural);
         const inScope = filtered;
         const kept = narrowed ? inScope.slice(0, cap) : inScope;
-        const hits = kept.map((hit) => {
+        const completed =
+          inScope.length === 1 &&
+          kept.length === 1 &&
+          /\.docx$/iu.test(document.filename)
+            ? kept.map((hit) => {
+                const tail = boundedParagraphTail(
+                  document.text,
+                  hit.at + hit.excerpt.length,
+                );
+                return tail ? { ...hit, paragraph_tail: tail.text } : hit;
+              })
+            : kept;
+        const hits = completed.map((hit) => {
           const owner = skeleton.nodes
             .filter((node) => node.start <= hit.at && hit.at < node.end)
             .sort((a, b) => b.depth - a.depth)[0];
@@ -10212,31 +10401,51 @@ export async function runLocalAssistantTools(
             ...(page ? { page: pageLabel(page) } : {}),
           };
         });
-        return result(call, {
-          ok: true,
-          filename: document.filename,
-          ...(document.cautions.length
-            ? { notes_of_caution: document.cautions }
-            : {}),
-          query,
-          totalMatches: matches.totalMatches,
-          ...(narrowed
-            ? {
-                ...(scope ? { pages_searched: scope.length } : {}),
-                ...(followed
-                  ? {
-                      sections_searched: followed.nodes,
-                      ...(followed.follow !== "none"
-                        ? { followed: followed.follow, hops: followed.depth }
-                        : {}),
-                    }
-                  : {}),
-                matches_in_scope: inScope.length,
-                ...(inScope.length > kept.length ? { truncated: true } : {}),
-              }
-            : {}),
-          hits,
-        });
+        const output = result(call, {
+            ok: true,
+            filename: document.filename,
+            ...(document.cautions.length
+              ? { notes_of_caution: document.cautions }
+              : {}),
+            query,
+            totalMatches: matches.totalMatches,
+            ...(narrowed
+              ? {
+                  ...(scope ? { pages_searched: scope.length } : {}),
+                  ...(followed
+                    ? {
+                        sections_searched: followed.nodes,
+                        ...(followed.follow !== "none"
+                          ? { followed: followed.follow, hops: followed.depth }
+                          : {}),
+                      }
+                    : {}),
+                  matches_in_scope: inScope.length,
+                  ...(inScope.length > kept.length ? { truncated: true } : {}),
+                }
+              : {}),
+            hits,
+          });
+        return output.status === "truncated"
+          ? output
+          : {
+              ...output,
+              evidenceSegments: completed.map((hit) => ({
+                documentId,
+                versionId: document.versionId,
+                filename: document.filename,
+                projection: "canonical",
+                kind: "candidate" as const,
+                start: hit.at,
+                end:
+                  hit.at +
+                  hit.excerpt.length +
+                  ("paragraph_tail" in hit &&
+                  typeof hit.paragraph_tail === "string"
+                    ? hit.paragraph_tail.length
+                    : 0),
+              })),
+            };
       }
 
       if (call.name === "library_outline") {
@@ -10824,11 +11033,49 @@ export async function runLocalAssistantTools(
 
       return result(call, { ok: false, error: `Unknown tool: ${call.name}` });
       };
+      const executeAndRecord = async () => {
+        const output = await execute();
+        if (
+          turnReadState &&
+          !ORIGIN_MIKE_TOOL_SHAPE &&
+          output.status !== "truncated" &&
+          ["library_read", "library_find"].includes(call.name)
+        ) {
+          for (const segment of output.evidenceSegments ?? []) {
+            if (segment.end <= segment.start) continue;
+            const projection =
+              segment.projection === "drafting" ||
+              segment.projection === "redline"
+                ? segment.projection
+                : "canonical";
+            const key = `${projection}:${segment.documentId}:${segment.versionId}`;
+            const prior = turnReadState.get(key);
+            const intervals = mergeIntervals([
+              ...(prior?.intervals ?? []),
+              [segment.start, segment.end],
+            ]);
+            turnReadState.set(key, {
+              documentId: segment.documentId,
+              docLabel: segment.filename ?? prior?.docLabel,
+              versionId: segment.versionId,
+              filename:
+                segment.filename ?? prior?.filename ?? segment.documentId,
+              projection,
+              intervals,
+              deliveredChars: intervals.reduce(
+                (total, [start, end]) => total + end - start,
+                0,
+              ),
+            });
+          }
+        }
+        return output;
+      };
       if (
         call.name === "Grep" &&
         call.input.output_mode === "working_set"
       ) {
-        const queued = workingSetTail.then(execute);
+        const queued = workingSetTail.then(executeAndRecord);
         workingSetTail = queued.then(
           () => undefined,
           () => undefined,
@@ -10841,15 +11088,15 @@ export async function runLocalAssistantTools(
           ["read_document", "fetch_documents"].includes(call.name)) ||
         (WHOLE_READ_MAX_CHARS && call.name === "fetch_documents")
       ) {
-        const queued = wholeReadTail.then(execute);
+        const queued = wholeReadTail.then(executeAndRecord);
         wholeReadTail = queued.then(
           () => undefined,
           () => undefined,
         );
         return queued;
       }
-      if (!LOCAL_TURN_EDIT_TOOL_NAMES.has(call.name)) return execute();
-      const queued = editTail.then(execute);
+      if (!LOCAL_TURN_EDIT_TOOL_NAMES.has(call.name)) return executeAndRecord();
+      const queued = editTail.then(executeAndRecord);
       editTail = queued.then(
         () => undefined,
         () => undefined,
