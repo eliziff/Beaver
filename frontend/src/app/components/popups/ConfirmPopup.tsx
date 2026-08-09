@@ -48,8 +48,7 @@ export function ConfirmPopup({
             onClose={confirmBusy ? () => undefined : onCancel}
             role="alertdialog"
             size="sm"
-            contentSized
-            className={className}
+            className={`!h-fit max-h-[calc(100dvh-2rem)] ${className ?? ""}`}
             breadcrumbs={[title ?? "Confirm"]}
             cancelAction={{
                 label: cancelLabel,
