@@ -114,6 +114,7 @@ describe("DocxView", () => {
         const { container } = render(
             <DocxView
                 documentId="doc-1"
+                preferPdfRendition={false}
                 onReady={onReady}
                 onScrollChange={onScrollChange}
             />,
@@ -196,6 +197,7 @@ describe("DocxView", () => {
                 documentId="tracked-doc"
                 versionId="version-1"
                 refetchKey={4}
+                preferPdfRendition={false}
                 onReady={firstReady}
             />,
         );
@@ -212,6 +214,7 @@ describe("DocxView", () => {
                 documentId="tracked-doc"
                 versionId="version-1"
                 refetchKey={4}
+                preferPdfRendition={false}
                 onReady={secondReady}
             />,
         );
@@ -274,7 +277,13 @@ describe("DocxView", () => {
     it("uses an exact PDF rendition when browser Word preview cannot decode media", async () => {
         mocks.withBrokenImage = true;
 
-        render(<DocxView documentId="vector-doc" versionId="v1" />);
+        render(
+            <DocxView
+                documentId="vector-doc"
+                versionId="v1"
+                preferPdfRendition={false}
+            />,
+        );
 
         await waitFor(() =>
             expect(screen.getByTestId("pdf-rendition")).toBeInTheDocument(),
@@ -285,7 +294,11 @@ describe("DocxView", () => {
         mocks.withBrokenImage = true;
 
         const { container } = render(
-            <DocxView documentId="no-rendition-doc" versionId="v1" />,
+            <DocxView
+                documentId="no-rendition-doc"
+                versionId="v1"
+                preferPdfRendition={false}
+            />,
         );
         const rendition = await screen.findByTestId("pdf-rendition");
         fireEvent.click(rendition);
