@@ -51,10 +51,15 @@ const suites = {
     directory: "data-room-v2",
     runPrefix: "coding-agent-data-room-v2",
   },
+  "near-term": {
+    campaign: "coding-agent-defaults-v1-near-term-v1",
+    directory: "near-term-v1",
+    runPrefix: "coding-agent-near-term-v1",
+  },
 };
 const suite = suites[suiteName];
 if (!suite) {
-  throw new Error(`Unknown --suite ${String(suiteName)}; expected current, additions, expansion, redlines, or data-room`);
+  throw new Error(`Unknown --suite ${String(suiteName)}`);
 }
 const campaignRoot = path.join(
   lab,
@@ -120,6 +125,22 @@ const currentCells = [
   ["14", tasks.covenants, "mike_upstream_native_v1", 2],
 ].map(([order, task, arm, replicate]) => ({ order, task, arm, replicate }));
 
+const nearTermCells = [
+  ["01", tasks.closing, "coding_markdown_final_v5"],
+  ["02", tasks.closing, "coding_markdown_final_v5_read_replay_v1"],
+  ["03", tasks.dpa, "coding_markdown_final_v5"],
+  ["04", tasks.dpa, "coding_markdown_final_v5_read_replay_v1"],
+  ["05", tasks.dpa, "coding_markdown_final_v5_grep_line_500_v1"],
+  ["06", tasks.protective, "coding_markdown_final_v5"],
+  ["07", tasks.protective, "coding_markdown_final_v5_read_replay_v1"],
+  ["08", tasks.protective, "coding_markdown_final_v5_grep_line_500_v1"],
+  ["09", tasks.acquisitionDiligence, "coding_markdown_final_v5"],
+  ["10", tasks.acquisitionDiligence, "coding_markdown_final_v5_read_replay_v1"],
+  ["11", tasks.acquisitionDiligence, "coding_markdown_final_v5_grep_line_500_v1"],
+  ["12", tasks.indenture, "coding_markdown_final_v5"],
+  ["13", tasks.indenture, "coding_markdown_final_v5_grep_line_500_v1"],
+].map(([order, task, arm]) => ({ order, task, arm, replicate: 1 }));
+
 function pairedCells(taskList) {
   return taskList.flatMap((task, index) => {
     const first = String(index * 2 + 1).padStart(2, "0");
@@ -134,27 +155,29 @@ function pairedCells(taskList) {
 const cells =
   suiteName === "current"
     ? currentCells
-    : suiteName === "additions"
-      ? pairedCells([
-          tasks.psa,
-          tasks.arbitrationMarkup,
-          tasks.indenture,
-          tasks.acquisitionDiligence,
-        ])
-      : suiteName === "expansion"
+    : suiteName === "near-term"
+      ? nearTermCells
+      : suiteName === "additions"
         ? pairedCells([
-            tasks.antitrustRisk,
-            tasks.criticalVendors,
-            tasks.covenantCompliance,
-            tasks.planDistributions,
-            tasks.conventionEnforcement,
-            tasks.flsaClassification,
-            tasks.ofacInvestigation,
-            tasks.transferPricing,
+            tasks.psa,
+            tasks.arbitrationMarkup,
+            tasks.indenture,
+            tasks.acquisitionDiligence,
           ])
-      : suiteName === "redlines"
-        ? pairedCells([tasks.dpa, tasks.protective])
-        : pairedCells([tasks.aerospaceDataRoom]);
+        : suiteName === "expansion"
+          ? pairedCells([
+              tasks.antitrustRisk,
+              tasks.criticalVendors,
+              tasks.covenantCompliance,
+              tasks.planDistributions,
+              tasks.conventionEnforcement,
+              tasks.flsaClassification,
+              tasks.ofacInvestigation,
+              tasks.transferPricing,
+            ])
+          : suiteName === "redlines"
+            ? pairedCells([tasks.dpa, tasks.protective])
+            : pairedCells([tasks.aerospaceDataRoom]);
 
 const lanes = [
   {
@@ -399,7 +422,7 @@ const judgePromises = [];
 const scheduledJudges = new Set();
 
 function scheduleJudge(lane, cell, runId) {
-  if (scheduledJudges.has(runId) || judgeComplete(runId, lane)) return;
+  if (dryRun || scheduledJudges.has(runId) || judgeComplete(runId, lane)) return;
   scheduledJudges.add(runId);
   const key = cellKey(lane, cell);
   const entry = (ledger.cells[key] ??= {});
@@ -537,7 +560,7 @@ for (const lane of lanes) {
     const entry = (ledger.cells[key] ??= { attempts: [] });
     const candidates = [
       entry.run_id,
-      ...(cell.arm === "mike_upstream_native_v1" ? runsFor(cell, lane) : []),
+      ...runsFor(cell, lane),
     ].filter(Boolean);
     const runId = candidates.find(
       (candidate) => !claimedRuns.has(candidate) && usableRun(candidate, lane, cell),
