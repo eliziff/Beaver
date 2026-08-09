@@ -9,7 +9,11 @@ import {
 } from "react";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { AssistantEvent, Citation } from "../../shared/types";
+import {
+    citationPinpoint,
+    type AssistantEvent,
+    type Citation,
+} from "../../shared/types";
 import { RESPONSE_GLASS_ANNOTATION, withoutMarkdownNode } from "./messageStyles";
 import { citationTooltip } from "./CitationSources";
 import { internalCaseHref } from "./citationUtils";
@@ -228,11 +232,13 @@ export function MarkdownContent({
                             const idx = parseInt(citMatch[1]);
                             const annotation = inlineCitationTargets[idx];
                             if (annotation) {
+                                const pinpoint = citationPinpoint(annotation);
                                 const tooltipText =
                                     citationTitle?.(annotation) ??
                                     citationTooltip(annotation);
                                 return (
                                     <button
+                                        type="button"
                                         onClick={() =>
                                             onCitationClick?.(annotation)
                                         }
@@ -241,6 +247,7 @@ export function MarkdownContent({
                                         title={tooltipText}
                                     >
                                         {annotation.ref}
+                                        {pinpoint ? ` \u00b7 ${pinpoint}` : ""}
                                     </button>
                                 );
                             }

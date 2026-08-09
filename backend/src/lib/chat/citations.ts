@@ -3,6 +3,8 @@ import type { A2AJDocument, A2AJLocatorLookup } from "../a2aj";
 import {
   buildA2AJCitationPinpointUrl,
   buildCourtlistenerCitationPinpointUrl,
+  formatLegalLocator,
+  legalSourceQuoteMatchesBlock,
 } from "../legalSourceLinks";
 import {
   buildPublicLegalCitationUrl,
@@ -10,6 +12,18 @@ import {
   type PublicLegalCitationIdentity,
   type PublicLegalSourceState,
 } from "./publicLegalSourceState";
+import { getCourtlistenerOpinionStructure } from "../courtlistener";
+import {
+  sourceDocContainsQuote,
+  type SourceDoc,
+  type SourceDocBlock,
+  type SourceDocLocatorKind,
+} from "../sourceDoc";
+import {
+  legalEvidenceCitationEntries,
+  type LegalEvidenceReceipt,
+  type LegalEvidenceTurnState,
+} from "./legalEvidenceExperiment";
 
 // ---------------------------------------------------------------------------
 // Internal citation parse types
@@ -424,6 +438,156 @@ type CasesByClusterId = Map<
   }
 >;
 
+type LegalPinpoint = {
+  locator_kind: SourceDocLocatorKind;
+  locator: string;
+  pinpoint: string;
+};
+
+function normalizedIdentity(value: string | null | undefined) {
+  return value?.trim().replace(/\s+/gu, " ").toLowerCase() ?? "";
+}
+
+function pinpointFor(
+  block: Pick<SourceDocBlock, "kind" | "label">,
+): LegalPinpoint {
+  return {
+    locator_kind: block.kind,
+    locator: block.label,
+    pinpoint: formatLegalLocator(block.kind, block.label),
+  };
+}
+
+function smallestBlockContainingQuotes(doc: SourceDoc, quotes: string[]) {
+  const matches = doc.blocks
+    .filter((block) =>
+      quotes.every((quote) => sourceDocContainsQuote(doc, quote, block)),
+    )
+    .sort(
+      (left, right) =>
+        left.end - left.start - (right.end - right.start),
+    );
+  if (!matches.length) return null;
+  const length = matches[0].end - matches[0].start;
+  const smallest = new Map(
+    matches
+      .filter((block) => block.end - block.start === length)
+      .map((block) => [`${block.kind}:${block.label}`, block]),
+  );
+  return smallest.size === 1 ? [...smallest.values()][0] : null;
+}
+
+function courtlistenerOpinionId(value: Record<string, unknown>) {
+  const raw = value.opinionId ?? value.opinion_id ?? value.id;
+  return typeof raw === "number" && Number.isFinite(raw)
+    ? Math.floor(raw)
+    : null;
+}
+
+function a2ajCitationPinpoint(
+  citation: ParsedA2AJCitation,
+  lookups: A2AJLocatorLookup[],
+) {
+  const quotes = citation.quotes.map(({ quote }) => quote);
+  if (!quotes.length) return null;
+  const matches = new Map<string, Pick<SourceDocBlock, "kind" | "label">>();
+  const identityMatches = (source: A2AJLocatorLookup) =>
+    (!citation.citation ||
+      [source.citation, source.alternateCitation]
+        .map(normalizedIdentity)
+        .includes(normalizedIdentity(citation.citation))) &&
+    (!citation.dataset ||
+      normalizedIdentity(source.dataset) ===
+        normalizedIdentity(citation.dataset));
+  const add = (
+    source: Pick<A2AJLocatorLookup | A2AJDocument, "citation" | "dataset">,
+    block: Pick<SourceDocBlock, "kind" | "label">,
+  ) =>
+    matches.set(
+      [
+        normalizedIdentity(source.dataset),
+        normalizedIdentity(source.citation),
+        block.kind,
+        normalizedIdentity(block.label),
+      ].join("|"),
+      block,
+    );
+
+  for (const lookup of lookups) {
+    if (lookup.status !== "found" || !identityMatches(lookup)) continue;
+    for (const block of [lookup.block, ...lookup.before, ...lookup.after]) {
+      if (
+        block &&
+        quotes.every((quote) => legalSourceQuoteMatchesBlock(block.text, quote))
+      ) {
+        add(lookup, block);
+      }
+    }
+  }
+  return matches.size === 1 ? pinpointFor([...matches.values()][0]) : null;
+}
+
+function courtlistenerCitationSupport(
+  citation: ParsedCaseCitation,
+  caseRecord?: CasesByClusterId extends Map<number, infer Value> ? Value : never,
+) {
+  if (!caseRecord || !citation.quotes.length) return { valid: false, pin: null };
+  const opinions = (caseRecord.opinions ?? []).flatMap((raw) => {
+    if (!raw || typeof raw !== "object") return [];
+    const value = raw as Record<string, unknown>;
+    const document = getCourtlistenerOpinionStructure(value);
+    return document
+      ? [{ opinionId: courtlistenerOpinionId(value), document }]
+      : [];
+  });
+  const resolved = citation.quotes.map(({ opinionId, quote }) =>
+    opinions.filter(
+      (candidate) =>
+        (opinionId === null || candidate.opinionId === opinionId) &&
+        legalSourceQuoteMatchesBlock(candidate.document, quote),
+    ),
+  );
+  if (resolved.some((matches) => matches.length !== 1)) {
+    return { valid: false, pin: null };
+  }
+  const selected = resolved.map((matches) => matches[0]);
+  if (new Set(selected.map(({ opinionId }) => opinionId)).size !== 1) {
+    return { valid: true, pin: null };
+  }
+  const block = smallestBlockContainingQuotes(
+    selected[0].document,
+    citation.quotes.map(({ quote }) => quote),
+  );
+  return { valid: true, pin: block ? pinpointFor(block) : null };
+}
+
+function publicLegalCitationPinpoint(
+  citation: ParsedPublicLegalCitation,
+  state?: PublicLegalSourceState,
+) {
+  if (!state || !citation.quotes.length) return null;
+  const document = getPublicLegalCitationDocument(citation, state);
+  if (!document) return null;
+  const quotes = citation.quotes.map(({ quote }) => quote);
+  const matches = new Map<string, Pick<SourceDocBlock, "kind" | "label">>();
+  for (const evidence of state.lookups) {
+    if (evidence.document !== document) continue;
+    for (const block of [
+      evidence.lookup.block,
+      ...evidence.lookup.before,
+      ...evidence.lookup.after,
+    ]) {
+      if (
+        block &&
+        quotes.every((quote) => legalSourceQuoteMatchesBlock(block.text, quote))
+      ) {
+        matches.set(`${block.kind}:${block.label}`, block);
+      }
+    }
+  }
+  return matches.size === 1 ? pinpointFor([...matches.values()][0]) : null;
+}
+
 export function createCitation(
   citation: ParsedCitation,
   docIndex: DocIndex,
@@ -434,6 +598,7 @@ export function createCitation(
 ) {
   if (citation.kind === "public_legal") {
     const document = getPublicLegalCitationDocument(citation, publicLegalState);
+    const pin = publicLegalCitationPinpoint(citation, publicLegalState);
     return {
       type: "citation_data",
       kind: "public_legal",
@@ -443,9 +608,11 @@ export function createCitation(
       title: document?.title ?? null,
       url: buildPublicLegalCitationUrl(citation, publicLegalState),
       quotes: citation.quotes,
+      ...(pin ?? {}),
     };
   }
   if (citation.kind === "a2aj") {
+    const pin = a2ajCitationPinpoint(citation, a2ajLookups);
     return {
       type: "citation_data",
       kind: "a2aj",
@@ -455,10 +622,12 @@ export function createCitation(
       dataset: citation.dataset,
       url: buildA2AJCitationPinpointUrl(citation, a2ajLookups, a2ajDocuments),
       quotes: citation.quotes,
+      ...(pin ?? {}),
     };
   }
   if (citation.kind === "case") {
     const caseRecord = casesByClusterId?.get(citation.cluster_id);
+    const support = courtlistenerCitationSupport(citation, caseRecord);
     return {
       type: "citation_data",
       kind: "case",
@@ -467,9 +636,11 @@ export function createCitation(
       case_name: caseRecord?.caseName ?? null,
       citation: caseRecord?.citations[0] ?? null,
       url: buildCourtlistenerCitationPinpointUrl(citation, caseRecord),
+      verified: support.valid,
       pdfUrl: caseRecord?.pdfUrl ?? null,
       dateFiled: caseRecord?.dateFiled ?? null,
       quotes: citation.quotes,
+      ...(support.pin ?? {}),
     };
   }
 
@@ -489,4 +660,94 @@ export function createCitation(
     cell: citation.cell,
     quotes: citation.quotes,
   };
+}
+
+/** Structured citation records fail closed when their named source did not verify. */
+export function isResolvedCitation(value: unknown): boolean {
+  const citation = value as {
+    kind?: unknown;
+    document_id?: unknown;
+    url?: unknown;
+    verified?: unknown;
+  } | null;
+  if (!citation) return false;
+  if (!citation.kind || citation.kind === "document") {
+    return (
+      typeof citation.document_id === "string" &&
+      citation.document_id.length > 0
+    );
+  }
+  return (
+    citation.verified !== false &&
+    typeof citation.url === "string" &&
+    citation.url.length > 0
+  );
+}
+
+function receiptLocator(receipt: LegalEvidenceReceipt) {
+  const { kind, label } = receipt.locator;
+  return kind === "document" ? {} : pinpointFor({ kind, label });
+}
+
+/**
+ * Project the existing strict evidence-id submission into the same citation
+ * events used by document, CourtListener, A2AJ, and public-source JSON.
+ */
+export function createLegalEvidenceCitations(state: LegalEvidenceTurnState) {
+  return legalEvidenceCitationEntries(state).flatMap(
+    ({ ref, receipt, lookup, document }) => {
+      const quote = receipt.span_text;
+      if (!quote) return [];
+      if (receipt.provider === "a2aj") {
+        const built = createCitation(
+          {
+            kind: "a2aj",
+            ref,
+            citation: receipt.citation,
+            name: receipt.name,
+            dataset: receipt.dataset,
+            url: receipt.external_url,
+            quotes: [{ quote }],
+          },
+          {},
+          undefined,
+          lookup ? [lookup] : [],
+          document ? [document] : [],
+        );
+        return [{
+          ...built,
+          url: ("url" in built ? built.url : null) ?? receipt.external_url,
+          ...receiptLocator(receipt),
+        }];
+      }
+      if (receipt.provider === "journal") {
+        const identifier = receipt.stable_source_id.startsWith("journal:")
+          ? receipt.stable_source_id.slice("journal:".length)
+          : receipt.stable_source_id;
+        return [{
+          type: "citation_data" as const,
+          kind: "public_legal" as const,
+          ref,
+          provider: "journal" as const,
+          identifier,
+          title: receipt.name,
+          url: receipt.external_url,
+          quotes: [{ quote }],
+          ...receiptLocator(receipt),
+        }];
+      }
+      if (receipt.provider !== "citator") return [];
+      return [{
+        type: "citation_data" as const,
+        kind: "a2aj" as const,
+        ref,
+        citation: receipt.citation,
+        name: receipt.name,
+        dataset: receipt.dataset,
+        url: receipt.external_url,
+        quotes: [{ quote }],
+        ...receiptLocator(receipt),
+      }];
+    },
+  );
 }

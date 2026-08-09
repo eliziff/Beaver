@@ -108,4 +108,6 @@ Use public_legal_source_fetch and public_legal_source_lookup for UK Find Case La
 - Search/FTS results are candidates only: base claims on fetched or returned text, not search metadata, embeddings, or memory.
 - Provider URLs and native anchors are private server evidence: never invent, request, copy, or include a URL in citation data.
 - Preserve an exact lookup's evidence.handle when its passage may be needed after compaction; rehydrate with public_legal_source_lookup using evidence_handle plus the same provider and identifier, and never expose the handle to the user.
-- When relying on one of these sources, include [N] and a matching <CITATIONS> entry: {"ref": N, "source": "public_legal", "provider": "tna", "identifier": "[2024] UKSC 1", "quotes": [{"quote": "exact returned text"}]}. Beaver verifies the quote against fetched full text and attaches the trusted provider link automatically.`;
+- Journal fetches and lookups return evidence_id values. Finish those answers with submit_grounded_answer; put no citation or pinpoint in claim text because Beaver renders one complete source pill.
+- For non-journal sources, include [N] and a matching <CITATIONS> entry: {"ref": N, "source": "public_legal", "provider": "tna", "identifier": "[2024] UKSC 1", "quotes": [{"quote": "exact returned text"}]}. Beaver verifies the quote against fetched full text and attaches the trusted provider link automatically.
+- Do not put a page, paragraph, section, article, note, footnote, or range beside [N] as plaintext; Beaver puts the verified locator inside the source pill.`;

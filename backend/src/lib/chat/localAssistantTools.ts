@@ -20,6 +20,7 @@ import {
 import { computeDeadline } from "../legalDeadlines";
 import type { DeadlineJurisdiction, DeadlineUnit } from "../legalDeadlines";
 import { conflictScan } from "../legalConflictScan";
+import { assignmentTriggerClosure } from "../legalAssignmentClosure";
 import { anchorCoverage, bilingualConcordance } from "../legalTextAnchors";
 import {
   compileAgreementSkeleton,
@@ -1801,7 +1802,13 @@ const DOMAIN_OF: Record<string, string> = {
  * caller opens, they are the way in.
  */
 const ALSO_IN: Record<string, string[]> = {
-  legislation: ["a2aj_search", "a2aj_fetch", "a2aj_lookup"],
+  legislation: [
+    "a2aj_search",
+    "a2aj_fetch",
+    "a2aj_lookup",
+    "submit_grounded_answer",
+  ],
+  commentary: ["submit_grounded_answer"],
 };
 
 /**
@@ -4891,9 +4898,20 @@ async function runCodingShapeCall(
       );
     }
     const selectedLines = lines.slice(offset - 1, offset - 1 + effectiveLimit);
+    // DOCX paragraphs are one served line. Preserve the ordinary cap for long
+    // lines, but do not cut off a short proviso or exception at the end.
+    const shownChars = (line: string, from: number) => {
+      const remaining = line.length - from;
+      return /\.docx$/iu.test(meta.filename) &&
+        remaining > readLineCap &&
+        remaining <= readLineCap + 1_500
+        ? remaining
+        : readLineCap;
+    };
     const firstLineContinues =
       selectedLines.length > 0 &&
-      startChar + readLineCap < selectedLines[0].length;
+      startChar + shownChars(selectedLines[0], startChar) <
+        selectedLines[0].length;
     const candidates = (firstLineContinues
       ? selectedLines.slice(0, 1)
       : selectedLines
@@ -4902,7 +4920,10 @@ async function runCodingShapeCall(
         const lineIndex = offset - 1 + i;
         const sourceStart = starts[lineIndex];
         const localStart = i === 0 ? startChar : 0;
-        const shown = line.slice(localStart, localStart + readLineCap);
+        const shown = line.slice(
+          localStart,
+          localStart + shownChars(line, localStart),
+        );
         return {
           rendered:
             `${String(offset + i).padStart(6, " ")}\t${shown}` +
@@ -7057,6 +7078,36 @@ export async function servedDraftingText(
   return result;
 }
 
+async function turnServedPassages(
+  userId: string,
+  readState: LocalAssistantReadTurnState,
+  cache: Map<string, ServedDrafting>,
+): Promise<ServedPassage[]> {
+  const passages: ServedPassage[] = [];
+  for (const entry of readState.values()) {
+    if (!entry.intervals?.length) continue;
+    const drafting = await servedDraftingText(userId, entry.documentId, cache);
+    const extracted = drafting
+      ? null
+      : await extractLocalDocument(userId, entry.documentId);
+    const versionId = drafting?.versionId ?? extracted?.versionId;
+    const plane = drafting?.served ?? extracted?.text;
+    if (!plane || versionId !== entry.versionId) continue;
+    for (const [start, end] of mergeIntervals(entry.intervals)) {
+      const from = Math.max(0, Math.min(start, plane.length));
+      const to = Math.max(from, Math.min(end, plane.length));
+      if (to > from) {
+        passages.push({
+          document: entry.docLabel || entry.filename || entry.documentId,
+          text: plane.slice(from, to),
+          at: from,
+        });
+      }
+    }
+  }
+  return passages;
+}
+
 async function runUpstreamMikeRetrievalCall(params: {
   call: NormalizedToolCall;
   userId: string;
@@ -8670,28 +8721,11 @@ export async function runLocalAssistantTools(
               return "";
             }
             requirementsState.compositionCheckCount += 1;
-            const servedPassages: ServedPassage[] = [];
-            for (const entry of turnReadState.values()) {
-              if (!entry.intervals?.length) continue;
-              const drafting = await servedDraftingText(
-                userId,
-                entry.documentId,
-                servedDraftingCache,
-              );
-              if (!drafting?.served) continue;
-              const plane = drafting.served;
-              for (const [start, end] of entry.intervals) {
-                const s = Math.max(0, Math.min(start, plane.length));
-                const e = Math.max(0, Math.min(end, plane.length));
-                if (e <= s) continue;
-                servedPassages.push({
-                  document:
-                    entry.docLabel || entry.filename || entry.documentId,
-                  text: plane.slice(s, e),
-                  at: s,
-                });
-              }
-            }
+            const servedPassages = await turnServedPassages(
+              userId,
+              turnReadState,
+              servedDraftingCache,
+            );
             const reconciled = reconcileFigures({
               draft: body,
               served: servedPassages,
@@ -8907,6 +8941,23 @@ export async function runLocalAssistantTools(
           return fail(call, "DOCX filename must be a plain .docx filename");
         }
         try {
+          const sourceClosure =
+            !nativeDocx && turnReadState && /\bassign/iu.test(markdown)
+              ? assignmentTriggerClosure(
+                  await turnServedPassages(
+                    userId,
+                    turnReadState,
+                    servedDraftingCache,
+                  ),
+                  markdown,
+                ).map((finding) => ({
+                  kind: "anti_assignment_trigger_omission" as const,
+                  source_document: finding.document,
+                  source_offset: finding.at,
+                  omitted_triggers: finding.omitted,
+                  source_excerpt: finding.excerpt,
+                }))
+              : [];
           const evidence = await resolveDocxEvidenceCitations(
             userId,
             args.sources,
@@ -9000,6 +9051,9 @@ export async function runLocalAssistantTools(
             file_type: document.file_type,
             source_sha256: document.source_sha256,
             attached_to_matter: Boolean(matterId),
+            ...(sourceClosure.length
+              ? { source_closure: sourceClosure }
+              : {}),
             ...(diagnostics ? { compiler_diagnostics: diagnostics } : {}),
             ...(codingAliasNote ? { note: codingAliasNote } : {}),
             download_url: downloadUrl,
@@ -9021,7 +9075,14 @@ export async function runLocalAssistantTools(
               ...result(call, {
                 ok: true,
                 filename: document.filename,
-                message: `Written ${document.filename} successfully.`,
+                message:
+                  `Written ${document.filename} successfully.` +
+                  (sourceClosure.length
+                    ? " Review source_closure before ending the turn."
+                    : ""),
+                ...(sourceClosure.length
+                  ? { source_closure: sourceClosure }
+                  : {}),
               }),
               mutationReceipt: JSON.stringify(receipt),
             };
@@ -9041,11 +9102,19 @@ export async function runLocalAssistantTools(
                 message: `Document '${document.filename}' has been generated successfully.`,
                 doc_id: docLabel,
                 next_required_action: [
+                  ...(sourceClosure.length
+                    ? [
+                        "Review source_closure; it lists source-stated anti-assignment triggers omitted from the draft. Revise if material.",
+                      ]
+                    : []),
                   `Before writing your final response, call read_document with doc_id "${docLabel}".`,
                   "Base your description on the generated document's actual returned text, not on memory of what you intended to generate.",
                   "Do not include download links, URLs, or markdown links to the document in your prose response; the document card is shown automatically by the UI.",
                   `Give a concise description of the generated document and, if you make factual claims about its contents, cite it with [N] markers and a final <CITATIONS> block using doc_id "${docLabel}", not any source/template document.`,
                 ].join(" "),
+                ...(sourceClosure.length
+                  ? { source_closure: sourceClosure }
+                  : {}),
               }),
               mutationReceipt: JSON.stringify(receipt),
             };
