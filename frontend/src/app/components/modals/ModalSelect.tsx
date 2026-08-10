@@ -113,6 +113,7 @@ export function SearchableChoiceModal({
     value,
     options,
     onChange,
+    searchable = true,
 }: {
     open: boolean;
     onClose: () => void;
@@ -121,6 +122,7 @@ export function SearchableChoiceModal({
     value: string | null;
     options: readonly SearchableChoice[];
     onChange: (value: string | null) => void;
+    searchable?: boolean;
 }) {
     const [query, setQuery] = useState("");
     const searchRef = useRef<HTMLInputElement>(null);
@@ -153,7 +155,7 @@ export function SearchableChoiceModal({
             size="sm"
             className="!h-[min(20rem,calc(100dvh-2rem))]"
         >
-            <label className="flex h-10 shrink-0 items-center gap-2 border-y border-gray-200 px-2">
+            {searchable && <label className="flex h-10 shrink-0 items-center gap-2 border-y border-gray-200 px-2">
                 <Search
                     aria-hidden="true"
                     className="h-4 w-4 shrink-0 text-gray-500"
@@ -173,7 +175,7 @@ export function SearchableChoiceModal({
                     placeholder={searchLabel}
                     className="h-full min-w-0 flex-1 bg-white text-sm outline-none"
                 />
-            </label>
+            </label>}
             <div
                 role="group"
                 aria-label={title}

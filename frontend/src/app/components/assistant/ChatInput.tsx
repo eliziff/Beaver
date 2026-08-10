@@ -5,7 +5,7 @@ import { AddDocumentsModal } from "../modals/AddDocumentsModal";
 import { AssistantWorkflowModal } from "./AssistantWorkflowModal";
 import { ApiKeyMissingPopup } from "../popups/ApiKeyMissingPopup";
 import { WarningPopup } from "../popups/WarningPopup";
-import { ModelToggle, ReasoningEffortToggle } from "./ModelToggle";
+import { ModelEffortToggle } from "./ModelToggle";
 import { useSelectedModel, useSelectedReasoningEffort } from "@/app/hooks/useSelectedModel";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { getModelProvider, isModelAvailable, type ModelProvider } from "@/app/lib/modelAvailability";
@@ -443,16 +443,13 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                             </div>
                         )}
                         <div className="chat-input-actions ml-auto flex w-full min-w-0 items-center justify-end gap-1">
-                            <div className="chat-input-selectors flex min-w-0 flex-1 items-center justify-end gap-1">
-                                <div className="chat-input-model min-w-0 flex-1">
-                                    <ModelToggle
-                                        value={model} onChange={setModel} apiKeys={apiKeys}
-                                        className="chat-input-model-toggle"
-                                    />
-                                </div>
-                                <ReasoningEffortToggle
-                                    model={model} value={reasoningEffort}
-                                    onChange={setReasoningEffort}
+                            <div className="chat-input-model min-w-0 flex-1">
+                                <ModelEffortToggle
+                                    model={model}
+                                    effort={reasoningEffort}
+                                    onModelChange={setModel}
+                                    onEffortChange={setReasoningEffort}
+                                    apiKeys={apiKeys}
                                 />
                             </div>
                             <button

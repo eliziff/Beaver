@@ -19,6 +19,7 @@ const api = vi.hoisted(() => ({
 vi.mock("@/app/lib/beaverApi", () => ({
     getTabularChats: api.getChats,
     getTabularChatMessages: api.getMessages,
+    getModelCatalog: () => Promise.resolve({ models: [], source: "unavailable" }),
     mapTRMessages: (messages: unknown[]) => messages,
     streamTabularChat: api.streamChat,
 }));
@@ -30,10 +31,6 @@ vi.mock("@/app/contexts/UserProfileContext", () => ({
 vi.mock("@/app/hooks/useSelectedModel", () => ({
     useSelectedModel: () => ["codex:gpt-5.6-terra", vi.fn()],
     useSelectedReasoningEffort: () => ["high", vi.fn()],
-}));
-vi.mock("../assistant/ModelToggle", () => ({
-    ModelToggle: () => null,
-    ReasoningEffortToggle: () => null,
 }));
 vi.mock("../popups/ApiKeyMissingPopup", () => ({
     ApiKeyMissingPopup: () => null,
