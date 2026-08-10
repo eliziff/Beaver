@@ -335,8 +335,11 @@ export function searchJournalArticles(
   size = 10,
   options: {
     querySyntax?: "terms" | "fts5";
+    author?: string;
+    journal?: string;
     startDate?: string;
     endDate?: string;
+    sortResults?: "default" | "newest_first" | "oldest_first";
   } = {},
 ): JournalArticleSearchResult[] {
   query = query.trim();
@@ -367,7 +370,9 @@ export function searchJournalArticles(
             .map((token) => `"${token.replace(/"/gu, '""')}"`)
             .join(" AND ");
     const candidateLimit =
-      options.startDate || options.endDate ? Math.min(250, wanted * 10) : wanted;
+      options.author || options.journal || options.startDate || options.endDate
+        ? Math.min(250, wanted * 10)
+        : wanted;
     const ids = (
       search
         .prepare(
@@ -386,19 +391,33 @@ export function searchJournalArticles(
                 document_date_en, volume, first_page, journal_name,
                 journal_abbrev, galley_url, url_en, abstract
          FROM articles WHERE article_id IN (${ids.map(() => "?").join(",")})
+           ${options.author ? "AND LOWER(authors) LIKE ?" : ""}
+           ${options.journal ? "AND LOWER(COALESCE(journal_name, '') || ' ' || COALESCE(journal_abbrev, '')) LIKE ?" : ""}
            ${options.startDate ? "AND document_date_en >= ?" : ""}
            ${options.endDate ? "AND document_date_en <= ?" : ""}`,
       )
       .all(
         ...ids,
+        ...(options.author ? [`%${options.author.toLocaleLowerCase()}%`] : []),
+        ...(options.journal ? [`%${options.journal.toLocaleLowerCase()}%`] : []),
         ...(options.startDate ? [options.startDate] : []),
         ...(options.endDate ? [options.endDate] : []),
       ) as Row[];
     const byId = new Map(rows.map((row) => [integer(row.article_id), row]));
-    return ids.flatMap((id) => {
+    const found = ids.flatMap((id) => {
       const row = byId.get(id);
       return row ? [result(row, query)] : [];
-    }).slice(0, wanted);
+    });
+    if (options.sortResults !== "default") {
+      found.sort((left, right) => {
+        const missing = "\uffff";
+        if (options.sortResults === "newest_first") {
+          return (right.date ?? "").localeCompare(left.date ?? "");
+        }
+        return (left.date ?? missing).localeCompare(right.date ?? missing);
+      });
+    }
+    return found.slice(0, wanted);
   }
   if (options.querySyntax === "fts5") {
     throw new Error("Boolean search requires the journal FTS index");
@@ -416,13 +435,26 @@ export function searchJournalArticles(
        FROM articles
        WHERE text IS NOT NULL AND length(text) > 0
          AND ${tokens.map(() => `${haystack} LIKE ?`).join(" AND ")}
-       ORDER BY CASE WHEN LOWER(name_en) = LOWER(?) THEN 0 ELSE 1 END,
-                article_id
+         ${options.author ? "AND LOWER(authors) LIKE ?" : ""}
+         ${options.journal ? "AND LOWER(COALESCE(journal_name, '') || ' ' || COALESCE(journal_abbrev, '')) LIKE ?" : ""}
+         ${options.startDate ? "AND document_date_en >= ?" : ""}
+         ${options.endDate ? "AND document_date_en <= ?" : ""}
+       ORDER BY ${options.sortResults === "newest_first"
+         ? "document_date_en DESC, article_id"
+         : options.sortResults === "oldest_first"
+           ? "document_date_en ASC, article_id"
+           : "CASE WHEN LOWER(name_en) = LOWER(?) THEN 0 ELSE 1 END, article_id"}
        LIMIT ?`,
     )
     .all(
       ...tokens.map((token) => `%${token}%`),
-      query,
+      ...(options.author ? [`%${options.author.toLocaleLowerCase()}%`] : []),
+      ...(options.journal ? [`%${options.journal.toLocaleLowerCase()}%`] : []),
+      ...(options.startDate ? [options.startDate] : []),
+      ...(options.endDate ? [options.endDate] : []),
+      ...(options.sortResults === "newest_first" || options.sortResults === "oldest_first"
+        ? []
+        : [query]),
       wanted,
     ) as Row[];
   return rows.map((row) => result(row, query));

@@ -16,7 +16,6 @@ import {
     listLegalLibrary,
     saveLegalSource,
     searchLegalSources,
-    type LegalDocumentType,
     type LegalSearchDocumentType,
     type LegalSourceCoverage,
     type LegalSourceReference,
@@ -39,7 +38,7 @@ const SOURCE_KINDS = {
 const FILTER_LABEL = "min-w-0 text-xs font-medium text-gray-600";
 const FILTER_INPUT =
     "mt-1 block h-9 w-full min-w-0 rounded-md border border-gray-300 bg-white px-2 text-sm font-normal text-gray-800";
-const DATE_FILTERS = [["from", "From"], ["to", "To"]] as const;
+const DATE_FILTERS = [["from", "From year"], ["to", "To year"]] as const;
 type SourceTab = "all" | LegalSearchDocumentType;
 const SOURCE_TABS: Array<[SourceTab, string]> = [
     ["all", "All"],
@@ -139,8 +138,21 @@ export function LegalLibraryPage({ embedded = false }: { embedded?: boolean }) {
                         type === "articles" || docType === "all"
                             ? undefined
                             : selectedDatasets,
-                    startDate: form.get("from")?.toString() || undefined,
-                    endDate: form.get("to")?.toString() || undefined,
+                    author: type === "articles"
+                        ? form.get("author")?.toString().trim() || undefined
+                        : undefined,
+                    journal: type === "articles"
+                        ? form.get("journal")?.toString().trim() || undefined
+                        : undefined,
+                    speaker: type === "hansard"
+                        ? form.get("speaker")?.toString().trim() || undefined
+                        : undefined,
+                    startDate: form.get("from")
+                        ? `${form.get("from")}-01-01`
+                        : undefined,
+                    endDate: form.get("to")
+                        ? `${form.get("to")}-12-31`
+                        : undefined,
                     sortResults: (form.get("sort")?.toString() || "default") as
                         | "default"
                         | "newest_first"
@@ -199,7 +211,7 @@ export function LegalLibraryPage({ embedded = false }: { embedded?: boolean }) {
                         className="rounded-lg border border-gray-200 bg-white p-4"
                     >
                         <div
-                            className="mb-3 grid grid-cols-5 rounded-lg bg-gray-100 p-1 sm:inline-grid"
+                            className="mb-3 flex flex-wrap gap-1 rounded-lg bg-gray-100 p-1 sm:inline-flex"
                             aria-label="Source category"
                         >
                             {SOURCE_TABS.map(([value, label]) => (
@@ -259,96 +271,135 @@ export function LegalLibraryPage({ embedded = false }: { embedded?: boolean }) {
                                 Search
                             </button>
                         </div>
-                        {docType !== "all" &&
-                            docType !== "articles" &&
-                            docType !== "hansard" && (
+                        {docType !== "all" && (
                             <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                                <label
-                                    htmlFor="legal-jurisdiction"
-                                    className={FILTER_LABEL}
-                                >
-                                    Jurisdiction
-                                    <ModalSelect
-                                        id="legal-jurisdiction"
-                                        value={jurisdiction}
-                                        onChange={(value) =>
-                                            updateFilters({
-                                                jurisdiction: value,
-                                                dataset: "",
-                                            })
-                                        }
-                                        options={[
-                                            {
-                                                value: "",
-                                                label: "All jurisdictions",
-                                            },
-                                            ...jurisdictions.map(
-                                                ([code, name]) => ({
-                                                    value: code,
-                                                    label: name,
-                                                }),
-                                            ),
-                                        ]}
-                                        className="mt-1 !h-9 px-2 font-normal"
-                                    />
-                                </label>
-                                <label className={FILTER_LABEL}>
-                                    Source type
-                                    <select
-                                        value={sourceKind}
-                                        onChange={(event) =>
-                                            updateFilters({
-                                                sourceKind: event.target.value,
-                                                dataset: "",
-                                            })
-                                        }
-                                        className={FILTER_INPUT}
+                                {(docType === "cases" || docType === "laws") && <>
+                                    <label
+                                        htmlFor="legal-jurisdiction"
+                                        className={FILTER_LABEL}
                                     >
-                                        <option value="">All source types</option>
-                                        {SOURCE_KINDS[docType].map(
-                                            ([value, label]) => (
-                                                <option key={value} value={value}>
-                                                    {label}
-                                                </option>
-                                            ),
-                                        )}
-                                    </select>
-                                </label>
-                                <label
-                                    htmlFor="legal-dataset"
-                                    className={`${FILTER_LABEL} lg:col-span-2`}
-                                >
-                                    {docType === "cases"
-                                        ? "Court or tribunal"
-                                        : "Collection"}
-                                    <ModalSelect
-                                        id="legal-dataset"
-                                        value={dataset}
-                                        onChange={(value) =>
-                                            updateFilters({ dataset: value })
-                                        }
-                                        options={[
-                                            {
-                                                value: "",
-                                                label:
-                                                    docType === "cases"
-                                                        ? "All courts and tribunals"
-                                                        : "All statutes and regulations",
-                                            },
-                                            ...availableSources.map((item) => ({
-                                                value: item.dataset,
-                                                label: item.description,
-                                            })),
-                                        ]}
-                                        className="mt-1 !h-9 px-2 font-normal"
-                                    />
-                                </label>
+                                        Jurisdiction
+                                        <ModalSelect
+                                            id="legal-jurisdiction"
+                                            value={jurisdiction}
+                                            searchable
+                                            onChange={(value) =>
+                                                updateFilters({
+                                                    jurisdiction: value,
+                                                    dataset: "",
+                                                })
+                                            }
+                                            options={[
+                                                {
+                                                    value: "",
+                                                    label: "All jurisdictions",
+                                                },
+                                                ...jurisdictions.map(
+                                                    ([code, name]) => ({
+                                                        value: code,
+                                                        label: name,
+                                                    }),
+                                                ),
+                                            ]}
+                                            className="mt-1 !h-9 px-2 font-normal"
+                                        />
+                                    </label>
+                                    <label className={FILTER_LABEL}>
+                                        Source type
+                                        <select
+                                            value={sourceKind}
+                                            onChange={(event) =>
+                                                updateFilters({
+                                                    sourceKind: event.target.value,
+                                                    dataset: "",
+                                                })
+                                            }
+                                            className={FILTER_INPUT}
+                                        >
+                                            <option value="">All source types</option>
+                                            {SOURCE_KINDS[docType].map(
+                                                ([value, label]) => (
+                                                    <option key={value} value={value}>
+                                                        {label}
+                                                    </option>
+                                                ),
+                                            )}
+                                        </select>
+                                    </label>
+                                    <label
+                                        htmlFor="legal-dataset"
+                                        className={`${FILTER_LABEL} lg:col-span-2`}
+                                    >
+                                        {docType === "cases"
+                                            ? "Court or tribunal"
+                                            : "Collection"}
+                                        <ModalSelect
+                                            id="legal-dataset"
+                                            value={dataset}
+                                            searchable
+                                            onChange={(value) =>
+                                                updateFilters({ dataset: value })
+                                            }
+                                            options={[
+                                                {
+                                                    value: "",
+                                                    label:
+                                                        docType === "cases"
+                                                            ? "All courts and tribunals"
+                                                            : "All statutes and regulations",
+                                                },
+                                                ...availableSources.map((item) => ({
+                                                    value: item.dataset,
+                                                    label: item.description,
+                                                })),
+                                            ]}
+                                            className="mt-1 !h-9 px-2 font-normal"
+                                        />
+                                    </label>
+                                </>}
+                                {docType === "articles" && <>
+                                    <label className={`${FILTER_LABEL} lg:col-span-2`}>
+                                        Author
+                                        <input
+                                            type="search"
+                                            name="author"
+                                            placeholder="Any author"
+                                            className={FILTER_INPUT}
+                                        />
+                                    </label>
+                                    <label className={`${FILTER_LABEL} lg:col-span-2`}>
+                                        Journal
+                                        <input
+                                            type="search"
+                                            name="journal"
+                                            placeholder="Any journal or abbreviation"
+                                            className={FILTER_INPUT}
+                                        />
+                                    </label>
+                                </>}
+                                {docType === "hansard" && (
+                                    <label className={`${FILTER_LABEL} sm:col-span-2 lg:col-span-4`}>
+                                        Speaker
+                                        <input
+                                            type="search"
+                                            name="speaker"
+                                            placeholder="Any speaker"
+                                            className={FILTER_INPUT}
+                                        />
+                                    </label>
+                                )}
                                 {DATE_FILTERS.map(([name, label]) => (
                                     <label key={name} className={FILTER_LABEL}>
                                         {label}
                                         <input
-                                            type="date"
+                                            type="text"
+                                            inputMode="numeric"
+                                            pattern="[0-9]{4}"
+                                            minLength={4}
+                                            maxLength={4}
                                             name={name}
+                                            placeholder="Any year"
+                                            title="Enter a four-digit year"
                                             className={FILTER_INPUT}
                                         />
                                     </label>

@@ -13,7 +13,7 @@ import { CheckboxControl } from "@/app/components/ui/checkbox";
 const TABLE_PRIMARY_CELL_WIDTH_CLASS =
     "w-[248px] sm:w-[292px] md:w-[332px] shrink-0";
 export const TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS =
-    "w-[190px] sm:w-[260px] md:w-[300px] xl:w-[320px] 2xl:w-[332px] shrink-0";
+    "min-w-0 flex-1 sm:w-[260px] sm:flex-none md:w-[300px] xl:w-[320px] 2xl:w-[332px]";
 type DivProps = HTMLAttributes<HTMLDivElement>;
 export function SkeletonLine({ className }: { className?: string }) {
     return (

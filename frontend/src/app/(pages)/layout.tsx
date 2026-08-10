@@ -5,7 +5,7 @@ import { useAuth } from "@/app/contexts/AuthContext";
 import { isAnonymousMode, requiresAccount } from "@/app/lib/authMode";
 import { ChatHistoryProvider } from "@/app/contexts/ChatHistoryContext";
 import { SidebarContext } from "@/app/contexts/SidebarContext";
-import { AppSidebar } from "@/app/components/shared/AppSidebar";import { KeyboardShortcuts } from "@/app/components/shared/KeyboardShortcuts";import { AssistantAutomationActivity } from "@/app/components/assistant/AutomationRun";const TableOfAuthoritiesHost = lazy(() =>    import("@/app/components/shared/TableOfAuthoritiesHost").then((module) => ({        default: module.TableOfAuthoritiesHost,    })),);export default function BeaverLayout({
+import { AppSidebar } from "@/app/components/shared/AppSidebar";import { KeyboardShortcuts } from "@/app/components/shared/KeyboardShortcuts";import { AssistantAutomationActivity } from "@/app/components/assistant/AutomationRun";import { AuthoritiesLoadingFrame } from "@/app/components/shared/TableOfAuthoritiesFrame";const TableOfAuthoritiesHost = lazy(() =>    import("@/app/components/shared/TableOfAuthoritiesHost").then((module) => ({        default: module.TableOfAuthoritiesHost,    })),);export default function BeaverLayout({
     children,
 }: {
     children: React.ReactNode;
@@ -26,6 +26,7 @@ import { AppSidebar } from "@/app/components/shared/AppSidebar";import { Keyboar
     };
     const authoritiesIntent = authoritiesOrigin === pathname;
     const authoritiesVisible = authoritiesActive || authoritiesIntent;
+    const authoritiesMounted = isAnonymousMode || authoritiesVisible;
     useEffect(() => {
         if (authoritiesOrigin === null) return;
         const rollback = window.setTimeout(
@@ -113,7 +114,7 @@ import { AppSidebar } from "@/app/components/shared/AppSidebar";import { Keyboar
                                         children
                                     )}
                                 </main>
-                                {authoritiesVisible && (                                    <Suspense                                        fallback={                                            <div                                                aria-hidden="true"                                                className="absolute inset-0 bg-[#f3f4f6]"                                            />                                        }                                    >                                        <TableOfAuthoritiesHost                                            active={                                                authoritiesActive &&                                                !authLoading &&                                                isAuthenticated                                            }                                            pending={authoritiesIntent}                                            enabled={                                                !authLoading &&                                                isAuthenticated &&                                                (isAnonymousMode ||                                                    authoritiesActive ||                                                    authoritiesIntent)                                            }                                        />                                    </Suspense>                                )}                            </div>                        </div>                    </div>
+                                {authoritiesMounted && (                                    <Suspense fallback={authoritiesVisible ? <AuthoritiesLoadingFrame /> : null}>                                        <TableOfAuthoritiesHost                                            active={                                                authoritiesActive &&                                                !authLoading &&                                                isAuthenticated                                            }                                            pending={authoritiesIntent}                                            enabled={                                                !authLoading &&                                                isAuthenticated &&                                                (isAnonymousMode ||                                                    authoritiesActive ||                                                    authoritiesIntent)                                            }                                        />                                    </Suspense>                                )}                            </div>                        </div>                    </div>
                 </div>                <AssistantAutomationActivity />            </SidebarContext.Provider>        </ChatHistoryProvider>
     );
 }
