@@ -60,7 +60,9 @@ import {
   READ_SUBAGENT_TOOL,
   READ_SUBAGENT_TOOL_NAME,
   allowedReadSubagentRegions,
+  combineReadSubagentResults,
   createReadSubagentAdmission,
+  prepareReadSubagentRound,
   readSubagentTools,
   readSubagentActivityLabel,
   readSubagentJurisdiction,
@@ -383,10 +385,11 @@ export async function runLLMStream({
         const subagentCandidates = calls.filter(
           (call) => call.name === READ_SUBAGENT_TOOL_NAME,
         );
-        const {
-          accepted: subagentCalls,
-          rejected: rejectedSubagentResults,
-        } = admitReadSubagents(subagentCandidates);
+        const subagentRound = prepareReadSubagentRound(
+          subagentCandidates,
+          admitReadSubagents,
+        );
+        const rejectedSubagentResults = subagentRound.rejected;
         const toolCalls: ToolCall[] = directCalls.map((c) => ({
           id: c.id,
           function: {
@@ -468,8 +471,8 @@ export async function runLLMStream({
         }
         events.push(...courtlistenerEvents, ...mcpEvents, ...caseCitationEvents);
 
-        const subagentResults = await Promise.all(
-          subagentCalls.map((call) => {
+        const childResults = await Promise.all(
+          subagentRound.assignments.map((call) => {
             const childEditState: TurnEditState = new Map();
             const childReadState: TurnReadState = new Map();
             const childCourtlistenerState: CourtlistenerTurnState = {
@@ -545,6 +548,9 @@ export async function runLLMStream({
             });
           }),
         );
+        const subagentResults = subagentRound.parent
+          ? [combineReadSubagentResults(subagentRound.parent, childResults)]
+          : [];
 
         if (askInputsEvents.length > 0) {
           throw new AssistantStreamAskInputsPause();

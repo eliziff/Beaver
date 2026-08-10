@@ -438,6 +438,7 @@ type DocumentCitationQuote = {
 type CitationDisplay = {
   display_form?: "full" | "pinpoint" | "supra";
   source_class?: "case" | "legislation" | "commentary";
+  external_url?: string | null;
 };
 export type DocumentCitation = CitationDisplay & {
   type: "citation_data";

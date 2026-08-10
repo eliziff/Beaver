@@ -19,6 +19,14 @@ import {
 type ViewerAnchor = LegalSourceViewerPayload["structure"]["blocks"][number];
 type ViewerMetadata = LegalSourceViewerPayload["metadata"];
 const EMPTY_QUOTES: { quote: string }[] = [];
+function snapInsideViewer(root: HTMLElement, target: HTMLElement) {
+    const rootBox = root.getBoundingClientRect();
+    const targetBox = target.getBoundingClientRect();
+    root.scrollTop +=
+        targetBox.top -
+        rootBox.top -
+        (root.clientHeight - targetBox.height) / 2;
+}
 export type LegalSourceViewerProps = {
     referenceId?: string; provider?: "a2aj" | "journal";
     citation?: string; sourceId?: string | null;
@@ -549,10 +557,12 @@ export function LegalSourceViewer({
             sourceQuotes.map(({ quote }) => quote),
         );
         const match = matches[activeQuote];
-        if (match) window.setTimeout(
-            () => match.scrollIntoView({ behavior: "smooth", block: "center" }),
+        if (!match) return;
+        const timer = window.setTimeout(
+            () => snapInsideViewer(root, match),
             40,
         );
+        return () => window.clearTimeout(timer);
     }, [activeOpinion, activeQuote, payload, sourceQuotes]);
     useEffect(() => {
         if (!payload) return;
@@ -572,13 +582,7 @@ export function LegalSourceViewer({
                 `#${legalSourceAnchorId(activeLocator)}`,
             );
             if (!target) return;
-            // Deep links must land immediately. A smooth trip through a long
-            // content-visibility document materializes intermediate blocks
-            // and can leave the target thousands of pixels away.
-            const scrollBehavior = root.style.scrollBehavior;
-            root.style.scrollBehavior = "auto";
-            target.scrollIntoView({ behavior: "auto", block: "center" });
-            root.style.scrollBehavior = scrollBehavior;
+            snapInsideViewer(root, target);
         });
         return () => window.cancelAnimationFrame(frame);
     }, [activeLocator, payload]);
@@ -702,7 +706,7 @@ export function LegalSourceViewer({
             )}
             <div
                 ref={contentRef}
-                className="min-h-0 flex-1 overflow-y-auto scroll-smooth bg-[#faf9f6] px-4 py-8 sm:px-8 sm:py-10"
+                className="min-h-0 flex-1 overflow-y-auto bg-[#faf9f6] px-4 py-8 sm:px-8 sm:py-10"
             >
                 {caseTab ? (
                     error && !displayedOpinions?.length ? (
@@ -731,15 +735,11 @@ export function LegalSourceViewer({
                                 ? locatorLabel(slice.primary.label)
                                 : null;
                         const blocks = presentation.get(slice.key);
-                        const pinpointed = !!activeLocator &&
-                            slice.anchors.some(
-                                (anchor) => anchor.label === activeLocator,
-                            );
                         return (
                             <section
                                 key={slice.key}
                                 id={slice.primary ? legalSourceAnchorId(slice.primary.label) : undefined}
-                                className={`scroll-mt-4 target:bg-amber-100/70 target:outline target:outline-1 target:outline-amber-300 ${pinpointed ? "rounded-md bg-amber-100/70 outline outline-1 outline-amber-300" : ""} ${slice.text ? `mb-1 grid gap-x-4 ${marker ? "grid-cols-[2.7rem_minmax(0,1fr)]" : "grid-cols-1"}` : ""}`}
+                                className={`scroll-mt-4 ${slice.text ? `mb-1 grid gap-x-4 ${marker ? "grid-cols-[2.7rem_minmax(0,1fr)]" : "grid-cols-1"}` : ""}`}
                                 style={{
                                     contentVisibility: "auto",
                                     containIntrinsicSize: "auto 150px",

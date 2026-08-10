@@ -121,61 +121,71 @@ export const READ_SUBAGENT_TOOL: OpenAIToolSchema = {
   function: {
     name: READ_SUBAGENT_TOOL_NAME,
     description:
-      "Delegate one bounded, read-only slice to an independent reading agent. Delegation is worthwhile only when at least two genuinely independent slices can run concurrently; never dispatch a lone reading agent. Each round may dispatch two or three agents. Later rounds are allowed only when the prior search ledger identifies a concrete gap and the new assignments materially change the query, scope, source collection, period, or strategy; never repeat the same assignment. An unqualified request about multiple jurisdictions means jurisdictions within the standing region, not different countries or world regions. Keep work in the main turn when fewer than two useful independent slices exist. Do not use it for simple lookups, deterministic operations, or any write task. Completed results include exact grounded passages and a compact search ledger; review them against every element of the user's request, omit non-responsive candidates, and reuse their evidence IDs without re-fetching them.",
+      "Dispatch one concurrent round of two or three independent reading agents. Put every non-overlapping assignment in this single call; lone assignments are invalid. Delegate only when parallel reading is worthwhile. Later rounds are allowed only when the prior search ledger identifies a concrete gap and the new assignments materially change the query, scope, source collection, period, or strategy. An unqualified request about multiple jurisdictions means jurisdictions within the standing region, not different countries or world regions. Keep work in the main turn when fewer than two useful independent slices exist. Do not use it for simple lookups, deterministic operations, or any write task. Completed results include exact grounded passages and a compact search ledger; review them against every element of the user's request, omit non-responsive candidates, and reuse their evidence IDs without re-fetching them.",
     strict: true,
     parameters: {
       type: "object",
       properties: {
-        task: {
-          type: "string",
-          minLength: 1,
-          maxLength: MAX_TASK_CHARS,
-          description:
-            "A self-contained reading task, including the question and the sources or scope to inspect.",
-        },
-        scope: {
-          type: "string",
-          minLength: 1,
-          maxLength: 240,
-          description:
-            "The distinct slice assigned to this agent, such as a named court set, source collection, date period, or search strategy. Sibling calls must not overlap.",
-        },
-        jurisdiction: {
-          type: "string",
-          enum: ["CA", "US", "UK"],
-          description:
-            "Country whose legal-source tools this reader may use. Defaults to CA when omitted.",
-        },
-        collections: {
+        assignments: {
           type: "array",
-          minItems: 1,
-          maxItems: 8,
-          uniqueItems: true,
-          items: { type: "string", minLength: 1, maxLength: 40 },
-          description:
-            "Optional exact provider collection or court codes this reader is confined to, such as BCSC and BCCA. Omit for a country-wide or strategy-only scope.",
-        },
-        source_types: {
-          type: "array",
-          minItems: 1,
-          maxItems: 4,
-          uniqueItems: true,
+          minItems: 2,
+          maxItems: 3,
           items: {
-            type: "string",
-            enum: ["case", "legislation", "journal", "hansard"],
+            type: "object",
+            properties: {
+              task: {
+                type: "string",
+                minLength: 1,
+                maxLength: MAX_TASK_CHARS,
+                description:
+                  "A self-contained reading task, including the question and sources to inspect.",
+              },
+              scope: {
+                type: "string",
+                minLength: 1,
+                maxLength: 240,
+                description:
+                  "A distinct court set, source collection, period, or search strategy. Assignments must not overlap.",
+              },
+              jurisdiction: {
+                type: "string",
+                enum: ["CA", "US", "UK"],
+                description:
+                  "Country whose legal-source tools this reader may use. Defaults to CA when omitted.",
+              },
+              collections: {
+                type: "array",
+                minItems: 1,
+                maxItems: 8,
+                uniqueItems: true,
+                items: { type: "string", minLength: 1, maxLength: 40 },
+              },
+              source_types: {
+                type: "array",
+                minItems: 1,
+                maxItems: 4,
+                uniqueItems: true,
+                items: {
+                  type: "string",
+                  enum: ["case", "legislation", "journal", "hansard"],
+                },
+              },
+            },
+            required: ["task", "scope"],
+            additionalProperties: false,
           },
           description:
-            "Authority classes assigned to this reader. Defaults to case law, legislation, and journals; Hansard must be assigned explicitly.",
+            "Two or three non-overlapping reader assignments dispatched concurrently.",
         },
       },
-      required: ["task", "scope"],
+      required: ["assignments"],
       additionalProperties: false,
     },
   },
 };
 
 export const READ_SUBAGENT_SYSTEM_PROMPT =
-  "Do ordinary legal research yourself with the direct legal-source and citator tools. Delegate only when the requested scale genuinely benefits from parallelism, such as an exhaustive scan, a bulk query, or broad research with at least two worthwhile independent lanes. Dispatch two or three sibling reading tasks in each concurrent round; never dispatch one agent and never delegate merely to recover or restate evidence already returned earlier in the conversation. Give each agent a specific, non-overlapping scope by court or jurisdiction within the standing region, source collection, period, or genuinely different search strategy. Never turn an unqualified request about multiple jurisdictions into different countries or world regions. Never use United States or United Kingdom law as a lane unless the user's current request or selected regions expressly include it. Never clone or lightly rephrase one assignment. Keep work without at least two useful lanes in the main turn. Wait for all sibling results, then skeptically compare each exact passage against every required element of the user's request. Report only responsive results; omit merely analogous, adjacent, or conceptually related candidates. A reader miss is not proof that no result exists: inspect the returned search ledgers and, when a concrete untried query or scope could materially help, dispatch another two-or-three-agent round with meaningfully revised assignments. Do not force a result when thorough searches leave no honest answer; state the verified shortfall. Reuse returned evidence IDs directly and submit the final grounded answer yourself. Do not re-read a completed reader source unless its exact passages conflict.";
+  "Do ordinary legal research yourself with the direct legal-source and citator tools. Delegate only when the requested scale genuinely benefits from parallelism, such as an exhaustive scan, a bulk query, or broad research with at least two worthwhile independent lanes. Call delegate_read once per round with two or three specific, non-overlapping assignments in its assignments array; never dispatch or wait on one agent. Scope assignments by court or jurisdiction within the standing region, source collection, period, or genuinely different search strategy. Never delegate merely to recover or restate evidence already returned earlier in the conversation. Never turn an unqualified request about multiple jurisdictions into different countries or world regions. Never use United States or United Kingdom law as a lane unless the user's current request or selected regions expressly include it. Never clone or lightly rephrase one assignment. Keep work without at least two useful lanes in the main turn. Wait for all sibling results, then skeptically compare each exact passage against every required element of the user's request. Report only responsive results; omit merely analogous, adjacent, or conceptually related candidates. A reader miss is not proof that no result exists: inspect the returned search ledgers and, when a concrete untried query or scope could materially help, dispatch another two-or-three-agent round with meaningfully revised assignments. Do not force a result when thorough searches leave no honest answer; state the verified shortfall. Reuse returned evidence IDs directly and submit the final grounded answer yourself. Do not re-read a completed reader source unless its exact passages conflict.";
 
 export type ReadSubagentRegion = "CA" | "US" | "UK";
 export type ReadSubagentForeignRegion = Exclude<ReadSubagentRegion, "CA">;
@@ -304,12 +314,113 @@ export function createReadSubagentAdmission(
       accepted.push(call);
       acceptedAssignmentKeys.push(assignmentKey);
     }
-    if (accepted.length) {
+    if (accepted.length && !rejected.length) {
       for (const assignmentKey of acceptedAssignmentKeys) {
         assignments.add(assignmentKey);
       }
     }
     return { accepted, rejected };
+  };
+}
+
+export function prepareReadSubagentRound(
+  calls: NormalizedToolCall[],
+  admit: ReturnType<typeof createReadSubagentAdmission>,
+): {
+  parent: NormalizedToolCall | null;
+  assignments: NormalizedToolCall[];
+  rejected: NormalizedToolResult[];
+} {
+  if (!calls.length) {
+    return {
+      parent: null,
+      assignments: [] as NormalizedToolCall[],
+      rejected: [] as NormalizedToolResult[],
+    };
+  }
+  if (calls.length !== 1) {
+    return {
+      parent: null,
+      assignments: [] as NormalizedToolCall[],
+      rejected: calls.map((call) => ({
+        tool_use_id: call.id,
+        status: "error" as const,
+        content: JSON.stringify({
+          ok: false,
+          error:
+            "Call delegate_read once per round with two or three assignments.",
+        }),
+      })),
+    };
+  }
+  const parent = calls[0];
+  const raw = Array.isArray(parent.input.assignments)
+    ? parent.input.assignments
+    : [];
+  const assignments = raw.flatMap((input, index) =>
+    input && typeof input === "object" && !Array.isArray(input)
+      ? [{
+          id: `${parent.id}:${index + 1}`,
+          name: READ_SUBAGENT_TOOL_NAME,
+          input: input as Record<string, unknown>,
+        }]
+      : [],
+  );
+  if (assignments.length < 2 || assignments.length > 3) {
+    return {
+      parent: null,
+      assignments: [] as NormalizedToolCall[],
+      rejected: [{
+        tool_use_id: parent.id,
+        status: "error" as const,
+        content: JSON.stringify({
+          ok: false,
+          error: "delegate_read requires two or three assignments.",
+        }),
+      }],
+    };
+  }
+  const admitted = admit(assignments);
+  if (
+    admitted.rejected.length ||
+    admitted.accepted.length !== assignments.length
+  ) {
+    return {
+      parent: null,
+      assignments: [] as NormalizedToolCall[],
+      rejected: [{
+        tool_use_id: parent.id,
+        status: "error" as const,
+        content: JSON.stringify({
+          ok: false,
+          error: "Every reader assignment must be valid and non-overlapping.",
+          assignment_errors: admitted.rejected.map((result) =>
+            JSON.parse(result.content),
+          ),
+        }),
+      }],
+    };
+  }
+  return { parent, assignments: admitted.accepted, rejected: [] };
+}
+
+export function combineReadSubagentResults(
+  parent: NormalizedToolCall,
+  results: NormalizedToolResult[],
+): NormalizedToolResult {
+  return {
+    tool_use_id: parent.id,
+    status: results.every((result) => result.status === "ok") ? "ok" : "error",
+    content: JSON.stringify({
+      ok: results.every((result) => result.status === "ok"),
+      readers: results.map((result) => {
+        try {
+          return JSON.parse(result.content);
+        } catch {
+          return { status: result.status, output: result.content };
+        }
+      }),
+    }),
   };
 }
 
@@ -513,18 +624,10 @@ export async function getReadSubagentCapability(
 }
 
 export function readSubagentActivityLabel(input: Record<string, unknown>) {
-  const scope =
-    typeof input.scope === "string"
-      ? input.scope.replace(/\s+/gu, " ").trim().slice(0, 80)
-      : "";
-  const task =
-    typeof input.task === "string"
-      ? input.task.replace(/\s+/gu, " ").trim().slice(0, 100)
-      : "";
-  const assignment = scope || task;
-  return assignment
-    ? `Coordinating reading agent: ${assignment}`
-    : "Coordinating reading agent";
+  const count = Array.isArray(input.assignments) ? input.assignments.length : 0;
+  return count >= 2
+    ? `Coordinating ${count} reading agents`
+    : "Coordinating reading agents";
 }
 
 export async function runReadSubagent(params: {
