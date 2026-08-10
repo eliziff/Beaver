@@ -7,6 +7,7 @@ type DocumentTreeRow = { kind: "document"; document: Document; parentId: string 
 
 export const DOCUMENT_DRAG_TYPE = "application/mike-doc";
 export const FOLDER_DRAG_TYPE = "application/mike-folder";
+export const CHAT_DOCUMENT_DRAG_TYPE = "application/mike-chat-documents";
 
 export function buildDocumentTree(documents: Document[], folders: DocumentTreeFolder[],
     expanded: Set<string>, editorParent?: string | null, search = "", foldersFirst = false) {

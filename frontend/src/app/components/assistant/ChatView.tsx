@@ -865,11 +865,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     };
     const dockTabs: AssistantDockTab[] = [
         {
-            id: "sources",
-            label: "Sources",
-            content: sourceContent,
-        },
-        {
             id: "library",
             label: "Library",
             content: (
@@ -896,7 +891,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         },
         {
             id: "automations",
-            label: "Automations",
+            label: "Automation",
             content: automationDocument ? (
                 <div className="h-full overflow-y-auto">
                     <DocumentAutomation document={automationDocument} embedded />
@@ -906,6 +901,11 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                     Open a document to use its automations.
                 </div>
             ),
+        },
+        {
+            id: "sources",
+            label: "Sources",
+            content: sourceContent,
         },
         {
             id: "agents",

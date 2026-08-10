@@ -143,10 +143,11 @@ export function InitialView({
         setDockOpen(true);
     };
     const dockTabs: AssistantDockTab[] = [
-        { id: "sources", label: "Sources", content: <LegalLibraryPage embedded /> },
         { id: "library", label: "Library", content: <LibraryWorkspaceProvider><LibraryCollectionPage kind="files" embedded /></LibraryWorkspaceProvider> },
         { id: "workflows", label: "Workflows", content: <AssistantWorkflowDock onSelect={(workflow) => chatInputRef.current?.startWorkflowDocumentSelection({ id: workflow.id, title: workflow.metadata.title })} /> },
-        { id: "automations", label: "Automations", content: automationDocument ? <DocumentAutomation document={automationDocument} embedded /> : <div className="grid h-full place-items-center p-6 text-center text-sm text-gray-500">Open a document to use its automations.</div> },
+        { id: "automations", label: "Automation", content: automationDocument ? <DocumentAutomation document={automationDocument} embedded /> : <div className="grid h-full place-items-center p-6 text-center text-sm text-gray-500">Open a document to use its automations.</div> },
+        { id: "sources", label: "Sources", content: <LegalLibraryPage embedded /> },
+        { id: "agents", label: "Agents", content: <div className="grid h-full place-items-center p-6 text-center text-sm text-gray-500">Agent activity will appear here.</div> },
     ];
     return (
         <div className="flex h-full min-w-0 w-full">

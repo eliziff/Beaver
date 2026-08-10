@@ -14,6 +14,7 @@ import type { DirectoryTab } from "../shared/useDirectoryData";
 import { cn } from "@/app/lib/utils";
 import { uploadStandaloneDocument } from "@/app/lib/beaverApi";
 import { formatUnsupportedDocumentWarning, partitionSupportedDocumentFiles } from "@/app/lib/documentUploadValidation";
+import { CHAT_DOCUMENT_DRAG_TYPE } from "@/app/components/documents/documentTree";
 type Workflow = NonNullable<Message["workflow"]>;
 
 function mergeDocuments(...groups: Document[][]) {
@@ -200,7 +201,9 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     }
 
     function handleFileDrag(event: React.DragEvent<HTMLDivElement>) {
-        if (!showContextTools || !event.dataTransfer.types.includes("Files")) return;
+        const libraryDrag = event.dataTransfer.types.includes(CHAT_DOCUMENT_DRAG_TYPE);
+        if (!showContextTools ||
+            (!libraryDrag && !event.dataTransfer.types.includes("Files"))) return;
         if (event.type !== "dragleave") event.preventDefault();
         if (event.type === "dragenter") event.currentTarget.dataset.dragging = "true";
         if (event.type === "dragover") event.dataTransfer.dropEffect = "copy";
@@ -210,7 +213,21 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
         }
         if (event.type === "drop") {
             delete event.currentTarget.dataset.dragging;
-            void handleDroppedFiles(Array.from(event.dataTransfer.files));
+            if (libraryDrag) {
+                try {
+                    const documents: unknown = JSON.parse(
+                        event.dataTransfer.getData(CHAT_DOCUMENT_DRAG_TYPE),
+                    );
+                    if (Array.isArray(documents)) attachDocuments(documents.filter(
+                        (document): document is Document => !!document &&
+                            typeof document === "object" &&
+                            typeof (document as Document).id === "string" &&
+                            typeof (document as Document).filename === "string",
+                    ));
+                } catch {}
+            } else {
+                void handleDroppedFiles(Array.from(event.dataTransfer.files));
+            }
         }
     }
     const handleSubmit = () => {
@@ -242,14 +259,14 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     return (
         <>
             <div
-                className="chat-input-container w-full data-[dragging=true]:rounded-[22px] data-[dragging=true]:ring-2 data-[dragging=true]:ring-brand/30"
+                className="chat-input-container min-w-0 w-full overflow-hidden data-[dragging=true]:rounded-[22px] data-[dragging=true]:ring-2 data-[dragging=true]:ring-brand/30"
                 onDragEnter={handleFileDrag}
                 onDragOver={handleFileDrag}
                 onDragLeave={handleFileDrag}
                 onDrop={handleFileDrag}
             >
                 <form
-                    className="rounded-[18px] border border-gray-200 bg-white shadow-sm md:rounded-[22px]"
+                    className="min-w-0 max-w-full rounded-[18px] border border-gray-200 bg-white shadow-sm md:rounded-[22px]"
                     onSubmit={(event) => {
                         event.preventDefault();
                         handleSubmit();

@@ -90,8 +90,8 @@ export function AssistantDock({
             aria-label="Assistant dock"
             className={cn(
                 "z-40 flex min-h-0 flex-col overflow-hidden border border-gray-300 bg-app-surface shadow-lg",
-                "relative h-full w-1/2 shrink-0",
-                "md:my-3 md:me-3 md:h-[calc(100dvh-1.5rem)] md:w-[min(var(--assistant-dock-width),50%)] md:rounded-2xl",
+                "absolute inset-0 h-full w-full",
+                "md:relative md:inset-auto md:my-3 md:me-3 md:h-[calc(100dvh-1.5rem)] md:w-[min(var(--assistant-dock-width),50%)] md:shrink-0 md:rounded-2xl",
             )}
             style={{ "--assistant-dock-width": `${width}px` } as CSSProperties}
         >
@@ -120,11 +120,11 @@ export function AssistantDock({
                 }}
                 className="absolute inset-y-0 start-0 z-20 hidden w-1 cursor-col-resize bg-transparent hover:bg-gray-300 focus-visible:bg-gray-400 focus-visible:outline-none md:block"
             />
-            <header className="flex min-h-12 shrink-0 items-center gap-2 border-b border-gray-200 px-2 py-1.5">
+            <header className="flex min-h-12 shrink-0 items-start gap-2 border-b border-gray-200 px-2 py-1.5 md:items-center">
                 <div
                     role="tablist"
                     aria-label="Assistant panels"
-                    className="grid min-w-0 flex-1 grid-flow-col auto-cols-fr gap-1 overflow-hidden"
+                    className="grid min-w-0 flex-1 grid-cols-3 gap-1 overflow-hidden md:grid-flow-col md:auto-cols-fr md:grid-cols-none"
                 >
                     {tabs.map((tab, index) => {
                         const selected = tab.id === active.id;
@@ -147,7 +147,7 @@ export function AssistantDock({
                                     event.preventDefault();
                                 }}
                                 className={cn(
-                                    "h-9 min-w-0 truncate rounded-md px-2 py-1.5 text-center text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-current",
+                                    "h-9 min-w-0 truncate rounded-md px-0.5 py-1.5 text-center text-[11px] font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-current md:px-2 md:text-sm",
                                     selected
                                         ? "bg-gray-900 text-white"
                                         : "text-gray-600 hover:bg-gray-100 hover:text-gray-950",
