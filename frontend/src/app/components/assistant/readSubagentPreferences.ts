@@ -5,14 +5,16 @@ const UPDATED_EVENT = "beaver:read-subagents-updated";
 export const DEFAULT_READ_SUBAGENT_MODEL = "codex:gpt-5.6-luna";
 export const DEFAULT_READ_SUBAGENT_EFFORT = "high";
 const DEFAULT_PREFERENCE = {
-    enabled: false,
+    mode: "none",
+    showChatControl: true,
     showDock: true,
     model: DEFAULT_READ_SUBAGENT_MODEL,
     effort: DEFAULT_READ_SUBAGENT_EFFORT,
 } as const;
 
 export type ReadSubagentPreference = {
-    enabled: boolean;
+    mode: "none" | "beaver" | "native";
+    showChatControl: boolean;
     showDock: boolean;
     model: string;
     effort: string;
@@ -24,13 +26,18 @@ export function readReadSubagentPreference(): ReadSubagentPreference {
         const stored = JSON.parse(
             window.localStorage.getItem(STORAGE_KEY) ?? "null",
         ) as {
-            enabled?: unknown;
+            mode?: unknown;
+            showChatControl?: unknown;
             showDock?: unknown;
             model?: unknown;
             effort?: unknown;
         } | null;
         return {
-            enabled: stored?.enabled === true,
+            mode:
+                stored?.mode === "beaver" || stored?.mode === "native"
+                    ? stored.mode
+                    : "none",
+            showChatControl: stored?.showChatControl !== false,
             showDock: stored?.showDock !== false,
             model:
                 typeof stored?.model === "string" &&
@@ -45,10 +52,6 @@ export function readReadSubagentPreference(): ReadSubagentPreference {
     } catch {
         return DEFAULT_PREFERENCE;
     }
-}
-
-export function setReadSubagentPreference(enabled: boolean) {
-    setReadSubagentPreferences({ enabled });
 }
 
 export function setReadSubagentPreferences(
@@ -81,7 +84,10 @@ export function useReadSubagentPreference() {
     const preference = JSON.parse(snapshot) as ReadSubagentPreference;
     return {
         ...preference,
-        setEnabled: setReadSubagentPreference,
+        setMode: (mode: ReadSubagentPreference["mode"]) =>
+            setReadSubagentPreferences({ mode }),
+        setShowChatControl: (showChatControl: boolean) =>
+            setReadSubagentPreferences({ showChatControl }),
         setShowDock: (showDock: boolean) =>
             setReadSubagentPreferences({ showDock }),
         setModel: (model: string) => setReadSubagentPreferences({ model }),

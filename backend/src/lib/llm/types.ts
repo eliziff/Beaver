@@ -119,6 +119,8 @@ export type UserApiKeys = {
   codex?: string | null;
 };
 
+export type SubagentMode = "none" | "beaver" | "native";
+
 export type StreamChatParams = {
   model: string;
   systemPrompt: string;
@@ -151,6 +153,8 @@ export type StreamChatParams = {
   reasoningSummary?: "auto" | "none";
   /** Provider reasoning effort when the selected model supports it. */
   reasoningEffort?: string;
+  /** Allow the Codex CLI to expose its provider-native multi-agent tools. */
+  nativeSubagents?: boolean;
   /** Host-selected service tier; adapters must gate it on model capability. */
   serviceTier?: string;
   /** Responses compaction threshold. Unsupported adapters ignore it. */

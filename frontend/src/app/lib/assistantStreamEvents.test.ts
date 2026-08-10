@@ -107,7 +107,7 @@ describe("reduceAssistantStreamEvent", () => {
     expect(events).toHaveLength(1);
   });
 
-  it("keeps interleaved reasoning, tools, and content ordered", () => {
+  it("starts a new parent bubble after a tool pause", () => {
     let events: AssistantEvent[] = [];
     events = reduce(events, { type: "reasoning_delta", text: "Checking" });
     events = reduce(events, { type: "reasoning_block_end" });
@@ -120,12 +120,13 @@ describe("reduceAssistantStreamEvent", () => {
 
     expect(events).toEqual([
       { type: "reasoning", text: "Checking" },
-      { type: "content", text: "The answer.", isStreaming: true },
+      { type: "content", text: "The " },
       {
         type: "courtlistener_search_case_law",
         query: "Hansman",
         isStreaming: true,
       },
+      { type: "content", text: "answer.", isStreaming: true },
     ]);
   });
 
