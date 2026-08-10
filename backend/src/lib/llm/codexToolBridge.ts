@@ -26,6 +26,7 @@ type ToolDispatcher = (
 
 type BridgeState = {
   toolCallCount: number;
+  terminalResult: boolean;
   dispatchTail: Promise<void>;
   readerBatchTail: Promise<void>;
   readerBatchScheduled: boolean;
@@ -54,6 +55,7 @@ export type CodexToolBridgeParams = {
 export type CodexToolBridge = {
   url: string;
   token: string;
+  hasTerminalResult: () => boolean;
   close: () => Promise<void>;
 };
 
@@ -196,6 +198,7 @@ function bridgeServer(
           ],
         };
       }
+      if (result.terminal) state.terminalResult = true;
       return {
         content: [{ type: "text", text: result.content }],
       };
@@ -254,6 +257,7 @@ export async function startCodexToolBridge(
   const tools = mcpTools(params.tools);
   const state: BridgeState = {
     toolCallCount: 0,
+    terminalResult: false,
     dispatchTail: Promise.resolve(),
     readerBatchTail: Promise.resolve(),
     readerBatchScheduled: false,
@@ -329,6 +333,7 @@ export async function startCodexToolBridge(
   return {
     url: `http://127.0.0.1:${address.port}/mcp`,
     token,
+    hasTerminalResult: () => state.terminalResult,
     close: async () => {
       if (closed) return;
       closed = true;
