@@ -1400,7 +1400,7 @@ const claimItems = {
       type: "string",
       maxLength: 4_000,
       description:
-        "One independently checkable support unit in natural Markdown. Preserve meaning-critical context, but omit formal citation and pinpoint text (for example, '2010 BCCA 170' or 'paras. 10-12'); keep sources only in evidence_ids.",
+        "One independently checkable support unit in natural Markdown. Prefer one to three short exact source spans woven into the analysis; disjoint spans may share this unit so one citation highlights each span. Paraphrase only when synthesis is materially clearer. Preserve meaning-critical context, but omit formal citation and pinpoint text (for example, '2010 BCCA 170' or 'paras. 10-12'); keep sources only in evidence_ids.",
     },
     evidence_ids: {
       type: "array",
@@ -1438,7 +1438,7 @@ export const LEGAL_EVIDENCE_SUBMIT_TOOL: OpenAIToolSchema = {
     name: LEGAL_EVIDENCE_TOOL_NAME,
     strict: true,
     description:
-      "Finish a legal answer as independently checkable support units tied to exact passage evidence. Put citations and pinpoints only in evidence_ids, not in text. Every substantive proposition needs evidence. This call is the final answer, so do not emit a separate copy.",
+      "Finish a legal answer as independently checkable support units tied to exact passage evidence. Prefer concise direct quotations, including up to three disjoint exact spans woven into one support unit, so its citation can highlight those spans. Paraphrase only when synthesis is materially clearer. Put citations and pinpoints only in evidence_ids, not in text. Every substantive proposition needs evidence. This call is the final answer, so do not emit a separate copy.",
     parameters: {
       type: "object",
       additionalProperties: false,
