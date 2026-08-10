@@ -442,22 +442,22 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                 )}
                             </div>
                         )}
-                        <div className="chat-input-actions ml-auto flex w-full flex-wrap items-center justify-end gap-1">
-                            <div className="chat-input-effort order-2">
+                        <div className="chat-input-actions ml-auto flex w-full min-w-0 items-center justify-end gap-1">
+                            <div className="chat-input-selectors flex min-w-0 flex-1 items-center justify-end gap-1">
+                                <div className="chat-input-model min-w-0 flex-1">
+                                    <ModelToggle
+                                        value={model} onChange={setModel} apiKeys={apiKeys}
+                                        className="chat-input-model-toggle"
+                                    />
+                                </div>
                                 <ReasoningEffortToggle
                                     model={model} value={reasoningEffort}
                                     onChange={setReasoningEffort}
                                 />
                             </div>
-                            <div className="chat-input-model order-1 flex w-full min-w-0 justify-end">
-                                <ModelToggle
-                                    value={model} onChange={setModel} apiKeys={apiKeys}
-                                    className="chat-input-model-toggle"
-                                />
-                            </div>
                             <button
                                 type={isLoading ? "button" : "submit"}
-                                className="relative order-3 flex h-8 w-8 items-center justify-center rounded-[10px] bg-brand text-white hover:bg-brand-dark disabled:cursor-default disabled:bg-gray-300"
+                                className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-brand text-white hover:bg-brand-dark disabled:cursor-default disabled:bg-gray-300"
                                 onClick={isLoading ? onCancel : undefined}
                                 aria-label={isLoading ? "Stop response" : "Send message"}
                                 disabled={!isLoading && !hasValue}

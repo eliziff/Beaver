@@ -105,7 +105,7 @@
     container-type: inline-size;
 }
 .reasoning-effort-toggle {
-    width: 8rem;
+    width: 5.5rem;
 }
 .chat-input-model-toggle {
     width: 100%;
@@ -114,24 +114,16 @@
     .chat-input-control-label {
         display: none;
     }
-    .reasoning-effort-toggle {
-        width: 5.5rem;
-    }
 }
 @container (min-width: 561px) {
     .chat-input-actions {
         width: auto;
-        flex-wrap: nowrap;
     }
-    .chat-input-effort {
-        order: 1;
-    }
-    .chat-input-model {
-        order: 2;
-        width: auto;
+    .chat-input-selectors {
+        flex: none;
     }
     .chat-input-model-toggle {
-        width: 14rem;
+        width: 10rem;
     }
 }
 @media (max-height: 640px) {
