@@ -65,6 +65,16 @@ describe("reduceAssistantStreamEvent", () => {
       effort: "high",
       status: "completed",
       output: "Lease.pdf, p. 4: \"Renews yearly.\"",
+      sources: [{
+        provider: "a2aj",
+        jurisdiction: "CA",
+        citation: "2020 BCSC 1",
+        name: "Example v. Example",
+        dataset: "BCSC",
+        url: "https://example.test/case",
+        locator: "par15",
+        quote: "The exact passage.",
+      }],
       activities: [
         {
           id: "search-1",
@@ -99,6 +109,11 @@ describe("reduceAssistantStreamEvent", () => {
             }),
           }),
         ],
+        sources: [expect.objectContaining({
+          citation: "2020 BCSC 1",
+          locator: "par15",
+          quote: "The exact passage.",
+        })],
       grounding: {
         status: "passed",
         evidence: [{ evidence_id: "e_lease" }],

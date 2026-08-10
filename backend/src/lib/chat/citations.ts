@@ -511,6 +511,7 @@ export function createLegalEvidenceCitations(
         }];
       }
       if (receipt.provider !== "citator") return [];
+      const durable = durableA2AJUrl(receipt, quotes);
       return [{
         type: "citation_data" as const,
         kind: "a2aj" as const,
@@ -518,7 +519,7 @@ export function createLegalEvidenceCitations(
         citation: receipt.citation,
         name: receipt.name,
         dataset: receipt.dataset,
-        url: receipt.external_url,
+        url: durable ?? receipt.external_url,
         external_url: receipt.external_url,
         source_class: receipt.source_class,
         quotes: quotes.map((quote) => ({ quote })),

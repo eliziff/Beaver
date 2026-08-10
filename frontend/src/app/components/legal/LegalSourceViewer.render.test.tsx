@@ -214,13 +214,13 @@ describe("legal source reader", () => {
         expect(screen.queryByText(/Select paragraphs/iu)).not.toBeInTheDocument();
 
         expect(
-            screen.getByRole("link", { name: /View original source/iu }),
+            screen.getByRole("link", { name: "Site" }),
         ).toHaveAttribute(
             "href",
             "https://decisions.example.test/item/1",
         );
         expect(
-            screen.getByRole("link", { name: /View PDF/iu }),
+            screen.getByRole("link", { name: "PDF" }),
         ).toHaveAttribute(
             "href",
             "https://decisions.example.test/item/1/document.pdf",
@@ -427,8 +427,8 @@ describe("legal source reader", () => {
         });
         expect(container.querySelector("em")?.textContent).toBe("ratio");
         expect(container.querySelector("script")).not.toBeInTheDocument();
-        screen.getByRole("link", { name: "View original source" });
-        screen.getByRole("link", { name: "View PDF" });
+        screen.getByRole("link", { name: "Site" });
+        screen.getByRole("link", { name: "PDF" });
         fireEvent.click(
             screen.getByRole("button", {
                 name: "Dissent by Justice Two",
@@ -497,7 +497,7 @@ describe("legal source reader", () => {
         ).toEqual([
             {
                 kind: "pdf",
-                label: "View PDF",
+                label: "PDF",
                 href: metadata.pdfUrl,
             },
         ]);
