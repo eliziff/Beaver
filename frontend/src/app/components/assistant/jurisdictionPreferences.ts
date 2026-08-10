@@ -100,7 +100,6 @@ type JurisdictionOption = {
 export type JurisdictionPreference = {
     mode: "ask" | "presume";
     jurisdictions: string[];
-    showChatControl: boolean;
 };
 
 const OPTIONS: JurisdictionOption[] = JURISDICTION_GROUPS.flatMap((group) =>
@@ -115,7 +114,6 @@ const DEFAULT_JURISDICTIONS = JURISDICTION_GROUPS[0].options.map(([id]) => id);
 const DEFAULT_PREFERENCE: JurisdictionPreference = {
     mode: "presume",
     jurisdictions: DEFAULT_JURISDICTIONS,
-    showChatControl: true,
 };
 const STORAGE_KEY = "mike.jurisdiction.preference";
 const UPDATED_EVENT = "mike:jurisdiction-preference-updated";
@@ -138,7 +136,6 @@ function normalizePreference(value: unknown): JurisdictionPreference {
     return {
         mode: row.mode === "presume" ? "presume" : "ask",
         jurisdictions,
-        showChatControl: row.showChatControl !== false,
     };
 }
 

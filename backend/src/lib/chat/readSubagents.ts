@@ -28,7 +28,16 @@ export type ReadSubagentActivity = {
   tool?: string;
   input?: Record<string, unknown>;
   source?: ReadSubagentSource;
+  paragraphs?: string[];
 };
+
+function readActivityParagraphs(input: Record<string, unknown>) {
+  if (input.locator_type !== "paragraph") return [];
+  const start = String(input.locator ?? "").trim().replace(/^para(?:graph)?\.?\s*/iu, "");
+  if (!start) return [];
+  const end = String(input.end_locator ?? "").trim().replace(/^para(?:graph)?\.?\s*/iu, "");
+  return [end ? `${start}\u2013${end}` : start];
+}
 
 export type ReadSubagentSource = {
   provider: string;
@@ -120,7 +129,7 @@ export const READ_SUBAGENT_TOOL: OpenAIToolSchema = {
   function: {
     name: READ_SUBAGENT_TOOL_NAME,
     description:
-      "Dispatch one concurrent round of two or three independent reading agents. Put every non-overlapping assignment in this single call; lone assignments are invalid. Delegate only when parallel reading is worthwhile. Later rounds are allowed only when the prior search ledger identifies a concrete gap and the new assignments materially change the query, scope, source collection, period, or strategy. An unqualified request about multiple jurisdictions means jurisdictions within the standing region, not different countries or world regions. Keep work in the main turn when fewer than two useful independent slices exist. Do not use it for simple lookups, deterministic operations, or any write task. Completed results include exact grounded passages and a compact search ledger; review them against every element of the user's request, omit non-responsive candidates, and reuse their evidence IDs without re-fetching them.",
+      "Dispatch one concurrent round of two to four independent reading agents. Put every non-overlapping assignment in this single call; lone assignments are invalid. Delegate only when parallel reading is worthwhile. Later rounds are allowed only when the prior search ledger identifies a concrete gap and the new assignments materially change the query, scope, source collection, period, or strategy. An unqualified request about multiple jurisdictions means jurisdictions within the standing region, not different countries or world regions. Keep work in the main turn when fewer than two useful independent slices exist. Do not use it for simple lookups, deterministic operations, or any write task. Completed results include exact grounded passages and a compact search ledger; review them against every element of the user's request, omit non-responsive candidates, and reuse their evidence IDs without re-fetching them.",
     strict: true,
     parameters: {
       type: "object",
@@ -128,7 +137,7 @@ export const READ_SUBAGENT_TOOL: OpenAIToolSchema = {
         assignments: {
           type: "array",
           minItems: 2,
-          maxItems: 3,
+          maxItems: 4,
           items: {
             type: "object",
             properties: {
@@ -174,7 +183,7 @@ export const READ_SUBAGENT_TOOL: OpenAIToolSchema = {
             additionalProperties: false,
           },
           description:
-            "Two or three non-overlapping reader assignments dispatched concurrently.",
+            "Two to four non-overlapping reader assignments dispatched concurrently.",
         },
       },
       required: ["assignments"],
@@ -184,7 +193,7 @@ export const READ_SUBAGENT_TOOL: OpenAIToolSchema = {
 };
 
 export const READ_SUBAGENT_SYSTEM_PROMPT =
-  "Do ordinary legal research yourself with the direct legal-source and citator tools. Delegate only when the requested scale genuinely benefits from parallelism, such as an exhaustive scan, a bulk query, or broad research with at least two worthwhile independent lanes. Call delegate_read once per round with two or three specific, non-overlapping assignments in its assignments array; never dispatch or wait on one agent. Scope assignments by court or jurisdiction within the standing region, source collection, period, or genuinely different search strategy. Never delegate merely to recover or restate evidence already returned earlier in the conversation. Never turn an unqualified request about multiple jurisdictions into different countries or world regions. Never use United States or United Kingdom law as a lane unless the user's current request or selected regions expressly include it. Never clone or lightly rephrase one assignment. Keep work without at least two useful lanes in the main turn. Wait for all sibling results, then skeptically compare each exact passage against every required element of the user's request. Report only responsive results; omit merely analogous, adjacent, or conceptually related candidates. A reader miss is not proof that no result exists: inspect the returned search ledgers and, when a concrete untried query or scope could materially help, dispatch another two-or-three-agent round with meaningfully revised assignments. Do not force a result when thorough searches leave no honest answer; state the verified shortfall. Reuse returned evidence IDs directly and submit the final grounded answer yourself. Do not re-read a completed reader source unless its exact passages conflict.";
+  "Do ordinary legal research yourself with the direct legal-source and citator tools. Delegate only when the requested scale genuinely benefits from parallelism, such as an exhaustive scan, a bulk query, or broad research with at least two worthwhile independent lanes. Call delegate_read once per round with two to four specific, non-overlapping assignments in its assignments array; never dispatch or wait on one agent. Scope assignments by court or jurisdiction within the standing region, source collection, period, or genuinely different search strategy. Never delegate merely to recover or restate evidence already returned earlier in the conversation. Never turn an unqualified request about multiple jurisdictions into different countries or world regions. Never use United States or United Kingdom law as a lane unless the user's current request or selected regions expressly include it. Never clone or lightly rephrase one assignment. Keep work without at least two useful lanes in the main turn. Wait for all sibling results, then skeptically compare each exact passage against every required element of the user's request. Report only responsive results; omit merely analogous, adjacent, or conceptually related candidates. A reader miss is not proof that no result exists: inspect the returned search ledgers and, when a concrete untried query or scope could materially help, dispatch another two-to-four-agent round with meaningfully revised assignments. Do not force a result when thorough searches leave no honest answer; state the verified shortfall. Reuse returned evidence IDs directly and submit the final grounded answer yourself. Do not re-read a completed reader source unless its exact passages conflict.";
 
 export type ReadSubagentRegion = "CA" | "US" | "UK";
 export type ReadSubagentForeignRegion = Exclude<ReadSubagentRegion, "CA">;
@@ -267,7 +276,7 @@ export function readSubagentSourceTypes(call: NormalizedToolCall) {
 }
 
 export function createReadSubagentAdmission(
-  maxAgents = 3,
+  maxAgents = 4,
   allowedRegions: ReadonlySet<ReadSubagentRegion> = new Set(["CA"]),
 ) {
   const assignments = new Set<string>();
@@ -347,7 +356,7 @@ export function prepareReadSubagentRound(
         content: JSON.stringify({
           ok: false,
           error:
-            "Call delegate_read once per round with two or three assignments.",
+            "Call delegate_read once per round with two to four assignments.",
         }),
       })),
     };
@@ -365,7 +374,7 @@ export function prepareReadSubagentRound(
         }]
       : [],
   );
-  if (assignments.length < 2 || assignments.length > 3) {
+  if (assignments.length < 2 || assignments.length > 4) {
     return {
       parent: null,
       assignments: [] as NormalizedToolCall[],
@@ -374,7 +383,7 @@ export function prepareReadSubagentRound(
         status: "error" as const,
         content: JSON.stringify({
           ok: false,
-          error: "delegate_read requires two or three assignments.",
+          error: "delegate_read requires two to four assignments.",
         }),
       }],
     };
@@ -686,9 +695,14 @@ export async function runReadSubagent(params: {
     effort: capability.effort,
   };
   const activities: ReadSubagentActivity[] = [];
+  const activityByCallId = new Map<string, ReadSubagentActivity>();
+  const activityBySource = new Map<string, ReadSubagentActivity>();
   const discoveredSources = new Map<string, ReadSubagentSource>();
   const searches: { tool: string; query: string; summary: string }[] = [];
-  const eventActivities = () => activities.map((item) => ({ ...item }));
+  const eventActivities = () => activities.map((item) => ({
+    ...item,
+    ...(item.paragraphs && { paragraphs: [...item.paragraphs] }),
+  }));
   const eventSources = () => {
     const sources = [
       ...discoveredSources.values(),
@@ -746,8 +760,25 @@ export async function runReadSubagent(params: {
         const label = source
           ? `Reading ${source.name ? `${source.name}, ` : ""}${source.citation}`
           : assistantToolActivityLabel(call.name, call.input);
-        if (label)
-          activities.push({
+        if (label) {
+          const paragraphs = readActivityParagraphs(call.input);
+          const sourceKey = source
+            ? `citation:${source.citation.toLocaleLowerCase()}`
+            : citation
+              ? `citation:${citation}`
+              : clusterIds.length
+                ? `cluster:${clusterIds.join(",")}`
+                : null;
+          const existing = sourceKey ? activityBySource.get(sourceKey) : undefined;
+          if (existing) {
+            existing.status = "running";
+            existing.paragraphs = [
+              ...new Set([...(existing.paragraphs ?? []), ...paragraphs]),
+            ];
+            activityByCallId.set(call.id, existing);
+            continue;
+          }
+          const activity: ReadSubagentActivity = {
             id: call.id,
             label,
             status: "running",
@@ -757,7 +788,12 @@ export async function runReadSubagent(params: {
               input: call.input,
             }),
             ...(source && { source }),
-          });
+            ...(paragraphs.length && { paragraphs }),
+          };
+          activities.push(activity);
+          activityByCallId.set(call.id, activity);
+          if (sourceKey) activityBySource.set(sourceKey, activity);
+        }
       }
       params.onEvent?.({
         ...baseEvent,
@@ -819,9 +855,7 @@ export async function runReadSubagent(params: {
         }
       }
       for (const result of results) {
-        const activity = activities.find(
-          (candidate) => candidate.id === result.tool_use_id,
-        );
+        const activity = activityByCallId.get(result.tool_use_id);
         if (activity) {
           activity.status = result.status === "error" ? "error" : "completed";
         }

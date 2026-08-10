@@ -137,7 +137,15 @@ export function LibraryWorkspaceLayout({ children }: { children: ReactNode }) {
     }, [router]);
     return <LibraryWorkspaceProvider>{children}</LibraryWorkspaceProvider>;
 }
-export function LibraryCollectionPage({ kind }: { kind: LibraryKind }) {
+export function LibraryCollectionPage({
+    kind,
+    onKindChange,
+    embedded = false,
+}: {
+    kind: LibraryKind;
+    onKindChange?: (kind: LibraryKind) => void;
+    embedded?: boolean;
+}) {
     const router = useRouter();
     const { views, loadLibrary, updateView } = useLibraryWorkspace();
     const view = views[kind];
@@ -187,7 +195,7 @@ export function LibraryCollectionPage({ kind }: { kind: LibraryKind }) {
     );
     return (
         <div className="flex h-full min-h-0 flex-col">
-            <PageHeader
+            {!embedded && <PageHeader
                 breadcrumbs={[{ label: "Library" }, { label: title }]}
                 actions={[
                     {
@@ -208,13 +216,38 @@ export function LibraryCollectionPage({ kind }: { kind: LibraryKind }) {
                         disabled: !addDocumentsAction || loading,
                     },
                 ]}
-            />
+            />}
+            {embedded && (
+                <div className="flex shrink-0 items-center gap-2 border-b border-gray-200 px-3 py-2">
+                    <label className="flex h-9 min-w-0 flex-1 items-center rounded-md border border-gray-300 bg-white px-3">
+                        <span className="sr-only">Search {title.toLowerCase()}</span>
+                        <input
+                            type="search"
+                            value={view.search}
+                            onChange={(event) => updateView(kind, { search: event.currentTarget.value })}
+                            placeholder={`Search ${title.toLowerCase()}...`}
+                            className="min-w-0 flex-1 bg-transparent text-base text-gray-800 outline-none placeholder:text-gray-400 sm:text-sm"
+                        />
+                    </label>
+                    <button
+                        type="button"
+                        onClick={addDocumentsAction ?? undefined}
+                        disabled={!addDocumentsAction || loading}
+                        className="grid size-9 shrink-0 place-items-center rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-100 disabled:opacity-40"
+                        aria-label={`Add ${title}`}
+                        title={`Add ${title}`}
+                    >
+                        <Upload className="size-4" aria-hidden="true" />
+                    </button>
+                </div>
+            )}
             <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
                 <TableToolbar
                     items={LIBRARY_TABS}
                     active={kind}
                     onChange={(next) => {
-                        router.push(libraryRoute(next));
+                        if (onKindChange) onKindChange(next);
+                        else router.push(libraryRoute(next));
                     }}
                     actions={
                         <div className="flex items-center gap-1.5">
@@ -228,7 +261,7 @@ export function LibraryCollectionPage({ kind }: { kind: LibraryKind }) {
                                 }}
                             >
                                 <MessageSquarePlus className="h-3.5 w-3.5" />
-                                <span className="hidden sm:inline">Open in new chat</span>
+                                <span className={embedded ? "sr-only" : "hidden sm:inline"}>Open in new chat</span>
                             </TabPillButton>
                             {kind === "files" && (
                                 <DocumentAutomation
@@ -247,7 +280,7 @@ export function LibraryCollectionPage({ kind }: { kind: LibraryKind }) {
                                 disabled={!createFolderAction || loading}
                             >
                                 <FolderSvgIcon className="h-3.5 w-3.5" />
-                                <span className="hidden sm:inline">Folder</span>
+                                <span className={embedded ? "sr-only" : "hidden sm:inline"}>Folder</span>
                             </TabPillButton>
                         </div>
                     }
@@ -267,6 +300,7 @@ export function LibraryCollectionPage({ kind }: { kind: LibraryKind }) {
                     }
                     onSelectionActionsChange={setSelectionActions}
                     selectionFirst
+                    compact={embedded}
                     emptyDropLabel={
                         kind === "templates"
                             ? "Drop template files here"

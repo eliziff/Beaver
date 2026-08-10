@@ -23,6 +23,7 @@ interface WorkflowPickerContentProps {
     onSearchChange: (value: string) => void;
     loading?: boolean;
     disabledWorkflow?: (workflow: Workflow) => boolean;
+    singlePane?: boolean;
 }
 export function WorkflowPickerContent({
     workflows,
@@ -32,6 +33,7 @@ export function WorkflowPickerContent({
     onSearchChange,
     loading = false,
     disabledWorkflow,
+    singlePane = false,
 }: WorkflowPickerContentProps) {
     const selectedRowRef = useRef<HTMLButtonElement>(null);
     const selectedId = selected?.id ?? null;
@@ -78,14 +80,17 @@ export function WorkflowPickerContent({
         setMobilePane("list");
     };
     return (
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-visible md:flex-row">
-            <div
-                className={`min-h-0 min-w-0 flex-1 flex-col overflow-visible md:w-64 md:flex-none md:shrink-0 ${
-                    mobilePane === "details" && selected
-                        ? "hidden md:flex"
-                        : "flex"
-                }`}
-            >
+        <div
+            className={`flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-visible ${singlePane ? "" : "md:flex-row"}`}
+        >
+            {!singlePane || mobilePane !== "details" || !selected ? (
+                <div
+                    className={`min-h-0 min-w-0 flex-1 flex-col overflow-visible ${singlePane ? "" : "md:w-64 md:flex-none md:shrink-0"} ${
+                        mobilePane === "details" && selected
+                            ? "hidden md:flex"
+                            : "flex"
+                    }`}
+                >
                 <SearchBar
                     value={search}
                     onValueChange={onSearchChange}
@@ -156,16 +161,21 @@ export function WorkflowPickerContent({
                         </div>
                     )}
                 </div>
-            </div>
+                </div>
+            ) : null}
             {selected ? (
                 <WorkflowPreview
                     workflow={selected}
                     onClear={handleClearPreview}
                     className={
-                        mobilePane === "details" ? "flex" : "hidden md:flex"
+                        mobilePane === "details"
+                            ? "flex"
+                            : singlePane
+                              ? "hidden"
+                              : "hidden md:flex"
                     }
                 />
-            ) : (
+            ) : singlePane ? null : (
                 <div className="hidden min-w-0 flex-1 md:block" />
             )}
         </div>

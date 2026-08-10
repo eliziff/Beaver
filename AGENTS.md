@@ -97,6 +97,8 @@ Keep changes small, measured, and local-first.
   into normal flow after paint. A skeleton must match the final geometry.
 - Validate route transitions and async state changes with a layout-shift
   observer and screenshot filmstrip, not only a settled-page screenshot.
+- When visual inspection is required, use ChromeDriver against the running app
+  and inspect the rendered result. Ordinary nonvisual checks do not require it.
 - Horizontal scrolling is forbidden for the app shell, routes, panels, forms,
   lists, cards, titles, controls, and ordinary tables. Reflow, wrap, truncate,
   or change the layout instead. Inherently two-dimensional artifacts such as a

@@ -16,6 +16,7 @@ it("keeps modal actions fixed while the body scrolls", () => {
     );
 
     const dialog = getByRole("dialog");
+    expect(dialog).toHaveClass("overflow-hidden");
     expect(dialog.querySelector(".modal-scroll-body")).toHaveClass(
         "overflow-y-auto",
     );

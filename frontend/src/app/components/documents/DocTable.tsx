@@ -46,16 +46,16 @@ export interface DocTableSelectionActions {
 const DOCUMENT_ROW_CLASS =
     "group flex h-11 min-h-11 w-full min-w-0 items-center border-b border-gray-100 pr-2 [content-visibility:auto] [contain-intrinsic-size:auto_44px]";
 const DOCUMENT_METADATA_COLUMNS = [
-    { label: "Type", row: "ml-auto hidden w-20 shrink-0 sm:block",
-        header: "ml-auto hidden w-20 items-center gap-1 sm:flex", skeleton: "h-3 w-8 rounded bg-gray-100" },
-    { label: "Size", row: "hidden w-24 shrink-0 md:block",
-        header: "hidden w-24 items-center gap-1 md:flex", skeleton: "h-3 w-12 rounded bg-gray-100" },
-    { label: "Version", row: "w-20 shrink-0",
-        header: "flex w-20 items-center gap-1", skeleton: "h-3 w-5 rounded bg-gray-100" },
-    { label: "Created", row: "hidden w-32 shrink-0 lg:block",
-        header: "hidden w-32 items-center gap-1 lg:flex", skeleton: "h-3 w-16 rounded bg-gray-100" },
-    { label: "Updated", row: "hidden w-32 shrink-0 xl:block",
-        header: "hidden w-32 items-center gap-1 xl:flex", skeleton: "h-3 w-16 rounded bg-gray-100" },
+    { label: "Type", row: "document-metadata ml-auto hidden w-20 shrink-0 sm:block",
+        header: "document-metadata ml-auto hidden w-20 items-center gap-1 sm:flex", skeleton: "h-3 w-8 rounded bg-gray-100" },
+    { label: "Size", row: "document-metadata hidden w-24 shrink-0 md:block",
+        header: "document-metadata hidden w-24 items-center gap-1 md:flex", skeleton: "h-3 w-12 rounded bg-gray-100" },
+    { label: "Version", row: "document-metadata w-20 shrink-0",
+        header: "document-metadata flex w-20 items-center gap-1", skeleton: "h-3 w-5 rounded bg-gray-100" },
+    { label: "Created", row: "document-metadata hidden w-32 shrink-0 lg:block",
+        header: "document-metadata hidden w-32 items-center gap-1 lg:flex", skeleton: "h-3 w-16 rounded bg-gray-100" },
+    { label: "Updated", row: "document-metadata hidden w-32 shrink-0 xl:block",
+        header: "document-metadata hidden w-32 items-center gap-1 xl:flex", skeleton: "h-3 w-16 rounded bg-gray-100" },
 ] as const;
 const DOCUMENT_METADATA_HEADERS = DOCUMENT_METADATA_COLUMNS.map(({ label, header }) =>
     <TableHeaderCell key={label} className={header}><span>{label}</span></TableHeaderCell>);
@@ -245,6 +245,7 @@ interface DocTableProps {
     onSelectionActionsChange?: (actions: DocTableSelectionActions | null) => void;
     onOwnerOnlyAction?: Dispatch<SetStateAction<string | null>>;
     documentRemovalMode?: "delete" | "detach"; selectionFirst?: boolean;
+    compact?: boolean;
 }
 const PROJECT_TABLE_LOADING = (
     <div className="flex-1 flex flex-col min-h-0">
@@ -270,7 +271,7 @@ export function DocTable({
     emptyDropLabel = "Drop PDF, Word, Excel, or PowerPoint files here",
     renderAddDocumentsModal, onAddDocumentsActionChange,
     onCreateFolderActionChange, onSelectionActionsChange, onOwnerOnlyAction,
-    documentRemovalMode = "delete", selectionFirst = false,
+    documentRemovalMode = "delete", selectionFirst = false, compact = false,
 }: DocTableProps) {
     const { user } = useAuth();
     const [state, setState] = useState<DocTableState>(() => ({
@@ -1155,7 +1156,7 @@ export function DocTable({
     );
     const pendingDeleteFolderMessage = folderDeletionMessage(pendingDeleteFolder);
     return (
-        <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden"
+        <div className={`relative flex h-full min-h-0 flex-1 flex-col overflow-hidden ${compact ? "[&_.document-metadata]:hidden" : ""}`}
             onDragEnd={clearDragOver}>
             <input ref={versionUploadInputRef} type="file"
                 accept=".pdf,.docx,.doc,.xlsx,.xlsm,.xls,.pptx,.ppt"

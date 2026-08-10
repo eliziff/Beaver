@@ -76,3 +76,21 @@ it("filters and selects workflows without changing the list width", () => {
     fireEvent.click(screen.getByRole("button", { name: "Close preview" }));
     expect(onSelect).toHaveBeenCalledWith(null);
 });
+
+it("uses the full pane for workflow details when embedded in a dock", () => {
+    const selected = workflow("lease", "Lease analyzer");
+    const { container } = render(
+        <WorkflowPickerContent
+            workflows={[selected]}
+            selected={selected}
+            onSelect={vi.fn()}
+            search=""
+            onSearchChange={vi.fn()}
+            singlePane
+        />,
+    );
+
+    expect(container.querySelector('[class*="md:w-64"]')).toBeNull();
+    expect(screen.getByText("Review the lease.")).toBeVisible();
+    expect(screen.queryByPlaceholderText("Search workflows...")).toBeNull();
+});

@@ -9,9 +9,6 @@ import {
 } from "react";
 import {
     ArrowDown,
-    PanelRightClose,
-    PanelRightOpen,
-    PanelsTopLeft,
 } from "lucide-react";
 import { UserMessage } from "./UserMessage";
 import { AssistantMessage } from "./AssistantMessage";
@@ -24,7 +21,9 @@ import {
     type AssistantDocumentTab,
     type AssistantSidePanelTab,
 } from "./AssistantSidePanel";
-import { AssistantWorkflowModal } from "./AssistantWorkflowModal";
+import { AssistantDock, type AssistantDockTab } from "./AssistantDock";
+import { AssistantWorkflowDock } from "./AssistantWorkflowDock";
+import { DocumentAutomation, type DocumentAutomationTarget } from "@/app/components/documents/DocumentAutomation";
 import type {
     AssistantEvent,
     CaseCitation,
@@ -36,20 +35,29 @@ import type {
     EditResolveStart,
     EditResolved,
     Message,
+    Workflow,
 } from "../shared/types";
 import { useSidebar } from "@/app/contexts/SidebarContext";
 import { invalidateDocxBytes } from "@/app/hooks/useFetchDocxBytes";
 import type { RejectedAssistantTurn } from "@/app/hooks/useAssistantChat";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
-import { legalSourceLocatorFromUrl } from "@/app/components/legal/LegalSourceViewer";
 import {
-    ReadSubagentDock,
+    legalSourceLocatorFromUrl,
+    LegalSourceViewer,
+} from "@/app/components/legal/LegalSourceViewer";
+import { LegalLibraryPage } from "@/app/components/legal/LegalLibrary";
+import {
+    LibraryCollectionPage,
+    LibraryWorkspaceProvider,
+} from "@/app/components/library/LibraryWorkspace";
+import type { LibraryKind } from "@/app/lib/beaverApi";
+import {
     type ReadSubagentPanel,
     type ReadSubagentSource,
 } from "./ReadSubagentDock";
+import { ReadSubagentTabs, type ReadSubagentGroup } from "./ReadSubagentTabs";
 import { useReadSubagentPreference } from "./readSubagentPreferences";
-import { Modal } from "@/app/components/modals/Modal";
 interface Props {
     chatId?: string | null;
     messages: Message[];
@@ -209,18 +217,27 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     >([]);
     const [readSubagentPanelLimitOpen, setReadSubagentPanelLimitOpen] =
         useState(false);
-    const [assistantSideGutterCollapsed, setAssistantSideGutterCollapsed] =
-        useState(false);
-    const [assistantPanelsModalOpen, setAssistantPanelsModalOpen] =
-        useState(false);
+    const [dockOpen, setDockOpen] = useState(false);
+    const [dockActivated, setDockActivated] = useState(false);
+    const [activeDockTab, setActiveDockTab] = useState("sources");
+    const [activeAgentSlot, setActiveAgentSlot] = useState<string | null>(null);
+    const [agentInspectorOpen, setAgentInspectorOpen] = useState(false);
+    const [agentInspectorTab, setAgentInspectorTab] = useState<
+        Extract<AssistantSidePanelTab, { kind: "case" | "legal" }> | null
+    >(null);
     const [activeTabId, setActiveTabId] = useState<string | null>(null);
-    const [workflowModalId, setWorkflowModalId] = useState<string | null>(null);
+    const [workflowInitialId, setWorkflowInitialId] = useState<string>();
+    const [libraryKind, setLibraryKind] = useState<LibraryKind>("files");
+    const workflowSelectRef = useRef<(workflow: Workflow) => void>(() => {});
+    const [automationDocument, setAutomationDocument] =
+        useState<DocumentAutomationTarget | null>(null);
     const [hiddenAskInputKey, setHiddenAskInputKey] = useState<string | null>(
         null,
     );
     const [responseAnnouncement, setResponseAnnouncement] = useState("");
     const wasResponseLoadingRef = useRef(false);
     const dismissedReadSubagentIds = useRef(new Set<string>());
+    const previousReadSubagentCount = useRef(0);
     const skipSubagentPanelPersist = useRef(true);
     const readSubagentPanelStorageKeyRef = useRef(
         readSubagentPanelStorageKey,
@@ -253,7 +270,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         [activeTabId, closeAllTabs, tabs],
     );
     const upsertTab = useCallback(
-        (tab: AssistantSidePanelTab) => {
+        (tab: AssistantSidePanelTab, activateDock = true) => {
             setTabs((prev) => {
                 const idx = prev.findIndex((current) =>
                     isDocumentTab(tab)
@@ -278,6 +295,8 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                 return [...prev, tab];
             });
             setActiveTabId(tab.id);
+            if (activateDock) setActiveDockTab("sources");
+            setDockOpen(true);
             setSidebarOpen(false);
         },
         [setSidebarOpen],
@@ -532,7 +551,10 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         if (messages.length > 0) scrollLatestUserToTop();
     }, [chatId, messages.length, scrollLatestUserToTop]);
     useEffect(() => {
-        if (tabs.length > 0 && window.innerWidth < MOBILE_BREAKPOINT_PX) {
+        if (dockOpen) setDockActivated(true);
+    }, [dockOpen]);
+    useEffect(() => {
+        if (dockOpen && window.innerWidth < MOBILE_BREAKPOINT_PX) {
             document.body.style.overflow = "hidden";
         } else {
             document.body.style.overflow = "unset";
@@ -540,7 +562,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         return () => {
             document.body.style.overflow = "unset";
         };
-    }, [tabs.length]);
+    }, [dockOpen]);
     const activeInput =
         rawActiveInput?.key !== hiddenAskInputKey
             ? rawActiveInput
@@ -568,12 +590,18 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                     project_id: projectId ?? null,
                 }
               : null;
-        if (!target) return;
-        upsertTab({
-            kind: "automation-menu",
-            id: `automation-menu:${target.id}`,
-            document: target,
-        });
+        setAutomationDocument(target);
+        setActiveDockTab("automations");
+        setDockOpen(true);
+    };
+    const openWorkflows = (
+        onSelect: (workflow: Workflow) => void,
+        initialWorkflowId?: string,
+    ) => {
+        workflowSelectRef.current = onSelect;
+        setWorkflowInitialId(initialWorkflowId);
+        setActiveDockTab("workflows");
+        setDockOpen(true);
     };
     useImperativeHandle(
         ref,
@@ -621,8 +649,20 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         });
     };
     const openReadSubagentSource = (source: ReadSubagentSource) => {
+        const openSourceTab = (
+            tab: Extract<AssistantSidePanelTab, { kind: "case" | "legal" }>,
+        ) => {
+            const inspectBesideAgent = activeDockTab === "agents";
+            if (inspectBesideAgent) {
+                setAgentInspectorTab(tab);
+                setAgentInspectorOpen(true);
+                setDockOpen(true);
+                return;
+            }
+            upsertTab(tab);
+        };
         if (source.clusterId && chatId) {
-            upsertTab({
+            openSourceTab({
                 kind: "case",
                 id: `case:${source.clusterId}`,
                 chatId,
@@ -641,7 +681,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                 source.provider === "citator" ||
                 source.jurisdiction.toLocaleUpperCase().startsWith("CA"))
         ) {
-            upsertTab({
+            openSourceTab({
                 kind: "legal",
                 id: `legal:${source.dataset}:${source.citation}`,
                 citation: source.citation,
@@ -724,6 +764,21 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             return next.slice(-READ_SUBAGENT_RUN_LIMIT);
         });
     }, [messages, readSubagents.showDock]);
+    useEffect(() => {
+        if (
+            readSubagents.showDock &&
+            readSubagentPanels.length > previousReadSubagentCount.current
+        ) {
+            const latest = readSubagentPanels.at(-1);
+            if (latest) {
+                const slot = latest.id.match(/:(\d+)$/u)?.[1] ?? latest.id;
+                setActiveAgentSlot(slot);
+                setActiveDockTab("agents");
+                setDockOpen(true);
+            }
+        }
+        previousReadSubagentCount.current = readSubagentPanels.length;
+    }, [readSubagentPanels, readSubagents.showDock]);
     const openReadSubagentPanel = (panel: ReadSubagentPanel) => {
         dismissedReadSubagentIds.current.delete(panel.id);
         const withoutCurrent = readSubagentPanels.filter(
@@ -737,9 +792,10 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             return;
         }
         setReadSubagentPanels([...withoutCurrent, panel]);
-        if (!window.matchMedia("(min-width: 1536px)").matches) {
-            setAssistantPanelsModalOpen(true);
-        }
+        const slot = panel.id.match(/:(\d+)$/u)?.[1] ?? panel.id;
+        setActiveAgentSlot(slot);
+        setActiveDockTab("agents");
+        setDockOpen(true);
     };
     const closeReadSubagentPanel = (id: string) => {
         dismissedReadSubagentIds.current.add(id);
@@ -747,11 +803,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             current.filter((panel) => panel.id !== id),
         );
     };
-    const hasAssistantPanels =
-        readSubagents.showDock && readSubagentPanels.length > 0;
-    const showAssistantSideGutter = tabs.length > 0 || hasAssistantPanels;
-    const assistantSideGutterVisible =
-        showAssistantSideGutter && !assistantSideGutterCollapsed;
+    const assistantSideGutterVisible = dockOpen;
     const readerPanel = (embedded = false) =>
         tabs.length ? (
             <AssistantSidePanel
@@ -775,6 +827,97 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                 }
             />
         ) : null;
+    const groupedAgents = new Map<string, ReadSubagentPanel[]>();
+    if (readSubagents.showDock) {
+        readSubagentPanels.forEach((panel, index) => {
+            const slot = panel.id.match(/:(\d+)$/u)?.[1] ?? String(index + 1);
+            groupedAgents.set(slot, [...(groupedAgents.get(slot) ?? []), panel]);
+        });
+    }
+    const agentGroups: ReadSubagentGroup[] = [...groupedAgents.entries()].map(
+        ([slot, panels]) => ({ id: slot, label: `Agent ${slot}`, panels }),
+    );
+    const sourceContent = tabs.length ? (
+        readerPanel(true)
+    ) : activeDockTab === "sources" ? (
+        <LegalLibraryPage embedded />
+    ) : null;
+    const agentInspectorContent = agentInspectorTab ? (
+        agentInspectorTab.kind === "case" ? (
+            <LegalSourceViewer caseTab={agentInspectorTab} compact />
+        ) : (
+            <LegalSourceViewer {...agentInspectorTab} compact />
+        )
+    ) : null;
+    const closeAgentGroup = (slot: string) => {
+        for (const panel of groupedAgents.get(slot) ?? []) {
+            closeReadSubagentPanel(panel.id);
+        }
+        const remaining = agentGroups.find((group) => group.id !== slot);
+        setActiveAgentSlot(remaining?.id ?? null);
+        if (!remaining) setAgentInspectorOpen(false);
+    };
+    const dockTabs: AssistantDockTab[] = [
+        {
+            id: "sources",
+            label: "Sources",
+            content: sourceContent,
+        },
+        {
+            id: "library",
+            label: "Library",
+            content: (
+                <LibraryWorkspaceProvider>
+                    {activeDockTab === "library" && (
+                        <LibraryCollectionPage
+                            kind={libraryKind}
+                            onKindChange={setLibraryKind}
+                            embedded
+                        />
+                    )}
+                </LibraryWorkspaceProvider>
+            ),
+        },
+        {
+            id: "workflows",
+            label: "Workflows",
+            content: (
+                <AssistantWorkflowDock
+                    initialWorkflowId={workflowInitialId}
+                    onSelect={(workflow) => workflowSelectRef.current(workflow)}
+                />
+            ),
+        },
+        {
+            id: "automations",
+            label: "Automations",
+            content: automationDocument ? (
+                <div className="h-full overflow-y-auto">
+                    <DocumentAutomation document={automationDocument} embedded />
+                </div>
+            ) : (
+                <div className="grid h-full place-items-center p-6 text-center text-sm text-gray-500">
+                    Open a document to use its automations.
+                </div>
+            ),
+        },
+        {
+            id: "agents",
+            label: "Agents",
+            content: (
+                <ReadSubagentTabs
+                    groups={agentGroups}
+                    activeId={activeAgentSlot}
+                    onActivate={setActiveAgentSlot}
+                    onClose={closeAgentGroup}
+                    onSourceClick={openReadSubagentSource}
+                />
+            ),
+        },
+    ];
+    const resolvedDockTab = dockTabs.some((tab) => tab.id === activeDockTab)
+        ? activeDockTab
+        : "sources";
     return (
         <div className="h-full w-full flex relative">
             <div
@@ -811,7 +954,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                     style={{ scrollbarGutter: "stable both-edges" }}
                 >
                     <div
-                        className={`w-full max-w-4xl px-6 pt-6 md:px-8 md:pt-8 min-h-full flex flex-col relative ${assistantSideGutterVisible ? "ms-auto me-0" : "mx-auto"}`}
+                        className={`w-full px-6 pt-6 md:px-8 md:pt-8 min-h-full flex flex-col relative ${assistantSideGutterVisible ? "ms-auto me-0 max-w-5xl" : "mx-auto max-w-4xl"}`}
                         style={{
                             paddingBottom: DEFAULT_ASSISTANT_BOTTOM_PADDING,
                         }}
@@ -863,7 +1006,14 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                                                     : "0px"
                                             }
                                             onWorkflowClick={(id) => {
-                                                setWorkflowModalId(id);
+                                                openWorkflows(
+                                                    (workflow) =>
+                                                        chatInputRef.current?.startWorkflowDocumentSelection({
+                                                            id: workflow.id,
+                                                            title: workflow.metadata.title,
+                                                        }),
+                                                    id,
+                                                );
                                             }}
                                             onEditViewClick={openEditor}
                                             onOpenDocument={openDocument}
@@ -889,7 +1039,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                 </div>
                 <div className="absolute bottom-3 left-0 right-0 w-full z-30">
                     <div
-                        className={`relative w-full max-w-4xl px-4 md:px-6 ${assistantSideGutterVisible ? "ms-auto me-0" : "mx-auto"}`}
+                        className={`relative w-full px-4 md:px-6 ${assistantSideGutterVisible ? "ms-auto me-0 max-w-5xl" : "mx-auto max-w-4xl"}`}
                     >
                         {showScrollButton && !activeInput && (
                             <button
@@ -923,23 +1073,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                                 />
                             </div>
                         )}
-                        {tabs.length === 0 &&
-                            hasAssistantPanels &&
-                            !activeInput && (
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        setAssistantPanelsModalOpen(true)
-                                    }
-                                    className="absolute bottom-[calc(100%+0.75rem)] right-4 z-20 inline-flex min-h-10 items-center gap-2 rounded-full border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 md:right-6 2xl:hidden"
-                                >
-                                    <PanelsTopLeft
-                                        className="size-4"
-                                        aria-hidden="true"
-                                    />
-                                    Panels
-                                </button>
-                            )}
                         <ChatInput
                             ref={chatInputRef}
                             onSubmit={submitMessage}
@@ -957,6 +1090,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                             isLoading={isResponseLoading || !!activeInput}
                             automationsAvailable={!!activeDocument}
                             onOpenAutomations={openAutomations}
+                            onOpenWorkflows={openWorkflows}
                             projectName={projectName ?? undefined}
                             projectCmNumber={projectCmNumber}
                             restoreDraft={
@@ -968,78 +1102,25 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                     </div>
                 </div>
             </div>
-            <AssistantWorkflowModal
-                open={workflowModalId !== null}
-                onClose={() => setWorkflowModalId(null)}
-                onSelect={() => setWorkflowModalId(null)}
-                initialWorkflowId={workflowModalId ?? undefined}
-            />
-            {assistantSideGutterVisible && (
-                    <aside
-                        aria-label="Assistant side panels"
-                        className="hidden h-full min-w-[360px] w-[min(46vw,680px)] shrink-0 flex-col gap-2 overflow-hidden px-3 py-3 2xl:flex"
-                    >
-                        <button
-                            type="button"
-                            onClick={() => setAssistantSideGutterCollapsed(true)}
-                            className="flex min-h-10 shrink-0 items-center justify-end gap-2 rounded-md px-2 text-xs font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
-                        >
-                            Collapse panels
-                            <PanelRightClose
-                                className="size-4"
-                                aria-hidden="true"
-                            />
-                        </button>
-                        {hasAssistantPanels && (
-                            <div className={`${tabs.length ? "max-h-[42%]" : "flex-1"} shrink-0 space-y-2 overflow-y-auto`}>
-                                <ReadSubagentDock
-                                    idPrefix="reading-agent-side"
-                                    panels={
-                                        readSubagents.showDock
-                                            ? readSubagentPanels
-                                            : []
-                                    }
-                                    onClose={closeReadSubagentPanel}
-                                    onSourceClick={openReadSubagentSource}
-                                />
-                            </div>
-                        )}
-                        {readerPanel(true)}
-                    </aside>
-                )}
-            {showAssistantSideGutter && assistantSideGutterCollapsed && (
-                <div className="hidden h-full w-14 shrink-0 justify-center py-3 pe-3 2xl:flex">
-                    <button
-                        type="button"
-                        onClick={() => setAssistantSideGutterCollapsed(false)}
-                        className="grid size-10 place-items-center rounded-md border border-gray-300 bg-white text-gray-600 shadow-sm hover:bg-gray-50 hover:text-gray-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
-                        aria-label="Expand side panels"
-                    >
-                        <PanelRightOpen className="size-4" aria-hidden="true" />
-                    </button>
-                </div>
-            )}
-            <Modal
-                open={assistantPanelsModalOpen}
-                onClose={() => setAssistantPanelsModalOpen(false)}
-                breadcrumbs={["Panels"]}
-                size="md"
-            >
-                <div className="space-y-3 pb-5">
-                    <ReadSubagentDock
-                        idPrefix="reading-agent-modal"
-                        panels={
-                            readSubagents.showDock ? readSubagentPanels : []
-                        }
-                        onClose={closeReadSubagentPanel}
-                        onSourceClick={openReadSubagentSource}
-                    />
-                </div>
-            </Modal>
-            {tabs.length > 0 && (
-                <div className="fixed inset-0 z-40 flex justify-center p-3 md:relative md:inset-auto md:z-auto md:block md:h-full md:min-w-0 md:flex-shrink-0 md:p-0 2xl:hidden">
-                    {readerPanel()}
-                </div>
+            {(dockActivated || dockOpen) && (
+                <AssistantDock
+                    tabs={dockTabs}
+                    activeTabId={resolvedDockTab}
+                    onActivateTab={(id) => {
+                        setActiveDockTab(id);
+                        if (id !== "agents") setAgentInspectorOpen(false);
+                    }}
+                    expanded={dockOpen}
+                    onExpandedChange={setDockOpen}
+                    inspectorContent={agentInspectorContent}
+                    inspectorOpen={
+                        resolvedDockTab === "agents" && agentInspectorOpen
+                    }
+                    onCloseInspector={() => {
+                        setAgentInspectorOpen(false);
+                        setAgentInspectorTab(null);
+                    }}
+                />
             )}
             <WarningPopup
                 open={!!rejectedTurn}

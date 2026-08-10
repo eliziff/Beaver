@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useId, useImperativeHandle, useRef, useState } from "react";
-import { ArrowRight, Check, Library, Loader2, MapPinned, Plus, Square, WandSparkles, Waypoints, X } from "lucide-react";
+import { ArrowRight, Check, Library, Loader2, Plus, Square, WandSparkles, Waypoints, X } from "lucide-react";
 import { FileTypeIcon } from "../shared/FileTypeIcon";
 import { AddDocumentsModal } from "../modals/AddDocumentsModal";
 import { AssistantWorkflowModal } from "./AssistantWorkflowModal";
@@ -9,15 +9,11 @@ import { ModelToggle, ReasoningEffortToggle } from "./ModelToggle";
 import { useSelectedModel, useSelectedReasoningEffort } from "@/app/hooks/useSelectedModel";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { getModelProvider, isModelAvailable, type ModelProvider } from "@/app/lib/modelAvailability";
-import type { Document, Message } from "../shared/types";
+import type { Document, Message, Workflow as WorkflowDefinition } from "../shared/types";
 import type { DirectoryTab } from "../shared/useDirectoryData";
 import { cn } from "@/app/lib/utils";
 import { uploadStandaloneDocument } from "@/app/lib/beaverApi";
 import { formatUnsupportedDocumentWarning, partitionSupportedDocumentFiles } from "@/app/lib/documentUploadValidation";
-import { Modal } from "@/app/components/modals/Modal";
-import { JurisdictionPreferenceEditor } from "@/app/components/settings/JurisdictionPreferenceEditor";
-import { useJurisdictionPreference } from "./jurisdictionPreferences";
-import { useReadSubagentPreference } from "./readSubagentPreferences";
 type Workflow = NonNullable<Message["workflow"]>;
 
 function mergeDocuments(...groups: Document[][]) {
@@ -70,12 +66,16 @@ interface Props {
     promptHistory?: string[];
     automationsAvailable?: boolean;
     onOpenAutomations?: (document?: Document) => void;
+    onOpenWorkflows?: (
+        onSelect: (workflow: WorkflowDefinition) => void,
+        initialWorkflowId?: string,
+    ) => void;
 }
 export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     { onSubmit, onCancel, isLoading, showContextTools = true, rows = 1,
         projectName, projectCmNumber, restoreDraft, onDraftRestored,
         promptHistory = [], automationsAvailable = false,
-        onOpenAutomations }: Props,
+        onOpenAutomations, onOpenWorkflows }: Props,
     ref,
 ) {
     const [hasValue, setHasValue] = useState(false);
@@ -89,9 +89,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     const textareaId = useId();
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const [picker, setPicker] = useState<DirectoryTab | "workflows" | null>(null);
-    const [jurisdictionOpen, setJurisdictionOpen] = useState(false);
-    const { preference: jurisdictionPreference } = useJurisdictionPreference();
-    const subagents = useReadSubagentPreference();
     const [apiKeyModalProvider, setApiKeyModalProvider] = useState<ModelProvider | null>(null);
     const [uploadingFilenames, setUploadingFilenames] = useState<string[]>([]);
     const [uploadWarning, setUploadWarning] = useState<string | null>(null);
@@ -242,11 +239,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     const documentButtonLabel = attachedDocs.length
         ? `${attachedDocs.length} documents selected`
         : "Add document";
-    const nativeSubagentsAvailable = model.startsWith("codex:");
-    const subagentMode =
-        subagents.mode === "native" && !nativeSubagentsAvailable
-            ? "none"
-            : subagents.mode;
     return (
         <>
             <div
@@ -379,7 +371,20 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={() => setPicker("workflows")}
+                                    onClick={() => {
+                                        if (onOpenWorkflows) {
+                                            onOpenWorkflows(
+                                                (workflow) =>
+                                                    setSelectedWorkflow({
+                                                        id: workflow.id,
+                                                        title: workflow.metadata.title,
+                                                    }),
+                                                selectedWorkflow?.id,
+                                            );
+                                        } else {
+                                            setPicker("workflows");
+                                        }
+                                    }}
                                     aria-label="Open workflows"
                                     className={cn(
                                         "flex h-8 items-center gap-1.5 rounded-lg px-2 text-sm",
@@ -395,19 +400,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                         Workflows
                                     </span>
                                 </button>
-                                {jurisdictionPreference.showChatControl && (
-                                    <button
-                                        type="button"
-                                        onClick={() => setJurisdictionOpen(true)}
-                                        aria-label="Choose jurisdiction"
-                                        className="flex h-8 items-center gap-1.5 rounded-lg px-2 text-sm text-gray-600 hover:text-gray-900"
-                                    >
-                                        <MapPinned className="h-3.5 w-3.5" />
-                                        <span className="chat-input-control-label hidden sm:inline">
-                                            Jurisdiction
-                                        </span>
-                                    </button>
-                                )}
                                 {onOpenAutomations && (
                                     <button
                                         type="button"
@@ -434,32 +426,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                             </div>
                         )}
                         <div className="ml-auto flex w-full flex-wrap items-center justify-end gap-1 sm:w-auto sm:flex-nowrap">
-                            {subagents.showChatControl && (
-                                <label className="order-2 flex h-8 shrink-0 items-center gap-1 rounded-md border border-gray-300 bg-white px-2 sm:order-1">
-                                    <span className="chat-input-control-label text-[10px] uppercase tracking-wide text-gray-500">
-                                        Agents
-                                    </span>
-                                    <select
-                                        value={subagentMode}
-                                        onChange={(event) =>
-                                            subagents.setMode(
-                                                event.currentTarget.value as typeof subagentMode,
-                                            )
-                                        }
-                                        aria-label="Subagents"
-                                        className="h-full cursor-pointer bg-white text-sm text-gray-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
-                                    >
-                                        <option value="none">None</option>
-                                        <option value="beaver">Beaver subagents</option>
-                                        <option
-                                            value="native"
-                                            disabled={!nativeSubagentsAvailable}
-                                        >
-                                            Native Codex
-                                        </option>
-                                    </select>
-                                </label>
-                            )}
                             <div className="order-2 sm:order-1">
                                 <ReasoningEffortToggle
                                     model={model} value={reasoningEffort}
@@ -515,16 +481,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                     projectCmNumber={projectCmNumber}
                 />
             )}
-            <Modal
-                open={jurisdictionOpen}
-                onClose={() => setJurisdictionOpen(false)}
-                breadcrumbs={["Jurisdiction"]}
-                size="md"
-            >
-                <div className="pb-5 pt-1">
-                    <JurisdictionPreferenceEditor showChatControl={false} />
-                </div>
-            </Modal>
             <ApiKeyMissingPopup open={apiKeyModalProvider !== null} provider={apiKeyModalProvider}
                 onClose={() => setApiKeyModalProvider(null)}
             />

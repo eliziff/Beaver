@@ -50,30 +50,21 @@ export function SubagentSettings() {
                 Delegate bounded source review when parallel research would materially help. Agents cannot edit files.
             </p>
             <AccountSection className="divide-y divide-gray-200 p-0">
-                <label
-                    className="flex min-h-16 cursor-pointer items-center justify-between gap-5 px-4 py-3"
-                >
-                    <span className="min-w-0">
-                        <span className="block text-sm font-medium text-gray-900">
-                            Show agent selector
-                        </span>
-                        <span className="mt-0.5 block text-xs leading-5 text-gray-500">
-                            Choose Native Codex, Beaver, or None in the chatbox.
-                        </span>
-                    </span>
-                    <span className="relative grid h-11 w-12 shrink-0 place-items-center">
-                        <input
-                            type="checkbox"
-                            role="switch"
-                            checked={preference.showChatControl}
-                            onChange={(event) =>
-                                preference.setShowChatControl(event.currentTarget.checked)
-                            }
-                            className="peer sr-only"
-                        />
-                        <span className="h-6 w-10 rounded-full bg-gray-300 transition-colors peer-checked:bg-gray-900 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-gray-900" />
-                        <span className="pointer-events-none absolute left-2 h-4 w-4 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-4" />
-                    </span>
+                <label className="grid min-w-0 gap-2 px-4 py-3 text-sm text-gray-900 sm:grid-cols-[minmax(0,1fr)_12rem] sm:items-center">
+                    <span className="font-medium">Agent mode</span>
+                    <select
+                        value={preference.mode}
+                        onChange={(event) =>
+                            preference.setMode(
+                                event.currentTarget.value as typeof preference.mode,
+                            )
+                        }
+                        className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
+                    >
+                        <option value="none">None</option>
+                        <option value="beaver">Beaver</option>
+                        <option value="native">Native Codex</option>
+                    </select>
                 </label>
                 <div className="grid min-w-0 gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_11rem] sm:items-end">
                     <div className="min-w-0">
