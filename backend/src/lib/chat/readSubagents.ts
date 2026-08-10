@@ -38,6 +38,20 @@ function readActivityParagraphs(input: Record<string, unknown>) {
   const end = String(input.end_locator ?? "").trim().replace(/^para(?:graph)?\.?\s*/iu, "");
   return [end ? `${start}\u2013${end}` : start];
 }
+function viewerLocator(locator: { kind: string; label: string }) {
+  const prefix = locator.kind === "paragraph"
+    ? "par"
+    : locator.kind === "section"
+      ? "sec"
+      : locator.kind === "page"
+        ? "page"
+        : locator.kind === "footnote"
+          ? "fn"
+          : "";
+  return prefix && !locator.label.toLocaleLowerCase().startsWith(prefix)
+    ? `${prefix}${locator.label}`
+    : locator.label;
+}
 
 export type ReadSubagentSource = {
   provider: string;
@@ -47,6 +61,8 @@ export type ReadSubagentSource = {
   dataset: string;
   url: string | null;
   clusterId?: number;
+  locator?: string;
+  quote?: string;
 };
 
 function discoveredCaseSources(
@@ -715,6 +731,8 @@ export async function runReadSubagent(params: {
               name: receipt.name,
               dataset: receipt.dataset,
               url: receipt.external_url,
+              ...(receipt.locator?.label && { locator: viewerLocator(receipt.locator) }),
+              ...(receipt.span_text && { quote: receipt.span_text }),
             }]
           : [],
       ),
@@ -722,7 +740,7 @@ export async function runReadSubagent(params: {
     return [
       ...new Map(
         sources.map((source) => [
-          `${source.provider}:${source.citation.toLocaleLowerCase()}`,
+          `${source.provider}:${source.citation.toLocaleLowerCase()}:${source.locator ?? ""}`,
           source,
         ]),
       ).values(),

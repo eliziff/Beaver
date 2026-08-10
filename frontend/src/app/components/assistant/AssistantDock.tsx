@@ -65,12 +65,12 @@ export function AssistantDock({
         return (
             <aside
                 aria-label="Assistant dock"
-                className="relative z-40 my-3 me-3 hidden h-[calc(100dvh-1.5rem)] w-12 shrink-0 justify-center rounded-2xl border border-gray-300 bg-app-surface pt-2 md:flex"
+                className="relative z-40 my-3 ms-3 me-3 hidden h-[calc(100dvh-1.5rem)] w-12 shrink-0 justify-center pt-2 md:flex"
             >
                 <button
                     type="button"
                     onClick={() => onExpandedChange(true)}
-                    className="grid size-9 place-items-center rounded-md text-gray-500 hover:bg-app-surface-hover hover:text-gray-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
+                    className="grid size-9 place-items-center rounded-md border border-gray-300 bg-app-surface text-gray-500 shadow-sm hover:bg-app-surface-hover hover:text-gray-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
                     aria-label="Expand assistant dock"
                 >
                     <PanelRightOpen className="size-4" aria-hidden="true" />

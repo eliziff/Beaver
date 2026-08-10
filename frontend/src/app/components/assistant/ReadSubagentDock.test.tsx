@@ -31,11 +31,12 @@ const completedPanel = {
 };
 
 it("shows one bounded paragraph summary for a consolidated case read", async () => {
+    const onSourceClick = vi.fn();
     render(
         <ReadSubagentDock
             panels={[completedPanel]}
             onClose={vi.fn()}
-            onSourceClick={vi.fn()}
+            onSourceClick={onSourceClick}
             embedded
         />,
     );
@@ -43,6 +44,10 @@ it("shows one bounded paragraph summary for a consolidated case read", async () 
     await userEvent.click(screen.getByText("1 tool call"));
     expect(screen.getByText("at paras. 3, 5, 7 + 1 more")).toBeVisible();
     expect(screen.getAllByText("Example v. Example")).toHaveLength(1);
+    await userEvent.click(screen.getByRole("button"));
+    expect(onSourceClick).toHaveBeenCalledWith(
+        expect.objectContaining({ citation: "2020 BCSC 1", locator: "par3" }),
+    );
 });
 
 it("marks a settled agent with a neutral done state", () => {

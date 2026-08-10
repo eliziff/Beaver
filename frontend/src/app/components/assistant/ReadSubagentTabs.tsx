@@ -78,7 +78,7 @@ export function ReadSubagentTabs({
                                     onActivate(next.id);
                                     document.getElementById(`reading-agent-tab-${next.id}`)?.focus();
                                 }}
-                                className="min-w-0 flex-1 truncate px-2 py-1.5 text-left text-xs font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-gray-900"
+                                className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left text-xs font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-gray-900"
                             >
                                 <span className="min-w-0 flex-1 truncate">
                                     {group.label}

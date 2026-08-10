@@ -590,6 +590,10 @@ Status: **Partial**
   section.
 - Produce local galley-viewer links when an external URL cannot express the
   exact unit.
+- Audit provider PDF metadata before exposing a `PDF` action. In particular,
+  Federal Court Decisia `document.do` URLs may be landing pages rather than
+  direct PDFs; label or replace them only after verifying the returned media
+  type and preferred provider URL.
 - Attach links automatically to chat output and generated/revised DOCX
   citations.
 - Benchmark latency and cache behavior so references appear with no perceptible
