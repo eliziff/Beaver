@@ -7,6 +7,7 @@ import {
     type DocTableFolder,
     type DocTableSelectionActions,
 } from "./DocTable";
+import { CHAT_DOCUMENT_DRAG_TYPE } from "./documentTree";
 
 vi.mock("@/app/contexts/AuthContext", () => ({
     useAuth: () => ({ user: { id: "local-user" } }),
@@ -121,6 +122,36 @@ function rects(elements: HTMLElement[]) {
 }
 
 describe("DocTable Library interactions", () => {
+    it("drags every document in a folder and its descendants to chat", () => {
+        const folders = [
+            { id: "folder-1", name: "Research", parent_folder_id: null },
+            { id: "folder-2", name: "Cases", parent_folder_id: "folder-1" },
+        ] as DocTableFolder[];
+        render(<Harness
+            initialFolders={folders}
+            initialDocuments={[
+                { ...document, folder_id: "folder-1" },
+                { ...wordDocument, id: "nested-doc", folder_id: "folder-2" },
+            ]}
+        />);
+        const values = new Map<string, string>();
+        const dataTransfer = {
+            setData: (type: string, value: string) => values.set(type, value),
+            effectAllowed: "none",
+        };
+
+        fireEvent.dragStart(screen.getByText("Research").closest("[draggable]")!, {
+            dataTransfer,
+        });
+
+        expect(JSON.parse(values.get(CHAT_DOCUMENT_DRAG_TYPE)!)).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({ id: document.id }),
+                expect.objectContaining({ id: "nested-doc" }),
+            ]),
+        );
+    });
+
     it("avoids empty-state and version-picker rerenders", () => {
         sidePanelRender.mockClear();
         render(<Harness />);

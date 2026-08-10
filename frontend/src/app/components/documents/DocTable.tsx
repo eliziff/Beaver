@@ -32,7 +32,7 @@ import { pillButtonClassName } from "@/app/components/ui/pill-button";
 import { preloadSingleDoc } from "@/app/hooks/useFetchSingleDoc";
 import { getPdfJs } from "@/app/components/shared/views/highlightQuote";
 import { preloadDocxViewer } from "@/app/components/shared/views/DocumentViewer";
-import { buildDocumentTree, descendantFolderIds, DOCUMENT_DRAG_TYPE,
+import { buildDocumentTree, CHAT_DOCUMENT_DRAG_TYPE, descendantFolderIds, DOCUMENT_DRAG_TYPE,
     documentTreeDropFolder, FOLDER_DRAG_TYPE, hasDocumentTreeDrag,
     wouldCreateFolderCycle } from "./documentTree";
 export type DocTableFolder = ProjectFolder | LibraryFolder;
@@ -841,12 +841,18 @@ export function DocTable({
     function handleDocumentDragStart(event: DragEvent<HTMLDivElement>, doc: Document) {
         if (renamingDocumentId === doc.id) return event.preventDefault();
         event.dataTransfer.setData(DOCUMENT_DRAG_TYPE, doc.id);
+        event.dataTransfer.setData(CHAT_DOCUMENT_DRAG_TYPE, JSON.stringify([doc]));
         event.dataTransfer.effectAllowed = "copyMove";
     }
     function handleFolderDragStart(event: DragEvent<HTMLDivElement>, folderId: string) {
         if (renamingFolderId === folderId) return event.preventDefault();
         event.dataTransfer.setData(FOLDER_DRAG_TYPE, folderId);
-        event.dataTransfer.effectAllowed = "move";
+        const folderIds = descendantFolderIds(folderId, tree.foldersByParent);
+        event.dataTransfer.setData(CHAT_DOCUMENT_DRAG_TYPE, JSON.stringify(
+            documents.filter((document) =>
+                !!document.folder_id && folderIds.has(document.folder_id)),
+        ));
+        event.dataTransfer.effectAllowed = "copyMove";
         event.stopPropagation();
     }
     function handleCollectionDragOver(event: DragEvent<HTMLDivElement>) {
