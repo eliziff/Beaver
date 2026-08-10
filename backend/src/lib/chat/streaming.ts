@@ -4,6 +4,7 @@ import {
   DEFAULT_MAIN_MODEL,
   type LlmMessage,
   type OpenAIToolSchema,
+  type SubagentMode,
 } from "../llm";
 import { isAbortError } from "../llm/abort";
 import { safeErrorMessage } from "../safeError";
@@ -173,7 +174,7 @@ export async function runLLMStream({
   serviceTier,
   signal,
   projectId,
-  subagentsEnabled = false,
+  subagentMode = "none",
   subagentModel,
   subagentEffort,
   jurisdictionPreference = null,
@@ -202,7 +203,7 @@ export async function runLLMStream({
    * generated docs still get persisted, but as standalone documents.
    */
   projectId?: string | null;
-  subagentsEnabled?: boolean;
+  subagentMode?: SubagentMode;
   subagentModel?: string;
   subagentEffort?: string;
   jurisdictionPreference?: JurisdictionPreference | null;
@@ -233,7 +234,7 @@ export async function runLLMStream({
   const providerTools = extraTools?.length
     ? [...baseTools, ...mcpTools, ...extraTools]
     : [...baseTools, ...mcpTools];
-  const activeTools = subagentsEnabled
+  const activeTools = subagentMode === "beaver"
     ? [...providerTools, READ_SUBAGENT_TOOL, LEGAL_EVIDENCE_SUBMIT_TOOL]
     : [...providerTools, LEGAL_EVIDENCE_SUBMIT_TOOL];
 
@@ -241,7 +242,7 @@ export async function runLLMStream({
   // plain user/assistant messages.
   const baseSystemPrompt =
     rawMsgs[0]?.role === "system" ? (rawMsgs[0].content ?? "") : "";
-  const systemPrompt = subagentsEnabled
+  const systemPrompt = subagentMode === "beaver"
     ? `${baseSystemPrompt}\n\n${READ_SUBAGENT_SYSTEM_PROMPT}`
     : baseSystemPrompt;
   const chatMessages: LlmMessage[] = rawMsgs
@@ -321,6 +322,7 @@ export async function runLLMStream({
       tools: activeTools as OpenAIToolSchema[],
       apiKeys,
       reasoningEffort,
+      nativeSubagents: subagentMode === "native",
       serviceTier,
       enableThinking: true,
       reasoningSummary:
@@ -332,7 +334,10 @@ export async function runLLMStream({
           iterVisibleText += delta;
           emit({ type: "content_delta", text: delta });
         },
-        onContentBlockEnd: () => flushText(),
+        onContentBlockEnd: () => {
+          if (iterVisibleText) emit({ type: "content_block_end" });
+          flushText();
+        },
         onReasoningDelta: (delta) => {
           if (activityDetail !== "auto" && activityDetail !== "trace") return;
           iterReasoning += delta;

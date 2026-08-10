@@ -1,6 +1,7 @@
 import { type DocIndex, resolveDoc } from "./types";
 import type { A2AJDocument, A2AJLocatorLookup } from "../a2aj";
 import {
+  buildA2AJParagraphRangeUrl,
   buildA2AJCitationPinpointUrl,
   buildCourtlistenerCitationPinpointUrl,
   buildLegalSourcePinpointUrl,
@@ -399,7 +400,12 @@ function receiptAnchor(receipt: LegalEvidenceReceipt) {
   return undefined;
 }
 
-function durableA2AJUrl(receipt: LegalEvidenceReceipt, quotes: string[]) {
+function durableA2AJUrl(
+  receipt: LegalEvidenceReceipt,
+  quotes: string[],
+  lookup?: A2AJLocatorLookup,
+  document?: A2AJDocument,
+) {
   const sourceUrl =
     (receipt.source_class === "case"
       ? buildCanliiCaseUrl({
@@ -409,6 +415,17 @@ function durableA2AJUrl(receipt: LegalEvidenceReceipt, quotes: string[]) {
         })
       : null) ?? receipt.external_url;
   if (!sourceUrl || !receipt.span_text) return sourceUrl;
+  const range = receipt.locator.label.match(/^par(\d+)-par(\d+)$/iu);
+  if (range) {
+    const rangeUrl = buildA2AJParagraphRangeUrl(
+      receipt.citation,
+      range[1],
+      range[2],
+      lookup ? [lookup] : [],
+      document ? [document] : [],
+    );
+    if (rangeUrl) return rangeUrl;
+  }
   return buildLegalSourcePinpointUrl(
     {
       url: sourceUrl,
@@ -463,11 +480,13 @@ export function createLegalEvidenceCitations(
           lookup ? [lookup] : [],
           document ? [document] : [],
         );
+        const durable = durableA2AJUrl(receipt, quotes, lookup, document);
         return [{
           ...built,
           url:
+            (durable?.includes(":~:text=") ? durable : null) ??
             ("url" in built ? built.url : null) ??
-            durableA2AJUrl(receipt, quotes),
+            durable,
           source_class: receipt.source_class,
           ...receiptLocator(receipt),
         }];

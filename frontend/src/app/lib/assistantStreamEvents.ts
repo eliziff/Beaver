@@ -203,8 +203,14 @@ const finalizeReasoning = (events: AssistantEvent[]) => {
       ]
     : events;
 };
+const finalizeContent = (events: AssistantEvent[]) =>
+  events.map((event) => {
+    if (event.type !== "content" || !event.isStreaming) return event;
+    const { isStreaming: _, ...finished } = event;
+    return finished as AssistantEvent;
+  });
 const append = (events: AssistantEvent[], event: AssistantEvent) => [
-  ...finalizeReasoning(withoutPlaceholders(events)).filter(
+  ...finalizeContent(finalizeReasoning(withoutPlaceholders(events))).filter(
     (candidate) =>
       event.type === "tool_call_start" ||
       candidate.type !== "tool_call_start" ||
@@ -306,7 +312,7 @@ export function reduceAssistantStreamEvent(
     return event ? reduceEvent(events, event) : null;
   }
   if (rawType === "reasoning_delta") {
-    const cleaned = withoutPlaceholders(events);
+    const cleaned = finalizeContent(withoutPlaceholders(events));
     const last = cleaned.at(-1);
     return {
       deferPaint: true,
@@ -350,6 +356,9 @@ export function reduceAssistantStreamEvent(
     const current = cleaned[index] as EventOf<"content">;
     next[index] = { ...current, text: current.text + text(data.text) };
     return { deferPaint: true, events: next };
+  }
+  if (rawType === "content_block_end") {
+    return { events: finalizeContent(events) };
   }
   if (rawType === "tool_call_start")
     return reduceEvent(events, {

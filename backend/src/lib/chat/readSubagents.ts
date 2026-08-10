@@ -18,7 +18,6 @@ export const READ_SUBAGENT_TOOL_NAME = "delegate_read";
 const DEFAULT_MODEL_SLUG = "gpt-5.6-luna";
 const DEFAULT_EFFORT = "high";
 const MAX_TASK_CHARS = 4_000;
-const MAX_OUTPUT_CHARS = 24_000;
 const MAX_REPAIR_CONTEXT_CHARS = 16_000;
 
 export type ReadSubagentRole = "scout";
@@ -689,13 +688,7 @@ export async function runReadSubagent(params: {
   const activities: ReadSubagentActivity[] = [];
   const discoveredSources = new Map<string, ReadSubagentSource>();
   const searches: { tool: string; query: string; summary: string }[] = [];
-  const reasoning: string[] = [];
-  let currentReasoning = "";
   const eventActivities = () => activities.map((item) => ({ ...item }));
-  const eventReasoning = () => [
-    ...reasoning,
-    ...(currentReasoning ? [currentReasoning] : []),
-  ];
   const eventSources = () => {
     const sources = [
       ...discoveredSources.values(),
@@ -721,11 +714,6 @@ export async function runReadSubagent(params: {
       ).values(),
     ];
   };
-  const debugEvent = () =>
-    (params.activityDetail === "auto" || params.activityDetail === "trace") &&
-    eventReasoning().length
-      ? { reasoning: eventReasoning() }
-      : {};
   const sourceEvent = () => {
     const sources = eventSources();
     return sources.length ? { sources } : {};
@@ -733,7 +721,6 @@ export async function runReadSubagent(params: {
   params.onEvent?.({
     ...baseEvent,
     status: "running",
-    ...debugEvent(),
     ...sourceEvent(),
   });
   try {
@@ -776,7 +763,6 @@ export async function runReadSubagent(params: {
         ...baseEvent,
         status: "running",
         activities: eventActivities(),
-        ...debugEvent(),
         ...sourceEvent(),
       });
       const rejectedCalls = calls.filter(
@@ -844,7 +830,6 @@ export async function runReadSubagent(params: {
         ...baseEvent,
         status: "running",
         activities: eventActivities(),
-        ...debugEvent(),
         ...sourceEvent(),
       });
       feedback.push(
@@ -860,34 +845,12 @@ export async function runReadSubagent(params: {
         model: `codex:${capability.model}`,
         reasoningEffort: capability.effort,
         enableThinking: true,
-        reasoningSummary:
-          params.activityDetail === "auto" || params.activityDetail === "trace"
-            ? "auto"
-            : "none",
+        reasoningSummary: "none",
         abortSignal: params.signal,
         systemPrompt: `${ROLE_INSTRUCTIONS}\n\n${params.jurisdictionPrompt ? `${params.jurisdictionPrompt}\n\n` : ""}${SOURCE_SEARCH_SYSTEM_PROMPT}\n\nRemain strictly read-only and use only the supplied retrieval tools. ${GROUNDED_ANSWER_INSTRUCTIONS}`,
         messages: [{ role: "user", content }],
         tools: params.tools,
         runTools,
-        ...((params.activityDetail === "auto" ||
-          params.activityDetail === "trace") && {
-          callbacks: {
-            onReasoningDelta: (text: string) => {
-              currentReasoning += text;
-              params.onEvent?.({
-                ...baseEvent,
-                status: "running",
-                activities: eventActivities(),
-                ...debugEvent(),
-                ...sourceEvent(),
-              });
-            },
-            onReasoningBlockEnd: () => {
-              if (currentReasoning) reasoning.push(currentReasoning);
-              currentReasoning = "";
-            },
-          },
-        }),
       });
     const assignment = `Assigned scope: ${scope}\n\nQuestion: ${task}`;
     let prompt = assignment;
@@ -930,16 +893,11 @@ export async function runReadSubagent(params: {
         if (registered) params.publishEvidenceTo.evidence.set(evidenceId, registered);
       }
     }
-    const output =
-      rendered.length <= MAX_OUTPUT_CHARS
-        ? rendered
-        : `${rendered.slice(0, MAX_OUTPUT_CHARS)}\n\n[Output truncated]`;
     params.onEvent?.({
       ...baseEvent,
       status: "completed",
-      output,
+      output: rendered,
       activities: eventActivities(),
-      ...debugEvent(),
       ...sourceEvent(),
       grounding,
     });
@@ -967,7 +925,6 @@ export async function runReadSubagent(params: {
       status: "error",
       error: message,
       activities: eventActivities(),
-      ...debugEvent(),
       ...sourceEvent(),
     });
     return {

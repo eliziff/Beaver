@@ -143,7 +143,7 @@
 .pdf-text-layer .pdf-text-highlight {    background-color: rgba(213, 43, 30, 0.22);    border-radius: 2px;
     position: static;
 }
-.docx-view-container span.docx-text-highlight,.docx-view-container .docx-text-highlight {    background-color: rgba(213, 43, 30, 0.3) !important;    border-radius: 2px;
+.docx-text-highlight {    background-color: rgba(213, 43, 30, 0.3) !important;    border-radius: 2px;
     padding: 0 1px;
     color: inherit !important;
 }
