@@ -389,6 +389,8 @@ export type AssistantEvent =
           dataset: string;
           url: string | null;
           clusterId?: number;
+          locator?: string;
+          quote?: string;
         };
       }>;
       reasoning?: string[];
@@ -400,6 +402,8 @@ export type AssistantEvent =
         dataset: string;
         url: string | null;
         clusterId?: number;
+        locator?: string;
+        quote?: string;
       }>;
       grounding?: {
         status: "passed" | "failed";

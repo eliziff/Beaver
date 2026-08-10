@@ -1,6 +1,5 @@
 import { createElement, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import DOMPurify from "dompurify";
-import { ExternalLink } from "lucide-react";
 import { ThinkingSpinner } from "@/app/components/chat/thinking-spinner";
 import type { CaseCitationQuote } from "@/app/components/shared/types";
 import { clearDocxQuoteHighlights, highlightDocxQuotes } from "@/app/components/shared/views/highlightDocxQuote";
@@ -40,6 +39,7 @@ export type CaseTab = {
     kind: "case"; id: `case:${number}`; chatId: string; clusterId: number;
     citationRef?: number; caseName: string | null; citation: string | null;
     url: string | null; dateFiled: string | null; pdfUrl: string | null;
+    initialLocator?: string | null;
     quotes?: CaseCitationQuote[]; opinions?: CaseLawOpinion[];
 };
 export type LegalSourceTab = {
@@ -144,6 +144,12 @@ export function legalSourceLocatorFromUrl(value: string | null | undefined) {
     } catch {
         return null;
     }
+}
+export function normalizeLegalSourceLocator(value: string | null | undefined) {
+    const locator = value?.trim();
+    if (!locator) return null;
+    const paragraph = locator.match(/^para(?:graph)?s?\.?\s*(\d+)/iu);
+    return paragraph ? `par${paragraph[1]}` : locator.match(/^par\d+/iu)?.[0] ?? locator;
 }
 function locatorLabel(label: string) {
     if (label.startsWith("page")) return `Page ${label.slice(4)}`;
@@ -262,8 +268,8 @@ function safeExternalHref(value: string | null | undefined) {
 export function legalSourceViewerActions(metadata: ViewerMetadata) {
     return (
         [
-            ["source", "View original source", metadata.url],
-            ["pdf", "View PDF", metadata.pdfUrl],
+            ["source", "Site", metadata.url],
+            ["pdf", "PDF", metadata.pdfUrl],
         ] as const
     ).flatMap(([kind, label, value]) => {
         const href = safeExternalHref(value);
@@ -440,6 +446,9 @@ export function LegalSourceViewer({
         caseTab?.id ??
         [referenceId, provider, citation, sourceId, docType, language, dataset]
             .join("\0");
+    const startingLocator = normalizeLegalSourceLocator(
+        initialLocator ?? caseTab?.initialLocator,
+    );
     const [loaded, setLoaded] = useState<
         [string, LegalSourceViewerPayload | CaseLawOpinion[] | string]
     >();
@@ -454,7 +463,7 @@ export function LegalSourceViewer({
     const error = typeof current === "string" ? current : null;
     const [activeQuote, setActiveQuote] = useState(0);
     const [activeLocator, setActiveLocator] = useState<string | null>(
-        initialLocator ?? null,
+        startingLocator,
     );
     const [activeOpinionId, setActiveOpinionId] = useState<number | null>(null);
     const contentRef = useRef<HTMLDivElement | null>(null);
@@ -567,13 +576,13 @@ export function LegalSourceViewer({
     useEffect(() => {
         if (!payload) return;
         setActiveLocator(
-            initialLocator ??
+            startingLocator ??
             (window.location.hash
                 ? decodeURIComponent(window.location.hash.slice(1))
                     .replace(/^legal-/u, "")
                 : null),
         );
-    }, [initialLocator, payload]);
+    }, [payload, startingLocator]);
     useEffect(() => {
         const root = contentRef.current;
         if (!payload || !root || !activeLocator) return;
@@ -633,37 +642,37 @@ export function LegalSourceViewer({
                     compact ? "px-4 py-3" : "px-5 py-4 sm:px-8"
                 }`}
             >
-                <div className="mx-auto flex max-w-5xl flex-wrap items-start gap-x-5 gap-y-3">
-                    <div className="min-w-0 flex-1 basis-80">
-                        <h1 className={compact
+                <div className="mx-auto max-w-5xl">
+                    <div className="flex min-w-0 items-start gap-3">
+                        <h1 className={`min-w-0 flex-1 ${compact
                             ? "text-base font-semibold leading-tight text-gray-950"
-                            : "text-xl font-semibold leading-tight text-gray-950 sm:text-2xl"}>
+                            : "text-xl font-semibold leading-tight text-gray-950 sm:text-2xl"}`}>
                             {metadata.title}</h1>
-                        {!!details.length && (
-                            <p className={`${compact ? "mt-1 text-xs leading-5" : "mt-2 text-sm leading-5"} text-gray-600`}>
-                                {details.join(" · ")}
-                            </p>
-                        )}
-                    </div>
                     {!!actions.length && (
-                        <nav aria-label="Source links" className="flex max-w-full flex-wrap items-center gap-2">
+                        <nav aria-label="Source links" className="flex shrink-0 items-center gap-2">
                             {actions.map((action) => (
                                 <a
                                     key={`${action.kind}:${action.href}`}
                                     href={action.href}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className={`inline-flex h-8 items-center justify-center whitespace-nowrap rounded border px-3 text-xs font-medium ${
-                                        action.kind === "source"
-                                            ? "border-brand bg-brand text-white hover:bg-brand/90"
-                                            : "border-gray-300 bg-white text-gray-800 hover:border-brand hover:text-brand"
-                                    }`}
+                                    aria-label={action.label}
+                                    title={action.label}
+                                    className="inline-flex h-8 items-center justify-center whitespace-nowrap rounded border border-gray-300 bg-white px-3 text-xs font-medium text-gray-800 hover:border-brand hover:text-brand focus-visible:outline-2 focus-visible:outline-offset-2"
                                 >
                                     {action.label}
-                                    <ExternalLink aria-hidden="true" className="ml-1.5 h-3.5 w-3.5" />
                                 </a>
                             ))}
                         </nav>
+                    )}
+                    </div>
+                    {!!details.length && (
+                        <p
+                            className={`${compact ? "mt-1 text-xs leading-5" : "mt-2 text-sm leading-5"} truncate whitespace-nowrap text-gray-600`}
+                            title={details.join(" · ")}
+                        >
+                            {details.join(" · ")}
+                        </p>
                     )}
                 </div>
             </header>
@@ -743,7 +752,7 @@ export function LegalSourceViewer({
                                 id={slice.primary ? legalSourceAnchorId(slice.primary.label) : undefined}
                                 className={`scroll-mt-4 ${slice.text ? `mb-1 grid gap-x-4 ${marker ? "grid-cols-[2.7rem_minmax(0,1fr)]" : "grid-cols-1"}` : ""}`}
                                 style={{
-                                    contentVisibility: "auto",
+                                    contentVisibility: activeLocator ? "visible" : "auto",
                                     containIntrinsicSize: "auto 150px",
                                     marginInlineStart: payload?.reference.docType === "laws"
                                         ? `${Math.min(slice.depth, 4) * 0.8}rem` : undefined,

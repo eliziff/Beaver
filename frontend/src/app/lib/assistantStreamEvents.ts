@@ -453,6 +453,12 @@ export function reduceAssistantStreamEvent(
                 ...(typeof sourceRow?.clusterId === "number" && {
                   clusterId: sourceRow.clusterId,
                 }),
+                ...(clean(sourceRow?.locator) && {
+                  locator: clean(sourceRow?.locator)!,
+                }),
+                ...(clean(sourceRow?.quote) && {
+                  quote: clean(sourceRow?.quote)!,
+                }),
               }
             : null;
           return id && label &&
@@ -488,6 +494,8 @@ export function reduceAssistantStreamEvent(
               ...(typeof source.clusterId === "number" && {
                 clusterId: source.clusterId,
               }),
+              ...(clean(source.locator) && { locator: clean(source.locator)! }),
+              ...(clean(source.quote) && { quote: clean(source.quote)! }),
             }];
           })
         : [];

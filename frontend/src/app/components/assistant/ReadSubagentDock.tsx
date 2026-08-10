@@ -26,16 +26,22 @@ export function ReadSubagentDock({
 }) {
     const [collapsed, setCollapsed] = useState(false);
     const bodyRef = useRef<HTMLDivElement>(null);
-    const appendKey = panels
-        .map((panel) =>
-            `${panel.id}:${panel.activities?.length ?? 0}:${panel.output?.length ?? 0}:${panel.status}`,
-        )
-        .join("|");
+    const contentRef = useRef<HTMLDivElement>(null);
+    const pinnedToBottom = useRef(true);
     useLayoutEffect(() => {
-        if ((!collapsed || embedded) && bodyRef.current) {
-            bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
-        }
-    }, [appendKey, collapsed, embedded]);
+        const body = bodyRef.current;
+        const content = contentRef.current;
+        if ((!embedded && collapsed) || !body || !content) return;
+        const keepBottomPinned = () => {
+            if (pinnedToBottom.current) body.scrollTop = body.scrollHeight;
+        };
+        keepBottomPinned();
+        if (typeof ResizeObserver === "undefined") return;
+        const observer = new ResizeObserver(keepBottomPinned);
+        observer.observe(body);
+        observer.observe(content);
+        return () => observer.disconnect();
+    }, [collapsed, embedded]);
     if (!panels.length) return null;
 
     const rounds = new Map<string, number>();
@@ -84,9 +90,15 @@ export function ReadSubagentDock({
             <div
                 id={`${idPrefix}-body`}
                 ref={bodyRef}
-                className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-3"
+                className="min-h-0 flex-1 overflow-y-auto px-3 py-3"
+                onScroll={(event) => {
+                    const body = event.currentTarget;
+                    pinnedToBottom.current =
+                        body.scrollHeight - body.scrollTop - body.clientHeight <= 4;
+                }}
                 hidden={!embedded && collapsed}
             >
+                <div ref={contentRef} className="space-y-4">
                 {runs.map(({ panel, slot, round }) => (
                     <section key={panel.id} aria-label={`Agent ${slot}, round ${round}`}>
                         {round > 1 && (
@@ -109,6 +121,7 @@ export function ReadSubagentDock({
                                     {panel.activities.map((activity) => {
                                         const paragraphs = activity.paragraphs ?? [];
                                         const shownParagraphs = paragraphs.slice(0, 3);
+                                        const firstParagraph = paragraphs[0]?.match(/^\d+/u)?.[0];
                                         const paragraphSuffix = paragraphs.length > shownParagraphs.length
                                             ? ` + ${paragraphs.length - shownParagraphs.length} more`
                                             : "";
@@ -128,7 +141,10 @@ export function ReadSubagentDock({
                                                 {activity.source && onSourceClick ? (
                                                     <button
                                                         type="button"
-                                                        onClick={() => onSourceClick(activity.source!)}
+                                                        onClick={() => onSourceClick({
+                                                            ...activity.source!,
+                                                            ...(firstParagraph && { locator: `par${firstParagraph}` }),
+                                                        })}
                                                         className="flex w-full min-w-0 items-baseline text-left underline decoration-gray-300 underline-offset-2 hover:decoration-gray-700 focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
                                                         title={`${activity.source.name ? `${activity.source.name}, ` : ""}${activity.source.citation}`}
                                                     >
@@ -201,6 +217,7 @@ export function ReadSubagentDock({
                         ) : null}
                     </section>
                 ))}
+                </div>
             </div>
         </section>
     );

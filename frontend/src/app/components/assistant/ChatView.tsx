@@ -37,13 +37,13 @@ import type {
     Message,
     Workflow,
 } from "../shared/types";
-import { useSidebar } from "@/app/contexts/SidebarContext";
 import { invalidateDocxBytes } from "@/app/hooks/useFetchDocxBytes";
 import type { RejectedAssistantTurn } from "@/app/hooks/useAssistantChat";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import {
     legalSourceLocatorFromUrl,
+    normalizeLegalSourceLocator,
     LegalSourceViewer,
 } from "@/app/components/legal/LegalSourceViewer";
 import { LegalLibraryPage } from "@/app/components/legal/LegalLibrary";
@@ -132,9 +132,6 @@ function isDocumentTab(
     return "documentId" in tab;
 }
 type LegalTab = Extract<AssistantSidePanelTab, { kind: "legal" }>;
-function startLocator(locator: string | null | undefined) {
-    return locator?.match(/^par\d+/iu)?.[0] ?? locator ?? null;
-}
 function legalCitationTab(
     citation: Citation,
     showQuotes: boolean,
@@ -152,7 +149,7 @@ function legalCitationTab(
             citationRef: citation.ref,
             quotes,
             initialLocator:
-                startLocator(citation.locator) ??
+                normalizeLegalSourceLocator(citation.locator) ??
                 legalSourceLocatorFromUrl(citation.url),
         };
     }
@@ -248,12 +245,10 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         editIds: new Set<string>(),
         statuses: {} as Record<string, "accepted" | "rejected">,
     }));
-    const { setSidebarOpen } = useSidebar();
     const closeAllTabs = useCallback(() => {
         setTabs([]);
         setActiveTabId(null);
-        if (window.innerWidth >= MOBILE_BREAKPOINT_PX) setSidebarOpen(true);
-    }, [setSidebarOpen]);
+    }, []);
     const closeTab = useCallback(
         (id: string) => {
             const next = tabs.filter((tab) => tab.id !== id);
@@ -297,9 +292,8 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             setActiveTabId(tab.id);
             if (activateDock) setActiveDockTab("sources");
             setDockOpen(true);
-            setSidebarOpen(false);
         },
-        [setSidebarOpen],
+        [],
     );
     const openCase = (
         citation:
@@ -329,7 +323,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             citation.kind !== "document" &&
             !(citation.kind === "public_legal" && citation.provider === "journal") &&
             "url" in citation &&
-            citation.url?.includes(":~:text=")
+            citation.url?.includes("#")
                 ? citation.url
                 : null;
         if (exactProviderUrl) {
@@ -649,6 +643,9 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         });
     };
     const openReadSubagentSource = (source: ReadSubagentSource) => {
+        const initialLocator =
+            normalizeLegalSourceLocator(source.locator) ??
+            legalSourceLocatorFromUrl(source.url);
         const openSourceTab = (
             tab: Extract<AssistantSidePanelTab, { kind: "case" | "legal" }>,
         ) => {
@@ -672,6 +669,15 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                 url: source.url,
                 dateFiled: null,
                 pdfUrl: null,
+                initialLocator,
+                quotes: source.quote
+                    ? [{
+                        quote: source.quote,
+                        opinionId: null,
+                        type: null,
+                        author: null,
+                    }]
+                    : undefined,
             });
             return;
         }
@@ -689,8 +695,8 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                 dataset: source.dataset || null,
                 docType: "cases",
                 language: "en",
-                quotes: undefined,
-                initialLocator: null,
+                quotes: source.quote ? [{ quote: source.quote }] : undefined,
+                initialLocator,
             });
             return;
         }

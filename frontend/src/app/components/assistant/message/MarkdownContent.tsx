@@ -59,6 +59,12 @@ type MarkdownNode = {
 function markdownNodeText(node: MarkdownNode): string {
     return node.value ?? node.children?.map(markdownNodeText).join("") ?? "";
 }
+function paragraphLocator(value: string | null | undefined) {
+    if (!value) return null;
+    const direct = value.match(/^par(\d+)/iu)?.[1];
+    const cited = value.match(/\bpara(?:graph)?s?\.?\s*(\d+)/iu)?.[1];
+    return direct || cited ? `par${direct ?? cited}` : null;
+}
 
 function paragraphFragment(url: string) {
     const marker = url.indexOf(":~:");
@@ -108,9 +114,7 @@ function moveParagraphFragmentsToCitationPills() {
                 if (fragment && !LEGAL_CITATION.test(label)) {
                     pending.push(fragment);
                 } else if (LEGAL_CITATION.test(label)) {
-                    const locator = label.match(
-                        /\bpara(?:graph)?s?\.?\s*(\d+)/iu,
-                    )?.[1];
+                    const locator = paragraphLocator(label)?.slice(3);
                     const matching = pending.filter(
                         (candidate) =>
                             candidate?.anchor === String(Number(locator)),
@@ -155,6 +159,8 @@ export type GroundedCitationSource = {
     citation: string;
     name?: string | null;
     url?: string | null;
+    locator?: string;
+    quote?: string;
 };
 
 export function CitationPillMarkdown({
@@ -173,20 +179,30 @@ export function CitationPillMarkdown({
                     const { href, children, ...anchorProps } =
                         withoutMarkdownNode(props);
                     const label = nodeText(children);
-                    const source = sources.find(
+                    const locator = paragraphLocator(label);
+                    const matchingSources = sources.filter(
                         (candidate) =>
                             label
                                 .toLocaleLowerCase()
                                 .includes(candidate.citation.toLocaleLowerCase()) ||
                             (!!href && candidate.url === href),
                     );
+                    const source =
+                        matchingSources.find(
+                            (candidate) =>
+                                locator &&
+                                paragraphLocator(candidate.locator) === locator,
+                        ) ?? matchingSources[0];
                     const pill = source || LEGAL_CITATION.test(label);
                     const className = pill ? LEGAL_CITATION_PILL : PLAIN_LINK;
                     if (source && onSourceClick) {
                         return (
                             <button
                                 type="button"
-                                onClick={() => onSourceClick(source)}
+                                onClick={() => onSourceClick({
+                                    ...source,
+                                    ...(locator && { locator }),
+                                })}
                                 className={`${className} text-left`}
                             >
                                 {children}
