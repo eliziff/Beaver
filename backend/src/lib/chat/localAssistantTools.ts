@@ -2451,30 +2451,33 @@ export const LOCAL_ASSISTANT_TOOLS = CODING_MARKDOWN_FINAL_AGENT_LAB_TOOLS.map(
   (entry) => (entry.function.name === "Edit" ? EDIT_TOOL : entry),
 );
 
+export const LOCAL_LEGAL_RESEARCH_TOOLS: OpenAIToolSchema[] =
+  RESEARCH_TOOLS_DISABLED
+    ? []
+    : [
+        SEARCH_SOURCES_TOOL,
+        ...(COURTLISTENER_TOOLS as OpenAIToolSchema[]).filter(
+          (tool) => tool.function.name !== "courtlistener_search_case_law",
+        ),
+        ...(A2AJ_TOOLS as OpenAIToolSchema[]).filter(
+          (tool) => tool.function.name !== "a2aj_search",
+        ),
+        ...(PUBLIC_LEGAL_SOURCE_TOOLS as OpenAIToolSchema[]).filter(
+          (tool) => tool.function.name !== "public_legal_source_search",
+        ),
+        ...HANSARD_TOOLS.filter(
+          (tool) => tool.function.name !== "hansard_search",
+        ),
+        ...CITATOR_TOOLS,
+      ];
+
 export const LOCAL_READ_SUBAGENT_TOOL_CATALOG: OpenAIToolSchema[] = [
   ...new Map(
     [
       ...LOCAL_ASSISTANT_TOOLS,
       ...forNavShape(LOCAL_LIBRARY_TOOLS),
       ...(WORKFLOW_TOOLS as OpenAIToolSchema[]),
-      ...(RESEARCH_TOOLS_DISABLED
-        ? []
-        : [
-            SEARCH_SOURCES_TOOL,
-            ...(COURTLISTENER_TOOLS as OpenAIToolSchema[]).filter(
-              (tool) => tool.function.name !== "courtlistener_search_case_law",
-            ),
-            ...(A2AJ_TOOLS as OpenAIToolSchema[]).filter(
-              (tool) => tool.function.name !== "a2aj_search",
-            ),
-            ...(PUBLIC_LEGAL_SOURCE_TOOLS as OpenAIToolSchema[]).filter(
-              (tool) => tool.function.name !== "public_legal_source_search",
-            ),
-            ...HANSARD_TOOLS.filter(
-              (tool) => tool.function.name !== "hansard_search",
-            ),
-            ...CITATOR_TOOLS,
-          ]),
+      ...LOCAL_LEGAL_RESEARCH_TOOLS,
     ].map((tool) => [tool.function.name, tool]),
   ).values(),
 ];

@@ -41,6 +41,7 @@ import { providerForModel } from "../lib/llm/models";
 import {
   WHOLE_READ_MAX_CHARS,
   LOCAL_ASSISTANT_TOOLS,
+  LOCAL_LEGAL_RESEARCH_TOOLS,
   LOCAL_READ_SUBAGENT_TOOL_CATALOG,
   ADAPTIVE_MIKE_TOOL_SHAPE,
   CODING_TOOL_SHAPE,
@@ -1103,11 +1104,12 @@ export async function streamAnonymousChat(params: {
   }
   const selectedModel = params.model || DEFAULT_MAIN_MODEL;
   const codingShape = true;
-  // The five action tools are the complete production work surface. The
-  // strict terminal schema is output formatting: it binds prose units to
-  // exact evidence receipts and is never shown as an assistant activity.
+  // Keep document actions and legal-source research resident. The strict
+  // terminal schema binds prose units to exact evidence receipts and is never
+  // shown as an assistant activity.
   const activeTools = [
     ...LOCAL_ASSISTANT_TOOLS,
+    ...LOCAL_LEGAL_RESEARCH_TOOLS,
     ...(params.subagentsEnabled ? [READ_SUBAGENT_TOOL] : []),
     LEGAL_EVIDENCE_SUBMIT_TOOL,
   ];
