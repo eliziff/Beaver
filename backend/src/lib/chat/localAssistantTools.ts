@@ -803,42 +803,18 @@ const LOCAL_DOCX_TOOLS: OpenAIToolSchema[] = (
   TOOLS as OpenAIToolSchema[]
 ).flatMap((schema) => {
   if (schema.function.name === "generate_docx") {
-    const parameters = schema.function.parameters as {
-      type: string;
-      properties: Record<string, unknown>;
-      required?: string[];
-    };
-    const title = parameters.properties.title as Record<string, unknown>;
-    return [
-      {
-        ...schema,
-        function: {
-          ...schema.function,
-          name: "library_create_docx",
-          description: `${schema.function.description} Stored as a durable new item in the local Library; do not attach it again in a matter chat.${
-            TERMINAL_AUTHORING_ENABLED
-              ? " Call only when every requested deliverable is final; after a successful receipt, the turn ends without another model round."
-              : ""
-          }`,
-          parameters: {
-            ...parameters,
-            properties: {
-              ...parameters.properties,
-              title: {
-                ...title,
-                description:
-                  "Document title rendered once in the file. Do not repeat it in markdown.",
-              },
-              filename: {
-                type: "string",
-                description:
-                  "Optional exact output filename ending in .docx; omit to derive it from title.",
-              },
-            },
-          },
-        },
+    const existing = CODING_MARKDOWN_FINAL_AGENT_LAB_TOOLS.find(
+      (entry) => entry.function.name === "generate_docx",
+    );
+    if (!existing) throw new Error("generate_docx tool is missing");
+    return [{
+      ...existing,
+      function: {
+        ...existing.function,
+        description:
+          `${existing.function.description} The completed file is stored as a durable new item in the Library.`,
       },
-    ];
+    }];
   }
   if (schema.function.name === "edit_document") {
     const sharedProperties = schema.function.parameters.properties as Record<
@@ -1730,7 +1706,7 @@ const DOMAIN_OF: Record<string, string> = {
   public_legal_source_fetch: "commentary",
   public_legal_source_lookup: "commentary",
   courtlistener_verify_citations: "citations",
-  library_create_docx: "output_document",
+  generate_docx: "output_document",
   library_revise_docx: "drafting",
   Edit: "drafting",
   library_update_metadata: "drafting",
@@ -2248,7 +2224,7 @@ export function partitionTools(tools: OpenAIToolSchema[]): {
   const isResident = (entry: OpenAIToolSchema) =>
     RESIDENT_TOOLS.has(entry.function.name) ||
     (RESIDENT_AUTHORING_ENABLED &&
-      entry.function.name === "library_create_docx");
+      entry.function.name === "generate_docx");
   const resident = tools.filter(isResident);
   const deferred = tools.filter((entry) => !isResident(entry));
   return { resident: [...resident, describeToolsTool(deferred)], deferred };
@@ -8095,8 +8071,7 @@ export async function runLocalAssistantTools(
         }
       }
       if (
-        call.name === "library_create_docx" ||
-        (ORIGIN_MIKE_TOOL_SHAPE && call.name === "generate_docx")
+        call.name === "generate_docx"
       ) {
         // TREATMENT mechanism 1, enforcement backstop. The prompt line already
         // instructs the model to echo first, so the cooperative path costs one
@@ -8599,7 +8574,7 @@ export async function runLocalAssistantTools(
           };
           if (
             FINAL_AGENT_LOOP_ENABLED &&
-            ORIGIN_MIKE_TOOL_SHAPE &&
+            requirementsState?.draftFilename &&
             call.name === "generate_docx"
           ) {
             if (

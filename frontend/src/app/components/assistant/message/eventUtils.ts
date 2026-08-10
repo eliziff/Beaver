@@ -37,7 +37,6 @@ type ActivityContext = {
 const TOOLS: Record<string, readonly [string, string?]> = {
     ask_inputs: ["Asking for input"],
     generate_docx: ["Creating document", "doc_created"],
-    library_create_docx: ["Creating document", "doc_created"],
     generate_excel: ["Creating spreadsheet"],
     generate_ppt: ["Creating presentation"],
     edit_document: ["Editing document", "doc_edited"],

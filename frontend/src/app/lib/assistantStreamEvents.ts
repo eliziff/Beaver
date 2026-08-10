@@ -77,7 +77,6 @@ const START_EVENTS = new Set([
 const TOOL_ACTIVITY_FAMILIES: Record<string, string> = {
   ask_inputs: "ask_inputs",
   generate_docx: "doc_created",
-  library_create_docx: "doc_created",
   edit_document: "doc_edited",
   library_revise_docx: "doc_edited",
   read_document: "doc_read",

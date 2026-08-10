@@ -52,6 +52,18 @@ function viewerLocator(locator: { kind: string; label: string }) {
     ? `${prefix}${locator.label}`
     : locator.label;
 }
+function receiptSource(receipt: LegalEvidenceReceiptEvent["evidence"][number]) {
+  return {
+    provider: receipt.provider,
+    jurisdiction: receipt.jurisdiction,
+    citation: receipt.citation,
+    name: receipt.name,
+    dataset: receipt.dataset,
+    url: receipt.external_url,
+    ...(receipt.locator.label && { locator: viewerLocator(receipt.locator) }),
+    ...(receipt.span_text && { quote: receipt.span_text }),
+  };
+}
 
 export type ReadSubagentSource = {
   provider: string;
@@ -723,18 +735,7 @@ export async function runReadSubagent(params: {
     const sources = [
       ...discoveredSources.values(),
       ...[...params.evidenceState.evidence.values()].flatMap(({ receipt }) =>
-        receipt.source_class === "case"
-          ? [{
-              provider: receipt.provider,
-              jurisdiction: receipt.jurisdiction,
-              citation: receipt.citation,
-              name: receipt.name,
-              dataset: receipt.dataset,
-              url: receipt.external_url,
-              ...(receipt.locator?.label && { locator: viewerLocator(receipt.locator) }),
-              ...(receipt.span_text && { quote: receipt.span_text }),
-            }]
-          : [],
+        receipt.source_class === "case" ? [receiptSource(receipt)] : [],
       ),
     ];
     return [
@@ -871,6 +872,25 @@ export async function runReadSubagent(params: {
             source,
           );
         }
+      }
+      for (const { receipt } of params.evidenceState.evidence.values()) {
+        if (receipt.source_class !== "case") continue;
+        discoveredSources.set(
+          `citation:${receipt.citation.toLocaleLowerCase()}`,
+          receiptSource(receipt),
+        );
+      }
+      for (const call of calls) {
+        const activity = activityByCallId.get(call.id);
+        const citation = typeof call.input.citation === "string"
+          ? call.input.citation.trim().toLocaleLowerCase()
+          : "";
+        const source = citation
+          ? discoveredSources.get(`citation:${citation}`)
+          : undefined;
+        if (!activity || activity.source || !source) continue;
+        activity.source = source;
+        activity.label = `Reading ${source.name ? `${source.name}, ` : ""}${source.citation}`;
       }
       for (const result of results) {
         const activity = activityByCallId.get(result.tool_use_id);

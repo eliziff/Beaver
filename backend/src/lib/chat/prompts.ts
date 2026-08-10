@@ -105,7 +105,7 @@ export function buildLeanLibraryBlock(options: {
   const specialistGuidance = progressiveDisclosure
     ? `${
         residentAuthoring
-          ? "Create a requested Word deliverable with library_create_docx. "
+          ? "Create a requested Word deliverable with generate_docx. "
           : "Use output_document to create a new Word deliverable. "
       }Open a specialist domain only when the task needs it. Use drafting to revise an existing Word file. Use document_quality only when the user asks to audit an existing DOCX; created and edited files already return compiler checks. Other available domains cover research, citations, amendments, deadlines, and workflows.`
     : "Prefer the deterministic organs over reasoning from memory — citation linking, supra fixes, structural lint, table of authorities, term drift, drafting lint, bilingual concordance, amendment application, deadline computation — and report their findings as verified. Before delivering extraction or comparison work, call library_anchor_coverage and verify the source anchors it reports missing.";

@@ -95,7 +95,7 @@ vi.mock("../lib/chat/localAssistantTools", () => ({
           resident: [
             "Read",
             "library_lookup",
-            "library_create_docx",
+            "generate_docx",
             "library_revise_docx",
             "Edit",
           ].map((name) => ({ function: { name } })),
@@ -477,7 +477,7 @@ describe("anonymous chat PDF evidence durability", () => {
                 content: JSON.stringify({
                   ok: true,
                   domains: ["output_document"],
-                  opened: ["library_create_docx"],
+                  opened: ["generate_docx"],
                 }),
               }
             : {
@@ -1906,7 +1906,7 @@ describe("anonymous chat PDF evidence durability", () => {
       mocks.streamChatWithTools.mockImplementation(async (params) => {
         const mutation = {
           id: "create-doc",
-          name: "library_create_docx",
+          name: "generate_docx",
           input: { title: "Draft", sections: [] },
         };
         expect(await params.runTools?.([mutation])).toEqual([
@@ -2084,7 +2084,7 @@ describe("anonymous chat PDF evidence durability", () => {
       await params.runTools?.([
         {
           id: "create-doc",
-          name: "library_create_docx",
+          name: "generate_docx",
           input: { title: "Draft", sections: [] },
         },
       ]);
@@ -2209,7 +2209,7 @@ describe("anonymous chat PDF evidence durability", () => {
       await params.runTools?.([
         {
           id: "create-doc",
-          name: "library_create_docx",
+          name: "generate_docx",
           input: { title: "Draft", sections: [] },
         },
       ]);
@@ -2269,7 +2269,7 @@ describe("anonymous chat PDF evidence durability", () => {
       await params.runTools?.([
         {
           id: "create-doc",
-          name: "library_create_docx",
+          name: "generate_docx",
           input: { title: "Draft", markdown: "# Draft" },
         },
       ]);
@@ -2463,12 +2463,12 @@ describe("anonymous chat PDF evidence durability", () => {
       const results = await params.runTools?.([
         {
           id: "create-one",
-          name: "library_create_docx",
+          name: "generate_docx",
           input: { title: "First draft", sections: [] },
         },
         {
           id: "create-two",
-          name: "library_create_docx",
+          name: "generate_docx",
           input: { title: "Second draft", sections: [] },
         },
       ]);
@@ -2498,7 +2498,7 @@ describe("anonymous chat PDF evidence durability", () => {
     mocks.runLocalAssistantTools.mockImplementation(
       async (_userId: unknown, calls: { id: string; name: string }[]) =>
         calls.map((call) =>
-          call.name === "library_create_docx"
+          call.name === "generate_docx"
             ? {
                 tool_use_id: call.id,
                 content: JSON.stringify({
@@ -2520,7 +2520,7 @@ describe("anonymous chat PDF evidence durability", () => {
         { id: "read", name: "Read", input: { file_path: "source.docx" } },
         {
           id: "create",
-          name: "library_create_docx",
+          name: "generate_docx",
           input: { title: "Draft", sections: [] },
         },
       ]);
@@ -2561,7 +2561,7 @@ describe("anonymous chat PDF evidence durability", () => {
     mocks.streamChatWithTools.mockImplementation(async (params) => {
       const mutation = {
         id: "create-doc",
-        name: "library_create_docx",
+        name: "generate_docx",
         input: { title: "Draft", sections: [] },
       };
       params.callbacks?.onToolCallStart?.(mutation);
