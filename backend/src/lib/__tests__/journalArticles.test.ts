@@ -479,6 +479,28 @@ describe("local journal articles", () => {
     ).toBe(answer);
   });
 
+  it("filters journal search by indexed publication metadata", () => {
+    expect(
+      searchJournalArticles("Fixture Article", 10, {
+        author: "Ada",
+        journal: "Fixture LJ",
+        startDate: "2025-01-01",
+        endDate: "2026-12-31",
+      })[0]?.articleId,
+    ).toBe(7);
+    expect(
+      searchJournalArticles("Fixture Article", 10, { author: "Grace" }),
+    ).toEqual([]);
+    expect(
+      searchJournalArticles("Fixture Article", 10, { journal: "Other" }),
+    ).toEqual([]);
+    expect(
+      searchJournalArticles("Fixture Article", 10, {
+        startDate: "2027-01-01",
+      }),
+    ).toEqual([]);
+  });
+
   it("drops a cached FTS sidecar when the source database changes", () => {
     const source = process.env.MIKE_PUBLIC_ENDPOINT_DB!;
     process.env.MIKE_PUBLIC_ENDPOINT_FTS_DB = fixtureSearchDatabase(source);

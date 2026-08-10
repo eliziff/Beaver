@@ -187,7 +187,7 @@ export function InitialView({
                 </div>
                 {visibleQuickActions.length > 0 && (
                     <div className="flex flex-col items-center">
-                        <div className="group relative flex h-5 items-center justify-center">
+                        <div className="group relative flex min-h-8 items-center justify-center">
                             <span className="flex items-center gap-1.5 text-xs font-medium text-gray-800">
                                 <QuickActionsSkeuoIcon className="h-3.5 w-3.5 shrink-0" />
                                 Quick actions
@@ -196,7 +196,7 @@ export function InitialView({
                                 type="button"
                                 onClick={() => setModal("quickActions")}
                                 aria-label="Configure quick actions"
-                                className="absolute left-full ml-1.5 flex h-5 w-5 items-center justify-center text-gray-400 opacity-0 hover:text-gray-700 group-hover:opacity-100 focus:opacity-100"
+                                className="absolute left-full ml-1 flex h-8 w-8 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100"
                             >
                                 <MoreHorizontal className="h-3.5 w-3.5" />
                             </button>
