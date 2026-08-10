@@ -75,6 +75,7 @@ import {
   jurisdictionPreferencePrompt,
   type JurisdictionPreference,
 } from "./prompts";
+import { currentA2AJCoveragePrompt } from "./a2ajCoveragePrompt";
 
 export type AssistantEvent =
   | { type: "reasoning"; text: string; debug?: boolean }
@@ -242,9 +243,14 @@ export async function runLLMStream({
   // plain user/assistant messages.
   const baseSystemPrompt =
     rawMsgs[0]?.role === "system" ? (rawMsgs[0].content ?? "") : "";
-  const systemPrompt = subagentMode === "beaver"
-    ? `${baseSystemPrompt}\n\n${READ_SUBAGENT_SYSTEM_PROMPT}`
-    : baseSystemPrompt;
+  const coveragePrompt = includeResearchTools
+    ? await currentA2AJCoveragePrompt()
+    : "";
+  const systemPrompt = [
+    baseSystemPrompt,
+    subagentMode === "beaver" ? READ_SUBAGENT_SYSTEM_PROMPT : "",
+    coveragePrompt,
+  ].filter(Boolean).join("\n\n");
   const chatMessages: LlmMessage[] = rawMsgs
     .filter((m) => m.role !== "system")
     .map((m) => ({
@@ -278,7 +284,7 @@ export async function runLLMStream({
     [...chatMessages].reverse().find((message) => message.role === "user")
       ?.content ?? "";
   const admitReadSubagents = createReadSubagentAdmission(
-    3,
+    4,
     allowedReadSubagentRegions(
       jurisdictionPreference,
       currentRequest,

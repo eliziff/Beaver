@@ -73,8 +73,7 @@ function savedSourceKey(source: {
     return JSON.stringify([source.provider, source.dataset, source.citation]);
 }
 
-export function LegalLibraryPage() {
-    const router = useRouter();
+export function LegalLibraryPage({ embedded = false }: { embedded?: boolean }) {
     const [references, setReferences] = useState<LegalSourceReference[] | null>(
         null,
     );
@@ -190,10 +189,10 @@ export function LegalLibraryPage() {
     }
     return (
         <div className="flex h-full min-h-0 flex-col">
-            <PageHeader
-                breadcrumbs={[{ label: "Sources" }]}
-            />
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
+            {!embedded && <PageHeader breadcrumbs={[{ label: "Sources" }]} />}
+            <div
+                className={`min-h-0 flex-1 overflow-y-auto ${embedded ? "p-3" : "px-4 py-5 sm:px-6"}`}
+            >
                 <div className="mx-auto max-w-5xl space-y-6">
                     <form
                         onSubmit={runSearch}

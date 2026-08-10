@@ -10,10 +10,8 @@ import { cn } from "@/app/lib/utils";
 
 export function JurisdictionPreferenceEditor({
     compact = false,
-    showChatControl = true,
 }: {
     compact?: boolean;
-    showChatControl?: boolean;
 }) {
     const id = useId();
     const [query, setQuery] = useState("");
@@ -179,10 +177,7 @@ export function JurisdictionPreferenceEditor({
                     className="h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-gray-500 focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-1 disabled:cursor-default"
                 />
                 <div
-                    className={cn(
-                        "mt-2 overflow-y-auto rounded-md border border-gray-200 [scrollbar-gutter:stable]",
-                        compact ? "max-h-44" : "max-h-64",
-                    )}
+                    className="mt-2 rounded-md border border-gray-200"
                 >
                     {options.length ? (
                             <fieldset className="p-2">
@@ -241,29 +236,6 @@ export function JurisdictionPreferenceEditor({
                 </p>
                 </div>
             </div>
-
-            {showChatControl && (
-                <label className="flex min-h-10 cursor-pointer items-start gap-3 border-t border-gray-200 pt-3">
-                    <CheckboxInput
-                        checked={preference.showChatControl}
-                        onChange={(event) =>
-                            setPreference({
-                                ...preference,
-                                showChatControl: event.currentTarget.checked,
-                            })
-                        }
-                        className="mt-0.5"
-                    />
-                    <span className="min-w-0">
-                        <span className="block text-sm font-medium text-gray-900">
-                            Show in chat box
-                        </span>
-                        <span className="mt-0.5 block text-sm leading-5 text-gray-500">
-                            Keep a Jurisdiction button beside Workflows.
-                        </span>
-                    </span>
-                </label>
-            )}
         </div>
     );
 }

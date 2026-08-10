@@ -16,6 +16,40 @@ interface WorkflowPickerModalProps {
     initialWorkflowId?: string;
     disabledWorkflow?: (workflow: Workflow) => boolean;
 }
+export function useWorkflowPickerState(
+    workflowType: Workflow["metadata"]["type"],
+    initialWorkflowId?: string,
+) {
+    const [workflows, setWorkflows] = useState<Workflow[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [selected, setSelected] = useState<Workflow | null>(null);
+    const [search, setSearch] = useState("");
+    useEffect(() => {
+        let cancelled = false;
+        listWorkflows(workflowType)
+            .then((next) => {
+                if (cancelled) return;
+                setWorkflows(next);
+                setSelected(
+                    initialWorkflowId
+                        ? next.find((workflow) => workflow.id === initialWorkflowId) ?? null
+                        : null,
+                );
+            })
+            .catch(() => {
+                if (cancelled) return;
+                setWorkflows([]);
+                setSelected(null);
+            })
+            .finally(() => {
+                if (!cancelled) setLoading(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [initialWorkflowId, workflowType]);
+    return { workflows, loading, selected, setSelected, search, setSearch };
+}
 export function WorkflowPickerModal({
     open,
     ...props
@@ -40,36 +74,8 @@ function OpenWorkflowPickerModal({
     initialWorkflowId,
     disabledWorkflow,
 }: Omit<WorkflowPickerModalProps, "open">) {
-    const [workflows, setWorkflows] = useState<Workflow[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [selected, setSelected] = useState<Workflow | null>(null);
-    const [search, setSearch] = useState("");
-    useEffect(() => {
-        let cancelled = false;
-        listWorkflows(workflowType)
-            .then((workflows) => {
-                if (cancelled) return;
-                setWorkflows(workflows);
-                if (initialWorkflowId) {
-                    setSelected(
-                        workflows.find(
-                            (workflow) => workflow.id === initialWorkflowId,
-                        ) ?? null,
-                    );
-                }
-            })
-            .catch(() => {
-                if (cancelled) return;
-                setWorkflows([]);
-                setSelected(null);
-            })
-            .finally(() => {
-                if (!cancelled) setLoading(false);
-            });
-        return () => {
-            cancelled = true;
-        };
-    }, [initialWorkflowId, workflowType]);
+    const { workflows, loading, selected, setSelected, search, setSearch } =
+        useWorkflowPickerState(workflowType, initialWorkflowId);
     const selectionDisabled =
         !selected || selecting || (selected && disabledWorkflow?.(selected));
     const resolvedPrimaryLabel =

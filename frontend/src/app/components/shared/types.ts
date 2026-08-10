@@ -380,6 +380,7 @@ export type AssistantEvent =
         status: "running" | "completed" | "error";
         tool?: string;
         input?: Record<string, unknown>;
+        paragraphs?: string[];
         source?: {
           provider: string;
           jurisdiction: string;

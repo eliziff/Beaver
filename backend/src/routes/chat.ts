@@ -173,6 +173,7 @@ import {
   runReadSubagent,
 } from "../lib/chat/readSubagents";
 import { PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT } from "../lib/chat/tools/publicLegalSourceTools";
+import { currentA2AJCoveragePrompt } from "../lib/chat/a2ajCoveragePrompt";
 import type { CourtlistenerToolState } from "../lib/chat/courtlistenerToolRunner";
 import { createPublicLegalSourceState } from "../lib/chat/publicLegalSourceState";
 import {
@@ -1137,11 +1138,13 @@ export async function streamAnonymousChat(params: {
   const standingJurisdictionPrompt = jurisdictionPreferencePrompt(
     params.jurisdictionPreference ?? null,
   );
+  const coveragePrompt = await currentA2AJCoveragePrompt();
   let systemPrompt = [
     CODING_PRODUCTION_SYSTEM_PROMPT,
     CLIENT_WORK_PRODUCT_PRESUMPTION,
     params.subagentMode === "beaver" ? READ_SUBAGENT_SYSTEM_PROMPT : "",
     standingJurisdictionPrompt,
+    coveragePrompt,
     focusPrompt,
     priorEvidencePrompt,
   ]
@@ -1403,7 +1406,7 @@ export async function streamAnonymousChat(params: {
       ? params.currentTurn.message.content
       : params.currentTurn.content;
   const admitReadSubagents = createReadSubagentAdmission(
-    3,
+    4,
     allowedReadSubagentRegions(
       params.jurisdictionPreference ?? null,
       localRequirementsText,

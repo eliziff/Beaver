@@ -124,7 +124,7 @@ export function AssistantSidePanel({
                                 key={tab.id}
                                 onClick={() => onActivateTab(tab.id)}
                                 className={cn(
-                                    "group flex h-8 min-w-24 max-w-[220px] flex-1 cursor-pointer select-none items-center gap-1.5 rounded-md border px-2",
+                                    "group flex h-8 w-40 flex-none cursor-pointer select-none items-center gap-1.5 rounded-md border px-2",
                                     isActive
                                         ? "border-gray-400 bg-white text-gray-900"
                                         : "border-transparent bg-gray-100 text-gray-600 hover:border-gray-300 hover:bg-white",

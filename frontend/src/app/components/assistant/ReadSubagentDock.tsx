@@ -16,11 +16,13 @@ export function ReadSubagentDock({
     onClose,
     onSourceClick,
     idPrefix = "reading-agent",
+    embedded = false,
 }: {
     panels: ReadSubagentPanel[];
     onClose: (id: string) => void;
     onSourceClick?: (source: ReadSubagentSource) => void;
     idPrefix?: string;
+    embedded?: boolean;
 }) {
     const [collapsed, setCollapsed] = useState(false);
     const bodyRef = useRef<HTMLDivElement>(null);
@@ -30,10 +32,10 @@ export function ReadSubagentDock({
         )
         .join("|");
     useLayoutEffect(() => {
-        if (!collapsed && bodyRef.current) {
+        if ((!collapsed || embedded) && bodyRef.current) {
             bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
         }
-    }, [appendKey, collapsed]);
+    }, [appendKey, collapsed, embedded]);
     if (!panels.length) return null;
 
     const rounds = new Map<string, number>();
@@ -47,9 +49,13 @@ export function ReadSubagentDock({
     return (
         <section
             aria-labelledby={`${idPrefix}-title`}
-            className={`flex shrink-0 flex-col overflow-hidden rounded-lg border border-gray-300 bg-white shadow-sm ${collapsed ? "h-11" : "h-[32rem]"}`}
+            className={
+                embedded
+                    ? "flex h-full min-h-0 flex-col overflow-hidden bg-white"
+                    : `flex shrink-0 flex-col overflow-hidden rounded-lg border border-gray-300 bg-white shadow-sm ${collapsed ? "h-11" : "h-[32rem]"}`
+            }
         >
-            <header className="flex min-h-11 shrink-0 items-center gap-1 border-b border-gray-200 ps-1 pe-2">
+            {!embedded && <header className="flex min-h-11 shrink-0 items-center gap-1 border-b border-gray-200 ps-1 pe-2">
                 <button
                     type="button"
                     aria-expanded={!collapsed}
@@ -73,21 +79,22 @@ export function ReadSubagentDock({
                 >
                     <X className="size-4" />
                 </button>
-            </header>
+            </header>}
+            {embedded && <h2 id={`${idPrefix}-title`} className="sr-only">Reading agent</h2>}
             <div
                 id={`${idPrefix}-body`}
                 ref={bodyRef}
                 className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-3"
-                hidden={collapsed}
+                hidden={!embedded && collapsed}
             >
                 {runs.map(({ panel, slot, round }) => (
                     <section key={panel.id} aria-label={`Agent ${slot}, round ${round}`}>
-                        <div className="mb-2 flex items-center gap-2 text-[11px] font-medium text-gray-500">
-                            <span className="whitespace-nowrap">
-                                Agent {slot}{round > 1 ? ` · Round ${round}` : ""}
-                            </span>
-                            <span className="h-px flex-1 bg-gray-200" aria-hidden="true" />
-                        </div>
+                        {round > 1 && (
+                            <div className="mb-2 flex items-center gap-2 text-[11px] font-medium text-gray-500">
+                                <span className="whitespace-nowrap">Round {round}</span>
+                                <span className="h-px flex-1 bg-gray-200" aria-hidden="true" />
+                            </div>
+                        )}
                         <div className="me-5 rounded-xl rounded-tl-sm bg-gray-900 px-3 py-2.5 text-xs leading-5 text-white">
                             {panel.task}
                         </div>
@@ -99,7 +106,13 @@ export function ReadSubagentDock({
                                     {panel.activities.length} tool {panel.activities.length === 1 ? "call" : "calls"}
                                 </summary>
                                 <ol aria-label="Reading activity" className="mt-2 space-y-1.5">
-                                    {panel.activities.map((activity) => (
+                                    {panel.activities.map((activity) => {
+                                        const paragraphs = activity.paragraphs ?? [];
+                                        const shownParagraphs = paragraphs.slice(0, 3);
+                                        const paragraphSuffix = paragraphs.length > shownParagraphs.length
+                                            ? ` + ${paragraphs.length - shownParagraphs.length} more`
+                                            : "";
+                                        return (
                                         <li
                                             key={activity.id}
                                             className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2 text-xs leading-5 text-gray-600"
@@ -128,6 +141,11 @@ export function ReadSubagentDock({
                                                         <span className="shrink-0">
                                                             {activity.source.name ? ", " : ""}{activity.source.citation}
                                                         </span>
+                                                        {!!shownParagraphs.length && (
+                                                            <span className="ms-1 shrink-0 text-gray-500">
+                                                                at {shownParagraphs.length === 1 ? "para." : "paras."} {shownParagraphs.join(", ")}{paragraphSuffix}
+                                                            </span>
+                                                        )}
                                                     </button>
                                                 ) : (
                                                     <span className="break-words">{activity.label}</span>
@@ -144,7 +162,8 @@ export function ReadSubagentDock({
                                                 )}
                                             </span>
                                         </li>
-                                    ))}
+                                        );
+                                    })}
                                 </ol>
                             </details>
                         ) : panel.status === "running" ? (
@@ -156,9 +175,9 @@ export function ReadSubagentDock({
                         {panel.output ? (
                             <details
                                 open
-                                className="ms-5 mt-2 rounded-xl rounded-br-sm bg-gray-100 px-3 py-2.5 text-xs leading-5 text-gray-700"
+                                className="mt-2 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs leading-5 text-gray-700"
                             >
-                                <summary className="cursor-pointer font-medium">
+                                <summary className="cursor-pointer font-medium text-gray-600">
                                     Final output
                                     {panel.grounding?.status === "passed"
                                         ? ` · ${panel.grounding.evidence.length} verified ${panel.grounding.evidence.length === 1 ? "passage" : "passages"}`

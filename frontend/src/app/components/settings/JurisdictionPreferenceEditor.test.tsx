@@ -44,13 +44,3 @@ it("stores multiple standing jurisdictions and can return to asking", async () =
     });
     expect(readJurisdictionPreference().jurisdictions).toHaveLength(2);
 });
-
-it("controls whether the chat box shows the jurisdiction shortcut", async () => {
-    render(<JurisdictionPreferenceEditor />);
-
-    await userEvent.click(
-        screen.getByRole("checkbox", { name: /Show in chat box/ }),
-    );
-
-    expect(readJurisdictionPreference().showChatControl).toBe(false);
-});
