@@ -10,6 +10,28 @@ test. This is the single capture point for the brainstorming thread of
 
 ---
 
+## HYPOTHESIS 2026-08-08 — draft-composition checkpoint (T3, pending audit)
+
+Next-treatment hypothesis: at the `generate_docx` refine boundary, a
+server-side `composition_check` reconciles the captured draft against the
+**served evidence plane** (not the full record) using W5 `reconcileFigures`
+(competing-base findings only, precision-1.00), appended as ≤5 one-line
+"fold in or state why not" notes. Zero new tool, prompt byte-identical to v5;
+`MIKE_COMPOSITION_CHECK=1` ↔ receipt `composition_check_count` ↔ conformance
+`>= 1`. Targets the S1/S3 knows-but-doesn't-write / divergent-quantification
+class the READ-coverage gates cannot see. Full spec + consistency chain +
+measurement framing:
+`docs/lab-composition-checkpoint-design-2026-08-08.md`. Adversarial audit
+(a5f5b8b3608b3f4e3) landed **REVISE-THEN-BUILD**: primitive confirmed (fires on
+the real C-028/C-031 fixture), but the draft's chain was broken in 3/5 links —
+runtime count must be a post-turn typed event (not benchmark_surface), the comp
+arm must join the coding-family includes()/armExpectedSurface lists or the sha
+gate is silently skipped, and the checkpoint must fire in BOTH refine-gate
+branches (the coverage-short latch would otherwise zero the count on legitimate
+runs). Doc revised with full disposition (§0) + scoped claim.
+
+---
+
 ## 1. The research question
 
 In previous attempts, **partial-read arms were (mostly) failures** — yet coding
@@ -1988,3 +2010,22 @@ null; further tax reqecho spend is unwarranted. The lever stays
 worth one run only on a task whose prompt names structural
 requirements (none on the current panel) — and that run, if ever,
 uses Fix A's zero-cost automatic echo, not the tool or draft modes.
+
+## RUN RESULT — REQECHO VS UPSTREAM NATIVE, BELOW-THRESHOLD SWEEP (2026-08-08, runner+judge deepseek-v4-flash)
+
+Task #70: 5 below-threshold dev tasks, fresh runs, all judged deepseek-v4-flash judge-once (11-judge batch at 8-wide). Every cell = score, cache-adjusted tokens (uncached + 0.1·cached + output), wall clock. The three @00-41 native runs are the new baselines this batch produced; protective-order/DPA native are the prior-session ds4 baselines.
+
+| task | criteria | upstream native | reqecho Fix A | v5 no-echo chassis | Δ reqecho−native |
+|---|---|---|---|---|---|
+| protective-order | 49 | 43/49 [92k, 6.0m] | 41/49 [129k, 6.9m] | 42/49 [136k, 6.0m] | −2 |
+| DPA | 58 | 43/58 [123k, 4.1m] | 50/58 [185k, 7.2m] | 51–52/58 (prior) | +7 |
+| extract-critical-vendor | 116 | 104/116 [151k, 6.3m] | 105/116 [186k, 5.2m] | 107/116 [194k, 5.5m] | +1 |
+| IRS-IDR | 48 | 42/48 [130k, 8.6m] | 42/48 [166k, 8.2m] | 42/48 [249k, 8.8m] | 0 |
+| credit-agreement | 63 | 58/63 [198k, 7.2m] | 59/63 [318k, 7.5m] | 59/63 [290k, 7.4m] | +1 |
+| **pooled** | **334** | **290** | **297** | **302 (best/task)** | **+7 (+2.1pp)** |
+
+**reqecho Fix A beats upstream native pooled +7/334** (win DPA +7, credit +1, extract +1; tie IRS; lose protective-order −2). Cost 984k vs 694k cache-adj (1.42×), wall 35.0m vs 32.2m (1.09×). The DPA +7 is the whole margin.
+
+**Attribution: the echo is null; the chassis does the work.** The v5 no-echo chassis (same lean reads, coverage gate, draft-edit — no requirements echo) scores 302/334 best-per-task, **+12 over native, more than reqecho's +7**; reqecho ≤ v5 on 4/5 (protective −1, extract −2, DPA 50 vs 51, IRS tie) and ties credit. This reproduces the tax verdict (ledger above: echo payload is content-free, ~202 generic chars, only adds when the prompt names structural requirements) across a 5-task panel — the margin over upstream native is the consolidated v5 mechanism, not the echo. protective-order is the panel's only native win and reqecho's only downside draw (41/43/42 across arms; native whole-read serves that composition-bound task better than the lean path).
+
+**Multi-deliverable restored (f535eb27):** the 4-DOCX prepare-antitrust task structurally failed the deliverable gate for all coding arms (authored 1/4, error at lab-beaver-arm.ts:3005). The enforcement layer was never the cap — chat.ts terminalCreateBatch commits a whole round of create-calls when every call returns action:created — so N generate_docx in one final response already yields N deliverables; the cap was the prompt phrasing ("a successful call ends the turn", "Create the requested Word deliverable once"). Restored the create contract (one generate_docx per requested deliverable, batch-committed turn end) in CODING_MARKDOWN_LAB_SYSTEM_PROMPT + LEAN_BATCH_LAB_SYSTEM_PROMPT + DOMAIN_PROMPTS.output_document, and taught the refine note that multi-deliverable requests must re-send full bodies (the draft buffer holds one doc — without this, N docs would clone the last body). Receipt delta multi_deliverable on the three coding arms; conformance re-derives the expected prompt sha from the same constants. prepare-antitrust validation re-run pending.
