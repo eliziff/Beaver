@@ -41,7 +41,6 @@ import { providerForModel } from "../lib/llm/models";
 import {
   WHOLE_READ_MAX_CHARS,
   LOCAL_ASSISTANT_TOOLS,
-  LOCAL_LEGAL_RESEARCH_TOOLS,
   LOCAL_READ_SUBAGENT_TOOL_CATALOG,
   ADAPTIVE_MIKE_TOOL_SHAPE,
   CODING_TOOL_SHAPE,
@@ -1109,7 +1108,6 @@ export async function streamAnonymousChat(params: {
   // shown as an assistant activity.
   const activeTools = [
     ...LOCAL_ASSISTANT_TOOLS,
-    ...LOCAL_LEGAL_RESEARCH_TOOLS,
     ...(params.subagentsEnabled ? [READ_SUBAGENT_TOOL] : []),
     LEGAL_EVIDENCE_SUBMIT_TOOL,
   ];
