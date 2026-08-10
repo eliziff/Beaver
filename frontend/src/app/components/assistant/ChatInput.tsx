@@ -17,6 +17,7 @@ import { formatUnsupportedDocumentWarning, partitionSupportedDocumentFiles } fro
 import { Modal } from "@/app/components/modals/Modal";
 import { JurisdictionPreferenceEditor } from "@/app/components/settings/JurisdictionPreferenceEditor";
 import { useJurisdictionPreference } from "./jurisdictionPreferences";
+import { useReadSubagentPreference } from "./readSubagentPreferences";
 type Workflow = NonNullable<Message["workflow"]>;
 
 function mergeDocuments(...groups: Document[][]) {
@@ -90,6 +91,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     const [picker, setPicker] = useState<DirectoryTab | "workflows" | null>(null);
     const [jurisdictionOpen, setJurisdictionOpen] = useState(false);
     const { preference: jurisdictionPreference } = useJurisdictionPreference();
+    const subagents = useReadSubagentPreference();
     const [apiKeyModalProvider, setApiKeyModalProvider] = useState<ModelProvider | null>(null);
     const [uploadingFilenames, setUploadingFilenames] = useState<string[]>([]);
     const [uploadWarning, setUploadWarning] = useState<string | null>(null);
@@ -240,6 +242,11 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     const documentButtonLabel = attachedDocs.length
         ? `${attachedDocs.length} documents selected`
         : "Add document";
+    const nativeSubagentsAvailable = model.startsWith("codex:");
+    const subagentMode =
+        subagents.mode === "native" && !nativeSubagentsAvailable
+            ? "none"
+            : subagents.mode;
     return (
         <>
             <div
@@ -427,6 +434,32 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                             </div>
                         )}
                         <div className="ml-auto flex w-full flex-wrap items-center justify-end gap-1 sm:w-auto sm:flex-nowrap">
+                            {subagents.showChatControl && (
+                                <label className="order-2 flex h-8 shrink-0 items-center gap-1 rounded-md border border-gray-300 bg-white px-2 sm:order-1">
+                                    <span className="chat-input-control-label text-[10px] uppercase tracking-wide text-gray-500">
+                                        Agents
+                                    </span>
+                                    <select
+                                        value={subagentMode}
+                                        onChange={(event) =>
+                                            subagents.setMode(
+                                                event.currentTarget.value as typeof subagentMode,
+                                            )
+                                        }
+                                        aria-label="Subagents"
+                                        className="h-full cursor-pointer bg-white text-sm text-gray-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
+                                    >
+                                        <option value="none">None</option>
+                                        <option value="beaver">Beaver subagents</option>
+                                        <option
+                                            value="native"
+                                            disabled={!nativeSubagentsAvailable}
+                                        >
+                                            Native Codex
+                                        </option>
+                                    </select>
+                                </label>
+                            )}
                             <div className="order-2 sm:order-1">
                                 <ReasoningEffortToggle
                                     model={model} value={reasoningEffort}

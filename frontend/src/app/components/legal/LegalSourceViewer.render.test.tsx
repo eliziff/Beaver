@@ -300,6 +300,50 @@ describe("legal source reader", () => {
         );
     });
 
+    it("highlights one verified quote across twelve internal paragraphs", async () => {
+        const paragraphs = Array.from(
+            { length: 12 },
+            (_, index) => `[${index + 61}] Distinct passage ${index + 1}.`,
+        );
+        const text = paragraphs.join("\n");
+        const base = viewerPayload();
+        api.direct.mockResolvedValue({
+            ...base,
+            text,
+            presentation: undefined,
+            structure: {
+                ...base.structure,
+                blocks: paragraphs.map((paragraph, index) => {
+                    const start = text.indexOf(paragraph);
+                    return {
+                        kind: "paragraph" as const,
+                        label: `par${index + 61}`,
+                        start,
+                        end: start + paragraph.length,
+                    };
+                }),
+                counts: { paragraph: 12, page: 0, section: 0, footnote: 0 },
+            },
+        });
+        const { container } = render(
+            <LegalSourceViewer
+                citation="2099 SCC 1"
+                docType="cases"
+                quotes={[{ quote: text }]}
+            />,
+        );
+
+        await waitFor(() =>
+            expect(
+                Array.from({ length: 12 }, (_, index) =>
+                    container.querySelector(
+                        `#legal-par${index + 61} [data-qspan="0"]`,
+                    ),
+                ).every(Boolean),
+            ).toBe(true),
+        );
+    });
+
     it("renders only safe inline links and no literal Markdown markers", () => {
         const { container } = render(
             <p>

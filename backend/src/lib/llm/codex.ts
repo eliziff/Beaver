@@ -291,6 +291,7 @@ async function runCodex(params: {
   enableThinking?: boolean;
   reasoningSummary?: "auto" | "none";
   reasoningEffort?: string;
+  nativeSubagents?: boolean;
   maxIterations?: number;
   imagePaths?: string[];
   persistSession?: boolean;
@@ -331,7 +332,7 @@ async function runCodex(params: {
   const args = ["exec", ...(resuming ? ["resume"] : [])];
   if (!resuming && !params.persistSession) args.push("--ephemeral");
   args.push("--ignore-user-config");
-  args.push("-c", "agents.enabled=false");
+  args.push("-c", `agents.enabled=${params.nativeSubagents === true}`);
   if (!resuming) args.push("--sandbox", "read-only");
   args.push("--skip-git-repo-check", "--json");
   if (!resuming) args.push("--color", "never");
@@ -532,6 +533,7 @@ export async function streamCodex(
         enableThinking: params.enableThinking,
         reasoningSummary: params.reasoningSummary,
         reasoningEffort: params.reasoningEffort,
+        nativeSubagents: params.nativeSubagents,
         maxIterations: params.maxIterations,
         imagePaths,
         persistSession: params.providerSession?.persist,

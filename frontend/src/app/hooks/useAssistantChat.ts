@@ -318,7 +318,10 @@ export function useAssistantChat({
         model,
         reasoning_effort: reasoningEffort,
         jurisdiction_preference: jurisdictionPreferenceForChat(),
-        subagents_enabled: readSubagents.enabled,
+        subagent_mode:
+          readSubagents.mode === "native" && !model.startsWith("codex:")
+            ? "none"
+            : readSubagents.mode,
         subagent_model: readSubagents.model,
         subagent_effort: readSubagents.effort,
         activity_detail: readActivityDetail(),

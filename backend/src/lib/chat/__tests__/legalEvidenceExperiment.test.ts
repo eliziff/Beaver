@@ -14,6 +14,7 @@ vi.mock("../../llm", async (importOriginal) => ({
 
 import type { A2AJDocument, A2AJLocatorLookup } from "../../a2aj";
 import { fnv1a64 } from "../../legalClaimLint";
+import { createLegalEvidenceCitations } from "../citations";
 import {
   attestedCharacterizationReceipt,
   createA2AJLookupEvidence,
@@ -309,6 +310,12 @@ describe("provisional legal evidence contract", () => {
       "[2010 BCCA 170 at paras. 10\u201312](https://www.canlii.org/en/bc/bcca/doc/2010/2010bcca170/2010bcca170.html#par10:~:text=",
     );
     expect(rendered).toMatch(/#par10:~:text=[^)]+,[^)]+\)\.$/u);
+    const [citation] = createLegalEvidenceCitations(state);
+    expect(citation).toMatchObject({
+      locator: "par10-par12",
+      pinpoint: "paras. 10–12",
+    });
+    expect(String(citation.url)).toMatch(/#par10:~:text=[^,]+,[^,]+$/u);
     expect(legalEvidenceReceiptEvent(state)).toMatchObject({
       schema_version: 6,
       mode: "citation_structure",

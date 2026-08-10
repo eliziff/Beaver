@@ -35,6 +35,7 @@ import {
   type LlmImage,
   type NormalizedToolResult,
   type OpenAIToolSchema,
+  type SubagentMode,
   type StreamChatResult,
 } from "../lib/llm";
 import { providerForModel } from "../lib/llm/models";
@@ -946,7 +947,7 @@ export async function streamAnonymousChat(params: {
   displayedDocument?: { filename: string; document_id: string };
   attachedDocuments?: { filename: string; document_id: string }[];
   jurisdictionPreference?: JurisdictionPreference | null;
-  subagentsEnabled?: boolean;
+  subagentMode?: SubagentMode;
   subagentModel?: string;
   subagentEffort?: string;
   activityDetail?: "auto" | "standard" | "tools" | "trace";
@@ -1110,7 +1111,7 @@ export async function streamAnonymousChat(params: {
   // shown as an assistant activity.
   const activeTools = [
     ...LOCAL_ASSISTANT_TOOLS,
-    ...(params.subagentsEnabled ? [READ_SUBAGENT_TOOL] : []),
+    ...(params.subagentMode === "beaver" ? [READ_SUBAGENT_TOOL] : []),
     LEGAL_EVIDENCE_SUBMIT_TOOL,
   ];
   const toolPartition = {
@@ -1139,7 +1140,7 @@ export async function streamAnonymousChat(params: {
   let systemPrompt = [
     CODING_PRODUCTION_SYSTEM_PROMPT,
     CLIENT_WORK_PRODUCT_PRESUMPTION,
-    params.subagentsEnabled ? READ_SUBAGENT_SYSTEM_PROMPT : "",
+    params.subagentMode === "beaver" ? READ_SUBAGENT_SYSTEM_PROMPT : "",
     standingJurisdictionPrompt,
     focusPrompt,
     priorEvidencePrompt,
@@ -2180,6 +2181,7 @@ export async function streamAnonymousChat(params: {
       // byte-identical.
       maxIterations: nativeMaxIterations,
       reasoningEffort: params.reasoningEffort,
+      nativeSubagents: params.subagentMode === "native",
       serviceTier: params.serviceTier,
       compactThreshold: openAICompactThreshold,
       promptCacheKey: ["openai", "codex"].includes(responseProvider)
@@ -2300,7 +2302,10 @@ export async function streamAnonymousChat(params: {
           appendProviderContent(text);
         },
         onContentBlockEnd: () => {
-          if (!pendingAskInputs) queueContentBoundary();
+          if (!pendingAskInputs) {
+            queueContentBoundary();
+            sseWrite(res, { type: "content_block_end" });
+          }
         },
         onReasoningDelta: (text: string) => {
           if (activityDetail !== "auto" && activityDetail !== "trace") return;
@@ -3305,14 +3310,14 @@ chatRouter.post("/", async (req, res) => {
     body.jurisdiction_preference,
   );
   if (
-    body.subagents_enabled !== undefined &&
-    typeof body.subagents_enabled !== "boolean"
+    body.subagent_mode !== undefined &&
+    !["none", "beaver", "native"].includes(String(body.subagent_mode))
   ) {
-    return void res
-      .status(400)
-      .json({ detail: "subagents_enabled must be boolean" });
+    return void res.status(400).json({
+      detail: "subagent_mode must be none, beaver, or native",
+    });
   }
-  const subagentsEnabled = body.subagents_enabled === true;
+  const subagentMode = (body.subagent_mode ?? "none") as SubagentMode;
   if (
     (body.subagent_model !== undefined &&
       typeof body.subagent_model !== "string") ||
@@ -3406,7 +3411,7 @@ chatRouter.post("/", async (req, res) => {
         displayedDocument,
         attachedDocuments,
         jurisdictionPreference,
-        subagentsEnabled,
+        subagentMode,
         subagentModel,
         subagentEffort,
         activityDetail,
@@ -3679,7 +3684,7 @@ chatRouter.post("/", async (req, res) => {
       serviceTier,
       signal: streamAbort.signal,
       projectId: resolvedProjectId,
-      subagentsEnabled,
+      subagentMode,
       subagentModel,
       subagentEffort,
       jurisdictionPreference,

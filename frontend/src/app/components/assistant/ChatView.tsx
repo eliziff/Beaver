@@ -84,6 +84,7 @@ const MOBILE_BREAKPOINT_PX = 768;
 const DEFAULT_ASSISTANT_BOTTOM_PADDING = 116;
 const LATEST_ASSISTANT_MIN_HEIGHT = "calc(100dvh - 16rem)";
 const READ_SUBAGENT_PANELS_KEY = "beaver.readSubagentPanels.v1";
+const READ_SUBAGENT_RUN_LIMIT = 9;
 
 function readStoredSubagentPanels(storageKey: string): ReadSubagentPanel[] {
     if (typeof window === "undefined") return [];
@@ -106,7 +107,7 @@ function readStoredSubagentPanels(storageKey: string): ReadSubagentPanel[] {
                         (panel as ReadSubagentPanel).status,
                     ),
             )
-            .slice(-3);
+            .slice(-READ_SUBAGENT_RUN_LIMIT);
     } catch {
         return [];
     }
@@ -123,6 +124,9 @@ function isDocumentTab(
     return "documentId" in tab;
 }
 type LegalTab = Extract<AssistantSidePanelTab, { kind: "legal" }>;
+function startLocator(locator: string | null | undefined) {
+    return locator?.match(/^par\d+/iu)?.[0] ?? locator ?? null;
+}
 function legalCitationTab(
     citation: Citation,
     showQuotes: boolean,
@@ -140,7 +144,8 @@ function legalCitationTab(
             citationRef: citation.ref,
             quotes,
             initialLocator:
-                citation.locator ?? legalSourceLocatorFromUrl(citation.url),
+                startLocator(citation.locator) ??
+                legalSourceLocatorFromUrl(citation.url),
         };
     }
     if (citation.kind === "public_legal" && citation.provider === "journal") {
@@ -667,7 +672,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                           (panel) => [panel.id, panel],
                       ),
                   ).values(),
-              ].slice(-3)
+              ].slice(-READ_SUBAGENT_RUN_LIMIT)
             : restored;
         setReadSubagentPanels(next);
         if (movedFromNewChat) {
@@ -716,7 +721,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                     next.push(panel);
                 }
             }
-            return next.slice(-3);
+            return next.slice(-READ_SUBAGENT_RUN_LIMIT);
         });
     }, [messages, readSubagents.showDock]);
     const openReadSubagentPanel = (panel: ReadSubagentPanel) => {
@@ -726,7 +731,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         );
         if (
             withoutCurrent.length === readSubagentPanels.length &&
-            readSubagentPanels.length >= 3
+            readSubagentPanels.length >= READ_SUBAGENT_RUN_LIMIT
         ) {
             setReadSubagentPanelLimitOpen(true);
             return;
@@ -1068,8 +1073,8 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             />
             <WarningPopup
                 open={readSubagentPanelLimitOpen}
-                title="Three panels are already open"
-                message="Close a reading-agent panel before opening another."
+                title="The recent-run view is full"
+                message="Close the reading-agent history before opening an older run."
                 onClose={() => setReadSubagentPanelLimitOpen(false)}
             />
         </div>
