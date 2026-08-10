@@ -48,6 +48,7 @@ vi.mock("../popups/ApiKeyMissingPopup", () => ({
 vi.mock("./ModelToggle", () => ({
     ModelToggle: () => null,
     ReasoningEffortToggle: () => null,
+    ModelEffortToggle: () => null,
 }));
 vi.mock("@/app/hooks/useSelectedModel", () => ({
     useSelectedModel: () => ["gpt-5.2", vi.fn()],
