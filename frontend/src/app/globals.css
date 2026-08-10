@@ -107,12 +107,31 @@
 .reasoning-effort-toggle {
     width: 8rem;
 }
+.chat-input-model-toggle {
+    width: 100%;
+}
 @container (max-width: 560px) {
     .chat-input-control-label {
         display: none;
     }
     .reasoning-effort-toggle {
         width: 5.5rem;
+    }
+}
+@container (min-width: 561px) {
+    .chat-input-actions {
+        width: auto;
+        flex-wrap: nowrap;
+    }
+    .chat-input-effort {
+        order: 1;
+    }
+    .chat-input-model {
+        order: 2;
+        width: auto;
+    }
+    .chat-input-model-toggle {
+        width: 14rem;
     }
 }
 @media (max-height: 640px) {
