@@ -140,22 +140,26 @@ describe("reading agents", () => {
     ]);
   });
 
-  it("admits multiple rounds of two or three distinct reading scopes", () => {
+  it("admits multiple rounds of two to four distinct reading scopes", () => {
     const admit = createReadSubagentAdmission();
-    const calls = ["Supreme Court", "appellate courts", "commentary", "trial courts"].map(
+    const calls = ["Supreme Court", "appellate courts", "commentary", "trial courts", "citator", "journals"].map(
       (scope, index) => ({
         id: `read-${index}`,
         name: "delegate_read",
         input: { task: "Find responsive authorities.", scope },
       }),
     );
-    const first = admit(calls);
+    const first = admit(calls.slice(0, 4));
     expect(first.accepted.map((call) => call.input.scope)).toEqual([
       "Supreme Court",
       "appellate courts",
       "commentary",
+      "trial courts",
     ]);
-    expect(first.rejected[0]?.content).toContain("at most 3");
+    expect(first.rejected).toEqual([]);
+    expect(
+      createReadSubagentAdmission()(calls).rejected[0]?.content,
+    ).toContain("at most 4");
     const later = admit([
       {
         id: "later-1",
@@ -336,6 +340,16 @@ describe("reading agents", () => {
         name: "a2aj_fetch",
         input: { citation: "2020 BCSC 1122", doc_type: "cases" },
       }]);
+      await params.runTools?.([3, 5, 7, 9].map((locator) => ({
+        id: `lookup-${locator}`,
+        name: "a2aj_lookup",
+        input: {
+          citation: "2020 BCSC 1122",
+          doc_type: "cases",
+          locator_type: "paragraph",
+          locator: String(locator),
+        },
+      })));
       await params.runTools?.([{
         id: "submit-1",
         name: "submit_grounded_answer",
@@ -357,7 +371,12 @@ describe("reading agents", () => {
         name: "delegate_read",
         input: { task: "Find the case.", scope: "British Columbia" },
       },
-      tools: [schema("SearchSources"), schema("a2aj_fetch"), LEGAL_EVIDENCE_SUBMIT_TOOL],
+      tools: [
+        schema("SearchSources"),
+        schema("a2aj_fetch"),
+        schema("a2aj_lookup"),
+        LEGAL_EVIDENCE_SUBMIT_TOOL,
+      ],
       evidenceState,
       runTools: async (calls) => calls.map((call) => {
         if (call.name === "SearchSources") {
@@ -403,6 +422,11 @@ describe("reading agents", () => {
         }),
       ]),
     });
+    const sourceReads = (
+      events.at(-1) as { activities?: Array<{ source?: { citation: string }; paragraphs?: string[] }> }
+    ).activities?.filter((activity) => activity.source?.citation === "2020 BCSC 1122");
+    expect(sourceReads).toHaveLength(1);
+    expect(sourceReads?.[0]?.paragraphs).toEqual(["3", "5", "7", "9"]);
     expect(JSON.parse(result.content)).toMatchObject({
       evidence: [expect.objectContaining({
         evidence_id: "e_lease",

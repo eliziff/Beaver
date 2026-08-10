@@ -115,7 +115,6 @@ describe("useAssistantChat local transcript boundary", () => {
     setJurisdictionPreference({
       mode: "presume",
       jurisdictions: ["ca-ab", "us-ny"],
-      showChatControl: true,
     });
     mocks.streamChat.mockResolvedValueOnce(
       streamResponse([

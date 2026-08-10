@@ -100,7 +100,7 @@ export function Modal({
                 if (event.target === event.currentTarget) onClose();
             }}
             className={cn(
-                "m-auto h-[min(600px,calc(100dvh-2rem))] w-[calc(100%-2rem)] flex-col rounded-lg p-0 backdrop:bg-gray-950/20",
+                "m-auto h-[min(600px,calc(100dvh-2rem))] w-[calc(100%-2rem)] flex-col overflow-hidden rounded-lg p-0 backdrop:bg-gray-950/20",
                 open && "flex",
                 sizeClassName[size],
                 "border border-gray-300 bg-white",

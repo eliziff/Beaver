@@ -423,6 +423,12 @@ export function reduceAssistantStreamEvent(
           const id = clean(activity.id);
           const label = clean(activity.label);
           const tool = clean(activity.tool);
+          const paragraphs = Array.isArray(activity.paragraphs)
+            ? activity.paragraphs.flatMap((value) => {
+                const paragraph = clean(value);
+                return paragraph ? [paragraph] : [];
+              })
+            : [];
           const input =
             activity.input &&
             typeof activity.input === "object" &&
@@ -460,6 +466,7 @@ export function reduceAssistantStreamEvent(
                 ...(tool && { tool }),
                 ...(input && { input }),
                 ...(source && { source }),
+                ...(paragraphs.length && { paragraphs }),
               }]
             : [];
         })

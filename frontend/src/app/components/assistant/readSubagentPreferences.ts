@@ -6,7 +6,6 @@ export const DEFAULT_READ_SUBAGENT_MODEL = "codex:gpt-5.6-luna";
 export const DEFAULT_READ_SUBAGENT_EFFORT = "high";
 const DEFAULT_PREFERENCE = {
     mode: "none",
-    showChatControl: true,
     showDock: true,
     model: DEFAULT_READ_SUBAGENT_MODEL,
     effort: DEFAULT_READ_SUBAGENT_EFFORT,
@@ -14,7 +13,6 @@ const DEFAULT_PREFERENCE = {
 
 export type ReadSubagentPreference = {
     mode: "none" | "beaver" | "native";
-    showChatControl: boolean;
     showDock: boolean;
     model: string;
     effort: string;
@@ -27,7 +25,6 @@ export function readReadSubagentPreference(): ReadSubagentPreference {
             window.localStorage.getItem(STORAGE_KEY) ?? "null",
         ) as {
             mode?: unknown;
-            showChatControl?: unknown;
             showDock?: unknown;
             model?: unknown;
             effort?: unknown;
@@ -37,7 +34,6 @@ export function readReadSubagentPreference(): ReadSubagentPreference {
                 stored?.mode === "beaver" || stored?.mode === "native"
                     ? stored.mode
                     : "none",
-            showChatControl: stored?.showChatControl !== false,
             showDock: stored?.showDock !== false,
             model:
                 typeof stored?.model === "string" &&
@@ -86,8 +82,6 @@ export function useReadSubagentPreference() {
         ...preference,
         setMode: (mode: ReadSubagentPreference["mode"]) =>
             setReadSubagentPreferences({ mode }),
-        setShowChatControl: (showChatControl: boolean) =>
-            setReadSubagentPreferences({ showChatControl }),
         setShowDock: (showDock: boolean) =>
             setReadSubagentPreferences({ showDock }),
         setModel: (model: string) => setReadSubagentPreferences({ model }),

@@ -635,10 +635,12 @@ export function LegalSourceViewer({
             >
                 <div className="mx-auto flex max-w-5xl flex-wrap items-start gap-x-5 gap-y-3">
                     <div className="min-w-0 flex-1 basis-80">
-                        <h1 className="text-xl font-semibold leading-tight text-gray-950 sm:text-2xl">
+                        <h1 className={compact
+                            ? "text-base font-semibold leading-tight text-gray-950"
+                            : "text-xl font-semibold leading-tight text-gray-950 sm:text-2xl"}>
                             {metadata.title}</h1>
                         {!!details.length && (
-                            <p className="mt-2 text-sm leading-5 text-gray-600">
+                            <p className={`${compact ? "mt-1 text-xs leading-5" : "mt-2 text-sm leading-5"} text-gray-600`}>
                                 {details.join(" · ")}
                             </p>
                         )}
