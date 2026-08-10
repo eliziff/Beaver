@@ -259,7 +259,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     return (
         <>
             <div
-                className="chat-input-container min-w-0 w-full overflow-hidden data-[dragging=true]:rounded-[22px] data-[dragging=true]:ring-2 data-[dragging=true]:ring-brand/30"
+                className="chat-input-container min-w-0 w-full data-[dragging=true]:rounded-[22px] data-[dragging=true]:ring-2 data-[dragging=true]:ring-brand/30"
                 onDragEnter={handleFileDrag}
                 onDragOver={handleFileDrag}
                 onDragLeave={handleFileDrag}
@@ -442,16 +442,17 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                 )}
                             </div>
                         )}
-                        <div className="ml-auto flex w-full flex-wrap items-center justify-end gap-1 sm:w-auto sm:flex-nowrap">
-                            <div className="order-2 sm:order-1">
+                        <div className="chat-input-actions ml-auto flex w-full flex-wrap items-center justify-end gap-1">
+                            <div className="chat-input-effort order-2">
                                 <ReasoningEffortToggle
                                     model={model} value={reasoningEffort}
                                     onChange={setReasoningEffort}
                                 />
                             </div>
-                            <div className="order-1 flex w-full min-w-0 justify-end sm:order-2 sm:w-auto">
+                            <div className="chat-input-model order-1 flex w-full min-w-0 justify-end">
                                 <ModelToggle
                                     value={model} onChange={setModel} apiKeys={apiKeys}
+                                    className="chat-input-model-toggle"
                                 />
                             </div>
                             <button
