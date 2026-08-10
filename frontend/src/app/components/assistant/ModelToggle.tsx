@@ -1,4 +1,4 @@
-import { useLayoutEffect, useSyncExternalStore } from "react";import {
+import { useLayoutEffect, useState, useSyncExternalStore } from "react";import {
     type ApiKeyState,
     type ModelCatalog,
 } from "@/app/lib/beaverApi";
@@ -7,6 +7,7 @@ import {
     preloadModelCatalog,
 } from "@/app/lib/modelCatalog";
 import { ModelPicker, type ModelOption } from "./ModelPicker";
+import { SearchableChoiceModal } from "@/app/components/modals/ModalSelect";
 export type { ModelOption } from "./ModelPicker";
 export const MODELS: ModelOption[] = [
     { id: "claude-fable-5", label: "Claude Fable 5", group: "Anthropic" },
@@ -106,6 +107,7 @@ interface Props {
     models?: ModelOption[];
     disabled?: boolean;
     className?: string;
+    detail?: string;
 }
 export function ModelToggle({
     value,
@@ -114,6 +116,7 @@ export function ModelToggle({
     models = MODELS,
     disabled,
     className = "sm:w-56",
+    detail,
 }: Props) {
     const catalog = useModelCatalog();
     const dynamicModels: ModelOption[] = (catalog?.models ?? [])
@@ -184,20 +187,11 @@ export function ModelToggle({
             apiKeys={apiKeys}
             disabled={disabled}
             className={className}
+            detail={detail}
         />
     );
 }
-interface ReasoningEffortToggleProps {
-    model: string;
-    value?: string;
-    onChange: (value: string) => void;
-}
-export function ReasoningEffortToggle({
-    model,
-    value,
-    onChange,
-}: ReasoningEffortToggleProps) {
-    const catalog = useModelCatalog();
+function reasoningEfforts(model: string, catalog: ModelCatalog | null) {
     const selectedModel = catalog?.models.find(
         (item) =>
             item.supportedInApi !== false &&
@@ -208,7 +202,7 @@ export function ReasoningEffortToggle({
     );
     // Same reasoning ladder on both Muse Spark transports (direct + OpenRouter).
     const isMuseSpark = model.includes("muse-spark-");
-    const efforts = model.startsWith("deepseek-")
+    return model.startsWith("deepseek-")
         ? [{ effort: "low" }, { effort: "high" }, { effort: "max" }]
         : selectedDesktopModel?.supportsThinking
           ? ["off", "low", "medium", "high", "max"].map((effort) => ({
@@ -223,8 +217,21 @@ export function ReasoningEffortToggle({
                 { effort: "minimal" },
             ]
           : (selectedModel?.supportedReasoningLevels ?? []);
-    const supported = efforts.length > 0;
-    const selectedEffort =
+}
+function selectedReasoningEffort(
+    model: string,
+    value: string | undefined,
+    catalog: ModelCatalog | null,
+) {
+    const efforts = reasoningEfforts(model, catalog);
+    const selectedModel = catalog?.models.find(
+        (item) => item.supportedInApi !== false && `codex:${item.slug}` === model,
+    );
+    const selectedDesktopModel = catalog?.ollama?.models.find(
+        (item) => `ollama:${item.name}` === model,
+    );
+    const isMuseSpark = model.includes("muse-spark-");
+    return (
         value && efforts.some((level) => level.effort === value)
             ? value
             : (model.startsWith("deepseek-")
@@ -234,7 +241,23 @@ export function ReasoningEffortToggle({
             : isMuseSpark
                   ? "medium"
                   : (selectedModel?.defaultReasoningLevel ??
-                    efforts[0]?.effort));
+                    efforts[0]?.effort))
+    );
+}
+interface ReasoningEffortToggleProps {
+    model: string;
+    value?: string;
+    onChange: (value: string) => void;
+}
+export function ReasoningEffortToggle({
+    model,
+    value,
+    onChange,
+}: ReasoningEffortToggleProps) {
+    const catalog = useModelCatalog();
+    const efforts = reasoningEfforts(model, catalog);
+    const selectedEffort = selectedReasoningEffort(model, value, catalog);
+    const supported = efforts.length > 0;
     useLayoutEffect(() => {
         if (
             value !== undefined &&
@@ -246,3 +269,62 @@ export function ReasoningEffortToggle({
         }
     }, [onChange, selectedEffort, supported, value]);
     return (        <label className="reasoning-effort-toggle flex h-8 shrink-0 items-center rounded-md border border-gray-300 bg-white px-2">            <select                value={selectedEffort ?? ""}                disabled={!supported}                onChange={(event) => onChange(event.currentTarget.value)}                title="Choose reasoning effort"                aria-label={                    supported                        ? `Reasoning effort: ${selectedEffort}`                        : "Reasoning effort unavailable"                }                className="h-full min-w-0 flex-1 cursor-pointer bg-white text-sm capitalize text-gray-700"            >                {supported ? (                    efforts.map((level) => (                        <option key={level.effort} value={level.effort}>                            {level.effort}                        </option>                    ))                ) : (                    <option>                        {model.startsWith("codex:") && !catalog                            ? "Loading"                            : "Automatic"}                    </option>                )}            </select>        </label>    );}
+
+export function ModelEffortToggle({
+    model,
+    effort,
+    onModelChange,
+    onEffortChange,
+    apiKeys,
+}: {
+    model: string;
+    effort?: string;
+    onModelChange: (model: string) => void;
+    onEffortChange: (effort: string) => void;
+    apiKeys?: ApiKeyState;
+}) {
+    const catalog = useModelCatalog();
+    const [effortModel, setEffortModel] = useState<string | null>(null);
+    const selectedEffort = selectedReasoningEffort(model, effort, catalog);
+    const stagedEfforts = reasoningEfforts(effortModel ?? model, catalog);
+    const stagedEffort = selectedReasoningEffort(
+        effortModel ?? model,
+        effort,
+        catalog,
+    );
+    useLayoutEffect(() => {
+        if (effort !== undefined && selectedEffort && effort !== selectedEffort) {
+            onEffortChange(selectedEffort);
+        }
+    }, [effort, onEffortChange, selectedEffort]);
+    return (
+        <>
+            <ModelToggle
+                value={model}
+                onChange={(next) => {
+                    onModelChange(next);
+                    if (reasoningEfforts(next, catalog).length) {
+                        setEffortModel(next);
+                    }
+                }}
+                apiKeys={apiKeys}
+                className="chat-input-model-toggle"
+                detail={selectedEffort ?? "Automatic"}
+            />
+            <SearchableChoiceModal
+                open={effortModel !== null}
+                onClose={() => setEffortModel(null)}
+                title="Reasoning effort"
+                searchable={false}
+                value={stagedEffort ?? null}
+                options={stagedEfforts.map(({ effort: value }) => ({
+                    value,
+                    label: value[0].toUpperCase() + value.slice(1),
+                }))}
+                onChange={(next) => {
+                    if (next) onEffortChange(next);
+                }}
+            />
+        </>
+    );
+}

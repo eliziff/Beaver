@@ -25,6 +25,7 @@ export function ModelPicker({
     apiKeys,
     disabled = false,
     className,
+    detail,
 }: {
     value: string;
     models: ModelOption[];
@@ -32,10 +33,12 @@ export function ModelPicker({
     apiKeys?: ApiKeyState;
     disabled?: boolean;
     className?: string;
+    detail?: string;
 }) {
     const [open, setOpen] = useState(false);
     const selected = models.find((model) => model.id === value);
     const label = selected?.label ?? value;
+    const displayLabel = detail ? `${label} · ${detail}` : label;
     const available = (model?: ModelOption) =>
         model?.available !== false &&
         !!model &&
@@ -66,13 +69,13 @@ export function ModelPicker({
                 onClick={() => setOpen(true)}
                 title={
                     selectedAvailable
-                        ? label
+                        ? displayLabel
                         : "Selected model is unavailable"
                 }
-                aria-label={`Model: ${label}`}
+                aria-label={`Model: ${displayLabel}`}
                 className="flex h-8 w-full min-w-0 items-center justify-between gap-2 rounded-md border border-gray-300 bg-white px-2 text-left text-sm text-gray-700 hover:border-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 disabled:cursor-default disabled:opacity-50"
             >
-                <span className="truncate">{label}</span>
+                <span className="truncate">{displayLabel}</span>
                 <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0" />
             </button>
             <SearchableChoiceModal

@@ -9,7 +9,7 @@ import {
 } from "@/app/lib/beaverApi";
 import { useSelectedReasoningEffort } from "@/app/hooks/useSelectedModel";
 import { resetModelCatalogSession } from "@/app/lib/modelCatalog";
-import { ModelToggle, ReasoningEffortToggle } from "./ModelToggle";
+import { ModelEffortToggle, ModelToggle, ReasoningEffortToggle } from "./ModelToggle";
 
 vi.mock("@/app/lib/beaverApi", () => ({
     getModelCatalog: vi.fn(),
@@ -52,6 +52,35 @@ beforeEach(() => {
 });
 
 describe("ModelToggle", () => {
+    it("advances from model selection to that model's effort choices", async () => {
+        const onEffortChange = vi.fn();
+        getCatalogMock.mockResolvedValue(catalog([luna()]));
+        render(
+            <ModelEffortToggle
+                model="codex:gpt-5.6-luna"
+                effort="medium"
+                onModelChange={vi.fn()}
+                onEffortChange={onEffortChange}
+            />,
+        );
+
+        const trigger = await screen.findByRole("button", {
+            name: "Model: GPT-5.6-Luna · medium",
+        });
+        await userEvent.click(trigger);
+        await userEvent.click(
+            within(screen.getByRole("group", { name: "Models" })).getByRole(
+                "button",
+                { name: "GPT-5.6-Luna" },
+            ),
+        );
+        const efforts = screen.getByRole("group", { name: "Reasoning effort" });
+        expect(within(efforts).queryByRole("searchbox")).not.toBeInTheDocument();
+        await userEvent.click(within(efforts).getByRole("button", { name: "Max" }));
+
+        expect(onEffortChange).toHaveBeenCalledWith("max");
+    });
+
     it("renders a restored dynamic selection before the catalog request completes", () => {
         getCatalogMock.mockResolvedValue({
             source: "unavailable",
