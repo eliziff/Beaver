@@ -331,7 +331,7 @@ async function runCodex(params: {
   const args = ["exec", ...(resuming ? ["resume"] : [])];
   if (!resuming && !params.persistSession) args.push("--ephemeral");
   args.push("--ignore-user-config");
-  args.push("--disable", "multi_agent");
+  args.push("-c", "agents.enabled=false");
   if (!resuming) args.push("--sandbox", "read-only");
   args.push("--skip-git-repo-check", "--json");
   if (!resuming) args.push("--color", "never");
