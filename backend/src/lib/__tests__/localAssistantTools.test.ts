@@ -2229,20 +2229,18 @@ describe("local assistant tools", () => {
     const [warning, error] = await tools.runLocalAssistantTools("local-user", [
       {
         id: "warning-draft",
-        name: "library_create_docx",
+        name: "generate_docx",
         input: {
-          title: "Analytical Memo",
           filename: "analysis-memo.docx",
-          markdown: "# Analysis\n\nThe borrower may not have sufficient liquidity.",
+          content: "# Analysis\n\nThe borrower may not have sufficient liquidity.",
         },
       },
       {
         id: "error-draft",
-        name: "library_create_docx",
+        name: "generate_docx",
         input: {
-          title: "Agreement",
           filename: "agreement.docx",
-          markdown: "# Covenant\n\nThe borrower must shall deliver notice.",
+          content: "# Covenant\n\nThe borrower must shall deliver notice.",
         },
       },
     ]);
@@ -2944,7 +2942,6 @@ describe("local assistant tools", () => {
       )?.function.description,
     ).toContain("receipt of what was checked");
     expect(names).toContain("legal_pdf_lookup");
-    expect(names).toContain("library_create_docx");
     expect(names).toContain("library_revise_docx");
     expect(names).toContain("library_delete_and_renumber_docx");
     expect(
@@ -3012,11 +3009,10 @@ describe("local assistant tools", () => {
         [
           {
             id: "call-create",
-            name: "library_create_docx",
+            name: "generate_docx",
             input: {
-              title: "Opinion Draft",
               filename: "opinion-draft.docx",
-              markdown:
+              content:
                 "# Background\n\nOriginal provision.\n\nEffective on {{effective_date}}.[^1]\n\n[^1]: The effective date remains editable.",
               fields: [
                 {
@@ -3436,10 +3432,10 @@ describe("local assistant tools", () => {
         [
           {
             id: "call-create",
-            name: "library_create_docx",
+            name: "generate_docx",
             input: {
-              title: "Unattached Draft",
-              markdown: "Draft text.",
+              filename: "Unattached Draft.docx",
+              content: "Draft text.",
             },
           },
         ],

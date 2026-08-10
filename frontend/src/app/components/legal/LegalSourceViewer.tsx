@@ -18,13 +18,17 @@ import {
 type ViewerAnchor = LegalSourceViewerPayload["structure"]["blocks"][number];
 type ViewerMetadata = LegalSourceViewerPayload["metadata"];
 const EMPTY_QUOTES: { quote: string }[] = [];
-function snapInsideViewer(root: HTMLElement, target: HTMLElement) {
+function snapInsideViewer(
+    root: HTMLElement,
+    target: HTMLElement,
+    align: "center" | "start" = "center",
+) {
     const rootBox = root.getBoundingClientRect();
     const targetBox = target.getBoundingClientRect();
     root.scrollTop +=
         targetBox.top -
         rootBox.top -
-        (root.clientHeight - targetBox.height) / 2;
+        (align === "start" ? 16 : (root.clientHeight - targetBox.height) / 2);
 }
 export type LegalSourceViewerProps = {
     referenceId?: string; provider?: "a2aj" | "journal";
@@ -591,7 +595,7 @@ export function LegalSourceViewer({
                 `#${legalSourceAnchorId(activeLocator)}`,
             );
             if (!target) return;
-            snapInsideViewer(root, target);
+            snapInsideViewer(root, target, "start");
         });
         return () => window.cancelAnimationFrame(frame);
     }, [activeLocator, payload]);
@@ -658,7 +662,11 @@ export function LegalSourceViewer({
                                     rel="noopener noreferrer"
                                     aria-label={action.label}
                                     title={action.label}
-                                    className="inline-flex h-8 items-center justify-center whitespace-nowrap rounded border border-gray-300 bg-white px-3 text-xs font-medium text-gray-800 hover:border-brand hover:text-brand focus-visible:outline-2 focus-visible:outline-offset-2"
+                                    className={`inline-flex h-8 items-center justify-center whitespace-nowrap rounded border px-3 text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-2 ${
+                                        action.kind === "pdf"
+                                            ? "border-red-200 bg-red-50 text-red-700 hover:border-red-400 hover:bg-red-100"
+                                            : "border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-400 hover:bg-blue-100"
+                                    }`}
                                 >
                                     {action.label}
                                 </a>

@@ -8,6 +8,11 @@ import { Modal } from "@/app/components/modals/Modal";
 import { QuickActionsSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
 import { CheckboxInput } from "@/app/components/ui/checkbox";
 import { ChatInput, type ChatInputHandle } from "./ChatInput";
+import { AssistantDock, type AssistantDockTab } from "./AssistantDock";
+import { AssistantWorkflowDock } from "./AssistantWorkflowDock";
+import { DocumentAutomation } from "../documents/DocumentAutomation";
+import { LegalLibraryPage } from "../legal/LegalLibrary";
+import { LibraryCollectionPage, LibraryWorkspaceProvider } from "../library/LibraryWorkspace";
 import { createTabularReview } from "@/app/lib/beaverApi";
 import { preloadDuringIdle } from "@/app/lib/preloadDuringIdle";
 import { useDirectoryData, type DirectoryTab } from "../shared/useDirectoryData";
@@ -68,6 +73,9 @@ export function InitialView({
     const { profile } = useUserProfile();
     const router = useRouter();
     const [modal, setModal] = useState<InitialModal | null>(null);
+    const [dockTab, setDockTab] = useState("sources");
+    const [dockOpen, setDockOpen] = useState(false);
+    const [automationDocument, setAutomationDocument] = useState<Document | null>(null);
     const { visibleActions, setVisibleActions } = useQuickActionsPreference();
     const chatInputRef = useRef<ChatInputHandle>(null);
     const { projects } = useDirectoryData(modal === "review", "projects");
@@ -130,9 +138,20 @@ export function InitialView({
             setModal("review");
         }
     }
+    const openDock = (tab: string) => {
+        setDockTab(tab);
+        setDockOpen(true);
+    };
+    const dockTabs: AssistantDockTab[] = [
+        { id: "sources", label: "Sources", content: <LegalLibraryPage embedded /> },
+        { id: "library", label: "Library", content: <LibraryWorkspaceProvider><LibraryCollectionPage kind="files" embedded /></LibraryWorkspaceProvider> },
+        { id: "workflows", label: "Workflows", content: <AssistantWorkflowDock onSelect={(workflow) => chatInputRef.current?.startWorkflowDocumentSelection({ id: workflow.id, title: workflow.metadata.title })} /> },
+        { id: "automations", label: "Automations", content: automationDocument ? <DocumentAutomation document={automationDocument} embedded /> : <div className="grid h-full place-items-center p-6 text-center text-sm text-gray-500">Open a document to use its automations.</div> },
+    ];
     return (
+        <div className="flex h-full min-w-0 w-full">
         <div
-            className="h-full min-w-0 w-full overflow-y-auto px-4 sm:px-6"
+            className="min-w-0 flex-1 overflow-y-auto px-4 sm:px-6"
             style={{ scrollbarGutter: "stable" }}
         >
             <div className="mx-auto grid min-h-full w-full max-w-4xl grid-rows-[minmax(min-content,1fr)_auto_minmax(min-content,1fr)] py-4 xl:px-8">
@@ -150,6 +169,14 @@ export function InitialView({
                     onSubmit={onSubmit}
                     onCancel={() => {}}
                     isLoading={false}
+                    onOpenWorkflows={() => {
+                        openDock("workflows");
+                    }}
+                    automationsAvailable={!!automationDocument}
+                    onOpenAutomations={(document) => {
+                        if (document) setAutomationDocument(document);
+                        openDock("automations");
+                    }}
                 />
             </div>
             <div className="min-h-0 w-full justify-self-center pt-1">
@@ -265,6 +292,10 @@ export function InitialView({
                     />
                 </Suspense>
             )}
+        </div>
+        <AssistantDock tabs={dockTabs} activeTabId={dockTab}
+            onActivateTab={setDockTab} expanded={dockOpen}
+            onExpandedChange={setDockOpen} />
         </div>
     );
 }

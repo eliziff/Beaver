@@ -104,7 +104,7 @@ function AuthoritiesFirstFrame() {
       <div className="absolute inset-x-0 bottom-0 top-[45px] overflow-y-auto p-6 [scrollbar-gutter:stable] max-[480px]:top-[43px] max-[480px]:p-4">
         <div className="flex max-w-[760px] items-center justify-between gap-4 rounded-[10px] border border-[#d1d5db] bg-white p-4 max-[480px]:p-3">
           <strong className="font-semibold leading-[22px]">
-            Start with a Word document.
+            Start with a document.
           </strong>
           <span className="flex h-[40px] items-center rounded-[8px] border border-[#111827] bg-[#111827] px-[.8rem] py-2 text-[.875rem] font-medium text-white [line-height:normal]">
             Create

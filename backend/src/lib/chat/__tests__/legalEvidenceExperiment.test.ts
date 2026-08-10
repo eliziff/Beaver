@@ -91,6 +91,21 @@ describe("provisional legal evidence contract", () => {
     expect(state.mode).toBeNull();
   });
 
+  it("leaves uncited conversational prose outside legal verification", async () => {
+    const state = createLegalEvidenceTurnState("tiered_check");
+
+    await expect(
+      finalizeLegalEvidenceExperiment({
+        state,
+        model: "test",
+        draft: "You're welcome.",
+      }),
+    ).resolves.toMatchObject({ passed: true, modelCalls: 0 });
+
+    expect(state.attempted).toBe(false);
+    expect(llm.streamChatWithTools).not.toHaveBeenCalled();
+  });
+
   it.each([
     "See 2020 BCSC 1122.",
     "[Royal Bank of Canada v. Mysak](https://www.bccourts.ca/jdb-txt/sc/20/11/2020BCSC1122.htm)",
