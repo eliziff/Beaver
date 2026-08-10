@@ -260,6 +260,10 @@ describe("legal source reader", () => {
 
     it("opens an internal source at the cited paragraph", async () => {
         api.direct.mockResolvedValue(multiSlicePayload());
+        const rect = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect")
+            .mockImplementation(function () {
+                return { top: this.id === "legal-par2" ? 240 : 100 } as DOMRect;
+            });
         const { container } = render(
             <LegalSourceViewer
                 citation="2099 SCC 1"
@@ -268,10 +272,10 @@ describe("legal source reader", () => {
             />,
         );
 
-        await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
-        expect(container.querySelector("#legal-par2")).toHaveClass(
-            "bg-amber-100/70",
-        );
+        await screen.findByRole("heading", { name: "Fixture v. Test" });
+        const reader = container.querySelector<HTMLElement>(".overflow-y-auto")!;
+        await waitFor(() => expect(reader.scrollTop).toBe(124));
+        rect.mockRestore();
     });
 
     it("keeps every verified quote span highlighted in the internal reader", async () => {

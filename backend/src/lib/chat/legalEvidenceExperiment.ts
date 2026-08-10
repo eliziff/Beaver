@@ -1983,6 +1983,12 @@ async function finalizeLegalEvidenceExperimentUnsafe(args: {
   }
   if (!state.mode)
     return { passed: true, modelCalls, usage, diagnostic: null };
+  if (
+    !state.answer &&
+    !hasCitationInText(args.draft) &&
+    !hasCanadianDecisionLink(args.draft)
+  )
+    return { passed: true, modelCalls, usage, diagnostic: null };
   state.attempted = true;
   if (
     state.mode === "evidence_first" &&
