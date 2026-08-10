@@ -162,7 +162,9 @@ import {
   READ_SUBAGENT_TOOL,
   READ_SUBAGENT_TOOL_NAME,
   allowedReadSubagentRegions,
+  combineReadSubagentResults,
   createReadSubagentAdmission,
+  prepareReadSubagentRound,
   readSubagentTools,
   readSubagentActivityLabel,
   readSubagentJurisdiction,
@@ -1583,19 +1585,22 @@ export async function streamAnonymousChat(params: {
     const subagentCandidates = allowedCalls.filter(
       (call) => call.name === READ_SUBAGENT_TOOL_NAME,
     );
-    const {
-      accepted: subagentCalls,
-      rejected: rejectedSubagentResults,
-    } = admitReadSubagents(subagentCandidates);
+    const subagentRound = prepareReadSubagentRound(
+      subagentCandidates,
+      admitReadSubagents,
+    );
+    const rejectedSubagentResults = subagentRound.rejected;
     const directCalls = allowedCalls.filter(
       (call) => call.name !== READ_SUBAGENT_TOOL_NAME,
     );
     const directResults = directCalls.length
       ? await runAllowedCalls(directCalls)
       : [];
-    if (!subagentCalls.length) return [...directResults, ...rejectedSubagentResults];
-    const subagentResults = await Promise.all(
-      subagentCalls.map((call) => {
+    if (!subagentRound.parent) {
+      return [...directResults, ...rejectedSubagentResults];
+    }
+    const childResults = await Promise.all(
+      subagentRound.assignments.map((call) => {
         const childEvidenceState = createLegalEvidenceTurnState(
           "citation_structure",
         );
@@ -1660,6 +1665,9 @@ export async function streamAnonymousChat(params: {
         });
       }),
     );
+    const subagentResults = [
+      combineReadSubagentResults(subagentRound.parent, childResults),
+    ];
     const allowedResults = [
       ...directResults,
       ...subagentResults,

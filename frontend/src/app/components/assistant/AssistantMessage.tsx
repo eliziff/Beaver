@@ -1,12 +1,14 @@
 import { useRef, useState } from "react";
 import { Check, Copy } from "lucide-react";
-import type {
-    AssistantEvent,
-    Citation,
-    DocumentCitation,
-    EditAnnotation,
-    EditResolveHandlers,
-    EditResolved,
+import {
+    citationPinpoint,
+    formatCitationPage,
+    type AssistantEvent,
+    type Citation,
+    type DocumentCitation,
+    type EditAnnotation,
+    type EditResolveHandlers,
+    type EditResolved,
 } from "../shared/types";
 import { EditCard } from "./EditCard";
 import {
@@ -16,8 +18,10 @@ import {
 import {
     preprocessCitations,
     internalCaseHref,
+    citationSourceKey,
     type CitationHistory,
 } from "./message/citationUtils";
+import { citationPillParts } from "./message/CitationSources";
 import { MarkdownContent } from "./message/MarkdownContent";
 import { EditCardsSection } from "./message/EditCardsSection";
 import {
@@ -214,13 +218,115 @@ export function AssistantMessage({
             let plainText = "";
             if (contentDivRef.current) {
                 const clone = contentDivRef.current.cloneNode(true) as HTMLElement;
+                const externalHref = (value: string | null | undefined) => {
+                    if (!value) return null;
+                    try {
+                        const url = new URL(value, window.location.href);
+                        if (!/^https?:$/u.test(url.protocol)) return null;
+                        if (
+                            url.origin === window.location.origin ||
+                            ["localhost", "127.0.0.1", "::1"].includes(
+                                url.hostname,
+                            )
+                        )
+                            return null;
+                        return url.href;
+                    } catch {
+                        return null;
+                    }
+                };
+                let previousCitation: HTMLElement | null = null;
+                let previousSource = "";
                 clone.querySelectorAll("[data-citation-ref]").forEach((el) => {
-                    const span = document.createElement("span");
-                    span.innerHTML = el.innerHTML;
-                    el.replaceWith(span);
+                    const citation = citationsByRef.get(
+                        Number(el.getAttribute("data-citation-ref")),
+                    );
+                    const source = citation ? citationSourceKey(citation) : "";
+                    if (
+                        previousCitation?.parentElement === el.parentElement &&
+                        (() => {
+                            let node = previousCitation.nextSibling;
+                            while (node && node !== el) {
+                                if (
+                                    node.nodeType !== Node.TEXT_NODE ||
+                                    !/^[\s\u200b]*$/u.test(node.textContent ?? "")
+                                )
+                                    return false;
+                                node = node.nextSibling;
+                            }
+                            return node === el;
+                        })()
+                    ) {
+                        el.before(source === previousSource ? " " : "; ");
+                    }
+                    const href = citation
+                        ? externalHref(
+                              "url" in citation ? citation.url : null,
+                          ) ?? externalHref(citation.external_url)
+                        : null;
+                    const replacement = document.createElement(
+                        href ? "a" : "span",
+                    );
+                    if (href) replacement.setAttribute("href", href);
+                    if (citation) {
+                        const subsequent =
+                            citation.display_form === "pinpoint" ||
+                            citation.display_form === "supra";
+                        const pinpoint = citationPinpoint(citation);
+                        const parts = subsequent
+                            ? {
+                                  styleOfCause: null,
+                                  rest: `${
+                                      "citation" in citation && citation.citation
+                                          ? citation.citation
+                                          : formatCitationPage(citation)
+                                  }${pinpoint ? ` at ${pinpoint}` : ""}`,
+                              }
+                            : citationPillParts(citation);
+                        if (parts.styleOfCause) {
+                            const style = document.createElement("em");
+                            style.textContent = parts.styleOfCause;
+                            replacement.append(style);
+                        }
+                        const rest = document.createElement("span");
+                        rest.textContent = parts.rest;
+                        replacement.append(rest);
+                    } else {
+                        replacement.innerHTML = el.innerHTML;
+                    }
+                    el.replaceWith(replacement);
+                    previousCitation = replacement;
+                    previousSource = source;
                 });
-                html = clone.innerHTML;
-                plainText = clone.textContent || "";
+                clone.querySelectorAll<HTMLAnchorElement>("a").forEach((link) => {
+                    const href = externalHref(link.getAttribute("href"));
+                    if (href) {
+                        link.href = href;
+                        return;
+                    }
+                    const span = document.createElement("span");
+                    span.innerHTML = link.innerHTML;
+                    link.replaceWith(span);
+                });
+                const fontFamily = '"Times New Roman", Times, serif';
+                for (const el of [
+                    clone,
+                    ...clone.querySelectorAll<HTMLElement>("*"),
+                ]) {
+                    el.style.background = "transparent";
+                    el.style.color = "#000000";
+                    el.style.fontFamily = fontFamily;
+                }
+                clone.querySelectorAll<HTMLAnchorElement>("a").forEach((link) => {
+                    for (const el of [
+                        link,
+                        ...link.querySelectorAll<HTMLElement>("*"),
+                    ])
+                        el.style.color = "#0000ee";
+                    link.style.textDecoration = "underline";
+                });
+                html = clone.outerHTML;
+                plainText = (clone.textContent || "").replaceAll("\u200b", "");
             }
             await navigator.clipboard.write([
                 new ClipboardItem({
@@ -343,6 +449,26 @@ export function AssistantMessage({
                                 onOpen={onAutomationClick ?? (() => undefined)}
                             />
                         ))}
+                        {activityRows.length > 0 ? (
+                            <ActivityDisclosure
+                                isStreaming={activityIsStreaming}
+                                label={
+                                    activityRows[activityRows.length - 1]?.view
+                                        .label ?? "Thinking"
+                                }
+                            >
+                                {activityRows.map(({ event, index, view }) => (
+                                    <ActivityRow
+                                        key={index}
+                                        view={view}
+                                        onClick={activityClick(event)}
+                                        onSourceClick={onSubagentSourceClick}
+                                    />
+                                ))}
+                            </ActivityDisclosure>
+                        ) : isStreaming && automationByRun.size === 0 ? (
+                            <ActivityDisclosure isStreaming label="Thinking" />
+                        ) : null}
                         {contentEntries.map(({ index, text }, contentIndex) => (
                             <div
                                 key={`c-${index}`}
@@ -379,26 +505,6 @@ export function AssistantMessage({
                         ) : (
                             editCards
                         )}
-                        {activityRows.length > 0 ? (
-                            <ActivityDisclosure
-                                isStreaming={activityIsStreaming}
-                                label={
-                                    activityRows[activityRows.length - 1]?.view
-                                        .label ?? "Thinking"
-                                }
-                            >
-                                {activityRows.map(({ event, index, view }) => (
-                                    <ActivityRow
-                                        key={index}
-                                        view={view}
-                                        onClick={activityClick(event)}
-                                        onSourceClick={onSubagentSourceClick}
-                                    />
-                                ))}
-                            </ActivityDisclosure>
-                        ) : isStreaming && automationByRun.size === 0 ? (
-                            <ActivityDisclosure isStreaming label="Thinking" />
-                        ) : null}
                     </div>
                 ) : null}
                 {responseError && (

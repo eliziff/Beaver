@@ -28,13 +28,6 @@ type BridgeState = {
   toolCallCount: number;
   terminalResult: boolean;
   dispatchTail: Promise<void>;
-  readerBatchTail: Promise<void>;
-  readerBatchScheduled: boolean;
-  pendingReaders: Array<{
-    call: NormalizedToolCall;
-    resolve: (results: NormalizedToolResult[]) => void;
-    reject: (error: unknown) => void;
-  }>;
   closed: boolean;
 };
 
@@ -99,27 +92,6 @@ function bridgeServer(
   tools: McpTool[],
   state: BridgeState,
 ) {
-  const dispatchReader = (call: NormalizedToolCall) =>
-    new Promise<NormalizedToolResult[]>((resolve, reject) => {
-      state.pendingReaders.push({ call, resolve, reject });
-      if (state.readerBatchScheduled) return;
-      state.readerBatchScheduled = true;
-      state.readerBatchTail = state.readerBatchTail.then(async () => {
-        await new Promise<void>((ready) => setTimeout(ready, 0));
-        const pending = state.pendingReaders.splice(0);
-        state.readerBatchScheduled = false;
-        if (!pending.length) return;
-        try {
-          if (state.closed || params.abortSignal?.aborted) {
-            throw new Error("Beaver tool dispatch was cancelled.");
-          }
-          const results = await params.runTools(pending.map(({ call }) => call));
-          for (const reader of pending) reader.resolve(results);
-        } catch (error) {
-          for (const reader of pending) reader.reject(error);
-        }
-      });
-    });
   const server = new Server(
     { name: "mike-codex-bridge", version: "1.0.0" },
     {
@@ -174,15 +146,12 @@ function bridgeServer(
         params.callbacks?.onToolCallStart?.(call);
         return params.runTools([call]);
       };
-      const dispatch =
-        name === "delegate_read"
-          ? (params.callbacks?.onToolCallStart?.(call), dispatchReader(call))
-          : state.dispatchTail.then(run);
+      const dispatch = state.dispatchTail.then(run);
       const settled = dispatch.then(
         () => undefined,
         () => undefined,
       );
-      if (name !== "delegate_read") state.dispatchTail = settled;
+      state.dispatchTail = settled;
       const results = await dispatch;
       const result = results.find(
         (candidate) => candidate.tool_use_id === call.id,
@@ -259,9 +228,6 @@ export async function startCodexToolBridge(
     toolCallCount: 0,
     terminalResult: false,
     dispatchTail: Promise.resolve(),
-    readerBatchTail: Promise.resolve(),
-    readerBatchScheduled: false,
-    pendingReaders: [],
     closed: false,
   };
   const sockets = new Set<Socket>();
@@ -339,7 +305,6 @@ export async function startCodexToolBridge(
       closed = true;
       state.closed = true;
       await state.dispatchTail;
-      await state.readerBatchTail;
       for (const socket of sockets) socket.destroy();
       await new Promise<void>((resolve) => httpServer.close(() => resolve()));
     },
