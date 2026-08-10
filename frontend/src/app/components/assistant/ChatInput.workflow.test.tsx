@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { Document } from "../shared/types";
 import { ChatInput, type ChatInputHandle } from "./ChatInput";
+import { CHAT_DOCUMENT_DRAG_TYPE } from "../documents/documentTree";
 
 const selectedDocument: Document = {
     id: "document-1",
@@ -91,6 +92,27 @@ function WorkflowHarness({ onSubmit }: { onSubmit: ReturnType<typeof vi.fn> }) {
 }
 
 describe("ChatInput workflow document selection", () => {
+    it("attaches a Library drag without uploading it again", async () => {
+        const onSubmit = vi.fn();
+        const { container } = render(<WorkflowHarness onSubmit={onSubmit} />);
+        const dataTransfer = {
+            types: [CHAT_DOCUMENT_DRAG_TYPE],
+            files: [],
+            dropEffect: "none",
+            getData: () => JSON.stringify([selectedDocument]),
+        };
+        const dropTarget = container.querySelector(".chat-input-container")!;
+
+        fireEvent.dragOver(dropTarget, { dataTransfer });
+        fireEvent.drop(dropTarget, { dataTransfer });
+        await userEvent.type(screen.getByRole("textbox", { name: "Message" }), "Review it");
+        await userEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+        expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+            files: [{ filename: "Lease.docx", document_id: "document-1" }],
+        }));
+    });
+
     it("does not rerender for each typed character", async () => {
         const user = userEvent.setup();
         let commits = 0;
