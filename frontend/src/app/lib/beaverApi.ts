@@ -374,6 +374,9 @@ export const searchLegalSources = async (args: {
   docType: LegalSearchDocumentType;
   language?: "en" | "fr";
   datasets?: string[];
+  author?: string;
+  journal?: string;
+  speaker?: string;
   startDate?: string;
   endDate?: string;
   sortResults?: "default" | "newest_first" | "oldest_first";
@@ -384,6 +387,9 @@ export const searchLegalSources = async (args: {
     language: args.language ?? "en",
   });
   if (args.datasets?.length) query.set("dataset", args.datasets.join(","));
+  if (args.author) query.set("author", args.author);
+  if (args.journal) query.set("journal", args.journal);
+  if (args.speaker) query.set("speaker", args.speaker);
   if (args.startDate) query.set("start_date", args.startDate);
   if (args.endDate) query.set("end_date", args.endDate);
   if (args.sortResults && args.sortResults !== "default") {

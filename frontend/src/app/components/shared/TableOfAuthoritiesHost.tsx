@@ -6,11 +6,10 @@ import {
   useRef,
   useState,
 } from "react";
-import type { ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { launchTableOfAuthorities } from "@/app/lib/beaverApi";
 import { isAnonymousMode } from "@/app/lib/authMode";
-import { PageHeader } from "@/app/components/shared/PageHeader";
+import { AuthoritiesShell } from "@/app/components/shared/TableOfAuthoritiesFrame";
 const BOOT_TIMEOUT_MS = 15_000;
 const JOB_ID = /^[0-9a-f]{32}$/;
 const PROJECT_ID =
@@ -47,72 +46,6 @@ function ScopeReader({
     if (active) onChange({ job, project });
   }, [active, job, onChange, project]);
   return null;
-}
-function AuthoritiesShell({
-  active,
-  busy,
-  children,
-}: {
-  active: boolean;
-  busy: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <div
-      data-testid="authorities-host"
-      aria-hidden={!active}
-      inert={!active}
-      className={`absolute inset-0 z-30 flex min-h-0 min-w-0 flex-col overflow-hidden bg-[#f3f4f6] ${
-        active ? "" : "pointer-events-none opacity-0"
-      }`}
-    >
-      <PageHeader shrink>
-        <h1 className="font-serif text-2xl font-medium text-gray-900">
-          Authorities
-        </h1>
-      </PageHeader>
-      <div
-        className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
-        aria-busy={busy}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
-function AuthoritiesFirstFrame() {
-  return (
-    <div
-      data-testid="authorities-neutral-cover"
-      aria-hidden="true"
-      className="absolute inset-0 overflow-hidden bg-[#f3f4f6] font-sans text-[17px] text-[#111827]"
-    >
-      <div className="flex h-[45px] items-center gap-[.45rem] px-6 max-[480px]:grid max-[480px]:h-[43px] max-[480px]:grid-cols-[1.25fr_repeat(3,minmax(0,1fr))] max-[480px]:gap-1 max-[480px]:px-4">
-        {["Automatic", "Manual", "History", "Settings"].map((label, index) => (
-          <span
-            key={label}
-            className={`flex h-[36px] basis-[104px] items-center justify-center rounded-[8px] border px-[.7rem] py-[.35rem] text-[.875rem] font-medium [line-height:normal] max-[480px]:h-[35px] max-[480px]:min-w-0 max-[480px]:px-[.05rem] ${
-              index
-                ? "border-[#d1d5db] bg-white"
-                : "border-[#d52b1e] bg-[#d52b1e] text-white"
-            }`}
-          >
-            {label}
-          </span>
-        ))}
-      </div>
-      <div className="absolute inset-x-0 bottom-0 top-[45px] overflow-y-auto p-6 [scrollbar-gutter:stable] max-[480px]:top-[43px] max-[480px]:p-4">
-        <div className="flex max-w-[760px] items-center justify-between gap-4 rounded-[10px] border border-[#d1d5db] bg-white p-4 max-[480px]:p-3">
-          <strong className="font-semibold leading-[22px]">
-            Start with a document.
-          </strong>
-          <span className="flex h-[40px] items-center rounded-[8px] border border-[#111827] bg-[#111827] px-[.8rem] py-2 text-[.875rem] font-medium text-white [line-height:normal]">
-            Create
-          </span>
-        </div>
-      </div>
-    </div>
-  );
 }
 export function TableOfAuthoritiesHost({
   active,
@@ -300,13 +233,11 @@ export function TableOfAuthoritiesHost({
             tabIndex={visible && frameCurrent ? 0 : -1}
             onLoad={pingFrame}
             className={`absolute inset-0 h-full w-full border-0 bg-[#f3f4f6] ${
-              frameCurrent ? "" : "invisible"
+              visible && frameScope === scopeSignature ? "" : "invisible"
             }`}
           />
         )}
-        {!frameCurrent && !visibleError ? (
-          <AuthoritiesFirstFrame />
-        ) : !frameCurrent && visibleError ? (
+        {!frameCurrent && visibleError ? (
           <div className="absolute inset-0 flex items-center justify-center bg-white p-8">
             <div className="max-w-lg text-center">
               <h2 className="font-serif text-2xl text-gray-900">

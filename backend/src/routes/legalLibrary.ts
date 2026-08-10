@@ -181,6 +181,7 @@ legalLibraryRouter.get("/search", async (req, res) => {
       const results = searchLocalHansard({
         query: text(req.query.query, "query"),
         size: Number.isFinite(wanted) ? Math.min(Math.max(wanted, 1), 20) : 10,
+        speaker: optionalText(req.query.speaker),
         startDate: optionalText(req.query.start_date, 10),
         endDate: optionalText(req.query.end_date, 10),
         sortResults:
@@ -209,6 +210,17 @@ legalLibraryRouter.get("/search", async (req, res) => {
       const results = searchJournalArticles(
         text(req.query.query, "query"),
         Number.isFinite(wanted) ? Math.min(Math.max(wanted, 1), 25) : 12,
+        {
+          author: optionalText(req.query.author),
+          journal: optionalText(req.query.journal),
+          startDate: optionalText(req.query.start_date, 10),
+          endDate: optionalText(req.query.end_date, 10),
+          sortResults:
+            req.query.sort_results === "newest_first" ||
+            req.query.sort_results === "oldest_first"
+              ? req.query.sort_results
+              : "default",
+        },
       );
       res.json({
         results: results.map((result) => ({

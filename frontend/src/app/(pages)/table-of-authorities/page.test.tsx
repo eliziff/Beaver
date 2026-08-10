@@ -76,7 +76,6 @@ describe("TableOfAuthoritiesHost", () => {
 
     const first = render(<TableOfAuthoritiesHost active enabled />);
     expect(screen.queryByTitle("Table of Authorities")).not.toBeInTheDocument();
-    expect(screen.getByTestId("authorities-neutral-cover")).toBeInTheDocument();
 
     resolveLaunch({
       ok: true,
@@ -132,20 +131,16 @@ describe("TableOfAuthoritiesHost", () => {
     );
   });
 
-  it("keeps the fixed first frame until the embedded surface is ready", async () => {
+  it("shows the embedded surface immediately but keeps it noninteractive until ready", async () => {
     render(<TableOfAuthoritiesHost active enabled />);
 
-    expect(screen.getByTestId("authorities-neutral-cover")).toBeInTheDocument();
     const frame = await screen.findByTitle("Table of Authorities");
     expect(frame).toHaveAttribute("tabindex", "-1");
-    expect(frame).toHaveClass("invisible");
+    expect(frame).not.toHaveClass("invisible");
 
     fireEvent.load(frame);
     signal(frame, "mike:table-of-authorities-ready");
 
-    expect(
-      screen.queryByTestId("authorities-neutral-cover"),
-    ).not.toBeInTheDocument();
     expect(frame).not.toHaveClass("invisible");
     expect(frame).toHaveAttribute("tabindex", "0");
   });
@@ -165,9 +160,6 @@ describe("TableOfAuthoritiesHost", () => {
     expect(
       screen.getByText("Settings could not be loaded."),
     ).toBeInTheDocument();
-    expect(
-      screen.queryByTestId("authorities-neutral-cover"),
-    ).not.toBeInTheDocument();
     expect(frame).toHaveAttribute("tabindex", "-1");
   });
 
@@ -241,7 +233,6 @@ describe("TableOfAuthoritiesHost", () => {
     expect(frame).toHaveAttribute("aria-hidden", "true");
     expect(frame).toHaveAttribute("tabindex", "-1");
     expect(frame).toHaveClass("invisible");
-    expect(screen.getByTestId("authorities-neutral-cover")).toBeInTheDocument();
     expect(frame).toHaveAttribute(
       "src",
       expect.stringContaining(`job=${job}`),
@@ -307,20 +298,16 @@ describe("TableOfAuthoritiesHost", () => {
     expect(source).not.toContain("session=");
     expect(source).toContain("attempt=");
     expect(frame).toHaveClass("invisible");
-    expect(screen.getByTestId("authorities-neutral-cover")).toBeInTheDocument();
 
     view.rerender(<TableOfAuthoritiesHost active enabled />);
 
     expect(frame).toHaveAttribute("src", source);
-    expect(frame).toHaveClass("invisible");
+    expect(frame).not.toHaveClass("invisible");
     expect(launchTableOfAuthorities).toHaveBeenCalledTimes(1);
 
     signal(frame, "mike:table-of-authorities-ready");
 
     expect(frame).not.toHaveClass("invisible");
-    expect(
-      screen.queryByTestId("authorities-neutral-cover"),
-    ).not.toBeInTheDocument();
   });
 
   it("retains a ready scoped attempt while inactive", async () => {
@@ -370,9 +357,8 @@ describe("TableOfAuthoritiesHost", () => {
       ).toBe(job),
     );
     expect(attemptFor(frame)).not.toBe(genericAttempt);
-    expect(frame).toHaveClass("invisible");
+    expect(frame).not.toHaveClass("invisible");
     expect(frame).toHaveAttribute("tabindex", "-1");
-    expect(screen.getByTestId("authorities-neutral-cover")).toBeInTheDocument();
   });
 
   it("reacts to scope changes and ignores a stale iframe attempt", async () => {
@@ -398,8 +384,7 @@ describe("TableOfAuthoritiesHost", () => {
     const secondAttempt = attemptFor(frame);
     expect(secondAttempt).not.toBe(firstAttempt);
     expect(frame).toHaveAttribute("tabindex", "-1");
-    expect(frame).toHaveClass("invisible");
-    expect(screen.getByTestId("authorities-neutral-cover")).toBeInTheDocument();
+    expect(frame).not.toHaveClass("invisible");
 
     signal(frame, "mike:table-of-authorities-ready", firstAttempt);
     expect(frame).toHaveAttribute("tabindex", "-1");
