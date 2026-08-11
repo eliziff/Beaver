@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AlertCircle, ChevronDown } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { SearchableChoiceModal } from "@/app/components/modals/ModalSelect";
 import { isModelAvailable } from "@/app/lib/modelAvailability";
 import type { ApiKeyState } from "@/app/lib/beaverApi";
@@ -50,17 +50,10 @@ export function ModelPicker({
     return (
         <span
             className={cn(
-                "relative flex w-full min-w-0 items-center gap-1",
+                "relative block w-full min-w-0",
                 className,
             )}
         >
-            <AlertCircle
-                aria-hidden="true"
-                className={cn(
-                    "h-3 w-3 shrink-0 text-red-600",
-                    selectedAvailable && "invisible",
-                )}
-            />
             <button
                 type="button"
                 aria-expanded={open}
@@ -73,7 +66,10 @@ export function ModelPicker({
                         : "Selected model is unavailable"
                 }
                 aria-label={`Model: ${displayLabel}`}
-                className="flex h-8 w-full min-w-0 items-center justify-between gap-2 rounded-md border border-gray-300 bg-white px-2 text-left text-sm text-gray-700 hover:border-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 disabled:cursor-default disabled:opacity-50"
+                className={cn(
+                    "flex h-8 w-full min-w-0 items-center justify-between gap-2 rounded-md border border-gray-300 bg-white px-2 text-left text-sm text-gray-700 hover:border-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 disabled:cursor-default disabled:opacity-50",
+                    !selectedAvailable && "border-red-600",
+                )}
             >
                 <span className="min-w-0 flex-1 truncate">{label}</span>
                 {detail && (
