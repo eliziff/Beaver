@@ -443,7 +443,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                             </div>
                         )}
                         <div className="chat-input-actions ml-auto flex w-full min-w-0 items-center justify-end gap-1">
-                            <div className="chat-input-model min-w-0 flex-1">
+                            <div className="chat-input-model min-w-0">
                                 <ModelEffortToggle
                                     model={model}
                                     effort={reasoningEffort}
