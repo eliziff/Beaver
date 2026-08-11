@@ -105,7 +105,12 @@
     container-type: inline-size;
 }
 .chat-input-model-toggle {
-    width: min(13rem, 100%);
+    width: 100%;
+}
+.chat-input-model {
+    flex: none;
+    width: 13rem;
+    max-width: calc(100% - 2.25rem);
 }
 @container (max-width: 560px) {
     .chat-input-control-label {
@@ -115,9 +120,6 @@
 @container (min-width: 561px) {
     .chat-input-actions {
         width: auto;
-    }
-    .chat-input-model {
-        flex: none;
     }
 }
 @media (max-height: 640px) {
