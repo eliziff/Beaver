@@ -65,7 +65,7 @@ describe("ModelToggle", () => {
         );
 
         const trigger = await screen.findByRole("button", {
-            name: "Model: GPT-5.6-Luna · medium",
+            name: "Model: GPT-5.6-Luna medium",
         });
         await userEvent.click(trigger);
         await userEvent.click(
