@@ -1,7 +1,8 @@
 # Beaver
 
 Beaver is a local-first legal workspace for research, document review,
-drafting, and tables of authorities. Account-free mode stores files and chats
+drafting, and tables of authorities, geared primarily for Canadian law.
+Account-free mode stores files and chats
 on disk; Supabase and cloud storage remain optional.
 
 The checkout includes the Beaver web app, a shared legal-data layer, the
