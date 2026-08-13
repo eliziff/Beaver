@@ -16,12 +16,10 @@
  * whatever it could read plus a typed note.
  */
 
-import type JSZip from "jszip";
-
 import {
   type XNode,
+  assertBoundedDocxPackage,
   MAX_DRAFTING_DOCX_BYTES,
-  MAX_DRAFTING_XML_ENTRY_BYTES,
   createParser,
   elAttrs,
   elChildren,
@@ -32,10 +30,6 @@ import {
   loadDocxPackage,
 } from "./core";
 
-// Same package bounds the drafting reader and the sniffer enforce.
-const MAX_ZIP_ENTRIES = 2_048;
-const MAX_EXPANDED_BYTES = 96 * 1024 * 1024;
-const MAX_XML_BYTES = 32 * 1024 * 1024;
 /** Markup nested past this is malformed or hostile; stop rather than recurse. */
 const MAX_DEPTH = 256;
 
@@ -124,37 +118,6 @@ function emptyStories(): DocxStories {
     textBoxes: [],
     notes: [],
   };
-}
-
-function expandedSize(entry: unknown): number {
-  const size = (entry as { _data?: { uncompressedSize?: unknown } })?._data
-    ?.uncompressedSize;
-  if (!Number.isSafeInteger(size) || Number(size) < 0) {
-    throw new Error("DOCX has invalid ZIP size metadata");
-  }
-  return Number(size);
-}
-
-function assertBoundedPackage(zip: JSZip): void {
-  const files = Object.values(zip.files).filter((entry) => !entry.dir);
-  if (files.length > MAX_ZIP_ENTRIES) {
-    throw new Error("DOCX contains too many package entries");
-  }
-  let expandedBytes = 0;
-  let xmlBytes = 0;
-  for (const entry of files) {
-    const size = expandedSize(entry);
-    expandedBytes += size;
-    if (/\.xml(?:\.rels)?$/iu.test(entry.name)) {
-      if (size > MAX_DRAFTING_XML_ENTRY_BYTES) {
-        throw new Error("DOCX contains an oversized XML part");
-      }
-      xmlBytes += size;
-    }
-  }
-  if (expandedBytes > MAX_EXPANDED_BYTES || xmlBytes > MAX_XML_BYTES) {
-    throw new Error("DOCX expands beyond the read limit");
-  }
 }
 
 /** `word/header2.xml` -> `word/_rels/header2.xml.rels`. */
@@ -361,7 +324,7 @@ export async function extractDocxStories(bytes: Buffer): Promise<DocxStories> {
       throw new Error("DOCX is empty or exceeds the read limit");
     }
     const zip = await loadDocxPackage(bytes);
-    assertBoundedPackage(zip);
+    assertBoundedDocxPackage(zip);
 
     // Body. Its rels resolve the hyperlinks the body walk now descends.
     ctx.rels = await readRels(zip, "word/document.xml", ctx);
