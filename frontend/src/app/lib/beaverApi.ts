@@ -149,6 +149,44 @@ export const deleteAllTabularReviews = () => remove<void>("/user/tabular-reviews
 export const exportAccountData = () => apiBlobRequest("/user/export");
 export const exportChatData = () => apiBlobRequest("/user/chats/export");
 export const exportTabularReviewsData = () => apiBlobRequest("/user/tabular-reviews/export");
+export interface AuditEvent {
+  id: string;
+  created_at: string;
+  user_email: string | null;
+  action: string;
+  status: "completed" | "cancelled" | "failed";
+  title: string | null;
+  surface: string | null;
+  project_id: string | null;
+  chat_id: string | null;
+  document_id: string | null;
+  review_id: string | null;
+  model: string | null;
+}
+export interface AuditHistoryQuery {
+  q?: string;
+  action?: string;
+  status?: string;
+  surface?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+}
+const auditQuery = (query: AuditHistoryQuery) => {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== "") params.set(key, String(value));
+  }
+  const suffix = params.toString();
+  return suffix ? `?${suffix}` : "";
+};
+export const getAuditHistory = (query: AuditHistoryQuery, signal?: AbortSignal) =>
+  apiRequest<{ events: AuditEvent[]; total: number; page: number; pageSize: number }>(
+    `/audit${auditQuery(query)}`,
+    { signal },
+  );
+export const exportAuditHistory = (query: AuditHistoryQuery) =>
+  apiBlobRequest(`/audit/export${auditQuery(query)}`);
 export interface UserProfile {
   displayName: string | null; organisation: string | null;
   messageCreditsUsed: number; creditsResetDate: string; creditsRemaining: number;
