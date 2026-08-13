@@ -3,6 +3,7 @@ import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import {
   legalProviderDatabase,
+  withCachedReadonlySqlite,
   withReadonlySqlite,
 } from "./legalDataPath";
 
@@ -76,26 +77,12 @@ function withDatabase<T>(operation: (database: DatabaseSync) => T): T | null {
   return withReadonlySqlite(courtlistenerLocalBulkPath(), operation);
 }
 
-let searchConnection:
-  | { filename: string; database: DatabaseSync }
-  | undefined;
-
 function withSearchDatabase<T>(operation: (database: DatabaseSync) => T): T | null {
   const filename = courtlistenerLocalBulkPath();
   if (process.env.MIKE_COURTLISTENER_BULK_DB?.trim()) {
     return withReadonlySqlite(filename, operation);
   }
-  if (!existsSync(filename)) return null;
-  if (searchConnection?.filename !== filename) {
-    searchConnection?.database.close();
-    const { DatabaseSync } = require("node:sqlite") as typeof import("node:sqlite");
-    const database = new DatabaseSync(filename, { readOnly: true });
-    database.exec(
-      "PRAGMA query_only=ON; PRAGMA mmap_size=2147418112; PRAGMA cache_size=-131072",
-    );
-    searchConnection = { filename, database };
-  }
-  return operation(searchConnection.database);
+  return withCachedReadonlySqlite(filename, operation);
 }
 
 export function warmLocalCourtlistenerSearch() {

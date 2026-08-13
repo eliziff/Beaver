@@ -5,6 +5,7 @@ import type { A2AJDocument, A2AJSearchResult } from "./a2aj";
 import { citationLookupKey } from "./citationKey";
 import {
   legalProviderDatabase,
+  withCachedReadonlySqlite,
   withReadonlySqlite,
 } from "./legalDataPath";
 import type { SourceDoc } from "./sourceDoc";
@@ -42,10 +43,6 @@ function searchDatabasePath(docType: DocType) {
   return existsSync(indexed) ? indexed : primary;
 }
 
-let searchConnection:
-  | { filename: string; database: DatabaseSync }
-  | undefined;
-
 function withSearchDatabase<T>(
   docType: DocType,
   operation: (database: DatabaseSync) => T,
@@ -54,17 +51,7 @@ function withSearchDatabase<T>(
   if (process.env.MIKE_A2AJ_BULK_DB?.trim()) {
     return withReadonlySqlite(filename, operation);
   }
-  if (!existsSync(filename)) return null;
-  if (searchConnection?.filename !== filename) {
-    searchConnection?.database.close();
-    const { DatabaseSync } = require("node:sqlite") as typeof import("node:sqlite");
-    const database = new DatabaseSync(filename, { readOnly: true });
-    database.exec(
-      "PRAGMA query_only=ON; PRAGMA mmap_size=2147418112; PRAGMA cache_size=-131072",
-    );
-    searchConnection = { filename, database };
-  }
-  return operation(searchConnection.database);
+  return withCachedReadonlySqlite(filename, operation);
 }
 
 export function warmLocalA2AJSearch() {
