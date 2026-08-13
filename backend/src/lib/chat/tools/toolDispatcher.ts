@@ -19,9 +19,9 @@ import {
   type PublicLegalSourceState,
 } from "../publicLegalSourceState";
 import {
-  courtlistenerLegalEvidence,
-  executeCourtlistenerTool,
-  type CourtlistenerCase,
+  courtlistenerStartEvent,
+  isCourtlistenerTool,
+  runCourtlistenerTool,
   type CourtlistenerToolState,
 } from "../courtlistenerToolRunner";
 import type { McpToolEvent } from "../../mcpConnectors";
@@ -63,115 +63,12 @@ import {
   type DocCreatedResult,
 } from "./documentOps";
 
-type CourtlistenerCaseRecord = CourtlistenerCase;
-
-type CourtlistenerCaseInput = {
-  clusterId?: number | null;
-  caseName?: string | null;
-  citation?: string | null;
-  citations?: string[];
-  url?: string | null;
-  pdfUrl?: string | null;
-  dateFiled?: string | null;
-};
-
 export type CourtlistenerTurnState = CourtlistenerToolState;
 
 type CapturedDocumentSource = {
   text: string;
   projection: "canonical" | "drafting" | "redline";
 };
-
-function nonEmpty(value: unknown): string | null {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function upsertCourtlistenerCases(
-  state: CourtlistenerTurnState,
-  inputs: CourtlistenerCaseInput[],
-): CourtlistenerCaseRecord[] {
-  const records: CourtlistenerCaseRecord[] = [];
-  for (const input of inputs) {
-    if (
-      typeof input.clusterId !== "number" ||
-      !Number.isFinite(input.clusterId)
-    ) {
-      continue;
-    }
-    const clusterId = Math.floor(input.clusterId);
-    const current = state.casesByClusterId.get(clusterId) ?? {
-      clusterId,
-      caseName: null,
-      citations: [],
-      url: null,
-      pdfUrl: null,
-      dateFiled: null,
-      opinions: [],
-    };
-    const nextCitations = [
-      ...current.citations,
-      ...(input.citation ? [input.citation] : []),
-      ...(input.citations ?? []),
-    ]
-      .map(nonEmpty)
-      .filter((value): value is string => !!value);
-    const record: CourtlistenerCaseRecord = {
-      ...current,
-      caseName: current.caseName ?? nonEmpty(input.caseName),
-      citations: Array.from(new Set(nextCitations)),
-      url: current.url ?? nonEmpty(input.url),
-      pdfUrl: current.pdfUrl ?? nonEmpty(input.pdfUrl),
-      dateFiled: current.dateFiled ?? nonEmpty(input.dateFiled),
-      opinions: current.opinions,
-    };
-    state.casesByClusterId.set(clusterId, record);
-    records.push(record);
-  }
-  return records;
-}
-
-function caseCitationEventFromRecord(
-  record: CourtlistenerCaseRecord,
-): CaseCitationEvent | null {
-  if (!record.url) return null;
-  return {
-    type: "case_citation",
-    cluster_id: record.clusterId,
-    case_name: record.caseName,
-    citation: record.citations[0] ?? null,
-    url: record.url,
-    pdfUrl: record.pdfUrl,
-    dateFiled: record.dateFiled,
-  };
-}
-
-function stringField(
-  record: Record<string, unknown> | null,
-  key: string,
-): string | null {
-  const value = record?.[key];
-  return typeof value === "string" ? value : null;
-}
-
-function numberField(
-  record: Record<string, unknown> | null,
-  key: string,
-): number | null {
-  const value = record?.[key];
-  return typeof value === "number" && Number.isFinite(value)
-    ? Math.floor(value)
-    : null;
-}
-
-function stringArrayField(
-  record: Record<string, unknown> | null,
-  key: string,
-): string[] {
-  const value = record?.[key];
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : [];
-}
 
 type FindInCaseArgs = {
   clusterId: number | null;
@@ -317,29 +214,6 @@ export async function runToolCalls(
     });
     registerLegalEvidence(legalEvidenceState, receipt);
     return receipt.evidence_id;
-  };
-  const groundCourtlistenerPayload = (
-    name: string,
-    input: Record<string, unknown>,
-    payload: Record<string, unknown> | null,
-  ) => {
-    const availablePayload =
-      payload ?? { ok: false, error: "CourtListener tool unavailable." };
-    if (!legalEvidenceState) return availablePayload;
-    const evidences = courtlistenerLegalEvidence(
-      { name, input },
-      availablePayload,
-      courtState,
-    );
-    for (const evidence of evidences) {
-      registerLegalEvidence(legalEvidenceState, evidence);
-    }
-    return evidences.length
-      ? {
-          ...availablePayload,
-          evidence_ids: evidences.map((item) => item.evidence_id),
-        }
-      : availablePayload;
   };
   const sourceClosureForDraft = (draft: string) =>
     /\bassign/iu.test(draft)
@@ -810,111 +684,9 @@ export async function runToolCalls(
         tool_call_id: tc.id,
         content: JSON.stringify(a2aj.payload),
       });
-    } else if (tc.function.name === COURTLISTENER_TOOL_NAMES.searchCaseLaw) {
-      const query = typeof args.query === "string" ? args.query : "";
-      emit({ type: "courtlistener_search_case_law_start", query });
-      const payload = groundCourtlistenerPayload(
-        tc.function.name,
-        args,
-        await executeCourtlistenerTool(
-          { name: tc.function.name, input: args },
-          courtState,
-          { db, apiToken: apiKeys?.courtlistener },
-        ),
-      );
-      const event: CourtlistenerToolEvent = {
-        type: "courtlistener_search_case_law",
-        query,
-        result_count: Array.isArray(payload?.results)
-          ? payload.results.length
-          : 0,
-        ...(typeof payload?.error === "string"
-          ? { error: payload.error }
-          : {}),
-      };
-      emit(event);
-      courtlistenerEvents.push(event);
-      toolResults.push({
-        role: "tool",
-        tool_call_id: tc.id,
-        content: JSON.stringify(payload),
-      });
-    } else if (tc.function.name === COURTLISTENER_TOOL_NAMES.getCases) {
-      const rawClusterIds = Array.isArray(args.clusterIds)
-        ? args.clusterIds
-        : Array.isArray(args.cluster_ids)
-          ? args.cluster_ids
-          : typeof args.clusterId === "number"
-            ? [args.clusterId]
-            : [];
-      const clusterIds = Array.from(
-        new Set(
-          rawClusterIds
-            .filter((value): value is number => typeof value === "number")
-            .filter((value) => Number.isFinite(value) && value > 0)
-            .map((value) => Math.floor(value)),
-        ),
-      );
-      emit({ type: "courtlistener_get_cases_start", cluster_ids: clusterIds });
-      const payload = groundCourtlistenerPayload(
-        tc.function.name,
-        args,
-        await executeCourtlistenerTool(
-          { name: tc.function.name, input: args },
-          courtState,
-          { db, apiToken: apiKeys?.courtlistener },
-        ),
-      );
-      const caseRecords = clusterIds.flatMap((clusterId) => {
-        const record = courtState.casesByClusterId.get(clusterId);
-        return record ? [record] : [];
-      });
-      for (const record of caseRecords) {
-        emit({
-          type: "case_opinions",
-          cluster_id: record.clusterId,
-          case: {
-            id: record.clusterId,
-            caseName: record.caseName,
-            dateFiled: record.dateFiled,
-            citations: record.citations,
-            url: record.url,
-            pdfUrl: record.pdfUrl,
-            opinions: record.opinions,
-          },
-        });
-      }
-      const event: CourtlistenerToolEvent = {
-        type: "courtlistener_get_cases",
-        cluster_ids: clusterIds,
-        case_count: numberField(payload, "case_count") ?? caseRecords.length,
-        opinion_count:
-          numberField(payload, "opinion_count") ??
-          caseRecords.reduce(
-            (count, record) => count + record.opinions.length,
-            0,
-          ),
-        cases: caseRecords.map((record) => ({
-          cluster_id: record.clusterId,
-          case_name: record.caseName,
-          citation: record.citations[0] ?? null,
-          dateFiled: record.dateFiled,
-          url: record.url,
-        })),
-        ...(stringField(payload, "error")
-          ? { error: stringField(payload, "error")! }
-          : {}),
-      };
-      emit(event);
-      courtlistenerEvents.push(event);
-      toolResults.push({
-        role: "tool",
-        tool_call_id: tc.id,
-        content: JSON.stringify(payload),
-      });
-    } else if (tc.function.name === COURTLISTENER_TOOL_NAMES.findInCase) {
-      const { clusterId, query } = parseFindInCaseArgs(args);
-      if (shouldGroupFindInCase) {
+    } else if (isCourtlistenerTool(tc.function.name)) {
+      const call = { id: tc.id, name: tc.function.name, input: args };
+      if (tc.function.name === COURTLISTENER_TOOL_NAMES.findInCase && shouldGroupFindInCase) {
         if (!groupedFindInCaseStarted) {
           emit({
             type: "courtlistener_find_in_case_start",
@@ -925,251 +697,34 @@ export async function runToolCalls(
           groupedFindInCaseStarted = true;
         }
       } else {
-        emit({
-          type: "courtlistener_find_in_case_start",
-          cluster_id: clusterId,
-          query,
-        });
+        const start = courtlistenerStartEvent(call);
+        if (start) emit(start);
       }
-      const payload = groundCourtlistenerPayload(
-        tc.function.name,
-        args,
-        await executeCourtlistenerTool(
-          { name: tc.function.name, input: args },
-          courtState,
-          { db, apiToken: apiKeys?.courtlistener },
-        ),
-      );
-      const event: CourtlistenerToolEvent = {
-        type: "courtlistener_find_in_case",
-        cluster_id: numberField(payload, "cluster_id") ?? clusterId,
-        query,
-        total_matches: numberField(payload, "total_matches") ?? 0,
-        case_name: stringField(payload, "case_name"),
-        citation: stringField(payload, "citation"),
-        ...(stringField(payload, "error")
-          ? { error: stringField(payload, "error")! }
-          : {}),
-      };
-      if (shouldGroupFindInCase) {
-        groupedFindInCaseEvents.push(event);
+      const executed = await runCourtlistenerTool(call, courtState, {
+        db,
+        apiToken: apiKeys?.courtlistener,
+        legalEvidenceState,
+      });
+      if (!executed) continue;
+      for (const event of executed.caseOpinions) emit(event);
+      for (const event of executed.caseCitations) {
+        emit(event);
+        caseCitationEvents.push(event);
+      }
+      if (tc.function.name === COURTLISTENER_TOOL_NAMES.findInCase && shouldGroupFindInCase) {
+        groupedFindInCaseEvents.push(executed.event as Extract<
+          CourtlistenerToolEvent,
+          { type: "courtlistener_find_in_case" }
+        >);
       } else {
-        emit(event);
-        courtlistenerEvents.push(event);
+        emit(executed.event);
+        courtlistenerEvents.push(executed.event);
       }
       toolResults.push({
         role: "tool",
         tool_call_id: tc.id,
-        content: JSON.stringify(payload),
+        content: executed.result.content,
       });
-    } else if (
-      tc.function.name === COURTLISTENER_TOOL_NAMES.lookupCaseLocator
-    ) {
-      const clusterId =
-        typeof args.clusterId === "number" && Number.isFinite(args.clusterId)
-          ? Math.floor(args.clusterId)
-          : typeof args.cluster_id === "number" &&
-              Number.isFinite(args.cluster_id)
-            ? Math.floor(args.cluster_id)
-            : null;
-      const locatorType =
-        args.locator_type === "page"
-          ? "page"
-          : args.locator_type === "section"
-            ? "section"
-            : "paragraph";
-      const locator = typeof args.locator === "string" ? args.locator : "";
-      const payload = groundCourtlistenerPayload(
-        tc.function.name,
-        args,
-        await executeCourtlistenerTool(
-          { name: tc.function.name, input: args },
-          courtState,
-          { db, apiToken: apiKeys?.courtlistener },
-        ),
-      );
-      const event: CourtlistenerToolEvent = {
-        type: "courtlistener_lookup_case_locator",
-        cluster_id: numberField(payload, "cluster_id") ?? clusterId,
-        locator_type: locatorType,
-        locator,
-        status:
-          stringField(payload, "status") ??
-          (payload?.ok === true ? "found" : "unavailable"),
-        ...(stringField(payload, "error")
-          ? { error: stringField(payload, "error")! }
-          : {}),
-      };
-      emit(event);
-      courtlistenerEvents.push(event);
-      toolResults.push({
-        role: "tool",
-        tool_call_id: tc.id,
-        content: JSON.stringify(payload),
-      });
-    } else if (tc.function.name === COURTLISTENER_TOOL_NAMES.readCase) {
-      const clusterId =
-        typeof args.clusterId === "number" && Number.isFinite(args.clusterId)
-          ? Math.floor(args.clusterId)
-          : typeof args.cluster_id === "number" &&
-              Number.isFinite(args.cluster_id)
-            ? Math.floor(args.cluster_id)
-            : null;
-      emit({ type: "courtlistener_read_case_start", cluster_id: clusterId });
-      const payload = groundCourtlistenerPayload(
-        tc.function.name,
-        args,
-        await executeCourtlistenerTool(
-          { name: tc.function.name, input: args },
-          courtState,
-          { db, apiToken: apiKeys?.courtlistener },
-        ),
-      );
-      const event: CourtlistenerToolEvent = {
-        type: "courtlistener_read_case",
-        cluster_id: numberField(payload, "cluster_id") ?? clusterId,
-        case_name: stringField(payload, "case_name"),
-        citation: stringArrayField(payload, "citations")[0] ?? null,
-        opinion_count:
-          payload?.ok === true
-            ? numberField(payload, "returned_opinion_count") ?? 0
-            : 0,
-        ...(stringField(payload, "error")
-          ? { error: stringField(payload, "error")! }
-          : {}),
-      };
-      emit(event);
-      courtlistenerEvents.push(event);
-      toolResults.push({
-        role: "tool",
-        tool_call_id: tc.id,
-        content: JSON.stringify(payload),
-      });
-    } else if (tc.function.name === COURTLISTENER_TOOL_NAMES.verifyCitations) {
-      const citations = Array.isArray(args.citations)
-        ? args.citations.filter(
-            (value): value is string => typeof value === "string",
-          )
-        : [];
-      const citationCount = citations.length;
-      emit({
-        type: "courtlistener_verify_citations_start",
-        citation_count: citationCount,
-      });
-      try {
-        const result = (await executeCourtlistenerTool(
-          { name: tc.function.name, input: args },
-          courtState,
-          { db, apiToken: apiKeys?.courtlistener },
-        )) as {
-          citationLinks?: {
-            clusterId?: number | null;
-            citation?: string | null;
-            caseName?: string | null;
-            dateFiled?: string | null;
-            pdfUrl?: string | null;
-            url?: string | null;
-            markdown?: string;
-          }[];
-          results?: unknown[];
-          error?: string;
-          source?: string;
-          [key: string]: unknown;
-        };
-        if (Array.isArray(result.citationLinks)) {
-          const caseRecords = upsertCourtlistenerCases(
-            courtState,
-            result.citationLinks.map((link) => ({
-              clusterId: link.clusterId,
-              caseName: link.caseName,
-              citation: link.citation,
-              url: link.url,
-              pdfUrl: link.pdfUrl,
-              dateFiled: link.dateFiled,
-            })),
-          );
-          const recordsByClusterId = new Map(
-            caseRecords.map((record) => [record.clusterId, record]),
-          );
-          result.citationLinks = result.citationLinks.map((link) => {
-            if (!link.url) return link;
-            const href =
-              typeof link.clusterId === "number"
-                ? `us-case-${link.clusterId}`
-                : link.url;
-            const label = [link.caseName, link.citation]
-              .filter(Boolean)
-              .join(", ");
-            const record =
-              typeof link.clusterId === "number"
-                ? recordsByClusterId.get(link.clusterId)
-                : undefined;
-            if (record) {
-              const event = caseCitationEventFromRecord(record);
-              if (event) {
-                caseCitationEvents.push(event);
-                emit(event);
-              }
-            }
-            return {
-              ...link,
-              markdown: `[${label || link.url}](${href})`,
-            };
-          });
-        }
-        const rows =
-          result &&
-          typeof result === "object" &&
-          Array.isArray((result as { results?: unknown }).results)
-            ? (result as { results: unknown[] }).results
-            : [];
-        const matchCount = rows.reduce<number>((count, row) => {
-          if (!row || typeof row !== "object") return count;
-          const clusters = (row as { clusters?: unknown }).clusters;
-          return count + (Array.isArray(clusters) ? clusters.length : 0);
-        }, 0);
-        const error =
-          result &&
-          typeof result === "object" &&
-          typeof (result as { error?: unknown }).error === "string"
-            ? (result as { error: string }).error
-            : undefined;
-        const event: CourtlistenerToolEvent = {
-          type: "courtlistener_verify_citations",
-          citation_count: citationCount,
-          match_count: matchCount,
-          ...(error ? { error } : {}),
-        };
-        emit(event);
-        courtlistenerEvents.push(event);
-        toolResults.push({
-          role: "tool",
-          tool_call_id: tc.id,
-          content: JSON.stringify(result),
-        });
-      } catch (err) {
-        const event: CourtlistenerToolEvent = {
-          type: "courtlistener_verify_citations",
-          citation_count: citationCount,
-          match_count: 0,
-          error:
-            err instanceof Error
-              ? err.message
-              : "CourtListener citation lookup failed.",
-        };
-        emit(event);
-        courtlistenerEvents.push(event);
-        toolResults.push({
-          role: "tool",
-          tool_call_id: tc.id,
-          content: JSON.stringify({
-            error:
-              err instanceof Error
-                ? err.message
-                : "CourtListener citation lookup failed.",
-          }),
-        });
-      }
     } else if (tc.function.name === "edit_document" && docIndex) {
       const rawDocId = args.doc_id as string;
       const editsRaw = args.edits as unknown[] | undefined;
