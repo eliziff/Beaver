@@ -33,21 +33,6 @@ async function accessible(db: Db, scope: ProjectScope, projectId: string) {
   if (!access.ok) throw missing("Project not found");
 }
 
-async function displayNames(
-  db: Db,
-  rows: { user_id?: string | null }[],
-) {
-  const ids = [...new Set(rows.flatMap(({ user_id }) => user_id ? [user_id] : []))];
-  if (!ids.length) return new Map<string, string>();
-  const { data, error } = await db.from("user_profiles")
-    .select("user_id, display_name").in("user_id", ids);
-  if (error) console.warn("[projects] failed to load display names", error);
-  return new Map((data ?? []).flatMap((row) =>
-    typeof row.display_name === "string" && row.display_name.trim()
-      ? [[row.user_id as string, row.display_name.trim()] as const]
-      : []));
-}
-
 async function validateRecipients(db: Db, emails: string[]) {
   const [missingEmail] = await findMissingUserEmails(db, emails);
   if (missingEmail) {
@@ -290,24 +275,6 @@ export const cloudProjects = {
       file,
       fileType,
     }) as ProjectRecord;
-  },
-
-  async chats(scope, projectId) {
-    const db = createServerSupabase();
-    await accessible(db, scope, projectId);
-    const data = await run(db.from("chats").select("*")
-      .eq("project_id", projectId).is("deleted_at", null)
-      .order("created_at", { ascending: false }));
-    const chats = (data ?? []) as (ProjectRecord & {
-      user_id?: string | null;
-      creator_display_name?: string | null;
-    })[];
-    const names = await displayNames(db, chats);
-    chats.forEach((chat) => {
-      chat.creator_display_name = chat.user_id
-        ? names.get(chat.user_id) ?? null : null;
-    });
-    return chats;
   },
 
   async createFolder(scope, projectId, input) {

@@ -167,14 +167,20 @@ app.use(
   "/chat",
   lazyRouter(async () => {
     const { createChatRouter } = await import("./routes/chat");
-    return createChatRouter(await runtime.tabular());
+    const [tabular, chats] = await Promise.all([
+      runtime.tabular(), runtime.chats(),
+    ]);
+    return createChatRouter(tabular, chats);
   }),
 );
 app.use(
   "/projects",
   lazyRouter(async () => {
     const { createProjectsRouter } = await import("./routes/projects");
-    return createProjectsRouter(await runtime.projects());
+    const [projects, chats] = await Promise.all([
+      runtime.projects(), runtime.chats(),
+    ]);
+    return createProjectsRouter(projects, chats);
   }),
 );
 app.use(
