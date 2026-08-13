@@ -1184,33 +1184,6 @@ export const LOCAL_ASSISTANT_TOOLS = (forCodingVocabulary(LOCAL_ASSISTANT_TOOL_C
   (entry) => (entry.function.name === "Edit" ? EDIT_TOOL : entry),
 );
 
-export const LOCAL_LEGAL_RESEARCH_TOOLS: OpenAIToolSchema[] =
-  RESEARCH_TOOLS_DISABLED
-    ? []
-    : [
-        SEARCH_SOURCES_TOOL,
-        ...(COURTLISTENER_TOOLS as OpenAIToolSchema[]).filter(
-          (tool) => tool.function.name !== "courtlistener_search_case_law",
-        ),
-        ...(A2AJ_TOOLS as OpenAIToolSchema[]).filter(
-          (tool) => tool.function.name !== "a2aj_search",
-        ),
-        ...(PUBLIC_LEGAL_SOURCE_TOOLS as OpenAIToolSchema[]).filter(
-          (tool) => tool.function.name !== "public_legal_source_search",
-        ),
-        ...HANSARD_TOOLS.filter(
-          (tool) => tool.function.name !== "hansard_search",
-        ),
-        ...CITATOR_TOOLS,
-      ];
-
-export const LOCAL_READ_SUBAGENT_TOOL_CATALOG: OpenAIToolSchema[] = [
-  ...new Map(
-    [...LOCAL_ASSISTANT_TOOLS, ...LOCAL_LEGAL_RESEARCH_TOOLS]
-      .map((tool) => [tool.function.name, tool]),
-  ).values(),
-];
-
 const trimmed = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
 
@@ -4583,6 +4556,20 @@ async function sourceClosureForDraft(
     : [];
 }
 
+async function localTextDocuments(
+  userId: string,
+  ids: string[],
+  allowed?: ReadonlySet<string>,
+) {
+  const outside = ids.find((id) => allowed && !allowed.has(id));
+  if (outside) throw new Error(`Document ${outside} is not attached to this matter`);
+  return Promise.all(ids.map(async (id) => {
+    const document = await extractLocalDocument(userId, id);
+    if (!document) throw new Error(`Document ${id} not found`);
+    return document;
+  }));
+}
+
 export async function runLocalAssistantTools(
   userId: string,
   calls: NormalizedToolCall[],
@@ -5568,34 +5555,18 @@ export async function runLocalAssistantTools(
       if (call.name === "library_anchor_coverage") {
         const sourceIds = stringArray(args.source_document_ids);
         const draftIds = stringArray(args.draft_document_ids);
-        if (!sourceIds.length) {
-          return fail(call, "source_document_ids is required");
-        }
+        if (!sourceIds.length) return fail(call, "source_document_ids is required");
         if (!draftIds.length) return fail(call, "draft_document_ids is required");
-        const outside = [...sourceIds, ...draftIds].find(
-          (id) => allowedDocumentIds && !allowedDocumentIds.has(id),
-        );
-        if (outside) {
-          return fail(call, `Document ${outside} is not attached to this matter`);
-        }
         try {
-          const load = (ids: string[], side: "source" | "draft") =>
-            Promise.all(
-              ids.map(async (id) => {
-                const document = await extractLocalDocument(userId, id);
-                if (!document) {
-                  throw new Error(`${side} document ${id} not found`);
-                }
-                return { name: document.filename, text: document.text };
-              }),
-            );
           const [sources, drafts] = await Promise.all([
-            load(sourceIds, "source"),
-            load(draftIds, "draft"),
+            localTextDocuments(userId, sourceIds, allowedDocumentIds),
+            localTextDocuments(userId, draftIds, allowedDocumentIds),
           ]);
           return result(call, {
             ok: true,
-            ...anchorCoverage(sources, drafts, {
+            ...anchorCoverage(
+              sources.map(({ filename: name, text }) => ({ name, text })),
+              drafts.map(({ filename: name, text }) => ({ name, text })), {
               maxRowsPerClass: clampInt(args.max_rows_per_class, 1, 100, 40),
             }),
           });
@@ -5607,21 +5578,11 @@ export async function runLocalAssistantTools(
       if (call.name === "library_conflict_scan") {
         const ids = stringArray(args.document_ids);
         if (!ids.length) return fail(call, "document_ids is required");
-        const outside = ids.find(
-          (id) => allowedDocumentIds && !allowedDocumentIds.has(id),
-        );
-        if (outside) {
-          return fail(call, `Document ${outside} is not attached to this matter`);
-        }
         try {
-          const loaded = await Promise.all(
-            ids.map(async (id) => {
-              const document = await extractLocalDocument(userId, id);
-              if (!document) throw new Error(`document ${id} not found`);
-              return { name: document.filename, text: document.text };
-            }),
-          );
-          return result(call, { ok: true, ...conflictScan(loaded) });
+          const documents = await localTextDocuments(userId, ids, allowedDocumentIds);
+          return result(call, { ok: true, ...conflictScan(
+            documents.map(({ filename: name, text }) => ({ name, text })),
+          ) });
         } catch (error) {
           return fail(call, errorText(error, "Conflict scan failed"));
         }
@@ -5635,21 +5596,11 @@ export async function runLocalAssistantTools(
         if (!amendmentId && !amendmentText) {
           return fail(call, "Provide amendment_document_id or amendment_text");
         }
-        const outsideAmend = [sourceId, amendmentId].find(
-          (id) => id && allowedDocumentIds && !allowedDocumentIds.has(id),
-        );
-        if (outsideAmend) {
-          return fail(call, `Document ${outsideAmend} is not attached to this matter`);
-        }
         try {
-          const source = await extractLocalDocument(userId, sourceId);
-          if (!source) return fail(call, "Source document not found");
-          let prose = amendmentText;
-          if (amendmentId) {
-            const amendment = await extractLocalDocument(userId, amendmentId);
-            if (!amendment) return fail(call, "Amendment document not found");
-            prose = amendment.text;
-          }
+          const [source, amendment] = await localTextDocuments(
+            userId, [sourceId, amendmentId].filter(Boolean), allowedDocumentIds,
+          );
+          const prose = amendment?.text ?? amendmentText;
           const outcome = consolidateAmendment(source.text, prose);
           const previewChars = clampInt(args.preview_chars, 0, 20_000, 0);
           return result(call, {
@@ -5703,23 +5654,15 @@ export async function runLocalAssistantTools(
         if (driftIds.length < 2) {
           return fail(call, "document_ids requires at least two documents");
         }
-        const outsideDrift = driftIds.find(
-          (id) => allowedDocumentIds && !allowedDocumentIds.has(id),
-        );
-        if (outsideDrift) {
-          return fail(call, `Document ${outsideDrift} is not attached to this matter`);
-        }
         try {
-          const loaded = await Promise.all(
-            driftIds.map(async (id) => {
-              const document = await extractLocalDocument(userId, id);
-              if (!document) throw new Error(`document ${id} not found`);
-              return { name: document.filename, text: document.text };
-            }),
+          const documents = await localTextDocuments(
+            userId, driftIds, allowedDocumentIds,
           );
           return result(call, {
             ok: true,
-            ...termDriftReport(loaded, {
+            ...termDriftReport(documents.map(
+              ({ filename: name, text }) => ({ name, text }),
+            ), {
               maxRows: clampInt(args.max_rows, 1, 100, 40),
             }),
           });
@@ -5730,12 +5673,10 @@ export async function runLocalAssistantTools(
 
       if (call.name === "library_drafting_lint") {
         if (!documentId) return fail(call, "document_id is required");
-        if (allowedDocumentIds && !allowedDocumentIds.has(documentId)) {
-          return fail(call, "Document is not attached to this matter");
-        }
         try {
-          const document = await extractLocalDocument(userId, documentId);
-          if (!document) return fail(call, "Document not found");
+          const [document] = await localTextDocuments(
+            userId, [documentId], allowedDocumentIds,
+          );
           const report = draftingLint(document.text);
           const cap = clampInt(args.max_findings, 1, 200, 50);
           return result(call, {
@@ -5757,19 +5698,10 @@ export async function runLocalAssistantTools(
         if (!englishId || !frenchId) {
           return fail(call, "english_document_id and french_document_id are required");
         }
-        const outsidePair = [englishId, frenchId].find(
-          (id) => allowedDocumentIds && !allowedDocumentIds.has(id),
-        );
-        if (outsidePair) {
-          return fail(call, `Document ${outsidePair} is not attached to this matter`);
-        }
         try {
-          const [english, french] = await Promise.all([
-            extractLocalDocument(userId, englishId),
-            extractLocalDocument(userId, frenchId),
-          ]);
-          if (!english) return fail(call, "English document not found");
-          if (!french) return fail(call, "French document not found");
+          const [english, french] = await localTextDocuments(
+            userId, [englishId, frenchId], allowedDocumentIds,
+          );
           return result(call, {
             ok: true,
             ...bilingualConcordance(
