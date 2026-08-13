@@ -1,8 +1,13 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { listWorkflows } from "@/app/lib/beaverApi";
+import { useDeferredValue, useEffect, useState, type ReactNode } from "react";
+import {
+    getWorkflow,
+    listSystemWorkflows,
+    listWorkflows,
+} from "@/app/lib/beaverApi";
 import { Modal } from "../modals/Modal";
 import type { Workflow } from "../shared/types";
 import { WorkflowPickerContent } from "./WorkflowPickerContent";
+import { usePagedQuery } from "@/app/hooks/usePagedQuery";
 interface WorkflowPickerModalProps {
     open: boolean;
     onClose: () => void;
@@ -20,35 +25,62 @@ export function useWorkflowPickerState(
     workflowType: Workflow["metadata"]["type"],
     initialWorkflowId?: string,
 ) {
-    const [workflows, setWorkflows] = useState<Workflow[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [systemWorkflows, setSystemWorkflows] = useState<Workflow[]>([]);
+    const [systemLoading, setSystemLoading] = useState(true);
     const [selected, setSelected] = useState<Workflow | null>(null);
     const [search, setSearch] = useState("");
+    const query = useDeferredValue(search.trim());
+    const custom = usePagedQuery(
+        (cursor, signal) => listWorkflows({
+            type: workflowType,
+            q: query,
+            cursor,
+        }, signal),
+        [query, workflowType],
+    );
     useEffect(() => {
         let cancelled = false;
-        listWorkflows(workflowType)
+        listSystemWorkflows(workflowType)
             .then((next) => {
                 if (cancelled) return;
-                setWorkflows(next);
-                setSelected(
-                    initialWorkflowId
-                        ? next.find((workflow) => workflow.id === initialWorkflowId) ?? null
-                        : null,
-                );
+                setSystemWorkflows(next);
             })
             .catch(() => {
                 if (cancelled) return;
-                setWorkflows([]);
-                setSelected(null);
+                setSystemWorkflows([]);
             })
             .finally(() => {
-                if (!cancelled) setLoading(false);
+                if (!cancelled) setSystemLoading(false);
             });
         return () => {
             cancelled = true;
         };
-    }, [initialWorkflowId, workflowType]);
-    return { workflows, loading, selected, setSelected, search, setSearch };
+    }, [workflowType]);
+    useEffect(() => {
+        if (!initialWorkflowId) return;
+        const loaded = [...systemWorkflows, ...custom.items].find(
+            (workflow) => workflow.id === initialWorkflowId,
+        );
+        if (loaded) {
+            setSelected(loaded);
+            return;
+        }
+        void getWorkflow(initialWorkflowId).then(setSelected).catch(() => {});
+    }, [custom.items, initialWorkflowId, systemWorkflows]);
+    const select = (workflow: Workflow | null) => {
+        if (!workflow) return setSelected(null);
+        void getWorkflow(workflow.id).then(setSelected).catch(() => setSelected(null));
+    };
+    return {
+        workflows: [...systemWorkflows, ...custom.items],
+        loading: systemLoading || custom.loading,
+        selected,
+        setSelected: select,
+        search,
+        setSearch,
+        hasMore: custom.hasMore,
+        loadMore: custom.loadMore,
+    };
 }
 export function WorkflowPickerModal({
     open,
@@ -74,7 +106,10 @@ function OpenWorkflowPickerModal({
     initialWorkflowId,
     disabledWorkflow,
 }: Omit<WorkflowPickerModalProps, "open">) {
-    const { workflows, loading, selected, setSelected, search, setSearch } =
+    const {
+        workflows, loading, selected, setSelected, search, setSearch,
+        hasMore, loadMore,
+    } =
         useWorkflowPickerState(workflowType, initialWorkflowId);
     const selectionDisabled =
         !selected || selecting || (selected && disabledWorkflow?.(selected));
@@ -107,6 +142,8 @@ function OpenWorkflowPickerModal({
                 search={search}
                 onSearchChange={setSearch}
                 loading={loading}
+                hasMore={hasMore}
+                onLoadMore={() => void loadMore()}
                 disabledWorkflow={disabledWorkflow}
             />
         </Modal>

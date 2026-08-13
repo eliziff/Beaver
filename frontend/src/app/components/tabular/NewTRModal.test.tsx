@@ -3,9 +3,11 @@ import { expect, it, vi } from "vitest";
 import type { Document, Project } from "../shared/types";
 import { NewTRModal } from "./NewTRModal";
 
-const mocks = vi.hoisted(() => ({ getProject: vi.fn() }));
+const mocks = vi.hoisted(() => ({ getProjectDirectory: vi.fn() }));
 vi.mock("@/app/lib/beaverApi", () => ({
-    getProject: mocks.getProject,
+    getProjectDirectory: mocks.getProjectDirectory,
+    getLibrary: vi.fn().mockResolvedValue({ items: [], next_cursor: null }),
+    listProjects: vi.fn().mockResolvedValue({ items: [], next_cursor: null }),
     uploadProjectDocument: vi.fn(),
     uploadStandaloneDocument: vi.fn(),
 }));
@@ -24,7 +26,9 @@ it("creates a project review with the selected project documents", async () => {
         name: "Matter",
         documents: [document],
     } as Project;
-    mocks.getProject.mockResolvedValue(project);
+    mocks.getProjectDirectory.mockResolvedValue({
+        items: [{ kind: "document", document }], next_cursor: null,
+    });
     const onAdd = vi.fn();
 
     render(
@@ -42,11 +46,12 @@ it("creates a project review with the selected project documents", async () => {
         screen.getByRole("checkbox", { name: "Create under a project" }),
     );
     fireEvent.click(screen.getByRole("option", { name: /Matter/ }));
-    await waitFor(() =>
-        expect(mocks.getProject).toHaveBeenCalledWith(project.id),
-    );
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await waitFor(() => expect(mocks.getProjectDirectory).toHaveBeenCalled());
     await screen.findByText(document.filename);
+    fireEvent.click(screen.getByRole("checkbox", {
+        name: `Select ${document.filename}`,
+    }));
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
 
     expect(onAdd).toHaveBeenCalledWith(

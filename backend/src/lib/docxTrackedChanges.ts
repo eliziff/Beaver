@@ -1588,8 +1588,3 @@ export async function resolveTrackedChange(
     });
     return { bytes: out, found };
 }
-
-function truncate(s: string, n: number): string {
-    if (!s) return "";
-    return s.length > n ? s.slice(0, n) + "…" : s;
-}

@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
-import { useDirectoryData } from "../shared/useDirectoryData";
 import { Modal } from "../modals/Modal";
 import { ProjectChoiceList } from "../projects/ProjectChoiceList";
 interface Props {
@@ -24,7 +23,6 @@ export function SelectAssistantProjectModal({
     const [creating, setCreating] = useState(false);
     const router = useRouter();
     const { saveChat } = useChatHistoryContext();
-    const { loading, projects } = useDirectoryData(open, "projects");
     useEffect(() => {
         if (!open) return;
         setSelectedId(currentProjectId ?? null);
@@ -51,9 +49,6 @@ export function SelectAssistantProjectModal({
             setCreating(false);
         }
     }
-    const currentProject = projects.find(
-        (project) => project.id === currentProjectId,
-    );
     const actionLabel = onSelectProject
         ? chatTitle
             ? `Move “${chatTitle}” to a project`
@@ -86,7 +81,6 @@ export function SelectAssistantProjectModal({
                     Current location:{" "}
                     <span className="text-gray-800">
                         {currentLocation ??
-                            currentProject?.name ??
                             "Assistant"}
                     </span>
                 </p>
@@ -107,7 +101,6 @@ export function SelectAssistantProjectModal({
             )}
             <ProjectChoiceList
                 key={currentProjectId}
-                projects={projects}
                 value={selectedId}
                 onChange={(projectId) =>
                     setSelectedId(
@@ -116,7 +109,6 @@ export function SelectAssistantProjectModal({
                             : projectId,
                     )
                 }
-                loading={loading}
             />
         </Modal>
     );

@@ -1,8 +1,6 @@
 "use client";
 
 import {
-    type Dispatch,
-    type SetStateAction,
     useCallback,
     useEffect,
     useState,
@@ -13,7 +11,6 @@ import { AddDocumentsModal } from "@/app/components/modals/AddDocumentsModal";
 import {
     DocTable,
     type DocTableSelectionActions,
-    type DocTableFolder,
 } from "@/app/components/documents/DocTable";
 import { DocumentAutomation } from "@/app/components/documents/DocumentAutomation";
 import { TabPillButton } from "@/app/components/ui/tab-pill-button";
@@ -39,8 +36,8 @@ export function ProjectDocumentsView() {
     useEffect(() => {
         if (!projectLoading) prefetchProjectSections();
     }, [projectLoading, prefetchProjectSections]);
-    const { documents, folders, setDocuments, setFolders, operations } =
-        useProjectFiles();
+    const files = useProjectFiles();
+    const { documents, folders, operations } = files;
     const handleCreateFolderActionChange = useCallback(
         (action: (() => void) | null) => {
             setCreateFolderAction(() => action);
@@ -110,12 +107,8 @@ export function ProjectDocumentsView() {
             <DocTable
                 scopeKey={projectId}
                 documents={documents}
-                setDocuments={setDocuments}
                 folders={folders}
-                setFolders={
-                    setFolders as Dispatch<SetStateAction<DocTableFolder[]>>
-                }
-                loading={projectLoading}
+                loading={projectLoading || files.loading}
                 search={search}
                 operations={operations}
                 onAddDocumentsActionChange={setAddDocumentsHeaderAction}
@@ -140,6 +133,10 @@ export function ProjectDocumentsView() {
                 documentRemovalMode={
                     isAnonymousMode ? "detach" : "delete"
                 }
+                hasMoreParents={files.hasMoreParents}
+                loadingParents={files.loadingParents}
+                onFolderExpanded={files.onFolderExpanded}
+                onLoadMore={files.onLoadMore}
             />
         </>
     );

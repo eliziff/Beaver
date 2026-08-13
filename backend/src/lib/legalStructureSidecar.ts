@@ -59,6 +59,8 @@ type SkeletonPayload = {
 };
 
 const sidecarRoot = () => path.join(mikeLocalDataHome(), "structure-cache");
+const skeletonMisses = new Map<string, Promise<SkeletonPayload>>();
+const graphMisses = new Map<string, Promise<Omit<CrossReferenceGraph, "nodes">>>();
 
 const textDigest = sha256;
 
@@ -110,6 +112,21 @@ function rehydrate(
   };
 }
 
+function skeletonPayload(skeleton: AgreementSkeleton, id: string): SkeletonPayload {
+  return {
+    version: SIDECAR_VERSION,
+    id,
+    nodes: skeleton.nodes,
+    blocks: skeleton.doc.blocks,
+    definedTerms: skeleton.definedTerms,
+    schedules: skeleton.schedules,
+    crossReferences: skeleton.crossReferences,
+    ladder: skeleton.ladder,
+    outline: skeleton.outline,
+    outlineRefusal: skeleton.outlineRefusal,
+  };
+}
+
 /**
  * Skeleton for `text`, served from a bake when one exists.
  *
@@ -129,9 +146,19 @@ export async function bakedSkeleton(
       return rehydrate(text, id, payload);
     }
   } catch {
-    // Miss, unreadable, or a version bump: compile for real.
+    // Miss, unreadable, or a version bump: compile and retain it.
   }
-  return compileAgreementSkeleton(text, id, options);
+  let pending = skeletonMisses.get(file);
+  if (!pending) {
+    pending = (async () => {
+      const payload = skeletonPayload(compileAgreementSkeleton(text, "", options), "");
+      await fs.mkdir(sidecarRoot(), { recursive: true });
+      await writeAtomic(file, payload);
+      return payload;
+    })().finally(() => skeletonMisses.delete(file));
+    skeletonMisses.set(file, pending);
+  }
+  return rehydrate(text, id, await pending);
 }
 
 /** Cross-reference graph for `text`, served from a bake when one exists. */
@@ -158,7 +185,18 @@ export async function bakedCrossReferenceGraph(
   } catch {
     // Fall through.
   }
-  return crossReferenceGraph(text, id, { skeleton });
+  let pending = graphMisses.get(file);
+  if (!pending) {
+    pending = (async () => {
+      const graph = crossReferenceGraph(text, "", { skeleton });
+      const payload = { ...graph, nodes: undefined };
+      await fs.mkdir(sidecarRoot(), { recursive: true });
+      await writeAtomic(file, { version: SIDECAR_VERSION, graph: payload });
+      return payload;
+    })().finally(() => graphMisses.delete(file));
+    graphMisses.set(file, pending);
+  }
+  return { ...(await pending), nodes: skeleton.nodes };
 }
 
 export type BakeReport = {
@@ -188,18 +226,7 @@ export async function bakeStructure(
   const graph = crossReferenceGraph(text, id, { skeleton });
   const graphMs = performance.now() - graphStarted;
 
-  const payload: SkeletonPayload = {
-    version: SIDECAR_VERSION,
-    id,
-    nodes: skeleton.nodes,
-    blocks: skeleton.doc.blocks,
-    definedTerms: skeleton.definedTerms,
-    schedules: skeleton.schedules,
-    crossReferences: skeleton.crossReferences,
-    ladder: skeleton.ladder,
-    outline: skeleton.outline,
-    outlineRefusal: skeleton.outlineRefusal,
-  };
+  const payload = skeletonPayload(skeleton, id);
   await fs.mkdir(sidecarRoot(), { recursive: true });
   await writeAtomic(sidecarPath(digest, variant, "skeleton"), payload);
   // `nodes` is the skeleton's array; drop it rather than store it twice.

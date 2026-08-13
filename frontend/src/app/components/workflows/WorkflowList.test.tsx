@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
     hideWorkflow: vi.fn(),
     listWorkflows: vi.fn(),
     listHiddenWorkflows: vi.fn(),
+    listSystemWorkflows: vi.fn(),
     push: vi.fn(),
     unhideWorkflow: vi.fn(),
 }));
@@ -34,6 +35,7 @@ vi.mock("@/app/lib/beaverApi", () => ({
     unhideWorkflow: mocks.unhideWorkflow,
     listWorkflows: mocks.listWorkflows,
     listHiddenWorkflows: mocks.listHiddenWorkflows,
+    listSystemWorkflows: mocks.listSystemWorkflows,
 }));
 vi.mock("./NewWorkflowModal", () => ({ NewWorkflowModal: () => null }));
 vi.mock("./UseWorkflowModal", () => ({
@@ -75,12 +77,13 @@ beforeEach(() => {
     mocks.hideWorkflow.mockReset().mockResolvedValue(undefined);
     mocks.unhideWorkflow.mockReset().mockResolvedValue(undefined);
     mocks.push.mockReset();
-    mocks.listWorkflows.mockReset().mockResolvedValue([
+    mocks.listWorkflows.mockReset().mockResolvedValue({ items: [
         workflow("assistant-1", "Draft contract", "assistant"),
         workflow("tabular-1", "Review leases", "tabular"),
-    ]);
+    ], next_cursor: null });
     mocks.listHiddenWorkflows.mockReset();
     mocks.listHiddenWorkflows.mockResolvedValue([]);
+    mocks.listSystemWorkflows.mockReset().mockResolvedValue([]);
 });
 
 it("filters loaded workflows and opens the selected one", async () => {
@@ -92,20 +95,21 @@ it("filters loaded workflows and opens the selected one", async () => {
     );
 
     await screen.findByText("Draft contract");
-    expect(mocks.listWorkflows).toHaveBeenCalledWith();
+    expect(mocks.listWorkflows).toHaveBeenCalledWith(
+        { cursor: null, q: "", type: undefined }, expect.any(AbortSignal),
+    );
     expect(mocks.listWorkflows).toHaveBeenCalledTimes(1);
-    expect(commits).toBe(2);
     fireEvent.change(screen.getByPlaceholderText("Search workflows…"), {
         target: { value: "lease" },
     });
     expect(screen.queryByText("Draft contract")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByText("Review leases"));
+    fireEvent.click(await screen.findByText("Review leases"));
     expect(screen.getByText("Using Review leases")).toBeInTheDocument();
 });
 
 it("uses workflow capabilities for row and bulk actions", async () => {
-    mocks.listWorkflows.mockResolvedValue([
+    mocks.listWorkflows.mockResolvedValue({ items: [
         workflow("owned", "Owned workflow", "assistant", {
             allow_edit: true,
             is_owner: true,
@@ -124,7 +128,7 @@ it("uses workflow capabilities for row and bulk actions", async () => {
             is_system: true,
             user_id: null,
         }),
-    ]);
+    ], next_cursor: null });
     render(<WorkflowList />);
 
     const editableRow = (await screen.findByText("Editable share")).closest(
@@ -162,7 +166,7 @@ it("uses workflow capabilities for row and bulk actions", async () => {
 
 it("does not offer creation in account-free mode", async () => {
     mocks.anonymous = true;
-    mocks.listWorkflows.mockResolvedValue([]);
+    mocks.listWorkflows.mockResolvedValue({ items: [], next_cursor: null });
     render(<WorkflowList />);
 
     await screen.findByText("No workflows yet.");

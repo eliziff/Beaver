@@ -1,13 +1,15 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Project } from "@/app/components/shared/types";
 import { deleteProjectFolder } from "@/app/lib/beaverApi";
 import { useProjectFiles } from "./useProjectFiles";
 
 let project: Project;
+const getProjectDirectory = vi.hoisted(() => vi.fn());
 vi.mock("@/app/lib/beaverApi", () => ({
     createProjectFolder: vi.fn(),
     deleteProjectFolder: vi.fn(),
+    getProjectDirectory,
     moveDocumentToFolder: vi.fn(),
     moveSubfolderToFolder: vi.fn(),
     removeProjectDocument: vi.fn(),
@@ -19,10 +21,7 @@ vi.mock("./ProjectWorkspace", () => ({
     useProjectWorkspace: () => ({
         projectId: "project-1",
         project,
-        setProject: (update: (current: Project) => Project) => {
-            project = update(project);
-        },
-        refreshProject: vi.fn(),
+        search: "",
     }),
 }));
 
@@ -75,17 +74,28 @@ describe("useProjectFiles", () => {
                 },
             ],
         };
+        getProjectDirectory.mockResolvedValue({
+            items: [
+                ...project.folders!.map((folder) => ({ kind: "folder", folder })),
+                ...project.documents!.map((document) => ({ kind: "document", document })),
+            ],
+            next_cursor: null,
+        });
     });
 
     it("removes a folder subtree and its documents", async () => {
         const { result } = renderHook(() => useProjectFiles());
+        await waitFor(() => expect(result.current.folders).toHaveLength(2));
         await act(() => result.current.deleteFolder("parent"));
 
         expect(deleteProjectFolder).toHaveBeenCalledWith(
             "project-1",
             "parent",
         );
-        expect(project.folders).toEqual([]);
-        expect(project.documents).toEqual([]);
+        expect(getProjectDirectory).toHaveBeenLastCalledWith(
+            "project-1",
+            expect.objectContaining({ parent_id: null }),
+            expect.any(AbortSignal),
+        );
     });
 });

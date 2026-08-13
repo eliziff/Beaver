@@ -459,99 +459,6 @@ create index if not exists idx_workflow_open_source_submissions_submitter
 
 alter table public.workflow_open_source_submissions enable row level security;
 
-create or replace function public.get_workflows_overview(
-  p_user_id text,
-  p_user_email text default null,
-  p_type text default null
-)
-returns table (
-  id uuid,
-  user_id text,
-  title text,
-  type text,
-  prompt_md text,
-  columns_config jsonb,
-  language text,
-  practice text,
-  jurisdictions text[],
-  is_system boolean,
-  created_at timestamptz,
-  allow_edit boolean,
-  is_owner boolean,
-  shared_by_name text
-)
-language sql
-stable
-as $$
-  with owned as (
-    select
-      w.id,
-      w.user_id::text as user_id,
-      w.title,
-      w.type,
-      w.prompt_md,
-      w.columns_config,
-      w.language,
-      w.practice,
-      w.jurisdictions,
-      false as is_system,
-      w.created_at,
-      true as allow_edit,
-      true as is_owner,
-      null::text as shared_by_name,
-      0 as sort_bucket
-    from public.workflows w
-    where w.user_id::text = p_user_id
-      and (p_type is null or w.type = p_type)
-  ),
-  shared as (
-    select
-      w.id,
-      w.user_id::text as user_id,
-      w.title,
-      w.type,
-      w.prompt_md,
-      w.columns_config,
-      w.language,
-      w.practice,
-      w.jurisdictions,
-      false as is_system,
-      w.created_at,
-      ws.allow_edit,
-      false as is_owner,
-      nullif(trim(up.display_name), '') as shared_by_name,
-      1 as sort_bucket
-    from public.workflow_shares ws
-    join public.workflows w
-      on w.id = ws.workflow_id
-    left join public.user_profiles up
-      on up.user_id::text = ws.shared_by_user_id::text
-    where lower(ws.shared_with_email) = lower(coalesce(p_user_email, ''))
-      and (p_type is null or w.type = p_type)
-  ),
-  visible_workflows as (
-    select * from owned
-    union all
-    select * from shared
-  )
-  select
-    vw.id,
-    vw.user_id,
-    vw.title,
-    vw.type,
-    vw.prompt_md,
-    vw.columns_config,
-    vw.language,
-    vw.practice,
-    vw.jurisdictions,
-    vw.is_system,
-    vw.created_at,
-    vw.allow_edit,
-    vw.is_owner,
-    vw.shared_by_name
-  from visible_workflows vw
-  order by vw.sort_bucket asc, vw.created_at desc;
-$$;
 
 -- ---------------------------------------------------------------------------
 -- Assistant chats
@@ -598,20 +505,13 @@ as $$
     c.created_at
   from public.chats c
   where c.deleted_at is null
-    and (
-      c.user_id = p_user_id
-      or exists (
-        select 1
-        from public.projects p
-        where p.id = c.project_id
-          and p.user_id = p_user_id
-      )
-    )
+    and (c.user_id = p_user_id or exists (
+      select 1 from public.projects p
+      where p.id = c.project_id and p.user_id = p_user_id
+    ))
   order by c.created_at desc
-  limit case
-    when p_limit is null then null
-    else greatest(1, least(p_limit, 100))
-  end;
+  limit case when p_limit is null then null
+    else greatest(1, least(p_limit, 100)) end;
 $$;
 
 create table if not exists public.chat_messages (
@@ -624,18 +524,13 @@ create table if not exists public.chat_messages (
   citations jsonb,
   created_at timestamptz not null default now()
 );
-
-create index if not exists idx_chat_messages_chat
-  on public.chat_messages(chat_id);
+create index if not exists idx_chat_messages_chat on public.chat_messages(chat_id);
 
 do $$
 begin
-  if not exists (
-    select 1
-    from pg_constraint
+  if not exists (select 1 from pg_constraint
     where conname = 'document_edits_chat_message_id_fkey'
-      and conrelid = 'public.document_edits'::regclass
-  ) then
+      and conrelid = 'public.document_edits'::regclass) then
     alter table public.document_edits
       add constraint document_edits_chat_message_id_fkey
       foreign key (chat_message_id)
@@ -672,84 +567,6 @@ create index if not exists idx_tabular_reviews_project
 create index if not exists tabular_reviews_shared_with_idx
   on public.tabular_reviews using gin (shared_with);
 
-create or replace function public.get_projects_overview(
-  p_user_id text,
-  p_user_email text default null
-)
-returns table (
-  id uuid,
-  user_id text,
-  name text,
-  cm_number text,
-  practice text,
-  shared_with jsonb,
-  created_at timestamptz,
-  updated_at timestamptz,
-  is_owner boolean,
-  owner_display_name text,
-  owner_email text,
-  document_count integer,
-  chat_count integer,
-  review_count integer
-)
-language sql
-stable
-as $$
-  with visible_projects as (
-    select p.*
-    from public.projects p
-    where p.user_id = p_user_id
-       or (
-        coalesce(p_user_email, '') <> ''
-        and p.user_id <> p_user_id
-        and p.shared_with @> jsonb_build_array(p_user_email)
-      )
-  ),
-  document_counts as (
-    select d.project_id, count(*)::integer as document_count
-    from public.documents d
-    where d.project_id in (select vp.id from visible_projects vp)
-    group by d.project_id
-  ),
-  chat_counts as (
-    select c.project_id, count(*)::integer as chat_count
-    from public.chats c
-    where c.deleted_at is null
-      and c.project_id in (select vp.id from visible_projects vp)
-    group by c.project_id
-  ),
-  review_counts as (
-    select tr.project_id, count(*)::integer as review_count
-    from public.tabular_reviews tr
-    where tr.project_id in (select vp.id from visible_projects vp)
-    group by tr.project_id
-  )
-  select
-    vp.id,
-    vp.user_id,
-    vp.name,
-    vp.cm_number,
-    vp.practice,
-    vp.shared_with,
-    vp.created_at,
-    vp.updated_at,
-    vp.user_id = p_user_id as is_owner,
-    nullif(trim(up.display_name), '') as owner_display_name,
-    null::text as owner_email,
-    coalesce(dc.document_count, 0) as document_count,
-    coalesce(cc.chat_count, 0) as chat_count,
-    coalesce(rc.review_count, 0) as review_count
-  from visible_projects vp
-  left join public.user_profiles up
-    on up.user_id::text = vp.user_id
-  left join document_counts dc
-    on dc.project_id = vp.id
-  left join chat_counts cc
-    on cc.project_id = vp.id
-  left join review_counts rc
-    on rc.project_id = vp.id
-  order by vp.created_at desc;
-$$;
 
 create table if not exists public.tabular_cells (
   id uuid primary key default gen_random_uuid(),
@@ -765,97 +582,6 @@ create table if not exists public.tabular_cells (
 create index if not exists idx_tabular_cells_review
   on public.tabular_cells(review_id, document_id, column_index);
 
-create or replace function public.get_tabular_reviews_overview(
-  p_user_id text,
-  p_user_email text default null,
-  p_project_id text default null
-)
-returns table (
-  id uuid,
-  project_id uuid,
-  user_id text,
-  title text,
-  columns_config jsonb,
-  document_ids jsonb,
-  workflow_id uuid,
-  shared_with jsonb,
-  created_at timestamptz,
-  updated_at timestamptz,
-  is_owner boolean,
-  document_count integer
-)
-language sql
-stable
-as $$
-  with accessible_projects as (
-    select p.id
-    from public.projects p
-    where p.user_id = p_user_id
-       or (
-        coalesce(p_user_email, '') <> ''
-        and p.user_id <> p_user_id
-        and p.shared_with @> jsonb_build_array(p_user_email)
-      )
-  ),
-  visible_reviews as (
-    select tr.*
-    from public.tabular_reviews tr
-    where (p_project_id is null or tr.project_id::text = p_project_id)
-      and (
-        p_project_id is null
-        or exists (
-          select 1
-          from accessible_projects ap
-          where ap.id::text = p_project_id
-        )
-      )
-      and (
-        tr.user_id = p_user_id
-        or (
-          tr.project_id in (select ap.id from accessible_projects ap)
-          and tr.user_id <> p_user_id
-        )
-        or (
-          p_project_id is null
-          and coalesce(p_user_email, '') <> ''
-          and tr.user_id <> p_user_id
-          and tr.shared_with @> jsonb_build_array(p_user_email)
-        )
-      )
-  ),
-  cell_document_counts as (
-    select
-      tc.review_id,
-      count(distinct tc.document_id)::integer as document_count
-    from public.tabular_cells tc
-    where tc.review_id in (select vr.id from visible_reviews vr)
-    group by tc.review_id
-  )
-  select
-    vr.id,
-    vr.project_id,
-    vr.user_id,
-    vr.title,
-    vr.columns_config,
-    vr.document_ids,
-    vr.workflow_id,
-    vr.shared_with,
-    vr.created_at,
-    vr.updated_at,
-    vr.user_id = p_user_id as is_owner,
-    case
-      when jsonb_typeof(vr.document_ids) = 'array'
-        then (
-          select count(distinct doc_id.value)::integer
-          from jsonb_array_elements_text(vr.document_ids) as doc_id(value)
-        )
-      else coalesce(cdc.document_count, 0)
-    end as document_count
-  from visible_reviews vr
-  left join cell_document_counts cdc
-    on cdc.review_id = vr.id
-  order by vr.created_at desc;
-$$;
 
 create table if not exists public.tabular_review_chats (
   id uuid primary key default gen_random_uuid(),
@@ -969,3 +695,142 @@ grant select, insert, update, delete
 grant usage, select
   on all sequences in schema public
   to service_role;
+
+-- Current bounded collection contracts.
+-- One bounded read model for the three flat, user-owned collections.
+create index if not exists projects_user_created_page_idx
+  on public.projects (user_id, created_at desc, id desc);
+create index if not exists workflows_user_created_page_idx
+  on public.workflows (user_id, created_at desc, id desc);
+create index if not exists workflow_shares_email_workflow_idx
+  on public.workflow_shares (lower(shared_with_email), workflow_id);
+create index if not exists tabular_reviews_user_created_page_idx
+  on public.tabular_reviews (user_id, created_at desc, id desc);
+create index if not exists tabular_reviews_project_created_page_idx
+  on public.tabular_reviews (project_id, created_at desc, id desc);
+
+create or replace function public.get_collection_page(
+  p_resource text, p_user_id text, p_user_email text default null,
+  p_q text default '', p_filter text default null,
+  p_after_created_at timestamptz default null, p_after_id uuid default null,
+  p_limit integer default 51
+) returns table (payload jsonb, created_at timestamptz, id uuid)
+language plpgsql stable as $$
+begin
+  if p_resource = 'projects' then return query
+    select to_jsonb(x), x.created_at, x.id from (
+      select p.*, p.user_id=p_user_id is_owner,
+        nullif(trim(up.display_name),'') owner_display_name, null::text owner_email
+      from public.projects p left join public.user_profiles up on up.user_id::text=p.user_id
+      where (p.user_id=p_user_id or (coalesce(p_user_email,'')<>'' and
+          p.shared_with @> jsonb_build_array(p_user_email)))
+        and (coalesce(p_filter,'all')='all' or
+          (p_filter='mine' and p.user_id=p_user_id) or
+          (p_filter='shared-with-me' and p.user_id<>p_user_id))
+        and (p_q='' or lower(p.name||' '||coalesce(p.cm_number,'')||' '||
+          coalesce(p.practice,'')) like '%'||lower(p_q)||'%')
+        and (p_after_created_at is null or (p.created_at,p.id)<(p_after_created_at,p_after_id))
+      order by p.created_at desc,p.id desc limit least(p_limit,201)) x;
+  elsif p_resource = 'workflows' then return query
+    select to_jsonb(x), x.created_at, x.id from (
+      select w.id,w.user_id::text user_id,w.title,w.type,w.language,w.practice,
+        w.jurisdictions,false is_system,w.created_at,w.user_id::text=p_user_id is_owner,
+        case when w.user_id::text=p_user_id then true else coalesce((select bool_or(s.allow_edit)
+          from public.workflow_shares s where s.workflow_id=w.id and
+          lower(s.shared_with_email)=lower(coalesce(p_user_email,''))),false) end allow_edit,
+        case when w.user_id::text=p_user_id then null else nullif(trim(up.display_name),'') end shared_by_name
+      from public.workflows w left join public.user_profiles up on up.user_id::text=w.user_id::text
+      where (w.user_id::text=p_user_id or exists(select 1 from public.workflow_shares s
+          where s.workflow_id=w.id and lower(s.shared_with_email)=lower(coalesce(p_user_email,''))))
+        and (p_filter is null or w.type=p_filter) and (p_q='' or lower(w.title) like '%'||lower(p_q)||'%')
+        and (p_after_created_at is null or (w.created_at,w.id)<(p_after_created_at,p_after_id))
+      order by w.created_at desc,w.id desc limit least(p_limit,201)) x;
+  elsif p_resource = 'tabular' then return query
+    select to_jsonb(x), x.created_at, x.id from (
+      select tr.id,tr.user_id,tr.project_id,p.name project_name,tr.title,tr.workflow_id,
+        tr.shared_with,tr.user_id=p_user_id is_owner,tr.created_at,tr.updated_at,
+        jsonb_array_length(coalesce(tr.document_ids,'[]')) document_count,
+        jsonb_array_length(coalesce(tr.columns_config,'[]')) column_count
+      from public.tabular_reviews tr left join public.projects p on p.id=tr.project_id
+      where (tr.user_id=p_user_id or (coalesce(p_user_email,'')<>'' and
+          tr.shared_with @> jsonb_build_array(p_user_email)))
+        and (p_filter is null or tr.project_id::text=p_filter or
+          (p_filter='in-project' and tr.project_id is not null) or
+          (p_filter='standalone' and tr.project_id is null))
+        and (p_q='' or lower(coalesce(tr.title,'')) like '%'||lower(p_q)||'%')
+        and (p_after_created_at is null or (tr.created_at,tr.id)<(p_after_created_at,p_after_id))
+      order by tr.created_at desc,tr.id desc limit least(p_limit,201)) x;
+  else raise exception 'unknown collection'; end if;
+end $$;
+
+create extension if not exists pg_trgm;
+create index if not exists document_versions_filename_trgm_idx
+  on public.document_versions using gin(lower(filename) gin_trgm_ops) where deleted_at is null;
+create index if not exists document_versions_filename_page_idx
+  on public.document_versions(lower(filename),id) where deleted_at is null;
+create index if not exists documents_current_version_idx
+  on public.documents(current_version_id);
+create index if not exists library_folders_page_idx
+  on public.library_folders(user_id,library_kind,parent_folder_id,lower(name),id);
+create index if not exists project_subfolders_page_idx
+  on public.project_subfolders(project_id,parent_folder_id,lower(name),id);
+
+create or replace function public.get_directory_page(
+  p_user_id text,p_user_email text default null,p_project_id uuid default null,
+  p_library_kind text default null,p_parent_id uuid default null,p_q text default '',
+  p_documents_only boolean default false,p_after_bucket integer default null,
+  p_after_name text default null,p_after_id uuid default null,p_limit integer default 51
+) returns table(kind text,id uuid,bucket integer,sort_name text,payload jsonb)
+language plpgsql stable as $$ declare n integer:=0; permitted boolean;
+begin
+  select p_project_id is null or exists(select 1 from public.projects p
+    where p.id=p_project_id and (p.user_id=p_user_id or
+      (coalesce(p_user_email,'')<>'' and p.shared_with @> jsonb_build_array(p_user_email))))
+    into permitted;
+  if not permitted then return; end if;
+  if not p_documents_only and p_q='' and coalesce(p_after_bucket,0)=0 then
+    if p_project_id is null then return query select 'folder',f.id,0,lower(f.name),to_jsonb(f)
+      from public.library_folders f where f.user_id=p_user_id and f.library_kind=p_library_kind
+        and f.parent_folder_id is not distinct from p_parent_id and (p_after_bucket is null or
+          (lower(f.name),f.id)>(p_after_name,p_after_id))
+      order by lower(f.name),f.id limit least(p_limit,201);
+    else return query select 'folder',f.id,0,lower(f.name),to_jsonb(f)
+      from public.project_subfolders f where f.project_id=p_project_id
+        and f.parent_folder_id is not distinct from p_parent_id and (p_after_bucket is null or
+          (lower(f.name),f.id)>(p_after_name,p_after_id))
+      order by lower(f.name),f.id limit least(p_limit,201); end if;
+    get diagnostics n=row_count;
+  end if;
+  if n<least(p_limit,201) then return query select 'document',v.id,1,lower(v.filename),
+    jsonb_build_object('id',d.id,'user_id',d.user_id,'project_id',d.project_id,
+      'library_kind',d.library_kind,'library_folder_id',d.library_folder_id,
+      'folder_id',coalesce(d.folder_id,d.library_folder_id),'status',d.status,
+      'created_at',d.created_at,'updated_at',d.updated_at,
+      'current_version_id',d.current_version_id,'active_version_number',v.version_number,
+      'filename',v.filename,'file_type',v.file_type,'size_bytes',v.size_bytes,'page_count',v.page_count)
+    from public.document_versions v join public.documents d on d.current_version_id=v.id
+    where v.deleted_at is null and ((p_project_id is null and d.user_id=p_user_id and
+      d.project_id is null and d.library_kind=p_library_kind) or d.project_id=p_project_id)
+      and (p_documents_only or p_q<>'' or coalesce(d.folder_id,d.library_folder_id)
+        is not distinct from p_parent_id) and (p_q='' or lower(v.filename) like '%'||lower(p_q)||'%')
+      and (p_after_bucket is null or p_after_bucket=0 or
+        (lower(v.filename),v.id)>(p_after_name,p_after_id))
+    order by lower(v.filename),v.id limit least(p_limit,201)-n; end if;
+end
+$$;
+
+create or replace function public.get_project_folder_document_ids(p_project_id uuid,p_folder_id uuid)
+returns table(id uuid) language sql stable as $$
+  with recursive folders(id) as (select p_folder_id union select f.id
+    from public.project_subfolders f join folders p on f.parent_folder_id=p.id
+    where f.project_id=p_project_id)
+  select d.id from public.documents d where d.project_id=p_project_id and d.folder_id in(select id from folders)
+$$;
+create or replace function public.get_library_folder_document_ids(p_user_id text,p_kind text,p_folder_id uuid)
+returns table(id uuid) language sql stable as $$
+  with recursive folders(id) as (select p_folder_id union select f.id
+    from public.library_folders f join folders p on f.parent_folder_id=p.id
+    where f.user_id=p_user_id and f.library_kind=p_kind)
+  select d.id from public.documents d where d.user_id=p_user_id and d.project_id is null
+    and d.library_kind=p_kind and d.library_folder_id in(select id from folders)
+$$;

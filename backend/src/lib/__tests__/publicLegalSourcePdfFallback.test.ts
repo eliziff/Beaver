@@ -208,18 +208,13 @@ describe("public legal source PDF fallback", () => {
     });
     // A verbatim quote of the article clears the deterministic tier against
     // this span — proof the receipt is genuinely citeable.
-    const { deterministicClaimSupport, createLegalEvidenceTurnState, registerLegalEvidence } =
-      await import("../chat/legalEvidenceExperiment");
-    const turnState = createLegalEvidenceTurnState("quote_first");
+    const { createLegalEvidenceTurnState, registerLegalEvidence, submitLegalEvidenceAnswer } =
+      await import("../chat/legalEvidence");
+    const turnState = createLegalEvidenceTurnState();
     registerLegalEvidence(turnState, receipt);
-    expect(
-      deterministicClaimSupport(
-        {
-          text: "The Court recognized that the presumptive ceiling governs delay.",
-          evidence_ids: [receipt.evidence_id],
-        },
-        turnState,
-      ),
-    ).toBe(true);
+    expect(submitLegalEvidenceAnswer({ claims: [{
+      text: "The Court recognized that the presumptive ceiling governs delay.",
+      evidence_ids: [receipt.evidence_id],
+    }] }, turnState).ok).toBe(true);
   });
 });

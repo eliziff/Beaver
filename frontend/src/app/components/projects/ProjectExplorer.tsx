@@ -175,6 +175,7 @@ export function ProjectExplorer({
                                 </li>
                             );
                         }
+                        if (row.kind === "more") return null;
                         const document = row.document;
                         return (
                             <li key={document.id}

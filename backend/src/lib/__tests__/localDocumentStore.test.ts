@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -20,6 +20,12 @@ vi.mock("../localPdfIngestion", () => ({
 let temporaryDirectory: string | null = null;
 
 afterEach(async () => {
+  if (temporaryDirectory) {
+    try {
+      const store = await import("../localDocumentStore");
+      await store.closeLocalDocumentStore();
+    } catch {}
+  }
   delete process.env.MIKE_LOCAL_DATA_DIR;
   delete process.env.MIKE_EAGER_OFFICE_PDF_RENDITION;
   vi.resetModules();
@@ -30,6 +36,50 @@ afterEach(async () => {
 });
 
 describe("local document store", () => {
+  it("pages folders before documents and preserves literal substring search", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-local-store-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const store = await import("../localDocumentStore");
+    await store.createLocalFolder("local-user", "file", "Authorities", null);
+    for (const filename of ["Zulu.pdf", "Alpha lease.pdf", "100% brief.pdf"]) {
+      await store.createLocalDocument({
+        userId: "local-user",
+        kind: "file",
+        filename,
+        bytes: Buffer.from("%PDF"),
+      });
+    }
+
+    const first = await store.pageLocalLibrary("local-user", "file", {
+      parentFolderId: null, q: "", limit: 2, after: null,
+    });
+    expect(first.items.map((item) => item.kind === "folder"
+      ? item.folder.name : item.document.filename)).toEqual([
+      "Authorities", "100% brief.pdf",
+    ]);
+    const second = await store.pageLocalLibrary("local-user", "file", {
+      parentFolderId: null, q: "", limit: 2, after: first.nextAfter,
+    });
+    expect(second.items.map((item) => item.kind === "document"
+      ? item.document.filename : item.folder.name)).toEqual([
+      "Alpha lease.pdf", "Zulu.pdf",
+    ]);
+    expect(second.nextAfter).toBeNull();
+
+    for (const [q, filename] of [
+      ["LEASE", "Alpha lease.pdf"],
+      ["pha", "Alpha lease.pdf"],
+      ["%", "100% brief.pdf"],
+    ]) {
+      const result = await store.pageLocalLibrary("local-user", "file", {
+        parentFolderId: null, q, limit: 10, after: null,
+      });
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].kind === "document" &&
+        result.items[0].document.filename).toBe(filename);
+    }
+  });
+
   it("defers an Office PDF rendition until a PDF read requests it", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-local-store-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
@@ -55,63 +105,6 @@ describe("local document store", () => {
     expect(mocks.docxToPdf).toHaveBeenCalledOnce();
   });
 
-  it("durably repairs a missing DOCX rendition when display requests PDF", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-local-store-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
-    const sourcePath = path.join("files", "document-1", "version-1.docx");
-    await writeFile(
-      path.join(temporaryDirectory, "library.json"),
-      JSON.stringify({
-        version: 1,
-        folders: [],
-        legalSources: [],
-        documents: [{
-          id: "document-1",
-          userId: "local-user",
-          kind: "file",
-          folderId: null,
-          createdAt: "2026-07-28T00:00:00.000Z",
-          updatedAt: "2026-07-28T00:00:00.000Z",
-          currentVersionId: "version-1",
-          versions: [{
-            id: "version-1",
-            versionNumber: 1,
-            source: "upload",
-            createdAt: "2026-07-28T00:00:00.000Z",
-            filename: "draft.docx",
-            fileType: "docx",
-            sizeBytes: 4,
-            pageCount: null,
-            storagePath: sourcePath,
-            pdfStoragePath: null,
-          }],
-        }],
-      }),
-      "utf8",
-    );
-    await mkdir(path.join(temporaryDirectory, "files", "document-1"), {
-      recursive: true,
-    });
-    await writeFile(path.join(temporaryDirectory, sourcePath), Buffer.from("docx"));
-    const store = await import("../localDocumentStore");
-
-    const file = await store.getLocalVersionFile(
-      "local-user",
-      "document-1",
-      "version-1",
-      true,
-    );
-    const persisted = JSON.parse(
-      await readFile(path.join(temporaryDirectory, "library.json"), "utf8"),
-    );
-
-    expect(file?.fileType).toBe("pdf");
-    expect(await readFile(file!.path)).toEqual(Buffer.from("%PDF repaired"));
-    expect(persisted.documents[0].versions[0].pdfStoragePath).toMatch(
-      /version-1-[a-f0-9]{16}\.pdf$/u,
-    );
-  });
-
   it("persists uploaded Library files and their bytes", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-local-store-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
@@ -124,11 +117,13 @@ describe("local document store", () => {
       filename: "sample.pdf",
       bytes,
     });
-    const collection = await store.listLocalLibrary("local-user", "file");
+    const collection = await store.pageLocalDocuments("local-user", ["file"], {
+      q: "", limit: 50, after: null,
+    });
     const file = await store.getLocalVersionFile("local-user", document.id);
 
-    expect(collection.documents).toHaveLength(1);
-    expect(collection.documents[0]).toMatchObject({
+    expect(collection.items).toHaveLength(1);
+    expect(collection.items[0]).toMatchObject({
       id: document.id,
       filename: "sample.pdf",
       status: "ready",
@@ -165,11 +160,7 @@ describe("local document store", () => {
     });
 
     expect(replaced?.provenance).toBeUndefined();
-    const persisted = JSON.parse(
-      await readFile(path.join(temporaryDirectory, "library.json"), "utf8"),
-    );
-    expect(persisted.documents[0].versions[0]).not.toHaveProperty("provenance");
-
+    await store.closeLocalDocumentStore();
     vi.resetModules();
     const reloadedStore = await import("../localDocumentStore");
     const reloaded = await reloadedStore.listLocalVersions(
@@ -214,14 +205,9 @@ describe("local document store", () => {
     ).toHaveLength(2);
   });
 
-  it("reads the version-1 index and persists only legal source pointers", async () => {
+  it("persists only legal source pointers", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-local-store-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
-    await writeFile(
-      path.join(temporaryDirectory, "library.json"),
-      JSON.stringify({ version: 1, documents: [], folders: [] }),
-      "utf8",
-    );
     const store = await import("../localDocumentStore");
 
     await expect(store.listLocalLegalSources("local-user")).resolves.toEqual([]);
@@ -233,24 +219,23 @@ describe("local document store", () => {
       language: "en",
       dataset: "SCC",
     });
-    const persisted = JSON.parse(
-      await readFile(path.join(temporaryDirectory, "library.json"), "utf8"),
-    );
-
     expect(reference.id).toMatch(/^[a-f0-9]{32}$/u);
-    expect(persisted.version).toBe(1);
-    expect(persisted.legalSources).toEqual([
-      {
+    await store.closeLocalDocumentStore();
+    vi.resetModules();
+    const reloadedStore = await import("../localDocumentStore");
+    expect(await reloadedStore.listLocalLegalSources("local-user")).toEqual([
+      expect.objectContaining({
         id: reference.id,
-        userId: "local-user",
         provider: "a2aj",
-        docType: "cases",
+        doc_type: "cases",
         citation: "2024 SCC 1",
         language: "en",
         dataset: "SCC",
-      },
+      }),
     ]);
-    expect(JSON.stringify(persisted.legalSources)).not.toMatch(
+    expect(JSON.stringify(
+      await reloadedStore.getLocalLegalSource("local-user", reference.id),
+    )).not.toMatch(
       /(?:text|title|structure|metadata)/u,
     );
   });
@@ -274,7 +259,50 @@ describe("local document store", () => {
       expect(await store.deleteLocalDocument("local-user", document.id)).toBe(
         true,
       );
-      expect(graph.listMatterDocumentIds("local-user", matter.id)).toEqual([]);
+      expect(graph.matterDocumentIdsAmong(
+        "local-user", matter.id, [document.id])).toEqual([]);
+    } finally {
+      graph.close();
+    }
+  });
+
+  it("pages matter documents through the attached Library database", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-local-store-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const store = await import("../localDocumentStore");
+    const graphModule = await import("../legalKnowledgeGraphStore");
+    const graph = graphModule.legalKnowledgeGraphStore();
+    try {
+      const matter = graph.createMatter("local-user", { name: "Appeal" });
+      const documents = [];
+      for (const filename of ["Zulu record.pdf", "Alpha lease.pdf", "Beta brief.pdf"]) {
+        const document = await store.createLocalDocument({
+          userId: "local-user",
+          kind: "file",
+          filename,
+          bytes: Buffer.from("%PDF"),
+        });
+        documents.push(document);
+        graph.attachMatterDocument("local-user", matter.id, document.id);
+      }
+
+      const first = graph.pageMatterDocuments("local-user", matter.id, {
+        q: "",
+        limit: 1,
+        after: null,
+      });
+      expect(first.ids).toEqual([documents[1].id]);
+      expect(first.nextAfter).not.toBeNull();
+      expect(graph.pageMatterDocuments("local-user", matter.id, {
+        q: "",
+        limit: 2,
+        after: first.nextAfter,
+      }).ids).toEqual([documents[2].id, documents[0].id]);
+      expect(graph.pageMatterDocuments("local-user", matter.id, {
+        q: "LEASE",
+        limit: 10,
+        after: null,
+      }).ids).toEqual([documents[1].id]);
     } finally {
       graph.close();
     }
@@ -330,10 +358,11 @@ describe("local document store", () => {
       expect(
         await store.deleteLocalFolder("local-user", "file", parent!.id),
       ).toBe(true);
-      expect(graph.listMatterDocumentIds("local-user", matter.id)).toEqual([]);
-      expect((await store.listLocalLibrary("local-user", "file")).documents).toEqual(
-        [],
-      );
+      expect(graph.matterDocumentIdsAmong("local-user", matter.id,
+        [parentDocument.id, childDocument.id])).toEqual([]);
+      expect((await store.pageLocalDocuments("local-user", ["file"], {
+        q: "", limit: 50, after: null,
+      })).items).toEqual([]);
     } finally {
       graph.close();
     }

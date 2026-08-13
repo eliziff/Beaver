@@ -14,7 +14,7 @@
 // decimal place ("82%" checks to ±0.5, "95.7%" to ±0.05). Anything the
 // scan cannot pair is reported as an abstention, not guessed at; findings
 // carry the arithmetic so a reader can judge materiality.
-import { extractAnchors, type AnchorHit } from "./legalTextAnchors";
+import { extractAnchors } from "./legalTextAnchors";
 import {
   compileAgreementSkeleton,
   type SkeletonNode,

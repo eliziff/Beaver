@@ -10,7 +10,7 @@ afterEach(async () => {
 });
 
 describe("Codex tool bridge scheduling", () => {
-  it("admits concurrent reading-agent calls as one atomic round", async () => {
+  it("serializes concurrent tool calls", async () => {
     const gates: Array<() => void> = [];
     const batches: string[][] = [];
     let active = 0;
@@ -50,9 +50,12 @@ describe("Codex tool bridge scheduling", () => {
       client.callTool({ name: "delegate_read", arguments: {} }),
     ];
     await vi.waitFor(() => expect(gates).toHaveLength(1));
-    expect(batches).toEqual([["delegate_read", "delegate_read"]]);
+    expect(batches).toEqual([["delegate_read"]]);
     expect(maxActive).toBe(1);
-    gates.splice(0).forEach((release) => release());
+    gates.shift()?.();
+    await vi.waitFor(() => expect(gates).toHaveLength(1));
+    expect(batches).toEqual([["delegate_read"], ["delegate_read"]]);
+    gates.shift()?.();
     await Promise.all(readers);
 
     maxActive = 0;

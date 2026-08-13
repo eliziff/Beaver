@@ -52,12 +52,8 @@ export function createLegalKnowledgeRouter(options?: {
   router.use(requireAuth);
 
   function projectExists(user: string, projectId: string) {
-    return store().listProjects(user).some((project) => project.id === projectId);
+    return store().hasProject(user, projectId);
   }
-
-  router.get("/projects", (_req, res) => {
-    res.json({ projects: store().listProjects(userId(res)) });
-  });
 
   router.post("/projects", (req, res) => {
     try {

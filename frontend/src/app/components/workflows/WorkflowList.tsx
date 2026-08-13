@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useDeferredValue, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
-import { deleteWorkflow, hideWorkflow, listHiddenWorkflows, listWorkflows, unhideWorkflow } from "@/app/lib/beaverApi";
+import { deleteWorkflow, hideWorkflow, listHiddenWorkflows, listSystemWorkflows, listWorkflows, unhideWorkflow } from "@/app/lib/beaverApi";
 import { isAnonymousMode } from "@/app/lib/authMode";
 import type { Workflow } from "../shared/types";
 import { NewWorkflowModal } from "./NewWorkflowModal";
@@ -19,6 +19,7 @@ import {
 } from "../shared/TablePrimitive";
 import { CheckboxControl } from "../ui/checkbox";
 import { PillButton } from "../ui/pill-button";
+import { usePagedQuery } from "@/app/hooks/usePagedQuery";
 
 type WorkflowListTab = "all" | "assistant" | "tabular" | "system";
 const TABS: { id: WorkflowListTab; label: string }[] = [
@@ -51,25 +52,39 @@ const rank = (workflow: Workflow, hidden: Set<string>) =>
 export function WorkflowList() {
     const router = useRouter();
     const mutationsEnabled = !isAnonymousMode;
-    const [workflows, setWorkflows] = useState<Workflow[] | null>(null);
+    const [systemWorkflows, setSystemWorkflows] = useState<Workflow[] | null>(null);
     const [selected, setSelected] = useState<Workflow | null>(null);
     const [creating, setCreating] = useState(false);
     const [hiddenSystemIds, setHiddenSystemIds] = useState<string[]>([]);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [activeTab, setActiveTab] = useState<WorkflowListTab>("all");
     const [search, setSearch] = useState("");
+    const query = useDeferredValue(search.trim());
+    const dynamicType = activeTab === "assistant" || activeTab === "tabular"
+        ? activeTab
+        : undefined;
+    const custom = usePagedQuery(
+        (cursor, signal) => listWorkflows({
+            q: query,
+            type: dynamicType,
+            cursor,
+        }, signal),
+        [dynamicType, query],
+        activeTab !== "system",
+    );
+    useEffect(() => setSelectedIds([]), [activeTab, query]);
 
     useEffect(() => {
-        Promise.all([listWorkflows(), listHiddenWorkflows().catch(() => [])])
-            .then(([loaded, hidden]) => {
-                setWorkflows(loaded);
+        Promise.all([listSystemWorkflows(), listHiddenWorkflows().catch(() => [])])
+            .then(([system, hidden]) => {
+                setSystemWorkflows(system);
                 setHiddenSystemIds(hidden);
             })
-            .catch(() => setWorkflows([]));
+            .catch(() => setSystemWorkflows([]));
     }, []);
 
-    const loading = workflows === null;
-    const rows = workflows ?? [];
+    const loading = systemWorkflows === null || custom.loading;
+    const rows = [...(systemWorkflows ?? []), ...custom.items];
     const hidden = new Set(hiddenSystemIds);
     const selectedSet = new Set(selectedIds);
     const selectedRows = rows.filter(({ id }) => selectedSet.has(id));
@@ -119,8 +134,8 @@ export function WorkflowList() {
     }
     async function remove(id: string) {
         await deleteWorkflow(id);
-        setWorkflows((current) =>
-            current?.filter((workflow) => workflow.id !== id) ?? current);
+        custom.setItems((current) =>
+            current.filter((workflow) => workflow.id !== id));
     }
     async function runBulkAction() {
         setSelectedIds([]);
@@ -170,6 +185,7 @@ export function WorkflowList() {
                             ? <TableSelectionPlaceholder />
                             : (
                                 <CheckboxControl checked={allSelected}
+                                    aria-label="Select loaded workflows"
                                     ref={(element) => {
                                         if (element)
                                             element.indeterminate = someSelected;
@@ -300,11 +316,18 @@ export function WorkflowList() {
                     </TableBody>
                 )}
             </TableScrollArea>
+            {custom.hasMore && !loading && activeTab !== "system" && (
+                <div className="flex justify-center border-t border-gray-200 bg-white p-3">
+                    <PillButton tone="white" onClick={() => void custom.loadMore()}>
+                        Load more
+                    </PillButton>
+                </div>
+            )}
             <UseWorkflowModal workflow={selected} onClose={() => setSelected(null)} />
             <NewWorkflowModal open={creating}
                 onClose={() => setCreating(false)}
                 onCreated={(workflow) => {
-                    setWorkflows((current) => [workflow, ...(current ?? [])]);
+                    custom.setItems((current) => [workflow, ...current]);
                     setCreating(false);
                     router.push(workflowDetailPath(workflow));
                 }}

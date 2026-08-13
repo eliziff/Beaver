@@ -36,26 +36,20 @@ import {
   normalizeDocumentFilename,
   normalizeOptionalString,
 } from "../lib/normalize";
+import {
+  encodePageCursor,
+  pageRequest,
+  pageResult,
+  PageCursorError,
+} from "../lib/pagination";
 
 export const projectsRouter = Router();
 projectsRouter.use(requireAuth);
 
-async function localMatterDocuments(userId: string, projectId: string) {
-  const documentIds =
-    legalKnowledgeGraphStore().listMatterDocumentIds(userId, projectId) ?? [];
-  return (await listLocalDocumentsById(userId, documentIds)).map((document) => ({
-    ...document,
-    project_id: projectId,
-    folder_id: null,
-  }));
-}
-
 async function localMatterResponse(
   userId: string,
   matter: LocalMatter,
-  includeDocuments = false,
 ) {
-  const documents = await localMatterDocuments(userId, matter.id);
   return {
     id: matter.id,
     user_id: userId,
@@ -70,10 +64,6 @@ async function localMatterResponse(
     shared_with: [],
     created_at: matter.created_at,
     updated_at: matter.updated_at,
-    document_count: documents.length,
-    chat_count: listAnonymousProjectChats(userId, matter.id).length,
-    review_count: localTabularStore().list(userId, matter.id).length,
-    ...(includeDocuments ? { documents, folders: [] } : {}),
   };
 }
 
@@ -172,71 +162,50 @@ async function attachChatCreatorLabels(
 }
 
 projectsRouter.get("/", async (req, res) => {
-  if (isAnonymousLocalMode()) {
-    const userId = res.locals.userId as string;
-    const includeDocuments = req.query.include === "documents";
-    res.json(
-      await Promise.all(
-        legalKnowledgeGraphStore()
-          .listMatters(userId)
-          .map((matter) =>
-            localMatterResponse(userId, matter, includeDocuments),
-          ),
-      ),
-    );
-    return;
-  }
   try {
     const userId = res.locals.userId as string;
     const userEmail = res.locals.userEmail as string | undefined;
-    const includeDocuments = req.query.include === "documents";
+    const q = typeof req.query.q === "string"
+      ? req.query.q.trim().toLocaleLowerCase()
+      : "";
+    const scope = req.query.scope === "mine" || req.query.scope === "shared-with-me"
+      ? req.query.scope
+      : "all";
+    const filters = { q, scope };
+    const { after, limit } = pageRequest<[string, string]>(
+      req.query, "projects", filters, ["string", "string"]);
+    if (isAnonymousLocalMode()) {
+      const page = legalKnowledgeGraphStore().pageMatters(userId, {
+        q, scope, limit, after,
+      });
+      return void res.json({
+        items: await Promise.all(page.items.map((matter) =>
+          localMatterResponse(userId, matter))),
+        next_cursor: page.nextAfter
+          ? encodePageCursor("projects", filters, page.nextAfter)
+          : null,
+      });
+    }
     const db = createServerSupabase();
 
-    const { data, error } = await db.rpc("get_projects_overview", {
+    const { data, error } = await db.rpc("get_collection_page", {
+      p_resource: "projects",
       p_user_id: userId,
       p_user_email: userEmail ?? null,
+      p_q: q,
+      p_filter: scope,
+      p_after_created_at: after?.[0] ?? null,
+      p_after_id: after?.[1] ?? null,
+      p_limit: limit + 1,
     });
     if (error) return void res.status(500).json({ detail: error.message });
-
-    const projects = (data ?? []) as { id: string }[];
-    if (!includeDocuments || projects.length === 0) {
-      return void res.json(projects);
-    }
-
-    const { data: docs, error: docsError } = await db
-      .from("documents")
-      .select("*")
-      .in(
-        "project_id",
-        projects.map((p) => p.id),
-      )
-      .order("created_at", { ascending: true });
-    if (docsError)
-      return void res.status(500).json({ detail: docsError.message });
-
-    const docsTyped = (docs ?? []) as unknown as {
-      id: string;
-      project_id?: string | null;
-      user_id?: string | null;
-      current_version_id?: string | null;
-    }[];
-    await attachActiveVersionPaths(db, docsTyped);
-    await attachDocumentOwnerLabels(db, docsTyped);
-
-    const docsByProject = new Map<string, typeof docsTyped>();
-    for (const doc of docsTyped) {
-      if (!doc.project_id) continue;
-      const bucket = docsByProject.get(doc.project_id);
-      if (bucket) bucket.push(doc);
-      else docsByProject.set(doc.project_id, [doc]);
-    }
-    res.json(
-      projects.map((p) => ({
-        ...p,
-        documents: docsByProject.get(p.id) ?? [],
-      })),
-    );
+    const rows = (data ?? []) as { payload: Record<string, unknown>; id: string; created_at: string }[];
+    res.json(pageResult(rows, limit, ({ payload }) => payload, (last) =>
+      encodePageCursor("projects", filters, [last.created_at, last.id])));
   } catch (error) {
+    if (error instanceof PageCursorError) {
+      return void res.status(400).json({ detail: error.message });
+    }
     console.error("[projects] failed to load projects", error);
     res.status(500).json({ detail: "Failed to load projects" });
   }
@@ -274,8 +243,7 @@ projectsRouter.post("/", async (req, res) => {
         notes,
       });
       res.status(201).json({
-        ...(await localMatterResponse(userId, matter, true)),
-        documents: [],
+        ...(await localMatterResponse(userId, matter)),
       });
     } catch (error) {
       res.status(400).json({
@@ -325,7 +293,88 @@ projectsRouter.post("/", async (req, res) => {
     .select("*")
     .single();
   if (error) return void res.status(500).json({ detail: error.message });
-  res.status(201).json({ ...data, documents: [] });
+  res.status(201).json(data);
+});
+
+projectsRouter.get("/:projectId/directory", async (req, res) => {
+  try {
+    const userId = res.locals.userId as string;
+    const userEmail = res.locals.userEmail as string | undefined;
+    const { projectId } = req.params;
+    const q = typeof req.query.q === "string"
+      ? req.query.q.trim().toLocaleLowerCase()
+      : "";
+    const parentFolderId = typeof req.query.parent_id === "string"
+      ? req.query.parent_id
+      : null;
+    if (q && parentFolderId) {
+      return void res.status(400).json({
+        detail: "q and parent_id cannot be used together",
+      });
+    }
+    const filters = { project_id: projectId, q, parent_id: q ? null : parentFolderId };
+    const { after, limit } = pageRequest<[number, string, string]>(req.query,
+      "project-directory", filters, ["number", "string", "string"]);
+    if (isAnonymousLocalMode()) {
+      if (parentFolderId) {
+        return void res.json({ items: [], next_cursor: null });
+      }
+      if (!legalKnowledgeGraphStore().getMatter(userId, projectId)) {
+        return void res.status(404).json({ detail: "Project not found" });
+      }
+      const page = legalKnowledgeGraphStore().pageMatterDocuments(
+        userId, projectId, {
+        q, limit, after,
+      });
+      const documents = new Map(
+        (await listLocalDocumentsById(userId, page.ids)).map((document) =>
+          [document.id, document]),
+      );
+      return void res.json({
+        items: page.ids.flatMap((id) => {
+          const document = documents.get(id);
+          return document ? [{ kind: "document", document: {
+            ...document, project_id: projectId, folder_id: null,
+          } }] : [];
+        }),
+        next_cursor: page.nextAfter
+          ? encodePageCursor("project-directory", filters, page.nextAfter)
+          : null,
+      });
+    }
+    const db = createServerSupabase();
+    const { data, error } = await db.rpc("get_directory_page", {
+      p_user_id: userId,
+      p_user_email: userEmail ?? null,
+      p_project_id: projectId,
+      p_library_kind: null,
+      p_parent_id: filters.parent_id,
+      p_q: q,
+      p_documents_only: false,
+      p_after_bucket: after?.[0] ?? null,
+      p_after_name: after?.[1] ?? null,
+      p_after_id: after?.[2] ?? null,
+      p_limit: limit + 1,
+    });
+    if (error) return void res.status(500).json({ detail: error.message });
+    const rows = (data ?? []) as {
+      kind: "folder" | "document";
+      id: string;
+      bucket: number;
+      sort_name: string;
+      payload: Record<string, unknown>;
+    }[];
+    res.json(pageResult(rows, limit, (row) => row.kind === "folder"
+      ? { kind: "folder", folder: row.payload }
+      : { kind: "document", document: row.payload }, (last) =>
+        encodePageCursor("project-directory", filters,
+          [last.bucket, last.sort_name, last.id])));
+  } catch (error) {
+    if (error instanceof PageCursorError) {
+      return void res.status(400).json({ detail: error.message });
+    }
+    throw error;
+  }
 });
 
 projectsRouter.get("/:projectId", async (req, res) => {
@@ -336,7 +385,7 @@ projectsRouter.get("/:projectId", async (req, res) => {
     const matter = legalKnowledgeGraphStore().getMatter(userId, projectId);
     if (!matter)
       return void res.status(404).json({ detail: "Project not found" });
-    res.json(await localMatterResponse(userId, matter, true));
+    res.json(await localMatterResponse(userId, matter));
     return;
   }
   const db = createServerSupabase();
@@ -357,22 +406,9 @@ projectsRouter.get("/:projectId", async (req, res) => {
   if (!canAccess)
     return void res.status(404).json({ detail: "Project not found" });
 
-  const [{ data: docs }, { data: folderData }] = await Promise.all([
-    db.from("documents").select("*").eq("project_id", projectId).order("created_at", { ascending: true }),
-    db.from("project_subfolders").select("*").eq("project_id", projectId).order("created_at", { ascending: true }),
-  ]);
-  const docsTyped = (docs ?? []) as unknown as {
-    id: string;
-    user_id?: string | null;
-    current_version_id?: string | null;
-  }[];
-  await attachActiveVersionPaths(db, docsTyped);
-  await attachDocumentOwnerLabels(db, docsTyped);
   res.json({
     ...project,
     is_owner: project.user_id === userId,
-    documents: docsTyped,
-    folders: folderData ?? [],
   });
 });
 
@@ -461,7 +497,7 @@ projectsRouter.patch("/:projectId", async (req, res) => {
       );
       if (!matter)
         return void res.status(404).json({ detail: "Project not found" });
-      res.json(await localMatterResponse(userId, matter, true));
+      res.json(await localMatterResponse(userId, matter));
     } catch (error) {
       res.status(400).json({
         detail: error instanceof Error ? error.message : "Invalid project",
@@ -562,36 +598,6 @@ projectsRouter.delete("/:projectId", async (req, res) => {
     const detail = err instanceof Error ? err.message : String(err);
     res.status(500).json({ detail });
   }
-});
-
-projectsRouter.get("/:projectId/documents", async (req, res) => {
-  const userId = res.locals.userId as string;
-  const userEmail = res.locals.userEmail as string | undefined;
-  const { projectId } = req.params;
-  if (isAnonymousLocalMode()) {
-    if (!legalKnowledgeGraphStore().getMatter(userId, projectId)) {
-      return void res.status(404).json({ detail: "Project not found" });
-    }
-    res.json(await localMatterDocuments(userId, projectId));
-    return;
-  }
-  const db = createServerSupabase();
-
-  const access = await checkProjectAccess(projectId, userId, userEmail, db);
-  if (!access.ok)
-    return void res.status(404).json({ detail: "Project not found" });
-
-  const { data: docs } = await db
-    .from("documents")
-    .select("*")
-    .eq("project_id", projectId)
-    .order("created_at", { ascending: true });
-  const docsTyped = (docs ?? []) as unknown as {
-    id: string;
-    current_version_id?: string | null;
-  }[];
-  await attachActiveVersionPaths(db, docsTyped);
-  res.json(docsTyped);
 });
 
 // document from one matter without deleting the canonical file.
@@ -824,7 +830,7 @@ projectsRouter.patch("/:projectId/documents/:documentId", async (req, res) => {
     if (!store.getMatter(userId, projectId)) {
       return void res.status(404).json({ detail: "Project not found" });
     }
-    if (!(store.listMatterDocumentIds(userId, projectId) ?? []).includes(documentId)) {
+    if (!store.hasMatterDocument(userId, projectId, documentId)) {
       return void res.status(404).json({ detail: "Document not found" });
     }
     const [current] = await listLocalDocumentsById(userId, [documentId]);
@@ -1090,41 +1096,15 @@ projectsRouter.delete("/:projectId/folders/:folderId", async (req, res) => {
   const access = await checkProjectAccess(projectId, userId, userEmail, db);
   if (!access.ok) return void res.status(404).json({ detail: "Project not found" });
 
-  const { data: allFolders, error: foldersError } = await db
-    .from("project_subfolders")
-    .select("id, parent_folder_id")
-    .eq("project_id", projectId);
-  if (foldersError)
-    return void res.status(500).json({ detail: foldersError.message });
-  if (!(allFolders ?? []).some((f) => f.id === folderId))
+  if (!await loadProjectFolder(db, projectId, folderId))
     return void res.status(404).json({ detail: "Folder not found" });
-
-  const childrenByParent = new Map<string, string[]>();
-  for (const f of allFolders ?? []) {
-    const parentId = f.parent_folder_id as string | null;
-    if (!parentId) continue;
-    const children = childrenByParent.get(parentId) ?? [];
-    children.push(f.id as string);
-    childrenByParent.set(parentId, children);
-  }
-
-  const folderIds = new Set<string>();
-  const stack = [folderId];
-  while (stack.length > 0) {
-    const id = stack.pop()!;
-    if (folderIds.has(id)) continue;
-    folderIds.add(id);
-    stack.push(...(childrenByParent.get(id) ?? []));
-  }
-
-  const { data: docs, error: docsError } = await db
-    .from("documents")
-    .select("id")
-    .eq("project_id", projectId)
-    .in("folder_id", [...folderIds]);
+  const { data: docs, error: docsError } = await db.rpc(
+    "get_project_folder_document_ids",
+    { p_project_id: projectId, p_folder_id: folderId },
+  );
   if (docsError) return void res.status(500).json({ detail: docsError.message });
 
-  const docIds = (docs ?? []).map((d) => d.id as string);
+  const docIds = (docs ?? []).map((doc: { id: string }) => doc.id);
   const deleteDocsError = await deleteProjectDocumentsAndVersionFiles(
     db,
     projectId,
@@ -1154,9 +1134,8 @@ projectsRouter.patch("/:projectId/documents/:documentId/folder", async (req, res
       });
     }
     const [document] = await listLocalDocumentsById(userId, [documentId]);
-    const belongsToMatter = (
-      legalKnowledgeGraphStore().listMatterDocumentIds(userId, projectId) ?? []
-    ).includes(documentId);
+    const belongsToMatter = legalKnowledgeGraphStore()
+      .hasMatterDocument(userId, projectId, documentId);
     if (!document || !belongsToMatter) {
       return void res.status(404).json({ detail: "Document not found" });
     }

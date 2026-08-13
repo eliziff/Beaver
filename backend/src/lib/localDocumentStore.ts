@@ -2,10 +2,10 @@ import path from "node:path";
 import {
   mkdir,
   readFile,
-  rename,
   rm,
   writeFile,
 } from "node:fs/promises";
+import { DatabaseSync } from "node:sqlite";
 import { docxToPdf } from "./convert";
 import { sha256 } from "./hash";
 import {
@@ -127,38 +127,10 @@ type LocalFolder = {
   updatedAt: string;
 };
 
-type LocalStore = {
-  version: 1;
-  documents: LocalDocument[];
-  folders: LocalFolder[];
-  legalSources: LocalLegalSourcePointer[];
-};
-
 const dataRoot = mikeLocalDataHome();
-const indexPath = path.join(dataRoot, "library.json");
+const databasePath = path.join(dataRoot, "library.sqlite");
 let mutationTail: Promise<unknown> = Promise.resolve();
-let storePromise: Promise<LocalStore> | null = null;
-
-function emptyStore(): LocalStore {
-  return { version: 1, documents: [], folders: [], legalSources: [] };
-}
-
-async function readStore(): Promise<LocalStore> {
-  try {
-    const parsed = JSON.parse(await readFile(indexPath, "utf8")) as Partial<LocalStore>;
-    return {
-      version: 1,
-      documents: Array.isArray(parsed.documents) ? parsed.documents : [],
-      folders: Array.isArray(parsed.folders) ? parsed.folders : [],
-      legalSources: Array.isArray(parsed.legalSources)
-        ? parsed.legalSources
-        : [],
-    };
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return emptyStore();
-    throw error;
-  }
-}
+let databasePromise: Promise<DatabaseSync> | null = null;
 
 function emptyDocumentMetadata(): LocalDocumentMetadata {
   return {
@@ -188,32 +160,88 @@ function cleanMetadata(value: unknown): LocalDocumentMetadata {
   };
 }
 
-function loadStore() {
-  if (!storePromise) {
-    storePromise = readStore().catch((error) => {
-      storePromise = null;
+function loadDatabase() {
+  if (!databasePromise) {
+    databasePromise = openDatabase().catch((error) => {
+      databasePromise = null;
       throw error;
     });
   }
-  return storePromise;
+  return databasePromise;
 }
 
-async function writeStore(store: LocalStore) {
+async function openDatabase() {
   await mkdir(dataRoot, { recursive: true });
-  const temporaryPath = `${indexPath}.${crypto.randomUUID()}.tmp`;
-  await writeFile(temporaryPath, JSON.stringify(store, null, 2), "utf8");
-  await rename(temporaryPath, indexPath);
+  const database = new DatabaseSync(databasePath);
+  database.exec(`
+    PRAGMA journal_mode = WAL;
+    PRAGMA busy_timeout = 5000;
+    PRAGMA foreign_keys = ON;
+    CREATE TABLE IF NOT EXISTS local_library_folders (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      kind TEXT NOT NULL CHECK (kind IN ('file', 'template')),
+      name TEXT NOT NULL,
+      parent_folder_id TEXT REFERENCES local_library_folders(id) ON DELETE CASCADE
+        DEFERRABLE INITIALLY DEFERRED,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS local_library_documents (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      kind TEXT NOT NULL CHECK (kind IN ('file', 'template')),
+      folder_id TEXT REFERENCES local_library_folders(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      filename TEXT NOT NULL,
+      payload TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS local_library_legal_sources (
+      user_id TEXT NOT NULL,
+      id TEXT NOT NULL,
+      pointer_json TEXT NOT NULL,
+      PRIMARY KEY (user_id, id)
+    );
+    CREATE INDEX IF NOT EXISTS local_library_documents_scope
+      ON local_library_documents(user_id, kind, folder_id, updated_at DESC, id DESC);
+    CREATE INDEX IF NOT EXISTS local_library_folders_scope
+      ON local_library_folders(user_id, kind, parent_folder_id, name COLLATE NOCASE, id);
+    CREATE VIRTUAL TABLE IF NOT EXISTS local_document_filenames USING fts5(
+      document_id UNINDEXED, filename, tokenize='trigram'
+    );
+    CREATE TRIGGER IF NOT EXISTS local_document_filenames_insert
+    AFTER INSERT ON local_library_documents BEGIN
+      INSERT INTO local_document_filenames(document_id, filename)
+      VALUES (new.id, new.filename);
+    END;
+    CREATE TRIGGER IF NOT EXISTS local_document_filenames_update
+    AFTER UPDATE OF filename ON local_library_documents BEGIN
+      DELETE FROM local_document_filenames WHERE document_id = old.id;
+      INSERT INTO local_document_filenames(document_id, filename)
+      VALUES (new.id, new.filename);
+    END;
+    CREATE TRIGGER IF NOT EXISTS local_document_filenames_delete
+    AFTER DELETE ON local_library_documents BEGIN
+      DELETE FROM local_document_filenames WHERE document_id = old.id;
+    END;
+    PRAGMA user_version = 1;
+  `);
+  return database;
 }
 
-function mutateStore<T>(operation: (store: LocalStore) => Promise<T> | T): Promise<T> {
+function mutateDatabase<T>(
+  operation: (database: DatabaseSync) => Promise<T> | T,
+): Promise<T> {
   const result = mutationTail.then(async () => {
-    const store = await loadStore();
+    const database = await loadDatabase();
+    database.exec("BEGIN IMMEDIATE");
     try {
-      const value = await operation(store);
-      await writeStore(store);
+      const value = await operation(database);
+      database.exec("COMMIT");
       return value;
     } catch (error) {
-      storePromise = null;
+      database.exec("ROLLBACK");
       throw error;
     }
   });
@@ -221,13 +249,21 @@ function mutateStore<T>(operation: (store: LocalStore) => Promise<T> | T): Promi
   return result;
 }
 
-async function currentStore() {
+async function currentDatabase() {
   await mutationTail;
-  return loadStore();
+  return loadDatabase();
 }
 
 export async function warmLocalDocumentStore() {
-  await currentStore();
+  await currentDatabase();
+}
+
+export async function closeLocalDocumentStore() {
+  await mutationTail;
+  if (!databasePromise) return;
+  const database = await databasePromise;
+  database.close();
+  databasePromise = null;
 }
 
 async function ensureLocalPdfRendition(
@@ -235,10 +271,8 @@ async function ensureLocalPdfRendition(
   documentId: string,
   versionId?: string | null,
 ) {
-  return mutateStore(async (store) => {
-    const document = store.documents.find(
-      (item) => item.id === documentId && item.userId === userId,
-    );
+  return mutateDatabase(async (database) => {
+    const document = databaseDocument(database, userId, documentId);
     if (!document) return;
     const version = versionId
       ? document.versions.find((item) => item.id === versionId)
@@ -262,6 +296,7 @@ async function ensureLocalPdfRendition(
     );
     await writeFile(absoluteDataPath(relativePath), pdf);
     version.pdfStoragePath = relativePath;
+    saveDocument(database, document);
   });
 }
 
@@ -413,37 +448,196 @@ function localVersionResponse(version: LocalVersion) {
   };
 }
 
-export async function listLocalLibrary(userId: string, kind: LocalLibraryKind) {
-  const store = await currentStore();
+export async function getLocalDocumentResponse(
+  userId: string,
+  documentId: string,
+) {
+  const document = await getLocalDocument(userId, documentId);
+  return document ? localDocumentResponse(document) : null;
+}
+
+export async function countLocalDocuments(
+  userId: string,
+  kind: LocalLibraryKind,
+) {
+  const row = (await currentDatabase()).prepare(
+    `SELECT count(*) AS count FROM local_library_documents
+     WHERE user_id = ? AND kind = ?`,
+  ).get(userId, kind) as { count: number };
+  return row.count;
+}
+
+export async function recentLocalDocuments(
+  userId: string,
+  kind: LocalLibraryKind,
+  limit: number,
+) {
+  const database = await currentDatabase();
+  const rows = database.prepare(
+    `SELECT payload FROM local_library_documents
+     WHERE user_id = ? AND kind = ?
+     ORDER BY updated_at DESC, id DESC LIMIT ?`,
+  ).all(userId, kind, Math.max(0, Math.min(limit, 200))) as DocumentRow[];
+  return Promise.all(documentsFromRows(rows).map(localDocumentResponse));
+}
+
+export async function pageLocalLibrary(
+  userId: string,
+  kind: LocalLibraryKind,
+  options: {
+    parentFolderId: string | null;
+    q: string;
+    limit: number;
+    after: [number, string, string] | null;
+    flat?: boolean;
+  },
+) {
+  const database = await currentDatabase();
+  const query = options.q.trim().toLocaleLowerCase();
+  const after = options.after;
+  const pageSize = options.limit + 1;
+  let rows: { kind: "folder" | "document"; id: string; bucket: number;
+    sort_name: string; payload: string }[];
+  if (query || options.flat) {
+    rows = documentPageRows(database, userId, [kind], query, options.limit,
+      after ? [kind, after[1], after[2]] : null).map((row) => ({
+        ...row, kind: "document" as const, bucket: 1,
+      }));
+  } else {
+    const params: (string | number | null)[] = [
+      userId, kind, options.parentFolderId,
+      userId, kind, options.parentFolderId,
+    ];
+    const afterSql = after
+      ? `WHERE (bucket > ? OR
+          (bucket = ? AND (sort_name > ? OR
+            (sort_name = ? AND id > ?))))`
+      : "";
+    if (after) params.push(after[0], after[0], after[1], after[1], after[2]);
+    params.push(pageSize);
+    rows = database.prepare(
+      `SELECT kind, id, bucket, sort_name, payload FROM (
+         SELECT 'folder' AS kind, id, 0 AS bucket, lower(name) AS sort_name,
+           json_object('id',id,'userId',user_id,'kind',kind,'name',name,
+             'parentFolderId',parent_folder_id,'createdAt',created_at,
+             'updatedAt',updated_at) AS payload
+         FROM local_library_folders
+         WHERE user_id = ? AND kind = ? AND parent_folder_id IS ?
+         UNION ALL
+         SELECT 'document' AS kind, d.id, 1 AS bucket,
+                lower(d.filename) AS sort_name, d.payload
+         FROM local_library_documents d
+         WHERE d.user_id = ? AND d.kind = ? AND d.folder_id IS ?
+       ) ${afterSql}
+       ORDER BY bucket, sort_name, id
+       LIMIT ?`,
+    ).all(...params) as typeof rows;
+  }
+
+  const pageRows = rows.slice(0, options.limit);
+  const items = await Promise.all(pageRows.map(async (row) => {
+    if (row.kind === "document") {
+      const document = documentFromRow(row);
+      if (!document) throw new Error("Paged Local Library document disappeared");
+      return { kind: "document" as const, document: await localDocumentResponse(document) };
+    }
+    const folder = parsedJson(row.payload, null as LocalFolder | null);
+    if (!folder) throw new Error("Paged Local Library folder disappeared");
+    return { kind: "folder" as const, folder: localFolderResponse(folder) };
+  }));
+  const last = pageRows.at(-1);
   return {
-    documents: await Promise.all(
-      store.documents
-        .filter(
-          (document) => document.userId === userId && document.kind === kind,
-        )
-        .map(localDocumentResponse),
-    ),
-    folders: store.folders
-      .filter((folder) => folder.userId === userId && folder.kind === kind)
-      .map(localFolderResponse),
+    items,
+    nextAfter: rows.length > options.limit && last
+      ? [last.bucket, last.sort_name, last.id] as [number, string, string]
+      : null,
   };
+}
+
+export async function pageLocalDocuments(
+  userId: string,
+  kinds: LocalLibraryKind[],
+  options: {
+    q: string;
+    limit: number;
+    after: [string, string, string] | null;
+  },
+) {
+  if (!kinds.length) return { items: [], nextAfter: null };
+  const database = await currentDatabase();
+  const rows = documentPageRows(database, userId, kinds,
+    options.q.trim().toLocaleLowerCase(), options.limit, options.after);
+  const pageRows = rows.slice(0, options.limit);
+  const items = await Promise.all(pageRows.map((row) => {
+    const document = documentFromRow(row);
+    if (!document) throw new Error("Paged local document disappeared");
+    return localDocumentResponse(document);
+  }));
+  const last = pageRows.at(-1);
+  return { items, nextAfter: rows.length > options.limit && last
+    ? [last.kind, last.sort_name, last.id] as [string, string, string] : null };
+}
+
+function documentPageRows(database: DatabaseSync, userId: string,
+  kinds: LocalLibraryKind[], query: string, limit: number,
+  after: [string, string, string] | null) {
+  const params: (string | number)[] = [userId, JSON.stringify(kinds)];
+  const filters = ["d.kind IN (SELECT value FROM json_each(?))"];
+  const ftsSql = query.length >= 3
+    ? "JOIN local_document_filenames f ON f.document_id = d.id"
+    : "";
+  if (query.length >= 3) {
+    filters.push("f.filename MATCH ?", "instr(lower(d.filename), ?) > 0");
+    params.push(ftsPhrase(query), query);
+  } else if (query) {
+    filters.push("instr(lower(d.filename), ?) > 0");
+    params.push(query);
+  }
+  if (after) {
+    filters.push(
+      `(d.kind > ? OR (d.kind = ? AND
+        (lower(d.filename) > ? OR
+          (lower(d.filename) = ? AND d.id > ?))))`,
+    );
+    params.push(
+      after[0], after[0], after[1], after[1], after[2],
+    );
+  }
+  params.push(limit + 1);
+  return database.prepare(
+    `SELECT d.id, d.kind, lower(d.filename) AS sort_name, d.payload
+     FROM local_library_documents d
+     ${ftsSql}
+     WHERE d.user_id = ? AND ${filters.join(" AND ")}
+     ORDER BY d.kind, lower(d.filename), d.id
+     LIMIT ?`,
+  ).all(...params) as { id: string; kind: string; sort_name: string; payload: string }[];
+}
+
+function ftsPhrase(query: string) {
+  return `"${query.replaceAll('"', '""')}"`;
 }
 
 export async function listLocalDocumentsById(
   userId: string,
   documentIds: Iterable<string>,
 ) {
-  const wanted = [...documentIds];
-  const store = await currentStore();
+  const wanted = [...new Set(documentIds)];
+  if (!wanted.length) return [];
+  const database = await currentDatabase();
+  const rows = database.prepare(
+    `SELECT payload FROM local_library_documents
+     WHERE user_id = ? AND id IN (SELECT value FROM json_each(?))`,
+  ).all(userId, JSON.stringify(wanted)) as DocumentRow[];
   const byId = new Map(
-    store.documents
-      .filter((document) => document.userId === userId)
-      .map((document) => [document.id, document] as const),
+    documentsFromRows(rows).map((document) => [document.id, document]),
   );
   return Promise.all(
     wanted.flatMap((documentId) => {
       const document = byId.get(documentId);
-      return document ? [localDocumentResponse(document)] : [];
+      return document
+        ? [localDocumentResponse(document)]
+        : [];
     }),
   );
 }
@@ -455,7 +649,7 @@ export async function createLocalDocument(params: {
   bytes: Buffer;
   provenance?: LocalVersion["provenance"];
 }) {
-  const saved = await mutateStore(async (store) => {
+  const saved = await mutateDatabase(async (database) => {
     const now = new Date().toISOString();
     const documentId = crypto.randomUUID();
     const versionId = crypto.randomUUID();
@@ -491,19 +685,14 @@ export async function createLocalDocument(params: {
       metadata: emptyDocumentMetadata(),
       notes: null,
     };
-    store.documents.push(document);
+    saveDocument(database, document);
     return { document, version };
   });
   return localDocumentResponse(saved.document);
 }
 
 async function getLocalDocument(userId: string, documentId: string) {
-  const store = await currentStore();
-  return (
-    store.documents.find(
-      (document) => document.id === documentId && document.userId === userId,
-    ) ?? null
-  );
+  return databaseDocument(await currentDatabase(), userId, documentId);
 }
 
 export async function getLocalVersionFile(
@@ -553,26 +742,14 @@ export async function getLocalVersionFiles(
   userId: string,
   documentIds: Iterable<string>,
 ) {
-  const wanted = new Set(documentIds);
-  const store = await currentStore();
-  return new Map(
-    store.documents
-      .filter(
-        (document) =>
-          document.userId === userId && wanted.has(document.id),
-      )
-      .map((document) => {
-        const version = activeVersion(document);
-        return [
-          document.id,
-          {
-            path: absoluteDataPath(version.storagePath),
-            fileType: version.fileType,
-            filename: version.filename,
-          },
-        ] as const;
-      }),
-  );
+  const wanted = [...new Set(documentIds)];
+  if (!wanted.length) return new Map();
+  const database = await currentDatabase();
+  return new Map(databaseDocuments(database, userId, wanted).map((document) => {
+    const version = activeVersion(document);
+    return [document.id, { path: absoluteDataPath(version.storagePath),
+      fileType: version.fileType, filename: version.filename }];
+  }));
 }
 
 export async function listLocalVersions(userId: string, documentId: string) {
@@ -592,10 +769,8 @@ export async function addLocalVersion(params: {
   expectedVersionId?: string;
   provenance?: LocalVersion["provenance"];
 }) {
-  const saved = await mutateStore(async (store) => {
-    const document = store.documents.find(
-      (item) => item.id === params.documentId && item.userId === params.userId,
-    );
+  const saved = await mutateDatabase(async (database) => {
+    const document = databaseDocument(database, params.userId, params.documentId);
     if (
       !document ||
       (params.expectedVersionId &&
@@ -628,10 +803,86 @@ export async function addLocalVersion(params: {
     document.versions.push(version);
     document.currentVersionId = version.id;
     document.updatedAt = version.createdAt;
+    saveDocument(database, document);
     return { document, version };
   });
   if (!saved) return null;
   return localVersionResponse(saved.version);
+}
+
+type DocumentRow = { payload: string };
+
+type FolderRow = {
+  id: string;
+  user_id: string;
+  kind: LocalLibraryKind;
+  name: string;
+  parent_folder_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+function parsedJson<T>(value: string | null, fallback: T): T {
+  try {
+    return value ? JSON.parse(value) as T : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+const documentFromRow = (row: DocumentRow) =>
+  parsedJson(row.payload, null as LocalDocument | null);
+const documentsFromRows = (rows: DocumentRow[]) =>
+  rows.flatMap((row) => documentFromRow(row) ?? []);
+
+function saveDocument(database: DatabaseSync, document: LocalDocument) {
+  database.prepare(
+    `INSERT INTO local_library_documents
+       (id,user_id,kind,folder_id,created_at,updated_at,filename,payload)
+     VALUES (?,?,?,?,?,?,?,?)
+     ON CONFLICT(id) DO UPDATE SET folder_id=excluded.folder_id,
+       updated_at=excluded.updated_at, filename=excluded.filename,
+       payload=excluded.payload`,
+  ).run(document.id, document.userId, document.kind, document.folderId,
+    document.createdAt, document.updatedAt, activeVersion(document).filename,
+    JSON.stringify(document));
+}
+
+function databaseDocuments(
+  database: DatabaseSync,
+  userId: string,
+  documentIds: string[],
+) {
+  if (!documentIds.length) return [];
+  const rows = database.prepare(
+    `SELECT payload FROM local_library_documents
+     WHERE user_id = ? AND id IN (SELECT value FROM json_each(?))`,
+  ).all(userId, JSON.stringify(documentIds)) as DocumentRow[];
+  return documentsFromRows(rows);
+}
+
+function databaseDocument(
+  database: DatabaseSync,
+  userId: string,
+  documentId: string,
+) {
+  const row = database.prepare(
+    `SELECT payload FROM local_library_documents
+     WHERE id = ? AND user_id = ?`,
+  ).get(documentId, userId) as DocumentRow | undefined;
+  return row ? documentFromRow(row) : null;
+}
+
+function folderFromRow(row: FolderRow): LocalFolder {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    kind: row.kind,
+    name: row.name,
+    parentFolderId: row.parent_folder_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
 }
 
 async function overwriteLocalVersionFiles(
@@ -686,10 +937,8 @@ export async function updateLocalAssistantTurnVersion(params: {
   bytes: Buffer;
   trackedEdits: LocalTrackedEdit[];
 }) {
-  const saved = await mutateStore(async (store) => {
-    const document = store.documents.find(
-      (item) => item.id === params.documentId && item.userId === params.userId,
-    );
+  const saved = await mutateDatabase(async (database) => {
+    const document = databaseDocument(database, params.userId, params.documentId);
     const version = document?.versions.find(
       (item) => item.id === params.versionId,
     );
@@ -742,6 +991,7 @@ export async function updateLocalAssistantTurnVersion(params: {
       trackedEdits: [...priorEdits, ...params.trackedEdits],
     };
     document.updatedAt = new Date().toISOString();
+    saveDocument(database, document);
     return version;
   });
   return saved ? localVersionResponse(saved) : null;
@@ -753,14 +1003,13 @@ export async function renameLocalVersion(
   versionId: string,
   filename: string,
 ) {
-  return mutateStore((store) => {
-    const document = store.documents.find(
-      (item) => item.id === documentId && item.userId === userId,
-    );
+  return mutateDatabase((database) => {
+    const document = databaseDocument(database, userId, documentId);
     const version = document?.versions.find((item) => item.id === versionId);
     if (!document || !version) return null;
     version.filename = filename.slice(0, 200);
     document.updatedAt = new Date().toISOString();
+    saveDocument(database, document);
     return localVersionResponse(version);
   });
 }
@@ -772,10 +1021,8 @@ export async function replaceLocalVersion(params: {
   filename: string;
   bytes: Buffer;
 }) {
-  const saved = await mutateStore(async (store) => {
-    const document = store.documents.find(
-      (item) => item.id === params.documentId && item.userId === params.userId,
-    );
+  const saved = await mutateDatabase(async (database) => {
+    const document = databaseDocument(database, params.userId, params.documentId);
     const version = document?.versions.find((item) => item.id === params.versionId);
     if (!document || !version) return null;
     if (
@@ -791,6 +1038,7 @@ export async function replaceLocalVersion(params: {
     version.createdAt = new Date().toISOString();
     delete version.provenance;
     document.updatedAt = version.createdAt;
+    saveDocument(database, document);
     return { document, version };
   });
   if (!saved) return null;
@@ -803,11 +1051,8 @@ export async function resolveLocalTrackedEdit(params: {
   editId: string;
   mode: "accept" | "reject";
 }) {
-  const saved = await mutateStore(async (store) => {
-    const document = store.documents.find(
-      (item) =>
-        item.id === params.documentId && item.userId === params.userId,
-    );
+  const saved = await mutateDatabase(async (database) => {
+    const document = databaseDocument(database, params.userId, params.documentId);
     if (!document) return { status: "missing" as const };
     const version = activeVersion(document);
     const edit = version.provenance?.trackedEdits?.find(
@@ -849,6 +1094,7 @@ export async function resolveLocalTrackedEdit(params: {
     version.sourceSha256 = files.sourceSha256;
     edit.status = nextStatus;
     document.updatedAt = new Date().toISOString();
+    saveDocument(database, document);
 
     const nextPaths = new Set(
       [version.storagePath, version.pdfStoragePath].filter(
@@ -886,13 +1132,12 @@ export async function localTrackedEditStatuses(
   userId: string,
   documentIds: Iterable<string>,
 ) {
-  const wanted = new Set(documentIds);
-  const store = await currentStore();
-  return store.documents
-    .filter(
-      (document) =>
-        document.userId === userId && wanted.has(document.id),
-    )
+  const database = await currentDatabase();
+  const documents = [...new Set(documentIds)].flatMap((documentId) => {
+    const document = databaseDocument(database, userId, documentId);
+    return document ? [document] : [];
+  });
+  return documents
     .flatMap((document) =>
       document.versions.flatMap((version) =>
         (version.provenance?.trackedEdits ?? []).map((edit) => ({
@@ -911,10 +1156,8 @@ export async function deleteLocalVersion(
   documentId: string,
   versionId: string,
 ) {
-  return mutateStore(async (store) => {
-    const document = store.documents.find(
-      (item) => item.id === documentId && item.userId === userId,
-    );
+  return mutateDatabase(async (database) => {
+    const document = databaseDocument(database, userId, documentId);
     if (!document) return { status: "missing" as const };
     if (document.versions.length <= 1) return { status: "only" as const };
     const index = document.versions.findIndex((item) => item.id === versionId);
@@ -926,6 +1169,7 @@ export async function deleteLocalVersion(
         .sort((a, b) => b.versionNumber - a.versionNumber)[0].id;
     }
     document.updatedAt = new Date().toISOString();
+    saveDocument(database, document);
     await Promise.all(
       [...new Set([removed.storagePath, removed.pdfStoragePath])]
         .filter((item): item is string => !!item)
@@ -950,31 +1194,26 @@ export async function moveLocalDocument(
   documentId: string,
   folderId: string | null,
 ) {
-  return mutateStore((store) => {
-    const document = store.documents.find(
-      (item) =>
-        item.id === documentId && item.userId === userId && item.kind === kind,
-    );
+  return mutateDatabase((database) => {
+    const document = databaseDocument(database, userId, documentId);
     const folder = folderId
-      ? store.folders.find(
-          (item) =>
-            item.id === folderId && item.userId === userId && item.kind === kind,
-        )
+      ? database.prepare(
+          `SELECT id FROM local_library_folders
+           WHERE id = ? AND user_id = ? AND kind = ?`,
+        ).get(folderId, userId, kind)
       : null;
-    if (!document || (folderId && !folder)) return null;
+    if (!document || document.kind !== kind || (folderId && !folder)) return null;
     document.folderId = folderId;
     document.updatedAt = new Date().toISOString();
+    saveDocument(database, document);
     return localDocumentResponse(document);
   });
 }
 
 export async function deleteLocalDocument(userId: string, documentId: string) {
-  const deleted = await mutateStore(async (store) => {
-    const index = store.documents.findIndex(
-      (document) => document.id === documentId && document.userId === userId,
-    );
-    if (index < 0) return false;
-    const document = store.documents[index];
+  const deleted = await mutateDatabase(async (database) => {
+    const document = databaseDocument(database, userId, documentId);
+    if (!document) return false;
     await Promise.all(
       document.versions
         .filter((version) => version.fileType === "pdf")
@@ -984,7 +1223,9 @@ export async function deleteLocalDocument(userId: string, documentId: string) {
           ),
         ),
     );
-    store.documents.splice(index, 1);
+    database.prepare(
+      "DELETE FROM local_library_documents WHERE id = ? AND user_id = ?",
+    ).run(documentId, userId);
     if (/^[a-f0-9-]{36}$/i.test(documentId)) {
       await rm(absoluteDataPath(path.join("files", documentId)), {
         recursive: true,
@@ -1006,15 +1247,13 @@ export async function createLocalFolder(
   name: string,
   parentFolderId: string | null,
 ) {
-  return mutateStore((store) => {
+  return mutateDatabase((database) => {
     if (
       parentFolderId &&
-      !store.folders.some(
-        (folder) =>
-          folder.id === parentFolderId &&
-          folder.userId === userId &&
-          folder.kind === kind,
-      )
+      !database.prepare(
+        `SELECT 1 FROM local_library_folders
+         WHERE id = ? AND user_id = ? AND kind = ?`,
+      ).get(parentFolderId, userId, kind)
     ) {
       return null;
     }
@@ -1028,7 +1267,12 @@ export async function createLocalFolder(
       createdAt: now,
       updatedAt: now,
     };
-    store.folders.push(folder);
+    database.prepare(
+      `INSERT INTO local_library_folders
+        (id, user_id, kind, name, parent_folder_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ).run(folder.id, folder.userId, folder.kind, folder.name,
+      folder.parentFolderId, folder.createdAt, folder.updatedAt);
     return localFolderResponse(folder);
   });
 }
@@ -1040,31 +1284,33 @@ export async function updateLocalFolder(params: {
   name?: string;
   parentFolderId?: string | null;
 }) {
-  return mutateStore((store) => {
-    const folder = store.folders.find(
-      (item) =>
-        item.id === params.folderId &&
-        item.userId === params.userId &&
-        item.kind === params.kind,
-    );
+  return mutateDatabase((database) => {
+    const row = database.prepare(
+      `SELECT id, user_id, kind, name, parent_folder_id, created_at, updated_at
+       FROM local_library_folders WHERE id = ? AND user_id = ? AND kind = ?`,
+    ).get(params.folderId, params.userId, params.kind) as FolderRow | undefined;
+    const folder = row ? folderFromRow(row) : null;
     if (!folder) return null;
     if (params.parentFolderId !== undefined) {
       let cursor = params.parentFolderId;
       while (cursor) {
         if (cursor === folder.id) return null;
-        const parent = store.folders.find(
-          (item) =>
-            item.id === cursor &&
-            item.userId === params.userId &&
-            item.kind === params.kind,
-        );
+        const parent = database.prepare(
+          `SELECT parent_folder_id FROM local_library_folders
+           WHERE id = ? AND user_id = ? AND kind = ?`,
+        ).get(cursor, params.userId, params.kind) as
+          { parent_folder_id: string | null } | undefined;
         if (!parent) return null;
-        cursor = parent.parentFolderId;
+        cursor = parent.parent_folder_id;
       }
       folder.parentFolderId = params.parentFolderId;
     }
     if (params.name) folder.name = params.name.slice(0, 200);
     folder.updatedAt = new Date().toISOString();
+    database.prepare(
+      `UPDATE local_library_folders
+       SET name = ?, parent_folder_id = ?, updated_at = ? WHERE id = ?`,
+    ).run(folder.name, folder.parentFolderId, folder.updatedAt, folder.id);
     return localFolderResponse(folder);
   });
 }
@@ -1074,44 +1320,27 @@ export async function deleteLocalFolder(
   kind: LocalLibraryKind,
   folderId: string,
 ) {
-  const deletedDocumentIds = await mutateStore(async (store) => {
-    if (
-      !store.folders.some(
-        (folder) =>
-          folder.id === folderId && folder.userId === userId && folder.kind === kind,
-      )
-    ) {
-      return null;
-    }
-    const folderIds = new Set([folderId]);
-    let changed = true;
-    while (changed) {
-      changed = false;
-      for (const folder of store.folders) {
-        if (
-          folder.userId === userId &&
-          folder.kind === kind &&
-          folder.parentFolderId &&
-          folderIds.has(folder.parentFolderId) &&
-          !folderIds.has(folder.id)
-        ) {
-          folderIds.add(folder.id);
-          changed = true;
-        }
-      }
-    }
-    const documentIds = store.documents
-      .filter(
-        (document) =>
-          document.userId === userId &&
-          document.kind === kind &&
-          !!document.folderId &&
-          folderIds.has(document.folderId),
-      )
-      .map((document) => document.id);
-    const documents = store.documents.filter((document) =>
-      documentIds.includes(document.id),
-    );
+  const deletedDocumentIds = await mutateDatabase(async (database) => {
+    if (!database.prepare(
+      `SELECT 1 FROM local_library_folders
+       WHERE id = ? AND user_id = ? AND kind = ?`,
+    ).get(folderId, userId, kind)) return null;
+    const rows = database.prepare(
+      `WITH RECURSIVE descendants(id) AS (
+         SELECT id FROM local_library_folders
+         WHERE id = ? AND user_id = ? AND kind = ?
+         UNION ALL
+         SELECT f.id FROM local_library_folders f
+         JOIN descendants d ON f.parent_folder_id = d.id
+         WHERE f.user_id = ? AND f.kind = ?
+       )
+       SELECT d.payload
+       FROM local_library_documents d
+       WHERE d.user_id = ? AND d.kind = ?
+         AND d.folder_id IN (SELECT id FROM descendants)`,
+    ).all(folderId, userId, kind, userId, kind, userId, kind) as DocumentRow[];
+    const documents = documentsFromRows(rows);
+    const documentIds = documents.map((document) => document.id);
     await Promise.all(
       documents.flatMap((document) =>
         document.versions
@@ -1123,10 +1352,10 @@ export async function deleteLocalFolder(
           ),
       ),
     );
-    store.documents = store.documents.filter(
-      (document) => !documentIds.includes(document.id),
-    );
-    store.folders = store.folders.filter((folder) => !folderIds.has(folder.id));
+    database.prepare(
+      `DELETE FROM local_library_folders
+       WHERE id = ? AND user_id = ? AND kind = ?`,
+    ).run(folderId, userId, kind);
     await Promise.all(
       documentIds
         .filter((id) => /^[a-f0-9-]{36}$/i.test(id))
@@ -1144,6 +1373,9 @@ export async function deleteLocalFolder(
     userId,
     deletedDocumentIds,
   );
+  for (const documentId of deletedDocumentIds) {
+    removeDocumentFromLocalTabularReviews(userId, documentId);
+  }
   return true;
 }
 
@@ -1190,19 +1422,23 @@ function legalSourceId(pointer: {
 }
 
 export async function listLocalLegalSources(userId: string) {
-  const store = await currentStore();
-  return store.legalSources
-    .filter((pointer) => pointer.userId === userId)
-    .map(legalSourceResponse);
+  const database = await currentDatabase();
+  const rows = database.prepare(
+    `SELECT pointer_json FROM local_library_legal_sources
+     WHERE user_id = ? ORDER BY id`,
+  ).all(userId) as { pointer_json: string }[];
+  return rows.map((row) =>
+    legalSourceResponse(parsedJson(row.pointer_json, {} as LocalLegalSourcePointer)));
 }
 
 export async function getLocalLegalSource(userId: string, id: string) {
-  const store = await currentStore();
-  return (
-    store.legalSources.find(
-      (pointer) => pointer.userId === userId && pointer.id === id,
-    ) ?? null
-  );
+  const row = (await currentDatabase()).prepare(
+    `SELECT pointer_json FROM local_library_legal_sources
+     WHERE user_id = ? AND id = ?`,
+  ).get(userId, id) as { pointer_json: string } | undefined;
+  return row
+    ? parsedJson(row.pointer_json, null as LocalLegalSourcePointer | null)
+    : null;
 }
 
 export async function updateLocalDocument(params: {
@@ -1213,14 +1449,9 @@ export async function updateLocalDocument(params: {
   metadata?: unknown;
   notes?: unknown;
 }) {
-  return mutateStore((store) => {
-    const document = store.documents.find(
-      (item) =>
-        item.id === params.documentId &&
-        item.userId === params.userId &&
-        item.kind === params.kind,
-    );
-    if (!document) return null;
+  return mutateDatabase((database) => {
+    const document = databaseDocument(database, params.userId, params.documentId);
+    if (document?.kind !== params.kind) return null;
     if (params.filename !== undefined) {
       activeVersion(document).filename = params.filename.slice(0, 200);
     }
@@ -1234,6 +1465,7 @@ export async function updateLocalDocument(params: {
           : null;
     }
     document.updatedAt = new Date().toISOString();
+    saveDocument(database, document);
     return localDocumentResponse(document);
   });
 }
@@ -1248,7 +1480,7 @@ export async function saveLocalLegalSource(params: {
   sourceId?: string | null;
   pdfFallback?: LocalLegalSourcePdfFallback;
 }) {
-  return mutateStore((store) => {
+  return mutateDatabase((database) => {
     const sourceId = params.sourceId?.trim();
     const pointer: LocalLegalSourcePointer = {
       id: legalSourceId(params),
@@ -1261,25 +1493,32 @@ export async function saveLocalLegalSource(params: {
       ...(sourceId ? { sourceId } : {}),
       ...(params.pdfFallback ? { pdfFallback: params.pdfFallback } : {}),
     };
-    const existing = store.legalSources.find(
-      (item) => item.userId === params.userId && item.id === pointer.id,
-    );
+    const existingRow = database.prepare(
+      `SELECT pointer_json FROM local_library_legal_sources
+       WHERE user_id = ? AND id = ?`,
+    ).get(params.userId, pointer.id) as { pointer_json: string } | undefined;
+    const existing = existingRow
+      ? parsedJson(existingRow.pointer_json, null as LocalLegalSourcePointer | null)
+      : null;
     if (existing) {
       if (params.pdfFallback) existing.pdfFallback = params.pdfFallback;
+      database.prepare(
+        `UPDATE local_library_legal_sources SET pointer_json = ?
+         WHERE user_id = ? AND id = ?`,
+      ).run(JSON.stringify(existing), params.userId, pointer.id);
       return legalSourceResponse(existing);
     }
-    store.legalSources.push(pointer);
+    database.prepare(
+      `INSERT INTO local_library_legal_sources(user_id, id, pointer_json)
+       VALUES (?, ?, ?)`,
+    ).run(params.userId, pointer.id, JSON.stringify(pointer));
     return legalSourceResponse(pointer);
   });
 }
 
 export async function deleteLocalLegalSource(userId: string, id: string) {
-  return mutateStore((store) => {
-    const index = store.legalSources.findIndex(
-      (pointer) => pointer.userId === userId && pointer.id === id,
-    );
-    if (index < 0) return false;
-    store.legalSources.splice(index, 1);
-    return true;
-  });
+  return mutateDatabase((database) =>
+    database.prepare(
+      "DELETE FROM local_library_legal_sources WHERE user_id = ? AND id = ?",
+    ).run(userId, id).changes > 0);
 }

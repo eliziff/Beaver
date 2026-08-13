@@ -27,7 +27,7 @@ import {
   LEGAL_EVIDENCE_SUBMIT_TOOL,
   registerLegalEvidence,
   submitLegalEvidenceAnswer,
-} from "./legalEvidenceExperiment";
+} from "./legalEvidence";
 
 const catalog = {
   source: "live" as const,
@@ -258,9 +258,6 @@ describe("reading agents", () => {
               {
                 text: "The lease renews for successive one-year terms.",
                 evidence_ids: ["e_lease"],
-                kind: "conclusion",
-                premise_source: null,
-                premise_text: null,
               },
             ],
           },
@@ -357,9 +354,6 @@ describe("reading agents", () => {
           claims: [{
             text: "The lease renews for successive one-year terms.",
             evidence_ids: ["e_lease"],
-            kind: "conclusion",
-            premise_source: null,
-            premise_text: null,
           }],
         },
       }]);
@@ -453,9 +447,6 @@ describe("reading agents", () => {
                 {
                   text: "The lease renews for successive one-year terms.",
                   evidence_ids: ["e_lease"],
-                  kind: "conclusion",
-                  premise_source: null,
-                  premise_text: null,
                 },
               ],
             },
@@ -498,7 +489,7 @@ describe("reading agents", () => {
             ),
           }),
         ],
-        systemPrompt: expect.stringContaining("premise_source"),
+        systemPrompt: expect.stringContaining("text and evidence_ids"),
       }),
     );
     expect(mocks.stream.mock.calls[2]?.[0].messages[0].content).toContain(
@@ -516,9 +507,6 @@ describe("reading agents", () => {
           claims: [{
             text: "The lease renews for successive one-year terms.",
             evidence_ids: ["e_lease"],
-            kind: "conclusion",
-            premise_source: null,
-            premise_text: null,
           }],
         },
       }]);

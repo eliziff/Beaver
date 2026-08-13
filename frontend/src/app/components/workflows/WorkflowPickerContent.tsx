@@ -22,6 +22,8 @@ interface WorkflowPickerContentProps {
     search: string;
     onSearchChange: (value: string) => void;
     loading?: boolean;
+    hasMore?: boolean;
+    onLoadMore?: () => void;
     disabledWorkflow?: (workflow: Workflow) => boolean;
     singlePane?: boolean;
 }
@@ -32,6 +34,8 @@ export function WorkflowPickerContent({
     search,
     onSearchChange,
     loading = false,
+    hasMore = false,
+    onLoadMore,
     disabledWorkflow,
     singlePane = false,
 }: WorkflowPickerContentProps) {
@@ -158,6 +162,15 @@ export function WorkflowPickerContent({
                                     </button>
                                 );
                             })}
+                            {hasMore && (
+                                <button
+                                    type="button"
+                                    onClick={onLoadMore}
+                                    className="min-h-10 w-full rounded-md px-3 text-xs text-gray-600 hover:bg-gray-100"
+                                >
+                                    Load more
+                                </button>
+                            )}
                         </div>
                     )}
                 </div>

@@ -17,7 +17,7 @@ import {
   registerLegalEvidence,
   type LegalEvidenceReceipt,
   type LegalEvidenceTurnState,
-} from "./legalEvidenceExperiment";
+} from "./legalEvidence";
 import { COURTLISTENER_TOOL_NAMES } from "./tools/courtlistenerTools";
 import { findTextMatches } from "./tools/documentOps";
 

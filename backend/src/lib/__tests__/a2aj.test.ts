@@ -13,7 +13,7 @@ import {
   resolveA2AJViewerDocument,
   searchA2AJ,
 } from "../a2aj";
-import { createA2AJDocumentEvidence } from "../chat/legalEvidenceExperiment";
+import { createA2AJDocumentEvidence } from "../chat/legalEvidence";
 import { normalizeWhitespace } from "../text";
 
 let temporaryLegalDataHome: string | null = null;

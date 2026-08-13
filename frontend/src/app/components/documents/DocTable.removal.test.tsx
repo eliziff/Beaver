@@ -202,7 +202,7 @@ describe("DocTable document removal", () => {
     expect(screen.queryByText(/could not be deleted/u)).not.toBeInTheDocument();
   });
 
-  it("keeps failed selected documents after a partial removal", async () => {
+  it("keeps the loaded page until its authoritative refresh after partial removal", async () => {
     const removeDocument = vi.fn(async (documentId: string) => {
       if (documentId === secondDocument.id) throw new Error("offline");
     });
@@ -226,9 +226,7 @@ describe("DocTable document removal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Remove" }));
 
     await waitFor(() => expect(removeDocument).toHaveBeenCalledTimes(2));
-    await waitFor(() =>
-      expect(screen.queryByText(document.filename)).not.toBeInTheDocument(),
-    );
+    expect(screen.getByText(document.filename)).toBeInTheDocument();
     expect(screen.getByText(secondDocument.filename)).toBeInTheDocument();
   });
 
@@ -317,11 +315,6 @@ describe("DocTable document removal", () => {
       />,
     );
 
-    expect(
-      screen
-        .getByText("Research")
-        .parentElement?.querySelector("svg.lucide-folder-open"),
-    ).not.toBeNull();
     chooseAction("New subfolder inside");
 
     const input = screen.getByPlaceholderText("Folder name");

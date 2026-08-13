@@ -13,8 +13,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 let temporaryDirectory: string | null = null;
 
-const documentId = "document-1";
-const versionId = "version-1";
+let documentId = "document-1";
+let versionId = "version-1";
 const cacheKey = "c".repeat(64);
 const parserVersion = "0.3.0";
 const parserConfigVersion = "fixture-v1";
@@ -30,13 +30,18 @@ async function writeJsonLines(filePath: string, rows: object[]) {
 async function fixture() {
   temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-lookup-"));
   process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
-  const sourceRelative = path.join(
-    "files",
-    documentId,
-    `${versionId}-fixture.pdf`,
-  );
-  const source = path.join(temporaryDirectory, sourceRelative);
   const sourceBytes = Buffer.from("%PDF-1.4 exact lookup fixture");
+  const store = await import("../localDocumentStore");
+  const created = await store.createLocalDocument({
+    userId: "local-user", kind: "file", filename: "fixture.pdf",
+    bytes: sourceBytes,
+  });
+  documentId = created.id;
+  versionId = created.current_version_id;
+  const source = (await store.getLocalVersionFile(
+    "local-user", documentId, versionId,
+  ))!.path;
+  const sourceRelative = path.relative(temporaryDirectory, source);
   const sourceSha256 = crypto
     .createHash("sha256")
     .update(sourceBytes)
@@ -293,7 +298,6 @@ async function fixture() {
   };
 
   await mkdir(output, { recursive: true });
-  await writeFile(source, sourceBytes);
   await Promise.all([
     writeJsonLines(path.join(output, "pages.jsonl"), pages),
     writeJsonLines(path.join(output, "paragraphs.jsonl"), paragraphs),
@@ -308,41 +312,6 @@ async function fixture() {
       "utf8",
     ),
     writeFile(statePath, JSON.stringify(state), "utf8"),
-    writeFile(
-      path.join(temporaryDirectory, "library.json"),
-      JSON.stringify({
-        version: 1,
-        folders: [],
-        legalSources: [],
-        documents: [
-          {
-            id: documentId,
-            userId: "local-user",
-            kind: "file",
-            folderId: null,
-            createdAt: "2026-01-01T00:00:00.000Z",
-            updatedAt: "2026-01-01T00:00:00.000Z",
-            currentVersionId: versionId,
-            versions: [
-              {
-                id: versionId,
-                versionNumber: 1,
-                source: "upload",
-                createdAt: "2026-01-01T00:00:00.000Z",
-                filename: "fixture.pdf",
-                fileType: "pdf",
-                sizeBytes: sourceBytes.length,
-                pageCount: 22,
-                storagePath: sourceRelative,
-                pdfStoragePath: sourceRelative,
-                sourceSha256,
-              },
-            ],
-          },
-        ],
-      }),
-      "utf8",
-    ),
   ]);
   return {
     source,
@@ -360,6 +329,10 @@ async function fixture() {
 }
 
 afterEach(async () => {
+  try {
+    const store = await import("../localDocumentStore");
+    await store.closeLocalDocumentStore();
+  } catch {}
   delete process.env.MIKE_LOCAL_DATA_DIR;
   vi.resetModules();
   if (temporaryDirectory) {
@@ -782,6 +755,8 @@ describe("exact local PDF structure lookup", () => {
     expect(lookup.status).toBe("found");
     if (lookup.status !== "found") throw new Error("fixture lookup failed");
 
+    const store = await import("../localDocumentStore");
+    await store.closeLocalDocumentStore();
     vi.resetModules();
     const { rehydrateLocalPdfLinkEvidence } =
       await import("../localPdfLookup");

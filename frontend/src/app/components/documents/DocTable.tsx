@@ -167,7 +167,7 @@ function DocumentMetadataCells({ doc, onOpen }: { doc: Document; onOpen: () => v
 }
 interface DocTableOperations {
     removeDocument?: (documentId: string) => Promise<void>; uploadDocument: (file: File) => Promise<Document>;
-    refreshCollection: () => Promise<void>;
+    refreshCollection: (parentFolderId?: string | null) => Promise<void>;
     /** Requeue a failed structural PDF parse (library lanes only). */
     retryPdfParse?: (documentId: string) => Promise<unknown>;
     createFolder: (name: string, parentFolderId?: string | null) => Promise<DocTableFolder>;
@@ -178,8 +178,7 @@ interface DocTableOperations {
     renameDocument: (documentId: string, filename: string) => Promise<Document>;
 }
 type PendingDocumentRemoval = { documents: Document[]; fromSelection: boolean; deleting: boolean };
-type PendingFolderDeletion = { folder: DocTableFolder; folderIds: string[];
-    documentIds: string[]; documentCount: number; deleting: boolean };
+type PendingFolderDeletion = { folder: DocTableFolder; deleting: boolean };
 type DocTableState = {
     addDocsOpen: boolean; viewingDoc: Document | null; viewingDocVersionId: string | null;
     selectedDocIds: string[];
@@ -224,19 +223,12 @@ function documentRemovalMessage(pending: PendingDocumentRemoval | null,
 }
 function folderDeletionMessage(pending: PendingFolderDeletion | null) {
     if (!pending) return;
-    const folders = pending.folderIds.length;
-    return <div className="space-y-2"><p>
-        This will permanently delete {emphasis(count(folders, "folder"))}, including{" "}
-        {emphasis(pending.folder.name)}
-        {folders > 1 ? " and its nested subfolders" : ""}.
-    </p>{pending.documentCount > 0 && <p>
-        {count(pending.documentCount, "document")} in the deleted{" "}
-        {folders === 1 ? "folder" : "folders"} will also be permanently deleted.
-    </p>}</div>;
+    return <p>
+        Permanently delete {emphasis(pending.folder.name)} and everything inside it?
+    </p>;
 }
 interface DocTableProps {
-    scopeKey: string; documents: Document[]; setDocuments: Dispatch<SetStateAction<Document[]>>;
-    folders: DocTableFolder[]; setFolders: Dispatch<SetStateAction<DocTableFolder[]>>;
+    scopeKey: string; documents: Document[]; folders: DocTableFolder[];
     loading: boolean; search: string; operations: DocTableOperations; emptyDropLabel?: string;
     renderAddDocumentsModal?: (open: boolean, onClose: () => void,
         onSelect: (documents: Document[]) => void) => ReactNode;
@@ -246,6 +238,10 @@ interface DocTableProps {
     onOwnerOnlyAction?: Dispatch<SetStateAction<string | null>>;
     documentRemovalMode?: "delete" | "detach"; selectionFirst?: boolean;
     compact?: boolean;
+    hasMoreParents?: Set<string | null>;
+    loadingParents?: Set<string | null>;
+    onFolderExpanded?: (folderId: string) => void;
+    onLoadMore?: (parentId: string | null) => void;
 }
 const PROJECT_TABLE_LOADING = (
     <div className="flex-1 flex flex-col min-h-0">
@@ -267,11 +263,13 @@ const PROJECT_TABLE_LOADING = (
     </div>
 );
 export function DocTable({
-    scopeKey, documents, setDocuments, folders, setFolders, loading, search, operations,
+    scopeKey, documents, folders, loading, search, operations,
     emptyDropLabel = "Drop PDF, Word, Excel, or PowerPoint files here",
     renderAddDocumentsModal, onAddDocumentsActionChange,
     onCreateFolderActionChange, onSelectionActionsChange, onOwnerOnlyAction,
     documentRemovalMode = "delete", selectionFirst = false, compact = false,
+    hasMoreParents = new Set(), loadingParents = new Set(),
+    onFolderExpanded, onLoadMore,
 }: DocTableProps) {
     const { user } = useAuth();
     const [state, setState] = useState<DocTableState>(() => ({
@@ -437,34 +435,22 @@ export function DocTable({
     }, [onAddDocumentsActionChange, onCreateFolderActionChange,
         onSelectionActionsChange, openAddDocuments, openCreateFolder]);
     useEffect(() => {
-        if (loading) return;
-        const ids = folders.map((folder) => folder.id);
-        set("expandedFolderIds", (current) =>
-            current.size === ids.length && ids.every((id) => current.has(id))
-                ? current
-                : new Set(ids),
-        );
-    }, [loading, folders]);
-    useEffect(() => {
         set("selectedDocIds", (current) => (current.length ? [] : current));
     }, [scopeKey]);
     const tree = buildDocumentTree(
-        documents, folders, expandedFolderIds, newFolderParentId, search);
+        documents, folders, expandedFolderIds, newFolderParentId, search,
+        false, hasMoreParents);
     const filteredDocs = tree.visibleDocuments;
     const docsById = useMemo(() =>
         new Map(documents.map((doc) => [doc.id, doc])), [documents]);
     const foldersById = tree.folderById;
     const foldersByParent = tree.foldersByParent;
     const selectedIdSet = new Set(selectedDocIds);
-    function patchDocument(id: string, patch: Partial<Document>) {
-        setDocuments((prev) => prev.map((doc) =>
-            doc.id === id ? { ...doc, ...patch } : doc));
-    }
-    function patchFolder(id: string, patch: Partial<DocTableFolder>) {
-        setFolders((prev) => prev.map((folder) =>
-            folder.id === id ? { ...folder, ...patch } : folder));
-    }
+    const refreshParents = (...parents: (string | null | undefined)[]) =>
+        Promise.all([...new Set(parents.map((id) => id ?? null))]
+            .map(refreshCollection));
     function toggleFolder(id: string) {
+        if (!expandedFolderIds.has(id)) onFolderExpanded?.(id);
         set("expandedFolderIds", (prev) => {
             const next = new Set(prev);
             if (next.has(id)) next.delete(id);
@@ -476,44 +462,26 @@ export function DocTable({
         const name = value.trim();
         if (!name) return set("newFolderParentId", undefined);
         set("newFolderParentId", undefined);
-        const tempId = `temp-${Date.now()}`;
-        const now = new Date().toISOString();
-        const optimistic = {
-            id: tempId, user_id: "", name, parent_folder_id: parentId,
-            created_at: now, updated_at: now,
-        } as DocTableFolder;
-        setFolders((prev) => [...prev, optimistic]);
-        set("expandedFolderIds", (prev) =>
-            new Set([...prev, tempId, ...(parentId ? [parentId] : [])]));
         const folder = await operations.createFolder(name, parentId ?? null);
-        setFolders((prev) => prev.map((f) => (f.id === tempId ? folder : f)));
         set("expandedFolderIds", (prev) => {
             const next = new Set(prev);
-            next.delete(tempId);
             next.add(folder.id);
+            if (parentId) next.add(parentId);
             return next;
         });
+        await refreshCollection(parentId);
     }
     async function handleRenameFolder(folderId: string, value: string) {
         const name = value.trim();
         set("renamingFolderId", null);
         if (!name) return;
-        patchFolder(folderId, { name });
         await operations.renameFolder(folderId, name);
-    }
-    function folderDeleteImpact(folderId: string) {
-        const toDelete = descendantFolderIds(folderId, foldersByParent);
-        const folderIds = [...toDelete];
-        const documentIds = documents
-            .filter((d) => d.folder_id && toDelete.has(d.folder_id))
-            .map((d) => d.id);
-        return { folderIds, documentIds, documentCount: documentIds.length };
+        await refreshCollection(foldersById.get(folderId)?.parent_folder_id);
     }
     function requestDeleteFolder(folderId: string) {
         const folder = foldersById.get(folderId);
         if (!folder) return;
-        set("pendingDeleteFolder",
-            { folder, ...folderDeleteImpact(folderId), deleting: false });
+        set("pendingDeleteFolder", { folder, deleting: false });
     }
     async function confirmDeletePendingFolder() {
         const pending = pendingDeleteFolder;
@@ -522,22 +490,25 @@ export function DocTable({
             current ? { ...current, deleting: true } : current);
         try {
             await operations.deleteFolder(pending.folder.id);
-            const toDelete = new Set(pending.folderIds);
-            setFolders((prev) => prev.filter((f) => !toDelete.has(f.id)));
-            setDocuments((prev) => prev.filter((d) =>
-                !d.folder_id || !toDelete.has(d.folder_id)));
+            const toDelete = descendantFolderIds(
+                pending.folder.id, foldersByParent,
+            );
+            const deletedDocIds = new Set(documents
+                .filter((document) => document.folder_id &&
+                    toDelete.has(document.folder_id))
+                .map((document) => document.id));
             set("expandedFolderIds", (prev) => without(prev, toDelete));
             if (renamingFolderId && toDelete.has(renamingFolderId))
                 set("renamingFolderId", null);
-            const deletedDocIds = new Set(pending.documentIds);
             set("selectedDocIds", (prev) =>
                 prev.filter((id) => !deletedDocIds.has(id)));
             set("versionsByDocId", (prev) => {
                 const next = new Map(prev);
-                for (const id of pending.documentIds) next.delete(id);
+                for (const id of deletedDocIds) next.delete(id);
                 return next;
             });
             set("pendingDeleteFolder", null);
+            await refreshCollection(pending.folder.parent_folder_id ?? null);
         } catch (err) {
             console.error("delete folder failed", err);
             set("pendingDeleteFolder", (current) =>
@@ -545,23 +516,14 @@ export function DocTable({
             setWarning("collection", "Folder could not be deleted. Please try again.");
         }
     }
-    function handleDocsSelected(newDocs: Document[]) {
-        setDocuments((prev) => [...prev,
-            ...newDocs.filter((d) => !prev.some((e) => e.id === d.id))]);
-    }
+    function handleDocsSelected() { void refreshCollection(); }
     async function handleRemoveDocFromFolder(docId: string) {
-        patchDocument(docId, { folder_id: null });
+        const parent = docsById.get(docId)?.folder_id;
         await operations.moveDocument(docId, null);
+        await refreshParents(parent, null);
     }
     async function retryParse(docId: string) {
         if (!operations.retryPdfParse) return;
-        patchDocument(docId, {
-            parse_state: {
-                ...(docsById.get(docId)?.parse_state ?? null),
-                status: "queued",
-                error: null,
-            } as Document["parse_state"],
-        });
         try {
             await operations.retryPdfParse(docId);
         } finally {
@@ -579,15 +541,11 @@ export function DocTable({
             return;
         }
         set("renamingDocumentId", null);
-        patchDocument(docId,
-            { filename: trimmed, updated_at: new Date().toISOString() });
         try {
-            const updated = await operations.renameDocument(docId, trimmed);
-            patchDocument(docId, updated);
+            await operations.renameDocument(docId, trimmed);
+            await refreshCollection(previous.folder_id);
         } catch (e) {
             console.error("renameDocument failed", e);
-            setDocuments((prev) => previous
-                ? prev.map((d) => d.id === docId ? previous : d) : prev);
         }
     }
     async function handleRemoveDocuments(
@@ -621,11 +579,8 @@ export function DocTable({
                     (_, index) => results[index].status === "fulfilled",
                 ),
             );
-            if (removedIds.size) {
-                setDocuments((prev) =>
-                    prev.filter((doc) => !removedIds.has(doc.id)),
-                );
-            }
+            if (removedIds.size) await refreshParents(...[...removedIds]
+                .map((id) => docsById.get(id)?.folder_id));
             if (fromSelection && removedIds.size) {
                 set("versionsByDocId", (prev) => {
                     const next = new Map(prev);
@@ -705,10 +660,8 @@ export function DocTable({
         if (supported.length === 0) return;
         set("uploadingDroppedFilenames", supported.map((file) => file.name));
         try {
-            const uploaded = await Promise.all(
-                supported.map((file) => operations.uploadDocument(file)),
-            );
-            handleDocsSelected(uploaded);
+            await Promise.all(supported.map((file) => operations.uploadDocument(file)));
+            await refreshCollection();
         } catch (err) {
             console.error("Document drop upload failed", err);
         } finally {
@@ -758,8 +711,8 @@ export function DocTable({
         if (docId) {
             const doc = docsById.get(docId);
             if (!doc || (doc.folder_id ?? null) === targetFolderId) return;
-            patchDocument(docId, { folder_id: targetFolderId });
             await operations.moveDocument(docId, targetFolderId);
+            await refreshParents(doc.folder_id, targetFolderId);
         } else if (subFolderId && subFolderId !== targetFolderId) {
             if (targetFolderId !== null &&
                 wouldCreateFolderCycle(subFolderId, targetFolderId, foldersById))
@@ -767,8 +720,8 @@ export function DocTable({
             const folder = foldersById.get(subFolderId);
             if (!folder || (folder.parent_folder_id ?? null) === targetFolderId)
                 return;
-            patchFolder(subFolderId, { parent_folder_id: targetFolderId });
             await operations.moveFolder(subFolderId, targetFolderId);
+            await refreshParents(folder.parent_folder_id, targetFolderId);
         }
     }
     function renderDocumentActivityRow({ key, filename, fileType, depth, statusLabel }: {
@@ -847,12 +800,7 @@ export function DocTable({
     function handleFolderDragStart(event: DragEvent<HTMLDivElement>, folderId: string) {
         if (renamingFolderId === folderId) return event.preventDefault();
         event.dataTransfer.setData(FOLDER_DRAG_TYPE, folderId);
-        const folderIds = descendantFolderIds(folderId, tree.foldersByParent);
-        event.dataTransfer.setData(CHAT_DOCUMENT_DRAG_TYPE, JSON.stringify(
-            documents.filter((document) =>
-                !!document.folder_id && folderIds.has(document.folder_id)),
-        ));
-        event.dataTransfer.effectAllowed = "copyMove";
+        event.dataTransfer.effectAllowed = "move";
         event.stopPropagation();
     }
     function handleCollectionDragOver(event: DragEvent<HTMLDivElement>) {
@@ -891,6 +839,20 @@ export function DocTable({
                     }),
                 )}
                 {tree.rows.map((row) => {
+                    if (row.kind === "more") return (
+                        <div key={`more-${row.parentId ?? "root"}`}
+                            className={DOCUMENT_ROW_CLASS}>
+                            <div className={`${DOC_NAME_COL_W} py-2 pl-4 pr-2`}
+                                style={treeNameCellStyle(row.depth)}>
+                                <button type="button"
+                                    disabled={loadingParents.has(row.parentId)}
+                                    onClick={() => onLoadMore?.(row.parentId)}
+                                    className={pillButtonClassName("white", "sm", "ml-8")}>
+                                    {loadingParents.has(row.parentId) ? "Loadingâ€¦" : "Load more"}
+                                </button>
+                            </div>
+                        </div>
+                    );
                     if (row.kind === "editor") return (
                         <div ref={scrollNewFolderIntoView}
                             key={`new-folder-${row.parentId ?? "root"}`}
@@ -1078,11 +1040,11 @@ export function DocTable({
             selectedDocIds.filter((id) => docsById.get(id)?.folder_id != null),
         );
         if (ids.size === 0) return;
-        setDocuments((prev) => prev.map((d) =>
-            ids.has(d.id) ? { ...d, folder_id: null } : d));
         await Promise.all([...ids].map((id) =>
             operations.moveDocument(id, null).catch(() => {})));
-    }, [docsById, operations, selectedDocIds, setDocuments]);
+        await refreshParents(null, ...[...ids].map((id) =>
+            docsById.get(id)?.folder_id));
+    }, [docsById, operations, refreshCollection, selectedDocIds]);
     const requestDeleteSelectedDocs = useCallback(async () => {
         const documentsToRemove = selectedDocIds
             .map((id) => docsById.get(id))
@@ -1210,6 +1172,7 @@ export function DocTable({
                     <TableHeaderRow className="!min-w-0 w-full pr-2">
                         <TableStickyCell header widthClassName={DOC_NAME_COL_W}>
                             <CheckboxControl checked={allDocsSelected}
+                                aria-label="Select loaded documents"
                                 ref={(el) => {
                                     if (el) el.indeterminate = someDocsSelected;
                                 }}
