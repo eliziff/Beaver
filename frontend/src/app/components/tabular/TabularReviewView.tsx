@@ -588,8 +588,6 @@ export function TRView({ reviewId, projectId }: Props) {
                     {chatOpen && (
                         <TRChatPanel
                             reviewId={reviewId} chatId={chatId ?? null}
-                            reviewTitle={review?.title ?? null}
-                            projectName={project?.name ?? null}
                             onCitationClick={(colIdx, rowIdx) => {
                                 setUi({
                                     search: "",

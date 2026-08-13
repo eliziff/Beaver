@@ -53,7 +53,15 @@ export type LegalEvidenceReceipt = {
     | "citator-standsfor-v1"
     | "citator-noteup-v1"
     | "public-journal-v1"
-    | "library-read-v1";
+    | "library-read-v1"
+    | "tabular-cell-v1";
+  tabular?: {
+    review_id: string;
+    col_index: number;
+    row_index: number;
+    col_name: string;
+    doc_name: string;
+  };
 };
 
 export type RegisteredEvidence = {
@@ -236,6 +244,45 @@ export function createLibraryEvidence(args: {
     external_url: null,
     locator: { kind: "document", label: "document" },
     resolver_version: "library-read-v1",
+  });
+}
+
+export function createTabularEvidence(args: {
+  reviewId: string;
+  documentId: string;
+  documentName: string;
+  columnId: number;
+  columnName: string;
+  columnIndex: number;
+  rowIndex: number;
+  text: string;
+}): LegalEvidenceReceipt {
+  return withEvidenceId({
+    provider: "library",
+    jurisdiction: "matter",
+    source_class: "commentary",
+    stable_source_id: `tabular:${args.reviewId}:${args.documentId}:${args.columnId}`,
+    source_sha256: sha256(args.text),
+    scope: "passage",
+    block_id: `cell:${args.rowIndex}:${args.columnIndex}`,
+    exact_span_sha256: sha256(args.text),
+    span_sha256: sha256(normalizeWhitespace(args.text)),
+    span_text: args.text,
+    citation: `${args.columnName} · ${args.documentName}`,
+    name: args.documentName,
+    dataset: "tabular-review",
+    language: "en",
+    version: null,
+    external_url: null,
+    locator: { kind: "document", label: "cell" },
+    resolver_version: "tabular-cell-v1",
+    tabular: {
+      review_id: args.reviewId,
+      col_index: args.columnIndex,
+      row_index: args.rowIndex,
+      col_name: args.columnName,
+      doc_name: args.documentName,
+    },
   });
 }
 

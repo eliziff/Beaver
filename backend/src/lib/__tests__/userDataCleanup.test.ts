@@ -123,29 +123,24 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("deleteAllUserChats", () => {
-    it("deletes only the target user's assistant and tabular chats", async () => {
+    it("deletes only the target user's chats", async () => {
         const { db, tables } = makeDb({
             chats: [
                 { id: "c1", user_id: "u1" },
                 { id: "c2", user_id: "u2" },
             ],
-            tabular_review_chats: [
-                { id: "tc1", user_id: "u1" },
-                { id: "tc2", user_id: "u2" },
-            ],
         });
         await deleteAllUserChats(db, "u1");
         expect(ids(tables.chats)).toEqual(["c2"]);
-        expect(ids(tables.tabular_review_chats)).toEqual(["tc2"]);
     });
 
     it("surfaces delete failures with context", async () => {
         const { db } = makeDb(
-            { chats: [{ id: "c1", user_id: "u1" }], tabular_review_chats: [] },
+            { chats: [{ id: "c1", user_id: "u1" }] },
             { deleteErrors: { chats: "boom" } },
         );
         await expect(deleteAllUserChats(db, "u1")).rejects.toThrow(
-            "Failed to delete assistant chats: boom",
+            "Failed to delete chats: boom",
         );
     });
 });
@@ -162,26 +157,16 @@ describe("deleteAllUserTabularReviews", () => {
                 { id: "r2", user_id: "u1" },
                 { id: "r-other", user_id: "u2" },
             ],
-            tabular_review_chats: [
-                { id: "rc1", review_id: "r1" },
-                { id: "rc-other", review_id: "r-other" },
-            ],
-            tabular_review_chat_messages: [
-                { id: "rm1", chat_id: "rc1" },
-                { id: "rm-other", chat_id: "rc-other" },
-            ],
             tabular_cells: [
                 { id: "cell1", review_id: "r1" },
                 { id: "cell-other", review_id: "r-other" },
             ],
         });
 
-    it("cascades messages, chats, and cells before the reviews", async () => {
+    it("deletes the user's review cells and reviews", async () => {
         const { db, tables } = fixture();
         await expect(deleteAllUserTabularReviews(db, "u1")).resolves.toBe(2);
         expect(ids(tables.tabular_reviews)).toEqual(["r-other"]);
-        expect(ids(tables.tabular_review_chats)).toEqual(["rc-other"]);
-        expect(ids(tables.tabular_review_chat_messages)).toEqual(["rm-other"]);
         expect(ids(tables.tabular_cells)).toEqual(["cell-other"]);
     });
 
@@ -236,14 +221,6 @@ describe("deleteUserProjects", () => {
                 { id: "r1", project_id: "p1" },
                 { id: "r-other", project_id: "p-other" },
             ],
-            tabular_review_chats: [
-                { id: "rc1", review_id: "r1" },
-                { id: "rc-other", review_id: "r-other" },
-            ],
-            tabular_review_chat_messages: [
-                { id: "rm1", chat_id: "rc1" },
-                { id: "rm-other", chat_id: "rc-other" },
-            ],
             tabular_cells: [
                 { id: "cell1", review_id: "r1" },
                 { id: "cell-other", review_id: "r-other" },
@@ -263,8 +240,6 @@ describe("deleteUserProjects", () => {
         expect(ids(tables.chats)).toEqual(["c-other"]);
         expect(ids(tables.chat_messages)).toEqual(["m-other"]);
         expect(ids(tables.tabular_reviews)).toEqual(["r-other"]);
-        expect(ids(tables.tabular_review_chats)).toEqual(["rc-other"]);
-        expect(ids(tables.tabular_review_chat_messages)).toEqual(["rm-other"]);
         expect(ids(tables.tabular_cells)).toEqual(["cell-other"]);
         expect(ids(tables.project_subfolders)).toEqual(["f-other"]);
 
@@ -348,7 +323,6 @@ describe("deleteUserAccountData", () => {
                 { id: "c1", user_id: "u1" },
                 { id: "c-other", user_id: "u2" },
             ],
-            tabular_review_chats: [{ id: "rc1", user_id: "u1" }],
             project_subfolders: [{ id: "f1", user_id: "u1" }],
             hidden_workflows: [{ id: "h1", user_id: "u1" }],
             workflow_open_source_submissions: [
@@ -383,7 +357,6 @@ describe("deleteUserAccountData", () => {
         expect(ids(tables.documents)).toEqual(["d-other"]);
         expect(ids(tables.projects)).toEqual(["p-other"]);
         expect(ids(tables.chats)).toEqual(["c-other"]);
-        expect(tables.tabular_review_chats).toEqual([]);
         expect(ids(tables.tabular_reviews)).toEqual(["r-other"]);
         expect(tables.project_subfolders).toEqual([]);
         expect(tables.hidden_workflows).toEqual([]);

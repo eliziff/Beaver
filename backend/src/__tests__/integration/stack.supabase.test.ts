@@ -27,7 +27,7 @@ const PUBLIC_TABLES = [
     "courtlistener_opinion_cluster_index", "document_edits",
     "document_versions", "documents", "hidden_workflows", "library_folders",
     "project_subfolders", "projects", "tabular_cells",
-    "tabular_review_chat_messages", "tabular_review_chats", "tabular_reviews",
+    "tabular_reviews",
     "user_api_keys", "user_mcp_connector_tools", "user_mcp_connectors",
     "user_mcp_oauth_states", "user_mcp_oauth_tokens",
     "user_mcp_tool_audit_logs", "user_profiles",

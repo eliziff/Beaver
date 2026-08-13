@@ -1,7 +1,13 @@
 import type { TabularCellStore } from "./types";
+import {
+  createTabularEvidence,
+  registerLegalEvidence,
+  type LegalEvidenceTurnState,
+} from "./legalEvidence";
 
 export function readTabularCells(
   tabularStore: TabularCellStore,
+  evidence: LegalEvidenceTurnState,
   colIndices?: number[],
   rowIndices?: number[],
 ) {
@@ -27,9 +33,23 @@ export function readTabularCells(
         `[COL:${columnPosition} "${column.name}" | ROW:${rowPosition} "${document.filename}"]`,
       );
       if (cell?.summary) {
-        lines.push(`Summary: ${cell.summary}`);
-        if (cell.flag) lines.push(`Flag: ${cell.flag}`);
-        if (cell.reasoning) lines.push(`Reasoning: ${cell.reasoning}`);
+        const text = [
+          `Summary: ${cell.summary}`,
+          cell.flag && `Flag: ${cell.flag}`,
+          cell.reasoning && `Reasoning: ${cell.reasoning}`,
+        ].filter(Boolean).join("\n");
+        const receipt = createTabularEvidence({
+          reviewId: tabularStore.review_id,
+          documentId: document.id,
+          documentName: document.filename,
+          columnId: column.index,
+          columnName: column.name,
+          columnIndex: columnPosition,
+          rowIndex: rowPosition,
+          text,
+        });
+        registerLegalEvidence(evidence, receipt);
+        lines.push(`Evidence: ${receipt.evidence_id}`, text);
       } else {
         lines.push("(not yet generated)");
       }

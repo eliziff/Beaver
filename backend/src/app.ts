@@ -165,7 +165,13 @@ app.use(express.json({ limit: "50mb" }));
 
 app.use(
   "/chat",
-  lazyRouter(() => import("./routes/chat").then((mod) => mod.chatRouter)),
+  lazyRouter(async () => {
+    const { createChatRouter } = await import("./routes/chat");
+    const tabularData = isAnonymousLocalMode()
+      ? (await import("./lib/localTabularStore")).localTabularData
+      : (await import("./lib/cloudTabularStore")).cloudTabularData;
+    return createChatRouter(tabularData);
+  }),
 );
 app.use(
   "/projects",
@@ -226,7 +232,21 @@ app.use(
 );
 app.use(
   "/tabular-review",
-  lazyRouter(() => import("./routes/tabular").then((mod) => mod.tabularRouter)),
+  lazyRouter(async () => {
+    const { createTabularRouter } = await import("./routes/tabular");
+    if (!isAnonymousLocalMode()) {
+      const [{ cloudTabularData }, { cloudDocuments }] = await Promise.all([
+        import("./lib/cloudTabularStore"),
+        import("./lib/cloudDocumentStore"),
+      ]);
+      return createTabularRouter(cloudTabularData, cloudDocuments);
+    }
+    const [{ localTabularData }, { localDocuments }] = await Promise.all([
+      import("./lib/localTabularStore"),
+      import("./lib/localLibraryStore"),
+    ]);
+    return createTabularRouter(localTabularData, localDocuments);
+  }),
 );
 app.use(
   "/workflows",

@@ -46,6 +46,8 @@ export function citationSourceLabel(annotation: Citation): string {
             return `${title}, ${citation}`;
         return title || citation || annotation.identifier;
     }
+    if (annotation.kind === "tabular")
+        return `${annotation.col_name} · ${annotation.doc_name}`;
     return annotation.filename;
 }
 export function citationPillLabel(annotation: Citation): string {

@@ -2,6 +2,10 @@
 
 - Keep changes small, local-first, and consistent with `docs/beaver-master-plan.md`.
 - Preserve both account-free local mode and cloud/Supabase support.
+- Beaver has no users. Unless the user specifically requests it, replace old designs outright; do not add transition states, backward compatibility, or migration infrastructure.
+- Before building a feature, canvass the repository for existing primitives and route the feature through them instead of reimplementing them.
+- No half-measures in refactors. Preserve user-facing capabilities, not current module boundaries: decompose monoliths and fix root architectural problems even when multiple subsystems or consumers must change together.
+- Treat corpus-scale legal ingestion and structure derivation as high-fidelity systems. Refactor them deliberately, and require corpus-scale output-fidelity checks unless the change inherently cannot affect their output.
 - Reuse existing code and data before adding implementations, dependencies, or network fetches.
 - Keep the modular monolith and respect boundaries in `subrepos.lock.json`.
 - Long-running scripts must report progress and preserve usable partial results.

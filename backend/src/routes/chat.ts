@@ -10,10 +10,10 @@ import {
   parseAskInputsResponsePayload,
 } from "../lib/chat/messageFormatting";
 import { CLIENT_WORK_PRODUCT_PRESUMPTION, CODING_PRODUCTION_SYSTEM_PROMPT, jurisdictionPreferencePrompt, parseJurisdictionPreference, type JurisdictionPreference } from "../lib/chat/prompts";
-import { devLog, type AskInputResponseItem, type AskInputsEvent, type AskInputsResponseRequest, type ChatMessage } from "../lib/chat/types";
+import { devLog, type AskInputResponseItem, type AskInputsEvent, type AskInputsResponseRequest, type ChatMessage, type TabularCellStore } from "../lib/chat/types";
 import { normalizeAskInputsEvent } from "../lib/chat/askInputs";
 import { isAbortError } from "../lib/llm/abort";
-import { completeText, DEFAULT_MAIN_MODEL, modelSupportsImageInput, streamChatWithTools, type LlmImage, type NormalizedToolResult, type SubagentMode, type StreamChatResult } from "../lib/llm";
+import { completeText, DEFAULT_MAIN_MODEL, modelSupportsImageInput, streamChatWithTools, type LlmImage, type NormalizedToolResult, type OpenAIToolSchema, type SubagentMode, type StreamChatResult } from "../lib/llm";
 import { providerForModel } from "../lib/llm/models";
 import { LOCAL_ASSISTANT_TOOLS, LOCAL_READ_SUBAGENT_TOOL_CATALOG, createLocalAssistantRequirementsState, runLocalAssistantTools, pendingFinalAgentDraft, type LocalAssistantEditTurnState, type LocalAssistantReadTurnState, type LocalAssistantWorkingSetTurnState } from "../lib/chat/localAssistantTools";
 import { localAutomationEvent } from "../lib/chat/localAutomationEvent";
@@ -114,6 +114,10 @@ import {
   providerSessionCompatibilityKey,
   writeAnonymousCodexSession,
 } from "../lib/anonymousProviderSessionStore";
+import type { TabularStore } from "../lib/tabularStore";
+import { readTabularCells } from "../lib/chat/tabularCells";
+import { TABULAR_TOOLS } from "../lib/chat/tools/toolSchemas";
+import { tabularChatContext } from "../lib/chat/tabularContext";
 
 class MatterDocumentSet extends Set<string> {
   constructor(
@@ -130,9 +134,6 @@ class MatterDocumentSet extends Set<string> {
     );
   }
 }
-
-export const chatRouter = Router();
-chatRouter.use(requireAuth);
 
 type Db = ReturnType<typeof createServerSupabase>;
 
@@ -768,7 +769,13 @@ type AccessibleChat = {
   title: string | null;
   user_id: string;
   project_id: string | null;
+  tabular_review_id: string | null;
 } & Record<string, unknown>;
+
+type TabularChatRuntime = {
+  prompt: string;
+  store: TabularCellStore;
+};
 
 /** Lazily-opened per-response append stream for live SSE capture. */
 const liveSseStreams = new WeakMap<
@@ -833,6 +840,8 @@ export async function streamAnonymousChat(params: {
   serviceTier?: string;
   projectId?: string | null;
   projectIdProvided?: boolean;
+  tabularReviewId?: string | null;
+  tabularReviewIdProvided?: boolean;
   displayedDocument?: { filename: string; document_id: string };
   attachedDocuments?: { filename: string; document_id: string }[];
   jurisdictionPreference?: JurisdictionPreference | null;
@@ -840,6 +849,7 @@ export async function streamAnonymousChat(params: {
   subagentModel?: string;
   subagentEffort?: string;
   activityDetail?: "auto" | "standard" | "tools" | "trace";
+  tabular?: TabularChatRuntime;
 }) {
   const { res, userId } = params;
   const activityDetail = params.activityDetail ?? "auto";
@@ -868,6 +878,15 @@ export async function streamAnonymousChat(params: {
     return fail(400, "project_id does not match chat");
   }
   const projectId = existingChat?.project_id ?? params.projectId ?? null;
+  if (
+    existingChat &&
+    params.tabularReviewIdProvided &&
+    existingChat.tabular_review_id !== (params.tabularReviewId ?? null)
+  ) {
+    return fail(400, "tabular_review_id does not match chat");
+  }
+  const tabularReviewId =
+    existingChat?.tabular_review_id ?? params.tabularReviewId ?? null;
   const priorDocumentIds = [...new Set((existingChat?.messages ?? []).flatMap(
     (message) => (message as ChatMessage).files?.flatMap(
       (file) => file.document_id ?? []) ?? [],
@@ -1004,6 +1023,7 @@ export async function streamAnonymousChat(params: {
   // shown as an assistant activity.
   const activeTools = [
     ...LOCAL_ASSISTANT_TOOLS,
+    ...(params.tabular ? TABULAR_TOOLS as OpenAIToolSchema[] : []),
     ...(params.subagentMode === "beaver" ? [READ_SUBAGENT_TOOL] : []),
     LEGAL_EVIDENCE_SUBMIT_TOOL,
   ];
@@ -1013,7 +1033,11 @@ export async function streamAnonymousChat(params: {
   if (imagesByDocumentId.size && !modelSupportsImageInput(selectedModel)) {
     return fail(400, `Model "${selectedModel}" does not support image input.`);
   }
-  const chat = existingChat ?? createAnonymousChat(userId, projectId);
+  const chat = existingChat ?? createAnonymousChat(
+    userId,
+    projectId,
+    tabularReviewId,
+  );
   const priorEvidenceRegistry = priorLocalPdfEvidenceRegistry(
     chat,
     allowedDocumentIds,
@@ -1031,6 +1055,7 @@ export async function streamAnonymousChat(params: {
     params.subagentMode === "beaver" ? READ_SUBAGENT_SYSTEM_PROMPT : "",
     standingJurisdictionPrompt,
     coveragePrompt,
+    params.tabular?.prompt,
     focusPrompt,
     priorEvidencePrompt,
   ]
@@ -1415,9 +1440,26 @@ export async function streamAnonymousChat(params: {
   ) => {
     const allowedCalls = calls.filter((call) => activeToolNames.has(call.name));
     const runAllowedCalls = async (batch: typeof allowedCalls) => {
+      const tableResults = new Map(batch.flatMap((call) => {
+        if (call.name !== "read_table_cells" || !params.tabular) return [];
+        const indices = (value: unknown) => Array.isArray(value)
+          ? value.filter((item): item is number => Number.isSafeInteger(item))
+          : undefined;
+        const read = readTabularCells(
+          params.tabular.store,
+          legalEvidenceState,
+          indices(call.input.col_indices),
+          indices(call.input.row_indices),
+        );
+        const event = { type: "doc_read", filename: read.label };
+        turnDocumentEvents.push(event);
+        sseWrite(res, event);
+        return [[call.id, { tool_use_id: call.id, content: read.content }]];
+      }));
+      const direct = batch.filter((call) => call.name !== "read_table_cells");
       const results = await runLocalAssistantTools(
         userId,
-        batch,
+        direct,
         a2ajLookups,
         a2ajDocuments,
         courtlistenerState,
@@ -1431,13 +1473,17 @@ export async function streamAnonymousChat(params: {
         localWorkingSets,
         localRequirementsState,
       );
-      return results.map((result, index) =>
+      const visibleResults = results.map((result, index) =>
         hideLegalSourceUrls(
-          batch.find((call) => call.id === result.tool_use_id)?.name ??
-            batch[index]?.name ??
+          direct.find((call) => call.id === result.tool_use_id)?.name ??
+            direct[index]?.name ??
             "",
           result,
         ),
+      );
+      return batch.map((call) =>
+        tableResults.get(call.id) ??
+        visibleResults.find((result) => result.tool_use_id === call.id)!,
       );
     };
     const allowedResults = await runReadSubagentRound({
@@ -2185,6 +2231,7 @@ async function getAccessibleChat(
   userId: string,
   userEmail: string | null | undefined,
   db: Db,
+  tabularData: TabularStore,
 ): Promise<AccessibleChat | null> {
   const { data: chat, error } = await db
     .from("chats")
@@ -2206,6 +2253,13 @@ async function getAccessibleChat(
     );
     if (access.ok) return row;
   }
+  if (
+    row.tabular_review_id &&
+    await tabularData.detail(
+      { userId, ...(userEmail ? { userEmail } : {}) },
+      row.tabular_review_id,
+    )
+  ) return row;
 
   return null;
 }
@@ -2232,13 +2286,24 @@ async function purgeExpiredCloudChats(db: Db, userId: string) {
     .lte("deleted_at", cutoff);
 }
 
+export function createChatRouter(tabularData: TabularStore) {
+const chatRouter = Router();
+chatRouter.use(requireAuth);
+
 chatRouter.get("/", async (req, res) => {
+  const tabularReviewId = trimmedString(req.query.tabular_review_id) || null;
   if (isAnonymousLocalMode()) {
     const userId = res.locals.userId as string;
     const limit = parseListLimit(req.query.limit, 20) as number;
+    if (
+      tabularReviewId &&
+      !await tabularData.detail({ userId }, tabularReviewId)
+    ) return void res.status(404).json({ detail: "Review not found" });
     res.json(
       listAnonymousChats(userId)
-        .filter((chat) => chat.project_id === null)
+        .filter((chat) => tabularReviewId
+          ? chat.tabular_review_id === tabularReviewId
+          : chat.project_id === null && chat.tabular_review_id === null)
         .slice(0, limit)
         .map(({ messages: _messages, ...chat }) => chat),
     );
@@ -2246,8 +2311,25 @@ chatRouter.get("/", async (req, res) => {
   }
   try {
     const userId = res.locals.userId as string;
+    const userEmail = res.locals.userEmail as string | undefined;
     const db = createServerSupabase();
     const limit = parseListLimit(req.query.limit, null);
+    if (tabularReviewId) {
+      const detail = await tabularData.detail(
+        { userId, ...(userEmail ? { userEmail } : {}) },
+        tabularReviewId,
+      );
+      if (!detail) return void res.status(404).json({ detail: "Review not found" });
+      let query = db.from("chats")
+        .select("id, project_id, tabular_review_id, user_id, title, created_at")
+        .eq("tabular_review_id", tabularReviewId)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false });
+      if (limit) query = query.limit(limit);
+      const { data, error } = await query;
+      if (error) return void res.status(500).json({ detail: error.message });
+      return void res.json(data ?? []);
+    }
     const { data, error } = await db.rpc("get_chats_overview", {
       p_user_id: userId,
       p_limit: limit,
@@ -2290,15 +2372,31 @@ chatRouter.post("/create", async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
   const parsedProjectId = parseOptionalProjectId(req.body?.project_id);
+  const parsedTabularReviewId = parseOptionalProjectId(
+    req.body?.tabular_review_id,
+  );
   if (!parsedProjectId.ok) {
     return void res.status(400).json({ detail: parsedProjectId.detail });
   }
+  if (!parsedTabularReviewId.ok) {
+    return void res.status(400).json({ detail: "tabular_review_id must be a string or null" });
+  }
   const projectId = parsedProjectId.projectId;
+  const tabularReviewId = parsedTabularReviewId.projectId;
+  if (projectId && tabularReviewId) {
+    return void res.status(400).json({
+      detail: "A chat cannot belong to both a project and a tabular review",
+    });
+  }
   if (isAnonymousLocalMode()) {
     if (projectId && !legalKnowledgeGraphStore().getMatter(userId, projectId)) {
       return void res.status(404).json({ detail: "Project not found" });
     }
-    const chat = createAnonymousChat(userId, projectId);
+    if (
+      tabularReviewId &&
+      !await tabularData.detail({ userId }, tabularReviewId)
+    ) return void res.status(404).json({ detail: "Review not found" });
+    const chat = createAnonymousChat(userId, projectId, tabularReviewId);
     res.json({ id: chat.id });
     return;
   }
@@ -2313,10 +2411,21 @@ chatRouter.post("/create", async (req, res) => {
     return void res
       .status(projectAccess.status)
       .json({ detail: projectAccess.detail });
+  if (
+    tabularReviewId &&
+    !await tabularData.detail(
+      { userId, ...(userEmail ? { userEmail } : {}) },
+      tabularReviewId,
+    )
+  ) return void res.status(404).json({ detail: "Review not found" });
 
   const { data, error } = await db
     .from("chats")
-    .insert({ user_id: userId, project_id: projectId ?? null })
+    .insert({
+      user_id: userId,
+      project_id: projectId ?? null,
+      tabular_review_id: tabularReviewId ?? null,
+    })
     .select("id")
     .single();
 
@@ -2341,7 +2450,7 @@ chatRouter.get("/:chatId", async (req, res) => {
   }
   const db = createServerSupabase();
 
-  const chat = await getAccessibleChat(chatId, userId, userEmail, db);
+  const chat = await getAccessibleChat(chatId, userId, userEmail, db, tabularData);
   if (!chat) return void res.status(404).json({ detail: "Chat not found" });
 
   const { data: messages } = await db
@@ -2368,7 +2477,7 @@ chatRouter.post("/:chatId/stop", async (req, res) => {
     }
   } else {
     const db = createServerSupabase();
-    if (!(await getAccessibleChat(chatId, userId, userEmail, db))) {
+    if (!(await getAccessibleChat(chatId, userId, userEmail, db, tabularData))) {
       return void res.status(404).json({ detail: "Chat not found" });
     }
   }
@@ -2562,7 +2671,7 @@ chatRouter.patch("/:chatId", async (req, res) => {
   }
 
   const db = createServerSupabase();
-  const existing = await getAccessibleChat(chatId, userId, userEmail, db);
+  const existing = await getAccessibleChat(chatId, userId, userEmail, db, tabularData);
   if (!existing || existing.user_id !== userId) {
     return void res.status(404).json({ detail: "Chat not found" });
   }
@@ -2694,7 +2803,7 @@ chatRouter.post("/:chatId/generate-title", async (req, res) => {
   }
 
   const db = createServerSupabase();
-  const chat = await getAccessibleChat(chatId, userId, userEmail, db);
+  const chat = await getAccessibleChat(chatId, userId, userEmail, db, tabularData);
   if (!chat) return void res.status(404).json({ detail: "Chat not found" });
 
   try {
@@ -2736,8 +2845,16 @@ chatRouter.post("/", async (req, res) => {
   }
   const chat_id = typeof body.chat_id === "string" ? body.chat_id.trim() : null;
   const parsedProjectId = parseOptionalProjectId(body.project_id);
+  const parsedTabularReviewId = parseOptionalProjectId(
+    body.tabular_review_id,
+  );
   if (!parsedProjectId.ok) {
     return void res.status(400).json({ detail: parsedProjectId.detail });
+  }
+  if (!parsedTabularReviewId.ok) {
+    return void res.status(400).json({
+      detail: "tabular_review_id must be a string or null",
+    });
   }
   if (
     body.model !== undefined &&
@@ -2748,6 +2865,12 @@ chatRouter.post("/", async (req, res) => {
       .json({ detail: "model must be a non-empty string" });
   }
   const project_id = parsedProjectId.projectId;
+  const tabular_review_id = parsedTabularReviewId.projectId;
+  if (project_id && tabular_review_id) {
+    return void res.status(400).json({
+      detail: "A chat cannot belong to both a project and a tabular review",
+    });
+  }
   const model = typeof body.model === "string" ? body.model.trim() : undefined;
   const reasoningEffort =
     trimmedString(body.reasoning_effort).slice(0, 32) || undefined;
@@ -2843,6 +2966,27 @@ chatRouter.post("/", async (req, res) => {
     if (!parsedVersion.ok) {
       return void res.status(400).json({ detail: parsedVersion.detail });
     }
+    const existing = chat_id ? getAnonymousChat(userId, chat_id) : null;
+    const resolvedTabularReviewId =
+      existing?.tabular_review_id ?? tabular_review_id;
+    if (
+      existing &&
+      parsedTabularReviewId.provided &&
+      existing.tabular_review_id !== tabular_review_id
+    ) {
+      return void res.status(400).json({
+        detail: "tabular_review_id does not match chat",
+      });
+    }
+    const tabularDetail = resolvedTabularReviewId
+      ? await tabularData.detail({ userId }, resolvedTabularReviewId)
+      : null;
+    if (resolvedTabularReviewId && !tabularDetail) {
+      return void res.status(404).json({ detail: "Review not found" });
+    }
+    const tabular = tabularDetail
+      ? tabularChatContext(tabularDetail)
+      : undefined;
     try {
       await streamAnonymousChat({
         res,
@@ -2855,6 +2999,8 @@ chatRouter.post("/", async (req, res) => {
         serviceTier,
         projectId: project_id,
         projectIdProvided: parsedProjectId.provided,
+        tabularReviewId: tabular_review_id,
+        tabularReviewIdProvided: parsedTabularReviewId.provided,
         displayedDocument,
         attachedDocuments,
         jurisdictionPreference,
@@ -2862,6 +3008,7 @@ chatRouter.post("/", async (req, res) => {
         subagentModel,
         subagentEffort,
         activityDetail,
+        tabular,
       });
     } catch (error) {
       console.error("[chat/anonymous] preflight", safeErrorLog(error));
@@ -2916,13 +3063,15 @@ chatRouter.post("/", async (req, res) => {
   let chatId = chat_id ?? null;
   let chatTitle: string | null = null;
   let resolvedProjectId: string | null = parsedProjectId.projectId;
+  let resolvedTabularReviewId: string | null = parsedTabularReviewId.projectId;
 
   if (chatId) {
-    const existing = await getAccessibleChat(chatId, userId, userEmail, db);
+  const existing = await getAccessibleChat(chatId, userId, userEmail, db, tabularData);
     if (!existing)
       return void res.status(404).json({ detail: "Chat not found" });
 
     const existingProjectId = existing.project_id ?? null;
+    const existingTabularReviewId = existing.tabular_review_id ?? null;
     if (
       parsedProjectId.provided &&
       parsedProjectId.projectId !== existingProjectId
@@ -2932,8 +3081,30 @@ chatRouter.post("/", async (req, res) => {
         .json({ detail: "project_id does not match chat" });
     }
     resolvedProjectId = existingProjectId;
+    if (
+      parsedTabularReviewId.provided &&
+      parsedTabularReviewId.projectId !== existingTabularReviewId
+    ) {
+      return void res.status(400).json({
+        detail: "tabular_review_id does not match chat",
+      });
+    }
+    resolvedTabularReviewId = existingTabularReviewId;
     chatTitle = existing.title;
   }
+
+  const tabularDetail = resolvedTabularReviewId
+    ? await tabularData.detail(
+        { userId, ...(userEmail ? { userEmail } : {}) },
+        resolvedTabularReviewId,
+      )
+    : null;
+  if (resolvedTabularReviewId && !tabularDetail) {
+    return void res.status(404).json({ detail: "Review not found" });
+  }
+  const tabular = tabularDetail
+    ? tabularChatContext(tabularDetail)
+    : undefined;
 
   if (!chatId) {
     // If creating a chat tied to a project, the user must have access
@@ -2951,7 +3122,11 @@ chatRouter.post("/", async (req, res) => {
 
     const { data: newChat, error } = await db
       .from("chats")
-      .insert({ user_id: userId, project_id: resolvedProjectId })
+      .insert({
+        user_id: userId,
+        project_id: resolvedProjectId,
+        tabular_review_id: resolvedTabularReviewId,
+      })
       .select("id, title")
       .single();
     if (error || !newChat) {
@@ -3086,7 +3261,9 @@ chatRouter.post("/", async (req, res) => {
     jurisdictionPreference,
   );
   systemPromptExtra =
-    [systemPromptExtra, cloudJurisdictionPrompt].filter(Boolean).join("\n\n") ||
+    [systemPromptExtra, tabular?.prompt, cloudJurisdictionPrompt]
+      .filter(Boolean)
+      .join("\n\n") ||
     undefined;
   const { api_keys: apiKeys, legal_research_us: legalResearchUs } =
     await getUserModelSettings(userId, db);
@@ -3123,7 +3300,10 @@ chatRouter.post("/", async (req, res) => {
       db,
       write,
       workflowStore,
-      extraTools: resolvedProjectId ? PROJECT_EXTRA_TOOLS : undefined,
+      extraTools: [
+        ...(resolvedProjectId ? PROJECT_EXTRA_TOOLS : []),
+        ...(tabular ? TABULAR_TOOLS : []),
+      ],
       includeResearchTools: legalResearchUs,
       model,
       apiKeys,
@@ -3137,6 +3317,7 @@ chatRouter.post("/", async (req, res) => {
       jurisdictionPreference,
       activityDetail,
       priorLegalEvidence: cloudPriorLegalEvidence,
+      tabularStore: tabular?.store,
     });
 
     devLog("[chat/stream] LLM stream finished", {
@@ -3234,3 +3415,6 @@ chatRouter.post("/", async (req, res) => {
     res.end();
   }
 });
+
+return chatRouter;
+}

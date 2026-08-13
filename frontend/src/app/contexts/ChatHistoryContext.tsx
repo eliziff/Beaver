@@ -81,6 +81,7 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
                     const newChat: Chat = {
                         id,
                         project_id: projectId ?? null,
+                        tabular_review_id: null,
                         user_id: user?.id ?? "",
                         title: null,
                         created_at: new Date().toISOString(),

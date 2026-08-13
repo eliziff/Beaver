@@ -79,20 +79,6 @@ async function loadUserChats(db: Db, userId: string) {
     return { chats, messages };
 }
 
-async function loadUserTabularChats(db: Db, userId: string) {
-    const chats = await selectAll(db, "tabular_review_chats", (query) =>
-        query.eq("user_id", userId).order("created_at", { ascending: true }),
-    );
-    const chatIds = idsFrom(chats);
-    const messages = await selectByIds(
-        db,
-        "tabular_review_chat_messages",
-        "chat_id",
-        chatIds,
-    );
-    return { chats, messages };
-}
-
 async function loadApiKeyStatus(db: Db, userId: string) {
     const rows = await selectAll(db, "user_api_keys", (query) =>
         query
@@ -113,16 +99,12 @@ export async function buildUserChatsExport(
     userId: string,
     userEmail?: string | null,
 ) {
-    const [assistant, tabular] = await Promise.all([
-        loadUserChats(db, userId),
-        loadUserTabularChats(db, userId),
-    ]);
+    const chats = await loadUserChats(db, userId);
 
     return {
         exported_at: new Date().toISOString(),
         user: { id: userId, email: userEmail ?? null },
-        assistant_chats: assistant,
-        tabular_review_chats: tabular,
+        chats,
     };
 }
 
@@ -138,12 +120,12 @@ export async function buildUserTabularReviewsExport(
 
     const [cells, chats] = await Promise.all([
         selectByIds(db, "tabular_cells", "review_id", reviewIds),
-        selectByIds(db, "tabular_review_chats", "review_id", reviewIds),
+        selectByIds(db, "chats", "tabular_review_id", reviewIds),
     ]);
     const chatIds = idsFrom(chats);
     const messages = await selectByIds(
         db,
-        "tabular_review_chat_messages",
+        "chat_messages",
         "chat_id",
         chatIds,
     );
@@ -153,7 +135,7 @@ export async function buildUserTabularReviewsExport(
         user: { id: userId, email: userEmail ?? null },
         tabular_reviews: tabularReviews,
         tabular_cells: cells,
-        tabular_review_chats: {
+        chats: {
             chats,
             messages,
         },
@@ -176,7 +158,6 @@ export async function buildUserAccountExport(
         workflowSharesByUser,
         workflowSharesWithUser,
         assistantChats,
-        tabularChats,
         tabularReviews,
         sharedProjects,
         sharedTabularReviews,
@@ -217,7 +198,6 @@ export async function buildUserAccountExport(
               )
             : Promise.resolve([]),
         loadUserChats(db, userId),
-        loadUserTabularChats(db, userId),
         selectAll(db, "tabular_reviews", (query) =>
             query.eq("user_id", userId).order("created_at", { ascending: true }),
         ),
@@ -282,7 +262,6 @@ export async function buildUserAccountExport(
         chats: assistantChats,
         tabular_reviews: tabularReviews,
         tabular_cells: tabularCells,
-        tabular_review_chats: tabularChats,
         shared_access: {
             projects: sharedProjects,
             tabular_reviews: sharedTabularReviews,

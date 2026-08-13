@@ -721,9 +721,12 @@ export const downloadDocumentsZip = async (documentIds: string[]): Promise<Blob>
   )).blob;
 export const createChat = (payload?: {
   project_id?: string;
+  tabular_review_id?: string;
 }) => post<{ id: string }>("/chat/create", payload ?? {});
-export const listChats = (options?: { limit?: number }) =>
-  apiRequest<Chat[]>(`/chat${options?.limit ? `?limit=${options.limit}` : ""}`);
+export const listChats = (options?: {
+  limit?: number;
+  tabular_review_id?: string;
+}) => apiRequest<Chat[]>(pagePath("/chat", options ?? {}));
 export const listProjectChats = (projectId: string) =>
   apiRequest<Chat[]>(`/projects/${projectId}/chats`);
 export const getChat = async (chatId: string) => {
@@ -787,6 +790,7 @@ export const streamChat = (payload: {
   expected_version?: number;
   chat_id?: string;
   project_id?: string;
+  tabular_review_id?: string;
   model?: string;
   reasoning_effort?: string;
   jurisdiction_preference?: {
@@ -858,63 +862,6 @@ export const streamTabularGeneration = (
   model: options?.model,
   reasoning_effort: options?.reasoningEffort,
 });
-export const streamTabularChat = (
-  reviewId: string,
-  messages: { role: string; content: string }[],
-  chat_id?: string | null,
-  signal?: AbortSignal,
-  context?: {
-    reviewTitle?: string | null;
-    projectName?: string | null;
-    model?: string;
-    reasoningEffort?: string;
-  },
-) => streamRequest(`/tabular-review/${reviewId}/chat`, {
-  messages,
-  chat_id: chat_id ?? undefined,
-  review_title: context?.reviewTitle ?? undefined,
-  project_name: context?.projectName ?? undefined,
-  model: context?.model,
-  reasoning_effort: context?.reasoningEffort,
-}, { signal });
-export interface TRCitationAnnotation {
-  type: "tabular_citation";
-  ref: number;
-  col_index: number;
-  row_index: number;
-  col_name: string;
-  doc_name: string;
-  quote: string;
-}
-interface RawTRMessage extends Pick<ServerMessage, "role" | "content"> {
-  annotations?: TRCitationAnnotation[] | null;
-}
-export interface TRChat {
-  id: string;
-  title: string | null;
-  created_at: string;
-  updated_at: string;
-}
-export const mapTRMessages = (raw: RawTRMessage[]) =>
-  raw.map((m) => {
-    if (m.role === "user") {
-      return {
-        role: "user" as const,
-        content: typeof m.content === "string" ? m.content : "",
-      };
-    }
-    return {
-      role: "assistant" as const,
-      annotations: m.annotations ?? undefined,
-      ...assistantContent(m.content),
-    };
-  });
-export const getTabularChats = (reviewId: string) =>
-  apiRequest<TRChat[]>(`/tabular-review/${reviewId}/chats`);
-export const getTabularChatMessages = (
-  reviewId: string,
-  chatId: string,
-) => apiRequest<RawTRMessage[]>(`/tabular-review/${reviewId}/chats/${chatId}/messages`);
 export const regenerateTabularCell = (
   reviewId: string,
   documentId: string,

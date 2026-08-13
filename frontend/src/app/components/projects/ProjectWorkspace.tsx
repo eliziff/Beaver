@@ -199,8 +199,9 @@ export function ProjectWorkspaceProvider({
                     prev
                         ? [
                               {
-                                  id,
-                                  project_id: projectId,
+                id,
+                project_id: projectId,
+                tabular_review_id: null,
                                   user_id: user?.id ?? "",
                                   creator_display_name:
                                       profile?.displayName ?? null,

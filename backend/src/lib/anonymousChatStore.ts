@@ -29,6 +29,7 @@ export type AnonymousChat = {
   id: string;
   user_id: string;
   project_id: string | null;
+  tabular_review_id: string | null;
   title: string | null;
   created_at: string;
   updated_at: string;
@@ -58,6 +59,7 @@ const chatSchema = z
     id: idSchema,
     user_id: idSchema,
     project_id: idSchema.nullable(),
+    tabular_review_id: idSchema.nullable(),
     title: z.string().nullable(),
     created_at: z.string().datetime(),
     updated_at: z.string().datetime(),
@@ -66,15 +68,7 @@ const chatSchema = z
     messages: z.array(messageSchema),
   })
   .strict();
-const storedChatSchema = z.union([
-  z.object({ version: z.literal(3), chat: chatSchema }).strict(),
-  z
-    .object({
-      version: z.literal(2),
-      chat: chatSchema.omit({ deleted_at: true }),
-    })
-    .strict(),
-]);
+const storedChatSchema = z.object({ version: z.literal(4), chat: chatSchema }).strict();
 
 const chatDirectory = path.join(legalDataHome(), "apps", "mike", "chats");
 const chats = new Map<string, AnonymousChat>();
@@ -96,11 +90,7 @@ function readChat(userId: string, chatId: string): AnonymousChat | null {
   try {
     const raw = JSON.parse(readFileSync(chatPath(chatId), "utf8"));
     const parsed = storedChatSchema.safeParse(raw);
-    const chat = parsed.success
-      ? parsed.data.version === 2
-        ? { ...parsed.data.chat, deleted_at: null }
-        : parsed.data.chat
-      : null;
+    const chat = parsed.success ? parsed.data.chat : null;
     if (
       !chat ||
       chat.id !== chatId ||
@@ -111,13 +101,6 @@ function readChat(userId: string, chatId: string): AnonymousChat | null {
     }
     const hydrated = chat as AnonymousChat;
     chats.set(hydrated.id, hydrated);
-    if (parsed.success && parsed.data.version === 2) {
-      try {
-        writeChat(hydrated);
-      } catch {
-        // The readable v2 file remains canonical if its best-effort upgrade fails.
-      }
-    }
     return hydrated;
   } catch {
     return null;
@@ -125,7 +108,7 @@ function readChat(userId: string, chatId: string): AnonymousChat | null {
 }
 
 function writeChat(chat: AnonymousChat) {
-  const parsed = storedChatSchema.safeParse({ version: 3, chat });
+  const parsed = storedChatSchema.safeParse({ version: 4, chat });
   if (!parsed.success) throw new Error("Invalid anonymous chat");
 
   mkdirSync(chatDirectory, { recursive: true });
@@ -134,7 +117,7 @@ function writeChat(chat: AnonymousChat) {
     `.${chat.id}.${process.pid}.${randomUUID()}.tmp`,
   );
   try {
-    writeFileSync(temporaryPath, JSON.stringify({ version: 3, chat }), {
+    writeFileSync(temporaryPath, JSON.stringify({ version: 4, chat }), {
       encoding: "utf8",
       flag: "wx",
     });
@@ -153,15 +136,22 @@ function writeChat(chat: AnonymousChat) {
 export function createAnonymousChat(
   userId: string,
   projectId: string | null = null,
+  tabularReviewId: string | null = null,
 ): AnonymousChat {
-  if (!validId(userId) || (projectId !== null && !validId(projectId))) {
-    throw new Error("Invalid anonymous chat owner or project ID");
+  if (
+    !validId(userId) ||
+    (projectId !== null && !validId(projectId)) ||
+    (tabularReviewId !== null && !validId(tabularReviewId)) ||
+    (projectId !== null && tabularReviewId !== null)
+  ) {
+    throw new Error("Invalid anonymous chat context");
   }
   const now = new Date().toISOString();
   const chat: AnonymousChat = {
     id: randomUUID(),
     user_id: userId,
     project_id: projectId,
+    tabular_review_id: tabularReviewId,
     title: null,
     created_at: now,
     updated_at: now,
