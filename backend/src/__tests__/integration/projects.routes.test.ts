@@ -248,7 +248,7 @@ describe("projects.routes", () => {
                 data: {
                     id: "p1",
                     user_id: "someone-else",
-                    shared_with: ["u1@test.local"],
+                    shared_with: ["U1@Test.Local"],
                 },
                 error: null,
             };

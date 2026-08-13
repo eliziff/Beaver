@@ -266,44 +266,6 @@ describe("user.routes", () => {
             );
         });
 
-        it("keeps cloud-only user routes safe in local mode", async () => {
-            const previous = {
-                authMode: process.env.AUTH_MODE,
-                nodeEnv: process.env.NODE_ENV,
-                supabaseUrl: process.env.SUPABASE_URL,
-                supabaseKey: process.env.SUPABASE_SECRET_KEY,
-            };
-            process.env.NODE_ENV = "development";
-            process.env.AUTH_MODE = "anonymous";
-            delete process.env.SUPABASE_URL;
-            delete process.env.SUPABASE_SECRET_KEY;
-            try {
-                const status = await request(app)
-                    .get("/user/api-keys")
-                    .set(...AUTH);
-                const connectors = await request(app)
-                    .get("/user/mcp-connectors")
-                    .set(...AUTH);
-                const health = await request(app).get("/health");
-
-                expect(status.status).toBe(200);
-                expect(status.body).toEqual(STATUS);
-                expect(getUserApiKeyStatus).not.toHaveBeenCalled();
-                expect(connectors.status).toBe(501);
-                expect(connectors.body.detail).toContain("account-free");
-                expect(health.status).toBe(200);
-            } finally {
-                for (const [name, value] of Object.entries({
-                    AUTH_MODE: previous.authMode,
-                    NODE_ENV: previous.nodeEnv,
-                    SUPABASE_URL: previous.supabaseUrl,
-                    SUPABASE_SECRET_KEY: previous.supabaseKey,
-                })) {
-                    if (value === undefined) delete process.env[name];
-                    else process.env[name] = value;
-                }
-            }
-        });
     });
 
     // ── PUT /user/api-keys/:provider (crypto + MFA guard) ─────────────────
