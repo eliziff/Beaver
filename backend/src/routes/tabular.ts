@@ -8,20 +8,13 @@ import {
     attachActiveVersionPaths,
     loadActiveVersion,
 } from "../lib/documentVersions";
-import { docxToPdf, normalizeDocxZipPaths } from "../lib/convert";
-import {
-    isPresentationDocumentType,
-    isSpreadsheetDocumentType,
-    isWordDocumentType,
-} from "../lib/documentTypes";
-import { extractPresentationText } from "../lib/officeText";
-import { spreadsheetToLLMText } from "../lib/spreadsheet";
 import {
     type ChatMessage,
     type TabularCellStore,
 } from "../lib/chat/types";
 import { readTabularCells } from "../lib/chat/tabularCells";
 import { TABULAR_TOOLS } from "../lib/chat/tools/toolSchemas";
+import { textParserFor } from "../lib/chat/tools/documentOps";
 import { isAbortError } from "../lib/llm/abort";
 import {
     completeText,
@@ -44,7 +37,6 @@ import {
     listLocalDocumentsById,
 } from "../lib/localDocumentStore";
 import { legalKnowledgeGraphStore } from "../lib/legalKnowledgeGraphStore";
-import { extractLegalPdfText } from "../lib/legalPdfSourceDoc";
 import { appUrl } from "../lib/appRoutes";
 import {
     localTabularStore,
@@ -2401,59 +2393,11 @@ async function extractDocumentMarkdown(
     buf: ArrayBuffer,
     fileType: string | null | undefined,
 ): Promise<string> {
-    const normalizedType = (fileType ?? "").toLowerCase();
-    if (normalizedType === "pdf") return extractPdfMarkdown(buf);
-    if (normalizedType === "docx") return extractDocxMarkdown(buf);
-    if (isSpreadsheetDocumentType(normalizedType)) {
-        return spreadsheetToLLMText(Buffer.from(buf));
-    }
-    if (normalizedType === "pptx") {
-        return extractPresentationText(Buffer.from(buf));
-    }
-    if (
-        isPresentationDocumentType(normalizedType) ||
-        isWordDocumentType(normalizedType)
-    ) {
-        const pdfBuf = await docxToPdf(Buffer.from(buf));
-        const pdfArrayBuffer = pdfBuf.buffer.slice(
-            pdfBuf.byteOffset,
-            pdfBuf.byteOffset + pdfBuf.byteLength,
-        ) as ArrayBuffer;
-        return extractPdfMarkdown(pdfArrayBuffer);
-    }
-    return extractDocxMarkdown(buf);
-}
-
-async function extractPdfMarkdown(buf: ArrayBuffer): Promise<string> {
     try {
-        return await extractLegalPdfText(Buffer.from(buf));
-    } catch {
-        return "";
-    }
-}
-
-async function extractDocxMarkdown(buf: ArrayBuffer): Promise<string> {
-    try {
-        const mammoth = await import("mammoth");
-        const normalized = await normalizeDocxZipPaths(Buffer.from(buf));
-        const { value: html } = await mammoth.convertToHtml({
-            buffer: normalized,
-        });
-        return html
-            .replace(
-                /<h([1-6])[^>]*>(.*?)<\/h\1>/gi,
-                (_, l, t) => "#".repeat(Number(l)) + " " + t + "\n\n",
-            )
-            .replace(/<strong[^>]*>(.*?)<\/strong>/gi, "**$1**")
-            .replace(/<li[^>]*>(.*?)<\/li>/gi, "- $1\n")
-            .replace(/<p[^>]*>(.*?)<\/p>/gi, "$1\n\n")
-            .replace(/<[^>]+>/g, "")
-            .replace(/&nbsp;/g, " ")
-            .replace(/&amp;/g, "&")
-            .replace(/&lt;/g, "<")
-            .replace(/&gt;/g, ">")
-            .replace(/\n{3,}/g, "\n\n")
-            .trim();
+        const parser =
+            textParserFor((fileType ?? "").toLowerCase()) ??
+            textParserFor("docx");
+        return parser ? await parser.run(Buffer.from(buf)) : "";
     } catch {
         return "";
     }
