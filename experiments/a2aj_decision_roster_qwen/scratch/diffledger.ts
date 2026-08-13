@@ -4,7 +4,7 @@ async function main() {
   const { readFile } = await import("node:fs/promises");
   const path = await import("node:path");
 
-  const mod = await import("../../../backend/src/lib/legalOpinionBoundaries.ts");
+  const mod = await import("../../../backend/experiments/a2aj-decision-roster/legalOpinionBoundaries.ts");
   const runner = await import("../runner.ts");
 
   const rows = (await readFile(path.join(process.cwd(), "seeds", "1.SCC.jsonl"), "utf8"))

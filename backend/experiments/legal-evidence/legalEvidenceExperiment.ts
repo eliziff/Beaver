@@ -24,7 +24,7 @@ import {
   lintLegalClaim,
   type LintFeatureReceipt,
   type LintThresholds,
-} from "../../src/lib/legalClaimLint";
+} from "../../../experiments/legal_grounding_framing/legalClaimLint";
 import {
   streamChatWithTools,
   type NormalizedLlmUsage,

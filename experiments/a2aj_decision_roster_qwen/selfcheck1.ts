@@ -6,7 +6,7 @@ import { getA2AJDocumentSourceDoc } from "../../backend/src/lib/a2aj";
 import {
   analyzeOpinionStructure,
   partitionOpinionStructure,
-} from "../../backend/src/lib/legalOpinionBoundaries";
+} from "../../backend/experiments/a2aj-decision-roster/legalOpinionBoundaries";
 
 const CASES: Array<{ citation: string; dataset: string }> = [
   { citation: "2006 BCCA 127", dataset: "BCCA" },

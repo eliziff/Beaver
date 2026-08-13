@@ -6,7 +6,7 @@ import { compileA2AJSourceDoc } from "../../../backend/src/lib/sourceDocA2AJ";
 import {
   analyzeOpinionStructure,
   partitionOpinionStructure,
-} from "../../../backend/src/lib/legalOpinionBoundaries";
+} from "../../../backend/experiments/a2aj-decision-roster/legalOpinionBoundaries";
 
 const TEXT_CACHE_DIR = path.join(__dirname, "..", "scratch", ".textcache");
 const fingerprint = readFileSync(path.join(TEXT_CACHE_DIR, "..", ".drawcache", "4.SCC.1000.json"), "utf8");

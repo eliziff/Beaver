@@ -9,7 +9,7 @@ import {
   corpusAlienness,
   fnv1a64,
   lintLegalClaim,
-} from "../legalClaimLint";
+} from "../../../experiments/legal_grounding_framing/legalClaimLint";
 
 /**
  * Parity vectors computed by scripts/build_alienness_index.py's fnv1a64
