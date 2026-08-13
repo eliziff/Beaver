@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { findRegexMatches, findTextMatches } from "../tools/documentOps";
+import {
+  findRegexMatches,
+  findTextMatches,
+  renderXlsxWorkbook,
+} from "../tools/documentOps";
 
 const TEXT = [
   "8.01 Financial Covenants.",
@@ -87,5 +91,30 @@ describe("findTextMatches offsets", () => {
     });
     expect(hits).toHaveLength(1);
     expect(TEXT.slice(hits[0].at, hits[0].at + 8)).toBe("Leverage");
+  });
+});
+
+describe("renderXlsxWorkbook", () => {
+  it("writes readable workbooks through the standard spreadsheet library", async () => {
+    const XLSX = await import("xlsx");
+    const bytes = await renderXlsxWorkbook("Review", [
+      {
+        name: "Issues/Notes",
+        columns: ["Party", "Note"],
+        rows: [["A&B", "<open>"]],
+      },
+      { name: "Issues/Notes", columns: ["Status"], rows: [["Done"]] },
+    ]);
+    const workbook = XLSX.read(bytes, { type: "buffer" });
+    expect(workbook.SheetNames).toHaveLength(2);
+    expect(new Set(workbook.SheetNames).size).toBe(2);
+    expect(
+      XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {
+        header: 1,
+      }),
+    ).toEqual([
+      ["Party", "Note"],
+      ["A&B", "<open>"],
+    ]);
   });
 });
