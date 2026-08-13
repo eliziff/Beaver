@@ -3,6 +3,8 @@ import {
   resolveModel,
   DEFAULT_MAIN_MODEL,
   type LlmMessage,
+  type NormalizedToolCall,
+  type NormalizedToolResult,
   type OpenAIToolSchema,
   type SubagentMode,
 } from "../llm";
@@ -61,13 +63,12 @@ import {
   READ_SUBAGENT_TOOL,
   READ_SUBAGENT_TOOL_NAME,
   allowedReadSubagentRegions,
-  combineReadSubagentResults,
   createReadSubagentAdmission,
-  prepareReadSubagentRound,
   readSubagentTools,
   readSubagentActivityLabel,
   readSubagentJurisdiction,
   readSubagentSourceTypes,
+  runReadSubagentRound,
   runReadSubagent,
   type ReadSubagentEvent,
 } from "./readSubagents";
@@ -155,6 +156,36 @@ function throwIfAborted(signal?: AbortSignal) {
   const err = new Error("Stream aborted.");
   err.name = "AbortError";
   throw err;
+}
+
+function normalizedToolResults(
+  calls: NormalizedToolCall[],
+  rows: unknown[],
+): NormalizedToolResult[] {
+  const byId = new Map(
+    rows.map((item) => {
+      const row = item as {
+        tool_call_id: string;
+        content?: unknown;
+        terminal?: unknown;
+      };
+      return [row.tool_call_id, row] as const;
+    }),
+  );
+  return calls.map((call) => {
+    const row = byId.get(call.id);
+    return hideLegalSourceUrls(call.name, {
+      tool_use_id: call.id,
+      status: row ? "ok" : "error",
+      content:
+        String(row?.content ?? "") ||
+        JSON.stringify({
+          ok: false,
+          error: `Tool '${call.name}' is not available.`,
+        }),
+      terminal: row?.terminal === true,
+    });
+  });
 }
 
 export async function runLLMStream({
@@ -388,100 +419,86 @@ export async function runLLMStream({
         // UI sees it before the tool results stream in.
         flushText();
 
-        const directCalls = calls.filter(
-          (call) => call.name !== READ_SUBAGENT_TOOL_NAME,
-        );
-        const subagentCandidates = calls.filter(
-          (call) => call.name === READ_SUBAGENT_TOOL_NAME,
-        );
-        const subagentRound = prepareReadSubagentRound(
-          subagentCandidates,
-          admitReadSubagents,
-        );
-        const rejectedSubagentResults = subagentRound.rejected;
-        const toolCalls: ToolCall[] = directCalls.map((c) => ({
-          id: c.id,
-          function: {
-            name: c.name,
-            arguments: JSON.stringify(c.input),
+        let pauseForInputs = false;
+        const results = await runReadSubagentRound({
+          calls,
+          admit: admitReadSubagents,
+          runDirect: async (directCalls) => {
+            const toolCalls: ToolCall[] = directCalls.map((call) => ({
+              id: call.id,
+              function: {
+                name: call.name,
+                arguments: JSON.stringify(call.input),
+              },
+            }));
+            const dispatched = await runToolCalls(
+              toolCalls,
+              docStore,
+              userId,
+              db,
+              emit,
+              workflowStore,
+              tabularStore,
+              docIndex,
+              turnEditState,
+              turnReadState,
+              projectId,
+              courtlistenerTurnState,
+              apiKeys,
+              publicLegalState,
+              legalEvidenceState,
+            );
+            a2ajLookups.push(...dispatched.a2ajLookups);
+            a2ajDocuments.push(...dispatched.a2ajDocuments);
+            throwIfAborted(signal);
+            events.push(
+              ...dispatched.docsRead.map((item) => ({
+                type: "doc_read" as const,
+                filename: item.filename,
+                document_id: item.document_id,
+              })),
+              ...dispatched.docsFound.map((item) => ({
+                type: "doc_find" as const,
+                filename: item.filename,
+                query: item.query,
+                total_matches: item.total_matches,
+              })),
+              ...dispatched.docsCreated.map((item) => ({
+                type: "doc_created" as const,
+                filename: item.filename,
+                download_url: item.download_url,
+                document_id: item.document_id,
+                version_id: item.version_id,
+                version_number: item.version_number ?? null,
+              })),
+              ...dispatched.workflowsApplied.map((item) => ({
+                type: "workflow_applied" as const,
+                workflow_id: item.workflow_id,
+                title: item.title,
+              })),
+              ...dispatched.docsEdited.map((item) => ({
+                type: "doc_edited" as const,
+                filename: item.filename,
+                document_id: item.document_id,
+                version_id: item.version_id,
+                version_number: item.version_number,
+                download_url: item.download_url,
+                annotations: item.annotations,
+              })),
+            );
+            for (const event of dispatched.askInputsEvents) {
+              emit(event);
+              events.push(event);
+            }
+            events.push(
+              ...dispatched.courtlistenerEvents,
+              ...dispatched.mcpEvents,
+              ...dispatched.caseCitationEvents,
+            );
+            pauseForInputs ||= dispatched.askInputsEvents.length > 0;
+            return normalizedToolResults(directCalls, dispatched.toolResults);
           },
-        }));
-        const {
-          toolResults,
-          docsRead,
-          docsFound,
-          docsCreated,
-          workflowsApplied,
-          docsEdited,
-          askInputsEvents,
-          courtlistenerEvents,
-          caseCitationEvents,
-          mcpEvents,
-          a2ajLookups: batchA2AJLookups,
-          a2ajDocuments: batchA2AJDocuments,
-        } = await runToolCalls(
-          toolCalls,
-          docStore,
-          userId,
-          db,
-          emit,
-          workflowStore,
-          tabularStore,
-          docIndex,
-          turnEditState,
-          turnReadState,
-          projectId,
-          courtlistenerTurnState,
-          apiKeys,
-          publicLegalState,
-          legalEvidenceState,
-        );
-        a2ajLookups.push(...batchA2AJLookups);
-        a2ajDocuments.push(...batchA2AJDocuments);
-        throwIfAborted(signal);
-        events.push(
-          ...docsRead.map((r) => ({
-            type: "doc_read" as const,
-            filename: r.filename,
-            document_id: r.document_id,
-          })),
-          ...docsFound.map((f) => ({
-            type: "doc_find" as const,
-            filename: f.filename,
-            query: f.query,
-            total_matches: f.total_matches,
-          })),
-          ...docsCreated.map((dl) => ({
-            type: "doc_created" as const,
-            filename: dl.filename,
-            download_url: dl.download_url,
-            document_id: dl.document_id,
-            version_id: dl.version_id,
-            version_number: dl.version_number ?? null,
-          })),
-          ...workflowsApplied.map((wf) => ({
-            type: "workflow_applied" as const,
-            workflow_id: wf.workflow_id,
-            title: wf.title,
-          })),
-          ...docsEdited.map((e) => ({
-            type: "doc_edited" as const,
-            filename: e.filename,
-            document_id: e.document_id,
-            version_id: e.version_id,
-            version_number: e.version_number,
-            download_url: e.download_url,
-            annotations: e.annotations,
-          })),
-        );
-        for (const askInputsEvent of askInputsEvents) {
-          emit(askInputsEvent);
-          events.push(askInputsEvent);
-        }
-        events.push(...courtlistenerEvents, ...mcpEvents, ...caseCitationEvents);
-
-        const childResults = await Promise.all(
-          subagentRound.assignments.map((call) => {
+          runReader: (call) => {
             const childEditState: TurnEditState = new Map();
             const childReadState: TurnReadState = new Map();
             const childCourtlistenerState: CourtlistenerTurnState = {
@@ -537,77 +554,16 @@ export async function runLLMStream({
                   childPublicLegalState,
                   childLegalEvidenceState,
                 );
-                return childCalls.map((child) => {
-                  const result = childResult.toolResults.find(
-                    (item) =>
-                      (item as { tool_call_id?: unknown }).tool_call_id ===
-                      child.id,
-                  ) as { content?: unknown } | undefined;
-                  return hideLegalSourceUrls(child.name, {
-                    tool_use_id: child.id,
-                    status: result ? ("ok" as const) : ("error" as const),
-                    content:
-                      String(result?.content ?? "") ||
-                      JSON.stringify({
-                        error: `Tool '${child.name}' is not available.`,
-                      }),
-                  });
-                });
+                return normalizedToolResults(
+                  childCalls,
+                  childResult.toolResults,
+                );
               },
             });
-          }),
-        );
-        const subagentResults = subagentRound.parent
-          ? [combineReadSubagentResults(subagentRound.parent, childResults)]
-          : [];
-
-        if (askInputsEvents.length > 0) {
-          throw new AssistantStreamAskInputsPause();
-        }
-
-        // Index alignment would break if any tool branch skips its
-        // push (unhandled tool name, disabled store, guard failure).
-        // Each tool_result already carries its tool_call_id, so key off
-        // that directly — and fall back to an error result for any
-        // tool_use that didn't produce one, so Claude's next request
-        // has a tool_result for every tool_use it sent.
-        toolResults.push(
-          ...rejectedSubagentResults.map((result) => ({
-            tool_call_id: result.tool_use_id,
-            content: result.content,
-          })),
-        );
-        const resultByCallId = new Map<string, string>();
-        for (const r of toolResults) {
-          const row = r as {
-            tool_call_id: string;
-            content?: unknown;
-            terminal?: unknown;
-          };
-          resultByCallId.set(row.tool_call_id, String(row.content ?? ""));
-        }
-        for (const result of subagentResults) {
-          resultByCallId.set(result.tool_use_id, result.content);
-        }
-        return calls.map((c) => {
-          const visible = hideLegalSourceUrls(c.name, {
-            tool_use_id: c.id,
-            status: "ok",
-            content:
-              resultByCallId.get(c.id) ??
-              JSON.stringify({ error: `Tool '${c.name}' is not available.` }),
-          });
-          return {
-            tool_use_id: c.id,
-            content: visible.content,
-            terminal: toolResults.some(
-              (result) =>
-                (result as { tool_call_id?: unknown; terminal?: unknown })
-                  .tool_call_id === c.id &&
-                (result as { terminal?: unknown }).terminal === true,
-            ),
-          };
+          },
         });
+        if (pauseForInputs) throw new AssistantStreamAskInputsPause();
+        return results;
       },
     });
   } catch (err) {

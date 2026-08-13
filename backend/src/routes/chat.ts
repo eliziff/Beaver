@@ -38,13 +38,12 @@ import {
   READ_SUBAGENT_TOOL,
   READ_SUBAGENT_TOOL_NAME,
   allowedReadSubagentRegions,
-  combineReadSubagentResults,
   createReadSubagentAdmission,
-  prepareReadSubagentRound,
   readSubagentTools,
   readSubagentActivityLabel,
   readSubagentJurisdiction,
   readSubagentSourceTypes,
+  runReadSubagentRound,
   runReadSubagent,
 } from "../lib/chat/readSubagents";
 import { currentA2AJCoveragePrompt } from "../lib/chat/a2ajCoveragePrompt";
@@ -1441,25 +1440,11 @@ export async function streamAnonymousChat(params: {
         ),
       );
     };
-    const subagentCandidates = allowedCalls.filter(
-      (call) => call.name === READ_SUBAGENT_TOOL_NAME,
-    );
-    const subagentRound = prepareReadSubagentRound(
-      subagentCandidates,
-      admitReadSubagents,
-    );
-    const rejectedSubagentResults = subagentRound.rejected;
-    const directCalls = allowedCalls.filter(
-      (call) => call.name !== READ_SUBAGENT_TOOL_NAME,
-    );
-    const directResults = directCalls.length
-      ? await runAllowedCalls(directCalls)
-      : [];
-    if (!subagentRound.parent) {
-      return [...directResults, ...rejectedSubagentResults];
-    }
-    const childResults = await Promise.all(
-      subagentRound.assignments.map((call) => {
+    const allowedResults = await runReadSubagentRound({
+      calls: allowedCalls,
+      admit: admitReadSubagents,
+      runDirect: runAllowedCalls,
+      runReader: (call) => {
         const childEvidenceState = createLegalEvidenceTurnState(
           "citation_structure",
         );
@@ -1521,16 +1506,8 @@ export async function streamAnonymousChat(params: {
             sseWrite(res, event);
           },
         });
-      }),
-    );
-    const subagentResults = [
-      combineReadSubagentResults(subagentRound.parent, childResults),
-    ];
-    const allowedResults = [
-      ...directResults,
-      ...subagentResults,
-      ...rejectedSubagentResults,
-    ];
+      },
+    });
     const results: NormalizedToolResult[] = calls.map(
       (call) =>
         allowedResults.find(
