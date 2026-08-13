@@ -91,7 +91,7 @@ import { AppSidebar } from "@/app/components/shared/AppSidebar";import { Keyboar
                                 </button>
                             </div>
                             <div className="relative flex min-h-0 w-full flex-1">
-                                <main className="flex h-full w-full flex-1 flex-col overflow-y-auto lg:overflow-hidden">
+                                <main className="flex h-full w-full flex-1 flex-col overflow-y-auto md:max-lg:has-[aside[data-assistant-dock]]:overflow-visible md:max-lg:has-[aside[data-assistant-dock]]:pe-3.5 lg:overflow-hidden">
                                     {authLoading ? (
                                         <p
                                             className="m-auto px-6 text-sm text-gray-500"

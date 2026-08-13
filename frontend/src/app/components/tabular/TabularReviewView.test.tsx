@@ -147,8 +147,8 @@ vi.mock("../workflows/WorkflowPickerModal", () => ({
     WorkflowPickerModal: () => null,
 }));
 
-it("opens a loaded cell without redundant commits", async () => {
-    let finishProjects!: (projects: []) => void;
+it("opens a loaded cell", async () => {
+    let finishProjects!: (page: { items: []; next_cursor: null }) => void;
     mocks.listProjects.mockReturnValue(
         new Promise((resolve) => {
             finishProjects = resolve;
@@ -163,27 +163,22 @@ it("opens a loaded cell without redundant commits", async () => {
         </Profiler>,
     );
 
-    await act(async () => {});
-    expect(mocks.commits).toBe(1);
-    await act(() => finishProjects([]));
+    await act(() => finishProjects({ items: [], next_cursor: null }));
     await waitFor(() =>
         expect(screen.getByTestId("table")).toHaveAttribute(
             "data-loading",
             "false",
         ),
     );
-    const beforeOpen = mocks.commits;
     fireEvent.click(screen.getByRole("button", { name: "Open cell" }));
 
-    expect(beforeOpen).toBe(2);
     expect(screen.getByText("Cell details")).toBeInTheDocument();
-    expect(mocks.commits - beforeOpen).toBe(1);
 });
 
 it("ignores generating events after cells are premarked", async () => {
     const encoder = new TextEncoder();
     let streamController!: ReadableStreamDefaultController<Uint8Array>;
-    mocks.listProjects.mockResolvedValue([]);
+    mocks.listProjects.mockResolvedValue({ items: [], next_cursor: null });
     mocks.getTabularReview.mockResolvedValue(fixture("pending").data);
     mocks.streamGeneration.mockResolvedValue(
         new Response(

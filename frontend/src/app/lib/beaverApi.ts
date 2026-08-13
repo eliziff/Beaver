@@ -134,8 +134,23 @@ function streamRequest(
     signal: options?.signal,
   });
 }
-export const listProjects = (options?: { includeDocuments?: boolean }) =>
-  apiRequest<Project[]>(`/projects${options?.includeDocuments ? "?include=documents" : ""}`);
+export type Page<T> = { items: T[]; next_cursor: string | null };
+type PageQuery = { q?: string; cursor?: string | null; limit?: number };
+function pagePath(path: string, query: PageQuery & Record<string, unknown> = {}) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== null && value !== "") {
+      params.set(key, String(value));
+    }
+  }
+  const encoded = params.toString();
+  return encoded ? `${path}?${encoded}` : path;
+}
+export const listProjects = (options: PageQuery & {
+  scope?: "all" | "mine" | "shared-with-me";
+} = {}, signal?: AbortSignal) => apiRequest<Page<Project>>(
+  pagePath("/projects", options), { signal },
+);
 export const createProject = (
   name: string, cm_number?: string, practice?: string, shared_with?: string[],
   metadata?: Project["metadata"], notes?: string | null,
@@ -285,6 +300,13 @@ export const setMcpToolEnabled = (
   `/user/mcp-connectors/${connectorId}/tools/${toolId}`, { enabled },
 );
 export const getProject = (projectId: string) => apiRequest<Project>(`/projects/${projectId}`);
+export const getProjectDirectory = (
+  projectId: string,
+  options: PageQuery & { parent_id?: string | null } = {},
+  signal?: AbortSignal,
+) => apiRequest<Page<DirectoryEntry>>(
+  pagePath(`/projects/${projectId}/directory`, options), { signal },
+);
 export const updateProject = (
   projectId: string,
   payload: Partial<Pick<
@@ -324,7 +346,9 @@ export const renameProjectDocument = (
   projectId: string, documentId: string, filename: string,
 ) => patch<Document>(`/projects/${projectId}/documents/${documentId}`, { filename });
 export type LibraryKind = "files" | "templates";
-interface LibraryCollection { documents: Document[]; folders: LibraryFolder[] }
+export type DirectoryEntry =
+  | { kind: "document"; document: Document }
+  | { kind: "folder"; folder: LibraryFolder | Folder };
 export type LegalDocumentType = "cases" | "laws" | "articles";
 export type LegalSearchDocumentType = LegalDocumentType | "hansard";
 export interface LegalSourceReference {
@@ -396,8 +420,11 @@ export interface LegalSourceViewerPayload {
   };
   truncated: boolean;
 }
-export const getLibrary = (kind: LibraryKind) =>
-  apiRequest<LibraryCollection>(`/library/${kind}`);
+export const getLibrary = (kind: LibraryKind, options: PageQuery & {
+  parent_id?: string | null;
+} = {}, signal?: AbortSignal) => apiRequest<Page<DirectoryEntry>>(
+  pagePath(`/library/${kind}`, options), { signal },
+);
 export const retryLibraryPdfParse = (kind: LibraryKind, documentId: string) =>
   post<{ status: string }>(
     `/library/${kind}/documents/${encodeURIComponent(documentId)}/actions/retry-pdf-parse`,
@@ -511,8 +538,6 @@ export interface LegalSourceMarking {
   edges: { from_node_id: string; to_node_id: string; relation: string }[];
   mark: LegalSourceMark | null;
 }
-export const listLegalResearchProjects = async () =>
-  (await apiRequest<{ projects: LegalResearchProject[] }>("/legal-knowledge/projects")).projects;
 export const createLegalResearchProject = (name: string) =>
   post<LegalResearchProject>("/legal-knowledge/projects", { name });
 export const getLegalSourceMarking = (
@@ -783,10 +808,12 @@ export const streamChat = (payload: {
   const { signal, ...body } = payload;
   return streamRequest("/chat", body, { signal, accept: "text/event-stream" });
 };
-export const listTabularReviews = (projectId?: string) =>
-  apiRequest<TabularReview[]>(
-    `/tabular-review${projectId ? `?project_id=${encodeURIComponent(projectId)}` : ""}`,
-  );
+export const listTabularReviews = (options: PageQuery & {
+  project_id?: string | null;
+  scope?: "all" | "in-project" | "standalone";
+} = {}, signal?: AbortSignal) => apiRequest<Page<TabularReview>>(
+  pagePath("/tabular-review", options), { signal },
+);
 export const createTabularReview = (payload: {
   title?: string;
   document_ids: string[];
@@ -907,8 +934,13 @@ export const clearTabularCells = (reviewId: string, documentIds: string[]) =>
   post<void>(`/tabular-review/${reviewId}/clear-cells`, {
     document_ids: documentIds,
   });
-export const listWorkflows = (type?: Workflow["metadata"]["type"]) =>
-  apiRequest<Workflow[]>(type ? `/workflows?type=${type}` : "/workflows");
+export const listSystemWorkflows = (type?: Workflow["metadata"]["type"]) =>
+  apiRequest<Workflow[]>(pagePath("/workflows/system", { type }));
+export const listWorkflows = (options: PageQuery & {
+  type?: Workflow["metadata"]["type"];
+} = {}, signal?: AbortSignal) => apiRequest<Page<Workflow>>(
+  pagePath("/workflows", options), { signal },
+);
 export const getWorkflow = (workflowId: string) =>
   apiRequest<Workflow>(`/workflows/${workflowId}`);
 export const createWorkflow = (payload: {

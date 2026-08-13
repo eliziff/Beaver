@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { PanelRightClose, PanelRightOpen, X } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 
@@ -30,10 +31,12 @@ export function AssistantDock({
     onCloseInspector?: () => void;
 }) {
     const [width, setWidth] = useState(560);
+    const [mounted, setMounted] = useState(false);
     const resizeStart = useRef<{ x: number; width: number } | null>(null);
     const active = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0];
 
     useEffect(() => {
+        setMounted(true);
         const resize = (event: PointerEvent) => {
             if (!resizeStart.current) return;
             setWidth(
@@ -62,20 +65,17 @@ export function AssistantDock({
 
     if (!active) return null;
     if (!expanded) {
-        return (
-            <aside
-                aria-label="Assistant dock"
-                className="relative z-40 my-3 ms-3 me-3 hidden h-[calc(100dvh-1.5rem)] w-12 shrink-0 justify-center pt-2 md:flex"
+        if (!mounted) return null;
+        return createPortal(
+            <button
+                type="button"
+                onClick={() => onExpandedChange(true)}
+                className="fixed end-3 top-3 z-[110] grid size-9 place-items-center rounded-md border border-gray-200 bg-app-surface text-gray-700 hover:bg-app-floating focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
+                aria-label="Expand assistant dock"
             >
-                <button
-                    type="button"
-                    onClick={() => onExpandedChange(true)}
-                    className="grid size-9 place-items-center rounded-md border border-gray-300 bg-app-surface text-gray-500 shadow-sm hover:bg-app-surface-hover hover:text-gray-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
-                    aria-label="Expand assistant dock"
-                >
-                    <PanelRightOpen className="size-4" aria-hidden="true" />
-                </button>
-            </aside>
+                <PanelRightOpen className="size-4" aria-hidden="true" />
+            </button>,
+            document.body,
         );
     }
     const showingInspector = active.id !== "sources" && inspectorOpen;
@@ -87,11 +87,11 @@ export function AssistantDock({
 
     return (
         <aside
+            data-assistant-dock
             aria-label="Assistant dock"
             className={cn(
-                "z-40 flex min-h-0 flex-col overflow-hidden border border-gray-300 bg-app-surface shadow-lg",
-                "absolute inset-0 h-full w-full",
-                "md:relative md:inset-auto md:my-3 md:me-3 md:h-[calc(100dvh-1.5rem)] md:w-[min(var(--assistant-dock-width),50%)] md:shrink-0 md:rounded-2xl",
+                "absolute inset-0 z-40 flex h-full w-full min-h-0 -translate-y-12 flex-col overflow-hidden border border-gray-300 bg-app-surface shadow-lg",
+                "md:relative md:inset-auto md:my-3 md:me-0 md:h-[calc(100dvh-1.5rem)] md:w-[min(var(--assistant-dock-width),50%)] md:shrink-0 md:-translate-y-14 md:rounded-2xl lg:me-3 lg:translate-y-0",
             )}
             style={{ "--assistant-dock-width": `${width}px` } as CSSProperties}
         >
@@ -120,7 +120,7 @@ export function AssistantDock({
                 }}
                 className="absolute inset-y-0 start-0 z-20 hidden w-1 cursor-col-resize bg-transparent hover:bg-gray-300 focus-visible:bg-gray-400 focus-visible:outline-none md:block"
             />
-            <header className="flex min-h-12 shrink-0 items-start gap-2 border-b border-gray-200 px-2 py-1.5 md:items-center">
+            <header className="flex min-h-12 shrink-0 items-start gap-2 border-b border-gray-200 px-2 py-1.5 lg:items-center">
                 <div
                     role="tablist"
                     aria-label="Assistant panels"
@@ -162,7 +162,7 @@ export function AssistantDock({
                     <button
                         type="button"
                         onClick={() => onExpandedChange(false)}
-                        className="grid size-9 place-items-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
+                        className="grid size-9 place-items-center rounded-md border border-gray-200 bg-app-surface text-gray-700 hover:bg-app-floating focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
                         aria-label="Collapse assistant dock"
                     >
                         <PanelRightClose className="size-4" aria-hidden="true" />

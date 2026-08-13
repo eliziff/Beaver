@@ -13,7 +13,7 @@ import {
   attestedCharacterizationReceipt,
   citatorNoteUpReceipt,
   type LegalEvidenceReceipt,
-} from "../legalEvidenceExperiment";
+} from "../legalEvidence";
 
 /**
  * MIKE_CONSULT_ATTESTATIONS=1 exposes the consult_attested_characterization

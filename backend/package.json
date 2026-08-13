@@ -15,7 +15,8 @@
     "build:journals-fts": "python scripts/build_journal_search_index.py",
     "test": "vitest run",
     "test:stack": "bash scripts/test-stack.sh",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:experiment:legal-evidence": "vitest run --config experiments/legal-evidence/vitest.config.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
@@ -24,11 +25,9 @@
     "@google/genai": "^1.50.1",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@supabase/supabase-js": "^2.49.4",
-    "@types/d3": "^7.4.3",
     "cors": "^2.8.5",
     "cytoscape": "^3.34.0",
     "cytoscape-dagre": "^4.0.0",
-    "d3": "^7.9.0",
     "dagre": "^0.8.5",
     "dictionary-en": "^4.0.0",
     "dictionary-en-ca": "^3.0.0",

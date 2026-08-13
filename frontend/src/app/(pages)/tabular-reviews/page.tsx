@@ -1,16 +1,14 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
     createTabularReview,
     deleteTabularReview,
-    listProjects,
     listTabularReviews,
     updateTabularReview,
 } from "@/app/lib/beaverApi";
 import type {
     ColumnConfig,
-    Project,
     TabularReview,
 } from "@/app/components/shared/types";
 import { useAuth } from "@/app/contexts/AuthContext";
@@ -21,6 +19,7 @@ import { NewTRModal } from "@/app/components/tabular/NewTRModal";
 import { TabularReviewDetailsModal } from "@/app/components/tabular/TabularReviewDetailsModal";
 import { TabularReviewsTable } from "@/app/components/tabular/TabularReviewsTable";
 import { NativeActionSelect } from "@/app/components/ui/native-action-select";
+import { usePagedQuery } from "@/app/hooks/usePagedQuery";
 type ReviewScope = "all" | "in-project" | "standalone";
 const REVIEW_SCOPES: { id: ReviewScope; label: string }[] = [
     { id: "all", label: "All" },
@@ -30,9 +29,6 @@ const REVIEW_SCOPES: { id: ReviewScope; label: string }[] = [
 export default function TabularReviewsPage() {
     const router = useRouter();
     const { user } = useAuth();
-    const [reviews, setReviews] = useState<TabularReview[]>([]);
-    const [projects, setProjects] = useState<Project[]>([]);
-    const [loading, setLoading] = useState(true);
     const [creating, setCreating] = useState(false);
     const [newTROpen, setNewTROpen] = useState(false);
     const [detailsReview, setDetailsReview] = useState<TabularReview | null>(
@@ -42,35 +38,18 @@ export default function TabularReviewsPage() {
     const [search, setSearch] = useState("");
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [ownerOnlyAction, setOwnerOnlyAction] = useState<string | null>(null);
-    useEffect(() => {
-        Promise.all([
-            listTabularReviews().catch(() => []),
-            listProjects().catch(() => []),
-        ])
-            .then(([nextReviews, nextProjects]) => {
-                setReviews(nextReviews);
-                setProjects(nextProjects);
-            })
-            .finally(() => setLoading(false));
-    }, []);
-    const query = search.toLowerCase();
-    const filteredReviews = useMemo(
-        () =>
-            reviews
-                .filter((review) => {
-                    if (activeScope === "in-project")
-                        return !!review.project_id;
-                    if (activeScope === "standalone")
-                        return !review.project_id;
-                    return true;
-                })
-                .filter(
-                    (review) =>
-                        !query ||
-                        (review.title ?? "").toLowerCase().includes(query),
-                ),
-        [activeScope, query, reviews],
+    const page = usePagedQuery<TabularReview>(
+        (cursor, signal) => listTabularReviews({
+            q: search,
+            scope: activeScope,
+            cursor,
+        }, signal),
+        [activeScope, search],
     );
+    const reviews = page.items;
+    const filteredReviews = reviews;
+    const loading = page.loading && reviews.length === 0;
+    useEffect(() => setSelectedIds([]), [activeScope, search]);
     async function handleNewReview(
         title: string,
         projectId?: string,
@@ -114,7 +93,7 @@ export default function TabularReviewsPage() {
             title: values.title,
             project_id: values.projectId ?? null,
         });
-        setReviews((current) =>
+        page.setItems((current) =>
             current.map((review) =>
                 review.id === updated.id ? { ...review, ...updated } : review,
             ),
@@ -136,7 +115,7 @@ export default function TabularReviewsPage() {
         await Promise.all(
             owned.map((id) => deleteTabularReview(id).catch(() => {})),
         );
-        setReviews((current) =>
+        page.setItems((current) =>
             current.filter((review) => !owned.includes(review.id)),
         );
         if (blocked > 0) {
@@ -151,7 +130,7 @@ export default function TabularReviewsPage() {
             return;
         }
         await deleteTabularReview(review.id);
-        setReviews((current) =>
+        page.setItems((current) =>
             current.filter((candidate) => candidate.id !== review.id),
         );
     }
@@ -213,7 +192,7 @@ export default function TabularReviewsPage() {
                 selectedReviewIds={selectedIds}
                 setSelectedReviewIds={setSelectedIds}
                 creatingReview={creating}
-                projects={projects}
+                projects={[]}
                 reviewHref={(review) =>
                     review.project_id
                         ? `/projects/${review.project_id}/tabular-reviews/${review.id}`
@@ -224,16 +203,21 @@ export default function TabularReviewsPage() {
                 onDeleteReview={handleDeleteReview}
                 loading={loading}
             />
+            {page.hasMore && (
+                <button type="button" onClick={() => void page.loadMore()}
+                    disabled={page.loading}
+                    className="mx-auto my-2 min-h-9 rounded-md border border-gray-300 px-4 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50">
+                    {page.loading ? "Loadingâ€¦" : "Load more"}
+                </button>
+            )}
             <NewTRModal
                 open={newTROpen}
                 onClose={() => setNewTROpen(false)}
                 onAdd={handleNewReview}
-                projects={projects}
             />
             <TabularReviewDetailsModal
                 open={!!detailsReview}
                 review={detailsReview}
-                projects={projects}
                 canEdit={
                     !!detailsReview &&
                     (!user?.id || detailsReview.user_id === user.id)

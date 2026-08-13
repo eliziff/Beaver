@@ -6,7 +6,7 @@ import type { Project, TabularReview } from "../shared/types";
 interface TabularReviewDetailsModalProps {
     open: boolean;
     review: TabularReview | null;
-    projects: Project[];
+    projects?: Project[];
     canEdit: boolean;
     lockProject?: boolean;
     onClose: () => void;
@@ -161,7 +161,7 @@ export function TabularReviewDetailsModal({
                                     setError(null);
                                 }}
                                 disabled={
-                                    !canEdit || saving || projects.length === 0
+                                    !canEdit || saving || projects?.length === 0
                                 }
                             />
                         )}

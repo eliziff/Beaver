@@ -18,30 +18,27 @@ const document: Document = {
     created_at: "2026-07-29T00:00:00Z",
 };
 
-vi.mock("./useDirectoryData", () => ({
-    useDirectoryData: () => ({
-        loadingTabs: { files: false, templates: false, projects: false },
-        standaloneDocuments: [document],
-        templateDocuments: [],
-        fileFolders: [
-            {
-                id: "folder",
-                user_id: "user",
-                library_kind: "file",
-                name: "Folder",
-                parent_folder_id: null,
-                created_at: "",
-                updated_at: "",
-            },
-        ],
-        templateFolders: [],
-        projects: [],
-        loadTab: vi.fn(),
-    }),
+const getLibrary = vi.hoisted(() => vi.fn());
+vi.mock("@/app/lib/beaverApi", () => ({
+    getLibrary,
+    getProjectDirectory: vi.fn(),
+    listProjects: vi.fn(),
 }));
 
 describe("FileDirectory folders", () => {
-    it("starts collapsed, expands explicitly, and reveals search results", () => {
+    it("starts collapsed, expands explicitly, and reveals search results", async () => {
+        const folder = {
+            id: "folder", user_id: "user", library_kind: "file",
+            name: "Folder", parent_folder_id: null, created_at: "", updated_at: "",
+        };
+        getLibrary.mockImplementation(async (_kind, options) => ({
+            items: options.q
+                ? [{ kind: "document", document }]
+                : options.parent_id
+                    ? [{ kind: "document", document }]
+                    : [{ kind: "folder", folder }],
+            next_cursor: null,
+        }));
         render(
             <FileDirectory
                 selectedDocuments={[]}
@@ -50,13 +47,13 @@ describe("FileDirectory folders", () => {
             />,
         );
 
-        expect(screen.getByText("Inside.pdf")).not.toBeVisible();
-        fireEvent.click(screen.getByText("Folder"));
-        expect(screen.getByText("Inside.pdf")).toBeVisible();
+        expect(screen.queryByText("Inside.pdf")).not.toBeInTheDocument();
+        fireEvent.click(await screen.findByText("Folder"));
+        expect(await screen.findByText("Inside.pdf")).toBeVisible();
 
         fireEvent.change(screen.getByRole("searchbox"), {
             target: { value: "inside" },
         });
-        expect(screen.getByText("Inside.pdf")).toBeVisible();
+        expect(await screen.findByText("Inside.pdf")).toBeVisible();
     });
 });

@@ -50,6 +50,12 @@ import {
     localTabularStore,
     type LocalTabularColumn,
 } from "../lib/localTabularStore";
+import {
+    encodePageCursor,
+    pageRequest,
+    pageResult,
+    PageCursorError,
+} from "../lib/pagination";
 
 function formatPromptSuffix(format?: string, tags?: string[]): string {
     switch (format) {
@@ -121,11 +127,10 @@ async function accessibleLocalDocumentIds(
         ),
     );
     if (!projectId) return ids.filter((id) => owned.has(id));
-    const matterDocuments =
-        legalKnowledgeGraphStore().listMatterDocumentIds(userId, projectId);
-    if (!matterDocuments) return null;
-    const attached = new Set(matterDocuments);
-    return ids.filter((id) => owned.has(id) && attached.has(id));
+    const store = legalKnowledgeGraphStore();
+    if (!store.getMatter(userId, projectId)) return null;
+    return ids.filter((id) =>
+        owned.has(id) && store.hasMatterDocument(userId, projectId, id));
 }
 
 async function localDocumentMarkdown(userId: string, documentId: string) {
@@ -150,31 +155,65 @@ async function localDocumentMarkdown(userId: string, documentId: string) {
 }
 
 tabularRouter.get("/", async (req, res) => {
+  try {
     const userId = res.locals.userId as string;
+    const q = typeof req.query.q === "string"
+      ? req.query.q.trim().toLocaleLowerCase()
+      : "";
+    const projectId = typeof req.query.project_id === "string" && req.query.project_id
+      ? req.query.project_id
+      : null;
+    const scope = req.query.scope === "in-project" || req.query.scope === "standalone"
+      ? req.query.scope
+      : "all";
+    const filters = { q, project_id: projectId, scope };
+    const { after, limit } = pageRequest<[string, string]>(
+      req.query, "tabular-review", filters, ["string", "string"]);
     if (isAnonymousLocalMode()) {
-        const projectId =
-            typeof req.query.project_id === "string" && req.query.project_id
-                ? req.query.project_id
-                : undefined;
-        res.json(localTabularStore().list(userId, projectId));
+        const page = localTabularStore().page(userId, {
+          projectId, scope, q, limit, after,
+        });
+        const projectNames = new Map(
+          [...new Set(page.items.flatMap((item) =>
+            item.project_id ? [item.project_id] : []))]
+            .map((id) => [id, legalKnowledgeGraphStore().getMatter(userId, id)?.name ?? null]),
+        );
+        res.json({
+          items: page.items.map((item) => ({
+            ...item,
+            project_name: item.project_id
+              ? projectNames.get(item.project_id) ?? null
+              : null,
+          })),
+          next_cursor: page.nextAfter
+            ? encodePageCursor("tabular-review", filters, page.nextAfter)
+            : null,
+        });
         return;
     }
     const userEmail = res.locals.userEmail as string | undefined;
     const db = createServerSupabase();
 
-    const projectIdFilter =
-        typeof req.query.project_id === "string" && req.query.project_id
-            ? (req.query.project_id as string)
-            : null;
-
-    const { data, error } = await db.rpc("get_tabular_reviews_overview", {
+    const { data, error } = await db.rpc("get_collection_page", {
+        p_resource: "tabular",
         p_user_id: userId,
         p_user_email: userEmail ?? null,
-        p_project_id: projectIdFilter,
+        p_filter: projectId ?? (scope === "all" ? null : scope),
+        p_q: q,
+        p_after_created_at: after?.[0] ?? null,
+        p_after_id: after?.[1] ?? null,
+        p_limit: limit + 1,
     });
     if (error) return void res.status(500).json({ detail: error.message });
-
-    res.json(data ?? []);
+    const rows = (data ?? []) as { payload: Record<string, unknown>; id: string; created_at: string }[];
+    res.json(pageResult(rows, limit, ({ payload }) => payload, (last) =>
+      encodePageCursor("tabular-review", filters, [last.created_at, last.id])));
+  } catch (error) {
+    if (error instanceof PageCursorError) {
+      return void res.status(400).json({ detail: error.message });
+    }
+    throw error;
+  }
 });
 
 tabularRouter.post("/", async (req, res) => {
@@ -1946,8 +1985,6 @@ tabularRouter.post("/:reviewId/chat", async (req, res) => {
             extraTools: TABULAR_TOOLS,
             includeResearchTools: false,
             tabularStore,
-            buildCitations: (text) =>
-                extractTabularAnnotations(text, tabularStore),
             model: selectedModel,
             apiKeys: api_keys,
             reasoningEffort,

@@ -6,7 +6,8 @@ import {
   createLocalFolder,
   deleteLocalFolder,
   getLocalVersionFile,
-  listLocalLibrary,
+  getLocalDocumentResponse,
+  pageLocalLibrary,
   moveLocalDocument,
   updateLocalDocument,
   updateLocalFolder,
@@ -35,6 +36,11 @@ import {
   normalizeDocumentFilename,
   normalizeLibraryKind as libraryKind,
 } from "../lib/normalize";
+import {
+  encodePageCursor,
+  pageRequest,
+  PageCursorError,
+} from "../lib/pagination";
 
 export const localLibraryRouter = Router();
 
@@ -50,7 +56,39 @@ localLibraryRouter.get(
     const kind = libraryKind(req.params.kind);
     if (!kind)
       return void res.status(404).json({ detail: "Library not found" });
-    res.json(await listLocalLibrary(res.locals.userId as string, kind));
+    try {
+      const q = typeof req.query.q === "string"
+        ? req.query.q.trim().toLocaleLowerCase()
+        : "";
+      const parentFolderId = typeof req.query.parent_id === "string"
+        ? req.query.parent_id
+        : null;
+      if (q && parentFolderId) {
+        return void res.status(400).json({
+          detail: "q and parent_id cannot be used together",
+        });
+      }
+      const filters = { kind, q, parent_id: q ? null : parentFolderId };
+      const { after, limit } = pageRequest<[number, string, string]>(req.query,
+        `library/${kind}`, filters, ["number", "string", "string"]);
+      const page = await pageLocalLibrary(res.locals.userId as string, kind, {
+        q,
+        parentFolderId: filters.parent_id,
+        limit,
+        after,
+      });
+      res.json({
+        items: page.items,
+        next_cursor: page.nextAfter
+          ? encodePageCursor(`library/${kind}`, filters, page.nextAfter)
+          : null,
+      });
+    } catch (error) {
+      if (error instanceof PageCursorError) {
+        return void res.status(400).json({ detail: error.message });
+      }
+      throw error;
+    }
   }),
 );
 
@@ -188,10 +226,8 @@ localLibraryRouter.get(
     if (!kind)
       return void res.status(404).json({ detail: "Library not found" });
     const userId = res.locals.userId as string;
-    const collection = await listLocalLibrary(userId, kind);
-    if (
-      !collection.documents.some((item) => item.id === req.params.documentId)
-    ) {
+    const document = await getLocalDocumentResponse(userId, req.params.documentId);
+    if (!document || document.library_kind !== kind) {
       return void res.status(404).json({ detail: "Document not found" });
     }
     const versionId =
@@ -223,10 +259,8 @@ localLibraryRouter.post(
     if (!kind)
       return void res.status(404).json({ detail: "Library not found" });
     const userId = res.locals.userId as string;
-    const collection = await listLocalLibrary(userId, kind);
-    if (
-      !collection.documents.some((item) => item.id === req.params.documentId)
-    ) {
+    const document = await getLocalDocumentResponse(userId, req.params.documentId);
+    if (!document || document.library_kind !== kind) {
       return void res.status(404).json({ detail: "Document not found" });
     }
     const versionId =
@@ -322,10 +356,8 @@ localLibraryRouter.post(
     if (!kind)
       return void res.status(404).json({ detail: "Library not found" });
     const userId = res.locals.userId as string;
-    const collection = await listLocalLibrary(userId, kind);
-    if (
-      !collection.documents.some((item) => item.id === req.params.documentId)
-    ) {
+    const document = await getLocalDocumentResponse(userId, req.params.documentId);
+    if (!document || document.library_kind !== kind) {
       return void res.status(404).json({ detail: "Document not found" });
     }
     const versionId =
@@ -529,14 +561,11 @@ localLibraryRouter.patch(
     const kind = libraryKind(req.params.kind);
     if (!kind)
       return void res.status(404).json({ detail: "Library not found" });
-    const collection = await listLocalLibrary(
+    const current = await getLocalDocumentResponse(
       res.locals.userId as string,
-      kind,
+      req.params.documentId,
     );
-    const current = collection.documents.find(
-      (item) => item.id === req.params.documentId,
-    );
-    if (!current)
+    if (!current || current.library_kind !== kind)
       return void res.status(404).json({ detail: "Document not found" });
     const filename = normalizeDocumentFilename(req.body?.filename, current.filename);
     if (!filename)

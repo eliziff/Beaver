@@ -15,10 +15,10 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/app/contexts/ChatHistoryContext", () => ({
     useChatHistoryContext: () => ({ saveChat: mocks.saveChat }),
 }));
-vi.mock("../shared/useDirectoryData", () => ({
-    useDirectoryData: () => ({
-        loading: false,
-        projects: [
+vi.mock("@/app/lib/beaverApi", () => ({
+    getProject: vi.fn().mockResolvedValue({ id: "project-1", name: "Matter One" }),
+    listProjects: vi.fn().mockResolvedValue({
+        items: [
             {
                 id: "project-1",
                 name: "Matter One",
@@ -29,7 +29,7 @@ vi.mock("../shared/useDirectoryData", () => ({
                 name: "Matter Two",
                 document_count: 0,
             },
-        ],
+        ], next_cursor: null,
     }),
 }));
 
@@ -48,7 +48,7 @@ describe("SelectAssistantProjectModal", () => {
             />,
         );
 
-        const project = screen.getByRole("option", { name: /Matter One/ });
+        const project = await screen.findByRole("option", { name: /Matter One/ });
         const continueButton = screen.getByRole("button", {
             name: "Continue",
         });
@@ -75,6 +75,7 @@ describe("SelectAssistantProjectModal", () => {
                 open
                 onClose={vi.fn()}
                 chatTitle="Lease review"
+                currentLocation="Matter One"
                 currentProjectId="project-1"
                 onSelectProject={onSelectProject}
             />,

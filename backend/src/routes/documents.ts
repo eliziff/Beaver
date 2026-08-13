@@ -14,10 +14,7 @@ import {
 import { docxToPdf, convertedPdfKey } from "../lib/convert";
 import { resolveTrackedChange } from "../lib/docxTrackedChanges";
 import { buildDownloadUrl } from "../lib/downloadTokens";
-import {
-  attachActiveVersionPaths,
-  loadActiveVersion,
-} from "../lib/documentVersions";
+import { loadActiveVersion } from "../lib/documentVersions";
 import { ensureDocAccess } from "../lib/access";
 import { singleFileUpload } from "../lib/upload";
 import {
@@ -28,6 +25,12 @@ import {
 } from "../lib/documentTypes";
 import { imageValidationError } from "../lib/llm/images";
 import { countLegalPdfPages } from "../lib/legalPdfSourceDoc";
+import {
+  encodePageCursor,
+  pageRequest,
+  pageResult,
+  PageCursorError,
+} from "../lib/pagination";
 
 export const documentsRouter = Router();
 documentsRouter.use(requireAuth);
@@ -211,23 +214,44 @@ async function deleteDocumentAndVersionFiles(db: Db, documentId: string) {
   return db.from("documents").delete().eq("id", documentId);
 }
 
-documentsRouter.get("/", async (_req, res) => {
-  const userId = res.locals.userId as string;
-  const db = createServerSupabase();
-  const { data, error } = await db
-    .from("documents")
-    .select("*")
-    .eq("user_id", userId)
-    .is("project_id", null)
-    .or("library_kind.eq.file,library_kind.is.null")
-    .order("created_at", { ascending: false });
-  if (error) return void res.status(500).json({ detail: error.message });
-  const docs = (data ?? []) as unknown as {
-    id: string;
-    current_version_id?: string | null;
-  }[];
-  await attachActiveVersionPaths(db, docs);
-  res.json(docs);
+documentsRouter.get("/", async (req, res) => {
+  try {
+    const userId = res.locals.userId as string;
+    const q = typeof req.query.q === "string"
+      ? req.query.q.trim().toLocaleLowerCase()
+      : "";
+    const filters = { q };
+    const { after, limit } = pageRequest<[number, string, string]>(req.query,
+      "single-documents", filters, ["number", "string", "string"]);
+    const db = createServerSupabase();
+    const { data, error } = await db.rpc("get_directory_page", {
+      p_user_id: userId,
+      p_user_email: null,
+      p_project_id: null,
+      p_library_kind: "file",
+      p_parent_id: null,
+      p_q: q,
+      p_documents_only: true,
+      p_after_bucket: after?.[0] ?? null,
+      p_after_name: after?.[1] ?? null,
+      p_after_id: after?.[2] ?? null,
+      p_limit: limit + 1,
+    });
+    if (error) return void res.status(500).json({ detail: error.message });
+    const rows = (data ?? []) as {
+      id: string;
+      sort_name: string;
+      payload: Record<string, unknown>;
+    }[];
+    res.json(pageResult(rows, limit, ({ payload }) => payload, (last) =>
+      encodePageCursor("single-documents", filters,
+        [1, last.sort_name, last.id])));
+  } catch (error) {
+    if (error instanceof PageCursorError) {
+      return void res.status(400).json({ detail: error.message });
+    }
+    throw error;
+  }
 });
 
 documentsRouter.post(

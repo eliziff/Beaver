@@ -9,6 +9,12 @@ import {
 import { isAnonymousLocalMode } from "../lib/localMode";
 import { normalizeOptionalString } from "../lib/normalize";
 import { asyncRoute } from "../lib/asyncRoute";
+import {
+  encodePageCursor,
+  pageRequest,
+  pageResult,
+  PageCursorError,
+} from "../lib/pagination";
 
 export const workflowsRouter = Router();
 
@@ -353,38 +359,57 @@ function validateOpenSourceWorkflow(workflow: WorkflowRecord): string | null {
   return "Workflow type must be 'assistant' or 'tabular'.";
 }
 
+workflowsRouter.get("/system", asyncRoute(async (req, res) => {
+  const type = req.query.type === "assistant" || req.query.type === "tabular"
+    ? req.query.type
+    : null;
+  const catalogue = isAnonymousLocalMode()
+    ? LOCAL_STARTER_WORKFLOWS
+    : SYSTEM_WORKFLOWS;
+  res.json(catalogue.filter(
+    (workflow) => !type || workflow.metadata.type === type,
+  ).map(withSystemWorkflowAccess));
+}));
+
 workflowsRouter.get("/", asyncRoute(async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
-  const { type } = req.query as { type?: string };
-  const workflowType = typeof type === "string" && type ? type : null;
-  if (isAnonymousLocalMode()) {
-    res.json(
-      LOCAL_STARTER_WORKFLOWS.filter(
-        (workflow) => !workflowType || workflow.metadata.type === workflowType,
-      ).map(withSystemWorkflowAccess),
-    );
-    return;
+  try {
+    const workflowType = req.query.type === "assistant" || req.query.type === "tabular"
+      ? req.query.type
+      : null;
+    const q = typeof req.query.q === "string"
+      ? req.query.q.trim().toLocaleLowerCase()
+      : "";
+    const filters = { q, type: workflowType };
+    const { after, limit } = pageRequest<[string, string]>(
+      req.query, "workflows", filters, ["string", "string"]);
+    if (isAnonymousLocalMode()) {
+      return void res.json({ items: [], next_cursor: null });
+    }
+    const db = createServerSupabase();
+    const { data, error } = await db.rpc("get_collection_page", {
+      p_resource: "workflows",
+      p_user_id: userId,
+      p_user_email: userEmail ?? null,
+      p_filter: workflowType,
+      p_q: q,
+      p_after_created_at: after?.[0] ?? null,
+      p_after_id: after?.[1] ?? null,
+      p_limit: limit + 1,
+    });
+    if (error) return void res.status(500).json({ detail: error.message });
+    const rows = ((data ?? []) as { payload: WorkflowRecord; created_at: string; id: string }[])
+      .map(({ payload }) => payload)
+      .filter((workflow) => !SYSTEM_WORKFLOW_IDS.has(workflow.id));
+    res.json(pageResult(rows, limit, withDatabaseWorkflow, (last) =>
+      encodePageCursor("workflows", filters, [last.created_at as string, last.id])));
+  } catch (error) {
+    if (error instanceof PageCursorError) {
+      return void res.status(400).json({ detail: error.message });
+    }
+    throw error;
   }
-  const db = createServerSupabase();
-
-  const { data, error } = await db.rpc("get_workflows_overview", {
-    p_user_id: userId,
-    p_user_email: userEmail ?? null,
-    p_type: workflowType,
-  });
-  if (error) {
-    return void res.status(500).json({ detail: error.message });
-  }
-
-  const systemWorkflows = SYSTEM_WORKFLOWS.filter(
-    (workflow) => !workflowType || workflow.metadata.type === workflowType,
-  ).map(withSystemWorkflowAccess);
-  const databaseWorkflows = ((data ?? []) as WorkflowRecord[]).filter(
-    (workflow) => !SYSTEM_WORKFLOW_IDS.has(workflow.id),
-  ).map(withDatabaseWorkflow);
-
-  res.json([...systemWorkflows, ...databaseWorkflows]);
 }));
 
 workflowsRouter.post("/", asyncRoute(async (req, res) => {

@@ -19,12 +19,6 @@ export type LegalKnowledgeNode = {
   data: Record<string, unknown>;
 };
 
-export type LegalKnowledgeProject = {
-  id: string;
-  name: string;
-  order: number;
-};
-
 export type LocalMatter = {
   id: string;
   name: string;
@@ -170,6 +164,18 @@ function parseMatterMetadata(value: string | null | undefined) {
   }
 }
 
+type MatterRow = { id: string; name: string; sort_order: number;
+  created_at: string; updated_at: string; cm_number: string | null;
+  practice: string | null; metadata_json: string | null; notes: string | null };
+const MATTER_SELECT = `project.id,project.name,project.sort_order,
+  project.created_at,project.updated_at,metadata.cm_number,metadata.practice,
+  metadata.metadata_json,metadata.notes`;
+const matterFromRow = (row: MatterRow): LocalMatter => ({
+  id: row.id, name: row.name, cm_number: row.cm_number, practice: row.practice,
+  metadata: parseMatterMetadata(row.metadata_json), notes: row.notes,
+  created_at: row.created_at, updated_at: row.updated_at, order: row.sort_order,
+});
+
 function kind(value: string, name: string) {
   const normalized = value.trim().toLowerCase();
   if (!KIND.test(normalized)) throw new Error(`${name} is invalid`);
@@ -242,6 +248,9 @@ export class LegalKnowledgeGraphStore {
   ) {
     mkdirSync(path.dirname(filename), { recursive: true });
     this.database = new DatabaseSync(filename);
+    this.database.exec(`ATTACH DATABASE '${path.join(
+      path.dirname(filename), "library.sqlite",
+    ).replaceAll("'", "''")}' AS local_library`);
     this.database.exec(`
       PRAGMA journal_mode = WAL;
       PRAGMA busy_timeout = 5000;
@@ -359,6 +368,8 @@ export class LegalKnowledgeGraphStore {
       );
       CREATE INDEX IF NOT EXISTS mike_matter_documents_scope
         ON mike_matter_documents(user_id, project_id, sort_order, created_at);
+      CREATE INDEX IF NOT EXISTS legal_knowledge_projects_user_created
+        ON legal_knowledge_projects(user_id, created_at DESC, id DESC);
     `);
     this.migrateMatterMetadata();
     this.migrateSourceMarks();
@@ -458,8 +469,15 @@ export class LegalKnowledgeGraphStore {
     });
   }
 
-  listProjects(userId: string): LegalKnowledgeProject[] {
+  hasProject(userId: string, projectId: string) {
     const user = requiredText(userId, "user_id", 200);
+    if (projectId === GENERAL_RESEARCH_PROJECT_ID) this.ensureGeneralProject(user);
+    return !!this.database.prepare(
+      "SELECT 1 FROM legal_knowledge_projects WHERE user_id = ? AND id = ?",
+    ).get(user, requiredText(projectId, "project_id", 200));
+  }
+
+  private ensureGeneralProject(user: string) {
     const now = new Date().toISOString();
     this.database
       .prepare(
@@ -468,20 +486,6 @@ export class LegalKnowledgeGraphStore {
          VALUES (?, ?, 'General research', 0, ?, ?)`,
       )
       .run(user, GENERAL_RESEARCH_PROJECT_ID, now, now);
-    return (
-      this.database
-        .prepare(
-          `SELECT id, name, sort_order
-           FROM legal_knowledge_projects
-           WHERE user_id = ?
-           ORDER BY sort_order, name COLLATE NOCASE, id`,
-        )
-        .all(user) as { id: string; name: string; sort_order: number }[]
-    ).map((row) => ({
-      id: row.id,
-      name: row.name,
-      order: row.sort_order,
-    }));
   }
 
   createProject(userId: string, name: string) {
@@ -496,51 +500,66 @@ export class LegalKnowledgeGraphStore {
       : null;
   }
 
-  listMatters(userId: string): LocalMatter[] {
+  pageMatters(userId: string, options: { q: string; scope: string; limit: number;
+    after: [string, string] | null }) {
     const user = requiredText(userId, "user_id", 200);
-    this.listProjects(user);
-    return (
-      this.database
-        .prepare(
-          `SELECT project.id, project.name, project.sort_order,
-                  project.created_at, project.updated_at,
-                  metadata.cm_number, metadata.practice,
-                  metadata.metadata_json, metadata.notes
-           FROM legal_knowledge_projects AS project
-           LEFT JOIN mike_matter_metadata AS metadata
-             ON metadata.user_id = project.user_id
-            AND metadata.project_id = project.id
-           WHERE project.user_id = ? AND project.id <> ?
-           ORDER BY project.sort_order, project.name COLLATE NOCASE, project.id`,
-        )
-        .all(user, GENERAL_RESEARCH_PROJECT_ID) as {
-        id: string;
-        name: string;
-        sort_order: number;
-        created_at: string;
-        updated_at: string;
-        cm_number: string | null;
-        practice: string | null;
-        metadata_json: string | null;
-        notes: string | null;
-      }[]
-    ).map((row) => ({
-      id: row.id,
-      name: row.name,
-      cm_number: row.cm_number,
-      practice: row.practice,
-      metadata: parseMatterMetadata(row.metadata_json),
-      notes: row.notes,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-      order: row.sort_order,
-    }));
+    if (options.scope === "shared-with-me") {
+      return { items: [] as LocalMatter[], nextAfter: null };
+    }
+    this.ensureGeneralProject(user);
+    const query = options.q.trim().toLocaleLowerCase();
+    const params: (string | number)[] = [user, GENERAL_RESEARCH_PROJECT_ID];
+    const filters: string[] = [];
+    if (query) {
+      filters.push(
+        `instr(lower(project.name || ' ' || coalesce(metadata.cm_number, '') ||
+          ' ' || coalesce(metadata.practice, '')), ?) > 0`,
+      );
+      params.push(query);
+    }
+    if (options.after) {
+      filters.push(
+        `(project.created_at < ? OR
+          (project.created_at = ? AND project.id < ?))`,
+      );
+      params.push(options.after[0], options.after[0], options.after[1]);
+    }
+    params.push(options.limit + 1);
+    const rows = this.database.prepare(
+      `SELECT ${MATTER_SELECT}
+       FROM legal_knowledge_projects AS project
+       LEFT JOIN mike_matter_metadata AS metadata
+         ON metadata.user_id = project.user_id
+        AND metadata.project_id = project.id
+       WHERE project.user_id = ? AND project.id <> ?
+       ${filters.length ? `AND ${filters.join(" AND ")}` : ""}
+       ORDER BY project.created_at DESC, project.id DESC
+       LIMIT ?`,
+    ).all(...params) as MatterRow[];
+    const pageRows = rows.slice(0, options.limit);
+    const last = pageRows.at(-1);
+    return {
+      items: pageRows.map(matterFromRow),
+      nextAfter: rows.length > options.limit && last
+        ? [last.created_at, last.id] as [string, string]
+        : null,
+    };
   }
 
   getMatter(userId: string, projectId: string) {
-    return (
-      this.listMatters(userId).find((matter) => matter.id === projectId) ?? null
-    );
+    const row = this.database.prepare(
+      `SELECT ${MATTER_SELECT}
+       FROM legal_knowledge_projects AS project
+       LEFT JOIN mike_matter_metadata AS metadata
+         ON metadata.user_id = project.user_id
+        AND metadata.project_id = project.id
+       WHERE project.user_id = ? AND project.id = ? AND project.id <> ?`,
+    ).get(
+      requiredText(userId, "user_id", 200),
+      requiredText(projectId, "project_id", 200),
+      GENERAL_RESEARCH_PROJECT_ID,
+    ) as MatterRow | undefined;
+    return row ? matterFromRow(row) : null;
   }
 
   createMatter(
@@ -556,7 +575,10 @@ export class LegalKnowledgeGraphStore {
     const user = requiredText(userId, "user_id", 200);
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
-    const order = this.listProjects(user).length;
+    const order = (this.database.prepare(
+      `SELECT coalesce(max(sort_order), -1) + 1 AS next_order
+       FROM legal_knowledge_projects WHERE user_id = ?`,
+    ).get(user) as { next_order: number }).next_order;
     this.transaction(() => {
       this.database
         .prepare(
@@ -656,18 +678,75 @@ export class LegalKnowledgeGraphStore {
     return this.getMatter(userId, projectId);
   }
 
-  listMatterDocumentIds(userId: string, projectId: string) {
+  matterDocumentIdsAmong(userId: string, projectId: string, ids: string[]) {
     if (!this.getMatter(userId, projectId)) return null;
+    if (!ids.length) return [];
     return (
       this.database
         .prepare(
           `SELECT document_id
            FROM mike_matter_documents
            WHERE user_id = ? AND project_id = ?
-           ORDER BY sort_order, created_at, document_id`,
+             AND document_id IN (SELECT value FROM json_each(?))`,
         )
-        .all(userId, projectId) as { document_id: string }[]
+        .all(userId, projectId, JSON.stringify(ids)) as { document_id: string }[]
     ).map((row) => row.document_id);
+  }
+
+  hasMatterDocument(userId: string, projectId: string, documentId: string) {
+    return !!this.database.prepare(
+      `SELECT 1 FROM mike_matter_documents
+       WHERE user_id = ? AND project_id = ? AND document_id = ?`,
+    ).get(userId, projectId, documentId);
+  }
+
+  pageMatterDocuments(
+    userId: string,
+    projectId: string,
+    options: {
+      q: string;
+      limit: number;
+      after: [number, string, string] | null;
+    },
+  ) {
+    const query = options.q.trim().toLocaleLowerCase();
+    const params: (string | number)[] = [userId, projectId, userId];
+    const filters: string[] = [];
+    const ftsJoin = query.length >= 3
+      ? "JOIN local_library.local_document_filenames f ON f.document_id = d.id"
+      : "";
+    if (query.length >= 3) {
+      filters.push("f.filename MATCH ?", "instr(lower(d.filename), ?) > 0");
+      params.push(`"${query.replaceAll('"', '""')}"`, query);
+    } else if (query) {
+      filters.push("instr(lower(d.filename), ?) > 0");
+      params.push(query);
+    }
+    if (options.after) {
+      filters.push(
+        `(lower(d.filename) > ? OR
+          (lower(d.filename) = ? AND d.id > ?))`,
+      );
+      params.push(options.after[1], options.after[1], options.after[2]);
+    }
+    params.push(options.limit + 1);
+    const rows = this.database.prepare(
+      `SELECT d.id, lower(d.filename) AS sort_name
+       FROM mike_matter_documents m
+       JOIN local_library.local_library_documents d ON d.id = m.document_id
+       ${ftsJoin}
+       WHERE m.user_id = ? AND m.project_id = ? AND d.user_id = ?
+         ${filters.length ? `AND ${filters.join(" AND ")}` : ""}
+       ORDER BY lower(d.filename), d.id LIMIT ?`,
+    ).all(...params) as { id: string; sort_name: string }[];
+    const pageRows = rows.slice(0, options.limit);
+    const last = pageRows.at(-1);
+    return {
+      ids: pageRows.map((row) => row.id),
+      nextAfter: rows.length > options.limit && last
+        ? [1, last.sort_name, last.id] as [number, string, string]
+        : null,
+    };
   }
 
   attachMatterDocument(userId: string, projectId: string, documentId: string) {

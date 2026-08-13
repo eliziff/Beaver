@@ -122,7 +122,7 @@ function rects(elements: HTMLElement[]) {
 }
 
 describe("DocTable Library interactions", () => {
-    it("drags every document in a folder and its descendants to chat", () => {
+    it("does not present a partially loaded folder as chat documents", () => {
         const folders = [
             { id: "folder-1", name: "Research", parent_folder_id: null },
             { id: "folder-2", name: "Cases", parent_folder_id: "folder-1" },
@@ -144,12 +144,7 @@ describe("DocTable Library interactions", () => {
             dataTransfer,
         });
 
-        expect(JSON.parse(values.get(CHAT_DOCUMENT_DRAG_TYPE)!)).toEqual(
-            expect.arrayContaining([
-                expect.objectContaining({ id: document.id }),
-                expect.objectContaining({ id: "nested-doc" }),
-            ]),
-        );
+        expect(values.has(CHAT_DOCUMENT_DRAG_TYPE)).toBe(false);
     });
 
     it("avoids empty-state and version-picker rerenders", () => {

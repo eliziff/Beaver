@@ -452,7 +452,7 @@ export function LegalLibraryPage({ embedded = false }: { embedded?: boolean }) {
                                             key={`${result.provider}:${result.source_id ?? ""}:${result.dataset}:${result.citation}`}
                                             className="rounded-md border border-gray-200 bg-white p-4"
                                         >
-                                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+                                        <div className={`flex flex-col gap-3 ${embedded ? "" : "sm:flex-row sm:items-start"}`}>
                                             <div className="min-w-0 flex-1">
                                                 <h3 className="mt-0.5 text-base font-semibold text-gray-900">
                                                     {result.name ||
@@ -505,9 +505,11 @@ export function LegalLibraryPage({ embedded = false }: { embedded?: boolean }) {
                                                         href={result.url}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
-                                                        className="inline-flex h-8 items-center justify-center gap-1 rounded-md px-2 text-xs font-medium text-gray-600 underline decoration-gray-300 underline-offset-2 hover:text-brand"
+                                                        aria-label="View original source"
+                                                        title="View original source"
+                                                        className="inline-flex h-8 items-center justify-center gap-1 rounded-md border border-gray-300 bg-white px-3 text-xs font-medium text-gray-700 hover:border-gray-400 hover:bg-gray-50"
                                                     >
-                                                        View original source
+                                                        Site
                                                         <ExternalLink className="h-3.5 w-3.5" />
                                                     </a>
                                                 )}

@@ -10,7 +10,7 @@ import { useSelectedModel, useSelectedReasoningEffort } from "@/app/hooks/useSel
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { getModelProvider, isModelAvailable, type ModelProvider } from "@/app/lib/modelAvailability";
 import type { Document, Message, Workflow as WorkflowDefinition } from "../shared/types";
-import type { DirectoryTab } from "../shared/useDirectoryData";
+import type { DirectoryTab } from "../shared/FileDirectory";
 import { cn } from "@/app/lib/utils";
 import { uploadStandaloneDocument } from "@/app/lib/beaverApi";
 import { formatUnsupportedDocumentWarning, partitionSupportedDocumentFiles } from "@/app/lib/documentUploadValidation";
@@ -357,12 +357,12 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                     handleSubmit();
                                 }
                             }}
-                            className="w-full max-h-48 resize-none overflow-y-auto border-0 bg-transparent p-0 text-base leading-6 outline-none [field-sizing:content] placeholder:text-gray-600"
+                            className="min-h-10 w-full max-h-48 resize-none overflow-y-auto border-0 bg-transparent p-0 text-base leading-6 outline-none [field-sizing:content] placeholder:text-gray-600"
                         />
                     </div>
                     <div className="flex flex-wrap items-center gap-1 p-2 md:p-2.5">
                         {showContextTools && (
-                            <div className="flex items-center gap-1">
+                            <div className="chat-input-context-tools flex items-center gap-1">
                                 <button
                                     type="button"
                                     onClick={() => setPicker("files")}
@@ -442,7 +442,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                 )}
                             </div>
                         )}
-                        <div className="chat-input-actions ml-auto flex w-full min-w-0 items-center justify-end gap-1">
+                        <div className="chat-input-actions ml-auto flex min-w-0 items-center justify-end gap-1">
                             <div className="chat-input-model min-w-0">
                                 <ModelEffortToggle
                                     model={model}

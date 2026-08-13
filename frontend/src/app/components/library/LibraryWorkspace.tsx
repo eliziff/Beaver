@@ -1,9 +1,7 @@
 "use client";
 import {
     createContext,
-    type Dispatch,
     type ReactNode,
-    type SetStateAction,
     useCallback,
     useContext,
     useEffect,
@@ -36,21 +34,14 @@ import {
     type LibraryKind,
 } from "@/app/lib/beaverApi";
 import type { Document } from "@/app/components/shared/types";
-type LibraryViewCollection = {
-    documents: Document[];
-    folders: DocTableFolder[];
-};
-type LibraryView = LibraryViewCollection & {
-    search: string;
-    loaded: boolean;
-};
+import { usePagedDirectory } from "@/app/hooks/usePagedDirectory";
+type LibraryView = { search: string };
 type LibraryViews = Record<LibraryKind, LibraryView>;
 type LibraryViewPatch =
     | Partial<LibraryView>
     | ((view: LibraryView) => Partial<LibraryView>);
 type LibraryWorkspaceContextValue = {
     views: LibraryViews;
-    loadLibrary: (kind: LibraryKind) => Promise<void>;
     updateView: (kind: LibraryKind, patch: LibraryViewPatch) => void;
 };
 export const LIBRARY_TABS = [
@@ -60,13 +51,9 @@ export const LIBRARY_TABS = [
 export function libraryRoute(tab: (typeof LIBRARY_TABS)[number]["id"]) {
     return tab === "files" ? "/library" : `/library/${tab}`;
 }
-const EMPTY_COLLECTION = {
-    documents: [],
-    folders: [],
-} satisfies LibraryViewCollection;
 const INITIAL_VIEWS: LibraryViews = {
-    files: { ...EMPTY_COLLECTION, search: "", loaded: false },
-    templates: { ...EMPTY_COLLECTION, search: "", loaded: false },
+    files: { search: "" },
+    templates: { search: "" },
 };
 const LibraryWorkspaceContext =
     createContext<LibraryWorkspaceContextValue | null>(null);
@@ -93,19 +80,6 @@ export function LibraryWorkspaceProvider({
     children: ReactNode;
 }) {
     const [views, setViews] = useState(INITIAL_VIEWS);
-    const loadLibrary = useCallback(async (kind: LibraryKind) => {
-        let data: LibraryViewCollection;
-        try {
-            data = await getLibrary(kind);
-        } catch (error) {
-            console.error("[library] failed to load", error);
-            data = EMPTY_COLLECTION;
-        }
-        setViews((prev) => ({
-            ...prev,
-            [kind]: { ...prev[kind], ...data, loaded: true },
-        }));
-    }, []);
     const updateView = useCallback((kind: LibraryKind, patch: LibraryViewPatch) => {
         setViews((prev) => {
             const current = prev[kind];
@@ -119,8 +93,8 @@ export function LibraryWorkspaceProvider({
         });
     }, []);
     const value = useMemo(
-        () => ({ views, loadLibrary, updateView }),
-        [views, loadLibrary, updateView],
+        () => ({ views, updateView }),
+        [views, updateView],
     );
     return (
         <LibraryWorkspaceContext.Provider value={value}>
@@ -140,37 +114,26 @@ export function LibraryWorkspaceLayout({ children }: { children: ReactNode }) {
 export function LibraryCollectionPage({
     kind,
     onKindChange,
+    onOpenInChat,
     embedded = false,
 }: {
     kind: LibraryKind;
     onKindChange?: (kind: LibraryKind) => void;
+    onOpenInChat?: (documents: Document[]) => void;
     embedded?: boolean;
 }) {
     const router = useRouter();
-    const { views, loadLibrary, updateView } = useLibraryWorkspace();
+    const { views, updateView } = useLibraryWorkspace();
     const view = views[kind];
     const title = kind === "files" ? "Files" : "Templates";
-    useEffect(() => {
-        if (view.loaded) return;
-        void loadLibrary(kind);
-    }, [kind, loadLibrary, view.loaded]);
-    const setDocuments: Dispatch<SetStateAction<Document[]>> = useCallback(
-        (update) =>
-            updateView(kind, ({ documents }) => ({
-                documents:
-                    typeof update === "function"
-                        ? update(documents)
-                        : update,
-            })),
-        [kind, updateView],
-    );
-    const setFolders: Dispatch<SetStateAction<DocTableFolder[]>> = useCallback(
-        (update) =>
-            updateView(kind, ({ folders }) => ({
-                folders:
-                    typeof update === "function" ? update(folders) : update,
-            })),
-        [kind, updateView],
+    const directory = usePagedDirectory(
+        (parentId, q, cursor, signal) => getLibrary(kind, {
+            parent_id: parentId,
+            q,
+            cursor,
+        }, signal),
+        view.search,
+        [kind, view.search],
     );
     const [addDocumentsAction, handleAddDocumentsActionChange] =
         useStoredAction();
@@ -178,11 +141,11 @@ export function LibraryCollectionPage({
         useStoredAction();
     const [selectionActions, setSelectionActions] =
         useState<DocTableSelectionActions | null>(null);
-    const loading = !view.loaded;
+    const loading = directory.loading;
     const operations = useMemo(
         () => ({
             uploadDocument: uploadLibraryDocument.bind(null, kind),
-            refreshCollection: loadLibrary.bind(null, kind),
+            refreshCollection: (parentId?: string | null) => directory.reload(parentId),
             createFolder: createLibraryFolder.bind(null, kind),
             renameFolder: renameLibraryFolder.bind(null, kind),
             deleteFolder: deleteLibraryFolder.bind(null, kind),
@@ -191,7 +154,7 @@ export function LibraryCollectionPage({
             renameDocument: renameLibraryDocument.bind(null, kind),
             retryPdfParse: retryLibraryPdfParse.bind(null, kind),
         }),
-        [kind, loadLibrary],
+        [directory, kind],
     );
     return (
         <div className="flex h-full min-h-0 flex-col">
@@ -254,14 +217,22 @@ export function LibraryCollectionPage({
                             <TabPillButton
                                 disabled={!selectionActions?.selectedCount}
                                 onClick={() => {
+                                    const documents =
+                                        selectionActions?.selectedDocuments ?? [];
+                                    if (onOpenInChat) {
+                                        onOpenInChat(documents);
+                                        return;
+                                    }
                                     stageNewChatDocuments(
-                                        selectionActions?.selectedDocuments ?? [],
+                                        documents,
                                     );
                                     router.push("/assistant");
                                 }}
                             >
                                 <MessageSquarePlus className="h-3.5 w-3.5" />
-                                <span className={embedded ? "sr-only" : "hidden sm:inline"}>Open in new chat</span>
+                                <span className={embedded ? "sr-only" : "hidden sm:inline"}>
+                                    {onOpenInChat ? "Open in chat" : "Open in new chat"}
+                                </span>
                             </TabPillButton>
                             {kind === "files" && (
                                 <DocumentAutomation
@@ -287,10 +258,8 @@ export function LibraryCollectionPage({
                 />
                 <DocTable
                     scopeKey={kind}
-                    documents={view.documents}
-                    setDocuments={setDocuments}
-                    folders={view.folders}
-                    setFolders={setFolders}
+                    documents={directory.documents}
+                    folders={directory.folders as DocTableFolder[]}
                     loading={loading}
                     search={view.search}
                     operations={operations}
@@ -306,6 +275,10 @@ export function LibraryCollectionPage({
                             ? "Drop template files here"
                             : "Drop PDF, Word, Excel, or PowerPoint files here"
                     }
+                    hasMoreParents={directory.hasMoreParents}
+                    loadingParents={directory.loadingParents}
+                    onFolderExpanded={directory.ensureParent}
+                    onLoadMore={directory.loadMore}
                 />
             </div>
         </div>

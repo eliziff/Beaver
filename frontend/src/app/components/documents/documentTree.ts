@@ -3,14 +3,16 @@ import type { Document, Folder, LibraryFolder } from "@/app/components/shared/ty
 type DocumentTreeFolder = Folder | LibraryFolder;
 type DocumentTreeRow = { kind: "document"; document: Document; parentId: string | null; depth: number }
     | { kind: "folder"; folder: DocumentTreeFolder; parentId: string | null; depth: number }
-    | { kind: "editor"; parentId: string | null; depth: number };
+    | { kind: "editor"; parentId: string | null; depth: number }
+    | { kind: "more"; parentId: string | null; depth: number };
 
 export const DOCUMENT_DRAG_TYPE = "application/mike-doc";
 export const FOLDER_DRAG_TYPE = "application/mike-folder";
 export const CHAT_DOCUMENT_DRAG_TYPE = "application/mike-chat-documents";
 
 export function buildDocumentTree(documents: Document[], folders: DocumentTreeFolder[],
-    expanded: Set<string>, editorParent?: string | null, search = "", foldersFirst = false) {
+    expanded: Set<string>, editorParent?: string | null, search = "", foldersFirst = false,
+    hasMoreParents = new Set<string | null>()) {
     const folderById = new Map(folders.map((folder) => [folder.id, folder]));
     const foldersByParent = new Map<string | null, DocumentTreeFolder[]>();
     const docsByParent = new Map<string | null, Document[]>();
@@ -44,10 +46,13 @@ export function buildDocumentTree(documents: Document[], folders: DocumentTreeFo
         if (foldersFirst && editorParent === parentId) rows.push({ kind: "editor", parentId, depth });
         if (foldersFirst) { addFolders(); addDocuments(); } else { addDocuments(); addFolders(); }
         if (!foldersFirst && editorParent === parentId) rows.push({ kind: "editor", parentId, depth });
+        if (hasMoreParents.has(parentId)) rows.push({ kind: "more", parentId, depth });
     }
-    if (query) for (const document of visibleDocuments)
-        rows.push({ kind: "document", document, parentId: null, depth: 0 });
-    else append(null, 0);
+    if (query) {
+        for (const document of visibleDocuments)
+            rows.push({ kind: "document", document, parentId: null, depth: 0 });
+        if (hasMoreParents.has(null)) rows.push({ kind: "more", parentId: null, depth: 0 });
+    } else append(null, 0);
     return { rows, visibleDocuments, folderById, foldersByParent };
 }
 

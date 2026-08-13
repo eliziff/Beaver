@@ -1,7 +1,6 @@
 import { abortError, throwIfAborted } from "./abort";
 import { requireApiKey } from "./apiKeys";
 import type {
-  NormalizedLlmUsage,
   NormalizedToolCall,
   OpenAIToolSchema,
   StreamChatParams,

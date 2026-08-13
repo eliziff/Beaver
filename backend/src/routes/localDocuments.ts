@@ -8,7 +8,7 @@ import {
   deleteLocalDocument,
   deleteLocalVersion,
   getLocalVersionFile,
-  listLocalLibrary,
+  pageLocalLibrary,
   listLocalVersions,
   renameLocalVersion,
   replaceLocalVersion,
@@ -23,6 +23,11 @@ import {
   verifyLocalPdfLinkEvidence,
 } from "../lib/localPdfLookup";
 import { asyncRoute } from "../lib/asyncRoute";
+import {
+  encodePageCursor,
+  pageRequest,
+  PageCursorError,
+} from "../lib/pagination";
 
 export const localDocumentsRouter = Router();
 
@@ -82,9 +87,34 @@ localDocumentsRouter.use(requireAuth);
 
 localDocumentsRouter.get(
   "/",
-  asyncRoute(async (_req, res) => {
-    const collection = await listLocalLibrary(res.locals.userId as string, "file");
-    res.json(collection.documents.slice().reverse());
+  asyncRoute(async (req, res) => {
+    try {
+      const q = typeof req.query.q === "string"
+        ? req.query.q.trim().toLocaleLowerCase()
+        : "";
+      const filters = { q };
+      const { after, limit } = pageRequest<[number, string, string]>(req.query,
+        "single-documents", filters, ["number", "string", "string"]);
+      const page = await pageLocalLibrary(res.locals.userId as string, "file", {
+        parentFolderId: null,
+        q,
+        limit,
+        after,
+        flat: true,
+      });
+      res.json({
+        items: page.items.map((item) => item.kind === "document" && item.document)
+          .filter(Boolean),
+        next_cursor: page.nextAfter
+          ? encodePageCursor("single-documents", filters, page.nextAfter)
+          : null,
+      });
+    } catch (error) {
+      if (error instanceof PageCursorError) {
+        return void res.status(400).json({ detail: error.message });
+      }
+      throw error;
+    }
   }),
 );
 

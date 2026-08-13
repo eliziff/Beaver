@@ -873,6 +873,11 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                         <LibraryCollectionPage
                             kind={libraryKind}
                             onKindChange={setLibraryKind}
+                            onOpenInChat={(documents) => {
+                                for (const document of documents) {
+                                    chatInputRef.current?.addDoc(document);
+                                }
+                            }}
                             embedded
                         />
                     )}
@@ -960,7 +965,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                     style={{ scrollbarGutter: "stable both-edges" }}
                 >
                     <div
-                        className={`w-full px-6 pt-6 md:px-8 md:pt-8 min-h-full flex flex-col relative ${assistantSideGutterVisible ? "ms-auto me-0 max-w-5xl" : "mx-auto max-w-4xl"}`}
+                        className={`w-full px-6 pt-6 md:px-8 md:pt-8 min-h-full flex flex-col relative ${assistantSideGutterVisible ? "ms-auto me-0 max-w-5xl md:max-lg:pe-2" : "mx-auto max-w-4xl"}`}
                         style={{
                             paddingBottom: DEFAULT_ASSISTANT_BOTTOM_PADDING,
                         }}
@@ -1045,7 +1050,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                 </div>
                 <div className="absolute bottom-3 left-0 right-0 w-full z-30">
                     <div
-                        className={`relative w-full px-4 md:px-6 ${assistantSideGutterVisible ? "ms-auto me-0 max-w-5xl" : "mx-auto max-w-4xl"}`}
+                        className={`relative w-full px-4 md:px-6 ${assistantSideGutterVisible ? "ms-auto me-0 max-w-5xl md:max-lg:pe-2" : "mx-auto max-w-4xl"}`}
                     >
                         {showScrollButton && !activeInput && (
                             <button

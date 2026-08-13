@@ -9,6 +9,9 @@ const userId = "00000000-0000-0000-0000-000000000001";
 let home: string | null = null;
 
 afterEach(async () => {
+  try {
+    await (await import("../../localDocumentStore")).closeLocalDocumentStore();
+  } catch {}
   delete process.env.MIKE_LOCAL_DATA_DIR;
   delete process.env.OPEN_LEGAL_DATA_HOME;
   vi.resetModules();
@@ -77,9 +80,11 @@ describe("executeCompareVersionsTool", () => {
     expect(reply).toMatchObject({ ok: true });
     expect(reply?.changes_total).toBeGreaterThan(0);
     expect(String(reply?.redline_filename)).toContain("(redline)");
-    const listed = await store.listLocalLibrary(userId, "file");
+    const listed = await store.pageLocalDocuments(userId, ["file"], {
+      q: "", limit: 50, after: null,
+    });
     expect(
-      listed.documents.some((doc) => doc.id === reply?.redline_document_id),
+      listed.items.some((doc) => doc.id === reply?.redline_document_id),
     ).toBe(true);
   });
 

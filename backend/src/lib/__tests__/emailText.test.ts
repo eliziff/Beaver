@@ -234,5 +234,6 @@ describe("email documents in the library", () => {
     expect(extracted?.text).toContain("$85,000");
     expect(extracted?.text).not.toContain("$85,0=");
     expect(extracted?.text).toContain("Subject: Down payment");
+    await store.closeLocalDocumentStore();
   });
 });

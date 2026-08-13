@@ -641,6 +641,8 @@ export interface TabularReview {
   created_at: string;
   updated_at: string;
   document_count?: number;
+  column_count?: number;
+  project_name?: string | null;
 }
 export interface TabularCell {
   id: string;

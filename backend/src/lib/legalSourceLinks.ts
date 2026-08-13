@@ -1152,7 +1152,7 @@ function rewriteModelCanadianDecisionUrls(answer: string) {
   const text = answer
     .replace(
       /\[([^\]\r\n]+)\]\(([^)\r\n]*)\)/gu,
-      (full, label: string, url: string) =>
+      (full, label: string) =>
         answerCaseCitations(label).length ? label : full,
     )
     .replace(

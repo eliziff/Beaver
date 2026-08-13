@@ -40,7 +40,13 @@ const loadTables = (): Array<[string, GrammarTable]> =>
 const pythonCheck = (dir: string) =>
   spawnSync(
     "python",
-    ["-X", "utf8", "-m", "legalpdf.grammar_tables", "--check", dir],
+    [
+      "-X",
+      "utf8",
+      path.join(ENGINE_SRC, "legalpdf", "grammar_tables.py"),
+      "--check",
+      dir,
+    ],
     { cwd: ENGINE_SRC, encoding: "utf8", timeout: 60_000 },
   );
 

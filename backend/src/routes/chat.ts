@@ -9,139 +9,14 @@ import {
   formatChatMessageContent,
   parseAskInputsResponsePayload,
 } from "../lib/chat/messageFormatting";
-import {
-  A2AJ_SYSTEM_PROMPT,
-  CLIENT_WORK_PRODUCT_PRESUMPTION,
-  CODING_PRODUCTION_SYSTEM_PROMPT,
-  buildLeanLibraryBlock,
-  jurisdictionPreferencePrompt,
-  parseJurisdictionPreference,
-  type JurisdictionPreference,
-} from "../lib/chat/prompts";
-import {
-  devLog,
-  type AskInputResponseItem,
-  type AskInputsEvent,
-  type AskInputsResponseRequest,
-  type ChatMessage,
-  type DocIndex,
-} from "../lib/chat/types";
+import { CLIENT_WORK_PRODUCT_PRESUMPTION, CODING_PRODUCTION_SYSTEM_PROMPT, jurisdictionPreferencePrompt, parseJurisdictionPreference, type JurisdictionPreference } from "../lib/chat/prompts";
+import { devLog, type AskInputResponseItem, type AskInputsEvent, type AskInputsResponseRequest, type ChatMessage } from "../lib/chat/types";
 import { normalizeAskInputsEvent } from "../lib/chat/askInputs";
 import { isAbortError } from "../lib/llm/abort";
-import {
-  completeText,
-  DEFAULT_MAIN_MODEL,
-  modelSupportsImageInput,
-  streamChatWithTools,
-  type LlmImage,
-  type NormalizedToolResult,
-  type OpenAIToolSchema,
-  type SubagentMode,
-  type StreamChatResult,
-} from "../lib/llm";
+import { completeText, DEFAULT_MAIN_MODEL, modelSupportsImageInput, streamChatWithTools, type LlmImage, type NormalizedToolResult, type SubagentMode, type StreamChatResult } from "../lib/llm";
 import { providerForModel } from "../lib/llm/models";
-import {
-  WHOLE_READ_MAX_CHARS,
-  LOCAL_ASSISTANT_TOOLS,
-  LOCAL_READ_SUBAGENT_TOOL_CATALOG,
-  ADAPTIVE_MIKE_TOOL_SHAPE,
-  CODING_TOOL_SHAPE,
-  COMPACT_AUTHOR_MIKE_TOOL_SHAPE,
-  LEAN_BATCH_FAMILY_TOOL_SHAPE,
-  LEAN_BATCH_HARDREFS_TOOL_SHAPE,
-  LEAN_BATCH_TOOL_SHAPE,
-  MAX_TOOL_RESULT_CHARS,
-  MIKE_GREP_FAMILY_TOOL_SHAPE,
-  MIKE_GREP_TOOL_SHAPE,
-  MIKE_LEGAL_GUIDED_TOOL_SHAPE,
-  MIKE_LEGAL_TOOL_SHAPE,
-  MIKE_STRUCTURE_PATHS_TOOL_SHAPE,
-  MARKDOWN_SWAP_MIKE_TOOL_SHAPE,
-  MARKDOWN_E2E_MIKE_TOOL_SHAPE,
-  MARKDOWN_READ_DOCX,
-  GROUNDING_FIRST_ENABLED,
-  MODEL_COVERAGE_ROUTING,
-  NAV_TOOL_SHAPE,
-  ORIGIN_MIKE_TOOL_SHAPE,
-  PROGRESSIVE_DISCLOSURE_ENABLED,
-  RESEARCH_TOOLS_DISABLED,
-  RESIDENT_AUTHORING_ENABLED,
-  CITATION_CONTRACT_ENABLED,
-  CITATION_CONTRACT_V2_ENABLED,
-  FIND_QUERY_NORM_ENABLED,
-  INDEX_ATTACH_GATED,
-  INDEX_COMPACT_HEADINGS,
-  NO_DEFERRAL_ENABLED,
-  EXPOSURE_ECHO_ENABLED,
-  CODING_NEUTRAL_PROMPT_ENABLED,
-  CODING_PARITY_ENABLED,
-  CODING_TOC_FILES_ENABLED,
-  GREP_PER_FILE_BUDGET_ENABLED,
-  TRIAGE_WORKFLOW_ENABLED,
-  DRAFT_EDIT_ENABLED,
-  FINAL_ARM_ENABLED,
-  FINAL_AGENT_LOOP_ENABLED,
-  GREP_SECTION_CONTEXT_ENABLED,
-  SCOPED_REREAD_ENABLED,
-  TYPED_RANGE_ENABLED,
-  REQUIREMENTS_ECHO_ENABLED,
-  REQECHO_DRAFT_MODE_ENABLED,
-  COMPOSITION_CHECK_ENABLED,
-  createLocalAssistantRequirementsState,
-  SUPPRESS_DUPLICATE_WHOLE_READS,
-  TERMINAL_AUTHORING_ENABLED,
-  UPSTREAM_MIKE_TOOL_SHAPE,
-  UPSTREAM_NATIVE_MIKE_SHAPE,
-  partitionTools,
-  describeToolsTool,
-  extractLocalDocument,
-  runLocalAssistantTools,
-  pendingFinalAgentDraft,
-  toolsForDomains,
-  type LocalAssistantEditTurnState,
-  type LocalAssistantReadTurnState,
-  type LocalAssistantWorkingSetTurnState,
-} from "../lib/chat/localAssistantTools";
-import { STRUCTURE_INDEX_ENABLED } from "../lib/chat/structureIndexExperiment";
-import {
-  applyEvidenceExposure,
-  compileEvidenceHandoff,
-  compileEvidenceResearchRefresh,
-  createEvidenceExposureState,
-  renderEvidenceManifest,
-} from "../lib/chat/evidenceExposure";
-import {
-  ADAPTIVE_MIKE_LAB_SYSTEM_PROMPT,
-  CODING_MARKDOWN_BUDGET_LAB_SYSTEM_PROMPT,
-  CODING_MARKDOWN_GREP_ROUTE_LAB_SYSTEM_PROMPT,
-  CODING_MARKDOWN_FINAL_LAB_SYSTEM_PROMPT,
-  CODING_MARKDOWN_FINAL_AGENT_LAB_SYSTEM_PROMPT,
-  CODING_MARKDOWN_TRIAGE_LAB_SYSTEM_PROMPT,
-  CODING_MARKDOWN_TRIAGE_FLOOR_LAB_SYSTEM_PROMPT,
-  CODING_MARKDOWN_LAB_SYSTEM_PROMPT,
-  COMPACT_AUTHOR_MIKE_LAB_SYSTEM_PROMPT,
-  COMPLETENESS_FLOOR_ENABLED,
-  GROUNDED_STRUCTURE_LAB_SYSTEM_PROMPT,
-  GROUNDED_STRUCTURE_OUTLINE_LAB_SYSTEM_PROMPT,
-  LEAN_BATCH_LAB_SYSTEM_PROMPT,
-  MARKDOWN_E2E_FLOOR_LAB_SYSTEM_PROMPT,
-  MARKDOWN_E2E_INDEX_FLOOR_LAB_SYSTEM_PROMPT,
-  MARKDOWN_E2E_INDEX_LAB_SYSTEM_PROMPT,
-  MIKE_GREP_LAB_SYSTEM_PROMPT,
-  MIKE_LEGAL_GUIDED_LAB_SYSTEM_PROMPT,
-  MIKE_STRUCTURE_PATHS_LAB_SYSTEM_PROMPT,
-  UPSTREAM_MIKE_LAB_SYSTEM_PROMPT,
-  UPSTREAM_NATIVE_MIKE_LAB_SYSTEM_PROMPT,
-  UPSTREAM_NATIVE_MIKE_LAB_TOOL_NAMES,
-  withLabTreatmentPromptAdditions,
-} from "../lib/chat/upstreamMikeBenchmarkSurface";
-import {
-  GROUNDED_STRUCTURE_OUTLINE_INJECTION_ENABLED,
-  buildLabOutlineInjectionBlock,
-  type LabOutlineSourceDocument,
-} from "../lib/chat/labOutlineInjection";
+import { LOCAL_ASSISTANT_TOOLS, LOCAL_READ_SUBAGENT_TOOL_CATALOG, createLocalAssistantRequirementsState, runLocalAssistantTools, pendingFinalAgentDraft, type LocalAssistantEditTurnState, type LocalAssistantReadTurnState, type LocalAssistantWorkingSetTurnState } from "../lib/chat/localAssistantTools";
 import { localAutomationEvent } from "../lib/chat/localAutomationEvent";
-import { libraryInventoryPrompt } from "../lib/chat/libraryInventory";
 import {
   appendLocalPdfPinpointLinks,
   providerPdfReferencesForTurn,
@@ -157,7 +32,6 @@ import {
   UNVERIFIED_LEGAL_ANSWER,
   hasModelAuthoredLegalSourceUrl,
 } from "../lib/chat/legalOutputGate";
-import { COURTLISTENER_SYSTEM_PROMPT } from "../lib/chat/tools/courtlistenerTools";
 import { assistantToolActivityLabel } from "../lib/chat/tools/a2ajTools";
 import {
   READ_SUBAGENT_SYSTEM_PROMPT,
@@ -173,7 +47,6 @@ import {
   readSubagentSourceTypes,
   runReadSubagent,
 } from "../lib/chat/readSubagents";
-import { PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT } from "../lib/chat/tools/publicLegalSourceTools";
 import { currentA2AJCoveragePrompt } from "../lib/chat/a2ajCoveragePrompt";
 import type { CourtlistenerToolState } from "../lib/chat/courtlistenerToolRunner";
 import { createPublicLegalSourceState } from "../lib/chat/publicLegalSourceState";
@@ -187,7 +60,7 @@ import {
   priorLegalEvidenceReceipts,
   registerPriorLegalEvidence,
   renderLegalEvidenceAnswer,
-} from "../lib/chat/legalEvidenceExperiment";
+} from "../lib/chat/legalEvidence";
 import { getUserModelSettings } from "../lib/userSettings";
 import { checkProjectAccess } from "../lib/access";
 import { safeErrorLog, safeErrorMessage } from "../lib/safeError";
@@ -222,9 +95,10 @@ import {
 } from "../lib/chat/imageAttachments";
 import { legalKnowledgeGraphStore } from "../lib/legalKnowledgeGraphStore";
 import {
+  countLocalDocuments,
   listLocalDocumentsById,
-  listLocalLibrary,
   localTrackedEditStatuses,
+  recentLocalDocuments,
 } from "../lib/localDocumentStore";
 import { readLocalPdfEvidenceReceipt } from "../lib/localPdfLookup";
 import {
@@ -241,6 +115,22 @@ import {
   providerSessionCompatibilityKey,
   writeAnonymousCodexSession,
 } from "../lib/anonymousProviderSessionStore";
+
+class MatterDocumentSet extends Set<string> {
+  constructor(
+    private readonly userId: string,
+    private readonly projectId: string,
+    ids: Iterable<string>,
+  ) {
+    super(ids);
+  }
+
+  override has(id: string) {
+    return super.has(id) || legalKnowledgeGraphStore().hasMatterDocument(
+      this.userId, this.projectId, id,
+    );
+  }
+}
 
 export const chatRouter = Router();
 chatRouter.use(requireAuth);
@@ -979,12 +869,17 @@ export async function streamAnonymousChat(params: {
     return fail(400, "project_id does not match chat");
   }
   const projectId = existingChat?.project_id ?? params.projectId ?? null;
+  const priorDocumentIds = [...new Set((existingChat?.messages ?? []).flatMap(
+    (message) => (message as ChatMessage).files?.flatMap(
+      (file) => file.document_id ?? []) ?? [],
+  ))];
   const matterDocumentIds = projectId
-    ? legalKnowledgeGraphStore().listMatterDocumentIds(userId, projectId)
+    ? legalKnowledgeGraphStore().matterDocumentIdsAmong(
+        userId, projectId, priorDocumentIds)
     : undefined;
   if (projectId && !matterDocumentIds) return fail(404, "Project not found");
-  const allowedDocumentIds = matterDocumentIds
-    ? new Set(matterDocumentIds)
+  const allowedDocumentIds = matterDocumentIds && projectId
+    ? new MatterDocumentSet(userId, projectId, matterDocumentIds)
     : undefined;
   const displayedDocumentId = trimmedString(
     params.displayedDocument?.document_id,
@@ -1105,7 +1000,6 @@ export async function streamAnonymousChat(params: {
     return fail(400, safeErrorMessage(error, "Invalid image attachment"));
   }
   const selectedModel = params.model || DEFAULT_MAIN_MODEL;
-  const codingShape = true;
   // Keep document actions and legal-source research resident. The strict
   // terminal schema binds prose units to exact evidence receipts and is never
   // shown as an assistant activity.
@@ -1114,12 +1008,6 @@ export async function streamAnonymousChat(params: {
     ...(params.subagentMode === "beaver" ? [READ_SUBAGENT_TOOL] : []),
     LEGAL_EVIDENCE_SUBMIT_TOOL,
   ];
-  const toolPartition = {
-    resident: activeTools,
-    deferred: [] as OpenAIToolSchema[],
-  };
-  const progressiveDisclosure = false;
-  const groundedOutlineBlock = "";
   const activeToolNames = new Set(
     activeTools.map((entry) => entry.function.name),
   );
@@ -1149,9 +1037,17 @@ export async function streamAnonymousChat(params: {
   ]
     .filter(Boolean)
     .join("\n\n");
-  const documents = allowedDocumentIds?.size
-    ? await listLocalDocumentsById(userId, allowedDocumentIds)
-    : (await listLocalLibrary(userId, "file")).documents;
+  const matterPage = projectId
+    ? legalKnowledgeGraphStore().pageMatterDocuments(
+        userId, projectId, { q: "", limit: 8, after: null },
+      )
+    : null;
+  const documents = matterPage
+    ? await listLocalDocumentsById(userId, matterPage.ids)
+    : await recentLocalDocuments(userId, "file", 8);
+  const hasMoreDocuments = matterPage
+    ? !!matterPage.nextAfter
+    : await countLocalDocuments(userId, "file") > documents.length;
   if (documents.length) {
     systemPrompt +=
       "\n\nAVAILABLE DOCUMENTS:\n" +
@@ -1160,7 +1056,10 @@ export async function streamAnonymousChat(params: {
           (document, index) =>
             `- doc-${index}: ${document.filename} (${document.file_type})`,
         )
-        .join("\n");
+        .join("\n") +
+      (hasMoreDocuments
+        ? "\n- More available through Library search"
+        : "");
   }
   const responseProvider = providerForModel(selectedModel);
   const isCodex = responseProvider === "codex";
@@ -1411,48 +1310,6 @@ export async function streamAnonymousChat(params: {
       localRequirementsText,
     ),
   );
-  const contextHandoffEnabled =
-    process.env.MIKE_CONTEXT_HANDOFF === "1" &&
-    !ORIGIN_MIKE_TOOL_SHAPE;
-  const evidenceTrackingEnabled = contextHandoffEnabled;
-  const researchContextRefreshEnabled =
-    process.env.MIKE_RESEARCH_CONTEXT_REFRESH !== "0";
-  const evidenceExposure = createEvidenceExposureState();
-  const loadEvidenceSource = async (documentId: string, versionId: string) => {
-    const document = await extractLocalDocument(userId, documentId, versionId);
-    return document
-      ? { filename: document.filename, text: document.text }
-      : null;
-  };
-  const configuredHandoffCap = Number(
-    process.env.MIKE_EVIDENCE_HANDOFF_MAX_CHARS || 120_000,
-  );
-  const evidenceHandoffCap =
-    Number.isFinite(configuredHandoffCap) && configuredHandoffCap > 0
-      ? Math.trunc(configuredHandoffCap)
-      : 120_000;
-  let pendingEvidenceHandoff: {
-    prompt: string;
-    sourceChars: number;
-    evidenceItems: number;
-  } | null = null;
-  let pendingResearchContextRefresh: {
-    prompt: string;
-    sourceChars: number;
-    evidenceItems: number;
-    latestResultChars: number;
-    promptChars: number;
-    evidenceMapChars: number;
-    orientationChars: number;
-    briefChars: number;
-  } | null = null;
-  let draftingContextPrompt: string | null = null;
-  let draftingDomainGuidance: string | undefined;
-  let draftingCorrectionContext: string | null = null;
-  let draftingPhase = false;
-  // A Codex continuation is valid only for the exact tool schema fingerprint
-  // under which it was created. Progressive disclosure mutates that schema.
-  let providerSessionCompatible = true;
   let pendingAskInputs: AskInputsEvent | null = null;
   let askInputsFinalized = false;
   let localMutationCommitted = false;
@@ -1573,7 +1430,6 @@ export async function streamAnonymousChat(params: {
         localTurnEditState,
         localTurnReadState,
         localWorkingSets,
-        localRequirementsText,
         localRequirementsState,
       );
       return results.map((result, index) =>
@@ -1642,7 +1498,6 @@ export async function streamAnonymousChat(params: {
               new Map(),
               new Map(),
               new Map(),
-              localRequirementsText,
               createLocalAssistantRequirementsState(),
             );
             return results.map((result, index) =>
@@ -1676,7 +1531,7 @@ export async function streamAnonymousChat(params: {
       ...subagentResults,
       ...rejectedSubagentResults,
     ];
-    let results: NormalizedToolResult[] = calls.map(
+    const results: NormalizedToolResult[] = calls.map(
       (call) =>
         allowedResults.find(
           (candidate) => candidate.tool_use_id === call.id,
@@ -1685,16 +1540,6 @@ export async function streamAnonymousChat(params: {
           ok: false,
           error: `Tool '${call.name}' is not available.`,
         }),
-    );
-    if (evidenceTrackingEnabled) {
-      results = await Promise.all(
-        results.map((toolResult) =>
-          applyEvidenceExposure(evidenceExposure, toolResult, loadEvidenceSource),
-        ),
-      );
-    }
-    const batchHasNewEvidence = results.some(
-      (result) => (result.exposure?.uniqueSourceChars ?? 0) > 0,
     );
     const traceToolResults = () => {
       if (process.env.MIKE_BENCHMARK_TRACE_TOOLS !== "1") return;
@@ -1716,7 +1561,7 @@ export async function streamAnonymousChat(params: {
           type: "tool_call_result",
           id: call.id,
           name: call.name,
-          phase: draftingPhase ? "drafting" : "research",
+          phase: "research",
           ok:
             result?.status !== "error" &&
             (payload?.ok !== false ||
@@ -1793,170 +1638,6 @@ export async function streamAnonymousChat(params: {
         });
       }
     };
-    if (progressiveDisclosure) {
-      for (const call of allowedCalls.filter(
-        (candidate) => candidate.name === "describe_tools",
-      )) {
-        providerSessionCompatible = false;
-        const toolResult = results.find(
-          (candidate) => candidate.tool_use_id === call.id,
-        );
-        let payload: Record<string, unknown> | null = null;
-        try {
-          payload = asRecord(JSON.parse(toolResult?.content ?? "null"));
-        } catch {
-          payload = null;
-        }
-        if (payload?.ok !== true || !Array.isArray(payload.domains)) continue;
-        const domains = payload.domains.filter(
-          (domain): domain is string => typeof domain === "string",
-        );
-        let needsEvidenceSelection = false;
-        const startsDraftingHandoff =
-          contextHandoffEnabled &&
-          !draftingPhase &&
-          domains.some((domain) =>
-            ["drafting", "output_document"].includes(domain),
-          ) &&
-          Boolean(toolResult);
-        if (startsDraftingHandoff && toolResult) {
-          const carryEvidence = Array.isArray(call.input.carry_evidence)
-            ? call.input.carry_evidence.filter(
-                (item): item is string => typeof item === "string",
-              )
-            : undefined;
-          const domainGuidance =
-            typeof payload.guidance === "string"
-              ? payload.guidance
-              : undefined;
-          const handoff = await compileEvidenceHandoff({
-              state: evidenceExposure,
-              load: loadEvidenceSource,
-              originalRequest: lastUser?.content ?? "",
-              maxChars: evidenceHandoffCap,
-              carryEvidence,
-              domainGuidance,
-              promptVariant:
-                process.env.MIKE_FULL_HANDOFF_PROMPT_VARIANT === "legacy-v5"
-                  ? "legacy-v5"
-                  : "current",
-            });
-            if (handoff.status === "ready") {
-              draftingContextPrompt = handoff.prompt;
-              pendingEvidenceHandoff = {
-                prompt: handoff.prompt,
-                sourceChars: handoff.sourceChars,
-                evidenceItems: handoff.manifest.length,
-              };
-              toolResult.terminal = true;
-              toolResult.status = "ok";
-              toolResult.content = JSON.stringify({
-                ok: true,
-                status: "draft_handoff_ready",
-                mode: "full",
-                evidence_items: handoff.manifest.length,
-                source_chars: handoff.sourceChars,
-              });
-            } else {
-              needsEvidenceSelection = true;
-              toolResult.status =
-                handoff.status === "error" ? "error" : "selection_required";
-              toolResult.content = JSON.stringify({
-                ok: false,
-                status: handoff.status,
-                error: handoff.message,
-                ...(handoff.manifest.length
-                  ? {
-                      evidence_manifest_items: handoff.manifest.length,
-                      evidence_manifest: renderEvidenceManifest(handoff.manifest),
-                    }
-                  : {}),
-              });
-            }
-        }
-        // Do not reveal authoring tools while the selected exact evidence is
-        // still over cap. Otherwise the model can bypass the fresh-context
-        // boundary by drafting immediately after a selection request.
-        if (!needsEvidenceSelection) {
-          for (const schema of toolsForDomains(
-            toolPartition.deferred,
-            domains,
-          )) {
-            if (activeToolNames.has(schema.function.name)) continue;
-            activeTools.push(schema);
-            activeToolNames.add(schema.function.name);
-          }
-        }
-        const describeIndex = activeTools.findIndex(
-          (schema) => schema.function.name === "describe_tools",
-        );
-        const remaining = toolPartition.deferred.filter(
-          (schema) => !activeToolNames.has(schema.function.name),
-        );
-        if (describeIndex >= 0) {
-          if (needsEvidenceSelection) {
-            activeTools[describeIndex] = describeToolsTool(
-              toolPartition.deferred,
-              true,
-            );
-          } else if (remaining.length) {
-            activeTools[describeIndex] = describeToolsTool(remaining);
-          } else {
-            activeTools.splice(describeIndex, 1);
-            activeToolNames.delete("describe_tools");
-          }
-        }
-      }
-    }
-    if (
-      contextHandoffEnabled &&
-      researchContextRefreshEnabled &&
-      !draftingPhase &&
-      !pendingEvidenceHandoff &&
-      !results.some((result) =>
-        ["error", "selection_required"].includes(result.status ?? ""),
-      )
-    ) {
-      const refreshResult = results.find(
-        (result) => (result.exposure?.uniqueSourceChars ?? 0) > 0,
-      );
-      if (refreshResult) {
-        const latestResults = [
-          ...(draftingCorrectionContext
-            ? [
-                {
-                  name: "DRAFT/CHECK CONTINUATION",
-                  content: draftingCorrectionContext,
-                },
-              ]
-            : []),
-          ...calls
-            .map((call) => ({
-              name: call.name,
-              content:
-                results.find((result) => result.tool_use_id === call.id)?.content ??
-                "Tool result unavailable.",
-            })),
-        ];
-        const refresh = await compileEvidenceResearchRefresh({
-          state: evidenceExposure,
-          load: loadEvidenceSource,
-          originalRequest: lastUser?.content ?? "",
-          latestResults,
-        });
-        pendingResearchContextRefresh = {
-          prompt: refresh.prompt,
-          sourceChars: refresh.sourceChars,
-          evidenceItems: refresh.manifest.length,
-          latestResultChars: refresh.latestResultChars,
-          promptChars: refresh.promptChars,
-          evidenceMapChars: refresh.evidenceMapChars,
-          orientationChars: refresh.orientationChars,
-          briefChars: refresh.briefChars,
-        };
-        refreshResult.terminal = true;
-      }
-    }
     if (options.trace !== false) traceToolResults();
     for (const call of calls) {
       const toolResult = results.find(
@@ -2034,115 +1715,12 @@ export async function streamAnonymousChat(params: {
   };
   let providerActivity = false;
   let providerResult: StreamChatResult | undefined;
-  // ONE binding, used both by the provider call site below and by the
-  // benchmark_surface receipt, so the conformance gate's max_iterations
-  // assertion actually witnesses the value handed to the provider. Previously
-  // the receipt carried a second independent `10` literal re-derived from the
-  // same flag, which made the gate's check tautological: it could not fail, and
-  // it was not evidence of the loop cap it appeared to verify.
-  const nativeMaxIterations = UPSTREAM_NATIVE_MIKE_SHAPE ? 10 : undefined;
-  const benchmarkSurface =
-    process.env.MIKE_BENCHMARK_TRACE_TOOLS === "1"
-      ? {
-          type: "benchmark_surface",
-          navigation_shape: NAV_TOOL_SHAPE,
-          coding_shape: codingShape,
-          retrieval_experiment:
-            process.env.MIKE_RETRIEVAL_EXPERIMENT || null,
-          tool_description_variant:
-            process.env.MIKE_TOOL_DESCRIPTION_VARIANT || "operational",
-          upstream_mike_shape: UPSTREAM_MIKE_TOOL_SHAPE,
-          upstream_native_shape: UPSTREAM_NATIVE_MIKE_SHAPE,
-          max_iterations: nativeMaxIterations ?? null,
-          // TREATMENT mechanisms. Reported independently so an ablation arm
-          // running one of them alone is legible from the receipt.
-          requirements_echo: REQUIREMENTS_ECHO_ENABLED,
-          citation_contract: CITATION_CONTRACT_ENABLED,
-          citation_contract_v2: CITATION_CONTRACT_V2_ENABLED,
-          no_deferral: NO_DEFERRAL_ENABLED,
-          exposure_echo: EXPOSURE_ECHO_ENABLED,
-          coding_neutral_prompt: CODING_NEUTRAL_PROMPT_ENABLED,
-          coding_parity: CODING_PARITY_ENABLED,
-          grep_section_context: GREP_SECTION_CONTEXT_ENABLED,
-          coding_toc_files: CODING_TOC_FILES_ENABLED,
-          grep_per_file_budget: GREP_PER_FILE_BUDGET_ENABLED,
-          triage_workflow: TRIAGE_WORKFLOW_ENABLED,
-          draft_edit: DRAFT_EDIT_ENABLED,
-          final_arm: FINAL_ARM_ENABLED,
-          final_agent_loop: FINAL_AGENT_LOOP_ENABLED,
-          signal_gate: FINAL_ARM_ENABLED,
-          grep_body_exposure: FINAL_ARM_ENABLED,
-          source_immutable: FINAL_ARM_ENABLED,
-          composition_check_shadow: FINAL_ARM_ENABLED,
-          reqecho_draft_mode: REQECHO_DRAFT_MODE_ENABLED,
-          scoped_reread: SCOPED_REREAD_ENABLED,
-          adaptive_mike_shape: ADAPTIVE_MIKE_TOOL_SHAPE,
-          compact_author_mike_shape: COMPACT_AUTHOR_MIKE_TOOL_SHAPE,
-          markdown_swap_shape: MARKDOWN_SWAP_MIKE_TOOL_SHAPE,
-          markdown_e2e_shape: MARKDOWN_E2E_MIKE_TOOL_SHAPE,
-          markdown_read_docx: MARKDOWN_READ_DOCX,
-          structure_index: STRUCTURE_INDEX_ENABLED,
-          index_attach_gated: INDEX_ATTACH_GATED,
-          find_query_norm: FIND_QUERY_NORM_ENABLED,
-          typed_range: TYPED_RANGE_ENABLED,
-          index_compact_headings: INDEX_COMPACT_HEADINGS,
-          completeness_floor: COMPLETENESS_FLOOR_ENABLED,
-          composition_check: COMPOSITION_CHECK_ENABLED,
-          lean_batch_shape: LEAN_BATCH_TOOL_SHAPE,
-          lean_batch_hardrefs_shape: LEAN_BATCH_HARDREFS_TOOL_SHAPE,
-          hard_reference_hints: LEAN_BATCH_HARDREFS_TOOL_SHAPE,
-          mike_grep_shape: MIKE_GREP_TOOL_SHAPE,
-          mike_legal_shape: MIKE_LEGAL_TOOL_SHAPE,
-          mike_legal_guided_shape: MIKE_LEGAL_GUIDED_TOOL_SHAPE,
-          mike_structure_paths_shape: MIKE_STRUCTURE_PATHS_TOOL_SHAPE,
-          grounding_first: GROUNDING_FIRST_ENABLED,
-          grounded_outline_injection: GROUNDED_STRUCTURE_OUTLINE_INJECTION_ENABLED,
-          grounded_outline_injection_chars: groundedOutlineBlock.length,
-          model_coverage_routing: MODEL_COVERAGE_ROUTING,
-          whole_read_max_chars: WHOLE_READ_MAX_CHARS || null,
-          tool_result_max_chars: MAX_TOOL_RESULT_CHARS,
-          suppress_duplicate_whole_reads:
-            SUPPRESS_DUPLICATE_WHOLE_READS,
-          resident_authoring: RESIDENT_AUTHORING_ENABLED,
-          terminal_authoring: TERMINAL_AUTHORING_ENABLED,
-          progressive_disclosure: progressiveDisclosure,
-          context_handoff: contextHandoffEnabled,
-          full_handoff_prompt_variant:
-            process.env.MIKE_FULL_HANDOFF_PROMPT_VARIANT || "current",
-          trajectory_mode: contextHandoffEnabled ? "handoff" : "continuous",
-          draft_handoff_mode: contextHandoffEnabled ? "full" : "none",
-          research_context_refresh:
-            contextHandoffEnabled && researchContextRefreshEnabled,
-          evidence_handoff_max_chars: contextHandoffEnabled
-            ? evidenceHandoffCap
-            : null,
-          openai_compact_threshold:
-            process.env.MIKE_OPENAI_COMPACT_THRESHOLD || null,
-          resident_tools: activeTools.map((entry) => entry.function.name),
-          deferred_tools: toolPartition.deferred.map(
-            (entry) => entry.function.name,
-          ),
-          resident_schema_sha256: createHash("sha256")
-            .update(JSON.stringify(activeTools))
-            .digest("hex"),
-          resident_schema_chars: JSON.stringify(activeTools).length,
-          deferred_schema_sha256: createHash("sha256")
-            .update(JSON.stringify(toolPartition.deferred))
-            .digest("hex"),
-          deferred_schema_chars: JSON.stringify(toolPartition.deferred).length,
-          system_prompt_sha256: createHash("sha256")
-            .update(systemPrompt)
-            .digest("hex"),
-          system_prompt_chars: systemPrompt.length,
-        }
-      : null;
   try {
     sseWrite(res, {
       type: "chat_id",
       chatId: chat.id,
       transcriptVersion: chat.transcript_version,
     });
-    if (benchmarkSurface) sseWrite(res, benchmarkSurface);
     const runProvider = (
       continuationId?: string,
       slaRepair?: { draft: string; findings: string },
@@ -2181,7 +1759,7 @@ export async function streamAnonymousChat(params: {
       // Beaver's route never sets it, so claudeP.ts:502 runs unbounded. The
       // native arm restores the cap; every other arm keeps undefined and stays
       // byte-identical.
-      maxIterations: nativeMaxIterations,
+      maxIterations: undefined,
       reasoningEffort: params.reasoningEffort,
       nativeSubagents: params.subagentMode === "native",
       serviceTier: params.serviceTier,
@@ -2195,7 +1773,7 @@ export async function streamAnonymousChat(params: {
         : undefined,
       abortSignal: streamAbort.signal,
       tools: activeTools,
-      resolveTools: progressiveDisclosure ? () => activeTools : undefined,
+
       providerSession: isCodex
         ? {
             persist: true,
@@ -2243,15 +1821,7 @@ export async function streamAnonymousChat(params: {
           // other end in LAB this ends the run with no deliverable, which is
           // real upstream behaviour on an under-specified prompt; it is
           // instrumented rather than suppressed so the rate is visible.
-          if (UPSTREAM_NATIVE_MIKE_SHAPE) {
-            sseWrite(res, {
-              type: "benchmark_turn_termination",
-              reason: "ask_inputs_terminated",
-              tool_call_ids: calls.map((call) => call.id),
-            });
-            streamAbort.abort();
-            return [];
-          }
+
           const results = calls.map((call) =>
             toolReply(call.id, { ok: true, status: "waiting_for_user" }),
           );
@@ -2271,7 +1841,6 @@ export async function streamAnonymousChat(params: {
           }
         }
         const terminalCreateBatch =
-          TERMINAL_AUTHORING_ENABLED &&
           calls.length > 0 &&
           calls.every((call) =>
             call.name === "generate_docx",
@@ -2339,12 +1908,9 @@ export async function streamAnonymousChat(params: {
             type: "tool_call_start",
             name: call.name,
             ...(((activityDetail === "tools" || activityDetail === "trace") ||
-              process.env.MIKE_BENCHMARK_TRACE_TOOLS === "1") && {
+              false) && {
               id: call.id,
               input: call.input,
-            }),
-            ...(process.env.MIKE_BENCHMARK_TRACE_TOOLS === "1" && {
-              phase: draftingPhase ? "drafting" : "research",
             }),
             ...(label && { label }),
           });
@@ -2368,87 +1934,6 @@ export async function streamAnonymousChat(params: {
       }
     }
 
-    const drainPendingEvidenceTransitions = async () => {
-      while (!pendingAskInputs) {
-      const completedHandoff = pendingEvidenceHandoff as {
-        prompt: string;
-        sourceChars: number;
-        evidenceItems: number;
-      } | null;
-      if (completedHandoff) {
-        pendingEvidenceHandoff = null;
-        draftingPhase = true;
-        providerSessionCompatible = false;
-        const describeIndex = activeTools.findIndex(
-          (schema) => schema.function.name === "describe_tools",
-        );
-        if (describeIndex >= 0) activeTools.splice(describeIndex, 1);
-        activeToolNames.delete("describe_tools");
-        if (isCodex) discardProviderSession();
-        rawText = "";
-        visibleText = "";
-        contentBoundaryPending = false;
-        sseWrite(res, { type: "content_reset" });
-        if (process.env.MIKE_BENCHMARK_TRACE_TOOLS === "1") {
-          sseWrite(res, {
-            type: "evidence_handoff",
-            evidence_items: completedHandoff.evidenceItems,
-            source_chars: completedHandoff.sourceChars,
-            handoff_mode: "full",
-            initial_prompt_chars: completedHandoff.prompt.length,
-            prior_unique_source_chars: evidenceExposure.uniqueSourceChars,
-            prior_suppressed_source_chars:
-              evidenceExposure.suppressedSourceChars,
-          });
-        }
-        providerActivity = false;
-        providerResult = await runProvider(
-          undefined,
-          undefined,
-          completedHandoff.prompt,
-        );
-        continue;
-      }
-
-      const completedRefresh = pendingResearchContextRefresh as {
-        prompt: string;
-        sourceChars: number;
-        evidenceItems: number;
-        latestResultChars: number;
-        promptChars: number;
-        evidenceMapChars: number;
-        orientationChars: number;
-        briefChars: number;
-      } | null;
-      if (!completedRefresh) break;
-      pendingResearchContextRefresh = null;
-      if (isCodex) discardProviderSession();
-      rawText = "";
-      visibleText = "";
-      contentBoundaryPending = false;
-      sseWrite(res, { type: "content_reset" });
-      if (process.env.MIKE_BENCHMARK_TRACE_TOOLS === "1") {
-        sseWrite(res, {
-          type: "research_context_refresh",
-          evidence_items: completedRefresh.evidenceItems,
-          source_chars: completedRefresh.sourceChars,
-          latest_result_chars: completedRefresh.latestResultChars,
-          prompt_chars: completedRefresh.promptChars,
-          evidence_map_chars: completedRefresh.evidenceMapChars,
-          orientation_chars: completedRefresh.orientationChars,
-          checkpoint_chars: completedRefresh.briefChars,
-        });
-      }
-      providerActivity = false;
-      providerResult = await runProvider(
-        undefined,
-        undefined,
-        completedRefresh.prompt,
-      );
-      }
-    };
-    await drainPendingEvidenceTransitions();
-
     if (
       renderLegalEvidenceAnswer(legalEvidenceState) === null &&
       hasModelAuthoredLegalSourceUrl(visibleText)
@@ -2462,7 +1947,6 @@ export async function streamAnonymousChat(params: {
         draft: rejectedDraft,
         findings: GROUNDED_LEGAL_REPAIR_INSTRUCTION,
       });
-      await drainPendingEvidenceTransitions();
       if (renderLegalEvidenceAnswer(legalEvidenceState) === null) {
         rawText = UNVERIFIED_LEGAL_ANSWER;
         visibleText = UNVERIFIED_LEGAL_ANSWER;
@@ -2558,7 +2042,6 @@ export async function streamAnonymousChat(params: {
     if (
       isCodex &&
       codexCompatibilityKey &&
-      providerSessionCompatible &&
       providerResult?.continuationId
     ) {
       try {
@@ -2587,29 +2070,14 @@ export async function streamAnonymousChat(params: {
     // after the turn has run, so they cannot ride on benchmark_surface (which
     // is emitted before the provider starts) — they get their own typed event,
     // the same way the native arm reports its turn termination.
-    if (REQUIREMENTS_ECHO_ENABLED) {
-      sseWrite(res, {
-        type: "benchmark_requirements_echo",
-        echo_call_count: localRequirementsState.echoCallCount,
-        documents_unread_at_echo: localRequirementsState.documentsUnreadAtEcho,
-        documents_oriented_only_at_echo:
-          localRequirementsState.documentsOrientedOnlyAtEcho,
-      });
-    }
+
     // TREATMENT mechanism 2 (composition check) outcome receipt. Same
     // post-turn-only rationale as the requirements echo: count/findings are
     // known only after the draft boundary ran, so they cannot ride on the
     // static benchmark_surface. count >= 1 proves the checkpoint executed; the
     // findings count tells the analysis how often it had something to say.
-    if (COMPOSITION_CHECK_ENABLED) {
-      sseWrite(res, {
-        type: "benchmark_composition_check",
-        composition_check_count: localRequirementsState.compositionCheckCount,
-        composition_check_findings:
-          localRequirementsState.compositionCheckFindings,
-      });
-    }
-    if (FINAL_ARM_ENABLED) {
+
+    {
       sseWrite(res, {
         type: "benchmark_final_arm",
         first_draft_count: localRequirementsState.firstDraftCount,

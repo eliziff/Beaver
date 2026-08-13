@@ -84,6 +84,7 @@ export function TabularReviewsTable({
                             <TableSelectionPlaceholder />
                         ) : (
                             <CheckboxControl
+                                aria-label="Select loaded reviews"
                                 checked={allSelected}
                                 ref={(element) => {
                                     if (element)
@@ -160,7 +161,7 @@ export function TabularReviewsTable({
                     {visibleReviews.map((review) => {
                         const href = reviewHref(review);
                         const projectName = review.project_id
-                            ? projectNameById?.get(review.project_id)
+                            ? review.project_name ?? projectNameById?.get(review.project_id)
                             : null;
                         return (
                             <TableRow

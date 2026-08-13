@@ -50,9 +50,7 @@ describe("LegalKnowledgeGraphStore", () => {
 
   it("provides durable account-free research projects", async () => {
     const knowledge = await store();
-    expect(knowledge.listProjects("local")).toEqual([
-      { id: "general", name: "General research", order: 0 },
-    ]);
+    expect(knowledge.hasProject("local", "general")).toBe(true);
     const project = knowledge.createProject("local", "Judicial review appeal");
     expect(knowledge.renameProject("local", project.id, "JR appeal")).toEqual({
       id: project.id,
@@ -92,10 +90,10 @@ describe("LegalKnowledgeGraphStore", () => {
     expect(knowledge.attachMatterDocument("owner-a", matter.id, "document-b")).toBe(
       true,
     );
-    expect(knowledge.listMatterDocumentIds("owner-a", matter.id)).toEqual([
+    expect(knowledge.matterDocumentIdsAmong("owner-a", matter.id, [
       "document-a",
       "document-b",
-    ]);
+    ])).toEqual(["document-a", "document-b"]);
     expect(knowledge.getMatter("owner-b", matter.id)).toBeNull();
 
     expect(
@@ -112,9 +110,8 @@ describe("LegalKnowledgeGraphStore", () => {
     expect(
       knowledge.removeMatterDocument("owner-a", matter.id, "document-a"),
     ).toBe(true);
-    expect(knowledge.listMatterDocumentIds("owner-a", matter.id)).toEqual([
-      "document-b",
-    ]);
+    expect(knowledge.matterDocumentIdsAmong("owner-a", matter.id,
+      ["document-a", "document-b"])).toEqual(["document-b"]);
   });
 
   it("uses the same graph for hierarchical labels and legal-test ontology", async () => {
@@ -217,7 +214,7 @@ describe("LegalKnowledgeGraphStore", () => {
 
   it("retags a source without mutating exact evidence for that source", async () => {
     const knowledge = await store();
-    knowledge.listProjects("local");
+    knowledge.hasProject("local", "general");
     const label = knowledge.createLabel({
       userId: "local",
       projectId: "general",
@@ -322,7 +319,7 @@ describe("LegalKnowledgeGraphStore", () => {
 
   it("rolls back a failed parent replacement", async () => {
     const knowledge = await store();
-    knowledge.listProjects("local");
+    knowledge.hasProject("local", "general");
     const child = knowledge.createNode({
       userId: "local",
       projectId: "general",

@@ -8,10 +8,6 @@ import {
   mergeIntervals,
   readCoversBody,
 } from "../localAssistantTools";
-import {
-  attachStructureIndex,
-  indexIsAddressable,
-} from "../structureIndexExperiment";
 
 describe("mergeIntervals", () => {
   it("merges overlaps and adjacency, drops degenerates, normalizes order", () => {
@@ -79,64 +75,5 @@ describe("readCoversBody", () => {
     expect(readCoversBody({ sourceChars: 100, deliveredChars: 100 })).toBe(true);
     expect(readCoversBody({ sourceChars: 100, deliveredChars: 99 })).toBe(false);
     expect(readCoversBody({ sourceChars: 0, deliveredChars: 0 })).toBe(false);
-  });
-});
-
-describe("indexIsAddressable", () => {
-  const served = (lines: string[], body = "BODY TEXT") => {
-    const index = ["SECT-INDEX (derived …)", ...lines].join("\n");
-    const full = attachStructureIndex(body, index);
-    return { full, bodyOffset: full.length - body.length };
-  };
-
-  it("rejects an index with zero anchors (4 of 5 HSR docs)", () => {
-    const { full, bodyOffset } = served([
-      "  Section 1 — Overview",
-      "  Section 2 — Findings",
-      "  Section 3 — Risks",
-    ]);
-    expect(indexIsAddressable(full, bodyOffset)).toBe(false);
-  });
-
-  it("rejects a large index with few anchors (EMP redline: 113 lines, 8 anchored)", () => {
-    const lines = Array.from({ length: 113 }, (_, i) =>
-      i < 8 ? `  Section ${i} — Anchored  @${i * 100}` : `  Section ${i} — Bare`,
-    );
-    const { full, bodyOffset } = served(lines);
-    expect(indexIsAddressable(full, bodyOffset)).toBe(false);
-  });
-
-  it("rejects a tiny fully-anchored spine below the absolute floor", () => {
-    const { full, bodyOffset } = served([
-      "  Section 1  @0",
-      "  Section 2  @40",
-      "  Section 3  @90",
-    ]);
-    expect(indexIsAddressable(full, bodyOffset)).toBe(false);
-  });
-
-  it("accepts a well-anchored index (company draft: 167 lines, 129 anchored)", () => {
-    const lines = Array.from({ length: 167 }, (_, i) =>
-      i < 129 ? `  Section ${i} — Anchored  @${i * 100}` : `  Section ${i} — Bare`,
-    );
-    const { full, bodyOffset } = served(lines);
-    expect(indexIsAddressable(full, bodyOffset)).toBe(true);
-  });
-
-  it("rejects when no index is attached (bodyOffset 0)", () => {
-    expect(indexIsAddressable("BODY TEXT", 0)).toBe(false);
-  });
-
-  it("does not count the banner line as an entry", () => {
-    // 5 anchored entries out of 5 → addressable; the banner must not dilute
-    // the fraction or satisfy the anchored count by accident.
-    const { full, bodyOffset } = served([
-      "  Section 1  @0",
-      "  Section 2  @40",
-      "  Section 3  @90",
-      "  Section 4  @140",
-      "  Section 5  @190",
-    ]);
-    expect(indexIsAddressable(full, bodyOffset)).toBe(true);
   });
 });

@@ -143,9 +143,12 @@ describe("legal structure sidecars", () => {
 
     const skeleton = await bakedSkeleton(AGREEMENT, "missing");
     const graph = await bakedCrossReferenceGraph(AGREEMENT, "missing");
+    const files = await readdir(path.join(temporaryDirectory, "structure-cache"));
 
     expect(skeleton.nodes).toEqual(expectedSkeleton.nodes);
     expect(graph).toEqual(expectedGraph);
+    expect(files.some((name) => name.includes(".skeleton."))).toBe(true);
+    expect(files.some((name) => name.includes(".graph."))).toBe(true);
   });
 
   it("recompiles safely when sidecars are corrupt", async () => {

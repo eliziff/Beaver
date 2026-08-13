@@ -2,7 +2,6 @@ import { useRef, useState } from "react";
 import { Loader2, Upload } from "lucide-react";
 import type { Document, Project, Workflow } from "../shared/types";
 import {
-    getProject,
     uploadProjectDocument,
     uploadStandaloneDocument,
 } from "@/app/lib/beaverApi";
@@ -23,7 +22,7 @@ interface Props {
         columnsConfig?: Workflow["columns_config"],
     ) => void;
     projects?: Project[];
-    projectDocs?: Document[];
+    projectId?: string;
     projectName?: string;
     projectCmNumber?: string | null;
 }
@@ -35,24 +34,21 @@ function OpenNewTRModal({
     open,
     onClose,
     onAdd,
-    projects = [],
-    projectDocs: fixedProjectDocs,
+    projects,
+    projectId: fixedProjectId,
     projectName,
     projectCmNumber,
 }: Props) {
-    const isProjectMode = fixedProjectDocs !== undefined;
+    const isProjectMode = fixedProjectId !== undefined;
     const [step, setStep] = useState<"details" | "documents">("details");
     const titleRef = useRef("");
     const [underProject, setUnderProject] = useState(false);
     const [selectedProjectId, setSelectedProjectId] = useState("");
     const [projectDocs, setProjectDocs] = useState<Document[]>([]);
-    const [loadingDocs, setLoadingDocs] = useState(false);
     const [extraStandaloneDocs, setExtraStandaloneDocs] = useState<Document[]>(
         [],
     );
-    const [selectedDocuments, setSelectedDocuments] = useState<Document[]>(
-        fixedProjectDocs ?? [],
-    );
+    const [selectedDocuments, setSelectedDocuments] = useState<Document[]>([]);
     const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(
@@ -76,9 +72,10 @@ function OpenNewTRModal({
             setStep("documents");
             return;
         }
+        const projectId = fixedProjectId ?? (underProject ? selectedProjectId : undefined);
         onAdd(
             title.trim(),
-            underProject ? selectedProjectId : undefined,
+            projectId || undefined,
             selectedDocuments.length > 0
                 ? selectedDocuments.map((document) => document.id)
                 : undefined,
@@ -90,17 +87,6 @@ function OpenNewTRModal({
         setSelectedProjectId(projectId);
         setProjectDocs([]);
         setSelectedDocuments([]);
-        setLoadingDocs(true);
-        try {
-            const proj = await getProject(projectId);
-            const docs = (proj.documents ?? []).filter(
-                (d) => d.status === "ready",
-            );
-            setProjectDocs(docs);
-            setSelectedDocuments(docs);
-        } finally {
-            setLoadingDocs(false);
-        }
     }
     async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
         const files = Array.from(e.target.files ?? []);
@@ -109,13 +95,13 @@ function OpenNewTRModal({
         try {
             const uploaded = await Promise.all(
                 files.map((f) =>
-                    underProject && selectedProjectId
-                        ? uploadProjectDocument(selectedProjectId, f)
+                    fixedProjectId || (underProject && selectedProjectId)
+                        ? uploadProjectDocument(fixedProjectId ?? selectedProjectId, f)
                         : uploadStandaloneDocument(f),
                 ),
             );
             const addUploaded =
-                underProject && selectedProjectId
+                fixedProjectId || (underProject && selectedProjectId)
                     ? setProjectDocs
                     : setExtraStandaloneDocs;
             addUploaded((prev) => [...uploaded, ...prev]);
@@ -131,12 +117,9 @@ function OpenNewTRModal({
             if (fileInputRef.current) fileInputRef.current.value = "";
         }
     }
-    const directoryDocuments = isProjectMode
-        ? (fixedProjectDocs ?? [])
-        : underProject
-          ? projectDocs
-          : extraStandaloneDocs;
-    const directoryLoading = !isProjectMode && underProject && loadingDocs;
+    const directoryDocuments = isProjectMode || underProject
+        ? projectDocs
+        : extraStandaloneDocs;
     const breadcrumbs =
         isProjectMode && projectName
             ? [
@@ -281,7 +264,7 @@ function OpenNewTRModal({
                                         onChange={(value) => {
                                             void handleSelectProject(value);
                                         }}
-                                        disabled={projects.length === 0}
+                                        disabled={projects?.length === 0}
                                     />
                                 )}
                             </div>
@@ -294,7 +277,9 @@ function OpenNewTRModal({
                             selectedProjectId) && (
                             <FileDirectory
                                 documents={directoryDocuments}
-                                loading={directoryLoading}
+                                projectId={isProjectMode
+                                    ? fixedProjectId
+                                    : underProject ? selectedProjectId : undefined}
                                 selectedDocuments={selectedDocuments}
                                 onChange={setSelectedDocuments}
                                 showTabs={!isProjectMode && !underProject}

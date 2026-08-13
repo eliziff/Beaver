@@ -245,18 +245,55 @@ class LocalTabularStore {
     }
   }
 
-  list(userId: string, projectId?: string) {
-    const statement = this.database.prepare(
+  page(userId: string, options: { projectId: string | null;
+    scope: "all" | "in-project" | "standalone"; q: string; limit: number;
+    after: [string, string] | null }) {
+    const filters = ["user_id = ?"];
+    const params: (string | number)[] = [userId];
+    if (options.projectId) {
+      filters.push("project_id = ?");
+      params.push(options.projectId);
+    } else if (options.scope === "in-project") {
+      filters.push("project_id IS NOT NULL");
+    } else if (options.scope === "standalone") {
+      filters.push("project_id IS NULL");
+    }
+    if (options.q) {
+      filters.push("instr(lower(coalesce(title, '')), ?) > 0");
+      params.push(options.q.trim().toLocaleLowerCase());
+    }
+    if (options.after) {
+      filters.push("(created_at < ? OR (created_at = ? AND id < ?))");
+      params.push(options.after[0], options.after[0], options.after[1]);
+    }
+    params.push(options.limit + 1);
+    const rows = this.database.prepare(
       `SELECT ${REVIEW_COLUMNS} FROM local_tabular_reviews
-       WHERE user_id = ?${projectId ? " AND project_id = ?" : ""}
-       ORDER BY updated_at DESC, id`,
-    );
-    const rows = (
-      projectId
-        ? statement.all(userId, projectId)
-        : statement.all(userId)
-    ) as ReviewRow[];
-    return rows.map(review);
+       WHERE ${filters.join(" AND ")}
+       ORDER BY created_at DESC, id DESC LIMIT ?`,
+    ).all(...params) as ReviewRow[];
+    const pageRows = rows.slice(0, options.limit);
+    const items = pageRows.map(review).map((item) => ({
+      id: item.id,
+      project_id: item.project_id,
+      project_name: null,
+      user_id: item.user_id,
+      title: item.title,
+      workflow_id: item.workflow_id,
+      shared_with: item.shared_with,
+      is_owner: item.is_owner,
+      created_at: item.created_at,
+      updated_at: item.updated_at,
+      document_count: item.document_count,
+      column_count: item.columns_config.length,
+    }));
+    const last = pageRows.at(-1);
+    return {
+      items,
+      nextAfter: rows.length > options.limit && last
+        ? [last.created_at, last.id] as [string, string]
+        : null,
+    };
   }
 
   get(userId: string, reviewId: string) {
@@ -391,12 +428,18 @@ class LocalTabularStore {
   }
 
   removeDocument(userId: string, documentId: string) {
-    for (const item of this.list(userId)) {
-      if (!item.document_ids.includes(documentId)) continue;
-      this.update(userId, item.id, {
-        documentIds: item.document_ids.filter((id) => id !== documentId),
-      });
-    }
+    this.transaction(() => {
+      this.database.prepare(
+        `UPDATE local_tabular_reviews SET document_ids_json = (SELECT
+           json_group_array(value) FROM json_each(document_ids_json) WHERE value <> ?),
+           updated_at = ? WHERE user_id = ? AND EXISTS
+           (SELECT 1 FROM json_each(document_ids_json) WHERE value = ?)`,
+      ).run(documentId, new Date().toISOString(), userId, documentId);
+      this.database.prepare(
+        `DELETE FROM local_tabular_cells WHERE document_id = ? AND review_id IN
+           (SELECT id FROM local_tabular_reviews WHERE user_id = ?)`,
+      ).run(documentId, userId);
+    });
   }
 
   clearCells(userId: string, reviewId: string, documentIds: string[]) {

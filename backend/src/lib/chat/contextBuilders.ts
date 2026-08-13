@@ -16,7 +16,7 @@ export {
 } from "./messageFormatting";
 import { buildSystemPrompt, SPREADSHEET_CITATION_PROMPT } from "./prompts";
 import type { AssistantEvent } from "./streaming";
-import { priorLegalEvidenceReceipts } from "./legalEvidenceExperiment";
+import { priorLegalEvidenceReceipts } from "./legalEvidence";
 
 export async function loadPriorLegalEvidence(
   chatId: string | null | undefined,
