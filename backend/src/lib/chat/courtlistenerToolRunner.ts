@@ -19,6 +19,10 @@ import {
   type LegalEvidenceTurnState,
 } from "./legalEvidence";
 import { COURTLISTENER_TOOL_NAMES } from "./tools/courtlistenerTools";
+import type {
+  CaseCitationEvent,
+  CourtlistenerToolEvent,
+} from "./tools/courtlistenerTools";
 import { findTextMatches } from "./tools/documentOps";
 
 type JsonRecord = Record<string, unknown>;
@@ -44,6 +48,8 @@ export type CourtlistenerToolState = {
 };
 
 const TOOL_NAMES = new Set<string>(Object.values(COURTLISTENER_TOOL_NAMES));
+
+export const isCourtlistenerTool = (name: string) => TOOL_NAMES.has(name);
 
 function record(value: unknown): JsonRecord | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -571,27 +577,279 @@ async function execute(
   };
 }
 
+export async function runCourtlistenerTool(
+  call: NormalizedToolCall,
+  state: CourtlistenerToolState,
+  options: CourtlistenerToolOptions & {
+    legalEvidenceState?: LegalEvidenceTurnState;
+  } = {},
+) {
+  const payload = await executeCourtlistenerTool(call, state, {
+    db: options.db,
+    apiToken: options.apiToken,
+    pdfFallbackUserId: options.pdfFallbackUserId,
+  });
+  if (!payload) return null;
+  const presentation = presentCourtlistenerResult(call, payload, state);
+  const evidences = courtlistenerLegalEvidence(
+    call,
+    presentation.payload,
+    state,
+  );
+  for (const evidence of evidences) {
+    if (options.legalEvidenceState) {
+      registerLegalEvidence(options.legalEvidenceState, evidence);
+    }
+  }
+  return {
+    result: result(call, evidences.length
+      ? {
+          ...presentation.payload,
+          evidence_ids: evidences.map((item) => item.evidence_id),
+        }
+      : presentation.payload, state),
+    ...presentation,
+  };
+}
+
 export async function runLocalCourtlistenerTool(
   call: NormalizedToolCall,
   state: CourtlistenerToolState,
   userId?: string,
   legalEvidenceState?: LegalEvidenceTurnState,
 ): Promise<NormalizedToolResult | null> {
-  const payload = await executeCourtlistenerTool(call, state, {
+  return (await runCourtlistenerTool(call, state, {
     pdfFallbackUserId: userId,
-  });
-  if (!payload) return null;
-  const evidences = courtlistenerLegalEvidence(call, payload, state);
-  for (const evidence of evidences) {
-    if (legalEvidenceState) registerLegalEvidence(legalEvidenceState, evidence);
+    legalEvidenceState,
+  }))?.result ?? null;
+}
+
+type CaseOpinionsEvent = {
+  type: "case_opinions";
+  cluster_id: number;
+  case: {
+    id: number;
+    caseName: string | null;
+    dateFiled: string | null;
+    citations: string[];
+    url: string | null;
+    pdfUrl: string | null;
+    opinions: object[];
+  };
+};
+
+export function courtlistenerStartEvent(call: CourtlistenerCall) {
+  const args = call.input;
+  if (call.name === COURTLISTENER_TOOL_NAMES.searchCaseLaw) {
+    return {
+      type: "courtlistener_search_case_law_start",
+      query: typeof args.query === "string" ? args.query : "",
+    };
   }
-  return result(
-    call,
-    evidences.length
-      ? { ...payload, evidence_ids: evidences.map((item) => item.evidence_id) }
-      : payload,
-    state,
-  );
+  if (call.name === COURTLISTENER_TOOL_NAMES.getCases) {
+    return {
+      type: "courtlistener_get_cases_start",
+      cluster_ids: integers(
+        args.clusterIds ?? args.cluster_ids ?? [args.clusterId],
+      ),
+    };
+  }
+  const clusterId = integer(args.clusterId) ?? integer(args.cluster_id);
+  if (call.name === COURTLISTENER_TOOL_NAMES.findInCase) {
+    return {
+      type: "courtlistener_find_in_case_start",
+      cluster_id: clusterId,
+      query: typeof args.query === "string" ? args.query : "",
+    };
+  }
+  if (call.name === COURTLISTENER_TOOL_NAMES.readCase) {
+    return { type: "courtlistener_read_case_start", cluster_id: clusterId };
+  }
+  if (call.name === COURTLISTENER_TOOL_NAMES.verifyCitations) {
+    return {
+      type: "courtlistener_verify_citations_start",
+      citation_count: Array.isArray(args.citations)
+        ? args.citations.filter((value) => typeof value === "string").length
+        : 0,
+    };
+  }
+  return null;
+}
+
+function upsertCaseMetadata(
+  state: CourtlistenerToolState,
+  input: JsonRecord,
+) {
+  const clusterId = integer(input.clusterId) ?? integer(input.cluster_id);
+  if (clusterId === null) return null;
+  const current = state.casesByClusterId.get(clusterId) ?? {
+    clusterId,
+    caseName: null,
+    citations: [],
+    url: null,
+    pdfUrl: null,
+    dateFiled: null,
+    opinions: [],
+  };
+  const citation = text(input, "citation");
+  const record: CourtlistenerCase = {
+    ...current,
+    caseName: current.caseName ?? text(input, "caseName"),
+    citations: [...new Set([...current.citations, ...(citation ? [citation] : [])])],
+    url: current.url ?? text(input, "url"),
+    pdfUrl: current.pdfUrl ?? text(input, "pdfUrl"),
+    dateFiled: current.dateFiled ?? text(input, "dateFiled"),
+  };
+  state.casesByClusterId.set(clusterId, record);
+  return record;
+}
+
+function caseCitationEvent(record: CourtlistenerCase): CaseCitationEvent | null {
+  return record.url
+    ? {
+        type: "case_citation",
+        cluster_id: record.clusterId,
+        case_name: record.caseName,
+        citation: record.citations[0] ?? null,
+        url: record.url,
+        pdfUrl: record.pdfUrl,
+        dateFiled: record.dateFiled,
+      }
+    : null;
+}
+
+function presentCourtlistenerResult(
+  call: CourtlistenerCall,
+  rawPayload: JsonRecord,
+  state: CourtlistenerToolState,
+): {
+  payload: JsonRecord;
+  event: CourtlistenerToolEvent;
+  caseOpinions: CaseOpinionsEvent[];
+  caseCitations: CaseCitationEvent[];
+} {
+  const args = call.input;
+  const payload = { ...rawPayload };
+  const error = text(payload, "error") ?? undefined;
+  const clusterId = integer(payload.cluster_id) ??
+    integer(args.clusterId) ?? integer(args.cluster_id);
+  const caseOpinions: CaseOpinionsEvent[] = [];
+  const caseCitations: CaseCitationEvent[] = [];
+  let event: CourtlistenerToolEvent;
+
+  if (call.name === COURTLISTENER_TOOL_NAMES.searchCaseLaw) {
+    event = {
+      type: "courtlistener_search_case_law",
+      query: typeof args.query === "string" ? args.query : "",
+      result_count: Array.isArray(payload.results) ? payload.results.length : 0,
+      ...(error ? { error } : {}),
+    };
+  } else if (call.name === COURTLISTENER_TOOL_NAMES.getCases) {
+    const clusterIds = integers(
+      args.clusterIds ?? args.cluster_ids ?? [args.clusterId],
+    );
+    const cases = clusterIds.flatMap((id) => {
+      const item = state.casesByClusterId.get(id);
+      return item ? [item] : [];
+    });
+    caseOpinions.push(...cases.map((item) => ({
+      type: "case_opinions" as const,
+      cluster_id: item.clusterId,
+      case: {
+        id: item.clusterId,
+        caseName: item.caseName,
+        dateFiled: item.dateFiled,
+        citations: item.citations,
+        url: item.url,
+        pdfUrl: item.pdfUrl,
+        opinions: item.opinions,
+      },
+    })));
+    event = {
+      type: "courtlistener_get_cases",
+      cluster_ids: clusterIds,
+      case_count: integer(payload.case_count) ?? cases.length,
+      opinion_count: integer(payload.opinion_count) ??
+        cases.reduce((count, item) => count + item.opinions.length, 0),
+      cases: cases.map((item) => ({
+        cluster_id: item.clusterId,
+        case_name: item.caseName,
+        citation: item.citations[0] ?? null,
+        dateFiled: item.dateFiled,
+        url: item.url,
+      })),
+      ...(error ? { error } : {}),
+    };
+  } else if (call.name === COURTLISTENER_TOOL_NAMES.findInCase) {
+    event = {
+      type: "courtlistener_find_in_case",
+      cluster_id: clusterId,
+      query: typeof args.query === "string" ? args.query : "",
+      total_matches: integer(payload.total_matches) ?? 0,
+      case_name: text(payload, "case_name"),
+      citation: text(payload, "citation"),
+      ...(error ? { error } : {}),
+    };
+  } else if (call.name === COURTLISTENER_TOOL_NAMES.lookupCaseLocator) {
+    const locatorType = ["page", "section", "footnote"].includes(
+      String(args.locator_type),
+    ) ? args.locator_type as "page" | "section" | "footnote" : "paragraph";
+    event = {
+      type: "courtlistener_lookup_case_locator",
+      cluster_id: clusterId,
+      locator_type: locatorType,
+      locator: typeof args.locator === "string" ? args.locator : "",
+      status: text(payload, "status") ??
+        (payload.ok === true ? "found" : "unavailable"),
+      ...(error ? { error } : {}),
+    };
+  } else if (call.name === COURTLISTENER_TOOL_NAMES.readCase) {
+    event = {
+      type: "courtlistener_read_case",
+      cluster_id: clusterId,
+      case_name: text(payload, "case_name"),
+      citation: Array.isArray(payload.citations) &&
+        typeof payload.citations[0] === "string" ? payload.citations[0] : null,
+      opinion_count: payload.ok === true
+        ? integer(payload.returned_opinion_count) ?? 0
+        : 0,
+      ...(error ? { error } : {}),
+    };
+  } else {
+    if (Array.isArray(payload.citationLinks)) {
+      payload.citationLinks = payload.citationLinks
+        .map(record)
+        .filter((item): item is JsonRecord => !!item)
+        .map((link) => {
+          const cached = upsertCaseMetadata(state, link);
+          const citationEvent = cached && caseCitationEvent(cached);
+          if (citationEvent) caseCitations.push(citationEvent);
+          const url = text(link, "url");
+          if (!url) return link;
+          const linkClusterId = integer(link.clusterId);
+          const label = [text(link, "caseName"), text(link, "citation")]
+            .filter(Boolean).join(", ");
+          return {
+            ...link,
+            markdown: `[${label || url}](${linkClusterId === null ? url : `us-case-${linkClusterId}`})`,
+          };
+        });
+    }
+    const rows = Array.isArray(payload.results) ? payload.results : [];
+    event = {
+      type: "courtlistener_verify_citations",
+      citation_count: Array.isArray(args.citations)
+        ? args.citations.filter((value) => typeof value === "string").length
+        : 0,
+      match_count: rows.reduce((count, value) => {
+        const clusters = record(value)?.clusters;
+        return count + (Array.isArray(clusters) ? clusters.length : 0);
+      }, 0),
+      ...(error ? { error } : {}),
+    };
+  }
+
+  return { payload, event, caseOpinions, caseCitations };
 }
 
 export async function executeCourtlistenerTool(
