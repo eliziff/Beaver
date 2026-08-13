@@ -61,6 +61,25 @@ export function withReadonlySqlite<T>(
   }
 }
 
+const readonlyDatabases = new Map<string, DatabaseSync>();
+
+export function withCachedReadonlySqlite<T>(
+  filename: string,
+  operation: (database: DatabaseSync) => T,
+): T | null {
+  if (!existsSync(filename)) return null;
+  let database = readonlyDatabases.get(filename);
+  if (!database) {
+    const sqlite = require("node:sqlite") as typeof import("node:sqlite");
+    database = new sqlite.DatabaseSync(filename, { readOnly: true });
+    database.exec(
+      "PRAGMA query_only=ON; PRAGMA mmap_size=2147418112; PRAGMA cache_size=-131072",
+    );
+    readonlyDatabases.set(filename, database);
+  }
+  return operation(database);
+}
+
 export function mikeLocalDataHome(options?: {
   env?: Environment;
   platform?: NodeJS.Platform;
