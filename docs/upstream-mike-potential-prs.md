@@ -1,23 +1,23 @@
-# Potential pull requests to upstream mike
-
-Defects found while building the pin-faithful benchmark arm (`2266446b`,
-evidence in `upstream-native-arm-audit-2026-08-05.md` and
-`harvey-lab-run-mining-signals-2026-08-05.md`).
+# Potential pull requests to upstream Mike
 
 ## 1. DOCX extractor numerically coerces text runs
 
 `extractDocxBodyText` builds its XML parser without `parseTagValue: false`,
-so numeric-looking `w:t` runs round-trip through numbers: `"12.10"` → `12.1`,
-`"1.0"` → `1`. Section numbers, amounts, and version strings are silently
-altered in the text served to the model by `read_document` /
-`find_in_document` (and quoted back to users). Affects ~17.5% of our corpus
-DOCX files. Fix: pass `parseTagValue: false` (the option the shared edit
-parser at `docx/core.ts` already uses).
+so numeric-looking `w:t` runs round-trip through numbers: `"12.10"` becomes
+`12.1` and `"1.0"` becomes `1`. Section numbers, amounts, and version strings
+are silently altered in the text served by `read_document` and
+`find_in_document`. A focused fix is already being proposed upstream.
 
-## 2. `find_in_document` misses quoted defined terms
+## 2. Pagination duplicates visibility and filter predicates
 
-Contracts define terms as `"Term" means …`; models query `Term means` without
-quotes, and the literal substring search returns zero hits — 7/7 such probes
-failed in mined runs, and the model then proceeds as if the definition does
-not exist. Fix: on zero hits, retry with quote-wrapped and `shall mean`
-variants of the query (small deterministic normalization, no ranking change).
+The paginated project and workflow queries have separate full-row and ID-only
+paths. The ID-only path avoids expensive display joins, but copies the same
+visibility, ownership, search, and filter predicates; comments require future
+changes to keep the copies synchronized by hand. A mismatch can make “select
+all matching” disagree with the visible result set and could become an access
+control defect.
+
+Future focused PR: extract the parameterized matching-row set once in SQL, then
+derive both the paginated display query and lightweight ID query from it. Keep
+the ID path free of count/display joins and add equivalence tests across owned,
+shared, searched, and filtered collections.
