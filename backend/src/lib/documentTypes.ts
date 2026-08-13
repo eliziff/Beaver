@@ -28,6 +28,19 @@ export const ALLOWED_DOCUMENT_TYPES = new Set([
 export const ALLOWED_DOCUMENT_TYPES_LABEL =
   "pdf, docx, doc, xlsx, xlsm, xls, pptx, ppt, jpg, jpeg, png, gif, webp, eml, txt, md";
 
+export function validateDocumentFile(filename: string, bytes: Buffer) {
+  const fileType = filename.includes(".")
+    ? filename.split(".").pop()!.toLowerCase()
+    : "";
+  if (!ALLOWED_DOCUMENT_TYPES.has(fileType)) {
+    return { ok: false,
+      error: `Unsupported file type: ${fileType}. Allowed: ${ALLOWED_DOCUMENT_TYPES_LABEL}`,
+    } as const;
+  }
+  const error = imageValidationError(filename, bytes);
+  return error ? { ok: false, error } as const : { ok: true, fileType } as const;
+}
+
 const WORD_TYPES = new Set(["docx", "doc"]);
 const SPREADSHEET_TYPES = new Set(["xlsx", "xlsm", "xls"]);
 const PRESENTATION_TYPES = new Set(["pptx", "ppt"]);
@@ -113,3 +126,4 @@ export function contentTypeForDocumentType(fileType: string | null | undefined) 
       return "application/octet-stream";
   }
 }
+import { imageValidationError } from "./llm/images";

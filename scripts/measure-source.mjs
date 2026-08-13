@@ -74,7 +74,8 @@ function summarize(names, lineCounts) {
   return { areas, production, tests, total: production + tests, files };
 }
 
-const currentNames = listed(["ls-files", "--cached", "--others", "--exclude-standard", "--", ...appRoots]);
+const currentNames = listed(["ls-files", "--cached", "--others", "--exclude-standard", "--", ...appRoots])
+  .filter((name) => existsSync(path.join(root, name)));
 const currentCounts = new Map(currentNames.map((name) => [
   name,
   lines(readFileSync(path.join(root, name), "utf8")),
@@ -89,7 +90,7 @@ if (pinned.production !== 91_699) {
 const experimentNames = listed([
   "ls-files", "--cached", "--others", "--exclude-standard", "--",
   "experiments", "backend/experiments", "frontend/experiments",
-]);
+]).filter((name) => existsSync(path.join(root, name)));
 const experiments = experimentNames
   .filter((name) => sourceExtensions.has(extension(name)))
   .reduce((sum, name) => ({
@@ -102,6 +103,7 @@ const subrepos = Object.fromEntries(Object.entries(lock.repositories).map(([name
   const directory = path.join(root, name);
   if (!existsSync(path.join(directory, ".git"))) return [name, { ...pin, available: false }];
   const names = listed(["ls-files"], directory)
+    .filter((file) => existsSync(path.join(directory, file)))
     .filter((file) => sourceExtensions.has(extension(file)));
   return [name, {
     commit: pin.commit,

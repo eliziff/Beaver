@@ -36,11 +36,15 @@ vi.mock("../lib/codexCatalog", () => ({
   getCodexModelCatalog: mocks.getCodexModelCatalog,
 }));
 
-import { localLibraryRouter } from "./localLibrary";
+import { localLibraryExtensionsRouter } from "./localLibraryExtensions";
 
 const app = express();
 app.use(express.json());
-app.use("/library", localLibraryRouter);
+app.use((_req, res, next) => {
+  res.locals.userId = "local-user";
+  next();
+});
+app.use("/library", localLibraryExtensionsRouter);
 
 beforeEach(() => {
   vi.clearAllMocks();
