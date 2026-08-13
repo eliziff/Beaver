@@ -157,6 +157,35 @@ export function maxTrackedId(doc: XNode[]): number {
 // imports from this kernel; that cycle blocked drafting-source-consumes-stories.
 export const MAX_DRAFTING_DOCX_BYTES = 25 * 1024 * 1024;
 export const MAX_DRAFTING_XML_ENTRY_BYTES = 16 * 1024 * 1024;
+const MAX_ZIP_ENTRIES = 2_048;
+const MAX_EXPANDED_BYTES = 96 * 1024 * 1024;
+const MAX_XML_BYTES = 32 * 1024 * 1024;
+
+export function assertBoundedDocxPackage(zip: JSZip): void {
+    const files = Object.values(zip.files).filter((entry) => !entry.dir);
+    if (files.length > MAX_ZIP_ENTRIES) {
+        throw new Error("DOCX contains too many package entries");
+    }
+    let expandedBytes = 0;
+    let xmlBytes = 0;
+    for (const entry of files) {
+        const size = (entry as { _data?: { uncompressedSize?: unknown } })._data
+            ?.uncompressedSize;
+        if (!Number.isSafeInteger(size) || Number(size) < 0) {
+            throw new Error("DOCX has invalid ZIP size metadata");
+        }
+        expandedBytes += Number(size);
+        if (/\.xml(?:\.rels)?$/iu.test(entry.name)) {
+            if (Number(size) > MAX_DRAFTING_XML_ENTRY_BYTES) {
+                throw new Error("DOCX contains an oversized XML part");
+            }
+            xmlBytes += Number(size);
+        }
+    }
+    if (expandedBytes > MAX_EXPANDED_BYTES || xmlBytes > MAX_XML_BYTES) {
+        throw new Error("DOCX expands beyond the read limit");
+    }
+}
 
 // Some older Windows/Word archives store entries with backslash path
 // separators (e.g. `word\document.xml`) even though the zip spec requires

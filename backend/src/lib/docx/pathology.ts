@@ -1,16 +1,9 @@
-import type JSZip from "jszip";
-
 import {
+  assertBoundedDocxPackage,
   MAX_DRAFTING_DOCX_BYTES,
-  MAX_DRAFTING_XML_ENTRY_BYTES,
 } from "./core";
 import { loadZip } from "../zip";
 
-// Same package bounds the drafting reader enforces; a sniffer that runs
-// before extraction must not be a cheaper way to blow the same limits.
-const MAX_ZIP_ENTRIES = 2_048;
-const MAX_EXPANDED_BYTES = 96 * 1024 * 1024;
-const MAX_XML_BYTES = 32 * 1024 * 1024;
 const MAX_FIELD_SAMPLES = 5;
 const MAX_SAMPLE_CHARS = 120;
 const MAX_TRAP_SAMPLES = 5;
@@ -301,37 +294,6 @@ function isRedFamily(value: string) {
   return red >= 0xb0 && green <= 0x60 && blue <= 0x60;
 }
 
-function expandedSize(entry: unknown) {
-  const size = (entry as { _data?: { uncompressedSize?: unknown } })?._data
-    ?.uncompressedSize;
-  if (!Number.isSafeInteger(size) || Number(size) < 0) {
-    throw new Error("DOCX has invalid ZIP size metadata");
-  }
-  return Number(size);
-}
-
-function assertBoundedPackage(zip: JSZip) {
-  const files = Object.values(zip.files).filter((entry) => !entry.dir);
-  if (files.length > MAX_ZIP_ENTRIES) {
-    throw new Error("DOCX contains too many package entries");
-  }
-  let expandedBytes = 0;
-  let xmlBytes = 0;
-  for (const entry of files) {
-    const size = expandedSize(entry);
-    expandedBytes += size;
-    if (/\.xml(?:\.rels)?$/iu.test(entry.name)) {
-      if (size > MAX_DRAFTING_XML_ENTRY_BYTES) {
-        throw new Error("DOCX contains an oversized XML part");
-      }
-      xmlBytes += size;
-    }
-  }
-  if (expandedBytes > MAX_EXPANDED_BYTES || xmlBytes > MAX_XML_BYTES) {
-    throw new Error("DOCX expands beyond the read limit");
-  }
-}
-
 function containsNestedTable(xml: string) {
   let depth = 0;
   for (const match of xml.matchAll(/<(\/?)w:tbl(?=[\s/>])([^>]*)>/gu)) {
@@ -565,7 +527,7 @@ export async function scanDocxPathology(
       throw new Error("DOCX is empty or exceeds the read limit");
     }
     const zip = await loadZip(bytes);
-    assertBoundedPackage(zip);
+    assertBoundedDocxPackage(zip);
     if (!zip.file("word/document.xml")) {
       throw new Error("Package has no word/document.xml");
     }
