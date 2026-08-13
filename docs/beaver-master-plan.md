@@ -1,7 +1,7 @@
 # Beaver master plan
 
 Status: canonical implementation plan
-Last reconciled: 2026-07-26
+Last reconciled: 2026-08-13
 
 This is the single source of truth for unfinished Beaver work. Earlier
 planning files remain as design records and technical appendices; their status
@@ -15,6 +15,8 @@ ambiguity that cannot be resolved reliably in code.
 ## Status key
 
 - **Done**: implemented and verified in the current worktree.
+- **Active**: the current execution focus; work proceeds under a dedicated
+  implementation plan and harness goal.
 - **Partial**: a useful implementation exists, but the requested end-to-end
   behavior or validation is incomplete.
 - **Research**: investigated and documented; runtime behavior is unchanged.
@@ -26,9 +28,9 @@ ambiguity that cannot be resolved reliably in code.
 
 These decisions are not open backlog items:
 
-1. Beaver supports an account-free local mode. Cloud/Supabase/R2
-   compatibility remains available; local mode is additive, not a fork that
-   deletes cloud support.
+1. Beaver supports an account-free local mode and optional cloud/Supabase/R2
+   deployment. They are two persistence compositions of one application, not
+   two behavior paths to maintain independently.
 2. Provider downloads, bulk databases, and shared source caches live under the
    versioned `OpenLegalData` contract, normally
    `%LOCALAPPDATA%\OpenLegalProducts\LegalData`.
@@ -59,6 +61,15 @@ These decisions are not open backlog items:
 12. Beaver remains a modular monolith with small provider/process boundaries.
     Extensibility comes from stable SQLite/JSON/CLI contracts and thin adapters,
     not speculative services, duplicate UIs, or one-implementation interfaces.
+13. Local/cloud selection occurs once at the composition root. One
+    `createRuntime(dataPorts)` factory owns the domain program; the local and
+    cloud data-port constructors satisfy one compiler-enforced persistence
+    contract. Routes, tools, DTOs, events, pagination semantics, and the
+    automatically parameterized conformance suite are shared.
+14. One immutable document version may have several narrow authoritative
+    projections: `SourceDoc` for linear legal text, a typed grid for tables,
+    a raw-preserving DOCX session, and the neutral PDF artifact. Beaver does
+    not replace source bytes with a universal lossy AST.
 
 ## Implemented baseline
 
@@ -67,24 +78,71 @@ backlog:
 
 | Area | Current baseline |
 | --- | --- |
-| Local identity | Anonymous account-free startup, Library storage, and atomic durable chat transcripts under shared AppData |
-| Assistant | Local Library tools work without the unavailable `mike_runtime` connector |
+| Local identity | Anonymous account-free startup, durable Library/chat state, matters/projects, project documents/chats, and tabular reviews under shared AppData |
+| Assistant | Local Library, exact document, research, drafting, mutation, evidence, and read-subagent tools work without the unavailable `mike_runtime` connector |
 | Codex | Local Codex authentication, dynamic model catalog, separate reasoning-effort control, and bounded Beaver tool bridge |
 | Providers | OpenAI, Claude, Gemini, Codex, DeepSeek, and an OpenRouter/Muse adapter |
-| Legal lookup | A2AJ, CourtListener, TNA Find Case Law, GOV.UK ET, GovInfo, and journal article lookup surfaces |
+| Legal lookup | A2AJ, CourtListener, TNA Find Case Law, GOV.UK ET, GovInfo, and journal article lookup surfaces; CourtListener consumes native paragraph/note structure where supplied |
 | Pinpoints | Deterministic native anchors/text fragments, including multi-text directives, are appended without asking the model to construct URLs |
 | Shared data | `OpenLegalData` SQLite/bulk contract and AppData layout; A2AJ and CourtListener bulk paths |
+| Growing collections | Bounded cursor pages, server-side filters, exact-ID reads, local SQLite/FTS, shared frontend paging hooks, and the same local/cloud wire shapes |
 | Journal data | `public_endpoint.db` page/structure access and a contentless FTS5 sidecar |
-| PDF core | Standalone deterministic digital-born parser, footnote/proposition artifacts, optional r=1 Codex repair, cache, diagnostics, and adapters |
+| PDF core | Standalone deterministic digital-born parser plus Beaver on-demand ingestion, content-addressed artifacts, exact page/paragraph/footnote/section lookup, cache, diagnostics, and provider adapters |
+| Source structure | `SourceDoc` core and native/recovered compilers serve A2AJ, CourtListener, public native markup, journals, and local PDF queries |
 | DOCX citations | Bounded deterministic citation splitting and hyperlink insertion with a Codex worker only for unresolved splits |
 | Legal Library | Lightweight A2AJ/journal pointers and a structured source viewer |
 | Table of Authorities | Shared data path, dependency bootstrap, browser UI, standalone host, and a Beaver sibling route |
+| Cloud continuity | Audit history, fresh-schema alignment, and explicit schema-drift protection remain available while local mode stays cloud-free |
+| Runtime shape | Lazy route imports, bounded structure caches, turn-scoped DOCX reuse, and legal-evidence experiment code outside production |
 | UI | Beaver name, maple leaf identity, red accents, flat text-presentation symbols, visible model control, and separate effort control |
 
-The baseline still needs a clean local commit. “Implemented” here describes the
-worktree, not release readiness.
+The current root source checkpoint is commit `02aff487` (247 files, 5,837
+insertions, 61,730 deletions). Backend and frontend production builds pass;
+frontend has 310 passing tests plus three build-guard tests. The full backend
+suite still has a parallel SQLite/DOCX cleanup defect: three 20-second
+timeouts in two files pass 16/16 when isolated serially. The contraction
+harness must fix the shared-handle contention rather than raise timeouts.
+Generated local probes/corpora remain intentionally uncommitted, the nested
+PDF-engine worktree remains dirty, and the full release smoke has not yet been
+rerun, so this is a development baseline rather than a release claim.
 
 ## Priority 0 — correctness, reliability, and measured performance
+
+### P0.0 Canonicalize and contract the application
+
+Status: **Active**
+
+Execute the
+[canonicalization and contraction plan](beaver-canonicalization-and-contraction-plan.md)
+from checkpoint `02aff487`.
+
+The governing design is one `createRuntime(dataPorts)` domain factory, selected
+once at composition. Local SQLite/files and cloud Supabase/R2 constructors
+satisfy one compiler-enforced persistence contract and feed the same domain
+program. All routes, tools, assistant surfaces, DTOs, events, pagination rules,
+document projections, and behavior tests are shared. Ordinary feature work
+must not require remembering or reimplementing a second mode.
+
+The refactor replaces parallel assistant/tool, route/persistence,
+document/SourceDoc, DOCX, provider/evidence/cache, and frontend event/resource
+paths. It proceeds in net-negative vertical slices: a replacement, all callers,
+its behavior contract, and deletion of the superseded path land together. Git
+is the rollback mechanism; Beaver gets no legacy runtime shims.
+
+Measured baseline and target:
+
+| Metric | Current Beaver | Current upstream Mike | Beaver target |
+| --- | ---: | ---: | ---: |
+| Backend production lines | 84,053 | 39,748 | no independent quota; remove backend duplication first |
+| Frontend production lines | 34,137 | 51,951 | remain compact while sharing event/resource paths |
+| Combined production lines | 118,190 | 91,699 | hard ceiling 91,699; design target 87,000 or fewer |
+| Production + test lines | 190,274 | not frozen | lower than 190,274 without weakening behavior coverage |
+
+Acceptance is the plan's full definition of done. In particular: one
+assistant runner and tool registry, one local metadata database and immutable
+blob store, canonical document projections, raw-preserving DOCX mutation,
+automatically enumerated SQLite/Supabase contracts, no affected-path
+performance regression, and all repository release checks passing.
 
 ### P0.1 Reliable local lifecycle
 
@@ -194,38 +252,54 @@ SPA state at 1440, 390, and 320 pixels with no failed requests.
 
 Status: **Partial**
 
-Anonymous local mode currently covers Library and chat but not all project,
-tabular, workflow, drafting, and mutation paths.
+Anonymous local mode now covers Library, durable chats, matters/projects,
+project membership and chats, tabular reviews, drafting/revision, deterministic
+DOCX mutation, local PDF structure, and legal evidence. Custom workflow CRUD,
+sharing/contribution behavior, several account-only surfaces, and the assembled
+local/cloud parity matrix remain incomplete. Mode branches are also still
+spread through projects, workflows, tabular, and chat routes; P0.0 removes
+that maintenance burden rather than adding more paired branches.
 
 Work:
 
-- Define which cloud entities have a local equivalent and store them under
-  `apps/mike`, versioned and atomically written.
-- Add local projects/project chats or explicitly merge the concept into
-  Library matters; do not silently return empty project lists.
-- Provide local drafting/revision, tabular review, and workflow behavior or
-  hide a cloud-only surface with a clear explanation.
-- Retain cloud adapters and test that local additions do not break them.
+- Finish one canonical entity/DTO contract for documents, matters/projects,
+  chats, workflows, and tabular reviews.
+- Make local and cloud data-port constructors satisfy that contract and feed
+  one domain-runtime factory; keep mode selection at composition and
+  automatically run one behavior suite for both.
+- Add local custom workflow persistence where the product presents editable
+  workflows; keep genuinely cloud-only account/sharing administration explicit.
+- Remove ordinary route/tool/UI mode branches as each vertical slice moves to
+  the shared domain operation.
 
 Acceptance:
 
 - No ordinary local navigation ends in a Supabase 503.
 - A local user can create a matter, import documents, chat, draft/revise a
   document, restart Beaver, and continue with unchanged versions and citations.
-- Cloud mode passes its existing authentication/storage tests.
+- The automatically enumerated application contract passes unchanged against
+  temporary local SQLite/files and real local Supabase/object storage.
+- Ordinary routes and tools cannot import a mode flag, SQLite, Supabase, or R2;
+  adding a persistence capability fails compilation until both data-port
+  encodings implement it.
+- Cloud mode also passes its account, authentication, sharing, audit, and
+  storage-extension tests.
 
 ### P0.4 Freeze and commit the current baseline
 
-Status: **Planned**
+Status: **Partial**
 
-- Ignore Python bytecode and generated benchmark/runtime artifacts.
-- Commit nested neutral repositories first, then record their exact local git
-  identities in the root.
-- Decide explicitly whether the nested repositories become true submodules or
-  remain documented local gitlinks; do not leave ambiguous untracked
-  directories.
-- Create focused local commits without raw model traces, credentials, AppData,
-  downloaded corpora, or temporary PDFs.
+The broad root source checkpoint landed as `02aff487`. It excludes credentials,
+AppData, downloaded corpora, caches, generated benchmark/graph output, managed
+runtimes, local agent configuration, and the dirty nested PDF-engine worktree.
+
+- Move or ignore the remaining generated probe/runtime artifacts so source
+  status is readable without committing or deleting useful experiments.
+- Commit intentional nested neutral-repository changes first and update
+  `subrepos.lock.json` plus bundles/pins; never stage a dirty gitlink as a root
+  shortcut.
+- Keep subsequent refactor commits as focused vertical slices without raw
+  model traces, credentials, AppData, downloaded corpora, or temporary files.
 
 Acceptance:
 
@@ -238,26 +312,29 @@ Acceptance:
 
 ### P0.5 Independent research and falsifiable hypothesis
 
-Status: **Research in progress**
+Status: **Done** (research only; no production promotion)
 
-Two agents are independently:
+The two independent tracks and synthesis are complete. They:
 
-- comparing the proposed design with primary long-context/memory research and
+- compared the proposed design with primary long-context/memory research and
   source code from existing systems;
-- verifying current legal and long-session benchmarks, including the exact
+- verified current legal and long-session benchmarks, including the exact
   identity, access terms, and usefulness of the benchmark described as
   “Semantic Legal Bench by Marty Rudolf”; and
-- proposing separate ablation experiments before their conclusions are
+- proposed separate ablation experiments before their conclusions were
   reconciled.
 
-Their reports will be:
+Their reports are:
 
 - `context-compaction-research-track-a.md`
 - `context-compaction-research-track-b.md`
 - `context-compaction-research-synthesis.md`
 
-No compaction strategy is promoted merely because a paper or framework reports
-general-agent gains.
+The synthesis supports testing an immutable event log, exact active-state
+projection, optional provider checkpoint, non-authoritative summary, and
+event-aware recent tail. It does not show that full history currently fails or
+that any compaction candidate is production-ready. No compaction strategy is
+promoted merely because a paper or framework reports general-agent gains.
 
 ### P0.6 Server-authoritative legal session state
 
@@ -338,7 +415,11 @@ Acceptance:
 
 Status: **Partial**
 
-The engine exists but Beaver does not consume it.
+Beaver now consumes the engine on demand for local Library and provider PDF
+sources. It stores immutable inputs, content-addressed parser artifacts,
+diagnostics, evidence receipts, and exact structure queries; unchanged sources
+reuse their artifacts. Durable background job state, restart/resume UX,
+selective OCR routing, and the full typed PDF-table path remain incomplete.
 
 Work:
 
@@ -374,7 +455,14 @@ Acceptance:
 
 ### P0.9 Exact structure tools
 
-Status: **Planned**
+Status: **Partial**
+
+`legal_pdf_lookup`, the coding-shape `Read`/`Grep` surface, SourceDoc provider
+lookups, and DOCX structure reads already expose bounded pages/ranges, parser
+paragraphs/ranges, paired footnotes and propositions, encoded legal sections,
+verified section handles, and native DOCX table rows/cells. The remaining work
+is one format-neutral contract, complete provider fixture coverage, and removal
+of parallel parsers/result shapes under P0.0.
 
 Expose compact tools for:
 
@@ -479,6 +567,15 @@ Acceptance:
 ### P1.1 Normalize all provider structure
 
 Status: **Partial**
+
+Current implementation includes the `SourceDoc` core; A2AJ legislation/case
+compilation with mature spine/ladder recovery; CourtListener native HTML
+paragraph, footnote/endnote, and reporter-page compilation; public native
+markup, journal, and local-PDF compilation; shared locator lookup; and corpus
+audit/index scripts. Provider consumers and evidence paths are not all
+converged, and the cross-provider matrix is not yet the single release gate.
+P0.0 adopts `SourceDoc` as the linear source projection and deletes remaining
+consumer-specific extraction/query paths rather than creating another model.
 
 - Prefer provider-supplied sections, subsections, paragraphs, subparagraphs,
   pages, neutral citations, and anchors.
@@ -1097,10 +1194,14 @@ Status: **Planned**
 
 Status: **Partial**
 
-Maintain a checked matrix for authentication, Library, projects, chats,
-provider keys, document versions, legal sources, Table of Authorities, graph
-artifacts, and downloads across anonymous local and cloud modes. Migrations
-must be forward-safe and local files must never become cloud credentials.
+Parity becomes an executable application contract under P0.0, not a checklist
+that feature authors keep synchronized by hand. Instantiate the same Library,
+projects, chats, workflows, tabular, document-version, legal-source, evidence,
+pagination, and download behavior suites over temporary SQLite/files and real
+local Supabase/object storage. Cloud-only authentication, account, sharing,
+audit, and key-administration cases remain an explicit extension of that
+matrix. Schema changes update both compiler-required data-port encodings in one
+commit; local files never become cloud credentials.
 
 ### P2.6 Release evidence
 
@@ -1165,30 +1266,45 @@ Acceptance:
 
 ## Execution sequence
 
-1. **Preserve the baseline**: ignores, nested repo commits, root local commits,
-   launcher/doctor, and one end-to-end local smoke flow.
-2. **Finish the evidence layer**: Beaver PDF ingestion, exact structure tools,
-   provider caches/locators, and compact evidence handles.
-3. **Benchmark before changing memory**: independent synthesis, instrumentation,
-   full-history baseline, compaction prototype, legal hard gates, and
-   Caveman-separated factorial.
-4. **Deploy context management behind a flag**: server-authoritative state,
-   provider continuation, recovery, and isolation tests.
-5. **Make document work deterministic**: DOCX linking benchmark, version-bound
-   mutation primitives, content controls, and bounded spreadsheet operations.
-6. **Complete durable legal work products**: universal viewer, ontology graph,
-   Table of Authorities parity/packaging, and curated examples.
-7. **Optimize measured bottlenecks**: frontend/runtime/build profiles and
-   vector retrieval only where benchmarks justify them.
-8. **Validate provider breadth/cloud parity and accessibility**: Muse
-   credential, real multimodal calls, provider registry, migrations, WCAG
-   gates, and release evidence.
+1. **Make the contraction harness trustworthy**: freeze source/performance
+   metrics, fix parallel SQLite cleanup, parameterize one application contract
+   over both data-port adapters, and make generated artifacts stay out of
+   source status.
+2. **Canonicalize composition and durable work**: one runtime factory and
+   persistence contract, local metadata database/blob store, shared
+   document/version operations, and thin document/Library routes.
+3. **Canonicalize assistant execution**: one turn runner, tool registry, event
+   contract, and subagent path for local/cloud/project/tabular surfaces.
+4. **Canonicalize product resources**: shared project, workflow, tabular, and
+   chat behavior with mechanical SQLite/Supabase persistence encodings and the
+   same automatically enumerated tests.
+5. **Canonicalize document intelligence**: finish SourceDoc/grid projections,
+   one raw-preserving DOCX session, provider/evidence/artifact convergence, and
+   thin universal-PDF integration. Delete each superseded path as callers move.
+6. **Close the contraction release**: reach the upstream line ceiling and
+   87,000-line design target, converge frontend event/resource state, audit
+   dependencies/experiments, publish performance receipts, and pass every
+   local/cloud/release gate.
+7. **Resume product backlog on the smaller architecture**: complete PDF job/OCR
+   UX, evidence/viewer/DOCX/spreadsheet work, and provider breadth without
+   recreating mode or assistant paths.
+8. **Benchmark before promoting context changes**: use the completed research,
+   full-history control, exact legal-state gates, provider continuation, and
+   isolation tests; promote only an earned candidate.
+9. **Complete durable work products and release breadth**: ontology artifacts,
+   Table of Authorities packaging, curated examples, multimodal validation,
+   cloud deployment evidence, accessibility, and measured retrieval additions.
 
 ## Requirement traceability
 
 The consolidated backlog deliberately retains these user priorities:
 
 - no accounts for local use, local storage first, cloud compatibility retained;
+- one compiler-enforced local/cloud domain contract and automatically shared
+  behavior suite, so ordinary feature work is implemented once;
+- a substantially smaller codebase—at or below current upstream Mike's
+  production footprint—without dropping Beaver capabilities or disguising
+  moves as deletion;
 - dynamic Codex models and full reasoning-effort range with a separate UI
   control and local Codex authentication;
 - DeepSeek and Muse Spark provider support;
@@ -1230,6 +1346,8 @@ The consolidated backlog deliberately retains these user priorities:
 
 ## Detailed appendices
 
+- [Canonicalization and contraction](beaver-canonicalization-and-contraction-plan.md)
+- [Scalable collections](scalable-collections-plan.md)
 - [Beaver document intelligence](beaver-document-intelligence-plan.md)
 - [Universal legal PDF engine](universal-legal-pdf-engine-plan.md)
 - [Shared legal data and tool UI](shared-legal-data-and-tool-ui-plan.md)
