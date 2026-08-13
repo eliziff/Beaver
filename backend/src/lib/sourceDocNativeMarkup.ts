@@ -33,9 +33,13 @@ type PendingBlock = {
   label: string;
   start: number;
   anchor?: string;
+  aliases?: string[];
   parentLabel?: string;
   /** Inline marker (CAP star pagination): starts a page without a break. */
   inline?: boolean;
+  pageLabel?: string;
+  citationIndex?: number;
+  pageScheme?: string;
 };
 
 const BREAK_TAGS = new Set([
@@ -131,11 +135,106 @@ function cleanSectionId(raw: string) {
   return `${value}${")".repeat(Math.max(0, open - close))}`;
 }
 
+type NativeIdentity = Pick<
+  PendingBlock,
+  | "kind"
+  | "label"
+  | "anchor"
+  | "inline"
+  | "pageLabel"
+  | "citationIndex"
+  | "pageScheme"
+  | "aliases"
+>;
+
+function pageValue(raw: string) {
+  return raw
+    .replace(/^\*+\s*/u, "")
+    .replace(/^(?:page|p\.)\s+/iu, "")
+    .trim();
+}
+
+function pageIdentity(
+  raw: string,
+  attrs: string,
+  anchor?: string,
+  inline?: boolean,
+): NativeIdentity | null {
+  const pageLabel = pageValue(raw);
+  if (!/\d/u.test(pageLabel)) return null;
+  return {
+    kind: "page",
+    label: /^\d{1,5}$/u.test(pageLabel)
+      ? `page${Number(pageLabel)}`
+      : `page${pageLabel.replace(/\s+/gu, "")}`,
+    anchor,
+    inline,
+    pageLabel,
+    citationIndex:
+      Number(
+        attribute(attrs, "citation-index") ||
+          attribute(attrs, "data-citation-index"),
+      ) || undefined,
+    pageScheme: attribute(attrs, "pagescheme") || undefined,
+  };
+}
+
+function footnoteIdentity(
+  raw: string,
+  id: string,
+  anchor?: string,
+): NativeIdentity | null {
+  const marker = raw.trim();
+  const numbered = marker.match(
+    /^(?:\[(\d{1,5})\]|\((\d{1,5})\)|(\d{1,5}))$/u,
+  );
+  const idNumber =
+    id.match(/^(?:fn|footnote)[_-]?(\d{1,5})(?:[-_]+\d+)*$/iu)?.[1] ||
+    id.match(/^fn_(?:fn|fnote|refnote)(\d{1,5})(?:_\d+)*$/iu)?.[1] ||
+    id.match(/^ftn(\d{1,5})$/iu)?.[1];
+  const number = numbered?.slice(1).find(Boolean) || idNumber;
+  if (number) {
+    const label = `fn${Number(number)}`;
+    return {
+      kind: "footnote",
+      label,
+      anchor,
+      aliases: marker && marker !== number ? [marker, `footnote ${marker}`] : undefined,
+    };
+  }
+  const compactId = id.replace(/\s+/gu, "");
+  const symbol = marker || (/^fn(?:[-*†]|\[)/iu.test(compactId) ? compactId : "");
+  if (!symbol) return null;
+  return {
+    kind: "footnote",
+    label: /^fn/iu.test(symbol) ? symbol : `fn${symbol}`,
+    anchor,
+    aliases: marker ? [marker, `footnote ${marker}`] : undefined,
+  };
+}
+
+function courtlistenerFootnoteBody(
+  provider: SourceDocProvider,
+  tag: string,
+  attrs: string,
+) {
+  if (provider !== "courtlistener") return false;
+  const classes = attribute(attrs, "class");
+  const id = attribute(attrs, "id");
+  return (
+    tag === "footnote" ||
+    tag === "footnote_body" ||
+    (["aside", "div", "li", "section"].includes(tag) &&
+      (/\bfootnote\b/iu.test(classes) ||
+        /^(?:(?:fn|footnote)[_-]|fn\d|ftn\d)/iu.test(id)))
+  );
+}
+
 function nativeIdentity(
   provider: SourceDocProvider,
   tag: string,
   attrs: string,
-): Pick<PendingBlock, "kind" | "label" | "anchor" | "inline"> | null {
+): NativeIdentity | null {
   const id =
     attribute(attrs, "eId") ||
     attribute(attrs, "id") ||
@@ -152,19 +251,26 @@ function nativeIdentity(
     if (/\bpage-label\b/u.test(cls)) {
       const label =
         attribute(attrs, "data-label") || id.match(/^p(\d{1,5})$/iu)?.[1] || "";
-      return /^\d{1,5}$/u.test(label)
-        ? { kind: "page", label: `page${Number(label)}`, anchor, inline: true }
-        : null;
+      return pageIdentity(label, attrs, anchor, true);
     }
     // Citation links and footnotemarks are references, never containers.
     return null;
   }
-  if (tag === "aside" && provider === "courtlistener") {
-    const label = attribute(attrs, "data-label");
-    return /\bfootnote\b/u.test(attribute(attrs, "class")) &&
-      /^\d{1,5}$/u.test(label)
-      ? { kind: "footnote", label: `fn${Number(label)}`, anchor }
-      : null;
+  if (provider === "courtlistener") {
+    const classes = attribute(attrs, "class");
+    if (tag === "span" && /\bstar-pagination\b/u.test(classes)) {
+      const raw =
+        attribute(attrs, "label") ||
+        attribute(attrs, "data-label");
+      return pageIdentity(raw, attrs, anchor, true);
+    }
+    if (courtlistenerFootnoteBody(provider, tag, attrs)) {
+      const raw =
+        attribute(attrs, "data-label") ||
+        attribute(attrs, "label") ||
+        attribute(attrs, "n");
+      return footnoteIdentity(raw, id, anchor);
+    }
   }
 
   if (tag === "page-number") {
@@ -173,12 +279,16 @@ function nativeIdentity(
       attribute(attrs, "page") ||
       id.match(/(?:page|p)[_-]?(\d{1,5})$/iu)?.[1] ||
       "";
-    return /^\d{1,5}$/u.test(label)
-      ? { kind: "page", label: `page${Number(label)}`, anchor }
-      : null;
+    return pageIdentity(label, attrs, anchor);
   }
 
-  const paragraph = id.match(/^(?:para(?:graph)?)[_-]?(\d{1,5})$/iu)?.[1];
+  const paragraph =
+    id.match(/^(?:para(?:graph)?)[_-]?(\d{1,5})$/iu)?.[1] ??
+    (provider === "courtlistener" &&
+    tag === "div" &&
+    /\bnum\b/u.test(attribute(attrs, "class"))
+      ? id.match(/^p(\d{1,5})$/iu)?.[1]
+      : undefined);
   if (paragraph && (provider === "tna" || provider === "courtlistener")) {
     return {
       kind: "paragraph",
@@ -212,25 +322,50 @@ function courtlistenerFootnoteContainer(
   tag: string,
   attrs: string,
 ) {
-  if (
-    provider !== "courtlistener" ||
-    !["div", "li", "section"].includes(tag)
-  ) {
-    return false;
-  }
+  if (provider !== "courtlistener") return false;
   return (
+    courtlistenerFootnoteBody(provider, tag, attrs) ||
     /\bfootnotes\b/iu.test(attribute(attrs, "class")) ||
     /^(?:fn|footnote)[_-]/iu.test(attribute(attrs, "id"))
   );
 }
 
-function nativeMarkupBlocks(provider: SourceDocProvider, markup: string) {
+function pageAliases(
+  label: string,
+  citationIndex: number | undefined,
+  pageCitations: readonly string[],
+  pageScheme?: string,
+) {
+  const citation = citationIndex ? pageCitations[citationIndex - 1] : undefined;
+  return [
+    ...(/^\d{1,5}$/u.test(label) ? [] : [label]),
+    ...(citation ? [citation.replace(/\S+\s*$/u, label)] : []),
+    ...(pageScheme ? [`${pageScheme}, at *${label}`] : []),
+  ];
+}
+
+function nativeMarkupBlocks(
+  provider: SourceDocProvider,
+  markup: string,
+  pageCitations: readonly string[],
+) {
   const parts: string[] = [];
   const blocks: SourceDocBlock[] = [];
   const open: PendingBlock[] = [];
   const tagStack: string[] = [];
   const openExcluded: Array<{ tag: string; depth: number; start: number }> = [];
+  const unlabelledFootnotes: Array<{
+    tag: string;
+    depth: number;
+    start: number;
+  }> = [];
   const excludedRanges: CaseBlockExcludedRange[] = [];
+  let textPage: {
+    start: number;
+    anchor?: string;
+    citationIndex?: number;
+    pageScheme?: string;
+  } | null = null;
   let position = 0;
   const appendText = (value: string) => {
     if (!value) return;
@@ -256,6 +391,7 @@ function nativeMarkupBlocks(provider: SourceDocProvider, markup: string) {
     label: string;
     start: number;
     anchor?: string;
+    aliases?: string[];
   }> = [];
   const tokenPattern =
     /<!--[\s\S]*?-->|<!\[CDATA\[([\s\S]*?)\]\]>|<[^>]+>|[^<]+/gu;
@@ -268,7 +404,40 @@ function nativeMarkupBlocks(provider: SourceDocProvider, markup: string) {
       continue;
     }
     if (!raw.startsWith("<")) {
-      appendText(decodeEntities(raw).replace(/\s+/gu, " ").trim());
+      const rendered = decodeEntities(raw).replace(/\s+/gu, " ").trim();
+      const pendingFootnote = unlabelledFootnotes.at(-1);
+      if (pendingFootnote && rendered) {
+        unlabelledFootnotes.pop();
+        const marker = rendered.match(
+          /^(?:\[\d{1,5}\]|\(\d{1,5}\)|\d{1,5}|[*†]+)(?=\s|$)/u,
+        )?.[0];
+        const identity = marker ? footnoteIdentity(marker, "") : null;
+        if (identity) {
+          open.push({
+            tag: pendingFootnote.tag,
+            ...identity,
+            start: pendingFootnote.start,
+          });
+        }
+      }
+      const label = pageValue(rendered);
+      if (textPage && /\d/u.test(label)) {
+        pageStarts.push({
+          label: /^\d{1,5}$/u.test(label)
+            ? `page${Number(label)}`
+            : `page${label.replace(/\s+/gu, "")}`,
+          start: textPage.start,
+          anchor: textPage.anchor,
+          aliases: pageAliases(
+            label,
+            textPage.citationIndex,
+            pageCitations,
+            textPage.pageScheme,
+          ),
+        });
+        textPage = null;
+      }
+      appendText(rendered);
       continue;
     }
 
@@ -291,8 +460,16 @@ function nativeMarkupBlocks(provider: SourceDocProvider, markup: string) {
             excludedRanges.push({ start: pending.start, end: position });
           }
         }
+        for (let index = unlabelledFootnotes.length - 1; index >= 0; index -= 1) {
+          const entry = unlabelledFootnotes[index];
+          if (entry.tag === tag && entry.depth === depth) {
+            unlabelledFootnotes.splice(index, 1);
+            break;
+          }
+        }
         tagStack.length = depth;
       }
+      if (tag === "span") textPage = null;
       for (let index = open.length - 1; index >= 0; index -= 1) {
         if (open[index].tag !== tag) continue;
         const pending = open.splice(index, 1)[0];
@@ -304,6 +481,7 @@ function nativeMarkupBlocks(provider: SourceDocProvider, markup: string) {
             start: pending.start,
             end,
             anchor: pending.anchor,
+            aliases: pending.aliases,
             origin: "native",
             parentLabel: pending.parentLabel,
           });
@@ -319,22 +497,54 @@ function nativeMarkupBlocks(provider: SourceDocProvider, markup: string) {
     const tag = opening[1].split(":").at(-1)!.toLowerCase();
     const attrs = opening[2] ?? "";
     const selfClosing = /\/\s*>$/u.test(raw) || VOID_TAGS.has(tag);
+    const depth = tagStack.length;
+    const identity = nativeIdentity(provider, tag, attrs);
     if (!selfClosing) {
-      const depth = tagStack.length;
       tagStack.push(tag);
       if (courtlistenerFootnoteContainer(provider, tag, attrs)) {
         openExcluded.push({ tag, depth, start: position });
       }
+      if (courtlistenerFootnoteBody(provider, tag, attrs) && !identity) {
+        unlabelledFootnotes.push({ tag, depth, start: position });
+      }
     }
-    const identity = nativeIdentity(provider, tag, attrs);
-    if (identity?.kind === "page") {
+    const inFootnote =
+      openExcluded.length > 0 || open.some(({ kind }) => kind === "footnote");
+    if (
+      provider === "courtlistener" &&
+      !selfClosing &&
+      tag === "span" &&
+      /\bstar-pagination\b/u.test(attribute(attrs, "class")) &&
+      identity?.kind !== "page" &&
+      !inFootnote
+    ) {
+      textPage = {
+        start: position,
+        anchor: attribute(attrs, "id") || undefined,
+        citationIndex:
+          Number(
+            attribute(attrs, "citation-index") ||
+              attribute(attrs, "data-citation-index"),
+          ) || undefined,
+        pageScheme: attribute(attrs, "pagescheme") || undefined,
+      };
+    }
+    if (identity?.kind === "page" && !inFootnote) {
       if (!identity.inline) appendBreak();
       pageStarts.push({
         label: identity.label,
         start: position,
         anchor: identity.anchor,
+        aliases: identity.pageLabel
+          ? pageAliases(
+              identity.pageLabel,
+              identity.citationIndex,
+              pageCitations,
+              identity.pageScheme,
+            )
+          : undefined,
       });
-    } else if (identity) {
+    } else if (identity?.kind !== "page" && identity) {
       appendBreak();
       open.push({
         tag,
@@ -366,6 +576,7 @@ function nativeMarkupBlocks(provider: SourceDocProvider, markup: string) {
         start: pending.start,
         end: text.length,
         anchor: pending.anchor,
+        aliases: pending.aliases,
         origin: "native",
         parentLabel: pending.parentLabel,
       });
@@ -380,6 +591,7 @@ function nativeMarkupBlocks(provider: SourceDocProvider, markup: string) {
         start: page.start,
         end,
         anchor: page.anchor,
+        aliases: page.aliases,
         origin: "native",
       });
     }
@@ -423,9 +635,10 @@ export function compileNativeMarkupSourceDoc(args: {
   text: string;
   markup?: string | null;
   citation?: string | null;
+  pageCitations?: string[];
 }): SourceDoc {
   const native = args.markup?.trim()
-    ? nativeMarkupBlocks(args.provider, args.markup)
+    ? nativeMarkupBlocks(args.provider, args.markup, args.pageCitations ?? [])
     : {
         text: "",
         blocks: [] as SourceDocBlock[],
@@ -598,6 +811,8 @@ export function lookupLegalSourceDoc(
       // Provider-native aliases outside every locator grammar (journal page
       // labels like "PDF 1"): pass the locator through only when no grammar
       // recognized it, so normalized labels keep their receipt bytes.
-      (matchesBlock((block) => block.aliases ?? []) ? exact : "");
+      (matchesBlock((block) => [block.anchor ?? "", ...(block.aliases ?? [])])
+        ? exact
+        : "");
   return lookupSourceDocLabel(doc, kind, requestedLabel, contextBlocks);
 }

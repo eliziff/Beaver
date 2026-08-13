@@ -677,6 +677,8 @@ const PROVISION_LANGUAGE_RE =
   /\b(?:Act|Code|Regulations?|Rules?|shall|must)\b/iu;
 const TIGHT_DOT_PARAGRAPH_MARK_RE =
   /^[ \t]*(\d{1,4})\.(?=\p{Lu})/gmu;
+const COURTLISTENER_GLYPH_PARAGRAPH_MARK_RE =
+  /^[ \t]*[¶\u0095•][ \t]*(\d{1,4})(?=\s|[.,;:—-]|$)/gmu;
 
 function wordCount(text: string, lettersOnly = false) {
   const pattern = lettersOnly
@@ -970,9 +972,14 @@ function paragraphMarkers(text: string, mode: CaseParagraphMode) {
   }
   if (mode === "courtlistener") {
     const knownStarts = new Set(markers.map(({ start }) => start));
-    for (const match of text.matchAll(TIGHT_DOT_PARAGRAPH_MARK_RE)) {
-      if (knownStarts.has(match.index)) continue;
-      markers.push({ number: Number(match[1]), start: match.index, style: "dot" });
+    for (const pattern of [
+      TIGHT_DOT_PARAGRAPH_MARK_RE,
+      COURTLISTENER_GLYPH_PARAGRAPH_MARK_RE,
+    ]) {
+      for (const match of text.matchAll(pattern)) {
+        if (knownStarts.has(match.index)) continue;
+        markers.push({ number: Number(match[1]), start: match.index, style: "dot" });
+      }
     }
   }
   return markers.sort((left, right) => left.start - right.start);

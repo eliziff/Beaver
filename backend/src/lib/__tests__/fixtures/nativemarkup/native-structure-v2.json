@@ -3759,9 +3759,9 @@
   },
   "courtlistener-cap-372us335": {
     "status": "usable",
-    "source": "hybrid",
+    "source": "native",
     "counts": {
-      "paragraph": 6,
+      "paragraph": 0,
       "page": 17,
       "section": 0,
       "footnote": 20
@@ -3930,27 +3930,11 @@
         null
       ],
       [
-        "paragraph",
-        "par1",
-        20894,
-        21852,
-        null,
-        null
-      ],
-      [
         "footnote",
         "fn2",
         21852,
         21947,
         "footnote_1_9",
-        null
-      ],
-      [
-        "paragraph",
-        "par2",
-        21852,
-        21947,
-        null,
         null
       ],
       [
@@ -3962,27 +3946,11 @@
         null
       ],
       [
-        "paragraph",
-        "par3",
-        21947,
-        22134,
-        null,
-        null
-      ],
-      [
         "footnote",
         "fn4",
         22134,
         22273,
         "footnote_1_11",
-        null
-      ],
-      [
-        "paragraph",
-        "par4",
-        22134,
-        25587,
-        null,
         null
       ],
       [
@@ -4090,22 +4058,6 @@
         null
       ],
       [
-        "paragraph",
-        "par5",
-        32757,
-        32956,
-        null,
-        null
-      ],
-      [
-        "paragraph",
-        "par6",
-        32956,
-        32999,
-        null,
-        null
-      ],
-      [
         "footnote",
         "fn6",
         32956,
@@ -4118,343 +4070,223 @@
       {
         "kind": "paragraph",
         "locator": "par1",
-        "status": "found",
-        "requestedLabel": "par1",
-        "matches": [
-          "par1"
-        ],
-        "block": "par1",
+        "status": "unavailable",
+        "requestedLabel": "",
+        "matches": [],
+        "block": null,
         "anchor": null,
         "before": [],
-        "after": [
-          "par2",
-          "par3"
-        ],
-        "payloadSha256": "9a2322b7c313b6ba89607a610ebf239bb7d8478e8f64950f26055cb1a969907a"
+        "after": [],
+        "payloadSha256": "54e0609a3d3e3ed9d1e13a8124c66119249b8066e0a9f40a5348359b4d098bf6"
       },
       {
         "kind": "paragraph",
         "locator": "1",
-        "status": "found",
+        "status": "unavailable",
         "requestedLabel": "par1",
-        "matches": [
-          "par1"
-        ],
-        "block": "par1",
+        "matches": [],
+        "block": null,
         "anchor": null,
         "before": [],
-        "after": [
-          "par2",
-          "par3"
-        ],
-        "payloadSha256": "9a2322b7c313b6ba89607a610ebf239bb7d8478e8f64950f26055cb1a969907a"
+        "after": [],
+        "payloadSha256": "5817013f71ff0b0ac01b625237c231de17834e3e9715def0981ca713ffc02023"
       },
       {
         "kind": "paragraph",
         "locator": "paragraph 1",
-        "status": "found",
+        "status": "unavailable",
         "requestedLabel": "par1",
-        "matches": [
-          "par1"
-        ],
-        "block": "par1",
+        "matches": [],
+        "block": null,
         "anchor": null,
         "before": [],
-        "after": [
-          "par2",
-          "par3"
-        ],
-        "payloadSha256": "9a2322b7c313b6ba89607a610ebf239bb7d8478e8f64950f26055cb1a969907a"
+        "after": [],
+        "payloadSha256": "5817013f71ff0b0ac01b625237c231de17834e3e9715def0981ca713ffc02023"
       },
       {
         "kind": "paragraph",
         "locator": "par2",
-        "status": "found",
-        "requestedLabel": "par2",
-        "matches": [
-          "par2"
-        ],
-        "block": "par2",
+        "status": "unavailable",
+        "requestedLabel": "",
+        "matches": [],
+        "block": null,
         "anchor": null,
-        "before": [
-          "par1"
-        ],
-        "after": [
-          "par3",
-          "par4"
-        ],
-        "payloadSha256": "6bc2e0866bf2e14fb74bb31f03f49b2c1a4b683cbd428a13227003aad0917595"
+        "before": [],
+        "after": [],
+        "payloadSha256": "54e0609a3d3e3ed9d1e13a8124c66119249b8066e0a9f40a5348359b4d098bf6"
       },
       {
         "kind": "paragraph",
         "locator": "2",
-        "status": "found",
+        "status": "unavailable",
         "requestedLabel": "par2",
-        "matches": [
-          "par2"
-        ],
-        "block": "par2",
+        "matches": [],
+        "block": null,
         "anchor": null,
-        "before": [
-          "par1"
-        ],
-        "after": [
-          "par3",
-          "par4"
-        ],
-        "payloadSha256": "6bc2e0866bf2e14fb74bb31f03f49b2c1a4b683cbd428a13227003aad0917595"
+        "before": [],
+        "after": [],
+        "payloadSha256": "481b51b8d16c913163a8230e692f3a7e677728290245e157e2c237f3051fedf6"
       },
       {
         "kind": "paragraph",
         "locator": "paragraph 2",
-        "status": "found",
+        "status": "unavailable",
         "requestedLabel": "par2",
-        "matches": [
-          "par2"
-        ],
-        "block": "par2",
+        "matches": [],
+        "block": null,
         "anchor": null,
-        "before": [
-          "par1"
-        ],
-        "after": [
-          "par3",
-          "par4"
-        ],
-        "payloadSha256": "6bc2e0866bf2e14fb74bb31f03f49b2c1a4b683cbd428a13227003aad0917595"
+        "before": [],
+        "after": [],
+        "payloadSha256": "481b51b8d16c913163a8230e692f3a7e677728290245e157e2c237f3051fedf6"
       },
       {
         "kind": "paragraph",
         "locator": "par3",
-        "status": "found",
-        "requestedLabel": "par3",
-        "matches": [
-          "par3"
-        ],
-        "block": "par3",
+        "status": "unavailable",
+        "requestedLabel": "",
+        "matches": [],
+        "block": null,
         "anchor": null,
-        "before": [
-          "par1",
-          "par2"
-        ],
-        "after": [
-          "par4",
-          "par5"
-        ],
-        "payloadSha256": "9b6b619a23f9a59f30ea7bdd0da22765104e4728fd7aaa56dab525431fd9ec33"
+        "before": [],
+        "after": [],
+        "payloadSha256": "54e0609a3d3e3ed9d1e13a8124c66119249b8066e0a9f40a5348359b4d098bf6"
       },
       {
         "kind": "paragraph",
         "locator": "3",
-        "status": "found",
+        "status": "unavailable",
         "requestedLabel": "par3",
-        "matches": [
-          "par3"
-        ],
-        "block": "par3",
+        "matches": [],
+        "block": null,
         "anchor": null,
-        "before": [
-          "par1",
-          "par2"
-        ],
-        "after": [
-          "par4",
-          "par5"
-        ],
-        "payloadSha256": "9b6b619a23f9a59f30ea7bdd0da22765104e4728fd7aaa56dab525431fd9ec33"
+        "before": [],
+        "after": [],
+        "payloadSha256": "32bd10dee9bd93856c0e7486c1a7bdca29ba498e5cafe4a3806709fe38f0ed11"
       },
       {
         "kind": "paragraph",
         "locator": "paragraph 3",
-        "status": "found",
+        "status": "unavailable",
         "requestedLabel": "par3",
-        "matches": [
-          "par3"
-        ],
-        "block": "par3",
+        "matches": [],
+        "block": null,
         "anchor": null,
-        "before": [
-          "par1",
-          "par2"
-        ],
-        "after": [
-          "par4",
-          "par5"
-        ],
-        "payloadSha256": "9b6b619a23f9a59f30ea7bdd0da22765104e4728fd7aaa56dab525431fd9ec33"
+        "before": [],
+        "after": [],
+        "payloadSha256": "32bd10dee9bd93856c0e7486c1a7bdca29ba498e5cafe4a3806709fe38f0ed11"
       },
       {
         "kind": "paragraph",
         "locator": "par4",
-        "status": "found",
-        "requestedLabel": "par4",
-        "matches": [
-          "par4"
-        ],
-        "block": "par4",
+        "status": "unavailable",
+        "requestedLabel": "",
+        "matches": [],
+        "block": null,
         "anchor": null,
-        "before": [
-          "par2",
-          "par3"
-        ],
-        "after": [
-          "par5",
-          "par6"
-        ],
-        "payloadSha256": "950f7affbdadbda318f4eb56a39e46e65780690702895b3705e2319b81a2e313"
+        "before": [],
+        "after": [],
+        "payloadSha256": "54e0609a3d3e3ed9d1e13a8124c66119249b8066e0a9f40a5348359b4d098bf6"
       },
       {
         "kind": "paragraph",
         "locator": "4",
-        "status": "found",
+        "status": "unavailable",
         "requestedLabel": "par4",
-        "matches": [
-          "par4"
-        ],
-        "block": "par4",
+        "matches": [],
+        "block": null,
         "anchor": null,
-        "before": [
-          "par2",
-          "par3"
-        ],
-        "after": [
-          "par5",
-          "par6"
-        ],
-        "payloadSha256": "950f7affbdadbda318f4eb56a39e46e65780690702895b3705e2319b81a2e313"
+        "before": [],
+        "after": [],
+        "payloadSha256": "116802e7bf24ee53d1f694625a1dc08141ccb93a6cba80645325ff96ec32f5ad"
       },
       {
         "kind": "paragraph",
         "locator": "paragraph 4",
-        "status": "found",
+        "status": "unavailable",
         "requestedLabel": "par4",
-        "matches": [
-          "par4"
-        ],
-        "block": "par4",
+        "matches": [],
+        "block": null,
         "anchor": null,
-        "before": [
-          "par2",
-          "par3"
-        ],
-        "after": [
-          "par5",
-          "par6"
-        ],
-        "payloadSha256": "950f7affbdadbda318f4eb56a39e46e65780690702895b3705e2319b81a2e313"
+        "before": [],
+        "after": [],
+        "payloadSha256": "116802e7bf24ee53d1f694625a1dc08141ccb93a6cba80645325ff96ec32f5ad"
       },
       {
         "kind": "paragraph",
         "locator": "par5",
-        "status": "found",
-        "requestedLabel": "par5",
-        "matches": [
-          "par5"
-        ],
-        "block": "par5",
+        "status": "unavailable",
+        "requestedLabel": "",
+        "matches": [],
+        "block": null,
         "anchor": null,
-        "before": [
-          "par3",
-          "par4"
-        ],
-        "after": [
-          "par6"
-        ],
-        "payloadSha256": "f0a0bb42d4174d1e74ec79a9afe1e1a7c7278f285c227b97b88dac3020c40c30"
+        "before": [],
+        "after": [],
+        "payloadSha256": "54e0609a3d3e3ed9d1e13a8124c66119249b8066e0a9f40a5348359b4d098bf6"
       },
       {
         "kind": "paragraph",
         "locator": "5",
-        "status": "found",
+        "status": "unavailable",
         "requestedLabel": "par5",
-        "matches": [
-          "par5"
-        ],
-        "block": "par5",
+        "matches": [],
+        "block": null,
         "anchor": null,
-        "before": [
-          "par3",
-          "par4"
-        ],
-        "after": [
-          "par6"
-        ],
-        "payloadSha256": "f0a0bb42d4174d1e74ec79a9afe1e1a7c7278f285c227b97b88dac3020c40c30"
+        "before": [],
+        "after": [],
+        "payloadSha256": "15290e4d793657fda85481e85a23a791cd70745eb60ea2791922c4852461ce31"
       },
       {
         "kind": "paragraph",
         "locator": "paragraph 5",
-        "status": "found",
+        "status": "unavailable",
         "requestedLabel": "par5",
-        "matches": [
-          "par5"
-        ],
-        "block": "par5",
+        "matches": [],
+        "block": null,
         "anchor": null,
-        "before": [
-          "par3",
-          "par4"
-        ],
-        "after": [
-          "par6"
-        ],
-        "payloadSha256": "f0a0bb42d4174d1e74ec79a9afe1e1a7c7278f285c227b97b88dac3020c40c30"
+        "before": [],
+        "after": [],
+        "payloadSha256": "15290e4d793657fda85481e85a23a791cd70745eb60ea2791922c4852461ce31"
       },
       {
         "kind": "paragraph",
         "locator": "par6",
-        "status": "found",
-        "requestedLabel": "par6",
-        "matches": [
-          "par6"
-        ],
-        "block": "par6",
+        "status": "unavailable",
+        "requestedLabel": "",
+        "matches": [],
+        "block": null,
         "anchor": null,
-        "before": [
-          "par4",
-          "par5"
-        ],
+        "before": [],
         "after": [],
-        "payloadSha256": "b9cf570ad648f8d9b57a29c1adde8e557dc9ae907bf6954bc8eb9a048edb56ae"
+        "payloadSha256": "54e0609a3d3e3ed9d1e13a8124c66119249b8066e0a9f40a5348359b4d098bf6"
       },
       {
         "kind": "paragraph",
         "locator": "6",
-        "status": "found",
+        "status": "unavailable",
         "requestedLabel": "par6",
-        "matches": [
-          "par6"
-        ],
-        "block": "par6",
+        "matches": [],
+        "block": null,
         "anchor": null,
-        "before": [
-          "par4",
-          "par5"
-        ],
+        "before": [],
         "after": [],
-        "payloadSha256": "b9cf570ad648f8d9b57a29c1adde8e557dc9ae907bf6954bc8eb9a048edb56ae"
+        "payloadSha256": "fab5359d844be51cf8f70865510146e07ef6aeff61b131bc3a2e064508c115ff"
       },
       {
         "kind": "paragraph",
         "locator": "paragraph 6",
-        "status": "found",
+        "status": "unavailable",
         "requestedLabel": "par6",
-        "matches": [
-          "par6"
-        ],
-        "block": "par6",
+        "matches": [],
+        "block": null,
         "anchor": null,
-        "before": [
-          "par4",
-          "par5"
-        ],
+        "before": [],
         "after": [],
-        "payloadSha256": "b9cf570ad648f8d9b57a29c1adde8e557dc9ae907bf6954bc8eb9a048edb56ae"
+        "payloadSha256": "fab5359d844be51cf8f70865510146e07ef6aeff61b131bc3a2e064508c115ff"
       },
       {
         "kind": "paragraph",
         "locator": "9999",
-        "status": "not_found",
+        "status": "unavailable",
         "requestedLabel": "par9999",
         "matches": [],
         "block": null,
