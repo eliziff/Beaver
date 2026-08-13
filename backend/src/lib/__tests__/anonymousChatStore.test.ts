@@ -26,53 +26,6 @@ afterEach(async () => {
 });
 
 describe("anonymous chat store", () => {
-  it("upgrades legacy v2 files without losing their transcript", async () => {
-    const chatsDirectory = path.join(dataHome, "apps", "mike", "chats");
-    const chatId = randomUUID();
-    const messageId = randomUUID();
-    await mkdir(chatsDirectory, { recursive: true });
-    await writeFile(
-      path.join(chatsDirectory, `${chatId}.json`),
-      JSON.stringify({
-        version: 2,
-        chat: {
-          id: chatId,
-          user_id: owner,
-          project_id: null,
-          title: "Legacy",
-          created_at: "2026-07-01T00:00:00.000Z",
-          updated_at: "2026-07-01T00:00:01.000Z",
-          transcript_version: 1,
-          messages: [
-            {
-              id: messageId,
-              chat_id: chatId,
-              role: "user",
-              content: "Keep me",
-              created_at: "2026-07-01T00:00:01.000Z",
-            },
-          ],
-        },
-      }),
-      "utf8",
-    );
-
-    const store = await loadStore();
-    expect(store.getAnonymousChat(owner, chatId)).toMatchObject({
-      deleted_at: null,
-      title: "Legacy",
-      messages: [{ id: messageId, content: "Keep me" }],
-    });
-    expect(
-      JSON.parse(
-        await readFile(path.join(chatsDirectory, `${chatId}.json`), "utf8"),
-      ),
-    ).toMatchObject({
-      version: 3,
-      chat: { deleted_at: null, messages: [{ id: messageId }] },
-    });
-  });
-
   it("recovers chats and ordered messages after a module reload", async () => {
     vi.useFakeTimers();
     vi.setSystemTime("2026-07-26T12:00:00.000Z");

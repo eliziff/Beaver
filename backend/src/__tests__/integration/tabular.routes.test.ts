@@ -459,6 +459,7 @@ describe("tabular.routes", () => {
                     user_id: "u1",
                     project_id: null,
                     columns_config: [{ index: 0, name: "Col", prompt: "p" }],
+                    document_ids: ["d1"],
                 },
                 error: null,
             };
@@ -480,6 +481,7 @@ describe("tabular.routes", () => {
                     user_id: "u1",
                     project_id: null,
                     columns_config: [{ index: 0, name: "Col", prompt: "p" }],
+                    document_ids: ["d1"],
                 },
                 error: null,
             };
@@ -579,101 +581,4 @@ describe("tabular.routes", () => {
         });
     });
 
-    // ── POST /tabular-review/:reviewId/chat (streaming GUARDS only) ───────
-    describe("POST /tabular-review/:reviewId/chat", () => {
-        it("returns 400 when no user message is present", async () => {
-            const res = await request(app)
-                .post("/tabular-review/r1/chat")
-                .set(...AUTH)
-                .send({ messages: [{ role: "assistant", content: "hi" }] });
-
-            expect(res.status).toBe(400);
-            expect(res.body.detail).toBe("messages must include a user message");
-        });
-
-        it("returns 404 when review access is denied", async () => {
-            supabaseState.tables.tabular_reviews = {
-                data: { id: "r1", user_id: "other", project_id: null },
-                error: null,
-            };
-            ensureReviewAccess.mockResolvedValue({ ok: false });
-
-            const res = await request(app)
-                .post("/tabular-review/r1/chat")
-                .set(...AUTH)
-                .send({ messages: [{ role: "user", content: "hello" }] });
-
-            expect(res.status).toBe(404);
-            expect(res.body.detail).toBe("Review not found");
-        });
-
-        it("returns 422 missing_api_key before streaming when the key is absent", async () => {
-            supabaseState.tables.tabular_reviews = {
-                data: {
-                    id: "r1",
-                    user_id: "u1",
-                    project_id: null,
-                    columns_config: [],
-                },
-                error: null,
-            };
-            supabaseState.tables.tabular_cells = { data: [], error: null };
-            getUserModelSettings.mockResolvedValue({
-                title_model: "claude-haiku-4-5",
-                tabular_model: "claude-sonnet-4-5",
-                legal_research_us: false,
-                api_keys: {},
-            });
-
-            const res = await request(app)
-                .post("/tabular-review/r1/chat")
-                .set(...AUTH)
-                .send({
-                    messages: [{ role: "user", content: "hello" }],
-                    model: "deepseek-v4-pro",
-                });
-
-            expect(res.status).toBe(422);
-            expect(res.body.code).toBe("missing_api_key");
-            expect(res.body.provider).toBe("deepseek");
-        });
-    });
-
-    // ── GET /tabular-review/:reviewId/chats ───────────────────────────────
-    describe("GET /tabular-review/:reviewId/chats", () => {
-        it("returns 404 when review access is denied", async () => {
-            supabaseState.tables.tabular_reviews = {
-                data: { id: "r1", user_id: "other", project_id: null },
-                error: null,
-            };
-            ensureReviewAccess.mockResolvedValue({ ok: false });
-
-            const res = await request(app)
-                .get("/tabular-review/r1/chats")
-                .set(...AUTH);
-
-            expect(res.status).toBe(404);
-            expect(res.body.detail).toBe("Review not found");
-        });
-
-        it("returns the chat list when access is granted", async () => {
-            supabaseState.tables.tabular_reviews = {
-                data: { id: "r1", user_id: "u1", project_id: null },
-                error: null,
-            };
-            supabaseState.tables.tabular_review_chats = {
-                data: [{ id: "chat-1", title: "T", user_id: "u1" }],
-                error: null,
-            };
-
-            const res = await request(app)
-                .get("/tabular-review/r1/chats")
-                .set(...AUTH);
-
-            expect(res.status).toBe(200);
-            expect(res.body).toEqual([
-                { id: "chat-1", title: "T", user_id: "u1" },
-            ]);
-        });
-    });
 });

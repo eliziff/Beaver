@@ -220,10 +220,13 @@ describe("local document version replacement", () => {
         },
       ],
     });
-    const { chatRouter } = await import("./chat");
+    const [{ createChatRouter }, { localTabularData }] = await Promise.all([
+      import("./chat"),
+      import("../lib/localTabularStore"),
+    ]);
     const chatApp = express();
     chatApp.use(express.json());
-    chatApp.use("/chat", chatRouter);
+    chatApp.use("/chat", createChatRouter(localTabularData));
     const reloaded = await request(chatApp).get(`/chat/${chat.id}`);
     expect(reloaded.status).toBe(200);
     expect(

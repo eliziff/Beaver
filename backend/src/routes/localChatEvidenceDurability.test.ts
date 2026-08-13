@@ -178,13 +178,14 @@ let dataHome: string;
 
 async function loadApp() {
   vi.resetModules();
-  const [{ chatRouter }, store] = await Promise.all([
+  const [{ createChatRouter }, store, { localTabularData }] = await Promise.all([
     import("./chat"),
     import("../lib/anonymousChatStore"),
+    import("../lib/localTabularStore"),
   ]);
   const app = express();
   app.use(express.json());
-  app.use("/chat", chatRouter);
+  app.use("/chat", createChatRouter(localTabularData));
   return { app, store };
 }
 

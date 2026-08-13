@@ -626,11 +626,16 @@ export async function runToolCalls(
         tool_call_id: tc.id,
         content: wf ? wf.skill_md : `Workflow '${wfId}' not found.`,
       });
-    } else if (tc.function.name === "read_table_cells" && tabularStore) {
+    } else if (
+      tc.function.name === "read_table_cells" &&
+      tabularStore &&
+      legalEvidenceState
+    ) {
       const colIndices = args.col_indices as number[] | undefined;
       const rowIndices = args.row_indices as number[] | undefined;
       const selected = readTabularCells(
         tabularStore,
+        legalEvidenceState,
         colIndices,
         rowIndices,
       );

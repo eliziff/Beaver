@@ -30,6 +30,9 @@ interface UseAssistantChatOptions {
   initialMessages?: Message[];
   chatId?: string;
   projectId?: string;
+  tabularReviewId?: string;
+  onChatIdChange?: (chatId: string) => void;
+  onTitleChange?: (chatId: string, title: string) => void;
 }
 type AssistantTurnOptions = {
   displayedDoc?: { filename: string; documentId: string } | null;
@@ -61,6 +64,9 @@ export function useAssistantChat({
   initialMessages = [],
   chatId: initialChatId,
   projectId,
+  tabularReviewId,
+  onChatIdChange,
+  onTitleChange,
 }: UseAssistantChatOptions = {}) {
   const router = useRouter();
   const {
@@ -190,7 +196,7 @@ export function useAssistantChat({
             setMessages(latest.messages);
             setIsResponseLoading(false);
             setChatTurnInProgress?.(targetChatId, false);
-            void loadChats();
+            if (!tabularReviewId) void loadChats();
             return;
           }
         } catch {
@@ -315,6 +321,7 @@ export function useAssistantChat({
           : { messages: apiMessages }),
         chat_id: chatId,
         project_id: projectId,
+        tabular_review_id: tabularReviewId,
         model,
         reasoning_effort: reasoningEffort,
         jurisdiction_preference: jurisdictionPreferenceForChat(),
@@ -369,7 +376,7 @@ export function useAssistantChat({
             setRejectedTurn(null);
             setMessages(reloaded);
             setIsResponseLoading(false);
-            await loadChats();
+            if (!tabularReviewId) await loadChats();
             return null;
           }
           const last = reloaded[reloaded.length - 1];
@@ -416,6 +423,7 @@ export function useAssistantChat({
             if (data.type === "chat_id") {
               streamedChatId = data.chatId;
               setChatId(data.chatId);
+              onChatIdChange?.(data.chatId);
               setChatTurnInProgress?.(data.chatId, true);
               if (Number.isSafeInteger(data.transcriptVersion)) {
                 transcriptVersionRef.current = data.transcriptVersion;
@@ -557,12 +565,14 @@ export function useAssistantChat({
             message.content.trim().slice(0, 120) || "New Chat",
           );
         }
-        const chatBasePath = projectId
-          ? `/projects/${projectId}/assistant/chat`
-          : `/assistant/chat`;
-        router.replace(`${chatBasePath}/${finalChatId}`);
+        if (!tabularReviewId) {
+          const chatBasePath = projectId
+            ? `/projects/${projectId}/assistant/chat`
+            : `/assistant/chat`;
+          router.replace(`${chatBasePath}/${finalChatId}`);
+        }
       }
-      await loadChats();
+      if (!tabularReviewId) await loadChats();
       if (finalChatId && apiMessagesForTurn.length === 1) {
         const titleParts = [message.content];
         if (message.workflow)
@@ -572,7 +582,10 @@ export function useAssistantChat({
             `Files: ${message.files.map((f) => f.filename).join(", ")}`,
           );
         void generateChatTitle(finalChatId, titleParts.join("\n"))
-          .then(({ title }) => renameChat(finalChatId, title))
+          .then(({ title }) => {
+            onTitleChange?.(finalChatId, title);
+            return tabularReviewId ? undefined : renameChat(finalChatId, title);
+          })
           .catch(() => undefined);
       }
       return streamedChatId || null;
@@ -647,6 +660,17 @@ export function useAssistantChat({
     setRejectedTurn(null);
     return handleChat(pending.message, pending.options);
   };
+  const openChat = (
+    nextChatId?: string,
+    nextMessages: Message[] = [],
+    transcriptVersion = 0,
+  ) => {
+    transcriptPollGenerationRef.current += 1;
+    setRejectedTurn(null);
+    setChatId(nextChatId);
+    setMessages(nextMessages);
+    transcriptVersionRef.current = transcriptVersion;
+  };
   const handleNewChat = async (
     message: Message,
     projectId?: string,
@@ -672,6 +696,7 @@ export function useAssistantChat({
     rejectedTurn,
     clearRejectedTurn,
     retryRejectedTurn,
+    openChat,
     setTranscriptVersion: (version: number) => {
       if (Number.isSafeInteger(version) && version >= 0) {
         transcriptVersionRef.current = version;
