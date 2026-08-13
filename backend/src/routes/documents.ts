@@ -11,7 +11,7 @@ import {
   uploadFile,
   versionStorageKey,
 } from "../lib/storage";
-import { docxToPdf, convertedPdfKey } from "../lib/convert";
+import { docxToPdf } from "../lib/convert";
 import { resolveTrackedChange } from "../lib/docxTrackedChanges";
 import { buildDownloadUrl } from "../lib/downloadTokens";
 import { loadActiveVersion } from "../lib/documentVersions";
@@ -564,14 +564,6 @@ documentsRouter.post(
           pdfStoragePath = pdfKey;
         }
       }
-    } else {
-      pdfStoragePath = await pdfRenditionFor(
-        suffix,
-        key,
-        Buffer.from(bytes),
-        pdfKey,
-        "versions/copy",
-      );
     }
 
     const versionRow = await insertVersionAsCurrent(
@@ -651,14 +643,7 @@ documentsRouter.post(
         .json({ detail: "Failed to upload new version." });
     }
 
-    // Preview conversion is best effort; source-version persistence is not.
-    const pdfStoragePath = await pdfRenditionFor(
-      suffix,
-      key,
-      file.buffer,
-      `converted-pdfs/${userId}/${documentId}/${versionSlug}.pdf`,
-      "versions/upload",
-    );
+    const pdfStoragePath = suffix === "pdf" ? key : null;
     const pageCount =
       suffix === "pdf" ? await countPdfPages(file.buffer) : null;
 
@@ -762,13 +747,7 @@ documentsRouter.put(
         .json({ detail: "Failed to upload replacement version." });
     }
 
-    const pdfStoragePath = await pdfRenditionFor(
-      suffix,
-      key,
-      file.buffer,
-      `converted-pdfs/${userId}/${documentId}/${versionSlug}.pdf`,
-      "versions/replace",
-    );
+    const pdfStoragePath = suffix === "pdf" ? key : null;
     const pageCount =
       suffix === "pdf" ? await countPdfPages(file.buffer) : null;
 
@@ -1072,13 +1051,7 @@ export async function handleDocumentUpload(
 
     const pageCount =
       suffix === "pdf" ? await countPdfPages(content) : null;
-    const pdfStoragePath = await pdfRenditionFor(
-      suffix,
-      key,
-      content,
-      convertedPdfKey(userId, docId),
-      "upload",
-    );
+    const pdfStoragePath = suffix === "pdf" ? key : null;
 
     const { data: versionRow, error: verErr } = await db
       .from("document_versions")
