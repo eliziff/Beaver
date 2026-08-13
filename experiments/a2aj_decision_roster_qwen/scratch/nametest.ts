@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 async function main() {
-  const mod = await import("../../../backend/src/lib/legalOpinionBoundaries.ts");
+  const mod = await import("../../../backend/experiments/a2aj-decision-roster/legalOpinionBoundaries.ts");
 
   const hostile = [
     "The Honourable Madam Justice Stromberg-Stein",

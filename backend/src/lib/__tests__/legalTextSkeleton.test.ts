@@ -4,7 +4,6 @@ import {
   compileAgreementSkeleton,
   readContentsOutline,
   readSection,
-  renderAgreementOutline,
 } from "../legalTextSkeleton";
 import { compileA2AJSourceDoc } from "../sourceDocA2AJ";
 
@@ -97,13 +96,6 @@ describe("compileAgreementSkeleton: agreement style", () => {
     expect(skeleton.crossReferences.unresolved).not.toContain("8.01(a)");
   });
 
-  it("renders a complete outline with handles", () => {
-    const outline = renderAgreementOutline(skeleton);
-    expect(outline).toContain("[sec8.01(i)]");
-    expect(outline).toContain("Defined terms (2)");
-    expect(outline).toContain("Schedules/Exhibits: SCHEDULE 7.01");
-  });
-
   it("preserves normalized ambiguity for repeated section labels", () => {
     const repeated = compileAgreementSkeleton(
       [
@@ -118,9 +110,6 @@ describe("compileAgreementSkeleton: agreement style", () => {
       status: "ambiguous",
       matches: ["sec1.01", "sec1.01"],
     });
-    expect(renderAgreementOutline(repeated)).toContain(
-      "[repeated sec1.01; use library_find]",
-    );
   });
 });
 
@@ -192,10 +181,6 @@ describe("compileAgreementSkeleton: native table cells", () => {
       parentLabel: "table:1/row:2",
       display: "Table 1, row 2, column 2-3",
     });
-    expect(renderAgreementOutline(skeleton)).toContain("[table:1/row:2]");
-    expect(renderAgreementOutline(skeleton)).toContain(
-      "[table:1/row:2/col:2]",
-    );
   });
 
   it("fails closed on invalid bounds and duplicate coordinates", () => {

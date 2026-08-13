@@ -1,19 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { crossReferenceGraph } from "../legalCrossReference";
 import {
-  nodeLinks,
-  nodeNeighbourhood,
-  pageAt,
   pageLabel,
   pageMapFromMarkers,
   pageMapFromSourceDoc,
-  pageSections,
   resolvePage,
-  referenceHubs,
   selectPages,
 } from "../legalDocumentNavigator";
-import { compileAgreementSkeleton } from "../legalTextSkeleton";
 
 /**
  * Front matter numbered separately from the body is the case that decides
@@ -44,8 +37,6 @@ const AGREEMENT = [
   "3.02 Effect. On termination, Section 2.01 ceases to apply.",
   "",
 ].join("\n");
-
-const skeletonOf = (text: string) => compileAgreementSkeleton(text, "fixture");
 
 /**
  * An artifact-derived map, built the way `compileLegalPdfSourceDoc` builds
@@ -224,100 +215,5 @@ describe("selectPages", () => {
     expect(failed.status).toBe("failed");
     if (failed.status !== "failed") return;
     expect(failed.lookup.status).toBe("not_found");
-  });
-});
-
-describe("pageAt", () => {
-  it("labels an offset with the page it falls on", () => {
-    const map = pageMapFromMarkers(AGREEMENT);
-    expect(pageAt(map, AGREEMENT.indexOf("2.02 Renewal"))?.printedLabel).toBe("2");
-  });
-});
-
-describe("pageSections", () => {
-  it("returns the provisions printed on a page, in reading order", () => {
-    const skeleton = skeletonOf(AGREEMENT);
-    const page = pageMapFromMarkers(AGREEMENT).pages[1];
-    expect(pageSections(skeleton, page).starts.map((node) => node.label)).toEqual([
-      "art2",
-      "sec2.01",
-      "sec2.02",
-    ]);
-  });
-
-  /**
-   * A node's span runs to the next heading, so Section 1.01 laps onto page 2
-   * by the marker line alone. It is what the page continues FROM, and must
-   * never be listed as printed on it.
-   */
-  it("does not report a section that merely laps over the page boundary", () => {
-    const skeleton = skeletonOf(AGREEMENT);
-    const page = pageMapFromMarkers(AGREEMENT).pages[1];
-    const sections = pageSections(skeleton, page);
-    expect(sections.starts.map((node) => node.label)).not.toContain("sec1.01");
-    expect(sections.continuedFrom.map((node) => node.label)).toEqual([
-      "sec1.01",
-      "art1",
-    ]);
-  });
-
-  it("has nothing to continue from on the first page", () => {
-    const skeleton = skeletonOf(AGREEMENT);
-    const first = pageMapFromMarkers(AGREEMENT).pages[0];
-    expect(pageSections(skeleton, first).continuedFrom).toEqual([]);
-  });
-});
-
-describe("nodeNeighbourhood", () => {
-  it("gives the parent chain, the siblings and the children", () => {
-    const skeleton = skeletonOf(AGREEMENT);
-    const around = nodeNeighbourhood(skeleton, "sec2.01");
-    expect(around).not.toBeNull();
-    expect(around!.ancestors.map((node) => node.label)).toEqual(["art2"]);
-    expect(around!.siblings.map((node) => node.label)).toEqual(["sec2.02"]);
-    expect(around!.children).toEqual([]);
-
-    const article = nodeNeighbourhood(skeleton, "art2");
-    expect(article!.children.map((node) => node.label)).toEqual([
-      "sec2.01",
-      "sec2.02",
-    ]);
-    // Top-level nodes share an absent parent; siblings stay same-kind so an
-    // Article's siblings are Articles rather than every unparented node.
-    expect(article!.siblings.map((node) => node.label)).toEqual(["art1", "art3"]);
-  });
-
-  it("returns null for a label the skeleton does not carry", () => {
-    expect(nodeNeighbourhood(skeletonOf(AGREEMENT), "sec9.99")).toBeNull();
-  });
-});
-
-describe("nodeLinks", () => {
-  it("separates what a provision points at from what points at it", () => {
-    const skeleton = skeletonOf(AGREEMENT);
-    const graph = crossReferenceGraph(AGREEMENT, "fixture", { skeleton });
-    const links = nodeLinks(graph, "sec2.01");
-    expect(links.outgoing.map((edge) => edge.targetLabel)).toEqual(["sec3.02"]);
-    expect(links.incoming.map((edge) => edge.sourceLabel).sort()).toEqual([
-      "sec2.02",
-      "sec3.02",
-    ]);
-  });
-
-  it("never counts a self-reference as an inbound edge", () => {
-    const skeleton = skeletonOf(AGREEMENT);
-    const graph = crossReferenceGraph(AGREEMENT, "fixture", { skeleton });
-    expect(graph.edges.some((edge) => edge.selfLoop)).toBe(true);
-    for (const label of ["art1", "art2", "art3"]) {
-      expect(nodeLinks(graph, label).incoming).toEqual([]);
-    }
-  });
-});
-
-describe("referenceHubs", () => {
-  it("ranks the provisions the document points at most", () => {
-    const skeleton = skeletonOf(AGREEMENT);
-    const graph = crossReferenceGraph(AGREEMENT, "fixture", { skeleton });
-    expect(referenceHubs(graph)[0]).toEqual({ label: "sec2.01", incoming: 2 });
   });
 });

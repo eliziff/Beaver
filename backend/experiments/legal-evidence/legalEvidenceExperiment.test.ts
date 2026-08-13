@@ -13,7 +13,7 @@ vi.mock("../../src/lib/llm", async (importOriginal) => ({
 }));
 
 import type { A2AJDocument, A2AJLocatorLookup } from "../../src/lib/a2aj";
-import { fnv1a64 } from "../../src/lib/legalClaimLint";
+import { fnv1a64 } from "../../../experiments/legal_grounding_framing/legalClaimLint";
 import { createLegalEvidenceCitations } from "../../src/lib/chat/citations";
 import {
   attestedCharacterizationReceipt,

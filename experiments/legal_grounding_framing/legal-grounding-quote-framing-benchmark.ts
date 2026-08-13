@@ -34,7 +34,7 @@ import {
   createLegalEvidenceTurnState,
   deterministicClaimSupport,
   registerLegalEvidence,
-} from "../../backend/src/lib/chat/legalEvidenceExperiment";
+} from "../../backend/experiments/legal-evidence/legalEvidenceExperiment";
 import {
   courtlistenerLocalBulkAvailable,
   getLocalCourtlistenerCase,
@@ -49,7 +49,7 @@ import {
   contentWordCount,
   corpusAlienness,
   lintLegalClaim,
-} from "../../backend/src/lib/legalClaimLint";
+} from "./legalClaimLint";
 import { legalProviderDatabase } from "../../backend/src/lib/legalDataPath";
 
 const SCHEMA_VERSION = "beaver.quote-framing-benchmark.v1";

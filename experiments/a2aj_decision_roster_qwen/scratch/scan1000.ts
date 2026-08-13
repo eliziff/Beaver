@@ -4,7 +4,7 @@ async function main() {
   const runner = await import("../runner.ts");
   const a2ajLocalBulk = await import("../../../backend/src/lib/a2ajLocalBulk.ts");
   const a2aj = await import("../../../backend/src/lib/a2aj.ts");
-  const boundaries = await import("../../../backend/src/lib/legalOpinionBoundaries.ts");
+  const boundaries = await import("../../../backend/experiments/a2aj-decision-roster/legalOpinionBoundaries.ts");
 
   const started = performance.now();
   const candidates = runner.selectedCandidates(2, 1000, "SCC");

@@ -17,8 +17,8 @@ import {
   createLegalEvidenceTurnState,
   registerLegalEvidence,
   semanticClaimVerificationPass,
-} from "../../backend/src/lib/chat/legalEvidenceExperiment";
-import { receiptPath } from "../../backend/src/lib/experimentReceipts";
+} from "../../backend/experiments/legal-evidence/legalEvidenceExperiment";
+import { receiptPath } from "../../backend/experiments/receipt";
 import type { NormalizedLlmUsage } from "../../backend/src/lib/llm";
 
 type GoldLabel =

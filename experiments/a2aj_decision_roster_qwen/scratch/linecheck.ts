@@ -3,7 +3,7 @@
 import { withReadonlySqlite } from "../../../backend/src/lib/legalDataPath";
 import { a2ajLocalBulkPath } from "../../../backend/src/lib/a2ajLocalBulk";
 import { loadCase } from "../runner";
-import { analyzeOpinionStructure } from "../../../backend/src/lib/legalOpinionBoundaries";
+import { analyzeOpinionStructure } from "../../../backend/experiments/a2aj-decision-roster/legalOpinionBoundaries";
 
 async function candidateById(documentId: number) {
   return withReadonlySqlite(a2ajLocalBulkPath(), (database) => {
