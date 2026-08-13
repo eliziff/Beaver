@@ -4,6 +4,7 @@ import { requireAuth, requireMfaIfEnrolled } from "../middleware/auth";
 import {
     createServerSupabase,
 } from "../lib/supabase";
+import { recordAudit } from "../lib/audit";
 import {
     DEFAULT_TABULAR_MODEL,
     DEFAULT_TITLE_MODEL,
@@ -965,6 +966,12 @@ userRouter.get(
                 "Content-Disposition",
                 `attachment; filename="${userExportFilename("account", userId)}"`,
             );
+            void recordAudit(db, {
+                userId,
+                userEmail,
+                action: "export.account",
+                surface: "account",
+            });
             res.json(data);
         } catch (err) {
             const detail = errorMessage(err);
@@ -989,6 +996,12 @@ userRouter.get(
                 "Content-Disposition",
                 `attachment; filename="${userExportFilename("chats", userId)}"`,
             );
+            void recordAudit(db, {
+                userId,
+                userEmail,
+                action: "export.chats",
+                surface: "account",
+            });
             res.json(data);
         } catch (err) {
             const detail = errorMessage(err);
@@ -1020,6 +1033,12 @@ userRouter.get(
                 "Content-Disposition",
                 `attachment; filename="${userExportFilename("tabular-reviews", userId)}"`,
             );
+            void recordAudit(db, {
+                userId,
+                userEmail,
+                action: "export.tabular",
+                surface: "account",
+            });
             res.json(data);
         } catch (err) {
             const detail = errorMessage(err);

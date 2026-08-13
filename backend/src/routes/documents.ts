@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth";
 import { createServerSupabase } from "../lib/supabase";
+import { recordAudit } from "../lib/audit";
 import {
   buildContentDisposition,
   downloadFile,
@@ -1104,9 +1105,36 @@ export async function handleDocumentUpload(
           active_version_number: 1,
         }
       : updated;
+    void recordAudit(db, {
+      userId,
+      userEmail: res.locals.userEmail as string | undefined,
+      action: "document.uploaded",
+      title: filename,
+      surface: projectId
+        ? "project"
+        : options.libraryKind
+          ? "library"
+          : "assistant",
+      projectId,
+      documentId: docId,
+    });
     return void res.status(201).json(responseDoc);
   } catch (e) {
     await db.from("documents").update({ status: "error" }).eq("id", doc.id);
+    void recordAudit(db, {
+      userId,
+      userEmail: res.locals.userEmail as string | undefined,
+      action: "document.uploaded",
+      status: "failed",
+      title: filename,
+      surface: projectId
+        ? "project"
+        : options.libraryKind
+          ? "library"
+          : "assistant",
+      projectId,
+      documentId: doc.id as string,
+    });
     return void res
       .status(500)
       .json({ detail: `Document processing failed: ${String(e)}` });

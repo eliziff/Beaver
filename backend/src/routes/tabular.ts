@@ -2,6 +2,7 @@ import { Router, type Response } from "express";
 import { readFile } from "node:fs/promises";
 import { requireAuth } from "../middleware/auth";
 import { createServerSupabase } from "../lib/supabase";
+import { recordAudit } from "../lib/audit";
 import { downloadFile } from "../lib/storage";
 import {
     attachActiveVersionPaths,
@@ -265,6 +266,15 @@ tabularRouter.post("/", async (req, res) => {
     );
     if (cells.length) await db.from("tabular_cells").insert(cells);
 
+    void recordAudit(db, {
+        userId,
+        userEmail,
+        action: "tabular.created",
+        title: review.title ?? null,
+        surface: "tabular",
+        projectId: project_id ?? null,
+        reviewId: review.id,
+    });
     res.status(201).json(review);
 });
 
@@ -1308,9 +1318,30 @@ tabularRouter.post("/:reviewId/generate", async (req, res) => {
             }),
         );
 
+        void recordAudit(db, {
+            userId,
+            userEmail,
+            action: "tabular.generated",
+            title: review.title ?? null,
+            surface: "tabular",
+            projectId: review.project_id ?? null,
+            reviewId,
+            model: selectedModel,
+        });
         write("data: [DONE]\n\n");
     } catch (err) {
         console.error("[tabular/generate] stream error", safeErrorLog(err));
+        void recordAudit(db, {
+            userId,
+            userEmail,
+            action: "tabular.generated",
+            status: "failed",
+            title: review.title ?? null,
+            surface: "tabular",
+            projectId: review.project_id ?? null,
+            reviewId,
+            model: selectedModel,
+        });
         try {
             write(
                 `data: ${JSON.stringify({ type: "error", message: safeErrorMessage(err, "Stream error") })}\n\ndata: [DONE]\n\n`,

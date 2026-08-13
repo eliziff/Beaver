@@ -161,6 +161,7 @@ app.post("/projects/:projectId/documents", uploadLimiter);
 app.get("/user/export", exportLimiter);
 app.get("/user/chats/export", exportLimiter);
 app.get("/user/tabular-reviews/export", exportLimiter);
+if (!isAnonymousLocalMode()) app.get("/audit/export", exportLimiter);
 app.delete("/user/account", dataDeleteLimiter);
 app.delete("/user/chats", dataDeleteLimiter);
 app.delete("/user/projects", dataDeleteLimiter);
@@ -215,6 +216,12 @@ app.use(
     import("./routes/workflows").then((mod) => mod.workflowsRouter),
   ),
 );
+if (!isAnonymousLocalMode()) {
+  app.use(
+    "/audit",
+    lazyRouter(() => import("./routes/audit").then((mod) => mod.auditRouter)),
+  );
+}
 const localUserRouter = lazyRouter(() =>
   import("./routes/localUser").then((mod) => mod.localUserRouter),
   isAnonymousLocalMode(),
