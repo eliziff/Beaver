@@ -717,7 +717,9 @@ export async function getLocalVersionFiles(
   return new Map(databaseDocuments(database, userId, wanted).map((document) => {
     const version = activeVersion(document);
     return [document.id, { path: absoluteDataPath(version.storagePath),
-      fileType: version.fileType, filename: version.filename }];
+      fileType: version.fileType, filename: version.filename,
+      version: localVersionResponse(version),
+      hasPdfRendition: !!version.pdfStoragePath }];
   }));
 }
 

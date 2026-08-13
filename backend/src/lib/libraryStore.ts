@@ -26,6 +26,7 @@ export type LibraryStore = {
     parentFolderId: string | null;
     limit: number;
     after: [number, string, string] | null;
+    documentsOnly?: boolean;
   }): Promise<{
     items: LibraryPageItem[];
     nextAfter: [number, string, string] | null;

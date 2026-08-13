@@ -53,7 +53,7 @@ export const cloudLibraryStore = {
       p_library_kind: scope.kind,
       p_parent_id: options.parentFolderId,
       p_q: options.q,
-      p_documents_only: false,
+      p_documents_only: options.documentsOnly ?? false,
       p_after_bucket: options.after?.[0] ?? null,
       p_after_name: options.after?.[1] ?? null,
       p_after_id: options.after?.[2] ?? null,

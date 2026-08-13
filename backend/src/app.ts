@@ -31,11 +31,6 @@ function lazyRouter(load: () => Promise<Router>): RequestHandler {
   };
 }
 
-const localOrCloudRouter = (
-  local: () => Promise<Router>,
-  cloud: () => Promise<Router>,
-) => lazyRouter(() => (isAnonymousLocalMode() ? local() : cloud()));
-
 function envInt(name: string, fallback: number): number {
   const raw = process.env[name];
   if (!raw) return fallback;
@@ -180,10 +175,24 @@ app.use(
 );
 app.use(
   "/single-documents",
-  localOrCloudRouter(
-    () => import("./routes/localDocuments").then((mod) => mod.localDocumentsRouter),
-    () => import("./routes/documents").then((mod) => mod.documentsRouter),
-  ),
+  lazyRouter(async () => {
+    const { createDocumentsRouter } = await import("./routes/documentRoutes");
+    if (!isAnonymousLocalMode()) {
+      const [{ cloudLibraryStore }, { cloudDocuments }] = await Promise.all([
+        import("./lib/cloudLibraryStore"),
+        import("./lib/cloudDocumentStore"),
+      ]);
+      return createDocumentsRouter(cloudLibraryStore, cloudDocuments);
+    }
+    const [{ localLibraryStore, localDocuments },
+      { localDocumentExtensionsRouter }] = await Promise.all([
+      import("./lib/localLibraryStore"),
+      import("./routes/localDocuments"),
+    ]);
+    return localDocumentExtensionsRouter.use(
+      createDocumentsRouter(localLibraryStore, localDocuments),
+    );
+  }),
 );
 app.use(
   "/library/legal",

@@ -24,11 +24,17 @@ vi.mock("node:fs/promises", async (importOriginal) => ({
   readFile: mocks.readFile,
 }));
 
-import { localDocumentsRouter } from "./localDocuments";
+import { localDocuments, localLibraryStore } from "../lib/localLibraryStore";
+import { createDocumentsRouter } from "./documentRoutes";
+import { localDocumentExtensionsRouter } from "./localDocuments";
 
 const app = express();
 app.use(express.json());
-app.use("/single-documents", localDocumentsRouter);
+app.use("/single-documents", localDocumentExtensionsRouter);
+app.use(
+  "/single-documents",
+  createDocumentsRouter(localLibraryStore, localDocuments),
+);
 
 const handle = `mike-evidence:v1:${"a".repeat(64)}`;
 const file = {

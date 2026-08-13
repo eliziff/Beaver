@@ -93,7 +93,7 @@ backlog:
 | Legal Library | Lightweight A2AJ/journal pointers and a structured source viewer |
 | Table of Authorities | Shared data path, dependency bootstrap, browser UI, standalone host, and a Beaver sibling route |
 | Cloud continuity | Audit history, fresh-schema alignment, and explicit schema-drift protection remain available while local mode stays cloud-free |
-| Runtime shape | Lazy route imports, bounded structure caches, turn-scoped DOCX reuse, one shared local/cloud Library route contract, and legal-evidence experiment code outside production |
+| Runtime shape | Lazy route imports, bounded structure caches, turn-scoped DOCX reuse, shared local/cloud Library and document/version route contracts, and legal-evidence experiment code outside production |
 | UI | Beaver name, maple leaf identity, red accents, flat text-presentation symbols, visible model control, and separate effort control |
 
 The governed source baseline remains commit `02aff487` (247 files, 5,837
@@ -103,7 +103,7 @@ suite passes 1,347 tests with eight intentional skips at normal parallelism;
 the former three SQLite/DOCX timeouts are gone without raising a timeout.
 Generated local probes/corpora remain intentionally uncommitted, the nested
 PDF-engine worktree remains dirty, and the full release smoke and real
-local-Supabase Library contract have not yet been rerun, so this remains a
+local-Supabase Library/document contract have not yet been rerun, so this remains a
 development checkpoint rather than a release claim.
 
 ## Priority 0 — correctness, reliability, and measured performance

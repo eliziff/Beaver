@@ -52,10 +52,19 @@ describe("local document version replacement", () => {
         action: "created",
       },
     });
-    const { localDocumentsRouter } = await import("./localDocuments");
+    const [{ createDocumentsRouter }, { localLibraryStore, localDocuments },
+      { localDocumentExtensionsRouter }] = await Promise.all([
+      import("./documentRoutes"),
+      import("../lib/localLibraryStore"),
+      import("./localDocuments"),
+    ]);
     const app = express();
     app.use(express.json());
-    app.use("/single-documents", localDocumentsRouter);
+    app.use("/single-documents", localDocumentExtensionsRouter);
+    app.use("/single-documents", createDocumentsRouter(
+      localLibraryStore,
+      localDocuments,
+    ));
 
     const replacement = await request(app)
       .put(
@@ -132,10 +141,19 @@ describe("local document version replacement", () => {
         ],
       },
     });
-    const { localDocumentsRouter } = await import("./localDocuments");
+    const [{ createDocumentsRouter }, { localLibraryStore, localDocuments },
+      { localDocumentExtensionsRouter }] = await Promise.all([
+      import("./documentRoutes"),
+      import("../lib/localLibraryStore"),
+      import("./localDocuments"),
+    ]);
     const app = express();
     app.use(express.json());
-    app.use("/single-documents", localDocumentsRouter);
+    app.use("/single-documents", localDocumentExtensionsRouter);
+    app.use("/single-documents", createDocumentsRouter(
+      localLibraryStore,
+      localDocuments,
+    ));
 
     const accepted = await request(app).post(
       `/single-documents/${document.id}/edits/${editId}/accept`,
