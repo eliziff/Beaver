@@ -161,7 +161,14 @@ function assertLegacyInvariants(doc: SourceDoc, recording: Recording) {
       ]),
     ),
   );
-  for (const block of recording.blocks) {
+  const footnotes = doc.blocks.filter(({ kind }) => kind === "footnote");
+  for (const block of recording.blocks.filter(
+    ([kind, , start, end]) =>
+      kind !== "paragraph" ||
+      !footnotes.some(
+        (footnote) => start >= footnote.start && start < footnote.end,
+      ),
+  )) {
     expect(current.has(JSON.stringify(block))).toBe(true);
   }
 }
@@ -273,25 +280,30 @@ describe("native markup compilation", () => {
       id: "cluster-1",
       text: "",
       markup,
+      pageCitations: ["410 U.S. 113"],
     });
 
     expect(doc.ranges.paragraph.count).toBe(0);
-    expect(doc.ranges.page.count).toBe(2);
+    expect(doc.blocks.filter(({ kind }) => kind === "page")).toHaveLength(2);
     expect(
       lookupLegalSourceDoc(doc, "page", "410").block?.text,
     ).toContain("Distinctive reporter page passage");
+    expect(lookupLegalSourceDoc(doc, "page", "410 U.S. 410").status).toBe(
+      "found",
+    );
   });
 
   it("compiles CAP star pagination inline without breaking text flow", () => {
     const markup =
       '<article class="opinion"><p>The sentence continues across ' +
-      '<a id="p880" href="#p880" data-label="880" class="page-label">*880</a> ' +
+      '<a id="p880" href="#p880" data-label="880" data-citation-index="1" class="page-label">*880</a> ' +
       "the reporter page boundary without interruption.</p></article>";
     const doc = compileNativeMarkupSourceDoc({
       provider: "courtlistener",
       id: "cap-1",
       text: "",
       markup,
+      pageCitations: ["12 Example Reporter 875"],
     });
     expect(doc.text).toContain(
       "continues across *880 the reporter page boundary",
@@ -301,6 +313,62 @@ describe("native markup compilation", () => {
     expect(page.block?.anchor).toBe("p880");
     expect(page.block?.origin).toBe("native");
     expect(page.block?.text).toContain("*880 the reporter page");
+    expect(
+      lookupLegalSourceDoc(doc, "page", "12 Example Reporter 880").status,
+    ).toBe("found");
+    expect(lookupLegalSourceDoc(doc, "page", "p880").status).toBe("found");
+  });
+
+  it("uses star-pagination text rather than its sequence number", () => {
+    const doc = compileNativeMarkupSourceDoc({
+      provider: "courtlistener",
+      id: "tax-court",
+      text: "",
+      markup:
+        '<p>First.</p><span class="star-pagination" number="P2" pagescheme="T.C. Memo">*153</span>' +
+        '<p>Second.</p><span class="star-pagination">*Page 154</span><p>Third.</p>',
+    });
+
+    expect(lookupLegalSourceDoc(doc, "page", "153").block?.text).toContain(
+      "Second.",
+    );
+    expect(
+      lookupLegalSourceDoc(doc, "page", "T.C. Memo, at *153").status,
+    ).toBe("found");
+    expect(lookupLegalSourceDoc(doc, "page", "154").block?.text).toContain(
+      "Third.",
+    );
+    expect(lookupLegalSourceDoc(doc, "page", "P2").block).toBeNull();
+  });
+
+  it("keeps CAP reporter streams distinct and ignores pgmap scan coordinates", () => {
+    const markup =
+      '<article pgmap="372"><page-number label="Supp. 833" citation-index="1"></page-number>' +
+      '<p>Official reporter passage.</p><page-number label="536" citation-index="2"></page-number>' +
+      '<p>Parallel reporter passage.</p><span class="star-pagination" citation-index="2">*537</span>' +
+      '<p>Next parallel reporter passage.</p><footnote label="1">Quoted text ' +
+      '<page-number label="Supp. 833" citation-index="1"></page-number>from the prior page.</footnote>' +
+      '<footnote label="*">Reporter note <page-number label="536" citation-index="2"></page-number>' +
+      "from the prior parallel page.</footnote></article>";
+    const doc = compileNativeMarkupSourceDoc({
+      provider: "courtlistener",
+      id: "cap-parallel-pages",
+      text: "",
+      markup,
+      pageCitations: ["276 Cal. App. 2d 831", "80 Cal. Rptr. 534"],
+    });
+
+    expect(
+      lookupLegalSourceDoc(doc, "page", "276 Cal. App. 2d Supp. 833").status,
+    ).toBe("found");
+    expect(
+      lookupLegalSourceDoc(doc, "page", "80 Cal. Rptr. 536").status,
+    ).toBe("found");
+    expect(
+      lookupLegalSourceDoc(doc, "page", "80 Cal. Rptr. 537").status,
+    ).toBe("found");
+    expect(doc.blocks.filter(({ kind }) => kind === "page")).toHaveLength(3);
+    expect(lookupLegalSourceDoc(doc, "page", "372").status).toBe("not_found");
   });
 
   it("compiles CAP footnote asides to native footnote blocks", () => {
@@ -320,6 +388,37 @@ describe("native markup compilation", () => {
     expect(footnote.block?.label).toBe("fn2");
     expect(footnote.block?.anchor).toBe("footnote_1_2");
     expect(footnote.block?.text).toContain("distinctive footnote body");
+    expect(
+      lookupLegalSourceDoc(doc, "footnote", "footnote_1_2").status,
+    ).toBe("found");
+  });
+
+  it("uses CourtListener footnote containers and their supplied markers", () => {
+    const markup =
+      '<div id="fn_fnote1"><p>Classless ID footnote.</p></div>' +
+      '<div class="fn-footnote"><p><sup>2</sup> Supplied marker footnote.</p></div>' +
+      '<footnote_body><sup id="fn3">[3]</sup> Footnote-body text.</footnote_body>' +
+      '<footnote label="*">Symbol note <page-number label="99"></page-number>without a main page.</footnote>';
+    const doc = compileNativeMarkupSourceDoc({
+      provider: "courtlistener",
+      id: "courtlistener-footnote-forms",
+      text: "",
+      markup,
+    });
+
+    expect(lookupLegalSourceDoc(doc, "footnote", "1").block?.text).toContain(
+      "Classless ID footnote",
+    );
+    expect(lookupLegalSourceDoc(doc, "footnote", "2").block?.text).toContain(
+      "Supplied marker footnote",
+    );
+    expect(lookupLegalSourceDoc(doc, "footnote", "3").block?.text).toContain(
+      "Footnote-body text",
+    );
+    expect(
+      lookupLegalSourceDoc(doc, "footnote", "footnote *").block?.text,
+    ).toContain("Symbol note");
+    expect(lookupLegalSourceDoc(doc, "page", "99").status).toBe("unavailable");
   });
 
   it("compiles TNA lvl_N levels to native section blocks", () => {
@@ -366,11 +465,11 @@ describe("native markup compilation", () => {
     expect(nativeMarkupCitedRefs("<p>no refs here</p>")).toEqual([]);
   });
 
-  it("reconstructs numbered paragraphs when markup has no native locators", () => {
+  it("reconstructs CourtListener pilcrow paragraphs without native locators", () => {
     const markup = Array.from(
       { length: 5 },
       (_, index) =>
-        `<p>[${index + 1}] Paragraph ${index + 1} contains enough substantive judicial words for reliable structural reconstruction.</p>`,
+        `<p>¶ ${index + 1} Paragraph ${index + 1} contains enough substantive judicial words for reliable structural reconstruction and repeats the court's reasoning in a complete source passage.</p>`,
     ).join("");
     const doc = compileNativeMarkupSourceDoc({
       provider: "courtlistener",
@@ -385,6 +484,27 @@ describe("native markup compilation", () => {
     expect(lookup.block?.text).toContain("Paragraph 4");
     expect(doc.ranges.section.count).toBe(0);
     expect(summarizeLegalSourceDoc(doc).source).toBe("flat_text");
+  });
+
+  it("uses CourtListener numbered divs as native paragraphs", () => {
+    const markup = [1, 2, 3]
+      .map(
+        (number) =>
+          `<div class="num" id="p${number}"><span class="num">${number}</span><p>Provider paragraph ${number}.</p></div>`,
+      )
+      .join("");
+    const doc = compileNativeMarkupSourceDoc({
+      provider: "courtlistener",
+      id: "courtlistener-native-paragraphs",
+      text: "",
+      markup,
+    });
+
+    expect(lookupLegalSourceDoc(doc, "paragraph", "2").block).toMatchObject({
+      label: "par2",
+      anchor: "p2",
+      origin: "native",
+    });
   });
 
   it("recovers CourtListener's exact marker variants but fences HTML footnotes", () => {

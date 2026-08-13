@@ -47,7 +47,7 @@ export type CourtlistenerToolEvent =
   | {
       type: "courtlistener_lookup_case_locator";
       cluster_id: number | null;
-      locator_type: "paragraph" | "page" | "section";
+      locator_type: "paragraph" | "page" | "section" | "footnote";
       locator: string;
       status: string;
       error?: string;
@@ -79,7 +79,7 @@ export const COURTLISTENER_TOOL_NAMES = {
 } as const;
 
 export const COURTLISTENER_SYSTEM_PROMPT = `US CASE LAW RESEARCH:
-Use CourtListener for US-law questions that need case law. Verify reporter citations with courtlistener_verify_citations (clean citations only, never case names), fetch matched clusters with courtlistener_get_cases, then take cite-worthy text from courtlistener_find_in_case, or courtlistener_lookup_case_locator for a numbered paragraph, reporter page, or section. Read whole opinions with courtlistener_read_case only when snippets are not enough, and only the opinion_id/opinionIds needed.
+Use CourtListener for US-law questions that need case law. Verify reporter citations with courtlistener_verify_citations (clean citations only, never case names), fetch matched clusters with courtlistener_get_cases, then take cite-worthy text from courtlistener_find_in_case, or courtlistener_lookup_case_locator for a numbered paragraph, page, section, or footnote. Read whole opinions with courtlistener_read_case only when snippets are not enough, and only the opinion_id/opinionIds needed.
 
 Citation rules:
 - Cite a case only from opinion text or snippets supplied in this turn — never from memory, metadata, search results, citationLinks, or verification results. If you have no text for a useful case, fetch or read it, or say you could not read it and do not rely on it.
@@ -167,7 +167,7 @@ export const COURTLISTENER_TOOLS = [
     function: {
       name: COURTLISTENER_TOOL_NAMES.lookupCaseLocator,
       description:
-        "Look up one numbered paragraph, reporter page, or section in an already-fetched CourtListener case. Returns only that block plus optional neighboring context; native structure is used when present and reconstructed otherwise.",
+        "Look up one provider-backed paragraph, page, section, or footnote in an already-fetched CourtListener case. Returns only that block plus optional neighboring context.",
       parameters: {
         type: "object",
         properties: {
@@ -183,12 +183,12 @@ export const COURTLISTENER_TOOLS = [
           },
           locator_type: {
             type: "string",
-            enum: ["paragraph", "page", "section"],
+            enum: ["paragraph", "page", "section", "footnote"],
           },
           locator: {
             type: "string",
             description:
-              "Locator such as paragraph 54, page 410, or section 2.",
+              "Locator such as paragraph 54, page 410, section 2, or footnote 3.",
           },
           context_blocks: {
             type: "integer",

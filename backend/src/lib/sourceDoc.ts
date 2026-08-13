@@ -240,7 +240,11 @@ export function createSourceDoc(args: {
   const index = new Map<string, number>();
   const duplicates = new Set<string>();
   blocks.forEach((block, position) => {
-    for (const label of [block.label, ...(block.aliases ?? [])]) {
+    for (const label of new Set(
+      [block.label, ...(block.aliases ?? []), block.anchor].filter(
+        (value): value is string => Boolean(value),
+      ),
+    )) {
       const key = label.toLowerCase();
       if (index.has(key)) duplicates.add(key);
       else index.set(key, position);
