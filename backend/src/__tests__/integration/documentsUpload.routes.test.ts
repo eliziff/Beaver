@@ -1,9 +1,28 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import request from "supertest";
 import { createSupabaseStub } from "../helpers/supabaseStub";
 
+const mocks = vi.hoisted(() => ({
+    successfulUpload: false,
+    docxToPdf: vi.fn(async () => Buffer.from("%PDF preview")),
+}));
+
 vi.mock("../../lib/supabase", () => ({
-    createServerSupabase: vi.fn(() => createSupabaseStub()),
+    createServerSupabase: vi.fn(() => createSupabaseStub({
+        result: (table) => mocks.successfulUpload
+            ? {
+                data: table === "documents"
+                    ? { id: "document-1", library_folder_id: null }
+                    : { id: "version-1" },
+                error: null,
+            }
+            : { data: null, error: null },
+    })),
+}));
+
+vi.mock("../../lib/convert", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("../../lib/convert")>()),
+    docxToPdf: mocks.docxToPdf,
 }));
 
 vi.mock("../../middleware/auth", () => ({
@@ -36,7 +55,28 @@ vi.mock("../../lib/storage", async (importOriginal) => {
 
 import { app } from "../../app";
 
+afterEach(() => {
+    mocks.successfulUpload = false;
+    mocks.docxToPdf.mockClear();
+});
+
 describe("POST /single-documents — upload validation", () => {
+    it("defers an Office rendition until display requests it", async () => {
+        mocks.successfulUpload = true;
+        const res = await request(app)
+            .post("/single-documents")
+            .set("Authorization", "Bearer test")
+            .attach("file", Buffer.from("docx bytes"), {
+                filename: "draft.docx",
+                contentType:
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            });
+
+        expect(res.status).toBe(201);
+        expect(res.body.pdf_storage_path).toBeNull();
+        expect(mocks.docxToPdf).not.toHaveBeenCalled();
+    });
+
     it("rejects an unsupported file extension with 400", async () => {
         const res = await request(app)
             .post("/single-documents")
