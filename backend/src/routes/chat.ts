@@ -4,6 +4,7 @@ import { createWriteStream } from "node:fs";
 import { requireAuth } from "../middleware/auth";
 import { createServerSupabase } from "../lib/supabase";
 import { isAnonymousLocalMode } from "../lib/localMode";
+import { recordChatTurn } from "../lib/audit";
 import {
   formatChatMessageContent,
   parseAskInputsResponsePayload,
@@ -3698,7 +3699,8 @@ chatRouter.post("/", async (req, res) => {
       eventCount: events?.length ?? 0,
     });
 
-    await persistAssistantTurn(stripTransientAssistantEvents(events), citations);
+    const persistedEvents = stripTransientAssistantEvents(events);
+    await persistAssistantTurn(persistedEvents, citations);
 
     if (!chatTitle && lastUser?.content) {
       await db
@@ -3707,9 +3709,34 @@ chatRouter.post("/", async (req, res) => {
         .eq("id", chatId)
         .is("deleted_at", null);
     }
+    void recordChatTurn(
+      db,
+      {
+        userId,
+        userEmail,
+        chatId,
+        projectId: resolvedProjectId,
+        title: chatTitle ?? lastUser?.content?.slice(0, 120) ?? null,
+        model: selectedModel,
+      },
+      persistedEvents,
+    );
   } catch (err) {
     if (isAbortError(err)) {
       devLog("[chat/stream] client aborted stream", { chatId });
+      void recordChatTurn(
+        db,
+        {
+          userId,
+          userEmail,
+          chatId,
+          projectId: resolvedProjectId,
+          title: chatTitle ?? lastUser?.content?.slice(0, 120) ?? null,
+          model: selectedModel,
+          status: "cancelled",
+        },
+        null,
+      );
       if (err instanceof AssistantStreamError) {
         const partial = buildCancelledAssistantMessage({
           events: err.events,
@@ -3740,6 +3767,19 @@ chatRouter.post("/", async (req, res) => {
     } catch (saveErr) {
       console.error("[chat/stream] failed to save error", saveErr);
     }
+    void recordChatTurn(
+      db,
+      {
+        userId,
+        userEmail,
+        chatId,
+        projectId: resolvedProjectId,
+        title: chatTitle ?? lastUser?.content?.slice(0, 120) ?? null,
+        model: selectedModel,
+        status: "failed",
+      },
+      null,
+    );
     try {
       write(`data: ${JSON.stringify({ type: "error", message })}\n\n`);
       write("data: [DONE]\n\n");

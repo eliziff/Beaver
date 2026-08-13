@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState, type DragEvent } from "react";import { BookOpenText, PanelLeft, Settings, Trash2 } from "lucide-react";
+import { lazy, Suspense, useEffect, useRef, useState, type DragEvent } from "react";import { BookOpenText, History, PanelLeft, Settings, Trash2 } from "lucide-react";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -12,6 +12,7 @@ import {
 } from "@/app/components/shared/AppSidebarSkeuoIcons";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import { cn } from "@/app/lib/utils";
+import { isAnonymousMode } from "@/app/lib/authMode";
 import {
   APP_SURFACE_ACTIVE_CLASS,
   APP_SURFACE_HOVER_CLASS,
@@ -34,6 +35,9 @@ const NAV_ITEMS = [
     icon: TabularReviewSkeuoIcon,
   },
   { href: "/workflows", label: "Workflows", icon: WorkflowSkeuoIcon },
+  ...(!isAnonymousMode
+    ? [{ href: "/history", label: "History", icon: History }]
+    : []),
 ];
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
