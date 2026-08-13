@@ -313,17 +313,6 @@ function xmlEscape(value: unknown) {
     .replace(/'/g, "&apos;");
 }
 
-function excelColumnName(index: number) {
-  let n = index + 1;
-  let name = "";
-  while (n > 0) {
-    const mod = (n - 1) % 26;
-    name = String.fromCharCode(65 + mod) + name;
-    n = Math.floor((n - mod) / 26);
-  }
-  return name;
-}
-
 function normalizeSheetName(value: unknown, fallback: string) {
   const raw =
     typeof value === "string" && value.trim() ? value.trim() : fallback;
@@ -346,14 +335,17 @@ function normalizeRows(rows: unknown, colCount: number) {
     );
 }
 
-async function buildXlsxWorkbook(title: string, sheetsInput: unknown[]) {
-  const JSZip = (await import("jszip")).default;
-  const zip = new JSZip();
+export async function renderXlsxWorkbook(
+  title: string,
+  sheetsInput: unknown[],
+) {
+  const XLSX = await import("xlsx");
+  const workbook = XLSX.utils.book_new();
+  workbook.Props = { Title: title, Author: "Beaver" };
   const sheets = sheetsInput.length
     ? sheetsInput
     : [{ name: title, columns: [], rows: [] }];
-
-  const normalizedSheets = sheets.map((sheet, index) => {
+  sheets.forEach((sheet, index) => {
     const raw = (sheet && typeof sheet === "object" ? sheet : {}) as {
       name?: unknown;
       columns?: unknown;
@@ -362,111 +354,24 @@ async function buildXlsxWorkbook(title: string, sheetsInput: unknown[]) {
     const columns = Array.isArray(raw.columns)
       ? raw.columns.map((col) => String(col ?? "")).filter((col) => col.trim())
       : [];
-    const fallbackColumns = columns.length ? columns : ["Value"];
-    return {
-      name: normalizeSheetName(raw.name, `Sheet ${index + 1}`),
-      columns: fallbackColumns,
-      rows: normalizeRows(raw.rows, fallbackColumns.length),
-    };
-  });
-
-  zip.file(
-    "[Content_Types].xml",
-    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
-  <Default Extension="xml" ContentType="application/xml"/>
-  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
-  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
-  <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
-${normalizedSheets
-  .map(
-    (_, i) =>
-      `  <Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`,
-  )
-  .join("\n")}
-</Types>`,
-  );
-  zip.file(
-    "_rels/.rels",
-    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
-  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
-  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>
-</Relationships>`,
-  );
-  zip.file(
-    "docProps/core.xml",
-    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-  <dc:title>${xmlEscape(title)}</dc:title>
-  <dc:creator>Beaver</dc:creator>
-  <cp:lastModifiedBy>Beaver</cp:lastModifiedBy>
-  <dcterms:created xsi:type="dcterms:W3CDTF">${new Date().toISOString()}</dcterms:created>
-  <dcterms:modified xsi:type="dcterms:W3CDTF">${new Date().toISOString()}</dcterms:modified>
-</cp:coreProperties>`,
-  );
-  zip.file(
-    "docProps/app.xml",
-    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
-  <Application>Beaver</Application>
-</Properties>`,
-  );
-  zip.file(
-    "xl/workbook.xml",
-    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-  <sheets>
-${normalizedSheets
-  .map(
-    (sheet, i) =>
-      `    <sheet name="${xmlEscape(sheet.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`,
-  )
-  .join("\n")}
-  </sheets>
-</workbook>`,
-  );
-  zip.file(
-    "xl/_rels/workbook.xml.rels",
-    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-${normalizedSheets
-  .map(
-    (_, i) =>
-      `  <Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`,
-  )
-  .join("\n")}
-</Relationships>`,
-  );
-
-  for (const [sheetIndex, sheet] of normalizedSheets.entries()) {
-    const allRows = [sheet.columns, ...sheet.rows];
-    const rowXml = allRows
-      .map((row, rowIndex) => {
-        const rowNumber = rowIndex + 1;
-        const cellXml = row
-          .map((value, colIndex) => {
-            const ref = `${excelColumnName(colIndex)}${rowNumber}`;
-            return `<c r="${ref}" t="inlineStr"><is><t>${xmlEscape(value)}</t></is></c>`;
-          })
-          .join("");
-        return `<row r="${rowNumber}">${cellXml}</row>`;
-      })
-      .join("");
-    const lastRef = `${excelColumnName(Math.max(sheet.columns.length - 1, 0))}${Math.max(allRows.length, 1)}`;
-    zip.file(
-      `xl/worksheets/sheet${sheetIndex + 1}.xml`,
-      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-  <dimension ref="A1:${lastRef}"/>
-  <sheetData>${rowXml}</sheetData>
-</worksheet>`,
+    const header = columns.length ? columns : ["Value"];
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.aoa_to_sheet([
+        header,
+        ...normalizeRows(raw.rows, header.length),
+      ]),
+      normalizeSheetName(raw.name, `Sheet ${index + 1}`),
+      true,
     );
-  }
-
-  return zip.generateAsync({ type: "nodebuffer" });
+  });
+  return Buffer.from(
+    XLSX.write(workbook, {
+      type: "buffer",
+      bookType: "xlsx",
+      compression: true,
+    }),
+  );
 }
 
 function pptTextParagraphs(lines: string[], opts: { title?: boolean } = {}) {
@@ -765,7 +670,7 @@ export async function generateExcel(
 ) {
   try {
     const normalizedTitle = typeof title === "string" ? title : "Workbook";
-    const buffer = await buildXlsxWorkbook(
+    const buffer = await renderXlsxWorkbook(
       normalizedTitle,
       Array.isArray(sheets) ? sheets : [],
     );
