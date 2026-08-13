@@ -13,6 +13,7 @@ export type LocalCourtlistenerCluster = {
   caseNameFull: string | null;
   slug: string | null;
   dateFiled: string | null;
+  filepathJsonHarvard: string | null;
   filepathPdfHarvard: string | null;
 };
 
@@ -44,16 +45,22 @@ export type LocalCourtlistenerCase = {
 
 type Row = Record<string, unknown>;
 
-const CLUSTER_COLUMNS = `
-  id, case_name, case_name_short, case_name_full, slug, date_filed,
-  filepath_pdf_harvard
-`;
-
 const JOINED_CLUSTER_COLUMNS = `
   cluster.id, cluster.case_name, cluster.case_name_short,
   cluster.case_name_full, cluster.slug, cluster.date_filed,
   cluster.filepath_pdf_harvard
 `;
+
+function clusterColumns(database: DatabaseSync) {
+  const hasHarvardJson = database
+    .prepare(
+      "SELECT 1 FROM pragma_table_info('cluster') WHERE name = 'filepath_json_harvard'",
+    )
+    .get();
+  return `id, case_name, case_name_short, case_name_full, slug, date_filed,
+    ${hasHarvardJson ? "filepath_json_harvard" : "NULL AS filepath_json_harvard"},
+    filepath_pdf_harvard`;
+}
 
 function courtlistenerLocalBulkPath() {
   const configured = process.env.MIKE_COURTLISTENER_BULK_DB?.trim();
@@ -111,6 +118,7 @@ function cluster(row: Row): LocalCourtlistenerCluster {
     caseNameFull: nullableString(row.case_name_full),
     slug: nullableString(row.slug),
     dateFiled: nullableString(row.date_filed),
+    filepathJsonHarvard: nullableString(row.filepath_json_harvard),
     filepathPdfHarvard: nullableString(row.filepath_pdf_harvard),
   };
 }
@@ -177,7 +185,7 @@ export function getLocalCourtlistenerCase(
   if (!Number.isFinite(id) || id <= 0) return null;
   return withDatabase((database) => {
     const clusterRow = database
-      .prepare(`SELECT ${CLUSTER_COLUMNS} FROM cluster WHERE id = ?`)
+      .prepare(`SELECT ${clusterColumns(database)} FROM cluster WHERE id = ?`)
       .get(id) as Row | undefined;
     if (!clusterRow) return null;
     const citations = database

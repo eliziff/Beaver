@@ -482,6 +482,8 @@ async function execute(
     const kind =
       args.locator_type === "page"
         ? "page"
+        : args.locator_type === "footnote"
+          ? "footnote"
         : args.locator_type === "section"
           ? "section"
           : "paragraph";

@@ -160,11 +160,64 @@ function citationLabel(citation: unknown): string | null {
   return [volume, reporter, page].filter(Boolean).join(" ") || null;
 }
 
+const CAP_CITATION_ORDER = new Map(
+  ["official", "nominative", "parallel", "vendor"].map((type, index) => [
+    type,
+    index,
+  ]),
+);
+
+async function capPageCitations(filepath: string | null | undefined) {
+  const value = filepath?.trim();
+  const archivePrefix = "https://archive.org/download/";
+  const path = value?.startsWith(archivePrefix)
+    ? value.slice(archivePrefix.length)
+    : value?.replace(/^\/+/, "");
+  if (!path || path.includes("..") || !/^[\w./-]+\.json$/u.test(path)) return [];
+  const url = `https://archive.org/download/${path}`;
+  try {
+    const data = await cachedContent<JsonRecord>({
+      scope: "shared",
+      kind: "courtlistener-cap-metadata",
+      key: url,
+      version: 1,
+      produce: async () => {
+        const response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+        if (!response.ok) throw new Error(`CAP metadata error (${response.status})`);
+        return response.json() as Promise<JsonRecord>;
+      },
+    });
+    return (Array.isArray(data.citations) ? data.citations : [])
+      .map((value, index) => ({
+        cite: asString((value as JsonRecord)?.cite),
+        type: asString((value as JsonRecord)?.type),
+        index,
+      }))
+      .filter(
+        (value): value is { cite: string; type: string | null; index: number } =>
+          !!value.cite,
+      )
+      .sort(
+        (left, right) =>
+          (CAP_CITATION_ORDER.get(left.type ?? "") ?? 99) -
+            (CAP_CITATION_ORDER.get(right.type ?? "") ?? 99) ||
+          left.index - right.index,
+      )
+      .map(({ cite }) => cite);
+  } catch (error) {
+    devLog("[courtlistener/cap-metadata] unavailable", {
+      path,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return [];
+  }
+}
+
 function compactCluster(raw: unknown) {
   if (!raw || typeof raw !== "object") {
     return {
       id: null, caseName: null, dateFiled: null, court: null,
-      citations: [], url: null, subOpinions: [],
+      citations: [], url: null, pdfUrl: null, subOpinions: [],
     };
   }
   const cluster = raw as JsonRecord;
@@ -198,54 +251,47 @@ function attachOpinionStructure(
   text: string | null,
   markup: string | null,
   maxChars: number,
+  pageCitations: string[],
 ) {
   if (!text) return;
-  const structure = compileNativeMarkupSourceDoc({
+  const compiled = compileNativeMarkupSourceDoc({
     provider: "courtlistener",
     id: compacted.opinionId === null ? "" : String(compacted.opinionId),
     url: compacted.url,
     text,
     markup,
+    pageCitations,
   });
-  compacted.text = truncate(structure.text, maxChars);
-  opinionDocumentTexts.set(compacted, structure.text);
-  opinionStructures.set(compacted, structure);
+  compacted.text = truncate(compiled.text, maxChars);
+  opinionDocumentTexts.set(compacted, compiled.text);
+  opinionStructures.set(compacted, compiled);
 }
 
-function compactOpinion(opinion: JsonRecord, maxChars: number) {
-  const rawHtml = firstString(
-    opinion,
-    "htmlWithCitations",
-    "html_with_citations",
-    "html",
-    "htmlLawbox",
-    "html_lawbox",
-    "htmlColumbia",
-    "html_columbia",
-    "htmlWithCitationsLawbox",
-    "html_with_citations_lawbox",
-    "xmlHarvard",
-    "xml_harvard",
-    "xmlLawbox",
-    "xml_lawbox",
-  );
+function compactOpinion(
+  opinion: JsonRecord,
+  maxChars: number,
+  pageCitations: string[] = [],
+) {
+  // CourtListener uses html_with_citations on its own opinion pages and
+  // documents it as the preferred rendition. Compile, display, and search
+  // that one string so locator offsets cannot drift across representations.
   const rawMarkup = firstString(
     opinion,
-    "xmlHarvard",
-    "xml_harvard",
     "htmlWithCitations",
     "html_with_citations",
-    "html",
-    "htmlLawbox",
-    "html_lawbox",
+    "xmlHarvard",
+    "xml_harvard",
     "htmlColumbia",
     "html_columbia",
+    "htmlLawbox",
+    "html_lawbox",
     "htmlAnon2020",
     "html_anon_2020",
+    "html",
   );
-  const rawText = firstString(opinion, "plainText", "plain_text") ?? rawHtml;
+  const rawText = rawMarkup ?? firstString(opinion, "plainText", "plain_text");
   const text = stripOpinionMarkup(rawText);
-  const html = sanitizeOpinionHtml(rawHtml);
+  const html = sanitizeOpinionHtml(rawMarkup);
   const compacted = {
     opinionId:
       asNumber(opinion.opinionId) ??
@@ -259,11 +305,17 @@ function compactOpinion(opinion: JsonRecord, maxChars: number) {
     per_curiam: asString(opinion.per_curiam),
     joined_by_str: asString(opinion.joined_by_str),
     url: absoluteWebUrl(opinion.absolute_url ?? opinion.url),
+    pdfUrl: absoluteStorageUrl(opinion.localPath ?? opinion.local_path),
     text: truncate(text, maxChars),
     html: truncate(html, maxChars),
   };
-  attachOpinionStructure(compacted, text, rawMarkup, maxChars);
+  attachOpinionStructure(compacted, text, rawMarkup, maxChars, pageCitations);
   return compacted;
+}
+
+function uniqueOpinionPdfUrl(opinions: Array<{ pdfUrl: string | null }>) {
+  const urls = [...new Set(opinions.map(({ pdfUrl }) => pdfUrl).filter(Boolean))];
+  return urls.length === 1 ? urls[0]! : null;
 }
 
 export function getCourtlistenerOpinionDocumentText(opinion: object) {
@@ -293,6 +345,14 @@ async function fetchCaseOpinionsFromCourtlistenerOpinionsEndpoint(args: {
   apiToken?: string | null;
 }) {
   const MAX_OPINION_PAGES = 10;
+  const cluster = await courtlistenerFetch<JsonRecord>(
+    `/clusters/${args.clusterId}/`,
+    undefined,
+    args.apiToken,
+  );
+  const pageCitations = await capPageCitations(
+    asString(cluster.filepath_json_harvard),
+  );
   const opinions: ReturnType<typeof compactOpinion>[] = [];
   const rawOpinions: JsonRecord[] = [];
   let nextUrl: string | null = `/opinions/?cluster=${args.clusterId}`;
@@ -322,6 +382,7 @@ async function fetchCaseOpinionsFromCourtlistenerOpinionsEndpoint(args: {
       const compacted = compactOpinion(
         opinion,
         Math.max(1, Math.min(opinionMaxChars, remainingChars)),
+        pageCitations,
       );
       rawOpinions.push(opinion);
       opinions.push(compacted);
@@ -334,8 +395,13 @@ async function fetchCaseOpinionsFromCourtlistenerOpinionsEndpoint(args: {
   return {
     id: args.clusterId,
     url:
+      absoluteWebUrl(cluster.absolute_url) ??
       absoluteWebUrl(rawOpinions[0]?.absolute_url) ??
       `${COURTLISTENER_WEB_BASE}/opinion/${args.clusterId}/`,
+    pdfUrl:
+      absoluteStorageUrl(cluster.filepath_pdf_harvard) ??
+      absoluteStorageUrl(cluster.filepath_pdf_scan) ??
+      uniqueOpinionPdfUrl(opinions),
     opinions,
     source: "api",
   };
@@ -547,6 +613,7 @@ function compactBulkCluster(cluster: JsonRecord, citations: string[] = []) {
 function compactLocalBulkCluster(
   cluster: LocalCourtlistenerCluster,
   citations: string[] = [],
+  opinions: Array<{ pdfUrl: string | null }> = [],
 ) {
   return {
     id: cluster.id,
@@ -557,7 +624,9 @@ function compactLocalBulkCluster(
     url: cluster.slug
       ? `${COURTLISTENER_WEB_BASE}/opinion/${cluster.id}/${cluster.slug}/`
       : `${COURTLISTENER_WEB_BASE}/opinion/${cluster.id}/`,
-    pdfUrl: absoluteStorageUrl(cluster.filepathPdfHarvard),
+    pdfUrl:
+      absoluteStorageUrl(cluster.filepathPdfHarvard) ??
+      uniqueOpinionPdfUrl(opinions),
     subOpinions: [],
   };
 }
@@ -859,11 +928,15 @@ async function getBulkCourtlistenerCaseOpinions(args: {
 }) {
   const local = getLocalCourtlistenerCase(args.clusterId);
   if (local) {
+    const pageCitations = await capPageCitations(
+      local.cluster.filepathJsonHarvard,
+    );
+    const opinions = local.opinions.map((opinion) =>
+      compactLocalOpinion(opinion, args.maxChars, pageCitations),
+    );
     return {
-      ...compactLocalBulkCluster(local.cluster, local.citations),
-      opinions: local.opinions.map((opinion) =>
-        compactLocalOpinion(opinion, args.maxChars),
-      ),
+      ...compactLocalBulkCluster(local.cluster, local.citations, opinions),
+      opinions,
       source: "bulk-local",
     };
   }
@@ -914,18 +987,20 @@ async function getBulkCourtlistenerCaseOpinions(args: {
 
   let compactCluster:
     | ReturnType<typeof compactBulkCluster>
-    | { id: number; url: string | null } = {
+    | { id: number; url: string | null; pdfUrl: string | null } = {
     id: args.clusterId,
     url:
       absoluteWebUrl(rawOpinions[0]?.url) ??
       absoluteWebUrl(rawOpinions[0]?.absolute_url) ??
       `${COURTLISTENER_WEB_BASE}/opinion/${args.clusterId}/`,
+    pdfUrl: null,
   };
+  let filepathJsonHarvard: string | null = null;
   if (args.db) {
     const { data: cluster, error } = await args.db
       .from("courtlistener_opinion_cluster_index")
       .select(
-        "id, case_name, case_name_short, case_name_full, slug, date_filed, filepath_pdf_harvard",
+        "id, case_name, case_name_short, case_name_full, slug, date_filed, filepath_json_harvard, filepath_pdf_harvard",
       )
       .eq("id", args.clusterId)
       .maybeSingle();
@@ -934,6 +1009,7 @@ async function getBulkCourtlistenerCaseOpinions(args: {
         clusterId: args.clusterId, error: error.message,
       });
     } else if (cluster) {
+      filepathJsonHarvard = asString(cluster.filepath_json_harvard);
       const { data: citationRows } = await args.db
         .from("courtlistener_citation_index")
         .select("volume, reporter, page")
@@ -952,14 +1028,14 @@ async function getBulkCourtlistenerCaseOpinions(args: {
     }
   }
 
+  const pageCitations = await capPageCitations(filepathJsonHarvard);
+  const opinions = rawOpinions.map((opinion) =>
+    compactOpinion(opinion, args.maxChars, pageCitations),
+  );
   return {
     ...compactCluster,
-    opinions: rawOpinions
-      .filter(
-        (opinion): opinion is JsonRecord =>
-          !!opinion && typeof opinion === "object" && !Array.isArray(opinion),
-      )
-      .map((opinion) => compactOpinion(opinion, args.maxChars)),
+    pdfUrl: compactCluster.pdfUrl ?? uniqueOpinionPdfUrl(opinions),
+    opinions,
     source: "bulk",
   };
 }
@@ -967,6 +1043,7 @@ async function getBulkCourtlistenerCaseOpinions(args: {
 function compactLocalOpinion(
   opinion: LocalCourtlistenerOpinion,
   maxChars: number,
+  pageCitations: string[],
 ) {
   return compactOpinion(
     {
@@ -989,6 +1066,7 @@ function compactLocalOpinion(
       html_with_citations: opinion.htmlWithCitations,
     },
     maxChars,
+    pageCitations,
   );
 }
 

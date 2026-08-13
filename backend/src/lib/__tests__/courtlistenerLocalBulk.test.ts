@@ -28,7 +28,16 @@ describe("local CourtListener bulk data", () => {
     const opinions = path.join(temporaryDirectory, "opinions.csv");
     const canonicalOpinionText =
       `[1] ${"Canonical native opinion text supplies the source rendition. ".repeat(30)}`.trim();
-    const canonicalOpinionMarkup = `<p>${canonicalOpinionText}</p>`;
+    const canonicalOpinionMarkup = [
+      `<div class="num" id="p1"><span class="num">1</span><p>${canonicalOpinionText}</p></div>`,
+      '<page-number label="457" citation-index="1"></page-number>',
+      "<p>Reporter-qualified pinpoint passage.</p>",
+      ...Array.from(
+        { length: 4 },
+        (_, index) =>
+          `<p>[${index + 2}] ${"Rendered numbering is not provider paragraph structure. ".repeat(8)}</p>`,
+      ),
+    ].join("");
     await Promise.all([
       writeFile(
         citations,
@@ -36,8 +45,8 @@ describe("local CourtListener bulk data", () => {
       ),
       writeFile(
         clusters,
-        "id,case_name,case_name_short,case_name_full,slug,date_filed,filepath_pdf_harvard\n" +
-          "42,Alpha v. Beta,Alpha,Alpha Corporation v. Beta Ltd,alpha-v-beta,2024-01-02,pdf/example.pdf\n",
+        "id,case_name,case_name_short,case_name_full,slug,date_filed,filepath_json_harvard,filepath_pdf_harvard\n" +
+          "42,Alpha v. Beta,Alpha,Alpha Corporation v. Beta Ltd,alpha-v-beta,2024-01-02,law.free.cap.f3d.123/456.1.json,pdf/example.pdf\n",
       ),
       writeFile(
         opinions,
@@ -94,26 +103,34 @@ describe("local CourtListener bulk data", () => {
       bulk.searchLocalCourtlistenerCases({ query: "Stale plain" }),
     ).toMatchObject([{ id: 42 }]);
 
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          results: [
-            {
-              cluster_id: 99,
-              case_name: "Filtered API result",
-              court_id: "ca9",
-              date_filed: "2025-01-02",
-            },
-          ],
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      ),
+    const fetchMock = vi.fn(async (input: string | URL | Request) =>
+      String(input).includes("archive.org")
+        ? new Response(
+            JSON.stringify({
+              citations: [{ type: "official", cite: "123 F.3d 456" }],
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          )
+        : new Response(
+            JSON.stringify({
+              results: [
+                {
+                  cluster_id: 99,
+                  case_name: "Filtered API result",
+                  court_id: "ca9",
+                  date_filed: "2025-01-02",
+                },
+              ],
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
     );
     vi.stubGlobal("fetch", fetchMock);
     const {
       getCourtlistenerCaseOpinions,
       getCourtlistenerOpinionDocumentText,
       getCourtlistenerOpinionStructure,
+      lookupCourtlistenerOpinionLocator,
       searchCourtlistenerCaseLaw,
     } = await import("../courtlistener");
     const fetchedCase = await getCourtlistenerCaseOpinions({
@@ -126,12 +143,26 @@ describe("local CourtListener bulk data", () => {
     expect(opinion.text).toContain("Canonical native opinion text");
     expect(opinion.text).not.toContain("Stale plain rendition");
     expect(opinion.text!.length).toBeLessThan(canonicalOpinionText.length);
-    expect(getCourtlistenerOpinionDocumentText(opinion)).toBe(
+    expect(getCourtlistenerOpinionDocumentText(opinion)).toContain(
       canonicalOpinionText,
     );
-    expect(getCourtlistenerOpinionStructure(opinion)?.text).toBe(
-      canonicalOpinionText,
-    );
+    const opinionStructure = getCourtlistenerOpinionStructure(opinion);
+    expect(opinionStructure?.text).toContain(canonicalOpinionText);
+    expect(
+      opinionStructure?.blocks
+        .filter(({ kind }) => kind === "paragraph")
+        .map(({ label, origin, anchor }) => [label, origin, anchor]),
+    ).toEqual([
+      ["par1", "native", "p1"],
+      ["par2", "heuristic", undefined],
+      ["par3", "heuristic", undefined],
+      ["par4", "heuristic", undefined],
+      ["par5", "heuristic", undefined],
+    ]);
+    expect(
+      lookupCourtlistenerOpinionLocator(opinion, "page", "123 F.3d 457")
+        ?.status,
+    ).toBe("found");
     const filtered = await searchCourtlistenerCaseLaw({
       query: "Alpha",
       court: "ca9",
@@ -139,9 +170,12 @@ describe("local CourtListener bulk data", () => {
       apiToken: "test-token",
     });
 
-    expect(fetchMock).toHaveBeenCalledOnce();
-    expect(String(fetchMock.mock.calls[0][0])).toContain("court=ca9");
-    expect(String(fetchMock.mock.calls[0][0])).toContain(
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const searchRequest = fetchMock.mock.calls.find(([input]) =>
+      String(input).includes("court=ca9"),
+    )!;
+    expect(String(searchRequest[0])).toContain("court=ca9");
+    expect(String(searchRequest[0])).toContain(
       "filed_after=2025-01-01",
     );
     expect(filtered).toMatchObject({

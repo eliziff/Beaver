@@ -39,6 +39,7 @@ CREATE TABLE cluster (
     case_name_full TEXT,
     slug TEXT,
     date_filed TEXT,
+    filepath_json_harvard TEXT,
     filepath_pdf_harvard TEXT
 );
 CREATE TABLE opinion (
@@ -155,7 +156,7 @@ def import_database(args: argparse.Namespace) -> None:
         counts: dict[str, int] = {}
         counts["clusters"] = insert_batches(
             connection,
-            "INSERT INTO cluster VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO cluster VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 (
                     required_integer(row["id"], "cluster.id"),
@@ -164,6 +165,7 @@ def import_database(args: argparse.Namespace) -> None:
                     row.get("case_name_full") or None,
                     row.get("slug") or None,
                     row.get("date_filed") or None,
+                    row.get("filepath_json_harvard") or None,
                     row.get("filepath_pdf_harvard") or None,
                 )
                 for row in rows(
