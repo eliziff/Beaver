@@ -16,10 +16,10 @@ Every ordinary operation receives an authenticated `AuthContext`, applies the
 same validation and authorization rule, and returns the same status and DTO in
 local and cloud deployments. Only persistence and blob mechanics differ.
 
-| Resource | Observable operations to preserve | Current split to remove |
+| Resource | Observable operations to preserve | Current owner / split to remove |
 | --- | --- | --- |
-| Library | page/search files and templates; create, rename, move, and recursively delete folders; upload, rename, annotate, move, and delete documents; stable keyset cursors | `routes/localLibrary.ts` versus `routes/library.ts` |
-| Documents | list or fetch owned documents; upload; display/download original or requested PDF rendition; version list/create/rename/replace/delete; optimistic assistant version writes; tracked-edit accept/reject; ZIP download | `routes/localDocuments.ts` versus `routes/documents.ts`, plus storage rules embedded in both |
+| Library | page/search files and templates; create, rename, move, and recursively delete folders; upload, rename, annotate, move, and delete documents; stable keyset cursors | shared `routes/library.ts`; local/cloud stores encode persistence |
+| Documents | list or fetch owned documents; upload; display/download original or requested PDF rendition; version list/create/rename/replace/delete; optimistic assistant version writes; tracked-edit accept/reject; ZIP download | shared `routes/documentRoutes.ts`; local/cloud stores encode persistence; receipt-bound local PDF display remains an explicit extension |
 | Projects/matters | page/create/read/update/delete; attach/detach/move documents; folders; people where supported; project chats; reject foreign project/document IDs | mode branches in `routes/projects.ts`, graph-store calls, and Supabase queries |
 | Workflows | system catalogue and detail; user workflow CRUD; hidden workflows; archive/open-source; sharing is an explicit cloud account extension | mode branches and separate catalogue rules in `routes/workflows.ts` |
 | Tabular reviews | page/create/read/update/delete; columns/cells; clear/generate; attached documents; chat list/read/update/delete; deterministic citations | local-store and Supabase branches plus a separate model loop in `routes/tabular.ts` |

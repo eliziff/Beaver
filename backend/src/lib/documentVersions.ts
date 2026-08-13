@@ -30,6 +30,7 @@ export interface ActiveVersion {
     file_type: string | null;
     size_bytes: number | null;
     page_count: number | null;
+    created_at?: string | null;
 }
 
 /**

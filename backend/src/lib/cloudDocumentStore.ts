@@ -1,8 +1,29 @@
 import { recordAudit } from "./audit";
-import { contentTypeForDocumentType } from "./documentTypes";
+import { checkProjectAccess, ensureDocAccess } from "./access";
+import { docxToPdf } from "./convert";
+import { buildDownloadUrl } from "./downloadTokens";
+import { loadActiveVersion, type ActiveVersion } from "./documentVersions";
+import {
+  contentTypeForDocumentType,
+  shouldConvertToPdf,
+} from "./documentTypes";
+import type {
+  DocumentContent,
+  DocumentScope,
+  DocumentStore,
+  DocumentVersion,
+} from "./documentStore";
+import { resolveTrackedChange } from "./docxTrackedChanges";
 import { countLegalPdfPages } from "./legalPdfSourceDoc";
-import { storageKey, uploadFile } from "./storage";
-import type { createServerSupabase } from "./supabase";
+import {
+  deleteFile,
+  downloadFile,
+  getSignedUrl,
+  storageKey,
+  uploadFile,
+  versionStorageKey,
+} from "./storage";
+import { createServerSupabase } from "./supabase";
 
 type Db = ReturnType<typeof createServerSupabase>;
 
@@ -123,3 +144,449 @@ export async function createCloudDocument(db: Db, input: {
     throw new Error(`Document processing failed: ${String(error)}`);
   }
 }
+
+type CloudDocument = {
+  id: string;
+  user_id: string;
+  project_id: string | null;
+  current_version_id: string | null;
+  isOwner: boolean;
+};
+
+const failed = (error: { message: string } | null, operation: string) => {
+  if (error) throw new Error(`${operation}: ${error.message}`);
+};
+
+const deleteFiles = (paths: (string | null | undefined)[]) => Promise.all(
+  [...new Set(paths.filter((value): value is string => !!value))]
+    .map((value) => deleteFile(value).catch(() => undefined)),
+);
+
+const versionResponse = (version: ActiveVersion): DocumentVersion => ({
+  id: version.id,
+  version_number: version.version_number,
+  source: version.source,
+  created_at: version.created_at ?? null,
+  filename: version.filename,
+  file_type: version.file_type,
+  size_bytes: version.size_bytes,
+  page_count: version.page_count,
+  deleted_at: null,
+});
+
+function downloadName(version: ActiveVersion) {
+  const name = version.filename?.trim() || "Untitled document.docx";
+  if (version.source !== "assistant_edit" || !version.version_number) return name;
+  const dot = name.lastIndexOf(".");
+  return `${dot > 0 ? name.slice(0, dot) : name} [Edited V${version.version_number}]${
+    dot > 0 ? name.slice(dot) : ""
+  }`;
+}
+
+async function accessibleDocument(
+  db: Db,
+  scope: DocumentScope,
+  documentId: string,
+  owner = false,
+): Promise<CloudDocument | null> {
+  const { data, error } = await db.from("documents")
+    .select("id, user_id, project_id, current_version_id")
+    .eq("id", documentId).maybeSingle();
+  failed(error, "Failed to load document");
+  if (!data) return null;
+  const access = await ensureDocAccess(data, scope.userId, scope.userEmail, db);
+  return access.ok && (!owner || access.isOwner)
+    ? { ...data, isOwner: access.isOwner } as CloudDocument
+    : null;
+}
+
+async function removeDocument(db: Db, documentId: string) {
+  const { data: versions, error: versionsError } = await db
+    .from("document_versions")
+    .select("storage_path, pdf_storage_path")
+    .eq("document_id", documentId);
+  failed(versionsError, "Failed to load document files");
+  const { error } = await db.from("documents").delete().eq("id", documentId);
+  failed(error, "Failed to delete document");
+  await deleteFiles((versions ?? []).flatMap((row) => [
+    row.storage_path,
+    row.pdf_storage_path,
+  ]));
+}
+
+async function nextVersionNumber(db: Db, documentId: string) {
+  const { data, error } = await db.from("document_versions")
+    .select("version_number").eq("document_id", documentId)
+    .order("version_number", { ascending: false, nullsFirst: false })
+    .limit(1).maybeSingle();
+  failed(error, "Failed to load document version number");
+  return ((data?.version_number as number | null) ?? 1) + 1;
+}
+
+async function insertVersion(db: Db, documentId: string,
+  values: Record<string, unknown>) {
+  const { data, error } = await db.from("document_versions")
+    .insert({ document_id: documentId, source: "user_upload", ...values })
+    .select("id, version_number, source, created_at, filename, file_type, size_bytes, page_count, deleted_at")
+    .single();
+  failed(error, "Failed to record document version");
+  if (!data) throw new Error("Failed to record document version");
+  const { error: updateError } = await db.from("documents")
+    .update({ current_version_id: data.id, updated_at: new Date().toISOString() })
+    .eq("id", documentId);
+  if (updateError) {
+    await db.from("document_versions").delete().eq("id", data.id);
+    failed(updateError, "Failed to activate document version");
+  }
+  return data as DocumentVersion;
+}
+
+async function pdfPages(bytes: Buffer) {
+  return countLegalPdfPages(bytes).catch(() => null);
+}
+
+async function readCloudDocument(
+  scope: DocumentScope,
+  documentId: string,
+  versionId: string | null,
+  preferPdf: boolean,
+): Promise<DocumentContent | null> {
+  const db = createServerSupabase();
+  if (!await accessibleDocument(db, scope, documentId)) return null;
+  const active = await loadActiveVersion(documentId, db, versionId);
+  if (!active) return null;
+  let source: ArrayBuffer | null = null;
+  let pdfPath = active.pdf_storage_path;
+  if (preferPdf && shouldConvertToPdf(active.file_type) && !pdfPath) {
+    source = await downloadFile(active.storage_path);
+    if (source) {
+      const key = `converted-pdfs/${scope.userId}/${documentId}/${active.id}.pdf`;
+      try {
+        const pdf = await docxToPdf(Buffer.from(source));
+        await uploadFile(key, arrayBuffer(pdf), "application/pdf");
+        const { error } = await db.from("document_versions")
+          .update({ pdf_storage_path: key }).eq("id", active.id);
+        if (error) await deleteFile(key).catch(() => undefined);
+        else pdfPath = key;
+      } catch (error) {
+        console.error("[document-display] Office to PDF conversion failed", error);
+      }
+    }
+  }
+  const usePdf = preferPdf && !!pdfPath && shouldConvertToPdf(active.file_type);
+  const raw = usePdf
+    ? await downloadFile(pdfPath!)
+    : source ?? await downloadFile(active.storage_path);
+  return raw ? {
+    bytes: Buffer.from(raw),
+    version: versionResponse(active),
+    filename: downloadName(active),
+    fileType: usePdf ? "pdf" : active.file_type ?? "",
+    hasPdfRendition: !!pdfPath,
+  } : null;
+}
+
+export const cloudDocuments = {
+  async deleteDocument(scope, documentId) {
+    const db = createServerSupabase();
+    if (!await accessibleDocument(db, scope, documentId, true)) return false;
+    await removeDocument(db, documentId);
+    return true;
+  },
+
+  async files(scope, documentIds) {
+    if (!documentIds.length) return [];
+    const db = createServerSupabase();
+    const { data, error } = await db.from("documents")
+      .select("id, user_id, project_id, current_version_id")
+      .in("id", documentIds);
+    failed(error, "Failed to load documents");
+    const sharedProjectIds = [...new Set((data ?? []).flatMap((document) =>
+      document.user_id !== scope.userId && document.project_id
+        ? [document.project_id]
+        : [],
+    ))];
+    const projectIds = new Set((await Promise.all(sharedProjectIds.map(
+      async (projectId) => ({
+        projectId,
+        access: await checkProjectAccess(
+          projectId,
+          scope.userId,
+          scope.userEmail,
+          db,
+        ),
+      }),
+    ))).flatMap(({ projectId, access }) => access.ok ? [projectId] : []));
+    const documents = (data ?? []).filter((document) =>
+      document.user_id === scope.userId ||
+      (!!document.project_id && projectIds.has(document.project_id)),
+    );
+    const versionIds = documents.flatMap((document) =>
+      document.current_version_id ? [document.current_version_id] : [],
+    );
+    if (!versionIds.length) return [];
+    const { data: rows, error: versionError } = await db
+      .from("document_versions")
+      .select("id, document_id, storage_path, pdf_storage_path, version_number, filename, source, file_type, size_bytes, page_count, created_at")
+      .in("id", versionIds).is("deleted_at", null);
+    failed(versionError, "Failed to load document versions");
+    const loaded: (DocumentContent | null)[] = await Promise.all(
+      (rows ?? []).map(async (row): Promise<DocumentContent | null> => {
+      if (!row.storage_path) return null;
+      const raw = await downloadFile(row.storage_path);
+      if (!raw) return null;
+      const active = row as ActiveVersion;
+      return {
+        bytes: Buffer.from(raw),
+        version: versionResponse(active),
+        filename: downloadName(active),
+        fileType: active.file_type ?? "",
+        hasPdfRendition: !!active.pdf_storage_path,
+      };
+      }),
+    );
+    return loaded.flatMap((value) => value ? [value] : []);
+  },
+
+  read: readCloudDocument,
+
+  async link(scope, documentId, versionId) {
+    const db = createServerSupabase();
+    if (!await accessibleDocument(db, scope, documentId)) return null;
+    const active = await loadActiveVersion(documentId, db, versionId);
+    if (!active) return null;
+    const name = downloadName(active);
+    return {
+      url: await getSignedUrl(active.storage_path, 3600, name),
+      version: versionResponse(active),
+      filename: name,
+      fileType: active.file_type ?? "",
+      hasPdfRendition: !!active.pdf_storage_path,
+    };
+  },
+
+  async versions(scope, documentId) {
+    const db = createServerSupabase();
+    const document = await accessibleDocument(db, scope, documentId);
+    if (!document) return null;
+    const { data, error } = await db.from("document_versions")
+      .select("id, version_number, source, created_at, filename, file_type, size_bytes, page_count, deleted_at, deleted_by")
+      .eq("document_id", documentId).order("created_at", { ascending: true });
+    failed(error, "Failed to load document versions");
+    return {
+      current_version_id: document.current_version_id,
+      versions: (data ?? []) as DocumentVersion[],
+    };
+  },
+
+  async addVersion(scope, documentId, file) {
+    const db = createServerSupabase();
+    if (!await accessibleDocument(db, scope, documentId)) return null;
+    const slug = crypto.randomUUID().replaceAll("-", "");
+    const key = versionStorageKey(scope.userId, documentId, slug, file.filename);
+    await uploadFile(key, arrayBuffer(file.bytes),
+      contentTypeForDocumentType(file.fileType));
+    try {
+      return await insertVersion(db, documentId, {
+        storage_path: key,
+        pdf_storage_path: file.fileType === "pdf" ? key : null,
+        version_number: await nextVersionNumber(db, documentId),
+        filename: file.filename,
+        file_type: file.fileType,
+        size_bytes: file.bytes.byteLength,
+        page_count: file.fileType === "pdf" ? await pdfPages(file.bytes) : null,
+      });
+    } catch (error) {
+      await deleteFiles([key]);
+      throw error;
+    }
+  },
+
+  async copyVersion(scope, targetId, sourceId, filename) {
+    const db = createServerSupabase();
+    const target = await accessibleDocument(db, scope, targetId);
+    if (!target) return { status: "target-missing" as const };
+    const source = await accessibleDocument(db, scope, sourceId);
+    if (!source) return { status: "source-missing" as const };
+    const move = source.project_id && target.project_id
+      ? source.project_id === target.project_id
+      : !source.project_id && !target.project_id &&
+        source.user_id === scope.userId && target.user_id === scope.userId;
+    if (move && !source.isOwner) return { status: "forbidden" as const };
+    const active = await loadActiveVersion(sourceId, db);
+    if (!active) return { status: "source-missing" as const };
+    const raw = await downloadFile(active.storage_path);
+    if (!raw) return { status: "source-missing" as const };
+    const name = filename ?? active.filename?.trim() ?? "Untitled document";
+    const slug = crypto.randomUUID().replaceAll("-", "");
+    const key = versionStorageKey(scope.userId, targetId, slug, name);
+    await uploadFile(key, raw, contentTypeForDocumentType(active.file_type));
+    let version: DocumentVersion;
+    try {
+      version = await insertVersion(db, targetId, {
+        storage_path: key,
+        pdf_storage_path: active.file_type === "pdf" ? key : null,
+        version_number: await nextVersionNumber(db, targetId),
+        filename: name,
+        file_type: active.file_type,
+        size_bytes: active.size_bytes ?? raw.byteLength,
+        page_count: active.page_count,
+      });
+    } catch (error) {
+      await deleteFiles([key]);
+      throw error;
+    }
+    if (move) await removeDocument(db, sourceId);
+    return { status: "created" as const, version };
+  },
+
+  async renameVersion(scope, documentId, versionId, filename) {
+    const db = createServerSupabase();
+    if (!await accessibleDocument(db, scope, documentId)) return null;
+    const { data, error } = await db.from("document_versions")
+      .update({ filename }).eq("id", versionId).eq("document_id", documentId)
+      .is("deleted_at", null)
+      .select("id, version_number, source, created_at, filename, file_type, size_bytes, page_count, deleted_at")
+      .maybeSingle();
+    failed(error, "Failed to rename document version");
+    return data as DocumentVersion | null;
+  },
+
+  async replaceVersion(scope, documentId, versionId, file) {
+    const db = createServerSupabase();
+    if (!await accessibleDocument(db, scope, documentId, true)) {
+      return { status: "missing" as const };
+    }
+    const { data: target, error } = await db.from("document_versions")
+      .select("id, storage_path, pdf_storage_path, file_type, deleted_at")
+      .eq("id", versionId).eq("document_id", documentId).maybeSingle();
+    failed(error, "Failed to load document version");
+    if (!target || target.deleted_at) return { status: "missing" as const };
+    if (target.file_type && target.file_type !== file.fileType) {
+      return { status: "type-mismatch" as const };
+    }
+    const key = versionStorageKey(
+      scope.userId,
+      documentId,
+      crypto.randomUUID().replaceAll("-", ""),
+      file.filename,
+    );
+    await uploadFile(key, arrayBuffer(file.bytes),
+      contentTypeForDocumentType(file.fileType));
+    const pdfPath = file.fileType === "pdf" ? key : null;
+    const { data, error: updateError } = await db.from("document_versions")
+      .update({
+        storage_path: key,
+        pdf_storage_path: pdfPath,
+        filename: file.filename,
+        file_type: file.fileType,
+        size_bytes: file.bytes.byteLength,
+        page_count: file.fileType === "pdf" ? await pdfPages(file.bytes) : null,
+        created_at: new Date().toISOString(),
+      })
+      .eq("id", versionId).eq("document_id", documentId)
+      .select("id, version_number, source, created_at, filename, file_type, size_bytes, page_count, deleted_at")
+      .maybeSingle();
+    if (updateError || !data) {
+      await deleteFiles([key]);
+      failed(updateError, "Failed to replace document version");
+      return { status: "missing" as const };
+    }
+    await deleteFiles([target.storage_path, target.pdf_storage_path]);
+    return { status: "replaced" as const, version: data as DocumentVersion };
+  },
+
+  async deleteVersion(scope, documentId, versionId) {
+    const db = createServerSupabase();
+    const document = await accessibleDocument(db, scope, documentId, true);
+    if (!document) return { status: "missing" as const };
+    const { data, error } = await db.from("document_versions")
+      .select("id, storage_path, pdf_storage_path, version_number, created_at")
+      .eq("document_id", documentId).is("deleted_at", null);
+    failed(error, "Failed to load document versions");
+    const versions = data ?? [];
+    const target = versions.find((version) => version.id === versionId);
+    if (!target) return { status: "missing" as const };
+    if (versions.length === 1) return { status: "only" as const };
+    const remaining = versions.filter((version) => version.id !== versionId)
+      .sort((left, right) =>
+        (right.version_number ?? -1) - (left.version_number ?? -1) ||
+        Date.parse(right.created_at ?? "") - Date.parse(left.created_at ?? ""),
+      );
+    const currentVersionId = document.current_version_id === versionId
+      ? remaining[0]?.id ?? null
+      : document.current_version_id;
+    if (document.current_version_id === versionId) {
+      const { error: updateError } = await db.from("documents")
+        .update({ current_version_id: currentVersionId,
+          updated_at: new Date().toISOString() })
+        .eq("id", documentId);
+      failed(updateError, "Failed to activate remaining document version");
+    }
+    const { error: deleteError } = await db.from("document_versions")
+      .update({ storage_path: null, pdf_storage_path: null,
+        deleted_at: new Date().toISOString(), deleted_by: scope.userId })
+      .eq("id", versionId).eq("document_id", documentId)
+      .is("deleted_at", null);
+    failed(deleteError, "Failed to delete document version");
+    await deleteFiles([target.storage_path, target.pdf_storage_path]);
+    return { status: "deleted" as const, currentVersionId };
+  },
+
+  async resolveEdit(scope, documentId, editId, mode) {
+    const db = createServerSupabase();
+    if (!await accessibleDocument(db, scope, documentId)) {
+      return { status: "missing" as const };
+    }
+    const { data: edit, error } = await db.from("document_edits")
+      .select("id, version_id, del_w_id, ins_w_id, status")
+      .eq("id", editId).eq("document_id", documentId).maybeSingle();
+    failed(error, "Failed to load tracked edit");
+    if (!edit) return { status: "missing" as const };
+    const desired = mode === "accept" ? "accepted" : "rejected";
+    const active = await loadActiveVersion(documentId, db);
+    if (!active || edit.version_id !== active.id) {
+      return { status: "invalid" as const };
+    }
+    if (edit.status !== "pending") {
+      return edit.status === desired
+        ? {
+            status: "unchanged" as const,
+            editStatus: edit.status,
+            versionId: active.id,
+            versionNumber: active.version_number,
+            downloadUrl: buildDownloadUrl(active.storage_path, downloadName(active)),
+          }
+        : { status: "conflict" as const, editStatus: edit.status };
+    }
+    const raw = await downloadFile(active.storage_path);
+    if (!raw) return { status: "invalid" as const };
+    const ids = [edit.del_w_id, edit.ins_w_id]
+      .filter((value): value is string => !!value);
+    const resolved = await resolveTrackedChange(Buffer.from(raw), ids, mode);
+    if (!resolved.found) return { status: "invalid" as const };
+    await uploadFile(
+      active.storage_path,
+      arrayBuffer(resolved.bytes),
+      contentTypeForDocumentType(active.file_type),
+    );
+    const now = new Date().toISOString();
+    const { error: editError } = await db.from("document_edits")
+      .update({ status: desired, resolved_at: now }).eq("id", editId);
+    failed(editError, "Failed to resolve tracked edit");
+    const { error: versionError } = await db.from("document_versions")
+      .update({ pdf_storage_path: null, size_bytes: resolved.bytes.byteLength })
+      .eq("id", active.id);
+    failed(versionError, "Failed to update resolved document version");
+    if (active.pdf_storage_path && active.pdf_storage_path !== active.storage_path) {
+      await deleteFiles([active.pdf_storage_path]);
+    }
+    return {
+      status: "resolved" as const,
+      editStatus: desired,
+      versionId: active.id,
+      versionNumber: active.version_number,
+      downloadUrl: buildDownloadUrl(active.storage_path, downloadName(active)),
+    };
+  },
+} satisfies DocumentStore;
