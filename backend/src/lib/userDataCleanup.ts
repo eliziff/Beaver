@@ -154,13 +154,8 @@ async function removeEmailFromSharedWith(
 }
 
 export async function deleteAllUserChats(db: Db, userId: string) {
-    const [assistantChats, tabularChats] = await Promise.all([
-        db.from("chats").delete().eq("user_id", userId),
-        db.from("tabular_review_chats").delete().eq("user_id", userId),
-    ]);
-
-    await throwIfError(assistantChats.error, "Failed to delete assistant chats");
-    await throwIfError(tabularChats.error, "Failed to delete tabular chats");
+    const result = await db.from("chats").delete().eq("user_id", userId);
+    await throwIfError(result.error, "Failed to delete chats");
 }
 
 export async function deleteAllUserTabularReviews(db: Db, userId: string) {
@@ -175,23 +170,6 @@ export async function deleteAllUserTabularReviews(db: Db, userId: string) {
     );
     if (reviewIds.length === 0) return 0;
 
-    const { data: reviewChats, error: reviewChatsError } = await db
-        .from("tabular_review_chats")
-        .select("id")
-        .in("review_id", reviewIds);
-    await throwIfError(reviewChatsError, "Failed to load tabular review chats");
-
-    const reviewChatIds = uniqueStrings(
-        ((reviewChats ?? []) as { id: string | null }[]).map((row) => row.id),
-    );
-
-    await deleteWhereIn(
-        db,
-        "tabular_review_chat_messages",
-        "chat_id",
-        reviewChatIds,
-    );
-    await deleteWhereIn(db, "tabular_review_chats", "review_id", reviewIds);
     await deleteWhereIn(db, "tabular_cells", "review_id", reviewIds);
     await deleteByIds(db, "tabular_reviews", reviewIds);
 
@@ -262,27 +240,7 @@ export async function deleteUserProjects(
         ),
     );
 
-    const { data: reviewChats, error: reviewChatsError } =
-        reviewIds.length > 0
-            ? await db
-                  .from("tabular_review_chats")
-                  .select("id")
-                  .in("review_id", reviewIds)
-            : { data: [], error: null };
-    await throwIfError(reviewChatsError, "Failed to load project review chats");
-
-    const reviewChatIds = uniqueStrings(
-        ((reviewChats ?? []) as { id: string | null }[]).map((row) => row.id),
-    );
-
     await deleteDocumentVersionFiles(db, documentIds);
-    await deleteWhereIn(
-        db,
-        "tabular_review_chat_messages",
-        "chat_id",
-        reviewChatIds,
-    );
-    await deleteWhereIn(db, "tabular_review_chats", "review_id", reviewIds);
     await deleteWhereIn(db, "tabular_cells", "review_id", reviewIds);
     await deleteByIds(db, "tabular_reviews", reviewIds);
     await deleteWhereIn(db, "chat_messages", "chat_id", chatIds);
@@ -316,7 +274,6 @@ export async function deleteUserAccountData(
     await deleteByIds(db, "documents", documentIds);
 
     const deletions = [
-        db.from("tabular_review_chats").delete().eq("user_id", userId),
         db.from("tabular_reviews").delete().eq("user_id", userId),
         db.from("chats").delete().eq("user_id", userId),
         db.from("project_subfolders").delete().eq("user_id", userId),

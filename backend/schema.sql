@@ -469,10 +469,12 @@ alter table public.workflow_open_source_submissions enable row level security;
 create table if not exists public.chats (
   id uuid primary key default gen_random_uuid(),
   project_id uuid references public.projects(id) on delete cascade,
+  tabular_review_id uuid,
   user_id text not null,
   title text,
   created_at timestamptz not null default now(),
-  deleted_at timestamptz
+  deleted_at timestamptz,
+  check (project_id is null or tabular_review_id is null)
 );
 
 create index if not exists idx_chats_user
@@ -480,6 +482,9 @@ create index if not exists idx_chats_user
 
 create index if not exists idx_chats_project
   on public.chats(project_id);
+
+create index if not exists idx_chats_tabular_review
+  on public.chats(tabular_review_id);
 
 create index if not exists chats_deleted_user_idx
   on public.chats(user_id, deleted_at desc)
@@ -492,6 +497,7 @@ create or replace function public.get_chats_overview(
 returns table (
   id uuid,
   project_id uuid,
+  tabular_review_id uuid,
   user_id text,
   title text,
   created_at timestamptz
@@ -502,11 +508,13 @@ as $$
   select
     c.id,
     c.project_id,
+    c.tabular_review_id,
     c.user_id,
     c.title,
     c.created_at
   from public.chats c
   where c.deleted_at is null
+    and c.tabular_review_id is null
     and (c.user_id = p_user_id or exists (
       select 1 from public.projects p
       where p.id = c.project_id and p.user_id = p_user_id
@@ -569,6 +577,20 @@ create index if not exists idx_tabular_reviews_project
 create index if not exists tabular_reviews_shared_with_idx
   on public.tabular_reviews using gin (shared_with);
 
+do $$
+begin
+  if not exists (select 1 from pg_constraint
+    where conname = 'chats_tabular_review_id_fkey'
+      and conrelid = 'public.chats'::regclass) then
+    alter table public.chats
+      add constraint chats_tabular_review_id_fkey
+      foreign key (tabular_review_id)
+      references public.tabular_reviews(id)
+      on delete cascade;
+  end if;
+end;
+$$;
+
 
 create table if not exists public.tabular_cells (
   id uuid primary key default gen_random_uuid(),
@@ -584,33 +606,6 @@ create table if not exists public.tabular_cells (
 create index if not exists idx_tabular_cells_review
   on public.tabular_cells(review_id, document_id, column_index);
 
-
-create table if not exists public.tabular_review_chats (
-  id uuid primary key default gen_random_uuid(),
-  review_id uuid not null references public.tabular_reviews(id) on delete cascade,
-  user_id text not null,
-  title text,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
-create index if not exists tabular_review_chats_review_idx
-  on public.tabular_review_chats(review_id, updated_at desc);
-
-create index if not exists tabular_review_chats_user_idx
-  on public.tabular_review_chats(user_id);
-
-create table if not exists public.tabular_review_chat_messages (
-  id uuid primary key default gen_random_uuid(),
-  chat_id uuid not null references public.tabular_review_chats(id) on delete cascade,
-  role text not null,
-  content jsonb,
-  annotations jsonb,
-  created_at timestamptz not null default now()
-);
-
-create index if not exists tabular_review_chat_messages_chat_idx
-  on public.tabular_review_chat_messages(chat_id, created_at);
 
 -- ---------------------------------------------------------------------------
 -- CourtListener bulk-data indexes
@@ -676,8 +671,6 @@ revoke all on public.chats from anon, authenticated;
 revoke all on public.chat_messages from anon, authenticated;
 revoke all on public.tabular_reviews from anon, authenticated;
 revoke all on public.tabular_cells from anon, authenticated;
-revoke all on public.tabular_review_chats from anon, authenticated;
-revoke all on public.tabular_review_chat_messages from anon, authenticated;
 revoke all on public.user_api_keys from anon, authenticated;
 revoke all on public.user_mcp_connectors from anon, authenticated;
 revoke all on public.user_mcp_oauth_tokens from anon, authenticated;

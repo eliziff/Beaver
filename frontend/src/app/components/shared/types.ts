@@ -81,6 +81,7 @@ export interface Document {
 export interface Chat {
   id: string;
   project_id: string | null;
+  tabular_review_id: string | null;
   user_id: string;
   transcript_version?: number;
   turn_in_progress?: boolean;
@@ -494,11 +495,23 @@ type PublicLegalCitation = LegalCitationLocator & {
   url?: string | null;
   quotes: { quote: string }[];
 };
+export type TabularCitation = CitationDisplay & {
+  type: "citation_data";
+  kind: "tabular";
+  ref: number;
+  review_id: string;
+  col_index: number;
+  row_index: number;
+  col_name: string;
+  doc_name: string;
+  quotes: { quote: string }[];
+};
 export type Citation =
   | DocumentCitation
   | CaseCitation
   | A2AJCitation
-  | PublicLegalCitation;
+  | PublicLegalCitation
+  | TabularCitation;
 const PAGE_BREAK_SENTINEL = "[[PAGE_BREAK]]";
 export const isSpreadsheetFilename = (filename: string) =>
   /\.(xlsx|xlsm|xls)$/i.test(filename);
@@ -556,6 +569,7 @@ export function formatCitationPage(a: Citation): string {
   if (a.kind === "public_legal") {
     return a.title || a.identifier || "Public legal source";
   }
+  if (a.kind === "tabular") return `${a.col_name} · ${a.doc_name}`;
   const quotes = getDocumentCitationQuotes(a);
   if (isSpreadsheetFilename(a.filename)) {
     const cells = Array.from(
@@ -576,6 +590,7 @@ export function citationPinpoint(a: Citation): string {
   if (a.kind === "case" || a.kind === "a2aj" || a.kind === "public_legal") {
     return a.pinpoint?.trim() ?? "";
   }
+  if (a.kind === "tabular") return a.col_name;
   const quotes = getDocumentCitationQuotes(a);
   if (isSpreadsheetFilename(a.filename)) {
     return Array.from(

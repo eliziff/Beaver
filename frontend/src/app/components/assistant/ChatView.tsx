@@ -82,6 +82,13 @@ interface Props {
     projectCmNumber?: string | null;
     useDisplayedDocumentContext?: boolean;
     onActiveDocumentChange?: (documentId: string | null) => void;
+    layout?: "page" | "panel";
+    features?: {
+        contextTools?: boolean;
+        dock?: boolean;
+    };
+    onCitationClick?: (citation: Citation) => boolean | void;
+    citationTitle?: (citation: Citation) => string;
 }
 export interface ChatViewHandle {
     attachDocument: (document: Document) => void;
@@ -203,10 +210,16 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         projectCmNumber,
         useDisplayedDocumentContext,
         onActiveDocumentChange,
+        layout = "page",
+        features,
+        onCitationClick,
+        citationTitle,
     },
     ref,
 ) {
     const readSubagents = useReadSubagentPreference();
+    const dockEnabled = features?.dock ?? true;
+    const contextToolsEnabled = features?.contextTools ?? true;
     const readSubagentPanelStorageKey = `${READ_SUBAGENT_PANELS_KEY}:${chatId ?? "new"}`;
     const [tabs, setTabs] = useState<AssistantSidePanelTab[]>([]);
     const [readSubagentPanels, setReadSubagentPanels] = useState<
@@ -319,6 +332,8 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         });
     };
     const openCitation = (citation: Citation) => {
+        if (onCitationClick?.(citation)) return;
+        if (citation.kind === "tabular") return;
         const exactProviderUrl =
             citation.kind !== "document" &&
             !(citation.kind === "public_legal" && citation.provider === "journal") &&
@@ -809,7 +824,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             current.filter((panel) => panel.id !== id),
         );
     };
-    const assistantSideGutterVisible = dockOpen;
+    const assistantSideGutterVisible = dockEnabled && dockOpen;
     const readerPanel = (embedded = false) =>
         tabs.length ? (
             <AssistantSidePanel
@@ -965,7 +980,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                     style={{ scrollbarGutter: "stable both-edges" }}
                 >
                     <div
-                        className={`w-full px-6 pt-6 md:px-8 md:pt-8 min-h-full flex flex-col relative ${assistantSideGutterVisible ? "ms-auto me-0 max-w-5xl md:max-lg:pe-2" : "mx-auto max-w-4xl"}`}
+                        className={`w-full min-h-full flex flex-col relative ${layout === "panel" ? "px-4 pt-12" : "px-6 pt-6 md:px-8 md:pt-8"} ${assistantSideGutterVisible ? "ms-auto me-0 max-w-5xl md:max-lg:pe-2" : "mx-auto max-w-4xl"}`}
                         style={{
                             paddingBottom: DEFAULT_ASSISTANT_BOTTOM_PADDING,
                         }}
@@ -1001,6 +1016,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                                             }
                                             citations={msg.citations}
                                             onCitationClick={openCitation}
+                                            citationTitle={citationTitle}
                                             onCaseClick={openCase}
                                             onAutomationClick={openAutomation}
                                             onSubagentClick={
@@ -1013,7 +1029,9 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                                             }
                                             minHeight={
                                                 i === lastAssistantIndex
-                                                    ? LATEST_ASSISTANT_MIN_HEIGHT
+                                                    ? layout === "panel"
+                                                        ? "min(50vh, 28rem)"
+                                                        : LATEST_ASSISTANT_MIN_HEIGHT
                                                     : "0px"
                                             }
                                             onWorkflowClick={(id) => {
@@ -1099,9 +1117,11 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                                 cancel();
                             }}
                             isLoading={isResponseLoading || !!activeInput}
-                            automationsAvailable={!!activeDocument}
-                            onOpenAutomations={openAutomations}
-                            onOpenWorkflows={openWorkflows}
+                            showContextTools={contextToolsEnabled}
+                            rows={layout === "panel" ? 2 : 1}
+                            automationsAvailable={dockEnabled && !!activeDocument}
+                            onOpenAutomations={dockEnabled ? openAutomations : undefined}
+                            onOpenWorkflows={dockEnabled ? openWorkflows : undefined}
                             projectName={projectName ?? undefined}
                             projectCmNumber={projectCmNumber}
                             restoreDraft={
@@ -1113,7 +1133,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                     </div>
                 </div>
             </div>
-            {(dockActivated || dockOpen) && (
+            {dockEnabled && (dockActivated || dockOpen) && (
                 <AssistantDock
                     tabs={dockTabs}
                     activeTabId={resolvedDockTab}

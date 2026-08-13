@@ -452,6 +452,15 @@ export function createLegalEvidenceCitations(
         receipt.evidence_id,
         quote,
       );
+      if (receipt.tabular) {
+        return [{
+          type: "citation_data" as const,
+          kind: "tabular" as const,
+          ref,
+          ...receipt.tabular,
+          quotes: quotes.map((quote) => ({ quote })),
+        }];
+      }
       if (receipt.provider === "library") {
         return [{
           type: "citation_data" as const,

@@ -24,6 +24,7 @@ export type DocIndex = Record<
 >;
 
 export type TabularCellStore = {
+  review_id: string;
   app_url?: string;
   columns: { index: number; name: string }[];
   documents: { id: string; filename: string }[];

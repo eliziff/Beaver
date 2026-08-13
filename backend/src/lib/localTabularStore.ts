@@ -3,6 +3,12 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { mikeLocalDataHome } from "./legalDataPath";
+import { legalKnowledgeGraphStore } from "./legalKnowledgeGraphStore";
+import { listLocalDocumentsById } from "./localDocumentStore";
+import {
+  TabularStoreError,
+  type TabularStore,
+} from "./tabularStore";
 
 export type LocalTabularColumn = {
   index: number;
@@ -500,6 +506,119 @@ export function closeLocalTabularStore() {
   sharedStore?.close();
   sharedStore = null;
 }
+
+async function accessibleDocuments(
+  userId: string,
+  requested: string[],
+  projectId: string | null,
+) {
+  const owned = new Set(
+    (await listLocalDocumentsById(userId, requested)).map(({ id }) => id),
+  );
+  if (!projectId) return requested.filter((id) => owned.has(id));
+  const graph = legalKnowledgeGraphStore();
+  if (!graph.getMatter(userId, projectId)) {
+    throw new TabularStoreError(404, "Project not found");
+  }
+  return requested.filter(
+    (id) => owned.has(id) && graph.hasMatterDocument(userId, projectId, id),
+  );
+}
+
+export const localTabularData = {
+  async page(scope, options) {
+    const page = localTabularStore().page(scope.userId, options);
+    return {
+      ...page,
+      items: page.items.map((item) => ({
+        ...item,
+        project_name: item.project_id
+          ? legalKnowledgeGraphStore().getMatter(scope.userId, item.project_id)
+            ?.name ?? null
+          : null,
+      })),
+    };
+  },
+
+  async create(scope, input) {
+    return localTabularStore().create({
+      userId: scope.userId,
+      title: input.title,
+      projectId: input.projectId,
+      columns: input.columns,
+      documentIds: await accessibleDocuments(
+        scope.userId,
+        input.documentIds,
+        input.projectId,
+      ),
+      workflowId: input.workflowId,
+    });
+  },
+
+  async detail(scope, reviewId) {
+    const detail = localTabularStore().detail(scope.userId, reviewId);
+    if (!detail) return null;
+    const documents = await listLocalDocumentsById(
+      scope.userId,
+      detail.review.document_ids,
+    );
+    return {
+      ...detail,
+      documents: documents.map((document) => ({
+        ...document,
+        project_id: detail.review.project_id,
+        folder_id: null,
+      })),
+    };
+  },
+
+  async people(scope, reviewId) {
+    return localTabularStore().get(scope.userId, reviewId)
+      ? {
+          owner: {
+            user_id: scope.userId,
+            email: null,
+            display_name: null,
+          },
+          members: [],
+        }
+      : null;
+  },
+
+  async update(scope, reviewId, input) {
+    const current = localTabularStore().get(scope.userId, reviewId);
+    if (!current) return null;
+    if (input.sharedWith?.length) {
+      throw new TabularStoreError(400, "Sharing requires an account");
+    }
+    const projectId = input.projectId === undefined
+      ? current.project_id
+      : input.projectId;
+    const documentIds = input.documentIds === undefined
+      ? undefined
+      : await accessibleDocuments(scope.userId, input.documentIds, projectId);
+    return localTabularStore().update(scope.userId, reviewId, {
+      ...(input.title !== undefined ? { title: input.title } : {}),
+      ...(input.projectId !== undefined ? { projectId } : {}),
+      ...(input.columns !== undefined ? { columns: input.columns } : {}),
+      ...(documentIds !== undefined ? { documentIds } : {}),
+    });
+  },
+
+  async delete(scope, reviewId) {
+    return localTabularStore().delete(scope.userId, reviewId);
+  },
+
+  async clearCells(scope, reviewId, documentIds) {
+    return localTabularStore().clearCells(scope.userId, reviewId, documentIds);
+  },
+
+  async setCell(scope, input) {
+    return localTabularStore().setCell({ userId: scope.userId, ...input });
+  },
+
+  async recordGeneration() {},
+} satisfies TabularStore;
 
 export function removeDocumentFromLocalTabularReviews(
   userId: string,

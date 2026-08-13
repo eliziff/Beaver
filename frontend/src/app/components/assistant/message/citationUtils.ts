@@ -13,6 +13,8 @@ export function citationSourceKey(annotation: Citation): string {
     }
     if (annotation.kind === "public_legal")
         return `public:${annotation.provider}:${annotation.identifier}`;
+    if (annotation.kind === "tabular")
+        return `tabular:${annotation.review_id}:${annotation.col_index}:${annotation.row_index}`;
     return `document:${annotation.document_id}:${annotation.version_id ?? ""}`;
 }
 
