@@ -1,32 +1,31 @@
 import { app } from "./app";
-import { isAnonymousLocalMode } from "./lib/localMode";
 import { acquireAnonymousRuntimeLock } from "./lib/anonymousRuntimeLock";
+import { runtime } from "./runtime";
 
 const PORT = process.env.PORT ?? 3001;
-const releaseRuntimeLock = isAnonymousLocalMode()
+const releaseRuntimeLock = runtime.mode === "anonymous-local"
   ? acquireAnonymousRuntimeLock()
   : () => undefined;
 
 function warmLocalStores() {
-  if (isAnonymousLocalMode()) {
-    void Promise.all([
-      import("./lib/localDocumentStore").then(({ warmLocalDocumentStore }) => warmLocalDocumentStore()),
-      import("./lib/legalKnowledgeGraphStore").then(({ legalKnowledgeGraphStore }) => legalKnowledgeGraphStore()),
-      import("./lib/localTabularStore").then(({ localTabularStore }) => localTabularStore()),
-      import("./lib/chat/tools/sourceSearchTools").then(({ warmSourceSearchIndexes }) => warmSourceSearchIndexes()),
-    ]).catch((error) => console.error("[local] background warmup failed", error));
-    void import("./lib/codexCatalog")
-      .then(({ getCodexModelCatalog }) => getCodexModelCatalog())
-      .catch(() => {});
-    void import("./lib/localPdfIngestion")
-      .then(({ resumeLocalPdfParses }) => resumeLocalPdfParses())
-      .catch((error) => {
-        console.error(
-          "[local-library] PDF parse recovery failed",
-          error instanceof Error ? error.message : String(error),
-        );
-      });
-  }
+  if (runtime.mode !== "anonymous-local") return;
+  void Promise.all([
+    import("./lib/localDocumentStore").then(({ warmLocalDocumentStore }) => warmLocalDocumentStore()),
+    import("./lib/legalKnowledgeGraphStore").then(({ legalKnowledgeGraphStore }) => legalKnowledgeGraphStore()),
+    import("./lib/localTabularStore").then(({ localTabularStore }) => localTabularStore()),
+    import("./lib/chat/tools/sourceSearchTools").then(({ warmSourceSearchIndexes }) => warmSourceSearchIndexes()),
+  ]).catch((error) => console.error("[local] background warmup failed", error));
+  void import("./lib/codexCatalog")
+    .then(({ getCodexModelCatalog }) => getCodexModelCatalog())
+    .catch(() => {});
+  void import("./lib/localPdfIngestion")
+    .then(({ resumeLocalPdfParses }) => resumeLocalPdfParses())
+    .catch((error) => {
+      console.error(
+        "[local-library] PDF parse recovery failed",
+        error instanceof Error ? error.message : String(error),
+      );
+    });
 }
 
 function start() {

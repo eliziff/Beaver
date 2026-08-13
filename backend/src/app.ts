@@ -3,7 +3,7 @@ import express, { type RequestHandler, type Router } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
-import { isAnonymousLocalMode } from "./lib/localMode";
+import { runtime } from "./runtime";
 
 export const app = express();
 const isProduction = process.env.NODE_ENV === "production";
@@ -155,7 +155,7 @@ app.post("/projects/:projectId/documents", uploadLimiter);
 app.get("/user/export", exportLimiter);
 app.get("/user/chats/export", exportLimiter);
 app.get("/user/tabular-reviews/export", exportLimiter);
-if (!isAnonymousLocalMode()) app.get("/audit/export", exportLimiter);
+if (runtime.mode === "cloud") app.get("/audit/export", exportLimiter);
 app.delete("/user/account", dataDeleteLimiter);
 app.delete("/user/chats", dataDeleteLimiter);
 app.delete("/user/projects", dataDeleteLimiter);
@@ -167,37 +167,25 @@ app.use(
   "/chat",
   lazyRouter(async () => {
     const { createChatRouter } = await import("./routes/chat");
-    const tabularData = isAnonymousLocalMode()
-      ? (await import("./lib/localTabularStore")).localTabularData
-      : (await import("./lib/cloudTabularStore")).cloudTabularData;
-    return createChatRouter(tabularData);
+    return createChatRouter(await runtime.tabular());
   }),
 );
 app.use(
   "/projects",
-  lazyRouter(
-    () => import("./routes/projects").then((mod) => mod.projectsRouter),
-  ),
+  lazyRouter(async () => {
+    const { createProjectsRouter } = await import("./routes/projects");
+    return createProjectsRouter(await runtime.projects());
+  }),
 );
 app.use(
   "/single-documents",
   lazyRouter(async () => {
     const { createDocumentsRouter } = await import("./routes/documentRoutes");
-    if (!isAnonymousLocalMode()) {
-      const [{ cloudLibraryStore }, { cloudDocuments }] = await Promise.all([
-        import("./lib/cloudLibraryStore"),
-        import("./lib/cloudDocumentStore"),
-      ]);
-      return createDocumentsRouter(cloudLibraryStore, cloudDocuments);
-    }
-    const [{ localLibraryStore, localDocuments },
-      { localDocumentExtensionsRouter }] = await Promise.all([
-      import("./lib/localLibraryStore"),
-      import("./routes/localDocuments"),
+    const [library, documents, extensions] = await Promise.all([
+      runtime.library(), runtime.documents(), runtime.documentExtensions(),
     ]);
-    return localDocumentExtensionsRouter.use(
-      createDocumentsRouter(localLibraryStore, localDocuments),
-    );
+    const router = createDocumentsRouter(library, documents);
+    return extensions?.use(router) ?? router;
   }),
 );
 app.use(
@@ -216,36 +204,21 @@ app.use(
   "/library",
   lazyRouter(async () => {
     const { createLibraryRouter } = await import("./routes/library");
-    if (!isAnonymousLocalMode()) {
-      const { cloudLibraryStore } = await import("./lib/cloudLibraryStore");
-      return createLibraryRouter(cloudLibraryStore);
-    }
-    const [{ localLibraryStore }, { localLibraryExtensionsRouter }] =
-      await Promise.all([
-        import("./lib/localLibraryStore"),
-        import("./routes/localLibraryExtensions"),
-      ]);
-    return createLibraryRouter(localLibraryStore).use(
-      localLibraryExtensionsRouter,
-    );
+    const [library, extensions] = await Promise.all([
+      runtime.library(), runtime.libraryExtensions(),
+    ]);
+    const router = createLibraryRouter(library);
+    return extensions ? router.use(extensions) : router;
   }),
 );
 app.use(
   "/tabular-review",
   lazyRouter(async () => {
     const { createTabularRouter } = await import("./routes/tabular");
-    if (!isAnonymousLocalMode()) {
-      const [{ cloudTabularData }, { cloudDocuments }] = await Promise.all([
-        import("./lib/cloudTabularStore"),
-        import("./lib/cloudDocumentStore"),
-      ]);
-      return createTabularRouter(cloudTabularData, cloudDocuments);
-    }
-    const [{ localTabularData }, { localDocuments }] = await Promise.all([
-      import("./lib/localTabularStore"),
-      import("./lib/localLibraryStore"),
+    const [tabular, documents] = await Promise.all([
+      runtime.tabular(), runtime.documents(),
     ]);
-    return createTabularRouter(localTabularData, localDocuments);
+    return createTabularRouter(tabular, documents);
   }),
 );
 app.use(
@@ -254,7 +227,7 @@ app.use(
     import("./routes/workflows").then((mod) => mod.workflowsRouter),
   ),
 );
-if (!isAnonymousLocalMode()) {
+if (runtime.mode === "cloud") {
   app.use(
     "/audit",
     lazyRouter(() => import("./routes/audit").then((mod) => mod.auditRouter)),
@@ -269,7 +242,7 @@ const cloudUserRouter = lazyRouter(() =>
 app.use(
   "/user",
   (req, res, next) =>
-    (isAnonymousLocalMode() ? localUserRouter : cloudUserRouter)(
+    (runtime.mode === "anonymous-local" ? localUserRouter : cloudUserRouter)(
       req,
       res,
       next,
@@ -300,7 +273,7 @@ app.get("/health", (_req, res) => {
   res.json({
     ok: true,
     runtime: {
-      mode: isAnonymousLocalMode() ? "anonymous-local" : "cloud",
+      mode: runtime.mode,
     },
   });
 });
