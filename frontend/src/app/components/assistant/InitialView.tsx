@@ -15,7 +15,7 @@ import { LegalLibraryPage } from "../legal/LegalLibrary";
 import { LibraryCollectionPage, LibraryWorkspaceProvider } from "../library/LibraryWorkspace";
 import { createTabularReview } from "@/app/lib/beaverApi";
 import { preloadDuringIdle } from "@/app/lib/preloadDuringIdle";
-import { useDirectoryData, type DirectoryTab } from "../shared/useDirectoryData";
+import type { DirectoryTab } from "../shared/FileDirectory";
 import {
     QUICK_ACTIONS,
     type QuickActionId,
@@ -78,7 +78,6 @@ export function InitialView({
     const [automationDocument, setAutomationDocument] = useState<Document | null>(null);
     const { visibleActions, setVisibleActions } = useQuickActionsPreference();
     const chatInputRef = useRef<ChatInputHandle>(null);
-    const { projects } = useDirectoryData(modal === "review", "projects");
     const username =
         profile?.displayName?.trim() || user?.email?.split("@")[0] || "there";
     const visibleQuickActions = QUICK_ACTIONS.filter(
@@ -143,7 +142,7 @@ export function InitialView({
         setDockOpen(true);
     };
     const dockTabs: AssistantDockTab[] = [
-        { id: "library", label: "Library", content: <LibraryWorkspaceProvider><LibraryCollectionPage kind="files" embedded /></LibraryWorkspaceProvider> },
+        { id: "library", label: "Library", content: <LibraryWorkspaceProvider><LibraryCollectionPage kind="files" onOpenInChat={(documents) => { for (const document of documents) chatInputRef.current?.addDoc(document); }} embedded /></LibraryWorkspaceProvider> },
         { id: "workflows", label: "Workflows", content: <AssistantWorkflowDock onSelect={(workflow) => chatInputRef.current?.startWorkflowDocumentSelection({ id: workflow.id, title: workflow.metadata.title })} /> },
         { id: "automations", label: "Automation", content: automationDocument ? <DocumentAutomation document={automationDocument} embedded /> : <div className="grid h-full place-items-center p-6 text-center text-sm text-gray-500">Open a document to use its automations.</div> },
         { id: "sources", label: "Sources", content: <LegalLibraryPage embedded /> },
@@ -152,7 +151,7 @@ export function InitialView({
     return (
         <div className="flex h-full min-w-0 w-full">
         <div
-            className="min-w-0 flex-1 overflow-y-auto px-4 sm:px-6"
+            className={`min-w-0 flex-1 overflow-y-auto px-4 sm:px-6 ${dockOpen ? "md:max-lg:pe-2" : ""}`}
             style={{ scrollbarGutter: "stable" }}
         >
             <div className="mx-auto grid min-h-full w-full max-w-4xl grid-rows-[minmax(min-content,1fr)_auto_minmax(min-content,1fr)] py-4 xl:px-8">
@@ -289,7 +288,6 @@ export function InitialView({
                         open
                         onClose={() => setModal(null)}
                         onAdd={handleNewReview}
-                        projects={projects}
                     />
                 </Suspense>
             )}

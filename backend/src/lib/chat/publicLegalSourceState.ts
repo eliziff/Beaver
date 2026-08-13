@@ -35,7 +35,7 @@ import {
   createPublicJournalDocumentEvidence,
   createPublicJournalPassageEvidence,
   type LegalEvidenceReceipt,
-} from "./legalEvidenceExperiment";
+} from "./legalEvidence";
 import { PUBLIC_LEGAL_SOURCE_TOOL_NAMES } from "./tools/publicLegalSourceTools";
 
 export type PublicLegalProvider = "tna" | "govuk-et" | "govinfo" | "journal";

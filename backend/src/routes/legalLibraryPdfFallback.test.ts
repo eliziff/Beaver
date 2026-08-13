@@ -19,6 +19,10 @@ let temporaryDirectory: string | null = null;
 const originalAuthMode = process.env.AUTH_MODE;
 
 afterEach(async () => {
+  try {
+    const store = await import("../lib/localDocumentStore");
+    await store.closeLocalDocumentStore();
+  } catch {}
   delete process.env.MIKE_LOCAL_DATA_DIR;
   process.env.AUTH_MODE = originalAuthMode;
   queueProviderPdfAttachment.mockReset();
@@ -102,10 +106,9 @@ describe("legal Library provider PDF fallback", () => {
       reference_id: "provider-reference",
       status_url: `/library/legal/${saved.body.id}/pdf-status`,
     });
-    const persisted = JSON.parse(
-      await readFile(path.join(temporaryDirectory, "library.json"), "utf8"),
-    );
-    expect(persisted.legalSources[0].pdfFallback).toEqual({
+    const persisted = await (await import("../lib/localDocumentStore"))
+      .getLocalLegalSource("00000000-0000-0000-0000-000000000001", saved.body.id);
+    expect(persisted?.pdfFallback).toEqual({
       provider: "a2aj",
       identity: "SCC:2099 SCC 7",
       url: "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/99997/1/document.do",

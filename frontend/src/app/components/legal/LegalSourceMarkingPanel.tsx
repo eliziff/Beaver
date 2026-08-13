@@ -6,12 +6,13 @@ import {
     createLegalResearchLabel,
     createLegalResearchProject,
     getLegalSourceMarking,
-    listLegalResearchProjects,
+    listProjects,
     saveLegalSourceMark,
     type LegalResearchNode,
     type LegalResearchProject,
     type LegalSourceMarking,
 } from "@/app/lib/beaverApi";
+import { usePagedQuery } from "@/app/hooks/usePagedQuery";
 
 const PROJECT_KEY = "beaver:legal-research-project";
 const EMPTY_MARK = { label_ids: [] as string[], note: "" };
@@ -44,7 +45,6 @@ function labelPaths(marking: LegalSourceMarking) {
 }
 
 export function LegalSourceMarkingPanel({ sourceId }: { sourceId: string }) {
-    const [projects, setProjects] = useState<LegalResearchProject[] | null>(null);
     const [projectId, setProjectId] = useState("");
     const [projectQuery, setProjectQuery] = useState("");
     const [loaded, setLoaded] = useState<{ key: string; value: LegalSourceMarking } | null>(null);
@@ -54,25 +54,21 @@ export function LegalSourceMarkingPanel({ sourceId }: { sourceId: string }) {
     const key = `${projectId}:${sourceId}`;
     const marking = loaded?.key === key ? loaded.value : null;
     const paths = useMemo(() => (marking ? labelPaths(marking) : []), [marking]);
-    const query = projectQuery.toLocaleLowerCase();
-    const visibleProjects = query
-        ? projects?.filter((project) =>
-              project.name.toLocaleLowerCase().includes(query),
-          )
-        : projects;
+    const page = usePagedQuery((cursor, signal) =>
+        listProjects({ q: projectQuery, cursor }, signal), [projectQuery]);
+    const projects: LegalResearchProject[] = useMemo(() => [
+        ...("general research".includes(projectQuery.toLowerCase())
+            ? [{ id: "general", name: "General research", order: 0 }]
+            : []),
+        ...page.items.map(({ id, name }, order) => ({ id, name, order: order + 1 })),
+    ], [page.items, projectQuery]);
 
     useEffect(() => {
-        listLegalResearchProjects()
-            .then((items) => {
-                setProjects(items);
-                const remembered = localStorage.getItem(PROJECT_KEY);
-                setProjectId(items.some(({ id }) => id === remembered) ? remembered! : (items[0]?.id ?? ""));
-            })
-            .catch((reason) => {
-                setProjects([]);
-                setError(message(reason));
-            });
-    }, []);
+        if (projectId) return;
+        const remembered = localStorage.getItem(PROJECT_KEY);
+        setProjectId(projects.some(({ id }) => id === remembered) ? remembered! : "general");
+    }, [projectId, projects]);
+    useEffect(() => { if (page.error) setError(message(page.error)); }, [page.error]);
 
     useEffect(() => {
         if (!projectId) return;
@@ -115,7 +111,7 @@ export function LegalSourceMarkingPanel({ sourceId }: { sourceId: string }) {
         if (!name) return;
         try {
             const project = await createLegalResearchProject(name);
-            setProjects((current) => [...(current ?? []), project]);
+            setProjectQuery("");
             chooseProject(project.id);
             form.reset();
         } catch (reason) {
@@ -173,7 +169,7 @@ export function LegalSourceMarkingPanel({ sourceId }: { sourceId: string }) {
                 className="h-9 w-full rounded border border-gray-300 bg-white px-3 text-sm"
             />
             <div className="max-h-32 overflow-y-auto rounded border border-gray-200 bg-white p-1">
-                {visibleProjects?.map((project) => (
+                {projects.map((project) => (
                     <button
                         key={project.id}
                         type="button"
@@ -185,7 +181,9 @@ export function LegalSourceMarkingPanel({ sourceId }: { sourceId: string }) {
                         {project.name}
                     </button>
                 ))}
-                {projects === null && <p className="p-2 text-sm text-gray-500">Loading…</p>}
+                {page.loading && <p className="p-2 text-sm text-gray-500">Loading...</p>}
+                {page.hasMore && <button type="button" onClick={() => void page.loadMore()}
+                    className="h-9 w-full text-sm text-gray-600">Load more</button>}
             </div>
             <details className="rounded border border-gray-200 bg-white">
                 <summary className="cursor-pointer px-3 py-2 text-sm font-medium">New project</summary>

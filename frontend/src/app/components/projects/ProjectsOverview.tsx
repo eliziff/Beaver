@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MessageSquarePlus } from "lucide-react";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
@@ -34,6 +34,7 @@ import { PillButton } from "@/app/components/ui/pill-button";
 import { SearchBar } from "@/app/components/ui/search-bar";
 import { formatDate } from "@/app/lib/utils";
 import { TabPillButton } from "@/app/components/ui/tab-pill-button";
+import { usePagedQuery } from "@/app/hooks/usePagedQuery";
 function isProjectOwner(project: Project, currentUserId?: string | null) {
     return project.is_owner ?? project.user_id === currentUserId;
 }
@@ -47,26 +48,18 @@ function projectSummary(project: Project, currentUserId?: string | null) {
         project.cm_number && `CM ${project.cm_number}`,
         project.practice,
         owner,
-        `${project.document_count ?? 0} files`,
-        `${project.chat_count ?? 0} chats`,
-        `${project.review_count ?? 0} reviews`,
     ]
         .filter(Boolean)
         .join(" \u00b7 ");
 }
 type ProjectFilter = "all" | "mine" | "shared-with-me";
-type ProjectListState = { userId: string; rows: Project[]; error: string | null };
 const PROJECT_FILTERS: { id: ProjectFilter; label: string }[] = [
     { id: "all", label: "All" },
     { id: "mine", label: "Mine" },
     { id: "shared-with-me", label: "Shared with me" },
 ];
-const EMPTY_PROJECTS: Project[] = [];
 const SKELETON_ROWS = [0, 1, 2];
 export function ProjectsOverview() {
-    const [projectList, setProjectList] = useState<ProjectListState | null>(
-        null,
-    );
     const [modalOpen, setModalOpen] = useState(false);
     const [detailsProjectId, setDetailsProjectId] = useState<string | null>(
         null,
@@ -80,53 +73,25 @@ export function ProjectsOverview() {
     const router = useRouter();
     const { user, isAuthenticated, authLoading } = useAuth();
     const userId = user?.id;
-    useEffect(() => {
-        if (authLoading || !isAuthenticated || !userId) return;
-        let active = true;
-        void listProjects()
-            .then((loaded) => {
-                if (active)
-                    setProjectList({ userId, rows: loaded, error: null });
-            })
-            .catch((error) => {
-                console.error("[projects] failed to load projects", error);
-                if (active)
-                    setProjectList({
-                        userId, rows: [], error: "Could not load projects.",
-                    });
-            });
-        return () => {
-            active = false;
-        };
-    }, [authLoading, isAuthenticated, userId]);
-    const currentList =
-        projectList?.userId === userId ? projectList : null;
-    const loading = authLoading || (isAuthenticated && !currentList);
-    const rows = currentList?.rows ?? EMPTY_PROJECTS;
-    const loadError = currentList?.error ?? null;
-    function updateProjects(update: (rows: Project[]) => Project[]) {
-        setProjectList((current) => {
-            if (!current || current.userId !== userId) return current;
-            return { ...current, rows: update(current.rows) };
-        });
-    }
-    const q = search.trim().toLowerCase();
-    const filtered = useMemo(
-        () =>
-            rows.filter((project) => {
-                const owned = isProjectOwner(project, user?.id);
-                return (
-                    (activeFilter === "all" ||
-                        (activeFilter === "mine" && owned) ||
-                        (activeFilter === "shared-with-me" && !owned)) &&
-                    (!q ||
-                        project.name.toLowerCase().includes(q) ||
-                        (project.cm_number ?? "").toLowerCase().includes(q) ||
-                        (project.practice ?? "").toLowerCase().includes(q))
-                );
-            }),
-        [activeFilter, q, rows, user?.id],
+    const deferredSearch = useDeferredValue(search.trim());
+    const page = usePagedQuery(
+        (cursor, signal) => listProjects({
+            q: deferredSearch,
+            scope: activeFilter,
+            cursor,
+        }, signal),
+        [activeFilter, deferredSearch, userId],
+        !authLoading && isAuthenticated && !!userId,
     );
+    const loading = authLoading || page.loading;
+    const rows = page.items;
+    useEffect(() => setSelectedIds(new Set()), [activeFilter, deferredSearch]);
+    const loadError = page.error ? "Could not load projects." : null;
+    function updateProjects(update: (rows: Project[]) => Project[]) {
+        page.setItems(update);
+    }
+    const q = deferredSearch.toLowerCase();
+    const filtered = rows;
     const detailsProject =
         detailsProjectId
             ? rows.find((project) => project.id === detailsProjectId) ?? null
@@ -275,6 +240,7 @@ export function ProjectsOverview() {
                                 <span className="-ml-2 mr-1 h-9 w-9 shrink-0" />
                             ) : (
                                 <CheckboxControl
+                                    aria-label="Select loaded projects"
                                     checked={allSelected}
                                     ref={(el) => {
                                         if (el) el.indeterminate = someSelected;
@@ -389,6 +355,13 @@ export function ProjectsOverview() {
                     </TableBody>
                 )}
             </TableScrollArea>
+            {page.hasMore && !loading && !loadError && (
+                <div className="flex justify-center border-t border-gray-200 bg-white p-3">
+                    <PillButton tone="white" onClick={() => void page.loadMore()}>
+                        Load more
+                    </PillButton>
+                </div>
+            )}
             <NewProjectModal
                 open={modalOpen}
                 onClose={() => setModalOpen(false)}

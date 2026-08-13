@@ -15,7 +15,7 @@ const allowedDevelopmentFrontendUrls = new Set([
   "http://127.0.0.1:3000",
 ]);
 
-function lazyRouter(load: () => Promise<Router>, warm = false): RequestHandler {
+function lazyRouter(load: () => Promise<Router>): RequestHandler {
   let router: Router | undefined;
   let pending: Promise<Router> | undefined;
   const start = () => {
@@ -25,7 +25,6 @@ function lazyRouter(load: () => Promise<Router>, warm = false): RequestHandler {
     });
     return pending;
   };
-  if (warm) void start().catch(() => {});
   return (req, res, next) => {
     if (router) return void router(req, res, next);
     void start().then((loaded) => loaded(req, res, next)).catch(next);
@@ -35,7 +34,7 @@ function lazyRouter(load: () => Promise<Router>, warm = false): RequestHandler {
 const localOrCloudRouter = (
   local: () => Promise<Router>,
   cloud: () => Promise<Router>,
-) => lazyRouter(() => (isAnonymousLocalMode() ? local() : cloud()), isAnonymousLocalMode());
+) => lazyRouter(() => (isAnonymousLocalMode() ? local() : cloud()));
 
 function envInt(name: string, fallback: number): number {
   const raw = process.env[name];
@@ -171,13 +170,12 @@ app.use(express.json({ limit: "50mb" }));
 
 app.use(
   "/chat",
-  lazyRouter(() => import("./routes/chat").then((mod) => mod.chatRouter), isAnonymousLocalMode()),
+  lazyRouter(() => import("./routes/chat").then((mod) => mod.chatRouter)),
 );
 app.use(
   "/projects",
   lazyRouter(
     () => import("./routes/projects").then((mod) => mod.projectsRouter),
-    isAnonymousLocalMode(),
   ),
 );
 app.use(
@@ -224,7 +222,6 @@ if (!isAnonymousLocalMode()) {
 }
 const localUserRouter = lazyRouter(() =>
   import("./routes/localUser").then((mod) => mod.localUserRouter),
-  isAnonymousLocalMode(),
 );
 const cloudUserRouter = lazyRouter(() =>
   import("./routes/user").then((mod) => mod.userRouter),
@@ -248,7 +245,7 @@ app.use(
 );
 app.use(
   "/models",
-  lazyRouter(() => import("./routes/models").then((mod) => mod.modelRouter), isAnonymousLocalMode()),
+  lazyRouter(() => import("./routes/models").then((mod) => mod.modelRouter)),
 );
 app.use(
   "/table-of-authorities",
@@ -256,14 +253,10 @@ app.use(
     import("./routes/tableOfAuthorities").then(
       (mod) => mod.tableOfAuthoritiesRouter,
     ),
-    isAnonymousLocalMode(),
   ),
 );
 
 app.get("/health", (_req, res) => {
-  if (isAnonymousLocalMode() && app.locals.localReady === false) {
-    return void res.status(503).json({ ok: false });
-  }
   res.json({
     ok: true,
     runtime: {

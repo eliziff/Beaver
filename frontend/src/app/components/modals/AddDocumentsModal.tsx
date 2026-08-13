@@ -7,7 +7,7 @@ import {
 } from "@/app/lib/beaverApi";
 import type { Document } from "../shared/types";
 import { FileDirectory } from "../shared/FileDirectory";
-import type { DirectoryTab } from "../shared/useDirectoryData";
+import type { DirectoryTab } from "../shared/FileDirectory";
 import { Modal } from "./Modal";
 import {
     SUPPORTED_DOCUMENT_ACCEPT,

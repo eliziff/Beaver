@@ -27,7 +27,7 @@ import {
   legalEvidenceCitationEntries,
   type LegalEvidenceReceipt,
   type LegalEvidenceTurnState,
-} from "./legalEvidenceExperiment";
+} from "./legalEvidence";
 
 // ---------------------------------------------------------------------------
 // Internal citation parse types

@@ -86,14 +86,21 @@ describe("projects.routes", () => {
     describe("GET /projects", () => {
         it("returns the overview rows from the RPC", async () => {
             supabaseState.rpc = {
-                data: [{ id: "p1", name: "Alpha" }],
+                data: [{
+                    id: "p1",
+                    created_at: "2026-01-01T00:00:00Z",
+                    payload: { id: "p1", name: "Alpha" },
+                }],
                 error: null,
             };
 
             const res = await request(app).get("/projects").set(...AUTH);
 
             expect(res.status).toBe(200);
-            expect(res.body).toEqual([{ id: "p1", name: "Alpha" }]);
+            expect(res.body).toEqual({
+                items: [{ id: "p1", name: "Alpha" }],
+                next_cursor: null,
+            });
         });
 
         it("returns 500 with detail when the RPC errors", async () => {
@@ -162,7 +169,6 @@ describe("projects.routes", () => {
             expect(res.status).toBe(201);
             expect(res.body).toMatchObject({
                 id: "p9",
-                documents: [],
                 created_at: "2026-07-27T18:42:00.000Z",
             });
 
@@ -255,7 +261,7 @@ describe("projects.routes", () => {
             expect(res.body).toMatchObject({ id: "p1", is_owner: false });
         });
 
-        it("returns 200 with documents/folders/is_owner when owned", async () => {
+        it("returns project fields without embedded collections when owned", async () => {
             supabaseState.tables.projects = {
                 data: { id: "p1", user_id: "u1", shared_with: null },
                 error: null,
@@ -275,39 +281,41 @@ describe("projects.routes", () => {
             expect(res.body).toMatchObject({
                 id: "p1",
                 is_owner: true,
-                documents: [{ id: "d1" }],
-                folders: [{ id: "f1" }],
             });
+            expect(res.body).not.toHaveProperty("documents");
+            expect(res.body).not.toHaveProperty("folders");
         });
     });
 
     // ── GET /projects/:projectId/documents (checkProjectAccess guard) ─────
-    describe("GET /projects/:projectId/documents", () => {
-        it("returns 404 when checkProjectAccess denies access", async () => {
-            checkProjectAccess.mockResolvedValue({ ok: false });
-
-            const res = await request(app)
-                .get("/projects/p1/documents")
-                .set(...AUTH);
-
-            expect(res.status).toBe(404);
-            expect(res.body.detail).toBe("Project not found");
-            expect(checkProjectAccess).toHaveBeenCalledTimes(1);
+    describe("GET /projects/:projectId/directory", () => {
+        it("returns an empty bounded page when no visible rows exist", async () => {
+            supabaseState.rpc = { data: [], error: null };
+            const res = await request(app).get("/projects/p1/directory").set(...AUTH);
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual({ items: [], next_cursor: null });
         });
 
-        it("returns 200 with documents when access is granted", async () => {
-            supabaseState.tables.documents = {
-                data: [{ id: "d1" }, { id: "d2" }],
+        it("returns discriminated directory entries", async () => {
+            supabaseState.rpc = {
+                data: [{
+                    kind: "document",
+                    id: "d1",
+                    bucket: 1,
+                    sort_name: "alpha.pdf",
+                    payload: { id: "d1", filename: "Alpha.pdf" },
+                }],
                 error: null,
             };
-
-            const res = await request(app)
-                .get("/projects/p1/documents")
-                .set(...AUTH);
-
+            const res = await request(app).get("/projects/p1/directory").set(...AUTH);
             expect(res.status).toBe(200);
-            expect(res.body).toEqual([{ id: "d1" }, { id: "d2" }]);
-            expect(checkProjectAccess).toHaveBeenCalledTimes(1);
+            expect(res.body).toEqual({
+                items: [{
+                    kind: "document",
+                    document: { id: "d1", filename: "Alpha.pdf" },
+                }],
+                next_cursor: null,
+            });
         });
     });
 

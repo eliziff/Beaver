@@ -45,7 +45,15 @@ vi.mock("../../lib/chat/localPdfEvidenceState", () => ({
 }));
 
 let dataHome: string;
-let closeLocalStores: (() => void) | null = null;
+let closeLocalStores: (() => Promise<void>) | null = null;
+
+function pageDocuments(body: {
+  items?: { kind: string; document?: { id: string; filename: string } }[];
+}) {
+  return (body.items ?? []).flatMap((item) =>
+    item.kind === "document" && item.document ? [item.document] : [],
+  );
+}
 
 function streamedContent(body: string) {
   return body
@@ -59,14 +67,16 @@ function streamedContent(body: string) {
 
 async function loadApp() {
   vi.resetModules();
-  const [{ app }, graph, tabular] = await Promise.all([
+  const [{ app }, graph, tabular, documents] = await Promise.all([
     import("../../app"),
     import("../../lib/legalKnowledgeGraphStore"),
     import("../../lib/localTabularStore"),
+    import("../../lib/localDocumentStore"),
   ]);
-  closeLocalStores = () => {
+  closeLocalStores = async () => {
     graph.legalKnowledgeGraphStore().close();
     tabular.closeLocalTabularStore();
+    await documents.closeLocalDocumentStore();
   };
   return app;
 }
@@ -93,7 +103,7 @@ beforeEach(async () => {
       messages: params.messages,
     });
     const toolResults = await params.runTools?.([
-      { id: "list-documents", name: "library_list", input: {} },
+      { id: "list-documents", name: "Glob", input: { pattern: "*" } },
     ]);
     if (toolResults?.[0]) mocks.toolResults.push(toolResults[0].content);
     params.callbacks?.onContentDelta?.("Scoped answer");
@@ -102,7 +112,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  closeLocalStores?.();
+  await closeLocalStores?.();
   closeLocalStores = null;
   vi.unstubAllEnvs();
   vi.resetModules();
@@ -187,13 +197,11 @@ describe("account-free matter routes", () => {
     expect(attached.body.id).toBe(source.body.id);
 
     const library = await request(app).get("/library/files");
-    expect(library.body.documents.map((row: { id: string }) => row.id)).toEqual(
+    expect(pageDocuments(library.body).map((row) => row.id)).toEqual(
       expect.arrayContaining([source.body.id, unrelated.body.id]),
     );
     expect(
-      library.body.documents.filter(
-        (row: { id: string }) => row.id === source.body.id,
-      ),
+      pageDocuments(library.body).filter((row) => row.id === source.body.id),
     ).toHaveLength(1);
 
     const firstDetail = await request(app).get(
@@ -202,9 +210,14 @@ describe("account-free matter routes", () => {
     const secondDetail = await request(app).get(
       `/projects/${secondMatter.body.id}`,
     );
-    expect(firstDetail.body.documents).toHaveLength(1);
-    expect(firstDetail.body.documents[0].id).toBe(source.body.id);
-    expect(secondDetail.body.documents).toEqual([]);
+    expect(firstDetail.body).not.toHaveProperty("documents");
+    expect(secondDetail.body).not.toHaveProperty("documents");
+    expect(pageDocuments((await request(app).get(
+      `/projects/${firstMatter.body.id}/directory`,
+    )).body).map((document) => document.id)).toEqual([source.body.id]);
+    expect(pageDocuments((await request(app).get(
+      `/projects/${secondMatter.body.id}/directory`,
+    )).body)).toEqual([]);
 
     const createdChat = await request(app)
       .post("/chat/create")
@@ -229,11 +242,8 @@ describe("account-free matter routes", () => {
       });
     expect(streamed.status).toBe(200);
     expect(streamedContent(streamed.text)).toBe("Scoped answer");
-    expect(
-      JSON.parse(mocks.toolResults.at(-1) ?? "{}").documents.map(
-        (row: { document_id: string }) => row.document_id,
-      ),
-    ).toEqual([source.body.id]);
+    expect(mocks.toolResults.at(-1)).toContain("appeal-record.xlsx");
+    expect(mocks.toolResults.at(-1)).not.toContain("unrelated.xlsx");
 
     const missingFocus = await request(app)
       .post("/chat")
@@ -374,7 +384,7 @@ describe("account-free matter routes", () => {
     expect(malformed.status).toBe(400);
     expect(malformed.body.detail).toBe("current_turn.content is required");
 
-    closeLocalStores?.();
+    await closeLocalStores?.();
     closeLocalStores = null;
     app = await loadApp();
 
@@ -384,7 +394,10 @@ describe("account-free matter routes", () => {
     const reloadedChat = await request(app).get(
       `/chat/${createdChat.body.id}`,
     );
-    expect(reloadedMatter.body.documents[0].id).toBe(source.body.id);
+    expect(reloadedMatter.body).not.toHaveProperty("documents");
+    expect(pageDocuments((await request(app).get(
+      `/projects/${firstMatter.body.id}/directory`,
+    )).body)[0].id).toBe(source.body.id);
     expect(reloadedChat.body.chat.project_id).toBe(firstMatter.body.id);
     expect(
       reloadedChat.body.messages.map((row: { role: string }) => row.role),
@@ -444,11 +457,9 @@ describe("account-free matter routes", () => {
 
     expect((await turn(0)).status).toBe(200);
     expect((await turn(2)).status).toBe(200);
-    expect(
-      (
-        await request(app).get(`/projects/${matter.body.id}`)
-      ).body.documents.map((document: { id: string }) => document.id),
-    ).toEqual([]);
+    expect(pageDocuments((await request(app).get(
+      `/projects/${matter.body.id}/directory`,
+    )).body)).toEqual([]);
 
     const rejected = await request(app)
       .post("/chat")
@@ -470,14 +481,12 @@ describe("account-free matter routes", () => {
     expect(rejected.status).toBe(400);
     expect(rejected.body.detail).toMatch(/unavailable/u);
 
-    closeLocalStores?.();
+    await closeLocalStores?.();
     closeLocalStores = null;
     app = await loadApp();
-    expect(
-      (
-        await request(app).get(`/projects/${matter.body.id}`)
-      ).body.documents.map((document: { id: string }) => document.id),
-    ).toEqual([]);
+    expect(pageDocuments((await request(app).get(
+      `/projects/${matter.body.id}/directory`,
+    )).body)).toEqual([]);
   });
 
   it("returns 400 for malformed local project fields", async () => {
@@ -491,7 +500,10 @@ describe("account-free matter routes", () => {
       const response = await request(app).post("/projects").send(payload);
       expect(response.status).toBe(400);
     }
-    expect((await request(app).get("/projects")).body).toEqual([]);
+    expect((await request(app).get("/projects")).body).toEqual({
+      items: [],
+      next_cursor: null,
+    });
     expect(mocks.supabaseCalls).toBe(0);
   });
 
@@ -527,21 +539,14 @@ describe("account-free matter routes", () => {
     );
 
     expect(detached.status).toBe(204);
-    expect(
-      (
-        await request(app).get(`/projects/${firstMatter.body.id}`)
-      ).body.documents,
-    ).toEqual([]);
-    expect(
-      (
-        await request(app).get(`/projects/${secondMatter.body.id}`)
-      ).body.documents.map((row: { id: string }) => row.id),
-    ).toEqual([source.body.id]);
-    expect(
-      (await request(app).get("/library/files")).body.documents.map(
-        (row: { id: string }) => row.id,
-      ),
-    ).toEqual([source.body.id]);
+    expect(pageDocuments((await request(app).get(
+      `/projects/${firstMatter.body.id}/directory`,
+    )).body)).toEqual([]);
+    expect(pageDocuments((await request(app).get(
+      `/projects/${secondMatter.body.id}/directory`,
+    )).body).map((row) => row.id)).toEqual([source.body.id]);
+    expect(pageDocuments((await request(app).get("/library/files")).body)
+      .map((row) => row.id)).toEqual([source.body.id]);
     expect(
       (
         await request(app).delete(
@@ -583,9 +588,7 @@ describe("account-free matter routes", () => {
     expect(existing.status).toBe(404);
     expect(uploaded.status).toBe(404);
     expect(
-      library.body.documents.map((document: { filename: string }) =>
-        document.filename,
-      ),
+      pageDocuments(library.body).map((document) => document.filename),
     ).toEqual(["existing.xlsx"]);
     expect(attach).toHaveBeenCalledTimes(2);
     expect(mocks.supabaseCalls).toBe(0);

@@ -107,14 +107,21 @@ describe("tabular.routes", () => {
     describe("GET /tabular-review", () => {
         it("returns the overview rows from the RPC", async () => {
             supabaseState.rpc = {
-                data: [{ id: "r1", title: "Alpha" }],
+                data: [{
+                    id: "r1",
+                    created_at: "2026-01-01T00:00:00.000Z",
+                    payload: { id: "r1", title: "Alpha" },
+                }],
                 error: null,
             };
 
             const res = await request(app).get("/tabular-review").set(...AUTH);
 
             expect(res.status).toBe(200);
-            expect(res.body).toEqual([{ id: "r1", title: "Alpha" }]);
+            expect(res.body).toEqual({
+                items: [{ id: "r1", title: "Alpha" }],
+                next_cursor: null,
+            });
         });
 
         it("returns 500 with detail when the RPC errors", async () => {

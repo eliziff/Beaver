@@ -116,10 +116,8 @@
     .chat-input-control-label {
         display: none;
     }
-}
-@container (min-width: 561px) {
-    .chat-input-actions {
-        width: auto;
+    .chat-input-context-tools button {
+        padding-inline: 0.25rem;
     }
 }
 @media (max-height: 640px) {

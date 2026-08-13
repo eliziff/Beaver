@@ -2,10 +2,9 @@
 # Boot the full local e2e stack and run the Playwright suite.
 #
 # Local-machine mirror of .github/workflows/e2e.yml: starts the Supabase CLI
-# stack (Docker), loads backend/schema.sql + backend/migrations/ (re-granting
-# service_role's narrowed privileges afterwards for migration-created tables —
-# see docs/e2e-ci.md), points backend/.env and frontend/.env.local at the
-# local stack, then runs `npx playwright test`.
+# stack (Docker), resets its disposable database, loads backend/schema.sql,
+# points backend/.env and frontend/.env.local at the local stack, then runs
+# `npx playwright test`.
 #
 # Usage, from the repo root:
 #   npm run test:e2e:local            # whole suite
@@ -51,25 +50,10 @@ API_URL=$(jq -r '.API_URL' <<<"$STATUS")
 ANON_KEY=$(jq -r '.ANON_KEY' <<<"$STATUS")
 SERVICE_KEY=$(jq -r '.SERVICE_ROLE_KEY' <<<"$STATUS")
 
-# schema.sql is not idempotent, so only load it into a virgin database; the
-# dated migrations ARE re-runnable and fill any gap schema.sql has (it lags —
-# see docs/e2e-ci.md), so apply them every time.
-if [ "$(psql "$DB_URL" -tAc "SELECT to_regclass('public.user_profiles') IS NULL")" = "t" ]; then
-    echo "Loading schema.sql into fresh database…"
-    psql "$DB_URL" -v ON_ERROR_STOP=1 -q -f schema.sql
-fi
-for m in migrations/*.sql; do
-    psql "$DB_URL" -q -f "$m" >/dev/null 2>&1 ||
-        echo "warning: migration returned non-zero (already applied?): $m"
-done
-# schema.sql grants these itself, but only for tables that existed when it
-# ran — re-grant after migrations, with the same narrowed set (not ALL).
-psql "$DB_URL" -v ON_ERROR_STOP=1 -q <<'SQL'
-GRANT USAGE ON SCHEMA public TO service_role;
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO service_role;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO service_role;
-NOTIFY pgrst, 'reload schema';
-SQL
+echo "Resetting disposable E2E database and loading schema.sql…"
+npx supabase db reset --no-seed
+psql "$DB_URL" -v ON_ERROR_STOP=1 -q -f schema.sql
+psql "$DB_URL" -v ON_ERROR_STOP=1 -q -c "NOTIFY pgrst, 'reload schema';"
 
 # Rewrite only the Supabase lines of the env files, preserving everything else
 # (API keys, R2 storage, …). Keep a one-time backup of the pre-local versions.

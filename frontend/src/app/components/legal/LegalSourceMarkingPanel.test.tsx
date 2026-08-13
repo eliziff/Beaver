@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/app/lib/beaverApi", () => ({
-    listLegalResearchProjects: mocks.listProjects,
+    listProjects: mocks.listProjects,
     createLegalResearchProject: mocks.createProject,
     getLegalSourceMarking: mocks.getMarking,
     createLegalResearchLabel: mocks.createLabel,
@@ -39,9 +39,7 @@ describe("LegalSourceMarkingPanel", () => {
     beforeEach(() => {
         vi.clearAllMocks();
         window.localStorage.clear();
-        mocks.listProjects.mockResolvedValue([
-            { id: "general", name: "General research", order: 0 },
-        ]);
+        mocks.listProjects.mockResolvedValue({ items: [], next_cursor: null });
         mocks.getMarking.mockResolvedValue(emptyMarking);
         mocks.saveMark.mockImplementation(
             async (

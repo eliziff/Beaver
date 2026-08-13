@@ -3,7 +3,7 @@ import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  listLocalLibrary: vi.fn(),
+  getLocalDocumentResponse: vi.fn(),
   getLocalVersionFile: vi.fn(),
   readLocalPdfParseState: vi.fn(),
   queueLocalPdfParse: vi.fn(),
@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../lib/localMode", () => ({ isAnonymousLocalMode: () => true }));
 vi.mock("../lib/localDocumentStore", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../lib/localDocumentStore")>()),
-  listLocalLibrary: mocks.listLocalLibrary,
+  getLocalDocumentResponse: mocks.getLocalDocumentResponse,
   getLocalVersionFile: mocks.getLocalVersionFile,
 }));
 vi.mock("../lib/localPdfIngestion", async (importOriginal) => ({
@@ -45,9 +45,9 @@ app.use("/library", localLibraryRouter);
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.AUTH_MODE = "anonymous";
-  mocks.listLocalLibrary.mockResolvedValue({
-    documents: [{ id: "document-1" }],
-    folders: [],
+  mocks.getLocalDocumentResponse.mockResolvedValue({
+    id: "document-1",
+    library_kind: "file",
   });
   mocks.getLocalVersionFile.mockResolvedValue({
     path: "C:\\data\\source.pdf",

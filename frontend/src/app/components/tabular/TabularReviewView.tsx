@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, MessageSquare, MessageSquareX, Play, Plus, Upload, Users } from "lucide-react";
 import {
     clearTabularCells, deleteTabularReview, getProject, getTabularReview,
-    getTabularReviewPeople, listProjects, regenerateTabularCell,
+    getTabularReviewPeople, regenerateTabularCell,
     streamTabularGeneration, updateTabularReview, uploadProjectDocument,
     uploadStandaloneDocument,
 } from "@/app/lib/beaverApi";
@@ -95,11 +95,13 @@ export function TRView({ reviewId, projectId }: Props) {
     const expandedCitation = cellView?.citation;
 
     useEffect(() => {
-        const projectRequest = projectId
-            ? getProject(projectId).then((loaded) => [loaded]).catch(() => [])
-            : listProjects().catch(() => []);
-        Promise.all([getTabularReview(reviewId), projectRequest])
-            .then(([data, loadedProjects]) => {
+        getTabularReview(reviewId)
+            .then(async (data) => {
+                const linkedProjectId = projectId ?? data.review.project_id;
+                const loadedProjects = linkedProjectId
+                    ? await getProject(linkedProjectId)
+                        .then((loaded) => [loaded]).catch(() => [])
+                    : [];
                 setReview(data.review);
                 setCells(data.cells);
                 setDocuments(data.documents);

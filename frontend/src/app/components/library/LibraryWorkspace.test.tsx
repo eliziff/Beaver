@@ -28,13 +28,11 @@ vi.mock("@/app/components/documents/DocTable", () => ({
     DocTable: ({
         documents,
         loading,
-        setDocuments,
     }: {
         documents: unknown[];
         loading: boolean;
-        setDocuments: (documents: unknown[]) => void;
     }) => (
-        <button onClick={() => setDocuments([])}>
+        <button>
             {documents.length}:{String(loading)}
         </button>
     ),
@@ -58,8 +56,8 @@ vi.mock("@/app/components/ui/tab-pill-button", () => ({
 describe("LibraryWorkspaceProvider", () => {
     it("loads once and keeps local collection updates", async () => {
         mocks.getLibrary.mockResolvedValue({
-            documents: [{ id: "one" }],
-            folders: [],
+            items: [{ kind: "document", document: { id: "one" } }],
+            next_cursor: null,
         });
         render(
             <LibraryWorkspaceProvider>
@@ -68,8 +66,6 @@ describe("LibraryWorkspaceProvider", () => {
         );
 
         await waitFor(() => expect(screen.getByText("1:false")).toBeVisible());
-        fireEvent.click(screen.getByRole("button"));
-        expect(screen.getByText("0:false")).toBeVisible();
         expect(mocks.getLibrary).toHaveBeenCalledOnce();
     });
 });

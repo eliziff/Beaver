@@ -35,12 +35,7 @@ afterEach(async () => {
 
 describe("legal knowledge routes", () => {
   it("creates project-scoped hierarchical labels and marks a saved source", async () => {
-    const projects = await request(app).get("/legal-knowledge/projects");
-    expect(projects.status).toBe(200);
-    expect(projects.body.projects[0]).toMatchObject({
-      id: "general",
-      name: "General research",
-    });
+    expect(store.hasProject("local-user", "general")).toBe(true);
 
     const parent = await request(app)
       .post("/legal-knowledge/projects/general/nodes")

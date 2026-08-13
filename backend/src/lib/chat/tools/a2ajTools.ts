@@ -18,9 +18,9 @@ import {
 import {
   createA2AJDocumentEvidence,
   createA2AJLookupEvidence,
-  legalEvidenceExperimentTools,
+  legalEvidenceTools,
   type LegalEvidenceReceipt,
-} from "../legalEvidenceExperiment";
+} from "../legalEvidence";
 
 export const A2AJ_TOOL_NAMES = {
   search: "a2aj_search",
@@ -731,5 +731,5 @@ export const A2AJ_TOOLS = [
       },
     },
   },
-  ...legalEvidenceExperimentTools(),
+  ...legalEvidenceTools(),
 ];

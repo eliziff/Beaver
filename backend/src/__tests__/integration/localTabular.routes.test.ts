@@ -34,18 +34,20 @@ vi.mock("../../lib/llm", async (importOriginal) => ({
 }));
 
 let dataHome: string;
-let closeStores: (() => void) | null = null;
+let closeStores: (() => Promise<void>) | null = null;
 
 async function loadApp() {
   vi.resetModules();
-  const [{ app }, graph, tabular] = await Promise.all([
+  const [{ app }, graph, tabular, documents] = await Promise.all([
     import("../../app"),
     import("../../lib/legalKnowledgeGraphStore"),
     import("../../lib/localTabularStore"),
+    import("../../lib/localDocumentStore"),
   ]);
-  closeStores = () => {
+  closeStores = async () => {
     tabular.closeLocalTabularStore();
     graph.legalKnowledgeGraphStore().close();
+    await documents.closeLocalDocumentStore();
   };
   return app;
 }
@@ -77,7 +79,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  closeStores?.();
+  await closeStores?.();
   closeStores = null;
   vi.unstubAllEnvs();
   vi.resetModules();
@@ -136,7 +138,7 @@ describe("account-free tabular reviews", () => {
       `/tabular-review?project_id=${project.body.id}`,
     );
     expect(listed.status).toBe(200);
-    expect(listed.body.map((review: { id: string }) => review.id)).toEqual([
+    expect(listed.body.items.map((review: { id: string }) => review.id)).toEqual([
       created.body.id,
     ]);
 
@@ -191,7 +193,7 @@ describe("account-free tabular reviews", () => {
     const projectAfterRestart = await request(app).get(
       `/projects/${project.body.id}`,
     );
-    expect(projectAfterRestart.body.review_count).toBe(1);
+    expect(projectAfterRestart.body).not.toHaveProperty("review_count");
 
     expect(
       (
@@ -234,7 +236,7 @@ describe("account-free tabular reviews", () => {
           `/tabular-review?project_id=${project.body.id}`,
         )
       ).body,
-    ).toEqual([]);
+    ).toEqual({ items: [], next_cursor: null });
     expect(
       (
         await request(app).delete(

@@ -28,10 +28,6 @@ vi.mock("../openrouter", () => ({
   streamOpenRouter: vi.fn(),
   completeOpenRouterText: vi.fn(),
 }));
-vi.mock("../codexApi", () => ({
-  streamCodexApi: vi.fn(),
-}));
-
 import {
   appendContextManifest,
   buildContextManifest,

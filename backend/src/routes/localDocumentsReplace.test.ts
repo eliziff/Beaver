@@ -19,6 +19,9 @@ vi.mock("../lib/convert", () => ({
 let temporaryDirectory: string | null = null;
 
 afterEach(async () => {
+  try {
+    await (await import("../lib/localDocumentStore")).closeLocalDocumentStore();
+  } catch {}
   delete process.env.AUTH_MODE;
   delete process.env.MIKE_LOCAL_DATA_DIR;
   delete process.env.OPEN_LEGAL_DATA_HOME;

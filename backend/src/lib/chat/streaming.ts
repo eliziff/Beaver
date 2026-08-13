@@ -55,7 +55,7 @@ import {
   renderLegalEvidenceAnswer,
   type LegalEvidenceReceipt,
   type LegalEvidenceReceiptEvent,
-} from "./legalEvidenceExperiment";
+} from "./legalEvidence";
 import {
   READ_SUBAGENT_SYSTEM_PROMPT,
   READ_SUBAGENT_TOOL,
@@ -168,7 +168,6 @@ export async function runLLMStream({
   includeResearchTools = true,
   workflowStore,
   tabularStore,
-  buildCitations,
   model,
   apiKeys,
   reasoningEffort,
@@ -192,7 +191,6 @@ export async function runLLMStream({
   includeResearchTools?: boolean;
   workflowStore?: WorkflowStore;
   tabularStore?: TabularCellStore;
-  buildCitations?: (fullText: string) => unknown[];
   model?: string;
   apiKeys?: import("../llm").UserApiKeys;
   reasoningEffort?: string;
@@ -299,7 +297,7 @@ export async function runLLMStream({
 
   const emit = (payload: unknown) =>
     write(`data: ${JSON.stringify(payload)}\n\n`);
-  const flushText = (opts: { emit?: boolean } = {}) => {
+  const flushText = () => {
     if (!iterText) return;
     fullText += iterText;
     if (iterVisibleText) {
@@ -309,8 +307,8 @@ export async function runLLMStream({
     iterVisibleText = "";
   };
 
-  const flushPartialTurn = (opts: { emit?: boolean } = {}) => {
-    flushText(opts);
+  const flushPartialTurn = () => {
+    flushText();
     if (iterReasoning) {
       events.push({ type: "reasoning", text: iterReasoning, debug: true });
       iterReasoning = "";
@@ -618,7 +616,7 @@ export async function runLLMStream({
       // Stop this assistant turn here so the model does not add redundant
       // prose telling the user to answer the picker or attach documents.
     } else if (isAbortError(err)) {
-      flushPartialTurn({ emit: false });
+      flushPartialTurn();
       throw new AssistantStreamAbortError(fullText, events);
     } else {
       flushPartialTurn();

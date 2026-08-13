@@ -75,8 +75,8 @@ describe("account-free starter workflows", () => {
   it("lists a small assistant and tabular set without Supabase", async () => {
     const app = await loadApp();
     const [assistant, tabular, hidden] = await Promise.all([
-      request(app).get("/workflows?type=assistant"),
-      request(app).get("/workflows?type=tabular"),
+      request(app).get("/workflows/system?type=assistant"),
+      request(app).get("/workflows/system?type=tabular"),
       request(app).get("/workflows/hidden"),
     ]);
 

@@ -251,6 +251,12 @@ afterEach(async () => {
   runLegalPdf.mockReset();
   renameFault.remaining = 0;
   renameFault.injected = 0;
+  if (temporaryDirectory) {
+    try {
+      const store = await import("../localDocumentStore");
+      await store.closeLocalDocumentStore();
+    } catch {}
+  }
   delete process.env.MIKE_LOCAL_DATA_DIR;
   delete process.env.MIKE_PDF_PARSE_CONFIG_VERSION;
   delete process.env.MIKE_PDF_OCR_LANGUAGE;
@@ -1302,28 +1308,6 @@ describe("local PDF ingestion", () => {
     const source = path.join(temporaryDirectory, relativeSource);
     await mkdir(path.dirname(source), { recursive: true });
     await writeFile(source, "%PDF-1.4 stored", "utf8");
-    await writeFile(
-      path.join(temporaryDirectory, "library.json"),
-      JSON.stringify({
-        version: 1,
-        documents: [
-          {
-            id: "document",
-            versions: [
-              {
-                id: "version",
-                fileType: "pdf",
-                storagePath: relativeSource,
-              },
-            ],
-          },
-        ],
-        folders: [],
-        legalSources: [],
-      }),
-      "utf8",
-    );
-
     await ingestion.resumeLocalPdfParses();
     await expect(ingestion.readLocalPdfParseState(source)).resolves.toBeNull();
     expect(runLegalPdf).not.toHaveBeenCalled();

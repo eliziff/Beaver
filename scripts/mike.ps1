@@ -659,7 +659,8 @@ function Invoke-Smoke {
                     throw 'health response did not contain ok=true'
                 }
                 if ($check.Name -eq 'Library' -and
-                    ($null -eq $payload.documents -or $null -eq $payload.folders)) {
+                    ($null -eq $payload.items -or
+                     'next_cursor' -notin $payload.PSObject.Properties.Name)) {
                     throw 'Library response was incomplete'
                 }
                 if ($check.Name -eq 'Codex model catalog' -and

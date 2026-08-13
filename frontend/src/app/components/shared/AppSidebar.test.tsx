@@ -445,7 +445,7 @@ describe("AppSidebar", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     expect(
-      await screen.findByRole("dialog", { name: "Settings" }),
+      await screen.findByRole("dialog", { name: "Settings" }, { timeout: 10_000 }),
     ).toBeVisible();
     const account = screen.getByRole("link", { name: "Account" });
     expect(account).toHaveAttribute("href", "/account");

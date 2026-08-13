@@ -26,7 +26,6 @@ export function ProjectPageHeader({    project,
     activeSection,
     creatingChat,
     creatingReview,
-    docsCount,
     isOwner,
     onBackToProjects,
     onOpenDetails,
@@ -42,7 +41,6 @@ export function ProjectPageHeader({    project,
     activeSection: ProjectWorkspaceSection;
     creatingChat: boolean;
     creatingReview: boolean;
-    docsCount: number;
     isOwner: boolean;
     onBackToProjects: () => void;
     onOpenDetails: () => void;
@@ -76,7 +74,7 @@ export function ProjectPageHeader({    project,
                     label: <span className="hidden sm:inline">Review</span>,
                     title: "Create review",
                     onClick: onNewReview,
-                    disabled: docsCount === 0 || creatingReview,
+                    disabled: creatingReview,
                     busy: creatingReview,
                     icon: Plus,
                 };

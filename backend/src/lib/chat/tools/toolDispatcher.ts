@@ -5,14 +5,12 @@ import {
 } from "./courtlistenerTools";
 import { executeA2AJTool } from "./a2ajTools";
 import {
-  LEGAL_EVIDENCE_PLAN_TOOL_NAME,
   LEGAL_EVIDENCE_TOOL_NAME,
   createLibraryEvidence,
-  planLegalEvidence,
   registerLegalEvidence,
   submitLegalEvidenceAnswer,
   type LegalEvidenceTurnState,
-} from "../legalEvidenceExperiment";
+} from "../legalEvidence";
 import { PUBLIC_LEGAL_SOURCE_TOOL_NAMES } from "./publicLegalSourceTools";
 import type { A2AJDocument, A2AJLocatorLookup } from "../../a2aj";
 import {
@@ -471,18 +469,6 @@ export async function runToolCalls(
       /* ignore */
     }
     const a2aj = await executeA2AJTool(tc.function.name, args);
-
-    if (tc.function.name === LEGAL_EVIDENCE_PLAN_TOOL_NAME) {
-      const planned = legalEvidenceState
-        ? planLegalEvidence(args, legalEvidenceState)
-        : { ok: false, errors: ["Legal evidence state is unavailable"] };
-      toolResults.push({
-        role: "tool",
-        tool_call_id: tc.id,
-        content: JSON.stringify(planned),
-      });
-      continue;
-    }
 
     if (tc.function.name === LEGAL_EVIDENCE_TOOL_NAME) {
       const submitted = legalEvidenceState

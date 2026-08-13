@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";import {
     deleteTabularReview,
+    listTabularReviews,
     updateTabularReview,
 } from "@/app/lib/beaverApi";
 import { TabularReviewsTable } from "@/app/components/tabular/TabularReviewsTable";
@@ -12,33 +13,31 @@ import {
 import type { TabularReview } from "@/app/components/shared/types";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { NativeActionSelect } from "@/app/components/ui/native-action-select";
+import { usePagedQuery } from "@/app/hooks/usePagedQuery";
 export default function ProjectTabularReviewsPage() {
     const { user } = useAuth();
     const {
         creatingReview,
-        ensureProjectReviews,
         openNewReview,
         project,
         projectId,
-        projectReviews,
         search,
         setOwnerOnlyAction,
-        setProjectReviews,
     } = useProjectWorkspace();
     const [selectedReviewIds, setSelectedReviewIds] = useState<string[]>([]);
     const [detailsReview, setDetailsReview] = useState<TabularReview | null>(
         null,
     );
-    const reviews = projectReviews ?? [];    const loading = projectReviews === null;
-    useEffect(() => {
-        void ensureProjectReviews();
-    }, [ensureProjectReviews]);
-    const q = search.toLowerCase();
-    const filteredReviews = q
-        ? reviews.filter((r) =>
-              (r.title ?? "").toLowerCase().includes(q),
-          )
-        : reviews;
+    const page = usePagedQuery<TabularReview>(
+        (cursor, signal) => listTabularReviews({
+            project_id: projectId, q: search, cursor,
+        }, signal),
+        [projectId, search],
+    );
+    const reviews = page.items;
+    const filteredReviews = reviews;
+    const loading = page.loading && reviews.length === 0;
+    useEffect(() => setSelectedReviewIds([]), [search]);
     function handleOpenDetails(review: TabularReview) {
         if (user?.id && review.user_id !== user.id) {
             setOwnerOnlyAction("edit tabular review details");
@@ -55,8 +54,8 @@ export default function ProjectTabularReviewsPage() {
             title: values.title,
             project_id: projectId,
         });
-        setProjectReviews((prev) =>
-            (prev ?? []).map((review) =>
+        page.setItems((prev) =>
+            prev.map((review) =>
                 review.id === updated.id ? updated : review,
             ),
         );
@@ -68,8 +67,8 @@ export default function ProjectTabularReviewsPage() {
             return;
         }
         await deleteTabularReview(review.id);
-        setProjectReviews((prev) =>
-            (prev ?? []).filter((r) => r.id !== review.id),
+        page.setItems((prev) =>
+            prev.filter((r) => r.id !== review.id),
         );
     }
     async function handleDeleteSelectedReviews() {
@@ -83,8 +82,8 @@ export default function ProjectTabularReviewsPage() {
         await Promise.all(
             owned.map((id) => deleteTabularReview(id).catch(() => {})),
         );
-        setProjectReviews((prev) =>
-            (prev ?? []).filter((review) => !owned.includes(review.id)),
+        page.setItems((prev) =>
+            prev.filter((review) => !owned.includes(review.id)),
         );
         if (blocked > 0) {
             setOwnerOnlyAction(
@@ -121,7 +120,6 @@ export default function ProjectTabularReviewsPage() {
                 filteredReviews={filteredReviews}
                 selectedReviewIds={selectedReviewIds}
                 creatingReview={creatingReview}
-                createDisabled={!project?.documents?.length}
                 loading={loading}
                 onCreateReview={openNewReview}
                 reviewHref={(review) =>
@@ -131,6 +129,13 @@ export default function ProjectTabularReviewsPage() {
                 onDeleteReview={handleDeleteReviewRow}
                 setSelectedReviewIds={setSelectedReviewIds}
             />
+            {page.hasMore && (
+                <button type="button" onClick={() => void page.loadMore()}
+                    disabled={page.loading}
+                    className="mx-auto my-2 min-h-9 rounded-md border border-gray-300 px-4 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50">
+                    {page.loading ? "Loadingâ€¦" : "Load more"}
+                </button>
+            )}
             <TabularReviewDetailsModal
                 open={!!detailsReview}
                 review={detailsReview}

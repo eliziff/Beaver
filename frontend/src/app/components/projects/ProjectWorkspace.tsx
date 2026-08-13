@@ -17,14 +17,12 @@ import {
     getProject,
     getProjectPeople,
     listProjectChats,
-    listTabularReviews,
     updateProject,
 } from "@/app/lib/beaverApi";
 import type {
     Chat,
     ColumnConfig,
     Project,
-    TabularReview,
 } from "@/app/components/shared/types";
 import { TableToolbar } from "@/app/components/shared/TableToolbar";
 import { NewTRModal } from "@/app/components/tabular/NewTRModal";
@@ -53,11 +51,6 @@ type ProjectWorkspaceValue = {
     projectChats: Chat[] | null;
     setProjectChats: React.Dispatch<React.SetStateAction<Chat[] | null>>;
     ensureProjectChats: () => Promise<Chat[]>;
-    projectReviews: TabularReview[] | null;
-    setProjectReviews: React.Dispatch<
-        React.SetStateAction<TabularReview[] | null>
-    >;
-    ensureProjectReviews: () => Promise<TabularReview[]>;
     prefetchProjectSections: () => void;
     creatingChat: boolean;
     creatingReview: boolean;
@@ -139,12 +132,6 @@ export function ProjectWorkspaceProvider({
             listProjectChats,
             "[project assistant] failed to load",
         );
-    const [projectReviews, setProjectReviews, ensureProjectReviews] =
-        useLazyProjectList<TabularReview>(
-            projectId,
-            listTabularReviews,
-            "[project reviews] failed to load",
-        );
     const [dialog, setDialog] = useState<ProjectDialog>(null);
     const [ownerOnlyAction, setOwnerOnlyAction] = useState<string | null>(null);
     const [creatingChat, setCreatingChat] = useState(false);
@@ -161,13 +148,6 @@ export function ProjectWorkspaceProvider({
     const showShell =
         segments.length === 0 ||
         (segments.length === 1 && activeSection !== "documents");
-    const readyDocuments = useMemo(
-        () =>
-            project?.documents?.filter(
-                (document) => document.status === "ready",
-            ) ?? [],
-        [project?.documents],
-    );
     const router = useRouter();
     const { user } = useAuth();
     const { profile } = useUserProfile();
@@ -208,8 +188,7 @@ export function ProjectWorkspaceProvider({
     );
     const prefetchProjectSections = useCallback(() => {
         void ensureProjectChats();
-        void ensureProjectReviews();
-    }, [ensureProjectChats, ensureProjectReviews]);
+    }, [ensureProjectChats]);
     const createChat = useCallback(async () => {
         setCreatingChat(true);
         try {
@@ -239,8 +218,8 @@ export function ProjectWorkspaceProvider({
         }
     }, [profile?.displayName, projectId, router, saveChat, user?.id]);
     const openNewReview = useCallback(() => {
-        if (readyDocuments.length > 0) setDialog("review");
-    }, [readyDocuments]);
+        setDialog("review");
+    }, []);
     async function handleCreateReview(
         title: string,
         _projectId?: string,
@@ -251,12 +230,10 @@ export function ProjectWorkspaceProvider({
         try {
             const review = await createTabularReview({
                 title: title || undefined,
-                document_ids:
-                    documentIds ?? readyDocuments.map((document) => document.id),
+                document_ids: documentIds ?? [],
                 columns_config: columnsConfig ?? [],
                 project_id: projectId,
             });
-            setProjectReviews((prev) => (prev ? [review, ...prev] : prev));
             router.push(`/projects/${projectId}/tabular-reviews/${review.id}`);
         } finally {
             setCreatingReview(false);
@@ -304,9 +281,6 @@ export function ProjectWorkspaceProvider({
             projectChats,
             setProjectChats,
             ensureProjectChats,
-            projectReviews,
-            setProjectReviews,
-            ensureProjectReviews,
             prefetchProjectSections,
             creatingChat,
             creatingReview,
@@ -323,8 +297,6 @@ export function ProjectWorkspaceProvider({
             search,
             projectChats,
             ensureProjectChats,
-            projectReviews,
-            ensureProjectReviews,
             prefetchProjectSections,
             creatingChat,
             creatingReview,
@@ -357,7 +329,6 @@ export function ProjectWorkspaceProvider({
                     activeSection={activeSection}
                     creatingChat={creatingChat}
                     creatingReview={creatingReview}
-                    docsCount={project?.documents?.length ?? 0}
                     isOwner={project?.is_owner !== false}
                     onBackToProjects={() => router.push("/projects")}
                     onOpenDetails={() => setDialog("details")}
@@ -373,7 +344,7 @@ export function ProjectWorkspaceProvider({
                     open={dialog === "review"}
                     onClose={() => setDialog(null)}
                     onAdd={handleCreateReview}
-                    projectDocs={readyDocuments}
+                    projectId={projectId}
                     projectName={project?.name}
                     projectCmNumber={project?.cm_number}
                 />

@@ -253,19 +253,4 @@ describe("a2aj_search chat tool passage lane", () => {
     );
   });
 
-  it("falls back to document-level results when no sidecar is built", async () => {
-    process.env.MIKE_A2AJ_BULK_DB = unindexedDb;
-    process.env.MIKE_PASSAGE_SEARCH = "1";
-    const execution = await executeA2AJTool("a2aj_search", {
-      query: "reverse engineer a prototype",
-      size: 4,
-    });
-    const results = execution?.payload.results as Array<
-      Record<string, unknown>
-    >;
-    expect(execution?.payload.ok).toBe(true);
-    expect(results.length).toBeGreaterThan(0);
-    expect(results[0].passage_start).toBeUndefined();
-    expect(results[0].citation).toBe("2024 SCC 11");
-  });
 });

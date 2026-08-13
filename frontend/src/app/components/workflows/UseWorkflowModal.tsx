@@ -2,7 +2,6 @@ import { useRef, useState } from "react";
 import type { Document, Workflow } from "../shared/types";
 import { createTabularReview } from "@/app/lib/beaverApi";
 import { useRouter } from "next/navigation";
-import { useDirectoryData } from "../shared/useDirectoryData";
 import { FileDirectory } from "../shared/FileDirectory";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { Modal } from "../modals/Modal";
@@ -41,10 +40,6 @@ function OpenUseWorkflowModal({
     const [saving, setSaving] = useState(false);
     const router = useRouter();
     const { saveChat, stagePendingChatMessage } = useChatHistoryContext();
-    const { loading: dirLoading, projects } = useDirectoryData(
-        screen === "details",
-        "projects",
-    );
     async function handleStartChat() {
         setSaving(true);
         try {
@@ -97,8 +92,6 @@ function OpenUseWorkflowModal({
             setSaving(false);
         }
     }
-    const selectedProject = projects.find((p) => p.id === selectedProjectId);
-    const projectDocs = selectedProject?.documents ?? [];
     const location = inProject ? "project" : "workspace";
     const locationOptions =
         wf.metadata.type === "assistant"
@@ -177,14 +170,11 @@ function OpenUseWorkflowModal({
                                     Project
                                 </ModalFieldLabel>
                                 <ProjectChoiceList
-                                    projects={projects}
                                     value={selectedProjectId}
                                     onChange={(value) => {
                                         setSelectedProjectId(value);
                                         setSelectedDocuments([]);
                                     }}
-                                    loading={dirLoading}
-                                    disabled={dirLoading}
                                 />
                             </div>
                         )}
@@ -211,7 +201,7 @@ function OpenUseWorkflowModal({
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                     <div className="flex min-h-0 flex-1 flex-col">
                         <FileDirectory
-                            documents={inProject ? projectDocs : undefined}
+                            projectId={inProject ? selectedProjectId ?? undefined : undefined}
                             selectedDocuments={selectedDocuments}
                             onChange={setSelectedDocuments}
                             showTabs={!inProject}

@@ -11,7 +11,7 @@ import {
   renderLegalEvidenceAnswer,
   type LegalEvidenceReceiptEvent,
   type LegalEvidenceTurnState,
-} from "./legalEvidenceExperiment";
+} from "./legalEvidence";
 import { assistantToolActivityLabel } from "./tools/a2ajTools";
 
 export const READ_SUBAGENT_TOOL_NAME = "delegate_read";
@@ -501,7 +501,7 @@ function compactSearchResult(result: NormalizedToolResult) {
 }
 
 const GROUNDED_ANSWER_INSTRUCTIONS =
-  "Finish only with submit_grounded_answer. Its top-level object contains only claims. Every claim requires text, evidence_ids, kind, premise_source, and premise_text. Prefer concise direct quotations, weaving up to three disjoint exact spans into one support unit when useful; paraphrase only when synthesis is materially clearer. Use exact evidence_id values returned by retrieval tools. kind is quotation, conclusion, or premise_correction; premise_source and premise_text must be null unless correcting a premise. Put sources only in evidence_ids; do not put citation or pinpoint prose in text.";
+  "Finish only with submit_grounded_answer. Its top-level object contains only claims; every claim requires text and evidence_ids. Prefer concise direct quotations, weaving up to three disjoint exact spans into one support unit when useful; paraphrase only when synthesis is materially clearer. Use exact evidence_id values returned by retrieval tools. Put sources only in evidence_ids; do not put citation or pinpoint prose in text.";
 
 const READ_TOOL_NAMES = new Set([
   "SearchSources",
@@ -950,10 +950,7 @@ export async function runReadSubagent(params: {
       }
       if (rendered && grounding?.status === "passed") break;
       const priorFeedback = feedback.join("\n\n").slice(-MAX_REPAIR_CONTEXT_CHARS);
-      const rejection =
-        grounding?.bounces.at(-1)?.errors.join("; ") ??
-        grounding?.failure ??
-        "No grounded submission was received.";
+      const rejection = grounding?.failure ?? "No grounded submission was received.";
       prompt = `${assignment}\n\nYour previous attempt did not pass the grounding gate: ${rejection}\n\nContinue revising using the schema and tool feedback below. Retrieve more passages if needed.\n\n${priorFeedback || "No tool feedback was returned; retrieve evidence before submitting."}`;
     }
     if (params.publishEvidenceTo) {

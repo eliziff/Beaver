@@ -8,10 +8,7 @@ import { linkLocalDocxCitations } from "../docxCitationLinking";
 import { fixLocalDocxSupraCrossReferences } from "../docxDeterministicCleanup";
 import { lintLocalDocxStructure } from "../docxStructuralLint";
 import { draftingLint } from "../legalDraftingLint";
-import {
-  reconcileFigures,
-  type ServedPassage,
-} from "../legalFigureReconciliation";
+import { type ServedPassage } from "../legalFigureReconciliation";
 import {
   consolidateAmendment,
   deleteProvisionAndRenumberSiblings,
@@ -25,58 +22,19 @@ import {
   type AssignmentClosureSource,
 } from "../legalAssignmentClosure";
 import { anchorCoverage, bilingualConcordance } from "../legalTextAnchors";
-import {
-  compileAgreementSkeleton,
-  readSection,
-  skeletonSubtreeLabels,
-  renderAgreementOutline,
-  type AgreementSkeleton,
-  type CompileSkeletonOptions,
-  type TableCellSpan,
-} from "../legalTextSkeleton";
+import { compileAgreementSkeleton, readSection, skeletonSubtreeLabels, type AgreementSkeleton, type CompileSkeletonOptions, type TableCellSpan } from "../legalTextSkeleton";
 import {
   crossReferenceGraph,
   type CrossReferenceGraph,
 } from "../legalCrossReference";
 import {
-  documentMap,
-  referenceImpact,
-  type DocumentMapFocus,
-  type ReferenceImpactOperation,
-} from "../legalRetrievalHybrid";
-import {
   bakedCrossReferenceGraph,
   bakedSkeleton,
 } from "../legalStructureSidecar";
-import {
-  nodeLinks,
-  nodeNeighbourhood,
-  pageAt,
-  pageLabel,
-  pageMapFromMarkers,
-  pageMapFromSourceDoc,
-  graphScope,
-  pageSchemes,
-  pageSections,
-  parseAddress,
-  referenceHubs,
-  resolvePage,
-  selectPages,
-  type FollowDirection,
-  type PageMap,
-  type PageSpan,
-} from "../legalDocumentNavigator";
+import { pageLabel, pageMapFromMarkers, pageMapFromSourceDoc, graphScope, parseAddress, resolvePage, selectPages, type FollowDirection, type PageMap } from "../legalDocumentNavigator";
 import { termDriftReport } from "../legalTermDrift";
 import { extractDocxDraftingSource } from "../docxDraftingSource";
-import {
-  STRUCTURE_INDEX_ENABLED,
-  anchoredSectionSpine,
-  anchoredSectionStarts,
-  attachStructureIndex,
-  deriveSectionNodes,
-  indexIsAddressable,
-  renderStructureIndex,
-} from "./structureIndexExperiment";
+import { anchoredSectionSpine, anchoredSectionStarts, deriveSectionNodes } from "./docxSectionAnchors";
 import { resolveDocxEvidenceCitations } from "../docxEvidenceCitations";
 import {
   applyTrackedEdits,
@@ -91,13 +49,15 @@ import {
   addLocalVersion,
   createLocalDocument,
   deleteLocalDocument,
+  getLocalDocumentResponse,
   getLocalVersionFile,
-  listLocalLibrary,
+  listLocalDocumentsById,
+  pageLocalDocuments,
+  recentLocalDocuments,
   updateLocalAssistantTurnVersion,
   updateLocalDocument,
   type LocalTrackedEdit,
 } from "../localDocumentStore";
-import { DOMAIN_PROMPTS } from "./prompts";
 import { legalKnowledgeGraphStore } from "../legalKnowledgeGraphStore";
 import {
   LOCAL_PDF_LOCATOR_KINDS,
@@ -126,36 +86,6 @@ import type {
 } from "../llm";
 import { cachedParse } from "../parseCache";
 import {
-  ADAPTIVE_MIKE_LAB_TOOLS,
-  COMPACT_AUTHOR_MIKE_LAB_TOOLS,
-  LEAN_BATCH_LAB_TOOLS,
-  CODING_MARKDOWN_V2_LAB_TOOLS,
-  CODING_MARKDOWN_V3_LAB_TOOLS,
-  CODING_MARKDOWN_V5_LAB_TOOLS,
-  CODING_MARKDOWN_FINAL_LAB_TOOLS,
-  CODING_MARKDOWN_FINAL_AGENT_LAB_TOOLS,
-  CODING_EDIT_TOOL,
-  CODING_GENERATE_DOCX_DRAFT_EDIT_TOOL,
-  MIKE_GREP_LAB_TOOLS,
-  MIKE_LEGAL_LAB_TOOLS,
-  MARKDOWN_INDEX_LAB_TOOLS,
-  MIKE_STRUCTURE_PATHS_LAB_TOOLS,
-  FETCH_REQUIREMENTS_TOOL,
-  NO_DEFERRAL_ECHO_NOTE,
-  UPSTREAM_MIKE_LAB_TOOLS,
-  UPSTREAM_MIKE_MARKDOWN_SWAP_LAB_TOOLS,
-  UPSTREAM_NATIVE_MIKE_LAB_TOOLS,
-} from "./upstreamMikeBenchmarkSurface";
-import {
-  UPSTREAM_NATIVE_ALREADY_READ_CONTENT,
-  UPSTREAM_NATIVE_ALREADY_READ_NEXT_ACTION,
-  applyUpstreamNativeTrackedEdits,
-  extractUpstreamNativeDocxBodyText,
-  renderUpstreamNativeDocx,
-  upstreamNativeCitationReminder,
-  upstreamNativeEditedNextAction,
-} from "./upstreamNativeDocxRenderer";
-import {
   getTableOfAuthoritiesJob,
   submitTableOfAuthoritiesDocument,
 } from "../tableOfAuthorities";
@@ -165,15 +95,13 @@ import {
 } from "./tools/a2ajTools";
 import {
   createBenchmarkEvidence,
-  LEGAL_EVIDENCE_PLAN_TOOL_NAME,
   LEGAL_EVIDENCE_TOOL_NAME,
   createLibraryEvidence,
-  planLegalEvidence,
   registerLegalEvidence,
   submitLegalEvidenceAnswer,
   type LegalEvidenceReceipt,
   type LegalEvidenceTurnState,
-} from "./legalEvidenceExperiment";
+} from "./legalEvidence";
 import { COURTLISTENER_TOOLS } from "./tools/courtlistenerTools";
 import { CITATOR_TOOLS, executeCitatorTool } from "./tools/citatorTools";
 import {
@@ -197,20 +125,9 @@ import {
   type TextOpScope,
 } from "../docxTextOps";
 import { TEXT_OP_NAMES } from "../textOps";
-import {
-  boundedParagraphTail,
-  findRegexMatches,
-  findTextMatches,
-  findTextMatchesFolded,
-  renderMarkdownDocx,
-  textParserFor,
-} from "./tools/documentOps";
+import { boundedParagraphTail, renderMarkdownDocx, textParserFor } from "./tools/documentOps";
 import { quoteRepairSuggestion } from "./quoteRepair";
-import {
-  docxCautionNotes,
-  docxPathologyReportFor,
-  REDLINE_VIEW_LEGEND,
-} from "./tools/docxPathologyNotes";
+import { docxCautionNotes, docxPathologyReportFor } from "./tools/docxPathologyNotes";
 import { projectDocxRedline } from "../docx/redline";
 import {
   DETERMINISTIC_DOCX_EDIT_SCHEMA,
@@ -221,27 +138,6 @@ import {
   runLocalCourtlistenerTool,
   type CourtlistenerToolState,
 } from "./courtlistenerToolRunner";
-
-/**
- * Navigation surface arm, for the A/B.
- *
- * "legacy" is the shape that shipped before 2026-07-31: read by section or
- * offset, unscoped find, no page addressing, no graph. "address" is the one
- * grammar shape: `at` everywhere, head/tail, page schemes, library_links,
- * and edit scopes that name a provision instead of retyping its text.
- *
- * The model sees exactly one of them, and only one is callable. Shims that
- * accept both would let an arm answer with the other arm's affordance and
- * make the comparison meaningless.
- */
-export const NAV_TOOL_SHAPE: string = "coding";
-
-/**
- * Benchmark opt-in: a successful final create receipt is the end of the
- * provider loop. The document card is rendered from the durable receipt, so
- * another model round would only restate completion with the full context.
- */
-export const TERMINAL_AUTHORING_ENABLED = true;
 
 const tool = (
   name: string,
@@ -261,25 +157,7 @@ const OPTIONAL_VERSION_ID_PROPERTY = {
 };
 
 const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
-  tool(
-    "library_list",
-    "List documents in the user's local Beaver Library with their app_url.",
-    {
-      type: "object",
-      properties: {
-        query: {
-          type: "string",
-          description: "Optional case-insensitive filename filter.",
-        },
-        kind: {
-          type: "string",
-          enum: ["file", "template", "all"],
-          description: "Library collection to list. Defaults to all.",
-        },
-      },
-    },
-  ),
-  tool(
+tool(
     "library_update_metadata",
     "Save jurisdiction, practice-area, document-type, description, and note metadata for a Library item. Only when the user asks to classify or annotate; do not invent facts.",
     {
@@ -301,167 +179,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
       required: ["document_id", "kind"],
     },
   ),
-  tool(
-    "library_read",
-    "Read the active version of a local Beaver Library document. Text mode supports bounded structural, page, offset, tail, and cross-reference reads. mode=drafting returns a whole-DOCX precedent view that preserves headings, lists, tables, emphasis, and note pairing for translation into semantic Markdown. mode=redline returns the whole DOCX with tracked changes, comments, and strike/colour redlines inline as markers.",
-    {
-      type: "object",
-      properties: {
-        document_id: { type: "string" },
-        mode: {
-          type: "string",
-          enum: ["text", "drafting", "redline"],
-          description:
-            "Defaults to text. drafting and redline are DOCX-only whole-document views and do not combine with at/from/follow. drafting returns bounded semantic HTML as document data. redline returns body text with editorial content visible: {++inserted++}, {--deleted--}, {>>author: comment<<}, [ink] for strike/colour formatting standing in for tracked changes.",
-        },
-        at: {
-          type: "string",
-          description:
-            "Text mode only. Where to read: '8.01' or 'Article VIII' for a provision and everything under it, 'table:1/row:2/col:3' for an exact DOCX cell, 'pdf:52' or 'printed:47' for a page, 'off:12000' for a raw window. Omit to read from the start. library_outline explains the addresses this document has.",
-        },
-        from: {
-          type: "string",
-          enum: ["start", "end"],
-          description:
-            "Which end of a host-bounded addressed span to read. Defaults to start; 'end' gives the tail — signature blocks, execution pages, the close of a clause.",
-        },
-        follow: {
-          type: "string",
-          enum: ["none", "out", "in", "both"],
-          description:
-            "Widen `at` along the document's cross-references (see library_outline). Defaults to none.",
-        },
-        depth: {
-          type: "integer",
-          minimum: 1,
-          maximum: 3,
-          description: "Hops. Defaults to 1.",
-        },
-        // Legacy-arm parameters. They carry their OWN descriptions, not a
-        // pointer at the other arm's vocabulary: each arm strips the other's
-        // parameters, so a deprecation note here is both pointless and a
-        // leak — it teaches arm A about a parameter arm A does not have.
-        section: {
-          type: "string",
-          description:
-            "Structural locator from the document's own numbering ('8.01', 'Article VIII', 'Schedule 7.01', 's. 8(2)') or an exact DOCX cell ('table:1/row:2/col:3'). Returns only that span, children included. library_outline lists the exact handles.",
-        },
-        page: {
-          type: "string",
-          description:
-            "Printed page label, for paged documents. library_outline reports which pages exist.",
-        },
-        offset: {
-          type: "integer",
-          minimum: 0,
-          description:
-            "Character offset to start from (text mode, no section). Pairs with library_find hits' offsets.",
-        },
-        max_chars: {
-          type: "integer",
-          minimum: 200,
-          maximum: 300000,
-          description:
-            "Text mode only. Characters to return. Defaults to 24000 — a portion, not the whole document; the reply sets `truncated` when there is more.",
-        },
-      },
-      required: ["document_id"],
-    },
-  ),
-  tool(
-    "library_outline",
-    "Orientation call, and where the address grammar is defined. Returns the ARTICLE/PART tree with every Section and (a)/(i) subsection, exact handles for unambiguous provisions and DOCX table cells, defined terms with their defining section, schedules, cross-reference counts, and the page map. Repeated TOC/body labels are marked for library_find instead of advertised as handles. Addresses: a node handle ('8.01', 'Article VIII') names a provision and everything under it; 'table:1/row:2/col:3' names one native DOCX cell; 'pdf:52' names the sheet's position in the file; 'printed:47' names the number printed ON the sheet, which is what a pinpoint citation, index or exhibit stamp refers to and need not equal the PDF page. The page map says which of those this document has and where they diverge. `follow` on read and find widens an address along the document's own cross-references: out = what it points at, in = what points at it. A ~100-page agreement maps to 1-3k tokens.",
-    {
-      type: "object",
-      properties: {
-        document_id: { type: "string" },
-        max_chars: {
-          type: "integer",
-          minimum: 1000,
-          maximum: 40000,
-          description: "Outline character budget. Defaults to 8000.",
-        },
-      },
-      required: ["document_id"],
-    },
-  ),
-  tool(
-    "library_links",
-    "Follow a document's own cross-references. With an address, returns that provision's parent/siblings/children plus the references it makes and the references made to it, each as a handle library_read accepts. Without one, returns the reference census and the most-referenced provisions. Deterministic — the document's literal pointers, not a similarity guess.",
-    {
-      type: "object",
-      properties: {
-        document_id: { type: "string" },
-        at: {
-          type: "string",
-          description:
-            "Structural locator to stand at ('8.01', 'Article VIII', 'table:1/row:2/col:3'). Omit for the document-level census and hubs.",
-        },
-        section: {
-          type: "string",
-          description:
-            "Structural locator to stand at ('8.01', 'Article VIII'). Omit for the document-level census and hubs.",
-        },
-        max_results: {
-          type: "integer",
-          minimum: 1,
-          maximum: 200,
-          description: "Cap on edges reported in each direction. Defaults to 40.",
-        },
-      },
-      required: ["document_id"],
-    },
-  ),
-  tool(
-    "library_find",
-    "Search inside a local Beaver Library document and return matching excerpts with context. Each hit carries its enclosing structural handle (`section`, when numbered) and character offset (`at`), so the follow-up is a scoped or windowed library_read, not a whole-document read.",
-    {
-      type: "object",
-      properties: {
-        document_id: { type: "string" },
-        query: { type: "string" },
-        regex: {
-          type: "boolean",
-          description:
-            "Query is a line-by-line JavaScript regex (^ and $ anchor to lines). Default false: literal, whitespace/quote tolerant.",
-        },
-        case_insensitive: {
-          type: "boolean",
-          description: "Regex mode only. Default false.",
-        },
-        at: {
-          type: "string",
-          description:
-            "Restrict the search to one address: '8.01' for a provision and everything under it, 'table:1/row:2/col:3' for an exact DOCX cell, or 'pdf:12-18'/'printed:47' for pages. Hit offsets stay document-wide.",
-        },
-        pages: {
-          type: "string",
-          description: "Restrict the search to pages, for paged documents.",
-        },
-        section: {
-          type: "string",
-          description:
-            "Restrict the search to one provision and everything under it ('8.01', 'Article VIII').",
-        },
-        follow: {
-          type: "string",
-          enum: ["none", "out", "in", "both"],
-          description:
-            "Widen `at` along the document's cross-references (see library_outline). Defaults to none.",
-        },
-        depth: {
-          type: "integer",
-          minimum: 1,
-          maximum: 3,
-          description: "Hops. Defaults to 1.",
-        },
-        max_results: { type: "integer", minimum: 1, maximum: 50 },
-        context_chars: { type: "integer", minimum: 40, maximum: 2000 },
-      },
-      required: ["document_id", "query"],
-    },
-  ),
-  tool(
+tool(
     "library_lookup",
     "Return one exact structural unit from a parsed local Library PDF: page/range, artifact paragraph/range, paired footnote/range with propositions, or an encoded section/provision. Never guesses or reparses the whole document.",
     {
@@ -510,7 +228,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
       required: ["document_id", "locator_kind", "locator"],
     },
   ),
-  tool(
+tool(
     "library_evidence",
     "Rehydrate a prior mike-evidence handle from its immutable Library PDF version. The server verifies source, parser, artifact IDs, and text hash first.",
     {
@@ -524,7 +242,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
       required: ["handle"],
     },
   ),
-  tool(
+tool(
     "legal_pdf_lookup",
     "Resolve a PDF reference returned by a legal-source tool into one exact parsed structural unit; reports a queued state rather than reading the whole PDF. To rehydrate prior evidence, pass its handle with the same reference_id instead of a locator.",
     {
@@ -549,7 +267,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
       required: ["reference_id"],
     },
   ),
-  tool(
+tool(
     "library_link_docx_citations",
     "Create a new version of a local Library DOCX with verified provider links on its footnote citations. It splits and routes the footnotes itself; do not read, split, classify, or construct citation URLs before calling it.",
     {
@@ -558,7 +276,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
       required: ["document_id"],
     },
   ),
-  tool(
+tool(
     "library_fix_docx_supras",
     "Turn unambiguous plain 'supra note N' numbers in a local Library DOCX into native updating Word footnote cross-references. Creates a new version when it changes anything and reports ambiguous/restarted/split cases for review.",
     {
@@ -567,7 +285,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
       required: ["document_id"],
     },
   ),
-  tool(
+tool(
     "library_lint_docx_structure",
     "Structural lint on a local Library DOCX: broken internal cross-references, references to missing schedules/exhibits, numbering gaps and duplicates, duplicate or unused defined terms. Read-only; returns located findings plus a receipt of what was checked and abstained from.",
     {
@@ -579,7 +297,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
       required: ["document_id"],
     },
   ),
-  tool(
+tool(
     "library_anchor_coverage",
     "Diff typed anchors (money, percentages, ratios, dates, durations, areas, citations) between source documents and drafts by canonical value. Reports source-only anchors (candidate omissions), draft-only anchors (candidate unsourced figures), and words-vs-numerals mismatches. Triage rows for relevance.",
     {
@@ -607,7 +325,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
       required: ["source_document_ids", "draft_document_ids"],
     },
   ),
-  tool(
+tool(
     "library_conflict_scan",
     "Check that stated arithmetic closes across documents: parts against wholes and percentages, subtotals against totals, for money and quantities at each figure's stated precision. Returns the arithmetic shown plus abstentions for unpaired figures. Judge materiality yourself.",
     {
@@ -622,7 +340,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
       required: ["document_ids"],
     },
   ),
-  tool(
+tool(
     "library_apply_amendment",
     "Consolidate an amending instrument against a source Library document: US cut-and-bite and Canadian replace-style prose compiles into typed edit ops addressed by section label, applied with hard failures and verified by recompiling. DRY-RUN ONLY: returns per-op receipts, refusals, and a preview; never writes a version. Uncompilable instructions are refused, never guessed at.",
     {
@@ -653,7 +371,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
       required: ["source_document_id"],
     },
   ),
-  tool(
+tool(
     "library_delete_and_renumber_docx",
     "Delete one numbered provision from a local Library DOCX and close that exact sibling gap as tracked changes. The server renumbers following sibling headings and every resolved internal pointer in one atomic operation. It refuses the whole mutation if the target, sequence, or any affected reference is missing, ambiguous, external, or otherwise unsafe. This is deliberately delete-and-close-gap only; it does not insert provisions or open a numbering gap.",
     {
@@ -670,7 +388,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
       required: ["document_id", "target"],
     },
   ),
-  tool(
+tool(
     "library_deadline",
     "Compute a legal deadline with a derivation trace: Interpretation Act s. 27(2) exclude-first-include-last counting, s. 27(1) clear days, s. 28 month anniversaries with month-end clamping, s. 26 holiday rollover, and business days over statutory holiday tables (CA federal, CA-ON, CA-BC, CA-QC, US). Quote the returned trace.",
     {
@@ -707,7 +425,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
       required: ["anchor_date", "count", "unit"],
     },
   ),
-  tool(
+tool(
     "library_term_drift",
     "Diff defined terms across a deal stack of Library documents: the same term defined with divergent bodies (first difference excerpted), terms used where nothing defines them, and in-document duplicate definitions. Divergences are real wording differences — normalization touches only whitespace and quote glyphs. Needs two or more documents.",
     {
@@ -729,7 +447,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
       required: ["document_ids"],
     },
   ),
-  tool(
+tool(
     "library_drafting_lint",
     "Modal-force and ambiguous-syntax lint over a Library document — 'may not' ambiguity, 'and/or', stacked-modal typos, mixed shall/must registers — each with exact spans, bounded excerpts, severity, and autofix eligibility, plus a modal profile. It DETECTS; judge each finding over its excerpt alone.",
     {
@@ -746,7 +464,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
       required: ["document_id"],
     },
   ),
-  tool(
+tool(
     "library_bilingual_concordance",
     "Concordance gate for equally-authentic bilingual instruments: every value-bearing anchor (money, dates, durations, percentages, statute refs, neutral citations) must appear in BOTH versions, French forms normalizing to the same keys ('2 250 000 $' = '$2,250,000'). Anchors in one version only are drafting or translation drift; triage rows for relevance.",
     {
@@ -770,7 +488,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
       required: ["english_document_id", "french_document_id"],
     },
   ),
-  tool(
+tool(
     "toa_submit_library_document",
     "Submit one owned Word or PDF Library version to the local authorities workflow. A PDF can create a Book of Authorities; inserting a table requires Word. Detection is deterministic first, with a bounded cached Codex splitter only for unresolved citation units. Never pass or invent filesystem paths.",
     {
@@ -788,7 +506,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
       required: ["document_id"],
     },
   ),
-  tool(
+tool(
     "toa_job_status",
     "Inspect one Table of Authorities job from toa_submit_library_document: progress, review readiness, output downloads, and the Beaver page to open.",
     {
@@ -796,25 +514,31 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
       properties: { job_id: { type: "string", pattern: "^[0-9a-f]{32}$" } },
       required: ["job_id"],
     },
-  ),
+  )
 ];
 
 const LOCAL_DOCX_TOOLS: OpenAIToolSchema[] = (
   TOOLS as OpenAIToolSchema[]
 ).flatMap((schema) => {
   if (schema.function.name === "generate_docx") {
-    const existing = CODING_MARKDOWN_FINAL_AGENT_LAB_TOOLS.find(
-      (entry) => entry.function.name === "generate_docx",
-    );
-    if (!existing) throw new Error("generate_docx tool is missing");
-    return [{
-      ...existing,
-      function: {
-        ...existing.function,
-        description:
-          `${existing.function.description} The completed file is stored as a durable new item in the Library.`,
+    return [tool(
+      "generate_docx",
+      "Write one durable .docx file. The content is the complete document in Markdown. A successful call ends the turn.",
+      {
+        type: "object",
+        properties: {
+          filename: {
+            type: "string",
+            description: "Output filename ending in .docx.",
+          },
+          content: {
+            type: "string",
+            description: "Complete document content in Markdown.",
+          },
+        },
+        required: ["filename", "content"],
       },
-    }];
+    )];
   }
   if (schema.function.name === "edit_document") {
     const sharedProperties = schema.function.parameters.properties as Record<
@@ -838,9 +562,7 @@ const LOCAL_DOCX_TOOLS: OpenAIToolSchema[] = (
                 "Optional. Omit for the active version; a specific id fails if it is no longer active.",
             },
             edits:
-              NAV_TOOL_SHAPE === "address"
-                ? addressedEditsSchema(sharedProperties.edits)
-                : sharedProperties.edits,
+              sharedProperties.edits,
             annotate: {
               type: "boolean",
               description:
@@ -867,311 +589,6 @@ const LOCAL_ASK_INPUTS_TOOLS = (TOOLS as OpenAIToolSchema[]).filter(
  */
 export const RESEARCH_TOOLS_DISABLED =
   process.env.MIKE_DISABLE_RESEARCH_TOOLS === "1";
-
-/**
- * MIKE_DISABLE_ASK_INPUTS=1 removes the ask-the-user tool — for benchmark
- * runs with no user on the other end. Parity note: the reference harness
- * has no ask-user affordance either, so a benchmark model must resolve
- * ambiguity from the task materials in both arms.
- */
-export const ASK_INPUTS_DISABLED =
-  process.env.MIKE_DISABLE_ASK_INPUTS === "1";
-
-/**
- * MIKE_TOOL_SHAPE=coding swaps the library navigation surface for the
- * shapes coding agents are RL-trained on: Glob/Grep/Read over file paths,
- * line addressing, cat -n output. Handlers are shared; only the
- * model-facing schema changes. Glob discloses document IDs only when two
- * files share a filename, so the ordinary path stays filename-native.
- */
-export const MIKE_GREP_TOOL_SHAPE =
-  process.env.MIKE_TOOL_SHAPE === "mike-grep-v1";
-export const MIKE_LEGAL_TOOL_SHAPE =
-  process.env.MIKE_TOOL_SHAPE === "mike-legal-v1";
-export const MIKE_LEGAL_GUIDED_TOOL_SHAPE =
-  process.env.MIKE_TOOL_SHAPE === "mike-legal-guided-v1";
-export const MIKE_STRUCTURE_PATHS_TOOL_SHAPE =
-  process.env.MIKE_TOOL_SHAPE === "mike-structure-paths-v1";
-export const COMPACT_AUTHOR_MIKE_TOOL_SHAPE =
-  process.env.MIKE_TOOL_SHAPE === "mike-compact-author-v1";
-export const MARKDOWN_SWAP_MIKE_TOOL_SHAPE =
-  process.env.MIKE_TOOL_SHAPE === "mike-markdown-swap-v1";
-export const MARKDOWN_E2E_MIKE_TOOL_SHAPE =
-  process.env.MIKE_TOOL_SHAPE === "mike-markdown-e2e-v1";
-/** LAB read-format axis: serve Beaver's Pandoc drafting-source markdown on
- * docx reads instead of upstream plain body text (end-to-end arm). */
-export const MARKDOWN_READ_DOCX = true;
-export const LEAN_BATCH_TOOL_SHAPE =
-  process.env.MIKE_TOOL_SHAPE === "lean-batch-v1";
-export const LEAN_BATCH_HARDREFS_TOOL_SHAPE =
-  process.env.MIKE_TOOL_SHAPE === "lean-batch-hardrefs-v1";
-export const LEAN_BATCH_FAMILY_TOOL_SHAPE =
-  LEAN_BATCH_TOOL_SHAPE || LEAN_BATCH_HARDREFS_TOOL_SHAPE;
-/** Pure-coding observation arm (coding_markdown_v1): swaps the lean-batch
- * prompt for a variant with NO navigation prescriptions — no read-once
- * clause, no batch-vs-grep guidance — so run 1 observes the model's native
- * pathway choices with the toolbox open. Write-side discipline (grounding,
- * one completeness check, terminal authoring) stays. */
-export const CODING_NEUTRAL_PROMPT_ENABLED =
-  process.env.MIKE_CODING_NEUTRAL_PROMPT === "1";
-/** CC executor parity (coding_markdown_v2; adversarial audit 2026-08-06):
- * Read takes file_path and always renders cat -n (the lean paths[] batch
- * intercept is bypassed); Grep defaults to files_with_matches like the
- * trained environment, honors -A/-B, retries ripgrep-legal patterns the
- * JS u-flag rejects, and the provider-materialized {offset:1, limit:1}
- * minima read the default window instead of one line. */
-export const CODING_PARITY_ENABLED = true;
-/**
- * Grep section-context (coding_markdown_v3): content-mode hits are preceded
- * by their enclosing SECTION lead rendered as an rg context row at its real
- * line number — document-true text, quotable, zero fake-text hazard. The
- * legal analog of the enclosing symbol a coding model expects to infer from
- * ±N context lines, made explicit because legal sections outrun any context
- * window. Off in every other arm; v2 stays byte-identical.
- */
-export const GREP_SECTION_CONTEXT_ENABLED = true;
-/**
- * Companion .toc index files (coding_markdown_v4): every docx with an
- * anchorable section spine gets a virtual "<name>.toc" file — its
- * sections with markdown-plane line numbers — listed by Glob, served by
- * Read. Orientation as demand-paged files instead of prompt injection:
- * the model reads only the indexes it wants, tool results are not
- * sha-gated, and body line numbers stay pure. Window-agnostic on
- * purpose (no model/window constants anywhere in the mechanism).
- */
-export const CODING_TOC_FILES_ENABLED = true;
-/**
- * Per-file grep budget (coding_markdown_v5): head_limit is spent max-min
- * fair across the matching files instead of first-come-first-served in
- * corpus order. Without it one verbose early document drains the whole
- * allowance and every later document emits nothing, so a corpus-wide grep
- * silently starves its tail — which forces the model to re-issue the same
- * pattern one path= at a time to buy each file its own allocation. Measured
- * on the CoC run (2026-08-06): 14 identical greps spread over 4 rounds,
- * 469.5k logical input against 258.2k for the same bytes in one round.
- * Fairness here is a round-trip lever, not a formatting nicety.
- */
-export const GREP_PER_FILE_BUDGET_ENABLED = true;
-/**
- * v5 gen-3: serve the unified triage-workflow prompt (survey -> cover ->
- * verify) in place of the budget block + routing line. Prompt selection
- * only — tool behavior is unchanged by this flag.
- */
-export const TRIAGE_WORKFLOW_ENABLED =
-  process.env.MIKE_TRIAGE_WORKFLOW === "1";
-/**
- * Draft-edit lever (coding surface): a generate_docx call refused by the
- * exposure echo saves its body as "draft.md"; an Edit tool (Claude Code
- * semantics) revises it in place and generate_docx without markdown renders
- * it. Kills the measured double emission (gen-4 acq: deliverable composed
- * twice, 65k vs 41k output tokens) and the compression risk of full
- * redrafts. Taught just-in-time by the refusal text and tool descriptions —
- * no system-prompt change.
- */
-export const DRAFT_EDIT_ENABLED = true;
-/** Harvey LAB coverage-first, signal-gated final treatment. */
-export const FINAL_ARM_ENABLED = true;
-/** Conventional coding-agent write/edit/end-turn contract for the successor. */
-export const FINAL_AGENT_LOOP_ENABLED = true;
-export const GROUNDING_FIRST_ENABLED =
-  process.env.MIKE_GROUNDING_FIRST === "1";
-export const MIKE_GREP_FAMILY_TOOL_SHAPE =
-  MIKE_GREP_TOOL_SHAPE ||
-  MIKE_LEGAL_TOOL_SHAPE ||
-  MIKE_LEGAL_GUIDED_TOOL_SHAPE ||
-  MIKE_STRUCTURE_PATHS_TOOL_SHAPE;
-
-export const CODING_TOOL_SHAPE = true;
-
-/**
- * LAB arm: let the model choose complete, targeted, or mixed source coverage
- * after Glob reports the actual inventory. The host does not classify task
- * wording or legal domain.
- */
-export const MODEL_COVERAGE_ROUTING =
-  process.env.MIKE_MODEL_COVERAGE_ROUTING === "1";
-
-const configuredWholeReadMaxChars = Number(
-  process.env.MIKE_WHOLE_READ_MAX_CHARS || 0,
-);
-
-/**
- * Optional cumulative context budget for complete-document reads in one turn.
- * This is a source-size guard, not a task router: every request sees the same
- * limit and may still combine whole files with targeted Grep/Read evidence.
- */
-export const WHOLE_READ_MAX_CHARS =
-  MODEL_COVERAGE_ROUTING &&
-  Number.isFinite(configuredWholeReadMaxChars) &&
-  configuredWholeReadMaxChars > 0
-    ? Math.trunc(configuredWholeReadMaxChars)
-    : 0;
-
-/**
- * Legacy token optimization. It is safe only while the original bytes remain
- * in active model context; a host-side turn map cannot know what compaction
- * removed. Conventional continuous-agent arms disable it so a repeat read
- * returns the requested bytes.
- */
-export const SUPPRESS_DUPLICATE_WHOLE_READS = false;
-
-/** Explicit LAB-only comparator; never selected by a product setting. */
-export const UPSTREAM_MIKE_TOOL_SHAPE =
-  process.env.MIKE_TOOL_SHAPE === "upstream-mike";
-
-/** Clean-fork LAB candidate; starts from the comparator's frozen surface. */
-export const ADAPTIVE_MIKE_TOOL_SHAPE =
-  process.env.MIKE_TOOL_SHAPE === "adaptive-mike-v1";
-
-/**
- * mike_upstream_native_v1: the full pinned upstream chat surface (prompt, the
- * nine-tool array, the native inventory block, native tool-result envelopes,
- * maxIterations=10). Deliberately a separate boolean rather than another
- * MIKE_TOOL_SHAPE value: a new MIKE_TOOL_SHAPE case would force edits inside
- * the ORIGIN_MIKE_TOOL_SHAPE disjunction and the ORIGIN_MIKE_ACTIVE_TOOLS
- * ternary that every other arm reads. As a separate flag it is false under
- * every existing arm's environment, so every existing arm is provably
- * unaffected.
- */
-export const UPSTREAM_NATIVE_MIKE_SHAPE =
-  process.env.MIKE_UPSTREAM_NATIVE === "1";
-
-/**
- * TREATMENT mechanism 1 — requirements echo. Adds the fetch_requirements tool,
- * one prompt line, and an authoring backstop that refuses generate_docx until
- * the echo has been served this turn. Independent of mechanism 2 by design.
- */
-export const REQUIREMENTS_ECHO_ENABLED =
-  process.env.MIKE_REQUIREMENTS_ECHO === "1";
-
-/**
- * TREATMENT mechanism 2 — citation contract. Prompt-only: it adds a GROUNDING
- * block and changes no tool, executor, or payload. Independent of mechanism 1.
- */
-export const CITATION_CONTRACT_ENABLED =
-  process.env.MIKE_CITATION_CONTRACT === "1";
-
-/**
- * TREATMENT mechanism 2, amended (v2 arm). Prompt-only like v1; mutually
- * exclusive with it (the compose helper throws if both are on). Amendments
- * per docs/lab-treatment-v2-design-2026-08-06.md: stated-vs-recomputed
- * figures, in-quote integrity, title-or-filename attribution, soft-25/hard-40
- * quote length.
- */
-export const CITATION_CONTRACT_V2_ENABLED =
-  process.env.MIKE_CITATION_CONTRACT_V2 === "1";
-
-/**
- * TREATMENT mechanism 4 — no-deferral directive. Prompt block up top plus a
- * draft-time restatement inside the fetch_requirements echo payload; changes
- * no tool schema or executor behavior. Independent of the other mechanisms.
- */
-export const NO_DEFERRAL_ENABLED = process.env.MIKE_NO_DEFERRAL === "1";
-
-/**
- * TREATMENT mechanism — exposure accounting. The requirements echo's
- * read/unread split counts BODY EXPOSURE (delivered [start,end) interval
- * coverage past the SECT-INDEX) instead of tool touches, adds a
- * documents_oriented_only bucket for index-only orientation reads, and arms a
- * one-shot coverage check at the authoring boundary. Motivated by the
- * 2026-08-06 acq-diligence sweep row (30/64): the touch-based echo reported
- * "2 unread" while 12 of 31 documents had served nothing but SECT-INDEX
- * headings, and the unexposed documents mapped ~1:1 onto the failed criteria
- * clusters. Changes tool payloads only — no prompt text, no schema.
- */
-export const EXPOSURE_ECHO_ENABLED = true;
-
-/**
- * REQECHO drafting-mode (T2b, 2026-08-07): the requirements echo is served on
- * the FIRST authoring call, BEFORE any draft body is captured. Fix A already
- * made the echo automatic under the exposure gate (no fetch_requirements tool);
- * this flag only moves WHERE in the authoring boundary the echo lands — fixed
- * reqecho captures the incoming draft and refines it, drafting-mode serves the
- * echo, discards the incoming body, and lets the model write clean. No prompt
- * text, no schema.
- */
-export const REQECHO_DRAFT_MODE_ENABLED =
-  process.env.MIKE_REQECHO_DRAFT_MODE === "1";
-
-/**
- * TREATMENT mechanism (T3, 2026-08-08) — composition check. At the first
- * authoring call the harness reconciles the captured draft against the served
- * evidence plane (competingBases findings only, precision-1.00) and appends a
- * ≤5-line findings note to the refine-gate refusal. No new tool, no prompt
- * delta — the mechanism appears only as a note. Fires in BOTH refine-gate
- * branches whenever a draft body is present. Per Eli 2026-08-07 this arm is
- * measured against upstream mike only, with NO completeness floor in the
- * chassis.
- */
-export const COMPOSITION_CHECK_ENABLED =
-  process.env.MIKE_COMPOSITION_CHECK === "1";
-
-/**
- * Serving-boundary fidelity (adversarial audit #8): OFF in every frozen LAB
- * arm; production-layer / future-arm candidate. The extraction's computed
- * warnings[] (tracked changes served as the accepted view, text-box
- * exclusions, flattened content controls, …) ride the FIRST read of each
- * document as a CONVERSION NOTES line instead of being silently dropped.
- * Prepended at the same layer as the citation reminder, so served-plane
- * coordinates and evidence segments are untouched.
- */
-export const SERVE_CONVERSION_NOTES =
-  process.env.MIKE_SERVE_CONVERSION_NOTES === "1";
-
-/**
- * Completes the "no empty indexes" design for scoped arms: a document whose
- * derived SECT-INDEX carries entries but no usable @N addresses previously
- * still paid its full index as dead prefix weight (20.6% of index bytes
- * corpus-wide) while whole-reading freely anyway. Gated attachment serves
- * such documents as bare markdown; index=true on them answers with the
- * existing typed "(no SECT-INDEX for this document)" note. Read gating is
- * unchanged — non-addressable documents were already whole-readable.
- */
-export const INDEX_ATTACH_GATED = process.env.MIKE_INDEX_ATTACH_GATED === "1";
-
-/**
- * Find recovery for the served-markdown plane. Measured on the five no-fit
- * corpora (9,095 replayed queries): defined-term queries hit 10.6% because
- * markdown emphasis/escapes/smart quotes sit inside the phrase; the fold
- * recovers 889/889 misses with clean precision. Literal-first — a literal
- * hit is byte-identical to the unflagged tool — and a residual zero-hit
- * carries the H16' closest-excerpt suggestion (quoteRepair) so a miss is a
- * retryable "did you mean" instead of a silent false negative.
- */
-export const FIND_QUERY_NORM_ENABLED =
-  process.env.MIKE_FIND_QUERY_NORM === "1";
-
-/** Typed refusal for a scoped read whose offset is at/past the body end
- *  (previously an empty payload with ok:true — a silent lost round). */
-export const TYPED_RANGE_ENABLED = process.env.MIKE_TYPED_RANGE === "1";
-
-/** Compact SECT-INDEX heading tails: cut at the first sentence/clause
- *  boundary (max 40 chars) instead of 64 chars of truncated prose — index
- *  entries are labels, not quotable summaries. */
-export const INDEX_COMPACT_HEADINGS =
-  process.env.MIKE_INDEX_COMPACT_HEADINGS === "1";
-
-/** Swap the upstream read-once prompt clause for the scoped-reread wording
- *  (multiple offset windows per document are the intended usage). Prompt-only:
- *  the swap itself is applied inside withLabTreatmentPromptAdditions so the
- *  served prompt and the arm expectation cannot diverge. */
-export const SCOPED_REREAD_ENABLED = process.env.MIKE_SCOPED_REREAD === "1";
-
-/** Closest-excerpt suggestion for a zero-hit find, per the H16' rejection
- *  pattern: strip wrapping quotes from the query, scan the body in bounded
- *  overlapping chunks (the repair engine caps spans at ~4,000 tokens), and
- *  return quoteRepair's one bounded suggestion line, or null when nothing
- *  overlaps enough to ground one. */
-function findNearestSuggestion(query: string, body: string): string | null {
-  const claim = query.replace(/^["'“‘]+|["'”’]+$/gu, "");
-  const spans: string[] = [];
-  const CHUNK = 15_000;
-  const STEP = 12_000; // overlap so a chunk boundary never hides the best span
-  for (let at = 0; at < body.length && spans.length < 40; at += STEP) {
-    spans.push(body.slice(at, at + CHUNK));
-  }
-  return quoteRepairSuggestion(claim, spans);
-}
 
 /**
  * Turn-scoped bookkeeping for the requirements echo. Created once per assistant
@@ -1256,7 +673,6 @@ export function pendingFinalAgentDraft(
   state: LocalAssistantRequirementsState,
 ): { filename: string; content: string } | null {
   if (
-    !FINAL_AGENT_LOOP_ENABLED ||
     state.signalGateCount !== 1 ||
     state.draftEditCount < 1 ||
     !state.draftFilename
@@ -1270,15 +686,7 @@ export function pendingFinalAgentDraft(
 /** Map key for a draft named by a title/filename: lowercased slug + ".md".
  * Used to alias the canonical draft under the deliverable's own name, so a
  * model that addresses its draft by a derived filename finds it. */
-function draftKeyFor(titleOrFilename: string | null | undefined): string {
-  const stem = (titleOrFilename ?? "draft")
-    .replace(/\.docx$/iu, "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/gu, "-")
-    .replace(/^-+|-+$/gu, "");
-  return `${stem || "draft"}.md`;
-}
+
 
 /**
  * Exact-string draft edit with Claude Code's contract: old_string must be
@@ -1323,106 +731,6 @@ export function applyDraftEdit(
   };
 }
 
-export const ORIGIN_MIKE_TOOL_SHAPE =
-  UPSTREAM_NATIVE_MIKE_SHAPE ||
-  UPSTREAM_MIKE_TOOL_SHAPE ||
-  ADAPTIVE_MIKE_TOOL_SHAPE ||
-  MARKDOWN_SWAP_MIKE_TOOL_SHAPE ||
-  MARKDOWN_E2E_MIKE_TOOL_SHAPE ||
-  COMPACT_AUTHOR_MIKE_TOOL_SHAPE ||
-  LEAN_BATCH_FAMILY_TOOL_SHAPE ||
-  MIKE_GREP_FAMILY_TOOL_SHAPE;
-
-const MIKE_FILE_TOOL_SHAPE =
-  MIKE_GREP_FAMILY_TOOL_SHAPE || LEAN_BATCH_FAMILY_TOOL_SHAPE;
-
-/** Keep tool disclosure independent from navigation vocabulary in A/B runs. */
-export const PROGRESSIVE_DISCLOSURE_ENABLED = false;
-
-export type RetrievalExperimentShape =
-  | ""
-  | "p0-pure-coding"
-  | "c0-routed-coding"
-  | "h1-contact"
-  | "h2-document-map"
-  | "h3-reference-impact"
-  | "h4-legal-grep"
-  | "s1-structure-paths"
-  | "d0-generic"
-  | "d1-routed"
-  | "d2-concrete";
-
-const requestedRetrievalExperiment =
-  process.env.MIKE_RETRIEVAL_EXPERIMENT?.trim() ?? "";
-const RETRIEVAL_EXPERIMENT_SHAPES = new Set<RetrievalExperimentShape>([
-  "",
-  "p0-pure-coding",
-  "c0-routed-coding",
-  "h1-contact",
-  "h2-document-map",
-  "h3-reference-impact",
-  "h4-legal-grep",
-  "s1-structure-paths",
-  "d0-generic",
-  "d1-routed",
-  "d2-concrete",
-]);
-if (
-  !RETRIEVAL_EXPERIMENT_SHAPES.has(
-    requestedRetrievalExperiment as RetrievalExperimentShape,
-  )
-) {
-  throw new Error(
-    `Unknown MIKE_RETRIEVAL_EXPERIMENT=${requestedRetrievalExperiment}`,
-  );
-}
-export const RETRIEVAL_EXPERIMENT_SHAPE =
-  requestedRetrievalExperiment as RetrievalExperimentShape;
-const PURE_CODING_EXPERIMENT =
-  RETRIEVAL_EXPERIMENT_SHAPE === "p0-pure-coding";
-export const STRUCTURE_PATH_EXPERIMENT =
-  RETRIEVAL_EXPERIMENT_SHAPE === "s1-structure-paths";
-const LEGAL_GREP_EXPERIMENT =
-  RETRIEVAL_EXPERIMENT_SHAPE === "h4-legal-grep";
-const TOOL_DESCRIPTION_VARIANT =
-  process.env.MIKE_TOOL_DESCRIPTION_VARIANT?.trim() || "operational";
-if (!["operational", "terse"].includes(TOOL_DESCRIPTION_VARIANT)) {
-  throw new Error(
-    `Unknown MIKE_TOOL_DESCRIPTION_VARIANT=${TOOL_DESCRIPTION_VARIANT}`,
-  );
-}
-
-
-/** Shown only in the address arm; stripped from legacy. */
-const ADDRESS_ONLY_PARAMS: Record<string, string[]> = {
-  library_read: ["at", "from", "follow", "depth", "page"],
-  library_find: ["at", "pages", "section", "follow", "depth"],
-  library_links: ["at", "section"],
-};
-
-/**
- * Shown only in the legacy arm. The address arm drops these outright rather
- * than carrying them as deprecated aliases: an arm that still accepts the
- * other arm's vocabulary is not a separate condition, and a model that finds
- * `section=` working has not been asked the question.
- */
-const LEGACY_ONLY_PARAMS: Record<string, string[]> = {
-  library_read: ["section", "offset", "page", "max_chars"],
-  library_outline: ["max_chars"],
-  library_find: ["pages", "section", "context_chars"],
-  library_links: ["section"],
-};
-
-/**
- * Descriptions the legacy arm needs because the shared text advertises
- * affordances it does not have. An arm that tells the model to call `at=`
- * when `at` is not in its schema measures the harness, not the surface.
- */
-const LEGACY_DESCRIPTIONS: Record<string, string> = {
-  library_outline:
-    "Structural map of a Library document parsed from its own numbering and native DOCX tables: the ARTICLE/PART tree, every Section and (a)/(i) subsection, exact table/cell handles library_read accepts, defined terms with their defining section, schedules/exhibits, and cross-reference counts. A ~100-page agreement maps to 1-3k tokens.",
-};
-
 /**
  * Structure for a source document, served from the existing pre-baked
  * sidecar with a compile-on-miss fallback.
@@ -1452,6 +760,15 @@ async function documentStructure(
  * render without section leads.
  */
 const grepSectionSpineCache = new Map<string, number[]>();
+const codingTocCache = new Map<string, string>();
+const STRUCTURE_CACHE_LIMIT = 32;
+
+function remember<K, V>(cache: Map<K, V>, key: K, value: V) {
+  cache.delete(key);
+  cache.set(key, value);
+  if (cache.size > STRUCTURE_CACHE_LIMIT) cache.delete(cache.keys().next().value!);
+  return value;
+}
 
 async function grepSectionSpine(
   userId: string,
@@ -1461,7 +778,7 @@ async function grepSectionSpine(
   if (meta.file_type.toLowerCase() !== "docx") return [];
   const key = `${meta.current_version_id}:${servedText.length}`;
   const cached = grepSectionSpineCache.get(key);
-  if (cached) return cached;
+  if (cached) return remember(grepSectionSpineCache, key, cached);
   let leads: number[] = [];
   try {
     const file = await getLocalVersionFile(userId, meta.id);
@@ -1472,8 +789,7 @@ async function grepSectionSpine(
   } catch {
     // Soft degradation: no annotation for this document.
   }
-  grepSectionSpineCache.set(key, leads);
-  return leads;
+  return remember(grepSectionSpineCache, key, leads);
 }
 
 /**
@@ -1482,8 +798,6 @@ async function grepSectionSpine(
  * detector nodes anchored into served markdown); non-docx and anchorless
  * documents return "" and contribute no .toc file.
  */
-const codingTocCache = new Map<string, string>();
-
 async function codingTocText(
   userId: string,
   meta: { id: string; current_version_id: string; file_type: string; filename: string },
@@ -1492,7 +806,7 @@ async function codingTocText(
   if (meta.file_type.toLowerCase() !== "docx") return "";
   const key = `${meta.current_version_id}:${servedText.length}`;
   const cached = codingTocCache.get(key);
-  if (cached !== undefined) return cached;
+  if (cached !== undefined) return remember(codingTocCache, key, cached);
   let rendered = "";
   try {
     const file = await getLocalVersionFile(userId, meta.id);
@@ -1521,14 +835,12 @@ async function codingTocText(
   } catch {
     // Soft degradation: no .toc for this document.
   }
-  codingTocCache.set(key, rendered);
-  return rendered;
+  return remember(codingTocCache, key, rendered);
 }
 
 async function documentGraph(
   text: string,
   id: string,
-  skeleton: AgreementSkeleton,
   options: CompileSkeletonOptions = {},
 ) {
   return bakedCrossReferenceGraph(text, id, options);
@@ -1584,247 +896,6 @@ function oneHopLegalScope(
   };
 }
 
-/**
- * PROGRESSIVE DISCLOSURE, address arm only.
- *
- * Tool-selection accuracy is measured to degrade past roughly 20-25 tools,
- * and this surface carries 44. That is very likely a larger effect than any
- * wording in the schemas, so the address arm keeps only the verbs a task
- * starts with and defers the rest behind one discovery call.
- *
- * Resident = what you need before you know what the task is: find the
- * document, orient, read, search, follow, ask. Everything else is a
- * domain the model can open when the task turns out to need it.
- */
-const RESIDENT_TOOLS = new Set([
-  "ask_inputs",
-  "Glob",
-  "Grep",
-  "Read",
-  "fetch_documents",
-  "library_list",
-  "library_outline",
-  "library_read",
-  "library_find",
-  "describe_tools",
-]);
-
-/**
- * Keep the core request shape stable for continuous-agent runs. Creating the
- * requested artifact is the ordinary end of the same trajectory, not a
- * specialist phase; benchmark arms opt in until the simpler surface wins its
- * release gate.
- */
-export const RESIDENT_AUTHORING_ENABLED =
-  process.env.MIKE_RESIDENT_AUTHORING === "1";
-
-/**
- * Deferred tools, grouped the way a task arrives rather than the way the code
- * is organised — a model asks "what cites this case", never "I need the
- * courtlistener module".
- *
- * Keep this one hop while the catalogue is small. A second discovery turn is
- * real latency; add hierarchy only when a measured routing failure justifies
- * it.
- */
-type Domain = { blurb: string };
-
-const TOOL_DOMAINS: Record<string, Domain> = {
-  document_map: {
-    blurb:
-      "map provisions, native table rows, or PDF-versus-printed pages when wording search cannot orient the task; not ordinary passage search",
-  },
-  cross_reference_impact: {
-    blurb:
-      "list literal inbound/outbound pointers or the exact impact set for deleting and closing one numbering gap; not similarity search",
-  },
-  source_evidence: {
-    blurb:
-      "resolve or rehydrate an exact PDF evidence handle after a targeted source lookup; not ordinary document reading",
-  },
-  document_links: {
-    blurb:
-      "inspect already resolved links attached to a Library document; not text search or inferred similarity",
-  },
-  cases: {
-    blurb:
-      "find and read decisions, retrieve exact paragraphs, and see which later decisions cite a case; not citation-format checking",
-  },
-  legislation: {
-    blurb:
-      "find and read statutes, regulations, exact provisions, and related Hansard records",
-  },
-  commentary: {
-    blurb: "find and read journals and other public secondary sources",
-  },
-  citations: {
-    blurb:
-      "verify citation strings, link or repair citations in Word, and build a table or book of authorities; not case-law research",
-  },
-  output_document: {
-    blurb:
-      "create a new Word deliverable from completed content",
-  },
-  drafting: {
-    blurb:
-      "revise an existing Word document, delete and safely renumber a provision, or update Library metadata",
-  },
-  document_quality: {
-    blurb:
-      "audit an existing DOCX for structure, source anchors, conflicts, term drift, drafting, or bilingual concordance; not source-document analysis, and not a newly created file whose receipt already reports compiler checks",
-  },
-  amendment: {
-    blurb:
-      "apply a formal amending instrument or compare saved versions; not ordinary clause editing or renumbering",
-  },
-  deadlines: { blurb: "compute a legal deadline with a derivation trace" },
-  workflow: { blurb: "list or open saved workflows" },
-};
-
-const DOMAIN_OF: Record<string, string> = {
-  DocumentMap: "document_map",
-  ReferenceImpact: "cross_reference_impact",
-  library_links: "document_links",
-  library_lookup: "source_evidence",
-  library_evidence: "source_evidence",
-  plan_grounded_evidence: "cases",
-  submit_grounded_answer: "cases",
-  courtlistener_search_case_law: "cases",
-  courtlistener_get_cases: "cases",
-  courtlistener_find_in_case: "cases",
-  courtlistener_lookup_case_locator: "cases",
-  courtlistener_read_case: "cases",
-  caselaw_note_up: "cases",
-  consult_attested_characterization: "cases",
-  a2aj_search: "cases",
-  a2aj_fetch: "cases",
-  a2aj_lookup: "cases",
-  legal_pdf_lookup: "cases",
-  hansard_search: "legislation",
-  hansard_fetch: "legislation",
-  public_legal_source_search: "commentary",
-  public_legal_source_fetch: "commentary",
-  public_legal_source_lookup: "commentary",
-  courtlistener_verify_citations: "citations",
-  generate_docx: "output_document",
-  library_revise_docx: "drafting",
-  Edit: "drafting",
-  library_update_metadata: "drafting",
-  library_link_docx_citations: "citations",
-  library_fix_docx_supras: "citations",
-  library_lint_docx_structure: "document_quality",
-  library_anchor_coverage: "document_quality",
-  library_conflict_scan: "document_quality",
-  library_term_drift: "document_quality",
-  library_drafting_lint: "document_quality",
-  library_bilingual_concordance: "document_quality",
-  library_apply_amendment: "amendment",
-  library_delete_and_renumber_docx: "drafting",
-  library_compare_versions: "amendment",
-  toa_submit_library_document: "citations",
-  toa_job_status: "citations",
-  library_deadline: "deadlines",
-  list_workflows: "workflow",
-  read_workflow: "workflow",
-};
-
-/**
- * The A2AJ tools serve both halves of primary law, so whichever leaf the
- * caller opens, they are the way in.
- */
-const ALSO_IN: Record<string, string[]> = {
-  legislation: [
-    "a2aj_search",
-    "a2aj_fetch",
-    "a2aj_lookup",
-    "submit_grounded_answer",
-  ],
-  commentary: ["submit_grounded_answer"],
-};
-
-/**
- * The edit scope is part of the surface under test, not a constant. Legacy
- * names an edit site by RETYPING document text (find_text / range); address
- * names it structurally. Leaving `at` in both arms would have let legacy
- * score with the affordance the comparison exists to measure.
- */
-function forEditShape(tools: OpenAIToolSchema[]): OpenAIToolSchema[] {
-  if (NAV_TOOL_SHAPE === "address") return tools;
-  return tools.map((entry) => {
-    const ops = (entry.function.parameters as Record<string, any>)?.properties
-      ?.ops;
-    const scope = ops?.items?.properties?.scope;
-    if (!scope?.properties?.kind?.enum) return entry;
-    const properties = { ...scope.properties };
-    for (const key of ["at", "follow", "depth"]) delete properties[key];
-    return {
-      ...entry,
-      function: {
-        ...entry.function,
-        parameters: {
-          ...(entry.function.parameters as Record<string, unknown>),
-          properties: {
-            ...(entry.function.parameters as Record<string, any>).properties,
-            ops: {
-              ...ops,
-              items: {
-                ...ops.items,
-                properties: {
-                  ...ops.items.properties,
-                  scope: {
-                    ...scope,
-                    description:
-                      "Where the op applies: whole_document; find_text (every occurrence unless occurrence is set); or range (start of from_text through end of to_text).",
-                    properties: {
-                      ...properties,
-                      kind: {
-                        ...scope.properties.kind,
-                        enum: scope.properties.kind.enum.filter(
-                          (kind: string) => kind !== "at",
-                        ),
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    } as OpenAIToolSchema;
-  });
-}
-
-function forNavShape(tools: OpenAIToolSchema[]): OpenAIToolSchema[] {
-  const address = NAV_TOOL_SHAPE === "address";
-  const drop = address ? LEGACY_ONLY_PARAMS : ADDRESS_ONLY_PARAMS;
-  return tools
-    .filter((entry) => address || entry.function.name !== "library_links")
-    .map((entry) => {
-      const legacyText = !address
-        ? LEGACY_DESCRIPTIONS[entry.function.name]
-        : undefined;
-      if (legacyText) {
-        entry = {
-          ...entry,
-          function: { ...entry.function, description: legacyText },
-        } as OpenAIToolSchema;
-      }
-      const remove = drop[entry.function.name];
-      if (!remove) return entry;
-      const properties = { ...(entry.function.parameters?.properties ?? {}) };
-      for (const key of remove) delete (properties as Record<string, unknown>)[key];
-      return {
-        ...entry,
-        function: {
-          ...entry.function,
-          parameters: { ...entry.function.parameters, properties },
-        },
-      } as OpenAIToolSchema;
-    });
-}
-
-
 const CODING_SHAPE_REPLACES = new Set([
   "library_list",
   "library_find",
@@ -1840,52 +911,38 @@ const CODING_SHAPE_SUGGESTIONS: Record<string, string> = {
   library_revise_docx: "Edit",
 };
 
-const ROUTED_CODING_DESCRIPTION =
-  !MODEL_COVERAGE_ROUTING &&
-  RETRIEVAL_EXPERIMENT_SHAPE &&
-  RETRIEVAL_EXPERIMENT_SHAPE !== "d0-generic" &&
-  RETRIEVAL_EXPERIMENT_SHAPE !== "d2-concrete"
-  ? " File facts include character and line counts: start with one whole Read for files at or below 24000 characters or questions spanning the whole short document; for a localized target in a larger file, Grep first and then Read the smallest responsive span."
-  : "";
+const ROUTED_CODING_DESCRIPTION = "";
 
 const CONCRETE_GREP_DESCRIPTION =
-  RETRIEVAL_EXPERIMENT_SHAPE === "d2-concrete"
-    ? " For a localized question in a file over 24000 characters, show matching content, then Read the smallest windows covering every requested occurrence and any stated exclusion."
-    : "";
+  "";
 
 const CONCRETE_READ_DESCRIPTION =
-  RETRIEVAL_EXPERIMENT_SHAPE === "d2-concrete"
-    ? " If the file has at most 24000 characters or the question concerns the whole short file, read it once from line 1. Example: for 'return both clauses, exclude the definition,' read every candidate clause before answering; do not stop at the first hit."
-    : "";
+  "";
 
 const CONTACT_GREP_DESCRIPTION =
-  RETRIEVAL_EXPERIMENT_SHAPE === "h1-contact" || LEGAL_GREP_EXPERIMENT
-    ? " Content hits include a verified Read recipe."
-    : "";
+  "";
 
-const LEGAL_GREP_DESCRIPTION = LEGAL_GREP_EXPERIMENT
-  ? " Optional section, page, and direct-reference scopes bound long legal documents; use ordinary Grep or whole-file Read when cheaper."
-  : "";
+const LEGAL_GREP_DESCRIPTION = "";
 
-const CODING_READ_DESCRIPTION = PURE_CODING_EXPERIMENT
-  ? "Reads a file. Reads up to 2000 lines by default. Results are returned using cat -n format, with line numbers starting at 1. When you already know which part of the file you need, pass offset and limit for a line window."
-  : "Reads a file. Reads up to 2000 lines by default. Results are returned using cat -n format, with line numbers starting at 1. When you already know which part of the file you need, pass a verified section handle shown in Grep results, or pass offset and limit for a line window.";
+const CODING_READ_DESCRIPTION = "Reads a file. Reads up to 2000 lines by default. Results are returned using cat -n format, with line numbers starting at 1. When you already know which part of the file you need, pass a verified section handle shown in Grep results, or pass offset and limit for a line window.";
 
-const WHOLE_READ_BUDGET_DESCRIPTION = WHOLE_READ_MAX_CHARS
-  ? " The declared whole-read budget is cumulative for this turn, not per call; if a selection would exceed it, the call returns sizes without exposing text."
-  : "";
 
-const WHOLE_READ_REPEAT_DESCRIPTION = SUPPRESS_DUPLICATE_WHOLE_READS
-  ? " Read each file/version at most once."
-  : " Avoid needless repeats, but a repeated file/version read returns its exact text again when earlier context is no longer available.";
+
+
+
+function findNearestSuggestion(query: string, body: string): string | null {
+  const spans: string[] = [];
+  for (let at = 0; at < body.length && spans.length < 40; at += 12_000) {
+    spans.push(body.slice(at, at + 15_000));
+  }
+  return quoteRepairSuggestion(query.replace(/^["'“‘]+|["'”’]+$/gu, ""), spans);
+}
 
 const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
   tool(
     "Glob",
     'Lists files in the user\'s uploaded Library only. Use when the user explicitly refers to their Library, an uploaded or attached document, or a named Library file. Never use it to discover cases, legislation, Hansard, commentary, or other legal authorities; use SearchSources for those. Supports glob patterns like "*.docx". Returns filenames with extracted-text character and line counts plus aggregate totals; when filenames collide, also returns the document_id needed to disambiguate them.' +
-      (MODEL_COVERAGE_ROUTING
-        ? " Use the inventory to choose complete, targeted, or mixed source coverage; when completeness is uncertain and the bounded source set fits, prefer complete coverage."
-        : ""),
+      (""),
     {
       type: "object",
       properties: {
@@ -1897,33 +954,10 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
       required: ["pattern"],
     },
   ),
-  ...(MODEL_COVERAGE_ROUTING
-    ? [
-        tool(
-          "fetch_documents",
-          "Read the complete text of multiple selected files in one call. Use after Glob when most of a bounded source set is relevant, or to keep a primary draft or precedent whole. Use Grep and bounded Read for localized evidence or an oversized corpus; combine both approaches when appropriate." +
-            WHOLE_READ_BUDGET_DESCRIPTION +
-            WHOLE_READ_REPEAT_DESCRIPTION,
-          {
-            type: "object",
-            properties: {
-              doc_ids: {
-                type: "array",
-                items: { type: "string" },
-                description:
-                  "Filenames from Glob, or document_ids when filenames collide.",
-              },
-            },
-            required: ["doc_ids"],
-          },
-        ),
-      ]
-    : []),
+  ...([]),
   tool(
     "Grep",
-    TOOL_DESCRIPTION_VARIANT === "terse"
-      ? "Search the user's uploaded Library file contents with a regular expression. This is not legal-source discovery."
-      : 'Search the user\'s uploaded Library file contents with regular expressions. This is not legal-source discovery; use SearchSources for cases, legislation, Hansard, and commentary. Filter by file or glob; choose content, matching files, counts, or a listed legal projection.' +
+    'Search the user\'s uploaded Library file contents with regular expressions. This is not legal-source discovery; use SearchSources for cases, legislation, Hansard, and commentary. Filter by file or glob; choose content, matching files, counts, or a listed legal projection.' +
         ROUTED_CODING_DESCRIPTION +
         CONCRETE_GREP_DESCRIPTION +
         CONTACT_GREP_DESCRIPTION +
@@ -1951,13 +985,11 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
             "content",
             "files_with_matches",
             "count",
-            ...(LEGAL_GREP_EXPERIMENT ? ["sections"] : []),
+            ...([]),
           ],
           description:
             'Output mode: "content" shows matching lines (supports -C context, -n line numbers, head_limit), "files_with_matches" shows file paths (default), "count" shows match counts.' +
-            (LEGAL_GREP_EXPERIMENT
-              ? ' "sections" returns unique executable Read recipes for the legal sections containing matches, without section prose.'
-              : ""),
+            (""),
         },
         "-i": { type: "boolean", description: "Case insensitive search" },
         "-n": {
@@ -1976,35 +1008,14 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
           description:
             "Limit output to the first N lines or entries. Defaults to 250.",
         },
-        ...(LEGAL_GREP_EXPERIMENT
-          ? {
-              section: {
-                type: "string",
-                description:
-                  "Optional exact section, subsection, table row, or cell handle copied from Grep. Searches that unit and its children.",
-              },
-              pages: {
-                type: "string",
-                description:
-                  'Optional page scope such as "pdf:12", "printed:47", "12-18", or "3,5,9". Never guess a page scheme.',
-              },
-              references: {
-                type: "string",
-                enum: ["none", "inbound", "outbound", "both"],
-                description:
-                  "With section, optionally search its direct literal reference neighborhood. Inbound means provisions that cite it; outbound means provisions it cites. Defaults to none.",
-              },
-            }
-          : {}),
+        ...({}),
       },
       required: ["pattern"],
     },
   ),
   tool(
     "Read",
-    TOOL_DESCRIPTION_VARIANT === "terse"
-      ? "Read a file or an optional bounded scope."
-      : CODING_READ_DESCRIPTION +
+    CODING_READ_DESCRIPTION +
         ROUTED_CODING_DESCRIPTION +
         CONCRETE_READ_DESCRIPTION,
     {
@@ -2019,9 +1030,7 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
           type: "number",
           minimum: 1,
           description:
-            PURE_CODING_EXPERIMENT
-              ? "Optional starting line."
-              : "Optional starting line. Omit when reading a section or page.",
+            "Optional starting line. Omit when reading a section or page.",
         },
         limit: {
           type: "number",
@@ -2029,39 +1038,21 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
           description:
             "The number of lines to read. Only provide if the file is too large to read at once.",
         },
-        ...(PURE_CODING_EXPERIMENT
-          ? {}
-          : {
+        ...({
               section: {
                 type: "string",
                 description:
                   "A verified structural handle shown in Grep results, including an exact DOCX row such as 'table:1/row:2' or cell such as 'table:1/row:2/col:3'. Copy it exactly; do not infer parent or paragraph handles. Returns only that span, numbered by document line.",
               },
             }),
-        ...(LEGAL_GREP_EXPERIMENT
-          ? {
-              pages: {
-                type: "string",
-                description:
-                  'Read an exact page or page range such as "pdf:12", "printed:47", or "12-18". Do not combine with section or offset.',
-              },
-              references: {
-                type: "string",
-                enum: ["none", "inbound", "outbound", "both"],
-                description:
-                  "With section, include the target and every directly linked internal provision in one overlap-suppressed read. Inbound means provisions that cite it; outbound means provisions it cites. Defaults to none.",
-              },
-            }
-          : {}),
+        ...({}),
       },
       required: ["file_path"],
     },
   ),
   tool(
     "Edit",
-    PURE_CODING_EXPERIMENT
-      ? "Performs exact string replacement in a file, recorded as a tracked change. old_string must match the file exactly and be unique — the edit fails otherwise; make it unique with more surrounding context."
-      : "Performs exact string replacement in a file, recorded as a tracked change. old_string must match the file exactly and be unique — the edit fails otherwise; make it unique with more surrounding context, or pass section to scope the match to one section.",
+    "Performs exact string replacement in a file, recorded as a tracked change. old_string must match the file exactly and be unique — the edit fails otherwise; make it unique with more surrounding context, or pass section to scope the match to one section.",
     {
       type: "object",
       properties: {
@@ -2080,9 +1071,7 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
           type: "boolean",
           description: "Replace all occurrences of old_string (default false)",
         },
-        ...(PURE_CODING_EXPERIMENT
-          ? {}
-          : {
+        ...({
               section: {
                 type: "string",
                 description:
@@ -2094,155 +1083,6 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
     },
   ),
 ];
-
-const RETRIEVAL_EXPERIMENT_TOOLS: OpenAIToolSchema[] =
-  RETRIEVAL_EXPERIMENT_SHAPE === "h2-document-map"
-    ? [
-        tool(
-          "DocumentMap",
-          "Return a small legal coordinate map only when ordinary wording search cannot answer a provisions, native-table, page-label, or landmark-location question. Every row is an executable Read recipe; no document prose or general outline is returned.",
-          {
-            type: "object",
-            properties: {
-              file_path: {
-                type: "string",
-                description: "Opaque filename or document_id.",
-              },
-              focus: {
-                type: "string",
-                enum: ["provisions", "tables", "pages", "landmarks"],
-                description:
-                  "Required map: numbered provisions; native table/row/cell coordinates; PDF versus printed pages; or top-level articles, schedules, and exhibits.",
-              },
-              query: {
-                type: "string",
-                description:
-                  "Optional literal words that map rows must contain. Omit only for a genuinely global orientation task.",
-              },
-              max_results: {
-                type: "integer",
-                minimum: 1,
-                maximum: 25,
-                description: "Maximum rows. Defaults to 25.",
-              },
-            },
-            required: ["file_path", "focus"],
-          },
-        ),
-      ]
-    : RETRIEVAL_EXPERIMENT_SHAPE === "h3-reference-impact"
-      ? [
-          tool(
-            "ReferenceImpact",
-            "Return one bounded, deterministic set of literal cross-reference locations. Use only for inbound/outbound-reference questions or deletion plus closing a numbering gap; it returns Read recipes, typed ambiguities, and no clause prose or similarity guesses.",
-            {
-              type: "object",
-              properties: {
-                file_path: {
-                  type: "string",
-                  description: "Opaque filename or document_id.",
-                },
-                targets: {
-                  type: "array",
-                  items: { type: "string" },
-                  description:
-                    "One or more exact provision handles copied from Grep or Read.",
-                },
-                operation: {
-                  type: "string",
-                  enum: ["inbound", "outbound", "delete_and_close_gap"],
-                  description:
-                    "Literal pointers into the target, literal pointers made by it, or the complete deterministic delete-and-renumber impact plan.",
-                },
-              },
-              required: ["file_path", "targets", "operation"],
-            },
-          ),
-        ]
-      : [];
-
-function domainEntriesForTools(tools: OpenAIToolSchema[]) {
-  return Object.entries(TOOL_DOMAINS).filter(([name]) =>
-    toolsForDomains(tools, [name]).length,
-  );
-}
-
-export function describeToolsTool(
-  tools: OpenAIToolSchema[],
-  allowEvidenceSelection = false,
-): OpenAIToolSchema {
-  const domains = domainEntriesForTools(tools);
-  const contextHandoff = process.env.MIKE_CONTEXT_HANDOFF === "1";
-  const pagedHandoff =
-    contextHandoff && process.env.MIKE_DRAFT_HANDOFF_MODE === "paged";
-  return tool(
-    "describe_tools",
-    `Load a domain of tools that is not available yet. Domains: ${domains
-      .map(([name, domain]) => `${name} (${domain.blurb})`)
-      .join("; ")}. Call this the moment a task needs one of them; the tools become callable immediately after.${
-        contextHandoff
-          ? pagedHandoff
-            ? " Opening drafting or output_document starts a fresh drafting context with the research checkpoint and demand-paged exact evidence."
-            : " Opening drafting or output_document starts a fresh drafting context containing the exact evidence read so far."
-          : ""
-      }`,
-    {
-      type: "object",
-      properties: {
-        domains: {
-          type: "array",
-          items: { type: "string", enum: domains.map(([name]) => name) },
-          description: "One or more domains to open.",
-        },
-        ...(contextHandoff && !pagedHandoff && allowEvidenceSelection
-          ? {
-              carry_evidence: {
-                type: "array",
-                items: { type: "string" },
-                description:
-                  "Exact evidence aliases from the host's selection manifest to carry into drafting. Copy each complete E-xxxxxxxx alias; wildcards and placeholders are invalid.",
-              },
-            }
-          : {}),
-      },
-      required: ["domains"],
-    },
-  );
-}
-
-/**
- * Split for the address arm: what ships in the request, and what
- * `describe_tools` can reveal. Exported because the A/B harness owns the
- * conversation loop and has to add revealed tools to the next request.
- */
-export function partitionTools(tools: OpenAIToolSchema[]): {
-  resident: OpenAIToolSchema[];
-  deferred: OpenAIToolSchema[];
-} {
-  if (!PROGRESSIVE_DISCLOSURE_ENABLED)
-    return { resident: tools, deferred: [] };
-  const isResident = (entry: OpenAIToolSchema) =>
-    RESIDENT_TOOLS.has(entry.function.name) ||
-    (RESIDENT_AUTHORING_ENABLED &&
-      entry.function.name === "generate_docx");
-  const resident = tools.filter(isResident);
-  const deferred = tools.filter((entry) => !isResident(entry));
-  return { resident: [...resident, describeToolsTool(deferred)], deferred };
-}
-
-/** Schemas for the domains a `describe_tools` call asked for. */
-export function toolsForDomains(
-  tools: OpenAIToolSchema[],
-  domains: string[],
-): OpenAIToolSchema[] {
-  const wanted = new Set(domains.map((domain) => domain.trim().toLowerCase()));
-  const also = new Set([...wanted].flatMap((domain) => ALSO_IN[domain] ?? []));
-  return tools.filter(
-    (entry) =>
-      wanted.has(DOMAIN_OF[entry.function.name] ?? "") ||
-      also.has(entry.function.name),
-  );
-}
 
 const CODING_DOCUMENT_REFERENCE_FIELDS = new Set([
   "document_id",
@@ -2259,7 +1099,7 @@ const CODING_DOCUMENT_REFERENCE_ARRAY_FIELDS = new Set([
 ]);
 
 function forCodingVocabulary(tools: OpenAIToolSchema[]): OpenAIToolSchema[] {
-  if (!CODING_TOOL_SHAPE) return tools;
+
   const rewrite = (value: unknown, key = ""): unknown => {
     if (Array.isArray(value)) return value.map((entry) => rewrite(entry));
     if (!value || typeof value !== "object") {
@@ -2288,116 +1128,23 @@ function forCodingVocabulary(tools: OpenAIToolSchema[]): OpenAIToolSchema[] {
   return tools.map((entry) => rewrite(entry) as OpenAIToolSchema);
 }
 
-const ORIGIN_MIKE_ACTIVE_TOOLS = UPSTREAM_NATIVE_MIKE_SHAPE
-  ? UPSTREAM_NATIVE_MIKE_LAB_TOOLS
-  : LEAN_BATCH_FAMILY_TOOL_SHAPE
-  ? // CC parity (coding_markdown_v2): the Claude-Code-shaped surface —
-    // Glob, single file_path Read, Grep with -A/-B and the trained
-    // files_with_matches default — replaces the lean list. Frozen lean
-    // arms keep LEAN_BATCH_LAB_TOOLS byte-identically.
-    CODING_PARITY_ENABLED
-    ? GREP_SECTION_CONTEXT_ENABLED
-      ? // v5 documents head_limit as the fair per-file budget it now is;
-        // a model that still reads it as a first-come cap keeps paying for
-        // one-path-at-a-time greps the mechanism no longer needs.
-        GREP_PER_FILE_BUDGET_ENABLED
-        ? CODING_MARKDOWN_V5_LAB_TOOLS
-        : CODING_MARKDOWN_V3_LAB_TOOLS
-      : CODING_MARKDOWN_V2_LAB_TOOLS
-    : LEAN_BATCH_LAB_TOOLS
-  : COMPACT_AUTHOR_MIKE_TOOL_SHAPE
-    ? COMPACT_AUTHOR_MIKE_LAB_TOOLS
-    : STRUCTURE_INDEX_ENABLED
-      ? MARKDOWN_INDEX_LAB_TOOLS
-      : MARKDOWN_SWAP_MIKE_TOOL_SHAPE || MARKDOWN_E2E_MIKE_TOOL_SHAPE
-        ? UPSTREAM_MIKE_MARKDOWN_SWAP_LAB_TOOLS
-      : MIKE_GREP_FAMILY_TOOL_SHAPE
-        ? MIKE_GREP_TOOL_SHAPE
-          ? MIKE_GREP_LAB_TOOLS
-          : MIKE_STRUCTURE_PATHS_TOOL_SHAPE
-            ? MIKE_STRUCTURE_PATHS_LAB_TOOLS
-            : MIKE_LEGAL_LAB_TOOLS
-        : ADAPTIVE_MIKE_TOOL_SHAPE
-          ? ADAPTIVE_MIKE_LAB_TOOLS
-          : UPSTREAM_MIKE_LAB_TOOLS;
-
-/**
- * Fix A: the requirements-echo mechanism appends fetch_requirements ONLY when
- * the echo is served by the TOOL — the frozen markdown treatment arms, where
- * REQUIREMENTS is on without the exposure gate. Under the exposure gate (both
- * mechanisms live) the verbatim task prompt rides the first generate_docx
- * refusal automatically, so the tool is never served and no arm-specific array
- * is needed. Either way, with the flag combination off this is the same array
- * object the selector produced, so every existing arm's tool list — and its
- * tool_schema_sha256 — is untouched by construction.
- */
-const ORIGIN_MIKE_SERVED_TOOLS_BASE: OpenAIToolSchema[] =
-  REQUIREMENTS_ECHO_ENABLED && !EXPOSURE_ECHO_ENABLED
-    ? [...ORIGIN_MIKE_ACTIVE_TOOLS, FETCH_REQUIREMENTS_TOOL]
-    : ORIGIN_MIKE_ACTIVE_TOOLS;
-
-/**
- * Draft-edit lever, same appended-tool pattern as the requirements echo: with
- * the flag off this is the identical array object, so every existing arm's
- * tool list and tool_schema_sha256 are untouched. With it on, generate_docx is
- * swapped for the variant whose markdown is optional (render the saved draft)
- * and the Edit tool joins the surface. Coding-surface lever: only the v5 env
- * sets MIKE_DRAFT_EDIT, like every other arm-scoped flag here.
- */
-const ORIGIN_MIKE_SERVED_TOOLS: OpenAIToolSchema[] = FINAL_AGENT_LOOP_ENABLED
-  ? CODING_MARKDOWN_FINAL_AGENT_LAB_TOOLS
-  : FINAL_ARM_ENABLED
-  ? CODING_MARKDOWN_FINAL_LAB_TOOLS
-  : DRAFT_EDIT_ENABLED
-  ? [
-      ...ORIGIN_MIKE_SERVED_TOOLS_BASE.map((entry) =>
-        entry.function.name === "generate_docx"
-          ? CODING_GENERATE_DOCX_DRAFT_EDIT_TOOL
-          : entry,
-      ),
-      CODING_EDIT_TOOL,
-    ]
-  : ORIGIN_MIKE_SERVED_TOOLS_BASE;
-
 const LOCAL_ASSISTANT_TOOL_CATALOG: OpenAIToolSchema[] = [
-  // The native arm carries ask_inputs inside UPSTREAM_NATIVE_MIKE_LAB_TOOLS at
-  // upstream's own position (TOOLS[0]); prepending the local copy as well would
-  // duplicate it and break the pinned nine-tool order.
-  ...(ASK_INPUTS_DISABLED || UPSTREAM_NATIVE_MIKE_SHAPE
-    ? []
-    : LOCAL_ASK_INPUTS_TOOLS),
-  ...(ORIGIN_MIKE_TOOL_SHAPE
-    ? ORIGIN_MIKE_SERVED_TOOLS
-    : CODING_TOOL_SHAPE
-    ? [
-        ...CODING_SHAPE_TOOLS,
-        ...RETRIEVAL_EXPERIMENT_TOOLS,
-        ...forNavShape(
-          LOCAL_LIBRARY_TOOLS.filter(
-            (entry) => !CODING_SHAPE_REPLACES.has(entry.function.name),
-          ),
-        ),
-      ]
-    : forNavShape(LOCAL_LIBRARY_TOOLS)),
-  ...(ORIGIN_MIKE_TOOL_SHAPE
-    ? []
-    : CODING_TOOL_SHAPE
-    ? LOCAL_DOCX_TOOLS.filter(
-        (entry) => !CODING_SHAPE_REPLACES.has(entry.function.name),
-      )
-    : LOCAL_DOCX_TOOLS),
-  ...(ORIGIN_MIKE_TOOL_SHAPE ? [] : COMPARE_VERSIONS_TOOLS),
-  ...(ORIGIN_MIKE_TOOL_SHAPE ? [] : (WORKFLOW_TOOLS as OpenAIToolSchema[])),
-  ...(ORIGIN_MIKE_TOOL_SHAPE || RESEARCH_TOOLS_DISABLED
-    ? []
-    : [
-        SEARCH_SOURCES_TOOL,
-        ...(COURTLISTENER_TOOLS as OpenAIToolSchema[]),
-        ...(A2AJ_TOOLS as OpenAIToolSchema[]),
-        ...(PUBLIC_LEGAL_SOURCE_TOOLS as OpenAIToolSchema[]),
-        ...HANSARD_TOOLS,
-        ...CITATOR_TOOLS,
-      ]),
+  ...LOCAL_ASK_INPUTS_TOOLS,
+  ...CODING_SHAPE_TOOLS,
+  ...LOCAL_LIBRARY_TOOLS.filter(
+    (entry) => !CODING_SHAPE_REPLACES.has(entry.function.name),
+  ),
+  ...LOCAL_DOCX_TOOLS.filter(
+    (entry) => !CODING_SHAPE_REPLACES.has(entry.function.name),
+  ),
+  ...COMPARE_VERSIONS_TOOLS,
+  ...(WORKFLOW_TOOLS as OpenAIToolSchema[]),
+  SEARCH_SOURCES_TOOL,
+  ...(COURTLISTENER_TOOLS as OpenAIToolSchema[]),
+  ...(A2AJ_TOOLS as OpenAIToolSchema[]),
+  ...(PUBLIC_LEGAL_SOURCE_TOOLS as OpenAIToolSchema[]),
+  ...HANSARD_TOOLS,
+  ...CITATOR_TOOLS,
 ];
 
 const PRODUCTION_EDIT_TOOL = CODING_SHAPE_TOOLS.find(
@@ -2432,9 +1179,7 @@ const EDIT_TOOL: OpenAIToolSchema = {
   },
 };
 
-export const LOCAL_ASSISTANT_TOOLS = (MIKE_FILE_TOOL_SHAPE
-  ? LOCAL_ASSISTANT_TOOL_CATALOG
-  : forCodingVocabulary(LOCAL_ASSISTANT_TOOL_CATALOG)
+export const LOCAL_ASSISTANT_TOOLS = (forCodingVocabulary(LOCAL_ASSISTANT_TOOL_CATALOG)
 ).map(
   (entry) => (entry.function.name === "Edit" ? EDIT_TOOL : entry),
 );
@@ -2461,17 +1206,64 @@ export const LOCAL_LEGAL_RESEARCH_TOOLS: OpenAIToolSchema[] =
 
 export const LOCAL_READ_SUBAGENT_TOOL_CATALOG: OpenAIToolSchema[] = [
   ...new Map(
-    [
-      ...LOCAL_ASSISTANT_TOOLS,
-      ...forNavShape(LOCAL_LIBRARY_TOOLS),
-      ...(WORKFLOW_TOOLS as OpenAIToolSchema[]),
-      ...LOCAL_LEGAL_RESEARCH_TOOLS,
-    ].map((tool) => [tool.function.name, tool]),
+    [...LOCAL_ASSISTANT_TOOLS, ...LOCAL_LEGAL_RESEARCH_TOOLS]
+      .map((tool) => [tool.function.name, tool]),
   ).values(),
 ];
 
 const trimmed = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
+
+async function scopedLocalDocuments(
+  userId: string,
+  allowedDocumentIds?: ReadonlySet<string>,
+  limit = 200,
+  matterId?: string | null,
+) {
+  if (matterId) {
+    const page = legalKnowledgeGraphStore().pageMatterDocuments(
+      userId, matterId, { q: "", limit, after: null },
+    );
+    return listLocalDocumentsById(userId, page.ids);
+  }
+  return allowedDocumentIds
+    ? listLocalDocumentsById(userId, allowedDocumentIds)
+    : recentLocalDocuments(userId, "file", limit);
+}
+
+async function referencedLocalDocuments(
+  userId: string,
+  references: Iterable<string>,
+  allowedDocumentIds?: ReadonlySet<string>,
+  matterId?: string | null,
+) {
+  if (allowedDocumentIds) {
+    return listLocalDocumentsById(userId, allowedDocumentIds);
+  }
+  const found = new Map<string, Awaited<ReturnType<typeof getLocalDocumentResponse>> & {}>();
+  for (const reference of new Set(references)) {
+    const exact = await getLocalDocumentResponse(userId, reference);
+    if (exact && (!matterId || legalKnowledgeGraphStore().hasMatterDocument(
+      userId, matterId, exact.id,
+    ))) found.set(exact.id, exact);
+    const matches = matterId
+      ? await listLocalDocumentsById(
+          userId,
+          legalKnowledgeGraphStore().pageMatterDocuments(
+            userId, matterId, { q: reference, limit: 3, after: null },
+          ).ids,
+        )
+      : (await pageLocalDocuments(userId, ["file"], {
+          q: reference, limit: 3, after: null,
+        })).items;
+    for (const document of matches) {
+      if (document.filename.toLocaleLowerCase() === reference.toLocaleLowerCase()) {
+        found.set(document.id, document);
+      }
+    }
+  }
+  return [...found.values()];
+}
 
 const stringArray = (value: unknown): string[] =>
   Array.isArray(value)
@@ -2485,6 +1277,7 @@ async function resolveCodingDocumentReferences(
   userId: string,
   input: Record<string, unknown>,
   allowedDocumentIds?: ReadonlySet<string>,
+  matterId?: string | null,
 ): Promise<{ input: Record<string, unknown>; error?: string }> {
   const fields = Object.keys(input).filter(
     (field) =>
@@ -2493,9 +1286,12 @@ async function resolveCodingDocumentReferences(
   );
   if (!fields.length) return { input };
 
-  const collection = await listLocalLibrary(userId, "file");
-  const documents = collection.documents.filter(
-    (document) => !allowedDocumentIds || allowedDocumentIds.has(document.id),
+  const references = fields.flatMap((field) =>
+    Array.isArray(input[field])
+      ? stringArray(input[field])
+      : [trimmed(input[field])].filter(Boolean));
+  const documents = await referencedLocalDocuments(
+    userId, references, allowedDocumentIds, matterId,
   );
   const byFilename = new Map<string, typeof documents>();
   for (const document of documents) {
@@ -2511,9 +1307,7 @@ async function resolveCodingDocumentReferences(
     if (matches.length > 1) {
       return {
         value: reference,
-        error: MIKE_GREP_FAMILY_TOOL_SHAPE
-          ? `Filename '${reference}' is ambiguous. Use list_documents and pass its doc-N label.`
-          : `Filename '${reference}' is ambiguous. Use Glob to obtain its document_id.`,
+        error: `Filename '${reference}' is ambiguous. Use Glob to obtain its document_id.`,
       };
     }
     return { value: reference };
@@ -2583,7 +1377,7 @@ export type LocalAssistantReadTurnState = Map<
     bodyStart?: number;
     intervals?: Array<[number, number]>;
   }
->;
+> & { servedDraftingCache?: Map<string, ServedDrafting> };
 
 export function mergeIntervals(
   intervals: Array<[number, number]>,
@@ -3034,56 +1828,7 @@ function codingRangeLines(
   return rows;
 }
 
-async function compilerDiagnostics(
-  userId: string,
-  documentId: string,
-  versionId: string,
-) {
-  const [structure, document] = await Promise.all([
-    lintLocalDocxStructure(userId, documentId, versionId).catch(() => null),
-    extractLocalDocument(userId, documentId).catch(() => null),
-  ]);
-  const drafting = document ? draftingLint(document.text) : null;
-  const allFindings = [
-    ...(structure?.findings ?? []).map((finding) => ({
-      check: "structure",
-      code: finding.code,
-      severity: finding.severity,
-      subject: finding.subject,
-      excerpt: finding.excerpt,
-      message: finding.message,
-    })),
-    ...(drafting?.findings ?? []).map((finding) => ({
-      check: "drafting",
-      code: finding.rule,
-      severity: finding.severity,
-      subject: finding.match,
-      excerpt: finding.excerpt,
-      message: finding.message,
-    })),
-  ];
-  // Creation/revision receipts are an automatic compiler boundary, not an
-  // advisory inbox. Only high-confidence errors enter model context; warnings
-  // remain available through explicit audits and aggregate receipts.
-  const findings = allFindings.filter(
-    (finding) =>
-      finding.severity === "error" &&
-      ((finding.check === "drafting" && finding.code === "stacked-modals") ||
-        (finding.check === "structure" && finding.code === "numbering_duplicate")),
-  );
-  const unavailable = !structure && !drafting;
-  return {
-    status: unavailable
-      ? "unavailable"
-      : findings.length
-        ? "action_required"
-        : "passed",
-    finding_count: findings.length,
-    ...(unavailable ? { unavailable: true } : {}),
-    ...(findings.length ? { findings: findings.slice(0, 8) } : {}),
-    ...(findings.length > 8 ? { truncated: true } : {}),
-  };
-}
+
 
 /**
  * The revise operation, callable without dispatch: the Edit alias uses it
@@ -3094,17 +1839,7 @@ async function compilerDiagnostics(
  * Arm B's edit shape: `at` names the provision, and the context pair stops
  * being required because the server derives it.
  */
-function addressedEditsSchema(base: unknown): unknown {
-  const edits = JSON.parse(JSON.stringify(base)) as Record<string, any>;
-  const item = edits.items;
-  item.properties.at = {
-    type: "string",
-    description:
-      "Provision or exact DOCX cell to edit inside ('8.01', 'Article VIII', 'table:1/row:2/col:3'). With `at`, give only `find` and `replace` — the server locates one exact occurrence inside that address and reads the surrounding text off the document, so never retype context.",
-  };
-  item.required = ["find", "replace"];
-  return edits;
-}
+
 
 /** Convert a verified text plan to exact, paragraph-local tracked edits. */
 function trackedEditsForRenumberPlan(
@@ -3172,187 +1907,7 @@ const comparableAcceptedText = (value: string) =>
     .filter((line) => line.length > 0)
     .join("\n");
 
-/**
- * mike_upstream_native_v1 only: upstream's `edit_document`, reproducing
- * 2266446b:backend/src/lib/chat/tools/toolDispatcher.ts:1378-1540 plus
- * runEditDocument (documentOps.ts:1106-…) on Beaver's local document store.
- *
- * Differences from runLocalReviseDocx that matter and are deliberate:
- *  - partial success. Upstream applies every locatable edit and reports the
- *    rest in errors[]; Beaver's reviser bails whenever any edit failed.
- *  - tracked-change author is "Mike" (documentOps.ts:1151), not "Beaver".
- *  - the read guard is cleared on success (toolDispatcher.ts:1467) so a
- *    post-edit verification read is permitted.
- *  - anchors are matched against the same plane read_document served.
- */
-async function runUpstreamNativeEditDocument(
-  call: NormalizedToolCall,
-  userId: string,
-  args: Record<string, unknown>,
-  allowedDocumentIds?: Set<string>,
-  turnEditState?: LocalAssistantEditTurnState,
-  turnReadState?: LocalAssistantReadTurnState,
-): Promise<NormalizedToolResult> {
-  // upstreamMikeResult, not result(): native envelopes must never be reshaped
-  // by Beaver's MAX_TOOL_RESULT_CHARS truncator, exactly as the other native
-  // tool results bypass it.
-  //
-  // The pin uses TWO different error envelopes for edit_document, and the
-  // difference is model-visible:
-  //  - the three dispatcher-level validations emit a BARE {"error": …} with no
-  //    `ok` key (2266446b:toolDispatcher.ts:1412-1433, three `JSON.stringify({
-  //    error: err })` pushes);
-  //  - only a runEditDocument failure emits {"ok": false, "error": …}
-  //    (toolDispatcher.ts:1530-1536), which is where "Could not load document
-  //    bytes." and the no-edits-applied message come from
-  //    (documentOps.ts:1141-1164).
-  // A model branching on the presence of `ok` sees a different signal, so the
-  // arm reproduces both shapes rather than collapsing them.
-  const nativePreDispatchError = (error: string) =>
-    upstreamMikeResult(call, { error });
-  const nativeError = (error: string) =>
-    upstreamMikeResult(call, { ok: false, error });
 
-  const requested = trimmed(args.doc_id);
-  const editsRaw = Array.isArray(args.edits) ? args.edits : undefined;
-
-  const stored = (await listLocalLibrary(userId, "file")).documents;
-  const storedById = new Map(stored.map((document) => [document.id, document]));
-  const documents = (
-    allowedDocumentIds
-      ? [...allowedDocumentIds].map((id) => storedById.get(id))
-      : stored
-  ).filter((document): document is (typeof stored)[number] => !!document);
-  const labelMatch = /^doc-(\d+)$/u.exec(requested);
-  const target = labelMatch
-    ? documents[Number(labelMatch[1])]
-    : (storedById.get(requested) ??
-      documents.find((document) => document.filename === requested));
-
-  // Pin order (toolDispatcher.ts:1412-1433): missing document, then empty
-  // edits, then non-docx — all three decided from docStore METADATA before any
-  // bytes are touched, and all three answered with the bare {error} envelope.
-  // The docx test is therefore made against the listed file_type here too, not
-  // against the loaded file, so a non-docx whose bytes also fail to load still
-  // reports the pin's "only supports .docx files." rather than a load error.
-  if (!target) {
-    return nativePreDispatchError(
-      `Document '${requested}' not found in this chat's attachments.`,
-    );
-  }
-  if (!editsRaw || editsRaw.length === 0) {
-    return nativePreDispatchError(
-      "edits array is required and must not be empty.",
-    );
-  }
-  // Case-insensitive where the pin compares exactly: Beaver's store is not
-  // guaranteed to normalise file_type, and being stricter than the pin could
-  // refuse a genuine .docx, which would be a divergence in the harmful
-  // direction.
-  if ((target.file_type ?? "").toLowerCase() !== "docx") {
-    return nativePreDispatchError("edit_document only supports .docx files.");
-  }
-  const documentId = target.id;
-  const docLabel = labelMatch
-    ? requested
-    : `doc-${Math.max(0, documents.findIndex((d) => d.id === documentId))}`;
-
-  const turnVersion = turnEditState?.get(documentId);
-  const versionId = turnVersion?.versionId ?? target.current_version_id;
-  const file = await getLocalVersionFile(userId, documentId, versionId);
-  // A runEditDocument-stage failure: keeps the {ok:false} envelope, and the
-  // string is the pin's own (documentOps.ts:1147).
-  if (!file) return nativeError("Could not load document bytes.");
-
-  const edits: EditInput[] = (editsRaw as Record<string, unknown>[]).map(
-    (edit) => ({
-      find: String(edit.find ?? ""),
-      replace: String(edit.replace ?? ""),
-      context_before: String(edit.context_before ?? ""),
-      context_after: String(edit.context_after ?? ""),
-      reason: edit.reason ? String(edit.reason) : undefined,
-    }),
-  );
-
-  let edited;
-  try {
-    // The arm's OWN applier, not Beaver's. Beaver's applyTrackedEdits parses
-    // through docx/core.ts, which adds `parseTagValue: false`; the plane this
-    // arm serves for read/find comes from the pinned parser, which lacks it and
-    // therefore coerces numeric-looking w:t ("1.10" -> "1.1"). Anchoring edits
-    // on Beaver's un-coerced plane made an edit whose `find` was copied
-    // verbatim out of the served text fail with applied=0 where upstream
-    // returns applied=1. At the pin both planes share one createParser()
-    // (2266446b:docxTrackedChanges.ts:647-656, used by :719 and :799) and the
-    // invariant is stated at documentOps.ts:1502-1503.
-    edited = await applyUpstreamNativeTrackedEdits(
-      await readFile(file.path),
-      edits,
-      { author: "Mike" },
-    );
-  } catch (error) {
-    return nativeError(String((error as Error)?.message ?? error));
-  }
-  if (edited.changes.length === 0) {
-    return nativeError(
-      edited.errors[0]?.reason ??
-        "No edits could be applied. Refine context_before/context_after and retry.",
-    );
-  }
-
-  const committed = await commitLocalAssistantTurnVersion({
-    userId,
-    documentId,
-    filename: file.version.filename,
-    bytes: edited.bytes,
-    sourceVersionId: versionId,
-    trackedEdits: edited.changes.map((change) => ({
-      id: crypto.randomUUID(),
-      changeId: change.id,
-      delWId: change.delId,
-      insWId: change.insId,
-      deletedText: change.deletedText,
-      insertedText: change.insertedText,
-      contextBefore: change.contextBefore,
-      contextAfter: change.contextAfter,
-      reason: change.reason,
-      status: "pending",
-    })),
-    turnEditState,
-  });
-  if (!committed) return nativeError("version_id is no longer active");
-
-  // toolDispatcher.ts:1467 — a post-edit verification read must be possible.
-  for (const [key, entry] of turnReadState ?? []) {
-    if (entry.documentId === documentId) turnReadState?.delete(key);
-  }
-
-  return {
-    ...upstreamMikeResult(call, {
-      ok: true,
-      doc_id: docLabel,
-      document_id: documentId,
-      version_id: committed.version.id,
-      version_number: committed.version.version_number,
-      applied: edited.changes.length,
-      errors: edited.errors,
-      next_required_action: upstreamNativeEditedNextAction(docLabel),
-    }),
-    mutationReceipt: JSON.stringify({
-      ok: true,
-      receipt: "mike-document:v1",
-      action: "revised",
-      document_id: documentId,
-      parent_version_id: committed.parentVersionId,
-      version_id: committed.version.id,
-      version_number: committed.version.version_number,
-      filename: committed.version.filename,
-      file_type: committed.version.file_type,
-      source_sha256: committed.version.source_sha256,
-      change_count: edited.changes.length,
-    }),
-  };
-}
 
 async function runLocalReviseDocx(
   call: NormalizedToolCall,
@@ -3382,13 +1937,11 @@ async function runLocalReviseDocx(
   // The model never has to courier a version id: unstated means the
   // active version, resolved here. A provided id still asserts.
   if (!versionId) {
-    const collection = await listLocalLibrary(userId, "file");
-    versionId =
-      collection.documents.find((meta) => meta.id === documentId)
-        ?.current_version_id ?? "";
+    versionId = (await getLocalDocumentResponse(userId, documentId))
+      ?.current_version_id ?? "";
     if (!versionId) return fail(call, "Document not found");
   }
-  const addressed = NAV_TOOL_SHAPE === "address";
+  const addressed = false;
   if (
     rawEdits.length > 100 ||
     rawEdits.some((raw) => {
@@ -3557,16 +2110,12 @@ async function runLocalReviseDocx(
     // Every revision gets deterministic same-turn feedback: the
     // structural lint runs on the freshly produced version (the
     // determinism plan's receipt hook — not gated on annotate).
-    const lint = LEGAL_GREP_EXPERIMENT
-      ? null
-      : await lintLocalDocxStructure(
+    const lint = await lintLocalDocxStructure(
           userId,
           documentId,
           version.id,
         ).catch(() => null);
-    const diagnostics = LEGAL_GREP_EXPERIMENT
-      ? await compilerDiagnostics(userId, documentId, version.id)
-      : null;
+    const diagnostics = null;
     const downloadUrl =
       `/single-documents/${encodeURIComponent(documentId)}/file` +
       `?version_id=${encodeURIComponent(version.id)}`;
@@ -3637,32 +2186,23 @@ async function runCodingShapeCall(
   args: Record<string, unknown>,
   userId: string,
   allowedDocumentIds?: Set<string>,
+  matterId?: string | null,
   turnEditState?: LocalAssistantEditTurnState,
   workingSets?: LocalAssistantWorkingSetTurnState,
   servedDraftingCache?: Map<string, ServedDrafting>,
   turnReadState?: LocalAssistantReadTurnState,
   requirementsState?: LocalAssistantRequirementsState,
 ): Promise<NormalizedToolResult> {
-  const collection = await listLocalLibrary(userId, "file");
-  const storedById = new Map(
-    collection.documents.map((document) => [document.id, document]),
+  const documentsInScope = await scopedLocalDocuments(
+    userId, allowedDocumentIds, 200, matterId,
   );
   const files =
-    MIKE_FILE_TOOL_SHAPE && allowedDocumentIds
-      ? [...allowedDocumentIds]
-          .map((documentId) => storedById.get(documentId))
-          .filter(
-            (document): document is (typeof collection.documents)[number] =>
-              !!document,
-          )
-      : collection.documents.filter(
+    documentsInScope.filter(
           (document) =>
             !allowedDocumentIds || allowedDocumentIds.has(document.id),
         );
   const mikeLabelById = new Map(
-    MIKE_FILE_TOOL_SHAPE
-      ? files.map((document, index) => [document.id, `doc-${index}`] as const)
-      : [],
+    [],
   );
   const filenameCounts = new Map<string, number>();
   for (const document of files) {
@@ -3670,21 +2210,12 @@ async function runCodingShapeCall(
     filenameCounts.set(key, (filenameCounts.get(key) ?? 0) + 1);
   }
   const codingPath = (document: (typeof files)[number]) =>
-    MIKE_FILE_TOOL_SHAPE &&
-    (filenameCounts.get(document.filename.toLowerCase()) ?? 0) > 1
-      ? mikeLabelById.get(document.id) ?? document.id
-      : document.filename;
+    document.filename;
   const disambiguationHint = (requested: string, field: "file_path" | "path") =>
-    MIKE_FILE_TOOL_SHAPE
-      ? `File path is ambiguous: ${requested}. Use list_documents, then pass the intended doc-N label as ${field}.`
-      : `File path is ambiguous: ${requested}. Use Glob(pattern="${requested}"), then pass the intended document_id as ${field}.`;
+    `File path is ambiguous: ${requested}. Use Glob(pattern="${requested}"), then pass the intended document_id as ${field}.`;
   const resolvePath = (raw: string) => {
     const wanted = raw.replace(/^\.?[\\/]/u, "").trim().toLowerCase();
-    const mikeLabel = MIKE_FILE_TOOL_SHAPE
-      ? files.find(
-          (document) => mikeLabelById.get(document.id)?.toLowerCase() === wanted,
-        )
-      : undefined;
+    const mikeLabel = undefined;
     if (mikeLabel) return [mikeLabel];
     const byId = files.filter((document) => document.id.toLowerCase() === wanted);
     if (byId.length) return byId;
@@ -3706,7 +2237,7 @@ async function runCodingShapeCall(
   // in a prosthetic prefix. Non-docx files and extraction failures keep
   // the plaintext plane. Same document shape readOne builds for drafting.
   const codingDocument = async (documentId: string) => {
-    if (MARKDOWN_READ_DOCX) {
+    {
       const drafting = await servedDraftingText(
         userId,
         documentId,
@@ -3754,124 +2285,6 @@ async function runCodingShapeCall(
       intervals,
     });
   };
-  const registerStructurePath = (
-    meta: (typeof files)[number],
-    document: NonNullable<Awaited<ReturnType<typeof extractLocalDocument>>>,
-    unit: {
-      start: number;
-      end: number;
-      locator: string;
-      projection: "legal-unit" | "pdf-page";
-    },
-  ) => {
-    if (
-      !STRUCTURE_PATH_EXPERIMENT ||
-      !workingSets ||
-      unit.start < 0 ||
-      unit.end <= unit.start ||
-      unit.end > document.text.length
-    ) {
-      return null;
-    }
-    const versionId = document.versionId || meta.current_version_id;
-    const identity = {
-      documentId: meta.id,
-      versionId,
-      start: unit.start,
-      end: unit.end,
-      locator: unit.locator,
-    };
-    const path =
-      `.mike/structure/doc-${sha256(meta.id).slice(0, 12)}` +
-      `/v-${sha256(versionId).slice(0, 12)}` +
-      `/u-${sha256(JSON.stringify(identity)).slice(0, 16)}.txt`;
-    const text = document.text.slice(unit.start, unit.end);
-    const existing = resolveWorkingSet(path);
-    if (existing) {
-      const segment = existing.segments[0];
-      return existing.text === text &&
-        existing.segments.length === 1 &&
-        segment?.documentId === meta.id &&
-        segment.versionId === versionId &&
-        segment.sourceStart === unit.start &&
-        segment.sourceEnd === unit.end &&
-        segment.locator === unit.locator
-        ? existing.path
-        : null;
-    }
-    const segment: WorkingSetEvidenceSegment = {
-      virtualStart: 0,
-      virtualEnd: text.length,
-      documentId: meta.id,
-      versionId,
-      sourceStart: unit.start,
-      sourceEnd: unit.end,
-      filename: meta.filename,
-      locator: unit.locator,
-      virtualPath: path,
-      projection: unit.projection,
-    };
-    workingSets.set(path, {
-      path,
-      text,
-      sourceChars: text.length,
-      segments: [segment],
-    });
-    return path;
-  };
-
-  if (call.name === "DocumentMap" || call.name === "ReferenceImpact") {
-    const requested = trimmed(args.file_path);
-    const matches = resolvePath(requested);
-    if (matches.length !== 1) {
-      return fail(
-        call,
-        matches.length
-          ? disambiguationHint(requested, "file_path")
-          : `File does not exist: ${requested}`,
-      );
-    }
-    const meta = matches[0];
-    const document = await extractLocalDocument(userId, meta.id);
-    if (!document) return fail(call, `File could not be read: ${requested}`);
-    const skeleton = await documentStructure(document.text, meta.id, {
-      tableCells: document.tableCells,
-    });
-    if (call.name === "DocumentMap") {
-      const mapped = documentMap({
-        text: document.text,
-        skeleton,
-        pageMap: document.pages,
-        focus: trimmed(args.focus) as DocumentMapFocus,
-        ...(typeof args.query === "string" ? { query: args.query } : {}),
-        ...(typeof args.max_results === "number"
-          ? { maxResults: args.max_results }
-          : {}),
-      });
-      return result(call, {
-        ok: mapped.failures.length === 0,
-        ...mapped,
-      });
-    }
-    const graph = await documentGraph(
-      document.text,
-      meta.id,
-      skeleton,
-      { tableCells: document.tableCells },
-    );
-    const impact = referenceImpact({
-      text: document.text,
-      skeleton,
-      graph,
-      targets: stringArray(args.targets),
-      operation: trimmed(args.operation) as ReferenceImpactOperation,
-    });
-    return result(call, {
-      ok: impact.failures.length === 0,
-      ...impact,
-    });
-  }
-
   if (call.name === "Glob") {
     const re = globRegExp(trimmed(args.pattern) || "*");
     const matchedFiles = files.filter((document) => re.test(document.filename));
@@ -3907,8 +2320,7 @@ async function runCodingShapeCall(
     // spine anchored; the pattern matches against "<filename>.toc" so
     // "*.toc" lists only indexes. Sizes are the rendered toc itself —
     // orientation priced in-band, like everything else Glob reports.
-    const tocRows = CODING_TOC_FILES_ENABLED
-      ? (
+    const tocRows = (
           await Promise.all(
             files
               .filter((meta) => re.test(`${meta.filename}.toc`))
@@ -3924,10 +2336,8 @@ async function runCodingShapeCall(
                 };
               }),
           )
-        ).filter((row): row is NonNullable<typeof row> => row !== null)
-      : [];
-    const draftRows = DRAFT_EDIT_ENABLED
-      ? Object.entries(requirementsState?.drafts ?? {})
+        ).filter((row): row is NonNullable<typeof row> => row !== null);
+    const draftRows = Object.entries(requirementsState?.drafts ?? {})
           .filter(([name]) => re.test(name))
           .map(([name, body]) => ({
             row: `${name}\tchars=${body.length}\tlines=${
@@ -3935,8 +2345,7 @@ async function runCodingShapeCall(
             }`,
             chars: body.length,
             lines: body ? body.split(/\r?\n/u).length : 0,
-          }))
-      : [];
+          }));
     const rows = [...fileRows, ...tocRows, ...workingSetRows, ...draftRows];
     if (!rows.length) return result(call, "No files found");
     const totalChars = rows.reduce((total, row) => total + row.chars, 0);
@@ -3946,25 +2355,16 @@ async function runCodingShapeCall(
       [
         ...rows.map((row) => row.row),
         `TOTAL\tfiles=${rows.length}\tchars=${totalChars}\tlines=${totalLines}` +
-          (WHOLE_READ_MAX_CHARS
-            ? `\twhole_read_budget_chars=${WHOLE_READ_MAX_CHARS}`
+          (0
+            ? `\twhole_read_budget_chars=${0}`
             : ""),
       ].join("\n"),
     );
   }
 
   if (call.name === "Read") {
+
     if (
-      (PURE_CODING_EXPERIMENT || STRUCTURE_PATH_EXPERIMENT) &&
-      Object.prototype.hasOwnProperty.call(args, "section")
-    ) {
-      return fail(
-        call,
-        "Read accepts only file_path, offset, limit, and start_char",
-      );
-    }
-    if (
-      !LEGAL_GREP_EXPERIMENT &&
       (Object.prototype.hasOwnProperty.call(args, "pages") ||
         Object.prototype.hasOwnProperty.call(args, "references"))
     ) {
@@ -3974,7 +2374,7 @@ async function runCodingShapeCall(
     // Companion .toc read (v4): serve the rendered index cat-n style.
     // Derived metadata, not document text — no evidence segments, no
     // body-exposure accounting; the body plane's line numbers stay pure.
-    if (CODING_TOC_FILES_ENABLED && /\.toc$/iu.test(requested)) {
+    if (/\.toc$/iu.test(requested)) {
       const base = requested.replace(/\.toc$/iu, "");
       const candidates = resolvePath(base);
       if (candidates.length !== 1) {
@@ -3996,7 +2396,7 @@ async function runCodingShapeCall(
           `No .toc for '${base}' — this document has no anchorable section spine; read the document directly.`,
         );
       }
-      if (FINAL_ARM_ENABLED) {
+      {
         if (document) {
           recordCodingExposure(
             meta,
@@ -4239,7 +2639,6 @@ async function runCodingShapeCall(
         const graph = await documentGraph(
           document.text,
           meta.id,
-          skeleton,
           { tableCells: document.tableCells },
         );
         const scope = oneHopLegalScope(
@@ -4361,7 +2760,6 @@ async function runCodingShapeCall(
     // (same rule as the section-mode guard above). A deliberate one-line
     // read of line 1 can pass limit:1 without offset.
     const effectiveLimit =
-      CODING_PARITY_ENABLED &&
       Number(args.offset) === 1 &&
       Number(args.limit) === 1
         ? 2_000
@@ -4699,7 +3097,6 @@ async function runCodingShapeCall(
 
   // Grep
   if (
-    !LEGAL_GREP_EXPERIMENT &&
     (Object.prototype.hasOwnProperty.call(args, "section") ||
       Object.prototype.hasOwnProperty.call(args, "pages") ||
       Object.prototype.hasOwnProperty.call(args, "references"))
@@ -4721,7 +3118,7 @@ async function runCodingShapeCall(
     // CC parity: ripgrep accepts escapes the JS u-flag rejects (\-, \%,
     // escaped spaces, POSIX classes); retry without unicode strictness
     // before failing so trained-prior patterns don't burn a round.
-    if (CODING_PARITY_ENABLED) {
+    {
       try {
         re = new RegExp(pattern, regexFlags.replace("u", ""));
       } catch {
@@ -4730,11 +3127,6 @@ async function runCodingShapeCall(
           `regex parse error: ${errorText(error, "invalid pattern")}`,
         );
       }
-    } else {
-      return fail(
-        call,
-        `regex parse error: ${errorText(error, "invalid pattern")}`,
-      );
     }
   }
   const pathArg = trimmed(args.path);
@@ -4763,12 +3155,8 @@ async function runCodingShapeCall(
     const context = clampInt(args["-C"], 0, 10, 0);
     // CC parity: -A (after) and -B (before) are honored per side; -C stays
     // the symmetric fallback. Frozen arms keep -C-only semantics.
-    const contextBefore = CODING_PARITY_ENABLED
-      ? clampInt(args["-B"], 0, 10, context)
-      : context;
-    const contextAfter = CODING_PARITY_ENABLED
-      ? clampInt(args["-A"], 0, 10, context)
-      : context;
+    const contextBefore = clampInt(args["-B"], 0, 10, context);
+    const contextAfter = clampInt(args["-A"], 0, 10, context);
     const rows: CodingOutputLine[] = [];
     const emitted = new Set<number>();
     for (const match of matched) {
@@ -4867,29 +3255,20 @@ async function runCodingShapeCall(
   }
   const mode =
     args.output_mode === "content" ||
-    args.output_mode === "count" ||
-    (LEGAL_GREP_EXPERIMENT && args.output_mode === "sections")
+    args.output_mode === "count"
       ? args.output_mode
-      : // CC parity: the trained default is files_with_matches; the lean
-        // content default stays for the frozen lean arms only.
-        LEAN_BATCH_FAMILY_TOOL_SHAPE && !CODING_PARITY_ENABLED
-        ? "content"
-        : "files_with_matches";
+      : "files_with_matches";
   const headLimit = positiveInt(
     args.head_limit,
     1,
     2_000,
-    mode === "sections" ? 40 : 250,
+    250,
   );
   const context = clampInt(args["-C"], 0, 10, 0);
   // CC parity: -A/-B honored per side, -C the symmetric fallback; frozen
   // arms keep -C-only semantics.
-  const contextBefore = CODING_PARITY_ENABLED
-    ? clampInt(args["-B"], 0, 10, context)
-    : context;
-  const contextAfter = CODING_PARITY_ENABLED
-    ? clampInt(args["-A"], 0, 10, context)
-    : context;
+  const contextBefore = clampInt(args["-B"], 0, 10, context);
+  const contextAfter = clampInt(args["-A"], 0, 10, context);
   const numberLines = args["-n"] !== false;
 
   const rows: CodingOutputLine[] = [];
@@ -4901,7 +3280,6 @@ async function runCodingShapeCall(
   // Per-file content buckets; only populated when the per-file budget is on.
   // files_with_matches/count emit one row per document and are fair already.
   const fileBuckets: CodingOutputLine[][] = [];
-  const sectionQueues: { rendered: string; hits: number }[][] = [];
   const hardReferenceHints: Array<{
     kind: "literal_reference";
     label: string;
@@ -4910,7 +3288,6 @@ async function runCodingShapeCall(
     limit: number;
     rendered: string;
   }> = [];
-  const hardReferenceSeeds = new Set<string>();
   let truncated = false;
   for (const meta of targets) {
     const document = await codingDocument(meta.id);
@@ -4948,7 +3325,6 @@ async function runCodingShapeCall(
         const graph = await documentGraph(
           document.text,
           meta.id,
-          scopedSkeleton,
           { tableCells: document.tableCells },
         );
         const scope = oneHopLegalScope(
@@ -5003,18 +3379,13 @@ async function runCodingShapeCall(
           end: number;
         } | null)
       | null = null;
-    let unitSkeleton: AgreementSkeleton | null = null;
-    if (
-      (mode === "content" || mode === "sections") &&
-      (!PURE_CODING_EXPERIMENT || LEAN_BATCH_HARDREFS_TOOL_SHAPE)
-    ) {
+    if (mode === "content") {
       const skeleton =
         scopedSkeleton ??
         mapSkeleton ??
         (await documentStructure(document.text, meta.id, {
           tableCells: document.tableCells,
         }));
-      unitSkeleton = skeleton;
       if (skeleton.nodes.length) {
         const offsets: number[] = [];
         let cursor = 0;
@@ -5083,41 +3454,12 @@ async function runCodingShapeCall(
       rows.push({ rendered: `${codingPath(meta)}:${matched.length}` });
       continue;
     }
-    if (mode === "sections") {
-      const hitsByRecipe = new Map<string, number>();
-      for (const line of matched) {
-        const section = sectionOf?.(line);
-        const filePath = codingPath(meta);
-        const recipe = MIKE_GREP_FAMILY_TOOL_SHAPE
-          ? section
-            ? `Read file_path=${JSON.stringify(filePath)} section="${section.handle}"`
-            : `Read file_path=${JSON.stringify(filePath)} offset=${line + 1} limit=1`
-          : section
-            ? `Read section="${section.handle}"`
-            : `Read offset=${line + 1} limit=1`;
-        const rendered = `${filePath}: ${recipe}`;
-        hitsByRecipe.set(rendered, (hitsByRecipe.get(rendered) ?? 0) + 1);
-      }
-      sectionQueues.push(
-        [...hitsByRecipe.entries()]
-          .map(([rendered, hits]) => ({ rendered, hits }))
-          .sort(
-            (left, right) =>
-              right.hits - left.hits ||
-              left.rendered.localeCompare(right.rendered),
-          ),
-      );
-      continue;
-    }
     const matchedLines = new Set(matched);
     // Section-context rows (coding_markdown_v3): anchored section leads,
     // computed once per hit-document; per hit, the enclosing lead is the
     // last start at or below the hit's offset.
-    const sectionLeads = GREP_SECTION_CONTEXT_ENABLED
-      ? await grepSectionSpine(userId, meta, document.text)
-      : [];
+    const sectionLeads = await grepSectionSpine(userId, meta, document.text);
     const emittedSectionRows = new Set<number>();
-    let hardReferenceGraph: CrossReferenceGraph | null = null;
     let lastPrinted = -2;
     // Under the per-file budget every document renders into its own bucket
     // and the split happens after the sweep, once the matching-file count is
@@ -5125,7 +3467,7 @@ async function runCodingShapeCall(
     // headLimit doubles as the per-file collection cap. The corpus sweep is
     // never cut short here: stopping early is precisely the starvation the
     // per-file budget exists to remove.
-    const sink: CodingOutputLine[] = GREP_PER_FILE_BUDGET_ENABLED ? [] : rows;
+    const sink: CodingOutputLine[] = [];
     for (const at of matched) {
       if (sink.length >= headLimit) {
         truncated = true;
@@ -5204,139 +3546,15 @@ async function runCodingShapeCall(
         const section = isMatch
           ? sectionOf?.(i, starts[i] + matchColumn)
           : null;
-        if (
-          isMatch &&
-          LEAN_BATCH_HARDREFS_TOOL_SHAPE &&
-          section &&
-          unitSkeleton &&
-          hardReferenceHints.length < 3
-        ) {
-          const seedKey = `${meta.id}:${section.handle}`;
-          if (!hardReferenceSeeds.has(seedKey)) {
-            hardReferenceSeeds.add(seedKey);
-            hardReferenceGraph ??= await documentGraph(
-              document.text,
-              meta.id,
-              unitSkeleton,
-              { tableCells: document.tableCells },
-            );
-            const scope = oneHopLegalScope(
-              unitSkeleton,
-              hardReferenceGraph,
-              section.handle,
-              "outbound",
-            );
-            for (const target of scope?.nodes.slice(1) ?? []) {
-              const firstLine =
-                document.text.slice(0, target.start).split(/\r?\n/u).length;
-              const lineCount = Math.min(
-                2_000,
-                document.text
-                  .slice(target.start, target.end)
-                  .split(/\r?\n/u).length,
-              );
-              const rendered =
-                `[literal reference ${target.label}: ` +
-                `Read(paths=[${JSON.stringify(filePath)}], offset=${firstLine}, limit=${lineCount})]`;
-              if (
-                !hardReferenceHints.some(
-                  (candidate) => candidate.rendered === rendered,
-                )
-              ) {
-                hardReferenceHints.push({
-                  kind: "literal_reference",
-                  label: target.label,
-                  path: filePath,
-                  offset: firstLine,
-                  limit: lineCount,
-                  rendered,
-                });
-              }
-              if (hardReferenceHints.length >= 3) break;
-            }
-          }
-        }
+
         const candidateSection = handoffCandidate
           ? section ?? sectionOf?.(i)
           : null;
-        const page =
-          isMatch &&
-          STRUCTURE_PATH_EXPERIMENT &&
-          !section &&
-          meta.file_type.toLowerCase() === "pdf"
-            ? pageAt(document.pages, starts[i] + matchColumn)
-            : null;
-        const pageLocator = page
-          ? page.pdfPage !== null
-            ? `pdf:${page.pdfPage}`
-            : page.printedLabel !== null
-              ? `printed:${page.printedLabel}`
-              : `page:${page.ordinal}`
-          : null;
-        const pageFirstLine = page
-          ? document.text.slice(0, page.start).split(/\r?\n/u).length
-          : 0;
-        const structureUnit = section
-          ? {
-              start: section.start,
-              end: section.end,
-              locator: section.handle,
-              display: `Section ${section.display} [${section.handle}]`,
-              firstLine: section.firstLine,
-              lastLine: section.lastLine,
-              projection: "legal-unit" as const,
-            }
-          : page && pageLocator
-            ? {
-                start: page.start,
-                end: page.end,
-                locator: pageLocator,
-                display:
-                  `PDF page ${page.pdfPage ?? page.ordinal}` +
-                  (page.printedLabel !== null
-                    ? ` (printed ${page.printedLabel})`
-                    : ""),
-                firstLine: pageFirstLine,
-                lastLine:
-                  pageFirstLine +
-                  document.text.slice(page.start, page.end).split(/\r?\n/u)
-                    .length -
-                  1,
-                projection: "pdf-page" as const,
-              }
-            : null;
-        const structurePath = structureUnit
-          ? registerStructurePath(meta, document, structureUnit)
-          : null;
-        let renderedPath = filePath;
-        let renderedLineNumber = i + 1;
-        let renderedLine = lines[i];
-        let renderedMatchColumn = matchColumn;
-        let sourceLineStart = starts[i];
-        if (structurePath && structureUnit) {
-          renderedPath = structurePath;
-          const unitText = document.text.slice(
-            structureUnit.start,
-            structureUnit.end,
-          );
-          const unitLines = unitText.split(/\r?\n/u);
-          const unitStarts = sourceLineStarts(unitText, unitLines);
-          const localMatch = Math.max(
-            0,
-            starts[i] + matchColumn - structureUnit.start,
-          );
-          let localLine = 0;
-          while (
-            localLine + 1 < unitStarts.length &&
-            unitStarts[localLine + 1] <= localMatch
-          ) {
-            localLine += 1;
-          }
-          renderedLineNumber = localLine + 1;
-          renderedLine = unitLines[localLine] ?? "";
-          renderedMatchColumn = Math.max(0, localMatch - unitStarts[localLine]);
-          sourceLineStart = structureUnit.start + unitStarts[localLine];
-        }
+        const renderedPath = filePath;
+        const renderedLineNumber = i + 1;
+        const renderedLine = lines[i];
+        const renderedMatchColumn = matchColumn;
+        const sourceLineStart = starts[i];
         const prefix = numberLines
           ? `${renderedPath}${sep}${renderedLineNumber}${sep}`
           : `${renderedPath}${sep}`;
@@ -5354,41 +3572,7 @@ async function runCodingShapeCall(
           sliceStart,
           sliceStart + GREP_LINE_CAP,
         );
-        const contact = structurePath && structureUnit
-          ? `  [source=${meta.filename} | ${structureUnit.display} | source lines ${structureUnit.firstLine}-${structureUnit.lastLine}]`
-          : isMatch &&
-          (RETRIEVAL_EXPERIMENT_SHAPE === "h1-contact" ||
-            LEGAL_GREP_EXPERIMENT)
-            ? (() => {
-                const recipe = MIKE_GREP_FAMILY_TOOL_SHAPE
-                  ? section
-                    ? `Read file_path=${JSON.stringify(filePath)} section="${section.handle}"`
-                    : `Read file_path=${JSON.stringify(filePath)} offset=${i + 1} limit=1`
-                  : section
-                    ? `Read section="${section.handle}"`
-                    : `Read offset=${i + 1} limit=1`;
-                const extent = section
-                  ? ` | lines ${section.firstLine}-${section.lastLine}`
-                  : "";
-                const page = pageAt(
-                  document.pages,
-                  starts[i] + matchColumn,
-                );
-                const pageFacts = page
-                  ? ` | pdf ${page.pdfPage ?? "?"} | printed ${page.printedLabel ?? "?"}`
-                  : "";
-                return [
-                  `  [${recipe}${extent}${pageFacts}]`,
-                  `  [${recipe}${extent}]`,
-                  `  [${recipe}]`,
-                  `  [Read offset=${i + 1} limit=1]`,
-                ].find((candidate) => candidate.length <= 120)!;
-              })()
-            : section &&
-                !STRUCTURE_PATH_EXPERIMENT &&
-                !LEAN_BATCH_HARDREFS_TOOL_SHAPE
-              ? `  [${section.handle}]`
-              : "";
+        const contact = section ? `  [${section.handle}]` : "";
         sink.push({
           rendered:
             `${prefix}${sliceStart ? "…" : ""}${shown}` +
@@ -5403,20 +3587,15 @@ async function runCodingShapeCall(
             documentId: meta.id,
             versionId: document.versionId || meta.current_version_id,
             filename: meta.filename,
-            ...(structureUnit
-              ? { locator: structureUnit.locator }
-              : candidateSection?.handle
-                ? { locator: candidateSection.handle }
-                : {}),
-            ...(structurePath && { virtualPath: structurePath }),
-            ...(structurePath &&
-              structureUnit && { projection: structureUnit.projection }),
+            ...(candidateSection?.handle
+              ? { locator: candidateSection.handle }
+              : {}),
           },
         });
         lastPrinted = i;
       }
     }
-    if (GREP_PER_FILE_BUDGET_ENABLED) {
+    {
       if (sink.length) fileBuckets.push(sink);
       // A file that filled its collection cap had more to give; that is a
       // real truncation regardless of how the split lands below.
@@ -5424,7 +3603,7 @@ async function runCodingShapeCall(
     }
     if (truncated) break;
   }
-  if (GREP_PER_FILE_BUDGET_ENABLED && fileBuckets.length) {
+  if (fileBuckets.length) {
     const alloc = fairFileAllocation(
       fileBuckets.map((bucket) => bucket.length),
       headLimit,
@@ -5440,28 +3619,10 @@ async function runCodingShapeCall(
       rows.push(...trimDanglingRows(bucket.slice(0, take)));
     }
   }
-  if (mode === "sections") {
-    let cursor = 0;
-    while (rows.length < headLimit) {
-      let advanced = false;
-      for (const queue of sectionQueues) {
-        const item = queue[cursor];
-        if (!item) continue;
-        advanced = true;
-        rows.push({ rendered: `${item.rendered} | hits=${item.hits}` });
-        if (rows.length >= headLimit) break;
-      }
-      if (!advanced) break;
-      cursor += 1;
-    }
-    truncated =
-      sectionQueues.reduce((total, queue) => total + queue.length, 0) >
-      rows.length;
-  }
   if (!rows.length) return result(call, "No matches found");
   const limited = rows.slice(0, headLimit);
   const { kept, truncated: sizeTruncated } = takeCodingOutputLines(limited);
-  if (!ORIGIN_MIKE_TOOL_SHAPE && CODING_TOOL_SHAPE && mode === "content") {
+  if (mode === "content") {
     const spansByDocument = new Map<string, Array<[number, number]>>();
     for (const line of kept) {
       if (!line.source || !line.span) continue;
@@ -5489,7 +3650,7 @@ async function runCodingShapeCall(
   const output = codingTextResult(
     call,
     truncated || rows.length > headLimit || sizeTruncated
-      ? GREP_PER_FILE_BUDGET_ENABLED && mode === "content"
+      ? mode === "content"
         ? `${body}\n(Results truncated: ${headLimit} lines split evenly across ${fileBuckets.length} matching file${fileBuckets.length === 1 ? "" : "s"}. Narrow the pattern, scope with path=, or raise head_limit.)`
         : `${body}\n(Results truncated, showing first ${headLimit} lines. Narrow the pattern or pass head_limit.)`
       : body,
@@ -5637,53 +3798,9 @@ export async function extractLocalDocument(
  * changes, comments, and manual ink redlines projected as markers. A read
  * view only — the edit paths keep anchoring against the default text.
  */
-async function extractLocalRedlineDocument(userId: string, documentId: string) {
-  const file = await getLocalVersionFile(userId, documentId);
-  if (!file) return null;
-  if (file.fileType.toLowerCase() !== "docx") {
-    throw new Error("Redline view requires a DOCX document");
-  }
-  const projection = await projectDocxRedline(await readFile(file.path));
-  return {
-    filename: file.document.filename,
-    document_id: documentId,
-    version_id: file.version.id,
-    version_number: file.version.version_number,
-    view: "redline" as const,
-    marker_legend: REDLINE_VIEW_LEGEND,
-    text: projection.text,
-    counts: projection.counts,
-    ...(projection.notes.length ? { notes: projection.notes } : {}),
-  };
-}
 
-async function extractLocalDraftingDocument(
-  userId: string,
-  documentId: string,
-) {
-  const file = await getLocalVersionFile(userId, documentId);
-  if (!file) return null;
-  if (
-    file.document.current_version_id !== file.version.id ||
-    file.fileType.toLowerCase() !== "docx"
-  ) {
-    throw new Error("Drafting mode requires an active DOCX version");
-  }
-  const source = await extractDocxDraftingSource(await readFile(file.path));
-  if (
-    file.version.source_sha256 &&
-    file.version.source_sha256 !== source.source_sha256
-  ) {
-    throw new Error("Library version bytes no longer match their receipt");
-  }
-  return {
-    filename: file.document.filename,
-    document_id: documentId,
-    version_id: file.version.id,
-    version_number: file.version.version_number,
-    ...source,
-  };
-}
+
+
 
 /**
  * Transport ceiling for a single tool result. Every organ here has its own
@@ -5706,25 +3823,6 @@ export const MAX_TOOL_RESULT_CHARS = Number(
  * than a byte offset: it has addressable section handles.
  */
 function continuationHint(call: NormalizedToolCall): string {
-  const documentId =
-    typeof call.input?.document_id === "string" ? call.input.document_id : "";
-  const target = documentId ? `document_id="${documentId}"` : "this document";
-  if (call.name === "library_read") {
-    return NAV_TOOL_SHAPE === "address"
-      ? `Call library_outline with ${target}, then retry library_read with a narrower at address or max_chars; library_find can locate exact wording.`
-      : `Call library_outline with ${target}, then retry library_read with a narrower section or max_chars; library_find can locate exact wording and offsets.`;
-  }
-  if (call.name === "library_find") {
-    return NAV_TOOL_SHAPE === "address"
-      ? "Narrow query or at, or lower max_results/context_chars, then retry library_find."
-      : "Narrow query, pages, or section, or lower max_results/context_chars, then retry library_find.";
-  }
-  if (call.name === "library_outline") {
-    return `Use a handle visible in the preview with library_read for ${target}.`;
-  }
-  if (call.name === "library_links") {
-    return `Retry library_links for ${target} with one structural at address or a lower max_results.`;
-  }
   if (/^(?:a2aj|caselaw|courtlistener|hansard|legal_pdf|public_legal_source)_/u.test(call.name)) {
     return `Retry ${call.name} with a narrower query, exact source identifier, or locator; reuse identifiers visible in the preview.`;
   }
@@ -6333,13 +4431,7 @@ const upstreamMikeResult = (
   content: typeof content === "string" ? content : JSON.stringify(content),
 });
 
-function upstreamMikeCitationReminder(docLabel: string, filename: string) {
-  return [
-    `[Citation requirement for ${docLabel} ("${filename}")]:`,
-    "Use the returned evidence_id in submit_grounded_answer for factual claims from this document.",
-    "Do not write citation markers, citation JSON, URLs, or pinpoints in prose.",
-  ].join("\n");
-}
+
 
 /**
  * mike_upstream_native_v1 serves the arm's own vendored copy of the pinned
@@ -6350,51 +4442,9 @@ function upstreamMikeCitationReminder(docLabel: string, filename: string) {
  * another arm cannot silently drift the pinned baseline (spec §1.4). With the
  * flag off this is the same function reference every other arm already used.
  */
-const activeCitationReminder = UPSTREAM_NATIVE_MIKE_SHAPE
-  ? upstreamNativeCitationReminder
-  : upstreamMikeCitationReminder;
 
-function upstreamMikeSectionsMarkdown(value: unknown) {
-  if (!Array.isArray(value)) return "";
-  const blocks: string[] = [];
-  for (const raw of value) {
-    if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
-    const section = raw as Record<string, unknown>;
-    if (section.pageBreak === true && blocks.length) blocks.push("---");
-    const heading = trimmed(section.heading);
-    if (heading) {
-      blocks.push(`${"#".repeat(clampInt(section.level, 1, 3, 1))} ${heading}`);
-    }
-    const content = trimmed(section.content);
-    if (content) blocks.push(content);
-    const table =
-      section.table &&
-      typeof section.table === "object" &&
-      !Array.isArray(section.table)
-        ? (section.table as Record<string, unknown>)
-        : null;
-    const headers = stringArray(table?.headers);
-    const rows = Array.isArray(table?.rows)
-      ? table.rows.filter(Array.isArray).map((row) => stringArray(row))
-      : [];
-    if (headers.length) {
-      const cell = (text: string) => text.replace(/\|/gu, "\\|").replace(/\r?\n/gu, " ");
-      blocks.push(
-        `| ${headers.map(cell).join(" | ")} |\n` +
-          `| ${headers.map(() => "---").join(" | ")} |` +
-          (rows.length
-            ? `\n${rows
-                .map(
-                  (row) =>
-                    `| ${headers.map((_, index) => cell(row[index] ?? "")).join(" | ")} |`,
-                )
-                .join("\n")}`
-            : ""),
-      );
-    }
-  }
-  return blocks.join("\n\n");
-}
+
+
 
 /** Served markdown drafting surface for one docx version. Null when the docx
  *  has no drafting source or the surface is off (callers fall back to
@@ -6433,7 +4483,7 @@ export async function servedDraftingText(
   documentId: string,
   cache?: Map<string, ServedDrafting>,
 ): Promise<ServedDrafting> {
-  if (!MARKDOWN_READ_DOCX) return null;
+
   const file = await getLocalVersionFile(userId, documentId);
   if (!file || file.fileType.toLowerCase() !== "docx") return null;
   const cacheKey = `${documentId}:${file.version.id}`;
@@ -6443,7 +4493,7 @@ export async function servedDraftingText(
   let result: ServedDrafting;
   if (!source) {
     result = null;
-  } else if (!STRUCTURE_INDEX_ENABLED) {
+  } else {
     result = {
       served: source.markdown,
       bodyOffset: 0,
@@ -6451,43 +4501,6 @@ export async function servedDraftingText(
       filename: file.document.filename,
       warnings: source.warnings,
     };
-  } else {
-    try {
-      const index = renderStructureIndex(
-        await deriveSectionNodes(bytes),
-        source.markdown,
-        { compactHeadings: INDEX_COMPACT_HEADINGS },
-      );
-      const served = attachStructureIndex(source.markdown, index);
-      const bodyOffset = served.length - source.markdown.length;
-      // Gated attachment: an index with entries but no usable addresses is
-      // pure prefix weight on a document that whole-reads freely anyway.
-      const attach =
-        !INDEX_ATTACH_GATED || indexIsAddressable(served, bodyOffset);
-      result = attach
-        ? {
-            served,
-            bodyOffset,
-            versionId: file.version.id,
-            filename: file.document.filename,
-            warnings: source.warnings,
-          }
-        : {
-            served: source.markdown,
-            bodyOffset: 0,
-            versionId: file.version.id,
-            filename: file.document.filename,
-            warnings: source.warnings,
-          };
-    } catch {
-      result = {
-        served: source.markdown,
-        bodyOffset: 0,
-        versionId: file.version.id,
-        filename: file.document.filename,
-        warnings: source.warnings,
-      };
-    }
   }
   cache?.set(cacheKey, result);
   return result;
@@ -6570,1033 +4583,6 @@ async function sourceClosureForDraft(
     : [];
 }
 
-async function runUpstreamMikeRetrievalCall(params: {
-  call: NormalizedToolCall;
-  userId: string;
-  allowedDocumentIds?: Set<string>;
-  readState?: LocalAssistantReadTurnState;
-  wholeReadMaxChars?: number;
-  citationReminders?: boolean;
-  servedDraftingCache?: Map<string, ServedDrafting>;
-}): Promise<NormalizedToolResult | null> {
-  const {
-    call,
-    userId,
-    allowedDocumentIds,
-    readState,
-    wholeReadMaxChars = 0,
-    citationReminders = true,
-    servedDraftingCache,
-  } = params;
-  if (
-    ![
-      "list_documents",
-      "fetch_documents",
-      "read_document",
-      "find_in_document",
-    ].includes(call.name)
-  ) {
-    return null;
-  }
-
-  const storedDocuments = (await listLocalLibrary(userId, "file")).documents;
-  const storedById = new Map(
-    storedDocuments.map((document) => [document.id, document]),
-  );
-  // Upstream project chat exposes turn-local doc-N labels, not the durable
-  // database UUIDs used by Beaver's local store. Preserve attachment order so
-  // the AVAILABLE DOCUMENTS prompt and every tool agree on the same labels.
-  const documents = (
-    allowedDocumentIds
-      ? [...allowedDocumentIds].map((documentId) => storedById.get(documentId))
-      : storedDocuments
-  ).filter(
-    (document): document is (typeof storedDocuments)[number] => !!document,
-  );
-  const byId = new Map(documents.map((document) => [document.id, document]));
-  const labelledDocuments = documents.map((document, index) => ({
-    document,
-    docLabel: `doc-${index}`,
-  }));
-  const byLabel = new Map(
-    labelledDocuments.map(({ document, docLabel }) => [docLabel, document]),
-  );
-  const filenameCounts = new Map<string, number>();
-  for (const { document } of labelledDocuments) {
-    const key = document.filename.toLocaleLowerCase("en-US");
-    filenameCounts.set(key, (filenameCounts.get(key) ?? 0) + 1);
-  }
-  const byFilename = new Map(
-    labelledDocuments.flatMap(({ document }) => {
-      const key = document.filename.toLocaleLowerCase("en-US");
-      return filenameCounts.get(key) === 1 ? [[key, document] as const] : [];
-    }),
-  );
-  const labelById = new Map(
-    labelledDocuments.map(({ document, docLabel }) => [document.id, docLabel]),
-  );
-  const resolveDocument = (requested: string) =>
-    byLabel.get(requested) ??
-    byId.get(requested) ??
-    byFilename.get(requested.toLocaleLowerCase("en-US"));
-  const readOne = async (
-    requested: string,
-    scoped?: {
-      offset?: number;
-      maxChars?: number;
-      head?: number;
-      tail?: number;
-      index?: boolean;
-    },
-  ) => {
-    const isBounded =
-      !!scoped &&
-      (scoped.head !== undefined ||
-        scoped.tail !== undefined ||
-        scoped.offset !== undefined ||
-        scoped.maxChars !== undefined ||
-        scoped.index === true);
-    const listed = resolveDocument(requested);
-    const docLabel = listed ? labelById.get(listed.id) ?? requested : requested;
-    const documentId = listed?.id ?? "";
-    if (!listed) {
-      return {
-        content: `Document '${requested}' not found.`,
-        duplicate: false,
-        evidenceSegments: [] as NonNullable<
-          NormalizedToolResult["evidenceSegments"]
-        >,
-      };
-    }
-    const file = await getLocalVersionFile(userId, documentId);
-    if (!file) {
-      return {
-        content: "Document could not be read.",
-        duplicate: false,
-        evidenceSegments: [] as NonNullable<
-          NormalizedToolResult["evidenceSegments"]
-        >,
-      };
-    }
-    const key = `${documentId}:${file.version.id}`;
-    const prior = readState?.get(key);
-    const priorDeliveredFull = !!prior && readCoversBody(prior);
-    // A repeat read is suppressed only when prior reads COVER the full body
-    // span (interval union, not a char-count sum — overlapping windows used to
-    // trip this refusal while a real hole stayed unread). The scoped loop
-    // (orient index -> window-read sections) stays open until true coverage.
-    if (prior && priorDeliveredFull && SUPPRESS_DUPLICATE_WHOLE_READS) {
-      return {
-        // Native key order is doc_id, filename, document_id, version_id
-        // (2266446b:backend/src/lib/chat/tools/documentOps.ts:1374-1392); ours
-        // swaps filename and document_id. Gated so every other arm's
-        // tool-result bytes stay unchanged.
-        content: UPSTREAM_NATIVE_MIKE_SHAPE
-          ? JSON.stringify({
-              ok: true,
-              already_read: true,
-              doc_id: prior.docLabel ?? docLabel,
-              filename: prior.filename,
-              document_id: prior.documentId,
-              version_id: prior.versionId ?? null,
-              content: UPSTREAM_NATIVE_ALREADY_READ_CONTENT,
-              next_required_action: UPSTREAM_NATIVE_ALREADY_READ_NEXT_ACTION,
-            })
-          : JSON.stringify({
-          ok: true,
-          already_read: true,
-          doc_id: prior.docLabel ?? docLabel,
-          document_id: prior.documentId,
-          filename: prior.filename,
-          version_id: prior.versionId,
-          content:
-            "This document/version was already read earlier in this response. The full text is not repeated to avoid unnecessary token use.",
-          next_required_action:
-            "Use the prior read_document/fetch_documents result, call find_in_document for targeted checks, or proceed to edit_document.",
-        }),
-        duplicate: true,
-        evidenceSegments: [] as NonNullable<
-          NormalizedToolResult["evidenceSegments"]
-        >,
-      };
-    }
-    // Index arm: serve the pandoc markdown with the derived SECT-INDEX
-    // prepended; read offsets are into the markdown BODY below the index.
-    const drafting = await servedDraftingText(
-      userId,
-      documentId,
-      servedDraftingCache,
-    );
-    // Native arm: DOCX reads go through upstream's own flattener, ported at
-    // the pin. Ours has since fixed an upstream parser defect (numeric-looking
-    // w:t coercion), and this is also the plane edit_document anchors against,
-    // so read and edit must be served from the same characters upstream serves.
-    const nativeBody =
-      UPSTREAM_NATIVE_MIKE_SHAPE &&
-      file.fileType?.toLowerCase() === "docx" &&
-      !drafting
-        ? await extractUpstreamNativeDocxBodyText(
-            await readFile(file.path),
-          ).catch(() => null)
-        : null;
-    const document = drafting
-      ? {
-          filename: drafting.filename,
-          documentId,
-          versionId: drafting.versionId,
-          text: drafting.served,
-          cautions: [],
-          pages: { pages: [], source: "unindexed" as const },
-          tableCells: [],
-        }
-      : nativeBody !== null
-        ? {
-            filename: listed.filename,
-            documentId,
-            versionId: file.version.id,
-            text: nativeBody,
-            cautions: [],
-            pages: { pages: [], source: "unindexed" as const },
-            tableCells: [],
-          }
-        : await extractLocalDocument(userId, documentId);
-    const bodyOffset = drafting?.bodyOffset ?? 0;
-    if (!document) {
-      return {
-        content: "Document could not be read.",
-        duplicate: false,
-        evidenceSegments: [] as NonNullable<
-          NormalizedToolResult["evidenceSegments"]
-        >,
-      };
-    }
-    const previouslyDelivered =
-      prior?.deliveredChars ?? prior?.sourceChars ?? 0;
-    const fullText = document.text;
-    let content = fullText;
-    let segStart = 0;
-    let segEnd = fullText.length;
-    if (isBounded) {
-      if (scoped!.index === true) {
-        // Orientation read: exactly the SECT-INDEX block, no body text and no
-        // body evidence. The index used to be readable only via head:N over
-        // the served plane, which let it eat the whole head budget.
-        content = bodyOffset > 0
-          ? fullText.slice(0, bodyOffset)
-          : "(no SECT-INDEX for this document — read it directly)";
-        segStart = 0;
-        segEnd = 0;
-      } else if (scoped!.head !== undefined) {
-        // head/tail address the BODY below the SECT-INDEX. Slicing the served
-        // plane here delivered up to 100% index and 0% body (a head:120 fetch
-        // once returned 10,723 index chars and zero body chars).
-        const lines = fullText.slice(bodyOffset).split("\n");
-        const count = Math.max(0, Math.min(scoped!.head, lines.length));
-        content = lines.slice(0, count).join("\n");
-        segStart = bodyOffset;
-        segEnd = bodyOffset + content.length;
-      } else if (scoped!.tail !== undefined) {
-        const lines = fullText.slice(bodyOffset).split("\n");
-        const count = Math.max(0, Math.min(scoped!.tail, lines.length));
-        content = lines.slice(-count).join("\n");
-        segStart = fullText.length - content.length;
-        segEnd = fullText.length;
-      } else {
-        // Index arm: offsets are relative to the markdown body below the
-        // SECT-INDEX (offset 0 = first body line). Elsewhere bodyOffset is 0
-        // and the whole served plane is addressed, so this is a no-op.
-        const base = bodyOffset;
-        const offset = Math.max(0, scoped!.offset ?? 0);
-        // Typed overshoot (flag-gated): an offset at/past the body end used
-        // to return an empty payload with ok:true — indistinguishable from
-        // an empty section (one lost round per occurrence in mined traces).
-        const bodyLength = fullText.length - base;
-        if (TYPED_RANGE_ENABLED && bodyLength > 0 && offset >= bodyLength) {
-          return {
-            content: JSON.stringify({
-              ok: false,
-              status: "out_of_range",
-              doc_id: docLabel,
-              filename: document.filename,
-              error: `offset ${offset} is beyond the document body (${bodyLength} chars). Use an @N from the SECT-INDEX, a find_in_document offset, or tail for the document's end.`,
-            }),
-            duplicate: false,
-            evidenceSegments: [] as NonNullable<
-              NormalizedToolResult["evidenceSegments"]
-            >,
-          };
-        }
-        const start = Math.min(fullText.length, base + offset);
-        const maxChars = Math.max(0, scoped!.maxChars ?? 24_000);
-        const end = Math.min(fullText.length, start + maxChars);
-        content = fullText.slice(start, end);
-        segStart = start;
-        segEnd = end;
-      }
-    }
-    readState?.set(key, {
-      documentId,
-      docLabel,
-      versionId: file.version.id,
-      filename: document.filename,
-      sourceChars: fullText.length,
-      deliveredChars: isBounded
-        ? previouslyDelivered + content.length
-        : SUPPRESS_DUPLICATE_WHOLE_READS
-          ? fullText.length
-          : previouslyDelivered + fullText.length,
-      bodyStart: bodyOffset,
-      intervals: mergeIntervals([
-        ...(prior?.intervals ?? []),
-        isBounded ? [segStart, segEnd] : [0, fullText.length],
-      ]),
-    });
-    // Serving fidelity: the extraction's warnings ride the FIRST read of the
-    // document as a notes line — prepended like the citation reminder, so
-    // served-plane coordinates and the evidence segments below are untouched.
-    if (
-      SERVE_CONVERSION_NOTES &&
-      !prior &&
-      drafting?.warnings?.length &&
-      content
-    ) {
-      content = `CONVERSION NOTES: ${drafting.warnings.join(" ")}\n\n${content}`;
-    }
-    // F3: evidence spans must live on the BODY plane, the same plane
-    // find_in_document's hits use, so the harness can union read + find
-    // coverage in one coordinate space. segStart/segEnd are relative to the
-    // SERVED plane (index + body); subtract the index length when one was
-    // attached. When bodyOffset is 0 (no index / non-docx) this is a no-op.
-    const evidenceBase = drafting?.bodyOffset ?? 0;
-    return {
-      content,
-      duplicate: false,
-      evidenceSegments: content && segEnd > segStart
-        ? [
-            {
-              documentId,
-              versionId: file.version.id,
-              filename: document.filename,
-              projection: "canonical",
-              kind: "evidence" as const,
-              start: Math.max(0, segStart - evidenceBase),
-              end: Math.max(0, segEnd - evidenceBase),
-            },
-          ]
-        : [],
-    };
-  };
-
-  if (call.name === "list_documents") {
-    if (
-      !ADAPTIVE_MIKE_TOOL_SHAPE &&
-      !MIKE_GREP_FAMILY_TOOL_SHAPE &&
-      !LEAN_BATCH_FAMILY_TOOL_SHAPE
-    ) {
-      return upstreamMikeResult(
-        call,
-        labelledDocuments.map(({ document, docLabel }) => ({
-          doc_id: docLabel,
-          filename: document.filename,
-          file_type: document.file_type,
-        })),
-      );
-    }
-    const inventoryRows = await Promise.all(
-      labelledDocuments.map(async ({ document, docLabel }) => {
-        const extracted = await extractLocalDocument(userId, document.id);
-        const opening =
-          LEAN_BATCH_FAMILY_TOOL_SHAPE && extracted
-            ? /[^\s].*/u.exec(extracted.text)
-            : null;
-        const openingLine = opening?.[0].slice(0, 160) ?? "";
-        return {
-          document: {
-            doc_id: docLabel,
-            filename: document.filename,
-            file_type: document.file_type,
-            characters: extracted?.text.length ?? 0,
-            lines: extracted ? extracted.text.split(/\r?\n/u).length : 0,
-            pages: extracted?.pages.pages.length ?? 0,
-            ...(openingLine ? { opening_line: openingLine } : {}),
-          },
-          evidence:
-            openingLine && extracted
-              ? {
-                  documentId: document.id,
-                  versionId: extracted.versionId,
-                  filename: document.filename,
-                  locator: "opening line",
-                  projection: "canonical" as const,
-                  kind: "candidate" as const,
-                  start: opening!.index,
-                  end: opening!.index + openingLine.length,
-                }
-              : null,
-        };
-      }),
-    );
-    const inventory = inventoryRows.map((row) => row.document);
-    return {
-      ...upstreamMikeResult(call, {
-        documents: inventory,
-        totals: {
-          documents: inventory.length,
-          characters: inventory.reduce(
-            (sum, document) => sum + document.characters,
-            0,
-          ),
-          lines: inventory.reduce((sum, document) => sum + document.lines, 0),
-          pages: inventory.reduce((sum, document) => sum + document.pages, 0),
-        },
-      }),
-      evidenceSegments: inventoryRows.flatMap((row) =>
-        row.evidence ? [row.evidence] : [],
-      ),
-    };
-  }
-
-  if (call.name === "read_document") {
-    const requested = trimmed(call.input.doc_id);
-    const listed = resolveDocument(requested);
-    const docLabel = listed ? labelById.get(listed.id) ?? requested : requested;
-    const section = trimmed(call.input.section);
-    const pages = Array.isArray(call.input.pages)
-      ? call.input.pages
-          .map(Number)
-          .filter((page) => Number.isInteger(page) && page > 0)
-      : [];
-    // Index-arm scoped reads: offset/max_chars window, head/tail body probes,
-    // or index=true for the SECT-INDEX alone. Gated so other arms are
-    // byte-identical.
-    const scoped =
-      STRUCTURE_INDEX_ENABLED &&
-      (call.input.index === true ||
-        typeof call.input.offset === "number" ||
-        typeof call.input.max_chars === "number" ||
-        typeof call.input.head === "number" ||
-        typeof call.input.tail === "number")
-        ? {
-            index: call.input.index === true ? true : undefined,
-            offset:
-              typeof call.input.offset === "number"
-                ? Math.max(0, Math.trunc(call.input.offset))
-                : undefined,
-            maxChars:
-              typeof call.input.max_chars === "number"
-                ? clampInt(call.input.max_chars, 1, 200_000, 24_000)
-                : undefined,
-            head:
-              typeof call.input.head === "number"
-                ? Math.max(1, Math.trunc(call.input.head))
-                : undefined,
-            tail:
-              typeof call.input.tail === "number"
-                ? Math.max(1, Math.trunc(call.input.tail))
-                : undefined,
-          }
-        : undefined;
-    // Index arm is scoped-only for documents whose derived SECT-INDEX is
-    // ADDRESSABLE (enough @N anchors to actually reach the body): a bare read
-    // there would whole-read and blow the context budget. A document with no
-    // index, or an index too sparse to address by (HSR had 4 of 5 docs at 0%
-    // anchors), falls through to the ordinary read path — forcing scoped-only
-    // reads on an unaddressable document is a designed-in under-read.
-    if (STRUCTURE_INDEX_ENABLED && !scoped && listed) {
-      const drafting = await servedDraftingText(
-        userId,
-        listed.id,
-        servedDraftingCache,
-      );
-      const addressable =
-        !!drafting && indexIsAddressable(drafting.served, drafting.bodyOffset);
-      if (addressable) {
-        return upstreamMikeResult(call, {
-          ok: false,
-          status: "scoped_read_required",
-          error:
-            "This document's derived SECT-INDEX is addressable, so reads must be scoped. Call read_document index=true to get the SECT-INDEX (orientation, cheap), then read_document offset=<@N> max_chars=<window> for only the sections your deliverable requires; find_in_document returns the body offset of a phrase. head/tail read the first/last N lines of the body.",
-          next_required_action:
-            "Retry read_document with index=true, offset/max_chars, or head/tail.",
-        });
-      }
-    }
-    const bounded =
-      ADAPTIVE_MIKE_TOOL_SHAPE &&
-      (section.length > 0 ||
-        pages.length > 0 ||
-        typeof call.input.offset === "number" ||
-        typeof call.input.max_chars === "number");
-    if (bounded) {
-      if (!listed) {
-        return upstreamMikeResult(call, {
-          ok: false,
-          error: `Document '${requested}' not found.`,
-        });
-      }
-      if (section && pages.length) {
-        return upstreamMikeResult(call, {
-          ok: false,
-          error: "Choose section or pages in one read, not both.",
-        });
-      }
-      const document = await extractLocalDocument(userId, listed.id);
-      if (!document) {
-        return upstreamMikeResult(call, {
-          ok: false,
-          error: "Document could not be read.",
-        });
-      }
-      let spans: Array<{ start: number; end: number; locator: string }> = [];
-      if (section) {
-        const skeleton = compileAgreementSkeleton(document.text, listed.id, {
-          tableCells: document.tableCells,
-        });
-        const selected = readSection(skeleton, section);
-        if (selected.status !== "found" || !selected.block) {
-          return upstreamMikeResult(call, {
-            ok: false,
-            status: selected.status,
-            requested_section: section,
-            matches: selected.matches,
-            error: `Section '${section}' could not be resolved exactly.`,
-          });
-        }
-        spans = [
-          {
-            start: selected.block.start,
-            end: selected.block.end,
-            locator: selected.block.label,
-          },
-        ];
-      } else if (pages.length) {
-        const byOrdinal = new Map(
-          document.pages.pages.map((page) => [page.ordinal, page]),
-        );
-        const missing = [...new Set(pages)].filter(
-          (page) => !byOrdinal.has(page),
-        );
-        if (missing.length) {
-          return upstreamMikeResult(call, {
-            ok: false,
-            error: `Page ordinal(s) unavailable: ${missing.join(", ")}.`,
-            available_pages: document.pages.pages.length,
-          });
-        }
-        spans = [...new Set(pages)]
-          .sort((left, right) => left - right)
-          .map((ordinal) => {
-            const page = byOrdinal.get(ordinal)!;
-            return {
-              start: page.start,
-              end: page.end,
-              locator: `page ${ordinal}`,
-            };
-          });
-      } else {
-        spans = [{ start: 0, end: document.text.length, locator: "document" }];
-      }
-
-      const selectedChars = spans.reduce(
-        (sum, span) => sum + Math.max(0, span.end - span.start),
-        0,
-      );
-      const offset = clampInt(call.input.offset, 0, selectedChars, 0);
-      const maxChars = clampInt(call.input.max_chars, 1, 200_000, 24_000);
-      let skip = offset;
-      let remaining = maxChars;
-      const chunks: string[] = [];
-      const evidenceSegments: NonNullable<
-        NormalizedToolResult["evidenceSegments"]
-      > = [];
-      for (const span of spans) {
-        const spanLength = Math.max(0, span.end - span.start);
-        if (skip >= spanLength) {
-          skip -= spanLength;
-          continue;
-        }
-        if (remaining <= 0) break;
-        const start = span.start + skip;
-        const end = Math.min(span.end, start + remaining);
-        const text = document.text.slice(start, end);
-        chunks.push(`--- ${span.locator} | chars ${start}-${end} ---\n${text}`);
-        evidenceSegments.push({
-          documentId: listed.id,
-          versionId: document.versionId,
-          filename: document.filename,
-          locator: `${span.locator}; chars ${start}-${end}`,
-          projection: "canonical",
-          kind: "evidence" as const,
-          start,
-          end,
-        });
-        remaining -= end - start;
-        skip = 0;
-      }
-      const deliveredChars = evidenceSegments.reduce(
-        (sum, span) => sum + span.end - span.start,
-        0,
-      );
-      const nextOffset = offset + deliveredChars;
-      const nextRead =
-        nextOffset < selectedChars
-          ? {
-              doc_id: docLabel,
-              ...(section ? { section } : {}),
-              ...(pages.length ? { pages: [...new Set(pages)].sort((a, b) => a - b) } : {}),
-              offset: nextOffset,
-              max_chars: maxChars,
-            }
-          : null;
-      return {
-        ...upstreamMikeResult(call, {
-          ok: true,
-          doc_id: docLabel,
-          filename: document.filename,
-          selection: section
-            ? { section }
-            : pages.length
-              ? { pages: [...new Set(pages)].sort((a, b) => a - b) }
-              : { document: true },
-          offset,
-          selected_characters: selectedChars,
-          returned_characters: deliveredChars,
-          truncated: nextRead !== null,
-          text: chunks.join("\n\n"),
-          ...(nextRead
-            ? {
-                next_read: nextRead,
-                continuation: `Call read_document with ${JSON.stringify(nextRead)}.`,
-              }
-            : {}),
-        }),
-        evidenceSegments,
-      };
-    }
-    const read = await readOne(requested, scoped);
-    const content =
-      listed && !read.duplicate
-        ? `${activeCitationReminder(docLabel, listed.filename)}\n\n${read.content}`
-        : read.content;
-    return {
-      ...upstreamMikeResult(call, content),
-      evidenceSegments: read.evidenceSegments,
-    };
-  }
-
-  if (call.name === "fetch_documents") {
-    const requestedDocuments = stringArray(call.input.doc_ids);
-    // Index-arm batch scoped reads: the same window (offset/max_chars,
-    // head/tail, or index=true) is applied to every requested document in one
-    // call. Gated so other arms are byte-identical.
-    const scoped =
-      STRUCTURE_INDEX_ENABLED &&
-      (call.input.index === true ||
-        typeof call.input.offset === "number" ||
-        typeof call.input.max_chars === "number" ||
-        typeof call.input.head === "number" ||
-        typeof call.input.tail === "number")
-        ? {
-            index: call.input.index === true ? true : undefined,
-            offset:
-              typeof call.input.offset === "number"
-                ? Math.max(0, Math.trunc(call.input.offset))
-                : undefined,
-            maxChars:
-              typeof call.input.max_chars === "number"
-                ? clampInt(call.input.max_chars, 1, 200_000, 24_000)
-                : undefined,
-            head:
-              typeof call.input.head === "number"
-                ? Math.max(1, Math.trunc(call.input.head))
-                : undefined,
-            tail:
-              typeof call.input.tail === "number"
-                ? Math.max(1, Math.trunc(call.input.tail))
-                : undefined,
-          }
-        : undefined;
-    // Index arm: an unscoped fetch refuses ONLY the documents whose SECT-INDEX
-    // is addressable, per document — never the whole batch (one indexed docx
-    // used to make the call refuse every non-indexed member with it). Docs
-    // with no usable index serve whole (subject to the context budget below).
-    const scopedRequired = new Set<string>();
-    if (STRUCTURE_INDEX_ENABLED && !scoped) {
-      for (const requested of requestedDocuments) {
-        const listed = resolveDocument(requested);
-        if (!listed) continue;
-        const drafting = await servedDraftingText(
-          userId,
-          listed.id,
-          servedDraftingCache,
-        );
-        if (drafting && indexIsAddressable(drafting.served, drafting.bodyOffset))
-          scopedRequired.add(listed.id);
-      }
-    }
-    if (wholeReadMaxChars > 0) {
-      const seenVersions = new Set<string>();
-      const alreadyReadChars = [...(readState?.values() ?? [])].reduce(
-        (total, read) =>
-          total + (read.deliveredChars ?? read.sourceChars ?? 0),
-        0,
-      );
-      let requestedChars = 0;
-      let newFiles = 0;
-      for (const requested of requestedDocuments) {
-        const listed = resolveDocument(requested);
-        if (!listed) continue;
-        // Per-doc scoped_read_required entries are refused, not served, so
-        // they cost nothing against the whole-read budget.
-        if (scopedRequired.has(listed.id)) continue;
-        const file = await getLocalVersionFile(userId, listed.id);
-        if (!file) continue;
-        const key = `${listed.id}:${file.version.id}`;
-        const seenInCall = seenVersions.has(key);
-        if (
-          SUPPRESS_DUPLICATE_WHOLE_READS &&
-          (seenInCall || readState?.has(key))
-        ) {
-          continue;
-        }
-        seenVersions.add(key);
-        // Project on the plane the serving loop below will actually send:
-        // the markdown drafting surface when one exists, else the plaintext
-        // extraction. Projecting plaintext for a markdown-served doc charged
-        // the budget for bytes that are never delivered.
-        const drafting = await servedDraftingText(
-          userId,
-          listed.id,
-          servedDraftingCache,
-        );
-        if (drafting) {
-          requestedChars += drafting.served.length;
-        } else {
-          const document = await extractLocalDocument(userId, listed.id);
-          if (!document) continue;
-          requestedChars += document.text.length;
-        }
-        if (!seenInCall && !readState?.has(key)) newFiles += 1;
-      }
-      const projectedChars = alreadyReadChars + requestedChars;
-      if (projectedChars > wholeReadMaxChars) {
-        return {
-          ...upstreamMikeResult(call, {
-            ok: false,
-            status: "selection_required",
-            code: "WHOLE_READ_OVER_CONTEXT_BUDGET",
-            requested_files: requestedDocuments.length,
-            new_files: newFiles,
-            already_read_chars: alreadyReadChars,
-            requested_chars: requestedChars,
-            projected_chars: projectedChars,
-            max_chars: wholeReadMaxChars,
-            next_required_action:
-              "Keep any primary instrument, draft, or precedent whole in a smaller fetch_documents call; use Grep and bounded Read for supporting sources.",
-          }),
-          status: "selection_required",
-        };
-      }
-    }
-    const parts: string[] = [];
-    const evidenceSegments: NonNullable<
-      NormalizedToolResult["evidenceSegments"]
-    > = [];
-    for (const requested of requestedDocuments) {
-      const document = resolveDocument(requested);
-      const docLabel = document
-        ? labelById.get(document.id) ?? requested
-        : requested;
-      const filename = document?.filename ?? requested;
-      if (document && scopedRequired.has(document.id)) {
-        parts.push(
-          `--- ${filename} (${docLabel}) ---\n` +
-            JSON.stringify({
-              ok: false,
-              status: "scoped_read_required",
-              error:
-                "This document's derived SECT-INDEX is addressable, so its reads must be scoped. Call read_document index=true (or fetch_documents index=true) for the SECT-INDEX, then window-read offset=<@N> max_chars=<window>. Other documents in this call were served.",
-            }),
-        );
-        continue;
-      }
-      const read = await readOne(requested, scoped);
-      parts.push(
-        `--- ${filename} (${docLabel}) ---\n${
-          read.duplicate
-            ? read.content
-            : citationReminders
-              ? `${activeCitationReminder(docLabel, filename)}\n\n${read.content}`
-              : read.content
-        }`,
-      );
-      evidenceSegments.push(...read.evidenceSegments);
-    }
-    return {
-      ...upstreamMikeResult(call, parts.join("\n\n")),
-      evidenceSegments,
-    };
-  }
-
-  const requested = trimmed(call.input.doc_id);
-  const query = trimmed(call.input.query);
-  if (!query) return upstreamMikeResult(call, { ok: false, error: "Empty query." });
-  const listed = resolveDocument(requested);
-  if (!listed) {
-    return upstreamMikeResult(call, {
-      ok: false,
-      error: `Document '${requested}' not found.`,
-    });
-  }
-  const documentId = listed.id;
-  // Index arm only: search the same served markdown body that read_document
-  // windows address, so a hit's offset feeds read_document offset/max_chars
-  // directly. Other arms keep the plaintext find surface byte-for-byte.
-  const drafting = STRUCTURE_INDEX_ENABLED
-    ? await servedDraftingText(userId, documentId, servedDraftingCache)
-    : null;
-  // Native arm: find searches the same pinned plane read_document serves, so a
-  // hit's excerpt is exactly quotable against what the model was given
-  // (upstream re-reads through readDocumentContent for the same reason).
-  const nativeFindFile = UPSTREAM_NATIVE_MIKE_SHAPE
-    ? await getLocalVersionFile(userId, documentId)
-    : null;
-  const nativeFindText =
-    nativeFindFile && nativeFindFile.fileType?.toLowerCase() === "docx"
-      ? await extractUpstreamNativeDocxBodyText(
-          await readFile(nativeFindFile.path),
-        ).catch(() => null)
-      : null;
-  const document = drafting
-    ? {
-        filename: drafting.filename,
-        documentId,
-        versionId: drafting.versionId,
-        text: drafting.served.slice(drafting.bodyOffset),
-        cautions: [],
-        pages: { pages: [], source: "unindexed" as const },
-        tableCells: [],
-      }
-    : nativeFindText !== null && nativeFindFile
-      ? {
-          filename: listed.filename,
-          documentId,
-          versionId: nativeFindFile.version.id,
-          text: nativeFindText,
-          cautions: [],
-          pages: { pages: [], source: "unindexed" as const },
-          tableCells: [],
-        }
-      : await extractLocalDocument(userId, documentId);
-  if (!document) {
-    return upstreamMikeResult(call, {
-      ok: false,
-      filename: listed.filename,
-      error: "Document could not be read.",
-    });
-  }
-  const maxResults = clampInt(call.input.max_results, 1, 100, 20);
-  const contextChars = clampInt(call.input.context_chars, 0, 10_000, 80);
-  const matches = FIND_QUERY_NORM_ENABLED
-    ? findTextMatchesFolded({
-        text: document.text,
-        query,
-        maxResults,
-        contextChars,
-      })
-    : {
-        ...findTextMatches({
-          text: document.text,
-          query,
-          maxResults,
-          contextChars,
-        }),
-        matchMode: "literal" as const,
-      };
-  // Residual zero-hit under the recovery flag: a "did you mean" instead of a
-  // silent false negative the model reads as "term not in document".
-  const zeroHitNearest =
-    FIND_QUERY_NORM_ENABLED && matches.totalMatches === 0
-      ? findNearestSuggestion(query, document.text)
-      : null;
-  const candidateReadPath =
-    (filenameCounts.get(listed.filename.toLocaleLowerCase("en-US")) ?? 0) === 1
-      ? listed.filename
-      : labelById.get(documentId) ?? requested;
-  return {
-    ...upstreamMikeResult(call, {
-      ok: true,
-      filename: listed.filename,
-      query,
-      total_matches: matches.totalMatches,
-      returned: matches.hits.length,
-      truncated: matches.totalMatches > matches.hits.length,
-      // Recovery surface (flag-gated): folded matches are labeled so the
-      // model knows offsets address the raw body; a residual zero-hit
-      // carries the closest-excerpt suggestion and retry guidance.
-      ...(FIND_QUERY_NORM_ENABLED && matches.matchMode === "folded"
-        ? {
-            match_mode: "folded",
-            note: "Matched with markdown emphasis, escape backslashes, and smart quotes folded; offsets and excerpts address the raw document body.",
-          }
-        : {}),
-      ...(FIND_QUERY_NORM_ENABLED && matches.totalMatches === 0
-        ? {
-            ...(zeroHitNearest ? { nearest_match: zeroHitNearest } : {}),
-            note: "0 matches. Long phrases can differ from the source by punctuation or formatting; retry with a short distinctive phrase from the middle of the passage, or requote the closest excerpt exactly as shown.",
-          }
-        : {}),
-      hits: matches.hits.map((hit) => {
-        const start = Math.max(0, hit.at - contextChars);
-        const end = Math.min(
-          document.text.length,
-          hit.at + hit.excerpt.length + contextChars,
-        );
-        const page = document.pages.pages.find(
-          (candidate) => candidate.start <= hit.at && hit.at < candidate.end,
-        );
-        const candidateStartLine =
-          document.text.slice(0, start).split(/\r?\n/u).length;
-        const candidateEndLine =
-          document.text.slice(0, end).split(/\r?\n/u).length;
-        // Native hits carry exactly {index, excerpt, context}
-        // (2266446b:backend/src/lib/chat/tools/documentOps.ts:1758-1766); no
-        // locator, no page, no read hint.
-        if (UPSTREAM_NATIVE_MIKE_SHAPE) {
-          return { index: hit.index, excerpt: hit.excerpt, context: hit.context };
-        }
-        return {
-          ...hit,
-          locator: `chars ${start}-${end}`,
-          ...(page ? { page: page.ordinal } : {}),
-          ...(MIKE_GREP_FAMILY_TOOL_SHAPE
-            ? {
-                read: {
-                  file_path: candidateReadPath,
-                  offset: candidateStartLine,
-                  limit: Math.max(1, candidateEndLine - candidateStartLine + 1),
-                },
-              }
-            : ADAPTIVE_MIKE_TOOL_SHAPE
-              ? {
-                  read: {
-                    doc_id: labelById.get(documentId) ?? requested,
-                    offset: start,
-                    max_chars: Math.max(1, end - start),
-                  },
-                }
-              : {}),
-        };
-      }),
-    }),
-    evidenceSegments: matches.hits.map((hit) => ({
-      documentId,
-      versionId: document.versionId,
-      filename: document.filename,
-      projection: "canonical",
-      kind: "candidate" as const,
-      start: Math.max(0, hit.at - contextChars),
-      end: Math.min(
-        document.text.length,
-        hit.at + hit.excerpt.length + contextChars,
-      ),
-    })),
-  };
-}
-
-/**
- * TREATMENT mechanism 1 — the fetch_requirements executor.
- *
- * Re-serves the task's own user message VERBATIM. The harness is the only
- * author of this string: no paraphrase, no summary, no interpretation, because
- * the mechanism under test is "does re-reading the requirements help", not
- * "does our restatement of them help".
- *
- * The read/unread split is derived from the same turn read-state the
- * duplicate-read suppression already maintains, intersected with the documents
- * this turn is allowed to see. When the route did not supply that state the
- * lists are served as `{unknown: true}` rather than an empty or invented array
- * — a typed refusal beats a confident guess.
- */
-async function runFetchRequirements(
-  call: NormalizedToolCall,
-  userId: string,
-  requirementsText: string | undefined,
-  allowedDocumentIds: Set<string> | undefined,
-  turnReadState: LocalAssistantReadTurnState | undefined,
-  requirementsState: LocalAssistantRequirementsState | undefined,
-): Promise<NormalizedToolResult> {
-  let readList: string[] | null = null;
-  let orientedList: string[] | null = null;
-  let unreadList: string[] | null = null;
-  if (turnReadState) {
-    const stored = (await listLocalLibrary(userId, "file")).documents;
-    const allowed = allowedDocumentIds
-      ? stored.filter((document) => allowedDocumentIds.has(document.id))
-      : stored;
-    if (EXPOSURE_ECHO_ENABLED) {
-      // Exposure accounting: "read" means body chars were served, not that a
-      // tool call touched the document. Index-only orientation gets its own
-      // bucket so the model can see which documents it has only skimmed the
-      // headings of (the acq-diligence 30/64 failure mode).
-      const split = splitReadExposure(allowed, turnReadState);
-      readList = split.read;
-      orientedList = split.orientedOnly;
-      unreadList = split.unread;
-    } else {
-      // Read-state is keyed per document/version, so several entries can name
-      // one document; collapse to document ids before splitting.
-      const readIds = new Set<string>();
-      for (const entry of turnReadState.values())
-        readIds.add(entry.documentId);
-      readList = allowed
-        .filter((document) => readIds.has(document.id))
-        .map((document) => document.filename);
-      unreadList = allowed
-        .filter((document) => !readIds.has(document.id))
-        .map((document) => document.filename);
-    }
-  }
-
-  if (requirementsState) {
-    requirementsState.echoCallCount += 1;
-    // Recorded at the FIRST echo only: the receipt answers "how much had the
-    // model still not read when it re-read the requirements", so a later echo
-    // must not overwrite it. Stays null when the split was unknown.
-    if (requirementsState.echoCallCount === 1) {
-      requirementsState.documentsUnreadAtEcho = unreadList
-        ? unreadList.length
-        : null;
-      requirementsState.documentsOrientedOnlyAtEcho = orientedList
-        ? orientedList.length
-        : null;
-    }
-  }
-
-  // upstreamMikeResult, not result(): the requirements are re-served whole, so
-  // this payload must never be reshaped by MAX_TOOL_RESULT_CHARS.
-  return upstreamMikeResult(call, {
-    ok: true,
-    requirements: requirementsText ?? "",
-    documents_read: readList ?? { unknown: true },
-    // Present only under exposure accounting; spreading nothing keeps the
-    // frozen-arm payload byte-identical.
-    ...(orientedList !== null
-      ? { documents_oriented_only: orientedList }
-      : {}),
-    documents_unread: unreadList ?? { unknown: true },
-    note:
-      (orientedList?.length
-        ? "documents_oriented_only lists documents where only the SECT-INDEX" +
-          " headings were served — no body text from them has been read this" +
-          " turn. "
-        : "") +
-      (NO_DEFERRAL_ENABLED
-        ? `Ensure the deliverable addresses each requested item. ${NO_DEFERRAL_ECHO_NOTE}`
-        : "Ensure the deliverable addresses each requested item."),
-  });
-}
-
 export async function runLocalAssistantTools(
   userId: string,
   calls: NormalizedToolCall[],
@@ -7611,9 +4597,6 @@ export async function runLocalAssistantTools(
   turnEditState?: LocalAssistantEditTurnState,
   turnReadState?: LocalAssistantReadTurnState,
   workingSets?: LocalAssistantWorkingSetTurnState,
-  // TREATMENT mechanism 1. Both optional and both undefined for every existing
-  // caller/arm, so adding them cannot change any existing behaviour.
-  requirementsText?: string,
   requirementsState?: LocalAssistantRequirementsState,
 ): Promise<NormalizedToolResult[]> {
   const publicState = publicLegalState ?? createPublicLegalSourceState();
@@ -7621,19 +4604,21 @@ export async function runLocalAssistantTools(
   // derivation + index render repeat on every read/find call in a batch; keyed
   // by documentId:versionId so a version change naturally re-derives. Scoped to
   // this batch, so it never outlives the turn.
-  const servedDraftingCache = new Map<string, ServedDrafting>();
+  const servedDraftingCache = turnReadState
+    ? (turnReadState.servedDraftingCache ??= new Map())
+    : new Map<string, ServedDrafting>();
   let editTail: Promise<unknown> = Promise.resolve();
-  let wholeReadTail: Promise<unknown> = Promise.resolve();
   return Promise.all(
     calls.map((call) => {
       const execute = async () => {
       let args = call.input;
 
-      if (CODING_TOOL_SHAPE) {
+      {
         const resolved = await resolveCodingDocumentReferences(
           userId,
           args,
           allowedDocumentIds,
+          matterId,
         );
         if (resolved.error) return fail(call, resolved.error);
         args = resolved.input;
@@ -7643,9 +4628,7 @@ export async function runLocalAssistantTools(
       // Sibling writes in the same tool batch remain independent; only the
       // first valid bodied write can become the pending Edit target.
       const claimsFinalAgentGate = Boolean(
-        FINAL_AGENT_LOOP_ENABLED &&
-          EXPOSURE_ECHO_ENABLED &&
-          requirementsState &&
+        requirementsState &&
           turnReadState &&
           call.name === "generate_docx" &&
           !requirementsState.exposureNudgeServed &&
@@ -7668,7 +4651,6 @@ export async function runLocalAssistantTools(
       // Computed at the top so the lean-batch Read handler below cannot
       // intercept a draft path before the dispatch.
       const draftTarget =
-        DRAFT_EDIT_ENABLED &&
         requirementsState &&
         (call.name === "Edit" || call.name === "Read") &&
         typeof args.file_path === "string" &&
@@ -7676,129 +4658,6 @@ export async function runLocalAssistantTools(
           requirementsState.drafts,
           trimmed(args.file_path).toLowerCase(),
         );
-
-      if (
-        LEAN_BATCH_FAMILY_TOOL_SHAPE &&
-        !CODING_PARITY_ENABLED &&
-        call.name === "Read" &&
-        !draftTarget
-      ) {
-        const paths = stringArray(args.paths);
-        if (!paths.length) return fail(call, "paths must name at least one document");
-        const bounded = args.offset !== undefined || args.limit !== undefined;
-        if (bounded && paths.length !== 1) {
-          return fail(
-            call,
-            "A bounded Read accepts exactly one path; omit offset and limit to read a batch completely.",
-          );
-        }
-        if (!bounded) {
-          const upstream = await runUpstreamMikeRetrievalCall({
-            call: {
-              ...call,
-              name: "fetch_documents",
-              input: { doc_ids: paths },
-            },
-            userId,
-            allowedDocumentIds,
-            readState: turnReadState,
-            citationReminders: false,
-            servedDraftingCache,
-          });
-          if (upstream) return upstream;
-        }
-        args = { ...args, file_path: paths[0] };
-      }
-
-      if (ORIGIN_MIKE_TOOL_SHAPE || call.name === "fetch_documents") {
-        const upstream = await runUpstreamMikeRetrievalCall({
-          call,
-          userId,
-          allowedDocumentIds,
-          readState: turnReadState,
-          wholeReadMaxChars:
-            call.name === "fetch_documents" ? WHOLE_READ_MAX_CHARS : 0,
-          servedDraftingCache,
-        });
-        if (upstream) return upstream;
-      }
-
-      if (REQUIREMENTS_ECHO_ENABLED && call.name === "fetch_requirements") {
-        return runFetchRequirements(
-          call,
-          userId,
-          requirementsText,
-          allowedDocumentIds,
-          turnReadState,
-          requirementsState,
-        );
-      }
-
-      if (UPSTREAM_NATIVE_MIKE_SHAPE && call.name === "edit_document") {
-        return runUpstreamNativeEditDocument(
-          call,
-          userId,
-          args,
-          allowedDocumentIds,
-          turnEditState,
-          turnReadState,
-        );
-      }
-
-      // Native list_workflows / read_workflow: upstream exposes both
-      // unconditionally (streaming.ts:191) over a workflow store the LAB
-      // surface leaves empty, so list_workflows returns [] and read_workflow
-      // reports the id as not found (toolDispatcher.ts:756-781).
-      if (UPSTREAM_NATIVE_MIKE_SHAPE && call.name === "list_workflows") {
-        return upstreamMikeResult(call, []);
-      }
-      if (UPSTREAM_NATIVE_MIKE_SHAPE && call.name === "read_workflow") {
-        return upstreamMikeResult(
-          call,
-          `Workflow '${trimmed(args.workflow_id)}' not found.`,
-        );
-      }
-
-      if (call.name === "describe_tools") {
-        const deferredTools = partitionTools(LOCAL_ASSISTANT_TOOLS).deferred;
-        const availableDomains = domainEntriesForTools(deferredTools).map(
-          ([name]) => name,
-        );
-        const domains = stringArray(args.domains).filter(
-          (domain) => availableDomains.includes(domain),
-        );
-        if (!domains.length) {
-          return fail(
-            call,
-            `domains must name at least one of: ${availableDomains.join(", ")}`,
-          );
-        }
-        const opened = toolsForDomains(
-          deferredTools,
-          domains,
-        );
-        // Prose travels with its domain: the research instructions explain
-        // tools that were not loaded, so they arrive with them rather than
-        // being paid for on every turn of every session.
-        const guidance = domains
-          .map((domain) => DOMAIN_PROMPTS[domain])
-          .filter(Boolean)
-          .join("\n\n");
-        return result(call, {
-          ok: true,
-          domains,
-          ...(guidance ? { guidance } : {}),
-          // The host adds trusted schemas out of band. The transcript needs
-          // names and guidance, not a duplicate copy of every schema.
-          opened: opened.map((entry) => entry.function.name),
-        });
-      }
-      if (call.name === LEGAL_EVIDENCE_PLAN_TOOL_NAME) {
-        const planned = legalEvidenceState
-          ? planLegalEvidence(args, legalEvidenceState)
-          : { ok: false, errors: ["Legal evidence state is unavailable"] };
-        return result(call, planned);
-      }
       if (call.name === LEGAL_EVIDENCE_TOOL_NAME) {
         const submitted = legalEvidenceState
           ? submitLegalEvidenceAnswer(args, legalEvidenceState)
@@ -7812,13 +4671,9 @@ export async function runLocalAssistantTools(
       // draft paths to the in-memory DRAFT_EDIT handler; every other Read/Edit
       // goes to the coding surface below.
       if (
-        CODING_TOOL_SHAPE &&
         (call.name === "Glob" ||
           call.name === "Grep" ||
           (call.name === "Read" && !draftTarget) ||
-          (RETRIEVAL_EXPERIMENT_TOOLS.some(
-            (entry) => entry.function.name === call.name,
-          )) ||
           (call.name === "Edit" && !draftTarget))
       ) {
         const codingResult = await runCodingShapeCall(
@@ -7826,6 +4681,7 @@ export async function runLocalAssistantTools(
           args,
           userId,
           allowedDocumentIds,
+          matterId,
           turnEditState,
           workingSets,
           servedDraftingCache,
@@ -7900,7 +4756,7 @@ export async function runLocalAssistantTools(
       // prompt that still mentions them silently un-does the experiment.
       // Sits ahead of every handler — the guard is only as strict as its
       // position in this chain.
-      if (CODING_TOOL_SHAPE && CODING_SHAPE_REPLACES.has(call.name)) {
+      if (CODING_SHAPE_REPLACES.has(call.name)) {
         return result(
           call,
           `No such tool available: ${call.name}. Use ${CODING_SHAPE_SUGGESTIONS[call.name]} (files are addressed by file path from Glob).`,
@@ -8036,7 +4892,6 @@ export async function runLocalAssistantTools(
       // above routes any file_path present in requirementsState.drafts away
       // from the FS surface — so both branches assume the key exists.
       if (
-        DRAFT_EDIT_ENABLED &&
         requirementsState &&
         (call.name === "Edit" || call.name === "Read")
       ) {
@@ -8070,362 +4925,11 @@ export async function runLocalAssistantTools(
           });
         }
       }
-      if (
-        call.name === "generate_docx"
-      ) {
-        // TREATMENT mechanism 1, enforcement backstop. The prompt line already
-        // instructs the model to echo first, so the cooperative path costs one
-        // round and never reaches this branch; only non-compliance pays a
-        // redraft. Refusing HERE — before createLocalDocument — is what makes
-        // it a real gate: no bytes are written, so no deliverable is captured,
-        // and because the refusal carries no mutation receipt the e2e
-        // terminal-authoring exit (chat.ts, which requires
-        // committedMutationReceipt(...).action === "created") does not fire
-        // either. The turn therefore continues and the model can comply.
-        // Under the exposure gate (both mechanisms live) this refusal would
-        // double-block the first authoring call: the coverage refusal below
-        // already re-serves the verbatim requirements, so the pre-refusal is
-        // skipped and that gate is the single enforcement point.
-        if (
-          REQUIREMENTS_ECHO_ENABLED &&
-          !EXPOSURE_ECHO_ENABLED &&
-          (requirementsState?.echoCallCount ?? 0) === 0
-        ) {
-          return upstreamMikeResult(call, {
-            error: "Call fetch_requirements before authoring the deliverable.",
-          });
-        }
-        // Exposure accounting, authoring backstop: refuse the FIRST authoring
-        // call while documents remain with zero body chars served, naming
-        // them. One-shot by construction — the second call always proceeds —
-        // so the model keeps relevance authority and can never loop. This is
-        // the boundary where false coverage assurance became 30/64 (acq) and
-        // 39/77 (tax): both runs drafted with rounds of budget unused while
-        // the touch-based echo reported near-zero unread.
-        if (
-          EXPOSURE_ECHO_ENABLED &&
-          requirementsState &&
-          (claimsFinalAgentGate ||
-            !requirementsState.exposureNudgeServed) &&
-          turnReadState
-        ) {
-          const stored = (await listLocalLibrary(userId, "file")).documents;
-          const allowedForCheck = allowedDocumentIds
-            ? stored.filter((document) => allowedDocumentIds.has(document.id))
-            : stored;
-          const split = splitReadExposure(allowedForCheck, turnReadState);
-          const unexposed = [...split.orientedOnly, ...split.unread];
-          // Drafting-mode (Fix B): on the FIRST authoring call, serve the
-          // requirements echo BEFORE anything is written. Nothing is captured —
-          // no draft.md, no refine checkpoint — so the model's second
-          // generate_docx starts clean, with the verbatim task prompt and the
-          // unread list in front of it. echoCallCount 0 -> 1 here, so the
-          // later coverage/refine refusals below do not re-echo; the model is
-          // then free to draft, and the normal gate runs on its next call.
-          if (
-            REQECHO_DRAFT_MODE_ENABLED &&
-            REQUIREMENTS_ECHO_ENABLED &&
-            EXPOSURE_ECHO_ENABLED &&
-            requirementsText &&
-            (requirementsState?.echoCallCount ?? 0) === 0
-          ) {
-            requirementsState.echoCallCount += 1;
-            requirementsState.documentsUnreadAtEcho = unexposed.length;
-            requirementsState.documentsOrientedOnlyAtEcho =
-              split.orientedOnly.length;
-            return upstreamMikeResult(call, {
-              error:
-                `coverage_check: ${unexposed.length} document(s) have had no` +
-                ` body content served this turn (headings only, or never` +
-                ` opened): ${unexposed.join(", ")}. Read the ones relevant to` +
-                ` the request first — scoped windows are fine.\n\n` +
-                `TASK REQUIREMENTS (verbatim):\n${requirementsText}\n\n` +
-                `Now draft the deliverable, addressing every requirement` +
-                ` above. Call generate_docx again with the completed draft.`,
-            });
-          }
-          // Draft-edit lever: the paused body is saved, not discarded.
-          // Minimal capture on purpose — the draft IS the markdown; title
-          // aliasing stays with the canonical parse below, which re-derives
-          // on the render call. Mirrors the coding-alias keys only.
-          const body = DRAFT_EDIT_ENABLED
-            ? trimmed(args.markdown) || trimmed(args.content)
-            : "";
-          if (body && (!FINAL_AGENT_LOOP_ENABLED || unexposed.length > 0)) {
-            requirementsState.draftTitle =
-              trimmed(args.title) ||
-              trimmed(args.filename).replace(/\.docx$/iu, "").trim() ||
-              (/^#{1,6}\s+(.+)$/mu.exec(body)?.[1]?.trim() ?? "");
-            if (FINAL_AGENT_LOOP_ENABLED) {
-              const pendingFilename = trimmed(args.filename);
-              requirementsState.drafts[pendingFilename.toLowerCase()] = body;
-              requirementsState.draftFilename = pendingFilename;
-            } else {
-              // Frozen draft-edit arms retain their canonical + title aliases.
-              requirementsState.drafts[CANONICAL_DRAFT_FILE] = body;
-              requirementsState.drafts[
-                draftKeyFor(requirementsState.draftTitle)
-              ] = body;
-              requirementsState.draftFilename =
-                trimmed(args.filename) || null;
-            }
-          }
-          if (
-            FINAL_ARM_ENABLED &&
-            body &&
-            requirementsState.firstDraftCount === 0
-          ) {
-            requirementsState.firstDraftCount = 1;
-            requirementsState.firstDraftCoverage = {
-              bodyEvidence: split.read,
-              tocOnly: split.orientedOnly,
-              unseen: split.unread,
-            };
-          }
-          // draft-edit-v4: the refinement checkpoint is universal. Under
-          // v1-v3 it existed only when coverage fell short — which, once the
-          // exposure accounting became honest, would have silently removed
-          // the measured refinement gains on full-coverage runs (acq 58/60
-          // under v3 vs the 56-57 pre-refinement ceiling). One pause per
-          // turn, honest contents: the true unread list when coverage is
-          // short, an all-read confirmation when it is not.
-          const refineNote = body
-            ? ` Your draft (${body.length} chars) is saved as draft.md —` +
-              ` do NOT re-send the body. Refine it: check the record` +
-              ` selectively (Grep or scoped Read) for facts that add to,` +
-              ` sharpen, or contradict your draft, and fold each finding in` +
-              ` with Edit (old_string/new_string) — precise small edits are` +
-              ` cheap, use as many as the evidence deserves. For a` +
-              ` single-deliverable request, call generate_docx without markdown` +
-              ` to render the refined draft. If the request names several` +
-              ` deliverables, the saved draft holds only the most recent` +
-              ` document — re-send each deliverable's complete body in its own` +
-              ` generate_docx call.`
-            : "";
-          // REQUIREMENTS echo rides the same checkpoint as the coverage echo:
-          // when both mechanisms are live, the refusal that names unread
-          // coverage also re-serves the verbatim task prompt. The rubric-shaped
-          // misses (risk quantification table, action-item matrix) are
-          // composition choices — the model only revisits them if the
-          // deliverable requirements sit in front of it at the refine
-          // checkpoint, not just the record. Served once (echoCallCount 0 -> 1)
-          // so a fetch_requirements that already ran this turn is never
-          // double-paid, and the receipt's documentsUnreadAtEcho records how
-          // much remained unread at that first serve.
-          const requirementsEcho =
-            REQUIREMENTS_ECHO_ENABLED &&
-            EXPOSURE_ECHO_ENABLED &&
-            requirementsText &&
-            (requirementsState?.echoCallCount ?? 0) === 0
-              ? `\n\nTASK REQUIREMENTS (verbatim):\n${requirementsText}`
-              : "";
-          // COMPOSITION CHECK (T3): reconcile the captured draft against the
-          // served evidence plane at the first authoring call and append a
-          // findings-only note to the refusal. Fires in BOTH gate branches
-          // whenever a draft body is present — coverage state is irrelevant to
-          // served-plane findings. Slices the exact intervals the Read path
-          // served (turnReadState body coordinates) out of the SAME
-          // servedDraftingText plane, so the check reads what the model read.
-          // Counted even when findings are zero: the receipt proves it ran.
-          const compositionNote = await (async () => {
-            if (
-              (!COMPOSITION_CHECK_ENABLED && !FINAL_ARM_ENABLED) ||
-              !body ||
-              !requirementsState ||
-              !turnReadState
-            ) {
-              return "";
-            }
-            requirementsState.compositionCheckCount += 1;
-            const servedPassages = await turnServedPassages(
-              userId,
-              turnReadState,
-              servedDraftingCache,
-            );
-            const reconciled = reconcileFigures({
-              draft: body,
-              served: servedPassages,
-            });
-            const findings = (reconciled.competingBases ?? []).slice(0, 5);
-            requirementsState.compositionCheckFindings += findings.length;
-            if (FINAL_ARM_ENABLED) return "";
-            if (!findings.length) return "";
-            const money = (value: number) =>
-              "$" + value.toLocaleString("en-US", { maximumFractionDigits: 2 });
-            const lines = findings.map((finding) => {
-              const otherSide =
-                finding.direction === "used-gross" ? "net" : "gross";
-              return (
-                `- "${finding.statedRaw}": ${finding.percent}% of the ${otherSide}` +
-                ` base is "${money(finding.competingValue)}" — both readings` +
-                ` are in the served passage. State which base you mean.`
-              );
-            });
-            return (
-              `\n\nCOMPOSITION CHECK (figures): ${findings.length} finding(s)` +
-              ` verified against served text.\n` +
-              lines.join("\n")
-            );
-          })();
-          const serveRequirementsEcho = (unreadCount: number) => {
-            if (requirementsEcho && requirementsState) {
-              requirementsState.echoCallCount += 1;
-              requirementsState.documentsUnreadAtEcho = unreadCount;
-            }
-          };
-          if (unexposed.length && (!FINAL_ARM_ENABLED || body)) {
-            if (FINAL_ARM_ENABLED) {
-              requirementsState.signalGateCount += 1;
-              requirementsState.exposureNudgeServed = true;
-              const tocOnly = split.orientedOnly.length
-                ? ` TOC-only: ${split.orientedOnly.join(", ")}.`
-                : "";
-              const unseen = split.unread.length
-                ? ` Unseen: ${split.unread.join(", ")}.`
-                : "";
-              const sourceCount =
-                unexposed.length === 1
-                  ? "1 source has"
-                  : `${unexposed.length} sources have`;
-              if (FINAL_AGENT_LOOP_ENABLED) {
-                const pendingFilename = requirementsState.draftFilename ??
-                  trimmed(args.filename);
-                return upstreamMikeResult(call, {
-                  error:
-                    `${sourceCount} no source text retrieved.` +
-                    `${tocOnly}${unseen} The pending output is` +
-                    ` ${pendingFilename}. Review each named source for` +
-                    ` relevance; retrieve relevant text with Grep` +
-                    ` output_mode=content or Read, then use Edit on` +
-                    ` ${pendingFilename} to incorporate the concrete` +
-                    ` findings. When the output is complete, finish the task` +
-                    ` normally.`,
-                });
-              }
-              return upstreamMikeResult(call, {
-                error:
-                  `${sourceCount} no source text retrieved.` +
-                  `${tocOnly}${unseen} The draft is saved as draft.md.` +
-                  ` For each relevant named source, retrieve matching text with` +
-                  ` Grep output_mode=content or Read, then use Edit to add the` +
-                  ` concrete findings to draft.md. If a named source is not` +
-                  ` relevant, no retrieval is needed. Call generate_docx without` +
-                  ` markdown when the draft is final.`,
-              });
-            }
-            serveRequirementsEcho(unexposed.length);
-            requirementsState.exposureNudgeServed = true;
-            return upstreamMikeResult(call, {
-              error:
-                `coverage_check: ${unexposed.length} document(s) have had no` +
-                ` body content served this turn (headings only, or never` +
-                ` opened): ${unexposed.join(", ")}. Read the ones relevant to` +
-                ` the request first — scoped windows are fine. If none are` +
-                ` relevant, call this tool again and it will proceed.` +
-                refineNote +
-                requirementsEcho +
-                compositionNote,
-            });
-          }
-          if (body) {
-            if (FINAL_ARM_ENABLED) {
-              requirementsState.exposureNudgeServed = true;
-            } else {
-              serveRequirementsEcho(0);
-              requirementsState.exposureNudgeServed = true;
-              return upstreamMikeResult(call, {
-              error:
-                `refine_check: draft received. All ${allowedForCheck.length}` +
-                ` document(s) have had body content served this turn —` +
-                ` coverage is complete.` +
-                refineNote +
-                requirementsEcho +
-                compositionNote,
-              });
-            }
-          }
-        }
-        let title = trimmed(args.title);
-        let filename = trimmed(args.filename);
-        // The native arm renders sections[] -> OOXML with upstream's own
-        // renderer (spec deviation D6), so it never builds a Markdown bridge;
-        // the serialized sections stand in as the provenance digest input.
-        const nativeDocx =
-          UPSTREAM_NATIVE_MIKE_SHAPE && call.name === "generate_docx";
-        const nativeSections = Array.isArray(args.sections)
-          ? (args.sections as unknown[])
-          : [];
-        let markdown = nativeDocx
-          ? JSON.stringify(nativeSections)
-          : call.name === "generate_docx"
-            ? COMPACT_AUTHOR_MIKE_TOOL_SHAPE ||
-              LEAN_BATCH_FAMILY_TOOL_SHAPE ||
-              MARKDOWN_SWAP_MIKE_TOOL_SHAPE ||
-              MARKDOWN_E2E_MIKE_TOOL_SHAPE
-              ? trimmed(args.markdown)
-              : upstreamMikeSectionsMarkdown(args.sections)
-            : trimmed(args.markdown);
-        // CC-parity aliasing: on the coding surface the model's Write-tool
-        // prior reaches this call (v1 acq pilot 2026-08-06: ten straight
-        // {filename, content} attempts; the conjunctive refusal below
-        // defeated its one-key-at-a-time debugging because no single key
-        // change could ever succeed). Accept the coding shape, teach the
-        // schema in the receipt, and make the refusal state the full
-        // contract plus what was actually received.
-        let codingAliasNote = "";
-        if (CODING_PARITY_ENABLED && call.name === "generate_docx") {
-          if (!markdown) {
-            const content = trimmed(args.content);
-            if (content) {
-              markdown = content;
-              codingAliasNote =
-                "accepted 'content' as the document body; the schema keys" +
-                " are {title, markdown}.";
-            }
-          }
-          if (!title && markdown) {
-            const stem = filename.replace(/\.docx$/iu, "").trim();
-            const heading =
-              /^#{1,6}\s+(.+)$/mu.exec(markdown)?.[1]?.trim() ?? "";
-            title = (stem || heading).slice(0, 256);
-            if (title) {
-              codingAliasNote = `${codingAliasNote} derived 'title' from ${
-                stem ? "the filename" : "the first heading"
-              }; pass title explicitly next time.`.trim();
-            }
-          }
-        }
-        // Draft-edit lever: a render call may omit markdown to use the saved
-        // draft (as Edited); a call that re-sends a full body keeps the
-        // buffer in sync so later Edits work on the latest text.
-        if (
-          DRAFT_EDIT_ENABLED &&
-          !FINAL_AGENT_LOOP_ENABLED &&
-          requirementsState &&
-          !nativeDocx
-        ) {
-          const canonical = requirementsState.drafts[CANONICAL_DRAFT_FILE];
-          if (!markdown && canonical) {
-            markdown = canonical;
-            if (!title)
-              title = (requirementsState.draftTitle ?? "").slice(0, 256);
-            if (!filename) filename = requirementsState.draftFilename ?? "";
-          } else if (markdown) {
-            requirementsState.drafts[CANONICAL_DRAFT_FILE] = markdown;
-            requirementsState.drafts[draftKeyFor(title || filename)] =
-              markdown;
-            if (title) requirementsState.draftTitle = title;
-            if (filename) requirementsState.draftFilename = filename;
-          }
-        }
-        if (
-          FINAL_AGENT_LOOP_ENABLED &&
-          call.name === "generate_docx" &&
-          (!filename || !trimmed(args.content))
-        ) {
-          const received = Object.keys(
-            (call.input ?? {}) as Record<string, unknown>,
-          ).join(", ");
+      if (call.name === "generate_docx") {
+        const filename = trimmed(args.filename);
+        const markdown = trimmed(args.content);
+        if (!filename || !markdown) {
+          const received = Object.keys(call.input ?? {}).join(", ");
           return fail(
             call,
             "generate_docx invalid input: expected {filename: string ending" +
@@ -8433,75 +4937,86 @@ export async function runLocalAssistantTools(
               ` document}; received keys [${received}].`,
           );
         }
-        if (!title || title.length > 256 || !markdown) {
-          if (CODING_PARITY_ENABLED && call.name === "generate_docx") {
-            const received = Object.keys(
-              (call.input ?? {}) as Record<string, unknown>,
-            ).join(", ");
-            return fail(
-              call,
-              "generate_docx invalid input: expected {title: string" +
-                " (<=256 chars), markdown: string — the complete document" +
-                ` body}; received keys [${received}]. Resend the full` +
-                " document with 'title' and 'markdown'.",
-            );
-          }
-          return fail(call, "DOCX title or Markdown is invalid");
-        }
         if (
-          filename &&
-          (filename.length > 200 ||
-            !filename.toLocaleLowerCase().endsWith(".docx") ||
-            /[\\/:*?"<>|\u0000-\u001f]/u.test(filename))
+          filename.length > 200 ||
+          !filename.toLocaleLowerCase().endsWith(".docx") ||
+          /[\\/:*?"<>|\u0000-\u001f]/u.test(filename)
         ) {
           return fail(call, "DOCX filename must be a plain .docx filename");
         }
+        if (
+          requirementsState &&
+          (claimsFinalAgentGate || !requirementsState.exposureNudgeServed) &&
+          turnReadState
+        ) {
+          const split = splitReadExposure(
+            await scopedLocalDocuments(userId, allowedDocumentIds),
+            turnReadState,
+          );
+          const unexposed = [...split.orientedOnly, ...split.unread];
+          if (unexposed.length) {
+            requirementsState.drafts[filename.toLowerCase()] = markdown;
+            requirementsState.draftFilename = filename;
+            requirementsState.signalGateCount += 1;
+            requirementsState.exposureNudgeServed = true;
+            const tocOnly = split.orientedOnly.length
+              ? ` TOC-only: ${split.orientedOnly.join(", ")}.`
+              : "";
+            const unseen = split.unread.length
+              ? ` Unseen: ${split.unread.join(", ")}.`
+              : "";
+            const sourceCount = unexposed.length === 1
+              ? "1 source has"
+              : `${unexposed.length} sources have`;
+            return upstreamMikeResult(call, {
+              error:
+                `${sourceCount} no source text retrieved.` +
+                `${tocOnly}${unseen} The pending output is ${filename}.` +
+                " Review each named source for relevance; retrieve relevant" +
+                " text with Grep output_mode=content or Read, then use Edit" +
+                ` on ${filename} to incorporate the concrete findings.` +
+                " When the output is complete, finish the task normally.",
+            });
+          }
+          requirementsState.exposureNudgeServed = true;
+        }
+        const title = filename.replace(/\.docx$/iu, "");
+        const codingAliasNote =
+          "accepted 'content' as the document body; the schema keys are" +
+          " {title, markdown}. derived 'title' from the filename; pass title" +
+          " explicitly next time.";
         try {
-          const sourceClosure =
-            !nativeDocx
-              ? await sourceClosureForDraft(
-                  userId,
-                  markdown,
-                  turnReadState,
-                  servedDraftingCache,
-                )
-              : [];
+          const sourceClosure = await sourceClosureForDraft(
+            userId,
+            markdown,
+            turnReadState,
+            servedDraftingCache,
+          );
           const evidence = await resolveDocxEvidenceCitations(
             userId,
             args.sources,
             allowedDocumentIds,
           );
-          const rendered = nativeDocx
-            ? await (async () => {
-                const out = await renderUpstreamNativeDocx(
-                  title,
-                  nativeSections,
-                  { landscape: args.landscape === true },
-                );
-                return out.error !== undefined
-                  ? { error: out.error }
-                  : { bytes: out.buffer, filename: out.filename };
-              })()
-            : await renderMarkdownDocx(title, markdown, args.fields, {
-                landscape: args.landscape === true,
-                citations: evidence.citations,
-              });
+          const rendered = await renderMarkdownDocx(
+            title,
+            markdown,
+            args.fields,
+            {
+              landscape: args.landscape === true,
+              citations: evidence.citations,
+            },
+          );
           if ("error" in rendered) return fail(call, rendered.error);
           const document = await createLocalDocument({
             userId,
             kind: "file",
-            filename: filename || rendered.filename,
+            filename,
             bytes: rendered.bytes,
             provenance: {
               schemaVersion: 1,
               actor: "assistant",
               action: "created",
               generation: {
-                // The provenance literal is fixed by LocalDocumentVersion in
-                // localDocumentStore.ts, which is outside this arm's blast
-                // radius. The native arm's renderer is recorded instead by the
-                // benchmark_surface receipt (upstream_native_shape) and by
-                // harnessSourceFiles binding upstreamNativeDocxRenderer.ts.
                 rendererVersion: "beaver.docx-markdown.v1",
                 markdownSha256: sha256(markdown),
                 fieldValuesSha256: sha256(JSON.stringify(args.fields ?? [])),
@@ -8538,13 +5053,6 @@ export async function runLocalAssistantTools(
             }
           }
           allowedDocumentIds?.add(document.id);
-          const diagnostics = LEGAL_GREP_EXPERIMENT
-            ? await compilerDiagnostics(
-                userId,
-                document.id,
-                document.current_version_id,
-              )
-            : null;
           const downloadUrl =
             `/single-documents/${encodeURIComponent(document.id)}/file` +
             `?version_id=${encodeURIComponent(document.current_version_id)}`;
@@ -8568,15 +5076,10 @@ export async function runLocalAssistantTools(
                     "Review source_closure and apply a document edit only if material.",
                 }
               : {}),
-            ...(diagnostics ? { compiler_diagnostics: diagnostics } : {}),
-            ...(codingAliasNote ? { note: codingAliasNote } : {}),
+            note: codingAliasNote,
             download_url: downloadUrl,
           };
-          if (
-            FINAL_AGENT_LOOP_ENABLED &&
-            requirementsState?.draftFilename &&
-            call.name === "generate_docx"
-          ) {
+          if (requirementsState?.draftFilename) {
             if (
               requirementsState?.draftFilename?.toLowerCase() ===
               document.filename.toLowerCase()
@@ -8601,54 +5104,11 @@ export async function runLocalAssistantTools(
               mutationReceipt: JSON.stringify(receipt),
             };
           }
-          if (ORIGIN_MIKE_TOOL_SHAPE && call.name === "generate_docx") {
-            const docLabel = `doc-${Math.max(
-              0,
-              [...(allowedDocumentIds ?? [])].indexOf(document.id),
-            )}`;
-            return {
-              ...result(call, {
-                filename: document.filename,
-                document_id: document.id,
-                version_id: document.current_version_id,
-                version_number: document.active_version_number,
-                ...(codingAliasNote ? { note: codingAliasNote } : {}),
-                message: `Document '${document.filename}' has been generated successfully.`,
-                doc_id: docLabel,
-                next_required_action: [
-                  ...(sourceClosure.length
-                    ? [
-                        "Review source_closure; it lists source-stated anti-assignment triggers omitted from the draft. Revise if material.",
-                      ]
-                    : []),
-                  `Before writing your final response, call read_document with doc_id "${docLabel}".`,
-                  "Base your description on the generated document's actual returned text, not on memory of what you intended to generate.",
-                  "Do not include download links, URLs, or markdown links to the document in your prose response.",
-                  `Give a concise description of the generated document and, if you make factual claims about its contents, use the generated document's returned evidence_id in submit_grounded_answer.`,
-                ].join(" "),
-                ...(sourceClosure.length
-                  ? { source_closure: sourceClosure }
-                  : {}),
-              }),
-              mutationReceipt: JSON.stringify(receipt),
-            };
-          }
+
           return result(call, receipt);
         } catch {
           return fail(call, "DOCX creation failed");
         }
-      }
-
-      if (call.name === "library_revise_docx") {
-        return runLocalReviseDocx(
-          call,
-          userId,
-          documentId,
-          args,
-          turnEditState,
-          turnReadState,
-          servedDraftingCache,
-        );
       }
 
       if (call.name === "library_delete_and_renumber_docx") {
@@ -9078,59 +5538,6 @@ export async function runLocalAssistantTools(
         }
       }
 
-      if (call.name === "library_list") {
-        const kind =
-          args.kind === "file" || args.kind === "template" ? args.kind : "all";
-        const query = trimmed(args.query).toLowerCase();
-        const collections =
-          kind === "all"
-            ? await Promise.all([
-                listLocalLibrary(userId, "file"),
-                listLocalLibrary(userId, "template"),
-              ])
-            : [await listLocalLibrary(userId, kind)];
-        const documents = collections
-          .flatMap((collection) => collection.documents)
-          .filter(
-            (document) =>
-              !allowedDocumentIds || allowedDocumentIds.has(document.id),
-          )
-          .filter(
-            (document) =>
-              !query ||
-              [
-                document.filename,
-                document.metadata?.jurisdiction,
-                ...(document.metadata?.areas_of_law ?? []),
-                ...(document.metadata?.document_types ?? []),
-                document.metadata?.description,
-                document.notes,
-              ]
-                .filter(Boolean)
-                .join(" ")
-                .toLowerCase()
-                .includes(query),
-          )
-          .map((document) => ({
-            document_id: document.id,
-            filename: document.filename,
-            file_type: document.file_type,
-            kind: document.library_kind,
-            version_id: document.current_version_id,
-            version_number: document.active_version_number,
-            version_provenance: document.version_provenance,
-            updated_at: document.updated_at,
-            metadata: document.metadata,
-            notes: document.notes,
-            app_url: appUrl({
-              kind: "library-document",
-              libraryKind: document.library_kind,
-              projectId: matterId,
-            }),
-          }));
-        return result(call, { ok: true, documents });
-      }
-
       if (call.name === "library_update_metadata") {
         const documentId = trimmed(args.document_id);
         const kind = args.kind === "template" ? "template" : "file";
@@ -9156,873 +5563,6 @@ export async function runLocalAssistantTools(
               }),
             })
           : fail(call, "Document not found");
-      }
-
-      if (call.name === "library_read" || call.name === "library_find") {
-        if (!documentId) return fail(call, "document_id is required");
-        const projectionMode = trimmed(args.mode);
-        if (
-          call.name === "library_read" &&
-          (projectionMode === "drafting" || projectionMode === "redline") &&
-          (trimmed(args.at) ||
-            trimmed(args.from) === "end" ||
-            (trimmed(args.follow) && trimmed(args.follow) !== "none"))
-        ) {
-          return fail(
-            call,
-            `mode=${projectionMode} is a whole-document projection and cannot be combined with at, from=end, or follow. Use mode=text for addressed navigation.`,
-          );
-        }
-        if (call.name === "library_read" && args.mode === "drafting") {
-          try {
-            const source = await extractLocalDraftingDocument(
-              userId,
-              documentId,
-            );
-            if (!source) return fail(call, "Document not found");
-            const output = result(call, { ok: true, ...source });
-            return output.status === "truncated"
-              ? output
-              : {
-                  ...output,
-                  evidenceSegments: [
-                    {
-                      documentId,
-                      versionId: source.version_id,
-                      filename: source.filename,
-                      projection: "drafting",
-                      kind: "evidence" as const,
-                      start: 0,
-                      end: source.markdown.length,
-                    },
-                  ],
-                };
-          } catch (error) {
-            return fail(
-              call,
-              errorText(error, "Drafting source could not be read"),
-            );
-          }
-        }
-        if (call.name === "library_read" && args.mode === "redline") {
-          try {
-            const projection = await extractLocalRedlineDocument(
-              userId,
-              documentId,
-            );
-            if (!projection) return fail(call, "Document not found");
-            const output = result(call, { ok: true, ...projection });
-            return output.status === "truncated"
-              ? output
-              : {
-                  ...output,
-                  evidenceSegments: [
-                    {
-                      documentId,
-                      versionId: projection.version_id,
-                      filename: projection.filename,
-                      projection: "redline",
-                      kind: "evidence" as const,
-                      start: 0,
-                      end: projection.text.length,
-                    },
-                  ],
-                };
-          } catch (error) {
-            return fail(
-              call,
-              errorText(error, "Redline view could not be read"),
-            );
-          }
-        }
-        const document = await extractLocalDocument(userId, documentId);
-        if (!document) return fail(call, "Document not found");
-        if (call.name === "library_read") {
-          // One address grammar, with the three original parameters still
-          // honoured so nothing calling the old shape breaks.
-          // Arm isolation is enforced HERE as well as in the schema: an arm
-          // must not be able to use the other arm's vocabulary even if a
-          // parameter reaches it, or the comparison leaks through the
-          // handler while the tool list looks clean.
-          const addressArm = NAV_TOOL_SHAPE === "address";
-          const address = addressArm ? parseAddress(trimmed(args.at)) : null;
-          const followRequested = trimmed(args.follow);
-          if (
-            addressArm &&
-            followRequested &&
-            followRequested !== "none" &&
-            address?.kind !== "section"
-          ) {
-            return fail(
-              call,
-              "follow and depth require a structural at address; page, offset, and omitted addresses cannot be graph-followed",
-            );
-          }
-          const sectionLocator = addressArm
-            ? address?.kind === "section"
-              ? address.locator
-              : ""
-            : trimmed(args.section);
-          const fromEnd = addressArm && trimmed(args.from) === "end";
-          /**
-           * head/tail over any addressed span. Reading the END of a span is
-           * not a convenience: execution pages, schedules and the closing
-           * words of a clause are at the end, and reaching them by offset
-           * arithmetic costs a length probe and gets it wrong on a span
-           * whose length the caller cannot see.
-           */
-          const windowOf = (body: string, maxChars: number) => {
-            if (body.length <= maxChars) {
-              return { body, cut: false, at: 0 };
-            }
-            if (fromEnd) {
-              return {
-                body: body.slice(body.length - maxChars),
-                cut: true,
-                at: body.length - maxChars,
-              };
-            }
-            const tail = /\.docx$/iu.test(document.filename)
-              ? boundedParagraphTail(
-                  body,
-                  maxChars,
-                  Math.min(
-                    1_500,
-                    Math.max(0, MAX_TOOL_RESULT_CHARS - maxChars - 2_000),
-                  ),
-                )
-              : null;
-            const end = tail?.end ?? maxChars;
-            return { body: body.slice(0, end), cut: end < body.length, at: 0 };
-          };
-          if (sectionLocator) {
-            const skeleton = await documentStructure(document.text, documentId, {
-              tableCells: document.tableCells,
-            });
-            const lookup = readSection(skeleton, sectionLocator);
-            if (lookup.status !== "found" || !lookup.block) {
-              return result(call, {
-                ok: false,
-                error:
-                  `Section '${sectionLocator}' not found (${lookup.status}` +
-                  (lookup.matches.length
-                    ? `; candidates: ${lookup.matches.join(", ")}`
-                    : "") +
-                  "). Call library_outline for the available handles.",
-              });
-            }
-            const maxChars = clampInt(args.max_chars, 200, 300_000, 60_000);
-            const view = windowOf(lookup.block.text, maxChars);
-            // follow expands the ADDRESS, so it belongs here as much as on
-            // find: "read this clause and what it depends on" is one request,
-            // not a read followed by a graph walk the caller has to stitch.
-            const readFollow = (
-              addressArm ? trimmed(args.follow) || "none" : "none"
-            ) as FollowDirection;
-            let related: Array<{
-              section: string;
-              display: string;
-              text: string;
-              start: number;
-              end: number;
-            }> = [];
-            if (readFollow !== "none") {
-              const walked = graphScope(
-                skeleton,
-                await documentGraph(document.text, documentId, skeleton, {
-                  tableCells: document.tableCells,
-                }),
-                lookup.block.label,
-                { follow: readFollow, depth: clampInt(args.depth, 1, 3, 1) },
-              );
-              // One shared budget: following must not multiply what a read
-              // costs by the size of the neighbourhood.
-              let budget = Math.max(0, maxChars - view.body.length);
-              for (const node of walked?.nodes ?? []) {
-                if (node.label === lookup.block.label || budget <= 0) continue;
-                const body = document.text.slice(node.start, node.end).slice(0, budget);
-                budget -= body.length;
-                related.push({
-                  section: node.label,
-                  display: node.display,
-                  text: body,
-                  start: node.start,
-                  end: node.start + body.length,
-                });
-              }
-            }
-            const relatedForModel = related.map(
-              ({ start: _start, end: _end, ...item }) => item,
-            );
-            return {
-              ...result(call, {
-              ok: true,
-              filename: document.filename,
-              ...(document.cautions.length
-                ? { notes_of_caution: document.cautions }
-                : {}),
-              section: lookup.block.label,
-              parent: lookup.block.parentLabel,
-              ...(fromEnd && view.cut ? { read_from: "end" } : {}),
-              text: view.body,
-              ...(relatedForModel.length ? { related: relatedForModel } : {}),
-              ...(readFollow !== "none" && !related.length
-                ? { related_note: "No resolved cross-references in that direction." }
-                : {}),
-              truncated: view.cut,
-              ...(view.cut
-                ? {
-                    continuation: fromEnd
-                      ? `Section head omitted; call library_read with at="${lookup.block.label}" for the start.`
-                      : `Section continues; call library_read with at="off:${lookup.block.start + view.body.length}" for the rest, or from="end" for its tail.`,
-                  }
-                : {}),
-              }),
-              evidenceSegments: [
-                {
-                  documentId,
-                  versionId: document.versionId,
-                  filename: document.filename,
-                  locator: lookup.block.label,
-                  projection: "canonical",
-                  kind: "evidence" as const,
-                  start: lookup.block.start + view.at,
-                  end: lookup.block.start + view.at + view.body.length,
-                },
-                ...related.map((item) => ({
-                  documentId,
-                  versionId: document.versionId,
-                  filename: document.filename,
-                  locator: item.section,
-                  projection: "canonical",
-                  kind: "evidence" as const,
-                  start: item.start,
-                  end: item.end,
-                })),
-              ],
-            };
-          }
-          // Page address. The point of pagination here is that a contents
-          // page cites it: the reply carries the section handles printed on
-          // the page so the next call can be a structural read, which is the
-          // address that survives re-pagination.
-          const pageRequest =
-            addressArm && address?.kind === "page" ? address.spec : "";
-          if (pageRequest) {
-            const lookup = resolvePage(
-              document.pages,
-              document.text,
-              pageRequest,
-            );
-            if (lookup.status === "no_pages") {
-              return result(call, {
-                ok: false,
-                error:
-                  document.pages.source === "unindexed"
-                    ? 'This PDF has pages, but no page index could be built for it — the engine returned no page records for this file. Use at="<provision>" for a provision or at="off:<offset>" for a window, and treat any page number in the text as unverified.'
-                    : 'This document has no fixed pagination (a DOCX is not paginated until something renders it). Use at="<provision>" for a provision or at="off:<offset>" for a window.',
-              });
-            }
-            if (lookup.status === "not_found") {
-              return result(call, {
-                ok: false,
-                error:
-                  `No ${lookup.sense === "pdf" ? "PDF page" : "printed page"} '${lookup.requested}'. This document has ${lookup.count} pages, ${lookup.first} through ${lookup.last}.`,
-              });
-            }
-            const maxChars = clampInt(args.max_chars, 200, 300_000, 24_000);
-            const pageView = windowOf(lookup.text, maxChars);
-            const pageBody = pageView.body;
-            const pageCut = pageView.cut;
-            const onPage = pageSections(
-              await documentStructure(document.text, documentId, {
-                tableCells: document.tableCells,
-              }),
-              lookup.page,
-            );
-            return {
-              ...result(call, {
-              ok: true,
-              filename: document.filename,
-              ...(document.cautions.length
-                ? { notes_of_caution: document.cautions }
-                : {}),
-              page: pageLabel(lookup.page),
-              pdf_page: lookup.page.pdfPage,
-              printed_label: lookup.page.printedLabel,
-              matched_on: lookup.matchedOn,
-              sections: onPage.starts
-                .slice(0, 24)
-                .map((node) => ({ section: node.label, display: node.display })),
-              ...(onPage.starts.length > 24 ? { sections_truncated: true } : {}),
-              ...(onPage.continuedFrom.length
-                ? {
-                    continued_from: onPage.continuedFrom[0].label,
-                  }
-                : {}),
-              text: pageBody,
-              truncated: pageCut,
-              ...(pageCut
-                ? {
-                    continuation: `Page continues; call library_read with at="off:${lookup.page.start + pageBody.length}", or read one of the listed sections.`,
-                  }
-                : {}),
-              }),
-              evidenceSegments: [
-                {
-                  documentId,
-                  versionId: document.versionId,
-                  filename: document.filename,
-                  locator: pageLabel(lookup.page),
-                  projection: "canonical",
-                  kind: "evidence" as const,
-                  start: lookup.page.start + pageView.at,
-                  end: lookup.page.start + pageView.at + pageBody.length,
-                },
-              ],
-            };
-          }
-          // Windowed read: offset composes with library_find's `at` for
-          // documents without numbered structure. Untargeted reads keep the
-          // historical 300k head.
-          const offset = clampInt(
-            addressArm
-              ? address?.kind === "offset"
-                ? address.start
-                : 0
-              : args.offset,
-            0,
-            100_000_000,
-            0,
-          );
-          // An untargeted read defaults to a window, not the whole document:
-          // the ceiling stays 300k for a caller that deliberately asks, but
-          // the default no longer spends a document's worth of transcript on
-          // a question a section read would answer.
-          const maxChars = clampInt(
-            args.max_chars,
-            200,
-            300_000,
-            Number(process.env.MIKE_READ_DEFAULT_CHARS || 24_000),
-          );
-          // from="end" on an unaddressed read is `tail` over the whole
-          // document, which is how a caller reaches an execution page
-          // without first asking how long the document is.
-          const start = fromEnd
-            ? Math.max(offset, document.text.length - maxChars)
-            : offset;
-          const requestedEnd = Math.min(document.text.length, start + maxChars);
-          const paragraphTail =
-            !fromEnd && /\.docx$/iu.test(document.filename)
-              ? boundedParagraphTail(
-                  document.text,
-                  requestedEnd,
-                  Math.min(
-                    1_500,
-                    Math.max(0, MAX_TOOL_RESULT_CHARS - maxChars - 2_000),
-                  ),
-                )
-              : null;
-          const windowEnd = paragraphTail?.end ?? requestedEnd;
-          const window = document.text.slice(start, windowEnd);
-          const windowCut = start + window.length < document.text.length;
-          /**
-           * CAPABILITY ON CONTACT. The schema can only advertise addressing
-           * in the abstract, identically for a paginated PDF and a DOCX with
-           * no pages at all. The document itself knows. On the opening read
-           * — the moment of contact — say what THIS document affords, so the
-           * model asks for things that exist instead of guessing from a
-           * generic description.
-           *
-           * Only on the opening read: it costs a skeleton compile, and
-           * repeating it on every windowed read would pay that per turn for
-           * information that has not changed.
-           */
-          const opening = addressArm && start === 0;
-          let affords: Record<string, unknown> | null = null;
-          if (opening) {
-            const skeletonNow = await documentStructure(
-              document.text,
-              documentId,
-              { tableCells: document.tableCells },
-            );
-            const schemes = pageSchemes(document.pages);
-            const sections = skeletonNow.nodes.filter(
-              (node) =>
-                node.kind !== "subsection" &&
-                node.kind !== "table" &&
-                node.kind !== "row" &&
-                node.kind !== "cell",
-            ).length;
-            const tables = skeletonNow.nodes.filter(
-              (node) => node.kind === "table",
-            ).length;
-            const cells = skeletonNow.nodes.filter(
-              (node) => node.kind === "cell",
-            ).length;
-            affords = {
-              ...(sections ? { sections } : {}),
-              ...(tables ? { tables, cells } : {}),
-              ...(document.pages.pages.length
-                ? {
-                    pages: document.pages.pages.length,
-                    page_addresses: [
-                      ...(schemes.pdfPages ? ["pdf"] : []),
-                      ...(schemes.printedLabels ? ["printed"] : []),
-                    ],
-                  }
-                : { pages: 0, pages_note: document.pages.source }),
-              ...(skeletonNow.crossReferences.internal
-                ? { cross_references: skeletonNow.crossReferences.internal }
-                : {}),
-              ...(skeletonNow.outline?.entries?.length
-                ? { contents_outline: skeletonNow.outline.entries.length }
-                : {}),
-              ...(sections || tables
-                ? {}
-                : {
-                    note: "No numbered structure detected; address by page or offset, or search.",
-                  }),
-            };
-          }
-          return {
-            ...result(call, {
-            ok: true,
-            filename: document.filename,
-            ...(document.cautions.length
-              ? { notes_of_caution: document.cautions }
-              : {}),
-            ...(start > 0 ? { offset: start } : {}),
-            ...(affords ? { addressable: affords } : {}),
-            text: window,
-            truncated: windowCut,
-            ...(windowCut
-              ? {
-                  continuation: `Document continues (${document.text.length.toLocaleString("en-CA")} chars total); call library_read with at="off:${start + window.length}" to keep reading, from="end" for the tail, or library_outline / library_find to target a section.`,
-                }
-              : {}),
-            }),
-            evidenceSegments: window.length
-              ? [
-                  {
-                    documentId,
-                    versionId: document.versionId,
-                    filename: document.filename,
-                    locator: start
-                      ? `window beginning at ${start}`
-                      : "opening window",
-                    projection: "canonical",
-                    kind: "evidence" as const,
-                    start,
-                    end: start + window.length,
-                  },
-                ]
-              : [],
-          };
-        }
-        // Page-scoped search. The filter runs on OFFSETS after the match, so
-        // every `at` stays a document offset that library_read offset=
-        // accepts; scoping must narrow where you look, never renumber what
-        // you find. The internal cap is raised first, because applying
-        // max_results before the filter would return nothing whenever the
-        // first hits all sit outside the scope.
-        const findArm = NAV_TOOL_SHAPE === "address";
-        const findAddress = findArm ? parseAddress(trimmed(args.at)) : null;
-        if (findArm && findAddress?.kind === "offset") {
-          return fail(
-            call,
-            "library_find does not accept offset at addresses; use a structural or page at address, or omit at to search the whole document",
-          );
-        }
-        const findFollowRequested = trimmed(args.follow);
-        if (
-          findArm &&
-          findFollowRequested &&
-          findFollowRequested !== "none" &&
-          findAddress?.kind !== "section"
-        ) {
-          return fail(
-            call,
-            "follow and depth require a structural at address; page and omitted addresses cannot be graph-followed",
-          );
-        }
-        const pageSpec =
-          findArm && findAddress?.kind === "page" ? findAddress.spec : "";
-        let scope: PageSpan[] | null = null;
-        if (pageSpec) {
-          const selection = selectPages(document.pages, document.text, pageSpec);
-          if (selection.status === "empty") {
-            return fail(call, "The at page range was empty");
-          }
-          if (selection.status === "failed") {
-            const lookup = selection.lookup;
-            return result(call, {
-              ok: false,
-              error:
-                lookup.status === "no_pages"
-                  ? document.pages.source === "unindexed"
-                    ? "This PDF has pages, but no page index could be built for it; omit at to search the whole document."
-                    : "This document has no fixed pagination; omit at to search the whole document."
-                  : `Page '${selection.token}' not found. This document has ${lookup.status === "not_found" ? lookup.count : 0} pages, ${lookup.status === "not_found" ? lookup.first : "?"} through ${lookup.status === "not_found" ? lookup.last : "?"}.`,
-            });
-          }
-          scope = selection.pages;
-        }
-        // Structural scope, composed with the page scope by INTERSECTION:
-        // two filters both given read as "in these pages AND in this part of
-        // the document", which is the only reading under which asking for
-        // more narrowing does not widen the result.
-        const seedLocator =
-          findArm && findAddress?.kind === "section" ? findAddress.locator : "";
-        let structural: { label: string; start: number; end: number }[] | null =
-          null;
-        let followed: { follow: string; depth: number; nodes: number } | null =
-          null;
-        if (seedLocator) {
-          const skeletonForScope = await documentStructure(
-            document.text,
-            documentId,
-            { tableCells: document.tableCells },
-          );
-          const seed = readSection(skeletonForScope, seedLocator);
-          if (seed.status !== "found" || !seed.block) {
-            return result(call, {
-              ok: false,
-              error:
-                `Section '${seedLocator}' not found (${seed.status}` +
-                (seed.matches.length
-                  ? `; candidates: ${seed.matches.join(", ")}`
-                  : "") +
-                "). Call library_outline for the available handles.",
-            });
-          }
-          const follow = (
-            findArm ? trimmed(args.follow) || "none" : "none"
-          ) as FollowDirection;
-          // The graph is only compiled when it is actually going to be
-          // walked; a plain section scope costs a skeleton and nothing more.
-          const walked =
-            follow === "none"
-              ? null
-              : graphScope(
-                  skeletonForScope,
-                  await documentGraph(
-                    document.text,
-                    documentId,
-                    skeletonForScope,
-                    { tableCells: document.tableCells },
-                  ),
-                  seed.block.label,
-                  { follow, depth: clampInt(args.depth, 1, 3, 1) },
-                );
-          const scoped = walked?.nodes ?? [
-            skeletonForScope.nodes.find(
-              (node) => node.label === seed.block!.label,
-            ),
-          ];
-          structural = scoped
-            .filter((node): node is NonNullable<typeof node> => Boolean(node))
-            .map((node) => ({
-              label: node.label,
-              start: node.start,
-              end: node.end,
-            }));
-          if (!structural.length) {
-            // readSection resolved a SourceDoc block that no skeleton node
-            // backs — report it rather than searching the whole document.
-            return result(call, {
-              ok: false,
-              error: `Section '${seedLocator}' resolved to '${seed.block.label}', which is not a skeleton node.`,
-            });
-          }
-          followed = {
-            follow,
-            depth: walked?.depth ?? 0,
-            nodes: structural.length,
-          };
-        }
-        const query = trimmed(args.query);
-        const matches =
-          args.regex === true
-            ? findRegexMatches({
-                text: document.text,
-                pattern: query,
-                maxResults: scope || seedLocator ? 500 : clampInt(args.max_results, 1, 50, 20),
-                contextChars: clampInt(args.context_chars, 40, 2000, 500),
-                caseInsensitive: args.case_insensitive === true,
-              })
-            : findTextMatches({
-                text: document.text,
-                query,
-                maxResults: scope || seedLocator ? 500 : clampInt(args.max_results, 1, 50, 20),
-                contextChars: clampInt(args.context_chars, 40, 2000, 500),
-              });
-        if ("error" in matches) return fail(call, matches.error);
-        // The grep-analog composes like file:line does for code: each hit
-        // carries its offset plus the deepest enclosing structural handle,
-        // so the follow-up is a section read, not a whole-document read.
-        const skeleton = await documentStructure(document.text, documentId, {
-          tableCells: document.tableCells,
-        });
-        const filtered = matches.hits.filter(
-          (hit) =>
-            (!scope ||
-              scope.some((page) => page.start <= hit.at && hit.at < page.end)) &&
-            (!structural ||
-              structural.some((span) => span.start <= hit.at && hit.at < span.end)),
-        );
-        const cap = clampInt(args.max_results, 1, 50, 20);
-        const narrowed = Boolean(scope || structural);
-        const inScope = filtered;
-        const kept = narrowed ? inScope.slice(0, cap) : inScope;
-        const completed =
-          inScope.length === 1 &&
-          kept.length === 1 &&
-          /\.docx$/iu.test(document.filename)
-            ? kept.map((hit) => {
-                const tail = boundedParagraphTail(
-                  document.text,
-                  hit.at + hit.excerpt.length,
-                );
-                return tail ? { ...hit, paragraph_tail: tail.text } : hit;
-              })
-            : kept;
-        const hits = completed.map((hit) => {
-          const owner = skeleton.nodes
-            .filter((node) => node.start <= hit.at && hit.at < node.end)
-            .sort((a, b) => b.depth - a.depth)[0];
-          const page = document.pages.pages.length
-            ? pageAt(document.pages, hit.at)
-            : null;
-          // `at` is a character offset here and an ADDRESS on library_read.
-          // In the address arm that collision is a trap — at="12345" parses
-          // as a structural locator, not an offset — so the address arm
-          // hands back something directly passable instead.
-          return {
-            ...hit,
-            ...(NAV_TOOL_SHAPE === "address"
-              ? { at: `off:${hit.at}`, offset: hit.at }
-              : {}),
-            section: owner?.label ?? null,
-            ...(page ? { page: pageLabel(page) } : {}),
-          };
-        });
-        const output = result(call, {
-            ok: true,
-            filename: document.filename,
-            ...(document.cautions.length
-              ? { notes_of_caution: document.cautions }
-              : {}),
-            query,
-            totalMatches: matches.totalMatches,
-            ...(narrowed
-              ? {
-                  ...(scope ? { pages_searched: scope.length } : {}),
-                  ...(followed
-                    ? {
-                        sections_searched: followed.nodes,
-                        ...(followed.follow !== "none"
-                          ? { followed: followed.follow, hops: followed.depth }
-                          : {}),
-                      }
-                    : {}),
-                  matches_in_scope: inScope.length,
-                  ...(inScope.length > kept.length ? { truncated: true } : {}),
-                }
-              : {}),
-            hits,
-          });
-        return output.status === "truncated"
-          ? output
-          : {
-              ...output,
-              evidenceSegments: completed.map((hit) => ({
-                documentId,
-                versionId: document.versionId,
-                filename: document.filename,
-                projection: "canonical",
-                kind: "candidate" as const,
-                start: hit.at,
-                end:
-                  hit.at +
-                  hit.excerpt.length +
-                  ("paragraph_tail" in hit &&
-                  typeof hit.paragraph_tail === "string"
-                    ? hit.paragraph_tail.length
-                    : 0),
-              })),
-            };
-      }
-
-      if (call.name === "library_outline") {
-        if (!documentId) return fail(call, "document_id is required");
-        const document = await extractLocalDocument(userId, documentId);
-        if (!document) return fail(call, "Document not found");
-        const skeleton = await documentStructure(document.text, documentId, {
-          tableCells: document.tableCells,
-        });
-        if (!skeleton.nodes.length) {
-          return result(call, {
-            ok: true,
-            filename: document.filename,
-            ...(document.cautions.length
-              ? { notes_of_caution: document.cautions }
-              : {}),
-            nodes: 0,
-            outline:
-              "No numbered structure detected; use library_read or library_find.",
-          });
-        }
-        // The page map rides on the orientation call, because a page number
-        // is unusable until the caller knows WHICH schemes this document
-        // has: whether printed labels were detected at all, and where they
-        // diverge from the PDF page. Reporting it here is what lets a
-        // pinpoint citation, an index entry or a contents line be followed.
-        const map = document.pages;
-        const schemes = pageSchemes(map);
-        const divergent = map.pages.filter(
-          (page) =>
-            page.printedLabel !== null &&
-            page.printedLabel !== String(page.pdfPage),
-        );
-        const tableCount = skeleton.nodes.filter(
-          (node) => node.kind === "table",
-        ).length;
-        const cellCount = skeleton.nodes.filter(
-          (node) => node.kind === "cell",
-        ).length;
-        return result(call, {
-          ok: true,
-          filename: document.filename,
-          ...(document.cautions.length
-            ? { notes_of_caution: document.cautions }
-            : {}),
-          nodes: skeleton.nodes.length,
-          ...(tableCount ? { tables: tableCount, cells: cellCount } : {}),
-          pages: map.pages.length
-            ? {
-                count: map.pages.length,
-                addressable_by: [
-                  ...(schemes.pdfPages ? ["pdf"] : []),
-                  ...(schemes.printedLabels ? ["printed"] : []),
-                ],
-                first: pageLabel(map.pages[0]),
-                last: pageLabel(map.pages[map.pages.length - 1]),
-                ...(divergent.length
-                  ? {
-                      printed_differs_from_pdf: divergent.length,
-                      example: pageLabel(divergent[0]),
-                    }
-                  : {}),
-              }
-            : { count: 0, reason: map.source },
-          outline: renderAgreementOutline(skeleton, {
-            maxChars: clampInt(args.max_chars, 1_000, 40_000, 8_000),
-          }),
-        });
-      }
-
-      if (call.name === "library_links") {
-        if (!documentId) return fail(call, "document_id is required");
-        const document = await extractLocalDocument(userId, documentId);
-        if (!document) return fail(call, "Document not found");
-        const linkAt = trimmed(args.at);
-        const linkAddress = parseAddress(linkAt);
-        if (linkAt && linkAddress?.kind !== "section") {
-          return fail(
-            call,
-            "library_links requires a structural at address; omit at for the document-level census",
-          );
-        }
-        const skeleton = await documentStructure(document.text, documentId, {
-          tableCells: document.tableCells,
-        });
-        const graph = await documentGraph(
-          document.text,
-          documentId,
-          skeleton,
-          { tableCells: document.tableCells },
-        );
-        const cap = clampInt(args.max_results, 1, 200, 40);
-        const handle = (node: { label: string; display: string }) => ({
-          section: node.label,
-          display: node.display,
-        });
-        // A whole-document abstention is a real answer, not an empty one:
-        // it says the skeleton is too thin to address this numbering, so a
-        // miss would carry no information. Surface it rather than returning
-        // zero edges and letting the caller read that as "no references".
-        const census = {
-          ok: true as const,
-          filename: document.filename,
-          ...(document.cautions.length
-            ? { notes_of_caution: document.cautions }
-            : {}),
-          counts: graph.counts,
-          ...(graph.documentAbstained ? { abstained: true } : {}),
-          ...(graph.note ? { note: graph.note } : {}),
-        };
-
-        const locator = linkAddress?.kind === "section" ? linkAddress.locator : "";
-        if (!locator) {
-          return result(call, {
-            ...census,
-            hubs: referenceHubs(graph).map((hub) => ({
-              section: hub.label,
-              referenced_by: hub.incoming,
-            })),
-          });
-        }
-
-        const lookup = readSection(skeleton, locator);
-        if (lookup.status !== "found" || !lookup.block) {
-          return result(call, {
-            ok: false,
-            error:
-              `Section '${locator}' not found (${lookup.status}` +
-              (lookup.matches.length
-                ? `; candidates: ${lookup.matches.join(", ")}`
-                : "") +
-              "). Call library_outline for the available handles.",
-          });
-        }
-        const around = nodeNeighbourhood(skeleton, lookup.block.label);
-        if (!around) {
-          return result(call, {
-            ok: false,
-            error: `Section '${locator}' resolved to '${lookup.block.label}', which is not a skeleton node.`,
-          });
-        }
-        const links = nodeLinks(graph, around.node.label);
-        return result(call, {
-          ...census,
-          section: around.node.label,
-          display: around.node.display,
-          ...(around.node.heading ? { heading: around.node.heading } : {}),
-          ancestors: around.ancestors.map(handle),
-          siblings: around.siblings.slice(0, cap).map(handle),
-          ...(around.siblings.length > cap ? { siblings_truncated: true } : {}),
-          children: around.children.slice(0, cap).map(handle),
-          ...(around.children.length > cap ? { children_truncated: true } : {}),
-          references_out: links.outgoing.slice(0, cap).map((edge) => ({
-            reference: edge.raw.replace(/\s+/gu, " ").trim(),
-            target: edge.targetLabel,
-            status: edge.status,
-            ...(edge.reason ? { reason: edge.reason } : {}),
-            at: edge.sourceStart,
-          })),
-          ...(links.outgoing.length > cap
-            ? { references_out_truncated: true }
-            : {}),
-          references_in: links.incoming.slice(0, cap).map((edge) => ({
-            from: edge.sourceLabel,
-            reference: edge.raw.replace(/\s+/gu, " ").trim(),
-            at: edge.sourceStart,
-          })),
-          ...(links.incoming.length > cap
-            ? { references_in_truncated: true }
-            : {}),
-        });
       }
 
       if (call.name === "library_anchor_coverage") {
@@ -10472,55 +6012,8 @@ export async function runLocalAssistantTools(
       };
       const executeAndRecord = async () => {
         const output = await execute();
-        if (
-          turnReadState &&
-          !ORIGIN_MIKE_TOOL_SHAPE &&
-          output.status !== "truncated" &&
-          ["library_read", "library_find"].includes(call.name)
-        ) {
-          for (const segment of output.evidenceSegments ?? []) {
-            if (segment.end <= segment.start) continue;
-            const projection =
-              segment.projection === "drafting" ||
-              segment.projection === "redline"
-                ? segment.projection
-                : "canonical";
-            const key = `${projection}:${segment.documentId}:${segment.versionId}`;
-            const prior = turnReadState.get(key);
-            const intervals = mergeIntervals([
-              ...(prior?.intervals ?? []),
-              [segment.start, segment.end],
-            ]);
-            turnReadState.set(key, {
-              documentId: segment.documentId,
-              docLabel: segment.filename ?? prior?.docLabel,
-              versionId: segment.versionId,
-              filename:
-                segment.filename ?? prior?.filename ?? segment.documentId,
-              projection,
-              intervals,
-              deliveredChars: intervals.reduce(
-                (total, [start, end]) => total + end - start,
-                0,
-              ),
-            });
-          }
-        }
         return output;
       };
-      if (
-        (ORIGIN_MIKE_TOOL_SHAPE &&
-          SUPPRESS_DUPLICATE_WHOLE_READS &&
-          ["read_document", "fetch_documents"].includes(call.name)) ||
-        (WHOLE_READ_MAX_CHARS && call.name === "fetch_documents")
-      ) {
-        const queued = wholeReadTail.then(executeAndRecord);
-        wholeReadTail = queued.then(
-          () => undefined,
-          () => undefined,
-        );
-        return queued;
-      }
       if (!LOCAL_TURN_EDIT_TOOL_NAMES.has(call.name)) return executeAndRecord();
       const queued = editTail.then(executeAndRecord);
       editTail = queued.then(
