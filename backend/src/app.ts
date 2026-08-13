@@ -199,10 +199,21 @@ app.use(
 );
 app.use(
   "/library",
-  localOrCloudRouter(
-    () => import("./routes/localLibrary").then((mod) => mod.localLibraryRouter),
-    () => import("./routes/library").then((mod) => mod.libraryRouter),
-  ),
+  lazyRouter(async () => {
+    const { createLibraryRouter } = await import("./routes/library");
+    if (!isAnonymousLocalMode()) {
+      const { cloudLibraryStore } = await import("./lib/cloudLibraryStore");
+      return createLibraryRouter(cloudLibraryStore);
+    }
+    const [{ localLibraryStore }, { localLibraryExtensionsRouter }] =
+      await Promise.all([
+        import("./lib/localLibraryStore"),
+        import("./routes/localLibraryExtensions"),
+      ]);
+    return createLibraryRouter(localLibraryStore).use(
+      localLibraryExtensionsRouter,
+    );
+  }),
 );
 app.use(
   "/tabular-review",

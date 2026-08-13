@@ -248,6 +248,8 @@ create table if not exists public.documents (
   folder_id uuid references public.project_subfolders(id) on delete set null,
   library_kind text not null default 'file',
   library_folder_id uuid references public.library_folders(id) on delete set null,
+  metadata jsonb not null default '{}'::jsonb,
+  notes text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint documents_library_kind_check
@@ -805,6 +807,7 @@ begin
     jsonb_build_object('id',d.id,'user_id',d.user_id,'project_id',d.project_id,
       'library_kind',d.library_kind,'library_folder_id',d.library_folder_id,
       'folder_id',coalesce(d.folder_id,d.library_folder_id),'status',d.status,
+      'metadata',d.metadata,'notes',d.notes,
       'created_at',d.created_at,'updated_at',d.updated_at,
       'current_version_id',d.current_version_id,'active_version_number',v.version_number,
       'filename',v.filename,'file_type',v.file_type,'size_bytes',v.size_bytes,'page_count',v.page_count)

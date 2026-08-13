@@ -1,13 +1,11 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth";
 import { createServerSupabase } from "../lib/supabase";
-import { recordAudit } from "../lib/audit";
 import {
   buildContentDisposition,
   downloadFile,
   deleteFile,
   getSignedUrl,
-  storageKey,
   uploadFile,
   versionStorageKey,
 } from "../lib/storage";
@@ -18,13 +16,12 @@ import { loadActiveVersion } from "../lib/documentVersions";
 import { ensureDocAccess } from "../lib/access";
 import { singleFileUpload } from "../lib/upload";
 import {
-  ALLOWED_DOCUMENT_TYPES,
-  ALLOWED_DOCUMENT_TYPES_LABEL,
   contentTypeForDocumentType,
   shouldConvertToPdf,
+  validateDocumentFile,
 } from "../lib/documentTypes";
-import { imageValidationError } from "../lib/llm/images";
 import { countLegalPdfPages } from "../lib/legalPdfSourceDoc";
+import { createCloudDocument } from "../lib/cloudDocumentStore";
 import {
   encodePageCursor,
   pageRequest,
@@ -114,26 +111,6 @@ async function requireDoc(
     return null;
   }
   return { ...doc, isOwner: access.isOwner };
-}
-
-/** Enforces the extension allowlist + image checks; sends the 400 itself. */
-function validFileSuffix(
-  res: Res,
-  file: { originalname: string; buffer: Buffer },
-): string | null {
-  const suffix = suffixOf(file.originalname);
-  if (!ALLOWED_DOCUMENT_TYPES.has(suffix)) {
-    res.status(400).json({
-      detail: `Unsupported file type: ${suffix}. Allowed: ${ALLOWED_DOCUMENT_TYPES_LABEL}`,
-    });
-    return null;
-  }
-  const imageError = imageValidationError(file.originalname, file.buffer);
-  if (imageError) {
-    res.status(400).json({ detail: imageError });
-    return null;
-  }
-  return suffix;
 }
 
 /** Best-effort PDF rendition; source persistence never depends on it. */
@@ -620,8 +597,11 @@ documentsRouter.post(
     });
     if (!doc) return;
 
-    const suffix = validFileSuffix(res, file);
-    if (suffix === null) return;
+    const validated = validateDocumentFile(file.originalname, file.buffer);
+    if (!validated.ok) {
+      return void res.status(400).json({ detail: validated.error });
+    }
+    const suffix = validated.fileType;
 
     const versionSlug = crypto.randomUUID().replace(/-/g, "");
     const key = versionStorageKey(
@@ -718,8 +698,11 @@ documentsRouter.put(
     if (target.deleted_at)
       return void res.status(400).json({ detail: "Version is deleted." });
 
-    const suffix = validFileSuffix(res, file);
-    if (suffix === null) return;
+    const validated = validateDocumentFile(file.originalname, file.buffer);
+    if (!validated.ok) {
+      return void res.status(400).json({ detail: validated.error });
+    }
+    const suffix = validated.fileType;
     if (target.file_type && target.file_type !== suffix) {
       return void res.status(400).json({
         detail: `Uploaded file type (${suffix}) does not match version type (${target.file_type}).`,
@@ -1009,132 +992,25 @@ export async function handleDocumentUpload(
 ) {
   const file = req.file;
   if (!file) return void res.status(400).json({ detail: "file is required" });
-
-  const filename = file.originalname;
-  const suffix = validFileSuffix(res, file);
-  if (suffix === null) return;
-
-  const content = file.buffer;
-  const { data: doc, error: insertErr } = await db
-    .from("documents")
-    .insert({
-      project_id: projectId,
-      user_id: userId,
-      status: "processing",
-      library_kind: options.libraryKind ?? "file",
-      library_folder_id: options.libraryFolderId ?? null,
-    })
-    .select("*")
-    .single();
-
-  if (insertErr || !doc) {
-    console.error("[single-documents/upload] failed to create document row", {
-      userId,
-      projectId,
-      filename,
-      suffix,
-      error: insertErr,
-    });
-    return void res
-      .status(500)
-      .json({ detail: "Failed to create document record" });
+  const validated = validateDocumentFile(file.originalname, file.buffer);
+  if (!validated.ok) {
+    return void res.status(400).json({ detail: validated.error });
   }
-
   try {
-    const docId = doc.id as string;
-    const key = storageKey(userId, docId, filename);
-    await uploadFile(
-      key,
-      toArrayBuffer(content),
-      contentTypeForDocumentType(suffix),
-    );
-
-    const pageCount =
-      suffix === "pdf" ? await countPdfPages(content) : null;
-    const pdfStoragePath = suffix === "pdf" ? key : null;
-
-    const { data: versionRow, error: verErr } = await db
-      .from("document_versions")
-      .insert({
-        document_id: docId,
-        storage_path: key,
-        pdf_storage_path: pdfStoragePath,
-        source: "upload",
-        version_number: 1,
-        filename: filename,
-        file_type: suffix,
-        size_bytes: content.byteLength,
-        page_count: pageCount,
-      })
-      .select("id")
-      .single();
-    if (verErr || !versionRow) {
-      throw new Error(
-        `Failed to record upload version: ${verErr?.message ?? "unknown"}`,
-      );
-    }
-
-    await db
-      .from("documents")
-      .update({
-        current_version_id: versionRow.id,
-        status: "ready",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", docId);
-
-    const { data: updated } = await db
-      .from("documents")
-      .select("*")
-      .eq("id", docId)
-      .single();
-    const responseDoc = updated
-      ? {
-          ...updated,
-          filename,
-          storage_path: key,
-          pdf_storage_path: pdfStoragePath,
-          folder_id:
-            (updated.library_folder_id as string | null | undefined) ?? null,
-          file_type: suffix,
-          size_bytes: content.byteLength,
-          page_count: pageCount,
-          active_version_number: 1,
-        }
-      : updated;
-    void recordAudit(db, {
+    const document = await createCloudDocument(db, {
       userId,
       userEmail: res.locals.userEmail as string | undefined,
-      action: "document.uploaded",
-      title: filename,
-      surface: projectId
-        ? "project"
-        : options.libraryKind
-          ? "library"
-          : "assistant",
       projectId,
-      documentId: docId,
+      libraryKind: options.libraryKind,
+      libraryFolderId: options.libraryFolderId,
+      file,
+      fileType: validated.fileType,
     });
-    return void res.status(201).json(responseDoc);
-  } catch (e) {
-    await db.from("documents").update({ status: "error" }).eq("id", doc.id);
-    void recordAudit(db, {
-      userId,
-      userEmail: res.locals.userEmail as string | undefined,
-      action: "document.uploaded",
-      status: "failed",
-      title: filename,
-      surface: projectId
-        ? "project"
-        : options.libraryKind
-          ? "library"
-          : "assistant",
-      projectId,
-      documentId: doc.id as string,
+    return void res.status(201).json(document);
+  } catch (error) {
+    return void res.status(500).json({
+      detail: error instanceof Error ? error.message : "Document processing failed",
     });
-    return void res
-      .status(500)
-      .json({ detail: `Document processing failed: ${String(e)}` });
   }
 }
 
