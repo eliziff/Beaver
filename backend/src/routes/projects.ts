@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { requireAuth } from "../middleware/auth";
 import { asyncRoute } from "../lib/asyncRoute";
 import { validateDocumentFile } from "../lib/documentTypes";
+import type { ChatStore } from "../lib/chatStore";
 import {
   ProjectStoreError,
   type ProjectScope,
@@ -73,7 +74,7 @@ type Handler = (
   scope: ProjectScope,
 ) => Promise<unknown>;
 
-export function createProjectsRouter(store: ProjectStore) {
+export function createProjectsRouter(store: ProjectStore, chats: ChatStore) {
   const router = Router();
   router.use(requireAuth);
 
@@ -240,7 +241,9 @@ export function createProjectsRouter(store: ProjectStore) {
   );
 
   router.get("/:projectId/chats", route(async (req, res, scope) => {
-    res.json(await store.chats(scope, req.params.projectId));
+    res.json(await chats.list(scope, {
+      projectId: req.params.projectId,
+    }));
   }));
 
   router.post("/:projectId/folders", route(async (req, res, scope) => {

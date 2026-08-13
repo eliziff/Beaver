@@ -1,6 +1,27 @@
 import type { AnonymousChatMessage } from "../anonymousChatStore";
 import type { AskInputItem, ChatMessage } from "./types";
 
+const HIDDEN_EVENT_TYPES = new Set([
+  "local_pdf_evidence_handles",
+  "local_mutation_committed",
+  "local_turn_completed",
+  "research_checkpoint_receipt",
+]);
+
+export function visibleAnonymousMessages(messages: AnonymousChatMessage[]) {
+  return messages.flatMap(({ turn_id: turnId, ...message }) => {
+    if (message.role !== "assistant" || !Array.isArray(message.content)) {
+      return [message];
+    }
+    const content = message.content.filter((event) => !HIDDEN_EVENT_TYPES.has(
+      String(event && typeof event === "object"
+        ? (event as Record<string, unknown>).type ?? ""
+        : ""),
+    ));
+    return turnId && !content.length ? [] : [{ ...message, content }];
+  });
+}
+
 function filesFrom(value: unknown): ChatMessage["files"] {
   if (!Array.isArray(value)) return undefined;
   const files = value.flatMap((item) => {

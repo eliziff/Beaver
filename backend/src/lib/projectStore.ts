@@ -56,7 +56,6 @@ export type ProjectStore = {
     originalname: string;
     buffer: Buffer;
   }, fileType: string): Promise<ProjectRecord>;
-  chats(scope: ProjectScope, projectId: string): Promise<ProjectRecord[]>;
   createFolder(scope: ProjectScope, projectId: string, input: {
     name: string;
     parentFolderId: string | null;

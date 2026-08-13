@@ -79,14 +79,23 @@ let dataHome: string;
 
 async function loadApp() {
   vi.resetModules();
-  const [{ createChatRouter }, store, { localTabularData }] = await Promise.all([
+  const [
+    { createChatRouter },
+    store,
+    { localTabularData },
+    { createLocalChatStore },
+  ] = await Promise.all([
     import("./chat"),
     import("../lib/anonymousChatStore"),
     import("../lib/localTabularStore"),
+    import("../lib/localChatStore"),
   ]);
   const app = express();
   app.use(express.json());
-  app.use("/chat", createChatRouter(localTabularData));
+  app.use("/chat", createChatRouter(
+    localTabularData,
+    createLocalChatStore(localTabularData),
+  ));
   return { app, store };
 }
 
