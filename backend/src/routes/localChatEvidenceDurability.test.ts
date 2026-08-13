@@ -10,7 +10,6 @@ const mocks = vi.hoisted(() => ({
   finalizerHandleSets: [] as string[][],
   matterDocuments: undefined as string[] | undefined,
   preflightFailure: false,
-  progressiveDisclosure: false,
   providerMessages: [] as { role: string; content: string }[][],
   providerReferences: new Map<string, string[]>(),
   systemPrompts: [] as string[],
@@ -29,107 +28,9 @@ vi.mock("../lib/llm", () => ({
 }));
 vi.mock("../lib/chat/localAssistantTools", () => ({
   LOCAL_ASSISTANT_TOOLS: [],
-  MODEL_COVERAGE_ROUTING: false,
-  NAV_TOOL_SHAPE: mocks.progressiveDisclosure ? "address" : "legacy",
-  PROGRESSIVE_DISCLOSURE_ENABLED: mocks.progressiveDisclosure,
-  RESEARCH_TOOLS_DISABLED: false,
-  MAX_TOOL_RESULT_CHARS: 64_000,
-  SUPPRESS_DUPLICATE_WHOLE_READS: true,
-  RESIDENT_AUTHORING_ENABLED: false,
-  TERMINAL_AUTHORING_ENABLED:
-    process.env.MIKE_TERMINAL_AUTHORING === "1",
-  UPSTREAM_MIKE_TOOL_SHAPE: false,
-  UPSTREAM_NATIVE_MIKE_SHAPE: false,
-  ADAPTIVE_MIKE_TOOL_SHAPE: false,
-  CODING_TOOL_SHAPE: false,
-  COMPACT_AUTHOR_MIKE_TOOL_SHAPE: false,
-  MARKDOWN_SWAP_MIKE_TOOL_SHAPE: false,
-  MARKDOWN_E2E_MIKE_TOOL_SHAPE: false,
-  MARKDOWN_READ_DOCX: false,
-  LEAN_BATCH_FAMILY_TOOL_SHAPE: false,
-  LEAN_BATCH_HARDREFS_TOOL_SHAPE: false,
-  LEAN_BATCH_TOOL_SHAPE: false,
-  GROUNDING_FIRST_ENABLED: false,
-  CITATION_CONTRACT_ENABLED: false,
-  CITATION_CONTRACT_V2_ENABLED: false,
-  FIND_QUERY_NORM_ENABLED: false,
-  INDEX_ATTACH_GATED: false,
-  INDEX_COMPACT_HEADINGS: false,
-  NO_DEFERRAL_ENABLED: false,
-  EXPOSURE_ECHO_ENABLED: false,
-  CODING_NEUTRAL_PROMPT_ENABLED: false,
-  CODING_PARITY_ENABLED: false,
-  CODING_TOC_FILES_ENABLED: false,
-  GREP_PER_FILE_BUDGET_ENABLED: false,
-  TRIAGE_WORKFLOW_ENABLED: false,
-  DRAFT_EDIT_ENABLED: false,
-  FINAL_ARM_ENABLED: false,
-  FINAL_AGENT_LOOP_ENABLED: false,
-  GREP_SECTION_CONTEXT_ENABLED: false,
-  SCOPED_REREAD_ENABLED: false,
-  TYPED_RANGE_ENABLED: false,
-  REQUIREMENTS_ECHO_ENABLED: false,
-  REQECHO_DRAFT_MODE_ENABLED: false,
-  COMPOSITION_CHECK_ENABLED: false,
-  MIKE_GREP_FAMILY_TOOL_SHAPE: false,
-  MIKE_GREP_TOOL_SHAPE: false,
-  MIKE_LEGAL_TOOL_SHAPE: false,
-  MIKE_LEGAL_GUIDED_TOOL_SHAPE: false,
-  MIKE_STRUCTURE_PATHS_TOOL_SHAPE: false,
-  ORIGIN_MIKE_TOOL_SHAPE: false,
-  WHOLE_READ_MAX_CHARS: 0,
   createLocalAssistantRequirementsState: () => ({}),
   pendingFinalAgentDraft: () => null,
-  partitionTools: () =>
-    mocks.progressiveDisclosure
-      ? {
-          resident:
-            process.env.MIKE_FULL_HANDOFF_PROMPT_VARIANT === "legacy-v5"
-              ? ["Glob", "Grep", "Read", "describe_tools"].map((name) => ({
-                  function: { name },
-                }))
-              : [{ function: { name: "describe_tools" } }],
-          deferred: [{ function: { name: "library_revise_docx" } }],
-        }
-      : {
-          resident: [
-            "Read",
-            "library_lookup",
-            "generate_docx",
-            "library_revise_docx",
-            "Edit",
-          ].map((name) => ({ function: { name } })),
-          deferred: [],
-        },
-  describeToolsTool: (_tools: unknown[], allowEvidenceSelection = false) => ({
-    type: "function",
-    function: {
-      name: "describe_tools",
-      description: "Load a deferred tool domain.",
-      parameters: {
-        type: "object",
-        properties: {
-          domains: {
-            type: "array",
-            items: { type: "string", enum: ["drafting"] },
-          },
-          ...(allowEvidenceSelection
-            ? {
-                carry_evidence: {
-                  type: "array",
-                  items: { type: "string" },
-                },
-              }
-            : {}),
-        },
-        required: ["domains"],
-      },
-    },
-  }),
-  toolsForDomains: (tools: unknown[], domains: string[]) =>
-    mocks.progressiveDisclosure && domains.includes("drafting") ? tools : [],
   runLocalAssistantTools: mocks.runLocalAssistantTools,
-  extractLocalDocument: async () => null,
 }));
 vi.mock("../lib/chat/localPdfEvidenceState", () => ({
   appendLocalPdfPinpointLinks: mocks.appendLocalPdfPinpointLinks,
@@ -214,7 +115,6 @@ beforeEach(async () => {
   mocks.finalizerHandleSets.length = 0;
   mocks.matterDocuments = undefined;
   mocks.preflightFailure = false;
-  mocks.progressiveDisclosure = false;
   mocks.providerMessages.length = 0;
   mocks.providerReferences.clear();
   mocks.systemPrompts.length = 0;

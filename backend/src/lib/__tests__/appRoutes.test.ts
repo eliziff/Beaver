@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { appUrl } from "../appRoutes";
+import { createLegalEvidenceTurnState } from "../chat/legalEvidence";
 import { runToolCalls } from "../chat/tools/toolDispatcher";
 
 describe("appUrl", () => {
@@ -107,6 +108,10 @@ describe("appUrl", () => {
       undefined,
       undefined,
       "matter-1",
+      undefined,
+      undefined,
+      undefined,
+      createLegalEvidenceTurnState(),
     );
     const results = output.toolResults as {
       tool_call_id: string;
