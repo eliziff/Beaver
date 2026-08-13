@@ -1,16 +1,7 @@
 import { Router } from "express";
-import { requireAuth } from "../middleware/auth";
-import { isAnonymousLocalMode } from "../lib/localMode";
 import {
-  createLocalDocument,
-  createLocalFolder,
-  deleteLocalFolder,
   getLocalVersionFile,
   getLocalDocumentResponse,
-  pageLocalLibrary,
-  moveLocalDocument,
-  updateLocalDocument,
-  updateLocalFolder,
 } from "../lib/localDocumentStore";
 import {
   parseLocalPdfOnDemand,
@@ -28,102 +19,13 @@ import {
   fixLocalDocxSupraCrossReferences,
   inspectLocalDocxAutomation,
 } from "../lib/docxDeterministicCleanup";
-import { singleFileUpload } from "../lib/upload";
-import { imageValidationError } from "../lib/llm/images";
 import { getCodexModelCatalog } from "../lib/codexCatalog";
 import { asyncRoute } from "../lib/asyncRoute";
-import {
-  normalizeDocumentFilename,
-  normalizeLibraryKind as libraryKind,
-} from "../lib/normalize";
-import {
-  encodePageCursor,
-  pageRequest,
-  PageCursorError,
-} from "../lib/pagination";
+import { normalizeLibraryKind as libraryKind } from "../lib/normalize";
 
-export const localLibraryRouter = Router();
+export const localLibraryExtensionsRouter = Router();
 
-localLibraryRouter.use((_req, _res, next) => {
-  if (!isAnonymousLocalMode()) return next("router");
-  next();
-});
-localLibraryRouter.use(requireAuth);
-
-localLibraryRouter.get(
-  "/:kind",
-  asyncRoute(async (req, res) => {
-    const kind = libraryKind(req.params.kind);
-    if (!kind)
-      return void res.status(404).json({ detail: "Library not found" });
-    try {
-      const q = typeof req.query.q === "string"
-        ? req.query.q.trim().toLocaleLowerCase()
-        : "";
-      const parentFolderId = typeof req.query.parent_id === "string"
-        ? req.query.parent_id
-        : null;
-      if (q && parentFolderId) {
-        return void res.status(400).json({
-          detail: "q and parent_id cannot be used together",
-        });
-      }
-      const filters = { kind, q, parent_id: q ? null : parentFolderId };
-      const { after, limit } = pageRequest<[number, string, string]>(req.query,
-        `library/${kind}`, filters, ["number", "string", "string"]);
-      const page = await pageLocalLibrary(res.locals.userId as string, kind, {
-        q,
-        parentFolderId: filters.parent_id,
-        limit,
-        after,
-      });
-      res.json({
-        items: page.items,
-        next_cursor: page.nextAfter
-          ? encodePageCursor(`library/${kind}`, filters, page.nextAfter)
-          : null,
-      });
-    } catch (error) {
-      if (error instanceof PageCursorError) {
-        return void res.status(400).json({ detail: error.message });
-      }
-      throw error;
-    }
-  }),
-);
-
-localLibraryRouter.post(
-  "/:kind/documents",
-  singleFileUpload("file"),
-  asyncRoute(async (req, res) => {
-    const kind = libraryKind(req.params.kind);
-    if (!kind)
-      return void res.status(404).json({ detail: "Library not found" });
-    if (!req.file)
-      return void res.status(400).json({ detail: "file is required" });
-    const imageError = imageValidationError(
-      req.file.originalname,
-      req.file.buffer,
-    );
-    if (imageError) return void res.status(400).json({ detail: imageError });
-    try {
-      const document = await createLocalDocument({
-        userId: res.locals.userId as string,
-        kind,
-        filename: req.file.originalname,
-        bytes: req.file.buffer,
-      });
-      res.status(201).json(document);
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : "Upload failed";
-      res
-        .status(detail.startsWith("Unsupported file type") ? 400 : 500)
-        .json({ detail });
-    }
-  }),
-);
-
-localLibraryRouter.get(
+localLibraryExtensionsRouter.get(
   "/:kind/documents/:documentId/automation",
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
@@ -146,32 +48,7 @@ localLibraryRouter.get(
     }
   }),
 );
-
-localLibraryRouter.post(
-  "/:kind/folders",
-  asyncRoute(async (req, res) => {
-    const kind = libraryKind(req.params.kind);
-    if (!kind)
-      return void res.status(404).json({ detail: "Library not found" });
-    const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
-    const parentFolderId =
-      typeof req.body?.parent_folder_id === "string"
-        ? req.body.parent_folder_id
-        : null;
-    if (!name) return void res.status(400).json({ detail: "name is required" });
-    const folder = await createLocalFolder(
-      res.locals.userId as string,
-      kind,
-      name,
-      parentFolderId,
-    );
-    if (!folder)
-      return void res.status(404).json({ detail: "Parent folder not found" });
-    res.status(201).json(folder);
-  }),
-);
-
-localLibraryRouter.post(
+localLibraryExtensionsRouter.post(
   "/:kind/documents/:documentId/actions/fix-supras",
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
@@ -194,8 +71,7 @@ localLibraryRouter.post(
     }
   }),
 );
-
-localLibraryRouter.post(
+localLibraryExtensionsRouter.post(
   "/:kind/documents/:documentId/actions/link-citations",
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
@@ -219,7 +95,7 @@ localLibraryRouter.post(
   }),
 );
 
-localLibraryRouter.get(
+localLibraryExtensionsRouter.get(
   "/:kind/documents/:documentId/pdf-parse",
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
@@ -252,7 +128,7 @@ localLibraryRouter.get(
   }),
 );
 
-localLibraryRouter.post(
+localLibraryExtensionsRouter.post(
   "/:kind/documents/:documentId/lookup",
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
@@ -302,7 +178,7 @@ localLibraryRouter.post(
   }),
 );
 
-localLibraryRouter.post(
+localLibraryExtensionsRouter.post(
   "/:kind/evidence/rehydrate",
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
@@ -349,7 +225,7 @@ localLibraryRouter.post(
   }),
 );
 
-localLibraryRouter.post(
+localLibraryExtensionsRouter.post(
   "/:kind/documents/:documentId/actions/retry-pdf-parse",
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
@@ -483,107 +359,5 @@ localLibraryRouter.post(
           : "OCR could not start. Check the local Tesseract installation and retry.",
       });
     }
-  }),
-);
-
-localLibraryRouter.patch(
-  "/:kind/folders/:folderId",
-  asyncRoute(async (req, res) => {
-    const kind = libraryKind(req.params.kind);
-    if (!kind)
-      return void res.status(404).json({ detail: "Library not found" });
-    const name =
-      typeof req.body?.name === "string" && req.body.name.trim()
-        ? req.body.name.trim()
-        : undefined;
-    const hasParent = Object.prototype.hasOwnProperty.call(
-      req.body ?? {},
-      "parent_folder_id",
-    );
-    const parentFolderId = hasParent
-      ? typeof req.body.parent_folder_id === "string"
-        ? req.body.parent_folder_id
-        : null
-      : undefined;
-    const folder = await updateLocalFolder({
-      userId: res.locals.userId as string,
-      kind,
-      folderId: req.params.folderId,
-      name,
-      parentFolderId,
-    });
-    if (!folder)
-      return void res.status(404).json({ detail: "Folder not found" });
-    res.json(folder);
-  }),
-);
-
-localLibraryRouter.delete(
-  "/:kind/folders/:folderId",
-  asyncRoute(async (req, res) => {
-    const kind = libraryKind(req.params.kind);
-    if (!kind)
-      return void res.status(404).json({ detail: "Library not found" });
-    const deleted = await deleteLocalFolder(
-      res.locals.userId as string,
-      kind,
-      req.params.folderId,
-    );
-    if (!deleted)
-      return void res.status(404).json({ detail: "Folder not found" });
-    res.status(204).send();
-  }),
-);
-
-localLibraryRouter.patch(
-  "/:kind/documents/:documentId/folder",
-  asyncRoute(async (req, res) => {
-    const kind = libraryKind(req.params.kind);
-    if (!kind)
-      return void res.status(404).json({ detail: "Library not found" });
-    const folderId =
-      typeof req.body?.folder_id === "string" ? req.body.folder_id : null;
-    const document = await moveLocalDocument(
-      res.locals.userId as string,
-      kind,
-      req.params.documentId,
-      folderId,
-    );
-    if (!document)
-      return void res.status(404).json({ detail: "Document not found" });
-    res.json(document);
-  }),
-);
-
-localLibraryRouter.patch(
-  "/:kind/documents/:documentId",
-  asyncRoute(async (req, res) => {
-    const kind = libraryKind(req.params.kind);
-    if (!kind)
-      return void res.status(404).json({ detail: "Library not found" });
-    const current = await getLocalDocumentResponse(
-      res.locals.userId as string,
-      req.params.documentId,
-    );
-    if (!current || current.library_kind !== kind)
-      return void res.status(404).json({ detail: "Document not found" });
-    const filename = normalizeDocumentFilename(req.body?.filename, current.filename);
-    if (!filename)
-      return void res.status(400).json({ detail: "filename is required" });
-    const document = await updateLocalDocument({
-      userId: res.locals.userId as string,
-      kind,
-      documentId: req.params.documentId,
-      filename,
-      ...(Object.hasOwn(req.body ?? {}, "metadata")
-        ? { metadata: req.body.metadata }
-        : {}),
-      ...(Object.hasOwn(req.body ?? {}, "notes")
-        ? { notes: req.body.notes }
-        : {}),
-    });
-    if (!document)
-      return void res.status(404).json({ detail: "Document not found" });
-    res.json(document);
   }),
 );

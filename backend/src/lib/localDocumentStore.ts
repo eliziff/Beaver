@@ -24,15 +24,13 @@ import {
   extractTrackedChangeIds,
   resolveTrackedChange,
 } from "./docxTrackedChanges";
+import {
+  normalizeDocumentMetadata,
+  normalizeDocumentNotes,
+  type DocumentMetadata,
+} from "./normalize";
 
 export type LocalLibraryKind = "file" | "template";
-
-export type LocalDocumentMetadata = {
-  jurisdiction: string | null;
-  areas_of_law: string[];
-  document_types: string[];
-  description: string | null;
-};
 
 export type LocalTrackedEdit = {
   id: string;
@@ -113,7 +111,7 @@ type LocalDocument = {
   updatedAt: string;
   currentVersionId: string;
   versions: LocalVersion[];
-  metadata?: LocalDocumentMetadata;
+  metadata?: DocumentMetadata;
   notes?: string | null;
 };
 
@@ -131,34 +129,6 @@ const dataRoot = mikeLocalDataHome();
 const databasePath = path.join(dataRoot, "library.sqlite");
 let mutationTail: Promise<unknown> = Promise.resolve();
 let databasePromise: Promise<DatabaseSync> | null = null;
-
-function emptyDocumentMetadata(): LocalDocumentMetadata {
-  return {
-    jurisdiction: null,
-    areas_of_law: [],
-    document_types: [],
-    description: null,
-  };
-}
-
-function cleanMetadata(value: unknown): LocalDocumentMetadata {
-  const source = value && typeof value === "object" ? value as Record<string, unknown> : {};
-  const text = (input: unknown, max: number) =>
-    typeof input === "string" && input.trim()
-      ? input.trim().slice(0, max)
-      : null;
-  const list = (input: unknown) =>
-    Array.isArray(input)
-      ? [...new Set(input.filter((item): item is string => typeof item === "string")
-          .map((item) => item.trim()).filter(Boolean))].slice(0, 20)
-      : [];
-  return {
-    jurisdiction: text(source.jurisdiction, 160),
-    areas_of_law: list(source.areas_of_law),
-    document_types: list(source.document_types),
-    description: text(source.description, 500),
-  };
-}
 
 function loadDatabase() {
   if (!databasePromise) {
@@ -405,7 +375,7 @@ async function localDocumentResponse(document: LocalDocument) {
       : undefined,
     created_at: document.createdAt,
     updated_at: document.updatedAt,
-    metadata: cleanMetadata(document.metadata),
+    metadata: normalizeDocumentMetadata(document.metadata),
     notes: typeof document.notes === "string" ? document.notes : null,
   };
 }
@@ -681,7 +651,7 @@ export async function createLocalDocument(params: {
       updatedAt: now,
       currentVersionId: versionId,
       versions: [version],
-      metadata: emptyDocumentMetadata(),
+      metadata: normalizeDocumentMetadata(null),
       notes: null,
     };
     saveDocument(database, document);
@@ -1276,6 +1246,18 @@ export async function createLocalFolder(
   });
 }
 
+export async function getLocalFolder(
+  userId: string,
+  kind: LocalLibraryKind,
+  folderId: string,
+) {
+  const row = (await currentDatabase()).prepare(
+    `SELECT id, user_id, kind, name, parent_folder_id, created_at, updated_at
+     FROM local_library_folders WHERE id = ? AND user_id = ? AND kind = ?`,
+  ).get(folderId, userId, kind) as FolderRow | undefined;
+  return row ? localFolderResponse(folderFromRow(row)) : null;
+}
+
 export async function updateLocalFolder(params: {
   userId: string;
   kind: LocalLibraryKind;
@@ -1455,13 +1437,10 @@ export async function updateLocalDocument(params: {
       activeVersion(document).filename = params.filename.slice(0, 200);
     }
     if (params.metadata !== undefined) {
-      document.metadata = cleanMetadata(params.metadata);
+      document.metadata = normalizeDocumentMetadata(params.metadata);
     }
     if (params.notes !== undefined) {
-      document.notes =
-        typeof params.notes === "string" && params.notes.trim()
-          ? params.notes.trim().slice(0, 500)
-          : null;
+      document.notes = normalizeDocumentNotes(params.notes);
     }
     document.updatedAt = new Date().toISOString();
     saveDocument(database, document);
