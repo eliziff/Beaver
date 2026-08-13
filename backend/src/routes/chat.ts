@@ -1,6 +1,7 @@
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import { createWriteStream } from "node:fs";
 import { requireAuth } from "../middleware/auth";
+import { asyncRoute } from "../lib/asyncRoute";
 import { createServerSupabase } from "../lib/supabase";
 import { isAnonymousLocalMode } from "../lib/localMode";
 import { recordChatTurn } from "../lib/audit";
@@ -12,7 +13,7 @@ import { CLIENT_WORK_PRODUCT_PRESUMPTION, CODING_PRODUCTION_SYSTEM_PROMPT, juris
 import { devLog, type AskInputResponseItem, type AskInputsEvent, type AskInputsResponseRequest, type ChatMessage, type TabularCellStore } from "../lib/chat/types";
 import { normalizeAskInputsEvent } from "../lib/chat/askInputs";
 import { isAbortError } from "../lib/llm/abort";
-import { completeText, DEFAULT_MAIN_MODEL, modelSupportsImageInput, type LlmImage, type OpenAIToolSchema, type SubagentMode } from "../lib/llm";
+import { DEFAULT_MAIN_MODEL, modelSupportsImageInput, type LlmImage, type OpenAIToolSchema, type SubagentMode } from "../lib/llm";
 import { providerForModel } from "../lib/llm/models";
 import { LOCAL_ASSISTANT_TOOLS } from "../lib/chat/localAssistantTools";
 import { createLocalChatToolRunner } from "../lib/chat/localChatToolRunner";
@@ -33,20 +34,19 @@ import {
   priorLegalEvidenceReceipts,
 } from "../lib/chat/legalEvidence";
 import { getUserModelSettings } from "../lib/userSettings";
-import { checkProjectAccess } from "../lib/access";
 import { safeErrorLog, safeErrorMessage } from "../lib/safeError";
+import {
+  ChatStoreError,
+  normalizeChatTitle,
+  type ChatScope,
+  type ChatStore,
+} from "../lib/chatStore";
 import {
   appendAnonymousAssistantEvents,
   appendAnonymousMessage,
   AnonymousChatVersionConflictError,
   createAnonymousChat,
-  deleteAnonymousChat,
   getAnonymousChat,
-  listDeletedAnonymousChats,
-  listAnonymousChats,
-  permanentlyDeleteAnonymousChat,
-  restoreAnonymousChat,
-  updateAnonymousChatProject,
   updateAnonymousChatTitle,
   resetAnonymousAssistantEvents,
   upsertAnonymousSubagentEvent,
@@ -68,13 +68,11 @@ import { legalKnowledgeGraphStore } from "../lib/legalKnowledgeGraphStore";
 import {
   countLocalDocuments,
   listLocalDocumentsById,
-  localTrackedEditStatuses,
   recentLocalDocuments,
 } from "../lib/localDocumentStore";
 import { readLocalPdfEvidenceReceipt } from "../lib/localPdfLookup";
 import {
   abortChatTurn,
-  abortChatTurnForDeletion,
   beginChatTurn,
   chatTurnInProgress,
   chatTurnWasDeleted,
@@ -109,8 +107,6 @@ class MatterDocumentSet extends Set<string> {
 
 type Db = ReturnType<typeof createServerSupabase>;
 
-const TITLE_FALLBACK = "Misc. Query";
-const CHAT_RECYCLING_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const LOCAL_PDF_EVIDENCE_REGISTRY_EVENT = "local_pdf_evidence_handles";
 const LOCAL_MUTATION_COMMITTED_EVENT = "local_mutation_committed";
 const LOCAL_TURN_COMPLETED_EVENT = "local_turn_completed";
@@ -283,27 +279,6 @@ function localPdfEvidenceRegistryPrompt(
     `${handles}\n` +
     "For a library entry, call library_evidence with its handle. For a legal-source entry, call legal_pdf_lookup with both its reference_id and handle. Rehydrate only when the current request needs that exact prior material, and do not expose opaque handles or references to the user.\n\n"
   );
-}
-
-const HIDDEN_LOCAL_EVENT_TYPES = new Set<unknown>([
-  LOCAL_PDF_EVIDENCE_REGISTRY_EVENT,
-  LOCAL_MUTATION_COMMITTED_EVENT,
-  LOCAL_TURN_COMPLETED_EVENT,
-  RESEARCH_CHECKPOINT_RECEIPT_EVENT,
-]);
-
-function visibleAnonymousMessages(messages: AnonymousChatMessage[]) {
-  return messages.flatMap((storedMessage) => {
-    const { turn_id: turnId, ...message } = storedMessage;
-    if (message.role !== "assistant" || !Array.isArray(message.content)) {
-      return [message];
-    }
-    const content = message.content.filter(
-      (event) => !HIDDEN_LOCAL_EVENT_TYPES.has(asRecord(event)?.type),
-    );
-    if (turnId && content.length === 0) return [];
-    return [{ ...message, content }];
-  });
 }
 
 function anonymousTurnDocumentIds(value: unknown): string[] | null {
@@ -603,23 +578,6 @@ function sameAskInputsResponse(
     return false;
   });
 }
-
-function normalizeGeneratedTitle(raw: string): string {
-  const title = raw
-    .trim()
-    .replace(/^["'`]+|["'`.,:;!?]+$/g, "")
-    .trim();
-  if (!title) return TITLE_FALLBACK;
-  return title.slice(0, 80);
-}
-
-type AccessibleChat = {
-  id: string;
-  title: string | null;
-  user_id: string;
-  project_id: string | null;
-  tabular_review_id: string | null;
-} & Record<string, unknown>;
 
 type TabularChatRuntime = {
   prompt: string;
@@ -1182,7 +1140,7 @@ export async function streamAnonymousChat(params: {
   };
   const maybeSetTitle = () => {
     if (!chat.title && lastUser?.content) {
-      updateAnonymousChatTitle(chat, normalizeGeneratedTitle(lastUser.content));
+      updateAnonymousChatTitle(chat, normalizeChatTitle(lastUser.content));
     }
   };
   const withEvidenceRegistry = async (events: unknown[]) => {
@@ -1413,164 +1371,56 @@ export function parseChatMessages(
   return { ok: true, messages: value as ChatMessage[] };
 }
 
-async function validateAccessibleProjectId(
-  projectId: string | null,
-  userId: string,
-  userEmail: string | null | undefined,
-  db: Db,
-): Promise<{ ok: true } | { ok: false; status: number; detail: string }> {
-  if (!projectId) return { ok: true };
-  const access = await checkProjectAccess(projectId, userId, userEmail, db);
-  if (!access.ok)
-    return { ok: false, status: 404, detail: "Project not found" };
-  return { ok: true };
-}
-
-async function getAccessibleChat(
-  chatId: string,
-  userId: string,
-  userEmail: string | null | undefined,
-  db: Db,
-  tabularData: TabularStore,
-): Promise<AccessibleChat | null> {
-  const { data: chat, error } = await db
-    .from("chats")
-    .select("*")
-    .eq("id", chatId)
-    .is("deleted_at", null)
-    .maybeSingle();
-  if (error || !chat) return null;
-
-  const row = chat as AccessibleChat;
-  if (row.user_id === userId) return row;
-
-  if (row.project_id) {
-    const access = await checkProjectAccess(
-      row.project_id,
-      userId,
-      userEmail,
-      db,
-    );
-    if (access.ok) return row;
-  }
-  if (
-    row.tabular_review_id &&
-    await tabularData.detail(
-      { userId, ...(userEmail ? { userEmail } : {}) },
-      row.tabular_review_id,
-    )
-  ) return row;
-
-  return null;
-}
-
 // Visible chats = the user's own chats + every chat under a project the
 // user owns (so a project owner sees all collaborator chats in their
 // own projects in the global recent-chats list). Chats in projects that
 // are merely *shared with* the user are NOT included here — those are
 // listed per-project via GET /projects/:projectId/chats.
-function parseListLimit(raw: unknown, fallback: number | null) {
+function parseListLimit(raw: unknown) {
   const limit = Number.parseInt(String(raw ?? ""), 10);
-  return Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 100) : fallback;
+  return Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 100) : 20;
 }
 
-async function purgeExpiredCloudChats(db: Db, userId: string) {
-  const cutoff = new Date(
-    Date.now() - CHAT_RECYCLING_RETENTION_MS,
-  ).toISOString();
-  return db
-    .from("chats")
-    .delete()
-    .eq("user_id", userId)
-    .not("deleted_at", "is", null)
-    .lte("deleted_at", cutoff);
+type ChatHandler = (
+  req: Request,
+  res: Response,
+  scope: ChatScope,
+) => Promise<unknown>;
+
+function chatRoute(handler: ChatHandler) {
+  return asyncRoute(async (req, res) => {
+    try {
+      await handler(req, res, {
+        userId: res.locals.userId as string,
+        userEmail: res.locals.userEmail as string | undefined,
+      });
+    } catch (error) {
+      if (error instanceof ChatStoreError) {
+        return void res.status(error.status).json({ detail: error.message });
+      }
+      console.error("[chat] operation failed", error);
+      res.status(500).json({ detail: "Chat operation failed" });
+    }
+  });
 }
 
-export function createChatRouter(tabularData: TabularStore) {
+export function createChatRouter(tabularData: TabularStore, chats: ChatStore) {
 const chatRouter = Router();
 chatRouter.use(requireAuth);
 
-chatRouter.get("/", async (req, res) => {
-  const tabularReviewId = trimmedString(req.query.tabular_review_id) || null;
-  if (isAnonymousLocalMode()) {
-    const userId = res.locals.userId as string;
-    const limit = parseListLimit(req.query.limit, 20) as number;
-    if (
-      tabularReviewId &&
-      !await tabularData.detail({ userId }, tabularReviewId)
-    ) return void res.status(404).json({ detail: "Review not found" });
-    res.json(
-      listAnonymousChats(userId)
-        .filter((chat) => tabularReviewId
-          ? chat.tabular_review_id === tabularReviewId
-          : chat.project_id === null && chat.tabular_review_id === null)
-        .slice(0, limit)
-        .map(({ messages: _messages, ...chat }) => chat),
-    );
-    return;
-  }
-  try {
-    const userId = res.locals.userId as string;
-    const userEmail = res.locals.userEmail as string | undefined;
-    const db = createServerSupabase();
-    const limit = parseListLimit(req.query.limit, null);
-    if (tabularReviewId) {
-      const detail = await tabularData.detail(
-        { userId, ...(userEmail ? { userEmail } : {}) },
-        tabularReviewId,
-      );
-      if (!detail) return void res.status(404).json({ detail: "Review not found" });
-      let query = db.from("chats")
-        .select("id, project_id, tabular_review_id, user_id, title, created_at")
-        .eq("tabular_review_id", tabularReviewId)
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false });
-      if (limit) query = query.limit(limit);
-      const { data, error } = await query;
-      if (error) return void res.status(500).json({ detail: error.message });
-      return void res.json(data ?? []);
-    }
-    const { data, error } = await db.rpc("get_chats_overview", {
-      p_user_id: userId,
-      p_limit: limit,
-    });
-    if (error) return void res.status(500).json({ detail: error.message });
-    res.json(data ?? []);
-  } catch (error) {
-    console.error("[chat/list] failed to load chats", error);
-    res.status(500).json({ detail: "Failed to load chats" });
-  }
-});
+chatRouter.get("/", chatRoute(async (req, res, scope) => {
+  const tabularReviewId = trimmedString(req.query.tabular_review_id) || undefined;
+  res.json(await chats.list(scope, {
+    ...(tabularReviewId ? { tabularReviewId } : {}),
+    limit: parseListLimit(req.query.limit),
+  }));
+}));
 
-chatRouter.get("/recycling-bin", async (_req, res) => {
-  const userId = res.locals.userId as string;
-  if (isAnonymousLocalMode()) {
-    res.json(
-      listDeletedAnonymousChats(userId).map(
-        ({ messages: _messages, ...chat }) => chat,
-      ),
-    );
-    return;
-  }
+chatRouter.get("/recycling-bin", chatRoute(async (_req, res, scope) => {
+  res.json(await chats.deleted(scope));
+}));
 
-  const db = createServerSupabase();
-  const purge = await purgeExpiredCloudChats(db, userId);
-  if (purge.error) {
-    return void res.status(500).json({ detail: purge.error.message });
-  }
-  const { data, error } = await db
-    .from("chats")
-    .select("id, project_id, user_id, title, created_at, deleted_at")
-    .eq("user_id", userId)
-    .not("deleted_at", "is", null)
-    .order("deleted_at", { ascending: false });
-  if (error) return void res.status(500).json({ detail: error.message });
-  res.json(data ?? []);
-});
-
-chatRouter.post("/create", async (req, res) => {
-  const userId = res.locals.userId as string;
-  const userEmail = res.locals.userEmail as string | undefined;
+chatRouter.post("/create", chatRoute(async (req, res, scope) => {
   const parsedProjectId = parseOptionalProjectId(req.body?.project_id);
   const parsedTabularReviewId = parseOptionalProjectId(
     req.body?.tabular_review_id,
@@ -1588,234 +1438,30 @@ chatRouter.post("/create", async (req, res) => {
       detail: "A chat cannot belong to both a project and a tabular review",
     });
   }
-  if (isAnonymousLocalMode()) {
-    if (projectId && !legalKnowledgeGraphStore().getMatter(userId, projectId)) {
-      return void res.status(404).json({ detail: "Project not found" });
-    }
-    if (
-      tabularReviewId &&
-      !await tabularData.detail({ userId }, tabularReviewId)
-    ) return void res.status(404).json({ detail: "Review not found" });
-    const chat = createAnonymousChat(userId, projectId, tabularReviewId);
-    res.json({ id: chat.id });
-    return;
-  }
-  const db = createServerSupabase();
-  const projectAccess = await validateAccessibleProjectId(
-    projectId,
-    userId,
-    userEmail,
-    db,
-  );
-  if (!projectAccess.ok)
-    return void res
-      .status(projectAccess.status)
-      .json({ detail: projectAccess.detail });
-  if (
-    tabularReviewId &&
-    !await tabularData.detail(
-      { userId, ...(userEmail ? { userEmail } : {}) },
-      tabularReviewId,
-    )
-  ) return void res.status(404).json({ detail: "Review not found" });
+  const chat = await chats.create(scope, { projectId, tabularReviewId });
+  res.json({ id: chat.id });
+}));
 
-  const { data, error } = await db
-    .from("chats")
-    .insert({
-      user_id: userId,
-      project_id: projectId ?? null,
-      tabular_review_id: tabularReviewId ?? null,
-    })
-    .select("id")
-    .single();
-
-  if (error) return void res.status(500).json({ detail: error.message });
-  res.json({ id: data.id });
-});
-
-chatRouter.get("/:chatId", async (req, res) => {
-  const userId = res.locals.userId as string;
-  const userEmail = res.locals.userEmail as string | undefined;
-  const { chatId } = req.params;
-  if (isAnonymousLocalMode()) {
-    const chat = getAnonymousChat(userId, chatId);
-    if (!chat) return void res.status(404).json({ detail: "Chat not found" });
-    const { messages, ...chatData } = chat;
-    const visible = visibleAnonymousMessages(messages);
-    res.json({
-      chat: { ...chatData, turn_in_progress: chatTurnInProgress(chatId) },
-      messages: await hydrateLocalEditStatuses(visible, userId),
-    });
-    return;
-  }
-  const db = createServerSupabase();
-
-  const chat = await getAccessibleChat(chatId, userId, userEmail, db, tabularData);
-  if (!chat) return void res.status(404).json({ detail: "Chat not found" });
-
-  const { data: messages } = await db
-    .from("chat_messages")
-    .select("*")
-    .eq("chat_id", chatId)
-    .order("created_at", { ascending: true });
-
-  const hydrated = await hydrateEditStatuses(messages ?? [], db);
+chatRouter.get("/:chatId", chatRoute(async (req, res, scope) => {
+  const detail = await chats.detail(scope, req.params.chatId);
+  if (!detail) return void res.status(404).json({ detail: "Chat not found" });
   res.json({
-    chat: { ...chat, turn_in_progress: chatTurnInProgress(chatId) },
-    messages: hydrated,
+    chat: {
+      ...detail.chat,
+      turn_in_progress: chatTurnInProgress(req.params.chatId),
+    },
+    messages: detail.messages,
   });
-});
+}));
 
-chatRouter.post("/:chatId/stop", async (req, res) => {
-  const userId = res.locals.userId as string;
-  const userEmail = res.locals.userEmail as string | undefined;
-  const { chatId } = req.params;
-
-  if (isAnonymousLocalMode()) {
-    if (!getAnonymousChat(userId, chatId)) {
-      return void res.status(404).json({ detail: "Chat not found" });
-    }
-  } else {
-    const db = createServerSupabase();
-    if (!(await getAccessibleChat(chatId, userId, userEmail, db, tabularData))) {
-      return void res.status(404).json({ detail: "Chat not found" });
-    }
+chatRouter.post("/:chatId/stop", chatRoute(async (req, res, scope) => {
+  if (!await chats.get(scope, req.params.chatId)) {
+    return void res.status(404).json({ detail: "Chat not found" });
   }
+  res.json({ stopped: abortChatTurn(req.params.chatId) });
+}));
 
-  res.json({ stopped: abortChatTurn(chatId) });
-});
-
-// Stored doc_edited events capture the `status` at the time the assistant
-// produced the edit (always "pending"). If the user later accepts or rejects,
-// `document_edits.status` is updated but the stored event is not. On chat load
-// we merge the current DB status in so EditCards render with the real state.
-function patchStoredEditEvents(
-  messages: Record<string, unknown>[],
-  statusById: ReadonlyMap<string, "pending" | "accepted" | "rejected">,
-  versionNumberById: ReadonlyMap<string, number | null>,
-) {
-  const withVersionNumber = (row: Record<string, unknown>) =>
-    typeof row.version_id === "string" &&
-    versionNumberById.has(row.version_id)
-      ? {
-          ...row,
-          version_number: versionNumberById.get(row.version_id) ?? null,
-        }
-      : row;
-  const patchAnnList = (list: unknown): unknown => {
-    if (!Array.isArray(list)) return list;
-    return (list as Record<string, unknown>[]).map((annotation) =>
-      withVersionNumber(
-        typeof annotation?.edit_id === "string" &&
-          statusById.has(annotation.edit_id)
-          ? {
-              ...annotation,
-              status: statusById.get(annotation.edit_id),
-            }
-          : annotation,
-      ),
-    );
-  };
-  return messages.map((message) => {
-    if (!Array.isArray(message.content)) return message;
-    return {
-      ...message,
-      content: (message.content as Record<string, unknown>[]).map((event) =>
-        event?.type === "doc_edited"
-          ? withVersionNumber({
-              ...event,
-              annotations: patchAnnList(event.annotations),
-            })
-          : event,
-      ),
-    };
-  });
-}
-
-async function hydrateLocalEditStatuses(
-  messages: Record<string, unknown>[],
-  userId: string,
-) {
-  const documentIds = new Set<string>();
-  for (const message of messages) {
-    if (!Array.isArray(message.content)) continue;
-    for (const event of message.content as Record<string, unknown>[]) {
-      if (
-        event?.type === "doc_edited" &&
-        typeof event.document_id === "string"
-      ) {
-        documentIds.add(event.document_id);
-      }
-    }
-  }
-  if (!documentIds.size) return messages;
-  const rows = await localTrackedEditStatuses(userId, documentIds);
-  return patchStoredEditEvents(
-    messages,
-    new Map(rows.map((row) => [row.editId, row.status])),
-    new Map(rows.map((row) => [row.versionId, row.versionNumber])),
-  );
-}
-
-async function hydrateEditStatuses(
-  messages: Record<string, unknown>[],
-  db: ReturnType<typeof createServerSupabase>,
-): Promise<Record<string, unknown>[]> {
-  const editIds = new Set<string>();
-  const versionIds = new Set<string>();
-  const collectFromAnnList = (list: unknown) => {
-    if (!Array.isArray(list)) return;
-    for (const a of list as Record<string, unknown>[]) {
-      if (typeof a?.edit_id === "string") editIds.add(a.edit_id);
-      if (typeof a?.version_id === "string") versionIds.add(a.version_id);
-    }
-  };
-  for (const m of messages) {
-    const content = m.content;
-    if (Array.isArray(content)) {
-      for (const ev of content as Record<string, unknown>[]) {
-        if (ev?.type === "doc_edited") {
-          collectFromAnnList(ev.annotations);
-          if (typeof ev.version_id === "string") versionIds.add(ev.version_id);
-        }
-      }
-    }
-  }
-  if (editIds.size === 0 && versionIds.size === 0) return messages;
-
-  const statusById = new Map<string, "pending" | "accepted" | "rejected">();
-  if (editIds.size > 0) {
-    const { data: rows } = await db
-      .from("document_edits")
-      .select("id, status")
-      .in("id", Array.from(editIds));
-    for (const r of (rows ?? []) as { id: string; status: string }[]) {
-      if (["pending", "accepted", "rejected"].includes(r.status)) {
-        statusById.set(r.id, r.status as "pending" | "accepted" | "rejected");
-      }
-    }
-  }
-
-  const versionNumberById = new Map<string, number | null>();
-  if (versionIds.size > 0) {
-    const { data: vrows } = await db
-      .from("document_versions")
-      .select("id, version_number")
-      .in("id", Array.from(versionIds));
-    for (const r of (vrows ?? []) as {
-      id: string;
-      version_number: number | null;
-    }[]) {
-      versionNumberById.set(r.id, r.version_number ?? null);
-    }
-  }
-
-  return patchStoredEditEvents(messages, statusById, versionNumberById);
-}
-
-chatRouter.patch("/:chatId", async (req, res) => {
-  const userId = res.locals.userId as string;
-  const userEmail = res.locals.userEmail as string | undefined;
+chatRouter.patch("/:chatId", chatRoute(async (req, res, scope) => {
   const { chatId } = req.params;
   const body =
     req.body && typeof req.body === "object" && !Array.isArray(req.body)
@@ -1845,192 +1491,46 @@ chatRouter.patch("/:chatId", async (req, res) => {
     return void res.status(400).json({ detail: parsedProjectId.detail });
   }
 
-  if (isAnonymousLocalMode()) {
-    const chat = getAnonymousChat(userId, chatId);
-    if (!chat) return void res.status(404).json({ detail: "Chat not found" });
-    if (
-      projectProvided &&
-      parsedProjectId.projectId &&
-      !legalKnowledgeGraphStore().getMatter(
-        userId,
-        parsedProjectId.projectId,
-      )
-    ) {
-      return void res.status(404).json({ detail: "Project not found" });
-    }
-    if (title) updateAnonymousChatTitle(chat, title);
-    if (projectProvided) {
-      updateAnonymousChatProject(chat, parsedProjectId.projectId);
-    }
-    res.json({
-      id: chat.id,
-      title: chat.title,
-      project_id: chat.project_id,
-    });
-    return;
-  }
+  const chat = await chats.update(scope, chatId, {
+    ...(title !== undefined ? { title } : {}),
+    ...(projectProvided ? { projectId: parsedProjectId.projectId } : {}),
+  });
+  if (!chat) return void res.status(404).json({ detail: "Chat not found" });
+  res.json({ id: chat.id, title: chat.title, project_id: chat.project_id });
+}));
 
-  const db = createServerSupabase();
-  const existing = await getAccessibleChat(chatId, userId, userEmail, db, tabularData);
-  if (!existing || existing.user_id !== userId) {
+chatRouter.delete("/:chatId", chatRoute(async (req, res, scope) => {
+  if (!await chats.trash(scope, req.params.chatId)) {
     return void res.status(404).json({ detail: "Chat not found" });
   }
-  if (projectProvided) {
-    const projectAccess = await validateAccessibleProjectId(
-      parsedProjectId.projectId,
-      userId,
-      userEmail,
-      db,
-    );
-    if (!projectAccess.ok) {
-      return void res
-        .status(projectAccess.status)
-        .json({ detail: projectAccess.detail });
-    }
-  }
-  const updates: { title?: string; project_id?: string | null } = {};
-  if (title) updates.title = title;
-  if (projectProvided) updates.project_id = parsedProjectId.projectId;
-  const { data, error } = await db
-    .from("chats")
-    .update(updates)
-    .eq("id", chatId)
-    .eq("user_id", userId)
-    .is("deleted_at", null)
-    .select("id, title, project_id")
-    .single();
+  res.status(204).send();
+}));
 
-  if (error || !data)
+chatRouter.post("/:chatId/restore", chatRoute(async (req, res, scope) => {
+  if (!await chats.restore(scope, req.params.chatId)) {
     return void res.status(404).json({ detail: "Chat not found" });
-  res.json(data);
-});
-
-chatRouter.delete("/:chatId", async (req, res) => {
-  const userId = res.locals.userId as string;
-  const { chatId } = req.params;
-  if (isAnonymousLocalMode()) {
-    if (!deleteAnonymousChat(userId, chatId)) {
-      return void res.status(404).json({ detail: "Chat not found" });
-    }
-    res.status(204).send();
-    return;
   }
-  const db = createServerSupabase();
-  const { data, error } = await db
-    .from("chats")
-    .update({ deleted_at: new Date().toISOString() })
-    .eq("id", chatId)
-    .eq("user_id", userId)
-    .is("deleted_at", null)
-    .select("id")
-    .maybeSingle();
-
-  if (error) return void res.status(500).json({ detail: error.message });
-  if (!data) return void res.status(404).json({ detail: "Chat not found" });
-  abortChatTurnForDeletion(chatId);
   res.status(204).send();
-});
+}));
 
-chatRouter.post("/:chatId/restore", async (req, res) => {
-  const userId = res.locals.userId as string;
-  const { chatId } = req.params;
-  if (isAnonymousLocalMode()) {
-    if (!restoreAnonymousChat(userId, chatId)) {
-      return void res.status(404).json({ detail: "Chat not found" });
-    }
-    res.status(204).send();
-    return;
+chatRouter.delete("/:chatId/permanent", chatRoute(async (req, res, scope) => {
+  if (!await chats.remove(scope, req.params.chatId)) {
+    return void res.status(404).json({ detail: "Chat not found" });
   }
-
-  const db = createServerSupabase();
-  const purge = await purgeExpiredCloudChats(db, userId);
-  if (purge.error) {
-    return void res.status(500).json({ detail: purge.error.message });
-  }
-  const { data, error } = await db
-    .from("chats")
-    .update({ deleted_at: null })
-    .eq("id", chatId)
-    .eq("user_id", userId)
-    .not("deleted_at", "is", null)
-    .select("id")
-    .maybeSingle();
-  if (error) return void res.status(500).json({ detail: error.message });
-  if (!data) return void res.status(404).json({ detail: "Chat not found" });
   res.status(204).send();
-});
+}));
 
-chatRouter.delete("/:chatId/permanent", async (req, res) => {
-  const userId = res.locals.userId as string;
-  const { chatId } = req.params;
-  if (isAnonymousLocalMode()) {
-    if (!permanentlyDeleteAnonymousChat(userId, chatId)) {
-      return void res.status(404).json({ detail: "Chat not found" });
-    }
-    res.status(204).send();
-    return;
-  }
-
-  const db = createServerSupabase();
-  const { data, error } = await db
-    .from("chats")
-    .delete()
-    .eq("id", chatId)
-    .eq("user_id", userId)
-    .not("deleted_at", "is", null)
-    .select("id")
-    .maybeSingle();
-  if (error) return void res.status(500).json({ detail: error.message });
-  if (!data) return void res.status(404).json({ detail: "Chat not found" });
-  res.status(204).send();
-});
-
-chatRouter.post("/:chatId/generate-title", async (req, res) => {
-  const userId = res.locals.userId as string;
-  const userEmail = res.locals.userEmail as string | undefined;
-  const { chatId } = req.params;
+chatRouter.post("/:chatId/generate-title", chatRoute(async (req, res, scope) => {
   const message = trimmedString(req.body?.message);
   if (!message)
     return void res.status(400).json({ detail: "message is required" });
+  const title = await chats.generateTitle(scope, req.params.chatId, message);
+  if (!title) return void res.status(404).json({ detail: "Chat not found" });
+  res.json({ title });
+}));
 
-  if (isAnonymousLocalMode()) {
-    const chat = getAnonymousChat(userId, chatId);
-    if (!chat) return void res.status(404).json({ detail: "Chat not found" });
-    const title = normalizeGeneratedTitle(message);
-    updateAnonymousChatTitle(chat, title);
-    res.json({ title });
-    return;
-  }
-
-  const db = createServerSupabase();
-  const chat = await getAccessibleChat(chatId, userId, userEmail, db, tabularData);
-  if (!chat) return void res.status(404).json({ detail: "Chat not found" });
-
-  try {
-    const { title_model, api_keys } = await getUserModelSettings(userId, db);
-    const titleText = await completeText({
-      model: title_model,
-      user: `Generate a concise title (3–6 words) for a chat in an AI Legal Platform that starts with this message. The title should describe the topic or document — do NOT include words like "Legal Assistant", "AI", "Chat", or any similar prefix. If there is not enough information to generate a title, return exactly "${TITLE_FALLBACK}". Return only the title, no quotes or punctuation.\n\nMessage: ${message.slice(0, 500)}`,
-      maxTokens: 64,
-      apiKeys: api_keys,
-    });
-    const title = normalizeGeneratedTitle(titleText);
-
-    await db
-      .from("chats")
-      .update({ title })
-      .eq("id", chatId)
-      .is("deleted_at", null);
-
-    res.json({ title });
-  } catch (err) {
-    console.error("[generate-title]", safeErrorLog(err));
-    res.status(500).json({ detail: "Failed to generate title" });
-  }
-});
-
-chatRouter.post("/", async (req, res) => {
-  const userId = res.locals.userId as string;
+chatRouter.post("/", chatRoute(async (req, res, scope) => {
+  const { userId, userEmail } = scope;
   const body =
     req.body && typeof req.body === "object" && !Array.isArray(req.body)
       ? (req.body as Record<string, unknown>)
@@ -2258,7 +1758,6 @@ chatRouter.post("/", async (req, res) => {
     messageCount: messages?.length,
   });
 
-  const userEmail = res.locals.userEmail as string | undefined;
   const db = createServerSupabase();
   let chatId = chat_id ?? null;
   let chatTitle: string | null = null;
@@ -2266,7 +1765,7 @@ chatRouter.post("/", async (req, res) => {
   let resolvedTabularReviewId: string | null = parsedTabularReviewId.projectId;
 
   if (chatId) {
-  const existing = await getAccessibleChat(chatId, userId, userEmail, db, tabularData);
+    const existing = await chats.get(scope, chatId);
     if (!existing)
       return void res.status(404).json({ detail: "Chat not found" });
 
@@ -2295,7 +1794,7 @@ chatRouter.post("/", async (req, res) => {
 
   const tabularDetail = resolvedTabularReviewId
     ? await tabularData.detail(
-        { userId, ...(userEmail ? { userEmail } : {}) },
+        scope,
         resolvedTabularReviewId,
       )
     : null;
@@ -2307,33 +1806,11 @@ chatRouter.post("/", async (req, res) => {
     : undefined;
 
   if (!chatId) {
-    // If creating a chat tied to a project, the user must have access
-    // to the project (own or shared).
-    const projectAccess = await validateAccessibleProjectId(
-      resolvedProjectId,
-      userId,
-      userEmail,
-      db,
-    );
-    if (!projectAccess.ok)
-      return void res
-        .status(projectAccess.status)
-        .json({ detail: projectAccess.detail });
-
-    const { data: newChat, error } = await db
-      .from("chats")
-      .insert({
-        user_id: userId,
-        project_id: resolvedProjectId,
-        tabular_review_id: resolvedTabularReviewId,
-      })
-      .select("id, title")
-      .single();
-    if (error || !newChat) {
-      console.error("[chat/stream] failed to create chat", error);
-      return void res.status(500).json({ detail: "Failed to create chat" });
-    }
-    chatId = newChat.id as string;
+    const newChat = await chats.create(scope, {
+      projectId: resolvedProjectId,
+      tabularReviewId: resolvedTabularReviewId,
+    });
+    chatId = newChat.id;
     chatTitle = newChat.title;
   }
 
@@ -2614,7 +2091,7 @@ chatRouter.post("/", async (req, res) => {
     finishChatTurn(chatId, streamAbort);
     res.end();
   }
-});
+}));
 
 return chatRouter;
 }

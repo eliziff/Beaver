@@ -8,7 +8,6 @@ import { legalKnowledgeGraphStore, type LocalMatter } from "./legalKnowledgeGrap
 import { localTabularStore } from "./localTabularStore";
 import {
   deleteAnonymousProjectChats,
-  listAnonymousProjectChats,
 } from "./anonymousChatStore";
 import { normalizeDocumentFilename } from "./normalize";
 import {
@@ -191,15 +190,6 @@ export const localProjects = {
       throw new ProjectStoreError(
         detail.startsWith("Unsupported file type") ? 400 : 500, detail);
     }
-  },
-
-  async chats(scope, projectId) {
-    projectGraph(scope.userId, projectId);
-    return listAnonymousProjectChats(scope.userId, projectId).map(
-      ({ messages: _messages, ...chat }) => ({
-        ...chat, creator_display_name: null,
-      }),
-    );
   },
 
   async createFolder(scope, projectId) {
