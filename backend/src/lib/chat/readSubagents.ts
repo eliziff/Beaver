@@ -460,6 +460,47 @@ export function combineReadSubagentResults(
   };
 }
 
+export async function runReadSubagentRound({
+  calls,
+  admit,
+  runDirect,
+  runReader,
+}: {
+  calls: NormalizedToolCall[];
+  admit: ReturnType<typeof createReadSubagentAdmission>;
+  runDirect: (calls: NormalizedToolCall[]) => Promise<NormalizedToolResult[]>;
+  runReader: (call: NormalizedToolCall) => Promise<NormalizedToolResult>;
+}) {
+  const readers = prepareReadSubagentRound(
+    calls.filter((call) => call.name === READ_SUBAGENT_TOOL_NAME),
+    admit,
+  );
+  const direct = calls.filter((call) => call.name !== READ_SUBAGENT_TOOL_NAME);
+  const results = [
+    ...(direct.length ? await runDirect(direct) : []),
+    ...readers.rejected,
+  ];
+  if (readers.parent) {
+    results.push(
+      combineReadSubagentResults(
+        readers.parent,
+        await Promise.all(readers.assignments.map(runReader)),
+      ),
+    );
+  }
+  return calls.map(
+    (call) =>
+      results.find((result) => result.tool_use_id === call.id) ?? {
+        tool_use_id: call.id,
+        status: "error" as const,
+        content: JSON.stringify({
+          ok: false,
+          error: `Tool '${call.name}' is not available.`,
+        }),
+      },
+  );
+}
+
 const SEARCH_LEDGER_TOOLS = new Set([
   "Glob",
   "Grep",
