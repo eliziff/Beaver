@@ -32,7 +32,7 @@ import {
   createA2AJDocumentEvidence,
   createA2AJLookupEvidence,
   type LegalEvidenceReceipt,
-} from "../../backend/src/lib/chat/legalEvidenceExperiment";
+} from "../../backend/experiments/legal-evidence/legalEvidenceExperiment";
 import {
   withReadonlySqlite,
 } from "../../backend/src/lib/legalDataPath";
@@ -44,7 +44,7 @@ import {
   analyzeOpinionStructure,
   partitionOpinionStructure,
   type OpinionStructure,
-} from "../../backend/src/lib/legalOpinionBoundaries";
+} from "../../backend/experiments/a2aj-decision-roster/legalOpinionBoundaries";
 
 type Role = "majority" | "minority" | "concurring" | "unknown";
 type Provider = "ollama" | "luna" | "dry";

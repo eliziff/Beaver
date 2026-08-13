@@ -8,7 +8,7 @@ import { compileA2AJSourceDoc } from "../../../backend/src/lib/sourceDocA2AJ";
 import {
   analyzeOpinionStructure,
   partitionOpinionStructure,
-} from "../../../backend/src/lib/legalOpinionBoundaries";
+} from "../../../backend/experiments/a2aj-decision-roster/legalOpinionBoundaries";
 import type { Claims } from "../seedtypes";
 
 const rows = readFileSync(path.join(__dirname, "..", "seeds", "1.SCC.jsonl"), "utf8")

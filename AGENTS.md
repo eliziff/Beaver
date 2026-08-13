@@ -12,6 +12,11 @@
 - Test behaviour and durable contracts, not incidental UI copy or implementation presence.
 - Never commit credentials, AppData, downloaded corpora, caches, generated artifacts, or managed runtimes.
 - Do not use metered APIs unless explicitly authorized.
+- Keep experiments in `experiments/` or a package's `experiments/` directory.
+  Experiments may import production; production and its tests must never import
+  experiments. Keep experiment checks beside the experiment, raw output ignored,
+  and durable findings in `RESULTS.md`. Promotion moves proven code and tests into
+  production without a compatibility shim.
 
 Release checks:
 

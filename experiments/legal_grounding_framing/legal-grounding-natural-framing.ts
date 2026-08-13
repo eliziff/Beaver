@@ -14,7 +14,7 @@ import path from "node:path";
 
 import { fetchLocalA2AJDocument } from "../../backend/src/lib/a2ajLocalBulk";
 import { hasCitationInText } from "../../backend/src/lib/citationKey";
-import { contentWordCount, lintLegalClaim } from "../../backend/src/lib/legalClaimLint";
+import { contentWordCount, lintLegalClaim } from "./legalClaimLint";
 import {
   streamChatWithTools,
   type NormalizedLlmUsage,

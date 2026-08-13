@@ -1,7 +1,7 @@
 /** Analyze routed semantic-check receipts without treating them as human gold. */
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
-import { contentWordCount } from "../../backend/src/lib/legalClaimLint";
+import { contentWordCount } from "./legalClaimLint";
 
 type Label = 0 | 1;
 type MatrixClaim = {

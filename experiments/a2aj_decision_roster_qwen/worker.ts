@@ -13,7 +13,7 @@ import { compileA2AJSourceDoc } from "../../backend/src/lib/sourceDocA2AJ";
 import {
   analyzeOpinionStructure,
   partitionOpinionStructure,
-} from "../../backend/src/lib/legalOpinionBoundaries";
+} from "../../backend/experiments/a2aj-decision-roster/legalOpinionBoundaries";
 import type {
   Claims,
   OpinionDelimiter,

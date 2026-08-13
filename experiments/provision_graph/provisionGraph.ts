@@ -24,8 +24,8 @@
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { compileAgreementSkeleton, type AgreementSkeleton, type SkeletonNodeKind } from "./legalTextSkeleton";
-import { crossReferenceGraph, type CrossReferenceGraph } from "./legalCrossReference";
+import { compileAgreementSkeleton, type AgreementSkeleton, type SkeletonNodeKind } from "../../backend/src/lib/legalTextSkeleton";
+import { crossReferenceGraph, type CrossReferenceGraph } from "../../backend/src/lib/legalCrossReference";
 
 // ---------------------------------------------------------------------------
 // Graph types
@@ -155,9 +155,9 @@ function jsStr(s: string): string {
   return JSON.stringify(s);
 }
 
-/** Resolve node_modules relative to the project root (backend/). */
+/** Resolve the experiment's development-only browser dependencies. */
 function vendorPath(relative: string): string {
-  return resolve(__dirname, "..", "..", "node_modules", relative);
+  return resolve(__dirname, "..", "..", "backend", "node_modules", relative);
 }
 
 let _cytoscapeJs: string | null = null;

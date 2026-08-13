@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { compileAgreementSkeleton } from "../legalTextSkeleton";
-import {
-  crossReferenceGraph,
-  definedTermEdges,
-  lexicalOverlapEdges,
-} from "../legalCrossReference";
+import { crossReferenceGraph } from "../legalCrossReference";
 
 /**
  * The agreement fixture is drafted in the mini corpus's own dialect
@@ -172,35 +167,6 @@ describe("crossReferenceGraph — typed refusals", () => {
     expect(ungated.documentAbstained).toBe(false);
     expect(ungated.counts.unresolved).toBeGreaterThan(0);
     expect(ungated.counts.integrity).toBeLessThan(0.5);
-  });
-});
-
-describe("weaker edge classes stay separate", () => {
-  it("runs defined-term edges from the USE to the single definition site", () => {
-    const skeleton = compileAgreementSkeleton(AGREEMENT, "fixture");
-    const edges = definedTermEdges(AGREEMENT, skeleton);
-    const fee = edges.find((e) => e.evidence.includes("Termination Fee"));
-    expect(fee?.targetLabel).toBe("sec7.3");
-    expect(fee?.sourceLabel).toBe("sec1.1");
-  });
-
-  it("reads curly-quoted definitions, which the line-based collector alone misses", () => {
-    const curly = AGREEMENT.replace(/"Termination Fee"/u, "“Termination Fee”");
-    const skeleton = compileAgreementSkeleton(curly, "curly");
-    expect(skeleton.definedTerms).toHaveLength(0);
-    expect(
-      definedTermEdges(curly, skeleton).some((e) =>
-        e.evidence.includes("Termination Fee"),
-      ),
-    ).toBe(true);
-  });
-
-  it("keeps lexical edges out of the literal graph entirely", () => {
-    const skeleton = compileAgreementSkeleton(AGREEMENT, "fixture");
-    const lexical = lexicalOverlapEdges(AGREEMENT, skeleton);
-    for (const edge of lexical) expect(edge.evidence).toMatch(/rare tokens/u);
-    const graph = graphOf(AGREEMENT);
-    expect(graph.edges.every((edge) => !("evidence" in edge))).toBe(true);
   });
 });
 

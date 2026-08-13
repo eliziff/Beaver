@@ -3,9 +3,9 @@ import {
   extractProvisionGraph,
   compileProvisionGraph,
   renderProvisionGraphHtml,
-} from "../legalProvisionGraph";
-import { compileAgreementSkeleton } from "../legalTextSkeleton";
-import { crossReferenceGraph } from "../legalCrossReference";
+} from "../../../experiments/provision_graph/provisionGraph";
+import { compileAgreementSkeleton } from "../../src/lib/legalTextSkeleton";
+import { crossReferenceGraph } from "../../src/lib/legalCrossReference";
 
 const SAMPLE = `ARTICLE I — DEFINITIONS
 

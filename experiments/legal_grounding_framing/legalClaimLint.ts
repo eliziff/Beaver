@@ -1,7 +1,7 @@
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 
-import { withReadonlySqlite } from "./legalDataPath";
+import { withReadonlySqlite } from "../../backend/src/lib/legalDataPath";
 
 /**
  * Deterministic legal-claim lint (research plan workstream C; hypotheses
