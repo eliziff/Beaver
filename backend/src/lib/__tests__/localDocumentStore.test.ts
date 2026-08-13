@@ -27,7 +27,6 @@ afterEach(async () => {
     } catch {}
   }
   delete process.env.MIKE_LOCAL_DATA_DIR;
-  delete process.env.MIKE_EAGER_OFFICE_PDF_RENDITION;
   vi.resetModules();
   if (temporaryDirectory) {
     await rm(temporaryDirectory, { recursive: true, force: true });
@@ -80,10 +79,9 @@ describe("local document store", () => {
     }
   });
 
-  it("defers an Office PDF rendition until a PDF read requests it", async () => {
+  it("renders an Office document only when a PDF read requests it", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-local-store-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
-    process.env.MIKE_EAGER_OFFICE_PDF_RENDITION = "0";
     mocks.docxToPdf.mockClear();
     const store = await import("../localDocumentStore");
 

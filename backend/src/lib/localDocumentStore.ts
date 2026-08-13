@@ -271,33 +271,48 @@ async function ensureLocalPdfRendition(
   documentId: string,
   versionId?: string | null,
 ) {
-  return mutateDatabase(async (database) => {
-    const document = databaseDocument(database, userId, documentId);
-    if (!document) return;
-    const version = versionId
-      ? document.versions.find((item) => item.id === versionId)
-      : activeVersion(document);
-    if (
-      !version ||
-      version.pdfStoragePath ||
-      !shouldConvertToPdf(version.fileType)
-    ) {
-      return;
-    }
+  const document = await getLocalDocument(userId, documentId);
+  if (!document) return;
+  const version = versionId
+    ? document.versions.find((item) => item.id === versionId)
+    : activeVersion(document);
+  if (
+    !version ||
+    version.pdfStoragePath ||
+    !shouldConvertToPdf(version.fileType)
+  ) {
+    return;
+  }
 
-    const pdf = await docxToPdf(
-      await readFile(absoluteDataPath(version.storagePath)),
+  const sourceSha256 = version.sourceSha256;
+  const sourcePath = version.storagePath;
+  const pdf = await docxToPdf(
+    await readFile(absoluteDataPath(version.storagePath)),
+  );
+  const relativePath = path.join(
+    "files",
+    documentId,
+    `${version.id}-${sha256(pdf).slice(0, 16)}.pdf`,
+  );
+  await writeFile(absoluteDataPath(relativePath), pdf);
+  const referenced = await mutateDatabase((database) => {
+    const current = databaseDocument(database, userId, documentId);
+    const currentVersion = current?.versions.find(
+      (item) => item.id === version.id,
     );
-    const hash = sha256(pdf);
-    const relativePath = path.join(
-      "files",
-      documentId,
-      `${version.id}-${hash.slice(0, 16)}.pdf`,
-    );
-    await writeFile(absoluteDataPath(relativePath), pdf);
-    version.pdfStoragePath = relativePath;
-    saveDocument(database, document);
+    if (
+      !current ||
+      !currentVersion ||
+      currentVersion.sourceSha256 !== sourceSha256 ||
+      currentVersion.storagePath !== sourcePath
+    ) {
+      return currentVersion?.pdfStoragePath === relativePath;
+    }
+    currentVersion.pdfStoragePath ??= relativePath;
+    saveDocument(database, current);
+    return currentVersion.pdfStoragePath === relativePath;
   });
+  if (!referenced) await rm(absoluteDataPath(relativePath), { force: true });
 }
 
 function suffixFor(filename: string) {
@@ -341,28 +356,12 @@ async function writeVersionFiles(
   await mkdir(absoluteDataPath(relativeDirectory), { recursive: true });
   await writeFile(absoluteDataPath(relativeSource), bytes);
 
-  let relativePdf: string | null = suffix === "pdf" ? relativeSource : null;
-  if (
-    shouldConvertToPdf(suffix) &&
-    process.env.MIKE_EAGER_OFFICE_PDF_RENDITION !== "0"
-  ) {
-    try {
-      const pdf = await docxToPdf(bytes);
-      const pdfHash = sha256(pdf);
-      relativePdf = path.join(
-        relativeDirectory,
-        `${versionId}-${pdfHash.slice(0, 16)}.pdf`,
-      );
-      await writeFile(absoluteDataPath(relativePdf), pdf);
-    } catch (error) {
-      console.warn("[local-library] Office to PDF conversion unavailable", {
-        filename,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }
-
-  return { suffix, relativeSource, relativePdf, sourceSha256 };
+  return {
+    suffix,
+    relativeSource,
+    relativePdf: suffix === "pdf" ? relativeSource : null,
+    sourceSha256,
+  };
 }
 
 async function localDocumentResponse(document: LocalDocument) {
