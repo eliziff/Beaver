@@ -2669,16 +2669,11 @@ async function runCodingShapeCall(
             input: { document_id: meta.id, ops: args.ops },
           },
         ],
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        allowedDocumentIds,
-        undefined,
-        undefined,
-        undefined,
-        turnEditState,
-        turnReadState,
+        {
+          allowedDocumentIds,
+          edits: turnEditState,
+          reads: turnReadState,
+        },
       );
       if (requirementsState && applied.status !== "error") {
         requirementsState.sourceEditCount += 1;
@@ -2727,16 +2722,11 @@ async function runCodingShapeCall(
             },
           },
         ],
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        allowedDocumentIds,
-        undefined,
-        undefined,
-        undefined,
-        turnEditState,
-        turnReadState,
+        {
+          allowedDocumentIds,
+          edits: turnEditState,
+          reads: turnReadState,
+        },
       );
       const receiptText = applied.mutationReceipt ?? applied.content;
       try {
@@ -4390,21 +4380,38 @@ async function localTextDocuments(
   }));
 }
 
+export type LocalAssistantToolOptions = {
+  a2ajLookups?: A2AJLocatorLookup[];
+  a2ajDocuments?: A2AJDocument[];
+  courtlistener?: CourtlistenerToolState;
+  publicLegal?: PublicLegalSourceState;
+  allowedDocumentIds?: Set<string>;
+  pdfHandles?: Set<string>;
+  matterId?: string | null;
+  legalEvidence?: LegalEvidenceTurnState;
+  edits?: LocalAssistantEditTurnState;
+  reads?: LocalAssistantReadTurnState;
+  workingSets?: LocalAssistantWorkingSetTurnState;
+  requirements?: LocalAssistantRequirementsState;
+};
+
 export async function runLocalAssistantTools(
   userId: string,
   calls: NormalizedToolCall[],
-  a2ajLookups?: A2AJLocatorLookup[],
-  a2ajDocuments?: A2AJDocument[],
-  courtlistenerState?: CourtlistenerToolState,
-  publicLegalState?: PublicLegalSourceState,
-  allowedDocumentIds?: Set<string>,
-  localPdfEvidenceHandles?: Set<string>,
-  matterId?: string | null,
-  legalEvidenceState?: LegalEvidenceTurnState,
-  turnEditState?: LocalAssistantEditTurnState,
-  turnReadState?: LocalAssistantReadTurnState,
-  workingSets?: LocalAssistantWorkingSetTurnState,
-  requirementsState?: LocalAssistantRequirementsState,
+  {
+    a2ajLookups,
+    a2ajDocuments,
+    courtlistener: courtlistenerState,
+    publicLegal: publicLegalState,
+    allowedDocumentIds,
+    pdfHandles: localPdfEvidenceHandles,
+    matterId,
+    legalEvidence: legalEvidenceState,
+    edits: turnEditState,
+    reads: turnReadState,
+    workingSets,
+    requirements: requirementsState,
+  }: LocalAssistantToolOptions = {},
 ): Promise<NormalizedToolResult[]> {
   const publicState = publicLegalState ?? createPublicLegalSourceState();
   // Per-turn cache for the derived SECT-INDEX (F5): .docx extraction + skeleton
