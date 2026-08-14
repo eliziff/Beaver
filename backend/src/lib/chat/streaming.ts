@@ -33,7 +33,6 @@ import type {
   DocIndex,
   DocStore,
   TabularCellStore,
-  ToolCall,
   WorkflowStore,
 } from "./types";
 import type { LegalEvidenceReceipt, LegalEvidenceTurnState } from "./legalEvidence";
@@ -46,26 +45,18 @@ export {
 
 function normalizedToolResults(
   calls: NormalizedToolCall[],
-  rows: unknown[],
+  rows: NormalizedToolResult[],
 ): NormalizedToolResult[] {
-  const byId = new Map(rows.map((item) => {
-    const row = item as {
-      tool_call_id: string;
-      content?: unknown;
-      terminal?: unknown;
-    };
-    return [row.tool_call_id, row] as const;
-  }));
+  const byId = new Map(rows.map((row) => [row.tool_use_id, row]));
   return calls.map((call) => {
     const row = byId.get(call.id);
-    return hideLegalSourceUrls(call.name, {
+    return hideLegalSourceUrls(call.name, row ?? {
       tool_use_id: call.id,
-      status: row ? "ok" : "error",
-      content: String(row?.content ?? "") || JSON.stringify({
+      status: "error",
+      content: JSON.stringify({
         ok: false,
         error: `Tool '${call.name}' is not available.`,
       }),
-      terminal: row?.terminal === true,
     });
   });
 }
@@ -161,12 +152,8 @@ export async function runLLMStream({
     const courtState = { casesByClusterId: new Map() };
     const publicState = createPublicLegalSourceState();
     return async (calls, context) => {
-      const toolCalls: ToolCall[] = calls.map((call) => ({
-        id: call.id,
-        function: { name: call.name, arguments: JSON.stringify(call.input) },
-      }));
       const dispatched = await runToolCalls(
-        toolCalls,
+        calls,
         docStore,
         userId,
         db,
