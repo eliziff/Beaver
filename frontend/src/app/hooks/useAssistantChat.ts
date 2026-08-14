@@ -290,6 +290,7 @@ export function useAssistantChat({
       const model = message.model ?? readSelectedModel();
       const reasoningEffort =
         message.reasoningEffort ?? readSelectedReasoningEffort();
+      const editMode = message.editMode ?? "manual";
       const readSubagents = readReadSubagentPreference();
       const displayedDoc = turnOptions?.displayedDoc ?? null;
       const attachedDocs = (
@@ -324,6 +325,7 @@ export function useAssistantChat({
         tabular_review_id: tabularReviewId,
         model,
         reasoning_effort: reasoningEffort,
+        edit_mode: editMode,
         jurisdiction_preference: jurisdictionPreferenceForChat(),
         subagent_mode:
           readSubagents.mode === "native" && !model.startsWith("codex:")

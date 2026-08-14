@@ -136,6 +136,7 @@ describe("local document version replacement", () => {
             insertedText: change.insertedText,
             contextBefore: change.contextBefore,
             contextAfter: change.contextAfter,
+            diff: change.diff,
             status: "pending",
           },
         ],
@@ -204,6 +205,7 @@ describe("local document version replacement", () => {
           version_id: version!.id,
           version_number: 2,
           download_url: accepted.body.download_url,
+          edit_mode: "manual",
           annotations: [
             {
               kind: "edit",
@@ -214,6 +216,7 @@ describe("local document version replacement", () => {
               change_id: change.id,
               deleted_text: "Original",
               inserted_text: "Revised",
+              diff: change.diff,
               status: "pending",
             },
           ],

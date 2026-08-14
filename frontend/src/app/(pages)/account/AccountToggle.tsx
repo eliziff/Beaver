@@ -13,6 +13,7 @@ export function AccountToggle({
     onChange,
     size = "sm",
     label,
+    ariaLabel,
     className,
 }: {
     checked: boolean;
@@ -21,6 +22,7 @@ export function AccountToggle({
     onChange: (checked: boolean) => void;
     size?: keyof typeof sizes;
     label?: string;
+    ariaLabel?: string;
     className?: string;
 }) {
     const style = sizes[size];
@@ -29,10 +31,11 @@ export function AccountToggle({
             type="button"
             role="switch"
             aria-checked={checked}
+            aria-label={ariaLabel ?? label}
             disabled={disabled || loading}
             onClick={() => onChange(!checked)}
             className={cn(
-                "relative shrink-0 rounded-full p-0.5 disabled:cursor-not-allowed disabled:opacity-40",
+                "relative shrink-0 rounded-full p-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 disabled:cursor-not-allowed disabled:opacity-40",
                 checked ? "bg-emerald-600" : "bg-gray-200",
                 style.track,
             )}

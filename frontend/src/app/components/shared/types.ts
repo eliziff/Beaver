@@ -105,6 +105,10 @@ export interface EditAnnotation {
   context_before?: string;
   context_after?: string;
   reason?: string;
+  diff: {
+    kind: "equal" | "delete" | "insert";
+    text: string;
+  }[];
   status: "pending" | "accepted" | "rejected";
 }
 export type EditResolveStart = {
@@ -242,6 +246,7 @@ export type AssistantEvent =
       version_id: string;
       version_number?: number | null;
       download_url: string;
+      edit_mode: "manual" | "auto";
       annotations: EditAnnotation[];
       error?: string;
     }>
@@ -426,6 +431,7 @@ export interface Message {
   workflow?: { id: string; title: string };
   model?: string;
   reasoningEffort?: string;
+  editMode?: "manual" | "auto";
   citations?: Citation[];
   citationStatus?: "started" | "partial" | "final";
   events?: AssistantEvent[];

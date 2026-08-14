@@ -4,6 +4,7 @@ import {
   applyTrackedEdits,
   extractDocxBodyText,
   extractTrackedChangeIds,
+  finalizeTrackedEdits,
   insertTrackedBlocks,
   resolveTrackedChange,
 } from "../docxTrackedChanges";
@@ -34,6 +35,18 @@ describe("applyTrackedEdits minimal clusters", () => {
     expect(edit.changes[0].deletedText).toContain("3");
     expect(edit.changes[0].deletedText).toContain("i");
     expect(edit.changes[0].insertedText).toBe("y");
+    expect(
+      edit.changes[0].diff
+        .filter(({ kind }) => kind !== "insert")
+        .map(({ text }) => text)
+        .join(""),
+    ).toBe("at paras 332-334 and the answer in R v Smith");
+    expect(
+      edit.changes[0].diff
+        .filter(({ kind }) => kind !== "delete")
+        .map(({ text }) => text)
+        .join(""),
+    ).toBe("at paras 332-34 and the answer in R v Smyth");
     const revisionIds = await extractTrackedChangeIds(edit.bytes);
     expect(
       new Set(revisionIds.map((revision) => `${revision.kind}:${revision.w_id}`))
@@ -60,6 +73,37 @@ describe("applyTrackedEdits minimal clusters", () => {
     expect(edit.changes).toHaveLength(1);
     expect(edit.changes[0].deletedText).toBe("plaintiff");
     expect(edit.changes[0].insertedText).toBe("defendant");
+  });
+
+  it("makes Auto output equal to accepting the Manual edit plan", async () => {
+    const bytes = await draft("The initial term is five years.");
+    const edit = await applyTrackedEdits(bytes, [{
+      find: "initial term is five years",
+      replace: "renewal term is three years",
+      context_before: "The ",
+      context_after: ".",
+    }]);
+    const ids = edit.changes.flatMap((change) =>
+      [change.delId, change.insId].filter((id): id is string => !!id),
+    );
+
+    const manual = await finalizeTrackedEdits(edit.bytes, ids, "manual");
+    const automatic = await finalizeTrackedEdits(edit.bytes, ids, "auto");
+    const accepted = await resolveTrackedChange(manual.bytes, ids, "accept");
+    const incomplete = await resolveTrackedChange(
+      manual.bytes,
+      [...ids, "missing-revision"],
+      "accept",
+    );
+
+    expect(manual.status).toBe("pending");
+    expect(await extractTrackedChangeIds(manual.bytes)).not.toHaveLength(0);
+    expect(incomplete).toEqual({ bytes: manual.bytes, found: false });
+    expect(automatic.status).toBe("accepted");
+    expect(await extractTrackedChangeIds(automatic.bytes)).toHaveLength(0);
+    expect(await extractDocxBodyText(automatic.bytes)).toBe(
+      await extractDocxBodyText(accepted.bytes),
+    );
   });
 
   it("tracks one shape-preserving edit across adjacent paragraphs", async () => {

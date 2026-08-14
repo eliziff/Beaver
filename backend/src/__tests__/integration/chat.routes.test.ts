@@ -87,12 +87,14 @@ describe("POST /chat — streaming endpoint", () => {
         const res = await request(app)
             .post("/chat")
             .set("Authorization", "Bearer test")
-            .send(VALID_BODY);
+            .send({ ...VALID_BODY, edit_mode: "auto" });
 
         expect(res.status).toBe(200);
         expect(res.headers["content-type"]).toContain("text/event-stream");
         expect(res.text).toContain('"type":"chat_id"');
-        expect(runLLMStream).toHaveBeenCalledTimes(1);
+        expect(runLLMStream).toHaveBeenCalledWith(
+            expect.objectContaining({ editMode: "auto" }),
+        );
     });
 
     it("surfaces a stream failure as an in-stream error event, not an HTTP error", async () => {
@@ -139,6 +141,17 @@ describe("POST /chat — streaming endpoint", () => {
 
         expect(res.status).toBe(400);
         expect(res.body.detail).toBe("chat_id must be a non-empty string");
+        expect(runLLMStream).not.toHaveBeenCalled();
+    });
+
+    it("rejects an unknown edit mode before starting a stream", async () => {
+        const res = await request(app)
+            .post("/chat")
+            .set("Authorization", "Bearer test")
+            .send({ ...VALID_BODY, edit_mode: "direct" });
+
+        expect(res.status).toBe(400);
+        expect(res.body.detail).toBe("edit_mode must be manual or auto");
         expect(runLLMStream).not.toHaveBeenCalled();
     });
 });

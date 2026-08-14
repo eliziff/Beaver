@@ -41,7 +41,7 @@ import {
 } from "../types";
 import { normalizeAskInputsEvent } from "../askInputs";
 import { readTabularCells } from "../tabularCells";
-import { type EditInput } from "../../docxTrackedChanges";
+import { type EditInput, type EditMode } from "../../docxTrackedChanges";
 import { resolveDocxEvidenceCitations } from "../../docxEvidenceCitations";
 import {
   assignmentClosureCandidates,
@@ -67,6 +67,24 @@ import {
 } from "./documentOps";
 
 export type CourtlistenerTurnState = CourtlistenerToolState;
+
+export type ToolCallOptions = {
+  docStore: DocStore;
+  userId: string;
+  db: ReturnType<typeof createServerSupabase>;
+  emit: (payload: unknown) => void;
+  workflowStore?: WorkflowStore;
+  tabularStore?: TabularCellStore;
+  docIndex?: DocIndex;
+  editState?: TurnEditState;
+  readState?: TurnReadState;
+  projectId?: string | null;
+  courtlistener?: CourtlistenerTurnState;
+  apiKeys?: import("../../llm").UserApiKeys;
+  publicLegal?: PublicLegalSourceState;
+  legalEvidence?: LegalEvidenceTurnState;
+  editMode?: EditMode;
+};
 
 type CapturedDocumentSource = {
   text: string;
@@ -121,20 +139,23 @@ export { readTabularCells };
 
 export async function runToolCalls(
   toolCalls: NormalizedToolCall[],
-  docStore: DocStore,
-  userId: string,
-  db: ReturnType<typeof createServerSupabase>,
-  emit: (payload: unknown) => void,
-  workflowStore?: WorkflowStore,
-  tabularStore?: TabularCellStore,
-  docIndex?: DocIndex,
-  turnEditState?: TurnEditState,
-  turnReadState?: TurnReadState,
-  projectId?: string | null,
-  courtlistenerState?: CourtlistenerTurnState,
-  apiKeys?: import("../../llm").UserApiKeys,
-  publicLegalState?: PublicLegalSourceState,
-  legalEvidenceState?: LegalEvidenceTurnState,
+  {
+    docStore,
+    userId,
+    db,
+    emit,
+    workflowStore,
+    tabularStore,
+    docIndex,
+    editState: turnEditState,
+    readState: turnReadState,
+    projectId,
+    courtlistener: courtlistenerState,
+    apiKeys,
+    publicLegal: publicLegalState,
+    legalEvidence: legalEvidenceState,
+    editMode = "manual",
+  }: ToolCallOptions,
 ): Promise<{
   toolResults: NormalizedToolResult[];
   docsRead: { filename: string; document_id?: string }[];
@@ -737,6 +758,7 @@ export async function runToolCalls(
           edits,
           db,
           reuseVersion,
+          editMode,
         });
 
         if (result.ok) {
@@ -785,6 +807,7 @@ export async function runToolCalls(
             version_id: result.version_id,
             version_number: result.version_number,
             download_url: result.download_url,
+            edit_mode: result.edit_mode,
             annotations: result.annotations,
           };
           docsEdited.push(payload);

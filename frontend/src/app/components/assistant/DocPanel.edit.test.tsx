@@ -54,6 +54,10 @@ const edit: EditAnnotation = {
     change_id: "change-1",
     deleted_text: "Deleted original",
     inserted_text: "Inserted replacement",
+    diff: [
+        { kind: "delete", text: "Deleted original" },
+        { kind: "insert", text: "Inserted replacement" },
+    ],
     reason: "This repeats what the redline already shows.",
     status: "pending",
 };

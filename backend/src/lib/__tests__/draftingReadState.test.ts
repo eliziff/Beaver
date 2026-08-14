@@ -55,31 +55,30 @@ describe("drafting read state", () => {
           },
         },
       ],
-      new Map([
-        [
-          "doc-0",
-          {
-            storage_path: "documents/source.docx",
-            file_type: "docx",
-            filename: "source.docx",
-          },
-        ],
-      ]),
-      "user-1",
-      {} as Parameters<typeof runToolCalls>[3],
-      () => {},
-      undefined,
-      undefined,
       {
-        "doc-0": {
-          document_id: "document-1",
-          filename: "source.docx",
-          version_id: "version-1",
-          version_number: 1,
+        docStore: new Map([
+          [
+            "doc-0",
+            {
+              storage_path: "documents/source.docx",
+              file_type: "docx",
+              filename: "source.docx",
+            },
+          ],
+        ]),
+        userId: "user-1",
+        db: {} as Parameters<typeof runToolCalls>[1]["db"],
+        emit: () => {},
+        docIndex: {
+          "doc-0": {
+            document_id: "document-1",
+            filename: "source.docx",
+            version_id: "version-1",
+            version_number: 1,
+          },
         },
+        readState: turnReadState,
       },
-      undefined,
-      turnReadState,
     );
 
     expect(mocks.downloadFile).toHaveBeenCalledTimes(2);

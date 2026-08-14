@@ -15,6 +15,7 @@ import { cn } from "@/app/lib/utils";
 import { uploadStandaloneDocument } from "@/app/lib/beaverApi";
 import { formatUnsupportedDocumentWarning, partitionSupportedDocumentFiles } from "@/app/lib/documentUploadValidation";
 import { CHAT_DOCUMENT_DRAG_TYPE } from "@/app/components/documents/documentTree";
+import { useShowAutoMode } from "./editModePreference";
 type Workflow = NonNullable<Message["workflow"]>;
 
 function mergeDocuments(...groups: Document[][]) {
@@ -85,6 +86,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
     const [model, setModel] = useSelectedModel();
     const [reasoningEffort, setReasoningEffort] = useSelectedReasoningEffort();
+    const showAutoMode = useShowAutoMode();
+    const [editMode, setEditMode] = useState<"manual" | "auto">("manual");
     const { profile } = useUserProfile();
     const apiKeys = profile?.apiKeys;
     const textareaId = useId();
@@ -251,6 +254,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
             workflow: selectedWorkflow ?? undefined,
             model,
             reasoningEffort,
+            editMode: showAutoMode ? editMode : "manual",
         });
     };
     const documentButtonLabel = attachedDocs.length
@@ -443,6 +447,37 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                             </div>
                         )}
                         <div className="chat-input-actions ml-auto flex min-w-0 items-center justify-end gap-1">
+                            {showAutoMode && (
+                                <button
+                                    type="button"
+                                    aria-pressed={editMode === "auto"}
+                                    aria-label={`Editing mode: ${
+                                        editMode === "auto"
+                                            ? "Auto Mode"
+                                            : "Manual Mode"
+                                    }`}
+                                    title={
+                                        editMode === "auto"
+                                            ? "Edits are applied immediately and shown as a diff"
+                                            : "Edits are saved as tracked changes for review"
+                                    }
+                                    onClick={() =>
+                                        setEditMode((mode) =>
+                                            mode === "auto" ? "manual" : "auto",
+                                        )
+                                    }
+                                    className={cn(
+                                        "h-8 shrink-0 rounded-lg border px-2 text-xs font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900",
+                                        editMode === "auto"
+                                            ? "border-gray-950 bg-gray-950 text-white"
+                                            : "border-gray-200 bg-white text-gray-600 hover:text-gray-900",
+                                    )}
+                                >
+                                    {editMode === "auto"
+                                        ? "Auto Mode"
+                                        : "Manual Mode"}
+                                </button>
+                            )}
                             <div className="chat-input-model min-w-0">
                                 <ModelEffortToggle
                                     model={model}

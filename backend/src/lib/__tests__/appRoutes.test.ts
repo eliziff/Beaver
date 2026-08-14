@@ -82,39 +82,36 @@ describe("appUrl", () => {
           input: {},
         },
       ],
-      new Map([
-        [
-          "doc-0",
-          {
-            filename: "Agreement.docx",
-            file_type: "docx",
-            storage_path: "unused",
-          },
-        ],
-      ]),
-      "user-1",
-      null as never,
-      () => undefined,
-      new Map([
-        [
-          "workflow-1",
-          { title: "Proofread", skill_md: "# Proofread" },
-        ],
-      ]),
       {
-        app_url: "/tabular-reviews/review-1",
-        columns: [],
-        documents: [],
-        cells: new Map(),
+        docStore: new Map([
+          [
+            "doc-0",
+            {
+              filename: "Agreement.docx",
+              file_type: "docx",
+              storage_path: "unused",
+            },
+          ],
+        ]),
+        userId: "user-1",
+        db: null as never,
+        emit: () => undefined,
+        workflowStore: new Map([
+          [
+            "workflow-1",
+            { title: "Proofread", skill_md: "# Proofread" },
+          ],
+        ]),
+        tabularStore: {
+          app_url: "/tabular-reviews/review-1",
+          columns: [],
+          documents: [],
+          cells: new Map(),
+        },
+        docIndex: {},
+        projectId: "matter-1",
+        legalEvidence: createLegalEvidenceTurnState(),
       },
-      {},
-      undefined,
-      undefined,
-      "matter-1",
-      undefined,
-      undefined,
-      undefined,
-      createLegalEvidenceTurnState(),
     );
     const results = output.toolResults;
 

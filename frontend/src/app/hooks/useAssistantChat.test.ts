@@ -162,11 +162,15 @@ describe("useAssistantChat local transcript boundary", () => {
       await result.current.handleChat({
         role: "user",
         content: "Compare these sources",
+        editMode: "auto",
       });
     });
 
     expect(mocks.streamChat).toHaveBeenCalledWith(
-      expect.objectContaining({ subagent_mode: "beaver" }),
+      expect.objectContaining({
+        subagent_mode: "beaver",
+        edit_mode: "auto",
+      }),
     );
   });
 
@@ -975,6 +979,10 @@ describe("useAssistantChat local transcript boundary", () => {
       ins_w_id: "9",
       deleted_text: "Original",
       inserted_text: "Revised",
+      diff: [
+        { kind: "delete" as const, text: "Original" },
+        { kind: "insert" as const, text: "Revised" },
+      ],
       context_before: "",
       context_after: " provision.",
       status: "pending" as const,
@@ -996,6 +1004,7 @@ describe("useAssistantChat local transcript boundary", () => {
           version_number: 2,
           download_url:
             "/single-documents/document-1/file?version_id=version-2",
+          edit_mode: "manual",
           annotations: [annotation],
         },
         {
@@ -1027,6 +1036,7 @@ describe("useAssistantChat local transcript boundary", () => {
       version_number: 2,
       download_url:
         "/single-documents/document-1/file?version_id=version-2",
+      edit_mode: "manual",
       annotations: [annotation],
       isStreaming: false,
     });

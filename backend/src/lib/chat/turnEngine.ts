@@ -84,6 +84,7 @@ export type AssistantEvent =
       version_id: string;
       version_number: number | null;
       download_url: string;
+      edit_mode: "manual" | "auto";
       annotations: EditAnnotation[];
     }
   | CaseCitationEvent

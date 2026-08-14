@@ -36,6 +36,7 @@ import type {
   WorkflowStore,
 } from "./types";
 import type { LegalEvidenceReceipt, LegalEvidenceTurnState } from "./legalEvidence";
+import type { EditMode } from "../docxTrackedChanges";
 
 export {
   AssistantStreamError,
@@ -83,6 +84,7 @@ export async function runLLMStream({
   subagentEffort,
   jurisdictionPreference = null,
   activityDetail = "auto",
+  editMode = "manual",
   priorLegalEvidence = [],
   onFinish,
 }: {
@@ -107,6 +109,7 @@ export async function runLLMStream({
   subagentEffort?: string;
   jurisdictionPreference?: JurisdictionPreference | null;
   activityDetail?: "auto" | "standard" | "tools" | "trace";
+  editMode?: EditMode;
   priorLegalEvidence?: LegalEvidenceReceipt[];
   onFinish?: (result: ChatTurnResult) => Promise<void> | void;
 }) {
@@ -154,20 +157,23 @@ export async function runLLMStream({
     return async (calls, context) => {
       const dispatched = await runToolCalls(
         calls,
-        docStore,
-        userId,
-        db,
-        scope === "main" ? context.emit : () => undefined,
-        workflowStore,
-        tabularStore,
-        docIndex,
-        editState,
-        readState,
-        projectId,
-        courtState,
-        apiKeys,
-        publicState,
-        context.evidence,
+        {
+          docStore,
+          userId,
+          db,
+          emit: scope === "main" ? context.emit : () => undefined,
+          workflowStore,
+          tabularStore,
+          docIndex,
+          editState,
+          readState,
+          projectId,
+          courtlistener: courtState,
+          apiKeys,
+          publicLegal: publicState,
+          legalEvidence: context.evidence,
+          editMode,
+        },
       );
       if (scope === "main") {
         for (const event of [

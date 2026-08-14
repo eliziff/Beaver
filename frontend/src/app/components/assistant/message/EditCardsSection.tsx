@@ -8,17 +8,19 @@ type PendingEdit = { annotation: EditAnnotation; filename: string };
 
 function BulkEditActions({
     pending,
+    disabled,
     onViewClick,
     ...handlers
 }: {
     pending: PendingEdit[];
+    disabled?: boolean;
     onViewClick?: (annotation: EditAnnotation, filename: string) => void;
 } & EditResolveHandlers) {
     const [busy, setBusy] = useState<"accept" | "reject" | null>(null);
     const [done, setDone] = useState(0);
 
     const resolveAll = async (verb: "accept" | "reject") => {
-        if (busy) return;
+        if (busy || disabled) return;
         setBusy(verb);
         try {
             for (const [index, { annotation }] of pending.entries()) {
@@ -38,7 +40,7 @@ function BulkEditActions({
                 tone="black"
                 size="sm"
                 onClick={() => resolveAll("accept")}
-                disabled={!!busy}
+                disabled={disabled || !!busy}
             >
                 {busy === "accept" && (
                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -49,7 +51,7 @@ function BulkEditActions({
                 tone="white"
                 size="sm"
                 onClick={() => resolveAll("reject")}
-                disabled={!!busy}
+                disabled={disabled || !!busy}
             >
                 {busy === "reject" && (
                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -83,6 +85,8 @@ export function EditCardsSection({
     documentCount,
     cards,
     resolvedCount,
+    automatic = false,
+    disabled = false,
     onViewClick,
     ...handlers
 }: {
@@ -90,12 +94,14 @@ export function EditCardsSection({
     documentCount: number;
     cards: ReactNode[];
     resolvedCount: number;
+    automatic?: boolean;
+    disabled?: boolean;
     onViewClick?: (annotation: EditAnnotation, filename: string) => void;
 } & EditResolveHandlers) {
     const [open, setOpen] = useState(true);
 
     const count = pending.length || resolvedCount;
-    const summary = `${count} ${pending.length ? "tracked" : "resolved tracked"} ${
+    const summary = `${count} ${automatic ? "applied" : pending.length ? "tracked" : "resolved tracked"} ${
         count === 1 ? "change" : "changes"
     }${documentCount > 1 ? ` across ${documentCount} documents` : ""}`;
 
@@ -119,6 +125,7 @@ export function EditCardsSection({
                 <div className="px-3 pt-3">
                     <BulkEditActions
                         pending={pending}
+                        disabled={disabled}
                         onViewClick={onViewClick}
                         {...handlers}
                     />
