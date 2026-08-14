@@ -165,12 +165,7 @@ describe("provider PDF consumers", () => {
           },
         },
       ],
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      handles,
+      { pdfHandles: handles },
     );
     expect(JSON.parse(queued.content)).toMatchObject({
       ok: false,
@@ -191,12 +186,7 @@ describe("provider PDF consumers", () => {
           },
         },
       ],
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      handles,
+      { pdfHandles: handles },
     );
     const payload = JSON.parse(resolved.content);
     expect(payload).toMatchObject({
@@ -232,12 +222,7 @@ describe("provider PDF consumers", () => {
           input: { reference_id: sourceReference, handle },
         },
       ],
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      handles,
+      { pdfHandles: handles },
     );
     expect(JSON.parse(rehydrated.content).reference_id).toBe(sourceReference);
     expect(rehydrateProviderPdfReference).toHaveBeenCalledWith(

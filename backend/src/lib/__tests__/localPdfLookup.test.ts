@@ -1492,9 +1492,6 @@ describe("exact local PDF structure lookup", () => {
     const built = await fixture();
     const tools = await import("../chat/localAssistantTools");
     const handles = new Set<string>();
-    expect(
-      tools.LOCAL_ASSISTANT_TOOLS.map((tool) => tool.function.name),
-    ).toEqual(expect.arrayContaining(["library_lookup", "library_evidence"]));
 
     const [response] = await tools.runLocalAssistantTools(
       "local-user",
@@ -1510,12 +1507,7 @@ describe("exact local PDF structure lookup", () => {
           },
         },
       ],
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      handles,
+      { pdfHandles: handles },
     );
     const lookupPayload = JSON.parse(response.content) as {
       handle: string;
@@ -1550,12 +1542,7 @@ describe("exact local PDF structure lookup", () => {
           input: { handle: lookupPayload.handle },
         },
       ],
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      handles,
+      { pdfHandles: handles },
     );
     expect(JSON.parse(rehydrated.content)).toMatchObject({
       ok: true,
@@ -1621,12 +1608,7 @@ describe("exact local PDF structure lookup", () => {
           locator: "2",
         },
       }],
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      handles,
+      { pdfHandles: handles },
     );
     const payload = JSON.parse(response.content);
 

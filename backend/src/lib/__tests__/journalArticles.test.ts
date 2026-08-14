@@ -408,10 +408,7 @@ describe("local journal articles", () => {
           },
         },
       ],
-      undefined,
-      undefined,
-      undefined,
-      state,
+      { publicLegal: state },
     );
     const modelSearchPayload = JSON.parse(searchResult.content);
     expect(modelSearchPayload.results[0]).toMatchObject({
@@ -449,10 +446,7 @@ describe("local journal articles", () => {
           },
         },
       ],
-      undefined,
-      undefined,
-      undefined,
-      state,
+      { publicLegal: state },
     );
     const answer =
       'The article says "first quoted phrase" and "second quoted phrase" [1].';

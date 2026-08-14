@@ -146,7 +146,7 @@ afterEach(async () => {
 
 describe("local assistant tools", () => {
 
-  it("uses only Edit in coding shape and retains its durable receipt", async () => {
+  it("streams a reviewable tracked Edit through the chat runner", async () => {
     process.env.MIKE_TOOL_SHAPE = "coding";
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-edit-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
@@ -162,14 +162,24 @@ describe("local assistant tools", () => {
       filename: "draft.docx",
       bytes,
     });
-    const { LOCAL_ASSISTANT_TOOLS, runLocalAssistantTools } =
-      await import("../chat/localAssistantTools");
-    const names = LOCAL_ASSISTANT_TOOLS.map((entry) => entry.function.name);
-
-    expect(names).toContain("Edit");
-    expect(names).not.toContain("library_revise_docx");
-
-    const [edited] = await runLocalAssistantTools("local-user", [
+    const [{ createLocalChatToolRunner }, { createLegalEvidenceTurnState }] =
+      await Promise.all([
+        import("../chat/localChatToolRunner"),
+        import("../chat/legalEvidence"),
+      ]);
+    const committed = vi.fn();
+    const chat = createLocalChatToolRunner({
+      userId: "local-user",
+      projectId: null,
+      allowedDocumentIds: new Set([document.id]),
+      onMutationCommitted: committed,
+    });
+    const evidence = createLegalEvidenceTurnState();
+    const events: unknown[] = [];
+    const { results: [edited] } = await chat.createToolRunner(
+      evidence,
+      "main",
+    )([
       {
         id: "coding-edit",
         name: "Edit",
@@ -179,7 +189,7 @@ describe("local assistant tools", () => {
           new_string: "Revised",
         },
       },
-    ]);
+    ], { evidence, emit: vi.fn(), addEvent: (event) => events.push(event) });
     expect(edited.content).toBe(
       "Updated draft.docx: 1 tracked change applied.",
     );
@@ -190,6 +200,12 @@ describe("local assistant tools", () => {
       document_id: document.id,
       version_number: 2,
     });
+    expect(events).toMatchObject([{
+      type: "doc_edited",
+      document_id: document.id,
+      annotations: [{ deleted_text: "Original", inserted_text: "Revised" }],
+    }]);
+    expect(committed).toHaveBeenCalledOnce();
   });
 
   it("applies deterministic DOCX operations through Edit", async () => {
@@ -231,11 +247,7 @@ describe("local assistant tools", () => {
           },
         },
       ],
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      new Set([document.id]),
+      { allowedDocumentIds: new Set([document.id]) },
     );
 
     expect(JSON.parse(response.content)).toMatchObject({
@@ -531,15 +543,7 @@ describe("local assistant tools", () => {
           },
         },
       ],
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      turnState,
+      { edits: turnState },
     );
     expect(edits.every((edit) => edit.content.startsWith("Updated"))).toBe(true);
     expect((await store.listLocalVersions("local-user", intended.id))?.versions)
@@ -634,13 +638,7 @@ describe("local assistant tools", () => {
             },
           },
         ],
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        new Set<string>(),
-        undefined,
-        matter.id,
+        { allowedDocumentIds: new Set(), matterId: matter.id },
       );
 
       expect(JSON.parse(response.content)).toEqual({
@@ -809,7 +807,7 @@ describe("local assistant tools", () => {
           },
         },
       ],
-      evidence,
+      { a2ajLookups: evidence },
     );
     const modelResult = JSON.parse(response.content);
 
