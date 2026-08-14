@@ -192,6 +192,28 @@ describe("ChatInput workflow document selection", () => {
         expect(onCancel).toHaveBeenCalledOnce();
     });
 
+    it("keeps stop separate while sending a steering message", async () => {
+        const onSubmit = vi.fn();
+        const onCancel = vi.fn();
+        render(
+            <ChatInput
+                onSubmit={onSubmit}
+                onCancel={onCancel}
+                isLoading
+            />,
+        );
+
+        await userEvent.type(screen.getByRole("textbox"), "Focus on remedies");
+        await userEvent.click(screen.getByRole("button", { name: "Steer response" }));
+        expect(onSubmit).toHaveBeenCalledWith(
+            expect.objectContaining({ content: "Focus on remedies" }),
+        );
+        expect(onCancel).not.toHaveBeenCalled();
+
+        await userEvent.click(screen.getByRole("button", { name: "Stop response" }));
+        expect(onCancel).toHaveBeenCalledOnce();
+    });
+
     it("navigates prompt history and restores the unsent draft", async () => {
         const user = userEvent.setup();
         render(

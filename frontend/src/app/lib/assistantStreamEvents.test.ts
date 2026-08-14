@@ -122,6 +122,48 @@ describe("reduceAssistantStreamEvent", () => {
     expect(events).toHaveLength(1);
   });
 
+  it("replaces a running reader with its interrupted state", () => {
+    let events: AssistantEvent[] = [];
+    events = reduce(events, {
+      type: "subagent_run",
+      id: "read-1",
+      agent: "scout",
+      task: "Find the renewal clause.",
+      model: "GPT-5.6 Luna",
+      effort: "high",
+      status: "running",
+      activities: [{
+        id: "search-1",
+        label: "Searching Canadian case law",
+        status: "running",
+      }],
+    });
+    events = reduce(events, {
+      type: "subagent_run",
+      id: "read-1",
+      agent: "scout",
+      task: "Find the renewal clause.",
+      model: "GPT-5.6 Luna",
+      effort: "high",
+      status: "interrupted",
+      activities: [{
+        id: "search-1",
+        label: "Searching Canadian case law",
+        status: "interrupted",
+      }],
+    });
+
+    expect(events).toEqual([
+      expect.objectContaining({
+        type: "subagent_run",
+        id: "read-1",
+        status: "interrupted",
+        isStreaming: false,
+        activities: [expect.objectContaining({ status: "interrupted" })],
+      }),
+    ]);
+  });
+
   it("starts a new parent bubble after a tool pause", () => {
     let events: AssistantEvent[] = [];
     events = reduce(events, { type: "reasoning_delta", text: "Checking" });
@@ -259,6 +301,27 @@ describe("reduceAssistantStreamEvent", () => {
         title: "Review",
       }),
     ).toBeNull();
+  });
+
+  it("updates context and compaction state in place", () => {
+    let events: AssistantEvent[] = [];
+    events = reduce(events, {
+      type: "context_usage",
+      used_tokens: 80,
+      window_tokens: 100,
+    });
+    events = reduce(events, {
+      type: "context_usage",
+      used_tokens: 20,
+      window_tokens: 100,
+    });
+    events = reduce(events, { type: "compaction", status: "running" });
+    events = reduce(events, { type: "compaction", status: "failed" });
+
+    expect(events).toEqual([
+      { type: "context_usage", used_tokens: 20, window_tokens: 100 },
+      { type: "compaction", status: "failed" },
+    ]);
   });
 });
 

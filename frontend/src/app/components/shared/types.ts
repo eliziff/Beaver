@@ -417,7 +417,10 @@ export type AssistantEvent =
         evidence: unknown[];
       };
     }>
-  | Streamable<{ type: "content"; text: string }>;
+  | Streamable<{ type: "content"; text: string }>
+  | { type: "steering"; id: string; text: string }
+  | { type: "context_usage"; used_tokens: number; window_tokens: number }
+  | { type: "compaction"; status: "running" | "completed" | "failed" };
 export type CaseCitationQuote = {
   opinionId: number | null;
   type: string | null;

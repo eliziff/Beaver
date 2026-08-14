@@ -13,7 +13,7 @@ import { CLIENT_WORK_PRODUCT_PRESUMPTION, CODING_PRODUCTION_SYSTEM_PROMPT, juris
 import { devLog, type AskInputResponseItem, type AskInputsEvent, type AskInputsResponseRequest, type ChatMessage, type TabularCellStore } from "../lib/chat/types";
 import { normalizeAskInputsEvent } from "../lib/chat/askInputs";
 import { isAbortError } from "../lib/llm/abort";
-import { DEFAULT_MAIN_MODEL, modelSupportsImageInput, type LlmImage, type OpenAIToolSchema, type SubagentMode } from "../lib/llm";
+import { DEFAULT_MAIN_MODEL, modelSupportsImageInput, resolveModel, type LlmImage, type OpenAIToolSchema, type SubagentMode } from "../lib/llm";
 import { providerForModel } from "../lib/llm/models";
 import { LOCAL_ASSISTANT_TOOLS } from "../lib/chat/localAssistantTools";
 import { createLocalChatToolRunner } from "../lib/chat/localChatToolRunner";
@@ -30,6 +30,8 @@ import { citationUrls } from "../lib/chat/citations";
 import {
   READ_SUBAGENT_SYSTEM_PROMPT,
   READ_SUBAGENT_TOOL,
+  RESUME_SUBAGENT_TOOL,
+  resumableReadSubagents,
   type ReadSubagentEvent,
 } from "../lib/chat/readSubagents";
 import { currentA2AJCoveragePrompt } from "../lib/chat/a2ajCoveragePrompt";
@@ -63,7 +65,12 @@ import {
   parseExpectedTranscriptVersion,
   type AnonymousCurrentTurn,
 } from "../lib/chat/anonymousCurrentTurn";
-import { projectAnonymousTranscript } from "../lib/chat/anonymousTranscript";
+import {
+  projectAnonymousTranscript,
+  projectChatTranscript,
+} from "../lib/chat/anonymousTranscript";
+import { compactChatContext } from "../lib/chat/contextCompaction";
+import { compactionThresholdForModel } from "../lib/llm/contextWindow";
 import {
   imagesForMessage,
   loadLocalChatImages,
@@ -82,13 +89,17 @@ import {
   chatTurnInProgress,
   chatTurnWasDeleted,
   finishChatTurn,
+  setChatTurnControl,
+  steerChatTurn,
 } from "../lib/chatTurns";
 import {
   claimAnonymousCodexSession,
   deleteAnonymousProviderSessions,
   providerSessionCompatibilityKey,
+  readAnonymousCodexSession,
   writeAnonymousCodexSession,
 } from "../lib/anonymousProviderSessionStore";
+import { compactCodexSession, CODEX_THREAD_ID } from "../lib/llm/codex";
 import type { TabularStore } from "../lib/tabularStore";
 import { TABULAR_TOOLS } from "../lib/chat/tools/toolSchemas";
 import { tabularChatContext } from "../lib/chat/tabularContext";
@@ -119,7 +130,9 @@ const LOCAL_PDF_EVIDENCE_HANDLE = /^mike-evidence:v1:[0-9a-f]{64}$/u;
 const PROVIDER_PDF_SOURCE_REFERENCE =
   /^mike-provider-pdf:v1:(?:a2aj|courtlistener|govinfo|govuk-et|tna):[0-9a-f]{64}:[0-9a-f]{64}$/u;
 const durableTurnEvents = (events: AssistantEvent[]) =>
-  events.filter(({ type }) => !["reasoning", "content", "error"].includes(type));
+  events.filter(({ type }) =>
+    !["reasoning", "error", "context_usage"].includes(type)
+  );
 const PROJECT_SYSTEM_PROMPT_EXTRA = `PROJECT CONTEXT:
 You are operating within a project folder that contains a collection of legal documents the user has organised for a single matter. The user's questions will usually refer to one or more documents in this project — your job is to find the relevant files to work on. Use list_documents to see what is available and fetch_documents / read_document to pull in any documents you need before answering.
 
@@ -662,7 +675,10 @@ export async function streamAnonymousChat(params: {
   subagentEffort?: string;
   activityDetail?: "auto" | "standard" | "tools" | "trace";
   editMode?: EditMode;
+  timeZone?: string;
   tabular?: TabularChatRuntime;
+  store: ChatStore;
+  scope: ChatScope;
 }) {
   const { res, userId } = params;
   const activityDetail = params.activityDetail ?? "auto";
@@ -790,6 +806,11 @@ export async function streamAnonymousChat(params: {
       Array.isArray(message.content) ? message.content : [],
     ),
   );
+  const resumableSubagents = resumableReadSubagents(
+    (existingChat?.messages ?? []).flatMap((message) =>
+      Array.isArray(message.content) ? message.content : [],
+    ),
+  );
   const evidenceCarryoverPrompt = priorLegalEvidencePrompt(priorLegalEvidence);
   const currentProviderMessage: ChatMessage =
     params.currentTurn.kind === "message"
@@ -814,8 +835,12 @@ export async function streamAnonymousChat(params: {
   if (evidenceCarryoverPrompt) {
     currentProviderMessage.content = `${currentProviderMessage.content}\n\n${evidenceCarryoverPrompt}`;
   }
+  const selectedModel = params.model || DEFAULT_MAIN_MODEL;
   const proposedMessages = [
-    ...projectAnonymousTranscript(existingChat?.messages ?? []).map(
+    ...projectAnonymousTranscript(
+      existingChat?.messages ?? [],
+      providerForModel(selectedModel),
+    ).map(
       withinMatter,
     ),
     currentProviderMessage,
@@ -830,7 +855,6 @@ export async function streamAnonymousChat(params: {
   } catch (error) {
     return fail(400, safeErrorMessage(error, "Invalid image attachment"));
   }
-  const selectedModel = params.model || DEFAULT_MAIN_MODEL;
   // Keep document actions and legal-source research resident. The strict
   // terminal schema binds prose units to exact evidence receipts and is never
   // shown as an assistant activity.
@@ -838,6 +862,9 @@ export async function streamAnonymousChat(params: {
     ...LOCAL_ASSISTANT_TOOLS,
     ...(params.tabular ? TABULAR_TOOLS as OpenAIToolSchema[] : []),
     ...(params.subagentMode === "beaver" ? [READ_SUBAGENT_TOOL] : []),
+    ...(params.subagentMode === "beaver" && resumableSubagents.size
+      ? [RESUME_SUBAGENT_TOOL]
+      : []),
     LEGAL_EVIDENCE_SUBMIT_TOOL,
   ];
   if (imagesByDocumentId.size && !modelSupportsImageInput(selectedModel)) {
@@ -897,29 +924,16 @@ export async function streamAnonymousChat(params: {
   }
   const responseProvider = providerForModel(selectedModel);
   const isCodex = responseProvider === "codex";
-  const configuredCompactThreshold = Number(
-    process.env.MIKE_OPENAI_COMPACT_THRESHOLD || 0,
-  );
-  const openAICompactThreshold =
-    ["openai", "codex"].includes(responseProvider) &&
-    Number.isFinite(configuredCompactThreshold) &&
-    configuredCompactThreshold > 0
-      ? Math.trunc(configuredCompactThreshold)
-      : undefined;
+  const compactThreshold = compactionThresholdForModel(selectedModel);
   const codexCompatibilityKey = isCodex
     ? providerSessionCompatibilityKey({
-        schema_version: 1,
+        schema_version: 2,
         model: selectedModel,
         reasoning_effort: params.reasoningEffort?.trim() || "max",
         service_tier: params.serviceTier?.trim().toLowerCase() || "default",
-        system_prompt: systemPrompt,
-        tools: activeTools,
         scope: {
           user_id: userId,
           project_id: projectId,
-          document_ids: allowedDocumentIds
-            ? [...allowedDocumentIds].sort()
-            : null,
         },
         auth: {
           command: process.env.CODEX_EXEC_COMMAND?.trim() || "codex",
@@ -1092,6 +1106,7 @@ export async function streamAnonymousChat(params: {
             message.role !== "assistant" || message.turn_id !== normalTurnId,
         )
       : chat.messages,
+    providerForModel(selectedModel),
   ).map(withinMatter);
   if (evidenceCarryoverPrompt) {
     const latestUserIndex = messages
@@ -1110,6 +1125,7 @@ export async function streamAnonymousChat(params: {
 
   const streamAbort = beginSseTurn(res, chat.id);
   if (!streamAbort) return;
+  let activeCodexContinuationId = claimedCodexSession?.continuation_id;
 
   const persistTurnEvents = (
     events: unknown[],
@@ -1181,6 +1197,7 @@ export async function streamAnonymousChat(params: {
     ),
     tabular: params.tabular?.store,
     editMode: params.editMode,
+    timeZone: params.timeZone,
     onMutationCommitted: () => {
       if (!chatTurnWasDeleted(chat.id) &&
           (params.currentTurn.kind === "ask_inputs_response" || normalTurnId)) {
@@ -1219,7 +1236,7 @@ export async function streamAnonymousChat(params: {
       done,
       reasoningEffort: params.reasoningEffort,
       serviceTier: params.serviceTier,
-      compactThreshold: openAICompactThreshold,
+      compactThreshold,
       promptCacheKey: ["openai", "codex"].includes(responseProvider)
         ? providerSessionCompatibilityKey({
             schema_version: 1,
@@ -1228,6 +1245,32 @@ export async function streamAnonymousChat(params: {
           })
         : undefined,
       signal: streamAbort.signal,
+      prepareMessages: async (onCompaction) => {
+        const prepared = await compactChatContext({
+          store: params.store,
+          scope: params.scope,
+          chatId: chat.id,
+          model: selectedModel,
+          signal: streamAbort.signal,
+          onStatus: onCompaction,
+        });
+        const projected = prepared.messages.map(withinMatter);
+        if (evidenceCarryoverPrompt) {
+          const index = projected.map(({ role }) => role).lastIndexOf("user");
+          if (index >= 0) {
+            projected[index] = {
+              ...projected[index],
+              content: `${projected[index].content}\n\n${evidenceCarryoverPrompt}`,
+            };
+          }
+        }
+        return projected.map((message) => ({
+          role: message.role === "assistant" ? "assistant" as const : "user" as const,
+          content: formatChatMessageContent(message),
+          images: imagesForMessage(message, imagesByDocumentId),
+          contextCheckpoint: message.contextCheckpoint,
+        }));
+      },
       subagentMode: params.subagentMode,
       subagentModel: params.subagentModel,
       subagentEffort: params.subagentEffort,
@@ -1238,6 +1281,7 @@ export async function streamAnonymousChat(params: {
         ...(benchmark.toolActivityMetadata?.(call) ?? {}),
       }),
       priorEvidence: priorLegalEvidence,
+      resumableSubagents,
       providerSession: isCodex
         ? {
             persist: true,
@@ -1246,8 +1290,13 @@ export async function streamAnonymousChat(params: {
               : {}),
           }
         : undefined,
+      onProviderContinuation: (continuationId) => {
+        activeCodexContinuationId = continuationId;
+      },
+      onProviderControl: (control) => {
+        setChatTurnControl(chat.id, streamAbort, control);
+      },
       canRetryProviderSession: () => !localTools.mutationCommitted(),
-      separateContentBlocks: !isCodex,
       beforeFinalize: localTools.beforeFinalize,
       transformText: (text, citations) => appendLocalPdfPinpointLinks(
         text,
@@ -1258,13 +1307,15 @@ export async function streamAnonymousChat(params: {
       ),
       onSubagentEvent,
       onFinish: async (result) => {
+        activeCodexContinuationId =
+          result.continuationId ?? activeCodexContinuationId;
         const assistantEvents = await withEvidenceRegistry([
           ...durableTurnEvents(result.events),
-          ...(result.fullText
-            ? [{ type: "content", text: result.fullText }]
-            : result.status === "paused"
-              ? []
-              : [{ type: "error", message: "The selected model returned no response." }]),
+          ...(!result.fullText &&
+              !result.events.some((event) => event.type === "content") &&
+              result.status !== "paused"
+            ? [{ type: "error", message: "The selected model returned no response." }]
+            : []),
         ]);
         if (chatTurnWasDeleted(chat.id)) return;
         persistTurnEvents(assistantEvents, {
@@ -1272,15 +1323,13 @@ export async function streamAnonymousChat(params: {
           complete: true,
         });
         maybeSetTitle();
-        if (result.status === "paused") {
-          if (isCodex) discardProviderSession();
-        } else if (isCodex && codexCompatibilityKey && result.continuationId) {
+        if (isCodex && codexCompatibilityKey && activeCodexContinuationId) {
           try {
             writeAnonymousCodexSession({
               userId,
               chatId: chat.id,
               projectId,
-              continuationId: result.continuationId,
+              continuationId: activeCodexContinuationId,
               compatibilityKey: codexCompatibilityKey,
               transcriptVersion: chat.transcript_version,
             });
@@ -1303,24 +1352,32 @@ export async function streamAnonymousChat(params: {
       },
     });
   } catch (error) {
-    if (isCodex) discardProviderSession();
     const message = safeErrorMessage(error, "Model request failed");
     console.error("[chat/anonymous]", safeErrorLog(error));
     if (chatTurnWasDeleted(chat.id)) return;
     try {
-      const partialText = error instanceof AssistantStreamError
-        ? error.fullText
-        : "";
       persistTurnEvents([
         ...(error instanceof AssistantStreamError
           ? durableTurnEvents(error.events)
           : []),
-        ...(partialText ? [{ type: "content", text: partialText }] : []),
         isAbortError(error)
           ? { type: "turn_status", status: "cancelled" }
           : { type: "error", message },
       ]);
+      if (isCodex && codexCompatibilityKey && activeCodexContinuationId) {
+        writeAnonymousCodexSession({
+          userId,
+          chatId: chat.id,
+          projectId,
+          continuationId: activeCodexContinuationId,
+          compatibilityKey: codexCompatibilityKey,
+          transcriptVersion: chat.transcript_version,
+        });
+      } else if (isCodex) {
+        discardProviderSession();
+      }
     } catch (persistError) {
+      if (isCodex) discardProviderSession();
       console.error(
         "[chat/anonymous] failed to persist model error",
         safeErrorLog(persistError),
@@ -1476,6 +1533,69 @@ chatRouter.post("/:chatId/stop", chatRoute(async (req, res, scope) => {
   res.json({ stopped: abortChatTurn(req.params.chatId) });
 }));
 
+chatRouter.post("/:chatId/steer", chatRoute(async (req, res, scope) => {
+  if (!await chats.get(scope, req.params.chatId)) {
+    return void res.status(404).json({ detail: "Chat not found" });
+  }
+  const id = trimmedString(req.body?.id);
+  const text = trimmedString(req.body?.text);
+  if (!CODEX_THREAD_ID.test(id) || !text || text.length > 20_000) {
+    return void res.status(400).json({ detail: "id and text are required" });
+  }
+  if (!await steerChatTurn(req.params.chatId, { id, text })) {
+    return void res.status(409).json({ detail: "No steerable response is running" });
+  }
+  res.json({ steered: true });
+}));
+
+chatRouter.post("/:chatId/compact", chatRoute(async (req, res, scope) => {
+  if (!await chats.get(scope, req.params.chatId)) {
+    return void res.status(404).json({ detail: "Chat not found" });
+  }
+  const controller = new AbortController();
+  if (!beginChatTurn(req.params.chatId, controller)) {
+    return void res.status(409).json({ detail: "Wait for the response to finish" });
+  }
+  try {
+    const model = resolveModel(trimmedString(req.body?.model), DEFAULT_MAIN_MODEL);
+    const session = isAnonymousLocalMode()
+      ? readAnonymousCodexSession(scope.userId, req.params.chatId)
+      : null;
+    if (providerForModel(model) === "codex" && session) {
+      await compactCodexSession({
+        continuationId: session.continuation_id,
+        apiKey: process.env.CODEX_API_KEY,
+        abortSignal: controller.signal,
+      });
+    } else {
+      const apiKeys = isAnonymousLocalMode()
+        ? undefined
+        : (await getUserModelSettings(scope.userId, createServerSupabase())).api_keys;
+      const result = await compactChatContext({
+        store: chats,
+        scope,
+        chatId: req.params.chatId,
+        model,
+        apiKeys,
+        signal: controller.signal,
+        force: true,
+      });
+      if (!result.compacted) {
+        return void res.status(409).json({ detail: "There is no older context to compact" });
+      }
+    }
+    const chat = await chats.get(scope, req.params.chatId);
+    res.json({
+      compacted: true,
+      ...(typeof chat?.transcript_version === "number"
+        ? { transcriptVersion: chat.transcript_version }
+        : {}),
+    });
+  } finally {
+    finishChatTurn(req.params.chatId, controller);
+  }
+}));
+
 chatRouter.patch("/:chatId", chatRoute(async (req, res, scope) => {
   const { chatId } = req.params;
   const body =
@@ -1591,6 +1711,18 @@ chatRouter.post("/", chatRoute(async (req, res, scope) => {
     trimmedString(body.reasoning_effort).slice(0, 32) || undefined;
   const serviceTier =
     trimmedString(body.service_tier).slice(0, 32) || undefined;
+  let timeZone: string | undefined;
+  if (body.time_zone !== undefined) {
+    if (typeof body.time_zone !== "string" || body.time_zone.length > 100) {
+      return void res.status(400).json({ detail: "time_zone is invalid" });
+    }
+    try {
+      new Intl.DateTimeFormat("en-CA", { timeZone: body.time_zone }).format();
+      timeZone = body.time_zone;
+    } catch {
+      return void res.status(400).json({ detail: "time_zone is invalid" });
+    }
+  }
   const jurisdictionPreference = parseJurisdictionPreference(
     body.jurisdiction_preference,
   );
@@ -1734,7 +1866,10 @@ chatRouter.post("/", chatRoute(async (req, res, scope) => {
         subagentEffort,
         activityDetail,
         editMode,
+        timeZone,
         tabular,
+        store: chats,
+        scope,
       });
     } catch (error) {
       console.error("[chat/anonymous] preflight", safeErrorLog(error));
@@ -1761,7 +1896,7 @@ chatRouter.post("/", chatRoute(async (req, res, scope) => {
     buildProjectDocContext,
     buildWorkflowStore,
     enrichWithPriorEvents,
-    loadPriorLegalEvidence,
+    loadPriorChatState,
     stripTransientAssistantEvents,
   } = cloudContext;
   const { AssistantStreamError, runLLMStream } = cloudStreaming;
@@ -1886,6 +2021,16 @@ chatRouter.post("/", chatRoute(async (req, res, scope) => {
     });
   }
 
+  const selectedModel = model || DEFAULT_MAIN_MODEL;
+  const canonicalRows = await chats.transcript(scope, chatId);
+  if (!canonicalRows) {
+    return void res.status(404).json({ detail: "Chat not found" });
+  }
+  const canonicalMessages = projectChatTranscript(
+    canonicalRows,
+    providerForModel(selectedModel),
+  );
+
   const { docIndex, docStore, folderPaths } = resolvedProjectId
     ? await buildProjectDocContext(resolvedProjectId, userId, db)
     : {
@@ -1900,7 +2045,6 @@ chatRouter.post("/", chatRoute(async (req, res, scope) => {
       detail: safeErrorMessage(error, "Invalid image attachment"),
     });
   }
-  const selectedModel = model || DEFAULT_MAIN_MODEL;
   if (imagesByDocumentId.size && !modelSupportsImageInput(selectedModel)) {
     return void res.status(400).json({
       detail: `Model "${selectedModel}" does not support image input.`,
@@ -1913,39 +2057,37 @@ chatRouter.post("/", chatRoute(async (req, res, scope) => {
       ? { folder_path: folderPaths.get(doc_id) }
       : {}),
   }));
-  const enrichedMessages = (await enrichWithPriorEvents(
-    messages,
-    chatId,
-    db,
-    docIndex,
-  )).map((message) => ({
-    ...message,
-    images: imagesForMessage(message, imagesByDocumentId),
-  }));
-  const cloudPriorLegalEvidence = await loadPriorLegalEvidence(chatId, db);
-  const cloudEvidencePrompt = priorLegalEvidencePrompt(cloudPriorLegalEvidence);
-  let messagesForLlm = resolvedProjectId && displayedDocument
-    ? enrichedMessages.map((message, index) =>
-        index === enrichedMessages.length - 1 && message.role === "user"
-          ? {
-              ...message,
-              content: `${message.content}\n\ndisplayed_doc: ${displayedDocument.filename}, displayed_doc_id: ${displayedDocument.document_id}`,
-            }
-          : message,
-      )
-    : enrichedMessages;
-  if (cloudEvidencePrompt) {
-    const latestUserIndex = messagesForLlm
-      .map((message) => message.role)
-      .lastIndexOf("user");
-    if (latestUserIndex >= 0) {
-      messagesForLlm = messagesForLlm.slice();
-      messagesForLlm[latestUserIndex] = {
-        ...messagesForLlm[latestUserIndex],
-        content: `${messagesForLlm[latestUserIndex].content}\n\n${cloudEvidencePrompt}`,
-      };
+  const cloudPriorState = await loadPriorChatState(chatId, db);
+  const cloudEvidencePrompt = priorLegalEvidencePrompt(cloudPriorState.evidence);
+  const contextualize = async (base: ChatMessage[]) => {
+    let result = (await enrichWithPriorEvents(base, chatId, db, docIndex))
+      .map((message) => ({
+        ...message,
+        images: imagesForMessage(message, imagesByDocumentId),
+      }));
+    if (resolvedProjectId && displayedDocument) {
+      const index = result.map(({ role }) => role).lastIndexOf("user");
+      if (index >= 0) {
+        result = result.slice();
+        result[index] = {
+          ...result[index],
+          content: `${result[index].content}\n\ndisplayed_doc: ${displayedDocument.filename}, displayed_doc_id: ${displayedDocument.document_id}`,
+        };
+      }
     }
-  }
+    if (cloudEvidencePrompt) {
+      const index = result.map(({ role }) => role).lastIndexOf("user");
+      if (index >= 0) {
+        result = result.slice();
+        result[index] = {
+          ...result[index],
+          content: `${result[index].content}\n\n${cloudEvidencePrompt}`,
+        };
+      }
+    }
+    return result;
+  };
+  const messagesForLlm = await contextualize(canonicalMessages);
   let systemPromptExtra = resolvedProjectId
     ? PROJECT_SYSTEM_PROMPT_EXTRA
     : undefined;
@@ -2020,8 +2162,22 @@ chatRouter.post("/", chatRoute(async (req, res, scope) => {
       jurisdictionPreference,
       activityDetail,
       editMode,
-      priorLegalEvidence: cloudPriorLegalEvidence,
+      timeZone,
+      priorLegalEvidence: cloudPriorState.evidence,
+      resumableSubagents: cloudPriorState.resumableSubagents,
       tabularStore: tabular?.store,
+      prepareMessages: async (onCompaction) => {
+        const prepared = await compactChatContext({
+          store: chats,
+          scope,
+          chatId,
+          model: selectedModel,
+          apiKeys,
+          signal: streamAbort.signal,
+          onStatus: onCompaction,
+        });
+        return contextualize(prepared.messages);
+      },
     });
 
     devLog("[chat/stream] LLM stream finished", {

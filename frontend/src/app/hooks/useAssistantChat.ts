@@ -1,8 +1,10 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  compactChat,
   generateChatTitle,
   getChat,
+  steerChat,
   stopChat,
   streamChat,
 } from "@/app/lib/beaverApi";
@@ -251,6 +253,68 @@ export function useAssistantChat({
     opts?: AssistantTurnOptions,
   ): Promise<string | null> => {
     if (!message.content.trim()) return null;
+    if (message.content.trim() === "/compact") {
+      if (!chatId || isResponseLoading) return null;
+      const updateCompaction = (
+        status: "running" | "completed" | "failed",
+      ) => {
+        setMessages((current) => {
+          const index = current.findLastIndex((item) => item.role === "assistant");
+          const events = index < 0 ? [] : current[index].events ?? [];
+          const eventIndex = events.findLastIndex((event) => event.type === "compaction");
+          const nextEvents = [...events];
+          const event: AssistantEvent = { type: "compaction", status };
+          if (eventIndex < 0) nextEvents.push(event);
+          else nextEvents[eventIndex] = event;
+          eventsRef.current = nextEvents;
+          if (index < 0) {
+            return [...current, { role: "assistant", content: "", events: nextEvents }];
+          }
+          const next = [...current];
+          next[index] = { ...next[index], events: nextEvents };
+          return next;
+        });
+      };
+      updateCompaction("running");
+      try {
+        const result = await compactChat(
+          chatId,
+          message.model ?? readSelectedModel(),
+        );
+        if (Number.isSafeInteger(result.transcriptVersion)) {
+          transcriptVersionRef.current = result.transcriptVersion!;
+        }
+        updateCompaction("completed");
+      } catch (error) {
+        updateCompaction("failed");
+        updateLatestAssistantMessage((current) => ({
+          ...current,
+          error: readableStreamError(error instanceof Error ? error.message : error),
+        }));
+      }
+      return null;
+    }
+    if (isResponseLoading) {
+      if (!chatId) return null;
+      const steering: AssistantEvent = {
+        type: "steering",
+        id: crypto.randomUUID(),
+        text: message.content.trim(),
+      };
+      publishEvents([...finishAssistantStreamEvents(eventsRef.current), steering]);
+      try {
+        await steerChat(chatId, steering.id, steering.text);
+      } catch (error) {
+        publishEvents([
+          ...eventsRef.current,
+          {
+            type: "error",
+            message: readableStreamError(error instanceof Error ? error.message : error),
+          },
+        ]);
+      }
+      return null;
+    }
     const turnOptions =
       isAnonymousMode && !opts?.askInputsResponse
         ? { ...opts, turnId: opts?.turnId ?? crypto.randomUUID() }
@@ -357,6 +421,7 @@ export function useAssistantChat({
         subagent_model: readSubagents.model,
         subagent_effort: readSubagents.effort,
         activity_detail: readActivityDetail(),
+        time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         displayed_doc: displayedDoc
           ? {
               filename: displayedDoc.filename,
@@ -497,11 +562,14 @@ export function useAssistantChat({
               const current = eventsRef.current.filter(
                 (event) => !isStreamingPlaceholder(event),
               );
+              const lastSteering = isSnapshot
+                ? -1
+                : current.findLastIndex((event) => event.type === "steering");
               const firstContent = current.findIndex(
-                (event) => event.type === "content",
+                (event, index) => index > lastSteering && event.type === "content",
               );
               const next: AssistantEvent[] = current.filter(
-                (event) => event.type !== "content",
+                (event, index) => index <= lastSteering || event.type !== "content",
               );
               if (text) {
                 next.splice(
@@ -518,7 +586,14 @@ export function useAssistantChat({
               }
               publishEvents(
                 next,
-                isSnapshot ? undefined : { content: text },
+                isSnapshot
+                  ? undefined
+                  : {
+                      content: next
+                        .filter((event) => event.type === "content")
+                        .map((event) => event.text)
+                        .join(""),
+                    },
               );
               continue;
             }

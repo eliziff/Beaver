@@ -4,6 +4,9 @@ import {
   type NormalizedToolCall,
   type NormalizedToolResult,
   type OpenAIToolSchema,
+  type ProviderTurnControl,
+  type ProviderContextCheckpoint,
+  type SteeringMessage,
   type StreamChatResult,
   type SubagentMode,
   type UserApiKeys,
@@ -39,17 +42,25 @@ import {
 import {
   READ_SUBAGENT_TOOL,
   READ_SUBAGENT_TOOL_NAME,
+  RESUME_SUBAGENT_TOOL,
+  RESUME_SUBAGENT_TOOL_NAME,
   allowedReadSubagentRegions,
   createReadSubagentAdmission,
   readSubagentActivityLabel,
   readSubagentJurisdiction,
+  readSubagentResumePrompt,
   readSubagentSourceTypes,
   readSubagentTools,
   runReadSubagent,
   runReadSubagentRound,
+  type ReadSubagentCheckpoint,
   type ReadSubagentEvent,
 } from "./readSubagents";
 import { jurisdictionPreferencePrompt, type JurisdictionPreference } from "./prompts";
+import {
+  estimateContextTokens,
+  modelContextWindow,
+} from "../llm/contextWindow";
 
 export type AssistantEvent =
   | { type: "reasoning"; text: string; debug?: boolean }
@@ -95,6 +106,21 @@ export type AssistantEvent =
   | LocalAutomationEvent
   | { type: "case_opinions"; cluster_id: number; case: unknown }
   | { type: "content"; text: string }
+  | { type: "steering"; id: string; text: string }
+  | {
+      type: "context_usage";
+      used_tokens: number;
+      window_tokens: number;
+    }
+  | { type: "compaction"; status: "running" | "completed" | "failed" }
+  | {
+      type: "context_checkpoint";
+      schema_version: 1;
+      summary?: string;
+      keep_current: boolean;
+      provider?: "claude" | "openai";
+      payload?: Record<string, unknown>;
+    }
   | { type: "turn_status"; status: "cancelled" | "interrupted" }
   | { type: "error"; message: string };
 
@@ -183,10 +209,16 @@ export async function runChatTurn(options: {
   activityDetail?: "auto" | "standard" | "tools" | "trace";
   toolActivityMetadata?: (call: NormalizedToolCall) => Record<string, unknown>;
   priorEvidence?: LegalEvidenceReceipt[];
+  resumableSubagents?: ReadonlyMap<string, ReadSubagentCheckpoint>;
   providerSession?: { persist: true; continuationId?: string };
+  onProviderContinuation?: (continuationId: string) => void;
+  onProviderControl?: (control: ProviderTurnControl | null) => void;
   canRetryProviderSession?: () => boolean;
   separateContentBlocks?: boolean;
   beforeFinalize?: (context: ChatToolContext) => Promise<void> | void;
+  prepareMessages?: (
+    onCompaction: (status: "running" | "completed" | "failed") => void,
+  ) => Promise<LlmMessage[]>;
   transformText?: (text: string, citations: unknown[]) => Promise<string> | string;
   onSubagentEvent?: (event: ReadSubagentEvent) => void;
   onFinish?: (result: ChatTurnResult) => Promise<void> | void;
@@ -201,11 +233,23 @@ export async function runChatTurn(options: {
   const evidence = createLegalEvidenceTurnState();
   registerPriorLegalEvidence(evidence, options.priorEvidence ?? []);
   const addEvent = (event: AssistantEvent) => events.push(event);
+  const replaceLastEvent = (
+    type: AssistantEvent["type"],
+    event: AssistantEvent,
+  ) => {
+    const index = events.map((candidate) => candidate.type).lastIndexOf(type);
+    if (index < 0) events.push(event);
+    else events[index] = event;
+  };
   const context: ChatToolContext = { evidence, emit, addEvent };
   const mainTools = options.createToolRunner(evidence, "main");
+  const resumableReaders = new Map(options.resumableSubagents);
   const tools = [
     ...options.tools,
     ...(subagentMode === "beaver" ? [READ_SUBAGENT_TOOL] : []),
+    ...(subagentMode === "beaver" && resumableReaders.size
+      ? [RESUME_SUBAGENT_TOOL]
+      : []),
     LEGAL_EVIDENCE_SUBMIT_TOOL,
   ];
   const request = [...options.messages].reverse()
@@ -219,6 +263,10 @@ export async function runChatTurn(options: {
   let boundary = false;
   let paused: AskInputsEvent | undefined;
   let providerActivity = false;
+  let activeMessages = options.messages;
+  const steering: SteeringMessage[] = [];
+  let nativeControl: ProviderTurnControl | null = null;
+  let nativeSteering = Promise.resolve();
   const providerAbort = new AbortController();
   const providerSignal = signal
     ? AbortSignal.any([signal, providerAbort.signal])
@@ -249,6 +297,47 @@ export async function runChatTurn(options: {
   });
   const runTools = async (calls: NormalizedToolCall[]) => {
     throwIfAborted(signal);
+    const runReader = (
+      call: NormalizedToolCall,
+      resume?: ReadSubagentCheckpoint,
+    ) => {
+      const childEvidence = createLegalEvidenceTurnState("citation_structure");
+      const childTools = options.createToolRunner(childEvidence, "reader");
+      const assignmentCall = resume
+        ? { ...call, input: resume.assignment }
+        : call;
+      return runReadSubagent({
+        call,
+        tools: [
+          ...readSubagentTools(
+            options.readerTools ?? options.tools,
+            readSubagentJurisdiction(assignmentCall),
+            readSubagentSourceTypes(assignmentCall),
+          ),
+          LEGAL_EVIDENCE_SUBMIT_TOOL,
+        ],
+        evidenceState: childEvidence,
+        publishEvidenceTo: evidence,
+        model: options.subagentModel,
+        effort: options.subagentEffort,
+        activityDetail,
+        jurisdictionPrompt: jurisdictionPreferencePrompt(
+          options.jurisdictionPreference ?? null,
+        ),
+        signal,
+        resume,
+        onEvent: (event) => {
+          emit(event);
+          options.onSubagentEvent?.(event);
+          if (event.status !== "running") addEvent(event);
+        },
+        runTools: async (childCalls) =>
+          (await childTools(childCalls, toolContext(childEvidence))).results,
+      }).then((result) => {
+        if (resume && result.status === "ok") resumableReaders.delete(resume.id);
+        return result;
+      });
+    };
     const results = await runReadSubagentRound({
       calls,
       admit: admitReaders,
@@ -257,37 +346,9 @@ export async function runChatTurn(options: {
         if (batch.pause) paused = batch.pause;
         return batch.results;
       },
-      runReader: (call) => {
-        const childEvidence = createLegalEvidenceTurnState("citation_structure");
-        const childTools = options.createToolRunner(childEvidence, "reader");
-        return runReadSubagent({
-          call,
-          tools: [
-            ...readSubagentTools(
-              options.readerTools ?? options.tools,
-              readSubagentJurisdiction(call),
-              readSubagentSourceTypes(call),
-            ),
-            LEGAL_EVIDENCE_SUBMIT_TOOL,
-          ],
-          evidenceState: childEvidence,
-          publishEvidenceTo: evidence,
-          model: options.subagentModel,
-          effort: options.subagentEffort,
-          activityDetail,
-          jurisdictionPrompt: jurisdictionPreferencePrompt(
-            options.jurisdictionPreference ?? null,
-          ),
-          signal,
-          onEvent: (event) => {
-            emit(event);
-            options.onSubagentEvent?.(event);
-            if (event.status !== "running") addEvent(event);
-          },
-          runTools: async (childCalls) =>
-            (await childTools(childCalls, toolContext(childEvidence))).results,
-        });
-      },
+      runReader,
+      resumable: resumableReaders,
+      runResume: (call, checkpoint) => runReader(call, checkpoint),
     });
     if (paused) {
       text = "";
@@ -339,11 +400,14 @@ export async function runChatTurn(options: {
       providerActivity = true;
       if (
         call.name === LEGAL_EVIDENCE_TOOL_NAME ||
-        (call.name === READ_SUBAGENT_TOOL_NAME && activityDetail === "standard")
+        ([READ_SUBAGENT_TOOL_NAME, RESUME_SUBAGENT_TOOL_NAME].includes(call.name) &&
+          activityDetail === "standard")
       ) return;
       boundary = Boolean(text);
       const label = call.name === READ_SUBAGENT_TOOL_NAME
         ? readSubagentActivityLabel(call.input)
+        : call.name === RESUME_SUBAGENT_TOOL_NAME
+          ? "Resuming reading agents"
         : assistantToolActivityLabel(call.name, call.input);
       if (label === null) return;
       emit({
@@ -357,15 +421,86 @@ export async function runChatTurn(options: {
         ...options.toolActivityMetadata?.(call),
       });
     },
+    onContextUsage(usage: {
+      usedTokens: number;
+      contextWindowTokens: number;
+    }) {
+      const event: AssistantEvent = {
+        type: "context_usage",
+        used_tokens: usage.usedTokens,
+        window_tokens: usage.contextWindowTokens,
+      };
+      replaceLastEvent("context_usage", event);
+      emit(event);
+    },
+    onCompaction(status: "running" | "completed" | "failed") {
+      const event: AssistantEvent = { type: "compaction", status };
+      replaceLastEvent("compaction", event);
+      emit(event);
+    },
+    onContextCheckpoint(checkpoint: ProviderContextCheckpoint) {
+      addEvent({
+        type: "context_checkpoint",
+        schema_version: 1,
+        keep_current: true,
+        provider: checkpoint.provider,
+        ...(checkpoint.provider === "claude"
+          ? { summary: checkpoint.content }
+          : {}),
+        ...(checkpoint.provider === "openai"
+          ? { payload: checkpoint.item }
+          : {}),
+      });
+    },
+    onSteer(message: { id: string; text: string }) {
+      if (reasoning) addEvent({ type: "reasoning", text: reasoning, debug: true });
+      if (text) addEvent({ type: "content", text });
+      reasoning = "";
+      text = "";
+      boundary = false;
+      const event: AssistantEvent = { type: "steering", ...message };
+      addEvent(event);
+      emit(event);
+    },
   };
+  const takeSteering = () => {
+    const messages = steering.splice(0);
+    messages.forEach(callbacks.onSteer);
+    return messages;
+  };
+  const control: ProviderTurnControl = {
+    async steer(message) {
+      if (!nativeControl) {
+        steering.push(message);
+        return;
+      }
+      const target = nativeControl;
+      nativeSteering = nativeSteering.then(() => target.steer(message));
+      try {
+        await nativeSteering;
+      } catch (error) {
+        providerAbort.abort(error);
+        throw error;
+      }
+    },
+  };
+  options.onProviderControl?.(control);
   const provider = (
     continuationId?: string,
     repair?: { draft: string; findings: string },
-  ) => streamChatWithTools({
+  ) => {
+    const resumePrompt = readSubagentResumePrompt(resumableReaders);
+    const providerMessages = continuationId && resumePrompt
+      ? activeMessages.map((message, index) =>
+          index === activeMessages.length - 1
+            ? { ...message, content: `${message.content}\n\n${resumePrompt}` }
+            : message)
+      : activeMessages;
+    return streamChatWithTools({
     model: options.model,
-    systemPrompt: continuationId ? "" : options.systemPrompt,
+    systemPrompt: [options.systemPrompt, resumePrompt].filter(Boolean).join("\n\n"),
     messages: [
-      ...(continuationId ? options.messages.slice(-1) : options.messages),
+      ...(continuationId ? providerMessages.slice(-1) : providerMessages),
       ...(repair
         ? [
             { role: "assistant" as const, content: repair.draft },
@@ -375,6 +510,7 @@ export async function runChatTurn(options: {
     ],
     tools,
     runTools,
+    takeSteering,
     callbacks,
     apiKeys: options.apiKeys,
     reasoningEffort: options.reasoningEffort,
@@ -387,13 +523,42 @@ export async function runChatTurn(options: {
       activityDetail === "auto" || activityDetail === "trace" ? "auto" : "none",
     abortSignal: providerSignal,
     providerSession: options.providerSession
-      ? { persist: true, ...(continuationId ? { continuationId } : {}) }
+      ? {
+          persist: true,
+          ...(continuationId ? { continuationId } : {}),
+          onContinuationId: options.onProviderContinuation,
+          onControl(next) {
+            nativeControl = next;
+            if (!next || !steering.length) return;
+            const queued = steering.splice(0);
+            nativeSteering = queued.reduce(
+              (pending, message) => pending.then(() => next.steer(message)),
+              nativeSteering,
+            );
+            void nativeSteering.catch((error) => providerAbort.abort(error));
+          },
+        }
       : undefined,
   });
+  };
 
   let providerResult: StreamChatResult | undefined;
   try {
     throwIfAborted(signal);
+    if (options.prepareMessages) {
+      activeMessages = await options.prepareMessages(callbacks.onCompaction);
+    }
+    const contextWindowTokens = modelContextWindow(options.model);
+    if (contextWindowTokens) {
+      callbacks.onContextUsage({
+        usedTokens: estimateContextTokens({
+          systemPrompt: options.systemPrompt,
+          messages: activeMessages,
+          tools,
+        }),
+        contextWindowTokens,
+      });
+    }
     try {
       providerResult = await provider(options.providerSession?.continuationId);
     } catch (error) {
@@ -470,6 +635,7 @@ export async function runChatTurn(options: {
   await options.onFinish?.(result);
   emit({ type: "citations", status: "final", citations });
   options.done();
+  options.onProviderControl?.(null);
   return result;
 }
 

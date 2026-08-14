@@ -12,6 +12,7 @@ import path from "node:path";
 import { jsonrepair } from "jsonrepair";
 
 import { abortError, throwIfAborted } from "./abort";
+import { modelContextWindow } from "./contextWindow";
 import type {
   LlmCompactionReceipt,
   LlmContextRoundReceipt,
@@ -275,7 +276,7 @@ function runClaudeP(
 const persistEnabled = () => process.env.MIKE_CLAUDE_P_PERSIST === "1";
 
 const PERSIST_PROTOCOL_ADDENDUM =
-  '\n- Follow-up user messages in this session are JSON objects {"tool_results":[{"tool_use_id","content"}, ...]} — the outputs of your last TOOL_CALLS. Continue under the same protocol and reply in the same TOOL_CALLS/FINAL format.';
+  '\n- Follow-up user messages in this session are JSON objects with `tool_results` from your last TOOL_CALLS and/or `steering` instructions from the user. Continue under the same protocol and reply in the same TOOL_CALLS/FINAL format.';
 
 class ClaudePSession {
   private child: ReturnType<typeof spawn>;
@@ -981,6 +982,7 @@ export async function streamClaudeP(
         cacheWriteInputTokens: 0,
       },
     });
+    callbacks.onCompaction?.("completed");
   };
 
   const persist = persistEnabled();
@@ -1146,6 +1148,13 @@ export async function streamClaudeP(
           usage.cacheWriteInputTokens =
             (usage.cacheWriteInputTokens ?? 0) +
             (e.cache_creation_input_tokens ?? 0);
+          const contextWindowTokens = modelContextWindow(params.model);
+          if (contextWindowTokens) {
+            callbacks.onContextUsage?.({
+              usedTokens: e.input_tokens ?? 0,
+              contextWindowTokens,
+            });
+          }
           const rawReply = String(envelope.result ?? "");
           try {
             blocks = parseReply(rawReply, iter, {
@@ -1252,28 +1261,35 @@ export async function streamClaudeP(
         });
       }
 
-      if (!toolCalls.length || !runTools) break;
-      const results = await runTools(toolCalls);
+      const results = toolCalls.length && runTools
+        ? await runTools(toolCalls)
+        : [];
       throwIfAborted(params.abortSignal);
       contextRounds[contextRounds.length - 1].toolResultBytes =
         Buffer.byteLength(
           JSON.stringify(results.map((result) => result.content)),
-        );
+      );
       if (results.some((result) => result.terminal)) break;
+      const steering = params.takeSteering?.() ?? [];
+      if (!results.length && !steering.length) break;
       messages.push({ role: "assistant", content: blocks });
       messages.push({
         role: "user",
-        content: results.map((result) => ({
-          type: "tool_result" as const,
-          tool_use_id: result.tool_use_id,
-          content: result.content,
-        })),
+        content: [
+          ...results.map((result) => ({
+            type: "tool_result" as const,
+            tool_use_id: result.tool_use_id,
+            content: result.content,
+          })),
+          ...steering.map(({ text }) => ({ type: "text" as const, text })),
+        ],
       });
       continuation = JSON.stringify({
         tool_results: results.map((result) => ({
           tool_use_id: result.tool_use_id,
           content: result.content,
         })),
+        steering: steering.map(({ text }) => text),
       });
     }
   } finally {

@@ -1,4 +1,5 @@
 import {
+  appendAnonymousAssistantEvent,
   createAnonymousChat,
   deleteAnonymousChat,
   getAnonymousChat,
@@ -86,6 +87,15 @@ export const createLocalChatStore: CreateChatStore = (tabular) => ({
   async detail(scope, chatId) {
     const chat = getAnonymousChat(scope.userId, chatId);
     return chat ? { chat: record(chat), messages: await messages(chat) } : null;
+  },
+
+  async transcript(scope, chatId) {
+    return getAnonymousChat(scope.userId, chatId)?.messages ?? null;
+  },
+
+  async appendAssistantEvent(scope, chatId, messageId, event) {
+    const chat = getAnonymousChat(scope.userId, chatId);
+    return chat ? appendAnonymousAssistantEvent(chat, messageId, event) : false;
   },
 
   async update(scope, chatId, input) {

@@ -16,8 +16,9 @@ import { isAnonymousMode } from "@/app/lib/authMode";
 import { AccountSection } from "@/app/(pages)/account/AccountSection";
 import { useActivityDetail } from "@/app/components/assistant/activityDisplayPreference";
 import { EditModeSettings } from "./EditModeSettings";
+import { DraftingStyleSettings } from "./DraftingStyleSettings";
 
-const TABS = ["General", "Providers", "Subagents"] as const;
+const TABS = ["General", "Drafting", "Providers", "Subagents"] as const;
 type SettingsTab = (typeof TABS)[number];
 
 export function AppSettingsModal({
@@ -109,6 +110,19 @@ export function AppSettingsModal({
                 </section>
             </div>
         ),
+        Drafting: (
+            <section>
+                <h2 className="mb-1 text-base font-semibold text-gray-900">
+                    Drafting style
+                </h2>
+                <p className="mb-4 max-w-2xl text-sm leading-6 text-gray-600">
+                    Beaver applies these defaults after the assistant writes the document body.
+                </p>
+                <AccountSection className="p-4">
+                    <DraftingStyleSettings />
+                </AccountSection>
+            </section>
+        ),
         Providers: <ApiKeySettings />,
         Subagents: <SubagentSettings />,
     };
@@ -134,7 +148,7 @@ export function AppSettingsModal({
             <div
                 role="tablist"
                 aria-label="Settings sections"
-                className="sticky top-0 z-10 grid shrink-0 grid-cols-3 gap-1 border-b border-gray-200 bg-white pb-2"
+                className="sticky top-0 z-10 grid shrink-0 grid-cols-2 gap-1 border-b border-gray-200 bg-white pb-2 sm:grid-cols-4"
             >
                 {TABS.map((tab, index) => {
                     const selected = tab === selectedTab;

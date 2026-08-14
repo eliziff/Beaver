@@ -59,6 +59,11 @@ interface Props {
     onSubmit: (message: Message) => void;
     onCancel: () => void;
     isLoading: boolean;
+    contextUsage?: {
+        usedTokens: number;
+        windowTokens: number;
+        compacting: boolean;
+    };
     showContextTools?: boolean;
     rows?: number;
     projectName?: string;
@@ -74,7 +79,7 @@ interface Props {
     ) => void;
 }
 export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
-    { onSubmit, onCancel, isLoading, showContextTools = true, rows = 1,
+    { onSubmit, onCancel, isLoading, contextUsage, showContextTools = true, rows = 1,
         projectName, projectCmNumber, restoreDraft, onDraftRestored,
         promptHistory = [], automationsAvailable = false,
         onOpenAutomations, onOpenWorkflows }: Props,
@@ -235,8 +240,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     }
     const handleSubmit = () => {
         const query = textareaRef.current?.value.trim();
-        if (!query || isLoading) return;
-        if (apiKeys && !isModelAvailable(model, apiKeys)) {
+        if (!query || contextUsage?.compacting) return;
+        if (query !== "/compact" && apiKeys && !isModelAvailable(model, apiKeys)) {
             setApiKeyModalProvider(getModelProvider(model));
             return;
         }
@@ -447,6 +452,39 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                             </div>
                         )}
                         <div className="chat-input-actions ml-auto flex min-w-0 items-center justify-end gap-1">
+                            {contextUsage && (
+                                <div
+                                    className="mr-1 flex items-center gap-1.5 text-[11px] text-gray-500"
+                                    role={contextUsage.compacting ? "status" : undefined}
+                                >
+                                    <span className="hidden lg:inline">
+                                        {contextUsage.compacting
+                                            ? "Compacting context"
+                                            : `Context ${Math.min(
+                                                  100,
+                                                  Math.round(
+                                                      (100 * contextUsage.usedTokens) /
+                                                          Math.max(1, contextUsage.windowTokens),
+                                                  ),
+                                              )}%`}
+                                    </span>
+                                    <progress
+                                        className="h-1 w-16 accent-gray-700"
+                                        max={contextUsage.windowTokens}
+                                        {...(!contextUsage.compacting && {
+                                            value: Math.min(
+                                                contextUsage.usedTokens,
+                                                contextUsage.windowTokens,
+                                            ),
+                                        })}
+                                        aria-label={
+                                            contextUsage.compacting
+                                                ? "Compacting context"
+                                                : "Context window usage"
+                                        }
+                                    />
+                                </div>
+                            )}
                             {showAutoMode && (
                                 <div
                                     role="group"
@@ -485,16 +523,23 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                     apiKeys={apiKeys}
                                 />
                             </div>
+                            {isLoading && (
+                                <button
+                                    type="button"
+                                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] text-gray-600 hover:bg-gray-100 hover:text-gray-950"
+                                    onClick={onCancel}
+                                    aria-label="Stop response"
+                                >
+                                    <Square className="h-3.5 w-3.5" fill="currentColor" strokeWidth={0} />
+                                </button>
+                            )}
                             <button
-                                type={isLoading ? "button" : "submit"}
+                                type="submit"
                                 className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-brand text-white hover:bg-brand-dark disabled:cursor-default disabled:bg-gray-300"
-                                onClick={isLoading ? onCancel : undefined}
-                                aria-label={isLoading ? "Stop response" : "Send message"}
-                                disabled={!isLoading && !hasValue}
+                                aria-label={isLoading ? "Steer response" : "Send message"}
+                                disabled={!hasValue || contextUsage?.compacting}
                             >
-                                {isLoading
-                                    ? <Square className="h-4 w-4" fill="currentColor" strokeWidth={0} />
-                                    : <ArrowRight className="h-4 w-4" />}
+                                <ArrowRight className="h-4 w-4" />
                             </button>
                         </div>
                     </div>

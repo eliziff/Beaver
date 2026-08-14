@@ -227,7 +227,13 @@ export const TOOLS = [
           title: {
             type: "string",
             description:
-              "Document title, rendered once and also used for the filename. Do not repeat it in markdown.",
+              "Document title and filename stem. For a memo, Beaver uses it only as the Re line. Do not repeat it in markdown.",
+          },
+          document_type: {
+            type: "string",
+            enum: ["memo", "factum", "letter", "other"],
+            description:
+              "Document kind. This selects the user's saved deterministic layout and citation style.",
           },
           landscape: {
             type: "boolean",
@@ -239,7 +245,7 @@ export const TOOLS = [
             // Sole home of the markdown dialect contract; the system prompt
             // keeps only which generator to call.
             description:
-              "Document body. #/##/### headings in order; the renderer numbers plain headings, so never type the number — a fixed label like 'Part 1' or '1. Definitions' is kept as written, and {-} ending a heading line suppresses numbering. Preambles, party blocks, recitals, and WHEREAS clauses are unnumbered; numbering starts at the first operative clause. One list item per line, nested items indented two spaces. Paragraphs, *italics*, **bold**, and pipe tables are supported. [^1] places a native Word footnote, defined by a [^1]: line. Lowercase {{field_id}} is an editable control (malformed markers fail); alone on its line it becomes a rich editable clause. <!-- pagebreak --> breaks the page — put one before an unnumbered signature heading with labelled By/Name/Title/Date lines per party.",
+              "Document body. #/##/### headings in order; never type automatic heading numbers, and {-} suppresses numbering. A blank line starts a paragraph; one newline is soft; a trailing backslash makes a hard line break. > starts an indented block and \\> prints a literal >. Lists, *italics*, **bold**, pipe tables, native [^note] footnotes, {{field_id}} controls, [@citation_id] grounded citation markers, and <!-- pagebreak --> are supported. For memos, omit the To/From/Date/Re block because Beaver writes it.",
           },
           fields: {
             type: "array",
@@ -263,47 +269,62 @@ export const TOOLS = [
               required: ["id", "value"],
             },
           },
-          sources: {
+          citations: {
             type: "array",
             maxItems: 100,
             description:
-              "Optional verified legal sources expanded by [@source_id] markers. The generator builds the link and ordered pinpoints; write the marker once per pinpoint.",
+              "Grounded citations expanded by matching [@id] markers. Put each marker immediately after the narrowest claim it supports. Beaver supplies citation text, pinpoints, links, placement, numbering, and footnotes.",
             items: {
               type: "object",
+              additionalProperties: false,
               properties: {
                 id: {
                   type: "string",
                   description:
-                    "Stable lowercase identifier used by one or more [@source_id] markers.",
+                    "Short lowercase identifier used by one or more [@id] markers.",
                 },
-                citation: {
-                  type: "string",
-                  description:
-                    "Visible citation text without a URL or repeated pinpoint list.",
-                },
-                handles: {
+                evidence_ids: {
                   type: "array",
+                  minItems: 1,
+                  maxItems: 16,
+                  uniqueItems: true,
                   items: { type: "string" },
                   description:
-                    "One to sixteen ordered evidence handles returned by exact legal-source lookups.",
-                },
-                source_reference: {
-                  type: "string",
-                  description:
-                    "Cached legal-source PDF evidence only: the opaque source_reference returned with the handle.",
-                },
-                quotes: {
-                  type: "array",
-                  items: { type: "string" },
-                  description:
-                    "Optional exact quote per handle; omit when the evidence unit identifies the pinpoint.",
+                    "Exact passage evidence_ids returned by legal retrieval tools. Prefer the narrowest paragraph or paragraph range that supports this claim.",
                 },
               },
-              required: ["id", "citation", "handles"],
+              required: ["id", "evidence_ids"],
+            },
+          },
+          citation_style: {
+            type: "string",
+            enum: ["footnotes", "inline", "after-paragraph", "none"],
+            description:
+              "Override saved placement only when the user explicitly requests it. after-paragraph is factum-only.",
+          },
+          citation_hyperlinks: {
+            type: "boolean",
+            description:
+              "Set false only when the user explicitly requests citations without links.",
+          },
+          number_headings: {
+            type: "boolean",
+            description:
+              "Override the saved heading-numbering preference only when explicitly requested.",
+          },
+          memo_header: {
+            type: "object",
+            additionalProperties: false,
+            description:
+              "Memo-only custom header override. Omit for the standard To: File, From: AI Assistant, current Date, and Re: title block.",
+            properties: {
+              to: { type: "string" },
+              from: { type: "string" },
+              date: { type: "string" },
             },
           },
         },
-        required: ["title", "markdown"],
+        required: ["title", "document_type", "markdown"],
       },
     },
   },

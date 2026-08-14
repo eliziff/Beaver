@@ -4,8 +4,9 @@ type DocxMarkdownInline =
   | { type: "text"; text: string }
   | { type: "strong"; text: string }
   | { type: "emphasis"; text: string }
+  | { type: "break" }
   | { type: "footnote"; id: string }
-  | { type: "citation"; id: string }
+  | { type: "citation"; id: string; occurrence: number }
   | { type: "control"; tag: string; occurrence: number };
 
 type DocxMarkdownBlock =
@@ -17,6 +18,11 @@ type DocxMarkdownBlock =
       children: DocxMarkdownInline[];
     }
   | { type: "paragraph"; children: DocxMarkdownInline[] }
+  | {
+      type: "blockquote";
+      level: number;
+      children: DocxMarkdownInline[];
+    }
   | {
       type: "list";
       items: {
@@ -41,11 +47,31 @@ export type DocxMarkdownDocument = {
   }[];
 };
 
+export type DocxCitation = {
+  sources: {
+    stableId: string;
+    authority: string;
+    shortAuthority: string;
+    mainUrl: string | null;
+    pinpoints: { text: string; url: string | null }[];
+  }[];
+};
+
 export type RenderDocxMarkdownOptions = {
   title?: string;
   landscape?: boolean;
   values?: Readonly<Record<string, string>>;
-  citations?: Readonly<Record<string, { text: string; url: string }>>;
+  citations?: Readonly<Record<string, DocxCitation>>;
+  citationPlacement?: "footnotes" | "inline" | "after-paragraph" | "none";
+  citationHyperlinks?: boolean;
+  numberHeadings?: boolean | "auto";
+  memoHeader?: {
+    to: string;
+    from: string;
+    date?: string;
+  };
+  generatedAt?: Date;
+  timeZone?: string;
 };
 
 const CONTROL_TAG = "[a-z][a-z0-9_.-]{0,63}";
@@ -72,6 +98,7 @@ const CONTROL_RE = new RegExp(`^\\{\\{(${CONTROL_MARKER})\\}\\}$`, "u");
 
 type ParseState = {
   controlCounts: Map<string, number>;
+  citationCounts: Map<string, number>;
   referencedNotes: Set<string>;
   warnings: string[];
 };
@@ -152,7 +179,9 @@ function parseInline(
         children.push({ type: "footnote", id: footnote[1] });
       }
     } else if (citation) {
-      children.push({ type: "citation", id: citation[1] });
+      const occurrence = state.citationCounts.get(citation[1]) ?? 0;
+      state.citationCounts.set(citation[1], occurrence + 1);
+      children.push({ type: "citation", id: citation[1], occurrence });
     } else if (control) {
       const tag = normalizeDocxControlTag(control[1]);
       if (!tag) {
@@ -420,12 +449,40 @@ function extractFootnotes(lines: string[], warnings: string[]) {
   return { definitions, body };
 }
 
+function blockquoteLine(line: string) {
+  const match = line.match(/^ {0,3}(>+)[ \t]?(.*)$/u);
+  return match
+    ? { level: Math.min(6, match[1].length), text: match[2] }
+    : null;
+}
+
+function hasHardBreak(line: string) {
+  const trailing = line.match(/\\+$/u)?.[0].length ?? 0;
+  return trailing % 2 === 1;
+}
+
+function paragraphInlines(lines: string[], state: ParseState) {
+  return lines.flatMap((line, index): DocxMarkdownInline[] => {
+    const hardBreak = hasHardBreak(line);
+    const text = hardBreak ? line.slice(0, -1).trimEnd() : line.trim();
+    const children = parseInline(text, state);
+    if (index === lines.length - 1) return children;
+    return [
+      ...children,
+      hardBreak
+        ? { type: "break" as const }
+        : { type: "text" as const, text: " " },
+    ];
+  });
+}
+
 function beginsBlock(lines: string[], index: number) {
   const trimmed = lines[index]?.trim() ?? "";
   return (
     !trimmed ||
     trimmed === "<!-- pagebreak -->" ||
     /^#{1,6}\s+/u.test(lines[index]) ||
+    blockquoteLine(lines[index]) !== null ||
     CONTROL_ONLY_RE.test(lines[index]) ||
     listItem(lines[index]) !== null ||
     isTable(lines, index)
@@ -437,7 +494,11 @@ function mapInlineArrays(
   transform: (children: DocxMarkdownInline[]) => DocxMarkdownInline[],
 ) {
   for (const block of blocks) {
-    if (block.type === "heading" || block.type === "paragraph") {
+    if (
+      block.type === "heading" ||
+      block.type === "paragraph" ||
+      block.type === "blockquote"
+    ) {
       block.children = transform(block.children);
     } else if (block.type === "list") {
       for (const item of block.items) item.children = transform(item.children);
@@ -461,6 +522,7 @@ export function parseDocxMarkdown(
 
   const state: ParseState = {
     controlCounts: new Map(),
+    citationCounts: new Map(),
     referencedNotes: new Set(),
     warnings,
   };
@@ -494,6 +556,24 @@ export function parseDocxMarkdown(
     if (heading) {
       blocks.push(heading);
       index += 1;
+      continue;
+    }
+
+    const firstQuote = blockquoteLine(line);
+    if (firstQuote) {
+      const lines = [firstQuote.text];
+      index += 1;
+      while (index < body.length) {
+        const next = blockquoteLine(body[index]);
+        if (!next || next.level !== firstQuote.level) break;
+        lines.push(next.text);
+        index += 1;
+      }
+      blocks.push({
+        type: "blockquote",
+        level: firstQuote.level,
+        children: paragraphInlines(lines, state),
+      });
       continue;
     }
 
@@ -573,7 +653,7 @@ export function parseDocxMarkdown(
     }
     blocks.push({
       type: "paragraph",
-      children: parseInline(paragraph.join(" "), state),
+      children: paragraphInlines(paragraph, state),
     });
   }
 
@@ -661,6 +741,25 @@ function collectCitationIds(document: DocxMarkdownDocument) {
   return ids;
 }
 
+function collectCitationOccurrences(document: DocxMarkdownDocument) {
+  const occurrences: Extract<DocxMarkdownInline, { type: "citation" }>[] = [];
+  const visit = (children: DocxMarkdownInline[]) => {
+    for (const child of children) {
+      if (child.type === "citation") occurrences.push(child);
+    }
+  };
+  for (const block of document.blocks) {
+    if ("children" in block) visit(block.children);
+    else if (block.type === "list")
+      block.items.forEach((item) => visit(item.children));
+    else if (block.type === "table") {
+      block.headers.forEach(visit);
+      block.rows.forEach((row) => row.forEach(visit));
+    }
+  }
+  return occurrences;
+}
+
 function inlineText(children: DocxMarkdownInline[]) {
   return children
     .map((child) =>
@@ -677,11 +776,51 @@ function titleKey(value: string) {
   return value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 }
 
+function validateCitationUrl(id: string, value: string | null) {
+  if (value === null) return;
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`Verified citation "${id}" has an invalid URL.`);
+  }
+  if (
+    !["http:", "https:"].includes(parsed.protocol) ||
+    parsed.username ||
+    parsed.password
+  ) {
+    throw new Error(`Verified citation "${id}" has an unsafe URL.`);
+  }
+}
+
+function hasMemoHeader(markdown: string) {
+  const lines = markdown
+    .replaceAll("\r\n", "\n")
+    .replaceAll("\r", "\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 4);
+  if (
+    ["To", "From", "Date", "Re"].every((label, index) =>
+      new RegExp(`^${label}:\\s*`, "iu").test(lines[index] ?? ""),
+    )
+  ) return true;
+  return /^To:\s+.+?\s+From:\s+.+?\s+Date:\s+.+?\s+Re:\s+/iu.test(
+    lines.join(" ").slice(0, 1_000),
+  );
+}
+
 export async function renderDocxMarkdown(
   markdown: string,
   options: RenderDocxMarkdownOptions = {},
   warnings: string[] = [],
 ): Promise<Buffer> {
+  if (options.memoHeader && hasMemoHeader(markdown)) {
+    throw new Error(
+      "Memo body must not repeat the automatic To, From, Date, and Re header.",
+    );
+  }
   return renderDocxMarkdownDocument(
     parseDocxMarkdown(markdown, warnings),
     options,
@@ -717,25 +856,39 @@ export async function renderDocxMarkdownDocument(
     }
     if (
       !citation ||
-      typeof citation.text !== "string" ||
-      !citation.text.trim() ||
-      citation.text.length > 1_000 ||
-      typeof citation.url !== "string"
+      !Array.isArray(citation.sources) ||
+      !citation.sources.length ||
+      citation.sources.length > 16
     ) {
       throw new Error(`Verified citation "${id}" is invalid.`);
     }
-    let parsed: URL;
-    try {
-      parsed = new URL(citation.url);
-    } catch {
-      throw new Error(`Verified citation "${id}" has an invalid URL.`);
-    }
-    if (
-      !["http:", "https:"].includes(parsed.protocol) ||
-      parsed.username ||
-      parsed.password
-    ) {
-      throw new Error(`Verified citation "${id}" has an unsafe URL.`);
+    for (const source of citation.sources) {
+      if (
+        !source ||
+        typeof source.stableId !== "string" ||
+        !source.stableId ||
+        typeof source.authority !== "string" ||
+        !source.authority.trim() ||
+        source.authority.length > 1_000 ||
+        typeof source.shortAuthority !== "string" ||
+        !Array.isArray(source.pinpoints) ||
+        source.pinpoints.length > 16 ||
+        source.pinpoints.some(
+          (pinpoint) =>
+            !pinpoint ||
+            typeof pinpoint.text !== "string" ||
+            !pinpoint.text.trim() ||
+            pinpoint.text.length > 200 ||
+            (pinpoint.url !== null && typeof pinpoint.url !== "string"),
+        ) ||
+        (source.mainUrl !== null && typeof source.mainUrl !== "string")
+      ) {
+        throw new Error(`Verified citation "${id}" is invalid.`);
+      }
+      validateCitationUrl(id, source.mainUrl);
+      source.pinpoints.forEach((pinpoint) =>
+        validateCitationUrl(id, pinpoint.url),
+      );
     }
   }
   let valuesLength = 0;
@@ -802,6 +955,7 @@ export async function renderDocxMarkdownDocument(
     TableCell,
     TableLayoutType,
     TableRow,
+    TabStopType,
     TextRun,
     WidthType,
   } = await import("docx");
@@ -868,9 +1022,65 @@ export async function renderDocxMarkdownDocument(
   const noteNumbers = new Map(
     document.footnotes.map((footnote, index) => [footnote.id, index + 1]),
   );
+  const citationPlacement = options.citationPlacement ?? "inline";
+  const citationHyperlinks = options.citationHyperlinks !== false;
+  const citationOccurrences = collectCitationOccurrences(document).filter(
+    ({ id }) => !unverifiedCitations.has(id),
+  );
+  const citationNoteNumbers = new Map<string, number>();
+  const citationFootnoteForms = new Map<string, DocxCitation>();
+  if (citationPlacement === "footnotes") {
+    const firstNoteBySource = new Map<string, number>();
+    let previousSource: string | null = null;
+    citationOccurrences.forEach((citation, index) => {
+      const key = `${citation.id}:${citation.occurrence}`;
+      const number = document.footnotes.length + index + 1;
+      citationNoteNumbers.set(
+        key,
+        number,
+      );
+      const resolved = citations[citation.id];
+      if (resolved.sources.length !== 1) {
+        previousSource = null;
+        citationFootnoteForms.set(key, resolved);
+        return;
+      }
+      const source = resolved.sources[0];
+      const firstNote = firstNoteBySource.get(source.stableId);
+      const authority = previousSource === source.stableId
+        ? "Ibid"
+        : firstNote
+          ? `${source.shortAuthority}, supra note ${firstNote}`
+          : source.authority;
+      if (!firstNote) firstNoteBySource.set(source.stableId, number);
+      previousSource = source.stableId;
+      citationFootnoteForms.set(key, {
+        sources: [{ ...source, authority }],
+      });
+    });
+  }
+  const linkedRun = (text: string, url: string | null): ParagraphChild =>
+    citationHyperlinks && url
+      ? new ExternalHyperlink({
+          link: url,
+          children: [new TextRun({ text, style: "Hyperlink" })],
+        })
+      : run(text);
+  const citationRuns = (citation: DocxCitation): ParagraphChild[] =>
+    citation.sources.flatMap((source, sourceIndex): ParagraphChild[] => [
+      ...(sourceIndex ? [run("; ")] : []),
+      linkedRun(source.authority, source.mainUrl),
+      ...source.pinpoints.flatMap(
+        (pinpoint, pinpointIndex): ParagraphChild[] => [
+          run(pinpointIndex ? ", " : " at "),
+          linkedRun(pinpoint.text, pinpoint.url),
+        ],
+      ),
+    ]);
   const inlines = (
     children: DocxMarkdownInline[],
     forceBold = false,
+    placement = citationPlacement,
   ): ParagraphChild[] =>
     children.flatMap((child): ParagraphChild[] => {
       switch (child.type) {
@@ -880,27 +1090,46 @@ export async function renderDocxMarkdownDocument(
           return [run(child.text, { bold: true })];
         case "emphasis":
           return [run(child.text, { bold: forceBold, italics: true })];
+        case "break":
+          return [new TextRun({ break: 1 })];
         case "footnote":
           return [new FootnoteReferenceRun(noteNumbers.get(child.id)!)];
         case "citation": {
           if (unverifiedCitations.has(child.id)) return [];
-          const citation = citations[child.id];
-          return [
-            new ExternalHyperlink({
-              link: citation.url,
-              children: [
-                new TextRun({
-                  text: citation.text,
-                  style: "Hyperlink",
-                }),
-              ],
-            }),
-          ];
+          if (placement === "none" || placement === "after-paragraph") return [];
+          if (placement === "footnotes") {
+            const number = citationNoteNumbers.get(
+              `${child.id}:${child.occurrence}`,
+            );
+            return number ? [new FootnoteReferenceRun(number)] : [];
+          }
+          return [run(" "), ...citationRuns(citations[child.id])];
         }
         case "control":
           return [inlineControl(child.tag, child.occurrence)];
       }
     });
+  const followingCitationParagraph = (children: DocxMarkdownInline[]) => {
+    if (citationPlacement !== "after-paragraph") return null;
+    const ids = [
+      ...new Set(
+        children.flatMap((child) =>
+          child.type === "citation" && !unverifiedCitations.has(child.id)
+            ? [child.id]
+            : [],
+        ),
+      ),
+    ];
+    return ids.length
+      ? new Paragraph({
+          style: "CitationBlock",
+          children: ids.flatMap((id, index): ParagraphChild[] => [
+            ...(index ? [run("; ")] : []),
+            ...citationRuns(citations[id]),
+          ]),
+        })
+      : null;
+  };
 
   const headingLevels = [
     HeadingLevel.HEADING_1,
@@ -916,7 +1145,44 @@ export async function renderDocxMarkdownDocument(
     | InstanceType<typeof Table>
   )[] = [];
   const title = options.title?.trim();
-  if (title) {
+  const memoHeader = options.memoHeader;
+  if (memoHeader && title) {
+    const generatedAt = options.generatedAt ?? new Date();
+    let timeZone = options.timeZone ?? "UTC";
+    try {
+      new Intl.DateTimeFormat("en-CA", { timeZone }).format(generatedAt);
+    } catch {
+      timeZone = "UTC";
+    }
+    const date = memoHeader.date ?? (() => {
+      const parts = new Intl.DateTimeFormat("en-CA", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        timeZone,
+      }).formatToParts(generatedAt);
+      const value = (type: Intl.DateTimeFormatPartTypes) =>
+        parts.find((part) => part.type === type)?.value ?? "";
+      return `${value("day")} ${value("month")} ${value("year")}`;
+    })();
+    const rows = [
+      ["To", memoHeader.to],
+      ["From", memoHeader.from],
+      ["Date", date],
+      ["Re", title],
+    ] as const;
+    rows.forEach(([label, value], index) =>
+      blocks.push(
+        new Paragraph({
+          keepNext: true,
+          keepLines: true,
+          tabStops: [{ type: TabStopType.LEFT, position: 900 }],
+          spacing: { after: index === rows.length - 1 ? 240 : 0 },
+          children: [run(`${label}:`, { bold: true }), run("\t"), run(value)],
+        }),
+      ),
+    );
+  } else if (title) {
     blocks.push(
       new Paragraph({
         heading: HeadingLevel.TITLE,
@@ -946,7 +1212,7 @@ export async function renderDocxMarkdownDocument(
       blocks.push(
         new Paragraph({
           heading: headingLevels[block.level - 1],
-          numbering: block.numbered
+          numbering: block.numbered && options.numberHeadings !== false
             ? { reference: headingNumbering, level: block.level - 1 }
             : undefined,
           children: block.bookmark
@@ -960,6 +1226,16 @@ export async function renderDocxMarkdownDocument(
           children: inlines(block.children),
         }),
       );
+      const citations = followingCitationParagraph(block.children);
+      if (citations) blocks.push(citations);
+    } else if (block.type === "blockquote") {
+      blocks.push(new Paragraph({
+        style: "IndentedBlock",
+        indent: { left: 720 + (block.level - 1) * 360 },
+        children: inlines(block.children),
+      }));
+      const citations = followingCitationParagraph(block.children);
+      if (citations) blocks.push(citations);
     } else if (block.type === "control") {
       const value = controlValue(block.tag);
       const paragraphs = (
@@ -981,6 +1257,8 @@ export async function renderDocxMarkdownDocument(
             children: inlines(item.children),
           }),
         );
+        const citations = followingCitationParagraph(item.children);
+        if (citations) blocks.push(citations);
       }
     } else {
       const border = {
@@ -1014,7 +1292,13 @@ export async function renderDocxMarkdownDocument(
                 children: [
                   new Paragraph({
                     style: "LegalTableText",
-                    children: inlines(cell, true),
+                    children: inlines(
+                      cell,
+                      true,
+                      citationPlacement === "after-paragraph"
+                        ? "inline"
+                        : citationPlacement,
+                    ),
                   }),
                 ],
               }),
@@ -1039,7 +1323,13 @@ export async function renderDocxMarkdownDocument(
                     children: [
                       new Paragraph({
                         style: "LegalTableText",
-                        children: inlines(cell),
+                        children: inlines(
+                          cell,
+                          false,
+                          citationPlacement === "after-paragraph"
+                            ? "inline"
+                            : citationPlacement,
+                        ),
                       }),
                     ],
                   }),
@@ -1110,19 +1400,38 @@ export async function renderDocxMarkdownDocument(
   const bulletListLevels = bulletText.map((text, level) =>
     numberingLevel(level, LevelFormat.BULLET, text),
   );
-  const footnotes = Object.fromEntries(
-    document.footnotes.map((footnote, index) => [
+  const footnotes = Object.fromEntries([
+    ...document.footnotes.map((footnote, index) => [
       String(index + 1),
       {
         children: [
           new Paragraph({
             style: "FootnoteText",
-            children: inlines(footnote.children),
+            children: inlines(footnote.children, false, "inline"),
           }),
         ],
       },
-    ]),
-  );
+    ] as const),
+    ...(citationPlacement === "footnotes"
+      ? citationOccurrences.map((citation) => [
+          String(
+            citationNoteNumbers.get(`${citation.id}:${citation.occurrence}`),
+          ),
+          {
+            children: [
+              new Paragraph({
+                style: "FootnoteText",
+                children: citationRuns(
+                  citationFootnoteForms.get(
+                    `${citation.id}:${citation.occurrence}`,
+                  ) ?? citations[citation.id],
+                ),
+              }),
+            ],
+          },
+        ] as const)
+      : []),
+  ]);
   const docx = new Document({
     title,
     creator: "Beaver",
@@ -1217,6 +1526,27 @@ export async function renderDocxMarkdownDocument(
           run: { font, size: 20, color: "000000" },
           paragraph: {
             spacing: { line: 240, after: 20 },
+          },
+        },
+        {
+          id: "IndentedBlock",
+          name: "Indented Block",
+          basedOn: "Normal",
+          next: "Normal",
+          run: { font, size, color: "000000" },
+          paragraph: {
+            spacing: { line: 264, after: 80 },
+          },
+        },
+        {
+          id: "CitationBlock",
+          name: "Citation Block",
+          basedOn: "Normal",
+          next: "Normal",
+          run: { font, size: 20, color: "000000" },
+          paragraph: {
+            indent: { left: 720 },
+            spacing: { line: 240, after: 120 },
           },
         },
       ],

@@ -7,6 +7,7 @@ import type {
   StreamChatResult,
 } from "./types";
 import { createLlmTrace } from "./rawStreamLog";
+import { modelContextWindow } from "./contextWindow";
 
 const DEEPSEEK_CHAT_URL = "https://api.deepseek.com/chat/completions";
 // DeepSeek's own default output budget for reasoning models is 32K tokens
@@ -353,6 +354,13 @@ export async function streamDeepSeek(
         totalUsage.prompt_cache_miss_tokens =
           (totalUsage.prompt_cache_miss_tokens ?? 0) +
           (responseUsage.prompt_cache_miss_tokens ?? 0);
+        const contextWindowTokens = modelContextWindow(model);
+        if (contextWindowTokens) {
+          callbacks.onContextUsage?.({
+            usedTokens: responseUsage.prompt_tokens ?? 0,
+            contextWindowTokens,
+          });
+        }
       }
 
       if (reasoning) callbacks.onReasoningBlockEnd?.();
@@ -366,21 +374,27 @@ export async function streamDeepSeek(
       const toolCalls = nativeCalls.map(parseToolCall);
       for (const call of toolCalls) callbacks.onToolCallStart?.(call);
 
-      if (!toolCalls.length || !runTools) break;
+      const results = toolCalls.length && runTools
+        ? await runTools(toolCalls)
+        : [];
+      if (results.some((result) => result.terminal)) break;
+      const steering = params.takeSteering?.() ?? [];
+      if (!results.length && !steering.length) break;
       messages.push({
         role: "assistant",
         content: content || null,
         reasoning_content: reasoning || undefined,
-        tool_calls: nativeCalls,
+        tool_calls: nativeCalls.length ? nativeCalls : undefined,
       });
-      const results = await runTools(toolCalls);
-      if (results.some((result) => result.terminal)) break;
       for (const result of results) {
         messages.push({
           role: "tool",
           tool_call_id: result.tool_use_id,
           content: result.content,
         });
+      }
+      for (const message of steering) {
+        messages.push({ role: "user", content: message.text });
       }
     }
 

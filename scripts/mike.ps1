@@ -211,7 +211,7 @@ function Build-LegalPdf([string]$Binary) {
     $engine = Join-Path $Repo 'universal-legal-pdf-engine'
     Push-Location $engine
     try {
-        & $cargo build --release --locked --features kraken
+        & $cargo build --release --locked --features kraken,ppdoc
         $buildExitCode = $LASTEXITCODE
     }
     finally {
@@ -245,7 +245,7 @@ function Resolve-LegalPdfBinary([switch]$Build) {
     if ($installed) {
         return $installed
     }
-    throw 'Legal PDF Rust binary is missing. Run: cargo build --release --features kraken --manifest-path .\universal-legal-pdf-engine\Cargo.toml'
+    throw 'Legal PDF Rust binary is missing. Run: cargo build --release --features kraken,ppdoc --manifest-path .\universal-legal-pdf-engine\Cargo.toml'
 }
 
 function Get-LegalPdfRuntimeVersion([string]$Binary) {

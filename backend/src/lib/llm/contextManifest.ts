@@ -10,6 +10,7 @@ import type {
   StreamChatResult,
 } from "./types";
 import { sha256 } from "../hash";
+import { hasNativeCompaction } from "./contextWindow";
 
 type ComponentMeasurement = {
   count: number;
@@ -51,7 +52,7 @@ export type LlmContextManifest = {
   compaction:
     | { strategy: "none"; reason: null; checkpointId: null }
     | {
-        strategy: "provider";
+        strategy: "provider" | "host";
         reason: "threshold_configured";
         threshold: number;
         checkpointId: null;
@@ -178,7 +179,9 @@ export function buildContextManifest(
       : { strategy: "none", keySha256: null },
     compaction: args.params.compactThreshold
       ? {
-          strategy: "provider",
+          strategy: hasNativeCompaction(args.params.model)
+            ? "provider"
+            : "host",
           reason: "threshold_configured",
           threshold: args.params.compactThreshold,
           checkpointId: null,

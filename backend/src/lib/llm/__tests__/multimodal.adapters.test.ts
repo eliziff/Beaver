@@ -39,4 +39,31 @@ describe("multimodal provider adapters", () => {
       ],
     });
   });
+
+  it("preserves Claude compaction blocks only on models that support them", () => {
+    const checkpoint: LlmMessage[] = [{
+      role: "assistant",
+      content: "[Conversation checkpoint]\nsummary",
+      contextCheckpoint: { provider: "claude", content: "summary" },
+    }];
+    expect(toNativeMessages(checkpoint, true)[0]).toEqual({
+      role: "assistant",
+      content: [{ type: "compaction", content: "summary" }],
+    });
+    expect(toNativeMessages(checkpoint, false)[0]).toEqual({
+      role: "assistant",
+      content: "[Conversation checkpoint]\nsummary",
+    });
+
+    const item = {
+      type: "compaction",
+      id: "cmp_1",
+      encrypted_content: "opaque",
+    };
+    expect(toResponseInput([{
+      role: "assistant",
+      content: "",
+      contextCheckpoint: { provider: "openai", item },
+    }])).toEqual([item]);
+  });
 });

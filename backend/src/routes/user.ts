@@ -33,6 +33,10 @@ import {
     userExportFilename,
 } from "../lib/userDataExport";
 import { findProfileUserByEmail } from "../lib/userLookup";
+import {
+    normalizeDraftingStyleSettings,
+    type DraftingStyleSettings,
+} from "../lib/draftingStyle";
 
 export const userRouter = Router();
 const loadMcpConnectors = () => import("../lib/mcpConnectors");
@@ -49,6 +53,7 @@ type UserProfileRow = {
     tabular_model: string;
     mfa_on_login: boolean | null;
     legal_research_us: boolean | null;
+    drafting_style: unknown;
 };
 
 function errorMessage(error: unknown): string {
@@ -154,7 +159,7 @@ function mcpOAuthPopupCsp(nonce: string) {
 }
 
 const PROFILE_SELECT =
-    "display_name, organisation, message_credits_used, credits_reset_date, tier, title_model, tabular_model, mfa_on_login, legal_research_us";
+    "display_name, organisation, message_credits_used, credits_reset_date, tier, title_model, tabular_model, mfa_on_login, legal_research_us, drafting_style";
 
 async function selectProfile(
     db: ReturnType<typeof createServerSupabase>,
@@ -190,6 +195,7 @@ function serializeProfile(row: UserProfileRow, apiKeyStatus?: ApiKeyStatus) {
         tabularModel: resolveModel(row.tabular_model, DEFAULT_TABULAR_MODEL),
         mfaOnLogin: row.mfa_on_login === true,
         legalResearchUs: row.legal_research_us !== false,
+        draftingStyle: normalizeDraftingStyleSettings(row.drafting_style),
         ...(apiKeyStatus ? { apiKeyStatus } : {}),
     };
 }
@@ -203,6 +209,7 @@ function validateProfilePayload(body: unknown):
               title_model?: string;
               tabular_model?: string;
               legal_research_us?: boolean;
+              drafting_style?: DraftingStyleSettings;
               updated_at: string;
           };
       }
@@ -218,6 +225,7 @@ function validateProfilePayload(body: unknown):
         "titleModel",
         "tabularModel",
         "legalResearchUs",
+        "draftingStyle",
     ]);
     const invalidField = Object.keys(raw).find(
         (key) => !allowedFields.has(key),
@@ -235,6 +243,7 @@ function validateProfilePayload(body: unknown):
         title_model?: string;
         tabular_model?: string;
         legal_research_us?: boolean;
+        drafting_style?: DraftingStyleSettings;
         updated_at: string;
     } = { updated_at: new Date().toISOString() };
 
@@ -256,6 +265,19 @@ function validateProfilePayload(body: unknown):
             };
         }
         update.organisation = raw.organisation?.trim() || null;
+    }
+
+    if ("draftingStyle" in raw) {
+        if (
+            !raw.draftingStyle ||
+            typeof raw.draftingStyle !== "object" ||
+            Array.isArray(raw.draftingStyle)
+        ) {
+            return { ok: false, detail: "draftingStyle must be an object" };
+        }
+        update.drafting_style = normalizeDraftingStyleSettings(
+            raw.draftingStyle,
+        );
     }
 
     if ("tabularModel" in raw) {

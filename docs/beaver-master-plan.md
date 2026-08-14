@@ -876,6 +876,29 @@ Implemented:
 - One local assistant turn creates at most one assistant-edit version per
   document. Later mutations in that turn update it only when earlier tracked
   change IDs remain valid, so accept/reject receipts cannot dangle.
+- Generated DOCX drafting now gives the model a compact semantic contract:
+  `>` creates a native indented paragraph, `\>` emits a literal greater-than
+  sign, and a trailing backslash creates a hard line break. Standard memo
+  To/From/Date/Re headers, filenames, heading numbering, citation form, repeat
+  forms, and separate source/pinpoint hyperlinks are renderer-owned. Citation
+  markers bind only to exact same-turn evidence IDs, and local/cloud Drafting
+  Style settings select per-document citation placement without duplicating
+  assistant paths.
+
+Deferred deterministic boilerplate (promote only for a concrete document
+workflow with a render fixture and measured token reduction):
+
+- Keep Word properties, page numbers, headers/footers, and TOC/TOA fields
+  artifact-owned rather than asking the model to spell them out.
+- Add narrow structured shells for recurring factum cover/part labels and
+  business-letter address, salutation, and closing blocks; do not introduce a
+  general template language.
+- Populate court, matter, party, contact, signature, and service blocks from
+  selected matter/profile data or explicit user inputs, and ask when required
+  values are missing instead of inventing them.
+- Reuse native fields, bookmarks, content controls, and document metadata for
+  cross-references, captions, defined terms, and repeatable provisions instead
+  of retransmitting their presentation on every draft.
 
 - Build version-bound find handles so repeated changes do not resend whole
   documents or ambiguous before/after context.
