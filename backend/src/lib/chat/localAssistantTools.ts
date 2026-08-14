@@ -149,7 +149,13 @@ const tool = (
 });
 
 const DOCUMENT_ID_PROPERTY = {
-  type: "string", description: "DOCX document_id returned by library_list.",
+  type: "string",
+  description: "Filename from Glob, or document_id when Glob reports a duplicate filename.",
+};
+const DOCUMENT_IDS_PROPERTY = {
+  type: "array",
+  items: { type: "string" },
+  description: "Filenames from Glob, or document_ids for duplicate filenames.",
 };
 const OPTIONAL_VERSION_ID_PROPERTY = {
   type: "string",
@@ -163,7 +169,7 @@ tool(
     {
       type: "object",
       properties: {
-        document_id: { type: "string" },
+        document_id: DOCUMENT_ID_PROPERTY,
         kind: { type: "string", enum: ["file", "template"] },
         metadata: {
           type: "object",
@@ -185,7 +191,7 @@ tool(
     {
       type: "object",
       properties: {
-        document_id: { type: "string" },
+        document_id: DOCUMENT_ID_PROPERTY,
         version_id: {
           type: "string",
           description: "Optional Library version. Defaults to active.",
@@ -303,17 +309,8 @@ tool(
     {
       type: "object",
       properties: {
-        source_document_ids: {
-          type: "array",
-          items: { type: "string" },
-          description: "Library document_ids of the task's source documents.",
-        },
-        draft_document_ids: {
-          type: "array",
-          items: { type: "string" },
-          description:
-            "Library document_ids of the drafts to audit.",
-        },
+        source_document_ids: DOCUMENT_IDS_PROPERTY,
+        draft_document_ids: DOCUMENT_IDS_PROPERTY,
         max_rows_per_class: {
           type: "integer",
           minimum: 1,
@@ -331,11 +328,7 @@ tool(
     {
       type: "object",
       properties: {
-        document_ids: {
-          type: "array",
-          items: { type: "string" },
-          description: "Library document_ids to reconcile.",
-        },
+        document_ids: DOCUMENT_IDS_PROPERTY,
       },
       required: ["document_ids"],
     },
@@ -346,15 +339,8 @@ tool(
     {
       type: "object",
       properties: {
-        source_document_id: {
-          type: "string",
-          description: "Library document_id of the instrument being amended.",
-        },
-        amendment_document_id: {
-          type: "string",
-          description:
-            "Library document_id of the amending instrument; this or amendment_text.",
-        },
+        source_document_id: DOCUMENT_ID_PROPERTY,
+        amendment_document_id: DOCUMENT_ID_PROPERTY,
         amendment_text: {
           type: "string",
           description:
@@ -382,7 +368,7 @@ tool(
         target: {
           type: "string",
           description:
-            "Exact provision handle from library_outline, such as '8.02' or '8.02(a)'.",
+            "Exact provision handle from Grep, such as '8.02' or '8.02(a)'.",
         },
       },
       required: ["document_id", "target"],
@@ -435,7 +421,7 @@ tool(
           type: "array",
           items: { type: "string" },
           minItems: 2,
-          description: "Library document_ids of the deal-stack documents.",
+          description: DOCUMENT_IDS_PROPERTY.description,
         },
         max_rows: {
           type: "integer",
@@ -470,14 +456,8 @@ tool(
     {
       type: "object",
       properties: {
-        english_document_id: {
-          type: "string",
-          description: "Library document_id of the English version.",
-        },
-        french_document_id: {
-          type: "string",
-          description: "Library document_id of the French version.",
-        },
+        english_document_id: DOCUMENT_ID_PROPERTY,
+        french_document_id: DOCUMENT_ID_PROPERTY,
         max_rows_per_class: {
           type: "integer",
           minimum: 1,
@@ -580,15 +560,6 @@ const LOCAL_DOCX_TOOLS: OpenAIToolSchema[] = (
 const LOCAL_ASK_INPUTS_TOOLS = (TOOLS as OpenAIToolSchema[]).filter(
   (schema) => schema.function.name === "ask_inputs",
 );
-
-/**
- * MIKE_DISABLE_RESEARCH_TOOLS=1 removes the online legal-research tools
- * (CourtListener, A2AJ, public legal sources) and their system-prompt
- * sections from the local assistant — for sealed-environment runs where
- * the matter documents must be the only information source.
- */
-export const RESEARCH_TOOLS_DISABLED =
-  process.env.MIKE_DISABLE_RESEARCH_TOOLS === "1";
 
 /**
  * Turn-scoped bookkeeping for the requirements echo. Created once per assistant
@@ -896,34 +867,6 @@ function oneHopLegalScope(
   };
 }
 
-const CODING_SHAPE_REPLACES = new Set([
-  "library_list",
-  "library_find",
-  "library_read",
-  "library_outline",
-  "library_revise_docx",
-]);
-
-const CODING_SHAPE_SUGGESTIONS: Record<string, string> = {
-  library_find: "Grep",
-  library_read: "Read",
-  library_outline: "Grep or Read",
-  library_revise_docx: "Edit",
-};
-
-const ROUTED_CODING_DESCRIPTION = "";
-
-const CONCRETE_GREP_DESCRIPTION =
-  "";
-
-const CONCRETE_READ_DESCRIPTION =
-  "";
-
-const CONTACT_GREP_DESCRIPTION =
-  "";
-
-const LEGAL_GREP_DESCRIPTION = "";
-
 const CODING_READ_DESCRIPTION = "Reads a file. Reads up to 2000 lines by default. Results are returned using cat -n format, with line numbers starting at 1. When you already know which part of the file you need, pass a verified section handle shown in Grep results, or pass offset and limit for a line window.";
 
 
@@ -941,8 +884,7 @@ function findNearestSuggestion(query: string, body: string): string | null {
 const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
   tool(
     "Glob",
-    'Lists files in the user\'s uploaded Library only. Use when the user explicitly refers to their Library, an uploaded or attached document, or a named Library file. Never use it to discover cases, legislation, Hansard, commentary, or other legal authorities; use SearchSources for those. Supports glob patterns like "*.docx". Returns filenames with extracted-text character and line counts plus aggregate totals; when filenames collide, also returns the document_id needed to disambiguate them.' +
-      (""),
+    'Lists files in the user\'s uploaded Library only. Use when the user explicitly refers to their Library, an uploaded or attached document, or a named Library file. Never use it to discover cases, legislation, Hansard, commentary, or other legal authorities; use SearchSources for those. Supports glob patterns like "*.docx". Returns filenames with extracted-text character and line counts plus aggregate totals; when filenames collide, also returns the document_id needed to disambiguate them.',
     {
       type: "object",
       properties: {
@@ -954,14 +896,9 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
       required: ["pattern"],
     },
   ),
-  ...([]),
   tool(
     "Grep",
-    'Search the user\'s uploaded Library file contents with regular expressions. This is not legal-source discovery; use SearchSources for cases, legislation, Hansard, and commentary. Filter by file or glob; choose content, matching files, counts, or a listed legal projection.' +
-        ROUTED_CODING_DESCRIPTION +
-        CONCRETE_GREP_DESCRIPTION +
-        CONTACT_GREP_DESCRIPTION +
-        LEGAL_GREP_DESCRIPTION,
+    "Search the user's uploaded Library file contents with regular expressions. This is not legal-source discovery; use SearchSources for cases, legislation, Hansard, and commentary. Filter by file or glob; choose content, matching files, or counts.",
     {
       type: "object",
       properties: {
@@ -985,11 +922,9 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
             "content",
             "files_with_matches",
             "count",
-            ...([]),
           ],
           description:
-            'Output mode: "content" shows matching lines (supports -C context, -n line numbers, head_limit), "files_with_matches" shows file paths (default), "count" shows match counts.' +
-            (""),
+            'Output mode: "content" shows matching lines (supports -C context, -n line numbers, head_limit), "files_with_matches" shows file paths (default), "count" shows match counts.',
         },
         "-i": { type: "boolean", description: "Case insensitive search" },
         "-n": {
@@ -1008,16 +943,13 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
           description:
             "Limit output to the first N lines or entries. Defaults to 250.",
         },
-        ...({}),
       },
       required: ["pattern"],
     },
   ),
   tool(
     "Read",
-    CODING_READ_DESCRIPTION +
-        ROUTED_CODING_DESCRIPTION +
-        CONCRETE_READ_DESCRIPTION,
+    CODING_READ_DESCRIPTION,
     {
       type: "object",
       properties: {
@@ -1045,7 +977,6 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
                   "A verified structural handle shown in Grep results, including an exact DOCX row such as 'table:1/row:2' or cell such as 'table:1/row:2/col:3'. Copy it exactly; do not infer parent or paragraph handles. Returns only that span, numbered by document line.",
               },
             }),
-        ...({}),
       },
       required: ["file_path"],
     },
@@ -1098,44 +1029,12 @@ const CODING_DOCUMENT_REFERENCE_ARRAY_FIELDS = new Set([
   "draft_document_ids",
 ]);
 
-function forCodingVocabulary(tools: OpenAIToolSchema[]): OpenAIToolSchema[] {
-
-  const rewrite = (value: unknown, key = ""): unknown => {
-    if (Array.isArray(value)) return value.map((entry) => rewrite(entry));
-    if (!value || typeof value !== "object") {
-      if (key !== "description" || typeof value !== "string") return value;
-      return value
-        .replace(/library_outline/gu, "Grep")
-        .replace(/library_read/gu, "Read")
-        .replace(/library_find/gu, "Grep")
-        .replace(/library_revise_docx/gu, "Edit");
-    }
-    const rewritten = Object.fromEntries(
-      Object.entries(value).map(([name, entry]) => [
-        name,
-        rewrite(entry, name),
-      ]),
-    );
-    if (CODING_DOCUMENT_REFERENCE_FIELDS.has(key)) {
-      rewritten.description =
-        "Filename from Glob, or document_id when Glob reports a duplicate filename.";
-    } else if (CODING_DOCUMENT_REFERENCE_ARRAY_FIELDS.has(key)) {
-      rewritten.description =
-        "Filenames from Glob, or document_ids for duplicate filenames.";
-    }
-    return rewritten;
-  };
-  return tools.map((entry) => rewrite(entry) as OpenAIToolSchema);
-}
-
 const LOCAL_ASSISTANT_TOOL_CATALOG: OpenAIToolSchema[] = [
   ...LOCAL_ASK_INPUTS_TOOLS,
   ...CODING_SHAPE_TOOLS,
-  ...LOCAL_LIBRARY_TOOLS.filter(
-    (entry) => !CODING_SHAPE_REPLACES.has(entry.function.name),
-  ),
+  ...LOCAL_LIBRARY_TOOLS,
   ...LOCAL_DOCX_TOOLS.filter(
-    (entry) => !CODING_SHAPE_REPLACES.has(entry.function.name),
+    (entry) => entry.function.name !== "library_revise_docx",
   ),
   ...COMPARE_VERSIONS_TOOLS,
   ...(WORKFLOW_TOOLS as OpenAIToolSchema[]),
@@ -1179,8 +1078,7 @@ const EDIT_TOOL: OpenAIToolSchema = {
   },
 };
 
-export const LOCAL_ASSISTANT_TOOLS = (forCodingVocabulary(LOCAL_ASSISTANT_TOOL_CATALOG)
-).map(
+export const LOCAL_ASSISTANT_TOOLS = LOCAL_ASSISTANT_TOOL_CATALOG.map(
   (entry) => (entry.function.name === "Edit" ? EDIT_TOOL : entry),
 );
 
@@ -1914,18 +1812,9 @@ async function runLocalReviseDocx(
       ?.current_version_id ?? "";
     if (!versionId) return fail(call, "Document not found");
   }
-  const addressed = false;
   if (
     rawEdits.length > 100 ||
-    rawEdits.some((raw) => {
-      const edit = raw as Record<string, unknown>;
-      // `at` replaces the context pair: the server derives the surrounding
-      // bytes from the document, so the model never retypes them.
-      if (addressed && trimmed(edit.at)) {
-        return typeof edit.find !== "string" || typeof edit.replace !== "string";
-      }
-      return invalidReviseEdit(raw);
-    })
+    rawEdits.some(invalidReviseEdit)
   ) {
     return fail(call, "edits are invalid");
   }
@@ -1938,77 +1827,10 @@ async function runLocalReviseDocx(
     if (file.fileType.toLowerCase() !== "docx") {
       return fail(call, "Revision requires a DOCX Library version");
     }
-    /**
-     * `at` names the provision; the server finds `find` INSIDE it and reads
-     * the surrounding characters off the document itself.
-     *
-     * This exists because retyping is where edits actually fail. Measured on
-     * the edit benchmark, every misquote was a context string the model
-     * reconstructed with the wrong whitespace — joining two lines with a
-     * space where the document has a newline, or inventing a blank line. The
-     * model has never seen those bytes; the server has.
-     */
     const sourceBytes = await readFile(file.path);
-    const docxStructure = addressed
-      ? await extractDocxBodyStructure(sourceBytes)
-      : null;
-    const docText = docxStructure?.text ?? "";
-    const skeleton = docText
-      ? await documentStructure(docText, documentId, {
-          tableCells: docxStructure?.tableCells,
-        })
-      : null;
-    const CONTEXT = 40;
     const edits: EditInput[] = [];
     for (const raw of rawEdits) {
       const edit = raw as Record<string, unknown>;
-      const at = addressed ? trimmed(edit.at) : "";
-      if (at) {
-        const address = parseAddress(at);
-        if (address?.kind !== "section" || !skeleton || !docText) {
-          return fail(
-            call,
-            `at=${JSON.stringify(at)} must name a provision or table cell`,
-          );
-        }
-        const seek = readSection(skeleton, address.locator);
-        if (seek.status !== "found" || !seek.block) {
-          return fail(
-            call,
-            `Could not resolve at=${JSON.stringify(at)} (${seek.status})`,
-          );
-        }
-        const find = edit.find as string;
-        const span = docText.slice(seek.block.start, seek.block.end);
-        const first = span.indexOf(find);
-        const second = first < 0 ? -1 : span.indexOf(find, first + find.length);
-        if (first < 0) {
-          return fail(
-            call,
-            `find text does not occur inside at=${JSON.stringify(at)}`,
-          );
-        }
-        if (second >= 0) {
-          return fail(
-            call,
-            `find text occurs more than once inside at=${JSON.stringify(at)}; use a narrower address or a longer exact find`,
-          );
-        }
-        const at0 = seek.block.start + first;
-        if (find !== edit.replace) {
-          edits.push({
-            find,
-            replace: edit.replace as string,
-            context_before: docText.slice(Math.max(0, at0 - CONTEXT), at0),
-            context_after: docText.slice(
-              at0 + find.length,
-              at0 + find.length + CONTEXT,
-            ),
-            reason: typeof edit.reason === "string" ? edit.reason : undefined,
-          });
-        }
-        continue;
-      }
       if (edit.find !== edit.replace) {
         edits.push({
           find: edit.find as string,
@@ -2032,7 +1854,7 @@ async function runLocalReviseDocx(
       annotate,
     });
     if (edited.errors.length || !edited.changes.length) {
-      const sourceText = docText || (await extractDocxBodyText(sourceBytes));
+      const sourceText = await extractDocxBodyText(sourceBytes);
       return result(call, {
         ok: false,
         error: "No revision was saved",
@@ -2088,7 +1910,6 @@ async function runLocalReviseDocx(
           documentId,
           version.id,
         ).catch(() => null);
-    const diagnostics = null;
     const downloadUrl =
       `/single-documents/${encodeURIComponent(documentId)}/file` +
       `?version_id=${encodeURIComponent(version.id)}`;
@@ -2109,7 +1930,7 @@ async function runLocalReviseDocx(
       // measurable variable (annotate mode forces it to zero by
       // rejecting reason-free edits).
       edits_without_reason: edits.filter((edit) => !edit.reason?.trim()).length,
-      structural_lint: !diagnostics && lint
+      structural_lint: lint
         ? {
             finding_count: lint.findings.length,
             findings: lint.findings
@@ -2123,7 +1944,6 @@ async function runLocalReviseDocx(
             notes: lint.notes,
           }
         : undefined,
-      ...(diagnostics ? { compiler_diagnostics: diagnostics } : {}),
       ...(sourceClosure.length ? { source_closure: sourceClosure } : {}),
       download_url: downloadUrl,
       annotations: trackedEdits.map((edit) => ({
@@ -4738,16 +4558,6 @@ export async function runLocalAssistantTools(
           }
         }
         return codingResult;
-      }
-      // Strict surface: names the shape swap removed must fail loudly, or a
-      // prompt that still mentions them silently un-does the experiment.
-      // Sits ahead of every handler — the guard is only as strict as its
-      // position in this chain.
-      if (CODING_SHAPE_REPLACES.has(call.name)) {
-        return result(
-          call,
-          `No such tool available: ${call.name}. Use ${CODING_SHAPE_SUGGESTIONS[call.name]} (files are addressed by file path from Glob).`,
-        );
       }
       const publicLegalResult = await executePublicLegalSourceTool(
         call.name,
