@@ -146,7 +146,22 @@ afterEach(async () => {
 
 describe("local assistant tools", () => {
 
-  it("streams a reviewable tracked Edit through the chat runner", async () => {
+  it.each([
+    {
+      mode: "manual" as const,
+      status: "pending" as const,
+      revisionCount: 2,
+    },
+    {
+      mode: "auto" as const,
+      status: "accepted" as const,
+      revisionCount: 0,
+    },
+  ])("enforces $mode editing through the chat runner", async ({
+    mode,
+    status,
+    revisionCount,
+  }) => {
     process.env.MIKE_TOOL_SHAPE = "coding";
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-edit-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
@@ -172,6 +187,7 @@ describe("local assistant tools", () => {
       userId: "local-user",
       projectId: null,
       allowedDocumentIds: new Set([document.id]),
+      editMode: mode,
       onMutationCommitted: committed,
     });
     const evidence = createLegalEvidenceTurnState();
@@ -190,23 +206,38 @@ describe("local assistant tools", () => {
         },
       },
     ], { evidence, emit: vi.fn(), addEvent: (event) => events.push(event) });
-    expect(edited.content).toBe(
-      "Updated draft.docx: 1 tracked change applied.",
-    );
     expect(JSON.parse(edited.mutationReceipt ?? "null")).toMatchObject({
       ok: true,
       receipt: "mike-document:v1",
       action: "revised",
+      edit_mode: mode,
       document_id: document.id,
       version_number: 2,
     });
     expect(events).toMatchObject([{
       type: "doc_edited",
       document_id: document.id,
-      annotations: [{ deleted_text: "Original", inserted_text: "Revised" }],
+      edit_mode: mode,
+      annotations: [{
+        deleted_text: "Original",
+        inserted_text: "Revised",
+        diff: [
+          { kind: "delete", text: "Original" },
+          { kind: "insert", text: "Revised" },
+        ],
+        status,
+      }],
     }]);
+    const saved = await store.getLocalVersionFile("local-user", document.id);
+    expect(saved).not.toBeNull();
+    const { extractDocxBodyText, extractTrackedChangeIds } = await import(
+      "../docxTrackedChanges"
+    );
+    const savedBytes = await readFile(saved!.path);
+    expect(await extractDocxBodyText(savedBytes)).toContain("Revised provision.");
+    expect(await extractTrackedChangeIds(savedBytes)).toHaveLength(revisionCount);
     expect(committed).toHaveBeenCalledOnce();
-  });
+  }, 10_000);
 
   it("applies deterministic DOCX operations through Edit", async () => {
     process.env.MIKE_TOOL_SHAPE = "coding";

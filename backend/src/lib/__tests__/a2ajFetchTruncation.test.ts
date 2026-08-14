@@ -54,10 +54,12 @@ async function fetchToolResult(text: string) {
   };
   const { toolResults } = await runToolCalls(
     [toolCall],
-    new Map() as DocStore,
-    "user-1",
-    null as never,
-    () => undefined,
+    {
+      docStore: new Map() as DocStore,
+      userId: "user-1",
+      db: null as never,
+      emit: () => undefined,
+    },
   );
   return JSON.parse(toolResults[0].content) as Record<string, unknown>;
 }

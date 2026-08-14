@@ -145,7 +145,11 @@ export function AssistantMessage({
     const latestEditedByDoc = new Map<string, EventOf<"doc_edited">>();
     const createdDownloads: EventOf<"doc_created">[] = [];
     const askResponses = new Map<number, EventOf<"ask_inputs_response">>();
-    const edits: { annotation: EditAnnotation; filename: string }[] = [];
+    const edits: {
+        annotation: EditAnnotation;
+        filename: string;
+        editMode: "manual" | "auto";
+    }[] = [];
     const pendingEdits: typeof edits = [];
     let pendingAskIndex: number | undefined;
     let eventErrorMessage: string | undefined;
@@ -195,16 +199,18 @@ export function AssistantMessage({
         if (event.type === "doc_edited" && !event.isStreaming) {
             if (event.download_url)
                 latestEditedByDoc.set(event.document_id, event);
-            if (!isStreaming) {
-                for (const annotation of event.annotations) {
-                    const edit = { annotation, filename: event.filename };
-                    edits.push(edit);
-                    if (
-                        (resolvedEditStatuses?.[annotation.edit_id] ??
-                            annotation.status) === "pending"
-                    )
-                        pendingEdits.push(edit);
-                }
+            for (const annotation of event.annotations) {
+                const edit = {
+                    annotation,
+                    filename: event.filename,
+                    editMode: event.edit_mode,
+                };
+                edits.push(edit);
+                if (
+                    (resolvedEditStatuses?.[annotation.edit_id] ??
+                        annotation.status) === "pending"
+                )
+                    pendingEdits.push(edit);
             }
         } else if (event.type === "doc_created" && event.download_url) {
             createdDownloads.push(event);
@@ -374,15 +380,19 @@ export function AssistantMessage({
             ? () => onCitationClick(citation)
             : undefined;
     };
-    const editCards = edits.map(({ annotation, filename }, index) => {
+    const editCards = edits.map(({ annotation, filename, editMode }, index) => {
         const changeNumber = index + 1;
         return (
             <EditCard
                 key={`editcard-${annotation.edit_id}`}
                 annotation={annotation}
+                automatic={editMode === "auto"}
                 changeNumber={changeNumber}
                 resolvedStatus={resolvedEditStatuses?.[annotation.edit_id]}
-                isReloading={isEditReloading?.(annotation.edit_id) ?? false}
+                isReloading={
+                    isStreaming ||
+                    (isEditReloading?.(annotation.edit_id) ?? false)
+                }
                 onViewClick={(item) =>
                     onEditViewClick?.(item, filename, changeNumber)
                 }
@@ -395,6 +405,8 @@ export function AssistantMessage({
     const documentCount = new Set(
         edits.map(({ annotation }) => annotation.document_id),
     ).size;
+    const automaticEdits =
+        edits.length > 0 && edits.every(({ editMode }) => editMode === "auto");
     const downloadBlock = (
         event: EventOf<"doc_edited"> | EventOf<"doc_created">,
         key?: string | number,
@@ -497,6 +509,8 @@ export function AssistantMessage({
                                 documentCount={documentCount}
                                 cards={editCards}
                                 resolvedCount={edits.length - pendingEdits.length}
+                                automatic={automaticEdits}
+                                disabled={isStreaming}
                                 onViewClick={onEditViewClick}
                                 onResolveStart={onEditResolveStart}
                                 onResolved={handleEditResolved}

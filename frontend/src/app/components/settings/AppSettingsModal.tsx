@@ -15,6 +15,7 @@ import { SubagentSettings } from "./SubagentSettings";
 import { isAnonymousMode } from "@/app/lib/authMode";
 import { AccountSection } from "@/app/(pages)/account/AccountSection";
 import { useActivityDetail } from "@/app/components/assistant/activityDisplayPreference";
+import { EditModeSettings } from "./EditModeSettings";
 
 const TABS = ["General", "Providers", "Subagents"] as const;
 type SettingsTab = (typeof TABS)[number];
@@ -61,6 +62,14 @@ export function AppSettingsModal({
                     </p>
                     <AccountSection className="p-4">
                         <JurisdictionPreferenceEditor />
+                    </AccountSection>
+                </section>
+                <section>
+                    <h2 className="mb-3 text-base font-semibold text-gray-900">
+                        Document editing
+                    </h2>
+                    <AccountSection className="p-4">
+                        <EditModeSettings />
                     </AccountSection>
                 </section>
                 <section>

@@ -402,7 +402,7 @@ export const TOOLS = [
     function: {
       name: "edit_document",
       description:
-        "Apply requested edits, revisions, or redlines to a user-attached .docx as tracked changes and return the edited Word artifact. Use this for action requests instead of replying with proposed or suggested changes in prose. Each edit is a minimal substitution of specific words/characters, not a whole-line or paragraph replacement, anchored by short before/after context. Returns per-edit Accept/Reject annotations and a download link.",
+        "Apply requested edits, revisions, or redlines to a user-attached .docx and return the edited Word artifact. Beaver records the same minimal edit plan as pending Word revisions in Manual Mode or applies it immediately in Auto Mode. Use this for action requests instead of replying with proposed changes in prose. Each edit is a minimal substitution of specific words or characters, anchored by short before/after context. Returns the edit audit and a download link.",
       parameters: {
         type: "object",
         properties: {

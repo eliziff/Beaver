@@ -154,19 +154,15 @@ describe("public legal source tool integration", () => {
           },
         },
       ],
-      new Map(),
-      "user-1",
-      {} as Parameters<typeof runToolCalls>[3],
-      () => {},
-      undefined,
-      undefined,
-      {},
-      undefined,
-      undefined,
-      null,
-      undefined,
-      undefined,
-      state,
+      {
+        docStore: new Map(),
+        userId: "user-1",
+        db: {} as Parameters<typeof runToolCalls>[1]["db"],
+        emit: () => {},
+        docIndex: {},
+        projectId: null,
+        publicLegal: state,
+      },
     );
     const modelPayload = JSON.parse(output.toolResults[0].content);
 

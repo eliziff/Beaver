@@ -23,6 +23,7 @@ import {
   applyTrackedEdits,
   extractDocxBodyText,
   normalizeWs,
+  type EditDiffSegment,
   type EditInput,
 } from "./docxTrackedChanges";
 import { runTextOp, type TextOpNote, type TextOpParams } from "./textOps";
@@ -59,6 +60,7 @@ export type AppliedTextEdit = {
   insertedText: string;
   contextBefore: string;
   contextAfter: string;
+  diff: EditDiffSegment[];
 };
 
 export type ApplyTextOpsResult = {
@@ -321,6 +323,7 @@ export async function applyTextOpsToDocx(
       insertedText: change.insertedText,
       contextBefore: change.contextBefore,
       contextAfter: change.contextAfter,
+      diff: change.diff,
     })),
     reports,
     replacementCount: replacements.length,

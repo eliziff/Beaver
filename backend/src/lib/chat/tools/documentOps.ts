@@ -4,6 +4,8 @@ import { createServerSupabase } from "../../supabase";
 import {
   applyTrackedEdits,
   extractDocxBodyText,
+  finalizeTrackedEdits,
+  type EditMode,
   type EditInput,
 } from "../../docxTrackedChanges";
 import { buildDownloadUrl } from "../../downloadTokens";
@@ -749,6 +751,7 @@ export async function runEditDocument(params: {
   userId: string;
   edits: EditInput[];
   db: ReturnType<typeof createServerSupabase>;
+  editMode?: EditMode;
   /**
    * If provided, append these edits to the existing turn-scoped version
    * (overwrites the file at storagePath and reuses the document_versions
@@ -768,12 +771,20 @@ export async function runEditDocument(params: {
       version_number: number;
       storage_path: string;
       download_url: string;
+      edit_mode: EditMode;
       annotations: EditAnnotation[];
       errors: { index: number; reason: string }[];
     }
   | { ok: false; error: string }
 > {
-  const { documentId, userId, edits, db, reuseVersion } = params;
+  const {
+    documentId,
+    userId,
+    edits,
+    db,
+    reuseVersion,
+    editMode = "manual",
+  } = params;
 
   const { data: doc } = await db
     .from("documents")
@@ -788,11 +799,10 @@ export async function runEditDocument(params: {
   const current = await loadCurrentVersionBytes(documentId, db);
   if (!current) return { ok: false, error: "Could not load document bytes." };
 
-  const {
-    bytes: editedBytes,
-    changes,
-    errors,
-  } = await applyTrackedEdits(current.bytes, edits, { author: "Beaver" });
+  const applied = await applyTrackedEdits(current.bytes, edits, {
+    author: "Beaver",
+  });
+  const { changes, errors } = applied;
 
   if (changes.length === 0) {
     // Every diagnosis, not just the first: the matcher explains each miss in
@@ -804,6 +814,15 @@ export async function runEditDocument(params: {
         : "No edits could be applied. Refine context_before/context_after and retry.",
     };
   }
+
+  const finalized = await finalizeTrackedEdits(
+    applied.bytes,
+    changes.flatMap((change) =>
+      [change.delId, change.insId].filter((id): id is string => !!id),
+    ),
+    editMode,
+  );
+  const editedBytes = finalized.bytes;
 
   const ab = editedBytes.buffer.slice(
     editedBytes.byteOffset,
@@ -902,7 +921,10 @@ export async function runEditDocument(params: {
     inserted_text: c.insertedText,
     context_before: c.contextBefore ?? "",
     context_after: c.contextAfter ?? "",
-    status: "pending" as const,
+    status: finalized.status,
+    ...(finalized.status === "accepted"
+      ? { resolved_at: new Date().toISOString() }
+      : {}),
   }));
   const { data: insertedEdits, error: editsErr } = await db
     .from("document_edits")
@@ -946,7 +968,8 @@ export async function runEditDocument(params: {
         context_before: r.context_before ?? "",
         context_after: r.context_after ?? "",
         reason: src?.reason,
-        status: "pending",
+        diff: src?.diff ?? [],
+        status: finalized.status,
       };
     },
   );
@@ -962,6 +985,7 @@ export async function runEditDocument(params: {
     version_number: nextVersionNumber,
     storage_path: newPath,
     download_url: permalink,
+    edit_mode: editMode,
     annotations,
     errors,
   };
@@ -1432,6 +1456,7 @@ export type DocEditedResult = {
   version_id: string;
   version_number: number | null;
   download_url: string;
+  edit_mode: EditMode;
   annotations: EditAnnotation[];
 };
 

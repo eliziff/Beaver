@@ -574,6 +574,7 @@ export function reduceAssistantStreamEvent(
       document_id: text(data.document_id),
       version_id: text(data.version_id),
       download_url: text(data.download_url),
+      edit_mode: data.edit_mode === "auto" ? "auto" : "manual",
       annotations: Array.isArray(data.annotations)
         ? (data.annotations as EditAnnotation[])
         : [],

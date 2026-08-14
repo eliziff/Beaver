@@ -382,10 +382,12 @@ describe("provider PDF consumers", () => {
 
     const response = await runToolCalls(
       calls,
-      new Map() as DocStore,
-      "user-1",
-      null as never,
-      (value) => events.push(value),
+      {
+        docStore: new Map() as DocStore,
+        userId: "user-1",
+        db: null as never,
+        emit: (value) => events.push(value),
+      },
     );
 
     expect(JSON.parse(response.toolResults[0].content))
