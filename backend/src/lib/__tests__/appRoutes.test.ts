@@ -68,15 +68,18 @@ describe("appUrl", () => {
       [
         {
           id: "documents",
-          function: { name: "list_documents", arguments: "{}" },
+          name: "list_documents",
+          input: {},
         },
         {
           id: "workflows",
-          function: { name: "list_workflows", arguments: "{}" },
+          name: "list_workflows",
+          input: {},
         },
         {
           id: "review",
-          function: { name: "read_table_cells", arguments: "{}" },
+          name: "read_table_cells",
+          input: {},
         },
       ],
       new Map([
@@ -113,10 +116,7 @@ describe("appUrl", () => {
       undefined,
       createLegalEvidenceTurnState(),
     );
-    const results = output.toolResults as {
-      tool_call_id: string;
-      content: string;
-    }[];
+    const results = output.toolResults;
 
     expect(JSON.parse(results[0].content)[0].app_url).toBe(
       "/projects/matter-1",

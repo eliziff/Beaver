@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearA2AJCache } from "../a2aj";
 import { A2AJ_TOOL_NAMES } from "../chat/tools/a2ajTools";
 import { runToolCalls } from "../chat/tools/toolDispatcher";
-import type { DocStore, ToolCall } from "../chat/types";
+import type { DocStore } from "../chat/types";
 
 beforeEach(() => {
   // This suite probes provider truncation, not the machine's local corpus.
@@ -44,17 +44,14 @@ function stubA2AJText(text: string) {
 
 async function fetchToolResult(text: string) {
   stubA2AJText(text);
-  const toolCall: ToolCall = {
+  const toolCall = {
     id: "call-1",
-    type: "function",
-    function: {
-      name: A2AJ_TOOL_NAMES.fetch,
-      arguments: JSON.stringify({
-        citation: "RSC 1985, c C-46",
-        doc_type: "laws",
-      }),
+    name: A2AJ_TOOL_NAMES.fetch,
+    input: {
+      citation: "RSC 1985, c C-46",
+      doc_type: "laws",
     },
-  } as ToolCall;
+  };
   const { toolResults } = await runToolCalls(
     [toolCall],
     new Map() as DocStore,
@@ -62,8 +59,7 @@ async function fetchToolResult(text: string) {
     null as never,
     () => undefined,
   );
-  const result = toolResults[0] as { content: string };
-  return JSON.parse(result.content) as Record<string, unknown>;
+  return JSON.parse(toolResults[0].content) as Record<string, unknown>;
 }
 
 describe("a2aj_fetch truncation signalling", () => {
