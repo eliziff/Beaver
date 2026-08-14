@@ -93,6 +93,7 @@ import type { TabularStore } from "../lib/tabularStore";
 import { TABULAR_TOOLS } from "../lib/chat/tools/toolSchemas";
 import { tabularChatContext } from "../lib/chat/tabularContext";
 import { createChatBenchmarkAdapter } from "../benchmark/chatAdapter";
+import type { EditMode } from "../lib/docxTrackedChanges";
 
 class MatterDocumentSet extends Set<string> {
   constructor(
@@ -660,6 +661,7 @@ export async function streamAnonymousChat(params: {
   subagentModel?: string;
   subagentEffort?: string;
   activityDetail?: "auto" | "standard" | "tools" | "trace";
+  editMode?: EditMode;
   tabular?: TabularChatRuntime;
 }) {
   const { res, userId } = params;
@@ -1172,6 +1174,7 @@ export async function streamAnonymousChat(params: {
     projectId,
     allowedDocumentIds,
     tabular: params.tabular?.store,
+    editMode: params.editMode,
     onMutationCommitted: () => {
       if (!chatTurnWasDeleted(chat.id) &&
           (params.currentTurn.kind === "ask_inputs_response" || normalTurnId)) {
@@ -1619,6 +1622,16 @@ chatRouter.post("/", chatRoute(async (req, res, scope) => {
     body.activity_detail === "trace"
       ? body.activity_detail
       : "auto";
+  if (
+    body.edit_mode !== undefined &&
+    body.edit_mode !== "manual" &&
+    body.edit_mode !== "auto"
+  ) {
+    return void res.status(400).json({
+      detail: "edit_mode must be manual or auto",
+    });
+  }
+  const editMode: EditMode = body.edit_mode === "auto" ? "auto" : "manual";
   const displayedRow = asRecord(body.displayed_doc);
   const displayedDocument =
     displayedRow &&
@@ -1711,6 +1724,7 @@ chatRouter.post("/", chatRoute(async (req, res, scope) => {
         subagentModel,
         subagentEffort,
         activityDetail,
+        editMode,
         tabular,
       });
     } catch (error) {
@@ -1996,6 +2010,7 @@ chatRouter.post("/", chatRoute(async (req, res, scope) => {
       subagentEffort,
       jurisdictionPreference,
       activityDetail,
+      editMode,
       priorLegalEvidence: cloudPriorLegalEvidence,
       tabularStore: tabular?.store,
     });

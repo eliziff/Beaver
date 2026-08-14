@@ -15,6 +15,10 @@ const edit: EditAnnotation = {
     ins_w_id: "insert-1",
     deleted_text: "old",
     inserted_text: "new",
+    diff: [
+        { kind: "delete", text: "old" },
+        { kind: "insert", text: "new" },
+    ],
     status: "pending",
 };
 

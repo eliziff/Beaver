@@ -23,6 +23,7 @@ import { removeDocumentFromLocalTabularReviews } from "./localTabularStore";
 import {
   extractTrackedChangeIds,
   resolveTrackedChange,
+  type EditDiffSegment,
 } from "./docxTrackedChanges";
 import {
   normalizeDocumentMetadata,
@@ -42,6 +43,7 @@ export type LocalTrackedEdit = {
   contextBefore: string;
   contextAfter: string;
   reason?: string;
+  diff: EditDiffSegment[];
   status: "pending" | "accepted" | "rejected";
 };
 
@@ -928,7 +930,7 @@ export async function updateLocalAssistantTurnVersion(params: {
       (await extractTrackedChangeIds(params.bytes)).map((entry) => entry.w_id),
     );
     if (
-      priorEdits.some((edit) =>
+      priorEdits.some((edit) => edit.status === "pending" &&
         [edit.delWId, edit.insWId]
           .filter((id): id is string => !!id)
           .some((id) => !retainedIds.has(id)),

@@ -1,4 +1,5 @@
 import type { LlmImage } from "../llm/types";
+import type { EditDiffSegment } from "../docxTrackedChanges";
 
 const isDev = process.env.NODE_ENV !== "production";
 export const devLog = (...args: Parameters<typeof console.log>) => {
@@ -127,5 +128,6 @@ export type EditAnnotation = {
   context_before: string;
   context_after: string;
   reason?: string;
+  diff: EditDiffSegment[];
   status: "pending" | "accepted" | "rejected";
 };

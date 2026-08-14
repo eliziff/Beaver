@@ -17,6 +17,7 @@ import { readTabularCells } from "./tabularCells";
 import { TABULAR_TOOLS } from "./tools/toolSchemas";
 import type { ChatToolContext, ChatToolRunner } from "./turnEngine";
 import type { TabularCellStore } from "./types";
+import type { EditMode } from "../docxTrackedChanges";
 
 const MUTATIONS = new Set([
   "generate_docx",
@@ -85,7 +86,12 @@ function documentEvent(tool: string, content?: string) {
       return { type: "doc_created" as const, ...common };
     }
     return value.action === "revised" && Array.isArray(value.annotations)
-      ? { type: "doc_edited" as const, ...common, annotations: value.annotations }
+      ? {
+          type: "doc_edited" as const,
+          ...common,
+          edit_mode: value.edit_mode === "auto" ? "auto" as const : "manual" as const,
+          annotations: value.annotations,
+        }
       : null;
   } catch {
     return null;
@@ -107,6 +113,7 @@ export function createLocalChatToolRunner(options: {
   projectId: string | null;
   allowedDocumentIds?: Set<string>;
   tabular?: TabularCellStore;
+  editMode?: EditMode;
   onMutationCommitted: () => void;
 }) {
   const main = runnerState();
@@ -168,6 +175,7 @@ export function createLocalChatToolRunner(options: {
           allowedDocumentIds: options.allowedDocumentIds,
           matterId: options.projectId,
           legalEvidence: evidence,
+          editMode: options.editMode,
         },
       )).map((result, index) => hideLegalSourceUrls(
         direct.find((call) => call.id === result.tool_use_id)?.name ??

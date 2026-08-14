@@ -40,7 +40,9 @@ import {
   applyTrackedEdits,
   extractDocxBodyStructure,
   extractDocxBodyText,
+  finalizeTrackedEdits,
   insertTrackedBlocks,
+  type EditMode,
   type EditInput,
 } from "../docxTrackedChanges";
 import { isSpreadsheetDocumentType } from "../documentTypes";
@@ -528,7 +530,7 @@ const LOCAL_DOCX_TOOLS: OpenAIToolSchema[] = (
     return [
       tool(
         "library_revise_docx",
-        "Apply requested edits, revisions, or redlines to an existing local Library DOCX as tracked changes. Use this for action requests instead of replying with proposed or suggested changes in prose. Edits apply to the active version; non-DOCX documents fail unchanged. Do not repeat the edited document in prose.",
+        "Apply requested edits, revisions, or redlines to an existing local Library DOCX. Beaver records the same minimal edit plan as pending Word revisions in Manual Mode or applies it immediately in Auto Mode. Use this for action requests instead of replying with proposed changes in prose. Edits apply to the active version; non-DOCX documents fail unchanged. Do not repeat the edited document in prose.",
         {
           type: "object",
           properties: {
@@ -983,7 +985,7 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
   ),
   tool(
     "Edit",
-    "Performs exact string replacement in a file, recorded as a tracked change. old_string must match the file exactly and be unique — the edit fails otherwise; make it unique with more surrounding context, or pass section to scope the match to one section.",
+    "Performs exact string replacement in a file using Beaver's current Manual or Auto edit policy. old_string must match the file exactly and be unique — the edit fails otherwise; make it unique with more surrounding context, or pass section to scope the match to one section.",
     {
       type: "object",
       properties: {
@@ -1398,10 +1400,24 @@ export async function commitLocalAssistantTurnVersion(params: {
   bytes: Buffer;
   trackedEdits: LocalTrackedEdit[];
   turnEditState?: LocalAssistantEditTurnState;
+  editMode?: EditMode;
 }) {
   const existing = params.turnEditState?.get(params.documentId);
   if (existing && existing.versionId !== params.sourceVersionId) return null;
   const parentVersionId = existing?.parentVersionId ?? params.sourceVersionId;
+  const finalized = params.trackedEdits.length
+    ? await finalizeTrackedEdits(
+        params.bytes,
+        params.trackedEdits.flatMap((edit) =>
+          [edit.delWId, edit.insWId].filter((id): id is string => !!id),
+        ),
+        params.editMode ?? "manual",
+      )
+    : { bytes: params.bytes, status: "pending" as const };
+  const trackedEdits = params.trackedEdits.map((edit) => ({
+    ...edit,
+    status: finalized.status,
+  }));
   const version = existing
     ? await updateLocalAssistantTurnVersion({
         userId: params.userId,
@@ -1409,22 +1425,22 @@ export async function commitLocalAssistantTurnVersion(params: {
         versionId: existing.versionId,
         parentVersionId,
         filename: params.filename,
-        bytes: params.bytes,
-        trackedEdits: params.trackedEdits,
+        bytes: finalized.bytes,
+        trackedEdits,
       })
     : await addLocalVersion({
         userId: params.userId,
         documentId: params.documentId,
         filename: params.filename,
-        bytes: params.bytes,
+        bytes: finalized.bytes,
         expectedVersionId: params.sourceVersionId,
         provenance: {
           schemaVersion: 1,
           actor: "assistant",
           action: "revised",
           parentVersionId,
-          changeCount: params.trackedEdits.length,
-          trackedEdits: params.trackedEdits,
+          changeCount: trackedEdits.length,
+          trackedEdits,
         },
       });
   if (version) {
@@ -1433,7 +1449,7 @@ export async function commitLocalAssistantTurnVersion(params: {
       parentVersionId,
     });
   }
-  return version ? { version, parentVersionId } : null;
+  return version ? { version, parentVersionId, trackedEdits } : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -1788,6 +1804,7 @@ async function runLocalReviseDocx(
   turnEditState?: LocalAssistantEditTurnState,
   turnReadState?: LocalAssistantReadTurnState,
   servedDraftingCache = new Map<string, ServedDrafting>(),
+  editMode: EditMode = "manual",
 ): Promise<NormalizedToolResult> {
   let versionId = trimmed(args.version_id);
   const rawEdits = Array.isArray(args.edits) ? args.edits : [];
@@ -1883,6 +1900,7 @@ async function runLocalReviseDocx(
       contextBefore: change.contextBefore,
       contextAfter: change.contextAfter,
       reason: change.reason,
+      diff: change.diff,
       status: "pending",
     }));
     const committed = await commitLocalAssistantTurnVersion({
@@ -1893,9 +1911,10 @@ async function runLocalReviseDocx(
       sourceVersionId: versionId,
       trackedEdits,
       turnEditState,
+      editMode,
     });
     if (!committed) return fail(call, "version_id is no longer active");
-    const { version, parentVersionId } = committed;
+    const { version, parentVersionId, trackedEdits: savedEdits } = committed;
     const sourceClosure = await sourceClosureForDraft(
       userId,
       await extractDocxBodyText(edited.bytes),
@@ -1917,6 +1936,7 @@ async function runLocalReviseDocx(
       ok: true,
       receipt: "mike-document:v1",
       action: "revised",
+      edit_mode: editMode,
       document_id: documentId,
       parent_version_id: parentVersionId,
       version_id: version.id,
@@ -1946,7 +1966,7 @@ async function runLocalReviseDocx(
         : undefined,
       ...(sourceClosure.length ? { source_closure: sourceClosure } : {}),
       download_url: downloadUrl,
-      annotations: trackedEdits.map((edit) => ({
+      annotations: savedEdits.map((edit) => ({
         kind: "edit",
         edit_id: edit.id,
         document_id: documentId,
@@ -1960,6 +1980,7 @@ async function runLocalReviseDocx(
         context_before: edit.contextBefore,
         context_after: edit.contextAfter,
         reason: edit.reason,
+        diff: edit.diff,
         status: edit.status,
       })),
       ...(sourceClosure.length
@@ -1985,6 +2006,7 @@ async function runCodingShapeCall(
   servedDraftingCache?: Map<string, ServedDrafting>,
   turnReadState?: LocalAssistantReadTurnState,
   requirementsState?: LocalAssistantRequirementsState,
+  editMode: EditMode = "manual",
 ): Promise<NormalizedToolResult> {
   const documentsInScope = await scopedLocalDocuments(
     userId, allowedDocumentIds, 200, matterId,
@@ -2673,6 +2695,7 @@ async function runCodingShapeCall(
           allowedDocumentIds,
           edits: turnEditState,
           reads: turnReadState,
+          editMode,
         },
       );
       if (requirementsState && applied.status !== "error") {
@@ -2726,6 +2749,7 @@ async function runCodingShapeCall(
           allowedDocumentIds,
           edits: turnEditState,
           reads: turnReadState,
+          editMode,
         },
       );
       const receiptText = applied.mutationReceipt ?? applied.content;
@@ -2735,6 +2759,7 @@ async function runCodingShapeCall(
           action?: string;
           error?: string;
           change_count?: number;
+          edit_mode?: EditMode;
           ops?: Array<{ replacements?: number }>;
           source_closure?: unknown[];
         };
@@ -2751,7 +2776,11 @@ async function runCodingShapeCall(
           return {
             ...result(
               call,
-              `Updated ${meta.filename}: ${count} replacement(s) applied as tracked changes.` +
+              `Updated ${meta.filename}: ${count} replacement(s) ${
+                payload.edit_mode === "auto"
+                  ? "applied in Auto Mode."
+                  : "saved for review in Manual Mode."
+              }` +
                 (payload.source_closure?.length
                   ? `\nSource closure: ${JSON.stringify(payload.source_closure)}`
                   : ""),
@@ -2844,6 +2873,7 @@ async function runCodingShapeCall(
       turnEditState,
       turnReadState,
       servedDraftingCache,
+      editMode,
     );
     const receiptText = revised.mutationReceipt ?? revised.content;
     try {
@@ -2852,13 +2882,18 @@ async function runCodingShapeCall(
         error?: string;
         edit_errors?: string[];
         source_closure?: unknown[];
+        edit_mode?: EditMode;
       };
       if (payload.ok) {
         if (requirementsState) requirementsState.sourceEditCount += 1;
         return {
           ...result(
             call,
-            `Updated ${meta.filename}: 1 tracked change applied.` +
+            `Updated ${meta.filename}: 1 change ${
+              payload.edit_mode === "auto"
+                ? "applied in Auto Mode."
+                : "saved for review in Manual Mode."
+            }` +
               (payload.source_closure?.length
                 ? `\nSource closure: ${JSON.stringify(payload.source_closure)}`
                 : ""),
@@ -4393,6 +4428,7 @@ export type LocalAssistantToolOptions = {
   reads?: LocalAssistantReadTurnState;
   workingSets?: LocalAssistantWorkingSetTurnState;
   requirements?: LocalAssistantRequirementsState;
+  editMode?: EditMode;
 };
 
 export async function runLocalAssistantTools(
@@ -4411,6 +4447,7 @@ export async function runLocalAssistantTools(
     reads: turnReadState,
     workingSets,
     requirements: requirementsState,
+    editMode = "manual",
   }: LocalAssistantToolOptions = {},
 ): Promise<NormalizedToolResult[]> {
   const publicState = publicLegalState ?? createPublicLegalSourceState();
@@ -4501,6 +4538,7 @@ export async function runLocalAssistantTools(
           servedDraftingCache,
           turnReadState,
           requirementsState,
+          editMode,
         );
         if (
           legalEvidenceState &&
@@ -5018,6 +5056,7 @@ export async function runLocalAssistantTools(
               contextBefore: change.contextBefore,
               contextAfter: change.contextAfter,
               reason: change.reason,
+              diff: change.diff,
               status: "pending",
             }),
           );
@@ -5029,11 +5068,16 @@ export async function runLocalAssistantTools(
             bytes: edited.bytes,
             trackedEdits,
             turnEditState,
+            editMode,
           });
           if (!committed) {
             return fail(call, "version_id is no longer active");
           }
-          const { version, parentVersionId } = committed;
+          const {
+            version,
+            parentVersionId,
+            trackedEdits: savedEdits,
+          } = committed;
           const downloadUrl =
             `/single-documents/${encodeURIComponent(documentId)}/file` +
             `?version_id=${encodeURIComponent(version.id)}`;
@@ -5042,6 +5086,7 @@ export async function runLocalAssistantTools(
             receipt: "mike-document:v1",
             operation_receipt: "mike-delete-and-renumber:v1",
             action: "revised",
+            edit_mode: editMode,
             document_id: documentId,
             parent_version_id: parentVersionId,
             input_source_sha256: file.version.source_sha256,
@@ -5063,9 +5108,9 @@ export async function runLocalAssistantTools(
               removed_sha256: sha256(receipt.removed),
               inserted: receipt.inserted,
             })),
-            change_count: trackedEdits.length,
+            change_count: savedEdits.length,
             download_url: downloadUrl,
-            annotations: trackedEdits.map((edit) => ({
+            annotations: savedEdits.map((edit) => ({
               kind: "edit",
               edit_id: edit.id,
               document_id: documentId,
@@ -5080,6 +5125,7 @@ export async function runLocalAssistantTools(
                   : edit.deletedText,
               inserted_text: edit.insertedText,
               reason: edit.reason,
+              diff: edit.diff,
               status: edit.status,
             })),
           });
@@ -5212,6 +5258,7 @@ export async function runLocalAssistantTools(
                     insertedText: change.insertedText,
                     contextBefore: change.contextBefore,
                     contextAfter: change.contextAfter,
+                    diff: change.diff,
                   })),
                   reports: [
                     {
@@ -5273,6 +5320,7 @@ export async function runLocalAssistantTools(
               contextBefore: edit.contextBefore,
               contextAfter: edit.contextAfter,
               reason,
+              diff: edit.diff,
               status: "pending",
             }),
           );
@@ -5284,9 +5332,14 @@ export async function runLocalAssistantTools(
             sourceVersionId: file.version.id,
             trackedEdits,
             turnEditState,
+            editMode,
           });
           if (!committed) return fail(call, "version_id is no longer active");
-          const { version, parentVersionId } = committed;
+          const {
+            version,
+            parentVersionId,
+            trackedEdits: savedEdits,
+          } = committed;
           const sourceClosure = await sourceClosureForDraft(
             userId,
             await extractDocxBodyText(applied.bytes),
@@ -5300,6 +5353,7 @@ export async function runLocalAssistantTools(
             ok: true,
             receipt: "mike-document:v1",
             action: "revised",
+            edit_mode: editMode,
             document_id: documentId,
             parent_version_id: parentVersionId,
             version_id: version.id,
@@ -5307,14 +5361,14 @@ export async function runLocalAssistantTools(
             filename: version.filename,
             file_type: version.file_type,
             source_sha256: version.source_sha256,
-            change_count: trackedEdits.length,
+            change_count: savedEdits.length,
             download_url: downloadUrl,
             ops: opReports,
             ...(applied.editErrors.length
               ? { edit_errors: applied.editErrors }
               : {}),
             ...(sourceClosure.length ? { source_closure: sourceClosure } : {}),
-            annotations: trackedEdits.map((edit) => ({
+            annotations: savedEdits.map((edit) => ({
               kind: "edit",
               edit_id: edit.id,
               document_id: documentId,
@@ -5328,6 +5382,7 @@ export async function runLocalAssistantTools(
               context_before: edit.contextBefore,
               context_after: edit.contextAfter,
               reason: edit.reason,
+              diff: edit.diff,
               status: edit.status,
             })),
             next_required_action: sourceClosure.length

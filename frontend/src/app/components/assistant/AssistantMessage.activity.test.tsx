@@ -2,9 +2,57 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import type { AssistantEvent } from "../shared/types";
 import { AssistantMessage } from "./AssistantMessage";
 
+const editEvent = (
+    edit_mode: "manual" | "auto",
+): Extract<AssistantEvent, { type: "doc_edited" }> => ({
+    type: "doc_edited",
+    filename: "Draft.docx",
+    document_id: "doc-1",
+    version_id: "version-2",
+    version_number: 2,
+    download_url: "/draft.docx",
+    edit_mode,
+    annotations: [{
+        edit_id: "edit-1",
+        document_id: "doc-1",
+        version_id: "version-2",
+        change_id: "change-1",
+        deleted_text: "five",
+        inserted_text: "three",
+        diff: [
+            { kind: "delete", text: "five" },
+            { kind: "insert", text: "three" },
+        ],
+        status: edit_mode === "auto" ? "accepted" : "pending",
+    }],
+});
+
 describe("AssistantMessage activity", () => {
+    it("shows a completed Manual Mode edit while the turn continues", () => {
+        render(
+            <AssistantMessage
+                isStreaming
+                events={[editEvent("manual")]}
+            />,
+        );
+
+        expect(screen.getByRole("button", { name: "Accept" })).toBeDisabled();
+        expect(screen.getByText("five")).toHaveClass("line-through");
+        expect(screen.getByText("three")).not.toHaveClass("line-through");
+    });
+
+    it("renders the Auto Mode audit from the canonical minimal diff", () => {
+        render(<AssistantMessage events={[editEvent("auto")]} />);
+
+        expect(screen.getByText("Applied in Auto Mode")).toBeVisible();
+        expect(screen.queryByRole("button", { name: "Accept" })).toBeNull();
+        expect(screen.getByText("five")).toHaveClass("line-through");
+        expect(screen.getByText("three")).not.toHaveClass("line-through");
+    });
+
     it("collapses running readers and keeps completed findings in a panel pill", async () => {
         const onSubagentClick = vi.fn();
         const onSubagentSourceClick = vi.fn();

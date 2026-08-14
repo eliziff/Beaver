@@ -793,6 +793,7 @@ export const streamChat = (payload: {
   tabular_review_id?: string;
   model?: string;
   reasoning_effort?: string;
+  edit_mode?: "manual" | "auto";
   jurisdiction_preference?: {
     mode: "ask" | "presume";
     jurisdictions: string[];

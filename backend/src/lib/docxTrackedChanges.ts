@@ -47,6 +47,13 @@ export interface EditInput {
     exact_end?: number;
 }
 
+export type EditMode = "manual" | "auto";
+
+export type EditDiffSegment = {
+    kind: "equal" | "delete" | "insert";
+    text: string;
+};
+
 export interface AppliedChange {
     id: string;
     delId?: string;
@@ -56,6 +63,7 @@ export interface AppliedChange {
     contextBefore: string;
     contextAfter: string;
     reason?: string;
+    diff: EditDiffSegment[];
 }
 
 interface EditError {
@@ -226,13 +234,17 @@ interface PlannedChange {
  * insertion) plus the text inserted at its start; the semantic cleanup keeps
  * word-shaped changes whole rather than character confetti.
  */
-function minimalEditClusters(
+function minimalTextEdit(
     find: string,
     replace: string,
-): { offset: number; deleted: string; inserted: string }[] {
+): {
+    clusters: { offset: number; deleted: string; inserted: string }[];
+    diff: EditDiffSegment[];
+} {
     const clusters: { offset: number; deleted: string; inserted: string }[] = [];
+    const parts = diff(find, replace, undefined, true);
     let offset = 0;
-    for (const [op, text] of diff(find, replace, undefined, true)) {
+    for (const [op, text] of parts) {
         if (op === diff.EQUAL) {
             offset += text.length;
             continue;
@@ -252,7 +264,18 @@ function minimalEditClusters(
             cluster.inserted += text;
         }
     }
-    return clusters;
+    return {
+        clusters,
+        diff: parts.map(([op, text]) => ({
+            kind:
+                op === diff.EQUAL
+                    ? "equal"
+                    : op === diff.DELETE
+                      ? "delete"
+                      : "insert",
+            text,
+        })),
+    };
 }
 
 /**
@@ -772,6 +795,12 @@ export async function extractTrackedChangeIds(
     const docXmlRaw = await docXmlFile.async("string");
     const parser = createParser();
     const tree = parser.parse(docXmlRaw) as XNode[];
+    return trackedChangeIds(tree);
+}
+
+function trackedChangeIds(
+    tree: XNode[],
+): { kind: "ins" | "del"; w_id: string }[] {
     const out: { kind: "ins" | "del"; w_id: string }[] = [];
     const visit = (n: unknown) => {
         const name = elName(n);
@@ -855,6 +884,7 @@ export async function applyTrackedEdits(
     type ConcreteEdit = { edit: EditInput; sourceIndex: number };
     const concreteEdits: ConcreteEdit[] = [];
     const errors: EditError[] = [];
+    const diffByEdit = new Map<number, EditDiffSegment[]>();
     const bodyText = paragraphs.map((p) => p.flat.paraText).join("\n");
     const bodyNorm = normalizeWs(bodyText);
 
@@ -891,6 +921,7 @@ export async function applyTrackedEdits(
         );
 
         const actualFind = bodyText.slice(matched.start, matched.end);
+        diffByEdit.set(sourceIndex, minimalTextEdit(actualFind, replace).diff);
         const findLines = actualFind.split("\n");
         const replaceLines = replace.split("\n");
         if (findLines.length !== replaceLines.length) {
@@ -1043,7 +1074,9 @@ export async function applyTrackedEdits(
             findEnd,
         );
 
-        const clusters = minimalEditClusters(originalFind, replace);
+        const minimal = minimalTextEdit(originalFind, replace);
+        const clusters = minimal.clusters;
+        if (!diffByEdit.has(editIdx)) diffByEdit.set(editIdx, minimal.diff);
         if (clusters.length === 0) {
             errors.push({
                 index: editIdx,
@@ -1151,6 +1184,7 @@ export async function applyTrackedEdits(
                 contextBefore: edit.context_before ?? "",
                 contextAfter: edit.context_after ?? "",
                 reason: edit.reason,
+                diff: diffByEdit.get(editIdx) ?? minimal.diff,
             });
         }
     }
@@ -1412,6 +1446,7 @@ export async function insertTrackedBlocks(
             insertedText: block,
             contextBefore,
             contextAfter,
+            diff: [{ kind: "insert", text: block }],
         });
         return makeEl("w:p", [
             makeEl("w:pPr", [makeEl("w:rPr", [makeEl("w:ins", [], attrs)])]),
@@ -1576,6 +1611,11 @@ export async function resolveTrackedChange(
 
     const parser = createParser();
     const tree = parser.parse(docXmlRaw) as XNode[];
+    const ids = new Set(changeIds.map(String));
+    const present = new Set(trackedChangeIds(tree).map(({ w_id }) => w_id));
+    if (!ids.size || [...ids].some((id) => !present.has(id))) {
+        return { bytes, found: false };
+    }
 
     const { found } = resolveInTree(tree, changeIds, mode);
 
@@ -1587,4 +1627,19 @@ export async function resolveTrackedChange(
         compression: "DEFLATE",
     });
     return { bytes: out, found };
+}
+
+/** Apply the host-selected policy to newly written revision wrappers. */
+export async function finalizeTrackedEdits(
+    bytes: Buffer,
+    changeIds: string[],
+    mode: EditMode,
+): Promise<{ bytes: Buffer; status: "pending" | "accepted" }> {
+    if (mode === "manual") return { bytes, status: "pending" };
+    const ids = [...new Set(changeIds.filter(Boolean))];
+    const resolved = await resolveTrackedChange(bytes, ids, "accept");
+    if (!resolved.found) {
+        throw new Error("The automatic edit could not be verified; the document is unchanged");
+    }
+    return { bytes: resolved.bytes, status: "accepted" };
 }
