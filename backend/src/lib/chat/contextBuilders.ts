@@ -17,26 +17,35 @@ export {
 import { buildSystemPrompt, SPREADSHEET_CITATION_PROMPT } from "./prompts";
 import type { AssistantEvent } from "./streaming";
 import { priorLegalEvidenceReceipts } from "./legalEvidence";
+import { resumableReadSubagents } from "./readSubagents";
 
-export async function loadPriorLegalEvidence(
+export async function loadPriorChatState(
   chatId: string | null | undefined,
   db: ReturnType<typeof createServerSupabase>,
 ) {
-  if (!chatId) return [];
+  if (!chatId) {
+    return {
+      evidence: [],
+      resumableSubagents: resumableReadSubagents([]),
+    };
+  }
   const { data: rows } = await db
     .from("chat_messages")
     .select("content, created_at")
     .eq("chat_id", chatId)
     .eq("role", "assistant")
     .order("created_at", { ascending: true });
-  if (!Array.isArray(rows)) return [];
-  return priorLegalEvidenceReceipts(
-    rows.flatMap((row) =>
-      Array.isArray((row as { content?: unknown }).content)
-        ? ((row as { content: unknown[] }).content)
-        : [],
-    ),
-  );
+  const events = Array.isArray(rows)
+    ? rows.flatMap((row) =>
+        Array.isArray((row as { content?: unknown }).content)
+          ? ((row as { content: unknown[] }).content)
+          : [],
+      )
+    : [];
+  return {
+    evidence: priorLegalEvidenceReceipts(events),
+    resumableSubagents: resumableReadSubagents(events),
+  };
 }
 
 
@@ -194,7 +203,9 @@ export function buildMessages(
 }
 
 export function stripTransientAssistantEvents(events: AssistantEvent[]) {
-  return events.filter((event) => event.type !== "case_opinions");
+  return events.filter((event) =>
+    event.type !== "case_opinions" && event.type !== "context_usage"
+  );
 }
 
 export async function appendAskInputsResponseToLastAssistantMessage(

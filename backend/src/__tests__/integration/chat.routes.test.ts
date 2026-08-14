@@ -10,7 +10,10 @@ const { runLLMStream } = vi.hoisted(() => ({
 
 function mockSupabase() {
     return createSupabaseStub({
-        result: { data: { id: "chat-1", title: null }, error: null },
+        result: {
+            data: { id: "chat-1", title: null, user_id: "u1" },
+            error: null,
+        },
     });
 }
 

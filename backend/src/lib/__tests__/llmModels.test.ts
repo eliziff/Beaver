@@ -17,6 +17,11 @@ import {
     providerForModel,
     resolveModel,
 } from "../llm/models";
+import {
+    hasNativeCompaction,
+    modelContextWindow,
+    needsHostCheckpoint,
+} from "../llm/contextWindow";
 
 const PROVIDER_CATALOGS: Record<string, string[]> = {
     claude: [
@@ -94,5 +99,20 @@ describe("model catalog", () => {
             defaults,
         );
         for (const model of defaults) providerForModel(model);
+    });
+
+    it("uses native compaction only where the transport can resume it", () => {
+        expect(hasNativeCompaction("claude-sonnet-4-6")).toBe(true);
+        expect(hasNativeCompaction("claude-haiku-4-5")).toBe(false);
+        expect(needsHostCheckpoint("claude-p:claude-sonnet-4-6")).toBe(true);
+        expect(needsHostCheckpoint("gemini-3-flash-preview")).toBe(true);
+        expect(hasNativeCompaction("codex:gpt-5.6-sol")).toBe(true);
+        expect(hasNativeCompaction("gpt-5.5")).toBe(true);
+        expect([
+            modelContextWindow("claude-sonnet-4-6"),
+            modelContextWindow("claude-haiku-4-5"),
+            modelContextWindow("gpt-5.5"),
+            modelContextWindow("gpt-5.4-lite"),
+        ]).toEqual([1_000_000, 200_000, 1_050_000, 400_000]);
     });
 });

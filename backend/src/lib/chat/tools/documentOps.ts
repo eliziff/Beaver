@@ -39,6 +39,8 @@ import { projectDocxRedline } from "../../docx/redline";
 import {
   normalizeDocxControlTag,
   renderDocxMarkdown,
+  type DocxCitation,
+  type RenderDocxMarkdownOptions,
 } from "./docxMarkdown";
 import { extractLegalPdfText } from "../../legalPdfSourceDoc";
 
@@ -235,10 +237,7 @@ export async function renderMarkdownDocx(
   title: string,
   markdown: string,
   fields?: unknown,
-  options?: {
-    landscape?: boolean;
-    citations?: Readonly<Record<string, { text: string; url: string }>>;
-  },
+  options?: Omit<RenderDocxMarkdownOptions, "title" | "values">,
 ) {
   try {
     const bytes = await renderDocxMarkdown(markdown, {
@@ -246,6 +245,12 @@ export async function renderMarkdownDocx(
       landscape: options?.landscape,
       values: docxFieldValues(fields),
       citations: options?.citations,
+      citationPlacement: options?.citationPlacement,
+      citationHyperlinks: options?.citationHyperlinks,
+      numberHeadings: options?.numberHeadings,
+      memoHeader: options?.memoHeader,
+      generatedAt: options?.generatedAt,
+      timeZone: options?.timeZone,
     });
     return await generatedDocxResult(title, bytes);
   } catch (error) {
@@ -260,11 +265,13 @@ export async function generateDocx(
   content: {
     markdown: string;
     fields?: unknown;
-    citations?: Readonly<Record<string, { text: string; url: string }>>;
+    citations?: Readonly<Record<string, DocxCitation>>;
   },
   userId: string,
   db: ReturnType<typeof createServerSupabase>,
-  options?: { landscape?: boolean; projectId?: string | null },
+  options?: Omit<RenderDocxMarkdownOptions, "title" | "values" | "citations"> & {
+    projectId?: string | null;
+  },
 ) {
   const rendered = await renderMarkdownDocx(
     title,

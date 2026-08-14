@@ -81,16 +81,17 @@ type LocalVersion = {
     changeCount?: number;
     trackedEdits?: LocalTrackedEdit[];
     generation?: {
-      rendererVersion: "beaver.docx-markdown.v1";
+      rendererVersion: "beaver.docx-markdown.v2";
       markdownSha256: string;
       fieldValuesSha256: string;
       sourceRegistrySha256: string;
       evidenceBindings: {
         id: string;
-        handles: string[];
-        sourceSha256: string;
+        evidenceIds: string[];
+        sourceSha256s: string[];
         locators: string[];
-        url: string;
+        mainUrls: string[];
+        pinpointUrls: string[];
       }[];
     };
   };

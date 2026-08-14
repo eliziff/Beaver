@@ -36,6 +36,14 @@ export type ChatStore = {
     chat: ChatRecord;
     messages: ChatMessageRecord[];
   } | null>;
+  /** Canonical rows, including provider-only checkpoint events. */
+  transcript(scope: ChatScope, chatId: string): Promise<ChatMessageRecord[] | null>;
+  appendAssistantEvent(
+    scope: ChatScope,
+    chatId: string,
+    messageId: string,
+    event: Record<string, unknown>,
+  ): Promise<boolean>;
   update(scope: ChatScope, chatId: string, input: {
     title?: string;
     projectId?: string | null;

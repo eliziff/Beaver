@@ -43,6 +43,8 @@ import { normalizeAskInputsEvent } from "../askInputs";
 import { readTabularCells } from "../tabularCells";
 import { type EditInput, type EditMode } from "../../docxTrackedChanges";
 import { resolveDocxEvidenceCitations } from "../../docxEvidenceCitations";
+import { resolveDraftingOptions } from "../../draftingStyle";
+import { getDraftingStyleSettings } from "../../draftingStyleStore";
 import {
   assignmentClosureCandidates,
   assignmentClosureReceipts,
@@ -84,6 +86,7 @@ export type ToolCallOptions = {
   publicLegal?: PublicLegalSourceState;
   legalEvidence?: LegalEvidenceTurnState;
   editMode?: EditMode;
+  timeZone?: string;
 };
 
 type CapturedDocumentSource = {
@@ -155,6 +158,7 @@ export async function runToolCalls(
     publicLegal: publicLegalState,
     legalEvidence: legalEvidenceState,
     editMode = "manual",
+    timeZone,
   }: ToolCallOptions,
 ): Promise<{
   toolResults: NormalizedToolResult[];
@@ -849,13 +853,26 @@ export async function runToolCalls(
       );
       const previewFilename = safeGeneratedFilename(title, "docx");
       emit({ type: "doc_created_start", filename: previewFilename });
-      let evidence: Awaited<ReturnType<typeof resolveDocxEvidenceCitations>>;
+      let evidence: ReturnType<typeof resolveDocxEvidenceCitations>;
+      let drafting: ReturnType<typeof resolveDraftingOptions>;
+      const generatedAt = new Date();
       try {
-        evidence = await resolveDocxEvidenceCitations(userId, args.sources);
-      } catch {
+        evidence = resolveDocxEvidenceCitations(
+          legalEvidenceState,
+          args.citations,
+        );
+        drafting = resolveDraftingOptions(
+          args,
+          await getDraftingStyleSettings(userId, db),
+        );
+      } catch (error) {
         registerGeneratedDocument(
           tc,
-          { error: "DOCX evidence could not be verified." },
+          {
+            error: error instanceof Error
+              ? error.message
+              : "DOCX inputs could not be verified.",
+          },
           previewFilename,
           "docx",
         );
@@ -870,7 +887,16 @@ export async function runToolCalls(
         },
         userId,
         db,
-        { landscape, projectId: projectId ?? null },
+        {
+          landscape,
+          projectId: projectId ?? null,
+          citationPlacement: drafting.citationPlacement,
+          citationHyperlinks: drafting.citationHyperlinks,
+          numberHeadings: drafting.numberHeadings,
+          memoHeader: drafting.memoHeader,
+          generatedAt,
+          timeZone,
+        },
       );
       const generated = result as Record<string, unknown>;
       const sourceClosure =

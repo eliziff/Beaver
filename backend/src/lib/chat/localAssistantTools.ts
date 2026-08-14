@@ -36,6 +36,8 @@ import { termDriftReport } from "../legalTermDrift";
 import { extractDocxDraftingSource } from "../docxDraftingSource";
 import { anchoredSectionSpine, anchoredSectionStarts, deriveSectionNodes } from "./docxSectionAnchors";
 import { resolveDocxEvidenceCitations } from "../docxEvidenceCitations";
+import { resolveDraftingOptions } from "../draftingStyle";
+import { getLocalDraftingStyleSettings } from "../draftingStyleStore";
 import {
   applyTrackedEdits,
   extractDocxBodyStructure,
@@ -127,7 +129,12 @@ import {
   type TextOpScope,
 } from "../docxTextOps";
 import { TEXT_OP_NAMES } from "../textOps";
-import { boundedParagraphTail, renderMarkdownDocx, textParserFor } from "./tools/documentOps";
+import {
+  boundedParagraphTail,
+  renderMarkdownDocx,
+  safeGeneratedFilename,
+  textParserFor,
+} from "./tools/documentOps";
 import { quoteRepairSuggestion } from "./quoteRepair";
 import { docxCautionNotes, docxPathologyReportFor } from "./tools/docxPathologyNotes";
 import { projectDocxRedline } from "../docx/redline";
@@ -503,24 +510,7 @@ const LOCAL_DOCX_TOOLS: OpenAIToolSchema[] = (
   TOOLS as OpenAIToolSchema[]
 ).flatMap((schema) => {
   if (schema.function.name === "generate_docx") {
-    return [tool(
-      "generate_docx",
-      "Write one durable .docx file. The content is the complete document in Markdown. A successful call ends the turn.",
-      {
-        type: "object",
-        properties: {
-          filename: {
-            type: "string",
-            description: "Output filename ending in .docx.",
-          },
-          content: {
-            type: "string",
-            description: "Complete document content in Markdown.",
-          },
-        },
-        required: ["filename", "content"],
-      },
-    )];
+    return [schema];
   }
   if (schema.function.name === "edit_document") {
     const sharedProperties = schema.function.parameters.properties as Record<
@@ -4442,6 +4432,7 @@ export type LocalAssistantToolOptions = {
   workingSets?: LocalAssistantWorkingSetTurnState;
   requirements?: LocalAssistantRequirementsState;
   editMode?: EditMode;
+  timeZone?: string;
 };
 
 function sharedEvidenceLocator(
@@ -4472,6 +4463,7 @@ export async function runLocalAssistantTools(
     workingSets,
     requirements: requirementsState,
     editMode = "manual",
+    timeZone,
   }: LocalAssistantToolOptions = {},
 ): Promise<NormalizedToolResult[]> {
   const publicState = publicLegalState ?? createPublicLegalSourceState();
@@ -4793,24 +4785,18 @@ export async function runLocalAssistantTools(
         }
       }
       if (call.name === "generate_docx") {
-        const filename = trimmed(args.filename);
-        const markdown = trimmed(args.content);
-        if (!filename || !markdown) {
+        const title = trimmed(args.title);
+        const markdown = trimmed(args.markdown);
+        if (!title || !markdown || typeof args.document_type !== "string") {
           const received = Object.keys(call.input ?? {}).join(", ");
           return fail(
             call,
-            "generate_docx invalid input: expected {filename: string ending" +
-              " in .docx, content: string containing the complete Markdown" +
+            "generate_docx invalid input: expected {title, document_type," +
+              " markdown} with the complete document body" +
               ` document}; received keys [${received}].`,
           );
         }
-        if (
-          filename.length > 200 ||
-          !filename.toLocaleLowerCase().endsWith(".docx") ||
-          /[\\/:*?"<>|\u0000-\u001f]/u.test(filename)
-        ) {
-          return fail(call, "DOCX filename must be a plain .docx filename");
-        }
+        const filename = safeGeneratedFilename(title, "docx");
         if (
           requirementsState &&
           (claimsFinalAgentGate || !requirementsState.exposureNudgeServed) &&
@@ -4847,22 +4833,21 @@ export async function runLocalAssistantTools(
           }
           requirementsState.exposureNudgeServed = true;
         }
-        const title = filename.replace(/\.docx$/iu, "");
-        const codingAliasNote =
-          "accepted 'content' as the document body; the schema keys are" +
-          " {title, markdown}. derived 'title' from the filename; pass title" +
-          " explicitly next time.";
         try {
+          const generatedAt = new Date();
+          const drafting = resolveDraftingOptions(
+            args,
+            await getLocalDraftingStyleSettings(),
+          );
           const sourceClosure = await sourceClosureForDraft(
             userId,
             markdown,
             turnReadState,
             servedDraftingCache,
           );
-          const evidence = await resolveDocxEvidenceCitations(
-            userId,
-            args.sources,
-            allowedDocumentIds,
+          const evidence = resolveDocxEvidenceCitations(
+            legalEvidenceState,
+            args.citations,
           );
           const rendered = await renderMarkdownDocx(
             title,
@@ -4871,6 +4856,12 @@ export async function runLocalAssistantTools(
             {
               landscape: args.landscape === true,
               citations: evidence.citations,
+              citationPlacement: drafting.citationPlacement,
+              citationHyperlinks: drafting.citationHyperlinks,
+              numberHeadings: drafting.numberHeadings,
+              memoHeader: drafting.memoHeader,
+              generatedAt,
+              timeZone,
             },
           );
           if ("error" in rendered) return fail(call, rendered.error);
@@ -4884,18 +4875,19 @@ export async function runLocalAssistantTools(
               actor: "assistant",
               action: "created",
               generation: {
-                rendererVersion: "beaver.docx-markdown.v1",
+                rendererVersion: "beaver.docx-markdown.v2",
                 markdownSha256: sha256(markdown),
                 fieldValuesSha256: sha256(JSON.stringify(args.fields ?? [])),
                 sourceRegistrySha256: sha256(
-                  JSON.stringify(args.sources ?? []),
+                  JSON.stringify(args.citations ?? []),
                 ),
                 evidenceBindings: evidence.bindings.map((binding) => ({
                   id: binding.id,
-                  handles: binding.handles,
-                  sourceSha256: binding.source_sha256,
+                  evidenceIds: binding.evidenceIds,
+                  sourceSha256s: binding.sourceSha256s,
                   locators: binding.locators,
-                  url: binding.url,
+                  mainUrls: binding.mainUrls,
+                  pinpointUrls: binding.pinpointUrls,
                 })),
               },
             },
@@ -4943,7 +4935,6 @@ export async function runLocalAssistantTools(
                     "Review source_closure and apply a document edit only if material.",
                 }
               : {}),
-            note: codingAliasNote,
             download_url: downloadUrl,
           };
           if (requirementsState?.draftFilename) {
@@ -4973,8 +4964,11 @@ export async function runLocalAssistantTools(
           }
 
           return result(call, receipt);
-        } catch {
-          return fail(call, "DOCX creation failed");
+        } catch (error) {
+          return fail(
+            call,
+            error instanceof Error ? error.message : "DOCX creation failed",
+          );
         }
       }
 

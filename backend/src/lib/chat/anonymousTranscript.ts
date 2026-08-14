@@ -1,4 +1,5 @@
 import type { AnonymousChatMessage } from "../anonymousChatStore";
+import type { ProviderContextCheckpoint, Provider } from "../llm/types";
 import type { AskInputItem, ChatMessage } from "./types";
 
 const HIDDEN_EVENT_TYPES = new Set([
@@ -6,9 +7,13 @@ const HIDDEN_EVENT_TYPES = new Set([
   "local_mutation_committed",
   "local_turn_completed",
   "research_checkpoint_receipt",
+  "context_checkpoint",
 ]);
 
-export function visibleAnonymousMessages(messages: AnonymousChatMessage[]) {
+export function visibleChatMessages<
+  T extends Pick<AnonymousChatMessage, "role" | "content"> &
+    Partial<Pick<AnonymousChatMessage, "turn_id">>,
+>(messages: T[]): T[] {
   return messages.flatMap(({ turn_id: turnId, ...message }) => {
     if (message.role !== "assistant" || !Array.isArray(message.content)) {
       return [{ ...message, ...(turnId && { turn_id: turnId }) }];
@@ -29,8 +34,10 @@ export function visibleAnonymousMessages(messages: AnonymousChatMessage[]) {
           ...(turnId && { turn_id: turnId, turn_complete: turnComplete }),
           content,
         }];
-  });
+  }) as T[];
 }
+
+export const visibleAnonymousMessages = visibleChatMessages;
 
 function filesFrom(value: unknown): ChatMessage["files"] {
   if (!Array.isArray(value)) return undefined;
@@ -193,21 +200,92 @@ function projectAssistantContent(content: unknown): ChatMessage[] {
   return messages;
 }
 
-export function projectAnonymousTranscript(
-  messages: AnonymousChatMessage[],
-): ChatMessage[] {
-  return messages.flatMap((message) => {
-    if (message.role === "assistant") {
-      return projectAssistantContent(message.content);
-    }
-    if (typeof message.content !== "string") return [];
-    return [
-      {
-        role: "user",
-        content: message.content,
-        files: filesFrom(message.files),
-        workflow: workflowFrom(message.workflow),
-      },
-    ];
-  });
+type TranscriptMessage = Pick<
+  AnonymousChatMessage,
+  "role" | "content" | "files" | "workflow"
+>;
+
+function projectMessage(message: TranscriptMessage): ChatMessage[] {
+  if (message.role === "assistant") {
+    return projectAssistantContent(message.content);
+  }
+  if (typeof message.content !== "string") return [];
+  return [{
+    role: "user",
+    content: message.content,
+    files: filesFrom(message.files),
+    workflow: workflowFrom(message.workflow),
+  }];
 }
+
+export function projectChatTranscript(
+  messages: TranscriptMessage[],
+  provider?: Provider,
+): ChatMessage[] {
+  let checkpoint:
+    | {
+        row: number;
+        event: number;
+        keepCurrent: boolean;
+        summary?: string;
+        native?: ProviderContextCheckpoint;
+      }
+    | undefined;
+  messages.forEach((message, row) => {
+    if (message.role !== "assistant" || !Array.isArray(message.content)) return;
+    message.content.forEach((value, event) => {
+      if (!value || typeof value !== "object" || Array.isArray(value)) return;
+      const item = value as Record<string, unknown>;
+      if (item.type !== "context_checkpoint" || item.schema_version !== 1) return;
+      const checkpointProvider = item.provider === "claude" ||
+          item.provider === "openai"
+        ? item.provider
+        : undefined;
+      if (provider && checkpointProvider && checkpointProvider !== provider) return;
+      const summary = typeof item.summary === "string" && item.summary.trim()
+        ? item.summary.trim()
+        : undefined;
+      const payload = item.payload && typeof item.payload === "object" &&
+          !Array.isArray(item.payload)
+        ? item.payload as Record<string, unknown>
+        : undefined;
+      const native = checkpointProvider === "claude" && summary
+        ? { provider: "claude" as const, content: summary }
+        : checkpointProvider === "openai" && payload?.type === "compaction"
+          ? { provider: "openai" as const, item: payload }
+          : undefined;
+      if (summary || native) {
+        checkpoint = {
+          row,
+          event,
+          keepCurrent: item.keep_current === true,
+          ...(summary ? { summary } : {}),
+          ...(native ? { native } : {}),
+        };
+      }
+    });
+  });
+  if (!checkpoint) return messages.flatMap(projectMessage);
+
+  const result: ChatMessage[] = [{
+    role: "assistant",
+    content: checkpoint.summary
+      ? `[Conversation checkpoint]\n${checkpoint.summary}`
+      : "",
+    ...(checkpoint.native ? { contextCheckpoint: checkpoint.native } : {}),
+  }];
+  if (checkpoint.keepCurrent) {
+    const row = messages[checkpoint.row];
+    result.push(...projectAssistantContent(
+      Array.isArray(row.content)
+        ? row.content.slice(checkpoint.event + 1)
+        : [],
+    ));
+  }
+  return [
+    ...result,
+    ...messages.slice(checkpoint.row + 1).flatMap(projectMessage),
+  ];
+}
+
+export const projectAnonymousTranscript = projectChatTranscript;

@@ -94,6 +94,49 @@ describe("anonymous chat store", () => {
     ]);
   });
 
+  it("keeps interrupted reader checkpoints when retrying a turn", async () => {
+    const store = await loadStore();
+    const chat = store.createAnonymousChat(owner);
+    const turnId = randomUUID();
+    store.appendAnonymousMessage(chat, {
+      turn_id: turnId,
+      role: "user",
+      content: "Research this",
+    });
+    const checkpoint = {
+      id: "agent-1",
+      continuation_id: "00000000-0000-4000-8000-000000000123",
+      model: "gpt-5.6-luna",
+      effort: "high",
+      assignment: {
+        task: "Find the authority.",
+        scope: "Supreme Court",
+        jurisdiction: "CA",
+      },
+      evidence: [],
+    };
+    store.upsertAnonymousSubagentEvent(chat, {
+      type: "subagent_run",
+      id: "agent-1",
+      status: "interrupted",
+      resume: checkpoint,
+    }, turnId);
+    store.appendAnonymousAssistantEvents(chat, [
+      { type: "content", text: "Discard this partial answer." },
+      { type: "turn_status", status: "cancelled" },
+    ], [], undefined, turnId);
+
+    expect(store.resetAnonymousAssistantEvents(chat, turnId)).toBe(true);
+    expect(
+      chat.messages.find((message) => message.role === "assistant")?.content,
+    ).toEqual([{
+      type: "subagent_run",
+      id: "agent-1",
+      status: "interrupted",
+      resume: checkpoint,
+    }]);
+  });
+
   it("atomically rejects a stale transcript version without changing bytes", async () => {
     const store = await loadStore();
     const chat = store.createAnonymousChat(owner);

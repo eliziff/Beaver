@@ -5,8 +5,10 @@ import { setJurisdictionPreference } from "@/app/components/assistant/jurisdicti
 import { setReadSubagentPreferences } from "@/app/components/assistant/readSubagentPreferences";
 
 const mocks = vi.hoisted(() => ({
+  compactChat: vi.fn(),
   getChat: vi.fn(),
   stopChat: vi.fn(),
+  steerChat: vi.fn(),
   streamChat: vi.fn(),
   loadChats: vi.fn(),
   saveChat: vi.fn(),
@@ -22,8 +24,10 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/app/lib/authMode", () => ({ isAnonymousMode: true }));
 vi.mock("@/app/lib/beaverApi", () => ({
+  compactChat: mocks.compactChat,
   getChat: mocks.getChat,
   stopChat: mocks.stopChat,
+  steerChat: mocks.steerChat,
   streamChat: mocks.streamChat,
   generateChatTitle: mocks.generateChatTitle,
 }));
@@ -75,6 +79,8 @@ beforeEach(() => {
   mocks.generateChatTitle.mockResolvedValue({ title: "Generated title" });
   mocks.renameChat.mockResolvedValue(undefined);
   mocks.stopChat.mockResolvedValue({ stopped: true });
+  mocks.steerChat.mockResolvedValue({ steered: true });
+  mocks.compactChat.mockResolvedValue({ compacted: true });
   mocks.peekPendingChatMessage.mockReturnValue(null);
   mocks.claimPendingChatMessage.mockReturnValue(null);
 });
@@ -1248,6 +1254,81 @@ describe("useAssistantChat local transcript boundary", () => {
       ]),
     );
     await pending;
+  });
+
+  it("steers the active turn without starting another stream", async () => {
+    let releaseResponse!: (response: Response) => void;
+    mocks.streamChat.mockImplementation(
+      () => new Promise<Response>((resolve) => {
+        releaseResponse = resolve;
+      }),
+    );
+    const { result } = renderHook(() =>
+      useAssistantChat({ chatId: "chat-1" }),
+    );
+
+    let pending!: Promise<string | null>;
+    act(() => {
+      pending = result.current.handleChat({ role: "user", content: "Draft a memo" });
+    });
+    await vi.waitFor(() => expect(result.current.isResponseLoading).toBe(true));
+    await act(async () => {
+      await result.current.handleChat({
+        role: "user",
+        content: "Focus on remedies",
+      });
+    });
+
+    expect(mocks.streamChat).toHaveBeenCalledOnce();
+    expect(mocks.steerChat).toHaveBeenCalledWith(
+      "chat-1",
+      expect.any(String),
+      "Focus on remedies",
+    );
+    expect(result.current.messages.at(-1)?.events).toContainEqual(
+      expect.objectContaining({ type: "steering", text: "Focus on remedies" }),
+    );
+
+    releaseResponse(streamResponse([
+      { type: "chat_id", chatId: "chat-1", transcriptVersion: 1 },
+      { type: "transcript_version", transcriptVersion: 2 },
+    ]));
+    await act(async () => { await pending; });
+  });
+
+  it("keeps assistant text on both sides of a steering message", async () => {
+    mocks.streamChat.mockResolvedValueOnce(streamResponse([
+      { type: "chat_id", chatId: "chat-1", transcriptVersion: 1 },
+      { type: "content_delta", text: "Initial answer." },
+      {
+        type: "steering",
+        id: "22222222-2222-4222-8222-222222222222",
+        text: "Focus on remedies",
+      },
+      { type: "content_delta", text: "Revised answer." },
+      { type: "content_final", text: "Revised answer." },
+      { type: "transcript_version", transcriptVersion: 2 },
+    ]));
+    const { result } = renderHook(() =>
+      useAssistantChat({ chatId: "chat-1" }),
+    );
+
+    await act(async () => {
+      await result.current.handleChat({ role: "user", content: "Draft a memo" });
+    });
+
+    expect(result.current.messages.at(-1)).toMatchObject({
+      content: "Initial answer.Revised answer.",
+      events: [
+        { type: "content", text: "Initial answer." },
+        {
+          type: "steering",
+          id: "22222222-2222-4222-8222-222222222222",
+          text: "Focus on remedies",
+        },
+        { type: "content", text: "Revised answer." },
+      ],
+    });
   });
 
   it("uses the stop endpoint and preserves the exact partial suffix once", async () => {

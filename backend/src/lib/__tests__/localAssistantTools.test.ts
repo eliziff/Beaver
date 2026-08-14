@@ -672,8 +672,9 @@ describe("local assistant tools", () => {
             id: "call-create",
             name: "generate_docx",
             input: {
-              filename: "Unattached Draft.docx",
-              content: "Draft text.",
+              title: "Unattached Draft",
+              document_type: "other",
+              markdown: "Draft text.",
             },
           },
         ],

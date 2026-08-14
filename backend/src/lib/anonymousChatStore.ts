@@ -330,6 +330,39 @@ export function appendAnonymousAssistantEvents(
   return true;
 }
 
+export function appendAnonymousAssistantEvent(
+  chat: AnonymousChat,
+  messageId: string,
+  event: Record<string, unknown>,
+) {
+  const current = assertTranscriptVersion(chat, undefined);
+  const index = current.messages.findIndex(
+    (message) => message.id === messageId && message.role === "assistant",
+  );
+  if (index < 0) return false;
+  const message = current.messages[index];
+  const next = {
+    ...current,
+    messages: current.messages.map((value, currentIndex) =>
+      currentIndex === index
+        ? {
+            ...message,
+            content: [
+              ...(Array.isArray(message.content) ? message.content : []),
+              event,
+            ],
+          }
+        : value,
+    ),
+    updated_at: new Date().toISOString(),
+    transcript_version: current.transcript_version + 1,
+  };
+  writeChat(next);
+  Object.assign(current, next);
+  if (chat !== current) Object.assign(chat, next);
+  return true;
+}
+
 export function upsertAnonymousSubagentEvent(
   chat: AnonymousChat,
   event: Record<string, unknown> & { type: "subagent_run"; id: string },
@@ -405,7 +438,23 @@ export function resetAnonymousAssistantEvents(
     ...currentChat,
     messages: currentChat.messages.map((message, currentIndex) =>
       currentIndex === index
-        ? { ...message, content: [], citations: [] }
+        ? {
+            ...message,
+            content: Array.isArray(message.content)
+              ? message.content.filter((value) => {
+                  if (!value || typeof value !== "object" || Array.isArray(value)) {
+                    return false;
+                  }
+                  const event = value as Record<string, unknown>;
+                  return event.type === "subagent_run" &&
+                    event.status === "interrupted" &&
+                    Boolean(event.resume) &&
+                    typeof event.resume === "object" &&
+                    !Array.isArray(event.resume);
+                })
+              : [],
+            citations: [],
+          }
         : message,
     ),
     updated_at: new Date().toISOString(),

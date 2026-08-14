@@ -8,13 +8,16 @@ import type {
 import { SOURCE_SEARCH_SYSTEM_PROMPT } from "./prompts";
 import {
   legalEvidenceReceiptEvent,
+  registerPriorLegalEvidence,
   renderLegalEvidenceAnswer,
+  type LegalEvidenceReceipt,
   type LegalEvidenceReceiptEvent,
   type LegalEvidenceTurnState,
 } from "./legalEvidence";
 import { assistantToolActivityLabel } from "./tools/a2ajTools";
 
 export const READ_SUBAGENT_TOOL_NAME = "delegate_read";
+export const RESUME_SUBAGENT_TOOL_NAME = "resume_read";
 const DEFAULT_MODEL_SLUG = "gpt-5.6-luna";
 const DEFAULT_EFFORT = "high";
 const MAX_TASK_CHARS = 4_000;
@@ -24,7 +27,7 @@ export type ReadSubagentRole = "scout";
 export type ReadSubagentActivity = {
   id: string;
   label: string;
-  status: "running" | "completed" | "error";
+  status: "running" | "completed" | "error" | "interrupted";
   tool?: string;
   input?: Record<string, unknown>;
   source?: ReadSubagentSource;
@@ -131,13 +134,29 @@ export type ReadSubagentEvent = {
   task: string;
   model: string;
   effort: string;
-  status: "running" | "completed" | "error";
+  status: "running" | "completed" | "error" | "interrupted";
   output?: string;
   error?: string;
   activities?: ReadSubagentActivity[];
   reasoning?: string[];
   sources?: ReadSubagentSource[];
   grounding?: LegalEvidenceReceiptEvent;
+  resume?: ReadSubagentCheckpoint;
+};
+
+export type ReadSubagentCheckpoint = {
+  id: string;
+  continuation_id: string;
+  model: string;
+  effort: string;
+  assignment: {
+    task: string;
+    scope: string;
+    jurisdiction: ReadSubagentRegion;
+    collections?: string[];
+    source_types?: string[];
+  };
+  evidence: LegalEvidenceReceipt[];
 };
 
 export type ReadSubagentCapability = {
@@ -220,11 +239,94 @@ export const READ_SUBAGENT_TOOL: OpenAIToolSchema = {
   },
 };
 
+export const RESUME_SUBAGENT_TOOL: OpenAIToolSchema = {
+  type: "function",
+  function: {
+    name: RESUME_SUBAGENT_TOOL_NAME,
+    description:
+      "Resume one or more interrupted reading agents in their existing sessions. Supply only the listed run IDs; the original assignment and tool history are retained.",
+    strict: true,
+    parameters: {
+      type: "object",
+      properties: {
+        ids: {
+          type: "array",
+          minItems: 1,
+          maxItems: 4,
+          uniqueItems: true,
+          items: { type: "string", minLength: 1, maxLength: 200 },
+        },
+      },
+      required: ["ids"],
+      additionalProperties: false,
+    },
+  },
+};
+
 export const READ_SUBAGENT_SYSTEM_PROMPT =
-  "Do ordinary legal research yourself with the direct legal-source and citator tools. Delegate only when the requested scale genuinely benefits from parallelism, such as an exhaustive scan, a bulk query, or broad research with at least two worthwhile independent lanes. Call delegate_read once per round with two to four specific, non-overlapping assignments in its assignments array; never dispatch or wait on one agent. Scope assignments by court or jurisdiction within the standing region, source collection, period, or genuinely different search strategy. Never delegate merely to recover or restate evidence already returned earlier in the conversation. Never turn an unqualified request about multiple jurisdictions into different countries or world regions. Never use United States or United Kingdom law as a lane unless the user's current request or selected regions expressly include it. Never clone or lightly rephrase one assignment. Keep work without at least two useful lanes in the main turn. Wait for all sibling results, then skeptically compare each exact passage against every required element of the user's request. Report only responsive results; omit merely analogous, adjacent, or conceptually related candidates. A reader miss is not proof that no result exists: inspect the returned search ledgers and, when a concrete untried query or scope could materially help, dispatch another two-to-four-agent round with meaningfully revised assignments. Do not force a result when thorough searches leave no honest answer; state the verified shortfall. Reuse returned evidence IDs directly and submit the final grounded answer yourself. Do not re-read a completed reader source unless its exact passages conflict.";
+  "Do ordinary legal research yourself with the direct legal-source and citator tools. Delegate only when the requested scale genuinely benefits from parallelism, such as an exhaustive scan, a bulk query, or broad research with at least two worthwhile independent lanes. Call delegate_read once per round with two to four specific, non-overlapping assignments in its assignments array; never dispatch or wait on one agent. Resume an interrupted reading agent with resume_read instead of creating a replacement assignment. Scope assignments by court or jurisdiction within the standing region, source collection, period, or genuinely different search strategy. Never turn an unqualified request about multiple jurisdictions into different countries or world regions. Never use United States or United Kingdom law as a lane unless the user's current request or selected regions expressly include it. Never clone or lightly rephrase one assignment. Keep work without at least two useful lanes in the main turn. Wait for all sibling results, then skeptically compare each exact passage against every required element of the user's request. Report only responsive results; omit merely analogous, adjacent, or conceptually related candidates. A reader miss is not proof that no result exists: inspect the returned search ledgers and, when a concrete untried query or scope could materially help, dispatch another two-to-four-agent round with meaningfully revised assignments. Do not force a result when thorough searches leave no honest answer; state the verified shortfall. Reuse returned evidence IDs directly and submit the final grounded answer yourself.";
 
 export type ReadSubagentRegion = "CA" | "US" | "UK";
 export type ReadSubagentForeignRegion = Exclude<ReadSubagentRegion, "CA">;
+
+export function resumableReadSubagents(events: readonly unknown[]) {
+  const latest = new Map<string, Record<string, unknown>>();
+  for (const value of events) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+    const event = value as Record<string, unknown>;
+    if (event.type === "subagent_run" && typeof event.id === "string") {
+      latest.set(event.id, event);
+    }
+  }
+  const resumable = new Map<string, ReadSubagentCheckpoint>();
+  for (const [id, event] of latest) {
+    if (event.status !== "interrupted" || !event.resume ||
+        typeof event.resume !== "object" || Array.isArray(event.resume)) continue;
+    const row = event.resume as Record<string, unknown>;
+    const assignment = row.assignment;
+    if (!assignment || typeof assignment !== "object" || Array.isArray(assignment) ||
+        typeof row.continuation_id !== "string" ||
+        typeof row.model !== "string" || typeof row.effort !== "string") continue;
+    const input = assignment as Record<string, unknown>;
+    if (typeof input.task !== "string" || typeof input.scope !== "string" ||
+        !["CA", "US", "UK"].includes(String(input.jurisdiction))) continue;
+    resumable.set(id, {
+      id,
+      continuation_id: row.continuation_id,
+      model: row.model,
+      effort: row.effort,
+      assignment: {
+        task: input.task,
+        scope: input.scope,
+        jurisdiction: input.jurisdiction as ReadSubagentRegion,
+        ...(Array.isArray(input.collections) && {
+          collections: input.collections.filter((value): value is string =>
+            typeof value === "string"),
+        }),
+        ...(Array.isArray(input.source_types) && {
+          source_types: input.source_types.filter((value): value is string =>
+            typeof value === "string"),
+        }),
+      },
+      evidence: Array.isArray(row.evidence)
+        ? row.evidence as LegalEvidenceReceipt[]
+        : [],
+    });
+  }
+  return resumable;
+}
+
+export function readSubagentResumePrompt(
+  checkpoints: ReadonlyMap<string, ReadSubagentCheckpoint>,
+) {
+  if (!checkpoints.size) return "";
+  return [
+    "INTERRUPTED READING AGENTS AVAILABLE TO RESUME:",
+    "Call resume_read with these existing run IDs to continue their original sessions. Do not restate or replace their assignments.",
+    ...[...checkpoints.values()].map((checkpoint) =>
+      `- ${checkpoint.id}: ${checkpoint.assignment.scope}: ${checkpoint.assignment.task}`),
+  ].join("\n");
+}
 
 const REGION_TERMS: Record<
   ReadSubagentRegion,
@@ -277,7 +379,9 @@ export function allowedReadSubagentRegions(
   return new Set<ReadSubagentRegion>(["CA"]);
 }
 
-export function readSubagentJurisdiction(call: NormalizedToolCall) {
+export function readSubagentJurisdiction(
+  call: NormalizedToolCall,
+): ReadSubagentRegion {
   return call.input.jurisdiction === "US" || call.input.jurisdiction === "UK"
     ? call.input.jurisdiction
     : "CA";
@@ -465,17 +569,31 @@ export async function runReadSubagentRound({
   admit,
   runDirect,
   runReader,
+  resumable = new Map(),
+  runResume = runReader,
 }: {
   calls: NormalizedToolCall[];
   admit: ReturnType<typeof createReadSubagentAdmission>;
   runDirect: (calls: NormalizedToolCall[]) => Promise<NormalizedToolResult[]>;
   runReader: (call: NormalizedToolCall) => Promise<NormalizedToolResult>;
+  resumable?: ReadonlyMap<string, ReadSubagentCheckpoint>;
+  runResume?: (
+    call: NormalizedToolCall,
+    checkpoint: ReadSubagentCheckpoint,
+  ) => Promise<NormalizedToolResult>;
 }) {
   const readers = prepareReadSubagentRound(
     calls.filter((call) => call.name === READ_SUBAGENT_TOOL_NAME),
     admit,
   );
-  const direct = calls.filter((call) => call.name !== READ_SUBAGENT_TOOL_NAME);
+  const resumeCalls = calls.filter(
+    (call) => call.name === RESUME_SUBAGENT_TOOL_NAME,
+  );
+  const direct = calls.filter(
+    (call) =>
+      call.name !== READ_SUBAGENT_TOOL_NAME &&
+      call.name !== RESUME_SUBAGENT_TOOL_NAME,
+  );
   const results = [
     ...(direct.length ? await runDirect(direct) : []),
     ...readers.rejected,
@@ -487,6 +605,45 @@ export async function runReadSubagentRound({
         await Promise.all(readers.assignments.map(runReader)),
       ),
     );
+  }
+  if (resumeCalls.length > 1) {
+    results.push(...resumeCalls.map((call) => ({
+      tool_use_id: call.id,
+      status: "error" as const,
+      content: JSON.stringify({
+        ok: false,
+        error: "Call resume_read once with all run IDs to resume.",
+      }),
+    })));
+  } else if (resumeCalls[0]) {
+    const parent = resumeCalls[0];
+    const ids = Array.isArray(parent.input.ids)
+      ? parent.input.ids.filter((value): value is string =>
+          typeof value === "string")
+      : [];
+    const checkpoints = ids.map((id) => resumable.get(id));
+    if (!ids.length || new Set(ids).size !== ids.length ||
+        checkpoints.some((checkpoint) => !checkpoint)) {
+      results.push({
+        tool_use_id: parent.id,
+        status: "error",
+        content: JSON.stringify({
+          ok: false,
+          error: "resume_read requires available interrupted run IDs.",
+        }),
+      });
+    } else {
+      results.push(combineReadSubagentResults(
+        parent,
+        await Promise.all(checkpoints.map((checkpoint, index) =>
+          runResume({
+            id: `${parent.id}:${index + 1}`,
+            name: RESUME_SUBAGENT_TOOL_NAME,
+            input: checkpoint!.assignment,
+          }, checkpoint!),
+        )),
+      ));
+    }
   }
   return calls.map(
     (call) =>
@@ -719,19 +876,22 @@ export async function runReadSubagent(params: {
   effort?: string;
   activityDetail?: "auto" | "standard" | "tools" | "trace";
   jurisdictionPrompt?: string;
+  resume?: ReadSubagentCheckpoint;
 }): Promise<NormalizedToolResult> {
   const role: ReadSubagentRole = "scout";
+  const input = params.resume?.assignment ?? params.call.input;
   const task =
-    typeof params.call.input.task === "string"
-      ? params.call.input.task.trim().slice(0, MAX_TASK_CHARS)
+    typeof input.task === "string"
+      ? input.task.trim().slice(0, MAX_TASK_CHARS)
       : "";
   const scope =
-    typeof params.call.input.scope === "string"
-      ? params.call.input.scope.trim().slice(0, 240)
+    typeof input.scope === "string"
+      ? input.scope.trim().slice(0, 240)
       : "";
-  const jurisdiction = readSubagentJurisdiction(params.call);
-  const collections = readSubagentCollections(params.call);
-  const sourceTypes = readSubagentSourceTypes(params.call);
+  const assignmentCall = { ...params.call, input };
+  const jurisdiction = readSubagentJurisdiction(assignmentCall);
+  const collections = readSubagentCollections(assignmentCall);
+  const sourceTypes = readSubagentSourceTypes(assignmentCall);
   if (!task || !scope) {
     return {
       tool_use_id: params.call.id,
@@ -744,8 +904,8 @@ export async function runReadSubagent(params: {
   }
 
   const capability = await getReadSubagentCapability(undefined, {
-    model: params.model,
-    effort: params.effort,
+    model: params.resume?.model ?? params.model,
+    effort: params.resume?.effort ?? params.effort,
   });
   if (!capability.available) {
     return {
@@ -755,9 +915,28 @@ export async function runReadSubagent(params: {
     };
   }
 
+  if (params.resume) {
+    registerPriorLegalEvidence(params.evidenceState, params.resume.evidence);
+  }
+  let continuationId = params.resume?.continuation_id;
+  const assignment = {
+    task,
+    scope,
+    jurisdiction,
+    ...(Array.isArray(input.collections) && {
+      collections: input.collections.filter(
+        (value): value is string => typeof value === "string",
+      ),
+    }),
+    ...(Array.isArray(input.source_types) && {
+      source_types: input.source_types.filter(
+        (value): value is string => typeof value === "string",
+      ),
+    }),
+  };
   const baseEvent = {
     type: "subagent_run" as const,
-    id: params.call.id,
+    id: params.resume?.id ?? params.call.id,
     agent: role,
     task: `${scope}: ${task}`,
     model: capability.displayName,
@@ -792,10 +971,25 @@ export async function runReadSubagent(params: {
     const sources = eventSources();
     return sources.length ? { sources } : {};
   };
+  const resumeEvent = () => continuationId
+    ? {
+        resume: {
+          id: baseEvent.id,
+          continuation_id: continuationId,
+          model: capability.model,
+          effort: capability.effort,
+          assignment,
+          evidence: [...params.evidenceState.evidence.values()].map(
+            ({ receipt }) => receipt,
+          ),
+        } satisfies ReadSubagentCheckpoint,
+      }
+    : {};
   params.onEvent?.({
     ...baseEvent,
     status: "running",
     ...sourceEvent(),
+    ...resumeEvent(),
   });
   try {
     const feedback: string[] = [];
@@ -860,6 +1054,7 @@ export async function runReadSubagent(params: {
         status: "running",
         activities: eventActivities(),
         ...sourceEvent(),
+        ...resumeEvent(),
       });
       const rejectedCalls = calls.filter(
         (call) =>
@@ -944,6 +1139,7 @@ export async function runReadSubagent(params: {
         status: "running",
         activities: eventActivities(),
         ...sourceEvent(),
+        ...resumeEvent(),
       });
       feedback.push(
         ...results.map(
@@ -953,20 +1149,41 @@ export async function runReadSubagent(params: {
       );
       return results;
     };
-    const run = (content: string) =>
-      streamChatWithTools({
+    const run = async (content: string) => {
+      const result = await streamChatWithTools({
         model: `codex:${capability.model}`,
         reasoningEffort: capability.effort,
         enableThinking: true,
         reasoningSummary: "none",
         abortSignal: params.signal,
-        systemPrompt: `${ROLE_INSTRUCTIONS}\n\n${params.jurisdictionPrompt ? `${params.jurisdictionPrompt}\n\n` : ""}${SOURCE_SEARCH_SYSTEM_PROMPT}\n\nRemain strictly read-only and use only the supplied retrieval tools. ${GROUNDED_ANSWER_INSTRUCTIONS}`,
+        systemPrompt: continuationId
+          ? ""
+          : `${ROLE_INSTRUCTIONS}\n\n${params.jurisdictionPrompt ? `${params.jurisdictionPrompt}\n\n` : ""}${SOURCE_SEARCH_SYSTEM_PROMPT}\n\nRemain strictly read-only and use only the supplied retrieval tools. ${GROUNDED_ANSWER_INSTRUCTIONS}`,
         messages: [{ role: "user", content }],
         tools: params.tools,
         runTools,
+        providerSession: {
+          persist: true,
+          ...(continuationId && { continuationId }),
+          onContinuationId(id) {
+            continuationId = id;
+            params.onEvent?.({
+              ...baseEvent,
+              status: "running",
+              activities: eventActivities(),
+              ...sourceEvent(),
+              ...resumeEvent(),
+            });
+          },
+        },
       });
-    const assignment = `Assigned scope: ${scope}\n\nQuestion: ${task}`;
-    let prompt = assignment;
+      continuationId = result.continuationId ?? continuationId;
+      return result;
+    };
+    const assignmentPrompt = `Assigned scope: ${scope}\n\nQuestion: ${task}`;
+    let prompt = params.resume
+      ? "Continue the assigned task from where you stopped. Complete the grounded answer using the existing assignment and tool history."
+      : assignmentPrompt;
     let rendered: string | null = null;
     let grounding: LegalEvidenceReceiptEvent | null = null;
     while (!rendered || grounding?.status !== "passed") {
@@ -992,7 +1209,7 @@ export async function runReadSubagent(params: {
       if (rendered && grounding?.status === "passed") break;
       const priorFeedback = feedback.join("\n\n").slice(-MAX_REPAIR_CONTEXT_CHARS);
       const rejection = grounding?.failure ?? "No grounded submission was received.";
-      prompt = `${assignment}\n\nYour previous attempt did not pass the grounding gate: ${rejection}\n\nContinue revising using the schema and tool feedback below. Retrieve more passages if needed.\n\n${priorFeedback || "No tool feedback was returned; retrieve evidence before submitting."}`;
+      prompt = `${assignmentPrompt}\n\nYour previous attempt did not pass the grounding gate: ${rejection}\n\nContinue revising using the schema and tool feedback below. Retrieve more passages if needed.\n\n${priorFeedback || "No tool feedback was returned; retrieve evidence before submitting."}`;
     }
     if (params.publishEvidenceTo) {
       const usedEvidence = new Set(
@@ -1030,17 +1247,32 @@ export async function runReadSubagent(params: {
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Reading agent failed.";
+    const interrupted = Boolean(params.signal?.aborted) ||
+      (error instanceof Error && error.name === "AbortError");
+    for (const activity of activities) {
+      if (activity.status === "running") {
+        activity.status = interrupted ? "interrupted" : "error";
+      }
+    }
     params.onEvent?.({
       ...baseEvent,
-      status: "error",
+      status: interrupted ? "interrupted" : "error",
       error: message,
       activities: eventActivities(),
       ...sourceEvent(),
+      ...resumeEvent(),
     });
     return {
       tool_use_id: params.call.id,
       status: "error",
-      content: JSON.stringify({ ok: false, error: message }),
+      content: JSON.stringify({
+        ok: false,
+        error: message,
+        ...(interrupted && {
+          interrupted: true,
+          ...(continuationId && { resume_id: baseEvent.id }),
+        }),
+      }),
     };
   }
 }

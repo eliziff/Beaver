@@ -117,7 +117,7 @@ export function activityView(
     if (event.type === "reasoning") {
         if (!event.debug) return null;
         const markdown = event.text.replace(/\r\n?/gu, "\n").trim();
-        const label = plainText(markdown).slice(0, 120);
+        const label = plainText(markdown.split(/\n{2,}/u).at(-1) ?? markdown).slice(0, 120);
         return label
             ? { label, markdown, busy: !!event.isStreaming }
             : null;
@@ -136,6 +136,16 @@ export function activityView(
     }
     if (event.type === "thinking")
         return { label: "Thinking", busy: true };
+    if (event.type === "compaction")
+        return {
+            label:
+                event.status === "running"
+                    ? "Compacting context"
+                    : event.status === "failed"
+                      ? "Context compaction failed"
+                      : "Context compacted",
+            busy: event.status === "running",
+        };
     if (event.type === "mcp_tool_call") return null;
     if (event.type === "doc_read")
         return {
@@ -145,6 +155,8 @@ export function activityView(
     if (event.type === "subagent_run") {
         const failed = event.status === "error";
         const running = event.status === "running";
+        const interrupted = event.status === "interrupted";
+        const cancelled = event.status === "cancelled";
         const task = plainText(event.task).slice(0, 100);
         if (running && context.events && context.index !== undefined) {
             const latestById = new Map<
@@ -171,6 +183,10 @@ export function activityView(
         return {
             label: failed
                 ? "Reading agent failed"
+                : interrupted
+                  ? `Reading agent interrupted: ${task}`
+                  : cancelled
+                    ? `Reading agent stopped: ${task}`
                 : `Reading agent completed: ${task}`,
             detail: failed
                 ? event.error

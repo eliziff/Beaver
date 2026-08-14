@@ -187,6 +187,33 @@ describe("DeepSeek adapter", () => {
     )).toEqual([["discover"], ["discover", "revealed"]]);
   });
 
+  it("delivers queued steering after a completed response", async () => {
+    const bodies: Record<string, unknown>[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
+        bodies.push(JSON.parse(String(init.body)));
+        return sse([{ choices: [{ delta: { content: bodies.length === 1 ? "draft" : "revised" } }] }]);
+      }),
+    );
+    const takeSteering = vi.fn()
+      .mockReturnValueOnce([{ id: "s1", text: "Focus on section 8." }])
+      .mockReturnValue([]);
+
+    await streamDeepSeek({
+      model: "deepseek-v4-pro",
+      systemPrompt: "system",
+      messages: [{ role: "user", content: "review" }],
+      apiKeys: { deepseek: "test-key" },
+      takeSteering,
+    });
+
+    expect(bodies[1].messages).toEqual(expect.arrayContaining([
+      { role: "assistant", content: "draft" },
+      { role: "user", content: "Focus on section 8." },
+    ]));
+  });
+
   it("rejects image input before making a request", () => {
     expect(() =>
       toDeepSeekMessages([{

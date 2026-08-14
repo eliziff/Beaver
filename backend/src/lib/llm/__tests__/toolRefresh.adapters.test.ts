@@ -2,12 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const sdkMocks = vi.hoisted(() => ({
   claudeStream: vi.fn(),
+  claudeBetaStream: vi.fn(),
   geminiStream: vi.fn(),
 }));
 
 vi.mock("@anthropic-ai/sdk", () => ({
   default: class Anthropic {
     messages = { stream: sdkMocks.claudeStream };
+    beta = { messages: { stream: sdkMocks.claudeBetaStream } };
   },
 }));
 
@@ -47,6 +49,7 @@ const geminiReply = (parts: Record<string, unknown>[]) => ({
 
 beforeEach(() => {
   sdkMocks.claudeStream.mockReset();
+  sdkMocks.claudeBetaStream.mockReset();
   sdkMocks.geminiStream.mockReset();
 });
 
@@ -110,5 +113,90 @@ describe("dynamic provider tool schemas", () => {
         (entry: { name: string }) => entry.name,
       )
     )).toEqual([["discover"], ["discover", "revealed"]]);
+  });
+
+  it("delivers queued steering at the next safe boundary on Claude and Gemini", async () => {
+    sdkMocks.claudeStream
+      .mockReturnValueOnce(claudeReply([{ type: "text", text: "draft" }], "end_turn"))
+      .mockReturnValueOnce(claudeReply([{ type: "text", text: "revised" }], "end_turn"));
+    sdkMocks.geminiStream
+      .mockResolvedValueOnce(geminiReply([{ text: "draft" }]))
+      .mockResolvedValueOnce(geminiReply([{ text: "revised" }]));
+    const takeSteering = vi.fn()
+      .mockReturnValueOnce([{ id: "s1", text: "Focus on section 8." }])
+      .mockReturnValue([]);
+
+    await streamClaude({
+      model: "claude-sonnet-4-6",
+      systemPrompt: "system",
+      messages: [{ role: "user", content: "review" }],
+      apiKeys: { claude: "test-key" },
+      takeSteering,
+    });
+    takeSteering.mockClear().mockReturnValueOnce([
+      { id: "s1", text: "Focus on section 8." },
+    ]).mockReturnValue([]);
+    await streamGemini({
+      model: "gemini-3-flash-preview",
+      systemPrompt: "system",
+      messages: [{ role: "user", content: "review" }],
+      apiKeys: { gemini: "test-key" },
+      takeSteering,
+    });
+
+    expect(sdkMocks.claudeStream.mock.calls[1][0].messages.at(-1)).toEqual({
+      role: "user",
+      content: [{ type: "text", text: "Focus on section 8." }],
+    });
+    expect(sdkMocks.geminiStream.mock.calls[1][0].contents.at(-1)).toEqual({
+      role: "user",
+      parts: [{ text: "Focus on section 8." }],
+    });
+  });
+
+  it("uses Anthropic's native compaction contract and reports its checkpoint", async () => {
+    const reply = claudeReply([{ type: "text", text: "done" }], "end_turn");
+    reply.on.mockImplementation((name: string, callback: (event: unknown) => void) => {
+      if (name === "streamEvent") {
+        callback({
+          type: "content_block_start",
+          index: 0,
+          content_block: { type: "compaction" },
+        });
+        callback({
+          type: "content_block_delta",
+          index: 0,
+          delta: { type: "compaction_delta", content: "durable summary" },
+        });
+      }
+      return reply;
+    });
+    sdkMocks.claudeBetaStream.mockReturnValueOnce(reply);
+    const onCompaction = vi.fn();
+    const onContextCheckpoint = vi.fn();
+
+    await streamClaude({
+      model: "claude-sonnet-4-6",
+      systemPrompt: "system",
+      messages: [{ role: "user", content: "continue" }],
+      compactThreshold: 150_000,
+      callbacks: { onCompaction, onContextCheckpoint },
+      apiKeys: { claude: "test-key" },
+    });
+
+    expect(sdkMocks.claudeBetaStream.mock.calls[0][0]).toMatchObject({
+      betas: ["compact-2026-01-12"],
+      context_management: {
+        edits: [{
+          type: "compact_20260112",
+          trigger: { type: "input_tokens", value: 150_000 },
+        }],
+      },
+    });
+    expect(onCompaction.mock.calls).toEqual([["running"], ["completed"]]);
+    expect(onContextCheckpoint).toHaveBeenCalledWith({
+      provider: "claude",
+      content: "durable summary",
+    });
   });
 });

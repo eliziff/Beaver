@@ -144,7 +144,11 @@ describe("ChatView rejected normal turn", () => {
 
         render(<Harness />);
         await user.click(screen.getByRole("button", { name: "Start" }));
-        await screen.findByText("Response interrupted");
+        expect(
+            (await screen.findByText("Response interrupted")).closest(
+                '[role="alertdialog"]',
+            ),
+        ).toHaveClass("border-red-200", "bg-red-50");
         expect(screen.getByTestId("restored-draft")).toHaveTextContent(
             "Create it once",
         );
@@ -244,5 +248,25 @@ describe("ChatView rejected normal turn", () => {
             />,
         );
         await waitFor(() => expect(status).toBeEmptyDOMElement());
+
+        rerender(
+            <ChatView
+                chatId="chat-1"
+                messages={[
+                    { role: "user", content: "Question" },
+                    {
+                        role: "assistant",
+                        content: "Partial answer",
+                        turnStatus: "interrupted",
+                    },
+                ]}
+                isResponseLoading={false}
+                handleChat={handleChat}
+                cancel={cancel}
+            />,
+        );
+        expect(screen.getByText("Response interrupted").parentElement).toHaveClass(
+            "text-red-700",
+        );
     });
 });

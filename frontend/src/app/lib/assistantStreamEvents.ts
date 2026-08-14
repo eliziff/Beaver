@@ -87,6 +87,7 @@ const TOOL_ACTIVITY_FAMILIES: Record<string, string> = {
   library_link_docx_citations: "automation_run",
   library_fix_docx_supras: "automation_run",
   delegate_read: "subagent_run",
+  resume_read: "subagent_run",
 };
 
 function parseAutomationRunEvent(
@@ -376,6 +377,43 @@ export function reduceAssistantStreamEvent(
   if (rawType === "content_block_end") {
     return { events: finalizeContent(events) };
   }
+  if (rawType === "steering") {
+    const messageId = clean(data.id);
+    const messageText = clean(data.text);
+    if (!messageId || !messageText) return null;
+    if (events.some((event) => event.type === "steering" && event.id === messageId)) {
+      return { events };
+    }
+    return {
+      events: append(events, {
+        type: "steering",
+        id: messageId,
+        text: messageText,
+      }),
+    };
+  }
+  if (rawType === "context_usage") {
+    const event: EventOf<"context_usage"> = {
+      type: "context_usage",
+      used_tokens: num(data.used_tokens),
+      window_tokens: num(data.window_tokens),
+    };
+    const index = events.findLastIndex((candidate) => candidate.type === event.type);
+    if (index < 0) return { events: append(events, event) };
+    const next = [...events];
+    next[index] = event;
+    return { events: next };
+  }
+  if (rawType === "compaction" &&
+      (data.status === "running" || data.status === "completed" ||
+        data.status === "failed")) {
+    const event: EventOf<"compaction"> = { type: "compaction", status: data.status };
+    const index = events.findLastIndex((candidate) => candidate.type === event.type);
+    if (index < 0) return { events: append(events, event) };
+    const next = [...events];
+    next[index] = event;
+    return { events: next };
+  }
   if (rawType === "tool_call_start")
     return reduceEvent(events, {
       type: "tool_call_start",
@@ -480,7 +518,9 @@ export function reduceAssistantStreamEvent(
           return id && label &&
             (activityStatus === "running" ||
               activityStatus === "completed" ||
-              activityStatus === "error")
+              activityStatus === "error" ||
+              activityStatus === "cancelled" ||
+              activityStatus === "interrupted")
             ? [{
                 id,
                 label,
@@ -517,7 +557,8 @@ export function reduceAssistantStreamEvent(
         : [];
     if (
       (agent !== "scout" && agent !== "planner" && agent !== "reviewer") ||
-      (status !== "running" && status !== "completed" && status !== "error")
+      (status !== "running" && status !== "completed" && status !== "error" &&
+        status !== "cancelled" && status !== "interrupted")
     ) {
       return null;
     }
