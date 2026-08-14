@@ -16,6 +16,7 @@ import type {
   CourtlistenerToolEvent,
 } from "./tools/courtlistenerTools";
 import { assistantToolActivityLabel } from "./tools/a2ajTools";
+import type { LocalAutomationEvent } from "./localAutomationEvent";
 import type { AskInputsEvent, EditAnnotation } from "./types";
 import { createLegalEvidenceCitations } from "./citations";
 import {
@@ -90,6 +91,7 @@ export type AssistantEvent =
   | McpToolEvent
   | LegalEvidenceReceiptEvent
   | ReadSubagentEvent
+  | LocalAutomationEvent
   | { type: "case_opinions"; cluster_id: number; case: unknown }
   | { type: "content"; text: string }
   | { type: "error"; message: string };

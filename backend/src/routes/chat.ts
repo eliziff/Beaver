@@ -17,7 +17,11 @@ import { DEFAULT_MAIN_MODEL, modelSupportsImageInput, type LlmImage, type OpenAI
 import { providerForModel } from "../lib/llm/models";
 import { LOCAL_ASSISTANT_TOOLS } from "../lib/chat/localAssistantTools";
 import { createLocalChatToolRunner } from "../lib/chat/localChatToolRunner";
-import { AssistantStreamError, runChatTurn } from "../lib/chat/turnEngine";
+import {
+  AssistantStreamError,
+  runChatTurn,
+  type AssistantEvent,
+} from "../lib/chat/turnEngine";
 import {
   appendLocalPdfPinpointLinks,
   providerPdfReferencesForTurn,
@@ -26,6 +30,7 @@ import { citationUrls } from "../lib/chat/citations";
 import {
   READ_SUBAGENT_SYSTEM_PROMPT,
   READ_SUBAGENT_TOOL,
+  type ReadSubagentEvent,
 } from "../lib/chat/readSubagents";
 import { currentA2AJCoveragePrompt } from "../lib/chat/a2ajCoveragePrompt";
 import {
@@ -105,16 +110,15 @@ class MatterDocumentSet extends Set<string> {
   }
 }
 
-type Db = ReturnType<typeof createServerSupabase>;
-
 const LOCAL_PDF_EVIDENCE_REGISTRY_EVENT = "local_pdf_evidence_handles";
 const LOCAL_MUTATION_COMMITTED_EVENT = "local_mutation_committed";
 const LOCAL_TURN_COMPLETED_EVENT = "local_turn_completed";
-const RESEARCH_CHECKPOINT_RECEIPT_EVENT = "research_checkpoint_receipt";
 const MAX_LOCAL_PDF_EVIDENCE_HANDLES = 20;
 const LOCAL_PDF_EVIDENCE_HANDLE = /^mike-evidence:v1:[0-9a-f]{64}$/u;
 const PROVIDER_PDF_SOURCE_REFERENCE =
   /^mike-provider-pdf:v1:(?:a2aj|courtlistener|govinfo|govuk-et|tna):[0-9a-f]{64}:[0-9a-f]{64}$/u;
+const durableTurnEvents = (events: AssistantEvent[]) =>
+  events.filter(({ type }) => !["reasoning", "content", "error"].includes(type));
 const PROJECT_SYSTEM_PROMPT_EXTRA = `PROJECT CONTEXT:
 You are operating within a project folder that contains a collection of legal documents the user has organised for a single matter. The user's questions will usually refer to one or more documents in this project — your job is to find the relevant files to work on. Use list_documents to see what is available and fetch_documents / read_document to pull in any documents you need before answering.
 
@@ -1158,6 +1162,11 @@ export async function streamAnonymousChat(params: {
     });
     return events;
   };
+  const onSubagentEvent = (event: ReadSubagentEvent) => {
+    if (normalTurnId && !chatTurnWasDeleted(chat.id)) {
+      persistTurnEvents([event]);
+    }
+  };
   const localTools = createLocalChatToolRunner({
     userId,
     projectId,
@@ -1170,11 +1179,6 @@ export async function streamAnonymousChat(params: {
           type: LOCAL_MUTATION_COMMITTED_EVENT,
           schema_version: 1,
         }]);
-      }
-    },
-    onSubagentEvent: (event) => {
-      if (normalTurnId && !chatTurnWasDeleted(chat.id)) {
-        persistTurnEvents([event]);
       }
     },
   });
@@ -1240,13 +1244,10 @@ export async function streamAnonymousChat(params: {
         allowedDocumentIds,
         citationUrls(citations),
       ),
-      onSubagentEvent: localTools.onSubagentEvent,
+      onSubagentEvent,
       onFinish: async (result) => {
-        const coreEvents = result.events.filter((event) =>
-          event.type === "legal_evidence_receipt" || event.type === "ask_inputs");
         const assistantEvents = await withEvidenceRegistry([
-          ...localTools.events,
-          ...coreEvents,
+          ...durableTurnEvents(result.events),
           ...(result.fullText
             ? [{ type: "content", text: result.fullText }]
             : result.status === "paused"
@@ -1299,7 +1300,9 @@ export async function streamAnonymousChat(params: {
         ? error.fullText
         : "";
       persistTurnEvents([
-        ...localTools.events,
+        ...(error instanceof AssistantStreamError
+          ? durableTurnEvents(error.events)
+          : []),
         ...(partialText ? [{ type: "content", text: partialText }] : []),
         isAbortError(error)
           ? { type: "content", text: "Cancelled by user." }
