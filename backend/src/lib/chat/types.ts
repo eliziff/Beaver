@@ -35,11 +35,6 @@ export type TabularCellStore = {
   >;
 };
 
-export type ToolCall = {
-  id: string;
-  function: { name: string; arguments: string };
-};
-
 export type ChatMessage = {
   role: string;
   content: string | null;

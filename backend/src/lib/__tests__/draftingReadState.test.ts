@@ -40,22 +40,18 @@ describe("drafting read state", () => {
       [
         {
           id: "read-1",
-          function: {
-            name: "read_document",
-            arguments: JSON.stringify({
-              doc_id: "doc-0",
-              mode: "drafting",
-            }),
+          name: "read_document",
+          input: {
+            doc_id: "doc-0",
+            mode: "drafting",
           },
         },
         {
           id: "read-2",
-          function: {
-            name: "read_document",
-            arguments: JSON.stringify({
-              doc_id: "doc-0",
-              mode: "drafting",
-            }),
+          name: "read_document",
+          input: {
+            doc_id: "doc-0",
+            mode: "drafting",
           },
         },
       ],
@@ -90,9 +86,7 @@ describe("drafting read state", () => {
     expect(turnReadState.size).toBe(0);
     expect(output.docsRead).toEqual([]);
     expect(
-      output.toolResults.map((item) =>
-        JSON.parse((item as { content: string }).content),
-      ),
+      output.toolResults.map((item) => JSON.parse(item.content)),
     ).toEqual([
       expect.objectContaining({ ok: false }),
       expect.objectContaining({ ok: false }),

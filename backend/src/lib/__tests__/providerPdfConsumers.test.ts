@@ -23,7 +23,7 @@ vi.mock("../courtlistener", () => ({
 
 import { runLocalAssistantTools } from "../chat/localAssistantTools";
 import { runToolCalls } from "../chat/tools/toolDispatcher";
-import type { DocStore, ToolCall } from "../chat/types";
+import type { DocStore } from "../chat/types";
 import {
   runLocalCourtlistenerTool,
   type CourtlistenerToolState,
@@ -381,24 +381,18 @@ describe("provider PDF consumers", () => {
     const calls = [
       {
         id: "fetch",
-        type: "function",
-        function: {
-          name: COURTLISTENER_TOOL_NAMES.getCases,
-          arguments: JSON.stringify({ clusterIds: [42] }),
-        },
+        name: COURTLISTENER_TOOL_NAMES.getCases,
+        input: { clusterIds: [42] },
       },
       {
         id: "find",
-        type: "function",
-        function: {
-          name: COURTLISTENER_TOOL_NAMES.findInCase,
-          arguments: JSON.stringify({
-            clusterId: 42,
-            query: "Opinion",
-          }),
+        name: COURTLISTENER_TOOL_NAMES.findInCase,
+        input: {
+          clusterId: 42,
+          query: "Opinion",
         },
       },
-    ] as ToolCall[];
+    ];
     const events: unknown[] = [];
 
     const response = await runToolCalls(
@@ -409,9 +403,9 @@ describe("provider PDF consumers", () => {
       (value) => events.push(value),
     );
 
-    expect(JSON.parse((response.toolResults[0] as { content: string }).content))
+    expect(JSON.parse(response.toolResults[0].content))
       .toMatchObject({ ok: true, case_count: 1, opinion_count: 1 });
-    expect(JSON.parse((response.toolResults[1] as { content: string }).content))
+    expect(JSON.parse(response.toolResults[1].content))
       .toMatchObject({ ok: true, total_matches: 1 });
     expect(events).toEqual(
       expect.arrayContaining([

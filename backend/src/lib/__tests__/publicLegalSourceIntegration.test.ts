@@ -148,14 +148,12 @@ describe("public legal source tool integration", () => {
       [
         {
           id: "call-1",
-          function: {
-            name: PUBLIC_LEGAL_SOURCE_TOOL_NAMES.lookup,
-            arguments: JSON.stringify({
-              provider: "tna",
-              identifier: "[2024] UKSC 1",
-              locator_type: "paragraph",
-              locator: "24",
-            }),
+          name: PUBLIC_LEGAL_SOURCE_TOOL_NAMES.lookup,
+          input: {
+            provider: "tna",
+            identifier: "[2024] UKSC 1",
+            locator_type: "paragraph",
+            locator: "24",
           },
         },
       ],
@@ -173,11 +171,7 @@ describe("public legal source tool integration", () => {
       undefined,
       state,
     );
-    const modelPayload = JSON.parse(
-      String(
-        (output.toolResults[0] as { content: string | undefined }).content,
-      ),
-    );
+    const modelPayload = JSON.parse(output.toolResults[0].content);
 
     expect(modelPayload.ok).toBe(true);
     expect(modelPayload).not.toHaveProperty("url");

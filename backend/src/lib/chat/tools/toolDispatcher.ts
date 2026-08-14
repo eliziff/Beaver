@@ -25,13 +25,16 @@ import {
   type CourtlistenerToolState,
 } from "../courtlistenerToolRunner";
 import type { McpToolEvent } from "../../mcpConnectors";
+import type {
+  NormalizedToolCall,
+  NormalizedToolResult,
+} from "../../llm";
 import { createServerSupabase } from "../../supabase";
 import {
   type DocStore,
   type DocIndex,
   type TabularCellStore,
   type WorkflowStore,
-  type ToolCall,
   type AskInputsEvent,
   devLog,
   resolveDocLabel,
@@ -117,7 +120,7 @@ function findInCaseSearchSummary(
 export { readTabularCells };
 
 export async function runToolCalls(
-  toolCalls: ToolCall[],
+  toolCalls: NormalizedToolCall[],
   docStore: DocStore,
   userId: string,
   db: ReturnType<typeof createServerSupabase>,
@@ -133,7 +136,7 @@ export async function runToolCalls(
   publicLegalState?: PublicLegalSourceState,
   legalEvidenceState?: LegalEvidenceTurnState,
 ): Promise<{
-  toolResults: unknown[];
+  toolResults: NormalizedToolResult[];
   docsRead: { filename: string; document_id?: string }[];
   docsFound: { filename: string; query: string; total_matches: number }[];
   docsCreated: DocCreatedResult[];
@@ -146,7 +149,7 @@ export async function runToolCalls(
   a2ajLookups: A2AJLocatorLookup[];
   a2ajDocuments: A2AJDocument[];
 }> {
-  const toolResults: unknown[] = [];
+  const toolResults: NormalizedToolResult[] = [];
   const docsRead: { filename: string; document_id?: string }[] = [];
   const docsFound: {
     filename: string;
@@ -162,6 +165,15 @@ export async function runToolCalls(
   const mcpEvents: McpToolEvent[] = [];
   const a2ajLookups: A2AJLocatorLookup[] = [];
   const a2ajDocuments: A2AJDocument[] = [];
+  const reply = (
+    call: NormalizedToolCall,
+    content: unknown,
+    terminal = false,
+  ) => toolResults.push({
+    tool_use_id: call.id,
+    content: typeof content === "string" ? content : JSON.stringify(content),
+    ...(terminal ? { terminal: true } : {}),
+  });
   const rememberPassages = (
     identity: Awaited<ReturnType<typeof getTurnReadIdentity>>,
     key: string | null,
@@ -236,15 +248,9 @@ export async function runToolCalls(
   };
   const publicState = publicLegalState ?? createPublicLegalSourceState();
   const groupedFindInCaseSearches = toolCalls
-    .filter((tc) => tc.function.name === COURTLISTENER_TOOL_NAMES.findInCase)
+    .filter((tc) => tc.name === COURTLISTENER_TOOL_NAMES.findInCase)
     .map((tc) => {
-      let rawArgs: Record<string, unknown> = {};
-      try {
-        rawArgs = JSON.parse(tc.function.arguments || "{}");
-      } catch {
-        /* ignore */
-      }
-      const parsed = parseFindInCaseArgs(rawArgs);
+      const parsed = parseFindInCaseArgs(tc.input);
       return {
         cluster_id: parsed.clusterId,
         query: parsed.query,
@@ -259,7 +265,7 @@ export async function runToolCalls(
   >[] = [];
 
   const registerGeneratedDocument = (
-    tc: ToolCall,
+    tc: NormalizedToolCall,
     result: Record<string, unknown>,
     previewFilename: string,
     fileType: string,
@@ -328,57 +334,39 @@ export async function runToolCalls(
             : `Read doc_id "${newDocLabel}" before describing or citing it; describe what it actually renders, not what you intended.`,
         }
       : safeToolResult;
-    toolResults.push({
-      role: "tool",
-      tool_call_id: tc.id,
-      content: JSON.stringify(toolResultPayload),
-    });
+    reply(tc, toolResultPayload);
   };
 
   for (const tc of toolCalls) {
-    let args: Record<string, unknown> = {};
-    try {
-      args = JSON.parse(tc.function.arguments || "{}");
-    } catch {
-      /* ignore */
-    }
-    const a2aj = await executeA2AJTool(tc.function.name, args);
+    const args = tc.input;
+    const a2aj = await executeA2AJTool(tc.name, args);
 
-    if (tc.function.name === LEGAL_EVIDENCE_TOOL_NAME) {
+    if (tc.name === LEGAL_EVIDENCE_TOOL_NAME) {
       const submitted = legalEvidenceState
         ? submitLegalEvidenceAnswer(args, legalEvidenceState)
         : { ok: false, errors: ["Legal evidence state is unavailable"] };
-      toolResults.push({
-        role: "tool",
-        tool_call_id: tc.id,
-        content: JSON.stringify(submitted),
-        terminal: submitted.terminal === true,
-      });
+      reply(tc, submitted, submitted.terminal === true);
       continue;
     }
 
-    if (tc.function.name.startsWith("mcp_")) {
+    if (tc.name.startsWith("mcp_")) {
       emit({
         type: "mcp_tool_start",
-        name: tc.function.name,
+        name: tc.name,
       });
       const { content, event } = await (
         await import("../../mcpConnectors")
       ).executeMcpToolCall(
         userId,
-        tc.function.name,
+        tc.name,
         args,
         db,
       );
-      toolResults.push({
-        role: "tool",
-        tool_call_id: tc.id,
-        content,
-      });
+      reply(tc, content);
       mcpEvents.push(event);
       emit({
         type: "mcp_tool_result",
-        name: tc.function.name,
+        name: tc.name,
         connector_name: event.connector_name,
         tool_name: event.tool_name,
         status: event.status,
@@ -387,13 +375,13 @@ export async function runToolCalls(
       continue;
     }
 
-    if (tc.function.name === "ask_inputs") {
+    if (tc.name === "ask_inputs") {
       const event = normalizeAskInputsEvent(args);
       if (event.items.length > 0) askInputsEvents.push(event);
       continue;
     }
 
-    if (tc.function.name === "read_document") {
+    if (tc.name === "read_document") {
       const rawDocId = args.doc_id as string;
       const docId = resolveDocLabel(rawDocId, docStore, docIndex) ?? rawDocId;
       const readMode =
@@ -410,11 +398,7 @@ export async function runToolCalls(
       });
       const readKey = readIdentity ? `${readIdentity.key}:${readMode}` : null;
       if (readIdentity && readKey && turnReadState?.has(readKey)) {
-        toolResults.push({
-          role: "tool",
-          tool_call_id: tc.id,
-          content: duplicateReadDocumentResult(readIdentity),
-        });
+        reply(tc, duplicateReadDocumentResult(readIdentity));
         continue;
       }
       const captured: CapturedDocumentSource[] = [];
@@ -450,17 +434,12 @@ export async function runToolCalls(
       if (readSucceeded && filename) {
         docsRead.push({ filename, document_id: documentId });
       }
-      toolResults.push({
-        role: "tool",
-        tool_call_id: tc.id,
-        content:
-          filename && readMode === "text"
-            ? `${citationReminder(docId, filename)}\n\n${content}${
-                evidenceId ? `\n\nCitation evidence_id: ${evidenceId}` : ""
-              }`
-            : content,
-      });
-    } else if (tc.function.name === "find_in_document") {
+      reply(tc, filename && readMode === "text"
+        ? `${citationReminder(docId, filename)}\n\n${content}${
+            evidenceId ? `\n\nCitation evidence_id: ${evidenceId}` : ""
+          }`
+        : content);
+    } else if (tc.name === "find_in_document") {
       const rawDocId = args.doc_id as string;
       const docId = resolveDocLabel(rawDocId, docStore, docIndex) ?? rawDocId;
       const query = (args.query as string) ?? "";
@@ -521,8 +500,8 @@ export async function runToolCalls(
           total_matches: totalMatches,
         });
       }
-      toolResults.push({ role: "tool", tool_call_id: tc.id, content });
-    } else if (tc.function.name === "list_documents") {
+      reply(tc, content);
+    } else if (tc.name === "list_documents") {
       const list = Array.from(docStore.entries()).map(([doc_id, info]) => ({
         doc_id,
         filename: info.filename,
@@ -532,12 +511,8 @@ export async function runToolCalls(
           projectId,
         }),
       }));
-      toolResults.push({
-        role: "tool",
-        tool_call_id: tc.id,
-        content: JSON.stringify(list),
-      });
-    } else if (tc.function.name === "fetch_documents") {
+      reply(tc, list);
+    } else if (tc.name === "fetch_documents") {
       const rawDocIds = (args.doc_ids as string[]) ?? [];
       const docIds = rawDocIds.map(
         (id) => resolveDocLabel(id, docStore, docIndex) ?? id,
@@ -588,12 +563,8 @@ export async function runToolCalls(
           docsRead.push({ filename, document_id: documentId });
         }
       }
-      toolResults.push({
-        role: "tool",
-        tool_call_id: tc.id,
-        content: parts.join("\n\n"),
-      });
-    } else if (tc.function.name === "list_workflows") {
+      reply(tc, parts.join("\n\n"));
+    } else if (tc.name === "list_workflows") {
       const list = workflowStore
         ? Array.from(workflowStore.entries()).map(([id, w]) => ({
             id,
@@ -605,12 +576,8 @@ export async function runToolCalls(
             }),
           }))
         : [];
-      toolResults.push({
-        role: "tool",
-        tool_call_id: tc.id,
-        content: JSON.stringify(list),
-      });
-    } else if (tc.function.name === "read_workflow") {
+      reply(tc, list);
+    } else if (tc.name === "read_workflow") {
       const wfId = args.workflow_id as string;
       const wf = workflowStore?.get(wfId);
       if (wf) {
@@ -621,13 +588,9 @@ export async function runToolCalls(
         });
         workflowsApplied.push({ workflow_id: wfId, title: wf.title });
       }
-      toolResults.push({
-        role: "tool",
-        tool_call_id: tc.id,
-        content: wf ? wf.skill_md : `Workflow '${wfId}' not found.`,
-      });
+      reply(tc, wf ? wf.skill_md : `Workflow '${wfId}' not found.`);
     } else if (
-      tc.function.name === "read_table_cells" &&
+      tc.name === "read_table_cells" &&
       tabularStore &&
       legalEvidenceState
     ) {
@@ -644,17 +607,13 @@ export async function runToolCalls(
 
       emit({ type: "doc_read", filename: selected.label });
       docsRead.push({ filename: selected.label });
-      toolResults.push({
-        role: "tool",
-        tool_call_id: tc.id,
-        content: selected.content,
-      });
+      reply(tc, selected.content);
     } else if (
-      tc.function.name === PUBLIC_LEGAL_SOURCE_TOOL_NAMES.fetch ||
-      tc.function.name === PUBLIC_LEGAL_SOURCE_TOOL_NAMES.lookup
+      tc.name === PUBLIC_LEGAL_SOURCE_TOOL_NAMES.fetch ||
+      tc.name === PUBLIC_LEGAL_SOURCE_TOOL_NAMES.lookup
     ) {
       const publicLegalResult = await executePublicLegalSourceTool(
-        tc.function.name,
+        tc.name,
         args,
         publicState,
       );
@@ -663,15 +622,9 @@ export async function runToolCalls(
           registerLegalEvidence(legalEvidenceState, evidence);
         }
       }
-      toolResults.push({
-        role: "tool",
-        tool_call_id: tc.id,
-        content: JSON.stringify(
-          publicLegalResult?.payload ?? {
-            ok: false,
-            error: "Public legal tool unavailable.",
-          },
-        ),
+      reply(tc, publicLegalResult?.payload ?? {
+        ok: false,
+        error: "Public legal tool unavailable.",
       });
     } else if (a2aj) {
       if (a2aj.document?.url) a2ajDocuments.push(a2aj.document);
@@ -684,14 +637,9 @@ export async function runToolCalls(
           lookup: a2aj.lookup,
         });
       }
-      toolResults.push({
-        role: "tool",
-        tool_call_id: tc.id,
-        content: JSON.stringify(a2aj.payload),
-      });
-    } else if (isCourtlistenerTool(tc.function.name)) {
-      const call = { id: tc.id, name: tc.function.name, input: args };
-      if (tc.function.name === COURTLISTENER_TOOL_NAMES.findInCase && shouldGroupFindInCase) {
+      reply(tc, a2aj.payload);
+    } else if (isCourtlistenerTool(tc.name)) {
+      if (tc.name === COURTLISTENER_TOOL_NAMES.findInCase && shouldGroupFindInCase) {
         if (!groupedFindInCaseStarted) {
           emit({
             type: "courtlistener_find_in_case_start",
@@ -702,10 +650,10 @@ export async function runToolCalls(
           groupedFindInCaseStarted = true;
         }
       } else {
-        const start = courtlistenerStartEvent(call);
+        const start = courtlistenerStartEvent(tc);
         if (start) emit(start);
       }
-      const executed = await runCourtlistenerTool(call, courtState, {
+      const executed = await runCourtlistenerTool(tc, courtState, {
         db,
         apiToken: apiKeys?.courtlistener,
         legalEvidenceState,
@@ -716,7 +664,7 @@ export async function runToolCalls(
         emit(event);
         caseCitationEvents.push(event);
       }
-      if (tc.function.name === COURTLISTENER_TOOL_NAMES.findInCase && shouldGroupFindInCase) {
+      if (tc.name === COURTLISTENER_TOOL_NAMES.findInCase && shouldGroupFindInCase) {
         groupedFindInCaseEvents.push(executed.event as Extract<
           CourtlistenerToolEvent,
           { type: "courtlistener_find_in_case" }
@@ -725,12 +673,8 @@ export async function runToolCalls(
         emit(executed.event);
         courtlistenerEvents.push(executed.event);
       }
-      toolResults.push({
-        role: "tool",
-        tool_call_id: tc.id,
-        content: executed.result.content,
-      });
-    } else if (tc.function.name === "edit_document" && docIndex) {
+      reply(tc, executed.result.content);
+    } else if (tc.name === "edit_document" && docIndex) {
       const rawDocId = args.doc_id as string;
       const editsRaw = args.edits as unknown[] | undefined;
       const docId = resolveDocLabel(rawDocId, docStore, docIndex) ?? rawDocId;
@@ -763,27 +707,15 @@ export async function runToolCalls(
       if (!docInfo || !indexed) {
         const err = `Document '${docId}' not found in this chat's attachments.`;
         emitEditError(docId, indexed?.document_id ?? "", err);
-        toolResults.push({
-          role: "tool",
-          tool_call_id: tc.id,
-          content: JSON.stringify({ error: err }),
-        });
+        reply(tc, { error: err });
       } else if (!Array.isArray(editsRaw) || editsRaw.length === 0) {
         const err = "edits array is required and must not be empty.";
         emitEditError(docInfo.filename, indexed.document_id, err);
-        toolResults.push({
-          role: "tool",
-          tool_call_id: tc.id,
-          content: JSON.stringify({ error: err }),
-        });
+        reply(tc, { error: err });
       } else if (docInfo.file_type !== "docx") {
         const err = "edit_document only supports .docx files.";
         emitEditError(docInfo.filename, indexed.document_id, err);
-        toolResults.push({
-          role: "tool",
-          tool_call_id: tc.id,
-          content: JSON.stringify({ error: err }),
-        });
+        reply(tc, { error: err });
       } else {
         emit({
           type: "doc_edited_start",
@@ -860,24 +792,18 @@ export async function runToolCalls(
             type: "doc_edited",
             ...payload,
           });
-          toolResults.push({
-            role: "tool",
-            tool_call_id: tc.id,
-            content: JSON.stringify({
-              ok: true,
-              doc_id: docId,
-              document_id: indexed.document_id,
-              version_id: result.version_id,
-              version_number: result.version_number,
-              applied: result.annotations.length,
-              errors: result.errors,
-              ...(sourceClosure.length
-                ? { source_closure: sourceClosure }
-                : {}),
-              next_required_action: sourceClosure.length
-                ? `Review source_closure; if material, edit doc_id "${docId}" again, then read it before making factual claims.`
-                : `Read doc_id "${docId}" before making factual claims about the edited contents.`,
-            }),
+          reply(tc, {
+            ok: true,
+            doc_id: docId,
+            document_id: indexed.document_id,
+            version_id: result.version_id,
+            version_number: result.version_number,
+            applied: result.annotations.length,
+            errors: result.errors,
+            ...(sourceClosure.length ? { source_closure: sourceClosure } : {}),
+            next_required_action: sourceClosure.length
+              ? `Review source_closure; if material, edit doc_id "${docId}" again, then read it before making factual claims.`
+              : `Read doc_id "${docId}" before making factual claims about the edited contents.`,
           });
         } else {
           emit({
@@ -889,17 +815,10 @@ export async function runToolCalls(
             annotations: [],
             error: result.error,
           });
-          toolResults.push({
-            role: "tool",
-            tool_call_id: tc.id,
-            content: JSON.stringify({
-              ok: false,
-              error: result.error,
-            }),
-          });
+          reply(tc, { ok: false, error: result.error });
         }
       }
-    } else if (tc.function.name === "generate_docx") {
+    } else if (tc.name === "generate_docx") {
       const title = args.title as string;
       const landscape = !!args.landscape;
       devLog(
@@ -946,7 +865,7 @@ export async function runToolCalls(
         previewFilename,
         "docx",
       );
-    } else if (tc.function.name === "generate_excel") {
+    } else if (tc.name === "generate_excel") {
       const title = args.title as string;
       devLog(`[generate_excel] title="${title}"`);
       const previewFilename = safeGeneratedFilename(title, "xlsx");
@@ -964,7 +883,7 @@ export async function runToolCalls(
         previewFilename,
         "xlsx",
       );
-    } else if (tc.function.name === "generate_ppt") {
+    } else if (tc.name === "generate_ppt") {
       const title = args.title as string;
       devLog(`[generate_ppt] title="${title}"`);
       const previewFilename = safeGeneratedFilename(title, "pptx");
