@@ -15,6 +15,7 @@ const nextConfig: NextConfig = {
     allowedDevOrigins: ["localhost", "127.0.0.1"],
     turbopack: {
         root: __dirname,
+        resolveAlias: { exceljs: "exceljs/dist/exceljs.min.js" },
     },
     async rewrites() {
         return [
