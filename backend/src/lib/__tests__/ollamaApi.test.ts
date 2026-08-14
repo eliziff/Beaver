@@ -279,6 +279,40 @@ describe("Ollama model catalog", () => {
     )).toEqual([["discover"], ["discover", "revealed"]]);
   });
 
+  it("delivers queued steering after a completed response", async () => {
+    const bodies: Record<string, unknown>[] = [];
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(
+      async (_url: string, init?: RequestInit) => {
+        bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+        return {
+          ok: true,
+          json: async () => ({
+            message: {
+              role: "assistant",
+              content: bodies.length === 1 ? "draft" : "revised",
+            },
+          }),
+        };
+      },
+    ));
+    const { streamOllama } = await import("../llm/ollamaApi");
+    const takeSteering = vi.fn()
+      .mockReturnValueOnce([{ id: "s1", text: "Focus on section 8." }])
+      .mockReturnValue([]);
+
+    await streamOllama({
+      model: "ollama:qwen3.5:2b",
+      systemPrompt: "system",
+      messages: [{ role: "user", content: "review" }],
+      takeSteering,
+    });
+
+    expect(bodies[1].messages).toEqual(expect.arrayContaining([
+      { role: "assistant", content: "draft" },
+      { role: "user", content: "Focus on section 8." },
+    ]));
+  });
+
   it("fails closed when the desktop is unavailable", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
     const { getOllamaModelCatalog } = await import("../llm/ollamaApi");

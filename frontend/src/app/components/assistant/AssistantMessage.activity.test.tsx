@@ -162,6 +162,45 @@ describe("AssistantMessage activity", () => {
         expect(screen.queryByRole("button")).not.toBeInTheDocument();
     });
 
+    it("uses only the current reasoning step in the activity label", () => {
+        render(
+            <AssistantMessage
+                events={[{
+                    type: "reasoning",
+                    text: "Planning targeted non-overlapping delegations\n\nAssigning authority identification tasks",
+                    debug: true,
+                }]}
+            />,
+        );
+
+        expect(
+            screen.getByRole("button", {
+                name: /Assigning authority identification tasks$/u,
+            }),
+        ).toBeVisible();
+    });
+
+    it("renders steering between assistant response segments", () => {
+        render(
+            <AssistantMessage
+                events={[
+                    { type: "content", text: "Initial answer." },
+                    {
+                        type: "steering",
+                        id: "22222222-2222-4222-8222-222222222222",
+                        text: "Focus on remedies",
+                    },
+                    { type: "content", text: "Revised answer." },
+                ]}
+            />,
+        );
+
+        const steering = screen.getByLabelText("Steering message");
+        expect(steering).toHaveTextContent("Focus on remedies");
+        expect(steering.previousElementSibling).toHaveTextContent("Initial answer.");
+        expect(steering.nextElementSibling).toHaveTextContent("Revised answer.");
+    });
+
     it("does not expose grounded-answer internals", async () => {
         render(
             <AssistantMessage

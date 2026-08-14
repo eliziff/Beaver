@@ -1,0 +1,265 @@
+<title>Beaver strata — quality × cost across generations</title>
+<style>
+  :root{
+    --surface:#f7f8f6; --surface-raise:#ffffff; --ink:#1b2430; --muted:#5d6b7a; --faint:#8a96a3;
+    --line:#dde3e8; --line-strong:#b9c4ce;
+    --accent:#1B3A6B; --good:#1e7d4f; --warn:#9a6b0a; --bad:#a03030;
+    --g3:#8FB4DD; --g4:#6796C7; --g5:#4777AE; --g7:#1B3A6B; --t2:#C0803E;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --surface:#14191f; --surface-raise:#1b222a; --ink:#e8edf2; --muted:#9aa7b4; --faint:#6c7986;
+      --line:#2a333d; --line-strong:#3d4854;
+      --good:#4fbf84; --warn:#d3a23c; --bad:#e07070;
+      --g3:#5d82ad; --g4:#74a0cf; --g5:#8cb6e3; --g7:#c3d8ee; --t2:#d9a15c;
+    }
+  }
+  :root[data-theme="dark"]{
+    --surface:#14191f; --surface-raise:#1b222a; --ink:#e8edf2; --muted:#9aa7b4; --faint:#6c7986;
+    --line:#2a333d; --line-strong:#3d4854;
+    --good:#4fbf84; --warn:#d3a23c; --bad:#e07070;
+    --g3:#5d82ad; --g4:#74a0cf; --g5:#8cb6e3; --g7:#c3d8ee; --t2:#d9a15c;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--surface); color:var(--ink); font:15px/1.5 ui-sans-serif,system-ui,"Segoe UI",Roboto,sans-serif; padding:32px 28px 64px;}
+  .wrap{max-width:1180px; margin:0 auto;}
+  h1{font-size:26px; font-weight:650; letter-spacing:-0.01em; text-wrap:balance;}
+  .sub{color:var(--muted); margin-top:6px; max-width:62ch; font-size:14px;}
+  .kicker{font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint); font-weight:600; margin-bottom:10px;}
+  .summary{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px; margin:26px 0 30px;}
+  .card{background:var(--surface-raise); border:1px solid var(--line); border-radius:10px; padding:14px 16px;}
+  .card .top{font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--faint); font-weight:600;}
+  .card .val{font-size:21px; font-weight:650; margin-top:4px; font-variant-numeric:tabular-nums;}
+  .card .note{font-size:12.5px; color:var(--muted); margin-top:3px;}
+  .tag{display:inline-block; font-size:10.5px; font-weight:700; letter-spacing:.05em; padding:2px 8px; border-radius:999px; vertical-align:2px;}
+  .tag.good{background:color-mix(in srgb,var(--good) 14%,transparent); color:var(--good);}
+  .tag.warn{background:color-mix(in srgb,var(--warn) 14%,transparent); color:var(--warn);}
+  .tag.mute{background:color-mix(in srgb,var(--muted) 14%,transparent); color:var(--muted);}
+  .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(350px,1fr)); gap:18px;}
+  .panel{background:var(--surface-raise); border:1px solid var(--line); border-radius:12px; padding:14px 16px 10px;}
+  .panel h3{font-size:14.5px; font-weight:650; display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;}
+  .panel h3 .area{color:var(--muted); font-weight:500; font-size:12px;}
+  .panel .verdict{font-size:12.5px; margin-top:6px; padding:7px 10px; border-radius:8px; background:var(--surface); border:1px solid var(--line);}
+  .panel .verdict b{font-weight:650;}
+  .panel svg{width:100%; height:auto; display:block; margin-top:8px;}
+  .axis-tip{display:flex; justify-content:space-between; color:var(--faint); font-size:10.5px; letter-spacing:.04em; text-transform:uppercase; padding:2px 4px 0;}
+  .legend{display:flex; gap:16px; flex-wrap:wrap; margin:18px 0 6px; font-size:12.5px; color:var(--muted); align-items:center;}
+  .legend .lg{display:inline-flex; align-items:center; gap:6px;}
+  .legend .dot{width:11px; height:11px; border-radius:50%; display:inline-block; flex:none;}
+  .legend .dot.hollow{background:transparent; box-shadow:inset 0 0 0 2px var(--t2);}
+  .legend .dot.ring{box-shadow:inset 0 0 0 2.5px var(--surface-raise);}
+  .method{font-size:12px; color:var(--faint); margin-top:26px; max-width:90ch; line-height:1.6;}
+  .method code{background:color-mix(in srgb,var(--ink) 6%,transparent); padding:1px 5px; border-radius:4px; font-size:11px;}
+  @media (prefers-reduced-motion:no-preference){
+    .panel{transition:border-color .15s;}
+    .panel:hover{border-color:var(--line-strong);}
+  }
+</style>
+<div class="wrap">
+  <div class="kicker">Beaver lab · coding_markdown_v5 strata · flash runner + flash judge · judge-once</div>
+  <h1>Quality × token cost across generations</h1>
+  <div class="sub">Each panel is one task; each point is one judged run, colored by its receipt generation. X = cache-adjusted input-token equivalent (the price-weighted cost proxy), Y = criteria passed as % of the task's criterion count. Upper-left is better: high score, low cost. T2 (v5_echo) and the one-off echo-v2+edit-v3 hybrid are hollow — different receipt, not a generation of the main arm.</div>
+
+  <div class="summary">
+    <div class="card"><div class="top">Real signal — score gain</div><div class="val">acq +3, closing +3</div><div class="note">gen-7 above prior best on n=2 (acq {60,59}) and closing 30 &gt; 27 @ lower cost.</div></div>
+    <div class="card"><div class="top">Real signal — cost cut</div><div class="val">insurance −35%, DPA −52%</div><div class="note">Same-or-better score at sharply lower cacheadj (insurance 119k vs 184k; DPA 154k vs 324k).</div></div>
+    <div class="card"><div class="top">Flat — no gen effect</div><div class="val">HSR, DPA, insurance</div><div class="note">Score within ±2 across every generation; gen-7 only buys cost here, not score.</div></div>
+    <div class="card"><div class="top">Too noisy to conclude</div><div class="val">tax</div><div class="note">gen-7 spread ~10 criteria at fixed treatment ({38,48}); only tax strata means are interpretable.</div></div>
+  </div>
+
+  <div class="legend">
+    <span class="lg"><span class="dot" style="background:var(--g3)"></span> g3 (no echo / no edit)</span>
+    <span class="lg"><span class="dot" style="background:var(--g4)"></span> g4 (+echo v1)</span>
+    <span class="lg"><span class="dot" style="background:var(--g5)"></span> g5 (+edit v1)</span>
+    <span class="lg"><span class="dot" style="background:var(--g7)"></span> g7 (echo v2 + edit v4)</span>
+    <span class="lg"><span class="dot hollow"></span> T2 / one-off hybrid</span>
+  </div>
+
+  <div class="grid" id="panels"></div>
+
+  <div class="method"><b>How to read the noise flags.</b> Tax's two gen-7 points ({38, 48}) are the same treatment and the same route — the ~10-criteria spread is judge/replicate noise, so no single tax row is interpretable; only the strata mean (gen-7 ≈ 43) is. HSR/DPA/insurance sit inside their own ±2 noise band across generations, so gen-7 there is a <i>cost</i> lever, not a quality one. Employment's two 57s are both echo-v2 receipts (gen-7 and the 06-45-38 hybrid), which is the only place the honest-echo family clears the 53–54 band. Cost = <code>uncached + 0.1·cached</code> input tokens; a flash run's cached prefix re-reads dominate, so a lean route's value shows up as a lower cacheadj at equal score.</div>
+</div>
+
+<script>
+const RAMP={g3:'var(--g3)',g4:'var(--g4)',g5:'var(--g5)',g7:'var(--g7)'};
+const PANELS=[
+ {key:'acq',name:'Draft acquisition due-diligence',area:'corporate-ma',crit:64,
+  verdict:'<b>Signal — score.</b> gen-7 {60,59} beats g5 (57) and v3 (60) on n=2; the +3 linkage gain is no longer a single row. Cost is roughly flat (~570–590k) — gen-7 bought score, not cheapness.',
+  runs:[['g3',56,438555],['g4',57,648143],['g5',57,566168],['v3',60,513756],['v3',58,637117],['g7',60,577386],['g7',59,588412],['t2',58,602689]]},
+ {key:'tax',name:'Draft transfer-pricing documentation',area:'tax',crit:77,
+  verdict:'<b>Too noisy to conclude.</b> gen-7 {38,48} at the <i>same</i> treatment — a ~10-criterion judge/replicate spread. Only the strata mean (≈43) is readable, and it sits below g5 (53). Tax stays a pre-composition coverage problem, not a checkpoint one.',
+  runs:[['g3',45,453989],['g4',42,679450],['g5',53,730928],['v3',48,979868],['v3',51,779673],['g7',38,619793],['g7',48,456917],['t2',41,710388]]},
+ {key:'emp',name:'Counterparty markup — executive employment',area:'employment-labor',crit:59,
+  verdict:'<b>Echo-v2 is the only thing that clears the band.</b> Both 57s are echo-v2 receipts (gen-7 84k and the 06-45-38 hybrid 68k); every false-echo or no-echo row sits at 53–54. gen-7 is also the cheapest row.',
+  runs:[['g3',54,121766],['g4',53,89561],['g5',53,99496],['v3',57,67522],['g7',57,84338]]},
+ {key:'hsr',name:'HSR filing-requirements strategy',area:'antitrust-competition',crit:50,
+  verdict:'<b>Flat.</b> All five generations land 47–49 (within noise); gen-7 (48 @ 168k) is not better than g3 (47 @ 185k). No quality conclusion available; the panel is saturated.',
+  runs:[['g3',47,184659],['g4',49,307426],['g5',48,160073],['g7',48,168518],['t2',49,431880]]},
+ {key:'ins',name:'Property-damage claim vs policy exclusions',area:'insurance',crit:57,
+  verdict:'<b>Flat score, real cost cut.</b> Every generation is 55/57 — saturated. But cacheadj falls 184k → 177k → 141k → 119k: gen-7 is the same quality at −35% cost. This is the cost-only success case.',
+  runs:[['g3',55,183731],['g4',55,177020],['g5',55,141004],['g7',55,119371]]},
+ {key:'dpa',name:'Counterparty markup — DPA',area:'white-collar-defense',crit:58,
+  verdict:'<b>Flat score, cost cut.</b> 51 / 52 / 51 across g3–g5–g7 — inside the ±2 noise band. Cost drops 324k → 167k → 154k. gen-7 is equal quality at half the price.',
+  runs:[['g3',51,324393],['g5',52,166526],['g7',51,154353]]},
+ {key:'clo',name:'Closing checklist compare',area:'capital-markets',crit:32,
+  verdict:'<b>Signal — both dims.</b> gen-7 30/32 @ 70.5k beats g5 27/32 @ 99k: higher score <i>and</i> 29% cheaper. The one clean two-dimensional win on the panel.',
+  runs:[['g5',27,99361],['g7',30,70485]]},
+ {key:'re',name:'PSA key-terms extract',area:'real-estate',crit:75,
+  verdict:'<b>Breadth cell, standalone.</b> 67/75 @ 78k on the first scored breadth task — no strata yet, so no generation read; it exists to validate the mechanism off-panel. (real-estate <i>native</i> control in flight.)',
+  runs:[['g7',67,77979]]},
+];
+
+const GKEY={'g3':'g3','g4':'g4','g5':'g5','g7':'g7','v3':'g3','t2':'t2'};
+const GLAB={'g3':'g3','g4':'g4','g5':'g5','g7':'g7','v3':'v3','t2':'T2'};
+const HOLLOW={t2:true,v3:false};
+const ringCol=()=>getComputedStyle(document.documentElement).getPropertyValue('--surface-raise').trim();
+
+function draw(p){
+  const crit=p.crit;
+  const pts=p.runs.map(([g,s,c])=>({g,score:s,cost:c,label:GLAB[g]||g,hollow:HOLLOW[g]||false}));
+  const maxScore=Math.max(...pts.map(x=>x.score));
+  const maxCost=Math.max(...pts.map(x=>x.cost));
+  const minCost=Math.min(...pts.map(x=>x.cost));
+  const W=640,H=300,padL=44,padR=18,padT=18,padB=34;
+  const pw=W-padL-padR, ph=H-padT-padB;
+  const x=cost=>(minCost>0? Math.pow(Math.log(cost/Math.log10 ? cost+1 : cost+1),0) : 0);
+  // linear x over the actual [min,max] range (log y too cramped for these spreads)
+  const X=v=>padL+ (v-minCost)/(maxCost-minCost||1)*pw;
+  const Y=v=>padT+ph-( (v-0)/maxScore)*ph*0.92 - ph*0.04;
+  const n=document.createElement('div');
+  n.className='panel';
+  const vd=document.createElement('div'); vd.className='verdict'; vd.innerHTML=p.verdict;
+  n.innerHTML=`<h3>${p.name} <span class="area">${p.area}</span></h3>`+vd.outerHTML+`<div class="axis-tip"><span>← cheaper  ·  cacheadj (${Math.round(minCost/1000)}k–${Math.round(maxCost/1000)}k) →</span><span>score / ${crit}</span></div>`;
+  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+  // gridlines (score at each gen value present)
+  const yticks=[...new Set(pts.map(x=>x.score))].sort((a,b)=>a-b);
+  yticks.forEach(t=>{
+    const line=document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1',padL); line.setAttribute('y1',Y(t)); line.setAttribute('x2',W-padR); line.setAttribute('y2',Y(t));
+    line.setAttribute('stroke','var(--line)'); line.setAttribute('stroke-width','1');
+    svg.appendChild(line);
+    const tx=document.createElementNS('http://www.w3.org/2000/svg','text');
+    tx.setAttribute('x',padL-6); tx.setAttribute('y',Y(t)+4); tx.setAttribute('text-anchor','end');
+    tx.setAttribute('fill','var(--faint)'); tx.setAttribute('font-size','10.5');
+    tx.textContent=t;
+    svg.appendChild(tx);
+  });
+  const xl=document.createElementNS('http://www.w3.org/2000/svg','line');
+  xl.setAttribute('x1',padL); xl.setAttribute('y1',H-padB); xl.setAttribute('x2',W-padR); xl.setAttribute('y2',H-padB);
+  xl.setAttribute('stroke','var(--line-strong)'); xl.setAttribute('stroke-width','1');
+  svg.appendChild(xl);
+  // x tick labels: min / mid / max
+  [minCost,(minCost+maxCost)/2,maxCost].forEach(v=>{
+    const tx=document.createElementNS('http://www.w3.org/2000/svg','text');
+    tx.setAttribute('x',X(v)); tx.setAttribute('y',H-padB+16); tx.setAttribute('text-anchor','middle');
+    tx.setAttribute('fill','var(--faint)'); tx.setAttribute('font-size','10');
+    tx.textContent=Math.round(v/1000)+'k';
+    svg.appendChild(tx);
+  });
+  const prev={};
+  pts.forEach(pt=>{
+    const g=GKEY[pt.g];
+    const color=RAMP[g]||'var(--t2)';
+    const cx=X(pt.cost), cy=Y(pt.score);
+    const r=9;
+    // ring for contrast on both surfaces
+    if(!pt.hollow){
+      const ring=document.createElementNS('http://www.w3.org/2000/svg','circle');
+      ring.setAttribute('cx',cx); ring.setAttribute('cy',cy); ring.setAttribute('r',r+2.5);
+      ring.setAttribute('fill','var(--surface-raise)');
+      svg.appendChild(ring);
+    }
+    const c=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c.setAttribute('cx',cx); c.setAttribute('cy',cy); c.setAttribute('r',r);
+    if(pt.hollow){ c.setAttribute('fill','none'); c.setAttribute('stroke','var(--t2)'); c.setAttribute('stroke-width','2.5'); }
+    else { c.setAttribute('fill',color); }
+    c.style.cursor='pointer';
+    const tip=`${pt.label}: ${pt.score}/${crit} @ ${pt.cost.toLocaleString()} cacheadj`;
+    c.setAttribute('aria-label',tip);
+    const tt=document.createElementNS('http://www.w3.org/2000/svg','title'); tt.textContent=tip; c.appendChild(tt);
+    svg.appendChild(c);
+    // direct label: stagger repeats
+    const key=pt.g;
+    const dx=(prev[key]||0);
+    prev[key]=dx+1;
+    const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
+    lbl.setAttribute('x',cx+(pt.hollow?-r-4:r+4)); lbl.setAttribute('y',cy+4-(dx)*0);
+    lbl.setAttribute('fill','var(--muted)'); lbl.setAttribute('font-size','10.5'); lbl.setAttribute('font-weight','600');
+    lbl.textContent=pt.label;
+    svg.appendChild(lbl);
+  });
+  n.appendChild(svg);
+  // strip the axis-tip we appended inside innerHTML + the verdict duplicate — rebuild cleanly
+  return n;
+}
+
+// Rebuild panel DOM properly (avoid innerHTML dupes)
+const grid=document.getElementById('panels');
+PANELS.forEach(p=>{
+  const crit=p.crit;
+  const pts=p.runs.map(([g,s,c])=>({g,score:s,cost:c,label:GLAB[g]||g,hollow:HOLLOW[g]||false}));
+  const maxScore=Math.max(...pts.map(x=>x.score));
+  const maxCost=Math.max(...pts.map(x=>x.cost));
+  const minCost=Math.min(...pts.map(x=>x.cost));
+  const W=640,H=300,padL=44,padR=18,padT=18,padB=34;
+  const pw=W-padL-padR, ph=H-padT-padB;
+  const X=v=>padL+(v-minCost)/(maxCost-minCost||1)*pw;
+  const Y=v=>padT+ph-((v-0)/maxScore)*ph*0.92-ph*0.04;
+  const n=document.createElement('div'); n.className='panel';
+  const h=document.createElement('h3');
+  h.innerHTML=`${p.name} <span class="area">${p.area}</span>`;
+  const vd=document.createElement('div'); vd.className='verdict'; vd.innerHTML=p.verdict;
+  n.appendChild(h); n.appendChild(vd);
+  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('viewBox',`0 0 ${W} ${H}`); svg.setAttribute('role','img');
+  svg.setAttribute('aria-label',`${p.name} score vs cost across generations`);
+  const yticks=[...new Set(pts.map(x=>x.score))].sort((a,b)=>a-b);
+  yticks.forEach(t=>{
+    const line=document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1',padL); line.setAttribute('y1',Y(t)); line.setAttribute('x2',W-padR); line.setAttribute('y2',Y(t));
+    line.setAttribute('stroke','var(--line)'); line.setAttribute('stroke-width','1');
+    svg.appendChild(line);
+    const tx=document.createElementNS('http://www.w3.org/2000/svg','text');
+    tx.setAttribute('x',padL-6); tx.setAttribute('y',Y(t)+4); tx.setAttribute('text-anchor','end');
+    tx.setAttribute('fill','var(--faint)'); tx.setAttribute('font-size','10.5'); tx.textContent=t; svg.appendChild(tx);
+  });
+  const xl=document.createElementNS('http://www.w3.org/2000/svg','line');
+  xl.setAttribute('x1',padL); xl.setAttribute('y1',H-padB); xl.setAttribute('x2',W-padR); xl.setAttribute('y2',H-padB);
+  xl.setAttribute('stroke','var(--line-strong)'); xl.setAttribute('stroke-width','1'); svg.appendChild(xl);
+  [minCost,(minCost+maxCost)/2,maxCost].forEach(v=>{
+    const tx=document.createElementNS('http://www.w3.org/2000/svg','text');
+    tx.setAttribute('x',X(v)); tx.setAttribute('y',H-padB+16); tx.setAttribute('text-anchor','middle');
+    tx.setAttribute('fill','var(--faint)'); tx.setAttribute('font-size','10'); tx.textContent=Math.round(v/1000)+'k';
+    svg.appendChild(tx);
+  });
+  const prev={};
+  pts.forEach(pt=>{
+    const g=GKEY[pt.g];
+    const color=RAMP[g]||'var(--t2)';
+    const cx=X(pt.cost), cy=Y(pt.score), r=9;
+    if(!pt.hollow){
+      const ring=document.createElementNS('http://www.w3.org/2000/svg','circle');
+      ring.setAttribute('cx',cx); ring.setAttribute('cy',cy); ring.setAttribute('r',r+2.5);
+      ring.setAttribute('fill','var(--surface-raise)'); svg.appendChild(ring);
+    }
+    const c=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c.setAttribute('cx',cx); c.setAttribute('cy',cy); c.setAttribute('r',r);
+    if(pt.hollow){ c.setAttribute('fill','none'); c.setAttribute('stroke','var(--t2)'); c.setAttribute('stroke-width','2.5'); }
+    else c.setAttribute('fill',color);
+    const tip=`${pt.label}: ${pt.score}/${crit} @ ${pt.cost.toLocaleString()} cacheadj`;
+    c.setAttribute('aria-label',tip);
+    const tt=document.createElementNS('http://www.w3.org/2000/svg','title'); tt.textContent=tip; c.appendChild(tt);
+    svg.appendChild(c);
+    const key=pt.g;
+    const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
+    lbl.setAttribute('x',cx+(pt.hollow?-r-6:r+6)); lbl.setAttribute('y',cy+4);
+    lbl.setAttribute('fill','var(--muted)'); lbl.setAttribute('font-size','10.5'); lbl.setAttribute('font-weight','600');
+    lbl.textContent=pt.label; svg.appendChild(lbl);
+  });
+  const tipRow=document.createElement('div'); tipRow.className='axis-tip';
+  tipRow.innerHTML=`<span>← cheaper · cacheadj (${Math.round(minCost/1000)}k–${Math.round(maxCost/1000)}k) →</span><span>score / ${crit}</span>`;
+  n.appendChild(svg); n.appendChild(tipRow);
+  grid.appendChild(n);
+});
+</script>

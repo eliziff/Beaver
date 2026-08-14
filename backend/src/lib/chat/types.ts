@@ -1,4 +1,4 @@
-import type { LlmImage } from "../llm/types";
+import type { LlmImage, LlmMessage } from "../llm/types";
 import type { EditDiffSegment } from "../docxTrackedChanges";
 
 const isDev = process.env.NODE_ENV !== "production";
@@ -43,6 +43,8 @@ export type ChatMessage = {
   workflow?: { id: string; title: string };
   /** Resolved server-side from file references; never accepted as raw client bytes. */
   images?: LlmImage[];
+  /** Internal provider continuation metadata; never accepted from the browser. */
+  contextCheckpoint?: LlmMessage["contextCheckpoint"];
 };
 
 

@@ -150,4 +150,57 @@ describe("OpenAI service tier", () => {
       { type: "compaction", compact_threshold: 120_000 },
     ]);
   });
+
+  it("retains the provider's completed compaction item for the next turn", async () => {
+    const item = {
+      type: "compaction",
+      id: "cmp_1",
+      encrypted_content: "opaque",
+    };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(stream(
+      { type: "response.output_item.added", item: { type: "compaction" } },
+      { type: "response.output_item.done", item },
+      { type: "response.output_text.delta", delta: "continued" },
+    )));
+    const onCompaction = vi.fn();
+    const onContextCheckpoint = vi.fn();
+
+    await streamOpenAI({
+      model: "gpt-5.5",
+      systemPrompt: "system",
+      messages: [{ role: "user", content: "continue" }],
+      compactThreshold: 800_000,
+      callbacks: { onCompaction, onContextCheckpoint },
+      apiKeys: { openai: "test-key" },
+    });
+
+    expect(onCompaction.mock.calls).toEqual([["running"], ["completed"]]);
+    expect(onContextCheckpoint).toHaveBeenCalledWith({
+      provider: "openai",
+      item,
+    });
+  });
+
+  it("delivers queued steering after a completed response", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(stream({ type: "response.output_text.delta", delta: "draft" }))
+      .mockResolvedValueOnce(stream({ type: "response.output_text.delta", delta: "revised" }));
+    vi.stubGlobal("fetch", fetchMock);
+    const takeSteering = vi.fn()
+      .mockReturnValueOnce([{ id: "s1", text: "Focus on section 8." }])
+      .mockReturnValue([]);
+
+    await streamOpenAI({
+      model: "gpt-5.5",
+      systemPrompt: "system",
+      messages: [{ role: "user", content: "review" }],
+      apiKeys: { openai: "test-key" },
+      takeSteering,
+    });
+
+    const second = JSON.parse(String((fetchMock.mock.calls[1][1] as RequestInit).body));
+    expect(second.input).toEqual([
+      { role: "user", content: "Focus on section 8." },
+    ]);
+  });
 });

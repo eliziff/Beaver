@@ -10,6 +10,7 @@ import { toClaudeTools } from "./tools";
 import { abortError, throwIfAborted } from "./abort";
 import { requireApiKey } from "./apiKeys";
 import { createLlmTrace } from "./rawStreamLog";
+import { hasNativeCompaction, modelContextWindow } from "./contextWindow";
 
 type ContentBlock =
   | { type: "text"; text: string }
@@ -39,11 +40,17 @@ function client(override?: string | null): Anthropic {
 
 export function toNativeMessages(
   messages: StreamChatParams["messages"],
+  nativeCompaction = true,
 ): NativeMessage[] {
   return messages.map((message) => ({
     role: message.role,
     content:
-      message.role === "user" && message.images?.length
+      nativeCompaction && message.contextCheckpoint?.provider === "claude"
+        ? [{
+            type: "compaction",
+            content: message.contextCheckpoint.content,
+          }]
+        : message.role === "user" && message.images?.length
         ? [
             { type: "text", text: message.content },
             ...message.images.map((image) => ({
@@ -122,15 +129,22 @@ export async function streamClaude(
   } = params;
   const maxIter = params.maxIterations;
   const anthropic = client(apiKeys?.claude);
-  const messages: NativeMessage[] = toNativeMessages(params.messages);
+  const messages: NativeMessage[] = toNativeMessages(
+    params.messages,
+    hasNativeCompaction(model),
+  );
   let fullText = "";
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let cacheReadTokens = 0;
+  let cacheWriteTokens = 0;
   const trace = createLlmTrace({ provider: "claude", model });
 
   try {
     for (let iter = 0; maxIter === undefined || iter < maxIter; iter++) {
       throwIfAborted(params.abortSignal);
       const claudeTools = toClaudeTools(params.resolveTools?.() ?? tools);
-      const stream = anthropic.messages.stream({
+      const body = {
         model,
         system: systemPrompt,
         messages: messages as Anthropic.MessageParam[],
@@ -148,32 +162,79 @@ export async function streamClaude(
             } as unknown as Record<string, unknown>)
           : {}),
         // Extended thinking requires temperature to be default (omitted).
-      });
+      };
+      const stream = (params.compactThreshold && hasNativeCompaction(model)
+        ? anthropic.beta.messages.stream({
+            ...body,
+            betas: ["compact-2026-01-12"],
+            context_management: {
+              edits: [{
+                type: "compact_20260112",
+                instructions:
+                  "Summarize the transcript for continuing the task. Preserve user constraints, decisions, exact identifiers, unfinished work, and next steps. Do not call tools; return text only.",
+                trigger: {
+                  type: "input_tokens",
+                  value: Math.max(50_000, params.compactThreshold),
+                },
+              }],
+            },
+          } as never)
+        : anthropic.messages.stream(body as never)) as unknown as ReturnType<
+          typeof anthropic.messages.stream
+        >;
 
       let sawThinking = false;
       let streamFailureMessage: string | null = null;
+      const compacting = new Set<number>();
       const abortStream = () => stream.abort();
       params.abortSignal?.addEventListener("abort", abortStream, {
         once: true,
       });
 
-      stream.on("streamEvent", (event) => {
+      stream.on("streamEvent", (event: unknown) => {
         trace.record({ iteration: iter, label: "streamEvent", payload: event });
+        const item = event as unknown as {
+          type?: string;
+          index?: number;
+          content_block?: { type?: string };
+          delta?: { type?: string; content?: string | null };
+        };
+        if (
+          item.type === "content_block_start" &&
+          item.content_block?.type === "compaction" &&
+          typeof item.index === "number"
+        ) {
+          compacting.add(item.index);
+          callbacks.onCompaction?.("running");
+        } else if (
+          item.type === "content_block_delta" &&
+          item.delta?.type === "compaction_delta" &&
+          typeof item.index === "number" &&
+          compacting.has(item.index)
+        ) {
+          if (item.delta.content) {
+            callbacks.onContextCheckpoint?.({
+              provider: "claude",
+              content: item.delta.content,
+            });
+          }
+          callbacks.onCompaction?.("completed");
+        }
         const failureMessage = claudeStreamFailureMessage(event);
         if (failureMessage) {
           streamFailureMessage = failureMessage;
           stream.abort();
         }
       });
-      stream.on("error", (error) => {
+      stream.on("error", (error: unknown) => {
         trace.record({ iteration: iter, label: "error", payload: error });
       });
 
-      stream.on("text", (delta) => {
+      stream.on("text", (delta: string) => {
         callbacks.onContentDelta?.(delta);
       });
       if (enableThinking) {
-        stream.on("thinking", (delta) => {
+        stream.on("thinking", (delta: string) => {
           sawThinking = true;
           callbacks.onReasoningDelta?.(delta);
         });
@@ -193,6 +254,18 @@ export async function streamClaude(
       throwIfAborted(params.abortSignal);
       const stopReason = final.stop_reason;
       const assistantBlocks = final.content as ContentBlock[];
+      const reported = final.usage ?? {};
+      inputTokens += reported.input_tokens ?? 0;
+      outputTokens += reported.output_tokens ?? 0;
+      cacheReadTokens += reported.cache_read_input_tokens ?? 0;
+      cacheWriteTokens += reported.cache_creation_input_tokens ?? 0;
+      const contextWindowTokens = modelContextWindow(model);
+      if (contextWindowTokens) {
+        callbacks.onContextUsage?.({
+          usedTokens: reported.input_tokens ?? 0,
+          contextWindowTokens,
+        });
+      }
 
       // Extract text content and tool_use calls from the final assistant
       // message so we can accumulate text and drive the tool-call loop.
@@ -217,30 +290,42 @@ export async function streamClaude(
         }
       }
 
-      if (stopReason !== "tool_use" || !toolCalls.length || !runTools) {
-        break;
-      }
-
-      const results = await runTools(toolCalls);
+      const results =
+        stopReason === "tool_use" && toolCalls.length && runTools
+          ? await runTools(toolCalls)
+          : [];
       throwIfAborted(params.abortSignal);
       if (results.some((result) => result.terminal)) break;
+      const steering = params.takeSteering?.() ?? [];
+      if (!results.length && !steering.length) break;
 
-      // Record the assistant turn (preserving the original content blocks,
-      // which Claude requires on the follow-up) and the user turn that
-      // carries the tool_result blocks.
+      // Claude combines consecutive user blocks, so steering can share the
+      // tool-result turn without inventing another protocol layer.
       messages.push({ role: "assistant", content: assistantBlocks });
       messages.push({
         role: "user",
-        content: results.map((r) => ({
-          type: "tool_result",
-          tool_use_id: r.tool_use_id,
-          content: r.content,
-        })),
+        content: [
+          ...results.map((r) => ({
+            type: "tool_result",
+            tool_use_id: r.tool_use_id,
+            content: r.content,
+          })),
+          ...steering.map(({ text }) => ({ type: "text", text })),
+        ],
       });
     }
 
     await trace.flush("completed");
-    return { fullText };
+    return {
+      fullText,
+      usage: {
+        inputTokens,
+        outputTokens,
+        reasoningTokens: null,
+        cacheReadInputTokens: cacheReadTokens,
+        cacheWriteInputTokens: cacheWriteTokens,
+      },
+    };
   } catch (error) {
     await trace.flush("error", error);
     throw error;

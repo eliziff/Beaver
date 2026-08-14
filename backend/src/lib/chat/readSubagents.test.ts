@@ -19,7 +19,10 @@ import {
   createReadSubagentAdmission,
   getReadSubagentCapability,
   readSubagentTools,
+  resumableReadSubagents,
   runReadSubagent,
+  runReadSubagentRound,
+  type ReadSubagentCheckpoint,
 } from "./readSubagents";
 import type { OpenAIToolSchema } from "../llm";
 import {
@@ -534,5 +537,138 @@ describe("reading agents", () => {
 
     expect(result.status, result.content).toBe("ok");
     expect(result.content).toContain("e_lease");
+  });
+
+  it("continues an interrupted reader in its original Codex session", async () => {
+    const controller = new AbortController();
+    const events: unknown[] = [];
+    mocks.stream.mockImplementationOnce(async (params) => {
+      params.providerSession?.onContinuationId?.(
+        "00000000-0000-4000-8000-000000000123",
+      );
+      const error = new Error("Stream aborted.");
+      error.name = "AbortError";
+      throw error;
+    });
+    const interrupted = await runReadSubagent({
+      call: {
+        id: "read-interrupted",
+        name: "delegate_read",
+        input: {
+          task: "Find the renewal clause.",
+          scope: "The attached lease",
+        },
+      },
+      tools: [LEGAL_EVIDENCE_SUBMIT_TOOL],
+      evidenceState: leaseEvidenceState(),
+      runTools: async () => [],
+      signal: controller.signal,
+      onEvent: (event) => events.push(event),
+    });
+
+    expect(interrupted.status).toBe("error");
+    expect(events.at(-1)).toMatchObject({
+      id: "read-interrupted",
+      status: "interrupted",
+      resume: {
+        continuation_id: "00000000-0000-4000-8000-000000000123",
+        model: "gpt-5.6-luna",
+        effort: "high",
+        assignment: {
+          task: "Find the renewal clause.",
+          scope: "The attached lease",
+          jurisdiction: "CA",
+        },
+        evidence: [expect.objectContaining({ evidence_id: "e_lease" })],
+      },
+    });
+
+    const checkpoint = resumableReadSubagents(events).get("read-interrupted")!;
+    const resumedEvidence = createLegalEvidenceTurnState("citation_structure");
+    mocks.stream.mockImplementationOnce(async (params) => {
+      expect(params.providerSession?.continuationId).toBe(
+        checkpoint.continuation_id,
+      );
+      expect(params.systemPrompt).toBe("");
+      expect(params.messages).toEqual([
+        expect.objectContaining({
+          content: expect.stringContaining("Continue the assigned task"),
+        }),
+      ]);
+      await params.runTools?.([{
+        id: "submit-resumed",
+        name: "submit_grounded_answer",
+        input: {
+          claims: [{
+            text: "The lease renews for successive one-year terms.",
+            evidence_ids: ["e_lease"],
+          }],
+        },
+      }]);
+      return {
+        fullText: "",
+        continuationId: checkpoint.continuation_id,
+      };
+    });
+    const resumed = await runReadSubagent({
+      call: { id: "resume:1", name: "resume_read", input: {} },
+      tools: [LEGAL_EVIDENCE_SUBMIT_TOOL],
+      evidenceState: resumedEvidence,
+      resume: checkpoint,
+      runTools: async (calls) => calls.map((call) => {
+        const submitted = submitLegalEvidenceAnswer(call.input, resumedEvidence);
+        return {
+          tool_use_id: call.id,
+          status: submitted.ok ? ("ok" as const) : ("error" as const),
+          content: JSON.stringify(submitted),
+        };
+      }),
+    });
+
+    expect(resumed.status, resumed.content).toBe("ok");
+    expect(resumedEvidence.evidence.has("e_lease")).toBe(true);
+  });
+
+  it("resumes stored run IDs without accepting replacement assignments", async () => {
+    const checkpoint: ReadSubagentCheckpoint = {
+      id: "read-1",
+      continuation_id: "00000000-0000-4000-8000-000000000123",
+      model: "gpt-5.6-luna",
+      effort: "high",
+      assignment: {
+        task: "Find the renewal clause.",
+        scope: "The attached lease",
+        jurisdiction: "CA",
+      },
+      evidence: [],
+    };
+    const runResume = vi.fn(async (_call, selected) => ({
+      tool_use_id: "resume-parent:1",
+      status: "ok" as const,
+      content: JSON.stringify({ task: selected.assignment.task }),
+    }));
+    const results = await runReadSubagentRound({
+      calls: [{
+        id: "resume-parent",
+        name: "resume_read",
+        input: { ids: ["read-1"] },
+      }],
+      admit: createReadSubagentAdmission(),
+      runDirect: async () => [],
+      runReader: async () => {
+        throw new Error("A new reader must not be created.");
+      },
+      resumable: new Map([[checkpoint.id, checkpoint]]),
+      runResume,
+    });
+
+    expect(runResume).toHaveBeenCalledWith(
+      expect.objectContaining({ input: checkpoint.assignment }),
+      checkpoint,
+    );
+    expect(results[0]).toMatchObject({
+      tool_use_id: "resume-parent",
+      status: "ok",
+    });
   });
 });

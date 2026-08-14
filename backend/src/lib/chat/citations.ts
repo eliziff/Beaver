@@ -27,6 +27,7 @@ import {
   legalEvidenceCitationEntries,
   type LegalEvidenceReceipt,
   type LegalEvidenceTurnState,
+  type RegisteredEvidence,
 } from "./legalEvidence";
 
 // ---------------------------------------------------------------------------
@@ -434,6 +435,38 @@ function durableA2AJUrl(
     },
     quotes,
   );
+}
+
+export function legalEvidenceDocumentLink(entry: RegisteredEvidence) {
+  const { receipt, lookup, document } = entry;
+  const mainUrl =
+    (receipt.source_class === "case"
+      ? buildCanliiCaseUrl({
+          dataset: receipt.dataset,
+          citations: [receipt.citation],
+          language: receipt.language,
+        })
+      : null) ?? receipt.external_url;
+  const pinpointUrl = receipt.span_text
+    ? durableA2AJUrl(receipt, [receipt.span_text], lookup, document)
+    : mainUrl;
+  const locator = receipt.locator.kind === "document"
+    ? null
+    : formatLegalLocator(receipt.locator.kind, receipt.locator.label);
+  const name = receipt.name?.trim();
+  const citation = receipt.citation.trim();
+  const authority = name &&
+      !name.toLocaleLowerCase("en-CA").includes(citation.toLocaleLowerCase("en-CA"))
+    ? `${name}, ${citation}`
+    : citation || name || "Source";
+  return {
+    stableId: receipt.stable_source_id,
+    sourceSha256: receipt.source_sha256,
+    authority,
+    shortAuthority: name || citation || "Source",
+    mainUrl,
+    pinpoint: locator ? { text: locator, url: pinpointUrl } : null,
+  };
 }
 
 /**

@@ -1154,6 +1154,7 @@ describe("anonymous chat PDF evidence durability", () => {
     const response = await request(loaded.app).post("/chat").send({
       chat_id: created.body.id,
       expected_version: 0,
+      model: "codex:gpt-5.6-luna",
       current_turn: {
         kind: "message",
         content: "Fix the document.",
@@ -1390,7 +1391,7 @@ describe("anonymous chat PDF evidence durability", () => {
       providerSession: { persist: true, continuationId: firstThread },
       messages: [{ role: "user", content: "Second turn." }],
     });
-    expect(calls[2].providerSession).toEqual({ persist: true });
+    expect(calls[2].providerSession).toMatchObject({ persist: true });
     expect(calls[2].messages).toEqual([
       { role: "user", content: "First turn." },
       { role: "assistant", content: "First answer." },

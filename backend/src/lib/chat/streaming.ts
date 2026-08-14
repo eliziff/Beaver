@@ -14,7 +14,10 @@ import { createServerSupabase } from "../supabase";
 import { currentA2AJCoveragePrompt } from "./a2ajCoveragePrompt";
 import { hideLegalSourceUrls } from "./legalToolResultVisibility";
 import { createPublicLegalSourceState } from "./publicLegalSourceState";
-import { READ_SUBAGENT_SYSTEM_PROMPT } from "./readSubagents";
+import {
+  READ_SUBAGENT_SYSTEM_PROMPT,
+  type ReadSubagentCheckpoint,
+} from "./readSubagents";
 import {
   runChatTurn,
   type AssistantEvent,
@@ -32,11 +35,14 @@ import { type TurnEditState, type TurnReadState } from "./tools/documentOps";
 import type {
   DocIndex,
   DocStore,
+  ChatMessage,
   TabularCellStore,
   WorkflowStore,
 } from "./types";
 import type { LegalEvidenceReceipt, LegalEvidenceTurnState } from "./legalEvidence";
 import type { EditMode } from "../docxTrackedChanges";
+import { compactionThresholdForModel } from "../llm/contextWindow";
+import { formatChatMessageContent } from "./messageFormatting";
 
 export {
   AssistantStreamError,
@@ -85,8 +91,11 @@ export async function runLLMStream({
   jurisdictionPreference = null,
   activityDetail = "auto",
   editMode = "manual",
+  timeZone,
   priorLegalEvidence = [],
+  resumableSubagents = new Map(),
   onFinish,
+  prepareMessages,
 }: {
   apiMessages: unknown[];
   docStore: DocStore;
@@ -110,8 +119,13 @@ export async function runLLMStream({
   jurisdictionPreference?: JurisdictionPreference | null;
   activityDetail?: "auto" | "standard" | "tools" | "trace";
   editMode?: EditMode;
+  timeZone?: string;
   priorLegalEvidence?: LegalEvidenceReceipt[];
+  resumableSubagents?: ReadonlyMap<string, ReadSubagentCheckpoint>;
   onFinish?: (result: ChatTurnResult) => Promise<void> | void;
+  prepareMessages?: (
+    onCompaction: (status: "running" | "completed" | "failed") => void,
+  ) => Promise<ChatMessage[]>;
 }) {
   const raw = apiMessages as {
     role: string;
@@ -173,6 +187,7 @@ export async function runLLMStream({
           publicLegal: publicState,
           legalEvidence: context.evidence,
           editMode,
+          timeZone,
         },
       );
       if (scope === "main") {
@@ -218,8 +233,13 @@ export async function runLLMStream({
   };
 
   const emit = (event: unknown) => write(`data: ${JSON.stringify(event)}\n\n`);
+  const selectedModel = resolveModel(model, DEFAULT_MAIN_MODEL);
+  const slugByDocumentId = new Map<string, string>();
+  for (const [slug, info] of Object.entries(docIndex)) {
+    if (info.document_id) slugByDocumentId.set(info.document_id, slug);
+  }
   return runChatTurn({
-    model: resolveModel(model, DEFAULT_MAIN_MODEL),
+    model: selectedModel,
     systemPrompt,
     messages,
     tools,
@@ -230,6 +250,7 @@ export async function runLLMStream({
     apiKeys,
     reasoningEffort,
     serviceTier,
+    compactThreshold: compactionThresholdForModel(selectedModel),
     signal,
     subagentMode,
     subagentModel,
@@ -237,6 +258,17 @@ export async function runLLMStream({
     jurisdictionPreference,
     activityDetail,
     priorEvidence: priorLegalEvidence,
+    resumableSubagents,
     onFinish,
+    prepareMessages: prepareMessages
+      ? async (onCompaction) => (await prepareMessages(onCompaction)).map(
+          (message) => ({
+            role: message.role === "assistant" ? "assistant" : "user",
+            content: formatChatMessageContent(message, slugByDocumentId),
+            images: message.images,
+            contextCheckpoint: message.contextCheckpoint,
+          }),
+        )
+      : undefined,
   });
 }

@@ -14,6 +14,7 @@ import { isAnonymousMode } from "@/app/lib/authMode";
 import {
     type ApiKeyState,
     type ApiKeyProvider,
+    type DraftingStyleSettings,
     type UserProfile as ApiUserProfile,
     getUserProfile,
     isMfaRequiredError,
@@ -21,6 +22,7 @@ import {
     updateUserMfaOnLogin,
     updateUserProfile,
 } from "@/app/lib/beaverApi";
+import { DEFAULT_DRAFTING_STYLE } from "@/app/lib/draftingStyle";
 type UserProfile = Omit<ApiUserProfile, "apiKeyStatus"> & {
     apiKeys: ApiKeyState;
 };
@@ -36,6 +38,9 @@ interface UserProfileContextType {
     ) => Promise<boolean>;
     updateMfaOnLogin: (enabled: boolean) => Promise<boolean>;
     updateLegalResearchUs: (enabled: boolean) => Promise<boolean>;
+    updateDraftingStyle: (
+        settings: DraftingStyleSettings,
+    ) => Promise<boolean>;
     updateApiKey: (
         provider: ApiKeyProvider,
         value: string | null,
@@ -72,6 +77,7 @@ function toProfile(data: ApiUserProfile): UserProfile {
     return {
         ...profile,
         mfaOnLogin: profile.mfaOnLogin === true,
+        draftingStyle: profile.draftingStyle ?? DEFAULT_DRAFTING_STYLE,
         apiKeys: toApiKeys(apiKeyStatus),
     };
 }
@@ -110,6 +116,7 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
                 tabularModel: "gemini-3-flash-preview",
                 mfaOnLogin: false,
                 legalResearchUs: true,
+                draftingStyle: DEFAULT_DRAFTING_STYLE,
                 apiKeys: toApiKeys(),
             };
         }
@@ -166,6 +173,8 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
                 mutateProfile(() =>
                     updateUserProfile({ legalResearchUs: enabled }),
                 ),
+            updateDraftingStyle: (draftingStyle: DraftingStyleSettings) =>
+                mutateProfile(() => updateUserProfile({ draftingStyle })),
             updateApiKey: async (
                 provider: ApiKeyProvider,
                 value: string | null,

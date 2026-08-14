@@ -141,7 +141,10 @@ export function AssistantMessage({
     const caseOpinions = new Map<number, EventOf<"case_opinions">["case"]>();
     const rawActivityEntries: { event: AssistantEvent; index: number }[] = [];
     const automationByRun = new Map<string, EventOf<"automation_run">>();
-    const contentEntries: { index: number; text: string }[] = [];
+    const dialogueEntries: (
+        | { role: "assistant"; index: number; text: string }
+        | { role: "user"; index: number; text: string }
+    )[] = [];
     const latestEditedByDoc = new Map<string, EventOf<"doc_edited">>();
     const createdDownloads: EventOf<"doc_created">[] = [];
     const askResponses = new Map<number, EventOf<"ask_inputs_response">>();
@@ -185,7 +188,8 @@ export function AssistantMessage({
             continue;
         }
         if (event.type === "content") {
-            contentEntries.push({
+            dialogueEntries.push({
+                role: "assistant",
                 index,
                 text: preprocessCitations(
                     event.text,
@@ -194,6 +198,10 @@ export function AssistantMessage({
                     citationHistory,
                 ),
             });
+            continue;
+        }
+        if (event.type === "steering") {
+            dialogueEntries.push({ role: "user", index, text: event.text });
             continue;
         }
         if (event.type === "doc_edited" && !event.isStreaming) {
@@ -449,6 +457,9 @@ export function AssistantMessage({
         errorMessage ??
         eventErrorMessage ??
         (isError ? "Response failed." : null);
+    const lastAssistantDialogue = dialogueEntries.findLastIndex(
+        (entry) => entry.role === "assistant",
+    );
     return (
         <div style={{ minHeight }} className="w-full max-w-[46rem]">
             <div className="relative mt-2 w-full font-inter">
@@ -481,28 +492,37 @@ export function AssistantMessage({
                         ) : isStreaming && automationByRun.size === 0 ? (
                             <ActivityDisclosure isStreaming label="Thinking" />
                         ) : null}
-                        {contentEntries.map(({ index, text }, contentIndex) => (
-                            <div
-                                key={`c-${index}`}
-                                className="w-fit max-w-full rounded-[18px] bg-gray-950 px-4 py-3 text-white shadow-sm"
-                            >
-                                <MarkdownContent
-                                    text={text}
-                                    inlineCitationTargets={inlineCitationTargets}
-                                    caseCitations={caseCitations}
-                                    caseOpinions={caseOpinions}
-                                    onCitationClick={onCitationClick}
-                                    citationTitle={citationTitle}
-                                    onCaseClick={onCaseClick}
-                                    divRef={
-                                        contentIndex ===
-                                        contentEntries.length - 1
-                                            ? contentDivRef
-                                            : undefined
-                                    }
-                                />
-                            </div>
-                        ))}
+                        {dialogueEntries.map((entry, dialogueIndex) =>
+                            entry.role === "user" ? (
+                                <div
+                                    key={`s-${entry.index}`}
+                                    aria-label="Steering message"
+                                    className="ml-auto w-fit max-w-[min(85%,42rem)] whitespace-pre-wrap rounded-[18px] bg-gray-200 px-4 py-2.5 text-base leading-6 text-gray-950"
+                                >
+                                    {entry.text}
+                                </div>
+                            ) : (
+                                <div
+                                    key={`c-${entry.index}`}
+                                    className="w-fit max-w-full rounded-[18px] bg-gray-950 px-4 py-3 text-white shadow-sm"
+                                >
+                                    <MarkdownContent
+                                        text={entry.text}
+                                        inlineCitationTargets={inlineCitationTargets}
+                                        caseCitations={caseCitations}
+                                        caseOpinions={caseOpinions}
+                                        onCitationClick={onCitationClick}
+                                        citationTitle={citationTitle}
+                                        onCaseClick={onCaseClick}
+                                        divRef={
+                                            dialogueIndex === lastAssistantDialogue
+                                                ? contentDivRef
+                                                : undefined
+                                        }
+                                    />
+                                </div>
+                            ),
+                        )}
                         {editCards.length > 1 ? (
                             <EditCardsSection
                                 pending={pendingEdits}

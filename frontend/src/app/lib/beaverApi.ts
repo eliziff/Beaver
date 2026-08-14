@@ -237,11 +237,26 @@ export const getAuditHistory = (query: AuditHistoryQuery, signal?: AbortSignal) 
   );
 export const exportAuditHistory = (query: AuditHistoryQuery) =>
   apiBlobRequest(`/audit/export${auditQuery(query)}`);
+export type DraftingDocumentType = "memo" | "factum" | "letter" | "other";
+export type DraftingCitationPlacement =
+  | "footnotes"
+  | "inline"
+  | "after-paragraph"
+  | "none";
+export interface DraftingStyleSettings {
+  version: 1;
+  documents: Record<DraftingDocumentType, {
+    citationPlacement: DraftingCitationPlacement;
+    numberHeadings: boolean | "auto";
+  }>;
+  memoHeader: { to: string; from: string };
+}
 export interface UserProfile {
   displayName: string | null; organisation: string | null;
   messageCreditsUsed: number; creditsResetDate: string; creditsRemaining: number;
   tier: string; titleModel: string; tabularModel: string;
   mfaOnLogin: boolean; legalResearchUs: boolean;
+  draftingStyle: DraftingStyleSettings;
   apiKeyStatus: ApiKeyStatus;
 }
 export interface UserLookupResult {
@@ -278,7 +293,7 @@ export const lookupUserByEmail = (email: string) =>
   apiRequest<UserLookupResult>(`/user/lookup?email=${encodeURIComponent(email)}`);
 export const updateUserProfile = (
   payload: Partial<Pick<UserProfile,
-    "displayName" | "organisation" | "titleModel" | "tabularModel" | "legalResearchUs">>,
+    "displayName" | "organisation" | "titleModel" | "tabularModel" | "legalResearchUs" | "draftingStyle">>,
 ) => patch<UserProfile>("/user/profile", payload);
 export const updateUserMfaOnLogin = (enabled: boolean) =>
   patch<UserProfile>("/user/security/mfa-login", { enabled });
@@ -812,6 +827,13 @@ export const permanentlyDeleteChat = (chatId: string) =>
   remove<void>(`/chat/${chatId}/permanent`);
 export const stopChat = (chatId: string) =>
   post<{ stopped: boolean }>(`/chat/${chatId}/stop`);
+export const steerChat = (chatId: string, id: string, text: string) =>
+  post<{ steered: true }>(`/chat/${chatId}/steer`, { id, text });
+export const compactChat = (chatId: string, model: string) =>
+  post<{ compacted: true; transcriptVersion?: number }>(
+    `/chat/${chatId}/compact`,
+    { model },
+  );
 export const generateChatTitle = (chatId: string, message: string) =>
   post<{ title: string }>(`/chat/${chatId}/generate-title`, { message });
 export type CaseLawOpinion =
@@ -849,6 +871,7 @@ export const streamChat = (payload: {
   subagent_model?: string;
   subagent_effort?: string;
   activity_detail?: "auto" | "standard" | "tools" | "trace";
+  time_zone?: string;
   displayed_doc?: { filename: string; document_id: string };
   attached_documents?: { filename: string; document_id: string }[];
   ask_inputs_response?: Extract<

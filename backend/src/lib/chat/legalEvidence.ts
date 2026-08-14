@@ -78,6 +78,7 @@ export type GroundedLegalClaim = {
 export type LegalEvidenceTurnState = {
   mode: LegalEvidenceMode | null;
   evidence: Map<string, RegisteredEvidence>;
+  documentEvidenceIds: Set<string>;
   answer: GroundedLegalClaim[] | null;
   attempted: boolean;
   failure: string | null;
@@ -86,7 +87,14 @@ export type LegalEvidenceTurnState = {
 export function createLegalEvidenceTurnState(
   mode: LegalEvidenceMode | null = null,
 ): LegalEvidenceTurnState {
-  return { mode, evidence: new Map(), answer: null, attempted: false, failure: null };
+  return {
+    mode,
+    evidence: new Map(),
+    documentEvidenceIds: new Set(),
+    answer: null,
+    attempted: false,
+    failure: null,
+  };
 }
 
 function sha256(value: string) {
@@ -430,6 +438,13 @@ export function registerLegalEvidence(
   if (receipt) state.evidence.set(receipt.evidence_id, { receipt, ...source });
 }
 
+export function registerDocumentLegalEvidence(
+  state: LegalEvidenceTurnState,
+  evidenceIds: readonly string[],
+) {
+  evidenceIds.forEach((evidenceId) => state.documentEvidenceIds.add(evidenceId));
+}
+
 function object(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -769,14 +784,18 @@ export type LegalEvidenceReceiptEvent = {
 export function legalEvidenceReceiptEvent(
   state: LegalEvidenceTurnState,
 ): LegalEvidenceReceiptEvent | null {
-  if (!state.attempted) return null;
+  if (!state.attempted && !state.documentEvidenceIds.size) return null;
   const claims = state.answer ?? [];
-  const ids = new Set(claims.flatMap((claim) => claim.evidence_ids));
+  const ids = new Set([
+    ...claims.flatMap((claim) => claim.evidence_ids),
+    ...state.documentEvidenceIds,
+  ]);
+  const passed = Boolean(state.answer || state.documentEvidenceIds.size);
   return {
     type: "legal_evidence_receipt",
     schema_version: 6,
     mode: state.mode,
-    status: state.answer ? "passed" : "failed",
+    status: passed ? "passed" : "failed",
     verification: {
       reference: "verified",
       answerability: "not_run",

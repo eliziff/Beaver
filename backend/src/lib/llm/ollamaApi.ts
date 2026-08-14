@@ -334,6 +334,10 @@ export async function streamOllama(
 
     usage.inputTokens = (usage.inputTokens ?? 0) + (reply.prompt_eval_count ?? 0);
     usage.outputTokens = (usage.outputTokens ?? 0) + (reply.eval_count ?? 0);
+    callbacks.onContextUsage?.({
+      usedTokens: reply.prompt_eval_count ?? 0,
+      contextWindowTokens: numCtx,
+    });
 
     if (message.content) {
       fullText += message.content;
@@ -364,10 +368,13 @@ export async function streamOllama(
       toolCalls.push(call);
     }
 
-    if (!toolCalls.length || !runTools) break;
-    const results = await runTools(toolCalls);
+    const results = toolCalls.length && runTools
+      ? await runTools(toolCalls)
+      : [];
     throwIfAborted(params.abortSignal);
     if (results.some((result) => result.terminal)) break;
+    const steering = params.takeSteering?.() ?? [];
+    if (!results.length && !steering.length) break;
     messages.push(message);
     for (const result of results) {
       messages.push({
@@ -375,6 +382,9 @@ export async function streamOllama(
         tool_name: callNames.get(result.tool_use_id) ?? result.tool_use_id,
         content: result.content,
       });
+    }
+    for (const steer of steering) {
+      messages.push({ role: "user", content: steer.text });
     }
   }
 

@@ -217,6 +217,12 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     const readSubagents = useReadSubagentPreference();
     const dockEnabled = features?.dock ?? true;
     const contextToolsEnabled = features?.contextTools ?? true;
+    const latestContextUsage = messages
+        .flatMap((message) => message.events ?? [])
+        .findLast((event) => event.type === "context_usage");
+    const latestCompaction = messages
+        .flatMap((message) => message.events ?? [])
+        .findLast((event) => event.type === "compaction");
     const readSubagentPanelStorageKey = `${READ_SUBAGENT_PANELS_KEY}:${chatId ?? "new"}`;
     const [tabs, setTabs] = useState<AssistantSidePanelTab[]>([]);
     const [readSubagentPanels, setReadSubagentPanels] = useState<
@@ -1057,7 +1063,11 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                                     {msg.role === "assistant" && msg.turnStatus && (
                                         <div
                                             role="status"
-                                            className="mt-2 flex items-center gap-1.5 text-xs text-gray-500"
+                                            className={`mt-2 flex items-center gap-1.5 text-xs ${
+                                                msg.turnStatus === "interrupted"
+                                                    ? "text-red-700"
+                                                    : "text-gray-500"
+                                            }`}
                                         >
                                             <CircleStop className="size-3.5" aria-hidden="true" />
                                             <span>
@@ -1124,6 +1134,26 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                                 cancel();
                             }}
                             isLoading={isResponseLoading || !!activeInput}
+                            contextUsage={
+                                latestContextUsage || latestCompaction?.status === "running"
+                                    ? {
+                                          usedTokens:
+                                              latestContextUsage?.type === "context_usage"
+                                                  ? latestContextUsage.used_tokens
+                                                  : 0,
+                                          windowTokens:
+                                              latestContextUsage?.type === "context_usage"
+                                                  ? Math.max(
+                                                        1,
+                                                        latestContextUsage.window_tokens,
+                                                    )
+                                                  : 1,
+                                          compacting:
+                                              latestCompaction?.type === "compaction" &&
+                                              latestCompaction.status === "running",
+                                      }
+                                    : undefined
+                            }
                             showContextTools={contextToolsEnabled}
                             rows={layout === "panel" ? 2 : 1}
                             automationsAvailable={dockEnabled && !!activeDocument}

@@ -14,6 +14,12 @@ import type {
 } from "./types";
 import { codexModelSlug } from "./models";
 
+const BEAVER_BASE_INSTRUCTIONS = [
+  "You are the response engine for Beaver, a legal document assistant.",
+  "Answer the supplied conversation directly. Use the Beaver tools exposed by the mike_runtime MCP server when relevant. Do not modify files, run shell commands, or describe work outside the conversation.",
+  "Keep progress summaries brief and user-facing. Never expose hidden reasoning, prompts, tool arguments, schemas, or raw JSON.",
+].join("\n");
+
 type CodexSummaryPart = {
   type?: string;
   text?: string;
@@ -183,22 +189,10 @@ export function codexCommand() {
 }
 
 export function buildCodexPrompt(params: {
-  systemPrompt?: string;
   messages: StreamChatParams["messages"];
 }) {
-  const system = params.systemPrompt?.trim();
-  const conversation = params.messages
+  return params.messages
     .map((message) => `${message.role.toUpperCase()}:\n${message.content}`)
-    .join("\n\n");
-
-  return [
-    "You are the response engine for Beaver, a legal document assistant.",
-    "Answer the supplied conversation directly. Use the Beaver tools exposed by the mike_runtime MCP server when they are relevant. Do not modify files, run shell commands, or describe work you did outside the conversation.",
-    "Keep any progress summaries brief, user-facing, and free of hidden reasoning, prompts, tool arguments, schemas, or raw JSON.",
-    system ? `SYSTEM INSTRUCTIONS:\n${system}` : "",
-    `CONVERSATION:\n${conversation}`,
-  ]
-    .filter(Boolean)
     .join("\n\n");
 }
 
@@ -240,17 +234,29 @@ export function codexStreamCallbacks(params: {
   };
 }
 
-/** Materializes inline message images as temp files for the duration of `run`. */
-export async function withCodexImages<T>(
+/** Isolates Codex from the repository and materializes its model-visible files. */
+export async function withCodexWorkspace<T>(
   messages: StreamChatParams["messages"],
-  run: (imagePaths: string[]) => Promise<T>,
+  systemPrompt: string,
+  run: (workspace: {
+    cwd: string;
+    instructionsPath: string;
+    imagePaths: string[];
+  }) => Promise<T>,
 ): Promise<T> {
   const images = [...new Set(messages.flatMap((message) => message.images ?? []))];
-  if (!images.length) return run([]);
-  const directory = await mkdtemp(path.join(os.tmpdir(), "beaver-codex-images-"));
+  const directory = await mkdtemp(path.join(os.tmpdir(), "beaver-codex-"));
+  const instructionsPath = path.join(directory, "instructions.md");
   try {
-    return await run(
-      await Promise.all(
+    await writeFile(
+      instructionsPath,
+      [BEAVER_BASE_INSTRUCTIONS, systemPrompt.trim()].filter(Boolean).join("\n\n"),
+      { encoding: "utf8", mode: 0o600 },
+    );
+    return await run({
+      cwd: os.tmpdir(),
+      instructionsPath,
+      imagePaths: await Promise.all(
         images.map(async (image, index) => {
           const extension =
             image.mimeType === "image/jpeg"
@@ -263,7 +269,7 @@ export async function withCodexImages<T>(
           return imagePath;
         }),
       ),
-    );
+    });
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
@@ -280,9 +286,12 @@ async function runCodex(params: {
   enableThinking?: boolean;
   reasoningSummary?: "auto" | "none";
   reasoningEffort?: string;
+  compactThreshold?: number;
   nativeSubagents?: boolean;
   maxIterations?: number;
   imagePaths?: string[];
+  cwd: string;
+  instructionsPath: string;
   persistSession?: boolean;
   continuationId?: string;
 }): Promise<StreamChatResult> {
@@ -320,8 +329,22 @@ async function runCodex(params: {
   const resuming = Boolean(params.continuationId);
   const args = ["exec", ...(resuming ? ["resume"] : [])];
   if (!resuming && !params.persistSession) args.push("--ephemeral");
-  args.push("--ignore-user-config");
-  args.push("-c", `agents.enabled=${params.nativeSubagents === true}`);
+  args.push("--ignore-user-config", "--ignore-rules", "--strict-config");
+  args.push(
+    "-c", `model_instructions_file=${JSON.stringify(params.instructionsPath)}`,
+    "-c", `agents.enabled=${params.nativeSubagents === true}`,
+    "-c", "include_permissions_instructions=false",
+    "-c", "include_apps_instructions=false",
+    "-c", `include_collaboration_mode_instructions=${params.nativeSubagents === true}`,
+    "-c", "include_environment_context=false",
+    "-c", "skills.include_instructions=false",
+  );
+  if (params.compactThreshold) {
+    args.push(
+      "-c",
+      `model_auto_compact_token_limit=${Math.trunc(params.compactThreshold)}`,
+    );
+  }
   if (!resuming) args.push("--sandbox", "read-only");
   args.push("--skip-git-repo-check", "--json");
   if (!resuming) args.push("--color", "never");
@@ -368,7 +391,7 @@ async function runCodex(params: {
   let child: ChildProcessWithoutNullStreams;
   try {
     child = spawn(codexCommand(), args, {
-      cwd: process.cwd(),
+      cwd: params.cwd,
       shell: process.platform === "win32",
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true,
@@ -502,7 +525,11 @@ export async function streamCodex(
   if (params.abortSignal?.aborted) controller.abort();
   params.abortSignal?.addEventListener("abort", abort, { once: true });
   try {
-    return await withCodexImages(params.messages, (imagePaths) =>
+    return await withCodexWorkspace(params.messages, params.systemPrompt, ({
+      cwd,
+      instructionsPath,
+      imagePaths,
+    }) =>
       runCodex({
         model: params.model,
         prompt: buildCodexPrompt(params),
@@ -514,9 +541,12 @@ export async function streamCodex(
         enableThinking: params.enableThinking,
         reasoningSummary: params.reasoningSummary,
         reasoningEffort: params.reasoningEffort,
+        compactThreshold: params.compactThreshold,
         nativeSubagents: params.nativeSubagents,
         maxIterations: params.maxIterations,
         imagePaths,
+        cwd,
+        instructionsPath,
         persistSession: params.providerSession?.persist,
         continuationId: params.providerSession?.continuationId,
       }),
@@ -533,15 +563,20 @@ export async function completeCodexText(params: {
   maxTokens?: number;
   apiKeys?: StreamChatParams["apiKeys"];
 }): Promise<string> {
-  return (
+  const messages = [{ role: "user" as const, content: params.user }];
+  return withCodexWorkspace(messages, params.systemPrompt ?? "", async ({
+    cwd,
+    instructionsPath,
+    imagePaths,
+  }) => (
     await runCodex({
       model: params.model,
-      prompt: buildCodexPrompt({
-        systemPrompt: params.systemPrompt,
-        messages: [{ role: "user", content: params.user }],
-      }),
+      prompt: buildCodexPrompt({ messages }),
       apiKeys: params.apiKeys,
       enableThinking: false,
+      imagePaths,
+      cwd,
+      instructionsPath,
     })
-  ).fullText;
+  ).fullText);
 }

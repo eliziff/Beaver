@@ -33,7 +33,159 @@ Counsel **must** act *promptly* for {{client_name}}.[^scope]
 
 [^scope]: This scope is limited & subject to the retainer. See [@jordan].`;
 
+const jordanCitation = {
+  sources: [{
+    stableId: "case:jordan",
+    authority: "R v Jordan, 2016 SCC 27",
+    shortAuthority: "Jordan",
+    mainUrl: "https://example.test/jordan",
+    pinpoints: [{
+      text: "para. 5",
+      url: "https://example.test/jordan#par5",
+    }],
+  }],
+};
+
 describe("semantic Markdown DOCX", () => {
+  it("distinguishes indented blocks, literal greater-than signs, and hard breaks", async () => {
+    const markdown = `Soft
+wrap
+
+Hard\\
+break
+
+> Indented
+> continuation
+
+\\> literal`;
+    const parsed = parseDocxMarkdown(markdown);
+
+    expect(parsed.blocks).toMatchObject([
+      {
+        type: "paragraph",
+        children: [
+          { type: "text", text: "Soft" },
+          { type: "text", text: " " },
+          { type: "text", text: "wrap" },
+        ],
+      },
+      {
+        type: "paragraph",
+        children: [
+          { type: "text", text: "Hard" },
+          { type: "break" },
+          { type: "text", text: "break" },
+        ],
+      },
+      {
+        type: "blockquote",
+        level: 1,
+        children: [
+          { type: "text", text: "Indented" },
+          { type: "text", text: " " },
+          { type: "text", text: "continuation" },
+        ],
+      },
+      { type: "paragraph", children: [{ type: "text", text: "> literal" }] },
+    ]);
+
+    const documentXml = await packageXml(
+      await renderDocxMarkdown(markdown),
+      "word/document.xml",
+    );
+    expect(documentXml).toContain('<w:pStyle w:val="IndentedBlock"/>');
+    expect(documentXml).toContain("<w:br/>");
+    expect(documentXml).toContain("&gt; literal");
+    expect(documentXml).not.toContain("&gt; Indented");
+  });
+
+  it("builds the standard memo header and renders grounded citations by style", async () => {
+    const options = {
+      title: "Narrow issue",
+      citations: { case: jordanCitation },
+      memoHeader: { to: "File", from: "AI Assistant" },
+      generatedAt: new Date("2026-08-15T02:00:00.000Z"),
+      timeZone: "America/Edmonton",
+    };
+    const footnoteBytes = await renderDocxMarkdown("Claim.[@case]", {
+      ...options,
+      citationPlacement: "footnotes",
+    });
+    const documentXml = await packageXml(footnoteBytes, "word/document.xml");
+    const footnotesXml = await packageXml(footnoteBytes, "word/footnotes.xml");
+    const footnoteRels = await packageXml(
+      footnoteBytes,
+      "word/_rels/footnotes.xml.rels",
+    );
+
+    expect(documentXml).toContain("To:");
+    expect(documentXml).toContain("File");
+    expect(documentXml).toContain("From:");
+    expect(documentXml).toContain("AI Assistant");
+    expect(documentXml).toContain("14 August 2026");
+    expect(documentXml).toContain("Re:");
+    expect(documentXml.match(/Narrow issue/gu)).toHaveLength(1);
+    expect(documentXml).not.toContain('<w:pStyle w:val="Title"/>');
+    expect(documentXml).toContain('<w:footnoteReference w:id="1"/>');
+    expect(footnotesXml).toContain("R v Jordan, 2016 SCC 27");
+    expect(footnotesXml).toContain("para. 5");
+    expect(footnoteRels).toContain('Target="https://example.test/jordan"');
+    expect(footnoteRels).toContain(
+      'Target="https://example.test/jordan#par5"',
+    );
+
+    const inlineBytes = await renderDocxMarkdown("Claim.[@case]", {
+      ...options,
+      memoHeader: undefined,
+      citationPlacement: "inline",
+    });
+    const inlineXml = await packageXml(inlineBytes, "word/document.xml");
+    expect(inlineXml).toContain("R v Jordan, 2016 SCC 27");
+    expect(inlineXml).toContain("para. 5");
+    expect(inlineXml).not.toContain("w:footnoteReference");
+
+    const afterBytes = await renderDocxMarkdown("Claim.[@case]", {
+      ...options,
+      memoHeader: undefined,
+      citationPlacement: "after-paragraph",
+    });
+    const afterXml = await packageXml(afterBytes, "word/document.xml");
+    expect(afterXml).toContain('<w:pStyle w:val="CitationBlock"/>');
+    expect(afterXml).toContain("R v Jordan, 2016 SCC 27");
+
+    await expect(renderDocxMarkdown(
+      "To: File\nFrom: AI Assistant\nDate: Today\nRe: Duplicate\n\nBody.",
+      options,
+    )).rejects.toThrow("must not repeat the automatic");
+    await expect(renderDocxMarkdown(
+      "To: File From: AI Assistant Date: Today Re: Duplicate\n\nBody.",
+      options,
+    )).rejects.toThrow("must not repeat the automatic");
+  });
+
+  it("owns repeated-authority footnote forms instead of asking the model", async () => {
+    const other = {
+      sources: [{
+        ...jordanCitation.sources[0],
+        stableId: "case:other",
+        authority: "R v Other, 2020 SCC 2",
+        shortAuthority: "Other",
+        mainUrl: "https://example.test/other",
+      }],
+    };
+    const bytes = await renderDocxMarkdown(
+      "First.[@jordan]\n\nSecond.[@other]\n\nThird.[@jordan]",
+      {
+        citations: { jordan: jordanCitation, other },
+        citationPlacement: "footnotes",
+      },
+    );
+    const footnotesXml = await packageXml(bytes, "word/footnotes.xml");
+    expect(footnotesXml).toContain("R v Jordan, 2016 SCC 27");
+    expect(footnotesXml).toContain("R v Other, 2020 SCC 2");
+    expect(footnotesXml).toContain("Jordan, supra note 1");
+  });
+
   it("parses the bounded structure and emits native Word features", async () => {
     const parsed = parseDocxMarkdown(sample);
     expect(parsed.blocks.map(({ type }) => type)).toEqual([
@@ -60,10 +212,7 @@ describe("semantic Markdown DOCX", () => {
       title: "Services Agreement",
       landscape: true,
       citations: {
-        jordan: {
-          text: "R v Jordan, 2016 SCC 27 at para 5",
-          url: "https://example.test/jordan#par5",
-        },
+        jordan: jordanCitation,
       },
       values: {
         client_name: 'A & B <"Legal">',
@@ -74,10 +223,7 @@ describe("semantic Markdown DOCX", () => {
       title: "Services Agreement",
       landscape: true,
       citations: {
-        jordan: {
-          text: "R v Jordan, 2016 SCC 27 at para 5",
-          url: "https://example.test/jordan#par5",
-        },
+        jordan: jordanCitation,
       },
       values: {
         client_name: 'A & B <"Legal">',
@@ -101,7 +247,7 @@ describe("semantic Markdown DOCX", () => {
     expect(xml).toContain('<w:bookmarkStart w:name="services"');
     expect(xml).toContain("Services Agreement");
     expect(xml).toContain('w:orient="landscape"');
-    expect(footnotes).toContain("R v Jordan, 2016 SCC 27 at para 5");
+    expect(footnotes).toContain("R v Jordan, 2016 SCC 27");
     expect(relationships).toContain(
       'Target="https://example.test/jordan#par5"',
     );
@@ -125,12 +271,23 @@ describe("semantic Markdown DOCX", () => {
     expect(() => parseDocxMarkdown("x".repeat(1_000_001))).toThrow("1 MB");
     await expect(
       renderDocxMarkdown("See [@case].", {
-        citations: { case: { text: "Case", url: "not a url" } },
+        citations: {
+          case: {
+            sources: [{
+              ...jordanCitation.sources[0],
+              mainUrl: "not a url",
+            }],
+          },
+        },
       }),
     ).rejects.toThrow("invalid URL");
     await expect(
       renderDocxMarkdown("See [@case].", {
-        citations: { case: { text: "", url: "https://example.test/" } },
+        citations: {
+          case: {
+            sources: [{ ...jordanCitation.sources[0], authority: "" }],
+          },
+        },
       }),
     ).rejects.toThrow("is invalid");
   });
@@ -352,7 +509,12 @@ Tenant: **{{ Tenant Name }}**; rent: *{{ MONTHLY RENT }}*.[^Lease_Note]
     await expect(
       renderDocxMarkdown("See [@case].", {
         citations: {
-          case: { text: "Case", url: "file:///secret" },
+          case: {
+            sources: [{
+              ...jordanCitation.sources[0],
+              mainUrl: "file:///secret",
+            }],
+          },
         },
       }),
     ).rejects.toThrow("unsafe URL");

@@ -24,10 +24,16 @@ export type OpenAIToolSchema = {
   };
 };
 
+export type ProviderContextCheckpoint =
+  | { provider: "claude"; content: string }
+  | { provider: "openai"; item: Record<string, unknown> };
+
 export type LlmMessage = {
   role: "user" | "assistant";
   content: string;
   images?: LlmImage[];
+  /** Provider-native continuation block retained alongside the plain summary. */
+  contextCheckpoint?: ProviderContextCheckpoint;
 };
 
 export type LlmImage = {
@@ -107,7 +113,20 @@ export type StreamCallbacks = {
   onContentDelta?: (text: string) => void;
   onContentBlockEnd?: () => void;
   onToolCallStart?: (call: NormalizedToolCall) => void;
+  onContextUsage?: (usage: {
+    usedTokens: number;
+    contextWindowTokens: number;
+  }) => void;
+  onCompaction?: (status: "running" | "completed" | "failed") => void;
+  onContextCheckpoint?: (checkpoint: ProviderContextCheckpoint) => void;
+  onSteer?: (message: { id: string; text: string }) => void;
 };
+
+export type ProviderTurnControl = {
+  steer: (message: { id: string; text: string }) => Promise<void>;
+};
+
+export type SteeringMessage = Parameters<ProviderTurnControl["steer"]>[0];
 
 export type UserApiKeys = {
   claude?: string | null;
@@ -142,6 +161,8 @@ export type StreamChatParams = {
   maxIterations?: number;
   callbacks?: StreamCallbacks;
   runTools?: (calls: NormalizedToolCall[]) => Promise<NormalizedToolResult[]>;
+  /** Drain user steering at the next completed provider step. */
+  takeSteering?: () => SteeringMessage[];
   apiKeys?: UserApiKeys;
   /**
    * Enable provider-side reasoning/thinking. Off by default — should only
@@ -175,6 +196,8 @@ export type StreamChatParams = {
   providerSession?: {
     persist: true;
     continuationId?: string;
+    onContinuationId?: (continuationId: string) => void;
+    onControl?: (control: ProviderTurnControl | null) => void;
   };
 };
 
@@ -219,8 +242,8 @@ export type LlmCompactionReceipt = {
     | "reported_usage"
     | "projected_input"
     | "context_length_exceeded"
-    // The provider's own CLI/runtime compacted the conversation in place
-    // (claude -p auto-compact). Not a harness compaction request: request/
+    // The provider's own CLI/runtime compacted the conversation in place.
+    // Not a harness compaction request: request/
     // output receipt fields are zeroed, and usage is zeroed because the
     // spend is already inside the turn envelope's reported usage.
     | "provider_auto";

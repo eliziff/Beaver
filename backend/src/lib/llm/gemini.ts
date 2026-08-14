@@ -8,6 +8,7 @@ import { toGeminiTools } from "./tools";
 import { abortError, throwIfAborted } from "./abort";
 import { requireApiKey } from "./apiKeys";
 import { createLlmTrace } from "./rawStreamLog";
+import { modelContextWindow } from "./contextWindow";
 
 type GeminiPart = {
   text?: string;
@@ -165,6 +166,9 @@ export async function streamGemini(
   const ai = client(apiKeys?.gemini);
   const contents: GeminiContent[] = toNativeContents(params.messages);
   let fullText = "";
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let reasoningTokens = 0;
   const trace = createLlmTrace({ provider: "gemini", model });
 
   try {
@@ -201,6 +205,11 @@ export async function streamGemini(
       const callParts: GeminiPart[] = [];
       const toolCalls: NormalizedToolCall[] = [];
       let sawThinking = false;
+      let roundUsage: {
+        promptTokenCount?: number;
+        candidatesTokenCount?: number;
+        thoughtsTokenCount?: number;
+      } | undefined;
       const iterator = stream[Symbol.asyncIterator]();
       let rejectAbort: ((reason?: unknown) => void) | null = null;
       const abortPromise = new Promise<never>((_, reject) => {
@@ -222,6 +231,8 @@ export async function streamGemini(
           trace.record({ iteration: iter, label: "chunk", payload: chunk });
           const failureMessage = geminiStreamFailureMessage(chunk);
           if (failureMessage) throw new Error(failureMessage);
+          roundUsage = (chunk as { usageMetadata?: typeof roundUsage })
+            .usageMetadata ?? roundUsage;
 
           const parts =
             (chunk as { candidates?: { content?: { parts?: GeminiPart[] } }[] })
@@ -265,19 +276,29 @@ export async function streamGemini(
 
       if (sawThinking) callbacks.onReasoningBlockEnd?.();
       throwIfAborted(params.abortSignal);
+      inputTokens += roundUsage?.promptTokenCount ?? 0;
+      outputTokens += roundUsage?.candidatesTokenCount ?? 0;
+      reasoningTokens += roundUsage?.thoughtsTokenCount ?? 0;
+      const contextWindowTokens = modelContextWindow(model);
+      if (contextWindowTokens && roundUsage?.promptTokenCount !== undefined) {
+        callbacks.onContextUsage?.({
+          usedTokens: roundUsage.promptTokenCount,
+          contextWindowTokens,
+        });
+      }
 
       fullText += textParts.join("");
 
-      if (!toolCalls.length || !runTools) {
-        break;
-      }
-
-      const results = await runTools(toolCalls);
+      const results = toolCalls.length && runTools
+        ? await runTools(toolCalls)
+        : [];
       throwIfAborted(params.abortSignal);
       if (results.some((result) => result.terminal)) break;
+      const steering = params.takeSteering?.() ?? [];
+      if (!results.length && !steering.length) break;
 
-      // Append the model's turn (text + functionCall parts, in that order)
-      // and the matching functionResponse turn.
+      // Append the completed model step, then deliver tool results and queued
+      // steering together at the provider's next safe user boundary.
       const modelParts: GeminiPart[] = [];
       if (textParts.length) modelParts.push({ text: textParts.join("") });
       for (const cp of callParts) modelParts.push(cp);
@@ -285,23 +306,35 @@ export async function streamGemini(
 
       contents.push({
         role: "user",
-        parts: results.map((r) => {
-          const match = toolCalls.find((c) => c.id === r.tool_use_id);
-          return {
-            functionResponse: {
-              ...(r.tool_use_id && !r.tool_use_id.startsWith(match?.name ?? "")
-                ? { id: r.tool_use_id }
-                : {}),
-              name: match?.name ?? "tool",
-              response: { output: r.content },
-            },
-          };
-        }),
+        parts: [
+          ...results.map((r) => {
+            const match = toolCalls.find((c) => c.id === r.tool_use_id);
+            return {
+              functionResponse: {
+                ...(r.tool_use_id && !r.tool_use_id.startsWith(match?.name ?? "")
+                  ? { id: r.tool_use_id }
+                  : {}),
+                name: match?.name ?? "tool",
+                response: { output: r.content },
+              },
+            };
+          }),
+          ...steering.map(({ text }) => ({ text })),
+        ],
       });
     }
 
     await trace.flush("completed");
-    return { fullText };
+    return {
+      fullText,
+      usage: {
+        inputTokens,
+        outputTokens,
+        reasoningTokens,
+        cacheReadInputTokens: null,
+        cacheWriteInputTokens: null,
+      },
+    };
   } catch (error) {
     await trace.flush("error", error);
     throw error;

@@ -12,6 +12,7 @@ import {
 } from "./chatStore";
 import { createServerSupabase } from "./supabase";
 import { getUserModelSettings } from "./userSettings";
+import { visibleChatMessages } from "./chat/anonymousTranscript";
 
 type Db = ReturnType<typeof createServerSupabase>;
 const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
@@ -167,8 +168,31 @@ export const createCloudChatStore: CreateChatStore = (tabular) => {
         .eq("chat_id", chatId).order("created_at", { ascending: true }));
       return {
         chat,
-        messages: await hydrate(db, (data ?? []) as ChatMessageRecord[]),
+        messages: visibleChatMessages(
+          await hydrate(db, (data ?? []) as ChatMessageRecord[]),
+        ),
       };
+    },
+
+    async transcript(scope, chatId) {
+      if (!await accessible(scope, chatId)) return null;
+      const data = await run(createServerSupabase().from("chat_messages")
+        .select("*").eq("chat_id", chatId)
+        .order("created_at", { ascending: true }));
+      return (Array.isArray(data) ? data : []) as ChatMessageRecord[];
+    },
+
+    async appendAssistantEvent(scope, chatId, messageId, event) {
+      if (!await accessible(scope, chatId)) return false;
+      const db = createServerSupabase();
+      const row = await run(db.from("chat_messages").select("content")
+        .eq("chat_id", chatId).eq("id", messageId).eq("role", "assistant")
+        .maybeSingle()) as { content?: unknown } | null;
+      if (!row) return false;
+      return !!await run(db.from("chat_messages").update({
+        content: [...(Array.isArray(row.content) ? row.content : []), event],
+      }).eq("chat_id", chatId).eq("id", messageId).eq("role", "assistant")
+        .select("id").maybeSingle());
     },
 
     async update(scope, chatId, input) {

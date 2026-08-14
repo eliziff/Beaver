@@ -15,6 +15,7 @@ import type {
 } from "./types";
 import { createLlmTrace } from "./rawStreamLog";
 import { sha256 } from "../hash";
+import { modelContextWindow } from "./contextWindow";
 
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const MAX_OUTPUT_TOKENS = 16384;
@@ -74,7 +75,7 @@ type ResponseStreamEvent = {
     usage?: ResponseUsage;
   };
   error?: { code?: string; message?: string } | null;
-  item?: ResponseFunctionCallItem;
+  item?: ResponseFunctionCallItem | Record<string, unknown>;
 };
 
 type ResponseUsage = {
@@ -107,6 +108,8 @@ export type ResponsesAdapterConfig = {
   codexBackend?: boolean;
   /** GPT-5.6+ explicit prefix caching for stateless Codex tool loops. */
   explicitPromptCaching?: boolean;
+  /** This endpoint implements Responses `context_management.compaction`. */
+  nativeCompaction?: boolean;
 };
 
 const CACHE_CONTINUATION = "Continue from the tool results.";
@@ -192,6 +195,9 @@ export function toResponseTools(
 
 export function toResponseInput(messages: LlmMessage[]): ResponseInputItem[] {
   return messages.map((message) => {
+    if (message.contextCheckpoint?.provider === "openai") {
+      return message.contextCheckpoint.item;
+    }
     if (!message.images?.length || message.role !== "user") {
       return { role: message.role, content: message.content };
     }
@@ -643,7 +649,9 @@ export async function streamResponsesApi(
           headers: config.headers,
           codexBackend: config.codexBackend,
           serviceTier: config.serviceTier,
-          compactThreshold: params.compactThreshold,
+          compactThreshold: config.nativeCompaction
+            ? params.compactThreshold
+            : undefined,
           promptCacheKey,
           promptCacheOptions: config.explicitPromptCaching
             ? { mode: "explicit" }
@@ -687,6 +695,20 @@ export async function streamResponsesApi(
             ) {
               attemptInputTokens += event.response.usage.input_tokens ?? 0;
               addUsage(event.response.usage);
+              const contextWindowTokens = modelContextWindow(model);
+              if (contextWindowTokens) {
+                callbacks.onContextUsage?.({
+                  usedTokens: event.response.usage.input_tokens ?? 0,
+                  contextWindowTokens,
+                });
+              }
+            }
+
+            if (
+              event.type === "response.output_item.added" &&
+              event.item?.type === "compaction"
+            ) {
+              callbacks.onCompaction?.("running");
             }
 
             const failureMessage = openAIStreamFailureMessage(event);
@@ -727,8 +749,17 @@ export async function streamResponsesApi(
               event.item
             ) {
               outputItems.push(event.item);
+              if (event.item.type === "compaction") {
+                callbacks.onContextCheckpoint?.({
+                  provider: "openai",
+                  item: event.item,
+                });
+                callbacks.onCompaction?.("completed");
+              }
               if (event.item.type === "function_call") {
-                const call = parseFunctionCall(event.item);
+                const call = parseFunctionCall(
+                  event.item as ResponseFunctionCallItem,
+                );
                 emitted = true;
                 callbacks.onToolCallStart?.(call);
                 toolCalls.push(call);
@@ -801,15 +832,13 @@ export async function streamResponsesApi(
       if (reasoningBlockOpen) callbacks.onReasoningBlockEnd?.();
       throwIfAborted(params.abortSignal);
 
-      if (!toolCalls.length || !runTools) {
-        break;
-      }
-
       if (toolCalls.some(shouldAppendCourtlistenerCitationReminder)) {
         needsCourtlistenerCitationReminder = true;
       }
 
-      const results = await runTools(toolCalls);
+      const results = toolCalls.length && runTools
+        ? await runTools(toolCalls)
+        : [];
       throwIfAborted(params.abortSignal);
       activeRound.toolCallCount = toolCalls.length;
       activeRound.toolArgumentBytes = toolCalls.reduce(
@@ -821,17 +850,24 @@ export async function streamResponsesApi(
         0,
       );
       if (results.some((result) => result.terminal)) break;
+      const steering = params.takeSteering?.() ?? [];
+      if (!results.length && !steering.length) break;
       const resultItems: ResponseInputItem[] = results.map((result) => ({
         type: "function_call_output",
         call_id: result.tool_use_id,
         output: result.content,
       }));
+      const steeringItems: ResponseInputItem[] = steering.map(({ text }) => ({
+        role: "user",
+        content: text,
+      }));
       const nextInput = config.persistent
-        ? resultItems
+        ? [...resultItems, ...steeringItems]
         : [
             ...input,
             ...outputItems,
             ...resultItems,
+            ...steeringItems,
             ...(config.explicitPromptCaching ? [cacheBoundaryItem()] : []),
           ];
       const compactThreshold = params.compactThreshold;
@@ -902,6 +938,7 @@ export async function streamOpenAI(
     apiKey: apiKey(params.apiKeys?.openai),
     persistent: true,
     reasoningSummary: true,
+    nativeCompaction: true,
     ...(requestedTier
       ? { serviceTier: requestedTier === "fast" ? "priority" : requestedTier }
       : {}),

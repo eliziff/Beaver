@@ -116,6 +116,7 @@ export function createLocalChatToolRunner(options: {
   documentNames?: ReadonlyMap<string, string>;
   tabular?: TabularCellStore;
   editMode?: EditMode;
+  timeZone?: string;
   onMutationCommitted: () => void;
 }) {
   const main = runnerState();
@@ -178,6 +179,7 @@ export function createLocalChatToolRunner(options: {
           matterId: options.projectId,
           legalEvidence: evidence,
           editMode: options.editMode,
+          timeZone: options.timeZone,
         },
       )).map((result, index) => hideLegalSourceUrls(
         direct.find((call) => call.id === result.tool_use_id)?.name ??
