@@ -224,6 +224,10 @@ export function createLibraryEvidence(args: {
   spanText: string;
   start: number;
   end: number;
+  locator?: {
+    kind: "paragraph" | "page" | "section" | "footnote";
+    label: string;
+  };
 }): LegalEvidenceReceipt {
   return withEvidenceId({
     provider: "library",
@@ -242,7 +246,7 @@ export function createLibraryEvidence(args: {
     language: "en",
     version: args.versionId,
     external_url: null,
-    locator: { kind: "document", label: "document" },
+    locator: args.locator ?? { kind: "document", label: "document" },
     resolver_version: "library-read-v1",
   });
 }
@@ -706,6 +710,7 @@ export function renderLegalEvidenceAnswer(state: LegalEvidenceTurnState): string
     })).values()];
     let text = claim.text;
     const pending: string[] = [];
+    const replacements = new Map<string, string>();
     citations.forEach((citation, index) => {
       const normalized = text.toLocaleLowerCase("en-CA");
       const candidate = citation.candidates.find((value) => normalized.includes(value.toLocaleLowerCase("en-CA")));
@@ -713,11 +718,14 @@ export function renderLegalEvidenceAnswer(state: LegalEvidenceTurnState): string
       const start = normalized.indexOf(candidate.toLocaleLowerCase("en-CA"));
       const token = `\u0000legal-citation-${index}\u0000`;
       text = text.slice(0, start) + token + text.slice(start + candidate.length);
-      text = text.replace(token, citation.markdown);
+      replacements.set(token, citation.markdown);
     });
-    if (!pending.length) return text;
-    const punctuation = text.match(/[.!?]$/u)?.[0] ?? "";
-    return `${punctuation ? text.slice(0, -1) : text} ${pending.join("; ")}${punctuation}`;
+    if (pending.length) {
+      const punctuation = text.match(/[.!?]$/u)?.[0] ?? "";
+      text = `${punctuation ? text.slice(0, -1) : text} ${pending.join("; ")}${punctuation}`;
+    }
+    for (const [token, markdown] of replacements) text = text.replace(token, markdown);
+    return text;
   }).join("\n\n");
 }
 

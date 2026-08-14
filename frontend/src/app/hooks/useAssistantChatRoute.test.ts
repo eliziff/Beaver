@@ -3,6 +3,13 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { useAssistantChatRoute } from "./useAssistantChatRoute";
 
 const mocks = vi.hoisted(() => ({
+    BeaverApiError: class BeaverApiError extends Error {
+        status: number;
+        constructor({ message, status }: { message: string; status: number }) {
+            super(message);
+            this.status = status;
+        }
+    },
     replace: vi.fn(),
     getChat: vi.fn(),
     getProject: vi.fn(),
@@ -20,6 +27,7 @@ vi.mock("next/navigation", () => ({
     useRouter: () => ({ replace: mocks.replace }),
 }));
 vi.mock("@/app/lib/beaverApi", () => ({
+    BeaverApiError: mocks.BeaverApiError,
     getChat: mocks.getChat,
     getProject: mocks.getProject,
     updateChatProject: mocks.updateChatProject,
@@ -44,6 +52,17 @@ beforeEach(() => {
         setTranscriptVersion: mocks.setTranscriptVersion,
         resumeRunningTurn: mocks.resumeRunningTurn,
     }));
+});
+
+it("stays on the chat when loading fails temporarily", async () => {
+    mocks.getChat.mockRejectedValue(
+        new mocks.BeaverApiError({ message: "Too many requests", status: 429 }),
+    );
+
+    renderHook(() => useAssistantChatRoute({ chatId: "chat-1" }));
+
+    await waitFor(() => expect(mocks.getChat).toHaveBeenCalled());
+    expect(mocks.replace).not.toHaveBeenCalled();
 });
 
 it("reconnects to a turn that kept running after navigation", async () => {

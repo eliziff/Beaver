@@ -268,7 +268,7 @@ export async function appendAssistantEventsToLastAssistantMessage(
 }
 
 function appendCancelledAssistantEvent(events: AssistantEvent[]) {
-  return [...events, { type: "content" as const, text: "Cancelled by user." }];
+  return [...events, { type: "turn_status" as const, status: "cancelled" as const }];
 }
 
 export function buildCancelledAssistantMessage(args: {

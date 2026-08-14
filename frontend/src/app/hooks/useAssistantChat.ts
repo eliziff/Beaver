@@ -16,6 +16,7 @@ import type {
 import { readSseData } from "@/app/lib/sse";
 import {
   finishAssistantStreamEvents,
+  interruptAssistantStreamEvents,
   isStreamingPlaceholder,
   reduceAssistantStreamEvent,
 } from "@/app/lib/assistantStreamEvents";
@@ -45,7 +46,25 @@ type AssistantTurnOptions = {
 export type RejectedAssistantTurn = {
   message: Message;
   options?: AssistantTurnOptions;
+  detail?: string;
+  retryable?: boolean;
 };
+function interruptedTurn(messages: Message[]): RejectedAssistantTurn | null {
+  const assistantIndex = messages.length - 1;
+  const assistant = messages[assistantIndex];
+  if (!assistant?.turnId || assistant.turnStatus !== "interrupted") return null;
+  if (assistant.role === "user") {
+    return { message: assistant, options: { turnId: assistant.turnId } };
+  }
+  const user = messages
+    .slice(0, assistantIndex)
+    .findLast(
+      (message) => message.role === "user" && message.turnId === assistant.turnId,
+    );
+  return user
+    ? { message: user, options: { turnId: assistant.turnId } }
+    : null;
+}
 function readableStreamError(value: unknown): string {
   if (typeof value !== "string" || !value.trim()) {
     return "Unable to get a response. Try again.";
@@ -160,7 +179,10 @@ export function useAssistantChat({
       if (chatId) void stopChat(chatId).catch(() => undefined);
       transcriptPollGenerationRef.current += 1;
       abortControllerRef.current?.abort();
-      publishEvents(finishAssistantStreamEvents(eventsRef.current));
+      publishEvents(interruptAssistantStreamEvents(eventsRef.current, "cancelled"), {
+        error: undefined,
+        turnStatus: "cancelled",
+      });
       setIsResponseLoading(false);
     }
   };
@@ -194,6 +216,7 @@ export function useAssistantChat({
           if (latest.chat.turn_in_progress === false) {
             transcriptVersionRef.current = latestVersion;
             setMessages(latest.messages);
+            setRejectedTurn((current) => interruptedTurn(latest.messages) ?? current);
             setIsResponseLoading(false);
             setChatTurnInProgress?.(targetChatId, false);
             if (!tabularReviewId) void loadChats();
@@ -358,12 +381,6 @@ export function useAssistantChat({
             conflict.code === "chat_retry_blocked_after_mutation";
           const turnAlreadyCompleted =
             conflict.code === "chat_turn_already_completed";
-          if (!retryBlocked && !turnAlreadyCompleted) {
-            setRejectedTurn({
-              message: { ...message },
-              options: turnOptions,
-            });
-          }
           const latest = await getChat(chatId);
           const currentVersion = Number.isSafeInteger(
             conflict.current_version,
@@ -381,7 +398,6 @@ export function useAssistantChat({
             if (!tabularReviewId) await loadChats();
             return null;
           }
-          const last = reloaded[reloaded.length - 1];
           const conflictMessage =
             retryBlocked
               ? typeof conflict.detail === "string"
@@ -390,18 +406,12 @@ export function useAssistantChat({
               : conflict.code === "chat_turn_in_progress"
               ? "Another response is still running. Your draft has been restored and this chat will refresh when that response finishes."
               : "This conversation changed in another window. Review the latest messages; your draft has been restored.";
-          if (last?.role === "assistant") {
-            reloaded[reloaded.length - 1] = {
-              ...last,
-              error: conflictMessage,
-            };
-          } else {
-            reloaded.push({
-              role: "assistant",
-              content: "",
-              error: conflictMessage,
-            });
-          }
+          setRejectedTurn({
+            message: { ...message },
+            options: turnOptions,
+            detail: conflictMessage,
+            retryable: !retryBlocked && conflict.code !== "chat_turn_in_progress",
+          });
           setMessages(reloaded);
           if (conflict.code === "chat_turn_in_progress") {
             pollForCompletedTurn(chatId, currentVersion);
@@ -444,10 +454,21 @@ export function useAssistantChat({
               continue;
             }
             if (data.type === "error") {
+              if (controller.signal.aborted) continue;
               const streamErrorMessage = readableStreamError(data.message);
+              if (streamErrorMessage === "Cancelled by user.") {
+                publishEvents(
+                  interruptAssistantStreamEvents(eventsRef.current, "cancelled"),
+                  { error: undefined, turnStatus: "cancelled" },
+                );
+                setIsResponseLoading(false);
+                if (streamedChatId || chatId) {
+                  setChatTurnInProgress?.(streamedChatId || chatId!, false);
+                }
+                continue;
+              }
               if (
-                data.retryable !== false &&
-                streamErrorMessage !== "Cancelled by user."
+                data.retryable !== false
               ) {
                 setRejectedTurn({
                   message: { ...message },
@@ -592,22 +613,25 @@ export function useAssistantChat({
       }
       return streamedChatId || null;
     } catch (error: unknown) {
-      if (error instanceof Error && error.name === "AbortError") {
-        const cancelledEvents = [
-          ...finishAssistantStreamEvents(eventsRef.current),
-          { type: "content" as const, text: "Cancelled by user." },
-        ];
+      if (controller.signal.aborted) {
+        const cancelledEvents = interruptAssistantStreamEvents(
+          eventsRef.current,
+          "cancelled",
+        );
         flushPendingEventsSnapshot();
         eventsRef.current = cancelledEvents;
         updateLatestAssistantMessage(
           (assistantMessage) => ({
             ...assistantMessage,
             events: cancelledEvents,
+            error: undefined,
+            turnStatus: "cancelled",
           }),
           {
             role: "assistant",
             content: "",
-            events: [{ type: "content", text: "Cancelled by user." }],
+            events: cancelledEvents,
+            turnStatus: "cancelled",
           },
         );
         const interruptedChatId = streamedChatId || chatId;
@@ -618,6 +642,37 @@ export function useAssistantChat({
           );
         }
       } else {
+        const interruptedChatId = streamedChatId || chatId;
+        if (isAnonymousMode && interruptedChatId) {
+          try {
+            const latest = await getChat(interruptedChatId);
+            const latestVersion = latest.chat.transcript_version ?? transcriptVersionRef.current;
+            transcriptVersionRef.current = latestVersion;
+            setMessages(latest.messages);
+            eventsRef.current =
+              latest.messages.findLast((candidate) => candidate.role === "assistant")?.events ?? [];
+            if (latest.chat.turn_in_progress) {
+              setIsResponseLoading(true);
+              setChatTurnInProgress?.(interruptedChatId, true);
+              pollForCompletedTurn(interruptedChatId, latestVersion);
+              return null;
+            }
+            const lastAssistant = latest.messages.findLast(
+              (candidate) => candidate.role === "assistant",
+            );
+            if (
+              interruptedTurn(latest.messages) ||
+              lastAssistant?.events?.some((event) => event.type === "error")
+            ) {
+              setRejectedTurn({ message: { ...message }, options: turnOptions });
+            }
+            setIsResponseLoading(false);
+            setChatTurnInProgress?.(interruptedChatId, false);
+            return null;
+          } catch {
+            // The canonical snapshot is unreachable, so this is a real transport failure.
+          }
+        }
         setRejectedTurn({ message: { ...message }, options: turnOptions });
         const errorMessage = readableStreamError(
           error instanceof Error ? error.message : error,
@@ -662,6 +717,10 @@ export function useAssistantChat({
     setRejectedTurn(null);
     return handleChat(pending.message, pending.options);
   };
+  const restoreMessages = (next: Message[]) => {
+    setMessages(next);
+    setRejectedTurn(interruptedTurn(next));
+  };
   const openChat = (
     nextChatId?: string,
     nextMessages: Message[] = [],
@@ -670,7 +729,7 @@ export function useAssistantChat({
     transcriptPollGenerationRef.current += 1;
     setRejectedTurn(null);
     setChatId(nextChatId);
-    setMessages(nextMessages);
+    restoreMessages(nextMessages);
     transcriptVersionRef.current = transcriptVersion;
   };
   const handleNewChat = async (
@@ -694,7 +753,7 @@ export function useAssistantChat({
     isResponseLoading,
     handleChat,
     handleNewChat,
-    setMessages,
+    setMessages: restoreMessages,
     rejectedTurn,
     clearRejectedTurn,
     retryRejectedTurn,

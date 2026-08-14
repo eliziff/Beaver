@@ -95,6 +95,7 @@ export type AssistantEvent =
   | LocalAutomationEvent
   | { type: "case_opinions"; cluster_id: number; case: unknown }
   | { type: "content"; text: string }
+  | { type: "turn_status"; status: "cancelled" | "interrupted" }
   | { type: "error"; message: string };
 
 export class AssistantStreamError extends Error {

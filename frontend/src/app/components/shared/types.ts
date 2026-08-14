@@ -160,6 +160,7 @@ type Streamable<T> = T & { isStreaming?: boolean };
 export type AssistantEvent =
   | Streamable<{ type: "reasoning"; text: string; debug?: boolean }>
   | { type: "error"; message: string }
+  | { type: "turn_status"; status: "cancelled" | "interrupted" }
   | Streamable<{
       type: "tool_call_start";
       name: string;
@@ -377,13 +378,13 @@ export type AssistantEvent =
       task: string;
       model: string;
       effort: string;
-      status: "running" | "completed" | "error";
+      status: "running" | "completed" | "error" | "cancelled" | "interrupted";
       output?: string;
       error?: string;
       activities?: Array<{
         id: string;
         label: string;
-        status: "running" | "completed" | "error";
+        status: "running" | "completed" | "error" | "cancelled" | "interrupted";
         tool?: string;
         input?: Record<string, unknown>;
         paragraphs?: string[];
@@ -436,6 +437,9 @@ export interface Message {
   citationStatus?: "started" | "partial" | "final";
   events?: AssistantEvent[];
   error?: string;
+  turnId?: string;
+  turnStatus?: "cancelled" | "interrupted";
+  turnComplete?: boolean;
 }
 export interface CitationQuote {
   page?: number;
@@ -462,6 +466,9 @@ export type DocumentCitation = CitationDisplay & {
   version_number?: number | null;
   filename: string;
   quotes: DocumentCitationQuote[];
+  locator_kind?: "paragraph" | "page" | "section" | "footnote";
+  locator?: string | null;
+  pinpoint?: string | null;
 };
 type LegalCitationLocator = {
   locator_kind?: "paragraph" | "page" | "section" | "footnote";
@@ -551,8 +558,9 @@ function expandDocumentQuoteEntry(entry: DocumentCitationQuote): CitationQuote[]
     typeof entry.page === "number"
       ? entry.page
       : parseInt(String(entry.page), 10);
-  if (!Number.isFinite(pageNum)) return [];
-  return [{ page: pageNum, quote: entry.quote }];
+  return Number.isFinite(pageNum)
+    ? [{ page: pageNum, quote: entry.quote }]
+    : [{ quote: entry.quote }];
 }
 function isDocumentCitation(citation: Citation): citation is DocumentCitation {
   return citation.kind == null || citation.kind === "document";
@@ -597,6 +605,7 @@ export function citationPinpoint(a: Citation): string {
     return a.pinpoint?.trim() ?? "";
   }
   if (a.kind === "tabular") return a.col_name;
+  if (a.pinpoint?.trim()) return a.pinpoint.trim();
   const quotes = getDocumentCitationQuotes(a);
   if (isSpreadsheetFilename(a.filename)) {
     return Array.from(

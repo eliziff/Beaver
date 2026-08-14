@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DirectoryEntry, Page } from "@/app/lib/beaverApi";
 
 type Chain = {
@@ -92,34 +92,33 @@ export function usePagedDirectory(
     }, [chains, fetchPage, query]);
     const reload = useCallback((parentId: string | null = null) =>
         fetchPage(parentId, null, false), [fetchPage]);
-    const activeChains = query
-        ? [chains.search].filter((chain): chain is Chain => !!chain)
-        : Object.values(chains);
-    const seen = new Set<string>();
-    const items = activeChains.flatMap((chain) => chain.items).filter((item) => {
-        const key = `${item.kind}:${item.kind === "folder"
-            ? item.folder.id : item.document.id}`;
-        return !seen.has(key) && !!seen.add(key);
-    });
-    const documents = items.flatMap((item) =>
-        item.kind === "document" ? [item.document] : []);
-    const folders = items.flatMap((item) =>
-        item.kind === "folder" ? [item.folder] : []);
-    const hasMoreParents = new Set<string | null>();
-    const loadingParents = new Set<string | null>();
-    for (const [key, chain] of Object.entries(chains)) {
-        const parentId = key === "root" || key === "search" ? null : key;
-        if (chain.nextCursor) hasMoreParents.add(parentId);
-        if (chain.loading) loadingParents.add(parentId);
-    }
+    const derived = useMemo(() => {
+        const activeChains = query
+            ? [chains.search].filter((chain): chain is Chain => !!chain)
+            : Object.values(chains);
+        const seen = new Set<string>();
+        const items = activeChains.flatMap((chain) => chain.items).filter((item) => {
+            const key = `${item.kind}:${item.kind === "folder"
+                ? item.folder.id : item.document.id}`;
+            return !seen.has(key) && !!seen.add(key);
+        });
+        const documents = items.flatMap((item) =>
+            item.kind === "document" ? [item.document] : []);
+        const folders = items.flatMap((item) =>
+            item.kind === "folder" ? [item.folder] : []);
+        const hasMoreParents = new Set<string | null>();
+        const loadingParents = new Set<string | null>();
+        for (const [key, chain] of Object.entries(chains)) {
+            const parentId = key === "root" || key === "search" ? null : key;
+            if (chain.nextCursor) hasMoreParents.add(parentId);
+            if (chain.loading) loadingParents.add(parentId);
+        }
+        return { items, documents, folders, hasMoreParents, loadingParents };
+    }, [chains, query]);
 
     return {
-        items,
-        documents,
-        folders,
+        ...derived,
         loading: chains[keyFor(null, query)]?.loading ?? enabled,
-        hasMoreParents,
-        loadingParents,
         ensureParent,
         loadMore,
         reload,

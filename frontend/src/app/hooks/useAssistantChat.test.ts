@@ -69,7 +69,7 @@ function byteSplitStreamResponse(events: unknown[]) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
   localStorage.clear();
   mocks.loadChats.mockResolvedValue(undefined);
   mocks.generateChatTitle.mockResolvedValue({ title: "Generated title" });
@@ -467,8 +467,6 @@ describe("useAssistantChat local transcript boundary", () => {
       {
         role: "assistant",
         content: "Latest answer",
-        error:
-          "This conversation changed in another window. Review the latest messages; your draft has been restored.",
       },
     ]);
   });
@@ -780,8 +778,11 @@ describe("useAssistantChat local transcript boundary", () => {
       });
     });
 
-    expect(result.current.rejectedTurn).toBeNull();
-    expect(result.current.messages.at(-1)?.error).toBe(detail);
+    expect(result.current.rejectedTurn).toMatchObject({
+      detail,
+      retryable: false,
+    });
+    expect(result.current.messages.at(-1)?.error).toBeUndefined();
     expect(mocks.streamChat).toHaveBeenCalledTimes(1);
   });
 
@@ -868,27 +869,17 @@ describe("useAssistantChat local transcript boundary", () => {
     );
   });
 
-  it("reuses the normal-turn identity when retrying a completed truncated stream", async () => {
-    mocks.streamChat
-      .mockResolvedValueOnce(
-        new Response(
-          [
-            'data: {"type":"chat_id","chatId":"chat-1","transcriptVersion":1}\n\n',
-            'data: {"type":"content_delta","text":"Created."}\n\n',
-            'data: {"type":"transcript_version","transcriptVersion":3}\n\n',
-          ].join(""),
-          { status: 200, headers: { "Content-Type": "text/event-stream" } },
-        ),
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            code: "chat_turn_already_completed",
-            current_version: 3,
-          }),
-          { status: 409, headers: { "Content-Type": "application/json" } },
-        ),
-      );
+  it("accepts canonical completion when the local stream loses its terminal frame", async () => {
+    mocks.streamChat.mockResolvedValueOnce(
+      new Response(
+        [
+          'data: {"type":"chat_id","chatId":"chat-1","transcriptVersion":1}\n\n',
+          'data: {"type":"content_delta","text":"Created."}\n\n',
+          'data: {"type":"transcript_version","transcriptVersion":3}\n\n',
+        ].join(""),
+        { status: 200, headers: { "Content-Type": "text/event-stream" } },
+      ),
+    );
     mocks.getChat.mockResolvedValue({
       chat: { id: "chat-1", transcript_version: 3 },
       messages: [
@@ -909,19 +900,8 @@ describe("useAssistantChat local transcript boundary", () => {
     const firstTurnId =
       mocks.streamChat.mock.calls[0][0].current_turn?.turn_id;
     expect(firstTurnId).toEqual(expect.any(String));
-    expect(result.current.rejectedTurn?.options?.turnId).toBe(firstTurnId);
-
-    await act(async () => {
-      await result.current.retryRejectedTurn();
-    });
-
-    expect(mocks.streamChat.mock.calls[1][0]).toEqual(
-      expect.objectContaining({
-        expected_version: 3,
-        current_turn: expect.objectContaining({ turn_id: firstTurnId }),
-      }),
-    );
     expect(result.current.rejectedTurn).toBeNull();
+    expect(mocks.streamChat).toHaveBeenCalledTimes(1);
     expect(result.current.messages).toEqual([
       { role: "user", content: "Create it once" },
       { role: "assistant", content: "Created." },
@@ -1297,9 +1277,7 @@ describe("useAssistantChat local transcript boundary", () => {
               payload.signal?.addEventListener(
                 "abort",
                 () => {
-                  const error = new Error("Stream aborted.");
-                  error.name = "AbortError";
-                  controller.error(error);
+                  controller.error(new Error("NetworkError"));
                 },
                 { once: true },
               );
@@ -1318,8 +1296,8 @@ describe("useAssistantChat local transcript boundary", () => {
           content: "",
           events: [
             { type: "content", text: expected },
-            { type: "content", text: "Cancelled by user." },
           ],
+          turnStatus: "cancelled",
         },
       ],
     });
@@ -1349,7 +1327,8 @@ describe("useAssistantChat local transcript boundary", () => {
     expect(requestSignal?.aborted).toBe(true);
     expect(result.current.messages.at(-1)?.events).toEqual([
       { type: "content", text: expected },
-      { type: "content", text: "Cancelled by user." },
     ]);
+    expect(result.current.messages.at(-1)?.turnStatus).toBe("cancelled");
+    expect(result.current.rejectedTurn).toBeNull();
   });
 });

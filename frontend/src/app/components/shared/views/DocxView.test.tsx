@@ -210,7 +210,7 @@ describe("DocxView", () => {
         expect(mocks.renderDocument).toHaveBeenCalledTimes(2);
     });
 
-    it("fits the widest page content without stretching smaller pages", () => {
+    it("fits pages from their declared Word width without forcing layout", () => {
         const viewport = document.createElement("div");
         viewport.style.padding = "0 20px";
         Object.defineProperty(viewport, "clientWidth", {
@@ -219,17 +219,26 @@ describe("DocxView", () => {
         });
         const container = document.createElement("div");
         container.innerHTML =
-            '<div class="docx-wrapper"><section class="docx"></section></div>';
+            '<div class="docx-wrapper"><section class="docx" style="width:600pt"></section></div>';
         const page = container.querySelector<HTMLElement>("section.docx")!;
         Object.defineProperties(page, {
-            offsetWidth: { configurable: true, value: 800 },
-            scrollWidth: { configurable: true, value: 1000 },
+            offsetWidth: {
+                configurable: true,
+                get: () => {
+                    throw new Error("forced layout");
+                },
+            },
+            scrollWidth: {
+                configurable: true,
+                get: () => {
+                    throw new Error("forced layout");
+                },
+            },
         });
 
         fitDocxPages([page], viewport);
 
-        expect(page.dataset.docxNaturalWidth).toBe("1000");
-        expect(Number(page.style.zoom)).toBeCloseTo(0.46);
+        expect(Number(page.style.zoom)).toBeCloseTo(0.575);
     });
 
     it("keeps failed vector media quiet without collapsing its layout box", () => {

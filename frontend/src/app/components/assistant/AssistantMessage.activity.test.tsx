@@ -22,6 +22,8 @@ const editEvent = (
         change_id: "change-1",
         deleted_text: "five",
         inserted_text: "three",
+        context_before: "The term is ",
+        context_after: " years from closing.",
         diff: [
             { kind: "delete", text: "five" },
             { kind: "insert", text: "three" },
@@ -42,6 +44,22 @@ describe("AssistantMessage activity", () => {
         expect(screen.getByRole("button", { name: "Accept" })).toBeDisabled();
         expect(screen.getByText("five")).toHaveClass("line-through");
         expect(screen.getByText("three")).not.toHaveClass("line-through");
+        expect(screen.getByText("The term is")).toBeVisible();
+        expect(screen.getByText("years from closing.")).toBeVisible();
+    });
+
+    it("shows a rejected edit as the retained original", () => {
+        render(
+            <AssistantMessage
+                events={[editEvent("manual")]}
+                resolvedEditStatuses={{ "edit-1": "rejected" }}
+            />,
+        );
+
+        expect(screen.getByText("Kept original")).toBeVisible();
+        expect(screen.getByText("five")).not.toHaveClass("line-through");
+        expect(screen.getByText("three")).toHaveClass("line-through");
+        expect(screen.queryByRole("button", { name: "Accept" })).toBeNull();
     });
 
     it("renders the Auto Mode audit from the canonical minimal diff", () => {

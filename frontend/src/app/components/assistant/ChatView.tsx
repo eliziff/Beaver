@@ -9,6 +9,7 @@ import {
 } from "react";
 import {
     ArrowDown,
+    CircleStop,
 } from "lucide-react";
 import { UserMessage } from "./UserMessage";
 import { AssistantMessage } from "./AssistantMessage";
@@ -179,20 +180,16 @@ function legalCitationTab(
     }
     return null;
 }
-function documentCitationTab(
-    citation: DocumentCitation,
-    showQuotes: boolean,
-): AssistantDocumentTab {
-    const tab = {
+function documentCitationTab(citation: DocumentCitation): AssistantDocumentTab {
+    return {
         id: citation.document_id,
         documentId: citation.document_id,
         filename: citation.filename,
         versionId: citation.version_id ?? null,
         versionNumber: citation.version_number ?? null,
+        kind: "citation",
+        citation,
     };
-    return showQuotes
-        ? { ...tab, kind: "citation", citation }
-        : { ...tab, kind: "document" };
 }
 export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     {
@@ -347,7 +344,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         }
         if (citation.kind === "case") return openCase(citation);
         if (citation.kind === "document" || !citation.kind) {
-            return upsertTab(documentCitationTab(citation, false));
+            return upsertTab(documentCitationTab(citation));
         }
         if (citation.kind === "a2aj" || citation.kind === "public_legal") {
             const tab = legalCitationTab(citation, true);
@@ -433,13 +430,8 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             setResponseAnnouncement("Assistant is responding.");
         } else if (wasLoading) {
             const latestAssistant = messages[lastAssistantIndex];
-            const wasCancelled = latestAssistant?.events?.some(
-                (event) =>
-                    event.type === "content" &&
-                    event.text.trim() === "Cancelled by user.",
-            );
             setResponseAnnouncement(
-                latestAssistant?.error || wasCancelled
+                latestAssistant?.error || latestAssistant?.turnStatus
                     ? ""
                     : "Response ready.",
             );
@@ -1028,7 +1020,9 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                                                 openReadSubagentSource
                                             }
                                             minHeight={
-                                                i === lastAssistantIndex
+                                                msg.turnStatus
+                                                    ? "0px"
+                                                    : i === lastAssistantIndex
                                                     ? layout === "panel"
                                                         ? "min(50vh, 28rem)"
                                                         : LATEST_ASSISTANT_MIN_HEIGHT
@@ -1059,6 +1053,19 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                                             }
                                             resolvedEditStatuses={editState.statuses}
                                         />
+                                    )}
+                                    {msg.role === "assistant" && msg.turnStatus && (
+                                        <div
+                                            role="status"
+                                            className="mt-2 flex items-center gap-1.5 text-xs text-gray-500"
+                                        >
+                                            <CircleStop className="size-3.5" aria-hidden="true" />
+                                            <span>
+                                                {msg.turnStatus === "cancelled"
+                                                    ? "Response stopped"
+                                                    : "Response interrupted"}
+                                            </span>
+                                        </div>
                                     )}
                                 </div>
                             ))}
@@ -1161,13 +1168,13 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                         : "Response interrupted"
                 }
                 message={
-                    rejectedTurn?.options?.askInputsResponse
+                    rejectedTurn?.detail ?? (rejectedTurn?.options?.askInputsResponse
                         ? "Your selections were kept. Retry them after reviewing the latest response."
-                        : "Retry the original request, or dismiss this notice to edit the restored draft."
+                        : "Retry the original request, or dismiss this notice to edit the restored draft.")
                 }
                 onClose={() => onRejectedTurnRestored?.()}
                 primaryAction={
-                    onRetryRejectedTurn
+                    onRetryRejectedTurn && rejectedTurn?.retryable !== false
                         ? {
                               label: "Retry",
                               onClick: () => {

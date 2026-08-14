@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { CircleStop, LoaderCircle, X } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import {
     ReadSubagentDock,
@@ -47,6 +47,12 @@ export function ReadSubagentTabs({
                     const done = group.panels.every(
                         (panel) => panel.status === "completed",
                     );
+                    const running = group.panels.some(
+                        (panel) => panel.status === "running",
+                    );
+                    const interrupted = group.panels.some(
+                        (panel) => panel.status === "cancelled" || panel.status === "interrupted",
+                    );
                     return (
                         <div
                             key={group.id}
@@ -83,7 +89,24 @@ export function ReadSubagentTabs({
                                 <span className="min-w-0 flex-1 truncate">
                                     {group.label}
                                 </span>
-                                {done && (
+                                {running ? (
+                                    <span
+                                        role="status"
+                                        className="shrink-0"
+                                        title="Working"
+                                    >
+                                        <LoaderCircle
+                                            className="size-3 motion-safe:animate-spin"
+                                            aria-hidden="true"
+                                        />
+                                        <span className="sr-only">Working</span>
+                                    </span>
+                                ) : interrupted ? (
+                                    <span title="Stopped" className="shrink-0">
+                                        <CircleStop className="size-3 text-gray-400" aria-hidden="true" />
+                                        <span className="sr-only">Stopped</span>
+                                    </span>
+                                ) : done && (
                                     <span
                                         className="size-1.5 shrink-0 rounded-full bg-gray-400"
                                         title="Done"

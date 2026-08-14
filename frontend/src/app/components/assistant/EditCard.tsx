@@ -186,7 +186,16 @@ export function EditCard({
         { onResolveStart, onResolved, onError },
     );
     const resolved = status !== "pending";
-    const displayDiff = annotation.diff.map((part, index, parts) => {
+    const diff = [
+        ...(annotation.context_before
+            ? [{ kind: "equal" as const, text: annotation.context_before }]
+            : []),
+        ...annotation.diff,
+        ...(annotation.context_after
+            ? [{ kind: "equal" as const, text: annotation.context_after }]
+            : []),
+    ];
+    const displayDiff = diff.map((part, index, parts) => {
         if (part.kind !== "equal" || part.text.length <= 80) return part;
         if (index === 0)
             return { ...part, text: `…${part.text.slice(-60)}` };
@@ -199,7 +208,13 @@ export function EditCard({
     });
 
     return (
-        <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+        <div
+            className={
+                resolved
+                    ? "rounded-lg bg-gray-50 px-3 py-2"
+                    : "rounded-xl border border-gray-200 bg-white p-3 shadow-sm"
+            }
+        >
             {changeNumber !== undefined && (
                 <p className="mb-1.5 text-xs text-gray-400">{changeNumber}</p>
             )}
@@ -208,25 +223,39 @@ export function EditCard({
                     {annotation.reason}
                 </p>
             )}
-            <div className="whitespace-pre-wrap rounded-lg bg-gray-100/70 px-2 py-2 font-serif text-sm leading-relaxed">
+            <div
+                className={`whitespace-pre-wrap font-serif text-sm leading-relaxed ${
+                    resolved ? "" : "rounded-lg bg-gray-100/70 px-2 py-2"
+                }`}
+            >
                 {displayDiff.map((part, index) => (
                     <span
                         key={`${part.kind}-${index}`}
                         className={
-                            part.kind === "insert"
-                                ? "bg-green-100 text-green-800"
-                                : part.kind === "delete"
-                                  ? "bg-red-100 text-red-700 line-through"
-                                  : "text-gray-700"
+                            status === "rejected"
+                                ? part.kind === "insert"
+                                    ? "text-gray-400 line-through"
+                                    : part.kind === "delete"
+                                      ? "bg-gray-200/70 text-gray-900"
+                                      : "text-gray-600"
+                                : part.kind === "insert"
+                                  ? "bg-green-100 text-green-800"
+                                  : part.kind === "delete"
+                                    ? "bg-red-100 text-red-700 line-through"
+                                    : "text-gray-700"
                         }
                     >
                         {part.text}
                     </span>
                 ))}
             </div>
-            {automatic ? (
-                <p className="mt-3 text-xs font-medium text-gray-500">
-                    Applied in Auto Mode
+            {resolved ? (
+                <p className="mt-2 text-xs font-medium text-gray-500">
+                    {automatic
+                        ? "Applied in Auto Mode"
+                        : status === "rejected"
+                          ? "Kept original"
+                          : "Accepted"}
                 </p>
             ) : (
                 <div className="mt-3 flex gap-2">
@@ -236,7 +265,7 @@ export function EditCard({
                         onClick={() => resolve("accept")}
                         disabled={disabled}
                     >
-                        {status === "accepted" ? "Accepted" : "Accept"}
+                        Accept
                     </PillButton>
                     <PillButton
                         tone="white"
@@ -244,19 +273,13 @@ export function EditCard({
                         onClick={() => resolve("reject")}
                         disabled={disabled}
                     >
-                        {status === "rejected" ? "Rejected" : "Reject"}
+                        Reject
                     </PillButton>
                     {onViewClick && (
                         <PillButton
                             tone="black"
                             size="sm"
                             onClick={() => onViewClick(annotation)}
-                            disabled={resolved}
-                            title={
-                                resolved
-                                    ? "This change is no longer in the document."
-                                    : undefined
-                            }
                             className="ml-auto"
                         >
                             View

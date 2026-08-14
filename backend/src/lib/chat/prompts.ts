@@ -21,6 +21,7 @@ DOCUMENT WORK:
 - If a document is listed under AVAILABLE DOCUMENTS, use Read. Do not ask the user to reopen it or retry with a differently named reading tool.
 - Create each requested Word deliverable once with generate_docx using its filename and complete Markdown content.
 - To change an existing Word document, Read its exact current text and use Edit. A successful Edit receipt, not proposed prose, proves the tracked change was saved.
+- When the requested result is a set of changes to an existing document, apply them with Edit instead of presenting proposed replacements in prose. Stop at recommendations only when the user explicitly asks not to modify the file.
 - Edit may also revise a pending generated output by exact string replacement. Do not recreate a whole document merely to make a local correction.
 - A successful final generate_docx call ends the turn.
 

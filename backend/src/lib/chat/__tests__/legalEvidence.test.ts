@@ -10,7 +10,7 @@ import {
   submitLegalEvidenceAnswer,
 } from "../legalEvidence";
 
-function passage() {
+function passage(locatorLabel = "par12") {
   return createBenchmarkEvidence({
     jurisdiction: "CA",
     sourceClass: "case",
@@ -22,7 +22,7 @@ function passage() {
     dataset: "courtlistener",
     externalUrl: "https://example.test/case",
     locatorKind: "paragraph",
-    locatorLabel: "par12",
+    locatorLabel,
   });
 }
 
@@ -56,5 +56,22 @@ describe("production legal evidence", () => {
       evidence_ids: [evidence.evidence_id],
     }] }, state);
     expect(renderLegalEvidenceAnswer(state)).toContain("[2024 SCC 1 at para. 12](https://example.test/case)");
+  });
+
+  it("does not rewrite a citation pill when one claim cites several passages", () => {
+    const state = createLegalEvidenceTurnState("citation_structure");
+    const first = passage();
+    const second = passage("par13");
+    registerLegalEvidence(state, first);
+    registerLegalEvidence(state, second);
+    submitLegalEvidenceAnswer({ claims: [{
+      text: "The court in 2024 SCC 1 allowed the appeal.",
+      evidence_ids: [first.evidence_id, second.evidence_id],
+    }] }, state);
+
+    const rendered = renderLegalEvidenceAnswer(state)!;
+    expect(rendered).toContain("[2024 SCC 1 at para. 12](https://example.test/case)");
+    expect(rendered).toContain("[2024 SCC 1 at para. 13](https://example.test/case)");
+    expect(rendered).not.toContain("[[");
   });
 });

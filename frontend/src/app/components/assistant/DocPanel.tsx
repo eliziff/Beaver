@@ -2,17 +2,11 @@ import { useState } from "react";
 import { Download, Loader2 } from "lucide-react";
 import { apiFetch } from "@/app/lib/beaverApi";import { downloadBlob } from "@/app/lib/download";
 import { PillButton } from "@/app/components/ui/pill-button";
-import { DocumentViewer } from "../shared/views/DocumentViewer";import {
-    CitationQuotesHeader,
-    type CitationQuoteHeaderItem,
-} from "./CitationQuotesHeader";
+import { DocumentViewer } from "../shared/views/DocumentViewer";
 import { useEditResolution } from "./EditCard";
 import { DocumentAutomation } from "@/app/components/documents/DocumentAutomation";
 import {
-    cleanCitationQuoteText,
     expandCitationToEntries,
-    formatCitationPage,
-    formatCitationQuotePage,
     getDocumentCitationQuotes,
     isDocxFilename,
     isSpreadsheetFilename,
@@ -20,7 +14,6 @@ import {
 import type {
     CitationQuote,
     Citation,
-    DocumentCitation,
     EditAnnotation,
     EditResolveHandlers,
 } from "../shared/types";
@@ -68,37 +61,17 @@ export function DocPanel({
     const useDocxView = isDocxFilename(filename);
     const useSheetView = isSpreadsheetFilename(filename);
     const [actionVersionId, setActionVersionId] = useLocalOverride(versionId);
-    const citationQuoteId =
-        mode.kind === "citation" ? `document:${mode.citation.ref}:0` : null;
-    const [activeCitationQuoteId, setActiveCitationQuoteId] =
-        useLocalOverride(citationQuoteId);
-    const [quoteFocusKey, setQuoteFocusKey] = useState(0);
-    const selectedQuote =
-        mode.kind === "citation" && activeCitationQuoteId
-            ? getDocumentCitationQuotes(mode.citation)[
-                  Number(activeCitationQuoteId.split(":").at(-1))
-              ]
+    const documentQuotes =
+        mode.kind === "citation"
+            ? getDocumentCitationQuotes(mode.citation)
             : undefined;
     const quotes: CitationQuote[] | undefined =
-        mode.kind !== "citation"
-            ? undefined
-            : selectedQuote
-              ? expandCitationToEntries({
-                    ...(mode.citation as DocumentCitation),
-                    quotes: [selectedQuote],
-                })
-              : [];
-    const highlightCells =
-        mode.kind !== "citation"
-            ? undefined
-            : selectedQuote && (selectedQuote.cell || selectedQuote.sheet)
-              ? [{ sheet: selectedQuote.sheet, cell: selectedQuote.cell }]
-              : [];
-    const handleCitationQuoteSelect = (quoteId: string) => {
-        const shouldSelect = activeCitationQuoteId !== quoteId;
-        setActiveCitationQuoteId(shouldSelect ? quoteId : null);
-        if (shouldSelect) setQuoteFocusKey((current) => current + 1);
-    };
+        mode.kind === "citation"
+            ? expandCitationToEntries(mode.citation)
+            : undefined;
+    const highlightCells = documentQuotes
+        ?.filter((quote) => quote.cell || quote.sheet)
+        .map(({ cell, sheet }) => ({ cell, sheet }));
     const highlightEdit =
         mode.kind === "edit"
             ? {
@@ -122,19 +95,11 @@ export function DocPanel({
                     onDocumentChanged={setActionVersionId}
                 />
             )}
-            {mode.kind === "citation" && (
-                <RelevantQuoteSection
-                    citation={mode.citation}
-                    filename={filename}
-                    activeQuoteId={activeCitationQuoteId}
-                    onQuoteSelect={handleCitationQuoteSelect}
-                />
-            )}
             {mode.kind === "edit" && (
                 <TrackedChangeHeader {...mode} />
             )}
             <div className="flex flex-1 min-h-0 flex-col px-3 py-3">
-                <DocumentViewer                    documentId={documentId}                    kind={useDocxView ? "docx" : useSheetView ? "spreadsheet" : "pdf"}                    versionId={actionVersionId}                    quotes={quotes}                    quoteFocusKey={quoteFocusKey}                    highlightEdit={highlightEdit}                    highlightCells={highlightCells}                    warning={warning ?? null}                    onWarningDismiss={onWarningDismiss}                    initialScrollTop={initialScrollTop ?? null}                    onScrollChange={onScrollChange}                />            </div>
+                <DocumentViewer                    documentId={documentId}                    kind={useDocxView ? "docx" : useSheetView ? "spreadsheet" : "pdf"}                    versionId={actionVersionId}                    quotes={quotes}                    highlightEdit={highlightEdit}                    highlightCells={highlightCells}                    warning={warning ?? null}                    onWarningDismiss={onWarningDismiss}                    initialScrollTop={initialScrollTop ?? null}                    onScrollChange={onScrollChange}                />            </div>
         </div>
     );
 }
@@ -223,53 +188,6 @@ function DocumentTitleRow({
                 />
             </div>
         </div>
-    );
-}
-function RelevantQuoteSection({
-    citation,
-    filename,
-    activeQuoteId,
-    onQuoteSelect,
-}: {
-    citation: Citation;
-    filename: string;
-    activeQuoteId: string | null;
-    onQuoteSelect: (quoteId: string) => void;
-}) {
-    const citationQuotes = getDocumentCitationQuotes(citation);
-    const pagesLabel = formatCitationPage(citation);
-    const citationText = [filename, pagesLabel].filter(Boolean).join(", ");
-    const relevantQuotes: CitationQuoteHeaderItem[] = citationQuotes.map(
-        (quote, index) => {
-            const pageLabel = formatCitationQuotePage(
-                citation,
-                quote.page,
-                quote,
-            );
-            return {
-                id: `document:${citation.ref}:${index}`,
-                quote: cleanCitationQuoteText(quote.quote),                inlineDetail: pageLabel || null,
-                citationText: [filename, pageLabel].filter(Boolean).join(", "),
-            };
-        },
-    );
-    const currentIndex = Math.max(
-        0,
-        relevantQuotes.findIndex((quote) => quote.id === activeQuoteId),
-    );
-    return (
-        <CitationQuotesHeader
-            quotes={relevantQuotes}
-            activeQuoteId={activeQuoteId}
-            currentIndex={currentIndex}
-            citationRef={citation.ref}
-            citationText={citationText}
-            onSelect={(quote) => onQuoteSelect(quote.id)}
-            onIndexChange={(index) => {
-                const quote = relevantQuotes[index];
-                if (quote) onQuoteSelect(quote.id);
-            }}
-        />
     );
 }
 function DownloadButton({

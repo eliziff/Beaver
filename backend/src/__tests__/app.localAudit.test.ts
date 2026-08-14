@@ -8,6 +8,11 @@ vi.mock("../lib/localMode", () => ({
 import { app } from "../app";
 
 describe("anonymous-local app", () => {
+  it("does not rate-limit its single local user", async () => {
+    const response = await request(app).get("/audit");
+    expect(response.headers).not.toHaveProperty("ratelimit-limit");
+  });
+
   it("does not expose the cloud audit route", async () => {
     const response = await request(app).get("/audit");
     expect(response.status).toBe(404);
