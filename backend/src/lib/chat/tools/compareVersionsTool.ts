@@ -28,7 +28,10 @@ export const COMPARE_VERSIONS_TOOLS: OpenAIToolSchema[] = [
     {
       type: "object",
       properties: {
-        document_id: { type: "string" },
+        document_id: {
+          type: "string",
+          description: "Filename from Glob, or document_id when Glob reports a duplicate filename.",
+        },
         old_version_id: {
           type: "string",
           description:

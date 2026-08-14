@@ -23,6 +23,11 @@ const text = (value: unknown) =>
 const number = (value: unknown) =>
   typeof value === "number" && Number.isFinite(value) ? value : null;
 
+export type LocalAutomationEvent = Record<string, unknown> & {
+  type: "automation_run";
+  id: string;
+};
+
 function counts(tool: string, value: Record<string, unknown>) {
   const fields =
     tool === "library_fix_docx_supras"
@@ -49,7 +54,7 @@ export function localAutomationEvent(
   tool: string,
   content: string | undefined,
   id: string,
-): Record<string, unknown> | null {
+): LocalAutomationEvent | null {
   if (!TOOLS.has(tool) || !content) return null;
   let value: Record<string, unknown> | null = null;
   try {

@@ -1,5 +1,4 @@
 import type {
-  NormalizedToolCall,
   NormalizedToolResult,
   OpenAIToolSchema,
 } from "../llm";
@@ -21,7 +20,6 @@ import { normalizeAskInputsEvent } from "./askInputs";
 import { readTabularCells } from "./tabularCells";
 import { TABULAR_TOOLS } from "./tools/toolSchemas";
 import type { ChatToolContext, ChatToolRunner } from "./turnEngine";
-import type { ReadSubagentEvent } from "./readSubagents";
 import type { TabularCellStore } from "./types";
 
 const MUTATIONS = new Set([
@@ -124,10 +122,8 @@ export function createLocalChatToolRunner(options: {
   allowedDocumentIds?: Set<string>;
   tabular?: TabularCellStore;
   onMutationCommitted: () => void;
-  onSubagentEvent: (event: ReadSubagentEvent) => void;
 }) {
   const main = runnerState();
-  const events: Record<string, unknown>[] = [];
   let mutationCommitted = false;
   let mainRunner: ChatToolRunner | null = null;
   let autoFlushCount = 0;
@@ -170,9 +166,9 @@ export function createLocalChatToolRunner(options: {
           indices(call.input.col_indices),
           indices(call.input.row_indices),
         );
-        const event = { type: "doc_read", filename: read.label };
+        const event = { type: "doc_read" as const, filename: read.label };
         if (scope === "main") {
-          events.push(event);
+          context.addEvent(event);
           context.emit(event);
         }
         return [[call.id, { tool_use_id: call.id, content: read.content }]];
@@ -214,7 +210,7 @@ export function createLocalChatToolRunner(options: {
           const result = results.find((item) => item.tool_use_id === call.id);
           const event = documentEvent(call.name, mutationContent(result));
           if (event) {
-            events.push(event);
+            context.addEvent(event);
             context.emit({
               type: event.type === "doc_created" ? "doc_created_start" : "doc_edited_start",
               filename: event.filename,
@@ -223,7 +219,7 @@ export function createLocalChatToolRunner(options: {
           }
           const automation = localAutomationEvent(call.name, result?.content, call.id);
           if (automation) {
-            events.push(automation);
+            context.addEvent(automation);
             context.emit(automation);
           }
         }
@@ -251,16 +247,8 @@ export function createLocalChatToolRunner(options: {
     tools,
     readerTools: tools,
     createToolRunner,
-    events,
     pdfHandles: main.pdfHandles,
     mutationCommitted: () => mutationCommitted,
-    onSubagentEvent(event: ReadSubagentEvent) {
-      const index = events.findIndex((candidate) =>
-        candidate.type === "subagent_run" && candidate.id === event.id);
-      if (index < 0) events.push(event);
-      else events[index] = event;
-      options.onSubagentEvent(event);
-    },
     async beforeFinalize(context: ChatToolContext) {
       const draft = pendingFinalAgentDraft(main.requirements);
       if (!draft || !mainRunner) return;
