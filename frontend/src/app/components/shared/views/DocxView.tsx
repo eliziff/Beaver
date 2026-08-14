@@ -58,27 +58,16 @@ export function fitDocxPages(
         (parseFloat(styles.paddingLeft) || 0) -
         (parseFloat(styles.paddingRight) || 0);
     if (available <= 0) return;
-    const sizes = pages.map((page) => ({
-        page,
-        width: Number(page.dataset.docxNaturalWidth),
-    }));
-    for (const entry of sizes) {
-        if (!Number.isFinite(entry.width) || entry.width <= 0) {
-            entry.page.style.zoom = "1";
-        }
-    }
-    for (const entry of sizes) {
-        if (!Number.isFinite(entry.width) || entry.width <= 0) {
-            entry.width = Math.max(
-                entry.page.offsetWidth,
-                entry.page.scrollWidth,
-            );
-            if (entry.width > 0) {
-                entry.page.dataset.docxNaturalWidth = String(entry.width);
-            }
-        }
-    }
-    for (const { page, width } of sizes) {
+    for (const page of pages) {
+        const declared = page.style.width;
+        const value = parseFloat(declared);
+        const width = Number.isFinite(value)
+            ? declared.endsWith("pt")
+                ? value * (4 / 3)
+                : declared.endsWith("px")
+                  ? value
+                  : 0
+            : 0;
         if (width > 0) page.style.zoom = String(Math.min(1, available / width));
     }
 }
@@ -152,7 +141,7 @@ function scrollToHighlight(
     const scrollRect = scrollEl.getBoundingClientRect();
     const targetRect = anchor.getBoundingClientRect();
     const offset = targetRect.top - scrollRect.top + scrollEl.scrollTop - 80;
-    scrollEl.scrollTo({ top: Math.max(0, offset), behavior: "smooth" });
+    scrollEl.scrollTop = Math.max(0, offset);
     const flashed = [insEl, delEl].filter((el): el is HTMLElement => !!el);
     flashed.forEach((el) => el.classList.add("docx-edit-flash"));
     window.setTimeout(() => {
@@ -212,10 +201,7 @@ export function DocxView({
             scrollEl.scrollTop -
             scrollEl.clientHeight / 2 +
             targetRect.height / 2;
-        scrollEl.scrollTo({
-            top: Math.max(0, offset),
-            behavior: "instant" as ScrollBehavior,
-        });
+        scrollEl.scrollTop = Math.max(0, offset);
         return true;
     };
     const applyDocxScale = () => {

@@ -155,6 +155,22 @@ describe("local Library PDF parse routes", () => {
     });
   });
 
+  it("queues the native Kraken provider through the same OCR action", async () => {
+    mocks.readLocalPdfParseState.mockResolvedValue({
+      status: "degraded",
+      diagnostic_summary: { by_code: { OCR_REQUIRED: 1 } },
+    });
+
+    const response = await request(app)
+      .post("/library/files/documents/document-1/actions/retry-pdf-parse")
+      .send({ ocr_provider: "kraken-lite" });
+
+    expect(response.status).toBe(202);
+    expect(mocks.queueLocalPdfParse).toHaveBeenCalledWith(
+      expect.objectContaining({ ocrProvider: "kraken-lite" }),
+    );
+  });
+
   it("returns a safe actionable response when Tesseract is unavailable", async () => {
     mocks.readLocalPdfParseState.mockResolvedValue({
       status: "degraded",

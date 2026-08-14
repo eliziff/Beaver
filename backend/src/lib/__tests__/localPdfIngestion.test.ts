@@ -7,9 +7,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const runLegalPdf = vi.hoisted(() => vi.fn());
 const renameFault = vi.hoisted(() => ({ remaining: 0, injected: 0 }));
 
-vi.mock("../legalPdfProcess", () => ({
-  LEGAL_PDF_DOCUMENT_SCHEMA: "legalpdf.document.v2",
-  LEGAL_PDF_PARSER_VERSION: "0.3.0",
+vi.mock("../legalPdfProcess", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../legalPdfProcess")>()),
   runLegalPdf,
 }));
 vi.mock("node:fs/promises", async (importOriginal) => {
@@ -215,8 +214,9 @@ async function fakeLegalPdf(
   diagnosticCode = "OCR_REQUIRED",
 ) {
   if (args[0] === "ocr-identity") {
+    const provider = args[args.indexOf("--provider") + 1];
     return {
-      stdout: JSON.stringify({ provider: "tesseract", identity }),
+      stdout: JSON.stringify({ provider, identity }),
       stderr: "",
     };
   }
@@ -262,6 +262,11 @@ afterEach(async () => {
   delete process.env.MIKE_PDF_OCR_LANGUAGE;
   delete process.env.MIKE_PDF_OCR_DPI;
   delete process.env.MIKE_PDF_OCR_PSM;
+  delete process.env.MIKE_PDF_OCR_PROVIDER;
+  delete process.env.LEGALPDF_KRAKEN_MODEL;
+  delete process.env.LEGALPDF_KRAKEN_CODEC;
+  delete process.env.LEGALPDF_ONNX_RUNTIME;
+  delete process.env.LEGALPDF_KRAKEN_TESSERACT_LIBRARY;
   vi.resetModules();
   if (temporaryDirectory) {
     await rm(temporaryDirectory, { recursive: true, force: true });
@@ -677,6 +682,61 @@ describe("local PDF ingestion", () => {
       ocr_psm: 3,
     });
     await waitForState(ingestion, file!.path, "ready");
+  });
+
+  it("runs the native Kraken provider through the durable parse contract", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-pdf-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const store = await import("../localDocumentStore");
+    const ingestion = await import("../localPdfIngestion");
+    const document = await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "scan.pdf",
+      bytes: Buffer.from("%PDF-1.4 scan"),
+    });
+    const file = await store.getLocalVersionFile("local-user", document.id);
+    for (const name of [
+      "LEGALPDF_KRAKEN_MODEL",
+      "LEGALPDF_KRAKEN_CODEC",
+      "LEGALPDF_ONNX_RUNTIME",
+      "LEGALPDF_KRAKEN_TESSERACT_LIBRARY",
+    ]) {
+      process.env[name] = file!.path;
+    }
+    const identity = `kraken-lite-rust-v2:${"a".repeat(350)}`;
+    runLegalPdf.mockImplementation((args: string[]) =>
+      fakeLegalPdf(args, "ready", identity),
+    );
+
+    await ingestion.queueLocalPdfParse({
+      documentId: document.id,
+      versionId: file!.version.id,
+      sourcePath: file!.path,
+      ocrProvider: "kraken-lite",
+      force: true,
+    });
+    const state = await waitForState(ingestion, file!.path, "ready");
+    const parseArgs = runLegalPdf.mock.calls.find(
+      ([args]) => args[0] === "parse" && args.includes("kraken-lite"),
+    )?.[0];
+
+    expect(state!.parser_config).toMatchObject({
+      ocr_provider: "kraken-lite",
+      ocr_identity: identity,
+      ocr_dpi: 180,
+    });
+    expect(parseArgs).toEqual(
+      expect.arrayContaining([
+        "--ocr-provider",
+        "kraken-lite",
+        "--kraken-model",
+        file!.path,
+        "--expected-ocr-identity",
+        identity,
+      ]),
+    );
+    expect(parseArgs).not.toContain("--ocr-language");
   });
 
   it("runs bounded Codex repair only when explicitly queued and records its identity", async () => {

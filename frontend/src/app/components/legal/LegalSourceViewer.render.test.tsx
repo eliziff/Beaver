@@ -304,6 +304,31 @@ describe("legal source reader", () => {
         );
     });
 
+    it("lands a verified quote just below the top of the source viewer", async () => {
+        api.direct.mockResolvedValue(multiSlicePayload());
+        const rect = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect")
+            .mockImplementation(function () {
+                return {
+                    top: this.hasAttribute("data-qspan") ? 240 : 100,
+                } as DOMRect;
+            });
+        const height = vi.spyOn(HTMLElement.prototype, "clientHeight", "get")
+            .mockReturnValue(800);
+        const { container } = render(
+            <LegalSourceViewer
+                citation="2099 SCC 1"
+                docType="cases"
+                quotes={[{ quote: "First proposition." }]}
+            />,
+        );
+        await screen.findByRole("heading", { name: "Fixture v. Test" });
+        const reader = container.querySelector<HTMLElement>(".overflow-y-auto")!;
+
+        await waitFor(() => expect(reader.scrollTop).toBe(108));
+        rect.mockRestore();
+        height.mockRestore();
+    });
+
     it("highlights one verified quote across twelve internal paragraphs", async () => {
         const paragraphs = Array.from(
             { length: 12 },

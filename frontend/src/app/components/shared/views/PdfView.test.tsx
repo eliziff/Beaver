@@ -148,6 +148,7 @@ describe("PdfView", () => {
         ).toEqual(["1", "2", "3"]);
         expect(mocks.buffer.byteLength).toBe(8);
         expect(mocks.cancelled).toBeGreaterThan(0);
+        expect(container.querySelector(".pdf-text-layer")).toBeNull();
     });
 
     it("checks the active page once per frame and cancels pending work", async () => {
@@ -161,7 +162,10 @@ describe("PdfView", () => {
         vi.stubGlobal("cancelAnimationFrame", cancelFrame);
 
         const { container, unmount } = render(
-            <PdfView doc={{ document_id: "doc-1", version_id: "version-1" }} />,
+            <PdfView
+                doc={{ document_id: "doc-1", version_id: "version-1" }}
+                quotes={[{ quote: "Page 2 text" }]}
+            />,
         );
         await waitFor(() =>
             expect(
@@ -169,6 +173,7 @@ describe("PdfView", () => {
             ).toHaveLength(3),
         );
         expect(mocks.pageRequests).toEqual([1, 2, 3]);
+        expect(container.querySelectorAll(".pdf-text-layer")).toHaveLength(3);
         const renders = mocks.fetchCalls;
         act(() =>
             mocks.resize!(

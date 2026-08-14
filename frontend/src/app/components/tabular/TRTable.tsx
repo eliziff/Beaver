@@ -94,10 +94,7 @@ export function TRTable({
                 highlightedCell.rowIdx
             ];
         if (targetRow) {
-            container.scrollTo({
-                top: Math.max(0, targetRow.offsetTop - 40),
-                behavior: "smooth",
-            });
+            container.scrollTop = Math.max(0, targetRow.offsetTop - 40);
         }
         const surface = container.parentElement;
         const targetColumn = surface?.querySelectorAll<HTMLElement>(

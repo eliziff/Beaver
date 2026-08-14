@@ -56,7 +56,8 @@ function makeLimiter(options: {
     max: options.max,
     standardHeaders: true,
     legacyHeaders: false,
-    skip: (req) => req.method === "OPTIONS",
+    skip: (req) =>
+      runtime.mode === "anonymous-local" || req.method === "OPTIONS",
     message: {
       detail: options.message ?? "Too many requests. Please try again later.",
     },

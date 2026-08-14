@@ -154,7 +154,7 @@ export function LibraryCollectionPage({
             renameDocument: renameLibraryDocument.bind(null, kind),
             retryPdfParse: retryLibraryPdfParse.bind(null, kind),
         }),
-        [directory, kind],
+        [directory.reload, kind],
     );
     return (
         <div className="flex h-full min-h-0 flex-col">

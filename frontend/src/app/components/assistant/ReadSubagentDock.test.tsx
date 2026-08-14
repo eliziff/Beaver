@@ -30,6 +30,15 @@ const completedPanel = {
     ],
 };
 
+const runningPanel = {
+    ...completedPanel,
+    status: "running" as const,
+    activities: completedPanel.activities.map((activity) => ({
+        ...activity,
+        status: "running" as const,
+    })),
+};
+
 it("shows one bounded paragraph summary for a consolidated case read", async () => {
     const onSourceClick = vi.fn();
     render(
@@ -62,4 +71,20 @@ it("marks a settled agent with a neutral done state", () => {
     );
 
     expect(screen.getByTitle("Done")).toHaveClass("bg-gray-400");
+});
+
+it("shows live activity on the agent tab and current trace", async () => {
+    render(
+        <ReadSubagentTabs
+            groups={[{ id: "1", label: "Agent 1", panels: [runningPanel] }]}
+            activeId="1"
+            onActivate={vi.fn()}
+            onClose={vi.fn()}
+            onSourceClick={vi.fn()}
+        />,
+    );
+
+    expect(screen.getByTitle("Working")).toBeVisible();
+    await userEvent.click(screen.getByText("1 tool call"));
+    expect(screen.getAllByLabelText("Working")).toHaveLength(2);
 });

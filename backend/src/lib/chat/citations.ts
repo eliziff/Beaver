@@ -471,6 +471,7 @@ export function createLegalEvidenceCitations(
           version_id: receipt.version,
           filename: receipt.name ?? receipt.citation,
           quotes: quotes.map((quote) => ({ quote })),
+          ...receiptLocator(receipt),
         }];
       }
       if (receipt.provider === "a2aj") {

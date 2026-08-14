@@ -1,4 +1,4 @@
-import { createElement, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { createElement, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import DOMPurify from "dompurify";
 import { ThinkingSpinner } from "@/app/components/chat/thinking-spinner";
 import type { CaseCitationQuote } from "@/app/components/shared/types";
@@ -28,7 +28,7 @@ function snapInsideViewer(
     root.scrollTop +=
         targetBox.top -
         rootBox.top -
-        (align === "start" ? 16 : (root.clientHeight - targetBox.height) / 2);
+        (align === "start" ? 16 : 32);
 }
 export type LegalSourceViewerProps = {
     referenceId?: string; provider?: "a2aj" | "journal";
@@ -561,7 +561,7 @@ export function LegalSourceViewer({
                     : null,
         };
     });
-    useEffect(() => {
+    useLayoutEffect(() => {
         const root = contentRef.current;
         if (!root || (!payload && !activeOpinion)) return;
         clearDocxQuoteHighlights(root);
@@ -571,11 +571,7 @@ export function LegalSourceViewer({
         );
         const match = matches[activeQuote];
         if (!match) return;
-        const timer = window.setTimeout(
-            () => snapInsideViewer(root, match),
-            40,
-        );
-        return () => window.clearTimeout(timer);
+        snapInsideViewer(root, match);
     }, [activeOpinion, activeQuote, payload, sourceQuotes]);
     useEffect(() => {
         if (!payload) return;

@@ -448,35 +448,33 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                         )}
                         <div className="chat-input-actions ml-auto flex min-w-0 items-center justify-end gap-1">
                             {showAutoMode && (
-                                <button
-                                    type="button"
-                                    aria-pressed={editMode === "auto"}
-                                    aria-label={`Editing mode: ${
-                                        editMode === "auto"
-                                            ? "Auto Mode"
-                                            : "Manual Mode"
-                                    }`}
-                                    title={
-                                        editMode === "auto"
-                                            ? "Edits are applied immediately and shown as a diff"
-                                            : "Edits are saved as tracked changes for review"
-                                    }
-                                    onClick={() =>
-                                        setEditMode((mode) =>
-                                            mode === "auto" ? "manual" : "auto",
-                                        )
-                                    }
-                                    className={cn(
-                                        "h-8 shrink-0 rounded-lg border px-2 text-xs font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900",
-                                        editMode === "auto"
-                                            ? "border-gray-950 bg-gray-950 text-white"
-                                            : "border-gray-200 bg-white text-gray-600 hover:text-gray-900",
-                                    )}
+                                <div
+                                    role="group"
+                                    aria-label="Editing mode"
+                                    className="flex h-8 shrink-0 items-center rounded-lg border border-gray-200 bg-gray-100 p-0.5"
                                 >
-                                    {editMode === "auto"
-                                        ? "Auto Mode"
-                                        : "Manual Mode"}
-                                </button>
+                                    {(["manual", "auto"] as const).map((mode) => (
+                                        <button
+                                            key={mode}
+                                            type="button"
+                                            aria-pressed={editMode === mode}
+                                            title={
+                                                mode === "auto"
+                                                    ? "Apply edits directly and show a diff"
+                                                    : "Save edits as tracked changes for review"
+                                            }
+                                            onClick={() => setEditMode(mode)}
+                                            className={cn(
+                                                "h-6 rounded-md px-2 text-xs font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gray-900",
+                                                editMode === mode
+                                                    ? "bg-white text-gray-950 ring-1 ring-gray-200"
+                                                    : "text-gray-500 hover:text-gray-800",
+                                            )}
+                                        >
+                                            {mode === "auto" ? "Auto" : "Manual"}
+                                        </button>
+                                    ))}
+                                </div>
                             )}
                             <div className="chat-input-model min-w-0">
                                 <ModelEffortToggle

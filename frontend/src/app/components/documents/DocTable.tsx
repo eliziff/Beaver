@@ -31,7 +31,6 @@ import { CheckboxControl } from "@/app/components/ui/checkbox";
 import { pillButtonClassName } from "@/app/components/ui/pill-button";
 import { preloadSingleDoc } from "@/app/hooks/useFetchSingleDoc";
 import { getPdfJs } from "@/app/components/shared/views/highlightQuote";
-import { preloadDocxViewer } from "@/app/components/shared/views/DocumentViewer";
 import { buildDocumentTree, CHAT_DOCUMENT_DRAG_TYPE, descendantFolderIds, DOCUMENT_DRAG_TYPE,
     documentTreeDropFolder, FOLDER_DRAG_TYPE, hasDocumentTreeDrag,
     wouldCreateFolderCycle } from "./documentTree";
@@ -80,12 +79,6 @@ function prewarmDocumentView(doc: Document) {
         void getPdfJs();
         void preloadSingleDoc(doc.id, doc.current_version_id, doc.updated_at)
             .catch(() => {});
-    } else if (type === "doc" || type === "docx") {
-        void preloadDocxViewer(
-            doc.id,
-            doc.current_version_id ?? undefined,
-            doc.updated_at ?? undefined,
-        ).catch(() => {});
     }
 }
 type InlineNameInputProps = {
@@ -203,7 +196,7 @@ function without<T>(current: Set<T>, values: Iterable<T>) {
     return next;
 }
 const scrollNewFolderIntoView = (element: HTMLDivElement | null) =>
-    element?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    element?.scrollIntoView({ block: "nearest" });
 function documentRemovalMessage(pending: PendingDocumentRemoval | null,
     detaches: boolean, versionCount?: number) {
     if (!pending) return;
@@ -1199,6 +1192,7 @@ export function DocTable({
                                 )}
                                 {documents.length === 0 &&
                                 folders.length === 0 &&
+                                newFolderParentId === undefined &&
                                 uploadingDroppedFilenames.length === 0 ? (
                                     <div onClick={openAddDocuments}
                                         onDragOver={handleCollectionDragOver}

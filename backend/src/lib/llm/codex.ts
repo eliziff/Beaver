@@ -56,19 +56,8 @@ export type ParsedCodexEvent = {
   error?: string;
 };
 
-const configuredCodexTimeoutMs = Number(
-  process.env.MIKE_CODEX_TIMEOUT_MS?.trim() || "",
-);
-export const CODEX_TIMEOUT_MS =
-  Number.isSafeInteger(configuredCodexTimeoutMs) &&
-    configuredCodexTimeoutMs >= 30_000
-    ? configuredCodexTimeoutMs
-    : 1_800_000;
-export const CODEX_IDLE_TIMEOUT_MS = Math.min(CODEX_TIMEOUT_MS, 600_000);
-const CODEX_TOOL_TIMEOUT_SECONDS = Math.max(
-  180,
-  Math.ceil(CODEX_TIMEOUT_MS / 1_000),
-);
+const CODEX_IDLE_TIMEOUT_MS = 600_000;
+const CODEX_TOOL_TIMEOUT_SECONDS = 1_800;
 export const CODEX_THREAD_ID =
   /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iu;
 
@@ -311,7 +300,7 @@ async function runCodex(params: {
   let eventError: string | null = null;
   let usage: NormalizedLlmUsage | undefined;
   let providerInvocationId: string | undefined;
-  let timeoutKind: "total" | "idle" | null = null;
+  let idleTimedOut = false;
   let streamError: unknown;
   const reasoningByItemId = new Map<string, string>();
   let streamStatus: "completed" | "error" = "error";
@@ -400,23 +389,19 @@ async function runCodex(params: {
   }>((resolve) => {
     child.once("close", (code, signal) => resolve({ code, signal }));
   });
-  const stopForTimeout = (kind: "total" | "idle") => {
-    if (timeoutKind) return;
-    timeoutKind = kind;
+  const stopForIdleTimeout = () => {
+    if (idleTimedOut) return;
+    idleTimedOut = true;
     terminateProcessTree(child);
   };
-  const totalTimeout = setTimeout(
-    () => stopForTimeout("total"),
-    CODEX_TIMEOUT_MS,
-  );
   let idleTimeout = setTimeout(
-    () => stopForTimeout("idle"),
+    stopForIdleTimeout,
     CODEX_IDLE_TIMEOUT_MS,
   );
   const markActivity = () => {
     clearTimeout(idleTimeout);
     idleTimeout = setTimeout(
-      () => stopForTimeout("idle"),
+      stopForIdleTimeout,
       CODEX_IDLE_TIMEOUT_MS,
     );
   };
@@ -471,10 +456,7 @@ async function runCodex(params: {
     const exit = await exitPromise;
     throwIfAborted(params.abortSignal);
 
-    if (timeoutKind)
-      throw new Error(
-        `Codex exec ${timeoutKind === "idle" ? "idle" : "total"} timed out.`,
-      );
+    if (idleTimedOut) throw new Error("Codex exec idle timed out.");
     const spawnError = childError as Error | null;
     if (spawnError) throw new Error(`Codex exec failed: ${spawnError.message}`);
     if (exit.code !== 0) {
@@ -504,7 +486,6 @@ async function runCodex(params: {
     streamError = error;
     throw error;
   } finally {
-    clearTimeout(totalTimeout);
     clearTimeout(idleTimeout);
     params.abortSignal?.removeEventListener("abort", abort);
     await bridge?.close();

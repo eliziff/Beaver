@@ -68,6 +68,7 @@ export type NormalizedToolResult = {
     end: number;
     filename?: string;
     locator?: string;
+    locatorKind?: "paragraph" | "page" | "section" | "footnote";
     /** Immutable virtual source view used to expose this exact span. */
     virtualPath?: string;
     projection?: string;

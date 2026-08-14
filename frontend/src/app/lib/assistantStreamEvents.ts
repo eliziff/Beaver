@@ -181,6 +181,23 @@ export function finishAssistantStreamEvents(events: AssistantEvent[]) {
   return next ?? events;
 }
 
+export function interruptAssistantStreamEvents(
+  events: AssistantEvent[],
+  status: "cancelled" | "interrupted",
+) {
+  return finishAssistantStreamEvents(events).map((event) =>
+    event.type === "subagent_run" && event.status === "running"
+      ? {
+          ...event,
+          status,
+          activities: event.activities?.map((activity) =>
+            activity.status === "running" ? { ...activity, status } : activity,
+          ),
+        }
+      : event,
+  );
+}
+
 const withoutPlaceholders = (events: AssistantEvent[]) =>
   events
     .filter((event) => !isStreamingPlaceholder(event))

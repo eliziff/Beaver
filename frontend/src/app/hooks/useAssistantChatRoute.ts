@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getChat, getProject, updateChatProject } from "@/app/lib/beaverApi";
+import {
+    BeaverApiError,
+    getChat,
+    getProject,
+    updateChatProject,
+} from "@/app/lib/beaverApi";
 import type { Chat } from "@/app/components/shared/types";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { useAssistantChat } from "./useAssistantChat";
@@ -72,13 +77,14 @@ export function useAssistantChatRoute({
                     router.replace("/assistant");
                 }
             })
-            .catch(() => {
-                setLoadedChat(null);
-                router.replace(
-                    projectId
-                        ? `/projects/${projectId}/assistant`
-                        : "/assistant",
-                );
+            .catch((error) => {
+                if (error instanceof BeaverApiError && error.status === 404) {
+                    router.replace(
+                        projectId
+                            ? `/projects/${projectId}/assistant`
+                            : "/assistant",
+                    );
+                }
             });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [chatId]);

@@ -456,7 +456,7 @@ describe("anonymous chat PDF evidence durability", () => {
         { role: "user", content: "Stop explicitly" },
         {
           role: "assistant",
-          content: [{ type: "content", text: "Cancelled by user." }],
+          content: [{ type: "turn_status", status: "cancelled" }],
         },
       ],
     });
@@ -524,7 +524,7 @@ describe("anonymous chat PDF evidence durability", () => {
           role: "assistant",
           content: [
             { type: "content", text: "Work in progress" },
-            { type: "content", text: "Cancelled by user." },
+            { type: "turn_status", status: "cancelled" },
           ],
         },
       ],
