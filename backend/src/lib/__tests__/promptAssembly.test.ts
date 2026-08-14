@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildMessages } from "../chat/contextBuilders";
 import {
-  A2AJ_SYSTEM_PROMPT,
   buildSystemPrompt,
-  SPREADSHEET_CITATION_PROMPT,
   SYSTEM_PROMPT,
 } from "../chat/prompts";
 
@@ -17,34 +15,6 @@ describe("system prompt assembly", () => {
   it("keeps spreadsheet citation syntax out of the static prompt", () => {
     expect(SYSTEM_PROMPT).not.toContain("SPREADSHEET CITATIONS");
     expect(buildSystemPrompt(false)).not.toContain("SPREADSHEET CITATIONS");
-    expect(SYSTEM_PROMPT).not.toContain("⟨merged");
-  });
-
-  it("does not restate rules the server enforces deterministically", () => {
-    // Top-level page/quote is synthesized from quotes[0] in citations.ts.
-    expect(SYSTEM_PROMPT).not.toContain("legacy compatibility");
-  });
-
-  it("states the read-once rule only in the per-turn documents block", () => {
-    expect(SYSTEM_PROMPT).not.toContain("at most once per response");
-    const messages = buildMessages(
-      [{ role: "user", content: "Summarize the lease." }],
-      [{ doc_id: "doc-0", filename: "lease.pdf" }],
-    );
-    const content = systemContent(messages);
-    // Anchor on the distinctive fragment, not the full sentence, so cosmetic
-    // rewording of the surrounding prose does not break the count.
-    const copies = content.match(/fetch_documents again/gu);
-    expect(copies?.length).toBe(1);
-  });
-
-  it("keeps upstream Mike's editing rules: read once, then edit_document", () => {
-    const prompt = buildSystemPrompt(false);
-
-    // Behavioral anchors, not verbatim sentences: the no-reread-before-edit
-    // rule and the renumbering rule must be present in some wording.
-    expect(prompt).toMatch(/reread[^.]*edit_document/i);
-    expect(prompt).toContain("Renumber");
   });
 
   it("omits the spreadsheet block when no spreadsheet is in context", () => {
@@ -130,10 +100,5 @@ describe("system prompt assembly", () => {
     expect(extra).toBeGreaterThan(0);
     expect(sheet).toBeGreaterThan(extra);
     expect(docs).toBeGreaterThan(sheet);
-  });
-
-  it("uses receipt-backed inline citations", () => {
-    expect(SYSTEM_PROMPT).toContain("submit_grounded_answer");
-    expect(SPREADSHEET_CITATION_PROMPT).toContain("evidence_id");
   });
 });

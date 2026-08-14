@@ -118,10 +118,7 @@ describe("public legal source tool integration", () => {
           },
         },
       ],
-      undefined,
-      undefined,
-      undefined,
-      state,
+      { publicLegal: state },
     );
     const modelPayload = JSON.parse(toolResult.content);
 
@@ -247,10 +244,7 @@ describe("public legal source tool integration", () => {
           },
         },
       ],
-      undefined,
-      undefined,
-      undefined,
-      firstState,
+      { publicLegal: firstState },
     );
     const first = JSON.parse(firstResult.content);
     const handle = String(first.evidence.handle);
@@ -294,10 +288,7 @@ describe("public legal source tool integration", () => {
           },
         },
       ],
-      undefined,
-      undefined,
-      undefined,
-      restartedState,
+      { publicLegal: restartedState },
     );
     const restored = JSON.parse(restoredResult.content);
 
@@ -334,10 +325,7 @@ describe("public legal source tool integration", () => {
           },
         },
       ],
-      undefined,
-      undefined,
-      undefined,
-      changedState,
+      { publicLegal: changedState },
     );
     const changed = JSON.parse(changedResult.content);
 

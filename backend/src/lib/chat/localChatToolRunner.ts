@@ -7,14 +7,10 @@ import {
   createLocalAssistantRequirementsState,
   pendingFinalAgentDraft,
   runLocalAssistantTools,
-  type LocalAssistantEditTurnState,
-  type LocalAssistantReadTurnState,
-  type LocalAssistantWorkingSetTurnState,
 } from "./localAssistantTools";
 import { localAutomationEvent } from "./localAutomationEvent";
 import { hideLegalSourceUrls } from "./legalToolResultVisibility";
 import { createPublicLegalSourceState } from "./publicLegalSourceState";
-import type { CourtlistenerToolState } from "./courtlistenerToolRunner";
 import { LEGAL_EVIDENCE_TOOL_NAME } from "./legalEvidence";
 import { normalizeAskInputsEvent } from "./askInputs";
 import { readTabularCells } from "./tabularCells";
@@ -96,20 +92,10 @@ function documentEvent(tool: string, content?: string) {
   }
 }
 
-type RunnerState = {
-  courtlistener: CourtlistenerToolState;
-  publicLegal: ReturnType<typeof createPublicLegalSourceState>;
-  pdfHandles: Set<string>;
-  edits: LocalAssistantEditTurnState;
-  reads: LocalAssistantReadTurnState;
-  workingSets: LocalAssistantWorkingSetTurnState;
-  requirements: ReturnType<typeof createLocalAssistantRequirementsState>;
-};
-
-const runnerState = (): RunnerState => ({
+const runnerState = () => ({
   courtlistener: { casesByClusterId: new Map() },
   publicLegal: createPublicLegalSourceState(),
-  pdfHandles: new Set(),
+  pdfHandles: new Set<string>(),
   edits: new Map(),
   reads: new Map(),
   workingSets: new Map(),
@@ -177,18 +163,12 @@ export function createLocalChatToolRunner(options: {
       const directResults = (await runLocalAssistantTools(
         options.userId,
         direct,
-        undefined,
-        undefined,
-        state.courtlistener,
-        state.publicLegal,
-        options.allowedDocumentIds,
-        state.pdfHandles,
-        options.projectId,
-        evidence,
-        state.edits,
-        state.reads,
-        state.workingSets,
-        state.requirements,
+        {
+          ...state,
+          allowedDocumentIds: options.allowedDocumentIds,
+          matterId: options.projectId,
+          legalEvidence: evidence,
+        },
       )).map((result, index) => hideLegalSourceUrls(
         direct.find((call) => call.id === result.tool_use_id)?.name ??
           direct[index]?.name ?? "",

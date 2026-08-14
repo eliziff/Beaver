@@ -140,7 +140,7 @@ beforeEach(async () => {
   }));
   mocks.runLocalAssistantTools.mockImplementation(
     async (...args: unknown[]) => {
-      const handles = args[7] as Set<string>;
+      const handles = (args[2] as { pdfHandles: Set<string> }).pdfHandles;
       for (const handle of mocks.activeHandles) handles.add(handle);
       return [];
     },
