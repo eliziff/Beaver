@@ -1,23 +1,9 @@
-import {
-    lazy,
-    Suspense,
-    type ComponentProps,
-} from "react";
-import { preloadDocxBytes } from "@/app/hooks/useFetchDocxBytes";
-import type { DocxView } from "./DocxView";
-import type { PdfView } from "./PdfView";
+import { lazy, Suspense, type ComponentProps } from "react";
+import { DocxView } from "./DocxView";
+import { PdfView } from "./PdfView";
+import { TextView } from "./TextView";
 import type { SpreadsheetView } from "./SpreadsheetView";
-import type { TextView } from "./TextView";
 
-const loadDocxRenderer = () =>
-    import("./DocxView").then(({ DocxView }) => ({ default: DocxView }));
-const DocxRenderer = lazy(loadDocxRenderer);
-const PdfRenderer = lazy(() =>
-    import("./PdfView").then(({ PdfView }) => ({ default: PdfView })),
-);
-const TextRenderer = lazy(() =>
-    import("./TextView").then(({ TextView }) => ({ default: TextView })),
-);
 const SpreadsheetRenderer = lazy(() =>
     import("./SpreadsheetView").then(({ SpreadsheetView }) => ({
         default: SpreadsheetView,
@@ -37,17 +23,6 @@ export type DocumentViewerProps = ViewerOptions & {
     versionId?: string | null;
 };
 
-export function preloadDocxViewer(
-    documentId: string,
-    versionId?: string | null,
-    revision?: string | number,
-) {
-    return Promise.all([
-        loadDocxRenderer(),
-        preloadDocxBytes(documentId, versionId, revision),
-    ]);
-}
-
 export function DocumentViewer({
     documentId,
     kind,
@@ -56,13 +31,13 @@ export function DocumentViewer({
 }: DocumentViewerProps) {
     const renderer =
         kind === "docx" ? (
-            <DocxRenderer
+            <DocxView
                 documentId={documentId}
                 versionId={versionId}
                 {...options}
             />
         ) : kind === "text" ? (
-            <TextRenderer
+            <TextView
                 documentId={documentId}
                 versionId={versionId}
                 {...options}
@@ -74,7 +49,7 @@ export function DocumentViewer({
                 {...options}
             />
         ) : (
-            <PdfRenderer
+            <PdfView
                 doc={{ document_id: documentId, version_id: versionId }}
                 {...options}
             />

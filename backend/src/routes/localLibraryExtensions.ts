@@ -251,12 +251,16 @@ localLibraryExtensionsRouter.post(
     const requestedOcrProvider = req.body?.ocr_provider;
     if (
       requestedOcrProvider !== undefined &&
-      requestedOcrProvider !== "tesseract"
+      requestedOcrProvider !== "tesseract" &&
+      requestedOcrProvider !== "kraken-lite"
     ) {
       return void res
         .status(400)
-        .json({ detail: "ocr_provider must be tesseract" });
+        .json({ detail: "ocr_provider must be kraken-lite or tesseract" });
     }
+    const requestedOcr =
+      requestedOcrProvider === "tesseract" ||
+      requestedOcrProvider === "kraken-lite";
     const repairBody = req.body?.repair;
     let requestedRepair:
       | {
@@ -310,10 +314,10 @@ localLibraryExtensionsRouter.post(
       }
     }
     const current =
-      requestedOcrProvider === "tesseract" || requestedRepair
+      requestedOcr || requestedRepair
         ? await readLocalPdfParseState(file.path)
         : null;
-    if (requestedOcrProvider === "tesseract") {
+    if (requestedOcr) {
       if (
         !current?.diagnostic_summary?.by_code ||
         !(Number(current.diagnostic_summary.by_code.OCR_REQUIRED) > 0)
@@ -338,8 +342,8 @@ localLibraryExtensionsRouter.post(
             ? file.version.source_sha256
             : undefined,
         force: true,
-        ...(requestedOcrProvider === "tesseract"
-          ? { ocrProvider: "tesseract" as const }
+        ...(requestedOcr
+          ? { ocrProvider: requestedOcrProvider }
           : {}),
         ...(requestedRepair ? { repair: requestedRepair } : {}),
       });
@@ -351,12 +355,16 @@ localLibraryExtensionsRouter.post(
             "Structural repair could not start. Check the local Codex installation and retry.",
         });
       }
-      if (requestedOcrProvider !== "tesseract") throw error;
+      if (!requestedOcr) throw error;
       const message = error instanceof Error ? error.message : "";
       res.status(503).json({
-        detail: message.startsWith("Tesseract was not found")
+        detail:
+          requestedOcrProvider === "tesseract" &&
+          message.startsWith("Tesseract was not found")
           ? message
-          : "OCR could not start. Check the local Tesseract installation and retry.",
+          : requestedOcrProvider === "tesseract"
+            ? "OCR could not start. Check the local Tesseract installation and retry."
+            : "OCR could not start. Check the local Kraken-lite runtime and retry.",
       });
     }
   }),

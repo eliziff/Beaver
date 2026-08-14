@@ -16,9 +16,12 @@ import {
 import { mikeLocalDataHome } from "./legalDataPath";
 import { LOCAL_PDF_SOURCE_SCHEMA } from "./legalPdfSourceDoc";
 import {
+  configuredLegalPdfOcrProvider,
   LEGAL_PDF_DOCUMENT_SCHEMA,
   LEGAL_PDF_PARSER_VERSION,
+  legalPdfOcrArguments,
   runLegalPdf,
+  type LegalPdfOcrProvider,
 } from "./legalPdfProcess";
 import { sha256 } from "./hash";
 
@@ -43,7 +46,7 @@ export type LocalPdfParseStatus =
   | "degraded"
   | "failed";
 
-export type LocalPdfOcrProvider = "tesseract";
+export type LocalPdfOcrProvider = LegalPdfOcrProvider;
 
 export type LocalPdfRepairConfig = {
   model: string;
@@ -157,14 +160,18 @@ function parserConfig(
   }
   if (repair) config.effort = repair.effort;
   if (!ocrProvider) return config;
-  const language = process.env.MIKE_PDF_OCR_LANGUAGE?.trim() || "eng";
   const dpi = Number(process.env.MIKE_PDF_OCR_DPI);
-  const psm = Number(process.env.MIKE_PDF_OCR_PSM);
-  return {
+  const common = {
     ...config,
     ...(ocrIdentity ? { ocr_identity: ocrIdentity } : {}),
-    ocr_language: /^[A-Za-z0-9_+-]+$/u.test(language) ? language : "eng",
     ocr_dpi: Number.isInteger(dpi) && dpi >= 72 && dpi <= 600 ? dpi : 180,
+  };
+  if (ocrProvider === "kraken-lite") return common;
+  const language = process.env.MIKE_PDF_OCR_LANGUAGE?.trim() || "eng";
+  const psm = Number(process.env.MIKE_PDF_OCR_PSM);
+  return {
+    ...common,
+    ocr_language: /^[A-Za-z0-9_+-]+$/u.test(language) ? language : "eng",
     ocr_psm: Number.isInteger(psm) && psm >= 0 && psm <= 13 ? psm : 3,
   };
 }
@@ -206,6 +213,9 @@ function safeParserError(error: unknown) {
     return "Tesseract changed before OCR began; retry the parse";
   }
   if (/Tesseract OCR failed/iu.test(message)) return "Tesseract OCR failed";
+  if (/Kraken|LEGALPDF_KRAKEN|ONNX/iu.test(message)) {
+    return "Kraken-lite OCR could not start; check its local runtime assets";
+  }
   if (/Codex structural repair could not start/iu.test(message)) {
     return "Codex structural repair could not start";
   }
@@ -233,23 +243,20 @@ function parserErrorDetail(error: unknown) {
     .slice(0, 4_000);
 }
 
-async function detectedTesseractIdentity(
+async function detectedOcrIdentity(
+  provider: LocalPdfOcrProvider,
   config: LocalPdfParseState["parser_config"],
   signal?: AbortSignal,
 ) {
   try {
+    const arguments_ = legalPdfOcrArguments(provider, {
+      language: config.ocr_language,
+      dpi: config.ocr_dpi,
+      psm: config.ocr_psm,
+    });
+    arguments_[0] = "--provider";
     const result = await runLegalPdf(
-      [
-        "ocr-identity",
-        "--provider",
-        "tesseract",
-        "--ocr-language",
-        config.ocr_language || "eng",
-        "--ocr-dpi",
-        String(config.ocr_dpi ?? 180),
-        "--ocr-psm",
-        String(config.ocr_psm ?? 3),
-      ],
+      ["ocr-identity", ...arguments_],
       { timeoutMs: 15_000, signal },
     );
     const payload = JSON.parse(String(result.stdout)) as {
@@ -257,13 +264,13 @@ async function detectedTesseractIdentity(
       identity?: unknown;
     };
     if (
-      payload.provider !== "tesseract" ||
+      payload.provider !== provider ||
       typeof payload.identity !== "string" ||
       !payload.identity ||
-      payload.identity.length > 256 ||
+      payload.identity.length > 1_024 ||
       /[\r\n\u0000]/u.test(payload.identity)
     ) {
-      throw new Error("Invalid Tesseract identity");
+      throw new Error(`Invalid ${provider} identity`);
     }
     return payload.identity;
   } catch (error) {
@@ -963,8 +970,9 @@ async function processJob(sourcePath: string) {
   try {
     let queued = await readState(sourcePath);
     if (!queued || queued.status !== "queued" || cancelled.has(key)) return;
-    if (queued.parser_config.ocr_provider === "tesseract") {
-      const identity = await detectedTesseractIdentity(
+    if (queued.parser_config.ocr_provider) {
+      const identity = await detectedOcrIdentity(
+        queued.parser_config.ocr_provider,
         queued.parser_config,
         controller.signal,
       );
@@ -1012,18 +1020,14 @@ async function processJob(sourcePath: string) {
         String(parsing.parser_config.effort),
       );
     }
-    if (parsing.parser_config.ocr_provider === "tesseract") {
+    if (parsing.parser_config.ocr_provider) {
       arguments_.push(
-        "--ocr-provider",
-        "tesseract",
-        "--ocr-language",
-        parsing.parser_config.ocr_language || "eng",
-        "--ocr-dpi",
-        String(parsing.parser_config.ocr_dpi ?? 180),
-        "--ocr-psm",
-        String(parsing.parser_config.ocr_psm ?? 3),
-        "--expected-ocr-identity",
-        String(parsing.parser_config.ocr_identity),
+        ...legalPdfOcrArguments(parsing.parser_config.ocr_provider, {
+          language: parsing.parser_config.ocr_language,
+          dpi: parsing.parser_config.ocr_dpi,
+          psm: parsing.parser_config.ocr_psm,
+          expectedIdentity: String(parsing.parser_config.ocr_identity),
+        }),
       );
     }
     await runLegalPdf(arguments_, {
@@ -1185,7 +1189,7 @@ export async function queueLocalPdfParse(params: {
   }
   const ocrProvider =
     params.ocrProvider === undefined
-      ? (current?.parser_config.ocr_provider ?? null)
+      ? (current?.parser_config.ocr_provider ?? configuredLegalPdfOcrProvider())
       : params.ocrProvider;
   let repairIdentity: LocalPdfRepairIdentity | null;
   let ocrIdentity: string | undefined;
@@ -1193,10 +1197,9 @@ export async function queueLocalPdfParse(params: {
     repairIdentity = repair
       ? await cachedRepairIdentity()
       : await cachedRepairIdentity().catch(() => null);
-    ocrIdentity =
-      ocrProvider === "tesseract"
-        ? await detectedTesseractIdentity(parserConfig(ocrProvider))
-        : undefined;
+    ocrIdentity = ocrProvider
+      ? await detectedOcrIdentity(ocrProvider, parserConfig(ocrProvider))
+      : undefined;
   } catch (error) {
     if (
       current &&

@@ -52,3 +52,89 @@ describe("apiFetch", () => {
     expect(headers.get("x-test")).toBe("kept");
   });
 });
+
+describe("getChat", () => {
+  it("settles work left running by an interrupted backend turn", async () => {
+    vi.stubEnv("NEXT_PUBLIC_AUTH_MODE", "anonymous");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      chat: { id: "chat-1", turn_in_progress: false },
+      messages: [
+        { id: "user-1", role: "user", turn_id: "turn-1", content: "Research this" },
+        {
+          id: "assistant-1",
+          role: "assistant",
+          turn_id: "turn-1",
+          content: [{
+            type: "subagent_run",
+            id: "scout:1",
+            agent: "scout",
+            task: "Research",
+            model: "codex",
+            effort: "high",
+            status: "running",
+            activities: [{ id: "read-1", label: "Reading", status: "running" }],
+          }],
+        },
+      ],
+    }), { headers: { "Content-Type": "application/json" } })));
+    const { getChat } = await import("./beaverApi");
+
+    const { messages } = await getChat("chat-1");
+
+    expect(messages[0].turnId).toBe("turn-1");
+    expect(messages[1]).toMatchObject({
+      turnId: "turn-1",
+      turnStatus: "interrupted",
+      events: [{
+        type: "subagent_run",
+        status: "interrupted",
+        activities: [{ status: "interrupted" }],
+      }],
+    });
+  });
+
+  it("keeps cancellation metadata out of assistant prose", async () => {
+    vi.stubEnv("NEXT_PUBLIC_AUTH_MODE", "anonymous");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      chat: { id: "chat-1", turn_in_progress: false },
+      messages: [{
+        id: "assistant-1",
+        role: "assistant",
+        content: [
+          { type: "content", text: "Partial answer." },
+          { type: "turn_status", status: "cancelled" },
+        ],
+      }],
+    }), { headers: { "Content-Type": "application/json" } })));
+    const { getChat } = await import("./beaverApi");
+
+    const { messages } = await getChat("chat-1");
+
+    expect(messages[0]).toMatchObject({
+      content: "Partial answer.",
+      turnStatus: "cancelled",
+      events: [{ type: "content", text: "Partial answer." }],
+    });
+  });
+
+  it("marks a durable user turn with no response as interrupted", async () => {
+    vi.stubEnv("NEXT_PUBLIC_AUTH_MODE", "anonymous");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      chat: { id: "chat-1", turn_in_progress: false },
+      messages: [{
+        id: "user-1",
+        role: "user",
+        turn_id: "turn-1",
+        content: "Research this",
+      }],
+    }), { headers: { "Content-Type": "application/json" } })));
+    const { getChat } = await import("./beaverApi");
+
+    const { messages } = await getChat("chat-1");
+
+    expect(messages[0]).toMatchObject({
+      turnId: "turn-1",
+      turnStatus: "interrupted",
+    });
+  });
+});

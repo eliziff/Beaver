@@ -1,4 +1,5 @@
 import type {
+  NormalizedToolCall,
   NormalizedToolResult,
   OpenAIToolSchema,
 } from "../llm";
@@ -112,6 +113,7 @@ export function createLocalChatToolRunner(options: {
   userId: string;
   projectId: string | null;
   allowedDocumentIds?: Set<string>;
+  documentNames?: ReadonlyMap<string, string>;
   tabular?: TabularCellStore;
   editMode?: EditMode;
   onMutationCommitted: () => void;
@@ -237,6 +239,20 @@ export function createLocalChatToolRunner(options: {
     createToolRunner,
     pdfHandles: main.pdfHandles,
     mutationCommitted: () => mutationCommitted,
+    toolActivityMetadata(call: NormalizedToolCall) {
+      const documentId = text(
+        call.input.document_id ?? call.input.doc_id ?? call.input.file_path,
+      );
+      const filename = options.documentNames?.get(documentId);
+      if (!filename) return {};
+      if (["Read", "read_document"].includes(call.name))
+        return { label: `Reading ${filename}` };
+      if (["Edit", "edit_document", "library_revise_docx"].includes(call.name))
+        return { label: `Editing ${filename}` };
+      if (["Grep", "find_in_document"].includes(call.name))
+        return { label: `Searching ${filename}` };
+      return {};
+    },
     async beforeFinalize(context: ChatToolContext) {
       const draft = pendingFinalAgentDraft(main.requirements);
       if (!draft || !mainRunner) return;

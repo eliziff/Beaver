@@ -11,14 +11,24 @@ const HIDDEN_EVENT_TYPES = new Set([
 export function visibleAnonymousMessages(messages: AnonymousChatMessage[]) {
   return messages.flatMap(({ turn_id: turnId, ...message }) => {
     if (message.role !== "assistant" || !Array.isArray(message.content)) {
-      return [message];
+      return [{ ...message, ...(turnId && { turn_id: turnId }) }];
     }
+    const turnComplete = message.content.some(
+      (event) => event && typeof event === "object" &&
+        (event as Record<string, unknown>).type === "local_turn_completed",
+    );
     const content = message.content.filter((event) => !HIDDEN_EVENT_TYPES.has(
       String(event && typeof event === "object"
         ? (event as Record<string, unknown>).type ?? ""
         : ""),
     ));
-    return turnId && !content.length ? [] : [{ ...message, content }];
+    return turnId && !content.length && !turnComplete
+      ? []
+      : [{
+          ...message,
+          ...(turnId && { turn_id: turnId, turn_complete: turnComplete }),
+          content,
+        }];
   });
 }
 
@@ -140,12 +150,10 @@ function projectAssistantContent(content: unknown): ChatMessage[] {
     if (!item || typeof item !== "object" || Array.isArray(item)) continue;
     const event = item as Record<string, unknown>;
     if (event.type === "content" && typeof event.text === "string") {
-      assistantText +=
-        event.text === "Cancelled by user." && assistantText
-          ? `\n\n${event.text}`
-          : event.text;
+      if (event.text !== "Cancelled by user.") assistantText += event.text;
       continue;
     }
+    if (event.type === "turn_status") continue;
     if (event.type === "error") {
       assistantText +=
         (assistantText ? "\n\n" : "") +

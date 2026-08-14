@@ -64,10 +64,7 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
                 const data = await listChats({ limit: chatLimit + 1 });
                 setChats(data.slice(0, chatLimit));
                 setHasMoreChats(data.length > chatLimit);
-            } catch {
-                setChats([]);
-                setHasMoreChats(false);
-            }
+            } catch {}
         };
         return {
             loadChats,

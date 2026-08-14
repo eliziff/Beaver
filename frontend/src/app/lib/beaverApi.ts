@@ -13,6 +13,7 @@ import type {
   Workflow,
   TabularReview,
 } from "@/app/components/shared/types";
+import { interruptAssistantStreamEvents } from "@/app/lib/assistantStreamEvents";
 interface ServerMessage {
   id: string;
   role: "user" | "assistant";
@@ -20,12 +21,46 @@ interface ServerMessage {
   files?: { filename: string; document_id?: string }[] | null;
   workflow?: { id: string; title: string } | null;
   citations?: Citation[] | null;
+  turn_id?: string;
+  turn_complete?: boolean;
 }
-function assistantContent(content: ServerMessage["content"]) {
-  const events = Array.isArray(content) ? content : undefined;
+function assistantContent(
+  content: ServerMessage["content"],
+  active: boolean,
+  complete?: boolean,
+) {
+  const rawEvents = Array.isArray(content) ? content : undefined;
+  const persistedStatus = rawEvents?.find(
+    (event) => event.type === "turn_status",
+  );
+  const legacyCancelled = rawEvents?.some(
+    (event) => event.type === "content" && event.text === "Cancelled by user.",
+  );
+  const visibleEvents = rawEvents?.filter(
+    (event) =>
+      event.type !== "turn_status" &&
+      !(event.type === "content" && event.text === "Cancelled by user."),
+  );
+  const hasOpenWork = visibleEvents?.some(
+    (event) =>
+      ("isStreaming" in event && event.isStreaming) ||
+      (event.type === "subagent_run" && event.status === "running"),
+  );
+  const turnStatus =
+    persistedStatus?.type === "turn_status"
+      ? persistedStatus.status
+      : legacyCancelled
+        ? "cancelled"
+        : !active && (hasOpenWork || complete === false)
+          ? "interrupted"
+          : undefined;
+  const events =
+    visibleEvents && turnStatus
+      ? interruptAssistantStreamEvents(visibleEvents, turnStatus)
+      : visibleEvents;
   const text = events?.reduce(
     (result, event) => result + (event.type === "content" ? event.text : ""), "");
-  return { content: text ?? "", events };
+  return { content: text ?? "", events, ...(turnStatus && { turnStatus }) };
 }
 export const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
 export class BeaverApiError extends Error {
@@ -731,7 +766,12 @@ export const listProjectChats = (projectId: string) =>
   apiRequest<Chat[]>(`/projects/${projectId}/chats`);
 export const getChat = async (chatId: string) => {
   const raw = await apiRequest<{ chat: Chat; messages: ServerMessage[] }>(`/chat/${chatId}`);
-  const messages: Message[] = raw.messages.map((m) => {
+  const lastUser = raw.messages.findLastIndex((message) => message.role === "user");
+  const lastAssistant = raw.messages.findLastIndex((message) => message.role === "assistant");
+  const activeAssistant = raw.chat.turn_in_progress && lastAssistant > lastUser
+    ? lastAssistant
+    : -1;
+  const messages: Message[] = raw.messages.map((m, index) => {
     if (m.role === "user") {
       return {
         id: m.id,
@@ -739,15 +779,22 @@ export const getChat = async (chatId: string) => {
         content: typeof m.content === "string" ? m.content : "",
         files: m.files ?? undefined,
         workflow: m.workflow ?? undefined,
+        turnId: m.turn_id,
       };
     }
     return {
       id: m.id,
       role: "assistant",
       citations: m.citations ?? undefined,
-      ...assistantContent(m.content),
+      turnId: m.turn_id,
+      ...assistantContent(m.content, index === activeAssistant, m.turn_complete),
+      turnComplete: m.turn_complete,
     };
   });
+  const last = messages.at(-1);
+  if (!raw.chat.turn_in_progress && last?.role === "user" && last.turnId) {
+    messages[messages.length - 1] = { ...last, turnStatus: "interrupted" };
+  }
   return { chat: raw.chat, messages };
 };
 export const renameChat = (chatId: string, title: string) =>

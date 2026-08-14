@@ -1,7 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState } from "react";
-import { Check, ChevronDown, LoaderCircle, X } from "lucide-react";
+import { Check, ChevronDown, CircleStop, LoaderCircle, X } from "lucide-react";
 import type { AssistantEvent } from "../shared/types";
 import { CitationPillMarkdown } from "./message/MarkdownContent";
 
@@ -115,7 +115,15 @@ export function ReadSubagentDock({
                                 className="mt-2 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5"
                             >
                                 <summary className="cursor-pointer text-xs font-medium text-gray-600">
-                                    {panel.activities.length} tool {panel.activities.length === 1 ? "call" : "calls"}
+                                    <span className="inline-flex items-center gap-1.5">
+                                        {panel.activities.length} tool {panel.activities.length === 1 ? "call" : "calls"}
+                                        {panel.status === "running" && (
+                                            <LoaderCircle
+                                                className="size-3 motion-safe:animate-spin"
+                                                aria-label="Working"
+                                            />
+                                        )}
+                                    </span>
                                 </summary>
                                 <ol aria-label="Reading activity" className="mt-2 space-y-1.5">
                                     {panel.activities.map((activity) => {
@@ -131,11 +139,13 @@ export function ReadSubagentDock({
                                             className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2 text-xs leading-5 text-gray-600"
                                         >
                                             {activity.status === "running" ? (
-                                                <LoaderCircle className="mt-1 size-3 animate-spin" aria-hidden="true" />
+                                                <LoaderCircle className="mt-1 size-3 motion-safe:animate-spin" aria-label="Working" />
                                             ) : activity.status === "completed" ? (
                                                 <Check className="mt-1 size-3 text-gray-500" aria-hidden="true" />
-                                            ) : (
+                                            ) : activity.status === "error" ? (
                                                 <X className="mt-1 size-3 text-red-600" aria-hidden="true" />
+                                            ) : (
+                                                <CircleStop className="mt-1 size-3 text-gray-400" aria-hidden="true" />
                                             )}
                                             <span className="min-w-0">
                                                 {activity.source && onSourceClick ? (
@@ -180,12 +190,32 @@ export function ReadSubagentDock({
                                         </li>
                                         );
                                     })}
+                                    {panel.status === "running" &&
+                                        !panel.activities.some(
+                                            (activity) => activity.status === "running",
+                                        ) && (
+                                            <li
+                                                role="status"
+                                                className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2 text-xs leading-5 text-gray-600"
+                                            >
+                                                <LoaderCircle
+                                                    className="mt-1 size-3 motion-safe:animate-spin"
+                                                    aria-hidden="true"
+                                                />
+                                                <span>Thinking</span>
+                                            </li>
+                                        )}
                                 </ol>
                             </details>
                         ) : panel.status === "running" ? (
                             <div role="status" className="mt-2 flex min-h-8 items-center gap-2 text-xs text-gray-600">
-                                <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
+                                <LoaderCircle className="size-3.5 motion-safe:animate-spin" aria-hidden="true" />
                                 Starting…
+                            </div>
+                        ) : panel.status === "cancelled" || panel.status === "interrupted" ? (
+                            <div role="status" className="mt-2 flex min-h-8 items-center gap-2 text-xs text-gray-500">
+                                <CircleStop className="size-3.5" aria-hidden="true" />
+                                {panel.status === "cancelled" ? "Stopped" : "Interrupted"}
                             </div>
                         ) : null}
                         {panel.output ? (

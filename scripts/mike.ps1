@@ -198,8 +198,32 @@ function Get-Python {
     return $python
 }
 
-function Resolve-LegalPdfPython {
-    $configured = Get-ConfigValue 'LEGALPDF_PYTHON'
+function Get-Cargo {
+    $cargo = Resolve-Application @('cargo.exe', 'cargo')
+    if (-not $cargo) {
+        throw 'Rust is missing. Install Rust with rustup to build the Legal PDF engine.'
+    }
+    return $cargo
+}
+
+function Build-LegalPdf([string]$Binary) {
+    $cargo = Get-Cargo
+    $engine = Join-Path $Repo 'universal-legal-pdf-engine'
+    Push-Location $engine
+    try {
+        & $cargo build --release --locked --features kraken
+        $buildExitCode = $LASTEXITCODE
+    }
+    finally {
+        Pop-Location
+    }
+    if ($buildExitCode -ne 0 -or -not (Test-Path -LiteralPath $Binary -PathType Leaf)) {
+        throw 'Legal PDF Rust build failed.'
+    }
+}
+
+function Resolve-LegalPdfBinary([switch]$Build) {
+    $configured = Get-ConfigValue 'LEGALPDF_BINARY'
     if ($configured) {
         if (Test-Path -LiteralPath $configured -PathType Leaf) {
             return (Resolve-Path -LiteralPath $configured).Path
@@ -208,30 +232,28 @@ function Resolve-LegalPdfPython {
         if ($resolved) {
             return $resolved
         }
-        throw "LEGALPDF_PYTHON does not resolve to an executable: $configured"
+        throw "LEGALPDF_BINARY does not resolve to an executable: $configured"
     }
-    $managed = Join-Path $Repo 'universal-legal-pdf-engine\.venv\Scripts\python.exe'
+    $managed = Join-Path $Repo 'universal-legal-pdf-engine\target\release\legalpdf.exe'
+    if ($Build) {
+        Build-LegalPdf $managed
+    }
     if (Test-Path -LiteralPath $managed -PathType Leaf) {
         return (Resolve-Path -LiteralPath $managed).Path
     }
-    return Get-Python
+    $installed = Resolve-Application @('legalpdf.exe', 'legalpdf')
+    if ($installed) {
+        return $installed
+    }
+    throw 'Legal PDF Rust binary is missing. Run: cargo build --release --features kraken --manifest-path .\universal-legal-pdf-engine\Cargo.toml'
 }
 
-function Get-LegalPdfRuntimeVersion([string]$Python) {
-    $pythonVersion = Get-CommandVersion $Python @('--version')
-    $match = [regex]::Match([string]$pythonVersion, '(\d+)\.(\d+)\.(\d+)')
-    if (-not $match.Success -or
-        [int]$match.Groups[1].Value -lt 3 -or
-        ([int]$match.Groups[1].Value -eq 3 -and [int]$match.Groups[2].Value -lt 11)) {
-        throw "Unsupported Legal PDF Python version '$pythonVersion'. Install Python 3.11 or newer."
+function Get-LegalPdfRuntimeVersion([string]$Binary) {
+    $version = Get-CommandVersion $Binary @('--version')
+    if ([string]$version -notmatch '^legalpdf \d+\.\d+\.\d+$') {
+        throw "Unexpected Legal PDF runtime version output: '$version'"
     }
-    $probeOutput = @(& $Python -c 'import fitz; print(fitz.VersionBind)' 2>$null)
-    $probeExitCode = $LASTEXITCODE
-    $pymupdf = $probeOutput | Select-Object -First 1
-    if ($probeExitCode -ne 0 -or -not $pymupdf) {
-        throw 'Legal PDF support requires PyMuPDF. Run: python -m venv universal-legal-pdf-engine\.venv; .\universal-legal-pdf-engine\.venv\Scripts\python -m pip install -e .\universal-legal-pdf-engine'
-    }
-    return $pymupdf.ToString().Trim()
+    return $version.ToString().Trim()
 }
 
 function Get-ConfigValue([string]$Name) {
@@ -441,9 +463,9 @@ function Invoke-Doctor {
         $failed = $true
     }
     try {
-        $legalPdfPython = Resolve-LegalPdfPython
-        $pymupdfVersion = Get-LegalPdfRuntimeVersion $legalPdfPython
-        Write-Host "Legal PDF: PyMuPDF $pymupdfVersion ($legalPdfPython)"
+        $legalPdfBinary = Resolve-LegalPdfBinary
+        $legalPdfVersion = Get-LegalPdfRuntimeVersion $legalPdfBinary
+        Write-Host "Legal PDF: $legalPdfVersion ($legalPdfBinary)"
     }
     catch {
         Write-Host "ERROR: $($_.Exception.Message)"
@@ -540,8 +562,8 @@ function Start-Stack {
     Assert-Builds
     $node = Get-Node
     $codex = Resolve-Codex -Optional
-    $legalPdfPython = Resolve-LegalPdfPython
-    [void](Get-LegalPdfRuntimeVersion $legalPdfPython)
+    $legalPdfBinary = Resolve-LegalPdfBinary -Build
+    [void](Get-LegalPdfRuntimeVersion $legalPdfBinary)
     $python = if ($WithTableOfAuthorities) { Get-Python } else { $null }
     Assert-PortsFree -IncludeToa:$WithTableOfAuthorities
 
@@ -554,13 +576,13 @@ function Start-Stack {
     Write-State $state
     $launched = @()
     $previousCodex = [Environment]::GetEnvironmentVariable('CODEX_EXEC_COMMAND', 'Process')
-    $previousLegalPdfPython = [Environment]::GetEnvironmentVariable('LEGALPDF_PYTHON', 'Process')
+    $previousLegalPdfBinary = [Environment]::GetEnvironmentVariable('LEGALPDF_BINARY', 'Process')
     try {
         # Pin resolved executables for the backend child; PATH is untouched.
         if ($codex) {
             [Environment]::SetEnvironmentVariable('CODEX_EXEC_COMMAND', $codex, 'Process')
         }
-        [Environment]::SetEnvironmentVariable('LEGALPDF_PYTHON', $legalPdfPython, 'Process')
+        [Environment]::SetEnvironmentVariable('LEGALPDF_BINARY', $legalPdfBinary, 'Process')
 
         $backendStart = Start-LoggedProcess 'backend' $node @('dist/index.js') $Backend $state
         $launched += [pscustomobject]@{
@@ -606,7 +628,7 @@ function Start-Stack {
     }
     finally {
         [Environment]::SetEnvironmentVariable('CODEX_EXEC_COMMAND', $previousCodex, 'Process')
-        [Environment]::SetEnvironmentVariable('LEGALPDF_PYTHON', $previousLegalPdfPython, 'Process')
+        [Environment]::SetEnvironmentVariable('LEGALPDF_BINARY', $previousLegalPdfBinary, 'Process')
     }
 
     if (-not $NoBrowser) {

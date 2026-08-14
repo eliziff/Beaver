@@ -187,9 +187,15 @@ describe("local assistant tools", () => {
       userId: "local-user",
       projectId: null,
       allowedDocumentIds: new Set([document.id]),
+      documentNames: new Map([[document.id, "draft.docx"]]),
       editMode: mode,
       onMutationCommitted: committed,
     });
+    expect(chat.toolActivityMetadata({
+      id: "read-draft",
+      name: "Read",
+      input: { file_path: document.id },
+    })).toEqual({ label: "Reading draft.docx" });
     const evidence = createLegalEvidenceTurnState();
     const events: unknown[] = [];
     const { results: [edited] } = await chat.createToolRunner(
@@ -281,12 +287,14 @@ describe("local assistant tools", () => {
       { allowedDocumentIds: new Set([document.id]) },
     );
 
-    expect(JSON.parse(response.content)).toMatchObject({
+    const payload = JSON.parse(response.content);
+    expect(payload).toMatchObject({
       ok: true,
       action: "revised",
       document_id: document.id,
       version_number: 2,
     });
+    expect(payload.annotations[0]).not.toHaveProperty("reason");
   });
 
   it("source-qualifies multi-document coding reads independently of aliases", async () => {

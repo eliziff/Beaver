@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { Profiler, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { Document } from "@/app/components/shared/types";
@@ -52,6 +52,7 @@ function Harness({
     initialDocuments = [document],
     initialFolders = [],
     onActions,
+    onCreateFolderActionChange,
     uploadDocument = async () => document,
     moveDocument = async () => document,
     renameDocument = async (_documentId, filename) => ({
@@ -64,6 +65,7 @@ function Harness({
     initialDocuments?: Document[];
     initialFolders?: DocTableFolder[];
     onActions?: (actions: DocTableSelectionActions | null) => void;
+    onCreateFolderActionChange?: (action: (() => void) | null) => void;
     uploadDocument?: (file: File) => Promise<Document>;
     moveDocument?: (
         documentId: string,
@@ -99,6 +101,7 @@ function Harness({
             }}
             selectionFirst={selectionFirst}
             onSelectionActionsChange={onActions}
+            onCreateFolderActionChange={onCreateFolderActionChange}
         />
     );
 }
@@ -176,6 +179,27 @@ describe("DocTable Library interactions", () => {
         });
 
         await waitFor(() => expect(latestUpload).toHaveBeenCalledWith(file));
+    });
+
+    it("creates the first folder from an empty collection", async () => {
+        Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+            configurable: true,
+            value: vi.fn(),
+        });
+        let createFolder: (() => void) | null = null;
+        render(
+            <Harness
+                initialDocuments={[]}
+                onCreateFolderActionChange={(action) => {
+                    createFolder = action;
+                }}
+            />,
+        );
+        await waitFor(() => expect(createFolder).not.toBeNull());
+
+        act(() => createFolder?.());
+
+        expect(screen.getByPlaceholderText("Folder name")).toBeVisible();
     });
 
     it("keeps version-file drag feedback on its document row", () => {

@@ -1,5 +1,5 @@
 import { Profiler, useRef } from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Document } from "../shared/types";
@@ -98,17 +98,18 @@ beforeEach(() => window.localStorage.clear());
 describe("ChatInput workflow document selection", () => {
     it("hides Auto Mode until enabled and starts in Manual Mode", async () => {
         const initial = render(<WorkflowHarness onSubmit={vi.fn()} />);
-        expect(screen.queryByRole("button", { name: /Editing mode/ })).toBeNull();
+        expect(screen.queryByRole("group", { name: "Editing mode" })).toBeNull();
         initial.unmount();
 
         setShowAutoMode(true);
         const onSubmit = vi.fn();
         const enabled = render(<WorkflowHarness onSubmit={onSubmit} />);
-        const mode = screen.getByRole("button", {
-            name: "Editing mode: Manual Mode",
-        });
-        await userEvent.click(mode);
-        expect(mode).toHaveAccessibleName("Editing mode: Auto Mode");
+        const mode = screen.getByRole("group", { name: "Editing mode" });
+        expect(within(mode).getByRole("button", { name: "Manual" })).toHaveAttribute(
+            "aria-pressed",
+            "true",
+        );
+        await userEvent.click(within(mode).getByRole("button", { name: "Auto" }));
         await userEvent.type(screen.getByRole("textbox"), "Revise it");
         await userEvent.click(screen.getByRole("button", { name: "Send message" }));
         expect(onSubmit).toHaveBeenCalledWith(
@@ -116,9 +117,10 @@ describe("ChatInput workflow document selection", () => {
         );
         enabled.unmount();
         render(<WorkflowHarness onSubmit={vi.fn()} />);
-        expect(screen.getByRole("button", {
-            name: "Editing mode: Manual Mode",
-        })).toBeVisible();
+        expect(screen.getByRole("button", { name: "Manual" })).toHaveAttribute(
+            "aria-pressed",
+            "true",
+        );
     });
 
     it("attaches a Library drag without uploading it again", async () => {

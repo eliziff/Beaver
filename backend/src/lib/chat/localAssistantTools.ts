@@ -1041,10 +1041,16 @@ const LOCAL_ASSISTANT_TOOL_CATALOG: OpenAIToolSchema[] = [
   ...COMPARE_VERSIONS_TOOLS,
   ...(WORKFLOW_TOOLS as OpenAIToolSchema[]),
   SEARCH_SOURCES_TOOL,
-  ...(COURTLISTENER_TOOLS as OpenAIToolSchema[]),
-  ...(A2AJ_TOOLS as OpenAIToolSchema[]),
-  ...(PUBLIC_LEGAL_SOURCE_TOOLS as OpenAIToolSchema[]),
-  ...HANSARD_TOOLS,
+  ...(COURTLISTENER_TOOLS as OpenAIToolSchema[]).filter(
+    (tool) => tool.function.name !== "courtlistener_search_case_law",
+  ),
+  ...(A2AJ_TOOLS as OpenAIToolSchema[]).filter(
+    (tool) => tool.function.name !== "a2aj_search",
+  ),
+  ...(PUBLIC_LEGAL_SOURCE_TOOLS as OpenAIToolSchema[]).filter(
+    (tool) => tool.function.name !== "public_legal_source_search",
+  ),
+  ...HANSARD_TOOLS.filter((tool) => tool.function.name !== "hansard_search"),
   ...CITATOR_TOOLS,
 ];
 
@@ -1367,6 +1373,7 @@ type WorkingSetEvidenceSegment = {
   sourceEnd: number;
   filename?: string;
   locator?: string;
+  locatorKind?: "paragraph" | "page" | "section" | "footnote";
   virtualPath?: string;
   projection?: string;
 };
@@ -1502,6 +1509,7 @@ type CodingOutputLine = {
     versionId: string;
     filename?: string;
     locator?: string;
+    locatorKind?: "paragraph" | "page" | "section" | "footnote";
     virtualPath?: string;
     projection?: string;
   };
@@ -1640,6 +1648,7 @@ function workingSetEvidenceSegments(
         end: segment.sourceStart + overlapEnd - segment.virtualStart,
         ...(segment.filename && { filename: segment.filename }),
         ...(segment.locator && { locator: segment.locator }),
+        ...(segment.locatorKind && { locatorKind: segment.locatorKind }),
         ...(segment.virtualPath && { virtualPath: segment.virtualPath }),
         ...(segment.projection && { projection: segment.projection }),
         kind: "evidence",
@@ -2417,7 +2426,9 @@ async function runCodingShapeCall(
           {
             documentId: meta.id,
             versionId: meta.current_version_id,
-            locator: pageLabel(page),
+            locator:
+              page.printedLabel ?? String(page.pdfPage ?? page.ordinal),
+            locatorKind: "page",
             projection: "canonical",
           },
         ),
@@ -2485,6 +2496,7 @@ async function runCodingShapeCall(
                   documentId: meta.id,
                   versionId: meta.current_version_id,
                   locator: node.label,
+                  locatorKind: "section",
                   projection: "canonical",
                 },
               ),
@@ -2551,6 +2563,7 @@ async function runCodingShapeCall(
               documentId: meta.id,
               versionId: meta.current_version_id,
               locator: block.label,
+              locatorKind: "section",
               projection: "canonical",
             },
           };
@@ -4431,6 +4444,17 @@ export type LocalAssistantToolOptions = {
   editMode?: EditMode;
 };
 
+function sharedEvidenceLocator(
+  segments: NonNullable<NormalizedToolResult["evidenceSegments"]>,
+): Parameters<typeof createLibraryEvidence>[0]["locator"] {
+  const first = segments[0];
+  return first?.locator && first.locatorKind &&
+      segments.every(({ locator, locatorKind }) =>
+        locator === first.locator && locatorKind === first.locatorKind)
+    ? { kind: first.locatorKind, label: first.locator }
+    : undefined;
+}
+
 export async function runLocalAssistantTools(
   userId: string,
   calls: NormalizedToolCall[],
@@ -4593,6 +4617,7 @@ export async function runLocalAssistantTools(
               spanText,
               start,
               end,
+              locator: sharedEvidenceLocator(segments),
             });
             registerLegalEvidence(legalEvidenceState, receipt);
             evidenceIds.push(receipt.evidence_id);
@@ -5303,12 +5328,6 @@ export async function runLocalAssistantTools(
                 : {}),
             });
           }
-          const reason = blockInsert
-            ? "insert_blocks"
-            : requests
-                .map((request) => request.op)
-                .join(", ")
-                .slice(0, 100);
           const trackedEdits: LocalTrackedEdit[] = applied.edits.map(
             (edit) => ({
               id: crypto.randomUUID(),
@@ -5319,7 +5338,6 @@ export async function runLocalAssistantTools(
               insertedText: edit.insertedText,
               contextBefore: edit.contextBefore,
               contextAfter: edit.contextAfter,
-              reason,
               diff: edit.diff,
               status: "pending",
             }),

@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import type { AnonymousChatMessage } from "../anonymousChatStore";
-import { projectAnonymousTranscript } from "./anonymousTranscript";
+import {
+  projectAnonymousTranscript,
+  visibleAnonymousMessages,
+} from "./anonymousTranscript";
 
 function message(
   role: "user" | "assistant",
@@ -145,7 +148,7 @@ describe("projectAnonymousTranscript", () => {
     ]);
   });
 
-  it("marks failed and cancelled assistant output as incomplete", () => {
+  it("keeps failures visible to the model and operation state out of its transcript", () => {
     expect(
       projectAnonymousTranscript([
         message("assistant", [
@@ -154,7 +157,7 @@ describe("projectAnonymousTranscript", () => {
         ]),
         message("assistant", [
           { type: "content", text: "Another partial." },
-          { type: "content", text: "Cancelled by user." },
+          { type: "turn_status", status: "cancelled" },
         ]),
       ]),
     ).toEqual([
@@ -166,7 +169,29 @@ describe("projectAnonymousTranscript", () => {
       },
       {
         role: "assistant",
-        content: "Another partial.\n\nCancelled by user.",
+        content: "Another partial.",
+      },
+    ]);
+  });
+});
+
+describe("visibleAnonymousMessages", () => {
+  it("exposes durable turn identity and completion without internal events", () => {
+    const turnId = randomUUID();
+
+    expect(visibleAnonymousMessages([
+      message("user", "Question", { turn_id: turnId }),
+      message("assistant", [
+        { type: "content", text: "Answer" },
+        { type: "local_turn_completed", schema_version: 1 },
+      ], { turn_id: turnId }),
+    ])).toMatchObject([
+      { role: "user", turn_id: turnId },
+      {
+        role: "assistant",
+        turn_id: turnId,
+        turn_complete: true,
+        content: [{ type: "content", text: "Answer" }],
       },
     ]);
   });

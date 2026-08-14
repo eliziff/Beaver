@@ -7,7 +7,7 @@ import {
     waitFor,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { EditAnnotation } from "../shared/types";
+import type { DocumentCitation, EditAnnotation } from "../shared/types";
 
 const mocks = vi.hoisted(() => ({
     docxView: vi.fn(),
@@ -21,6 +21,7 @@ vi.mock("../shared/views/DocxView", () => ({
     DocxView: (props: {
         warning?: string | null;
         highlightEdit?: unknown;
+        quotes?: { page?: number; quote: string }[];
     }) => {
         mocks.docxView(props);
         return (
@@ -68,6 +69,36 @@ afterEach(() => {
 });
 
 describe("edit document panel", () => {
+    it("highlights citations in the rendered document without duplicating their text", async () => {
+        const citation: DocumentCitation = {
+            type: "citation_data",
+            kind: "document",
+            ref: 1,
+            doc_id: "doc-1",
+            document_id: "doc-1",
+            filename: "Draft agreement.docx",
+            quotes: [{ quote: "The term is five years." }],
+        };
+        const { container } = render(
+            <DocPanel
+                documentId="doc-1"
+                filename="Draft agreement.docx"
+                versionId="version-1"
+                versionNumber={1}
+                mode={{ kind: "citation", citation }}
+            />,
+        );
+
+        expect(container).not.toHaveTextContent("The term is five years.");
+        await waitFor(() =>
+            expect(mocks.docxView).toHaveBeenLastCalledWith(
+                expect.objectContaining({
+                    quotes: [{ quote: "The term is five years." }],
+                }),
+            ),
+        );
+    });
+
     it("leaves the redline as the only change preview", async () => {
         const { container } = render(
             <DocPanel

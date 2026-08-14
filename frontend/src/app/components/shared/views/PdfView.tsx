@@ -31,6 +31,7 @@ const ZOOM_STEP = 0.25;
 type RenderedPage = {
     wrapper: HTMLDivElement;
     textDivs: HTMLElement[];
+    hasTextLayer: boolean;
 };
 const clampZoom = (value: number) =>
     Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(value * 100) / 100));
@@ -219,27 +220,31 @@ export function PdfView({
                     }
                 }
                 if (generation !== renderGenerationRef.current) return;
-                const textLayerDiv = document.createElement("div");
-                textLayerDiv.className = "pdf-text-layer";
-                textLayerDiv.style.position = "absolute";
-                textLayerDiv.style.left = "0";
-                textLayerDiv.style.top = "0";
-                textLayerDiv.style.width = `${viewport.width}px`;
-                textLayerDiv.style.height = `${viewport.height}px`;
-                textLayerDiv.style.setProperty("--scale-factor", String(scale));
-                wrapper.appendChild(textLayerDiv);
-                const textLayer = new lib.TextLayer({
-                    textContentSource: page.streamTextContent(),
-                    container: textLayerDiv,
-                    viewport,
-                });
-                await textLayer.render();
-                if (generation !== renderGenerationRef.current) return;
-                const textDivs = textLayer.textDivs;
+                const textDivs: HTMLElement[] = [];
+                if (list.length) {
+                    const textLayerDiv = document.createElement("div");
+                    textLayerDiv.className = "pdf-text-layer";
+                    textLayerDiv.style.position = "absolute";
+                    textLayerDiv.style.left = "0";
+                    textLayerDiv.style.top = "0";
+                    textLayerDiv.style.width = `${viewport.width}px`;
+                    textLayerDiv.style.height = `${viewport.height}px`;
+                    textLayerDiv.style.setProperty("--scale-factor", String(scale));
+                    wrapper.appendChild(textLayerDiv);
+                    const textLayer = new lib.TextLayer({
+                        textContentSource: page.streamTextContent(),
+                        container: textLayerDiv,
+                        viewport,
+                    });
+                    await textLayer.render();
+                    if (generation !== renderGenerationRef.current) return;
+                    textDivs.push(...textLayer.textDivs);
+                }
                 container.appendChild(wrapper);
                 renderedPagesRef.current.push({
                     wrapper,
                     textDivs,
+                    hasTextLayer: list.length > 0,
                 });
             }
             if (generation !== renderGenerationRef.current) return;
@@ -391,6 +396,13 @@ export function PdfView({
     useEffect(() => {
         if (!pdfDocRef.current) return;
         quoteListRef.current = quoteList;
+        if (
+            quoteList.length &&
+            renderedPagesRef.current.some((page) => !page.hasTextLayer)
+        ) {
+            void renderPDF(quoteList);
+            return;
+        }
         const targetPage = applyHighlights(renderedPagesRef.current, quoteList);
         const page = targetPage ?? quoteList.find((entry) => entry.page)?.page;
         if (page && page >= 1) {

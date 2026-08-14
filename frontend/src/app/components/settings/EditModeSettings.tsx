@@ -12,18 +12,18 @@ export function EditModeSettings() {
         <div className="flex items-center justify-between gap-4">
             <div>
                 <p className="text-sm font-medium text-gray-900">
-                    Show Auto Mode
+                    Enable Auto mode
                 </p>
                 <p className="mt-0.5 text-xs leading-5 text-gray-500">
-                    Adds an editing-mode control to chat. Manual Mode remains
-                    the default.
+                    Adds Auto to the chat editing control. Manual remains the
+                    default.
                 </p>
             </div>
             <AccountToggle
                 checked={showAutoMode}
                 onChange={setShowAutoMode}
                 size="md"
-                ariaLabel="Show Auto Mode"
+                ariaLabel="Enable Auto mode"
             />
         </div>
     );

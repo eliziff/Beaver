@@ -67,9 +67,11 @@ parsed.
 
 ## Package Shape
 
-Use a standalone Python package, tentatively named `legalpdf`, with PyMuPDF as
-the only required PDF dependency. Reuse source modules through adapters during
-the first implementation; do not fork large copies of either project.
+Use the standalone MIT-licensed Rust `legalpdf` crate and binary, with
+`pdf-inspector` as the fast digital-born backbone and no Python or PyMuPDF
+runtime dependency. Optional OCR/layout features remain behind Cargo features;
+application consumers invoke the same versioned CLI/JSON contract without a
+compatibility shim.
 
 The core has:
 
@@ -83,37 +85,28 @@ queue, plugin system, or custom binary format.
 
 ## Public API
 
-```python
-def parse_pdf(
-    path: str | Path,
-    *,
-    mode: Literal["local", "codex"] = "local",
-    cache_dir: str | Path | None = None,
-    model: str | None = None,
-    effort: str | None = None,
-) -> LegalDocument:
-    ...
+```rust
+pub fn parse_pdf(
+    path: impl AsRef<Path>,
+    options: &ParseOptions,
+) -> Result<LegalDocument>;
 
-def improve(
-    document: LegalDocument,
-    pdf_path: str | Path,
-    *,
-    model: str,
-    effort: str,
-) -> LegalDocument:
-    ...
+pub fn improve_document(
+    document: &LegalDocument,
+    pdf_path: &Path,
+    model: &str,
+    effort: &str,
+    cache_dir: &Path,
+    timeout_seconds: u64,
+) -> Result<LegalDocument>;
 
-def lookup_footnote(
-    document: LegalDocument,
-    label_or_pair_id: str,
-    *,
-    page: int | None = None,
-    occurrence: int | None = None,
-    proposition_mode: Literal[
-        "sentence", "passage_since_prior_note"
-    ] = "sentence",
-) -> FootnoteLookup:
-    ...
+pub fn lookup_artifact_footnote(
+    path: impl AsRef<Path>,
+    query: &str,
+    page: Option<u32>,
+    occurrence: Option<usize>,
+    proposition_mode: &str,
+) -> Result<FootnoteLookup>;
 ```
 
 `mode="codex"` means deterministic parsing followed by selective repair. It

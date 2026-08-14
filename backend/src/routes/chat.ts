@@ -1173,6 +1173,12 @@ export async function streamAnonymousChat(params: {
     userId,
     projectId,
     allowedDocumentIds,
+    documentNames: new Map(
+      [...documents, ...selectedDocuments].map((document) => [
+        document.id,
+        document.filename,
+      ]),
+    ),
     tabular: params.tabular?.store,
     editMode: params.editMode,
     onMutationCommitted: () => {
@@ -1227,7 +1233,10 @@ export async function streamAnonymousChat(params: {
       subagentEffort: params.subagentEffort,
       jurisdictionPreference: params.jurisdictionPreference,
       activityDetail,
-      toolActivityMetadata: benchmark.toolActivityMetadata,
+      toolActivityMetadata: (call) => ({
+        ...localTools.toolActivityMetadata(call),
+        ...(benchmark.toolActivityMetadata?.(call) ?? {}),
+      }),
       priorEvidence: priorLegalEvidence,
       providerSession: isCodex
         ? {
@@ -1308,7 +1317,7 @@ export async function streamAnonymousChat(params: {
           : []),
         ...(partialText ? [{ type: "content", text: partialText }] : []),
         isAbortError(error)
-          ? { type: "content", text: "Cancelled by user." }
+          ? { type: "turn_status", status: "cancelled" }
           : { type: "error", message },
       ]);
     } catch (persistError) {
