@@ -51,6 +51,12 @@ export type RejectedAssistantTurn = {
   detail?: string;
   retryable?: boolean;
 };
+const CHAT_COMMAND_HELP = [
+  "**Commands**",
+  "",
+  "- `/compact` — Compact this chat's context.",
+  "- `/help` — Show available commands.",
+].join("\n");
 function interruptedTurn(messages: Message[]): RejectedAssistantTurn | null {
   const assistantIndex = messages.length - 1;
   const assistant = messages[assistantIndex];
@@ -253,7 +259,20 @@ export function useAssistantChat({
     opts?: AssistantTurnOptions,
   ): Promise<string | null> => {
     if (!message.content.trim()) return null;
-    if (message.content.trim() === "/compact") {
+    const command = message.content.trim().toLowerCase();
+    if (command === "/help") {
+      if (isResponseLoading) return null;
+      setMessages((current) => {
+        const last = current.at(-1);
+        const withCommand = last?.role === "user" &&
+            last.content.trim().toLowerCase() === command
+          ? current
+          : [...current, message];
+        return [...withCommand, { role: "assistant", content: CHAT_COMMAND_HELP }];
+      });
+      return null;
+    }
+    if (command === "/compact") {
       if (!chatId || isResponseLoading) return null;
       const updateCompaction = (
         status: "running" | "completed" | "failed",
@@ -592,7 +611,7 @@ export function useAssistantChat({
                       content: next
                         .filter((event) => event.type === "content")
                         .map((event) => event.text)
-                        .join(""),
+                        .join("\n\n"),
                     },
               );
               continue;

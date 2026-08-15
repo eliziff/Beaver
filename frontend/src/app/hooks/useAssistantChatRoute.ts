@@ -65,7 +65,7 @@ export function useAssistantChatRoute({
                 assistant.setTranscriptVersion(chat.transcript_version ?? 0);
                 if (!projectId && chat.project_id) {
                     finishProjectMove(chat.project_id);
-                } else if (messages.length > 0) {
+                } else {
                     assistant.setMessages(messages);
                     if (chat.turn_in_progress) {
                         assistant.resumeRunningTurn(
@@ -73,8 +73,6 @@ export function useAssistantChatRoute({
                             chat.transcript_version ?? 0,
                         );
                     }
-                } else if (!projectId) {
-                    router.replace("/assistant");
                 }
             })
             .catch((error) => {

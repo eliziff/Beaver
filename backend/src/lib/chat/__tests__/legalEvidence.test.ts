@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   createBenchmarkEvidence,
   createLegalEvidenceTurnState,
+  finalizeLegalEvidenceExperiment,
+  hasCaseNameInText,
   legalEvidenceReceiptEvent,
   priorLegalEvidenceReceipts,
   registerLegalEvidence,
@@ -27,6 +29,23 @@ function passage(locatorLabel = "par12") {
 }
 
 describe("production legal evidence", () => {
+  it("recognizes named cases even when the model omits their citations", async () => {
+    expect(hasCaseNameInText("My favourite is *R. v. Oakes*.")).toBe(true);
+    expect(hasCaseNameInText("I prefer Baker v. Canada for this point.")).toBe(true);
+    expect(hasCaseNameInText("The answer is a general explanation.")).toBe(false);
+
+    const state = createLegalEvidenceTurnState();
+    const result = await finalizeLegalEvidenceExperiment({
+      state,
+      model: "gemini-3-flash-preview",
+      draft: "My favourite is *R. v. Oakes*.",
+    });
+    expect(result.passed).toBe(false);
+    expect(result.modelCalls).toBe(0);
+    expect(state.failure).toContain("without verified passages");
+    expect(renderLegalEvidenceAnswer(state)).toBeNull();
+  });
+
   it("accepts registered passages and emits durable receipts", () => {
     const state = createLegalEvidenceTurnState();
     const evidence = passage();

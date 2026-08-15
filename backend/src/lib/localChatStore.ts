@@ -54,6 +54,7 @@ export const createLocalChatStore: CreateChatStore = (tabular) => ({
       scope, options.tabularReviewId,
     )) throw missing("Review not found");
     const rows = listAnonymousChats(scope.userId)
+      .filter((chat) => chat.messages.length > 0)
       .filter((chat) => options.projectId
         ? chat.project_id === options.projectId
         : options.tabularReviewId

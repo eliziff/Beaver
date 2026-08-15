@@ -113,10 +113,10 @@ export function activityView(
 ): ActivityView | null {
     if (event.type === "reasoning") {
         if (!event.debug) return null;
-        const markdown = event.text.replace(/\r\n?/gu, "\n").trim();
-        const label = plainText(markdown.split(/\n{2,}/u).at(-1) ?? markdown).slice(0, 120);
+        const text = event.text.replace(/\r\n?/gu, "\n").trim();
+        const label = plainText(text.split(/\n{2,}/u).at(-1) ?? text).slice(0, 120);
         return label
-            ? { label, markdown, busy: !!event.isStreaming }
+            ? { label, busy: !!event.isStreaming }
             : null;
     }
     if (event.type === "tool_call_start") {
@@ -396,12 +396,16 @@ export function activityView(
 export function dedupeActivityEntries<
     T extends { event: AssistantEvent; index: number },
 >(entries: T[]): T[] {
+    const hasConcreteActivity = entries.some(({ event }) =>
+        event.type !== "reasoning" && event.type !== "thinking"
+    );
     const completedKeys = new Set<string>();
     const concreteFamilies = new Set<string>();
     const result: T[] = [];
     for (let index = entries.length - 1; index >= 0; index--) {
         const entry = entries[index];
         if (entry.event.type === "reasoning" && !entry.event.debug) continue;
+        if (entry.event.type === "reasoning" && hasConcreteActivity) continue;
         const isStreaming =
             "isStreaming" in entry.event && !!entry.event.isStreaming;
         const family = assistantActivityFamily(entry.event);

@@ -20,6 +20,7 @@ import {
   createA2AJLookupEvidence,
   type LegalEvidenceReceipt,
 } from "../legalEvidence";
+import { parseResourceReference } from "../../resourceReferences";
 
 export const A2AJ_TOOL_NAMES = {
   search: "a2aj_search",
@@ -273,6 +274,25 @@ export function assistantToolActivityLabel(
   if (name === "Read") {
     const file = activityText(args.file_path, 80);
     if (!file || file.startsWith(".mike/")) return null;
+    const resource = parseResourceReference(file);
+    if (resource?.kind === "source") {
+      const providers: Record<string, string> = {
+        a2aj: "A2AJ",
+        courtlistener: "CourtListener",
+        "courtlistener-opinion": "CourtListener",
+        journal: "the journal corpus",
+        hansard: "Hansard",
+        pdf: "the source PDF",
+      };
+      let title = "a source";
+      if (resource.provider === "a2aj") {
+        try {
+          const [citation] = JSON.parse(resource.sourceId) as unknown[];
+          if (typeof citation === "string" && citation.trim()) title = citation;
+        } catch {}
+      }
+      return `Reading ${title} from ${providers[resource.provider] ?? resource.provider}`;
+    }
     return `Reading ${file.replace(/^.*[\\/]/u, "")} from your Library`;
   }
   const query = activityText(args.query, 80);

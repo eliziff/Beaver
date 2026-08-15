@@ -1,10 +1,6 @@
 import { useEffect, useState } from "react";
 import { API_BASE, apiFetch } from "@/app/lib/beaverApi";
-import { isAnonymousMode } from "@/app/lib/authMode";
-import {
-    invalidateSingleDoc,
-    preloadSingleDoc,
-} from "@/app/hooks/useFetchSingleDoc";
+import { invalidateSingleDoc } from "@/app/hooks/useFetchSingleDoc";
 interface FetchDocxResult {
     bytes: ArrayBuffer | null;
     downloadUrl: string | null;
@@ -44,20 +40,15 @@ export function preloadDocxBytes(
         ? `?version_id=${encodeURIComponent(versionId)}`
         : "";
     const path = `/single-documents/${documentId}/docx${query}`;
-    const fetchDocx = () =>
-        apiFetch(path, { headers: { Accept: "*/*" } }).then((response) => {
+    const pending = apiFetch(path, { headers: { Accept: "*/*" } })
+        .then((response) => {
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             return response.arrayBuffer();
+        })
+        .then((bytes) => {
+            bytesCache.set(key, bytes);
+            return bytes;
         });
-    const pending = (isAnonymousMode
-        ? preloadSingleDoc(documentId, versionId, refetchKey).then((result) =>
-              result.type === "docx" ? result.buffer : fetchDocx(),
-          )
-        : fetchDocx()
-    ).then((bytes) => {
-        bytesCache.set(key, bytes);
-        return bytes;
-    });
     inFlight.set(key, pending);
     const cleanup = () => {
         if (inFlight.get(key) === pending) inFlight.delete(key);

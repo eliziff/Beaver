@@ -261,151 +261,9 @@ const GENERATION_TOOLS = (TOOLS as OpenAIToolSchema[]).filter(
   ({ function: { name } }) => name.startsWith("generate_"),
 );
 
-
 const ASK_INPUTS_TOOLS = (TOOLS as OpenAIToolSchema[]).filter(
   (schema) => schema.function.name === "ask_inputs",
 );
-
-/**
- * Turn-scoped bookkeeping for the requirements echo. Created once per assistant
- * turn by the route and handed to every tool batch, exactly like turnReadState,
- * so a fetch_requirements call in round 1 is still visible to a generate_docx
- * call in round 4.
- */
-export type AssistantRequirementsState = {
-  /** How many times fetch_requirements has been served this turn. */
-  echoCallCount: number;
-  /** documents_unread.length at the first echo; null until then, and null when
-   * the read state was unavailable so the lists were served as unknown. */
-  documentsUnreadAtEcho: number | null;
-  /** Exposure accounting only: documents_oriented_only.length at the first
-   * echo (touched but zero body chars served). Null when the mechanism is
-   * off or the read state was unavailable. */
-  documentsOrientedOnlyAtEcho: number | null;
-  /** Exposure accounting only: the authoring-boundary coverage check has
-   * refused once this turn; every later authoring call proceeds. */
-  exposureNudgeServed: boolean;
-  /** Draft-edit lever only: the body/title/filename of the last generate_docx
-   * draft, saved when the coverage check refused it (and kept in sync when the
-   * model re-sends a full body). Null until a draft is captured. */
-  draftTitle: string | null;
-  /** Draft-edit lever only: in-memory drafts keyed by lowercased filename
-   * ("draft.md" is the canonical path the refusal names). Held only here,
-   * never on disk — nothing is written until the final render. Multiple
-   * drafts coexist: the model may spin up named drafts and address each by
-   * path exactly like a workspace file. */
-  drafts: Record<string, string>;
-  draftFilename: string | null;
-  /** Draft-edit lever only: successful in-memory draft Edits this turn. */
-  draftEditCount: number;
-  /** Draft-edit lever only: successful real-file (source) Edits applied this
-   * turn. Monitored distinctly from draft edits — a model editing a source
-   * .docx unprompted is observable behavior, not a hidden path. */
-  sourceEditCount: number;
-  /** Final arm: attempted source Edits refused at the immutable boundary. */
-  sourceEditRefusalCount: number;
-  /** Final arm: evidence state observed at the first bodied authoring call. */
-  firstDraftCount: number;
-  firstDraftCoverage: {
-    bodyEvidence: string[];
-    tocOnly: string[];
-    unseen: string[];
-  } | null;
-  /** Final arm: one only when a coverage gap paused the first draft. */
-  signalGateCount: number;
-  /** Composition-check lever only: how many times the draft-vs-served
-   * reconcile ran this turn (once per authoring call, at most once per turn
-   * under the exposure latch) and how many competing-base findings it served.
-   * Zero count with the mechanism on means the boundary never fired — the
-   * conformance gate treats that as a wiring failure. */
-  compositionCheckCount: number;
-  compositionCheckFindings: number;
-};
-
-export const createAssistantRequirementsState =
-  (): AssistantRequirementsState => ({
-    echoCallCount: 0,
-    documentsUnreadAtEcho: null,
-    documentsOrientedOnlyAtEcho: null,
-    exposureNudgeServed: false,
-    draftTitle: null,
-    drafts: {},
-    draftFilename: null,
-    draftEditCount: 0,
-    sourceEditCount: 0,
-    sourceEditRefusalCount: 0,
-    firstDraftCount: 0,
-    firstDraftCoverage: null,
-    signalGateCount: 0,
-    compositionCheckCount: 0,
-    compositionCheckFindings: 0,
-  });
-
-/** Canonical in-memory draft path; the refusal message names this file. */
-export const CANONICAL_DRAFT_FILE = "draft.md";
-
-/** A coverage-paused output is committed only after at least one real Edit. */
-export function pendingFinalAgentDraft(
-  state: AssistantRequirementsState,
-): { filename: string; content: string } | null {
-  if (
-    state.signalGateCount !== 1 ||
-    state.draftEditCount < 1 ||
-    !state.draftFilename
-  ) {
-    return null;
-  }
-  const content = state.drafts[state.draftFilename.toLowerCase()];
-  return content ? { filename: state.draftFilename, content } : null;
-}
-
-/** Map key for a draft named by a title/filename: lowercased slug + ".md".
- * Used to alias the canonical draft under the deliverable's own name, so a
- * model that addresses its draft by a derived filename finds it. */
-
-
-/**
- * Exact-string draft edit with Claude Code's contract: old_string must be
- * found, must differ from new_string, and must be unique unless replace_all.
- * Index-based splicing, never String.replace with a string pattern — $-tokens
- * in legal text (e.g. "$1,000,000") must not be interpreted as replacement
- * patterns.
- */
-export function applyDraftEdit(
-  draft: string,
-  oldString: string,
-  newString: string,
-  replaceAll: boolean,
-): { updated: string; replacements: number } | { error: string } {
-  if (!oldString) return { error: "old_string must be a non-empty string." };
-  if (oldString === newString)
-    return { error: "old_string and new_string are identical." };
-  const occurrences = draft.split(oldString).length - 1;
-  if (occurrences === 0)
-    return {
-      error:
-        "old_string not found in draft.md. It must match the draft exactly," +
-        " including whitespace.",
-    };
-  if (occurrences > 1 && !replaceAll)
-    return {
-      error:
-        `old_string appears ${occurrences} times in draft.md. Extend it with` +
-        " surrounding text until it is unique, or set replace_all: true.",
-    };
-  if (replaceAll) {
-    return {
-      updated: draft.split(oldString).join(newString),
-      replacements: occurrences,
-    };
-  }
-  const at = draft.indexOf(oldString);
-  return {
-    updated:
-      draft.slice(0, at) + newString + draft.slice(at + oldString.length),
-    replacements: 1,
-  };
-}
 
 /**
  * Structure for a source document, served from the existing pre-baked
@@ -1929,7 +1787,6 @@ async function runCodingShapeCall(
   workingSets?: AssistantWorkingSetTurnState,
   servedDraftingCache?: Map<string, ServedDrafting>,
   turnReadState?: AssistantReadTurnState,
-  requirementsState?: AssistantRequirementsState,
   localPdfEvidenceHandles?: Set<string>,
   workflows: WorkflowStore = new Map(),
   editMode: EditMode = "manual",
@@ -2109,15 +1966,6 @@ async function runCodingShapeCall(
               }),
           )
         ).filter((row): row is NonNullable<typeof row> => row !== null);
-    const draftRows = Object.entries(requirementsState?.drafts ?? {})
-          .filter(([name]) => re.test(name))
-          .map(([name, body]) => ({
-            row: `${name}\tchars=${body.length}\tlines=${
-              body ? body.split(/\r?\n/u).length : 0
-            }`,
-            chars: body.length,
-            lines: body ? body.split(/\r?\n/u).length : 0,
-          }));
     const workflowRows = [...workflows].flatMap(([id, workflow]) => {
       const resource = resourceReference.workflow(id);
       return re.test(resource)
@@ -2132,7 +1980,6 @@ async function runCodingShapeCall(
       ...fileRows,
       ...tocRows,
       ...workingSetRows,
-      ...draftRows,
       ...workflowRows,
     ];
     if (!rows.length) return result(call, "No files found");
@@ -2781,9 +2628,6 @@ async function runCodingShapeCall(
           editMode,
         },
       );
-      if (requirementsState && applied.status !== "error") {
-        requirementsState.sourceEditCount += 1;
-      }
       return {
         ...result(call, applied.content),
         status: applied.status,
@@ -2860,7 +2704,6 @@ async function runCodingShapeCall(
         if (payload.ok) {
           const count =
             payload.ops?.[0]?.replacements ?? payload.change_count ?? 0;
-          if (requirementsState) requirementsState.sourceEditCount += 1;
           return {
             ...result(
               call,
@@ -2974,7 +2817,6 @@ async function runCodingShapeCall(
         edit_mode?: EditMode;
       };
       if (payload.ok) {
-        if (requirementsState) requirementsState.sourceEditCount += 1;
         return {
           ...result(
             call,
@@ -4574,7 +4416,6 @@ export type AssistantToolOptions = {
   edits?: AssistantEditTurnState;
   reads?: AssistantReadTurnState;
   workingSets?: AssistantWorkingSetTurnState;
-  requirements?: AssistantRequirementsState;
   editMode?: EditMode;
   timeZone?: string;
 };
@@ -4606,7 +4447,6 @@ export async function runAssistantTools(
     edits: turnEditState,
     reads: turnReadState,
     workingSets,
-    requirements: requirementsState,
     editMode = "manual",
     timeZone,
     documents,
@@ -4665,40 +4505,6 @@ export async function runAssistantTools(
         args = resolved.input;
       }
 
-      // Claim the one final-agent authoring boundary before any later await.
-      // Sibling writes in the same tool batch remain independent; only the
-      // first valid bodied write can become the pending Edit target.
-      const claimsFinalAgentGate = Boolean(
-        requirementsState &&
-          turnReadState &&
-          call.name === "generate_docx" &&
-          !requirementsState.exposureNudgeServed &&
-          trimmed(args.filename) &&
-          trimmed(args.content),
-      );
-      if (claimsFinalAgentGate && requirementsState) {
-        requirementsState.exposureNudgeServed = true;
-      }
-
-      // Edit and Read are the two tools that can target an in-memory draft.
-      // A real library path resolves through the coding surface (the FS
-      // text-ops editor / read path below); a draft path — "draft.md" or any
-      // other name the model spun up, held only in requirementsState.drafts
-      // and never on disk — is served by the DRAFT_EDIT handler further down
-      // this chain. Route by target: draft calls must fall through here, or
-      // the FS resolver answers them with "File does not exist: <name>" while
-      // the in-memory handler sits shadowed (the gen-7 bug — every Edit
-      // failed on every run, and rendered docs used the un-edited draft).
-      // Computed at the top so the lean-batch Read handler below cannot
-      // intercept a draft path before the dispatch.
-      const draftTarget =
-        requirementsState &&
-        (call.name === "Edit" || call.name === "Read") &&
-        typeof args.file_path === "string" &&
-        Object.prototype.hasOwnProperty.call(
-          requirementsState.drafts,
-          trimmed(args.file_path).toLowerCase(),
-        );
       if (call.name === LEGAL_EVIDENCE_TOOL_NAME) {
         const submitted = legalEvidenceState
           ? submitLegalEvidenceAnswer(args, legalEvidenceState)
@@ -4717,14 +4523,11 @@ export async function runAssistantTools(
         evidence: legalEvidenceState,
       });
       if (sourceRead) return sourceRead;
-      // draftTarget (computed at the top of this chain) routes Read/Edit on
-      // draft paths to the in-memory DRAFT_EDIT handler; every other Read/Edit
-      // goes to the coding surface below.
       if (
         (call.name === "Glob" ||
           call.name === "Grep" ||
-          (call.name === "Read" && !draftTarget) ||
-          (call.name === "Edit" && !draftTarget) ||
+          call.name === "Read" ||
+          call.name === "Edit" ||
           call.name === "transform_docx")
       ) {
         const codingResult = await runCodingShapeCall(
@@ -4740,7 +4543,6 @@ export async function runAssistantTools(
           workingSets,
           servedDraftingCache,
           turnReadState,
-          requirementsState,
           localPdfEvidenceHandles,
           availableWorkflows,
           editMode,
@@ -4858,44 +4660,6 @@ export async function runAssistantTools(
       ) {
         return fail(call, "Document is not attached to this matter");
       }
-      // In-memory drafts are ordinary files to the model: Read returns the
-      // buffer, Edit mutates it. Only draft paths reach here — the dispatch
-      // above routes any file_path present in requirementsState.drafts away
-      // from the FS surface — so both branches assume the key exists.
-      if (
-        requirementsState &&
-        (call.name === "Edit" || call.name === "Read")
-      ) {
-        const filePath = trimmed(args.file_path);
-        const key = filePath.toLowerCase();
-        if (
-          Object.prototype.hasOwnProperty.call(requirementsState.drafts, key)
-        ) {
-          if (call.name === "Read") {
-            return upstreamMikeResult(call, requirementsState.drafts[key]);
-          }
-          const oldString =
-            typeof args.old_string === "string" ? args.old_string : "";
-          const newString =
-            typeof args.new_string === "string" ? args.new_string : "";
-          const edited = applyDraftEdit(
-            requirementsState.drafts[key],
-            oldString,
-            newString,
-            args.replace_all === true,
-          );
-          if ("error" in edited) {
-            return upstreamMikeResult(call, { error: edited.error });
-          }
-          requirementsState.drafts[key] = edited.updated;
-          requirementsState.draftEditCount += 1;
-          return upstreamMikeResult(call, {
-            ok: true,
-            replacements: edited.replacements,
-            draft_chars: edited.updated.length,
-          });
-        }
-      }
       if (call.name === "generate_excel" || call.name === "generate_ppt") {
         const title = trimmed(args.title) ||
           (call.name === "generate_excel" ? "Workbook" : "Presentation");
@@ -4944,52 +4708,11 @@ export async function runAssistantTools(
           return fail(
             call,
             "generate_docx invalid input: expected {title, document_type," +
-              " markdown} with the complete document body" +
-              ` document}; received keys [${received}].`,
+              " markdown} with the complete document body;" +
+              ` received keys [${received}].`,
           );
         }
         const filename = safeGeneratedFilename(title, "docx");
-        if (
-          requirementsState &&
-          (claimsFinalAgentGate || !requirementsState.exposureNudgeServed) &&
-          turnReadState
-        ) {
-          const split = splitReadExposure(
-            await scopedDocuments(
-              scope,
-              library,
-              projects,
-              allowedDocumentIds,
-            ),
-            turnReadState,
-          );
-          const unexposed = [...split.orientedOnly, ...split.unread];
-          if (unexposed.length) {
-            requirementsState.drafts[filename.toLowerCase()] = markdown;
-            requirementsState.draftFilename = filename;
-            requirementsState.signalGateCount += 1;
-            requirementsState.exposureNudgeServed = true;
-            const tocOnly = split.orientedOnly.length
-              ? ` TOC-only: ${split.orientedOnly.join(", ")}.`
-              : "";
-            const unseen = split.unread.length
-              ? ` Unseen: ${split.unread.join(", ")}.`
-              : "";
-            const sourceCount = unexposed.length === 1
-              ? "1 source has"
-              : `${unexposed.length} sources have`;
-            return upstreamMikeResult(call, {
-              error:
-                `${sourceCount} no source text retrieved.` +
-                `${tocOnly}${unseen} The pending output is ${filename}.` +
-                " Review each named source for relevance; retrieve relevant" +
-                " text with Grep output_mode=content or Read, then use Edit" +
-                ` on ${filename} to incorporate the concrete findings.` +
-                " When the output is complete, finish the task normally.",
-            });
-          }
-          requirementsState.exposureNudgeServed = true;
-        }
         try {
           const generatedAt = new Date();
           const drafting = resolveDraftingOptions(
@@ -5077,32 +4800,6 @@ export async function runAssistantTools(
             ),
             download_url: downloadUrl,
           };
-          if (requirementsState?.draftFilename) {
-            if (
-              requirementsState?.draftFilename?.toLowerCase() ===
-              document.filename.toLowerCase()
-            ) {
-              requirementsState.drafts = {};
-              requirementsState.draftTitle = null;
-              requirementsState.draftFilename = null;
-            }
-            return {
-              ...result(call, {
-                ok: true,
-                filename: document.filename,
-                message:
-                  `Written ${document.filename} successfully.` +
-                  (sourceClosure.length
-                    ? " Review source_closure before ending the turn."
-                    : ""),
-                ...(sourceClosure.length
-                  ? { source_closure: sourceClosure }
-                  : {}),
-              }),
-              mutationReceipt: JSON.stringify(receipt),
-            };
-          }
-
           return result(call, receipt);
         } catch (error) {
           return fail(

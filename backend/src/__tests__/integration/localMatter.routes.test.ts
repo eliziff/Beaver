@@ -226,11 +226,6 @@ describe("account-free matter routes", () => {
 
     const assistantHistory = await request(app).get("/chat");
     expect(assistantHistory.body).toEqual([]);
-    const matterHistory = await request(app).get(
-      `/projects/${firstMatter.body.id}/chats`,
-    );
-    expect(matterHistory.body).toHaveLength(1);
-    expect(matterHistory.body[0].id).toBe(createdChat.body.id);
 
     const streamed = await request(app)
       .post("/chat")
@@ -244,6 +239,11 @@ describe("account-free matter routes", () => {
     expect(streamedContent(streamed.text)).toBe("Scoped answer");
     expect(mocks.toolResults.at(-1)).toContain("appeal-record.xlsx");
     expect(mocks.toolResults.at(-1)).not.toContain("unrelated.xlsx");
+    const matterHistory = await request(app).get(
+      `/projects/${firstMatter.body.id}/chats`,
+    );
+    expect(matterHistory.body).toHaveLength(1);
+    expect(matterHistory.body[0].id).toBe(createdChat.body.id);
 
     const missingFocus = await request(app)
       .post("/chat")
@@ -336,12 +336,13 @@ describe("account-free matter routes", () => {
     const lastContent = focusedInput.messages.at(-1)?.content ?? "";
     expect(lastContent).toContain(
       "[The user attached the following document(s) to this message:\n" +
-        `- appeal-record.xlsx (document_id: ${source.body.id})]`,
+        "- appeal-record.xlsx]",
     );
     expect(lastContent).toContain(
       "[User responses to requested inputs]\n" +
-        `- Documents requested for Record: appeal-record.xlsx (document_id: ${source.body.id})`,
+        "- Documents requested for Record: appeal-record.xlsx",
     );
+    expect(`${focusedInput.systemPrompt}\n${lastContent}`).not.toContain(source.body.id);
     // Attachments are announced, not preloaded: the manifest above names the
     // document; its text stays behind the Library tools.
     expect(lastContent).not.toContain("full text:");

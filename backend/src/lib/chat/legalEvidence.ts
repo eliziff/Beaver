@@ -538,6 +538,12 @@ function parseClaims(value: unknown, state: LegalEvidenceTurnState) {
   return { claims, errors };
 }
 
+const CASE_NAME = /(?:^|[^\p{L}])(?:R\.|[A-Z][\p{L}\p{M}'\u2019.&-]*(?:\s+(?:of|the|and|&|[A-Z][\p{L}\p{M}'\u2019.&-]*)){0,6})\s+v(?:\.|ersus)?\s+[A-Z][\p{L}\p{M}'\u2019.&-]*/mu;
+
+export function hasCaseNameInText(text: string) {
+  return CASE_NAME.test(text);
+}
+
 export function submitLegalEvidenceAnswer(
   args: Record<string, unknown>,
   state: LegalEvidenceTurnState,
@@ -577,7 +583,7 @@ export const LEGAL_EVIDENCE_SUBMIT_TOOL: OpenAIToolSchema = {
   function: {
     name: LEGAL_EVIDENCE_TOOL_NAME,
     strict: true,
-    description: "Finish a legal answer as independently checkable support units tied to exact passage evidence. Put sources only in evidence_ids. This call is the final answer.",
+    description: "Finish an answer that actually relies on retrieved passages as independently checkable support units. Do not use this for an answer that needs no sources. Put sources only in evidence_ids. This call is the final answer.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -660,14 +666,22 @@ export async function finalizeLegalEvidenceExperiment(args: {
 }): Promise<LegalEvidenceFinalizationResult> {
   const usage = emptyUsage();
   const { state } = args;
+  const namesAuthority = hasCaseNameInText(args.draft);
+  const citesAuthority = hasCitationInText(args.draft) ||
+    hasCanadianDecisionLink(args.draft);
   if (!state.mode && !state.answer && (
-    hasCitationInText(args.draft) ||
-    hasCanadianDecisionLink(args.draft) ||
+    namesAuthority || citesAuthority ||
     [...state.evidence.values()].some(({ receipt }) => receipt.provider !== "library")
   )) state.mode = "citation_structure";
-  if (!state.mode || (!state.answer && !hasCitationInText(args.draft) && !hasCanadianDecisionLink(args.draft)))
+  if (!state.mode)
     return { passed: true, modelCalls: 0, usage, diagnostic: null };
   state.attempted = true;
+  if (!state.answer && ![...state.evidence.values()].some(
+    ({ receipt }) => receipt.scope === "passage",
+  )) {
+    state.failure = "The answer named legal authorities without verified passages.";
+    return { passed: false, modelCalls: 0, usage, diagnostic: null };
+  }
   try {
     const result = !state.answer && args.draft.trim() ? await structureDraft(args) : null;
     if (!state.answer) {
@@ -708,7 +722,7 @@ function citationFor(entry: RegisteredEvidence) {
 }
 
 export function renderLegalEvidenceAnswer(state: LegalEvidenceTurnState): string | null {
-  if (state.failure) return state.failure;
+  if (state.failure) return null;
   if (!state.answer) return null;
   if (state.mode === null) {
     const refs = new Map(legalEvidenceCitationEntries(state).map(({ ref, receipt }) => [receipt.evidence_id, ref]));
