@@ -23,6 +23,7 @@ export type DocPanelMode =
     | ({
           kind: "edit";
           edit: EditAnnotation;
+          focusKey: number;
           isEditReloading?: boolean;
       } & EditResolveHandlers);
 interface Props {
@@ -75,7 +76,7 @@ export function DocPanel({
     const highlightEdit =
         mode.kind === "edit"
             ? {
-                  key: mode.edit.edit_id,
+                  key: `${mode.edit.edit_id}:${mode.focusKey}`,
                   inserted_text: mode.edit.inserted_text,
                   deleted_text: mode.edit.deleted_text,
                   ins_w_id: mode.edit.ins_w_id ?? null,
