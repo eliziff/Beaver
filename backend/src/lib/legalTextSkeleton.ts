@@ -1232,9 +1232,9 @@ export interface CompileSkeletonOptions {
 /**
  * Compiling a skeleton is the most-repeated expensive thing in the tool
  * layer, and until now it was repeated every single time: 20+ call sites in
- * backend/src, none memoized, with `library_find` compiling the SAME document
- * twice in one call and the coding-shape Grep compiling one per matching
- * document. The extracted text beside it has been cached for ages
+ * backend/src, none memoized, with search paths compiling the same document
+ * more than once per call and Grep compiling one per matching document. The
+ * extracted text beside it has been cached for ages
  * (`textCache`, `parseCache`), so the string was free and the structure was
  * not.
  *

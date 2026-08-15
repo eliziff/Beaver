@@ -1,9 +1,8 @@
 import type { NormalizedToolResult } from "../llm";
 
 function isLegalSourceTool(name: string) {
-  return name === "SearchSources" ||
-    name === "caselaw_note_up" ||
-    name === "consult_attested_characterization" ||
+  return name === "search_sources" ||
+    name === "note_up" ||
     /^(?:a2aj|courtlistener|public_legal_source|hansard)_/u.test(name);
 }
 

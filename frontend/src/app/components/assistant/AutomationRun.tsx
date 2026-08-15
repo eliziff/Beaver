@@ -5,10 +5,9 @@ import type {
     AutomationToolName,
 } from "@/app/components/shared/types";
 const LABELS: Record<AutomationToolName, string> = {
-    toa_submit_library_document: "Create book/table of authorities",
-    toa_job_status: "Create book/table of authorities",
-    library_link_docx_citations: "Auto-add hyperlinks to citations",
-    library_fix_docx_supras: "Fix supra references",
+    create_table_of_authorities: "Create book/table of authorities",
+    link_docx_citations: "Auto-add hyperlinks to citations",
+    fix_docx_supras: "Fix supra references",
 };
 const LOCAL_AUTOMATION_EVENT = "beaver:assistant-automation";
 export function automationLabel(tool: AutomationToolName) {

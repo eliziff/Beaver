@@ -20,7 +20,7 @@ import { modelContextWindow } from "./contextWindow";
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const MAX_OUTPUT_TOKENS = 16384;
 const COURTLISTENER_CITATION_REMINDER_TOOL_NAMES = new Set([
-  "courtlistener_find_in_case",
+  "find_in_case",
   "courtlistener_read_case",
 ]);
 const COURTLISTENER_CITATION_REMINDER = `COURTLISTENER CITATION REMINDER:

@@ -25,8 +25,14 @@ describe("DraftingStyleSettings", () => {
         expect(screen.getByLabelText("To")).toHaveValue("File");
         expect(screen.getByLabelText("From")).toHaveValue("AI Assistant");
 
-        await user.selectOptions(screen.getByLabelText(/Document type/), "factum");
-        const citation = screen.getByLabelText(/Citation placement/);
+        expect(screen.getByLabelText("Factum heading numbering")).toBeVisible();
+        await user.selectOptions(screen.getByLabelText("Factum source links"), "false");
+        expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({
+            documents: expect.objectContaining({
+                factum: expect.objectContaining({ citationHyperlinks: false }),
+            }),
+        }));
+        const citation = screen.getByLabelText("Factum citation placement");
         expect(screen.getByRole("option", { name: "After each paragraph" })).toBeVisible();
         await user.selectOptions(citation, "after-paragraph");
 

@@ -4,6 +4,7 @@ import {
   type NormalizedToolCall,
   type NormalizedToolResult,
   type OpenAIToolSchema,
+  type ProviderSubagentUpdate,
   type ProviderTurnControl,
   type ProviderContextCheckpoint,
   type SteeringMessage,
@@ -18,9 +19,15 @@ import type {
   CaseCitationEvent,
   CourtlistenerToolEvent,
 } from "./tools/courtlistenerTools";
-import { assistantToolActivityLabel } from "./tools/a2ajTools";
 import type { LocalAutomationEvent } from "./localAutomationEvent";
+import { ASK_INPUTS_TOOL } from "./tools/toolSchemas";
 import type { AskInputsEvent, EditAnnotation } from "./types";
+import {
+  bindToolSchemas,
+  TurnToolRegistry,
+  type ToolEntry,
+} from "./toolRegistry";
+import { normalizeAskInputsEvent } from "./askInputs";
 import { createLegalEvidenceCitations } from "./citations";
 import {
   GROUNDED_LEGAL_REPAIR_INSTRUCTION,
@@ -35,6 +42,7 @@ import {
   legalEvidenceReceiptEvent,
   registerPriorLegalEvidence,
   renderLegalEvidenceAnswer,
+  submitLegalEvidenceAnswer,
   type LegalEvidenceReceipt,
   type LegalEvidenceReceiptEvent,
   type LegalEvidenceTurnState,
@@ -85,6 +93,7 @@ export type AssistantEvent =
       document_id?: string;
       version_id?: string;
       version_number?: number | null;
+      resource?: string;
     }
   | { type: "doc_download"; filename: string; download_url: string }
   | { type: "workflow_applied"; workflow_id: string; title: string }
@@ -97,6 +106,7 @@ export type AssistantEvent =
       download_url: string;
       edit_mode: "manual" | "auto";
       annotations: EditAnnotation[];
+      resource: string;
     }
   | CaseCitationEvent
   | CourtlistenerToolEvent
@@ -188,12 +198,10 @@ export async function runChatTurn(options: {
   model: string;
   systemPrompt: string;
   messages: LlmMessage[];
-  tools: OpenAIToolSchema[];
-  readerTools?: OpenAIToolSchema[];
-  createToolRunner: (
+  createTools: (
     evidence: LegalEvidenceTurnState,
     scope: "main" | "reader",
-  ) => ChatToolRunner;
+  ) => ToolEntry<ChatToolContext>[];
   emit: (event: unknown) => void;
   done: () => void;
   apiKeys?: UserApiKeys;
@@ -242,16 +250,8 @@ export async function runChatTurn(options: {
     else events[index] = event;
   };
   const context: ChatToolContext = { evidence, emit, addEvent };
-  const mainTools = options.createToolRunner(evidence, "main");
+  const mainTools = options.createTools(evidence, "main");
   const resumableReaders = new Map(options.resumableSubagents);
-  const tools = [
-    ...options.tools,
-    ...(subagentMode === "beaver" ? [READ_SUBAGENT_TOOL] : []),
-    ...(subagentMode === "beaver" && resumableReaders.size
-      ? [RESUME_SUBAGENT_TOOL]
-      : []),
-    LEGAL_EVIDENCE_SUBMIT_TOOL,
-  ];
   const request = [...options.messages].reverse()
     .find((message) => message.role === "user")?.content ?? "";
   const admitReaders = createReadSubagentAdmission(
@@ -295,61 +295,115 @@ export async function runChatTurn(options: {
     emit,
     addEvent,
   });
-  const runTools = async (calls: NormalizedToolCall[]) => {
-    throwIfAborted(signal);
-    const runReader = (
-      call: NormalizedToolCall,
-      resume?: ReadSubagentCheckpoint,
-    ) => {
-      const childEvidence = createLegalEvidenceTurnState("citation_structure");
-      const childTools = options.createToolRunner(childEvidence, "reader");
-      const assignmentCall = resume
-        ? { ...call, input: resume.assignment }
-        : call;
-      return runReadSubagent({
-        call,
-        tools: [
-          ...readSubagentTools(
-            options.readerTools ?? options.tools,
-            readSubagentJurisdiction(assignmentCall),
-            readSubagentSourceTypes(assignmentCall),
-          ),
-          LEGAL_EVIDENCE_SUBMIT_TOOL,
-        ],
-        evidenceState: childEvidence,
-        publishEvidenceTo: evidence,
-        model: options.subagentModel,
-        effort: options.subagentEffort,
-        activityDetail,
-        jurisdictionPrompt: jurisdictionPreferencePrompt(
-          options.jurisdictionPreference ?? null,
-        ),
-        signal,
-        resume,
-        onEvent: (event) => {
-          emit(event);
-          options.onSubagentEvent?.(event);
-          if (event.status !== "running") addEvent(event);
-        },
-        runTools: async (childCalls) =>
-          (await childTools(childCalls, toolContext(childEvidence))).results,
-      }).then((result) => {
-        if (resume && result.status === "ok") resumableReaders.delete(resume.id);
-        return result;
-      });
-    };
-    const results = await runReadSubagentRound({
+  const evidenceTools = (state: LegalEvidenceTurnState) => bindToolSchemas(
+    [LEGAL_EVIDENCE_SUBMIT_TOOL],
+    async (calls) => ({
+      results: calls.map((call) => {
+        const submitted = submitLegalEvidenceAnswer(call.input, state);
+        return {
+          tool_use_id: call.id,
+          content: JSON.stringify(submitted),
+          ...(submitted.terminal === true ? { terminal: true } : {}),
+        };
+      }),
+    }),
+    ["write"],
+  );
+  const defaultAskTools = bindToolSchemas(
+    [ASK_INPUTS_TOOL as OpenAIToolSchema],
+    async (calls) => {
+      const pause = calls.map((call) => normalizeAskInputsEvent(call.input))
+        .find((event) => event.items.length);
+      return {
+        results: calls.map((call) => ({
+          tool_use_id: call.id,
+          content: JSON.stringify({ ok: true, status: "waiting_for_user" }),
+        })),
+        ...(pause ? { pause } : {}),
+      };
+    },
+    ["interactive"],
+  );
+  const runReader = (
+    call: NormalizedToolCall,
+    resume?: ReadSubagentCheckpoint,
+  ) => {
+    const childEvidence = createLegalEvidenceTurnState("citation_structure");
+    const childTools = options.createTools(childEvidence, "reader").filter(
+      ({ effects }) =>
+        effects.includes("read") &&
+        !effects.some((effect) => effect === "write" || effect === "interactive"),
+    );
+    const assignmentCall = resume
+      ? { ...call, input: resume.assignment }
+      : call;
+    const schemas = readSubagentTools(
+      childTools.map((tool) => tool.schema),
+      readSubagentJurisdiction(assignmentCall),
+      readSubagentSourceTypes(assignmentCall),
+    );
+    const names = new Set(schemas.map((tool) => tool.function.name));
+    const childRegistry = new TurnToolRegistry([
+      ...childTools.filter((tool) => names.has(tool.schema.function.name)),
+      ...evidenceTools(childEvidence),
+    ], [...names, LEGAL_EVIDENCE_TOOL_NAME]);
+    return runReadSubagent({
+      call,
+      tools: childRegistry.visible(),
+      evidenceState: childEvidence,
+      publishEvidenceTo: evidence,
+      model: options.subagentModel,
+      effort: options.subagentEffort,
+      activityDetail,
+      jurisdictionPrompt: jurisdictionPreferencePrompt(
+        options.jurisdictionPreference ?? null,
+      ),
+      signal,
+      resume,
+      onEvent: (event) => {
+        emit(event);
+        options.onSubagentEvent?.(event);
+        if (event.status !== "running") addEvent(event);
+      },
+      runTools: async (childCalls) =>
+        (await childRegistry.run(childCalls, toolContext(childEvidence))).results,
+    }).then((result) => {
+      if (resume && result.status === "ok") resumableReaders.delete(resume.id);
+      return result;
+    });
+  };
+  const readerTools: OpenAIToolSchema[] = [
+    ...(subagentMode === "beaver" ? [READ_SUBAGENT_TOOL] : []),
+    ...(subagentMode === "beaver" && resumableReaders.size
+      ? [RESUME_SUBAGENT_TOOL]
+      : []),
+  ];
+  const runReaders: ChatToolRunner = async (calls) => ({
+    results: await runReadSubagentRound({
       calls,
       admit: admitReaders,
-      runDirect: async (direct) => {
-        const batch = await mainTools(direct, context);
-        if (batch.pause) paused = batch.pause;
-        return batch.results;
-      },
+      runDirect: async () => [],
       runReader,
       resumable: resumableReaders,
       runResume: (call, checkpoint) => runReader(call, checkpoint),
-    });
+    }),
+  });
+  const registry = new TurnToolRegistry([
+    ...defaultAskTools,
+    ...evidenceTools(evidence),
+    ...mainTools,
+    ...bindToolSchemas(readerTools, runReaders, ["external"]),
+  ], [
+    LEGAL_EVIDENCE_TOOL_NAME,
+    ...readerTools.map((tool) => tool.function.name),
+  ]);
+  const systemPrompt = [options.systemPrompt, registry.specialistPrompt()]
+    .filter(Boolean).join("\n\n");
+  const resolveTools = () => registry.visible();
+  const runTools = async (calls: NormalizedToolCall[]) => {
+    throwIfAborted(signal);
+    const batch = await registry.run(calls, context);
+    if (batch.pause) paused = batch.pause;
     if (paused) {
       text = "";
       boundary = false;
@@ -369,7 +423,7 @@ export async function runChatTurn(options: {
         citations: createLegalEvidenceCitations(evidence),
       });
     }
-    return results;
+    return batch.results;
   };
   const callbacks = {
     onContentDelta(delta: string) {
@@ -408,8 +462,12 @@ export async function runChatTurn(options: {
         ? readSubagentActivityLabel(call.input)
         : call.name === RESUME_SUBAGENT_TOOL_NAME
           ? "Resuming reading agents"
-        : assistantToolActivityLabel(call.name, call.input);
-      if (label === null) return;
+        : registry.activity(call);
+      if (
+        label === null &&
+        activityDetail !== "tools" &&
+        activityDetail !== "trace"
+      ) return;
       emit({
         type: "tool_call_start",
         name: call.name,
@@ -462,11 +520,27 @@ export async function runChatTurn(options: {
       addEvent(event);
       emit(event);
     },
+    onSubagentUpdate(update: ProviderSubagentUpdate) {
+      providerActivity = true;
+      const event: ReadSubagentEvent = {
+        type: "subagent_run",
+        agent: "native",
+        ...update,
+      };
+      emit(event);
+      options.onSubagentEvent?.(event);
+      if (event.status !== "running") addEvent(event);
+    },
   };
   const takeSteering = () => {
     const messages = steering.splice(0);
     messages.forEach(callbacks.onSteer);
     return messages;
+  };
+  const steerNative = (target: ProviderTurnControl, message: SteeringMessage) => {
+    const request = nativeSteering.then(() => target.steer(message));
+    nativeSteering = request.catch(() => undefined);
+    return request;
   };
   const control: ProviderTurnControl = {
     async steer(message) {
@@ -474,14 +548,7 @@ export async function runChatTurn(options: {
         steering.push(message);
         return;
       }
-      const target = nativeControl;
-      nativeSteering = nativeSteering.then(() => target.steer(message));
-      try {
-        await nativeSteering;
-      } catch (error) {
-        providerAbort.abort(error);
-        throw error;
-      }
+      await steerNative(nativeControl, message);
     },
   };
   options.onProviderControl?.(control);
@@ -498,7 +565,7 @@ export async function runChatTurn(options: {
       : activeMessages;
     return streamChatWithTools({
     model: options.model,
-    systemPrompt: [options.systemPrompt, resumePrompt].filter(Boolean).join("\n\n"),
+    systemPrompt: [systemPrompt, resumePrompt].filter(Boolean).join("\n\n"),
     messages: [
       ...(continuationId ? providerMessages.slice(-1) : providerMessages),
       ...(repair
@@ -508,7 +575,9 @@ export async function runChatTurn(options: {
           ]
         : []),
     ],
-    tools,
+    tools: resolveTools(),
+    staticTools: registry.all(),
+    resolveTools,
     runTools,
     takeSteering,
     callbacks,
@@ -531,11 +600,9 @@ export async function runChatTurn(options: {
             nativeControl = next;
             if (!next || !steering.length) return;
             const queued = steering.splice(0);
-            nativeSteering = queued.reduce(
-              (pending, message) => pending.then(() => next.steer(message)),
-              nativeSteering,
-            );
-            void nativeSteering.catch((error) => providerAbort.abort(error));
+            for (const message of queued) {
+              void steerNative(next, message).catch(() => undefined);
+            }
           },
         }
       : undefined,
@@ -552,9 +619,9 @@ export async function runChatTurn(options: {
     if (contextWindowTokens) {
       callbacks.onContextUsage({
         usedTokens: estimateContextTokens({
-          systemPrompt: options.systemPrompt,
+          systemPrompt,
           messages: activeMessages,
-          tools,
+          tools: resolveTools(),
         }),
         contextWindowTokens,
       });

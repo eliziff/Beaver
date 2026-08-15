@@ -20,9 +20,9 @@ function fixture() {
       items: [{ kind: "document", document: { id: "d1", filename: "draft.docx" } }],
       nextAfter: null,
     }),
-    upload: vi.fn().mockResolvedValue({ id: "d1", filename: "draft.docx" }),
   } as unknown as LibraryStore;
   const documents = {
+    create: vi.fn().mockResolvedValue({ id: "d1", filename: "draft.docx" }),
     deleteDocument: vi.fn().mockResolvedValue(true),
     files: vi.fn().mockResolvedValue([]),
     read: vi.fn().mockResolvedValue({
@@ -68,7 +68,7 @@ describe("canonical document routes", () => {
   beforeEach(() => process.env.AUTH_MODE = "anonymous");
 
   it("owns collection paging and upload validation", async () => {
-    const { app, library } = fixture();
+    const { app, library, documents } = fixture();
     expect((await request(app).get("/single-documents?q=DRAFT")).body.items)
       .toEqual([{ id: "d1", filename: "draft.docx" }]);
     expect(library.page).toHaveBeenCalledWith(
@@ -79,7 +79,10 @@ describe("canonical document routes", () => {
       .attach("file", Buffer.from("bad"), "draft.exe")).status).toBe(400);
     expect((await request(app).post("/single-documents")
       .attach("file", Buffer.from("docx"), "draft.docx")).status).toBe(201);
-    expect(library.upload).toHaveBeenCalledOnce();
+    expect(documents.create).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ filename: "draft.docx", libraryKind: "file" }),
+    );
   });
 
   it("serves bytes and constructs the authenticated local link", async () => {

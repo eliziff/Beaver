@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useState } from "react";
 
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import {
@@ -28,11 +28,8 @@ const fieldClass =
 
 export function DraftingStyleSettings() {
     const { profile, loading, updateDraftingStyle } = useUserProfile();
-    const [documentType, setDocumentType] =
-        useState<DraftingDocumentType>("memo");
     const [draft, setDraft] = useState<DraftingSettings | null>(null);
     const [status, setStatus] = useState("");
-    const id = useId();
     const settings = draft ?? profile?.draftingStyle ?? DEFAULT_DRAFTING_STYLE;
 
     const save = async (next: DraftingSettings) => {
@@ -44,6 +41,7 @@ export function DraftingStyleSettings() {
     };
 
     const updateDocument = (
+        documentType: DraftingDocumentType,
         patch: Partial<DraftingSettings["documents"][DraftingDocumentType]>,
     ) => save({
         ...settings,
@@ -56,99 +54,89 @@ export function DraftingStyleSettings() {
         },
     });
 
-    const style = settings.documents[documentType];
-    const citationOptions = documentType === "factum"
-        ? [
-              ...CITATIONS.slice(0, 2),
-              { value: "after-paragraph" as const, label: "After each paragraph" },
-              CITATIONS[2],
-          ]
-        : CITATIONS;
     const disabled = loading || !profile;
 
     return (
         <div className="space-y-6">
-            <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_14rem] sm:items-center">
-                <label htmlFor={`${id}-document`} className="text-sm text-gray-900">
-                    <span className="block font-medium">Document type</span>
-                    <span className="mt-0.5 block text-xs leading-5 text-gray-500">
-                        Set defaults separately for each kind of draft.
-                    </span>
-                </label>
-                <select
-                    id={`${id}-document`}
-                    value={documentType}
-                    onChange={(event) =>
-                        setDocumentType(event.currentTarget.value as DraftingDocumentType)
-                    }
-                    className={fieldClass}
-                >
-                    {DOCUMENTS.map((document) => (
-                        <option key={document.value} value={document.value}>
-                            {document.label}
-                        </option>
-                    ))}
-                </select>
-            </div>
-
-            <fieldset className="space-y-4 border-0 p-0">
-                <legend className="text-sm font-semibold text-gray-900">
-                    {DOCUMENTS.find(({ value }) => value === documentType)?.label} defaults
-                </legend>
-                <label className="grid gap-2 text-sm text-gray-900 sm:grid-cols-[minmax(0,1fr)_14rem] sm:items-center">
-                    <span>
-                        <span className="block font-medium">Citation placement</span>
-                        <span className="mt-0.5 block text-xs leading-5 text-gray-500">
-                            Source and pinpoint links are added automatically when citations are shown.
-                        </span>
-                    </span>
-                    <select
-                        value={style.citationPlacement}
-                        disabled={disabled}
-                        onChange={(event) =>
-                            void updateDocument({
-                                citationPlacement: event.currentTarget
-                                    .value as DraftingCitationPlacement,
-                            })
-                        }
-                        className={fieldClass}
-                    >
-                        {citationOptions.map((option) => (
-                            <option key={option.value} value={option.value}>
-                                {option.label}
-                            </option>
-                        ))}
-                    </select>
-                </label>
-
-                <label className="grid gap-2 text-sm text-gray-900 sm:grid-cols-[minmax(0,1fr)_14rem] sm:items-center">
-                    <span>
-                        <span className="block font-medium">Heading numbering</span>
-                        <span className="mt-0.5 block text-xs leading-5 text-gray-500">
-                            A request made in chat can still override this default.
-                        </span>
-                    </span>
-                    <select
-                        value={String(style.numberHeadings)}
-                        disabled={disabled}
-                        onChange={(event) => {
-                            const value = event.currentTarget.value;
-                            void updateDocument({
-                                numberHeadings:
-                                    value === "auto" ? "auto" : value === "true",
-                            });
-                        }}
-                        className={fieldClass}
-                    >
-                        <option value="auto">Automatic</option>
-                        <option value="true">Number headings</option>
-                        <option value="false">Do not number</option>
-                    </select>
-                </label>
+            <fieldset className="space-y-3 border-0 p-0">
+                <legend className="text-sm font-semibold text-gray-900">Document defaults</legend>
+                <p className="text-xs leading-5 text-gray-500">
+                    Set citation formatting, source links, and heading numbering separately. A request in chat can override these defaults.
+                </p>
+                <div className="hidden grid-cols-[7rem_repeat(3,minmax(0,1fr))] gap-3 px-3 text-xs font-medium text-gray-500 sm:grid">
+                    <span>Document</span>
+                    <span>Citation placement</span>
+                    <span>Source links</span>
+                    <span>Heading numbering</span>
+                </div>
+                {DOCUMENTS.map((document) => {
+                    const style = settings.documents[document.value];
+                    const citationOptions = document.value === "factum"
+                        ? [
+                              ...CITATIONS.slice(0, 2),
+                              { value: "after-paragraph" as const, label: "After each paragraph" },
+                              CITATIONS[2],
+                          ]
+                        : CITATIONS;
+                    return (
+                        <div key={document.value} className="grid gap-3 rounded-md bg-gray-50 p-3 sm:grid-cols-[7rem_repeat(3,minmax(0,1fr))] sm:items-center">
+                            <span className="text-sm font-semibold text-gray-900">{document.label}</span>
+                            <label className="space-y-1 text-sm text-gray-900">
+                                <span className="block font-medium sm:sr-only">Citation placement</span>
+                                <select
+                                    aria-label={`${document.label} citation placement`}
+                                    value={style.citationPlacement}
+                                    disabled={disabled}
+                                    onChange={(event) => void updateDocument(document.value, {
+                                        citationPlacement: event.currentTarget.value as DraftingCitationPlacement,
+                                    })}
+                                    className={fieldClass}
+                                >
+                                    {citationOptions.map((option) => (
+                                        <option key={option.value} value={option.value}>{option.label}</option>
+                                    ))}
+                                </select>
+                            </label>
+                            <label className="space-y-1 text-sm text-gray-900">
+                                <span className="block font-medium sm:sr-only">Source links</span>
+                                <select
+                                    aria-label={`${document.label} source links`}
+                                    value={String(style.citationHyperlinks)}
+                                    disabled={disabled}
+                                    onChange={(event) => void updateDocument(document.value, {
+                                        citationHyperlinks: event.currentTarget.value === "true",
+                                    })}
+                                    className={fieldClass}
+                                >
+                                    <option value="true">Add links</option>
+                                    <option value="false">Do not add links</option>
+                                </select>
+                            </label>
+                            <label className="space-y-1 text-sm text-gray-900">
+                                <span className="block font-medium sm:sr-only">Heading numbering</span>
+                                <select
+                                    aria-label={`${document.label} heading numbering`}
+                                    value={String(style.numberHeadings)}
+                                    disabled={disabled}
+                                    onChange={(event) => {
+                                        const value = event.currentTarget.value;
+                                        void updateDocument(document.value, {
+                                            numberHeadings: value === "auto" ? "auto" : value === "true",
+                                        });
+                                    }}
+                                    className={fieldClass}
+                                >
+                                    <option value="auto">Automatic</option>
+                                    <option value="true">Number headings</option>
+                                    <option value="false">Do not number</option>
+                                </select>
+                            </label>
+                        </div>
+                    );
+                })}
             </fieldset>
 
-            {documentType === "memo" ? (
-                <fieldset className="space-y-4 border-0 p-0">
+            <fieldset className="space-y-4 border-0 p-0">
                     <legend className="text-sm font-semibold text-gray-900">
                         Standard memo header
                     </legend>
@@ -188,8 +176,7 @@ export function DraftingStyleSettings() {
                             />
                         </label>
                     ))}
-                </fieldset>
-            ) : null}
+            </fieldset>
 
             <p aria-live="polite" className="min-h-5 text-xs text-gray-600">
                 {status}

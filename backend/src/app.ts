@@ -178,10 +178,10 @@ app.use(
   "/projects",
   lazyRouter(async () => {
     const { createProjectsRouter } = await import("./routes/projects");
-    const [projects, chats] = await Promise.all([
-      runtime.projects(), runtime.chats(),
+    const [projects, chats, documents] = await Promise.all([
+      runtime.projects(), runtime.chats(), runtime.documents(),
     ]);
-    return createProjectsRouter(projects, chats);
+    return createProjectsRouter(projects, chats, documents);
   }),
 );
 app.use(
@@ -211,10 +211,10 @@ app.use(
   "/library",
   lazyRouter(async () => {
     const { createLibraryRouter } = await import("./routes/library");
-    const [library, extensions] = await Promise.all([
-      runtime.library(), runtime.libraryExtensions(),
+    const [library, documents, extensions] = await Promise.all([
+      runtime.library(), runtime.documents(), runtime.libraryExtensions(),
     ]);
-    const router = createLibraryRouter(library);
+    const router = createLibraryRouter(library, documents);
     return extensions ? router.use(extensions) : router;
   }),
 );

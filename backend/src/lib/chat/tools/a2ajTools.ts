@@ -18,7 +18,6 @@ import {
 import {
   createA2AJDocumentEvidence,
   createA2AJLookupEvidence,
-  legalEvidenceTools,
   type LegalEvidenceReceipt,
 } from "../legalEvidence";
 
@@ -249,6 +248,7 @@ export function assistantToolActivityLabel(
   name: string,
   args: Record<string, unknown>,
 ): string | null | undefined {
+  if (name === "load_tools") return "Loading tools";
   if (name === "Glob") return null;
   if (name === "Grep") {
     const query = activityText(args.pattern, 80);
@@ -276,7 +276,7 @@ export function assistantToolActivityLabel(
     return `Reading ${file.replace(/^.*[\\/]/u, "")} from your Library`;
   }
   const query = activityText(args.query, 80);
-  if (name === "SearchSources") {
+  if (name === "search_sources") {
     const sourceLabels: Record<string, string> = {
       case: "case law",
       legislation: "legislation",
@@ -320,10 +320,13 @@ export function assistantToolActivityLabel(
       : "Searching public legal sources";
   if (name === "hansard_search")
     return query ? `Searching Hansard for “${query}”` : "Searching Hansard";
-  if (name === "library_find" || name === "find_in_document")
+  if (name === "Grep")
     return query
       ? `Searching the selected document for “${query}”`
       : "Searching the selected document";
+  if (name === "Glob") return "Listing documents";
+  if (name === "Read") return "Reading the selected document";
+  if (name === "Edit") return "Editing the selected document";
   if (name === "submit_grounded_answer") return "Grounding findings";
   return a2ajActivityLabel(name, args);
 }
@@ -731,5 +734,4 @@ export const A2AJ_TOOLS = [
       },
     },
   },
-  ...legalEvidenceTools(),
 ];

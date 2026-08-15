@@ -107,6 +107,21 @@ export type NormalizedToolResult = {
   terminal?: boolean;
 };
 
+export type ProviderSubagentUpdate = {
+  id: string;
+  task: string;
+  model: string;
+  effort: string;
+  status: "running" | "completed" | "error" | "interrupted";
+  output?: string;
+  error?: string;
+  activities?: Array<{
+    id: string;
+    label: string;
+    status: "running" | "completed" | "error" | "interrupted";
+  }>;
+};
+
 export type StreamCallbacks = {
   onReasoningDelta?: (text: string) => void;
   onReasoningBlockEnd?: () => void;
@@ -120,6 +135,7 @@ export type StreamCallbacks = {
   onCompaction?: (status: "running" | "completed" | "failed") => void;
   onContextCheckpoint?: (checkpoint: ProviderContextCheckpoint) => void;
   onSteer?: (message: { id: string; text: string }) => void;
+  onSubagentUpdate?: (update: ProviderSubagentUpdate) => void;
 };
 
 export type ProviderTurnControl = {
@@ -146,6 +162,8 @@ export type StreamChatParams = {
   systemPrompt: string;
   messages: LlmMessage[];
   tools?: OpenAIToolSchema[];
+  /** Full catalog for provider transports that snapshot MCP tools once. */
+  staticTools?: OpenAIToolSchema[];
   /**
    * Re-read the tool list before every iteration of the tool loop, so a
    * caller can REVEAL tools mid-conversation — progressive disclosure, where
@@ -175,7 +193,7 @@ export type StreamChatParams = {
   reasoningSummary?: "auto" | "none";
   /** Provider reasoning effort when the selected model supports it. */
   reasoningEffort?: string;
-  /** Allow the Codex CLI to expose its provider-native multi-agent tools. */
+  /** Allow Codex app-server to expose its provider-native multi-agent tools. */
   nativeSubagents?: boolean;
   /** Host-selected service tier; adapters must gate it on model capability. */
   serviceTier?: string;

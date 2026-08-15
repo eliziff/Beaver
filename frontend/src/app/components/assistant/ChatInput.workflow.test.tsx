@@ -192,26 +192,35 @@ describe("ChatInput workflow document selection", () => {
         expect(onCancel).toHaveBeenCalledOnce();
     });
 
-    it("keeps stop separate while sending a steering message", async () => {
-        const onSubmit = vi.fn();
+    it("replaces send with stop while a response is live", async () => {
         const onCancel = vi.fn();
         render(
             <ChatInput
-                onSubmit={onSubmit}
+                onSubmit={vi.fn()}
                 onCancel={onCancel}
                 isLoading
             />,
         );
 
-        await userEvent.type(screen.getByRole("textbox"), "Focus on remedies");
-        await userEvent.click(screen.getByRole("button", { name: "Steer response" }));
-        expect(onSubmit).toHaveBeenCalledWith(
-            expect.objectContaining({ content: "Focus on remedies" }),
-        );
-        expect(onCancel).not.toHaveBeenCalled();
-
+        expect(
+            screen.queryByRole("button", { name: "Send message" }),
+        ).not.toBeInTheDocument();
         await userEvent.click(screen.getByRole("button", { name: "Stop response" }));
         expect(onCancel).toHaveBeenCalledOnce();
+    });
+
+    it("hides context usage when the display preference is off", () => {
+        window.localStorage.setItem("beaver.showContextUsage", "false");
+        render(
+            <ChatInput
+                onSubmit={vi.fn()}
+                onCancel={vi.fn()}
+                isLoading={false}
+                contextUsage={{ usedTokens: 25, windowTokens: 100, compacting: false }}
+            />,
+        );
+
+        expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
     });
 
     it("navigates prompt history and restores the unsent draft", async () => {

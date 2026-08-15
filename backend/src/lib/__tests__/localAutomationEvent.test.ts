@@ -5,7 +5,7 @@ describe("localAutomationEvent", () => {
   it("preserves deterministic document receipts", () => {
     expect(
       localAutomationEvent(
-        "library_fix_docx_supras",
+        "fix_docx_supras",
         JSON.stringify({
           ok: true,
           document_id: "document-1",
@@ -33,7 +33,7 @@ describe("localAutomationEvent", () => {
   it("preserves Authorities stage, status, output, and destination", () => {
     expect(
       localAutomationEvent(
-        "toa_job_status",
+        "Read",
         JSON.stringify({
           ok: true,
           job: {
@@ -63,7 +63,7 @@ describe("localAutomationEvent", () => {
   it("keeps failed tool receipts visible", () => {
     expect(
       localAutomationEvent(
-        "library_link_docx_citations",
+        "link_docx_citations",
         JSON.stringify({ ok: false, error: "No footnotes found" }),
         "call-3",
       ),

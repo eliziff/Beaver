@@ -18,7 +18,12 @@ export async function streamChatWithTools(
   // schema inventory rather than observing the expanded array after return.
   const manifestParams: StreamChatParams = {
     ...params,
-    tools: params.tools ? [...params.tools] : params.tools,
+    tools:
+      provider === "codex" && params.staticTools
+        ? [...params.staticTools]
+        : params.tools
+          ? [...params.tools]
+          : params.tools,
   };
   const measuredParams: StreamChatParams = {
     ...params,

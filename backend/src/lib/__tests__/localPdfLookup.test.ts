@@ -10,6 +10,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { resourceReference } from "../resourceReferences";
 
 let temporaryDirectory: string | null = null;
 
@@ -1498,10 +1499,9 @@ describe("exact local PDF structure lookup", () => {
       [
         {
           id: "lookup-1",
-          name: "library_lookup",
+          name: "Read",
           input: {
-            document_id: documentId,
-            version_id: versionId,
+            file_path: resourceReference.document(documentId, versionId),
             locator_kind: "footnote",
             locator: "fn-a",
           },
@@ -1538,8 +1538,11 @@ describe("exact local PDF structure lookup", () => {
       [
         {
           id: "evidence-1",
-          name: "library_evidence",
-          input: { handle: lookupPayload.handle },
+          name: "Read",
+          input: {
+            file_path: resourceReference.document(documentId, versionId),
+            handle: lookupPayload.handle,
+          },
         },
       ],
       { pdfHandles: handles },
@@ -1566,10 +1569,9 @@ describe("exact local PDF structure lookup", () => {
     const [missing] = await tools.runLocalAssistantTools("local-user", [
       {
         id: "lookup-2",
-        name: "library_lookup",
+        name: "Read",
         input: {
-          document_id: documentId,
-          version_id: "not-a-version",
+          file_path: resourceReference.document(documentId, "not-a-version"),
           locator_kind: "page",
           locator: "1",
         },
@@ -1577,7 +1579,7 @@ describe("exact local PDF structure lookup", () => {
     ]);
     expect(JSON.parse(missing.content)).toMatchObject({
       ok: false,
-      error: "PDF Library version not found",
+      error: "PDF resource/version not found.",
     });
   });
 
@@ -1600,10 +1602,9 @@ describe("exact local PDF structure lookup", () => {
       "local-user",
       [{
         id: "lookup-unmapped",
-        name: "library_lookup",
+        name: "Read",
         input: {
-          document_id: documentId,
-          version_id: versionId,
+          file_path: resourceReference.document(documentId, versionId),
           locator_kind: "paragraph",
           locator: "2",
         },

@@ -38,6 +38,7 @@ export type LegalEvidenceReceipt = {
   span_sha256: string;
   span_text: string | null;
   citation: string;
+  target_citation?: string;
   name: string | null;
   dataset: string;
   language: "en" | "fr";
@@ -50,7 +51,7 @@ export type LegalEvidenceReceipt = {
   resolver_version:
     | "a2aj-inline-v1"
     | "benchmark-span-v1"
-    | "citator-standsfor-v1"
+    | "citator-analysis-v1"
     | "citator-noteup-v1"
     | "public-journal-v1"
     | "library-read-v1"
@@ -298,50 +299,52 @@ export function createTabularEvidence(args: {
   });
 }
 
-export function attestedCharacterizationReceipt(args: {
+export function attestedPassageReceipt(args: {
   citedCitation: string;
-  characterization: {
+  passage: {
     text: string;
     citingCitation: string | null;
     citingName: string | null;
     citingCourt: string | null;
     citingDate: string | null;
-    spanSha256: string;
-    sourceKind?: "case" | "commentary";
+    paragraph: number | null;
+    pageLabel: string | null;
+    sourceKind: "case" | "commentary";
     journalName?: string | null;
+    sourceArticleId: string | null;
     citingUrl?: string | null;
   };
-  jurisdiction?: string;
-  language?: "en" | "fr";
 }): LegalEvidenceReceipt {
-  const commentary = args.characterization.sourceKind === "commentary";
-  const citing = commentary
-    ? (args.characterization.journalName ?? "journal commentary")
-    : (args.characterization.citingCitation ?? args.characterization.citingName ?? "unknown citing case");
+  const journal = args.passage.sourceKind === "commentary";
+  const citation = args.passage.citingCitation ??
+    args.passage.journalName ?? "unknown source";
+  const locator = journal && args.passage.pageLabel
+    ? { kind: "page" as const, label: args.passage.pageLabel }
+    : !journal && args.passage.paragraph !== null
+      ? { kind: "paragraph" as const, label: `par${args.passage.paragraph}` }
+      : { kind: "document" as const, label: citation };
   return withEvidenceId({
-    provider: "citator",
-    jurisdiction: args.jurisdiction ?? "CA",
-    source_class: "case",
-    stable_source_id: `citator:standsfor:${citing}`,
-    source_sha256: sha256(args.characterization.text),
+    provider: journal ? "journal" : "citator",
+    jurisdiction: "CA",
+    source_class: journal ? "commentary" : "case",
+    stable_source_id: journal
+      ? `journal:${args.passage.sourceArticleId ?? normalizeWhitespace(citation).toLowerCase()}`
+      : `citator:discussion:${normalizeWhitespace(citation).toLowerCase()}`,
+    source_sha256: sha256(args.passage.text),
     scope: "passage",
-    block_id: `standsfor:${citing}`,
-    exact_span_sha256: sha256(args.characterization.text),
-    span_sha256: sha256(normalizeWhitespace(args.characterization.text)),
-    span_text: args.characterization.text,
-    citation: args.citedCitation,
-    name: args.characterization.citingName,
-    dataset: commentary ? "journal-commentary" : "citator",
-    language: args.language ?? "en",
-    version: args.characterization.citingDate,
-    external_url: args.characterization.citingUrl ?? null,
-    locator: {
-      kind: "document",
-      label: commentary
-        ? `as characterized in ${citing}`
-        : `as characterized by ${citing}${args.characterization.citingCourt ? ` (${args.characterization.citingCourt})` : ""}`,
-    },
-    resolver_version: "citator-standsfor-v1",
+    block_id: `analysis:${citation}:${locator.kind}:${locator.label}`,
+    exact_span_sha256: sha256(args.passage.text),
+    span_sha256: sha256(normalizeWhitespace(args.passage.text)),
+    span_text: args.passage.text,
+    citation,
+    target_citation: args.citedCitation,
+    name: args.passage.citingName ?? args.passage.journalName ?? null,
+    dataset: journal ? "journal-commentary" : "citator",
+    language: "en",
+    version: args.passage.citingDate,
+    external_url: args.passage.citingUrl ?? null,
+    locator,
+    resolver_version: "citator-analysis-v1",
   });
 }
 
@@ -585,10 +588,6 @@ export const LEGAL_EVIDENCE_SUBMIT_TOOL: OpenAIToolSchema = {
     },
   },
 };
-
-export function legalEvidenceTools(): OpenAIToolSchema[] {
-  return [LEGAL_EVIDENCE_SUBMIT_TOOL];
-}
 
 const emptyUsage = (): NormalizedLlmUsage => ({
   inputTokens: 0,

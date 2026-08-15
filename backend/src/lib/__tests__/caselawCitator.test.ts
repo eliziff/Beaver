@@ -342,24 +342,23 @@ describe("caselaw citator note-up graph", () => {
       // Stands-for profile: attested characterizations ranked by citing
       // court level (ONCA level 4 outranks FC level 3), prose windows
       // extracted by the excerpt classifier, sha receipts over the text.
-      const profile = citator.standsForProfile({ citation: "2015 SCC 5" })!;
+      const profile = citator.noteUpAnalysis({ citation: "2015 SCC 5" })!;
       expect(profile.totalCiters).toBe(2);
-      expect(profile.tier).toBe("thin");
-      expect(profile.candidates).toHaveLength(2);
-      expect(profile.candidates[0]).toMatchObject({
+      expect(profile.judicialDiscussion).toHaveLength(2);
+      expect(profile.judicialDiscussion[0]).toMatchObject({
         citingCitation: "2018 ONCA 50",
         citingCourt: "ONCA",
         citingLevel: 4,
       });
-      expect(profile.candidates[0].text).toContain("governing framework");
-      expect(profile.candidates[0].text).not.toMatch(/\d{4} (?:SCC|ONCA) \d+/u);
+      expect(profile.judicialDiscussion[0].text).toContain("governing framework");
+      expect(profile.judicialDiscussion[0].text).not.toMatch(/\d{4} (?:SCC|ONCA) \d+/u);
       const { createHash } = await import("node:crypto");
-      expect(profile.candidates[0].spanSha256).toBe(
+      expect(profile.judicialDiscussion[0].spanSha256).toBe(
         createHash("sha256")
-          .update(profile.candidates[0].text, "utf8")
+          .update(profile.judicialDiscussion[0].text, "utf8")
           .digest("hex"),
       );
-      expect(profile.candidates[1]).toMatchObject({
+      expect(profile.judicialDiscussion[1]).toMatchObject({
         citingCitation: "2020 FC 100",
         citingLevel: 3,
       });
@@ -369,17 +368,16 @@ describe("caselaw citator note-up graph", () => {
       // bare-column contract that replaced a per-group re-fetch: pick the
       // wrong row and the paragraph reads 3 and the window becomes the
       // "bears that burden" sentence.
-      expect(profile.candidates[1].paragraph).toBe(2);
-      expect(profile.candidates[1].text).toContain("governing authorities");
-      expect(profile.candidates[1].text).not.toContain("bears that burden");
+      expect(profile.judicialDiscussion[1].paragraph).toBe(2);
+      expect(profile.judicialDiscussion[1].text).toContain("governing authorities");
+      expect(profile.judicialDiscussion[1].text).not.toContain("bears that burden");
       // No journal commentary DB installed -> the source reports null,
       // never an empty count that would read as "looked and found nothing".
       expect(profile.commentary).toBeNull();
       // The French twin profiles only French-keyed citing prose.
-      const frenchProfile = citator.standsForProfile({ citation: "2015 CSC 5" })!;
+      const frenchProfile = citator.noteUpAnalysis({ citation: "2015 CSC 5" })!;
       expect(frenchProfile.totalCiters).toBe(1);
-      expect(frenchProfile.tier).toBe("thin");
-      expect(frenchProfile.candidates[0].text).toContain(
+      expect(frenchProfile.judicialDiscussion[0].text).toContain(
         "norme constitutionnelle",
       );
 
@@ -418,19 +416,19 @@ describe("caselaw citator note-up graph", () => {
           (2, 1, '2', 1, 'paired', '3', '3', 'See Carter.', 'x', 0,
            'Implications for Medical Practice 245 Conclusion 249', 'y', NULL);
         INSERT INTO note_citation VALUES
-          (1, 1, 'neutral', '2015 SCC 5', '2015scc5', NULL, NULL),
+          (1, 1, 'neutral', '2015 SCC 5', '2015scc5', NULL, 'par86'),
           (2, 1, 'neutral', '2015 SCC 5', '2015scc5', NULL, NULL),
           (1, 2, 'neutral', '2019 SCC 5', '2019scc5', NULL, NULL);
       `);
       commentary.close();
       process.env.MIKE_JOURNAL_COMMENTARY_DB = commentaryDb;
-      const withCommentary = citator.standsForProfile({
+      const withCommentary = citator.noteUpAnalysis({
         citation: "2015 SCC 5",
       })!;
       expect(withCommentary.commentary).toEqual({ considered: 2, rejected: 1 });
-      expect(withCommentary.tier).toBe("rich");
-      expect(withCommentary.candidates).toHaveLength(3);
-      const commentaryCandidate = withCommentary.candidates[2];
+      expect(withCommentary.judicialDiscussion).toHaveLength(2);
+      expect(withCommentary.journalAnalysis).toHaveLength(1);
+      const commentaryCandidate = withCommentary.journalAnalysis![0];
       expect(commentaryCandidate).toMatchObject({
         sourceKind: "commentary",
         journalName: "McGill Law Journal",
@@ -441,46 +439,22 @@ describe("caselaw citator note-up graph", () => {
         citingDate: "2020",
       });
       expect(commentaryCandidate.text).toContain("security of the person");
-      // Court prose still outranks commentary under the default policy.
-      expect(withCommentary.candidates[0].sourceKind).toBe("case");
-      expect(withCommentary.rankPolicy).toBe("authority");
-
-      // H19 rank policies (Stage 9): the SAME candidate set, reordered.
-      // banded_recency: commentary joins the highest band present
-      // (ONCA's level 4) and its 2020 date beats ONCA's 2018 within the
-      // band; FC stays below in band 3 despite being newest overall.
-      const banded = citator.standsForProfile({
+      expect(commentaryCandidate.pageLabel).toBe("2");
+      const paragraphAnalysis = citator.noteUpAnalysis({
         citation: "2015 SCC 5",
-        rankPolicy: "banded_recency",
+        citedParagraph: 86,
       })!;
-      expect(banded.rankPolicy).toBe("banded_recency");
-      expect(
-        banded.candidates.map(
-          (candidate) => candidate.citingCitation ?? candidate.sourceKind,
-        ),
-      ).toEqual(["(2020) 65:1 McGill LJ 1", "2018 ONCA 50", "2020 FC 100"]);
-      // flat_recency: newest first regardless of source kind or level.
-      const flat = citator.standsForProfile({
-        citation: "2015 SCC 5",
-        rankPolicy: "flat_recency",
-      })!;
-      expect(
-        flat.candidates.map(
-          (candidate) => candidate.citingCitation ?? candidate.sourceKind,
-        ),
-      ).toEqual(["2020 FC 100", "(2020) 65:1 McGill LJ 1", "2018 ONCA 50"]);
-      // Policies reorder, never change membership or the tier.
-      expect(new Set(flat.candidates.map((c) => c.spanSha256))).toEqual(
-        new Set(withCommentary.candidates.map((c) => c.spanSha256)),
-      );
-      expect(flat.tier).toBe("rich");
+      expect(paragraphAnalysis.judicialDiscussion).toMatchObject([{
+        citingCitation: "2020 FC 100",
+        paragraph: 3,
+      }]);
+      expect(paragraphAnalysis.journalAnalysis).toMatchObject([{
+        citingCitation: "(2020) 65:1 McGill LJ 1",
+        pageLabel: "2",
+      }]);
       // The rank-2 string-cite member does not attribute to 2019 SCC 5.
-      const rank2Profile = citator.standsForProfile({ citation: "2019 SCC 5" })!;
-      expect(
-        rank2Profile.candidates.filter(
-          (candidate) => candidate.sourceKind === "commentary",
-        ),
-      ).toHaveLength(0);
+      const rank2Profile = citator.noteUpAnalysis({ citation: "2019 SCC 5" })!;
+      expect(rank2Profile.journalAnalysis).toHaveLength(0);
 
       // Typed refusals when nothing survives normalization.
       expect(() => citator.noteUpCitations({ citation: "" })).toThrow(
@@ -561,7 +535,7 @@ describe("caselaw citator note-up graph", () => {
   );
 
   it(
-    "ranks scc_journal_first with SCC and journal at the top",
+    "keeps judicial and journal analysis in separate lanes",
     { timeout: 60_000 },
     async () => {
       temporaryDirectory = await mkdtemp(
@@ -688,24 +662,20 @@ describe("caselaw citator note-up graph", () => {
       // among the same-band appellate cases, ONCA 401 (three occurrences)
       // beats ONCA 400 (one) — occurrence wins within a band; BCSC (level
       // 3, two occurrences) stays below every appellate case.
-      const profile = citator.standsForProfile({
-        citation: "2016 SCC 27",
-        rankPolicy: "scc_journal_first",
-      })!;
-      expect(profile.rankPolicy).toBe("scc_journal_first");
-      expect(profile.tier).toBe("rich");
+      const profile = citator.noteUpAnalysis({ citation: "2016 SCC 27" })!;
       expect(
-        profile.candidates.map(
+        profile.judicialDiscussion.map(
           (candidate) => candidate.citingCitation ?? candidate.sourceKind,
         ),
       ).toEqual([
         "2023 SCC 1",
         "2022 ONCA 401",
-        "(2020) 65:1 McGill LJ 1",
         "2022 ONCA 400",
         "2021 BCSC 999",
       ]);
-      expect(profile.candidates[0]).toMatchObject({
+      expect(profile.journalAnalysis?.map((candidate) => candidate.citingCitation))
+        .toEqual(["(2020) 65:1 McGill LJ 1"]);
+      expect(profile.judicialDiscussion[0]).toMatchObject({
         sourceKind: "case",
         citingLevel: 5,
         citingUrl:
@@ -715,34 +685,30 @@ describe("caselaw citator note-up graph", () => {
       // tool accepts (public_endpoint.db space, string-coerced from the
       // INTEGER column); the second case candidate is the higher-occurrence
       // appellate case.
-      expect(profile.candidates[2]).toMatchObject({
+      expect(profile.journalAnalysis?.[0]).toMatchObject({
         sourceKind: "commentary",
         journalName: "McGill Law Journal",
         sourceArticleId: "1",
       });
-      expect(profile.candidates[1]).toMatchObject({
+      expect(profile.judicialDiscussion[1]).toMatchObject({
         sourceKind: "case",
         citingCitation: "2022 ONCA 401",
       });
       // size caps the profile the consult tool relies on (max 3): the two
       // case slots then journal.
-      const capped = citator.standsForProfile({
+      const capped = citator.noteUpAnalysis({
         citation: "2016 SCC 27",
-        size: 3,
-        rankPolicy: "scc_journal_first",
+        size: 2,
       })!;
       expect(
-        capped.candidates.map(
+        capped.judicialDiscussion.map(
           (candidate) => candidate.citingCitation ?? candidate.sourceKind,
         ),
-      ).toEqual(["2023 SCC 1", "2022 ONCA 401", "(2020) 65:1 McGill LJ 1"]);
-      // A case nobody characterizes in prose is tier none (typed refusal).
-      const none = citator.standsForProfile({
-        citation: "2000 SCC 1",
-        rankPolicy: "scc_journal_first",
-      })!;
-      expect(none.tier).toBe("none");
-      expect(none.candidates).toHaveLength(0);
+      ).toEqual(["2023 SCC 1", "2022 ONCA 401"]);
+      expect(capped.journalAnalysis).toHaveLength(1);
+      const none = citator.noteUpAnalysis({ citation: "2000 SCC 1" })!;
+      expect(none.judicialDiscussion).toHaveLength(0);
+      expect(none.journalAnalysis).toHaveLength(0);
     },
   );
 

@@ -2,9 +2,7 @@ import {
   DEFAULT_MAIN_MODEL,
   resolveModel,
   type LlmMessage,
-  type NormalizedToolCall,
   type NormalizedToolResult,
-  type OpenAIToolSchema,
   type SubagentMode,
   type UserApiKeys,
 } from "../llm";
@@ -12,37 +10,31 @@ import type { JurisdictionPreference } from "./prompts";
 import { jurisdictionPreferencePrompt } from "./prompts";
 import { createServerSupabase } from "../supabase";
 import { currentA2AJCoveragePrompt } from "./a2ajCoveragePrompt";
-import { hideLegalSourceUrls } from "./legalToolResultVisibility";
-import { createPublicLegalSourceState } from "./publicLegalSourceState";
 import {
   READ_SUBAGENT_SYSTEM_PROMPT,
   type ReadSubagentCheckpoint,
 } from "./readSubagents";
 import {
   runChatTurn,
-  type AssistantEvent,
-  type ChatToolRunner,
+  type ChatToolContext,
   type ChatTurnResult,
 } from "./turnEngine";
-import {
-  COURTLISTENER_TOOLS,
-} from "./tools/courtlistenerTools";
-import { A2AJ_TOOLS } from "./tools/a2ajTools";
-import { PUBLIC_LEGAL_SOURCE_TOOLS } from "./tools/publicLegalSourceTools";
-import { runToolCalls } from "./tools/toolDispatcher";
-import { TOOLS, WORKFLOW_TOOLS } from "./tools/toolSchemas";
-import { type TurnEditState, type TurnReadState } from "./tools/documentOps";
+import { createChatToolRunner } from "./chatToolRunner";
 import type {
   DocIndex,
-  DocStore,
   ChatMessage,
   TabularCellStore,
   WorkflowStore,
 } from "./types";
-import type { LegalEvidenceReceipt, LegalEvidenceTurnState } from "./legalEvidence";
+import type { LegalEvidenceReceipt } from "./legalEvidence";
 import type { EditMode } from "../docxTrackedChanges";
 import { compactionThresholdForModel } from "../llm/contextWindow";
 import { formatChatMessageContent } from "./messageFormatting";
+import { bindToolSchemas } from "./toolRegistry";
+import { cloudDocuments } from "../cloudDocumentStore";
+import { cloudLibraryStore } from "../cloudLibraryStore";
+import { cloudProjects } from "../cloudProjectStore";
+import { buildUserMcpTools, executeMcpToolCall } from "../mcpConnectors";
 
 export {
   AssistantStreamError,
@@ -50,32 +42,13 @@ export {
   type AssistantEvent,
 } from "./turnEngine";
 
-function normalizedToolResults(
-  calls: NormalizedToolCall[],
-  rows: NormalizedToolResult[],
-): NormalizedToolResult[] {
-  const byId = new Map(rows.map((row) => [row.tool_use_id, row]));
-  return calls.map((call) => {
-    const row = byId.get(call.id);
-    return hideLegalSourceUrls(call.name, row ?? {
-      tool_use_id: call.id,
-      status: "error",
-      content: JSON.stringify({
-        ok: false,
-        error: `Tool '${call.name}' is not available.`,
-      }),
-    });
-  });
-}
-
 export async function runLLMStream({
   apiMessages,
-  docStore,
   docIndex,
   userId,
+  userEmail,
   db,
   write,
-  extraTools,
   includeResearchTools = true,
   workflowStore,
   tabularStore,
@@ -98,12 +71,11 @@ export async function runLLMStream({
   prepareMessages,
 }: {
   apiMessages: unknown[];
-  docStore: DocStore;
   docIndex: DocIndex;
   userId: string;
+  userEmail?: string;
   db: ReturnType<typeof createServerSupabase>;
   write: (line: string) => void;
-  extraTools?: unknown[];
   includeResearchTools?: boolean;
   workflowStore?: WorkflowStore;
   tabularStore?: TabularCellStore;
@@ -146,91 +118,53 @@ export async function runLLMStream({
       content: message.content ?? "",
       images: message.images,
     }));
-  const researchTools = includeResearchTools
-    ? [...COURTLISTENER_TOOLS, ...A2AJ_TOOLS, ...PUBLIC_LEGAL_SOURCE_TOOLS]
-    : [];
-  const mcpTools = await (
-    await import("../mcpConnectors")
-  ).buildUserMcpTools(userId, db);
-  const tools: OpenAIToolSchema[] = [
-    ...(TOOLS as OpenAIToolSchema[]),
-    ...(researchTools as OpenAIToolSchema[]),
-    ...(WORKFLOW_TOOLS as OpenAIToolSchema[]),
-    ...mcpTools,
-    ...((extraTools ?? []) as OpenAIToolSchema[]),
-  ];
-
-  const createToolRunner = (
-    _evidence: LegalEvidenceTurnState,
-    scope: "main" | "reader",
-  ): ChatToolRunner => {
-    const editState: TurnEditState = new Map();
-    const readState: TurnReadState = new Map();
-    const courtState = { casesByClusterId: new Map() };
-    const publicState = createPublicLegalSourceState();
-    return async (calls, context) => {
-      const dispatched = await runToolCalls(
-        calls,
-        {
-          docStore,
-          userId,
-          db,
-          emit: scope === "main" ? context.emit : () => undefined,
-          workflowStore,
-          tabularStore,
-          docIndex,
-          editState,
-          readState,
-          projectId,
-          courtlistener: courtState,
-          apiKeys,
-          publicLegal: publicState,
-          legalEvidence: context.evidence,
-          editMode,
-          timeZone,
-        },
-      );
-      if (scope === "main") {
-        for (const event of [
-          ...dispatched.docsRead.map((item) => ({
-            type: "doc_read" as const,
-            filename: item.filename,
-            document_id: item.document_id,
-          })),
-          ...dispatched.docsFound.map((item) => ({
-            type: "doc_find" as const,
-            filename: item.filename,
-            query: item.query,
-            total_matches: item.total_matches,
-          })),
-          ...dispatched.docsCreated.map((item) => ({
-            type: "doc_created" as const,
-            filename: item.filename,
-            download_url: item.download_url,
-            document_id: item.document_id,
-            version_id: item.version_id,
-            version_number: item.version_number ?? null,
-          })),
-          ...dispatched.workflowsApplied.map((item) => ({
-            type: "workflow_applied" as const,
-            workflow_id: item.workflow_id,
-            title: item.title,
-          })),
-          ...dispatched.docsEdited.map((item) => ({
-            type: "doc_edited" as const,
-            ...item,
-          })),
-          ...dispatched.courtlistenerEvents,
-          ...dispatched.mcpEvents,
-          ...dispatched.caseCitationEvents,
-        ] satisfies AssistantEvent[]) context.addEvent(event);
-      }
-      return {
-        results: normalizedToolResults(calls, dispatched.toolResults),
-        pause: dispatched.askInputsEvents[0],
-      };
-    };
-  };
+  const mcpEntries = bindToolSchemas<ChatToolContext>(
+    await buildUserMcpTools(userId, db),
+    async (calls, context): Promise<{ results: NormalizedToolResult[] }> => ({
+      results: await Promise.all(calls.map(async (call) => {
+        context.emit({ type: "mcp_tool_start", name: call.name });
+        const { content, event } = await executeMcpToolCall(
+          userId, call.name, call.input, db,
+        );
+        context.addEvent(event);
+        context.emit({
+          type: "mcp_tool_result",
+          name: call.name,
+          connector_name: event.connector_name,
+          tool_name: event.tool_name,
+          status: event.status,
+          error: event.error,
+        });
+        return { tool_use_id: call.id, content };
+      })),
+    }),
+    ["external"],
+  );
+  const documentNames = new Map(
+    Object.values(docIndex).map(({ document_id, filename }) => [
+      document_id,
+      filename,
+    ]),
+  );
+  const assistantTools = createChatToolRunner({
+    userId,
+    userEmail,
+    projectId: projectId ?? null,
+    allowedDocumentIds: new Set(documentNames.keys()),
+    documentNames,
+    documents: cloudDocuments,
+    library: cloudLibraryStore,
+    projects: cloudProjects,
+    workflows: workflowStore,
+    tabular: tabularStore,
+    editMode,
+    timeZone,
+    entries: mcpEntries,
+    excludeToolNames: includeResearchTools
+      ? undefined
+      : new Set(["search_sources", "note_up", "find_in_case", "verify_citations"]),
+    onMutationCommitted: () => undefined,
+  });
 
   const emit = (event: unknown) => write(`data: ${JSON.stringify(event)}\n\n`);
   const selectedModel = resolveModel(model, DEFAULT_MAIN_MODEL);
@@ -242,9 +176,7 @@ export async function runLLMStream({
     model: selectedModel,
     systemPrompt,
     messages,
-    tools,
-    readerTools: tools,
-    createToolRunner,
+    createTools: assistantTools.createTools,
     emit,
     done: () => write("data: [DONE]\n\n"),
     apiKeys,
@@ -259,6 +191,7 @@ export async function runLLMStream({
     activityDetail,
     priorEvidence: priorLegalEvidence,
     resumableSubagents,
+    beforeFinalize: assistantTools.beforeFinalize,
     onFinish,
     prepareMessages: prepareMessages
       ? async (onCompaction) => (await prepareMessages(onCompaction)).map(

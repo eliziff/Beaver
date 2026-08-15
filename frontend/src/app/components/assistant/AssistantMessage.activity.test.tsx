@@ -131,13 +131,13 @@ describe("AssistantMessage activity", () => {
         expect(onSubagentClick).toHaveBeenCalledOnce();
     });
 
-    it("translates a document revision without exposing the tool name", async () => {
+    it("labels a document revision as editing", async () => {
         render(
             <AssistantMessage
                 events={[
                     {
                         type: "tool_call_start",
-                        name: "library_revise_docx",
+                        name: "Edit",
                         isStreaming: true,
                     },
                 ]}
@@ -150,7 +150,6 @@ describe("AssistantMessage activity", () => {
         });
         await userEvent.click(disclosure);
         screen.getByText("Editing document...");
-        expect(document.body).not.toHaveTextContent("library_revise_docx");
     });
 
     it("shows a single compact thinking row before the first event", () => {

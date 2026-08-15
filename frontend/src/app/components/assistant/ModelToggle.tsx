@@ -108,6 +108,7 @@ interface Props {
     disabled?: boolean;
     className?: string;
     detail?: string;
+    onDetailClick?: () => void;
 }
 export function ModelToggle({
     value,
@@ -117,6 +118,7 @@ export function ModelToggle({
     disabled,
     className = "sm:w-56",
     detail,
+    onDetailClick,
 }: Props) {
     const catalog = useModelCatalog();
     const dynamicModels: ModelOption[] = (catalog?.models ?? [])
@@ -188,6 +190,7 @@ export function ModelToggle({
             disabled={disabled}
             className={className}
             detail={detail}
+            onDetailClick={onDetailClick}
         />
     );
 }
@@ -303,13 +306,11 @@ export function ModelEffortToggle({
                 value={model}
                 onChange={(next) => {
                     onModelChange(next);
-                    if (reasoningEfforts(next, catalog).length) {
-                        setEffortModel(next);
-                    }
                 }}
                 apiKeys={apiKeys}
                 className="chat-input-model-toggle"
                 detail={selectedEffort ?? "Automatic"}
+                onDetailClick={() => setEffortModel(model)}
             />
             <SearchableChoiceModal
                 open={effortModel !== null}

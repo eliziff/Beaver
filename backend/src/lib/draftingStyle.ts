@@ -19,6 +19,7 @@ export type HeadingNumbering = boolean | "auto";
 
 export type DraftingDocumentStyle = {
   citationPlacement: CitationPlacement;
+  citationHyperlinks: boolean;
   numberHeadings: HeadingNumbering;
 };
 
@@ -34,10 +35,10 @@ export type DraftingStyleSettings = {
 export const DEFAULT_DRAFTING_STYLE: DraftingStyleSettings = {
   version: DRAFTING_STYLE_VERSION,
   documents: {
-    memo: { citationPlacement: "footnotes", numberHeadings: false },
-    factum: { citationPlacement: "inline", numberHeadings: true },
-    letter: { citationPlacement: "footnotes", numberHeadings: false },
-    other: { citationPlacement: "inline", numberHeadings: "auto" },
+    memo: { citationPlacement: "footnotes", citationHyperlinks: true, numberHeadings: false },
+    factum: { citationPlacement: "inline", citationHyperlinks: true, numberHeadings: true },
+    letter: { citationPlacement: "footnotes", citationHyperlinks: true, numberHeadings: false },
+    other: { citationPlacement: "inline", citationHyperlinks: true, numberHeadings: "auto" },
   },
   memoHeader: { to: "File", from: "AI Assistant" },
 };
@@ -93,6 +94,9 @@ export function normalizeDraftingStyleSettings(
               documentType,
               fallback.citationPlacement,
             ),
+            citationHyperlinks: typeof raw?.citationHyperlinks === "boolean"
+              ? raw.citationHyperlinks
+              : fallback.citationHyperlinks,
             numberHeadings: headingNumbering(
               raw?.numberHeadings,
               fallback.numberHeadings,
@@ -199,7 +203,9 @@ export function resolveDraftingOptions(
   return {
     documentType,
     citationPlacement: placement ?? saved.citationPlacement,
-    citationHyperlinks: raw.citation_hyperlinks !== false,
+    citationHyperlinks: typeof raw.citation_hyperlinks === "boolean"
+      ? raw.citation_hyperlinks
+      : saved.citationHyperlinks,
     numberHeadings:
       typeof raw.number_headings === "boolean"
         ? raw.number_headings

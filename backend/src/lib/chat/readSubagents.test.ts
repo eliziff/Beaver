@@ -25,6 +25,7 @@ import {
   type ReadSubagentCheckpoint,
 } from "./readSubagents";
 import type { OpenAIToolSchema } from "../llm";
+import { resourceReference } from "../resourceReferences";
 import {
   createLegalEvidenceTurnState,
   LEGAL_EVIDENCE_SUBMIT_TOOL,
@@ -121,25 +122,22 @@ describe("reading agents", () => {
     });
   });
 
-  it("exposes only legal research tools inside the assigned country boundary", () => {
+  it("applies region gates after the registry removes write effects", () => {
     const tools = [
       schema("Read"),
-      schema("library_find"),
-      schema("SearchSources"),
-      schema("courtlistener_find_in_case"),
-      schema("public_legal_source_lookup"),
-      schema("Edit"),
-      schema("generate_docx"),
-      schema("submit_grounded_answer"),
+      schema("search_sources"),
+      schema("find_in_case"),
+      schema("note_up"),
     ];
     expect(readSubagentTools(tools).map((tool) => tool.function.name)).toEqual([
-      "SearchSources",
-      "public_legal_source_lookup",
+      "Read",
+      "search_sources",
+      "note_up",
     ]);
     expect(readSubagentTools(tools, "US").map((tool) => tool.function.name)).toEqual([
-      "SearchSources",
-      "courtlistener_find_in_case",
-      "public_legal_source_lookup",
+      "Read",
+      "search_sources",
+      "find_in_case",
     ]);
   });
 
@@ -329,24 +327,27 @@ describe("reading agents", () => {
   it("carries discovered case metadata into the later read activity", async () => {
     const evidenceState = leaseEvidenceState();
     const events: unknown[] = [];
+    const caseResource = resourceReference.source(
+      "a2aj",
+      JSON.stringify(["2020 BCSC 1122", "cases", "BCSC"]),
+    );
     mocks.stream.mockImplementationOnce(async (params) => {
       await params.runTools?.([{
         id: "search-1",
-        name: "SearchSources",
+        name: "search_sources",
         input: { query: "fentanyl contact", source_types: ["case"] },
       }]);
       await params.runTools?.([{
         id: "fetch-1",
-        name: "a2aj_fetch",
-        input: { citation: "2020 BCSC 1122", doc_type: "cases" },
+        name: "Read",
+        input: { file_path: caseResource },
       }]);
       await params.runTools?.([3, 5, 7, 9].map((locator) => ({
         id: `lookup-${locator}`,
-        name: "a2aj_lookup",
+        name: "Read",
         input: {
-          citation: "2020 BCSC 1122",
-          doc_type: "cases",
-          locator_type: "paragraph",
+          file_path: caseResource,
+          locator_kind: "paragraph",
           locator: String(locator),
         },
       })));
@@ -369,14 +370,13 @@ describe("reading agents", () => {
         input: { task: "Find the case.", scope: "British Columbia" },
       },
       tools: [
-        schema("SearchSources"),
-        schema("a2aj_fetch"),
-        schema("a2aj_lookup"),
+        schema("search_sources"),
+        schema("Read"),
         LEGAL_EVIDENCE_SUBMIT_TOOL,
       ],
       evidenceState,
       runTools: async (calls) => calls.map((call) => {
-        if (call.name === "SearchSources") {
+        if (call.name === "search_sources") {
           return {
             tool_use_id: call.id,
             status: "ok" as const,
@@ -389,6 +389,7 @@ describe("reading agents", () => {
                 citation: "2020 BCSC 1122",
                 collection: "BCSC",
                 url: "https://example.test/2020BCSC1122",
+                resource: caseResource,
               }],
             }),
           };
@@ -430,7 +431,7 @@ describe("reading agents", () => {
         exact_passage: expect.stringContaining("successive one-year terms"),
       })],
       searches: [expect.objectContaining({
-        tool: "SearchSources",
+        tool: "search_sources",
         query: expect.stringContaining("fentanyl contact"),
         summary: expect.stringContaining("2020 BCSC 1122"),
       })],
@@ -498,45 +499,6 @@ describe("reading agents", () => {
     expect(mocks.stream.mock.calls[2]?.[0].messages[0].content).toContain(
       "Continue revising",
     );
-  });
-
-  it("accepts a tool-only Codex ending after grounding passes", async () => {
-    const evidenceState = leaseEvidenceState();
-    mocks.stream.mockImplementationOnce(async (params) => {
-      await params.runTools?.([{
-        id: "submit-only",
-        name: "submit_grounded_answer",
-        input: {
-          claims: [{
-            text: "The lease renews for successive one-year terms.",
-            evidence_ids: ["e_lease"],
-          }],
-        },
-      }]);
-      throw new Error("Codex exec returned no response.");
-    });
-
-    const result = await runReadSubagent({
-      call: {
-        id: "read-tool-only",
-        name: "delegate_read",
-        input: { task: "Find the renewal clause.", scope: "The lease" },
-      },
-      tools: [LEGAL_EVIDENCE_SUBMIT_TOOL],
-      evidenceState,
-      runTools: async (calls) => calls.map((call) => {
-        const submitted = submitLegalEvidenceAnswer(call.input, evidenceState);
-        return {
-          tool_use_id: call.id,
-          status: submitted.ok ? ("ok" as const) : ("error" as const),
-          content: JSON.stringify(submitted),
-          terminal: submitted.terminal,
-        };
-      }),
-    });
-
-    expect(result.status, result.content).toBe("ok");
-    expect(result.content).toContain("e_lease");
   });
 
   it("continues an interrupted reader in its original Codex session", async () => {

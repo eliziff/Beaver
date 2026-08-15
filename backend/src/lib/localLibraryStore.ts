@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import {
   addLocalVersion,
@@ -17,21 +18,21 @@ import {
   replaceLocalVersion,
   resolveLocalTrackedEdit,
   updateLocalDocument,
+  updateLocalAssistantTurnVersion,
   updateLocalFolder,
 } from "./localDocumentStore";
-import type { DocumentContent, DocumentStore } from "./documentStore";
+import {
+  DocumentStoreError,
+  type DocumentContent,
+  type DocumentStore,
+} from "./documentStore";
 import type { LibraryStore } from "./libraryStore";
+import { legalKnowledgeGraphStore } from "./legalKnowledgeGraphStore";
 
 export const localLibraryStore = {
   page: (scope, options) => pageLocalLibrary(scope.userId, scope.kind, {
     ...options,
     flat: options.documentsOnly,
-  }),
-  upload: (scope, file) => createLocalDocument({
-    userId: scope.userId,
-    kind: scope.kind,
-    filename: file.originalname,
-    bytes: file.buffer,
   }),
   folder: (scope, folderId) =>
     getLocalFolder(scope.userId, scope.kind, folderId),
@@ -74,6 +75,7 @@ const content = async (
   );
   return file && {
     bytes: await readFile(file.path),
+    localPath: file.path,
     version: file.version,
     filename: file.version.filename,
     fileType: file.fileType,
@@ -82,6 +84,41 @@ const content = async (
 };
 
 export const localDocuments = {
+  async create(scope, input) {
+    if (input.projectId && input.folderId) {
+      throw new DocumentStoreError(409, "Local project folders are unavailable");
+    }
+    const graph = input.projectId ? legalKnowledgeGraphStore() : null;
+    if (input.projectId && !graph!.getMatter(scope.userId, input.projectId)) {
+      throw new DocumentStoreError(404, "Project not found");
+    }
+    const document = await createLocalDocument({
+      userId: scope.userId,
+      kind: input.libraryKind ?? "file",
+      filename: input.filename,
+      bytes: input.bytes,
+      provenance: input.provenance,
+    });
+    try {
+      if (input.projectId) {
+        if (!graph!.attachMatterDocument(scope.userId, input.projectId, document.id)) {
+          throw new DocumentStoreError(404, "Project not found");
+        }
+        return { ...document, project_id: input.projectId, folder_id: null };
+      }
+      if (input.folderId && !await moveLocalDocument(
+        scope.userId,
+        input.libraryKind ?? "file",
+        document.id,
+        input.folderId,
+      )) throw new DocumentStoreError(404, "Folder not found");
+      return document;
+    } catch (error) {
+      await deleteLocalDocument(scope.userId, document.id).catch(() => undefined);
+      throw error;
+    }
+  },
+
   deleteDocument: (scope, documentId) =>
     deleteLocalDocument(scope.userId, documentId),
 
@@ -89,6 +126,7 @@ export const localDocuments = {
     const files = await getLocalVersionFiles(scope.userId, documentIds);
     return Promise.all([...files.values()].map(async (file) => ({
       bytes: await readFile(file.path),
+      localPath: file.path,
       version: file.version,
       filename: file.filename,
       fileType: file.fileType,
@@ -116,6 +154,45 @@ export const localDocuments = {
     documentId,
     ...file,
   }),
+
+  async commitAssistantVersion(scope, documentId, input) {
+    const edits = input.edits.map((edit) => ({
+      ...edit,
+      id: randomUUID(),
+      status: input.status,
+    }));
+    const version = input.turnVersionId
+      ? input.turnVersionId === input.sourceVersionId
+        ? await updateLocalAssistantTurnVersion({
+            userId: scope.userId,
+            documentId,
+            versionId: input.turnVersionId,
+            parentVersionId: input.parentVersionId,
+            filename: input.filename,
+            bytes: input.bytes,
+            trackedEdits: edits,
+          })
+        : null
+      : await addLocalVersion({
+          userId: scope.userId,
+          documentId,
+          filename: input.filename,
+          bytes: input.bytes,
+          expectedVersionId: input.sourceVersionId,
+          provenance: {
+            schemaVersion: 1,
+            actor: "assistant",
+            action: "revised",
+            parentVersionId: input.parentVersionId,
+            changeCount: edits.length,
+            trackedEdits: edits,
+          },
+        });
+    if (version) return { status: "committed" as const, version, edits };
+    return await listLocalVersions(scope.userId, documentId)
+      ? { status: "conflict" as const }
+      : { status: "missing" as const };
+  },
 
   async copyVersion(scope, targetId, sourceId, filename) {
     if (!await listLocalVersions(scope.userId, targetId)) {

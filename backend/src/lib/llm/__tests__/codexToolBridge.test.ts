@@ -10,6 +10,42 @@ afterEach(async () => {
 });
 
 describe("Codex tool bridge scheduling", () => {
+  it("refreshes its MCP catalog after exact loading", async () => {
+    const schema = (name: string) => ({
+      type: "function" as const,
+      function: { name, parameters: { type: "object", properties: {} } },
+    });
+    let tools = [schema("load_tools")];
+    const bridge = await startCodexToolBridge({
+      tools,
+      resolveTools: () => tools,
+      runTools: async (calls) => {
+        tools = [schema("load_tools"), schema("transform_docx")];
+        return calls.map((call) => ({
+          tool_use_id: call.id,
+          status: "ok" as const,
+          content: "done",
+        }));
+      },
+    });
+    bridges.push(bridge);
+    const transport = new StreamableHTTPClientTransport(new URL(bridge.url), {
+      requestInit: { headers: { Authorization: `Bearer ${bridge.token}` } },
+    });
+    const client = new Client({ name: "beaver-test", version: "1.0.0" });
+    await client.connect(transport);
+
+    expect((await client.listTools()).tools.map(({ name }) => name)).toEqual([
+      "load_tools",
+    ]);
+    await client.callTool({ name: "load_tools", arguments: { names: ["transform_docx"] } });
+    expect((await client.listTools()).tools.map(({ name }) => name)).toEqual([
+      "load_tools",
+      "transform_docx",
+    ]);
+    await transport.close();
+  });
+
   it("serializes concurrent tool calls", async () => {
     const gates: Array<() => void> = [];
     const batches: string[][] = [];

@@ -1,15 +1,13 @@
 const TOOLS = new Set([
-  "toa_submit_library_document",
-  "toa_job_status",
-  "library_fix_docx_supras",
-  "library_link_docx_citations",
+  "create_table_of_authorities",
+  "fix_docx_supras",
+  "link_docx_citations",
 ]);
 
 const STAGES: Record<string, string> = {
-  toa_submit_library_document: "Create book/table of authorities",
-  toa_job_status: "Create book/table of authorities",
-  library_link_docx_citations: "Auto-add hyperlinks to citations",
-  library_fix_docx_supras: "Fix supra references",
+  create_table_of_authorities: "Create book/table of authorities",
+  link_docx_citations: "Auto-add hyperlinks to citations",
+  fix_docx_supras: "Fix supra references",
 };
 
 const record = (value: unknown): Record<string, unknown> | null =>
@@ -30,14 +28,14 @@ export type LocalAutomationEvent = Record<string, unknown> & {
 
 function counts(tool: string, value: Record<string, unknown>) {
   const fields =
-    tool === "library_fix_docx_supras"
+    tool === "fix_docx_supras"
       ? [
           ["Found", "detected"],
           ["Fixed", "converted"],
           ["Already linked", "already_linked"],
           ["Needs review", "review_required"],
         ]
-      : tool === "library_link_docx_citations"
+      : tool === "link_docx_citations"
         ? [
             ["Linked", "linked_citations"],
             ["Unresolved", "unresolved_citations"],
@@ -55,7 +53,7 @@ export function localAutomationEvent(
   content: string | undefined,
   id: string,
 ): LocalAutomationEvent | null {
-  if (!TOOLS.has(tool) || !content) return null;
+  if (!content) return null;
   let value: Record<string, unknown> | null = null;
   try {
     value = record(JSON.parse(content));
@@ -63,6 +61,8 @@ export function localAutomationEvent(
     return null;
   }
   if (!value) return null;
+  if (tool === "Read" && record(value.job)) tool = "create_table_of_authorities";
+  if (!TOOLS.has(tool)) return null;
 
   const failure = text(value.error);
   if (value.ok !== true) {

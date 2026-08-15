@@ -18,6 +18,7 @@ import { buildSystemPrompt, SPREADSHEET_CITATION_PROMPT } from "./prompts";
 import type { AssistantEvent } from "./streaming";
 import { priorLegalEvidenceReceipts } from "./legalEvidence";
 import { resumableReadSubagents } from "./readSubagents";
+import { resourceReference } from "../resourceReferences";
 
 export async function loadPriorChatState(
   chatId: string | null | undefined,
@@ -72,7 +73,9 @@ export async function enrichWithPriorEvents(
   for (const [slug, info] of Object.entries(docIndex)) {
     if (info.document_id) slugByDocumentId.set(info.document_id, slug);
   }
-  const refFor = (documentId: unknown, filename: unknown) => {
+  const refFor = (event: Record<string, unknown>) => {
+    if (typeof event.resource === "string") return event.resource;
+    const { document_id: documentId, filename } = event;
     const slug =
       typeof documentId === "string"
         ? slugByDocumentId.get(documentId)
@@ -83,11 +86,11 @@ export async function enrichWithPriorEvents(
   const lines: string[] = [];
   for (const ev of content as Record<string, unknown>[]) {
     if (ev?.type === "doc_created") {
-      lines.push(`- generated_document → ${refFor(ev.document_id, ev.filename)}`);
+      lines.push(`- generated document → ${refFor(ev)}`);
     } else if (ev?.type === "doc_edited") {
-      lines.push(`- edit_document → ${refFor(ev.document_id, ev.filename)}`);
+      lines.push(`- Edit → ${refFor(ev)}`);
     } else if (ev?.type === "doc_read") {
-      lines.push(`- read_document → ${refFor(ev.document_id, ev.filename)}`);
+      lines.push(`- Read → ${refFor(ev)}`);
     } else if (ev?.type === "workflow_applied") {
       lines.push(`- applied workflow: "${ev.title}"`);
     } else if (ev?.type === "ask_inputs") {
@@ -175,20 +178,27 @@ export function buildMessages(
       const label = doc.folder_path
         ? `${doc.folder_path} / ${doc.filename}`
         : doc.filename;
-      systemContent += `- ${doc.doc_id}: ${label}\n`;
+      const indexed = docIndex?.[doc.doc_id];
+      const resource = indexed?.version_id
+        ? resourceReference.document(indexed.document_id, indexed.version_id)
+        : doc.doc_id;
+      systemContent += `- ${resource}: ${label}\n`;
     }
     systemContent +=
-      "\nYou do NOT retain document content between conversation turns. You MUST call read_document (or fetch_documents) once at the start of every response that involves a document's content, even if you have read it in a previous turn. Within the same response, do not call read_document or fetch_documents again for a document/version that has already been read; use the prior tool result, find_in_document for targeted checks, or proceed to the next required tool. Failure to read once per turn will result in hallucinated or stale content.\n---\n";
+      "\nCall Read for the relevant versioned resource before relying on its content. Use bounded Read or Grep for additional passages.\n---\n";
   }
   formatted.push({ role: "system", content: systemContent });
 
-  // Map document_id (UUID) → current-turn doc_id slug, so when we
-  // inline a user attachment we hand the model the same handle it
-  // would use to call read_document / fetch_documents.
+  // Give inlined attachments the same stable handle used by resource tools.
   const slugByDocumentId = new Map<string, string>();
   if (docIndex) {
     for (const [slug, info] of Object.entries(docIndex)) {
-      if (info.document_id) slugByDocumentId.set(info.document_id, slug);
+      if (info.document_id) slugByDocumentId.set(
+        info.document_id,
+        info.version_id
+          ? resourceReference.document(info.document_id, info.version_id)
+          : slug,
+      );
     }
   }
 

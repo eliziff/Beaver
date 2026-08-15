@@ -135,9 +135,9 @@ function Resolve-Application([string[]]$Names) {
 }
 
 function Resolve-Codex([switch]$Optional) {
-    $configured = [Environment]::GetEnvironmentVariable('CODEX_EXEC_COMMAND')
+    $configured = [Environment]::GetEnvironmentVariable('CODEX_COMMAND')
     if (-not $configured) {
-        $configured = Get-ConfigValue 'CODEX_EXEC_COMMAND'
+        $configured = Get-ConfigValue 'CODEX_COMMAND'
     }
     if ($configured) {
         if (Test-Path -LiteralPath $configured -PathType Leaf) {
@@ -147,7 +147,7 @@ function Resolve-Codex([switch]$Optional) {
         if ($resolved) {
             return $resolved
         }
-        throw "CODEX_EXEC_COMMAND does not resolve to an executable: $configured"
+        throw "CODEX_COMMAND does not resolve to an executable: $configured"
     }
     $resolved = Resolve-Application @('codex.cmd', 'codex.exe')
     if (-not $resolved) {
@@ -575,12 +575,12 @@ function Start-Stack {
     }
     Write-State $state
     $launched = @()
-    $previousCodex = [Environment]::GetEnvironmentVariable('CODEX_EXEC_COMMAND', 'Process')
+    $previousCodex = [Environment]::GetEnvironmentVariable('CODEX_COMMAND', 'Process')
     $previousLegalPdfBinary = [Environment]::GetEnvironmentVariable('LEGALPDF_BINARY', 'Process')
     try {
         # Pin resolved executables for the backend child; PATH is untouched.
         if ($codex) {
-            [Environment]::SetEnvironmentVariable('CODEX_EXEC_COMMAND', $codex, 'Process')
+            [Environment]::SetEnvironmentVariable('CODEX_COMMAND', $codex, 'Process')
         }
         [Environment]::SetEnvironmentVariable('LEGALPDF_BINARY', $legalPdfBinary, 'Process')
 
@@ -627,7 +627,7 @@ function Start-Stack {
         throw "$message Logs: $(Join-Path $StateRoot 'logs')"
     }
     finally {
-        [Environment]::SetEnvironmentVariable('CODEX_EXEC_COMMAND', $previousCodex, 'Process')
+        [Environment]::SetEnvironmentVariable('CODEX_COMMAND', $previousCodex, 'Process')
         [Environment]::SetEnvironmentVariable('LEGALPDF_BINARY', $previousLegalPdfBinary, 'Process')
     }
 

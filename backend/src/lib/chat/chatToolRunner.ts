@@ -4,30 +4,38 @@ import type {
   OpenAIToolSchema,
 } from "../llm";
 import {
-  LOCAL_ASSISTANT_TOOLS,
-  createLocalAssistantRequirementsState,
+  ASSISTANT_TOOLS,
+  createAssistantRequirementsState,
   pendingFinalAgentDraft,
-  runLocalAssistantTools,
-} from "./localAssistantTools";
+  runAssistantTools,
+} from "./assistantTools";
 import { localAutomationEvent } from "./localAutomationEvent";
 import { hideLegalSourceUrls } from "./legalToolResultVisibility";
 import { createPublicLegalSourceState } from "./publicLegalSourceState";
-import { LEGAL_EVIDENCE_TOOL_NAME } from "./legalEvidence";
 import { normalizeAskInputsEvent } from "./askInputs";
 import { readTabularCells } from "./tabularCells";
 import { TABULAR_TOOLS } from "./tools/toolSchemas";
+import { assistantToolActivityLabel } from "./tools/a2ajTools";
 import type { ChatToolContext, ChatToolRunner } from "./turnEngine";
-import type { TabularCellStore } from "./types";
+import { bindToolSchemas, type ToolEntry } from "./toolRegistry";
+import type { TabularCellStore, WorkflowStore } from "./types";
 import type { EditMode } from "../docxTrackedChanges";
+import { resourceReference } from "../resourceReferences";
+import type { DocumentStore } from "../documentStore";
+import type { LibraryStore } from "../libraryStore";
+import type { ProjectStore } from "../projectStore";
 
 const MUTATIONS = new Set([
   "generate_docx",
-  "library_revise_docx",
-  "library_delete_and_renumber_docx",
-  "library_link_docx_citations",
-  "library_fix_docx_supras",
+  "generate_excel",
+  "generate_ppt",
+  "delete_and_renumber_docx",
+  "link_docx_citations",
+  "fix_docx_supras",
   "Edit",
-  "toa_submit_library_document",
+  "transform_docx",
+  "update_library_metadata",
+  "create_table_of_authorities",
 ]);
 
 const record = (value: unknown): Record<string, unknown> | null =>
@@ -63,11 +71,13 @@ function committedMutation(result?: NormalizedToolResult) {
 function documentEvent(tool: string, content?: string) {
   if (![
     "generate_docx",
-    "library_revise_docx",
-    "library_delete_and_renumber_docx",
-    "library_link_docx_citations",
-    "library_fix_docx_supras",
+    "generate_excel",
+    "generate_ppt",
+    "delete_and_renumber_docx",
+    "link_docx_citations",
+    "fix_docx_supras",
     "Edit",
+    "transform_docx",
   ].includes(tool) || !content) return null;
   try {
     const value = record(JSON.parse(content));
@@ -82,8 +92,12 @@ function documentEvent(tool: string, content?: string) {
         ? value.version_number
         : null,
       download_url: text(value.download_url),
+      resource: text(value.resource) || resourceReference.document(
+        text(value.document_id),
+        text(value.version_id),
+      ),
     };
-    if (tool === "generate_docx" && value.action === "created") {
+    if (tool.startsWith("generate_") && value.action === "created") {
       return { type: "doc_created" as const, ...common };
     }
     return value.action === "revised" && Array.isArray(value.annotations)
@@ -106,15 +120,22 @@ const runnerState = () => ({
   edits: new Map(),
   reads: new Map(),
   workingSets: new Map(),
-  requirements: createLocalAssistantRequirementsState(),
+  requirements: createAssistantRequirementsState(),
 });
 
-export function createLocalChatToolRunner(options: {
+export function createChatToolRunner(options: {
   userId: string;
+  userEmail?: string;
   projectId: string | null;
   allowedDocumentIds?: Set<string>;
   documentNames?: ReadonlyMap<string, string>;
   tabular?: TabularCellStore;
+  documents: DocumentStore;
+  library: LibraryStore;
+  projects: ProjectStore;
+  workflows?: WorkflowStore;
+  entries?: ToolEntry<ChatToolContext>[];
+  excludeToolNames?: ReadonlySet<string>;
   editMode?: EditMode;
   timeZone?: string;
   onMutationCommitted: () => void;
@@ -124,19 +145,15 @@ export function createLocalChatToolRunner(options: {
   let mainRunner: ChatToolRunner | null = null;
   let autoFlushCount = 0;
   const tools = [
-    ...LOCAL_ASSISTANT_TOOLS,
+    ...ASSISTANT_TOOLS,
     ...(options.tabular ? TABULAR_TOOLS as OpenAIToolSchema[] : []),
-  ];
-  const allowed = new Set([...tools.map(({ function: value }) => value.name),
-    "ask_inputs", LEGAL_EVIDENCE_TOOL_NAME]);
-
-  const createToolRunner = (
+  ].filter((schema) => !options.excludeToolNames?.has(schema.function.name));
+  const createTools = (
     evidence: ChatToolContext["evidence"],
     scope: "main" | "reader",
-  ): ChatToolRunner => {
+  ) => {
     const state = scope === "main" ? main : runnerState();
-    const runner: ChatToolRunner = async (rawCalls, context) => {
-      const calls = rawCalls.filter((call) => allowed.has(call.name));
+    const runner: ChatToolRunner = async (calls, context) => {
       const ask = calls.find((call) => call.name === "ask_inputs");
       const requestedInputs = ask ? normalizeAskInputsEvent(ask.input) : null;
       if (requestedInputs?.items.length && !mutationCommitted && scope === "main") {
@@ -170,26 +187,27 @@ export function createLocalChatToolRunner(options: {
         return [[call.id, { tool_use_id: call.id, content: read.content }]];
       }));
       const direct = executable.filter((call) => call.name !== "read_table_cells");
-      const directResults = (await runLocalAssistantTools(
+      const directResults = await runAssistantTools(
         options.userId,
         direct,
         {
+          userEmail: options.userEmail,
           ...state,
+          documents: options.documents,
+          library: options.library,
+          projects: options.projects,
+          workflows: options.workflows,
           allowedDocumentIds: options.allowedDocumentIds,
           matterId: options.projectId,
           legalEvidence: evidence,
           editMode: options.editMode,
           timeZone: options.timeZone,
         },
-      )).map((result, index) => hideLegalSourceUrls(
-        direct.find((call) => call.id === result.tool_use_id)?.name ??
-          direct[index]?.name ?? "",
-        result,
-      ));
+      );
       let results = executable.map((call) => tableResults.get(call.id) ??
         directResults.find((result) => result.tool_use_id === call.id)!);
       if (requestedInputs?.items.length) {
-        results = rawCalls.map((call) => call === ask
+        results = calls.map((call) => call === ask
           ? toolReply(call.id, {
               ok: false,
               error: "ask_inputs must be called before document or workflow changes in a turn",
@@ -223,7 +241,7 @@ export function createLocalChatToolRunner(options: {
         );
         if (!wasCommitted && mutationCommitted) options.onMutationCommitted();
         const terminalCreate = calls.length > 0 && calls.every((call) =>
-          call.name === "generate_docx" && committedMutation(
+          call.name.startsWith("generate_") && committedMutation(
             results.find((result) => result.tool_use_id === call.id),
           )?.action === "created",
         );
@@ -232,13 +250,23 @@ export function createLocalChatToolRunner(options: {
       return { results };
     };
     if (scope === "main") mainRunner = runner;
-    return runner;
+    return [...bindToolSchemas(tools, runner, (schema) => {
+      const name = schema.function.name;
+      return MUTATIONS.has(name)
+        ? ["write"]
+        : name === "ask_inputs"
+          ? ["interactive"]
+          : name.startsWith("mcp_")
+            ? ["external"]
+            : ["read"];
+    }, (result, call) => hideLegalSourceUrls(call.name, result),
+    (call) => assistantToolActivityLabel(call.name, call.input) ?? null),
+    ...(options.entries ?? []).filter(({ schema }) =>
+      !options.excludeToolNames?.has(schema.function.name))];
   };
 
   return {
-    tools,
-    readerTools: tools,
-    createToolRunner,
+    createTools,
     pdfHandles: main.pdfHandles,
     mutationCommitted: () => mutationCommitted,
     toolActivityMetadata(call: NormalizedToolCall) {
@@ -247,11 +275,11 @@ export function createLocalChatToolRunner(options: {
       );
       const filename = options.documentNames?.get(documentId);
       if (!filename) return {};
-      if (["Read", "read_document"].includes(call.name))
+      if (call.name === "Read")
         return { label: `Reading ${filename}` };
-      if (["Edit", "edit_document", "library_revise_docx"].includes(call.name))
+      if (["Edit", "transform_docx"].includes(call.name))
         return { label: `Editing ${filename}` };
-      if (["Grep", "find_in_document"].includes(call.name))
+      if (call.name === "Grep")
         return { label: `Searching ${filename}` };
       return {};
     },
