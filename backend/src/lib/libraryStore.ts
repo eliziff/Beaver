@@ -1,4 +1,5 @@
 import type { LibraryKind } from "./normalize";
+import type { DocumentRecord } from "./documentStore";
 
 export type LibraryScope = {
   userId: string;
@@ -6,10 +7,7 @@ export type LibraryScope = {
   kind: LibraryKind;
 };
 
-export type LibraryDocument = Record<string, unknown> & {
-  id: string;
-  filename?: string | null;
-};
+export type LibraryDocument = DocumentRecord;
 
 export type LibraryFolder = Record<string, unknown> & {
   id: string;
@@ -31,10 +29,6 @@ export type LibraryStore = {
     items: LibraryPageItem[];
     nextAfter: [number, string, string] | null;
   }>;
-  upload(scope: LibraryScope, file: {
-    originalname: string;
-    buffer: Buffer;
-  }, fileType: string): Promise<LibraryDocument>;
   folder(scope: LibraryScope, folderId: string): Promise<LibraryFolder | null>;
   createFolder(
     scope: LibraryScope,

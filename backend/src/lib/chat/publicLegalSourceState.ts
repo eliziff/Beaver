@@ -37,6 +37,7 @@ import {
   type LegalEvidenceReceipt,
 } from "./legalEvidence";
 import { PUBLIC_LEGAL_SOURCE_TOOL_NAMES } from "./tools/publicLegalSourceTools";
+import { resourceReference } from "../resourceReferences";
 
 export type PublicLegalProvider = "tna" | "govuk-et" | "govinfo" | "journal";
 
@@ -185,6 +186,7 @@ async function pdfFallbacksFor(document: PublicLegalDocument, userId?: string) {
           return queued
             ? {
                 ...queued,
+                resource: resourceReference.source("pdf", queued.reference_id),
                 attachment_title: attachment.title || document.title,
                 attachment_filename: attachment.filename,
               }

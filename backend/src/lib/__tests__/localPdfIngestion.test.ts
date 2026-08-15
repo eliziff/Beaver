@@ -5,11 +5,16 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const runLegalPdf = vi.hoisted(() => vi.fn());
+const runPdfVisionLayout = vi.hoisted(() => vi.fn());
 const renameFault = vi.hoisted(() => ({ remaining: 0, injected: 0 }));
 
 vi.mock("../legalPdfProcess", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../legalPdfProcess")>()),
   runLegalPdf,
+}));
+vi.mock("../pdfVisionLayout", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../pdfVisionLayout")>()),
+  runPdfVisionLayout,
 }));
 vi.mock("node:fs/promises", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs/promises")>();
@@ -249,6 +254,7 @@ async function waitForState(
 
 afterEach(async () => {
   runLegalPdf.mockReset();
+  runPdfVisionLayout.mockReset();
   renameFault.remaining = 0;
   renameFault.injected = 0;
   if (temporaryDirectory) {
@@ -263,6 +269,8 @@ afterEach(async () => {
   delete process.env.MIKE_PDF_OCR_DPI;
   delete process.env.MIKE_PDF_OCR_PSM;
   delete process.env.MIKE_PDF_OCR_PROVIDER;
+  delete process.env.MIKE_PDF_LAYOUT_PROVIDER;
+  delete process.env.MIKE_PDF_LAYOUT_MODEL;
   delete process.env.LEGALPDF_KRAKEN_MODEL;
   delete process.env.LEGALPDF_KRAKEN_CODEC;
   delete process.env.LEGALPDF_ONNX_RUNTIME;
@@ -275,6 +283,48 @@ afterEach(async () => {
 });
 
 describe("local PDF ingestion", () => {
+  it("runs the PPDoc-free vision layout path and publishes normal artifacts", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-pdf-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    process.env.MIKE_PDF_LAYOUT_PROVIDER = "mllm";
+    const sourcePath = path.join(temporaryDirectory, "vision.pdf");
+    await writeFile(sourcePath, "%PDF-1.4 vision layout source");
+    runPdfVisionLayout.mockResolvedValue({ pages: [] });
+    runLegalPdf.mockImplementation(async (args: string[]) => {
+      if (args[0] === "repair-identity") {
+        return { stdout: JSON.stringify(repairIdentity), stderr: "" };
+      }
+      if (args[0] === "layout-input") {
+        return { stdout: JSON.stringify({ input: args[3], images: [] }), stderr: "" };
+      }
+      if (args[0] === "apply-layout") {
+        const output = args[args.indexOf("--output") + 1];
+        await fakeArtifacts(["parse", sourcePath, "--output", output]);
+        return { stdout: JSON.stringify({ status: "ready" }), stderr: "" };
+      }
+      throw new Error(`unexpected legalpdf command: ${args.join(" ")}`);
+    });
+    const ingestion = await import("../localPdfIngestion");
+    const state = await ingestion.parseLocalPdfOnDemand({
+      documentId: "document-1",
+      versionId: "version-1",
+      sourcePath,
+    });
+
+    expect(state.status).toBe("ready");
+    expect(state.parser_config).toMatchObject({
+      layout_provider: "mllm",
+      layout_model: "gpt-5.6-luna",
+    });
+    expect(runPdfVisionLayout).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "gpt-5.6-luna" }),
+    );
+    expect(runLegalPdf.mock.calls.map(([args]) => args[0])).toEqual(
+      expect.arrayContaining(["layout-input", "apply-layout"]),
+    );
+    expect(runLegalPdf.mock.calls.some(([args]) => args[0] === "parse")).toBe(false);
+  });
+
   it("stores a PDF without parsing until structural use", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-pdf-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;

@@ -3,9 +3,10 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearA2AJCache } from "../a2aj";
-import { A2AJ_TOOL_NAMES } from "../chat/tools/a2ajTools";
-import { runToolCalls } from "../chat/tools/toolDispatcher";
-import type { DocStore } from "../chat/types";
+import {
+  A2AJ_TOOL_NAMES,
+  executeA2AJTool,
+} from "../chat/tools/a2ajTools";
 
 beforeEach(() => {
   // This suite probes provider truncation, not the machine's local corpus.
@@ -52,16 +53,8 @@ async function fetchToolResult(text: string) {
       doc_type: "laws",
     },
   };
-  const { toolResults } = await runToolCalls(
-    [toolCall],
-    {
-      docStore: new Map() as DocStore,
-      userId: "user-1",
-      db: null as never,
-      emit: () => undefined,
-    },
-  );
-  return JSON.parse(toolResults[0].content) as Record<string, unknown>;
+  return (await executeA2AJTool(toolCall.name, toolCall.input))
+    ?.payload as Record<string, unknown>;
 }
 
 describe("a2aj_fetch truncation signalling", () => {

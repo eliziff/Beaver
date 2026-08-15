@@ -1,6 +1,7 @@
 import express from "express";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { DocumentStore } from "../lib/documentStore";
 import type { LibraryStore } from "../lib/libraryStore";
 import { createLibraryRouter } from "./library";
 
@@ -12,7 +13,6 @@ const scope = expect.objectContaining({
 function fixture() {
   const store = {
     page: vi.fn().mockResolvedValue({ items: [], nextAfter: [1, "z", "v1"] }),
-    upload: vi.fn().mockResolvedValue({ id: "d1", filename: "memo.txt" }),
     folder: vi.fn().mockImplementation(async (_scope, id) => ({
       id,
       parent_folder_id: id === "child" ? "parent" : null,
@@ -24,10 +24,13 @@ function fixture() {
     moveDocument: vi.fn().mockResolvedValue({ id: "d1", filename: "lease.docx" }),
     updateDocument: vi.fn().mockResolvedValue({ id: "d1", filename: "Lease.docx" }),
   } satisfies LibraryStore;
+  const documents = {
+    create: vi.fn().mockResolvedValue({ id: "d1", filename: "memo.txt" }),
+  } as unknown as DocumentStore;
   const app = express();
   app.use(express.json());
-  app.use("/library", createLibraryRouter(store));
-  return { app, store };
+  app.use("/library", createLibraryRouter(store, documents));
+  return { app, store, documents };
 }
 
 describe("canonical Library routes", () => {
@@ -59,17 +62,16 @@ describe("canonical Library routes", () => {
   });
 
   it("applies the same upload validation before either store", async () => {
-    const { app, store } = fixture();
+    const { app, documents } = fixture();
     expect((await request(app).post("/library/files/documents")
       .attach("file", Buffer.from("memo"), "memo.txt")).status).toBe(201);
-    expect(store.upload).toHaveBeenCalledWith(
+    expect(documents.create).toHaveBeenCalledWith(
       scope,
-      expect.objectContaining({ originalname: "memo.txt" }),
-      "txt",
+      expect.objectContaining({ filename: "memo.txt", fileType: "txt" }),
     );
     expect((await request(app).post("/library/files/documents")
       .attach("file", Buffer.from("bad"), "memo.exe")).status).toBe(400);
-    expect(store.upload).toHaveBeenCalledTimes(1);
+    expect(documents.create).toHaveBeenCalledTimes(1);
   });
 
   it("validates folder ancestry once and rejects cycles", async () => {

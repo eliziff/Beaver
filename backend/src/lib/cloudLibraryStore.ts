@@ -1,4 +1,3 @@
-import { createCloudDocument } from "./cloudDocumentStore";
 import type {
   LibraryDocument,
   LibraryFolder,
@@ -77,17 +76,6 @@ export const cloudLibraryStore = {
         ? [last.bucket, last.sort_name, last.id]
         : null,
     };
-  },
-
-  async upload(scope, file, fileType) {
-    return documentResponse(await createCloudDocument(createServerSupabase(), {
-      userId: scope.userId,
-      userEmail: scope.userEmail,
-      projectId: null,
-      libraryKind: scope.kind,
-      file,
-      fileType,
-    }));
   },
 
   async folder(scope, folderId) {

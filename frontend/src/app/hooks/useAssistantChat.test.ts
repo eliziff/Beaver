@@ -980,7 +980,7 @@ describe("useAssistantChat local transcript boundary", () => {
           chatId: "chat-1",
           transcriptVersion: 1,
         },
-        { type: "tool_call_start", name: "library_revise_docx" },
+        { type: "tool_call_start", name: "Edit" },
         { type: "doc_edited_start", filename: "Draft.docx" },
         {
           type: "doc_edited",
@@ -1179,7 +1179,7 @@ describe("useAssistantChat local transcript boundary", () => {
         {
           type: "automation_run",
           id: "call-1",
-          tool: "toa_job_status",
+          tool: "create_table_of_authorities",
           job_id: "a".repeat(32),
           stage: "Build",
           status: "complete",

@@ -1,6 +1,4 @@
 import {
-  createLocalDocument,
-  deleteLocalDocument,
   listLocalDocumentsById,
   updateLocalDocument,
 } from "./localDocumentStore";
@@ -167,29 +165,6 @@ export const localProjects = {
     });
     if (!updated) throw missing("Document not found");
     return { ...updated, project_id: projectId, folder_id: null };
-  },
-
-  async uploadDocument(scope, projectId, file) {
-    const graph = projectGraph(scope.userId, projectId);
-    let document: Awaited<ReturnType<typeof createLocalDocument>> | undefined;
-    try {
-      document = await createLocalDocument({
-        userId: scope.userId,
-        kind: "file",
-        filename: file.originalname,
-        bytes: file.buffer,
-      });
-      if (!graph.attachMatterDocument(scope.userId, projectId, document.id)) {
-        throw missing("Project not found");
-      }
-      return { ...document, project_id: projectId, folder_id: null };
-    } catch (error) {
-      if (document) await deleteLocalDocument(scope.userId, document.id).catch(() => {});
-      if (error instanceof ProjectStoreError) throw error;
-      const detail = error instanceof Error ? error.message : "Upload failed";
-      throw new ProjectStoreError(
-        detail.startsWith("Unsupported file type") ? 400 : 500, detail);
-    }
   },
 
   async createFolder(scope, projectId) {

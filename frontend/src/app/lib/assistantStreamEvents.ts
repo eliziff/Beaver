@@ -58,10 +58,9 @@ export function parseCourtlistenerCaseSearches(value: unknown) {
 }
 
 const AUTOMATION_TOOLS = new Set<AutomationToolName>([
-  "toa_submit_library_document",
-  "toa_job_status",
-  "library_fix_docx_supras",
-  "library_link_docx_citations",
+  "create_table_of_authorities",
+  "fix_docx_supras",
+  "link_docx_citations",
 ]);
 const START_EVENTS = new Set([
   "doc_find",
@@ -77,15 +76,12 @@ const START_EVENTS = new Set([
 const TOOL_ACTIVITY_FAMILIES: Record<string, string> = {
   ask_inputs: "ask_inputs",
   generate_docx: "doc_created",
-  edit_document: "doc_edited",
-  library_revise_docx: "doc_edited",
-  read_document: "doc_read",
-  fetch_documents: "doc_read",
-  find_in_document: "doc_find",
-  toa_submit_library_document: "automation_run",
-  toa_job_status: "automation_run",
-  library_link_docx_citations: "automation_run",
-  library_fix_docx_supras: "automation_run",
+  Edit: "doc_edited",
+  Read: "doc_read",
+  Grep: "doc_find",
+  create_table_of_authorities: "automation_run",
+  link_docx_citations: "automation_run",
+  fix_docx_supras: "automation_run",
   delegate_read: "subagent_run",
   resume_read: "subagent_run",
 };
@@ -556,7 +552,8 @@ export function reduceAssistantStreamEvent(
           })
         : [];
     if (
-      (agent !== "scout" && agent !== "planner" && agent !== "reviewer") ||
+      (agent !== "scout" && agent !== "planner" && agent !== "reviewer" &&
+        agent !== "native") ||
       (status !== "running" && status !== "completed" && status !== "error" &&
         status !== "cancelled" && status !== "interrupted")
     ) {

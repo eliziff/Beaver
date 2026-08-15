@@ -450,12 +450,12 @@ export function AppSidebar({
             </div>
           </section>
         )}
-        <div className="mt-auto p-1">
+        <div className="mt-auto border-t border-gray-300 p-1">
           <button            type="button"            onPointerEnter={() => void loadSettingsModal()}            onClick={() => {              setSettingsOpen(true);
               if (mobileOpen) onToggle();
             }}
             className={cn(
-              "flex h-11 w-full items-center gap-3 rounded-xl border-t border-gray-300 px-3 text-sm font-medium text-gray-700",
+              "flex h-11 w-full items-center gap-3 rounded-xl px-3 text-sm font-medium text-gray-700",
               APP_SURFACE_HOVER_CLASS,
             )}
           >

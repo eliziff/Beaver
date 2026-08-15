@@ -16,14 +16,22 @@ import {
 import { mikeLocalDataHome } from "./legalDataPath";
 import { LOCAL_PDF_SOURCE_SCHEMA } from "./legalPdfSourceDoc";
 import {
+  configuredLegalPdfLayout,
   configuredLegalPdfOcrProvider,
   LEGAL_PDF_DOCUMENT_SCHEMA,
   LEGAL_PDF_PARSER_VERSION,
+  legalPdfLayoutArguments,
   legalPdfOcrArguments,
   runLegalPdf,
+  type LegalPdfLayoutConfig,
   type LegalPdfOcrProvider,
 } from "./legalPdfProcess";
 import { sha256 } from "./hash";
+import type { UserApiKeys } from "./llm";
+import {
+  PDF_VISION_LAYOUT_IDENTITY,
+  runPdfVisionLayout,
+} from "./pdfVisionLayout";
 
 const STATE_SUFFIX = ".legalpdf-state.json";
 const ARTIFACT_SUFFIX = ".legalpdf";
@@ -82,6 +90,9 @@ export type LocalPdfParseState = {
     ocr_language?: string;
     ocr_dpi?: number;
     ocr_psm?: number;
+    layout_provider: "local" | "mllm" | null;
+    layout_model: string | null;
+    layout_identity?: string;
     model: string | null;
     effort?: string | null;
     prompt_version: string | null;
@@ -125,6 +136,8 @@ const jobs = new Map<string, Promise<void>>();
 const atomicWriteTails = new Map<string, Promise<void>>();
 const validatedPublications = new Map<string, string>();
 let repairIdentityPromise: Promise<LocalPdfRepairIdentity> | null = null;
+const layoutIdentityPromises = new Map<string, Promise<string>>();
+const layoutApiKeys = new Map<string, UserApiKeys>();
 // ponytail: one parser at a time protects weak local machines; use a bounded
 // worker pool only if measured queue latency justifies the extra machinery.
 let workTail: Promise<unknown> = Promise.resolve();
@@ -136,12 +149,17 @@ function configVersion() {
 function parserConfig(
   ocrProvider: LocalPdfOcrProvider | null,
   ocrIdentity?: string,
+  layout?: LegalPdfLayoutConfig | null,
+  layoutIdentity?: string,
   repairIdentity?: LocalPdfRepairIdentity | null,
   repair?: LocalPdfRepairConfig | null,
 ): LocalPdfParseState["parser_config"] {
   const config: LocalPdfParseState["parser_config"] = {
     mode: repair ? "codex" : "local",
     ocr_provider: ocrProvider,
+    layout_provider: layout?.provider ?? null,
+    layout_model: layout?.provider === "mllm" ? layout.model : null,
+    ...(layoutIdentity ? { layout_identity: layoutIdentity } : {}),
     model: repair?.model ?? null,
     prompt_version:
       repair && repairIdentity ? repairIdentity.prompt_version : null,
@@ -213,6 +231,9 @@ function safeParserError(error: unknown) {
     return "Tesseract changed before OCR began; retry the parse";
   }
   if (/Tesseract OCR failed/iu.test(message)) return "Tesseract OCR failed";
+  if (/layout|PPdoc|OpenVINO/iu.test(message)) {
+    return "PDF layout analysis could not start; check its model or provider settings";
+  }
   if (/Kraken|LEGALPDF_KRAKEN|ONNX/iu.test(message)) {
     return "Kraken-lite OCR could not start; check its local runtime assets";
   }
@@ -383,6 +404,50 @@ function artifactDirectory(sourcePath: string, cacheKey: string) {
   return path.join(artifactRoot(sourcePath), cacheKey);
 }
 
+async function detectedLayoutIdentity(
+  layout: LegalPdfLayoutConfig,
+  signal?: AbortSignal,
+) {
+  if (layout.provider === "mllm") {
+    return PDF_VISION_LAYOUT_IDENTITY(layout.model);
+  }
+  const arguments_ = legalPdfLayoutArguments(layout).map((value) =>
+    value.startsWith("--ppdoc-")
+      ? `--${value.slice("--ppdoc-".length)}`
+      : value,
+  );
+  const key = JSON.stringify(arguments_);
+  let pending = layoutIdentityPromises.get(key);
+  if (!pending) {
+    pending = runLegalPdf(["ppdoc-identity", ...arguments_], {
+      timeoutMs: 120_000,
+      signal,
+    })
+      .then((result) => {
+        const payload = JSON.parse(String(result.stdout)) as {
+          provider?: unknown;
+          identity?: unknown;
+        };
+        if (
+          payload.provider !== "local-layout" ||
+          typeof payload.identity !== "string" ||
+          !payload.identity ||
+          payload.identity.length > 1_024 ||
+          /[\r\n\u0000]/u.test(payload.identity)
+        ) {
+          throw new Error("Invalid local layout identity");
+        }
+        return payload.identity;
+      })
+      .catch((error) => {
+        layoutIdentityPromises.delete(key);
+        throw error;
+      });
+    layoutIdentityPromises.set(key, pending);
+  }
+  return pending;
+}
+
 async function removeOutmodedArtifacts(sourcePath: string, keepCacheKey: string) {
   const root = artifactRoot(sourcePath);
   let entries;
@@ -529,6 +594,8 @@ function newQueuedState(params: {
   sourceSha256: string;
   ocrProvider: LocalPdfOcrProvider | null;
   ocrIdentity?: string;
+  layout: LegalPdfLayoutConfig | null;
+  layoutIdentity?: string;
   repairIdentity: LocalPdfRepairIdentity | null;
   repair?: LocalPdfRepairConfig | null;
   previous?: LocalPdfParseState | null;
@@ -537,6 +604,8 @@ function newQueuedState(params: {
   const config = parserConfig(
     params.ocrProvider,
     params.ocrIdentity,
+    params.layout,
+    params.layoutIdentity,
     params.repairIdentity,
     params.repair,
   );
@@ -1002,41 +1071,114 @@ async function processJob(sourcePath: string) {
     validatedPublications.delete(publicationKey(sourcePath, parsing.cache_key));
     await rm(output, { recursive: true, force: true });
     const configuredTimeout = Number(process.env.MIKE_PDF_PARSE_TIMEOUT_MS);
-    const arguments_ = [
-      "parse",
-      sourcePath,
-      "--output",
-      output,
-      "--mode",
-      parsing.parser_config.mode,
-      "--no-cache",
-      "--compact-pages",
-    ];
-    if (parsing.parser_config.mode === "codex") {
-      arguments_.push(
-        "--model",
-        String(parsing.parser_config.model),
-        "--effort",
-        String(parsing.parser_config.effort),
-      );
-    }
-    if (parsing.parser_config.ocr_provider) {
-      arguments_.push(
-        ...legalPdfOcrArguments(parsing.parser_config.ocr_provider, {
+    const timeoutMs =
+      Number.isFinite(configuredTimeout) && configuredTimeout > 0
+        ? configuredTimeout
+        : 30 * 60 * 1000;
+    const ocrArguments = parsing.parser_config.ocr_provider
+      ? legalPdfOcrArguments(parsing.parser_config.ocr_provider, {
           language: parsing.parser_config.ocr_language,
           dpi: parsing.parser_config.ocr_dpi,
           psm: parsing.parser_config.ocr_psm,
           expectedIdentity: String(parsing.parser_config.ocr_identity),
-        }),
+        })
+      : [];
+    if (parsing.parser_config.layout_provider === "mllm") {
+      const model = String(parsing.parser_config.layout_model);
+      if (PDF_VISION_LAYOUT_IDENTITY(model) !== parsing.parser_config.layout_identity) {
+        throw new Error("PDF vision layout identity changed before parsing");
+      }
+      const work = path.join(
+        artifactRoot(sourcePath),
+        `.layout-${parsing.cache_key}`,
       );
+      const input = path.join(work, "input.json");
+      const images = path.join(work, "pages");
+      const assignments = path.join(work, "assignments.json");
+      await rm(work, { recursive: true, force: true });
+      await mkdir(work, { recursive: true });
+      try {
+        await runLegalPdf(
+          [
+            "layout-input",
+            sourcePath,
+            "--output",
+            input,
+            "--images",
+            images,
+            "--image-dpi",
+            process.env.MIKE_PDF_LAYOUT_DPI?.trim() || "120",
+            ...ocrArguments,
+          ],
+          { timeoutMs, signal: controller.signal },
+        );
+        await runPdfVisionLayout({
+          inputPath: input,
+          imagesDir: images,
+          outputPath: assignments,
+          model,
+          abortSignal: controller.signal,
+          apiKeys: layoutApiKeys.get(key),
+        });
+        const applyArguments = [
+          "apply-layout",
+          input,
+          "--assignments",
+          assignments,
+          "--output",
+          output,
+          "--compact-pages",
+        ];
+        if (parsing.parser_config.mode === "codex") {
+          applyArguments.push(
+            "--pdf",
+            sourcePath,
+            "--model",
+            String(parsing.parser_config.model),
+            "--effort",
+            String(parsing.parser_config.effort),
+          );
+        }
+        await runLegalPdf(applyArguments, {
+          timeoutMs,
+          signal: controller.signal,
+        });
+      } finally {
+        await rm(work, { recursive: true, force: true });
+      }
+    } else {
+      const arguments_ = [
+        "parse",
+        sourcePath,
+        "--output",
+        output,
+        "--mode",
+        parsing.parser_config.mode,
+        "--no-cache",
+        "--compact-pages",
+      ];
+      if (parsing.parser_config.mode === "codex") {
+        arguments_.push(
+          "--model",
+          String(parsing.parser_config.model),
+          "--effort",
+          String(parsing.parser_config.effort),
+        );
+      }
+      arguments_.push(...ocrArguments);
+      if (parsing.parser_config.layout_provider === "local") {
+        arguments_.push(
+          ...legalPdfLayoutArguments(
+            { provider: "local" },
+            parsing.parser_config.layout_identity,
+          ),
+        );
+      }
+      await runLegalPdf(arguments_, {
+        timeoutMs,
+        signal: controller.signal,
+      });
     }
-    await runLegalPdf(arguments_, {
-      timeoutMs:
-        Number.isFinite(configuredTimeout) && configuredTimeout > 0
-          ? configuredTimeout
-          : 30 * 60 * 1000,
-      signal: controller.signal,
-    });
     if (cancelled.has(key)) return;
     if (
       !(await exists(sourcePath)) ||
@@ -1134,6 +1276,7 @@ async function processJob(sourcePath: string) {
       updated_at: failed,
     });
   } finally {
+    layoutApiKeys.delete(key);
     if (activeControllers.get(key) === controller) {
       activeControllers.delete(key);
     }
@@ -1168,6 +1311,8 @@ export async function queueLocalPdfParse(params: {
   sourceSha256?: string;
   force?: boolean;
   ocrProvider?: LocalPdfOcrProvider | null;
+  layout?: LegalPdfLayoutConfig | null;
+  apiKeys?: UserApiKeys;
   repair?: LocalPdfRepairConfig | null;
 }) {
   const sourceSha256 =
@@ -1178,7 +1323,10 @@ export async function queueLocalPdfParse(params: {
     current?.status === "queued" || current?.status === "parsing";
   const hasOwner =
     scheduled.has(key) || jobs.has(key) || activeControllers.has(key);
-  if (current && activeStatus && hasOwner) return current;
+  if (current && activeStatus && hasOwner) {
+    if (params.apiKeys) layoutApiKeys.set(key, params.apiKeys);
+    return current;
+  }
   const unownedActive = Boolean(current && activeStatus);
   let repair = params.repair === undefined ? preservedRepair(current) : null;
   if (params.repair) {
@@ -1191,15 +1339,22 @@ export async function queueLocalPdfParse(params: {
     params.ocrProvider === undefined
       ? (current?.parser_config.ocr_provider ?? configuredLegalPdfOcrProvider())
       : params.ocrProvider;
+  const layout =
+    params.layout === undefined ? configuredLegalPdfLayout() : params.layout;
   let repairIdentity: LocalPdfRepairIdentity | null;
   let ocrIdentity: string | undefined;
+  let layoutIdentity: string | undefined;
   try {
     repairIdentity = repair
       ? await cachedRepairIdentity()
       : await cachedRepairIdentity().catch(() => null);
     ocrIdentity = ocrProvider
-      ? await detectedOcrIdentity(ocrProvider, parserConfig(ocrProvider))
+      ? await detectedOcrIdentity(
+          ocrProvider,
+          parserConfig(ocrProvider, undefined, layout),
+        )
       : undefined;
+    layoutIdentity = layout ? await detectedLayoutIdentity(layout) : undefined;
   } catch (error) {
     if (
       current &&
@@ -1224,7 +1379,10 @@ export async function queueLocalPdfParse(params: {
   }
   const ownerAfterProbes =
     scheduled.has(key) || jobs.has(key) || activeControllers.has(key);
-  if (current && activeStatus && ownerAfterProbes) return current;
+  if (current && activeStatus && ownerAfterProbes) {
+    if (params.apiKeys) layoutApiKeys.set(key, params.apiKeys);
+    return current;
+  }
   const hasNoOwner = !ownerAfterProbes;
   const recoverOrphan = Boolean(
     current?.status === "parsing" && unownedActive && hasNoOwner,
@@ -1259,6 +1417,8 @@ export async function queueLocalPdfParse(params: {
     sourceSha256,
     ocrProvider,
     ocrIdentity,
+    layout,
+    layoutIdentity,
     repairIdentity,
     repair,
     previous: current,
@@ -1283,6 +1443,7 @@ export async function queueLocalPdfParse(params: {
     if (!params.force && current.status === "failed") return current;
   }
   cancelled.delete(jobKey(params.sourcePath));
+  if (params.apiKeys) layoutApiKeys.set(key, params.apiKeys);
   await removeOutmodedArtifacts(params.sourcePath, candidate.cache_key);
   await writeState(params.sourcePath, candidate);
   schedule(params.sourcePath);
@@ -1306,6 +1467,7 @@ export async function parseLocalPdfOnDemand(
   }
   if (
     current &&
+    params.layout === undefined &&
     (current.status === "ready" || current.status === "degraded") &&
     (await validatePublishedArtifacts(params.sourcePath, current))
   ) {

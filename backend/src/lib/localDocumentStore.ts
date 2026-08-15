@@ -30,6 +30,7 @@ import {
   normalizeDocumentNotes,
   type DocumentMetadata,
 } from "./normalize";
+import type { DocumentProvenance } from "./documentStore";
 
 export type LocalLibraryKind = "file" | "template";
 
@@ -73,28 +74,7 @@ type LocalVersion = {
   id: string;
   versionNumber: number;
   source: "upload" | "user_upload";
-  provenance?: {
-    schemaVersion: 1;
-    actor: "assistant";
-    action: "created" | "revised";
-    parentVersionId?: string;
-    changeCount?: number;
-    trackedEdits?: LocalTrackedEdit[];
-    generation?: {
-      rendererVersion: "beaver.docx-markdown.v2";
-      markdownSha256: string;
-      fieldValuesSha256: string;
-      sourceRegistrySha256: string;
-      evidenceBindings: {
-        id: string;
-        evidenceIds: string[];
-        sourceSha256s: string[];
-        locators: string[];
-        mainUrls: string[];
-        pinpointUrls: string[];
-      }[];
-    };
-  };
+  provenance?: DocumentProvenance;
   createdAt: string;
   filename: string;
   fileType: string;

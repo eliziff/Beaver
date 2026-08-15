@@ -1,7 +1,7 @@
 # Beaver master plan
 
 Status: canonical implementation plan
-Last reconciled: 2026-08-13
+Last reconciled: 2026-08-14
 
 This is the single source of truth for unfinished Beaver work. Earlier
 planning files remain as design records and technical appendices; their status
@@ -70,6 +70,9 @@ These decisions are not open backlog items:
     projections: `SourceDoc` for linear legal text, a typed grid for tables,
     a raw-preserving DOCX session, and the neutral PDF artifact. Beaver does
     not replace source bytes with a universal lossy AST.
+15. Every assistant view and provider uses one turn engine, executable tool
+    registry, resource plane, and event contract. Specialist tools load by
+    exact name; Beaver never ranks tool schemas from prompt similarity.
 
 ## Implemented baseline
 
@@ -79,9 +82,9 @@ backlog:
 | Area | Current baseline |
 | --- | --- |
 | Local identity | Anonymous account-free startup, durable Library/chat state, matters/projects, project documents/chats, and tabular reviews under shared AppData |
-| Assistant | Local Library, exact document, research, drafting, mutation, evidence, and read-subagent tools work without the unavailable `mike_runtime` connector |
-| Codex | Local Codex authentication, dynamic model catalog, separate reasoning-effort control, and bounded Beaver tool bridge |
-| Providers | OpenAI, Claude, Gemini, Codex, DeepSeek, and an OpenRouter/Muse adapter |
+| Assistant | One store-backed turn engine and executable registry serve local/cloud chat, resources, exact document work, evidence, Note Up, and read subagents; mature specialists load by exact name |
+| Codex | Persistent app-server threads provide native steering, interruption, compaction, subagents, model/effort control, and a Beaver MCP bridge with unrelated Codex tools disabled |
+| Providers | OpenAI, Claude, Gemini, Codex, DeepSeek, and OpenRouter share one provider-neutral turn/event contract |
 | Legal lookup | A2AJ, CourtListener, TNA Find Case Law, GOV.UK ET, GovInfo, and journal article lookup surfaces; CourtListener consumes native paragraph/note structure where supplied |
 | Pinpoints | Deterministic native anchors/text fragments, including multi-text directives, are appended without asking the model to construct URLs |
 | Shared data | `OpenLegalData` SQLite/bulk contract and AppData layout; A2AJ and CourtListener bulk paths |
@@ -99,12 +102,12 @@ backlog:
 The governed source baseline remains commit `02aff487` (247 files, 5,837
 insertions, 61,730 deletions). The contraction harness, behavior inventory,
 and deferred Office rendition fix have since landed. The current full backend
-suite passes 1,347 tests with eight intentional skips at normal parallelism;
+suite passes 1,341 tests with eight intentional skips at normal parallelism;
 the former three SQLite/DOCX timeouts are gone without raising a timeout.
 Generated local probes/corpora remain intentionally uncommitted, the nested
-PDF-engine worktree remains dirty, and the full release smoke and real
-local-Supabase Library/document contract have not yet been rerun, so this remains a
-development checkpoint rather than a release claim.
+PDF-engine worktree remains dirty. The backend/frontend tests and builds and
+the local backend/frontend/Library/model-catalog/Table-of-Authorities smoke
+matrix pass; real local-Supabase road-testing remains deferred.
 
 ## Priority 0 — correctness, reliability, and measured performance
 
@@ -379,7 +382,7 @@ Acceptance:
 
 ### P0.7 Context observability and prompt/tool diet
 
-Status: **Research**
+Status: **Active**
 
 - Log provider/model/effort, assembled input estimate, actual usage, cache
   hits, compaction reason, retained tail, summary version, exact-state size,
@@ -393,15 +396,21 @@ Status: **Research**
 - Test prompt injection through retrieved opinions, PDFs, journal articles,
   tool receipts, and summaries.
 
-Implemented pre-live (2026-07-31): the address-mode tool surface now uses
-one-hop task domains, keeps only navigation/basic mutation tools resident,
-refuses guessed hidden calls, and refreshes schemas between tool-loop
-iterations across provider adapters. Domain discovery returns names and
-guidance, not duplicated schemas. With the full research catalogue enabled,
-the serialized initial schema is 15,975 bytes versus 43,649 bytes for the
-complete surface (63.4% smaller). This is an offline schema-size measurement,
-not a tool-recall or legal-correctness result; the frozen live tasks remain the
-gate for those claims.
+Approved 2026-08-14: the
+[canonical assistant and tool architecture](beaver-canonical-assistant-tool-architecture-2026-08-14.md)
+replaces the earlier address-mode and automatic BM25 schema-selection design.
+One executable registry will derive schemas, dispatch, visibility, and
+subagent capabilities. A small resident surface plus exact-name specialist
+loading will serve every view and provider. Note Up will expose judicial
+discussion and rigorously reviewed, pinpoint-checked journal analysis as
+separate first-class source roles without ranking scholarship beneath cases.
+
+Implemented 2026-08-14: the canonical engine, registry, resource plane,
+store-backed local/cloud composition, Note Up lanes, provider adapters, and
+schema budgets pass deterministic and live Luna/Gemini checks. Codex receives
+a static registered MCP catalog because its current client does not refresh
+`tools/list_changed`; the registry still requires exact `load_tools`
+authorization before any specialist executes.
 
 Acceptance:
 
@@ -457,7 +466,7 @@ Acceptance:
 
 Status: **Partial**
 
-`legal_pdf_lookup`, the coding-shape `Read`/`Grep` surface, SourceDoc provider
+the resource-plane `Read`/`Grep` surface, SourceDoc provider
 lookups, and DOCX structure reads already expose bounded pages/ranges, parser
 paragraphs/ranges, paired footnotes and propositions, encoded legal sections,
 verified section handles, and native DOCX table rows/cells. The remaining work
@@ -1013,6 +1022,71 @@ Acceptance:
 - A clean supported machine can bootstrap or run the packaged build without
   random missing-module failures.
 
+### P1.10a Alberta filing-package builder
+
+Status: **Planned**
+
+Turn final Library documents into reviewable, court-ready filing packages by
+reusing the existing document/version, universal-PDF, citation-linking, OCR,
+and Table/Book of Authorities machinery. This is a deterministic product, not
+an assistant prompt or a second document store.
+
+The first release supports one bounded flow:
+
+1. Select and order the factum or brief, affidavits, exhibits, authorities,
+   proposed order, and other final Library versions.
+2. Choose a supported Alberta court and package type.
+3. Build the required PDFs and receive a concise pass/fail exceptions report.
+4. Correct or replace a source version and rebuild without manually repairing
+   derived pagination, indexes, bookmarks, or links.
+
+For the selected package profile, deterministically:
+
+- preserve immutable inputs and record their exact versions in the build
+  receipt;
+- make PDFs searchable, merge only the required sets, create descriptive
+  exhibit/document bookmarks, continuous pagination, hyperlinked indexes, and
+  open-access authority links;
+- validate required separation of documents, page limits, PDF size, filenames,
+  covers, margins, fonts, paragraph numbering, indexes, and other mechanically
+  testable rules;
+- split outputs at the court's file-size limit without breaking navigation;
+- produce any required filing checklist from the same validated metadata; and
+- distinguish machine-verifiable failures from requirements that still need
+  lawyer review.
+
+Start with one current King's Bench civil email/digital-upload profile. Add a
+Court of Appeal profile only after the first profile passes fixture-based tests
+against the Court's published requirements. Keep the rules as small versioned
+data plus shared validators; do not build a general rules engine.
+
+Acceptance:
+
+- Selecting fixture documents produces the expected PDFs, checklist, and
+  exceptions report reproducibly in local and cloud modes.
+- Reordering, replacing, adding, or removing one input rebuilds pagination,
+  bookmarks, indexes, and internal links without manual repair.
+- Every reported pass maps to an executable check and a dated official Alberta
+  source; subjective requirements are never represented as verified.
+- The result remains an export for lawyer review and filing. Beaver does not
+  log into CAMS, compose filing email, pay fees, or submit documents.
+
+Product evidence found 2026-08-14:
+
+- [King's Bench digital-upload requirements](https://albertacourts.ca/kb/court-operations-schedules/guidelines-for-documents-filed-by-email-or-digital-upload)
+  require searchable PDFs, bookmarks for attachments, practical hyperlinks,
+  separate documents, and a 100 MB limit.
+- [King's Bench email-filing procedures](https://www.albertacourts.ca/kb/court-operations-schedules/guidelines-for-documents-filed-by-email-or-digital-upload/email-filing-procedures/)
+  warn that incorrectly named submissions are returned unfiled.
+- The [Court of Appeal electronic-filing direction](https://cams.albertacourts.ca/public-portal/files/practiceDirection.pdf)
+  and information sheets add mechanical packaging requirements including
+  pagination, bookmarks, covers, separation, and size limits.
+- Existing products such as [PdfClerk](https://pdfclerk.com/),
+  [TrialView](https://www.trialview.com/dispute-resolution-platform/bundling),
+  and [BundlePro](https://www.leaplegalsoftware.com/ca/companion-products/bundlepro/)
+  validate demand for local or hosted bundle assembly, indexing, pagination,
+  OCR, bookmarks, and hyperlinking.
+
 ### P1.11 Curated capability examples
 
 Status: **Planned**
@@ -1045,12 +1119,17 @@ Status: **Partial**
 - Distinguish API-key providers from local Codex-auth models without duplicate
   “Codex local” choices.
 - Add safe credential diagnostics and provider-specific error messages.
+- Give desktop users a normal browser OAuth flow for Beaver's dedicated Codex
+  home, with in-product sign-in, account state, retry, and sign-out. Keep device
+  codes only for genuinely headless installations.
 
 Acceptance:
 
 - The UI does not advertise unsupported effort/image/tool behavior.
 - Adding a model normally changes registry data and adapter tests, not several
   hardcoded UI lists.
+- Codex sign-in completes from Beaver and the browser without copying another
+  Codex home's credentials or asking a desktop user to relay a device code.
 
 ### P1.13 Muse Spark live validation
 
@@ -1284,6 +1363,8 @@ Acceptance:
 - No reduction of useful warmup merely to make a build metric look better.
 - No full-document model parsing when a deterministic exact lookup can answer.
 - No second maintained Table of Authorities UI.
+- No direct court login, fee payment, email submission, or CAMS automation in
+  the first filing-package release.
 - No durable copied case/article blob where a versioned pointer to bulk/cache
   data is sufficient.
 
@@ -1315,8 +1396,9 @@ Acceptance:
    full-history control, exact legal-state gates, provider continuation, and
    isolation tests; promote only an earned candidate.
 9. **Complete durable work products and release breadth**: ontology artifacts,
-   Table of Authorities packaging, curated examples, multimodal validation,
-   cloud deployment evidence, accessibility, and measured retrieval additions.
+   Table of Authorities packaging, the first Alberta filing-package profile,
+   curated examples, multimodal validation, cloud deployment evidence,
+   accessibility, and measured retrieval additions.
 
 ## Requirement traceability
 
@@ -1352,6 +1434,9 @@ The consolidated backlog deliberately retains these user priorities:
 - one shared legal-data contract and reliable runtime dependencies;
 - Table of Authorities as both a Beaver category and standalone GUI/CLI with one
   maintained browser UI;
+- an Alberta filing-package builder that turns selected final Library versions
+  into searchable, bookmarked, paginated, linked, size-bounded court PDFs plus
+  a deterministic exceptions report, without filing them;
 - a performant universal galley viewer using pointers to shared artifacts;
 - multimodal image processing;
 - durable legal-test/factor/application/commentary graphs and linked research

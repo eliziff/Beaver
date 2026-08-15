@@ -22,12 +22,11 @@ vi.mock("../courtlistener", () => ({
 }));
 
 import { runLocalAssistantTools } from "../chat/localAssistantTools";
-import { runToolCalls } from "../chat/tools/toolDispatcher";
-import type { DocStore } from "../chat/types";
 import {
   runLocalCourtlistenerTool,
   type CourtlistenerToolState,
 } from "../chat/courtlistenerToolRunner";
+import { resourceReference } from "../resourceReferences";
 import { COURTLISTENER_TOOL_NAMES } from "../chat/tools/courtlistenerTools";
 import { appendLocalPdfPinpointLinks } from "../chat/localPdfEvidenceState";
 
@@ -157,9 +156,9 @@ describe("provider PDF consumers", () => {
       [
         {
           id: "provider-queued",
-          name: "legal_pdf_lookup",
+          name: "Read",
           input: {
-            reference_id: requestReference,
+            file_path: resourceReference.source("pdf", requestReference),
             locator_kind: "page",
             locator: "3",
           },
@@ -178,9 +177,9 @@ describe("provider PDF consumers", () => {
       [
         {
           id: "provider-ready",
-          name: "legal_pdf_lookup",
+          name: "Read",
           input: {
-            reference_id: requestReference,
+            file_path: resourceReference.source("pdf", requestReference),
             locator_kind: "page",
             locator: "3",
           },
@@ -218,8 +217,11 @@ describe("provider PDF consumers", () => {
       [
         {
           id: "provider-rehydrate",
-          name: "legal_pdf_lookup",
-          input: { reference_id: sourceReference, handle },
+          name: "Read",
+          input: {
+            file_path: resourceReference.source("pdf", sourceReference),
+            handle,
+          },
         },
       ],
       { pdfHandles: handles },
@@ -269,9 +271,10 @@ describe("provider PDF consumers", () => {
       canonicalUrl: "https://www.courtlistener.com/opinion/42/example/",
       title: "Example v. State",
     });
-    expect(JSON.parse(flatResult!.content).cases[0].pdf_fallback).toEqual(
-      fallback,
-    );
+    expect(JSON.parse(flatResult!.content).cases[0].pdf_fallback).toEqual({
+      ...fallback,
+      resource: resourceReference.source("pdf", "reference-1"),
+    });
 
     queueProviderPdfAttachment.mockClear();
     getCourtlistenerOpinionStructure.mockReturnValue({
@@ -341,7 +344,10 @@ describe("provider PDF consumers", () => {
       "local-user",
     );
     expect(queueProviderPdfAttachment).toHaveBeenCalledOnce();
-    expect(JSON.parse(explored!.content).pdf_fallback).toEqual(fallback);
+    expect(JSON.parse(explored!.content).pdf_fallback).toEqual({
+      ...fallback,
+      resource: resourceReference.source("pdf", "reference-1"),
+    });
     expect(explored?.evidenceRefs).toEqual([
       expect.objectContaining({
         locator: "opinion 8, search hit 1",
@@ -351,7 +357,7 @@ describe("provider PDF consumers", () => {
     ]);
   });
 
-  it("uses the shared CourtListener executor in cloud chat", async () => {
+  it("uses the shared CourtListener executor", async () => {
     getCourtlistenerCases.mockResolvedValue({
       cases: [
         {
@@ -363,43 +369,22 @@ describe("provider PDF consumers", () => {
         },
       ],
     });
-    const calls = [
-      {
-        id: "fetch",
-        name: COURTLISTENER_TOOL_NAMES.getCases,
-        input: { clusterIds: [42] },
-      },
-      {
-        id: "find",
-        name: COURTLISTENER_TOOL_NAMES.findInCase,
-        input: {
-          clusterId: 42,
-          query: "Opinion",
-        },
-      },
-    ];
-    const events: unknown[] = [];
+    const state = { casesByClusterId: new Map() };
+    const [fetched] = await runLocalAssistantTools("user-1", [{
+      id: "fetch",
+      name: COURTLISTENER_TOOL_NAMES.getCases,
+      input: { clusterIds: [42] },
+    }], { courtlistener: state });
+    const [found] = await runLocalAssistantTools("user-1", [{
+      id: "find",
+      name: COURTLISTENER_TOOL_NAMES.findInCase,
+      input: { clusterId: 42, query: "Opinion" },
+    }], { courtlistener: state });
 
-    const response = await runToolCalls(
-      calls,
-      {
-        docStore: new Map() as DocStore,
-        userId: "user-1",
-        db: null as never,
-        emit: (value) => events.push(value),
-      },
-    );
-
-    expect(JSON.parse(response.toolResults[0].content))
+    expect(JSON.parse(fetched.content))
       .toMatchObject({ ok: true, case_count: 1, opinion_count: 1 });
-    expect(JSON.parse(response.toolResults[1].content))
+    expect(JSON.parse(found.content))
       .toMatchObject({ ok: true, total_matches: 1 });
-    expect(events).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ type: "case_opinions" }),
-        expect.objectContaining({ type: "courtlistener_find_in_case" }),
-      ]),
-    );
   });
 
   it("keeps A2AJ links server-side without queuing PDF work", async () => {

@@ -26,11 +26,11 @@ vi.mock("../lib/llm", () => ({
   modelSupportsImageInput: () => true,
   streamChatWithTools: mocks.streamChatWithTools,
 }));
-vi.mock("../lib/chat/localAssistantTools", () => ({
-  LOCAL_ASSISTANT_TOOLS: [],
-  createLocalAssistantRequirementsState: () => ({}),
+vi.mock("../lib/chat/assistantTools", () => ({
+  ASSISTANT_TOOLS: [],
+  createAssistantRequirementsState: () => ({}),
   pendingFinalAgentDraft: () => null,
-  runLocalAssistantTools: mocks.runLocalAssistantTools,
+  runAssistantTools: mocks.runLocalAssistantTools,
 }));
 vi.mock("../lib/chat/localPdfEvidenceState", () => ({
   appendLocalPdfPinpointLinks: mocks.appendLocalPdfPinpointLinks,
@@ -158,7 +158,7 @@ beforeEach(async () => {
     );
     if (mocks.activeHandles.length > 0) {
       await params.runTools?.([
-        { id: "lookup", name: "library_lookup", input: {} },
+        { id: "lookup", name: "Read", input: {} },
       ]);
     }
     const text =

@@ -476,38 +476,37 @@ export async function resolveDocxCitationLinks(
   return { links, unresolved, providers };
 }
 
-export async function linkLocalDocxCitations(
-  userId: string,
-  documentId: string,
-  options: {
-    saveVersion?: (input: {
-      sourceVersionId: string;
-      filename: string;
-      bytes: Buffer;
-    }) => Promise<{
-      id: string;
-      filename: string;
-      version_number?: number;
-      file_type?: string;
-      source_sha256?: string;
-      parentVersionId?: string;
-    } | null>;
-  } = {},
-) {
-  const file = await getLocalVersionFile(userId, documentId);
-  if (!file) throw new Error("Document not found");
-  if (file.fileType.toLowerCase() !== "docx") {
-    throw new Error("Citation linking currently requires a DOCX document");
-  }
+type SavedVersion = {
+  id: string;
+  filename: string;
+  version_number?: number;
+  file_type?: string;
+  source_sha256?: string;
+  parentVersionId?: string;
+};
+
+export async function linkDocxCitations(input: {
+  documentId: string;
+  sourceVersionId: string;
+  filename: string;
+  bytes: Buffer;
+  saveVersion: (input: {
+    sourceVersionId: string;
+    filename: string;
+    bytes: Buffer;
+  }) => Promise<SavedVersion | null>;
+}) {
   const temporary = await mkdtemp(path.join(os.tmpdir(), "beaver-docx-links-"));
   try {
+    const inputPath = path.join(temporary, "source.docx");
     const planPath = path.join(temporary, "plan.json");
     const linksPath = path.join(temporary, "links.json");
     const outputPath = path.join(temporary, "linked.docx");
+    await writeFile(inputPath, input.bytes);
     await runLegalPdf(
       [
         "docx-link-plan",
-        file.path,
+        inputPath,
         "--output",
         planPath,
         "--strategy",
@@ -535,7 +534,7 @@ export async function linkLocalDocxCitations(
     await runLegalPdf(
       [
         "docx-apply-links",
-        file.path,
+        inputPath,
         "--plan",
         planPath,
         "--links",
@@ -544,33 +543,26 @@ export async function linkLocalDocxCitations(
         outputPath,
       ],
     );
-    const original = file.document.filename.replace(/\.docx$/iu, "");
+    const original = input.filename.replace(/\.docx$/iu, "");
     const filename = `${original} - linked.docx`;
     const outputBytes = await readFile(outputPath);
-    const version = options.saveVersion
-      ? await options.saveVersion({
-          sourceVersionId: file.version.id,
-          filename,
-          bytes: outputBytes,
-        })
-      : await addLocalVersion({
-          userId,
-          documentId,
-          filename,
-          bytes: outputBytes,
-        });
+    const version = await input.saveVersion({
+      sourceVersionId: input.sourceVersionId,
+      filename,
+      bytes: outputBytes,
+    });
     if (!version) throw new Error("Document disappeared before saving");
     const downloadUrl =
-      `/single-documents/${encodeURIComponent(documentId)}/file` +
+      `/single-documents/${encodeURIComponent(input.documentId)}/file` +
       `?version_id=${encodeURIComponent(version.id)}`;
     return {
       ok: true,
       receipt: "mike-document:v1",
       action: "revised",
-      document_id: documentId,
+      document_id: input.documentId,
       parent_version_id:
         ("parentVersionId" in version ? version.parentVersionId : undefined) ??
-        file.version.id,
+        input.sourceVersionId,
       version_id: version.id,
       version_number: version.version_number,
       filename: version.filename,
@@ -589,4 +581,26 @@ export async function linkLocalDocxCitations(
   } finally {
     await rm(temporary, { recursive: true, force: true });
   }
+}
+
+export async function linkLocalDocxCitations(
+  userId: string,
+  documentId: string,
+  options: {
+    saveVersion?: Parameters<typeof linkDocxCitations>[0]["saveVersion"];
+  } = {},
+) {
+  const file = await getLocalVersionFile(userId, documentId);
+  if (!file) throw new Error("Document not found");
+  if (file.fileType.toLowerCase() !== "docx") {
+    throw new Error("Citation linking currently requires a DOCX document");
+  }
+  return linkDocxCitations({
+    documentId,
+    sourceVersionId: file.version.id,
+    filename: file.document.filename,
+    bytes: await readFile(file.path),
+    saveVersion: options.saveVersion ?? (async ({ filename, bytes }) =>
+      addLocalVersion({ userId, documentId, filename, bytes })),
+  });
 }

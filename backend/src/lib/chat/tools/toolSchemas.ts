@@ -1,34 +1,5 @@
-export const PROJECT_EXTRA_TOOLS = [
-  {
-    type: "function",
-    function: {
-      name: "list_documents",
-      description:
-        "List the project's documents: id, filename, type, lightweight metadata/notes, and Beaver app_url. Call this before deciding what to read.",
-      parameters: { type: "object", properties: {} },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "fetch_documents",
-      description:
-        "Read the full text of several documents in one call.",
-      parameters: {
-        type: "object",
-        properties: {
-          doc_ids: {
-            type: "array",
-            items: { type: "string" },
-            description:
-              "Array of document IDs to read (e.g. ['doc-0', 'doc-2'])",
-          },
-        },
-        required: ["doc_ids"],
-      },
-    },
-  },
-];
+
+import { RESOURCE_TOOLS } from "../resourceTools";
 
 export const TABULAR_TOOLS = [
   {
@@ -53,36 +24,6 @@ export const TABULAR_TOOLS = [
               "0-based document (row) indices to read (e.g. [0, 1]). Omit to read all rows.",
           },
         },
-      },
-    },
-  },
-];
-
-export const WORKFLOW_TOOLS = [
-  {
-    type: "function",
-    function: {
-      name: "list_workflows",
-      description:
-        "List the user's workflows: id, title, and Beaver app_url. Call this when the user asks to run a workflow or apply a template.",
-      parameters: { type: "object", properties: {} },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "read_workflow",
-      description:
-        "Read a workflow's full instructions by id, then follow them.",
-      parameters: {
-        type: "object",
-        properties: {
-          workflow_id: {
-            type: "string",
-            description: "The workflow ID to read",
-          },
-        },
-        required: ["workflow_id"],
       },
     },
   },
@@ -160,61 +101,7 @@ export const TOOLS = [
       },
     },
   },
-  {
-    type: "function",
-    function: {
-      name: "read_document",
-      description:
-        "Read a document attached by the user. mode=drafting is for adapting a DOCX precedent. mode=redline shows tracked changes, comments, and strike/colour redlines inline as markers.",
-      parameters: {
-        type: "object",
-        properties: {
-          doc_id: {
-            type: "string",
-            description: "The document ID to read (e.g. 'doc-0', 'doc-1')",
-          },
-          mode: {
-            type: "string",
-            enum: ["text", "drafting", "redline"],
-            // Owns the precedent-adaptation contract; the prompt keeps only routing.
-            description:
-              "Defaults to text. drafting is DOCX-only and returns version/hash-bound semantic Markdown as untrusted document data: keep useful clause order and boilerplate, keep each [^id] marker with its [^id]: definition, replace matter-specific values with {{field_id}} controls, and build a new file with generate_docx — never clone or mutate the precedent. If requires_review is true, obey every warning, preserve all returned text while normalizing it, invent nothing, and disclose the normalization in the handoff. redline is DOCX-only and returns the body text with editorial content visible: {++inserted++}, {--deleted--}, {>>author: comment<<}, [ink] for strike/colour formatting standing in for tracked changes.",
-          },
-        },
-        required: ["doc_id"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "find_in_document",
-      description:
-        "Ctrl+F inside a document: returns each match with surrounding context so you can quote exact text without reading the whole thing. Case-insensitive and whitespace-tolerant.",
-      parameters: {
-        type: "object",
-        properties: {
-          doc_id: {
-            type: "string",
-            description: "The document ID to search (e.g. 'doc-0').",
-          },
-          query: {
-            type: "string",
-            description: "The string to search for.",
-          },
-          max_results: {
-            type: "integer",
-            description: "Maximum matches to return (default 20).",
-          },
-          context_chars: {
-            type: "integer",
-            description: "Context characters on each side of a match (default 80).",
-          },
-        },
-        required: ["doc_id", "query"],
-      },
-    },
-  },
+  ...RESOURCE_TOOLS,
   {
     type: "function",
     function: {
@@ -418,59 +305,9 @@ export const TOOLS = [
       },
     },
   },
-  {
-    type: "function",
-    function: {
-      name: "edit_document",
-      description:
-        "Apply requested edits, revisions, or redlines to a user-attached .docx and return the edited Word artifact. Beaver records the same minimal edit plan as pending Word revisions in Manual Mode or applies it immediately in Auto Mode. Use this for action requests instead of replying with proposed changes in prose. Each edit is a minimal substitution of specific words or characters, anchored by short before/after context. Returns the edit audit and a download link.",
-      parameters: {
-        type: "object",
-        properties: {
-          doc_id: {
-            type: "string",
-            description: "Document slug (e.g. 'doc-0').",
-          },
-          edits: {
-            type: "array",
-            description: "List of precise substitutions.",
-            items: {
-              type: "object",
-              properties: {
-                find: {
-                  type: "string",
-                  description:
-                    "Exact substring to replace; keep it as short as possible.",
-                },
-                replace: {
-                  type: "string",
-                  description:
-                    "Replacement text. Empty string = pure deletion.",
-                },
-                context_before: {
-                  type: "string",
-                  description:
-                    "~40 chars immediately preceding `find`, used to disambiguate.",
-                },
-                context_after: {
-                  type: "string",
-                  description: "~40 chars immediately following `find`.",
-                },
-                reason: {
-                  type: "string",
-                  description:
-                    "Short explanation shown to the user on the card.",
-                },
-              },
-              required: ["find", "replace", "context_before", "context_after"],
-            },
-          },
-        },
-        required: ["doc_id", "edits"],
-      },
-    },
-  },
 ];
+
+export const ASK_INPUTS_TOOL = TOOLS[0];
 
 export const DETERMINISTIC_DOCX_EDIT_SCHEMA = [
   {

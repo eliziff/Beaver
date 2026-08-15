@@ -8,12 +8,12 @@
  *
  *     npx tsx scripts/price-schema-encoding.ts
  */
-import { LOCAL_ASSISTANT_TOOLS } from "../src/lib/chat/localAssistantTools";
+import { ASSISTANT_TOOLS } from "../src/lib/chat/assistantTools";
 import { encodeToolV3 } from "../src/lib/llm/schemaEncoding";
 
 function main(): void {
   const rows: Array<{ name: string; v0: number; v3: number }> = [];
-  for (const tool of LOCAL_ASSISTANT_TOOLS) {
+  for (const tool of ASSISTANT_TOOLS) {
     const v0 = JSON.stringify({
       type: "function",
       name: tool.function.name,

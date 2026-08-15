@@ -6,8 +6,9 @@ import { searchCourtlistenerCaseLaw } from "../../courtlistener";
 import { warmLocalCourtlistenerSearch } from "../../courtlistenerLocalBulk";
 import { searchJournalArticles, warmJournalSearch } from "../../journalArticles";
 import type { OpenAIToolSchema } from "../../llm";
+import { resourceReference } from "../../resourceReferences";
 
-export const SEARCH_SOURCES_TOOL_NAME = "SearchSources";
+export const SEARCH_SOURCES_TOOL_NAME = "search_sources";
 
 export const SEARCH_SOURCES_TOOL: OpenAIToolSchema = {
   type: "function",
@@ -286,7 +287,10 @@ export async function searchSources(args: Record<string, unknown>) {
           date: row.dateFiled,
           collection: row.court,
           snippet: row.snippet,
-          next: { tool: "courtlistener_get_cases", clusterIds: [row.clusterId] },
+          resource: resourceReference.source(
+            "courtlistener",
+            String(row.clusterId),
+          ),
         })),
       );
     } catch (error) {
@@ -332,6 +336,10 @@ export async function searchSources(args: Record<string, unknown>) {
             date: row.date,
             collection: row.dataset,
             snippet: row.snippet,
+            resource: resourceReference.source(
+              "a2aj",
+              JSON.stringify([row.citation, docType, row.dataset ?? ""]),
+            ),
             ...(metric && metric.citingCases > 0
               ? {
                   citation_signal: {
@@ -341,12 +349,6 @@ export async function searchSources(args: Record<string, unknown>) {
                   },
                 }
               : {}),
-            next: {
-              tool: "a2aj_fetch",
-              citation: row.citation,
-              doc_type: docType,
-              dataset: row.dataset,
-            },
           })),
         );
       } catch (error) {
@@ -375,11 +377,10 @@ export async function searchSources(args: Record<string, unknown>) {
             collection: row.journalName,
             authors: row.authors,
             snippet: row.snippet,
-            next: {
-              tool: "public_legal_source_fetch",
-              provider: "journal",
-              identifier: String(row.articleId),
-            },
+            resource: resourceReference.source(
+              "journal",
+              String(row.articleId),
+            ),
           })),
         );
       } catch (error) {
@@ -414,7 +415,7 @@ export async function searchSources(args: Record<string, unknown>) {
               collection: row.chamber,
               speaker: row.speaker,
               snippet: row.snippet,
-              next: { tool: "hansard_fetch", id: row.id },
+              resource: resourceReference.source("hansard", row.id),
             })),
           );
         }

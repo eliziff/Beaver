@@ -14,6 +14,7 @@ vi.mock("@anthropic-ai/sdk", () => ({
 }));
 
 vi.mock("@google/genai", () => ({
+  FunctionCallingConfigMode: { ANY: "ANY" },
   GoogleGenAI: class GoogleGenAI {
     models = { generateContentStream: sdkMocks.geminiStream };
   },
@@ -91,6 +92,9 @@ describe("dynamic provider tool schemas", () => {
       .mockResolvedValueOnce(
         geminiReply([{ functionCall: { id: "call-1", name: "discover", args: {} } }]),
       )
+      .mockResolvedValueOnce(
+        geminiReply([{ functionCall: { id: "call-2", name: "revealed", args: {} } }]),
+      )
       .mockResolvedValueOnce(geminiReply([{ text: "done" }]));
     let activeTools = [tool("discover")];
 
@@ -101,18 +105,30 @@ describe("dynamic provider tool schemas", () => {
       tools: activeTools,
       resolveTools: () => activeTools,
       apiKeys: { gemini: "test-key" },
-      runTools: async () => {
-        activeTools = [...activeTools, tool("revealed")];
-        return [{ tool_use_id: "call-1", content: "opened" }];
+      runTools: async ([call]) => {
+        if (call.name === "discover") {
+          activeTools = [...activeTools, tool("revealed")];
+        }
+        return [{ tool_use_id: call.id, content: "opened" }];
       },
     });
 
-    expect(sdkMocks.geminiStream).toHaveBeenCalledTimes(2);
+    expect(sdkMocks.geminiStream).toHaveBeenCalledTimes(3);
     expect(sdkMocks.geminiStream.mock.calls.map(([request]) =>
       request.config.tools[0].functionDeclarations.map(
         (entry: { name: string }) => entry.name,
       )
-    )).toEqual([["discover"], ["discover", "revealed"]]);
+    )).toEqual([
+      ["discover"],
+      ["discover", "revealed"],
+      ["discover", "revealed"],
+    ]);
+    expect(sdkMocks.geminiStream.mock.calls[1][0].config.toolConfig).toEqual({
+      functionCallingConfig: {
+        mode: "ANY",
+        allowedFunctionNames: ["revealed"],
+      },
+    });
   });
 
   it("delivers queued steering at the next safe boundary on Claude and Gemini", async () => {

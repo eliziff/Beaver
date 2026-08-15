@@ -44,6 +44,7 @@ describe("executeCompareVersionsTool", () => {
     const { executeCompareVersionsTool } = await import(
       "../tools/compareVersionsTool"
     );
+    const { localDocuments } = await import("../../localLibraryStore");
 
     const document = await store.createLocalDocument({
       userId,
@@ -56,8 +57,9 @@ describe("executeCompareVersionsTool", () => {
     });
 
     const early = await executeCompareVersionsTool(
-      userId,
-      "library_compare_versions",
+      localDocuments,
+      { userId },
+      "compare_docx_versions",
       { document_id: document.id },
     );
     expect(early).toMatchObject({ ok: false, error: "no_prior_version" });
@@ -73,8 +75,9 @@ describe("executeCompareVersionsTool", () => {
     });
 
     const reply = await executeCompareVersionsTool(
-      userId,
-      "library_compare_versions",
+      localDocuments,
+      { userId },
+      "compare_docx_versions",
       { document_id: document.id },
     );
     expect(reply).toMatchObject({ ok: true });
@@ -92,8 +95,11 @@ describe("executeCompareVersionsTool", () => {
     const { executeCompareVersionsTool } = await import(
       "../tools/compareVersionsTool"
     );
+    const { localDocuments } = await import("../../localLibraryStore");
     expect(
-      await executeCompareVersionsTool(userId, "library_read", {}),
+      await executeCompareVersionsTool(
+        localDocuments, { userId }, "library_read", {},
+      ),
     ).toBeNull();
   });
 });

@@ -26,6 +26,7 @@ export function ModelPicker({
     disabled = false,
     className,
     detail,
+    onDetailClick,
 }: {
     value: string;
     models: ModelOption[];
@@ -34,6 +35,7 @@ export function ModelPicker({
     disabled?: boolean;
     className?: string;
     detail?: string;
+    onDetailClick?: () => void;
 }) {
     const [open, setOpen] = useState(false);
     const selected = models.find((model) => model.id === value);
@@ -54,6 +56,10 @@ export function ModelPicker({
                 className,
             )}
         >
+            <div className={cn(
+                "flex h-8 w-full min-w-0 rounded-md border border-gray-300 bg-white text-sm text-gray-700 hover:border-gray-400 focus-within:ring-2 focus-within:ring-red-600",
+                !selectedAvailable && "border-red-600",
+            )}>
             <button
                 type="button"
                 aria-expanded={open}
@@ -66,17 +72,24 @@ export function ModelPicker({
                         : "Selected model is unavailable"
                 }
                 aria-label={`Model: ${displayLabel}`}
-                className={cn(
-                    "flex h-8 w-full min-w-0 items-center justify-between gap-2 rounded-md border border-gray-300 bg-white px-2 text-left text-sm text-gray-700 hover:border-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 disabled:cursor-default disabled:opacity-50",
-                    !selectedAvailable && "border-red-600",
-                )}
+                className="flex min-w-0 flex-1 items-center gap-2 rounded-l-md px-2 text-left focus-visible:outline-none disabled:cursor-default disabled:opacity-50"
             >
                 <span className="min-w-0 flex-1 truncate">{label}</span>
-                {detail && (
-                    <span className="shrink-0 capitalize">{detail}</span>
-                )}
                 <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0" />
             </button>
+            {detail && onDetailClick && (
+                <button
+                    type="button"
+                    onClick={onDetailClick}
+                    className="flex shrink-0 items-center gap-1 rounded-r-md border-l border-gray-300 px-2 capitalize focus-visible:outline-none"
+                    aria-label={`Reasoning effort: ${detail}`}
+                    title={`Reasoning effort: ${detail}`}
+                >
+                    {detail}
+                    <ChevronDown aria-hidden="true" className="h-4 w-4" />
+                </button>
+            )}
+            </div>
             <SearchableChoiceModal
                 open={open}
                 onClose={() => setOpen(false)}

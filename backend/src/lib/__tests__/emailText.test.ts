@@ -204,9 +204,10 @@ describe("email documents in the library", () => {
     process.env.OPEN_LEGAL_DATA_HOME = home;
     vi.resetModules();
     const store = await import("../localDocumentStore");
-    const { extractLocalDocument } = await import(
+    const { extractDocument } = await import(
       "../chat/localAssistantTools"
     );
+    const { localDocuments } = await import("../localLibraryStore");
 
     const document = await store.createLocalDocument({
       userId: "00000000-0000-0000-0000-000000000001",
@@ -227,8 +228,9 @@ describe("email documents in the library", () => {
       ),
     });
 
-    const extracted = await extractLocalDocument(
-      "00000000-0000-0000-0000-000000000001",
+    const extracted = await extractDocument(
+      localDocuments,
+      { userId: "00000000-0000-0000-0000-000000000001" },
       document.id,
     );
     expect(extracted?.text).toContain("$85,000");

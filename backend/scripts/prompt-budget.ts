@@ -54,11 +54,11 @@ function signature(name: string, schema: Schema, required: Set<string>): string 
 }
 
 async function main() {
-  const { LOCAL_ASSISTANT_TOOLS } = await import(
-    "../src/lib/chat/localAssistantTools"
+  const { ASSISTANT_TOOLS } = await import(
+    "../src/lib/chat/assistantTools"
   );
 
-  type Variant = { label: string; render: (s: (typeof LOCAL_ASSISTANT_TOOLS)[number]) => string };
+  type Variant = { label: string; render: (s: (typeof ASSISTANT_TOOLS)[number]) => string };
 
   const variants: Variant[] = [
     {
@@ -135,11 +135,11 @@ async function main() {
 
   const totals = variants.map((v) => ({
     label: v.label,
-    tokens: LOCAL_ASSISTANT_TOOLS.reduce((sum, s) => sum + tok(v.render(s)), 0),
+    tokens: ASSISTANT_TOOLS.reduce((sum, s) => sum + tok(v.render(s)), 0),
   }));
   const base = totals[0].tokens;
 
-  console.log(`${LOCAL_ASSISTANT_TOOLS.length} tools\n`);
+  console.log(`${ASSISTANT_TOOLS.length} tools\n`);
   console.log(`${"encoding".padEnd(38)}${"tokens".padStart(8)}${"saved".padStart(8)}${"of base".padStart(9)}`);
   for (const t of totals) {
     const saved = base - t.tokens;
@@ -149,7 +149,7 @@ async function main() {
   }
 
   console.log(`\nheaviest tools under today's encoding:`);
-  const rows = LOCAL_ASSISTANT_TOOLS.map((s) => ({
+  const rows = ASSISTANT_TOOLS.map((s) => ({
     name: s.function.name,
     v0: tok(variants[0].render(s)),
     v3: tok(variants[3].render(s)),
@@ -164,7 +164,7 @@ async function main() {
   }
 
   console.log(`\nsample of V3 for the heaviest tool:\n`);
-  const heaviest = LOCAL_ASSISTANT_TOOLS.find(
+  const heaviest = ASSISTANT_TOOLS.find(
     (s) => s.function.name === rows[0].name,
   )!;
   console.log(variants[3].render(heaviest).slice(0, 700));

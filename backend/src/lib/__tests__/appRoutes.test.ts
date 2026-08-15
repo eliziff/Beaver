@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { appUrl } from "../appRoutes";
-import { createLegalEvidenceTurnState } from "../chat/legalEvidence";
-import { runToolCalls } from "../chat/tools/toolDispatcher";
 
 describe("appUrl", () => {
   it("builds the real Beaver content routes and encodes ids", () => {
@@ -60,69 +58,6 @@ describe("appUrl", () => {
     ).toBe("/projects/matter-1/assistant/chat/chat-1");
     expect(() => appUrl({ kind: "project", id: " " })).toThrow(
       "requires an id",
-    );
-  });
-
-  it("attaches routes to existing Assistant entity results", async () => {
-    const output = await runToolCalls(
-      [
-        {
-          id: "documents",
-          name: "list_documents",
-          input: {},
-        },
-        {
-          id: "workflows",
-          name: "list_workflows",
-          input: {},
-        },
-        {
-          id: "review",
-          name: "read_table_cells",
-          input: {},
-        },
-      ],
-      {
-        docStore: new Map([
-          [
-            "doc-0",
-            {
-              filename: "Agreement.docx",
-              file_type: "docx",
-              storage_path: "unused",
-            },
-          ],
-        ]),
-        userId: "user-1",
-        db: null as never,
-        emit: () => undefined,
-        workflowStore: new Map([
-          [
-            "workflow-1",
-            { title: "Proofread", skill_md: "# Proofread" },
-          ],
-        ]),
-        tabularStore: {
-          app_url: "/tabular-reviews/review-1",
-          columns: [],
-          documents: [],
-          cells: new Map(),
-        },
-        docIndex: {},
-        projectId: "matter-1",
-        legalEvidence: createLegalEvidenceTurnState(),
-      },
-    );
-    const results = output.toolResults;
-
-    expect(JSON.parse(results[0].content)[0].app_url).toBe(
-      "/projects/matter-1",
-    );
-    expect(JSON.parse(results[1].content)[0].app_url).toBe(
-      "/workflows/assistant/workflow-1",
-    );
-    expect(results[2].content).toContain(
-      "Review app_url: /tabular-reviews/review-1",
     );
   });
 });

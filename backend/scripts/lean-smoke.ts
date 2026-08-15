@@ -85,12 +85,6 @@ const PROMPT = [
 async function main() {
   const model = argument("model", "claude-p:claude-sonnet-4-6");
   const effort = argument("effort", "low");
-  // --shape coding serves the Glob/Grep/Read alias surface instead of the
-  // library_* navigation tools (native-tool-shape A/B).
-  const shape = argument("shape", "library");
-  // --prompt lean serves the condensed library block (prompt-hygiene A/B).
-  const promptVariant = argument("prompt", "full");
-
   if (!process.env.LEAN_SMOKE_CHILD) {
     const dataHome = mkdtempSync(path.join(os.tmpdir(), "beaver-lean-smoke-"));
     const child = spawnSync(
@@ -110,8 +104,6 @@ async function main() {
           // affordances, and the research prompt sections are dead weight here.
           MIKE_DISABLE_RESEARCH_TOOLS: "1",
           MIKE_DISABLE_ASK_INPUTS: "1",
-          MIKE_TOOL_SHAPE: shape === "coding" ? "coding" : "",
-          MIKE_PROMPT_VARIANT: promptVariant === "lean" ? "lean" : "",
           MIKE_LLM_CONTEXT_MANIFEST_PATH: path.join(dataHome, "manifest.jsonl"),
         },
         stdio: "inherit",
@@ -150,7 +142,7 @@ async function main() {
   }
 
   console.log(
-    `asking ${model} (effort ${effort}, shape ${shape}, prompt ${promptVariant}) …\n`,
+    `asking ${model} (effort ${effort}) …\n`,
   );
   const started = Date.now();
   const streamed = await request(app).post("/chat").send({
@@ -177,13 +169,10 @@ async function main() {
   calls.forEach((name, i) => console.log(`  ${i + 1}. ${name}`));
 
   const used = new Set(calls);
-  const editTool = shape === "coding" ? "Edit" : "library_revise_docx";
+  const editTool = "Edit";
   const editCalls = calls.filter((n) => n === editTool).length;
-  const locateTools =
-    shape === "coding"
-      ? ["Grep", "Glob"]
-      : ["library_find", "library_outline"];
-  const readTool = shape === "coding" ? "Read" : "library_read";
+  const locateTools = ["Grep", "Glob"];
+  const readTool = "Read";
   const wanted: [string, boolean, string][] = [
     [
       "located the clause instead of reading the lease whole",

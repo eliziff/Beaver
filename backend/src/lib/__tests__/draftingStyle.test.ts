@@ -32,7 +32,7 @@ describe("drafting style settings", () => {
     const settings = normalizeDraftingStyleSettings({
       version: 99,
       documents: {
-        memo: { citationPlacement: "inline", numberHeadings: true },
+        memo: { citationPlacement: "inline", citationHyperlinks: false, numberHeadings: true },
         letter: { citationPlacement: "after-paragraph" },
       },
       memoHeader: { to: "  General file  ", from: "Counsel" },
@@ -41,7 +41,7 @@ describe("drafting style settings", () => {
     expect(settings).toMatchObject({
       version: 1,
       documents: {
-        memo: { citationPlacement: "inline", numberHeadings: true },
+        memo: { citationPlacement: "inline", citationHyperlinks: false, numberHeadings: true },
         factum: DEFAULT_DRAFTING_STYLE.documents.factum,
         letter: DEFAULT_DRAFTING_STYLE.documents.letter,
       },
@@ -49,7 +49,7 @@ describe("drafting style settings", () => {
     });
     expect(resolveDraftingOptions({ document_type: "memo" }, settings)).toMatchObject({
       citationPlacement: "inline",
-      citationHyperlinks: true,
+      citationHyperlinks: false,
       memoHeader: { to: "General file", from: "Counsel" },
     });
     expect(() => resolveDraftingOptions({

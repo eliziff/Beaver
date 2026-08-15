@@ -247,6 +247,7 @@ export interface DraftingStyleSettings {
   version: 1;
   documents: Record<DraftingDocumentType, {
     citationPlacement: DraftingCitationPlacement;
+    citationHyperlinks: boolean;
     numberHeadings: boolean | "auto";
   }>;
   memoHeader: { to: string; from: string };

@@ -52,7 +52,7 @@ beforeEach(() => {
 });
 
 describe("ModelToggle", () => {
-    it("advances from model selection to that model's effort choices", async () => {
+    it("opens model and effort choices from their respective sides", async () => {
         const onEffortChange = vi.fn();
         getCatalogMock.mockResolvedValue(catalog([luna()]));
         render(
@@ -73,6 +73,12 @@ describe("ModelToggle", () => {
                 "button",
                 { name: "GPT-5.6-Luna" },
             ),
+        );
+        expect(
+            screen.queryByRole("group", { name: "Reasoning effort" }),
+        ).not.toBeInTheDocument();
+        await userEvent.click(
+            screen.getByRole("button", { name: "Reasoning effort: medium" }),
         );
         const efforts = screen.getByRole("group", { name: "Reasoning effort" });
         expect(within(efforts).queryByRole("searchbox")).not.toBeInTheDocument();

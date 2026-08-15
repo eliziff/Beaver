@@ -9,7 +9,6 @@ it("preserves every structural handle and marks ambiguous labels", () => {
     "Section 2.01 Another entry.",
     "Section 1.01 Operative provision.",
   ].join("\n"));
-  const outline = renderAgreementOutline(skeleton, { toolLabel: undefined });
+  const outline = renderAgreementOutline(skeleton);
   expect(outline).toContain("[repeated sec1.01]");
-  expect(outline).not.toContain("library_find");
 });

@@ -1,8 +1,10 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  configuredLegalPdfLayout,
   configuredLegalPdfOcrProvider,
   legalPdfBinary,
+  legalPdfLayoutArguments,
   legalPdfOcrArguments,
 } from "../legalPdfProcess";
 
@@ -78,6 +80,42 @@ describe("legal PDF binary selection", () => {
         path.resolve("C:\\engine", "runtime/onnxruntime.dll"),
         "--expected-ocr-identity",
         "runtime-identity",
+      ]),
+    );
+  });
+
+  it("keeps network layout opt-in and defaults it to the cheap vision model", () => {
+    expect(
+      configuredLegalPdfLayout({
+        env: { MIKE_PDF_LAYOUT_PROVIDER: "mllm" },
+        platform: "win32",
+        engineRoot: "C:\\engine",
+        exists: () => false,
+      }),
+    ).toEqual({ provider: "mllm", model: "gpt-5.6-luna" });
+  });
+
+  it("builds CPU and GPU compatible local layout arguments", () => {
+    const args = legalPdfLayoutArguments(
+      { provider: "local" },
+      "layout-identity",
+      {
+        env: { LEGALPDF_PPDOC_BACKEND: "directml" },
+        platform: "win32",
+        engineRoot: "C:\\engine",
+        exists: () => true,
+      },
+    );
+    expect(args).toEqual(
+      expect.arrayContaining([
+        "--ppdoc-model-pack",
+        path.resolve("C:\\engine", "runtime/layout/heron-int8"),
+        "--ppdoc-runtime",
+        path.resolve("C:\\engine", "runtime/onnxruntime.dll"),
+        "--ppdoc-backend",
+        "directml",
+        "--ppdoc-expected-identity",
+        "layout-identity",
       ]),
     );
   });

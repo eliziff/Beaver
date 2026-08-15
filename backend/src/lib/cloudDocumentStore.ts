@@ -9,11 +9,16 @@ import {
 } from "./documentTypes";
 import type {
   DocumentContent,
+  DocumentProvenance,
   DocumentScope,
   DocumentStore,
   DocumentVersion,
 } from "./documentStore";
-import { resolveTrackedChange } from "./docxTrackedChanges";
+import { DocumentStoreError } from "./documentStore";
+import {
+  extractTrackedChangeIds,
+  resolveTrackedChange,
+} from "./docxTrackedChanges";
 import { countLegalPdfPages } from "./legalPdfSourceDoc";
 import {
   deleteFile,
@@ -32,7 +37,7 @@ const arrayBuffer = (buffer: Buffer) => buffer.buffer.slice(
   buffer.byteOffset + buffer.byteLength,
 ) as ArrayBuffer;
 
-export async function createCloudDocument(db: Db, input: {
+async function createCloudDocument(db: Db, input: {
   userId: string;
   userEmail?: string;
   projectId: string | null;
@@ -40,6 +45,7 @@ export async function createCloudDocument(db: Db, input: {
   libraryFolderId?: string | null;
   file: { originalname: string; buffer: Buffer };
   fileType: string;
+  provenance?: DocumentProvenance;
 }) {
   const { userId, projectId, file, fileType } = input;
   const { data: document, error: insertError } = await db
@@ -66,6 +72,8 @@ export async function createCloudDocument(db: Db, input: {
 
   const documentId = document.id as string;
   const surface = projectId ? "project" : input.libraryKind ? "library" : "assistant";
+  const generated = input.provenance?.actor === "assistant" &&
+    input.provenance.action === "created";
   try {
     const key = storageKey(userId, documentId, file.originalname);
     await uploadFile(key, arrayBuffer(file.buffer),
@@ -80,12 +88,13 @@ export async function createCloudDocument(db: Db, input: {
         document_id: documentId,
         storage_path: key,
         pdf_storage_path: pdfStoragePath,
-        source: "upload",
+        source: generated ? "assistant_generated" : "upload",
         version_number: 1,
         filename: file.originalname,
         file_type: fileType,
         size_bytes: file.buffer.byteLength,
         page_count: pageCount,
+        provenance: input.provenance ?? null,
       })
       .select("id")
       .single();
@@ -112,7 +121,7 @@ export async function createCloudDocument(db: Db, input: {
     void recordAudit(db, {
       userId,
       userEmail: input.userEmail,
-      action: "document.uploaded",
+      action: generated ? "document.generated" : "document.uploaded",
       title: file.originalname,
       surface,
       projectId,
@@ -134,7 +143,7 @@ export async function createCloudDocument(db: Db, input: {
     void recordAudit(db, {
       userId,
       userEmail: input.userEmail,
-      action: "document.uploaded",
+      action: generated ? "document.generated" : "document.uploaded",
       status: "failed",
       title: file.originalname,
       surface,
@@ -168,6 +177,7 @@ const versionResponse = (version: ActiveVersion): DocumentVersion => ({
   source: version.source,
   created_at: version.created_at ?? null,
   filename: version.filename,
+  storage_path: version.storage_path,
   file_type: version.file_type,
   size_bytes: version.size_bytes,
   page_count: version.page_count,
@@ -227,7 +237,7 @@ async function insertVersion(db: Db, documentId: string,
   values: Record<string, unknown>) {
   const { data, error } = await db.from("document_versions")
     .insert({ document_id: documentId, source: "user_upload", ...values })
-    .select("id, version_number, source, created_at, filename, file_type, size_bytes, page_count, deleted_at")
+    .select("id, version_number, source, created_at, filename, storage_path, file_type, size_bytes, page_count, deleted_at")
     .single();
   failed(error, "Failed to record document version");
   if (!data) throw new Error("Failed to record document version");
@@ -287,6 +297,26 @@ async function readCloudDocument(
 }
 
 export const cloudDocuments = {
+  async create(scope, input) {
+    const db = createServerSupabase();
+    if (input.projectId && !(await checkProjectAccess(
+      input.projectId,
+      scope.userId,
+      scope.userEmail,
+      db,
+    )).ok) throw new DocumentStoreError(404, "Project not found");
+    return await createCloudDocument(db, {
+      userId: scope.userId,
+      userEmail: scope.userEmail,
+      projectId: input.projectId ?? null,
+      libraryKind: input.libraryKind,
+      libraryFolderId: input.folderId,
+      file: { originalname: input.filename, buffer: input.bytes },
+      fileType: input.fileType,
+      provenance: input.provenance,
+    });
+  },
+
   async deleteDocument(scope, documentId) {
     const db = createServerSupabase();
     if (!await accessibleDocument(db, scope, documentId, true)) return false;
@@ -398,6 +428,131 @@ export const cloudDocuments = {
       });
     } catch (error) {
       await deleteFiles([key]);
+      throw error;
+    }
+  },
+
+  async commitAssistantVersion(scope, documentId, input) {
+    const db = createServerSupabase();
+    if (!await accessibleDocument(db, scope, documentId)) {
+      return { status: "missing" as const };
+    }
+    const active = await loadActiveVersion(documentId, db);
+    if (
+      !active || active.id !== input.sourceVersionId ||
+      (input.turnVersionId && input.turnVersionId !== active.id)
+    ) return { status: "conflict" as const };
+    if (input.turnVersionId) {
+      const { data, error } = await db.from("document_edits")
+        .select("del_w_id, ins_w_id, status")
+        .eq("document_id", documentId)
+        .eq("version_id", active.id);
+      failed(error, "Failed to load prior assistant edits");
+      const retainedIds = new Set(
+        (await extractTrackedChangeIds(input.bytes)).map(({ w_id }) => w_id),
+      );
+      if ((data ?? []).some((edit) =>
+        edit.status === "pending" &&
+        [edit.del_w_id, edit.ins_w_id].filter(Boolean)
+          .some((id) => !retainedIds.has(String(id)))
+      )) {
+        throw new DocumentStoreError(
+          409,
+          "A later same-turn edit overlaps an earlier tracked change; split it into a new turn so every accept/reject receipt remains valid",
+        );
+      }
+    }
+
+    const key = versionStorageKey(
+      scope.userId,
+      documentId,
+      crypto.randomUUID().replaceAll("-", ""),
+      input.filename,
+    );
+    await uploadFile(
+      key,
+      arrayBuffer(input.bytes),
+      contentTypeForDocumentType("docx"),
+    );
+    let version: DocumentVersion | undefined;
+    let editIds: string[] = [];
+    try {
+      version = input.turnVersionId
+        ? versionResponse(active)
+        : await insertVersion(db, documentId, {
+            storage_path: key,
+            pdf_storage_path: null,
+            source: "assistant_edit",
+            version_number: await nextVersionNumber(db, documentId),
+            filename: input.filename,
+            file_type: "docx",
+            size_bytes: input.bytes.byteLength,
+            page_count: null,
+          });
+      if (!version) throw new Error("Failed to record assistant version");
+      const versionId = version.id;
+
+      const rows = input.edits.map((edit) => ({
+        document_id: documentId,
+        version_id: versionId,
+        change_id: edit.changeId,
+        del_w_id: edit.delWId ?? null,
+        ins_w_id: edit.insWId ?? null,
+        deleted_text: edit.deletedText,
+        inserted_text: edit.insertedText,
+        context_before: edit.contextBefore,
+        context_after: edit.contextAfter,
+        status: input.status,
+        ...(input.status === "pending"
+          ? {}
+          : { resolved_at: new Date().toISOString() }),
+      }));
+      const { data, error } = await db.from("document_edits").insert(rows)
+        .select("id, change_id");
+      failed(error, "Failed to record assistant edits");
+      if (!data || data.length !== input.edits.length) {
+        throw new Error("Failed to record assistant edits");
+      }
+      editIds = data.map(({ id }) => String(id));
+      if (input.turnVersionId) {
+        const { data: updated, error: updateError } = await db
+          .from("document_versions").update({
+            storage_path: key,
+            pdf_storage_path: null,
+            filename: input.filename,
+            file_type: "docx",
+            size_bytes: input.bytes.byteLength,
+            page_count: null,
+          }).eq("id", active.id).eq("document_id", documentId)
+          .select("id, version_number, source, created_at, filename, storage_path, file_type, size_bytes, page_count, deleted_at")
+          .single();
+        failed(updateError, "Failed to update assistant version");
+        if (!updated) throw new Error("Failed to update assistant version");
+        version = updated as DocumentVersion;
+        if (active.storage_path !== key) {
+          await deleteFile(active.storage_path).catch(() => undefined);
+        }
+      }
+      return {
+        status: "committed" as const,
+        version,
+        edits: input.edits.map((edit, index) => ({
+          ...edit,
+          id: String(data[index].id),
+          status: input.status,
+        })),
+      };
+    } catch (error) {
+      await deleteFile(key).catch(() => undefined);
+      if (editIds.length) {
+        await db.from("document_edits").delete().in("id", editIds);
+      }
+      if (!input.turnVersionId && version) {
+        await db.from("documents").update({
+          current_version_id: input.sourceVersionId,
+        }).eq("id", documentId).eq("current_version_id", version.id);
+        await db.from("document_versions").delete().eq("id", version.id);
+      }
       throw error;
     }
   },
