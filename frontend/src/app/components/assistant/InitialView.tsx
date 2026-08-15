@@ -1,11 +1,10 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, Zap } from "lucide-react";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { BeaverIcon } from "@/app/components/chat/beaver-icon";
 import { Modal } from "@/app/components/modals/Modal";
-import { QuickActionsSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
 import { CheckboxInput } from "@/app/components/ui/checkbox";
 import { ChatInput, type ChatInputHandle } from "./ChatInput";
 import { AssistantDock, type AssistantDockTab } from "./AssistantDock";
@@ -189,7 +188,7 @@ export function InitialView({
                     <div className="flex flex-col items-center">
                         <div className="group relative flex min-h-8 items-center justify-center">
                             <span className="flex items-center gap-1.5 text-xs font-medium text-gray-800">
-                                <QuickActionsSkeuoIcon className="h-3.5 w-3.5 shrink-0" />
+                                <Zap aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
                                 Quick actions
                             </span>
                             <button

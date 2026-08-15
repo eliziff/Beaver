@@ -35,6 +35,7 @@ type CitationTab = CommonTab & {
 type EditTab = CommonTab & {
     kind: "edit";
     edit: EditAnnotation;
+    focusKey: number;
     changeNumber?: number;
 };
 type AutomationTab = {
@@ -202,6 +203,7 @@ export function AssistantSidePanel({
                                   ? {
                                         kind: "edit",
                                         edit: tab.edit,
+                                        focusKey: tab.focusKey,
                                         isEditReloading:
                                             isEditReloading?.(
                                                 tab.edit.edit_id,

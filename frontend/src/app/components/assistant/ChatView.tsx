@@ -256,6 +256,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         readSubagentPanelStorageKey,
     );
     const readSubagentPanelsRef = useRef(readSubagentPanels);
+    const editFocusKey = useRef(0);
     const [editState, setEditState] = useState(() => ({
         docIds: new Set<string>(),
         editIds: new Set<string>(),
@@ -372,6 +373,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             versionId: ann.version_id ?? null,
             versionNumber: ann.version_number ?? null,
             edit: ann,
+            focusKey: ++editFocusKey.current,
             changeNumber,
         });
     };

@@ -96,7 +96,7 @@ function WorkflowHarness({ onSubmit }: { onSubmit: ReturnType<typeof vi.fn> }) {
 beforeEach(() => window.localStorage.clear());
 
 describe("ChatInput workflow document selection", () => {
-    it("hides Auto Mode until enabled and starts in Manual Mode", async () => {
+    it("hides Auto Mode until enabled and preserves the selected mode", async () => {
         const initial = render(<WorkflowHarness onSubmit={vi.fn()} />);
         expect(screen.queryByRole("group", { name: "Editing mode" })).toBeNull();
         initial.unmount();
@@ -117,7 +117,7 @@ describe("ChatInput workflow document selection", () => {
         );
         enabled.unmount();
         render(<WorkflowHarness onSubmit={vi.fn()} />);
-        expect(screen.getByRole("button", { name: "Manual" })).toHaveAttribute(
+        expect(screen.getByRole("button", { name: "Auto" })).toHaveAttribute(
             "aria-pressed",
             "true",
         );

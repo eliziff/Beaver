@@ -15,7 +15,7 @@ import { cn } from "@/app/lib/utils";
 import { uploadStandaloneDocument } from "@/app/lib/beaverApi";
 import { formatUnsupportedDocumentWarning, partitionSupportedDocumentFiles } from "@/app/lib/documentUploadValidation";
 import { CHAT_DOCUMENT_DRAG_TYPE } from "@/app/components/documents/documentTree";
-import { useShowAutoMode } from "./editModePreference";
+import { useEditMode, useShowAutoMode } from "./editModePreference";
 import { useShowContextUsage } from "./displayPreferences";
 type Workflow = NonNullable<Message["workflow"]>;
 
@@ -94,7 +94,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     const [reasoningEffort, setReasoningEffort] = useSelectedReasoningEffort();
     const showAutoMode = useShowAutoMode();
     const showContextUsage = useShowContextUsage();
-    const [editMode, setEditMode] = useState<"manual" | "auto">("manual");
+    const [editMode, setEditMode] = useEditMode();
     const { profile } = useUserProfile();
     const apiKeys = profile?.apiKeys;
     const textareaId = useId();
@@ -479,7 +479,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                 <div
                                     role="group"
                                     aria-label="Editing mode"
-                                    className="flex h-8 shrink-0 items-center rounded-lg border border-gray-200 bg-gray-100 p-0.5"
+                                    className="flex h-8 shrink-0 items-center rounded-full bg-gray-100 p-1 ring-1 ring-inset ring-gray-200"
                                 >
                                     {(["manual", "auto"] as const).map((mode) => (
                                         <button
@@ -493,9 +493,11 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                             }
                                             onClick={() => setEditMode(mode)}
                                             className={cn(
-                                                "h-6 rounded-md px-2 text-xs font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gray-900",
+                                                "h-6 rounded-full px-2.5 text-xs font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gray-900",
                                                 editMode === mode
-                                                    ? "bg-white text-gray-950 ring-1 ring-gray-200"
+                                                    ? mode === "manual"
+                                                        ? "bg-gray-700 text-white shadow-sm"
+                                                        : "bg-brand text-white shadow-sm"
                                                     : "text-gray-500 hover:text-gray-800",
                                             )}
                                         >

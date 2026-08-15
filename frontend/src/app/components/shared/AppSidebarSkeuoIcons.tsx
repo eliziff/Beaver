@@ -23,4 +23,3 @@ export const LibrarySkeuoIcon = makeIcon("▤");
 export const TabularReviewSkeuoIcon = makeIcon("▦");
 export const TableOfAuthoritiesSkeuoIcon = makeIcon("⚖\uFE0E");
 export const WorkflowSkeuoIcon = makeIcon("⎇");
-export const QuickActionsSkeuoIcon = makeIcon("⚡\uFE0E");
