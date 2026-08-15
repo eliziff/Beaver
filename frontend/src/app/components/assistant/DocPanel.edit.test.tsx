@@ -100,13 +100,13 @@ describe("edit document panel", () => {
     });
 
     it("leaves the redline as the only change preview", async () => {
-        const { container } = render(
+        const { container, rerender } = render(
             <DocPanel
                 documentId="doc-1"
                 filename="Draft agreement.docx"
                 versionId="version-1"
                 versionNumber={1}
-                mode={{ kind: "edit", edit }}
+                mode={{ kind: "edit", edit, focusKey: 1 }}
                 warning="Couldn't save accept — please retry."
             />,
         );
@@ -128,12 +128,26 @@ describe("edit document panel", () => {
             expect(mocks.docxView).toHaveBeenLastCalledWith(
             expect.objectContaining({
                 highlightEdit: expect.objectContaining({
-                    key: "edit-1",
+                    key: "edit-1:1",
                     inserted_text: edit.inserted_text,
                     deleted_text: edit.deleted_text,
                 }),
             }),
             ),
+        );
+        rerender(
+            <DocPanel
+                documentId="doc-1"
+                filename="Draft agreement.docx"
+                versionId="version-1"
+                versionNumber={1}
+                mode={{ kind: "edit", edit, focusKey: 2 }}
+            />,
+        );
+        expect(mocks.docxView).toHaveBeenLastCalledWith(
+            expect.objectContaining({
+                highlightEdit: expect.objectContaining({ key: "edit-1:2" }),
+            }),
         );
     });
 
@@ -165,6 +179,7 @@ describe("edit document panel", () => {
                         versionId: "version-1",
                         versionNumber: 1,
                         edit,
+                        focusKey: 1,
                     },
                 ]}
                 activeTabId="edit-tab"

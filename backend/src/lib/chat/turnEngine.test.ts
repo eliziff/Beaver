@@ -88,7 +88,7 @@ it("emits canonical tool names in detailed activity without a custom label", asy
   });
   const read = ASSISTANT_TOOLS.find(({ function: { name } }) => name === "Read")!;
 
-  await runChatTurn({
+  const result = await runChatTurn({
     model: "gemini-3-flash-preview",
     systemPrompt: "",
     messages: [{ role: "user", content: "Read x." }],
@@ -102,6 +102,12 @@ it("emits canonical tool names in detailed activity without a custom label", asy
   });
 
   expect(events).toContainEqual({
+    type: "tool_call_start",
+    name: "Read",
+    id: "read-1",
+    input: { path: "x" },
+  });
+  expect(result.events).toContainEqual({
     type: "tool_call_start",
     name: "Read",
     id: "read-1",

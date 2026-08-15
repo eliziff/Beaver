@@ -72,6 +72,13 @@ import {
 
 export type AssistantEvent =
   | { type: "reasoning"; text: string; debug?: boolean }
+  | {
+      type: "tool_call_start";
+      name: string;
+      label?: string;
+      id?: string;
+      input?: Record<string, unknown>;
+    }
   | AskInputsEvent
   | {
       type: "ask_inputs_response";
@@ -467,7 +474,7 @@ export async function runChatTurn(options: {
         activityDetail !== "tools" &&
         activityDetail !== "trace"
       ) return;
-      emit({
+      const event: AssistantEvent = {
         type: "tool_call_start",
         name: call.name,
         ...(label && { label }),
@@ -476,7 +483,9 @@ export async function runChatTurn(options: {
           input: call.input,
         }),
         ...options.toolActivityMetadata?.(call),
-      });
+      };
+      addEvent(event);
+      emit(event);
     },
     onContextUsage(usage: {
       usedTokens: number;
