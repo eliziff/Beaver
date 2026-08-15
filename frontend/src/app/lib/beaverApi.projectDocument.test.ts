@@ -102,6 +102,7 @@ describe("getChat", () => {
         role: "assistant",
         content: [
           { type: "content", text: "Partial answer." },
+          { type: "content", text: "Continued answer." },
           { type: "turn_status", status: "cancelled" },
         ],
       }],
@@ -111,9 +112,12 @@ describe("getChat", () => {
     const { messages } = await getChat("chat-1");
 
     expect(messages[0]).toMatchObject({
-      content: "Partial answer.",
+      content: "Partial answer.\n\nContinued answer.",
       turnStatus: "cancelled",
-      events: [{ type: "content", text: "Partial answer." }],
+      events: [
+        { type: "content", text: "Partial answer." },
+        { type: "content", text: "Continued answer." },
+      ],
     });
   });
 

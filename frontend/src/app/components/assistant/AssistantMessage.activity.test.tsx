@@ -179,6 +179,37 @@ describe("AssistantMessage activity", () => {
         ).toBeVisible();
     });
 
+    it("prefers deterministic tool activity over model-authored reasoning", async () => {
+        render(
+            <AssistantMessage
+                events={[
+                    {
+                        type: "reasoning",
+                        text: "I should probably inspect something.",
+                        debug: true,
+                    },
+                    { type: "tool_call_start", name: "Read", isStreaming: true },
+                ]}
+                isStreaming
+            />,
+        );
+
+        await userEvent.click(screen.getByRole("button", { name: /Activity/u }));
+        expect(screen.getByText("Reading document...")).toBeVisible();
+        expect(screen.queryByText("I should probably inspect something.")).toBeNull();
+    });
+
+    it("shows completed compaction as a quiet conversation receipt", () => {
+        render(
+            <AssistantMessage
+                events={[{ type: "compaction", status: "completed" }]}
+            />,
+        );
+
+        expect(screen.getByRole("status")).toHaveTextContent("Context compacted");
+        expect(screen.queryByRole("button", { name: /Activity/u })).toBeNull();
+    });
+
     it("renders steering between assistant response segments", () => {
         render(
             <AssistantMessage

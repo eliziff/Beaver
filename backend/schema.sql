@@ -492,6 +492,18 @@ create index if not exists chats_deleted_user_idx
   on public.chats(user_id, deleted_at desc)
   where deleted_at is not null;
 
+create table if not exists public.chat_messages (
+  id uuid primary key default gen_random_uuid(),
+  chat_id uuid not null references public.chats(id) on delete cascade,
+  role text not null,
+  content jsonb,
+  files jsonb,
+  workflow jsonb,
+  citations jsonb,
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_chat_messages_chat on public.chat_messages(chat_id);
+
 create or replace function public.get_chats_overview(
   p_user_id text,
   p_limit integer default null
@@ -517,6 +529,9 @@ as $$
   from public.chats c
   where c.deleted_at is null
     and c.tabular_review_id is null
+    and exists (
+      select 1 from public.chat_messages m where m.chat_id = c.id
+    )
     and (c.user_id = p_user_id or exists (
       select 1 from public.projects p
       where p.id = c.project_id and p.user_id = p_user_id
@@ -525,18 +540,6 @@ as $$
   limit case when p_limit is null then null
     else greatest(1, least(p_limit, 100)) end;
 $$;
-
-create table if not exists public.chat_messages (
-  id uuid primary key default gen_random_uuid(),
-  chat_id uuid not null references public.chats(id) on delete cascade,
-  role text not null,
-  content jsonb,
-  files jsonb,
-  workflow jsonb,
-  citations jsonb,
-  created_at timestamptz not null default now()
-);
-create index if not exists idx_chat_messages_chat on public.chat_messages(chat_id);
 
 do $$
 begin

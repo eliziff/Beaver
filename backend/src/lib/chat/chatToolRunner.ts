@@ -5,8 +5,6 @@ import type {
 } from "../llm";
 import {
   ASSISTANT_TOOLS,
-  createAssistantRequirementsState,
-  pendingFinalAgentDraft,
   runAssistantTools,
 } from "./assistantTools";
 import { localAutomationEvent } from "./localAutomationEvent";
@@ -120,7 +118,6 @@ const runnerState = () => ({
   edits: new Map(),
   reads: new Map(),
   workingSets: new Map(),
-  requirements: createAssistantRequirementsState(),
 });
 
 export function createChatToolRunner(options: {
@@ -142,8 +139,6 @@ export function createChatToolRunner(options: {
 }) {
   const main = runnerState();
   let mutationCommitted = false;
-  let mainRunner: ChatToolRunner | null = null;
-  let autoFlushCount = 0;
   const tools = [
     ...ASSISTANT_TOOLS,
     ...(options.tabular ? TABULAR_TOOLS as OpenAIToolSchema[] : []),
@@ -249,7 +244,6 @@ export function createChatToolRunner(options: {
       }
       return { results };
     };
-    if (scope === "main") mainRunner = runner;
     return [...bindToolSchemas(tools, runner, (schema) => {
       const name = schema.function.name;
       return MUTATIONS.has(name)
@@ -283,19 +277,5 @@ export function createChatToolRunner(options: {
         return { label: `Searching ${filename}` };
       return {};
     },
-    async beforeFinalize(context: ChatToolContext) {
-      const draft = pendingFinalAgentDraft(main.requirements);
-      if (!draft || !mainRunner) return;
-      const result = await mainRunner([{
-        id: "host-final-agent-flush",
-        name: "generate_docx",
-        input: draft,
-      }], context);
-      if (committedMutation(result.results[0])?.action !== "created") {
-        throw new Error("Pending DOCX output could not be committed.");
-      }
-      autoFlushCount++;
-    },
-    metrics: () => ({ ...main.requirements, autoFlushCount }),
   };
 }

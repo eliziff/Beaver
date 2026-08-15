@@ -191,7 +191,6 @@ export async function runLLMStream({
     activityDetail,
     priorEvidence: priorLegalEvidence,
     resumableSubagents,
-    beforeFinalize: assistantTools.beforeFinalize,
     onFinish,
     prepareMessages: prepareMessages
       ? async (onCompaction) => (await prepareMessages(onCompaction)).map(

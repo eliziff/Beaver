@@ -95,6 +95,73 @@ describe("Codex app-server adapter", () => {
     );
   });
 
+  it("uses native reasoning boundaries and active context usage", async () => {
+    const reasoning: string[] = [];
+    const context: unknown[] = [];
+    transport.request.mockImplementation(async (method: string) => {
+      if (method === "thread/start") return { thread: { id: threadId } };
+      if (method === "turn/start") {
+        setTimeout(() => {
+          transport.emit("item/reasoning/summaryTextDelta", {
+            threadId,
+            turnId,
+            itemId: "reasoning",
+            summaryIndex: 0,
+            delta: "Planning",
+          });
+          transport.emit("item/reasoning/summaryPartAdded", {
+            threadId,
+            turnId,
+            itemId: "reasoning",
+            summaryIndex: 1,
+          });
+          transport.emit("item/reasoning/summaryTextDelta", {
+            threadId,
+            turnId,
+            itemId: "reasoning",
+            summaryIndex: 1,
+            delta: "Writing",
+          });
+          transport.emit("thread/tokenUsage/updated", {
+            threadId,
+            turnId,
+            tokenUsage: {
+              total: { totalTokens: 200_000 },
+              last: { totalTokens: 20_000 },
+              modelContextWindow: 128_000,
+            },
+          });
+          transport.emit("item/completed", {
+            threadId,
+            turnId,
+            item: { id: "reasoning", type: "reasoning" },
+          });
+          complete();
+        }, 0);
+        return { turn: { id: turnId } };
+      }
+      return {};
+    });
+
+    await streamCodex({
+      model: "codex:gpt-5.6-luna",
+      systemPrompt: "",
+      messages: [{ role: "user", content: "Reply." }],
+      enableThinking: true,
+      callbacks: {
+        onReasoningDelta: (delta) => reasoning.push(delta),
+        onReasoningBlockEnd: () => reasoning.push("|"),
+        onContextUsage: (usage) => context.push(usage),
+      },
+    });
+
+    expect(reasoning).toEqual(["Planning", "|", "Writing", "|"]);
+    expect(context).toEqual([{
+      usedTokens: 20_000,
+      contextWindowTokens: 128_000,
+    }]);
+  });
+
   it("steers the active native turn", async () => {
     let control: { steer(message: { id: string; text: string }): Promise<void> } | null = null;
     transport.request.mockImplementation(async (method: string) => {

@@ -171,10 +171,10 @@ export function LibraryCollectionPage({
                         icon: <Upload className="h-3.5 w-3.5" />,
                         label: (
                             <span className="hidden sm:inline">
-                                {title}
+                                Upload
                             </span>
                         ),
-                        title: `Add ${title}`,
+                        title: "Upload",
                         onClick: addDocumentsAction ?? undefined,
                         disabled: !addDocumentsAction || loading,
                     },
@@ -197,8 +197,8 @@ export function LibraryCollectionPage({
                         onClick={addDocumentsAction ?? undefined}
                         disabled={!addDocumentsAction || loading}
                         className="grid size-9 shrink-0 place-items-center rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-100 disabled:opacity-40"
-                        aria-label={`Add ${title}`}
-                        title={`Add ${title}`}
+                        aria-label="Upload"
+                        title="Upload"
                     >
                         <Upload className="size-4" aria-hidden="true" />
                     </button>

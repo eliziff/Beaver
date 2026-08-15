@@ -69,6 +69,7 @@ export function useWorkflowPickerState(
     }, [custom.items, initialWorkflowId, systemWorkflows]);
     const select = (workflow: Workflow | null) => {
         if (!workflow) return setSelected(null);
+        setSelected(workflow);
         void getWorkflow(workflow.id).then(setSelected).catch(() => setSelected(null));
     };
     return {

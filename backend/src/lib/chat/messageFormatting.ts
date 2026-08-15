@@ -18,10 +18,8 @@ export function formatChatMessageContent(
       const slug = file.document_id
         ? slugByDocumentId.get(file.document_id)
         : undefined;
-      if (slug) return `- ${slug}: ${file.filename}`;
-      return file.document_id
-        ? `- ${file.filename} (document_id: ${file.document_id})`
-        : `- ${file.filename}`;
+      if (slug && slug !== file.filename) return `- ${slug}: ${file.filename}`;
+      return `- ${file.filename}`;
     });
     content = `[The user attached the following document(s) to this message:\n${lines.join("\n")}]\n\n${content}`;
   }

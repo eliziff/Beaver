@@ -1,4 +1,4 @@
-import { expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vitest";
 
 const stream = vi.hoisted(() => vi.fn());
 vi.mock("../llm", async (importOriginal) => ({
@@ -7,8 +7,13 @@ vi.mock("../llm", async (importOriginal) => ({
 }));
 
 import { ASSISTANT_TOOLS } from "./assistantTools";
+import { createBenchmarkEvidence, registerLegalEvidence } from "./legalEvidence";
 import { runChatTurn } from "./turnEngine";
 import { bindToolSchemas, TurnToolRegistry } from "./toolRegistry";
+
+beforeEach(() => {
+  stream.mockReset();
+});
 
 it("loads exact specialist names and rejects hidden calls", async () => {
   stream.mockImplementationOnce(async ({ systemPrompt, tools, staticTools, resolveTools, runTools }) => {
@@ -102,6 +107,80 @@ it("emits canonical tool names in detailed activity without a custom label", asy
     id: "read-1",
     input: { path: "x" },
   });
+});
+
+it("repairs a failed grounded submission without exposing the validator error", async () => {
+  const evidence = createBenchmarkEvidence({
+    jurisdiction: "CA",
+    sourceClass: "case",
+    stableSourceId: "case-1",
+    sourceText: "The appeal is allowed.",
+    spanText: "The appeal is allowed.",
+    citation: "2024 SCC 1",
+    name: "Example v Example",
+    dataset: "test",
+    externalUrl: "https://example.test/case",
+    locatorKind: "paragraph",
+    locatorLabel: "par12",
+  });
+  const emitted: unknown[] = [];
+  let call = 0;
+  stream.mockImplementation(async (params) => {
+    const { callbacks, messages, runTools } = params;
+    call += 1;
+    if (call === 1) {
+      callbacks.onContentDelta?.("My favourite is Example v Example, 2024 SCC 1.");
+      return { fullText: "My favourite is Example v Example, 2024 SCC 1." };
+    }
+    if (call === 2) throw new Error("temporary structuring failure");
+    expect(messages.at(-1)?.content).toContain("did not pass Beaver's grounding gate");
+    await runTools([{
+      id: "grounded-1",
+      name: "submit_grounded_answer",
+      input: {
+        claims: [{
+          text: "My favourite is Example v Example.",
+          evidence_ids: [evidence.evidence_id],
+        }],
+      },
+    }]);
+    return { fullText: "" };
+  });
+
+  const result = await runChatTurn({
+    model: "gemini-3-flash-preview",
+    systemPrompt: "",
+    messages: [{ role: "user", content: "What is your favourite case?" }],
+    createTools: (state) => {
+      registerLegalEvidence(state, evidence);
+      return bindToolSchemas([], async () => ({ results: [] }));
+    },
+    emit: (event) => emitted.push(event),
+    done: () => undefined,
+  });
+
+  expect(call).toBe(3);
+  expect(result.fullText).toContain("My favourite is Example v Example");
+  expect(result.fullText).toContain("2024 SCC 1");
+  expect(result.fullText).not.toContain("could not be structured");
+  expect(emitted).toContainEqual({ type: "content_reset" });
+});
+
+it("does not preserve an unsupported draft after grounding repairs fail", async () => {
+  stream.mockImplementation(async ({ callbacks }) => {
+    callbacks.onContentDelta?.("R. v. Unsupported is decisive.");
+    return { fullText: "R. v. Unsupported is decisive." };
+  });
+
+  await expect(runChatTurn({
+    model: "gemini-3-flash-preview",
+    systemPrompt: "",
+    messages: [{ role: "user", content: "Name a case." }],
+    createTools: () => bindToolSchemas([], async () => ({ results: [] })),
+    emit: () => undefined,
+    done: () => undefined,
+  })).rejects.toMatchObject({ fullText: "" });
+  expect(stream).toHaveBeenCalledTimes(3);
 });
 
 it("keeps externally registered tools directly visible", () => {

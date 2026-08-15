@@ -771,7 +771,7 @@ export async function streamAnonymousChat(params: {
   const focusLines = [
     ...(displayedDocumentId
       ? [
-          `Displayed document: ${focusName(displayedDocumentId)} (document_id: ${displayedDocumentId})`,
+          `Displayed document: ${focusName(displayedDocumentId)}`,
         ]
       : []),
     ...(attachedDocumentIds.length
@@ -779,7 +779,7 @@ export async function streamAnonymousChat(params: {
           "User-attached documents for this turn:",
           ...attachedDocumentIds.map(
             (documentId) =>
-              `- ${focusName(documentId)} (document_id: ${documentId})`,
+              `- ${focusName(documentId)}`,
           ),
         ]
       : []),
@@ -791,10 +791,9 @@ export async function streamAnonymousChat(params: {
     filename: selectedById.get(documentId)!.filename,
     document_id: documentId,
   }));
-  // Attachments are announced, not preloaded: formatChatMessageContent
-  // prepends the attached-document manifest (filename + document_id) when the
-  // message reaches the provider, and the model pulls content through the
-  // Library tools only when it needs it.
+  // Attachments are announced, not preloaded. The model addresses a selected
+  // document by its canonical filename and reads it only when the request
+  // depends on its contents.
   const priorLegalEvidence = priorLegalEvidenceReceipts(
     (existingChat?.messages ?? []).flatMap((message) =>
       Array.isArray(message.content) ? message.content : [],
@@ -885,7 +884,7 @@ export async function streamAnonymousChat(params: {
   const compactThreshold = compactionThresholdForModel(selectedModel);
   const codexCompatibilityKey = isCodex
     ? providerSessionCompatibilityKey({
-        schema_version: 3,
+        schema_version: 5,
         transport: "app-server-v2",
         model: selectedModel,
         reasoning_effort: params.reasoningEffort?.trim() || "max",
@@ -1176,7 +1175,7 @@ export async function streamAnonymousChat(params: {
     images: imagesForMessage(message, imagesByDocumentId),
   }));
   const emit = (event: unknown) => sseWrite(res, event);
-  const benchmark = createChatBenchmarkAdapter(emit, localTools.metrics);
+  const benchmark = createChatBenchmarkAdapter(emit);
   const done = () => {
     if (!res.destroyed && !res.writableEnded) res.write("data: [DONE]\n\n");
   };
@@ -1257,7 +1256,6 @@ export async function streamAnonymousChat(params: {
         setChatTurnControl(chat.id, streamAbort, control);
       },
       canRetryProviderSession: () => !localTools.mutationCommitted(),
-      beforeFinalize: localTools.beforeFinalize,
       transformText: (text, citations) => appendLocalPdfPinpointLinks(
         text,
         userId,
@@ -1272,7 +1270,12 @@ export async function streamAnonymousChat(params: {
         const assistantEvents = await withEvidenceRegistry([
           ...durableTurnEvents(result.events),
           ...(!result.fullText &&
-              !result.events.some((event) => event.type === "content") &&
+              !result.events.some((event) => [
+                "content",
+                "doc_created",
+                "doc_edited",
+                "automation_run",
+              ].includes(event.type)) &&
               result.status !== "paused"
             ? [{ type: "error", message: "The selected model returned no response." }]
             : []),
@@ -1303,7 +1306,6 @@ export async function streamAnonymousChat(params: {
         } else if (isCodex) {
           discardProviderSession();
         }
-        benchmark.finish(result);
         emit({
           type: "transcript_version",
           transcriptVersion: chat.transcript_version,
@@ -1544,7 +1546,30 @@ chatRouter.post("/:chatId/compact", chatRoute(async (req, res, scope) => {
         return void res.status(409).json({ detail: "There is no older context to compact" });
       }
     }
+    const transcript = await chats.transcript(scope, req.params.chatId);
+    const assistant = [...(transcript ?? [])]
+      .reverse()
+      .find((message) => message.role === "assistant");
+    if (!assistant || !await chats.appendAssistantEvent(
+      scope,
+      req.params.chatId,
+      assistant.id,
+      { type: "compaction", status: "completed" },
+    )) {
+      throw new Error("Context compaction receipt could not be saved");
+    }
     const chat = await chats.get(scope, req.params.chatId);
+    if (session && chat && typeof chat.transcript_version === "number") {
+      writeAnonymousCodexSession({
+        userId: session.user_id,
+        chatId: session.chat_id,
+        projectId: session.project_id,
+        continuationId: session.continuation_id,
+        compatibilityKey: session.compatibility_key,
+        transcriptVersion: chat.transcript_version,
+        createdAt: session.created_at,
+      });
+    }
     res.json({
       compacted: true,
       ...(typeof chat?.transcript_version === "number"

@@ -1,5 +1,19 @@
 import { useState, type ReactNode } from "react";
-import { ChevronDown, Download, Loader2 } from "lucide-react";
+import {
+    BadgeCheck,
+    Bot,
+    ChevronDown,
+    Download,
+    FilePlus2,
+    Files,
+    FileSearch,
+    ListChecks,
+    Loader2,
+    Minimize2,
+    Pencil,
+    Search,
+    Wrench,
+} from "lucide-react";
 import { ThinkingSpinner } from "@/app/components/chat/thinking-spinner";
 import { apiFetch } from "@/app/lib/beaverApi";
 import { downloadBlob } from "@/app/lib/download";
@@ -9,6 +23,26 @@ import {
     GfmMarkdown,
 } from "./MarkdownContent";
 import type { ActivityView } from "./eventUtils";
+import type { AssistantEvent } from "../../shared/types";
+
+function activityIcon(event: AssistantEvent) {
+    const name = event.type === "tool_call_start" ? event.name : event.type;
+    if (name === "Grep" || /search|find|lookup/iu.test(name)) return Search;
+    if (name === "Read" || /read|fetch/iu.test(name)) return FileSearch;
+    if (name === "Edit" || /edit/iu.test(name)) return Pencil;
+    if (/generate|created/iu.test(name)) return FilePlus2;
+    if (name === "Glob") return Files;
+    if (/workflow/iu.test(name)) return ListChecks;
+    if (/subagent|delegate/iu.test(name)) return Bot;
+    if (/verify|grounded/iu.test(name)) return BadgeCheck;
+    if (name === "compaction") return Minimize2;
+    return Wrench;
+}
+
+function ActivityIcon({ event }: { event: AssistantEvent }) {
+    const Icon = activityIcon(event);
+    return <Icon size={14} strokeWidth={1.75} aria-hidden="true" />;
+}
 
 export function ActivityDisclosure({
     children,
@@ -78,10 +112,12 @@ export function ActivityDisclosure({
 
 export function ActivityRow({
     view,
+    event,
     onClick,
     onSourceClick,
 }: {
     view: ActivityView;
+    event: AssistantEvent;
     onClick?: () => void;
     onSourceClick?: (
         source: NonNullable<ActivityView["citationSources"]>[number],
@@ -104,18 +140,13 @@ export function ActivityRow({
             role="listitem"
             className="flex min-w-0 items-start gap-2 font-serif text-sm text-gray-600"
         >
-            <span
-                aria-hidden="true"
-                className="mt-1.5 grid size-2 shrink-0 place-items-center"
-            >
+            <span className={`mt-0.5 grid size-4 shrink-0 place-items-center ${
+                view.error ? "text-red-600" : "text-gray-500"
+            }`}>
                 {view.busy ? (
-                    <span className="size-1.5 animate-spin rounded-full border border-gray-400 border-t-transparent" />
+                    <Loader2 size={14} strokeWidth={1.75} className="animate-spin" aria-hidden="true" />
                 ) : (
-                    <span
-                        className={`size-1.5 rounded-full ${
-                            view.error ? "bg-red-500" : "bg-gray-400"
-                        }`}
-                    />
+                    <ActivityIcon event={event} />
                 )}
             </span>
             <div className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]">

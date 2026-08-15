@@ -28,8 +28,6 @@ vi.mock("../lib/llm", () => ({
 }));
 vi.mock("../lib/chat/assistantTools", () => ({
   ASSISTANT_TOOLS: [],
-  createAssistantRequirementsState: () => ({}),
-  pendingFinalAgentDraft: () => null,
   runAssistantTools: mocks.runLocalAssistantTools,
 }));
 vi.mock("../lib/chat/localPdfEvidenceState", () => ({
@@ -182,6 +180,21 @@ afterEach(async () => {
 
 describe("anonymous chat PDF evidence durability", () => {
 
+  it("omits empty chats from history without invalidating their direct route", async () => {
+    const loaded = await loadApp();
+    const empty = await request(loaded.app).post("/chat/create").send({});
+    const used = await request(loaded.app).post("/chat/create").send({});
+    expect((await request(loaded.app).post("/chat").send({
+      chat_id: used.body.id,
+      expected_version: 0,
+      current_turn: { kind: "message", content: "Hello" },
+    })).status).toBe(200);
+
+    const history = await request(loaded.app).get("/chat");
+    expect(history.body.map(({ id }: { id: string }) => id)).toEqual([used.body.id]);
+    expect((await request(loaded.app).get(`/chat/${empty.body.id}`)).status).toBe(200);
+  });
+
   it("uses an explicitly selected owned document without changing the project", async () => {
     const localDocuments = await import("../lib/localDocumentStore");
     const document = await localDocuments.createLocalDocument({
@@ -207,14 +220,14 @@ describe("anonymous chat PDF evidence durability", () => {
           content: "Review this document.",
           files: [
             {
-              filename: document.filename,
+              filename: "Retainer%20spoof.docx",
               document_id: document.id,
             },
           ],
         },
         attached_documents: [
           {
-            filename: document.filename,
+            filename: "Retainer%20spoof.docx",
             document_id: document.id,
           },
         ],
@@ -222,6 +235,13 @@ describe("anonymous chat PDF evidence durability", () => {
 
     expect(response.status).toBe(200);
     expect(mocks.matterDocuments).toEqual([]);
+    const providerInput = [
+      mocks.systemPrompts.at(-1),
+      ...mocks.providerMessages.at(-1)!.map(({ content }) => content),
+    ].join("\n");
+    expect(providerInput).toContain("Retainer.docx");
+    expect(providerInput).not.toContain("Retainer%20spoof.docx");
+    expect(providerInput).not.toContain(document.id);
   });
 
   it("rejects stale or browser-authored history before calling a provider", async () => {

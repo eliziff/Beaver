@@ -137,7 +137,7 @@ describe("projectAnonymousTranscript", () => {
         role: "user",
         content:
           "[User responses to requested inputs]\n" +
-          "- Documents requested for Appeal record, Factum: record.pdf (document_id: document-1)",
+          "- Documents requested for Appeal record, Factum: record.pdf",
         files: [
           {
             document_id: "document-1",

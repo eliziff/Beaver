@@ -3,16 +3,21 @@ import { expect, it, vi } from "vitest";
 import type { Document, Project } from "../shared/types";
 import { NewTRModal } from "./NewTRModal";
 
-const mocks = vi.hoisted(() => ({ getProjectDirectory: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+    getProjectDirectory: vi.fn(),
+    getWorkflow: vi.fn(),
+    listSystemWorkflows: vi.fn().mockResolvedValue([]),
+    listWorkflows: vi.fn().mockResolvedValue({ items: [], next_cursor: null }),
+}));
 vi.mock("@/app/lib/beaverApi", () => ({
+    getWorkflow: mocks.getWorkflow,
     getProjectDirectory: mocks.getProjectDirectory,
     getLibrary: vi.fn().mockResolvedValue({ items: [], next_cursor: null }),
+    listSystemWorkflows: mocks.listSystemWorkflows,
+    listWorkflows: mocks.listWorkflows,
     listProjects: vi.fn().mockResolvedValue({ items: [], next_cursor: null }),
     uploadProjectDocument: vi.fn(),
     uploadStandaloneDocument: vi.fn(),
-}));
-vi.mock("../workflows/WorkflowPickerModal", () => ({
-    WorkflowPickerModal: () => null,
 }));
 
 it("creates a project review with the selected project documents", async () => {

@@ -125,9 +125,9 @@ afterEach(async () => {
   delete process.env.MIKE_DRAFT_HANDOFF_MODE;
   delete process.env.MIKE_DRAFT_HOT_EVIDENCE_MAX_CHARS;
   delete process.env.MIKE_DRAFT_EDIT;
-  delete process.env.MIKE_EXPOSURE_ECHO;
   vi.doUnmock("../tableOfAuthorities");
   vi.doUnmock("../convert");
+  vi.doUnmock("../draftingStyleStore");
   vi.doUnmock("../localDocumentStore");
   vi.doUnmock("../localPdfLookup");
   vi.doUnmock("../legalStructureSidecar");
@@ -251,6 +251,65 @@ describe("local assistant tools", () => {
     expect(await extractDocxBodyText(savedBytes)).toContain("Revised provision.");
     expect(await extractTrackedChangeIds(savedBytes)).toHaveLength(revisionCount);
     expect(committed).toHaveBeenCalledOnce();
+  }, 10_000);
+
+  it("creates a DOCX directly even when other Library documents are unread", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-create-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    vi.doMock("../draftingStyleStore", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("../draftingStyleStore")>()),
+      getDraftingStyleSettings: vi.fn(async () => (
+        await import("../draftingStyle")
+      ).DEFAULT_DRAFTING_STYLE),
+    }));
+    const store = await import("../localDocumentStore");
+    await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "unrelated.docx",
+      bytes: await Packer.toBuffer(new Document({
+        sections: [{ children: [new Paragraph("Unrelated source.")] }],
+      })),
+    });
+    const [
+      { createChatToolRunner },
+      { createLegalEvidenceTurnState },
+      { localDocuments, localLibraryStore },
+      { localProjects },
+    ] = await Promise.all([
+      import("../chat/chatToolRunner"),
+      import("../chat/legalEvidence"),
+      import("../localLibraryStore"),
+      import("../localProjectStore"),
+    ]);
+    const chat = createChatToolRunner({
+      userId: "local-user",
+      documents: localDocuments,
+      library: localLibraryStore,
+      projects: localProjects,
+      projectId: null,
+      onMutationCommitted: vi.fn(),
+    });
+    const evidence = createLegalEvidenceTurnState();
+    const generate = chat.createTools(evidence, "main").find(
+      ({ schema }) => schema.function.name === "generate_docx",
+    )!;
+    const { results: [created] } = await generate.execute([{
+      id: "create",
+      name: "generate_docx",
+      input: {
+        title: "Requested memo",
+        document_type: "memo",
+        markdown: "# Requested memo\n\nThe requested text.",
+      },
+    }], { evidence, emit: vi.fn(), addEvent: vi.fn() });
+
+    expect(JSON.parse(created.content), created.content).toMatchObject({
+      ok: true,
+      receipt: "mike-document:v1",
+      action: "created",
+      filename: "Requested memo.docx",
+    });
   }, 10_000);
 
   it("applies deterministic DOCX operations through transform_docx", async () => {
