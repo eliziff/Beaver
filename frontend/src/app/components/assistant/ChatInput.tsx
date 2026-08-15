@@ -243,7 +243,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     const handleSubmit = () => {
         const query = textareaRef.current?.value.trim();
         if (!query || contextUsage?.compacting) return;
-        if (query !== "/compact" && apiKeys && !isModelAvailable(model, apiKeys)) {
+        if (!["/compact", "/help"].includes(query.toLowerCase()) &&
+            apiKeys && !isModelAvailable(model, apiKeys)) {
             setApiKeyModalProvider(getModelProvider(model));
             return;
         }

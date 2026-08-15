@@ -8,6 +8,7 @@ import {
     type RefObject,
 } from "react";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
+import remend from "remend";
 import remarkGfm from "remark-gfm";
 import {
     type AssistantEvent,
@@ -33,7 +34,7 @@ const LEGAL_CITATION =
 const LEGAL_CITATION_LINK =
     /\[([^\]\r\n]{1,180})\]\(([^)\r\n]+)\)(\s*,?\s*(?:at\s+)?para(?:graph)?s?\.?\s*\d{1,5}(?:\s*[-\u2013\u2014]\s*\d{1,5})?)/giu;
 export const LEGAL_CITATION_PILL =
-    "not-prose inline-flex min-w-0 max-w-full items-baseline whitespace-normal break-words rounded-full bg-red-800 px-2 py-0.5 align-baseline font-sans text-[0.8125rem] font-medium leading-5 text-red-50 no-underline ring-1 ring-inset ring-red-600/70 hover:bg-red-700 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400";
+    "not-prose inline-block min-w-0 max-w-full whitespace-normal break-words rounded-full bg-red-800 px-2 py-0.5 align-baseline font-sans text-[0.8125rem] font-medium leading-5 text-red-50 no-underline ring-1 ring-inset ring-red-600/70 hover:bg-red-700 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400";
 const PLAIN_LINK =
     "text-red-300 underline decoration-red-500/70 underline-offset-2 hover:text-red-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400";
 
@@ -241,6 +242,7 @@ export function MarkdownContent({
     citationTitle,
     onCaseClick,
     divRef,
+    isStreaming = false,
 }: {
     text: string;
     inlineCitationTargets: Citation[];
@@ -258,11 +260,12 @@ export function MarkdownContent({
         c: Extract<AssistantEvent, { type: "case_citation" }>,
     ) => void;
     divRef?: RefObject<HTMLDivElement | null>;
+    isStreaming?: boolean;
 }) {
     function findCaseCitation(href: string) {
         return caseCitations.get(internalCaseHref(href) ?? "");
     }
-    const markdown = normalizeLegalCitationLinks(text);
+    const markdown = normalizeLegalCitationLinks(isStreaming ? remend(text) : text);
     return (
         <div
             ref={divRef}

@@ -110,13 +110,7 @@ function askInputsText(
               typeof document.filename === "string"
                 ? document.filename.trim()
                 : "";
-            const documentId =
-              typeof document.document_id === "string"
-                ? document.document_id.trim()
-                : "";
-            return filename && documentId
-              ? [`${filename} (document_id: ${documentId})`]
-              : [];
+            return filename ? [filename] : [];
           })
         : [];
       const filenames =

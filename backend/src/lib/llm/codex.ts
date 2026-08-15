@@ -388,6 +388,10 @@ async function runCodexTurn(
         }
         return;
       }
+      case "item/reasoning/summaryPartAdded": {
+        callbacks.onReasoningBlockEnd();
+        return;
+      }
       case "item/started": {
         const item = record(event.params.item);
         if (item) publishNativeSubagents(item, "started");
@@ -420,9 +424,9 @@ async function runCodexTurn(
       case "thread/tokenUsage/updated": {
         const tokenUsage = record(event.params.tokenUsage);
         usage = usageFromTokenUpdate(tokenUsage) ?? usage;
-        const total = record(tokenUsage?.total);
+        const last = record(tokenUsage?.last);
         const window = number(tokenUsage?.modelContextWindow);
-        const used = number(total?.totalTokens);
+        const used = number(last?.totalTokens);
         if (used !== null && window !== null) {
           params.callbacks?.onContextUsage?.({
             usedTokens: used,

@@ -62,6 +62,12 @@ describe("a2ajActivityLabel", () => {
       assistantToolActivityLabel("Read", { file_path: "contracts/Lease.docx" }),
     ).toBe("Reading Lease.docx from your Library");
     expect(
+      assistantToolActivityLabel("Read", {
+        file_path:
+          "source://a2aj/%5B%222012%20SCC%2045%22%2C%22cases%22%2C%22SCC%22%5D",
+      }),
+    ).toBe("Reading 2012 SCC 45 from A2AJ");
+    expect(
       assistantToolActivityLabel("search_sources", {
         query: "fentanyl skin contact",
         source_types: ["case"],

@@ -223,7 +223,6 @@ export async function runChatTurn(options: {
   onProviderControl?: (control: ProviderTurnControl | null) => void;
   canRetryProviderSession?: () => boolean;
   separateContentBlocks?: boolean;
-  beforeFinalize?: (context: ChatToolContext) => Promise<void> | void;
   prepareMessages?: (
     onCompaction: (status: "running" | "completed" | "failed") => void,
   ) => Promise<LlmMessage[]>;
@@ -651,6 +650,45 @@ export async function runChatTurn(options: {
       });
       if (renderLegalEvidenceAnswer(evidence) === null) text = UNVERIFIED_LEGAL_ANSWER;
     }
+    if (!paused) {
+      let finalized = await finalizeLegalEvidenceExperiment({
+        state: evidence,
+        model: options.model,
+        draft: text,
+        requestContext: request || undefined,
+        apiKeys: options.apiKeys,
+        reasoningEffort: options.reasoningEffort,
+        abortSignal: signal,
+      });
+      for (let attempt = 0; !finalized.passed && attempt < 2; attempt += 1) {
+        const rejected = text;
+        const failure = evidence.failure ?? "No grounded submission was received.";
+        evidence.answer = null;
+        evidence.failure = null;
+        text = "";
+        boundary = false;
+        emit({ type: "content_reset" });
+        providerResult = await provider(providerResult?.continuationId, {
+          draft: rejected,
+          findings: `The answer did not pass Beaver's grounding gate: ${failure} Continue the same request, retrieve any missing authority passages, and finish with submit_grounded_answer. Every case, legislation, journal, or Hansard source named in the answer requires a supporting evidence_id. Do not narrate this correction.`,
+        });
+        finalized = await finalizeLegalEvidenceExperiment({
+          state: evidence,
+          model: options.model,
+          draft: text,
+          requestContext: request || undefined,
+          apiKeys: options.apiKeys,
+          reasoningEffort: options.reasoningEffort,
+          abortSignal: signal,
+        });
+      }
+      if (!finalized.passed) {
+        text = "";
+        emit({ type: "content_reset" });
+        throw new Error("Grounding verification failed after correction attempts");
+      }
+      text = renderLegalEvidenceAnswer(evidence) ?? text.trimEnd();
+    }
   } catch (error) {
     if (!paused) {
       partialEvents();
@@ -661,19 +699,6 @@ export async function runChatTurn(options: {
     }
   }
 
-  if (!paused) {
-    await options.beforeFinalize?.(context);
-    await finalizeLegalEvidenceExperiment({
-      state: evidence,
-      model: options.model,
-      draft: text,
-      requestContext: request || undefined,
-      apiKeys: options.apiKeys,
-      reasoningEffort: options.reasoningEffort,
-      abortSignal: signal,
-    });
-    text = renderLegalEvidenceAnswer(evidence) ?? text.trimEnd();
-  }
   const citations = paused ? [] : createLegalEvidenceCitations(evidence);
   if (!paused && options.transformText) {
     const transformed = await options.transformText(text, citations);

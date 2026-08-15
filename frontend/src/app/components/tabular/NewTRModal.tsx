@@ -10,7 +10,7 @@ import { Modal } from "../modals/Modal";
 import { ModalFieldLabel } from "../modals/ModalFieldLabel";
 import { ModalTextInput } from "../modals/ModalTextInput";
 import { ProjectChoiceList } from "../projects/ProjectChoiceList";
-import { WorkflowPickerModal } from "../workflows/WorkflowPickerModal";
+import { useWorkflowPickerState } from "../workflows/WorkflowPickerModal";
 import { CheckboxInput } from "../ui/checkbox";
 interface Props {
     open: boolean;
@@ -51,10 +51,14 @@ function OpenNewTRModal({
     const [selectedDocuments, setSelectedDocuments] = useState<Document[]>([]);
     const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(
-        null,
-    );
-    const [workflowPickerOpen, setWorkflowPickerOpen] = useState(false);
+    const {
+        workflows,
+        loading: workflowsLoading,
+        selected: selectedWorkflow,
+        setSelected: setSelectedWorkflow,
+        hasMore: hasMoreWorkflows,
+        loadMore: loadMoreWorkflows,
+    } = useWorkflowPickerState("tabular");
     const formId = "new-tabular-review-modal-form";
     function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
@@ -130,9 +134,8 @@ function OpenNewTRModal({
             : ["Tabular Reviews", "New Tabular Review"];
     const invalid = underProject && !selectedProjectId;
     return (
-        <>
         <Modal
-            open={open && !workflowPickerOpen}
+            open={open}
             onClose={onClose}
             breadcrumbs={[
                 ...breadcrumbs,
@@ -208,33 +211,42 @@ function OpenNewTRModal({
                             />
                         </div>
                         <div>
-                            <ModalFieldLabel as="p">
+                            <ModalFieldLabel htmlFor="new-tr-workflow-template">
                                 Workflow template
                             </ModalFieldLabel>
                             <div className="flex min-w-0 items-center gap-2">
-                                <button
+                                <select
                                     id="new-tr-workflow-template"
-                                    type="button"
-                                    onClick={() => setWorkflowPickerOpen(true)}
-                                    className="flex h-10 min-w-0 flex-1 items-center rounded-md border border-gray-300 bg-white px-3 text-left text-sm text-gray-900 hover:border-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
+                                    value={selectedWorkflow?.id ?? ""}
+                                    disabled={workflowsLoading && !workflows.length}
+                                    onChange={(event) => setSelectedWorkflow(
+                                        workflows.find(({ id }) => id === event.currentTarget.value) ?? null,
+                                    )}
+                                    className="h-10 min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-600 disabled:opacity-60"
                                 >
-                                    <span className="truncate">
-                                        {selectedWorkflow?.metadata.title ??
-                                            "No template — start from scratch"}
-                                    </span>
-                                </button>
-                                {selectedWorkflow && (
+                                    <option value="">Start from scratch</option>
+                                    {workflows.map((workflow) => (
+                                        <option key={workflow.id} value={workflow.id}>
+                                            {workflow.metadata.title}
+                                        </option>
+                                    ))}
+                                </select>
+                                {hasMoreWorkflows && (
                                     <button
                                         type="button"
-                                        onClick={() =>
-                                            setSelectedWorkflow(null)
-                                        }
+                                        onClick={() => void loadMoreWorkflows()}
+                                        disabled={workflowsLoading}
                                         className="h-10 shrink-0 px-2 text-sm text-gray-600 hover:text-gray-900"
                                     >
-                                        Clear
+                                        {workflowsLoading ? "Loading..." : "Load more"}
                                     </button>
                                 )}
                             </div>
+                            {selectedWorkflow?.metadata.description && (
+                                <p className="mt-2 text-xs leading-5 text-gray-500">
+                                    {selectedWorkflow.metadata.description}
+                                </p>
+                            )}
                         </div>
                         {!isProjectMode && (
                             <div className="space-y-3">
@@ -289,15 +301,5 @@ function OpenNewTRModal({
                 )}
             </form>
         </Modal>
-        <WorkflowPickerModal
-            open={workflowPickerOpen}
-            onClose={() => setWorkflowPickerOpen(false)}
-            onSelect={(workflow) => setSelectedWorkflow(workflow)}
-            workflowType="tabular"
-            breadcrumbs={["New tabular review", "Workflow template"]}
-            primaryLabel="Choose"
-            initialWorkflowId={selectedWorkflow?.id}
-        />
-        </>
     );
 }

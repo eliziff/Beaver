@@ -118,6 +118,25 @@ it("loads one canonical standalone transcript and metadata", async () => {
     expect(result.current.chatTitle).toBe("Renamed title");
 });
 
+it("keeps a valid empty chat open", async () => {
+    mocks.getChat.mockResolvedValue({
+        chat: {
+            id: "chat-1",
+            project_id: null,
+            user_id: "owner-1",
+            title: null,
+            transcript_version: 0,
+            created_at: "",
+        },
+        messages: [],
+    });
+
+    renderHook(() => useAssistantChatRoute({ chatId: "chat-1" }));
+
+    await waitFor(() => expect(mocks.setMessages).toHaveBeenCalledWith([]));
+    expect(mocks.replace).not.toHaveBeenCalled();
+});
+
 it("redirects a project-bound standalone chat without loading it twice", async () => {
     mocks.getChat.mockResolvedValue({
         chat: {

@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, Minimize2 } from "lucide-react";
 import {
     citationPinpoint,
     formatCitationPage,
@@ -156,6 +156,7 @@ export function AssistantMessage({
     const pendingEdits: typeof edits = [];
     let pendingAskIndex: number | undefined;
     let eventErrorMessage: string | undefined;
+    let contextCompacted = false;
     for (const [index, event] of (events ?? []).entries()) {
         if (event.type === "error") {
             eventErrorMessage ??= event.message;
@@ -198,6 +199,10 @@ export function AssistantMessage({
                     citationHistory,
                 ),
             });
+            continue;
+        }
+        if (event.type === "compaction" && event.status === "completed") {
+            contextCompacted = true;
             continue;
         }
         if (event.type === "steering") {
@@ -472,6 +477,15 @@ export function AssistantMessage({
                                 onOpen={onAutomationClick ?? (() => undefined)}
                             />
                         ))}
+                        {contextCompacted ? (
+                            <div
+                                role="status"
+                                className="flex items-center gap-2 px-1 font-serif text-sm text-gray-500"
+                            >
+                                <Minimize2 size={14} strokeWidth={1.75} aria-hidden="true" />
+                                <span>Context compacted</span>
+                            </div>
+                        ) : null}
                         {activityRows.length > 0 ? (
                             <ActivityDisclosure
                                 isStreaming={activityIsStreaming}
@@ -484,6 +498,7 @@ export function AssistantMessage({
                                     <ActivityRow
                                         key={index}
                                         view={view}
+                                        event={event}
                                         onClick={activityClick(event)}
                                         onSourceClick={onSubagentSourceClick}
                                     />
@@ -514,6 +529,7 @@ export function AssistantMessage({
                                         onCitationClick={onCitationClick}
                                         citationTitle={citationTitle}
                                         onCaseClick={onCaseClick}
+                                        isStreaming={isStreaming}
                                         divRef={
                                             dialogueIndex === lastAssistantDialogue
                                                 ? contentDivRef

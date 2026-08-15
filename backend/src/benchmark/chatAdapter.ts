@@ -3,7 +3,6 @@ import type { NormalizedToolCall, NormalizedToolResult } from "../lib/llm";
 import type {
   ChatToolContext,
   ChatToolRunner,
-  ChatTurnResult,
 } from "../lib/chat/turnEngine";
 import type { LegalEvidenceTurnState } from "../lib/chat/legalEvidence";
 import type { ToolEntry } from "../lib/chat/toolRegistry";
@@ -12,18 +11,6 @@ type ToolFactory = (
   evidence: LegalEvidenceTurnState,
   scope: "main" | "reader",
 ) => ToolEntry<ChatToolContext>[];
-
-export type ChatMetrics = {
-  firstDraftCount: number;
-  firstDraftCoverage: unknown;
-  signalGateCount: number;
-  autoFlushCount: number;
-  draftEditCount: number;
-  sourceEditCount: number;
-  sourceEditRefusalCount: number;
-  compositionCheckCount: number;
-  compositionCheckFindings: number;
-};
 
 const record = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === "object" && !Array.isArray(value)
@@ -96,7 +83,6 @@ function resultEvent(call: NormalizedToolCall, result?: NormalizedToolResult) {
 
 export function createChatBenchmarkAdapter(
   emit: (event: unknown) => void,
-  metrics: () => ChatMetrics,
 ) {
   const enabled = process.env.MIKE_BENCHMARK_TRACE_TOOLS === "1";
   return {
@@ -116,12 +102,10 @@ export function createChatBenchmarkAdapter(
             execute = async (calls, context) => {
               const batch = await run(calls, context);
               for (const call of calls) {
-                if (call.id !== "host-final-agent-flush") {
-                  emit(resultEvent(
-                    call,
-                    batch.results.find((result) => result.tool_use_id === call.id),
-                  ));
-                }
+                emit(resultEvent(
+                  call,
+                  batch.results.find((result) => result.tool_use_id === call.id),
+                ));
               }
               return batch;
             };
@@ -130,22 +114,6 @@ export function createChatBenchmarkAdapter(
           return { ...entry, execute };
         });
       };
-    },
-    finish(result: ChatTurnResult) {
-      if (!enabled || result.status !== "complete") return;
-      const value = metrics();
-      emit({
-        type: "benchmark_final_arm",
-        first_draft_count: value.firstDraftCount,
-        first_draft_coverage: value.firstDraftCoverage,
-        signal_gate_count: value.signalGateCount,
-        auto_flush_count: value.autoFlushCount,
-        draft_edit_count: value.draftEditCount,
-        source_edit_count: value.sourceEditCount,
-        source_edit_refusal_count: value.sourceEditRefusalCount,
-        composition_check_shadow_count: value.compositionCheckCount,
-        composition_check_shadow_findings: value.compositionCheckFindings,
-      });
     },
   };
 }

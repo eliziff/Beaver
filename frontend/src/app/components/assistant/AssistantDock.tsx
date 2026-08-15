@@ -124,7 +124,7 @@ export function AssistantDock({
                 <div
                     role="tablist"
                     aria-label="Assistant panels"
-                    className="grid min-w-0 flex-1 grid-cols-3 gap-1 overflow-hidden md:grid-flow-col md:auto-cols-fr md:grid-cols-none"
+                    className="flex min-w-0 flex-1 gap-1 overflow-x-auto"
                 >
                     {tabs.map((tab, index) => {
                         const selected = tab.id === active.id;
@@ -147,7 +147,7 @@ export function AssistantDock({
                                     event.preventDefault();
                                 }}
                                 className={cn(
-                                    "h-9 min-w-0 truncate rounded-md px-0.5 py-1.5 text-center text-[11px] font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-current md:px-2 md:text-sm",
+                                    "h-9 max-w-40 shrink-0 truncate rounded-md px-3 py-1.5 text-center text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-current",
                                     selected
                                         ? "bg-gray-900 text-white"
                                         : "text-gray-600 hover:bg-gray-100 hover:text-gray-950",

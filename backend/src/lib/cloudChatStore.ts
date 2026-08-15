@@ -107,7 +107,7 @@ export const createCloudChatStore: CreateChatStore = (tabular) => {
       let data;
       if (options.projectId || options.tabularReviewId) {
         let query = db.from("chats")
-            .select("id, project_id, tabular_review_id, user_id, title, created_at")
+            .select("id, project_id, tabular_review_id, user_id, title, created_at, chat_messages!inner(id)")
             .eq(options.projectId ? "project_id" : "tabular_review_id",
               options.projectId ?? options.tabularReviewId)
             .is("deleted_at", null).order("created_at", { ascending: false });
@@ -117,7 +117,9 @@ export const createCloudChatStore: CreateChatStore = (tabular) => {
         p_user_id: scope.userId,
         p_limit: options.limit ?? null,
       }));
-      const rows = (data ?? []) as Record<string, unknown>[];
+      const rows = ((data ?? []) as Record<string, unknown>[]).map(
+        ({ chat_messages: _messages, ...chat }) => chat,
+      );
       if (!options.projectId) return rows.map(record);
       const ids = [...new Set(rows.flatMap(({ user_id }) =>
         typeof user_id === "string" ? [user_id] : []))];

@@ -16,6 +16,21 @@ function renderMarkdown(text: string, inlineCitationTargets: Citation[] = []) {
 }
 
 describe("MarkdownContent links", () => {
+    it("repairs incomplete Markdown while text is streaming", () => {
+        const { container } = render(
+            <MarkdownContent
+                text="This is **bold"
+                isStreaming
+                inlineCitationTargets={[]}
+                caseCitations={new Map()}
+                caseOpinions={new Map()}
+            />,
+        );
+
+        expect(screen.getByText("bold").tagName).toBe("STRONG");
+        expect(container).not.toHaveTextContent("**");
+    });
+
     it("keeps Beaver app links and suppresses unverified external links", () => {
         renderMarkdown(
             "[Open project](/projects/matter-1) [Open source](/sources/source-1) [External](https://example.com)",

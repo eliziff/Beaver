@@ -67,6 +67,7 @@ export function WorkflowPickerContent({
         ? workflows.filter((workflow) =>
               [
                   workflow.metadata.title,
+                  workflow.metadata.description ?? "",
                   workflow.metadata.practice ?? "",
                   workflow.is_system ? "System" : "Custom",
               ]
@@ -139,22 +140,34 @@ export function WorkflowPickerContent({
                                                 isSelected ? null : workflow,
                                             )
                                         }
-                                        className={`flex min-w-0 w-full items-center gap-3 rounded-md px-3 py-2 text-left text-xs ${
+                                        className={`flex min-w-0 w-full items-start gap-3 rounded-md px-3 py-2.5 text-left text-xs ${
                                             isSelected
                                                 ? `${APP_SURFACE_ACTIVE_CLASS} text-gray-900`
                                                 : APP_SURFACE_HOVER_CLASS
                                         } ${disabled ? "cursor-not-allowed opacity-45" : ""}`}
                                     >
-                                        <span
-                                            className={`min-w-0 flex-1 truncate ${
-                                                isSelected
-                                                    ? "font-medium text-gray-900"
-                                                    : "text-gray-700"
-                                            }`}
-                                        >
-                                            {workflow.metadata.title}
+                                        <span className="min-w-0 flex-1">
+                                            <span
+                                                className={`block truncate ${
+                                                    isSelected
+                                                        ? "font-medium text-gray-900"
+                                                        : "text-gray-700"
+                                                }`}
+                                            >
+                                                {workflow.metadata.title}
+                                            </span>
+                                            {workflow.metadata.description ? (
+                                                <span className="mt-0.5 line-clamp-2 block leading-4 text-gray-500">
+                                                    {workflow.metadata.description}
+                                                </span>
+                                            ) : null}
+                                            {workflow.metadata.practice ? (
+                                                <span className="mt-1 block truncate text-[11px] text-gray-400">
+                                                    {workflow.metadata.practice}
+                                                </span>
+                                            ) : null}
                                         </span>
-                                        <span className="shrink-0 text-xs text-gray-400">
+                                        <span className="shrink-0 pt-0.5 text-xs text-gray-400">
                                             {workflow.is_system
                                                 ? "System"
                                                 : "Custom"}
@@ -223,6 +236,11 @@ function WorkflowPreview({
                     </button>
                 </div>
                 <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+                    {workflow.metadata.description ? (
+                        <p className="px-3 pb-2 text-xs leading-5 text-gray-500">
+                            {workflow.metadata.description}
+                        </p>
+                    ) : null}
                     {showColumns ? (
                         <WorkflowColumnPreview
                             columns={workflow.columns_config ?? []}

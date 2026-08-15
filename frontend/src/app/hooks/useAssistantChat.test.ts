@@ -86,6 +86,25 @@ beforeEach(() => {
 });
 
 describe("useAssistantChat local transcript boundary", () => {
+  it("handles chat commands without invoking a model", async () => {
+    const { result } = renderHook(() => useAssistantChat({ chatId: "chat-1" }));
+
+    await act(async () => {
+      await result.current.handleChat({ role: "user", content: "/help" });
+    });
+    expect(result.current.messages.map(({ role, content }) => ({ role, content })))
+      .toEqual([
+        { role: "user", content: "/help" },
+        { role: "assistant", content: expect.stringContaining("/compact") },
+      ]);
+
+    await act(async () => {
+      await result.current.handleChat({ role: "user", content: "/compact" });
+    });
+    expect(mocks.compactChat).toHaveBeenCalledWith("chat-1", expect.any(String));
+    expect(mocks.streamChat).not.toHaveBeenCalled();
+  });
+
   it("stages a new message only after chat creation succeeds", async () => {
     const message = { role: "user" as const, content: "Draft this" };
     mocks.saveChat.mockResolvedValue("chat-new");
@@ -1318,7 +1337,7 @@ describe("useAssistantChat local transcript boundary", () => {
     });
 
     expect(result.current.messages.at(-1)).toMatchObject({
-      content: "Initial answer.Revised answer.",
+      content: "Initial answer.\n\nRevised answer.",
       events: [
         { type: "content", text: "Initial answer." },
         {

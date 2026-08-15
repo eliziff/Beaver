@@ -25,7 +25,7 @@ const resource = "A document resource returned by Glob, or a unique filename.";
 export const RESOURCE_TOOLS = [
   tool(
     "Glob",
-    'List matching workspace resources. Use "workflow://*" for workflows. This does not search legal-source corpora.',
+    'List matching workspace resources when the request requires locating a saved document. Use "workflow://*" for workflows. This does not search legal-source corpora.',
     {
       pattern: {
         type: "string",
@@ -35,7 +35,7 @@ export const RESOURCE_TOOLS = [
   ),
   tool(
     "Grep",
-    "Search document text with a regular expression. Filter by one resource or a filename glob; return matching resources, counts, or bounded matching lines.",
+    "Search document text when the request depends on a saved document. Filter by one resource or a filename glob; return matching resources, counts, or bounded matching lines.",
     {
       pattern: { type: "string", description: "Regular expression to search." },
       path: { type: "string", description: resource },
@@ -62,7 +62,7 @@ export const RESOURCE_TOOLS = [
   ),
   tool(
     "Read",
-    "Read a bounded range from one document resource. Use drafting for semantic DOCX Markdown or redline for visible editorial markup.",
+    "Read a bounded range from one document resource when the request depends on its contents. Use drafting for semantic DOCX Markdown or redline for visible editorial markup.",
     {
       file_path: { type: "string", description: resource },
       mode: { type: "string", enum: ["text", "drafting", "redline"] },

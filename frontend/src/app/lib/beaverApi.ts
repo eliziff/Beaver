@@ -58,8 +58,10 @@ function assistantContent(
     visibleEvents && turnStatus
       ? interruptAssistantStreamEvents(visibleEvents, turnStatus)
       : visibleEvents;
-  const text = events?.reduce(
-    (result, event) => result + (event.type === "content" ? event.text : ""), "");
+  const text = events
+    ?.filter((event) => event.type === "content")
+    .map((event) => event.text)
+    .join("\n\n");
   return { content: text ?? "", events, ...(turnStatus && { turnStatus }) };
 }
 export const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
