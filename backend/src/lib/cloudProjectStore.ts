@@ -1,5 +1,5 @@
 import { checkProjectAccess } from "./access";
-import { cloudDocuments, createCloudDocument } from "./cloudDocumentStore";
+import { cloudDocuments } from "./cloudDocumentStore";
 import { attachActiveVersionPaths } from "./documentVersions";
 import { normalizeDocumentFilename } from "./normalize";
 import {
@@ -263,18 +263,6 @@ export const cloudProjects = {
       .select("*").maybeSingle());
     if (!updated) throw missing("Document not found");
     return { ...updated, filename } as ProjectRecord;
-  },
-
-  async uploadDocument(scope, projectId, file, fileType) {
-    const db = createServerSupabase();
-    await accessible(db, scope, projectId);
-    return await createCloudDocument(db, {
-      userId: scope.userId,
-      userEmail: scope.userEmail,
-      projectId,
-      file,
-      fileType,
-    }) as ProjectRecord;
   },
 
   async createFolder(scope, projectId, input) {

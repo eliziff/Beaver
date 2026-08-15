@@ -23,7 +23,7 @@ create table if not exists public.user_profiles (
   quote_model text,
   mfa_on_login boolean not null default false,
   legal_research_us boolean not null default true,
-  drafting_style jsonb not null default '{"version":1,"documents":{"memo":{"citationPlacement":"footnotes","numberHeadings":false},"factum":{"citationPlacement":"inline","numberHeadings":true},"letter":{"citationPlacement":"footnotes","numberHeadings":false},"other":{"citationPlacement":"inline","numberHeadings":"auto"}},"memoHeader":{"to":"File","from":"AI Assistant"}}'::jsonb,
+  drafting_style jsonb not null default '{"version":1,"documents":{"memo":{"citationPlacement":"footnotes","citationHyperlinks":true,"numberHeadings":false},"factum":{"citationPlacement":"inline","citationHyperlinks":true,"numberHeadings":true},"letter":{"citationPlacement":"footnotes","citationHyperlinks":true,"numberHeadings":false},"other":{"citationPlacement":"inline","citationHyperlinks":true,"numberHeadings":"auto"}},"memoHeader":{"to":"File","from":"AI Assistant"}}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -278,6 +278,7 @@ create table if not exists public.document_versions (
   file_type text,
   size_bytes integer,
   page_count integer,
+  provenance jsonb,
   deleted_at timestamptz,
   deleted_by uuid,
   created_at timestamptz not null default now(),

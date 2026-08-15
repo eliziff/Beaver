@@ -35,7 +35,7 @@ export type ReadSubagentActivity = {
 };
 
 function readActivityParagraphs(input: Record<string, unknown>) {
-  if (input.locator_type !== "paragraph") return [];
+  if (input.locator_kind !== "paragraph") return [];
   const start = String(input.locator ?? "").trim().replace(/^para(?:graph)?\.?\s*/iu, "");
   if (!start) return [];
   const end = String(input.end_locator ?? "").trim().replace(/^para(?:graph)?\.?\s*/iu, "");
@@ -78,6 +78,7 @@ export type ReadSubagentSource = {
   clusterId?: number;
   locator?: string;
   quote?: string;
+  resource?: string;
 };
 
 function discoveredCaseSources(
@@ -85,7 +86,7 @@ function discoveredCaseSources(
   result: NormalizedToolResult,
 ): ReadSubagentSource[] {
   if (
-    !["SearchSources", "a2aj_search", "courtlistener_search_case_law"].includes(
+    !["search_sources", "a2aj_search", "courtlistener_search_case_law"].includes(
       call.name,
     ) ||
     (call.name === "a2aj_search" && call.input.doc_type === "laws")
@@ -97,7 +98,7 @@ function discoveredCaseSources(
     return payload.results.flatMap((value) => {
       if (!value || typeof value !== "object" || Array.isArray(value)) return [];
       const row = value as Record<string, unknown>;
-      if (call.name === "SearchSources" && row.source_type !== "case") return [];
+      if (call.name === "search_sources" && row.source_type !== "case") return [];
       const citation =
         typeof row.citation === "string" ? row.citation.trim() : "";
       if (!citation) return [];
@@ -119,6 +120,7 @@ function discoveredCaseSources(
           : null,
         dataset: typeof datasetValue === "string" ? datasetValue : "",
         url: typeof row.url === "string" ? row.url : null,
+        ...(typeof row.resource === "string" && { resource: row.resource }),
         ...(typeof clusterValue === "number" && { clusterId: clusterValue }),
       }];
     });
@@ -130,11 +132,11 @@ function discoveredCaseSources(
 export type ReadSubagentEvent = {
   type: "subagent_run";
   id: string;
-  agent: ReadSubagentRole;
+  agent: ReadSubagentRole | "native";
   task: string;
   model: string;
   effort: string;
-  status: "running" | "completed" | "error" | "interrupted";
+  status: "running" | "completed" | "error" | "cancelled" | "interrupted";
   output?: string;
   error?: string;
   activities?: ReadSubagentActivity[];
@@ -661,13 +663,11 @@ export async function runReadSubagentRound({
 const SEARCH_LEDGER_TOOLS = new Set([
   "Glob",
   "Grep",
-  "find_in_document",
-  "library_find",
-  "SearchSources",
+  "search_sources",
   "a2aj_search",
   "courtlistener_search_case_law",
-  "courtlistener_find_in_case",
-  "caselaw_note_up",
+  "find_in_case",
+  "note_up",
 ]);
 
 function compactSearchRequest(input: Record<string, unknown>) {
@@ -701,23 +701,7 @@ function compactSearchResult(result: NormalizedToolResult) {
 const GROUNDED_ANSWER_INSTRUCTIONS =
   "Finish only with submit_grounded_answer. Its top-level object contains only claims; every claim requires text and evidence_ids. Prefer concise direct quotations, weaving up to three disjoint exact spans into one support unit when useful; paraphrase only when synthesis is materially clearer. Use exact evidence_id values returned by retrieval tools. Put sources only in evidence_ids; do not put citation or pinpoint prose in text.";
 
-const READ_TOOL_NAMES = new Set([
-  "SearchSources",
-  "a2aj_fetch",
-  "a2aj_lookup",
-  "courtlistener_get_cases",
-  "courtlistener_find_in_case",
-  "courtlistener_lookup_case_locator",
-  "courtlistener_read_case",
-  "courtlistener_verify_citations",
-  "public_legal_source_fetch",
-  "public_legal_source_lookup",
-  "hansard_fetch",
-  "caselaw_note_up",
-  "consult_attested_characterization",
-]);
-
-/** Fail-closed allowlist: new tools never reach a reading agent by accident. */
+/** Effects are filtered at the registry boundary; this only applies region gates. */
 export function readSubagentTools(
   tools: OpenAIToolSchema[],
   jurisdiction: ReadSubagentRegion = "CA",
@@ -725,46 +709,46 @@ export function readSubagentTools(
 ) {
   return tools.filter((tool) => {
     const name = tool.function.name;
-    if (!READ_TOOL_NAMES.has(name)) return false;
-    if (name === "SearchSources") return jurisdiction !== "UK";
-    if (name === "hansard_fetch") {
-      return jurisdiction === "CA" && sourceTypes.has("hansard");
-    }
-    if (name.startsWith("a2aj_") || name === "caselaw_note_up") {
-      return jurisdiction === "CA";
-    }
+    if (name === "search_sources") return jurisdiction !== "UK";
+    if (name === "note_up") return jurisdiction === "CA";
+    if (name === "find_in_case") return jurisdiction === "US";
     if (name.startsWith("courtlistener_")) return jurisdiction === "US";
-    if (name.startsWith("public_legal_source_")) return true;
-    if (name === "consult_attested_characterization") return jurisdiction === "CA";
     return true;
   });
 }
 
-function publicProviderAllowed(
-  jurisdiction: ReadSubagentRegion,
-  input: Record<string, unknown>,
-) {
-  if (typeof input.provider !== "string") return false;
-  return jurisdiction === "CA"
-    ? input.provider === "journal"
-    : jurisdiction === "US"
-    ? input.provider === "govinfo"
-    : jurisdiction === "UK"
-      ? input.provider === "tna" || input.provider === "govuk-et"
-      : false;
-}
-
 const COLLECTION_SCOPED_TOOLS = new Set([
-  "SearchSources",
-  "a2aj_fetch",
-  "a2aj_lookup",
-  "courtlistener_search_case_law",
-  "courtlistener_get_cases",
-  "courtlistener_find_in_case",
-  "courtlistener_lookup_case_locator",
-  "courtlistener_read_case",
-  "caselaw_note_up",
+  "search_sources",
+  "Read",
+  "find_in_case",
+  "note_up",
 ]);
+
+function discoveredSourceFor(
+  call: NormalizedToolCall,
+  discoveredSources: ReadonlyMap<string, ReadSubagentSource>,
+) {
+  const citation = typeof call.input.citation === "string"
+    ? call.input.citation.trim().toLocaleLowerCase()
+    : "";
+  const resource = typeof call.input.file_path === "string"
+    ? call.input.file_path.trim()
+    : "";
+  const clusterIds = Array.isArray(call.input.clusterIds)
+    ? call.input.clusterIds
+    : typeof call.input.clusterId === "number"
+      ? [call.input.clusterId]
+      : [];
+  return citation
+    ? discoveredSources.get(`citation:${citation}`)
+    : resource
+      ? discoveredSources.get(`resource:${resource}`)
+      : [...discoveredSources.values()].find(
+          (candidate) =>
+            candidate.clusterId !== undefined &&
+            clusterIds.includes(candidate.clusterId),
+        );
+}
 
 function collectionScopeError(
   call: NormalizedToolCall,
@@ -781,20 +765,7 @@ function collectionScopeError(
       ? null
       : `${selected} is outside this reader's assigned collections.`;
   }
-  const citation = typeof call.input.citation === "string"
-    ? call.input.citation.trim().toLocaleLowerCase()
-    : "";
-  const clusterIds = Array.isArray(call.input.clusterIds)
-    ? call.input.clusterIds
-    : typeof call.input.clusterId === "number"
-      ? [call.input.clusterId]
-      : [];
-  const source = citation
-    ? discoveredSources.get(`citation:${citation}`)
-    : [...discoveredSources.values()].find(
-        (candidate) =>
-          candidate.clusterId !== undefined && clusterIds.includes(candidate.clusterId),
-      );
+  const source = discoveredSourceFor(call, discoveredSources);
   return source && collections.has(source.dataset.trim().toLocaleLowerCase())
     ? null
     : "This source call lacks a collection within the reader's assigned collection boundary.";
@@ -995,22 +966,18 @@ export async function runReadSubagent(params: {
     const feedback: string[] = [];
     const runTools = async (calls: NormalizedToolCall[]) => {
       for (const call of calls) {
-        const citation =
-          typeof call.input.citation === "string"
-            ? call.input.citation.trim().toLocaleLowerCase()
-            : "";
+        const citation = typeof call.input.citation === "string"
+          ? call.input.citation.trim().toLocaleLowerCase()
+          : "";
+        const resource = typeof call.input.file_path === "string"
+          ? call.input.file_path.trim()
+          : "";
         const clusterIds = Array.isArray(call.input.clusterIds)
           ? call.input.clusterIds
           : typeof call.input.clusterId === "number"
             ? [call.input.clusterId]
             : [];
-        const source = citation
-          ? discoveredSources.get(`citation:${citation}`)
-          : [...discoveredSources.values()].find(
-              (candidate) =>
-                candidate.clusterId !== undefined &&
-                clusterIds.includes(candidate.clusterId),
-            );
+        const source = discoveredSourceFor(call, discoveredSources);
         const label = source
           ? `Reading ${source.name ? `${source.name}, ` : ""}${source.citation}`
           : assistantToolActivityLabel(call.name, call.input);
@@ -1020,6 +987,8 @@ export async function runReadSubagent(params: {
             ? `citation:${source.citation.toLocaleLowerCase()}`
             : citation
               ? `citation:${citation}`
+              : resource
+                ? `resource:${resource}`
               : clusterIds.length
                 ? `cluster:${clusterIds.join(",")}`
                 : null;
@@ -1058,10 +1027,8 @@ export async function runReadSubagent(params: {
       });
       const rejectedCalls = calls.filter(
         (call) =>
-          (call.name.startsWith("public_legal_source_") &&
-            !publicProviderAllowed(jurisdiction, call.input)) ||
           Boolean(collectionScopeError(call, collections, discoveredSources)) ||
-          (call.name === "SearchSources" &&
+          (call.name === "search_sources" &&
             Array.isArray(call.input.source_types) &&
             call.input.source_types.some(
               (value) => typeof value !== "string" || !sourceTypes.has(value),
@@ -1070,7 +1037,7 @@ export async function runReadSubagent(params: {
       const constrainedCalls = calls
         .filter((call) => !rejectedCalls.includes(call))
         .map((call) =>
-        call.name === "SearchSources"
+        call.name === "search_sources"
           ? { ...call, input: { ...call.input, jurisdiction } }
           : call,
         );
@@ -1083,7 +1050,7 @@ export async function runReadSubagent(params: {
             ok: false,
             error:
               collectionScopeError(call, collections, discoveredSources) ??
-              (call.name === "SearchSources"
+              (call.name === "search_sources"
                 ? "This search requests a source class outside the reader's assignment."
                 : null) ??
               `${String(call.input.provider ?? "Unknown")} is outside this reader's ${jurisdiction} source boundary.`,
@@ -1107,6 +1074,9 @@ export async function runReadSubagent(params: {
             `citation:${source.citation.toLocaleLowerCase()}`,
             source,
           );
+          if (source.resource) {
+            discoveredSources.set(`resource:${source.resource}`, source);
+          }
         }
       }
       for (const { receipt } of params.evidenceState.evidence.values()) {
@@ -1118,12 +1088,7 @@ export async function runReadSubagent(params: {
       }
       for (const call of calls) {
         const activity = activityByCallId.get(call.id);
-        const citation = typeof call.input.citation === "string"
-          ? call.input.citation.trim().toLocaleLowerCase()
-          : "";
-        const source = citation
-          ? discoveredSources.get(`citation:${citation}`)
-          : undefined;
+        const source = discoveredSourceFor(call, discoveredSources);
         if (!activity || activity.source || !source) continue;
         activity.source = source;
         activity.label = `Reading ${source.name ? `${source.name}, ` : ""}${source.citation}`;
@@ -1195,17 +1160,7 @@ export async function runReadSubagent(params: {
       }
       rendered = renderLegalEvidenceAnswer(params.evidenceState);
       grounding = legalEvidenceReceiptEvent(params.evidenceState);
-      if (
-        runError &&
-        !(
-          runError instanceof Error &&
-          runError.message === "Codex exec returned no response." &&
-          rendered &&
-          grounding?.status === "passed"
-        )
-      ) {
-        throw runError;
-      }
+      if (runError) throw runError;
       if (rendered && grounding?.status === "passed") break;
       const priorFeedback = feedback.join("\n\n").slice(-MAX_REPAIR_CONTEXT_CHARS);
       const rejection = grounding?.failure ?? "No grounded submission was received.";

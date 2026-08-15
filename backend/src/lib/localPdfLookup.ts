@@ -12,22 +12,9 @@ import {
   LOCAL_PDF_SOURCE_SCHEMA,
 } from "./legalPdfSourceDoc";
 import { normalizeSourceDocLocator } from "./sourceDoc";
+import { RESOURCE_LOCATOR_KINDS } from "./resourceReferences";
 
-export const LOCAL_PDF_LOCATOR_KINDS = [
-  "page",
-  "paragraph",
-  "footnote",
-  "section",
-  "subsection",
-  "provision_paragraph",
-  "subparagraph",
-  "clause",
-  "subclause",
-  "schedule",
-  "article",
-] as const;
-
-export type LocalPdfLocatorKind = (typeof LOCAL_PDF_LOCATOR_KINDS)[number];
+export type LocalPdfLocatorKind = (typeof RESOURCE_LOCATOR_KINDS)[number];
 
 export type LocalPdfLookupInput = {
   locatorKind: LocalPdfLocatorKind;
@@ -236,7 +223,7 @@ function evidenceReceipt(value: unknown): LocalPdfEvidenceReceipt {
     typeof source.parser_config_version !== "string" ||
     typeof source.cache_key !== "string" ||
     !lookup ||
-    !LOCAL_PDF_LOCATOR_KINDS.includes(lookup.locatorKind) ||
+    !RESOURCE_LOCATOR_KINDS.includes(lookup.locatorKind) ||
     typeof lookup.locator !== "string" ||
     !evidence ||
     !Array.isArray(evidence.artifact_ids) ||
@@ -432,7 +419,7 @@ function normalizeFootnote(raw: string) {
 
 function sectionLocatorKind(row: JsonObject): LocalPdfLocatorKind | null {
   const kind = stringValue(row.locator_kind);
-  return LOCAL_PDF_LOCATOR_KINDS.includes(kind as LocalPdfLocatorKind) &&
+  return RESOURCE_LOCATOR_KINDS.includes(kind as LocalPdfLocatorKind) &&
     canonicalKind(kind as LocalPdfLocatorKind) === "section"
     ? (kind as LocalPdfLocatorKind)
     : null;
@@ -883,7 +870,7 @@ export async function lookupLocalPdfStructure(
 ) {
   const base = baseResult(input);
   if (
-    !LOCAL_PDF_LOCATOR_KINDS.includes(input.locatorKind) ||
+    !RESOURCE_LOCATOR_KINDS.includes(input.locatorKind) ||
     !input.locator.trim() ||
     input.locator.length > 200 ||
     (input.endLocator?.length ?? 0) > 200 ||

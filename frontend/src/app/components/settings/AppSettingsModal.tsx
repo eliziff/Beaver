@@ -17,8 +17,9 @@ import { AccountSection } from "@/app/(pages)/account/AccountSection";
 import { useActivityDetail } from "@/app/components/assistant/activityDisplayPreference";
 import { EditModeSettings } from "./EditModeSettings";
 import { DraftingStyleSettings } from "./DraftingStyleSettings";
+import { DisplaySettings } from "./DisplaySettings";
 
-const TABS = ["General", "Drafting", "Providers", "Subagents"] as const;
+const TABS = ["General", "Display", "Drafting", "Providers", "Subagents"] as const;
 type SettingsTab = (typeof TABS)[number];
 
 export function AppSettingsModal({
@@ -65,50 +66,46 @@ export function AppSettingsModal({
                         <JurisdictionPreferenceEditor />
                     </AccountSection>
                 </section>
-                <section>
-                    <h2 className="mb-3 text-base font-semibold text-gray-900">
-                        Document editing
-                    </h2>
-                    <AccountSection className="p-4">
-                        <EditModeSettings />
-                    </AccountSection>
-                </section>
-                <section>
-                    <h2 className="mb-3 text-base font-semibold text-gray-900">
-                        Activity detail
-                    </h2>
-                    <AccountSection className="p-4">
-                        <label className="grid gap-2 text-sm text-gray-900 sm:grid-cols-[minmax(0,1fr)_12rem] sm:items-center">
-                            <span>
-                                <span className="block font-medium">
-                                    Assistant activity
-                                </span>
-                                <span className="mt-0.5 block text-xs leading-5 text-gray-500">
-                                    Auto shows available model thinking summaries without exposing tool arguments.
-                                </span>
-                            </span>
-                            <select
-                                value={activity.detail}
-                                onChange={(event) =>
-                                    activity.setDetail(
-                                        event.currentTarget.value as
-                                            | "auto"
-                                            | "standard"
-                                            | "tools"
-                                            | "trace",
-                                    )
-                                }
-                                className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
-                            >
-                                <option value="auto">Auto</option>
-                                <option value="standard">Standard</option>
-                                <option value="tools">Tool calls</option>
-                                <option value="trace">Full trace</option>
-                            </select>
-                        </label>
-                    </AccountSection>
-                </section>
             </div>
+        ),
+        Display: (
+            <section>
+                <h2 className="mb-3 text-base font-semibold text-gray-900">
+                    Chat display
+                </h2>
+                <AccountSection className="space-y-5 p-4">
+                    <DisplaySettings />
+                    <EditModeSettings />
+                    <label className="grid gap-2 text-sm text-gray-900 sm:grid-cols-[minmax(0,1fr)_12rem] sm:items-center">
+                        <span>
+                            <span className="block font-medium">
+                                Assistant activity
+                            </span>
+                            <span className="mt-0.5 block text-xs leading-5 text-gray-500">
+                                Auto shows available model thinking summaries without exposing tool arguments.
+                            </span>
+                        </span>
+                        <select
+                            value={activity.detail}
+                            onChange={(event) =>
+                                activity.setDetail(
+                                    event.currentTarget.value as
+                                        | "auto"
+                                        | "standard"
+                                        | "tools"
+                                        | "trace",
+                                )
+                            }
+                            className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
+                        >
+                            <option value="auto">Auto</option>
+                            <option value="standard">Standard</option>
+                            <option value="tools">Tool calls</option>
+                            <option value="trace">Full trace</option>
+                        </select>
+                    </label>
+                </AccountSection>
+            </section>
         ),
         Drafting: (
             <section>
@@ -148,7 +145,7 @@ export function AppSettingsModal({
             <div
                 role="tablist"
                 aria-label="Settings sections"
-                className="sticky top-0 z-10 grid shrink-0 grid-cols-2 gap-1 border-b border-gray-200 bg-white pb-2 sm:grid-cols-4"
+                className="sticky top-0 z-10 grid shrink-0 grid-cols-2 gap-1 border-b border-gray-200 bg-white pb-2 sm:grid-cols-5"
             >
                 {TABS.map((tab, index) => {
                     const selected = tab === selectedTab;

@@ -4,6 +4,10 @@ import { asyncRoute } from "../lib/asyncRoute";
 import { validateDocumentFile } from "../lib/documentTypes";
 import type { ChatStore } from "../lib/chatStore";
 import {
+  DocumentStoreError,
+  type DocumentStore,
+} from "../lib/documentStore";
+import {
   ProjectStoreError,
   type ProjectScope,
   type ProjectStore,
@@ -74,7 +78,11 @@ type Handler = (
   scope: ProjectScope,
 ) => Promise<unknown>;
 
-export function createProjectsRouter(store: ProjectStore, chats: ChatStore) {
+export function createProjectsRouter(
+  store: ProjectStore,
+  chats: ChatStore,
+  documents: DocumentStore,
+) {
   const router = Router();
   router.use(requireAuth);
 
@@ -87,6 +95,7 @@ export function createProjectsRouter(store: ProjectStore, chats: ChatStore) {
     } catch (error) {
       if (error instanceof ProjectRequestError ||
           error instanceof ProjectStoreError ||
+          error instanceof DocumentStoreError ||
           error instanceof PageCursorError) {
         const status = error instanceof PageCursorError ? 400 : error.status;
         return void res.status(status).json({ detail: error.message });
@@ -234,9 +243,12 @@ export function createProjectsRouter(store: ProjectStore, chats: ChatStore) {
       const file = req.file ?? reject(400, "file is required");
       const validated = validateDocumentFile(file.originalname, file.buffer);
       if (!validated.ok) return reject(400, validated.error);
-      res.status(201).json(await store.uploadDocument(
-        scope, req.params.projectId, file, validated.fileType,
-      ));
+      res.status(201).json(await documents.create(scope, {
+        filename: file.originalname,
+        fileType: validated.fileType,
+        bytes: file.buffer,
+        projectId: req.params.projectId,
+      }));
     }),
   );
 

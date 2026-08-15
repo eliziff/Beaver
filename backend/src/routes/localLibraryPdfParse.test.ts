@@ -155,6 +155,37 @@ describe("local Library PDF parse routes", () => {
     });
   });
 
+  it("queues PPDoc-free vision layout with the cheap production default", async () => {
+    const response = await request(app)
+      .post("/library/files/documents/document-1/actions/retry-pdf-parse")
+      .send({ layout_provider: "mllm" });
+
+    expect(response.status).toBe(202);
+    expect(mocks.queueLocalPdfParse).toHaveBeenCalledWith(
+      expect.objectContaining({
+        force: true,
+        layout: { provider: "mllm", model: "gpt-5.6-luna" },
+      }),
+    );
+  });
+
+  it("accepts registered vision models and rejects text-only layout models", async () => {
+    const accepted = await request(app)
+      .post("/library/files/documents/document-1/actions/retry-pdf-parse")
+      .send({ layout_provider: "mllm", layout_model: "gemini-3.5-flash" });
+    expect(accepted.status).toBe(202);
+    expect(mocks.queueLocalPdfParse).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        layout: { provider: "mllm", model: "gemini-3.5-flash" },
+      }),
+    );
+
+    const rejected = await request(app)
+      .post("/library/files/documents/document-1/actions/retry-pdf-parse")
+      .send({ layout_provider: "mllm", layout_model: "deepseek-v4-flash" });
+    expect(rejected.status).toBe(400);
+  });
+
   it("queues the native Kraken provider through the same OCR action", async () => {
     mocks.readLocalPdfParseState.mockResolvedValue({
       status: "degraded",

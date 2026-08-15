@@ -72,14 +72,14 @@ export type CaseCitationEvent = {
 export const COURTLISTENER_TOOL_NAMES = {
   searchCaseLaw: "courtlistener_search_case_law",
   getCases: "courtlistener_get_cases",
-  findInCase: "courtlistener_find_in_case",
+  findInCase: "find_in_case",
   readCase: "courtlistener_read_case",
   lookupCaseLocator: "courtlistener_lookup_case_locator",
-  verifyCitations: "courtlistener_verify_citations",
+  verifyCitations: "verify_citations",
 } as const;
 
 export const COURTLISTENER_SYSTEM_PROMPT = `US CASE LAW RESEARCH:
-Use CourtListener for US-law questions that need case law. Verify reporter citations with courtlistener_verify_citations (clean citations only, never case names), fetch matched clusters with courtlistener_get_cases, then take cite-worthy text from courtlistener_find_in_case, or courtlistener_lookup_case_locator for a numbered paragraph, page, section, or footnote. Read whole opinions with courtlistener_read_case only when snippets are not enough, and only the opinion_id/opinionIds needed.
+Use search_sources for discovery and Read the returned source resources. Use verify_citations for clean reporter citations, never case names. After reading a case resource, find_in_case can locate short terms in that case.
 
 Citation rules:
 - Cite a case only from opinion text or snippets supplied in this turn — never from memory, metadata, search results, citationLinks, or verification results. If you have no text for a useful case, fetch or read it, or say you could not read it and do not rely on it.
@@ -123,7 +123,7 @@ export const COURTLISTENER_TOOLS = [
             type: "array",
             items: { type: "integer" },
             description:
-              "Cluster IDs from courtlistener_verify_citations or case metadata already in the conversation.",
+              "Cluster IDs from verify_citations or case metadata already in the conversation.",
           },
         },
         required: ["clusterIds"],
@@ -135,14 +135,14 @@ export const COURTLISTENER_TOOLS = [
     function: {
       name: COURTLISTENER_TOOL_NAMES.findInCase,
       description:
-        "Search an already-fetched CourtListener cluster for keywords or phrases; returns matches with surrounding opinion context. Fetch with courtlistener_get_cases first. At most 3 calls per turn.",
+        "Search a CourtListener case already opened with Read for keywords or phrases. Returns matches with surrounding opinion context. At most 3 calls per turn.",
       parameters: {
         type: "object",
         properties: {
           clusterId: {
             type: "integer",
             description:
-              "Cluster ID previously fetched with courtlistener_get_cases.",
+              "Cluster ID from the case resource opened with Read.",
           },
           query: {
             type: "string",
@@ -205,7 +205,7 @@ export const COURTLISTENER_TOOLS = [
     function: {
       name: COURTLISTENER_TOOL_NAMES.readCase,
       description:
-        "Read selected opinion text from an already-fetched CourtListener cluster, after courtlistener_find_in_case when snippets are insufficient. Pass only the opinionId/opinionIds needed.",
+        "Read selected opinion text from an already-fetched CourtListener cluster, after find_in_case when snippets are insufficient. Pass only the opinionId/opinionIds needed.",
       parameters: {
         type: "object",
         properties: {
@@ -235,7 +235,7 @@ export const COURTLISTENER_TOOLS = [
     function: {
       name: COURTLISTENER_TOOL_NAMES.verifyCitations,
       description:
-        "Verify reporter citations through CourtListener's citation lookup. Returns citation metadata and case refs; call courtlistener_get_cases only for matched cases that need opinion text.",
+        "Verify reporter citations through CourtListener's citation lookup. Returns citation metadata and case resources for matched citations.",
       parameters: {
         type: "object",
         properties: {

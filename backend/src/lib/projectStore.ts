@@ -52,10 +52,6 @@ export type ProjectStore = {
     documentId: string): Promise<{ document: ProjectRecord; created: boolean }>;
   renameDocument(scope: ProjectScope, projectId: string, documentId: string,
     filename: unknown): Promise<ProjectRecord>;
-  uploadDocument(scope: ProjectScope, projectId: string, file: {
-    originalname: string;
-    buffer: Buffer;
-  }, fileType: string): Promise<ProjectRecord>;
   createFolder(scope: ProjectScope, projectId: string, input: {
     name: string;
     parentFolderId: string | null;

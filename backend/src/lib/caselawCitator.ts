@@ -84,6 +84,21 @@ export type NoteUpCourtScope =
 
 export type NoteUpSort = "newest" | "most_discussed";
 
+function matchesCourt(
+  court: unknown,
+  scope: NoteUpCourtScope,
+  code: string | null,
+) {
+  const candidate = String(court ?? "").trim().toUpperCase();
+  if (code) return candidate === code;
+  if (scope === "all") return true;
+  const level = courtLevel(candidate)?.level ?? null;
+  if (scope === "scc") return level === 5;
+  if (scope === "appellate") return level === 4;
+  if (scope === "trial") return level === 2 || level === 3;
+  return level === 1;
+}
+
 export type CitatorGraphStats = {
   cases_indexed: number;
   edges: number;
@@ -298,16 +313,7 @@ export function noteUpCitations(args: {
          GROUP BY edge.case_id`,
       )
       .all(...keys, ...(citedParagraph === null ? [] : [`,par${citedParagraph},`])) as Row[])
-      .filter((group) => {
-        const code = String(group.court ?? "").trim().toUpperCase();
-        if (courtCode) return code === courtCode;
-        if (courtScope === "all") return true;
-        const level = courtLevel(code)?.level ?? null;
-        if (courtScope === "scc") return level === 5;
-        if (courtScope === "appellate") return level === 4;
-        if (courtScope === "trial") return level === 2 || level === 3;
-        return level === 1;
-      });
+      .filter((group) => matchesCourt(group.court, courtScope, courtCode));
     const byNewest = (left: Row, right: Row) =>
       (left.date === null ? 1 : 0) - (right.date === null ? 1 : 0) ||
       String(right.date ?? "").localeCompare(String(left.date ?? "")) ||
@@ -404,6 +410,7 @@ export type StandsForCandidate = {
   citingLevel: number | null;
   citingDate: string | null;
   paragraph: number | null;
+  pageLabel: string | null;
   /** sha256 of `text`, for rendering receipts */
   spanSha256: string;
   /** journal_commentary.sqlite article id (public_endpoint.db space) for
@@ -416,34 +423,13 @@ export type StandsForCandidate = {
   citingUrl: string | null;
 };
 
-/**
- * Candidate ordering policies (Stage 9 H19 ablation — registered as a
- * live experimental variable, never assume one is right):
- * - authority: citing-court level, citer occurrences, recency;
- *   commentary carries no court level and sorts last.
- * - banded_recency: band = court level; commentary joins the HIGHEST
- *   band present in the profile; newest-first within every band.
- * - flat_recency: newest first regardless of source kind.
- * - scc_journal_first: PRODUCTION consult ordering (Eli 2026-08-04) —
- *   the two top case-law characterizations first (court-level band, then
- *   occurrence count within the band, then recency), then journal
- *   commentary, then remaining cases. A decided production policy, kept
- *   on the H19 surface.
- */
-export type StandsForRankPolicy =
-  | "authority"
-  | "banded_recency"
-  | "flat_recency"
-  | "scc_journal_first";
-
-export type StandsForProfile = {
+export type NoteUpAnalysis = {
   citation: string;
-  rankPolicy: StandsForRankPolicy;
   /** distinct citing cases in the edge graph (all, not just considered) */
   totalCiters: number;
-  candidates: StandsForCandidate[];
-  /** rich >= 3 usable candidates, thin 1-2, none 0 (typed refusal downstream) */
-  tier: "rich" | "thin" | "none";
+  judicialDiscussion: StandsForCandidate[];
+  /** null means the journal index is not installed; [] means no match */
+  journalAnalysis: StandsForCandidate[] | null;
   excerptsConsidered: number;
   excerptsRejected: { authorityList: number; insufficient: number };
   /** journal-commentary source counts; null when no commentary DB is installed */
@@ -466,7 +452,7 @@ function journalCommentaryPath() {
  * prose-vs-authority-list classifier gates the proposition, so TOC
  * fragments and citation strings never become characterizations.
  */
-function commentaryCandidates(keys: string[]): {
+function commentaryCandidates(keys: string[], citedParagraph: number | null): {
   considered: number;
   rejected: number;
   usable: Array<StandsForCandidate & { occurrences: number }>;
@@ -475,7 +461,8 @@ function commentaryCandidates(keys: string[]): {
   return withReadonlySqlite(journalCommentaryPath(), (database) => {
     const rows = database
       .prepare(
-        `SELECT note.proposition, article.citation, article.name,
+        `SELECT note.proposition, note.ref_page_label AS page_label,
+                article.citation, article.name,
                 article.date, article.journal_name, article.article_id,
                 article.url
          FROM note_citation
@@ -485,10 +472,15 @@ function commentaryCandidates(keys: string[]): {
            AND note_citation.rank = 1
            AND note.pair_status = 'paired'
            AND note.proposition IS NOT NULL
+           ${citedParagraph === null ? "" : "AND instr(',' || note_citation.pinpoints || ',', ?) > 0"}
          ORDER BY (article.date IS NULL), article.date DESC, note.id
          LIMIT ?`,
       )
-      .all(...keys, STANDS_FOR_CONSIDERED) as Row[];
+      .all(
+        ...keys,
+        ...(citedParagraph === null ? [] : [`,par${citedParagraph},`]),
+        STANDS_FOR_CONSIDERED,
+      ) as Row[];
     let rejected = 0;
     const usable: Array<StandsForCandidate & { occurrences: number }> = [];
     for (const row of rows) {
@@ -516,6 +508,7 @@ function commentaryCandidates(keys: string[]): {
         citingLevel: null,
         citingDate: (row.date as string | null) ?? null,
         paragraph: null,
+        pageLabel: (row.page_label as string | null) ?? null,
         spanSha256: createHash("sha256")
           .update(proposition, "utf8")
           .digest("hex"),
@@ -529,23 +522,27 @@ function commentaryCandidates(keys: string[]): {
   });
 }
 
-/**
- * Ranked attested characterizations of a cited case, drawn from what
- * OTHER courts' prose says when citing it (H12; research plan D2).
- * Excerpts pass the deterministic prose-vs-authority-list classifier;
- * candidates rank by citing-court level, then citing-case occurrence
- * count, then recency. A case nobody characterizes in prose returns
- * tier "none" — the caller's contract must then refuse composed
- * characterizations, never invent one. Null when no graph is installed.
- */
-export function standsForProfile(args: {
+/** Exact explanatory passages, kept in separate judicial and journal lanes. */
+export function noteUpAnalysis(args: {
   citation: string;
   size?: number;
-  rankPolicy?: StandsForRankPolicy;
-}): StandsForProfile | null {
+  citedParagraph?: number;
+  courtScope?: NoteUpCourtScope;
+  courtCode?: string;
+}): NoteUpAnalysis | null {
   const key = citationLookupKey(args.citation);
   const cap = Math.max(1, Math.min(24, Math.trunc(args.size ?? 8)));
-  const rankPolicy = args.rankPolicy ?? "authority";
+  const courtScope = args.courtScope ?? "all";
+  const courtCode = args.courtCode?.trim().toUpperCase() || null;
+  const citedParagraph = args.citedParagraph === undefined
+    ? null
+    : Math.trunc(args.citedParagraph);
+  if (citedParagraph !== null && citedParagraph < 1) {
+    throw new Error("cited_paragraph must be a positive integer");
+  }
+  if (courtCode && courtScope !== "all") {
+    throw new Error("court_code cannot be combined with a non-all court_scope");
+  }
   return withDatabase((database) => {
     const keys = keysForQuery(database, key);
     const placeholders = keys.map(() => "?").join(", ");
@@ -577,11 +574,17 @@ export function standsForProfile(args: {
          FROM edge
          JOIN case_doc ON case_doc.id = edge.case_id
          WHERE edge.cited_key IN (${placeholders})
+           ${citedParagraph === null ? "" : "AND instr(',' || edge.pinpoints || ',', ?) > 0"}
          GROUP BY edge.case_id
          ORDER BY (case_doc.date IS NULL), case_doc.date DESC, case_doc.id
          LIMIT ?`,
       )
-      .all(...keys, STANDS_FOR_CONSIDERED) as Row[];
+      .all(
+        ...keys,
+        ...(citedParagraph === null ? [] : [`,par${citedParagraph},`]),
+        STANDS_FOR_CONSIDERED,
+      )
+      .filter((group) => matchesCourt(group.court, courtScope, courtCode)) as Row[];
     let authorityList = 0;
     let insufficient = 0;
     const usable: Array<StandsForCandidate & { occurrences: number }> = [];
@@ -607,6 +610,7 @@ export function standsForProfile(args: {
         citingDate: (group.date as string | null) ?? null,
         paragraph:
           group.first_paragraph === null ? null : Number(group.first_paragraph),
+        pageLabel: null,
         spanSha256: createHash("sha256")
           .update(verdict.proseWindow, "utf8")
           .digest("hex"),
@@ -615,82 +619,29 @@ export function standsForProfile(args: {
         occurrences: Number(group.occurrences),
       });
     }
-    const commentary = commentaryCandidates(keys);
-    if (commentary) usable.push(...commentary.usable);
-    // Policies reorder the SAME usable set — the classifier gates and
-    // the cap are policy-independent, so only rank moves (H19).
+    const commentary = commentaryCandidates(keys, citedParagraph);
     const byDate = (
       a: (typeof usable)[number],
       b: (typeof usable)[number],
     ) =>
       (a.citingDate === null ? 1 : 0) - (b.citingDate === null ? 1 : 0) ||
       (b.citingDate ?? "").localeCompare(a.citingDate ?? "");
-    if (rankPolicy === "flat_recency") {
-      usable.sort(
-        (a, b) =>
-          byDate(a, b) ||
-          b.occurrences - a.occurrences ||
-          (b.citingLevel ?? 0) - (a.citingLevel ?? 0),
-      );
-    } else if (rankPolicy === "banded_recency") {
-      const topLevel = usable.reduce(
-        (top, candidate) => Math.max(top, candidate.citingLevel ?? 0),
-        0,
-      );
-      const band = (candidate: (typeof usable)[number]) =>
-        candidate.sourceKind === "commentary"
-          ? topLevel || 1
-          : (candidate.citingLevel ?? 0);
-      usable.sort(
-        (a, b) =>
-          band(b) - band(a) || byDate(a, b) || b.occurrences - a.occurrences,
-      );
-    } else if (rankPolicy === "scc_journal_first") {
-      // Production consult ordering (Eli 2026-08-04, refined after the
-      // real-corpus probe): the TWO top case-law characterizations come
-      // first, then journal commentary, then any remaining cases. The
-      // court-level BAND is primary — SCC (apex) before appellate before
-      // trial before tribunal, journal commentary sitting in the apex
-      // band's slot — and within a band, occurrence count is first (how
-      // often the citing case discusses the cited one: a crude stand-in
-      // for the DENSITY of discussion), then recency. A more sophisticated
-      // measure of how centrally each source discusses the cited case is
-      // a deliberate future improvement, not attempted here.
-      const caseCandidates = usable
-        .filter((candidate) => candidate.sourceKind === "case")
-        .sort(
-          (a, b) =>
-            (b.citingLevel ?? 0) - (a.citingLevel ?? 0) ||
-            b.occurrences - a.occurrences ||
-            byDate(a, b),
-        );
-      const commentaryCandidates = usable
-        .filter((candidate) => candidate.sourceKind === "commentary")
-        .sort((a, b) => byDate(a, b));
-      usable.splice(
-        0,
-        usable.length,
-        ...caseCandidates.slice(0, 2),
-        ...commentaryCandidates,
-        ...caseCandidates.slice(2),
-      );
-    } else {
-      usable.sort(
-        (a, b) =>
-          (b.citingLevel ?? 0) - (a.citingLevel ?? 0) ||
-          b.occurrences - a.occurrences ||
-          (b.citingDate ?? "").localeCompare(a.citingDate ?? ""),
-      );
-    }
-    const candidates = usable
+    const strip = ({ occurrences: _occurrences, ...candidate }:
+      StandsForCandidate & { occurrences: number }) => candidate;
+    const judicialDiscussion = usable
+      .sort((a, b) =>
+        (b.citingLevel ?? 0) - (a.citingLevel ?? 0) ||
+        b.occurrences - a.occurrences || byDate(a, b))
       .slice(0, cap)
-      .map(({ occurrences: _occurrences, ...candidate }) => candidate);
+      .map(strip);
+    const journalAnalysis = commentary
+      ? commentary.usable.sort(byDate).slice(0, cap).map(strip)
+      : null;
     return {
       citation: args.citation,
-      rankPolicy,
       totalCiters,
-      candidates,
-      tier: usable.length >= 3 ? "rich" : usable.length ? "thin" : "none",
+      judicialDiscussion,
+      journalAnalysis,
       excerptsConsidered: groups.length,
       excerptsRejected: { authorityList, insufficient },
       commentary: commentary

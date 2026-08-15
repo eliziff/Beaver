@@ -135,10 +135,9 @@ export interface EditResolveHandlers {
   onError?: (args: EditResolveError) => void;
 }
 export type AutomationToolName =
-  | "toa_submit_library_document"
-  | "toa_job_status"
-  | "library_fix_docx_supras"
-  | "library_link_docx_citations";
+  | "create_table_of_authorities"
+  | "fix_docx_supras"
+  | "link_docx_citations";
 export type AutomationRunEvent = {
   type: "automation_run";
   id: string;
@@ -374,7 +373,7 @@ export type AssistantEvent =
   | Streamable<{
       type: "subagent_run";
       id: string;
-      agent: "scout" | "planner" | "reviewer";
+      agent: "scout" | "planner" | "reviewer" | "native";
       task: string;
       model: string;
       effort: string;

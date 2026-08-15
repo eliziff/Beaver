@@ -27,13 +27,13 @@ export type DocumentAutomationTarget = {
     project_id?: string | null;
 };
 type Action = {
-    tool: Exclude<AutomationToolName, "toa_job_status">;
+    tool: AutomationToolName;
     icon: ComponentType<{ className?: string }>;
 };
 const ACTIONS: readonly Action[] = [
-    { tool: "toa_submit_library_document", icon: BookOpen },
-    { tool: "library_link_docx_citations", icon: Link2 },
-    { tool: "library_fix_docx_supras", icon: RefreshCw },
+    { tool: "create_table_of_authorities", icon: BookOpen },
+    { tool: "link_docx_citations", icon: Link2 },
+    { tool: "fix_docx_supras", icon: RefreshCw },
 ];
 function documentAutomationKind(
     document: DocumentAutomationTarget | null,
@@ -53,12 +53,12 @@ function docxRun(
     id: string,
     tool: Extract<
         AutomationToolName,
-        "library_fix_docx_supras" | "library_link_docx_citations"
+        "fix_docx_supras" | "link_docx_citations"
     >,
     result: DeterministicDocxActionResult,
 ): AutomationRunEvent {
     const counts =
-        tool === "library_fix_docx_supras"
+        tool === "fix_docx_supras"
             ? [
                   ["Found", result.detected],
                   ["Fixed", result.converted],
@@ -93,7 +93,7 @@ function authoritiesRun(
     return {
         type: "automation_run",
         id,
-        tool: "toa_submit_library_document",
+        tool: "create_table_of_authorities",
         status: job.state || "queued",
         stage: job.operation || "Submitted",
         progress: job.progress,
@@ -236,7 +236,7 @@ function DocumentAutomationMenu({
             document_id: document.id,
         });
         try {
-            if (tool === "toa_submit_library_document") {
+            if (tool === "create_table_of_authorities") {
                 publishAutomationRun(
                     authoritiesRun(
                         runId,
@@ -251,7 +251,7 @@ function DocumentAutomationMenu({
                 return;
             }
             const result =
-                tool === "library_fix_docx_supras"
+                tool === "fix_docx_supras"
                     ? await fixLibraryDocxSupras(document.id)
                     : await linkLibraryDocxCitations(document.id);
             publishAutomationRun(docxRun(runId, tool, result));
@@ -277,9 +277,9 @@ function DocumentAutomationMenu({
     }
     const actions = ACTIONS.filter(
         ({ tool }) =>
-            tool === "toa_submit_library_document" ||
+            tool === "create_table_of_authorities" ||
             (!pdf &&
-                (tool !== "library_fix_docx_supras" || menu?.showSupras)),
+                (tool !== "fix_docx_supras" || menu?.showSupras)),
     );
     return (
         <>

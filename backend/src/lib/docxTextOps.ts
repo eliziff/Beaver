@@ -15,7 +15,7 @@
  *   4. Emit the replacements as `EditInput[]` through the existing
  *      `applyTrackedEdits`, which produces native w:ins/w:del tracked
  *      changes (author "Beaver") with one accept/rejectable change per
- *      replacement — the same emission path as `library_revise_docx`.
+ *      replacement — the same emission path as `Edit`.
  */
 
 import diff from "fast-diff";

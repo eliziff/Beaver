@@ -2,6 +2,10 @@ import { Router, type Request, type Response } from "express";
 import { requireAuth } from "../middleware/auth";
 import { asyncRoute } from "../lib/asyncRoute";
 import { validateDocumentFile } from "../lib/documentTypes";
+import {
+  DocumentStoreError,
+  type DocumentStore,
+} from "../lib/documentStore";
 import type { LibraryScope, LibraryStore } from "../lib/libraryStore";
 import {
   normalizeDocumentFilename,
@@ -49,9 +53,11 @@ function libraryRoute(handler: Handler) {
         kind,
       });
     } catch (error) {
-      if (error instanceof LibraryRequestError || error instanceof PageCursorError) {
+      if (error instanceof LibraryRequestError ||
+          error instanceof DocumentStoreError ||
+          error instanceof PageCursorError) {
         return void res.status(
-          error instanceof LibraryRequestError ? error.status : 400,
+          error instanceof PageCursorError ? 400 : error.status,
         ).json({ detail: error.message });
       }
       console.error("[library] operation failed", error);
@@ -69,7 +75,7 @@ async function requireFolder(
   return await store.folder(scope, folderId) ?? reject(404, detail);
 }
 
-export function createLibraryRouter(store: LibraryStore) {
+export function createLibraryRouter(store: LibraryStore, documents: DocumentStore) {
   const router = Router();
   router.use(requireAuth);
 
@@ -107,7 +113,12 @@ export function createLibraryRouter(store: LibraryStore) {
       const file = req.file ?? reject(400, "file is required");
       const validated = validateDocumentFile(file.originalname, file.buffer);
       if (!validated.ok) throw new LibraryRequestError(400, validated.error);
-      res.status(201).json(await store.upload(scope, file, validated.fileType));
+      res.status(201).json(await documents.create(scope, {
+        filename: file.originalname,
+        fileType: validated.fileType,
+        bytes: file.buffer,
+        libraryKind: scope.kind,
+      }));
     }),
   );
 

@@ -24,6 +24,7 @@ import type {
   CourtlistenerToolEvent,
 } from "./tools/courtlistenerTools";
 import { findTextMatches } from "./tools/documentOps";
+import { resourceReference } from "../resourceReferences";
 
 type JsonRecord = Record<string, unknown>;
 type CourtlistenerCall = Pick<NormalizedToolCall, "name" | "input">;
@@ -310,7 +311,7 @@ async function queueCourtlistenerPdfFallback(
   );
   if (!userId || !caseRecord.pdfUrl || !needsFallback) return null;
   try {
-    return await queueProviderPdfAttachment({
+    const queued = await queueProviderPdfAttachment({
       provider: "courtlistener",
       identity: String(caseRecord.clusterId),
       structureSource: "flat_text",
@@ -321,6 +322,10 @@ async function queueCourtlistenerPdfFallback(
         caseRecord.citations[0] ||
         `CourtListener ${caseRecord.clusterId}`,
     });
+    return queued && {
+      ...queued,
+      resource: resourceReference.source("pdf", queued.reference_id),
+    };
   } catch {
     return null;
   }

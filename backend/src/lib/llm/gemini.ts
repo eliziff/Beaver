@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { FunctionCallingConfigMode, GoogleGenAI } from "@google/genai";
 import type {
   StreamChatParams,
   StreamChatResult,
@@ -169,6 +169,7 @@ export async function streamGemini(
   let inputTokens = 0;
   let outputTokens = 0;
   let reasoningTokens = 0;
+  let requiredToolCall: string[] = [];
   const trace = createLlmTrace({ provider: "gemini", model });
 
   try {
@@ -177,6 +178,19 @@ export async function streamGemini(
       const functionDeclarations = toGeminiTools(
         params.resolveTools?.() ?? tools,
       );
+      const declaredToolNames = new Set(
+        functionDeclarations.map(({ name }) => name),
+      );
+      const forcedNames = requiredToolCall;
+      requiredToolCall = [];
+      trace.record({
+        iteration: iter,
+        label: "request",
+        payload: {
+          tools: functionDeclarations.map(({ name }) => name),
+          forcedTools: forcedNames,
+        },
+      });
       let stream: AsyncIterable<unknown>;
       try {
         stream = await ai.models.generateContentStream({
@@ -186,6 +200,14 @@ export async function streamGemini(
             systemInstruction: systemPrompt,
             tools: functionDeclarations.length
               ? [{ functionDeclarations } as never]
+              : undefined,
+            toolConfig: forcedNames.length
+              ? {
+                  functionCallingConfig: {
+                    mode: FunctionCallingConfigMode.ANY,
+                    allowedFunctionNames: forcedNames,
+                  },
+                }
               : undefined,
             // When enabled, ask Gemini to surface thought summaries.
             // When disabled, explicitly zero the thinking budget so the
@@ -291,6 +313,11 @@ export async function streamGemini(
 
       const results = toolCalls.length && runTools
         ? await runTools(toolCalls)
+        : [];
+      requiredToolCall = params.resolveTools
+        ? toGeminiTools(params.resolveTools())
+            .map(({ name }) => name)
+            .filter((name) => !declaredToolNames.has(name))
         : [];
       throwIfAborted(params.abortSignal);
       if (results.some((result) => result.terminal)) break;

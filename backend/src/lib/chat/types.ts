@@ -1,5 +1,6 @@
 import type { LlmImage, LlmMessage } from "../llm/types";
 import type { EditDiffSegment } from "../docxTrackedChanges";
+import { parseResourceReference } from "../resourceReferences";
 
 const isDev = process.env.NODE_ENV !== "production";
 export const devLog = (...args: Parameters<typeof console.log>) => {
@@ -57,10 +58,21 @@ export function resolveDocLabel(
   docStore: DocStore,
   docIndex?: DocIndex,
 ): string | null {
-  if (docStore.has(rawId)) return rawId;
-  for (const [label, info] of docStore.entries()) {
-    if (info.filename === rawId) return label;
+  const resource = parseResourceReference(rawId);
+  if (resource?.kind === "document" && docIndex) {
+    for (const [label, info] of Object.entries(docIndex)) {
+      if (
+        info.document_id === resource.documentId &&
+        info.version_id === resource.versionId
+      ) return label;
+    }
+    return null;
   }
+  if (docStore.has(rawId)) return rawId;
+  const byFilename = [...docStore.entries()]
+    .filter(([, info]) => info.filename === rawId)
+    .map(([label]) => label);
+  if (byFilename.length === 1) return byFilename[0];
   if (docIndex) {
     for (const [label, info] of Object.entries(docIndex)) {
       if (info.document_id === rawId) return label;

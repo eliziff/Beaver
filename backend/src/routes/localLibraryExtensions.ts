@@ -22,6 +22,11 @@ import {
 import { getCodexModelCatalog } from "../lib/codexCatalog";
 import { asyncRoute } from "../lib/asyncRoute";
 import { normalizeLibraryKind as libraryKind } from "../lib/normalize";
+import { modelSupportsImageInput } from "../lib/llm";
+import type { LegalPdfLayoutConfig } from "../lib/legalPdfProcess";
+import { isAnonymousLocalMode } from "../lib/localMode";
+import { getUserModelSettings } from "../lib/userSettings";
+import { createServerSupabase } from "../lib/supabase";
 
 export const localLibraryExtensionsRouter = Router();
 
@@ -261,6 +266,33 @@ localLibraryExtensionsRouter.post(
     const requestedOcr =
       requestedOcrProvider === "tesseract" ||
       requestedOcrProvider === "kraken-lite";
+    const requestedLayoutProvider = req.body?.layout_provider;
+    if (
+      requestedLayoutProvider !== undefined &&
+      requestedLayoutProvider !== "none" &&
+      requestedLayoutProvider !== "local" &&
+      requestedLayoutProvider !== "mllm"
+    ) {
+      return void res.status(400).json({
+        detail: "layout_provider must be none, local, or mllm",
+      });
+    }
+    const requestedLayout = requestedLayoutProvider !== undefined;
+    let layout: LegalPdfLayoutConfig | null | undefined;
+    if (requestedLayoutProvider === "none") layout = null;
+    if (requestedLayoutProvider === "local") layout = { provider: "local" };
+    if (requestedLayoutProvider === "mllm") {
+      const model =
+        typeof req.body?.layout_model === "string"
+          ? req.body.layout_model.trim()
+          : "gpt-5.6-luna";
+      if (!modelSupportsImageInput(model)) {
+        return void res.status(400).json({
+          detail: "layout_model must be an available vision-capable model",
+        });
+      }
+      layout = { provider: "mllm", model };
+    }
     const repairBody = req.body?.repair;
     let requestedRepair:
       | {
@@ -314,7 +346,7 @@ localLibraryExtensionsRouter.post(
       }
     }
     const current =
-      requestedOcr || requestedRepair
+      requestedOcr || requestedRepair || requestedLayout
         ? await readLocalPdfParseState(file.path)
         : null;
     if (requestedOcr) {
@@ -333,6 +365,10 @@ localLibraryExtensionsRouter.post(
       });
     }
     try {
+      const apiKeys =
+        layout?.provider === "mllm" && !isAnonymousLocalMode()
+          ? (await getUserModelSettings(userId, createServerSupabase())).api_keys
+          : undefined;
       const state = await queueLocalPdfParse({
         documentId: req.params.documentId,
         versionId: file.version.id,
@@ -346,6 +382,8 @@ localLibraryExtensionsRouter.post(
           ? { ocrProvider: requestedOcrProvider }
           : {}),
         ...(requestedRepair ? { repair: requestedRepair } : {}),
+        ...(requestedLayout ? { layout } : {}),
+        ...(apiKeys ? { apiKeys } : {}),
       });
       res.status(202).json(state);
     } catch (error) {
@@ -353,6 +391,12 @@ localLibraryExtensionsRouter.post(
         return void res.status(503).json({
           detail:
             "Structural repair could not start. Check the local Codex installation and retry.",
+        });
+      }
+      if (requestedLayout) {
+        return void res.status(503).json({
+          detail:
+            "PDF layout analysis could not start. Check the selected model and local runtime or provider credentials.",
         });
       }
       if (!requestedOcr) throw error;

@@ -16,6 +16,7 @@ import { uploadStandaloneDocument } from "@/app/lib/beaverApi";
 import { formatUnsupportedDocumentWarning, partitionSupportedDocumentFiles } from "@/app/lib/documentUploadValidation";
 import { CHAT_DOCUMENT_DRAG_TYPE } from "@/app/components/documents/documentTree";
 import { useShowAutoMode } from "./editModePreference";
+import { useShowContextUsage } from "./displayPreferences";
 type Workflow = NonNullable<Message["workflow"]>;
 
 function mergeDocuments(...groups: Document[][]) {
@@ -92,6 +93,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     const [model, setModel] = useSelectedModel();
     const [reasoningEffort, setReasoningEffort] = useSelectedReasoningEffort();
     const showAutoMode = useShowAutoMode();
+    const showContextUsage = useShowContextUsage();
     const [editMode, setEditMode] = useState<"manual" | "auto">("manual");
     const { profile } = useUserProfile();
     const apiKeys = profile?.apiKeys;
@@ -369,6 +371,26 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                             className="min-h-10 w-full max-h-48 resize-none overflow-y-auto border-0 bg-transparent p-0 text-base leading-6 outline-none [field-sizing:content] placeholder:text-gray-600"
                         />
                     </div>
+                    {showContextUsage && contextUsage && (
+                        <div
+                            className="flex items-center justify-end gap-1.5 px-4 pb-1 text-[11px] text-gray-500"
+                            role={contextUsage.compacting ? "status" : undefined}
+                        >
+                            <span>
+                                {contextUsage.compacting
+                                    ? "Compacting context"
+                                    : `Context ${Math.min(100, Math.round((100 * contextUsage.usedTokens) / Math.max(1, contextUsage.windowTokens)))}%`}
+                            </span>
+                            <progress
+                                className="h-1 w-16 accent-red-600"
+                                max={contextUsage.windowTokens}
+                                {...(!contextUsage.compacting && {
+                                    value: Math.min(contextUsage.usedTokens, contextUsage.windowTokens),
+                                })}
+                                aria-label={contextUsage.compacting ? "Compacting context" : "Context window usage"}
+                            />
+                        </div>
+                    )}
                     <div className="flex flex-wrap items-center gap-1 p-2 md:p-2.5">
                         {showContextTools && (
                             <div className="chat-input-context-tools flex items-center gap-1">
@@ -452,39 +474,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                             </div>
                         )}
                         <div className="chat-input-actions ml-auto flex min-w-0 items-center justify-end gap-1">
-                            {contextUsage && (
-                                <div
-                                    className="mr-1 flex items-center gap-1.5 text-[11px] text-gray-500"
-                                    role={contextUsage.compacting ? "status" : undefined}
-                                >
-                                    <span className="hidden lg:inline">
-                                        {contextUsage.compacting
-                                            ? "Compacting context"
-                                            : `Context ${Math.min(
-                                                  100,
-                                                  Math.round(
-                                                      (100 * contextUsage.usedTokens) /
-                                                          Math.max(1, contextUsage.windowTokens),
-                                                  ),
-                                              )}%`}
-                                    </span>
-                                    <progress
-                                        className="h-1 w-16 accent-gray-700"
-                                        max={contextUsage.windowTokens}
-                                        {...(!contextUsage.compacting && {
-                                            value: Math.min(
-                                                contextUsage.usedTokens,
-                                                contextUsage.windowTokens,
-                                            ),
-                                        })}
-                                        aria-label={
-                                            contextUsage.compacting
-                                                ? "Compacting context"
-                                                : "Context window usage"
-                                        }
-                                    />
-                                </div>
-                            )}
                             {showAutoMode && (
                                 <div
                                     role="group"
@@ -523,7 +512,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                     apiKeys={apiKeys}
                                 />
                             </div>
-                            {isLoading && (
+                            {isLoading ? (
                                 <button
                                     type="button"
                                     className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] text-gray-600 hover:bg-gray-100 hover:text-gray-950"
@@ -532,15 +521,16 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                 >
                                     <Square className="h-3.5 w-3.5" fill="currentColor" strokeWidth={0} />
                                 </button>
-                            )}
+                            ) : (
                             <button
                                 type="submit"
                                 className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-brand text-white hover:bg-brand-dark disabled:cursor-default disabled:bg-gray-300"
-                                aria-label={isLoading ? "Steer response" : "Send message"}
+                                aria-label="Send message"
                                 disabled={!hasValue || contextUsage?.compacting}
                             >
                                 <ArrowRight className="h-4 w-4" />
                             </button>
+                            )}
                         </div>
                     </div>
                 </form>

@@ -1,6 +1,4 @@
-import { downloadFile, generatedDocKey, uploadFile } from "../../storage";
-import { convertedPdfKey, docxToPdf } from "../../convert";
-import { createServerSupabase } from "../../supabase";
+import { docxToPdf } from "../../convert";
 import {
   applyTrackedEdits,
   extractDocxBodyText,
@@ -8,41 +6,29 @@ import {
   type EditMode,
   type EditInput,
 } from "../../docxTrackedChanges";
-import { buildDownloadUrl } from "../../downloadTokens";
-import { loadActiveVersion } from "../../documentVersions";
+import { type EditAnnotation } from "../types";
 import {
-  type DocStore,
-  type DocIndex,
-  type EditAnnotation,
-  devLog,
-} from "../types";
-import {
-  contentTypeForDocumentType,
   isPresentationDocumentType,
   isSpreadsheetDocumentType,
   isWordDocumentType,
-  shouldConvertToPdf,
 } from "../../documentTypes";
 import { extractPresentationText } from "../../officeText";
 import { spreadsheetToLLMText } from "../../spreadsheet";
-import { extractDocxDraftingSource } from "../../docxDraftingSource";
 import { isPlainTextDocumentType } from "../../documentTypes";
 import { extractEmailText } from "../../emailText";
 import { cachedParse } from "../../parseCache";
-import {
-  docxCautionNotes,
-  docxNotesBlock,
-  docxPathologyReportFor,
-  REDLINE_VIEW_LEGEND,
-} from "./docxPathologyNotes";
-import { projectDocxRedline } from "../../docx/redline";
+import { docxPathologyReportFor } from "./docxPathologyNotes";
 import {
   normalizeDocxControlTag,
   renderDocxMarkdown,
-  type DocxCitation,
   type RenderDocxMarkdownOptions,
 } from "./docxMarkdown";
 import { extractLegalPdfText } from "../../legalPdfSourceDoc";
+import type {
+  AssistantEdit,
+  DocumentScope,
+  DocumentStore,
+} from "../../documentStore";
 
 export function citationReminder(docLabel: string, filename: string): string {
   return [
@@ -260,45 +246,6 @@ export async function renderMarkdownDocx(
   }
 }
 
-export async function generateDocx(
-  title: string,
-  content: {
-    markdown: string;
-    fields?: unknown;
-    citations?: Readonly<Record<string, DocxCitation>>;
-  },
-  userId: string,
-  db: ReturnType<typeof createServerSupabase>,
-  options?: Omit<RenderDocxMarkdownOptions, "title" | "values" | "citations"> & {
-    projectId?: string | null;
-  },
-) {
-  const rendered = await renderMarkdownDocx(
-    title,
-    content.markdown,
-    content.fields,
-    { ...options, citations: content.citations },
-  );
-  if ("error" in rendered) return rendered;
-
-  // Persist to DB so generated docs are first-class documents: openable in
-  // the DocPanel and editable via edit_document. In project chats we attach
-  // to the project so it appears in the sidebar; in the general chat
-  // project_id stays null and it remains a standalone document.
-  try {
-    return await persistGeneratedFile({
-      title,
-      extension: "docx",
-      buffer: rendered.bytes,
-      userId,
-      db,
-      projectId: options?.projectId ?? null,
-    });
-  } catch (e) {
-    return { error: String(e) };
-  }
-}
-
 export function safeGeneratedFilename(title: string, extension: string) {
   const rawTitle = typeof title === "string" ? title : "document";
   const suffix = `.${extension}`;
@@ -412,7 +359,7 @@ function pptShape(
 </p:sp>`;
 }
 
-async function buildPptxPresentation(title: string, slidesInput: unknown[]) {
+export async function buildPptxPresentation(title: string, slidesInput: unknown[]) {
   const JSZip = (await import("jszip")).default;
   const zip = new JSZip();
   const rawSlides = slidesInput.length
@@ -575,190 +522,13 @@ ${slides
   return zip.generateAsync({ type: "nodebuffer" });
 }
 
-async function persistGeneratedFile(params: {
-  title: string;
-  extension: "docx" | "xlsx" | "pptx";
-  buffer: Buffer;
-  userId: string;
-  db: ReturnType<typeof createServerSupabase>;
-  projectId?: string | null;
-}) {
-  const { title, extension, buffer, userId, db, projectId } = params;
-  const docId = crypto.randomUUID().replace(/-/g, "");
-  const filename = safeGeneratedFilename(title, extension);
-  const key = generatedDocKey(userId, docId, filename);
-  await uploadFile(
-    key,
-    buffer.buffer.slice(
-      buffer.byteOffset,
-      buffer.byteOffset + buffer.byteLength,
-    ) as ArrayBuffer,
-    contentTypeForDocumentType(extension),
-  );
-
-  let pdfStoragePath: string | null = null;
-  if (shouldConvertToPdf(extension)) {
-    try {
-      const pdfBuf = await docxToPdf(buffer);
-      const pdfKey = convertedPdfKey(userId, docId);
-      await uploadFile(
-        pdfKey,
-        pdfBuf.buffer.slice(
-          pdfBuf.byteOffset,
-          pdfBuf.byteOffset + pdfBuf.byteLength,
-        ) as ArrayBuffer,
-        "application/pdf",
-      );
-      pdfStoragePath = pdfKey;
-    } catch (err) {
-      devLog(`[generate_${extension}] Office→PDF conversion failed:`, err);
-    }
-  }
-
-  const downloadUrl = buildDownloadUrl(key, filename);
-  const { data: docRow, error: docErr } = await db
-    .from("documents")
-    .insert({
-      project_id: projectId ?? null,
-      user_id: userId,
-      status: "ready",
-    })
-    .select("id")
-    .single();
-  if (docErr || !docRow) {
-    return {
-      error: `Failed to record generated document: ${docErr?.message ?? "unknown"}`,
-    };
-  }
-  const documentId = docRow.id as string;
-
-  const { data: versionRow, error: verErr } = await db
-    .from("document_versions")
-    .insert({
-      document_id: documentId,
-      storage_path: key,
-      pdf_storage_path: pdfStoragePath,
-      source: "generated",
-      version_number: 1,
-      filename,
-      file_type: extension,
-      size_bytes: buffer.byteLength,
-      page_count: null,
-    })
-    .select("id")
-    .single();
-  if (verErr || !versionRow) {
-    return {
-      error: `Failed to record generated document version: ${verErr?.message ?? "unknown"}`,
-    };
-  }
-  const versionId = versionRow.id as string;
-
-  await db
-    .from("documents")
-    .update({ current_version_id: versionId })
-    .eq("id", documentId);
-
-  return {
-    filename,
-    download_url: downloadUrl,
-    document_id: documentId,
-    version_id: versionId,
-    version_number: 1,
-    storage_path: key,
-    message: `Document '${filename}' has been generated successfully.`,
-  };
-}
-
-export async function generateExcel(
-  title: string,
-  sheets: unknown[],
-  userId: string,
-  db: ReturnType<typeof createServerSupabase>,
-  options?: { projectId?: string | null },
-) {
-  try {
-    const normalizedTitle = typeof title === "string" ? title : "Workbook";
-    const buffer = await renderXlsxWorkbook(
-      normalizedTitle,
-      Array.isArray(sheets) ? sheets : [],
-    );
-    return persistGeneratedFile({
-      title: normalizedTitle,
-      extension: "xlsx",
-      buffer,
-      userId,
-      db,
-      projectId: options?.projectId ?? null,
-    });
-  } catch (e) {
-    return { error: String(e) };
-  }
-}
-
-export async function generatePpt(
-  title: string,
-  slides: unknown[],
-  userId: string,
-  db: ReturnType<typeof createServerSupabase>,
-  options?: { projectId?: string | null },
-) {
-  try {
-    const normalizedTitle = typeof title === "string" ? title : "Presentation";
-    const buffer = await buildPptxPresentation(
-      normalizedTitle,
-      Array.isArray(slides) ? slides : [],
-    );
-    return persistGeneratedFile({
-      title: normalizedTitle,
-      extension: "pptx",
-      buffer,
-      userId,
-      db,
-      projectId: options?.projectId ?? null,
-    });
-  } catch (e) {
-    return { error: String(e) };
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Document version helpers (DOCX tracked-change editing)
-// ---------------------------------------------------------------------------
-
-/**
- * Resolve the current .docx bytes for a document, preferring the active
- * tracked-changes version if one exists, else the original upload.
- */
-async function loadCurrentVersionBytes(
-  documentId: string,
-  db: ReturnType<typeof createServerSupabase>,
-): Promise<{
-  bytes: Buffer;
-  storage_path: string;
-  version_id: string;
-  version_number: number | null;
-  file_type: string | null;
-} | null> {
-  const active = await loadActiveVersion(documentId, db);
-  if (!active) return null;
-  const raw = await downloadFile(active.storage_path);
-  if (!raw) return null;
-  return {
-    bytes: Buffer.from(raw),
-    storage_path: active.storage_path,
-    version_id: active.id,
-    version_number: active.version_number,
-    file_type: active.file_type,
-  };
-}
-
 export async function runEditDocument(params: {
+  documents: DocumentStore;
+  scope: DocumentScope;
   documentId: string;
-  userId: string;
   edits: EditInput[];
-  db: ReturnType<typeof createServerSupabase>;
   editMode?: EditMode;
+  annotate?: boolean;
   /**
    * If provided, append these edits to the existing turn-scoped version
    * (overwrites the file at storagePath and reuses the document_versions
@@ -768,8 +538,9 @@ export async function runEditDocument(params: {
    */
   reuseVersion?: {
     versionId: string;
-    versionNumber: number;
-    storagePath: string;
+    versionNumber?: number;
+    storagePath?: string;
+    parentVersionId: string;
   };
 }): Promise<
   | {
@@ -781,33 +552,33 @@ export async function runEditDocument(params: {
       edit_mode: EditMode;
       annotations: EditAnnotation[];
       errors: { index: number; reason: string }[];
+      comment_count: number;
     }
   | { ok: false; error: string }
 > {
   const {
+    documents,
+    scope,
     documentId,
-    userId,
     edits,
-    db,
     reuseVersion,
     editMode = "manual",
+    annotate = false,
   } = params;
-
-  const { data: doc } = await db
-    .from("documents")
-    .select("id")
-    .eq("id", documentId)
-    .single();
-  if (!doc) return { ok: false, error: "Document not found." };
-
-  const activeVersion = await loadActiveVersion(documentId, db);
-  let versionFilename = activeVersion?.filename?.trim() || "Untitled document";
-
-  const current = await loadCurrentVersionBytes(documentId, db);
+  const current = await documents.read(
+    scope,
+    documentId,
+    reuseVersion?.versionId ?? null,
+    false,
+  );
   if (!current) return { ok: false, error: "Could not load document bytes." };
+  if (current.fileType !== "docx") {
+    return { ok: false, error: "Edit only supports .docx files." };
+  }
 
   const applied = await applyTrackedEdits(current.bytes, edits, {
     author: "Beaver",
+    annotate,
   });
   const { changes, errors } = applied;
 
@@ -829,434 +600,83 @@ export async function runEditDocument(params: {
     ),
     editMode,
   );
-  const editedBytes = finalized.bytes;
-
-  const ab = editedBytes.buffer.slice(
-    editedBytes.byteOffset,
-    editedBytes.byteOffset + editedBytes.byteLength,
-  ) as ArrayBuffer;
-
-  let versionRowId: string;
-  let newPath: string;
-  let nextVersionNumber: number;
-
-  if (reuseVersion) {
-    // Overwrite the existing turn version's file in place. The version
-    // row, version_number, and current_version_id all already point here.
-    newPath = reuseVersion.storagePath;
-    versionRowId = reuseVersion.versionId;
-    nextVersionNumber = reuseVersion.versionNumber;
-    await uploadFile(
-      newPath,
-      ab,
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    );
-    await db
-      .from("document_versions")
-      .update({
-        file_type: "docx",
-        size_bytes: editedBytes.byteLength,
-        page_count: null,
-      })
-      .eq("id", versionRowId);
-  } else {
-    const versionId = crypto.randomUUID().replace(/-/g, "");
-    newPath = `documents/${userId}/${documentId}/edits/${versionId}.docx`;
-    await uploadFile(
-      newPath,
-      ab,
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    );
-
-    // Per-document sequential number for the new assistant_edit
-    // version. The counter spans upload + user_upload + assistant_edit
-    // so the original upload is V1 and the first assistant edit is V2.
-    const { data: maxRow } = await db
-      .from("document_versions")
-      .select("version_number")
-      .eq("document_id", documentId)
-      .in("source", ["upload", "user_upload", "assistant_edit"])
-      .order("version_number", { ascending: false, nullsFirst: false })
-      .limit(1)
-      .maybeSingle();
-    nextVersionNumber = ((maxRow?.version_number as number | null) ?? 1) + 1;
-
+  {
     // Inherit the filename from the most recent prior version so
     // user-applied renames carry forward through further edits. Malformed
     // legacy rows without a filename get a neutral placeholder, not the
     // parent document filename. We intentionally do NOT append "[Edited Vn]"
     // — the version number is surfaced separately as a tag in the UI.
-    const { data: prevRow } = await db
-      .from("document_versions")
-      .select("filename, created_at")
-      .eq("document_id", documentId)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const inheritedFilename =
-      (prevRow?.filename as string | null)?.trim() || "Untitled document";
-    versionFilename = inheritedFilename;
-
-    const { data: versionRow, error: verErr } = await db
-      .from("document_versions")
-      .insert({
-        document_id: documentId,
-        storage_path: newPath,
-        source: "assistant_edit",
-        version_number: nextVersionNumber,
-        filename: inheritedFilename,
-        file_type: "docx",
-        size_bytes: editedBytes.byteLength,
-        page_count: null,
-      })
-      .select("id")
-      .single();
-    if (verErr || !versionRow) {
-      return { ok: false, error: "Failed to record document version." };
-    }
-    versionRowId = versionRow.id as string;
   }
 
-  // Insert one row per change
-  const editRows = changes.map((c) => ({
-    document_id: documentId,
-    version_id: versionRowId,
-    change_id: c.id,
-    del_w_id: c.delId ?? null,
-    ins_w_id: c.insId ?? null,
-    deleted_text: c.deletedText,
-    inserted_text: c.insertedText,
-    context_before: c.contextBefore ?? "",
-    context_after: c.contextAfter ?? "",
+  const stored = await documents.commitAssistantVersion(scope, documentId, {
+    sourceVersionId: current.version.id,
+    ...(reuseVersion ? { turnVersionId: reuseVersion.versionId } : {}),
+    parentVersionId: reuseVersion?.parentVersionId ?? current.version.id,
+    filename: current.version.filename ?? current.filename,
+    bytes: finalized.bytes,
+    edits: changes.map((change): AssistantEdit => ({
+      changeId: change.id,
+      delWId: change.delId,
+      insWId: change.insId,
+      deletedText: change.deletedText,
+      insertedText: change.insertedText,
+      contextBefore: change.contextBefore ?? "",
+      contextAfter: change.contextAfter ?? "",
+      reason: change.reason,
+      diff: change.diff,
+    })),
     status: finalized.status,
-    ...(finalized.status === "accepted"
-      ? { resolved_at: new Date().toISOString() }
-      : {}),
-  }));
-  const { data: insertedEdits, error: editsErr } = await db
-    .from("document_edits")
-    .insert(editRows)
-    .select(
-      "id, change_id, del_w_id, ins_w_id, deleted_text, inserted_text, context_before, context_after",
-    );
-
-  if (editsErr || !insertedEdits) {
-    return { ok: false, error: "Failed to record edits." };
+  });
+  if (stored.status !== "committed") {
+    return {
+      ok: false,
+      error: stored.status === "missing"
+        ? "Document not found."
+        : "The active document version changed.",
+    };
   }
-
-  await db
-    .from("documents")
-    .update({
-      current_version_id: versionRowId,
-    })
-    .eq("id", documentId);
-
-  const annotations: EditAnnotation[] = insertedEdits.map(
-    (r: {
-      id: string;
-      change_id: string;
-      deleted_text: string;
-      inserted_text: string;
-      context_before: string | null;
-      context_after: string | null;
-    }) => {
-      const src = changes.find((c) => c.id === r.change_id);
-      return {
-        kind: "edit",
-        edit_id: r.id,
-        document_id: documentId,
-        version_id: versionRowId,
-        version_number: nextVersionNumber,
-        change_id: r.change_id,
-        del_w_id: src?.delId,
-        ins_w_id: src?.insId,
-        deleted_text: r.deleted_text ?? "",
-        inserted_text: r.inserted_text ?? "",
-        context_before: r.context_before ?? "",
-        context_after: r.context_after ?? "",
-        reason: src?.reason,
-        diff: src?.diff ?? [],
-        status: finalized.status,
-      };
-    },
-  );
-
-  // Persistent, non-expiring permalink. The backend streams fresh bytes
-  // on each request, so this URL stays valid as long as the file exists.
-  const resolvedFilename = versionFilename.trim() || "Untitled document.docx";
-  const permalink = buildDownloadUrl(newPath, resolvedFilename);
+  const version = stored.version;
+  const versionNumber = version.version_number ?? reuseVersion?.versionNumber;
+  if (!versionNumber) {
+    return { ok: false, error: "The saved version has no version number." };
+  }
+  const annotations: EditAnnotation[] = stored.edits.map((edit) => ({
+    kind: "edit",
+    edit_id: edit.id,
+    document_id: documentId,
+    version_id: version.id,
+    version_number: versionNumber,
+    change_id: edit.changeId,
+    del_w_id: edit.delWId,
+    ins_w_id: edit.insWId,
+    deleted_text: edit.deletedText,
+    inserted_text: edit.insertedText,
+    context_before: edit.contextBefore,
+    context_after: edit.contextAfter,
+    reason: edit.reason,
+    diff: edit.diff,
+    status: edit.status,
+  }));
 
   return {
     ok: true,
-    version_id: versionRowId,
-    version_number: nextVersionNumber,
-    storage_path: newPath,
-    download_url: permalink,
+    version_id: version.id,
+    version_number: versionNumber,
+    storage_path: version.storage_path ?? reuseVersion?.storagePath ?? "",
+    download_url:
+      `/single-documents/${encodeURIComponent(documentId)}/file` +
+      `?version_id=${encodeURIComponent(version.id)}`,
     edit_mode: editMode,
     annotations,
     errors,
+    comment_count: applied.comments,
   };
-}
-
-// ---------------------------------------------------------------------------
-// Tool dispatch
-// ---------------------------------------------------------------------------
-
-export async function getTurnReadIdentity(params: {
-  docLabel: string;
-  docStore: DocStore;
-  docIndex?: DocIndex;
-  db?: ReturnType<typeof createServerSupabase>;
-}): Promise<{
-  key: string;
-  docLabel: string;
-  filename: string;
-  documentId?: string;
-  versionId?: string | null;
-  storagePath: string;
-} | null> {
-  const { docLabel, docStore, docIndex, db } = params;
-  const docInfo = docStore.get(docLabel);
-  if (!docInfo) return null;
-
-  const documentId = docIndex?.[docLabel]?.document_id;
-  if (documentId && db) {
-    const active = await loadActiveVersion(documentId, db);
-    if (active?.storage_path) {
-      return {
-        key: `${documentId}:${active.id}`,
-        docLabel,
-        filename: docInfo.filename,
-        documentId,
-        versionId: active.id,
-        storagePath: active.storage_path,
-      };
-    }
-  }
-
-  return {
-    key: `${documentId ?? docLabel}:${docInfo.storage_path}`,
-    docLabel,
-    filename: docInfo.filename,
-    documentId,
-    versionId: docIndex?.[docLabel]?.version_id ?? null,
-    storagePath: docInfo.storage_path,
-  };
-}
-
-export function duplicateReadDocumentResult(identity: {
-  docLabel: string;
-  filename: string;
-  documentId?: string;
-  versionId?: string | null;
-}) {
-  return JSON.stringify({
-    ok: true,
-    already_read: true,
-    doc_id: identity.docLabel,
-    filename: identity.filename,
-    document_id: identity.documentId,
-    version_id: identity.versionId ?? null,
-    content:
-      "Already read earlier in this response; the text is not repeated. Use the prior result or find_in_document.",
-  });
-}
-
-export function clearTurnReadsForDocument(
-  turnReadState: TurnReadState | undefined,
-  documentId: string,
-) {
-  if (!turnReadState) return;
-  for (const [key, value] of turnReadState.entries()) {
-    if (value.documentId === documentId) turnReadState.delete(key);
-  }
-}
-
-export async function readDocumentContent(
-  docLabel: string,
-  docStore: DocStore,
-  emit: (payload: unknown) => void,
-  docIndex?: DocIndex,
-  db?: ReturnType<typeof createServerSupabase>,
-  opts?: {
-    emitEvents?: boolean;
-    mode?: "text" | "drafting" | "redline";
-    /**
-     * Text mode prefixes the pathology sniffer's cautions as a labeled
-     * block. Callers that consume the return value as a search corpus
-     * (find_in_document) pass false so offsets anchor into pure text.
-     */
-    includeNotes?: boolean;
-    /** Exact source plane actually returned, before host notes/envelopes. */
-    captureSource?: (source: {
-      text: string;
-      projection: "canonical" | "drafting" | "redline";
-    }) => void;
-  },
-): Promise<string> {
-  const emitEvents = opts?.emitEvents ?? true;
-  const mode = opts?.mode ?? "text";
-  const docInfo = docStore.get(docLabel);
-  if (!docInfo) return "Document not found.";
-
-  const documentId = docIndex?.[docLabel]?.document_id;
-  const emitDocRead = () => {
-    if (!emitEvents) return;
-    emit({
-      type: "doc_read",
-      filename: docInfo.filename,
-      document_id: documentId,
-    });
-  };
-  if (emitEvents)
-    emit({
-      type: "doc_read_start",
-      filename: docInfo.filename,
-      document_id: documentId,
-    });
-  try {
-    // Prefer the current tracked-changes version (if any) so read_document
-    // reflects accepted/pending edits rather than the original upload.
-    let raw: ArrayBuffer | null = null;
-    let versionId = docIndex?.[docLabel]?.version_id ?? null;
-    let versionNumber = docIndex?.[docLabel]?.version_number ?? null;
-    let activeFileType = docInfo.file_type;
-    let currentVersionLoaded = false;
-    if (documentId && db) {
-      const current = await loadCurrentVersionBytes(documentId, db);
-      if (current) {
-        currentVersionLoaded = true;
-        raw = current.bytes.buffer.slice(
-          current.bytes.byteOffset,
-          current.bytes.byteOffset + current.bytes.byteLength,
-        ) as ArrayBuffer;
-        versionId = current.version_id;
-        versionNumber = current.version_number;
-        activeFileType = current.file_type ?? activeFileType;
-      }
-    }
-    if (mode === "drafting" && documentId && db && !currentVersionLoaded) {
-      emitDocRead();
-      return JSON.stringify({
-        ok: false,
-        error: "The active DOCX version could not be read",
-      });
-    }
-    if (!raw) raw = await downloadFile(docInfo.storage_path);
-    if (!raw) {
-      emitDocRead();
-      return "Document could not be read.";
-    }
-    const fileType = activeFileType?.toLowerCase?.() ?? "";
-    if (mode === "drafting") {
-      if (fileType !== "docx") {
-        emitDocRead();
-        return JSON.stringify({
-          ok: false,
-          error: "Drafting mode requires an active DOCX version",
-        });
-      }
-      if (!documentId || !versionId) {
-        emitDocRead();
-        return JSON.stringify({
-          ok: false,
-          error: "Drafting mode requires a version-bound document",
-        });
-      }
-      const source = await extractDocxDraftingSource(Buffer.from(raw));
-      opts?.captureSource?.({ text: source.markdown, projection: "drafting" });
-      emitDocRead();
-      return JSON.stringify({
-        ok: true,
-        filename: docInfo.filename,
-        document_id: documentId,
-        version_id: versionId,
-        version_number: versionNumber,
-        ...source,
-      });
-    }
-    if (mode === "redline") {
-      // Opt-in read view (3i-2): editorial content projected as markers.
-      // Edit paths keep anchoring against the default text.
-      if (fileType !== "docx") {
-        emitDocRead();
-        return JSON.stringify({
-          ok: false,
-          error: "Redline view requires a DOCX document",
-        });
-      }
-      const projection = await projectDocxRedline(Buffer.from(raw));
-      opts?.captureSource?.({ text: projection.text, projection: "redline" });
-      emitDocRead();
-      return JSON.stringify({
-        ok: true,
-        filename: docInfo.filename,
-        document_id: documentId,
-        version_id: versionId,
-        version_number: versionNumber,
-        view: "redline",
-        marker_legend: REDLINE_VIEW_LEGEND,
-        text: projection.text,
-        counts: projection.counts,
-        ...(projection.notes.length ? { notes: projection.notes } : {}),
-      });
-    }
-    const parser = textParserFor(fileType) ?? {
-      parser: "mammoth-raw",
-      version: 1,
-      run: mammothRawText,
-    };
-    const bytes = Buffer.from(raw);
-    // Scoped to the owning document so matter content never crosses scopes.
-    const scope = `doc:${documentId ?? docInfo.storage_path}`;
-    const text = await cachedParse({
-      scope,
-      parser: parser.parser,
-      version: parser.version,
-      bytes,
-      parse: () => parser.run(bytes),
-    });
-    opts?.captureSource?.({ text, projection: "canonical" });
-    // Additive metadata only: the extracted text stays byte-identical and
-    // the sniffer's cautions announce themselves ahead of it.
-    const cautions =
-      opts?.includeNotes === false
-        ? []
-        : docxCautionNotes(
-            await docxPathologyReportFor({ fileType, scope, bytes }),
-          );
-    emitDocRead();
-    return cautions.length
-      ? `${docxNotesBlock(docInfo.filename, cautions)}\n\n${text}`
-      : text;
-  } catch (err) {
-    devLog(`[read_document] failed for "${docInfo.filename}":`, err);
-    if (emitEvents)
-      emit({ type: "doc_read", filename: docInfo.filename });
-    if (mode === "drafting") {
-      const message = err instanceof Error ? err.message : "";
-      return JSON.stringify({
-        ok: false,
-        error: /^(?:Precedent|Drafting mode)/u.test(message)
-          ? message
-          : "Drafting source could not be read",
-      });
-    }
-    if (mode === "redline") {
-      return JSON.stringify({
-        ok: false,
-        error: "Redline view could not be read",
-      });
-    }
-    return "Document could not be read.";
-  }
 }
 
 /**
  * Build a whitespace-collapsed, lowercased copy of `text`, plus a map from
  * each character index in the normalized form back to the corresponding
- * index in the original text. Used by `findInDocumentContent` so matches
- * are tolerant of case + whitespace variance but can still return the
+ * index in the original text, keeping tolerant matches anchored to the
  * exact original excerpt.
  */
 function normalizeWithMap(text: string): { norm: string; origIdx: number[] } {
@@ -1351,147 +771,3 @@ export function boundedParagraphTail(
     ? { text: tail, start: end, end: tailEnd }
     : null;
 }
-
-/**
- * Ctrl+F helper. Returns a JSON-serializable result with up to `maxResults`
- * hits, each containing the original-text excerpt plus surrounding context.
- */
-export async function findInDocumentContent(params: {
-  docLabel: string;
-  query: string;
-  maxResults?: number;
-  contextChars?: number;
-  docStore: DocStore;
-  emit: (payload: unknown) => void;
-  docIndex?: DocIndex;
-  db?: ReturnType<typeof createServerSupabase>;
-}): Promise<string> {
-  const {
-    docLabel,
-    query,
-    maxResults = 20,
-    contextChars = 80,
-    docStore,
-    emit,
-    docIndex,
-    db,
-  } = params;
-
-  if (!query || !query.trim()) {
-    return JSON.stringify({ ok: false, error: "Empty query." });
-  }
-
-  const docInfo = docStore.get(docLabel);
-  if (!docInfo) {
-    return JSON.stringify({
-      ok: false,
-      error: `Document '${docLabel}' not found.`,
-    });
-  }
-
-  // Announce the search to the UI, then reuse readDocumentContent for its
-  // fallbacks — but suppress its own doc_read events so the user only sees
-  // the doc_find block (not a competing doc_read block for the same op).
-  emit({
-    type: "doc_find_start",
-    filename: docInfo.filename,
-    query,
-  });
-
-  const text = await readDocumentContent(
-    docLabel,
-    docStore,
-    emit,
-    docIndex,
-    db,
-    // Pure text: hit offsets must anchor into the parse output, not a
-    // notes block.
-    { emitEvents: false, includeNotes: false },
-  );
-  if (!text || text === "Document could not be read.") {
-    emit({
-      type: "doc_find",
-      filename: docInfo.filename,
-      query,
-      total_matches: 0,
-    });
-    return JSON.stringify({
-      ok: false,
-      filename: docInfo.filename,
-      error: "Document could not be read.",
-    });
-  }
-
-  const { hits, totalMatches } = findTextMatches({
-    text,
-    query,
-    maxResults,
-    contextChars,
-  });
-  const completedHits =
-    totalMatches === 1 && /\.docx$/iu.test(docInfo.filename) && hits.length === 1
-      ? hits.map((hit) => {
-          const tail = boundedParagraphTail(
-            text,
-            hit.at + hit.excerpt.length,
-          );
-          return tail ? { ...hit, paragraph_tail: tail.text } : hit;
-        })
-      : hits;
-
-  emit({
-    type: "doc_find",
-    filename: docInfo.filename,
-    query,
-    total_matches: totalMatches,
-  });
-
-  return JSON.stringify({
-    ok: true,
-    filename: docInfo.filename,
-    query,
-    total_matches: totalMatches,
-    returned: completedHits.length,
-    truncated: totalMatches > completedHits.length,
-    hits: completedHits,
-  });
-}
-
-export type DocEditedResult = {
-  filename: string;
-  document_id: string;
-  version_id: string;
-  version_number: number | null;
-  download_url: string;
-  edit_mode: EditMode;
-  annotations: EditAnnotation[];
-};
-
-export type TurnEditState = Map<
-  string,
-  { versionId: string; versionNumber: number; storagePath: string }
->;
-
-export type TurnReadState = Map<
-  string,
-  {
-    docLabel: string;
-    filename: string;
-    documentId?: string;
-    versionId?: string | null;
-    storagePath: string;
-    passages?: Array<{
-      text: string;
-      at: number;
-      projection: "canonical" | "drafting" | "redline";
-    }>;
-  }
->;
-
-export type DocCreatedResult = {
-  filename: string;
-  download_url: string;
-  document_id?: string;
-  version_id?: string;
-  version_number?: number | null;
-};

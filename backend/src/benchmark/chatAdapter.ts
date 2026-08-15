@@ -1,15 +1,17 @@
 import { createHash } from "node:crypto";
 import type { NormalizedToolCall, NormalizedToolResult } from "../lib/llm";
 import type {
+  ChatToolContext,
   ChatToolRunner,
   ChatTurnResult,
 } from "../lib/chat/turnEngine";
 import type { LegalEvidenceTurnState } from "../lib/chat/legalEvidence";
+import type { ToolEntry } from "../lib/chat/toolRegistry";
 
 type ToolFactory = (
   evidence: LegalEvidenceTurnState,
   scope: "main" | "reader",
-) => ChatToolRunner;
+) => ToolEntry<ChatToolContext>[];
 
 export type ChatMetrics = {
   firstDraftCount: number;
@@ -104,20 +106,29 @@ export function createChatBenchmarkAdapter(
     wrap(factory: ToolFactory): ToolFactory {
       if (!enabled) return factory;
       return (evidence, scope) => {
-        const run = factory(evidence, scope);
-        if (scope !== "main") return run;
-        return async (calls, context) => {
-          const batch = await run(calls, context);
-          for (const call of calls) {
-            if (call.id !== "host-final-agent-flush") {
-              emit(resultEvent(
-                call,
-                batch.results.find((result) => result.tool_use_id === call.id),
-              ));
-            }
+        const entries = factory(evidence, scope);
+        if (scope !== "main") return entries;
+        const wrapped = new Map<ChatToolRunner, ChatToolRunner>();
+        return entries.map((entry) => {
+          let execute = wrapped.get(entry.execute);
+          if (!execute) {
+            const run = entry.execute;
+            execute = async (calls, context) => {
+              const batch = await run(calls, context);
+              for (const call of calls) {
+                if (call.id !== "host-final-agent-flush") {
+                  emit(resultEvent(
+                    call,
+                    batch.results.find((result) => result.tool_use_id === call.id),
+                  ));
+                }
+              }
+              return batch;
+            };
+            wrapped.set(run, execute);
           }
-          return batch;
-        };
+          return { ...entry, execute };
+        });
       };
     },
     finish(result: ChatTurnResult) {

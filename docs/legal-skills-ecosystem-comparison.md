@@ -1,12 +1,15 @@
 # Legal skill and plugin ecosystems compared to Beaver
 
-Status: research complete against the public ecosystem and the working tree on
-2026-07-27. No production code was changed.
+Status: merged Lawve/Lawvable/Louis audit, refreshed against the public
+ecosystem and the working tree on 2026-08-14. No production code was changed.
+
+Finding date: **2026-08-14** (the original Lawve survey was 2026-07-27).
 
 ## Scope and decision rule
 
 This report surveys the public "legal agent skill" ecosystem — Lawve AI,
-`lawve-ai/awesome-legal-skills`, and `anthropics/claude-for-legal` — and
+`lawve-ai/awesome-legal-skills`, `anthropics/claude-for-legal`, and Louis
+Legal's 983-card registry — and
 compares it to Beaver's built-in workflow surface. It then answers three
 questions:
 
@@ -31,6 +34,7 @@ semantic result cannot be inferred safely from text or formatting alone.
 | Lawve AI | Community marketplace of `SKILL.md` files plus MCP connectors, security-audited before listing, provider-neutral across Claude/ChatGPT/Gemini. Distributed as an Anthropic connector. | ~139 skills in `awesome-legal-skills` |
 | `anthropics/claude-for-legal` | 12 vertical plugins (commercial, corporate, employment, privacy, product, regulatory, AI governance, IP, litigation, clinic, law-student, builder-hub). Each is skills + slash commands + hooks + `.mcp.json` + scheduled managed agents, anchored by a `CLAUDE.md` practice profile written by a cold-start interview. | ~100 skills, 25+ connectors, 12 cron agents |
 | Point tools behind the skills | Definely, SuperDoc, CoCounsel/Westlaw, Trellis, CourtListener, Everlaw, iManage exposed as MCP endpoints. | — |
+| Louis Legal | One in-process router over 983 Markdown cards, including HAQQ's prompt library, Lawvable catalogue names, product/marketing knowledge, and internally named work items. | 983 cards; 982 labelled `drafted` |
 
 Three structural observations matter more than the counts.
 
@@ -341,24 +345,144 @@ Consistent with the audit's "do not build yet" list: no model-based rule
 router, no LLM fallback that invents a deadline when a pack abstains, and no
 second legislation parser. A missing rule pack is a missing rule pack.
 
-## Cheaper runner-up: contract structural lint
+## Louis provenance audit
 
-Not the headline proposal, but the highest ratio of value to effort available:
-defined terms declared but unused, used but undefined, or inconsistently
-capitalised; broken internal cross-references; numbering discontinuities;
-inconsistent party names; dangling schedule and exhibit references; conflicting
-liability caps.
+### Method
 
-This subsumes `lawyerscrib-garry-haas`, `legal-design-assessment`, part of
-`builtin-proofread`, and the drafting-errors paragraph of every review workflow
-including Beaver's own lease review. It costs zero tokens, extends
-`docxDeterministicCleanup.ts`, and its findings can be injected into review
-tables as verified rather than recalled.
+This refresh did not treat the registry count as evidence. It mechanically read
+all 983 current skill files, their frontmatter and bodies; counted categories,
+sources and body sizes; checked normalized exact duplicates; inspected the
+loader, router, classifier, inventory importer, registry generator, original
+HAQQ prompt data and merge plan; and traced the named imports back through the
+public Lawve/Lawvable catalogue. The checkout was the public `main` branch at
+commit `0d9e3db` on 2026-08-14.
+
+The result is exhaustive as to the current files, but not clairvoyant about an
+unpublished document called "Stephane's full skills inventory." Where that
+document's own provenance is absent, this report says so.
+
+### Where the 983 cards came from
+
+| Layer | Count/evidence | What it really is |
+| --- | ---: | --- |
+| HAQQ prompt library | **152**, every file has `source: haqq.ai/prompt-library (scraped 2026-04-29)` | Prompts generated from a checked-in scrape of `https://haqq.ai/data/prompts.json`; identifiable provenance, but still prompts rather than machinery. |
+| Explicit import shells | **36** `import.*` files | Names drawn substantially from the Lawve/Lawvable aggregator: 11 Anthropic-labelled, 4 Patrick Munro, 4 Lawvable, 2 OpenAI, and named community contributions. The files do **not** contain the upstream skills. Each is the same two-sentence placeholder saying a legacy shape maps into Louis with a dry-run preview; no config or mapping is present. |
+| Internally attributed core | The inventory says **62 hand-authored core skills** | The longer router, conversation, safety, drafting and review cards. This is the only layer the repository itself characterizes as hand-authored. |
+| "Stephane's full skills inventory" expansion | Remainder; **825 of 983 files have no `source` field** | An unpublished target list dated 2026-05-12, originally described as about 1,089 names and about 875 planned items. The public repository provides no source document, derivation method, citations, or import ledger for it. Current files appear to be expansions of those names, but their authorship cannot be proven from the repository. |
+
+So the honest answer to "thin air, other repos, or an aggregator?" is **all
+three, in unequal ways**:
+
+- 152 came from HAQQ's own public prompt-library dataset;
+- the 36 import names reveal Lawve/Lawvable acting as an aggregator of
+  Anthropic, OpenAI and community skills, but Louis copied labels/placeholders,
+  not the useful upstream bodies;
+- the large majority derives from an unattributed internal inventory. It may
+  encode product brainstorming, generated ideation, founder notes, or all
+  three. The public evidence cannot distinguish them.
+
+There is also an unexecuted plan to absorb Anthropic's `claude-for-legal`
+collection and grow to roughly 1,500 skills. The plan itself says "No skills
+imported yet" and even asks for the exact upstream URL and licence to be
+verified. It is evidence of intended aggregation, not completed provenance.
+
+### What the exhaustive pass says about quality
+
+The registry's `drafted` label is not a quality tier. Of 983 bodies:
+
+- **396 (40.3%) contain 50 words or fewer**;
+- **518 (52.7%) contain 100 words or fewer**;
+- the median is **92 words** and the 90th percentile **214 words**;
+- **825 (83.9%) have no source metadata**;
+- 152 are single-prompt HAQQ templates;
+- all 36 explicit imports are hollow migration descriptions; and
+- no two normalized bodies are exactly identical, but this merely shows that
+  headings and nouns vary, not that the cards implement distinct operations.
+
+The catalogue taxonomy is also evidence against the capability claim. Alongside
+102 drafting, 25 review and 14 research cards are 45 internal-wiki, 24 product
+documentation, 21 messaging, 19 academy, 15 competitive-intelligence, 11 site,
+11 outreach, 10 founder-voice, 8 feed and 6 community cards. Connectors,
+personas, marketing copy, product facts, legal tasks, calculators and safety
+instructions are counted as if they were commensurable skills.
+
+This explains the apparently insane router: it is less a legal-work planner
+than a runtime retrieval layer over an undifferentiated company notebook. The
+router uses keywords and optionally an LLM to choose roughly 5/9/13 cards, then
+concatenates their bodies into the main prompt. This can be a reasonable small
+knowledge-card system. At 983 mixed cards, it creates stochastic routing before
+stochastic execution and provides no contract that a selected "tool" exists.
+
+### What remains useful
+
+The **names and checklists** are useful as demand discovery. Their instructions
+are mostly not worth importing. They repeatedly reveal the same underlying
+operations: resolve references; inventory attachments; reconcile names, terms,
+dates and amounts; calculate from typed inputs; compare a document to a fixed
+policy; screen a list; and turn evidence into a reviewable receipt. Louis's
+983 labels therefore contract into a small number of testable primitives plus
+some genuinely semantic workflows.
+
+## Refresh against Beaver: ideas already harvested
+
+The July recommendation to build "contract structural lint" is now stale.
+Beaver already has deterministic cross-reference graphs
+(`legalCrossReference.ts`), term/definition drift (`legalTermDrift.ts`),
+deadline arithmetic with Canadian jurisdiction calendars (`legalDeadlines.ts`),
+amendment parsing/application (`legalAmendOps.ts`), structural DOCX lint,
+figure reconciliation, conflict scans and evidence-backed citations. Those are
+successful examples of converting catalogue prose into machinery. They should
+be extended through their existing contracts, not proposed again under new
+feature names.
+
+## Ranked residual deterministic shortlist
+
+This ranking excludes prompt-only workflows and anything Beaver already does.
+It favors a narrow caller, readily available inputs, exact receipts and little
+or no new infrastructure.
+
+| Rank | Candidate | Why it survives the current-code check | Smallest credible slice |
+| ---: | --- | --- | --- |
+| **1** | **Referenced-attachment/package completeness** | Cross-reference resolution exists inside a document, but a matter/package-level proof that every referenced schedule, exhibit, annex and signature page is actually supplied remains a bounded extension. | Compare accepted reference targets with attached-document names and detected title pages; emit present/missing/ambiguous with anchors; abstain on aliases. |
+| **2** | **Execution/signature-page completeness** | Louis's signature detector identifies a real closing-review chore and builds on Beaver's DOCX/PDF stories and package inventory. | Detect signature blocks/pages, named parties and blank/executed indicators; report candidates and missing named-party blocks, never declare legal execution. |
+| **3** | **Exact party/entity consistency ledger** | Existing conflict scan addresses contradictory statements, not a package-wide canonical party-name register. This is valuable across agreements, schedules and signature pages. | Extract caption/recital/signature names; normalize punctuation and corporate suffixes; show variants and locations; require a human merge for fuzzy candidates. |
+| **4** | **Narrow Ontario procedural receipt packs** | The arithmetic engine exists. The missing work is sourced rule data, service adjustments and court-holiday fixtures—not another calculator. | One named, source-bound Ontario rule at a time; typed inputs; rule IDs and every counted/rolled date; explicit unsupported cases. |
+| **5** | **Clause-to-schedule numeric reconciliation** | Figure checks exist, but purchase prices, caps, percentages and totals repeated across a main agreement and schedules are a clean package-level extension. | Exact normalized amounts/percentages plus derived subtotal checks; anchored mismatch receipt; no model inference about which figure governs. |
+| **6** | **Closing-set checklist reconciliation** | A recurring Lawve/Louis diligence pattern that is mostly set comparison once the lawyer supplies the checklist. | User checklist versus uploaded filenames, document titles and execution status; present/missing/ambiguous, with no prediction of legally required documents. |
+| **7** | **Three-way trust reconciliation utility** | Louis describes arithmetic that should never be delegated to a model. It is extremely testable, but it is legal-operations scope rather than Beaver's document core. | CSV imports for bank, trust ledger and client ledgers; equality and non-negative-client tests; immutable exception receipt. Build only with a real caller. |
+| **8** | **Settlement scenario/sensitivity calculator** | Simple deterministic arithmetic over lawyer-supplied inputs; useful but strategically shallow and probability inputs remain subjective. | Expected value, break-even probability and one-/two-variable sensitivity table; label every assumption; make no outcome prediction. |
+| **9** | **Billing-guideline arithmetic lint** | Lawve's invoice skills reduce partly to rate, increment, duplicate, block-billing and total checks. It is deterministic but a separate product surface. | CSV/LEDES reader plus user-supplied rules; mathematical exceptions only; leave narrative reasonableness to review. |
+| **10** | **Tamper-evident matter export** | Comes from the Mike-fork audit rather than the skill catalog, but outranks most prompt ideas in durability and audit value. Beaver already produces hashes/manifests internally. | Export files plus canonical manifest of paths, sizes and SHA-256 hashes; verification command; defer signatures/key management. |
+
+Ranks 1–5 fit Beaver's present document and legal-structure machinery. Ranks
+6–10 are deliberately below the line unless a real user workflow appears.
+Sanctions screening, broad deadline engines, regulatory decision trees and
+automatic amendment consolidation may sound deterministic, but they are not
+**simple** once authoritative data freshness, entity resolution, jurisdictional
+coverage and false-negative liability are counted.
+
+## Recommendation
+
+Do not import Louis's router or prompt bodies. Preserve this report as the
+requirements ledger, and promote only one operation at a time when it has:
+
+1. a real Beaver caller;
+2. typed inputs and outputs;
+3. authoritative or user-supplied source data;
+4. exact anchors and a durable receipt;
+5. abstention behavior; and
+6. corpus or fixture evidence that it improves fidelity.
+
+The first experiment worth considering is package completeness because it is a
+small extension of machinery Beaver already owns and turns several recurring
+"skills" into one visible, testable result.
 
 ## Sources
 
 - <https://lawve.ai/>
 - <https://github.com/lawve-ai/awesome-legal-skills>
 - <https://github.com/anthropics/claude-for-legal>
+- <https://github.com/sboghossian/louis-legal>
+- <https://github.com/LegalQuants/lq-skills>
 - <https://claude.com/blog/claude-for-the-legal-industry>
 - <https://www.legaltech-talk.com/lawve-ai-collaborates-with-anthropic-to-bring-legal-skills-into-claude/>

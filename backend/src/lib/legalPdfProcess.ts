@@ -8,6 +8,9 @@ const execFileAsync = promisify(execFile);
 export const LEGAL_PDF_DOCUMENT_SCHEMA = "legalpdf.document.v2";
 export const LEGAL_PDF_PARSER_VERSION = "0.3.0";
 export type LegalPdfOcrProvider = "kraken-lite" | "tesseract";
+export type LegalPdfLayoutConfig =
+  | { provider: "local" }
+  | { provider: "mllm"; model: string };
 
 type LegalPdfRuntimeOptions = {
   env?: NodeJS.ProcessEnv;
@@ -34,6 +37,119 @@ function nativeLibraryNames(platform: NodeJS.Platform) {
     `libonnxruntime.${extension}`,
     `liblegalpdf_tesseract_layout.${extension}`,
   ] as const;
+}
+
+function openVinoLibraryName(platform: NodeJS.Platform) {
+  if (platform === "win32") return "openvino_c.dll";
+  return platform === "darwin" ? "libopenvino_c.dylib" : "libopenvino_c.so";
+}
+
+export function configuredLegalPdfLayout(
+  options?: LegalPdfRuntimeOptions,
+): LegalPdfLayoutConfig | null {
+  const env = options?.env ?? process.env;
+  const requested = env.MIKE_PDF_LAYOUT_PROVIDER?.trim();
+  if (requested === "none") return null;
+  if (requested === "mllm") {
+    return {
+      provider: "mllm",
+      model: env.MIKE_PDF_LAYOUT_MODEL?.trim() || "gpt-5.6-luna",
+    };
+  }
+  if (requested && requested !== "local") {
+    throw new Error("MIKE_PDF_LAYOUT_PROVIDER must be none, local, or mllm");
+  }
+  if (env.NODE_ENV === "test" && !requested) return null;
+  const root = legalPdfEngineRoot({ ...options, env });
+  const platform = options?.platform ?? process.platform;
+  const exists = options?.exists ?? existsSync;
+  const modelPack = path.resolve(
+    root,
+    env.LEGALPDF_PPDOC_MODEL_PACK?.trim() || "runtime/layout/heron-int8",
+  );
+  const backend = env.LEGALPDF_PPDOC_BACKEND?.trim() || "openvino";
+  const runtime = path.resolve(
+    root,
+    env.LEGALPDF_PPDOC_RUNTIME?.trim() ||
+      (backend === "openvino"
+        ? `runtime/${openVinoLibraryName(platform)}`
+        : `runtime/${nativeLibraryNames(platform)[0]}`),
+  );
+  if (requested === "local") {
+    if (!exists(path.join(modelPack, "manifest.json"))) {
+      throw new Error(`LEGALPDF_PPDOC_MODEL_PACK does not exist: ${modelPack}`);
+    }
+    if (!exists(runtime)) {
+      throw new Error(`LEGALPDF_PPDOC_RUNTIME does not exist: ${runtime}`);
+    }
+    return { provider: "local" };
+  }
+  return exists(path.join(modelPack, "manifest.json")) && exists(runtime)
+    ? { provider: "local" }
+    : null;
+}
+
+export function legalPdfLayoutArguments(
+  config: Extract<LegalPdfLayoutConfig, { provider: "local" }>,
+  expectedIdentity?: string,
+  options?: LegalPdfRuntimeOptions,
+) {
+  void config;
+  const env = options?.env ?? process.env;
+  const root = legalPdfEngineRoot({ ...options, env });
+  const exists = options?.exists ?? existsSync;
+  const platform = options?.platform ?? process.platform;
+  const backend = env.LEGALPDF_PPDOC_BACKEND?.trim() || "openvino";
+  if (![
+    "cpu",
+    "cuda",
+    "tensorrt",
+    "directml",
+    "openvino",
+    "onednn",
+  ].includes(backend)) {
+    throw new Error("Invalid LEGALPDF_PPDOC_BACKEND");
+  }
+  const modelPack = configuredPath(
+    env,
+    root,
+    "LEGALPDF_PPDOC_MODEL_PACK",
+    "runtime/layout/heron-int8",
+    (candidate) => exists(path.join(candidate, "manifest.json")),
+  );
+  const runtime = configuredPath(
+    env,
+    root,
+    "LEGALPDF_PPDOC_RUNTIME",
+    backend === "openvino"
+      ? `runtime/${openVinoLibraryName(platform)}`
+      : `runtime/${nativeLibraryNames(platform)[0]}`,
+    exists,
+  );
+  const args = [
+    "--ppdoc-model-pack",
+    modelPack,
+    "--ppdoc-runtime",
+    runtime,
+    "--ppdoc-backend",
+    backend,
+  ];
+  for (const [name, option] of [
+    ["LEGALPDF_PPDOC_DEVICE", "--ppdoc-device"],
+    ["LEGALPDF_PPDOC_THREADS", "--ppdoc-threads"],
+    ["LEGALPDF_PPDOC_THRESHOLD", "--ppdoc-threshold"],
+    ["LEGALPDF_PPDOC_DPI", "--ppdoc-dpi"],
+  ] as const) {
+    const value = env[name]?.trim();
+    if (value) args.push(option, value);
+  }
+  if (env.LEGALPDF_PPDOC_CPU_FALLBACK === "1") {
+    args.push("--ppdoc-cpu-fallback");
+  }
+  if (expectedIdentity) {
+    args.push("--ppdoc-expected-identity", expectedIdentity);
+  }
+  return args;
 }
 
 export function configuredLegalPdfOcrProvider(

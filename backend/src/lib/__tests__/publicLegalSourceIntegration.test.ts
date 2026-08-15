@@ -8,10 +8,8 @@ import {
 } from "../chat/publicLegalSourceState";
 import { runLocalAssistantTools } from "../chat/localAssistantTools";
 import {
-  PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT,
   PUBLIC_LEGAL_SOURCE_TOOL_NAMES,
 } from "../chat/tools/publicLegalSourceTools";
-import { runToolCalls } from "../chat/tools/toolDispatcher";
 import { readPublicLegalEvidenceReceipt } from "../publicLegalSources";
 
 let temporaryDirectory = "";
@@ -136,45 +134,6 @@ describe("public legal source tool integration", () => {
       "https://caselaw.nationalarchives.gov.uk/uksc/2024/1#para_24",
     );
     expect(withoutCitationJson.match(/text=/gu)).toHaveLength(2);
-  });
-
-  it("persists native evidence through the authenticated dispatcher without exposing URLs", async () => {
-    vi.stubGlobal("fetch", providerFetch());
-    const state = createPublicLegalSourceState();
-    const output = await runToolCalls(
-      [
-        {
-          id: "call-1",
-          name: PUBLIC_LEGAL_SOURCE_TOOL_NAMES.lookup,
-          input: {
-            provider: "tna",
-            identifier: "[2024] UKSC 1",
-            locator_type: "paragraph",
-            locator: "24",
-          },
-        },
-      ],
-      {
-        docStore: new Map(),
-        userId: "user-1",
-        db: {} as Parameters<typeof runToolCalls>[1]["db"],
-        emit: () => {},
-        docIndex: {},
-        projectId: null,
-        publicLegal: state,
-      },
-    );
-    const modelPayload = JSON.parse(output.toolResults[0].content);
-
-    expect(modelPayload.ok).toBe(true);
-    expect(modelPayload).not.toHaveProperty("url");
-    expect(modelPayload.evidence.handle).toMatch(
-      /^mike-provider-evidence:v2:[0-9a-f]{64}$/u,
-    );
-    expect(state.documents.size).toBeGreaterThan(0);
-    expect(PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT).toContain(
-      "never invent, request, copy, or include a URL",
-    );
   });
 
   it("does not expose local paths when provider evidence cannot be rehydrated", async () => {

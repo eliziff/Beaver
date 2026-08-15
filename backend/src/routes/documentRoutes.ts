@@ -10,6 +10,7 @@ import type {
   DocumentScope,
   DocumentStore,
 } from "../lib/documentStore";
+import { DocumentStoreError } from "../lib/documentStore";
 import type { LibraryStore } from "../lib/libraryStore";
 import {
   encodePageCursor,
@@ -54,9 +55,11 @@ function documentRoute(
     try {
       await handler(req, res);
     } catch (error) {
-      if (error instanceof DocumentRequestError || error instanceof PageCursorError) {
+      if (error instanceof DocumentRequestError ||
+          error instanceof DocumentStoreError ||
+          error instanceof PageCursorError) {
         return void res.status(
-          error instanceof DocumentRequestError ? error.status : 400,
+          error instanceof PageCursorError ? 400 : error.status,
         ).json({ detail: error.message });
       }
       console.error("[documents] operation failed", error);
@@ -115,11 +118,12 @@ export function createDocumentsRouter(
     documentRoute(async (req, res) => {
       const file = req.file ?? reject(400, "file is required");
       const fileType = validatedFileType(file.originalname, file.buffer);
-      res.status(201).json(await library.upload(
-        { ...scope(res), kind: "file" },
-        file,
+      res.status(201).json(await documents.create(scope(res), {
+        filename: file.originalname,
         fileType,
-      ));
+        bytes: file.buffer,
+        libraryKind: "file",
+      }));
     }),
   );
 

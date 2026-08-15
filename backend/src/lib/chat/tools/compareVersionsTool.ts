@@ -1,15 +1,10 @@
-// library_compare_versions — the tracked-changes word action over
+// compare_docx_versions — the tracked-changes word action over
 // lib/docxCompareVersions.ts. The model receives change counts, typed
 // abstentions, and the id of a saved redline document — never the diff
 // text itself: the redline lives in the Library where the user opens it
 // in Word, and the model reasons over the typed summary.
-import { readFile } from "node:fs/promises";
 import { compareDocxVersions } from "../../docxCompareVersions";
-import {
-  createLocalDocument,
-  getLocalVersionFile,
-  listLocalVersions,
-} from "../../localDocumentStore";
+import type { DocumentScope, DocumentStore } from "../../documentStore";
 import type { OpenAIToolSchema } from "../../llm";
 
 const tool = (
@@ -23,7 +18,7 @@ const tool = (
 
 export const COMPARE_VERSIONS_TOOLS: OpenAIToolSchema[] = [
   tool(
-    "library_compare_versions",
+    "compare_docx_versions",
     "Word tracked-changes redline between two versions of a Library DOCX (default: current against the one before), saved as a new Library document. Returns change counts plus typed abstentions for what the diff cannot honestly represent (tables, content controls, headers/footers, fields). The redline document is the deliverable; the diff text is never returned.",
     {
       type: "object",
@@ -53,16 +48,18 @@ const MAX_REPORTED_CHANGES = 12;
 const trimmed = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
 
-/** Handles library_compare_versions; returns null for other tool names. */
+/** Handles compare_docx_versions; returns null for other tool names. */
 export async function executeCompareVersionsTool(
-  userId: string,
+  documents: DocumentStore,
+  scope: DocumentScope,
   name: string,
   args: Record<string, unknown>,
+  projectId?: string | null,
 ): Promise<Record<string, unknown> | null> {
-  if (name !== "library_compare_versions") return null;
+  if (name !== "compare_docx_versions") return null;
   const documentId = trimmed(args.document_id);
   if (!documentId) return { ok: false, error: "document_id is required" };
-  const listing = await listLocalVersions(userId, documentId);
+  const listing = await documents.versions(scope, documentId);
   if (!listing) return { ok: false, error: "Document not found" };
   const newVersionId = trimmed(args.new_version_id) || listing.current_version_id;
   let oldVersionId = trimmed(args.old_version_id);
@@ -85,8 +82,8 @@ export async function executeCompareVersionsTool(
     return { ok: false, error: "same_version" };
   }
   const [oldFile, newFile] = await Promise.all([
-    getLocalVersionFile(userId, documentId, oldVersionId),
-    getLocalVersionFile(userId, documentId, newVersionId),
+    documents.read(scope, documentId, oldVersionId, false),
+    documents.read(scope, documentId, newVersionId, false),
   ]);
   if (!oldFile || !newFile) return { ok: false, error: "version_not_found" };
   if (
@@ -99,19 +96,16 @@ export async function executeCompareVersionsTool(
       detail: `file types are ${oldFile.fileType} and ${newFile.fileType}`,
     };
   }
-  const [oldBytes, newBytes] = await Promise.all([
-    readFile(oldFile.path),
-    readFile(newFile.path),
-  ]);
-  const comparison = await compareDocxVersions(oldBytes, newBytes, {
+  const comparison = await compareDocxVersions(oldFile.bytes, newFile.bytes, {
     author: "Beaver compare",
   });
-  const baseName = newFile.document.filename.replace(/\.docx$/iu, "");
-  const redline = await createLocalDocument({
-    userId,
-    kind: "file",
+  const baseName = newFile.filename.replace(/\.docx$/iu, "");
+  const redline = await documents.create(scope, {
     filename: `${baseName} (redline).docx`,
+    fileType: "docx",
     bytes: comparison.bytes,
+    projectId,
+    libraryKind: "file",
     provenance: { schemaVersion: 1, actor: "assistant", action: "created" },
   });
   return {
