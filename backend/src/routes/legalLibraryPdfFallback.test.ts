@@ -15,13 +15,22 @@ vi.mock("../lib/providerPdfLibraryBridge", () => ({
   readProviderPdfAttachmentState,
 }));
 
+vi.mock("../lib/remoteUrlSafety", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../lib/remoteUrlSafety")>()),
+  guardedRemoteFetch: (
+    input: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1],
+  ) => fetch(input, init),
+}));
+
 let temporaryDirectory: string | null = null;
 const originalAuthMode = process.env.AUTH_MODE;
 
 afterEach(async () => {
   try {
     const store = await import("../lib/localDocumentStore");
-    await store.closeLocalDocumentStore();
+    (await import("../lib/localApplicationDatabase"))
+      .closeLocalApplicationDatabase();
   } catch {}
   delete process.env.MIKE_LOCAL_DATA_DIR;
   process.env.AUTH_MODE = originalAuthMode;

@@ -78,7 +78,7 @@ provider's `page_map_json`/`article_pages` table states them as data.
 
 ## Constraints on acting on any of this
 
-- **Receipt-hash parity:** `fixtures/nativemarkup/legacy-structure.json`
+- **Receipt-hash parity:** `fixtures/nativemarkup/baseline-structure.json`
   freezes rendered text, block boundaries, and `payload_sha256` per
   provider; TNA evidence receipts persist hashes over block text. Adding
   native blocks to TNA/CourtListener changes those hashes — needs a

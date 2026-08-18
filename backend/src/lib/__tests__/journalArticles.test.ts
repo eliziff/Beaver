@@ -20,14 +20,13 @@ import {
   lookupJournalArticle,
   searchJournalArticles,
 } from "../journalArticles";
-import {
-  appendPublicLegalPinpointLinks,
-  buildPublicLegalCitationUrl,
-  createPublicLegalSourceState,
-} from "../chat/publicLegalSourceState";
-import { runLocalAssistantTools } from "../chat/localAssistantTools";
-import { PUBLIC_LEGAL_SOURCE_TOOL_NAMES } from "../chat/tools/publicLegalSourceTools";
+import { runLocalAssistantTools } from "./support/localAssistantTools";
 import { buildLegalSourcePinpointUrl } from "../legalSourceLinks";
+import {
+  legalSourcePassageUrl,
+  readLegalSourcePassage,
+} from "../legalSourceRegistry";
+import { resourceReference } from "../resourceReferences";
 
 let directory = "";
 let previousDatabase: string | undefined;
@@ -47,6 +46,7 @@ function fixtureDatabase() {
       authors TEXT,
       document_date_en TEXT,
       volume TEXT,
+      issue TEXT,
       first_page TEXT,
       url_en TEXT,
       abstract TEXT,
@@ -81,18 +81,19 @@ The second footnote supports the analysis.`;
     .prepare(
       `INSERT INTO articles (
         article_id, dataset, citation_en, name_en, authors, document_date_en,
-        volume, first_page, url_en, abstract, journal_name, journal_abbrev,
+        volume, issue, first_page, url_en, abstract, journal_name, journal_abbrev,
         galley_url, upstream_license, text
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       7,
       "FIXTURE",
       "(2026) 1 Fixture LJ 100",
       "A Fixture Article",
-      "Ada Example",
+      "Ada Example; Grace Example",
       "2026",
       "1",
+      "2",
       "100",
       "https://example.test/article",
       "A deterministic fixture abstract.",
@@ -360,6 +361,9 @@ describe("local journal articles", () => {
   it("searches candidates, resolves stable locators, and builds multi-text links", () => {
     const match = searchJournalArticles("Fixture Article")[0];
     expect(match.hitId).toBe("journal:7");
+    expect(match.citation).toBe(
+      "Ada Example & Grace Example, “A Fixture Article” (2026) 1:2 Fixture LJ 100",
+    );
 
     const article = fetchJournalArticle(String(match.articleId))!;
     const page = lookupJournalArticle(article, "page", "101");
@@ -385,34 +389,24 @@ describe("local journal articles", () => {
   });
 
   it("keeps journal URLs private from the model and attaches them to citations", async () => {
-    const state = createPublicLegalSourceState();
-    const [searchResult, toolResult] = await runLocalAssistantTools(
+    const [searchResult] = await runLocalAssistantTools(
       "local-user",
       [
         {
           id: "call-0",
-          name: PUBLIC_LEGAL_SOURCE_TOOL_NAMES.search,
+          name: "search_sources",
           input: {
-            provider: "journal",
-            query: "Fixture Article",
-          },
-        },
-        {
-          id: "call-1",
-          name: PUBLIC_LEGAL_SOURCE_TOOL_NAMES.lookup,
-          input: {
-            provider: "journal",
-            identifier: "7",
-            locator_type: "page",
-            locator: "101",
+            query: "7",
+            source_types: ["journal"],
+            syntax: "boolean",
           },
         },
       ],
-      { publicLegal: state },
     );
     const modelSearchPayload = JSON.parse(searchResult.content);
     expect(modelSearchPayload.results[0]).toMatchObject({
-      article_id: 7,
+      provider: "journal",
+      identifier: "7",
     });
     expect(modelSearchPayload.results[0]).not.toHaveProperty("url");
     expect(modelSearchPayload.results[0]).not.toHaveProperty("articleId");
@@ -421,56 +415,67 @@ describe("local journal articles", () => {
     // a turn-local evidence_id (the actionable handle is article_id).
     expect(modelSearchPayload.results[0]).not.toHaveProperty("hit_id");
 
+    const [toolResult] = await runLocalAssistantTools(
+      "local-user",
+      [
+        {
+          id: "call-1",
+          name: "Read",
+          input: {
+            file_path: modelSearchPayload.results[0].resource,
+            locator_kind: "page",
+            locator: "101",
+          },
+        },
+      ],
+    );
+
     const modelPayload = JSON.parse(toolResult.content);
-    // The looked-up journal passage surfaces a real, registered evidence_id
-    // instead of a non-citeable hit_id.
-    expect(modelPayload.evidence_id).toMatch(/^e_/u);
+    expect(modelPayload.evidence_ids).toHaveLength(1);
+    expect(modelPayload.evidence_ids[0]).toMatch(/^e_/u);
+    expect(modelPayload.passages[0]).toMatchObject({
+      role: "selected",
+      evidence_id: modelPayload.evidence_ids[0],
+    });
     expect(modelPayload).not.toHaveProperty("hit_id");
     expect(modelPayload).not.toHaveProperty("url");
 
   });
 
-  it("appends one verified multi-text page link when citation JSON is omitted", async () => {
-    const state = createPublicLegalSourceState();
-    await runLocalAssistantTools(
-      "local-user",
-      [
-        {
-          id: "call-1",
-          name: PUBLIC_LEGAL_SOURCE_TOOL_NAMES.lookup,
-          input: {
-            provider: "journal",
-            identifier: "7",
-            locator_type: "page",
-            locator: "101",
-          },
-        },
-      ],
-      { publicLegal: state },
+  it("formats four-plus authors and an empty issue without a fallback citation", () => {
+    closeJournalDatabases();
+    const database = new DatabaseSync(process.env.MIKE_PUBLIC_ENDPOINT_DB!);
+    database.prepare(`INSERT INTO articles (
+      article_id, dataset, citation_en, name_en, authors, document_date_en,
+      volume, issue, first_page, url_en, journal_abbrev, galley_url, text
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      8, "FIXTURE", "stored citation", "No Issue Article",
+      "Ada Example; Grace Example; Lin Example; Sam Example", "2025-03-01",
+      "9", "", "44", "https://example.test/no-issue",
+      "Fixture LJ", "https://example.test/no-issue.pdf",
+      "A complete paragraph long enough for deterministic source structure.",
     );
-    const answer =
-      'The article says "first quoted phrase" and "second quoted phrase" [1].';
-    const linked = appendPublicLegalPinpointLinks(answer, state);
+    database.close();
+    expect(fetchJournalArticle("8")?.citation).toBe(
+      "Ada Example et al, “No Issue Article” (2025) 9 Fixture LJ 44",
+    );
+  });
 
-    expect(linked).toContain("Source: [A Fixture Article, p. 101]");
-    expect(linked).toContain("#page=2:~:text=");
-    expect(linked.match(/text=/gu)).toHaveLength(2);
-    expect(appendPublicLegalPinpointLinks(linked, state)).toBe(linked);
-
-    const citationUrl = buildPublicLegalCitationUrl(
-      {
-        provider: "journal",
-        identifier: "7",
-        quotes: [
-          { quote: "first quoted phrase" },
-          { quote: "second quoted phrase" },
-        ],
-      },
-      state,
-    )!;
-    expect(
-      appendPublicLegalPinpointLinks(answer, state, [citationUrl]),
-    ).toBe(answer);
+  it("appends one verified multi-text page link when citation JSON is omitted", async () => {
+    const read = await readLegalSourcePassage({
+      source: { provider: "journal", id: "7", kind: "journal" },
+      locator: { kind: "page", value: "101" },
+    });
+    expect(read.status).toBe("found");
+    if (read.status !== "found") return;
+    const selected = read.values.filter(({ role }) => role === "selected");
+    expect(selected).toHaveLength(1);
+    const citationUrl = legalSourcePassageUrl(selected[0], [
+      "first quoted phrase",
+      "second quoted phrase",
+    ]);
+    expect(citationUrl).toContain("#page=2:~:text=");
+    expect(citationUrl?.match(/text=/gu)).toHaveLength(2);
   });
 
   it("filters journal search by indexed publication metadata", () => {
@@ -483,7 +488,7 @@ describe("local journal articles", () => {
       })[0]?.articleId,
     ).toBe(7);
     expect(
-      searchJournalArticles("Fixture Article", 10, { author: "Grace" }),
+      searchJournalArticles("Fixture Article", 10, { author: "Lin" }),
     ).toEqual([]);
     expect(
       searchJournalArticles("Fixture Article", 10, { journal: "Other" }),
@@ -530,8 +535,8 @@ describe("local journal articles", () => {
 
   it("keeps the journalStructure engine's recorded behavior byte-identical", () => {
     // `journal-alr-13` is a REAL article captured from the journals provider
-    // database on 2026-07-27; `legacy-structure.json` freezes the deleted
-    // legalSourceStructure-based engine's output over it (the legacy-spine
+    // database on 2026-07-27; `baseline-structure.json` freezes the deleted
+    // legalSourceStructure-based engine's output over it (the baseline-spine
     // methodology). Do not regenerate the recording.
     const fixtureDir = path.join(__dirname, "fixtures", "nativemarkup");
     const captured = JSON.parse(
@@ -542,7 +547,7 @@ describe("local journal articles", () => {
     };
     const recording = (
       JSON.parse(
-        readFileSync(path.join(fixtureDir, "legacy-structure.json"), "utf8"),
+        readFileSync(path.join(fixtureDir, "baseline-structure.json"), "utf8"),
       ) as Record<
         string,
         {
@@ -577,6 +582,7 @@ describe("local journal articles", () => {
       CREATE TABLE articles (
         article_id INTEGER PRIMARY KEY, dataset TEXT NOT NULL, citation_en TEXT,
         name_en TEXT NOT NULL, authors TEXT, document_date_en TEXT, volume TEXT,
+        issue TEXT,
         first_page TEXT, url_en TEXT, abstract TEXT, journal_name TEXT,
         journal_abbrev TEXT, galley_url TEXT, upstream_license TEXT, text TEXT
       );
@@ -591,9 +597,9 @@ describe("local journal articles", () => {
       .prepare(
         `INSERT INTO articles (
           article_id, dataset, citation_en, name_en, authors, document_date_en,
-          volume, first_page, url_en, abstract, journal_name, journal_abbrev,
+          volume, issue, first_page, url_en, abstract, journal_name, journal_abbrev,
           galley_url, upstream_license, text
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         ...([
@@ -604,6 +610,7 @@ describe("local journal articles", () => {
           "authors",
           "document_date_en",
           "volume",
+          "issue",
           "first_page",
           "url_en",
           "abstract",
@@ -637,7 +644,7 @@ describe("local journal articles", () => {
         block.parentLabel ?? null,
       ]),
     ).toEqual(recording.blocks);
-    // The recording hashed the legacy payload shape, whose provider_locator
+    // The recording hashed the baseline payload shape, whose provider_locator
     // fell back to the label for journal blocks (only native markup ever set
     // one; journal page anchors were carried in `anchor` alone). Journals
     // never reach the TNA receipt path, so this defaulting is recording-only.

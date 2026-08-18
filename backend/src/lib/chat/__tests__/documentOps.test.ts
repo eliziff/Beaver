@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   findTextMatches,
+  presentationFromMarkdown,
   renderXlsxWorkbook,
+  workbookFromMarkdown,
 } from "../tools/documentOps";
 
 const TEXT = [
@@ -47,5 +49,32 @@ describe("renderXlsxWorkbook", () => {
       ["Party", "Note"],
       ["A&B", "<open>"],
     ]);
+  });
+});
+
+describe("Write markup", () => {
+  it("parses workbook sheets and presentation slides", () => {
+    expect(workbookFromMarkdown([
+      "# Review",
+      "## Issues",
+      "| Party | Status |",
+      "| --- | --- |",
+      "| Acme | Open |",
+    ].join("\n"))).toEqual([{
+      name: "Issues",
+      columns: ["Party", "Status"],
+      rows: [["Acme", "Open"]],
+    }]);
+    expect(presentationFromMarkdown([
+      "# Review",
+      "## Result",
+      "- Motion granted",
+      "```notes",
+      "Speaker-only detail",
+      "```",
+    ].join("\n"))).toEqual([{
+      title: "Result",
+      bullets: ["Motion granted"],
+    }]);
   });
 });

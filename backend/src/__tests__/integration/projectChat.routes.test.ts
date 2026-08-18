@@ -1,140 +1,79 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import express from "express";
 import request from "supertest";
-import { createSupabaseStub } from "../helpers/supabaseStub";
-
-const { runLLMStream, checkProjectAccess } = vi.hoisted(() => ({
-    runLLMStream: vi.fn(),
-    checkProjectAccess: vi.fn(),
-}));
-
-function mockSupabase() {
-    return createSupabaseStub({
-        result: {
-            data: { id: "chat-1", title: null, project_id: "p1" },
-            error: null,
-        },
-    });
-}
-
-vi.mock("../../lib/supabase", () => ({
-    createServerSupabase: vi.fn(() => mockSupabase()),
-}));
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  ChatApplicationError,
+  type ChatApplication,
+} from "../../lib/chat/chatApplication";
+import type { ChatStore } from "../../lib/chatStore";
+import type { TabularStore } from "../../lib/tabularStore";
+import { createChatRouter } from "../../routes/chat";
 
 vi.mock("../../middleware/auth", () => ({
-    requireAuth: (
-        _req: unknown,
-        res: { locals: Record<string, unknown> },
-        next: () => void,
-    ) => {
-        res.locals.userId = "u1";
-        res.locals.userEmail = "u1@test.local";
-        next();
-    },
-    requireMfaIfEnrolled: (_req: unknown, _res: unknown, next: () => void) =>
-        next(),
+  requireAuth: (_req: unknown, res: { locals: Record<string, unknown> }, next: () => void) => {
+    res.locals.userId = "u1";
+    res.locals.userEmail = "u1@test.local";
+    next();
+  },
 }));
 
-vi.mock("../../lib/chat/contextBuilders", async (importOriginal) => {
-    const actual =
-        await importOriginal<typeof import("../../lib/chat/contextBuilders")>();
-    return {
-        ...actual,
-        buildProjectDocContext: vi.fn(async () => ({
-            docIndex: {},
-            docStore: new Map(),
-            folderPaths: new Map(),
-        })),
-        enrichWithPriorEvents: vi.fn(async (messages: unknown) => messages),
-        buildWorkflowStore: vi.fn(async () => new Map()),
-        buildMessages: vi.fn(() => []),
-    };
-});
+const CHAT_ID = "10000000-0000-4000-8000-000000000001";
+const PROJECT_ID = "20000000-0000-4000-8000-000000000001";
+let projectAllowed = true;
+let failStream = false;
 
-vi.mock("../../lib/chat/streaming", async (importOriginal) => {
-    const actual =
-        await importOriginal<typeof import("../../lib/chat/streaming")>();
-    return {
-        ...actual,
-        runLLMStream: (...args: unknown[]) => runLLMStream(...args),
-    };
-});
-
-vi.mock("../../lib/userSettings", () => ({
-    getUserModelSettings: vi.fn(async () => ({
-        legal_research_us: false,
-        title_model: "test-model",
-        tabular_model: "test-model",
-        api_keys: {},
-    })),
-    getUserApiKeys: vi.fn(async () => ({})),
-}));
-
-vi.mock("../../lib/access", () => ({
-    checkProjectAccess: (...args: unknown[]) => checkProjectAccess(...args),
-    ensureDocAccess: vi.fn(async () => ({ ok: true, isOwner: true })),
-    ensureReviewAccess: vi.fn(async () => ({ ok: true, isOwner: true })),
-    filterAccessibleDocumentIds: vi.fn(async (ids: string[]) => ids),
-    listAccessibleProjectIds: vi.fn(async () => []),
-}));
-
-import { app } from "../../app";
-
+const application = {
+  async turn(_auth, _input, sink) {
+    if (!projectAllowed) throw new ChatApplicationError(404, "Project not found");
+    if (!sink.claim(CHAT_ID)) throw new ChatApplicationError(409, "A response is running");
+    sink.start();
+    sink.emit({ type: "chat_id", chatId: CHAT_ID, transcriptVersion: 1 });
+    if (failStream) {
+      sink.emit({ type: "error", message: "upstream LLM failure" });
+      throw new Error("upstream LLM failure");
+    }
+    sink.emit({ type: "transcript_version", transcriptVersion: 2 });
+  },
+  async compact() { return { compacted: true, transcriptVersion: 1 }; },
+} as ChatApplication;
+const app = express();
+app.use(express.json());
+app.use("/chat", createChatRouter(
+  {} as TabularStore,
+  {} as ChatStore,
+  application,
+));
 const VALID_BODY = {
-    project_id: "p1",
-    messages: [{ role: "user", content: "hello" }],
+  project_id: PROJECT_ID,
+  expected_version: 0,
+  current_turn: { kind: "message", content: "hello" },
 };
 
-describe("POST /chat with a project", () => {
-    beforeEach(() => {
-        vi.clearAllMocks();
-        runLLMStream.mockResolvedValue({
-            fullText: "",
-            events: [],
-            citations: [],
-        });
-        checkProjectAccess.mockResolvedValue({
-            ok: true,
-            isOwner: true,
-            project: { id: "p1", user_id: "u1", shared_with: null },
-        });
-    });
+describe("POST /chat with a project capability", () => {
+  beforeEach(() => {
+    projectAllowed = true;
+    failStream = false;
+  });
 
-    it("returns 404 and never streams when project access is denied", async () => {
-        checkProjectAccess.mockResolvedValue({ ok: false });
+  it("reveals no project when application access is denied", async () => {
+    projectAllowed = false;
+    const res = await request(app).post("/chat").send(VALID_BODY);
+    expect(res.status).toBe(404);
+    expect(res.body.detail).toBe("Project not found");
+  });
 
-        const res = await request(app)
-            .post("/chat")
-            .set("Authorization", "Bearer test")
-            .send(VALID_BODY);
+  it("streams SSE on the happy path", async () => {
+    const res = await request(app).post("/chat").send(VALID_BODY);
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toContain("text/event-stream");
+    expect(res.text).toContain('"type":"chat_id"');
+  });
 
-        expect(res.status).toBe(404);
-        expect(res.body.detail).toBe("Project not found");
-        // The guard fires before any LLM stream.
-        expect(runLLMStream).not.toHaveBeenCalled();
-    });
-
-    it("streams SSE on the happy path with project access granted", async () => {
-        const res = await request(app)
-            .post("/chat")
-            .set("Authorization", "Bearer test")
-            .send(VALID_BODY);
-
-        expect(res.status).toBe(200);
-        expect(res.headers["content-type"]).toContain("text/event-stream");
-        expect(res.text).toContain('"type":"chat_id"');
-        expect(runLLMStream).toHaveBeenCalledTimes(1);
-    });
-
-    it("surfaces a stream failure as an in-stream error event, not an HTTP error", async () => {
-        runLLMStream.mockRejectedValue(new Error("upstream LLM failure"));
-
-        const res = await request(app)
-            .post("/chat")
-            .set("Authorization", "Bearer test")
-            .send(VALID_BODY);
-
-        expect(res.status).toBe(200);
-        expect(res.text).toContain('"type":"error"');
-        expect(res.text).toContain("[DONE]");
-    });
+  it("keeps a post-header failure in the stream", async () => {
+    failStream = true;
+    const res = await request(app).post("/chat").send(VALID_BODY);
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('"type":"error"');
+    expect(res.text.match(/data: \[DONE\]/gu)).toHaveLength(1);
+  });
 });

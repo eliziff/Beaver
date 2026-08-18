@@ -1,124 +1,21 @@
-import type {
-  NormalizedToolCall,
-  NormalizedToolResult,
-  OpenAIToolSchema,
-} from "../llm";
-import {
-  ASSISTANT_TOOLS,
-  runAssistantTools,
-} from "./assistantTools";
-import { localAutomationEvent } from "./localAutomationEvent";
-import { hideLegalSourceUrls } from "./legalToolResultVisibility";
-import { createPublicLegalSourceState } from "./publicLegalSourceState";
-import { normalizeAskInputsEvent } from "./askInputs";
-import { readTabularCells } from "./tabularCells";
-import { TABULAR_TOOLS } from "./tools/toolSchemas";
-import { assistantToolActivityLabel } from "./tools/a2ajTools";
-import type { ChatToolContext, ChatToolRunner } from "./turnEngine";
-import { bindToolSchemas, type ToolEntry } from "./toolRegistry";
+import { createAssistantTools } from "./assistantTools";
+import type { ChatToolContext } from "./turnEngine";
+import type { BeaverTool } from "./toolRegistry";
 import type { TabularCellStore, WorkflowStore } from "./types";
 import type { EditMode } from "../docxTrackedChanges";
-import { resourceReference } from "../resourceReferences";
 import type { DocumentStore } from "../documentStore";
 import type { LibraryStore } from "../libraryStore";
 import type { ProjectStore } from "../projectStore";
 
-const MUTATIONS = new Set([
-  "generate_docx",
-  "generate_excel",
-  "generate_ppt",
-  "delete_and_renumber_docx",
-  "link_docx_citations",
-  "fix_docx_supras",
-  "Edit",
-  "transform_docx",
-  "update_library_metadata",
-  "create_table_of_authorities",
-]);
-
-const record = (value: unknown): Record<string, unknown> | null =>
-  value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : null;
-const text = (value: unknown) => typeof value === "string" ? value.trim() : "";
-const toolReply = (id: string, payload: unknown): NormalizedToolResult => ({
-  tool_use_id: id,
-  content: JSON.stringify(payload),
-});
-const mutationContent = (result?: NormalizedToolResult) =>
-  result?.mutationReceipt ?? result?.content;
-
-function committedMutation(result?: NormalizedToolResult) {
-  try {
-    const payload = JSON.parse(mutationContent(result) ?? "{}") as {
-      ok?: unknown;
-      action?: unknown;
-      receipt?: unknown;
-      version_id?: unknown;
-    };
-    return payload.ok === true && payload.receipt === "mike-document:v1" &&
-      ["created", "revised"].includes(String(payload.action)) &&
-      text(payload.version_id)
-      ? payload
-      : null;
-  } catch {
-    return null;
-  }
+function state() {
+  return {
+    courtlistener: { casesByClusterId: new Map() },
+    pdfHandles: new Set<string>(),
+    edits: new Map(),
+    reads: new Map(),
+    workingSets: new Map(),
+  };
 }
-
-function documentEvent(tool: string, content?: string) {
-  if (![
-    "generate_docx",
-    "generate_excel",
-    "generate_ppt",
-    "delete_and_renumber_docx",
-    "link_docx_citations",
-    "fix_docx_supras",
-    "Edit",
-    "transform_docx",
-  ].includes(tool) || !content) return null;
-  try {
-    const value = record(JSON.parse(content));
-    if (value?.ok !== true || !text(value.filename) ||
-        !text(value.document_id) || !text(value.version_id) ||
-        !text(value.download_url)) return null;
-    const common = {
-      filename: text(value.filename),
-      document_id: text(value.document_id),
-      version_id: text(value.version_id),
-      version_number: typeof value.version_number === "number"
-        ? value.version_number
-        : null,
-      download_url: text(value.download_url),
-      resource: text(value.resource) || resourceReference.document(
-        text(value.document_id),
-        text(value.version_id),
-      ),
-    };
-    if (tool.startsWith("generate_") && value.action === "created") {
-      return { type: "doc_created" as const, ...common };
-    }
-    return value.action === "revised" && Array.isArray(value.annotations)
-      ? {
-          type: "doc_edited" as const,
-          ...common,
-          edit_mode: value.edit_mode === "auto" ? "auto" as const : "manual" as const,
-          annotations: value.annotations,
-        }
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-const runnerState = () => ({
-  courtlistener: { casesByClusterId: new Map() },
-  publicLegal: createPublicLegalSourceState(),
-  pdfHandles: new Set<string>(),
-  edits: new Map(),
-  reads: new Map(),
-  workingSets: new Map(),
-});
 
 export function createChatToolRunner(options: {
   userId: string;
@@ -131,63 +28,49 @@ export function createChatToolRunner(options: {
   library: LibraryStore;
   projects: ProjectStore;
   workflows?: WorkflowStore;
-  entries?: ToolEntry<ChatToolContext>[];
+  entries?: BeaverTool<ChatToolContext>[];
   excludeToolNames?: ReadonlySet<string>;
   editMode?: EditMode;
   timeZone?: string;
   onMutationCommitted: () => void;
 }) {
-  const main = runnerState();
+  const main = state();
+  const artifacts = new Map<string, string>();
+  const artifactByDocument = new Map<string, string>();
+  let artifactNumber = 0;
   let mutationCommitted = false;
-  const tools = [
-    ...ASSISTANT_TOOLS,
-    ...(options.tabular ? TABULAR_TOOLS as OpenAIToolSchema[] : []),
-  ].filter((schema) => !options.excludeToolNames?.has(schema.function.name));
+
+  const artifactFor = (documentId: string) => {
+    const existing = artifactByDocument.get(documentId);
+    if (existing) return existing;
+    const handle = `draft-${++artifactNumber}`;
+    artifacts.set(handle, documentId);
+    artifactByDocument.set(documentId, handle);
+    return handle;
+  };
+
   const createTools = (
     evidence: ChatToolContext["evidence"],
     scope: "main" | "reader",
-  ) => {
-    const state = scope === "main" ? main : runnerState();
-    const runner: ChatToolRunner = async (calls, context) => {
-      const ask = calls.find((call) => call.name === "ask_inputs");
-      const requestedInputs = ask ? normalizeAskInputsEvent(ask.input) : null;
-      if (requestedInputs?.items.length && !mutationCommitted && scope === "main") {
-        return {
-          results: calls.map((call) => toolReply(call.id, {
-            ok: true,
-            status: "waiting_for_user",
-          })),
-          pause: requestedInputs,
-        };
-      }
-      const executable = requestedInputs?.items.length
-        ? calls.filter((call) => call !== ask)
-        : calls;
-      const tableResults = new Map<string, NormalizedToolResult>(executable.flatMap((call) => {
-        if (call.name !== "read_table_cells" || !options.tabular) return [];
-        const indices = (value: unknown) => Array.isArray(value)
-          ? value.filter((item): item is number => Number.isSafeInteger(item))
-          : undefined;
-        const read = readTabularCells(
-          options.tabular,
-          evidence,
-          indices(call.input.col_indices),
-          indices(call.input.row_indices),
-        );
-        const event = { type: "doc_read" as const, filename: read.label };
-        if (scope === "main") {
-          context.addEvent(event);
-          context.emit(event);
-        }
-        return [[call.id, { tool_use_id: call.id, content: read.content }]];
-      }));
-      const direct = executable.filter((call) => call.name !== "read_table_cells");
-      const directResults = await runAssistantTools(
-        options.userId,
-        direct,
-        {
+  ): BeaverTool<ChatToolContext>[] => {
+    const turnState = scope === "main" ? main : state();
+    return [
+      ...createAssistantTools<ChatToolContext>({
+        userId: options.userId,
+        scope,
+        tabular: options.tabular,
+        documentNames: options.documentNames,
+        resolveArtifact: (value) => artifacts.get(value),
+        artifactFor,
+        onMutationCommitted() {
+          if (scope === "main" && !mutationCommitted) {
+            mutationCommitted = true;
+            options.onMutationCommitted();
+          }
+        },
+        options: {
           userEmail: options.userEmail,
-          ...state,
+          ...turnState,
           documents: options.documents,
           library: options.library,
           projects: options.projects,
@@ -198,84 +81,15 @@ export function createChatToolRunner(options: {
           editMode: options.editMode,
           timeZone: options.timeZone,
         },
-      );
-      let results = executable.map((call) => tableResults.get(call.id) ??
-        directResults.find((result) => result.tool_use_id === call.id)!);
-      if (requestedInputs?.items.length) {
-        results = calls.map((call) => call === ask
-          ? toolReply(call.id, {
-              ok: false,
-              error: "ask_inputs must be called before document or workflow changes in a turn",
-            })
-          : results.find((result) => result.tool_use_id === call.id) ??
-            toolReply(call.id, { ok: false, error: "Tool result is unavailable" }));
-      }
-      if (scope === "main") {
-        for (const call of calls) {
-          const result = results.find((item) => item.tool_use_id === call.id);
-          const event = documentEvent(call.name, mutationContent(result));
-          if (event) {
-            context.addEvent(event);
-            context.emit({
-              type: event.type === "doc_created" ? "doc_created_start" : "doc_edited_start",
-              filename: event.filename,
-            });
-            context.emit(event);
-          }
-          const automation = localAutomationEvent(call.name, result?.content, call.id);
-          if (automation) {
-            context.addEvent(automation);
-            context.emit(automation);
-          }
-        }
-        const wasCommitted = mutationCommitted;
-        mutationCommitted ||= calls.some((call) =>
-          MUTATIONS.has(call.name) && committedMutation(
-            results.find((result) => result.tool_use_id === call.id),
-          ),
-        );
-        if (!wasCommitted && mutationCommitted) options.onMutationCommitted();
-        const terminalCreate = calls.length > 0 && calls.every((call) =>
-          call.name.startsWith("generate_") && committedMutation(
-            results.find((result) => result.tool_use_id === call.id),
-          )?.action === "created",
-        );
-        if (terminalCreate) results.forEach((result) => { result.terminal = true; });
-      }
-      return { results };
-    };
-    return [...bindToolSchemas(tools, runner, (schema) => {
-      const name = schema.function.name;
-      return MUTATIONS.has(name)
-        ? ["write"]
-        : name === "ask_inputs"
-          ? ["interactive"]
-          : name.startsWith("mcp_")
-            ? ["external"]
-            : ["read"];
-    }, (result, call) => hideLegalSourceUrls(call.name, result),
-    (call) => assistantToolActivityLabel(call.name, call.input) ?? null),
-    ...(options.entries ?? []).filter(({ schema }) =>
-      !options.excludeToolNames?.has(schema.function.name))];
+      }),
+      ...(options.entries ?? []).filter((entry) =>
+        !options.excludeToolNames?.has(entry.name)),
+    ].filter((entry) => !options.excludeToolNames?.has(entry.name));
   };
 
   return {
     createTools,
     pdfHandles: main.pdfHandles,
     mutationCommitted: () => mutationCommitted,
-    toolActivityMetadata(call: NormalizedToolCall) {
-      const documentId = text(
-        call.input.document_id ?? call.input.doc_id ?? call.input.file_path,
-      );
-      const filename = options.documentNames?.get(documentId);
-      if (!filename) return {};
-      if (call.name === "Read")
-        return { label: `Reading ${filename}` };
-      if (["Edit", "transform_docx"].includes(call.name))
-        return { label: `Editing ${filename}` };
-      if (call.name === "Grep")
-        return { label: `Searching ${filename}` };
-      return {};
-    },
   };
 }

@@ -3,7 +3,6 @@ import {
   type LlmMessage,
   type NormalizedToolCall,
   type NormalizedToolResult,
-  type OpenAIToolSchema,
   type ProviderSubagentUpdate,
   type ProviderTurnControl,
   type ProviderContextCheckpoint,
@@ -20,12 +19,14 @@ import type {
   CourtlistenerToolEvent,
 } from "./tools/courtlistenerTools";
 import type { LocalAutomationEvent } from "./localAutomationEvent";
+import { assistantToolActivityLabel } from "./tools/a2ajTools";
 import { ASK_INPUTS_TOOL } from "./tools/toolSchemas";
 import type { AskInputsEvent, EditAnnotation } from "./types";
 import {
-  bindToolSchemas,
   TurnToolRegistry,
-  type ToolEntry,
+  toolText,
+  type BeaverOutcome,
+  type BeaverTool,
 } from "./toolRegistry";
 import { normalizeAskInputsEvent } from "./askInputs";
 import { createLegalEvidenceCitations } from "./citations";
@@ -40,6 +41,7 @@ import {
   LEGAL_EVIDENCE_SUBMIT_TOOL,
   LEGAL_EVIDENCE_TOOL_NAME,
   legalEvidenceReceiptEvent,
+  registerLegalEvidence,
   registerPriorLegalEvidence,
   renderLegalEvidenceAnswer,
   submitLegalEvidenceAnswer,
@@ -57,12 +59,12 @@ import {
   readSubagentActivityLabel,
   readSubagentJurisdiction,
   readSubagentResumePrompt,
-  readSubagentSourceTypes,
   readSubagentTools,
   runReadSubagent,
   runReadSubagentRound,
   type ReadSubagentCheckpoint,
   type ReadSubagentEvent,
+  type ToolActivity,
 } from "./readSubagents";
 import { jurisdictionPreferencePrompt, type JurisdictionPreference } from "./prompts";
 import {
@@ -72,13 +74,7 @@ import {
 
 export type AssistantEvent =
   | { type: "reasoning"; text: string; debug?: boolean }
-  | {
-      type: "tool_call_start";
-      name: string;
-      label?: string;
-      id?: string;
-      input?: Record<string, unknown>;
-    }
+  | ({ type: "tool_activity" } & ToolActivity)
   | AskInputsEvent
   | {
       type: "ask_inputs_response";
@@ -165,16 +161,6 @@ export type ChatToolContext = {
   addEvent: (event: AssistantEvent) => void;
 };
 
-export type ChatToolBatch = {
-  results: NormalizedToolResult[];
-  pause?: AskInputsEvent;
-};
-
-export type ChatToolRunner = (
-  calls: NormalizedToolCall[],
-  context: ChatToolContext,
-) => Promise<ChatToolBatch>;
-
 export type ChatTurnResult = {
   status: "complete" | "paused";
   fullText: string;
@@ -208,7 +194,7 @@ export async function runChatTurn(options: {
   createTools: (
     evidence: LegalEvidenceTurnState,
     scope: "main" | "reader",
-  ) => ToolEntry<ChatToolContext>[];
+  ) => BeaverTool<ChatToolContext>[];
   emit: (event: unknown) => void;
   done: () => void;
   apiKeys?: UserApiKeys;
@@ -222,7 +208,9 @@ export async function runChatTurn(options: {
   subagentEffort?: string;
   jurisdictionPreference?: JurisdictionPreference | null;
   activityDetail?: "auto" | "standard" | "tools" | "trace";
-  toolActivityMetadata?: (call: NormalizedToolCall) => Record<string, unknown>;
+  toolActivityMetadata?: (
+    call: NormalizedToolCall,
+  ) => { label?: string; source?: ToolActivity["source"] };
   priorEvidence?: LegalEvidenceReceipt[];
   resumableSubagents?: ReadonlyMap<string, ReadSubagentCheckpoint>;
   providerSession?: { persist: true; continuationId?: string };
@@ -244,6 +232,7 @@ export async function runChatTurn(options: {
     signal,
   } = options;
   const events: AssistantEvent[] = [];
+  const toolActivities = new Map<string, ToolActivity>();
   const evidence = createLegalEvidenceTurnState();
   registerPriorLegalEvidence(evidence, options.priorEvidence ?? []);
   const addEvent = (event: AssistantEvent) => events.push(event);
@@ -255,8 +244,34 @@ export async function runChatTurn(options: {
     if (index < 0) events.push(event);
     else events[index] = event;
   };
+  const emitToolActivity = (activity: ToolActivity) => {
+    toolActivities.set(activity.id, activity);
+    const event: AssistantEvent = { type: "tool_activity", ...activity };
+    const index = events.findIndex(
+      (candidate) => candidate.type === "tool_activity" && candidate.id === activity.id,
+    );
+    if (index < 0) events.push(event);
+    else events[index] = event;
+    emit(event);
+  };
+  const settleToolActivities = (
+    status: "error" | "interrupted",
+    ids: Iterable<string> = toolActivities.keys(),
+  ) => {
+    for (const id of ids) {
+      const activity = toolActivities.get(id);
+      if (activity?.status === "running") emitToolActivity({ ...activity, status });
+    }
+  };
   const context: ChatToolContext = { evidence, emit, addEvent };
-  const mainTools = options.createTools(evidence, "main");
+  const internalNames = new Set([
+    "ask_inputs",
+    LEGAL_EVIDENCE_TOOL_NAME,
+    READ_SUBAGENT_TOOL_NAME,
+    RESUME_SUBAGENT_TOOL_NAME,
+  ]);
+  const mainTools = options.createTools(evidence, "main")
+    .filter((tool) => !internalNames.has(tool.name));
   const resumableReaders = new Map(options.resumableSubagents);
   const request = [...options.messages].reverse()
     .find((message) => message.role === "user")?.content ?? "";
@@ -301,58 +316,60 @@ export async function runChatTurn(options: {
     emit,
     addEvent,
   });
-  const evidenceTools = (state: LegalEvidenceTurnState) => bindToolSchemas(
-    [LEGAL_EVIDENCE_SUBMIT_TOOL],
-    async (calls) => ({
-      results: calls.map((call) => {
-        const submitted = submitLegalEvidenceAnswer(call.input, state);
-        return {
-          tool_use_id: call.id,
-          content: JSON.stringify(submitted),
-          ...(submitted.terminal === true ? { terminal: true } : {}),
-        };
-      }),
-    }),
-    ["write"],
-  );
-  const defaultAskTools = bindToolSchemas(
-    [ASK_INPUTS_TOOL as OpenAIToolSchema],
-    async (calls) => {
-      const pause = calls.map((call) => normalizeAskInputsEvent(call.input))
-        .find((event) => event.items.length);
+  const evidenceTool = (state: LegalEvidenceTurnState): BeaverTool<ChatToolContext> => ({
+    ...LEGAL_EVIDENCE_SUBMIT_TOOL,
+    sequential: true,
+    async execute(input) {
+      const submitted = submitLegalEvidenceAnswer(input, state);
       return {
-        results: calls.map((call) => ({
-          tool_use_id: call.id,
-          content: JSON.stringify({ ok: true, status: "waiting_for_user" }),
-        })),
-        ...(pause ? { pause } : {}),
+        result: toolText(submitted),
+        ...(submitted.terminal === true ? { terminal: true } : {}),
       };
     },
-    ["interactive"],
-  );
+  });
+  const askTool: BeaverTool<ChatToolContext> = {
+    ...ASK_INPUTS_TOOL,
+    sequential: true,
+    async execute(input) {
+      const pause = normalizeAskInputsEvent(input);
+      return pause.items.length
+        ? {
+            result: toolText({ ok: true, status: "waiting_for_user" }),
+            pause,
+          }
+        : { result: toolText({ ok: false, error: "No questions supplied" }, true) };
+    },
+  };
+  const normalizedOutcome = (result: NormalizedToolResult): BeaverOutcome => {
+    const { tool_use_id: _id, content, terminal, ...metadata } = result;
+    return {
+      result: toolText(content),
+      ...(Object.keys(metadata).length ? { metadata } : {}),
+      ...(terminal ? { terminal: true } : {}),
+    };
+  };
   const runReader = (
     call: NormalizedToolCall,
     resume?: ReadSubagentCheckpoint,
   ) => {
     const childEvidence = createLegalEvidenceTurnState("citation_structure");
-    const childTools = options.createTools(childEvidence, "reader").filter(
-      ({ effects }) =>
-        effects.includes("read") &&
-        !effects.some((effect) => effect === "write" || effect === "interactive"),
-    );
+    const childTools = options.createTools(childEvidence, "reader")
+      .filter((tool) => tool.reader === true);
     const assignmentCall = resume
       ? { ...call, input: resume.assignment }
       : call;
     const schemas = readSubagentTools(
-      childTools.map((tool) => tool.schema),
+      childTools,
       readSubagentJurisdiction(assignmentCall),
-      readSubagentSourceTypes(assignmentCall),
     );
-    const names = new Set(schemas.map((tool) => tool.function.name));
+    const names = new Set(schemas.map((tool) => tool.name));
     const childRegistry = new TurnToolRegistry([
-      ...childTools.filter((tool) => names.has(tool.schema.function.name)),
-      ...evidenceTools(childEvidence),
-    ], [...names, LEGAL_EVIDENCE_TOOL_NAME]);
+      ...childTools.filter((tool) => names.has(tool.name)).map((tool) => ({
+        ...tool,
+        specialist: false,
+      })),
+      evidenceTool(childEvidence),
+    ]);
     return runReadSubagent({
       call,
       tools: childRegistry.visible(),
@@ -360,7 +377,6 @@ export async function runChatTurn(options: {
       publishEvidenceTo: evidence,
       model: options.subagentModel,
       effort: options.subagentEffort,
-      activityDetail,
       jurisdictionPrompt: jurisdictionPreferencePrompt(
         options.jurisdictionPreference ?? null,
       ),
@@ -371,44 +387,68 @@ export async function runChatTurn(options: {
         options.onSubagentEvent?.(event);
         if (event.status !== "running") addEvent(event);
       },
-      runTools: async (childCalls) =>
-        (await childRegistry.run(childCalls, toolContext(childEvidence))).results,
+      runTools: async (childCalls) => {
+        const batch = await childRegistry.run(
+          childCalls,
+          toolContext(childEvidence),
+          providerSignal,
+        );
+        batch.evidence.forEach((receipt) =>
+          registerLegalEvidence(childEvidence, receipt));
+        return batch.results;
+      },
     }).then((result) => {
       if (resume && result.status === "ok") resumableReaders.delete(resume.id);
       return result;
     });
   };
-  const readerTools: OpenAIToolSchema[] = [
+  const readerSchemas = [
     ...(subagentMode === "beaver" ? [READ_SUBAGENT_TOOL] : []),
     ...(subagentMode === "beaver" && resumableReaders.size
       ? [RESUME_SUBAGENT_TOOL]
       : []),
   ];
-  const runReaders: ChatToolRunner = async (calls) => ({
-    results: await runReadSubagentRound({
-      calls,
-      admit: admitReaders,
-      runDirect: async () => [],
-      runReader,
-      resumable: resumableReaders,
-      runResume: (call, checkpoint) => runReader(call, checkpoint),
-    }),
-  });
+  const readerTools: BeaverTool<ChatToolContext>[] = readerSchemas.map((schema) => ({
+    ...schema,
+    specialist: true,
+    activity: (input) => schema.name === READ_SUBAGENT_TOOL_NAME
+      ? readSubagentActivityLabel(input)
+      : "Resuming reading agents",
+    async execute(_input, _context, _signal, call) {
+      const [result] = await runReadSubagentRound({
+        calls: [call],
+        admit: admitReaders,
+        runDirect: async () => [],
+        runReader,
+        resumable: resumableReaders,
+        runResume: (resumeCall, checkpoint) => runReader(resumeCall, checkpoint),
+      });
+      return normalizedOutcome(result);
+    },
+  }));
   const registry = new TurnToolRegistry([
-    ...defaultAskTools,
-    ...evidenceTools(evidence),
+    askTool,
+    evidenceTool(evidence),
     ...mainTools,
-    ...bindToolSchemas(readerTools, runReaders, ["external"]),
-  ], [
-    LEGAL_EVIDENCE_TOOL_NAME,
-    ...readerTools.map((tool) => tool.function.name),
+    ...readerTools,
   ]);
   const systemPrompt = [options.systemPrompt, registry.specialistPrompt()]
     .filter(Boolean).join("\n\n");
   const resolveTools = () => registry.visible();
   const runTools = async (calls: NormalizedToolCall[]) => {
     throwIfAborted(signal);
-    const batch = await registry.run(calls, context);
+    const batch = await registry.run(calls, context, providerSignal).catch((error) => {
+      settleToolActivities(
+        providerSignal.aborted ? "interrupted" : "error",
+        calls.map((call) => call.id),
+      );
+      throw error;
+    });
+    batch.evidence.forEach((receipt) => registerLegalEvidence(evidence, receipt));
+    for (const event of batch.events) {
+      addEvent(event as AssistantEvent);
+      emit(event);
+    }
     if (batch.pause) paused = batch.pause;
     if (paused) {
       text = "";
@@ -428,6 +468,15 @@ export async function runChatTurn(options: {
         status: "partial",
         citations: createLegalEvidenceCitations(evidence),
       });
+    }
+    for (const result of batch.results) {
+      const activity = toolActivities.get(result.tool_use_id);
+      if (activity?.status === "running") {
+        emitToolActivity({
+          ...activity,
+          status: result.status === "error" ? "error" : "completed",
+        });
+      }
     }
     return batch.results;
   };
@@ -459,33 +508,33 @@ export async function runChatTurn(options: {
     onToolCallStart(call: NormalizedToolCall) {
       providerActivity = true;
       if (
+        call.name === ASK_INPUTS_TOOL.name ||
         call.name === LEGAL_EVIDENCE_TOOL_NAME ||
         ([READ_SUBAGENT_TOOL_NAME, RESUME_SUBAGENT_TOOL_NAME].includes(call.name) &&
           activityDetail === "standard")
       ) return;
-      boundary = Boolean(text);
-      const label = call.name === READ_SUBAGENT_TOOL_NAME
+      const defaultLabel = call.name === READ_SUBAGENT_TOOL_NAME
         ? readSubagentActivityLabel(call.input)
         : call.name === RESUME_SUBAGENT_TOOL_NAME
           ? "Resuming reading agents"
         : registry.activity(call);
+      const metadata = options.toolActivityMetadata?.(call);
       if (
-        label === null &&
+        defaultLabel === null &&
+        !metadata?.label &&
         activityDetail !== "tools" &&
         activityDetail !== "trace"
       ) return;
-      const event: AssistantEvent = {
-        type: "tool_call_start",
-        name: call.name,
-        ...(label && { label }),
-        ...((activityDetail === "tools" || activityDetail === "trace") && {
-          id: call.id,
-          input: call.input,
-        }),
-        ...options.toolActivityMetadata?.(call),
-      };
-      addEvent(event);
-      emit(event);
+      const label = metadata?.label ?? defaultLabel ??
+        assistantToolActivityLabel(call.name, call.input) ?? call.name;
+      boundary = Boolean(text);
+      emitToolActivity({
+        id: call.id,
+        tool: call.name,
+        status: "running",
+        label,
+        ...(metadata?.source && { source: metadata.source }),
+      });
     },
     onContextUsage(usage: {
       usedTokens: number;
@@ -530,10 +579,17 @@ export async function runChatTurn(options: {
     },
     onSubagentUpdate(update: ProviderSubagentUpdate) {
       providerActivity = true;
+      const { activities, ...native } = update;
       const event: ReadSubagentEvent = {
         type: "subagent_run",
         agent: "native",
-        ...update,
+        ...native,
+        ...(activities && {
+          activities: activities.map((activity) => ({
+            ...activity,
+            tool: "native",
+          })),
+        }),
       };
       emit(event);
       options.onSubagentEvent?.(event);
@@ -700,6 +756,7 @@ export async function runChatTurn(options: {
     }
   } catch (error) {
     if (!paused) {
+      settleToolActivities(isAbortError(error) ? "interrupted" : "error");
       partialEvents();
       if (isAbortError(error)) throw new AssistantStreamAbortError(text, events);
       const message = safeErrorMessage(error, "Stream error");

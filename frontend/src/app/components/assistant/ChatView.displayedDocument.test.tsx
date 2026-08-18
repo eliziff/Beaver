@@ -4,6 +4,12 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { Document, Message } from "../shared/types";
 import { ChatView, type ChatViewHandle } from "./ChatView";
+import { createAssistantSessionState } from "@/app/lib/assistantSession";
+
+const session = (messages: Message[] = [], running = false) => ({
+    ...createAssistantSessionState({ messages }),
+    ...(running && { run: { id: "run-1", status: "running" as const } }),
+});
 
 vi.stubGlobal(
     "ResizeObserver",
@@ -89,10 +95,9 @@ describe("ChatView displayed document context", () => {
         );
         const { container, rerender, unmount } = render(
             <ChatView
-                messages={[
+                session={session([
                     { role: "assistant", content: "First", events: [] },
-                ]}
-                isResponseLoading
+                ], true)}
                 handleChat={vi.fn()}
                 cancel={vi.fn()}
             />,
@@ -110,14 +115,13 @@ describe("ChatView displayed document context", () => {
 
         rerender(
             <ChatView
-                messages={[
+                session={session([
                     {
                         role: "assistant",
                         content: "First streaming delta",
                         events: [],
                     },
-                ]}
-                isResponseLoading
+                ], true)}
                 handleChat={vi.fn()}
                 cancel={vi.fn()}
             />,
@@ -150,8 +154,7 @@ describe("ChatView displayed document context", () => {
         const handleChat = vi.fn();
         render(
             <ChatView
-                messages={[{ role: "assistant", content: "", events: [] }]}
-                isResponseLoading={false}
+                session={session([{ role: "assistant", content: "", events: [] }])}
                 handleChat={handleChat}
                 cancel={vi.fn()}
             />,
@@ -184,8 +187,7 @@ describe("ChatView displayed document context", () => {
         render(
             <ChatView
                 ref={ref}
-                messages={[]}
-                isResponseLoading={false}
+                session={session()}
                 handleChat={handleChat}
                 cancel={vi.fn()}
                 useDisplayedDocumentContext

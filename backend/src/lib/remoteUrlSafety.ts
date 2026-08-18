@@ -100,7 +100,38 @@ type ApprovedAddress = {
   family: 4 | 6;
 };
 
-async function resolveRemoteHttpsUrl(rawUrl: string, label = "Remote URL") {
+export type RemoteUrlPolicy = {
+  label?: string;
+  allowedHosts?: readonly string[];
+  allowedOrigins?: readonly string[];
+  maxUrlLength?: number;
+  defaultPortOnly?: boolean;
+  allowIpLiterals?: boolean;
+  blockedHostSuffixes?: readonly string[];
+};
+
+export type RemoteResponsePolicy = {
+  label?: string;
+  maxBytes: number;
+  contentTypes?: readonly string[];
+};
+
+export type RemoteFetchPolicy = RemoteUrlPolicy & {
+  timeoutMs?: number;
+  response?: RemoteResponsePolicy;
+};
+
+export function normalizeRemoteHttpsUrl(
+  rawUrl: string,
+  policy: RemoteUrlPolicy = {},
+) {
+  const label = policy.label ?? "Remote URL";
+  if (
+    policy.maxUrlLength !== undefined &&
+    rawUrl.length > policy.maxUrlLength
+  ) {
+    throw new Error(`${label} is too long.`);
+  }
   let url: URL;
   try {
     url = new URL(rawUrl);
@@ -113,6 +144,9 @@ async function resolveRemoteHttpsUrl(rawUrl: string, label = "Remote URL") {
   if (url.username || url.password) {
     throw new Error(`${label} must not include credentials.`);
   }
+  if (policy.defaultPortOnly && url.port) {
+    throw new Error(`${label} must use the default HTTPS port.`);
+  }
   url.hash = "";
 
   const hostname = url.hostname.toLowerCase();
@@ -123,10 +157,35 @@ async function resolveRemoteHttpsUrl(rawUrl: string, label = "Remote URL") {
   if (
     hostname === "localhost" ||
     hostname.endsWith(".localhost") ||
-    BLOCKED_METADATA_HOSTS.has(hostname)
+    BLOCKED_METADATA_HOSTS.has(hostname) ||
+    policy.blockedHostSuffixes?.some((suffix) =>
+      hostname.endsWith(suffix.toLowerCase()))
   ) {
     throw new Error(`${label} points to a blocked host.`);
   }
+  if (policy.allowIpLiterals === false && net.isIP(lookupHostname)) {
+    throw new Error(`${label} must not use an IP-literal host.`);
+  }
+  const allowedHosts = policy.allowedHosts?.map((value) =>
+    value.toLowerCase());
+  if (allowedHosts && !allowedHosts.includes(hostname)) {
+    throw new Error(`${label} is outside the allowed hosts.`);
+  }
+  const allowedOrigins = policy.allowedOrigins?.map((value) =>
+    new URL(value).origin.toLowerCase());
+  if (allowedOrigins && !allowedOrigins.includes(url.origin.toLowerCase())) {
+    throw new Error(`${label} is outside the allowed origins.`);
+  }
+
+  return { url, hostname: lookupHostname };
+}
+
+async function resolveRemoteHttpsUrl(
+  rawUrl: string,
+  policy: RemoteUrlPolicy = {},
+) {
+  const { url, hostname: lookupHostname } = normalizeRemoteHttpsUrl(rawUrl, policy);
+  const label = policy.label ?? "Remote URL";
 
   const literalFamily = net.isIP(lookupHostname);
   const resolved = literalFamily
@@ -151,9 +210,77 @@ async function resolveRemoteHttpsUrl(rawUrl: string, label = "Remote URL") {
 
 export async function validateRemoteHttpsUrl(
   rawUrl: string,
-  label = "Remote URL",
+  policy: RemoteUrlPolicy = {},
 ) {
-  return (await resolveRemoteHttpsUrl(rawUrl, label)).url;
+  return (await resolveRemoteHttpsUrl(rawUrl, policy)).url;
+}
+
+const mediaType = (response: Response) =>
+  response.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase() ?? "";
+
+const matchesContentType = (actual: string, allowed: readonly string[]) =>
+  allowed.some((candidate) => {
+    const expected = candidate.toLowerCase();
+    const wildcard = expected.indexOf("*");
+    return wildcard < 0
+      ? actual === expected
+      : actual.startsWith(expected.slice(0, wildcard)) &&
+        actual.endsWith(expected.slice(wildcard + 1));
+  });
+
+export async function boundRemoteResponse(
+  response: Response,
+  policy: RemoteResponsePolicy,
+) {
+  const label = policy.label ?? "Remote response";
+  if (!Number.isSafeInteger(policy.maxBytes) || policy.maxBytes <= 0) {
+    throw new Error("Remote response maxBytes must be a positive integer.");
+  }
+  if (response.ok && policy.contentTypes?.length) {
+    const actual = mediaType(response);
+    if (!actual || !matchesContentType(actual, policy.contentTypes)) {
+      await response.body?.cancel().catch(() => undefined);
+      throw new Error(`${label} has an unsupported content type.`);
+    }
+  }
+  const declared = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > policy.maxBytes) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new Error(`${label} exceeds the size limit.`);
+  }
+  if (!response.body) return response;
+
+  let received = 0;
+  const bounded = response.body.pipeThrough(
+    new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        received += chunk.byteLength;
+        if (received > policy.maxBytes) {
+          throw new Error(`${label} exceeds the size limit.`);
+        }
+        controller.enqueue(chunk);
+      },
+    }),
+  );
+  return new Response(bounded, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
+}
+
+export async function bufferRemoteResponse(
+  response: Response,
+  policy: RemoteResponsePolicy,
+) {
+  const bounded = await boundRemoteResponse(response, policy);
+  if (!bounded.body) return bounded;
+  const bytes = await bounded.arrayBuffer();
+  return new Response(bytes.byteLength ? bytes : null, {
+    status: bounded.status,
+    statusText: bounded.statusText,
+    headers: bounded.headers,
+  });
 }
 
 function pinnedLookup(approved: ApprovedAddress[]): net.LookupFunction {
@@ -186,15 +313,16 @@ function pinnedLookup(approved: ApprovedAddress[]): net.LookupFunction {
 export async function guardedRemoteFetch(
   input: Parameters<typeof fetch>[0],
   init?: Parameters<typeof fetch>[1],
-  label = "Remote URL",
+  policy: RemoteFetchPolicy = {},
 ): Promise<Response> {
+  const options = policy;
   const rawUrl =
     typeof input === "string"
       ? input
       : input instanceof URL
         ? input.toString()
         : input.url;
-  const approved = await resolveRemoteHttpsUrl(rawUrl, label);
+  const approved = await resolveRemoteHttpsUrl(rawUrl, options);
   // undici costs ~100ms to require; guarded fetches are per-request work,
   // so the dependency loads on first use instead of at server boot.
   const { Agent, fetch: undiciFetch } = await import("undici");
@@ -237,14 +365,30 @@ export async function guardedRemoteFetch(
         Symbol.asyncIterator in body);
     const hasDuplex =
       !!init && Object.prototype.hasOwnProperty.call(init, "duplex");
-    return (await undiciFetch(approved.url, {
+    const signals = [request?.signal, init?.signal].filter(
+      (signal): signal is AbortSignal => Boolean(signal),
+    );
+    if (options.timeoutMs !== undefined) {
+      if (!Number.isSafeInteger(options.timeoutMs) || options.timeoutMs <= 0) {
+        throw new Error("Remote fetch timeoutMs must be a positive integer.");
+      }
+      signals.push(AbortSignal.timeout(options.timeoutMs));
+    }
+    const signal = signals.length > 1
+      ? AbortSignal.any(signals)
+      : signals[0];
+    const response = (await undiciFetch(approved.url, {
       ...inheritedInit,
       ...init,
       ...(body === undefined ? {} : { body }),
       ...(streamLikeBody && !hasDuplex ? { duplex: "half" as const } : {}),
+      ...(signal ? { signal } : {}),
       redirect: "manual",
       dispatcher,
     } as Parameters<typeof undiciFetch>[1])) as unknown as Response;
+    return options.response
+      ? boundRemoteResponse(response, options.response)
+      : response;
   } finally {
     // close() is graceful: the streaming response stays usable while its
     // one-request pool shuts down after the body completes.

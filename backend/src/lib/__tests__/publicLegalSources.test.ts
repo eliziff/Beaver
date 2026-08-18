@@ -1,12 +1,17 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("../remoteUrlSafety", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../remoteUrlSafety")>()),
+  guardedRemoteFetch: (
+    input: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1],
+  ) => fetch(input, init),
+}));
+
+import type { LegalSourcePassage } from "../legalSources";
 import {
-  fetchGovInfoCase,
-  fetchGovUkEtCase,
-  fetchTnaCase,
-  lookupPublicLegalSource,
-  searchGovInfoCase,
-  searchGovUkEtCase,
-  searchTnaCase,
+  publicLegalSourceProviders,
+  type PublicLegalDocument,
 } from "../publicLegalSources";
 
 afterEach(() => {
@@ -18,6 +23,17 @@ function response(body: unknown, contentType = "application/json") {
     contentType === "application/json" ? JSON.stringify(body) : String(body),
     { status: 200, headers: { "Content-Type": contentType } },
   );
+}
+
+function provider(id: "tna" | "govuk-et" | "govinfo") {
+  return publicLegalSourceProviders.find((candidate) => candidate.id === id)!;
+}
+
+function native(passage: LegalSourcePassage) {
+  return passage.native as {
+    document: PublicLegalDocument;
+    lookup?: { status: string; block?: { text: string; origin: string } | null };
+  };
 }
 
 describe("public legal sources", () => {
@@ -53,25 +69,36 @@ describe("public legal sources", () => {
       .mockResolvedValueOnce(response(judgment, "application/akn+xml"));
     vi.stubGlobal("fetch", fetchMock);
 
-    const found = await searchTnaCase("[2024] UKFTT 943 (GRC)");
-    expect(found).toMatchObject({
-      url: "https://caselaw.nationalarchives.gov.uk/ukftt/grc/2024/943",
-      xmlUrl: "https://caselaw.nationalarchives.gov.uk/exports/example.xml",
+    const tna = provider("tna");
+    const [source] = await tna.resolve!({
+      text: "[2024] UKFTT 943 (GRC)",
+      kind: "case",
     });
-    const document = await fetchTnaCase(found!);
-    const paragraph = lookupPublicLegalSource(document, "paragraph", "24");
-    const subsection = lookupPublicLegalSource(document, "section", "2(1)");
+    expect(source).toMatchObject({
+      url: "https://caselaw.nationalarchives.gov.uk/ukftt/grc/2024/943",
+    });
+    const [paragraph] = await tna.readPassage!({
+      source,
+      locator: { kind: "paragraph", value: "24" },
+    });
+    const [subsection] = await tna.readPassage!({
+      source,
+      locator: { kind: "section", value: "2(1)" },
+    });
 
     expect(fetchMock.mock.calls[1]?.[0]).toBe(
       "https://caselaw.nationalarchives.gov.uk/exports/example.xml",
     );
     expect(paragraph).toMatchObject({
+      locator: { anchor: "para_24" },
+      role: "selected",
+    });
+    expect(native(paragraph).lookup).toMatchObject({
       status: "found",
-      anchor: "para_24",
       block: { origin: "native" },
     });
-    expect(paragraph.block?.text).toContain("distinctive legal words");
-    expect(subsection.anchor).toBe("section_2__subsection_1");
+    expect(paragraph.text).toContain("distinctive legal words");
+    expect(subsection.locator.anchor).toBe("section_2__subsection_1");
   });
 
   it("rejects ambiguous exact TNA citation matches", async () => {
@@ -93,7 +120,9 @@ describe("public legal sources", () => {
         ),
     );
 
-    await expect(searchTnaCase("[2025] UKSC 1")).resolves.toBeNull();
+    await expect(
+      provider("tna").resolve!({ text: "[2025] UKSC 1", kind: "case" }),
+    ).resolves.toEqual([]);
   });
 
   it("fetches all ET attachment metadata and reconstructs only heuristic structure", async () => {
@@ -141,9 +170,16 @@ describe("public legal sources", () => {
       );
     vi.stubGlobal("fetch", fetchMock);
 
-    const found = await searchGovUkEtCase("A v B, 2200123/2024");
-    const document = await fetchGovUkEtCase(found!);
-    const paragraph = lookupPublicLegalSource(document, "paragraph", "4");
+    const et = provider("govuk-et");
+    const [source] = await et.resolve!({
+      text: "A v B, 2200123/2024",
+      kind: "case",
+    });
+    const [paragraph] = await et.readPassage!({
+      source,
+      locator: { kind: "paragraph", value: "4" },
+    });
+    const document = native(paragraph).document;
 
     expect(document.attachments).toHaveLength(2);
     expect(document.attachments[0]).toMatchObject({
@@ -151,7 +187,7 @@ describe("public legal sources", () => {
       pageCount: 9,
     });
     expect(document.structure.ranges.page.count).toBe(0);
-    expect(paragraph).toMatchObject({
+    expect(native(paragraph).lookup).toMatchObject({
       status: "found",
       block: { origin: "heuristic" },
     });
@@ -210,12 +246,15 @@ describe("public legal sources", () => {
       );
     vi.stubGlobal("fetch", fetchMock);
 
-    const found = await searchGovInfoCase(
-      "United States District Court case 1:22-cv-00930",
-    );
-    const document = await fetchGovInfoCase(found!);
+    const govinfo = provider("govinfo");
+    const [source] = await govinfo.resolve!({
+      text: "United States District Court case 1:22-cv-00930",
+      kind: "case",
+    });
+    const [passage] = await govinfo.readPassage!({ source });
+    const document = native(passage).document;
 
-    expect(found?.packageId).toBe("USCOURTS-cod-1_22-cv-00930");
+    expect(source.id).toBe("USCOURTS-cod-1_22-cv-00930");
     expect(document.attachments).toEqual([
       expect.objectContaining({
         contentType: "application/pdf",
@@ -223,8 +262,9 @@ describe("public legal sources", () => {
       }),
     ]);
     expect(document.structure.ranges.page.count).toBe(0);
-    await expect(
-      searchGovInfoCase("United States case 1:22-cv-00930"),
-    ).resolves.toBeNull();
+    await expect(govinfo.resolve!({
+      text: "United States case 1:22-cv-00930",
+      kind: "case",
+    })).resolves.toEqual([]);
   });
 });

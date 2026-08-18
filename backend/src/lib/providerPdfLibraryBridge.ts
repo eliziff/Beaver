@@ -1,6 +1,5 @@
 import crypto from "node:crypto";
 import { createReadStream } from "node:fs";
-import { isIP } from "node:net";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import {
@@ -26,7 +25,11 @@ import {
   readLocalPdfParseState,
   type LocalPdfParseStatus,
 } from "./localPdfIngestion";
-import { guardedRemoteFetch } from "./remoteUrlSafety";
+import {
+  boundRemoteResponse,
+  guardedRemoteFetch,
+  normalizeRemoteHttpsUrl,
+} from "./remoteUrlSafety";
 import { sha256 } from "./hash";
 
 type ProviderPdfFallbackProvider =
@@ -125,8 +128,8 @@ type SourceBindingReceipt = {
   request_reference: string;
   source_sha256: string;
   bound_at: string;
-  request?: SafeRequest;
-  freshness?: PointerRefresh;
+  request: SafeRequest;
+  freshness: PointerRefresh;
 };
 
 const MAX_PDF_BYTES = 100 * 1024 * 1024;
@@ -317,30 +320,13 @@ function responseRefreshFields(
 }
 
 function publicHttpsUrl(raw: string) {
-  if (raw.length > 8192) {
-    throw new Error("Provider PDF URL is too long");
-  }
-  const url = new URL(raw);
-  const hostname = url.hostname.toLowerCase();
-  const ipHostname =
-    hostname.startsWith("[") && hostname.endsWith("]")
-      ? hostname.slice(1, -1)
-      : hostname;
-  if (
-    url.protocol !== "https:" ||
-    url.username ||
-    url.password ||
-    url.port ||
-    !hostname ||
-    hostname === "localhost" ||
-    hostname.endsWith(".localhost") ||
-    hostname.endsWith(".local") ||
-    isIP(ipHostname)
-  ) {
-    throw new Error("Provider PDF URL is not a trusted default-port HTTPS URL");
-  }
-  url.hash = "";
-  return url;
+  return normalizeRemoteHttpsUrl(raw, {
+    label: "Provider PDF URL",
+    maxUrlLength: 8_192,
+    defaultPortOnly: true,
+    allowIpLiterals: false,
+    blockedHostSuffixes: [".local"],
+  }).url;
 }
 
 function sourceUrl(params: ProviderPdfAttachment) {
@@ -457,8 +443,8 @@ async function responseFor(
     }
     const response = await guardedRemoteFetch(
       requested,
-      { redirect: "manual", headers, signal: AbortSignal.timeout(30_000) },
-      "Provider PDF URL",
+      { redirect: "manual", headers },
+      { label: "Provider PDF URL", timeoutMs: 30_000 },
     );
     if (
       response.status === 304 &&
@@ -493,11 +479,11 @@ async function streamPdfToTemporary(response: Response, directory: string) {
     await cancelBody(response);
     throw new Error(`Provider PDF request failed (${response.status})`);
   }
-  const declared = Number(response.headers.get("content-length"));
-  if (Number.isFinite(declared) && declared > MAX_PDF_BYTES) {
-    await cancelBody(response);
-    throw new Error("Provider PDF exceeds the local import size limit");
-  }
+  response = await boundRemoteResponse(response, {
+    label: "Provider PDF",
+    maxBytes: MAX_PDF_BYTES,
+  });
+  if (!response.body) throw new Error("Provider PDF response has no body");
   await mkdir(directory, { recursive: true });
   const temporary = path.join(directory, `.download-${crypto.randomUUID()}.tmp`);
   // try/catch (not .catch) so a synchronous open() throw still cancels.
@@ -512,15 +498,10 @@ async function streamPdfToTemporary(response: Response, directory: string) {
   const digest = crypto.createHash("sha256");
   const header = Buffer.alloc(1024);
   let headerSize = 0;
-  let size = 0;
   try {
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
-      size += value.byteLength;
-      if (size > MAX_PDF_BYTES) {
-        throw new Error("Provider PDF exceeds the local import size limit");
-      }
       if (headerSize < header.length) {
         const copied = Math.min(header.length - headerSize, value.byteLength);
         header.set(value.subarray(0, copied), headerSize);
@@ -915,14 +896,11 @@ async function readSourceBinding(
     ) {
       return null;
     }
-    const recovered = stored.request
-      ? requestFromSnapshot(stored.request)
-      : null;
+    const recovered = requestFromSnapshot(stored.request);
     if (
-      stored.request &&
-      (!recovered ||
+      !recovered ||
         recovered.request.requestKey !== request.requestKey ||
-        recovered.request.request_reference !== request.request_reference)
+        recovered.request.request_reference !== request.request_reference
     ) {
       return null;
     }
@@ -932,12 +910,8 @@ async function readSourceBinding(
       request_reference: request.request_reference,
       source_sha256: sourceSha256,
       bound_at: stored.bound_at,
-      ...(recovered
-        ? {
-            request: requestSnapshot(recovered.request),
-            freshness: normalizedFreshness(stored.freshness, recovered.params),
-          }
-        : {}),
+      request: requestSnapshot(recovered.request),
+      freshness: normalizedFreshness(stored.freshness, recovered.params),
     } satisfies SourceBindingReceipt;
   } catch {
     return null;
@@ -956,13 +930,13 @@ async function writeSourceBinding(
   try {
     return await lease.guard(async () => {
       const existing = await readSourceBinding(request, sourceSha256);
-      if (existing?.request) return existing;
+      if (existing) return existing;
       const receipt = {
         schema_version: SOURCE_BINDING_SCHEMA,
         provider: request.provider,
         request_reference: request.request_reference,
         source_sha256: sourceSha256,
-        bound_at: existing?.bound_at ?? new Date().toISOString(),
+        bound_at: new Date().toISOString(),
         request: requestSnapshot(request),
         freshness: normalizedFreshness(freshness, attachmentFromStored(request)!),
       } satisfies SourceBindingReceipt;
@@ -973,7 +947,7 @@ async function writeSourceBinding(
         );
       } catch (error) {
         const winner = await readSourceBinding(request, sourceSha256);
-        if (winner?.request) return winner;
+        if (winner) return winner;
         throw error;
       }
       return receipt;
@@ -985,26 +959,12 @@ async function writeSourceBinding(
 
 async function ensureSourceBinding(
   request: ReturnType<typeof safeRequest>,
-  pointer: RequestPointer | null,
   sourceSha256: string,
   blob: string,
-  lease?: RequestLease,
 ) {
   if (!(await validPdfFile(blob, sourceSha256))) return false;
   const receipt = await readSourceBinding(request, sourceSha256);
-  if (receipt?.request) return true;
-  const pointerBinds =
-    pointer?.status === "downloaded" &&
-    pointer.request_reference === request.request_reference &&
-    pointer.source_sha256 === sourceSha256;
-  if (!receipt && !pointerBinds) return false;
-  await writeSourceBinding(
-    request,
-    sourceSha256,
-    pointer?.source_sha256 === sourceSha256 ? refreshFields(pointer) : {},
-    lease,
-  );
-  return true;
+  return receipt !== null;
 }
 
 async function sourceBindingForReference(
@@ -1030,7 +990,7 @@ async function sourceBindingForReference(
       return null;
     }
     const receipt = await readSourceBinding(recovered.request, sourceSha256);
-    return receipt?.request ? { ...recovered, receipt } : null;
+    return receipt ? { ...recovered, receipt } : null;
   } catch {
     return null;
   }
@@ -1041,7 +1001,7 @@ function bindingPointer(
   sourceSha256: string,
   receipt: SourceBindingReceipt | null,
 ) {
-  if (!receipt?.request) return null;
+  if (!receipt) return null;
   return {
     schema_version: POINTER_SCHEMA,
     ...request,
@@ -1218,10 +1178,7 @@ async function readPointer(
     const stored = JSON.parse(
       await readFile(pointerPath(provider, requestKey), "utf8"),
     ) as Omit<Partial<RequestPointer>, "status"> & { status?: string };
-    const pointer = {
-      ...stored,
-      status: stored.status === "ready" ? "downloaded" : stored.status,
-    } as Partial<RequestPointer>;
+    const pointer = stored as Partial<RequestPointer>;
     const params =
       pointer.schema_version === POINTER_SCHEMA
         ? attachmentFromStored(pointer)
@@ -1250,7 +1207,6 @@ async function cachedPdf(
   params: ProviderPdfAttachment,
   request: ReturnType<typeof safeRequest>,
   loaded?: Awaited<ReturnType<typeof readPointer>>,
-  lease?: RequestLease,
 ) {
   const current =
     loaded === undefined
@@ -1261,7 +1217,7 @@ async function cachedPdf(
   if (!sha256) return null;
   const blob = blobPath(params.provider, sha256);
   if (
-    !(await ensureSourceBinding(request, current.pointer, sha256, blob, lease))
+    !(await ensureSourceBinding(request, sha256, blob))
   ) {
     return null;
   }
@@ -1285,7 +1241,7 @@ function loadPdf(
       const pointerFile = pointerPath(params.provider, request.requestKey);
       const blobsDir = cacheFile(params.provider, "blobs");
       const loaded = await readPointer(params.provider, request.requestKey);
-      const cached = await cachedPdf(params, request, loaded, requestLease);
+      const cached = await cachedPdf(params, request, loaded);
       if (cached?.pointer && !refreshDue(request, cached.pointer)) return cached;
       if (
         !cached &&
@@ -1471,7 +1427,7 @@ async function publishQueuedPointer(
     lease?: RequestLease,
   ) {
     const pointer = loaded?.pointer ?? null;
-    const cached = await cachedPdf(params, request, loaded, lease);
+    const cached = await cachedPdf(params, request, loaded);
     if (cached) return { sourceSha256: cached.sha256, pointer, start: false };
     if (pointer?.status === "failed" && !retryDue(pointer)) {
       return { sourceSha256: null, pointer, start: false };
@@ -1623,7 +1579,6 @@ async function stateForRequest(
     const historicalBlob = blobPath(params.provider, expectedSourceSha256);
     const bound = await ensureSourceBinding(
       request,
-      loaded?.pointer ?? null,
       expectedSourceSha256,
       historicalBlob,
     );
@@ -1652,7 +1607,7 @@ async function stateForRequest(
   }
   const blob = blobPath(params.provider, sourceSha256);
   if (
-    !(await ensureSourceBinding(request, loaded.pointer, sourceSha256, blob))
+    !(await ensureSourceBinding(request, sourceSha256, blob))
   ) {
     if (resume) await queueProviderPdfAttachment(params);
     const status = resume ? ("queued" as const) : ("failed" as const);

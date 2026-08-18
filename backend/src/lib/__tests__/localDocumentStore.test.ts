@@ -23,7 +23,8 @@ afterEach(async () => {
   if (temporaryDirectory) {
     try {
       const store = await import("../localDocumentStore");
-      await store.closeLocalDocumentStore();
+      (await import("../localApplicationDatabase"))
+        .closeLocalApplicationDatabase();
     } catch {}
   }
   delete process.env.MIKE_LOCAL_DATA_DIR;
@@ -158,7 +159,8 @@ describe("local document store", () => {
     });
 
     expect(replaced?.provenance).toBeUndefined();
-    await store.closeLocalDocumentStore();
+    (await import("../localApplicationDatabase"))
+      .closeLocalApplicationDatabase();
     vi.resetModules();
     const reloadedStore = await import("../localDocumentStore");
     const reloaded = await reloadedStore.listLocalVersions(
@@ -218,7 +220,8 @@ describe("local document store", () => {
       dataset: "SCC",
     });
     expect(reference.id).toMatch(/^[a-f0-9]{32}$/u);
-    await store.closeLocalDocumentStore();
+    (await import("../localApplicationDatabase"))
+      .closeLocalApplicationDatabase();
     vi.resetModules();
     const reloadedStore = await import("../localDocumentStore");
     expect(await reloadedStore.listLocalLegalSources("local-user")).toEqual([

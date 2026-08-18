@@ -336,7 +336,7 @@ describe("MCP OAuth security boundaries", () => {
     await expect(provider.clientInformation()).resolves.toBeUndefined();
   });
 
-  it("does not let a legacy stored static client bypass the origin allowlist", async () => {
+  it("does not let a stored static client bypass the origin allowlist", async () => {
     const { db } = fakeDb({
       token: {
         connector_id: "connector-1",

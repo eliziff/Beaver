@@ -11,13 +11,8 @@ export default function AssistantChatPage() {
 function AssistantChat({ id }: { id: string }) {
     const [projectModalOpen, setProjectModalOpen] = useState(false);
     const {
-        messages,
-        isResponseLoading,
-        handleChat,
-        rejectedTurn,
-        clearRejectedTurn,
-        retryRejectedTurn,
-        cancel,
+        state: session,
+        actions,
         chatTitle,
         chatProjectId: projectId,
         chatProjectName: projectName,
@@ -29,13 +24,11 @@ function AssistantChat({ id }: { id: string }) {
         <>
             <ChatView
                 chatId={id}
-                messages={messages}
-                isResponseLoading={isResponseLoading}
-                handleChat={handleChat}
-                cancel={cancel}
-                rejectedTurn={rejectedTurn}
-                onRejectedTurnRestored={clearRejectedTurn}
-                onRetryRejectedTurn={() => void retryRejectedTurn()}
+                session={session}
+                handleChat={actions.handleChat}
+                cancel={actions.cancel}
+                onRejectedTurnRestored={actions.clearRejectedTurn}
+                onRetryRejectedTurn={() => void actions.retryRejectedTurn()}
                 projectId={projectId ?? undefined}
                 projectName={projectName}
                 useDisplayedDocumentContext={!!projectId}

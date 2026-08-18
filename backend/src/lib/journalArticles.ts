@@ -8,8 +8,15 @@ import {
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { legalProviderDatabase } from "./legalDataPath";
+import { sha256 } from "./hash";
+import type {
+  LegalSourcePassage,
+  LegalSourceProvider,
+  LegalSourceReference,
+} from "./legalSources";
 import {
   createSourceDoc,
+  readSourceDocRange,
   type SourceDoc,
   type SourceDocBlock,
   type SourceDocLocatorKind,
@@ -280,18 +287,19 @@ function finalContractDatabase() {
 }
 
 function displayCitation(row: Row) {
-  const citation = string(row, "citation_en");
-  if (citation) return citation;
-  const title = string(row, "name_en") ?? `Article ${row.article_id}`;
-  const publication = [
-    string(row, "document_date_en"),
-    string(row, "volume"),
-    string(row, "journal_abbrev") ?? string(row, "journal_name"),
+  const authors = (string(row, "authors") ?? "").split(/\s*;\s*/u).filter(Boolean);
+  const byline = authors.length > 3 ? `${authors[0]} et al` : authors.join(" & ");
+  const volume = string(row, "volume");
+  const issue = string(row, "issue");
+  const year = string(row, "document_date_en")?.match(/\d{4}/u)?.[0];
+  return [
+    `${byline}${byline ? "," : ""}`,
+    `“${string(row, "name_en") ?? ""}”`,
+    year ? `(${year})` : "",
+    volume ? `${volume}${issue ? `:${issue}` : ""}` : "",
+    string(row, "journal_abbrev"),
     string(row, "first_page"),
-  ]
-    .filter(Boolean)
-    .join(" ");
-  return publication ? `“${title}” (${publication})` : title;
+  ].filter(Boolean).join(" ");
 }
 
 function queryTokens(value: string) {
@@ -349,7 +357,7 @@ export function searchJournalArticles(
     const row = database()
       .prepare(
         `SELECT article_id, dataset, citation_en, name_en, authors,
-                document_date_en, volume, first_page, journal_name,
+                document_date_en, volume, issue, first_page, journal_name,
                 journal_abbrev, galley_url, url_en, abstract
          FROM articles
          WHERE article_id = ? AND text IS NOT NULL AND length(text) > 0`,
@@ -388,7 +396,7 @@ export function searchJournalArticles(
     const rows = database()
       .prepare(
         `SELECT article_id, dataset, citation_en, name_en, authors,
-                document_date_en, volume, first_page, journal_name,
+                document_date_en, volume, issue, first_page, journal_name,
                 journal_abbrev, galley_url, url_en, abstract
          FROM articles WHERE article_id IN (${ids.map(() => "?").join(",")})
            ${options.author ? "AND LOWER(authors) LIKE ?" : ""}
@@ -430,7 +438,7 @@ export function searchJournalArticles(
   const rows = database()
     .prepare(
       `SELECT article_id, dataset, citation_en, name_en, authors,
-              document_date_en, volume, first_page, journal_name,
+                document_date_en, volume, issue, first_page, journal_name,
               journal_abbrev, galley_url, url_en, abstract
        FROM articles
        WHERE text IS NOT NULL AND length(text) > 0
@@ -1019,3 +1027,178 @@ export function resolveJournalViewerDocument(identifier: string) {
       .digest("base64url")}"`,
   };
 }
+
+function journalReference(document: JournalArticleDocument) {
+  return {
+    provider: "journal",
+    id: document.identity,
+    kind: "journal",
+    title: document.title,
+    citation: document.citation,
+    date: document.date,
+    collection: document.journalName ?? document.dataset,
+    language: document.language,
+    url: document.url,
+  } satisfies LegalSourceReference;
+}
+
+function exactJournalIdentity(value: string) {
+  return value
+    .trim()
+    .normalize("NFKC")
+    .toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+export const journalLegalSourceProvider: LegalSourceProvider<
+  SourceDoc | string,
+  {
+    document: JournalArticleDocument;
+    lookup?: JournalArticleLookup;
+  }
+> = {
+  id: "journal",
+  canResolve: ({ kind }) => kind === "journal",
+  async resolve(request) {
+    const candidates = [request.text, ...(request.alternateTexts ?? [])]
+      .map((value) => value.trim().replace(/\s+/gu, " "))
+      .filter(Boolean);
+    for (const candidate of candidates) {
+      const document = fetchJournalArticle(candidate);
+      if (document) return [journalReference(document)];
+    }
+    const matches = searchJournalArticles(candidates[0] ?? request.text, 10).filter(
+      (match) =>
+        candidates.some(
+          (candidate) =>
+            exactJournalIdentity(candidate) === exactJournalIdentity(match.citation) ||
+            exactJournalIdentity(candidate) === exactJournalIdentity(match.name),
+        ),
+    );
+    if (matches.length !== 1) return [];
+    const document = fetchJournalArticle(String(matches[0].articleId));
+    return document ? [journalReference(document)] : [];
+  },
+  canSearch: (request) => request.kinds.includes("journal"),
+  async search(request) {
+    const jurisdiction = request.jurisdiction
+      ?.toLocaleLowerCase()
+      .replace(/[^a-z]/gu, "");
+    if (
+      request.court ||
+      request.collection ||
+      ["us", "usa", "unitedstates", "unitedstatesofamerica"].includes(
+        jurisdiction ?? "",
+      )
+    ) {
+      throw new Error("jurisdiction and court metadata are not indexed");
+    }
+    return searchJournalArticles(
+      request.text,
+      request.perProviderLimit ?? request.limit,
+      {
+        querySyntax: request.syntax,
+        author: request.author,
+        journal: request.journal,
+        startDate: request.dateFrom,
+        endDate: request.dateTo,
+        sortResults:
+          request.sort === "newest"
+            ? "newest_first"
+            : request.sort === "oldest"
+              ? "oldest_first"
+              : "default",
+      },
+    ).map((row) => ({
+      provider: "journal",
+      id: String(row.articleId),
+      kind: "journal" as const,
+      title: row.name,
+      citation: row.citation,
+      date: row.date,
+      collection: row.journalName,
+      url: row.url,
+      snippet: row.snippet,
+      authors: row.authors,
+    }));
+  },
+  async readPassage(request) {
+    const document = fetchJournalArticle(request.source.id);
+    if (!document) return [];
+    const source = document.structure;
+    if (!request.locator) {
+      const passage: LegalSourcePassage<
+        SourceDoc,
+        { document: JournalArticleDocument; lookup?: JournalArticleLookup }
+      > = {
+        source: journalReference(document),
+        locator: { requested: null, label: "document" },
+        role: "document",
+        text: source.text,
+        textSha256: sha256(source.text),
+        documentSha256: source.revision,
+        revision: source.revision,
+        blockArtifact: source,
+        documentArtifact: source,
+        native: { document },
+      };
+      return [passage];
+    }
+    const lookup = lookupJournalArticle(
+      document,
+      request.locator.kind,
+      request.locator.value,
+      request.contextBlocks ?? 0,
+    );
+    if (lookup.status !== "found" || !lookup.block) return [];
+    const range = request.locator.endValue
+      ? readSourceDocRange(
+          source,
+          request.locator.kind,
+          request.locator.value,
+          request.locator.endValue,
+          request.contextBlocks ?? 0,
+        )
+      : null;
+    if (request.locator.endValue && !range) return [];
+    const visible = range
+      ? [
+          ...range.before.map((block) => ({ block, role: "context" as const })),
+          ...range.selected.map((block) => ({ block, role: "selected" as const })),
+          ...range.after.map((block) => ({ block, role: "context" as const })),
+        ]
+      : [
+          { block: lookup.block, role: "selected" as const },
+          ...lookup.before.map((block) => ({ block, role: "context" as const })),
+          ...lookup.after.map((block) => ({ block, role: "context" as const })),
+        ];
+    return visible.map(({ block, role }) => ({
+      source: journalReference(document),
+      locator: {
+        requested: request.locator!,
+        label: block.label,
+        anchor: block.anchor ?? (role === "selected" ? lookup.anchor : null),
+        pageScoped: block.kind === "page",
+      },
+      role,
+      text: block.text,
+      textSha256: sha256(block.text),
+      documentSha256: source.revision,
+      revision: source.revision,
+      blockArtifact: block.text,
+      documentArtifact: source,
+      native: {
+        document,
+        lookup: {
+          ...lookup,
+          requestedLabel: block.label,
+          matches: [block.label],
+          block,
+          before: [],
+          after: [],
+          anchor: block.anchor ?? null,
+        },
+      },
+    }));
+  },
+};

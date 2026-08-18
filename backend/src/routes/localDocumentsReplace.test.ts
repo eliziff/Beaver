@@ -20,7 +20,8 @@ let temporaryDirectory: string | null = null;
 
 afterEach(async () => {
   try {
-    await (await import("../lib/localDocumentStore")).closeLocalDocumentStore();
+    (await import("../lib/localApplicationDatabase"))
+      .closeLocalApplicationDatabase();
   } catch {}
   delete process.env.AUTH_MODE;
   delete process.env.MIKE_LOCAL_DATA_DIR;
@@ -227,16 +228,32 @@ describe("local document version replacement", () => {
       { createChatRouter },
       { localTabularData },
       { createLocalChatStore },
+      { createChatApplication },
+      { localChatApplicationFeatures },
+      { localProjects },
     ] = await Promise.all([
       import("./chat"),
       import("../lib/localTabularStore"),
       import("../lib/localChatStore"),
+      import("../lib/chat/chatApplication"),
+      import("../lib/chat/localChatApplicationFeatures"),
+      import("../lib/localProjectStore"),
     ]);
+    const chatStore = createLocalChatStore(localTabularData);
+    const application = createChatApplication({
+      chats: chatStore,
+      documents: localDocuments,
+      library: localLibraryStore,
+      projects: localProjects,
+      tabular: localTabularData,
+      features: localChatApplicationFeatures,
+    });
     const chatApp = express();
     chatApp.use(express.json());
     chatApp.use("/chat", createChatRouter(
       localTabularData,
-      createLocalChatStore(localTabularData),
+      chatStore,
+      application,
     ));
     const reloaded = await request(chatApp).get(`/chat/${chat.id}`);
     expect(reloaded.status).toBe(200);

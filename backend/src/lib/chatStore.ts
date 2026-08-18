@@ -7,11 +7,39 @@ export type ChatRecord = Record<string, unknown> & {
   project_id: string | null;
   tabular_review_id: string | null;
   title: string | null;
+  transcript_version: number;
 };
 export type ChatMessageRecord = Record<string, unknown> & {
   id: string;
+  chat_id: string;
+  turn_id?: string;
   role: "user" | "assistant";
   content: unknown;
+  files?: unknown;
+  workflow?: unknown;
+  citations?: unknown;
+};
+
+export type ChatCommitResult =
+  | { status: "missing" }
+  | { status: "conflict"; currentVersion: number }
+  | { status: "committed"; currentVersion: number };
+
+export type ChatTurnCommit = {
+  expectedVersion: number;
+  userMessage?: {
+    id: string;
+    turnId?: string;
+    content: string;
+    files?: unknown;
+    workflow?: unknown;
+  };
+  assistantMessage?: {
+    id: string;
+    turnId?: string;
+    content: unknown[];
+    citations?: unknown[];
+  };
 };
 
 export class ChatStoreError extends Error {
@@ -38,12 +66,18 @@ export type ChatStore = {
   } | null>;
   /** Canonical rows, including provider-only checkpoint events. */
   transcript(scope: ChatScope, chatId: string): Promise<ChatMessageRecord[] | null>;
+  /** Atomically compare the transcript version, write a turn snapshot, and advance it. */
+  commitTurn(
+    scope: ChatScope,
+    chatId: string,
+    commit: ChatTurnCommit,
+  ): Promise<ChatCommitResult>;
   appendAssistantEvent(
     scope: ChatScope,
     chatId: string,
     messageId: string,
     event: Record<string, unknown>,
-  ): Promise<boolean>;
+  ): Promise<ChatCommitResult>;
   update(scope: ChatScope, chatId: string, input: {
     title?: string;
     projectId?: string | null;

@@ -3,7 +3,7 @@ import { streamChatWithTools } from "../llm";
 import type {
   NormalizedToolCall,
   NormalizedToolResult,
-  OpenAIToolSchema,
+  Tool,
 } from "../llm";
 import { SOURCE_SEARCH_SYSTEM_PROMPT } from "./prompts";
 import {
@@ -24,23 +24,13 @@ const MAX_TASK_CHARS = 4_000;
 const MAX_REPAIR_CONTEXT_CHARS = 16_000;
 
 export type ReadSubagentRole = "scout";
-export type ReadSubagentActivity = {
+export type ToolActivity = {
   id: string;
+  tool: string;
   label: string;
   status: "running" | "completed" | "error" | "interrupted";
-  tool?: string;
-  input?: Record<string, unknown>;
   source?: ReadSubagentSource;
-  paragraphs?: string[];
 };
-
-function readActivityParagraphs(input: Record<string, unknown>) {
-  if (input.locator_kind !== "paragraph") return [];
-  const start = String(input.locator ?? "").trim().replace(/^para(?:graph)?\.?\s*/iu, "");
-  if (!start) return [];
-  const end = String(input.end_locator ?? "").trim().replace(/^para(?:graph)?\.?\s*/iu, "");
-  return [end ? `${start}\u2013${end}` : start];
-}
 function viewerLocator(locator: { kind: string; label: string }) {
   const prefix = locator.kind === "paragraph"
     ? "par"
@@ -139,7 +129,7 @@ export type ReadSubagentEvent = {
   status: "running" | "completed" | "error" | "cancelled" | "interrupted";
   output?: string;
   error?: string;
-  activities?: ReadSubagentActivity[];
+  activities?: ToolActivity[];
   reasoning?: string[];
   sources?: ReadSubagentSource[];
   grounding?: LegalEvidenceReceiptEvent;
@@ -173,14 +163,11 @@ export type ReadSubagentCapability = {
 const ROLE_INSTRUCTIONS =
   "Read or find exactly what the assigned task requests. Return condensed context for the main assistant, preserving legally material qualifications and contrary text. Treat every element of the assignment as required: omit merely analogous, adjacent, or conceptually related material that does not satisfy it. Do not broaden the assignment, plan work, or recommend next steps.";
 
-export const READ_SUBAGENT_TOOL: OpenAIToolSchema = {
-  type: "function",
-  function: {
-    name: READ_SUBAGENT_TOOL_NAME,
-    description:
-      "Dispatch one concurrent round of two to four independent reading agents. Put every non-overlapping assignment in this single call; lone assignments are invalid. Delegate only when parallel reading is worthwhile. Later rounds are allowed only when the prior search ledger identifies a concrete gap and the new assignments materially change the query, scope, source collection, period, or strategy. An unqualified request about multiple jurisdictions means jurisdictions within the standing region, not different countries or world regions. Keep work in the main turn when fewer than two useful independent slices exist. Do not use it for simple lookups, deterministic operations, or any write task. Completed results include exact grounded passages and a compact search ledger; review them against every element of the user's request, omit non-responsive candidates, and reuse their evidence IDs without re-fetching them.",
-    strict: true,
-    parameters: {
+export const READ_SUBAGENT_TOOL: Tool = {
+  name: READ_SUBAGENT_TOOL_NAME,
+  description:
+    "Dispatch one concurrent round of two to four independent reading agents. Put every non-overlapping assignment in this single call; lone assignments are invalid. Delegate only when parallel reading is worthwhile. Later rounds are allowed only when the prior search ledger identifies a concrete gap and the new assignments materially change the query, scope, source collection, period, or strategy. An unqualified request about multiple jurisdictions means jurisdictions within the standing region, not different countries or world regions. Keep work in the main turn when fewer than two useful independent slices exist. Do not use it for simple lookups, deterministic operations, or any write task. Completed results include exact grounded passages and a compact search ledger; review them against every element of the user's request, omit non-responsive candidates, and reuse their evidence IDs without re-fetching them.",
+  inputSchema: {
       type: "object",
       properties: {
         assignments: {
@@ -237,18 +224,14 @@ export const READ_SUBAGENT_TOOL: OpenAIToolSchema = {
       },
       required: ["assignments"],
       additionalProperties: false,
-    },
   },
 };
 
-export const RESUME_SUBAGENT_TOOL: OpenAIToolSchema = {
-  type: "function",
-  function: {
-    name: RESUME_SUBAGENT_TOOL_NAME,
-    description:
-      "Resume one or more interrupted reading agents in their existing sessions. Supply only the listed run IDs; the original assignment and tool history are retained.",
-    strict: true,
-    parameters: {
+export const RESUME_SUBAGENT_TOOL: Tool = {
+  name: RESUME_SUBAGENT_TOOL_NAME,
+  description:
+    "Resume one or more interrupted reading agents in their existing sessions. Supply only the listed run IDs; the original assignment and tool history are retained.",
+  inputSchema: {
       type: "object",
       properties: {
         ids: {
@@ -261,7 +244,6 @@ export const RESUME_SUBAGENT_TOOL: OpenAIToolSchema = {
       },
       required: ["ids"],
       additionalProperties: false,
-    },
   },
 };
 
@@ -703,12 +685,11 @@ const GROUNDED_ANSWER_INSTRUCTIONS =
 
 /** Effects are filtered at the registry boundary; this only applies region gates. */
 export function readSubagentTools(
-  tools: OpenAIToolSchema[],
+  tools: Tool[],
   jurisdiction: ReadSubagentRegion = "CA",
-  sourceTypes: ReadonlySet<string> = new Set(["case", "legislation", "journal"]),
 ) {
   return tools.filter((tool) => {
-    const name = tool.function.name;
+    const name = tool.name;
     if (name === "search_sources") return jurisdiction !== "UK";
     if (name === "note_up") return jurisdiction === "CA";
     if (name === "find_in_case") return jurisdiction === "US";
@@ -837,7 +818,7 @@ export function readSubagentActivityLabel(input: Record<string, unknown>) {
 
 export async function runReadSubagent(params: {
   call: NormalizedToolCall;
-  tools: OpenAIToolSchema[];
+  tools: Tool[];
   runTools: (calls: NormalizedToolCall[]) => Promise<NormalizedToolResult[]>;
   signal?: AbortSignal;
   onEvent?: (event: ReadSubagentEvent) => void;
@@ -845,7 +826,6 @@ export async function runReadSubagent(params: {
   publishEvidenceTo?: LegalEvidenceTurnState;
   model?: string;
   effort?: string;
-  activityDetail?: "auto" | "standard" | "tools" | "trace";
   jurisdictionPrompt?: string;
   resume?: ReadSubagentCheckpoint;
 }): Promise<NormalizedToolResult> {
@@ -913,15 +893,11 @@ export async function runReadSubagent(params: {
     model: capability.displayName,
     effort: capability.effort,
   };
-  const activities: ReadSubagentActivity[] = [];
-  const activityByCallId = new Map<string, ReadSubagentActivity>();
-  const activityBySource = new Map<string, ReadSubagentActivity>();
+  const activities: ToolActivity[] = [];
+  const activityByCallId = new Map<string, ToolActivity>();
   const discoveredSources = new Map<string, ReadSubagentSource>();
   const searches: { tool: string; query: string; summary: string }[] = [];
-  const eventActivities = () => activities.map((item) => ({
-    ...item,
-    ...(item.paragraphs && { paragraphs: [...item.paragraphs] }),
-  }));
+  const eventActivities = () => activities.map((item) => ({ ...item }));
   const eventSources = () => {
     const sources = [
       ...discoveredSources.values(),
@@ -966,56 +942,18 @@ export async function runReadSubagent(params: {
     const feedback: string[] = [];
     const runTools = async (calls: NormalizedToolCall[]) => {
       for (const call of calls) {
-        const citation = typeof call.input.citation === "string"
-          ? call.input.citation.trim().toLocaleLowerCase()
-          : "";
-        const resource = typeof call.input.file_path === "string"
-          ? call.input.file_path.trim()
-          : "";
-        const clusterIds = Array.isArray(call.input.clusterIds)
-          ? call.input.clusterIds
-          : typeof call.input.clusterId === "number"
-            ? [call.input.clusterId]
-            : [];
         const source = discoveredSourceFor(call, discoveredSources);
-        const label = source
-          ? `Reading ${source.name ? `${source.name}, ` : ""}${source.citation}`
-          : assistantToolActivityLabel(call.name, call.input);
+        const label = assistantToolActivityLabel(call.name, call.input);
         if (label) {
-          const paragraphs = readActivityParagraphs(call.input);
-          const sourceKey = source
-            ? `citation:${source.citation.toLocaleLowerCase()}`
-            : citation
-              ? `citation:${citation}`
-              : resource
-                ? `resource:${resource}`
-              : clusterIds.length
-                ? `cluster:${clusterIds.join(",")}`
-                : null;
-          const existing = sourceKey ? activityBySource.get(sourceKey) : undefined;
-          if (existing) {
-            existing.status = "running";
-            existing.paragraphs = [
-              ...new Set([...(existing.paragraphs ?? []), ...paragraphs]),
-            ];
-            activityByCallId.set(call.id, existing);
-            continue;
-          }
-          const activity: ReadSubagentActivity = {
+          const activity: ToolActivity = {
             id: call.id,
+            tool: call.name,
             label,
             status: "running",
-            ...((params.activityDetail === "tools" ||
-              params.activityDetail === "trace") && {
-              tool: call.name,
-              input: call.input,
-            }),
             ...(source && { source }),
-            ...(paragraphs.length && { paragraphs }),
           };
           activities.push(activity);
           activityByCallId.set(call.id, activity);
-          if (sourceKey) activityBySource.set(sourceKey, activity);
         }
       }
       params.onEvent?.({
@@ -1091,7 +1029,6 @@ export async function runReadSubagent(params: {
         const source = discoveredSourceFor(call, discoveredSources);
         if (!activity || activity.source || !source) continue;
         activity.source = source;
-        activity.label = `Reading ${source.name ? `${source.name}, ` : ""}${source.citation}`;
       }
       for (const result of results) {
         const activity = activityByCallId.get(result.tool_use_id);

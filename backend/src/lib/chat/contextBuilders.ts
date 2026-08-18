@@ -329,7 +329,7 @@ export async function buildDocContext(
   }
 
   // Also pull in document_ids from prior assistant events in this chat —
-  // generated docs (generate_docx) and tracked-change edits (edit_document)
+  // Write artifacts and tracked-change edits
   // aren't attached to user messages as files, so they only live in the
   // assistant's `doc_created` / `doc_edited` events. Without this sweep
   // the model loses access to generated docs after the turn that created

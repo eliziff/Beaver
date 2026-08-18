@@ -22,15 +22,12 @@ vi.mock("@google/genai", () => ({
 
 import { streamClaude } from "../claude";
 import { streamGemini } from "../gemini";
-import type { OpenAIToolSchema } from "../types";
+import type { Tool } from "../types";
 
-const tool = (name: string): OpenAIToolSchema => ({
-  type: "function",
-  function: {
-    name,
-    description: `${name} tool`,
-    parameters: { type: "object", properties: {} },
-  },
+const tool = (name: string): Tool => ({
+  name,
+  description: `${name} tool`,
+  inputSchema: { type: "object", properties: {} },
 });
 
 const claudeReply = (content: Record<string, unknown>[], stopReason: string) => ({

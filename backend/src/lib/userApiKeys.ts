@@ -1,6 +1,6 @@
-import crypto from "crypto";
 import { createServerSupabase } from "./supabase";
 import type { UserApiKeys } from "./llm";
+import { decryptSecret, encryptSecret } from "./secretEncryption";
 
 type Db = ReturnType<typeof createServerSupabase>;
 export type ApiKeyProvider =
@@ -109,41 +109,32 @@ export function getEnvironmentApiKeys(): UserApiKeys {
     };
 }
 
-function encryptionKey(): Buffer {
+const USER_API_KEY_SALT = "mike-user-api-keys-v1";
+
+function encryptionSecret(): string {
     const secret = process.env.USER_API_KEYS_ENCRYPTION_SECRET;
     if (!secret) {
         throw new Error("USER_API_KEYS_ENCRYPTION_SECRET is not configured");
     }
-    return crypto.scryptSync(secret, "mike-user-api-keys-v1", 32);
+    return secret;
 }
 
 function encrypt(value: string): Omit<EncryptedKeyRow, "provider"> {
-    const iv = crypto.randomBytes(12);
-    const cipher = crypto.createCipheriv("aes-256-gcm", encryptionKey(), iv);
-    const encrypted = Buffer.concat([
-        cipher.update(value, "utf8"),
-        cipher.final(),
-    ]);
+    const encrypted = encryptSecret(value, encryptionSecret(), USER_API_KEY_SALT);
     return {
-        encrypted_key: encrypted.toString("base64"),
-        iv: iv.toString("base64"),
-        auth_tag: cipher.getAuthTag().toString("base64"),
+        encrypted_key: encrypted.encrypted,
+        iv: encrypted.iv,
+        auth_tag: encrypted.tag,
     };
 }
 
 function decrypt(row: EncryptedKeyRow): string | null {
     try {
-        const decipher = crypto.createDecipheriv(
-            "aes-256-gcm",
-            encryptionKey(),
-            Buffer.from(row.iv, "base64"),
+        return decryptSecret(
+            { encrypted: row.encrypted_key, iv: row.iv, tag: row.auth_tag },
+            encryptionSecret(),
+            USER_API_KEY_SALT,
         );
-        decipher.setAuthTag(Buffer.from(row.auth_tag, "base64"));
-        const decrypted = Buffer.concat([
-            decipher.update(Buffer.from(row.encrypted_key, "base64")),
-            decipher.final(),
-        ]);
-        return decrypted.toString("utf8");
     } catch (err) {
         console.error("[user-api-keys] failed to decrypt stored key", {
             provider: row.provider,

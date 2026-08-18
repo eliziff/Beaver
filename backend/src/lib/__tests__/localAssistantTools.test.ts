@@ -12,6 +12,15 @@ import {
 } from "docx";
 import * as XLSX from "xlsx";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { resourceReference } from "../resourceReferences";
+
+vi.mock("../remoteUrlSafety", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../remoteUrlSafety")>()),
+  guardedRemoteFetch: (
+    input: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1],
+  ) => fetch(input, init),
+}));
 
 let temporaryDirectory: string | null = null;
 
@@ -88,7 +97,7 @@ const numberedReferenceBytes = () =>
   );
 
 async function expectReadRecipesAccepted(
-  tools: typeof import("../chat/localAssistantTools"),
+  tools: typeof import("./support/localAssistantTools"),
   filePath: string,
   rows: Array<{ read: Record<string, unknown> }>,
 ) {
@@ -109,7 +118,8 @@ async function expectReadRecipesAccepted(
 afterEach(async () => {
   try {
     const store = await import("../localDocumentStore");
-    await store.closeLocalDocumentStore();
+    (await import("../localApplicationDatabase"))
+      .closeLocalApplicationDatabase();
   } catch {}
   delete process.env.MIKE_LOCAL_DATA_DIR;
   delete process.env.MIKE_RETRIEVAL_EXPERIMENT;
@@ -131,7 +141,7 @@ afterEach(async () => {
   vi.doUnmock("../localDocumentStore");
   vi.doUnmock("../localPdfLookup");
   vi.doUnmock("../legalStructureSidecar");
-  vi.doUnmock("../chat/publicLegalSourceState");
+  vi.doUnmock("../chat/tools/sourceSearchTools");
   vi.doUnmock("node:fs/promises");
   vi.unstubAllGlobals();
   vi.resetModules();
@@ -197,37 +207,32 @@ describe("local assistant tools", () => {
       editMode: mode,
       onMutationCommitted: committed,
     });
-    expect(chat.toolActivityMetadata({
-      id: "read-draft",
-      name: "Read",
-      input: { file_path: document.id },
-    })).toEqual({ label: "Reading draft.docx" });
     const evidence = createLegalEvidenceTurnState();
     const events: unknown[] = [];
     const entries = chat.createTools(
       evidence,
       "main",
     );
-    const edit = entries.find(({ schema }) => schema.function.name === "Edit")!;
-    const { results: [edited] } = await edit.execute([
-      {
-        id: "coding-edit",
-        name: "Edit",
-        input: {
-          file_path: "draft.docx",
-          old_string: "Original",
-          new_string: "Revised",
-        },
+    expect(entries.find(({ name }) => name === "Read")?.activity?.({
+      file_path: document.id,
+    })).toBe("Reading draft.docx");
+    const edit = entries.find(({ name }) => name === "Edit")!;
+    const call = {
+      id: "coding-edit",
+      name: "Edit",
+      input: {
+        file_path: "draft.docx",
+        old_string: "Original",
+        new_string: "Revised",
       },
-    ], { evidence, emit: vi.fn(), addEvent: (event) => events.push(event) });
-    expect(JSON.parse(edited.mutationReceipt ?? "null")).toMatchObject({
-      ok: true,
-      receipt: "mike-document:v1",
-      action: "revised",
-      edit_mode: mode,
-      document_id: document.id,
-      version_number: 2,
-    });
+    };
+    const edited = await edit.execute(
+      call.input,
+      { evidence, emit: vi.fn(), addEvent: (event) => events.push(event) },
+      new AbortController().signal,
+      call,
+    );
+    events.push(...(edited.events ?? []));
     expect(events).toMatchObject([{
       type: "doc_edited",
       document_id: document.id,
@@ -282,27 +287,37 @@ describe("local assistant tools", () => {
       import("../localLibraryStore"),
       import("../localProjectStore"),
     ]);
-    const chat = createChatToolRunner({
-      userId: "local-user",
-      documents: localDocuments,
-      library: localLibraryStore,
-      projects: localProjects,
-      projectId: null,
-      onMutationCommitted: vi.fn(),
-    });
-    const evidence = createLegalEvidenceTurnState();
-    const generate = chat.createTools(evidence, "main").find(
-      ({ schema }) => schema.function.name === "generate_docx",
-    )!;
-    const { results: [created] } = await generate.execute([{
-      id: "create",
-      name: "generate_docx",
-      input: {
-        title: "Requested memo",
-        document_type: "memo",
-        markdown: "# Requested memo\n\nThe requested text.",
-      },
-    }], { evidence, emit: vi.fn(), addEvent: vi.fn() });
+    const { runLocalAssistantTools } = await import("./support/localAssistantTools");
+    const [created, workbook, presentation] = await runLocalAssistantTools(
+      "local-user",
+      [
+        {
+          id: "create-docx",
+          name: "Write",
+          input: {
+            filename: "Requested memo.docx",
+            document_type: "memo",
+            content: "# Requested memo\n\nThe requested text.",
+          },
+        },
+        {
+          id: "create-xlsx",
+          name: "Write",
+          input: {
+            filename: "Issues.xlsx",
+            content: "## Open\n| Party | Status |\n| --- | --- |\n| Acme | Open |",
+          },
+        },
+        {
+          id: "create-pptx",
+          name: "Write",
+          input: {
+            filename: "Briefing.pptx",
+            content: "## Result\n- Motion granted",
+          },
+        },
+      ],
+    );
 
     expect(JSON.parse(created.content), created.content).toMatchObject({
       ok: true,
@@ -310,9 +325,62 @@ describe("local assistant tools", () => {
       action: "created",
       filename: "Requested memo.docx",
     });
+    expect(created).toMatchObject({
+      mutated: true,
+      events: [{ type: "doc_created", filename: "Requested memo.docx" }],
+    });
+    expect([workbook, presentation].map(({ content }) =>
+      JSON.parse(content).file_type)).toEqual(["xlsx", "pptx"]);
   }, 10_000);
 
-  it("applies deterministic DOCX operations through transform_docx", async () => {
+  it("rejects unmarked evidence copying before Write persists a DOCX", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-grounded-write-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    vi.doMock("../draftingStyleStore", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("../draftingStyleStore")>()),
+      getDraftingStyleSettings: vi.fn(async () => (
+        await import("../draftingStyle")
+      ).DEFAULT_DRAFTING_STYLE),
+    }));
+    const {
+      createBenchmarkEvidence,
+      createLegalEvidenceTurnState,
+      registerLegalEvidence,
+    } = await import("../chat/legalEvidence");
+    const state = createLegalEvidenceTurnState();
+    const passage =
+      "Charter decisions should not and must not be made in a factual vacuum.";
+    const evidence = createBenchmarkEvidence({
+      jurisdiction: "CA",
+      sourceClass: "case",
+      stableSourceId: "standing-case",
+      sourceText: passage,
+      spanText: passage,
+      citation: "Example v Canada, 2026 SCC 1",
+      dataset: "fixture",
+      locatorKind: "paragraph",
+      locatorLabel: "par49",
+    });
+    registerLegalEvidence(state, evidence);
+    const { runLocalAssistantTools } = await import("./support/localAssistantTools");
+    const [rejected] = await runLocalAssistantTools("local-user", [{
+      id: "grounded-copy",
+      name: "Write",
+      input: {
+        filename: "Standing memo.docx",
+        content: `# Standing\n\n${passage} [@standing]`,
+        citations: [{ id: "standing", evidence_ids: [evidence.evidence_id] }],
+      },
+    }], { legalEvidence: state });
+
+    expect(JSON.parse(rejected.content)).toMatchObject({
+      ok: false,
+      error: expect.stringContaining("Draft integrity check failed"),
+    });
+    expect(rejected.mutated).not.toBe(true);
+  });
+
+  it("applies deterministic DOCX operations through edit_docx_advanced", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-code-ref-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const bytes = await Packer.toBuffer(
@@ -328,7 +396,7 @@ describe("local assistant tools", () => {
       bytes,
     });
     const { runLocalAssistantTools } = await import(
-      "../chat/localAssistantTools"
+      "./support/localAssistantTools"
     );
 
     const [response] = await runLocalAssistantTools(
@@ -336,7 +404,7 @@ describe("local assistant tools", () => {
       [
         {
           id: "deterministic-edit",
-          name: "transform_docx",
+          name: "edit_docx_advanced",
           input: {
             file_path: "draft.docx",
             ops: [
@@ -360,6 +428,10 @@ describe("local assistant tools", () => {
       document_id: document.id,
       version_number: 2,
     });
+    expect(response).toMatchObject({
+      mutated: true,
+      events: [{ type: "doc_edited", document_id: document.id }],
+    });
     expect(payload.annotations[0]).not.toHaveProperty("reason");
   });
 
@@ -379,7 +451,7 @@ describe("local assistant tools", () => {
       filename: "second.txt",
       bytes: Buffer.from("shared needle in second", "utf8"),
     });
-    const tools = await import("../chat/localAssistantTools");
+    const tools = await import("./support/localAssistantTools");
     const [grep, byFilename, byId] = await tools.runLocalAssistantTools(
       "local-user",
       [
@@ -425,7 +497,7 @@ describe("local assistant tools", () => {
       filename: "focus.txt",
       bytes: Buffer.from(text, "utf8"),
     });
-    const tools = await import("../chat/localAssistantTools");
+    const tools = await import("./support/localAssistantTools");
     const [grep] = await tools.runLocalAssistantTools("local-user", [
       {
         id: "grep-focus",
@@ -477,7 +549,7 @@ describe("local assistant tools", () => {
       filename: "ledger.xlsx",
       bytes,
     });
-    const tools = await import("../chat/localAssistantTools");
+    const tools = await import("./support/localAssistantTools");
     const extracted = await tools.extractDocument(
       (await import("../localLibraryStore")).localDocuments,
       { userId: "local-user" },
@@ -534,7 +606,7 @@ describe("local assistant tools", () => {
       filename: "duplicate.docx",
       bytes,
     });
-    const tools = await import("../chat/localAssistantTools");
+    const tools = await import("./support/localAssistantTools");
     const [grep] = await tools.runLocalAssistantTools("local-user", [
       {
         id: "grep-duplicate-handle",
@@ -566,7 +638,7 @@ describe("local assistant tools", () => {
       filename: "case.docx",
       bytes,
     });
-    const tools = await import("../chat/localAssistantTools");
+    const tools = await import("./support/localAssistantTools");
     const editAll = async (oldString: string, newString: string) =>
       (
         await tools.runLocalAssistantTools("local-user", [
@@ -583,14 +655,17 @@ describe("local assistant tools", () => {
         ])
       )[0];
 
-    expect((await editAll("Missing", "Found")).content).toContain(
-      "No exact matches",
-    );
+    expect(JSON.parse((await editAll("Missing", "Found")).content)).toMatchObject({
+      ok: true,
+      action: "no_changes",
+    });
     expect((await store.listLocalVersions("local-user", document.id))?.versions)
       .toHaveLength(1);
-    expect((await editAll("Term", "Clause")).content).toContain(
-      "1 replacement(s)",
-    );
+    expect(JSON.parse((await editAll("Term", "Clause")).content)).toMatchObject({
+      ok: true,
+      action: "revised",
+      change_count: 1,
+    });
     expect((await tools.extractDocument(
       (await import("../localLibraryStore")).localDocuments,
       { userId: "local-user" },
@@ -616,7 +691,7 @@ describe("local assistant tools", () => {
     const other = await makeDoc("Other document.");
     const intendedResource =
       `document://${intended.id}/version/${intended.current_version_id}`;
-    const tools = await import("../chat/localAssistantTools");
+    const tools = await import("./support/localAssistantTools");
     const [listed, ambiguous, recovered] = await tools.runLocalAssistantTools(
       "local-user",
       [
@@ -635,12 +710,12 @@ describe("local assistant tools", () => {
     expect(ambiguous.content).toContain("Glob(pattern=");
     expect(recovered.content).toContain("Alpha Beta.");
 
-    const turnState: import("../chat/localAssistantTools").AssistantEditTurnState =
+    const turnState: import("./support/localAssistantTools").AssistantEditTurnState =
       new Map();
-    const edits = await tools.runLocalAssistantTools(
-      "local-user",
-      [
-        {
+    const edits = [
+      ...(await tools.runLocalAssistantTools(
+        "local-user",
+        [{
           id: "edit-alpha",
           name: "Edit",
           input: {
@@ -648,8 +723,12 @@ describe("local assistant tools", () => {
             old_string: "Alpha",
             new_string: "Gamma",
           },
-        },
-        {
+        }],
+        { edits: turnState },
+      )),
+      ...(await tools.runLocalAssistantTools(
+        "local-user",
+        [{
           id: "edit-beta",
           name: "Edit",
           input: {
@@ -657,11 +736,12 @@ describe("local assistant tools", () => {
             old_string: "Beta",
             new_string: "Delta",
           },
-        },
-      ],
-      { edits: turnState },
-    );
-    expect(edits.every((edit) => edit.content.startsWith("Updated"))).toBe(true);
+        }],
+        { edits: turnState },
+      )),
+    ];
+    expect(edits.every((edit) =>
+      JSON.parse(edit.content).action === "revised")).toBe(true);
     expect((await store.listLocalVersions("local-user", intended.id))?.versions)
       .toHaveLength(2);
     expect((await store.listLocalVersions("local-user", other.id))?.versions)
@@ -676,29 +756,23 @@ describe("local assistant tools", () => {
 
   it("keeps oversized research results as valid JSON with research guidance", async () => {
     process.env.MIKE_TOOL_RESULT_CAP = "1000";
-    vi.doMock("../chat/publicLegalSourceState", () => ({
-      createPublicLegalSourceState: vi.fn(() => ({})),
-      executePublicLegalSourceTool: vi.fn(async (name: string) =>
-        name === "public_legal_source_search"
-          ? {
-              payload: {
-                ok: true,
-                hits: Array.from({ length: 100 }, (_, index) => ({
-                  id: `source-${index}`,
-                  excerpt: `research passage ${index} ${"x".repeat(100)}`,
-                })),
-              },
-            }
-          : null,
-      ),
+    vi.doMock("../chat/tools/sourceSearchTools", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("../chat/tools/sourceSearchTools")>()),
+      searchSources: vi.fn(async () => ({
+        ok: true,
+        hits: Array.from({ length: 100 }, (_, index) => ({
+          id: `source-${index}`,
+          excerpt: `research passage ${index} ${"x".repeat(100)}`,
+        })),
+      })),
     }));
     const { runLocalAssistantTools } =
-      await import("../chat/localAssistantTools");
+      await import("./support/localAssistantTools");
     const [response] = await runLocalAssistantTools("local-user", [
       {
         id: "call-research",
-        name: "public_legal_source_search",
-        input: { query: "research" },
+        name: "search_sources",
+        input: { query: "research", source_types: ["journal"] },
       },
     ]);
 
@@ -711,12 +785,12 @@ describe("local assistant tools", () => {
     });
     expect(payload.omitted_characters).toBeGreaterThan(0);
     expect(payload.preview.head).toContain("source-0");
-    expect(payload.continuation).toContain("public_legal_source_search");
+    expect(payload.continuation).toContain("search_sources");
     expect(payload.continuation).not.toContain("library_");
   });
 
   it("reads system workflow instructions in account-free mode", async () => {
-    const tools = await import("../chat/localAssistantTools");
+    const tools = await import("./support/localAssistantTools");
     const [response] = await tools.runLocalAssistantTools("local-user", [
       {
         id: "workflow",
@@ -744,18 +818,18 @@ describe("local assistant tools", () => {
       vi.spyOn(graph, "attachMatterDocument").mockImplementationOnce(() => {
         throw new Error("Storage unavailable");
       });
-      const tools = await import("../chat/localAssistantTools");
+    const tools = await import("./support/localAssistantTools");
 
       const [response] = await tools.runLocalAssistantTools(
         "local-user",
         [
           {
             id: "call-create",
-            name: "generate_docx",
+            name: "Write",
             input: {
-              title: "Unattached Draft",
+              filename: "Unattached Draft.docx",
               document_type: "other",
-              markdown: "Draft text.",
+              content: "Draft text.",
             },
           },
         ],
@@ -780,7 +854,7 @@ describe("local assistant tools", () => {
   it("does not expose local paths for a missing PDF resource", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-tools-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
-    const tools = await import("../chat/localAssistantTools");
+    const tools = await import("./support/localAssistantTools");
 
     const [response] = await tools.runLocalAssistantTools("local-user", [
       {
@@ -828,7 +902,7 @@ describe("local assistant tools", () => {
       filename: "factum.docx",
       bytes: Buffer.from("owned-docx-bytes"),
     });
-    const tools = await import("../chat/localAssistantTools");
+    const tools = await import("./support/localAssistantTools");
 
     const [response] = await tools.runLocalAssistantTools("local-user", [
       {
@@ -912,7 +986,7 @@ describe("local assistant tools", () => {
         }),
       }),
     );
-    const tools = await import("../chat/localAssistantTools");
+    const tools = await import("./support/localAssistantTools");
     const evidence: import("../a2aj").A2AJLocatorLookup[] = [];
 
     const [response] = await tools.runLocalAssistantTools(
@@ -920,11 +994,16 @@ describe("local assistant tools", () => {
       [
         {
           id: "call-1",
-          name: "a2aj_lookup",
+          name: "Read",
           input: {
-            citation: "2099 SCC 1",
-            locator_type: "paragraph",
+            file_path: `source://a2aj/${encodeURIComponent(JSON.stringify([
+              "2099 SCC 1",
+              "cases",
+              "SCC",
+            ]))}`,
+            locator_kind: "paragraph",
             locator: "3",
+            end_locator: "5",
           },
         },
       ],
@@ -934,7 +1013,51 @@ describe("local assistant tools", () => {
 
     expect(modelResult.ok).toBe(true);
     expect(modelResult).not.toHaveProperty("url");
-    expect(evidence).toHaveLength(1);
-    expect(evidence[0].url).toBe("https://example.test/case");
+    expect(modelResult.passages).toMatchObject([
+      { locator: "par3", evidence_id: expect.stringMatching(/^e_/u) },
+      { locator: "par4", evidence_id: expect.stringMatching(/^e_/u) },
+      { locator: "par5", evidence_id: expect.stringMatching(/^e_/u) },
+    ]);
+    expect(evidence).toHaveLength(3);
+    expect(evidence.every(({ url }) => url === "https://example.test/case"))
+      .toBe(true);
+  });
+
+  it("does not mint document-wide evidence for an unlocated A2AJ Read", async () => {
+    const text = [
+      "[1] First native decision paragraph with enough text to be addressable.",
+      "[2] Second native decision paragraph with enough text to be addressable.",
+    ].join("\n");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          results: [{
+            dataset: "SCC",
+            citation_en: "2099 SCC 2",
+            source_url_en: "https://example.test/case-2",
+            unofficial_text_en: text,
+          }],
+        }),
+      }),
+    );
+    const tools = await import("./support/localAssistantTools");
+    const [response] = await tools.runLocalAssistantTools("local-user", [{
+      id: "call-document",
+      name: "Read",
+      input: {
+        file_path: resourceReference.source(
+          "a2aj",
+          JSON.stringify(["2099 SCC 2", "cases", "SCC"]),
+        ),
+      },
+    }]);
+    const payload = JSON.parse(response.content);
+    expect(payload.ok).toBe(true);
+    expect(payload.evidence_ids).toEqual([]);
+    expect(payload.passages[0]).not.toHaveProperty("evidence_id");
+    expect(payload.next_required_action).toContain("native locator");
   });
 });

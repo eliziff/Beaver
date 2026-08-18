@@ -1,7 +1,4 @@
-export type TabularScope = {
-  userId: string;
-  userEmail?: string;
-};
+export type TabularScope = { userId: string; userEmail?: string };
 
 export type TabularColumn = {
   index: number;
@@ -27,6 +24,7 @@ export type TabularReview = Record<string, unknown> & {
   workflow_id: string | null;
   shared_with: string[];
   is_owner: boolean;
+  updated_at: string;
 };
 
 export type TabularCell = Record<string, unknown> & {
@@ -43,11 +41,23 @@ export type TabularDocument = Record<string, unknown> & {
   filename?: string | null;
 };
 
+export type WriteResult<T> =
+  | { status: "committed"; value: T }
+  | { status: "conflict"; value: T }
+  | { status: "missing" };
+
 export class TabularStoreError extends Error {
-  constructor(readonly status: number, message: string) {
-    super(message);
-  }
+  constructor(readonly status: number, message: string) { super(message); }
 }
+
+export type ReviewInput = {
+  title?: string | null;
+  projectId?: string | null;
+  columns?: TabularColumn[];
+  documentIds?: string[];
+  workflowId?: string | null;
+  sharedWith?: string[];
+};
 
 export type TabularStore = {
   page(scope: TabularScope, options: {
@@ -56,17 +66,10 @@ export type TabularStore = {
     q: string;
     limit: number;
     after: [string, string] | null;
-  }): Promise<{
-    items: Record<string, unknown>[];
-    nextAfter: [string, string] | null;
-  }>;
-  create(scope: TabularScope, input: {
-    title?: string;
-    projectId: string | null;
-    documentIds: string[];
-    columns: TabularColumn[];
-    workflowId?: string;
-  }): Promise<TabularReview>;
+  }): Promise<{ items: Record<string, unknown>[]; nextAfter: [string, string] | null }>;
+  create(scope: TabularScope, input: Required<Pick<ReviewInput,
+    "projectId" | "columns" | "documentIds">> & ReviewInput):
+    Promise<WriteResult<TabularReview>>;
   detail(scope: TabularScope, reviewId: string): Promise<{
     review: TabularReview;
     cells: TabularCell[];
@@ -76,26 +79,18 @@ export type TabularStore = {
     owner: { user_id: string; email: string | null; display_name: string | null };
     members: { email: string; display_name: string | null }[];
   } | null>;
-  update(scope: TabularScope, reviewId: string, input: {
-    title?: string | null;
-    projectId?: string | null;
-    columns?: TabularColumn[];
-    documentIds?: string[];
-    sharedWith?: string[];
-  }): Promise<TabularReview | null>;
-  delete(scope: TabularScope, reviewId: string): Promise<boolean>;
-  clearCells(
-    scope: TabularScope,
-    reviewId: string,
-    documentIds: string[],
-  ): Promise<boolean>;
+  update(scope: TabularScope, reviewId: string, expectedVersion: string,
+    input: ReviewInput): Promise<WriteResult<TabularReview>>;
+  delete(scope: TabularScope, reviewId: string, expectedVersion: string):
+    Promise<WriteResult<null>>;
   setCell(scope: TabularScope, input: {
     reviewId: string;
     documentId: string;
     columnIndex: number;
+    expected: Pick<TabularCell, "status" | "content">;
     content: TabularCellContent | null;
     status: TabularCell["status"];
-  }): Promise<boolean>;
+  }): Promise<WriteResult<TabularCell>>;
   recordGeneration(scope: TabularScope, input: {
     reviewId: string;
     title: string | null;

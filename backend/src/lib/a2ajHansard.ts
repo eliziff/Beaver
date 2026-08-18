@@ -1,7 +1,12 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
+import { sha256 } from "./hash";
 import { legalProviderDatabase, withReadonlySqlite } from "./legalDataPath";
+import type {
+  LegalSourceProvider,
+  LegalSourceReference,
+} from "./legalSources";
 
 /**
  * Local A2AJ Hansard store (huggingface.co/datasets/a2aj/hansard, imported by
@@ -195,3 +200,89 @@ export function fetchLocalHansardIntervention(args: {
     return row ? intervention(row) : null;
   });
 }
+
+function hansardReference(intervention: HansardIntervention) {
+  const language =
+    intervention.language === "en" || intervention.language === "fr"
+      ? intervention.language
+      : undefined;
+  return {
+    provider: "hansard",
+    id: intervention.id,
+    kind: "hansard",
+    title:
+      intervention.subjectOfBusiness ??
+      intervention.orderOfBusiness ??
+      intervention.speaker,
+    date: intervention.date,
+    collection: intervention.chamber,
+    language,
+    url: intervention.sourceUrl,
+  } satisfies LegalSourceReference;
+}
+
+export const hansardLegalSourceProvider: LegalSourceProvider<
+  string,
+  HansardIntervention
+> = {
+  id: "hansard",
+  canSearch: (request) => request.kinds.includes("hansard"),
+  async search(request) {
+    const jurisdiction = request.jurisdiction
+      ?.toLocaleLowerCase()
+      .replace(/[^a-z]/gu, "");
+    if (
+      request.court ||
+      request.collection ||
+      ["us", "usa", "unitedstates", "unitedstatesofamerica"].includes(
+        jurisdiction ?? "",
+      )
+    ) {
+      throw new Error("only installed Canadian Hansard collections are searchable");
+    }
+    const rows = searchLocalHansard({
+      query: request.text,
+      size: request.perProviderLimit ?? request.limit,
+      speaker: request.speaker,
+      startDate: request.dateFrom,
+      endDate: request.dateTo,
+      sortResults:
+        request.sort === "newest"
+          ? "newest_first"
+          : request.sort === "oldest"
+            ? "oldest_first"
+            : "default",
+      querySyntax: request.syntax,
+    });
+    if (rows === null) throw new Error("corpus not installed");
+    return rows.map((row) => ({
+      provider: "hansard",
+      id: row.id,
+      kind: "hansard" as const,
+      title: row.subjectOfBusiness ?? row.orderOfBusiness,
+      date: row.date,
+      collection: row.chamber,
+      url: row.sourceUrl,
+      snippet: row.snippet,
+      speaker: row.speaker,
+    }));
+  },
+  async readPassage(request) {
+    if (request.locator) return [];
+    const intervention = fetchLocalHansardIntervention({ id: request.source.id });
+    if (!intervention) return [];
+    const digest = sha256(intervention.text);
+    return [{
+      source: hansardReference(intervention),
+      locator: { requested: null, label: intervention.id },
+      role: "document",
+      text: intervention.text,
+      textSha256: digest,
+      documentSha256: digest,
+      revision: digest,
+      blockArtifact: intervention.text,
+      documentArtifact: intervention.text,
+      native: intervention,
+    }];
+  },
+};

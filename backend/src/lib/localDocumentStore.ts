@@ -5,7 +5,7 @@ import {
   rm,
   writeFile,
 } from "node:fs/promises";
-import { DatabaseSync } from "node:sqlite";
+import type { DatabaseSync } from "node:sqlite";
 import { docxToPdf } from "./convert";
 import { sha256 } from "./hash";
 import {
@@ -13,12 +13,15 @@ import {
   shouldConvertToPdf,
 } from "./documentTypes";
 import { mikeLocalDataHome } from "./legalDataPath";
+import {
+  localApplicationDatabase,
+  localApplicationTransaction,
+} from "./localApplicationDatabase";
 import { isImageDocumentType, validateImageBytes } from "./llm/images";
 import {
   peekLocalPdfParseState,
   removeLocalPdfParseArtifacts,
 } from "./localPdfIngestion";
-import { legalKnowledgeGraphStore } from "./legalKnowledgeGraphStore";
 import { removeDocumentFromLocalTabularReviews } from "./localTabularStore";
 import {
   extractTrackedChangeIds,
@@ -109,115 +112,8 @@ type LocalFolder = {
 };
 
 const dataRoot = mikeLocalDataHome();
-const databasePath = path.join(dataRoot, "library.sqlite");
-let mutationTail: Promise<unknown> = Promise.resolve();
-let databasePromise: Promise<DatabaseSync> | null = null;
-
-function loadDatabase() {
-  if (!databasePromise) {
-    databasePromise = openDatabase().catch((error) => {
-      databasePromise = null;
-      throw error;
-    });
-  }
-  return databasePromise;
-}
-
-async function openDatabase() {
-  await mkdir(dataRoot, { recursive: true });
-  const database = new DatabaseSync(databasePath);
-  database.exec(`
-    PRAGMA journal_mode = WAL;
-    PRAGMA busy_timeout = 5000;
-    PRAGMA foreign_keys = ON;
-    CREATE TABLE IF NOT EXISTS local_library_folders (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      kind TEXT NOT NULL CHECK (kind IN ('file', 'template')),
-      name TEXT NOT NULL,
-      parent_folder_id TEXT REFERENCES local_library_folders(id) ON DELETE CASCADE
-        DEFERRABLE INITIALLY DEFERRED,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS local_library_documents (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      kind TEXT NOT NULL CHECK (kind IN ('file', 'template')),
-      folder_id TEXT REFERENCES local_library_folders(id) ON DELETE CASCADE,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      filename TEXT NOT NULL,
-      payload TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS local_library_legal_sources (
-      user_id TEXT NOT NULL,
-      id TEXT NOT NULL,
-      pointer_json TEXT NOT NULL,
-      PRIMARY KEY (user_id, id)
-    );
-    CREATE INDEX IF NOT EXISTS local_library_documents_scope
-      ON local_library_documents(user_id, kind, folder_id, updated_at DESC, id DESC);
-    CREATE INDEX IF NOT EXISTS local_library_folders_scope
-      ON local_library_folders(user_id, kind, parent_folder_id, name COLLATE NOCASE, id);
-    CREATE VIRTUAL TABLE IF NOT EXISTS local_document_filenames USING fts5(
-      document_id UNINDEXED, filename, tokenize='trigram'
-    );
-    CREATE TRIGGER IF NOT EXISTS local_document_filenames_insert
-    AFTER INSERT ON local_library_documents BEGIN
-      INSERT INTO local_document_filenames(document_id, filename)
-      VALUES (new.id, new.filename);
-    END;
-    CREATE TRIGGER IF NOT EXISTS local_document_filenames_update
-    AFTER UPDATE OF filename ON local_library_documents BEGIN
-      DELETE FROM local_document_filenames WHERE document_id = old.id;
-      INSERT INTO local_document_filenames(document_id, filename)
-      VALUES (new.id, new.filename);
-    END;
-    CREATE TRIGGER IF NOT EXISTS local_document_filenames_delete
-    AFTER DELETE ON local_library_documents BEGIN
-      DELETE FROM local_document_filenames WHERE document_id = old.id;
-    END;
-    PRAGMA user_version = 1;
-  `);
-  return database;
-}
-
-function mutateDatabase<T>(
-  operation: (database: DatabaseSync) => Promise<T> | T,
-): Promise<T> {
-  const result = mutationTail.then(async () => {
-    const database = await loadDatabase();
-    database.exec("BEGIN IMMEDIATE");
-    try {
-      const value = await operation(database);
-      database.exec("COMMIT");
-      return value;
-    } catch (error) {
-      database.exec("ROLLBACK");
-      throw error;
-    }
-  });
-  mutationTail = result.catch(() => undefined);
-  return result;
-}
-
-async function currentDatabase() {
-  await mutationTail;
-  return loadDatabase();
-}
-
-export async function warmLocalDocumentStore() {
-  await currentDatabase();
-}
-
-export async function closeLocalDocumentStore() {
-  await mutationTail;
-  if (!databasePromise) return;
-  const database = await databasePromise;
-  database.close();
-  databasePromise = null;
-}
+const mutateDatabase = localApplicationTransaction;
+const currentDatabase = localApplicationDatabase;
 
 async function ensureLocalPdfRendition(
   userId: string,
@@ -317,6 +213,28 @@ async function writeVersionFiles(
   };
 }
 
+async function cleanupPaths(paths: Iterable<string | null | undefined>) {
+  await Promise.all([...new Set(paths)]
+    .filter((item): item is string => !!item)
+    .flatMap((item) => {
+      const absolute = absoluteDataPath(item);
+      return [rm(absolute, { force: true }), removeLocalPdfParseArtifacts(absolute)];
+    }));
+}
+
+async function cleanupUnreferencedPaths(
+  userId: string,
+  documentId: string,
+  paths: Iterable<string | null | undefined>,
+) {
+  const document = databaseDocument(currentDatabase(), userId, documentId);
+  const referenced = new Set(document?.versions.flatMap((version) =>
+    [version.storagePath, version.pdfStoragePath].filter(
+      (item): item is string => !!item,
+    )) ?? []);
+  await cleanupPaths([...paths].filter((item) => item && !referenced.has(item)));
+}
+
 async function localDocumentResponse(document: LocalDocument) {
   const version = activeVersion(document);
   // The durable parse job's state, denormalized onto every document
@@ -412,7 +330,7 @@ export async function countLocalDocuments(
   userId: string,
   kind: LocalLibraryKind,
 ) {
-  const row = (await currentDatabase()).prepare(
+  const row = currentDatabase().prepare(
     `SELECT count(*) AS count FROM local_library_documents
      WHERE user_id = ? AND kind = ?`,
   ).get(userId, kind) as { count: number };
@@ -424,7 +342,7 @@ export async function recentLocalDocuments(
   kind: LocalLibraryKind,
   limit: number,
 ) {
-  const database = await currentDatabase();
+  const database = currentDatabase();
   const rows = database.prepare(
     `SELECT payload FROM local_library_documents
      WHERE user_id = ? AND kind = ?
@@ -444,7 +362,7 @@ export async function pageLocalLibrary(
     flat?: boolean;
   },
 ) {
-  const database = await currentDatabase();
+  const database = currentDatabase();
   const query = options.q.trim().toLocaleLowerCase();
   const after = options.after;
   const pageSize = options.limit + 1;
@@ -516,7 +434,7 @@ export async function pageLocalDocuments(
   },
 ) {
   if (!kinds.length) return { items: [], nextAfter: null };
-  const database = await currentDatabase();
+  const database = currentDatabase();
   const rows = documentPageRows(database, userId, kinds,
     options.q.trim().toLocaleLowerCase(), options.limit, options.after);
   const pageRows = rows.slice(0, options.limit);
@@ -576,7 +494,7 @@ export async function listLocalDocumentsById(
 ) {
   const wanted = [...new Set(documentIds)];
   if (!wanted.length) return [];
-  const database = await currentDatabase();
+  const database = currentDatabase();
   const rows = database.prepare(
     `SELECT payload FROM local_library_documents
      WHERE user_id = ? AND id IN (SELECT value FROM json_each(?))`,
@@ -601,16 +519,14 @@ export async function createLocalDocument(params: {
   bytes: Buffer;
   provenance?: LocalVersion["provenance"];
 }) {
-  const saved = await mutateDatabase(async (database) => {
-    const now = new Date().toISOString();
-    const documentId = crypto.randomUUID();
-    const versionId = crypto.randomUUID();
-    const files = await writeVersionFiles(
-      documentId,
-      versionId,
-      params.filename,
-      params.bytes,
-    );
+  const now = new Date().toISOString();
+  const documentId = crypto.randomUUID();
+  const versionId = crypto.randomUUID();
+  const files = await writeVersionFiles(
+    documentId, versionId, params.filename, params.bytes,
+  );
+  try {
+    const saved = mutateDatabase((database) => {
     const version: LocalVersion = {
       id: versionId,
       versionNumber: 1,
@@ -639,12 +555,16 @@ export async function createLocalDocument(params: {
     };
     saveDocument(database, document);
     return { document, version };
-  });
-  return localDocumentResponse(saved.document);
+    });
+    return localDocumentResponse(saved.document);
+  } catch (error) {
+    await cleanupPaths([files.relativeSource, files.relativePdf]);
+    throw error;
+  }
 }
 
 async function getLocalDocument(userId: string, documentId: string) {
-  return databaseDocument(await currentDatabase(), userId, documentId);
+  return databaseDocument(currentDatabase(), userId, documentId);
 }
 
 export async function getLocalVersionFile(
@@ -696,7 +616,7 @@ export async function getLocalVersionFiles(
 ) {
   const wanted = [...new Set(documentIds)];
   if (!wanted.length) return new Map();
-  const database = await currentDatabase();
+  const database = currentDatabase();
   return new Map(databaseDocuments(database, userId, wanted).map((document) => {
     const version = activeVersion(document);
     return [document.id, { path: absoluteDataPath(version.storagePath),
@@ -723,7 +643,13 @@ export async function addLocalVersion(params: {
   expectedVersionId?: string;
   provenance?: LocalVersion["provenance"];
 }) {
-  const saved = await mutateDatabase(async (database) => {
+  const versionId = crypto.randomUUID();
+  const files = await writeVersionFiles(
+    params.documentId, versionId, params.filename, params.bytes,
+  );
+  let saved: { document: LocalDocument; version: LocalVersion } | null;
+  try {
+    saved = mutateDatabase((database) => {
     const document = databaseDocument(database, params.userId, params.documentId);
     if (
       !document ||
@@ -732,13 +658,6 @@ export async function addLocalVersion(params: {
     ) {
       return null;
     }
-    const versionId = crypto.randomUUID();
-    const files = await writeVersionFiles(
-      document.id,
-      versionId,
-      params.filename,
-      params.bytes,
-    );
     const version: LocalVersion = {
       id: versionId,
       versionNumber:
@@ -759,8 +678,15 @@ export async function addLocalVersion(params: {
     document.updatedAt = version.createdAt;
     saveDocument(database, document);
     return { document, version };
-  });
-  if (!saved) return null;
+    });
+  } catch (error) {
+    await cleanupPaths([files.relativeSource, files.relativePdf]);
+    throw error;
+  }
+  if (!saved) {
+    await cleanupPaths([files.relativeSource, files.relativePdf]);
+    return null;
+  }
   return localVersionResponse(saved.version);
 }
 
@@ -839,23 +765,16 @@ function folderFromRow(row: FolderRow): LocalFolder {
   };
 }
 
-async function overwriteLocalVersionFiles(
-  document: LocalDocument,
+function replaceVersionFiles(
   version: LocalVersion,
   filename: string,
   bytes: Buffer,
+  files: Awaited<ReturnType<typeof writeVersionFiles>>,
 ) {
-  if (suffixFor(filename) !== version.fileType) return false;
   const previousPaths = new Set(
     [version.storagePath, version.pdfStoragePath].filter(
       (item): item is string => !!item,
     ),
-  );
-  const files = await writeVersionFiles(
-    document.id,
-    version.id,
-    filename,
-    bytes,
   );
   version.filename = filename.slice(0, 200);
   version.sizeBytes = bytes.byteLength;
@@ -867,18 +786,7 @@ async function overwriteLocalVersionFiles(
       (item): item is string => !!item,
     ),
   );
-  await Promise.all(
-    [...previousPaths]
-      .filter((item) => !nextPaths.has(item))
-      .flatMap((item) => {
-        const absolute = absoluteDataPath(item);
-        return [
-          rm(absolute, { force: true }),
-          removeLocalPdfParseArtifacts(absolute),
-        ];
-      }),
-  );
-  return true;
+  return [...previousPaths].filter((item) => !nextPaths.has(item));
 }
 
 /** Overwrite the one assistant-edit version created for this turn. */
@@ -891,64 +799,53 @@ export async function updateLocalAssistantTurnVersion(params: {
   bytes: Buffer;
   trackedEdits: LocalTrackedEdit[];
 }) {
-  const saved = await mutateDatabase(async (database) => {
-    const document = databaseDocument(database, params.userId, params.documentId);
-    const version = document?.versions.find(
-      (item) => item.id === params.versionId,
-    );
-    if (
-      !document ||
-      !version ||
-      document.currentVersionId !== version.id ||
-      version.provenance?.actor !== "assistant" ||
-      version.provenance.action !== "revised" ||
-      version.provenance.parentVersionId !== params.parentVersionId
-    ) {
+  const retainedIds = new Set(
+    (await extractTrackedChangeIds(params.bytes)).map((entry) => entry.w_id),
+  );
+  const files = await writeVersionFiles(
+    params.documentId, params.versionId, params.filename, params.bytes,
+  );
+  try {
+    const saved = mutateDatabase((database) => {
+      const document = databaseDocument(database, params.userId, params.documentId);
+      const version = document?.versions.find((item) => item.id === params.versionId);
+      if (!document || !version || suffixFor(params.filename) !== version.fileType ||
+          document.currentVersionId !== version.id ||
+          version.provenance?.actor !== "assistant" ||
+          version.provenance.action !== "revised" ||
+          version.provenance.parentVersionId !== params.parentVersionId) return null;
+      const priorEdits = version.provenance.trackedEdits ?? [];
+      if (priorEdits.some((edit) => edit.status === "pending" &&
+          [edit.delWId, edit.insWId].filter((id): id is string => !!id)
+            .some((id) => !retainedIds.has(id)))) {
+        throw new Error(
+          "A later same-turn edit overlaps an earlier tracked change; split it into a new turn so every accept/reject receipt remains valid",
+        );
+      }
+      const oldPaths = replaceVersionFiles(version, params.filename, params.bytes, files);
+      version.provenance = {
+        schemaVersion: 1, actor: "assistant", action: "revised",
+        parentVersionId: params.parentVersionId,
+        changeCount: (version.provenance.changeCount ?? priorEdits.length) +
+          params.trackedEdits.length,
+        trackedEdits: [...priorEdits, ...params.trackedEdits],
+      };
+      document.updatedAt = new Date().toISOString();
+      saveDocument(database, document);
+      return { version, oldPaths };
+    });
+    if (!saved) {
+      await cleanupUnreferencedPaths(params.userId, params.documentId,
+        [files.relativeSource, files.relativePdf]);
       return null;
     }
-    const priorEdits = version.provenance.trackedEdits ?? [];
-    const retainedIds = new Set(
-      (await extractTrackedChangeIds(params.bytes)).map((entry) => entry.w_id),
-    );
-    if (
-      priorEdits.some((edit) => edit.status === "pending" &&
-        [edit.delWId, edit.insWId]
-          .filter((id): id is string => !!id)
-          .some((id) => !retainedIds.has(id)),
-      )
-    ) {
-      // A later same-turn edit touched an earlier tracked wrapper. Refuse the
-      // overwrite instead of leaving an accept/reject receipt pointing at an
-      // ID that no longer exists.
-      throw new Error(
-        "A later same-turn edit overlaps an earlier tracked change; split it into a new turn so every accept/reject receipt remains valid",
-      );
-    }
-    if (
-      !(await overwriteLocalVersionFiles(
-        document,
-        version,
-        params.filename,
-        params.bytes,
-      ))
-    ) {
-      return null;
-    }
-    version.provenance = {
-      schemaVersion: 1,
-      actor: "assistant",
-      action: "revised",
-      parentVersionId: params.parentVersionId,
-      changeCount:
-        (version.provenance.changeCount ?? priorEdits.length) +
-        params.trackedEdits.length,
-      trackedEdits: [...priorEdits, ...params.trackedEdits],
-    };
-    document.updatedAt = new Date().toISOString();
-    saveDocument(database, document);
-    return version;
-  });
-  return saved ? localVersionResponse(saved) : null;
+    await cleanupPaths(saved.oldPaths);
+    return localVersionResponse(saved.version);
+  } catch (error) {
+    await cleanupUnreferencedPaths(params.userId, params.documentId,
+      [files.relativeSource, files.relativePdf]);
+    throw error;
+  }
 }
 
 export async function renameLocalVersion(
@@ -975,28 +872,35 @@ export async function replaceLocalVersion(params: {
   filename: string;
   bytes: Buffer;
 }) {
-  const saved = await mutateDatabase(async (database) => {
-    const document = databaseDocument(database, params.userId, params.documentId);
-    const version = document?.versions.find((item) => item.id === params.versionId);
-    if (!document || !version) return null;
-    if (
-      !(await overwriteLocalVersionFiles(
-        document,
-        version,
-        params.filename,
-        params.bytes,
-      ))
-    ) {
+  const files = await writeVersionFiles(
+    params.documentId, params.versionId, params.filename, params.bytes,
+  );
+  try {
+    const saved = mutateDatabase((database) => {
+      const document = databaseDocument(database, params.userId, params.documentId);
+      const version = document?.versions.find((item) => item.id === params.versionId);
+      if (!document || !version || suffixFor(params.filename) !== version.fileType) {
+        return null;
+      }
+      const oldPaths = replaceVersionFiles(version, params.filename, params.bytes, files);
+      version.createdAt = new Date().toISOString();
+      delete version.provenance;
+      document.updatedAt = version.createdAt;
+      saveDocument(database, document);
+      return { version, oldPaths };
+    });
+    if (!saved) {
+      await cleanupUnreferencedPaths(params.userId, params.documentId,
+        [files.relativeSource, files.relativePdf]);
       return null;
     }
-    version.createdAt = new Date().toISOString();
-    delete version.provenance;
-    document.updatedAt = version.createdAt;
-    saveDocument(database, document);
-    return { document, version };
-  });
-  if (!saved) return null;
-  return localVersionResponse(saved.version);
+    await cleanupPaths(saved.oldPaths);
+    return localVersionResponse(saved.version);
+  } catch (error) {
+    await cleanupUnreferencedPaths(params.userId, params.documentId,
+      [files.relativeSource, files.relativePdf]);
+    throw error;
+  }
 }
 
 export async function resolveLocalTrackedEdit(params: {
@@ -1005,69 +909,67 @@ export async function resolveLocalTrackedEdit(params: {
   editId: string;
   mode: "accept" | "reject";
 }) {
-  const saved = await mutateDatabase(async (database) => {
-    const document = databaseDocument(database, params.userId, params.documentId);
-    if (!document) return { status: "missing" as const };
-    const version = activeVersion(document);
-    const edit = version.provenance?.trackedEdits?.find(
-      (item) => item.id === params.editId,
-    );
-    if (!edit) return { status: "missing" as const };
-    const nextStatus =
-      params.mode === "accept" ? ("accepted" as const) : ("rejected" as const);
-    if (edit.status !== "pending") {
-      return edit.status === nextStatus
+  const snapshot = databaseDocument(currentDatabase(), params.userId, params.documentId);
+  if (!snapshot) return { status: "missing" as const };
+  const snapshotVersion = activeVersion(snapshot);
+  const snapshotEdit = snapshotVersion.provenance?.trackedEdits?.find(
+    (item) => item.id === params.editId,
+  );
+  if (!snapshotEdit) return { status: "missing" as const };
+  const nextStatus = params.mode === "accept"
+    ? ("accepted" as const) : ("rejected" as const);
+  if (snapshotEdit.status !== "pending") {
+    return snapshotEdit.status === nextStatus
+      ? { status: "unchanged" as const, edit: snapshotEdit,
+          document: await localDocumentResponse(snapshot), version: localVersionResponse(snapshotVersion) }
+      : { status: "conflict" as const, edit: snapshotEdit };
+  }
+  const changeIds = [snapshotEdit.delWId, snapshotEdit.insWId]
+    .filter((item): item is string => !!item);
+  if (!changeIds.length) return { status: "invalid" as const };
+  const resolved = await resolveTrackedChange(
+    await readFile(absoluteDataPath(snapshotVersion.storagePath)),
+    changeIds,
+    params.mode,
+  );
+  if (!resolved.found) return { status: "invalid" as const };
+  const files = await writeVersionFiles(
+    snapshot.id, snapshotVersion.id, snapshotVersion.filename, resolved.bytes,
+  );
+  let saved;
+  try {
+    saved = mutateDatabase((database) => {
+      const document = databaseDocument(database, params.userId, params.documentId);
+      if (!document) return { status: "missing" as const };
+      const version = activeVersion(document);
+      const edit = version.provenance?.trackedEdits?.find(
+        (item) => item.id === params.editId,
+      );
+      if (!edit) return { status: "missing" as const };
+      if (edit.status !== "pending") return edit.status === nextStatus
         ? { status: "unchanged" as const, document, version, edit }
         : { status: "conflict" as const, edit };
-    }
-    const changeIds = [edit.delWId, edit.insWId].filter(
-      (item): item is string => !!item,
-    );
-    if (!changeIds.length) return { status: "invalid" as const };
-
-    const previousPaths = new Set(
-      [version.storagePath, version.pdfStoragePath].filter(
-        (item): item is string => !!item,
-      ),
-    );
-    const resolved = await resolveTrackedChange(
-      await readFile(absoluteDataPath(version.storagePath)),
-      changeIds,
-      params.mode,
-    );
-    if (!resolved.found) return { status: "invalid" as const };
-    const files = await writeVersionFiles(
-      document.id,
-      version.id,
-      version.filename,
-      resolved.bytes,
-    );
-    version.sizeBytes = resolved.bytes.byteLength;
-    version.storagePath = files.relativeSource;
-    version.pdfStoragePath = files.relativePdf;
-    version.sourceSha256 = files.sourceSha256;
-    edit.status = nextStatus;
-    document.updatedAt = new Date().toISOString();
-    saveDocument(database, document);
-
-    const nextPaths = new Set(
-      [version.storagePath, version.pdfStoragePath].filter(
-        (item): item is string => !!item,
-      ),
-    );
-    await Promise.all(
-      [...previousPaths]
-        .filter((item) => !nextPaths.has(item))
-        .flatMap((item) => {
-          const absolute = absoluteDataPath(item);
-          return [
-            rm(absolute, { force: true }),
-            removeLocalPdfParseArtifacts(absolute),
-          ];
-        }),
-    );
-    return { status: "resolved" as const, document, version, edit };
-  });
+      if (version.id !== snapshotVersion.id ||
+          version.storagePath !== snapshotVersion.storagePath ||
+          version.sourceSha256 !== snapshotVersion.sourceSha256) {
+        return { status: "conflict" as const, edit };
+      }
+      const oldPaths = replaceVersionFiles(
+        version, version.filename, resolved.bytes, files,
+      );
+      edit.status = nextStatus;
+      document.updatedAt = new Date().toISOString();
+      saveDocument(database, document);
+      return { status: "resolved" as const, document, version, edit, oldPaths };
+    });
+  } catch (error) {
+    await cleanupUnreferencedPaths(params.userId, params.documentId,
+      [files.relativeSource, files.relativePdf]);
+    throw error;
+  }
+  if (saved.status === "resolved") await cleanupPaths(saved.oldPaths);
+  else await cleanupUnreferencedPaths(params.userId, params.documentId,
+    [files.relativeSource, files.relativePdf]);
   if (
     saved.status !== "resolved" &&
     saved.status !== "unchanged"
@@ -1086,7 +988,7 @@ export async function localTrackedEditStatuses(
   userId: string,
   documentIds: Iterable<string>,
 ) {
-  const database = await currentDatabase();
+  const database = currentDatabase();
   const documents = [...new Set(documentIds)].flatMap((documentId) => {
     const document = databaseDocument(database, userId, documentId);
     return document ? [document] : [];
@@ -1110,7 +1012,7 @@ export async function deleteLocalVersion(
   documentId: string,
   versionId: string,
 ) {
-  return mutateDatabase(async (database) => {
+  const result = mutateDatabase((database) => {
     const document = databaseDocument(database, userId, documentId);
     if (!document) return { status: "missing" as const };
     if (document.versions.length <= 1) return { status: "only" as const };
@@ -1124,22 +1026,17 @@ export async function deleteLocalVersion(
     }
     document.updatedAt = new Date().toISOString();
     saveDocument(database, document);
-    await Promise.all(
-      [...new Set([removed.storagePath, removed.pdfStoragePath])]
-        .filter((item): item is string => !!item)
-        .flatMap((item) => {
-          const absolute = absoluteDataPath(item);
-          return [
-            rm(absolute, { force: true }),
-            removeLocalPdfParseArtifacts(absolute),
-          ];
-        }),
-    );
     return {
       status: "deleted" as const,
       currentVersionId: document.currentVersionId,
+      removedPaths: [removed.storagePath, removed.pdfStoragePath],
     };
   });
+  if (result.status === "deleted") {
+    await cleanupPaths(result.removedPaths);
+    return { status: result.status, currentVersionId: result.currentVersionId };
+  }
+  return result;
 }
 
 export async function moveLocalDocument(
@@ -1148,7 +1045,7 @@ export async function moveLocalDocument(
   documentId: string,
   folderId: string | null,
 ) {
-  return mutateDatabase((database) => {
+  const moved = mutateDatabase((database) => {
     const document = databaseDocument(database, userId, documentId);
     const folder = folderId
       ? database.prepare(
@@ -1160,39 +1057,31 @@ export async function moveLocalDocument(
     document.folderId = folderId;
     document.updatedAt = new Date().toISOString();
     saveDocument(database, document);
-    return localDocumentResponse(document);
+    return document;
   });
+  return moved ? localDocumentResponse(moved) : null;
 }
 
 export async function deleteLocalDocument(userId: string, documentId: string) {
-  const deleted = await mutateDatabase(async (database) => {
+  const deleted = mutateDatabase((database) => {
     const document = databaseDocument(database, userId, documentId);
-    if (!document) return false;
-    await Promise.all(
-      document.versions
-        .filter((version) => version.fileType === "pdf")
-        .map((version) =>
-          removeLocalPdfParseArtifacts(
-            absoluteDataPath(version.storagePath),
-          ),
-        ),
-    );
+    if (!document) return null;
     database.prepare(
       "DELETE FROM local_library_documents WHERE id = ? AND user_id = ?",
     ).run(documentId, userId);
-    if (/^[a-f0-9-]{36}$/i.test(documentId)) {
-      await rm(absoluteDataPath(path.join("files", documentId)), {
-        recursive: true,
-        force: true,
-      });
-    }
-    return true;
+    return document;
   });
   if (deleted) {
-    legalKnowledgeGraphStore().removeDocumentsFromMatters(userId, [documentId]);
+    await cleanupPaths(deleted.versions.flatMap((version) =>
+      [version.storagePath, version.pdfStoragePath]));
+    if (/^[a-f0-9-]{36}$/i.test(documentId)) {
+      await rm(absoluteDataPath(path.join("files", documentId)), {
+        recursive: true, force: true,
+      });
+    }
     removeDocumentFromLocalTabularReviews(userId, documentId);
   }
-  return deleted;
+  return !!deleted;
 }
 
 export async function createLocalFolder(
@@ -1236,7 +1125,7 @@ export async function getLocalFolder(
   kind: LocalLibraryKind,
   folderId: string,
 ) {
-  const row = (await currentDatabase()).prepare(
+  const row = currentDatabase().prepare(
     `SELECT id, user_id, kind, name, parent_folder_id, created_at, updated_at
      FROM local_library_folders WHERE id = ? AND user_id = ? AND kind = ?`,
   ).get(folderId, userId, kind) as FolderRow | undefined;
@@ -1286,7 +1175,7 @@ export async function deleteLocalFolder(
   kind: LocalLibraryKind,
   folderId: string,
 ) {
-  const deletedDocumentIds = await mutateDatabase(async (database) => {
+  const deletedDocuments = mutateDatabase((database) => {
     if (!database.prepare(
       `SELECT 1 FROM local_library_folders
        WHERE id = ? AND user_id = ? AND kind = ?`,
@@ -1306,40 +1195,22 @@ export async function deleteLocalFolder(
          AND d.folder_id IN (SELECT id FROM descendants)`,
     ).all(folderId, userId, kind, userId, kind, userId, kind) as DocumentRow[];
     const documents = documentsFromRows(rows);
-    const documentIds = documents.map((document) => document.id);
-    await Promise.all(
-      documents.flatMap((document) =>
-        document.versions
-          .filter((version) => version.fileType === "pdf")
-          .map((version) =>
-            removeLocalPdfParseArtifacts(
-              absoluteDataPath(version.storagePath),
-            ),
-          ),
-      ),
-    );
     database.prepare(
       `DELETE FROM local_library_folders
        WHERE id = ? AND user_id = ? AND kind = ?`,
     ).run(folderId, userId, kind);
-    await Promise.all(
-      documentIds
-        .filter((id) => /^[a-f0-9-]{36}$/i.test(id))
-        .map((id) =>
-          rm(absoluteDataPath(path.join("files", id)), {
-            recursive: true,
-            force: true,
-          }),
-        ),
-    );
-    return documentIds;
+    return documents;
   });
-  if (!deletedDocumentIds) return false;
-  legalKnowledgeGraphStore().removeDocumentsFromMatters(
-    userId,
-    deletedDocumentIds,
-  );
-  for (const documentId of deletedDocumentIds) {
+  if (!deletedDocuments) return false;
+  await cleanupPaths(deletedDocuments.flatMap((document) =>
+    document.versions.flatMap((version) =>
+      [version.storagePath, version.pdfStoragePath])));
+  await Promise.all(deletedDocuments
+    .filter(({ id }) => /^[a-f0-9-]{36}$/i.test(id))
+    .map(({ id }) => rm(absoluteDataPath(path.join("files", id)), {
+      recursive: true, force: true,
+    })));
+  for (const { id: documentId } of deletedDocuments) {
     removeDocumentFromLocalTabularReviews(userId, documentId);
   }
   return true;
@@ -1388,7 +1259,7 @@ function legalSourceId(pointer: {
 }
 
 export async function listLocalLegalSources(userId: string) {
-  const database = await currentDatabase();
+  const database = currentDatabase();
   const rows = database.prepare(
     `SELECT pointer_json FROM local_library_legal_sources
      WHERE user_id = ? ORDER BY id`,
@@ -1398,7 +1269,7 @@ export async function listLocalLegalSources(userId: string) {
 }
 
 export async function getLocalLegalSource(userId: string, id: string) {
-  const row = (await currentDatabase()).prepare(
+  const row = currentDatabase().prepare(
     `SELECT pointer_json FROM local_library_legal_sources
      WHERE user_id = ? AND id = ?`,
   ).get(userId, id) as { pointer_json: string } | undefined;
@@ -1415,7 +1286,7 @@ export async function updateLocalDocument(params: {
   metadata?: unknown;
   notes?: unknown;
 }) {
-  return mutateDatabase((database) => {
+  const updated = mutateDatabase((database) => {
     const document = databaseDocument(database, params.userId, params.documentId);
     if (document?.kind !== params.kind) return null;
     if (params.filename !== undefined) {
@@ -1429,8 +1300,9 @@ export async function updateLocalDocument(params: {
     }
     document.updatedAt = new Date().toISOString();
     saveDocument(database, document);
-    return localDocumentResponse(document);
+    return document;
   });
+  return updated ? localDocumentResponse(updated) : null;
 }
 
 export async function saveLocalLegalSource(params: {

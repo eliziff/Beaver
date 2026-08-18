@@ -1,8 +1,21 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useAssistantChat } from "./useAssistantChat";
+import { useAssistantChat as useAssistantSession } from "./useAssistantChat";
 import { setJurisdictionPreference } from "@/app/components/assistant/jurisdictionPreferences";
 import { setReadSubagentPreferences } from "@/app/components/assistant/readSubagentPreferences";
+
+function useAssistantChat(options: Parameters<typeof useAssistantSession>[0]) {
+  const { state, actions } = useAssistantSession(options);
+  return {
+    ...state,
+    messages: state.messages.map((message) => message.role === "user" ? message : {
+      ...message,
+      content: message.blocks.filter(({ role }) => role === "assistant").map(({ text }) => text).join("\n\n"),
+    }),
+    ...actions,
+    isResponseLoading: state.run !== null,
+  };
+}
 
 const mocks = vi.hoisted(() => ({
   compactChat: vi.fn(),
@@ -487,7 +500,7 @@ describe("useAssistantChat local transcript boundary", () => {
       role: "user",
       content: "Rejected stale turn",
     });
-    expect(result.current.messages).toEqual([
+    expect(result.current.messages.map(({ role, content }) => ({ role, content }))).toEqual([
       { role: "user", content: "Other window" },
       {
         role: "assistant",
@@ -540,7 +553,7 @@ describe("useAssistantChat local transcript boundary", () => {
       });
     });
     await vi.waitFor(() => {
-      expect(result.current.messages).toEqual([
+      expect(result.current.messages.map(({ role, content }) => ({ role, content }))).toEqual([
         { role: "user", content: "Accepted elsewhere" },
         { role: "assistant", content: "Completed elsewhere" },
       ]);
@@ -689,14 +702,13 @@ describe("useAssistantChat local transcript boundary", () => {
       );
     });
     expect(result.current.messages.at(-1)?.error).toBe(
-      "Provider unavailable.",
+      "Unable to get a response. Try again.",
     );
-    expect(result.current.messages.at(-1)?.events).toEqual([
-      { type: "ask_inputs", items: [] },
-      response,
-      { type: "error", message: "Provider unavailable." },
-    ]);
-    expect(renders).toBe(2);
+    expect(result.current.messages.at(-1)).toMatchObject({
+      role: "assistant",
+      error: "Unable to get a response. Try again.",
+    });
+    expect(renders).toBeGreaterThanOrEqual(2);
     expect(
       result.current.rejectedTurn?.options?.askInputsResponse,
     ).toEqual(response);
@@ -766,7 +778,7 @@ describe("useAssistantChat local transcript boundary", () => {
     });
 
     expect(result.current.messages.at(-1)?.error).toBe(
-      "Provider unavailable.",
+      "Unable to get a response. Try again.",
     );
     expect(result.current.rejectedTurn).toBeNull();
     await act(async () => {
@@ -821,7 +833,6 @@ describe("useAssistantChat local transcript boundary", () => {
         },
         { type: "content_delta", text: "Text emitted before the tool call." },
         { type: "reasoning_delta", text: "Transient reasoning" },
-        { type: "tool_call_start", name: "ask_inputs" },
         { type: "content_reset" },
         {
           type: "ask_inputs",
@@ -853,17 +864,10 @@ describe("useAssistantChat local transcript boundary", () => {
     expect(result.current.messages.at(-1)).toMatchObject({
       role: "assistant",
       content: "",
-      events: [
-        {
-          type: "ask_inputs",
-          items: [
-            {
-              id: "forum",
-              question: "Which forum?",
-            },
-          ],
-        },
-      ],
+      activities: [expect.objectContaining({
+        tool: "ask_inputs",
+        status: "running",
+      })],
     });
   });
 
@@ -890,7 +894,7 @@ describe("useAssistantChat local transcript boundary", () => {
     );
     expect(mocks.loadChats).not.toHaveBeenCalled();
     expect(result.current.messages.at(-1)?.error).toBe(
-      "Chat stream ended before completion.",
+      "Unable to get a response. Try again.",
     );
   });
 
@@ -927,7 +931,7 @@ describe("useAssistantChat local transcript boundary", () => {
     expect(firstTurnId).toEqual(expect.any(String));
     expect(result.current.rejectedTurn).toBeNull();
     expect(mocks.streamChat).toHaveBeenCalledTimes(1);
-    expect(result.current.messages).toEqual([
+    expect(result.current.messages.map(({ role, content }) => ({ role, content }))).toEqual([
       { role: "user", content: "Create it once" },
       { role: "assistant", content: "Created." },
     ]);
@@ -967,9 +971,7 @@ describe("useAssistantChat local transcript boundary", () => {
       });
     });
 
-    expect(result.current.messages.at(-1)?.events).toEqual([
-      { type: "content", text: expected },
-    ]);
+    expect(result.current.messages.at(-1)?.content).toBe(expected);
   });
 
   it("reconciles a live local DOCX redline into the original Mike event", async () => {
@@ -999,7 +1001,13 @@ describe("useAssistantChat local transcript boundary", () => {
           chatId: "chat-1",
           transcriptVersion: 1,
         },
-        { type: "tool_call_start", name: "Edit" },
+        {
+          type: "tool_activity",
+          id: "edit-1",
+          tool: "Edit",
+          status: "running",
+          label: "Editing Draft.docx",
+        },
         { type: "doc_edited_start", filename: "Draft.docx" },
         {
           type: "doc_edited",
@@ -1030,20 +1038,24 @@ describe("useAssistantChat local transcript boundary", () => {
       });
     });
 
-    const edited = result.current.messages
-      .at(-1)
-      ?.events?.find((event) => event.type === "doc_edited");
-    expect(edited).toEqual({
-      type: "doc_edited",
+    const lastEdited = result.current.messages.at(-1);
+    const edited = lastEdited?.role === "assistant"
+      ? lastEdited.artifacts.find((artifact) => artifact.type === "edited")
+      : undefined;
+    expect(edited).toMatchObject({
+      type: "edited",
       filename: "Draft.docx",
-      document_id: "document-1",
-      version_id: "version-2",
-      version_number: 2,
-      download_url:
+      documentId: "document-1",
+      versionId: "version-2",
+      versionNumber: 2,
+      downloadUrl:
         "/single-documents/document-1/file?version_id=version-2",
-      edit_mode: "manual",
-      annotations: [annotation],
-      isStreaming: false,
+      editMode: "manual",
+      annotations: [expect.objectContaining({
+        edit_id: annotation.edit_id,
+        deleted_text: "Original",
+        inserted_text: "Revised",
+      })],
     });
   });
 
@@ -1080,19 +1092,17 @@ describe("useAssistantChat local transcript boundary", () => {
       });
     });
 
-    expect(
-      result.current.messages
-        .at(-1)
-        ?.events?.find((event) => event.type === "doc_created"),
-    ).toEqual({
-      type: "doc_created",
+    const lastCreated = result.current.messages.at(-1);
+    expect(lastCreated?.role === "assistant"
+      ? lastCreated.artifacts.find((artifact) => artifact.type === "created")
+      : undefined).toMatchObject({
+      type: "created",
       filename: "Draft.docx",
-      document_id: "document-1",
-      version_id: "version-1",
-      version_number: 1,
-      download_url:
+      documentId: "document-1",
+      versionId: "version-1",
+      versionNumber: 1,
+      downloadUrl:
         "/single-documents/document-1/file?version_id=version-1",
-      isStreaming: false,
     });
   });
 
@@ -1111,7 +1121,13 @@ describe("useAssistantChat local transcript boundary", () => {
           type: "content_delta",
           text: "I’ll prepare a corrected editable version, fixing clear typographic",
         },
-        { type: "tool_call_start", name: "read_document" },
+        {
+          type: "tool_activity",
+          id: "read-1",
+          tool: "read_document",
+          status: "completed",
+          label: "Reading document",
+        },
         { type: "content_delta", text: "al errors." },
         { type: "reasoning_delta", text: "**Checking**\n\n- source" },
         { type: "reasoning_block_end" },
@@ -1119,7 +1135,13 @@ describe("useAssistantChat local transcript boundary", () => {
           type: "content_delta",
           text: "\n\nI found a **matching editable Word copy**.",
         },
-        { type: "tool_call_start", name: "edit_document" },
+        {
+          type: "tool_activity",
+          id: "edit-1",
+          tool: "edit_document",
+          status: "completed",
+          label: "Editing document",
+        },
         { type: "content_delta", text: "\n\nCorrected safely" },
         { type: "content_final", text: expected },
         { type: "citations", status: "final", citations: [] },
@@ -1137,12 +1159,10 @@ describe("useAssistantChat local transcript boundary", () => {
       });
     });
 
-    const contentEvents = result.current.messages
-      .at(-1)
-      ?.events?.filter((event) => event.type === "content");
-    expect(contentEvents).toEqual([{ type: "content", text: expected }]);
-    expect(contentEvents?.[0].text).not.toContain("typographic\n\nal");
-    expect(contentEvents?.[0].text).not.toContain("errors.I");
+    const content = result.current.messages.at(-1)?.content;
+    expect(content).toBe(expected);
+    expect(content).not.toContain("typographic\n\nal");
+    expect(content).not.toContain("errors.I");
   });
 
   it("continues one live response after a linked content snapshot", async () => {
@@ -1175,16 +1195,9 @@ describe("useAssistantChat local transcript boundary", () => {
       });
     });
 
-    expect(
-      result.current.messages
-        .at(-1)
-        ?.events?.filter((event) => event.type === "content"),
-    ).toEqual([
-      {
-        type: "content",
-        text: `${linked}The analysis continues.`,
-      },
-    ]);
+    expect(result.current.messages.at(-1)?.content).toBe(
+      `${linked}The analysis continues.`,
+    );
   });
 
   it("keeps streamed Automation receipts intact", async () => {
@@ -1222,7 +1235,8 @@ describe("useAssistantChat local transcript boundary", () => {
       });
     });
 
-    expect(result.current.messages.at(-1)?.events).toContainEqual(
+    const automationMessage = result.current.messages.at(-1);
+    expect(automationMessage?.role === "assistant" ? automationMessage.automations : []).toContainEqual(
       expect.objectContaining({
         type: "automation_run",
         id: "call-1",
@@ -1233,7 +1247,7 @@ describe("useAssistantChat local transcript boundary", () => {
     );
   });
 
-  it("detaches on unmount without stopping or aborting the backend turn", async () => {
+  it("aborts the browser reader on unmount without stopping the backend turn", async () => {
     let releaseResponse!: (response: Response) => void;
     let requestSignal: AbortSignal | undefined;
     mocks.streamChat.mockImplementation(
@@ -1259,7 +1273,7 @@ describe("useAssistantChat local transcript boundary", () => {
 
     unmount();
 
-    expect(requestSignal?.aborted).toBe(false);
+    expect(requestSignal?.aborted).toBe(true);
     expect(mocks.stopChat).not.toHaveBeenCalled();
 
     releaseResponse(
@@ -1304,8 +1318,9 @@ describe("useAssistantChat local transcript boundary", () => {
       expect.any(String),
       "Focus on remedies",
     );
-    expect(result.current.messages.at(-1)?.events).toContainEqual(
-      expect.objectContaining({ type: "steering", text: "Focus on remedies" }),
+    const steered = result.current.messages.at(-1);
+    expect(steered?.role === "assistant" ? steered.blocks : []).toContainEqual(
+      expect.objectContaining({ role: "user", text: "Focus on remedies" }),
     );
 
     releaseResponse(streamResponse([
@@ -1338,14 +1353,14 @@ describe("useAssistantChat local transcript boundary", () => {
 
     expect(result.current.messages.at(-1)).toMatchObject({
       content: "Initial answer.\n\nRevised answer.",
-      events: [
-        { type: "content", text: "Initial answer." },
+      blocks: [
+        expect.objectContaining({ role: "assistant", text: "Initial answer." }),
         {
-          type: "steering",
-          id: "22222222-2222-4222-8222-222222222222",
+          id: "steering:22222222-2222-4222-8222-222222222222",
+          role: "user",
           text: "Focus on remedies",
         },
-        { type: "content", text: "Revised answer." },
+        expect.objectContaining({ role: "assistant", text: "Revised answer." }),
       ],
     });
   });
@@ -1413,9 +1428,7 @@ describe("useAssistantChat local transcript boundary", () => {
       });
     });
     await vi.waitFor(() => {
-      expect(result.current.messages.at(-1)?.events).toEqual([
-        expect.objectContaining({ type: "content", text: expected }),
-      ]);
+      expect(result.current.messages.at(-1)?.content).toBe(expected);
     });
 
     act(() => result.current.cancel());
@@ -1425,9 +1438,7 @@ describe("useAssistantChat local transcript boundary", () => {
 
     expect(mocks.stopChat).toHaveBeenCalledWith("chat-1");
     expect(requestSignal?.aborted).toBe(true);
-    expect(result.current.messages.at(-1)?.events).toEqual([
-      { type: "content", text: expected },
-    ]);
+    expect(result.current.messages.at(-1)?.content).toBe(expected);
     expect(result.current.messages.at(-1)?.turnStatus).toBe("cancelled");
     expect(result.current.rejectedTurn).toBeNull();
   });

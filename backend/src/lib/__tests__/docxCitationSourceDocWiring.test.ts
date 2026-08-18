@@ -1,49 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type {
+  LegalSourcePassage,
+  LegalSourceReference,
+} from "../legalSources";
 
 const mocks = vi.hoisted(() => ({
-  fetchA2AJDocument: vi.fn(),
-  getA2AJDocumentSourceDoc: vi.fn(),
-  lookupA2AJLocator: vi.fn(),
-  getCourtlistenerCases: vi.fn(),
-  getCourtlistenerOpinionStructure: vi.fn(),
-  lookupCourtlistenerOpinionLocator: vi.fn(),
-  verifyCourtlistenerCitations: vi.fn(),
-  fetchJournalArticle: vi.fn(),
-  lookupJournalArticle: vi.fn(),
-  searchJournalArticles: vi.fn(),
-  fetchGovInfoCase: vi.fn(),
-  fetchGovUkEtCase: vi.fn(),
-  fetchTnaCase: vi.fn(),
-  lookupPublicLegalSource: vi.fn(),
-  searchGovInfoCase: vi.fn(),
-  searchGovUkEtCase: vi.fn(),
-  searchTnaCase: vi.fn(),
+  resolve: vi.fn(),
+  read: vi.fn(),
+  url: vi.fn(),
 }));
 
-vi.mock("../a2aj", () => ({
-  fetchA2AJDocument: mocks.fetchA2AJDocument,
-  getA2AJDocumentSourceDoc: mocks.getA2AJDocumentSourceDoc,
-  lookupA2AJLocator: mocks.lookupA2AJLocator,
-}));
-vi.mock("../courtlistener", () => ({
-  getCourtlistenerCases: mocks.getCourtlistenerCases,
-  getCourtlistenerOpinionStructure: mocks.getCourtlistenerOpinionStructure,
-  lookupCourtlistenerOpinionLocator: mocks.lookupCourtlistenerOpinionLocator,
-  verifyCourtlistenerCitations: mocks.verifyCourtlistenerCitations,
-}));
-vi.mock("../journalArticles", () => ({
-  fetchJournalArticle: mocks.fetchJournalArticle,
-  lookupJournalArticle: mocks.lookupJournalArticle,
-  searchJournalArticles: mocks.searchJournalArticles,
-}));
-vi.mock("../publicLegalSources", () => ({
-  fetchGovInfoCase: mocks.fetchGovInfoCase,
-  fetchGovUkEtCase: mocks.fetchGovUkEtCase,
-  fetchTnaCase: mocks.fetchTnaCase,
-  lookupPublicLegalSource: mocks.lookupPublicLegalSource,
-  searchGovInfoCase: mocks.searchGovInfoCase,
-  searchGovUkEtCase: mocks.searchGovUkEtCase,
-  searchTnaCase: mocks.searchTnaCase,
+vi.mock("../legalSourceRegistry", () => ({
+  resolveLegalSource: mocks.resolve,
+  readLegalSourcePassage: mocks.read,
+  legalSourcePassageUrl: mocks.url,
+  legalSourceProviderFamily: ({ source }: LegalSourcePassage) =>
+    source.family ?? source.provider,
 }));
 
 import {
@@ -51,7 +23,6 @@ import {
   type DocxCitationIntent,
   type DocxCitationLinkPlan,
 } from "../docxCitationLinking";
-import { createSourceDoc } from "../sourceDoc";
 
 function intent(
   partId: string,
@@ -71,103 +42,75 @@ function intent(
   };
 }
 
-function structure(
-  provider: "a2aj" | "courtlistener" | "tna" | "journal",
-  id: string,
-  url: string,
-) {
-  const text = "The canonical provider rendition contains the cited rule.";
-  return createSourceDoc({
-    provider,
-    id,
-    url,
-    docType: "cases",
-    text,
-    blocks: [
-      {
-        kind: "paragraph",
-        label: "par1",
-        start: 0,
-        end: text.length,
-        origin: "native",
-      },
-    ],
-  });
-}
+const references: Record<string, LegalSourceReference> = {
+  "2024 SCC 10": {
+    provider: "a2aj",
+    id: "2024 SCC 10",
+    kind: "case",
+    url: "https://www.canlii.org/en/ca/scc/doc/2024/2024scc10/",
+  },
+  "467 U.S. 837": {
+    provider: "courtlistener",
+    id: "42",
+    kind: "case",
+    url: "https://www.courtlistener.com/opinion/42/example/",
+  },
+  "[2025] UKSC 12": {
+    provider: "tna",
+    family: "public",
+    id: "[2025] UKSC 12",
+    kind: "case",
+    url: "https://caselaw.nationalarchives.gov.uk/uksc/2025/12",
+  },
+  "42 Alta L Rev 1": {
+    provider: "journal",
+    id: "1",
+    kind: "journal",
+    url: "https://example.test/journal/1",
+  },
+};
 
-describe("DOCX citation SourceDoc wiring", () => {
+describe("DOCX citation legal-source wiring", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    const a2ajUrl = "https://www.canlii.org/en/ca/scc/doc/2024/2024scc10/";
-    const courtlistenerUrl =
-      "https://www.courtlistener.com/opinion/42/example/";
-    const tnaUrl = "https://caselaw.nationalarchives.gov.uk/uksc/2025/12";
-    const journalUrl = "https://example.test/journal/1";
-    const a2ajStructure = structure("a2aj", "2024 SCC 10", a2ajUrl);
-    const courtlistenerStructure = structure(
-      "courtlistener",
-      "7",
-      courtlistenerUrl,
+    mocks.resolve.mockImplementation(async ({ text }: { text: string }) => {
+      const source = references[text];
+      return source
+        ? { status: "found", value: source }
+        : { status: "not_found", providers: [] };
+    });
+    mocks.read.mockImplementation(
+      async ({ source }: { source: LegalSourceReference }) => ({
+        status: "found",
+        values: [{
+          source,
+          locator: { requested: null, label: "document" },
+          role: "document",
+          text: "The canonical provider rendition contains the cited rule.",
+          textSha256: "passage",
+          documentSha256: "document",
+          revision: "document",
+        } satisfies LegalSourcePassage],
+      }),
     );
-    const tnaStructure = structure("tna", "[2025] UKSC 12", tnaUrl);
-    const journalStructure = structure("journal", "1", journalUrl);
-
-    mocks.fetchA2AJDocument.mockResolvedValue({
-      citation: "2024 SCC 10",
-      url: a2ajUrl,
-      text: "Bounded transport excerpt.",
-    });
-    mocks.getA2AJDocumentSourceDoc.mockReturnValue(a2ajStructure);
-    mocks.verifyCourtlistenerCitations.mockResolvedValue({
-      citationLinks: [{ clusterId: 42 }],
-    });
-    mocks.getCourtlistenerCases.mockResolvedValue({
-      cases: [
-        {
-          url: courtlistenerUrl,
-          opinions: [
-            { opinionId: 7, url: courtlistenerUrl, text: "Bounded excerpt." },
-          ],
-        },
-      ],
-    });
-    mocks.getCourtlistenerOpinionStructure.mockReturnValue(
-      courtlistenerStructure,
+    mocks.url.mockImplementation(
+      (passage: LegalSourcePassage) =>
+        `${passage.source.url}#:~:text=canonical%20provider%20rendition`,
     );
-    mocks.searchTnaCase.mockResolvedValue({ id: "[2025] UKSC 12" });
-    mocks.fetchTnaCase.mockResolvedValue({
-      provider: "tna",
-      identity: "[2025] UKSC 12",
-      title: "Example v State",
-      url: tnaUrl,
-      text: "Bounded transport excerpt.",
-      structure: tnaStructure,
-      attachments: [],
-    });
-    mocks.fetchJournalArticle.mockReturnValue({
-      provider: "journal",
-      identity: "42 Alta L Rev 1",
-      title: "Article",
-      url: journalUrl,
-      text: "Bounded transport excerpt.",
-      structure: journalStructure,
-    });
   });
 
-  it("verifies all provider links against their canonical rendition", async () => {
+  it("uses the shared registry for every supported provider family", async () => {
     const plan: DocxCitationLinkPlan = {
       schema_version: "legalpdf.docx_link_plan.v1",
       source_sha256: "abc",
-      footnotes: [
-        {
-          parts: [
-            intent("a2aj", "case", "2024 SCC 10"),
-            intent("courtlistener", "case", "467 U.S. 837"),
-            intent("public", "case", "[2025] UKSC 12"),
-            intent("journal", "journal", "42 Alta L Rev 1"),
-          ],
-        },
-      ],
+      footnotes: [{
+        parts: [
+          intent("a2aj", "case", "2024 SCC 10"),
+          intent("courtlistener", "case", "467 U.S. 837"),
+          intent("public", "case", "[2025] UKSC 12"),
+          intent("journal", "journal", "42 Alta L Rev 1"),
+        ],
+      }],
     };
 
     const resolved = await resolveDocxCitationLinks(plan);
@@ -179,9 +122,40 @@ describe("DOCX citation SourceDoc wiring", () => {
       public: 1,
       journal: 1,
     });
-    expect(Object.values(resolved.links)).toHaveLength(4);
-    expect(
-      Object.values(resolved.links).every((url) => url.includes(":~:text=")),
-    ).toBe(true);
+    expect(mocks.resolve).toHaveBeenCalledTimes(4);
+    expect(mocks.read).toHaveBeenCalledTimes(4);
+    expect(Object.values(resolved.links).every((url) => url.includes(":~:text=")))
+      .toBe(true);
+  });
+
+  it("leaves a citation unresolved when Read returns more than one selected passage", async () => {
+    mocks.read.mockImplementationOnce(
+      async ({ source }: { source: LegalSourceReference }) => ({
+        status: "found",
+        values: ["first", "second"].map((text) => ({
+          source,
+          locator: { requested: null, label: "document" },
+          role: "document" as const,
+          text,
+          textSha256: text,
+          documentSha256: "document",
+          revision: "document",
+        })),
+      }),
+    );
+    const citation = intent("ambiguous", "case", "2024 SCC 10");
+
+    const resolved = await resolveDocxCitationLinks({
+      schema_version: "legalpdf.docx_link_plan.v1",
+      source_sha256: "abc",
+      footnotes: [{ parts: [citation] }],
+    });
+
+    expect(resolved.links).toEqual({});
+    expect(resolved.unresolved).toEqual([{
+      part_id: "ambiguous",
+      reason: "No unique verified provider match",
+    }]);
+    expect(mocks.url).not.toHaveBeenCalled();
   });
 });

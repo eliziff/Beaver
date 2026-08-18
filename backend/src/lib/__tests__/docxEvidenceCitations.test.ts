@@ -7,7 +7,7 @@ import {
   type LegalEvidenceReceipt,
 } from "../chat/legalEvidence";
 import { resolveDocxEvidenceCitations } from "../docxEvidenceCitations";
-import { TOOLS } from "../chat/tools/toolSchemas";
+import { WRITE_TOOL } from "../chat/tools/toolSchemas";
 
 function receipt(
   evidenceId: string,
@@ -39,9 +39,7 @@ function receipt(
 
 describe("DOCX evidence citations", () => {
   it("keeps the model-facing citation contract to short evidence ids", () => {
-    const schema = TOOLS.find(({ function: tool }) =>
-      tool.name === "generate_docx"
-    )!.function.parameters as {
+    const schema = WRITE_TOOL.inputSchema as {
       properties: Record<string, {
         items?: { properties?: Record<string, unknown> };
       }>;
@@ -68,12 +66,12 @@ describe("DOCX evidence citations", () => {
     expect(resolved.citations.rule.sources[0]).toMatchObject({
       authority: "Example v State, 2026 SCC 1",
       mainUrl: "https://example.test/case",
-      pinpoints: [{ text: "para. 5" }, { text: "para. 9" }],
+      pinpoints: [{ text: "para 5" }, { text: "para 9" }],
     });
     expect(resolved.bindings[0]).toMatchObject({
       evidenceIds: ["e_paragraph_5", "e_paragraph_9"],
       sourceSha256s: ["sha256:source"],
-      locators: ["para. 5", "para. 9"],
+      locators: ["para 5", "para 9"],
     });
     expect(legalEvidenceReceiptEvent(state)).toMatchObject({
       status: "passed",
@@ -103,13 +101,13 @@ describe("DOCX evidence citations", () => {
     }])).toThrow("requires exact passage evidence");
   });
 
-  it("rejects model-authored citation prose and legacy handles", () => {
+  it("rejects model-authored citation prose and old-shape handles", () => {
     const state = createLegalEvidenceTurnState();
     expect(() => resolveDocxEvidenceCitations(state, [{
-      id: "legacy",
+      id: "forged",
       evidence_ids: ["e_paragraph_5"],
       citation: "Model-authored text",
-      handles: ["mike-evidence:v1:legacy"],
+      handles: ["mike-evidence:v1:forged"],
     }])).toThrow("unsupported fields");
   });
 });

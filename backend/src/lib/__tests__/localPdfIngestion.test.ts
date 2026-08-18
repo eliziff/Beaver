@@ -260,7 +260,8 @@ afterEach(async () => {
   if (temporaryDirectory) {
     try {
       const store = await import("../localDocumentStore");
-      await store.closeLocalDocumentStore();
+      (await import("../localApplicationDatabase"))
+        .closeLocalApplicationDatabase();
     } catch {}
   }
   delete process.env.MIKE_LOCAL_DATA_DIR;

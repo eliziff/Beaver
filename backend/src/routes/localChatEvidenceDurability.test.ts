@@ -15,20 +15,82 @@ const mocks = vi.hoisted(() => ({
   systemPrompts: [] as string[],
   appendLocalPdfPinpointLinks: vi.fn(),
   readLocalPdfEvidenceReceipt: vi.fn(),
-  runLocalAssistantTools: vi.fn(),
+  runLocalAssistantTool: vi.fn(),
   streamChatWithTools: vi.fn(),
 }));
 
 vi.mock("../lib/localMode", () => ({ isAnonymousLocalMode: () => true }));
-vi.mock("../lib/llm", () => ({
+vi.mock("../lib/llm", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../lib/llm")>(),
   completeText: vi.fn(),
   DEFAULT_MAIN_MODEL: "gpt-5.2",
   modelSupportsImageInput: () => true,
   streamChatWithTools: mocks.streamChatWithTools,
 }));
 vi.mock("../lib/chat/assistantTools", () => ({
-  ASSISTANT_TOOLS: [],
-  runAssistantTools: mocks.runLocalAssistantTools,
+  DOCUMENT_TOOLS: [],
+  createAssistantTools: (runtime: {
+    userId: string;
+    scope: "main" | "reader";
+    options: unknown;
+    artifactFor(documentId: string): string;
+    onMutationCommitted(): void;
+  }) => [
+    {
+      name: "Read",
+      inputSchema: { type: "object", additionalProperties: true },
+      annotations: { readOnlyHint: true },
+      reader: true,
+    },
+    {
+      name: "Edit",
+      inputSchema: { type: "object", additionalProperties: true },
+      sequential: true,
+    },
+    {
+      name: "Write",
+      inputSchema: { type: "object", additionalProperties: true },
+      sequential: true,
+    },
+  ].map((schema) => ({
+    ...schema,
+    async execute(input: Record<string, unknown>, _context: unknown, signal: AbortSignal, call: { id: string; name: string }) {
+      const execution = await mocks.runLocalAssistantTool(
+        runtime.userId,
+        { ...call, input },
+        runtime.options,
+        signal,
+      );
+      if (execution.mutated) runtime.onMutationCommitted();
+      const documentEvent = execution.events.find(
+        (event: { type?: string }) => event.type === "doc_created" || event.type === "doc_edited",
+      );
+      const artifact = documentEvent?.document_id
+        ? runtime.artifactFor(documentEvent.document_id)
+        : undefined;
+      const { tool_use_id: _id, content, terminal: _terminal, ...metadata } = execution.result;
+      return {
+        result: {
+          content: [{
+            type: "text",
+            text: artifact
+              ? JSON.stringify({ ok: true, artifact, filename: documentEvent.filename })
+              : content,
+          }],
+        },
+        metadata,
+        ...(runtime.scope === "main" && execution.events.length
+          ? { events: execution.events }
+          : {}),
+        ...(execution.evidence.length ? { evidence: execution.evidence } : {}),
+        ...(execution.mutated ? { mutated: true } : {}),
+        ...(execution.terminal ||
+            (schema.name === "Write" && documentEvent?.type === "doc_created")
+          ? { terminal: true }
+          : {}),
+      };
+    },
+  })),
 }));
 vi.mock("../lib/chat/localPdfEvidenceState", () => ({
   appendLocalPdfPinpointLinks: mocks.appendLocalPdfPinpointLinks,
@@ -45,6 +107,12 @@ vi.mock("../lib/localDocumentStore", async (importOriginal) => {
     await importOriginal<typeof import("../lib/localDocumentStore")>();
   return {
     ...actual,
+    getLocalVersionFile: (...args: Parameters<
+      typeof actual.getLocalVersionFile
+    >) =>
+      mocks.preflightFailure
+        ? Promise.reject(new Error("Injected local store failure"))
+        : actual.getLocalVersionFile(...args),
     listLocalDocumentsById: (...args: Parameters<
       typeof actual.listLocalDocumentsById
     >) =>
@@ -76,23 +144,45 @@ const REGISTRY_EVENT = "local_pdf_evidence_handles";
 let dataHome: string;
 
 async function loadApp() {
+  try {
+    (await import("../lib/localApplicationDatabase"))
+      .closeLocalApplicationDatabase();
+  } catch {}
   vi.resetModules();
   const [
     { createChatRouter },
     store,
     { localTabularData },
     { createLocalChatStore },
+    { createChatApplication },
+    { localChatApplicationFeatures },
+    { localDocuments, localLibraryStore },
+    { localProjects },
   ] = await Promise.all([
     import("./chat"),
     import("../lib/anonymousChatStore"),
     import("../lib/localTabularStore"),
     import("../lib/localChatStore"),
+    import("../lib/chat/chatApplication"),
+    import("../lib/chat/localChatApplicationFeatures"),
+    import("../lib/localLibraryStore"),
+    import("../lib/localProjectStore"),
   ]);
+  const chats = createLocalChatStore(localTabularData);
+  const application = createChatApplication({
+    chats,
+    documents: localDocuments,
+    library: localLibraryStore,
+    projects: localProjects,
+    tabular: localTabularData,
+    features: localChatApplicationFeatures,
+  });
   const app = express();
   app.use(express.json());
   app.use("/chat", createChatRouter(
     localTabularData,
-    createLocalChatStore(localTabularData),
+    chats,
+    application,
   ));
   return { app, store };
 }
@@ -118,6 +208,13 @@ beforeEach(async () => {
   dataHome = await mkdtemp(path.join(os.tmpdir(), "beaver-evidence-chat-"));
   vi.stubEnv("AUTH_MODE", "anonymous");
   vi.stubEnv("OPEN_LEGAL_DATA_HOME", dataHome);
+  (await import("../lib/localApplicationDatabase")).localApplicationDatabase()
+    .prepare(
+      `INSERT OR IGNORE INTO legal_knowledge_projects
+        (user_id,id,name,sort_order,created_at,updated_at)
+       VALUES (?,?,?,0,?,?)`,
+    ).run(USER_ID, PROJECT_ID, "Test matter", new Date().toISOString(),
+      new Date().toISOString());
   mocks.activeHandles.length = 0;
   mocks.finalizerHandleSets.length = 0;
   mocks.matterDocuments = undefined;
@@ -127,7 +224,7 @@ beforeEach(async () => {
   mocks.systemPrompts.length = 0;
   mocks.appendLocalPdfPinpointLinks.mockReset();
   mocks.readLocalPdfEvidenceReceipt.mockReset();
-  mocks.runLocalAssistantTools.mockReset();
+  mocks.runLocalAssistantTool.mockReset();
   mocks.streamChatWithTools.mockReset();
   mocks.readLocalPdfEvidenceReceipt.mockImplementation(async (handle) => ({
     handle,
@@ -136,11 +233,17 @@ beforeEach(async () => {
       version_id: VERSION_ID,
     },
   }));
-  mocks.runLocalAssistantTools.mockImplementation(
-    async (...args: unknown[]) => {
-      const handles = (args[2] as { pdfHandles: Set<string> }).pdfHandles;
+  mocks.runLocalAssistantTool.mockImplementation(
+    async (_userId: unknown, call: { id: string }, options: unknown) => {
+      const handles = (options as { pdfHandles: Set<string> }).pdfHandles;
       for (const handle of mocks.activeHandles) handles.add(handle);
-      return [];
+      return {
+        result: { tool_use_id: call.id, content: JSON.stringify({ ok: true }) },
+        mutated: false,
+        events: [],
+        terminal: false,
+        evidence: [],
+      };
     },
   );
   mocks.appendLocalPdfPinpointLinks.mockImplementation(
@@ -170,12 +273,14 @@ beforeEach(async () => {
 
 afterEach(async () => {
   try {
-    const store = await import("../lib/localDocumentStore");
-    await store.closeLocalDocumentStore();
+    (await import("../lib/localApplicationDatabase"))
+      .closeLocalApplicationDatabase();
   } catch {}
   vi.unstubAllEnvs();
   vi.resetModules();
-  await rm(dataHome, { recursive: true, force: true });
+  await rm(dataHome, {
+    recursive: true, force: true, maxRetries: 5, retryDelay: 50,
+  });
 });
 
 describe("anonymous chat PDF evidence durability", () => {
@@ -265,7 +370,7 @@ describe("anonymous chat PDF evidence durability", () => {
         current_turn: { kind: "message", content: "Stale duplicate" },
       });
     expect(stale.status).toBe(409);
-    expect(stale.body).toEqual({
+    expect(stale.body).toMatchObject({
       code: "chat_version_conflict",
       current_version: 2,
     });
@@ -327,11 +432,15 @@ describe("anonymous chat PDF evidence durability", () => {
         current_turn: { kind: "message", content: "Overlapping turn" },
       });
     expect(overlapping.status).toBe(409);
-    expect(overlapping.body).toEqual({
+    expect(overlapping.body).toMatchObject({
       code: "chat_turn_in_progress",
       current_version: 1,
     });
     expect(mocks.streamChatWithTools).toHaveBeenCalledTimes(1);
+    expect(loaded.store.getAnonymousChat(USER_ID, created.body.id)).toMatchObject({
+      transcript_version: 1,
+      messages: [{ role: "user", content: "Long turn" }],
+    });
 
     release();
     expect((await first).status).toBe(200);
@@ -374,24 +483,23 @@ describe("anonymous chat PDF evidence durability", () => {
         { role: "user", content: "Draft a lease" },
         {
           role: "assistant",
-          content: [{ type: "content", text: expected }],
+          content: expect.arrayContaining([{ type: "content", text: expected }]),
         },
       ],
     });
   });
 
-  it("continues and persists a turn after the response client disconnects", async () => {
-    let release!: () => void;
+  it("aborts and durably marks a turn when the response client disconnects", async () => {
     let providerSignal: AbortSignal | undefined;
-    const held = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    mocks.streamChatWithTools.mockImplementation(async (params) => {
-      providerSignal = params.abortSignal;
-      await held;
-      params.callbacks?.onContentDelta?.("Completed after navigation.");
-      return { fullText: "Completed after navigation." };
-    });
+    mocks.streamChatWithTools.mockImplementation(async (params) =>
+      new Promise((_resolve, reject) => {
+        providerSignal = params.abortSignal;
+        params.abortSignal?.addEventListener("abort", () => {
+          const error = new Error("Stream aborted.");
+          error.name = "AbortError";
+          reject(error);
+        }, { once: true });
+      }));
     const loaded = await loadApp();
     const created = await request(loaded.app).post("/chat/create").send({});
     const activeRequest = request(loaded.app)
@@ -410,10 +518,8 @@ describe("anonymous chat PDF evidence durability", () => {
       expect(mocks.streamChatWithTools).toHaveBeenCalledOnce();
     });
     activeRequest.abort();
-
-    expect(providerSignal?.aborted).toBe(false);
-    release();
     await vi.waitFor(() => {
+      expect(providerSignal?.aborted).toBe(true);
       expect(
         loaded.store.getAnonymousChat(USER_ID, created.body.id),
       ).toMatchObject({
@@ -422,9 +528,7 @@ describe("anonymous chat PDF evidence durability", () => {
           { role: "user", content: "Keep working" },
           {
             role: "assistant",
-            content: [
-              { type: "content", text: "Completed after navigation." },
-            ],
+            content: [{ type: "turn_status", status: "cancelled" }],
           },
         ],
       });
@@ -751,7 +855,7 @@ describe("anonymous chat PDF evidence durability", () => {
       });
 
     expect(failed.status).toBe(500);
-    expect(failed.body).toEqual({ detail: "Local chat failed" });
+    expect(failed.body).toEqual({ detail: "Chat operation failed" });
     expect(loaded.store.listAnonymousChats(USER_ID)).toEqual([]);
 
     mocks.preflightFailure = false;
@@ -778,21 +882,17 @@ describe("anonymous chat PDF evidence durability", () => {
                 kind: "choice",
                 question: "Which forum?",
                 options: [{ value: "Ontario" }, { value: "Alberta" }],
-                allow_other: false,
               },
             ],
           },
         };
         params.callbacks?.onToolCallStart?.(call);
-        expect(await params.runTools?.([call])).toEqual([
-          {
-            tool_use_id: "ask-forum",
-            content: JSON.stringify({
-              ok: true,
-              status: "waiting_for_user",
-            }),
-          },
-        ]);
+        const [result] = await params.runTools?.([call]) ?? [];
+        expect(result).toMatchObject({ tool_use_id: "ask-forum" });
+        expect(JSON.parse(result.content)).toEqual({
+          ok: true,
+          status: "waiting_for_user",
+        });
         params.callbacks?.onContentDelta?.(" This must be suppressed.");
         if (params.abortSignal?.aborted) {
           const error = new Error("Stream aborted.");
@@ -830,7 +930,7 @@ describe("anonymous chat PDF evidence durability", () => {
         { role: "user", content: "Prepare the filing plan." },
         {
           role: "assistant",
-          content: [
+          content: expect.arrayContaining([
             {
               type: "ask_inputs",
               items: [
@@ -844,7 +944,7 @@ describe("anonymous chat PDF evidence durability", () => {
                 },
               ],
             },
-          ],
+          ]),
         },
       ],
     });
@@ -997,7 +1097,8 @@ describe("anonymous chat PDF evidence durability", () => {
         current_turn: responseTurn,
       });
     expect(failed.status).toBe(200);
-    expect(chat.transcript_version).toBe(3);
+    expect(loaded.store.getAnonymousChat(USER_ID, created.body.id)
+      ?.transcript_version).toBe(3);
 
     const changedRetry = await request(loaded.app)
       .post("/chat")
@@ -1012,7 +1113,8 @@ describe("anonymous chat PDF evidence durability", () => {
       });
     expect(changedRetry.status).toBe(400);
     expect(changedRetry.body.detail).toMatch(/retry the same response/iu);
-    expect(chat.transcript_version).toBe(3);
+    expect(loaded.store.getAnonymousChat(USER_ID, created.body.id)
+      ?.transcript_version).toBe(3);
 
     const retried = await request(loaded.app)
       .post("/chat")
@@ -1022,8 +1124,10 @@ describe("anonymous chat PDF evidence durability", () => {
         current_turn: responseTurn,
       });
     expect(retried.status).toBe(200);
-    expect(chat.transcript_version).toBe(4);
-    const events = chat.messages[0].content as Record<string, unknown>[];
+    expect(loaded.store.getAnonymousChat(USER_ID, created.body.id)
+      ?.transcript_version).toBe(5);
+    const events = loaded.store.getAnonymousChat(USER_ID, created.body.id)!
+      .messages[0].content as Record<string, unknown>[];
     expect(
       events.filter((event) => event.type === "ask_inputs_response"),
     ).toHaveLength(1);
@@ -1037,16 +1141,21 @@ describe("anonymous chat PDF evidence durability", () => {
   });
 
   it("keeps a failed turn retryable after a successful no-op edit report", async () => {
-    mocks.runLocalAssistantTools.mockImplementation(
-      async (_userId: unknown, calls: { id: string }[]) =>
-        calls.map((call) => ({
+    mocks.runLocalAssistantTool.mockImplementation(
+      async (_userId: unknown, call: { id: string }) => ({
+        result: {
           tool_use_id: call.id,
           content: JSON.stringify({
             ok: true,
             action: "no_changes",
             change_count: 0,
           }),
-        })),
+        },
+        mutated: false,
+        events: [],
+        terminal: false,
+        evidence: [],
+      }),
     );
     let attempt = 0;
     mocks.streamChatWithTools.mockImplementation(async (params) => {
@@ -1196,11 +1305,11 @@ describe("anonymous chat PDF evidence durability", () => {
 
   it("executes every mixed-batch call without treating it as terminal", async () => {
     vi.stubEnv("MIKE_TERMINAL_AUTHORING", "1");
-    mocks.runLocalAssistantTools.mockImplementation(
-      async (_userId: unknown, calls: { id: string; name: string }[]) =>
-        calls.map((call) =>
-          call.name === "generate_docx"
-            ? {
+    mocks.runLocalAssistantTool.mockImplementation(
+      async (_userId: unknown, call: { id: string; name: string }) =>
+        call.name === "Write"
+          ? {
+              result: {
                 tool_use_id: call.id,
                 content: JSON.stringify({
                   ok: true,
@@ -1208,26 +1317,44 @@ describe("anonymous chat PDF evidence durability", () => {
                   action: "created",
                   version_id: "mock-version",
                 }),
-              }
-            : {
+              },
+              mutated: true,
+              events: [{
+                type: "doc_created",
+                filename: "Draft.docx",
+                document_id: "mock-document",
+                version_id: "mock-version",
+                version_number: 1,
+                download_url: "/documents/mock-document/download",
+                resource: "document",
+              }],
+              terminal: true,
+              evidence: [],
+            }
+          : {
+              result: {
                 tool_use_id: call.id,
                 content: JSON.stringify({ ok: true, text: "New evidence." }),
-                evidenceSegments: [{}],
               },
-        ),
+              mutated: false,
+              events: [],
+              terminal: false,
+              evidence: [],
+            },
     );
     mocks.streamChatWithTools.mockImplementation(async (params) => {
       const results = await params.runTools?.([
         { id: "read", name: "Read", input: { file_path: "source.docx" } },
         {
           id: "create",
-          name: "generate_docx",
-          input: { title: "Draft", sections: [] },
+          name: "Write",
+          input: { kind: "docx", filename: "Draft.docx", content: "# Draft" },
         },
       ]);
       expect(results?.some((result) => result.terminal)).toBe(false);
       expect(JSON.parse(results?.[1].content ?? "{}")).toMatchObject({
-        action: "created",
+        artifact: "draft-1",
+        filename: "Draft.docx",
       });
       params.callbacks?.onContentDelta?.("Reviewed and created.");
       return { fullText: "Reviewed and created." };
@@ -1247,28 +1374,10 @@ describe("anonymous chat PDF evidence durability", () => {
   });
 
   it("does not pause Codex after a mutation has already committed", async () => {
-    mocks.runLocalAssistantTools.mockImplementation(
-      async (_userId: unknown, calls: { id: string }[]) =>
-        calls.map((call) => ({
-        tool_use_id: call.id,
-        content: JSON.stringify({
-          ok: true,
-          receipt: "mike-document:v1",
-          action: "created",
-          version_id: "mock-version",
-        }),
-        })),
-    );
-    mocks.streamChatWithTools.mockImplementation(async (params) => {
-      const mutation = {
-        id: "create-doc",
-        name: "generate_docx",
-        input: { title: "Draft", sections: [] },
-      };
-      params.callbacks?.onToolCallStart?.(mutation);
-      expect(await params.runTools?.([mutation])).toEqual([
-        {
-          tool_use_id: mutation.id,
+    mocks.runLocalAssistantTool.mockImplementation(
+      async (_userId: unknown, call: { id: string }) => ({
+        result: {
+          tool_use_id: call.id,
           content: JSON.stringify({
             ok: true,
             receipt: "mike-document:v1",
@@ -1276,7 +1385,36 @@ describe("anonymous chat PDF evidence durability", () => {
             version_id: "mock-version",
           }),
         },
-      ]);
+        mutated: true,
+        events: [{
+          type: "doc_created",
+          filename: "Draft.docx",
+          document_id: "mock-document",
+          version_id: "mock-version",
+          version_number: 1,
+          download_url: "/documents/mock-document/download",
+          resource: "document",
+        }],
+        terminal: true,
+        evidence: [],
+      }),
+    );
+    mocks.streamChatWithTools.mockImplementation(async (params) => {
+      const mutation = {
+        id: "create-doc",
+        name: "Write",
+        input: { kind: "docx", filename: "Draft.docx", content: "# Draft" },
+      };
+      params.callbacks?.onToolCallStart?.(mutation);
+      expect(await params.runTools?.([mutation])).toEqual([{
+        tool_use_id: mutation.id,
+        content: JSON.stringify({
+          ok: true,
+          artifact: "draft-1",
+          filename: "Draft.docx",
+        }),
+        terminal: true,
+      }]);
       const ask = {
         id: "late-question",
         name: "ask_inputs",

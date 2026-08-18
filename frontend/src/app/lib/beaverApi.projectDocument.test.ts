@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createAssistantSessionState } from "./assistantSession";
 
 vi.mock("@/app/lib/supabase", () => ({
   supabase: {
@@ -79,18 +80,20 @@ describe("getChat", () => {
     }), { headers: { "Content-Type": "application/json" } })));
     const { getChat } = await import("./beaverApi");
 
-    const { messages } = await getChat("chat-1");
+    const { chat, messages } = await getChat("chat-1");
+    const state = createAssistantSessionState({ chatId: chat.id, messages });
+    const assistant = state.messages[1];
 
     expect(messages[0].turnId).toBe("turn-1");
-    expect(messages[1]).toMatchObject({
+    expect(assistant).toMatchObject({
       turnId: "turn-1",
       turnStatus: "interrupted",
-      events: [{
-        type: "subagent_run",
+      activities: [expect.objectContaining({
+        id: "reader:scout:1",
         status: "interrupted",
-        activities: [{ status: "interrupted" }],
-      }],
+      })],
     });
+    expect(state.readers[0]).toMatchObject({ id: "scout:1", status: "interrupted" });
   });
 
   it("keeps cancellation metadata out of assistant prose", async () => {
@@ -109,16 +112,17 @@ describe("getChat", () => {
     }), { headers: { "Content-Type": "application/json" } })));
     const { getChat } = await import("./beaverApi");
 
-    const { messages } = await getChat("chat-1");
+    const { chat, messages } = await getChat("chat-1");
+    const state = createAssistantSessionState({ chatId: chat.id, messages });
 
-    expect(messages[0]).toMatchObject({
-      content: "Partial answer.\n\nContinued answer.",
+    expect(state.messages[0]).toMatchObject({
       turnStatus: "cancelled",
-      events: [
-        { type: "content", text: "Partial answer." },
-        { type: "content", text: "Continued answer." },
+      blocks: [
+        expect.objectContaining({ text: "Partial answer." }),
+        expect.objectContaining({ text: "Continued answer." }),
       ],
     });
+    expect(state.messages[0].role === "assistant" ? state.messages[0].blocks.map(({ text }) => text).join("\n\n") : "").toBe("Partial answer.\n\nContinued answer.");
   });
 
   it("marks a durable user turn with no response as interrupted", async () => {
@@ -134,11 +138,12 @@ describe("getChat", () => {
     }), { headers: { "Content-Type": "application/json" } })));
     const { getChat } = await import("./beaverApi");
 
-    const { messages } = await getChat("chat-1");
+    const { chat, messages } = await getChat("chat-1");
+    const state = createAssistantSessionState({ chatId: chat.id, messages });
 
     expect(messages[0]).toMatchObject({
       turnId: "turn-1",
-      turnStatus: "interrupted",
     });
+    expect(state.rejectedTurn?.message).toMatchObject({ turnId: "turn-1" });
   });
 });

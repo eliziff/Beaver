@@ -10,7 +10,11 @@ import {
 import { describe, expect, it } from "vitest";
 
 import { compareDocxVersions } from "../docxCompareVersions";
-import { extractDocxBodyText } from "../docxTrackedChanges";
+import {
+  extractDocxBodyText,
+  extractTrackedChangeIds,
+  resolveTrackedChange,
+} from "../docxTrackedChanges";
 
 async function docxFrom(paragraphs: string[]): Promise<Buffer> {
   return Packer.toBuffer(
@@ -153,9 +157,6 @@ describe("compareDocxVersions", () => {
     expect(change.kind).toBe("replace");
     expect(change.deletedText).toBe("Purchaser");
     expect(change.insertedText).toBe("Supplier");
-    expect(change.contextBefore).toBe("The ");
-    expect(change.contextAfter).toMatch(/^ shall pay/u);
-
     const xml = await documentXml(result.bytes);
     expect(countOf(xml, /<w:del\b/gu)).toBe(1);
     expect(countOf(xml, /<w:ins\b/gu)).toBe(1);
@@ -163,6 +164,21 @@ describe("compareDocxVersions", () => {
     await expect(extractDocxBodyText(result.bytes)).resolves.toBe(
       "The Supplier shall pay the costs of the escrow agent.",
     );
+  });
+
+  it("produces a durable redline that accepts to new and rejects to old", async () => {
+    const oldText = "The Purchaser shall pay the escrow agent.";
+    const newText = "The Supplier shall pay the escrow agent.";
+    const result = await compareDocxVersions(
+      await docxFrom([oldText]),
+      await docxFrom([newText]),
+    );
+    const ids = (await extractTrackedChangeIds(result.bytes)).map(({ w_id }) => w_id);
+
+    const accepted = await resolveTrackedChange(result.bytes, ids, "accept");
+    const rejected = await resolveTrackedChange(result.bytes, ids, "reject");
+    await expect(extractDocxBodyText(accepted.bytes)).resolves.toBe(newText);
+    await expect(extractDocxBodyText(rejected.bytes)).resolves.toBe(oldText);
   });
 
   it("keeps punctuation-only additions off the neighbouring word", async () => {

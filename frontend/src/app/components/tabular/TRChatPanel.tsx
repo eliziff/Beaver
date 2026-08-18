@@ -45,17 +45,18 @@ export function TRChatPanel({
     }, [reviewId]);
 
     useEffect(() => {
-        if (!currentChatId || assistant.isResponseLoading) return;
+        if (!currentChatId || assistant.state.run) return;
         let cancelled = false;
         getChat(currentChatId).then(({ chat, messages }) => {
             if (!cancelled) {
-                assistant.openChat(
+                assistant.actions.openChat(
                     chat.id,
                     messages,
                     chat.transcript_version ?? 0,
+                    chat.turn_in_progress === true,
                 );
                 if (chat.turn_in_progress) {
-                    assistant.resumeRunningTurn(
+                    assistant.actions.resumeRunningTurn(
                         chat.id,
                         chat.transcript_version ?? 0,
                     );
@@ -67,7 +68,7 @@ export function TRChatPanel({
         return () => { cancelled = true; };
         // openChat and resumeRunningTurn intentionally follow the selected ID.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentChatId, assistant.isResponseLoading]);
+    }, [currentChatId, assistant.state.run]);
 
     const currentTitle = chats.find(({ id }) => id === currentChatId)?.title;
     const openCitation = (citation: Citation) => {
@@ -78,7 +79,7 @@ export function TRChatPanel({
         return true;
     };
     const newChat = () => {
-        assistant.openChat();
+        assistant.actions.openChat();
         onChatIdChange(null);
     };
 
@@ -112,13 +113,13 @@ export function TRChatPanel({
                     }))}
                     onChange={(chatId) => {
                         if (chatId && chatId !== currentChatId) {
-                            assistant.cancel();
+                            assistant.actions.cancel();
                             onChatIdChange(chatId);
                         }
                     }}
                 />
                 <div className="flex shrink-0 items-center gap-1.5">
-                    {assistant.messages.length > 0 && (
+                    {assistant.state.messages.length > 0 && (
                         <button
                             type="button"
                             onClick={newChat}
@@ -139,14 +140,12 @@ export function TRChatPanel({
                 </div>
             </div>
             <ChatView
-                chatId={assistant.chatId}
-                messages={assistant.messages}
-                isResponseLoading={assistant.isResponseLoading}
-                handleChat={assistant.handleChat}
-                cancel={assistant.cancel}
-                rejectedTurn={assistant.rejectedTurn}
-                onRejectedTurnRestored={assistant.clearRejectedTurn}
-                onRetryRejectedTurn={() => void assistant.retryRejectedTurn()}
+                chatId={assistant.state.chatId}
+                session={assistant.state}
+                handleChat={assistant.actions.handleChat}
+                cancel={assistant.actions.cancel}
+                onRejectedTurnRestored={assistant.actions.clearRejectedTurn}
+                onRetryRejectedTurn={() => void assistant.actions.retryRejectedTurn()}
                 layout="panel"
                 features={{ contextTools: false, dock: false }}
                 onCitationClick={openCitation}

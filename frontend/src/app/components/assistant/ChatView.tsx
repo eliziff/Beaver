@@ -26,8 +26,9 @@ import { AssistantDock, type AssistantDockTab } from "./AssistantDock";
 import { AssistantWorkflowDock } from "./AssistantWorkflowDock";
 import { DocumentAutomation, type DocumentAutomationTarget } from "@/app/components/documents/DocumentAutomation";
 import type {
-    AssistantEvent,
+    AutomationRunEvent,
     CaseCitation,
+    CaseCitationEvent,
     Citation,
     Document,
     DocumentCitation,
@@ -38,8 +39,13 @@ import type {
     Message,
     Workflow,
 } from "../shared/types";
+import {
+    safeAssistantUrl,
+    type AssistantReaderRun,
+    type AssistantSessionState,
+    type AssistantTurnOptions,
+} from "@/app/lib/assistantSession";
 import { invalidateDocxBytes } from "@/app/hooks/useFetchDocxBytes";
-import type { RejectedAssistantTurn } from "@/app/hooks/useAssistantChat";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import {
@@ -61,20 +67,12 @@ import { ReadSubagentTabs, type ReadSubagentGroup } from "./ReadSubagentTabs";
 import { useReadSubagentPreference } from "./readSubagentPreferences";
 interface Props {
     chatId?: string | null;
-    messages: Message[];
-    isResponseLoading: boolean;
+    session: AssistantSessionState;
     handleChat: (
         message: Message,
-        opts?: {
-            displayedDoc?: { filename: string; documentId: string } | null;
-            askInputsResponse?: Extract<
-                AssistantEvent,
-                { type: "ask_inputs_response" }
-            >;
-        },
+        opts?: AssistantTurnOptions,
     ) => Promise<string | null>;
     cancel: () => void;
-    rejectedTurn?: RejectedAssistantTurn | null;
     onRejectedTurnRestored?: () => void;
     onRetryRejectedTurn?: () => void;
     projectName?: string | null;
@@ -96,13 +94,12 @@ export interface ChatViewHandle {
     closeDocument: (documentId: string) => void;
     openDocument: (document: Document) => void;
 }
-const MOBILE_BREAKPOINT_PX = 768;
 const DEFAULT_ASSISTANT_BOTTOM_PADDING = 116;
 const LATEST_ASSISTANT_MIN_HEIGHT = "calc(100dvh - 16rem)";
 const READ_SUBAGENT_PANELS_KEY = "beaver.readSubagentPanels.v1";
 const READ_SUBAGENT_RUN_LIMIT = 9;
 
-function readStoredSubagentPanels(storageKey: string): ReadSubagentPanel[] {
+function readStoredSubagentPanelIds(storageKey: string): string[] {
     if (typeof window === "undefined") return [];
     try {
         const stored = JSON.parse(
@@ -110,19 +107,7 @@ function readStoredSubagentPanels(storageKey: string): ReadSubagentPanel[] {
         ) as unknown;
         if (!Array.isArray(stored)) return [];
         return stored
-            .filter(
-                (panel): panel is ReadSubagentPanel =>
-                    !!panel &&
-                    typeof panel === "object" &&
-                    (panel as ReadSubagentPanel).type === "subagent_run" &&
-                    typeof (panel as ReadSubagentPanel).id === "string" &&
-                    typeof (panel as ReadSubagentPanel).task === "string" &&
-                    typeof (panel as ReadSubagentPanel).model === "string" &&
-                    typeof (panel as ReadSubagentPanel).effort === "string" &&
-                    ["running", "completed", "error"].includes(
-                        (panel as ReadSubagentPanel).status,
-                    ),
-            )
+            .filter((id): id is string => typeof id === "string" && id.length <= 512)
             .slice(-READ_SUBAGENT_RUN_LIMIT);
     } catch {
         return [];
@@ -194,11 +179,9 @@ function documentCitationTab(citation: DocumentCitation): AssistantDocumentTab {
 export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     {
         chatId,
-        messages,
-        isResponseLoading,
+        session,
         handleChat,
         cancel,
-        rejectedTurn,
         onRejectedTurnRestored,
         onRetryRejectedTurn,
         projectName,
@@ -214,24 +197,25 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     },
     ref,
 ) {
+    const { messages, rejectedTurn } = session;
+    const isResponseLoading = session.run !== null;
     const readSubagents = useReadSubagentPreference();
     const dockEnabled = features?.dock ?? true;
     const contextToolsEnabled = features?.contextTools ?? true;
-    const latestContextUsage = messages
-        .flatMap((message) => message.events ?? [])
-        .findLast((event) => event.type === "context_usage");
-    const latestCompaction = messages
-        .flatMap((message) => message.events ?? [])
-        .findLast((event) => event.type === "compaction");
     const readSubagentPanelStorageKey = `${READ_SUBAGENT_PANELS_KEY}:${chatId ?? "new"}`;
     const [tabs, setTabs] = useState<AssistantSidePanelTab[]>([]);
-    const [readSubagentPanels, setReadSubagentPanels] = useState<
-        ReadSubagentPanel[]
-    >([]);
+    const [readSubagentPanelState, setReadSubagentPanels] = useState(() => ({
+        key: readSubagentPanelStorageKey,
+        ids: readStoredSubagentPanelIds(readSubagentPanelStorageKey),
+    }));
     const [readSubagentPanelLimitOpen, setReadSubagentPanelLimitOpen] =
         useState(false);
     const [dockOpen, setDockOpen] = useState(false);
     const [dockActivated, setDockActivated] = useState(false);
+    const setDockExpanded = useCallback((expanded: boolean) => {
+        setDockOpen(expanded);
+        if (expanded) setDockActivated(true);
+    }, []);
     const [activeDockTab, setActiveDockTab] = useState("sources");
     const [activeAgentSlot, setActiveAgentSlot] = useState<string | null>(null);
     const [agentInspectorOpen, setAgentInspectorOpen] = useState(false);
@@ -247,15 +231,8 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     const [hiddenAskInputKey, setHiddenAskInputKey] = useState<string | null>(
         null,
     );
-    const [responseAnnouncement, setResponseAnnouncement] = useState("");
-    const wasResponseLoadingRef = useRef(false);
     const dismissedReadSubagentIds = useRef(new Set<string>());
     const previousReadSubagentCount = useRef(0);
-    const skipSubagentPanelPersist = useRef(true);
-    const readSubagentPanelStorageKeyRef = useRef(
-        readSubagentPanelStorageKey,
-    );
-    const readSubagentPanelsRef = useRef(readSubagentPanels);
     const editFocusKey = useRef(0);
     const [editState, setEditState] = useState(() => ({
         docIds: new Set<string>(),
@@ -308,14 +285,14 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             });
             setActiveTabId(tab.id);
             if (activateDock) setActiveDockTab("sources");
-            setDockOpen(true);
+            setDockExpanded(true);
         },
-        [],
+        [setDockExpanded],
     );
     const openCase = (
         citation:
             | CaseCitation
-            | Extract<AssistantEvent, { type: "case_citation" }>,
+            | CaseCitationEvent,
         showQuotes = true,
     ) => {
         if (!citation.cluster_id || !chatId) return;
@@ -338,13 +315,15 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     const openCitation = (citation: Citation) => {
         if (onCitationClick?.(citation)) return;
         if (citation.kind === "tabular") return;
-        const exactProviderUrl =
+        const exactProviderUrl = safeAssistantUrl(
             citation.kind !== "document" &&
             !(citation.kind === "public_legal" && citation.provider === "journal") &&
             "url" in citation &&
             citation.url?.includes("#")
                 ? citation.url
-                : null;
+                : null,
+            { relative: false },
+        );
         if (exactProviderUrl) {
             window.open(exactProviderUrl, "_blank", "noopener,noreferrer");
             return;
@@ -356,8 +335,10 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         if (citation.kind === "a2aj" || citation.kind === "public_legal") {
             const tab = legalCitationTab(citation, true);
             if (tab) upsertTab(tab);
-            else if ("url" in citation && citation.url)
-                window.open(citation.url, "_blank", "noopener,noreferrer");
+            else if ("url" in citation && citation.url) {
+                const href = safeAssistantUrl(citation.url, { relative: false });
+                if (href) window.open(href, "_blank", "noopener,noreferrer");
+            }
         }
     };
     const openEditor = (
@@ -395,73 +376,29 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         },
         [upsertTab],
     );
-    let lastUserIndex = -1;
-    let lastAssistantIndex = -1;
-    let rawActiveInput: {
-        key: string;
-        event: Extract<AssistantEvent, { type: "ask_inputs" }>;
-    } | null = null;
-    const automationRuns = new Map<
-        string,
-        Extract<AssistantEvent, { type: "automation_run" }>
-    >();
-    for (const [messageIndex, message] of messages.entries()) {
-        if (message.role === "user") {
-            lastUserIndex = messageIndex;
-            rawActiveInput = null;
-        } else if (message.role === "assistant") {
-            lastAssistantIndex = messageIndex;
-        }
-        for (const [eventIndex, event] of (message.events ?? []).entries()) {
-            if (event.type === "ask_inputs") {
-                rawActiveInput = {
-                    key: `${chatId ?? "new"}:${messageIndex}-${eventIndex}`,
-                    event,
-                };
-            } else if (event.type === "ask_inputs_response") {
-                rawActiveInput = null;
-            } else if (event.type === "automation_run") {
-                const key = automationRunKey(event);
-                automationRuns.set(key, {
-                    ...automationRuns.get(key),
-                    ...event,
-                });
-            }
-        }
-    }
-    useEffect(() => {
-        readSubagentPanelsRef.current = readSubagentPanels;
-    }, [readSubagentPanels]);
-    useEffect(() => {
-        const wasLoading = wasResponseLoadingRef.current;
-        if (isResponseLoading) {
-            setResponseAnnouncement("Assistant is responding.");
-        } else if (wasLoading) {
-            const latestAssistant = messages[lastAssistantIndex];
-            setResponseAnnouncement(
-                latestAssistant?.error || latestAssistant?.turnStatus
-                    ? ""
-                    : "Response ready.",
-            );
-        }
-        wasResponseLoadingRef.current = isResponseLoading;
-    }, [isResponseLoading, lastAssistantIndex, messages]);
-    const mergedAutomationRun = (
-        run: Extract<AssistantEvent, { type: "automation_run" }>,
-    ) => ({ ...run, ...automationRuns.get(automationRunKey(run)) });
-    const openAutomation = (
-        run: Extract<AssistantEvent, { type: "automation_run" }>,
-    ) => {
-        const merged = mergedAutomationRun(run);
+    const lastUserIndex = messages.findLastIndex(({ role }) => role === "user");
+    const lastAssistantIndex = messages.findLastIndex(({ role }) => role === "assistant");
+    const automations = messages.flatMap((message) => message.role === "assistant" ? message.automations : []);
+    const latestAssistant = messages[lastAssistantIndex];
+    const responseAnnouncement = isResponseLoading
+        ? "Assistant is responding."
+        : latestAssistant?.role === "assistant" &&
+            !latestAssistant.error &&
+            !latestAssistant.turnStatus
+          ? "Response ready."
+          : "";
+    const latestAutomation = (run: AutomationRunEvent) =>
+        automations.findLast((candidate) => automationRunKey(candidate) === automationRunKey(run)) ?? run;
+    const openAutomation = (run: AutomationRunEvent) => {
         upsertTab({
             kind: "automation",
-            id: `automation:${automationRunKey(merged)}`,
-            run: merged,
+            id: `automation:${automationRunKey(run)}`,
+            run,
         });
     };
     const visibleTabs = tabs.map((tab) =>
         tab.kind === "automation"
-            ? { ...tab, run: mergedAutomationRun(tab.run) }
+            ? { ...tab, run: latestAutomation(tab.run) }
             : tab,
     );
     const handleEditResolveStart = (args: EditResolveStart) => {
@@ -559,22 +496,9 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     useLayoutEffect(() => {
         if (messages.length > 0) scrollLatestUserToTop();
     }, [chatId, messages.length, scrollLatestUserToTop]);
-    useEffect(() => {
-        if (dockOpen) setDockActivated(true);
-    }, [dockOpen]);
-    useEffect(() => {
-        if (dockOpen && window.innerWidth < MOBILE_BREAKPOINT_PX) {
-            document.body.style.overflow = "hidden";
-        } else {
-            document.body.style.overflow = "unset";
-        }
-        return () => {
-            document.body.style.overflow = "unset";
-        };
-    }, [dockOpen]);
     const activeInput =
-        rawActiveInput?.key !== hiddenAskInputKey
-            ? rawActiveInput
+        session.pendingInput?.key !== hiddenAskInputKey
+            ? session.pendingInput
             : null;
     const activeDocument = tabs.find(
         (tab): tab is AssistantDocumentTab =>
@@ -601,7 +525,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
               : null;
         setAutomationDocument(target);
         setActiveDockTab("automations");
-        setDockOpen(true);
+        setDockExpanded(true);
     };
     const openWorkflows = (
         onSelect: (workflow: Workflow) => void,
@@ -610,7 +534,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         workflowSelectRef.current = onSelect;
         setWorkflowInitialId(initialWorkflowId);
         setActiveDockTab("workflows");
-        setDockOpen(true);
+        setDockExpanded(true);
     };
     useImperativeHandle(
         ref,
@@ -668,7 +592,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             if (inspectBesideAgent) {
                 setAgentInspectorTab(tab);
                 setAgentInspectorOpen(true);
-                setDockOpen(true);
+                setDockExpanded(true);
                 return;
             }
             upsertTab(tab);
@@ -715,76 +639,55 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             });
             return;
         }
-        if (source.url) window.open(source.url, "_blank", "noopener,noreferrer");
+        const href = safeAssistantUrl(source.url, { relative: false });
+        if (href) window.open(href, "_blank", "noopener,noreferrer");
     };
+    const readSubagentPanelIds =
+        readSubagentPanelState.key === readSubagentPanelStorageKey
+            ? readSubagentPanelState.ids
+            : readStoredSubagentPanelIds(readSubagentPanelStorageKey);
+    const setReadSubagentPanelIds = useCallback(
+        (update: string[] | ((current: string[]) => string[])) => {
+            setReadSubagentPanels((current) => {
+                const ids = current.key === readSubagentPanelStorageKey
+                    ? current.ids
+                    : readStoredSubagentPanelIds(readSubagentPanelStorageKey);
+                return {
+                    key: readSubagentPanelStorageKey,
+                    ids: typeof update === "function" ? update(ids) : update,
+                };
+            });
+        },
+        [readSubagentPanelStorageKey],
+    );
     useEffect(() => {
-        skipSubagentPanelPersist.current = true;
-        dismissedReadSubagentIds.current.clear();
-        const restored = readStoredSubagentPanels(
-            readSubagentPanelStorageKey,
-        );
-        const movedFromNewChat =
-            readSubagentPanelStorageKeyRef.current.endsWith(":new") &&
-            !readSubagentPanelStorageKey.endsWith(":new");
-        const next = movedFromNewChat
-            ? [
-                  ...new Map(
-                      [...restored, ...readSubagentPanelsRef.current].map(
-                          (panel) => [panel.id, panel],
-                      ),
-                  ).values(),
-              ].slice(-READ_SUBAGENT_RUN_LIMIT)
-            : restored;
-        setReadSubagentPanels(next);
-        if (movedFromNewChat) {
-            try {
-                window.localStorage.setItem(
-                    readSubagentPanelStorageKey,
-                    JSON.stringify(next),
-                );
-            } catch {
-                // The server-persisted terminal event remains the fallback.
-            }
-        }
-        readSubagentPanelStorageKeyRef.current = readSubagentPanelStorageKey;
-    }, [readSubagentPanelStorageKey]);
-    useEffect(() => {
-        if (skipSubagentPanelPersist.current) {
-            skipSubagentPanelPersist.current = false;
-            return;
-        }
         try {
             window.localStorage.setItem(
                 readSubagentPanelStorageKey,
-                JSON.stringify(readSubagentPanels),
+                JSON.stringify(readSubagentPanelIds),
             );
         } catch {
             // The server-persisted terminal event remains the fallback.
         }
-    }, [readSubagentPanelStorageKey, readSubagentPanels]);
+    }, [readSubagentPanelStorageKey, readSubagentPanelIds]);
     useEffect(() => {
         if (!readSubagents.showDock) return;
-        const latestById = new Map<string, ReadSubagentPanel>();
-        for (const message of messages) {
-            for (const event of message.events ?? []) {
-                if (event.type === "subagent_run") latestById.set(event.id, event);
-            }
-        }
-        setReadSubagentPanels((current) => {
-            const next = current.map(
-                (panel) => latestById.get(panel.id) ?? panel,
-            );
-            for (const panel of latestById.values()) {
+        setReadSubagentPanelIds((current) => {
+            const next = [...current];
+            for (const panel of session.readers) {
                 if (
                     !dismissedReadSubagentIds.current.has(panel.id) &&
-                    !next.some((current) => current.id === panel.id)
+                    !next.includes(panel.id)
                 ) {
-                    next.push(panel);
+                    next.push(panel.id);
                 }
             }
             return next.slice(-READ_SUBAGENT_RUN_LIMIT);
         });
-    }, [messages, readSubagents.showDock]);
+    }, [readSubagents.showDock, session.readers]);
+    const readSubagentPanels = readSubagentPanelIds.flatMap((id) =>
+        session.readers.find((reader) => reader.id === id) ?? [],
+    );
     useEffect(() => {
         if (
             readSubagents.showDock &&
@@ -793,35 +696,37 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             const latest = readSubagentPanels.at(-1);
             if (latest) {
                 const slot = latest.id.match(/:(\d+)$/u)?.[1] ?? latest.id;
+                // A newly materialized reader is an external session event that intentionally opens its panel.
+                // eslint-disable-next-line react-hooks/set-state-in-effect
                 setActiveAgentSlot(slot);
                 setActiveDockTab("agents");
-                setDockOpen(true);
+                setDockExpanded(true);
             }
         }
         previousReadSubagentCount.current = readSubagentPanels.length;
-    }, [readSubagentPanels, readSubagents.showDock]);
-    const openReadSubagentPanel = (panel: ReadSubagentPanel) => {
+    }, [readSubagentPanelIds, readSubagents.showDock, session.readers, setDockExpanded]);
+    const openReadSubagentPanel = (panel: AssistantReaderRun) => {
         dismissedReadSubagentIds.current.delete(panel.id);
-        const withoutCurrent = readSubagentPanels.filter(
-            (candidate) => candidate.id !== panel.id,
+        const withoutCurrent = readSubagentPanelIds.filter(
+            (id) => id !== panel.id,
         );
         if (
-            withoutCurrent.length === readSubagentPanels.length &&
-            readSubagentPanels.length >= READ_SUBAGENT_RUN_LIMIT
+            withoutCurrent.length === readSubagentPanelIds.length &&
+            readSubagentPanelIds.length >= READ_SUBAGENT_RUN_LIMIT
         ) {
             setReadSubagentPanelLimitOpen(true);
             return;
         }
-        setReadSubagentPanels([...withoutCurrent, panel]);
+        setReadSubagentPanelIds([...withoutCurrent, panel.id]);
         const slot = panel.id.match(/:(\d+)$/u)?.[1] ?? panel.id;
         setActiveAgentSlot(slot);
         setActiveDockTab("agents");
-        setDockOpen(true);
+        setDockExpanded(true);
     };
     const closeReadSubagentPanel = (id: string) => {
         dismissedReadSubagentIds.current.add(id);
-        setReadSubagentPanels((current) =>
-            current.filter((panel) => panel.id !== id),
+        setReadSubagentPanelIds((current) =>
+            current.filter((panelId) => panelId !== id),
         );
     };
     const assistantSideGutterVisible = dockEnabled && dockOpen;
@@ -988,7 +893,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                         <div className="space-y-6 md:space-y-8">
                             {messages.map((msg, i) => (
                                 <div
-                                    key={msg.id ?? `${msg.role}:${i}`}
+                                    key={msg.id}
                                     ref={
                                         i === lastUserIndex
                                             ? latestUserMessageRef
@@ -1003,25 +908,23 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                                         />
                                     ) : (
                                         <AssistantMessage
-                                            events={msg.events}
+                                            message={msg}
                                             isStreaming={
                                                 i === messages.length - 1 &&
                                                 isResponseLoading
                                             }
-                                            isError={!!msg.error}
-                                            errorMessage={
-                                                typeof msg.error === "string"
-                                                    ? msg.error
-                                                    : undefined
-                                            }
-                                            citations={msg.citations}
                                             onCitationClick={openCitation}
                                             citationTitle={citationTitle}
                                             onCaseClick={openCase}
                                             onAutomationClick={openAutomation}
-                                            onSubagentClick={
+                                            onReaderClick={
                                                 readSubagents.showDock
-                                                    ? openReadSubagentPanel
+                                                    ? (readerId) => {
+                                                          const reader = session.readers.find(
+                                                              (candidate) => candidate.id === readerId,
+                                                          );
+                                                          if (reader) openReadSubagentPanel(reader);
+                                                      }
                                                     : undefined
                                             }
                                             onSubagentSourceClick={
@@ -1137,22 +1040,11 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                             }}
                             isLoading={isResponseLoading || !!activeInput}
                             contextUsage={
-                                latestContextUsage || latestCompaction?.status === "running"
+                                session.contextUsage || session.compaction === "running"
                                     ? {
-                                          usedTokens:
-                                              latestContextUsage?.type === "context_usage"
-                                                  ? latestContextUsage.used_tokens
-                                                  : 0,
-                                          windowTokens:
-                                              latestContextUsage?.type === "context_usage"
-                                                  ? Math.max(
-                                                        1,
-                                                        latestContextUsage.window_tokens,
-                                                    )
-                                                  : 1,
-                                          compacting:
-                                              latestCompaction?.type === "compaction" &&
-                                              latestCompaction.status === "running",
+                                          usedTokens: session.contextUsage?.usedTokens ?? 0,
+                                          windowTokens: session.contextUsage?.windowTokens ?? 1,
+                                          compacting: session.compaction === "running",
                                       }
                                     : undefined
                             }
@@ -1181,7 +1073,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                         if (id !== "agents") setAgentInspectorOpen(false);
                     }}
                     expanded={dockOpen}
-                    onExpandedChange={setDockOpen}
+                    onExpandedChange={setDockExpanded}
                     inspectorContent={agentInspectorContent}
                     inspectorOpen={
                         resolvedDockTab === "agents" && agentInspectorOpen

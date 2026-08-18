@@ -1,72 +1,41 @@
 import { recordAudit } from "./audit";
-import { checkProjectAccess, ensureDocAccess } from "./access";
+import { cloudData, cloudScope, type CloudScope } from "./access";
 import { docxToPdf } from "./convert";
 import { buildDownloadUrl } from "./downloadTokens";
 import { loadActiveVersion, type ActiveVersion } from "./documentVersions";
-import {
-  contentTypeForDocumentType,
-  shouldConvertToPdf,
-} from "./documentTypes";
+import { contentTypeForDocumentType, shouldConvertToPdf } from "./documentTypes";
 import type {
-  DocumentContent,
-  DocumentProvenance,
-  DocumentScope,
-  DocumentStore,
-  DocumentVersion,
+  DocumentContent, DocumentProvenance, DocumentScope, DocumentStore, DocumentVersion,
 } from "./documentStore";
 import { DocumentStoreError } from "./documentStore";
-import {
-  extractTrackedChangeIds,
-  resolveTrackedChange,
-} from "./docxTrackedChanges";
+import { extractTrackedChangeIds, resolveTrackedChange } from "./docxTrackedChanges";
 import { countLegalPdfPages } from "./legalPdfSourceDoc";
 import {
-  deleteFile,
-  downloadFile,
-  getSignedUrl,
-  storageKey,
-  uploadFile,
-  versionStorageKey,
+  deleteFile, downloadFile, getSignedUrl, storageKey, uploadFile, versionStorageKey,
 } from "./storage";
-import { createServerSupabase } from "./supabase";
+type Db = CloudScope["db"];
 
-type Db = ReturnType<typeof createServerSupabase>;
+const arrayBuffer = (buffer: Buffer) => buffer.buffer.slice(buffer.byteOffset,
+  buffer.byteOffset + buffer.byteLength) as ArrayBuffer;
+const run = <T>(query: PromiseLike<{ data: T; error: any }>, operation: string) =>
+  cloudData<T>(operation, query);
 
-const arrayBuffer = (buffer: Buffer) => buffer.buffer.slice(
-  buffer.byteOffset,
-  buffer.byteOffset + buffer.byteLength,
-) as ArrayBuffer;
-
-async function createCloudDocument(db: Db, input: {
-  userId: string;
-  userEmail?: string;
-  projectId: string | null;
-  libraryKind?: "file" | "template";
+async function createCloudDocument(scope: CloudScope, input: {
+  projectId: string | null; libraryKind?: "file" | "template";
   libraryFolderId?: string | null;
   file: { originalname: string; buffer: Buffer };
-  fileType: string;
-  provenance?: DocumentProvenance;
+  fileType: string; provenance?: DocumentProvenance;
 }) {
-  const { userId, projectId, file, fileType } = input;
+  const { db, userId, userEmail } = scope;
+  const { projectId, file, fileType } = input;
   const { data: document, error: insertError } = await db
     .from("documents")
-    .insert({
-      project_id: projectId,
-      user_id: userId,
-      status: "processing",
+    .insert({ project_id: projectId, user_id: userId, status: "processing",
       library_kind: input.libraryKind ?? "file",
-      library_folder_id: input.libraryFolderId ?? null,
-    })
-    .select("*")
-    .single();
+      library_folder_id: input.libraryFolderId ?? null }).select("*").single();
   if (insertError || !document) {
-    console.error("[document/upload] failed to create document row", {
-      userId,
-      projectId,
-      filename: file.originalname,
-      fileType,
-      error: insertError,
-    });
+    console.error("[document/upload] failed to create document row", { userId,
+      projectId, fileType, code: insertError?.code ?? "unknown" });
     throw new Error("Failed to create document record");
   }
 
@@ -84,86 +53,53 @@ async function createCloudDocument(db: Db, input: {
     const pdfStoragePath = fileType === "pdf" ? key : null;
     const { data: version, error: versionError } = await db
       .from("document_versions")
-      .insert({
-        document_id: documentId,
-        storage_path: key,
+      .insert({ document_id: documentId, storage_path: key,
         pdf_storage_path: pdfStoragePath,
-        source: generated ? "assistant_generated" : "upload",
-        version_number: 1,
-        filename: file.originalname,
-        file_type: fileType,
-        size_bytes: file.buffer.byteLength,
-        page_count: pageCount,
-        provenance: input.provenance ?? null,
-      })
-      .select("id")
-      .single();
+        source: generated ? "assistant_generated" : "upload", version_number: 1,
+        filename: file.originalname, file_type: fileType,
+        size_bytes: file.buffer.byteLength, page_count: pageCount,
+        provenance: input.provenance ?? null }).select("id").single();
     if (versionError || !version) {
-      throw new Error(
-        `Failed to record upload version: ${versionError?.message ?? "unknown"}`,
-      );
+      failed(versionError, "Failed to record upload version");
+      throw new Error("Failed to record upload version");
     }
     const { data: updated, error: updateError } = await db
       .from("documents")
-      .update({
-        current_version_id: version.id,
-        status: "ready",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", documentId)
-      .select("*")
-      .single();
+      .update({ current_version_id: version.id, status: "ready",
+        updated_at: new Date().toISOString() }).eq("id", documentId)
+      .select("*").single();
     if (updateError || !updated) {
-      throw new Error(
-        `Failed to activate upload version: ${updateError?.message ?? "unknown"}`,
-      );
+      failed(updateError, "Failed to activate upload version");
+      throw new Error("Failed to activate upload version");
     }
-    void recordAudit(db, {
-      userId,
-      userEmail: input.userEmail,
+    void recordAudit(db, { userId, userEmail,
       action: generated ? "document.generated" : "document.uploaded",
-      title: file.originalname,
-      surface,
-      projectId,
-      documentId,
-    });
-    return {
-      ...updated,
-      filename: file.originalname,
-      storage_path: key,
-      pdf_storage_path: pdfStoragePath,
-      folder_id: updated.library_folder_id ?? null,
-      file_type: fileType,
-      size_bytes: file.buffer.byteLength,
-      page_count: pageCount,
-      active_version_number: 1,
-    };
+      title: file.originalname, surface, projectId, documentId });
+    return { ...updated, filename: file.originalname, storage_path: key,
+      pdf_storage_path: pdfStoragePath, folder_id: updated.library_folder_id ?? null,
+      file_type: fileType, size_bytes: file.buffer.byteLength, page_count: pageCount,
+      active_version_number: 1 };
   } catch (error) {
     await db.from("documents").update({ status: "error" }).eq("id", documentId);
-    void recordAudit(db, {
-      userId,
-      userEmail: input.userEmail,
+    void recordAudit(db, { userId, userEmail,
       action: generated ? "document.generated" : "document.uploaded",
-      status: "failed",
-      title: file.originalname,
-      surface,
-      projectId,
-      documentId,
+      status: "failed", title: file.originalname, surface, projectId, documentId });
+    console.error("[document/upload] processing failed", {
+      userId, projectId, error: error instanceof Error ? error.name : "unknown",
     });
-    throw new Error(`Document processing failed: ${String(error)}`);
+    throw new Error("Document processing failed");
   }
 }
 
-type CloudDocument = {
-  id: string;
-  user_id: string;
-  project_id: string | null;
-  current_version_id: string | null;
-  isOwner: boolean;
-};
+type CloudDocument = { id: string; user_id: string; project_id: string | null;
+  current_version_id: string | null; isOwner: boolean };
 
-const failed = (error: { message: string } | null, operation: string) => {
-  if (error) throw new Error(`${operation}: ${error.message}`);
+const failed = (error: { code?: string; status?: number } | null, operation: string) => {
+  if (!error) return;
+  console.error("[cloud-document] operation failed", {
+    operation, code: error.code ?? "unknown", status: error.status ?? null,
+  });
+  throw new Error(operation);
 };
 
 const deleteFiles = (paths: (string | null | undefined)[]) => Promise.all(
@@ -172,17 +108,10 @@ const deleteFiles = (paths: (string | null | undefined)[]) => Promise.all(
 );
 
 const versionResponse = (version: ActiveVersion): DocumentVersion => ({
-  id: version.id,
-  version_number: version.version_number,
-  source: version.source,
-  created_at: version.created_at ?? null,
-  filename: version.filename,
-  storage_path: version.storage_path,
-  file_type: version.file_type,
-  size_bytes: version.size_bytes,
-  page_count: version.page_count,
-  deleted_at: null,
-});
+  id: version.id, version_number: version.version_number, source: version.source,
+  created_at: version.created_at ?? null, filename: version.filename,
+  storage_path: version.storage_path, file_type: version.file_type,
+  size_bytes: version.size_bytes, page_count: version.page_count, deleted_at: null });
 
 function downloadName(version: ActiveVersion) {
   const name = version.filename?.trim() || "Untitled document.docx";
@@ -193,53 +122,35 @@ function downloadName(version: ActiveVersion) {
   }`;
 }
 
-async function accessibleDocument(
-  db: Db,
-  scope: DocumentScope,
-  documentId: string,
-  owner = false,
-): Promise<CloudDocument | null> {
-  const { data, error } = await db.from("documents")
-    .select("id, user_id, project_id, current_version_id")
-    .eq("id", documentId).maybeSingle();
-  failed(error, "Failed to load document");
-  if (!data) return null;
-  const access = await ensureDocAccess(data, scope.userId, scope.userEmail, db);
-  return access.ok && (!owner || access.isOwner)
-    ? { ...data, isOwner: access.isOwner } as CloudDocument
-    : null;
+async function accessibleDocument(scope: CloudScope, documentId: string, owner = false) {
+  const access = await scope.document(documentId, owner);
+  return access ? { ...access.row, isOwner: access.isOwner } as CloudDocument : null;
 }
 
 async function removeDocument(db: Db, documentId: string) {
-  const { data: versions, error: versionsError } = await db
-    .from("document_versions")
-    .select("storage_path, pdf_storage_path")
-    .eq("document_id", documentId);
-  failed(versionsError, "Failed to load document files");
-  const { error } = await db.from("documents").delete().eq("id", documentId);
-  failed(error, "Failed to delete document");
-  await deleteFiles((versions ?? []).flatMap((row) => [
-    row.storage_path,
-    row.pdf_storage_path,
-  ]));
+  const versions = await run(db.from("document_versions")
+    .select("storage_path, pdf_storage_path").eq("document_id", documentId),
+  "Failed to load document files");
+  await run(db.from("documents").delete().eq("id", documentId),
+    "Failed to delete document");
+  await deleteFiles((versions ?? []).flatMap((row) =>
+    [row.storage_path, row.pdf_storage_path]));
 }
 
 async function nextVersionNumber(db: Db, documentId: string) {
-  const { data, error } = await db.from("document_versions")
+  const data = await run(db.from("document_versions")
     .select("version_number").eq("document_id", documentId)
     .order("version_number", { ascending: false, nullsFirst: false })
-    .limit(1).maybeSingle();
-  failed(error, "Failed to load document version number");
+    .limit(1).maybeSingle(), "Failed to load document version number");
   return ((data?.version_number as number | null) ?? 1) + 1;
 }
 
 async function insertVersion(db: Db, documentId: string,
   values: Record<string, unknown>) {
-  const { data, error } = await db.from("document_versions")
+  const data = await run(db.from("document_versions")
     .insert({ document_id: documentId, source: "user_upload", ...values })
     .select("id, version_number, source, created_at, filename, storage_path, file_type, size_bytes, page_count, deleted_at")
-    .single();
-  failed(error, "Failed to record document version");
+    .single(), "Failed to record document version");
   if (!data) throw new Error("Failed to record document version");
   const { error: updateError } = await db.from("documents")
     .update({ current_version_id: data.id, updated_at: new Date().toISOString() })
@@ -256,13 +167,13 @@ async function pdfPages(bytes: Buffer) {
 }
 
 async function readCloudDocument(
-  scope: DocumentScope,
+  identity: DocumentScope,
   documentId: string,
   versionId: string | null,
   preferPdf: boolean,
 ): Promise<DocumentContent | null> {
-  const db = createServerSupabase();
-  if (!await accessibleDocument(db, scope, documentId)) return null;
+  const scope = cloudScope(identity), { db } = scope;
+  if (!await accessibleDocument(scope, documentId)) return null;
   const active = await loadActiveVersion(documentId, db, versionId);
   if (!active) return null;
   let source: ArrayBuffer | null = null;
@@ -279,7 +190,9 @@ async function readCloudDocument(
         if (error) await deleteFile(key).catch(() => undefined);
         else pdfPath = key;
       } catch (error) {
-        console.error("[document-display] Office to PDF conversion failed", error);
+        console.error("[document-display] Office to PDF conversion failed", {
+          error: error instanceof Error ? error.name : "unknown",
+        });
       }
     }
   }
@@ -297,17 +210,12 @@ async function readCloudDocument(
 }
 
 export const cloudDocuments = {
-  async create(scope, input) {
-    const db = createServerSupabase();
-    if (input.projectId && !(await checkProjectAccess(
-      input.projectId,
-      scope.userId,
-      scope.userEmail,
-      db,
-    )).ok) throw new DocumentStoreError(404, "Project not found");
-    return await createCloudDocument(db, {
-      userId: scope.userId,
-      userEmail: scope.userEmail,
+  async create(identity, input) {
+    const scope = cloudScope(identity);
+    if (input.projectId && !await scope.project(input.projectId)) {
+      throw new DocumentStoreError(404, "Project not found");
+    }
+    return await createCloudDocument(scope, {
       projectId: input.projectId ?? null,
       libraryKind: input.libraryKind,
       libraryFolderId: input.folderId,
@@ -317,40 +225,17 @@ export const cloudDocuments = {
     });
   },
 
-  async deleteDocument(scope, documentId) {
-    const db = createServerSupabase();
-    if (!await accessibleDocument(db, scope, documentId, true)) return false;
-    await removeDocument(db, documentId);
+  async deleteDocument(identity, documentId) {
+    const scope = cloudScope(identity);
+    if (!await accessibleDocument(scope, documentId, true)) return false;
+    await removeDocument(scope.db, documentId);
     return true;
   },
 
-  async files(scope, documentIds) {
+  async files(identity, documentIds) {
     if (!documentIds.length) return [];
-    const db = createServerSupabase();
-    const { data, error } = await db.from("documents")
-      .select("id, user_id, project_id, current_version_id")
-      .in("id", documentIds);
-    failed(error, "Failed to load documents");
-    const sharedProjectIds = [...new Set((data ?? []).flatMap((document) =>
-      document.user_id !== scope.userId && document.project_id
-        ? [document.project_id]
-        : [],
-    ))];
-    const projectIds = new Set((await Promise.all(sharedProjectIds.map(
-      async (projectId) => ({
-        projectId,
-        access: await checkProjectAccess(
-          projectId,
-          scope.userId,
-          scope.userEmail,
-          db,
-        ),
-      }),
-    ))).flatMap(({ projectId, access }) => access.ok ? [projectId] : []));
-    const documents = (data ?? []).filter((document) =>
-      document.user_id === scope.userId ||
-      (!!document.project_id && projectIds.has(document.project_id)),
-    );
+    const scope = cloudScope(identity), { db } = scope;
+    const documents = (await scope.documents(documentIds)).map(({ row }) => row);
     const versionIds = documents.flatMap((document) =>
       document.current_version_id ? [document.current_version_id] : [],
     );
@@ -380,9 +265,9 @@ export const cloudDocuments = {
 
   read: readCloudDocument,
 
-  async link(scope, documentId, versionId) {
-    const db = createServerSupabase();
-    if (!await accessibleDocument(db, scope, documentId)) return null;
+  async link(identity, documentId, versionId) {
+    const scope = cloudScope(identity), { db } = scope;
+    if (!await accessibleDocument(scope, documentId)) return null;
     const active = await loadActiveVersion(documentId, db, versionId);
     if (!active) return null;
     const name = downloadName(active);
@@ -395,9 +280,9 @@ export const cloudDocuments = {
     };
   },
 
-  async versions(scope, documentId) {
-    const db = createServerSupabase();
-    const document = await accessibleDocument(db, scope, documentId);
+  async versions(identity, documentId) {
+    const scope = cloudScope(identity), { db } = scope;
+    const document = await accessibleDocument(scope, documentId);
     if (!document) return null;
     const { data, error } = await db.from("document_versions")
       .select("id, version_number, source, created_at, filename, file_type, size_bytes, page_count, deleted_at, deleted_by")
@@ -409,9 +294,9 @@ export const cloudDocuments = {
     };
   },
 
-  async addVersion(scope, documentId, file) {
-    const db = createServerSupabase();
-    if (!await accessibleDocument(db, scope, documentId)) return null;
+  async addVersion(identity, documentId, file) {
+    const scope = cloudScope(identity), { db } = scope;
+    if (!await accessibleDocument(scope, documentId)) return null;
     const slug = crypto.randomUUID().replaceAll("-", "");
     const key = versionStorageKey(scope.userId, documentId, slug, file.filename);
     await uploadFile(key, arrayBuffer(file.bytes),
@@ -432,9 +317,9 @@ export const cloudDocuments = {
     }
   },
 
-  async commitAssistantVersion(scope, documentId, input) {
-    const db = createServerSupabase();
-    if (!await accessibleDocument(db, scope, documentId)) {
+  async commitAssistantVersion(identity, documentId, input) {
+    const scope = cloudScope(identity), { db } = scope;
+    if (!await accessibleDocument(scope, documentId)) {
       return { status: "missing" as const };
     }
     const active = await loadActiveVersion(documentId, db);
@@ -557,11 +442,11 @@ export const cloudDocuments = {
     }
   },
 
-  async copyVersion(scope, targetId, sourceId, filename) {
-    const db = createServerSupabase();
-    const target = await accessibleDocument(db, scope, targetId);
+  async copyVersion(identity, targetId, sourceId, filename) {
+    const scope = cloudScope(identity), { db } = scope;
+    const target = await accessibleDocument(scope, targetId);
     if (!target) return { status: "target-missing" as const };
-    const source = await accessibleDocument(db, scope, sourceId);
+    const source = await accessibleDocument(scope, sourceId);
     if (!source) return { status: "source-missing" as const };
     const move = source.project_id && target.project_id
       ? source.project_id === target.project_id
@@ -595,9 +480,9 @@ export const cloudDocuments = {
     return { status: "created" as const, version };
   },
 
-  async renameVersion(scope, documentId, versionId, filename) {
-    const db = createServerSupabase();
-    if (!await accessibleDocument(db, scope, documentId)) return null;
+  async renameVersion(identity, documentId, versionId, filename) {
+    const scope = cloudScope(identity), { db } = scope;
+    if (!await accessibleDocument(scope, documentId)) return null;
     const { data, error } = await db.from("document_versions")
       .update({ filename }).eq("id", versionId).eq("document_id", documentId)
       .is("deleted_at", null)
@@ -607,9 +492,9 @@ export const cloudDocuments = {
     return data as DocumentVersion | null;
   },
 
-  async replaceVersion(scope, documentId, versionId, file) {
-    const db = createServerSupabase();
-    if (!await accessibleDocument(db, scope, documentId, true)) {
+  async replaceVersion(identity, documentId, versionId, file) {
+    const scope = cloudScope(identity), { db } = scope;
+    if (!await accessibleDocument(scope, documentId, true)) {
       return { status: "missing" as const };
     }
     const { data: target, error } = await db.from("document_versions")
@@ -651,9 +536,9 @@ export const cloudDocuments = {
     return { status: "replaced" as const, version: data as DocumentVersion };
   },
 
-  async deleteVersion(scope, documentId, versionId) {
-    const db = createServerSupabase();
-    const document = await accessibleDocument(db, scope, documentId, true);
+  async deleteVersion(identity, documentId, versionId) {
+    const scope = cloudScope(identity), { db } = scope;
+    const document = await accessibleDocument(scope, documentId, true);
     if (!document) return { status: "missing" as const };
     const { data, error } = await db.from("document_versions")
       .select("id, storage_path, pdf_storage_path, version_number, created_at")
@@ -688,9 +573,9 @@ export const cloudDocuments = {
     return { status: "deleted" as const, currentVersionId };
   },
 
-  async resolveEdit(scope, documentId, editId, mode) {
-    const db = createServerSupabase();
-    if (!await accessibleDocument(db, scope, documentId)) {
+  async resolveEdit(identity, documentId, editId, mode) {
+    const scope = cloudScope(identity), { db } = scope;
+    if (!await accessibleDocument(scope, documentId)) {
       return { status: "missing" as const };
     }
     const { data: edit, error } = await db.from("document_edits")

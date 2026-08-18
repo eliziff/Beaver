@@ -669,7 +669,7 @@ const REPORT_PAGE_RE = /\b(?:S\.?C\.?R\.?|R\.?C\.?S\.?)\s+(\d{1,4})\b/iu;
 
 type NumberedMarker = { number: number; start: number; contentStart?: number };
 type ParagraphMarker = NumberedMarker & { style: "bracket" | "dot" | "bare" };
-type CaseParagraphMode = "legacy" | "a2aj" | "courtlistener";
+type CaseParagraphMode = "generic" | "a2aj" | "courtlistener";
 export type CaseBlockExcludedRange = Readonly<{ start: number; end: number }>;
 const DOT_PROVISION_OPENING_RE =
   /^\d{1,4}\.\s+\(\d{1,4}\)\s+/u;
@@ -1304,7 +1304,7 @@ function recoverHeadingJoinedMarkers(
 
 /**
  * The pre-existing permissive fallback, still used by the generic prose path
- * (`legacy`). It recovers against an already-chosen spine rather than before
+ * (`generic`). It recovers against an already-chosen spine rather than before
  * scope selection, which is why the source-specific modes do not use it.
  */
 function recoverHeadingJoinedParagraphs(
@@ -1404,16 +1404,16 @@ function paragraphSourceBlocks(
 function paragraphBlocks(
   text: string,
   minRun = 5,
-  mode: CaseParagraphMode = "legacy",
+  mode: CaseParagraphMode = "generic",
   excludedRanges: readonly CaseBlockExcludedRange[] = [],
 ): SourceDocBlock[] {
   if (!text) return [];
-  // `legacy` is the generic prose fallback behind native markup and PDFs —
+  // `generic` is the prose fallback behind native markup and PDFs —
   // input whose glyphs may not all have survived. The source-specific modes
   // read a complete rendered text, so they alone assume an unbroken ladder.
-  // Measured over all 224,972 A2AJ case documents, holding legacy to the same
+  // Measured over all 224,972 A2AJ case documents, holding generic mode to the same
   // strict +1 rule cost 910 whole spines and rewrote 45,565 more.
-  const strict = mode !== "legacy";
+  const strict = mode !== "generic";
   const markers = paragraphMarkers(text, mode);
   const visibleMarkers = outsideExcludedRanges(markers, excludedRanges);
   const quotedProvisionStarts = strict
@@ -1832,7 +1832,7 @@ function caseBlocks(
     alternateCitation?: string | null;
     dataset?: string | null;
   },
-  mode: CaseParagraphMode = "legacy",
+  mode: CaseParagraphMode = "generic",
   excludedRanges: readonly CaseBlockExcludedRange[] = [],
 ): SourceDocBlock[] {
   return [

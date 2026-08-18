@@ -16,7 +16,6 @@ const luna = {
     { id: "" },
   ],
   defaultServiceTier: "default",
-  additionalSpeedTiers: ["fast", "FAST", ""],
 };
 
 describe("normalizeCodexCatalog", () => {
@@ -39,7 +38,6 @@ describe("normalizeCodexCatalog", () => {
         { id: "priority", name: "Fast", description: "1.5x speed" },
       ],
       defaultServiceTier: "default",
-      additionalSpeedTiers: ["fast"],
     });
   });
 

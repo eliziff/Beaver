@@ -5,11 +5,14 @@ const loaded = vi.hoisted(() => ({
   gemini: vi.fn(),
   openai: vi.fn(),
   deepseek: vi.fn(),
-  openrouter: vi.fn(),
   codex: vi.fn(),
 }));
+const streamCodex = vi.hoisted(() => vi.fn(async () => ({ fullText: "codex" })));
 
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => {
+  vi.unstubAllEnvs();
+  streamCodex.mockClear();
+});
 
 describe("LLM provider loading", () => {
   it("loads only the selected provider", async () => {
@@ -18,7 +21,7 @@ describe("LLM provider loading", () => {
       vi.doMock(`../${provider}`, () => {
         loaded[provider]();
         return {
-          completeCodexText: vi.fn(async () => "codex"),
+          streamCodex,
         };
       });
     }
@@ -28,9 +31,14 @@ describe("LLM provider loading", () => {
     ).toBe(true);
 
     await expect(
-      llm.completeText({ model: "codex:gpt-5.2", user: "hello" }),
+      llm.completeText({ model: "codex:gpt-5.2", user: "hello", maxTokens: 321 }),
     ).resolves.toBe("codex");
     expect(loaded.codex).toHaveBeenCalledOnce();
+    expect(streamCodex).toHaveBeenCalledWith(expect.objectContaining({
+      systemPrompt: "",
+      messages: [{ role: "user", content: "hello" }],
+      maxTokens: 321,
+    }));
     expect(
       Object.entries(loaded)
         .filter(([provider]) => provider !== "codex")

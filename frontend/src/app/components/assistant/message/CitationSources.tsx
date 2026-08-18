@@ -26,6 +26,7 @@ function shortCaseName(value: string): string {
         : left;
 }
 export function citationSourceLabel(annotation: Citation): string {
+    if (annotation.authority?.trim()) return annotation.authority.trim();
     if (annotation.kind === "case") {
         const caseName = annotation.case_name?.trim();
         const citation = annotation.citation?.trim();
@@ -56,14 +57,17 @@ export function citationPillLabel(annotation: Citation): string {
     if (annotation.display_form === "pinpoint" && pinpoint) return pinpoint;
     if (annotation.display_form === "supra") {
         const style = caseName(annotation);
-        const short = style ? shortCaseName(style) : source;
+        const short = annotation.short_authority?.trim() ||
+            (style ? shortCaseName(style) : source);
         return `${short}, supra${pinpoint ? ` at ${pinpoint}` : ""}`;
     }
     if (!pinpoint || source.toLowerCase().includes(pinpoint.toLowerCase()))
         return source;
-    if (annotation.kind === "case" && annotation.locator_kind === "paragraph")
-        return `${source} at ${pinpoint}`;
-    return `${source}, ${pinpoint}`;
+    const separator = annotation.locator_separator ??
+        ("locator_kind" in annotation && annotation.locator_kind === "paragraph"
+            ? " at "
+            : ", ");
+    return `${source}${separator}${pinpoint}`;
 }
 
 export function citationPillParts(annotation: Citation): {

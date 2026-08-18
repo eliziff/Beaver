@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -8,200 +8,127 @@ let dataHome: string;
 const owner = "00000000-0000-0000-0000-000000000001";
 const otherOwner = "00000000-0000-0000-0000-000000000002";
 
+async function closeDatabase() {
+  (await import("../localApplicationDatabase")).closeLocalApplicationDatabase();
+}
+
 async function loadStore() {
-  vi.resetModules();
   return import("../anonymousChatStore");
+}
+
+async function reopenStore() {
+  await closeDatabase();
+  vi.resetModules();
+  return loadStore();
 }
 
 beforeEach(async () => {
   dataHome = await mkdtemp(path.join(os.tmpdir(), "beaver-chat-store-"));
-  process.env.OPEN_LEGAL_DATA_HOME = dataHome;
+  process.env.MIKE_LOCAL_DATA_DIR = dataHome;
 });
 
 afterEach(async () => {
-  delete process.env.OPEN_LEGAL_DATA_HOME;
+  await closeDatabase();
+  delete process.env.MIKE_LOCAL_DATA_DIR;
   vi.useRealTimers();
   vi.resetModules();
   await rm(dataHome, { recursive: true, force: true });
 });
 
 describe("anonymous chat store", () => {
-  it("recovers chats and ordered messages after a module reload", async () => {
+  it("reopens ordered messages from application.sqlite", async () => {
     vi.useFakeTimers();
     vi.setSystemTime("2026-07-26T12:00:00.000Z");
-    const firstStore = await loadStore();
-    const chat = firstStore.createAnonymousChat(owner);
-    firstStore.appendAnonymousMessage(chat, {
-      role: "user",
-      content: "Question",
-    });
+    let store = await loadStore();
+    const chat = store.createAnonymousChat(owner);
+    store.appendAnonymousMessage(chat, { role: "user", content: "Question" });
     vi.setSystemTime("2026-07-26T12:00:01.000Z");
-    firstStore.appendAnonymousMessage(chat, {
-      role: "assistant",
-      content: "Answer",
-    });
+    store.appendAnonymousMessage(chat, { role: "assistant", content: "Answer" });
 
-    const secondStore = await loadStore();
-    expect(
-      secondStore.getAnonymousChat(owner, chat.id)?.messages,
-    ).toMatchObject([
+    store = await reopenStore();
+    expect(store.getAnonymousChat(owner, chat.id)?.messages).toMatchObject([
       { role: "user", content: "Question" },
       { role: "assistant", content: "Answer" },
     ]);
-    expect(
-      secondStore.getAnonymousChat(owner, chat.id)?.transcript_version,
-    ).toBe(2);
+    expect(store.getAnonymousChat(owner, chat.id)?.transcript_version).toBe(2);
   });
 
-  it("replaces durable reading-agent progress by run ID", async () => {
+  it("atomically rejects two writers at the same transcript version", async () => {
     const store = await loadStore();
-    const chat = store.createAnonymousChat(owner);
-    const turnId = randomUUID();
-    store.appendAnonymousMessage(chat, {
-      turn_id: turnId,
-      role: "user",
-      content: "Research this",
-    });
-    store.upsertAnonymousSubagentEvent(chat, {
-      type: "subagent_run",
-      id: "agent-1",
-      status: "running",
-    }, turnId);
-    store.upsertAnonymousSubagentEvent(chat, {
-      type: "subagent_run",
-      id: "agent-1",
-      status: "completed",
-      output: "Done",
-    }, turnId);
-    store.upsertAnonymousSubagentEvent(chat, {
-      type: "subagent_run",
-      id: "agent-2",
-      status: "running",
-    }, turnId);
+    const created = store.createAnonymousChat(owner);
+    const first = store.getAnonymousChat(owner, created.id)!;
+    const second = store.getAnonymousChat(owner, created.id)!;
 
-    const reloaded = await loadStore();
-    const events = reloaded
-      .getAnonymousChat(owner, chat.id)
-      ?.messages.find((message) => message.role === "assistant")?.content;
-    expect(events).toEqual([
-      {
-        type: "subagent_run",
-        id: "agent-1",
-        status: "completed",
-        output: "Done",
-      },
-      { type: "subagent_run", id: "agent-2", status: "running" },
-    ]);
+    store.appendAnonymousMessage(first, { role: "user", content: "First" }, 0);
+    expect(() => store.appendAnonymousMessage(
+      second, { role: "user", content: "Duplicate" }, 0,
+    )).toThrow(store.AnonymousChatVersionConflictError);
+    expect(store.getAnonymousChat(owner, created.id)?.messages).toHaveLength(1);
   });
 
-  it("keeps interrupted reader checkpoints when retrying a turn", async () => {
+  it("commits a turn once when the same expected version is retried", async () => {
     const store = await loadStore();
     const chat = store.createAnonymousChat(owner);
-    const turnId = randomUUID();
-    store.appendAnonymousMessage(chat, {
-      turn_id: turnId,
-      role: "user",
-      content: "Research this",
-    });
-    const checkpoint = {
-      id: "agent-1",
-      continuation_id: "00000000-0000-4000-8000-000000000123",
-      model: "gpt-5.6-luna",
-      effort: "high",
-      assignment: {
-        task: "Find the authority.",
-        scope: "Supreme Court",
-        jurisdiction: "CA",
+    const messageId = randomUUID();
+    const commit = {
+      expectedVersion: 0,
+      userMessage: {
+        id: messageId,
+        turnId: randomUUID(),
+        content: "One durable question",
       },
-      evidence: [],
     };
+
+    const committed = store.commitAnonymousChatTurn(chat, commit);
+    expect(committed.transcript_version).toBe(1);
+    expect(() => store.commitAnonymousChatTurn(chat, commit))
+      .toThrow(store.AnonymousChatVersionConflictError);
+    expect(store.getAnonymousChat(owner, chat.id)).toMatchObject({
+      transcript_version: 1,
+      messages: [{ id: messageId, role: "user", content: "One durable question" }],
+    });
+  });
+
+  it("rejects an empty turn without advancing the transcript", async () => {
+    const store = await loadStore();
+    const chat = store.createAnonymousChat(owner);
+
+    expect(() => store.commitAnonymousChatTurn(chat, { expectedVersion: 0 }))
+      .toThrow("Chat turn commit is empty");
+    expect(store.getAnonymousChat(owner, chat.id)).toMatchObject({
+      transcript_version: 0,
+      messages: [],
+    });
+  });
+
+  it("replaces durable reader progress by run ID and retains checkpoints on reset", async () => {
+    const store = await loadStore();
+    const chat = store.createAnonymousChat(owner);
+    const turnId = randomUUID();
+    store.appendAnonymousMessage(chat, {
+      turn_id: turnId, role: "user", content: "Research this",
+    });
     store.upsertAnonymousSubagentEvent(chat, {
-      type: "subagent_run",
-      id: "agent-1",
-      status: "interrupted",
-      resume: checkpoint,
+      type: "subagent_run", id: "agent-1", status: "running",
+    }, turnId);
+    store.upsertAnonymousSubagentEvent(chat, {
+      type: "subagent_run", id: "agent-1", status: "interrupted",
+      resume: { continuation_id: randomUUID() },
     }, turnId);
     store.appendAnonymousAssistantEvents(chat, [
-      { type: "content", text: "Discard this partial answer." },
-      { type: "turn_status", status: "cancelled" },
+      { type: "content", text: "Discard this" },
     ], [], undefined, turnId);
 
     expect(store.resetAnonymousAssistantEvents(chat, turnId)).toBe(true);
-    expect(
-      chat.messages.find((message) => message.role === "assistant")?.content,
-    ).toEqual([{
-      type: "subagent_run",
-      id: "agent-1",
-      status: "interrupted",
-      resume: checkpoint,
-    }]);
+    expect(store.getAnonymousChat(owner, chat.id)?.messages
+      .find((message) => message.role === "assistant")?.content).toEqual([
+        expect.objectContaining({
+          type: "subagent_run", id: "agent-1", status: "interrupted",
+        }),
+      ]);
   });
 
-  it("atomically rejects a stale transcript version without changing bytes", async () => {
-    const store = await loadStore();
-    const chat = store.createAnonymousChat(owner);
-    store.appendAnonymousMessage(
-      chat,
-      { role: "user", content: "First" },
-      0,
-    );
-    const chatFile = path.join(
-      dataHome,
-      "apps",
-      "mike",
-      "chats",
-      `${chat.id}.json`,
-    );
-    const acceptedBytes = await readFile(chatFile, "utf8");
-
-    expect(() =>
-      store.appendAnonymousMessage(
-        chat,
-        { role: "user", content: "Duplicate" },
-        0,
-      ),
-    ).toThrow(store.AnonymousChatVersionConflictError);
-    expect(await readFile(chatFile, "utf8")).toBe(acceptedBytes);
-    expect(chat.transcript_version).toBe(1);
-    expect(chat.messages).toHaveLength(1);
-  });
-
-  it("keeps one canonical in-process chat identity across commits", async () => {
-    const store = await loadStore();
-    const firstReference = store.createAnonymousChat(owner);
-    store.appendAnonymousMessage(
-      firstReference,
-      { role: "user", content: "First" },
-      0,
-    );
-    const secondReference = store.getAnonymousChat(owner, firstReference.id)!;
-    store.appendAnonymousMessage(firstReference, {
-      role: "assistant",
-      content: "Answer",
-    });
-    const chatFile = path.join(
-      dataHome,
-      "apps",
-      "mike",
-      "chats",
-      `${firstReference.id}.json`,
-    );
-    const committedBytes = await readFile(chatFile, "utf8");
-
-    expect(secondReference).toBe(firstReference);
-    expect(() =>
-      store.appendAnonymousMessage(
-        secondReference,
-        { role: "user", content: "Stale overwrite" },
-        1,
-      ),
-    ).toThrow(store.AnonymousChatVersionConflictError);
-    expect(await readFile(chatFile, "utf8")).toBe(committedBytes);
-    expect(firstReference.transcript_version).toBe(2);
-    expect(firstReference.messages).toHaveLength(2);
-  });
-
-  it("orders chats by their latest durable update and persists titles", async () => {
+  it("orders active chats, persists titles, and isolates owners", async () => {
     vi.useFakeTimers();
     const store = await loadStore();
     vi.setSystemTime("2026-07-26T12:00:00.000Z");
@@ -211,203 +138,47 @@ describe("anonymous chat store", () => {
     vi.setSystemTime("2026-07-26T12:00:02.000Z");
     store.updateAnonymousChatTitle(first, "Updated");
 
-    const reloaded = await loadStore();
-    expect(reloaded.listAnonymousChats(owner).map((chat) => chat.id)).toEqual([
-      first.id,
-      second.id,
-    ]);
-    expect(reloaded.getAnonymousChat(owner, first.id)?.title).toBe("Updated");
+    expect(store.listAnonymousChats(owner).map((chat) => chat.id))
+      .toEqual([first.id, second.id]);
+    expect(store.getAnonymousChat(owner, first.id)?.title).toBe("Updated");
+    expect(store.getAnonymousChat(otherOwner, first.id)).toBeNull();
+    expect(store.deleteAnonymousChat(otherOwner, first.id)).toBe(false);
   });
 
-  it("does not let one owner read or delete another owner's chat", async () => {
-    const store = await loadStore();
-    const chat = store.createAnonymousChat(owner);
-
-    expect(store.getAnonymousChat(otherOwner, chat.id)).toBeNull();
-    expect(store.deleteAnonymousChat(otherOwner, chat.id)).toBe(false);
-    expect(store.getAnonymousChat(owner, chat.id)?.id).toBe(chat.id);
-  });
-
-  it("soft-deletes content, aborts its turn, retains provider state, and rejects stale writes", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime("2026-07-27T12:00:00.000Z");
-    const store = await loadStore();
+  it("retains provider state in trash and cascades it on permanent delete", async () => {
+    const chats = await loadStore();
     const sessions = await import("../anonymousProviderSessionStore");
-    const turns = await import("../chatTurns");
-    const chat = store.createAnonymousChat(owner);
-    store.appendAnonymousMessage(chat, {
-      role: "user",
-      content: "Retain me",
-    });
+    const chat = chats.createAnonymousChat(owner);
     sessions.writeAnonymousCodexSession({
-      userId: owner,
-      chatId: chat.id,
-      projectId: null,
-      continuationId: randomUUID(),
-      compatibilityKey: "a".repeat(64),
-      transcriptVersion: chat.transcript_version,
-    });
-    const controller = new AbortController();
-    expect(turns.beginChatTurn(chat.id, controller)).toBe(true);
-
-    expect(store.deleteAnonymousChat(owner, chat.id)).toBe(true);
-    expect(controller.signal.aborted).toBe(true);
-    expect(store.getAnonymousChat(owner, chat.id)).toBeNull();
-    expect(store.listAnonymousChats(owner)).toEqual([]);
-    expect(store.getDeletedAnonymousChat(owner, chat.id)).toMatchObject({
-      deleted_at: "2026-07-27T12:00:00.000Z",
-      messages: [{ content: "Retain me" }],
-    });
-    expect(store.listDeletedAnonymousChats(owner)).toHaveLength(1);
-    expect(
-      sessions.readAnonymousCodexSession(owner, chat.id),
-    ).not.toBeNull();
-
-    const chatFile = path.join(
-      dataHome,
-      "apps",
-      "mike",
-      "chats",
-      `${chat.id}.json`,
-    );
-    const deletedBytes = await readFile(chatFile, "utf8");
-    expect(() =>
-      store.appendAnonymousMessage(chat, {
-        role: "assistant",
-        content: "Late write",
-      }),
-    ).toThrow(store.AnonymousChatDeletedError);
-    expect(await readFile(chatFile, "utf8")).toBe(deletedBytes);
-    expect(store.deleteAnonymousChat(owner, chat.id)).toBe(false);
-    expect(store.getDeletedAnonymousChat(otherOwner, chat.id)).toBeNull();
-  });
-
-  it("restores before expiry without admitting a pre-delete stale write", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime("2026-07-01T00:00:00.000Z");
-    const store = await loadStore();
-    const chat = store.createAnonymousChat(owner);
-    const staleVersion = chat.transcript_version;
-    expect(store.deleteAnonymousChat(owner, chat.id)).toBe(true);
-    expect(chat.transcript_version).toBe(staleVersion + 1);
-
-    vi.setSystemTime("2026-07-30T23:59:59.999Z");
-    expect(store.restoreAnonymousChat(owner, chat.id)).toBe(true);
-    expect(store.getAnonymousChat(owner, chat.id)).toMatchObject({
-      deleted_at: null,
-      updated_at: "2026-07-30T23:59:59.999Z",
-      transcript_version: staleVersion + 2,
-    });
-    expect(store.listDeletedAnonymousChats(owner)).toEqual([]);
-
-    const chatFile = path.join(
-      dataHome,
-      "apps",
-      "mike",
-      "chats",
-      `${chat.id}.json`,
-    );
-    const restoredBytes = await readFile(chatFile, "utf8");
-    expect(() =>
-      store.appendAnonymousMessage(
-        chat,
-        { role: "assistant", content: "Stale completion" },
-        staleVersion,
-      ),
-    ).toThrow(store.AnonymousChatVersionConflictError);
-    expect(await readFile(chatFile, "utf8")).toBe(restoredBytes);
-  });
-
-  it("lazily purges at exactly 30 days and removes provider state", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime("2026-07-01T00:00:00.000Z");
-    const store = await loadStore();
-    const sessions = await import("../anonymousProviderSessionStore");
-    const chat = store.createAnonymousChat(owner);
-    sessions.writeAnonymousCodexSession({
-      userId: owner,
-      chatId: chat.id,
-      projectId: null,
-      continuationId: randomUUID(),
-      compatibilityKey: "b".repeat(64),
+      userId: owner, chatId: chat.id, projectId: null,
+      continuationId: randomUUID(), compatibilityKey: "a".repeat(64),
       transcriptVersion: 0,
     });
-    store.deleteAnonymousChat(owner, chat.id);
 
-    expect(
-      store.purgeExpiredAnonymousChats(
-        owner,
-        new Date("2026-07-30T23:59:59.999Z"),
-      ),
-    ).toBe(0);
-    vi.setSystemTime("2026-07-31T00:00:00.000Z");
-    expect(store.listDeletedAnonymousChats(owner)).toEqual([]);
+    expect(chats.deleteAnonymousChat(owner, chat.id)).toBe(true);
+    expect(sessions.readAnonymousCodexSession(owner, chat.id)).not.toBeNull();
+    expect(() => chats.appendAnonymousMessage(chat, {
+      role: "user", content: "stale",
+    })).toThrow(chats.AnonymousChatDeletedError);
+    expect(chats.permanentlyDeleteAnonymousChat(owner, chat.id)).toBe(true);
     expect(sessions.readAnonymousCodexSession(owner, chat.id)).toBeNull();
-    await expect(
-      readFile(
-        path.join(
-          dataHome,
-          "apps",
-          "mike",
-          "chats",
-          `${chat.id}.json`,
-        ),
-        "utf8",
-      ),
-    ).rejects.toMatchObject({ code: "ENOENT" });
   });
 
-  it("permanently deletes only chats already in the recycling bin", async () => {
+  it("restores before expiry and purges at exactly thirty days", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime("2026-07-01T00:00:00.000Z");
     const store = await loadStore();
-    const chat = store.createAnonymousChat(owner);
+    const restored = store.createAnonymousChat(owner);
+    store.deleteAnonymousChat(owner, restored.id);
+    vi.setSystemTime("2026-07-30T23:59:59.999Z");
+    expect(store.restoreAnonymousChat(owner, restored.id)).toBe(true);
 
-    expect(store.permanentlyDeleteAnonymousChat(owner, chat.id)).toBe(false);
-    expect(store.deleteAnonymousChat(owner, chat.id)).toBe(true);
-    expect(store.permanentlyDeleteAnonymousChat(otherOwner, chat.id)).toBe(
-      false,
-    );
-    expect(store.permanentlyDeleteAnonymousChat(owner, chat.id)).toBe(true);
-    expect(store.getDeletedAnonymousChat(owner, chat.id)).toBeNull();
-  });
-
-  it("ignores corrupt and schema-invalid chat files", async () => {
-    const chatsDirectory = path.join(dataHome, "apps", "mike", "chats");
-    await mkdir(chatsDirectory, { recursive: true });
-    const corruptId = randomUUID();
-    const invalidId = randomUUID();
-    await writeFile(
-      path.join(chatsDirectory, `${corruptId}.json`),
-      "{",
-      "utf8",
-    );
-    await writeFile(
-      path.join(chatsDirectory, `${invalidId}.json`),
-      JSON.stringify({ version: 1, chat: { id: invalidId, user_id: owner } }),
-      "utf8",
-    );
-
-    const store = await loadStore();
-    expect(store.listAnonymousChats(owner)).toEqual([]);
-    expect(store.getAnonymousChat(owner, corruptId)).toBeNull();
-    expect(store.getAnonymousChat(owner, invalidId)).toBeNull();
-  });
-
-  it("ignores an interrupted temporary write", async () => {
-    const store = await loadStore();
-    const chat = store.createAnonymousChat(owner);
-    const chatFile = path.join(
-      dataHome,
-      "apps",
-      "mike",
-      "chats",
-      `${chat.id}.json`,
-    );
-    const interrupted = `${chatFile}.${randomUUID()}.tmp`;
-    await writeFile(interrupted, await readFile(chatFile));
-    await rm(chatFile);
-
-    const reloaded = await loadStore();
-    expect(reloaded.listAnonymousChats(owner)).toEqual([]);
-    expect(reloaded.getAnonymousChat(owner, chat.id)).toBeNull();
+    const expired = store.createAnonymousChat(owner);
+    store.deleteAnonymousChat(owner, expired.id);
+    vi.setSystemTime("2026-08-29T23:59:59.998Z");
+    expect(store.purgeExpiredAnonymousChats(owner)).toBe(0);
+    vi.setSystemTime("2026-08-29T23:59:59.999Z");
+    expect(store.purgeExpiredAnonymousChats(owner)).toBe(1);
+    expect(store.getDeletedAnonymousChat(owner, expired.id)).toBeNull();
   });
 });

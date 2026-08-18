@@ -7,6 +7,7 @@ import type {
   StreamChatParams,
   StreamChatResult,
 } from "./types";
+import { toOpenAIChatTools } from "./tools";
 
 const DEFAULT_BASE_URL = "http://127.0.0.1:11434";
 const CALL_TIMEOUT_MS = 900_000;
@@ -301,8 +302,7 @@ export async function streamOllama(
         body: JSON.stringify({
           model: slug,
           messages,
-          // OpenAIToolSchema is already ollama's expected tool shape.
-          tools: activeTools,
+          tools: toOpenAIChatTools(activeTools),
           stream: false,
           think: thinkingLevel(params),
           options: { temperature: 0, num_ctx: numCtx },
@@ -389,17 +389,4 @@ export async function streamOllama(
   }
 
   return { fullText, usage };
-}
-
-export async function completeOllamaText(params: {
-  model: string;
-  systemPrompt?: string;
-  user: string;
-}): Promise<string> {
-  const result = await streamOllama({
-    model: params.model,
-    systemPrompt: params.systemPrompt ?? "",
-    messages: [{ role: "user", content: params.user }],
-  });
-  return result.fullText;
 }

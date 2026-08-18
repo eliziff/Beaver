@@ -10,8 +10,8 @@ const releaseRuntimeLock = runtime.mode === "anonymous-local"
 function warmLocalStores() {
   if (runtime.mode !== "anonymous-local") return;
   void Promise.all([
-    import("./lib/localDocumentStore").then(({ warmLocalDocumentStore }) => warmLocalDocumentStore()),
-    import("./lib/legalKnowledgeGraphStore").then(({ legalKnowledgeGraphStore }) => legalKnowledgeGraphStore()),
+    import("./lib/localApplicationDatabase")
+      .then(({ warmLocalApplicationDatabase }) => warmLocalApplicationDatabase()),
     import("./lib/localTabularStore").then(({ localTabularStore }) => localTabularStore()),
     import("./lib/chat/tools/sourceSearchTools").then(({ warmSourceSearchIndexes }) => warmSourceSearchIndexes()),
   ]).catch((error) => console.error("[local] background warmup failed", error));
