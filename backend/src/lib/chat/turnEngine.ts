@@ -13,7 +13,7 @@ import {
 } from "../llm";
 import { isAbortError } from "../llm/abort";
 import { safeErrorMessage } from "../safeError";
-import type { McpToolEvent } from "../mcpConnectors";
+import type { McpToolEvent } from "../mcp/types";
 import type {
   CaseCitationEvent,
   CourtlistenerToolEvent,

@@ -1,0 +1,766 @@
+import { randomUUID } from "node:crypto";
+import { docxToPdf } from "./convert";
+import type {
+  DocumentAggregate,
+  DocumentRepository,
+  StoredDocumentVersion,
+} from "./documentRepository";
+import {
+  contentTypeForDocumentType,
+  shouldConvertToPdf,
+  validateDocumentFile,
+} from "./documentTypes";
+import type {
+  AssistantEdit,
+  DocumentContent,
+  DocumentProvenance,
+  DocumentScope,
+  DocumentStore,
+  DocumentVersion,
+  StoredAssistantEdit,
+} from "./documentStore";
+import { DocumentStoreError } from "./documentStore";
+import { extractTrackedChangeIds, resolveTrackedChange } from "./docxTrackedChanges";
+import { sha256 } from "./hash";
+import { countLegalPdfPages } from "./legalPdfSourceDoc";
+import type { LibraryKind } from "./normalize";
+import {
+  MAX_OBJECT_SIZE_BYTES,
+  SIGNED_GET_TTL_SECONDS,
+  type ObjectStorage,
+  versionStorageKey,
+} from "./storage";
+
+class DocumentWriteConflict extends Error {}
+
+const safeFilename = (value: string) => {
+  const filename = [...value.trim().replace(/[\uD800-\uDFFF]/gu, "�")
+    .replace(/[\x00-\x1F\x7F/\\]/gu, "_")].slice(0, 200).join("");
+  if (!filename) throw new DocumentStoreError(400, "filename is required");
+  return filename;
+};
+
+const checkBytes = (bytes: Buffer) => {
+  if (bytes.byteLength > MAX_OBJECT_SIZE_BYTES) {
+    throw new DocumentStoreError(413, "Document exceeds the maximum object size");
+  }
+};
+
+const validateUpload = (filename: string, fileType: string, bytes: Buffer) => {
+  checkBytes(bytes);
+  const name = safeFilename(filename);
+  const validated = validateDocumentFile(name, bytes);
+  if (!validated.ok || validated.fileType !== fileType.toLowerCase()) {
+    throw new DocumentStoreError(400,
+      validated.ok ? "Filename and document type do not match" : validated.error);
+  }
+  return { filename: name, fileType: validated.fileType };
+};
+
+const responseVersion = (version: StoredDocumentVersion): DocumentVersion => ({
+  id: version.id,
+  version_number: version.versionNumber,
+  source: version.source,
+  created_at: version.createdAt,
+  filename: version.filename,
+  file_type: version.fileType,
+  size_bytes: version.sizeBytes,
+  page_count: version.pageCount,
+  source_sha256: version.sourceSha256,
+  provenance: version.provenance
+    ? {
+        schema_version: version.provenance.schemaVersion,
+        actor: version.provenance.actor,
+        action: version.provenance.action,
+        parent_version_id: version.provenance.parentVersionId,
+        change_count: version.provenance.changeCount,
+      }
+    : undefined,
+  deleted_at: null,
+});
+
+const responseDocument = (aggregate: DocumentAggregate) => {
+  const version = activeVersion(aggregate);
+  if (!version) throw new Error("Document has no active version");
+  const document = aggregate.document;
+  return {
+    id: document.id,
+    user_id: document.userId,
+    project_id: document.projectId,
+    library_kind: document.libraryKind,
+    library_folder_id: document.projectId ? null : document.folderId,
+    folder_id: document.folderId,
+    filename: version.filename,
+    file_type: version.fileType,
+    size_bytes: version.sizeBytes,
+    page_count: version.pageCount,
+    source_sha256: version.sourceSha256,
+    status: document.status,
+    current_version_id: document.currentVersionId,
+    active_version_number: version.versionNumber,
+    created_at: document.createdAt,
+    updated_at: document.updatedAt,
+    metadata: document.metadata ?? {},
+    notes: document.notes ?? null,
+  };
+};
+
+function activeVersion(aggregate: DocumentAggregate, requested?: string | null) {
+  const id = requested || aggregate.document.currentVersionId;
+  return aggregate.versions.find((version) => version.id === id) ?? null;
+}
+
+function editedFilename(version: StoredDocumentVersion) {
+  const name = version.filename.trim() || "Untitled document.docx";
+  if (version.source !== "assistant_edit" || !version.versionNumber) return name;
+  const dot = name.lastIndexOf(".");
+  return `${dot > 0 ? name.slice(0, dot) : name} [Edited V${version.versionNumber}]${
+    dot > 0 ? name.slice(dot) : ""
+  }`;
+}
+
+async function pageCount(fileType: string, bytes: Buffer) {
+  return fileType === "pdf" ? countLegalPdfPages(bytes).catch(() => null) : null;
+}
+
+function provenanceWithEdits(
+  provenance: DocumentProvenance | undefined,
+  edits: StoredAssistantEdit[],
+) {
+  return provenance && {
+    ...provenance,
+    changeCount: (provenance.changeCount ?? provenance.trackedEdits?.length ?? 0) + edits.length,
+    trackedEdits: [...(provenance.trackedEdits ?? []), ...edits],
+  };
+}
+
+export function createDocumentApplication(
+  repository: DocumentRepository,
+  objects: ObjectStorage,
+): DocumentStore {
+  const cleanup = async (
+    scope: DocumentScope,
+    documentId: string,
+    versionId: string,
+    keys: string[],
+  ) => {
+    const unique = [...new Set(keys.filter(Boolean))];
+    if (!unique.length) return;
+    await Promise.all(unique.map((key) => objects.remove(key)));
+    await repository.clearCleanup(scope, documentId, versionId, unique);
+  };
+
+  const compensate = async (
+    scope: DocumentScope,
+    key: string,
+    cause: unknown,
+  ): Promise<never> => {
+    try {
+      await objects.remove(key);
+    } catch (cleanupError) {
+      try {
+        await repository.recordOrphan(scope, key);
+      } catch (recordError) {
+        throw new AggregateError([cause, cleanupError, recordError],
+          "Document metadata and durable object cleanup recording failed");
+      }
+      throw new AggregateError([cause, cleanupError],
+        "Document metadata failed and uploaded object cleanup must be retried");
+    }
+    throw cause;
+  };
+
+  const makeVersion = async (input: {
+    scope: DocumentScope;
+    documentId: string;
+    versionId?: string;
+    versionNumber: number;
+    source: string;
+    filename: string;
+    fileType: string;
+    bytes: Buffer;
+    provenance?: DocumentProvenance;
+    edits?: StoredAssistantEdit[];
+  }) => {
+    const id = input.versionId ?? randomUUID();
+    const { filename, fileType } = validateUpload(
+      input.filename, input.fileType, input.bytes,
+    );
+    const sourceSha256 = sha256(input.bytes);
+    const blobKey = versionStorageKey(
+      input.scope.userId,
+      input.documentId,
+      id,
+      sourceSha256,
+      filename,
+    );
+    const version: StoredDocumentVersion = {
+      id,
+      documentId: input.documentId,
+      versionNumber: input.versionNumber,
+      source: input.source,
+      createdAt: new Date().toISOString(),
+      filename,
+      fileType,
+      sizeBytes: input.bytes.byteLength,
+      pageCount: await pageCount(fileType, input.bytes),
+      sourceSha256,
+      blobKey,
+      pdfBlobKey: fileType === "pdf" ? blobKey : null,
+      cleanupKeys: [],
+      provenance: input.edits
+        ? provenanceWithEdits(input.provenance, input.edits)
+        : input.provenance,
+    };
+    await objects.put(blobKey, input.bytes, contentTypeForDocumentType(fileType));
+    return version;
+  };
+
+  const ensurePdf = async (
+    scope: DocumentScope,
+    aggregate: DocumentAggregate,
+    version: StoredDocumentVersion,
+  ) => {
+    if (version.pdfBlobKey || !shouldConvertToPdf(version.fileType)) return version;
+    const source = await objects.get(version.blobKey);
+    if (!source) return version;
+    let pdf: Buffer;
+    try {
+      pdf = await docxToPdf(source);
+    } catch (error) {
+      console.error("[document-display] Office to PDF conversion failed", {
+        error: error instanceof Error ? error.name : "unknown",
+      });
+      return version;
+    }
+    const digest = sha256(pdf);
+    const key = versionStorageKey(
+      scope.userId,
+      aggregate.document.id,
+      `${version.id}-pdf`,
+      digest,
+      `${version.filename}.pdf`,
+    );
+    await objects.put(key, pdf, "application/pdf");
+    let updated;
+    try {
+      updated = await repository.updateVersion(scope, aggregate.document.id, {
+        versionId: version.id,
+        expectedBlobKey: version.blobKey,
+        update: { pdfBlobKey: key },
+      });
+    } catch (error) {
+      await compensate(scope, key, error);
+    }
+    if (updated !== "updated") {
+      try {
+        await objects.remove(key);
+      } catch (error) {
+        await repository.recordOrphan(scope, key);
+        throw error;
+      }
+      const refreshed = await repository.get(scope, aggregate.document.id);
+      return refreshed ? activeVersion(refreshed, version.id) ?? version : version;
+    }
+    return { ...version, pdfBlobKey: key };
+  };
+
+  const selectedVersion = async (
+    scope: DocumentScope,
+    aggregate: DocumentAggregate,
+    requested: string | null,
+    preferPdf: boolean,
+  ) => {
+    const selected = activeVersion(aggregate, requested);
+    if (!selected) return null;
+    const version = preferPdf ? await ensurePdf(scope, aggregate, selected) : selected;
+    const usePdf = preferPdf && !!version.pdfBlobKey && shouldConvertToPdf(version.fileType);
+    return {
+      version,
+      key: usePdf ? version.pdfBlobKey! : version.blobKey,
+      fileType: usePdf ? "pdf" : version.fileType,
+      filename: editedFilename(version),
+    };
+  };
+
+  const content = async (
+    scope: DocumentScope,
+    aggregate: DocumentAggregate,
+    requested: string | null,
+    preferPdf: boolean,
+  ): Promise<DocumentContent | null> => {
+    const selected = await selectedVersion(scope, aggregate, requested, preferPdf);
+    if (!selected) return null;
+    const bytes = await objects.get(selected.key);
+    return bytes && {
+      bytes,
+      localPath: objects.localPath?.(selected.key),
+      version: responseVersion(selected.version),
+      filename: selected.filename,
+      fileType: selected.fileType,
+      hasPdfRendition: !!selected.version.pdfBlobKey,
+    };
+  };
+
+  const add = async (
+    scope: DocumentScope,
+    aggregate: DocumentAggregate,
+    file: { filename: string; fileType: string; bytes: Buffer },
+    input?: {
+      source?: string;
+      provenance?: DocumentProvenance;
+      edits?: StoredAssistantEdit[];
+    },
+  ) => {
+    const version = await makeVersion({
+      scope,
+      documentId: aggregate.document.id,
+      versionNumber: Math.max(...aggregate.versions.map(({ versionNumber }) => versionNumber)) + 1,
+      source: input?.source ?? "user_upload",
+      provenance: input?.provenance,
+      edits: input?.edits,
+      ...file,
+    });
+    let result: Awaited<ReturnType<DocumentRepository["insertVersion"]>>;
+    try {
+      result = await repository.insertVersion(scope, aggregate.document.id, {
+        expectedCurrentVersionId: aggregate.document.currentVersionId,
+        version,
+        edits: input?.edits,
+      });
+    } catch (error) {
+      return compensate(scope, version.blobKey, error);
+    }
+    if (result !== "created") {
+      await compensate(scope, version.blobKey,
+        new DocumentWriteConflict(result));
+    }
+    return version;
+  };
+
+  const application: DocumentStore = {
+    async resumeCleanup() {
+      for (const key of await repository.pendingOrphans()) {
+        try {
+          await objects.remove(key);
+          await repository.clearOrphan(key);
+        } catch (error) {
+          console.error("[document-cleanup] orphan retry failed", {
+            key, error: error instanceof Error ? error.name : "unknown",
+          });
+        }
+      }
+      for (const pending of await repository.pendingCleanup()) {
+        try {
+          await cleanup(
+            pending.scope,
+            pending.documentId,
+            pending.versionId,
+            pending.keys,
+          );
+        } catch (error) {
+          console.error("[document-cleanup] retry failed", {
+            documentId: pending.documentId,
+            versionId: pending.versionId,
+            error: error instanceof Error ? error.name : "unknown",
+          });
+        }
+      }
+    },
+
+    async create(scope, input) {
+      const libraryKind = (input.libraryKind ?? "file") as LibraryKind;
+      const projectId = input.projectId ?? null;
+      const folderId = input.folderId ?? null;
+      const authorization = await repository.authorizeCreate(scope, {
+        projectId,
+        libraryKind,
+        folderId,
+      });
+      if (authorization !== "ok") {
+        if (authorization === "folder-unavailable") {
+          throw new DocumentStoreError(409, "Project folders are unavailable");
+        }
+        throw new DocumentStoreError(404,
+          authorization === "project-missing" ? "Project not found" : "Folder not found");
+      }
+      const documentId = randomUUID();
+      const version = await makeVersion({
+        scope,
+        documentId,
+        versionNumber: 1,
+        source: input.provenance?.action === "created" ? "generated" : "upload",
+        filename: input.filename,
+        fileType: input.fileType,
+        bytes: input.bytes,
+        provenance: input.provenance,
+      });
+      const now = version.createdAt;
+      try {
+        await repository.create(scope, {
+          document: {
+            id: documentId,
+            userId: scope.userId,
+            projectId,
+            libraryKind,
+            folderId,
+            status: "ready",
+            currentVersionId: version.id,
+            createdAt: now,
+            updatedAt: now,
+            metadata: {},
+            notes: null,
+          },
+          version,
+        });
+      } catch (error) {
+        await compensate(scope, version.blobKey, error);
+      }
+      const aggregate = await repository.get(scope, documentId)
+        ?? { document: {
+          id: documentId, userId: scope.userId, projectId, libraryKind, folderId,
+          status: "ready", currentVersionId: version.id, createdAt: now, updatedAt: now,
+        }, versions: [version], edits: [], isOwner: true };
+      return responseDocument(aggregate);
+    },
+
+    async deleteDocument(scope, documentId) {
+      const aggregate = await repository.get(scope, documentId, true);
+      if (!aggregate) return false;
+      const keys = aggregate.versions.flatMap((version) => [
+        version.blobKey,
+        version.pdfBlobKey,
+        ...version.cleanupKeys,
+      ]).filter((key): key is string => !!key);
+      await Promise.all([...new Set(keys)].map((key) => objects.remove(key)));
+      return repository.deleteDocument(scope, documentId);
+    },
+
+    async files(scope, documentIds) {
+      const aggregates = await repository.getMany(scope, [...new Set(documentIds)]);
+      const loaded = await Promise.all(aggregates.map((aggregate) =>
+        content(scope, aggregate, null, false)));
+      return loaded.flatMap((value) => value ? [value] : []);
+    },
+
+    async read(scope, documentId, versionId, preferPdf) {
+      const aggregate = await repository.get(scope, documentId);
+      return aggregate ? content(scope, aggregate, versionId, preferPdf) : null;
+    },
+
+    async download(scope, documentId, versionId, preferPdf, disposition) {
+      const aggregate = await repository.get(scope, documentId);
+      if (!aggregate) return null;
+      const selected = await selectedVersion(scope, aggregate, versionId, preferPdf);
+      if (!selected) return null;
+      if (objects.signedGet) {
+        return {
+          kind: "redirect",
+          url: await objects.signedGet(selected.key, {
+            expiresIn: SIGNED_GET_TTL_SECONDS,
+            filename: selected.filename,
+            disposition,
+          }),
+        };
+      }
+      const loaded = await content(scope, aggregate, versionId, preferPdf);
+      return loaded ? { kind: "bytes", content: loaded } : null;
+    },
+
+    async versions(scope, documentId) {
+      const aggregate = await repository.get(scope, documentId);
+      return aggregate && {
+        current_version_id: aggregate.document.currentVersionId,
+        versions: aggregate.versions.map(responseVersion),
+      };
+    },
+
+    async addVersion(scope, documentId, file) {
+      const aggregate = await repository.get(scope, documentId);
+      if (!aggregate) return null;
+      try {
+        return responseVersion(await add(scope, aggregate, {
+          ...file,
+          filename: safeFilename(file.filename),
+        }));
+      } catch (error) {
+        if (error instanceof DocumentWriteConflict) return null;
+        throw error;
+      }
+    },
+
+    async commitAssistantVersion(scope, documentId, input) {
+      const aggregate = await repository.get(scope, documentId);
+      if (!aggregate) return { status: "missing" as const };
+      const current = activeVersion(aggregate);
+      if (!current || current.id !== input.sourceVersionId ||
+          (input.turnVersionId && input.turnVersionId !== current.id)) {
+        return { status: "conflict" as const };
+      }
+      const edits = input.edits.map((edit) => ({
+        ...edit,
+        id: randomUUID(),
+        status: input.status,
+      }));
+      if (!input.turnVersionId) {
+        try {
+          const version = await add(scope, aggregate, {
+            filename: safeFilename(input.filename),
+            fileType: "docx",
+            bytes: input.bytes,
+          }, {
+            source: "assistant_edit",
+            edits,
+            provenance: {
+              schemaVersion: 1,
+              actor: "assistant",
+              action: "revised",
+              parentVersionId: input.parentVersionId,
+              trackedEdits: [],
+            },
+          });
+          return { status: "committed" as const, version: responseVersion(version), edits };
+        } catch (error) {
+          if (error instanceof DocumentWriteConflict) {
+            return { status: "conflict" as const };
+          }
+          throw error;
+        }
+      }
+
+      const retainedIds = new Set(
+        (await extractTrackedChangeIds(input.bytes)).map(({ w_id }) => w_id),
+      );
+      if (aggregate.edits.some((edit) => edit.versionId === current.id &&
+          edit.status === "pending" &&
+          [edit.delWId, edit.insWId].filter((id): id is string => !!id)
+            .some((id) => !retainedIds.has(id)))) {
+        throw new DocumentStoreError(
+          409,
+          "A later same-turn edit overlaps an earlier tracked change; split it into a new turn so every accept/reject receipt remains valid",
+        );
+      }
+      checkBytes(input.bytes);
+      const filename = safeFilename(input.filename);
+      const digest = sha256(input.bytes);
+      const key = versionStorageKey(scope.userId, documentId, current.id, digest, filename);
+      await objects.put(key, input.bytes, contentTypeForDocumentType("docx"));
+      const oldKeys = [current.blobKey, current.pdfBlobKey, ...current.cleanupKeys]
+        .filter((value): value is string => !!value && value !== key);
+      const next = {
+        ...current,
+        filename,
+        fileType: "docx",
+        sizeBytes: input.bytes.byteLength,
+        pageCount: null,
+        sourceSha256: digest,
+        blobKey: key,
+        pdfBlobKey: null,
+        cleanupKeys: oldKeys,
+        provenance: provenanceWithEdits(current.provenance, edits),
+      };
+      let result;
+      try {
+        result = await repository.updateVersion(scope, documentId, {
+          versionId: current.id,
+          expectedBlobKey: current.blobKey,
+          update: {
+            filename,
+            fileType: "docx",
+            sizeBytes: input.bytes.byteLength,
+            pageCount: null,
+            sourceSha256: digest,
+            blobKey: key,
+            pdfBlobKey: null,
+            cleanupKeys: oldKeys,
+            provenance: next.provenance,
+          },
+          edits,
+        });
+      } catch (error) {
+        await compensate(scope, key, error);
+      }
+      if (result !== "updated") {
+        await compensate(scope, key, new Error("Document version conflict"));
+      }
+      await cleanup(scope, documentId, current.id, oldKeys);
+      return { status: "committed" as const, version: responseVersion(next), edits };
+    },
+
+    async copyVersion(scope, targetId, sourceId, filename) {
+      const [target, source] = await Promise.all([
+        repository.get(scope, targetId),
+        repository.get(scope, sourceId),
+      ]);
+      if (!target) return { status: "target-missing" as const };
+      if (!source) return { status: "source-missing" as const };
+      const move = source.document.projectId && target.document.projectId
+        ? source.document.projectId === target.document.projectId
+        : !source.document.projectId && !target.document.projectId &&
+          source.document.userId === scope.userId && target.document.userId === scope.userId;
+      if (move && !source.isOwner) return { status: "forbidden" as const };
+      const sourceVersion = activeVersion(source);
+      if (!sourceVersion) return { status: "source-missing" as const };
+      const bytes = await objects.get(sourceVersion.blobKey);
+      if (!bytes) return { status: "source-missing" as const };
+      const version = await add(scope, target, {
+        filename: safeFilename(filename ?? sourceVersion.filename),
+        fileType: sourceVersion.fileType,
+        bytes,
+      });
+      if (move) await application.deleteDocument(scope, sourceId);
+      return { status: "created" as const, version: responseVersion(version) };
+    },
+
+    async renameVersion(scope, documentId, versionId, filename) {
+      const aggregate = await repository.get(scope, documentId);
+      const version = aggregate && activeVersion(aggregate, versionId);
+      const name = safeFilename(filename);
+      return version && await repository.renameVersion(
+        scope, documentId, versionId, name,
+      ) ? responseVersion({ ...version, filename: name }) : null;
+    },
+
+    async replaceVersion(scope, documentId, versionId, file) {
+      const aggregate = await repository.get(scope, documentId, true);
+      const target = aggregate && activeVersion(aggregate, versionId);
+      if (!aggregate || !target) return { status: "missing" as const };
+      const { filename, fileType } = validateUpload(
+        file.filename, file.fileType, file.bytes,
+      );
+      if (target.fileType !== fileType) return { status: "type-mismatch" as const };
+      const digest = sha256(file.bytes);
+      const key = versionStorageKey(scope.userId, documentId, target.id, digest, filename);
+      await objects.put(key, file.bytes, contentTypeForDocumentType(fileType));
+      const oldKeys = [target.blobKey, target.pdfBlobKey, ...target.cleanupKeys]
+        .filter((value): value is string => !!value && value !== key);
+      const updated: StoredDocumentVersion = {
+        ...target,
+        filename,
+        sizeBytes: file.bytes.byteLength,
+        pageCount: await pageCount(fileType, file.bytes),
+        sourceSha256: digest,
+        blobKey: key,
+        pdfBlobKey: fileType === "pdf" ? key : null,
+        cleanupKeys: oldKeys,
+        provenance: undefined,
+        createdAt: new Date().toISOString(),
+      };
+      let result;
+      try {
+        result = await repository.updateVersion(scope, documentId, {
+          versionId,
+          expectedBlobKey: target.blobKey,
+          update: {
+            filename: updated.filename,
+            sizeBytes: updated.sizeBytes,
+            pageCount: updated.pageCount,
+            sourceSha256: digest,
+            blobKey: key,
+            pdfBlobKey: updated.pdfBlobKey,
+            cleanupKeys: oldKeys,
+            provenance: null,
+            createdAt: updated.createdAt,
+          },
+        });
+      } catch (error) {
+        await compensate(scope, key, error);
+      }
+      if (result !== "updated") {
+        await compensate(scope, key, new Error("Document version conflict"));
+      }
+      await cleanup(scope, documentId, versionId, oldKeys);
+      return { status: "replaced" as const, version: responseVersion(updated) };
+    },
+
+    async deleteVersion(scope, documentId, versionId) {
+      const aggregate = await repository.get(scope, documentId, true);
+      if (!aggregate) return { status: "missing" as const };
+      if (aggregate.versions.length <= 1) return { status: "only" as const };
+      const target = activeVersion(aggregate, versionId);
+      if (!target) return { status: "missing" as const };
+      const remaining = aggregate.versions.filter(({ id }) => id !== versionId)
+        .sort((left, right) => right.versionNumber - left.versionNumber ||
+          Date.parse(right.createdAt) - Date.parse(left.createdAt));
+      const currentVersionId = aggregate.document.currentVersionId === versionId
+        ? remaining[0]?.id ?? ""
+        : aggregate.document.currentVersionId;
+      await Promise.all([...new Set([
+        target.blobKey,
+        target.pdfBlobKey,
+        ...target.cleanupKeys,
+      ].filter((key): key is string => !!key))].map((key) => objects.remove(key)));
+      return await repository.deleteVersion(
+        scope, documentId, versionId, currentVersionId,
+      ) ? { status: "deleted" as const, currentVersionId } : { status: "missing" as const };
+    },
+
+    async resolveEdit(scope, documentId, editId, mode) {
+      const aggregate = await repository.get(scope, documentId);
+      if (!aggregate) return { status: "missing" as const };
+      const current = activeVersion(aggregate);
+      const edit = current && aggregate.edits.find((entry) =>
+        entry.id === editId && entry.versionId === current.id);
+      if (!current || !edit) return { status: "missing" as const };
+      const desired = mode === "accept" ? "accepted" as const : "rejected" as const;
+      if (edit.status !== "pending") return edit.status === desired
+        ? {
+            status: "unchanged" as const,
+            editStatus: edit.status,
+            versionId: current.id,
+            versionNumber: current.versionNumber,
+            downloadUrl: `/single-documents/${encodeURIComponent(documentId)}/file?version_id=${encodeURIComponent(current.id)}`,
+          }
+        : { status: "conflict" as const, editStatus: edit.status };
+      const ids = [edit.delWId, edit.insWId].filter((id): id is string => !!id);
+      if (!ids.length) return { status: "invalid" as const };
+      const source = await objects.get(current.blobKey);
+      if (!source) return { status: "invalid" as const };
+      const resolved = await resolveTrackedChange(source, ids, mode);
+      if (!resolved.found) return { status: "invalid" as const };
+      const digest = sha256(resolved.bytes);
+      const key = versionStorageKey(
+        scope.userId, documentId, current.id, digest, current.filename,
+      );
+      await objects.put(key, resolved.bytes, contentTypeForDocumentType(current.fileType));
+      const oldKeys = [current.blobKey, current.pdfBlobKey, ...current.cleanupKeys]
+        .filter((value): value is string => !!value && value !== key);
+      let result;
+      try {
+        result = await repository.updateVersion(scope, documentId, {
+          versionId: current.id,
+          expectedBlobKey: current.blobKey,
+          update: {
+            blobKey: key,
+            pdfBlobKey: null,
+            sourceSha256: digest,
+            sizeBytes: resolved.bytes.byteLength,
+            cleanupKeys: oldKeys,
+            provenance: current.provenance && {
+              ...current.provenance,
+              trackedEdits: current.provenance.trackedEdits?.map((stored) =>
+                stored.id === editId ? { ...stored, status: desired } : stored),
+            },
+          },
+          resolveEdit: { id: editId, status: desired },
+        });
+      } catch (error) {
+        await compensate(scope, key, error);
+      }
+      if (result !== "updated") {
+        await compensate(scope, key, new Error("Document version conflict"));
+        return { status: "conflict" as const, editStatus: edit.status };
+      }
+      await cleanup(scope, documentId, current.id, oldKeys);
+      return {
+        status: "resolved" as const,
+        editStatus: desired,
+        versionId: current.id,
+        versionNumber: current.versionNumber,
+        downloadUrl: `/single-documents/${encodeURIComponent(documentId)}/file?version_id=${encodeURIComponent(current.id)}`,
+      };
+    },
+  };
+
+  return application;
+}

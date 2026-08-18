@@ -1,6 +1,6 @@
 // Account HTTP boundary. Public entrypoint: userRouter.
 // Canonical operations live in userApiKeys, userDataExport/Cleanup, and
-// mcpConnectors; keep this file to validation and HTTP response mapping.
+// mcp/servers; keep this file to validation and HTTP response mapping.
 import { randomBytes } from "node:crypto";
 import { Router, type Response } from "express";
 import { z } from "zod";
@@ -29,7 +29,7 @@ import * as userDataExport from "../lib/userDataExport";
 import { findProfileUserByEmail } from "../lib/userLookup";
 import { normalizeDraftingStyleSettings } from "../lib/draftingStyle";
 import { safeErrorLog, safeErrorMessage } from "../lib/safeError";
-import * as mcpConnectors from "../lib/mcpConnectors";
+import * as mcpServers from "../lib/mcp/servers";
 import { sha256 } from "../lib/hash";
 
 export const userRouter = Router();
@@ -86,17 +86,6 @@ async function deleteUserCollection(
     } catch (error) {
         respondUserError(res, error, 500);
     }
-}
-
-function backendPublicUrl(req: {
-    protocol: string;
-    get(name: string): string | undefined;
-}) {
-    return (
-        process.env.API_PUBLIC_URL ||
-        process.env.BACKEND_URL ||
-        `${req.protocol}://${req.get("host")}`
-    ).replace(/\/+$/, "");
 }
 
 function frontendUrl(path = "/account/connectors") {
@@ -511,7 +500,7 @@ userRouter.get("/mcp-connectors", requireAuth, async (_req, res) => {
     const db = createServerSupabase();
     try {
         res.json(
-            await mcpConnectors.listUserMcpConnectors(
+            await mcpServers.listUserMcpConnectors(
                 userId,
                 db,
                 { includeTools: false },
@@ -530,7 +519,7 @@ userRouter.get(
         const db = createServerSupabase();
         try {
             res.json(
-                await mcpConnectors.getUserMcpConnector(
+                await mcpServers.getUserMcpConnector(
                     userId,
                     req.params.connectorId,
                     db,
@@ -551,7 +540,7 @@ userRouter.post(
         const db = createServerSupabase();
         try {
             const input = connectorCreatePayload.parse(req.body);
-            const connector = await mcpConnectors.createUserMcpConnector(
+            const connector = await mcpServers.createUserMcpConnector(
                 userId,
                 { ...input, bearerToken: input.bearerToken ?? null },
                 db,
@@ -572,7 +561,7 @@ userRouter.patch(
         const db = createServerSupabase();
         try {
             const input = connectorPatchPayload.parse(req.body);
-            const connector = await mcpConnectors.updateUserMcpConnector(
+            const connector = await mcpServers.updateUserMcpConnector(
                 userId,
                 req.params.connectorId,
                 input,
@@ -593,7 +582,7 @@ userRouter.delete(
         const userId = res.locals.userId as string;
         const db = createServerSupabase();
         try {
-            await mcpConnectors.deleteUserMcpConnector(
+            await mcpServers.deleteUserMcpConnector(
                 userId,
                 req.params.connectorId,
                 db,
@@ -613,11 +602,9 @@ userRouter.post(
         const userId = res.locals.userId as string;
         const db = createServerSupabase();
         try {
-            const redirectUri = `${backendPublicUrl(req)}/user/mcp-connectors/oauth/callback`;
-            const result = await mcpConnectors.startUserMcpConnectorOAuth(
+            const result = await mcpServers.startUserMcpConnectorOAuth(
                 userId,
                 req.params.connectorId,
-                redirectUri,
                 db,
             );
             res.json(result);
@@ -635,10 +622,10 @@ userRouter.get("/mcp-connectors/oauth/callback", async (req, res) => {
         typeof req.query.error === "string" ? req.query.error : undefined;
     const db = createServerSupabase();
     try {
-        if (error) throw new Error(error);
+        if (error) throw new Error("OAuth authorization was not completed.");
         if (!state || !code)
             throw new Error("OAuth callback is missing state or code.");
-        const result = await mcpConnectors.completeUserMcpConnectorOAuth(state, code, db);
+        const result = await mcpServers.completeUserMcpConnectorOAuth(state, code, db);
         res.set("Content-Security-Policy", mcpOAuthPopupCsp(nonce))
             .type("html")
             .send(
@@ -651,23 +638,25 @@ userRouter.get("/mcp-connectors/oauth/callback", async (req, res) => {
                 ),
             );
     } catch (err) {
-        const detail = safeErrorMessage(err);
+        const internalError = safeErrorMessage(err);
         console.error("[user/mcp-connectors] oauth callback failed", {
-            error: detail,
-            stateHash: state ? sha256(state).slice(0, 12) : null,
+            error: internalError,
+            stateDigest: state ? sha256(state).slice(0, 12) : null,
             hasCode: !!code,
             hasError: !!error,
-            issuer:
-                typeof req.query.iss === "string" ? req.query.iss : undefined,
-            scope:
-                typeof req.query.scope === "string"
-                    ? req.query.scope
-                    : undefined,
         });
         res.status(400)
             .set("Content-Security-Policy", mcpOAuthPopupCsp(nonce))
             .type("html")
-            .send(mcpOAuthPopupHtml({ success: false, detail }, nonce));
+            .send(
+                mcpOAuthPopupHtml(
+                    {
+                        success: false,
+                        detail: "OAuth authorization failed.",
+                    },
+                    nonce,
+                ),
+            );
     }
 });
 
@@ -679,7 +668,7 @@ userRouter.post(
         const userId = res.locals.userId as string;
         const db = createServerSupabase();
         try {
-            const connector = await mcpConnectors.refreshUserMcpConnectorTools(
+            const connector = await mcpServers.refreshUserMcpConnectorTools(
                 userId,
                 req.params.connectorId,
                 db,
@@ -710,7 +699,7 @@ userRouter.patch(
 
         const db = createServerSupabase();
         try {
-            const connector = await mcpConnectors.setUserMcpToolEnabled(
+            const connector = await mcpServers.setUserMcpToolEnabled(
                 userId,
                 req.params.connectorId,
                 req.params.toolId,

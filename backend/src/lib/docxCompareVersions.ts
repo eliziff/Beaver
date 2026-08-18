@@ -10,7 +10,6 @@
  */
 
 import diff from "fast-diff";
-import type JSZip from "jszip";
 import {
     TEXT_KEY,
     type XNode,
@@ -22,15 +21,18 @@ import {
     isTextNode,
     makeEl,
     makeText,
-    maxTrackedId,
     setChildren,
 } from "./docx/core";
 import {
+    type DocxParagraphIndex,
+    type DocxRewriteAtom,
+    type DocxSession,
+    openDocxSession,
+} from "./docx/session";
+import {
     markParagraphRevision,
     normalizeWs,
-    openDocumentXml,
     revisionAttrs,
-    saveDocumentXml,
 } from "./docxTrackedChanges";
 import { decodeXmlText } from "./text";
 
@@ -53,53 +55,9 @@ export interface CompareDocxVersionsResult {
 }
 
 const EXCERPT_CHARS = 160;
-/** LCS working-set cap after prefix/suffix trimming (cells). */
 const MAX_LCS_CELLS = 4_000_000;
-/** Gap paragraph-pairing DP cap (cells). */
 const MAX_GAP_CELLS = 10_000;
-/** Minimum fast-diff similarity for two paragraphs to count as a pair. */
 const PAIR_SIMILARITY = 0.5;
-
-// Text extraction (accepted view: w:ins content counts, w:del content does
-// not; tabs and soft line breaks become "\t" / "\n" markers so they survive
-// diffs and paragraph rebuilds).
-
-const ACCEPTED_CONTAINERS = new Set([
-    "w:hyperlink",
-    "w:smartTag",
-    "w:ins",
-    "w:sdtContent",
-    "w:customXml",
-]);
-
-function extractInlineText(paragraph: XNode): string {
-    const visit = (node: XNode): string => {
-        const name = elName(node);
-        if (name === "w:r") {
-            return elChildren(node).map((child) => {
-                const childName = elName(child);
-                if (childName === "w:t") return getTextContent(child);
-                if (childName === "w:tab") return "\t";
-                if (childName === "w:cr") return "\n";
-                return childName === "w:br" && !Object.keys(elAttrs(child)).length
-                    ? "\n"
-                    : "";
-            }).join("");
-        }
-        const children = name === "w:sdt"
-            ? elChildren(node).filter((child) => elName(child) === "w:sdtContent")
-            : name && ACCEPTED_CONTAINERS.has(name) ? elChildren(node) : [];
-        return children.map(visit).join("");
-    };
-    return elChildren(paragraph).map(visit).join("");
-}
-
-function extractBlockText(node: XNode): string {
-    const visit = (child: XNode): string => elName(child) === "w:p"
-        ? `${extractInlineText(child)}\n`
-        : elChildren(child).map(visit).join("");
-    return visit(node);
-}
 
 function normTrim(s: string): string {
     return normalizeWs(s).norm.trim();
@@ -116,24 +74,9 @@ interface Block {
     bodyIndex: number;
     text: string;
     key: string;
+    paragraph?: DocxParagraphIndex;
 }
 
-function collectBlocks(bodyKids: XNode[]): Block[] {
-    const blocks: Block[] = [];
-    for (let i = 0; i < bodyKids.length; i++) {
-        const node = bodyKids[i];
-        const name = elName(node);
-        const kind: Block["kind"] | null = name === "w:p"
-            ? "p"
-            : name === "w:tbl" ? "tbl" : name === "w:sdt" ? "sdt" : null;
-        if (!kind) continue;
-        const text = kind === "p" ? extractInlineText(node) : extractBlockText(node);
-        blocks.push({ kind, node, bodyIndex: i, text, key: `${kind}:${normTrim(text)}` });
-    }
-    return blocks;
-}
-
-/** LCS after the usually-large common prefix/suffix is removed. */
 function alignSequences(
     a: string[],
     b: string[],
@@ -197,7 +140,6 @@ function alignSequences(
     return pairs;
 }
 
-/** Dice-style similarity from fast-diff EQUAL mass over normalized texts. */
 function similarity(aNorm: string, bNorm: string): number {
     const total = aNorm.length + bNorm.length;
     if (total === 0) return 1;
@@ -215,7 +157,6 @@ type GapOp =
     | { op: "del"; oi: number }
     | { op: "ins"; ni: number };
 
-/** Similar paragraphs substitute; the rest become paragraph inserts/deletes. */
 function pairGapParagraphs(
     oldNorms: string[],
     newNorms: string[],
@@ -231,7 +172,6 @@ function pairGapParagraphs(
 
     const W = m + 1;
     const cost = new Float64Array((n + 1) * W);
-    // 1 = del (from up), 2 = ins (from left), 3 = sub (from diagonal)
     const from = new Uint8Array((n + 1) * W);
     for (let i = 1; i <= n; i++) {
         cost[i * W] = i;
@@ -250,7 +190,6 @@ function pairGapParagraphs(
                 sim >= PAIR_SIMILARITY
                     ? cost[(i - 1) * W + (j - 1)] + 2 * (1 - sim)
                     : Infinity;
-            // Preference on ties: sub, then del, then ins.
             if (subCost <= delCost && subCost <= insCost) {
                 cost[i * W + j] = subCost;
                 from[i * W + j] = 3;
@@ -384,7 +323,6 @@ function tokenizeForDiff(text: string): DiffToken[] {
     return merged;
 }
 
-/** Character-level fallback (docxTrackedChanges minimal-cluster style). */
 function charDiffClusters(oldText: string, newText: string): DiffCluster[] {
     const clusters: DiffCluster[] = [];
     let newPos = 0;
@@ -411,7 +349,6 @@ function charDiffClusters(oldText: string, newText: string): DiffCluster[] {
     return clusters;
 }
 
-/** Diff encoded token keys; fall back when the single-code-unit map fills. */
 function wordDiffClusters(oldText: string, newText: string): DiffCluster[] {
     if (oldText === newText) return [];
 
@@ -476,16 +413,6 @@ function wordDiffClusters(oldText: string, newText: string): DiffCluster[] {
     return clusters;
 }
 
-type FlatAtom =
-    | { kind: "chars"; text: string; rPr: XNode | null }
-    | { kind: "tab" | "br"; rPr: XNode | null }
-    | { kind: "keep"; node: XNode };
-
-interface RewriteFlat {
-    atoms: FlatAtom[];
-    text: string;
-}
-
 const KEEP_PARA_CHILDREN = new Set([
     "w:bookmarkStart",
     "w:bookmarkEnd",
@@ -494,86 +421,6 @@ const KEEP_PARA_CHILDREN = new Set([
     "w:commentRangeEnd",
 ]);
 
-/** Run children a whole run may be atomically preserved for. */
-const ATOMIC_RUN_CHILDREN = new Set([
-    "w:footnoteReference",
-    "w:endnoteReference",
-    "w:commentReference",
-    "w:drawing",
-]);
-
-/** Flatten only structures the rewriter can round-trip exactly. */
-function flattenForRewrite(
-    pNode: XNode,
-): { ok: true; flat: RewriteFlat } | { ok: false; reason: string } {
-    const atoms: FlatAtom[] = [];
-    let text = "";
-    for (const child of elChildren(pNode)) {
-        const name = elName(child);
-        if (!name || name === "w:pPr") continue;
-        if (KEEP_PARA_CHILDREN.has(name)) {
-            atoms.push({ kind: "keep", node: child });
-            continue;
-        }
-        if (name !== "w:r") {
-            return { ok: false, reason: `contains <${name}>` };
-        }
-        let rPr: XNode | null = null;
-        const textual: FlatAtom[] = [];
-        let textualText = "";
-        let atomic = false;
-        for (const rk of elChildren(child)) {
-            const rn = elName(rk);
-            if (rn === null) continue;
-            if (rn === "w:rPr") {
-                rPr = rk;
-            } else if (rn === "w:t") {
-                const t = getTextContent(rk);
-                textual.push({ kind: "chars", text: t, rPr: null });
-                textualText += t;
-            } else if (rn === "w:tab") {
-                textual.push({ kind: "tab", rPr: null });
-                textualText += "\t";
-            } else if (rn === "w:cr") {
-                textual.push({ kind: "br", rPr: null });
-                textualText += "\n";
-            } else if (rn === "w:br") {
-                if (Object.keys(elAttrs(rk)).length > 0) {
-                    // Page/column breaks are positional, not text.
-                    atomic = true;
-                } else {
-                    textual.push({ kind: "br", rPr: null });
-                    textualText += "\n";
-                }
-            } else if (rn === "w:lastRenderedPageBreak") {
-                // Rendering cache; Word regenerates it. Dropped silently.
-            } else if (ATOMIC_RUN_CHILDREN.has(rn)) {
-                atomic = true;
-            } else {
-                return { ok: false, reason: `contains run content <${rn}>` };
-            }
-        }
-        if (atomic && textualText.length > 0) {
-            return {
-                ok: false,
-                reason: "a run mixes text with non-text content",
-            };
-        }
-        if (atomic) {
-            atoms.push({ kind: "keep", node: child });
-            continue;
-        }
-        for (const atom of textual) {
-            if (atom.kind !== "keep") atom.rPr = rPr;
-            atoms.push(atom);
-        }
-        text += textualText;
-    }
-    return { ok: true, flat: { atoms, text } };
-}
-
-/** A single w:del wrapper carrying old text; "\t"/"\n" markers become
- *  w:tab / w:br elements interleaved with w:delText segments. */
 function buildDelWrapper(
     deleted: string,
     rPr: XNode | null,
@@ -618,10 +465,9 @@ interface RebuildResult {
     notes: string[];
 }
 
-/** Rebuild while preserving formatting and positional keep-atoms. */
 function rebuildParagraphChildren(
     pNode: XNode,
-    flat: RewriteFlat,
+    flat: { atoms: DocxRewriteAtom[]; text: string },
     clusters: DiffCluster[],
     author: string,
     date: string,
@@ -632,7 +478,6 @@ function rebuildParagraphChildren(
     const pPr = elChildren(pNode).find((k) => elName(k) === "w:pPr");
     if (pPr) out.push(pPr);
 
-    // Per-character rPr map for delete-run formatting inheritance.
     const charRPr: (XNode | null)[] = [];
     for (const atom of flat.atoms) {
         if (atom.kind === "chars") {
@@ -647,13 +492,10 @@ function rebuildParagraphChildren(
         return charRPr[clamped];
     };
 
-    // Run/wrapper emission state.
     let runOpen = false;
     let runRPr: XNode | null = null;
     let runKids: XNode[] = [];
     let openIns: { clusterIdx: number; runs: XNode[] } | null = null;
-    // openIns is only ever assigned inside the closures below, so top-level
-    // control flow would otherwise narrow it to its initializer (null).
     const currentOpenIns = () => openIns;
 
     const closeRun = () => {
@@ -798,7 +640,6 @@ function rebuildParagraphChildren(
             pos += take;
             off += take;
         }
-        // Zero-length text atoms (empty w:t) contribute nothing.
         if (text.length === 0) emitDelsThrough(pos);
     }
     emitDelsThrough(pos);
@@ -824,9 +665,9 @@ interface DeletedParagraphResult {
     dropped: Set<string>;
 }
 
-/** Clone only self-contained old content; report package-bound references. */
 function buildDeletedParagraph(
     oldP: XNode,
+    text: string,
     author: string,
     date: string,
     nextId: () => string,
@@ -853,10 +694,7 @@ function buildDeletedParagraph(
                 kids.push(cloneNode(rk));
                 hasContent = true;
             } else if (rn === "w:lastRenderedPageBreak") {
-                // Rendering cache — dropped silently.
             } else if (rn === "w:commentReference") {
-                // Old-package comment anchor; the comment itself is not
-                // content, so this is dropped silently.
             } else if (rn === "w:footnoteReference" || rn === "w:endnoteReference") {
                 dropped.add("note reference");
             } else if (rn === "w:drawing" || rn === "w:object" || rn === "w:pict") {
@@ -884,10 +722,8 @@ function buildDeletedParagraph(
             } else if (name === "w:smartTag" || name === "w:customXml") {
                 visit(elChildren(k));
             } else if (name === "w:ins") {
-                // Accepted view: old insertions are ordinary text.
                 visit(elChildren(k));
             } else if (name === "w:del") {
-                // Already deleted in the old version — not part of it.
             } else if (name === "w:sdt") {
                 dropped.add("content control");
                 for (const c of elChildren(k)) {
@@ -897,8 +733,6 @@ function buildDeletedParagraph(
                 dropped.add("field");
                 visit(elChildren(k));
             } else if (KEEP_PARA_CHILDREN.has(name)) {
-                // Old bookmarks / comment ranges / proofErr carry old ids;
-                // they are structure, not content — dropped silently.
             } else {
                 dropped.add(name);
             }
@@ -906,7 +740,6 @@ function buildDeletedParagraph(
     };
     visit(elChildren(oldP));
 
-    const text = extractInlineText(oldP);
     if (runs.length === 0 && dropped.size > 0) {
         return { node: null, text, dropped };
     }
@@ -968,7 +801,6 @@ const INSERT_RUN_ALLOWED = new Set([
     "w:sym",
 ]);
 
-/** Refuse inserted paragraphs whose markup cannot be wrapped safely. */
 function validateInsertable(pNode: XNode): string | null {
     const visitContainer = (kids: XNode[], allowPPr: boolean): string | null => {
         for (const k of kids) {
@@ -998,7 +830,6 @@ function validateInsertable(pNode: XNode): string | null {
                 name === "w:del" ||
                 KEEP_PARA_CHILDREN.has(name)
             ) {
-                // Existing revisions stay as they are; markers are inert.
             } else {
                 return `contains <${name}>`;
             }
@@ -1008,7 +839,6 @@ function validateInsertable(pNode: XNode): string | null {
     return visitContainer(elChildren(pNode), true);
 }
 
-/** Wrap every inserted run and its paragraph mark. */
 function markParagraphInserted(
     pNode: XNode,
     author: string,
@@ -1070,17 +900,6 @@ function numberingSignature(pNode: XNode): string | null {
     return `ilvl:${level}`;
 }
 
-const OBJECT_ELEMENT_NAMES = new Set([
-    "w:footnoteReference", "w:endnoteReference", "w:drawing", "w:object",
-    "w:pict", "w:fldChar", "w:fldSimple",
-]);
-
-function subtreeContainsObjects(node: XNode): boolean {
-    const name = elName(node);
-    return Boolean(name && OBJECT_ELEMENT_NAMES.has(name)) ||
-        elChildren(node).some(subtreeContainsObjects);
-}
-
 const STORY_PATTERNS = [
     ["headers_changed", "header", /^word[\/\\]header\d*\.xml$/iu],
     ["footers_changed", "footer", /^word[\/\\]footer\d*\.xml$/iu],
@@ -1088,10 +907,10 @@ const STORY_PATTERNS = [
     ["endnotes_changed", "endnote", /^word[\/\\]endnotes\.xml$/iu],
 ] as const;
 
-async function storyText(zip: JSZip, pattern: RegExp): Promise<string> {
-    const files = zip.file(pattern).sort((a, b) => a.name.localeCompare(b.name));
-    const parts = await Promise.all(files.map(async (file) => {
-        const xml = (await file.async("string"))
+async function storyText(session: DocxSession, pattern: RegExp): Promise<string> {
+    const paths = session.paths.filter((path) => pattern.test(path));
+    const parts = await Promise.all(paths.map(async (path) => {
+        const xml = ((await session.readText(path)) ?? "")
             .replace(/<w:del\b[\s\S]*?<\/w:del>/gu, "");
         return [...xml.matchAll(/<w:t\b[^>]*>([\s\S]*?)<\/w:t>/gu)]
             .map((match) => decodeXmlText(match[1] ?? ""))
@@ -1101,14 +920,14 @@ async function storyText(zip: JSZip, pattern: RegExp): Promise<string> {
 }
 
 async function compareAuxStories(
-    oldZip: JSZip,
-    newZip: JSZip,
+    oldSession: DocxSession,
+    newSession: DocxSession,
 ): Promise<CompareAbstention[]> {
     const abstentions: CompareAbstention[] = [];
     for (const [code, label, pattern] of STORY_PATTERNS) {
         const [oldText, newText] = await Promise.all([
-            storyText(oldZip, pattern),
-            storyText(newZip, pattern),
+            storyText(oldSession, pattern),
+            storyText(newSession, pattern),
         ]);
         if (normTrim(oldText) !== normTrim(newText)) {
             abstentions.push({
@@ -1132,22 +951,35 @@ export async function compareDocxVersions(
     const author = options?.author ?? "Beaver";
     const now = new Date().toISOString();
 
-    const [oldDocument, newDocument] = await Promise.all([
-        openDocumentXml(oldBytes, "old docx"),
-        openDocumentXml(newBytes, "new docx"),
+    const [oldSession, newSession] = await Promise.all([
+        openDocxSession(oldBytes),
+        openDocxSession(newBytes),
     ]);
-    const { zip: oldZip, body: oldBody } = oldDocument;
-    const { zip: newZip, tree: newTree, body: newBody } = newDocument;
+    const [oldDocument, newDocument] = await Promise.all([
+        oldSession.document("old docx"),
+        newSession.document("new docx"),
+    ]);
+    const { tree: newTree, body: newBody } = newDocument;
 
     const changes: CompareChange[] = [];
     const abstentions: CompareAbstention[] = await compareAuxStories(
-        oldZip,
-        newZip,
+        oldSession,
+        newSession,
     );
 
     const newBodyKids = elChildren(newBody);
-    const oldBlocks = collectBlocks(elChildren(oldBody));
-    const newBlocks = collectBlocks(newBodyKids);
+    const blocksFor = (document: typeof oldDocument): Block[] => {
+        const paragraphs = new Map(
+            document.paragraphs.map((paragraph) => [paragraph.node, paragraph]),
+        );
+        return document.blocks.map((block) => ({
+            ...block,
+            key: `${block.kind}:${normTrim(block.text)}`,
+            paragraph: paragraphs.get(block.node),
+        }));
+    };
+    const oldBlocks = blocksFor(oldDocument);
+    const newBlocks = blocksFor(newDocument);
 
     let endInsertIndex = newBodyKids.length;
     if (
@@ -1175,7 +1007,7 @@ export async function compareDocxVersions(
     }
 
     let modified = false;
-    let nextIdNum = maxTrackedId(newTree) + 1;
+    let nextIdNum = newDocument.maxTrackedId + 1;
     const nextId = () => String(nextIdNum++);
     /** Deleted-paragraph splices: body index → nodes to insert before it. */
     const splices = new Map<number, XNode[]>();
@@ -1206,8 +1038,8 @@ export async function compareDocxVersions(
     /** Word-diff a changed paragraph pair and rewrite the NEW node. */
     const handleChangedPair = (oldB: Block, newB: Block) => {
         if (oldB.text === newB.text) return;
-        const flattened = flattenForRewrite(newB.node);
-        if (!flattened.ok || flattened.flat.text !== newB.text) {
+        const flattened = newB.paragraph!.rewrite;
+        if (!flattened.ok || flattened.text !== newB.text) {
             const why = flattened.ok
                 ? "its text has structure the differ cannot round-trip"
                 : flattened.reason;
@@ -1220,7 +1052,7 @@ export async function compareDocxVersions(
             });
             return;
         }
-        if (subtreeContainsObjects(oldB.node)) {
+        if (oldB.paragraph!.containsObjects) {
             abstentions.push({
                 reason:
                     "old_paragraph_objects_not_compared: the old version " +
@@ -1234,7 +1066,7 @@ export async function compareDocxVersions(
         if (clusters.length === 0) return;
         const rebuilt = rebuildParagraphChildren(
             newB.node,
-            flattened.flat,
+            flattened,
             clusters,
             author,
             now,
@@ -1261,7 +1093,13 @@ export async function compareDocxVersions(
     };
 
     const handleDeletedParagraph = (oldB: Block, beforeIndex: number) => {
-        const result = buildDeletedParagraph(oldB.node, author, now, nextId);
+        const result = buildDeletedParagraph(
+            oldB.node,
+            oldB.text,
+            author,
+            now,
+            nextId,
+        );
         if (result.node === null) {
             abstentions.push({
                 reason:
@@ -1323,7 +1161,6 @@ export async function compareDocxVersions(
         gapNew: Block[],
         trailingBodyIndex: number,
     ) => {
-        // Tables and block-level content controls: abstain, paired in order.
         for (const kind of ["tbl", "sdt"] as const) {
             const oldK = gapOld.filter((b) => b.kind === kind);
             const newK = gapNew.filter((b) => b.kind === kind);
@@ -1361,16 +1198,12 @@ export async function compareDocxVersions(
             }
         }
 
-        // Paragraphs: similarity-paired word diffs, whole-paragraph
-        // deletes/inserts for the rest.
         const oldParas = gapOld.filter((b) => b.kind === "p");
         const newParas = gapNew.filter((b) => b.kind === "p");
         const ops = pairGapParagraphs(
             oldParas.map((b) => normTrim(b.text)),
             newParas.map((b) => normTrim(b.text)),
         );
-        // For each op, the body index a deleted paragraph must precede:
-        // the next new-side paragraph in the gap, else the trailing anchor.
         const anchors: number[] = new Array(ops.length);
         let carry = trailingBodyIndex;
         for (let k = ops.length - 1; k >= 0; k--) {
@@ -1391,8 +1224,6 @@ export async function compareDocxVersions(
         }
     };
 
-    // Walk matched pairs and the gaps between them (with a final sentinel
-    // gap covering trailing unmatched blocks).
     let oi = 0;
     let ni = 0;
     for (let k = 0; k <= pairs.length; k++) {
@@ -1413,9 +1244,6 @@ export async function compareDocxVersions(
         const newB = newBlocks[pj];
         if (oldB.kind === "p" && newB.kind === "p") {
             checkNumbering(oldB, newB);
-            // Alignment normalizes whitespace/quotes; raw differences in a
-            // matched pair (curly→straight quotes, spacing) still get a
-            // real word-level diff so nothing changes silently.
             handleChangedPair(oldB, newB);
         }
         oi = pi + 1;
@@ -1437,8 +1265,9 @@ export async function compareDocxVersions(
         setChildren(newBody, rebuilt);
     }
 
+    newSession.writeDocument(newTree);
     return {
-        bytes: await saveDocumentXml(newZip, newTree),
+        bytes: await newSession.save(),
         changes,
         abstentions,
     };

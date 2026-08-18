@@ -26,6 +26,17 @@ const COLLECTION_LIMIT = 128;
 export const ASSISTANT_GENERIC_ERROR = "Unable to get a response. Try again.";
 type CitationDisplayFields = Pick<DocumentCitation, "display_form" | "source_class" | "external_url" | "authority" | "short_authority" | "locator_separator">;
 
+export type AssistantTranscriptMessage = {
+  id: string;
+  role: "user" | "assistant";
+  content: string | unknown[] | null;
+  files?: Message["files"] | null;
+  workflow?: Message["workflow"] | null;
+  citations?: Citation[] | null;
+  turn_id?: string;
+  turn_complete?: boolean;
+};
+
 export type AssistantActivityStatus =
   | "running"
   | "completed"
@@ -165,7 +176,7 @@ type ProtocolEvent =
 export type AssistantProtocolEvent = ProtocolEvent;
 
 export type AssistantSessionEvent =
-  | { type: "transcript_loaded"; chatId?: string; messages: Message[]; active?: boolean; transcriptVersion?: number; preserveRejected?: boolean }
+  | { type: "transcript_loaded"; chatId?: string; messages: AssistantTranscriptMessage[]; active?: boolean; transcriptVersion?: number; preserveRejected?: boolean }
   | { type: "run_started"; runId: string; chatId?: string; message: Message; options?: AssistantTurnOptions }
   | { type: "run_resumed"; runId: string; chatId: string }
   | { type: "protocol"; runId: string; chatId?: string; event: ProtocolEvent }
@@ -176,7 +187,6 @@ export type AssistantSessionEvent =
   | { type: "steering_queued"; runId: string; id: string; text: string }
   | { type: "compaction_changed"; status: "running" | "completed" | "failed"; error?: string }
   | { type: "new_chat"; chatId?: string; message?: Message }
-  | { type: "chat_id_changed"; chatId?: string }
   | { type: "transcript_version_changed"; transcriptVersion: number }
   | { type: "local_exchange"; user: Message; assistantText: string };
 
@@ -875,22 +885,20 @@ function loadTranscript(state: AssistantSessionState, event: Extract<AssistantSe
   let next: AssistantSessionState = { ...state, chatId: event.chatId ?? state.chatId, messages: [], readers: [], pendingInput: null, contextUsage: undefined, compaction: undefined, run: event.active ? state.run : null, rejectedTurn: event.preserveRejected ? state.rejectedTurn : null, transcriptVersion: event.transcriptVersion ?? state.transcriptVersion };
   event.messages.slice(0, 2_000).forEach((message, index) => {
     if (message.role === "user") {
-      next = { ...next, messages: [...next.messages, userMessage(message, `user:${index}`)] };
+      next = { ...next, messages: [...next.messages, userMessage({ role: "user", content: typeof message.content === "string" ? message.content : "", files: message.files ?? undefined, workflow: message.workflow ?? undefined, turnId: message.turn_id }, `user:${index}`)] };
       return;
     }
-    const assistant = emptyAssistant(clean(message.id) || `assistant:${index}`, clean(message.turnId));
+    const assistant = emptyAssistant(clean(message.id) || `assistant:${index}`, clean(message.turn_id));
     next = { ...next, messages: [...next.messages, assistant] };
-    const rawEvents = Array.isArray(message.events) ? message.events : [];
+    const rawEvents = Array.isArray(message.content) ? message.content : [];
     for (const raw of rawEvents) {
       const parsed = parseAssistantProtocolEvent(raw);
       if (parsed.ok) next = applyProtocol(next, parsed.event);
     }
     const citations = parseAssistantCitations(message.citations);
     if (citations.length) next = applyProtocol(next, { type: "citations", citations, status: "final" });
-    if (!rawEvents.length && message.content) next = applyProtocol(next, { type: "content_snapshot", text: string(message.content, ASSISTANT_LIMITS.text), final: true });
-    if (message.error) next = applyProtocol(next, { type: "error", message: ASSISTANT_GENERIC_ERROR, retryable: true });
-    if (message.turnStatus) next = interrupt(next, message.turnStatus);
-    next = updateAssistant(next, (current) => current.id === assistant.id ? { ...current, turnComplete: message.turnComplete } : current);
+    if (!rawEvents.length && typeof message.content === "string" && message.content) next = applyProtocol(next, { type: "content_snapshot", text: string(message.content, ASSISTANT_LIMITS.text), final: true });
+    next = updateAssistant(next, (current) => current.id === assistant.id ? { ...current, turnComplete: message.turn_complete } : current);
   });
   if (!event.active) {
     const last = next.messages.at(-1);
@@ -906,7 +914,7 @@ function loadTranscript(state: AssistantSessionState, event: Extract<AssistantSe
   return next;
 }
 
-export function createAssistantSessionState(args: { chatId?: string; messages?: Message[]; transcriptVersion?: number } = {}): AssistantSessionState {
+export function createAssistantSessionState(args: { chatId?: string; messages?: AssistantTranscriptMessage[]; transcriptVersion?: number } = {}): AssistantSessionState {
   const initial: AssistantSessionState = { chatId: args.chatId, messages: [], readers: [], pendingInput: null, run: null, rejectedTurn: null, transcriptVersion: args.transcriptVersion ?? 0 };
   return args.messages?.length ? loadTranscript(initial, { type: "transcript_loaded", chatId: args.chatId, messages: args.messages, transcriptVersion: args.transcriptVersion }) : initial;
 }
@@ -952,7 +960,6 @@ export function assistantSessionReducer(state: AssistantSessionState, event: Ass
     return event.error ? updateAssistant(next, (message) => ({ ...message, error: ASSISTANT_GENERIC_ERROR })) : next;
   }
   if (event.type === "new_chat") return { ...createAssistantSessionState({ chatId: event.chatId }), messages: event.message ? [userMessage(event.message, "user:new")] : [] };
-  if (event.type === "chat_id_changed") return { ...state, chatId: event.chatId };
   if (event.type === "transcript_version_changed") return Number.isSafeInteger(event.transcriptVersion) && event.transcriptVersion >= 0 ? { ...state, transcriptVersion: event.transcriptVersion } : state;
   if (event.type === "local_exchange") {
     const user = userMessage(event.user, `user:local:${state.messages.length}`);

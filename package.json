@@ -3,6 +3,7 @@
     "private": true,
     "scripts": {
         "measure:source": "node scripts/measure-source.mjs",
+        "check:grammar": "node packages/legal-grammar-tables/check.mjs",
         "check:experiment-boundary": "node scripts/check-experiment-boundary.mjs",
         "test:experiments": "npm run test:experiments --prefix backend",
         "test:e2e": "playwright test",

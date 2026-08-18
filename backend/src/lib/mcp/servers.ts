@@ -11,7 +11,6 @@ import {
     guardedFetch,
     headersForAuth,
     loadConnector,
-    mcpOAuthCallbackUrl,
     normalizeJsonSchema,
     openaiToolName,
     toConnectorSummary,
@@ -21,10 +20,11 @@ import {
 } from "./client";
 import {
     completeMcpConnectorOAuthAuthorization,
+    deleteOAuthToken,
     DbMcpOAuthProvider,
-    discoverOAuthMetadata,
     guardedOAuthFetch,
     loadOAuthToken,
+    loadOAuthTokens,
     McpOAuthRequiredError,
     startUserMcpConnectorOAuth,
 } from "./oauth";
@@ -38,7 +38,6 @@ import {
     type McpConnectorAuthConfig,
     type McpConnectorSummary,
     type McpToolEvent,
-    type OAuthTokenRow,
     type ToolCacheRow,
 } from "./types";
 
@@ -62,7 +61,7 @@ function toolMatchesEndpoint(
 function fetchForConnector(
     connector: ConnectorRow,
     authConfig: McpConnectorAuthConfig,
-    oauthProvider?: DbMcpOAuthProvider,
+    oauthProvider: DbMcpOAuthProvider,
 ) {
     const serverUrl = new URL(connector.server_url);
     serverUrl.hash = "";
@@ -92,7 +91,6 @@ function fetchForConnector(
         );
         const accept = headers.get("accept")?.toLowerCase() ?? "";
         const oauthJsonRequest =
-            !!oauthProvider &&
             accept.includes("application/json") &&
             !accept.includes("text/event-stream");
         const requestInit = {
@@ -103,11 +101,20 @@ function fetchForConnector(
         if (
             !isConnectorEndpoint ||
             oauthJsonRequest ||
-            oauthProvider?.isOAuthRequest(input)
+            oauthProvider.isOAuthRequest(input)
         ) {
             return guardedOAuthFetch(input, requestInit);
         }
-        return boundMcpResponse(await guardedFetch(input, requestInit));
+        const response = await boundMcpResponse(
+            await guardedFetch(input, requestInit),
+        );
+        if (response.ok) return response;
+        await response.body?.cancel().catch(() => undefined);
+        return new Response(null, {
+            status: response.status,
+            statusText: response.statusText,
+            headers: response.headers,
+        });
     };
 }
 
@@ -118,16 +125,7 @@ async function withMcpClient<T>(
 ): Promise<T> {
     await validateRemoteMcpUrl(connector.server_url);
     const authConfig = decryptAuthConfig(connector);
-    const authProvider =
-        connector.auth_type === "oauth"
-            ? new DbMcpOAuthProvider(
-                  db,
-                  connector,
-                  connector.user_id,
-                  "use",
-                  mcpOAuthCallbackUrl(),
-              )
-            : undefined;
+    const authProvider = new DbMcpOAuthProvider(db, connector, "connect");
     const connectorFetch = fetchForConnector(
         connector,
         authConfig,
@@ -140,7 +138,7 @@ async function withMcpClient<T>(
     const transport = new StreamableHTTPClientTransport(
         new URL(connector.server_url),
         {
-            ...(authProvider ? { authProvider } : {}),
+            authProvider,
             fetch: connectorFetch,
             requestInit: {
                 redirect: "manual",
@@ -156,19 +154,6 @@ async function withMcpClient<T>(
         return await callback(client);
     } catch (err) {
         if (err instanceof McpOAuthRequiredError) throw err;
-        // OAuth connectors already surface genuine auth failures (401s) through
-        // the auth provider, so probing here would convert *every* tool-call
-        // error into a misleading "OAuth required" and hide the real cause.
-        // Only probe for non-OAuth connectors that may actually need OAuth.
-        if (connector.auth_type !== "oauth") {
-            try {
-                await discoverOAuthMetadata(connector.server_url);
-                throw new McpOAuthRequiredError();
-            } catch (discoveryErr) {
-                if (discoveryErr instanceof McpOAuthRequiredError)
-                    throw discoveryErr;
-            }
-        }
         throw err;
     } finally {
         await client.close().catch(() => undefined);
@@ -204,15 +189,7 @@ export async function listUserMcpConnectors(
                 (toolCounts.get(tool.connector_id) ?? 0) + 1,
             );
         }
-        const { data: oauthRows, error: oauthError } = await db
-            .from("user_mcp_oauth_tokens")
-            .select("*")
-            .in("connector_id", connectorIds);
-        if (oauthError) throw oauthError;
-        const oauthByConnector = new Map<string, OAuthTokenRow>();
-        for (const token of (oauthRows ?? []) as OAuthTokenRow[]) {
-            oauthByConnector.set(token.connector_id, token);
-        }
+        const oauthByConnector = await loadOAuthTokens(connectorIds, db);
         return rows.map((row) =>
             toConnectorSummary(
                 row,
@@ -239,18 +216,10 @@ export async function listUserMcpConnectors(
         list.push(tool);
         toolsByConnector.set(tool.connector_id, list);
     }
-    const { data: oauthRows, error: oauthError } = await db
-        .from("user_mcp_oauth_tokens")
-        .select("*")
-        .in(
-            "connector_id",
-            rows.map((row) => row.id),
-        );
-    if (oauthError) throw oauthError;
-    const oauthByConnector = new Map<string, OAuthTokenRow>();
-    for (const token of (oauthRows ?? []) as OAuthTokenRow[]) {
-        oauthByConnector.set(token.connector_id, token);
-    }
+    const oauthByConnector = await loadOAuthTokens(
+        rows.map((row) => row.id),
+        db,
+    );
 
     return rows.map((row) =>
         toConnectorSummary(
@@ -373,7 +342,9 @@ export async function updateUserMcpConnector(
     if (typeof input.enabled === "boolean") {
         update.enabled = input.enabled;
     }
-    if (endpointChanged || "bearerToken" in input || "headers" in input) {
+    const credentialsChanged =
+        endpointChanged || "bearerToken" in input || "headers" in input;
+    if (credentialsChanged) {
         const nextConfig: McpConnectorAuthConfig = endpointChanged
             ? {}
             : decryptAuthConfig(current!);
@@ -391,13 +362,15 @@ export async function updateUserMcpConnector(
         if (nextConfig.bearerToken?.trim()) update.auth_type = "bearer";
         else if (endpointChanged || current!.auth_type !== "oauth")
             update.auth_type = "none";
-        if (endpointChanged) {
-            update.tool_policy = {
-                ...(current!.tool_policy ?? {}),
-                [ENDPOINT_REVISION_KEY]: randomUUID(),
-                [MCP_CREDENTIAL_EPOCH_KEY]: update.updated_at,
-            };
-        }
+        update.tool_policy = {
+            ...(current!.tool_policy ?? {}),
+            ...(endpointChanged
+                ? {
+                      [ENDPOINT_REVISION_KEY]: randomUUID(),
+                  }
+                : {}),
+            [MCP_CREDENTIAL_EPOCH_KEY]: update.updated_at,
+        };
     }
     if (endpointChanged) {
         const { error: toolsError } = await db
@@ -422,13 +395,8 @@ export async function updateUserMcpConnector(
     if (!data) {
         throw new Error("MCP connector changed. Reload it and try again.");
     }
-    if (endpointChanged) {
-        const { error: oauthError } = await db
-            .from("user_mcp_oauth_tokens")
-            .delete()
-            .eq("connector_id", connectorId)
-            .eq("resource", currentServerUrl!);
-        if (oauthError) throw oauthError;
+    if (credentialsChanged) {
+        await deleteOAuthToken(connectorId, currentServerUrl!, db);
     }
     const [summary] = await listUserMcpConnectors(userId, db).then((items) =>
         items.filter((item) => item.id === connectorId),

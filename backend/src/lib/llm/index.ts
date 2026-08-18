@@ -11,8 +11,8 @@ import type {
 export * from "./types";
 export * from "./models";
 
-const OPENROUTER_RESPONSES_URL = "https://openrouter.ai/api/v1/responses";
-const META_RESPONSES_URL = "https://api.meta.ai/v1/responses";
+const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+const META_BASE_URL = "https://api.meta.ai/v1";
 
 async function streamProvider(
   provider: Provider,
@@ -29,9 +29,7 @@ async function streamProvider(
     case "meta": {
       const isOpenRouter = provider === "openrouter";
       return (await import("./openai")).streamResponsesApi(params, {
-        endpoint: isOpenRouter
-          ? OPENROUTER_RESPONSES_URL
-          : META_RESPONSES_URL,
+        baseURL: isOpenRouter ? OPENROUTER_BASE_URL : META_BASE_URL,
         provider: isOpenRouter ? "OpenRouter" : "Meta",
         apiKey: requireApiKey(
           isOpenRouter ? params.apiKeys?.openrouter : params.apiKeys?.meta,

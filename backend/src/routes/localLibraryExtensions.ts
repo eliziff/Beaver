@@ -1,19 +1,13 @@
 import { Router } from "express";
+import type { DocumentStore } from "../lib/documentStore";
 import {
   getLocalVersionFile,
   getLocalDocumentResponse,
 } from "../lib/localDocumentStore";
 import {
-  parseLocalPdfOnDemand,
-  queueLocalPdfParse,
-  readLocalPdfParseState,
-} from "../lib/localPdfIngestion";
-import {
-  lookupLocalPdfStructure,
-  readLocalPdfEvidenceReceipt,
-  rehydrateLocalPdfEvidence,
+  documentProjectionService,
   type LocalPdfLocatorKind,
-} from "../lib/localPdfLookup";
+} from "../lib/documentProjectionService";
 import { linkLocalDocxCitations } from "../lib/docxCitationLinking";
 import {
   fixLocalDocxSupraCrossReferences,
@@ -28,9 +22,10 @@ import { isAnonymousLocalMode } from "../lib/localMode";
 import { getUserModelSettings } from "../lib/userSettings";
 import { createServerSupabase } from "../lib/supabase";
 
-export const localLibraryExtensionsRouter = Router();
+export function createLocalLibraryExtensionsRouter(documents: DocumentStore) {
+const router = Router();
 
-localLibraryExtensionsRouter.get(
+router.get(
   "/:kind/documents/:documentId/automation",
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
@@ -53,7 +48,7 @@ localLibraryExtensionsRouter.get(
     }
   }),
 );
-localLibraryExtensionsRouter.post(
+router.post(
   "/:kind/documents/:documentId/actions/fix-supras",
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
@@ -65,6 +60,7 @@ localLibraryExtensionsRouter.post(
     try {
       res.json(
         await fixLocalDocxSupraCrossReferences(
+          documents,
           res.locals.userId as string,
           req.params.documentId,
         ),
@@ -76,7 +72,7 @@ localLibraryExtensionsRouter.post(
     }
   }),
 );
-localLibraryExtensionsRouter.post(
+router.post(
   "/:kind/documents/:documentId/actions/link-citations",
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
@@ -88,6 +84,7 @@ localLibraryExtensionsRouter.post(
     try {
       res.json(
         await linkLocalDocxCitations(
+          documents,
           res.locals.userId as string,
           req.params.documentId,
         ),
@@ -100,7 +97,7 @@ localLibraryExtensionsRouter.post(
   }),
 );
 
-localLibraryExtensionsRouter.get(
+router.get(
   "/:kind/documents/:documentId/pdf-parse",
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
@@ -123,7 +120,7 @@ localLibraryExtensionsRouter.get(
     if (file.fileType !== "pdf") {
       return void res.status(409).json({ detail: "Version is not a PDF" });
     }
-    const state = await readLocalPdfParseState(file.path);
+    const state = await documentProjectionService.pdfState(file.path);
     if (!state) {
       return void res.status(404).json({
         detail: "No structural PDF parse state exists for this version",
@@ -133,7 +130,7 @@ localLibraryExtensionsRouter.get(
   }),
 );
 
-localLibraryExtensionsRouter.post(
+router.post(
   "/:kind/documents/:documentId/lookup",
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
@@ -156,13 +153,13 @@ localLibraryExtensionsRouter.post(
     if (file.fileType !== "pdf") {
       return void res.status(409).json({ detail: "Version is not a PDF" });
     }
-    await parseLocalPdfOnDemand({
+    await documentProjectionService.parsePdf({
       documentId: req.params.documentId,
       versionId: file.version.id,
       sourcePath: file.path,
       sourceSha256: file.version.source_sha256,
     });
-    const lookup = await lookupLocalPdfStructure(file.path, {
+    const lookup = await documentProjectionService.lookupPdf(file.path, {
       locatorKind: req.body?.locator_kind as LocalPdfLocatorKind,
       locator: typeof req.body?.locator === "string" ? req.body.locator : "",
       endLocator:
@@ -183,7 +180,7 @@ localLibraryExtensionsRouter.post(
   }),
 );
 
-localLibraryExtensionsRouter.post(
+router.post(
   "/:kind/evidence/rehydrate",
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
@@ -194,9 +191,11 @@ localLibraryExtensionsRouter.post(
     if (!handle) {
       return void res.status(400).json({ detail: "handle is required" });
     }
-    let receipt: Awaited<ReturnType<typeof readLocalPdfEvidenceReceipt>>;
+    let receipt: Awaited<
+      ReturnType<typeof documentProjectionService.readPdfEvidence>
+    >;
     try {
-      receipt = await readLocalPdfEvidenceReceipt(handle);
+      receipt = await documentProjectionService.readPdfEvidence(handle);
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code;
       return void res.status(code === "ENOENT" ? 404 : 409).json({
@@ -221,7 +220,9 @@ localLibraryExtensionsRouter.post(
         .json({ detail: "PDF evidence source or artifact is unavailable" });
     }
     try {
-      res.json(await rehydrateLocalPdfEvidence(file.path, handle));
+      res.json(
+        await documentProjectionService.rehydratePdfEvidence(file.path, handle),
+      );
     } catch {
       res
         .status(409)
@@ -230,7 +231,7 @@ localLibraryExtensionsRouter.post(
   }),
 );
 
-localLibraryExtensionsRouter.post(
+router.post(
   "/:kind/documents/:documentId/actions/retry-pdf-parse",
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
@@ -347,7 +348,7 @@ localLibraryExtensionsRouter.post(
     }
     const current =
       requestedOcr || requestedRepair || requestedLayout
-        ? await readLocalPdfParseState(file.path)
+        ? await documentProjectionService.pdfState(file.path)
         : null;
     if (requestedOcr) {
       if (
@@ -369,7 +370,7 @@ localLibraryExtensionsRouter.post(
         layout?.provider === "mllm" && !isAnonymousLocalMode()
           ? (await getUserModelSettings(userId, createServerSupabase())).api_keys
           : undefined;
-      const state = await queueLocalPdfParse({
+      const state = await documentProjectionService.queuePdf({
         documentId: req.params.documentId,
         versionId: file.version.id,
         sourcePath: file.path,
@@ -413,3 +414,5 @@ localLibraryExtensionsRouter.post(
     }
   }),
 );
+return router;
+}

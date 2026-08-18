@@ -29,6 +29,7 @@ export type OpinionBodyMarker = {
 export type OpinionStructure = {
   status: "usable" | "unresolved" | "unavailable";
   panel: string[];
+  nonparticipants: string[];
   bindings: OpinionAuthorBinding[];
   bodyMarkers: OpinionBodyMarker[];
   refusals: string[];
@@ -44,7 +45,62 @@ export type OpinionPartition = {
   note?: string;
 };
 
+export type OpinionAlignment =
+  | "lead"
+  | "same_result_separate_reasons"
+  | "different_result"
+  | "mixed"
+  | "unknown";
+
+export type JudgeResultSide = "majority" | "minority" | "mixed" | "unknown";
+
+export type JudgeOpinionRelationship =
+  | "authors"
+  | "joins_reasons"
+  | "concurs_in_result_only"
+  | "mixed"
+  | "unknown";
+
+export type TextOpinion = {
+  id: string;
+  authors: string[];
+  alignment: OpinionAlignment;
+  start: number;
+  end: number;
+  startQuote: string;
+  endQuote: string;
+  substantiveWords: number;
+  evidence: string[];
+};
+
+export type JudgeVote = {
+  name: string;
+  resultSide: JudgeResultSide;
+  relationship: JudgeOpinionRelationship;
+  opinionIds: string[];
+  evidence: string[];
+};
+
+export type TextOpinionStructure = {
+  status: "ready" | "unresolved" | "unavailable";
+  panel: string[];
+  nonparticipants: string[];
+  opinions: TextOpinion[];
+  judges: JudgeVote[];
+  refusals: string[];
+};
+
+type OffsetBlock = { label: string; start: number; end: number };
+
 const SUFFIX_TOKENS = [
+  "C.J.P.E.I",
+  "C.J.N.S",
+  "C.J.B.C",
+  "C.J.N.B",
+  "C.J.N.L",
+  "A.C.J.O",
+  "C.J.O",
+  "C.J.A",
   "C.J.C",
   "J.C.Q",
   "J.C.S",
@@ -159,13 +215,19 @@ const MAX_CONTINUATION = 8;
 const MAX_MARKERS = 80;
 const MARKER_SCAN_WINDOW = 120_000;
 
+const NONPARTICIPATION_RE =
+  /^\s*(?:\[\s*\*\s*\]\s*)?(.{2,180}?)\s+(?:took\s+no\s+part|did\s+not\s+(?:take\s+part|participate)|n['’]\s+a\s+pas\s+participé)\b/iu;
+
+const TRAILING_CASE_METADATA_RE =
+  /^(?:(?:appearances?|counsel|solicitors?)\b[^:\n]{0,160}|place\s+of\s+hearing|date\s+of\s+hearing|reasons?\s+for\s+judg(?:e)?ment\s+by|dated|docket|style\s+of\s+cause)\s*[:：]/iu;
+
 function compact(value: string) {
   return value.replace(/\s+/gu, " ").trim();
 }
 
 function suffixWord(token: string) {
   const plain = token.toLocaleLowerCase().replaceAll(".", "");
-  return /^(?:cjc?|jcq?|jcs?|jtcj?|jsc?|jfc?|jja?|jca?|ja|jca|cj|jj|j)$/u.test(
+  return /^(?:cjpei|cjns|cjbc|cjnb|cjnl|acjo|cjo|cja|cjc?|jcq?|jcs?|jtcj?|jsc?|jfc?|jja?|jca?|ja|jca|cj|jj|j)$/u.test(
     plain,
   );
 }
@@ -179,6 +241,14 @@ function nameKey(name: string) {
 }
 
 function pushUnique(list: string[], name: string) {
+  if (/^(?:Q\.?C\.?|K\.?C\.?|Board\s+Member|(?:Vice[-\s]?)?Chair(?:person)?)$/iu.test(name.trim())) return;
+  if (
+    !SUFFIX_RE.test(name) &&
+    !/^the\s+honourable\b|\bchief\s+justice\b/iu.test(name) &&
+    /\b(?:board|court|commission|tribunal|agency|department|ministry|council|authority|service|office|(?:vice[-\s]?)?chair(?:person)?)\s*$/iu.test(name)
+  ) {
+    return;
+  }
   const key = nameKey(name);
   if (!key || key.length < 2) return;
   const index = list.findIndex((item) => nameKey(item) === key);
@@ -189,8 +259,8 @@ function pushUnique(list: string[], name: string) {
   if (list[index].length < name.length) list[index] = name;
 }
 
-const WORD_RE = new RegExp(
-  String.raw`^[\p{Lu}][${NAME_CHARS}]+(?:\s+[\p{Lu}][${NAME_CHARS}]+){0,2}$`,
+const LOOSE_NAME_RE = new RegExp(
+  `^${NAME_TOKEN}(?:\\s+${NAME_TOKEN}){0,3}$`,
   "u",
 );
 
@@ -223,7 +293,7 @@ function parseNames(text: string, loose = false): string[] {
       const word = token.replace(suffixEnd, "").trim();
       if (
         word.length >= 2 &&
-        WORD_RE.test(word) &&
+        LOOSE_NAME_RE.test(word) &&
         !CJ_TITLE_RE.test(word)
       ) {
         pushUnique(names, word);
@@ -247,6 +317,16 @@ function parseCompletedList(text: string) {
       ? parseNames(token)
       : parseNames(`${token} J.`);
     for (const name of parsed) pushUnique(names, name);
+  }
+  return names;
+}
+
+function nonparticipantNames(lines: readonly TextLine[]) {
+  const names: string[] = [];
+  for (const line of lines) {
+    const match = NONPARTICIPATION_RE.exec(line.trimmed);
+    if (!match) continue;
+    for (const name of parseCompletedList(match[1])) pushUnique(names, name);
   }
   return names;
 }
@@ -346,11 +426,12 @@ function isContinuationNameLine(line: string) {
   return shaped / tokens.length >= 0.6;
 }
 
-function scanBodyMarkers(text: string, firstParagraphStart: number): OpinionBodyMarker[] {
+function scanBodyMarkers(lines: readonly TextLine[], firstParagraphStart: number): OpinionBodyMarker[] {
   const markers: OpinionBodyMarker[] = [];
-  const window = text.slice(0, firstParagraphStart + MARKER_SCAN_WINDOW);
-  for (const line of window.split(/\r?\n/u)) {
-    const match = PAR_START_RE.exec(line);
+  const end = firstParagraphStart + MARKER_SCAN_WINDOW;
+  for (const line of lines) {
+    if (line.start >= end) break;
+    const match = PAR_START_RE.exec(line.text);
     if (!match) continue;
     const paragraph = Number(match[1]);
     if (!Number.isInteger(paragraph) || paragraph < 1 || paragraph > 999_999) {
@@ -399,11 +480,22 @@ export function analyzeOpinionStructure(args: {
   text: string;
   firstParagraphStart?: number;
 }): OpinionStructure {
+  return analyzeOpinionStructureFromLines(args, offsetLines(args.text));
+}
+
+function analyzeOpinionStructureFromLines(
+  args: { text: string; firstParagraphStart?: number },
+  textLines: readonly TextLine[],
+): OpinionStructure {
   const firstParagraphStart = Math.max(0, args.firstParagraphStart ?? 0);
   const headerBound =
     firstParagraphStart > 0 ? Math.min(firstParagraphStart, MAX_HEADER) : MAX_HEADER;
   const header = args.text.slice(0, headerBound);
-  const lines = header.split(/\r?\n/u);
+  const lines: string[] = [];
+  for (const line of textLines) {
+    if (line.start >= headerBound) break;
+    lines.push(line.end <= headerBound ? line.text : line.text.slice(0, headerBound - line.start));
+  }
   const panel: string[] = [];
   const bindings: OpinionAuthorBinding[] = [];
   const refusals: string[] = [];
@@ -645,6 +737,12 @@ export function analyzeOpinionStructure(args: {
       );
     }
   }
+  const nonparticipants = nonparticipantNames(textLines);
+  for (let index = panel.length - 1; index >= 0; index -= 1) {
+    if (!nonparticipants.some((name) => nameKey(name) === nameKey(panel[index]))) continue;
+    refusals.push(`nonparticipating judge excluded from deciding panel: ${panel[index]}`);
+    panel.splice(index, 1);
+  }
   const status: OpinionStructure["status"] =
     bindings.length || panel.length
       ? hasExplicitRange
@@ -659,9 +757,10 @@ export function analyzeOpinionStructure(args: {
   return {
     status,
     panel,
+    nonparticipants,
     bindings,
     bodyMarkers: scanBodyMarkers(
-      args.text,
+      textLines,
       firstParagraphStart > 0 ? firstParagraphStart : MAX_HEADER,
     ),
     refusals,
@@ -681,6 +780,7 @@ export function partitionOpinionStructure(
     unknown: [],
   };
   const available = [...new Set(paragraphNumbers)].sort((a, b) => a - b);
+  const availableSet = new Set(available);
   if (available.length === 0) {
     return {
       status: "unresolved",
@@ -696,7 +796,7 @@ export function partitionOpinionStructure(
   const assigned = new Map<number, OpinionRole>();
   for (const binding of explicit) {
     for (let number = binding.from!; number <= binding.to!; number += 1) {
-      if (!available.includes(number)) continue;
+      if (!availableSet.has(number)) continue;
       if (assigned.has(number)) {
         return {
           status: "unresolved",
@@ -724,12 +824,514 @@ export function partitionOpinionStructure(
   }
   for (const [role, list] of byRole) spans[role] = compress(list);
   const judges: Array<{ name: string; role: OpinionRole }> = [];
+  const judgeKeys = new Set<string>();
   for (const binding of structure.bindings) {
     for (const name of [...binding.names, ...binding.concurred]) {
       const key = nameKey(name);
-      if (!key || judges.some((judge) => nameKey(judge.name) === key)) continue;
+      if (!key || judgeKeys.has(key)) continue;
+      judgeKeys.add(key);
       judges.push({ name, role: binding.role });
     }
   }
   return { status: "ready", judges, spans };
+}
+
+type TextLine = { start: number; end: number; text: string; trimmed: string };
+type OpinionStart = {
+  start: number;
+  kind: "heading" | "paragraph_author" | "paragraph_fallback";
+  authors: string[];
+  alignment: OpinionAlignment | null;
+  evidence: string;
+};
+
+export const MIN_OPINION_WORDS = 40;
+const MIN_FALLBACK_OPINION_WORDS = 80;
+const ANCHOR_WORDS = 12;
+
+function offsetLines(text: string): TextLine[] {
+  const lines: TextLine[] = [];
+  let start = 0;
+  while (start < text.length) {
+    const newline = text.indexOf("\n", start);
+    const end = newline < 0 ? text.length : newline + 1;
+    const value = text.slice(start, end).replace(/\r?\n$/u, "");
+    lines.push({ start, end, text: value, trimmed: value.trim() });
+    start = end;
+  }
+  return lines;
+}
+
+function addNames(target: string[], names: string[]) {
+  for (const name of names) pushUnique(target, name);
+}
+
+function headingRole(line: string): OpinionAlignment | null {
+  if (/\b(?:dissenting|dissent)\b/iu.test(line)) return "different_result";
+  if (/\b(?:concurring|concurrence)\b/iu.test(line)) {
+    return "same_result_separate_reasons";
+  }
+  if (/\b(?:separate|additional)\s+reasons?\b/iu.test(line)) return "unknown";
+  return null;
+}
+
+function headingAuthors(line: string) {
+  const cleaned = line
+    .replace(
+      /^.*?\b(?:reasons?\s+(?:for\s+judg(?:e)?ment|for\s+decision|of\s+the\s+court)|judg(?:e)?ment|decision)\s+(?:of|by)\s*/iu,
+      "",
+    )
+    .replace(/[:：]\s*$/u, "")
+    .trim();
+  return parseNames(cleaned);
+}
+
+function isOpinionHeading(line: string) {
+  return /^(?:(?:written|oral|reserved)\s+)?(?:(?:joint|dissenting|concurring|separate|additional)\s+)?reasons?\s+(?:for\s+judg(?:e)?ment|for\s+decision|of\s+the\s+court|(?:of|by)\b)/iu.test(
+    line,
+  ) || /^(?:the\s+)?(?:judg(?:e)?ment|decision)\s+.*\bdelivered\s+(?:orally\s+)?by\b/iu.test(
+    line,
+  );
+}
+
+function paragraphAuthor(line: string) {
+  const match = /^\s*\[\s*\d+\s*\]\s+(.{1,100}?)(?:\s*[:：]\s*|\s+[—–-]\s+)(.*)$/u.exec(
+    line,
+  );
+  if (!match) return null;
+  const head = match[1].trim();
+  const authors = /^(?:the\s+court|by\s+the\s+court)$/iu.test(head)
+    ? []
+    : parseNames(head);
+  if (!authors.length && !/^(?:the\s+court|by\s+the\s+court)$/iu.test(head)) {
+    return null;
+  }
+  return { authors, head, body: match[2].trim() };
+}
+
+function agreementOnly(text: string) {
+  return /^(?:I|we)\s+(?:agree|concur)(?:\s+(?:in|with)\s+(?:the\s+)?(?:result|reasons?(?:\s+of\s+.+)?))?[.!]?$/iu.test(
+    text.trim(),
+  );
+}
+
+function signatureNames(line: string) {
+  const cleaned = line.replace(/^["'“”]+|["'“”]+$/gu, "").trim();
+  if (!/^the\s+honourable\b/iu.test(cleaned)) return [];
+  return parseNames(cleaned);
+}
+
+type SourceWordOffset = { start: number; end: number };
+
+function sourceWordOffsets(text: string): SourceWordOffset[] {
+  const offsets: SourceWordOffset[] = [];
+  const pattern = /[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(text)) !== null) {
+    offsets.push({ start: match.index, end: match.index + match[0].length });
+  }
+  return offsets;
+}
+
+function firstWordAtOrAfter(words: SourceWordOffset[], offset: number) {
+  let low = 0;
+  let high = words.length;
+  while (low < high) {
+    const middle = (low + high) >>> 1;
+    if (words[middle].start < offset) low = middle + 1;
+    else high = middle;
+  }
+  return low;
+}
+
+function sourceWordCount(words: SourceWordOffset[], start: number, end: number) {
+  if (end <= start) return 0;
+  return firstWordAtOrAfter(words, end) - firstWordAtOrAfter(words, start);
+}
+
+function quoteEdges(text: string, words: SourceWordOffset[], start: number, end: number) {
+  const firstIndex = firstWordAtOrAfter(words, start);
+  const endIndex = firstWordAtOrAfter(words, end);
+  if (endIndex <= firstIndex) return { startQuote: "", endQuote: "" };
+  const firstLast = words[Math.min(endIndex, firstIndex + ANCHOR_WORDS) - 1];
+  const lastFirst = words[Math.max(firstIndex, endIndex - ANCHOR_WORDS)];
+  return {
+    startQuote: text.slice(start, firstLast.end).trimEnd(),
+    endQuote: text.slice(lastFirst.start, end).trimStart(),
+  };
+}
+
+function trimOpinionEnd(
+  text: string,
+  lines: TextLine[],
+  words: SourceWordOffset[],
+  start: number,
+  provisionalEnd: number,
+  minimumWords: number,
+) {
+  let end = provisionalEnd;
+  const firstWord = firstWordAtOrAfter(words, start);
+  const minimumWord = words[firstWord + minimumWords - 1];
+  const minimumEnd = minimumWord?.end ?? provisionalEnd;
+  for (const line of lines) {
+    if (line.start <= start || line.start >= provisionalEnd) continue;
+    if (line.start < minimumEnd) continue;
+    const mayBeAgreement = /\b(?:agree|concur)/iu.test(line.trimmed);
+    const paragraph = mayBeAgreement ? paragraphAuthor(line.text) : null;
+    if (
+      signatureNames(line.trimmed).length ||
+      agreementOnly(line.trimmed) ||
+      NONPARTICIPATION_RE.test(line.trimmed) ||
+      TRAILING_CASE_METADATA_RE.test(line.trimmed) ||
+      (paragraph && agreementOnly(paragraph.body))
+    ) {
+      end = line.start;
+      break;
+    }
+  }
+  while (end > start && /\s/u.test(text[end - 1])) end -= 1;
+  return end;
+}
+
+function inferredAlignment(
+  requested: OpinionAlignment | null,
+  ordinal: number,
+  body: string,
+): OpinionAlignment {
+  if (requested) return requested;
+  if (ordinal === 0) return "lead";
+  const prefix = body.slice(0, 2_000);
+  if (/\b(?:unable\s+to\s+agree|respectfully\s+disagree|I\s+dissent|dissenting)\b/iu.test(prefix)) {
+    return "different_result";
+  }
+  if (/\b(?:agree\s+in\s+the\s+result|agree.*\b(?:except|but)\b|concurring)\b/iu.test(prefix)) {
+    return "same_result_separate_reasons";
+  }
+  return "unknown";
+}
+
+function resultForAlignment(alignment: OpinionAlignment): JudgeResultSide {
+  if (alignment === "lead" || alignment === "same_result_separate_reasons") return "majority";
+  if (alignment === "different_result") return "minority";
+  return alignment === "mixed" ? "mixed" : "unknown";
+}
+
+function mergeResult(left: JudgeResultSide, right: JudgeResultSide): JudgeResultSide {
+  if (left === "unknown") return right;
+  if (right === "unknown" || left === right) return left;
+  return "mixed";
+}
+
+function deriveVotes(
+  text: string,
+  lines: TextLine[],
+  structure: OpinionStructure,
+  opinions: TextOpinion[],
+) {
+  const votes = new Map<string, JudgeVote>();
+  const add = (
+    name: string,
+    opinion: TextOpinion | undefined,
+    relationship: JudgeOpinionRelationship,
+    evidence: string,
+  ) => {
+    const key = nameKey(name);
+    if (!key) return;
+    const resultSide = opinion ? resultForAlignment(opinion.alignment) : "unknown";
+    const existing = votes.get(key);
+    if (!existing) {
+      votes.set(key, {
+        name,
+        resultSide,
+        relationship,
+        opinionIds: opinion ? [opinion.id] : [],
+        evidence: [evidence],
+      });
+      return;
+    }
+    existing.resultSide = mergeResult(existing.resultSide, resultSide);
+    if (relationship === "authors") existing.relationship = "authors";
+    else if (existing.relationship !== relationship && existing.relationship !== "authors") {
+      existing.relationship = "mixed";
+    }
+    if (opinion && !existing.opinionIds.includes(opinion.id)) existing.opinionIds.push(opinion.id);
+    if (!existing.evidence.includes(evidence)) existing.evidence.push(evidence);
+  };
+
+  for (const opinion of opinions) {
+    for (const author of opinion.authors) add(author, opinion, "authors", opinion.evidence[0] ?? "opinion author");
+  }
+
+  let current: TextOpinion | undefined;
+  let awaiting: { opinion: TextOpinion; relationship: JudgeOpinionRelationship; evidence: string } | null = null;
+  const orderedOpinions = [...opinions].sort((left, right) => left.start - right.start);
+  let nextOpinion = 0;
+  for (const line of lines) {
+    while (orderedOpinions[nextOpinion]?.start <= line.start) {
+      current = orderedOpinions[nextOpinion];
+      nextOpinion += 1;
+    }
+    const mayBeAgreement = /\b(?:agree|concur)/iu.test(line.trimmed);
+    const paragraph = mayBeAgreement ? paragraphAuthor(line.text) : null;
+    if (paragraph && agreementOnly(paragraph.body) && current) {
+      const relationship = /\bin\s+the\s+result\b/iu.test(paragraph.body)
+        ? "concurs_in_result_only"
+        : "joins_reasons";
+      for (const name of paragraph.authors) add(name, current, relationship, compact(line.trimmed));
+      continue;
+    }
+    const bare = /^(?:I|we)\s+(agree|concur)(?:\s+in\s+the\s+result)?\s*[:.]?\s*(.*)$/iu.exec(line.trimmed);
+    if (bare && agreementOnly(line.trimmed.replace(/:\s*.*$/u, "")) && current) {
+      const relationship = /\bin\s+the\s+result\b/iu.test(line.trimmed)
+        ? "concurs_in_result_only"
+        : "joins_reasons";
+      const inline = signatureNames(bare[2]);
+      if (inline.length) {
+        for (const name of inline) add(name, current, relationship, compact(line.trimmed));
+      } else {
+        awaiting = { opinion: current, relationship, evidence: compact(line.trimmed) };
+      }
+      continue;
+    }
+    const signatures = signatureNames(line.trimmed);
+    if (awaiting && signatures.length) {
+      for (const name of signatures) add(name, awaiting.opinion, awaiting.relationship, awaiting.evidence);
+      awaiting = null;
+    }
+  }
+
+  const lead = opinions.find((opinion) => opinion.alignment === "lead") ?? opinions[0];
+  for (const binding of structure.bindings) {
+    if (!/^concurred\s+in\s+by\b/iu.test(binding.line)) continue;
+    for (const name of binding.names) add(name, lead, "joins_reasons", binding.line);
+  }
+  for (const binding of structure.bindings) {
+    const opinion = opinions.find((candidate) =>
+      candidate.authors.some((author) => binding.names.some((name) => nameKey(name) === nameKey(author))),
+    );
+    for (const name of binding.concurred) add(name, opinion ?? lead, "joins_reasons", binding.line);
+  }
+
+  if (opinions.length === 1 && lead && lead.alignment === "lead") {
+    for (const name of structure.panel) {
+      if (!votes.has(nameKey(name))) add(name, lead, "joins_reasons", "sole unopposed opinion");
+    }
+  } else {
+    for (const name of structure.panel) {
+      if (!votes.has(nameKey(name))) add(name, undefined, "unknown", "panel member; vote not resolved");
+    }
+  }
+  return [...votes.values()];
+}
+
+/**
+ * High-precision text-boundary and voting extraction. Paragraph blocks are an
+ * optional oracle/input aid; the returned contract is always source offsets.
+ */
+type DeriveTextOpinionArgs = {
+  text: string;
+  paragraphs?: OffsetBlock[];
+  firstParagraphStart?: number;
+  minimumSubstantiveWords?: number;
+  structure?: OpinionStructure;
+};
+
+export function analyzeTextOpinionStructure(
+  args: Omit<DeriveTextOpinionArgs, "structure">,
+): { structure: OpinionStructure; deterministic: TextOpinionStructure } {
+  const paragraphs = args.paragraphs ?? [];
+  const firstParagraphStart = args.firstParagraphStart ?? paragraphs[0]?.start ?? 0;
+  const lines = offsetLines(args.text);
+  const structure = analyzeOpinionStructureFromLines(
+    { text: args.text, firstParagraphStart },
+    lines,
+  );
+  return {
+    structure,
+    deterministic: deriveTextOpinionStructureFromLines(args, lines, structure),
+  };
+}
+
+export function deriveTextOpinionStructure(args: DeriveTextOpinionArgs): TextOpinionStructure {
+  const paragraphs = args.paragraphs ?? [];
+  const firstParagraphStart = args.firstParagraphStart ?? paragraphs[0]?.start ?? 0;
+  const lines = offsetLines(args.text);
+  const structure = args.structure ?? analyzeOpinionStructureFromLines(
+    { text: args.text, firstParagraphStart },
+    lines,
+  );
+  return deriveTextOpinionStructureFromLines(args, lines, structure);
+}
+
+function deriveTextOpinionStructureFromLines(
+  args: DeriveTextOpinionArgs,
+  lines: TextLine[],
+  structure: OpinionStructure,
+): TextOpinionStructure {
+  const minimumWords = Math.max(1, args.minimumSubstantiveWords ?? MIN_OPINION_WORDS);
+  const paragraphs = args.paragraphs ?? [];
+  let wordOffsets: SourceWordOffset[] | null = null;
+  const words = () => wordOffsets ??= sourceWordOffsets(args.text);
+  const refusals = [...structure.refusals];
+  const starts: OpinionStart[] = [];
+
+  const ranged = structure.bindings.filter(
+    (binding) => binding.from !== null && binding.to !== null && binding.role !== "unknown",
+  );
+  const rangedKeys = new Set<string>();
+  const rangedOpinions: TextOpinion[] = [];
+  for (const binding of ranged) {
+    const key = `${binding.role}|${binding.from}|${binding.to}`;
+    if (rangedKeys.has(key)) continue;
+    rangedKeys.add(key);
+    const first = paragraphs.find((block) => block.label.toLowerCase() === `par${binding.from}`);
+    const last = paragraphs.find((block) => block.label.toLowerCase() === `par${binding.to}`);
+    if (!first || !last || last.end <= first.start) continue;
+    const wordIndex = words();
+    const end = trimOpinionEnd(args.text, lines, wordIndex, first.start, last.end, Math.min(12, minimumWords));
+    const substantiveWords = sourceWordCount(wordIndex, first.start, end);
+    if (substantiveWords < Math.min(12, minimumWords)) {
+      refusals.push(`explicit range ${binding.from}-${binding.to} has only ${substantiveWords} substantive words`);
+      continue;
+    }
+    const alignment: OpinionAlignment = binding.role === "majority"
+      ? "lead"
+      : binding.role === "minority"
+        ? "different_result"
+        : binding.role === "concurring"
+          ? "same_result_separate_reasons"
+          : "unknown";
+    rangedOpinions.push({
+      id: `o${rangedOpinions.length + 1}`,
+      authors: [...binding.names],
+      alignment,
+      start: first.start,
+      end,
+      ...quoteEdges(args.text, wordIndex, first.start, end),
+      substantiveWords,
+      evidence: [binding.line],
+    });
+  }
+
+  let opinions = rangedOpinions;
+  if (!opinions.length) {
+    const agreementAuthors = new Set<string>();
+    for (const line of lines) {
+      if (isOpinionHeading(line.trimmed)) {
+        const authors = headingAuthors(line.trimmed);
+        // BCCA front matter commonly contains bare labels such as "Written
+        // Reasons by:" or "Oral Reasons for Judgment" before the real,
+        // author-bearing body heading.  They are metadata, not opinions.
+        if (!authors.length && !/\breasons?\s+of\s+the\s+court\b|\bby\s+the\s+court\b/iu.test(line.trimmed)) {
+          continue;
+        }
+        starts.push({
+          start: line.start,
+          kind: "heading",
+          authors,
+          alignment: headingRole(line.trimmed),
+          evidence: compact(line.trimmed),
+        });
+        continue;
+      }
+      const paragraph = paragraphAuthor(line.text);
+      if (!paragraph) continue;
+      if (agreementOnly(paragraph.body)) {
+        for (const author of paragraph.authors) agreementAuthors.add(nameKey(author));
+        continue;
+      }
+      const remainingWords = sourceWordCount(words(), line.start, args.text.length);
+      if (
+        paragraph.authors.some((author) => agreementAuthors.has(nameKey(author))) &&
+        remainingWords < 120
+      ) {
+        refusals.push(`terminal disposition by a judge who already joined the reasons: ${compact(paragraph.head)}`);
+        continue;
+      }
+      starts.push({
+        start: line.start,
+        kind: "paragraph_author",
+        authors: paragraph.authors.length ? paragraph.authors : [...structure.panel],
+        alignment: headingRole(paragraph.head),
+        evidence: compact(paragraph.head),
+      });
+    }
+
+    starts.sort((left, right) => left.start - right.start);
+    const merged: OpinionStart[] = [];
+    for (const candidate of starts) {
+      const previous = merged.at(-1);
+      if (previous) {
+        const betweenWords = sourceWordCount(words(), previous.start, candidate.start);
+        const sameAuthors = !previous.authors.length || !candidate.authors.length || previous.authors.some(
+          (left) => candidate.authors.some((right) => nameKey(left) === nameKey(right)),
+        );
+        if (candidate.start - previous.start < 2_000 && betweenWords < 24 && sameAuthors) {
+          addNames(previous.authors, candidate.authors);
+          previous.alignment = candidate.alignment ?? previous.alignment;
+          previous.evidence = `${previous.evidence} | ${candidate.evidence}`;
+          if (previous.kind === "heading" && candidate.kind === "heading") previous.start = candidate.start;
+          continue;
+        }
+      }
+      merged.push({ ...candidate, authors: [...candidate.authors] });
+    }
+
+    if (!merged.length && paragraphs.length) {
+      const authors = structure.bindings.find((binding) => binding.names.length)?.names
+        ?? (structure.panel.length === 1 ? structure.panel : []);
+      if (authors.length) {
+        merged.push({
+          start: paragraphs[0].start,
+          kind: "paragraph_fallback",
+          authors: [...authors],
+          alignment: "lead",
+          evidence: "first source paragraph after sole author attribution",
+        });
+      }
+    }
+
+    opinions = merged.flatMap((candidate, ordinal) => {
+      const provisionalEnd = merged[ordinal + 1]?.start ?? args.text.length;
+      const candidateMinimum = candidate.kind === "paragraph_fallback"
+        ? Math.max(minimumWords, MIN_FALLBACK_OPINION_WORDS)
+        : minimumWords;
+      const wordIndex = words();
+      const end = trimOpinionEnd(args.text, lines, wordIndex, candidate.start, provisionalEnd, minimumWords);
+      const substantiveWords = sourceWordCount(wordIndex, candidate.start, end);
+      if (substantiveWords < candidateMinimum) {
+        refusals.push(`candidate at offset ${candidate.start} has only ${substantiveWords} substantive words`);
+        return [];
+      }
+      const alignment = inferredAlignment(candidate.alignment, ordinal, args.text.slice(candidate.start, end));
+      return [{
+        id: `o${ordinal + 1}`,
+        authors: candidate.authors,
+        alignment,
+        start: candidate.start,
+        end,
+        ...quoteEdges(args.text, wordIndex, candidate.start, end),
+        substantiveWords,
+        evidence: [candidate.evidence],
+      } satisfies TextOpinion];
+    });
+    opinions.forEach((opinion, index) => { opinion.id = `o${index + 1}`; });
+  }
+
+  const judges = deriveVotes(args.text, lines, structure, opinions);
+  const status: TextOpinionStructure["status"] = !opinions.length
+    ? "unavailable"
+    : opinions.some((opinion) => !opinion.authors.length || opinion.alignment === "unknown") ||
+        judges.some((judge) => judge.resultSide === "unknown")
+      ? "unresolved"
+      : "ready";
+  if (!opinions.length) refusals.push("no substantive opinion block found");
+  return {
+    status,
+    panel: structure.panel,
+    nonparticipants: structure.nonparticipants,
+    opinions,
+    judges,
+    refusals,
+  };
 }

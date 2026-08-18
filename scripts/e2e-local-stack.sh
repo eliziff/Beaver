@@ -56,7 +56,7 @@ psql "$DB_URL" -v ON_ERROR_STOP=1 -q -f schema.sql
 psql "$DB_URL" -v ON_ERROR_STOP=1 -q -c "NOTIFY pgrst, 'reload schema';"
 
 # Rewrite only the Supabase lines of the env files, preserving everything else
-# (API keys, R2 storage, …). Keep a one-time backup of the pre-local versions.
+# (API keys, S3 storage, …). Keep a one-time backup of the pre-local versions.
 set_kv() {
     local file=$1 key=$2 value=$3
     if grep -q "^${key}=" "$file" 2>/dev/null; then

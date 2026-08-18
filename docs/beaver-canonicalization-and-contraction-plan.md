@@ -823,6 +823,23 @@ read/search service, one grid projection, and one evidence resolver. Convert
 HTTP, assistant, tabular, citation, and viewer callers; delete repeated text
 extraction, tokenization, locator, quote, and cache code.
 
+The legal skeleton is a fidelity kernel, not an ordinary representation seam.
+Do not rewrite, subdivide, or replace its structural algorithms in tranches.
+A representation-only change is admissible only when it is incapable by
+construction of changing the emitted structure or when a single end-to-end
+differential proves byte-identical output over the entire available corpus.
+Any proposed output difference is a product change: inspect the affected
+documents directly and accept only strict improvements; proxy scores and
+representative samples are not evidence of equivalence.
+
+Converge legal citation, reference, pinpoint, and footnote grammars onto one
+complete authored grammar corpus. Every shipping runtime must load that corpus
+or a mechanically verified packaged copy; handwritten runtime shadows and
+warning-only drift checks are forbidden. The gate inventories every shipping
+grammar consumer, runs every table vector in each runtime, fails on missing or
+extra entries and byte drift, and differentially compares match spans against
+the displaced implementations before those implementations are deleted.
+
 Cumulative production target: **93,500 or fewer**.
 
 ### Phase 5 — DOCX package/session

@@ -4,6 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import express from "express";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ChatStore } from "../lib/chatStore";
 
 const mocks = vi.hoisted(() => ({
   activeHandles: [] as string[],
@@ -99,28 +100,13 @@ vi.mock("../lib/chat/localPdfEvidenceState", () => ({
     handle: string,
   ) => mocks.providerReferences.get(handle) ?? [],
 }));
-vi.mock("../lib/localPdfLookup", () => ({
-  readLocalPdfEvidenceReceipt: mocks.readLocalPdfEvidenceReceipt,
+vi.mock("../lib/documentProjectionService", () => ({
+  documentProjectionService: {
+    readPdfEvidence: mocks.readLocalPdfEvidenceReceipt,
+    peekPdfState: vi.fn(async () => null),
+    removePdf: vi.fn(async () => undefined),
+  },
 }));
-vi.mock("../lib/localDocumentStore", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("../lib/localDocumentStore")>();
-  return {
-    ...actual,
-    getLocalVersionFile: (...args: Parameters<
-      typeof actual.getLocalVersionFile
-    >) =>
-      mocks.preflightFailure
-        ? Promise.reject(new Error("Injected local store failure"))
-        : actual.getLocalVersionFile(...args),
-    listLocalDocumentsById: (...args: Parameters<
-      typeof actual.listLocalDocumentsById
-    >) =>
-      mocks.preflightFailure
-        ? Promise.reject(new Error("Injected local store failure"))
-        : actual.listLocalDocumentsById(...args),
-  };
-});
 vi.mock("../lib/legalKnowledgeGraphStore", () => ({
   legalKnowledgeGraphStore: () => ({
     getMatter: () => ({ id: "20000000-0000-4000-8000-000000000001" }),
@@ -151,27 +137,28 @@ async function loadApp() {
   vi.resetModules();
   const [
     { createChatRouter },
-    store,
     { localTabularData },
     { createLocalChatStore },
     { createChatApplication },
     { localChatApplicationFeatures },
-    { localDocuments, localLibraryStore },
-    { localProjects },
+    { localDocuments, localLibraryStore, localProjects },
   ] = await Promise.all([
     import("./chat"),
-    import("../lib/anonymousChatStore"),
     import("../lib/localTabularStore"),
     import("../lib/localChatStore"),
     import("../lib/chat/chatApplication"),
     import("../lib/chat/localChatApplicationFeatures"),
-    import("../lib/localLibraryStore"),
-    import("../lib/localProjectStore"),
+    import("../lib/__tests__/support/localDocumentFixtures"),
   ]);
   const chats = createLocalChatStore(localTabularData);
+  const documents = mocks.preflightFailure
+    ? { ...localDocuments, versions: async () => {
+        throw new Error("Injected document preflight failure");
+      } }
+    : localDocuments;
   const application = createChatApplication({
     chats,
-    documents: localDocuments,
+    documents,
     library: localLibraryStore,
     projects: localProjects,
     tabular: localTabularData,
@@ -180,11 +167,18 @@ async function loadApp() {
   const app = express();
   app.use(express.json());
   app.use("/chat", createChatRouter(
-    localTabularData,
     chats,
     application,
   ));
-  return { app, store };
+  return { app, store: chats, projects: localProjects };
+}
+
+async function storedChat(store: ChatStore, chatId: string) {
+  const [chat, messages] = await Promise.all([
+    store.get({ userId: USER_ID }, chatId),
+    store.transcript({ userId: USER_ID }, chatId),
+  ]);
+  return chat && messages ? { ...chat, messages } : null;
 }
 
 function registryEvent(chat: {
@@ -283,7 +277,7 @@ afterEach(async () => {
   });
 });
 
-describe("anonymous chat PDF evidence durability", () => {
+describe("local chat PDF evidence durability", () => {
 
   it("omits empty chats from history without invalidating their direct route", async () => {
     const loaded = await loadApp();
@@ -301,7 +295,9 @@ describe("anonymous chat PDF evidence durability", () => {
   });
 
   it("uses an explicitly selected owned document without changing the project", async () => {
-    const localDocuments = await import("../lib/localDocumentStore");
+    const localDocuments = await import(
+      "../lib/__tests__/support/localDocumentFixtures"
+    );
     const document = await localDocuments.createLocalDocument({
       userId: USER_ID,
       kind: "file",
@@ -386,7 +382,7 @@ describe("anonymous chat PDF evidence durability", () => {
     expect(fabricated.status).toBe(400);
     expect(mocks.streamChatWithTools).toHaveBeenCalledTimes(1);
     expect(
-      loaded.store.getAnonymousChat(USER_ID, created.body.id),
+      await storedChat(loaded.store, created.body.id),
     ).toMatchObject({
       transcript_version: 2,
       messages: [
@@ -417,11 +413,11 @@ describe("anonymous chat PDF evidence durability", () => {
       })
       .then((response) => response);
 
-    await vi.waitFor(() => {
+    await vi.waitFor(async () => {
       expect(mocks.streamChatWithTools).toHaveBeenCalledTimes(1);
       expect(
-        loaded.store.getAnonymousChat(USER_ID, created.body.id)
-          ?.transcript_version,
+      (await storedChat(loaded.store, created.body.id))
+        ?.transcript_version,
       ).toBe(1);
     });
     const overlapping = await request(loaded.app)
@@ -437,7 +433,7 @@ describe("anonymous chat PDF evidence durability", () => {
       current_version: 1,
     });
     expect(mocks.streamChatWithTools).toHaveBeenCalledTimes(1);
-    expect(loaded.store.getAnonymousChat(USER_ID, created.body.id)).toMatchObject({
+    expect(await storedChat(loaded.store, created.body.id)).toMatchObject({
       transcript_version: 1,
       messages: [{ role: "user", content: "Long turn" }],
     });
@@ -477,7 +473,7 @@ describe("anonymous chat PDF evidence durability", () => {
 
     expect(streamedText).toBe(expected);
     expect(
-      loaded.store.getAnonymousChat(USER_ID, created.body.id),
+      await storedChat(loaded.store, created.body.id),
     ).toMatchObject({
       messages: [
         { role: "user", content: "Draft a lease" },
@@ -518,10 +514,10 @@ describe("anonymous chat PDF evidence durability", () => {
       expect(mocks.streamChatWithTools).toHaveBeenCalledOnce();
     });
     activeRequest.abort();
-    await vi.waitFor(() => {
+    await vi.waitFor(async () => {
       expect(providerSignal?.aborted).toBe(true);
       expect(
-        loaded.store.getAnonymousChat(USER_ID, created.body.id),
+        await storedChat(loaded.store, created.body.id),
       ).toMatchObject({
         transcript_version: 2,
         messages: [
@@ -573,7 +569,7 @@ describe("anonymous chat PDF evidence durability", () => {
     expect(stopped.body).toEqual({ stopped: true });
     expect((await activeRequest).status).toBe(200);
     expect(
-      loaded.store.getAnonymousChat(USER_ID, created.body.id),
+      await storedChat(loaded.store, created.body.id),
     ).toMatchObject({
       transcript_version: 2,
       messages: [
@@ -604,7 +600,7 @@ describe("anonymous chat PDF evidence durability", () => {
 
     expect(response.status).toBe(200);
     expect(
-      loaded.store.getAnonymousChat(USER_ID, created.body.id),
+      await storedChat(loaded.store, created.body.id),
     ).toMatchObject({
       transcript_version: 2,
       messages: [
@@ -639,7 +635,7 @@ describe("anonymous chat PDF evidence durability", () => {
       });
 
     expect(
-      loaded.store.getAnonymousChat(USER_ID, created.body.id),
+      await storedChat(loaded.store, created.body.id),
     ).toMatchObject({
       transcript_version: 2,
       messages: [
@@ -689,7 +685,7 @@ describe("anonymous chat PDF evidence durability", () => {
     ).toBe(204);
     expect((await running).status).toBe(200);
     expect(
-      loaded.store.getAnonymousChat(USER_ID, created.body.id),
+      await storedChat(loaded.store, created.body.id),
     ).toBeNull();
   });
 
@@ -804,10 +800,14 @@ describe("anonymous chat PDF evidence durability", () => {
     await vi.waitFor(() => {
       expect(mocks.streamChatWithTools).toHaveBeenCalledTimes(1);
     });
-    loaded.store.deleteAnonymousProjectChats(USER_ID, PROJECT_ID);
+    (await import("../lib/localChatStore"))
+      .abortLocalProjectChatTurns(USER_ID, PROJECT_ID);
+    (await import("../lib/localApplicationDatabase")).localApplicationDatabase()
+      .prepare("DELETE FROM legal_knowledge_projects WHERE user_id=? AND id=?")
+      .run(USER_ID, PROJECT_ID);
     expect((await running).status).toBe(200);
     expect(
-      loaded.store.getAnonymousChat(USER_ID, created.body.id),
+      await storedChat(loaded.store, created.body.id),
     ).toBeNull();
   });
 
@@ -831,7 +831,7 @@ describe("anonymous chat PDF evidence durability", () => {
       });
 
     expect(response.status).toBe(400);
-    expect(loaded.store.listAnonymousChats(USER_ID)).toEqual([]);
+    expect(await loaded.store.list({ userId: USER_ID }, {})).toEqual([]);
   });
 
   it("contains unexpected preflight failures without crashing Express", async () => {
@@ -856,7 +856,7 @@ describe("anonymous chat PDF evidence durability", () => {
 
     expect(failed.status).toBe(500);
     expect(failed.body).toEqual({ detail: "Chat operation failed" });
-    expect(loaded.store.listAnonymousChats(USER_ID)).toEqual([]);
+    expect(await loaded.store.list({ userId: USER_ID }, {})).toEqual([]);
 
     mocks.preflightFailure = false;
     expect(
@@ -923,7 +923,7 @@ describe("anonymous chat PDF evidence durability", () => {
     expect(asked.text).toContain('"type":"content_reset"');
     expect(asked.text).not.toContain("This must be suppressed");
     expect(
-      loaded.store.getAnonymousChat(USER_ID, created.body.id),
+      await storedChat(loaded.store, created.body.id),
     ).toMatchObject({
       transcript_version: 2,
       messages: [
@@ -990,7 +990,7 @@ describe("anonymous chat PDF evidence durability", () => {
     expect(emptyAnswer.status).toBe(400);
     expect(mocks.streamChatWithTools).toHaveBeenCalledTimes(1);
     expect(
-      loaded.store.getAnonymousChat(USER_ID, created.body.id)
+      (await storedChat(loaded.store, created.body.id))
         ?.transcript_version,
     ).toBe(2);
 
@@ -1018,7 +1018,7 @@ describe("anonymous chat PDF evidence durability", () => {
       content:
         "[User responses to requested inputs]\n- Which forum?: Quebec",
     });
-    const durable = loaded.store.getAnonymousChat(USER_ID, created.body.id)!;
+    const durable = (await storedChat(loaded.store, created.body.id))!;
     expect(durable.transcript_version).toBe(4);
     expect(
       (durable.messages[1].content as Record<string, unknown>[]).find(
@@ -1053,11 +1053,10 @@ describe("anonymous chat PDF evidence durability", () => {
     });
     const loaded = await loadApp();
     const created = await request(loaded.app).post("/chat/create").send({});
-    const chat = loaded.store.getAnonymousChat(USER_ID, created.body.id)!;
-    loaded.store.appendAnonymousMessage(
-      chat,
-      {
-        role: "assistant",
+    await loaded.store.commitTurn({ userId: USER_ID }, created.body.id, {
+      expectedVersion: 0,
+      assistantMessage: {
+        id: crypto.randomUUID(),
         content: [
           {
             type: "ask_inputs",
@@ -1074,8 +1073,7 @@ describe("anonymous chat PDF evidence durability", () => {
           },
         ],
       },
-      0,
-    );
+    });
     const responseTurn = {
       kind: "ask_inputs_response",
       content: "Ontario",
@@ -1097,7 +1095,7 @@ describe("anonymous chat PDF evidence durability", () => {
         current_turn: responseTurn,
       });
     expect(failed.status).toBe(200);
-    expect(loaded.store.getAnonymousChat(USER_ID, created.body.id)
+    expect((await storedChat(loaded.store, created.body.id))
       ?.transcript_version).toBe(3);
 
     const changedRetry = await request(loaded.app)
@@ -1113,7 +1111,7 @@ describe("anonymous chat PDF evidence durability", () => {
       });
     expect(changedRetry.status).toBe(400);
     expect(changedRetry.body.detail).toMatch(/retry the same response/iu);
-    expect(loaded.store.getAnonymousChat(USER_ID, created.body.id)
+    expect((await storedChat(loaded.store, created.body.id))
       ?.transcript_version).toBe(3);
 
     const retried = await request(loaded.app)
@@ -1124,9 +1122,9 @@ describe("anonymous chat PDF evidence durability", () => {
         current_turn: responseTurn,
       });
     expect(retried.status).toBe(200);
-    expect(loaded.store.getAnonymousChat(USER_ID, created.body.id)
+    expect((await storedChat(loaded.store, created.body.id))
       ?.transcript_version).toBe(5);
-    const events = loaded.store.getAnonymousChat(USER_ID, created.body.id)!
+    const events = (await storedChat(loaded.store, created.body.id))!
       .messages[0].content as Record<string, unknown>[];
     expect(
       events.filter((event) => event.type === "ask_inputs_response"),
@@ -1187,7 +1185,7 @@ describe("anonymous chat PDF evidence durability", () => {
     });
     expect(failed.status).toBe(200);
     expect(failed.text).not.toContain('"retryable":false');
-    const chat = loaded.store.getAnonymousChat(USER_ID, created.body.id)!;
+    const chat = (await storedChat(loaded.store, created.body.id))!;
     expect(JSON.stringify(chat.messages)).not.toContain(
       "local_mutation_committed",
     );
@@ -1244,7 +1242,7 @@ describe("anonymous chat PDF evidence durability", () => {
     });
     expect(retried.status).toBe(200);
     expect(
-      loaded.store.getAnonymousChat(USER_ID, created.body.id)
+      (await storedChat(loaded.store, created.body.id))
         ?.transcript_version,
     ).toBe(4);
 
@@ -1294,8 +1292,7 @@ describe("anonymous chat PDF evidence durability", () => {
     expect(response.text).toContain(
       JSON.stringify({ type: "content_final", text: expected }),
     );
-    const assistant = loaded.store
-      .getAnonymousChat(USER_ID, created.body.id)!
+    const assistant = (await storedChat(loaded.store, created.body.id))!
       .messages.find((message) => message.role === "assistant");
     expect(assistant?.content).toContainEqual({
       type: "content",
@@ -1457,7 +1454,7 @@ describe("anonymous chat PDF evidence durability", () => {
     expect(response.text).not.toContain('"type":"ask_inputs"');
     expect(
       JSON.stringify(
-        loaded.store.getAnonymousChat(USER_ID, created.body.id)?.messages,
+        (await storedChat(loaded.store, created.body.id))?.messages,
       ),
     ).not.toContain('"type":"ask_inputs"');
   });
@@ -1489,7 +1486,7 @@ describe("anonymous chat PDF evidence durability", () => {
     expect(response.body.detail).toMatch(/no assistant question/iu);
     expect(mocks.streamChatWithTools).not.toHaveBeenCalled();
     expect(
-      loaded.store.getAnonymousChat(USER_ID, created.body.id)
+      (await storedChat(loaded.store, created.body.id))
         ?.transcript_version,
     ).toBe(0);
   });
@@ -1542,7 +1539,7 @@ describe("anonymous chat PDF evidence durability", () => {
     expect(second.status).toBe(200);
     expect(
       JSON.stringify(
-        loaded.store.getAnonymousChat(USER_ID, created.body.id)?.messages,
+        (await storedChat(loaded.store, created.body.id))?.messages,
       ),
     ).toContain("Recovered answer.");
     expect(calls[1]).toMatchObject({
@@ -1555,9 +1552,9 @@ describe("anonymous chat PDF evidence durability", () => {
       { role: "assistant", content: "First answer." },
       { role: "user", content: "Second turn." },
     ]);
-    const sessions = await import("../lib/anonymousProviderSessionStore");
+    const sessions = await import("../lib/localProviderSessionStore");
     expect(
-      sessions.readAnonymousCodexSession(USER_ID, created.body.id),
+      sessions.readLocalCodexSession(USER_ID, created.body.id),
     ).toMatchObject({
       continuation_id: replacementThread,
       transcript_version: 4,

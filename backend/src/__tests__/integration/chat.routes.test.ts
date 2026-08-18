@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createChatRouter } from "../../routes/chat";
 import type { ChatApplication } from "../../lib/chat/chatApplication";
 import type { ChatStore } from "../../lib/chatStore";
-import type { TabularStore } from "../../lib/tabularStore";
 
 vi.mock("../../middleware/auth", () => ({
   requireAuth: (_req: unknown, res: { locals: Record<string, unknown> }, next: () => void) => {
@@ -41,7 +40,7 @@ const application = {
 } as ChatApplication;
 const app = express();
 app.use(express.json());
-app.use("/chat", createChatRouter({} as TabularStore, chats, application));
+app.use("/chat", createChatRouter(chats, application));
 
 const VALID_BODY = {
   expected_version: 0,

@@ -6,7 +6,6 @@ import {
   type ChatApplication,
 } from "../../lib/chat/chatApplication";
 import type { ChatStore } from "../../lib/chatStore";
-import type { TabularStore } from "../../lib/tabularStore";
 import { createChatRouter } from "../../routes/chat";
 
 vi.mock("../../middleware/auth", () => ({
@@ -39,7 +38,6 @@ const application = {
 const app = express();
 app.use(express.json());
 app.use("/chat", createChatRouter(
-  {} as TabularStore,
   {} as ChatStore,
   application,
 ));

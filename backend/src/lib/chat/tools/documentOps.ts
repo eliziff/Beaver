@@ -1,20 +1,8 @@
-import { docxToPdf } from "../../convert";
-import { extractDocxBodyText } from "../../docxTrackedChanges";
-import {
-  isPresentationDocumentType,
-  isSpreadsheetDocumentType,
-  isWordDocumentType,
-} from "../../documentTypes";
-import { extractPresentationText } from "../../officeText";
-import { spreadsheetToLLMText } from "../../spreadsheet";
-import { isPlainTextDocumentType } from "../../documentTypes";
-import { extractEmailText } from "../../emailText";
 import {
   normalizeDocxControlTag,
   renderDocxMarkdown,
   type RenderDocxMarkdownOptions,
 } from "./docxMarkdown";
-import { extractLegalPdfText } from "../../legalPdfSourceDoc";
 
 export function citationReminder(docLabel: string, filename: string): string {
   return [
@@ -22,114 +10,6 @@ export function citationReminder(docLabel: string, filename: string): string {
     "Use the returned Citation evidence_id in submit_grounded_answer for any factual claim from this document.",
     "Do not write citation markers, citation JSON, URLs, or pinpoints in prose.",
   ].join("\n");
-}
-
-export async function extractPdfText(buf: ArrayBuffer): Promise<string> {
-  try {
-    return await extractLegalPdfText(Buffer.from(buf));
-  } catch {
-    return "";
-  }
-}
-
-const toArrayBuffer = (b: Buffer): ArrayBuffer =>
-  b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer;
-
-/**
- * Per-format text parser identity for the content-addressed parse cache.
- * Bump a parser's version whenever its output for the same bytes changes.
- */
-export function textParserFor(fileType: string): {
-  parser: string;
-  version: number;
-  run: (bytes: Buffer) => Promise<string>;
-} | null {
-  if (fileType === "pdf")
-    return {
-      parser: "legalpdf-text",
-      version: 2,
-      run: (b) => extractPdfText(toArrayBuffer(b)),
-    };
-  if (fileType === "docx")
-    return {
-      parser: "docx-body-text",
-      version: 2,
-      /**
-       * Same flattening as the edit_document matcher, so the model sees
-       * exactly the characters it can anchor against — and NO fallback.
-       *
-       * A second extractor here was silently load-bearing in the worst way:
-       * `applyTextOpsToDocx` resolves its scopes against `extractDocxBodyText`
-       * alone, so any document that fell through to mammoth was read on one
-       * character plane and edited on another, and every offset the reader
-       * handed back pointed somewhere else in the writer. Nothing reported
-       * it, because falling back looked like success.
-       *
-       * Measured before removing it: 400 documents sampled at stride 28
-       * across the 11,293-file corpus, zero empty and zero throwing. The
-       * fallback was not carrying anything. If this does fail on a real
-       * document, that is an instrument defect to fix in the extractor, and
-       * a typed refusal naming the file is what makes it findable.
-       */
-      run: async (b) => {
-        const text = await extractDocxBodyText(b);
-        if (!text) {
-          throw new Error(
-            "DOCX body text could not be extracted. The document reads as empty, which is an extraction defect rather than an empty document; report the file rather than working from partial text.",
-          );
-        }
-        return text;
-      },
-    };
-  if (isPlainTextDocumentType(fileType))
-    return {
-      parser: "plain-text",
-      version: 1,
-      /**
-       * Decode and nothing else. A BOM is a byte-order mark, not content, so
-       * it goes; line endings STAY exactly as the file has them.
-       *
-       * Normalising CRLF here would be the same defect that silently
-       * corrupted a quarter of a benchmark for five stages: every offset a
-       * reader hands back has to index the stored bytes, and rewriting line
-       * endings moves all of them. The structural grammars already tolerate
-       * a trailing carriage return.
-       */
-      run: async (b) => {
-        const text = b.toString("utf8");
-        return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
-      },
-    };
-  if (fileType === "eml")
-    return {
-      parser: "eml-text",
-      version: 1,
-      // Headers + decoded MIME body. Transfer decoding is the whole point:
-      // undecoded quoted-printable splits numbers mid-digit.
-      run: async (b) => extractEmailText(b),
-    };
-  if (isSpreadsheetDocumentType(fileType))
-    return {
-      parser: "spreadsheet-llm-text",
-      version: 2,
-      // SheetJS reads .xlsx/.xlsm/.xls directly (no PDF detour), emitting a
-      // cell-addressed markdown view with Excel-formatted values.
-      run: (b) => spreadsheetToLLMText(b),
-    };
-  if (fileType === "pptx")
-    return {
-      parser: "pptx-text",
-      version: 1,
-      run: (b) => extractPresentationText(b),
-    };
-  if (isPresentationDocumentType(fileType) || isWordDocumentType(fileType))
-    return {
-      parser: "office-pdf-text",
-      version: 2,
-      // Older Office formats go through a PDF detour for text extraction.
-      run: async (b) => extractPdfText(toArrayBuffer(await docxToPdf(b))),
-    };
-  return null;
 }
 
 async function generatedDocxResult(title: string, bytes: Buffer) {

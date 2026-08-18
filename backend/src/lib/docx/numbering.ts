@@ -9,22 +9,14 @@
  * flattening exactly; changing one without the other breaks the contract.
  */
 
-import type JSZip from "jszip";
-
 import {
-  MAX_DRAFTING_DOCX_BYTES,
-  MAX_DRAFTING_XML_ENTRY_BYTES,
-  createParser,
   elAttrs,
   elChildren,
   elName,
-  findBodyChildren,
-  getZipEntry,
-  loadDocxPackage,
   type XNode,
 } from "./core";
+import { openDocxSession } from "./session";
 
-/** Formats whose value renders as text without a locale table. */
 const SUPPORTED_FORMATS = new Set([
   "decimal",
   "decimalZero",
@@ -34,12 +26,9 @@ const SUPPORTED_FORMATS = new Set([
   "upperRoman",
 ]);
 
-/** A bullet glyph is not a label; its absence needs no explanation. */
 const SILENT_FORMATS = new Set(["bullet"]);
 
-/** w:ilvl is 0..8 in the schema; %1..%9 index the same range. */
 const MAX_LEVEL = 8;
-/** basedOn / numStyleLink chains are cycle-guarded and depth-bounded. */
 const MAX_STYLE_HOPS = 16;
 
 export interface ResolvedNumbering {
@@ -72,7 +61,6 @@ interface ConcreteNum {
   levelOverrides: Map<number, LevelDef>;
 }
 
-/** A paragraph style's numbering reference, before basedOn resolution. */
 interface StyleNum {
   numId: string | null;
   ilvl: number | null;
@@ -102,7 +90,6 @@ function intOf(raw: string | undefined): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-/** A valueless toggle element is on; only an explicit false turns it off. */
 function toggleOn(node: unknown, name: string): boolean {
   const found = childNamed(node, name);
   if (!found) return false;
@@ -151,7 +138,6 @@ function toRoman(value: number): string {
   return out;
 }
 
-/** null = this format has no text rendering here; the label is unresolvable. */
 export function formatNumberingValue(
   value: number,
   numFmt: string,
@@ -165,7 +151,6 @@ export function formatNumberingValue(
       return value > 0 ? toLetters(value) : String(value);
     case "upperLetter":
       return value > 0 ? toLetters(value).toUpperCase() : String(value);
-    // Roman has no form for 0, negatives, or values past its glyph set.
     case "lowerRoman":
       return value > 0 && value < 4000 ? toRoman(value) : String(value);
     case "upperRoman":
@@ -177,7 +162,6 @@ export function formatNumberingValue(
   }
 }
 
-/** Reads one `w:lvl`; shared by w:abstractNum and w:lvlOverride. */
 function parseLevel(lvl: XNode): [number, LevelDef] | null {
   const ilvl = intOf(attrOf(lvl, "w:ilvl"));
   if (ilvl == null || ilvl < 0 || ilvl > MAX_LEVEL) return null;
@@ -242,7 +226,6 @@ function parseConcreteNums(tree: XNode[]): Map<string, ConcreteNum> {
   return out;
 }
 
-/** styleId → its own numPr + basedOn parent; templates number through here. */
 function parseStyleNums(tree: XNode[]): Map<string, StyleNum> {
   const out = new Map<string, StyleNum>();
   const root = tree.find((n) => elName(n) === "w:styles");
@@ -262,7 +245,6 @@ function parseStyleNums(tree: XNode[]): Map<string, StyleNum> {
   return out;
 }
 
-/** Walks basedOn until a style carries a numId. Cycles terminate at the bound. */
 function styleNumbering(
   styles: Map<string, StyleNum>,
   styleId: string | null,
@@ -280,7 +262,6 @@ function styleNumbering(
   return null;
 }
 
-/** w:numStyleLink points at a style whose numPr names the real definition. */
 function resolveAbstract(
   abstracts: Map<string, AbstractNum>,
   concretes: Map<string, ConcreteNum>,
@@ -304,7 +285,6 @@ function resolveAbstract(
   return null;
 }
 
-/** Substitutes %1..%9 with the current value of levels 0..8. */
 function renderLabel(
   lvlText: string,
   levels: Map<number, LevelDef>,
@@ -334,20 +314,6 @@ function message(error: unknown) {
     .slice(0, 200);
 }
 
-async function readXmlPart(
-  zip: JSZip,
-  path: string,
-  parser: ReturnType<typeof createParser>,
-): Promise<XNode[] | null> {
-  const entry = getZipEntry(zip, path);
-  if (!entry) return null;
-  const raw = await entry.async("string");
-  if (raw.length > MAX_DRAFTING_XML_ENTRY_BYTES) {
-    throw new Error(`${path} exceeds the read limit`);
-  }
-  return parser.parse(raw) as XNode[];
-}
-
 /**
  * Computes the rendered numbering label for every body paragraph that
  * references numbering. Never throws: an unreadable package degrades to an
@@ -363,18 +329,10 @@ export async function resolveDocxNumbering(
   let sawLvlRestart = false;
 
   try {
-    if (!bytes.length || bytes.length > MAX_DRAFTING_DOCX_BYTES) {
-      throw new Error("DOCX is empty or exceeds the read limit");
-    }
-    const zip = await loadDocxPackage(bytes);
-    const parser = createParser();
-    const documentTree = await readXmlPart(zip, "word/document.xml", parser);
-    if (!documentTree) throw new Error("Package has no word/document.xml");
-    const bodyChildren = findBodyChildren(documentTree);
-    if (!bodyChildren) throw new Error("word/document.xml has no w:body");
-
-    const numberingTree = await readXmlPart(zip, "word/numbering.xml", parser);
-    const stylesTree = await readXmlPart(zip, "word/styles.xml", parser);
+    const session = await openDocxSession(bytes);
+    const document = await session.document("Numbering");
+    const numberingTree = await session.readXml("word/numbering.xml");
+    const stylesTree = await session.readXml("word/styles.xml");
     const abstracts = numberingTree
       ? parseAbstractNums(numberingTree)
       : new Map<string, AbstractNum>();
@@ -385,7 +343,6 @@ export async function resolveDocxNumbering(
       ? parseStyleNums(stylesTree)
       : new Map<string, StyleNum>();
 
-    // numId → level definitions after w:lvlOverride is folded in.
     const effective = new Map<string, Map<number, LevelDef> | null>();
     const levelsFor = (numId: string) => {
       const cached = effective.get(numId);
@@ -403,8 +360,6 @@ export async function resolveDocxNumbering(
       return merged;
     };
 
-    // Per (numId, level). Two w:num sharing one abstract num continue the same
-    // list in Word; that continuation is not modelled here.
     const counters = new Map<string, Map<number, number>>();
 
     const paragraph = (node: XNode, index: number) => {
@@ -415,7 +370,6 @@ export async function resolveDocxNumbering(
       const directLevel = numPr ? intOf(valOf(numPr, "w:ilvl")) : null;
       const viaStyle = styleNumbering(styles, valOf(pPr, "w:pStyle") ?? null);
       const numId = direct ?? viaStyle?.numId ?? null;
-      // numId 0 is the schema's way of cancelling inherited numbering.
       if (numId == null || numId === "0") return;
 
       const levels = levelsFor(numId);
@@ -435,8 +389,6 @@ export async function resolveDocxNumbering(
         byLevel = new Map<number, number>();
         counters.set(numId, byLevel);
       }
-      // First use of a level starts at startOverride, else w:start; entering a
-      // level clears every deeper one so those restart on their next use.
       const current = byLevel.get(level);
       const start = concretes.get(numId)?.startOverrides.get(level) ?? def.start;
       byLevel.set(level, current == null ? start : current + 1);
@@ -444,7 +396,6 @@ export async function resolveDocxNumbering(
         byLevel.delete(deeper);
       }
 
-      // A bullet still consumes a counter — only its label is nothing.
       if (SILENT_FORMATS.has(def.numFmt)) return;
       if (!SUPPORTED_FORMATS.has(def.numFmt)) {
         unsupported.add(def.numFmt);
@@ -458,27 +409,7 @@ export async function resolveDocxNumbering(
       if (rendered.label) labels.set(index, rendered.label);
     };
 
-    // Same descent as extractDocxBodyText — the index contract is this order.
-    let index = 0;
-    const walk = (nodes: XNode[]) => {
-      for (const node of nodes) {
-        const name = elName(node);
-        if (!name) continue;
-        if (name === "w:p") {
-          paragraph(node, index);
-          index += 1;
-        } else if (
-          name === "w:tbl" ||
-          name === "w:tr" ||
-          name === "w:tc" ||
-          name === "w:sdt" ||
-          name === "w:sdtContent"
-        ) {
-          walk(elChildren(node));
-        }
-      }
-    };
-    walk(bodyChildren);
+    document.paragraphs.forEach(({ node }, index) => paragraph(node, index));
 
     for (const numFmt of [...unsupported].sort()) {
       notes.push(

@@ -8,9 +8,11 @@ import {
 import type { NormalizedToolCall, NormalizedToolResult } from "../llm";
 import type { AskInputsEvent } from "./types";
 import type { LegalEvidenceReceipt } from "./legalEvidence";
+import { safeErrorLog } from "../safeError";
 
 export const LOAD_TOOLS_NAME = "load_tools";
 export const SPECIALIST_LIMIT = 3;
+export const MAX_MODEL_TOOL_RESULT_CHARS = 64_000;
 
 type ResultMetadata = Omit<
   NormalizedToolResult,
@@ -86,18 +88,51 @@ export function toolResultText(result: CallToolResult) {
   ).join("\n");
 }
 
-const boundedError = (error: unknown) =>
-  (error instanceof Error ? error.message : String(error)).slice(0, 2_000);
+const withoutStructuredUrls = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(withoutStructuredUrls);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(Object.entries(value as Record<string, unknown>)
+    .flatMap(([key, item]) => /(?:^|_)(?:url|uri|href)$/iu.test(key)
+      ? []
+      : [[key, withoutStructuredUrls(item)]]));
+};
+
+const modelResultText = (result: CallToolResult) => {
+  const visible = result.content.map((block) => {
+    if (block.type !== "text") return JSON.stringify(block);
+    try {
+      return JSON.stringify(withoutStructuredUrls(JSON.parse(block.text)));
+    } catch {
+      return block.text;
+    }
+  }).join("\n");
+  if (visible.length <= MAX_MODEL_TOOL_RESULT_CHARS) {
+    return { content: visible, truncated: false };
+  }
+  const marker = "\n… tool result truncated; retry with narrower inputs …\n";
+  const tail = Math.floor(MAX_MODEL_TOOL_RESULT_CHARS / 4);
+  const head = MAX_MODEL_TOOL_RESULT_CHARS - tail - marker.length;
+  return {
+    content: visible.slice(0, head) + marker + visible.slice(-tail),
+    truncated: true,
+  };
+};
 
 const normalized = (
   id: string,
   outcome: BeaverOutcome,
-): NormalizedToolResult => ({
-  tool_use_id: id,
-  content: toolResultText(outcome.result),
-  ...outcome.metadata,
-  ...(outcome.terminal ? { terminal: true } : {}),
-});
+): NormalizedToolResult => {
+  const visible = modelResultText(outcome.result);
+  return {
+    tool_use_id: id,
+    content: visible.content,
+    ...outcome.metadata,
+    ...(visible.truncated && !outcome.metadata?.status
+      ? { status: "truncated" as const }
+      : {}),
+    ...(outcome.terminal ? { terminal: true } : {}),
+  };
+};
 
 function loaderSchema(names: string[], limit: number): Tool {
   return {
@@ -335,13 +370,17 @@ export class TurnToolRegistry<Context> {
       }
       return { call, outcome: { ...outcome, result: parsed.data } };
     } catch (error) {
+      console.error("[assistant-tool] execution failed", {
+        tool: call.name,
+        ...safeErrorLog(error),
+      });
       return {
         call,
         outcome: {
           result: toolText({
             ok: false,
             error: "tool_error",
-            detail: boundedError(error),
+            detail: "Tool execution failed",
           }, true),
           metadata: { status: "error" as const },
         },

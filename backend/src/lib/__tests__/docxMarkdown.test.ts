@@ -693,7 +693,11 @@ describe("weak-model recovery", () => {
     const table = parsed.blocks[0];
     if (table.type !== "table") throw new Error("Expected a table block.");
     expect(table.rows[0][1]).toEqual([]);
-    expect(table.rows[1][1]).toEqual([{ type: "text", text: "y z" }]);
+    expect(
+      table.rows[1][1]
+        .map((child) => "text" in child ? child.text : "")
+        .join(""),
+    ).toBe("y z");
     expect(warnings.join("\n")).toContain("Adjusted a table row");
   });
 

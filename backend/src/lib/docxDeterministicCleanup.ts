@@ -1,9 +1,7 @@
 import { readFile } from "node:fs/promises";
-import { getZipEntry, loadDocxPackage, setZipEntry } from "./docx/core";
-import {
-  addLocalVersion,
-  getLocalVersionFile,
-} from "./localDocumentStore";
+import { openDocxSession } from "./docx/session";
+import type { DocumentStore } from "./documentStore";
+import { getLocalVersionFile } from "./localDocumentStore";
 import { decodeXmlText, escapeXmlText } from "./text";
 
 const SUPRA_PATTERN =
@@ -189,13 +187,13 @@ function containsNumberedSupra(xml: string) {
 }
 
 export async function hasDocxSupraReferences(bytes: Buffer) {
-  const zip = await loadDocxPackage(bytes);
-  const footnotes = getZipEntry(zip, "word/footnotes.xml");
-  if (footnotes && containsNumberedSupra(await footnotes.async("string"))) {
+  const session = await openDocxSession(bytes);
+  const footnotes = await session.readText("word/footnotes.xml");
+  if (footnotes && containsNumberedSupra(footnotes)) {
     return true;
   }
-  const document = getZipEntry(zip, "word/document.xml");
-  return !!document && containsNumberedSupra(await document.async("string"));
+  const document = await session.readText("word/document.xml");
+  return !!document && containsNumberedSupra(document);
 }
 
 function nextBookmarkId(documentXml: string) {
@@ -368,18 +366,19 @@ function convertSafeParagraphs(
 export async function fixDocxSupraCrossReferences(
   bytes: Buffer,
 ): Promise<SupraCleanupResult> {
-  const zip = await loadDocxPackage(bytes);
-  const documentEntry = getZipEntry(zip, "word/document.xml");
-  const footnotesEntry = getZipEntry(zip, "word/footnotes.xml");
-  if (!documentEntry || !footnotesEntry) {
+  const session = await openDocxSession(bytes);
+  if (!session.has("word/document.xml") || !session.has("word/footnotes.xml")) {
     throw new Error("DOCX does not contain ordinary Word footnotes");
   }
 
   const [documentXml, footnotesXml, settingsXml] = await Promise.all([
-    documentEntry.async("string"),
-    footnotesEntry.async("string"),
-    getZipEntry(zip, "word/settings.xml")?.async("string") ?? "",
+    session.readText("word/document.xml"),
+    session.readText("word/footnotes.xml"),
+    session.readText("word/settings.xml"),
   ]);
+  if (documentXml == null || footnotesXml == null) {
+    throw new Error("DOCX does not contain ordinary Word footnotes");
+  }
   const documentAnalysis = analyzeSupras(documentXml);
   const footnoteAnalysis = analyzeSupras(footnotesXml);
   const detected =
@@ -387,7 +386,7 @@ export async function fixDocxSupraCrossReferences(
   const alreadyLinked =
     documentAnalysis.alreadyLinked + footnoteAnalysis.alreadyLinked;
   const restartedNumbering = /<w:numRestart\b/iu.test(
-    `${documentXml}\n${settingsXml}`,
+    `${documentXml}\n${settingsXml ?? ""}`,
   );
   if (!detected || restartedNumbering) {
     return {
@@ -439,13 +438,10 @@ export async function fixDocxSupraCrossReferences(
     };
   }
 
-  setZipEntry(zip, "word/document.xml", bodyConversion.xml);
-  setZipEntry(zip, "word/footnotes.xml", footnoteConversion.xml);
+  session.write("word/document.xml", bodyConversion.xml);
+  session.write("word/footnotes.xml", footnoteConversion.xml);
   return {
-    bytes: await zip.generateAsync({
-      type: "nodebuffer",
-      compression: "DEFLATE",
-    }),
+    bytes: await session.save(),
     detected,
     converted,
     already_linked: alreadyLinked,
@@ -459,6 +455,7 @@ export async function fixDocxSupraCrossReferences(
 }
 
 export async function fixLocalDocxSupraCrossReferences(
+  documents: DocumentStore,
   userId: string,
   documentId: string,
   options: {
@@ -504,12 +501,9 @@ export async function fixLocalDocxSupraCrossReferences(
         filename,
         bytes: cleanup.bytes,
       })
-    : await addLocalVersion({
-        userId,
-        documentId,
-        filename,
-        bytes: cleanup.bytes,
-      });
+    : await documents.addVersion(
+        { userId }, documentId, { filename, bytes: cleanup.bytes, fileType: "docx" },
+      );
   if (!version) throw new Error("Document disappeared before saving");
   const downloadUrl =
     `/single-documents/${encodeURIComponent(documentId)}/file` +

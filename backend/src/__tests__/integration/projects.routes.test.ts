@@ -27,6 +27,17 @@ vi.mock("../../lib/supabase", () => ({
     createServerSupabase: vi.fn(() => createMutableSupabaseStub(supabaseState)),
 }));
 
+vi.mock("../../lib/cloudObjectStorage", () => ({
+    cloudDocumentObjects: () => ({
+        kind: "s3",
+        put: vi.fn(async () => {}),
+        get: vi.fn(async () => null),
+        remove: vi.fn(async () => {}),
+        list: vi.fn(async () => ({ keys: [], cursor: null })),
+        signedGet: vi.fn(async () => "https://storage.test/signed"),
+    }),
+}));
+
 vi.mock("../../middleware/auth", () => ({
     requireAuth: (
         _req: unknown,

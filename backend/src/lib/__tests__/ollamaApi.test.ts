@@ -154,14 +154,12 @@ describe("Ollama model catalog", () => {
   it("surfaces Ollama's structured error with a recovery step", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({
-        ok: false,
-        status: 500,
-        text: async () =>
-          JSON.stringify({
-            error: "failed to parse JSON: unexpected end of JSON input",
-          }),
-      }),
+      vi.fn().mockResolvedValue(new Response(
+        JSON.stringify({
+          error: "failed to parse JSON: unexpected end of JSON input",
+        }),
+        { status: 500, headers: { "Content-Type": "application/json" } },
+      )),
     );
     const { streamOllama } = await import("../llm/ollamaApi");
 

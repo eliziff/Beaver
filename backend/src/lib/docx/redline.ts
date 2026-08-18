@@ -1,35 +1,13 @@
-/**
- * Redline projection: the body text with every editorial mark left visible
- * inline, in the CriticMarkup-style vocabulary mike-redline uses.
- *
- *   {++inserted++}        w:ins
- *   {--deleted--}         w:del (w:delText restored)
- *   {>>author: text<<}    comments.xml body, at the w:commentRangeEnd
- *   {++text++}[ink]       red run with no tracked-change markup
- *   {--text--}[ink]       struck run with no tracked-change markup
- *
- * The `[ink]` suffix is attribution, not decoration: a manual redline is a
- * human's formatting, not a revision the package records, and the reader
- * must not be able to confuse the two.
- *
- * This exists because every text extractor we measured (mammoth raw text,
- * mammoth HTML-to-text, pandoc plain) reads a struck-through deleted clause
- * back as operative text — see scripts/probe-manual-redline.ts. It is a read
- * mode, deliberately not wired into any extraction default.
- */
+/** Projects tracked edits, comments, and manual ink marks inline. */
 
 import {
   type XNode,
-  MAX_DRAFTING_DOCX_BYTES,
-  createParser,
   elAttrs,
   elChildren,
   elName,
-  findBodyChildren,
   getTextContent,
-  getZipEntry,
-  loadDocxPackage,
 } from "./core";
+import { openDocxSession } from "./session";
 
 export interface RedlineProjection {
   text: string;
@@ -57,38 +35,8 @@ const WRAP: Record<Exclude<MarkKind, "plain" | "comment">, [string, string]> = {
   ink_del: ["{--", "--}[ink]"],
 };
 
-/** Sequences whose presence in the document's own text makes markers ambiguous. */
 const MARKER_SEQUENCES = ["{++", "++}", "{--", "--}", "{>>", "<<}"];
 
-/** Children that carry no visible text, or that duplicate text carried elsewhere. */
-const SKIP = new Set([
-  "w:pPr",
-  "w:rPr",
-  "w:sectPr",
-  "w:tblPr",
-  "w:trPr",
-  "w:tcPr",
-  "w:tblGrid",
-  "w:sdtPr",
-  "w:sdtEndPr",
-  "w:bookmarkStart",
-  "w:bookmarkEnd",
-  "w:proofErr",
-  "w:commentReference",
-  // Word writes a drawing twice, as an mc:Choice and an identical fallback.
-  "mc:Fallback",
-]);
-
-/** Block containers the paragraph collector descends, mirroring extractDocxBodyText. */
-const BLOCK_CONTAINERS = new Set([
-  "w:tbl",
-  "w:tr",
-  "w:tc",
-  "w:sdt",
-  "w:sdtContent",
-]);
-
-/** Red family, byte-identical to the pathology sniffer's threshold. */
 function isRedFamily(value: string) {
   const match = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/iu.exec(
     value.trim(),
@@ -109,39 +57,6 @@ function plural(count: number, one: string, many: string) {
   return `${count} ${count === 1 ? one : many}`;
 }
 
-/** Only w:t counts, and w:delText only under w:del — the accepted-view rule
- *  extractDocxBodyText already applies, so a clean document projects identically. */
-function runText(run: XNode, inDel: boolean) {
-  let out = "";
-  for (const kid of elChildren(run)) {
-    const name = elName(kid);
-    if (name === "w:t" || (inDel && name === "w:delText")) {
-      out += getTextContent(kid);
-    }
-  }
-  return out;
-}
-
-function runInk(run: XNode) {
-  let struck = false;
-  let red = false;
-  for (const kid of elChildren(run)) {
-    if (elName(kid) !== "w:rPr") continue;
-    for (const property of elChildren(kid)) {
-      const name = elName(property);
-      if (name === "w:strike") {
-        const value = elAttrs(property)["@_w:val"];
-        struck = value == null || !/^(?:false|0)$/iu.test(String(value));
-      } else if (name === "w:color") {
-        const value = elAttrs(property)["@_w:val"];
-        red = value != null && isRedFamily(String(value));
-      }
-    }
-  }
-  return { struck, red };
-}
-
-/** All visible text under a node, paragraph-separated — used for comment bodies. */
 function subtreeText(node: unknown): string {
   const name = elName(node);
   if (!name) return "";
@@ -156,9 +71,8 @@ interface CommentBody {
   text: string;
 }
 
-function readComments(xml: string): Map<string, CommentBody> {
+function readComments(tree: XNode[]): Map<string, CommentBody> {
   const bodies = new Map<string, CommentBody>();
-  const tree = createParser().parse(xml) as XNode[];
   const visit = (node: unknown) => {
     const name = elName(node);
     if (!name) return;
@@ -183,7 +97,6 @@ function renderComment(body: CommentBody) {
   return `{>>${body.author || "unattributed"}: ${body.text}<<}`;
 }
 
-/** Adjacent runs of one kind read as one edit; per-run markers are confetti. */
 function render(segments: Segment[]) {
   let out = "";
   let index = 0;
@@ -226,23 +139,13 @@ export async function projectDocxRedline(
   const notes: string[] = [];
 
   try {
-    if (!bytes?.length || bytes.length > MAX_DRAFTING_DOCX_BYTES) {
-      throw new Error("DOCX is empty or exceeds the read limit");
-    }
-    const zip = await loadDocxPackage(bytes);
-    const documentEntry = getZipEntry(zip, "word/document.xml");
-    if (!documentEntry) throw new Error("Package has no word/document.xml");
-    const tree = createParser().parse(
-      await documentEntry.async("string"),
-    ) as XNode[];
-    const bodyChildren = findBodyChildren(tree);
-    if (!bodyChildren) throw new Error("document.xml has no w:body");
+    const session = await openDocxSession(bytes);
+    const document = await session.document("Redline projection");
 
     let comments = new Map<string, CommentBody>();
-    const commentsEntry = getZipEntry(zip, "word/comments.xml");
-    if (commentsEntry) {
+    if (session.has("word/comments.xml")) {
       try {
-        comments = readComments(await commentsEntry.async("string"));
+        comments = readComments((await session.readXml("word/comments.xml")) ?? []);
       } catch (error) {
         notes.push(`Comment bodies could not be read (${message(error)}).`);
       }
@@ -251,92 +154,52 @@ export async function projectDocxRedline(
     const anchored = new Set<string>();
     const danglingRanges = new Set<string>();
     let sawMove = false;
-    /** Every character the document itself holds, markers excluded. */
     let literal = "";
     const lines: string[] = [];
 
-    const walkParagraph = (
-      nodes: XNode[],
-      segments: Segment[],
-      insDepth: number,
-      delDepth: number,
-    ) => {
-      for (const node of nodes) {
-        const name = elName(node);
-        if (!name || SKIP.has(name)) continue;
-
-        if (name === "w:r") {
-          const inDel = delDepth > 0;
-          const text = runText(node, inDel);
-          if (!text) continue;
-          literal += text;
-          if (inDel) {
-            segments.push({ kind: "del", text });
-          } else if (insDepth > 0) {
-            segments.push({ kind: "ins", text });
-          } else {
-            const { struck, red } = runInk(node);
-            // Struck wins over red: a run that is both is a manual deletion.
-            if (struck) {
-              counts.ink_deletions += 1;
-              segments.push({ kind: "ink_del", text });
-            } else if (red) {
-              counts.ink_insertions += 1;
-              segments.push({ kind: "ink_ins", text });
-            } else {
-              segments.push({ kind: "plain", text });
-            }
-          }
+    for (const paragraph of document.paragraphs) {
+      const segments: Segment[] = [];
+      for (const event of paragraph.events) {
+        if (event.kind === "revision") {
+          counts[event.revision === "ins" ? "tracked_insertions" : "tracked_deletions"] += 1;
           continue;
         }
-
-        if (name === "w:ins") {
-          counts.tracked_insertions += 1;
-          walkParagraph(elChildren(node), segments, insDepth + 1, delDepth);
+        if (event.kind === "move") {
+          sawMove = true;
           continue;
         }
-        if (name === "w:del") {
-          counts.tracked_deletions += 1;
-          walkParagraph(elChildren(node), segments, insDepth, delDepth + 1);
-          continue;
-        }
-        if (name === "w:commentRangeStart") continue;
-        if (name === "w:commentRangeEnd") {
-          const id = elAttrs(node)["@_w:id"];
-          if (id == null) continue;
-          const body = comments.get(String(id));
+        if (event.kind === "commentEnd") {
+          if (event.id == null) continue;
+          const body = comments.get(event.id);
           if (!body) {
-            danglingRanges.add(String(id));
+            danglingRanges.add(event.id);
             continue;
           }
-          anchored.add(String(id));
+          anchored.add(event.id);
           counts.comments += 1;
           literal += body.text;
           segments.push({ kind: "comment", text: renderComment(body) });
           continue;
         }
-        if (name === "w:moveFrom" || name === "w:moveTo") sawMove = true;
-
-        // w:hyperlink, w:smartTag, inline w:sdt, w:fldSimple, moves and any
-        // container this list has not met: descend rather than lose the text.
-        walkParagraph(elChildren(node), segments, insDepth, delDepth);
-      }
-    };
-
-    const collect = (nodes: XNode[]) => {
-      for (const node of nodes) {
-        const name = elName(node);
-        if (!name) continue;
-        if (name === "w:p") {
-          const segments: Segment[] = [];
-          walkParagraph(elChildren(node), segments, 0, 0);
-          lines.push(render(segments));
-        } else if (BLOCK_CONTAINERS.has(name)) {
-          collect(elChildren(node));
+        const run = event.run;
+        if (!run.text) continue;
+        literal += run.text;
+        if (run.del) {
+          segments.push({ kind: "del", text: run.text });
+        } else if (run.ins) {
+          segments.push({ kind: "ins", text: run.text });
+        } else if (run.strike) {
+          counts.ink_deletions += 1;
+          segments.push({ kind: "ink_del", text: run.text });
+        } else if (run.color != null && isRedFamily(run.color)) {
+          counts.ink_insertions += 1;
+          segments.push({ kind: "ink_ins", text: run.text });
+        } else {
+          segments.push({ kind: "plain", text: run.text });
         }
       }
-    };
-    collect(bodyChildren);
+      lines.push(render(segments));
+    }
 
     const collided = MARKER_SEQUENCES.filter((seq) => literal.includes(seq));
     if (collided.length) {

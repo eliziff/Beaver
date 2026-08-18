@@ -29,7 +29,7 @@ import { isImageDocumentType, MAX_CHAT_IMAGES, toLlmImage } from "../llm/images"
 import { compactionThresholdForModel } from "../llm/contextWindow";
 import { compactChatContext } from "./contextCompaction";
 import { formatChatMessageContent } from "./messageFormatting";
-import { projectChatTranscript } from "./anonymousTranscript";
+import { projectChatTranscript } from "./chatTranscript";
 import { normalizeAskInputsEvent } from "./askInputs";
 import {
   priorLegalEvidencePrompt,
@@ -392,13 +392,15 @@ async function loadDocumentContext(
     }
   }
   for (const id of ids) if (!byId.has(id)) {
-    const link = await deps.documents.link(auth, id, null);
-    if (link) byId.set(id, {
+    const details = await deps.documents.versions(auth, id);
+    const version = details?.versions.find(({ id: versionId }) =>
+      versionId === details.current_version_id);
+    if (version) byId.set(id, {
       id,
-      filename: link.filename,
-      file_type: link.fileType,
-      current_version_id: link.version.id,
-      active_version_number: link.version.version_number,
+      filename: version.filename,
+      file_type: version.file_type,
+      current_version_id: version.id,
+      active_version_number: version.version_number,
     });
   }
   if (selectedIds.some((id) => !byId.has(id))) {

@@ -99,9 +99,7 @@ describe("Muse Spark through OpenRouter", () => {
       "https://openrouter.ai/api/v1/responses",
     );
     const init = fetchMock.mock.calls[0][1] as RequestInit;
-    expect(init.headers).toMatchObject({
-      Authorization: "Bearer test-key",
-    });
+    expect(new Headers(init.headers).get("authorization")).toBe("Bearer test-key");
     expect(JSON.parse(String(init.body))).toMatchObject({
       model: "meta/muse-spark-1.1",
       reasoning: { effort: "low" },

@@ -5,14 +5,14 @@ import {
   providerPdfReferencesForTurn,
 } from "./localPdfEvidenceState";
 import { citationUrls } from "./citations";
-import { readLocalPdfEvidenceReceipt } from "../localPdfLookup";
+import { documentProjectionService } from "../documentProjectionService";
 import {
-  claimAnonymousCodexSession,
-  deleteAnonymousProviderSessions,
+  claimLocalCodexSession,
+  deleteLocalProviderSession,
   providerSessionCompatibilityKey,
-  readAnonymousCodexSession,
-  writeAnonymousCodexSession,
-} from "../anonymousProviderSessionStore";
+  readLocalCodexSession,
+  writeLocalCodexSession,
+} from "../localProviderSessionStore";
 import { beaverCodexHome } from "../llm/codexAppServer";
 import { compactCodexSession } from "../llm/codex";
 import { providerForModel } from "../llm/models";
@@ -69,7 +69,7 @@ async function active(handles: ReadonlySet<string>, allowed: ReadonlySet<string>
         handle, source_reference,
       }));
       try {
-        const { source } = await readLocalPdfEvidenceReceipt(handle);
+        const { source } = await documentProjectionService.readPdfEvidence(handle);
         return allowed.has(source.document_id) ? [{
           handle, document_id: source.document_id, version_id: source.version_id,
         }] : [];
@@ -126,7 +126,7 @@ export const localChatApplicationFeatures: ChatApplicationFeatures = {
   providerSession: {
     async claim(input) {
       if (input.provider !== "codex") {
-        deleteAnonymousProviderSessions(input.chatId);
+        deleteLocalProviderSession(input.chatId);
         return null;
       }
       const compatibilityKey = providerSessionCompatibilityKey({
@@ -145,7 +145,7 @@ export const localChatApplicationFeatures: ChatApplicationFeatures = {
       });
       let continuationId: string | undefined;
       try {
-        continuationId = claimAnonymousCodexSession({
+        continuationId = claimLocalCodexSession({
           userId: input.auth.userId,
           chatId: input.chatId,
           projectId: input.projectId,
@@ -162,10 +162,10 @@ export const localChatApplicationFeatures: ChatApplicationFeatures = {
         }),
         save(nextContinuationId, version) {
           if (!nextContinuationId) {
-            deleteAnonymousProviderSessions(input.chatId);
+            deleteLocalProviderSession(input.chatId);
             return;
           }
-          writeAnonymousCodexSession({
+          writeLocalCodexSession({
             userId: input.auth.userId,
             chatId: input.chatId,
             projectId: input.projectId,
@@ -177,7 +177,7 @@ export const localChatApplicationFeatures: ChatApplicationFeatures = {
       };
     },
     async compact({ auth, chatId, model, signal }) {
-      const session = readAnonymousCodexSession(auth.userId, chatId);
+      const session = readLocalCodexSession(auth.userId, chatId);
       if (providerForModel(model) !== "codex" || !session) {
         return { handled: false, save: (_version: number) => undefined };
       }
@@ -189,7 +189,7 @@ export const localChatApplicationFeatures: ChatApplicationFeatures = {
       return {
         handled: true,
         save(version) {
-          writeAnonymousCodexSession({
+          writeLocalCodexSession({
             userId: session.user_id,
             chatId: session.chat_id,
             projectId: session.project_id,

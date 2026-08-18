@@ -1,6 +1,7 @@
 import type { NormalizedToolCall } from "../../llm";
-import { localLibraryStore, localDocuments } from "../../localLibraryStore";
-import { localProjects } from "../../localProjectStore";
+import {
+  localLibraryStore, localDocuments, localProjects,
+} from "./localDocumentFixtures";
 import {
   executeAssistantTool,
   type AssistantToolOptions,

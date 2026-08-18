@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { compileA2AJSourceDoc } from "../../../backend/src/lib/sourceDocA2AJ";
 import {
   analyzeOpinionStructure,
+  deriveTextOpinionStructure,
   partitionOpinionStructure,
 } from "../../../backend/experiments/a2aj-decision-roster/legalOpinionBoundaries";
 
@@ -27,6 +28,7 @@ console.log(
 let compileMs = 0;
 let analyzeMs = 0;
 let partitionMs = 0;
+let deriveMs = 0;
 let totalMs = 0;
 const sample = texts.slice(0, 60);
 for (const text of sample) {
@@ -55,11 +57,19 @@ for (const text of sample) {
     }),
   );
   const t3 = performance.now();
+  deriveTextOpinionStructure({
+    text: source.text,
+    paragraphs,
+    firstParagraphStart: paragraphs[0]?.start ?? 0,
+    structure,
+  });
+  const t4 = performance.now();
   compileMs += t1 - t0;
   analyzeMs += t2 - t1;
   partitionMs += t3 - t2;
-  totalMs += t3 - t0;
+  deriveMs += t4 - t3;
+  totalMs += t4 - t0;
 }
 console.log(
-  `per-doc avg: compile=${(compileMs / sample.length).toFixed(2)}ms analyze=${(analyzeMs / sample.length).toFixed(2)}ms partition=${(partitionMs / sample.length).toFixed(2)}ms total=${(totalMs / sample.length).toFixed(2)}ms`,
+  `per-doc avg: compile=${(compileMs / sample.length).toFixed(2)}ms analyze=${(analyzeMs / sample.length).toFixed(2)}ms partition=${(partitionMs / sample.length).toFixed(2)}ms derive=${(deriveMs / sample.length).toFixed(2)}ms total=${(totalMs / sample.length).toFixed(2)}ms`,
 );

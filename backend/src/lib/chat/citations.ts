@@ -76,7 +76,7 @@ export function legalEvidenceDocumentLink(entry: RegisteredEvidence) {
 
 /**
  * Project the existing strict evidence-id submission into the same citation
- * events used by document, CourtListener, A2AJ, and public-source JSON.
+ * events used by document and legal-source provider JSON.
  */
 export function createLegalEvidenceCitations(
   state: LegalEvidenceTurnState,

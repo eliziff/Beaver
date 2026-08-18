@@ -189,6 +189,7 @@ async function journalCases(): Promise<Case[]> {
     CREATE TABLE articles (
       article_id INTEGER PRIMARY KEY, dataset TEXT NOT NULL, citation_en TEXT,
       name_en TEXT NOT NULL, authors TEXT, document_date_en TEXT, volume TEXT,
+      issue TEXT,
       first_page TEXT, url_en TEXT, abstract TEXT, journal_name TEXT,
       journal_abbrev TEXT, galley_url TEXT, upstream_license TEXT, text TEXT
     );
@@ -202,9 +203,9 @@ async function journalCases(): Promise<Case[]> {
     .prepare(
       `INSERT INTO articles (
         article_id, dataset, citation_en, name_en, authors, document_date_en,
-        volume, first_page, url_en, abstract, journal_name, journal_abbrev,
+        volume, issue, first_page, url_en, abstract, journal_name, journal_abbrev,
         galley_url, upstream_license, text
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       ...[
@@ -215,6 +216,7 @@ async function journalCases(): Promise<Case[]> {
         "authors",
         "document_date_en",
         "volume",
+        "issue",
         "first_page",
         "url_en",
         "abstract",

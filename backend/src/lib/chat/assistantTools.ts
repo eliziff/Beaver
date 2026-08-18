@@ -8,21 +8,14 @@ import {
   type LegalSourcePassage,
   type LegalSourceReference,
 } from "../legalSourceRegistry";
-import {
-  type PublicLegalDocument,
-} from "../publicLegalSources";
+import type { RemoteLegalSourceDocument } from "../legalSources/remoteProvider";
 import { linkDocxCitations } from "../docxCitationLinking";
 import { fixDocxSupraCrossReferences } from "../docxDeterministicCleanup";
 import { lintDocxStructure } from "../docxStructuralLint";
-import { type ServedPassage } from "../legalFigureReconciliation";
 import {
   deleteProvisionAndRenumberSiblings,
   type DeleteAndRenumberReceipt,
 } from "../legalAmendOps";
-import {
-  assignmentClosureReceipts,
-  type AssignmentClosureSource,
-} from "../legalAssignmentClosure";
 import { compileAgreementSkeleton, readSection, skeletonSubtreeLabels, type AgreementSkeleton, type CompileSkeletonOptions, type TableCellSpan } from "../legalTextSkeleton";
 import {
   crossReferenceGraph,
@@ -34,7 +27,6 @@ import {
 } from "../legalStructureSidecar";
 import { pageMapFromMarkers, pageMapFromSourceDoc, graphScope, parseAddress, resolvePage, selectPages, type FollowDirection, type PageMap } from "../legalDocumentNavigator";
 import { extractDocxDraftingSource } from "../docxDraftingSource";
-import { anchoredSectionSpine, anchoredSectionStarts, deriveSectionNodes } from "./docxSectionAnchors";
 import { resolveDocxEvidenceCitations } from "../docxEvidenceCitations";
 import { resolveDraftingOptions } from "../draftingStyle";
 import { getDraftingStyleSettings } from "../draftingStyleStore";
@@ -47,8 +39,6 @@ import {
   type EditMode,
   type EditInput,
 } from "../docxTrackedChanges";
-import { isSpreadsheetDocumentType } from "../documentTypes";
-import { spreadsheetToLLMStructure } from "../spreadsheet";
 import type { LibraryStore } from "../libraryStore";
 import type { ProjectStore } from "../projectStore";
 import type {
@@ -59,30 +49,22 @@ import type {
   DocumentStore,
 } from "../documentStore";
 import {
-  lookupLocalPdfStructure,
-  readLocalPdfEvidenceReceipt,
-  readLocalPdfSourceDoc,
-  rehydrateLocalPdfEvidence,
+  documentProjectionService,
   type LocalPdfLinkEvidence,
   type LocalPdfLocatorKind,
-} from "../localPdfLookup";
-import { parseLocalPdfOnDemand } from "../localPdfIngestion";
+} from "../documentProjectionService";
 import {
   lookupProviderPdfReference,
   rehydrateProviderPdfReference,
   type ProviderPdfAttachment,
   type ProviderPdfAttachmentState,
 } from "../providerPdfLibraryBridge";
-import {
-  localPdfArtifactSessionForTurn,
-  registerProviderPdfEvidenceForTurn,
-} from "./localPdfEvidenceState";
+import { registerProviderPdfEvidenceForTurn } from "./localPdfEvidenceState";
 import type {
   NormalizedToolCall,
   NormalizedToolResult,
   Tool,
 } from "../llm";
-import { cachedParse } from "../parseCache";
 import {
   getTableOfAuthoritiesJob,
   submitTableOfAuthoritiesDocument,
@@ -100,7 +82,6 @@ import {
   createLibraryEvidence,
   createPublicJournalPassageEvidence,
   legalEvidenceProseIntegrityErrors,
-  registerLegalEvidence,
   type LegalEvidenceReceipt,
   type LegalEvidenceTurnState,
 } from "./legalEvidence";
@@ -117,7 +98,7 @@ import {
   SEARCH_SOURCES_TOOL,
   searchSources,
 } from "./tools/sourceSearchTools";
-import { publicLegalPdfFallbacks } from "./publicLegalPdfFallback";
+import { legalSourcePdfFallbacks } from "./legalSourcePdfFallback";
 import {
   applyTextOpsToDocx,
   type TextOpRequest,
@@ -131,11 +112,10 @@ import {
   renderMarkdownDocx,
   renderXlsxWorkbook,
   safeGeneratedFilename,
-  textParserFor,
   workbookFromMarkdown,
 } from "./tools/documentOps";
 import { quoteRepairSuggestion } from "./quoteRepair";
-import { docxCautionNotes, docxPathologyReportFor } from "./tools/docxPathologyNotes";
+import { docxCautionNotes } from "./tools/docxPathologyNotes";
 import { projectDocxRedline } from "../docx/redline";
 import {
   ADVANCED_DOCX_EDIT_TOOL,
@@ -149,7 +129,6 @@ import {
   type CourtlistenerToolState,
 } from "./courtlistenerToolRunner";
 import { RESOURCE_TOOLS, globPattern as globRegExp } from "./resourceTools";
-import { hideLegalSourceUrls } from "./legalToolResultVisibility";
 import {
   citationLinkingEvent,
   supraFixEvent,
@@ -305,91 +284,6 @@ async function documentStructure(
  * nothing. Non-docx documents and extraction failures degrade soft: rows
  * render without section leads.
  */
-const grepSectionSpineCache = new Map<string, number[]>();
-const codingTocCache = new Map<string, string>();
-const STRUCTURE_CACHE_LIMIT = 32;
-
-function remember<K, V>(cache: Map<K, V>, key: K, value: V) {
-  cache.delete(key);
-  cache.set(key, value);
-  if (cache.size > STRUCTURE_CACHE_LIMIT) cache.delete(cache.keys().next().value!);
-  return value;
-}
-
-async function grepSectionSpine(
-  documents: DocumentStore,
-  scope: DocumentScope,
-  meta: { id: string; current_version_id: string; file_type: string },
-  servedText: string,
-): Promise<number[]> {
-  if (meta.file_type.toLowerCase() !== "docx") return [];
-  const key = `${meta.current_version_id}:${servedText.length}`;
-  const cached = grepSectionSpineCache.get(key);
-  if (cached) return remember(grepSectionSpineCache, key, cached);
-  let leads: number[] = [];
-  try {
-    const file = await documents.read(
-      scope, meta.id, meta.current_version_id, false,
-    );
-    if (file) {
-      const nodes = await deriveSectionNodes(file.bytes);
-      leads = anchoredSectionStarts(nodes, servedText);
-    }
-  } catch {
-    // Soft degradation: no annotation for this document.
-  }
-  return remember(grepSectionSpineCache, key, leads);
-}
-
-/**
- * Rendered .toc content for one document on the served plane, memoized
- * per version. Same two-plane resolver as grepSectionSpine (docx
- * detector nodes anchored into served markdown); non-docx and anchorless
- * documents return "" and contribute no .toc file.
- */
-async function codingTocText(
-  documents: DocumentStore,
-  scope: DocumentScope,
-  meta: { id: string; current_version_id: string; file_type: string; filename: string },
-  servedText: string,
-): Promise<string> {
-  if (meta.file_type.toLowerCase() !== "docx") return "";
-  const key = `${meta.current_version_id}:${servedText.length}`;
-  const cached = codingTocCache.get(key);
-  if (cached !== undefined) return remember(codingTocCache, key, cached);
-  let rendered = "";
-  try {
-    const file = await documents.read(
-      scope, meta.id, meta.current_version_id, false,
-    );
-    if (file) {
-      const nodes = await deriveSectionNodes(file.bytes);
-      const spine = anchoredSectionSpine(nodes, servedText);
-      if (spine.length) {
-        // grep -n convention: "LINE:verbatim line text" — the exact output
-        // a coding agent gets from grepping section leads itself, verbatim
-        // document text (quotable; Read offset=<line> limit=1 returns the
-        // same line). No reconstructed labels.
-        const bodyLines = servedText.split("\n");
-        const lineOf = (offset: number) =>
-          servedText.slice(0, offset).split("\n").length;
-        const rows = spine.map((entry) => {
-          const line = lineOf(entry.offset);
-          return `${line}:${(bodyLines[line - 1] ?? "").slice(0, 150)}`;
-        });
-        rendered =
-          `# ${meta.filename} — ${spine.length} section leads ` +
-          `(${servedText.length} chars, ${bodyLines.length} lines; ` +
-          `Read offset=<line> to open a section)\n` +
-          rows.join("\n");
-      }
-    }
-  } catch {
-    // Soft degradation: no .toc for this document.
-  }
-  return remember(codingTocCache, key, rendered);
-}
-
 async function documentGraph(
   text: string,
   id: string,
@@ -461,20 +355,6 @@ function findNearestSuggestion(query: string, body: string): string | null {
   return quoteRepairSuggestion(query.replace(/^["'“‘]+|["'”’]+$/gu, ""), spans);
 }
 
-const CODING_DOCUMENT_REFERENCE_FIELDS = new Set([
-  "document_id",
-  "source_document_id",
-  "amendment_document_id",
-  "english_document_id",
-  "french_document_id",
-]);
-const CODING_DOCUMENT_REFERENCE_ARRAY_FIELDS = new Set([
-  "document_ids",
-  "doc_ids",
-  "source_document_ids",
-  "draft_document_ids",
-]);
-
 const trimmed = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
 
@@ -533,58 +413,7 @@ async function scopedDocuments(
   )).items as Record<string, unknown>[]);
 }
 
-async function referencedDocuments(
-  scope: DocumentScope,
-  references: Iterable<string>,
-  library: LibraryStore,
-  projects: ProjectStore,
-  allowedDocumentIds?: ReadonlySet<string>,
-  matterId?: string | null,
-) {
-  if (allowedDocumentIds) {
-    return scopedDocuments(scope, library, projects, allowedDocumentIds);
-  }
-  const found = new Map<string, AssistantDocument>();
-  for (const reference of new Set(references)) {
-    const matches = matterId
-      ? documentsFromPage((await projects.directory(
-          scope, matterId,
-          { q: reference, parentFolderId: null, limit: 3, after: null },
-        )).items)
-      : documentsFromPage((await library.page(
-          { ...scope, kind: "file" },
-          {
-            q: reference,
-            parentFolderId: null,
-            limit: 3,
-            after: null,
-            documentsOnly: true,
-          },
-        )).items as Record<string, unknown>[]);
-    const exact = assistantDocument(
-      await library.document({ ...scope, kind: "file" }, reference),
-    );
-    if (exact && (!matterId || matches.some(({ id }) => id === exact.id))) {
-      found.set(exact.id, exact);
-    }
-    for (const document of matches) {
-      if (document.filename.toLocaleLowerCase() === reference.toLocaleLowerCase()) {
-        found.set(document.id, document);
-      }
-    }
-  }
-  return [...found.values()];
-}
-
-const stringArray = (value: unknown): string[] =>
-  Array.isArray(value)
-    ? value
-        .filter((item): item is string => typeof item === "string")
-        .map((item) => item.trim())
-        .filter(Boolean)
-    : [];
-
-async function resolveCodingDocumentReferences(
+async function resolveDocumentArgument(
   scope: DocumentScope,
   input: Record<string, unknown>,
   library: LibraryStore,
@@ -592,61 +421,32 @@ async function resolveCodingDocumentReferences(
   allowedDocumentIds?: ReadonlySet<string>,
   matterId?: string | null,
 ): Promise<{ input: Record<string, unknown>; error?: string }> {
-  const fields = Object.keys(input).filter(
-    (field) =>
-      CODING_DOCUMENT_REFERENCE_FIELDS.has(field) ||
-      CODING_DOCUMENT_REFERENCE_ARRAY_FIELDS.has(field),
-  );
-  if (!fields.length) return { input };
-
-  const references = fields.flatMap((field) =>
-    Array.isArray(input[field])
-      ? stringArray(input[field])
-      : [trimmed(input[field])].filter(Boolean));
-  const documents = await referencedDocuments(
-    scope, references, library, projects, allowedDocumentIds, matterId,
-  );
-  const byFilename = new Map<string, typeof documents>();
-  for (const document of documents) {
-    const key = document.filename.toLocaleLowerCase();
-    byFilename.set(key, [...(byFilename.get(key) ?? []), document]);
+  const reference = trimmed(input.document_id);
+  if (!reference) return { input };
+  const resource = parseResourceReference(reference);
+  if (resource?.kind === "document") {
+    return { input: { ...input, document_id: resource.documentId } };
   }
-  const resolve = (reference: string): { value: string; error?: string } => {
-    if (documents.some((document) => document.id === reference)) {
-      return { value: reference };
-    }
-    const matches = byFilename.get(reference.toLocaleLowerCase()) ?? [];
-    if (matches.length === 1) return { value: matches[0].id };
-    if (matches.length > 1) {
-      return {
-        value: reference,
-        error: `Filename '${reference}' is ambiguous. Use Glob to obtain its document_id.`,
-      };
-    }
-    return { value: reference };
+  const documents = await scopedDocuments(
+    scope, library, projects, allowedDocumentIds, 200, matterId,
+  );
+  if (documents.some(({ id }) => id === reference)) return { input };
+  const matches = documents.filter(
+    ({ filename }) => filename.localeCompare(reference, undefined, {
+      sensitivity: "accent",
+    }) === 0,
+  );
+  if (matches.length > 1) {
+    return {
+      input,
+      error: `Filename '${reference}' is ambiguous. Use Glob to obtain its document_id.`,
+    };
+  }
+  return {
+    input: matches.length === 1
+      ? { ...input, document_id: matches[0].id }
+      : input,
   };
-
-  const resolved = { ...input };
-  for (const field of fields) {
-    if (CODING_DOCUMENT_REFERENCE_FIELDS.has(field)) {
-      const reference = trimmed(input[field]);
-      if (!reference) continue;
-      const next = resolve(reference);
-      if (next.error) return { input, error: next.error };
-      resolved[field] = next.value;
-      continue;
-    }
-    if (!Array.isArray(input[field])) continue;
-    const values: string[] = [];
-    for (const raw of input[field]) {
-      if (typeof raw !== "string") continue;
-      const next = resolve(raw);
-      if (next.error) return { input, error: next.error };
-      values.push(next.value);
-    }
-    resolved[field] = values;
-  }
-  return { input: resolved };
 }
 
 const optionalString = (value: unknown) =>
@@ -657,11 +457,8 @@ const clampInt = (value: unknown, min: number, max: number, fallback: number) =>
   typeof value === "number"
     ? Math.min(Math.max(Math.trunc(value), min), max)
     : fallback;
-// Coding models commonly serialize an omitted optional number as 0. For
-// one-based Read arguments, 0 means "not supplied", not line 1 or a
-// one-line window. Positive values retain the ordinary clamped semantics.
 const positiveInt = (value: unknown, min: number, max: number, fallback: number) =>
-  typeof value === "number" && value > 0
+  typeof value === "number"
     ? Math.min(Math.max(Math.trunc(value), min), max)
     : fallback;
 const errorText = (error: unknown, fallback: string) =>
@@ -670,165 +467,6 @@ const errorText = (error: unknown, fallback: string) =>
 export type AssistantEditTurnState = Map<
   string,
   { versionId: string; parentVersionId: string }
->;
-
-export type AssistantReadTurnState = Map<
-  string,
-  {
-    documentId: string;
-    docLabel?: string;
-    versionId: string;
-    filename: string;
-    projection: "canonical" | "drafting" | "redline";
-    sourceChars?: number;
-    deliveredChars?: number;
-    // Body start of the served plane (the SECT-INDEX length when one is
-    // attached, else 0) and the union of delivered [start,end) intervals in
-    // served coordinates. "Fully read" is interval coverage of the body span,
-    // never a char-count sum — overlapping windows must not fake completeness.
-    bodyStart?: number;
-    intervals?: Array<[number, number]>;
-  }
-> & { servedDraftingCache?: Map<string, ServedDrafting> };
-
-export function mergeIntervals(
-  intervals: Array<[number, number]>,
-): Array<[number, number]> {
-  const sorted = intervals
-    .map(([start, end]): [number, number] =>
-      start <= end ? [start, end] : [end, start],
-    )
-    .filter(([start, end]) => end > start)
-    .sort((left, right) => left[0] - right[0]);
-  const merged: Array<[number, number]> = [];
-  for (const [start, end] of sorted) {
-    const last = merged[merged.length - 1];
-    if (last && start <= last[1]) last[1] = Math.max(last[1], end);
-    else merged.push([start, end]);
-  }
-  return merged;
-}
-
-export function coveredLength(
-  intervals: Array<[number, number]>,
-  start: number,
-  end: number,
-): number {
-  return mergeIntervals(intervals).reduce(
-    (total, [s, e]) =>
-      total + Math.max(0, Math.min(e, end) - Math.max(s, start)),
-    0,
-  );
-}
-
-export function readCoversBody(read: {
-  sourceChars?: number;
-  deliveredChars?: number;
-  bodyStart?: number;
-  intervals?: Array<[number, number]>;
-}): boolean {
-  const sourceChars = read.sourceChars ?? 0;
-  if (sourceChars <= 0) return false;
-  if (read.intervals) {
-    const bodyStart = read.bodyStart ?? 0;
-    return (
-      coveredLength(read.intervals, bodyStart, sourceChars) >=
-      sourceChars - bodyStart
-    );
-  }
-  return (read.deliveredChars ?? 0) >= sourceChars;
-}
-
-/**
- * Chars of BODY content (past the SECT-INDEX) delivered for one read-state
- * entry. An index-only orientation read records a zero-length segment, so it
- * scores 0 here while still counting as a touch. Entries from paths that
- * never window (no intervals recorded) fall back to deliveredChars: any
- * delivery there included body content.
- */
-export function bodyExposedChars(read: {
-  sourceChars?: number;
-  deliveredChars?: number;
-  bodyStart?: number;
-  intervals?: Array<[number, number]>;
-}): number {
-  const sourceChars = read.sourceChars ?? 0;
-  if (sourceChars <= 0) return 0;
-  const bodyStart = read.bodyStart ?? 0;
-  if (read.intervals)
-    return coveredLength(read.intervals, bodyStart, sourceChars);
-  return Math.min(
-    read.deliveredChars ?? 0,
-    Math.max(0, sourceChars - bodyStart),
-  );
-}
-
-/**
- * Exposure-accounting split of the allowed documents: `read` = some body
- * content was served this turn; `orientedOnly` = touched (SECT-INDEX or a
- * zero-body window) but no body chars served; `unread` = never touched.
- * find_in_document hits are deliberately NOT exposure — excerpts are
- * candidates for scoped reads, and counting them as coverage would recreate
- * the false assurance this split exists to remove.
- */
-export function splitReadExposure(
-  allowed: Array<{ id: string; filename: string }>,
-  turnReadState: AssistantReadTurnState,
-): { read: string[]; orientedOnly: string[]; unread: string[] } {
-  const touchedIds = new Set<string>();
-  const exposedIds = new Set<string>();
-  for (const entry of turnReadState.values()) {
-    touchedIds.add(entry.documentId);
-    if (bodyExposedChars(entry) > 0) exposedIds.add(entry.documentId);
-  }
-  return {
-    read: allowed
-      .filter((document) => exposedIds.has(document.id))
-      .map((document) => document.filename),
-    orientedOnly: allowed
-      .filter(
-        (document) =>
-          !exposedIds.has(document.id) && touchedIds.has(document.id),
-      )
-      .map((document) => document.filename),
-    unread: allowed
-      .filter((document) => !touchedIds.has(document.id))
-      .map((document) => document.filename),
-  };
-}
-
-type WorkingSetEvidenceSegment = {
-  virtualStart: number;
-  virtualEnd: number;
-  documentId: string;
-  versionId: string;
-  sourceStart: number;
-  sourceEnd: number;
-  filename?: string;
-  locator?: string;
-  locatorKind?: "paragraph" | "page" | "section" | "footnote";
-  virtualPath?: string;
-  projection?: string;
-};
-
-type WorkingSetEvidenceRef = {
-  virtualStart: number;
-  virtualEnd: number;
-  handle: string;
-  filename: string;
-  locator?: string;
-  exactSha256: string;
-};
-
-export type AssistantWorkingSetTurnState = Map<
-  string,
-  {
-    path: string;
-    text: string;
-    sourceChars: number;
-    segments: WorkingSetEvidenceSegment[];
-    refs?: WorkingSetEvidenceRef[];
-  }
 >;
 
 /** Create or update the one assistant-edit version for this document/turn. */
@@ -892,7 +530,6 @@ async function saveDocxEdits(params: {
   bytes: Buffer;
   edits: AssistantEdit[];
   turnEditState?: AssistantEditTurnState;
-  turnReadState?: AssistantReadTurnState;
   editMode: EditMode;
   extra?: Record<string, unknown>;
 }) {
@@ -909,20 +546,7 @@ async function saveDocxEdits(params: {
   });
   if (!committed) return fail(params.call, "The active document version changed.");
   const { version, parentVersionId, trackedEdits } = committed;
-  const saved = await params.documents.read(
-    params.scope,
-    params.documentId,
-    version.id,
-    false,
-  );
-  if (!saved) return fail(params.call, "Saved DOCX version not found.");
-  const sourceClosure = await sourceClosureForDraft(
-    params.documents,
-    params.scope,
-    await extractDocxBodyText(saved.bytes),
-    params.turnReadState,
-  );
-  const lint = await lintDocxStructure(saved.bytes).catch(() => null);
+  const lint = await lintDocxStructure(params.bytes).catch(() => null);
   return documentResult(params.call, {
     ok: true,
     receipt: "mike-document:v1",
@@ -964,7 +588,6 @@ async function saveDocxEdits(params: {
           notes: lint.notes,
         }
       : undefined,
-    ...(sourceClosure.length ? { source_closure: sourceClosure } : {}),
     ...params.extra,
   });
 }
@@ -992,6 +615,7 @@ type CodingOutputLine = {
     locatorKind?: "paragraph" | "page" | "section" | "footnote";
     virtualPath?: string;
     projection?: string;
+    sourceText?: string;
   };
 };
 
@@ -1107,66 +731,6 @@ function uncoveredRanges(range: TextRange, covered: readonly TextRange[]) {
   }
   if (cursor < range.end) open.push({ start: cursor, end: range.end });
   return open;
-}
-
-function workingSetEvidenceSegments(
-  set: AssistantWorkingSetTurnState extends Map<string, infer Value>
-    ? Value
-    : never,
-  ranges: readonly [number, number][],
-) {
-  const evidence: NonNullable<NormalizedToolResult["evidenceSegments"]> = [];
-  for (const [start, end] of ranges) {
-    for (const segment of set.segments) {
-      const overlapStart = Math.max(start, segment.virtualStart);
-      const overlapEnd = Math.min(end, segment.virtualEnd);
-      if (overlapStart >= overlapEnd) continue;
-      evidence.push({
-        documentId: segment.documentId,
-        versionId: segment.versionId,
-        start: segment.sourceStart + overlapStart - segment.virtualStart,
-        end: segment.sourceStart + overlapEnd - segment.virtualStart,
-        ...(segment.filename && { filename: segment.filename }),
-        ...(segment.locator && { locator: segment.locator }),
-        ...(segment.locatorKind && { locatorKind: segment.locatorKind }),
-        ...(segment.virtualPath && { virtualPath: segment.virtualPath }),
-        ...(segment.projection && { projection: segment.projection }),
-        kind: "evidence",
-      });
-    }
-  }
-  return evidence;
-}
-
-function workingSetEvidenceRefs(
-  set: AssistantWorkingSetTurnState extends Map<string, infer Value>
-    ? Value
-    : never,
-  ranges: readonly [number, number][],
-) {
-  const evidence: NonNullable<NormalizedToolResult["evidenceRefs"]> = [];
-  for (const [start, end] of ranges) {
-    for (const ref of set.refs ?? []) {
-      const overlapStart = Math.max(start, ref.virtualStart);
-      const overlapEnd = Math.min(end, ref.virtualEnd);
-      if (overlapStart >= overlapEnd) continue;
-      const text = set.text.slice(overlapStart, overlapEnd);
-      const localStart = overlapStart - ref.virtualStart;
-      const localEnd = overlapEnd - ref.virtualStart;
-      evidence.push({
-        handle: `${ref.handle}#chars=${localStart}-${localEnd}`,
-        text,
-        filename: ref.filename,
-        locator:
-          localStart === 0 && localEnd === ref.virtualEnd - ref.virtualStart
-            ? ref.locator
-            : `${ref.locator ?? ref.handle} chars ${localStart}-${localEnd}`,
-        exactSha256: sha256(text),
-        kind: "evidence",
-      });
-    }
-  }
-  return evidence;
 }
 
 function codingRangeLines(
@@ -1588,10 +1152,7 @@ async function readLegalSourceResource(
   args: Record<string, unknown>,
   options: {
     userId: string;
-    a2ajDocuments?: A2AJDocument[];
-    a2ajLookups?: A2AJLocatorLookup[];
     courtlistener?: CourtlistenerToolState;
-    evidence?: LegalEvidenceTurnState;
     signal?: AbortSignal;
   },
 ): Promise<BeaverOutcome | null> {
@@ -1662,28 +1223,22 @@ async function readLegalSourceResource(
       ...legalSourceEvidence(passage),
     }));
     const fallbacks: unknown[] = [];
-    const capturedPublic = new Set<string>();
+    const capturedRemoteSources = new Set<string>();
     const capturedCourt = new Set<string>();
     for (const item of registered) {
-      if (item.document) {
-        if (!options.a2ajDocuments?.some(
-          (candidate) => candidate.citation === item.document!.citation &&
-            candidate.dataset === item.document!.dataset &&
-            candidate.language === item.document!.language,
-        )) options.a2ajDocuments?.push(item.document);
-      }
-      if (item.lookup) options.a2ajLookups?.push(item.lookup);
       const native = objectRecord(item.passage.native);
       const nativeDocument = objectRecord(native?.document);
       if (
         nativeDocument &&
         ["tna", "govuk-et", "govinfo"].includes(item.passage.source.provider)
       ) {
-        const document = nativeDocument as PublicLegalDocument;
+        const document = nativeDocument as RemoteLegalSourceDocument;
         const key = `${document.provider}:${document.identity}`;
-        if (!capturedPublic.has(key)) {
-          capturedPublic.add(key);
-          fallbacks.push(...await publicLegalPdfFallbacks(document, options.userId));
+        if (!capturedRemoteSources.has(key)) {
+          capturedRemoteSources.add(key);
+          fallbacks.push(
+            ...await legalSourcePdfFallbacks(document, options.userId),
+          );
         }
       }
       const courtCase = objectRecord(native?.case);
@@ -1702,12 +1257,6 @@ async function readLegalSourceResource(
           if (fallback) fallbacks.push(fallback);
         }
       }
-      if (options.evidence && item.receipt) {
-        registerLegalEvidence(options.evidence, item.receipt, {
-          document: item.document,
-          lookup: item.lookup,
-        });
-      }
     }
 
     let referenceNeighborhood: Record<string, unknown> | undefined;
@@ -1722,16 +1271,10 @@ async function readLegalSourceResource(
           references as A2AJReferenceDirection,
           options.signal,
         );
-        const sections = related.lookups.map((lookup) => {
-          const evidence = a2ajLookupEvidenceBlocks(lookup, "legislation");
-          for (const item of evidence) {
-            options.a2ajLookups?.push(item.lookup);
-            if (options.evidence) {
-              registerLegalEvidence(options.evidence, item.receipt, {
-                lookup: item.lookup,
-              });
-            }
-            registered.push({
+          const sections = related.lookups.map((lookup) => {
+            const evidence = a2ajLookupEvidenceBlocks(lookup, "legislation");
+            for (const item of evidence) {
+              registered.push({
               passage: {
                 source,
                 locator: {
@@ -1856,9 +1399,7 @@ async function runCodingShapeCall(
   allowedDocumentIds?: Set<string>,
   matterId?: string | null,
   turnEditState?: AssistantEditTurnState,
-  workingSets?: AssistantWorkingSetTurnState,
   servedDraftingCache?: Map<string, ServedDrafting>,
-  turnReadState?: AssistantReadTurnState,
   localPdfEvidenceHandles?: Set<string>,
   workflows: WorkflowStore = new Map(),
   editMode: EditMode = "manual",
@@ -1901,18 +1442,10 @@ async function runCodingShapeCall(
     const reference = parseResourceReference(raw.trim());
     return reference?.kind === "document" ? reference.versionId : undefined;
   };
-  const resolveWorkingSet = (raw: string) => {
-    const wanted = raw.replace(/\\/gu, "/").trim().toLowerCase();
-    return [...(workingSets?.values() ?? [])].find(
-      (set) => set.path.toLowerCase() === wanted,
-    );
-  };
   // Markdown plane: when the arm serves docx as pandoc markdown
   // (MIKE_READ_DOCX_MARKDOWN), Glob/Read/Grep list, search, and read the
   // SAME text the mike read path would serve, so every file:line
-  // coordinate agrees arm-wide. The slice starts past any attached
-  // SECT-INDEX (bodyOffset is 0 when none is attached) so hits never land
-  // in a prosthetic prefix. Non-docx files and extraction failures keep
+  // coordinate agrees arm-wide. Non-docx files and extraction failures keep
   // the plaintext plane. Same document shape readOne builds for drafting.
   const codingDocument = async (
     documentId: string,
@@ -1949,7 +1482,7 @@ async function runCodingShapeCall(
           filename: drafting.filename,
           documentId,
           versionId: drafting.versionId,
-          text: drafting.served.slice(drafting.bodyOffset),
+          text: drafting.served,
           cautions: [],
           pages: { pages: [], source: "unindexed" as const },
           tableCells: [],
@@ -1961,32 +1494,6 @@ async function runCodingShapeCall(
       documents, scope, documentId, versionId,
     );
     return extracted ? { ...extracted, projection: "canonical" as const } : null;
-  };
-  const recordCodingExposure = (
-    meta: (typeof files)[number],
-    versionId: string,
-    projection: "canonical" | "drafting" | "redline",
-    sourceChars: number,
-    spans: Array<[number, number]>,
-  ) => {
-    if (!turnReadState) return;
-    const stateKey = `${projection}:${meta.id}:${versionId}`;
-    const prior = turnReadState.get(stateKey);
-    const intervals = mergeIntervals([...(prior?.intervals ?? []), ...spans]);
-    turnReadState.set(stateKey, {
-      documentId: meta.id,
-      docLabel: codingPath(meta, versionId),
-      versionId,
-      filename: meta.filename,
-      projection,
-      sourceChars,
-      deliveredChars: intervals.reduce(
-        (total, [start, end]) => total + (end - start),
-        0,
-      ),
-      bodyStart: 0,
-      intervals,
-    });
   };
   if (call.name === "Glob") {
     const re = globRegExp(trimmed(args.pattern) || "*");
@@ -2007,38 +1514,6 @@ async function runCodingShapeCall(
         };
       }),
     );
-    const workingSetRows = [...(workingSets?.values() ?? [])]
-      .filter((set) => re.test(set.path))
-      .map((set) => ({
-        row: `${set.path}\tchars=${set.text.length}\tlines=${
-          set.text ? set.text.split(/\r?\n/u).length : 0
-        }`,
-        chars: set.text.length,
-        lines: set.text ? set.text.split(/\r?\n/u).length : 0,
-      }));
-    // Companion .toc index files (v4): one row per docx whose section
-    // spine anchored; the pattern matches against "<filename>.toc" so
-    // "*.toc" lists only indexes. Sizes are the rendered toc itself —
-    // orientation priced in-band, like everything else Glob reports.
-    const tocRows = (
-          await Promise.all(
-            files
-              .filter((meta) => re.test(`${meta.filename}.toc`))
-              .map(async (meta) => {
-                const document = await codingDocument(meta.id);
-                if (!document) return null;
-                const toc = await codingTocText(
-                  documents, scope, meta, document.text,
-                );
-                if (!toc) return null;
-                return {
-                  row: `${meta.filename}.toc\tchars=${toc.length}\tlines=${toc.split("\n").length}`,
-                  chars: toc.length,
-                  lines: toc.split("\n").length,
-                };
-              }),
-          )
-        ).filter((row): row is NonNullable<typeof row> => row !== null);
     const workflowRows = [...workflows].flatMap(([id, workflow]) => {
       const resource = resourceReference.workflow(id);
       return re.test(resource)
@@ -2051,8 +1526,6 @@ async function runCodingShapeCall(
     });
     const rows = [
       ...fileRows,
-      ...tocRows,
-      ...workingSetRows,
       ...workflowRows,
     ];
     if (!rows.length) return result(call, "No files found");
@@ -2062,10 +1535,7 @@ async function runCodingShapeCall(
       call,
       [
         ...rows.map((row) => row.row),
-        `TOTAL\tfiles=${rows.length}\tchars=${totalChars}\tlines=${totalLines}` +
-          (0
-            ? `\twhole_read_budget_chars=${0}`
-            : ""),
+        `TOTAL\tfiles=${rows.length}\tchars=${totalChars}\tlines=${totalLines}`,
       ].join("\n"),
     );
   }
@@ -2110,20 +1580,16 @@ async function runCodingShapeCall(
       const sourcePath = file.localPath;
       try {
         if (handle) {
-          const receipt = await readLocalPdfEvidenceReceipt(handle);
+          const receipt = await documentProjectionService.readPdfEvidence(handle);
           if (
             receipt.source.document_id !== meta.id ||
             receipt.source.version_id !== file.version.id
           ) {
             return fail(call, "PDF evidence does not belong to this resource.");
           }
-          const artifactSession = localPdfEvidenceHandles
-            ? localPdfArtifactSessionForTurn(localPdfEvidenceHandles, sourcePath)
-            : undefined;
-          const lookup = await rehydrateLocalPdfEvidence(
+          const lookup = await documentProjectionService.rehydratePdfEvidence(
             sourcePath,
             handle,
-            artifactSession,
           );
           localPdfEvidenceHandles?.add(handle);
           const evidence = pdfLegalEvidence(
@@ -2141,19 +1607,15 @@ async function runCodingShapeCall(
             evidence,
           };
         }
-        await parseLocalPdfOnDemand({
+        await documentProjectionService.parsePdf({
           documentId: meta.id,
           versionId: file.version.id,
           sourcePath,
           sourceSha256: file.version.source_sha256 ?? undefined,
         });
-        const artifactSession = localPdfEvidenceHandles
-          ? localPdfArtifactSessionForTurn(localPdfEvidenceHandles, sourcePath)
-          : undefined;
-        const lookup = await lookupLocalPdfStructure(
+        const lookup = await documentProjectionService.lookupPdf(
           sourcePath,
           pdfLocatorParams(args),
-          { artifactSession },
         );
         if (lookup.status === "found") {
           localPdfEvidenceHandles?.add(lookup.evidence.handle);
@@ -2175,151 +1637,6 @@ async function runCodingShapeCall(
       } catch (error) {
         return fail(call, pdfEvidenceError(error));
       }
-    }
-    // Companion .toc read (v4): serve the rendered index cat-n style.
-    // Derived metadata, not document text — no evidence segments, no
-    // body-exposure accounting; the body plane's line numbers stay pure.
-    if (/\.toc$/iu.test(requested)) {
-      const base = requested.replace(/\.toc$/iu, "");
-      const candidates = resolvePath(base);
-      if (candidates.length !== 1) {
-        return fail(
-          call,
-          candidates.length
-            ? disambiguationHint(requested, "file_path")
-            : `No .toc for '${base}' — Glob lists the available index files.`,
-        );
-      }
-      const meta = candidates[0];
-      const document = await codingDocument(meta.id, referencedVersion(base));
-      const toc = document
-        ? await codingTocText(documents, scope, meta, document.text)
-        : "";
-      if (!toc) {
-        return fail(
-          call,
-          `No .toc for '${base}' — this document has no anchorable section spine; read the document directly.`,
-        );
-      }
-      {
-        if (document) {
-          recordCodingExposure(
-            meta,
-            document.versionId || meta.current_version_id,
-            document.projection,
-            document.text.length,
-            [],
-          );
-        }
-      }
-      const rendered = toc
-        .split("\n")
-        .map((line, index) => `${String(index + 1).padStart(6)}\t${line}`)
-        .join("\n");
-      return result(call, rendered);
-    }
-    const workingSet = resolveWorkingSet(requested);
-    if (workingSet) {
-      if (
-        trimmed(args.section) ||
-        trimmed(args.pages) ||
-        (args.references && args.references !== "none")
-      ) {
-        return result(
-          call,
-          "Structure projections accept only file_path, offset, and limit.",
-        );
-      }
-      const lines = workingSet.text.split(/\r?\n/u);
-      const starts = sourceLineStarts(workingSet.text, lines);
-      const offset = positiveInt(args.offset, 1, 100_000_000, 1);
-      const limit = positiveInt(args.limit, 1, 2_000, 2_000);
-      const firstLine = lines[offset - 1];
-      const startChar = 0;
-      if (firstLine === undefined) {
-        return result(
-          call,
-          offset > lines.length
-            ? `(offset ${offset} is past the end of the working set; total lines: ${lines.length})`
-            : "(empty working set)",
-        );
-      }
-      if (startChar > firstLine.length) {
-        return result(
-          call,
-          `(start_char ${startChar} is past the end of working-set line ${offset}; line chars: ${firstLine.length})`,
-        );
-      }
-      const bodyBudget = Math.max(
-        1_000,
-        MAX_TOOL_RESULT_CHARS - 1_000,
-      );
-      const candidates: CodingOutputLine[] = [];
-      let used = 0;
-      let sameLineContinuation:
-        | { line: number; nextChar: number; totalChars: number }
-        | undefined;
-      for (
-        let index = 0;
-        index < limit && offset - 1 + index < lines.length;
-        index += 1
-      ) {
-        const lineIndex = offset - 1 + index;
-        const line = lines[lineIndex];
-        const localStart = index === 0 ? startChar : 0;
-        const prefix = `${String(lineIndex + 1).padStart(6, " ")}\t`;
-        const available =
-          bodyBudget - used - prefix.length - (candidates.length ? 1 : 0);
-        if (available <= 0) break;
-        const shown = line.slice(localStart, localStart + available);
-        candidates.push({
-          rendered: `${prefix}${shown}`,
-          span: [
-            starts[lineIndex] + localStart,
-            starts[lineIndex] + localStart + shown.length,
-          ],
-        });
-        used += prefix.length + shown.length + (candidates.length > 1 ? 1 : 0);
-        if (localStart + shown.length < line.length) {
-          sameLineContinuation = {
-            line: lineIndex + 1,
-            nextChar: localStart + shown.length,
-            totalChars: line.length,
-          };
-          break;
-        }
-      }
-      const rendered = candidates.map((line) => line.rendered).join("\n");
-      const lastShown = offset - 1 + candidates.length;
-      const continuation = sameLineContinuation
-        ? `[TRUNCATED: structure-projection line ${sameLineContinuation.line} exceeds the tool-result limit; narrow the projection with Grep.]`
-        : lastShown < lines.length
-          ? `[TRUNCATED: returned lines ${offset}-${lastShown} of ${lines.length}; continue with Read(file_path=${JSON.stringify(workingSet.path)}, offset=${lastShown + 1}).]`
-          : "";
-      const content = continuation
-        ? `${rendered}\n\n${continuation}`
-        : rendered;
-      const exposedRanges = candidates.flatMap((line) =>
-        line.span ? [line.span] : [],
-      );
-      return {
-        ...withMetadata(result(call, content), {
-          evidenceSegments: workingSetEvidenceSegments(workingSet, exposedRanges),
-          evidenceRefs: workingSetEvidenceRefs(workingSet, exposedRanges),
-        }),
-      };
-    }
-    if (
-      requested.replace(/\\/gu, "/").toLowerCase().startsWith(
-        ".mike/structure/",
-      )
-    ) {
-      return result(call, {
-        ok: false,
-        status: "not_found",
-        error:
-          "Structure path not found in this turn. Copy an exact .mike/structure/... path returned by Grep; never invent or alter one.",
-      });
     }
     const matches = resolvePath(requested);
     if (matches.length !== 1) {
@@ -2343,26 +1660,6 @@ async function runCodingShapeCall(
     if (!document) return fail(call, `File could not be read: ${requested}`);
     const lines = document.text.split(/\r?\n/u);
     const starts = sourceLineStarts(document.text, lines);
-    // Exposure accounting (echo plane): every successful Read records its
-    // served spans into turnReadState — the state splitReadExposure consults
-    // at the Write coverage gate. Without this the coding family
-    // served body text while the gate saw an empty map, so the echo refused
-    // every first draft with an all-documents "never opened" list regardless
-    // of what had actually been read. Grep hits stay non-exposure by
-    // doctrine; .toc reads stay derived-metadata-only. The coding plane is
-    // served body-only (no SECT-INDEX prefix), so bodyStart is 0 and spans
-    // are body coordinates already.
-    const recordReadExposure = (kept: CodingOutputLine[]) => {
-      const spans = kept.flatMap((line) => (line.span ? [line.span] : []));
-      if (!spans.length) return;
-      recordCodingExposure(
-        meta,
-        document.versionId || meta.current_version_id,
-        document.projection,
-        document.text.length,
-        spans,
-      );
-    };
     const limit = positiveInt(args.limit, 1, 2_000, 2_000);
     const startChar = clampInt(
       args.start_char,
@@ -2420,11 +1717,12 @@ async function runCodingShapeCall(
               page.printedLabel ?? String(page.pdfPage ?? page.ordinal),
             locatorKind: "page",
             projection: document.projection,
+            filename: meta.filename,
+            sourceText: document.text,
           },
         ),
       );
       const { kept, truncated } = takeCodingOutputLines(candidates);
-      recordReadExposure(kept);
       return codingTextResult(
         call,
         kept.map((line) => line.rendered).join("\n") +
@@ -2488,6 +1786,8 @@ async function runCodingShapeCall(
                   locator: node.label,
                   locatorKind: "section",
                   projection: document.projection,
+                  filename: meta.filename,
+                  sourceText: document.text,
                 },
               ),
             );
@@ -2500,7 +1800,6 @@ async function runCodingShapeCall(
           : truncated
             ? "\n(Reference read stopped at the tool-result limit; narrow the direction or read a returned section recipe.)"
             : "";
-        recordReadExposure(kept);
         return codingTextResult(
           call,
           kept.map((line) => line.rendered).join("\n") + note,
@@ -2517,17 +1816,8 @@ async function runCodingShapeCall(
         100_000_000,
         startLine,
       );
-      // Some tool-call providers populate every optional numeric field with its
-      // minimum. Preserve absolute line semantics for real windows, while
-      // treating that synthetic `1` like an omitted section offset.
-      const sectionOffset = offset === 1 && startLine > 1 ? startLine : offset;
-      // The same providers also materialize both optional numeric fields at
-      // their schema minima. In section mode `{ offset: 1, limit: 1 }` is the
-      // provider rendering of a section-only recipe, not a request to return
-      // only its heading line. A deliberate one-line section read can use the
-      // section's absolute line number instead.
-      const sectionLimit =
-        Number(args.offset) === 1 && Number(args.limit) === 1 ? 2_000 : limit;
+      const sectionOffset = offset;
+      const sectionLimit = limit;
       if (sectionOffset < startLine || sectionOffset > endLine) {
         return fail(
           call,
@@ -2555,6 +1845,8 @@ async function runCodingShapeCall(
               locator: block.label,
               locatorKind: "section",
               projection: document.projection,
+              filename: meta.filename,
+              sourceText: document.text,
             },
           };
         });
@@ -2564,7 +1856,6 @@ async function runCodingShapeCall(
         lastShown < endLine
           ? `\n\n[TRUNCATED: returned section lines ${sectionOffset}-${lastShown} of ${startLine}-${endLine}; continue with Read(file_path="${requested}", section="${block.label}", offset=${lastShown + 1}).${truncated ? " Tool-result limit reached." : ""}]`
           : "";
-      recordReadExposure(kept);
       return codingTextResult(
         call,
         kept.map((line) => line.rendered).join("\n") + more,
@@ -2572,16 +1863,7 @@ async function runCodingShapeCall(
       );
     }
     const offset = positiveInt(args.offset, 1, 100_000_000, 1);
-    // CC parity: some tool-call providers materialize every optional
-    // numeric field at its schema minimum, so {offset:1, limit:1} is the
-    // provider rendering of a plain read, not a request for line 1 alone
-    // (same rule as the section-mode guard above). A deliberate one-line
-    // read of line 1 can pass limit:1 without offset.
-    const effectiveLimit =
-      Number(args.offset) === 1 &&
-      Number(args.limit) === 1
-        ? 2_000
-        : limit;
+    const effectiveLimit = limit;
     const firstLine = lines[offset - 1];
     if (firstLine !== undefined && startChar > firstLine.length) {
       return fail(
@@ -2627,6 +1909,8 @@ async function runCodingShapeCall(
           source: {
             documentId: meta.id,
             versionId: document.versionId,
+            filename: meta.filename,
+            sourceText: document.text,
           },
         };
       });
@@ -2649,7 +1933,6 @@ async function runCodingShapeCall(
       : lastShown < lines.length
         ? `\n\n[TRUNCATED: returned lines ${offset}-${lastShown} of ${lines.length}; continue with Read(file_path="${requested}", offset=${lastShown + 1}).${truncated ? " Tool-result limit reached." : ""}]`
         : "";
-    recordReadExposure(kept);
     return codingTextResult(
       call,
       kept.map((line) => line.rendered).join("\n") + more,
@@ -2659,12 +1942,6 @@ async function runCodingShapeCall(
 
   if (call.name === "Edit" || call.name === "edit_docx_advanced") {
     const requested = trimmed(args.file_path);
-    if (resolveWorkingSet(requested)) {
-      return result(
-        call,
-        "The evidence file is append-only. Edit the original file using the Read recipe in the source boundary.",
-      );
-    }
     const matches = resolvePath(requested);
     if (matches.length !== 1) {
       return result(
@@ -2693,7 +1970,6 @@ async function runCodingShapeCall(
         scope,
         documentId: meta.id,
         turnEditState,
-        turnReadState,
         editMode,
       });
     }
@@ -2737,7 +2013,6 @@ async function runCodingShapeCall(
         bytes: applied.bytes,
         edits: applied.edits,
         turnEditState,
-        turnReadState,
         editMode,
         extra: {
           ops: applied.reports,
@@ -2780,7 +2055,6 @@ async function runCodingShapeCall(
         diff: change.diff,
       })),
       turnEditState,
-      turnReadState,
       editMode,
     });
   }
@@ -2813,97 +2087,6 @@ async function runCodingShapeCall(
     }
   }
   const pathArg = trimmed(args.path);
-  const virtualTarget = pathArg ? resolveWorkingSet(pathArg) : undefined;
-  if (virtualTarget) {
-    if (
-      trimmed(args.section) ||
-      trimmed(args.pages) ||
-      (args.references && args.references !== "none")
-    ) {
-      return fail(call, "Structure-projection Grep does not accept legal scopes.");
-    }
-    const lines = virtualTarget.text.split(/\r?\n/u);
-    const starts = sourceLineStarts(virtualTarget.text, lines);
-    const matched = lines.flatMap((line, index) => {
-      const column = line.search(re);
-      return column >= 0 ? [{ line: index, column }] : [];
-    });
-    if (!matched.length) return result(call, "No matches found");
-    if (args.output_mode === "count") {
-      return result(call, `${virtualTarget.path}:${matched.length}`);
-    }
-    if (args.output_mode !== "content") return result(call, virtualTarget.path);
-    const headLimit = positiveInt(args.head_limit, 1, 2_000, 250);
-    const lineCap = GREP_LINE_CAP;
-    const context = clampInt(args["-C"], 0, 10, 0);
-    // CC parity: -A (after) and -B (before) are honored per side; -C stays
-    // the symmetric fallback. Frozen arms keep -C-only semantics.
-    const contextBefore = clampInt(args["-B"], 0, 10, context);
-    const contextAfter = clampInt(args["-A"], 0, 10, context);
-    const rows: CodingOutputLine[] = [];
-    const emitted = new Set<number>();
-    for (const match of matched) {
-      const at = match.line;
-      for (
-        let index = Math.max(0, at - contextBefore);
-        index <= Math.min(lines.length - 1, at + contextAfter) && rows.length < headLimit;
-        index += 1
-      ) {
-        if (emitted.has(index)) continue;
-        emitted.add(index);
-        const isMatch = index === at;
-        const separator = isMatch ? ":" : "-";
-        const sliceStart =
-          isMatch && lines[index].length > lineCap
-            ? Math.min(
-                Math.max(0, match.column - Math.floor(lineCap / 2)),
-                lines[index].length - lineCap,
-              )
-            : 0;
-        const shown = lines[index].slice(
-          sliceStart,
-          sliceStart + lineCap,
-        );
-        rows.push({
-          rendered: `${virtualTarget.path}${separator}${index + 1}${separator}${shown}`,
-          span: [
-            starts[index] + sliceStart,
-            starts[index] + sliceStart + shown.length,
-          ],
-        });
-      }
-    }
-    const { kept, truncated } = takeCodingOutputLines(rows);
-    const body = kept.map((line) => line.rendered).join("\n");
-    const content =
-      truncated || rows.length >= headLimit
-        ? `${body}\n(Results truncated; narrow the pattern.)`
-        : body;
-    const exposedRanges = kept.flatMap((line) =>
-      line.span ? [line.span] : [],
-    );
-    return {
-      ...withMetadata(result(call, content), {
-        evidenceSegments: workingSetEvidenceSegments(
-          virtualTarget,
-          exposedRanges,
-        ),
-        evidenceRefs: workingSetEvidenceRefs(virtualTarget, exposedRanges),
-      }),
-    };
-  }
-  if (
-    pathArg.replace(/\\/gu, "/").toLowerCase().startsWith(
-      ".mike/structure/",
-    )
-  ) {
-    return result(call, {
-      ok: false,
-      status: "not_found",
-      error:
-        "Structure path not found in this turn. Copy an exact .mike/structure/... path returned by Grep; never invent or alter one.",
-    });
-  }
   let targets = files;
   let targetVersionId: string | undefined;
   if (pathArg) {
@@ -2923,21 +2106,8 @@ async function runCodingShapeCall(
     targets = files.filter((document) => globRe.test(document.filename));
   }
   const grepSection = trimmed(args.section);
-  const grepPages = trimmed(args.pages);
-  const grepReferences =
-    args.references === "inbound" ||
-    args.references === "outbound" ||
-    args.references === "both"
-      ? args.references
-      : "none";
-  if ((grepSection || grepPages || grepReferences !== "none") && !pathArg) {
+  if (grepSection && !pathArg) {
     return fail(call, "Legal Grep scopes require one exact path.");
-  }
-  if (grepSection && grepPages) {
-    return fail(call, "section and pages are alternative exact scopes; choose one.");
-  }
-  if (grepReferences !== "none" && !grepSection) {
-    return fail(call, "references requires an exact section handle.");
   }
   const mode =
     args.output_mode === "content" ||
@@ -2958,43 +2128,22 @@ async function runCodingShapeCall(
   const numberLines = args["-n"] !== false;
 
   const rows: CodingOutputLine[] = [];
-  const grepSourceChars = new Map<string, number>();
-  const grepSources = new Map<
-    string,
-    { versionId: string; projection: "canonical" | "drafting" | "redline" }
-  >();
   // Per-file content buckets; only populated when the per-file budget is on.
   // files_with_matches/count emit one row per document and are fair already.
   const fileBuckets: CodingOutputLine[][] = [];
-  const hardReferenceHints: Array<{
-    kind: "literal_reference";
-    label: string;
-    path: string;
-    offset: number;
-    limit: number;
-    rendered: string;
-  }> = [];
   let truncated = false;
   for (const meta of targets) {
     const document = await codingDocument(meta.id, targetVersionId);
     if (!document) continue;
     const resource = codingPath(meta, document.versionId);
-    grepSourceChars.set(meta.id, document.text.length);
-    grepSources.set(meta.id, {
-      versionId: document.versionId || meta.current_version_id,
-      projection: document.projection,
-    });
     const lines = document.text.split(/\r?\n/u);
     const starts = sourceLineStarts(document.text, lines);
     let scopeSpans: TextRange[] | null = null;
     let scopedSkeleton: AgreementSkeleton | null = null;
-    let mapSkeleton: AgreementSkeleton | null = null;
     if (grepSection) {
-      scopedSkeleton =
-        mapSkeleton ??
-        (await documentStructure(document.text, meta.id, {
-          tableCells: document.tableCells,
-        }));
+      scopedSkeleton = await documentStructure(document.text, meta.id, {
+        tableCells: document.tableCells,
+      });
       const lookup = readSection(scopedSkeleton, grepSection);
       if (lookup.status !== "found" || !lookup.block) {
         return fail(
@@ -3006,37 +2155,7 @@ async function runCodingShapeCall(
             ").",
         );
       }
-      if (grepReferences === "none") {
-        scopeSpans = [{ start: lookup.block.start, end: lookup.block.end }];
-      } else {
-        const graph = await documentGraph(
-          document.text,
-          meta.id,
-          { tableCells: document.tableCells },
-        );
-        const scope = oneHopLegalScope(
-          scopedSkeleton,
-          graph,
-          lookup.block.label,
-          grepReferences,
-        );
-        scopeSpans =
-          scope?.nodes.map((node) => ({ start: node.start, end: node.end })) ?? [];
-      }
-    } else if (grepPages) {
-      const selected = selectPages(document.pages, document.text, grepPages);
-      if (selected.status !== "ok") {
-        return fail(
-          call,
-          selected.status === "empty"
-            ? "pages is required"
-            : `Page '${selected.token}' could not be resolved (${selected.lookup.status}).`,
-        );
-      }
-      scopeSpans = selected.pages.map((page) => ({
-        start: page.start,
-        end: page.end,
-      }));
+      scopeSpans = [{ start: lookup.block.start, end: lookup.block.end }];
     }
     const matched: number[] = [];
     for (let i = 0; i < lines.length; i += 1) {
@@ -3069,7 +2188,6 @@ async function runCodingShapeCall(
     if (mode === "content") {
       const skeleton =
         scopedSkeleton ??
-        mapSkeleton ??
         (await documentStructure(document.text, meta.id, {
           tableCells: document.tableCells,
         }));
@@ -3142,13 +2260,6 @@ async function runCodingShapeCall(
       continue;
     }
     const matchedLines = new Set(matched);
-    // Section-context rows (coding_markdown_v3): anchored section leads,
-    // computed once per hit-document; per hit, the enclosing lead is the
-    // last start at or below the hit's offset.
-    const sectionLeads = await grepSectionSpine(
-      documents, scope, meta, document.text,
-    );
-    const emittedSectionRows = new Set<number>();
     let lastPrinted = -2;
     // Under the per-file budget every document renders into its own bucket
     // and the split happens after the sweep, once the matching-file count is
@@ -3170,60 +2281,6 @@ async function runCodingShapeCall(
         from > lastPrinted + 1
       ) {
         sink.push({ rendered: "--" });
-      }
-      if (sectionLeads.length) {
-        const hitOffset = starts[at];
-        let lo = 0;
-        let hi = sectionLeads.length - 1;
-        let lead = -1;
-        while (lo <= hi) {
-          const mid = (lo + hi) >> 1;
-          if (sectionLeads[mid] <= hitOffset) {
-            lead = mid;
-            lo = mid + 1;
-          } else {
-            hi = mid - 1;
-          }
-        }
-        if (lead >= 0) {
-          let leadLine = 0;
-          lo = 0;
-          hi = lines.length - 1;
-          while (lo <= hi) {
-            const mid = (lo + hi) >> 1;
-            if (starts[mid] <= sectionLeads[lead]) {
-              leadLine = mid;
-              lo = mid + 1;
-            } else {
-              hi = mid - 1;
-            }
-          }
-          // The lead renders as an rg context row at its true line number —
-          // document text, quotable, Read-able at that coordinate. Skip it
-          // when this hit's own context window is about to print that line,
-          // or when it was already emitted for this document.
-          if (
-            leadLine < Math.max(from, lastPrinted + 1) &&
-            !emittedSectionRows.has(leadLine)
-          ) {
-            emittedSectionRows.add(leadLine);
-            const leadText = (lines[leadLine] ?? "").slice(0, GREP_LINE_CAP);
-            sink.push({
-              rendered: numberLines
-                ? `${resource}-${leadLine + 1}-${leadText}`
-                : `${resource}-${leadText}`,
-              span: [
-                starts[leadLine],
-                starts[leadLine] + leadText.length,
-              ],
-              source: {
-                documentId: meta.id,
-                versionId: document.versionId || meta.current_version_id,
-                filename: meta.filename,
-              },
-            });
-          }
-        }
       }
       for (let i = Math.max(from, lastPrinted + 1); i <= to; i += 1) {
         const isMatch = matchedLines.has(i);
@@ -3276,6 +2333,7 @@ async function runCodingShapeCall(
             documentId: meta.id,
             versionId: document.versionId || meta.current_version_id,
             filename: meta.filename,
+            sourceText: document.text,
             ...(candidateSection?.handle
               ? { locator: candidateSection.handle }
               : {}),
@@ -3311,30 +2369,8 @@ async function runCodingShapeCall(
   if (!rows.length) return result(call, "No matches found");
   const limited = rows.slice(0, headLimit);
   const { kept, truncated: sizeTruncated } = takeCodingOutputLines(limited);
-  if (mode === "content") {
-    const spansByDocument = new Map<string, Array<[number, number]>>();
-    for (const line of kept) {
-      if (!line.source || !line.span) continue;
-      const spans = spansByDocument.get(line.source.documentId) ?? [];
-      spans.push(line.span);
-      spansByDocument.set(line.source.documentId, spans);
-    }
-    for (const [documentId, spans] of spansByDocument) {
-      const meta = files.find((file) => file.id === documentId);
-      const source = grepSources.get(documentId);
-      if (!meta || !source) continue;
-      recordCodingExposure(
-        meta,
-        source.versionId,
-        source.projection,
-        grepSourceChars.get(documentId) ?? 0,
-        spans,
-      );
-    }
-  }
   const body = [
     kept.map((line) => line.rendered).join("\n"),
-    ...hardReferenceHints.map((hint) => hint.rendered),
   ].join("\n");
   const output = codingTextResult(
     call,
@@ -3345,16 +2381,7 @@ async function runCodingShapeCall(
       : body,
     kept,
   );
-  const visibleHints = hardReferenceHints.filter((hint) =>
-    toolResultText(output.result).includes(hint.rendered),
-  );
-  return visibleHints.length
-    ? withMetadata(output, {
-        retrievalHints: visibleHints.map(({ rendered: _, ...hint }) =>
-          hint,
-        ),
-      })
-    : output;
+  return output;
 }
 
 function pdfLocatorParams(args: Record<string, unknown>) {
@@ -3368,16 +2395,6 @@ function pdfLocatorParams(args: Record<string, unknown>) {
   };
 }
 
-const textCache = new Map<
-  string,
-  {
-    text: string;
-    cautions: string[];
-    pages: PageMap;
-    tableCells: TableCellSpan[];
-  }
->();
-
 export async function extractDocument(
   documents: DocumentStore,
   scope: DocumentScope,
@@ -3388,60 +2405,21 @@ export async function extractDocument(
     scope, documentId, versionId ?? null, false,
   );
   if (!file) return null;
-  const cacheKey =
-    `${documentId}:${file.version.id}:` +
-    (file.version.source_sha256 ?? file.version.created_at);
-  const cached = textCache.get(cacheKey);
-  if (cached !== undefined) {
-    return {
-      filename: file.filename,
-      documentId,
-      versionId: file.version.id,
-      ...cached,
-    };
-  }
-
   const fileType = file.fileType.toLowerCase();
-  const parser = textParserFor(fileType);
-  const parsed =
-    fileType === "pdf" && file.localPath
-      ? await readLocalPdfSourceDoc(file.localPath).catch(() => null)
-      : null;
-  const sourceBytes = async () => file.bytes;
-  const docxStructure =
-    fileType === "docx"
-      ? await extractDocxBodyStructure(await sourceBytes())
-      : null;
-  const spreadsheetStructure = isSpreadsheetDocumentType(fileType)
-    ? await spreadsheetToLLMStructure(await sourceBytes())
-    : null;
-  const text: string =
-    parsed?.text ??
-    docxStructure?.text ??
-    spreadsheetStructure?.text ??
-    (parser
-      ? await sourceBytes().then((value) =>
-          cachedParse({
-            scope: `user:${scope.userId}`,
-            parser: parser.parser,
-            version: parser.version,
-            bytes: value,
-            parse: () => parser.run(value),
-          }),
-        )
-      : "");
-  // Additive metadata only: the sniffer's cautions ride alongside the text,
-  // which stays byte-identical to what this function has always returned.
-  const cautions =
-    fileType === "docx"
-      ? docxCautionNotes(
-          await docxPathologyReportFor({
-            fileType,
-            scope: `user:${scope.userId}`,
-            bytes: await sourceBytes(),
-          }),
-        )
-      : [];
+  const projection = await documentProjectionService.read({
+    documentId,
+    versionId: file.version.id,
+    filename: file.filename,
+    fileType,
+    sourceSha256: file.version.source_sha256,
+    bytes: file.bytes,
+    localPath: file.localPath,
+  });
+  const text = projection.text;
+  const parsed = "sourceDoc" in projection ? projection.sourceDoc : null;
+  const cautions = projection.kind === "docx-session"
+    ? docxCautionNotes(projection.pathology)
+    : [];
 
   // The page map is built HERE because this is the only place that still
   // holds the engine artifact: `parsed` carries both the PDF page number and
@@ -3465,13 +2443,7 @@ export async function extractDocument(
         if (recovered.pages.length || fileType !== "pdf") return recovered;
         return { pages: [], source: "unindexed" as const };
       })();
-  const tableCells: TableCellSpan[] =
-    docxStructure?.tableCells ?? spreadsheetStructure?.tableCells ?? [];
-
-  if (textCache.size >= 16) {
-    textCache.delete(textCache.keys().next().value!);
-  }
-  textCache.set(cacheKey, { text, cautions, pages, tableCells });
+  const tableCells: TableCellSpan[] = projection.tableCells;
   return {
     filename: file.filename,
     documentId,
@@ -3503,24 +2475,9 @@ export async function extractDocument(
  * else. Trimming takes the head AND the tail, because a clause's proviso lives
  * at its end.
  */
-export const MAX_TOOL_RESULT_CHARS = Number(
+const MAX_TOOL_RESULT_CHARS = Number(
   process.env.MIKE_TOOL_RESULT_CAP || 64_000,
 );
-
-/**
- * A cap the model cannot act on is just a hole in the answer, so say what was
- * dropped and name the calls that fetch it back. Beaver can be more specific
- * than a byte offset: it has addressable section handles.
- */
-function continuationHint(call: NormalizedToolCall): string {
-  if (/^(?:a2aj|caselaw|courtlistener|hansard|legal_pdf|public_legal_source)_/u.test(call.name)) {
-    return `Retry ${call.name} with a narrower query, exact source identifier, or locator; reuse identifiers visible in the preview.`;
-  }
-  if (call.name.startsWith("library_")) {
-    return `Retry ${call.name} with a smaller input batch or a more specific identifier.`;
-  }
-  return `Retry ${call.name} with narrower inputs.`;
-}
 
 export type AssistantToolEvent = {
   type: "doc_created" | "doc_edited";
@@ -3535,101 +2492,27 @@ export type AssistantToolEvent = {
 } | LocalAutomationEvent;
 
 function result(
-  call: NormalizedToolCall,
+  _call: NormalizedToolCall,
   content: unknown,
 ): BeaverOutcome {
-  const visibleContent = hideLegalSourceUrls(call.name, content);
   const serialized =
-    typeof visibleContent === "string"
-      ? visibleContent
-      : JSON.stringify(visibleContent);
-  const objectContent =
-    visibleContent && typeof visibleContent === "object" &&
-      !Array.isArray(visibleContent)
-      ? (visibleContent as Record<string, unknown>)
+    typeof content === "string" ? content : JSON.stringify(content);
+  const object = content && typeof content === "object" && !Array.isArray(content)
+      ? content as Record<string, unknown>
       : null;
-  const reportedStatus =
-    typeof objectContent?.status === "string" &&
-    [
-      "ok",
-      "not_found",
-      "ambiguous",
-      "selection_required",
-      "action_required",
-      "truncated",
-      "past_end",
-      "already_exposed",
-      "error",
-    ].includes(objectContent.status)
-      ? (objectContent.status as NormalizedToolResult["status"])
-      : null;
+  const error = object?.ok === false;
+  const message = String(object?.error ?? serialized);
   const status: NormalizedToolResult["status"] =
-    reportedStatus ??
-    (objectContent?.ok === false
-      ? /ambiguous/iu.test(String(objectContent.error ?? ""))
-        ? "ambiguous"
-        : /not found|does not exist|no (?:matches|files)/iu.test(
-              String(objectContent.error ?? ""),
-            )
-          ? "not_found"
-          : "error"
-      : objectContent?.truncated === true
-        ? "truncated"
-        : /past the end|outside section/iu.test(serialized)
-          ? "past_end"
-          : /ambiguous/iu.test(serialized)
-            ? "ambiguous"
-            : /^No (?:matches|files)/iu.test(serialized)
-              ? "not_found"
-              : "ok");
-  if (serialized.length <= MAX_TOOL_RESULT_CHARS) {
-    return {
-      result: toolText(serialized, status === "error"),
-      metadata: { status },
-    };
-  }
-  const ok =
-    visibleContent && typeof visibleContent === "object" &&
-        !Array.isArray(visibleContent)
-      ? (visibleContent as Record<string, unknown>).ok
-      : undefined;
-  const envelope = (keep: number) => {
-    const headLength = Math.ceil(keep * 0.7);
-    const tailLength = keep - headLength;
-    return JSON.stringify({
-      ...(typeof ok === "boolean" ? { ok } : {}),
-      truncated: true,
-      original_format: typeof visibleContent === "string" ? "text" : "json",
-      omitted_characters: serialized.length - keep,
-      preview: {
-        head: serialized.slice(0, headLength),
-        tail: tailLength ? serialized.slice(-tailLength) : "",
-      },
-      continuation: continuationHint(call),
-    });
-  };
-  // JSON escaping makes the payload size data-dependent. A tiny binary
-  // search keeps the most preview text that fits while preserving valid JSON.
-  let low = 0;
-  let high = Math.min(serialized.length, MAX_TOOL_RESULT_CHARS);
-  let shortened = envelope(0);
-  while (low <= high) {
-    const keep = Math.floor((low + high) / 2);
-    const candidate = envelope(keep);
-    if (candidate.length <= MAX_TOOL_RESULT_CHARS) {
-      shortened = candidate;
-      low = keep + 1;
-    } else {
-      high = keep - 1;
-    }
-  }
+    typeof object?.status === "string"
+      ? object.status as NormalizedToolResult["status"]
+      : error
+        ? /ambiguous/iu.test(message) ? "ambiguous"
+          : /not found|does not exist|no (?:matches|files)/iu.test(message)
+            ? "not_found" : "error"
+        : /^No (?:matches|files)/iu.test(serialized) ? "not_found" : "ok";
   return {
-    result: toolText(
-      shortened.length <= MAX_TOOL_RESULT_CHARS
-        ? shortened
-        : JSON.stringify({ truncated: true }),
-    ),
-    metadata: { status: "truncated" },
+    result: toolText(serialized, status === "error"),
+    metadata: { status },
   };
 }
 
@@ -3681,34 +2564,54 @@ function codingTextResult(
   content: string,
   lines: CodingOutputLine[],
 ): BeaverOutcome {
-  const rendered = result(call, content);
   const sourceLines =
     call.name === "Grep"
       ? lines.filter((line) => line.handoffCandidate === true)
       : lines;
-  return toolResultText(rendered.result) === content
-    ? {
-        ...rendered,
-        metadata: {
-          ...rendered.metadata,
-          evidenceSpans: sourceLines.flatMap((line) =>
-            line.span ? [line.span] : [],
-          ),
-          evidenceSegments: sourceLines.flatMap((line) =>
-            line.span && line.source
-              ? [
-                  {
-                    ...line.source,
-                    start: line.span[0],
-                    end: line.span[1],
-                    kind: call.name === "Grep" ? "candidate" : "evidence",
-                  },
-                ]
-              : [],
-          ),
-        },
-      }
-    : rendered;
+  const segments = sourceLines.flatMap((line) => {
+    if (!line.span || !line.source) return [];
+    const { sourceText: _, ...source } = line.source;
+    return [{
+      ...source,
+      start: line.span[0],
+      end: line.span[1],
+      kind: call.name === "Grep" ? "candidate" as const : "evidence" as const,
+    }];
+  });
+  const evidence = call.name === "Read"
+    ? [...new Map(sourceLines.flatMap((line) => {
+        if (!line.span || !line.source?.sourceText) return [];
+        const [start, end] = line.span;
+        const receipt = createLibraryEvidence({
+          documentId: line.source.documentId,
+          versionId: line.source.versionId,
+          filename: line.source.filename ?? line.source.documentId,
+          sourceText: line.source.sourceText,
+          spanText: line.source.sourceText.slice(start, end),
+          start,
+          end,
+          locator: line.source.locator && line.source.locatorKind
+            ? { kind: line.source.locatorKind, label: line.source.locator }
+            : undefined,
+        });
+        return [[receipt.evidence_id, receipt] as const];
+      })).values()]
+    : [];
+  const rendered = result(
+    call,
+    evidence.length
+      ? `${content}\n\nCitation evidence_ids: ${evidence.map(({ evidence_id }) => evidence_id).join(", ")}`
+      : content,
+  );
+  return {
+    ...rendered,
+    metadata: {
+      ...rendered.metadata,
+      evidenceSpans: sourceLines.flatMap((line) => line.span ? [line.span] : []),
+      evidenceSegments: segments,
+    },
+    ...(evidence.length ? { evidence } : {}),
+  };
 }
 
 const fail = (call: NormalizedToolCall, error: string) =>
@@ -3731,8 +2634,8 @@ const pdfEvidenceError = (error: unknown) => {
 };
 
 type LocalPdfLookupResult =
-  | Awaited<ReturnType<typeof lookupLocalPdfStructure>>
-  | Awaited<ReturnType<typeof rehydrateLocalPdfEvidence>>;
+  | Awaited<ReturnType<typeof documentProjectionService.lookupPdf>>
+  | Awaited<ReturnType<typeof documentProjectionService.rehydratePdfEvidence>>;
 const MAX_COMPACT_PDF_MATCHES = 20;
 
 function compactPdfLookup(filename: string, lookup: LocalPdfLookupResult) {
@@ -3884,8 +2787,6 @@ function compactProviderPdfLookup(resolved: ReadyProviderPdfLookup) {
   };
 }
 
-const TEXT_OP_STRING_LIMIT = 5000;
-
 type InsertBlocksRequest = {
   blocks: string[];
   position: "before" | "after";
@@ -3893,131 +2794,58 @@ type InsertBlocksRequest = {
   occurrence?: number;
 };
 
-function parseInsertBlocksRequest(raw: unknown): InsertBlocksRequest | null | string {
-  if (!Array.isArray(raw)) return null;
-  const inserts = raw.filter(
-    (item) =>
-      item &&
-      typeof item === "object" &&
-      (item as Record<string, unknown>).op === "insert_blocks",
-  );
-  if (!inserts.length) return null;
-  if (raw.length !== 1) return "insert_blocks must be the only op in its call";
-  const item = inserts[0] as Record<string, unknown>;
-  const blocks = Array.isArray(item.blocks)
-    ? item.blocks.filter((block): block is string => typeof block === "string")
-    : [];
-  if (
-    !blocks.length ||
-    blocks.length > 20 ||
-    blocks.some(
-      (block) =>
-        !block.trim() || block.length > TEXT_OP_STRING_LIMIT || /[\r\n]/u.test(block),
-    )
-  ) {
-    return "insert_blocks.blocks must contain 1 to 20 non-empty single-paragraph strings";
+function parseAdvancedOps(raw: unknown):
+  | { insert?: InsertBlocksRequest; requests: TextOpRequest[] }
+  | string {
+  const ops = raw as Array<Record<string, unknown>>;
+  const inserted = ops.find(({ op }) => op === "insert_blocks");
+  if (inserted) {
+    if (ops.length !== 1) return "insert_blocks must be the only op in its call";
+    const blocks = inserted.blocks as string[];
+    const scope = inserted.scope as Record<string, unknown>;
+    if (blocks.some((block) => !block.trim() || /[\r\n]/u.test(block))) {
+      return "insert_blocks.blocks must contain non-empty single-paragraph strings";
+    }
+    if (scope.kind !== "whole_document" && scope.kind !== "find_text") {
+      return "insert_blocks scope must be whole_document or find_text";
+    }
+    if (scope.kind === "find_text" && !trimmed(scope.text)) {
+      return "insert_blocks find_text scope requires exact anchor text";
+    }
+    return {
+      insert: {
+        blocks,
+        position: inserted.position === "before" ? "before" : "after",
+        ...(scope.kind === "find_text" ? { anchorText: trimmed(scope.text) } : {}),
+        ...(typeof scope.occurrence === "number"
+          ? { occurrence: scope.occurrence }
+          : {}),
+      },
+      requests: [],
+    };
   }
-  const scope = item.scope as Record<string, unknown> | undefined;
-  if (!scope || (scope.kind !== "whole_document" && scope.kind !== "find_text")) {
-    return "insert_blocks scope must be whole_document or find_text";
-  }
-  if (scope.kind === "find_text" && !trimmed(scope.text)) {
-    return "insert_blocks find_text scope requires exact anchor text";
-  }
-  return {
-    blocks,
-    position: item.position === "before" ? "before" : "after",
-    ...(scope.kind === "find_text" ? { anchorText: trimmed(scope.text) } : {}),
-    ...(typeof scope.occurrence === "number"
-      ? { occurrence: Math.trunc(scope.occurrence) }
-      : {}),
-  };
-}
-
-/** Parse and bound-check the raw ops array; returns an error string on any
- *  malformed op so the model gets a correctable message. */
-function parseTextOpRequests(raw: unknown): TextOpRequest[] | string {
-  if (!Array.isArray(raw) || !raw.length || raw.length > 20) {
-    return "ops must be an array of 1 to 20 operations";
-  }
-  const boundedString = (value: unknown) =>
-    typeof value === "string" && value.length <= TEXT_OP_STRING_LIMIT;
   const requests: TextOpRequest[] = [];
-  for (const [index, item] of raw.entries()) {
-    const at = `ops[${index}]`;
-    if (!item || typeof item !== "object") return `${at} must be an object`;
-    const op = item as Record<string, unknown>;
-    if (typeof op.op !== "string" || !TEXT_OP_NAMES.includes(op.op)) {
-      return `${at}.op must be one of: ${TEXT_OP_NAMES.join(", ")}`;
+  for (const [index, op] of ops.entries()) {
+    const scope = op.scope as Record<string, unknown>;
+    if (scope.kind === "find_text" && !trimmed(scope.text)) {
+      return `ops[${index}].scope.text is required for find_text`;
     }
-    const rawScope = op.scope as Record<string, unknown> | undefined;
-    if (!rawScope || typeof rawScope !== "object") {
-      return `${at}.scope is required`;
+    if (scope.kind === "range" && (!trimmed(scope.from_text) || !trimmed(scope.to_text))) {
+      return `ops[${index}].scope.from_text and to_text are required for range`;
     }
-    let scope: TextOpScope;
-    if (rawScope.kind === "whole_document") {
-      scope = { kind: "whole_document" };
-    } else if (rawScope.kind === "find_text") {
-      if (!boundedString(rawScope.text) || !(rawScope.text as string).trim()) {
-        return `${at}.scope.text is required for find_text`;
-      }
-      scope = {
-        kind: "find_text",
-        text: rawScope.text as string,
-        ...(typeof rawScope.occurrence === "number"
-          ? { occurrence: Math.trunc(rawScope.occurrence) }
-          : {}),
-      };
-    } else if (rawScope.kind === "range") {
-      if (
-        !boundedString(rawScope.from_text) ||
-        !(rawScope.from_text as string).trim() ||
-        !boundedString(rawScope.to_text) ||
-        !(rawScope.to_text as string).trim()
-      ) {
-        return `${at}.scope.from_text and to_text are required for range`;
-      }
-      scope = {
-        kind: "range",
-        from_text: rawScope.from_text as string,
-        to_text: rawScope.to_text as string,
-      };
-    } else if (rawScope.kind === "at") {
-      if (!boundedString(rawScope.at) || !(rawScope.at as string).trim()) {
-        return `${at}.scope.at is required for at`;
-      }
-      // Carried unresolved: resolution needs the pinned version's text, and
-      // the contract is that every scope resolves against THAT version.
-      scope = {
-        kind: "at",
-        at: (rawScope.at as string).trim(),
-        ...(typeof rawScope.follow === "string" ? { follow: rawScope.follow } : {}),
-        ...(typeof rawScope.depth === "number"
-          ? { depth: Math.trunc(rawScope.depth) }
-          : {}),
-      } as unknown as TextOpScope;
-    } else {
-      return `${at}.scope.kind must be whole_document, at, find_text, or range`;
+    if (scope.kind === "at" && !trimmed(scope.at)) {
+      return `ops[${index}].scope.at is required for at`;
     }
-    if (op.op === "replace_text" && !boundedString(op.find)) {
-      return `${at}.find is required for replace_text`;
+    if (op.op === "replace_text" && typeof op.find !== "string") {
+      return `ops[${index}].find is required for replace_text`;
     }
     requests.push({
-      op: op.op,
-      scope,
-      ...(boundedString(op.find) ? { find: op.find as string } : {}),
-      ...(boundedString(op.replace) ? { replace: op.replace as string } : {}),
-      ...(typeof op.match_case === "boolean" ? { match_case: op.match_case } : {}),
-      ...(typeof op.whole_word === "boolean" ? { whole_word: op.whole_word } : {}),
-      ...(typeof op.occurrence === "number"
-        ? { occurrence: Math.trunc(op.occurrence) }
-        : {}),
-      ...(typeof op.style === "string" && op.style.length <= 20
-        ? { style: op.style }
-        : {}),
-    });
+      ...op,
+      op: op.op as string,
+      scope: scope as unknown as TextOpScope,
+    } as TextOpRequest);
   }
-  return requests;
+  return { requests };
 }
 
 function pdfLegalEvidence(
@@ -4059,13 +2887,11 @@ async function runAdvancedDocxEdit(params: {
   scope: DocumentScope;
   documentId: string;
   turnEditState?: AssistantEditTurnState;
-  turnReadState?: AssistantReadTurnState;
   editMode: EditMode;
 }) {
-  const blockInsert = parseInsertBlocksRequest(params.args.ops);
-  if (typeof blockInsert === "string") return fail(params.call, blockInsert);
-  const requests = blockInsert ? [] : parseTextOpRequests(params.args.ops);
-  if (typeof requests === "string") return fail(params.call, requests);
+  const parsed = parseAdvancedOps(params.args.ops);
+  if (typeof parsed === "string") return fail(params.call, parsed);
+  const { insert: blockInsert, requests } = parsed;
   try {
     const file = await activeDocument(
       params.documents,
@@ -4193,7 +3019,6 @@ async function runAdvancedDocxEdit(params: {
       bytes: applied.bytes,
       edits: applied.edits,
       turnEditState: params.turnEditState,
-      turnReadState: params.turnReadState,
       editMode: params.editMode,
       extra: {
         ops: reports,
@@ -4332,52 +3157,15 @@ const DOCX_WORKFLOWS: Record<
   },
 };
 
-/**
- * mike_upstream_native_v1 serves the arm's own vendored copy of the pinned
- * citationReminder (2266446b:documentOps.ts:33-47) instead of Beaver's. The two
- * are byte-identical today — proven over docx/xlsx/pdf labels by
- * .tmp-native-envelope-probe.ts — so this changes no bytes for any arm; it makes
- * the native arm's fidelity structural, so a later edit to Beaver's copy for
- * another arm cannot silently drift the pinned baseline (spec §1.4). With the
- * flag off this is the same function reference every other arm already used.
- */
-
-
-
-
-/** Served markdown drafting surface for one docx version. Null when the docx
- *  has no drafting source or the surface is off (callers fall back to
- *  extractDocument). */
 type ServedDrafting =
   | {
       served: string;
-      bodyOffset: number;
       versionId: string;
       filename: string;
-      /** Extraction warnings (accepted-view tracked changes, text-box
-       * exclusions, flattened controls, …); surfaced on first read only
-       * when SERVE_CONVERSION_NOTES is on. */
-      warnings: string[];
     }
   | null;
 
-/**
- * Served text for the markdown drafting surface. For a .docx with a drafting
- * source under MARKDOWN_READ_DOCX, returns the pandoc markdown — with the
- * derived SECT-INDEX prepended in the index arm — plus the char offset where
- * the markdown BODY begins (0 when no index was attached), so scoped reads and
- * find_in_document can address the body with body-relative offsets. Null when
- * the surface is off or the docx has no drafting source (callers fall back to
- * extractDocument). Best-effort: if index derivation fails on a docx the
- * drafting source accepted, serve the plain markdown rather than failing.
- *
- * Memoized per (documentId, versionId) within a turn: .docx extraction +
- * skeleton derivation + index render are the expensive part of every read/find
- * call (~0.65s/call on the covenants docx). The cache lives in the turn read
- * state, so it never outlives the turn and
- * a version change (new versionId) naturally re-derives.
- */
-export async function servedDraftingText(
+async function servedDraftingText(
   documents: DocumentStore,
   scope: DocumentScope,
   documentId: string,
@@ -4398,81 +3186,12 @@ export async function servedDraftingText(
   } else {
     result = {
       served: source.markdown,
-      bodyOffset: 0,
       versionId: file.version.id,
       filename: file.filename,
-      warnings: source.warnings,
     };
   }
   cache?.set(cacheKey, result);
   return result;
-}
-
-async function turnServedPassages(
-  documents: DocumentStore,
-  scope: DocumentScope,
-  readState: AssistantReadTurnState,
-): Promise<Array<ServedPassage & AssignmentClosureSource>> {
-  const passages: Array<ServedPassage & AssignmentClosureSource> = [];
-  for (const entry of readState.values()) {
-    if (!entry.intervals?.length) continue;
-    const file = await documents.read(
-      scope,
-      entry.documentId,
-      entry.versionId,
-      false,
-    );
-    if (!file || file.version.id !== entry.versionId) continue;
-    let plane = "";
-    if (entry.projection === "drafting") {
-      plane = (
-        await extractDocxDraftingSource(file.bytes).catch(
-          () => null,
-        )
-      )?.markdown ?? "";
-    } else if (entry.projection === "redline") {
-      plane = (
-        await projectDocxRedline(file.bytes).catch(() => null)
-      )?.text ?? "";
-    } else {
-      plane =
-        (await extractDocument(
-          documents, scope, entry.documentId, entry.versionId,
-        ))
-          ?.text ?? "";
-    }
-    if (!plane) continue;
-    for (const [start, end] of mergeIntervals(entry.intervals)) {
-      const from = Math.max(0, Math.min(start, plane.length));
-      const to = Math.max(from, Math.min(end, plane.length));
-      if (to > from) {
-        passages.push({
-          document: entry.docLabel || entry.filename || entry.documentId,
-          documentId: entry.documentId,
-          versionId: entry.versionId,
-          sourceSha256: file.version.source_sha256,
-          projection: entry.projection,
-          text: plane.slice(from, to),
-          at: from,
-        });
-      }
-    }
-  }
-  return passages;
-}
-
-async function sourceClosureForDraft(
-  documents: DocumentStore,
-  scope: DocumentScope,
-  draft: string,
-  readState?: AssistantReadTurnState,
-) {
-  return readState && /\bassign/iu.test(draft)
-    ? assignmentClosureReceipts(
-        await turnServedPassages(documents, scope, readState),
-        draft,
-      )
-    : [];
 }
 
 export type AssistantToolOptions = {
@@ -4481,16 +3200,13 @@ export type AssistantToolOptions = {
   library: LibraryStore;
   projects: ProjectStore;
   workflows?: WorkflowStore;
-  a2ajLookups?: A2AJLocatorLookup[];
-  a2ajDocuments?: A2AJDocument[];
   courtlistener?: CourtlistenerToolState;
   allowedDocumentIds?: Set<string>;
   pdfHandles?: Set<string>;
   matterId?: string | null;
   legalEvidence?: LegalEvidenceTurnState;
   edits?: AssistantEditTurnState;
-  reads?: AssistantReadTurnState;
-  workingSets?: AssistantWorkingSetTurnState;
+  servedDraftingCache?: Map<string, ServedDrafting>;
   editMode?: EditMode;
   timeZone?: string;
 };
@@ -4500,16 +3216,13 @@ export async function executeAssistantTool(
   call: NormalizedToolCall,
   {
     userEmail,
-    a2ajLookups,
-    a2ajDocuments,
     courtlistener: courtlistenerState,
     allowedDocumentIds,
     pdfHandles: localPdfEvidenceHandles,
     matterId,
     legalEvidence: legalEvidenceState,
     edits: turnEditState,
-    reads: turnReadState,
-    workingSets,
+    servedDraftingCache = new Map(),
     editMode = "manual",
     timeZone,
     documents,
@@ -4531,9 +3244,6 @@ export async function executeAssistantTool(
   // derivation + index render repeat on every read/find call in a batch; keyed
   // by documentId:versionId so a version change naturally re-derives. Scoped to
   // this batch, so it never outlives the turn.
-  const servedDraftingCache = turnReadState
-    ? (turnReadState.servedDraftingCache ??= new Map())
-    : new Map<string, ServedDrafting>();
   const persistGenerated = async (
     filename: string,
     bytes: Buffer,
@@ -4555,7 +3265,7 @@ export async function executeAssistantTool(
       let args = call.input;
 
       {
-        const resolved = await resolveCodingDocumentReferences(
+        const resolved = await resolveDocumentArgument(
           scope,
           args,
           library,
@@ -4569,10 +3279,7 @@ export async function executeAssistantTool(
 
       const sourceRead = await readLegalSourceResource(call, args, {
         userId,
-        a2ajDocuments,
-        a2ajLookups,
         courtlistener: courtlistenerState,
-        evidence: legalEvidenceState,
         signal,
       });
       if (sourceRead) return sourceRead;
@@ -4593,98 +3300,11 @@ export async function executeAssistantTool(
           allowedDocumentIds,
           matterId,
           turnEditState,
-          workingSets,
           servedDraftingCache,
-          turnReadState,
           localPdfEvidenceHandles,
           availableWorkflows,
           editMode,
         );
-        if (
-          legalEvidenceState &&
-          call.name === "Read" &&
-          codingResult.metadata?.status !== "error"
-        ) {
-          const bySource = new Map<
-            string,
-            NonNullable<NormalizedToolResult["evidenceSegments"]>
-          >();
-          for (const segment of codingResult.metadata?.evidenceSegments ?? []) {
-            if (segment.end <= segment.start) continue;
-            const key = [
-              segment.documentId,
-              segment.versionId,
-              segment.projection ?? "canonical",
-            ].join(":");
-            bySource.set(key, [...(bySource.get(key) ?? []), segment]);
-          }
-          const evidence = [...(codingResult.evidence ?? [])];
-          const evidenceIds = evidence.map(({ evidence_id }) => evidence_id);
-          for (const receipt of evidence) {
-            registerLegalEvidence(legalEvidenceState, receipt);
-          }
-          for (const segments of bySource.values()) {
-            const first = segments[0];
-            const drafting = first.projection === "drafting"
-              ? await servedDraftingText(
-                  documents,
-                  scope,
-                  first.documentId,
-                  servedDraftingCache,
-                  first.versionId,
-                )
-              : null;
-            const redlineFile = first.projection === "redline"
-              ? await documents.read(
-                  scope, first.documentId, first.versionId, false,
-                )
-              : null;
-            const redline = redlineFile
-              ? await projectDocxRedline(redlineFile.bytes)
-              : null;
-            const canonical = drafting || redline
-              ? null
-              : await extractDocument(
-                  documents,
-                  scope,
-                  first.documentId,
-                  first.versionId,
-                );
-            const sourceText = drafting
-              ? drafting.served.slice(drafting.bodyOffset)
-              : redline?.text ?? canonical?.text;
-            if (!sourceText) continue;
-            const seen = new Set<string>();
-            for (const segment of segments) {
-              const key = `${segment.start}:${segment.end}`;
-              if (seen.has(key)) continue;
-              seen.add(key);
-              const spanText = sourceText.slice(segment.start, segment.end);
-              if (!spanText.trim()) continue;
-              const receipt = createLibraryEvidence({
-                documentId: segment.documentId,
-                versionId: segment.versionId,
-                filename: segment.filename ?? canonical?.filename ?? segment.documentId,
-                sourceText,
-                spanText,
-                start: segment.start,
-                end: segment.end,
-                locator: segment.locator && segment.locatorKind
-                  ? { kind: segment.locatorKind, label: segment.locator }
-                  : undefined,
-              });
-              registerLegalEvidence(legalEvidenceState, receipt);
-              evidence.push(receipt);
-              evidenceIds.push(receipt.evidence_id);
-            }
-          }
-          if (evidenceIds.length) {
-            codingResult.result = toolText(
-              `${toolResultText(codingResult.result)}\n\nCitation evidence_ids: ${evidenceIds.join(", ")}`,
-            );
-          }
-          codingResult.evidence = evidence;
-        }
         return codingResult;
       }
       if (call.name === SEARCH_SOURCES_TOOL.name) {
@@ -4744,12 +3364,6 @@ export async function executeAssistantTool(
           const drafting = resolveDraftingOptions(
             args,
             await getDraftingStyleSettings(userId),
-          );
-          const sourceClosure = await sourceClosureForDraft(
-            documents,
-            scope,
-            markdown,
-            turnReadState,
           );
           const evidence = resolveDocxEvidenceCitations(
             legalEvidenceState,
@@ -4820,15 +3434,6 @@ export async function executeAssistantTool(
             file_type: document.file_type,
             source_sha256: document.source_sha256,
             attached_to_matter: Boolean(matterId),
-            ...(sourceClosure.length
-              ? { source_closure: sourceClosure }
-              : {}),
-            ...(sourceClosure.length
-              ? {
-                  next_required_action:
-                    "Review source_closure and apply a document edit only if material.",
-                }
-              : {}),
             resource: resourceReference.document(
               document.id,
               document.current_version_id,
@@ -5144,11 +3749,6 @@ export async function executeAssistantTool(
 
       const citator = executeCitatorTool(call.name, args);
       if (citator) {
-        if (legalEvidenceState) {
-          for (const evidence of citator.evidences ?? []) {
-            registerLegalEvidence(legalEvidenceState, evidence);
-          }
-        }
         return {
           ...withMetadata(result(call, citator.payload), {
             evidenceRefs: receiptEvidenceRefs(citator.evidences ?? []),

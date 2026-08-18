@@ -18,8 +18,8 @@ function warmLocalStores() {
   void import("./lib/codexCatalog")
     .then(({ getCodexModelCatalog }) => getCodexModelCatalog())
     .catch(() => {});
-  void import("./lib/localPdfIngestion")
-    .then(({ resumeLocalPdfParses }) => resumeLocalPdfParses())
+  void import("./lib/documentProjectionService")
+    .then(({ documentProjectionService }) => documentProjectionService.resume())
     .catch((error) => {
       console.error(
         "[local-library] PDF parse recovery failed",
@@ -28,11 +28,16 @@ function warmLocalStores() {
     });
 }
 
-function start() {
+async function start() {
+  await runtime.initialize();
   const server = app.listen(PORT, () => {
     console.log(`Beaver backend running on port ${PORT}`);
   });
   server.on("close", releaseRuntimeLock);
   warmLocalStores();
 }
-start();
+void start().catch((error) => {
+  releaseRuntimeLock();
+  console.error("Beaver backend failed to start", error);
+  process.exitCode = 1;
+});

@@ -1,4 +1,3 @@
-import type { OAuthDiscoveryState } from "@modelcontextprotocol/sdk/client/auth.js";
 import { createServerSupabase } from "../supabase";
 
 export type Db = ReturnType<typeof createServerSupabase>;
@@ -87,32 +86,6 @@ export type OAuthTokenRow = {
     resource: string | null;
     created_at: string;
     updated_at: string;
-};
-
-export type OAuthStateConfig = {
-    codeVerifier: string;
-    redirectUri: string;
-    connectorUpdatedAt: string;
-    serverUrl?: string;
-    serverOrigin?: string;
-    discoveryState?: OAuthDiscoveryState;
-    endpointBinding?: OAuthEndpointBinding;
-};
-
-export type OAuthEndpointBinding = {
-    authorizationServerUrl: string;
-    issuer: string;
-    authorizationEndpoint: string;
-    tokenEndpoint: string;
-    registrationEndpoint: string | null;
-};
-
-export type OAuthMetadata = {
-    authorizationServer: string;
-    authorizationEndpoint: string;
-    tokenEndpoint: string;
-    registrationEndpoint?: string;
-    scopesSupported?: string[];
 };
 
 export type ToolCacheRow = {

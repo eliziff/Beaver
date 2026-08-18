@@ -1,28 +1,17 @@
 import { sha256 } from "./hash";
-import type JSZip from "jszip";
-import { loadZip } from "./zip";
 import {
   type XNode,
-  createParser,
   elAttrs,
   elChildren,
   elName,
   getTextContent,
-  getZipEntry,
   MAX_DRAFTING_DOCX_BYTES,
-  MAX_DRAFTING_XML_ENTRY_BYTES,
 } from "./docx/core";
+import { openDocxSession } from "./docx/session";
 import { normalizeDocxControlTag } from "./chat/tools/docxMarkdown";
 import { spawn } from "child_process";
 
-// Bounds now live in the docx kernel; re-exported so existing callers keep
-// importing them from here.
-export { MAX_DRAFTING_DOCX_BYTES, MAX_DRAFTING_XML_ENTRY_BYTES };
-
 export const DOCX_DRAFTING_SOURCE_FORMAT = "pandoc-markdown-v1";
-const MAX_DRAFTING_ZIP_ENTRIES = 2_048;
-const MAX_DRAFTING_EXPANDED_BYTES = 96 * 1024 * 1024;
-const MAX_DRAFTING_XML_BYTES = 32 * 1024 * 1024;
 const MAX_DRAFTING_WARNINGS = 20;
 
 export type DocxDraftingSource = {
@@ -42,43 +31,6 @@ function cleanWarning(value: unknown) {
 
 function hasPart(paths: string[], pattern: RegExp) {
   return paths.some((path) => pattern.test(path));
-}
-
-function expandedSize(entry: unknown) {
-  const size = (
-    entry as {
-      _data?: { uncompressedSize?: unknown };
-    }
-  )?._data?.uncompressedSize;
-  if (!Number.isSafeInteger(size) || Number(size) < 0) {
-    throw new Error("Precedent DOCX has invalid ZIP size metadata");
-  }
-  return Number(size);
-}
-
-function assertBoundedPackage(zip: JSZip) {
-  const files = Object.values(zip.files).filter((entry) => !entry.dir);
-  if (files.length > MAX_DRAFTING_ZIP_ENTRIES) {
-    throw new Error("Precedent DOCX contains too many package entries");
-  }
-  let expandedBytes = 0;
-  let xmlBytes = 0;
-  for (const entry of files) {
-    const size = expandedSize(entry);
-    expandedBytes += size;
-    if (/\.xml(?:\.rels)?$/iu.test(entry.name)) {
-      if (size > MAX_DRAFTING_XML_ENTRY_BYTES) {
-        throw new Error("Precedent DOCX contains an oversized XML part");
-      }
-      xmlBytes += size;
-    }
-  }
-  if (
-    expandedBytes > MAX_DRAFTING_EXPANDED_BYTES ||
-    xmlBytes > MAX_DRAFTING_XML_BYTES
-  ) {
-    throw new Error("Precedent DOCX expands beyond the drafting read limit");
-  }
 }
 
 function boundedWarnings(warnings: string[]) {
@@ -280,10 +232,8 @@ function acceptedSdtText(node: XNode): string {
  * is left alone.
  */
 function flattenedControlTags(
-  documentXml: string,
+  tree: XNode[],
 ): { tag: string; placeholder: string }[] {
-  const parser = createParser();
-  const tree = parser.parse(documentXml) as XNode[];
   const byTag = new Map<string, string>();
   const visit = (n: unknown) => {
     const name = elName(n);
@@ -335,18 +285,14 @@ export async function extractDocxDraftingSource(
     throw new Error("Precedent DOCX exceeds the drafting read limit");
   }
 
-  const zip = await loadZip(bytes).catch((error: unknown) => {
-    throw new Error(
-      `Precedent DOCX is corrupted or truncated (not a readable ZIP archive): ${cleanWarning(error)}`,
-    );
+  const session = await openDocxSession(bytes).catch((error: unknown) => {
+    throw new Error(cleanWarning(error).replace(/^DOCX\b/u, "Precedent DOCX"));
   });
-  assertBoundedPackage(zip);
-  const documentEntry = getZipEntry(zip, "word/document.xml");
-  if (!documentEntry) {
+  if (!session.has("word/document.xml")) {
     throw new Error("Drafting mode requires a valid DOCX");
   }
 
-  const paths = Object.keys(zip.files);
+  const paths = session.paths;
   const warnings: string[] = [];
 
   // Detect literal text in headers/footers — presence alone is not content
@@ -354,7 +300,7 @@ export async function extractDocxDraftingSource(
   const partHasLiteralText = async (pattern: RegExp) => {
     for (const path of paths) {
       if (!pattern.test(path)) continue;
-      const xml = await zip.file(path)?.async("text");
+      const xml = await session.readText(path);
       for (const match of xml?.matchAll(/<w:t\b[^>]*>([^<]*)<\/w:t>/giu) ??
         []) {
         if (match[1].trim()) return true;
@@ -368,30 +314,31 @@ export async function extractDocxDraftingSource(
   if (await partHasLiteralText(/^word\/footer\d*\.xml$/i)) {
     warnings.push("Footers are not included in the drafting source.");
   }
-  const endnotes = zip.file("word/endnotes.xml");
+  const endnotes = await session.readText("word/endnotes.xml");
   if (
     endnotes &&
     /<w:endnote\b(?![^>]*\bw:type="(?:separator|continuationSeparator|continuationNotice)")/iu.test(
-      await endnotes.async("text"),
+      endnotes,
     )
   ) {
     warnings.push("Endnotes may require manual review.");
   }
-  const comments = zip.file("word/comments.xml");
+  const comments = await session.readText("word/comments.xml");
   if (
     comments &&
-    /<w:comment(?:\s|>)/iu.test(await comments.async("text"))
+    /<w:comment(?:\s|>)/iu.test(comments)
   ) {
     warnings.push("Word comments are not included in the drafting source.");
   }
   if (hasPart(paths, /^word\/embeddings\//i)) {
     warnings.push("Embedded objects are not included in the drafting source.");
   }
-  const documentXml = await documentEntry.async("text").catch((error: unknown) => {
+  const documentXml = await session.readText("word/document.xml").catch((error: unknown) => {
     throw new Error(
       `Precedent DOCX is corrupted (word/document.xml cannot be read): ${cleanWarning(error)}`,
     );
   });
+  if (documentXml == null) throw new Error("Drafting mode requires a valid DOCX");
   if (
     /<w:br\b[^>]*w:type="page"/iu.test(documentXml) ||
     /<w:lastRenderedPageBreak\b/iu.test(documentXml)
@@ -424,8 +371,7 @@ export async function extractDocxDraftingSource(
   // 2. Add <w:outlineLvl> to heading style definitions — Pandoc uses outline
   //    level (not style name) to determine heading rank.
   const hasNumberedHeadings = /<w:pStyle\b[^>]*w:val="Heading\d+"[\s\S]*?<w:numPr\b/iu.test(documentXml);
-  const stylesEntry = getZipEntry(zip, "word/styles.xml");
-  const stylesXml = stylesEntry ? await stylesEntry.async("text").catch(() => "") : "";
+  const stylesXml = await session.readText("word/styles.xml").catch(() => "") ?? "";
   // Always patch styles if they contain heading definitions — we need to
   // (a) ensure Normal has w:default="1", (b) lowercase heading names,
   // and (c) add w:outlineLvl for Pandoc to recognise heading levels.
@@ -435,15 +381,12 @@ export async function extractDocxDraftingSource(
   let pandocInput: Buffer;
   if (hasNumberedHeadings || needsStylesPatch) {
     if (hasNumberedHeadings) {
-      zip.file("word/document.xml", stripHeadingNumbering(documentXml));
+      session.write("word/document.xml", stripHeadingNumbering(documentXml));
     }
     if (needsStylesPatch) {
-      zip.file("word/styles.xml", normalizeStylesForPandoc(stylesXml));
+      session.write("word/styles.xml", normalizeStylesForPandoc(stylesXml));
     }
-    pandocInput = await zip.generateAsync({
-      type: "nodebuffer",
-      compression: "DEFLATE",
-    });
+    pandocInput = await session.save();
   } else {
     pandocInput = bytes;
   }
@@ -504,7 +447,9 @@ export async function extractDocxDraftingSource(
   // Content-control detection (reads raw XML, format-agnostic).
   let flattenedControls: { tag: string; placeholder: string }[];
   try {
-    flattenedControls = flattenedControlTags(documentXml);
+    flattenedControls = flattenedControlTags(
+      (await session.readXml("word/document.xml")) ?? [],
+    );
   } catch (error) {
     throw new Error(
       `Precedent DOCX contains malformed XML in word/document.xml: ${cleanWarning(error)}`,

@@ -18,7 +18,6 @@ import {
     guardedRemoteFetch,
     validateRemoteHttpsUrl,
 } from "../remoteUrlSafety";
-import { sha256 } from "../hash";
 import { decryptSecret, encryptSecret } from "../secretEncryption";
 
 function encryptionSecret(): string {
@@ -34,15 +33,6 @@ function encryptionSecret(): string {
 }
 
 const MCP_SECRET_SALT = "mike-user-mcp-v1";
-
-export function mcpOAuthCallbackUrl() {
-    const base = (
-        process.env.API_PUBLIC_URL ||
-        process.env.BACKEND_URL ||
-        `http://localhost:${process.env.PORT ?? "3001"}`
-    ).replace(/\/+$/, "");
-    return `${base}/user/mcp-connectors/oauth/callback`;
-}
 
 function encryptJson(value: Record<string, unknown>): {
     encrypted_auth_config: string;
@@ -119,15 +109,21 @@ export function decryptAuthConfig(row: ConnectorRow): McpConnectorAuthConfig {
     }
 }
 
-export function oauthTokenMatchesConnectorCredentials(
-    token: Pick<OAuthTokenRow, "updated_at"> | null | undefined,
-    connector: Pick<ConnectorRow, "tool_policy">,
+export function connectorCredentialRevision(
+    connector: Pick<ConnectorRow, "tool_policy" | "updated_at">,
 ) {
-    const credentialEpoch = connector.tool_policy?.[MCP_CREDENTIAL_EPOCH_KEY];
-    if (typeof credentialEpoch !== "string" || !credentialEpoch) return true;
-    if (!token?.updated_at) return false;
-    const tokenUpdate = Date.parse(token.updated_at);
-    const connectorUpdate = Date.parse(credentialEpoch);
+    const configured = connector.tool_policy?.[MCP_CREDENTIAL_EPOCH_KEY];
+    return typeof configured === "string" && configured
+        ? configured
+        : connector.updated_at;
+}
+
+export function connectorCredentialsMatch(
+    storedRevision: string | null | undefined,
+    connector: Pick<ConnectorRow, "tool_policy" | "updated_at">,
+) {
+    const tokenUpdate = Date.parse(storedRevision ?? "");
+    const connectorUpdate = Date.parse(connectorCredentialRevision(connector));
     return (
         Number.isFinite(tokenUpdate) &&
         Number.isFinite(connectorUpdate) &&
@@ -218,7 +214,7 @@ export function toConnectorSummary(
         oauthConnected:
             connector.auth_type === "oauth" &&
             !!oauthToken?.encrypted_access_token &&
-            oauthTokenMatchesConnectorCredentials(oauthToken, connector),
+            connectorCredentialsMatch(oauthToken.updated_at, connector),
         toolPolicy: connector.tool_policy ?? {},
         tools: tools.map(toToolSummary),
         toolCount,
@@ -373,18 +369,6 @@ export async function boundMcpResponse(response: Response) {
         statusText: response.statusText,
         headers: response.headers,
     });
-}
-
-export function base64Url(buffer: Buffer) {
-    return buffer
-        .toString("base64")
-        .replace(/\+/g, "-")
-        .replace(/\//g, "_")
-        .replace(/=+$/g, "");
-}
-
-export function stateHash(state: string) {
-    return sha256(state);
 }
 
 export async function loadConnector(

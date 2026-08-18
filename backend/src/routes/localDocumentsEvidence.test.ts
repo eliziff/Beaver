@@ -1,6 +1,8 @@
 import express from "express";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { DocumentStore } from "../lib/documentStore";
+import type { LibraryStore } from "../lib/libraryStore";
 
 const mocks = vi.hoisted(() => ({
   getLocalVersionFile: vi.fn(),
@@ -14,19 +16,36 @@ vi.mock("../lib/localDocumentStore", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../lib/localDocumentStore")>()),
   getLocalVersionFile: mocks.getLocalVersionFile,
 }));
-vi.mock("../lib/localPdfLookup", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../lib/localPdfLookup")>()),
-  rehydrateLocalPdfLinkEvidence: mocks.rehydrateLocalPdfLinkEvidence,
-  verifyLocalPdfLinkEvidence: mocks.verifyLocalPdfLinkEvidence,
+vi.mock("../lib/documentProjectionService", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../lib/documentProjectionService")>(),
+  documentProjectionService: {
+    ...(await importOriginal<typeof import("../lib/documentProjectionService")>())
+      .documentProjectionService,
+    rehydratePdfLink: mocks.rehydrateLocalPdfLinkEvidence,
+    verifyPdfEvidence: mocks.verifyLocalPdfLinkEvidence,
+  },
 }));
 vi.mock("node:fs/promises", async (importOriginal) => ({
   ...(await importOriginal<typeof import("node:fs/promises")>()),
   readFile: mocks.readFile,
 }));
 
-import { localDocuments, localLibraryStore } from "../lib/localLibraryStore";
 import { createDocumentsRouter } from "./documentRoutes";
 import { localDocumentExtensionsRouter } from "./localDocuments";
+
+const localDocuments = {
+  download: vi.fn(async () => ({
+    kind: "bytes",
+    content: {
+      bytes: Buffer.from("%PDF"),
+      version: { id: "version-1", version_number: 1 },
+      filename: "hearing.pdf",
+      fileType: "pdf",
+      hasPdfRendition: true,
+    },
+  })),
+} as unknown as DocumentStore;
+const localLibraryStore = {} as LibraryStore;
 
 const app = express();
 app.use(express.json());
@@ -109,7 +128,7 @@ describe("local PDF evidence viewer", () => {
     );
     expect(response.text).not.toContain("<script>");
     expect(response.text).toContain(
-      `href="/single-documents/document-1/display?version_id=version-1&amp;evidence=${encodeURIComponent(handle)}#page=7"`,
+      `href="/single-documents/document-1/file?version_id=version-1&amp;evidence=${encodeURIComponent(handle)}&amp;rendition=pdf#page=7"`,
     );
     expect(mocks.rehydrateLocalPdfLinkEvidence).toHaveBeenCalledWith(
       "C:\\private\\source.pdf",
@@ -148,8 +167,8 @@ describe("local PDF evidence viewer", () => {
 
   it("validates raw PDF evidence without constructing link evidence", async () => {
     const response = await request(app)
-      .get("/single-documents/document-1/display")
-      .query({ version_id: "version-1", evidence: handle });
+      .get("/single-documents/document-1/file")
+      .query({ version_id: "version-1", evidence: handle, rendition: "pdf" });
 
     expect(response.status).toBe(200);
     expect(mocks.verifyLocalPdfLinkEvidence).toHaveBeenCalledWith(
@@ -162,16 +181,16 @@ describe("local PDF evidence viewer", () => {
 
   it("serves an ordinary display but rejects malformed evidence parameters", async () => {
     const ordinary = await request(app)
-      .get("/single-documents/document-1/display")
-      .query({ version_id: "version-1" });
+      .get("/single-documents/document-1/file")
+      .query({ version_id: "version-1", rendition: "pdf" });
     expect(ordinary.status).toBe(200);
 
     mocks.readFile.mockClear();
     const empty = await request(app).get(
-      "/single-documents/document-1/display?version_id=version-1&evidence=",
+      "/single-documents/document-1/file?version_id=version-1&rendition=pdf&evidence=",
     );
     const duplicate = await request(app).get(
-      `/single-documents/document-1/display?version_id=version-1` +
+      `/single-documents/document-1/file?version_id=version-1&rendition=pdf` +
         `&evidence=${encodeURIComponent(handle)}&evidence=${encodeURIComponent(handle)}`,
     );
 
@@ -195,8 +214,8 @@ describe("local PDF evidence viewer", () => {
       .get("/single-documents/document-1/evidence-view")
       .query({ version_id: "version-1", evidence: handle });
     const display = await request(app)
-      .get("/single-documents/document-1/display")
-      .query({ version_id: "version-1", evidence: handle });
+      .get("/single-documents/document-1/file")
+      .query({ version_id: "version-1", evidence: handle, rendition: "pdf" });
 
     for (const response of [evidenceView, display]) {
       expect(response.status).toBe(410);

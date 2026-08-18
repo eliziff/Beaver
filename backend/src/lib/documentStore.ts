@@ -51,10 +51,9 @@ export type DocumentContent = {
   hasPdfRendition: boolean;
 };
 
-export type DocumentLink = Omit<DocumentContent, "bytes"> & {
-  /** Omitted for the authenticated Beaver file route; null means unavailable. */
-  url?: string | null;
-};
+export type DocumentDownload =
+  | { kind: "bytes"; content: DocumentContent }
+  | { kind: "redirect"; url: string };
 
 export type AssistantEdit = {
   changeId: string;
@@ -133,6 +132,7 @@ export type ResolveEditResult =
     };
 
 export type DocumentStore = {
+  resumeCleanup(): Promise<void>;
   create(scope: DocumentScope, input: {
     filename: string;
     fileType: string;
@@ -150,11 +150,13 @@ export type DocumentStore = {
     versionId: string | null,
     preferPdf: boolean,
   ): Promise<DocumentContent | null>;
-  link(
+  download(
     scope: DocumentScope,
     documentId: string,
     versionId: string | null,
-  ): Promise<DocumentLink | null>;
+    preferPdf: boolean,
+    disposition: "inline" | "attachment",
+  ): Promise<DocumentDownload | null>;
   versions(scope: DocumentScope, documentId: string): Promise<{
     current_version_id: string | null;
     versions: DocumentVersion[];

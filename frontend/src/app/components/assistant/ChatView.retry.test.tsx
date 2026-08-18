@@ -7,6 +7,7 @@ import { createAssistantSessionState } from "@/app/lib/assistantSession";
 
 const mocks = vi.hoisted(() => ({
     clearDraft: vi.fn(),
+    getChat: vi.fn(),
     streamChat: vi.fn(),
     loadChats: vi.fn(),
 }));
@@ -16,7 +17,7 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/app/lib/authMode", () => ({ isAnonymousMode: true }));
 vi.mock("@/app/lib/beaverApi", () => ({
-    getChat: vi.fn(),
+    getChat: mocks.getChat,
     streamChat: mocks.streamChat,
 }));
 vi.mock("@/app/contexts/ChatHistoryContext", () => ({
@@ -102,6 +103,7 @@ describe("ChatView rejected normal turn", () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mocks.loadChats.mockResolvedValue(undefined);
+        mocks.getChat.mockRejectedValue(new Error("initial load unavailable"));
         vi.stubGlobal(
             "ResizeObserver",
             class {
@@ -181,8 +183,8 @@ describe("ChatView rejected normal turn", () => {
             <ChatView
                 chatId="chat-1"
                 session={{ ...createAssistantSessionState({ chatId: "chat-1", messages: [
-                    { role: "user", content: "Question" },
-                    { role: "assistant", content: "" },
+                    { id: "user-1", role: "user", content: "Question" },
+                    { id: "assistant-1", role: "assistant", content: "" },
                 ] }), run: { id: "run-1", status: "running", chatId: "chat-1" } }}
                 handleChat={handleChat}
                 cancel={cancel}
@@ -196,8 +198,8 @@ describe("ChatView rejected normal turn", () => {
             <ChatView
                 chatId="chat-1"
                 session={createAssistantSessionState({ chatId: "chat-1", messages: [
-                    { role: "user", content: "Question" },
-                    { role: "assistant", content: "Answer" },
+                    { id: "user-1", role: "user", content: "Question" },
+                    { id: "assistant-1", role: "assistant", content: "Answer" },
                 ] })}
                 handleChat={handleChat}
                 cancel={cancel}
@@ -211,10 +213,10 @@ describe("ChatView rejected normal turn", () => {
             <ChatView
                 chatId="chat-1"
                 session={{ ...createAssistantSessionState({ chatId: "chat-1", messages: [
-                    { role: "user", content: "Question" },
-                    { role: "assistant", content: "" },
-                    { role: "user", content: "Another question" },
-                    { role: "assistant", content: "" },
+                    { id: "user-1", role: "user", content: "Question" },
+                    { id: "assistant-1", role: "assistant", content: "" },
+                    { id: "user-2", role: "user", content: "Another question" },
+                    { id: "assistant-2", role: "assistant", content: "" },
                 ] }), run: { id: "run-2", status: "running", chatId: "chat-1" } }}
                 handleChat={handleChat}
                 cancel={cancel}
@@ -228,13 +230,13 @@ describe("ChatView rejected normal turn", () => {
             <ChatView
                 chatId="chat-1"
                 session={createAssistantSessionState({ chatId: "chat-1", messages: [
-                    { role: "user", content: "Question" },
-                    { role: "assistant", content: "" },
-                    { role: "user", content: "Another question" },
+                    { id: "user-1", role: "user", content: "Question" },
+                    { id: "assistant-1", role: "assistant", content: "" },
+                    { id: "user-2", role: "user", content: "Another question" },
                     {
+                        id: "assistant-2",
                         role: "assistant",
-                        content: "",
-                        error: "Provider unavailable.",
+                        content: [{ type: "error", message: "Provider unavailable." }],
                     },
                 ] })}
                 handleChat={handleChat}
@@ -247,11 +249,14 @@ describe("ChatView rejected normal turn", () => {
             <ChatView
                 chatId="chat-1"
                 session={createAssistantSessionState({ chatId: "chat-1", messages: [
-                    { role: "user", content: "Question" },
+                    { id: "user-1", role: "user", content: "Question" },
                     {
+                        id: "assistant-1",
                         role: "assistant",
-                        content: "Partial answer",
-                        turnStatus: "interrupted",
+                        content: [
+                            { type: "content", text: "Partial answer" },
+                            { type: "turn_status", status: "interrupted" },
+                        ],
                     },
                 ] })}
                 handleChat={handleChat}

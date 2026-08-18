@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useReducer, useRef } from "react";
+import { useCallback, useEffect, useEffectEvent, useReducer, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   compactChat,
@@ -9,7 +9,7 @@ import {
   streamChat,
 } from "@/app/lib/beaverApi";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
-import type { Message } from "@/app/components/shared/types";
+import type { Chat, Message } from "@/app/components/shared/types";
 import {
   ASSISTANT_GENERIC_ERROR,
   assistantSessionReducer,
@@ -30,7 +30,6 @@ import { readReadSubagentPreference } from "@/app/components/assistant/readSubag
 import { readActivityDetail } from "@/app/components/assistant/activityDisplayPreference";
 
 interface UseAssistantChatOptions {
-  initialMessages?: Message[];
   chatId?: string;
   projectId?: string;
   tabularReviewId?: string;
@@ -39,6 +38,10 @@ interface UseAssistantChatOptions {
 }
 
 export type { AssistantTurnOptions, RejectedAssistantTurn };
+export type AssistantChatLoad =
+  | { status: "loading"; chatId: string }
+  | { status: "loaded"; chatId?: string; chat: Chat | null }
+  | { status: "error"; chatId: string; error: unknown };
 
 const CHAT_COMMAND_HELP = [
   "**Commands**",
@@ -68,7 +71,6 @@ function networkError(value: unknown) {
 }
 
 export function useAssistantChat({
-  initialMessages = [],
   chatId: initialChatId,
   projectId,
   tabularReviewId,
@@ -83,26 +85,29 @@ export function useAssistantChat({
     setChatTurnInProgress,
     loadChats,
     renameChat,
-    saveChat,
-    stagePendingChatMessage,
   } = useChatHistoryContext();
   const pendingMessageRef = useRef<Message | null>(null);
   const [state, dispatch] = useReducer(
     assistantSessionReducer,
     undefined,
     () => {
-      const pending = !initialMessages.length && initialChatId
+      const pending = initialChatId
         ? peekPendingChatMessage?.(initialChatId) ?? null
         : null;
       pendingMessageRef.current = pending;
-      return createAssistantSessionState({
-        chatId: initialChatId,
-        messages: initialMessages.length ? initialMessages : pending ? [pending] : [],
-      });
+      const initial = createAssistantSessionState({ chatId: initialChatId });
+      return pending
+        ? assistantSessionReducer(initial, { type: "new_chat", chatId: initialChatId, message: pending })
+        : initial;
     },
   );
+  const [chatLoad, setChatLoad] = useState<AssistantChatLoad>(() =>
+    initialChatId && !pendingMessageRef.current
+      ? { status: "loading", chatId: initialChatId }
+      : { status: "loaded", chatId: initialChatId, chat: null });
   const stateRef = useRef(state);
   stateRef.current = state;
+  const loadGenerationRef = useRef(0);
   const pollGenerationRef = useRef(0);
   const transportRef = useRef<{ runId: string; controller: AbortController } | null>(null);
 
@@ -111,7 +116,7 @@ export function useAssistantChat({
     transportRef.current?.controller.abort();
   }, []);
 
-  const pollForCompletedTurn = (
+  const pollForCompletedTurn = useCallback((
     targetChatId: string,
     baselineVersion: number,
     runId = crypto.randomUUID(),
@@ -146,7 +151,36 @@ export function useAssistantChat({
         await new Promise<void>((resolve) => setTimeout(resolve, 1_000));
       }
     })();
-  };
+  }, [loadChats, setChatTurnInProgress, tabularReviewId]);
+
+  useEffect(() => {
+    const generation = ++loadGenerationRef.current;
+    const current = stateRef.current;
+    if (!initialChatId) {
+      pollGenerationRef.current += 1;
+      transportRef.current?.controller.abort();
+      if (current.chatId || current.messages.length) dispatch({ type: "new_chat" });
+      setChatLoad({ status: "loaded", chat: null });
+      return;
+    }
+    if (pendingMessageRef.current || current.run || (current.chatId === initialChatId && current.messages.length)) {
+      setChatLoad({ status: "loaded", chatId: initialChatId, chat: null });
+      return;
+    }
+    pollGenerationRef.current += 1;
+    transportRef.current?.controller.abort();
+    setChatLoad({ status: "loading", chatId: initialChatId });
+    void getChat(initialChatId).then((latest) => {
+      if (generation !== loadGenerationRef.current) return;
+      const version = latest.chat.transcript_version ?? 0;
+      dispatch({ type: "transcript_loaded", chatId: initialChatId, messages: latest.messages, transcriptVersion: version, active: latest.chat.turn_in_progress === true });
+      setChatLoad({ status: "loaded", chatId: initialChatId, chat: latest.chat });
+      if (latest.chat.turn_in_progress) pollForCompletedTurn(initialChatId, version);
+    }).catch((error) => {
+      if (generation === loadGenerationRef.current) setChatLoad({ status: "error", chatId: initialChatId, error });
+    });
+    return () => { if (loadGenerationRef.current === generation) loadGenerationRef.current += 1; };
+  }, [initialChatId, pollForCompletedTurn]);
 
   const cancel = () => {
     const current = stateRef.current;
@@ -374,21 +408,9 @@ export function useAssistantChat({
 
   return {
     state,
+    chatLoad,
     actions: {
       handleChat,
-      handleNewChat: async (message: Message, nextProjectId?: string) => {
-        if (!message.content.trim()) return null;
-        pollGenerationRef.current += 1;
-        transportRef.current?.controller.abort();
-        dispatch({ type: "new_chat", message });
-        const newChatId = await saveChat(nextProjectId);
-        if (newChatId) {
-          stagePendingChatMessage(newChatId, message);
-          dispatch({ type: "chat_id_changed", chatId: newChatId });
-        }
-        return newChatId;
-      },
-      setMessages: (messages: Message[], active = false) => dispatch({ type: "transcript_loaded", chatId: stateRef.current.chatId, messages, active }),
       clearRejectedTurn: () => dispatch({ type: "turn_rejected", rejected: null }),
       retryRejectedTurn: async () => {
         const pending = stateRef.current.rejectedTurn;
@@ -396,13 +418,6 @@ export function useAssistantChat({
         dispatch({ type: "turn_rejected", rejected: null });
         return handleChat(pending.message, pending.options);
       },
-      openChat: (chatId?: string, messages: Message[] = [], transcriptVersion = 0, active = false) => {
-        pollGenerationRef.current += 1;
-        transportRef.current?.controller.abort();
-        dispatch({ type: "transcript_loaded", chatId, messages, transcriptVersion, active });
-      },
-      setTranscriptVersion: (transcriptVersion: number) => dispatch({ type: "transcript_version_changed", transcriptVersion }),
-      resumeRunningTurn: (chatId: string, transcriptVersion: number) => pollForCompletedTurn(chatId, transcriptVersion),
       cancel,
     },
   };

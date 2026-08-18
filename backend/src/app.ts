@@ -168,10 +168,10 @@ app.use(
   "/chat",
   lazyRouter(async () => {
     const { createChatRouter } = await import("./routes/chat");
-    const [tabular, chats, chat] = await Promise.all([
-      runtime.tabular(), runtime.chats(), runtime.chat(),
+    const [chats, chat] = await Promise.all([
+      runtime.chats(), runtime.chat(),
     ]);
-    return createChatRouter(tabular, chats, chat);
+    return createChatRouter(chats, chat);
   }),
 );
 app.use(
@@ -254,10 +254,6 @@ app.use(
       res,
       next,
     ),
-);
-app.use(
-  "/download",
-  lazyRouter(() => import("./routes/downloads").then((mod) => mod.downloadsRouter)),
 );
 app.use(
   "/case-law",

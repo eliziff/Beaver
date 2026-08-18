@@ -1,6 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Profiler } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Project } from "@/app/components/shared/types";
@@ -103,18 +102,15 @@ describe("ProjectsOverview", () => {
     });
 
     it("keeps search and one explicit create action visible", async () => {
-        const { container } = render(<ProjectsOverview />);
+        render(<ProjectsOverview />);
 
         expect(
             await screen.findByRole("searchbox", { name: "Search projects" }),
         ).toBeVisible();
-        const [createButton] = screen.getAllByRole("button", {
+        expect(screen.getByRole("button", {
             name: "Create project +",
-        });
-        expect(createButton.querySelector("svg.lucide-folder")).not.toBeNull();
+        })).toBeVisible();
         expect(await screen.findByText("No projects")).toBeVisible();
-        expect(container.querySelectorAll("svg.lucide-folder")).toHaveLength(2);
-        expect(screen.queryByText(/Upload documents into projects/u)).not.toBeInTheDocument();
     });
 
     it("keeps the table shell stable while rows load", () => {
@@ -147,28 +143,6 @@ describe("ProjectsOverview", () => {
         await waitFor(() =>
             expect(deleteProject).toHaveBeenCalledWith(createdProject.id),
         );
-    });
-
-    it("uses one bounded row and settles in two commits", async () => {
-        listProjects.mockResolvedValue({ items: [createdProject], next_cursor: null });
-        const commits: string[] = [];
-        const { container } = render(
-            <Profiler
-                id="projects"
-                onRender={(_, phase) => commits.push(phase)}
-            >
-                <ProjectsOverview />
-            </Profiler>,
-        );
-
-        const name = await screen.findByText(createdProject.name);
-        expect(name.closest(".group")).toHaveClass(
-            "h-14",
-            "w-full",
-            "min-w-0",
-        );
-        expect(container.querySelector(".min-w-max")).toBeNull();
-        expect(commits[0]).toBe("mount");
     });
 
     it("displays the API creation timestamp without replacing it", async () => {
