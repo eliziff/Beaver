@@ -23,7 +23,7 @@ import {
   MissingPassageIndexError,
   searchLocalA2AJPassages,
 } from "../a2ajPassageSearch";
-import { executeA2AJTool } from "../chat/tools/a2ajTools";
+import { searchLegalSources } from "../legalSourceRegistry";
 import { citationLookupKey } from "../citationKey";
 import {
   chunkText,
@@ -231,24 +231,23 @@ describe("citation short-circuit alias expansion", () => {
   });
 });
 
-describe("a2aj_search chat tool passage lane", () => {
+describe("A2AJ legal-source adapter passage lane", () => {
   it("serves passages when the sidecar exists", async () => {
     process.env.MIKE_A2AJ_BULK_DB = charsDb;
     process.env.MIKE_PASSAGE_SEARCH = "1";
-    const execution = await executeA2AJTool("a2aj_search", {
-      query: "reverse engineer a prototype",
-      size: 4,
+    const execution = await searchLegalSources({
+      text: "reverse engineer a prototype",
+      kinds: ["case"],
+      providers: ["a2aj"],
+      limit: 4,
     });
-    const results = execution?.payload.results as Array<
-      Record<string, unknown>
-    >;
-    expect(execution?.payload.ok).toBe(true);
+    const results = execution.results;
     expect(results.length).toBeGreaterThan(0);
-    expect(typeof results[0].passage_start).toBe("number");
+    expect(typeof results[0].passageStart).toBe("number");
     expect(results[0].snippet).toBe(
       statute.slice(
-        results[0].passage_start as number,
-        results[0].passage_end as number,
+        results[0].passageStart as number,
+        results[0].passageEnd as number,
       ),
     );
   });

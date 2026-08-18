@@ -8,18 +8,19 @@ import {
 } from "../a2aj";
 import { hasCitationInText } from "../citationKey";
 import {
-  buildA2AJParagraphRangeUrl,
-  buildA2AJPinpointUrl,
-  formatLegalLocator,
   hasCanadianDecisionLink,
 } from "../legalSourceLinks";
 import {
-  streamChatWithTools,
   type NormalizedLlmUsage,
-  type OpenAIToolSchema,
+  type Tool,
   type UserApiKeys,
 } from "../llm";
 import { normalizeWhitespace } from "../text";
+import {
+  citationPresentationText,
+  presentLegalEvidence,
+} from "./citationPresentation";
+import { groundedProseIntegrityErrors } from "./quoteRepair";
 
 export const LEGAL_EVIDENCE_TOOL_NAME = "submit_grounded_answer";
 export type LegalEvidenceMode = "citation_structure";
@@ -419,12 +420,6 @@ function createJournalEvidence(args: {
   });
 }
 
-export function createPublicJournalDocumentEvidence(
-  args: Omit<Parameters<typeof createJournalEvidence>[0], "locatorKind" | "locatorLabel">,
-) {
-  return createJournalEvidence({ ...args, locatorKind: "document", locatorLabel: "article" });
-}
-
 export function createPublicJournalPassageEvidence(
   args: Omit<Parameters<typeof createJournalEvidence>[0], "locatorKind"> & {
     locatorKind: "paragraph" | "section" | "page" | "footnote";
@@ -544,6 +539,24 @@ export function hasCaseNameInText(text: string) {
   return CASE_NAME.test(text);
 }
 
+export function legalEvidenceProseIntegrityErrors(
+  text: string,
+  citedEvidenceIds: readonly string[],
+  state: LegalEvidenceTurnState,
+) {
+  return groundedProseIntegrityErrors(
+    text,
+    citedEvidenceIds,
+    [...state.evidence.values()].flatMap(({ receipt }) => receipt.span_text
+      ? [{
+          evidenceId: receipt.evidence_id,
+          text: receipt.span_text,
+          labels: [receipt.name, receipt.citation].filter((value): value is string => Boolean(value)),
+        }]
+      : []),
+  );
+}
+
 export function submitLegalEvidenceAnswer(
   args: Record<string, unknown>,
   state: LegalEvidenceTurnState,
@@ -553,6 +566,11 @@ export function submitLegalEvidenceAnswer(
     return { ok: false, errors: ["answer has unknown fields"] };
   const { claims, errors } = parseClaims(args.claims, state);
   if (!claims || errors.length) return { ok: false, errors: errors.slice(0, 12) };
+  const integrityErrors = claims.flatMap((claim, index) =>
+    legalEvidenceProseIntegrityErrors(claim.text, claim.evidence_ids, state)
+      .map((error) => `claims[${index}] ${error}`),
+  );
+  if (integrityErrors.length) return { ok: false, errors: integrityErrors.slice(0, 12) };
   state.answer = claims;
   state.failure = null;
   return { ok: true, terminal: true };
@@ -578,20 +596,16 @@ const claimSchema = {
   required: ["text", "evidence_ids"],
 } as const;
 
-export const LEGAL_EVIDENCE_SUBMIT_TOOL: OpenAIToolSchema = {
-  type: "function",
-  function: {
-    name: LEGAL_EVIDENCE_TOOL_NAME,
-    strict: true,
-    description: "Finish an answer that actually relies on retrieved passages as independently checkable support units. Do not use this for an answer that needs no sources. Put sources only in evidence_ids. This call is the final answer.",
-    parameters: {
+export const LEGAL_EVIDENCE_SUBMIT_TOOL: Tool = {
+  name: LEGAL_EVIDENCE_TOOL_NAME,
+  description: "Finish an answer that actually relies on retrieved passages as independently checkable support units. Do not use this for an answer that needs no sources. Put sources only in evidence_ids. This call is the final answer.",
+  inputSchema: {
       type: "object",
       additionalProperties: false,
       properties: {
         claims: { type: "array", minItems: 1, maxItems: 64, items: claimSchema },
       },
       required: ["claims"],
-    },
   },
 };
 
@@ -602,51 +616,6 @@ const emptyUsage = (): NormalizedLlmUsage => ({
   cacheReadInputTokens: 0,
   cacheWriteInputTokens: 0,
 });
-
-async function structureDraft(args: {
-  state: LegalEvidenceTurnState;
-  model: string;
-  draft: string;
-  requestContext?: string;
-  apiKeys?: UserApiKeys;
-  reasoningEffort?: string;
-  abortSignal?: AbortSignal;
-}) {
-  return streamChatWithTools({
-    model: args.model,
-    systemPrompt: "Return no prose. Call submit_grounded_answer once. Do not add facts absent from the supplied evidence.",
-    messages: [{
-      role: "user",
-      content: JSON.stringify({
-        instruction: "Convert the candidate answer into prose-only support units. Keep only propositions supported by their exact passages; omit citation and pinpoint text.",
-        request: args.requestContext,
-        candidate_answer: args.draft,
-        evidence: [...args.state.evidence.values()].map(({ receipt }) => ({
-          evidence_id: receipt.evidence_id,
-          citation: receipt.citation,
-          locator: receipt.locator.label,
-          span_text: receipt.span_text,
-        })),
-      }),
-    }],
-    tools: [LEGAL_EVIDENCE_SUBMIT_TOOL],
-    maxIterations: 2,
-    apiKeys: args.apiKeys,
-    reasoningEffort: args.reasoningEffort,
-    enableThinking: false,
-    abortSignal: args.abortSignal,
-    runTools: async (calls) => calls.map((call) => {
-      const submitted = call.name === LEGAL_EVIDENCE_TOOL_NAME
-        ? submitLegalEvidenceAnswer(call.input, args.state)
-        : { ok: false, errors: [`Unexpected tool: ${call.name}`] };
-      return {
-        tool_use_id: call.id,
-        content: JSON.stringify(submitted),
-        terminal: "terminal" in submitted && submitted.terminal === true,
-      };
-    }),
-  });
-}
 
 export type LegalEvidenceFinalizationResult = {
   passed: boolean;
@@ -682,42 +651,23 @@ export async function finalizeLegalEvidenceExperiment(args: {
     state.failure = "The answer named legal authorities without verified passages.";
     return { passed: false, modelCalls: 0, usage, diagnostic: null };
   }
-  try {
-    const result = !state.answer && args.draft.trim() ? await structureDraft(args) : null;
-    if (!state.answer) {
-      state.failure = "The model did not submit a grounded answer.";
-      return { passed: false, modelCalls: result ? 1 : 0, usage: result?.usage ?? usage, diagnostic: null };
-    }
-    return { passed: true, modelCalls: result ? 1 : 0, usage: result?.usage ?? usage, diagnostic: null };
-  } catch (error) {
-    if (args.abortSignal?.aborted || (error as { name?: unknown })?.name === "AbortError") throw error;
-    state.answer = null;
-    state.failure = "The answer could not be structured against the retrieved passages.";
-    return { passed: false, modelCalls: 0, usage, diagnostic: error instanceof Error ? error.message : String(error) };
+  if (!state.answer) {
+    state.failure = "The model did not submit a grounded answer.";
+    return { passed: false, modelCalls: 0, usage, diagnostic: null };
   }
+  return { passed: true, modelCalls: 0, usage, diagnostic: null };
 }
 
 function citationFor(entry: RegisteredEvidence) {
-  const { receipt, lookup } = entry;
-  const range = receipt.locator.kind === "paragraph"
-    ? receipt.locator.label.match(/^par(\d+)(?:-|–|—)par(\d+)$/iu)
-    : null;
-  const url = lookup && range
-    ? buildA2AJParagraphRangeUrl(receipt.citation, range[1], range[2], [lookup], entry.document ? [entry.document] : [])
-    : lookup
-      ? buildA2AJPinpointUrl(lookup, [])
-      : receipt.external_url;
-  const locator = range
-    ? `paras. ${Number(range[1])}–${Number(range[2])}`
-    : receipt.locator.kind === "document"
-      ? ""
-      : formatLegalLocator(receipt.locator.kind, receipt.locator.label);
-  const label = `${receipt.citation}${locator ? receipt.locator.kind === "section" ? `, ${locator}` : ` at ${locator}` : ""}`;
+  const presentation = presentLegalEvidence(entry);
+  const authority = citationPresentationText(presentation.authority);
+  const locator = presentation.locator?.text ?? "";
+  const label = `${authority}${presentation.locator ? `${presentation.locator.separator}${locator}` : ""}`;
   return {
-    markdown: url
-      ? `[${label.replace(/[\\[\]]/gu, "\\$&")}](${url.replace(/\)/gu, "%29")})`
+    markdown: presentation.passageUrl
+      ? `[${label.replace(/[\\[\]]/gu, "\\$&")}](${presentation.passageUrl.replace(/\)/gu, "%29")})`
       : label,
-    candidates: [label, receipt.citation, locator].filter(Boolean).sort((a, b) => b.length - a.length),
+    candidates: [label, authority, entry.receipt.citation, locator].filter(Boolean).sort((a, b) => b.length - a.length),
   };
 }
 

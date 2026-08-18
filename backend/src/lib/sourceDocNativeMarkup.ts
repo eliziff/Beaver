@@ -21,7 +21,7 @@ import {
  * the A2AJ prose case spine fills in whatever the markup does not label.
  *
  * Parity with the legalSourceStructure engine this replaced is frozen in
- * fixtures/nativemarkup/legacy-structure.json: the rendered text, every block
+ * fixtures/nativemarkup/baseline-structure.json: the rendered text, every block
  * boundary and every lookup payload hash must match that recording
  * byte-for-byte, because TNA evidence receipts persist sha256 hashes over
  * both the block text and the lookup payload.
@@ -245,7 +245,7 @@ function nativeIdentity(
   // <a id="p336" data-label="336" class="page-label">*336</a> INSIDE
   // running text, and footnotes as <aside data-label="1" class="footnote">
   // containers. Star pages are inline — they must not introduce breaks,
-  // or the rendered text (frozen by the legacy recording) would change.
+  // or the rendered text (frozen by the baseline recording) would change.
   if (tag === "a" && provider === "courtlistener") {
     const cls = attribute(attrs, "class");
     if (/\bpage-label\b/u.test(cls)) {
@@ -659,11 +659,11 @@ export function compileNativeMarkupSourceDoc(args: {
   const harvardCasebody = /<(?:\w+:)?(?:section|article)\b[^>]*\bcasebody\b/iu.test(
     args.markup ?? "",
   );
-  const legacyBlocks = a2ajCaseBlocks({ text, citation: args.citation });
+  const recoveredBlocks = a2ajCaseBlocks({ text, citation: args.citation });
   const clippedLegacyBlocks =
     args.provider === "courtlistener"
-      ? clipParagraphsAtExcludedRanges(legacyBlocks, native.excludedRanges)
-      : legacyBlocks;
+      ? clipParagraphsAtExcludedRanges(recoveredBlocks, native.excludedRanges)
+      : recoveredBlocks;
   const candidateLegacyBlocks =
     args.provider === "courtlistener"
       ? clippedLegacyBlocks.filter(

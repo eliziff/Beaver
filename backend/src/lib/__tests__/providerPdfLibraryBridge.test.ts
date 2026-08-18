@@ -1043,42 +1043,6 @@ describe("provider PDF Library bridge", () => {
     expect(active).toBe(0);
   });
 
-  it("keeps an old source reference bound when the latest pointer changes", async () => {
-    await setup();
-    const bridge = await import("../providerPdfLibraryBridge");
-    const first = await bridge.ingestProviderPdfAttachment(govInfoAttachment);
-    const replacement = Buffer.from("%PDF-1.4 replacement");
-    const replacementSha = crypto
-      .createHash("sha256")
-      .update(replacement)
-      .digest("hex");
-    await writeFile(blobPath(replacementSha), replacement);
-    const pointerFile = pointerPath(first!.request_reference);
-    const pointer = JSON.parse(await readFile(pointerFile, "utf8"));
-    await writeFile(
-      pointerFile,
-      JSON.stringify({
-        ...pointer,
-        status: "ready",
-        source_sha256: replacementSha,
-      }),
-    );
-
-    const historical = await bridge.readProviderPdfReferenceState(
-      first!.reference_id,
-    );
-    const latest = await bridge.readProviderPdfReferenceState(
-      first!.request_reference,
-    );
-
-    expect(historical.source_sha256).toBe(first!.source_sha256);
-    expect(historical.reference_id).toBe(first!.reference_id);
-    expect(latest.source_sha256).toBe(replacementSha);
-    expect(latest.reference_id).toBe(
-      `${first!.request_reference}:${replacementSha}`,
-    );
-  });
-
   it("backs off a cold failure across polling and retries after the deadline", async () => {
     process.env.MIKE_PROVIDER_PDF_FAILURE_RETRY_MS = "5000";
     const { fetchMock } = await setup();
@@ -1281,47 +1245,6 @@ describe("provider PDF Library bridge", () => {
     });
   });
 
-  it("migrates a legacy source binding from its verified pointer", async () => {
-    await setup();
-    const bridge = await import("../providerPdfLibraryBridge");
-    const ingested =
-      await bridge.ingestProviderPdfAttachment(govInfoAttachment);
-    const binding = bindingPath(
-      ingested!.request_reference,
-      ingested!.source_sha256,
-    );
-    const legacy = JSON.parse(await readFile(binding, "utf8"));
-    delete legacy.request;
-    delete legacy.freshness;
-    await writeFile(binding, JSON.stringify(legacy));
-
-    vi.resetModules();
-    const restarted = await import("../providerPdfLibraryBridge");
-    const state = await restarted.readProviderPdfReferenceState(
-      ingested!.reference_id,
-    );
-    const receipt = JSON.parse(await readFile(binding, "utf8"));
-
-    expect(state).toMatchObject({
-      download_status: "downloaded",
-      source_sha256: ingested!.source_sha256,
-    });
-    expect(receipt).toMatchObject({
-      schema_version: "mike.provider_pdf_binding.v1",
-      provider: "govinfo",
-      request_reference: ingested!.request_reference,
-      source_sha256: ingested!.source_sha256,
-      request: {
-        request_reference: ingested!.request_reference,
-        url: govInfoAttachment.url,
-      },
-      freshness: {
-        fetched_at: expect.any(String),
-        checked_at: expect.any(String),
-      },
-    });
-  });
-
   it("recovers an exact SHA reference from its receipt without a valid pointer", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime("2026-07-27T00:00:00.000Z");
@@ -1475,25 +1398,25 @@ describe("provider PDF Library bridge", () => {
     });
   });
 
-  it("omits legacy unbound validators until their issuing URL is learned", async () => {
+  it("omits unbound validators until their issuing URL is learned", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime("2026-07-27T00:00:00.000Z");
     process.env.MIKE_PROVIDER_PDF_REVALIDATE_INTERVAL_MS = "60000";
-    const { fetchMock } = await setup(Buffer.from("%PDF-1.4 legacy"), {
-      ETag: '"legacy-v1"',
+    const { fetchMock } = await setup(Buffer.from("%PDF-1.4 current"), {
+      ETag: '"current-v1"',
     });
     const bridge = await import("../providerPdfLibraryBridge");
     const first = await bridge.ingestProviderPdfAttachment(govInfoAttachment);
     const pointerFile = pointerPath(first!.request_reference);
-    const legacyPointer = JSON.parse(await readFile(pointerFile, "utf8"));
-    delete legacyPointer.validator_url;
-    await writeFile(pointerFile, JSON.stringify(legacyPointer));
+    const unboundPointer = JSON.parse(await readFile(pointerFile, "utf8"));
+    delete unboundPointer.validator_url;
+    await writeFile(pointerFile, JSON.stringify(unboundPointer));
     fetchMock.mockResolvedValueOnce(
       new Response(Buffer.from("%PDF-1.4 refreshed"), {
         status: 200,
         headers: {
           "Content-Type": "application/pdf",
-          ETag: '"legacy-v2"',
+          ETag: '"current-v2"',
         },
       }),
     );
@@ -1506,7 +1429,7 @@ describe("provider PDF Library bridge", () => {
       "If-None-Match",
     );
     expect(refreshed).toMatchObject({
-      etag: '"legacy-v2"',
+      etag: '"current-v2"',
       validator_url: govInfoAttachment.url,
     });
   });
@@ -1571,13 +1494,13 @@ describe("provider PDF Library bridge", () => {
         structureSource: "flat_text",
         url: "https://files.localhost/decision.pdf",
       }),
-    ).rejects.toThrow("default-port HTTPS");
+    ).rejects.toThrow("blocked host");
     await expect(
       bridge.ingestProviderPdfAttachment({
         ...govInfoAttachment,
         url: "https://api.govinfo.gov:444/decision.pdf",
       }),
-    ).rejects.toThrow("default-port HTTPS");
+    ).rejects.toThrow("default HTTPS port");
     await expect(
       bridge.ingestProviderPdfAttachment({
         provider: "a2aj",

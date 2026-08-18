@@ -63,20 +63,30 @@ describe("MarkdownContent links", () => {
                 provider: "journal",
                 identifier: "article-7",
                 title: "A Fixture Article",
+                authority:
+                    "Ada Example, “A Fixture Article” (2026) 1:2 Fixture LJ 100",
                 url: "https://example.test/article.pdf#page=2",
                 locator_kind: "page",
                 locator: "page101",
-                pinpoint: "p. 101",
+                locator_separator: " at ",
+                pinpoint: "101",
                 quotes: [{ quote: "Quoted analysis" }],
             },
         ]);
 
         const pill = document.querySelector('[data-citation-ref="1"]');
-        expect(pill).toHaveTextContent("A Fixture Article, p. 101");
-        expect(pill).toHaveClass("rounded-full", "bg-red-800", "text-red-50");
+        expect(pill).toHaveTextContent(
+            "Ada Example, “A Fixture Article” (2026) 1:2 Fixture LJ 100 at 101",
+        );
+        expect(pill).toHaveClass(
+            "rounded-md",
+            "[overflow-wrap:anywhere]",
+            "bg-red-800",
+            "text-red-50",
+        );
         expect(pill).toHaveAttribute(
             "title",
-            'A Fixture Article, p. 101: "Quoted analysis"',
+            'Ada Example, “A Fixture Article” (2026) 1:2 Fixture LJ 100 at 101: "Quoted analysis"',
         );
     });
 

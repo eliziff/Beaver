@@ -44,11 +44,40 @@ vi.mock("../../middleware/auth", () => ({
 // Every export of lib/access must be present — other routers (chat, documents,
 // downloads, tabular) import from it at app load.
 vi.mock("../../lib/access", () => ({
-    checkProjectAccess: (...args: unknown[]) => checkProjectAccess(...args),
-    ensureDocAccess: vi.fn(async () => ({ ok: true, isOwner: true })),
-    ensureReviewAccess: vi.fn(async () => ({ ok: true, isOwner: true })),
-    filterAccessibleDocumentIds: vi.fn(async (ids: string[]) => ids),
-    listAccessibleProjectIds: vi.fn(async () => []),
+    cloudData: async (operation: string, query: PromiseLike<any>) => {
+        const { data, error } = await query;
+        if (error) throw new Error(operation);
+        return data;
+    },
+    cloudScope: (identity: { userId: string; userEmail?: string }) => {
+        const db = createMutableSupabaseStub(supabaseState);
+        return {
+            ...identity,
+            userEmail: identity.userEmail?.toLowerCase() ?? "",
+            db,
+            project: async (id: string, owner = false) => {
+                if (Object.hasOwn(supabaseState.tables, "projects")) {
+                    const row = supabaseState.tables.projects.data as any;
+                    if (!row) return null;
+                    const isOwner = row.user_id === identity.userId;
+                    const shared = Array.isArray(row.shared_with) && row.shared_with
+                        .some((email: string) => email.toLowerCase() ===
+                            identity.userEmail?.toLowerCase());
+                    return (isOwner || shared) && (!owner || isOwner)
+                        ? { row, isOwner } : null;
+                }
+                const result = await checkProjectAccess(id, identity.userId,
+                    identity.userEmail, db);
+                return result.ok && (!owner || result.isOwner)
+                    ? { row: result.project, isOwner: result.isOwner } : null;
+            },
+            document: vi.fn(async () => null),
+            documents: vi.fn(async () => []),
+            review: vi.fn(async () => null),
+            chat: vi.fn(async () => null),
+            projects: vi.fn(async () => []),
+        };
+    },
 }));
 
 // user router imports all four cleanup helpers at module load.
@@ -109,7 +138,7 @@ describe("projects.routes", () => {
             const res = await request(app).get("/projects").set(...AUTH);
 
             expect(res.status).toBe(500);
-            expect(res.body.detail).toBe("boom");
+            expect(res.body.detail).toBe("Failed to load projects");
         });
     });
 
@@ -212,7 +241,7 @@ describe("projects.routes", () => {
                 .send({ name: "Delta" });
 
             expect(res.status).toBe(500);
-            expect(res.body.detail).toBe("insert failed");
+            expect(res.body.detail).toBe("Failed to create project");
         });
     });
 

@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  citationProvider,
   resolveDocxCitationLinks,
   type DocxCitationIntent,
   type DocxCitationLinkPlan,
@@ -25,20 +24,6 @@ function intent(
 }
 
 describe("DOCX citation linking", () => {
-  it("routes only citation forms supported by deterministic providers", () => {
-    expect(citationProvider(intent("1", "case", "2024 SCC 10"))).toBe("a2aj");
-    expect(citationProvider(intent("2", "case", "467 U.S. 837"))).toBe(
-      "courtlistener",
-    );
-    expect(citationProvider(intent("3", "case", "[2025] UKSC 12"))).toBe(
-      "public",
-    );
-    expect(citationProvider(intent("4", "journal", "42 Alta L Rev 1"))).toBe(
-      "journal",
-    );
-    expect(citationProvider(intent("5", "book", "A Treatise"))).toBeNull();
-  });
-
   it("keeps unresolved and unsafe resolver output out of the DOCX link map", async () => {
     const plan: DocxCitationLinkPlan = {
       schema_version: "legalpdf.docx_link_plan.v1",

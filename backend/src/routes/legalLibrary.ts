@@ -3,15 +3,17 @@ import { requireAuth } from "../middleware/auth";
 import {
   getA2AJCoverage,
   resolveA2AJViewerDocument,
-  searchA2AJ,
   type A2AJViewerPayload,
 } from "../lib/a2aj";
+import { resolveJournalViewerDocument } from "../lib/journalArticles";
 import {
-  fetchJournalArticle,
-  resolveJournalViewerDocument,
-  searchJournalArticles,
-} from "../lib/journalArticles";
-import { searchLocalHansard } from "../lib/a2ajHansard";
+  resolveLegalSource,
+  searchLegalSources,
+} from "../lib/legalSourceRegistry";
+import type {
+  LegalSourceKind,
+  LegalSourceSearchHit,
+} from "../lib/legalSources";
 import {
   deleteLocalLegalSource,
   getLocalLegalSource,
@@ -174,92 +176,69 @@ legalLibraryRouter.get("/coverage", async (_req, res) => {
   }
 });
 
+const searchType = {
+  cases: { kind: "case", provider: "a2aj" },
+  laws: { kind: "legislation", provider: "a2aj" },
+  articles: { kind: "journal", provider: "journal" },
+  hansard: { kind: "hansard", provider: "hansard" },
+} as const;
+
+function searchResult(result: LegalSourceSearchHit) {
+  const hansard = result.kind === "hansard";
+  const doc_type = {
+    case: "cases",
+    legislation: "laws",
+    journal: "articles",
+    hansard: "hansard",
+  }[result.kind];
+  return {
+    provider: result.provider,
+    doc_type,
+    source_id: result.id,
+    dataset: result.collection ?? (hansard ? "Hansard" : ""),
+    citation: hansard
+      ? [result.date, result.speaker].filter(Boolean).join(" — ") || result.id
+      : result.citation ?? result.id,
+    alternateCitation: result.alternateCitation ?? null,
+    name: result.title ?? (hansard ? result.speaker : null) ?? null,
+    date: result.date ?? null,
+    url: result.url ?? null,
+    snippet: result.snippet ?? null,
+  };
+}
+
 legalLibraryRouter.get("/search", async (req, res) => {
   try {
+    const selected = req.query.doc_type === "hansard"
+      ? "hansard"
+      : docType(req.query.doc_type);
     const wanted = Number.parseInt(String(req.query.size ?? "12"), 10);
-    if (req.query.doc_type === "hansard") {
-      const results = searchLocalHansard({
-        query: text(req.query.query, "query"),
-        size: Number.isFinite(wanted) ? Math.min(Math.max(wanted, 1), 20) : 10,
-        speaker: optionalText(req.query.speaker),
-        startDate: optionalText(req.query.start_date, 10),
-        endDate: optionalText(req.query.end_date, 10),
-        sortResults:
-          req.query.sort_results === "newest_first" ||
-          req.query.sort_results === "oldest_first"
-            ? req.query.sort_results
-            : "default",
-      });
-      res.json({
-        results: (results ?? []).map((result) => ({
-          provider: "hansard" as const,
-          doc_type: "hansard" as const,
-          source_id: result.id,
-          dataset: result.chamber ?? result.jurisdiction ?? "Hansard",
-          citation: [result.date, result.speaker].filter(Boolean).join(" — ") || result.id,
-          name: result.subjectOfBusiness ?? result.orderOfBusiness ?? result.speaker,
-          date: result.date,
-          url: result.sourceUrl,
-          snippet: result.snippet,
-        })),
-      });
-      return;
-    }
-    const selectedDocType = docType(req.query.doc_type);
-    if (selectedDocType === "articles") {
-      const results = searchJournalArticles(
-        text(req.query.query, "query"),
-        Number.isFinite(wanted) ? Math.min(Math.max(wanted, 1), 25) : 12,
-        {
-          author: optionalText(req.query.author),
-          journal: optionalText(req.query.journal),
-          startDate: optionalText(req.query.start_date, 10),
-          endDate: optionalText(req.query.end_date, 10),
-          sortResults:
-            req.query.sort_results === "newest_first" ||
-            req.query.sort_results === "oldest_first"
-              ? req.query.sort_results
-              : "default",
-        },
-      );
-      res.json({
-        results: results.map((result) => ({
-          provider: result.provider,
-          doc_type: "articles" as const,
-          source_id: String(result.articleId),
-          dataset: result.dataset,
-          citation: result.citation,
-          alternateCitation: null,
-          name: result.name,
-          date: result.date,
-          url: result.url,
-          snippet: result.snippet,
-        })),
-      });
-      return;
-    }
-    const results = await searchA2AJ({
-      query: text(req.query.query, "query"),
-      docType: selectedDocType,
+    const limit = Number.isFinite(wanted)
+      ? Math.min(Math.max(wanted, 1), selected === "hansard" ? 20 : 25)
+      : selected === "hansard" ? 10 : 12;
+    const type = searchType[selected];
+    const { results } = await searchLegalSources({
+      text: text(req.query.query, "query"),
+      kinds: [type.kind],
+      providers: [type.provider],
       searchType: req.query.search_type === "name" ? "name" : "full_text",
       language: language(req.query.language),
-      size: Number.isFinite(wanted) ? Math.min(Math.max(wanted, 1), 25) : 12,
-      dataset: optionalText(req.query.dataset),
-      startDate: optionalText(req.query.start_date, 10),
-      endDate: optionalText(req.query.end_date, 10),
-      sortResults:
-        req.query.sort_results === "newest_first" ||
-        req.query.sort_results === "oldest_first"
-          ? req.query.sort_results
-          : "default",
+      collection: optionalText(req.query.dataset),
+      author: optionalText(req.query.author),
+      journal: optionalText(req.query.journal),
+      speaker: optionalText(req.query.speaker),
+      dateFrom: optionalText(req.query.start_date, 10),
+      dateTo: optionalText(req.query.end_date, 10),
+      sort:
+        req.query.sort_results === "newest_first"
+          ? "newest"
+          : req.query.sort_results === "oldest_first"
+            ? "oldest"
+            : "relevance",
+      limit,
+      perProviderLimit: limit,
     });
-    res.json({
-      results: results.map((result) => ({
-        ...result,
-        provider: "a2aj" as const,
-        doc_type: selectedDocType,
-      })),
-    });
+    res.json({ results: results.map(searchResult) });
   } catch (error) {
     res.status(400).json({
       detail: error instanceof Error ? error.message : "Search failed",
@@ -270,32 +249,52 @@ legalLibraryRouter.get("/search", async (req, res) => {
 legalLibraryRouter.post("/", async (req, res) => {
   try {
     const requestedDocType = docType(req.body?.doc_type);
+    const expectedProvider =
+      requestedDocType === "articles" ? "journal" : "a2aj";
+    const sourceKind: LegalSourceKind =
+      requestedDocType === "articles"
+        ? "journal"
+        : requestedDocType === "laws"
+          ? "legislation"
+          : "case";
+    const matched = await resolveLegalSource({
+      text: text(
+        requestedDocType === "articles"
+          ? req.body?.source_id ?? req.body?.citation
+          : req.body?.citation,
+        requestedDocType === "articles" ? "source_id" : "citation",
+      ),
+      kind: sourceKind,
+      language: language(req.body?.language),
+      collection: optionalText(req.body?.dataset),
+    });
+    if (
+      matched.status !== "found" ||
+      matched.value.provider !== expectedProvider
+    ) {
+      res.status(404).json({ detail: "Legal source not found" });
+      return;
+    }
+    const source = matched.value;
     if (requestedDocType === "articles") {
-      const article = fetchJournalArticle(
-        text(req.body?.source_id ?? req.body?.citation, "source_id"),
-      );
-      if (!article) {
-        res.status(404).json({ detail: "Journal article not found" });
-        return;
-      }
       res.status(201).json(
         await saveLocalLegalSource({
           userId: userId(res),
           provider: "journal",
           docType: "articles",
-          citation: article.citation,
-          language: "en",
-          dataset: article.dataset,
-          sourceId: article.identity,
+          citation: source.citation ?? source.id,
+          language: source.language ?? "en",
+          dataset: source.collection,
+          sourceId: source.id,
         }),
       );
       return;
     }
     const resolved = await resolveA2AJViewerDocument({
-      citation: text(req.body?.citation, "citation"),
+      citation: source.citation ?? source.id,
       docType: requestedDocType,
-      language: language(req.body?.language),
-      dataset: optionalText(req.body?.dataset),
+      language: source.language ?? "en",
+      dataset: source.collection ?? undefined,
     });
     if (!resolved) {
       res.status(404).json({ detail: "Legal source not found" });

@@ -10,7 +10,8 @@ let home: string | null = null;
 
 afterEach(async () => {
   try {
-    await (await import("../../localDocumentStore")).closeLocalDocumentStore();
+    (await import("../../localApplicationDatabase"))
+      .closeLocalApplicationDatabase();
   } catch {}
   delete process.env.MIKE_LOCAL_DATA_DIR;
   delete process.env.OPEN_LEGAL_DATA_HOME;
@@ -35,7 +36,7 @@ const docxFrom = (paragraphs: string[]) =>
   );
 
 describe("executeCompareVersionsTool", () => {
-  it("redlines current-vs-previous and saves the result to the library", async () => {
+  it("compares in memory unless a durable redline is requested", async () => {
     home = await mkdtemp(path.join(os.tmpdir(), "beaver-compare-tool-"));
     process.env.MIKE_LOCAL_DATA_DIR = home;
     process.env.OPEN_LEGAL_DATA_HOME = home;
@@ -59,7 +60,7 @@ describe("executeCompareVersionsTool", () => {
     const early = await executeCompareVersionsTool(
       localDocuments,
       { userId },
-      "compare_docx_versions",
+      "compare_versions",
       { document_id: document.id },
     );
     expect(early).toMatchObject({ ok: false, error: "no_prior_version" });
@@ -77,17 +78,24 @@ describe("executeCompareVersionsTool", () => {
     const reply = await executeCompareVersionsTool(
       localDocuments,
       { userId },
-      "compare_docx_versions",
+      "compare_versions",
       { document_id: document.id },
     );
     expect(reply).toMatchObject({ ok: true });
     expect(reply?.changes_total).toBeGreaterThan(0);
-    expect(String(reply?.redline_filename)).toContain("(redline)");
+    expect(reply).not.toHaveProperty("document_id");
+    const saved = await executeCompareVersionsTool(
+      localDocuments,
+      { userId },
+      "compare_versions",
+      { document_id: document.id, save_redline: true },
+    );
+    expect(String(saved?.filename)).toContain("(redline)");
     const listed = await store.pageLocalDocuments(userId, ["file"], {
       q: "", limit: 50, after: null,
     });
     expect(
-      listed.items.some((doc) => doc.id === reply?.redline_document_id),
+      listed.items.some((doc) => doc.id === saved?.document_id),
     ).toBe(true);
   });
 

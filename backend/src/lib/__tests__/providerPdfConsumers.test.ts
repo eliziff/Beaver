@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const queueProviderPdfAttachment = vi.hoisted(() => vi.fn());
 const lookupProviderPdfReference = vi.hoisted(() => vi.fn());
 const rehydrateProviderPdfReference = vi.hoisted(() => vi.fn());
-const getCourtlistenerCases = vi.hoisted(() => vi.fn());
 const getCourtlistenerOpinionStructure = vi.hoisted(() => vi.fn());
 
 vi.mock("../providerPdfLibraryBridge", () => ({
@@ -12,23 +11,31 @@ vi.mock("../providerPdfLibraryBridge", () => ({
   rehydrateProviderPdfReference,
 }));
 
-vi.mock("../courtlistener", () => ({
-  getCourtlistenerCases,
+vi.mock("../courtlistener", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../courtlistener")>()),
   getCourtlistenerOpinionDocumentText: () => "Opinion text",
   getCourtlistenerOpinionStructure,
-  lookupCourtlistenerOpinionLocator: vi.fn(),
-  searchCourtlistenerCaseLaw: vi.fn(),
-  verifyCourtlistenerCitations: vi.fn(),
 }));
 
-import { runLocalAssistantTools } from "../chat/localAssistantTools";
+vi.mock("../remoteUrlSafety", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../remoteUrlSafety")>()),
+  guardedRemoteFetch: (
+    input: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1],
+  ) => fetch(input, init),
+}));
+
+import { runLocalAssistantTools } from "./support/localAssistantTools";
 import {
+  captureCourtlistenerCase,
+  courtlistenerPdfFallback,
   runLocalCourtlistenerTool,
   type CourtlistenerToolState,
 } from "../chat/courtlistenerToolRunner";
 import { resourceReference } from "../resourceReferences";
 import { COURTLISTENER_TOOL_NAMES } from "../chat/tools/courtlistenerTools";
 import { appendLocalPdfPinpointLinks } from "../chat/localPdfEvidenceState";
+import { toolResultText } from "../chat/toolRegistry";
 
 const fallback = {
   provider: "courtlistener",
@@ -41,7 +48,6 @@ const fallback = {
 beforeEach(() => {
   queueProviderPdfAttachment.mockReset();
   queueProviderPdfAttachment.mockResolvedValue(fallback);
-  getCourtlistenerCases.mockReset();
   getCourtlistenerOpinionStructure.mockReset();
   getCourtlistenerOpinionStructure.mockReturnValue({ blocks: [] });
   lookupProviderPdfReference.mockReset();
@@ -49,6 +55,29 @@ beforeEach(() => {
 });
 
 describe("provider PDF consumers", () => {
+  it("keeps find-in-case hits candidate-only", async () => {
+    const state: CourtlistenerToolState = {
+      casesByClusterId: new Map([[42, {
+        clusterId: 42,
+        caseName: "Example v Example",
+        citations: ["1 F.4th 2"],
+        url: null,
+        pdfUrl: null,
+        dateFiled: null,
+        opinions: [{ id: 7 }],
+      }]]),
+    };
+    const found = await runLocalCourtlistenerTool({
+      id: "find",
+      name: COURTLISTENER_TOOL_NAMES.findInCase,
+      input: { clusterId: 42, query: "Opinion" },
+    }, state);
+    expect(found?.metadata?.evidenceRefs).toEqual([
+      expect.objectContaining({ kind: "candidate", text: "Opinion text" }),
+    ]);
+    expect(found?.evidence).toBeUndefined();
+  });
+
   it("returns queued/ready exact states and registers provider evidence links", async () => {
     const requestReference = `mike-provider-pdf:v1:govinfo:${"1".repeat(64)}`;
     const sourceReference = `${requestReference}:${"2".repeat(64)}`;
@@ -235,33 +264,18 @@ describe("provider PDF consumers", () => {
 
   it("imports a CourtListener cluster PDF only when opinion structure is flat", async () => {
     const opinion = { id: 8, text: "Opinion text" };
-    getCourtlistenerCases.mockResolvedValue({
-      cases: [
-        {
-          clusterId: 42,
-          caseName: "Example v. State",
-          citations: ["1 F.4th 2"],
-          url: "https://www.courtlistener.com/opinion/42/example/",
-          pdfUrl: "https://storage.courtlistener.com/pdf/42.pdf",
-          dateFiled: "2026-01-01",
-          opinions: [opinion],
-        },
-      ],
-    });
-    const state: CourtlistenerToolState = {
-      casesByClusterId: new Map(),
-    };
-    const call = {
-      id: "call-1",
-      name: COURTLISTENER_TOOL_NAMES.getCases,
-      input: { clusterIds: [42] },
-    };
+    const state: CourtlistenerToolState = { casesByClusterId: new Map() };
+    const cached = captureCourtlistenerCase(state, {
+      clusterId: 42,
+      caseName: "Example v. State",
+      citations: ["1 F.4th 2"],
+      url: "https://www.courtlistener.com/opinion/42/example/",
+      pdfUrl: "https://storage.courtlistener.com/pdf/42.pdf",
+      dateFiled: "2026-01-01",
+      opinions: [opinion],
+    })!;
 
-    const flatResult = await runLocalCourtlistenerTool(
-      call,
-      state,
-      "local-user",
-    );
+    const flatResult = await courtlistenerPdfFallback(cached, "local-user");
 
     expect(queueProviderPdfAttachment).toHaveBeenCalledWith({
       provider: "courtlistener",
@@ -271,7 +285,7 @@ describe("provider PDF consumers", () => {
       canonicalUrl: "https://www.courtlistener.com/opinion/42/example/",
       title: "Example v. State",
     });
-    expect(JSON.parse(flatResult!.content).cases[0].pdf_fallback).toEqual({
+    expect(flatResult).toEqual({
       ...fallback,
       resource: resourceReference.source("pdf", "reference-1"),
     });
@@ -280,110 +294,36 @@ describe("provider PDF consumers", () => {
     getCourtlistenerOpinionStructure.mockReturnValue({
       blocks: [{ origin: "native" }],
     });
-    await runLocalCourtlistenerTool(call, state, "local-user");
+    await courtlistenerPdfFallback(cached, "local-user");
     expect(queueProviderPdfAttachment).not.toHaveBeenCalled();
 
     getCourtlistenerOpinionStructure.mockImplementation((candidate) => ({
       blocks:
         (candidate as { id?: number }).id === 8 ? [{ origin: "native" }] : [],
     }));
-    getCourtlistenerCases.mockResolvedValue({
-      cases: [
-        {
-          clusterId: 42,
-          caseName: "Example v. State",
-          citations: ["1 F.4th 2"],
-          url: "https://www.courtlistener.com/opinion/42/example/",
-          pdfUrl: "https://storage.courtlistener.com/pdf/42.pdf",
-          opinions: [opinion, { id: 10, text: "Flat sibling opinion" }],
-        },
-      ],
-    });
-    await runLocalCourtlistenerTool(call, state, "local-user");
+    const mixed = captureCourtlistenerCase(state, {
+      ...cached,
+      opinions: [opinion, { id: 10, text: "Flat sibling opinion" }],
+    })!;
+    await courtlistenerPdfFallback(mixed, "local-user");
     expect(queueProviderPdfAttachment).toHaveBeenCalledOnce();
-
-    queueProviderPdfAttachment.mockClear();
-    getCourtlistenerOpinionStructure.mockReturnValue({ blocks: [] });
-    getCourtlistenerCases.mockResolvedValue({
-      cases: [
-        {
-          clusterId: 42,
-          caseName: "Example v. State",
-          citations: [],
-          url: "https://www.courtlistener.com/opinion/42/example/",
-          pdfUrl: "https://storage.courtlistener.com/pdf/42.pdf",
-          opinions: [opinion],
-        },
-        {
-          clusterId: 43,
-          caseName: "Second v. State",
-          citations: [],
-          url: "https://www.courtlistener.com/opinion/43/second/",
-          pdfUrl: "https://storage.courtlistener.com/pdf/43.pdf",
-          opinions: [{ id: 9, text: "Second opinion" }],
-        },
-      ],
-    });
-    await runLocalCourtlistenerTool(
-      {
-        ...call,
-        input: { clusterIds: [42, 43] },
-      },
-      state,
-      "local-user",
-    );
-    expect(queueProviderPdfAttachment).not.toHaveBeenCalled();
-
-    const explored = await runLocalCourtlistenerTool(
-      {
-        id: "call-find",
-        name: COURTLISTENER_TOOL_NAMES.findInCase,
-        input: { clusterId: 42, query: "Opinion" },
-      },
-      state,
-      "local-user",
-    );
-    expect(queueProviderPdfAttachment).toHaveBeenCalledOnce();
-    expect(JSON.parse(explored!.content).pdf_fallback).toEqual({
-      ...fallback,
-      resource: resourceReference.source("pdf", "reference-1"),
-    });
-    expect(explored?.evidenceRefs).toEqual([
-      expect.objectContaining({
-        locator: "opinion 8, search hit 1",
-        text: "Opinion text",
-        kind: "candidate",
-      }),
-    ]);
   });
 
-  it("uses the shared CourtListener executor", async () => {
-    getCourtlistenerCases.mockResolvedValue({
-      cases: [
-        {
-          clusterId: 42,
-          caseName: "Example v. State",
-          citations: ["1 F.4th 2"],
-          url: "https://www.courtlistener.com/opinion/42/example/",
-          opinions: [{ opinionId: 8, text: "Opinion text" }],
-        },
-      ],
-    });
+  it("uses the case captured by unified Read for find_in_case", async () => {
     const state = { casesByClusterId: new Map() };
-    const [fetched] = await runLocalAssistantTools("user-1", [{
-      id: "fetch",
-      name: COURTLISTENER_TOOL_NAMES.getCases,
-      input: { clusterIds: [42] },
-    }], { courtlistener: state });
-    const [found] = await runLocalAssistantTools("user-1", [{
+    captureCourtlistenerCase(state, {
+      clusterId: 42,
+      caseName: "Example v. State",
+      citations: ["1 F.4th 2"],
+      opinions: [{ opinionId: 8, text: "Opinion text" }],
+    });
+    const found = await runLocalCourtlistenerTool({
       id: "find",
       name: COURTLISTENER_TOOL_NAMES.findInCase,
       input: { clusterId: 42, query: "Opinion" },
-    }], { courtlistener: state });
+    }, state);
 
-    expect(JSON.parse(fetched.content))
-      .toMatchObject({ ok: true, case_count: 1, opinion_count: 1 });
-    expect(JSON.parse(found.content))
+    expect(JSON.parse(toolResultText(found!.result)))
       .toMatchObject({ ok: true, total_matches: 1 });
   });
 
@@ -411,11 +351,16 @@ describe("provider PDF consumers", () => {
         }),
       }),
     );
+    const source = `source://a2aj/${encodeURIComponent(JSON.stringify([
+      "2099 SCC 1",
+      "cases",
+      "SCC",
+    ]))}`;
     const [response] = await runLocalAssistantTools("local-user", [
       {
         id: "call-a2aj",
-        name: "a2aj_fetch",
-        input: { citation: "2099 SCC 1" },
+        name: "Read",
+        input: { file_path: source },
       },
     ]);
 
@@ -427,10 +372,10 @@ describe("provider PDF consumers", () => {
     const [lookupResponse] = await runLocalAssistantTools("local-user", [
       {
         id: "lookup-a2aj",
-        name: "a2aj_lookup",
+        name: "Read",
         input: {
-          citation: "2099 SCC 1",
-          locator_type: "paragraph",
+          file_path: source,
+          locator_kind: "paragraph",
           locator: "1",
         },
       },

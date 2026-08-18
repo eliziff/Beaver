@@ -1,9 +1,57 @@
 import { appendContextManifest, buildContextManifest } from "./contextManifest";
+import { requireApiKey } from "./apiKeys";
 import { providerForModel } from "./models";
-import type { StreamChatParams, StreamChatResult, UserApiKeys } from "./types";
+import type {
+  Provider,
+  StreamChatParams,
+  StreamChatResult,
+  UserApiKeys,
+} from "./types";
 
 export * from "./types";
 export * from "./models";
+
+const OPENROUTER_RESPONSES_URL = "https://openrouter.ai/api/v1/responses";
+const META_RESPONSES_URL = "https://api.meta.ai/v1/responses";
+
+async function streamProvider(
+  provider: Provider,
+  params: StreamChatParams,
+): Promise<StreamChatResult> {
+  switch (provider) {
+    case "claude":
+      return (await import("./claude")).streamClaude(params);
+    case "openai":
+      return (await import("./openai")).streamOpenAI(params);
+    case "deepseek":
+      return (await import("./deepseek")).streamDeepSeek(params);
+    case "openrouter":
+    case "meta": {
+      const isOpenRouter = provider === "openrouter";
+      return (await import("./openai")).streamResponsesApi(params, {
+        endpoint: isOpenRouter
+          ? OPENROUTER_RESPONSES_URL
+          : META_RESPONSES_URL,
+        provider: isOpenRouter ? "OpenRouter" : "Meta",
+        apiKey: requireApiKey(
+          isOpenRouter ? params.apiKeys?.openrouter : params.apiKeys?.meta,
+          isOpenRouter ? ["OPENROUTER_API_KEY"] : ["META_API_KEY", "MODEL_API_KEY"],
+          isOpenRouter ? "OpenRouter" : "Meta",
+        ),
+        persistent: false,
+        defaultReasoningEffort: "medium",
+      });
+    }
+    case "codex":
+      return (await import("./codex")).streamCodex(params);
+    case "claude-p":
+      return (await import("./claudeP")).streamClaudeP(params);
+    case "ollama":
+      return (await import("./ollamaApi")).streamOllama(params);
+    case "gemini":
+      return (await import("./gemini")).streamGemini(params);
+  }
+}
 
 export async function streamChatWithTools(
   params: StreamChatParams,
@@ -38,34 +86,7 @@ export async function streamChatWithTools(
   };
 
   try {
-    const result =
-      provider === "claude"
-        ? await (await import("./claude")).streamClaude(measuredParams)
-        : provider === "openai"
-          ? await (await import("./openai")).streamOpenAI(measuredParams)
-          : provider === "deepseek"
-            ? await (await import("./deepseek")).streamDeepSeek(measuredParams)
-            : provider === "openrouter"
-              ? await (
-                  await import("./openrouter")
-                ).streamOpenRouter(measuredParams)
-              : provider === "meta"
-                ? await (await import("./meta")).streamMeta(measuredParams)
-              : provider === "codex"
-                ? await (await import("./codex")).streamCodex(
-                    measuredParams,
-                  )
-                : provider === "claude-p"
-                  ? await (await import("./claudeP")).streamClaudeP(
-                      measuredParams,
-                    )
-                  : provider === "ollama"
-                    ? await (await import("./ollamaApi")).streamOllama(
-                        measuredParams,
-                      )
-                    : await (
-                        await import("./gemini")
-                      ).streamGemini(measuredParams);
+    const result = await streamProvider(provider, measuredParams);
     const finishedAt = performance.now();
     await recordManifest({
       params: manifestParams,
@@ -118,22 +139,17 @@ export async function completeText(params: {
   apiKeys?: UserApiKeys;
 }): Promise<string> {
   const provider = providerForModel(params.model);
-  if (provider === "claude")
-    return (await import("./claude")).completeClaudeText(params);
-  if (provider === "openai")
-    return (await import("./openai")).completeOpenAIText(params);
-  if (provider === "deepseek")
-    return (await import("./deepseek")).completeDeepSeekText(params);
-  if (provider === "openrouter")
-    return (await import("./openrouter")).completeOpenRouterText(params);
-  if (provider === "meta")
-    return (await import("./meta")).completeMetaText(params);
-  if (provider === "codex") {
-    return (await import("./codex")).completeCodexText(params);
-  }
-  if (provider === "claude-p")
-    return (await import("./claudeP")).completeClaudePText(params);
-  if (provider === "ollama")
-    return (await import("./ollamaApi")).completeOllamaText(params);
-  return (await import("./gemini")).completeGeminiText(params);
+  return (
+    await streamProvider(provider, {
+      model: params.model,
+      systemPrompt: params.systemPrompt ?? "",
+      messages: [{ role: "user", content: params.user }],
+      maxTokens: params.maxTokens ?? 512,
+      reasoningEffort: params.reasoningEffort,
+      apiKeys: params.apiKeys,
+    })
+  ).fullText;
 }
+
+export const getOllamaModelCatalog = async () =>
+  (await import("./ollamaApi")).getOllamaModelCatalog();

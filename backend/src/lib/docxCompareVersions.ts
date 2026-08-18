@@ -1,95 +1,12 @@
 /**
- * Deterministic DOCX version comparison → tracked-changes redline.
+ * Deterministic old→new DOCX comparison. The new package is authoritative:
+ * only document.xml is rewritten, with native w:ins/w:del revisions.
+ * Unsupported structures stay untouched and produce typed abstentions.
  *
- * `compareDocxVersions(oldBytes, newBytes)` produces the NEW document with
- * `w:ins` / `w:del` revision markup describing the changes FROM the old
- * version TO the new version, plus a typed change summary. The output is
- * built by transforming the new document's XML in place — its styles,
- * sections, numbering, and every untouched part of the package are
- * preserved byte-for-byte except `word/document.xml`.
- *
- * Algorithm:
- *   1. Extract the block sequence (paragraphs, tables, block-level content
- *      controls) from each document's main story.
- *   2. Align the sequences with an LCS over whitespace/quote-normalized
- *      block text (common prefix/suffix trimmed first).
- *   3. Inside each unmatched gap, pair up similar paragraphs with a small
- *      edit-distance DP (fast-diff similarity ≥ 0.5 allows a pairing).
- *   4. Changed pairs get a word-level diff (legal-text tokenization
- *      mirroring TableOfAuthoritiesMaker/quote_edits.py — see the diff
- *      section below — encoded into characters and diffed with
- *      fast-diff); the new paragraph's children are rebuilt with `w:del`
- *      splices carrying the old text and `w:ins` wraps around the new
- *      text. Quote-style, dash-style, and whitespace-run-only differences
- *      compare as equal (the same tolerance normalizeWs gives the whole
- *      tracked-changes stack) and are not marked.
- *   5. Unmatched old paragraphs are cloned into fully-deleted paragraphs
- *      (runs → `w:delText`, paragraph mark marked deleted) and spliced
- *      into the new body; unmatched new paragraphs are wrapped in `w:ins`
- *      with their paragraph mark marked inserted.
- *
- * Typed abstentions (house doctrine: refuse loudly, never mangle). Every
- * abstention leaves the affected content exactly as the NEW version has
- * it, without revision marks, and records `{ reason, excerpt }` where
- * `reason` starts with one of these stable codes followed by ": ":
- *
- *   table_changed / table_added / table_removed
- *       Tables are never diffed; any table difference abstains.
- *   content_control_changed / content_control_added / content_control_removed
- *       Block-level w:sdt differences abstain (control machinery is
- *       guarded house-wide).
- *   headers_changed / footers_changed / footnotes_changed / endnotes_changed
- *       Non-main stories are compared for *detection* only; differences
- *       abstain because this tool marks up the main story exclusively.
- *   paragraph_not_diffable
- *       A changed paragraph pair whose new-version paragraph contains
- *       structure the rewriter cannot safely rebuild (fields, hyperlinks,
- *       inline content controls, pre-existing tracked changes, runs mixing
- *       text with objects, unknown elements).
- *   deleted_paragraph_unrepresentable
- *       An old-only paragraph with no clonable text content (e.g. an
- *       image-only paragraph); its deletion is not shown in the redline.
- *   deleted_paragraph_content_dropped
- *       An old-only paragraph was written as a deleted paragraph but some
- *       non-text content (images/objects, footnote references, fields,
- *       hyperlink/control structure) could not be carried across packages.
- *   inserted_paragraph_not_markable
- *       A new-only paragraph with structure that cannot be wrapped in
- *       w:ins; it stays in the output unmarked.
- *   numbering_change_not_tracked
- *       An aligned paragraph pair differs in list-numbering presence or
- *       level; numbering property changes are not representable as text
- *       revisions here. (Cross-package numId renumbering is invisible.)
- *   inline_object_in_inserted_range
- *       A preserved inline object (image, note reference) sits inside an
- *       inserted text range and is kept, but not itself marked inserted.
- *   old_paragraph_objects_not_compared
- *       The old side of a changed pair contained non-text objects; only
- *       its text participates in the diff.
- *   documents_too_divergent
- *       The alignment working set exceeded the safety cap; the whole
- *       comparison abstains and the new document is returned unmarked.
- *
- * Reused house machinery (this module adds no parallel access layer):
- *   - `docx/core` for all archive access and XML plumbing: the shared
- *     parser/builder settings, the ":@"/"#text" node helpers, and the
- *     backslash-entry zip fallback — one kernel, shared with
- *     docxTrackedChanges rather than mirrored from it;
- *   - `normalizeWs` (docxTrackedChanges) for all alignment/similarity
- *     normalization — the exact matcher-grade normalization
- *     docxTextOps/applyTrackedEdits anchor with;
- *   - `decodeXmlText` (lib/text) plus docxStructuralLint's w:t /
- *     deleted-run regex patterns for the read-only story comparison;
- *   - the docxTrackedChanges w:ins/w:del emission format (w:id/w:author/
- *     w:date attributes, w:delText with xml:space). The document-level
- *     writer itself (applyTrackedEdits) cannot be reused because its
- *     EditInput model is old-doc-anchored and cannot express
- *     paragraph-level insert/delete or transform-the-NEW-document
- *     semantics.
- *   - Word-level tokenization mirrors the proven legal-text conventions
- *     of TableOfAuthoritiesMaker/quote_edits.py (`_tokens`,
- *     `_mergeable`, `_equivalent`), minus its case folding and
- *     quote-editorial bracket rules.
+ * Block alignment determines paragraph correspondence; legal token
+ * boundaries keep punctuation edits narrow. Shared tracked-change helpers
+ * own package IO and revision attributes. This file keeps only the
+ * comparison-specific reverse diff and cross-package safety rules.
  */
 
 import diff from "fast-diff";
@@ -98,32 +15,29 @@ import {
     TEXT_KEY,
     type XNode,
     cloneNode,
-    createBuilder,
-    createParser,
     elAttrs,
     elChildren,
     elName,
-    ensureXmlDeclaration,
-    findBody,
     getTextContent,
-    getZipEntry,
     isTextNode,
-    loadDocxPackage,
     makeEl,
     makeText,
     maxTrackedId,
     setChildren,
-    setZipEntry,
 } from "./docx/core";
-import { normalizeWs } from "./docxTrackedChanges";
+import {
+    markParagraphRevision,
+    normalizeWs,
+    openDocumentXml,
+    revisionAttrs,
+    saveDocumentXml,
+} from "./docxTrackedChanges";
 import { decodeXmlText } from "./text";
 
 export interface CompareChange {
     kind: "insert" | "delete" | "replace";
-    contextBefore: string;
     deletedText: string;
     insertedText: string;
-    contextAfter: string;
 }
 
 export interface CompareAbstention {
@@ -138,7 +52,6 @@ export interface CompareDocxVersionsResult {
     abstentions: CompareAbstention[];
 }
 
-const CONTEXT_CHARS = 40;
 const EXCERPT_CHARS = 160;
 /** LCS working-set cap after prefix/suffix trimming (cells). */
 const MAX_LCS_CELLS = 4_000_000;
@@ -147,67 +60,45 @@ const MAX_GAP_CELLS = 10_000;
 /** Minimum fast-diff similarity for two paragraphs to count as a pair. */
 const PAIR_SIMILARITY = 0.5;
 
-// ---------------------------------------------------------------------------
 // Text extraction (accepted view: w:ins content counts, w:del content does
 // not; tabs and soft line breaks become "\t" / "\n" markers so they survive
 // diffs and paragraph rebuilds).
-// ---------------------------------------------------------------------------
 
-function extractInlineText(pNode: XNode): string {
-    let out = "";
-    const visit = (n: XNode) => {
-        const name = elName(n);
-        if (!name) return;
+const ACCEPTED_CONTAINERS = new Set([
+    "w:hyperlink",
+    "w:smartTag",
+    "w:ins",
+    "w:sdtContent",
+    "w:customXml",
+]);
+
+function extractInlineText(paragraph: XNode): string {
+    const visit = (node: XNode): string => {
+        const name = elName(node);
         if (name === "w:r") {
-            for (const rk of elChildren(n)) {
-                const rn = elName(rk);
-                if (rn === "w:t") out += getTextContent(rk);
-                else if (rn === "w:tab") out += "\t";
-                else if (rn === "w:cr") out += "\n";
-                else if (
-                    rn === "w:br" &&
-                    Object.keys(elAttrs(rk)).length === 0
-                )
-                    out += "\n";
-            }
-            return;
+            return elChildren(node).map((child) => {
+                const childName = elName(child);
+                if (childName === "w:t") return getTextContent(child);
+                if (childName === "w:tab") return "\t";
+                if (childName === "w:cr") return "\n";
+                return childName === "w:br" && !Object.keys(elAttrs(child)).length
+                    ? "\n"
+                    : "";
+            }).join("");
         }
-        if (
-            name === "w:hyperlink" ||
-            name === "w:smartTag" ||
-            name === "w:ins" ||
-            name === "w:sdtContent" ||
-            name === "w:customXml"
-        ) {
-            for (const c of elChildren(n)) visit(c);
-            return;
-        }
-        if (name === "w:sdt") {
-            for (const c of elChildren(n)) {
-                if (elName(c) === "w:sdtContent") visit(c);
-            }
-            return;
-        }
-        // w:del content and unknown structures are absent from accepted text.
+        const children = name === "w:sdt"
+            ? elChildren(node).filter((child) => elName(child) === "w:sdtContent")
+            : name && ACCEPTED_CONTAINERS.has(name) ? elChildren(node) : [];
+        return children.map(visit).join("");
     };
-    for (const c of elChildren(pNode)) visit(c);
-    return out;
+    return elChildren(paragraph).map(visit).join("");
 }
 
-/** Recursive text of a table / content-control block, "\n" per paragraph. */
 function extractBlockText(node: XNode): string {
-    let out = "";
-    const visit = (n: XNode) => {
-        const name = elName(n);
-        if (!name) return;
-        if (name === "w:p") {
-            out += extractInlineText(n) + "\n";
-            return;
-        }
-        for (const c of elChildren(n)) visit(c);
-    };
-    visit(node);
-    return out;
+    const visit = (child: XNode): string => elName(child) === "w:p"
+        ? `${extractInlineText(child)}\n`
+        : elChildren(child).map(visit).join("");
+    return visit(node);
 }
 
 function normTrim(s: string): string {
@@ -219,67 +110,30 @@ function excerptOf(s: string): string {
     return t.length > EXCERPT_CHARS ? `${t.slice(0, EXCERPT_CHARS)}…` : t;
 }
 
-// ---------------------------------------------------------------------------
-// Block collection and alignment
-// ---------------------------------------------------------------------------
-
 interface Block {
     kind: "p" | "tbl" | "sdt";
     node: XNode;
-    /** Index in the body's children array (stable until the final splice). */
     bodyIndex: number;
-    /** Raw text (markers included) — exact, for diffing. */
     text: string;
-    /** Kind-prefixed normalized key for LCS equality. */
     key: string;
 }
 
 function collectBlocks(bodyKids: XNode[]): Block[] {
     const blocks: Block[] = [];
     for (let i = 0; i < bodyKids.length; i++) {
-        const n = bodyKids[i];
-        const name = elName(n);
-        if (name === "w:p") {
-            const text = extractInlineText(n);
-            blocks.push({
-                kind: "p",
-                node: n,
-                bodyIndex: i,
-                text,
-                key: `p:${normTrim(text)}`,
-            });
-        } else if (name === "w:tbl") {
-            const text = extractBlockText(n);
-            blocks.push({
-                kind: "tbl",
-                node: n,
-                bodyIndex: i,
-                text,
-                key: `tbl:${normTrim(text)}`,
-            });
-        } else if (name === "w:sdt") {
-            const text = extractBlockText(n);
-            blocks.push({
-                kind: "sdt",
-                node: n,
-                bodyIndex: i,
-                text,
-                key: `sdt:${normTrim(text)}`,
-            });
-        }
-        // w:sectPr, bookmarks, and other body-level elements are neither
-        // aligned nor touched; they stay exactly where the new document
-        // put them.
+        const node = bodyKids[i];
+        const name = elName(node);
+        const kind: Block["kind"] | null = name === "w:p"
+            ? "p"
+            : name === "w:tbl" ? "tbl" : name === "w:sdt" ? "sdt" : null;
+        if (!kind) continue;
+        const text = kind === "p" ? extractInlineText(node) : extractBlockText(node);
+        blocks.push({ kind, node, bodyIndex: i, text, key: `${kind}:${normTrim(text)}` });
     }
     return blocks;
 }
 
-/**
- * LCS over block keys. Common prefix/suffix are trimmed first (versions of
- * one document share most content in order). Returns matched index pairs
- * in ascending order, or null when the trimmed working set exceeds the
- * safety cap.
- */
+/** LCS after the usually-large common prefix/suffix is removed. */
 function alignSequences(
     a: string[],
     b: string[],
@@ -343,16 +197,10 @@ function alignSequences(
     return pairs;
 }
 
-// ---------------------------------------------------------------------------
-// Gap paragraph pairing
-// ---------------------------------------------------------------------------
-
 /** Dice-style similarity from fast-diff EQUAL mass over normalized texts. */
 function similarity(aNorm: string, bNorm: string): number {
     const total = aNorm.length + bNorm.length;
     if (total === 0) return 1;
-    // Length pre-filter: similarity can never reach the threshold when one
-    // side is much shorter than the other; skip the O(n^2) diff.
     if ((2 * Math.min(aNorm.length, bNorm.length)) / total < PAIR_SIMILARITY)
         return 0;
     let equal = 0;
@@ -367,11 +215,7 @@ type GapOp =
     | { op: "del"; oi: number }
     | { op: "ins"; ni: number };
 
-/**
- * Pair old-gap paragraphs with new-gap paragraphs. Substitution is only
- * allowed at similarity ≥ PAIR_SIMILARITY; everything else becomes a
- * whole-paragraph delete/insert (which is always representable).
- */
+/** Similar paragraphs substitute; the rest become paragraph inserts/deletes. */
 function pairGapParagraphs(
     oldNorms: string[],
     newNorms: string[],
@@ -441,23 +285,10 @@ function pairGapParagraphs(
     return ops;
 }
 
-// ---------------------------------------------------------------------------
 // Word-level diff
-//
-// The tokenization conventions are a TypeScript mirror of the proven
-// legal-text tokenizer in TableOfAuthoritiesMaker/quote_edits.py
-// (`_tokens` / `_mergeable` / `_equivalent`): words keep internal
-// apostrophes ("plaintiff's" is one token), punctuation is its own token
-// (so ";" appearing after "costs" does not redline the word), "..." and
-// "[...]" are atomic, adjacent word/bracket tokens with no gap between
-// them merge ("[T]he"), and matching runs over equivalence-folded keys
-// (all double-quote variants ≈ '"', single-quote variants ≈ "'", dash
-// variants ≈ "-", any whitespace run ≈ " ") while emission always uses
-// the original document text. Unlike quote_edits, case is NOT folded —
-// capitalization changes are real edits a redline must show — and
-// whitespace tokens are kept (with exact offsets) because clusters must
-// map back to precise character ranges.
-// ---------------------------------------------------------------------------
+// Mirrors quote_edits.py: punctuation stays separate; adjacent word/bracket
+// tokens merge; quote, dash, and whitespace variants compare as equivalent.
+// Case remains significant and original offsets/text are always emitted.
 
 interface DiffCluster {
     /** Insert position in the NEW paragraph text. */
@@ -580,17 +411,7 @@ function charDiffClusters(oldText: string, newText: string): DiffCluster[] {
     return clusters;
 }
 
-/**
- * Word-level minimal clusters between two paragraph texts. Tokens are
- * encoded by equivalence key as single UTF-16 code units and diffed with
- * fast-diff, so changes always land on token boundaries and quote-style /
- * dash-style / whitespace-run differences compare as equal (matching the
- * normalizeWs tolerance the whole tracked-changes stack uses). Deleted
- * fragments are reassembled from the OLD tokens' original text; may
- * return zero clusters when the texts differ only by equivalence.
- * Falls back to character diff with semantic cleanup in the pathological
- * case of ~55k distinct token keys.
- */
+/** Diff encoded token keys; fall back when the single-code-unit map fills. */
 function wordDiffClusters(oldText: string, newText: string): DiffCluster[] {
     if (oldText === newText) return [];
 
@@ -655,10 +476,6 @@ function wordDiffClusters(oldText: string, newText: string): DiffCluster[] {
     return clusters;
 }
 
-// ---------------------------------------------------------------------------
-// Strict paragraph flattening for the in-place rewrite
-// ---------------------------------------------------------------------------
-
 type FlatAtom =
     | { kind: "chars"; text: string; rPr: XNode | null }
     | { kind: "tab" | "br"; rPr: XNode | null }
@@ -685,12 +502,7 @@ const ATOMIC_RUN_CHILDREN = new Set([
     "w:drawing",
 ]);
 
-/**
- * Flatten a paragraph for rewriting. Fails (typed) on any structure the
- * rebuild cannot round-trip: hyperlinks, inline content controls, fields,
- * pre-existing tracked changes, symbol/object runs, or runs mixing text
- * with atomic content.
- */
+/** Flatten only structures the rewriter can round-trip exactly. */
 function flattenForRewrite(
     pNode: XNode,
 ): { ok: true; flat: RewriteFlat } | { ok: false; reason: string } {
@@ -760,10 +572,6 @@ function flattenForRewrite(
     return { ok: true, flat: { atoms, text } };
 }
 
-// ---------------------------------------------------------------------------
-// Paragraph rebuild (changed pairs)
-// ---------------------------------------------------------------------------
-
 /** A single w:del wrapper carrying old text; "\t"/"\n" markers become
  *  w:tab / w:br elements interleaved with w:delText segments. */
 function buildDelWrapper(
@@ -798,11 +606,11 @@ function buildDelWrapper(
         }
     }
     flushBuf();
-    return makeEl("w:del", [makeEl("w:r", kids)], {
-        "w:id": id,
-        "w:author": author,
-        "w:date": date,
-    });
+    return makeEl(
+        "w:del",
+        [makeEl("w:r", kids)],
+        revisionAttrs(id, author, date),
+    );
 }
 
 interface RebuildResult {
@@ -810,14 +618,7 @@ interface RebuildResult {
     notes: string[];
 }
 
-/**
- * Rebuild a changed paragraph's children from its flattened atoms and the
- * diff clusters. Untouched text keeps its exact source runs (grouped by
- * rPr identity), inserted ranges are wrapped in w:ins, and deleted old
- * text is spliced in as w:del/w:delText at the correct positions. Keep
- * atoms (bookmarks, comment ranges, preserved object runs) stay at their
- * original text offsets.
- */
+/** Rebuild while preserving formatting and positional keep-atoms. */
 function rebuildParagraphChildren(
     pNode: XNode,
     flat: RewriteFlat,
@@ -871,11 +672,11 @@ function rebuildParagraphChildren(
         if (openIns) {
             if (openIns.runs.length) {
                 out.push(
-                    makeEl("w:ins", openIns.runs, {
-                        "w:id": nextId(),
-                        "w:author": author,
-                        "w:date": date,
-                    }),
+                    makeEl(
+                        "w:ins",
+                        openIns.runs,
+                        revisionAttrs(nextId(), author, date),
+                    ),
                 );
             }
             openIns = null;
@@ -1006,39 +807,6 @@ function rebuildParagraphChildren(
     return { children: out, notes };
 }
 
-// ---------------------------------------------------------------------------
-// Paragraph-mark revision helper + whole-paragraph insert / delete
-// ---------------------------------------------------------------------------
-
-/**
- * Mark a paragraph's own mark (its pilcrow) as inserted/deleted by adding
- * w:ins / w:del inside w:pPr > w:rPr, creating both containers if needed.
- * Schema placement: pPr's rPr sits before any sectPr; the revision element
- * is the first child of the rPr.
- */
-function ensureParagraphMarkRevision(
-    pNode: XNode,
-    kind: "w:ins" | "w:del",
-    attrs: Record<string, string>,
-): void {
-    const kids = elChildren(pNode);
-    let pPr = kids.find((k) => elName(k) === "w:pPr");
-    if (!pPr) {
-        pPr = makeEl("w:pPr", []);
-        setChildren(pNode, [pPr, ...kids]);
-    }
-    const pKids = elChildren(pPr);
-    let rPr = pKids.find((k) => elName(k) === "w:rPr");
-    if (!rPr) {
-        rPr = makeEl("w:rPr", []);
-        const sectIdx = pKids.findIndex((k) => elName(k) === "w:sectPr");
-        const next = [...pKids];
-        next.splice(sectIdx >= 0 ? sectIdx : next.length, 0, rPr);
-        setChildren(pPr, next);
-    }
-    setChildren(rPr, [makeEl(kind, [], attrs), ...elChildren(rPr)]);
-}
-
 const DELETED_RUN_TEXTUAL = new Set([
     "w:tab",
     "w:br",
@@ -1056,14 +824,7 @@ interface DeletedParagraphResult {
     dropped: Set<string>;
 }
 
-/**
- * Synthesize a fully-deleted paragraph from the OLD document's node. Only
- * self-contained content is cloned (text, tabs, breaks, symbols, run
- * formatting, paragraph style). Anything that references old-package parts
- * (relationships, footnotes, media, comments, fields, controls) is dropped
- * and reported. sectPr/numPr are stripped so the new document's layout and
- * numbering stay authoritative.
- */
+/** Clone only self-contained old content; report package-bound references. */
 function buildDeletedParagraph(
     oldP: XNode,
     author: string,
@@ -1175,19 +936,19 @@ function buildDeletedParagraph(
     }
     if (runs.length) {
         paraKids.push(
-            makeEl("w:del", runs, {
-                "w:id": nextId(),
-                "w:author": author,
-                "w:date": date,
-            }),
+            makeEl(
+                "w:del",
+                runs,
+                revisionAttrs(nextId(), author, date),
+            ),
         );
     }
     const node = makeEl("w:p", paraKids);
-    ensureParagraphMarkRevision(node, "w:del", {
-        "w:id": nextId(),
-        "w:author": author,
-        "w:date": date,
-    });
+    markParagraphRevision(
+        node,
+        "w:del",
+        revisionAttrs(nextId(), author, date),
+    );
     return { node, text, dropped };
 }
 
@@ -1207,11 +968,7 @@ const INSERT_RUN_ALLOWED = new Set([
     "w:sym",
 ]);
 
-/**
- * Validate that a new-only paragraph can be marked inserted: every run's
- * children are in the allowed set and only known containers appear.
- * Returns a reason string when it cannot, null when it can.
- */
+/** Refuse inserted paragraphs whose markup cannot be wrapped safely. */
 function validateInsertable(pNode: XNode): string | null {
     const visitContainer = (kids: XNode[], allowPPr: boolean): string | null => {
         for (const k of kids) {
@@ -1251,12 +1008,7 @@ function validateInsertable(pNode: XNode): string | null {
     return visitContainer(elChildren(pNode), true);
 }
 
-/**
- * Wrap all runs of a new-only paragraph in w:ins (recursing into
- * hyperlinks, smart tags, and content-control content — Word's own
- * pattern puts w:ins inside those containers) and mark the paragraph
- * mark inserted.
- */
+/** Wrap every inserted run and its paragraph mark. */
 function markParagraphInserted(
     pNode: XNode,
     author: string,
@@ -1269,11 +1021,11 @@ function markParagraphInserted(
         const flush = () => {
             if (group.length) {
                 next.push(
-                    makeEl("w:ins", group, {
-                        "w:id": nextId(),
-                        "w:author": author,
-                        "w:date": date,
-                    }),
+                    makeEl(
+                        "w:ins",
+                        group,
+                        revisionAttrs(nextId(), author, date),
+                    ),
                 );
                 group = [];
             }
@@ -1300,23 +1052,14 @@ function markParagraphInserted(
         return next;
     };
     setChildren(pNode, wrapRuns(elChildren(pNode)));
-    ensureParagraphMarkRevision(pNode, "w:ins", {
-        "w:id": nextId(),
-        "w:author": author,
-        "w:date": date,
-    });
+    markParagraphRevision(
+        pNode,
+        "w:ins",
+        revisionAttrs(nextId(), author, date),
+    );
 }
 
-// ---------------------------------------------------------------------------
-// Numbering signature + object detection
-// ---------------------------------------------------------------------------
-
-/**
- * Comparable numbering signature: presence of w:numPr and its ilvl.
- * numId values are NOT compared — the two packages number their abstract
- * lists independently, so equal-looking lists routinely carry different
- * ids. Only presence/level differences are trustworthy cross-package.
- */
+/** numId is package-local; only list presence and level compare reliably. */
 function numberingSignature(pNode: XNode): string | null {
     const pPr = elChildren(pNode).find((k) => elName(k) === "w:pPr");
     if (!pPr) return null;
@@ -1328,71 +1071,32 @@ function numberingSignature(pNode: XNode): string | null {
 }
 
 const OBJECT_ELEMENT_NAMES = new Set([
-    "w:footnoteReference",
-    "w:endnoteReference",
-    "w:drawing",
-    "w:object",
-    "w:pict",
-    "w:fldChar",
-    "w:fldSimple",
+    "w:footnoteReference", "w:endnoteReference", "w:drawing", "w:object",
+    "w:pict", "w:fldChar", "w:fldSimple",
 ]);
 
 function subtreeContainsObjects(node: XNode): boolean {
     const name = elName(node);
-    if (name && OBJECT_ELEMENT_NAMES.has(name)) return true;
-    for (const c of elChildren(node)) {
-        if (subtreeContainsObjects(c)) return true;
-    }
-    return false;
+    return Boolean(name && OBJECT_ELEMENT_NAMES.has(name)) ||
+        elChildren(node).some(subtreeContainsObjects);
 }
 
-// ---------------------------------------------------------------------------
-// Auxiliary story comparison (headers / footers / footnotes / endnotes)
-// ---------------------------------------------------------------------------
-
-const STORY_PATTERNS: Array<{ code: string; label: string; pattern: RegExp }> = [
-    {
-        code: "headers_changed",
-        label: "header",
-        pattern: /^word[\/\\]header\d*\.xml$/iu,
-    },
-    {
-        code: "footers_changed",
-        label: "footer",
-        pattern: /^word[\/\\]footer\d*\.xml$/iu,
-    },
-    {
-        code: "footnotes_changed",
-        label: "footnote",
-        pattern: /^word[\/\\]footnotes\.xml$/iu,
-    },
-    {
-        code: "endnotes_changed",
-        label: "endnote",
-        pattern: /^word[\/\\]endnotes\.xml$/iu,
-    },
-];
+const STORY_PATTERNS = [
+    ["headers_changed", "header", /^word[\/\\]header\d*\.xml$/iu],
+    ["footers_changed", "footer", /^word[\/\\]footer\d*\.xml$/iu],
+    ["footnotes_changed", "footnote", /^word[\/\\]footnotes\.xml$/iu],
+    ["endnotes_changed", "endnote", /^word[\/\\]endnotes\.xml$/iu],
+] as const;
 
 async function storyText(zip: JSZip, pattern: RegExp): Promise<string> {
-    const files = zip
-        .file(pattern)
-        .sort((a, b) => a.name.localeCompare(b.name));
-    const parts: string[] = [];
-    for (const f of files) {
-        const xml = await f.async("string");
-        // Accepted view: deleted runs are not part of the story's text.
-        const withoutDeleted = xml.replace(
-            /<w:del\b[\s\S]*?<\/w:del>/gu,
-            "",
-        );
-        const texts: string[] = [];
-        for (const m of withoutDeleted.matchAll(
-            /<w:t\b[^>]*>([\s\S]*?)<\/w:t>/gu,
-        )) {
-            texts.push(decodeXmlText(m[1] ?? ""));
-        }
-        parts.push(texts.join(""));
-    }
+    const files = zip.file(pattern).sort((a, b) => a.name.localeCompare(b.name));
+    const parts = await Promise.all(files.map(async (file) => {
+        const xml = (await file.async("string"))
+            .replace(/<w:del\b[\s\S]*?<\/w:del>/gu, "");
+        return [...xml.matchAll(/<w:t\b[^>]*>([\s\S]*?)<\/w:t>/gu)]
+            .map((match) => decodeXmlText(match[1] ?? ""))
+            .join("");
+    }));
     return parts.join("\n");
 }
 
@@ -1401,7 +1105,7 @@ async function compareAuxStories(
     newZip: JSZip,
 ): Promise<CompareAbstention[]> {
     const abstentions: CompareAbstention[] = [];
-    for (const { code, label, pattern } of STORY_PATTERNS) {
+    for (const [code, label, pattern] of STORY_PATTERNS) {
         const [oldText, newText] = await Promise.all([
             storyText(oldZip, pattern),
             storyText(newZip, pattern),
@@ -1420,10 +1124,6 @@ async function compareAuxStories(
     return abstentions;
 }
 
-// ---------------------------------------------------------------------------
-// Main entry point
-// ---------------------------------------------------------------------------
-
 export async function compareDocxVersions(
     oldBytes: Buffer,
     newBytes: Buffer,
@@ -1432,26 +1132,12 @@ export async function compareDocxVersions(
     const author = options?.author ?? "Beaver";
     const now = new Date().toISOString();
 
-    const [oldZip, newZip] = await Promise.all([
-        loadDocxPackage(oldBytes),
-        loadDocxPackage(newBytes),
+    const [oldDocument, newDocument] = await Promise.all([
+        openDocumentXml(oldBytes, "old docx"),
+        openDocumentXml(newBytes, "new docx"),
     ]);
-    const oldDocEntry = getZipEntry(oldZip, "word/document.xml");
-    const newDocEntry = getZipEntry(newZip, "word/document.xml");
-    if (!oldDocEntry) throw new Error("document.xml missing from old docx");
-    if (!newDocEntry) throw new Error("document.xml missing from new docx");
-    const [oldXmlRaw, newXmlRaw] = await Promise.all([
-        oldDocEntry.async("string"),
-        newDocEntry.async("string"),
-    ]);
-
-    const parser = createParser();
-    const oldTree = parser.parse(oldXmlRaw) as XNode[];
-    const newTree = parser.parse(newXmlRaw) as XNode[];
-    const oldBody = findBody(oldTree);
-    const newBody = findBody(newTree);
-    if (!oldBody) throw new Error("w:body missing from old document.xml");
-    if (!newBody) throw new Error("w:body missing from new document.xml");
+    const { zip: oldZip, body: oldBody } = oldDocument;
+    const { zip: newZip, tree: newTree, body: newBody } = newDocument;
 
     const changes: CompareChange[] = [];
     const abstentions: CompareAbstention[] = await compareAuxStories(
@@ -1499,9 +1185,6 @@ export async function compareDocxVersions(
         splices.set(beforeIndex, list);
         modified = true;
     };
-
-    const contextSlice = (text: string, from: number, to: number): string =>
-        text.slice(Math.max(0, from), Math.min(text.length, to));
 
     /** Numbering-only representability check for an aligned pair. */
     const checkNumbering = (oldB: Block, newB: Block) => {
@@ -1571,18 +1254,8 @@ export async function compareDocxVersions(
                         : c.deleted
                           ? "delete"
                           : "insert",
-                contextBefore: contextSlice(
-                    newB.text,
-                    c.newStart - CONTEXT_CHARS,
-                    c.newStart,
-                ),
                 deletedText: c.deleted,
                 insertedText: inserted,
-                contextAfter: contextSlice(
-                    newB.text,
-                    c.newEnd,
-                    c.newEnd + CONTEXT_CHARS,
-                ),
             });
         }
     };
@@ -1613,10 +1286,8 @@ export async function compareDocxVersions(
         queueSplice(beforeIndex, result.node);
         changes.push({
             kind: "delete",
-            contextBefore: "",
             deletedText: result.text,
             insertedText: "",
-            contextAfter: "",
         });
     };
 
@@ -1637,10 +1308,8 @@ export async function compareDocxVersions(
         modified = true;
         changes.push({
             kind: "insert",
-            contextBefore: "",
             deletedText: "",
             insertedText: newB.text,
-            contextAfter: "",
         });
     };
 
@@ -1768,12 +1437,9 @@ export async function compareDocxVersions(
         setChildren(newBody, rebuilt);
     }
 
-    const builder = createBuilder();
-    const rebuiltXml = ensureXmlDeclaration(builder.build(newTree));
-    setZipEntry(newZip, "word/document.xml", rebuiltXml);
-    const outBytes = await newZip.generateAsync({
-        type: "nodebuffer",
-        compression: "DEFLATE",
-    });
-    return { bytes: outBytes, changes, abstentions };
+    return {
+        bytes: await saveDocumentXml(newZip, newTree),
+        changes,
+        abstentions,
+    };
 }

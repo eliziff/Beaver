@@ -4,7 +4,6 @@ import type {
   StreamChatParams,
   StreamChatResult,
   NormalizedToolCall,
-  NormalizedToolResult,
 } from "./types";
 import { toClaudeTools } from "./tools";
 import { abortError, throwIfAborted } from "./abort";
@@ -151,7 +150,7 @@ export async function streamClaude(
         tools: claudeTools.length
           ? (claudeTools as unknown as Tool[])
           : undefined,
-        max_tokens: MAX_TOKENS,
+        max_tokens: params.maxTokens ?? MAX_TOKENS,
         // Claude 4.x models require `thinking.type: "adaptive"` and
         // drive effort via `output_config.effort` rather than a fixed
         // token budget. We only opt in when the caller requested it.
@@ -331,32 +330,3 @@ export async function streamClaude(
     throw error;
   }
 }
-
-export async function completeClaudeText(params: {
-  model: string;
-  systemPrompt?: string;
-  user: string;
-  maxTokens?: number;
-  apiKeys?: { claude?: string | null };
-}): Promise<string> {
-  const anthropic = client(params.apiKeys?.claude);
-  let resp: Awaited<ReturnType<typeof anthropic.messages.create>>;
-  try {
-    resp = await anthropic.messages.create({
-      model: params.model,
-      max_tokens: params.maxTokens ?? 512,
-      system: params.systemPrompt,
-      messages: [{ role: "user", content: params.user }],
-    });
-  } catch (error) {
-    throw new Error(claudeErrorMessage(error));
-  }
-  const text = resp.content
-    .filter((b): b is Anthropic.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("");
-  return text;
-}
-
-// Helper re-export for callers wanting to hand normalized results back in.
-export type { NormalizedToolResult };

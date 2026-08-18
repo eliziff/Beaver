@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth";
 import { getCodexModelCatalog } from "../lib/codexCatalog";
-import { getOllamaModelCatalog } from "../lib/llm/ollamaApi";
+import { getOllamaModelCatalog } from "../lib/llm";
 import { getReadSubagentCapability } from "../lib/chat/readSubagents";
 
 export const modelRouter = Router();

@@ -1,47 +1,38 @@
-import { randomUUID } from "node:crypto";
-import {
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import path from "node:path";
 import { z } from "zod";
-import { legalDataHome } from "./legalDataPath";
 import { sha256 } from "./hash";
+import {
+  localApplicationDatabase,
+  localApplicationTransaction,
+} from "./localApplicationDatabase";
 
 const idSchema = z
   .string()
   .regex(/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iu);
 const digestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
-const codexSessionSchema = z
-  .object({
-    schema_version: z.literal(1),
-    provider: z.literal("codex"),
-    user_id: idSchema,
-    chat_id: idSchema,
-    project_id: idSchema.nullable(),
-    continuation_id: idSchema,
-    compatibility_key: digestSchema,
-    transcript_version: z.number().int().nonnegative(),
-    created_at: z.string().datetime(),
-    updated_at: z.string().datetime(),
-  })
-  .strict();
+const codexSessionSchema = z.object({
+  schema_version: z.literal(1),
+  provider: z.literal("codex"),
+  user_id: idSchema,
+  chat_id: idSchema,
+  project_id: idSchema.nullable(),
+  continuation_id: idSchema,
+  compatibility_key: digestSchema,
+  transcript_version: z.number().int().nonnegative(),
+  created_at: z.string().datetime(),
+  updated_at: z.string().datetime(),
+}).strict();
 
 export type AnonymousCodexSession = z.infer<typeof codexSessionSchema>;
+type SessionRow = Omit<AnonymousCodexSession, "schema_version" | "provider">;
 
-const sessionDirectory = path.join(
-  legalDataHome(),
-  "apps",
-  "mike",
-  "provider-sessions",
-  "codex",
-);
-
-function sessionPath(chatId: string) {
-  return path.join(sessionDirectory, `${chatId}.json`);
+function sessionFromRow(row: SessionRow | undefined) {
+  if (!row) return null;
+  const parsed = codexSessionSchema.safeParse({
+    schema_version: 1,
+    provider: "codex",
+    ...row,
+  });
+  return parsed.success ? parsed.data : null;
 }
 
 function canonicalJson(value: unknown): string {
@@ -60,28 +51,15 @@ export function providerSessionCompatibilityKey(value: unknown) {
   return sha256(canonicalJson(value));
 }
 
-export function readAnonymousCodexSession(
-  userId: string,
-  chatId: string,
-): AnonymousCodexSession | null {
-  if (
-    !idSchema.safeParse(userId).success ||
-    !idSchema.safeParse(chatId).success
-  ) {
+export function readAnonymousCodexSession(userId: string, chatId: string) {
+  if (!idSchema.safeParse(userId).success || !idSchema.safeParse(chatId).success) {
     return null;
   }
-  try {
-    const parsed = codexSessionSchema.safeParse(
-      JSON.parse(readFileSync(sessionPath(chatId), "utf8")),
-    );
-    return parsed.success &&
-      parsed.data.user_id === userId &&
-      parsed.data.chat_id === chatId
-      ? parsed.data
-      : null;
-  } catch {
-    return null;
-  }
+  return sessionFromRow(localApplicationDatabase().prepare(
+    `SELECT user_id,chat_id,project_id,continuation_id,compatibility_key,
+            transcript_version,created_at,updated_at
+     FROM local_codex_sessions WHERE user_id=? AND chat_id=?`,
+  ).get(userId, chatId) as SessionRow | undefined);
 }
 
 export function writeAnonymousCodexSession(params: {
@@ -93,35 +71,43 @@ export function writeAnonymousCodexSession(params: {
   transcriptVersion: number;
   createdAt?: string;
 }) {
-  const previous = readAnonymousCodexSession(params.userId, params.chatId);
   const now = new Date().toISOString();
-  const state = codexSessionSchema.parse({
-    schema_version: 1,
-    provider: "codex",
-    user_id: params.userId,
-    chat_id: params.chatId,
-    project_id: params.projectId,
-    continuation_id: params.continuationId,
-    compatibility_key: params.compatibilityKey,
-    transcript_version: params.transcriptVersion,
-    created_at: params.createdAt ?? previous?.created_at ?? now,
-    updated_at: now,
-  });
-  mkdirSync(sessionDirectory, { recursive: true });
-  const temporary = path.join(
-    sessionDirectory,
-    `.${params.chatId}.${process.pid}.${randomUUID()}.tmp`,
-  );
-  try {
-    writeFileSync(temporary, JSON.stringify(state), {
-      encoding: "utf8",
-      flag: "wx",
+  return localApplicationTransaction((database) => {
+    const previous = sessionFromRow(database.prepare(
+      `SELECT user_id,chat_id,project_id,continuation_id,compatibility_key,
+              transcript_version,created_at,updated_at
+       FROM local_codex_sessions WHERE user_id=? AND chat_id=?`,
+    ).get(params.userId, params.chatId) as SessionRow | undefined);
+    const state = codexSessionSchema.parse({
+      schema_version: 1,
+      provider: "codex",
+      user_id: params.userId,
+      chat_id: params.chatId,
+      project_id: params.projectId,
+      continuation_id: params.continuationId,
+      compatibility_key: params.compatibilityKey,
+      transcript_version: params.transcriptVersion,
+      created_at: params.createdAt ?? previous?.created_at ?? now,
+      updated_at: now,
     });
-    renameSync(temporary, sessionPath(params.chatId));
-  } finally {
-    rmSync(temporary, { force: true });
-  }
-  return state;
+    database.prepare(
+      `INSERT INTO local_codex_sessions
+        (chat_id,user_id,project_id,continuation_id,compatibility_key,
+         transcript_version,created_at,updated_at)
+       VALUES (?,?,?,?,?,?,?,?)
+       ON CONFLICT(chat_id) DO UPDATE SET
+         user_id=excluded.user_id,project_id=excluded.project_id,
+         continuation_id=excluded.continuation_id,
+         compatibility_key=excluded.compatibility_key,
+         transcript_version=excluded.transcript_version,
+         updated_at=excluded.updated_at`,
+    ).run(
+      state.chat_id, state.user_id, state.project_id, state.continuation_id,
+      state.compatibility_key, state.transcript_version, state.created_at,
+      state.updated_at,
+    );
+    return state;
+  });
 }
 
 export function claimAnonymousCodexSession(params: {
@@ -131,48 +117,30 @@ export function claimAnonymousCodexSession(params: {
   compatibilityKey: string;
   transcriptVersion: number;
 }): AnonymousCodexSession | null {
-  if (
-    !idSchema.safeParse(params.userId).success ||
-    !idSchema.safeParse(params.chatId).success ||
-    !digestSchema.safeParse(params.compatibilityKey).success
-  ) {
-    return null;
-  }
-  const claimed = path.join(
-    sessionDirectory,
-    `.${params.chatId}.${process.pid}.${randomUUID()}.claim`,
-  );
-  try {
-    renameSync(sessionPath(params.chatId), claimed);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
-    throw error;
-  }
-  try {
-    const parsed = codexSessionSchema.safeParse(
-      JSON.parse(readFileSync(claimed, "utf8")),
-    );
-    if (!parsed.success) return null;
-    const state = parsed.data;
-    return state.user_id === params.userId &&
+  if (!idSchema.safeParse(params.userId).success ||
+      !idSchema.safeParse(params.chatId).success ||
+      !digestSchema.safeParse(params.compatibilityKey).success) return null;
+  return localApplicationTransaction((database) => {
+    const state = sessionFromRow(database.prepare(
+      `SELECT user_id,chat_id,project_id,continuation_id,compatibility_key,
+              transcript_version,created_at,updated_at
+       FROM local_codex_sessions WHERE chat_id=?`,
+    ).get(params.chatId) as SessionRow | undefined);
+    database.prepare("DELETE FROM local_codex_sessions WHERE chat_id=?")
+      .run(params.chatId);
+    return state?.user_id === params.userId &&
       state.chat_id === params.chatId &&
       state.project_id === params.projectId &&
       state.compatibility_key === params.compatibilityKey &&
       state.transcript_version === params.transcriptVersion
       ? state
       : null;
-  } catch {
-    return null;
-  } finally {
-    rmSync(claimed, { force: true });
-  }
+  });
 }
 
 export function deleteAnonymousProviderSessions(chatId: string) {
   if (!idSchema.safeParse(chatId).success) return;
-  try {
-    rmSync(sessionPath(chatId), { force: true });
-  } catch {
-    // Provider state is an optimization; canonical chat deletion must win.
-  }
+  localApplicationTransaction((database) => {
+    database.prepare("DELETE FROM local_codex_sessions WHERE chat_id=?").run(chatId);
+  });
 }

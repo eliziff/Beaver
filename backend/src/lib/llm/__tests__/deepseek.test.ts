@@ -1,14 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { streamDeepSeek, toDeepSeekMessages } from "../deepseek";
-import type { OpenAIToolSchema } from "../types";
+import type { Tool } from "../types";
 
-const tool = (name: string): OpenAIToolSchema => ({
-  type: "function",
-  function: {
-    name,
-    description: `${name} tool`,
-    parameters: { type: "object", properties: {} },
-  },
+const tool = (name: string): Tool => ({
+  name,
+  description: `${name} tool`,
+  inputSchema: { type: "object", properties: {} },
 });
 
 function sse(events: unknown[]): Response {
@@ -183,7 +180,7 @@ describe("DeepSeek adapter", () => {
     });
 
     expect(bodies.map((body) =>
-      (body.tools as OpenAIToolSchema[]).map((entry) => entry.function.name)
+      (body.tools as { function: { name: string } }[]).map((entry) => entry.function.name)
     )).toEqual([["discover"], ["discover", "revealed"]]);
   });
 

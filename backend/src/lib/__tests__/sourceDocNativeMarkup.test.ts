@@ -17,13 +17,13 @@ import {
  * 2026-07-27 (TNA Akoma Ntoso XML, Harvard CAP casebody HTML, GOV.UK ET
  * content, a GovInfo package summary, a journals-provider article).
  *
- * `legacy-structure.json` is the frozen output of the deleted
+ * `baseline-structure.json` is the frozen output of the deleted
  * legalSourceStructure engine (master plan P1.1a stage 4), machine-captured
  * before removal. Do not regenerate it. Since the v2 structure enrichment
  * (CAP star-pagination pages + footnote asides, TNA lvl_N sections;
- * 2026-07-30) the compiler intentionally indexes MORE than the legacy
- * engine, so the legacy recording now gates the invariants that must
- * survive enrichment: rendered text stays byte-identical and every legacy
+ * 2026-07-30) the compiler intentionally indexes MORE than the baseline
+ * engine, so the baseline recording now gates the invariants that must
+ * survive enrichment: rendered text stays byte-identical and every baseline
  * block survives verbatim. Lookup contexts follow the corrected current
  * index rather than replaying defects from the deleted engine.
  *
@@ -60,8 +60,8 @@ type Recording = {
   }>;
 };
 
-const LEGACY = JSON.parse(
-  readFileSync(path.join(FIXTURE_DIR, "legacy-structure.json"), "utf8"),
+const BASELINE = JSON.parse(
+  readFileSync(path.join(FIXTURE_DIR, "baseline-structure.json"), "utf8"),
 ) as Record<string, Recording>;
 
 const V2 = JSON.parse(
@@ -142,11 +142,11 @@ function assertRecording(doc: SourceDoc, recording: Recording) {
 }
 
 /**
- * The deleted engine's recording gates unchanged text and legacy blocks.
+ * The deleted engine's recording gates unchanged text and baseline blocks.
  * Lookup hashes belong to the current v2 recording because corrected
  * indexing can change their context.
  */
-function assertLegacyInvariants(doc: SourceDoc, recording: Recording) {
+function assertBaselineInvariants(doc: SourceDoc, recording: Recording) {
   expect(sha256(doc.text)).toBe(recording.textSha256);
   expect(doc.text.length).toBe(recording.textLength);
   const current = new Set(
@@ -174,7 +174,7 @@ function assertLegacyInvariants(doc: SourceDoc, recording: Recording) {
 }
 
 describe("parity with the frozen structure recordings", () => {
-  it("renders a real TNA judgment byte-identically (v2 + legacy invariants)", () => {
+  it("renders a real TNA judgment byte-identically (v2 + baseline invariants)", () => {
     const source = fixture<{ citation: string; markup: string }>(
       "tna-eat-2025-1",
     );
@@ -186,10 +186,10 @@ describe("parity with the frozen structure recordings", () => {
       citation: source.citation,
     });
     assertRecording(doc, V2["tna-eat-2025-1"]);
-    assertLegacyInvariants(doc, LEGACY["tna-eat-2025-1"]);
+    assertBaselineInvariants(doc, BASELINE["tna-eat-2025-1"]);
   });
 
-  it("renders real Harvard CAP casebody HTML byte-identically (v2 + legacy invariants)", () => {
+  it("renders real Harvard CAP casebody HTML byte-identically (v2 + baseline invariants)", () => {
     const source = fixture<{ citation: string; markup: string }>(
       "courtlistener-cap-372us335",
     );
@@ -201,7 +201,7 @@ describe("parity with the frozen structure recordings", () => {
       citation: source.citation,
     });
     assertRecording(doc, V2["courtlistener-cap-372us335"]);
-    assertLegacyInvariants(doc, LEGACY["courtlistener-cap-372us335"]);
+    assertBaselineInvariants(doc, BASELINE["courtlistener-cap-372us335"]);
   });
 
   it("keeps plain-text providers on the shared prose spine", () => {
@@ -214,7 +214,7 @@ describe("parity with the frozen structure recordings", () => {
         id: et.caseNumber,
         text: et.text,
       }),
-      LEGACY["govuk-et-kogut-2200123-2023"],
+      BASELINE["govuk-et-kogut-2200123-2023"],
     );
     const govinfo = fixture<{ packageId: string; text: string }>(
       "govinfo-nywd-1-22-cv-00930",
@@ -225,7 +225,7 @@ describe("parity with the frozen structure recordings", () => {
         id: govinfo.packageId,
         text: govinfo.text,
       }),
-      LEGACY["govinfo-nywd-1-22-cv-00930"],
+      BASELINE["govinfo-nywd-1-22-cv-00930"],
     );
   });
 });

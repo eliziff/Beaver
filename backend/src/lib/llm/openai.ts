@@ -1,15 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { throwIfAborted } from "./abort";
 import { requireApiKey } from "./apiKeys";
-import { encodeToolV3, schemaEncodingVariant } from "./schemaEncoding";
 import type {
   LlmCompactionReceipt,
   LlmContextRoundReceipt,
   LlmMessage,
   NormalizedLlmUsage,
   NormalizedToolCall,
-  NormalizedToolResult,
-  OpenAIToolSchema,
+  Tool,
   StreamChatParams,
   StreamChatResult,
 } from "./types";
@@ -177,19 +175,13 @@ function apiKey(override?: string | null): string {
 }
 
 export function toResponseTools(
-  tools: OpenAIToolSchema[],
+  tools: Tool[],
 ): ResponseFunctionTool[] {
-  if (schemaEncodingVariant() === "v3") {
-    return tools.map((tool) => ({ type: "function", ...encodeToolV3(tool) }));
-  }
   return tools.map((tool) => ({
     type: "function",
-    name: tool.function.name,
-    description: tool.function.description,
-    parameters: tool.function.parameters,
-    ...(tool.function.strict === undefined
-      ? {}
-      : { strict: tool.function.strict }),
+    name: tool.name,
+    description: tool.description,
+    parameters: tool.inputSchema,
   }));
 }
 
@@ -639,6 +631,7 @@ export async function streamResponsesApi(
           endpoint: config.endpoint,
           provider: config.provider,
           model,
+          maxTokens: params.maxTokens,
           instructions,
           input,
           tools: responseTools,
@@ -944,58 +937,3 @@ export async function streamOpenAI(
       : {}),
   });
 }
-
-export async function completeResponsesText(
-  params: {
-    model: string;
-    systemPrompt?: string;
-    user: string;
-    maxTokens?: number;
-  },
-  config: Pick<
-    ResponsesAdapterConfig,
-    "endpoint" | "provider" | "apiKey"
-  >,
-): Promise<string> {
-  const response = await createResponse({
-    endpoint: config.endpoint,
-    provider: config.provider,
-    model: params.model,
-    instructions: params.systemPrompt,
-    input: [{ role: "user", content: params.user }],
-    maxTokens: params.maxTokens ?? 512,
-    apiKey: config.apiKey,
-  });
-  const json = (await response.json()) as {
-    output_text?: string;
-    output?: {
-      content?: { type?: string; text?: string }[];
-    }[];
-  };
-
-  if (typeof json.output_text === "string") return json.output_text;
-
-  return (
-    json.output
-      ?.flatMap((item) => item.content ?? [])
-      .filter((content) => content.type === "output_text")
-      .map((content) => content.text ?? "")
-      .join("") ?? ""
-  );
-}
-
-export async function completeOpenAIText(params: {
-  model: string;
-  systemPrompt?: string;
-  user: string;
-  maxTokens?: number;
-  apiKeys?: { openai?: string | null };
-}): Promise<string> {
-  return completeResponsesText(params, {
-    endpoint: OPENAI_RESPONSES_URL,
-    provider: "OpenAI",
-    apiKey: apiKey(params.apiKeys?.openai),
-  });
-}
-
-export type { NormalizedToolResult };

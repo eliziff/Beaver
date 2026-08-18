@@ -20,6 +20,7 @@ import type {
     OAuthTokens,
 } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { createServerSupabase } from "../supabase";
+import { bufferRemoteResponse } from "../remoteUrlSafety";
 import {
     authConfigPatch,
     base64Url,
@@ -80,48 +81,6 @@ function requestSignal(
     return signals.length === 1 ? signals[0] : AbortSignal.any(signals);
 }
 
-async function boundedOAuthResponse(response: Response) {
-    const declared = Number(response.headers.get("content-length"));
-    if (Number.isFinite(declared) && declared > MAX_OAUTH_RESPONSE_BYTES) {
-        await cancelResponse(response);
-        throw new Error("OAuth response exceeds the size limit.");
-    }
-    if (!response.body) return response;
-
-    const reader = response.body.getReader();
-    const chunks: Uint8Array[] = [];
-    let size = 0;
-    try {
-        for (;;) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            size += value.byteLength;
-            if (size > MAX_OAUTH_RESPONSE_BYTES) {
-                await reader.cancel();
-                throw new Error("OAuth response exceeds the size limit.");
-            }
-            chunks.push(value);
-        }
-    } catch (error) {
-        await reader.cancel().catch(() => undefined);
-        throw error;
-    }
-
-    const bytes = Buffer.concat(
-        chunks.map((chunk) => Buffer.from(chunk)),
-        size,
-    );
-    const body =
-        bytes.length > 0 && ![101, 204, 205, 304].includes(response.status)
-            ? bytes
-            : null;
-    return new Response(body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers: response.headers,
-    });
-}
-
 export async function guardedOAuthFetch(
     input: Parameters<typeof fetch>[0],
     init?: Parameters<typeof fetch>[1],
@@ -130,7 +89,10 @@ export async function guardedOAuthFetch(
         ...init,
         signal: requestSignal(input, init?.signal),
     });
-    return boundedOAuthResponse(response);
+    return bufferRemoteResponse(response, {
+        label: "OAuth response",
+        maxBytes: MAX_OAUTH_RESPONSE_BYTES,
+    });
 }
 
 function parseWwwAuthenticate(value: string | null): string | null {

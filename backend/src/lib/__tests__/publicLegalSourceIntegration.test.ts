@@ -2,26 +2,27 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("../remoteUrlSafety", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../remoteUrlSafety")>()),
+  guardedRemoteFetch: (
+    input: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1],
+  ) => fetch(input, init),
+}));
+
 import {
-  appendPublicLegalPinpointLinks,
-  createPublicLegalSourceState,
-} from "../chat/publicLegalSourceState";
-import { runLocalAssistantTools } from "../chat/localAssistantTools";
-import {
-  PUBLIC_LEGAL_SOURCE_TOOL_NAMES,
-} from "../chat/tools/publicLegalSourceTools";
-import { readPublicLegalEvidenceReceipt } from "../publicLegalSources";
+  legalSourcePassageUrl,
+  readLegalSourcePassage,
+} from "../legalSourceRegistry";
+import { resourceReference } from "../resourceReferences";
+import { runLocalAssistantTools } from "./support/localAssistantTools";
 
 let temporaryDirectory = "";
 
 beforeEach(async () => {
-  temporaryDirectory = await mkdtemp(
-    path.join(os.tmpdir(), "beaver-provider-evidence-"),
-  );
-  vi.stubEnv(
-    "OPEN_LEGAL_DATA_HOME",
-    path.join(temporaryDirectory, "legal-data"),
-  );
+  temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-public-source-"));
+  vi.stubEnv("OPEN_LEGAL_DATA_HOME", path.join(temporaryDirectory, "legal-data"));
   vi.stubEnv("MIKE_LOCAL_DATA_DIR", path.join(temporaryDirectory, "beaver-data"));
 });
 
@@ -48,6 +49,10 @@ function providerFetch() {
           <num>24.</num>
           <content>First exact proposition appears here. Second exact holding appears here.</content>
         </paragraph>
+        <paragraph eId="para_25">
+          <num>25.</num>
+          <content>The next exact proposition appears here.</content>
+        </paragraph>
       </judgment>
     </akomaNtoso>`;
   return vi.fn(async (input: string | URL | Request) => {
@@ -63,234 +68,61 @@ function providerFetch() {
   });
 }
 
-function subsectionProviderFetch(text: string) {
-  const atom = `
-    <feed xmlns="http://www.w3.org/2005/Atom">
-      <entry>
-        <title>Example v Secretary of State</title>
-        <identifier type="ukncn">[2024] UKSC 1</identifier>
-        <link rel="alternate" type="text/html" href="/uksc/2024/1" />
-        <link rel="alternate" type="application/akn+xml" href="/trusted/source.xml" />
-      </entry>
-    </feed>`;
-  const judgment = `
-    <akomaNtoso>
-      <judgment>
-        <section eId="section_2">
-          <num>2.</num>
-          <subsection eId="section_2__subsection_1">
-            <num>(1)</num>
-            <content>${text}</content>
-          </subsection>
-        </section>
-      </judgment>
-    </akomaNtoso>`;
-  return vi.fn(async (input: string | URL | Request) => {
-    const url = String(input);
-    return new Response(url.includes("atom.xml") ? atom : judgment, {
-      status: 200,
-      headers: {
-        "Content-Type": url.includes("atom.xml")
-          ? "application/atom+xml"
-          : "application/akn+xml",
-      },
-    });
-  });
-}
+const tnaResource = resourceReference.source("tna", "[2024] UKSC 1");
 
-describe("public legal source tool integration", () => {
-  it("keeps URLs and anchors private while building a verified multi-text citation", async () => {
+describe("unified public legal-source reads", () => {
+  it("keeps provider URLs private while returning exact citable passages", async () => {
     vi.stubGlobal("fetch", providerFetch());
-    const state = createPublicLegalSourceState();
-    const [toolResult] = await runLocalAssistantTools(
-      "local-user",
-      [
-        {
-          id: "call-1",
-          name: PUBLIC_LEGAL_SOURCE_TOOL_NAMES.lookup,
-          input: {
-            provider: "tna",
-            identifier: "[2024] UKSC 1",
-            locator_type: "paragraph",
-            locator: "24",
-          },
-        },
-      ],
-      { publicLegal: state },
-    );
-    const modelPayload = JSON.parse(toolResult.content);
-
-    expect(modelPayload.ok).toBe(true);
-    expect(modelPayload).not.toHaveProperty("url");
-    expect(modelPayload.block).not.toHaveProperty("anchor");
-    expect(state.documents.size).toBeGreaterThan(0);
-    expect(state.lookups[0]?.lookup.anchor).toBe("para_24");
-
-    const withoutCitationJson = appendPublicLegalPinpointLinks(
-      'The court said "First exact proposition appears here" and "Second exact holding appears here" [1].',
-      state,
-    );
-    expect(withoutCitationJson).toContain(
-      "https://caselaw.nationalarchives.gov.uk/uksc/2024/1#para_24",
-    );
-    expect(withoutCitationJson.match(/text=/gu)).toHaveLength(2);
+    const [toolResult] = await runLocalAssistantTools("local-user", [{
+      id: "public-locator",
+      name: "Read",
+      input: {
+        file_path: tnaResource,
+        locator_kind: "paragraph",
+        locator: "24",
+      },
+    }]);
+    const payload = JSON.parse(toolResult.content);
+    expect(payload.ok).toBe(true);
+    expect(payload.passages).toMatchObject([{
+      role: "selected",
+      locator: "par24",
+      evidence_id: expect.stringMatching(/^e_/u),
+    }]);
+    expect(payload.passages[0].text_sha256).toMatch(/^[0-9a-f]{64}$/u);
+    expect(toolResult.content).not.toContain("caselaw.nationalarchives.gov.uk");
   });
 
-  it("does not expose local paths when provider evidence cannot be rehydrated", async () => {
-    const [result] = await runLocalAssistantTools("local-user", [
-      {
-        id: "missing-evidence",
-        name: PUBLIC_LEGAL_SOURCE_TOOL_NAMES.lookup,
-        input: {
-          provider: "tna",
-          identifier: "[2024] UKSC 1",
-          evidence_handle: `mike-provider-evidence:v2:${"0".repeat(64)}`,
-        },
-      },
-    ]);
-    const payload = JSON.parse(result.content);
-
-    expect(payload).toMatchObject({
-      ok: false,
-      error:
-        "Provider evidence is unavailable or failed integrity verification.",
-    });
-    expect(result.content).not.toContain(temporaryDirectory);
+  it("does not mint document-wide evidence for an unlocated public-source Read", async () => {
+    vi.stubGlobal("fetch", providerFetch());
+    const [toolResult] = await runLocalAssistantTools("local-user", [{
+      id: "public-document",
+      name: "Read",
+      input: { file_path: tnaResource },
+    }]);
+    const payload = JSON.parse(toolResult.content);
+    expect(payload.ok).toBe(true);
+    expect(payload.evidence_ids).toEqual([]);
+    expect(payload.passages[0]).not.toHaveProperty("evidence_id");
+    expect(payload.next_required_action).toContain("native locator");
   });
 
-  it("refuses superseded v1 evidence handles with the typed recapture error", async () => {
-    const [result] = await runLocalAssistantTools("local-user", [
-      {
-        id: "v1-evidence",
-        name: PUBLIC_LEGAL_SOURCE_TOOL_NAMES.lookup,
-        input: {
-          provider: "tna",
-          identifier: "[2024] UKSC 1",
-          evidence_handle: `mike-provider-evidence:v1:${"0".repeat(64)}`,
-        },
-      },
-    ]);
-    const payload = JSON.parse(result.content);
-
-    expect(payload.ok).toBe(false);
-    expect(payload.error).toContain("superseded v1 structure schema");
-    expect(result.content).not.toContain(temporaryDirectory);
-  });
-
-  it("rehydrates a native TNA subsection from its exact source version after restart and upstream drift", async () => {
-    vi.stubGlobal(
-      "fetch",
-      subsectionProviderFetch(
-        "The original exact subsection governs this application.",
-      ),
-    );
-    const firstState = createPublicLegalSourceState();
-    const [firstResult] = await runLocalAssistantTools(
-      "local-user",
-      [
-        {
-          id: "native-lookup",
-          name: PUBLIC_LEGAL_SOURCE_TOOL_NAMES.lookup,
-          input: {
-            provider: "tna",
-            identifier: "[2024] UKSC 1",
-            locator_type: "section",
-            locator: "2(1)",
-          },
-        },
-      ],
-      { publicLegal: firstState },
-    );
-    const first = JSON.parse(firstResult.content);
-    const handle = String(first.evidence.handle);
-    const receipt = await readPublicLegalEvidenceReceipt(handle);
-
-    expect(first.block).toMatchObject({
-      label: "sec2(1)",
-      kind: "section",
-      origin: "native",
+  it("keeps the native document and lookup needed for a canonical pinpoint", async () => {
+    vi.stubGlobal("fetch", providerFetch());
+    const read = await readLegalSourcePassage({
+      source: { provider: "tna", id: "[2024] UKSC 1", kind: "case" },
+      locator: { kind: "paragraph", value: "24" },
     });
-    expect(first.block).not.toHaveProperty("anchor");
-    expect(receipt).toMatchObject({
-      handle,
-      source: {
-        provider: "tna",
-        identifier: "[2024] UKSC 1",
-        source_sha256: first.evidence.source_sha256,
-      },
-      lookup: {
-        locator_kind: "section",
-        locator: "sec2(1)",
-        provider_locator: "section_2__subsection_1",
-      },
+    expect(read.status).toBe("found");
+    if (read.status !== "found") return;
+    expect(read.values).toHaveLength(1);
+    const passage = read.values[0];
+    expect(passage.native).toMatchObject({
+      document: { provider: "tna", identity: "[2024] UKSC 1" },
+      lookup: { status: "found", block: { label: "par24" } },
     });
-
-    const unexpectedFetch = vi.fn(() => {
-      throw new Error("Rehydration must use the bound source snapshot");
-    });
-    vi.stubGlobal("fetch", unexpectedFetch);
-    const restartedState = createPublicLegalSourceState();
-    const [restoredResult] = await runLocalAssistantTools(
-      "local-user",
-      [
-        {
-          id: "native-rehydrate",
-          name: PUBLIC_LEGAL_SOURCE_TOOL_NAMES.lookup,
-          input: {
-            provider: "tna",
-            identifier: "[2024] UKSC 1",
-            evidence_handle: handle,
-          },
-        },
-      ],
-      { publicLegal: restartedState },
-    );
-    const restored = JSON.parse(restoredResult.content);
-
-    expect(unexpectedFetch).not.toHaveBeenCalled();
-    expect(restored.evidence.handle).toBe(handle);
-    expect(restored.block.text).toContain("original exact subsection");
     expect(
-      appendPublicLegalPinpointLinks(
-        'The court held that "The original exact subsection governs this application." [1].',
-        restartedState,
-      ),
-    ).toContain(
-      "https://caselaw.nationalarchives.gov.uk/uksc/2024/1#section_2__subsection_1",
-    );
-
-    vi.stubGlobal(
-      "fetch",
-      subsectionProviderFetch(
-        "The amended exact subsection now governs a different application.",
-      ),
-    );
-    const changedState = createPublicLegalSourceState();
-    const [changedResult] = await runLocalAssistantTools(
-      "local-user",
-      [
-        {
-          id: "native-changed",
-          name: PUBLIC_LEGAL_SOURCE_TOOL_NAMES.lookup,
-          input: {
-            provider: "tna",
-            identifier: "[2024] UKSC 1",
-            locator_type: "section",
-            locator: "2(1)",
-          },
-        },
-      ],
-      { publicLegal: changedState },
-    );
-    const changed = JSON.parse(changedResult.content);
-
-    expect(changed.block.text).toContain("amended exact subsection");
-    expect(changed.evidence.handle).not.toBe(handle);
-    expect(changed.evidence.source_sha256).not.toBe(
-      first.evidence.source_sha256,
-    );
-    expect(
-      (await readPublicLegalEvidenceReceipt(handle)).evidence.block_text_sha256,
-    ).toBe(receipt.evidence.block_text_sha256);
+      legalSourcePassageUrl(passage, ["First exact proposition appears here"]),
+    ).toContain("#para_24:~:text=");
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { PanelRightClose, PanelRightOpen, X } from "lucide-react";
 import { cn } from "@/app/lib/utils";
@@ -10,6 +10,8 @@ export type AssistantDockTab = {
     label: string;
     content: ReactNode;
 };
+
+const subscribeToClient = () => () => {};
 
 export function AssistantDock({
     tabs,
@@ -31,12 +33,11 @@ export function AssistantDock({
     onCloseInspector?: () => void;
 }) {
     const [width, setWidth] = useState(560);
-    const [mounted, setMounted] = useState(false);
+    const mounted = useSyncExternalStore(subscribeToClient, () => true, () => false);
     const resizeStart = useRef<{ x: number; width: number } | null>(null);
     const active = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0];
 
     useEffect(() => {
-        setMounted(true);
         const resize = (event: PointerEvent) => {
             if (!resizeStart.current) return;
             setWidth(
@@ -90,8 +91,8 @@ export function AssistantDock({
             data-assistant-dock
             aria-label="Assistant dock"
             className={cn(
-                "absolute inset-0 z-40 flex h-full w-full min-h-0 -translate-y-12 flex-col overflow-hidden border border-gray-300 bg-app-surface shadow-lg",
-                "md:relative md:inset-auto md:my-3 md:me-0 md:h-[calc(100dvh-1.5rem)] md:w-[min(var(--assistant-dock-width),50%)] md:shrink-0 md:-translate-y-14 md:rounded-2xl lg:me-3 lg:translate-y-0",
+                "relative z-40 flex h-full w-1/2 min-h-0 shrink-0 flex-col overflow-hidden border border-gray-300 bg-app-surface shadow-lg",
+                "md:my-3 md:me-3 md:h-[calc(100dvh-1.5rem)] md:w-[min(var(--assistant-dock-width),50%)] md:rounded-2xl",
             )}
             style={{ "--assistant-dock-width": `${width}px` } as CSSProperties}
         >

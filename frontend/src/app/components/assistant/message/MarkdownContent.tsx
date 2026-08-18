@@ -11,7 +11,8 @@ import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import remend from "remend";
 import remarkGfm from "remark-gfm";
 import {
-    type AssistantEvent,
+    type CaseCitationEvent,
+    type CaseOpinionsEvent,
     type Citation,
 } from "../../shared/types";
 import { withoutMarkdownNode } from "./messageStyles";
@@ -34,7 +35,7 @@ const LEGAL_CITATION =
 const LEGAL_CITATION_LINK =
     /\[([^\]\r\n]{1,180})\]\(([^)\r\n]+)\)(\s*,?\s*(?:at\s+)?para(?:graph)?s?\.?\s*\d{1,5}(?:\s*[-\u2013\u2014]\s*\d{1,5})?)/giu;
 export const LEGAL_CITATION_PILL =
-    "not-prose inline-block min-w-0 max-w-full whitespace-normal break-words rounded-full bg-red-800 px-2 py-0.5 align-baseline font-sans text-[0.8125rem] font-medium leading-5 text-red-50 no-underline ring-1 ring-inset ring-red-600/70 hover:bg-red-700 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400";
+    "not-prose inline-block min-w-0 max-w-full whitespace-normal break-words rounded-md bg-red-800 px-2 py-0.5 align-baseline font-sans text-[0.8125rem] font-medium leading-5 text-red-50 no-underline ring-1 ring-inset ring-red-600/70 [overflow-wrap:anywhere] hover:bg-red-700 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400";
 const PLAIN_LINK =
     "text-red-300 underline decoration-red-500/70 underline-offset-2 hover:text-red-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400";
 
@@ -230,8 +231,9 @@ export function CitationPillMarkdown({
     );
 }
 function styled<T extends ElementType>(tag: T, className: string) {
-    return (props: ComponentProps<T> & { node?: unknown }) =>
-        createElement(tag, { className, ...withoutMarkdownNode(props) });
+    return function Styled(props: ComponentProps<T> & { node?: unknown }) {
+        return createElement(tag, { className, ...withoutMarkdownNode(props) });
+    };
 }
 export function MarkdownContent({
     text,
@@ -248,16 +250,16 @@ export function MarkdownContent({
     inlineCitationTargets: Citation[];
     caseCitations: Map<
         string,
-        Extract<AssistantEvent, { type: "case_citation" }>
+        CaseCitationEvent
     >;
     caseOpinions: Map<
         number,
-        Extract<AssistantEvent, { type: "case_opinions" }>["case"]
+        CaseOpinionsEvent["case"]
     >;
     onCitationClick?: (c: Citation) => void;
     citationTitle?: (c: Citation) => string;
     onCaseClick?: (
-        c: Extract<AssistantEvent, { type: "case_citation" }>,
+        c: CaseCitationEvent,
     ) => void;
     divRef?: RefObject<HTMLDivElement | null>;
     isStreaming?: boolean;
@@ -320,7 +322,7 @@ export function MarkdownContent({
                         const { children, ...codeProps } =
                             withoutMarkdownNode(props);
                         const text = String(children);
-                        const citMatch = text.match(/^§(\d+)§$/);
+                        const citMatch = text.match(/^§(\d+)§$/u);
                         if (citMatch) {
                             const idx = parseInt(citMatch[1]);
                             const annotation = inlineCitationTargets[idx];

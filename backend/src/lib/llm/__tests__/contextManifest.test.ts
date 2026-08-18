@@ -10,23 +10,16 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("../claude", () => ({
   streamClaude: vi.fn(),
-  completeClaudeText: vi.fn(),
 }));
 vi.mock("../gemini", () => ({
   streamGemini: mocks.streamGemini,
-  completeGeminiText: vi.fn(),
 }));
 vi.mock("../openai", () => ({
   streamOpenAI: vi.fn(),
-  completeOpenAIText: vi.fn(),
+  streamResponsesApi: vi.fn(),
 }));
 vi.mock("../deepseek", () => ({
   streamDeepSeek: vi.fn(),
-  completeDeepSeekText: vi.fn(),
-}));
-vi.mock("../openrouter", () => ({
-  streamOpenRouter: vi.fn(),
-  completeOpenRouterText: vi.fn(),
 }));
 import {
   appendContextManifest,
@@ -68,15 +61,12 @@ function params(): StreamChatParams {
     ],
     tools: [
       {
-        type: "function",
-        function: {
-          name: "lookup",
-          description: "PRIVATE_TOOL_CHARLIE",
-          parameters: {
-            required: ["query"],
-            properties: { query: { type: "string" } },
-            type: "object",
-          },
+        name: "lookup",
+        description: "PRIVATE_TOOL_CHARLIE",
+        inputSchema: {
+          required: ["query"],
+          properties: { query: { type: "string" } },
+          type: "object",
         },
       },
     ],
@@ -96,7 +86,7 @@ describe("LLM context manifests", () => {
       status: "completed",
     });
     const reordered = params();
-    reordered.tools![0].function.parameters = {
+    reordered.tools![0].inputSchema = {
       type: "object",
       properties: { query: { type: "string" } },
       required: ["query"],

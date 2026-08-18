@@ -47,7 +47,8 @@ async function loadApp() {
   closeStores = async () => {
     tabular.closeLocalTabularStore();
     graph.legalKnowledgeGraphStore().close();
-    await documents.closeLocalDocumentStore();
+    (await import("../../lib/localApplicationDatabase"))
+      .closeLocalApplicationDatabase();
   };
   return app;
 }
@@ -87,6 +88,38 @@ afterEach(async () => {
 });
 
 describe("account-free tabular reviews", () => {
+  it("filters and paginates standalone reviews without duplicates", async () => {
+    const app = await loadApp();
+    const created = await Promise.all(["Needle lease", "Employment", "Supply"].map(
+      (title) => request(app).post("/tabular-review").send({
+        title, document_ids: [], columns_config: [],
+      }),
+    ));
+    expect(created.every(({ status }) => status === 201)).toBe(true);
+
+    const first = await request(app).get("/tabular-review?scope=standalone&limit=2");
+    expect(first.status).toBe(200);
+    expect(first.body.items).toHaveLength(2);
+    expect(first.body.next_cursor).toEqual(expect.any(String));
+    const second = await request(app).get(
+      `/tabular-review?scope=standalone&limit=2&cursor=${encodeURIComponent(first.body.next_cursor)}`,
+    );
+    expect(second.body.items).toHaveLength(1);
+    const all = [...first.body.items, ...second.body.items] as {
+      id: string; created_at: string;
+    }[];
+    expect(new Set(all.map(({ id }) => id))).toEqual(
+      new Set(created.map(({ body }) => body.id)),
+    );
+    expect(all.map(({ id }) => id)).toEqual([...all].sort((left, right) =>
+      right.created_at.localeCompare(left.created_at) || right.id.localeCompare(left.id))
+      .map(({ id }) => id));
+
+    const filtered = await request(app).get("/tabular-review?q=NEEDLE");
+    expect(filtered.body.items.map(({ title }: { title: string }) => title))
+      .toEqual(["Needle lease"]);
+  });
+
   it("persists a project review and generated cells across restart", async () => {
     let app = await loadApp();
     const project = await request(app)
@@ -106,12 +139,24 @@ describe("account-free tabular reviews", () => {
       ).status,
     ).toBe(200);
 
-    const created = await request(app)
+    const rejected = await request(app)
       .post("/tabular-review")
       .send({
         title: "Lease terms",
         project_id: project.body.id,
         document_ids: [uploaded.body.id, "not-owned"],
+        columns_config: [
+          { index: 0, name: "Governing law", prompt: "Find governing law" },
+        ],
+      });
+    expect(rejected.status).toBe(404);
+
+    const created = await request(app)
+      .post("/tabular-review")
+      .send({
+        title: "Lease terms",
+        project_id: project.body.id,
+        document_ids: [uploaded.body.id],
         columns_config: [
           { index: 0, name: "Governing law", prompt: "Find governing law" },
         ],
@@ -165,12 +210,23 @@ describe("account-free tabular reviews", () => {
       columns_config: [{ index: 0, name: "Jurisdiction" }],
     });
 
+    const reviewRace = await Promise.all([
+      request(app).patch(`/tabular-review/${created.body.id}`).send({
+        title: "Updated lease terms", expected_version: updated.body.updated_at,
+      }),
+      request(app).patch(`/tabular-review/${created.body.id}`).send({
+        title: "Updated lease terms", expected_version: updated.body.updated_at,
+      }),
+    ]);
+    expect(reviewRace.map(({ status }) => status).sort()).toEqual([200, 409]);
+
     const generated = await request(app).post(
       `/tabular-review/${created.body.id}/generate`,
     );
     expect(generated.status).toBe(200);
     expect(generated.text).toContain('"status":"done"');
     expect(generated.text).toContain("data: [DONE]");
+    expect(generated.text.match(/data: \[DONE\]/gu)).toHaveLength(1);
 
     closeStores?.();
     closeStores = null;
@@ -209,6 +265,32 @@ describe("account-free tabular reviews", () => {
         )
       ).body.cells[0],
     ).toMatchObject({ content: null, status: "pending" });
+
+    mocks.streamChatWithTools.mockImplementation(async (params) => {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      params.callbacks?.onContentDelta?.(`${JSON.stringify({
+        column_index: 0, summary: "Alberta", flag: "green",
+        reasoning: "Fixture result",
+      })}\n`);
+      return { fullText: "" };
+    });
+    const cellRace = await Promise.all([
+      request(app).post(`/tabular-review/${created.body.id}/regenerate-cell`)
+        .send({ document_id: uploaded.body.id, column_index: 0 }),
+      request(app).post(`/tabular-review/${created.body.id}/regenerate-cell`)
+        .send({ document_id: uploaded.body.id, column_index: 0 }),
+    ]);
+    expect(cellRace.map(({ status }) => status).sort()).toEqual([200, 409]);
+
+    await request(app).post(`/tabular-review/${created.body.id}/clear-cells`)
+      .send({ document_ids: [uploaded.body.id] });
+    mocks.streamChatWithTools.mockRejectedValueOnce(new Error("provider unavailable"));
+    const failedStream = await request(app).post(
+      `/tabular-review/${created.body.id}/generate`,
+    );
+    expect(failedStream.status).toBe(200);
+    expect(failedStream.text).toContain('"type":"error"');
+    expect(failedStream.text.match(/data: \[DONE\]/gu)).toHaveLength(1);
 
     expect(
       (

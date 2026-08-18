@@ -168,10 +168,10 @@ app.use(
   "/chat",
   lazyRouter(async () => {
     const { createChatRouter } = await import("./routes/chat");
-    const [tabular, chats] = await Promise.all([
-      runtime.tabular(), runtime.chats(),
+    const [tabular, chats, chat] = await Promise.all([
+      runtime.tabular(), runtime.chats(), runtime.chat(),
     ]);
-    return createChatRouter(tabular, chats);
+    return createChatRouter(tabular, chats, chat);
   }),
 );
 app.use(

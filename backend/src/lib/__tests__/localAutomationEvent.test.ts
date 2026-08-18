@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { localAutomationEvent } from "../chat/localAutomationEvent";
+import {
+  citationLinkingEvent,
+  supraFixEvent,
+  tableOfAuthoritiesEvent,
+} from "../chat/localAutomationEvent";
 
 describe("localAutomationEvent", () => {
   it("preserves deterministic document receipts", () => {
     expect(
-      localAutomationEvent(
-        "fix_docx_supras",
-        JSON.stringify({
+      supraFixEvent(
+        {
           ok: true,
           document_id: "document-1",
           version_id: "version-2",
@@ -15,7 +18,7 @@ describe("localAutomationEvent", () => {
           converted: 3,
           already_linked: 1,
           review_required: 0,
-        }),
+        },
         "call-1",
       ),
     ).toMatchObject({
@@ -32,9 +35,8 @@ describe("localAutomationEvent", () => {
 
   it("preserves Authorities stage, status, output, and destination", () => {
     expect(
-      localAutomationEvent(
-        "Read",
-        JSON.stringify({
+      tableOfAuthoritiesEvent(
+        {
           ok: true,
           job: {
             id: "a".repeat(32),
@@ -46,7 +48,7 @@ describe("localAutomationEvent", () => {
             app_url: "/table-of-authorities?job=abc",
             files: [{ name: "Book.pdf", url: "/download/book" }],
           },
-        }),
+        },
         "call-2",
       ),
     ).toMatchObject({
@@ -62,9 +64,8 @@ describe("localAutomationEvent", () => {
 
   it("keeps failed tool receipts visible", () => {
     expect(
-      localAutomationEvent(
-        "link_docx_citations",
-        JSON.stringify({ ok: false, error: "No footnotes found" }),
+      citationLinkingEvent(
+        { ok: false, error: "No footnotes found" },
         "call-3",
       ),
     ).toMatchObject({

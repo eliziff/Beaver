@@ -7,628 +7,264 @@ import { legalKnowledgeGraphStore } from "./legalKnowledgeGraphStore";
 import { listLocalDocumentsById } from "./localDocumentStore";
 import {
   TabularStoreError,
+  type ReviewInput,
+  type TabularCell,
+  type TabularCellContent,
+  type TabularColumn,
+  type TabularReview,
+  type TabularScope,
   type TabularStore,
+  type WriteResult,
 } from "./tabularStore";
 
-export type LocalTabularColumn = {
-  index: number;
-  name: string;
-  prompt: string;
-  format?: string;
-  tags?: string[];
-};
-
-type CellContent = {
-  summary: string;
-  flag?: string;
-  reasoning?: string;
-};
-
-type Review = {
-  id: string;
-  project_id: string | null;
-  user_id: string;
-  title: string | null;
-  columns_config: LocalTabularColumn[];
-  document_ids: string[];
-  workflow_id: string | null;
-  shared_with: [];
-  is_owner: true;
-  created_at: string;
-  updated_at: string;
-  document_count: number;
-};
-
-type Cell = {
-  id: string;
-  review_id: string;
-  document_id: string;
-  column_index: number;
-  content: CellContent | null;
-  status: "pending" | "generating" | "done" | "error";
-  created_at: string;
-};
-
 type ReviewRow = {
-  id: string;
-  user_id: string;
-  project_id: string | null;
-  title: string | null;
-  columns_json: string;
-  document_ids_json: string;
-  workflow_id: string | null;
-  created_at: string;
-  updated_at: string;
+  id: string; user_id: string; project_id: string | null; title: string | null;
+  columns_json: string; document_ids_json: string; workflow_id: string | null;
+  created_at: string; updated_at: string;
 };
-
-type CellRow = Omit<Cell, "content"> & { content_json: string | null };
-
-const REVIEW_COLUMNS =
-  "id, user_id, project_id, title, columns_json, document_ids_json, " +
-  "workflow_id, created_at, updated_at";
-
-function cleanText(value: unknown, maximum = 200) {
-  if (typeof value !== "string") return null;
-  const normalized = value.trim();
-  return normalized ? normalized.slice(0, maximum) : null;
-}
-
-function uniqueText(values: Iterable<unknown>, maximum = 200) {
-  return [...new Set(values)]
-    .map((value) => cleanText(value, maximum))
-    .filter((value): value is string => value !== null);
-}
-
-function normalizedColumns(input: LocalTabularColumn[]) {
-  const indices = new Set<number>();
+type CellRow = Omit<TabularCell, "content"> & { content_json: string | null };
+const REVIEW_COLUMNS = "id,user_id,project_id,title,columns_json," +
+  "document_ids_json,workflow_id,created_at,updated_at";
+const text = (value: unknown, max = 200) => typeof value === "string" && value.trim()
+  ? value.trim().slice(0, max) : null;
+const unique = (values: Iterable<unknown>, max = 200) => [...new Set(values)]
+  .map((value) => text(value, max)).filter((value): value is string => !!value);
+const parse = <T>(raw: string | null, fallback: T): T => {
+  try { return raw ? JSON.parse(raw) as T : fallback; } catch { return fallback; }
+};
+const columns = (input: TabularColumn[]) => {
+  const seen = new Set<number>();
   return input.map((column) => {
-    if (
-      !Number.isSafeInteger(column.index) ||
-      column.index < 0 ||
-      indices.has(column.index)
-    ) {
-      throw new Error("Column indices must be unique non-negative integers");
-    }
-    indices.add(column.index);
-    const name = cleanText(column.name);
-    const prompt = cleanText(column.prompt, 20_000);
-    if (!name || !prompt) throw new Error("Each column needs a name and prompt");
-    const format = cleanText(column.format, 80);
-    const tags = Array.isArray(column.tags)
-      ? uniqueText(column.tags).slice(0, 100)
-      : [];
-    return {
-      index: column.index,
-      name,
-      prompt,
-      ...(format ? { format } : {}),
-      ...(tags.length ? { tags } : {}),
-    };
+    if (!Number.isSafeInteger(column.index) || column.index < 0 || seen.has(column.index))
+      throw new TabularStoreError(400, "Column indices must be unique non-negative integers");
+    seen.add(column.index);
+    const name = text(column.name), prompt = text(column.prompt, 20_000);
+    if (!name || !prompt) throw new TabularStoreError(400, "Each column needs a name and prompt");
+    const format = text(column.format, 80), tags = unique(column.tags ?? []).slice(0, 100);
+    return { index: column.index, name, prompt, ...(format ? { format } : {}),
+      ...(tags.length ? { tags } : {}) };
   });
-}
-
-function json<T>(raw: string | null, fallback: T): T {
-  try {
-    return raw ? (JSON.parse(raw) as T) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function review(row: ReviewRow): Review {
-  const documentIds = json<string[]>(row.document_ids_json, []);
-  return {
-    id: row.id,
-    project_id: row.project_id,
-    user_id: row.user_id,
-    title: row.title,
-    columns_config: json(row.columns_json, []),
-    document_ids: documentIds,
-    workflow_id: row.workflow_id,
-    shared_with: [],
-    is_owner: true,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-    document_count: documentIds.length,
-  };
-}
-
-function cell(row: CellRow): Cell {
+};
+const review = (row: ReviewRow): TabularReview => {
+  const documentIds = parse<string[]>(row.document_ids_json, []);
+  const { columns_json, document_ids_json, ...stored } = row;
+  return { ...stored, project_id: row.project_id, columns_config: parse(columns_json, []),
+    document_ids: documentIds, shared_with: [], is_owner: true,
+    document_count: documentIds.length };
+};
+const cell = (row: CellRow): TabularCell => {
   const { content_json, ...rest } = row;
-  return { ...rest, content: json(content_json, null) };
-}
+  return { ...rest, content: parse(content_json, null) } as TabularCell;
+};
+const nextVersion = (expected: string) => new Date(Math.max(
+  Date.now(), (Date.parse(expected) || 0) + 1,
+)).toISOString();
 
 class LocalTabularStore {
-  private readonly database: DatabaseSync;
+  private readonly db: DatabaseSync;
 
   constructor(filename = path.join(mikeLocalDataHome(), "tabular.sqlite")) {
     mkdirSync(path.dirname(filename), { recursive: true });
-    this.database = new DatabaseSync(filename);
-    this.database.exec(`
-      PRAGMA journal_mode = WAL;
-      PRAGMA busy_timeout = 5000;
-      PRAGMA foreign_keys = ON;
+    this.db = new DatabaseSync(filename);
+    this.db.exec(`
+      PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;
       CREATE TABLE IF NOT EXISTS local_tabular_reviews (
-        id TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL,
-        project_id TEXT,
-        title TEXT,
-        columns_json TEXT NOT NULL DEFAULT '[]',
-        document_ids_json TEXT NOT NULL DEFAULT '[]',
-        workflow_id TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
+        id TEXT PRIMARY KEY,user_id TEXT NOT NULL,project_id TEXT,title TEXT,
+        columns_json TEXT NOT NULL DEFAULT '[]',document_ids_json TEXT NOT NULL DEFAULT '[]',
+        workflow_id TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS local_tabular_cells (
-        id TEXT PRIMARY KEY,
-        review_id TEXT NOT NULL
-          REFERENCES local_tabular_reviews(id) ON DELETE CASCADE,
-        document_id TEXT NOT NULL,
-        column_index INTEGER NOT NULL,
-        content_json TEXT,
-        status TEXT NOT NULL DEFAULT 'pending'
-          CHECK (status IN ('pending', 'generating', 'done', 'error')),
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        UNIQUE (review_id, document_id, column_index)
-      );
+        id TEXT PRIMARY KEY,review_id TEXT NOT NULL REFERENCES local_tabular_reviews(id) ON DELETE CASCADE,
+        document_id TEXT NOT NULL,column_index INTEGER NOT NULL,content_json TEXT,
+        status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','generating','done','error')),
+        created_at TEXT NOT NULL,updated_at TEXT NOT NULL,
+        UNIQUE(review_id,document_id,column_index));
       CREATE INDEX IF NOT EXISTS local_tabular_reviews_user_updated
-        ON local_tabular_reviews (user_id, updated_at DESC, id);
+        ON local_tabular_reviews(user_id,updated_at DESC,id);
       CREATE INDEX IF NOT EXISTS local_tabular_reviews_project_updated
-        ON local_tabular_reviews (user_id, project_id, updated_at DESC, id);
-    `);
+        ON local_tabular_reviews(user_id,project_id,updated_at DESC,id);`);
   }
 
-  close() {
-    this.database.close();
+  close() { this.db.close(); }
+  private transaction<T>(run: () => T) {
+    this.db.exec("BEGIN IMMEDIATE");
+    try { const result = run(); this.db.exec("COMMIT"); return result; }
+    catch (error) { this.db.exec("ROLLBACK"); throw error; }
   }
-
-  private transaction<T>(operation: () => T) {
-    this.database.exec("BEGIN IMMEDIATE");
-    try {
-      const result = operation();
-      this.database.exec("COMMIT");
-      return result;
-    } catch (error) {
-      this.database.exec("ROLLBACK");
-      throw error;
-    }
-  }
-
-  private syncCells(
-    reviewId: string,
-    documentIds: string[],
-    columnsConfig: LocalTabularColumn[],
-  ) {
-    const documents = new Set(documentIds);
-    const columns = new Set(
-      columnsConfig.map((column) => column.index),
-    );
-    const rows = this.database
-      .prepare(
-        `SELECT id, document_id, column_index FROM local_tabular_cells
-         WHERE review_id = ?`,
-      )
-      .all(reviewId) as {
-      id: string;
-      document_id: string;
-      column_index: number;
-    }[];
-    const existing = new Set<string>();
-    const remove = this.database.prepare(
-      "DELETE FROM local_tabular_cells WHERE id = ?",
-    );
-    for (const row of rows) {
-      if (
-        !documents.has(row.document_id) ||
-        !columns.has(row.column_index)
-      ) {
-        remove.run(row.id);
-      } else {
-        existing.add(`${row.document_id}:${row.column_index}`);
-      }
-    }
-
-    const insert = this.database.prepare(
-      `INSERT INTO local_tabular_cells
-        (id, review_id, document_id, column_index, content_json, status,
-         created_at, updated_at)
-       VALUES (?, ?, ?, ?, NULL, 'pending', ?, ?)`,
-    );
-    const now = new Date().toISOString();
-    for (const documentId of documentIds) {
-      for (const column of columnsConfig) {
-        if (existing.has(`${documentId}:${column.index}`)) continue;
-        insert.run(
-          crypto.randomUUID(),
-          reviewId,
-          documentId,
-          column.index,
-          now,
-          now,
-        );
-      }
-    }
-  }
-
-  page(userId: string, options: { projectId: string | null;
-    scope: "all" | "in-project" | "standalone"; q: string; limit: number;
-    after: [string, string] | null }) {
-    const filters = ["user_id = ?"];
-    const params: (string | number)[] = [userId];
-    if (options.projectId) {
-      filters.push("project_id = ?");
-      params.push(options.projectId);
-    } else if (options.scope === "in-project") {
-      filters.push("project_id IS NOT NULL");
-    } else if (options.scope === "standalone") {
-      filters.push("project_id IS NULL");
-    }
-    if (options.q) {
-      filters.push("instr(lower(coalesce(title, '')), ?) > 0");
-      params.push(options.q.trim().toLocaleLowerCase());
-    }
-    if (options.after) {
-      filters.push("(created_at < ? OR (created_at = ? AND id < ?))");
-      params.push(options.after[0], options.after[0], options.after[1]);
-    }
-    params.push(options.limit + 1);
-    const rows = this.database.prepare(
-      `SELECT ${REVIEW_COLUMNS} FROM local_tabular_reviews
-       WHERE ${filters.join(" AND ")}
-       ORDER BY created_at DESC, id DESC LIMIT ?`,
-    ).all(...params) as ReviewRow[];
-    const pageRows = rows.slice(0, options.limit);
-    const items = pageRows.map(review).map((item) => ({
-      id: item.id,
-      project_id: item.project_id,
-      project_name: null,
-      user_id: item.user_id,
-      title: item.title,
-      workflow_id: item.workflow_id,
-      shared_with: item.shared_with,
-      is_owner: item.is_owner,
-      created_at: item.created_at,
-      updated_at: item.updated_at,
-      document_count: item.document_count,
-      column_count: item.columns_config.length,
-    }));
-    const last = pageRows.at(-1);
-    return {
-      items,
-      nextAfter: rows.length > options.limit && last
-        ? [last.created_at, last.id] as [string, string]
-        : null,
-    };
-  }
-
-  get(userId: string, reviewId: string) {
-    const row = this.database
-      .prepare(
-        `SELECT ${REVIEW_COLUMNS} FROM local_tabular_reviews
-         WHERE id = ? AND user_id = ?`,
-      )
-      .get(reviewId, userId) as ReviewRow | undefined;
+  private get(userId: string, id: string) {
+    const row = this.db.prepare(`SELECT ${REVIEW_COLUMNS} FROM local_tabular_reviews
+      WHERE id=? AND user_id=?`).get(id, userId) as ReviewRow | undefined;
     return row ? review(row) : null;
+  }
+  private oneCell(userId: string, reviewId: string, documentId: string, index: number) {
+    const row = this.db.prepare(`SELECT c.* FROM local_tabular_cells c
+      JOIN local_tabular_reviews r ON r.id=c.review_id AND r.user_id=?
+      WHERE c.review_id=? AND c.document_id=? AND c.column_index=?`)
+      .get(userId, reviewId, documentId, index) as CellRow | undefined;
+    return row ? cell(row) : null;
+  }
+  private syncCells(reviewId: string, documentIds: string[], config: TabularColumn[]) {
+    const wanted = new Set(documentIds.flatMap((id) => config.map((col) => `${id}:${col.index}`)));
+    const rows = this.db.prepare(`SELECT id,document_id,column_index FROM local_tabular_cells
+      WHERE review_id=?`).all(reviewId) as { id: string; document_id: string; column_index: number }[];
+    const present = new Set(rows.map((row) => `${row.document_id}:${row.column_index}`));
+    const remove = this.db.prepare("DELETE FROM local_tabular_cells WHERE id=?");
+    rows.filter((row) => !wanted.has(`${row.document_id}:${row.column_index}`))
+      .forEach((row) => remove.run(row.id));
+    const insert = this.db.prepare(`INSERT INTO local_tabular_cells
+      (id,review_id,document_id,column_index,content_json,status,created_at,updated_at)
+      VALUES(?,?,?,?,NULL,'pending',?,?)`), now = new Date().toISOString();
+    for (const documentId of documentIds) for (const column of config) {
+      if (!present.has(`${documentId}:${column.index}`))
+        insert.run(crypto.randomUUID(), reviewId, documentId, column.index, now, now);
+    }
+  }
+
+  page(userId: string, options: Parameters<TabularStore["page"]>[1]) {
+    const where = ["user_id=?"], params: (string | number)[] = [userId];
+    if (options.projectId) { where.push("project_id=?"); params.push(options.projectId); }
+    else if (options.scope !== "all") where.push(options.scope === "in-project"
+      ? "project_id IS NOT NULL" : "project_id IS NULL");
+    if (options.q) { where.push("instr(lower(coalesce(title,'')),?)>0"); params.push(options.q); }
+    if (options.after) { where.push("(created_at<? OR (created_at=? AND id<?))");
+      params.push(options.after[0], options.after[0], options.after[1]); }
+    const rows = this.db.prepare(`SELECT ${REVIEW_COLUMNS} FROM local_tabular_reviews
+      WHERE ${where.join(" AND ")} ORDER BY created_at DESC,id DESC LIMIT ?`)
+      .all(...params, options.limit + 1) as ReviewRow[];
+    const page = rows.slice(0, options.limit).map(review), last = page.at(-1);
+    return { items: page.map((item) => ({ ...item, column_count: item.columns_config.length })),
+      nextAfter: rows.length > options.limit && last
+        ? [String(last.created_at), last.id] as [string, string] : null };
   }
 
   detail(userId: string, reviewId: string) {
     const item = this.get(userId, reviewId);
     if (!item) return null;
-    const cells = (
-      this.database
-        .prepare(
-          `SELECT id, review_id, document_id, column_index, content_json,
-                  status, created_at
-           FROM local_tabular_cells
-           WHERE review_id = ?
-           ORDER BY document_id, column_index, id`,
-        )
-        .all(reviewId) as CellRow[]
-    ).map(cell);
+    const cells = (this.db.prepare(`SELECT * FROM local_tabular_cells WHERE review_id=?
+      ORDER BY document_id,column_index,id`).all(reviewId) as CellRow[]).map(cell);
     return { review: item, cells };
   }
 
-  create(params: {
-    userId: string;
-    title?: string | null;
-    projectId?: string | null;
-    columns: LocalTabularColumn[];
-    documentIds: string[];
-    workflowId?: string | null;
-  }) {
-    const id = crypto.randomUUID();
-    const now = new Date().toISOString();
-    const columns = normalizedColumns(params.columns);
-    const documents = uniqueText(params.documentIds);
+  create(userId: string, input: ReviewInput & { projectId: string | null;
+    columns: TabularColumn[]; documentIds: string[] }) {
+    const id = crypto.randomUUID(), now = new Date().toISOString();
+    const config = columns(input.columns), documentIds = unique(input.documentIds);
     return this.transaction(() => {
-      this.database
-        .prepare(
-          `INSERT INTO local_tabular_reviews
-            (id, user_id, project_id, title, columns_json, document_ids_json,
-             workflow_id, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .run(
-          id,
-          params.userId,
-          cleanText(params.projectId),
-          cleanText(params.title, 300),
-          JSON.stringify(columns),
-          JSON.stringify(documents),
-          cleanText(params.workflowId),
-          now,
-          now,
-        );
-      this.syncCells(id, documents, columns);
-      return this.get(params.userId, id)!;
+      this.db.prepare(`INSERT INTO local_tabular_reviews
+        (id,user_id,project_id,title,columns_json,document_ids_json,workflow_id,created_at,updated_at)
+        VALUES(?,?,?,?,?,?,?,?,?)`).run(id, userId, text(input.projectId), text(input.title, 300),
+        JSON.stringify(config), JSON.stringify(documentIds), text(input.workflowId), now, now);
+      this.syncCells(id, documentIds, config);
+      return { status: "committed", value: this.get(userId, id)! } as const;
     });
   }
 
-  update(
-    userId: string,
-    reviewId: string,
-    update: {
-      title?: string | null;
-      projectId?: string | null;
-      columns?: LocalTabularColumn[];
-      documentIds?: string[];
-    },
-  ) {
-    const current = this.get(userId, reviewId);
-    if (!current) return null;
-    const next = {
-      title:
-        update.title === undefined ? current.title : cleanText(update.title, 300),
-      projectId:
-        update.projectId === undefined
-          ? current.project_id
-          : cleanText(update.projectId),
-      columns:
-        update.columns === undefined
-          ? current.columns_config
-          : normalizedColumns(update.columns),
-      documents:
-        update.documentIds === undefined
-          ? current.document_ids
-          : uniqueText(update.documentIds),
-    };
-    return this.transaction(() => {
-      this.database
-        .prepare(
-          `UPDATE local_tabular_reviews
-           SET title = ?, project_id = ?, columns_json = ?,
-               document_ids_json = ?, updated_at = ?
-           WHERE id = ? AND user_id = ?`,
-        )
-        .run(
-          next.title,
-          next.projectId,
-          JSON.stringify(next.columns),
-          JSON.stringify(next.documents),
-          new Date().toISOString(),
-          reviewId,
-          userId,
-        );
-      this.syncCells(reviewId, next.documents, next.columns);
-      return this.get(userId, reviewId)!;
+  update(userId: string, id: string, expected: string, input: ReviewInput) {
+    const current = this.get(userId, id);
+    if (!current) return { status: "missing" } as const;
+    const next = { title: input.title === undefined ? current.title : text(input.title, 300),
+      project: input.projectId === undefined ? current.project_id : text(input.projectId),
+      columns: input.columns === undefined ? current.columns_config : columns(input.columns),
+      documents: input.documentIds === undefined ? current.document_ids : unique(input.documentIds) };
+    return this.transaction<WriteResult<TabularReview>>(() => {
+      const changed = this.db.prepare(`UPDATE local_tabular_reviews SET title=?,project_id=?,
+        columns_json=?,document_ids_json=?,updated_at=? WHERE id=? AND user_id=? AND updated_at=?`)
+        .run(next.title, next.project, JSON.stringify(next.columns), JSON.stringify(next.documents),
+          nextVersion(expected), id, userId, expected).changes;
+      if (!changed) {
+        const value = this.get(userId, id);
+        return value ? { status: "conflict", value } : { status: "missing" };
+      }
+      this.syncCells(id, next.documents, next.columns);
+      return { status: "committed", value: this.get(userId, id)! };
     });
   }
 
-  delete(userId: string, reviewId: string) {
-    return (
-      this.database
-        .prepare(
-          "DELETE FROM local_tabular_reviews WHERE id = ? AND user_id = ?",
-        )
-        .run(reviewId, userId).changes > 0
-    );
+  delete(userId: string, id: string, expected: string): WriteResult<null> {
+    const changed = this.db.prepare(`DELETE FROM local_tabular_reviews
+      WHERE id=? AND user_id=? AND updated_at=?`).run(id, userId, expected).changes;
+    if (changed) return { status: "committed", value: null };
+    return this.get(userId, id) ? { status: "conflict", value: null } : { status: "missing" };
+  }
+
+  setCell(userId: string, input: Parameters<TabularStore["setCell"]>[1]) {
+    const previous = input.expected.content ? JSON.stringify(input.expected.content) : null;
+    const changed = this.db.prepare(`UPDATE local_tabular_cells SET content_json=?,status=?,updated_at=?
+      WHERE review_id=? AND document_id=? AND column_index=? AND status=? AND content_json IS ?
+      AND review_id IN(SELECT id FROM local_tabular_reviews WHERE user_id=?)`)
+      .run(input.content ? JSON.stringify(input.content) : null, input.status, new Date().toISOString(),
+        input.reviewId, input.documentId, input.columnIndex, input.expected.status, previous, userId).changes;
+    const value = this.oneCell(userId, input.reviewId, input.documentId, input.columnIndex);
+    return changed && value ? { status: "committed", value } as const
+      : value ? { status: "conflict", value } as const : { status: "missing" } as const;
   }
 
   deleteProjectReviews(userId: string, projectId: string) {
-    this.database
-      .prepare(
-        "DELETE FROM local_tabular_reviews WHERE user_id = ? AND project_id = ?",
-      )
+    this.db.prepare("DELETE FROM local_tabular_reviews WHERE user_id=? AND project_id=?")
       .run(userId, projectId);
   }
-
   removeDocument(userId: string, documentId: string) {
     this.transaction(() => {
-      this.database.prepare(
-        `UPDATE local_tabular_reviews SET document_ids_json = (SELECT
-           json_group_array(value) FROM json_each(document_ids_json) WHERE value <> ?),
-           updated_at = ? WHERE user_id = ? AND EXISTS
-           (SELECT 1 FROM json_each(document_ids_json) WHERE value = ?)`,
-      ).run(documentId, new Date().toISOString(), userId, documentId);
-      this.database.prepare(
-        `DELETE FROM local_tabular_cells WHERE document_id = ? AND review_id IN
-           (SELECT id FROM local_tabular_reviews WHERE user_id = ?)`,
-      ).run(documentId, userId);
+      this.db.prepare(`UPDATE local_tabular_reviews SET document_ids_json=(SELECT
+        json_group_array(value) FROM json_each(document_ids_json) WHERE value<>?),updated_at=?
+        WHERE user_id=? AND EXISTS(SELECT 1 FROM json_each(document_ids_json) WHERE value=?)`)
+        .run(documentId, new Date().toISOString(), userId, documentId);
+      this.db.prepare(`DELETE FROM local_tabular_cells WHERE document_id=? AND review_id IN
+        (SELECT id FROM local_tabular_reviews WHERE user_id=?)`).run(documentId, userId);
     });
   }
-
-  clearCells(userId: string, reviewId: string, documentIds: string[]) {
-    if (!this.get(userId, reviewId)) return false;
-    const clear = this.database.prepare(
-      `UPDATE local_tabular_cells
-       SET content_json = NULL, status = 'pending', updated_at = ?
-       WHERE review_id = ? AND document_id = ?`,
-    );
-    const now = new Date().toISOString();
-    this.transaction(() => {
-      for (const documentId of uniqueText(documentIds)) {
-        clear.run(now, reviewId, documentId);
-      }
-    });
-    return true;
-  }
-
-  setCell(params: {
-    userId: string;
-    reviewId: string;
-    documentId: string;
-    columnIndex: number;
-    status: Cell["status"];
-    content?: CellContent | null;
-  }) {
-    return (
-      this.database
-        .prepare(
-          `UPDATE local_tabular_cells
-           SET content_json = ?, status = ?, updated_at = ?
-           WHERE review_id = ? AND document_id = ? AND column_index = ?
-             AND review_id IN (
-               SELECT id FROM local_tabular_reviews WHERE user_id = ?
-             )`,
-        )
-        .run(
-          params.content ? JSON.stringify(params.content) : null,
-          params.status,
-          new Date().toISOString(),
-          params.reviewId,
-          params.documentId,
-          params.columnIndex,
-          params.userId,
-        ).changes > 0
-    );
-  }
 }
 
-let sharedStore: LocalTabularStore | null = null;
+let shared: LocalTabularStore | null = null;
+export const localTabularStore = () => shared ??= new LocalTabularStore();
+export const closeLocalTabularStore = () => { shared?.close(); shared = null; };
 
-export function localTabularStore() {
-  sharedStore ??= new LocalTabularStore();
-  return sharedStore;
-}
-
-export function closeLocalTabularStore() {
-  sharedStore?.close();
-  sharedStore = null;
-}
-
-async function accessibleDocuments(
-  userId: string,
-  requested: string[],
-  projectId: string | null,
-) {
-  const owned = new Set(
-    (await listLocalDocumentsById(userId, requested)).map(({ id }) => id),
-  );
-  if (!projectId) return requested.filter((id) => owned.has(id));
+async function documents(scope: TabularScope, ids: string[], projectId: string | null) {
+  const requested = unique(ids), owned = await listLocalDocumentsById(scope.userId, requested);
   const graph = legalKnowledgeGraphStore();
-  if (!graph.getMatter(userId, projectId)) {
+  if (projectId && !graph.getMatter(scope.userId, projectId))
     throw new TabularStoreError(404, "Project not found");
-  }
-  return requested.filter(
-    (id) => owned.has(id) && graph.hasMatterDocument(userId, projectId, id),
-  );
+  const allowed = new Set(owned.filter(({ id }) => !projectId ||
+    graph.hasMatterDocument(scope.userId, projectId, id)).map(({ id }) => id));
+  if (allowed.size !== requested.length) throw new TabularStoreError(404, "Document not found");
+  return requested;
 }
 
 export const localTabularData = {
   async page(scope, options) {
     const page = localTabularStore().page(scope.userId, options);
-    return {
-      ...page,
-      items: page.items.map((item) => ({
-        ...item,
-        project_name: item.project_id
-          ? legalKnowledgeGraphStore().getMatter(scope.userId, item.project_id)
-            ?.name ?? null
-          : null,
-      })),
-    };
+    return { ...page, items: page.items.map((item) => ({ ...item, project_name: item.project_id
+      ? legalKnowledgeGraphStore().getMatter(scope.userId, String(item.project_id))?.name ?? null
+      : null })) };
   },
-
   async create(scope, input) {
-    return localTabularStore().create({
-      userId: scope.userId,
-      title: input.title,
-      projectId: input.projectId,
-      columns: input.columns,
-      documentIds: await accessibleDocuments(
-        scope.userId,
-        input.documentIds,
-        input.projectId,
-      ),
-      workflowId: input.workflowId,
-    });
+    return localTabularStore().create(scope.userId, { ...input,
+      documentIds: await documents(scope, input.documentIds, input.projectId) });
   },
-
-  async detail(scope, reviewId) {
-    const detail = localTabularStore().detail(scope.userId, reviewId);
+  async detail(scope, id) {
+    const detail = localTabularStore().detail(scope.userId, id);
     if (!detail) return null;
-    const documents = await listLocalDocumentsById(
-      scope.userId,
-      detail.review.document_ids,
-    );
-    return {
-      ...detail,
-      documents: documents.map((document) => ({
-        ...document,
-        project_id: detail.review.project_id,
-        folder_id: null,
-      })),
-    };
+    const rows = await listLocalDocumentsById(scope.userId, detail.review.document_ids);
+    return { ...detail, documents: rows.map((document) => ({ ...document,
+      project_id: detail.review.project_id, folder_id: null })) };
   },
-
-  async people(scope, reviewId) {
-    return localTabularStore().get(scope.userId, reviewId)
-      ? {
-          owner: {
-            user_id: scope.userId,
-            email: null,
-            display_name: null,
-          },
-          members: [],
-        }
-      : null;
+  async people(scope, id) { return localTabularStore().detail(scope.userId, id)
+    ? { owner: { user_id: scope.userId, email: null, display_name: null }, members: [] } : null; },
+  async update(scope, id, expected, input) {
+    const current = localTabularStore().detail(scope.userId, id)?.review;
+    if (!current) return { status: "missing" } as const;
+    if (input.sharedWith?.length) throw new TabularStoreError(400, "Sharing requires an account");
+    const projectId = input.projectId === undefined ? current.project_id : input.projectId;
+    const documentIds = input.documentIds === undefined && input.projectId === undefined
+      ? undefined : await documents(scope, input.documentIds ?? current.document_ids, projectId ?? null);
+    return localTabularStore().update(scope.userId, id, expected,
+      { ...input, ...(documentIds ? { documentIds } : {}) });
   },
-
-  async update(scope, reviewId, input) {
-    const current = localTabularStore().get(scope.userId, reviewId);
-    if (!current) return null;
-    if (input.sharedWith?.length) {
-      throw new TabularStoreError(400, "Sharing requires an account");
-    }
-    const projectId = input.projectId === undefined
-      ? current.project_id
-      : input.projectId;
-    const documentIds = input.documentIds === undefined
-      ? undefined
-      : await accessibleDocuments(scope.userId, input.documentIds, projectId);
-    return localTabularStore().update(scope.userId, reviewId, {
-      ...(input.title !== undefined ? { title: input.title } : {}),
-      ...(input.projectId !== undefined ? { projectId } : {}),
-      ...(input.columns !== undefined ? { columns: input.columns } : {}),
-      ...(documentIds !== undefined ? { documentIds } : {}),
-    });
-  },
-
-  async delete(scope, reviewId) {
-    return localTabularStore().delete(scope.userId, reviewId);
-  },
-
-  async clearCells(scope, reviewId, documentIds) {
-    return localTabularStore().clearCells(scope.userId, reviewId, documentIds);
-  },
-
-  async setCell(scope, input) {
-    return localTabularStore().setCell({ userId: scope.userId, ...input });
-  },
-
+  async delete(scope, id, expected) { return localTabularStore().delete(scope.userId, id, expected); },
+  async setCell(scope, input) { return localTabularStore().setCell(scope.userId, input); },
   async recordGeneration() {},
 } satisfies TabularStore;
 
-export function removeDocumentFromLocalTabularReviews(
-  userId: string,
-  documentId: string,
-) {
-  const temporary = sharedStore === null;
-  const store = sharedStore ?? new LocalTabularStore();
-  try {
-    store.removeDocument(userId, documentId);
-  } finally {
-    if (temporary) store.close();
-  }
+export function removeDocumentFromLocalTabularReviews(userId: string, documentId: string) {
+  const temporary = !shared, store = shared ?? new LocalTabularStore();
+  try { store.removeDocument(userId, documentId); } finally { if (temporary) store.close(); }
 }

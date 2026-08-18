@@ -15,6 +15,7 @@
  */
 
 import diff from "fast-diff";
+import type JSZip from "jszip";
 import {
     ATTR_KEY,
     type XNode,
@@ -25,6 +26,7 @@ import {
     elChildren,
     elName,
     ensureXmlDeclaration,
+    findBody,
     findBodyChildren,
     getTextContent,
     getZipEntry,
@@ -35,6 +37,25 @@ import {
     setChildren,
     setZipEntry,
 } from "./docx/core";
+
+export async function openDocumentXml(bytes: Buffer, label = "docx") {
+    const zip = await loadDocxPackage(bytes);
+    const entry = getZipEntry(zip, "word/document.xml");
+    if (!entry) throw new Error(`document.xml missing from ${label}`);
+    const tree = createParser().parse(await entry.async("string")) as XNode[];
+    const body = findBody(tree);
+    if (!body) throw new Error(`w:body missing from ${label}`);
+    return { zip, tree, body };
+}
+
+export async function saveDocumentXml(zip: JSZip, tree: XNode[]) {
+    setZipEntry(
+        zip,
+        "word/document.xml",
+        ensureXmlDeclaration(createBuilder().build(tree)),
+    );
+    return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
+}
 
 export interface EditInput {
     find: string;
@@ -75,8 +96,30 @@ export interface ApplyTrackedEditsResult {
     bytes: Buffer;
     changes: AppliedChange[];
     errors: EditError[];
-    /** anchored Word comments created from edit reasons (annotate mode) */
-    comments: number;
+}
+
+export const revisionAttrs = (id: string, author: string, date: string) => ({
+    "w:id": id,
+    "w:author": author,
+    "w:date": date,
+});
+
+export function markParagraphRevision(
+    paragraph: XNode,
+    kind: "w:ins" | "w:del",
+    attrs: Record<string, string>,
+): void {
+    const kids = elChildren(paragraph);
+    let pPr = kids.find((node) => elName(node) === "w:pPr");
+    if (!pPr) kids.unshift((pPr = makeEl("w:pPr")));
+    const properties = elChildren(pPr);
+    let rPr = properties.find((node) => elName(node) === "w:rPr");
+    if (!rPr) {
+        rPr = makeEl("w:rPr");
+        const section = properties.findIndex((node) => elName(node) === "w:sectPr");
+        properties.splice(section < 0 ? properties.length : section, 0, rPr);
+    }
+    elChildren(rPr).unshift(makeEl(kind, [], attrs));
 }
 
 // Build a w:r element that wraps a piece of text. Newlines in the text are
@@ -108,7 +151,7 @@ interface RunSlot {
      * children. Non-textual run children (w:tab, w:br, ...) are ignored for
      * the char stream but left in place via their surrounding w:r.
      */
-    textNodes: { wtEl: XNode; text: string; paraStart: number; paraEnd: number }[];
+    textNodes: { paraStart: number; paraEnd: number }[];
 }
 
 interface Flattened {
@@ -116,7 +159,6 @@ interface Flattened {
     // For each char index in paraText: which run slot + which textNode + offset within text
     charRun: Int32Array;      // runIdx
     charTextNode: Int32Array; // index into slot.textNodes
-    charOffset: Int32Array;   // offset within that textNode.text
     runs: RunSlot[];          // order corresponds to their paragraph position
 }
 
@@ -125,7 +167,6 @@ function flattenParagraph(paraChildren: XNode[]): Flattened {
     let paraText = "";
     const charRunArr: number[] = [];
     const charTextNodeArr: number[] = [];
-    const charOffsetArr: number[] = [];
 
     const processRun = (
         rEl: XNode,
@@ -143,8 +184,6 @@ function flattenParagraph(paraChildren: XNode[]): Flattened {
                 const txt = getTextContent(rk);
                 const start = paraText.length;
                 textNodes.push({
-                    wtEl: rk,
-                    text: txt,
                     paraStart: start,
                     paraEnd: start + txt.length,
                 });
@@ -154,7 +193,6 @@ function flattenParagraph(paraChildren: XNode[]): Flattened {
                 for (let i = 0; i < txt.length; i++) {
                     charRunArr.push(runIdx);
                     charTextNodeArr.push(tnIdx);
-                    charOffsetArr.push(i);
                 }
             }
             // other run children (w:tab, w:br, w:sym, …) are left alone
@@ -201,7 +239,6 @@ function flattenParagraph(paraChildren: XNode[]): Flattened {
         paraText,
         charRun: Int32Array.from(charRunArr),
         charTextNode: Int32Array.from(charTextNodeArr),
-        charOffset: Int32Array.from(charOffsetArr),
         runs,
     };
 }
@@ -212,15 +249,9 @@ function flattenParagraph(paraChildren: XNode[]): Flattened {
  * inserted string appended at `start`.
  */
 interface PlannedChange {
-    editIndex: number;            // source edit index
     deleteStart: number;          // paragraph text offset (inclusive)
     deleteEnd: number;            // paragraph text offset (exclusive); may equal start
-    deletedText: string;          // substring of paraText in [start, end)
     insertedText: string;         // may be empty
-    contextBefore: string;
-    contextAfter: string;
-    reason?: string;
-    changeId: string;             // logical id (not the w:id)
     delWId?: string;              // w:id of w:del wrapper (if deletedText non-empty)
     insWId?: string;              // w:id of w:ins wrapper (if insertedText non-empty)
 }
@@ -391,11 +422,7 @@ function reconstructParagraph(
             i = j;
         }
         newRunGroup.push(
-            makeEl("w:del", inner, {
-                "w:id": wId,
-                "w:author": author,
-                "w:date": now,
-            }),
+            makeEl("w:del", inner, revisionAttrs(wId, author, now)),
         );
     };
 
@@ -405,11 +432,7 @@ function reconstructParagraph(
         const rPr = rPrForPos(pos === spanEnd ? pos - 1 : pos);
         const run = buildRun(rPr, text, "w:t");
         newRunGroup.push(
-            makeEl("w:ins", [run], {
-                "w:id": wId,
-                "w:author": author,
-                "w:date": now,
-            }),
+            makeEl("w:ins", [run], revisionAttrs(wId, author, now)),
         );
     };
 
@@ -440,7 +463,6 @@ function reconstructParagraph(
         if (elName(paraChildren[i]) === "w:del") droppedChildIdx.add(i);
     }
     const firstDroppedIdx = startChildIdx;
-    void endChildIdx;
     const out: XNode[] = [];
     for (let i = 0; i < paraChildren.length; i++) {
         if (i === firstDroppedIdx) {
@@ -824,22 +846,13 @@ function trackedChangeIds(
 export async function applyTrackedEdits(
     bytes: Buffer,
     edits: EditInput[],
-    opts?: { author?: string; annotate?: boolean },
+    opts?: { author?: string },
 ): Promise<ApplyTrackedEditsResult> {
     const author = opts?.author ?? "Beaver";
     const now = new Date().toISOString();
-    const annotate = opts?.annotate ?? false;
 
-    const zip = await loadDocxPackage(bytes);
-    const docXmlFile = getZipEntry(zip, "word/document.xml");
-    if (!docXmlFile) throw new Error("document.xml missing from docx");
-    const docXmlRaw = await docXmlFile.async("string");
-
-    const parser = createParser();
-    const tree = parser.parse(docXmlRaw) as XNode[];
-
-    const bodyChildren = findBodyChildren(tree);
-    if (!bodyChildren) throw new Error("w:body missing from document.xml");
+    const { zip, tree, body } = await openDocumentXml(bytes);
+    const bodyChildren = elChildren(body);
 
     // Build paragraph table (only w:p at the top level of the body — does not
     // recurse into tables; for tables, w:p also appears inside w:tbl > w:tr >
@@ -1084,8 +1097,6 @@ export async function applyTrackedEdits(
             });
             continue;
         }
-        void findEnd;
-
         const protectedAt = (position: number) =>
             position >= 0 &&
             position < paragraphs[paraIdx].flat.paraText.length &&
@@ -1124,15 +1135,9 @@ export async function applyTrackedEdits(
         revisionIdsByEdit.set(editIdx, revision);
 
         const editPlans: PlannedChange[] = clusters.map((cluster) => ({
-            editIndex: editIdx,
             deleteStart: findStart + cluster.offset,
             deleteEnd: findStart + cluster.offset + cluster.deleted.length,
-            deletedText: cluster.deleted,
             insertedText: cluster.inserted,
-            contextBefore: edit.context_before ?? "",
-            contextAfter: edit.context_after ?? "",
-            reason: edit.reason,
-            changeId: revision.changeId,
             delWId: cluster.deleted ? revision.delWId : undefined,
             insWId: cluster.inserted ? revision.insWId : undefined,
         }));
@@ -1202,167 +1207,10 @@ export async function applyTrackedEdits(
         setChildren(p.paraNode, newKids);
     }
 
-    // Annotate mode: each edit's reason becomes a real anchored Word
-    // comment spanning that edit's revision wrappers, so the rationale is
-    // IN the deliverable rather than dying in the receipt. One comment per
-    // edit (its clusters share one reason).
-    let commentsAdded = 0;
-    if (annotate) {
-        const existingEntry = getZipEntry(zip, "word/comments.xml");
-        const existingXml = existingEntry
-            ? await existingEntry.async("string")
-            : "";
-        let nextCommentId = maxCommentId(existingXml) + 1;
-        const commentBodies: string[] = [];
-
-        for (const [paraIdx, plans] of plansPerParagraph) {
-            const p = paragraphs[paraIdx];
-            const kids = elChildren(p.paraNode);
-            const byEdit = new Map<number, PlannedChange[]>();
-            for (const plan of plans) {
-                const list = byEdit.get(plan.editIndex) ?? [];
-                list.push(plan);
-                byEdit.set(plan.editIndex, list);
-            }
-            const inserts: Array<{ at: number; after: boolean; nodes: XNode[] }> =
-                [];
-            for (const group of byEdit.values()) {
-                const reason = group[0].reason?.trim();
-                if (!reason) continue;
-                const wrapperIds = new Set<string>();
-                for (const plan of group) {
-                    if (plan.delWId) wrapperIds.add(plan.delWId);
-                    if (plan.insWId) wrapperIds.add(plan.insWId);
-                }
-                let first = -1;
-                let last = -1;
-                kids.forEach((kid, index) => {
-                    const name = elName(kid);
-                    if (name !== "w:ins" && name !== "w:del") return;
-                    const id = elAttrs(kid)["@_w:id"];
-                    if (id != null && wrapperIds.has(String(id))) {
-                        if (first < 0) first = index;
-                        last = index;
-                    }
-                });
-                if (first < 0) continue;
-                const commentId = String(nextCommentId++);
-                inserts.push({
-                    at: first,
-                    after: false,
-                    nodes: [
-                        makeEl("w:commentRangeStart", [], { "w:id": commentId }),
-                    ],
-                });
-                inserts.push({
-                    at: last,
-                    after: true,
-                    nodes: [
-                        makeEl("w:commentRangeEnd", [], { "w:id": commentId }),
-                        makeEl("w:r", [
-                            makeEl("w:commentReference", [], { "w:id": commentId }),
-                        ]),
-                    ],
-                });
-                commentBodies.push(
-                    `<w:comment w:id="${commentId}" w:author="${escapeXmlAttr(author)}" ` +
-                        `w:date="${now}" w:initials="BV">` +
-                        `<w:p><w:r><w:t xml:space="preserve">${escapeXmlText(reason)}</w:t></w:r></w:p>` +
-                        `</w:comment>`,
-                );
-                commentsAdded += 1;
-            }
-            if (inserts.length) {
-                // Descending positions keep earlier indexes valid.
-                inserts.sort(
-                    (a, b) => b.at - a.at || Number(b.after) - Number(a.after),
-                );
-                const next = [...kids];
-                for (const insert of inserts) {
-                    next.splice(
-                        insert.at + (insert.after ? 1 : 0),
-                        0,
-                        ...insert.nodes,
-                    );
-                }
-                setChildren(p.paraNode, next);
-            }
-        }
-
-        if (commentBodies.length) {
-            const bodies = commentBodies.join("");
-            let commentsXml: string;
-            if (existingXml.includes("</w:comments>")) {
-                commentsXml = existingXml.replace(
-                    /<\/w:comments>\s*$/u,
-                    `${bodies}</w:comments>`,
-                );
-            } else if (/<w:comments\b[^>]*\/>\s*$/u.test(existingXml)) {
-                // Generators commonly ship an empty self-closed comments part.
-                commentsXml = existingXml.replace(
-                    /\/>\s*$/u,
-                    `>${bodies}</w:comments>`,
-                );
-            } else {
-                commentsXml =
-                    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n` +
-                    `<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">` +
-                    `${bodies}</w:comments>`;
-            }
-            setZipEntry(zip, "word/comments.xml", commentsXml);
-
-            // Register the part: content type + document relationship.
-            const typesEntry = getZipEntry(zip, "[Content_Types].xml");
-            if (typesEntry) {
-                const typesXml = await typesEntry.async("string");
-                if (!typesXml.includes('PartName="/word/comments.xml"')) {
-                    setZipEntry(
-                        zip,
-                        "[Content_Types].xml",
-                        typesXml.replace(
-                            "</Types>",
-                            `<Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/></Types>`,
-                        ),
-                    );
-                }
-            }
-            const relsEntry = getZipEntry(zip, "word/_rels/document.xml.rels");
-            if (relsEntry) {
-                const relsXml = await relsEntry.async("string");
-                if (
-                    !relsXml.includes(
-                        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments",
-                    )
-                ) {
-                    let relNumber = 1000;
-                    while (relsXml.includes(`Id="rId${relNumber}"`)) relNumber += 1;
-                    setZipEntry(
-                        zip,
-                        "word/_rels/document.xml.rels",
-                        relsXml.replace(
-                            "</Relationships>",
-                            `<Relationship Id="rId${relNumber}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/></Relationships>`,
-                        ),
-                    );
-                }
-            }
-        }
-    }
-
-    const builder = createBuilder();
-    const rebuiltXml = builder.build(tree);
-    const withDecl = ensureXmlDeclaration(rebuiltXml);
-    setZipEntry(zip, "word/document.xml", withDecl);
-
-    const outBuf = await zip.generateAsync({
-        type: "nodebuffer",
-        compression: "DEFLATE",
-    });
     return {
-        bytes: outBuf,
+        bytes: await saveDocumentXml(zip, tree),
         changes: [...appliedChangesByEdit.values()],
         errors,
-        comments: commentsAdded,
     };
 }
 
@@ -1387,13 +1235,8 @@ export async function insertTrackedBlocks(
     if (input.blocks.some((block) => /[\r\n]/u.test(block))) {
         throw new Error("Each insert_blocks item must be one paragraph without a newline");
     }
-    const zip = await loadDocxPackage(bytes);
-    const docXmlFile = getZipEntry(zip, "word/document.xml");
-    if (!docXmlFile) throw new Error("document.xml missing from docx");
-    const parser = createParser();
-    const tree = parser.parse(await docXmlFile.async("string")) as XNode[];
-    const body = findBodyChildren(tree);
-    if (!body) throw new Error("document body missing from docx");
+    const { zip, tree, body: bodyNode } = await openDocumentXml(bytes);
+    const body = elChildren(bodyNode);
 
     const paragraphIndexes = body
         .map((node, index) => ({ node, index }))
@@ -1438,7 +1281,7 @@ export async function insertTrackedBlocks(
     const changes: AppliedChange[] = [];
     const paragraphs = input.blocks.map((block) => {
         const id = String(nextId++);
-        const attrs = { "w:id": id, "w:author": author, "w:date": date };
+        const attrs = revisionAttrs(id, author, date);
         changes.push({
             id,
             insId: id,
@@ -1448,51 +1291,22 @@ export async function insertTrackedBlocks(
             contextAfter,
             diff: [{ kind: "insert", text: block }],
         });
-        return makeEl("w:p", [
-            makeEl("w:pPr", [makeEl("w:rPr", [makeEl("w:ins", [], attrs)])]),
+        const paragraph = makeEl("w:p", [
             makeEl("w:ins", [
                 makeEl("w:r", [
                     makeEl("w:t", [makeText(block)], { "xml:space": "preserve" }),
                 ]),
             ], attrs),
         ]);
+        markParagraphRevision(paragraph, "w:ins", attrs);
+        return paragraph;
     });
     body.splice(insertionIndex, 0, ...paragraphs);
-    const rebuilt = ensureXmlDeclaration(createBuilder().build(tree));
-    setZipEntry(zip, "word/document.xml", rebuilt);
     return {
-        bytes: await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" }),
+        bytes: await saveDocumentXml(zip, tree),
         changes,
         errors: [],
-        comments: 0,
     };
-}
-
-function maxCommentId(commentsXml: string): number {
-    let max = 0;
-    for (const match of commentsXml.matchAll(
-        /<w:comment\b[^>]*\bw:id="(\d+)"/gu,
-    )) {
-        const value = Number(match[1]);
-        if (Number.isFinite(value) && value > max) max = value;
-    }
-    return max;
-}
-
-const XML_ESCAPES: Record<string, string> = {
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&apos;",
-};
-
-function escapeXmlText(value: string): string {
-    return value.replace(/[&<>]/gu, (ch) => XML_ESCAPES[ch]);
-}
-
-function escapeXmlAttr(value: string): string {
-    return value.replace(/[&<>"']/gu, (ch) => XML_ESCAPES[ch]);
 }
 
 // ---------------------------------------------------------------------------
@@ -1604,13 +1418,7 @@ export async function resolveTrackedChange(
     changeIds: string[],
     mode: "accept" | "reject",
 ): Promise<{ bytes: Buffer; found: boolean }> {
-    const zip = await loadDocxPackage(bytes);
-    const docXmlFile = getZipEntry(zip, "word/document.xml");
-    if (!docXmlFile) throw new Error("document.xml missing from docx");
-    const docXmlRaw = await docXmlFile.async("string");
-
-    const parser = createParser();
-    const tree = parser.parse(docXmlRaw) as XNode[];
+    const { zip, tree } = await openDocumentXml(bytes);
     const ids = new Set(changeIds.map(String));
     const present = new Set(trackedChangeIds(tree).map(({ w_id }) => w_id));
     if (!ids.size || [...ids].some((id) => !present.has(id))) {
@@ -1619,14 +1427,7 @@ export async function resolveTrackedChange(
 
     const { found } = resolveInTree(tree, changeIds, mode);
 
-    const builder = createBuilder();
-    const rebuilt = ensureXmlDeclaration(builder.build(tree));
-    setZipEntry(zip, "word/document.xml", rebuilt);
-    const out = await zip.generateAsync({
-        type: "nodebuffer",
-        compression: "DEFLATE",
-    });
-    return { bytes: out, found };
+    return { bytes: await saveDocumentXml(zip, tree), found };
 }
 
 /** Apply the host-selected policy to newly written revision wrappers. */

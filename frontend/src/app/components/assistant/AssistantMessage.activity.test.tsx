@@ -2,12 +2,51 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import type { AssistantEvent } from "../shared/types";
-import { AssistantMessage } from "./AssistantMessage";
+import type { ComponentProps } from "react";
+import {
+    assistantSessionReducer,
+    createAssistantSessionState,
+    type AssistantMessageState,
+} from "@/app/lib/assistantSession";
+import { AssistantMessage as CanonicalAssistantMessage } from "./AssistantMessage";
+
+function canonicalMessage(events: unknown[], error?: string) {
+    const state = assistantSessionReducer(createAssistantSessionState(), {
+        type: "transcript_loaded",
+        active: true,
+        messages: [{
+            id: "assistant-test",
+            role: "assistant",
+            content: "",
+            events,
+            ...(error && { error }),
+        }],
+    });
+    return state.messages[0] as AssistantMessageState;
+}
+
+function AssistantMessage({
+    events = [],
+    isError,
+    errorMessage,
+    onSubagentClick,
+    ...props
+}: Omit<ComponentProps<typeof CanonicalAssistantMessage>, "message" | "onReaderClick"> & {
+    events?: unknown[];
+    isError?: boolean;
+    errorMessage?: string;
+    onSubagentClick?: (readerId: string) => void;
+}) {
+    return <CanonicalAssistantMessage
+        {...props}
+        message={canonicalMessage(events, isError ? errorMessage : undefined)}
+        onReaderClick={onSubagentClick}
+    />;
+}
 
 const editEvent = (
     edit_mode: "manual" | "auto",
-): Extract<AssistantEvent, { type: "doc_edited" }> => ({
+): Record<string, unknown> => ({
     type: "doc_edited",
     filename: "Draft.docx",
     document_id: "doc-1",
@@ -111,7 +150,8 @@ describe("AssistantMessage activity", () => {
         );
 
         await userEvent.click(screen.getByRole("button", { name: /Activity/ }));
-        expect(screen.getAllByText("Waiting for 2 reading agents...")).toHaveLength(1);
+        expect(screen.getByText("Waiting for reading agent: Distinct Canadian lane two...")).toBeVisible();
+        expect(screen.getByText("Waiting for reading agent: Distinct Canadian lane three...")).toBeVisible();
         expect(
             screen.getByRole("button", {
                 name: "Reading agent completed: Distinct Canadian lane one",
@@ -136,9 +176,11 @@ describe("AssistantMessage activity", () => {
             <AssistantMessage
                 events={[
                     {
-                        type: "tool_call_start",
-                        name: "Edit",
-                        isStreaming: true,
+                        type: "tool_activity",
+                        id: "edit-1",
+                        tool: "Edit",
+                        status: "running",
+                        label: "Editing document",
                     },
                 ]}
                 isStreaming
@@ -188,7 +230,13 @@ describe("AssistantMessage activity", () => {
                         text: "I should probably inspect something.",
                         debug: true,
                     },
-                    { type: "tool_call_start", name: "Read", isStreaming: true },
+                    {
+                        type: "tool_activity",
+                        id: "read-1",
+                        tool: "Read",
+                        status: "running",
+                        label: "Reading document",
+                    },
                 ]}
                 isStreaming
             />,
@@ -240,9 +288,11 @@ describe("AssistantMessage activity", () => {
                         text: "Submitting conclusion with ID 3.",
                     },
                     {
-                        type: "tool_call_start",
-                        name: "submit_grounded_answer",
-                        isStreaming: false,
+                        type: "tool_activity",
+                        id: "submit-1",
+                        tool: "submit_grounded_answer",
+                        status: "completed",
+                        label: "Finalizing answer",
                     },
                 ]}
             />,
@@ -292,7 +342,7 @@ describe("AssistantMessage activity", () => {
             />,
         );
         expect(screen.getByRole("alert")).toHaveTextContent(
-            "The provider rejected the request.",
+            "Unable to get a response. Try again.",
         );
     });
 

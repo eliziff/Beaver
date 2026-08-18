@@ -77,32 +77,28 @@ function ProjectAssistantChat({
     const chatViewRef = useRef<ChatViewHandle>(null);
     const { renameChat: renameChatInHistory } = useChatHistoryContext();
     const {
-        messages,
-        isResponseLoading,
-        handleChat,
-        rejectedTurn,
-        clearRejectedTurn,
-        retryRejectedTurn,
-        cancel,
+        state: session,
+        actions,
         chatTitle,
         chatOwnerId,
         chatLoaded,
         changeProject,
     } = useAssistantChatRoute({ chatId, projectId });
+    const { messages } = session;
     const projectMutationSignature = useMemo(() => {
         const created: string[] = [];
         const editedPerDoc: Record<string, number> = {};
         for (const message of messages) {
-            for (const event of message.events ?? []) {
-                if ("isStreaming" in event && event.isStreaming) continue;
-                if (event.type === "doc_created" && event.document_id) {
+            if (message.role !== "assistant") continue;
+            for (const artifact of message.artifacts) {
+                if (artifact.type === "created" && artifact.documentId) {
                     created.push(
-                        `${event.document_id}:${event.version_id ?? ""}:${event.filename}`,
+                        `${artifact.documentId}:${artifact.versionId ?? ""}:${artifact.filename}`,
                     );
-                } else if (event.type === "doc_edited") {
-                    editedPerDoc[event.document_id] = Math.max(
-                        editedPerDoc[event.document_id] ?? 0,
-                        event.version_number ?? 0,
+                } else if (artifact.type === "edited" && artifact.documentId) {
+                    editedPerDoc[artifact.documentId] = Math.max(
+                        editedPerDoc[artifact.documentId] ?? 0,
+                        artifact.versionNumber ?? 0,
                     );
                 }
             }
@@ -329,13 +325,11 @@ function ProjectAssistantChat({
                     <ChatView
                         ref={chatViewRef}
                         chatId={chatId}
-                        messages={messages}
-                        isResponseLoading={isResponseLoading}
-                        handleChat={handleChat}
-                        cancel={cancel}
-                        rejectedTurn={rejectedTurn}
-                        onRejectedTurnRestored={clearRejectedTurn}
-                        onRetryRejectedTurn={() => void retryRejectedTurn()}
+                        session={session}
+                        handleChat={actions.handleChat}
+                        cancel={actions.cancel}
+                        onRejectedTurnRestored={actions.clearRejectedTurn}
+                        onRetryRejectedTurn={() => void actions.retryRejectedTurn()}
                         projectId={projectId}
                         projectName={project?.name}
                         projectCmNumber={project?.cm_number}

@@ -367,25 +367,3 @@ export async function streamGemini(
     throw error;
   }
 }
-
-export async function completeGeminiText(params: {
-  model: string;
-  systemPrompt?: string;
-  user: string;
-  apiKeys?: { gemini?: string | null };
-}): Promise<string> {
-  const ai = client(params.apiKeys?.gemini);
-  let resp: Awaited<ReturnType<typeof ai.models.generateContent>>;
-  try {
-    resp = await ai.models.generateContent({
-      model: params.model,
-      contents: [{ role: "user", parts: [{ text: params.user }] }],
-      config: params.systemPrompt
-        ? { systemInstruction: params.systemPrompt }
-        : undefined,
-    });
-  } catch (error) {
-    throw new Error(geminiErrorMessage(error));
-  }
-  return resp.text ?? "";
-}

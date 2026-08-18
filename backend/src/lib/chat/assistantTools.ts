@@ -3,6 +3,14 @@ import { sha256 } from "../hash";
 import { SYSTEM_ASSISTANT_WORKFLOWS } from "../systemWorkflows";
 import { parseResourceReference, resourceReference } from "../resourceReferences";
 import type { A2AJDocument, A2AJLocatorLookup } from "../a2aj";
+import {
+  readLegalSourcePassage,
+  type LegalSourcePassage,
+  type LegalSourceReference,
+} from "../legalSourceRegistry";
+import {
+  type PublicLegalDocument,
+} from "../publicLegalSources";
 import { linkDocxCitations } from "../docxCitationLinking";
 import { fixDocxSupraCrossReferences } from "../docxDeterministicCleanup";
 import { lintDocxStructure } from "../docxStructuralLint";
@@ -24,7 +32,7 @@ import {
   bakedCrossReferenceGraph,
   bakedSkeleton,
 } from "../legalStructureSidecar";
-import { pageLabel, pageMapFromMarkers, pageMapFromSourceDoc, graphScope, parseAddress, resolvePage, selectPages, type FollowDirection, type PageMap } from "../legalDocumentNavigator";
+import { pageMapFromMarkers, pageMapFromSourceDoc, graphScope, parseAddress, resolvePage, selectPages, type FollowDirection, type PageMap } from "../legalDocumentNavigator";
 import { extractDocxDraftingSource } from "../docxDraftingSource";
 import { anchoredSectionSpine, anchoredSectionStarts, deriveSectionNodes } from "./docxSectionAnchors";
 import { resolveDocxEvidenceCitations } from "../docxEvidenceCitations";
@@ -72,7 +80,7 @@ import {
 import type {
   NormalizedToolCall,
   NormalizedToolResult,
-  OpenAIToolSchema,
+  Tool,
 } from "../llm";
 import { cachedParse } from "../parseCache";
 import {
@@ -80,41 +88,36 @@ import {
   submitTableOfAuthoritiesDocument,
 } from "../tableOfAuthorities";
 import {
-  A2AJ_TOOL_NAMES,
-  executeA2AJTool,
-  type A2AJToolExecution,
+  A2AJ_REFERENCE_NEIGHBORHOOD_ENABLED,
+  a2ajLookupEvidenceBlocks,
+  assistantToolActivityLabel,
+  readA2AJReferenceNeighborhood,
+  type A2AJReferenceDirection,
 } from "./tools/a2ajTools";
 import {
+  createA2AJLookupEvidence,
   createBenchmarkEvidence,
-  LEGAL_EVIDENCE_TOOL_NAME,
   createLibraryEvidence,
+  createPublicJournalPassageEvidence,
+  legalEvidenceProseIntegrityErrors,
   registerLegalEvidence,
-  submitLegalEvidenceAnswer,
   type LegalEvidenceReceipt,
   type LegalEvidenceTurnState,
 } from "./legalEvidence";
 import {
-  COURTLISTENER_TOOL_NAMES,
-  COURTLISTENER_TOOLS,
+  COURTLISTENER_FIND_TOOL,
+  COURTLISTENER_VERIFY_TOOL,
 } from "./tools/courtlistenerTools";
 import { CITATOR_TOOLS, executeCitatorTool } from "./tools/citatorTools";
 import {
   COMPARE_VERSIONS_TOOLS,
   executeCompareVersionsTool,
 } from "./tools/compareVersionsTool";
-import { executeHansardTool } from "./tools/hansardTools";
-import {
-  PUBLIC_LEGAL_SOURCE_TOOL_NAMES,
-} from "./tools/publicLegalSourceTools";
 import {
   SEARCH_SOURCES_TOOL,
-  executeSearchSourcesTool,
+  searchSources,
 } from "./tools/sourceSearchTools";
-import {
-  createPublicLegalSourceState,
-  executePublicLegalSourceTool,
-  type PublicLegalSourceState,
-} from "./publicLegalSourceState";
+import { publicLegalPdfFallbacks } from "./publicLegalPdfFallback";
 import {
   applyTextOpsToDocx,
   type TextOpRequest,
@@ -124,50 +127,66 @@ import { TEXT_OP_NAMES } from "../textOps";
 import {
   boundedParagraphTail,
   buildPptxPresentation,
+  presentationFromMarkdown,
   renderMarkdownDocx,
   renderXlsxWorkbook,
-  runEditDocument,
   safeGeneratedFilename,
   textParserFor,
+  workbookFromMarkdown,
 } from "./tools/documentOps";
 import { quoteRepairSuggestion } from "./quoteRepair";
 import { docxCautionNotes, docxPathologyReportFor } from "./tools/docxPathologyNotes";
 import { projectDocxRedline } from "../docx/redline";
 import {
-  DETERMINISTIC_DOCX_EDIT_SCHEMA,
-  TOOLS,
+  ADVANCED_DOCX_EDIT_TOOL,
+  TABULAR_TOOLS,
+  WRITE_TOOL,
 } from "./tools/toolSchemas";
 import {
+  captureCourtlistenerCase,
+  courtlistenerPdfFallback,
   runLocalCourtlistenerTool,
   type CourtlistenerToolState,
 } from "./courtlistenerToolRunner";
 import { RESOURCE_TOOLS, globPattern as globRegExp } from "./resourceTools";
-import type { WorkflowStore } from "./types";
+import { hideLegalSourceUrls } from "./legalToolResultVisibility";
+import {
+  citationLinkingEvent,
+  supraFixEvent,
+  tableOfAuthoritiesEvent,
+  type LocalAutomationEvent,
+} from "./localAutomationEvent";
+import {
+  toolResultText,
+  toolText,
+  type BeaverOutcome,
+  type BeaverTool,
+} from "./toolRegistry";
+import { readTabularCells } from "./tabularCells";
+import type { TabularCellStore, WorkflowStore } from "./types";
 
 const tool = (
   name: string,
   description: string,
-  parameters: Record<string, unknown>,
-): OpenAIToolSchema => ({
-  type: "function",
-  function: { name, description, parameters },
+  parameters: Tool["inputSchema"],
+  readOnly = false,
+): Tool => ({
+  name,
+  description,
+  inputSchema: parameters,
+  annotations: { readOnlyHint: readOnly },
 });
 
 const DOCUMENT_ID_PROPERTY = {
   type: "string",
   description: "Document resource returned by Glob, or a unique filename.",
 };
-const DOCUMENT_IDS_PROPERTY = {
-  type: "array",
-  items: { type: "string" },
-  description: "Filenames from Glob, or document_ids for duplicate filenames.",
-};
 const OPTIONAL_VERSION_ID_PROPERTY = {
   type: "string",
   description: "Optional Library version id. Omit for the active version.",
 };
 
-const DOCUMENT_TOOLS: OpenAIToolSchema[] = [
+export const DOCUMENT_TOOLS: Tool[] = [
 tool(
     "update_library_metadata",
     "Save jurisdiction, practice-area, document-type, description, and note metadata for a Library item. Only when the user asks to classify or annotate; do not invent facts.",
@@ -219,6 +238,7 @@ tool(
       },
       required: ["document_id"],
     },
+    true,
   ),
 tool(
     "delete_and_renumber_docx",
@@ -256,14 +276,6 @@ tool(
     },
   ),
 ];
-
-const GENERATION_TOOLS = (TOOLS as OpenAIToolSchema[]).filter(
-  ({ function: { name } }) => name.startsWith("generate_"),
-);
-
-const ASK_INPUTS_TOOLS = (TOOLS as OpenAIToolSchema[]).filter(
-  (schema) => schema.function.name === "ask_inputs",
-);
 
 /**
  * Structure for a source document, served from the existing pre-baked
@@ -462,58 +474,6 @@ const CODING_DOCUMENT_REFERENCE_ARRAY_FIELDS = new Set([
   "source_document_ids",
   "draft_document_ids",
 ]);
-
-const ASSISTANT_TOOL_CATALOG: OpenAIToolSchema[] = [
-  ...ASK_INPUTS_TOOLS,
-  ...RESOURCE_TOOLS,
-  ...DOCUMENT_TOOLS,
-  ...GENERATION_TOOLS,
-  ...COMPARE_VERSIONS_TOOLS,
-  SEARCH_SOURCES_TOOL,
-  ...(COURTLISTENER_TOOLS as OpenAIToolSchema[]).filter(
-    ({ function: { name } }) =>
-      name === COURTLISTENER_TOOL_NAMES.findInCase ||
-      name === COURTLISTENER_TOOL_NAMES.verifyCitations,
-  ),
-  ...CITATOR_TOOLS,
-];
-
-const exactEditTool = RESOURCE_TOOLS.find(
-  (entry) => entry.function.name === "Edit",
-);
-if (!exactEditTool) throw new Error("Production Edit tool is missing");
-const exactEditProperties = exactEditTool.function.parameters.properties as
-  Record<string, unknown>;
-const deterministicOpsSchema = (
-  DETERMINISTIC_DOCX_EDIT_SCHEMA[0]?.function.parameters.properties as
-    | Record<string, unknown>
-    | undefined
-)?.ops;
-if (!deterministicOpsSchema) {
-  throw new Error("Deterministic DOCX operation schema is missing");
-}
-const TRANSFORM_DOCX_TOOL: OpenAIToolSchema = {
-  type: "function",
-  function: {
-    name: "transform_docx",
-    description:
-      "Apply deterministic mechanical text operations to a Library DOCX. Returns a new Manual or Auto Mode version with per-operation results.",
-    parameters: {
-      type: "object",
-      properties: {
-        file_path: exactEditProperties.file_path,
-        ops: deterministicOpsSchema,
-      },
-      required: ["file_path", "ops"],
-      additionalProperties: false,
-    },
-  },
-};
-
-export const ASSISTANT_TOOLS = [
-  ...ASSISTANT_TOOL_CATALOG,
-  TRANSFORM_DOCX_TOOL,
-];
 
 const trimmed = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
@@ -719,8 +679,7 @@ export type AssistantReadTurnState = Map<
     docLabel?: string;
     versionId: string;
     filename: string;
-    /** Coordinate plane for intervals. Missing means the legacy served plane. */
-    projection?: "canonical" | "drafting" | "redline";
+    projection: "canonical" | "drafting" | "redline";
     sourceChars?: number;
     deliveredChars?: number;
     // Body start of the served plane (the SECT-INDEX length when one is
@@ -921,7 +880,93 @@ export async function commitAssistantTurnVersion(params: {
         parentVersionId,
         trackedEdits: committed.edits,
       }
-    : null;
+      : null;
+}
+
+async function saveDocxEdits(params: {
+  call: NormalizedToolCall;
+  documents: DocumentStore;
+  scope: DocumentScope;
+  documentId: string;
+  source: DocumentContent;
+  bytes: Buffer;
+  edits: AssistantEdit[];
+  turnEditState?: AssistantEditTurnState;
+  turnReadState?: AssistantReadTurnState;
+  editMode: EditMode;
+  extra?: Record<string, unknown>;
+}) {
+  const committed = await commitAssistantTurnVersion({
+    documents: params.documents,
+    scope: params.scope,
+    documentId: params.documentId,
+    sourceVersionId: params.source.version.id,
+    filename: params.source.version.filename ?? params.source.filename,
+    bytes: params.bytes,
+    trackedEdits: params.edits,
+    turnEditState: params.turnEditState,
+    editMode: params.editMode,
+  });
+  if (!committed) return fail(params.call, "The active document version changed.");
+  const { version, parentVersionId, trackedEdits } = committed;
+  const saved = await params.documents.read(
+    params.scope,
+    params.documentId,
+    version.id,
+    false,
+  );
+  if (!saved) return fail(params.call, "Saved DOCX version not found.");
+  const sourceClosure = await sourceClosureForDraft(
+    params.documents,
+    params.scope,
+    await extractDocxBodyText(saved.bytes),
+    params.turnReadState,
+  );
+  const lint = await lintDocxStructure(saved.bytes).catch(() => null);
+  return documentResult(params.call, {
+    ok: true,
+    receipt: "mike-document:v1",
+    action: "revised",
+    edit_mode: params.editMode,
+    document_id: params.documentId,
+    parent_version_id: parentVersionId,
+    version_id: version.id,
+    version_number: version.version_number,
+    filename: version.filename,
+    file_type: version.file_type,
+    source_sha256: version.source_sha256,
+    change_count: trackedEdits.length,
+    resource: resourceReference.document(params.documentId, version.id),
+    download_url:
+      `/single-documents/${encodeURIComponent(params.documentId)}/file` +
+      `?version_id=${encodeURIComponent(version.id)}`,
+    annotations: trackedEdits.map((edit) => ({
+      kind: "edit",
+      edit_id: edit.id,
+      document_id: params.documentId,
+      version_id: version.id,
+      version_number: version.version_number,
+      change_id: edit.changeId,
+      del_w_id: edit.delWId,
+      ins_w_id: edit.insWId,
+      deleted_text: edit.deletedText,
+      inserted_text: edit.insertedText,
+      context_before: edit.contextBefore,
+      context_after: edit.contextAfter,
+      reason: edit.reason,
+      diff: edit.diff,
+      status: edit.status,
+    })),
+    structural_lint: lint
+      ? {
+          finding_count: lint.findings.length,
+          findings: lint.findings.slice(0, 8),
+          notes: lint.notes,
+        }
+      : undefined,
+    ...(sourceClosure.length ? { source_closure: sourceClosure } : {}),
+    ...params.extra,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -1256,175 +1301,6 @@ async function activeDocument(
 
 
 
-async function runReviseDocx(
-  call: NormalizedToolCall,
-  documents: DocumentStore,
-  scope: DocumentScope,
-  documentId: string,
-  args: Record<string, unknown>,
-  turnEditState?: AssistantEditTurnState,
-  turnReadState?: AssistantReadTurnState,
-  servedDraftingCache = new Map<string, ServedDrafting>(),
-  editMode: EditMode = "manual",
-): Promise<NormalizedToolResult> {
-  let versionId = trimmed(args.version_id);
-  const rawEdits = Array.isArray(args.edits) ? args.edits : [];
-  if (!documentId || !rawEdits.length) {
-    return fail(call, "document_id and edits are required");
-  }
-  const turnVersion = turnEditState?.get(documentId);
-  if (turnVersion) {
-    if (
-      versionId &&
-      versionId !== turnVersion.versionId &&
-      versionId !== turnVersion.parentVersionId
-    ) {
-      return fail(call, "version_id is not the active turn version");
-    }
-    versionId = turnVersion.versionId;
-  }
-  if (
-    rawEdits.length > 100 ||
-    rawEdits.some(invalidReviseEdit)
-  ) {
-    return fail(call, "edits are invalid");
-  }
-  try {
-    const source = await activeDocument(
-      documents, scope, documentId, versionId || undefined,
-    );
-    if (!source) return fail(call, "DOCX Library version not found");
-    if (source === "stale") {
-      return fail(call, "version_id is not the active version");
-    }
-    versionId = source.version.id;
-    if (source.fileType.toLowerCase() !== "docx") {
-      return fail(call, "Revision requires a DOCX Library version");
-    }
-    const sourceBytes = source.bytes;
-    const edits: EditInput[] = [];
-    for (const raw of rawEdits) {
-      const edit = raw as Record<string, unknown>;
-      if (edit.find !== edit.replace) {
-        edits.push({
-          find: edit.find as string,
-          replace: edit.replace as string,
-          context_before: (edit.context_before as string) ?? "",
-          context_after: (edit.context_after as string) ?? "",
-          reason: typeof edit.reason === "string" ? edit.reason : undefined,
-        });
-      }
-    }
-    if (!edits.length) {
-      return result(call, {
-        ok: false,
-        error: "No revision was saved",
-        edit_errors: ["Every requested edit was a no-op"],
-      });
-    }
-    const revised = await runEditDocument({
-      documents,
-      scope,
-      documentId,
-      edits,
-      editMode,
-      annotate: args.annotate === true,
-      ...(turnVersion
-        ? {
-            reuseVersion: {
-              versionId: turnVersion.versionId,
-              parentVersionId: turnVersion.parentVersionId,
-            },
-          }
-        : {}),
-    });
-    if (!revised.ok) {
-      const sourceText = await extractDocxBodyText(sourceBytes);
-      return result(call, {
-        ok: false,
-        error: "No revision was saved",
-        edit_errors: [revised.error],
-        nearest_matches: edits.map((edit) => ({
-          attempted_quote: edit.find,
-          nearest_match: findNearestSuggestion(edit.find, sourceText),
-        })),
-      });
-    }
-    const parentVersionId = turnVersion?.parentVersionId ?? versionId;
-    turnEditState?.set(documentId, {
-      versionId: revised.version_id,
-      parentVersionId,
-    });
-    const saved = await documents.read(
-      scope,
-      documentId,
-      revised.version_id,
-      false,
-    );
-    if (!saved) return fail(call, "Saved DOCX version not found");
-    const version = saved.version;
-    const sourceClosure = await sourceClosureForDraft(
-      documents,
-      scope,
-      await extractDocxBodyText(saved.bytes),
-      turnReadState,
-      servedDraftingCache,
-    );
-    // Every revision gets deterministic same-turn feedback: the
-    // structural lint runs on the freshly produced version (the
-    // determinism plan's receipt hook — not gated on annotate).
-    const lint = await lintDocxStructure(saved.bytes).catch(() => null);
-    const downloadUrl =
-      `/single-documents/${encodeURIComponent(documentId)}/file` +
-      `?version_id=${encodeURIComponent(version.id)}`;
-    return result(call, {
-      ok: true,
-      receipt: "mike-document:v1",
-      action: "revised",
-      edit_mode: editMode,
-      document_id: documentId,
-      parent_version_id: parentVersionId,
-      version_id: version.id,
-      version_number: version.version_number,
-      filename: version.filename,
-      file_type: version.file_type,
-      source_sha256: version.source_sha256,
-      change_count: revised.annotations.length,
-      comment_count: revised.comment_count,
-      // Counted on every revision so rationale coverage is a
-      // measurable variable (annotate mode forces it to zero by
-      // rejecting reason-free edits).
-      edits_without_reason: edits.filter((edit) => !edit.reason?.trim()).length,
-      structural_lint: lint
-        ? {
-            finding_count: lint.findings.length,
-            findings: lint.findings
-              .slice(0, 8)
-              .map(({ code, severity, subject, message }) => ({
-                code,
-                severity,
-                subject,
-                message,
-              })),
-            notes: lint.notes,
-          }
-        : undefined,
-      ...(sourceClosure.length ? { source_closure: sourceClosure } : {}),
-      resource: resourceReference.document(documentId, version.id),
-      download_url: downloadUrl,
-      annotations: revised.annotations,
-      ...(sourceClosure.length
-        ? {
-            next_required_action:
-              "Review source_closure and apply another document edit only if material.",
-          }
-        : {}),
-    });
-  } catch (error) {
-    return fail(call, errorText(error, "DOCX revision failed"));
-  }
-}
-
 async function readNonDocumentResource(
   call: NormalizedToolCall,
   args: Record<string, unknown>,
@@ -1447,11 +1323,16 @@ async function readNonDocumentResource(
   }
   if (resource?.kind === "job") {
     try {
-      return result(call, {
+      const payload = {
         ok: true,
         resource: requested,
         job: await getTableOfAuthoritiesJob(resource.id),
-      });
+      };
+      const event = tableOfAuthoritiesEvent(payload, call.id);
+      return {
+        ...result(call, payload),
+        ...(event ? { events: [event] } : {}),
+      };
     } catch (error) {
       return fail(
         call,
@@ -1515,64 +1396,191 @@ async function readNonDocumentResource(
   }
 }
 
-function withResource(
-  output: NormalizedToolResult,
-  resource: string,
-  transform: (payload: Record<string, unknown>) => Record<string, unknown> =
-    (payload) => payload,
-) {
-  try {
-    const payload = JSON.parse(output.content);
-    return payload && typeof payload === "object" && !Array.isArray(payload)
-      ? {
-          ...output,
-          content: JSON.stringify({
-            ...transform(payload as Record<string, unknown>),
-            resource,
-          }),
-        }
-      : output;
-  } catch {
-    return output;
-  }
+const withMetadata = (
+  output: BeaverOutcome,
+  metadata: NonNullable<BeaverOutcome["metadata"]>,
+): BeaverOutcome => ({
+  ...output,
+  metadata: { ...output.metadata, ...metadata },
+});
+
+function objectRecord(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
 }
 
-function captureA2AJ(
-  call: NormalizedToolCall,
-  execution: A2AJToolExecution,
-  options: {
-    documents?: A2AJDocument[];
-    lookups?: A2AJLocatorLookup[];
-    evidence?: LegalEvidenceTurnState;
-    resource?: string;
-  },
-) {
-  if (execution.document?.url) options.documents?.push(execution.document);
-  if (execution.lookup?.status === "found" && execution.lookup.block) {
-    options.lookups?.push(execution.lookup);
+function sourceDocumentText(passage: LegalSourcePassage) {
+  if (typeof passage.documentArtifact === "string") {
+    return passage.documentArtifact;
   }
-  for (const lookup of execution.lookups ?? []) {
-    if (lookup.status === "found" && lookup.block) options.lookups?.push(lookup);
+  const artifact = objectRecord(passage.documentArtifact);
+  return typeof artifact?.text === "string" ? artifact.text : passage.text;
+}
+
+function a2ajDocument(value: unknown): A2AJDocument | null {
+  const document = objectRecord(value);
+  return document &&
+      typeof document.citation === "string" &&
+      typeof document.dataset === "string" &&
+      typeof document.text === "string" &&
+      (document.language === "en" || document.language === "fr")
+    ? value as A2AJDocument
+    : null;
+}
+
+function a2ajChildLookup(passage: LegalSourcePassage) {
+  const native = objectRecord(passage.native);
+  const lookup = objectRecord(native?.lookup) as A2AJLocatorLookup | null;
+  const block = objectRecord(native?.block) as A2AJLocatorLookup["block"];
+  if (!lookup || !block || lookup.status !== "found") return null;
+  return {
+    ...lookup,
+    requested: {
+      kind: block.kind as A2AJLocatorLookup["requested"]["kind"],
+      locator: block.label,
+      label: block.label,
+    },
+    matches: [block.label],
+    block,
+    before: [],
+    after: [],
+  } satisfies A2AJLocatorLookup;
+}
+
+function legalSourceEvidence(passage: LegalSourcePassage): {
+  receipt?: LegalEvidenceReceipt;
+  document?: A2AJDocument;
+  lookup?: A2AJLocatorLookup;
+} {
+  if (passage.source.provider === "a2aj") {
+    const document = a2ajDocument(passage.native);
+    if (document) {
+      return {
+        document,
+      };
+    }
+    const lookup = a2ajChildLookup(passage);
+    const receipt = lookup && createA2AJLookupEvidence(
+      lookup,
+      passage.source.kind === "legislation" ? "legislation" : "case",
+    );
+    if (lookup && receipt) return { lookup, receipt };
   }
-  if (options.evidence) {
-    registerLegalEvidence(options.evidence, execution.evidence, {
-      document: execution.document,
-      lookup: execution.lookup,
-    });
-    for (let index = 0; index < (execution.evidences?.length ?? 0); index += 1) {
-      registerLegalEvidence(options.evidence, execution.evidences?.[index], {
-        lookup: execution.lookups?.[index],
-      });
+  if (passage.role === "document" && passage.source.provider !== "hansard") {
+    return {};
+  }
+  if (passage.source.provider === "journal") {
+    const base = {
+      citation: passage.source.citation ?? passage.source.id,
+      name: passage.source.title ?? null,
+      date: passage.source.date ?? null,
+      url: passage.source.url ?? null,
+      text: passage.text,
+      articleId: passage.source.id,
+      language: passage.source.language,
+    };
+    return {
+      receipt: createPublicJournalPassageEvidence({
+        ...base,
+        locatorKind: passage.locator.requested?.kind ?? "paragraph",
+        locatorLabel: passage.locator.label,
+      }),
+    };
+  }
+  const sourceClass = passage.source.kind === "legislation"
+    ? "legislation"
+    : passage.source.kind === "case"
+      ? "case"
+      : "commentary";
+  const jurisdiction = passage.source.provider === "courtlistener" ||
+      passage.source.provider === "govinfo"
+    ? "US"
+    : passage.source.provider === "tna" ||
+        passage.source.provider === "govuk-et"
+      ? "UK"
+      : "CA-ON";
+  return {
+    receipt: createBenchmarkEvidence({
+      jurisdiction,
+      sourceClass,
+      stableSourceId: [
+        passage.source.provider,
+        passage.source.id,
+        passage.source.part ?? "",
+      ].join(":"),
+      sourceText: sourceDocumentText(passage),
+      spanText: passage.text,
+      citation: passage.source.citation ?? passage.source.id,
+      name: passage.source.title,
+      dataset: passage.source.collection ?? passage.source.provider,
+      language: passage.source.language,
+      version: passage.source.date,
+      externalUrl: passage.source.url,
+      locatorKind: passage.locator.requested?.kind ?? "document",
+      locatorLabel: passage.locator.label,
+    }),
+  };
+}
+
+function sourceReference(
+  provider: string,
+  sourceId: string,
+): LegalSourceReference | null {
+  if (provider === "a2aj") {
+    try {
+      const identity = JSON.parse(sourceId) as unknown;
+      if (
+        !Array.isArray(identity) ||
+        typeof identity[0] !== "string" ||
+        (identity[1] !== "cases" && identity[1] !== "laws")
+      ) return null;
+      return {
+        provider,
+        id: identity[0],
+        citation: identity[0],
+        kind: identity[1] === "laws" ? "legislation" : "case",
+        collection: typeof identity[2] === "string" && identity[2]
+          ? identity[2]
+          : null,
+      };
+    } catch {
+      return null;
     }
   }
-  const output = {
-    ...result(call, execution.payload),
-    evidenceRefs: receiptEvidenceRefs([
-      execution.evidence,
-      ...(execution.evidences ?? []),
-    ]),
-  };
-  return options.resource ? withResource(output, options.resource) : output;
+  if (provider === "courtlistener-opinion") {
+    try {
+      const identity = JSON.parse(sourceId) as unknown;
+      if (
+        !Array.isArray(identity) ||
+        !Number.isSafeInteger(Number(identity[0])) ||
+        !Number.isSafeInteger(Number(identity[1]))
+      ) return null;
+      return {
+        provider: "courtlistener",
+        id: String(identity[0]),
+        part: String(identity[1]),
+        kind: "case",
+      };
+    } catch {
+      return null;
+    }
+  }
+  if (provider === "courtlistener") {
+    return Number.isSafeInteger(Number(sourceId)) && Number(sourceId) > 0
+      ? { provider, id: sourceId, kind: "case" }
+      : null;
+  }
+  if (["tna", "govuk-et", "govinfo"].includes(provider)) {
+    return { provider, id: sourceId, kind: "case" };
+  }
+  if (provider === "journal") {
+    return { provider, id: sourceId, kind: "journal" };
+  }
+  if (provider === "hansard") {
+    return { provider, id: sourceId, kind: "hansard" };
+  }
+  return null;
 }
 
 async function readLegalSourceResource(
@@ -1583,10 +1591,10 @@ async function readLegalSourceResource(
     a2ajDocuments?: A2AJDocument[];
     a2ajLookups?: A2AJLocatorLookup[];
     courtlistener?: CourtlistenerToolState;
-    publicLegal: PublicLegalSourceState;
     evidence?: LegalEvidenceTurnState;
+    signal?: AbortSignal;
   },
-): Promise<NormalizedToolResult | null> {
+): Promise<BeaverOutcome | null> {
   if (call.name !== "Read") return null;
   const resource = parseResourceReference(trimmed(args.file_path));
   if (resource?.kind !== "source" || resource.provider === "pdf") return null;
@@ -1595,183 +1603,247 @@ async function readLegalSourceResource(
   if (Boolean(locator) !== Boolean(locatorKind)) {
     return fail(call, "locator_kind and locator are required together.");
   }
-  if (resource.provider === "a2aj") {
-    let identity: unknown;
-    try {
-      identity = JSON.parse(resource.sourceId);
-    } catch {
-      return fail(call, "Invalid A2AJ resource.");
-    }
-    if (
-      !Array.isArray(identity) ||
-      typeof identity[0] !== "string" ||
-      !["cases", "laws"].includes(String(identity[1]))
-    ) {
-      return fail(call, "Invalid A2AJ resource.");
-    }
-    const execution = await executeA2AJTool(
-      locator ? A2AJ_TOOL_NAMES.lookup : A2AJ_TOOL_NAMES.fetch,
-      {
-        citation: identity[0],
-        doc_type: identity[1],
-        ...(locator
-          ? {
-              locator_type: locatorKind,
-              locator,
-              end_locator: args.end_locator,
-              context_blocks: args.context_blocks,
-              references: args.references,
-            }
-          : {}),
-      },
-    );
-    return execution
-      ? captureA2AJ(call, execution, {
-          documents: options.a2ajDocuments,
-          lookups: options.a2ajLookups,
-          evidence: options.evidence,
-          resource: trimmed(args.file_path),
-        })
-      : fail(call, "A2AJ resource is unavailable.");
+  const allowedLocators = new Set(["paragraph", "section", "page", "footnote"]);
+  if (locator && !allowedLocators.has(locatorKind)) {
+    return fail(call, "Unsupported legal-source locator kind.");
   }
-  if (resource.provider === "journal") {
-    const execution = await executePublicLegalSourceTool(
-      locator
-        ? PUBLIC_LEGAL_SOURCE_TOOL_NAMES.lookup
-        : PUBLIC_LEGAL_SOURCE_TOOL_NAMES.fetch,
-      {
-        provider: "journal",
-        identifier: resource.sourceId,
-        ...(locator
-          ? {
-              locator_type: locatorKind,
-              locator,
-              context_blocks: args.context_blocks,
-            }
-          : {}),
-      },
-      options.publicLegal,
-      options.userId,
-    );
-    if (!execution) return fail(call, "Journal resource is unavailable.");
-    for (const evidence of execution.evidences ?? []) {
-      if (options.evidence) registerLegalEvidence(options.evidence, evidence);
-    }
-    return withResource({
-      ...result(call, execution.payload),
-      evidenceRefs: publicLegalEvidenceRefs(execution.payload),
-    }, trimmed(args.file_path));
+  const source = sourceReference(resource.provider, resource.sourceId);
+  if (!source) return fail(call, `Invalid ${resource.provider} resource.`);
+  const references = args.references === "inbound" ||
+      args.references === "outbound" || args.references === "both"
+    ? args.references
+    : "none";
+  if (args.references && !["none", "inbound", "outbound", "both"].includes(String(args.references))) {
+    return fail(call, "references must be none, inbound, outbound, or both.");
   }
-  if (resource.provider === "hansard") {
-    const payload = executeHansardTool("hansard_fetch", { id: resource.sourceId });
-    if (!payload) return fail(call, "Hansard resource is unavailable.");
-    const intervention =
-      payload.intervention && typeof payload.intervention === "object"
-        ? payload.intervention as Record<string, unknown>
-        : null;
-    const body = trimmed(intervention?.text);
-    let evidence: LegalEvidenceReceipt | undefined;
-    if (intervention && body) {
-      evidence = createBenchmarkEvidence({
-        jurisdiction: trimmed(intervention.jurisdiction) || "CA-ON",
-        sourceClass: "commentary",
-        stableSourceId: `hansard:${resource.sourceId}`,
-        sourceText: body,
-        spanText: body,
-        citation: [
-          "Ontario Hansard",
-          trimmed(intervention.date),
-          trimmed(intervention.speaker),
-        ].filter(Boolean).join(", "),
-        name: trimmed(intervention.speaker) || "Ontario Hansard",
-        dataset: "a2aj-hansard",
-        version: trimmed(intervention.date) || null,
-        externalUrl: trimmed(intervention.sourceUrl) || null,
-        locatorKind: "document",
-        locatorLabel: resource.sourceId,
-      });
-      if (options.evidence) registerLegalEvidence(options.evidence, evidence);
-    }
-    return withResource({
-      ...result(call, {
-        ...payload,
-        ...(evidence ? { evidence_id: evidence.evidence_id } : {}),
-      }),
-      evidenceRefs: receiptEvidenceRefs([evidence]),
-    }, trimmed(args.file_path));
+  if (references !== "none" && source.provider !== "a2aj") {
+    return fail(call, "references is available only for A2AJ statutory sections.");
   }
   if (
-    resource.provider === "courtlistener" ||
-    resource.provider === "courtlistener-opinion"
+    references !== "none" &&
+    (source.kind !== "legislation" || locatorKind !== "section")
   ) {
-    let clusterId = Number(resource.sourceId);
-    let opinionId: number | undefined;
-    if (resource.provider === "courtlistener-opinion") {
-      try {
-        const identity = JSON.parse(resource.sourceId);
-        clusterId = Number(identity[0]);
-        opinionId = Number(identity[1]);
-      } catch {
-        return fail(call, "Invalid CourtListener opinion resource.");
-      }
-    }
-    if (!Number.isSafeInteger(clusterId) || clusterId <= 0) {
-      return fail(call, "Invalid CourtListener resource.");
-    }
-    const state = options.courtlistener ?? { casesByClusterId: new Map() };
-    const fetched = await runLocalCourtlistenerTool({
-      id: `${call.id}:fetch`,
-      name: COURTLISTENER_TOOL_NAMES.getCases,
-      input: { clusterIds: [clusterId] },
-    }, state, options.userId, options.evidence);
-    if (!fetched || !state.casesByClusterId.has(clusterId)) {
-      return fetched
-        ? withResource({ ...fetched, tool_use_id: call.id }, trimmed(args.file_path))
-        : fail(call, "CourtListener resource is unavailable.");
-    }
-    const output = await runLocalCourtlistenerTool({
-      id: call.id,
-      name: locator
-        ? COURTLISTENER_TOOL_NAMES.lookupCaseLocator
-        : COURTLISTENER_TOOL_NAMES.readCase,
-      input: {
-        clusterId,
-        ...(opinionId ? { opinionId } : {}),
-        ...(locator
-          ? {
-              locator_type: locatorKind,
-              locator,
-              context_blocks: args.context_blocks,
-            }
-          : {}),
-      },
-    }, state, options.userId, options.evidence);
-    if (!output) return fail(call, "CourtListener resource is unavailable.");
-    return withResource(output, trimmed(args.file_path), (payload) => ({
-      ...payload,
-      ...(Array.isArray(payload.opinions)
+    return fail(call, "references is available only for statutory sections.");
+  }
+  if (references !== "none" && !A2AJ_REFERENCE_NEIGHBORHOOD_ENABLED) {
+    return fail(call, "Reference expansion is unavailable in this runtime.");
+  }
+  try {
+    const read = await readLegalSourcePassage({
+      source,
+      ...(locator
         ? {
-            opinions: payload.opinions.map((value) => {
-              if (!value || typeof value !== "object" || Array.isArray(value)) {
-                return value;
-              }
-              const row = value as Record<string, unknown>;
-              const id = Number(row.opinion_id);
-              return Number.isSafeInteger(id)
-                ? {
-                    ...row,
-                    resource: resourceReference.source(
-                      "courtlistener-opinion",
-                      JSON.stringify([clusterId, id]),
-                    ),
-                  }
-                : row;
-            }),
+            locator: {
+              kind: locatorKind as "paragraph" | "section" | "page" | "footnote",
+              value: locator,
+              ...(trimmed(args.end_locator)
+                ? { endValue: trimmed(args.end_locator) }
+                : {}),
+            },
+            contextBlocks: Math.min(
+              2,
+              Math.max(0, Math.trunc(Number(args.context_blocks) || 0)),
+            ),
           }
         : {}),
+      signal: options.signal,
+    });
+    if (read.status !== "found") {
+      return fail(
+        call,
+        read.status === "unsupported"
+          ? "Legal source provider is unavailable."
+          : "The requested legal source passage was not found.",
+      );
+    }
+
+    const registered = read.values.map((passage) => ({
+      passage,
+      ...legalSourceEvidence(passage),
     }));
+    const fallbacks: unknown[] = [];
+    const capturedPublic = new Set<string>();
+    const capturedCourt = new Set<string>();
+    for (const item of registered) {
+      if (item.document) {
+        if (!options.a2ajDocuments?.some(
+          (candidate) => candidate.citation === item.document!.citation &&
+            candidate.dataset === item.document!.dataset &&
+            candidate.language === item.document!.language,
+        )) options.a2ajDocuments?.push(item.document);
+      }
+      if (item.lookup) options.a2ajLookups?.push(item.lookup);
+      const native = objectRecord(item.passage.native);
+      const nativeDocument = objectRecord(native?.document);
+      if (
+        nativeDocument &&
+        ["tna", "govuk-et", "govinfo"].includes(item.passage.source.provider)
+      ) {
+        const document = nativeDocument as PublicLegalDocument;
+        const key = `${document.provider}:${document.identity}`;
+        if (!capturedPublic.has(key)) {
+          capturedPublic.add(key);
+          fallbacks.push(...await publicLegalPdfFallbacks(document, options.userId));
+        }
+      }
+      const courtCase = objectRecord(native?.case);
+      if (courtCase && item.passage.source.provider === "courtlistener") {
+        const key = item.passage.source.id;
+        if (!capturedCourt.has(key)) {
+          capturedCourt.add(key);
+          const cached = captureCourtlistenerCase(
+            options.courtlistener ?? { casesByClusterId: new Map() },
+            courtCase,
+          );
+          const fallback = cached && await courtlistenerPdfFallback(
+            cached,
+            options.userId,
+          );
+          if (fallback) fallbacks.push(fallback);
+        }
+      }
+      if (options.evidence && item.receipt) {
+        registerLegalEvidence(options.evidence, item.receipt, {
+          document: item.document,
+          lookup: item.lookup,
+        });
+      }
+    }
+
+    let referenceNeighborhood: Record<string, unknown> | undefined;
+    if (references !== "none") {
+      const seed = registered.map(({ passage }) => {
+        const native = objectRecord(passage.native);
+        return objectRecord(native?.lookup) as A2AJLocatorLookup | null;
+      }).find((value): value is A2AJLocatorLookup => Boolean(value));
+      if (seed) {
+        const related = await readA2AJReferenceNeighborhood(
+          seed,
+          references as A2AJReferenceDirection,
+          options.signal,
+        );
+        const sections = related.lookups.map((lookup) => {
+          const evidence = a2ajLookupEvidenceBlocks(lookup, "legislation");
+          for (const item of evidence) {
+            options.a2ajLookups?.push(item.lookup);
+            if (options.evidence) {
+              registerLegalEvidence(options.evidence, item.receipt, {
+                lookup: item.lookup,
+              });
+            }
+            registered.push({
+              passage: {
+                source,
+                locator: {
+                  requested: {
+                    kind: item.lookup.requested.kind,
+                    value: item.lookup.requested.locator,
+                  },
+                  label: item.lookup.requested.label,
+                },
+                role: "context",
+                text: item.receipt.span_text ?? "",
+                textSha256:
+                  item.receipt.exact_span_sha256 ?? sha256(item.receipt.span_text ?? ""),
+                documentSha256: item.receipt.source_sha256,
+                revision: item.receipt.source_sha256,
+                native: { lookup: item.lookup, block: item.lookup.block },
+              },
+              receipt: item.receipt,
+              lookup: item.lookup,
+            });
+          }
+          return {
+            label: lookup.block?.label,
+            text: lookup.block?.text,
+            evidence_ids: evidence.map(({ receipt }) => receipt.evidence_id),
+          };
+        });
+        referenceNeighborhood = {
+          direction: references,
+          depth: 1,
+          returned: related.lookups.length,
+          truncated: related.truncated,
+          limit_reason: related.limitReason,
+          omitted: related.omitted,
+          failures: related.failures,
+          sections,
+        };
+      }
+    }
+
+    const evidences = [...new Map(
+      registered.flatMap(({ receipt }) =>
+        receipt ? [[receipt.evidence_id, receipt] as const] : [],
+      ),
+    ).values()];
+    const passages = registered.slice(0, read.values.length).map(
+      ({ passage, receipt }) => ({
+        role: passage.role,
+        kind: passage.locator.requested?.kind ?? "document",
+        locator: passage.locator.label,
+        text: passage.text,
+        text_sha256: passage.textSha256,
+        ...(receipt ? { evidence_id: receipt.evidence_id } : {}),
+        ...(passage.source.provider === "courtlistener" && passage.source.part
+          ? {
+              resource: resourceReference.source(
+                "courtlistener-opinion",
+                JSON.stringify([passage.source.id, Number(passage.source.part)]),
+              ),
+            }
+          : {}),
+      }),
+    );
+    const payload = {
+      ok: true,
+      source: "Legal source",
+      provider: source.provider,
+      identifier: source.id,
+      title: read.values[0].source.title,
+      citation: read.values[0].source.citation,
+      resource: trimmed(args.file_path),
+      requested: locator
+        ? {
+            kind: locatorKind,
+            locator,
+            ...(trimmed(args.end_locator)
+              ? { end_locator: trimmed(args.end_locator) }
+              : {}),
+          }
+        : null,
+      passage_count: passages.length,
+      passages,
+      evidence_ids: passages.flatMap(({ evidence_id }) =>
+        evidence_id ? [evidence_id] : [],
+      ),
+      ...(passages.some(({ role, evidence_id }) =>
+          role === "document" && !evidence_id
+        )
+        ? {
+            next_required_action:
+              "This document read is navigation text, not citable evidence. Re-read the needed native locator before relying on it.",
+          }
+        : {}),
+      ...(fallbacks.length ? { pdf_fallbacks: fallbacks } : {}),
+      ...(referenceNeighborhood
+        ? { reference_neighborhood: referenceNeighborhood }
+        : {}),
+    };
+    return {
+      ...withMetadata(result(call, payload), {
+        evidenceRefs: receiptEvidenceRefs(evidences),
+      }),
+      evidence: evidences,
+    };
+  } catch (error) {
+    return fail(
+      call,
+      error instanceof Error
+        ? error.message
+        : "Legal source read failed.",
+    );
   }
-  return fail(call, `Unknown source provider: ${resource.provider}`);
 }
 
 async function runCodingShapeCall(
@@ -1790,7 +1862,8 @@ async function runCodingShapeCall(
   localPdfEvidenceHandles?: Set<string>,
   workflows: WorkflowStore = new Map(),
   editMode: EditMode = "manual",
-): Promise<NormalizedToolResult> {
+): Promise<BeaverOutcome> {
+  servedDraftingCache ??= new Map();
   const direct = await readNonDocumentResource(
     call,
     args,
@@ -2053,12 +2126,19 @@ async function runCodingShapeCall(
             artifactSession,
           );
           localPdfEvidenceHandles?.add(handle);
+          const evidence = pdfLegalEvidence(
+            meta.id,
+            file.version.id,
+            file.filename,
+            lookup,
+          );
           return {
-            ...result(call, {
+            ...withMetadata(result(call, {
               ...compactPdfLookup(file.filename, lookup),
+              evidence_ids: evidence.map(({ evidence_id }) => evidence_id),
               resource: codingPath(meta, file.version.id),
-            }),
-            evidenceRefs: pdfEvidenceRefs(file.filename, lookup),
+            }), { evidenceRefs: pdfEvidenceRefs(file.filename, lookup) }),
+            evidence,
           };
         }
         await parseLocalPdfOnDemand({
@@ -2078,12 +2158,19 @@ async function runCodingShapeCall(
         if (lookup.status === "found") {
           localPdfEvidenceHandles?.add(lookup.evidence.handle);
         }
+        const evidence = pdfLegalEvidence(
+          meta.id,
+          file.version.id,
+          file.filename,
+          lookup,
+        );
         return {
-          ...result(call, {
+          ...withMetadata(result(call, {
             ...compactPdfLookup(file.filename, lookup),
+            evidence_ids: evidence.map(({ evidence_id }) => evidence_id),
             resource: codingPath(meta, file.version.id),
-          }),
-          evidenceRefs: pdfEvidenceRefs(file.filename, lookup),
+          }), { evidenceRefs: pdfEvidenceRefs(file.filename, lookup) }),
+          evidence,
         };
       } catch (error) {
         return fail(call, pdfEvidenceError(error));
@@ -2216,9 +2303,10 @@ async function runCodingShapeCall(
         line.span ? [line.span] : [],
       );
       return {
-        ...result(call, content),
-        evidenceSegments: workingSetEvidenceSegments(workingSet, exposedRanges),
-        evidenceRefs: workingSetEvidenceRefs(workingSet, exposedRanges),
+        ...withMetadata(result(call, content), {
+          evidenceSegments: workingSetEvidenceSegments(workingSet, exposedRanges),
+          evidenceRefs: workingSetEvidenceRefs(workingSet, exposedRanges),
+        }),
       };
     }
     if (
@@ -2257,7 +2345,7 @@ async function runCodingShapeCall(
     const starts = sourceLineStarts(document.text, lines);
     // Exposure accounting (echo plane): every successful Read records its
     // served spans into turnReadState — the state splitReadExposure consults
-    // at the generate_docx coverage gate. Without this the coding family
+    // at the Write coverage gate. Without this the coding family
     // served body text while the gate saw an empty map, so the echo refused
     // every first draft with an all-documents "never opened" list regardless
     // of what had actually been read. Grep hits stay non-exposure by
@@ -2569,7 +2657,7 @@ async function runCodingShapeCall(
     );
   }
 
-  if (call.name === "Edit" || call.name === "transform_docx") {
+  if (call.name === "Edit" || call.name === "edit_docx_advanced") {
     const requested = trimmed(args.file_path);
     if (resolveWorkingSet(requested)) {
       return result(
@@ -2597,43 +2685,17 @@ async function runCodingShapeCall(
     ) {
       return fail(call, "Edit requires the document's current version resource.");
     }
-    if (Array.isArray(args.ops)) {
-      if (
-        Object.prototype.hasOwnProperty.call(args, "old_string") ||
-        Object.prototype.hasOwnProperty.call(args, "new_string")
-      ) {
-        return result(
-          call,
-          "Pass either ops or old_string/new_string, not both.",
-        );
-      }
-      const [applied] = await runAssistantTools(
-        scope.userId,
-        [
-          {
-            id: `${call.id}-deterministic`,
-            name: INTERNAL_DETERMINISTIC_EDIT,
-            input: { document_id: meta.id, ops: args.ops },
-          },
-        ],
-        {
-          userEmail: scope.userEmail,
-          documents,
-          library,
-          projects,
-          allowedDocumentIds,
-          matterId,
-          edits: turnEditState,
-          reads: turnReadState,
-          editMode,
-        },
-      );
-      return {
-        ...result(call, applied.content),
-        status: applied.status,
-        terminal: applied.terminal,
-        mutationReceipt: applied.mutationReceipt ?? applied.content,
-      };
+    if (call.name === "edit_docx_advanced") {
+      return runAdvancedDocxEdit({
+        call,
+        args,
+        documents,
+        scope,
+        documentId: meta.id,
+        turnEditState,
+        turnReadState,
+        editMode,
+      });
     }
     const oldString =
       typeof args.old_string === "string" ? args.old_string : "";
@@ -2643,205 +2705,84 @@ async function runCodingShapeCall(
     if (oldString === newString) {
       return result(call, "old_string and new_string must be different");
     }
-    const sectionArg = trimmed(args.section);
-    if (args.replace_all === true) {
-      if (sectionArg) {
-        return result(
-          call,
-          "replace_all with section is not supported yet; run Edit once per occurrence, or replace_all across the whole file.",
-        );
-      }
-      // Global find/replace belongs to the deterministic text-ops engine.
-      const [applied] = await runAssistantTools(
-        scope.userId,
-        [
-          {
-            id: `${call.id}-textops`,
-            name: INTERNAL_DETERMINISTIC_EDIT,
-            input: {
-              document_id: meta.id,
-              ops: [
-                {
-                  op: "replace_text",
-                  find: oldString,
-                  replace: newString,
-                  match_case: true,
-                  scope: { kind: "whole_document" },
-                },
-              ],
-            },
-          },
-        ],
-        {
-          userEmail: scope.userEmail,
-          documents,
-          library,
-          projects,
-          allowedDocumentIds,
-          matterId,
-          edits: turnEditState,
-          reads: turnReadState,
-          editMode,
-        },
-      );
-      const receiptText = applied.mutationReceipt ?? applied.content;
-      try {
-        const payload = JSON.parse(receiptText) as {
-          ok?: boolean;
-          action?: string;
-          error?: string;
-          change_count?: number;
-          edit_mode?: EditMode;
-          ops?: Array<{ replacements?: number }>;
-          source_closure?: unknown[];
-        };
-        if (payload.ok && payload.action === "no_changes") {
-          return result(
-            call,
-            `No exact matches for old_string were found in ${meta.filename}; no change was made.`,
-          );
-        }
-        if (payload.ok) {
-          const count =
-            payload.ops?.[0]?.replacements ?? payload.change_count ?? 0;
-          return {
-            ...result(
-              call,
-              `Updated ${meta.filename}: ${count} replacement(s) ${
-                payload.edit_mode === "auto"
-                  ? "applied in Auto Mode."
-                  : "saved for review in Manual Mode."
-              }` +
-                (payload.source_closure?.length
-                  ? `\nSource closure: ${JSON.stringify(payload.source_closure)}`
-                  : ""),
-            ),
-            mutationReceipt: receiptText,
-          };
-        }
-        return result(
-          call,
-          `replace_all made no change: ${payload.error ?? applied.content}`,
-        );
-      } catch {
-        return result(call, applied.content);
-      }
+    const file = await activeDocument(documents, scope, meta.id);
+    if (!file) return fail(call, "DOCX Library version not found");
+    if (file === "stale") return fail(call, "The active document version changed.");
+    if (file.fileType.toLowerCase() !== "docx") {
+      return fail(call, "Edit only supports .docx files.");
     }
-    // Section scope: uniqueness is required only within the named section;
-    // the surrounding document text becomes the disambiguating context the
-    // revise engine anchors on.
-    let edit: {
-      find: string;
-      replace: string;
-      context_before?: string;
-      context_after?: string;
-    } = {
+    if (args.replace_all === true) {
+      const applied = await applyTextOpsToDocx(file.bytes, [{
+        op: "replace_text",
+        find: oldString,
+        replace: newString,
+        match_case: true,
+        scope: { kind: "whole_document" },
+      }]);
+      if (!applied.replacementCount) {
+        return result(call, {
+          ok: true,
+          action: "no_changes",
+          document_id: meta.id,
+          version_id: file.version.id,
+          change_count: 0,
+        });
+      }
+      return saveDocxEdits({
+        call,
+        documents,
+        scope,
+        documentId: meta.id,
+        source: file,
+        bytes: applied.bytes,
+        edits: applied.edits,
+        turnEditState,
+        turnReadState,
+        editMode,
+        extra: {
+          ops: applied.reports,
+          ...(applied.editErrors.length ? { edit_errors: applied.editErrors } : {}),
+        },
+      });
+    }
+    const applied = await applyTrackedEdits(file.bytes, [{
       find: oldString,
       replace: newString,
       context_before: "",
       context_after: "",
-    };
-    if (sectionArg) {
-      const document = await extractDocument(documents, scope, meta.id);
-      if (!document) {
-        return result(call, `File could not be read: ${requested}`);
-      }
-      const skeleton = await documentStructure(document.text, meta.id, {
-        tableCells: document.tableCells,
+    }], { author: "Beaver" });
+    if (!applied.changes.length) {
+      const sourceText = await extractDocxBodyText(file.bytes);
+      return result(call, {
+        ok: false,
+        error: "No revision was saved",
+        edit_errors: applied.errors.map(({ index, reason }) =>
+          `edit ${index + 1}: ${reason}`),
+        nearest_match: findNearestSuggestion(oldString, sourceText),
       });
-      const lookup = readSection(skeleton, sectionArg);
-      if (lookup.status !== "found" || !lookup.block) {
-        return result(
-          call,
-          `Section '${sectionArg}' not found (${lookup.status}` +
-            (lookup.matches.length
-              ? `; candidates: ${lookup.matches.join(", ")}`
-              : "") +
-            ").",
-        );
-      }
-      const occurrences: number[] = [];
-      for (
-        let at = lookup.block.text.indexOf(oldString);
-        at !== -1 && occurrences.length < 4;
-        at = lookup.block.text.indexOf(oldString, at + 1)
-      ) {
-        occurrences.push(at);
-      }
-      if (!occurrences.length) {
-        return result(
-          call,
-          `old_string was not found within section ${lookup.block.label}. Read the section and match its text exactly.`,
-        );
-      }
-      if (occurrences.length > 1) {
-        return result(
-          call,
-          `old_string appears ${occurrences.length} times within section ${lookup.block.label}; enlarge it with surrounding context.`,
-        );
-      }
-      const absolute = lookup.block.start + occurrences[0];
-      edit = {
-        find: oldString,
-        replace: newString,
-        context_before: document.text.slice(
-          Math.max(0, absolute - 60),
-          absolute,
-        ),
-        context_after: document.text.slice(
-          absolute + oldString.length,
-          absolute + oldString.length + 60,
-        ),
-      };
     }
-    // Same pinning, receipts, and lint hook as the public revise tool; the
-    // active version is resolved inside — Edit's contract has no version id.
-    const revised = await runReviseDocx(
-      { id: `${call.id}-revise`, name: "Edit", input: {} },
+    return saveDocxEdits({
+      call,
       documents,
       scope,
-      meta.id,
-      { edits: [edit] },
+      documentId: meta.id,
+      source: file,
+      bytes: applied.bytes,
+      edits: applied.changes.map((change) => ({
+        changeId: change.id,
+        delWId: change.delId,
+        insWId: change.insId,
+        deletedText: change.deletedText,
+        insertedText: change.insertedText,
+        contextBefore: change.contextBefore ?? "",
+        contextAfter: change.contextAfter ?? "",
+        reason: change.reason,
+        diff: change.diff,
+      })),
       turnEditState,
       turnReadState,
-      servedDraftingCache,
       editMode,
-    );
-    const receiptText = revised.mutationReceipt ?? revised.content;
-    try {
-      const payload = JSON.parse(receiptText) as {
-        ok?: boolean;
-        error?: string;
-        edit_errors?: string[];
-        source_closure?: unknown[];
-        edit_mode?: EditMode;
-      };
-      if (payload.ok) {
-        return {
-          ...result(
-            call,
-            `Updated ${meta.filename}: 1 change ${
-              payload.edit_mode === "auto"
-                ? "applied in Auto Mode."
-                : "saved for review in Manual Mode."
-            }` +
-              (payload.source_closure?.length
-                ? `\nSource closure: ${JSON.stringify(payload.source_closure)}`
-                : ""),
-          ),
-          mutationReceipt: receiptText,
-        };
-      }
-      const reasons = payload.edit_errors?.length
-        ? payload.edit_errors
-        : [payload.error ?? "unknown error"];
-      return result(
-        call,
-        `The edit could not be applied — no change was made.\n${reasons.join("\n")}\nProvide a larger old_string with more surrounding context.`,
-      );
-    } catch {
-      return result(call, revised.content);
-    }
+    });
   }
 
   // Grep
@@ -2942,12 +2883,13 @@ async function runCodingShapeCall(
       line.span ? [line.span] : [],
     );
     return {
-      ...result(call, content),
-      evidenceSegments: workingSetEvidenceSegments(
-        virtualTarget,
-        exposedRanges,
-      ),
-      evidenceRefs: workingSetEvidenceRefs(virtualTarget, exposedRanges),
+      ...withMetadata(result(call, content), {
+        evidenceSegments: workingSetEvidenceSegments(
+          virtualTarget,
+          exposedRanges,
+        ),
+        evidenceRefs: workingSetEvidenceRefs(virtualTarget, exposedRanges),
+      }),
     };
   }
   if (
@@ -3404,15 +3346,14 @@ async function runCodingShapeCall(
     kept,
   );
   const visibleHints = hardReferenceHints.filter((hint) =>
-    output.content.includes(hint.rendered),
+    toolResultText(output.result).includes(hint.rendered),
   );
   return visibleHints.length
-    ? {
-        ...output,
+    ? withMetadata(output, {
         retrievalHints: visibleHints.map(({ rendered: _, ...hint }) =>
           hint,
         ),
-      }
+      })
     : output;
 }
 
@@ -3581,15 +3522,31 @@ function continuationHint(call: NormalizedToolCall): string {
   return `Retry ${call.name} with narrower inputs.`;
 }
 
+export type AssistantToolEvent = {
+  type: "doc_created" | "doc_edited";
+  filename: string;
+  document_id: string;
+  version_id: string;
+  version_number: number | null;
+  download_url: string;
+  resource: string;
+  edit_mode?: EditMode;
+  annotations?: unknown[];
+} | LocalAutomationEvent;
+
 function result(
   call: NormalizedToolCall,
   content: unknown,
-): NormalizedToolResult {
+): BeaverOutcome {
+  const visibleContent = hideLegalSourceUrls(call.name, content);
   const serialized =
-    typeof content === "string" ? content : JSON.stringify(content);
+    typeof visibleContent === "string"
+      ? visibleContent
+      : JSON.stringify(visibleContent);
   const objectContent =
-    content && typeof content === "object" && !Array.isArray(content)
-      ? (content as Record<string, unknown>)
+    visibleContent && typeof visibleContent === "object" &&
+      !Array.isArray(visibleContent)
+      ? (visibleContent as Record<string, unknown>)
       : null;
   const reportedStatus =
     typeof objectContent?.status === "string" &&
@@ -3626,18 +3583,15 @@ function result(
               ? "not_found"
               : "ok");
   if (serialized.length <= MAX_TOOL_RESULT_CHARS) {
-    return { tool_use_id: call.id, content: serialized, status };
+    return {
+      result: toolText(serialized, status === "error"),
+      metadata: { status },
+    };
   }
   const ok =
-    content && typeof content === "object" && !Array.isArray(content)
-      ? (content as Record<string, unknown>).ok
-      : undefined;
-  const mutationReceipt =
-    content &&
-    typeof content === "object" &&
-    !Array.isArray(content) &&
-    (content as Record<string, unknown>).receipt === "mike-document:v1"
-      ? serialized
+    visibleContent && typeof visibleContent === "object" &&
+        !Array.isArray(visibleContent)
+      ? (visibleContent as Record<string, unknown>).ok
       : undefined;
   const envelope = (keep: number) => {
     const headLength = Math.ceil(keep * 0.7);
@@ -3645,7 +3599,7 @@ function result(
     return JSON.stringify({
       ...(typeof ok === "boolean" ? { ok } : {}),
       truncated: true,
-      original_format: typeof content === "string" ? "text" : "json",
+      original_format: typeof visibleContent === "string" ? "text" : "json",
       omitted_characters: serialized.length - keep,
       preview: {
         head: serialized.slice(0, headLength),
@@ -3670,44 +3624,89 @@ function result(
     }
   }
   return {
-    tool_use_id: call.id,
-    content:
+    result: toolText(
       shortened.length <= MAX_TOOL_RESULT_CHARS
         ? shortened
         : JSON.stringify({ truncated: true }),
-    status: "truncated",
-    ...(mutationReceipt ? { mutationReceipt } : {}),
+    ),
+    metadata: { status: "truncated" },
   };
 }
+
+function documentResult(
+  call: NormalizedToolCall,
+  content: Record<string, unknown>,
+): BeaverOutcome {
+  const base = result(call, content);
+  const action = content.action;
+  if (
+    content.ok !== true || content.receipt !== "mike-document:v1" ||
+    (action !== "created" && action !== "revised") ||
+    typeof content.filename !== "string" ||
+    typeof content.document_id !== "string" ||
+    typeof content.version_id !== "string" ||
+    typeof content.download_url !== "string"
+  ) return base;
+  const event: AssistantToolEvent = {
+    type: action === "created" ? "doc_created" : "doc_edited",
+    filename: content.filename,
+    document_id: content.document_id,
+    version_id: content.version_id,
+    version_number: typeof content.version_number === "number"
+      ? content.version_number
+      : null,
+    download_url: content.download_url,
+    resource: typeof content.resource === "string"
+      ? content.resource
+      : resourceReference.document(content.document_id, content.version_id),
+    ...(action === "revised" && {
+      edit_mode: content.edit_mode === "auto" ? "auto" : "manual",
+      annotations: Array.isArray(content.annotations) ? content.annotations : [],
+    }),
+  };
+  return {
+    ...base,
+    mutated: true,
+    events: [...(base.events ?? []), event],
+  };
+}
+
+const mutationResult = (call: NormalizedToolCall, content: Record<string, unknown>) => ({
+  ...result(call, content),
+  mutated: content.ok === true,
+});
 
 function codingTextResult(
   call: NormalizedToolCall,
   content: string,
   lines: CodingOutputLine[],
-): NormalizedToolResult {
+): BeaverOutcome {
   const rendered = result(call, content);
   const sourceLines =
     call.name === "Grep"
       ? lines.filter((line) => line.handoffCandidate === true)
       : lines;
-  return rendered.content === content
+  return toolResultText(rendered.result) === content
     ? {
         ...rendered,
-        evidenceSpans: sourceLines.flatMap((line) =>
-          line.span ? [line.span] : [],
-        ),
-        evidenceSegments: sourceLines.flatMap((line) =>
-          line.span && line.source
-            ? [
-                {
-                  ...line.source,
-                  start: line.span[0],
-                  end: line.span[1],
-                  kind: call.name === "Grep" ? "candidate" : "evidence",
-                },
-              ]
-            : [],
-        ),
+        metadata: {
+          ...rendered.metadata,
+          evidenceSpans: sourceLines.flatMap((line) =>
+            line.span ? [line.span] : [],
+          ),
+          evidenceSegments: sourceLines.flatMap((line) =>
+            line.span && line.source
+              ? [
+                  {
+                    ...line.source,
+                    start: line.span[0],
+                    end: line.span[1],
+                    kind: call.name === "Grep" ? "candidate" : "evidence",
+                  },
+                ]
+              : [],
+          ),
+        },
       }
     : rendered;
 }
@@ -3837,60 +3836,6 @@ function receiptEvidenceRefs(
   );
 }
 
-function publicLegalEvidenceRefs(
-  payload: Record<string, unknown>,
-): NonNullable<NormalizedToolResult["evidenceRefs"]> {
-  const evidence =
-    payload.evidence &&
-    typeof payload.evidence === "object" &&
-    !Array.isArray(payload.evidence)
-      ? (payload.evidence as Record<string, unknown>)
-      : null;
-  const baseHandle =
-    typeof evidence?.handle === "string"
-      ? evidence.handle
-      : `public:${String(payload.provider ?? "source")}:${String(payload.identifier ?? "document")}`;
-  const filename = String(
-    payload.title ?? payload.identifier ?? "Public legal source",
-  );
-  const blocks = [
-    payload.block,
-    ...(Array.isArray(payload.before) ? payload.before : []),
-    ...(Array.isArray(payload.after) ? payload.after : []),
-  ];
-  const refs = blocks.flatMap((raw, index) => {
-    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
-    const block = raw as Record<string, unknown>;
-    const text = typeof block.text === "string" ? block.text : "";
-    if (!text) return [];
-    const locator = String(block.label ?? `context ${index + 1}`);
-    return [
-      {
-        handle: `${baseHandle}#${locator}:${sha256(text)}`,
-        filename,
-        locator,
-        text,
-        exactSha256: sha256(text),
-        kind: "evidence" as const,
-      },
-    ];
-  });
-  if (refs.length) return refs;
-  const documentText = typeof payload.text === "string" ? payload.text : "";
-  return documentText
-    ? [
-        {
-          handle: `${baseHandle}#document:${sha256(documentText)}`,
-          filename,
-          locator: "document",
-          text: documentText,
-          exactSha256: sha256(documentText),
-          kind: "evidence" as const,
-        },
-      ]
-    : [];
-}
-
 type ReadyProviderPdfLookup = {
   availability: "ready";
   state: ProviderPdfAttachmentState;
@@ -3937,22 +3882,6 @@ function compactProviderPdfLookup(resolved: ReadyProviderPdfLookup) {
     source_reference: resolved.state.source_reference,
     link: { href: sourceUrl.toString(), page_numbers: pageNumbers },
   };
-}
-
-const REVISE_EDIT_KEYS = [
-  "find",
-  "replace",
-  "context_before",
-  "context_after",
-] as const;
-
-function invalidReviseEdit(raw: unknown) {
-  if (!raw || typeof raw !== "object") return true;
-  const edit = raw as Record<string, unknown>;
-  return REVISE_EDIT_KEYS.some(
-    (key) =>
-      typeof edit[key] !== "string" || (edit[key] as string).length > 100_000,
-  );
 }
 
 const TEXT_OP_STRING_LIMIT = 5000;
@@ -4091,6 +4020,191 @@ function parseTextOpRequests(raw: unknown): TextOpRequest[] | string {
   return requests;
 }
 
+function pdfLegalEvidence(
+  documentId: string,
+  versionId: string,
+  filename: string,
+  lookup: LocalPdfLookupResult,
+): LegalEvidenceReceipt[] {
+  if (lookup.status !== "found") return [];
+  return [...lookup.before, ...lookup.units, ...lookup.after].flatMap((unit) => {
+    if (!unit.text.trim()) return [];
+    const locatorKind = unit.kind === "page"
+      ? "page"
+      : unit.kind === "footnote"
+        ? "footnote"
+        : unit.kind === "paragraph"
+          ? "paragraph"
+          : "section";
+    return [createBenchmarkEvidence({
+      jurisdiction: "matter",
+      sourceClass: "commentary",
+      stableSourceId: `library-pdf:${documentId}:${versionId}:${unit.id}`,
+      sourceText: unit.text,
+      spanText: unit.text,
+      citation: filename,
+      name: filename,
+      dataset: "library-pdf",
+      version: versionId,
+      locatorKind,
+      locatorLabel: unit.locator,
+    })];
+  });
+}
+
+async function runAdvancedDocxEdit(params: {
+  call: NormalizedToolCall;
+  args: Record<string, unknown>;
+  documents: DocumentStore;
+  scope: DocumentScope;
+  documentId: string;
+  turnEditState?: AssistantEditTurnState;
+  turnReadState?: AssistantReadTurnState;
+  editMode: EditMode;
+}) {
+  const blockInsert = parseInsertBlocksRequest(params.args.ops);
+  if (typeof blockInsert === "string") return fail(params.call, blockInsert);
+  const requests = blockInsert ? [] : parseTextOpRequests(params.args.ops);
+  if (typeof requests === "string") return fail(params.call, requests);
+  try {
+    const file = await activeDocument(
+      params.documents,
+      params.scope,
+      params.documentId,
+      params.turnEditState?.get(params.documentId)?.versionId,
+    );
+    if (!file) return fail(params.call, "DOCX Library version not found");
+    if (file === "stale") return fail(params.call, "The active document version changed.");
+    if (file.fileType.toLowerCase() !== "docx") {
+      return fail(params.call, "Text operations require a DOCX Library version");
+    }
+    let resolvedRequests = requests;
+    if (requests.some(({ scope }) =>
+      (scope as unknown as { kind: string }).kind === "at")) {
+      const body = await extractDocxBodyStructure(file.bytes);
+      if (!body.text) {
+        return fail(params.call, "DOCX body text could not be extracted, so an `at` scope cannot be resolved.");
+      }
+      const skeleton = compileAgreementSkeleton(body.text, params.documentId, {
+        tableCells: body.tableCells,
+      });
+      const map = pageMapFromMarkers(body.text);
+      const mapped: TextOpRequest[] = [];
+      for (const [index, request] of requests.entries()) {
+        const scope = request.scope as unknown as {
+          kind: string;
+          at: string;
+          follow?: FollowDirection;
+          depth?: number;
+        };
+        if (scope.kind !== "at") {
+          mapped.push(request);
+          continue;
+        }
+        const address = parseAddress(scope.at ?? "");
+        if (!address || address.kind === "offset") {
+          return fail(params.call, `ops[${index}].scope.at is not a provision or page address`);
+        }
+        let spans: { start: number; end: number }[];
+        if (address.kind === "page") {
+          const lookup = resolvePage(map, body.text, address.spec);
+          if (lookup.status !== "found") {
+            return fail(params.call, `ops[${index}].scope.at did not resolve (${lookup.status})`);
+          }
+          spans = [{ start: lookup.page.start, end: lookup.page.end }];
+        } else {
+          const seed = readSection(skeleton, address.locator);
+          if (seed.status !== "found" || !seed.block) {
+            return fail(params.call, `ops[${index}].scope.at did not resolve (${seed.status})`);
+          }
+          const follow = scope.follow ?? "none";
+          if (follow === "none") {
+            spans = [{ start: seed.block.start, end: seed.block.end }];
+          } else {
+            const walked = graphScope(
+              skeleton,
+              crossReferenceGraph(body.text, params.documentId, { skeleton }),
+              seed.block.label,
+              { follow, depth: scope.depth ?? 1 },
+            );
+            if (!walked) return fail(params.call, `ops[${index}].scope.at is not a skeleton node`);
+            spans = walked.nodes.map(({ start, end }) => ({ start, end }));
+          }
+        }
+        mapped.push({ ...request, scope: { kind: "spans", spans } });
+      }
+      resolvedRequests = mapped;
+    }
+    const applied = blockInsert
+      ? await insertTrackedBlocks(file.bytes, blockInsert, { author: "Beaver" }).then(
+          (inserted) => ({
+            bytes: inserted.bytes,
+            edits: inserted.changes.map((change): AssistantEdit => ({
+              changeId: change.id,
+              delWId: change.delId,
+              insWId: change.insId,
+              deletedText: change.deletedText,
+              insertedText: change.insertedText,
+              contextBefore: change.contextBefore ?? "",
+              contextAfter: change.contextAfter ?? "",
+              diff: change.diff,
+            })),
+            reports: [{
+              op: "insert_blocks",
+              replacements: inserted.changes.length,
+              notes: [] as string[],
+            }],
+            replacementCount: inserted.changes.length,
+            editErrors: inserted.errors.map(
+              ({ index, reason }) => `change ${index + 1}: ${reason}`,
+            ),
+          }),
+        )
+      : await applyTextOpsToDocx(file.bytes, resolvedRequests);
+    const reports = applied.reports.map(({ op, replacements, notes }) => ({
+      op,
+      replacements,
+      unchanged_sites: notes,
+    }));
+    if (!applied.replacementCount) {
+      return result(params.call, {
+        ok: true,
+        action: "no_changes",
+        document_id: params.documentId,
+        version_id: file.version.id,
+        change_count: 0,
+        ops: reports,
+      });
+    }
+    if (!applied.edits.length) {
+      return result(params.call, {
+        ok: false,
+        error: "No revision was saved",
+        ops: reports,
+        ...(applied.editErrors.length ? { edit_errors: applied.editErrors } : {}),
+      });
+    }
+    return saveDocxEdits({
+      call: params.call,
+      documents: params.documents,
+      scope: params.scope,
+      documentId: params.documentId,
+      source: file,
+      bytes: applied.bytes,
+      edits: applied.edits,
+      turnEditState: params.turnEditState,
+      turnReadState: params.turnReadState,
+      editMode: params.editMode,
+      extra: {
+        ops: reports,
+        ...(applied.editErrors.length ? { edit_errors: applied.editErrors } : {}),
+      },
+    });
+  } catch (error) {
+    return fail(params.call, errorText(error, "Deterministic text operations failed"));
+  }
+}
+
 async function workflowDocx(
   documents: DocumentStore,
   scope: DocumentScope,
@@ -4141,7 +4255,7 @@ const DOCX_WORKFLOWS: Record<
       documentId: string,
       versionId: string | undefined,
       turnEditState?: AssistantEditTurnState,
-    ) => Promise<unknown>;
+    ) => Promise<Record<string, unknown>>;
     fallback: string;
   }
 > = {
@@ -4218,26 +4332,6 @@ const DOCX_WORKFLOWS: Record<
   },
 };
 
-export const TURN_EDIT_TOOL_NAMES = new Set([
-  "delete_and_renumber_docx",
-  "link_docx_citations",
-  "fix_docx_supras",
-  "Edit",
-  "transform_docx",
-]);
-
-const INTERNAL_DETERMINISTIC_EDIT = "__deterministic_docx_edit";
-
-const upstreamMikeResult = (
-  call: NormalizedToolCall,
-  content: unknown,
-): NormalizedToolResult => ({
-  tool_use_id: call.id,
-  content: typeof content === "string" ? content : JSON.stringify(content),
-});
-
-
-
 /**
  * mike_upstream_native_v1 serves the arm's own vendored copy of the pinned
  * citationReminder (2266446b:documentOps.ts:33-47) instead of Beaver's. The two
@@ -4279,8 +4373,8 @@ type ServedDrafting =
  *
  * Memoized per (documentId, versionId) within a turn: .docx extraction +
  * skeleton derivation + index render are the expensive part of every read/find
- * call (~0.65s/call on the covenants docx). The cache lives in
- * runAssistantTools and is passed down, so it never outlives the turn and
+ * call (~0.65s/call on the covenants docx). The cache lives in the turn read
+ * state, so it never outlives the turn and
  * a version change (new versionId) naturally re-derives.
  */
 export async function servedDraftingText(
@@ -4318,7 +4412,6 @@ async function turnServedPassages(
   documents: DocumentStore,
   scope: DocumentScope,
   readState: AssistantReadTurnState,
-  cache: Map<string, ServedDrafting>,
 ): Promise<Array<ServedPassage & AssignmentClosureSource>> {
   const passages: Array<ServedPassage & AssignmentClosureSource> = [];
   for (const entry of readState.values()) {
@@ -4341,28 +4434,12 @@ async function turnServedPassages(
       plane = (
         await projectDocxRedline(file.bytes).catch(() => null)
       )?.text ?? "";
-    } else if (entry.projection === "canonical") {
+    } else {
       plane =
         (await extractDocument(
           documents, scope, entry.documentId, entry.versionId,
         ))
           ?.text ?? "";
-    } else {
-      // Preserve legacy benchmark read-state coordinates.
-      const drafting = await servedDraftingText(
-        documents, scope, entry.documentId, cache,
-      );
-      plane =
-        drafting?.versionId === entry.versionId
-          ? drafting.served
-          : (
-              await extractDocument(
-                documents,
-                scope,
-                entry.documentId,
-                entry.versionId,
-              )
-            )?.text ?? "";
     }
     if (!plane) continue;
     for (const [start, end] of mergeIntervals(entry.intervals)) {
@@ -4389,11 +4466,10 @@ async function sourceClosureForDraft(
   scope: DocumentScope,
   draft: string,
   readState?: AssistantReadTurnState,
-  cache = new Map<string, ServedDrafting>(),
 ) {
   return readState && /\bassign/iu.test(draft)
     ? assignmentClosureReceipts(
-        await turnServedPassages(documents, scope, readState, cache),
+        await turnServedPassages(documents, scope, readState),
         draft,
       )
     : [];
@@ -4408,7 +4484,6 @@ export type AssistantToolOptions = {
   a2ajLookups?: A2AJLocatorLookup[];
   a2ajDocuments?: A2AJDocument[];
   courtlistener?: CourtlistenerToolState;
-  publicLegal?: PublicLegalSourceState;
   allowedDocumentIds?: Set<string>;
   pdfHandles?: Set<string>;
   matterId?: string | null;
@@ -4420,26 +4495,14 @@ export type AssistantToolOptions = {
   timeZone?: string;
 };
 
-function sharedEvidenceLocator(
-  segments: NonNullable<NormalizedToolResult["evidenceSegments"]>,
-): Parameters<typeof createLibraryEvidence>[0]["locator"] {
-  const first = segments[0];
-  return first?.locator && first.locatorKind &&
-      segments.every(({ locator, locatorKind }) =>
-        locator === first.locator && locatorKind === first.locatorKind)
-    ? { kind: first.locatorKind, label: first.locator }
-    : undefined;
-}
-
-export async function runAssistantTools(
+export async function executeAssistantTool(
   userId: string,
-  calls: NormalizedToolCall[],
+  call: NormalizedToolCall,
   {
     userEmail,
     a2ajLookups,
     a2ajDocuments,
     courtlistener: courtlistenerState,
-    publicLegal: publicLegalState,
     allowedDocumentIds,
     pdfHandles: localPdfEvidenceHandles,
     matterId,
@@ -4454,9 +4517,10 @@ export async function runAssistantTools(
     projects,
     workflows,
   }: AssistantToolOptions,
-): Promise<NormalizedToolResult[]> {
+  signal?: AbortSignal,
+): Promise<BeaverOutcome> {
+  if (signal?.aborted) throw signal.reason ?? new Error("Tool call cancelled");
   const scope: DocumentScope = { userId, userEmail };
-  const publicState = publicLegalState ?? createPublicLegalSourceState();
   const availableWorkflows = workflows ?? new Map(
     SYSTEM_ASSISTANT_WORKFLOWS.map(({ id, title, skill_md }) => [
       id,
@@ -4486,10 +4550,8 @@ export async function runAssistantTools(
     allowedDocumentIds?.add(document.id);
     return document;
   };
-  let editTail: Promise<unknown> = Promise.resolve();
-  return Promise.all(
-    calls.map((call) => {
-      const execute = async () => {
+  const execute = async (): Promise<BeaverOutcome> => {
+      if (signal?.aborted) throw signal.reason ?? new Error("Tool call cancelled");
       let args = call.input;
 
       {
@@ -4505,22 +4567,13 @@ export async function runAssistantTools(
         args = resolved.input;
       }
 
-      if (call.name === LEGAL_EVIDENCE_TOOL_NAME) {
-        const submitted = legalEvidenceState
-          ? submitLegalEvidenceAnswer(args, legalEvidenceState)
-          : { ok: false, errors: ["Legal evidence state is unavailable"] };
-        return {
-          ...result(call, submitted),
-          terminal: submitted.terminal === true,
-        };
-      }
       const sourceRead = await readLegalSourceResource(call, args, {
         userId,
         a2ajDocuments,
         a2ajLookups,
         courtlistener: courtlistenerState,
-        publicLegal: publicState,
         evidence: legalEvidenceState,
+        signal,
       });
       if (sourceRead) return sourceRead;
       if (
@@ -4528,7 +4581,7 @@ export async function runAssistantTools(
           call.name === "Grep" ||
           call.name === "Read" ||
           call.name === "Edit" ||
-          call.name === "transform_docx")
+          call.name === "edit_docx_advanced")
       ) {
         const codingResult = await runCodingShapeCall(
           call,
@@ -4550,13 +4603,13 @@ export async function runAssistantTools(
         if (
           legalEvidenceState &&
           call.name === "Read" &&
-          codingResult.status !== "error"
+          codingResult.metadata?.status !== "error"
         ) {
           const bySource = new Map<
             string,
             NonNullable<NormalizedToolResult["evidenceSegments"]>
           >();
-          for (const segment of codingResult.evidenceSegments ?? []) {
+          for (const segment of codingResult.metadata?.evidenceSegments ?? []) {
             if (segment.end <= segment.start) continue;
             const key = [
               segment.documentId,
@@ -4565,7 +4618,11 @@ export async function runAssistantTools(
             ].join(":");
             bySource.set(key, [...(bySource.get(key) ?? []), segment]);
           }
-          const evidenceIds: string[] = [];
+          const evidence = [...(codingResult.evidence ?? [])];
+          const evidenceIds = evidence.map(({ evidence_id }) => evidence_id);
+          for (const receipt of evidence) {
+            registerLegalEvidence(legalEvidenceState, receipt);
+          }
           for (const segments of bySource.values()) {
             const first = segments[0];
             const drafting = first.projection === "drafting"
@@ -4597,58 +4654,48 @@ export async function runAssistantTools(
               ? drafting.served.slice(drafting.bodyOffset)
               : redline?.text ?? canonical?.text;
             if (!sourceText) continue;
-            const start = Math.min(...segments.map((segment) => segment.start));
-            const end = Math.max(...segments.map((segment) => segment.end));
-            const spanText = sourceText.slice(start, end);
-            if (!spanText.trim()) continue;
-            const receipt = createLibraryEvidence({
-              documentId: first.documentId,
-              versionId: first.versionId,
-              filename: first.filename ?? canonical?.filename ?? first.documentId,
-              sourceText,
-              spanText,
-              start,
-              end,
-              locator: sharedEvidenceLocator(segments),
-            });
-            registerLegalEvidence(legalEvidenceState, receipt);
-            evidenceIds.push(receipt.evidence_id);
+            const seen = new Set<string>();
+            for (const segment of segments) {
+              const key = `${segment.start}:${segment.end}`;
+              if (seen.has(key)) continue;
+              seen.add(key);
+              const spanText = sourceText.slice(segment.start, segment.end);
+              if (!spanText.trim()) continue;
+              const receipt = createLibraryEvidence({
+                documentId: segment.documentId,
+                versionId: segment.versionId,
+                filename: segment.filename ?? canonical?.filename ?? segment.documentId,
+                sourceText,
+                spanText,
+                start: segment.start,
+                end: segment.end,
+                locator: segment.locator && segment.locatorKind
+                  ? { kind: segment.locatorKind, label: segment.locator }
+                  : undefined,
+              });
+              registerLegalEvidence(legalEvidenceState, receipt);
+              evidence.push(receipt);
+              evidenceIds.push(receipt.evidence_id);
+            }
           }
           if (evidenceIds.length) {
-            codingResult.content +=
-              `\n\nCitation evidence_ids: ${evidenceIds.join(", ")}`;
+            codingResult.result = toolText(
+              `${toolResultText(codingResult.result)}\n\nCitation evidence_ids: ${evidenceIds.join(", ")}`,
+            );
           }
+          codingResult.evidence = evidence;
         }
         return codingResult;
       }
-      const publicLegalResult = await executePublicLegalSourceTool(
-        call.name,
-        args,
-        publicState,
-        userId,
-      );
-      if (publicLegalResult) {
-        // A pulled journal article registers as citeable evidence (the
-        // article receipt's span is the text the model just read), so
-        // submit_grounded_answer can cite it — same path as citator/a2aj.
-        if (legalEvidenceState) {
-          for (const evidence of publicLegalResult.evidences ?? []) {
-            registerLegalEvidence(legalEvidenceState, evidence);
-          }
-        }
-        return {
-          ...result(call, publicLegalResult.payload),
-          evidenceRefs: publicLegalEvidenceRefs(publicLegalResult.payload),
-        };
+      if (call.name === SEARCH_SOURCES_TOOL.name) {
+        return result(call, await searchSources(args, signal));
       }
-      const sourceSearchResult = await executeSearchSourcesTool(call.name, args);
-      if (sourceSearchResult) return result(call, sourceSearchResult);
       if (courtlistenerState) {
         const courtlistenerResult = await runLocalCourtlistenerTool(
           call,
           courtlistenerState,
           userId,
-          legalEvidenceState,
+          signal,
         );
         if (courtlistenerResult) return courtlistenerResult;
       }
@@ -4660,60 +4707,39 @@ export async function runAssistantTools(
       ) {
         return fail(call, "Document is not attached to this matter");
       }
-      if (call.name === "generate_excel" || call.name === "generate_ppt") {
-        const title = trimmed(args.title) ||
-          (call.name === "generate_excel" ? "Workbook" : "Presentation");
-        try {
-          const extension = call.name === "generate_excel" ? "xlsx" : "pptx";
-          const bytes = call.name === "generate_excel"
-            ? await renderXlsxWorkbook(
-                title,
-                Array.isArray(args.sheets) ? args.sheets : [],
-              )
-            : await buildPptxPresentation(
-                title,
-                Array.isArray(args.slides) ? args.slides : [],
-              );
-          const document = await persistGenerated(
-            safeGeneratedFilename(title, extension),
-            bytes,
-          );
-          const resource = resourceReference.document(
-            document.id,
-            document.current_version_id,
-          );
-          return result(call, {
-            ok: true,
-            receipt: "mike-document:v1",
-            action: "created",
-            document_id: document.id,
-            version_id: document.current_version_id,
-            version_number: document.active_version_number,
-            filename: document.filename,
-            file_type: document.file_type,
-            resource,
-            download_url:
-              `/single-documents/${encodeURIComponent(document.id)}/file` +
-              `?version_id=${encodeURIComponent(document.current_version_id)}`,
-          });
-        } catch (error) {
-          return fail(call, errorText(error, `${call.name} failed`));
+      if (call.name === "Write") {
+        const requestedFilename = trimmed(args.filename);
+        const markdown = typeof args.content === "string" ? args.content.trim() : "";
+        const extension = /\.([^.]+)$/u.exec(requestedFilename)?.[1].toLowerCase();
+        if (!markdown || !["docx", "xlsx", "pptx"].includes(extension ?? "")) {
+          return fail(call, "Write requires content and a .docx, .xlsx, or .pptx filename.");
         }
-      }
-      if (call.name === "generate_docx") {
-        const title = trimmed(args.title);
-        const markdown = trimmed(args.markdown);
-        if (!title || !markdown || typeof args.document_type !== "string") {
-          const received = Object.keys(call.input ?? {}).join(", ");
-          return fail(
-            call,
-            "generate_docx invalid input: expected {title, document_type," +
-              " markdown} with the complete document body;" +
-              ` received keys [${received}].`,
-          );
-        }
-        const filename = safeGeneratedFilename(title, "docx");
+        const title = requestedFilename.replace(/\.[^.]+$/u, "");
+        const filename = safeGeneratedFilename(title, extension!);
         try {
+          if (extension !== "docx") {
+            const bytes = extension === "xlsx"
+              ? await renderXlsxWorkbook(title, workbookFromMarkdown(markdown))
+              : await buildPptxPresentation(title, presentationFromMarkdown(markdown));
+            const document = await persistGenerated(filename, bytes);
+            return documentResult(call, {
+              ok: true,
+              receipt: "mike-document:v1",
+              action: "created",
+              document_id: document.id,
+              version_id: document.current_version_id,
+              version_number: document.active_version_number,
+              filename: document.filename,
+              file_type: document.file_type,
+              resource: resourceReference.document(
+                document.id,
+                document.current_version_id,
+              ),
+              download_url:
+                `/single-documents/${encodeURIComponent(document.id)}/file` +
+                `?version_id=${encodeURIComponent(document.current_version_id)}`,
+            });
+          }
           const generatedAt = new Date();
           const drafting = resolveDraftingOptions(
             args,
@@ -4724,12 +4750,21 @@ export async function runAssistantTools(
             scope,
             markdown,
             turnReadState,
-            servedDraftingCache,
           );
           const evidence = resolveDocxEvidenceCitations(
             legalEvidenceState,
             args.citations,
           );
+          if (legalEvidenceState) {
+            const integrityErrors = legalEvidenceProseIntegrityErrors(
+              markdown,
+              evidence.bindings.flatMap(({ evidenceIds }) => evidenceIds),
+              legalEvidenceState,
+            );
+            if (integrityErrors.length) {
+              return fail(call, `Draft integrity check failed: ${integrityErrors.join("; ")}`);
+            }
+          }
           const rendered = await renderMarkdownDocx(
             title,
             markdown,
@@ -4800,7 +4835,7 @@ export async function runAssistantTools(
             ),
             download_url: downloadUrl,
           };
-          return result(call, receipt);
+          return documentResult(call, receipt);
         } catch (error) {
           return fail(
             call,
@@ -4934,7 +4969,7 @@ export async function runAssistantTools(
           const downloadUrl =
             `/single-documents/${encodeURIComponent(documentId)}/file` +
             `?version_id=${encodeURIComponent(version.id)}`;
-          return result(call, {
+          return documentResult(call, {
             ok: true,
             receipt: "mike-document:v1",
             operation_receipt: "mike-delete-and-renumber:v1",
@@ -4991,258 +5026,6 @@ export async function runAssistantTools(
         }
       }
 
-      if (call.name === INTERNAL_DETERMINISTIC_EDIT) {
-        let versionId = trimmed(args.version_id);
-        if (!documentId) return fail(call, "document_id is required");
-        const turnVersion = turnEditState?.get(documentId);
-        if (turnVersion) {
-          if (
-            versionId &&
-            versionId !== turnVersion.versionId &&
-            versionId !== turnVersion.parentVersionId
-          ) {
-            return fail(call, "version_id is not the active turn version");
-          }
-          versionId = turnVersion.versionId;
-        }
-        const blockInsert = parseInsertBlocksRequest(args.ops);
-        if (typeof blockInsert === "string") return fail(call, blockInsert);
-        const requests = blockInsert ? [] : parseTextOpRequests(args.ops);
-        if (typeof requests === "string") return fail(call, requests);
-        try {
-          const file = await activeDocument(
-            documents, scope, documentId, versionId || undefined,
-          );
-          if (!file) return fail(call, "DOCX Library version not found");
-          if (file === "stale") {
-            return fail(call, "version_id is not the active version");
-          }
-          if (file.fileType.toLowerCase() !== "docx") {
-            return fail(call, "Text operations require a DOCX Library version");
-          }
-          const bytes = file.bytes;
-          // Addresses resolve against the PINNED version's own text, on the
-          // same plane the writer uses (extractDocxBodyStructure, no fallback),
-          // so an offset that named a clause for reading names it for
-          // editing. Resolution happens here rather than inside the op
-          // engine, which needs offsets and not a skeleton.
-          const addressed = requests.some(
-            (request) => (request.scope as { kind: string }).kind === "at",
-          );
-          let resolvedRequests = requests;
-          if (addressed) {
-            const body = await extractDocxBodyStructure(bytes);
-            const docText = body.text;
-            if (!docText) {
-              return fail(
-                call,
-                "DOCX body text could not be extracted, so an `at` scope cannot be resolved. Report the file rather than editing from partial text.",
-              );
-            }
-            const skeleton = compileAgreementSkeleton(docText, documentId, {
-              tableCells: body.tableCells,
-            });
-            const map = pageMapFromMarkers(docText);
-            const spansFor = (
-              scope: { at: string; follow?: string; depth?: number },
-            ): { start: number; end: number }[] | string => {
-              const address = parseAddress(scope.at);
-              if (!address) return `scope.at '${scope.at}' is not an address`;
-              if (address.kind === "offset") {
-                return `scope.at '${scope.at}' is a raw offset; edits scope to a provision or a page, never a bare offset`;
-              }
-              if (address.kind === "page") {
-                const lookup = resolvePage(map, docText, address.spec);
-                if (lookup.status !== "found") {
-                  return `scope.at '${scope.at}' did not resolve to a page (${lookup.status})`;
-                }
-                return [{ start: lookup.page.start, end: lookup.page.end }];
-              }
-              const seed = readSection(skeleton, address.locator);
-              if (seed.status !== "found" || !seed.block) {
-                return `scope.at '${scope.at}' did not resolve to a provision (${seed.status})`;
-              }
-              const follow = (scope.follow ?? "none") as FollowDirection;
-              if (follow === "none") {
-                return [{ start: seed.block.start, end: seed.block.end }];
-              }
-              const walked = graphScope(
-                skeleton,
-                crossReferenceGraph(docText, documentId, { skeleton }),
-                seed.block.label,
-                { follow, depth: scope.depth ?? 1 },
-              );
-              if (!walked) return `scope.at '${scope.at}' is not a skeleton node`;
-              return walked.nodes.map((node) => ({
-                start: node.start,
-                end: node.end,
-              }));
-            };
-            const mapped: typeof requests = [];
-            for (const [index, request] of requests.entries()) {
-              const scope = request.scope as unknown as {
-                kind: string;
-                at: string;
-                follow?: string;
-                depth?: number;
-              };
-              if (scope.kind !== "at") {
-                mapped.push(request);
-                continue;
-              }
-              const spans = spansFor(scope);
-              if (typeof spans === "string") {
-                return fail(call, `ops[${index}].${spans}`);
-              }
-              mapped.push({ ...request, scope: { kind: "spans", spans } });
-            }
-            resolvedRequests = mapped;
-          }
-          const applied = blockInsert
-            ? await insertTrackedBlocks(bytes, blockInsert, { author: "Beaver" }).then(
-                (inserted) => ({
-                  bytes: inserted.bytes,
-                  edits: inserted.changes.map((change) => ({
-                    changeId: change.id,
-                    delWId: change.delId,
-                    insWId: change.insId,
-                    deletedText: change.deletedText,
-                    insertedText: change.insertedText,
-                    contextBefore: change.contextBefore,
-                    contextAfter: change.contextAfter,
-                    diff: change.diff,
-                  })),
-                  reports: [
-                    {
-                      op: "insert_blocks",
-                      replacements: inserted.changes.length,
-                      notes: [],
-                    },
-                  ],
-                  replacementCount: inserted.changes.length,
-                  editErrors: inserted.errors.map(
-                    (error) => `change ${error.index + 1}: ${error.reason}`,
-                  ),
-                }),
-              )
-            : await applyTextOpsToDocx(bytes, resolvedRequests);
-          const opReports = applied.reports.map((report) => ({
-            op: report.op,
-            replacements: report.replacements,
-            unchanged_sites: report.notes,
-          }));
-          if (!applied.replacementCount) {
-            // Valid outcome, not an error: report-only ops (check_spelling)
-            // and transforms that found nothing to change land here.
-            return result(call, {
-              ok: true,
-              action: "no_changes",
-              document_id: documentId,
-              version_id: file.version.id,
-              change_count: 0,
-              ops: opReports,
-              next_required_action:
-                "No tracked changes and no new version. Report the per-op notes to the user.",
-            });
-          }
-          if (!applied.edits.length) {
-            return result(call, {
-              ok: false,
-              error: "No revision was saved",
-              ops: opReports,
-              ...(applied.editErrors.length
-                ? { edit_errors: applied.editErrors }
-                : {}),
-            });
-          }
-          const trackedEdits: AssistantEdit[] = applied.edits.map(
-            (edit) => ({
-              changeId: edit.changeId,
-              delWId: edit.delWId,
-              insWId: edit.insWId,
-              deletedText: edit.deletedText,
-              insertedText: edit.insertedText,
-              contextBefore: edit.contextBefore,
-              contextAfter: edit.contextAfter,
-              diff: edit.diff,
-            }),
-          );
-          const committed = await commitAssistantTurnVersion({
-            documents,
-            scope,
-            documentId,
-            filename: file.version.filename ?? file.filename,
-            bytes: applied.bytes,
-            sourceVersionId: file.version.id,
-            trackedEdits,
-            turnEditState,
-            editMode,
-          });
-          if (!committed) return fail(call, "version_id is no longer active");
-          const {
-            version,
-            parentVersionId,
-            trackedEdits: savedEdits,
-          } = committed;
-          const sourceClosure = await sourceClosureForDraft(
-            documents,
-            scope,
-            await extractDocxBodyText(applied.bytes),
-            turnReadState,
-            servedDraftingCache,
-          );
-          const downloadUrl =
-            `/single-documents/${encodeURIComponent(documentId)}/file` +
-            `?version_id=${encodeURIComponent(version.id)}`;
-          return result(call, {
-            ok: true,
-            receipt: "mike-document:v1",
-            action: "revised",
-            edit_mode: editMode,
-            document_id: documentId,
-            parent_version_id: parentVersionId,
-            version_id: version.id,
-            version_number: version.version_number,
-            filename: version.filename,
-            file_type: version.file_type,
-            source_sha256: version.source_sha256,
-            change_count: savedEdits.length,
-            resource: resourceReference.document(documentId, version.id),
-            download_url: downloadUrl,
-            ops: opReports,
-            ...(applied.editErrors.length
-              ? { edit_errors: applied.editErrors }
-              : {}),
-            ...(sourceClosure.length ? { source_closure: sourceClosure } : {}),
-            annotations: savedEdits.map((edit) => ({
-              kind: "edit",
-              edit_id: edit.id,
-              document_id: documentId,
-              version_id: version.id,
-              version_number: version.version_number,
-              change_id: edit.changeId,
-              del_w_id: edit.delWId,
-              ins_w_id: edit.insWId,
-              deleted_text: edit.deletedText,
-              inserted_text: edit.insertedText,
-              context_before: edit.contextBefore,
-              context_after: edit.contextAfter,
-              reason: edit.reason,
-              diff: edit.diff,
-              status: edit.status,
-            })),
-            next_required_action: sourceClosure.length
-              ? "Review source_closure and apply another document edit only if material."
-              : "Mention any unchanged_sites when you confirm.",
-          });
-        } catch (error) {
-          return fail(
-            call,
-            errorText(error, "Deterministic text operations failed"),
-          );
-        }
-      }
-
       if (call.name === "update_library_metadata") {
         const documentId = trimmed(args.document_id);
         const kind = args.kind === "template" ? "template" : "file";
@@ -5259,7 +5042,7 @@ export async function runAssistantTools(
             })
           : null;
         return updated
-          ? result(call, {
+          ? mutationResult(call, {
               ok: true,
               document_id: updated.id,
               filename: updated.filename,
@@ -5276,26 +5059,44 @@ export async function runAssistantTools(
 
       const docxWorkflow = DOCX_WORKFLOWS[call.name];
       if (docxWorkflow) {
-        if (!documentId) return fail(call, "document_id is required");
+        const automationEvent = call.name === "link_docx_citations"
+          ? citationLinkingEvent
+          : call.name === "fix_docx_supras"
+            ? supraFixEvent
+            : null;
+        if (!documentId) {
+          const message = "document_id is required";
+          const event = automationEvent?.({ ok: false, error: message }, call.id);
+          return { ...fail(call, message), ...(event ? { events: [event] } : {}) };
+        }
         try {
-          return result(
-            call,
-            await docxWorkflow.run(
-              documents,
-              scope,
-              documentId,
-              trimmed(args.version_id) || undefined,
-              turnEditState,
-            ),
+          const output = await docxWorkflow.run(
+            documents,
+            scope,
+            documentId,
+            trimmed(args.version_id) || undefined,
+            turnEditState,
           );
+          const rendered = documentResult(call, output);
+          const event = automationEvent?.(output, call.id);
+          return event
+            ? { ...rendered, events: [...(rendered.events ?? []), event] }
+            : rendered;
         } catch (error) {
-          return fail(call, errorText(error, docxWorkflow.fallback));
+          const message = errorText(error, docxWorkflow.fallback);
+          const rendered = fail(call, message);
+          const event = automationEvent?.({ ok: false, error: message }, call.id);
+          return event ? { ...rendered, events: [event] } : rendered;
         }
       }
 
       if (call.name === "create_table_of_authorities") {
         const versionId = trimmed(args.version_id);
-        if (!documentId) return fail(call, "document_id is required");
+        if (!documentId) {
+          const message = "document_id is required";
+          const event = tableOfAuthoritiesEvent({ ok: false, error: message }, call.id);
+          return { ...fail(call, message), ...(event ? { events: [event] } : {}) };
+        }
         try {
           const file = await documents.read(
             scope,
@@ -5303,12 +5104,15 @@ export async function runAssistantTools(
             versionId || null,
             false,
           );
-          if (!file) return fail(call, "Library version not found");
+          if (!file) {
+            const message = "Library version not found";
+            const event = tableOfAuthoritiesEvent({ ok: false, error: message }, call.id);
+            return { ...fail(call, message), ...(event ? { events: [event] } : {}) };
+          }
           if (!["docx", "pdf"].includes(file.fileType.toLowerCase())) {
-            return fail(
-              call,
-              "Table of Authorities requires a Word or PDF Library version",
-            );
+            const message = "Table of Authorities requires a Word or PDF Library version";
+            const event = tableOfAuthoritiesEvent({ ok: false, error: message }, call.id);
+            return { ...fail(call, message), ...(event ? { events: [event] } : {}) };
           }
           const job = await submitTableOfAuthoritiesDocument({
             bytes: file.bytes,
@@ -5316,7 +5120,7 @@ export async function runAssistantTools(
             splitFallback: args.split_fallback === "off" ? "off" : "auto",
             projectId: matterId,
           });
-          return result(call, {
+          const payload = {
             ok: true,
             document_id: documentId,
             version_id: file.version.id,
@@ -5325,47 +5129,17 @@ export async function runAssistantTools(
             job,
             next_required_action:
               `Read ${resourceReference.job(job.id)} until detection is complete.`,
-          });
+          };
+          const event = tableOfAuthoritiesEvent(payload, call.id);
+          return {
+            ...mutationResult(call, payload),
+            ...(event ? { events: [event] } : {}),
+          };
         } catch (error) {
-          return fail(
-            call,
-            errorText(error, "Table of Authorities submission failed"),
-          );
+          const message = errorText(error, "Table of Authorities submission failed");
+          const event = tableOfAuthoritiesEvent({ ok: false, error: message }, call.id);
+          return { ...fail(call, message), ...(event ? { events: [event] } : {}) };
         }
-      }
-
-      const hansard = executeHansardTool(call.name, args);
-      if (hansard) {
-        const intervention =
-          call.name === "hansard_fetch" &&
-          hansard.intervention &&
-          typeof hansard.intervention === "object"
-            ? (hansard.intervention as Record<string, unknown>)
-            : null;
-        const text =
-          typeof intervention?.text === "string" ? intervention.text : "";
-        if (legalEvidenceState && intervention && text.trim()) {
-          const id = trimmed(intervention.id) || trimmed(args.id);
-          const date = trimmed(intervention.date);
-          const speaker = trimmed(intervention.speaker);
-          const receipt = createBenchmarkEvidence({
-            jurisdiction: trimmed(intervention.jurisdiction) || "CA-ON",
-            sourceClass: "commentary",
-            stableSourceId: `hansard:${id}`,
-            sourceText: text,
-            spanText: text,
-            citation: ["Ontario Hansard", date, speaker].filter(Boolean).join(", "),
-            name: speaker || "Ontario Hansard",
-            dataset: "a2aj-hansard",
-            version: date || null,
-            externalUrl: trimmed(intervention.sourceUrl) || null,
-            locatorKind: "document",
-            locatorLabel: id || "intervention",
-          });
-          registerLegalEvidence(legalEvidenceState, receipt);
-          return result(call, { ...hansard, evidence_id: receipt.evidence_id });
-        }
-        return result(call, hansard);
       }
 
       const citator = executeCitatorTool(call.name, args);
@@ -5376,38 +5150,196 @@ export async function runAssistantTools(
           }
         }
         return {
-          ...result(call, citator.payload),
-          evidenceRefs: receiptEvidenceRefs(citator.evidences ?? []),
+          ...withMetadata(result(call, citator.payload), {
+            evidenceRefs: receiptEvidenceRefs(citator.evidences ?? []),
+          }),
+          evidence: citator.evidences ?? [],
         };
       }
 
       const compared = await executeCompareVersionsTool(
         documents, scope, call.name, args, matterId,
       );
-      if (compared) return result(call, compared);
-
-      const a2aj = await executeA2AJTool(call.name, args);
-      if (a2aj) {
-        return captureA2AJ(call, a2aj, {
-          documents: a2ajDocuments,
-          lookups: a2ajLookups,
-          evidence: legalEvidenceState,
-        });
-      }
+      if (compared) return documentResult(call, compared);
 
       return result(call, { ok: false, error: `Unknown tool: ${call.name}` });
-      };
-      const executeAndRecord = async () => {
-        const output = await execute();
-        return output;
-      };
-      if (!TURN_EDIT_TOOL_NAMES.has(call.name)) return executeAndRecord();
-      const queued = editTail.then(executeAndRecord);
-      editTail = queued.then(
-        () => undefined,
-        () => undefined,
-      );
-      return queued;
+  };
+  const output = await execute();
+  if (signal?.aborted && !output.mutated) {
+    throw signal.reason ?? new Error("Tool call cancelled");
+  }
+  return output;
+}
+
+export type AssistantToolRuntime = {
+  userId: string;
+  options: AssistantToolOptions;
+  scope: "main" | "reader";
+  tabular?: TabularCellStore;
+  documentNames?: ReadonlyMap<string, string>;
+  resolveArtifact(value: string): string | undefined;
+  artifactFor(documentId: string): string;
+  onMutationCommitted(): void;
+};
+
+type DocumentToolEvent = Extract<
+  AssistantToolEvent,
+  { type: "doc_created" | "doc_edited" }
+>;
+
+const isDocumentToolEvent = (event: unknown): event is DocumentToolEvent =>
+  !!event && typeof event === "object" &&
+  (event as { type?: unknown }).type === "doc_created" ||
+  !!event && typeof event === "object" &&
+  (event as { type?: unknown }).type === "doc_edited";
+
+export function createAssistantTools<Context>(
+  runtime: AssistantToolRuntime,
+): BeaverTool<Context>[] {
+  const documentName = (value: unknown) => {
+    const raw = trimmed(value);
+    const resolved = runtime.resolveArtifact(raw) ?? raw;
+    const reference = parseResourceReference(resolved);
+    const id = reference?.kind === "document" ? reference.documentId : resolved;
+    return runtime.documentNames?.get(id);
+  };
+  const activity = (name: string, input: Record<string, unknown>) =>
+    assistantToolActivityLabel(name, input) ?? null;
+  const execute = async (
+    call: Readonly<NormalizedToolCall>,
+    input: Record<string, unknown>,
+    signal: AbortSignal,
+    terminalOnCreate = false,
+  ): Promise<BeaverOutcome> => {
+    const filePath = trimmed(input.file_path);
+    const resolvedInput = filePath && runtime.resolveArtifact(filePath)
+      ? { ...input, file_path: runtime.resolveArtifact(filePath)! }
+      : input;
+    const output = await executeAssistantTool(
+      runtime.userId,
+      { ...call, input: resolvedInput },
+      runtime.options,
+      signal,
+    );
+    const { events: rawEvents = [], ...rest } = output;
+    if (output.mutated) runtime.onMutationCommitted();
+    const documentEvent = rawEvents.find(isDocumentToolEvent);
+    const artifact = documentEvent && runtime.artifactFor(documentEvent.document_id);
+    return {
+      ...rest,
+      result: artifact
+        ? toolText({ ok: true, artifact, filename: documentEvent.filename })
+        : output.result,
+      ...(runtime.scope === "main" && rawEvents.length ? { events: rawEvents } : {}),
+      ...((output.terminal ||
+          (terminalOnCreate && documentEvent?.type === "doc_created"))
+        ? { terminal: true }
+        : {}),
+    };
+  };
+  const definition = (
+    schema: Tool,
+    policy: {
+      specialist?: boolean;
+      reader?: boolean;
+      sequential?: boolean | ((input: Record<string, unknown>) => boolean);
+      activity?: (input: Record<string, unknown>) => string | null;
+      terminalOnCreate?: boolean;
+    } = {},
+  ): BeaverTool<Context> => ({
+    ...schema,
+    ...(policy.specialist ? { specialist: true } : {}),
+    ...(policy.reader ? { reader: true } : {}),
+    ...(policy.sequential ? { sequential: policy.sequential } : {}),
+    activity: policy.activity ?? ((input) => activity(schema.name, input)),
+    execute: (input, _context, signal, call) =>
+      execute(call, input, signal, policy.terminalOnCreate),
+  });
+
+  const [glob, grep, read, edit] = RESOURCE_TOOLS;
+  const [
+    updateMetadata,
+    linkCitations,
+    fixSupras,
+    lintStructure,
+    deleteAndRenumber,
+    createAuthorities,
+  ] = DOCUMENT_TOOLS;
+  const compareVersions = COMPARE_VERSIONS_TOOLS[0];
+  const findInCase = COURTLISTENER_FIND_TOOL;
+  const verifyCitations = COURTLISTENER_VERIFY_TOOL;
+  const noteUp = CITATOR_TOOLS[0];
+
+  const tools: BeaverTool<Context>[] = [
+    definition(glob, { reader: true, activity: () => null }),
+    definition(grep, {
+      reader: true,
+      activity: (input) => documentName(input.path)
+        ? `Searching ${documentName(input.path)}`
+        : activity("Grep", input),
     }),
-  );
+    definition(read, {
+      reader: true,
+      activity: (input) => documentName(input.file_path)
+        ? `Reading ${documentName(input.file_path)}`
+        : activity("Read", input),
+    }),
+    definition(edit, {
+      sequential: true,
+      activity: (input) => documentName(input.file_path)
+        ? `Editing ${documentName(input.file_path)}`
+        : activity("Edit", input),
+    }),
+    definition(WRITE_TOOL, { sequential: true, terminalOnCreate: true }),
+    definition(SEARCH_SOURCES_TOOL, { reader: true }),
+    definition(noteUp, { reader: true }),
+    definition(updateMetadata, { specialist: true, sequential: true }),
+    definition(linkCitations, { specialist: true, sequential: true }),
+    definition(fixSupras, { specialist: true, sequential: true }),
+    definition(lintStructure, { specialist: true, reader: true }),
+    definition(deleteAndRenumber, { specialist: true, sequential: true }),
+    definition(createAuthorities, { specialist: true, sequential: true }),
+    definition(ADVANCED_DOCX_EDIT_TOOL, { specialist: true, sequential: true }),
+    definition(compareVersions, {
+      specialist: true,
+      sequential: (input) => input.save_redline === true,
+    }),
+    definition(findInCase, {
+      specialist: true,
+      reader: true,
+    }),
+    definition(verifyCitations, {
+      specialist: true,
+      reader: true,
+    }),
+  ];
+
+  if (runtime.tabular && runtime.options.legalEvidence) {
+    const tabular = runtime.tabular;
+    const evidence = runtime.options.legalEvidence;
+    const tabularSchema = TABULAR_TOOLS[0];
+    tools.splice(5, 0, {
+      ...tabularSchema,
+      reader: true,
+      activity: () => "Reading table cells",
+      async execute(input) {
+        const indices = (value: unknown) => Array.isArray(value)
+          ? value.filter((item): item is number => Number.isSafeInteger(item))
+          : undefined;
+        const read = readTabularCells(
+          tabular,
+          evidence,
+          indices(input.col_indices),
+          indices(input.row_indices),
+        );
+        return {
+          result: toolText(read.content),
+          ...(runtime.scope === "main"
+            ? { events: [{ type: "doc_read", filename: read.label }] }
+            : {}),
+        };
+      },
+    });
+  }
+  return tools;
 }

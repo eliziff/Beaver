@@ -4,7 +4,7 @@ import {
   modelSupportsImageInput,
   streamChatWithTools,
   type NormalizedToolCall,
-  type OpenAIToolSchema,
+  type Tool,
   type UserApiKeys,
 } from "./llm";
 import { sha256 } from "./hash";
@@ -28,13 +28,10 @@ const LAYOUT_TYPES = [
 const SYSTEM_PROMPT = `You classify the visible regions of one legal-document page.
 Use only the supplied line IDs and the allowed region types. Group adjacent lines that form one region. Put every supplied line ID in exactly one region and preserve natural reading order. A table region includes all of its visible cell lines. A footnote is note text, not an ordinary footer. Page numbers and repeating running text are headers or footers. Section headings are paragraph_title; the work's main title is doc_title. Use text when no more specific class is justified. Call submit_page_layout once and return no prose.`;
 
-const SUBMIT_TOOL: OpenAIToolSchema = {
-  type: "function",
-  function: {
-    name: "submit_page_layout",
-    description: "Submit the complete line-to-region layout for one page.",
-    strict: true,
-    parameters: {
+const SUBMIT_TOOL: Tool = {
+  name: "submit_page_layout",
+  description: "Submit the complete line-to-region layout for one page.",
+  inputSchema: {
       type: "object",
       additionalProperties: false,
       properties: {
@@ -59,7 +56,6 @@ const SUBMIT_TOOL: OpenAIToolSchema = {
         },
       },
       required: ["page_index", "regions"],
-    },
   },
 };
 

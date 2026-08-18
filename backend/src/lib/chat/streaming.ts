@@ -2,7 +2,6 @@ import {
   DEFAULT_MAIN_MODEL,
   resolveModel,
   type LlmMessage,
-  type NormalizedToolResult,
   type SubagentMode,
   type UserApiKeys,
 } from "../llm";
@@ -30,7 +29,7 @@ import type { LegalEvidenceReceipt } from "./legalEvidence";
 import type { EditMode } from "../docxTrackedChanges";
 import { compactionThresholdForModel } from "../llm/contextWindow";
 import { formatChatMessageContent } from "./messageFormatting";
-import { bindToolSchemas } from "./toolRegistry";
+import { toolText, type BeaverTool } from "./toolRegistry";
 import { cloudDocuments } from "../cloudDocumentStore";
 import { cloudLibraryStore } from "../cloudLibraryStore";
 import { cloudProjects } from "../cloudProjectStore";
@@ -118,28 +117,29 @@ export async function runLLMStream({
       content: message.content ?? "",
       images: message.images,
     }));
-  const mcpEntries = bindToolSchemas<ChatToolContext>(
-    await buildUserMcpTools(userId, db),
-    async (calls, context): Promise<{ results: NormalizedToolResult[] }> => ({
-      results: await Promise.all(calls.map(async (call) => {
-        context.emit({ type: "mcp_tool_start", name: call.name });
+  const mcpEntries: BeaverTool<ChatToolContext>[] = (await buildUserMcpTools(userId, db))
+    .map((schema) => ({
+      ...schema,
+      activity: () => `Using ${schema.name}`,
+      async execute(input, context, signal) {
+        context.emit({ type: "mcp_tool_start", name: schema.name });
         const { content, event } = await executeMcpToolCall(
-          userId, call.name, call.input, db,
+          userId, schema.name, input, db, signal,
         );
-        context.addEvent(event);
         context.emit({
           type: "mcp_tool_result",
-          name: call.name,
+          name: schema.name,
           connector_name: event.connector_name,
           tool_name: event.tool_name,
           status: event.status,
           error: event.error,
         });
-        return { tool_use_id: call.id, content };
-      })),
-    }),
-    ["external"],
-  );
+        return {
+          result: toolText(content, event.status === "error"),
+          events: [event],
+        };
+      },
+    }));
   const documentNames = new Map(
     Object.values(docIndex).map(({ document_id, filename }) => [
       document_id,

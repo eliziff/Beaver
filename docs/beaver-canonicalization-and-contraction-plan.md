@@ -10,6 +10,25 @@ Authority: this document governs the contraction refactor; the
 [Beaver master plan](beaver-master-plan.md) remains the product-priority and
 release authority.
 
+## 2026-08-18 delivered checkpoint
+
+The first canonicalization wave is integrated and release-verified at
+**109,001 nonblank production lines**: 75,600 in `backend/src` and 33,401 in
+`frontend/src`. This is **9,189 fewer lines** than the 118,190-line baseline.
+The count excludes tests, experiments, generated files, benchmarks, and pinned
+subrepositories.
+
+Delivered in this wave: one MCP-shaped tool runtime, one chat application
+boundary for local and cloud persistence, one legal-source registry, one local
+application SQLite owner, one tabular application boundary, native Claude/Codex
+MCP transport, canonical LLM entrypoints, and one authenticated-encryption
+primitive. Old paths were deleted without compatibility shims.
+
+All exact release checks pass. A bounded live Luna matrix also exercised the
+real HTTP, provider, MCP, legal-read, artifact-write/edit, and in-memory compare
+paths. The remaining tranches below are further contraction work, not blockers
+for this delivered wave.
+
 ## Outcome
 
 Keep Beaver's current capabilities while replacing parallel implementations
@@ -272,6 +291,39 @@ remain separate read-only snapshots under `OpenLegalData`. “One local database
 means one Beaver application-metadata database, not one giant file containing
 external corpora or parser artifacts.
 
+#### Current implementation tranche (2026-08-17)
+
+Converge documents, chats, and projects first. One `localMetadataDatabase`
+owns the production `DatabaseSync`, WAL/busy/foreign-key policy, transaction
+queue, schema installation, and close/reopen lifecycle. The first current
+schema contains:
+
+- Library folders, documents, versions, legal-source pointers, and filename
+  search;
+- chats, ordered messages/events, deletion state, and optimistic transcript
+  versions; and
+- matters/projects, document membership, knowledge nodes/edges/evidence, and
+  source labels.
+
+Document and generated-file bytes remain immutable files. Provider corpora,
+provider caches, PDF artifacts, and the tabular database do not join this
+tranche. They have different lifecycle or fidelity constraints and are not
+pre-emptively generalized.
+
+Replace the anonymous-chat JSON directory and process cache with chat/message
+rows. Point `localDocumentStore` and `LegalKnowledgeGraphStore` at the same
+owned connection and delete their independent open/attach/close/schema
+machinery. Production has one connection; tests may construct an isolated
+temporary owner explicitly. Existing public store ports remain the local/cloud
+boundary, not wrappers around the old stores.
+
+There is no migration or dual-read path: Beaver has no users. Startup creates
+the one current schema, and incompatible old development files are outside the
+supported state contract. Blob deletion, chat deletion hooks, provider-session
+cleanup, optimistic transcript conflicts, matter membership, and exact
+pagination/order behavior remain capabilities and must be covered before the
+old paths are removed.
+
 Use immutable, hash-bearing blobs for uploaded/generated document versions.
 Each version owns a unique key containing its scope, version ID, and SHA-256;
 two metadata rows never share a deletable key. Parse artifacts may still dedupe
@@ -470,6 +522,40 @@ coordinates when present. Recovery is limited to absent coordinates and uses
 the existing mature spine/ladder logic. A2AJ, TNA, GovInfo, GOV.UK ET, journals,
 and local PDF follow the same native-first compiler rule.
 
+### One host-agnostic legal-source core
+
+Use one dependency-light TypeScript core for provider selection and source
+normalization. It exports plain data and three operations:
+
+```ts
+searchSources(query) -> SourceHit[]
+resolveSource(reference) -> LegalSource
+readPassage(reference) -> SourcePassage
+```
+
+The core knows provider keys, discriminated source references, ambiguity/not-
+found results, and normalized source/passage shapes. It does not import Beaver
+tools, MCP, Express, Supabase, SQLite, the frontend, or provider SDKs. A small
+function registry supplies provider-specific search/resolve/read operations;
+providers keep their native request types, rate limits, fetch code, and exact
+coordinates. This makes the core directly reusable by another TypeScript host
+without pretending it is a separately deployed service or adding a package
+boundary solely for optics.
+
+Beaver bindings turn `SourcePassage` into the existing `SourceDoc` and
+`LegalEvidenceReceipt`, persist provider artifacts where needed, and apply the
+one citation presenter. Chat `search_sources -> Read`, DOCX citation linking,
+and the Legal Library route must consume these same operations. Delete the
+CourtListener, public-source, A2AJ, Hansard, DOCX-linker, and route-specific
+resolver/result facades as their last callers move; do not retain aliases.
+
+The cross-surface contract fixture runs A2AJ, CourtListener, TNA, GovUK
+Employment Tribunal, GovInfo, journals, and Hansard through chat, DOCX, and
+Legal Library. Each surface must select the same provider/source and preserve
+the same canonical URL, passage URL, source hash, native locator, ambiguity
+decision, and evidence text. A2AJ passage search remains an opt-in provider
+capability and is not deleted or hidden by the common core.
+
 Use one tiny content-addressed artifact helper for JSON-safe derived data. Its
 key includes source hash, artifact kind, compiler version, and material options.
 Writes are atomic and concurrent misses are single-flight. Unreadable or
@@ -596,6 +682,89 @@ the sample permits it.
 A slice does not ship with a statistically credible regression in its affected
 case. Smaller source or faster build does not excuse slower first use. A new
 cache must show bounded memory, a cold-equivalence test, and a real warm win.
+
+## Approved next contraction tranches (2026-08-17)
+
+The following six tranches are approved execution work after the current tool,
+legal-source, chat, and local-metadata replacement lands. They preserve
+capability; experiment moves, formatting, generated output, and test deletion
+do not count toward their production-line targets.
+
+### Canonical subsystem entrypoints and primitives
+
+Make the implementation path visible in code instead of maintaining a global
+function catalog. For each touched subsystem, expose one small public
+entrypoint, keep canonical operations beside their owning domain, convert live
+callers, and delete superseded facades and same-semantics helpers. Use the
+existing TypeScript/ESLint test infrastructure to reject imports of private
+subsystem paths from outside that subsystem. A short colocated README may name
+the entrypoint and operations, but must not duplicate signatures or become a
+second registry. Consolidated validation must retain the strictest URL, path,
+authorization, size, abort, hash, and atomicity rules. Target: **at least 500
+fewer production lines**, stretch **1,000**, without touching fidelity kernels
+or counting experiment moves.
+
+### Canonical document projection service
+
+Compile each immutable document version once into only the projections its
+format supports: `SourceDoc`, spreadsheet `Grid`, `DocxSession`, or the neutral
+PDF artifact. Assistant reads, Library, tabular review, citation linking, and
+PDF lookup consume those projections rather than running their own extraction
+or cache path. The version id, source hash, compiler version, and material
+options form the cache identity. Enforce compressed/input/output size limits,
+ZIP-bomb limits, atomic cache writes, and cold/hit equivalence. Target:
+**1,200–2,000 fewer production lines**.
+
+### One OpenAI-compatible provider transport
+
+OpenAI, OpenRouter, DeepSeek, and compatible Ollama endpoints share one bounded
+stream decoder, tool-call accumulator, usage normalizer, cancellation path,
+and safe error boundary. Each provider retains only its actual request fields,
+authentication, endpoint selection, and response deviations. Codex app-server
+and Claude native MCP remain separate transports. Bound event and argument
+sizes, never log secrets or untrusted bodies, and preserve provider-specific
+continuation and accounting tests. Target: **700–1,200 fewer production
+lines**.
+
+### One DOCX package session
+
+Tracked editing, comparison, semantic-Markdown rendering, metadata, citations,
+and advanced editing share one package loader, story enumerator, relationship
+manager, accepted-text index, revision-attribute emitter, and targeted save
+primitive. Comparison and editing algorithms remain distinct. Promotion
+requires the corpus/pathology suite, accepted/redline views, package-part
+archive diffs, and proof that untouched OOXML stays byte-identical where the
+operation does not own it. Target: **800–1,400 fewer production lines**.
+
+### One typed assistant-event contract
+
+Replace remaining `unknown[]`, structural event detection, and frontend event
+re-parsing with the canonical discriminated `AssistantEvent` union from tool
+executor through persistence and rendering. Reject malformed events at the one
+host boundary; do not add a parallel validation/event hierarchy. Target:
+**150–300 fewer production lines**.
+
+### One hardened download response
+
+Document, export, PDF, and artifact routes share one response helper for safe
+filenames, RFC-compliant `Content-Disposition`, MIME selection, cache policy,
+range handling, abort cleanup, and bounded streaming. It must reject CR/LF and
+control characters, prevent content-type confusion, and never resolve an
+untrusted filesystem path. Target: **100–220 fewer production lines**.
+
+### One pagination and cursor boundary
+
+Library, projects, workflows, chats, and tabular lists use the existing keyset
+cursor primitive for limit parsing, filter normalization, cursor binding, and
+page DTO formation. SQLite and Supabase retain their concrete indexed SQL, but
+do not independently design ordering or cursor semantics. Shared contract tests
+cover equal sort keys, filter mismatch, deletion between pages, Unicode, and
+owner/share scope. Target: **180–350 fewer production lines**.
+
+Execution order is canonical subsystem entrypoints, document projections,
+provider transport, DOCX session, then the three small tranches. Each tranche
+updates all live callers and deletes its superseded path in the same commit;
+no compatibility aliases or dual reads remain.
 
 ## Execution phases and line budgets
 

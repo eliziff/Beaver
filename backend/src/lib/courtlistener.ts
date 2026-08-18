@@ -1,7 +1,18 @@
 import { cachedContent } from "./contentCache";
 import { downloadFile, listFiles } from "./storage";
 import { createServerSupabase } from "./supabase";
-import type { SourceDoc, SourceDocLocatorKind } from "./sourceDoc";
+import { sha256 } from "./hash";
+import { guardedRemoteFetch } from "./remoteUrlSafety";
+import type {
+  LegalSourcePassage,
+  LegalSourceProvider,
+  LegalSourceReference,
+} from "./legalSources";
+import {
+  readSourceDocRange,
+  type SourceDoc,
+  type SourceDocLocatorKind,
+} from "./sourceDoc";
 import {
   compileNativeMarkupSourceDoc,
   lookupLegalSourceDoc,
@@ -19,6 +30,8 @@ const COURTLISTENER_BASE = "https://www.courtlistener.com/api/rest/v4";
 const COURTLISTENER_WEB_BASE = "https://www.courtlistener.com";
 const COURTLISTENER_STORAGE_BASE = "https://storage.courtlistener.com";
 const COURTLISTENER_R2_OPINIONS_PREFIX = "courtlistener/opinions/by-cluster";
+const US_REPORTER =
+  /\b\d{1,4}\s+(?:U\.?\s*S\.?|S\.?\s*Ct\.?|L\.?\s*Ed\.?(?:\s*2d)?|F\.?(?:\s*Supp\.?)?(?:\s*2d|\s*3d|\s*4th)?)\s+\d{1,6}\b/iu;
 
 type JsonRecord = Record<string, unknown>;
 type ServerSupabase = ReturnType<typeof createServerSupabase>;
@@ -79,26 +92,31 @@ async function courtlistenerFetch<T>(
   const url = pathOrUrl.startsWith("http")
     ? pathOrUrl
     : `${COURTLISTENER_BASE}${pathOrUrl}`;
-  // Absolute URLs come from API payloads (pagination `next`, opinion links).
-  // The Authorization token rides on every request, so never follow one off
-  // the CourtListener origins - a poisoned link would exfiltrate the token.
-  if (
-    !url.startsWith(`${COURTLISTENER_WEB_BASE}/`) &&
-    !url.startsWith(`${COURTLISTENER_STORAGE_BASE}/`)
-  ) {
-    throw new Error("Refusing CourtListener request to a foreign origin.");
-  }
   const method = init?.method ?? "GET";
   const perform = async () => {
     devLog("[courtlistener/api] request", { method, path: pathOrUrl, url });
-    const response = await fetch(url, {
-      ...init,
-      signal: init?.signal ?? AbortSignal.timeout(15_000),
-      headers: {
-        ...courtlistenerHeaders(apiToken),
-        ...(init?.headers ?? {}),
+    const response = await guardedRemoteFetch(
+      url,
+      {
+        ...init,
+        headers: {
+          ...courtlistenerHeaders(apiToken),
+          ...(init?.headers ?? {}),
+        },
       },
-    });
+      {
+        label: "CourtListener request",
+        allowedHosts: ["www.courtlistener.com", "storage.courtlistener.com"],
+        defaultPortOnly: true,
+        allowIpLiterals: false,
+        timeoutMs: 15_000,
+        response: {
+          label: "CourtListener response",
+          maxBytes: 64 * 1024 * 1024,
+          contentTypes: ["application/json", "application/*+json"],
+        },
+      },
+    );
     devLog("[courtlistener/api] response", {
       method, path: pathOrUrl, status: response.status,
     });
@@ -167,7 +185,10 @@ const CAP_CITATION_ORDER = new Map(
   ]),
 );
 
-async function capPageCitations(filepath: string | null | undefined) {
+async function capPageCitations(
+  filepath: string | null | undefined,
+  signal?: AbortSignal,
+) {
   const value = filepath?.trim();
   const archivePrefix = "https://archive.org/download/";
   const path = value?.startsWith(archivePrefix)
@@ -182,7 +203,22 @@ async function capPageCitations(filepath: string | null | undefined) {
       key: url,
       version: 1,
       produce: async () => {
-        const response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+        const response = await guardedRemoteFetch(
+          url,
+          { signal },
+          {
+            label: "CAP metadata request",
+            allowedHosts: ["archive.org"],
+            defaultPortOnly: true,
+            allowIpLiterals: false,
+            timeoutMs: 15_000,
+            response: {
+              label: "CAP metadata response",
+              maxBytes: 8 * 1024 * 1024,
+              contentTypes: ["application/json", "application/*+json"],
+            },
+          },
+        );
         if (!response.ok) throw new Error(`CAP metadata error (${response.status})`);
         return response.json() as Promise<JsonRecord>;
       },
@@ -343,15 +379,17 @@ async function fetchCaseOpinionsFromCourtlistenerOpinionsEndpoint(args: {
   maxChars: number;
   includeFullText?: boolean;
   apiToken?: string | null;
+  signal?: AbortSignal;
 }) {
   const MAX_OPINION_PAGES = 10;
   const cluster = await courtlistenerFetch<JsonRecord>(
     `/clusters/${args.clusterId}/`,
-    undefined,
+    { signal: args.signal },
     args.apiToken,
   );
   const pageCitations = await capPageCitations(
     asString(cluster.filepath_json_harvard),
+    args.signal,
   );
   const opinions: ReturnType<typeof compactOpinion>[] = [];
   const rawOpinions: JsonRecord[] = [];
@@ -366,7 +404,7 @@ async function fetchCaseOpinionsFromCourtlistenerOpinionsEndpoint(args: {
     });
     const data = await courtlistenerFetch<JsonRecord>(
       nextUrl,
-      undefined,
+      { signal: args.signal },
       args.apiToken,
     );
     const results = Array.isArray(data.results) ? data.results : [];
@@ -884,6 +922,7 @@ async function fetchCourtlistenerCitationLookup(args: {
   text: string;
   citationsSubmitted?: number;
   apiToken?: string | null;
+  signal?: AbortSignal;
 }): Promise<CitationLookupPayload> {
   const body = new URLSearchParams({ text: args.text.slice(0, 64000) });
   const results = await courtlistenerFetch<unknown[]>(
@@ -892,6 +931,7 @@ async function fetchCourtlistenerCitationLookup(args: {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body,
+      signal: args.signal,
     },
     args.apiToken,
   );
@@ -1074,6 +1114,7 @@ export async function verifyCourtlistenerCitations(args: {
   citations?: string[];
   db?: ServerSupabase;
   apiToken?: string | null;
+  signal?: AbortSignal;
 }) {
   const citations = Array.isArray(args.citations)
     ? args.citations
@@ -1120,6 +1161,7 @@ export async function verifyCourtlistenerCitations(args: {
         text: apiFallbackInputs.join("\n"),
         citationsSubmitted: apiFallbackInputs.length,
         apiToken: args.apiToken,
+        signal: args.signal,
       });
       const fallbackRows = [...apiFallback.results];
       const mergedResults = bulk.results.flatMap((result) => {
@@ -1147,6 +1189,7 @@ export async function verifyCourtlistenerCitations(args: {
     text: citations.join("\n"),
     citationsSubmitted: citations.length || undefined,
     apiToken: args.apiToken,
+    signal: args.signal,
   });
 }
 
@@ -1158,6 +1201,7 @@ export async function searchCourtlistenerCaseLaw(args: {
   limit?: number;
   querySyntax?: "terms" | "fts5";
   apiToken?: string | null;
+  signal?: AbortSignal;
 }) {
   const query = args.query?.trim();
   if (!query) return { error: "query is required." };
@@ -1200,7 +1244,7 @@ export async function searchCourtlistenerCaseLaw(args: {
 
   const data = await courtlistenerFetch<JsonRecord>(
     `/search/?${params}`,
-    undefined,
+    { signal: args.signal },
     args.apiToken,
   );
   const rawResults = Array.isArray(data.results) ? data.results : [];
@@ -1233,6 +1277,7 @@ export async function getCourtlistenerCaseOpinions(args: {
   maxChars?: number;
   db?: ServerSupabase;
   apiToken?: string | null;
+  signal?: AbortSignal;
 }) {
   if (!args.clusterId || !Number.isFinite(args.clusterId)) {
     return { error: "clusterId is required." };
@@ -1251,6 +1296,7 @@ export async function getCourtlistenerCaseOpinions(args: {
     maxChars,
     includeFullText: args.includeFullText,
     apiToken: args.apiToken,
+    signal: args.signal,
   });
 }
 
@@ -1260,6 +1306,7 @@ export async function getCourtlistenerCases(args: {
   maxChars?: number;
   db?: ServerSupabase;
   apiToken?: string | null;
+  signal?: AbortSignal;
 }) {
   const clusterIds = Array.from(
     new Set(
@@ -1281,6 +1328,7 @@ export async function getCourtlistenerCases(args: {
           maxChars: args.maxChars,
           db: args.db,
           apiToken: args.apiToken,
+          signal: args.signal,
         });
         return {
           clusterId,
@@ -1302,3 +1350,233 @@ export async function getCourtlistenerCases(args: {
 
   return { cases };
 }
+
+function uniqueCitationCluster(value: unknown) {
+  const links = (value as JsonRecord | null)?.citationLinks;
+  if (!Array.isArray(links)) return null;
+  const ids = [
+    ...new Set(
+      links.flatMap((raw) => {
+        const id = asNumber((raw as JsonRecord | null)?.clusterId);
+        return id && Number.isSafeInteger(id) && id > 0 ? [id] : [];
+      }),
+    ),
+  ];
+  return ids.length === 1 ? ids[0] : null;
+}
+
+function courtlistenerReference(
+  source: LegalSourceReference,
+  caseRecord: JsonRecord,
+  url: string | null,
+) {
+  return {
+    ...source,
+    title: firstString(caseRecord, "caseName", "case_name", "caseNameFull") ?? source.title,
+    citation: asString(caseRecord.citation) ?? source.citation,
+    date: firstString(caseRecord, "dateFiled", "date_filed") ?? source.date,
+    url: url ?? source.url,
+  } satisfies LegalSourceReference;
+}
+
+export type CourtlistenerLegalSourceOptions = {
+  db?: ServerSupabase;
+  apiToken?: string | null;
+};
+
+type CourtlistenerLegalSourceNative = {
+  case: JsonRecord;
+  opinion: object;
+  lookup?: ReturnType<typeof lookupCourtlistenerOpinionLocator>;
+};
+
+export function createCourtlistenerLegalSourceProvider(
+  options: CourtlistenerLegalSourceOptions = {},
+): LegalSourceProvider<SourceDoc | string, CourtlistenerLegalSourceNative> {
+  return {
+    id: "courtlistener",
+    canResolve: (request) =>
+      request.kind === "case" && US_REPORTER.test(request.text),
+    async resolve(request) {
+      const verified = await verifyCourtlistenerCitations({
+        citations: [request.text],
+        db: options.db,
+        apiToken: options.apiToken,
+        signal: request.signal,
+      });
+      const clusterId = uniqueCitationCluster(verified);
+      return clusterId
+        ? [{
+            provider: "courtlistener",
+            id: String(clusterId),
+            kind: "case",
+            citation: request.text,
+          }]
+        : [];
+    },
+    canSearch(request) {
+      const jurisdiction = request.jurisdiction
+        ?.toLocaleLowerCase()
+        .replace(/[^a-z]/gu, "");
+      return (
+        request.kinds.includes("case") &&
+        !["ca", "canada", "canadian"].includes(jurisdiction ?? "")
+      );
+    },
+    async search(request) {
+      const response = await searchCourtlistenerCaseLaw({
+        query: request.text,
+        court: request.court || request.collection,
+        filedAfter: request.dateFrom,
+        filedBefore: request.dateTo,
+        limit: request.perProviderLimit ?? request.limit,
+        querySyntax: request.syntax,
+        apiToken: options.apiToken,
+        signal: request.signal,
+      });
+      const rows = Array.isArray((response as { results?: unknown }).results)
+        ? (response as { results: JsonRecord[] }).results
+        : [];
+      return rows.flatMap((row) => {
+        const clusterId = asNumber(row.clusterId);
+        return clusterId
+          ? [{
+              provider: "courtlistener",
+              id: String(clusterId),
+              kind: "case" as const,
+              title: asString(row.caseName),
+              citation: asString(row.citation),
+              date: asString(row.dateFiled),
+              collection: asString(row.court),
+              url: asString(row.url),
+              snippet: asString(row.snippet),
+            }]
+          : [];
+      });
+    },
+    async readPassage(request) {
+      const clusterId = Number(request.source.id);
+      if (!Number.isSafeInteger(clusterId) || clusterId <= 0) return [];
+      const payload = await getCourtlistenerCases({
+        clusterIds: [clusterId],
+        includeFullText: true,
+        maxChars: 50_000,
+        db: options.db,
+        apiToken: options.apiToken,
+        signal: request.signal,
+      });
+      const caseRecord = Array.isArray(payload.cases)
+        ? (payload.cases[0] as JsonRecord | undefined)
+        : undefined;
+      if (!caseRecord) return [];
+      const opinions = Array.isArray(caseRecord.opinions)
+        ? caseRecord.opinions.filter(
+            (opinion): opinion is object =>
+              Boolean(opinion) && typeof opinion === "object",
+          )
+        : [];
+      const wantedOpinionId = request.source.part
+        ? Number(request.source.part)
+        : null;
+      const caseUrl = asString(caseRecord.url);
+      return opinions.flatMap((opinion) => {
+        const opinionRecord = opinion as JsonRecord;
+        const opinionId =
+          asNumber(opinionRecord.opinionId) ??
+          asNumber(opinionRecord.id) ??
+          asNumber(opinionRecord.opinion_id);
+        if (
+          wantedOpinionId !== null &&
+          (!Number.isSafeInteger(wantedOpinionId) || opinionId !== wantedOpinionId)
+        ) {
+          return [];
+        }
+        const structure = getCourtlistenerOpinionStructure(opinion);
+        if (!structure) return [];
+        const url = asString(opinionRecord.url) ?? caseUrl;
+        if (!url) return [];
+        const source = {
+          ...courtlistenerReference(request.source, caseRecord, url),
+          ...(opinionId ? { part: String(opinionId) } : {}),
+        };
+        if (!request.locator) {
+          const passage: LegalSourcePassage<
+            SourceDoc | string,
+            CourtlistenerLegalSourceNative
+          > = {
+            source,
+            locator: { requested: null, label: "document" },
+            role: "document",
+            text: structure.text,
+            textSha256: sha256(structure.text),
+            documentSha256: structure.revision,
+            revision: structure.revision,
+            blockArtifact: structure,
+            documentArtifact: structure,
+            native: { case: caseRecord, opinion },
+          };
+          return [passage];
+        }
+        const lookup = lookupCourtlistenerOpinionLocator(
+          opinion,
+          request.locator.kind,
+          request.locator.value,
+          request.contextBlocks ?? 0,
+        );
+        if (lookup?.status !== "found" || !lookup.block) return [];
+        const range = request.locator.endValue
+          ? readSourceDocRange(
+              structure,
+              request.locator.kind,
+              request.locator.value,
+              request.locator.endValue,
+              request.contextBlocks ?? 0,
+            )
+          : null;
+        if (request.locator.endValue && !range) return [];
+        const visible = range
+          ? [
+              ...range.before.map((block) => ({ block, role: "context" as const })),
+              ...range.selected.map((block) => ({ block, role: "selected" as const })),
+              ...range.after.map((block) => ({ block, role: "context" as const })),
+            ]
+          : [
+              { block: lookup.block, role: "selected" as const },
+              ...lookup.before.map((block) => ({ block, role: "context" as const })),
+              ...lookup.after.map((block) => ({ block, role: "context" as const })),
+            ];
+        return visible.map(({ block, role }) => ({
+          source,
+          locator: {
+            requested: request.locator!,
+            label: block.label,
+            anchor: block.anchor,
+            pageScoped: block.kind === "page",
+          },
+          role,
+          text: block.text,
+          textSha256: sha256(block.text),
+          documentSha256: structure.revision,
+          revision: structure.revision,
+          blockArtifact: block.text,
+          documentArtifact: structure,
+          native: {
+            case: caseRecord,
+            opinion,
+            lookup: {
+              ...lookup,
+              requestedLabel: block.label,
+              matches: [block.label],
+              block,
+              before: [],
+              after: [],
+            },
+          },
+        }));
+      });
+    },
+  };
+}
+
+export const courtlistenerLegalSourceProvider =
+  createCourtlistenerLegalSourceProvider();

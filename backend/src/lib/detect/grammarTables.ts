@@ -163,9 +163,6 @@ export function expandPortableEscapes(source: string): string {
   return out;
 }
 
-/** @deprecated renamed; kept for any external caller. */
-export const expandWhitespaceEscapes = expandPortableEscapes;
-
 /**
  * Reject constructs whose behavior differs between Python re (with
  * re.ASCII) and JS RegExp (without u). Returns violation strings; empty

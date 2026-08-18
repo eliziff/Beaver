@@ -1,22 +1,21 @@
-import type { OpenAIToolSchema } from "../llm";
+import type { Tool } from "../llm";
 import { RESOURCE_LOCATOR_KINDS } from "../resourceReferences";
 
 const tool = (
   name: string,
   description: string,
-  properties: Record<string, unknown>,
+  properties: Record<string, object>,
   required: string[] = [],
-): OpenAIToolSchema => ({
-  type: "function",
-  function: {
-    name,
-    description,
-    parameters: {
-      type: "object",
-      properties,
-      ...(required.length ? { required } : {}),
-      additionalProperties: false,
-    },
+  readOnly = true,
+): Tool => ({
+  name,
+  description,
+  annotations: { readOnlyHint: readOnly },
+  inputSchema: {
+    type: "object",
+    properties,
+    ...(required.length ? { required } : {}),
+    additionalProperties: false,
   },
 });
 
@@ -94,17 +93,17 @@ export const RESOURCE_TOOLS = [
   ),
   tool(
     "Edit",
-    "Replace exact text in the current DOCX version under Beaver's Manual or Auto edit policy. The old text must be unique unless replace_all is true or a section scopes it.",
+    "Replace exact text in the current version-pinned DOCX as tracked changes. old_string must be unique unless replace_all is true; load edit_docx_advanced for structural or formatting operations.",
     {
       file_path: { type: "string", description: resource },
       old_string: { type: "string" },
       new_string: { type: "string" },
       replace_all: { type: "boolean" },
-      section: { type: "string", description: "Exact structural handle." },
     },
     ["file_path", "old_string", "new_string"],
+    false,
   ),
-] satisfies OpenAIToolSchema[];
+] satisfies Tool[];
 
 function globAlternatives(pattern: string): string[] {
   const match = /\{([^{}]+)\}/u.exec(pattern);
@@ -129,53 +128,3 @@ export const globPattern = (pattern = "*") => new RegExp(
   `^(?:${globAlternatives(pattern).map(globSource).join("|")})$`,
   "iu",
 );
-
-export function grepText(
-  text: string,
-  pattern: RegExp,
-  before = 0,
-  after = 0,
-  limit = 250,
-) {
-  const lines = text.split(/\r?\n/u);
-  const starts: number[] = [];
-  let at = 0;
-  for (const line of lines) {
-    starts.push(at);
-    at += line.length + 1;
-  }
-  const matches = lines.flatMap((line, index) => {
-    pattern.lastIndex = 0;
-    return pattern.test(line) ? [index] : [];
-  });
-  const selected = new Set<number>();
-  for (const index of matches) {
-    for (
-      let line = Math.max(0, index - before);
-      line <= Math.min(lines.length - 1, index + after) && selected.size < limit;
-      line += 1
-    ) selected.add(line);
-  }
-  return {
-    total: matches.length,
-    lines: [...selected].sort((a, b) => a - b).map((index) => ({
-      number: index + 1,
-      text: lines[index],
-      match: matches.includes(index),
-      start: starts[index],
-      end: starts[index] + lines[index].length,
-    })),
-  };
-}
-
-export function readText(text: string, offset = 1, limit = 2000, startChar = 0) {
-  const lines = text.split(/\r?\n/u);
-  const before = lines.slice(0, offset - 1).join("\n");
-  const start = before.length + (offset > 1 ? 1 : 0) + startChar;
-  const selected = lines.slice(offset - 1, offset - 1 + limit);
-  const content = selected.map((line, index) =>
-    `${String(offset + index).padStart(6)}\t${index ? line : line.slice(startChar)}`
-  ).join("\n");
-  const chars = selected.join("\n").length - startChar;
-  return { content, start, end: Math.min(text.length, start + Math.max(0, chars)) };
-}

@@ -1,4 +1,6 @@
 import type { ParagraphChild } from "docx";
+import { getZipEntry, loadDocxPackage, setZipEntry } from "../../docx/core";
+import { escapeXmlText } from "../../text";
 
 type DocxMarkdownInline =
   | { type: "text"; text: string }
@@ -53,7 +55,11 @@ export type DocxCitation = {
     authority: string;
     shortAuthority: string;
     mainUrl: string | null;
-    pinpoints: { text: string; url: string | null }[];
+    pinpoints: {
+      text: string;
+      url: string | null;
+      separator?: " at " | ", ";
+    }[];
   }[];
 };
 
@@ -95,6 +101,8 @@ const FOOTNOTE_DEFINITION_RE = new RegExp(
 const FOOTNOTE_REFERENCE_RE = new RegExp(`^\\[\\^(${NOTE_ID})\\]$`, "u");
 const CITATION_RE = new RegExp(`^\\[@(${CITATION_ID})\\]$`, "u");
 const CONTROL_RE = new RegExp(`^\\{\\{(${CONTROL_MARKER})\\}\\}$`, "u");
+const CONTROL_XML_NAMESPACE = "urn:beaver:document-fields";
+const CONTROL_XML_STORE_ID = "{BEA6E201-5F85-4E42-922E-80A0D3A96B5D}";
 
 type ParseState = {
   controlCounts: Map<string, number>;
@@ -721,6 +729,93 @@ function collectControlTags(document: DocxMarkdownDocument) {
   return tags;
 }
 
+function collectInlineControlTags(document: DocxMarkdownDocument) {
+  const tags = new Set<string>();
+  const visit = (children: DocxMarkdownInline[]) => {
+    for (const child of children) {
+      if (child.type === "control") tags.add(child.tag);
+    }
+  };
+  for (const block of document.blocks) {
+    if ("children" in block) visit(block.children);
+    else if (block.type === "list")
+      block.items.forEach((item) => visit(item.children));
+    else if (block.type === "table") {
+      block.headers.forEach(visit);
+      block.rows.forEach((row) => row.forEach(visit));
+    }
+  }
+  document.footnotes.forEach((footnote) => visit(footnote.children));
+  return tags;
+}
+
+function appendXmlChild(xml: string, closingTag: string, child: string) {
+  const index = xml.lastIndexOf(closingTag);
+  if (index < 0) throw new Error(`Generated DOCX is missing ${closingTag}.`);
+  return `${xml.slice(0, index)}${child}${xml.slice(index)}`;
+}
+
+async function bindContentControls(
+  bytes: Buffer,
+  tags: ReadonlySet<string>,
+  values: Readonly<Record<string, string>>,
+) {
+  if (!tags.size) return bytes;
+  const zip = await loadDocxPackage(bytes);
+  const relationshipsEntry = getZipEntry(
+    zip,
+    "word/_rels/document.xml.rels",
+  );
+  const contentTypesEntry = getZipEntry(zip, "[Content_Types].xml");
+  if (!relationshipsEntry || !contentTypesEntry) {
+    throw new Error("Generated DOCX is missing required package metadata.");
+  }
+  const relationships = await relationshipsEntry.async("text");
+  const contentTypes = await contentTypesEntry.async("text");
+  const fields = [...tags]
+    .sort()
+    .map(
+      (tag) =>
+        `<b:field name="${tag}">${escapeXmlText(values[tag] ?? `[${controlLabel(tag)}]`)}</b:field>`,
+    )
+    .join("");
+
+  setZipEntry(
+    zip,
+    "word/_rels/document.xml.rels",
+    appendXmlChild(
+      relationships,
+      "</Relationships>",
+      '<Relationship Id="rIdBeaverFields" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/item1.xml"/>',
+    ),
+  );
+  setZipEntry(
+    zip,
+    "[Content_Types].xml",
+    appendXmlChild(
+      contentTypes,
+      "</Types>",
+      '<Override PartName="/customXml/itemProps1.xml" ContentType="application/vnd.openxmlformats-officedocument.customXmlProperties+xml"/>',
+    ),
+  );
+  setZipEntry(
+    zip,
+    "customXml/item1.xml",
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><b:fields xmlns:b="${CONTROL_XML_NAMESPACE}">${fields}</b:fields>`,
+  );
+  setZipEntry(
+    zip,
+    "customXml/itemProps1.xml",
+    `<?xml version="1.0" encoding="UTF-8" standalone="no"?><ds:datastoreItem ds:itemID="${CONTROL_XML_STORE_ID}" xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml"><ds:schemaRefs><ds:schemaRef ds:uri="${CONTROL_XML_NAMESPACE}"/></ds:schemaRefs></ds:datastoreItem>`,
+  );
+  setZipEntry(
+    zip,
+    "customXml/_rels/item1.xml.rels",
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps" Target="itemProps1.xml"/></Relationships>',
+  );
+  return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
+}
+
 function collectCitationIds(document: DocxMarkdownDocument) {
   const ids = new Set<string>();
   const visit = (children: DocxMarkdownInline[]) => {
@@ -933,6 +1028,15 @@ export async function renderDocxMarkdownDocument(
     }
     values[tag] = value;
   }
+  for (const tag of collectInlineControlTags(document)) {
+    if (/\r|\n/u.test(values[tag] ?? "")) {
+      warn(
+        warnings,
+        `Joined the multi-line value for inline control "${tag}" onto one line.`,
+      );
+      values[tag] = values[tag].replace(/\s*\r?\n\s*/gu, " ").trim();
+    }
+  }
 
   const {
     AlignmentType,
@@ -996,19 +1100,17 @@ export async function renderDocxMarkdownDocument(
       imported("w:alias", { "w:val": controlLabel(tag) }),
       imported("w:tag", { "w:val": tag }),
       imported("w:id", { "w:val": String(nextId(tag, occurrence)) }),
-      ...(inline ? [imported("w:text")] : []),
+      imported("w:dataBinding", {
+        "w:prefixMappings": `xmlns:b='${CONTROL_XML_NAMESPACE}'`,
+        "w:xpath": `/b:fields/b:field[@name='${tag}']`,
+        "w:storeItemID": CONTROL_XML_STORE_ID,
+      }),
+      imported("w:text", inline ? undefined : { "w:multiLine": "1" }),
     ]);
   const controlValue = (tag: string) =>
     values[tag] ?? `[${controlLabel(tag)}]`;
   const inlineControl = (tag: string, occurrence: number) => {
-    let value = controlValue(tag);
-    if (/[\r\n]/u.test(value)) {
-      warn(
-        warnings,
-        `Joined the multi-line value for inline control "${tag}" onto one line.`,
-      );
-      value = value.replace(/\s*\r?\n\s*/gu, " ").trim();
-    }
+    const value = controlValue(tag);
     return imported("w:sdt", undefined, [
       controlProperties(tag, occurrence, true),
       imported("w:sdtContent", undefined, [
@@ -1072,7 +1174,7 @@ export async function renderDocxMarkdownDocument(
       linkedRun(source.authority, source.mainUrl),
       ...source.pinpoints.flatMap(
         (pinpoint, pinpointIndex): ParagraphChild[] => [
-          run(pinpointIndex ? ", " : " at "),
+          run(pinpointIndex ? ", " : pinpoint.separator ?? " at "),
           linkedRun(pinpoint.text, pinpoint.url),
         ],
       ),
@@ -1599,5 +1701,5 @@ export async function renderDocxMarkdownDocument(
       },
     ],
   });
-  return Packer.toBuffer(docx);
+  return bindContentControls(await Packer.toBuffer(docx), controls, values);
 }

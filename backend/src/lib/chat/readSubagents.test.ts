@@ -24,7 +24,7 @@ import {
   runReadSubagentRound,
   type ReadSubagentCheckpoint,
 } from "./readSubagents";
-import type { OpenAIToolSchema } from "../llm";
+import type { Tool } from "../llm";
 import { resourceReference } from "../resourceReferences";
 import {
   createLegalEvidenceTurnState,
@@ -41,17 +41,13 @@ const catalog = {
       displayName: "GPT-5.6 Luna",
       supportedReasoningLevels: [{ effort: "high" }],
       serviceTiers: [],
-      additionalSpeedTiers: [],
     },
   ],
 };
-const schema = (name: string): OpenAIToolSchema => ({
-  type: "function",
-  function: {
-    name,
-    description: name,
-    parameters: { type: "object", properties: {} },
-  },
+const schema = (name: string): Tool => ({
+  name,
+  description: name,
+  inputSchema: { type: "object", properties: {} },
 });
 
 function leaseEvidenceState() {
@@ -129,12 +125,12 @@ describe("reading agents", () => {
       schema("find_in_case"),
       schema("note_up"),
     ];
-    expect(readSubagentTools(tools).map((tool) => tool.function.name)).toEqual([
+    expect(readSubagentTools(tools).map((tool) => tool.name)).toEqual([
       "Read",
       "search_sources",
       "note_up",
     ]);
-    expect(readSubagentTools(tools, "US").map((tool) => tool.function.name)).toEqual([
+    expect(readSubagentTools(tools, "US").map((tool) => tool.name)).toEqual([
       "Read",
       "search_sources",
       "find_in_case",
@@ -415,16 +411,22 @@ describe("reading agents", () => {
       activities: expect.arrayContaining([
         expect.objectContaining({
           id: "fetch-1",
-          label: "Reading Royal Bank of Canada v. Mysak, 2020 BCSC 1122",
+          tool: "Read",
+          label: "Reading 2020 BCSC 1122 from A2AJ",
           source: expect.objectContaining({ citation: "2020 BCSC 1122" }),
         }),
       ]),
     });
     const sourceReads = (
-      events.at(-1) as { activities?: Array<{ source?: { citation: string }; paragraphs?: string[] }> }
+      events.at(-1) as { activities?: Array<{ id: string; source?: { citation: string } }> }
     ).activities?.filter((activity) => activity.source?.citation === "2020 BCSC 1122");
-    expect(sourceReads).toHaveLength(1);
-    expect(sourceReads?.[0]?.paragraphs).toEqual(["3", "5", "7", "9"]);
+    expect(sourceReads?.map(({ id }) => id)).toEqual([
+      "fetch-1",
+      "lookup-3",
+      "lookup-5",
+      "lookup-7",
+      "lookup-9",
+    ]);
     expect(JSON.parse(result.content)).toMatchObject({
       evidence: [expect.objectContaining({
         evidence_id: "e_lease",

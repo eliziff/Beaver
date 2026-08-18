@@ -2,12 +2,12 @@ import { abortError, throwIfAborted } from "./abort";
 import { requireApiKey } from "./apiKeys";
 import type {
   NormalizedToolCall,
-  OpenAIToolSchema,
   StreamChatParams,
   StreamChatResult,
 } from "./types";
 import { createLlmTrace } from "./rawStreamLog";
 import { modelContextWindow } from "./contextWindow";
+import { toOpenAIChatTools, type OpenAIChatTool } from "./tools";
 
 const DEEPSEEK_CHAT_URL = "https://api.deepseek.com/chat/completions";
 // DeepSeek's own default output budget for reasoning models is 32K tokens
@@ -156,7 +156,7 @@ async function createCompletion(params: {
   apiKey: string;
   model: string;
   messages: DeepSeekMessage[];
-  tools?: OpenAIToolSchema[];
+  tools?: OpenAIChatTool[];
   stream?: boolean;
   maxTokens?: number;
   thinking?: boolean;
@@ -256,7 +256,8 @@ export async function streamDeepSeek(
             apiKey: key,
             model,
             messages,
-            tools: resolvedTools,
+            tools: toOpenAIChatTools(resolvedTools),
+            maxTokens: params.maxTokens,
             stream: true,
             thinking: enableThinking,
             reasoningEffort: params.reasoningEffort,
@@ -416,27 +417,4 @@ export async function streamDeepSeek(
     if (params.abortSignal?.aborted) throw abortError();
     throw error;
   }
-}
-
-export async function completeDeepSeekText(params: {
-  model: string;
-  systemPrompt?: string;
-  user: string;
-  maxTokens?: number;
-  apiKeys?: { deepseek?: string | null };
-}): Promise<string> {
-  const response = await createCompletion({
-    apiKey: apiKey(params.apiKeys?.deepseek),
-    model: params.model,
-    messages: toDeepSeekMessages(
-      [{ role: "user", content: params.user }],
-      params.systemPrompt,
-    ),
-    maxTokens: params.maxTokens ?? 512,
-    thinking: false,
-  });
-  const json = (await response.json()) as {
-    choices?: { message?: { content?: string | null } }[];
-  };
-  return json.choices?.[0]?.message?.content ?? "";
 }

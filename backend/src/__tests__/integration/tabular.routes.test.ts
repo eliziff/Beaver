@@ -55,12 +55,45 @@ vi.mock("../../middleware/auth", () => ({
 }));
 
 vi.mock("../../lib/access", () => ({
-    ensureReviewAccess: (...args: unknown[]) => ensureReviewAccess(...args),
-    checkProjectAccess: (...args: unknown[]) => checkProjectAccess(...args),
-    filterAccessibleDocumentIds: (...args: unknown[]) =>
-        filterAccessibleDocumentIds(...args),
-    ensureDocAccess: vi.fn(async () => ({ ok: true, isOwner: true })),
-    listAccessibleProjectIds: vi.fn(async () => []),
+    cloudData: async (operation: string, query: PromiseLike<any>) => {
+        const { data, error } = await query;
+        if (error) throw new Error(operation);
+        return data;
+    },
+    cloudScope: (identity: { userId: string; userEmail?: string }) => {
+        const db = createMutableSupabaseStub(supabaseState);
+        return {
+            ...identity, userEmail: identity.userEmail?.toLowerCase() ?? "", db,
+            project: async (id: string, owner = false) => {
+                const result = await checkProjectAccess(id, identity.userId,
+                    identity.userEmail, db);
+                return result.ok && (!owner || result.isOwner)
+                    ? { row: result.project, isOwner: result.isOwner } : null;
+            },
+            review: async (_id: string, owner = false) => {
+                const row = supabaseState.tables.tabular_reviews?.data as any;
+                if (!row) return null;
+                const result = await ensureReviewAccess(row, identity.userId,
+                    identity.userEmail, db);
+                return result.ok && (!owner || result.isOwner)
+                    ? { row, isOwner: result.isOwner } : null;
+            },
+            documents: async (ids: string[]) => {
+                const allowed = await filterAccessibleDocumentIds(ids);
+                const rows = supabaseState.tables.documents?.data;
+                return allowed.map((id: string) => ({
+                    row: Array.isArray(rows)
+                        ? rows.find((row: any) => row.id === id) ??
+                            { id, user_id: identity.userId, project_id: "p1" }
+                        : { id, user_id: identity.userId, project_id: "p1" },
+                    isOwner: true,
+                }));
+            },
+            document: vi.fn(async () => null),
+            chat: vi.fn(async () => null),
+            projects: vi.fn(async () => []),
+        };
+    },
 }));
 
 vi.mock("../../lib/userSettings", () => ({
@@ -130,13 +163,13 @@ describe("tabular.routes", () => {
             const res = await request(app).get("/tabular-review").set(...AUTH);
 
             expect(res.status).toBe(500);
-            expect(res.body.detail).toBe("boom");
+            expect(res.body.detail).toBe("Failed to load tabular reviews");
         });
     });
 
     // ── POST /tabular-review (create) ─────────────────────────────────────
     describe("POST /tabular-review", () => {
-        it("creates a review (201) and only persists accessible documents", async () => {
+        it("rejects a review containing an inaccessible document ID", async () => {
             supabaseState.tables.tabular_reviews = {
                 data: { id: "r9", title: "Gamma", document_ids: ["d1"] },
                 error: null,
@@ -153,27 +186,10 @@ describe("tabular.routes", () => {
                     columns_config: [{ index: 0, name: "Col", prompt: "p" }],
                 });
 
-            expect(res.status).toBe(201);
-            expect(res.body).toMatchObject({ id: "r9" });
-
-            const reviewInsert = supabaseState.inserts.find(
-                (i) => i.table === "tabular_reviews",
-            );
-            expect(reviewInsert?.payload).toMatchObject({
-                document_ids: ["d1"],
-            });
+            expect(res.status).toBe(404);
+            expect(res.body.detail).toBe("Document not found");
+            expect(supabaseState.inserts).toEqual([]);
             // Cells are created for accessible docs × columns only (1 × 1).
-            const cellInsert = supabaseState.inserts.find(
-                (i) => i.table === "tabular_cells",
-            );
-            expect(cellInsert?.payload).toEqual([
-                {
-                    review_id: "r9",
-                    document_id: "d1",
-                    column_index: 0,
-                    status: "pending",
-                },
-            ]);
         });
 
         it("returns 404 when project access is denied", async () => {
@@ -192,6 +208,19 @@ describe("tabular.routes", () => {
             expect(res.body.detail).toBe("Project not found");
         });
 
+        it("rejects a document from a different accessible project", async () => {
+            filterAccessibleDocumentIds.mockResolvedValue(["d2"]);
+            supabaseState.tables.documents = {
+                data: [{ id: "d2", user_id: "u1", project_id: "p2" }],
+                error: null,
+            };
+            const res = await request(app).post("/tabular-review").set(...AUTH)
+                .send({ project_id: "p1", document_ids: ["d2"], columns_config: [] });
+            expect(res.status).toBe(404);
+            expect(res.body.detail).toBe("Document not found");
+            expect(supabaseState.inserts).toEqual([]);
+        });
+
         it("returns 500 when the review insert errors", async () => {
             supabaseState.tables.tabular_reviews = {
                 data: null,
@@ -204,7 +233,7 @@ describe("tabular.routes", () => {
                 .send({ document_ids: [], columns_config: [] });
 
             expect(res.status).toBe(500);
-            expect(res.body.detail).toBe("insert failed");
+            expect(res.body.detail).toBe("Failed to create review");
         });
     });
 
@@ -335,7 +364,10 @@ describe("tabular.routes", () => {
     // ── DELETE /tabular-review/:reviewId ──────────────────────────────────
     describe("DELETE /tabular-review/:reviewId", () => {
         it("returns 204 on success", async () => {
-            supabaseState.tables.tabular_reviews = { data: null, error: null };
+            supabaseState.tables.tabular_reviews = {
+                data: { id: "r1", user_id: "u1", project_id: null },
+                error: null,
+            };
 
             const res = await request(app)
                 .delete("/tabular-review/r1")
@@ -344,7 +376,7 @@ describe("tabular.routes", () => {
             expect(res.status).toBe(204);
         });
 
-        it("returns 500 when the delete errors", async () => {
+        it("does not disclose a review when its access lookup fails", async () => {
             supabaseState.tables.tabular_reviews = {
                 data: null,
                 error: { message: "delete failed" },
@@ -354,8 +386,8 @@ describe("tabular.routes", () => {
                 .delete("/tabular-review/r1")
                 .set(...AUTH);
 
-            expect(res.status).toBe(500);
-            expect(res.body.detail).toBe("delete failed");
+            expect(res.status).toBe(404);
+            expect(res.body.detail).toBe("Review not found");
         });
     });
 
@@ -389,7 +421,8 @@ describe("tabular.routes", () => {
 
         it("returns 204 on success", async () => {
             supabaseState.tables.tabular_reviews = {
-                data: { id: "r1", user_id: "u1", project_id: null },
+                data: { id: "r1", user_id: "u1", project_id: null,
+                    document_ids: ["d1"] },
                 error: null,
             };
 

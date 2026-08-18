@@ -7,7 +7,7 @@ import {
   CODEX_APP_SERVER_CLOSED,
   type CodexAppServerNotification,
 } from "./codexAppServer";
-import { startCodexToolBridge, type CodexToolBridge } from "./codexToolBridge";
+import { startMcpToolBridge, type McpToolBridge } from "./mcpToolBridge";
 import { codexModelSlug } from "./models";
 import { createLlmTrace } from "./rawStreamLog";
 import type {
@@ -128,7 +128,7 @@ async function withCodexImages<T>(
   }
 }
 
-function threadConfig(params: StreamChatParams, bridge: CodexToolBridge | null) {
+function threadConfig(params: StreamChatParams, bridge: McpToolBridge | null) {
   return {
     include_permissions_instructions: false,
     include_apps_instructions: false,
@@ -179,7 +179,7 @@ function threadConfig(params: StreamChatParams, bridge: CodexToolBridge | null) 
 
 function threadParams(
   params: StreamChatParams,
-  bridge: CodexToolBridge | null,
+  bridge: McpToolBridge | null,
 ) {
   const model = codexModelSlug(params.model);
   return {
@@ -237,9 +237,9 @@ async function runCodexTurn(
     payload: { elapsedMs: performance.now() - startedAt },
   });
   const { callbacks, endReasoning } = codexStreamCallbacks(params);
-  let bridge: CodexToolBridge | null = null;
+  let bridge: McpToolBridge | null = null;
   if (params.tools?.length && params.runTools) {
-    bridge = await startCodexToolBridge({
+    bridge = await startMcpToolBridge({
       tools: params.staticTools ?? params.tools,
       runTools: params.runTools,
       callbacks,
@@ -595,24 +595,6 @@ async function runCodexTurn(
 
 export function streamCodex(params: StreamChatParams) {
   return withCodexImages(params.messages, (images) => runCodexTurn(params, images));
-}
-
-export async function completeCodexText(params: {
-  model: string;
-  systemPrompt?: string;
-  user: string;
-  maxTokens?: number;
-  reasoningEffort?: string;
-  apiKeys?: StreamChatParams["apiKeys"];
-}) {
-  const result = await streamCodex({
-    model: params.model,
-    systemPrompt: params.systemPrompt ?? "",
-    messages: [{ role: "user", content: params.user }],
-    apiKeys: params.apiKeys,
-    reasoningEffort: params.reasoningEffort,
-  });
-  return result.fullText;
 }
 
 export async function compactCodexSession(params: {

@@ -128,13 +128,17 @@ export async function compactChatContext(args: {
       summary,
       keep_current: false,
     };
-    if (!await args.store.appendAssistantEvent(
+    const appended = await args.store.appendAssistantEvent(
       args.scope,
       args.chatId,
       plan.messageId,
       event,
-    )) {
+    );
+    if (appended.status === "missing") {
       throw new Error("Context checkpoint boundary no longer exists");
+    }
+    if (appended.status === "conflict") {
+      throw new Error("Chat changed while context was compacting");
     }
     rows = await args.store.transcript(args.scope, args.chatId);
     if (!rows) throw new Error("Chat not found");

@@ -1,11 +1,13 @@
 import crypto from "node:crypto";
-import { mkdirSync } from "node:fs";
-import path from "node:path";
-import { DatabaseSync } from "node:sqlite";
-import { mikeLocalDataHome } from "./legalDataPath";
+import type { DatabaseSync } from "node:sqlite";
+import {
+  closeLocalApplicationDatabase,
+  localApplicationDatabase,
+  localApplicationTransaction,
+  openLocalApplicationDatabase,
+} from "./localApplicationDatabase";
 
 const GENERAL_RESEARCH_PROJECT_ID = "general";
-export const LEGAL_KNOWLEDGE_SCHEMA_VERSION = 2;
 const MAX_LABEL_DEPTH = 3;
 const KIND = /^[a-z][a-z0-9_-]{0,39}$/u;
 
@@ -242,231 +244,23 @@ function evidenceResponse(row: EvidenceRow): LegalKnowledgeEvidence {
 
 export class LegalKnowledgeGraphStore {
   readonly database: DatabaseSync;
+  readonly #ownsDatabase: boolean;
 
-  constructor(
-    filename = path.join(mikeLocalDataHome(), "legal-knowledge.sqlite"),
-  ) {
-    mkdirSync(path.dirname(filename), { recursive: true });
-    this.database = new DatabaseSync(filename);
-    this.database.exec(`ATTACH DATABASE '${path.join(
-      path.dirname(filename), "library.sqlite",
-    ).replaceAll("'", "''")}' AS local_library`);
-    this.database.exec(`
-      PRAGMA journal_mode = WAL;
-      PRAGMA busy_timeout = 5000;
-      PRAGMA foreign_keys = ON;
-      CREATE TABLE IF NOT EXISTS legal_knowledge_projects (
-        user_id TEXT NOT NULL,
-        id TEXT NOT NULL,
-        name TEXT NOT NULL,
-        sort_order INTEGER NOT NULL DEFAULT 0,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        PRIMARY KEY (user_id, id)
-      );
-      CREATE TABLE IF NOT EXISTS legal_knowledge_nodes (
-        id TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL,
-        project_id TEXT NOT NULL,
-        kind TEXT NOT NULL,
-        name TEXT NOT NULL,
-        color TEXT NOT NULL,
-        sort_order INTEGER NOT NULL DEFAULT 0,
-        data_json TEXT NOT NULL DEFAULT '{}',
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-      CREATE INDEX IF NOT EXISTS legal_knowledge_nodes_scope
-        ON legal_knowledge_nodes(user_id, project_id, kind, sort_order);
-      CREATE TABLE IF NOT EXISTS legal_knowledge_edges (
-        user_id TEXT NOT NULL,
-        project_id TEXT NOT NULL,
-        from_node_id TEXT NOT NULL REFERENCES legal_knowledge_nodes(id) ON DELETE CASCADE,
-        to_node_id TEXT NOT NULL REFERENCES legal_knowledge_nodes(id) ON DELETE CASCADE,
-        relation TEXT NOT NULL,
-        sort_order INTEGER NOT NULL DEFAULT 0,
-        created_at TEXT NOT NULL,
-        PRIMARY KEY (user_id, project_id, from_node_id, to_node_id, relation)
-      );
-      CREATE UNIQUE INDEX IF NOT EXISTS legal_knowledge_one_parent
-        ON legal_knowledge_edges(user_id, project_id, from_node_id)
-        WHERE relation = 'parent';
-      CREATE INDEX IF NOT EXISTS legal_knowledge_edges_scope
-        ON legal_knowledge_edges(user_id, project_id, relation, sort_order);
-      CREATE TABLE IF NOT EXISTS legal_knowledge_evidence (
-        id TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL,
-        project_id TEXT NOT NULL,
-        source_id TEXT NOT NULL,
-        locator_kind TEXT NOT NULL DEFAULT '',
-        locator TEXT NOT NULL DEFAULT '',
-        quote TEXT NOT NULL DEFAULT '',
-        quote_sha256 TEXT NOT NULL DEFAULT '',
-        canonical_url TEXT NOT NULL DEFAULT '',
-        note TEXT NOT NULL DEFAULT '',
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        UNIQUE (user_id, project_id, source_id, locator_kind, locator)
-      );
-      CREATE INDEX IF NOT EXISTS legal_knowledge_evidence_scope
-        ON legal_knowledge_evidence(user_id, project_id, source_id);
-      CREATE TABLE IF NOT EXISTS legal_knowledge_evidence_links (
-        user_id TEXT NOT NULL,
-        project_id TEXT NOT NULL,
-        evidence_id TEXT NOT NULL REFERENCES legal_knowledge_evidence(id) ON DELETE CASCADE,
-        node_id TEXT NOT NULL REFERENCES legal_knowledge_nodes(id) ON DELETE CASCADE,
-        relation TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        PRIMARY KEY (user_id, project_id, evidence_id, node_id, relation)
-      );
-      CREATE INDEX IF NOT EXISTS legal_knowledge_evidence_links_scope
-        ON legal_knowledge_evidence_links(user_id, project_id, relation);
-      CREATE TABLE IF NOT EXISTS legal_knowledge_source_marks (
-        user_id TEXT NOT NULL,
-        project_id TEXT NOT NULL,
-        source_id TEXT NOT NULL,
-        note TEXT NOT NULL DEFAULT '',
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        PRIMARY KEY (user_id, project_id, source_id)
-      );
-      CREATE TABLE IF NOT EXISTS legal_knowledge_source_mark_labels (
-        user_id TEXT NOT NULL,
-        project_id TEXT NOT NULL,
-        source_id TEXT NOT NULL,
-        label_id TEXT NOT NULL REFERENCES legal_knowledge_nodes(id) ON DELETE CASCADE,
-        sort_order INTEGER NOT NULL DEFAULT 0,
-        PRIMARY KEY (user_id, project_id, source_id, label_id),
-        FOREIGN KEY (user_id, project_id, source_id)
-          REFERENCES legal_knowledge_source_marks(user_id, project_id, source_id)
-          ON DELETE CASCADE
-      );
-      CREATE INDEX IF NOT EXISTS legal_knowledge_source_mark_labels_scope
-        ON legal_knowledge_source_mark_labels(user_id, project_id, source_id, sort_order);
-      CREATE TABLE IF NOT EXISTS mike_matter_metadata (
-        user_id TEXT NOT NULL,
-        project_id TEXT NOT NULL,
-        cm_number TEXT,
-        practice TEXT,
-        metadata_json TEXT NOT NULL DEFAULT '{}',
-        notes TEXT,
-        PRIMARY KEY (user_id, project_id),
-        FOREIGN KEY (user_id, project_id)
-          REFERENCES legal_knowledge_projects(user_id, id)
-          ON DELETE CASCADE
-      );
-      CREATE TABLE IF NOT EXISTS mike_matter_documents (
-        user_id TEXT NOT NULL,
-        project_id TEXT NOT NULL,
-        document_id TEXT NOT NULL,
-        sort_order INTEGER NOT NULL DEFAULT 0,
-        created_at TEXT NOT NULL,
-        PRIMARY KEY (user_id, project_id, document_id),
-        FOREIGN KEY (user_id, project_id)
-          REFERENCES legal_knowledge_projects(user_id, id)
-          ON DELETE CASCADE
-      );
-      CREATE INDEX IF NOT EXISTS mike_matter_documents_scope
-        ON mike_matter_documents(user_id, project_id, sort_order, created_at);
-      CREATE INDEX IF NOT EXISTS legal_knowledge_projects_user_created
-        ON legal_knowledge_projects(user_id, created_at DESC, id DESC);
-    `);
-    this.migrateMatterMetadata();
-    this.migrateSourceMarks();
-  }
-
-  private migrateMatterMetadata() {
-    const columns = this.database
-      .prepare("PRAGMA table_info(mike_matter_metadata)")
-      .all() as { name: string }[];
-    const names = new Set(columns.map((column) => column.name));
-    if (!names.has("metadata_json")) {
-      this.database.exec(
-        "ALTER TABLE mike_matter_metadata ADD COLUMN metadata_json TEXT NOT NULL DEFAULT '{}'",
-      );
-    }
-    if (!names.has("notes")) {
-      this.database.exec(
-        "ALTER TABLE mike_matter_metadata ADD COLUMN notes TEXT",
-      );
-    }
+  constructor(source?: string | DatabaseSync) {
+    this.#ownsDatabase = typeof source === "string";
+    this.database = typeof source === "string"
+      ? openLocalApplicationDatabase(source)
+      : source ?? localApplicationDatabase();
   }
 
   close() {
-    this.database.close();
+    if (this.#ownsDatabase) this.database.close();
+    else closeLocalApplicationDatabase();
+    if (sharedStore === this) sharedStore = null;
   }
 
   private transaction<T>(operation: () => T) {
-    this.database.exec("BEGIN IMMEDIATE");
-    try {
-      const result = operation();
-      this.database.exec("COMMIT");
-      return result;
-    } catch (error) {
-      this.database.exec("ROLLBACK");
-      throw error;
-    }
-  }
-
-  private migrateSourceMarks() {
-    const version = Number(
-      (
-        this.database.prepare("PRAGMA user_version").get() as {
-          user_version: number;
-        }
-      ).user_version,
-    );
-    if (version > LEGAL_KNOWLEDGE_SCHEMA_VERSION) {
-      throw new Error(`Unsupported legal knowledge schema version ${version}`);
-    }
-    if (version === LEGAL_KNOWLEDGE_SCHEMA_VERSION) return;
-
-    this.transaction(() => {
-      if (version < 1) {
-        this.database.exec(`
-        INSERT OR IGNORE INTO legal_knowledge_source_marks
-          (user_id, project_id, source_id, note, created_at, updated_at)
-        SELECT evidence.user_id, evidence.project_id, evidence.source_id,
-               evidence.note, evidence.created_at, evidence.updated_at
-        FROM legal_knowledge_evidence AS evidence
-        WHERE evidence.locator_kind = '' AND evidence.locator = ''
-          AND (
-            evidence.note <> ''
-            OR EXISTS (
-              SELECT 1
-              FROM legal_knowledge_evidence_links AS link
-              WHERE link.evidence_id = evidence.id
-                AND link.relation = 'tagged'
-            )
-          );
-
-        INSERT OR IGNORE INTO legal_knowledge_source_mark_labels
-          (user_id, project_id, source_id, label_id, sort_order)
-        SELECT evidence.user_id, evidence.project_id, evidence.source_id,
-               link.node_id, 0
-        FROM legal_knowledge_evidence AS evidence
-        JOIN legal_knowledge_evidence_links AS link
-          ON link.evidence_id = evidence.id
-         AND link.relation = 'tagged'
-        WHERE evidence.locator_kind = '' AND evidence.locator = '';
-
-        DELETE FROM legal_knowledge_evidence_links
-        WHERE relation = 'tagged';
-
-        DELETE FROM legal_knowledge_evidence
-        WHERE locator_kind = '' AND locator = ''
-          AND quote = '' AND canonical_url = ''
-          AND NOT EXISTS (
-            SELECT 1
-            FROM legal_knowledge_evidence_links AS link
-            WHERE link.evidence_id = legal_knowledge_evidence.id
-          );
-        `);
-      }
-      this.database.exec(
-        `PRAGMA user_version = ${LEGAL_KNOWLEDGE_SCHEMA_VERSION}`,
-      );
-    });
+    return localApplicationTransaction(operation as never, this.database) as T;
   }
 
   hasProject(userId: string, projectId: string) {
@@ -713,7 +507,7 @@ export class LegalKnowledgeGraphStore {
     const params: (string | number)[] = [userId, projectId, userId];
     const filters: string[] = [];
     const ftsJoin = query.length >= 3
-      ? "JOIN local_library.local_document_filenames f ON f.document_id = d.id"
+      ? "JOIN local_document_filenames f ON f.document_id = d.id"
       : "";
     if (query.length >= 3) {
       filters.push("f.filename MATCH ?", "instr(lower(d.filename), ?) > 0");
@@ -733,7 +527,7 @@ export class LegalKnowledgeGraphStore {
     const rows = this.database.prepare(
       `SELECT d.id, lower(d.filename) AS sort_name
        FROM mike_matter_documents m
-       JOIN local_library.local_library_documents d ON d.id = m.document_id
+       JOIN local_library_documents d ON d.id = m.document_id
        ${ftsJoin}
        WHERE m.user_id = ? AND m.project_id = ? AND d.user_id = ?
          ${filters.length ? `AND ${filters.join(" AND ")}` : ""}
@@ -750,7 +544,9 @@ export class LegalKnowledgeGraphStore {
   }
 
   attachMatterDocument(userId: string, projectId: string, documentId: string) {
-    if (!this.getMatter(userId, projectId)) return false;
+    if (!this.getMatter(userId, projectId) || !this.database.prepare(
+      "SELECT 1 FROM local_library_documents WHERE user_id=? AND id=?",
+    ).get(userId, documentId)) return false;
     const order = (
       this.database
         .prepare(
@@ -1540,6 +1336,9 @@ export class LegalKnowledgeGraphStore {
 let sharedStore: LegalKnowledgeGraphStore | null = null;
 
 export function legalKnowledgeGraphStore() {
-  sharedStore ??= new LegalKnowledgeGraphStore();
+  const database = localApplicationDatabase();
+  if (sharedStore?.database !== database) {
+    sharedStore = new LegalKnowledgeGraphStore(database);
+  }
   return sharedStore;
 }

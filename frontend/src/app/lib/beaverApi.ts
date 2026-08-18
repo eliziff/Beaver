@@ -1,6 +1,7 @@
 import { isAnonymousMode } from "@/app/lib/authMode";
 import type {
-  AssistantEvent,
+  AskInputsResponseEvent,
+  CaseOpinionsEvent,
   Chat,
   Citation,
   ColumnConfig,
@@ -13,56 +14,15 @@ import type {
   Workflow,
   TabularReview,
 } from "@/app/components/shared/types";
-import { interruptAssistantStreamEvents } from "@/app/lib/assistantStreamEvents";
 interface ServerMessage {
   id: string;
   role: "user" | "assistant";
-  content: string | AssistantEvent[] | null;
+  content: string | unknown[] | null;
   files?: { filename: string; document_id?: string }[] | null;
   workflow?: { id: string; title: string } | null;
   citations?: Citation[] | null;
   turn_id?: string;
   turn_complete?: boolean;
-}
-function assistantContent(
-  content: ServerMessage["content"],
-  active: boolean,
-  complete?: boolean,
-) {
-  const rawEvents = Array.isArray(content) ? content : undefined;
-  const persistedStatus = rawEvents?.find(
-    (event) => event.type === "turn_status",
-  );
-  const legacyCancelled = rawEvents?.some(
-    (event) => event.type === "content" && event.text === "Cancelled by user.",
-  );
-  const visibleEvents = rawEvents?.filter(
-    (event) =>
-      event.type !== "turn_status" &&
-      !(event.type === "content" && event.text === "Cancelled by user."),
-  );
-  const hasOpenWork = visibleEvents?.some(
-    (event) =>
-      ("isStreaming" in event && event.isStreaming) ||
-      (event.type === "subagent_run" && event.status === "running"),
-  );
-  const turnStatus =
-    persistedStatus?.type === "turn_status"
-      ? persistedStatus.status
-      : legacyCancelled
-        ? "cancelled"
-        : !active && (hasOpenWork || complete === false)
-          ? "interrupted"
-          : undefined;
-  const events =
-    visibleEvents && turnStatus
-      ? interruptAssistantStreamEvents(visibleEvents, turnStatus)
-      : visibleEvents;
-  const text = events
-    ?.filter((event) => event.type === "content")
-    .map((event) => event.text)
-    .join("\n\n");
-  return { content: text ?? "", events, ...(turnStatus && { turnStatus }) };
 }
 export const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
 export class BeaverApiError extends Error {
@@ -784,12 +744,7 @@ export const listProjectChats = (projectId: string) =>
   apiRequest<Chat[]>(`/projects/${projectId}/chats`);
 export const getChat = async (chatId: string) => {
   const raw = await apiRequest<{ chat: Chat; messages: ServerMessage[] }>(`/chat/${chatId}`);
-  const lastUser = raw.messages.findLastIndex((message) => message.role === "user");
-  const lastAssistant = raw.messages.findLastIndex((message) => message.role === "assistant");
-  const activeAssistant = raw.chat.turn_in_progress && lastAssistant > lastUser
-    ? lastAssistant
-    : -1;
-  const messages: Message[] = raw.messages.map((m, index) => {
+  const messages: Message[] = raw.messages.map((m) => {
     if (m.role === "user") {
       return {
         id: m.id,
@@ -803,16 +758,13 @@ export const getChat = async (chatId: string) => {
     return {
       id: m.id,
       role: "assistant",
+      content: typeof m.content === "string" ? m.content : "",
       citations: m.citations ?? undefined,
+      events: Array.isArray(m.content) ? m.content : undefined,
       turnId: m.turn_id,
-      ...assistantContent(m.content, index === activeAssistant, m.turn_complete),
       turnComplete: m.turn_complete,
     };
   });
-  const last = messages.at(-1);
-  if (!raw.chat.turn_in_progress && last?.role === "user" && last.turnId) {
-    messages[messages.length - 1] = { ...last, turnStatus: "interrupted" };
-  }
   return { chat: raw.chat, messages };
 };
 export const renameChat = (chatId: string, title: string) =>
@@ -840,7 +792,7 @@ export const compactChat = (chatId: string, model: string) =>
 export const generateChatTitle = (chatId: string, message: string) =>
   post<{ title: string }>(`/chat/${chatId}/generate-title`, { message });
 export type CaseLawOpinion =
-  Extract<AssistantEvent, { type: "case_opinions" }>["case"]["opinions"][number];
+  CaseOpinionsEvent["case"]["opinions"][number];
 export const getCourtlistenerOpinions = async (clusterId: number) =>
   (await post<{ opinions: CaseLawOpinion[] }>(
     "/case-law/case-opinions", { clusterId },
@@ -851,10 +803,7 @@ type StreamCurrentTurn =
     })
   | (Pick<Message, "content" | "files"> & {
       kind: "ask_inputs_response";
-      responses: Extract<
-        AssistantEvent,
-        { type: "ask_inputs_response" }
-      >["responses"];
+      responses: AskInputsResponseEvent["responses"];
     });
 export const streamChat = (payload: {
   messages?: Pick<Message, "role" | "content" | "files" | "workflow">[];
@@ -877,10 +826,7 @@ export const streamChat = (payload: {
   time_zone?: string;
   displayed_doc?: { filename: string; document_id: string };
   attached_documents?: { filename: string; document_id: string }[];
-  ask_inputs_response?: Extract<
-    AssistantEvent,
-    { type: "ask_inputs_response" }
-  >;
+  ask_inputs_response?: AskInputsResponseEvent;
   signal?: AbortSignal;
 }) => {
   const { signal, ...body } = payload;

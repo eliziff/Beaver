@@ -332,7 +332,8 @@ async function fixture() {
 afterEach(async () => {
   try {
     const store = await import("../localDocumentStore");
-    await store.closeLocalDocumentStore();
+    (await import("../localApplicationDatabase"))
+      .closeLocalApplicationDatabase();
   } catch {}
   delete process.env.MIKE_LOCAL_DATA_DIR;
   vi.resetModules();
@@ -665,87 +666,6 @@ describe("exact local PDF structure lookup", () => {
     );
   });
 
-  it("rehydrates legacy exact units but refuses unbound automatic links", async () => {
-    const built = await fixture();
-    const {
-      lookupLocalPdfStructure,
-      rehydrateLocalPdfEvidence,
-      rehydrateLocalPdfLinkEvidence,
-    } = await import("../localPdfLookup");
-    const lookupInput = {
-      locatorKind: "paragraph" as const,
-      locator: "2",
-    };
-    const lookup = await lookupLocalPdfStructure(
-      built.source,
-      lookupInput,
-      { persistEvidence: false },
-    );
-    expect(lookup.status).toBe("found");
-    if (lookup.status !== "found") throw new Error("fixture lookup failed");
-
-    const legacyIdentity = {
-      document_id: lookup.source.document_id,
-      version_id: lookup.source.version_id,
-      source_sha256: lookup.source.source_sha256,
-      cache_key: lookup.source.cache_key,
-      kind: "paragraph",
-      artifact_ids: lookup.evidence.artifact_ids,
-      text_sha256: lookup.evidence.text_sha256,
-      context_artifact_ids: lookup.evidence.context_artifact_ids,
-      payload_sha256: lookup.evidence.payload_sha256,
-    };
-    const digest = crypto
-      .createHash("sha256")
-      .update(JSON.stringify(legacyIdentity))
-      .digest("hex");
-    const legacyHandle = `mike-evidence:v1:${digest}`;
-    const receiptPath = path.join(
-      temporaryDirectory!,
-      "evidence",
-      "pdf",
-      "v1",
-      `${digest}.json`,
-    );
-    await mkdir(path.dirname(receiptPath), { recursive: true });
-    await writeFile(
-      receiptPath,
-      JSON.stringify({
-        schema_version: "mike.pdf_evidence.v1",
-        handle: legacyHandle,
-        source: {
-          document_id: lookup.source.document_id,
-          version_id: lookup.source.version_id,
-          source_path: built.state.source_path,
-          source_sha256: lookup.source.source_sha256,
-          parser_version: lookup.source.parser_version,
-          parser_config_version: lookup.source.parser_config_version,
-          cache_key: lookup.source.cache_key,
-        },
-        lookup: lookupInput,
-        evidence: {
-          artifact_ids: lookup.evidence.artifact_ids,
-          context_artifact_ids: lookup.evidence.context_artifact_ids,
-          text_sha256: lookup.evidence.text_sha256,
-          payload_sha256: lookup.evidence.payload_sha256,
-        },
-      }),
-      "utf8",
-    );
-
-    await expect(
-      rehydrateLocalPdfEvidence(built.source, legacyHandle),
-    ).resolves.toMatchObject({
-      status: "found",
-      units: [{ id: "paragraph-rule", text: "The rule applies." }],
-    });
-    await expect(
-      rehydrateLocalPdfLinkEvidence(built.source, legacyHandle),
-    ).rejects.toThrow(
-      "PDF evidence receipt is not bound to authoritative page text",
-    );
-  });
-
   it("rehydrates page-scoped link evidence after restart", async () => {
     const built = await fixture();
     const { lookupLocalPdfStructure } = await import("../localPdfLookup");
@@ -757,7 +677,8 @@ describe("exact local PDF structure lookup", () => {
     if (lookup.status !== "found") throw new Error("fixture lookup failed");
 
     const store = await import("../localDocumentStore");
-    await store.closeLocalDocumentStore();
+    (await import("../localApplicationDatabase"))
+      .closeLocalApplicationDatabase();
     vi.resetModules();
     const { rehydrateLocalPdfLinkEvidence } =
       await import("../localPdfLookup");
@@ -1491,7 +1412,7 @@ describe("exact local PDF structure lookup", () => {
 
   it("exposes the same bounded lookup through the assistant tool", async () => {
     const built = await fixture();
-    const tools = await import("../chat/localAssistantTools");
+    const tools = await import("./support/localAssistantTools");
     const handles = new Set<string>();
 
     const [response] = await tools.runLocalAssistantTools(
@@ -1595,7 +1516,7 @@ describe("exact local PDF structure lookup", () => {
       .map((line) => JSON.parse(line) as Record<string, unknown>);
     paragraphs[1].page_index = 999;
     await writeJsonLines(paragraphsPath, paragraphs);
-    const tools = await import("../chat/localAssistantTools");
+    const tools = await import("./support/localAssistantTools");
     const handles = new Set<string>();
 
     const [response] = await tools.runLocalAssistantTools(

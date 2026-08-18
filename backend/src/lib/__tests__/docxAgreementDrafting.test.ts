@@ -32,6 +32,12 @@ async function documentXml(bytes: Buffer) {
   return zip.file("word/document.xml")!.async("text");
 }
 
+async function packageXml(bytes: Buffer, path: string) {
+  const JSZip = (await import("jszip")).default;
+  const zip = await JSZip.loadAsync(bytes);
+  return zip.file(path)!.async("text");
+}
+
 describe("agreement DOCX drafting", () => {
   it("renders deterministic tagged Word content controls without leaking markers", async () => {
     const first = await renderMarkdownDocx(
@@ -90,6 +96,43 @@ describe("agreement DOCX drafting", () => {
     const xml = await documentXml(rendered.bytes);
     expect(xml).toContain('<w:tag w:val="tenant_name"/>');
     expect(xml).toContain("Alex");
+  });
+
+  it("binds repeated fields to one custom XML value", async () => {
+    const rendered = await renderMarkdownDocx(
+      "Lease",
+      "The premises are {{property_address}}. Notices concern {{property_address}}.",
+      [{ id: "property_address", value: "101 Main Street" }],
+    );
+    if ("error" in rendered) throw new Error(rendered.error);
+
+    const xml = await documentXml(rendered.bytes);
+    const bindings = [...xml.matchAll(/<w:dataBinding\b([^>]*)\/>/gu)];
+    expect(bindings).toHaveLength(2);
+    expect(bindings.map((match) => match[1].match(/w:xpath="([^"]+)"/u)?.[1]))
+      .toEqual([
+        "/b:fields/b:field[@name=&apos;property_address&apos;]",
+        "/b:fields/b:field[@name=&apos;property_address&apos;]",
+      ]);
+    const storeIds = bindings.map(
+      (match) => match[1].match(/w:storeItemID="([^"]+)"/u)?.[1],
+    );
+    expect(new Set(storeIds).size).toBe(1);
+    expect(await packageXml(rendered.bytes, "customXml/item1.xml")).toContain(
+      '<b:field name="property_address">101 Main Street</b:field>',
+    );
+    expect(await packageXml(rendered.bytes, "customXml/itemProps1.xml")).toContain(
+      `ds:itemID="${storeIds[0]}"`,
+    );
+    expect(
+      await packageXml(rendered.bytes, "word/_rels/document.xml.rels"),
+    ).toContain('Target="../customXml/item1.xml"');
+    expect(
+      await packageXml(rendered.bytes, "customXml/_rels/item1.xml.rels"),
+    ).toContain('Target="itemProps1.xml"');
+    expect(await packageXml(rendered.bytes, "[Content_Types].xml")).toContain(
+      'PartName="/customXml/itemProps1.xml"',
+    );
   });
 
   it("reports every bad field in one recoverable error", async () => {

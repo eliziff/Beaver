@@ -458,6 +458,31 @@ export function sliceSourceDocBlocks(
   return available.slice(lowest, highest + 1);
 }
 
+export function readSourceDocRange(
+  doc: SourceDoc,
+  kind: SourceDocLocatorKind,
+  from: string,
+  to: string,
+  contextBlocks = 0,
+) {
+  const selected = sliceSourceDocBlocks(doc, kind, from, to);
+  if (!selected.length) return null;
+  const available = sourceDocBlocksOfKind(doc, kind);
+  const first = available.indexOf(selected[0]);
+  const last = available.indexOf(selected.at(-1)!);
+  if (first < 0 || last < first) return null;
+  const context = Math.min(Math.max(Math.trunc(contextBlocks), 0), 2);
+  return {
+    selected: selected.map((block) => materialize(doc, block)),
+    before: available
+      .slice(Math.max(0, first - context), first)
+      .map((block) => materialize(doc, block)),
+    after: available
+      .slice(last + 1, last + 1 + context)
+      .map((block) => materialize(doc, block)),
+  };
+}
+
 function tokenIndexAtOrAfter(tokens: WordSpan[], offset: number) {
   let low = 0;
   let high = tokens.length;
