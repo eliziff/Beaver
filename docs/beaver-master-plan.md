@@ -28,8 +28,8 @@ ambiguity that cannot be resolved reliably in code.
 
 These decisions are not open backlog items:
 
-1. Beaver supports an account-free local mode and optional cloud/Supabase/R2
-   deployment. They are two persistence compositions of one application, not
+1. Beaver supports account-free local mode and optional cloud/Supabase with
+   private S3-compatible object storage. They are two persistence compositions of one application, not
    two behavior paths to maintain independently.
 2. Provider downloads, bulk databases, and shared source caches live under the
    versioned `OpenLegalData` contract, normally
@@ -120,7 +120,7 @@ Execute the
 from checkpoint `02aff487`.
 
 The governing design is one `createRuntime(dataPorts)` domain factory, selected
-once at composition. Local SQLite/files and cloud Supabase/R2 constructors
+once at composition. Local SQLite/files and cloud Supabase/S3 constructors
 satisfy one compiler-enforced persistence contract and feed the same domain
 program. All routes, tools, assistant surfaces, DTOs, events, pagination rules,
 document projections, and behavior tests are shared. Ordinary feature work
@@ -282,7 +282,7 @@ Acceptance:
   document, restart Beaver, and continue with unchanged versions and citations.
 - The automatically enumerated application contract passes unchanged against
   temporary local SQLite/files and real local Supabase/object storage.
-- Ordinary routes and tools cannot import a mode flag, SQLite, Supabase, or R2;
+- Ordinary routes and tools cannot import a mode flag, SQLite, Supabase, or S3;
   adding a persistence capability fails compilation until both data-port
   encodings implement it.
 - Cloud mode also passes its account, authentication, sharing, audit, and
@@ -688,6 +688,12 @@ Acceptance:
 ### P1.3 Seamless deterministic pinpoint links
 
 Status: **Partial**
+
+The claim-local receipt, quotation-integrity, rich-footnote, and artifact
+handoff work is specified in
+[Grounded drafting integrity](grounded-drafting-integrity-plan.md). Implement it
+through the existing evidence registry and semantic DOCX renderer; do not add a
+parallel citation framework or semantic-verification service.
 
 - Replace verbose model-authored citation JSON with short evidence handles.
 - Hydrate and verify exact quote spans on the server.
@@ -1359,7 +1365,7 @@ Acceptance:
 - No vector database until a held-out retrieval win justifies it.
 - No lossy summary as a legal source or replacement for raw history.
 - No global Caveman directive before independent testing.
-- No removal of Supabase/R2/cloud compatibility.
+- No removal of cloud/Supabase compatibility.
 - No reduction of useful warmup merely to make a build metric look better.
 - No full-document model parsing when a deterministic exact lookup can answer.
 - No second maintained Table of Authorities UI.

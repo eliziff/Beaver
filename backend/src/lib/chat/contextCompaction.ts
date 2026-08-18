@@ -8,7 +8,7 @@ import { streamChatWithTools, type LlmMessage, type UserApiKeys } from "../llm";
 import { providerForModel } from "../llm/models";
 import type { Provider } from "../llm/types";
 import { formatChatMessageContent } from "./messageFormatting";
-import { projectChatTranscript } from "./anonymousTranscript";
+import { projectChatTranscript } from "./chatTranscript";
 
 const RECENT_TAIL_TOKENS = 20_000;
 const CHECKPOINT_PROMPT = `Write a concise continuation checkpoint for an AI legal-work assistant.

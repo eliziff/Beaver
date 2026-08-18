@@ -5,7 +5,7 @@ import { setJurisdictionPreference } from "@/app/components/assistant/jurisdicti
 import { setReadSubagentPreferences } from "@/app/components/assistant/readSubagentPreferences";
 
 function useAssistantChat(options: Parameters<typeof useAssistantSession>[0]) {
-  const { state, actions } = useAssistantSession(options);
+  const { state, actions, chatLoad } = useAssistantSession(options);
   return {
     ...state,
     messages: state.messages.map((message) => message.role === "user" ? message : {
@@ -13,6 +13,7 @@ function useAssistantChat(options: Parameters<typeof useAssistantSession>[0]) {
       content: message.blocks.filter(({ role }) => role === "assistant").map(({ text }) => text).join("\n\n"),
     }),
     ...actions,
+    chatLoad,
     isResponseLoading: state.run !== null,
   };
 }
@@ -24,8 +25,6 @@ const mocks = vi.hoisted(() => ({
   steerChat: vi.fn(),
   streamChat: vi.fn(),
   loadChats: vi.fn(),
-  saveChat: vi.fn(),
-  stagePendingChatMessage: vi.fn(),
   peekPendingChatMessage: vi.fn(),
   claimPendingChatMessage: vi.fn(),
   generateChatTitle: vi.fn(),
@@ -48,8 +47,6 @@ vi.mock("@/app/contexts/ChatHistoryContext", () => ({
   useChatHistoryContext: () => ({
     replaceChatId: vi.fn(),
     loadChats: mocks.loadChats,
-    saveChat: mocks.saveChat,
-    stagePendingChatMessage: mocks.stagePendingChatMessage,
     peekPendingChatMessage: mocks.peekPendingChatMessage,
     claimPendingChatMessage: mocks.claimPendingChatMessage,
     renameChat: mocks.renameChat,
@@ -94,11 +91,59 @@ beforeEach(() => {
   mocks.stopChat.mockResolvedValue({ stopped: true });
   mocks.steerChat.mockResolvedValue({ steered: true });
   mocks.compactChat.mockResolvedValue({ compacted: true });
+  mocks.getChat.mockRejectedValue(new Error("initial load unavailable"));
   mocks.peekPendingChatMessage.mockReturnValue(null);
   mocks.claimPendingChatMessage.mockReturnValue(null);
 });
 
 describe("useAssistantChat local transcript boundary", () => {
+  it("loads one transcript and resumes an active turn from the server version", async () => {
+    mocks.getChat
+      .mockResolvedValueOnce({
+        chat: { id: "chat-1", transcript_version: 4, turn_in_progress: true },
+        messages: [{ id: "user-1", role: "user", content: "Research this" }],
+      })
+      .mockResolvedValueOnce({
+        chat: { id: "chat-1", transcript_version: 5, turn_in_progress: false },
+        messages: [
+          { id: "user-1", role: "user", content: "Research this" },
+          { id: "assistant-1", role: "assistant", content: "Finished" },
+        ],
+      });
+
+    const { result } = renderHook(() => useAssistantChat({ chatId: "chat-1" }));
+
+    await waitFor(() => expect(result.current.messages.at(-1)?.content).toBe("Finished"));
+    expect(result.current.transcriptVersion).toBe(5);
+    expect(result.current.run).toBeNull();
+    expect(mocks.getChat).toHaveBeenCalledTimes(2);
+  });
+
+  it("ignores a stale transcript when the selected chat changes", async () => {
+    let resolveFirst!: (value: unknown) => void;
+    let resolveSecond!: (value: unknown) => void;
+    mocks.getChat
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }))
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveSecond = resolve; }));
+    const { result, rerender } = renderHook(
+      ({ chatId }) => useAssistantChat({ chatId }),
+      { initialProps: { chatId: "chat-1" } },
+    );
+    rerender({ chatId: "chat-2" });
+    await act(async () => resolveSecond({
+      chat: { id: "chat-2", transcript_version: 2, turn_in_progress: false },
+      messages: [{ id: "assistant-2", role: "assistant", content: "New selection" }],
+    }));
+    await act(async () => resolveFirst({
+      chat: { id: "chat-1", transcript_version: 9, turn_in_progress: false },
+      messages: [{ id: "assistant-1", role: "assistant", content: "Stale selection" }],
+    }));
+
+    expect(result.current.chatId).toBe("chat-2");
+    expect(result.current.messages.at(-1)?.content).toBe("New selection");
+    expect(result.current.transcriptVersion).toBe(2);
+  });
+
   it("handles chat commands without invoking a model", async () => {
     const { result } = renderHook(() => useAssistantChat({ chatId: "chat-1" }));
 
@@ -116,37 +161,6 @@ describe("useAssistantChat local transcript boundary", () => {
     });
     expect(mocks.compactChat).toHaveBeenCalledWith("chat-1", expect.any(String));
     expect(mocks.streamChat).not.toHaveBeenCalled();
-  });
-
-  it("stages a new message only after chat creation succeeds", async () => {
-    const message = { role: "user" as const, content: "Draft this" };
-    mocks.saveChat.mockResolvedValue("chat-new");
-    const { result } = renderHook(() => useAssistantChat());
-
-    await act(async () => {
-      expect(await result.current.handleNewChat(message)).toBe("chat-new");
-    });
-
-    expect(mocks.stagePendingChatMessage).toHaveBeenCalledWith(
-      "chat-new",
-      message,
-    );
-  });
-
-  it("does not stage a message when chat creation fails", async () => {
-    mocks.saveChat.mockResolvedValue(null);
-    const { result } = renderHook(() => useAssistantChat());
-
-    await act(async () => {
-      expect(
-        await result.current.handleNewChat({
-          role: "user",
-          content: "Draft this",
-        }),
-      ).toBeNull();
-    });
-
-    expect(mocks.stagePendingChatMessage).not.toHaveBeenCalled();
   });
 
   it("sends the standing jurisdiction preference with the turn", async () => {
@@ -278,6 +292,10 @@ describe("useAssistantChat local transcript boundary", () => {
   });
 
   it("posts only the current turn and advances the server transcript version", async () => {
+    mocks.getChat.mockResolvedValue({
+      chat: { id: "chat-1", transcript_version: 4, turn_in_progress: false },
+      messages: [],
+    });
     mocks.streamChat
       .mockResolvedValueOnce(
         streamResponse([
@@ -302,7 +320,7 @@ describe("useAssistantChat local transcript boundary", () => {
     const { result } = renderHook(() =>
       useAssistantChat({ chatId: "chat-1" }),
     );
-    act(() => result.current.setTranscriptVersion(4));
+    await waitFor(() => expect(result.current.chatLoad.status).toBe("loaded"));
 
     await act(async () => {
       await result.current.handleChat({
@@ -469,7 +487,12 @@ describe("useAssistantChat local transcript boundary", () => {
         { status: 409, headers: { "Content-Type": "application/json" } },
       ),
     );
-    mocks.getChat.mockResolvedValue({
+    mocks.getChat
+      .mockResolvedValueOnce({
+        chat: { id: "chat-1", transcript_version: 0, turn_in_progress: false },
+        messages: [],
+      })
+      .mockResolvedValue({
       chat: {
         id: "chat-1",
         user_id: "user-1",
@@ -479,13 +502,14 @@ describe("useAssistantChat local transcript boundary", () => {
         transcript_version: 3,
       },
       messages: [
-        { role: "user", content: "Other window" },
-        { role: "assistant", content: "Latest answer" },
+        { id: "user-latest", role: "user", content: "Other window" },
+        { id: "assistant-latest", role: "assistant", content: "Latest answer" },
       ],
     });
     const { result } = renderHook(() =>
       useAssistantChat({ chatId: "chat-1" }),
     );
+    await waitFor(() => expect(result.current.chatLoad.status).toBe("loaded"));
 
     await act(async () => {
       await result.current.handleChat({
@@ -531,21 +555,23 @@ describe("useAssistantChat local transcript boundary", () => {
         ]),
       );
     mocks.getChat
+      .mockRejectedValueOnce(new Error("initial load unavailable"))
       .mockResolvedValueOnce({
         chat: { id: "chat-1", transcript_version: 1, turn_in_progress: true },
-        messages: [{ role: "user", content: "Accepted elsewhere" }],
+        messages: [{ id: "user-accepted", role: "user", content: "Accepted elsewhere" }],
       })
       .mockResolvedValueOnce({
         chat: { id: "chat-1", transcript_version: 2, turn_in_progress: false },
         messages: [
-          { role: "user", content: "Accepted elsewhere" },
-          { role: "assistant", content: "Completed elsewhere" },
+          { id: "user-accepted", role: "user", content: "Accepted elsewhere" },
+          { id: "assistant-accepted", role: "assistant", content: "Completed elsewhere" },
         ],
       });
     const { result } = renderHook(() =>
       useAssistantChat({ chatId: "chat-1" }),
     );
 
+    await waitFor(() => expect(result.current.chatLoad.status).toBe("error"));
     await act(async () => {
       await result.current.handleChat({
         role: "user",
@@ -599,12 +625,13 @@ describe("useAssistantChat local transcript boundary", () => {
     mocks.getChat.mockResolvedValue({
       chat: { id: "chat-1", transcript_version: 2 },
       messages: [
-        { role: "assistant", content: "", events: [{ type: "ask_inputs" }] },
+        { id: "assistant-question", role: "assistant", content: [{ type: "ask_inputs", items: [] }] },
       ],
     });
     const { result } = renderHook(() =>
       useAssistantChat({ chatId: "chat-1" }),
     );
+    await waitFor(() => expect(result.current.chatLoad.status).toBe("loaded"));
     const response = {
       type: "ask_inputs_response" as const,
       responses: [
@@ -647,6 +674,10 @@ describe("useAssistantChat local transcript boundary", () => {
 
   it("keeps structured selections when the provider fails after accepting them", async () => {
     let renders = 0;
+    mocks.getChat.mockResolvedValue({
+      chat: { id: "chat-1", transcript_version: 1, turn_in_progress: false },
+      messages: [{ id: "assistant-question", role: "assistant", content: [{ type: "ask_inputs", items: [] }] }],
+    });
     mocks.streamChat
       .mockResolvedValueOnce(
         streamResponse([
@@ -671,18 +702,9 @@ describe("useAssistantChat local transcript boundary", () => {
       );
     const { result } = renderHook(() => {
       renders += 1;
-      return useAssistantChat({
-        chatId: "chat-1",
-        initialMessages: [
-          {
-            role: "assistant",
-            content: "",
-            events: [{ type: "ask_inputs", items: [] }],
-          },
-        ],
-      });
+      return useAssistantChat({ chatId: "chat-1" });
     });
-    act(() => result.current.setTranscriptVersion(1));
+    await waitFor(() => expect(result.current.chatLoad.status).toBe("loaded"));
     const response = {
       type: "ask_inputs_response" as const,
       responses: [
@@ -730,6 +752,10 @@ describe("useAssistantChat local transcript boundary", () => {
   });
 
   it("does not offer retry after a committed local mutation", async () => {
+    mocks.getChat.mockResolvedValue({
+      chat: { id: "chat-1", transcript_version: 1, turn_in_progress: false },
+      messages: [{ id: "assistant-question", role: "assistant", content: [{ type: "ask_inputs", items: [] }] }],
+    });
     mocks.streamChat.mockResolvedValue(
       streamResponse([
         {
@@ -745,18 +771,8 @@ describe("useAssistantChat local transcript boundary", () => {
         { type: "transcript_version", transcriptVersion: 4 },
       ]),
     );
-    const { result } = renderHook(() =>
-      useAssistantChat({
-        chatId: "chat-1",
-        initialMessages: [
-          {
-            role: "assistant",
-            content: "",
-            events: [{ type: "ask_inputs", items: [] }],
-          },
-        ],
-      }),
-    );
+    const { result } = renderHook(() => useAssistantChat({ chatId: "chat-1" }));
+    await waitFor(() => expect(result.current.chatLoad.status).toBe("loaded"));
 
     await act(async () => {
       await result.current.handleChat(
@@ -802,12 +818,13 @@ describe("useAssistantChat local transcript boundary", () => {
     );
     mocks.getChat.mockResolvedValue({
       chat: { id: "chat-1", transcript_version: 4 },
-      messages: [{ role: "assistant", content: "The draft was created." }],
+      messages: [{ id: "assistant-created", role: "assistant", content: "The draft was created." }],
     });
     const { result } = renderHook(() =>
       useAssistantChat({ chatId: "chat-1" }),
     );
 
+    await waitFor(() => expect(result.current.chatLoad.status).toBe("loaded"));
     await act(async () => {
       await result.current.handleChat({
         role: "user",
@@ -909,17 +926,20 @@ describe("useAssistantChat local transcript boundary", () => {
         { status: 200, headers: { "Content-Type": "text/event-stream" } },
       ),
     );
-    mocks.getChat.mockResolvedValue({
+    mocks.getChat
+      .mockRejectedValueOnce(new Error("initial load unavailable"))
+      .mockResolvedValue({
       chat: { id: "chat-1", transcript_version: 3 },
       messages: [
-        { role: "user", content: "Create it once" },
-        { role: "assistant", content: "Created." },
+        { id: "user-create", role: "user", content: "Create it once" },
+        { id: "assistant-create", role: "assistant", content: "Created." },
       ],
     });
     const { result } = renderHook(() =>
       useAssistantChat({ chatId: "chat-1" }),
     );
 
+    await waitFor(() => expect(result.current.chatLoad.status).toBe("error"));
     await act(async () => {
       await result.current.handleChat({
         role: "user",
@@ -1187,7 +1207,6 @@ describe("useAssistantChat local transcript boundary", () => {
     const { result } = renderHook(() =>
       useAssistantChat({ chatId: "chat-1" }),
     );
-
     await act(async () => {
       await result.current.handleChat({
         role: "user",
@@ -1346,7 +1365,6 @@ describe("useAssistantChat local transcript boundary", () => {
     const { result } = renderHook(() =>
       useAssistantChat({ chatId: "chat-1" }),
     );
-
     await act(async () => {
       await result.current.handleChat({ role: "user", content: "Draft a memo" });
     });
@@ -1402,23 +1420,26 @@ describe("useAssistantChat local transcript boundary", () => {
         );
       },
     );
-    mocks.getChat.mockResolvedValue({
+    mocks.getChat
+      .mockRejectedValueOnce(new Error("initial load unavailable"))
+      .mockResolvedValue({
       chat: { id: "chat-1", transcript_version: 2 },
       messages: [
-        { role: "user", content: "Stop after this sentence" },
+        { id: "user-stop", role: "user", content: "Stop after this sentence" },
         {
+          id: "assistant-stop",
           role: "assistant",
-          content: "",
-          events: [
+          content: [
             { type: "content", text: expected },
+            { type: "turn_status", status: "cancelled" },
           ],
-          turnStatus: "cancelled",
         },
       ],
     });
     const { result } = renderHook(() =>
       useAssistantChat({ chatId: "chat-1" }),
     );
+    await waitFor(() => expect(result.current.chatLoad.status).toBe("error"));
 
     let pending!: Promise<string | null>;
     act(() => {

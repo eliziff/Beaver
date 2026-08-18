@@ -5,7 +5,7 @@ import {
   type LegalKnowledgeGraphStore,
 } from "../lib/legalKnowledgeGraphStore";
 import { getLocalLegalSource } from "../lib/localDocumentStore";
-import { deleteAnonymousProjectChats } from "../lib/anonymousChatStore";
+import { abortLocalProjectChatTurns } from "../lib/localChatStore";
 import { localTabularStore } from "../lib/localTabularStore";
 
 type SourceExists = (userId: string, sourceId: string) => Promise<boolean>;
@@ -91,12 +91,12 @@ export function createLegalKnowledgeRouter(options?: {
   router.delete("/projects/:projectId", (req, res) => {
     try {
       const user = userId(res);
+      abortLocalProjectChatTurns(user, req.params.projectId);
       if (!store().deleteProject(user, req.params.projectId)) {
         res.status(404).json({ detail: "Research project not found" });
         return;
       }
       localTabularStore().deleteProjectReviews(user, req.params.projectId);
-      deleteAnonymousProjectChats(user, req.params.projectId);
       res.status(204).end();
     } catch (error) {
       res.status(400).json({

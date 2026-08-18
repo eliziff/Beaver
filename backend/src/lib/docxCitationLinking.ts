@@ -8,7 +8,8 @@ import {
   resolveLegalSource,
 } from "./legalSourceRegistry";
 import type { LegalSourceKind, LegalSourceLocator } from "./legalSources";
-import { addLocalVersion, getLocalVersionFile } from "./localDocumentStore";
+import type { DocumentStore } from "./documentStore";
+import { getLocalVersionFile } from "./localDocumentStore";
 import { runLegalPdf } from "./legalPdfProcess";
 
 type JsonRecord = Record<string, unknown>;
@@ -302,6 +303,7 @@ export async function linkDocxCitations(input: {
 }
 
 export async function linkLocalDocxCitations(
+  documents: DocumentStore,
   userId: string,
   documentId: string,
   options: {
@@ -318,7 +320,17 @@ export async function linkLocalDocxCitations(
     sourceVersionId: file.version.id,
     filename: file.document.filename,
     bytes: await readFile(file.path),
-    saveVersion: options.saveVersion ?? (async ({ filename, bytes }) =>
-      addLocalVersion({ userId, documentId, filename, bytes })),
+    saveVersion: options.saveVersion ?? (async ({ filename, bytes }) => {
+      const version = await documents.addVersion(
+        { userId }, documentId, { filename, bytes, fileType: "docx" },
+      );
+      return version && {
+        id: version.id,
+        filename: version.filename ?? filename,
+        version_number: version.version_number ?? undefined,
+        file_type: version.file_type ?? undefined,
+        source_sha256: version.source_sha256 ?? undefined,
+      };
+    }),
   });
 }

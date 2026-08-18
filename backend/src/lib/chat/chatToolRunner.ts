@@ -12,8 +12,7 @@ function state() {
     courtlistener: { casesByClusterId: new Map() },
     pdfHandles: new Set<string>(),
     edits: new Map(),
-    reads: new Map(),
-    workingSets: new Map(),
+    servedDraftingCache: new Map(),
   };
 }
 

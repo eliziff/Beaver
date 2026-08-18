@@ -12,10 +12,12 @@ import type {
 import { TabularCell as TabularCellComponent } from "./TabularCell";
 import {
     SkeletonLine,
+    TableLoadingRows,
     TableScrollArea,
+    TableSelectionCheckbox,
     TableSelectionPlaceholder,
+    useTableSelection,
 } from "../shared/TablePrimitive";
-import { CheckboxControl } from "@/app/components/ui/checkbox";
 import {
     APP_SURFACE_ACTIVE_CLASS,
     APP_SURFACE_GROUP_HOVER_CLASS,
@@ -77,10 +79,7 @@ export function TRTable({
         }
         return next;
     }, [cells]);
-    const selectedDocIdSet = useMemo(
-        () => new Set(selectedDocIds),
-        [selectedDocIds],
-    );
+    const selection = useTableSelection(documents, selectedDocIds, onSelectionChange);
     const columnPositionByIndex = useMemo(
         () => new Map(sortedColumns.map((column, index) => [column.index, index])),
         [sortedColumns],
@@ -115,21 +114,6 @@ export function TRTable({
     function getCell(docId: string, colIdx: number) {
         return cellsByKey.get(`${docId}:${colIdx}`);
     }
-    const allSelected =
-        documents.length > 0 &&
-        documents.every((d) => selectedDocIdSet.has(d.id));
-    const someSelected =
-        !allSelected && documents.some((d) => selectedDocIdSet.has(d.id));
-    function toggleAll() {
-        onSelectionChange(allSelected ? [] : documents.map((d) => d.id));
-    }
-    function toggleDoc(id: string) {
-        onSelectionChange(
-            selectedDocIdSet.has(id)
-                ? selectedDocIds.filter((selected) => selected !== id)
-                : [...selectedDocIds, id],
-        );
-    }
     const dragOverlay = dragOverFiles && (
         <div className="pointer-events-none absolute inset-0 z-[90] border-2 border-red-400 bg-red-50/40" />
     );
@@ -159,26 +143,18 @@ export function TRTable({
                     </div>
                 }
             >
-                    {Array.from({ length: SKELETON_ROWS }).map((_, row) => (
-                        <div
-                            key={row}
-                            className="flex h-8 min-w-full"
-                        >
-                            <div className={`sticky left-0 z-[60] ${DOC_COL_W} ${TR_STICKY_CELL_BG} flex items-center border-b border-r border-gray-200 py-2 pl-4 pr-2`}>
-                                <TableSelectionPlaceholder />
-                                <SkeletonLine className="h-4 w-32" />
-                            </div>
-                            {Array.from({ length: SKELETON_COLS }).map((_, col) => (
-                                <div
-                                    key={col}
-                                    className={`${COL_W} flex items-center border-b border-r border-gray-200 p-2`}
-                                >
-                                    <SkeletonLine className="h-4" />
-                                </div>
-                            ))}
-                            <div className="flex-1 border-b border-gray-200 min-w-8" />
-                        </div>
-                    ))}
+                    <TableLoadingRows count={SKELETON_ROWS}
+                        rowClassName="h-8 min-w-full pr-0"
+                        primaryWidthClassName={DOC_COL_W}
+                        primaryClassName={`sticky left-0 z-[60] ${TR_STICKY_CELL_BG} border-b border-r border-gray-200`}
+                        primaryLineClassName="h-4 w-32"
+                        columns={[
+                            ...Array.from({ length: SKELETON_COLS }, () => ({
+                                className: `${COL_W} flex items-center border-b border-r border-gray-200 p-2`,
+                                lineClassName: "h-4",
+                            })),
+                            { className: "min-w-8 flex-1 border-b border-gray-200" },
+                        ]} />
             </TableScrollArea>
         );
     }
@@ -225,14 +201,11 @@ export function TRTable({
                         data-tr-doc-header
                         className={`sticky left-0 z-[80] ${DOC_COL_W} ${TR_STICKY_CELL_BG} border-b border-r border-gray-200 flex items-center py-2 pl-4 pr-2 text-left text-xs font-medium text-gray-500 select-none`}
                     >
-                        <CheckboxControl
-                            checked={allSelected}
-                            ref={(el) => {
-                                if (el) el.indeterminate = someSelected;
-                            }}
-                            onChange={toggleAll}
-                            className="-ml-2 mr-1"
-                        />
+                        <TableSelectionCheckbox
+                            aria-label="Select loaded documents"
+                            checked={selection.allSelected}
+                            indeterminate={selection.someSelected}
+                            onChange={selection.toggleAll} />
                         <span>Document</span>
                     </div>
                     {columns.map((col) => (
@@ -270,9 +243,9 @@ export function TRTable({
                         <div
                             className={`sticky left-0 z-[60] ${DOC_COL_W} ${TR_STICKY_CELL_BG} border-b border-r border-gray-200 py-2 pl-4 pr-2 text-xs text-gray-400 flex items-center`}
                         >
-                            <CheckboxControl
+                            <TableSelectionCheckbox
                                 disabled
-                                className="-ml-2 mr-1"
+                                aria-label={`Uploading ${filename}`}
                             />
                             <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin shrink-0" />
                             <span className="line-clamp-1" title={filename}>
@@ -291,7 +264,7 @@ export function TRTable({
                     </div>
                     ))}
                     {documents.map((doc, docIdx) => {
-                    const isSelected = selectedDocIdSet.has(doc.id);
+                    const isSelected = selection.selected.has(doc.id);
                     const rowBg = isSelected
                         ? APP_SURFACE_ACTIVE_CLASS
                         : APP_SURFACE_HOVER_CLASS;
@@ -307,11 +280,10 @@ export function TRTable({
                             <div
                                 className={`sticky left-0 z-[60] ${DOC_COL_W} border-b border-r border-gray-200 py-2 pl-4 pr-2 text-xs text-gray-800 flex items-center ${stickyRowBg} ${isSelected ? "" : APP_SURFACE_GROUP_HOVER_CLASS}`}
                             >
-                                <CheckboxControl
-                                    checked={selectedDocIdSet.has(doc.id)}
-                                    onChange={() => toggleDoc(doc.id)}
-                                    className="-ml-2 mr-1"
-                                />
+                                <TableSelectionCheckbox
+                                    aria-label={`Select ${doc.filename}`}
+                                    checked={isSelected}
+                                    onChange={() => selection.toggle(doc.id)} />
                                 <span
                                     className="line-clamp-1"
                                     title={doc.filename}

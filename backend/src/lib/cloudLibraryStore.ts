@@ -1,7 +1,7 @@
 import { cloudData, cloudScope, type CloudScope } from "./access";
+import type { DocumentStore } from "./documentStore";
 import type { LibraryDocument, LibraryFolder, LibraryScope, LibraryStore } from "./libraryStore";
 import { normalizeDocumentMetadata, normalizeDocumentNotes } from "./normalize";
-import { deleteFile } from "./storage";
 
 const run = <T>(query: PromiseLike<{ data: T; error: any }>, operation: string) =>
   cloudData<T>(operation, query);
@@ -22,7 +22,7 @@ async function readDocument(scope: CloudScope, kind: LibraryScope["kind"], docum
   return documentResponse({ ...version, ...document });
 }
 
-export const cloudLibraryStore = {
+export const createCloudLibraryStore = (documents: DocumentStore): LibraryStore => ({
   async page(identity, options) {
     const scope = cloudScope(identity);
     const data = await run(scope.db.rpc("get_directory_page", {
@@ -72,23 +72,15 @@ export const cloudLibraryStore = {
     const rows = await run(db.rpc("get_library_folder_document_ids", {
       p_user_id: scope.userId, p_kind: identity.kind, p_folder_id: folderId,
     }), "Failed to load folder documents");
-    const ids = (rows ?? []).map((row: { id: string }) => row.id), paths = new Set<string>();
-    if (ids.length) {
-      const versions = await run(db.from("document_versions")
-        .select("storage_path, pdf_storage_path").in("document_id", ids),
-      "Failed to load document versions");
-      for (const version of versions ?? []) for (const path of
-        [version.storage_path, version.pdf_storage_path]) if (path) paths.add(path);
-      await run(db.from("documents").delete().eq("user_id", scope.userId)
-        .is("project_id", null).eq("library_kind", identity.kind).in("id", ids),
-      "Failed to delete folder documents");
+    for (const { id } of (rows ?? []) as { id: string }[]) {
+      if (!await documents.deleteDocument(identity, id)) {
+        throw new Error("Failed to delete folder document");
+      }
     }
     const deleted = await run(db.from("library_folders").delete().eq("id", folderId)
       .eq("user_id", scope.userId).eq("library_kind", identity.kind)
       .select("id").maybeSingle(), "Failed to delete folder");
-    if (!deleted) return false;
-    await Promise.all([...paths].map((path) => deleteFile(path).catch(() => {})));
-    return true;
+    return !!deleted;
   },
 
   document(identity, documentId) {
@@ -108,7 +100,9 @@ export const cloudLibraryStore = {
   async updateDocument(identity, documentId, update) {
     const scope = cloudScope(identity), current = await readDocument(
       scope, identity.kind, documentId);
-    if (!current) return null;
+    if (!current?.current_version_id || !await documents.renameVersion(
+      identity, documentId, current.current_version_id, update.filename,
+    )) return null;
     const values: Record<string, unknown> = { updated_at: new Date().toISOString(),
       ...(update.metadata !== undefined ? { metadata: update.metadata } : {}),
       ...(update.notes !== undefined ? { notes: update.notes } : {}) };
@@ -116,9 +110,6 @@ export const cloudLibraryStore = {
       .eq("user_id", scope.userId).is("project_id", null).eq("library_kind", identity.kind)
       .select("*").maybeSingle(), "Failed to update document");
     if (!data) return null;
-    if (data.current_version_id) await run(scope.db.from("document_versions")
-      .update({ filename: update.filename }).eq("id", data.current_version_id)
-      .eq("document_id", documentId), "Failed to rename document");
     return documentResponse({ ...current, ...data, filename: update.filename });
   },
-} satisfies LibraryStore;
+});

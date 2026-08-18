@@ -6,7 +6,7 @@ import { createServerSupabase } from "../supabase";
 import { getUserModelSettings } from "../userSettings";
 import { recordChatTurn } from "../audit";
 import { buildWorkflowStore } from "./contextBuilders";
-import { buildUserMcpTools, executeMcpToolCall } from "../mcpConnectors";
+import { buildUserMcpTools, executeMcpToolCall } from "../mcp/servers";
 
 export const cloudChatApplicationFeatures: ChatApplicationFeatures = {
   async load(auth) {

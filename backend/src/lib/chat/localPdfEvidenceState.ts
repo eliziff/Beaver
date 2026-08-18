@@ -1,11 +1,8 @@
 import { getLocalVersionFile } from "../localDocumentStore";
 import {
-  createLocalPdfArtifactSession,
-  createLocalPdfLinkEvidenceSession,
-  readLocalPdfEvidenceReceipt,
-  type LocalPdfArtifactSession,
+  documentProjectionService,
   type LocalPdfLinkEvidence,
-} from "../localPdfLookup";
+} from "../documentProjectionService";
 import {
   appendLegalSourcePinpointLinks,
   hasLegalSourceQuoteCandidates,
@@ -13,10 +10,6 @@ import {
 } from "../legalSourceLinks";
 
 const MAX_HANDLES_PER_ANSWER = 20;
-const artifactSessionsByTurn = new WeakMap<
-  ReadonlySet<string>,
-  Map<string, LocalPdfArtifactSession>
->();
 const providerReferencesByTurn = new WeakMap<
   ReadonlySet<string>,
   Map<
@@ -71,23 +64,6 @@ export function providerPdfReferencesForTurn(
   ];
 }
 
-export function localPdfArtifactSessionForTurn(
-  handles: ReadonlySet<string>,
-  sourcePath: string,
-) {
-  let sessions = artifactSessionsByTurn.get(handles);
-  if (!sessions) {
-    sessions = new Map();
-    artifactSessionsByTurn.set(handles, sessions);
-  }
-  let session = sessions.get(sourcePath);
-  if (!session) {
-    session = createLocalPdfArtifactSession(sourcePath);
-    sessions.set(sourcePath, session);
-  }
-  return session;
-}
-
 function sourceLabel(filename: string, locator: string) {
   const page = locator.match(/^\[page (\d+)\]$/u)?.[1];
   const pages = locator.match(/^\[pages ([\d, ]+)\]$/u)?.[1];
@@ -109,10 +85,6 @@ export async function appendLocalPdfPinpointLinks(
   const files = new Map<
     string,
     Awaited<ReturnType<typeof getLocalVersionFile>>
-  >();
-  const sessions = new Map<
-    string,
-    ReturnType<typeof createLocalPdfLinkEvidenceSession>
   >();
   const providerReferences = providerReferencesByTurn.get(handles);
   for (const handle of [...handles].slice(0, MAX_HANDLES_PER_ANSWER)) {
@@ -141,7 +113,7 @@ export async function appendLocalPdfPinpointLinks(
         }
         continue;
       }
-      const receipt = await readLocalPdfEvidenceReceipt(handle);
+      const receipt = await documentProjectionService.readPdfEvidence(handle);
       if (
         allowedDocumentIds &&
         !allowedDocumentIds.has(receipt.source.document_id)
@@ -161,15 +133,10 @@ export async function appendLocalPdfPinpointLinks(
       }
       if (!file || file.fileType.toLowerCase() !== "pdf") continue;
 
-      let session = sessions.get(file.path);
-      if (!session) {
-        session = createLocalPdfLinkEvidenceSession(
-          file.path,
-          localPdfArtifactSessionForTurn(handles, file.path),
-        );
-        sessions.set(file.path, session);
-      }
-      const linked = await session.rehydrate(handle);
+      const linked = await documentProjectionService.rehydratePdfLink(
+        file.path,
+        handle,
+      );
       for (const source of linked.sources) {
         const key =
           `${linked.documentId}|${linked.versionId}|${source.key}`;

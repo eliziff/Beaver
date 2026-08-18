@@ -11,15 +11,12 @@ const mocks = vi.hoisted(() => ({
         }
     },
     replace: vi.fn(),
-    getChat: vi.fn(),
     getProject: vi.fn(),
     updateChatProject: vi.fn(),
     useAssistantChat: vi.fn(),
-    setMessages: vi.fn(),
-    setTranscriptVersion: vi.fn(),
-    resumeRunningTurn: vi.fn(),
     messages: [] as { role: string; content: string }[],
     loading: false,
+    chatLoad: { status: "loading", chatId: "chat-1" } as Record<string, unknown>,
     chats: [] as { id: string; title: string | null }[],
 }));
 
@@ -28,7 +25,6 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/app/lib/beaverApi", () => ({
     BeaverApiError: mocks.BeaverApiError,
-    getChat: mocks.getChat,
     getProject: mocks.getProject,
     updateChatProject: mocks.updateChatProject,
 }));
@@ -43,6 +39,7 @@ beforeEach(() => {
     vi.clearAllMocks();
     mocks.messages = [];
     mocks.loading = false;
+    mocks.chatLoad = { status: "loading", chatId: "chat-1" };
     mocks.chats = [];
     mocks.getProject.mockResolvedValue({ id: "project-1", name: "Project" });
     mocks.useAssistantChat.mockImplementation(() => ({
@@ -50,61 +47,44 @@ beforeEach(() => {
             messages: mocks.messages,
             run: mocks.loading ? { id: "run-1", status: "running" } : null,
         },
-        actions: {
-            setMessages: mocks.setMessages,
-            setTranscriptVersion: mocks.setTranscriptVersion,
-            resumeRunningTurn: mocks.resumeRunningTurn,
-        },
+        chatLoad: mocks.chatLoad,
+        actions: {},
     }));
 });
 
-it("stays on the chat when loading fails temporarily", async () => {
-    mocks.getChat.mockRejectedValue(
-        new mocks.BeaverApiError({ message: "Too many requests", status: 429 }),
-    );
+it("stays on the chat when the owner hook reports a temporary load failure", () => {
+    mocks.chatLoad = {
+        status: "error",
+        chatId: "chat-1",
+        error: new mocks.BeaverApiError({ message: "Too many requests", status: 429 }),
+    };
 
     renderHook(() => useAssistantChatRoute({ chatId: "chat-1" }));
 
-    await waitFor(() => expect(mocks.getChat).toHaveBeenCalled());
     expect(mocks.replace).not.toHaveBeenCalled();
 });
 
-it("reconnects to a turn that kept running after navigation", async () => {
-    const messages = [{ role: "user", content: "Research this" }];
-    mocks.getChat.mockResolvedValue({
-        chat: {
-            id: "chat-1",
-            project_id: null,
-            user_id: "owner-1",
-            title: "Research",
-            transcript_version: 4,
-            turn_in_progress: true,
-            created_at: "",
-        },
-        messages,
-    });
+it("leaves a missing chat route", () => {
+    mocks.chatLoad = {
+        status: "error",
+        chatId: "chat-1",
+        error: new mocks.BeaverApiError({ message: "Missing", status: 404 }),
+    };
 
     renderHook(() => useAssistantChatRoute({ chatId: "chat-1" }));
 
-    await waitFor(() =>
-        expect(mocks.resumeRunningTurn).toHaveBeenCalledWith("chat-1", 4),
-    );
-    expect(mocks.setMessages).toHaveBeenCalledWith(messages, true);
+    expect(mocks.replace).toHaveBeenCalledWith("/assistant");
 });
 
 it("loads one canonical standalone transcript and metadata", async () => {
-    const messages = [{ role: "assistant", content: "Loaded answer" }];
-    mocks.getChat.mockResolvedValue({
-        chat: {
-            id: "chat-1",
-            project_id: null,
-            user_id: "owner-1",
-            title: "Loaded title",
-            transcript_version: 7,
-            created_at: "",
-        },
-        messages,
-    });
+    mocks.chatLoad = { status: "loaded", chatId: "chat-1", chat: {
+        id: "chat-1",
+        project_id: null,
+        user_id: "owner-1",
+        title: "Loaded title",
+        transcript_version: 7,
+        created_at: "",
+    } };
 
     const { result, rerender } = renderHook(() =>
         useAssistantChatRoute({ chatId: "chat-1" }),
@@ -113,8 +93,6 @@ it("loads one canonical standalone transcript and metadata", async () => {
     await waitFor(() => expect(result.current.chatLoaded).toBe(true));
     expect(result.current.chatTitle).toBe("Loaded title");
     expect(result.current.chatOwnerId).toBe("owner-1");
-    expect(mocks.setTranscriptVersion).toHaveBeenCalledWith(7);
-    expect(mocks.setMessages).toHaveBeenCalledWith(messages, false);
     expect(mocks.replace).not.toHaveBeenCalled();
 
     mocks.chats = [{ id: "chat-1", title: "Renamed title" }];
@@ -122,36 +100,26 @@ it("loads one canonical standalone transcript and metadata", async () => {
     expect(result.current.chatTitle).toBe("Renamed title");
 });
 
-it("keeps a valid empty chat open", async () => {
-    mocks.getChat.mockResolvedValue({
-        chat: {
-            id: "chat-1",
-            project_id: null,
-            user_id: "owner-1",
-            title: null,
-            transcript_version: 0,
-            created_at: "",
-        },
-        messages: [],
-    });
+it("keeps a valid empty chat open", () => {
+    mocks.chatLoad = { status: "loaded", chatId: "chat-1", chat: {
+        id: "chat-1", project_id: null, user_id: "owner-1", title: null,
+        transcript_version: 0, created_at: "",
+    } };
 
-    renderHook(() => useAssistantChatRoute({ chatId: "chat-1" }));
+    const { result } = renderHook(() => useAssistantChatRoute({ chatId: "chat-1" }));
 
-    await waitFor(() => expect(mocks.setMessages).toHaveBeenCalledWith([], false));
+    expect(result.current.chatLoaded).toBe(true);
     expect(mocks.replace).not.toHaveBeenCalled();
 });
 
 it("redirects a project-bound standalone chat without loading it twice", async () => {
-    mocks.getChat.mockResolvedValue({
-        chat: {
+    mocks.chatLoad = { status: "loaded", chatId: "chat-1", chat: {
             id: "chat-1",
             project_id: "project-1",
             user_id: "owner-1",
             title: "Project chat",
             created_at: "",
-        },
-        messages: [{ role: "assistant", content: "Existing" }],
-    });
+        } };
     mocks.getProject.mockResolvedValue({
         id: "project-1",
         name: "Matter one",
@@ -170,12 +138,12 @@ it("redirects a project-bound standalone chat without loading it twice", async (
         expect(result.current.chatProjectName).toBe("Matter one"),
     );
     expect(result.current.chatProjectId).toBe("project-1");
-    expect(mocks.setMessages).not.toHaveBeenCalled();
 });
 
 it("keeps a pending turn and defers project routing until it finishes", async () => {
     mocks.messages = [{ role: "user", content: "Pending request" }];
     mocks.loading = true;
+    mocks.chatLoad = { status: "loaded", chatId: "chat-1", chat: null };
     mocks.updateChatProject.mockResolvedValue({ project_id: "project-2" });
     const { result, rerender } = renderHook(() =>
         useAssistantChatRoute({ chatId: "chat-1" }),
@@ -184,7 +152,6 @@ it("keeps a pending turn and defers project routing until it finishes", async ()
     await act(async () => {
         await result.current.changeProject("project-2");
     });
-    expect(mocks.getChat).not.toHaveBeenCalled();
     expect(mocks.replace).not.toHaveBeenCalled();
     expect(mocks.useAssistantChat).toHaveBeenLastCalledWith({
         chatId: "chat-1",

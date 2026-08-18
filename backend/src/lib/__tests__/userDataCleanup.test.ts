@@ -1,20 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("../storage", () => ({
-    deleteFile: vi.fn(async () => {}),
-    listFiles: vi.fn(async () => [] as string[]),
+const objects = vi.hoisted(() => ({
+    remove: vi.fn(async () => {}),
+    list: vi.fn(async () => ({ keys: [] as string[], cursor: null })),
 }));
-
-import { deleteFile, listFiles } from "../storage";
+vi.mock("../cloudObjectStorage", () => ({ cloudDocumentObjects: () => objects }));
 import {
     deleteAllUserChats,
     deleteAllUserTabularReviews,
     deleteUserProjects,
     deleteUserAccountData,
 } from "../userDataCleanup";
-
-const deleteFileMock = vi.mocked(deleteFile);
-const listFilesMock = vi.mocked(listFiles);
 
 type Row = Record<string, unknown>;
 
@@ -112,10 +108,8 @@ function makeDb(
 const ids = (rows: Row[] | undefined) => (rows ?? []).map((row) => row.id);
 
 beforeEach(() => {
-    deleteFileMock.mockClear();
-    deleteFileMock.mockResolvedValue(undefined as never);
-    listFilesMock.mockClear();
-    listFilesMock.mockResolvedValue([]);
+    objects.remove.mockReset().mockResolvedValue(undefined);
+    objects.list.mockReset().mockResolvedValue({ keys: [], cursor: null });
 });
 
 // ---------------------------------------------------------------------------
@@ -154,7 +148,7 @@ describe("deleteAllUserTabularReviews", () => {
         makeDb({
             tabular_reviews: [
                 { id: "r1", user_id: "u1" },
-                { id: "r2", user_id: "u1" },
+                { id: "review-2", user_id: "u1" },
                 { id: "r-other", user_id: "u2" },
             ],
             tabular_cells: [
@@ -199,13 +193,13 @@ describe("deleteUserProjects", () => {
                 {
                     id: "v1",
                     document_id: "d1",
-                    storage_path: "documents/u1/d1/source.pdf",
-                    pdf_storage_path: "documents/u1/d1/converted.pdf",
+                    storage_path: "u1/d1/source.pdf",
+                    pdf_storage_path: "u1/d1/converted.pdf",
                 },
                 {
                     id: "v-other",
                     document_id: "d-other",
-                    storage_path: "documents/u2/d-other/source.pdf",
+                    storage_path: "u2/d-other/source.pdf",
                     pdf_storage_path: null,
                 },
             ],
@@ -243,10 +237,10 @@ describe("deleteUserProjects", () => {
         expect(ids(tables.tabular_cells)).toEqual(["cell-other"]);
         expect(ids(tables.project_subfolders)).toEqual(["f-other"]);
 
-        const deletedPaths = deleteFileMock.mock.calls.map(([path]) => path);
+        const deletedPaths = objects.remove.mock.calls.map(([path]) => path);
         expect(deletedPaths.sort()).toEqual([
-            "documents/u1/d1/converted.pdf",
-            "documents/u1/d1/source.pdf",
+            "u1/d1/converted.pdf",
+            "u1/d1/source.pdf",
         ]);
     });
 
@@ -270,7 +264,7 @@ describe("deleteUserProjects", () => {
         const { db, tables } = fixture();
         await expect(deleteUserProjects(db, "u3")).resolves.toBe(0);
         expect(tables.projects).toHaveLength(3);
-        expect(deleteFileMock).not.toHaveBeenCalled();
+        expect(objects.remove).not.toHaveBeenCalled();
     });
 });
 
@@ -303,19 +297,19 @@ describe("deleteUserAccountData", () => {
                 {
                     id: "v1",
                     document_id: "d1",
-                    storage_path: "documents/u1/d1/source.pdf",
-                    pdf_storage_path: "documents/u1/d1/converted.pdf",
+                    storage_path: "u1/d1/source.pdf",
+                    pdf_storage_path: "u1/d1/converted.pdf",
                 },
                 {
                     id: "v-guest",
                     document_id: "d-guest",
-                    storage_path: "documents/u2/d-guest/source.docx",
+                    storage_path: "u2/d-guest/source.docx",
                     pdf_storage_path: null,
                 },
                 {
                     id: "v-other",
                     document_id: "d-other",
-                    storage_path: "documents/u2/d-other/source.pdf",
+                    storage_path: "u2/d-other/source.pdf",
                     pdf_storage_path: null,
                 },
             ],
@@ -349,7 +343,7 @@ describe("deleteUserAccountData", () => {
 
     it("removes the user's rows, files, and share references everywhere", async () => {
         const { db, tables } = fixture();
-        listFilesMock.mockResolvedValue(["documents/u1/orphan.bin"]);
+        objects.list.mockResolvedValue({ keys: ["u1/orphan.bin"], cursor: null });
 
         await deleteUserAccountData(db, "u1", " U1@Example.COM ");
 
@@ -372,23 +366,23 @@ describe("deleteUserAccountData", () => {
         expect(tables.tabular_reviews[0].shared_with).toEqual([]);
 
         // Version files for deleted docs plus orphans under the user's prefix.
-        const deletedPaths = deleteFileMock.mock.calls.map(([path]) => path);
+        const deletedPaths = objects.remove.mock.calls.map(([path]) => path);
         expect(deletedPaths.sort()).toEqual([
-            "documents/u1/d1/converted.pdf",
-            "documents/u1/d1/source.pdf",
-            "documents/u1/orphan.bin",
-            "documents/u2/d-guest/source.docx",
+            "u1/d1/converted.pdf",
+            "u1/d1/source.pdf",
+            "u1/orphan.bin",
+            "u2/d-guest/source.docx",
         ]);
-        expect(listFilesMock).toHaveBeenCalledWith("documents/u1/");
+        expect(objects.list).toHaveBeenCalledWith("u1", { cursor: null });
     });
 
-    it("treats storage prefix cleanup as best-effort", async () => {
+    it("does not report success when storage cleanup fails", async () => {
         const { db, tables } = fixture();
-        listFilesMock.mockRejectedValue(new Error("storage unavailable"));
+        objects.list.mockRejectedValue(new Error("storage unavailable"));
         await expect(
             deleteUserAccountData(db, "u1", "u1@example.com"),
-        ).resolves.toBeUndefined();
-        expect(ids(tables.documents)).toEqual(["d-other"]);
+        ).rejects.toThrow("storage unavailable");
+        expect(ids(tables.documents)).toEqual(["d1", "d-guest", "d-other"]);
     });
 
     it("skips shared_with scrubbing when no email is known", async () => {

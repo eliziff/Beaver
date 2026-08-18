@@ -7,6 +7,11 @@ import request from "supertest";
 process.env.SUPABASE_URL = "http://supabase.test.local";
 process.env.SUPABASE_SECRET_KEY = "test-service-key";
 process.env.AUTH_MODE = "required";
+process.env.S3_ENDPOINT = "https://s3.test.local";
+process.env.S3_REGION = "us-east-1";
+process.env.S3_BUCKET = "private-test";
+process.env.S3_ACCESS_KEY_ID = "test-access";
+process.env.S3_SECRET_ACCESS_KEY = "test-secret";
 
 // Mock the supabase-js client factory so the real requireAuth middleware never
 // makes a network call: auth.getUser() resolves to no user for any token,
@@ -33,6 +38,13 @@ vi.mock("@supabase/supabase-js", () => ({
                 Promise.resolve({ data: { user: null }, error: null }),
         },
     })),
+}));
+
+vi.mock("../../lib/cloudDocumentRepository", () => ({
+    cloudDocumentRepository: {
+        pendingOrphans: vi.fn(async () => []),
+        pendingCleanup: vi.fn(async () => []),
+    },
 }));
 
 // Vitest hoists vi.mock() calls before all imports, so this regular import

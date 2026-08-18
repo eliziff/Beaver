@@ -1,11 +1,10 @@
 import { cloudData, cloudScope, type CloudScope } from "./access";
-import { cloudDocuments } from "./cloudDocumentStore";
+import type { DocumentStore } from "./documentStore";
 import { attachActiveVersionPaths } from "./documentVersions";
 import { normalizeDocumentFilename } from "./normalize";
 import {
   ProjectStoreError, type ProjectRecord, type ProjectStore,
 } from "./projectStore";
-import { deleteFile } from "./storage";
 import { deleteUserProjects } from "./userDataCleanup";
 import { findMissingUserEmails, loadProfileUsersByEmail } from "./userLookup";
 
@@ -31,19 +30,7 @@ async function folder(scope: CloudScope, projectId: string, folderId: string) {
   "Failed to load project folder") as { id: string; parent_folder_id: string | null } | null;
 }
 
-async function deleteDocuments(scope: CloudScope, projectId: string, ids: string[]) {
-  if (!ids.length) return;
-  const versions = await run(scope.db.from("document_versions")
-    .select("storage_path, pdf_storage_path").in("document_id", ids),
-  "Failed to load project document files");
-  const paths = new Set<string>((versions ?? []).flatMap((version) =>
-    [version.storage_path, version.pdf_storage_path].filter((path): path is string => !!path)));
-  await run(scope.db.from("documents").delete().eq("project_id", projectId).in("id", ids),
-    "Failed to delete project documents");
-  await Promise.all([...paths].map((path) => deleteFile(path).catch(() => {})));
-}
-
-export const cloudProjects = {
+export const createCloudProjectStore = (documents: DocumentStore): ProjectStore => ({
   async page(identity, options) {
     const scope = cloudScope(identity);
     const rows = (await run(scope.db.rpc("get_collection_page", {
@@ -152,21 +139,13 @@ export const cloudProjects = {
       return { document: data as ProjectRecord, created: false };
     }
     if (!source.current_version_id) throw missing("Source document has no active version");
-    const copy = await run(scope.db.from("documents").insert({ project_id: projectId,
-      user_id: scope.userId, status: source.status }).select("*").single(),
-    "Failed to copy document");
-    if (!copy) throw new Error("Failed to copy document");
-    try {
-      const copied = await cloudDocuments.copyVersion(identity, copy.id as string,
-        documentId, undefined);
-      if (copied.status !== "created") throw new Error("Source document has no active version");
-      const document = { ...copy, current_version_id: copied.version.id };
-      await attachActiveVersionPaths(scope.db, [document]);
-      return { document: document as ProjectRecord, created: true };
-    } catch (error) {
-      await cloudDocuments.deleteDocument(identity, copy.id as string).catch(() => {});
-      throw error;
-    }
+    const content = await documents.read(identity, documentId, null, false);
+    if (!content) throw missing("Source document has no active version");
+    const document = await documents.create(identity, {
+      projectId, filename: content.filename,
+      fileType: content.fileType, bytes: content.bytes,
+    });
+    return { document: document as ProjectRecord, created: true };
   },
 
   async renameDocument(identity, projectId, documentId, requested) {
@@ -181,7 +160,7 @@ export const cloudProjects = {
     const filename = normalizeDocumentFilename(requested,
       typeof active?.filename === "string" ? active.filename : "Untitled document");
     if (!filename) throw new ProjectStoreError(400, "filename is required");
-    if (access.row.current_version_id && !await cloudDocuments.renameVersion(
+    if (access.row.current_version_id && !await documents.renameVersion(
       identity, documentId, access.row.current_version_id as string, filename)) {
       throw missing("Document not found");
     }
@@ -236,7 +215,11 @@ export const cloudProjects = {
     const data = await run(scope.db.rpc("get_project_folder_document_ids", {
       p_project_id: projectId, p_folder_id: folderId,
     }), "Failed to load project folder documents");
-    await deleteDocuments(scope, projectId, (data ?? []).map((row: { id: string }) => row.id));
+    for (const { id } of (data ?? []) as { id: string }[]) {
+      if (!await documents.deleteDocument(identity, id)) {
+        throw new Error("Failed to delete project folder document");
+      }
+    }
     await run(scope.db.from("project_subfolders").delete().eq("id", folderId)
       .eq("project_id", projectId), "Failed to delete project folder");
   },
@@ -253,4 +236,4 @@ export const cloudProjects = {
     if (!data) throw missing("Document not found");
     return data as ProjectRecord;
   },
-} satisfies ProjectStore;
+});

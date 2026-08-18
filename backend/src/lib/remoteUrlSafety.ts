@@ -6,92 +6,40 @@ const BLOCKED_METADATA_HOSTS = new Set([
   "instance-data",
 ]);
 
-function isPrivateIpv4(ip: string) {
-  const parts = ip.split(".").map((part) => Number.parseInt(part, 10));
-  if (parts.length !== 4 || parts.some((part) => !Number.isFinite(part))) {
-    return true;
-  }
-  const [a, b] = parts;
-  return (
-    a === 0 ||
-    a === 10 ||
-    a === 127 ||
-    (a === 100 && b >= 64 && b <= 127) ||
-    (a === 169 && b === 254) ||
-    (a === 172 && b >= 16 && b <= 31) ||
-    (a === 192 && b === 168) ||
-    (a === 192 && b === 0) ||
-    (a === 192 && b === 88 && parts[2] === 99) ||
-    (a === 198 && (b === 18 || b === 19)) ||
-    (a === 198 && b === 51 && parts[2] === 100) ||
-    (a === 203 && b === 0 && parts[2] === 113) ||
-    a >= 224
-  );
-}
+const blockedIpv4 = new net.BlockList();
+for (const [network, prefix] of [
+  ["0.0.0.0", 8], ["10.0.0.0", 8], ["100.64.0.0", 10],
+  ["127.0.0.0", 8], ["169.254.0.0", 16], ["172.16.0.0", 12],
+  ["192.0.0.0", 24], ["192.88.99.0", 24], ["192.168.0.0", 16],
+  ["198.18.0.0", 15], ["198.51.100.0", 24], ["203.0.113.0", 24],
+  ["224.0.0.0", 3],
+] as const) blockedIpv4.addSubnet(network, prefix, "ipv4");
 
-function isPrivateIpv6(ip: string) {
-  let normalized = ip.toLowerCase();
-  const dottedTail = normalized.match(/(\d+\.\d+\.\d+\.\d+)$/u)?.[1];
-  if (dottedTail) {
-    const octets = dottedTail
-      .split(".")
-      .map((part) => Number.parseInt(part, 10));
-    normalized =
-      `${normalized.slice(0, -dottedTail.length)}` +
-      `${((octets[0] << 8) | octets[1]).toString(16)}:` +
-      `${((octets[2] << 8) | octets[3]).toString(16)}`;
-  }
-  const halves = normalized.split("::");
-  if (halves.length > 2) return true;
-  const left = halves[0]
-    ? halves[0].split(":").map((part) => Number.parseInt(part, 16))
-    : [];
-  const right = halves[1]
-    ? halves[1].split(":").map((part) => Number.parseInt(part, 16))
-    : [];
-  const missing = 8 - left.length - right.length;
-  const groups =
-    halves.length === 2
-      ? [...left, ...Array(Math.max(0, missing)).fill(0), ...right]
-      : left;
-  if (
-    groups.length !== 8 ||
-    groups.some((part) => !Number.isInteger(part) || part < 0 || part > 0xffff)
-  ) {
-    return true;
-  }
+const mappedIpv4 = new net.BlockList();
+mappedIpv4.addSubnet("::ffff:0:0", 96, "ipv6");
 
-  const mapped =
-    groups.slice(0, 5).every((part) => part === 0) && groups[5] === 0xffff;
-  if (mapped) {
-    return isPrivateIpv4(
-      `${groups[6] >> 8}.${groups[6] & 0xff}.` +
-        `${groups[7] >> 8}.${groups[7] & 0xff}`,
-    );
-  }
-  if (groups.slice(0, 6).every((part) => part === 0)) {
-    return true;
-  }
+const publicIpv6 = new net.BlockList();
+publicIpv6.addSubnet("2000::", 3, "ipv6");
 
-  // Public IPv6 unicast is 2000::/3. Block reserved transition,
-  // documentation, benchmarking, and ORCHID ranges inside it.
-  if ((groups[0] & 0xe000) !== 0x2000) return true;
-  if (groups[0] === 0x2002) return true;
-  if (groups[0] === 0x2001) {
-    if (groups[1] === 0 || groups[1] === 2 || groups[1] === 0x0db8) {
-      return true;
-    }
-    if (groups[1] >= 0x10 && groups[1] <= 0x2f) {
-      return true;
-    }
-  }
-  return false;
-}
+const blockedIpv6 = new net.BlockList();
+for (const [network, prefix] of [
+  ["2001::", 32], ["2001:2::", 32], ["2001:db8::", 32], ["2002::", 16],
+] as const) blockedIpv6.addSubnet(network, prefix, "ipv6");
+blockedIpv6.addRange(
+  "2001:10::",
+  "2001:2f:ffff:ffff:ffff:ffff:ffff:ffff",
+  "ipv6",
+);
 
 function isBlockedIp(ip: string) {
   const family = net.isIP(ip);
-  if (family === 4) return isPrivateIpv4(ip);
-  if (family === 6) return isPrivateIpv6(ip);
+  if (family === 4) return blockedIpv4.check(ip, "ipv4");
+  if (family === 6) {
+    if (mappedIpv4.check(ip, "ipv6")) {
+      return blockedIpv4.check(ip, "ipv6");
+    }
+    return !publicIpv6.check(ip, "ipv6") || blockedIpv6.check(ip, "ipv6");
+  }
   return true;
 }
 

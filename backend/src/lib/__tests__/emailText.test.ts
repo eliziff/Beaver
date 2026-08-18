@@ -203,11 +203,11 @@ describe("email documents in the library", () => {
     home = await mkdtemp(path.join(os.tmpdir(), "beaver-eml-"));
     process.env.OPEN_LEGAL_DATA_HOME = home;
     vi.resetModules();
-    const store = await import("../localDocumentStore");
+    const store = await import("./support/localDocumentFixtures");
     const { extractDocument } = await import(
       "./support/localAssistantTools"
     );
-    const { localDocuments } = await import("../localLibraryStore");
+    const { localDocuments } = await import("./support/localDocumentFixtures");
 
     const document = await store.createLocalDocument({
       userId: "00000000-0000-0000-0000-000000000001",

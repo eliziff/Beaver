@@ -46,7 +46,11 @@ describe("remote URL network safety", () => {
     for (const url of [
       "https://[::ffff:7f00:1]/",
       "https://[::ffff:127.0.0.1]/",
+      "https://[0:0:0:0:0:ffff:7f00:1]/",
       "https://[::7f00:1]/",
+      "https://[2001:db8::1]/",
+      "https://[2001:20::1]/",
+      "https://[2002::1]/",
       "https://192.88.99.1/",
       "https://198.51.100.7/",
       "https://203.0.113.9/",

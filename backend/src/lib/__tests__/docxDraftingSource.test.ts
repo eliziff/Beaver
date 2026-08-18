@@ -2,11 +2,13 @@ import { Document, ImageRun, Packer, Paragraph } from "docx";
 import { describe, expect, it } from "vitest";
 import {
   DOCX_DRAFTING_SOURCE_FORMAT,
-  MAX_DRAFTING_DOCX_BYTES,
-  MAX_DRAFTING_XML_ENTRY_BYTES,
   extractDocxDraftingSource,
 } from "../docxDraftingSource";
 import { renderDocxMarkdown } from "../chat/tools/docxMarkdown";
+import {
+  MAX_DRAFTING_DOCX_BYTES,
+  MAX_DRAFTING_XML_ENTRY_BYTES,
+} from "../docx/core";
 
 describe("DOCX drafting source", () => {
   it("preserves semantic structure and native footnote pairing", async () => {

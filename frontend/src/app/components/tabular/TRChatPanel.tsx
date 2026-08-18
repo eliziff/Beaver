@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ChevronDown, Plus, X } from "lucide-react";
-import { getChat, listChats } from "@/app/lib/beaverApi";
+import { listChats } from "@/app/lib/beaverApi";
 import { useAssistantChat } from "@/app/hooks/useAssistantChat";
 import { ChatView } from "../assistant/ChatView";
 import type { Chat, Citation } from "../shared/types";
@@ -45,30 +45,10 @@ export function TRChatPanel({
     }, [reviewId]);
 
     useEffect(() => {
-        if (!currentChatId || assistant.state.run) return;
-        let cancelled = false;
-        getChat(currentChatId).then(({ chat, messages }) => {
-            if (!cancelled) {
-                assistant.actions.openChat(
-                    chat.id,
-                    messages,
-                    chat.transcript_version ?? 0,
-                    chat.turn_in_progress === true,
-                );
-                if (chat.turn_in_progress) {
-                    assistant.actions.resumeRunningTurn(
-                        chat.id,
-                        chat.transcript_version ?? 0,
-                    );
-                }
-            }
-        }).catch(() => {
-            if (!cancelled) onChatIdChange(null);
-        });
-        return () => { cancelled = true; };
-        // openChat and resumeRunningTurn intentionally follow the selected ID.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentChatId, assistant.state.run]);
+        if (currentChatId && assistant.chatLoad.status === "error" && assistant.chatLoad.chatId === currentChatId) {
+            onChatIdChange(null);
+        }
+    }, [assistant.chatLoad, currentChatId, onChatIdChange]);
 
     const currentTitle = chats.find(({ id }) => id === currentChatId)?.title;
     const openCitation = (citation: Citation) => {
@@ -79,7 +59,6 @@ export function TRChatPanel({
         return true;
     };
     const newChat = () => {
-        assistant.actions.openChat();
         onChatIdChange(null);
     };
 

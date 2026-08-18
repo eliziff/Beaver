@@ -13,6 +13,13 @@
  *   node harness.mjs capture --seed 9 --n 1000 --scope SCC [--fresh] [--verbose]
  *   node harness.mjs verify [--seeds 1,4|all] [--scope SCC] [--fresh]
  *   node harness.mjs runner --provider dry --seed 1 --sample-size 5
+ *   node harness.mjs codex --document-ids 123,456 [--workers 8] [--out receipt.json]
+ *   node harness.mjs audit --receipt-stream prior.receipts.jsonl [--workers 8] [--resume]
+ *   node harness.mjs audit --per-dataset 50 --seed 9 [--workers 8]
+ *   node harness.mjs revalidate --receipt-stream run.receipts.jsonl [--resume]
+ *   node harness.mjs manifest --seed 123 --sample-size 30000 --scope ALL
+ *   node harness.mjs manifest --needs-llm --seed 123 --sample-size 15000 --scope ALL
+ *   node harness.mjs dashboard [--port 8796] [--frontend-url http://127.0.0.1:3000]
  *   node harness.mjs poolworkers | poolbatch | stageprofile | diffclaims
  *   node harness.mjs noopmeasure
  *
@@ -31,6 +38,11 @@ const COMMANDS = {
   verify: { script: "seedcheck.ts", forward: true },
   annotate: { script: "seedcheck.ts", forward: true },
   run: { script: "runner.ts", forward: true },
+  codex: { script: "runner.ts", forward: true },
+  audit: { script: "runner.ts", forward: true },
+  revalidate: { script: "runner.ts", forward: true },
+  manifest: { script: "runner.ts", forward: true },
+  dashboard: { script: "dashboard.mjs", forward: false },
   "self-test": { script: "runner.ts", forward: true },
   compare: { script: "runner.ts", forward: true },
   poolworkers: { script: "scratch/poolworkers.ts", forward: false },

@@ -2,10 +2,10 @@ import { type Dispatch, type DragEvent, type ReactNode, type SetStateAction,
     useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import { deleteDocument, deleteDocumentVersion, downloadDocumentsZip,
-    getDocumentUrl, listDocumentVersions, renameDocumentVersion,
+    downloadDocument, listDocumentVersions, renameDocumentVersion,
     replaceDocumentVersionFile, uploadDocumentVersion,
     type DocumentVersion } from "@/app/lib/beaverApi";
-import { downloadBlob, downloadUrl } from "@/app/lib/download";
+import { downloadBlob } from "@/app/lib/download";
 import type { Document, Folder as ProjectFolder, LibraryFolder }
     from "@/app/components/shared/types";
 import { RowActions } from "@/app/components/shared/RowActions";
@@ -25,9 +25,8 @@ import { DocumentSidePanel } from "@/app/components/shared/DocumentSidePanel";
 import { APP_SURFACE_ACTIVE_CLASS, APP_SURFACE_HOVER_CLASS }
     from "@/app/components/ui/liquid-surface";
 import { TableHeaderCell, TableHeaderRow, TableScrollArea,
-    TableSelectionPlaceholder, TableStickyCell }
+    TableLoadingRows, TableSelectionCheckbox, TableStickyCell, useTableSelection }
     from "@/app/components/shared/TablePrimitive";
-import { CheckboxControl } from "@/app/components/ui/checkbox";
 import { pillButtonClassName } from "@/app/components/ui/pill-button";
 import { preloadSingleDoc } from "@/app/hooks/useFetchSingleDoc";
 import { getPdfJs } from "@/app/components/shared/views/highlightQuote";
@@ -237,23 +236,18 @@ interface DocTableProps {
     onLoadMore?: (parentId: string | null) => void;
 }
 const PROJECT_TABLE_LOADING = (
-    <div className="flex-1 flex flex-col min-h-0">
-        {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className={DOCUMENT_ROW_CLASS}>
-                <div className={`${DOC_NAME_COL_W} py-2 pl-4 pr-2`}>
-                    <div className="flex items-center">
-                        <TableSelectionPlaceholder />
-                        <div className="mr-2 h-4 w-4 shrink-0 rounded bg-gray-100" />
-                        <div className="h-3.5 rounded bg-gray-100"
-                            style={{ width: `${210 + i * 16}px` }} />
-                    </div>
-                </div>
-                {DOCUMENT_METADATA_COLUMNS.map(({ label, row, skeleton }) =>
-                    <div key={label} className={row}><div className={skeleton} /></div>)}
-                <div className="w-8 shrink-0" />
-            </div>
-        ))}
-    </div>
+    <TableLoadingRows count={5} rowClassName={DOCUMENT_ROW_CLASS}
+        primaryWidthClassName={DOC_NAME_COL_W}
+        renderPrimary={(index) => <>
+            <div className="mr-2 h-4 w-4 shrink-0 rounded bg-gray-100" />
+            <div className="h-3.5 rounded bg-gray-100"
+                style={{ width: `${226 + index * 16}px` }} />
+        </>}
+        columns={[
+            ...DOCUMENT_METADATA_COLUMNS.map(({ row, skeleton }) =>
+                ({ className: row, lineClassName: skeleton })),
+            { className: "w-8 shrink-0" },
+        ]} />
 );
 export function DocTable({
     scopeKey, documents, folders, loading, search, operations,
@@ -328,8 +322,8 @@ export function DocTable({
     };
     async function downloadDocVersion(docId: string, versionId: string, filename: string) {
         try {
-            const resolved = await getDocumentUrl(docId, versionId);
-            downloadUrl(resolved.url, resolved.filename || filename);
+            const resolved = await downloadDocument(docId, versionId);
+            downloadBlob(resolved.blob, resolved.filename || filename);
         } catch (e) {
             console.error("downloadDocVersion failed", e);
         }
@@ -438,7 +432,8 @@ export function DocTable({
         new Map(documents.map((doc) => [doc.id, doc])), [documents]);
     const foldersById = tree.folderById;
     const foldersByParent = tree.foldersByParent;
-    const selectedIdSet = new Set(selectedDocIds);
+    const selection = useTableSelection(
+        filteredDocs, selectedDocIds, (ids) => set("selectedDocIds", ids));
     const refreshParents = (...parents: (string | null | undefined)[]) =>
         Promise.all([...new Set(parents.map((id) => id ?? null))]
             .map(refreshCollection));
@@ -751,13 +746,6 @@ export function DocTable({
         set("viewingDocVersionId", null);
         set("viewingDoc", doc);
     }
-    function toggleDocumentSelection(docId: string) {
-        set("selectedDocIds", (prev) =>
-            prev.includes(docId)
-                ? prev.filter((id) => id !== docId)
-                : [...prev, docId],
-        );
-    }
     function selectAndOpen(doc: Document) {
         set("selectedDocIds", [doc.id]);
         openDocument(doc);
@@ -781,7 +769,7 @@ export function DocTable({
             selectAndOpen(doc);
         } else if (event.key === " ") {
             event.preventDefault();
-            toggleDocumentSelection(doc.id);
+            selection.toggle(doc.id);
         }
     }
     function handleDocumentDragStart(event: DragEvent<HTMLDivElement>, doc: Document) {
@@ -924,7 +912,7 @@ export function DocTable({
                     const isVersionDragOver = dragOverSurface === `version:${doc.id}`;
                     const isUploadingVersion = uploadingVersionDocIds.has(doc.id);
                     const prewarm = () => prewarmDocumentView(doc);
-                    const isSelected = selectedIdSet.has(doc.id);
+                    const isSelected = selection.selected.has(doc.id);
                     const isDeletingDoc = deletingDocIds.has(doc.id);
                     if (isDeletingDoc) return renderDocumentActivityRow({
                         key: `deleting-doc-${doc.id}`, filename: doc.filename,
@@ -954,10 +942,9 @@ export function DocTable({
                                             <Loader2 className="h-4 w-4 animate-spin text-gray-500" />
                                         </span>
                                     ) : (
-                                        <CheckboxControl checked={isSelected}
-                                            onChange={() => toggleDocumentSelection(doc.id)}
-                                            onClick={(event) => event.stopPropagation()}
-                                            className="-ml-2 mr-1" />
+                                        <TableSelectionCheckbox checked={isSelected}
+                                            aria-label={`Select ${docName}`}
+                                            onChange={() => selection.toggle(doc.id)} />
                                     )}
                                     <span className="mr-2 shrink-0">
                                         {isError
@@ -1018,9 +1005,9 @@ export function DocTable({
         );
     }
     const downloadDoc = useCallback(async (docId: string) => {
-        const { url, filename } = await getDocumentUrl(docId);
-        downloadUrl(url, filename);
-    }, []);
+        const { blob, filename } = await downloadDocument(docId);
+        downloadBlob(blob, filename || docsById.get(docId)?.filename || "document");
+    }, [docsById]);
     const handleDownloadSelectedDocs = useCallback(async () => {
         if (selectedDocIds.length === 1) {
             await downloadDoc(selectedDocIds[0]);
@@ -1069,10 +1056,6 @@ export function DocTable({
         }
     }
     const sidePanelDoc = viewingDoc ? docsById.get(viewingDoc.id) ?? viewingDoc : null;
-    const allDocsSelected = filteredDocs.length > 0 &&
-        filteredDocs.every((doc) => selectedIdSet.has(doc.id));
-    const someDocsSelected = !allDocsSelected &&
-        filteredDocs.some((doc) => selectedIdSet.has(doc.id));
     const selectedAutomationDocument =
         scopeKey !== "templates" && selectedDocIds.length === 1
             ? (docsById.get(selectedDocIds[0]) ?? null)
@@ -1164,17 +1147,10 @@ export function DocTable({
                 header={
                     <TableHeaderRow className="!min-w-0 w-full pr-2">
                         <TableStickyCell header widthClassName={DOC_NAME_COL_W}>
-                            <CheckboxControl checked={allDocsSelected}
+                            <TableSelectionCheckbox checked={selection.allSelected}
                                 aria-label="Select loaded documents"
-                                ref={(el) => {
-                                    if (el) el.indeterminate = someDocsSelected;
-                                }}
-                                onChange={() =>
-                                    set("selectedDocIds",
-                                        allDocsSelected ? [] : filteredDocs.map((d) => d.id),
-                                    )
-                                }
-                                className="-ml-2 mr-1" />
+                                indeterminate={selection.someSelected}
+                                onChange={selection.toggleAll} />
                             <span aria-hidden="true"
                                 className="mr-2 h-4 w-4 shrink-0" />
                             <span className="mr-1">Name</span>

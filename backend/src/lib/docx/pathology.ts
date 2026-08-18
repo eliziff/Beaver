@@ -1,8 +1,4 @@
-import {
-  assertBoundedDocxPackage,
-  MAX_DRAFTING_DOCX_BYTES,
-} from "./core";
-import { loadZip } from "../zip";
+import { openDocxSession, type DocxSession } from "./session";
 
 const MAX_FIELD_SAMPLES = 5;
 const MAX_SAMPLE_CHARS = 120;
@@ -518,31 +514,29 @@ function deriveNotes(
  * throws: an unreadable package degrades to zeros plus a note.
  */
 export async function scanDocxPathology(
-  bytes: Buffer,
+  source: Buffer | DocxSession,
 ): Promise<DocxPathologyReport> {
   const report = emptyReport();
   const failures: string[] = [];
   try {
-    if (!bytes.length || bytes.length > MAX_DRAFTING_DOCX_BYTES) {
-      throw new Error("DOCX is empty or exceeds the read limit");
-    }
-    const zip = await loadZip(bytes);
-    assertBoundedDocxPackage(zip);
-    if (!zip.file("word/document.xml")) {
+    const session = Buffer.isBuffer(source)
+      ? await openDocxSession(source)
+      : source;
+    if (!session.has("word/document.xml")) {
       throw new Error("Package has no word/document.xml");
     }
 
-    const paths = Object.keys(zip.files);
+    const paths = session.paths;
     report.auto_numbering.has_numbering_part = paths.some((path) =>
       /^word\/numbering\.xml$/iu.test(path),
     );
-    report.embeddings.count = Object.values(zip.files).filter(
-      (entry) => !entry.dir && /^word\/embeddings\//iu.test(entry.name),
+    report.embeddings.count = paths.filter((path) =>
+      /^word\/embeddings\//iu.test(path)
     ).length;
 
     const read = async (path: string) => {
       try {
-        return (await zip.file(path)?.async("text")) ?? "";
+        return (await session.readText(path)) ?? "";
       } catch (error) {
         failures.push(`${path} could not be read (${message(error)}).`);
         return "";
@@ -564,13 +558,13 @@ export async function scanDocxPathology(
       ["word/footnotes.xml", "footnote"],
       ["word/endnotes.xml", "endnote"],
     ] as const) {
-      if (!zip.file(path)) continue;
+      if (!session.has(path)) continue;
       const xml = await read(path);
       report[`${tag}s`].count = countNotes(xml, tag);
       scanStoryPart(xml, path, report);
     }
 
-    if (zip.file("word/comments.xml")) {
+    if (session.has("word/comments.xml")) {
       report.comments.count = countElements(
         await read("word/comments.xml"),
         "w:comment",
@@ -579,7 +573,7 @@ export async function scanDocxPathology(
 
     // w:trackChanges is the schema element; w:trackRevisions is what some
     // writers emit for the same switch.
-    const recordingChanges = zip.file("word/settings.xml")
+    const recordingChanges = session.has("word/settings.xml")
       ? /<w:track(?:Changes|Revisions)(?=[\s/>])(?![^>]*w:val="(?:false|0)")/u.test(
           await read("word/settings.xml"),
         )

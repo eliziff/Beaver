@@ -22,6 +22,7 @@ function fixture() {
     }),
   } as unknown as LibraryStore;
   const documents = {
+    resumeCleanup: vi.fn().mockResolvedValue(undefined),
     create: vi.fn().mockResolvedValue({ id: "d1", filename: "draft.docx" }),
     deleteDocument: vi.fn().mockResolvedValue(true),
     files: vi.fn().mockResolvedValue([]),
@@ -32,12 +33,10 @@ function fixture() {
       fileType: "docx",
       hasPdfRendition: false,
     }),
-    link: vi.fn().mockResolvedValue({
-      version,
-      filename: "draft.docx",
-      fileType: "docx",
-      hasPdfRendition: false,
-    }),
+    download: vi.fn().mockResolvedValue({ kind: "bytes", content: {
+      bytes: Buffer.from("document"), version, filename: "draft.docx",
+      fileType: "docx", hasPdfRendition: false,
+    } }),
     versions: vi.fn().mockResolvedValue({
       current_version_id: "v1",
       versions: [version],
@@ -77,29 +76,41 @@ describe("canonical document routes", () => {
     );
     expect((await request(app).post("/single-documents")
       .attach("file", Buffer.from("bad"), "draft.exe")).status).toBe(400);
+    expect((await request(app).post("/single-documents")).status).toBe(400);
     expect((await request(app).post("/single-documents")
       .attach("file", Buffer.from("docx"), "draft.docx")).status).toBe(201);
     expect(documents.create).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ filename: "draft.docx", libraryKind: "file" }),
     );
+    expect((await request(app).post("/single-documents/download-zip")
+      .send({ document_ids: [] })).status).toBe(400);
+    expect((await request(app).post("/single-documents/download-zip")
+      .send({ document_ids: ["missing"] })).status).toBe(404);
   });
 
-  it("serves bytes and constructs the authenticated local link", async () => {
+  it("serves local bytes and removes the divergent URL endpoint", async () => {
     const { app, documents } = fixture();
     const display = await request(app).get(
-      "/single-documents/d1/display?version_id=v1",
+      "/single-documents/d1/file?rendition=pdf&version_id=v1",
     );
     expect(display.status).toBe(200);
     expect(display.headers["content-disposition"]).toContain("inline");
-    expect(documents.read).toHaveBeenCalledWith(
-      expect.anything(), "d1", "v1", true,
+    expect(documents.download).toHaveBeenCalledWith(
+      expect.anything(), "d1", "v1", true, "inline",
     );
-    const link = await request(app).get("/single-documents/d1/url");
-    expect(link.body.version_id).toBe("v1");
-    expect(link.body.url).toMatch(
-      /^http:\/\/127\.0\.0\.1:\d+\/single-documents\/d1\/file\?version_id=v1$/u,
-    );
+    expect((await request(app).get("/single-documents/d1/url")).status).toBe(404);
+  });
+
+  it("redirects an authorized cloud download without caching it", async () => {
+    const { app, documents } = fixture();
+    vi.mocked(documents.download).mockResolvedValueOnce({
+      kind: "redirect", url: "https://storage.test/private?signature=short",
+    });
+    const response = await request(app).get("/single-documents/d1/file");
+    expect(response.status).toBe(302);
+    expect(response.headers.location).toContain("https://storage.test/private");
+    expect(response.headers["cache-control"]).toBe("private, no-store");
   });
 
   it("normalizes version uploads and maps mutation outcomes once", async () => {

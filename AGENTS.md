@@ -11,6 +11,7 @@
 - Keep the modular monolith and respect boundaries in `subrepos.lock.json`.
 - Long-running scripts must report progress and preserve usable partial results.
 - Test behaviour and durable contracts, not incidental UI copy or implementation presence.
+- Prefer the smallest test that proves a public outcome or resulting state. Use doubles only to control expensive or hard-to-trigger dependencies; delete tests that merely replay stubbed values or assert internal call choreography.
 - Never commit credentials, AppData, downloaded corpora, caches, generated artifacts, or managed runtimes.
 - Do not use metered APIs unless explicitly authorized.
 - Never use the Codex in-app browser or its `browser-client`/Node connector for Beaver testing. Use ChromeDriver and/or screenshots.

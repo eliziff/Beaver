@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlencode, urljoin, urlsplit, urlunsplit
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 
@@ -53,6 +54,9 @@ SOURCE_URLS = {
     "cnsc_meeting_documents": "https://www.cnsc-ccsn.gc.ca/eng/the-commission/hearings-meetings/search-meeting-documents/",
     "cnsc_hearing_documents": "https://www.cnsc-ccsn.gc.ca/eng/the-commission/hearings-meetings/download-meeting-documents/",
     "canada_commission_archive": "https://www.canada.ca/en/privy-council/services/commissions-inquiry.html",
+    "canada_publication_commissions": "https://publications.gc.ca/site/eng/search/search.html?text=commission+of+inquiry&format1=Electronic",
+    "canadiana_legal_monographs": "https://www.canadiana.ca/search?q=law",
+    "uk_legal_monographs": "https://archive.org/advancedsearch.php?q=subject%3A%22English%20law%22%20AND%20mediatype%3Atexts",
     "walkerton_inquiry": "https://www.archives.gov.on.ca/en/e_records/walkerton/",
     "canada_competition_bureau": "https://competition-bureau.canada.ca/how-we-foster-competition/education-and-outreach/publications",
     "crtc_public_proceedings": "https://crtc.gc.ca/eng/consultation/index.htm",
@@ -88,6 +92,7 @@ SOURCE_URLS = {
     "ontario_procurement": "https://www.ontario.ca/files/2024-02/tbs-bps-procurement-directive-en-2024-02-08.pdf",
     "quebec_procurement": "https://www.quebec.ca/gouvernement/gestion-administrative/marches-publics",
     "canada_federal_rfps": "https://canadabuys.canada.ca/en/tender-opportunities",
+    "canada_federal_rfis": "https://canadabuys.canada.ca/en/tender-opportunities",
     "bc_procurement_rfp": "https://www2.gov.bc.ca/gov/content/bc-procurement-resources/buy-for-government/solicitation-processes-and-templates",
     "uk_infected_blood_inquiry": "https://www.infectedbloodinquiry.org.uk/evidence",
     "uk_infected_blood_workflow": "https://www.infectedbloodinquiry.org.uk/statements-approach",
@@ -198,9 +203,63 @@ SOURCE_URLS = {
 # inquiry, URL family, or semantic document kind from supplying the corpus.
 MAX_SOURCE_ACCEPTED = 80
 MAX_KIND_ACCEPTED = 40
+MAX_FALLBACK_KIND_ACCEPTED = 160
 MAX_SOURCE_KIND_ACCEPTED = 12
+KIND_ACCEPTED_LIMITS = {
+    # Canadiana contributes distinct scanned volumes and municipal/legal
+    # records; the explicit ceiling keeps that broad archive bounded without
+    # forcing the final Canadian scan quota into generic modern forms.
+    "legal_monograph": 100,
+}
+SOURCE_ACCEPTED_LIMITS = {
+    "canada_commission_archive": 120,
+    "canadiana_legal_monographs": 240,
+}
+SOURCE_KIND_LIMITS = {
+    "canada_commission_archive": 40,
+    "canadiana_legal_monographs": 100,
+    "uk_legal_monographs": 80,
+    "uk_gov_legal_workflow": 40,
+    "us_justice_employment_litigation": 20,
+    "us_sec_litigation": 20,
+    "us_osc_public_files": 20,
+    "cnsc_hearing_documents": 20,
+    "cnsc_meeting_documents": 20,
+    "crtc_legislative_review": 20,
+    "saskatchewan_court_procedure": 20,
+}
+
+SCAN_SOURCE_HINTS = frozenset({
+    "canada_commission_archive", "cullen_commission", "driskell_inquiry",
+    "foreign_interference_commission", "poec_exhibits", "scc",
+    "uk_gov_legal_workflow", "us_osc_public_files", "waitangi_tribunal",
+    "nz_judicial_conduct_panel", "nwt_court_rules", "nunavut_court_forms",
+    "yukon_court_forms", "toronto_zoning", "ottawa_zoning_documents",
+    "vancouver_zoning_documents", "us_justice_employment_litigation",
+    "canada_commission_archive", "canadiana_legal_monographs", "uk_legal_monographs",
+})
+SCAN_TITLE_HINTS = (
+    "scanned", "scan", "facsimile", "image-only", "image only",
+    "handwritten", "manuscript", "original rules", "poster",
+)
 
 SOURCE_METADATA = {
+    "canada_commission_archive": {
+        "repository_size_signal": "The Privy Council Office commission index lists hundreds of historical Canadian inquiries; the harvester follows a bounded prefix of the linked Library and Archives Canada pages.",
+        "size_basis": "official commission index and bounded linked-page crawl",
+    },
+    "canada_publication_commissions": {
+        "repository_size_signal": "The Government of Canada Publications catalogue returned nine electronic result pages for the commission-of-inquiry search during reconnaissance.",
+        "size_basis": "official catalogue search result pages",
+    },
+    "canadiana_legal_monographs": {
+        "repository_size_signal": "Canadiana search exposes hundreds of thousands of public scanned items; discovery is restricted to bounded legal, court, inquiry, statute, municipal, and regulatory result pages.",
+        "size_basis": "official Canadiana search result pages and item-level signed-download resolver",
+    },
+    "uk_legal_monographs": {
+        "repository_size_signal": "Internet Archive advanced search returned 132 items for the English-law subject query during reconnaissance; discovery is restricted to bounded historical English, British, Welsh, Scottish, and Great Britain law results.",
+        "size_basis": "public metadata API result count and item-level PDF file metadata",
+    },
     "scc": {
         "repository_size_signal": "42,463 English case-page URLs were visible in the Court sitemap during reconnaissance.",
         "size_basis": "sitemap case-page count; the PDF subset is smaller and case-dependent",
@@ -303,7 +362,39 @@ def slug(value: str, limit: int = 90) -> str:
 
 def is_pdf_candidate(url: str, title: str = "") -> bool:
     lowered = url.lower()
-    return ".pdf" in lowered or "documentstore.ashx" in lowered or "upload_pdf" in lowered or "/fileadmin/" in lowered or ("/file/" in lowered and "/download" in lowered and title.lower().endswith(".pdf"))
+    return ".pdf" in lowered or "documentstore.ashx" in lowered or "upload_pdf" in lowered or "/fileadmin/" in lowered or ("/file/" in lowered and "/download" in lowered and title.lower().endswith(".pdf")) or ("canadiana.ca/files/get/" in lowered and lowered.endswith("/item"))
+
+
+def likely_non_digital(row: dict) -> bool:
+    text = f"{row.get('title', '')} {row.get('url', '')}".lower()
+    return row.get("source") in SCAN_SOURCE_HINTS or any(hint in text for hint in SCAN_TITLE_HINTS)
+
+
+def likely_uk_legal_monograph(row: dict) -> bool:
+    """Reject obvious non-UK false positives from broad English-law searches."""
+    if row.get("source") != "uk_legal_monographs":
+        return True
+    text = f"{row.get('title', '')} {row.get('repository_item', '')}".lower()
+    excluded = (
+        "hindu law", "bombay", "india", "indian", "roman civil",
+        "new england", "massachusetts", "united states", "american",
+        "spanish", "french law", "german law",
+    )
+    return not any(needle in text for needle in excluded)
+
+
+def kind_limit(kind: str) -> int:
+    if kind in KIND_ACCEPTED_LIMITS:
+        return KIND_ACCEPTED_LIMITS[kind]
+    return MAX_FALLBACK_KIND_ACCEPTED if kind == "other" else MAX_KIND_ACCEPTED
+
+
+def source_limit(source: str) -> int:
+    return SOURCE_ACCEPTED_LIMITS.get(source, MAX_SOURCE_ACCEPTED)
+
+
+def source_kind_limit(source: str, kind: str) -> int:
+    return SOURCE_KIND_LIMITS.get(source, MAX_SOURCE_KIND_ACCEPTED)
 
 
 def infer_type(title: str, url: str = "") -> str:
@@ -327,12 +418,46 @@ def infer_type(title: str, url: str = "") -> str:
 
 def infer_kind(title: str, url: str = "") -> str:
     """Return a narrower semantic kind used for diversity sampling."""
-    text = f"{title} {url}".lower()
-    if re.search(r"(?:[/_ -])fm\d{3}(?:[_-]|\.pdf)", text):
+    raw_text = f"{title} {url}".lower()
+    text = re.sub(r"\s+", " ", re.sub(r"[^a-z0-9]+", " ", raw_text)).strip()
+    compact = text.replace(" ", "")
+    if re.search(r"(?:[/_ -])fm\d{3}(?:[_-]|\.pdf)", raw_text):
         return "factum"
-    if re.search(r"(?:[/_ -])mm\d{3}(?:[_-]|\.pdf)", text):
+    if re.search(r"(?:[/_ -])mm\d{3}(?:[_-]|\.pdf)", raw_text):
         return "memorandum"
+    if "witnessstatement" in compact:
+        return "witness_statement"
+    if "transcript" in compact:
+        return "transcript"
+    if "deathcertificate" in compact or "birthcertificate" in compact:
+        return "certificate"
+    if "rulesofengagement" in compact:
+        return "rules_or_regulations"
+    if "evidence" in compact and ("hearing" in compact or "statement" in compact or "witness" in compact):
+        return "evidence_record"
     rules = (
+        ("law_report", ("law report", "law reports", "weekly notes", "weekly reporter", "report of cases", "reports of cases", "court reports", "cases adjudged", "law journal", "law review", "legal reports", "reports of decisions")),
+        ("english_legal_history", ("history of the english law", "history of english law", "english law of conspiracy")),
+        ("conveyancing_manual", ("conveyancing",)),
+        ("family_law_treatise", ("divorce and matrimonial", "matrimonial jurisdiction")),
+        ("company_law_compilation", ("companies acts", "joint-stock companies", "joint stock companies")),
+        ("commercial_law_treatise", ("bills of exchange", "promissory notes", "factors and brokers")),
+        ("trusts_treatise", ("uses and trusts", "nature and operation of conveyances")),
+        ("statute_compilation", ("statute", "statutes", "act of", "acts of", "legislation", "legislative", "bill ", "bills ")),
+        ("inquiry_report", ("commission of inquiry", "report of a commission", "report of the commission", "report of commission", "government commissions", "court of inquiry", "inquiry into")),
+        ("commission_report", ("royal commission", "report of commissioners", "commission report", "commission to inquire", "report for the canadian commission", "market commission", "special fishery commission")),
+        ("committee_report", ("committee report", "committee of inquiry", "committee on", "preliminary report", "interim report", "first report", "second report", "third report")),
+        ("legal_statement", ("statement of facts", "statement of the case")),
+        ("arbitration_record", ("arbitration", "tribunal of arbitration", "arbitration commission")),
+        ("municipal_report", ("municipal report", "municipal matters", "municipal manual", "municipal assessment", "municipal affairs", "municipal electric", "municipal research", "city government", "city improvement", "public utilities")),
+        ("agency_report", ("agency report", "whistleblower comments", "supplemental agency report")),
+        ("directive", ("directive", "aide memoire", "aide-memoire")),
+        ("appointment_record", ("appointment", "terms of reference")),
+        ("undertaking", ("undertaking",)),
+        ("photograph_record", ("photograph", "photographs")),
+        ("training_material", ("training", "pre-deployment")),
+        ("rules_or_regulations", ("rules", "regulation", "regulations", "ordinance", "code of", "manual comprising")),
+        ("legal_treatise", ("treatise", "commentaries", "commentary on", "law of", "principles of law", "digest of")),
         ("practice_direction", ("practice direction", "practice-direction")),
         ("practice_note", ("practice note", "practice-note")),
         ("skeleton_argument", ("skeleton argument", "skeleton-argument", "skeleton_argument")),
@@ -401,23 +526,47 @@ def infer_kind(title: str, url: str = "") -> str:
         ("statement_of_work", ("statement of work", "statement-of-work", "scope of work")),
         ("standing_offer", ("standing offer", "standing-offer", "supply arrangement")),
         ("procurement", ("procurement", "purchase order")),
-        ("zoning_bylaw", ("zoning bylaw", "zoning-bylaw", "zoning by-law", "land use bylaw", "land-use-bylaw", "official plan")),
+        ("zoning_bylaw", ("zoning bylaw", "zoning by law", "zoning-bylaw", "zoning by-law", "land use bylaw", "land use by law", "land-use-bylaw", "official plan")),
         ("zoning_map", ("zoning map", "zoning-map", "land use map", "land-use map")),
         ("development_plan", ("development plan", "official development plan", "area structure plan")),
-        ("bylaw_amendment", ("bylaw amendment", "by-law amendment", "amending bylaw", "amending by-law")),
-        ("municipal_bylaw", ("bylaw", "by-law", "ordinance", "municipal code")),
+        ("bylaw_amendment", ("bylaw amendment", "by law amendment", "by-law amendment", "amending bylaw", "amending by law", "amending by-law")),
+        ("municipal_bylaw", ("bylaw", "by law", "by-law", "ordinance", "municipal code")),
         ("financial_filing", ("financial filing", "financial report", "financial statements")),
         ("prospectus", ("prospectus", "offering memorandum")),
         ("regulatory_order", ("enforcement order", "regulatory order", "consent order")),
         ("enforcement_notice", ("enforcement notice", "notice of violation", "penalty notice")),
         ("guidance", ("guidance", "guideline")),
         ("evidence_record", ("evidence", "record of evidence")),
-        ("court_form", ("court form", "court-forms", "/forms/", "form-")),
+        ("court_form", ("court form", "court forms", "court-forms", "forms", "form-")),
     )
     for kind, needles in rules:
         if any(needle in text for needle in needles):
             return kind
     return "other"
+
+
+def effective_kind(row: dict) -> str:
+    """Recompute legacy fallback kinds when a narrower rule now applies."""
+    stored = row.get("kind")
+    inferred = infer_kind(row.get("title", ""), row.get("url", ""))
+    if row.get("source") == "canadiana_legal_monographs" and (stored == "inquiry_report" or inferred == "inquiry_report"):
+        return "historical_inquiry_report"
+    if row.get("source") == "uk_legal_monographs":
+        if inferred != "other":
+            return inferred
+        return str(stored or "legal_monograph")
+    if stored and stored != "other":
+        return str(stored)
+    if inferred != "other":
+        return inferred
+    source_fallbacks = {
+        "canada_commission_archive": "commission_record",
+        "canadiana_legal_monographs": "legal_monograph",
+        "uk_gov_legal_workflow": "inquiry_record",
+        "us_justice_employment_litigation": "case_record",
+        "us_osc_public_files": "agency_record",
+    }
+    return source_fallbacks.get(row.get("source"), "other")
 
 
 def wanted(title: str, url: str) -> bool:
@@ -598,6 +747,225 @@ def discover_waitangi(pages: int) -> int:
                 if "/Documents/WT/" not in url or ".pdf" not in url.lower():
                     continue
                 rows.append(candidate("waitangi_tribunal", "nz", url, title, landing, "Public inquiry document published by the Waitangi Tribunal; consult the Tribunal’s access terms."))
+    return write_candidates(rows)
+
+
+def discover_canada_commission_archive(max_pages: int) -> int:
+    index = SOURCE_URLS["canada_commission_archive"]
+    try:
+        index_links = links_from(index, timeout=30)
+    except Exception as exc:
+        print(f"canada commission index failed: {exc}", flush=True)
+        return 0
+    archive_pages = [
+        url for url, _title in index_links
+        if "epe.lac-bac.gc.ca/100/" in url.lower()
+        and "disclaimer" not in url.lower()
+    ]
+    rows: list[dict] = []
+    limit = min(max_pages, len(archive_pages))
+    for number, landing in enumerate(archive_pages[:limit], 1):
+        try:
+            links = links_from(f"{landing}?nodisclaimer=1", timeout=20)
+        except Exception as exc:
+            print(f"canada commission page {number}/{limit} failed: {exc}", flush=True)
+            continue
+        for url, title in links:
+            if ".pdf" not in url.lower():
+                continue
+            rows.append(candidate(
+                "canada_commission_archive",
+                "ca",
+                url,
+                title,
+                landing,
+                "Public historical Canadian commission or inquiry report preserved by Library and Archives Canada.",
+            ))
+        if number == 1 or number % 20 == 0:
+            print(f"canada commission pages {number}/{limit}", flush=True)
+    return write_candidates(rows)
+
+
+def discover_canada_publication_commissions(max_pages: int) -> int:
+    rows: list[dict] = []
+    seen_publications: set[str] = set()
+    for page in range(1, max_pages + 1):
+        landing = (
+            "https://publications.gc.ca/site/eng/search/search.html?"
+            f"text=commission+of+inquiry&format1=Electronic&page={page}"
+            "&results_per_page=10&sort=relevance&order=descending"
+        )
+        try:
+            search_links = links_from(landing, timeout=30)
+        except Exception as exc:
+            print(f"canada publications search page {page}/{max_pages} failed: {exc}", flush=True)
+            continue
+        publications = []
+        for url, title in search_links:
+            if "/site/eng/" not in url or "/publication.html" not in url:
+                continue
+            if url in seen_publications:
+                continue
+            seen_publications.add(url)
+            publications.append((url, title))
+        for publication, publication_title in publications:
+            try:
+                pdf_links = links_from(publication, timeout=30)
+            except Exception as exc:
+                print(f"canada publication record failed: {publication}: {exc}", flush=True)
+                continue
+            for url, title in pdf_links:
+                if not is_pdf_candidate(url, title):
+                    continue
+                combined_title = f"{publication_title} — {title or 'PDF'}"
+                rows.append(candidate(
+                    "canada_publication_commissions",
+                    "ca",
+                    url,
+                    combined_title,
+                    publication,
+                    "Public electronic commission or inquiry publication from the Government of Canada Publications catalogue.",
+                ))
+        print(f"canada publications pages {page}/{max_pages} records={len(publications)}", flush=True)
+    return write_candidates(rows)
+
+
+def discover_canadiana_legal_monographs(max_pages: int) -> int:
+    """Discover a bounded legal subset of Canadiana's scanned item corpus."""
+    queries = (
+        "law", "court", "statute", "municipal", "by-law", "inquiry",
+        "commission", "tribunal", "ordinance", "regulation", "tender",
+    )
+    legal_terms = (
+        "law", "legal", "court", "statute", "municipal", "by-law", "bylaw",
+        "inquiry", "commission", "tribunal", "ordinance", "regulation", "judicial",
+        "justice", "evidence", "case", "rules", "notes", "tender", "contract",
+    )
+    rows: list[dict] = []
+    seen_items: set[str] = set()
+    for query in queries:
+        for page in range(1, max_pages + 1):
+            query_string = urlencode({"q0.0": f"ti:{query}"})
+            landing = (
+                f"https://www.canadiana.ca/search/browsable?{query_string}"
+                if page == 1
+                else f"https://www.canadiana.ca/search/browsable/{page}?{query_string}"
+            )
+            try:
+                links = links_from(landing, timeout=30)
+            except Exception as exc:
+                print(f"canadiana {query} page {page}/{max_pages} failed: {exc}", flush=True)
+                continue
+            page_items = 0
+            for view_url, title in links:
+                path = urlsplit(view_url).path
+                if not path.startswith("/view/") or not title:
+                    continue
+                normalized_title = re.sub(r"\s+", " ", title).strip()
+                if not any(term in normalized_title.lower() for term in legal_terms):
+                    continue
+                item_id = path.removeprefix("/view/").strip("/")
+                if not item_id or item_id in seen_items:
+                    continue
+                seen_items.add(item_id)
+                page_items += 1
+                rows.append(candidate(
+                    "canadiana_legal_monographs",
+                    "ca",
+                    f"https://www.canadiana.ca/files/get/{item_id}/item",
+                    normalized_title,
+                    view_url,
+                    "Public scanned legal or government document from the Canadiana repository; item page and signed full-document resolver are recorded for provenance.",
+                    repository_item=item_id,
+                ))
+            print(f"canadiana {query} page {page}/{max_pages} items={page_items}", flush=True)
+    return write_candidates(rows)
+
+
+def discover_uk_legal_monographs(max_pages: int) -> int:
+    """Discover a bounded set of scanned historical English-law PDF volumes."""
+    queries = (
+        'subject:"English law" AND mediatype:texts AND year:[* TO 1935]',
+        'subject:"Law -- Great Britain" AND mediatype:texts AND year:[* TO 1935]',
+        'title:(England OR English OR British OR Chancery OR "King s Bench") AND mediatype:texts AND year:[* TO 1935]',
+        'title:("law reports" OR statutes OR commentaries) AND mediatype:texts AND year:[* TO 1935]',
+    )
+    strong_uk_terms = (
+        "england", "english law", "laws of england", "great britain",
+        "british law", "england and wales", "wales", "scotland",
+        "court of chancery", "king's bench", "kings bench",
+    )
+    rows: list[dict] = []
+    seen_items: set[str] = set()
+    for query in queries:
+        for page in range(1, max_pages + 1):
+            params = [
+                ("q", query),
+                ("fl[]", "identifier"),
+                ("fl[]", "title"),
+                ("fl[]", "year"),
+                ("fl[]", "creator"),
+                ("fl[]", "subject"),
+                ("rows", "12"),
+                ("page", str(page)),
+                ("output", "json"),
+            ]
+            search_url = "https://archive.org/advancedsearch.php?" + urlencode(params)
+            try:
+                payload = json.loads(fetch_text(search_url, timeout=45))
+            except Exception as exc:
+                print(f"uk archive search page {page}/{max_pages} failed: {exc}", flush=True)
+                continue
+            documents = payload.get("response", {}).get("docs", []) or []
+            page_items = 0
+            for item in documents:
+                identifier = str(item.get("identifier", "")).strip()
+                title = str(item.get("title", "")).strip()
+                subjects = " ".join(str(value) for value in (item.get("subject") or []))
+                metadata_text = f"{title} {subjects} {item.get('creator', '')}".lower()
+                if not identifier or identifier in seen_items or not any(term in metadata_text for term in strong_uk_terms):
+                    continue
+                seen_items.add(identifier)
+                metadata_url = f"https://archive.org/metadata/{quote(identifier, safe='')}"
+                try:
+                    metadata = json.loads(fetch_text(metadata_url, timeout=15))
+                except Exception as exc:
+                    print(f"uk archive item {identifier} failed: {exc}", flush=True)
+                    continue
+                pdf_files = []
+                for file_info in metadata.get("files", []) or []:
+                    name = str(file_info.get("name", ""))
+                    file_format = str(file_info.get("format", "")).lower()
+                    if not name.lower().endswith(".pdf") or "pdf" not in file_format:
+                        continue
+                    try:
+                        size = int(file_info.get("size", 0) or 0)
+                    except (TypeError, ValueError):
+                        size = 0
+                    if size and size > 39_500_000:
+                        continue
+                    pdf_files.append((name, size))
+                if not pdf_files:
+                    continue
+                landing = f"https://archive.org/details/{quote(identifier, safe='')}"
+                for name, size in sorted(pdf_files)[:12]:
+                    file_url = f"https://archive.org/download/{quote(identifier, safe='')}/{quote(name, safe='')}"
+                    rows.append(candidate(
+                        "uk_legal_monographs",
+                        "uk",
+                        file_url,
+                        f"{title} — {name}",
+                        landing,
+                        "Publicly downloadable scanned historical English-law volume from Internet Archive; item-level rights statement and archive terms govern reuse.",
+                        repository_item=identifier,
+                        repository_file=name,
+                        repository_size=size,
+                    ))
+                    page_items += 1
+            if rows:
+                write_candidates(rows)
+                rows = []
+            print(f"uk archive query {queries.index(query) + 1}/{len(queries)} page {page}/{max_pages} pdfs={page_items}", flush=True)
     return write_candidates(rows)
 
 
@@ -2334,6 +2702,46 @@ DIRECT_PDFS = (
         "https://www.uscourts.gov/forms-rules/forms/bankruptcy-forms",
         "Public US federal bankruptcy court form.",
     ),
+    (
+        "canada_federal_rfis",
+        "ca",
+        "https://canadabuys.canada.ca/sites/default/files/webform/tender_notice/22589/rfi-1000433066---en.pdf",
+        "CanadaBuys Request for Information 1000433066",
+        "https://canadabuys.canada.ca/en/tender-opportunities",
+        "Public Canadian federal request for information attachment.",
+    ),
+    (
+        "canada_federal_rfis",
+        "ca",
+        "https://canadabuys.canada.ca/sites/default/files/webform/tender_notice/47398/rfi-1000515852_bi_advanced_analytics_en.pdf",
+        "CanadaBuys Request for Information Advanced Analytics",
+        "https://canadabuys.canada.ca/en/tender-opportunities",
+        "Public Canadian federal request for information attachment.",
+    ),
+    (
+        "canada_federal_rfis",
+        "ca",
+        "https://canadabuys.canada.ca/sites/default/files/webform/tender_notice/73854/30007050---rfi_en.pdf",
+        "CanadaBuys Request for Information 30007050",
+        "https://canadabuys.canada.ca/en/tender-opportunities",
+        "Public Canadian federal request for information attachment.",
+    ),
+    (
+        "canada_federal_rfis",
+        "ca",
+        "https://canadabuys.canada.ca/sites/default/files/webform/tender_notice/6061/dc-2023-cd-06-rfi-brand-love-research-addendum-1.pdf",
+        "CanadaBuys Request for Information Brand Love Research Addendum",
+        "https://canadabuys.canada.ca/en/tender-opportunities",
+        "Public Canadian procurement request-for-information addendum.",
+    ),
+    (
+        "canada_federal_rfis",
+        "ca",
+        "https://canadabuys.canada.ca/sites/default/files/webform/tender_notice/89756/request-for-information---en.pdf",
+        "CanadaBuys Request for Information 89756",
+        "https://canadabuys.canada.ca/en/tender-opportunities",
+        "Public Canadian federal request for information attachment.",
+    ),
 )
 
 
@@ -2408,6 +2816,14 @@ def discover_all(args: argparse.Namespace) -> None:
         discover_au_royal_commission()
     if sources in ("all", "waitangi"):
         discover_waitangi(args.waitangi_pages)
+    if sources in ("all", "canada-commissions"):
+        discover_canada_commission_archive(args.commission_pages)
+    if sources in ("all", "canada-publications"):
+        discover_canada_publication_commissions(args.publication_pages)
+    if sources in ("all", "canadiana"):
+        discover_canadiana_legal_monographs(args.canadiana_pages)
+    if sources in ("all", "internet-archive"):
+        discover_uk_legal_monographs(args.internet_archive_pages)
 
 
 def pdf_features(path: Path) -> dict:
@@ -2419,17 +2835,32 @@ def pdf_features(path: Path) -> dict:
         page_count = len(document)
         text_lengths: list[int] = []
         image_pages = 0
+        image_coverage_pages = 0
         for page in document:
             text_lengths.append(len(page.get_text("text").strip()))
-            if page.get_images(full=True):
+            images = page.get_images(full=True)
+            if images:
                 image_pages += 1
+            page_area = page.rect.width * page.rect.height
+            image_coverage = 0.0
+            if page_area:
+                for info in page.get_image_info():
+                    bbox = info.get("bbox")
+                    if bbox:
+                        image_coverage += (bbox[2] - bbox[0]) * (bbox[3] - bbox[1]) / page_area
+            if min(image_coverage, 1.0) >= 0.5:
+                image_coverage_pages += 1
         text_chars = sum(text_lengths)
         sparse_pages = sum(length < 120 for length in text_lengths)
         image_ratio = image_pages / max(page_count, 1)
         sparse_ratio = sparse_pages / max(page_count, 1)
+        image_coverage_ratio = image_coverage_pages / max(page_count, 1)
         # ponytail: keep this bounded heuristic until a labelled mixed-scan set
         # justifies a more elaborate classifier.
-        if image_ratio >= 0.5 and sparse_ratio >= 0.5:
+        if image_coverage_ratio >= 0.5:
+            generation = "non_digital"
+            detail = "image_dominant_or_ocr"
+        elif image_ratio >= 0.5 and sparse_ratio >= 0.5:
             generation = "non_digital"
             detail = "scanned_or_mixed"
         elif text_chars / max(page_count, 1) < 120 and sparse_ratio >= 0.8:
@@ -2442,19 +2873,62 @@ def pdf_features(path: Path) -> dict:
             "page_count": page_count,
             "text_chars": text_chars,
             "image_pages": image_pages,
+            "image_coverage_pages": image_coverage_pages,
+            "image_coverage_ratio": image_coverage_ratio,
             "sparse_pages": sparse_pages,
             "generation": generation,
             "generation_detail": detail,
         }
 
 
+def resolve_download_url(url: str, timeout: int) -> str:
+    if "canadiana.ca/files/get/" not in url.lower() or not url.lower().endswith("/item"):
+        return url
+    request = Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
+    with urlopen(request, timeout=timeout) as response:
+        payload = json.loads(response.read().decode("utf-8", "replace"))
+    resolved = payload.get("download_uri")
+    if not resolved:
+        raise ValueError("Canadiana did not return a signed download URL")
+    return str(resolved)
+
+
+def remote_content_length(url: str, timeout: int) -> int | None:
+    try:
+        request = Request(url, method="HEAD", headers={"User-Agent": USER_AGENT, "Accept": "application/pdf,*/*;q=0.1"})
+        with urlopen(request, timeout=timeout) as response:
+            value = response.headers.get("Content-Length")
+        return int(value) if value else None
+    except Exception:
+        return None
+
+
 def download(url: str, part: Path, max_bytes: int, timeout: int) -> tuple[int, str]:
     start = part.stat().st_size if part.exists() else 0
+    if start and part.read_bytes()[:4] != b"%PDF":
+        part.unlink(missing_ok=True)
+        start = 0
     headers = {"User-Agent": USER_AGENT, "Accept": "application/pdf,*/*;q=0.1"}
     if start:
         headers["Range"] = f"bytes={start}-"
-    request = Request(url, headers=headers)
-    with urlopen(request, timeout=timeout) as response:
+    request_url = resolve_download_url(url, timeout)
+    if "epe.lac-bac.gc.ca/100/" in url.lower() and "nodisclaimer" not in url.lower():
+        parts = urlsplit(url)
+        query = f"{parts.query}&nodisclaimer=1" if parts.query else "nodisclaimer=1"
+        request_url = urlunsplit((parts.scheme, parts.netloc, parts.path, query, parts.fragment))
+    if request_url != url:
+        remote_size = remote_content_length(request_url, timeout)
+        if remote_size is not None and remote_size > max_bytes:
+            raise ValueError(f"PDF exceeds {max_bytes} bytes (remote size {remote_size})")
+    request = Request(request_url, headers=headers)
+    try:
+        response_context = urlopen(request, timeout=timeout)
+    except HTTPError as exc:
+        if exc.code == 416 and start:
+            part.unlink(missing_ok=True)
+            return download(url, part, max_bytes, timeout)
+        raise
+    with response_context as response:
         append = start and getattr(response, "status", 200) == 206
         if not append:
             start = 0
@@ -2499,25 +2973,51 @@ def choose_candidate(
     types: Counter,
     kinds: Counter,
     source_kinds: Counter,
+    generations: Counter,
+    source_generations: Counter,
+    prefer_scan: bool,
+    retry_visual_ids: set[str] | None = None,
 ) -> dict | None:
+    retry_visual_ids = retry_visual_ids or set()
     available = [
         row for row in rows
         if row.get("jurisdiction") in JURISDICTION_TARGETS
+        and likely_uk_legal_monograph(row)
         and is_pdf_candidate(row.get("url", ""), row.get("title", ""))
-        and row.get("candidate_id") not in ledger
+        and (row.get("candidate_id") not in ledger or row.get("candidate_id") in retry_visual_ids)
         and accepted[row["jurisdiction"]] < JURISDICTION_TARGETS[row["jurisdiction"]]
-        and sources[row["source"]] < MAX_SOURCE_ACCEPTED
-        and kinds[row.get("kind") or infer_kind(row.get("title", ""), row.get("url", ""))] < MAX_KIND_ACCEPTED
-        and source_kinds[(row["source"], row.get("kind") or infer_kind(row.get("title", ""), row.get("url", "")))] < MAX_SOURCE_KIND_ACCEPTED
+        and sources[row["source"]] < source_limit(row["source"])
+        and kinds[effective_kind(row)] < kind_limit(effective_kind(row))
+        and source_kinds[(row["source"], effective_kind(row))] < source_kind_limit(row["source"], effective_kind(row))
     ]
     if not available:
         return None
+    def scan_rate(row: dict) -> float:
+        source = row["source"]
+        non_digital = source_generations[(source, "non_digital")]
+        digitalborn = source_generations[(source, "digitalborn")]
+        return non_digital / max(non_digital + digitalborn, 1)
+
+    scan_first = prefer_scan and generations["non_digital"] < generations["digitalborn"]
+    if scan_first:
+        scan_available = [
+            row for row in available
+            if row.get("candidate_id") in retry_visual_ids
+            or (likely_non_digital(row) and source_generations[(row["source"], "non_digital")] + source_generations[(row["source"], "digitalborn")] == 0)
+            or source_generations[(row["source"], "non_digital")] > 0
+        ]
+        if scan_available:
+            available = scan_available
+        else:
+            return None
     return min(
         available,
         key=lambda row: (
-            sources[row["source"]] / MAX_SOURCE_ACCEPTED,
-            kinds[row.get("kind") or infer_kind(row.get("title", ""), row.get("url", ""))] / MAX_KIND_ACCEPTED,
-            source_kinds[(row["source"], row.get("kind") or infer_kind(row.get("title", ""), row.get("url", "")))] / MAX_SOURCE_KIND_ACCEPTED,
+            0 if scan_first and likely_non_digital(row) and source_generations[(row["source"], "non_digital")] + source_generations[(row["source"], "digitalborn")] == 0 else 1,
+            -scan_rate(row) if scan_first else 0,
+            sources[row["source"]] / source_limit(row["source"]),
+            kinds[effective_kind(row)] / kind_limit(effective_kind(row)),
+            source_kinds[(row["source"], effective_kind(row))] / source_kind_limit(row["source"], effective_kind(row)),
             accepted[row["jurisdiction"]] / JURISDICTION_TARGETS[row["jurisdiction"]],
             types[row["document_type"]],
             hashlib.sha256(row["url"].encode()).hexdigest(),
@@ -2529,6 +3029,12 @@ def append_ledger(row: dict) -> None:
     append_jsonl(LEDGER, [row])
 
 
+def refresh_inventory_command() -> None:
+    ensure_dirs()
+    refresh_inventory()
+    print(INVENTORY)
+
+
 def run_download(args: argparse.Namespace) -> None:
     ensure_dirs()
     rows = read_jsonl(CANDIDATES)
@@ -2538,17 +3044,40 @@ def run_download(args: argparse.Namespace) -> None:
     generations = Counter(row.get("generation") for row in accepted_rows)
     sources = Counter(row.get("source") for row in accepted_rows)
     types = Counter(row.get("document_type") for row in accepted_rows)
-    kinds = Counter(row.get("kind") or infer_kind(row.get("title", ""), row.get("url", "")) for row in accepted_rows)
-    source_kinds = Counter((row.get("source"), row.get("kind") or infer_kind(row.get("title", ""), row.get("url", ""))) for row in accepted_rows)
+    kinds = Counter(effective_kind(row) for row in accepted_rows)
+    source_kinds = Counter((row.get("source"), effective_kind(row)) for row in accepted_rows)
     hashes = existing_pdf_hashes() | {row.get("sha256") for row in accepted_rows if row.get("sha256")}
+    retry_visual_ids = {
+        candidate_id
+        for candidate_id, row in ledger.items()
+        if args.retry_visual
+        and row.get("status") == "discarded_generation_quota"
+        and row.get("generation") == "digitalborn"
+        and row.get("image_pages", 0) / max(row.get("page_count", 1), 1) >= 0.5
+    }
+    retry_archive_ids = {
+        candidate_id
+        for candidate_id, row in ledger.items()
+        if args.retry_archive
+        and row.get("status") == "failed"
+        and row.get("source") == "canada_commission_archive"
+    }
+    source_generations = Counter(
+        (row.get("source"), row.get("generation"))
+        for row in ledger.values()
+        if row.get("generation") in GENERATION_TARGETS
+    )
     attempts = 0
     while sum(accepted.values()) < TOTAL_TARGET and attempts < args.max_new:
-        row = choose_candidate(rows, ledger, accepted, sources, types, kinds, source_kinds)
+        retry_ids = retry_visual_ids | retry_archive_ids
+        row = choose_candidate(rows, ledger, accepted, sources, types, kinds, source_kinds, generations, source_generations, args.prefer_scan, retry_ids)
         if row is None:
             break
         attempts += 1
         cid = row["candidate_id"]
-        row["kind"] = row.get("kind") or infer_kind(row.get("title", ""), row.get("url", ""))
+        retry_visual_ids.discard(cid)
+        retry_archive_ids.discard(cid)
+        row["kind"] = effective_kind(row)
         part = TMP_ROOT / f"{cid}.pdf.part"
         started = time.monotonic()
         base = {**row, "attempted_at": now()}
@@ -2562,6 +3091,7 @@ def run_download(args: argparse.Namespace) -> None:
             else:
                 features = pdf_features(part)
                 generation = features["generation"]
+                source_generations[(row["source"], generation)] += 1
                 if generations[generation] >= GENERATION_TARGETS[generation]:
                     part.unlink(missing_ok=True)
                     result = {**base, **features, "status": "discarded_generation_quota", "sha256": digest, "bytes": size}
@@ -2582,6 +3112,7 @@ def run_download(args: argparse.Namespace) -> None:
             ledger[cid] = result
             append_ledger(result)
         except Exception as exc:
+            part.unlink(missing_ok=True)
             result = {**base, "status": "failed", "failure": f"{type(exc).__name__}: {exc}"}
             ledger[cid] = result
             append_ledger(result)
@@ -2590,17 +3121,115 @@ def run_download(args: argparse.Namespace) -> None:
     print(json.dumps({"attempts": attempts, "accepted": dict(accepted), "generations": dict(generations), "sources": dict(sources), "kinds": dict(kinds), "ledger": str(LEDGER)}, indent=2))
 
 
+def reclassify_visual() -> None:
+    """Move accepted raster-backed PDFs into the non-digital partition."""
+    latest = load_ledger()
+    candidates = [
+        row for row in latest.values()
+        if row.get("status") == "accepted"
+        and row.get("generation") == "digitalborn"
+        and row.get("relative_path")
+        and (
+            float(row.get("image_coverage_ratio", 0) or 0) >= 0.5
+            or int(row.get("image_pages", 0) or 0) / max(int(row.get("page_count", 1) or 1), 1) >= 0.5
+        )
+    ]
+    moved = 0
+    skipped = 0
+    for index, row in enumerate(candidates, 1):
+        current = ROOT / row["relative_path"]
+        if not current.exists():
+            skipped += 1
+            print(f"missing {row['candidate_id']}: {current}", flush=True)
+            continue
+        features = pdf_features(current)
+        if features["generation"] != "non_digital":
+            continue
+        kind = row.get("kind") or infer_kind(row.get("title", ""), row.get("url", ""))
+        target_dir = PDF_ROOT / row["jurisdiction"] / "non_digital" / kind / slug(row["source"])
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target = target_dir / current.name
+        if target.exists():
+            if hashlib.sha256(target.read_bytes()).hexdigest() == row.get("sha256"):
+                current.unlink()
+            else:
+                skipped += 1
+                print(f"collision {row['candidate_id']}: {target}", flush=True)
+                continue
+        else:
+            shutil.move(str(current), target)
+        updated = {
+            **row,
+            **features,
+            "generation": "non_digital",
+            "relative_path": str(target.relative_to(ROOT)).replace("\\", "/"),
+            "reclassified_at": now(),
+            "reclassified_from": "digitalborn",
+        }
+        append_ledger(updated)
+        moved += 1
+        if moved == 1 or moved % 10 == 0:
+            print(f"reclassified {moved}/{len(candidates)} candidates", flush=True)
+    print(json.dumps({"candidates": len(candidates), "moved": moved, "skipped": skipped}, indent=2))
+
+
+def reclassify_kinds() -> None:
+    """Move accepted generic documents when a narrower semantic rule applies."""
+    latest = load_ledger()
+    candidates = [
+        row for row in latest.values()
+        if row.get("status") == "accepted" and row.get("kind") == "other" and row.get("relative_path")
+    ]
+    moved = 0
+    skipped = 0
+    for row in candidates:
+        kind = effective_kind(row)
+        if kind == "other":
+            continue
+        current = ROOT / row["relative_path"]
+        if not current.exists():
+            skipped += 1
+            print(f"missing {row['candidate_id']}: {current}", flush=True)
+            continue
+        target_dir = PDF_ROOT / row["jurisdiction"] / row["generation"] / kind / slug(row["source"])
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target = target_dir / current.name
+        if target.exists():
+            if hashlib.sha256(target.read_bytes()).hexdigest() == row.get("sha256"):
+                current.unlink()
+            else:
+                skipped += 1
+                print(f"collision {row['candidate_id']}: {target}", flush=True)
+                continue
+        else:
+            shutil.move(str(current), target)
+        updated = {
+            **row,
+            "kind": kind,
+            "relative_path": str(target.relative_to(ROOT)).replace("\\", "/"),
+            "reclassified_at": now(),
+            "reclassified_from_kind": "other",
+        }
+        append_ledger(updated)
+        moved += 1
+        if moved == 1 or moved % 10 == 0:
+            print(f"reclassified kinds {moved}/{len(candidates)}", flush=True)
+    print(json.dumps({"candidates": len(candidates), "moved": moved, "skipped": skipped}, indent=2))
+
+
 def verify() -> None:
     latest = load_ledger()
     accepted = [row for row in latest.values() if row.get("status") == "accepted"]
+    kinds_counter = Counter(effective_kind(row) for row in accepted)
+    source_kinds_counter = Counter((row.get("source"), effective_kind(row)) for row in accepted)
     counts = {
         "total": len(accepted),
         "jurisdictions": dict(Counter(row.get("jurisdiction") for row in accepted)),
         "generations": dict(Counter(row.get("generation") for row in accepted)),
         "sources": dict(Counter(row.get("source") for row in accepted)),
         "document_types": dict(Counter(row.get("document_type") for row in accepted)),
-        "kinds": dict(Counter(row.get("kind") or infer_kind(row.get("title", ""), row.get("url", "")) for row in accepted)),
-        "source_kind_pairs": dict(Counter(f"{row.get('source')}:{row.get('kind') or infer_kind(row.get('title', ''), row.get('url', ''))}" for row in accepted)),
+        "kinds": dict(kinds_counter),
+        "source_kind_pairs": dict(Counter(f"{source}:{kind}" for (source, kind), value in source_kinds_counter.items() for _ in range(value))),
         "bytes": sum(int(row.get("bytes", 0)) for row in accepted),
         "pages": sum(int(row.get("page_count", 0)) for row in accepted),
     }
@@ -2611,7 +3240,84 @@ def verify() -> None:
     for key, target in GENERATION_TARGETS.items():
         if counts["generations"].get(key, 0) != target:
             missing.append({"generation": key, "target": target, "actual": counts["generations"].get(key, 0)})
-    counts["requirements_met"] = not missing and counts["total"] == TOTAL_TARGET
+    integrity = {
+        "path_count": 0,
+        "missing_paths": [],
+        "out_of_root_paths": [],
+        "bad_magic": [],
+        "byte_mismatches": [],
+        "hash_mismatches": [],
+        "missing_hashes": [],
+        "duplicate_hashes": {},
+    }
+    accepted_hashes: dict[str, list[str]] = defaultdict(list)
+    root_resolved = ROOT.resolve()
+    for row in accepted:
+        candidate_id = str(row.get("candidate_id"))
+        relative_path = row.get("relative_path")
+        if not relative_path:
+            integrity["missing_paths"].append(candidate_id)
+            continue
+        path = (ROOT / str(relative_path)).resolve()
+        try:
+            in_root = path.is_relative_to(root_resolved)
+        except AttributeError:
+            in_root = str(path).lower().startswith(str(root_resolved).lower())
+        if not in_root:
+            integrity["out_of_root_paths"].append(candidate_id)
+            continue
+        if not path.exists():
+            integrity["missing_paths"].append(candidate_id)
+            continue
+        integrity["path_count"] += 1
+        with path.open("rb") as handle:
+            magic = handle.read(4)
+            digest_builder = hashlib.sha256()
+            handle.seek(0)
+            while chunk := handle.read(1024 * 1024):
+                digest_builder.update(chunk)
+        if magic != b"%PDF":
+            integrity["bad_magic"].append(candidate_id)
+        actual_bytes = path.stat().st_size
+        try:
+            expected_bytes = int(row.get("bytes", 0))
+        except (TypeError, ValueError):
+            expected_bytes = -1
+        if actual_bytes != expected_bytes:
+            integrity["byte_mismatches"].append(candidate_id)
+        digest = digest_builder.hexdigest()
+        expected_hash = str(row.get("sha256") or "")
+        if not expected_hash:
+            integrity["missing_hashes"].append(candidate_id)
+        elif digest != expected_hash:
+            integrity["hash_mismatches"].append(candidate_id)
+        accepted_hashes[digest].append(candidate_id)
+    integrity["duplicate_hashes"] = {
+        digest: ids for digest, ids in accepted_hashes.items() if len(ids) > 1
+    }
+    cap_violations = {
+        "sources": {
+            source: count for source, count in Counter(row.get("source") for row in accepted).items()
+            if count > source_limit(source)
+        },
+        "kinds": {
+            kind: count for kind, count in kinds_counter.items()
+            if count > kind_limit(kind)
+        },
+        "source_kind_pairs": {
+            f"{source}:{kind}": count for (source, kind), count in source_kinds_counter.items()
+            if count > source_kind_limit(source, kind)
+        },
+    }
+    counts["integrity"] = integrity
+    counts["cap_violations"] = cap_violations
+    counts["requirements_met"] = (
+        not missing
+        and counts["total"] == TOTAL_TARGET
+        and integrity["path_count"] == counts["total"]
+        and not any(integrity[key] for key in ("missing_paths", "out_of_root_paths", "bad_magic", "byte_mismatches", "hash_mismatches", "missing_hashes", "duplicate_hashes"))
+        and not any(cap_violations.values())
+    )
     counts["gaps"] = missing
     print(json.dumps(counts, ensure_ascii=False, indent=2, sort_keys=True))
 
@@ -2625,6 +3331,9 @@ def self_test() -> None:
     assert infer_kind("Court Form 12") == "court_form"
     assert infer_kind("Request for Proposal - Legal Services.pdf") == "request_for_proposal"
     assert infer_kind("Calgary Zoning By-law.pdf") == "zoning_bylaw"
+    assert infer_kind("witnessstatementofandrewwareing_mod-83-.pdf") == "witness_statement"
+    assert infer_kind("Reports of cases adjudged in the Court of Chancery") == "law_report"
+    assert effective_kind({"source": "canadiana_legal_monographs", "kind": "inquiry_report", "title": "Historical inquiry report"}) == "historical_inquiry_report"
     assert not wanted("Accessibility statement", "https://example.test/a.pdf")
     assert slug("A witness statement: Québec 2024.pdf") == "a-witness-statement-qu-bec-2024-pdf"
     print("self-test ok")
@@ -2634,19 +3343,32 @@ def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(description=__doc__)
     sub = root.add_subparsers(dest="command", required=True)
     discover = sub.add_parser("discover")
-    discover.add_argument("--source", choices=("all", "seeds", "scc", "cullen", "foreign", "postoffice", "aph", "au-inquiry", "waitangi"), default="all")
+    discover.add_argument("--source", choices=("all", "seeds", "scc", "cullen", "foreign", "postoffice", "aph", "au-inquiry", "waitangi", "canada-commissions", "canada-publications", "canadiana", "internet-archive"), default="all")
     discover.add_argument("--scc-cases", type=int, default=1200)
     discover.add_argument("--cullen-pages", type=int, default=11)
     discover.add_argument("--foreign-pages", type=int, default=12)
     discover.add_argument("--postoffice-pages", type=int, default=30)
     discover.add_argument("--waitangi-pages", type=int, default=30)
+    discover.add_argument("--commission-pages", type=int, default=160)
+    discover.add_argument("--publication-pages", type=int, default=9)
+    discover.add_argument("--canadiana-pages", type=int, default=8)
+    discover.add_argument("--internet-archive-pages", type=int, default=5)
     discover.add_argument("--seed-sources", default="", help="comma-separated seed source ids to crawl")
     discover.set_defaults(func=discover_all)
     download_parser = sub.add_parser("download")
     download_parser.add_argument("--max-new", type=int, default=100)
     download_parser.add_argument("--max-bytes", type=int, default=120_000_000)
     download_parser.add_argument("--timeout", type=int, default=180)
+    download_parser.add_argument("--prefer-scan", action="store_true", help="prefer archival and image-heavy source hints while the scan quota trails digitalborn")
+    download_parser.add_argument("--retry-visual", action="store_true", help="retry prior digitalborn-quota PDFs whose pages were image-heavy")
+    download_parser.add_argument("--retry-archive", action="store_true", help="retry failed archived Canadian commission PDFs through their public disclaimer bypass")
     download_parser.set_defaults(func=run_download)
+    reclassify_parser = sub.add_parser("reclassify-visual")
+    reclassify_parser.set_defaults(func=lambda args: reclassify_visual())
+    reclassify_kinds_parser = sub.add_parser("reclassify-kinds")
+    reclassify_kinds_parser.set_defaults(func=lambda args: reclassify_kinds())
+    inventory_parser = sub.add_parser("inventory")
+    inventory_parser.set_defaults(func=lambda args: refresh_inventory_command())
     verify_parser = sub.add_parser("verify")
     verify_parser.set_defaults(func=lambda args: verify())
     test_parser = sub.add_parser("self-test")

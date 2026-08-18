@@ -39,7 +39,7 @@ export function preloadDocxBytes(
     const query = versionId
         ? `?version_id=${encodeURIComponent(versionId)}`
         : "";
-    const path = `/single-documents/${documentId}/docx${query}`;
+    const path = `/single-documents/${documentId}/file${query}`;
     const pending = apiFetch(path, { headers: { Accept: "*/*" } })
         .then((response) => {
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -65,7 +65,7 @@ export function useFetchDocxBytes(
     const query = versionId
         ? `?version_id=${encodeURIComponent(versionId)}`
         : "";
-    const path = documentId ? `/single-documents/${documentId}/docx${query}` : null;
+    const path = documentId ? `/single-documents/${documentId}/file${query}` : null;
     const [state, setState] = useState(() => cachedState(key));
     const current = state.key === key ? state : cachedState(key);
     useEffect(() => {

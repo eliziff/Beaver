@@ -139,7 +139,3 @@ export async function docxToPdf(buffer: Buffer): Promise<Buffer> {
   const normalized = await normalizeDocxZipPaths(buffer);
   return convert(normalized, ".pdf", undefined);
 }
-
-export function convertedPdfKey(userId: string, docId: string): string {
-  return `converted-pdfs/${userId}/${docId}.pdf`;
-}

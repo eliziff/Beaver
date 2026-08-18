@@ -6,20 +6,20 @@ import type { Project, TabularReview } from "@/app/components/shared/types";
 import { RowActions } from "@/app/components/shared/RowActions";
 import { TabularReviewSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
 import {
-    SkeletonLine,
     TableBody,
     TableCell,
     TableEmptyState,
     TableHeaderCell,
     TableHeaderRow,
+    TableLoadingRows,
     TablePrimaryCell,
     TableRow,
     TableScrollArea,
-    TableSelectionPlaceholder,
+    TableSelectionCheckbox,
     TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS,
     TableStickyCell,
+    useTableSelection,
 } from "@/app/components/shared/TablePrimitive";
-import { CheckboxControl } from "@/app/components/ui/checkbox";
 import { PillButton } from "@/app/components/ui/pill-button";import { formatDate } from "@/app/lib/utils";
 const REVIEW_COLUMN = {
     columns: "hidden w-24 md:flex",
@@ -61,16 +61,8 @@ export function TabularReviewsTable({
         ? new Map(projects.map((project) => [project.id, project.name]))
         : null;
     const visibleReviews = filteredReviews;
-    const allSelected =
-        visibleReviews.length > 0 &&
-        visibleReviews.every((review) =>
-            selectedReviewIds.includes(review.id),
-        );
-    const someSelected =
-        !allSelected &&
-        visibleReviews.some((review) =>
-            selectedReviewIds.includes(review.id),
-        );
+    const selection = useTableSelection(
+        visibleReviews, selectedReviewIds, setSelectedReviewIds);
     const rowPadding = showProject ? undefined : "pr-8 md:pr-8";
     return (
         <TableScrollArea
@@ -80,28 +72,11 @@ export function TabularReviewsTable({
                         header
                         widthClassName={TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS}
                     >
-                        {loading ? (
-                            <TableSelectionPlaceholder />
-                        ) : (
-                            <CheckboxControl
-                                aria-label="Select loaded reviews"
-                                checked={allSelected}
-                                ref={(element) => {
-                                    if (element)
-                                        element.indeterminate = someSelected;
-                                }}
-                                onChange={() =>
-                                    setSelectedReviewIds(
-                                        allSelected
-                                            ? []
-                                            : visibleReviews.map(
-                                                  (review) => review.id,
-                                              ),
-                                    )
-                                }
-                                className="-ml-2 mr-1"
-                            />
-                        )}
+                        <TableSelectionCheckbox loading={loading}
+                            aria-label="Select loaded reviews"
+                            checked={selection.allSelected}
+                            indeterminate={selection.someSelected}
+                            onChange={selection.toggleAll} />
                         <span className="mr-1">Name</span>
                     </TableStickyCell>
                     <TableHeaderCell
@@ -131,7 +106,19 @@ export function TabularReviewsTable({
             }
         >
             {loading ? (
-                <LoadingRows showProject={showProject} />
+                <TableLoadingRows count={showProject ? 3 : 5}
+                    rowClassName={rowPadding}
+                    primaryWidthClassName={TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS}
+                    primaryLineClassName={(index) => `h-3.5 ${showProject
+                        ? "w-48"
+                        : ["w-36", "w-40", "w-44", "w-48", "w-52"][index]}`}
+                    columns={[
+                        { className: `ml-auto ${REVIEW_COLUMN.columns}`, lineClassName: "w-8" },
+                        { className: REVIEW_COLUMN.documents, lineClassName: "w-8" },
+                        ...(showProject ? [{ className: REVIEW_COLUMN.project, lineClassName: "w-24" }] : []),
+                        { className: REVIEW_COLUMN.created, lineClassName: "w-20" },
+                        { className: REVIEW_COLUMN.actions },
+                    ]} />
             ) : reviews.length === 0 ? (
                 <TableEmptyState>
                     <TabularReviewSkeuoIcon className="mb-4 h-8 w-8" />
@@ -166,26 +153,17 @@ export function TabularReviewsTable({
                         return (
                             <TableRow
                                 key={review.id}
-                                selected={selectedReviewIds.includes(review.id)}
+                                selected={selection.selected.has(review.id)}
                                 onClick={() => router.push(href)}
                                 className={rowPadding}
                             >
                                 <TablePrimaryCell
-                                    selected={selectedReviewIds.includes(
-                                        review.id,
-                                    )}
+                                    selected={selection.selected.has(review.id)}
                                     widthClassName={
                                         TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS
                                     }
-                                    onSelectionChange={() =>
-                                        setSelectedReviewIds((selected) =>
-                                            selected.includes(review.id)
-                                                ? selected.filter(
-                                                      (id) => id !== review.id,
-                                                  )
-                                                : [...selected, review.id],
-                                        )
-                                    }
+                                    onSelectionChange={() => selection.toggle(review.id)}
+                                    checkboxTitle={`Select ${review.title ?? "Untitled Review"}`}
                                     label={
                                         <Link
                                             href={href}
@@ -241,50 +219,5 @@ export function TabularReviewsTable({
                 </TableBody>
             )}
         </TableScrollArea>
-    );
-}
-function LoadingRows({ showProject }: { showProject: boolean }) {
-    const titleWidths = showProject
-        ? ["w-48", "w-48", "w-48"]
-        : ["w-36", "w-40", "w-44", "w-48", "w-52"];
-    const rowPadding = showProject ? undefined : "pr-8 md:pr-8";
-    return (
-        <TableBody>
-            {titleWidths.map((titleWidth, index) => (
-                <TableRow
-                    key={index}
-                    interactive={false}
-                    className={rowPadding}
-                >
-                    <TableStickyCell
-                        widthClassName={TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS}
-                    >
-                        <div className="flex min-w-0 items-center">
-                            <TableSelectionPlaceholder />
-                            <SkeletonLine
-                                className={`h-3.5 ${titleWidth}`}
-                            />
-                        </div>
-                    </TableStickyCell>
-                    <TableCell
-                        className={`ml-auto ${REVIEW_COLUMN.columns}`}
-                    >
-                        <SkeletonLine className="w-8" />
-                    </TableCell>
-                    <TableCell className={REVIEW_COLUMN.documents}>
-                        <SkeletonLine className="w-8" />
-                    </TableCell>
-                    {showProject && (
-                        <TableCell className={REVIEW_COLUMN.project}>
-                            <SkeletonLine className="w-24" />
-                        </TableCell>
-                    )}
-                    <TableCell className={REVIEW_COLUMN.created}>
-                        <SkeletonLine className="w-20" />
-                    </TableCell>
-                    <TableCell className={REVIEW_COLUMN.actions} />
-                </TableRow>
-            ))}
-        </TableBody>
     );
 }

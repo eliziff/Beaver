@@ -3,7 +3,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { mikeLocalDataHome } from "./legalDataPath";
 
-export const LOCAL_APPLICATION_SCHEMA_VERSION = 2;
+export const LOCAL_APPLICATION_SCHEMA_VERSION = 3;
 
 const processState = globalThis as typeof globalThis & {
   __beaverLocalApplicationDatabase?: { database: DatabaseSync | null };
@@ -37,6 +37,11 @@ const schema = `
     id TEXT NOT NULL,
     pointer_json TEXT NOT NULL,
     PRIMARY KEY (user_id, id)
+  );
+  CREATE TABLE IF NOT EXISTS object_cleanup (
+    storage_path TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    created_at TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS local_library_documents_scope
     ON local_library_documents(user_id, kind, folder_id, updated_at DESC, id DESC);

@@ -84,7 +84,7 @@ describe("getChat", () => {
     const state = createAssistantSessionState({ chatId: chat.id, messages });
     const assistant = state.messages[1];
 
-    expect(messages[0].turnId).toBe("turn-1");
+    expect(messages[0].turn_id).toBe("turn-1");
     expect(assistant).toMatchObject({
       turnId: "turn-1",
       turnStatus: "interrupted",
@@ -142,7 +142,7 @@ describe("getChat", () => {
     const state = createAssistantSessionState({ chatId: chat.id, messages });
 
     expect(messages[0]).toMatchObject({
-      turnId: "turn-1",
+      turn_id: "turn-1",
     });
     expect(state.rejectedTurn?.message).toMatchObject({ turnId: "turn-1" });
   });

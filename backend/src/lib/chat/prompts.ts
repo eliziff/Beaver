@@ -139,9 +139,9 @@ export const SOURCE_SEARCH_SYSTEM_PROMPT = `SOURCE SEARCH:
 - Search rank and snippets identify candidates, not evidence. Rely on fetched source text and verified pinpoints for conclusions.`;
 
 /**
- * Spreadsheet-specific citation syntax. Spliced into the system prompt by
- * buildMessages only when a spreadsheet document is actually in context, so
- * the static prompt does not carry cell/merged-range rules on every turn.
+ * Spreadsheet-specific citation syntax. The chat application adds it only
+ * when a spreadsheet is in context, so ordinary turns do not carry cell and
+ * merged-range rules.
  */
 export const SPREADSHEET_CITATION_PROMPT = `SPREADSHEET CITATIONS:
 - Use the evidence_id returned for the exact cell or range in submit_grounded_answer.

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { textParserFor } from "../chat/tools/documentOps";
+import { documentProjectionService } from "../documentProjectionService";
 import { runChatTurn } from "../chat/turnEngine";
 import type { DocumentStore } from "../documentStore";
 import { throwIfAborted } from "../llm/abort";
@@ -95,6 +95,7 @@ type Emit = (event: { type: "cell_update"; document_id: string;
 type Dependencies = {
   runTurn?: typeof runChatTurn;
   settings?: (userId: string) => Promise<Settings>;
+  project?: typeof documentProjectionService.read;
 };
 
 const fail = (status: number, message: string): never => {
@@ -142,6 +143,7 @@ export function createTabularApplication(
 ) {
   const turn = dependencies.runTurn ?? runChatTurn;
   const settings = dependencies.settings ?? getUserModelSettings;
+  const project = dependencies.project ?? documentProjectionService.read;
 
   async function modelText(input: { model: string; system: string; user: string;
     apiKeys: UserApiKeys; reasoningEffort?: string; signal?: AbortSignal;
@@ -177,8 +179,16 @@ export function createTabularApplication(
     if (!content) return fail(404, "Document not found");
     if (content.bytes.byteLength > MAX_FILE_BYTES)
       return fail(413, "Document exceeds the 25 MB tabular extraction limit");
-    const parser = textParserFor(content.fileType.toLowerCase()) ?? textParserFor("docx");
-    const markdown = parser ? await parser.run(content.bytes) : "";
+    const projection = await project({
+      documentId,
+      versionId: content.version.id,
+      filename: content.filename,
+      fileType: content.fileType,
+      sourceSha256: content.version.source_sha256,
+      bytes: content.bytes,
+      localPath: content.localPath,
+    }, { signal });
+    const markdown = projection.text;
     throwIfAborted(signal);
     return { id: documentId, filename: content.filename.slice(0, 500),
       markdown: markdown.slice(0, MAX_DOCUMENT_CHARS) };

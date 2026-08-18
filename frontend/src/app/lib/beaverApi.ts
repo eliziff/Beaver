@@ -3,7 +3,6 @@ import type {
   AskInputsResponseEvent,
   CaseOpinionsEvent,
   Chat,
-  Citation,
   ColumnConfig,
   Document,
   Folder,
@@ -14,16 +13,7 @@ import type {
   Workflow,
   TabularReview,
 } from "@/app/components/shared/types";
-interface ServerMessage {
-  id: string;
-  role: "user" | "assistant";
-  content: string | unknown[] | null;
-  files?: { filename: string; document_id?: string }[] | null;
-  workflow?: { id: string; title: string } | null;
-  citations?: Citation[] | null;
-  turn_id?: string;
-  turn_complete?: boolean;
-}
+import type { AssistantTranscriptMessage } from "@/app/lib/assistantSession";
 export const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
 export class BeaverApiError extends Error {
   status: number;
@@ -719,11 +709,11 @@ export const uploadStandaloneDocument = (file: File) =>
   multipartRequest<Document>("/single-documents", file);
 export const deleteDocument = (documentId: string) =>
   remove<void>(`/single-documents/${documentId}`);
-export const getDocumentUrl = (
+export const downloadDocument = (
   documentId: string,
   versionId?: string | null,
-) => apiRequest<{ url: string; filename: string; version_id: string | null }>(
-  `/single-documents/${documentId}/url${
+) => apiBlobRequest(
+  `/single-documents/${documentId}/file${
     versionId ? `?version_id=${encodeURIComponent(versionId)}` : ""
   }`,
 );
@@ -742,31 +732,8 @@ export const listChats = (options?: {
 }) => apiRequest<Chat[]>(pagePath("/chat", options ?? {}));
 export const listProjectChats = (projectId: string) =>
   apiRequest<Chat[]>(`/projects/${projectId}/chats`);
-export const getChat = async (chatId: string) => {
-  const raw = await apiRequest<{ chat: Chat; messages: ServerMessage[] }>(`/chat/${chatId}`);
-  const messages: Message[] = raw.messages.map((m) => {
-    if (m.role === "user") {
-      return {
-        id: m.id,
-        role: "user",
-        content: typeof m.content === "string" ? m.content : "",
-        files: m.files ?? undefined,
-        workflow: m.workflow ?? undefined,
-        turnId: m.turn_id,
-      };
-    }
-    return {
-      id: m.id,
-      role: "assistant",
-      content: typeof m.content === "string" ? m.content : "",
-      citations: m.citations ?? undefined,
-      events: Array.isArray(m.content) ? m.content : undefined,
-      turnId: m.turn_id,
-      turnComplete: m.turn_complete,
-    };
-  });
-  return { chat: raw.chat, messages };
-};
+export const getChat = (chatId: string) =>
+  apiRequest<{ chat: Chat; messages: AssistantTranscriptMessage[] }>(`/chat/${chatId}`);
 export const renameChat = (chatId: string, title: string) =>
   patch<void>(`/chat/${chatId}`, { title });
 export const updateChatProject = (
@@ -806,9 +773,8 @@ type StreamCurrentTurn =
       responses: AskInputsResponseEvent["responses"];
     });
 export const streamChat = (payload: {
-  messages?: Pick<Message, "role" | "content" | "files" | "workflow">[];
-  current_turn?: StreamCurrentTurn;
-  expected_version?: number;
+  current_turn: StreamCurrentTurn;
+  expected_version: number;
   chat_id?: string;
   project_id?: string;
   tabular_review_id?: string;
@@ -826,7 +792,6 @@ export const streamChat = (payload: {
   time_zone?: string;
   displayed_doc?: { filename: string; document_id: string };
   attached_documents?: { filename: string; document_id: string }[];
-  ask_inputs_response?: AskInputsResponseEvent;
   signal?: AbortSignal;
 }) => {
   const { signal, ...body } = payload;

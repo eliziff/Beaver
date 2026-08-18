@@ -1235,7 +1235,7 @@ export interface CompileSkeletonOptions {
  * backend/src, none memoized, with search paths compiling the same document
  * more than once per call and Grep compiling one per matching document. The
  * extracted text beside it has been cached for ages
- * (`textCache`, `parseCache`), so the string was free and the structure was
+ * (DocumentProjectionService), so the string was free and the structure was
  * not.
  *
  * The key is not the text alone. `id` becomes `doc.id`, and

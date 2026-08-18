@@ -1,12 +1,10 @@
 import {
   listLocalDocumentsById,
-  updateLocalDocument,
 } from "./localDocumentStore";
+import type { DocumentStore } from "./documentStore";
 import { legalKnowledgeGraphStore, type LocalMatter } from "./legalKnowledgeGraphStore";
 import { localTabularStore } from "./localTabularStore";
-import {
-  deleteAnonymousProjectChats,
-} from "./anonymousChatStore";
+import { abortLocalProjectChatTurns } from "./localChatStore";
 import { normalizeDocumentFilename } from "./normalize";
 import {
   ProjectStoreError,
@@ -47,7 +45,7 @@ const projectGraph = (userId: string, projectId: string) => {
   return graph;
 };
 
-export const localProjects = {
+export const createLocalProjectStore = (documents: DocumentStore) => ({
   async page(scope, options) {
     const page = legalKnowledgeGraphStore().pageMatters(scope.userId, options);
     return {
@@ -122,7 +120,7 @@ export const localProjects = {
   async delete(scope, projectId) {
     return checked(() => {
       if (!legalKnowledgeGraphStore().getMatter(scope.userId, projectId)) return false;
-      deleteAnonymousProjectChats(scope.userId, projectId);
+      abortLocalProjectChatTurns(scope.userId, projectId);
       legalKnowledgeGraphStore().deleteProject(scope.userId, projectId);
       localTabularStore().deleteProjectReviews(scope.userId, projectId);
       return true;
@@ -156,12 +154,10 @@ export const localProjects = {
     if (!current) throw missing("Document not found");
     const filename = normalizeDocumentFilename(requested, current.filename);
     if (!filename) throw new ProjectStoreError(400, "filename is required");
-    const updated = await updateLocalDocument({
-      userId: scope.userId,
-      kind: current.library_kind,
-      documentId,
-      filename,
-    });
+    const versionId = current.current_version_id;
+    const updated = versionId && await documents.renameVersion(
+      scope, documentId, versionId, filename,
+    );
     if (!updated) throw missing("Document not found");
     return { ...updated, project_id: projectId, folder_id: null };
   },
@@ -187,4 +183,4 @@ export const localProjects = {
     }
     return { ...document, project_id: projectId, folder_id: null };
   },
-} satisfies ProjectStore;
+} satisfies ProjectStore);

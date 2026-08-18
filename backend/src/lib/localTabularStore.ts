@@ -9,7 +9,6 @@ import {
   TabularStoreError,
   type ReviewInput,
   type TabularCell,
-  type TabularCellContent,
   type TabularColumn,
   type TabularReview,
   type TabularScope,

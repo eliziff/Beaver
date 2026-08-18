@@ -2,9 +2,36 @@
 
 ## Goal
 
-Test whether a cheap quantized Qwen model can create useful sidecar data for a randomly selected A2AJ decision: the judges, their majority/minority/concurring roles, and the exact paragraph spans belonging to each opinion.
+Derive auditable substantive opinion bodies and judge voting relationships for A2AJ decisions. Use a high-precision deterministic extractor when the source makes the answer explicit, and route only unresolved cases to the richer Luna extractor. Opinion boundaries are exact source-text offsets with verbatim anchors; paragraph ranges are derived metadata, not the extraction contract.
 
 The experiment must remain siloed from the inflight compaction/tool-structure work. It must reuse the existing A2AJ, `SourceDoc`, lookup, locator, evidence, and SQLite machinery. It must not grow a second family of runners, watchers, caches, bridges, or generated artifacts.
+
+## Current v4 architecture
+
+1. The deterministic extractor recognizes explicit opinion ranges, author-bearing reasons headings, paragraph-start authors, BCCA joinders/signatures, and terminal disposition lines. It emits exact `[start, end)` offsets, boundary anchors, opinion alignment, and per-judge vote relationships.
+2. A result is `ready` only when every substantive opinion has an author and alignment and every discovered judge has a result side. A sole unopposed opinion is `lead`; all judges who author or join it are majority, even when the source never uses that word.
+3. `codex` normally accepts deterministic-ready cases locally and sends only `unresolved` or `unavailable` cases to Luna. `--force` is reserved for controlled cells whose input manifest was already prequalified for Luna.
+4. Luna returns strict schema `a2aj_opinion_votes`: opinion authors/alignment and unique verbatim start/end quotes, plus judges with `result_side`, `relationship`, and `opinion_ids`. Validation resolves exact offsets, enforces a substantive-length floor and non-overlap, checks panel coverage, and verifies vote/opinion coherence.
+5. Each Luna case gets a distinct ephemeral `codex exec`. Runs use a bounded worker pool, append each completed receipt immediately, preserve partial output, and can resume without repeating completed document IDs.
+6. Cold deterministic screening reads IDs from the corpus's covering dataset index and fans independent derivations across up to ten persistent child processes. Workers receive only IDs and small metadata, then batch-read and compile their own source once through the existing bulk primitive; full case text is never serialized from the main process. Screen receipts cache source length and routing, so a resumed manifest can sample the qualified cache without reparsing.
+7. The resumable audit uses the same ten-process batch pool. With a frozen full JSON or compact JSONL receipt input it source-hash checks each case and compares model output directly with the deterministic oracle for exact text boundaries, derived paragraph roles, and judge votes.
+
+V4 additionally treats explicit non-participation as exclusion from the deciding
+panel, filters institutional tails in tribunal panel descriptions, expands
+unique short boundary anchors without moving their offsets, and persists the
+raw schema submission for every rejected compact receipt. Historical v3 runs
+remain immutable and retain their original prompt/validator behavior.
+
+Seeded samples preserve pseudo-random draw order rather than sorting by document ID. A filtered manifest can prequalify an exact number of deterministic-unresolved cases while excluding an earlier manifest:
+
+```powershell
+node experiments/a2aj_decision_roster_qwen/harness.mjs manifest `
+  --needs-llm --seed 123 --sample-size 15000 --scope ALL `
+  --exclude-case-file experiments/a2aj_decision_roster_qwen/runs/earlier.manifest.json `
+  --out experiments/a2aj_decision_roster_qwen/runs/luna-high-needs-llm15k.manifest.json
+```
+
+The screen starts with an interleaved sample from every eligible A2AJ dataset, then fills from the global seeded random order. Screening is local, resumable, ten-process by default, and makes no model calls. Use `--workers` to lower its process bound.
 
 ## Controlled paired run
 
@@ -79,11 +106,13 @@ The model must submit a complete partition of the actual SourceDoc paragraph set
 
 Keep validation deterministic:
 
-- judge names must occur in the source;
-- roles must be one of majority, minority, concurring, or unknown;
-- every actual paragraph must be covered exactly once;
-- ranges may not overlap or refer to absent paragraphs;
-- accepted ranges are rehydrated through existing A2AJ lookup/evidence machinery.
+- opinion authors and judge names must occur in the source;
+- every discovered panel member must appear in the vote graph;
+- a sole substantive opinion must be the lead opinion;
+- boundary quotes must be verbatim, unique, ordered, and long enough to anchor safely;
+- exact source ranges may not overlap and must clear the substantive-word floor;
+- result sides and relationships must agree with referenced opinion alignment;
+- paragraph intersections are derived from exact offsets when a spine exists.
 
 Use mechanical references only when explicit source boundaries cover the complete verified paragraph spine. Otherwise mark the reference unresolved. Human references remain a separate annotation path.
 
@@ -94,11 +123,97 @@ Store only derived metadata in the existing ignored sidecar SQLite:
 - run configuration and seed;
 - decision metadata and source hash;
 - model predictions;
-- judge rows and paragraph-span rows;
+- judge-vote rows and exact opinion-text rows;
 - evidence IDs;
 - reference and metrics JSON.
 
 Do not copy corpus text into the sidecar. Use the existing receipt/progress files under the already ignored `runs/` directory. The comparison command should print its result and write a file only when explicitly requested.
+
+## Luna-high Codex exec screen
+
+The lightweight Codex arm is a first-class command on the existing harness. It
+runs each routed case independently through `gpt-5.6-luna` at high effort,
+with an ephemeral, read-only, user-config-free Codex session and a strict JSON
+output schema. The prompt contains the complete source text, optional paragraph
+index, and term-search preflight. It does not contain the deterministic result.
+
+Select explicit A2AJ document IDs on the command line:
+
+```powershell
+node experiments/a2aj_decision_roster_qwen/harness.mjs codex `
+  --document-ids 123,456,789
+```
+
+For a longer arbitrary set, pass a UTF-8 file containing comma/newline-delimited
+IDs or a JSON array of IDs:
+
+```powershell
+node experiments/a2aj_decision_roster_qwen/harness.mjs codex `
+  --case-file experiments/a2aj_decision_roster_qwen/my-case-ids.txt `
+  --out experiments/a2aj_decision_roster_qwen/runs/luna-high-check.json
+```
+
+Optional controls are `--model`, `--effort`, `--workers`, `--timeout-seconds`,
+`--run-id`, and `--sidecar-db`. Defaults are `gpt-5.6-luna`, `high`, eight
+workers, and 900 seconds per case. Omitting both explicit selectors retains the seeded `--seed`,
+`--sample-size`, and `--scope` path.
+
+The ignored run receipt records selection order, route, Codex CLI version,
+model and effort, source/prompt/output hashes, elapsed time, token usage,
+normalized prediction, exact source offsets and text hashes, derived paragraph
+intersections, deterministic/mechanical comparison, and evidence IDs. The
+progress JSONL and sidecar preserve per-case partial results.
+The complete source and prompt body are not persisted; existing bounded header
+and preflight snippets remain in the receipt for audit.
+
+Each Luna case is a separate `codex exec --ephemeral` process. The runner uses
+an asynchronous worker pool with a default of eight and hard maximum of ten workers;
+one case is submitted to a worker at a time, and receipts are restored to the
+input order after the dispatch completes. `--workers N` may lower concurrency
+for a local smoke test but cannot raise it above ten. The `submit_roster`
+payload is also the strict `json_schema` object used by GPT Responses-style
+structured output (`name: a2aj_opinion_votes`); the same schema is written to
+the Codex `--output-schema` file and embedded in the run receipt.
+
+For corpus-scale screens, first create a reproducible manifest:
+
+```powershell
+node experiments/a2aj_decision_roster_qwen/harness.mjs manifest `
+  --seed 123 --sample-size 30000 --scope ALL `
+  --out experiments/a2aj_decision_roster_qwen/runs/luna-low-30k-manifest.json
+```
+
+Run that manifest with `--receipt-mode compact`. Completed cases are appended
+to the adjacent `.receipts.jsonl` stream immediately after their sidecar row is
+saved. If a long run is interrupted, repeat the same command with `--resume`;
+the runner skips document IDs already present in that stream. The final JSON
+receipt points to the stream rather than duplicating tens of thousands of
+large per-case objects.
+
+## Read-only run dashboard
+
+The same append-only streams can be inspected with a small local dashboard;
+it does not import the frontend build or modify the runner:
+
+```powershell
+node experiments/a2aj_decision_roster_qwen/harness.mjs dashboard `
+  --port 8796 --frontend-url http://127.0.0.1:3000
+```
+
+Open `http://127.0.0.1:8796/`. The dashboard refreshes only on user request, shows a
+progress bar and receipt counts, groups the run library by finished versus
+failed/incomplete execution, and sorts finished runs by accepted outcome rate.
+The default case scope is `All seeds / runs`; individual current and historical
+runs are available from a compact selector in the detail header. Selecting a
+run exposes paged, searchable cases sorted accepted → rejected →
+structure unavailable → case failure. The case controls can filter to only
+decisions with a concurring/dissenting (minority) opinion or sort those cases
+first. Each case links to the local legal source viewer and displays the exact
+character range, linking to its first derived paragraph when available.
+`Receipts` downloads the raw JSONL stream for
+later double-checking. Set
+`--frontend-url` (or `BEAVER_FRONTEND_URL`) to the address where the Beaver
+frontend is running so those source links open in the right app.
 
 ## Acceptance gates
 

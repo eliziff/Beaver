@@ -15,47 +15,22 @@
  */
 
 import diff from "fast-diff";
-import type JSZip from "jszip";
 import {
     ATTR_KEY,
     type XNode,
     cloneNode,
-    createBuilder,
-    createParser,
     elAttrs,
     elChildren,
     elName,
-    ensureXmlDeclaration,
-    findBody,
-    findBodyChildren,
     getTextContent,
-    getZipEntry,
-    loadDocxPackage,
     makeEl,
     makeText,
-    maxTrackedId,
     setChildren,
-    setZipEntry,
 } from "./docx/core";
-
-export async function openDocumentXml(bytes: Buffer, label = "docx") {
-    const zip = await loadDocxPackage(bytes);
-    const entry = getZipEntry(zip, "word/document.xml");
-    if (!entry) throw new Error(`document.xml missing from ${label}`);
-    const tree = createParser().parse(await entry.async("string")) as XNode[];
-    const body = findBody(tree);
-    if (!body) throw new Error(`w:body missing from ${label}`);
-    return { zip, tree, body };
-}
-
-export async function saveDocumentXml(zip: JSZip, tree: XNode[]) {
-    setZipEntry(
-        zip,
-        "word/document.xml",
-        ensureXmlDeclaration(createBuilder().build(tree)),
-    );
-    return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
-}
+import {
+    type DocxParagraphIndex,
+    openDocxSession,
+} from "./docx/session";
 
 export interface EditInput {
     find: string;
@@ -142,107 +117,6 @@ function buildRun(rPr: XNode | null, text: string, tagName: "w:t" | "w:delText")
     return makeEl("w:r", children);
 }
 
-interface RunSlot {
-    childIndex: number;         // index in paragraph.children
-    rPr: XNode | null;          // reference (not cloned)
-    protectedByContentControl: boolean;
-    /**
-     * Per-w:t info. Slots preserve the relative order of the run's textual
-     * children. Non-textual run children (w:tab, w:br, ...) are ignored for
-     * the char stream but left in place via their surrounding w:r.
-     */
-    textNodes: { paraStart: number; paraEnd: number }[];
-}
-
-interface Flattened {
-    paraText: string;
-    // For each char index in paraText: which run slot + which textNode + offset within text
-    charRun: Int32Array;      // runIdx
-    charTextNode: Int32Array; // index into slot.textNodes
-    runs: RunSlot[];          // order corresponds to their paragraph position
-}
-
-function flattenParagraph(paraChildren: XNode[]): Flattened {
-    const runs: RunSlot[] = [];
-    let paraText = "";
-    const charRunArr: number[] = [];
-    const charTextNodeArr: number[] = [];
-
-    const processRun = (
-        rEl: XNode,
-        topChildIdx: number,
-        protectedByContentControl: boolean,
-    ) => {
-        const rKids = elChildren(rEl);
-        let rPr: XNode | null = null;
-        const textNodes: RunSlot["textNodes"] = [];
-        for (const rk of rKids) {
-            const name = elName(rk);
-            if (name === "w:rPr") {
-                rPr = rk;
-            } else if (name === "w:t") {
-                const txt = getTextContent(rk);
-                const start = paraText.length;
-                textNodes.push({
-                    paraStart: start,
-                    paraEnd: start + txt.length,
-                });
-                const runIdx = runs.length;
-                const tnIdx = textNodes.length - 1;
-                paraText += txt;
-                for (let i = 0; i < txt.length; i++) {
-                    charRunArr.push(runIdx);
-                    charTextNodeArr.push(tnIdx);
-                }
-            }
-            // other run children (w:tab, w:br, w:sym, …) are left alone
-        }
-        runs.push({
-            childIndex: topChildIdx,
-            rPr,
-            textNodes,
-            protectedByContentControl,
-        });
-    };
-
-    const processAcceptedNode = (
-        node: XNode,
-        topChildIdx: number,
-        protectedByContentControl = false,
-    ) => {
-        const name = elName(node);
-        if (name === "w:r") {
-            processRun(node, topChildIdx, protectedByContentControl);
-        } else if (name === "w:ins" || name === "w:sdtContent") {
-            for (const child of elChildren(node)) {
-                processAcceptedNode(
-                    child,
-                    topChildIdx,
-                    protectedByContentControl,
-                );
-            }
-        } else if (name === "w:sdt") {
-            for (const child of elChildren(node)) {
-                if (elName(child) === "w:sdtContent") {
-                    processAcceptedNode(child, topChildIdx, true);
-                }
-            }
-        }
-        // w:del and unsupported children are absent from accepted text.
-    };
-
-    for (let ci = 0; ci < paraChildren.length; ci++) {
-        processAcceptedNode(paraChildren[ci], ci);
-    }
-
-    return {
-        paraText,
-        charRun: Int32Array.from(charRunArr),
-        charTextNode: Int32Array.from(charTextNodeArr),
-        runs,
-    };
-}
-
 /**
  * A single logical change. Spans a contiguous [start, end) character range in
  * the paragraph text (may be empty for a pure insert) and may carry an
@@ -316,15 +190,14 @@ function minimalTextEdit(
  */
 function reconstructParagraph(
     paraChildren: XNode[],
-    flat: Flattened,
+    flat: DocxParagraphIndex,
     plan: PlannedChange[],
     now: string,
     author: string,
 ): XNode[] {
     if (plan.length === 0) return paraChildren;
 
-    // Determine the run-index span that edits touch.
-    let firstRunIdx = flat.runs.length;
+    let firstRunIdx = flat.editRuns.length;
     let lastRunIdx = -1;
     for (const p of plan) {
         for (let pos = p.deleteStart; pos < p.deleteEnd; pos++) {
@@ -332,9 +205,7 @@ function reconstructParagraph(
             if (r < firstRunIdx) firstRunIdx = r;
             if (r > lastRunIdx) lastRunIdx = r;
         }
-        // Also include the run to the left/right of a pure insertion so we
-        // can inherit its rPr.
-        if (p.deleteStart === p.deleteEnd && p.deleteStart < flat.paraText.length) {
+        if (p.deleteStart === p.deleteEnd && p.deleteStart < flat.acceptedText.length) {
             const r = flat.charRun[p.deleteStart];
             if (r < firstRunIdx) firstRunIdx = r;
             if (r > lastRunIdx) lastRunIdx = r;
@@ -345,17 +216,14 @@ function reconstructParagraph(
         }
     }
     if (firstRunIdx > lastRunIdx) {
-        // No runs touched (edits against empty paragraph?) — nothing to do.
         return paraChildren;
     }
 
-    // Child-index range in paragraph.children we are going to replace.
-    const startChildIdx = flat.runs[firstRunIdx].childIndex;
-    const endChildIdx = flat.runs[lastRunIdx].childIndex;
+    const startChildIdx = flat.editRuns[firstRunIdx].childIndex;
+    const endChildIdx = flat.editRuns[lastRunIdx].childIndex;
 
-    // Paragraph-text range that this run span covers.
-    const firstRun = flat.runs[firstRunIdx];
-    const lastRun = flat.runs[lastRunIdx];
+    const firstRun = flat.editRuns[firstRunIdx];
+    const lastRun = flat.editRuns[lastRunIdx];
     const spanStart =
         firstRun.textNodes.length > 0 ? firstRun.textNodes[0].paraStart : 0;
     const spanEnd =
@@ -363,21 +231,15 @@ function reconstructParagraph(
             ? lastRun.textNodes[lastRun.textNodes.length - 1].paraEnd
             : spanStart;
 
-    // Walk [spanStart, spanEnd) in paraText, producing a new children array.
     const newRunGroup: XNode[] = [];
 
-    // Helper: get the rPr for the run containing paragraph offset `pos`
-    // (clamped to the touched span). Used to inherit formatting for
-    // insertions that fall exactly on a boundary.
     const rPrForPos = (pos: number): XNode | null => {
         if (pos < 0) pos = 0;
-        if (pos >= flat.paraText.length) pos = flat.paraText.length - 1;
+        if (pos >= flat.acceptedText.length) pos = flat.acceptedText.length - 1;
         if (pos < 0) return firstRun.rPr;
-        return flat.runs[flat.charRun[pos]].rPr;
+        return flat.editRuns[flat.charRun[pos]].rPr;
     };
 
-    // Emit a "normal" run fragment covering [a, b) of paraText, grouping
-    // consecutive chars that belong to the same source text node.
     const emitNormal = (a: number, b: number) => {
         if (a >= b) return;
         let i = a;
@@ -392,15 +254,14 @@ function reconstructParagraph(
             ) {
                 j++;
             }
-            const slot = flat.runs[runIdx];
+            const slot = flat.editRuns[runIdx];
             const rPr = slot.rPr;
-            const slice = flat.paraText.slice(i, j);
+            const slice = flat.acceptedText.slice(i, j);
             newRunGroup.push(buildRun(rPr, slice, "w:t"));
             i = j;
         }
     };
 
-    // Emit a w:del wrapping run fragments covering [a, b) of paraText.
     const emitDel = (a: number, b: number, wId: string) => {
         if (a >= b) return;
         const inner: XNode[] = [];
@@ -416,8 +277,8 @@ function reconstructParagraph(
             ) {
                 j++;
             }
-            const slot = flat.runs[runIdx];
-            const slice = flat.paraText.slice(i, j);
+            const slot = flat.editRuns[runIdx];
+            const slice = flat.acceptedText.slice(i, j);
             inner.push(buildRun(slot.rPr, slice, "w:delText"));
             i = j;
         }
@@ -426,7 +287,6 @@ function reconstructParagraph(
         );
     };
 
-    // Emit a w:ins at position `pos` inheriting rPr from there.
     const emitIns = (pos: number, text: string, wId: string) => {
         if (!text) return;
         const rPr = rPrForPos(pos === spanEnd ? pos - 1 : pos);
@@ -438,27 +298,18 @@ function reconstructParagraph(
 
     let cursor = spanStart;
     for (const p of plan) {
-        // Untouched slice before this edit
         emitNormal(cursor, p.deleteStart);
-        // Insertion fires at the edit boundary
         if (p.insertedText) emitIns(p.deleteStart, p.insertedText, p.insWId!);
-        // Deletion wraps the span
         if (p.deleteEnd > p.deleteStart)
             emitDel(p.deleteStart, p.deleteEnd, p.delWId!);
         cursor = p.deleteEnd;
     }
     emitNormal(cursor, spanEnd);
 
-    // Replace only the w:r children that the edits touch; preserve any other
-    // interleaved elements (bookmarks, existing tracked-changes, w:sdt …) at
-    // their original positions.
     const droppedChildIdx = new Set<number>();
     for (let r = firstRunIdx; r <= lastRunIdx; r++) {
-        droppedChildIdx.add(flat.runs[r].childIndex);
+        droppedChildIdx.add(flat.editRuns[r].childIndex);
     }
-    // Any w:del wrappers that sit inside the span we're rewriting are also
-    // dropped, which accepts their deletions (their text is already absent
-    // from paraText in the accepted view).
     for (let i = startChildIdx; i <= endChildIdx; i++) {
         if (elName(paraChildren[i]) === "w:del") droppedChildIdx.add(i);
     }
@@ -474,14 +325,10 @@ function reconstructParagraph(
     return out;
 }
 
-// ---------------------------------------------------------------------------
-// Locating context in the document
-// ---------------------------------------------------------------------------
-
 interface ParagraphRef {
     paraNode: XNode;
     paraChildren: XNode[];
-    flat: Flattened;
+    flat: DocxParagraphIndex;
     globalStart: number; // where this paragraph starts in the full doc text
 }
 
@@ -495,7 +342,7 @@ function paragraphIndexForRange(
     while (low <= high) {
         const index = (low + high) >>> 1;
         const paragraph = paragraphs[index];
-        const paragraphEnd = paragraph.globalStart + paragraph.flat.paraText.length;
+        const paragraphEnd = paragraph.globalStart + paragraph.flat.acceptedText.length;
         if (start < paragraph.globalStart) high = index - 1;
         else if (start > paragraphEnd) low = index + 1;
         else return end <= paragraphEnd ? index : -1;
@@ -503,16 +350,7 @@ function paragraphIndexForRange(
     return -1;
 }
 
-// --- Whitespace / punctuation normalization for anchor matching -------------
-// The text LLMs see (via mammoth's extractRawText) does not line up 1:1 with
-// the raw w:t concatenation: smart quotes, non-breaking spaces, tabs, and
-// runs of whitespace all differ. We normalize both haystack and needle to
-// a canonical form for matching, then map matched offsets back to the
-// original paragraph text.
-
 function preNormalize(s: string): string {
-    // All 1-to-1 character replacements — preserves length for straightforward
-    // index mapping.
     return s
         .replace(/[\u2018\u2019\u2032]/g, "'")
         .replace(/[\u201C\u201D\u2033]/g, '"')
@@ -523,7 +361,6 @@ function preNormalize(s: string): string {
 
 interface Normalized {
     norm: string;
-    // origIdx[i] = index in the *original* string for norm[i]
     origIdx: number[];
 }
 
@@ -653,15 +490,6 @@ export interface DocxBodyStructure {
     tableCells: DocxTableCellSpan[];
 }
 
-const directChild = (node: XNode, name: string) =>
-    elChildren(node).find((child) => elName(child) === name);
-
-const positiveWordInt = (node: XNode | undefined, name: string) => {
-    const child = node && directChild(node, name);
-    const value = Number(child && elAttrs(child)["@_w:val"]);
-    return Number.isSafeInteger(value) && value > 0 ? value : 1;
-};
-
 /**
  * The body text plus native DOCX table coordinates on the same offset plane.
  * Nested tables remain part of the containing cell's text. Vertical and
@@ -671,124 +499,16 @@ const positiveWordInt = (node: XNode | undefined, name: string) => {
 export async function extractDocxBodyStructure(
     bytes: Buffer,
 ): Promise<DocxBodyStructure> {
-    // A truncated or byte-corrupted package fails JSZip with an opaque
-    // "Corrupted zip: …" error; fail closed with a readable message instead.
-    const zip = await loadDocxPackage(bytes).catch((error: unknown) => {
-        const detail = String((error as { message?: unknown })?.message ?? error)
-            .replace(/\s+/gu, " ")
-            .trim()
-            .slice(0, 200);
-        throw new Error(
-            `DOCX is corrupted or truncated (not a readable ZIP archive): ${detail}`,
-        );
-    });
-    const docXmlFile = getZipEntry(zip, "word/document.xml");
-    if (!docXmlFile) return { text: "", tableCells: [] };
-    const docXmlRaw = await docXmlFile.async("string");
-    const parser = createParser();
-    const tree = parser.parse(docXmlRaw) as XNode[];
-    const bodyChildren = findBodyChildren(tree);
-    if (!bodyChildren) return { text: "", tableCells: [] };
-
-    const lines: string[] = [];
-    const lineStarts: number[] = [];
-    const tableCells: DocxTableCellSpan[] = [];
-    let cursor = 0;
-    let table = 0;
-
-    const pushParagraph = (node: XNode) => {
-        if (lines.length) cursor += 1;
-        lineStarts.push(cursor);
-        const value = flattenParagraph(elChildren(node)).paraText;
-        lines.push(value);
-        cursor += value.length;
-    };
-
-    const collect = (nodes: XNode[], tableDepth = 0) => {
-        for (const n of nodes) {
-            const name = elName(n);
-            if (!name) continue;
-            if (name === "w:p") {
-                pushParagraph(n);
-            } else if (name === "w:tbl" && tableDepth === 0) {
-                collectTable(n);
-            } else if (
-                name === "w:tbl" ||
-                name === "w:tr" ||
-                name === "w:tc" ||
-                name === "w:sdt" ||
-                name === "w:sdtContent"
-            ) {
-                collect(elChildren(n), tableDepth + (name === "w:tbl" ? 1 : 0));
-            }
+    const session = await openDocxSession(bytes);
+    if (!session.has("word/document.xml")) return { text: "", tableCells: [] };
+    const document = await session.document().catch((error: unknown) => {
+        if (/^w:body missing from /u.test(String((error as Error).message))) {
+            return null;
         }
-    };
-
-    const collectTable = (node: XNode) => {
-        table += 1;
-        const tableNumber = table;
-        let row = 0;
-
-        const collectRows = (nodes: XNode[]) => {
-            for (const child of nodes) {
-                const name = elName(child);
-                if (name === "w:tr") {
-                    row += 1;
-                    collectRow(child, tableNumber, row);
-                } else if (name === "w:sdt" || name === "w:sdtContent") {
-                    collectRows(elChildren(child));
-                }
-            }
-        };
-        collectRows(elChildren(node));
-    };
-
-    const collectRow = (node: XNode, tableNumber: number, rowNumber: number) => {
-        const trPr = directChild(node, "w:trPr");
-        const gridBefore = trPr && directChild(trPr, "w:gridBefore");
-        const skipped = Number(gridBefore && elAttrs(gridBefore)["@_w:val"]);
-        let column = Number.isSafeInteger(skipped) && skipped >= 0 ? skipped + 1 : 1;
-
-        const collectCells = (nodes: XNode[]) => {
-            for (const child of nodes) {
-                const name = elName(child);
-                if (name === "w:tc") {
-                    const tcPr = directChild(child, "w:tcPr");
-                    const columnSpan = positiveWordInt(tcPr, "w:gridSpan");
-                    const vMerge = tcPr && directChild(tcPr, "w:vMerge");
-                    const hMerge = tcPr && directChild(tcPr, "w:hMerge");
-                    const mergeValue = (merge: XNode | undefined) =>
-                        String(merge && elAttrs(merge)["@_w:val"] || "").toLowerCase();
-                    const continuation =
-                        (!!vMerge && mergeValue(vMerge) !== "restart") ||
-                        (!!hMerge && mergeValue(hMerge) !== "restart");
-                    const firstLine = lines.length;
-                    collect(elChildren(child), 1);
-                    const lastLine = lines.length - 1;
-                    if (!continuation) {
-                        tableCells.push({
-                            table: tableNumber,
-                            row: rowNumber,
-                            column,
-                            columnSpan,
-                            start: firstLine <= lastLine ? lineStarts[firstLine] : cursor,
-                            end:
-                                firstLine <= lastLine
-                                    ? lineStarts[lastLine] + lines[lastLine].length
-                                    : cursor,
-                        });
-                    }
-                    column += columnSpan;
-                } else if (name === "w:sdt" || name === "w:sdtContent") {
-                    collectCells(elChildren(child));
-                }
-            }
-        };
-        collectCells(elChildren(node));
-    };
-
-    collect(bodyChildren);
-    return { text: lines.join("\n"), tableCells };
+        throw error;
+    });
+    if (!document) return { text: "", tableCells: [] };
+    return { text: document.text, tableCells: document.tableCells };
 }
 
 /**
@@ -811,36 +531,7 @@ export async function extractDocxBodyText(bytes: Buffer): Promise<string> {
 export async function extractTrackedChangeIds(
     bytes: Buffer,
 ): Promise<{ kind: "ins" | "del"; w_id: string }[]> {
-    const zip = await loadDocxPackage(bytes);
-    const docXmlFile = getZipEntry(zip, "word/document.xml");
-    if (!docXmlFile) return [];
-    const docXmlRaw = await docXmlFile.async("string");
-    const parser = createParser();
-    const tree = parser.parse(docXmlRaw) as XNode[];
-    return trackedChangeIds(tree);
-}
-
-function trackedChangeIds(
-    tree: XNode[],
-): { kind: "ins" | "del"; w_id: string }[] {
-    const out: { kind: "ins" | "del"; w_id: string }[] = [];
-    const visit = (n: unknown) => {
-        const name = elName(n);
-        if (!name) return;
-        if (name === "w:ins" || name === "w:del") {
-            const a = elAttrs(n);
-            const raw = a["@_w:id"];
-            if (raw != null) {
-                out.push({
-                    kind: name === "w:ins" ? "ins" : "del",
-                    w_id: String(raw),
-                });
-            }
-        }
-        for (const c of elChildren(n as XNode)) visit(c);
-    };
-    for (const top of tree) visit(top);
-    return out;
+    return (await (await openDocxSession(bytes)).revisions()).changes;
 }
 
 export async function applyTrackedEdits(
@@ -851,43 +542,16 @@ export async function applyTrackedEdits(
     const author = opts?.author ?? "Beaver";
     const now = new Date().toISOString();
 
-    const { zip, tree, body } = await openDocumentXml(bytes);
-    const bodyChildren = elChildren(body);
+    const session = await openDocxSession(bytes);
+    const document = await session.document();
+    const { tree } = document;
 
-    // Build paragraph table (only w:p at the top level of the body — does not
-    // recurse into tables; for tables, w:p also appears inside w:tbl > w:tr >
-    // w:tc so we need to traverse deeper).
-    const paragraphs: ParagraphRef[] = [];
-    const collectParagraphs = (nodes: XNode[]) => {
-        for (const n of nodes) {
-            const name = elName(n);
-            if (!name) continue;
-            if (name === "w:p") {
-                const kids = elChildren(n);
-                const flat = flattenParagraph(kids);
-                paragraphs.push({
-                    paraNode: n,
-                    paraChildren: kids,
-                    flat,
-                    globalStart: 0, // set below
-                });
-            } else if (name === "w:tbl" || name === "w:tr" || name === "w:tc" || name === "w:sdt" || name === "w:sdtContent") {
-                collectParagraphs(elChildren(n));
-            }
-        }
-    };
-    collectParagraphs(bodyChildren);
-
-    // Assign global offsets (paragraphs joined by "\n" so context can
-    // straddle a paragraph boundary, though edits themselves must stay
-    // inside a single paragraph).
-    {
-        let off = 0;
-        for (const p of paragraphs) {
-            p.globalStart = off;
-            off += p.flat.paraText.length + 1; // +1 for synthetic separator
-        }
-    }
+    const paragraphs: ParagraphRef[] = document.paragraphs.map((flat) => ({
+        paraNode: flat.node,
+        paraChildren: flat.children,
+        flat,
+        globalStart: flat.globalStart,
+    }));
 
     // Word tracks text inside paragraphs. The assistant, however, reads the
     // document on the canonical paragraph stream and may copy several adjacent
@@ -898,7 +562,7 @@ export async function applyTrackedEdits(
     const concreteEdits: ConcreteEdit[] = [];
     const errors: EditError[] = [];
     const diffByEdit = new Map<number, EditDiffSegment[]>();
-    const bodyText = paragraphs.map((p) => p.flat.paraText).join("\n");
+    const bodyText = document.text;
     const bodyNorm = normalizeWs(bodyText);
 
     for (let sourceIndex = 0; sourceIndex < edits.length; sourceIndex++) {
@@ -978,7 +642,7 @@ export async function applyTrackedEdits(
         }
     }
 
-    let nextWId = maxTrackedId(tree) + 1;
+    let nextWId = document.maxTrackedId + 1;
     const plansPerParagraph = new Map<number, PlannedChange[]>();
     const appliedChangesByEdit = new Map<number, AppliedChange>();
     const revisionIdsByEdit = new Map<
@@ -1034,7 +698,7 @@ export async function applyTrackedEdits(
             findStart = exactStart - paragraph.globalStart;
             findEnd = exactEnd - paragraph.globalStart;
             if (
-                paragraph.flat.paraText.slice(findStart, findEnd) !== find
+                paragraph.flat.acceptedText.slice(findStart, findEnd) !== find
             ) {
                 errors.push({
                     index: editIdx,
@@ -1079,10 +743,7 @@ export async function applyTrackedEdits(
             }
         }
 
-        // Use the actual original text in that range as `deletedText` —
-        // this preserves the document's whitespace/quote style rather than
-        // the normalized needle the LLM provided.
-        const originalFind = paragraphs[paraIdx].flat.paraText.slice(
+        const originalFind = paragraphs[paraIdx].flat.acceptedText.slice(
             findStart,
             findEnd,
         );
@@ -1099,8 +760,8 @@ export async function applyTrackedEdits(
         }
         const protectedAt = (position: number) =>
             position >= 0 &&
-            position < paragraphs[paraIdx].flat.paraText.length &&
-            paragraphs[paraIdx].flat.runs[
+            position < paragraphs[paraIdx].flat.acceptedText.length &&
+            paragraphs[paraIdx].flat.editRuns[
                 paragraphs[paraIdx].flat.charRun[position]
             ]?.protectedByContentControl;
         const clusterTouchesControl = (start: number, end: number) => {
@@ -1142,8 +803,6 @@ export async function applyTrackedEdits(
             insWId: cluster.inserted ? revision.insWId : undefined,
         }));
 
-        // Check for overlap with earlier edits' plans in the same paragraph.
-        // The whole edit is rejected atomically — never half its clusters.
         const existing = plansPerParagraph.get(paraIdx) ?? [];
         const overlap = editPlans.some((plan) =>
             existing.some(
@@ -1194,7 +853,6 @@ export async function applyTrackedEdits(
         }
     }
 
-    // Apply plans per paragraph.
     for (const [paraIdx, plan] of plansPerParagraph) {
         const p = paragraphs[paraIdx];
         const newKids = reconstructParagraph(
@@ -1207,20 +865,12 @@ export async function applyTrackedEdits(
         setChildren(p.paraNode, newKids);
     }
 
+    session.writeDocument(tree);
     return {
-        bytes: await saveDocumentXml(zip, tree),
+        bytes: await session.save(),
         changes: [...appliedChangesByEdit.values()],
         errors,
     };
-}
-
-function acceptedNodeText(node: XNode): string {
-    const name = elName(node);
-    if (!name || name === "w:del") return "";
-    if (name === "w:t") return getTextContent(node);
-    if (name === "w:tab") return "\t";
-    if (name === "w:br") return "\n";
-    return elChildren(node).map(acceptedNodeText).join("");
 }
 
 /** Insert new paragraphs as tracked text plus an inserted paragraph mark. */
@@ -1235,19 +885,27 @@ export async function insertTrackedBlocks(
     if (input.blocks.some((block) => /[\r\n]/u.test(block))) {
         throw new Error("Each insert_blocks item must be one paragraph without a newline");
     }
-    const { zip, tree, body: bodyNode } = await openDocumentXml(bytes);
-    const body = elChildren(bodyNode);
+    const session = await openDocxSession(bytes);
+    const document = await session.document();
+    const { tree } = document;
+    const body = elChildren(document.body);
+    const byNode = new Map(
+        document.paragraphs.map((paragraph) => [paragraph.node, paragraph]),
+    );
 
     const paragraphIndexes = body
-        .map((node, index) => ({ node, index }))
-        .filter(({ node }) => elName(node) === "w:p");
+        .map((node, index) => ({ paragraph: byNode.get(node), index }))
+        .filter(
+            (entry): entry is { paragraph: DocxParagraphIndex; index: number } =>
+                !!entry.paragraph,
+        );
     let insertionIndex: number;
     let contextBefore = "";
     let contextAfter = "";
     if (input.anchorText?.trim()) {
         const needle = normalizeWs(input.anchorText).norm;
-        const hits = paragraphIndexes.filter(({ node }) =>
-            normalizeWs(acceptedNodeText(node)).norm.includes(needle),
+        const hits = paragraphIndexes.filter(({ paragraph }) =>
+            normalizeWs(paragraph.visibleText).norm.includes(needle),
         );
         const chosen =
             typeof input.occurrence === "number"
@@ -1262,7 +920,7 @@ export async function insertTrackedBlocks(
                     : "insert_blocks anchor paragraph was not found",
             );
         }
-        const anchor = acceptedNodeText(chosen.node);
+        const anchor = chosen.paragraph.visibleText;
         contextBefore = input.position === "after" ? anchor.slice(-120) : "";
         contextAfter = input.position === "before" ? anchor.slice(0, 120) : "";
         insertionIndex = chosen.index + (input.position === "after" ? 1 : 0);
@@ -1277,7 +935,7 @@ export async function insertTrackedBlocks(
 
     const author = opts?.author ?? "Beaver";
     const date = new Date().toISOString();
-    let nextId = maxTrackedId(tree) + 1;
+    let nextId = document.maxTrackedId + 1;
     const changes: AppliedChange[] = [];
     const paragraphs = input.blocks.map((block) => {
         const id = String(nextId++);
@@ -1302,16 +960,13 @@ export async function insertTrackedBlocks(
         return paragraph;
     });
     body.splice(insertionIndex, 0, ...paragraphs);
+    session.writeDocument(tree);
     return {
-        bytes: await saveDocumentXml(zip, tree),
+        bytes: await session.save(),
         changes,
         errors: [],
     };
 }
-
-// ---------------------------------------------------------------------------
-// Resolve a single tracked change (Accept or Reject)
-// ---------------------------------------------------------------------------
 
 /**
  * Walk the XML tree and transform matching w:ins/w:del wrappers for the
@@ -1348,7 +1003,6 @@ function resolveInTree(
                 }
             }
 
-            // Recurse first so nested tables/sdts get processed
             const kids = elChildren(n);
             if (kids.length) {
                 const newKids = rewrite(kids);
@@ -1364,9 +1018,6 @@ function resolveInTree(
                         (name === "w:ins" && mode === "accept") ||
                         (name === "w:del" && mode === "reject")
                     ) {
-                        // Keep children, drop wrapper. For w:del rejected, we
-                        // also need to convert inner w:delText → w:t so the
-                        // text reverts to normal body content.
                         const inner =
                             name === "w:del"
                                 ? (elChildren(n) as XNode[]).map(unwrapDelText)
@@ -1374,8 +1025,6 @@ function resolveInTree(
                         for (const c of inner) out.push(c);
                         continue;
                     } else {
-                        // accept-del / reject-ins → drop the wrapper and its
-                        // inner runs entirely.
                         continue;
                     }
                 }
@@ -1418,16 +1067,19 @@ export async function resolveTrackedChange(
     changeIds: string[],
     mode: "accept" | "reject",
 ): Promise<{ bytes: Buffer; found: boolean }> {
-    const { zip, tree } = await openDocumentXml(bytes);
+    const session = await openDocxSession(bytes);
+    const document = await session.document();
+    const { tree } = document;
     const ids = new Set(changeIds.map(String));
-    const present = new Set(trackedChangeIds(tree).map(({ w_id }) => w_id));
+    const present = new Set(document.trackedChanges.map(({ w_id }) => w_id));
     if (!ids.size || [...ids].some((id) => !present.has(id))) {
         return { bytes, found: false };
     }
 
     const { found } = resolveInTree(tree, changeIds, mode);
 
-    return { bytes: await saveDocumentXml(zip, tree), found };
+    session.writeDocument(tree);
+    return { bytes: await session.save(), found };
 }
 
 /** Apply the host-selected policy to newly written revision wrappers. */

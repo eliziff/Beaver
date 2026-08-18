@@ -1,3 +1,4 @@
+import OpenAI from "openai";
 import { abortError, throwIfAborted } from "./abort";
 import { requireApiKey } from "./apiKeys";
 import type {
@@ -7,9 +8,9 @@ import type {
 } from "./types";
 import { createLlmTrace } from "./rawStreamLog";
 import { modelContextWindow } from "./contextWindow";
-import { toOpenAIChatTools, type OpenAIChatTool } from "./tools";
+import { toOpenAIChatTools } from "./tools";
 
-const DEEPSEEK_CHAT_URL = "https://api.deepseek.com/chat/completions";
+const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
 // DeepSeek's own default output budget for reasoning models is 32K tokens
 // (max 64K); at 16K the reasoning stream ate the entire budget before the
 // model could emit a tool call (LAB smoke run, 2026-08-03), truncating
@@ -106,23 +107,6 @@ function parseToolCall(call: DeepSeekToolCall): NormalizedToolCall {
   return { id: call.id, name: call.function.name, input };
 }
 
-function ssePayloads(buffer: string): { payloads: string[]; rest: string } {
-  const normalized = buffer.replace(/\r\n/g, "\n");
-  const blocks = normalized.split("\n\n");
-  const rest = blocks.pop() ?? "";
-  return {
-    payloads: blocks.flatMap((block) => {
-      const payload = block
-        .split("\n")
-        .filter((line) => line.startsWith("data:"))
-        .map((line) => line.slice(5).trim())
-        .join("\n");
-      return payload && payload !== "[DONE]" ? [payload] : [];
-    }),
-    rest,
-  };
-}
-
 /**
  * Transport-class failures worth one more attempt: socket/DNS-level errors
  * (undici surfaces mid-stream TLS resets as `TypeError: terminated`, request
@@ -131,7 +115,7 @@ function ssePayloads(buffer: string): { payloads: string[]; rest: string } {
  * `chunk.error` payloads — never match.
  */
 const TRANSPORT_ERROR_PATTERN =
-  /\bterminated\b|fetch failed|socket hang up|other side closed|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EPIPE|EAI_AGAIN|UND_ERR_|DeepSeek request failed \((?:429|500|502|503|504)\)/i;
+  /\bterminated\b|fetch failed|socket hang up|other side closed|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EPIPE|EAI_AGAIN|UND_ERR_/i;
 
 const TRANSPORT_ATTEMPTS = 3;
 
@@ -141,6 +125,11 @@ export function isTransportError(error: unknown): boolean {
   for (let depth = 0; cursor && depth < 4; depth++) {
     if (cursor instanceof Error) {
       seen.push(cursor.name, cursor.message);
+      const status = (cursor as { status?: unknown }).status;
+      if (
+        typeof status === "number" &&
+        [429, 500, 502, 503, 504].includes(status)
+      ) return true;
       const code = (cursor as { code?: unknown }).code;
       if (typeof code === "string") seen.push(code);
       cursor = cursor.cause;
@@ -150,47 +139,6 @@ export function isTransportError(error: unknown): boolean {
     }
   }
   return TRANSPORT_ERROR_PATTERN.test(seen.join(" "));
-}
-
-async function createCompletion(params: {
-  apiKey: string;
-  model: string;
-  messages: DeepSeekMessage[];
-  tools?: OpenAIChatTool[];
-  stream?: boolean;
-  maxTokens?: number;
-  thinking?: boolean;
-  reasoningEffort?: string;
-  signal?: AbortSignal;
-}): Promise<Response> {
-  const thinking = params.thinking === true;
-  const response = await fetch(DEEPSEEK_CHAT_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${params.apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: params.model,
-      messages: params.messages,
-      tools: params.tools?.length ? params.tools : undefined,
-      stream: params.stream,
-      max_tokens: params.maxTokens ?? MAX_TOKENS,
-      stream_options: params.stream
-        ? { include_usage: true }
-        : undefined,
-      thinking: { type: thinking ? "enabled" : "disabled" },
-      reasoning_effort: thinking ? effort(params.reasoningEffort) : undefined,
-    }),
-    signal: params.signal,
-  });
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    throw new Error(
-      `DeepSeek request failed (${response.status}): ${detail || response.statusText}`,
-    );
-  }
-  return response;
 }
 
 export async function streamDeepSeek(
@@ -205,6 +153,7 @@ export async function streamDeepSeek(
     tools = [],
   } = params;
   const key = apiKey(params.apiKeys?.deepseek);
+  const client = new OpenAI({ apiKey: key, baseURL: DEEPSEEK_BASE_URL, maxRetries: 0 });
   const messages = toDeepSeekMessages(params.messages, systemPrompt);
   const trace = createLlmTrace({ provider: "deepseek", model });
   let fullText = "";
@@ -252,38 +201,25 @@ export async function streamDeepSeek(
         responseUsage = undefined;
         roundEmitted = false;
         try {
-          const response = await createCompletion({
-            apiKey: key,
+          const stream = await client.chat.completions.create({
             model,
             messages,
             tools: toOpenAIChatTools(resolvedTools),
-            maxTokens: params.maxTokens,
+            max_tokens: params.maxTokens ?? MAX_TOKENS,
             stream: true,
-            thinking: enableThinking,
-            reasoningEffort: params.reasoningEffort,
+            stream_options: { include_usage: true },
+            thinking: { type: enableThinking ? "enabled" : "disabled" },
+            reasoning_effort:
+              enableThinking ? effort(params.reasoningEffort) : undefined,
+          } as unknown as OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming, {
             signal: params.abortSignal,
+            maxRetries: 0,
           });
-          if (!response.body) throw new Error("DeepSeek response had no body.");
 
-          const reader = response.body.getReader();
-          const decoder = new TextDecoder();
-          let buffer = "";
-
-          while (true) {
+          for await (const rawChunk of stream) {
             throwIfAborted(params.abortSignal);
-            const { done, value } = await reader.read();
-            buffer += decoder.decode(value, { stream: !done });
-            const parsed = ssePayloads(done ? `${buffer}\n\n` : buffer);
-            buffer = parsed.rest;
-
-            for (const payload of parsed.payloads) {
-              trace.record({ iteration, label: "sse_event", payload });
-              let chunk: DeepSeekStreamChunk;
-              try {
-                chunk = JSON.parse(payload) as DeepSeekStreamChunk;
-              } catch {
-                continue;
-              }
+            const chunk = rawChunk as DeepSeekStreamChunk;
+              trace.record({ iteration, label: "sse_event", payload: chunk });
               if (chunk.error) {
                 throw new Error(
                   `DeepSeek error${chunk.error.code ? ` (${chunk.error.code})` : ""}: ${chunk.error.message || "Request failed."}`,
@@ -318,8 +254,6 @@ export async function streamDeepSeek(
                 }
                 pending.set(index, current);
               }
-            }
-            if (done) break;
           }
           break;
         } catch (error) {

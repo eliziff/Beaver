@@ -5,7 +5,7 @@ const llm = vi.hoisted(() => ({ streamChatWithTools: vi.fn() }));
 vi.mock("../llm", () => ({ streamChatWithTools: llm.streamChatWithTools }));
 
 import { compactChatContext, planContextCheckpoint } from "./contextCompaction";
-import { projectChatTranscript } from "./anonymousTranscript";
+import { projectChatTranscript } from "./chatTranscript";
 
 const rows = (): ChatMessageRecord[] => [
   { id: "u1", role: "user", content: "Review the agreement." },

@@ -41,11 +41,13 @@ describe("executeCompareVersionsTool", () => {
     process.env.MIKE_LOCAL_DATA_DIR = home;
     process.env.OPEN_LEGAL_DATA_HOME = home;
     vi.resetModules();
-    const store = await import("../../localDocumentStore");
+    const store = await import("../../__tests__/support/localDocumentFixtures");
     const { executeCompareVersionsTool } = await import(
       "../tools/compareVersionsTool"
     );
-    const { localDocuments } = await import("../../localLibraryStore");
+    const { localDocuments } = await import(
+      "../../__tests__/support/localDocumentFixtures"
+    );
 
     const document = await store.createLocalDocument({
       userId,
@@ -103,7 +105,9 @@ describe("executeCompareVersionsTool", () => {
     const { executeCompareVersionsTool } = await import(
       "../tools/compareVersionsTool"
     );
-    const { localDocuments } = await import("../../localLibraryStore");
+    const { localDocuments } = await import(
+      "../../__tests__/support/localDocumentFixtures"
+    );
     expect(
       await executeCompareVersionsTool(
         localDocuments, { userId }, "library_read", {},

@@ -75,9 +75,8 @@ function fixture<T>(file: string): T {
 }
 
 /**
- * Byte-identical copy of publicLegalSources' lookupPayload: the JSON whose
- * sha256 is persisted as `payload_sha256` in TNA evidence receipts. If this
- * shape drifts from production, receipt rehydration breaks in production too.
+ * The JSON whose sha256 is persisted as `payload_sha256` in TNA evidence
+ * receipts. If this shape drifts from production, receipt rehydration breaks.
  */
 function lookupPayload(lookup: SourceDocLookup) {
   const block = (value: SourceDocLookup["block"]) =>

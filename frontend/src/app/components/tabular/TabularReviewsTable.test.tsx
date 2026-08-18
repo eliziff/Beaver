@@ -38,8 +38,8 @@ const handlers = {
 };
 
 describe("TabularReviewsTable", () => {
-    it("adds project data only globally and preserves each loading shell", () => {
-        const { container, rerender } = render(
+    it("adds project data only to the global view", () => {
+        const { rerender } = render(
             <TabularReviewsTable
                 reviews={[]}
                 filteredReviews={[]}
@@ -51,7 +51,6 @@ describe("TabularReviewsTable", () => {
         );
 
         expect(screen.queryByText("Project")).not.toBeInTheDocument();
-        expect(container.querySelectorAll(".h-11.min-w-0")).toHaveLength(6);
 
         rerender(
             <TabularReviewsTable
@@ -66,7 +65,6 @@ describe("TabularReviewsTable", () => {
         );
 
         expect(screen.getByText("Project")).toBeInTheDocument();
-        expect(container.querySelectorAll(".h-11.min-w-0")).toHaveLength(4);
 
         rerender(
             <TabularReviewsTable

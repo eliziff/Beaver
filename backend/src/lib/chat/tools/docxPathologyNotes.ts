@@ -1,6 +1,4 @@
-import { cachedParse } from "../../parseCache";
 import {
-  scanDocxPathology,
   type DocxPathologyReport,
 } from "../../docx/pathology";
 
@@ -14,32 +12,11 @@ import {
  */
 
 /**
- * The sniffer's report, cached beside the text parse under its own parser
- * identity (parseCache stores strings, so the report crosses as JSON).
+ * The sniffer's report comes from the canonical DOCX projection session.
  * Returns null for anything that is not a docx and for an unparseable
  * entry — a read never fails, and never loses its text, because the
  * report did.
  */
-export async function docxPathologyReportFor(params: {
-  fileType: string;
-  scope: string;
-  bytes: Buffer;
-}): Promise<DocxPathologyReport | null> {
-  if (params.fileType !== "docx") return null;
-  try {
-    const raw = await cachedParse({
-      scope: params.scope,
-      parser: "docx-pathology",
-      version: 1,
-      bytes: params.bytes,
-      parse: async () => JSON.stringify(await scanDocxPathology(params.bytes)),
-    });
-    return JSON.parse(raw) as DocxPathologyReport;
-  } catch {
-    return null;
-  }
-}
-
 /** Keeps the block compact on documents that trip many counters at once. */
 const MAX_NOTE_LINES = 8;
 
@@ -61,7 +38,7 @@ export const REDLINE_VIEW_LEGEND =
  * advisory sits outside the cap so it is never the line that gets dropped.
  */
 export function docxCautionNotes(report: DocxPathologyReport | null): string[] {
-  // The report crosses a disk cache as JSON, so treat its shape as data.
+  // Treat the report as data at the tool boundary.
   const raw = Array.isArray(report?.notes_of_caution)
     ? report.notes_of_caution
     : [];

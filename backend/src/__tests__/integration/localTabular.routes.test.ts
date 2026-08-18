@@ -2,6 +2,7 @@ import os from "node:os";
 import path from "node:path";
 import { mkdtemp, rm } from "node:fs/promises";
 import request from "supertest";
+import * as XLSX from "xlsx";
 import {
   afterEach,
   beforeEach,
@@ -35,6 +36,16 @@ vi.mock("../../lib/llm", async (importOriginal) => ({
 
 let dataHome: string;
 let closeStores: (() => Promise<void>) | null = null;
+
+function spreadsheetBytes(value: string) {
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(
+    workbook,
+    XLSX.utils.aoa_to_sheet([[value]]),
+    "Sheet1",
+  );
+  return XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Buffer;
+}
 
 async function loadApp() {
   vi.resetModules();
@@ -129,7 +140,7 @@ describe("account-free tabular reviews", () => {
 
     const uploaded = await request(app)
       .post("/library/files/documents")
-      .attach("file", Buffer.from("fixture"), "lease.xlsx");
+      .attach("file", spreadsheetBytes("fixture"), "lease.xlsx");
     expect(uploaded.status).toBe(201);
     expect(
       (

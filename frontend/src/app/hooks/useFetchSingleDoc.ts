@@ -30,7 +30,7 @@ async function loadSingleDoc(
     if (cached?.key === key) return cached.result;
     if (pending?.key === key) return pending.promise;
     const promise = (async () => {
-        const qs = versionId            ? `?version_id=${encodeURIComponent(versionId)}`            : "";        const response = await apiFetch(            `/single-documents/${documentId}/display${qs}`,            { cache: "default", headers: { Accept: "*/*" } },        );        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const qs = versionId            ? `?rendition=pdf&version_id=${encodeURIComponent(versionId)}`            : "?rendition=pdf";        const response = await apiFetch(            `/single-documents/${documentId}/file${qs}`,            { cache: "default", headers: { Accept: "*/*" } },        );        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const contentType = response.headers.get("content-type") ?? "";
         let result: LoadedDoc;
         if (contentType.includes("application/pdf")) {

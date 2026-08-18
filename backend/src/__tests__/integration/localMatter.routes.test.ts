@@ -3,6 +3,7 @@ import os from "node:os";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import request from "supertest";
+import * as XLSX from "xlsx";
 import {
   afterEach,
   beforeEach,
@@ -63,6 +64,16 @@ function streamedContent(body: string) {
     .filter((event) => event.type === "content_delta")
     .map((event) => event.text ?? "")
     .join("");
+}
+
+function spreadsheetBytes(value: string) {
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(
+    workbook,
+    XLSX.utils.aoa_to_sheet([[value]]),
+    "Sheet1",
+  );
+  return XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Buffer;
 }
 
 async function loadApp() {
@@ -138,7 +149,7 @@ describe("account-free matter routes", () => {
     const app = await loadApp();
     mocks.appendLocalPdfPinpointLinks.mockImplementationOnce(
       async (answer: string) =>
-        `${answer}\n\nSource: [fixture.pdf, p. 7](/single-documents/document-1/display?version_id=version-1#page=7)`,
+        `${answer}\n\nSource: [fixture.pdf, p. 7](/single-documents/document-1/file?rendition=pdf&version_id=version-1#page=7)`,
     );
 
     const streamed = await request(app)
@@ -184,10 +195,10 @@ describe("account-free matter routes", () => {
 
     const source = await request(app)
       .post("/library/files/documents")
-      .attach("file", Buffer.from("record"), "appeal-record.xlsx");
+      .attach("file", spreadsheetBytes("record"), "appeal-record.xlsx");
     const unrelated = await request(app)
       .post("/library/files/documents")
-      .attach("file", Buffer.from("other"), "unrelated.xlsx");
+      .attach("file", spreadsheetBytes("other"), "unrelated.xlsx");
     expect(source.status).toBe(201);
     expect(unrelated.status).toBe(201);
 
@@ -263,13 +274,22 @@ describe("account-free matter routes", () => {
     expect(missingFocus.status).toBe(400);
     expect(missingFocus.body.detail).toMatch(/unavailable/u);
 
-    const chatStore = await import("../../lib/anonymousChatStore");
-    chatStore.appendAnonymousAssistantEvents(
-      chatStore.getAnonymousChat(
-        "00000000-0000-0000-0000-000000000001",
-        createdChat.body.id,
-      )!,
-      [
+    const [{ createLocalChatStore }, { localTabularData }] = await Promise.all([
+      import("../../lib/localChatStore"),
+      import("../../lib/localTabularStore"),
+    ]);
+    const chatStore = createLocalChatStore(localTabularData);
+    const user = { userId: "00000000-0000-0000-0000-000000000001" };
+    const messages = (await chatStore.transcript(user, createdChat.body.id))!;
+    const assistant = [...messages].reverse().find(
+      (message) => message.role === "assistant",
+    )!;
+    await chatStore.commitTurn(user, createdChat.body.id, {
+      expectedVersion: 2,
+      assistantMessage: {
+        id: assistant.id,
+        content: [
+          ...(Array.isArray(assistant.content) ? assistant.content : []),
         {
           type: "ask_inputs",
           items: [
@@ -280,10 +300,9 @@ describe("account-free matter routes", () => {
             },
           ],
         },
-      ],
-      undefined,
-      2,
-    );
+        ],
+      },
+    });
 
     const continued = await request(app)
       .post("/chat")
@@ -422,7 +441,7 @@ describe("account-free matter routes", () => {
     const source = await request(app)
       .post("/library/files/documents")
       .attach("file", Buffer.from("record"), "appeal-record.xlsx");
-    const store = await import("../../lib/localDocumentStore");
+    const store = await import("../../lib/__tests__/support/localDocumentFixtures");
     const foreign = await store.createLocalDocument({
       userId: "00000000-0000-0000-0000-000000000099",
       kind: "file",
