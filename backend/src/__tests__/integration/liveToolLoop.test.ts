@@ -55,8 +55,8 @@ function visibleText(events: SseEvent[]) {
 
 function toolCalls(events: SseEvent[]) {
   return events
-    .filter((event) => event.type === "tool_call_start")
-    .map((event) => String(event.name ?? ""));
+    .filter((event) => event.type === "tool_activity" && event.status === "running")
+    .map((event) => String(event.tool ?? ""));
 }
 
 async function buildLeaseDocx(): Promise<Buffer> {

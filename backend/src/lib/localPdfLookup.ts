@@ -77,8 +77,8 @@ export type LocalPdfEvidenceReceipt = {
     context_artifact_ids: string[];
     text_sha256: string;
     payload_sha256: string;
-    page_numbers?: number[];
-    page_text_sha256?: string;
+    page_numbers: number[];
+    page_text_sha256: string;
   };
 };
 
@@ -129,10 +129,10 @@ type EvidenceHandleIdentity = {
 
 function evidenceHandle(
   identity: EvidenceHandleIdentity,
-  pageBinding?: { page_numbers: number[]; page_text_sha256: string },
+  pageBinding: { page_numbers: number[]; page_text_sha256: string },
 ) {
   return `mike-evidence:v1:${sha256(
-    JSON.stringify(pageBinding ? { ...identity, ...pageBinding } : identity),
+    JSON.stringify({ ...identity, ...pageBinding }),
   )}`;
 }
 
@@ -208,8 +208,6 @@ function evidenceReceipt(value: unknown): LocalPdfEvidenceReceipt {
   const source = receipt.source;
   const lookup = receipt.lookup;
   const evidence = receipt.evidence;
-  const hasPageNumbers = evidence?.page_numbers !== undefined;
-  const hasPageTextSha256 = evidence?.page_text_sha256 !== undefined;
   if (
     receipt.schema_version !== EVIDENCE_SCHEMA ||
     typeof receipt.handle !== "string" ||
@@ -232,13 +230,11 @@ function evidenceReceipt(value: unknown): LocalPdfEvidenceReceipt {
     !evidence.context_artifact_ids.every((id) => typeof id === "string") ||
     typeof evidence.text_sha256 !== "string" ||
     typeof evidence.payload_sha256 !== "string" ||
-    hasPageNumbers !== hasPageTextSha256 ||
-    (hasPageNumbers &&
-      (!Array.isArray(evidence.page_numbers) ||
-        !evidence.page_numbers.every(
-          (number) => Number.isInteger(number) && number > 0,
-        ) ||
-        typeof evidence.page_text_sha256 !== "string"))
+    !Array.isArray(evidence.page_numbers) ||
+    !evidence.page_numbers.every(
+      (number) => Number.isInteger(number) && number > 0,
+    ) ||
+    typeof evidence.page_text_sha256 !== "string"
   ) {
     throw new Error("Invalid PDF evidence receipt");
   }
@@ -263,10 +259,10 @@ async function persistEvidenceReceipt(receipt: LocalPdfEvidenceReceipt) {
       existing.evidence.payload_sha256 !== receipt.evidence.payload_sha256 ||
       existing.evidence.page_text_sha256 !==
         receipt.evidence.page_text_sha256 ||
-      existing.evidence.page_numbers?.length !==
-        receipt.evidence.page_numbers?.length ||
-      existing.evidence.page_numbers?.some(
-        (number, index) => number !== receipt.evidence.page_numbers?.[index],
+      existing.evidence.page_numbers.length !==
+        receipt.evidence.page_numbers.length ||
+      existing.evidence.page_numbers.some(
+        (number, index) => number !== receipt.evidence.page_numbers[index],
       ) ||
       existing.evidence.artifact_ids.length !==
         receipt.evidence.artifact_ids.length ||
@@ -305,20 +301,6 @@ export async function readLocalPdfEvidenceReceipt(handle: string) {
     throw new Error("PDF evidence receipt handle does not match its content");
   }
   return receipt;
-}
-
-function hasPageBinding(
-  receipt: LocalPdfEvidenceReceipt,
-): receipt is LocalPdfEvidenceReceipt & {
-  evidence: {
-    page_numbers: number[];
-    page_text_sha256: string;
-  };
-} {
-  return (
-    Array.isArray(receipt.evidence.page_numbers) &&
-    typeof receipt.evidence.page_text_sha256 === "string"
-  );
 }
 
 function sameStrings(left: string[], right: string[]) {
@@ -1219,21 +1201,7 @@ async function verifiedLocalPdfEvidence(
       "PDF evidence no longer matches the authoritative source artifacts",
     );
   }
-  const identity = {
-    document_id: lookup.source.document_id,
-    version_id: lookup.source.version_id,
-    source_sha256: lookup.source.source_sha256,
-    cache_key: lookup.source.cache_key,
-    kind: canonicalKind(receipt.lookup.locatorKind),
-    artifact_ids: lookup.evidence.artifact_ids,
-    text_sha256: lookup.evidence.text_sha256,
-    context_artifact_ids: lookup.evidence.context_artifact_ids,
-    payload_sha256: lookup.evidence.payload_sha256,
-  };
-  const pageBound = hasPageBinding(receipt);
-  const expectedHandle = pageBound
-    ? lookup.evidence.handle
-    : evidenceHandle(identity);
+  const expectedHandle = lookup.evidence.handle;
   if (
     expectedHandle !== handle ||
     lookup.source.document_id !== receipt.source.document_id ||
@@ -1253,44 +1221,18 @@ async function verifiedLocalPdfEvidence(
       lookup.evidence.context_artifact_ids,
       receipt.evidence.context_artifact_ids,
     ) ||
-    (pageBound &&
-      (lookup.evidence.page_text_sha256 !==
-        receipt.evidence.page_text_sha256 ||
-        !sameNumbers(
-          lookup.evidence.page_numbers,
-          receipt.evidence.page_numbers,
-        )))
+    lookup.evidence.page_text_sha256 !==
+      receipt.evidence.page_text_sha256 ||
+    !sameNumbers(
+      lookup.evidence.page_numbers,
+      receipt.evidence.page_numbers,
+    )
   ) {
     throw new Error(
       "PDF evidence no longer matches the authoritative source artifacts",
     );
   }
-  if (pageBound) return { lookup, pageRows, receipt };
-  const viewPath = evidenceViewPath(
-    lookup.source.document_id,
-    lookup.source.version_id,
-    handle,
-  );
-  return {
-    lookup: {
-      ...lookup,
-      evidence: {
-        ...lookup.evidence,
-        handle,
-        page_numbers: undefined,
-        page_text_sha256: undefined,
-      },
-      link: {
-        ...lookup.link,
-        evidence_view_path: viewPath,
-        href: lookup.link.page_numbers[0]
-          ? `${viewPath}#page=${lookup.link.page_numbers[0]}`
-          : viewPath,
-      },
-    },
-    pageRows,
-    receipt,
-  };
+  return { lookup, pageRows, receipt };
 }
 
 export async function rehydrateLocalPdfEvidence(
@@ -1313,11 +1255,6 @@ export async function verifyLocalPdfLinkEvidence(
     handle,
     artifactSession,
   );
-  if (!hasPageBinding(verified.receipt)) {
-    throw new Error(
-      "PDF evidence receipt is not bound to authoritative page text",
-    );
-  }
   return {
     documentId: verified.lookup.source.document_id,
     versionId: verified.lookup.source.version_id,
@@ -1395,11 +1332,6 @@ function buildLinkEvidence(
   rows: NormalizedPage[],
 ): LocalPdfLinkEvidence {
   const { lookup, receipt } = verified;
-  if (!hasPageBinding(receipt)) {
-    throw new Error(
-      "PDF evidence receipt is not bound to authoritative page text",
-    );
-  }
   const byNumber = new Map(rows.map((row) => [row.number, row]));
   const boundPages = receipt.evidence.page_numbers
     .map((number) => byNumber.get(number))

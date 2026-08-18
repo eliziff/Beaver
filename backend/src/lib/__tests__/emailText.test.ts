@@ -107,7 +107,7 @@ describe("parseEmail", () => {
     });
   });
 
-  it("decodes base64 text and a legacy charset", () => {
+  it("decodes base64 text and a historical charset", () => {
     const latin1 = Buffer.concat([
       Buffer.from(
         [
@@ -205,7 +205,7 @@ describe("email documents in the library", () => {
     vi.resetModules();
     const store = await import("../localDocumentStore");
     const { extractDocument } = await import(
-      "../chat/localAssistantTools"
+      "./support/localAssistantTools"
     );
     const { localDocuments } = await import("../localLibraryStore");
 
@@ -236,6 +236,7 @@ describe("email documents in the library", () => {
     expect(extracted?.text).toContain("$85,000");
     expect(extracted?.text).not.toContain("$85,0=");
     expect(extracted?.text).toContain("Subject: Down payment");
-    await store.closeLocalDocumentStore();
+    (await import("../localApplicationDatabase"))
+      .closeLocalApplicationDatabase();
   });
 });

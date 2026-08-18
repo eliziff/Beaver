@@ -1,200 +1,262 @@
-import { EventEmitter } from "node:events";
-import { PassThrough } from "node:stream";
 import { spawn } from "node:child_process";
-
+import { EventEmitter } from "node:events";
+import { readFileSync } from "node:fs";
+import { PassThrough } from "node:stream";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { streamClaudeP } from "../llm/claudeP";
-import type { OpenAIToolSchema } from "../llm/types";
 
 vi.mock("node:child_process", () => ({ spawn: vi.fn() }));
 
-const tool = (name: string): OpenAIToolSchema => ({
-  type: "function",
-  function: {
-    name,
-    description: `${name} tool`,
-    parameters: { type: "object", properties: {} },
-  },
+type FakeChild = EventEmitter & {
+  stdin: PassThrough;
+  stdout: PassThrough;
+  stderr: PassThrough;
+  kill: ReturnType<typeof vi.fn>;
+};
+
+const originalApiKey = process.env.ANTHROPIC_API_KEY;
+const tool = (name: string): Tool => ({
+  name,
+  description: `${name} tool`,
+  inputSchema: { type: "object", properties: {} },
 });
+const option = (args: string[], name: string) => args[args.indexOf(name) + 1];
+
+function fakeChild(): FakeChild {
+  const child = new EventEmitter() as FakeChild;
+  child.stdin = new PassThrough();
+  child.stdout = new PassThrough();
+  child.stderr = new PassThrough();
+  child.kill = vi.fn();
+  return child;
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
-  delete process.env.MIKE_CLAUDE_P_PERSIST;
+  process.env.ANTHROPIC_API_KEY = "must-not-leak";
 });
 
 afterEach(() => {
-  delete process.env.MIKE_CLAUDE_P_PERSIST;
+  if (originalApiKey === undefined) delete process.env.ANTHROPIC_API_KEY;
+  else process.env.ANTHROPIC_API_KEY = originalApiKey;
 });
 
-describe("claude -p transport", () => {
-  it("gives Claude only Beaver's transport protocol and tools", async () => {
-    const replies = [
-      `TOOL_CALLS\n${JSON.stringify({
-        calls: [
-          {
-            id: "toolu_1",
-            name: "a2aj_search",
-            input: { query: "Vavilov" },
-          },
-        ],
-      })}`,
-      'FINAL\nA "quoted" answer',
-    ];
-    const inputs: Buffer[][] = [];
-    vi.mocked(spawn).mockImplementation(() => {
-      const child = new EventEmitter() as EventEmitter & {
-        stdin: PassThrough;
-        stdout: PassThrough;
-        stderr: PassThrough;
-        kill: ReturnType<typeof vi.fn>;
+describe("claude -p native MCP transport", () => {
+  it("runs Beaver tools through one isolated native Claude process", async () => {
+    const inputs: Buffer[] = [];
+    let config: {
+      mcpServers: {
+        beaver: { url: string; headers: { Authorization: string } };
       };
-      child.stdin = new PassThrough();
-      child.stdout = new PassThrough();
-      child.stderr = new PassThrough();
-      child.kill = vi.fn();
-      const input: Buffer[] = [];
-      inputs.push(input);
-      child.stdin.on("data", (chunk: Buffer) => input.push(chunk));
-      const reply = replies.shift();
-      queueMicrotask(() => {
-        child.stdout.end(
-          `${JSON.stringify({
-            type: "result",
-            result: reply,
-            usage: { input_tokens: 7, output_tokens: 1 },
-          })}\n`,
-        );
-        child.emit("close", 0);
+    } | null = null;
+    let systemPrompt = "";
+    let childEnv: NodeJS.ProcessEnv = {};
+    vi.mocked(spawn).mockImplementation((_file, rawArgs, rawOptions) => {
+      const args = rawArgs as string[];
+      const child = fakeChild();
+      child.stdin.on("data", (chunk: Buffer) => inputs.push(chunk));
+      systemPrompt = readFileSync(option(args, "--system-prompt-file"), "utf8");
+      config = JSON.parse(
+        readFileSync(option(args, "--mcp-config"), "utf8"),
+      ) as typeof config;
+      childEnv = (rawOptions as { env: NodeJS.ProcessEnv }).env;
+
+      queueMicrotask(async () => {
+        try {
+          const transport = new StreamableHTTPClientTransport(
+            new URL(config!.mcpServers.beaver.url),
+            {
+              requestInit: {
+                headers: {
+                  Authorization: `Bearer ${childEnv.BEAVER_CLAUDE_MCP_TOKEN}`,
+                },
+              },
+            },
+          );
+          const client = new Client({ name: "claude-test", version: "1.0.0" });
+          await client.connect(transport);
+          await client.callTool({
+            name: "a2aj_search",
+            arguments: { query: "Vavilov" },
+          });
+          await transport.close();
+
+          for (const event of [
+            {
+              type: "system",
+              subtype: "init",
+              mcp_servers: [{ name: "beaver", status: "connected" }],
+            },
+            {
+              type: "system",
+              subtype: "compact_boundary",
+              compactMetadata: {
+                trigger: "auto",
+                preTokens: 123,
+                durationMs: 4,
+              },
+            },
+            {
+              type: "stream_event",
+              event: {
+                type: "content_block_delta",
+                delta: { type: "text_delta", text: "Found it." },
+              },
+            },
+            {
+              type: "stream_event",
+              event: { type: "content_block_stop" },
+            },
+            {
+              type: "result",
+              subtype: "success",
+              result: "Found it.",
+              usage: {
+                input_tokens: 7,
+                output_tokens: 2,
+                cache_read_input_tokens: 3,
+              },
+            },
+          ]) {
+            child.stdout.write(`${JSON.stringify(event)}\n`);
+          }
+          child.stdout.end();
+          queueMicrotask(() => child.emit("close", 0));
+        } catch (error) {
+          child.emit("error", error);
+        }
       });
       return child as never;
     });
 
-    const runTools = vi.fn().mockResolvedValue([
-      { tool_use_id: "toolu_1", content: "search result" },
-    ]);
+    const runTools = vi.fn(async (calls) =>
+      calls.map((call) => ({
+        tool_use_id: call.id,
+        content: "search result",
+      })),
+    );
+    const onContentDelta = vi.fn();
+    const onCompaction = vi.fn();
     const result = await streamClaudeP({
       model: "claude-p:claude-sonnet-4-6",
       systemPrompt: "Beaver system",
       messages: [{ role: "user", content: "Research this" }],
-      tools: [
-        {
-          type: "function",
-          function: {
-            name: "a2aj_search",
-            description: "Search Canadian law",
-            parameters: { type: "object" },
-          },
-        },
-      ],
+      tools: [tool("a2aj_search")],
       runTools,
+      maxIterations: 5,
+      callbacks: { onContentDelta, onCompaction },
     });
 
     const args = vi.mocked(spawn).mock.calls[0][1] as string[];
-    expect(args).toEqual([
-      "-p",
-      "--model",
-      "claude-sonnet-4-6",
-      "--output-format",
-      "stream-json",
-      "--verbose",
-      "--tools",
-      "",
-      "--strict-mcp-config",
-      "--disable-slash-commands",
-      "--setting-sources",
-      "",
-      "--include-partial-messages",
-      "--system-prompt",
-      expect.any(String),
-    ]);
-    const payload = JSON.parse(Buffer.concat(inputs[0]).toString("utf8"));
-    expect(payload).toMatchObject({
-      system: "Beaver system",
-      tools: [{ name: "a2aj_search" }],
+    expect(option(args, "--input-format")).toBe("stream-json");
+    expect(option(args, "--output-format")).toBe("stream-json");
+    expect(option(args, "--tools")).toBe("");
+    expect(option(args, "--allowedTools")).toBe("mcp__beaver");
+    expect(option(args, "--max-turns")).toBe("5");
+    expect(args).toContain("--strict-mcp-config");
+    expect(args).toContain("--no-session-persistence");
+    expect(systemPrompt).toBe("Beaver system");
+    expect(config!.mcpServers.beaver.headers.Authorization).toBe(
+      "Bearer ${BEAVER_CLAUDE_MCP_TOKEN}",
+    );
+    expect(childEnv.ANTHROPIC_API_KEY).toBeUndefined();
+    expect(childEnv.BEAVER_CLAUDE_MCP_TOKEN).toMatch(/^[a-f0-9]{64}$/u);
+    expect(JSON.parse(Buffer.concat(inputs).toString("utf8"))).toMatchObject({
+      type: "user",
+      message: { content: [{ text: "Research this" }] },
     });
-    expect(runTools).toHaveBeenCalledWith([
-      {
-        id: "toolu_1",
-        name: "a2aj_search",
-        input: { query: "Vavilov" },
+    expect(runTools).toHaveBeenCalledTimes(1);
+    expect(runTools.mock.calls[0][0][0]).toMatchObject({
+      name: "a2aj_search",
+      input: { query: "Vavilov" },
+    });
+    expect(vi.mocked(spawn)).toHaveBeenCalledTimes(1);
+    expect(onContentDelta).toHaveBeenCalledWith("Found it.");
+    expect(onCompaction).toHaveBeenCalledWith("completed");
+    expect(result).toMatchObject({
+      fullText: "Found it.",
+      usage: {
+        inputTokens: 7,
+        outputTokens: 2,
+        cacheReadInputTokens: 3,
       },
-    ]);
-    expect(vi.mocked(spawn)).toHaveBeenCalledTimes(2);
-    expect(result.fullText).toBe('A "quoted" answer');
+      contextRounds: [{ toolCallCount: 1, toolResultBytes: 13 }],
+      compactions: [{ triggerInputTokens: 123, latencyMs: 4 }],
+    });
   });
 
-  it("restarts a persistent session and replays context when tools change", async () => {
-    process.env.MIKE_CLAUDE_P_PERSIST = "1";
-    const inputs: Buffer[][] = [];
-    const children: Array<{ kill: ReturnType<typeof vi.fn> }> = [];
-    vi.mocked(spawn).mockImplementation(() => {
-      const child = new EventEmitter() as EventEmitter & {
-        stdin: PassThrough;
-        stdout: PassThrough;
-        stderr: PassThrough;
-        kill: ReturnType<typeof vi.fn>;
-      };
-      child.stdin = new PassThrough();
-      child.stdout = new PassThrough();
-      child.stderr = new PassThrough();
-      child.kill = vi.fn();
-      const input: Buffer[] = [];
-      const session = inputs.length;
-      inputs.push(input);
-      children.push(child);
-      child.stdin.on("data", (chunk: Buffer) => {
-        input.push(chunk);
-        const reply = session === 0
-          ? `TOOL_CALLS\n${JSON.stringify({
-              calls: [{ id: "toolu_1", name: "discover", input: {} }],
-            })}`
-          : "FINAL\ndone";
-        queueMicrotask(() => {
-          child.stdout.write(
-            `${JSON.stringify({
-              type: "result",
-              result: reply,
-              usage: { input_tokens: 1, output_tokens: 1 },
-            })}\n`,
-          );
-        });
+  it("uses Claude's native continuation without persisting ordinary calls", async () => {
+    const sessionId = "12345678-1234-4234-8234-123456789abc";
+    vi.mocked(spawn).mockImplementation((_file, rawArgs) => {
+      const args = rawArgs as string[];
+      const child = fakeChild();
+      queueMicrotask(() => {
+        child.stdout.end(
+          `${JSON.stringify({
+            type: "result",
+            subtype: "success",
+            result: "continued",
+            session_id: sessionId,
+            usage: { input_tokens: 1, output_tokens: 1 },
+          })}\n`,
+        );
+        queueMicrotask(() => child.emit("close", 0));
       });
+      expect(option(args, "--resume")).toBe(sessionId);
+      expect(args).not.toContain("--no-session-persistence");
       return child as never;
     });
-    let activeTools = [tool("discover")];
+    const onContinuationId = vi.fn();
 
     const result = await streamClaudeP({
       model: "claude-p:claude-sonnet-4-6",
       systemPrompt: "system",
-      messages: [{ role: "user", content: "research" }],
-      tools: activeTools,
-      resolveTools: () => activeTools,
-      runTools: async () => {
-        activeTools = [...activeTools, tool("revealed")];
-        return [{ tool_use_id: "toolu_1", content: "opened" }];
+      messages: [{ role: "user", content: "continue" }],
+      providerSession: {
+        persist: true,
+        continuationId: sessionId,
+        onContinuationId,
       },
     });
 
-    expect(result.fullText).toBe("done");
-    expect(vi.mocked(spawn)).toHaveBeenCalledTimes(2);
-    expect(children[0].kill).toHaveBeenCalled();
-    const firstPayload = JSON.parse(
-      JSON.parse(Buffer.concat(inputs[0]).toString("utf8")).message.content[0]
-        .text,
-    );
-    const secondPayload = JSON.parse(
-      JSON.parse(Buffer.concat(inputs[1]).toString("utf8")).message.content[0]
-        .text,
-    );
-    expect(firstPayload.tools.map((entry: { name: string }) => entry.name))
-      .toEqual(["discover"]);
-    expect(secondPayload.tools.map((entry: { name: string }) => entry.name))
-      .toEqual(["discover", "revealed"]);
-    expect(secondPayload.messages).toHaveLength(3);
-    expect(secondPayload.messages[2]).toMatchObject({
-      role: "user",
-      content: [{ tool_use_id: "toolu_1", content: "opened" }],
+    expect(result.continuationId).toBe(sessionId);
+    expect(onContinuationId).toHaveBeenCalledWith(sessionId);
+  });
+
+  it("fails closed when Claude skips the configured MCP server", async () => {
+    vi.mocked(spawn).mockImplementation(() => {
+      const child = fakeChild();
+      queueMicrotask(() => {
+        child.stdout.end(
+          `${JSON.stringify({
+            type: "system",
+            subtype: "init",
+            mcp_servers: [],
+            mcp_server_errors: [{ name: "beaver", message: "invalid config" }],
+          })}\n${JSON.stringify({
+            type: "result",
+            subtype: "success",
+            result: "unguarded answer",
+            usage: {},
+          })}\n`,
+        );
+        queueMicrotask(() => child.emit("close", 0));
+      });
+      return child as never;
     });
+
+    await expect(
+      streamClaudeP({
+        model: "claude-p:claude-sonnet-4-6",
+        systemPrompt: "system",
+        messages: [{ role: "user", content: "research" }],
+        tools: [tool("a2aj_search")],
+        runTools: vi.fn(),
+      }),
+    ).rejects.toThrow(/did not load.*invalid config/u);
   });
 });

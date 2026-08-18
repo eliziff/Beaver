@@ -1,152 +1,116 @@
-/** Central owner-or-shared access checks; `isOwner` gates mutations. */
-
-import type { createServerSupabase } from "./supabase";
+import { createServerSupabase } from "./supabase";
 
 type Db = ReturnType<typeof createServerSupabase>;
+type Identity = { userId: string; userEmail?: string | null };
+type Row = Record<string, any> & { id: string; user_id: string };
+type Project = Row & { shared_with?: unknown }; type Document = Row & { project_id: string | null };
+type Review = Document & { shared_with?: unknown }; type Chat = Row & { project_id: string | null; tabular_review_id: string | null };
+export type CloudAccess<T extends Row = Row> = { row: T; isOwner: boolean };
 
-export type ProjectAccess =
-    | {
-          ok: true;
-          isOwner: boolean;
-          project: {
-              id: string;
-              user_id: string;
-              shared_with: string[] | null;
-          };
-      }
-    | { ok: false };
+const email = (value: unknown) =>
+  typeof value === "string" ? value.trim().toLowerCase() : "";
 
-export async function checkProjectAccess(
-    projectId: string,
-    userId: string,
-    userEmail: string | null | undefined,
-    db: Db,
-): Promise<ProjectAccess> {
-    const { data: project } = await db
-        .from("projects")
-        .select("id, user_id, shared_with")
-        .eq("id", projectId)
-        .single();
-    if (!project) return { ok: false };
-    const proj = project as {
-        id: string;
-        user_id: string;
-        shared_with: string[] | null;
-    };
-    if (proj.user_id === userId) {
-        return { ok: true, isOwner: true, project: proj };
-    }
-    const sharedWith = Array.isArray(proj.shared_with) ? proj.shared_with : [];
-    const email = (userEmail ?? "").toLowerCase();
-    if (
-        email &&
-        sharedWith.some((e) => (e ?? "").toLowerCase() === email)
-    ) {
-        return { ok: true, isOwner: false, project: proj };
-    }
-    return { ok: false };
+const shared = (value: unknown, userEmail: string) =>
+  !!userEmail && Array.isArray(value) && value.some((item) => email(item) === userEmail);
+
+/** Run a provider query without exposing provider diagnostics to HTTP callers. */
+export async function cloudData<T>(
+  operation: string,
+  query: PromiseLike<{ data: T; error: { code?: string; status?: number } | null }>,
+): Promise<T> {
+  const { data, error } = await query;
+  if (!error) return data;
+  console.error("[cloud-data] operation failed", {
+    operation,
+    code: error.code ?? "unknown",
+    status: error.status ?? null,
+  });
+  throw new Error(operation);
 }
 
-export async function ensureDocAccess(
-    doc: { user_id: string; project_id: string | null },
-    userId: string,
-    userEmail: string | null | undefined,
-    db: Db,
-): Promise<{ ok: true; isOwner: boolean } | { ok: false }> {
-    if (doc.user_id === userId) return { ok: true, isOwner: true };
-    if (!doc.project_id) return { ok: false };
-    const access = await checkProjectAccess(
-        doc.project_id,
-        userId,
-        userEmail,
-        db,
-    );
-    if (access.ok) return { ok: true, isOwner: false };
-    return { ok: false };
+/**
+ * The only application-data capability backed by Beaver's service-role client.
+ * Identity is normalized once and every root-resource read is resolved here.
+ */
+export class CloudScope {
+  readonly db: Db;
+  readonly userId: string;
+  readonly userEmail: string;
+
+  constructor(identity: Identity, db: Db = createServerSupabase()) {
+    this.db = db;
+    this.userId = identity.userId;
+    this.userEmail = email(identity.userEmail);
+  }
+
+  private async row<T>(operation: string, query: PromiseLike<{ data: T;
+    error: { code?: string; status?: number } | null }>): Promise<T | null> {
+    try { return await cloudData(operation, query); } catch { return null; }
+  }
+
+  private projectAccess(row: Project | null): CloudAccess<Project> | null {
+    if (!row) return null;
+    const isOwner = row.user_id === this.userId;
+    return isOwner || shared(row.shared_with, this.userEmail)
+      ? { row, isOwner } : null;
+  }
+
+  async project(id: string, owner = false) {
+    const row = await this.row("Failed to load project", this.db.from("projects")
+      .select("*").eq("id", id).maybeSingle()) as Project | null;
+    const access = this.projectAccess(row);
+    return access && (!owner || access.isOwner) ? access : null;
+  }
+
+  async projects() {
+    const rows = await cloudData("Failed to load projects", this.db.from("projects")
+      .select("*")) as Project[] | null;
+    return (rows ?? []).flatMap((row) => {
+      const access = this.projectAccess(row);
+      return access ? [access] : [];
+    });
+  }
+
+  async document(id: string, owner = false) {
+    const row = await this.row("Failed to load document", this.db.from("documents")
+      .select("*").eq("id", id).maybeSingle()) as Document | null;
+    if (!row) return null;
+    const isOwner = row.user_id === this.userId;
+    const allowed = isOwner || (!!row.project_id && !!await this.project(row.project_id));
+    return allowed && (!owner || isOwner) ? { row, isOwner } : null;
+  }
+
+  async documents(ids: string[]) {
+    if (!ids.length) return [];
+    const rows = await cloudData("Failed to load documents", this.db.from("documents")
+      .select("*").in("id", [...new Set(ids)])) as Document[] | null;
+    const projects = new Map((await this.projects()).map((access) => [access.row.id, access]));
+    return (rows ?? []).flatMap((row): CloudAccess<Document>[] => {
+      const isOwner = row.user_id === this.userId;
+      return isOwner || (!!row.project_id && projects.has(row.project_id))
+        ? [{ row, isOwner }] : [];
+    });
+  }
+
+  async review(id: string, owner = false) {
+    const row = await this.row("Failed to load review", this.db.from("tabular_reviews")
+      .select("*").eq("id", id).maybeSingle()) as Review | null;
+    if (!row) return null;
+    const isOwner = row.user_id === this.userId;
+    const allowed = isOwner || shared(row.shared_with, this.userEmail) ||
+      (!!row.project_id && !!await this.project(row.project_id));
+    return allowed && (!owner || isOwner) ? { row, isOwner } : null;
+  }
+
+  async chat(id: string, owner = false) {
+    const row = await this.row("Failed to load chat", this.db.from("chats")
+      .select("*").eq("id", id).is("deleted_at", null).maybeSingle()) as Chat | null;
+    if (!row) return null;
+    const isOwner = row.user_id === this.userId;
+    const allowed = isOwner || (!!row.project_id && !!await this.project(row.project_id)) ||
+      (!!row.tabular_review_id && !!await this.review(row.tabular_review_id));
+    return allowed && (!owner || isOwner) ? { row, isOwner } : null;
+  }
 }
 
-/** Reviews inherit project access and may also grant direct email access. */
-export async function ensureReviewAccess(
-    review: {
-        user_id: string;
-        project_id: string | null;
-        shared_with?: string[] | null;
-    },
-    userId: string,
-    userEmail: string | null | undefined,
-    db: Db,
-): Promise<{ ok: true; isOwner: boolean } | { ok: false }> {
-    if (review.user_id === userId) return { ok: true, isOwner: true };
-    const email = (userEmail ?? "").toLowerCase();
-    if (email && Array.isArray(review.shared_with)) {
-        if (review.shared_with.some((e) => (e ?? "").toLowerCase() === email)) {
-            return { ok: true, isOwner: false };
-        }
-    }
-    if (!review.project_id) return { ok: false };
-    const access = await checkProjectAccess(
-        review.project_id,
-        userId,
-        userEmail,
-        db,
-    );
-    if (access.ok) return { ok: true, isOwner: false };
-    return { ok: false };
-}
-
-/** Prevent request-supplied IDs from attaching inaccessible documents. */
-export async function filterAccessibleDocumentIds(
-    documentIds: string[],
-    userId: string,
-    userEmail: string | null | undefined,
-    db: Db,
-): Promise<string[]> {
-    if (documentIds.length === 0) return [];
-    const { data: docs } = await db
-        .from("documents")
-        .select("id, user_id, project_id")
-        .in("id", documentIds);
-    const rows = (docs ?? []) as {
-        id: string;
-        user_id: string;
-        project_id: string | null;
-    }[];
-    if (rows.length === 0) return [];
-
-    const accessibleProjectIds = new Set(
-        await listAccessibleProjectIds(userId, userEmail, db),
-    );
-    const allowed: string[] = [];
-    for (const doc of rows) {
-        if (doc.user_id === userId) {
-            allowed.push(doc.id);
-        } else if (
-            doc.project_id &&
-            accessibleProjectIds.has(doc.project_id)
-        ) {
-            allowed.push(doc.id);
-        }
-    }
-    return allowed;
-}
-
-export async function listAccessibleProjectIds(
-    userId: string,
-    userEmail: string | null | undefined,
-    db: Db,
-): Promise<string[]> {
-    const [{ data: own }, { data: shared }] = await Promise.all([
-        db.from("projects").select("id").eq("user_id", userId),
-        userEmail
-            ? db
-                  .from("projects")
-                  .select("id")
-                  .filter("shared_with", "cs", JSON.stringify([userEmail]))
-                  .neq("user_id", userId)
-            : Promise.resolve({ data: [] as { id: string }[] }),
-    ]);
-    const ids = new Set<string>();
-    for (const p of (own ?? []) as { id: string }[]) ids.add(p.id);
-    for (const p of (shared ?? []) as { id: string }[]) ids.add(p.id);
-    return [...ids];
-}
+export const cloudScope = (identity: Identity, db?: Db) => new CloudScope(identity, db);

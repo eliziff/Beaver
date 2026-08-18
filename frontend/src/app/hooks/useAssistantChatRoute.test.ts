@@ -46,11 +46,15 @@ beforeEach(() => {
     mocks.chats = [];
     mocks.getProject.mockResolvedValue({ id: "project-1", name: "Project" });
     mocks.useAssistantChat.mockImplementation(() => ({
-        messages: mocks.messages,
-        isResponseLoading: mocks.loading,
-        setMessages: mocks.setMessages,
-        setTranscriptVersion: mocks.setTranscriptVersion,
-        resumeRunningTurn: mocks.resumeRunningTurn,
+        state: {
+            messages: mocks.messages,
+            run: mocks.loading ? { id: "run-1", status: "running" } : null,
+        },
+        actions: {
+            setMessages: mocks.setMessages,
+            setTranscriptVersion: mocks.setTranscriptVersion,
+            resumeRunningTurn: mocks.resumeRunningTurn,
+        },
     }));
 });
 
@@ -85,7 +89,7 @@ it("reconnects to a turn that kept running after navigation", async () => {
     await waitFor(() =>
         expect(mocks.resumeRunningTurn).toHaveBeenCalledWith("chat-1", 4),
     );
-    expect(mocks.setMessages).toHaveBeenCalledWith(messages);
+    expect(mocks.setMessages).toHaveBeenCalledWith(messages, true);
 });
 
 it("loads one canonical standalone transcript and metadata", async () => {
@@ -110,7 +114,7 @@ it("loads one canonical standalone transcript and metadata", async () => {
     expect(result.current.chatTitle).toBe("Loaded title");
     expect(result.current.chatOwnerId).toBe("owner-1");
     expect(mocks.setTranscriptVersion).toHaveBeenCalledWith(7);
-    expect(mocks.setMessages).toHaveBeenCalledWith(messages);
+    expect(mocks.setMessages).toHaveBeenCalledWith(messages, false);
     expect(mocks.replace).not.toHaveBeenCalled();
 
     mocks.chats = [{ id: "chat-1", title: "Renamed title" }];
@@ -133,7 +137,7 @@ it("keeps a valid empty chat open", async () => {
 
     renderHook(() => useAssistantChatRoute({ chatId: "chat-1" }));
 
-    await waitFor(() => expect(mocks.setMessages).toHaveBeenCalledWith([]));
+    await waitFor(() => expect(mocks.setMessages).toHaveBeenCalledWith([], false));
     expect(mocks.replace).not.toHaveBeenCalled();
 });
 

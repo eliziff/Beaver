@@ -1,1427 +1,66 @@
-import { Router, type Request, type Response } from "express";
 import { createWriteStream } from "node:fs";
+import { Router, type Request, type Response } from "express";
 import { requireAuth } from "../middleware/auth";
 import { asyncRoute } from "../lib/asyncRoute";
-import { createServerSupabase } from "../lib/supabase";
-import { isAnonymousLocalMode } from "../lib/localMode";
-import { recordChatTurn } from "../lib/audit";
-import {
-  formatChatMessageContent,
-  parseAskInputsResponsePayload,
-} from "../lib/chat/messageFormatting";
-import { CLIENT_WORK_PRODUCT_PRESUMPTION, CODING_PRODUCTION_SYSTEM_PROMPT, jurisdictionPreferencePrompt, parseJurisdictionPreference, type JurisdictionPreference } from "../lib/chat/prompts";
-import { devLog, type AskInputResponseItem, type AskInputsEvent, type AskInputsResponseRequest, type ChatMessage, type TabularCellStore } from "../lib/chat/types";
-import { normalizeAskInputsEvent } from "../lib/chat/askInputs";
-import { isAbortError } from "../lib/llm/abort";
-import { DEFAULT_MAIN_MODEL, modelSupportsImageInput, resolveModel, type LlmImage, type SubagentMode } from "../lib/llm";
-import { providerForModel } from "../lib/llm/models";
-import { createChatToolRunner } from "../lib/chat/chatToolRunner";
-import {
-  AssistantStreamError,
-  runChatTurn,
-  type AssistantEvent,
-} from "../lib/chat/turnEngine";
-import {
-  appendLocalPdfPinpointLinks,
-  providerPdfReferencesForTurn,
-} from "../lib/chat/localPdfEvidenceState";
-import { citationUrls } from "../lib/chat/citations";
-import {
-  READ_SUBAGENT_SYSTEM_PROMPT,
-  resumableReadSubagents,
-  type ReadSubagentEvent,
-} from "../lib/chat/readSubagents";
-import { currentA2AJCoveragePrompt } from "../lib/chat/a2ajCoveragePrompt";
-import {
-  priorLegalEvidencePrompt,
-  priorLegalEvidenceReceipts,
-} from "../lib/chat/legalEvidence";
-import { getUserModelSettings } from "../lib/userSettings";
-import { safeErrorLog, safeErrorMessage } from "../lib/safeError";
 import {
   ChatStoreError,
-  normalizeChatTitle,
   type ChatScope,
   type ChatStore,
 } from "../lib/chatStore";
+import type { TabularStore } from "../lib/tabularStore";
 import {
-  appendAnonymousAssistantEvents,
-  appendAnonymousMessage,
-  AnonymousChatVersionConflictError,
-  createAnonymousChat,
-  getAnonymousChat,
-  updateAnonymousChatTitle,
-  resetAnonymousAssistantEvents,
-  upsertAnonymousSubagentEvent,
-  type AnonymousChat,
-  type AnonymousChatMessage,
-} from "../lib/anonymousChatStore";
-import {
-  parseAnonymousCurrentTurn,
-  parseExpectedTranscriptVersion,
-  type AnonymousCurrentTurn,
-} from "../lib/chat/anonymousCurrentTurn";
-import {
-  projectAnonymousTranscript,
-  projectChatTranscript,
-} from "../lib/chat/anonymousTranscript";
-import { compactChatContext } from "../lib/chat/contextCompaction";
-import { compactionThresholdForModel } from "../lib/llm/contextWindow";
-import { beaverCodexHome } from "../lib/llm/codexAppServer";
-import {
-  imagesForMessage,
-  loadLocalChatImages,
-  loadStoredChatImages,
-} from "../lib/chat/imageAttachments";
-import { legalKnowledgeGraphStore } from "../lib/legalKnowledgeGraphStore";
-import { listLocalDocumentsById } from "../lib/localDocumentStore";
-import { localDocuments, localLibraryStore } from "../lib/localLibraryStore";
-import { localProjects } from "../lib/localProjectStore";
-import { readLocalPdfEvidenceReceipt } from "../lib/localPdfLookup";
+  ChatApplicationError,
+  chatTurnInputSchema,
+  type ChatApplication,
+  type EventSink,
+} from "../lib/chat/chatApplication";
 import {
   abortChatTurn,
   beginChatTurn,
   chatTurnInProgress,
-  chatTurnWasDeleted,
   finishChatTurn,
   setChatTurnControl,
   steerChatTurn,
 } from "../lib/chatTurns";
 import {
-  claimAnonymousCodexSession,
-  deleteAnonymousProviderSessions,
-  providerSessionCompatibilityKey,
-  readAnonymousCodexSession,
-  writeAnonymousCodexSession,
-} from "../lib/anonymousProviderSessionStore";
-import { compactCodexSession, CODEX_THREAD_ID } from "../lib/llm/codex";
-import type { TabularStore } from "../lib/tabularStore";
-import { tabularChatContext } from "../lib/chat/tabularContext";
-import { createChatBenchmarkAdapter } from "../benchmark/chatAdapter";
-import type { EditMode } from "../lib/docxTrackedChanges";
+  CODEX_THREAD_ID,
+} from "../lib/llm/codex";
 
-class MatterDocumentSet extends Set<string> {
-  constructor(
-    private readonly userId: string,
-    private readonly projectId: string,
-    ids: Iterable<string>,
-  ) {
-    super(ids);
-  }
+const text = (value: unknown) => typeof value === "string" ? value.trim() : "";
+const liveStreams = new WeakMap<Response, ReturnType<typeof createWriteStream>>();
 
-  override has(id: string) {
-    return super.has(id) || legalKnowledgeGraphStore().hasMatterDocument(
-      this.userId, this.projectId, id,
-    );
-  }
-}
-
-const LOCAL_PDF_EVIDENCE_REGISTRY_EVENT = "local_pdf_evidence_handles";
-const LOCAL_MUTATION_COMMITTED_EVENT = "local_mutation_committed";
-const LOCAL_TURN_COMPLETED_EVENT = "local_turn_completed";
-const MAX_LOCAL_PDF_EVIDENCE_HANDLES = 20;
-const LOCAL_PDF_EVIDENCE_HANDLE = /^mike-evidence:v1:[0-9a-f]{64}$/u;
-const PROVIDER_PDF_SOURCE_REFERENCE =
-  /^mike-provider-pdf:v1:(?:a2aj|courtlistener|govinfo|govuk-et|tna):[0-9a-f]{64}:[0-9a-f]{64}$/u;
-const durableTurnEvents = (events: AssistantEvent[]) =>
-  events.filter(({ type }) =>
-    !["reasoning", "error", "context_usage"].includes(type)
-  );
-const PROJECT_SYSTEM_PROMPT_EXTRA = `PROJECT CONTEXT:
-You are operating within a project folder containing legal documents for one matter. Use Glob to see what is available, then Read or Grep the relevant versioned resources.
-
-A document may currently be displayed in the user's side panel; when provided, treat it as context for the user's likely focus, but do NOT assume it is the only or definitive document the user is asking about. If the request could apply to other files in the project, identify and read those as well. Prefer coverage across the relevant project documents over an over-narrow reading of only the displayed one.
-
-PRECEDENT DRAFTING:
-For a new draft based on a DOCX, call Read with mode "drafting", adapt the returned semantic Markdown, then call generate_docx. Never byte-copy the precedent. Use Edit when the user asks to change the selected DOCX itself.`;
-type LibraryPdfEvidenceRegistryItem = {
-  handle: string;
-  document_id: string;
-  version_id: string;
-};
-type ProviderPdfEvidenceRegistryItem = {
-  handle: string;
-  source_reference: string;
-};
-type LocalPdfEvidenceRegistryItem =
-  | LibraryPdfEvidenceRegistryItem
-  | ProviderPdfEvidenceRegistryItem;
-
-const asRecord = (value: unknown): Record<string, unknown> | null =>
-  value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-
-const trimmedString = (value: unknown) =>
-  typeof value === "string" ? value.trim() : "";
-
-function providerRegistryItem(
-  item: LocalPdfEvidenceRegistryItem,
-): item is ProviderPdfEvidenceRegistryItem {
-  return "source_reference" in item;
-}
-
-function registryItemKey(item: LocalPdfEvidenceRegistryItem) {
-  return providerRegistryItem(item)
-    ? `${item.handle}\u0000${item.source_reference}`
-    : item.handle;
-}
-
-function registryItem(value: unknown): LocalPdfEvidenceRegistryItem | null {
-  const row = asRecord(value);
-  if (!row) return null;
-  const handle = trimmedString(row.handle);
-  if (!LOCAL_PDF_EVIDENCE_HANDLE.test(handle)) return null;
-  const sourceReference = trimmedString(row.source_reference);
-  if (PROVIDER_PDF_SOURCE_REFERENCE.test(sourceReference)) {
-    return { handle, source_reference: sourceReference };
-  }
-  const documentId = trimmedString(row.document_id);
-  const versionId = trimmedString(row.version_id);
-  if (!documentId || !versionId || documentId.length > 200 || versionId.length > 200) {
-    return null;
-  }
-  return { handle, document_id: documentId, version_id: versionId };
-}
-
-// Reads the registry event from the newest assistant message only; older
-// messages never carry a fresher registry.
-function priorLocalPdfEvidenceRegistry(
-  chat: AnonymousChat,
-  allowedDocumentIds?: ReadonlySet<string>,
-) {
-  const assistant = [...chat.messages]
-    .reverse()
-    .find((message) => message.role === "assistant");
-  if (!Array.isArray(assistant?.content)) return [];
-  const event = [...assistant.content]
-    .reverse()
-    .map(asRecord)
-    .find(
-      (row) =>
-        row?.type === LOCAL_PDF_EVIDENCE_REGISTRY_EVENT &&
-        row.schema_version === 1,
-    );
-  if (!event) return [];
-  const seen = new Set<string>();
-  return (Array.isArray(event.handles) ? event.handles : [])
-    .map(registryItem)
-    .filter((item): item is LocalPdfEvidenceRegistryItem => {
-      const itemKey = item ? registryItemKey(item) : "";
-      if (
-        !item ||
-        seen.has(itemKey) ||
-        (allowedDocumentIds &&
-          !providerRegistryItem(item) &&
-          !allowedDocumentIds.has(item.document_id))
-      ) {
-        return false;
-      }
-      seen.add(itemKey);
-      return true;
-    })
-    .slice(0, MAX_LOCAL_PDF_EVIDENCE_HANDLES);
-}
-
-async function activeLocalPdfEvidenceRegistry(
-  handles: ReadonlySet<string>,
-  allowedDocumentIds?: ReadonlySet<string>,
-) {
-  const recentHandles = [...handles]
-    .filter((handle) => LOCAL_PDF_EVIDENCE_HANDLE.test(handle))
-    .slice(-MAX_LOCAL_PDF_EVIDENCE_HANDLES);
-  const items = await Promise.all(
-    recentHandles.map(async (handle) => {
-      const providerReferences = providerPdfReferencesForTurn(handles, handle);
-      if (providerReferences.length) {
-        return providerReferences.map((sourceReference) => ({
-          handle,
-          source_reference: sourceReference,
-        }));
-      }
-      try {
-        const { source } = await readLocalPdfEvidenceReceipt(handle);
-        return allowedDocumentIds && !allowedDocumentIds.has(source.document_id)
-          ? []
-          : [
-              {
-                handle,
-                document_id: source.document_id,
-                version_id: source.version_id,
-              },
-            ];
-      } catch {
-        return [];
-      }
-    }),
-  );
-  return items.flat().slice(0, MAX_LOCAL_PDF_EVIDENCE_HANDLES);
-}
-
-function mergeLocalPdfEvidenceRegistries(
-  active: LocalPdfEvidenceRegistryItem[],
-  prior: LocalPdfEvidenceRegistryItem[],
-) {
-  const seen = new Set<string>();
-  return [...active, ...prior]
-    .filter((item) => {
-      const key = registryItemKey(item);
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .slice(0, MAX_LOCAL_PDF_EVIDENCE_HANDLES);
-}
-
-function localPdfEvidenceRegistryPrompt(
-  registry: LocalPdfEvidenceRegistryItem[],
-) {
-  if (registry.length === 0) return "";
-  const handles = registry
-    .map((item) =>
-      providerRegistryItem(item)
-        ? `- provider handle=${JSON.stringify(item.handle)} reference_id=${JSON.stringify(item.source_reference)}`
-        : `- library handle=${JSON.stringify(item.handle)} document_id=${JSON.stringify(
-            item.document_id,
-          )} version_id=${JSON.stringify(item.version_id)}`,
-    )
-    .join("\n");
-  return (
-    "DURABLE LOCAL PDF EVIDENCE FROM PRIOR TURNS:\n" +
-    `${handles}\n` +
-    "Rehydrate exact prior material with Read on its resource and evidence handle only when the current request needs it. Do not expose opaque handles or resource references to the user.\n\n"
-  );
-}
-
-function anonymousTurnDocumentIds(value: unknown): string[] | null {
-  if (value === undefined) return [];
-  if (!Array.isArray(value)) return null;
-  const ids = value.map((item) => {
-    const id = asRecord(item)?.document_id;
-    return typeof id === "string" && id.trim() ? id.trim() : null;
-  });
-  return ids.every((id): id is string => id !== null) ? ids : null;
-}
-
-function sameAnonymousNormalTurn(
-  stored: AnonymousChatMessage,
-  content: string,
-  files: { document_id: string }[],
-  workflow: ChatMessage["workflow"],
-) {
-  const storedDocumentIds = anonymousTurnDocumentIds(stored.files);
-  if (
-    stored.content !== content ||
-    !storedDocumentIds ||
-    JSON.stringify(storedDocumentIds) !==
-      JSON.stringify(files.map((file) => file.document_id))
-  ) {
-    return false;
-  }
-  const storedWorkflow = asRecord(stored.workflow) ?? undefined;
-  return (
-    (storedWorkflow?.id ?? undefined) === workflow?.id &&
-    (storedWorkflow?.title ?? undefined) === workflow?.title
-  );
-}
-
-function anonymousNormalTurnState(chat: AnonymousChat, turnId: string) {
-  const user = chat.messages.find(
-    (message) => message.role === "user" && message.turn_id === turnId,
-  );
-  if (!user) return null;
-  const assistant = [...chat.messages]
-    .reverse()
-    .find(
-      (message) =>
-        message.role === "assistant" && message.turn_id === turnId,
-    );
-  const events = Array.isArray(assistant?.content) ? assistant.content : [];
-  const hasEvent = (type: string) =>
-    events.some((event) => asRecord(event)?.type === type);
-  return {
-    user,
-    assistant,
-    completed: hasEvent(LOCAL_TURN_COMPLETED_EVENT),
-    mutationCommitted: hasEvent(LOCAL_MUTATION_COMMITTED_EVENT),
-  };
-}
-
-function appendAnonymousNormalTurnEvents(
-  chat: AnonymousChat,
-  turnId: string,
-  events: unknown[],
-  citations?: unknown[],
-) {
-  const state = anonymousNormalTurnState(chat, turnId);
-  if (!state) throw new Error("Anonymous turn receipt is missing");
-  if (!state.assistant) {
-    appendAnonymousMessage(chat, {
-      turn_id: turnId,
-      role: "assistant",
-      content: events,
-      citations,
-    });
-    return;
-  }
-  if (!appendAnonymousAssistantEvents(chat, events, citations, undefined, turnId)) {
-    throw new Error("Anonymous turn response receipt is missing");
-  }
-}
-
-function storedAskInputsResponse(
-  event: Record<string, unknown>,
-): AskInputsResponseRequest | null {
-  const parsed = parseAskInputsResponsePayload(event);
-  if (!parsed || !Array.isArray(event.responses)) return null;
-  const rawById = new Map(
-    event.responses.flatMap((value) => {
-      const row = asRecord(value);
-      return row && typeof row.id === "string"
-        ? [[row.id.trim().slice(0, 80), row] as const]
-        : [];
-    }),
-  );
-  for (const item of parsed.responses) {
-    if (item.kind !== "documents") continue;
-    const rawDocuments = rawById.get(item.id)?.documents;
-    if (!Array.isArray(rawDocuments)) continue;
-    item.documents = rawDocuments.flatMap((value) => {
-      const row = asRecord(value);
-      const documentId = trimmedString(row?.document_id);
-      const filename = trimmedString(row?.filename);
-      return documentId && filename
-        ? [{ document_id: documentId, filename }]
-        : [];
-    });
-  }
-  return parsed;
-}
-
-type PendingAnonymousAskInputs = {
-  event: AskInputsEvent;
-  retryResponse?: AskInputsResponseRequest;
-  mutationCommitted?: boolean;
-};
-
-function pendingAnonymousAskInputs(
-  chat: AnonymousChat,
-): PendingAnonymousAskInputs | null {
-  const assistant = [...chat.messages]
-    .reverse()
-    .find((message) => message.role === "assistant");
-  if (!assistant || !Array.isArray(assistant.content)) return null;
-  let ask: AskInputsEvent | null = null;
-  let response: AskInputsResponseRequest | null = null;
-  let responseFailed = false;
-  let mutationCommitted = false;
-  for (const value of assistant.content) {
-    const event = asRecord(value);
-    if (!event) continue;
-    if (event.type === "ask_inputs") {
-      const normalized = normalizeAskInputsEvent(event);
-      ask = normalized.items.length ? normalized : null;
-      response = null;
-      responseFailed = false;
-      mutationCommitted = false;
-    } else if (event.type === "ask_inputs_response" && ask) {
-      response = storedAskInputsResponse(event);
-      responseFailed = false;
-      mutationCommitted = false;
-    } else if (!response) {
-      continue;
-    } else if (event.type === LOCAL_MUTATION_COMMITTED_EVENT) {
-      mutationCommitted = true;
-    } else if (event.type === "error") {
-      responseFailed = true;
-    } else if (event.type === "content" && typeof event.text === "string") {
-      responseFailed =
-        event.text.trim().toLowerCase() === "cancelled by user.";
-    }
-  }
-  if (!ask || (response && !responseFailed)) return null;
-  return {
-    event: ask,
-    ...(response ? { retryResponse: response } : {}),
-    ...(mutationCommitted ? { mutationCommitted: true } : {}),
-  };
-}
-
-type CanonicalAskInputsResponse =
-  | { ok: true; response: AskInputsResponseRequest; content: string }
-  | { ok: false; detail: string };
-
-function canonicalAnonymousAskInputsResponse(
-  pending: AskInputsEvent,
-  response: AskInputsResponseRequest,
-  files: { filename: string; document_id: string }[],
-): CanonicalAskInputsResponse {
-  const fail = (detail: string): CanonicalAskInputsResponse => ({
-    ok: false,
-    detail,
-  });
-  if (response.responses.length !== pending.items.length) {
-    return fail("Response does not match the pending assistant questions");
-  }
-  const responsesById = new Map<string, AskInputResponseItem>();
-  for (const item of response.responses) {
-    if (responsesById.has(item.id)) {
-      return fail("Response contains a duplicate assistant question");
-    }
-    responsesById.set(item.id, item);
-  }
-  const availableDocuments = new Map(
-    files.map((file) => [file.document_id, file] as const),
-  );
-  const canonical: AskInputResponseItem[] = [];
-  for (const item of pending.items) {
-    const submitted = responsesById.get(item.id);
-    if (!submitted || submitted.kind !== item.kind) {
-      return fail("Response does not match the pending assistant questions");
-    }
-    if (item.kind === "choice" && submitted.kind === "choice") {
-      if (submitted.question.trim() !== item.question) {
-        return fail("Response question does not match the assistant question");
-      }
-      if (submitted.skipped) {
-        canonical.push({
-          id: item.id,
-          kind: "choice",
-          question: item.question,
-          skipped: true,
-        });
-        continue;
-      }
-      const answer = submitted.answer?.trim() ?? "";
-      if (!answer) {
-        return fail("Response is empty for this question");
-      }
-      canonical.push({
-        id: item.id,
-        kind: "choice",
-        question: item.question,
-        answer,
-      });
-      continue;
-    }
-    if (item.kind === "documents" && submitted.kind === "documents") {
-      if (submitted.skipped) {
-        canonical.push({
-          id: item.id,
-          kind: "documents",
-          filenames: [],
-          documents: [],
-          skipped: true,
-        });
-        continue;
-      }
-      const submittedDocuments = submitted.documents ?? [];
-      const seenDocumentIds = new Set<string>();
-      const documents = submittedDocuments.flatMap((document) => {
-        const canonicalDocument = availableDocuments.get(document.document_id);
-        if (
-          !canonicalDocument ||
-          seenDocumentIds.has(canonicalDocument.document_id)
-        ) {
-          return [];
-        }
-        seenDocumentIds.add(canonicalDocument.document_id);
-        return [canonicalDocument];
-      });
-      if (
-        documents.length === 0 ||
-        documents.length !== submittedDocuments.length
-      ) {
-        return fail("Response documents are not attached to this turn");
-      }
-      canonical.push({
-        id: item.id,
-        kind: "documents",
-        filenames: documents.map((document) => document.filename),
-        documents,
-      });
-    }
-  }
-  const lines = canonical.map((item, index) => {
-    if (item.kind === "choice") {
-      return item.skipped
-        ? `${index + 1}. Skipped: ${item.question}`
-        : `${index + 1}. ${item.question}\n${item.answer ?? ""}`;
-    }
-    return item.skipped
-      ? `${index + 1}. Skipped document request.`
-      : `${index + 1}. Documents attached: ${item.filenames.join(", ")}`;
-  });
-  return {
-    ok: true,
-    response: { responses: canonical },
-    content: `Responses to Beaver's questions:\n${lines.join("\n\n")}`,
-  };
-}
-
-function sameAskInputsResponse(
-  left: AskInputsResponseRequest,
-  right: AskInputsResponseRequest,
-) {
-  if (left.responses.length !== right.responses.length) return false;
-  return left.responses.every((item, index) => {
-    const other = right.responses[index];
-    if (
-      !other ||
-      item.id !== other.id ||
-      item.kind !== other.kind ||
-      Boolean(item.skipped) !== Boolean(other.skipped)
-    ) {
-      return false;
-    }
-    if (item.kind === "choice" && other.kind === "choice") {
-      return (
-        item.question === other.question &&
-        (item.answer ?? "") === (other.answer ?? "")
-      );
-    }
-    if (item.kind === "documents" && other.kind === "documents") {
-      const identities = (value: typeof item) =>
-        value.documents?.length
-          ? value.documents.map((document) => document.document_id).sort()
-          : [...value.filenames].sort();
-      return JSON.stringify(identities(item)) === JSON.stringify(identities(other));
-    }
-    return false;
-  });
-}
-
-type TabularChatRuntime = {
-  prompt: string;
-  store: TabularCellStore;
-};
-
-/** Lazily-opened per-response append stream for live SSE capture. */
-const liveSseStreams = new WeakMap<
-  import("express").Response,
-  import("node:fs").WriteStream
->();
-
-/**
- * Returns a per-response append stream when MIKE_LLM_RAW_SSE_PATH is set (the
- * lab harness sets it to the run's raw-sse.txt), so a running run can be
- * tailed live. Inert — returns null — for every other caller.
- */
-function liveSseStream(
-  res: import("express").Response,
-): import("node:fs").WriteStream | null {
-  const livePath = process.env.MIKE_LLM_RAW_SSE_PATH;
-  if (!livePath) return null;
-  let stream = liveSseStreams.get(res);
-  if (!stream) {
-    try {
-      stream = createWriteStream(livePath, { flags: "a" });
-    } catch {
-      return null;
-    }
-    liveSseStreams.set(res, stream);
-    res.once("finish", () => stream!.end());
-    res.once("close", () => stream!.end());
-  }
-  return stream;
-}
-
-function sseWrite(res: import("express").Response, payload: unknown) {
+function writeSse(res: Response, payload: unknown) {
   if (res.destroyed || res.writableEnded) return;
   const line = `data: ${JSON.stringify(payload)}\n\n`;
-  liveSseStream(res)?.write(line);
+  const path = process.env.MIKE_LLM_RAW_SSE_PATH;
+  if (path) {
+    let stream = liveStreams.get(res);
+    if (!stream) {
+      stream = createWriteStream(path, { flags: "a" });
+      liveStreams.set(res, stream);
+      res.once("close", () => stream!.end());
+      res.once("finish", () => stream!.end());
+    }
+    stream.write(line);
+  }
   res.write(line);
 }
 
-/** Starts the SSE response and claims the chat's single-turn lock. */
-function beginSseTurn(res: import("express").Response, chatId: string) {
+function startSse(res: Response) {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
   res.setHeader("X-Accel-Buffering", "no");
   res.flushHeaders();
-  const streamAbort = new AbortController();
-  if (!beginChatTurn(chatId, streamAbort)) {
-    res.end();
-    return null;
-  }
-  return streamAbort;
 }
 
-export async function streamAnonymousChat(params: {
-  res: import("express").Response;
-  userId: string;
-  chatId: string | null;
-  currentTurn: AnonymousCurrentTurn;
-  expectedVersion: number;
-  model?: string;
-  reasoningEffort?: string;
-  serviceTier?: string;
-  projectId?: string | null;
-  projectIdProvided?: boolean;
-  tabularReviewId?: string | null;
-  tabularReviewIdProvided?: boolean;
-  displayedDocument?: { filename: string; document_id: string };
-  attachedDocuments?: { filename: string; document_id: string }[];
-  jurisdictionPreference?: JurisdictionPreference | null;
-  subagentMode?: SubagentMode;
-  subagentModel?: string;
-  subagentEffort?: string;
-  activityDetail?: "auto" | "standard" | "tools" | "trace";
-  editMode?: EditMode;
-  timeZone?: string;
-  tabular?: TabularChatRuntime;
-  store: ChatStore;
-  scope: ChatScope;
-}) {
-  const { res, userId } = params;
-  const activityDetail = params.activityDetail ?? "auto";
-  const fail = (status: number, detail: string) => {
-    res.status(status).json({ detail });
-  };
-  const conflict = (code: string, currentVersion: number, detail?: string) => {
-    res.status(409).json({
-      code,
-      current_version: currentVersion,
-      ...(detail ? { detail } : {}),
-    });
-  };
-  const existingChat = params.chatId
-    ? getAnonymousChat(userId, params.chatId)
-    : null;
-  if (params.chatId && !existingChat) return fail(404, "Chat not found");
-  if (!existingChat && params.expectedVersion !== 0) {
-    return conflict("chat_version_conflict", 0);
-  }
-  if (
-    existingChat &&
-    params.projectIdProvided &&
-    existingChat.project_id !== (params.projectId ?? null)
-  ) {
-    return fail(400, "project_id does not match chat");
-  }
-  const projectId = existingChat?.project_id ?? params.projectId ?? null;
-  if (
-    existingChat &&
-    params.tabularReviewIdProvided &&
-    existingChat.tabular_review_id !== (params.tabularReviewId ?? null)
-  ) {
-    return fail(400, "tabular_review_id does not match chat");
-  }
-  const tabularReviewId =
-    existingChat?.tabular_review_id ?? params.tabularReviewId ?? null;
-  const priorDocumentIds = [...new Set((existingChat?.messages ?? []).flatMap(
-    (message) => (message as ChatMessage).files?.flatMap(
-      (file) => file.document_id ?? []) ?? [],
-  ))];
-  const matterDocumentIds = projectId
-    ? legalKnowledgeGraphStore().matterDocumentIdsAmong(
-        userId, projectId, priorDocumentIds)
-    : undefined;
-  if (projectId && !matterDocumentIds) return fail(404, "Project not found");
-  const allowedDocumentIds = matterDocumentIds && projectId
-    ? new MatterDocumentSet(userId, projectId, matterDocumentIds)
-    : undefined;
-  const displayedDocumentId = trimmedString(
-    params.displayedDocument?.document_id,
-  );
-  const attachedDocumentIds = (params.attachedDocuments ?? []).map((doc) =>
-    trimmedString(doc?.document_id),
-  );
-  const requestedFocusIds = [
-    ...(displayedDocumentId ? [displayedDocumentId] : []),
-    ...attachedDocumentIds.filter(Boolean),
-  ];
-  const turnFiles =
-    params.currentTurn.kind === "message"
-      ? params.currentTurn.message.files
-      : params.currentTurn.files;
-  const turnDocumentIds = [
-    ...new Set(
-      (turnFiles ?? []).flatMap((file) =>
-        file.document_id ? [file.document_id] : [],
-      ),
-    ),
-  ];
-  if (
-    (params.displayedDocument && !displayedDocumentId) ||
-    attachedDocumentIds.some((documentId) => !documentId)
-  ) {
-    return fail(400, "Selected document is invalid");
-  }
-  const selectedDocumentIds = [
-    ...new Set([...requestedFocusIds, ...turnDocumentIds]),
-  ];
-  const selectedDocuments = selectedDocumentIds.length
-    ? await listLocalDocumentsById(userId, selectedDocumentIds)
-    : [];
-  if (selectedDocuments.length !== selectedDocumentIds.length) {
-    return fail(400, "Selected document is unavailable");
-  }
-  if (allowedDocumentIds) {
-    for (const documentId of selectedDocumentIds) {
-      allowedDocumentIds.add(documentId);
-    }
-  }
-  const selectedById = new Map(
-    selectedDocuments.map((document) => [document.id, document] as const),
-  );
-  const focusName = (documentId: string) =>
-    JSON.stringify(selectedById.get(documentId)!.filename);
-  const focusLines = [
-    ...(displayedDocumentId
-      ? [
-          `Displayed document: ${focusName(displayedDocumentId)}`,
-        ]
-      : []),
-    ...(attachedDocumentIds.length
-      ? [
-          "User-attached documents for this turn:",
-          ...attachedDocumentIds.map(
-            (documentId) =>
-              `- ${focusName(documentId)}`,
-          ),
-        ]
-      : []),
-  ];
-  const focusPrompt = focusLines.length
-    ? `CURRENT MATTER FOCUS:\n${focusLines.join("\n")}\n\n`
-    : "";
-  const canonicalTurnFiles = turnDocumentIds.map((documentId) => ({
-    filename: selectedById.get(documentId)!.filename,
-    document_id: documentId,
-  }));
-  // Attachments are announced, not preloaded. The model addresses a selected
-  // document by its canonical filename and reads it only when the request
-  // depends on its contents.
-  const priorLegalEvidence = priorLegalEvidenceReceipts(
-    (existingChat?.messages ?? []).flatMap((message) =>
-      Array.isArray(message.content) ? message.content : [],
-    ),
-  );
-  const resumableSubagents = resumableReadSubagents(
-    (existingChat?.messages ?? []).flatMap((message) =>
-      Array.isArray(message.content) ? message.content : [],
-    ),
-  );
-  const evidenceCarryoverPrompt = priorLegalEvidencePrompt(priorLegalEvidence);
-  const currentProviderMessage: ChatMessage =
-    params.currentTurn.kind === "message"
-      ? {
-          ...params.currentTurn.message,
-          files: canonicalTurnFiles.length ? canonicalTurnFiles : undefined,
-        }
-      : {
-          role: "user",
-          content: params.currentTurn.content,
-          files: canonicalTurnFiles.length ? canonicalTurnFiles : undefined,
-        };
-  const withinMatter = (message: ChatMessage): ChatMessage => ({
-    ...message,
-    files: message.files?.filter(
-      (file) =>
-        !file.document_id ||
-        !allowedDocumentIds ||
-        allowedDocumentIds.has(file.document_id),
-    ),
-  });
-  if (evidenceCarryoverPrompt) {
-    currentProviderMessage.content = `${currentProviderMessage.content}\n\n${evidenceCarryoverPrompt}`;
-  }
-  const selectedModel = params.model || DEFAULT_MAIN_MODEL;
-  const proposedMessages = [
-    ...projectAnonymousTranscript(
-      existingChat?.messages ?? [],
-      providerForModel(selectedModel),
-    ).map(
-      withinMatter,
-    ),
-    currentProviderMessage,
-  ];
-  let imagesByDocumentId: Map<string, LlmImage>;
-  try {
-    imagesByDocumentId = await loadLocalChatImages(
-      proposedMessages,
-      userId,
-      allowedDocumentIds,
-    );
-  } catch (error) {
-    return fail(400, safeErrorMessage(error, "Invalid image attachment"));
-  }
-  if (imagesByDocumentId.size && !modelSupportsImageInput(selectedModel)) {
-    return fail(400, `Model "${selectedModel}" does not support image input.`);
-  }
-  const chat = existingChat ?? createAnonymousChat(
-    userId,
-    projectId,
-    tabularReviewId,
-  );
-  const priorEvidenceRegistry = priorLocalPdfEvidenceRegistry(
-    chat,
-    allowedDocumentIds,
-  );
-  const priorEvidencePrompt = localPdfEvidenceRegistryPrompt(
-    priorEvidenceRegistry,
-  );
-  const standingJurisdictionPrompt = jurisdictionPreferencePrompt(
-    params.jurisdictionPreference ?? null,
-  );
-  const coveragePrompt = await currentA2AJCoveragePrompt();
-  let systemPrompt = [
-    CODING_PRODUCTION_SYSTEM_PROMPT,
-    CLIENT_WORK_PRODUCT_PRESUMPTION,
-    params.subagentMode === "beaver" ? READ_SUBAGENT_SYSTEM_PROMPT : "",
-    standingJurisdictionPrompt,
-    coveragePrompt,
-    params.tabular?.prompt,
-    focusPrompt,
-    priorEvidencePrompt,
-  ]
-    .filter(Boolean)
-    .join("\n\n");
-  const responseProvider = providerForModel(selectedModel);
-  const isCodex = responseProvider === "codex";
-  const compactThreshold = compactionThresholdForModel(selectedModel);
-  const codexCompatibilityKey = isCodex
-    ? providerSessionCompatibilityKey({
-        schema_version: 5,
-        transport: "app-server-v2",
-        model: selectedModel,
-        reasoning_effort: params.reasoningEffort?.trim() || "max",
-        service_tier: params.serviceTier?.trim().toLowerCase() || "default",
-        scope: {
-          user_id: userId,
-          project_id: projectId,
-        },
-        auth: {
-          command: process.env.CODEX_COMMAND?.trim() || "codex",
-          codex_home: beaverCodexHome(),
-          api_key_sha256: process.env.CODEX_API_KEY
-            ? providerSessionCompatibilityKey(process.env.CODEX_API_KEY)
-            : null,
-        },
-      })
-    : null;
-
-  if (chatTurnInProgress(chat.id)) {
-    return conflict("chat_turn_in_progress", chat.transcript_version);
-  }
-  const normalTurnId =
-    params.currentTurn.kind === "message"
-      ? params.currentTurn.turnId
-      : undefined;
-  let retryingNormalTurn = false;
-  try {
-    if (params.currentTurn.kind === "ask_inputs_response") {
-      const pending = pendingAnonymousAskInputs(chat);
-      if (!pending) {
-        return fail(400, "No assistant question is available for this response");
-      }
-      const canonicalResponse = canonicalAnonymousAskInputsResponse(
-        pending.event,
-        params.currentTurn.response,
-        canonicalTurnFiles,
-      );
-      if (!canonicalResponse.ok) return fail(400, canonicalResponse.detail);
-      if (pending.retryResponse) {
-        if (
-          !sameAskInputsResponse(
-            pending.retryResponse,
-            canonicalResponse.response,
-          )
-        ) {
-          return fail(400, "Retry the same response to the assistant questions");
-        }
-        if (pending.mutationCommitted) {
-          return conflict(
-            "chat_retry_blocked_after_mutation",
-            chat.transcript_version,
-            "The prior continuation changed local data before it stopped. Review that result before sending a new instruction.",
-          );
-        }
-        if (chat.transcript_version !== params.expectedVersion) {
-          return conflict("chat_version_conflict", chat.transcript_version);
-        }
-      } else {
-        const appended = appendAnonymousAssistantEvents(
-          chat,
-          [
-            {
-              type: "ask_inputs_response",
-              content: canonicalResponse.content,
-              files: canonicalTurnFiles,
-              responses: canonicalResponse.response.responses,
-            },
-          ],
-          undefined,
-          params.expectedVersion,
-        );
-        if (!appended) {
-          return fail(
-            400,
-            "No assistant question is available for this response",
-          );
-        }
-      }
-    } else {
-      const priorTurn = normalTurnId
-        ? anonymousNormalTurnState(chat, normalTurnId)
-        : null;
-      if (priorTurn) {
-        if (
-          !sameAnonymousNormalTurn(
-            priorTurn.user,
-            params.currentTurn.message.content,
-            canonicalTurnFiles,
-            params.currentTurn.message.workflow,
-          )
-        ) {
-          return fail(400, "turn_id was already used for a different message");
-        }
-        if (priorTurn.completed) {
-          return conflict(
-            "chat_turn_already_completed",
-            chat.transcript_version,
-          );
-        }
-        if (priorTurn.mutationCommitted) {
-          return conflict(
-            "chat_retry_blocked_after_mutation",
-            chat.transcript_version,
-            "The prior response changed local data before it stopped. Review that result before sending a new instruction.",
-          );
-        }
-        if (chat.transcript_version !== params.expectedVersion) {
-          return conflict("chat_version_conflict", chat.transcript_version);
-        }
-        const lastUser = [...chat.messages]
-          .reverse()
-          .find((message) => message.role === "user");
-        if (lastUser?.id !== priorTurn.user.id) {
-          return conflict("chat_version_conflict", chat.transcript_version);
-        }
-        if (
-          priorTurn.assistant &&
-          !resetAnonymousAssistantEvents(chat, normalTurnId!)
-        ) {
-          throw new Error("Anonymous turn response receipt is missing");
-        }
-        retryingNormalTurn = true;
-      }
-      if (!retryingNormalTurn) {
-        appendAnonymousMessage(
-          chat,
-          {
-            turn_id: normalTurnId,
-            role: "user",
-            content: params.currentTurn.message.content,
-            files: canonicalTurnFiles.length ? canonicalTurnFiles : undefined,
-            workflow: params.currentTurn.message.workflow,
-          },
-          params.expectedVersion,
-        );
-      }
-    }
-  } catch (error) {
-    if (error instanceof AnonymousChatVersionConflictError) {
-      return conflict("chat_version_conflict", error.currentVersion);
-    }
-    throw error;
-  }
-  const discardProviderSession = () => {
-    try {
-      deleteAnonymousProviderSessions(chat.id);
-    } catch (error) {
-      console.warn(
-        "[chat/anonymous] Could not discard provider continuation.",
-        safeErrorLog(error),
-      );
-    }
-  };
-  let claimedCodexSession: ReturnType<typeof claimAnonymousCodexSession> = null;
-  if (isCodex && codexCompatibilityKey) {
-    try {
-      claimedCodexSession = claimAnonymousCodexSession({
-        userId,
-        chatId: chat.id,
-        projectId,
-        compatibilityKey: codexCompatibilityKey,
-        transcriptVersion: params.expectedVersion,
-      });
-    } catch (error) {
-      console.warn(
-        "[chat/anonymous] Could not claim Codex continuation; rebuilding from the canonical transcript.",
-        safeErrorLog(error),
-      );
-    }
-  } else {
-    discardProviderSession();
-  }
-  const messages = projectAnonymousTranscript(
-    retryingNormalTurn && normalTurnId
-      ? chat.messages.filter(
-          (message) =>
-            message.role !== "assistant" || message.turn_id !== normalTurnId,
-        )
-      : chat.messages,
-    providerForModel(selectedModel),
-  ).map(withinMatter);
-  if (evidenceCarryoverPrompt) {
-    const latestUserIndex = messages
-      .map((message) => message.role)
-      .lastIndexOf("user");
-    if (latestUserIndex >= 0) {
-      messages[latestUserIndex] = {
-        ...messages[latestUserIndex],
-        content: `${messages[latestUserIndex].content}\n\n${evidenceCarryoverPrompt}`,
-      };
-    }
-  }
-  const lastUser = [...messages]
-    .reverse()
-    .find((m) => m.role === "user" && typeof m.content === "string");
-
-  const streamAbort = beginSseTurn(res, chat.id);
-  if (!streamAbort) return;
-  let activeCodexContinuationId = claimedCodexSession?.continuation_id;
-
-  const persistTurnEvents = (
-    events: unknown[],
-    opts: { citations?: unknown[]; complete?: boolean } = {},
-  ) => {
-    if (params.currentTurn.kind === "ask_inputs_response") {
-      appendAnonymousAssistantEvents(chat, events, opts.citations);
-    } else if (normalTurnId) {
-      const subagents = events.flatMap((event) => {
-        const row = asRecord(event);
-        return row?.type === "subagent_run" && typeof row.id === "string"
-          ? [row as Record<string, unknown> & { type: "subagent_run"; id: string }]
-          : [];
-      });
-      subagents.forEach((event) => upsertAnonymousSubagentEvent(chat, event, normalTurnId));
-      const appended = events.filter((event) => asRecord(event)?.type !== "subagent_run");
-      if (appended.length || opts.citations?.length || opts.complete) {
-        appendAnonymousNormalTurnEvents(
-          chat,
-          normalTurnId,
-          opts.complete
-            ? [...appended, { type: LOCAL_TURN_COMPLETED_EVENT, schema_version: 1 }]
-            : appended,
-          opts.citations,
-        );
-      }
-    } else {
-      appendAnonymousMessage(chat, {
-        role: "assistant",
-        content: events,
-        citations: opts.citations,
-      });
-    }
-  };
-  const maybeSetTitle = () => {
-    if (!chat.title && lastUser?.content) {
-      updateAnonymousChatTitle(chat, normalizeChatTitle(lastUser.content));
-    }
-  };
-  const withEvidenceRegistry = async (events: unknown[]) => {
-    const registry = mergeLocalPdfEvidenceRegistries(
-      await activeLocalPdfEvidenceRegistry(
-        localTools.pdfHandles,
-        allowedDocumentIds,
-      ),
-      priorEvidenceRegistry,
-    );
-    if (registry.length) events.push({
-      type: LOCAL_PDF_EVIDENCE_REGISTRY_EVENT,
-      schema_version: 1,
-      handles: registry,
-    });
-    return events;
-  };
-  const onSubagentEvent = (event: ReadSubagentEvent) => {
-    if (normalTurnId && !chatTurnWasDeleted(chat.id)) {
-      persistTurnEvents([event]);
-    }
-  };
-  const localTools = createChatToolRunner({
-    userId,
-    documents: localDocuments,
-    library: localLibraryStore,
-    projects: localProjects,
-    projectId,
-    allowedDocumentIds,
-    documentNames: new Map(
-      selectedDocuments.map((document) => [
-        document.id,
-        document.filename,
-      ]),
-    ),
-    tabular: params.tabular?.store,
-    editMode: params.editMode,
-    timeZone: params.timeZone,
-    onMutationCommitted: () => {
-      if (!chatTurnWasDeleted(chat.id) &&
-          (params.currentTurn.kind === "ask_inputs_response" || normalTurnId)) {
-        persistTurnEvents([{
-          type: LOCAL_MUTATION_COMMITTED_EVENT,
-          schema_version: 1,
-        }]);
-      }
-    },
-  });
-  const modelMessages = messages.map((message) => ({
-    role: message.role === "assistant" ? "assistant" as const : "user" as const,
-    content: formatChatMessageContent(message),
-    images: imagesForMessage(message, imagesByDocumentId),
-  }));
-  const emit = (event: unknown) => sseWrite(res, event);
-  const benchmark = createChatBenchmarkAdapter(emit);
-  const done = () => {
-    if (!res.destroyed && !res.writableEnded) res.write("data: [DONE]\n\n");
-  };
-
-  try {
-    emit({
-      type: "chat_id",
-      chatId: chat.id,
-      transcriptVersion: chat.transcript_version,
-    });
-    await runChatTurn({
-      model: selectedModel,
-      systemPrompt,
-      messages: modelMessages,
-      createTools: benchmark.wrap(localTools.createTools),
-      emit,
-      done,
-      reasoningEffort: params.reasoningEffort,
-      serviceTier: params.serviceTier,
-      compactThreshold,
-      promptCacheKey: ["openai", "codex"].includes(responseProvider)
-        ? providerSessionCompatibilityKey({
-            schema_version: 1,
-            provider: responseProvider,
-            chat_id: chat.id,
-          })
-        : undefined,
-      signal: streamAbort.signal,
-      prepareMessages: async (onCompaction) => {
-        const prepared = await compactChatContext({
-          store: params.store,
-          scope: params.scope,
-          chatId: chat.id,
-          model: selectedModel,
-          signal: streamAbort.signal,
-          onStatus: onCompaction,
-        });
-        const projected = prepared.messages.map(withinMatter);
-        if (evidenceCarryoverPrompt) {
-          const index = projected.map(({ role }) => role).lastIndexOf("user");
-          if (index >= 0) {
-            projected[index] = {
-              ...projected[index],
-              content: `${projected[index].content}\n\n${evidenceCarryoverPrompt}`,
-            };
-          }
-        }
-        return projected.map((message) => ({
-          role: message.role === "assistant" ? "assistant" as const : "user" as const,
-          content: formatChatMessageContent(message),
-          images: imagesForMessage(message, imagesByDocumentId),
-          contextCheckpoint: message.contextCheckpoint,
-        }));
-      },
-      subagentMode: params.subagentMode,
-      subagentModel: params.subagentModel,
-      subagentEffort: params.subagentEffort,
-      jurisdictionPreference: params.jurisdictionPreference,
-      activityDetail,
-      toolActivityMetadata: (call) => ({
-        ...localTools.toolActivityMetadata(call),
-        ...(benchmark.toolActivityMetadata?.(call) ?? {}),
-      }),
-      priorEvidence: priorLegalEvidence,
-      resumableSubagents,
-      providerSession: isCodex
-        ? {
-            persist: true,
-            ...(claimedCodexSession?.continuation_id
-              ? { continuationId: claimedCodexSession.continuation_id }
-              : {}),
-          }
-        : undefined,
-      onProviderContinuation: (continuationId) => {
-        activeCodexContinuationId = continuationId;
-      },
-      onProviderControl: (control) => {
-        setChatTurnControl(chat.id, streamAbort, control);
-      },
-      canRetryProviderSession: () => !localTools.mutationCommitted(),
-      transformText: (text, citations) => appendLocalPdfPinpointLinks(
-        text,
-        userId,
-        localTools.pdfHandles,
-        allowedDocumentIds,
-        citationUrls(citations),
-      ),
-      onSubagentEvent,
-      onFinish: async (result) => {
-        activeCodexContinuationId =
-          result.continuationId ?? activeCodexContinuationId;
-        const assistantEvents = await withEvidenceRegistry([
-          ...durableTurnEvents(result.events),
-          ...(!result.fullText &&
-              !result.events.some((event) => [
-                "content",
-                "doc_created",
-                "doc_edited",
-                "automation_run",
-              ].includes(event.type)) &&
-              result.status !== "paused"
-            ? [{ type: "error", message: "The selected model returned no response." }]
-            : []),
-        ]);
-        if (chatTurnWasDeleted(chat.id)) return;
-        persistTurnEvents(assistantEvents, {
-          citations: result.citations,
-          complete: true,
-        });
-        maybeSetTitle();
-        if (isCodex && codexCompatibilityKey && activeCodexContinuationId) {
-          try {
-            writeAnonymousCodexSession({
-              userId,
-              chatId: chat.id,
-              projectId,
-              continuationId: activeCodexContinuationId,
-              compatibilityKey: codexCompatibilityKey,
-              transcriptVersion: chat.transcript_version,
-            });
-          } catch (error) {
-            discardProviderSession();
-            console.warn(
-              "[chat/anonymous] Could not persist Codex continuation; the next turn will rebuild from the canonical transcript.",
-              safeErrorLog(error),
-            );
-          }
-        } else if (isCodex) {
-          discardProviderSession();
-        }
-        emit({
-          type: "transcript_version",
-          transcriptVersion: chat.transcript_version,
-        });
-        emit({ type: "content_done" });
-      },
-    });
-  } catch (error) {
-    const message = safeErrorMessage(error, "Model request failed");
-    console.error("[chat/anonymous]", safeErrorLog(error));
-    if (chatTurnWasDeleted(chat.id)) return;
-    try {
-      persistTurnEvents([
-        ...(error instanceof AssistantStreamError
-          ? durableTurnEvents(error.events)
-          : []),
-        isAbortError(error)
-          ? { type: "turn_status", status: "cancelled" }
-          : { type: "error", message },
-      ]);
-      if (isCodex && codexCompatibilityKey && activeCodexContinuationId) {
-        writeAnonymousCodexSession({
-          userId,
-          chatId: chat.id,
-          projectId,
-          continuationId: activeCodexContinuationId,
-          compatibilityKey: codexCompatibilityKey,
-          transcriptVersion: chat.transcript_version,
-        });
-      } else if (isCodex) {
-        discardProviderSession();
-      }
-    } catch (persistError) {
-      if (isCodex) discardProviderSession();
-      console.error(
-        "[chat/anonymous] failed to persist model error",
-        safeErrorLog(persistError),
-      );
-    }
-    if (!res.headersSent) {
-      res.status(502).json({ detail: message });
-    } else if (!streamAbort.signal.aborted) {
-      emit({
-        type: "error",
-        message,
-        ...(localTools.mutationCommitted() ? { retryable: false } : {}),
-      });
-      emit({
-        type: "transcript_version",
-        transcriptVersion: chat.transcript_version,
-      });
-      done();
-    }
-  } finally {
-    finishChatTurn(chat.id, streamAbort);
-    res.end();
-  }
-}
-
-function parseOptionalProjectId(
-  value: unknown,
-):
-  | { ok: true; provided: boolean; projectId: string | null }
-  | { ok: false; detail: string } {
-  if (value === undefined)
-    return { ok: true, provided: false, projectId: null };
-  if (value === null) return { ok: true, provided: true, projectId: null };
-  if (typeof value !== "string" || !value.trim()) {
-    return { ok: false, detail: "project_id must be a non-empty string or null" };
-  }
-  return { ok: true, provided: true, projectId: value.trim() };
-}
-
-export function parseChatMessages(
-  value: unknown,
-): { ok: true; messages: ChatMessage[] } | { ok: false; detail: string } {
-  if (!Array.isArray(value) || value.length === 0) {
-    return { ok: false, detail: "messages must be a non-empty array" };
-  }
-
-  for (const message of value) {
-    if (!message || typeof message !== "object" || Array.isArray(message)) {
-      return { ok: false, detail: "messages must contain objects" };
-    }
-    const row = message as Record<string, unknown>;
-    if (typeof row.role !== "string") {
-      return { ok: false, detail: "message.role must be a string" };
-    }
-    if (row.content !== null && typeof row.content !== "string") {
-      return {
-        ok: false,
-        detail: "message.content must be a string or null",
-      };
-    }
-  }
-
-  return { ok: true, messages: value as ChatMessage[] };
-}
-
-// Visible chats = the user's own chats + every chat under a project the
-// user owns (so a project owner sees all collaborator chats in their
-// own projects in the global recent-chats list). Chats in projects that
-// are merely *shared with* the user are NOT included here — those are
-// listed per-project via GET /projects/:projectId/chats.
-function parseListLimit(raw: unknown) {
+function parseLimit(raw: unknown) {
   const limit = Number.parseInt(String(raw ?? ""), 10);
   return Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 100) : 20;
 }
 
-type ChatHandler = (
-  req: Request,
-  res: Response,
-  scope: ChatScope,
-) => Promise<unknown>;
-
-function chatRoute(handler: ChatHandler) {
+type Handler = (req: Request, res: Response, scope: ChatScope) => Promise<unknown>;
+function route(handler: Handler) {
   return asyncRoute(async (req, res) => {
     try {
       await handler(req, res, {
@@ -1432,828 +71,222 @@ function chatRoute(handler: ChatHandler) {
       if (error instanceof ChatStoreError) {
         return void res.status(error.status).json({ detail: error.message });
       }
+      if (error instanceof ChatApplicationError) {
+        return void res.status(error.status).json({
+          ...(error.code ? { code: error.code } : {}),
+          ...(error.currentVersion !== undefined
+            ? { current_version: error.currentVersion } : {}),
+          detail: error.message,
+        });
+      }
       console.error("[chat] operation failed", error);
-      res.status(500).json({ detail: "Chat operation failed" });
+      if (!res.headersSent) res.status(500).json({ detail: "Chat operation failed" });
+      else res.end();
     }
   });
 }
 
-export function createChatRouter(tabularData: TabularStore, chats: ChatStore) {
-const chatRouter = Router();
-chatRouter.use(requireAuth);
+function optionalId(value: unknown, label: string) {
+  if (value === undefined) return { provided: false, value: null } as const;
+  if (value === null) return { provided: true, value: null } as const;
+  const parsed = text(value);
+  if (!parsed) throw new ChatApplicationError(400,
+    `${label} must be a non-empty string or null`);
+  return { provided: true, value: parsed } as const;
+}
 
-chatRouter.get("/", chatRoute(async (req, res, scope) => {
-  const tabularReviewId = trimmedString(req.query.tabular_review_id) || undefined;
-  res.json(await chats.list(scope, {
-    ...(tabularReviewId ? { tabularReviewId } : {}),
-    limit: parseListLimit(req.query.limit),
+export function createChatRouter(
+  tabular: TabularStore,
+  chats: ChatStore,
+  application: ChatApplication,
+) {
+  const router = Router();
+  router.use(requireAuth);
+
+  router.get("/", route(async (req, res, scope) => {
+    const tabularReviewId = text(req.query.tabular_review_id) || undefined;
+    res.json(await chats.list(scope, {
+      ...(tabularReviewId ? { tabularReviewId } : {}),
+      limit: parseLimit(req.query.limit),
+    }));
   }));
-}));
 
-chatRouter.get("/recycling-bin", chatRoute(async (_req, res, scope) => {
-  res.json(await chats.deleted(scope));
-}));
+  router.get("/recycling-bin", route(async (_req, res, scope) => {
+    res.json(await chats.deleted(scope));
+  }));
 
-chatRouter.post("/create", chatRoute(async (req, res, scope) => {
-  const parsedProjectId = parseOptionalProjectId(req.body?.project_id);
-  const parsedTabularReviewId = parseOptionalProjectId(
-    req.body?.tabular_review_id,
-  );
-  if (!parsedProjectId.ok) {
-    return void res.status(400).json({ detail: parsedProjectId.detail });
-  }
-  if (!parsedTabularReviewId.ok) {
-    return void res.status(400).json({ detail: "tabular_review_id must be a string or null" });
-  }
-  const projectId = parsedProjectId.projectId;
-  const tabularReviewId = parsedTabularReviewId.projectId;
-  if (projectId && tabularReviewId) {
-    return void res.status(400).json({
-      detail: "A chat cannot belong to both a project and a tabular review",
+  router.post("/create", route(async (req, res, scope) => {
+    const project = optionalId(req.body?.project_id, "project_id");
+    const review = optionalId(req.body?.tabular_review_id, "tabular_review_id");
+    if (project.value && review.value) throw new ChatApplicationError(400,
+      "A chat cannot belong to both a project and a tabular review");
+    const chat = await chats.create(scope, {
+      projectId: project.value,
+      tabularReviewId: review.value,
     });
-  }
-  const chat = await chats.create(scope, { projectId, tabularReviewId });
-  res.json({ id: chat.id });
-}));
+    res.json({ id: chat.id });
+  }));
 
-chatRouter.get("/:chatId", chatRoute(async (req, res, scope) => {
-  const detail = await chats.detail(scope, req.params.chatId);
-  if (!detail) return void res.status(404).json({ detail: "Chat not found" });
-  res.json({
-    chat: {
-      ...detail.chat,
-      turn_in_progress: chatTurnInProgress(req.params.chatId),
-    },
-    messages: detail.messages,
-  });
-}));
-
-chatRouter.post("/:chatId/stop", chatRoute(async (req, res, scope) => {
-  if (!await chats.get(scope, req.params.chatId)) {
-    return void res.status(404).json({ detail: "Chat not found" });
-  }
-  res.json({ stopped: abortChatTurn(req.params.chatId) });
-}));
-
-chatRouter.post("/:chatId/steer", chatRoute(async (req, res, scope) => {
-  if (!await chats.get(scope, req.params.chatId)) {
-    return void res.status(404).json({ detail: "Chat not found" });
-  }
-  const id = trimmedString(req.body?.id);
-  const text = trimmedString(req.body?.text);
-  if (!CODEX_THREAD_ID.test(id) || !text || text.length > 20_000) {
-    return void res.status(400).json({ detail: "id and text are required" });
-  }
-  if (!await steerChatTurn(req.params.chatId, { id, text })) {
-    return void res.status(409).json({ detail: "No steerable response is running" });
-  }
-  res.json({ steered: true });
-}));
-
-chatRouter.post("/:chatId/compact", chatRoute(async (req, res, scope) => {
-  if (!await chats.get(scope, req.params.chatId)) {
-    return void res.status(404).json({ detail: "Chat not found" });
-  }
-  const controller = new AbortController();
-  if (!beginChatTurn(req.params.chatId, controller)) {
-    return void res.status(409).json({ detail: "Wait for the response to finish" });
-  }
-  try {
-    const model = resolveModel(trimmedString(req.body?.model), DEFAULT_MAIN_MODEL);
-    const session = isAnonymousLocalMode()
-      ? readAnonymousCodexSession(scope.userId, req.params.chatId)
-      : null;
-    if (providerForModel(model) === "codex" && session) {
-      await compactCodexSession({
-        continuationId: session.continuation_id,
-        apiKey: process.env.CODEX_API_KEY,
-        abortSignal: controller.signal,
-      });
-    } else {
-      const apiKeys = isAnonymousLocalMode()
-        ? undefined
-        : (await getUserModelSettings(scope.userId, createServerSupabase())).api_keys;
-      const result = await compactChatContext({
-        store: chats,
-        scope,
-        chatId: req.params.chatId,
-        model,
-        apiKeys,
-        signal: controller.signal,
-        force: true,
-      });
-      if (!result.compacted) {
-        return void res.status(409).json({ detail: "There is no older context to compact" });
-      }
-    }
-    const transcript = await chats.transcript(scope, req.params.chatId);
-    const assistant = [...(transcript ?? [])]
-      .reverse()
-      .find((message) => message.role === "assistant");
-    if (!assistant || !await chats.appendAssistantEvent(
-      scope,
-      req.params.chatId,
-      assistant.id,
-      { type: "compaction", status: "completed" },
-    )) {
-      throw new Error("Context compaction receipt could not be saved");
-    }
-    const chat = await chats.get(scope, req.params.chatId);
-    if (session && chat && typeof chat.transcript_version === "number") {
-      writeAnonymousCodexSession({
-        userId: session.user_id,
-        chatId: session.chat_id,
-        projectId: session.project_id,
-        continuationId: session.continuation_id,
-        compatibilityKey: session.compatibility_key,
-        transcriptVersion: chat.transcript_version,
-        createdAt: session.created_at,
-      });
-    }
+  router.get("/:chatId", route(async (req, res, scope) => {
+    const detail = await chats.detail(scope, req.params.chatId);
+    if (!detail) return void res.status(404).json({ detail: "Chat not found" });
     res.json({
-      compacted: true,
-      ...(typeof chat?.transcript_version === "number"
-        ? { transcriptVersion: chat.transcript_version }
-        : {}),
+      chat: {
+        ...detail.chat,
+        turn_in_progress: chatTurnInProgress(req.params.chatId),
+      },
+      messages: detail.messages,
     });
-  } finally {
-    finishChatTurn(req.params.chatId, controller);
-  }
-}));
+  }));
 
-chatRouter.patch("/:chatId", chatRoute(async (req, res, scope) => {
-  const { chatId } = req.params;
-  const body =
-    req.body && typeof req.body === "object" && !Array.isArray(req.body)
-      ? (req.body as Record<string, unknown>)
-      : {};
-  const titleProvided = Object.prototype.hasOwnProperty.call(body, "title");
-  const projectProvided = Object.prototype.hasOwnProperty.call(
-    body,
-    "project_id",
-  );
-  if (!titleProvided && !projectProvided) {
-    return void res
-      .status(400)
-      .json({ detail: "title or project_id is required" });
-  }
-
-  let title: string | undefined;
-  if (titleProvided) {
-    title = typeof body.title === "string" ? body.title.trim() : "";
-    if (!title)
-      return void res.status(400).json({ detail: "title is required" });
-  }
-  const parsedProjectId = projectProvided
-    ? parseOptionalProjectId(body.project_id)
-    : ({ ok: true, provided: false, projectId: null } as const);
-  if (!parsedProjectId.ok) {
-    return void res.status(400).json({ detail: parsedProjectId.detail });
-  }
-
-  const chat = await chats.update(scope, chatId, {
-    ...(title !== undefined ? { title } : {}),
-    ...(projectProvided ? { projectId: parsedProjectId.projectId } : {}),
-  });
-  if (!chat) return void res.status(404).json({ detail: "Chat not found" });
-  res.json({ id: chat.id, title: chat.title, project_id: chat.project_id });
-}));
-
-chatRouter.delete("/:chatId", chatRoute(async (req, res, scope) => {
-  if (!await chats.trash(scope, req.params.chatId)) {
-    return void res.status(404).json({ detail: "Chat not found" });
-  }
-  res.status(204).send();
-}));
-
-chatRouter.post("/:chatId/restore", chatRoute(async (req, res, scope) => {
-  if (!await chats.restore(scope, req.params.chatId)) {
-    return void res.status(404).json({ detail: "Chat not found" });
-  }
-  res.status(204).send();
-}));
-
-chatRouter.delete("/:chatId/permanent", chatRoute(async (req, res, scope) => {
-  if (!await chats.remove(scope, req.params.chatId)) {
-    return void res.status(404).json({ detail: "Chat not found" });
-  }
-  res.status(204).send();
-}));
-
-chatRouter.post("/:chatId/generate-title", chatRoute(async (req, res, scope) => {
-  const message = trimmedString(req.body?.message);
-  if (!message)
-    return void res.status(400).json({ detail: "message is required" });
-  const title = await chats.generateTitle(scope, req.params.chatId, message);
-  if (!title) return void res.status(404).json({ detail: "Chat not found" });
-  res.json({ title });
-}));
-
-chatRouter.post("/", chatRoute(async (req, res, scope) => {
-  const { userId, userEmail } = scope;
-  const body =
-    req.body && typeof req.body === "object" && !Array.isArray(req.body)
-      ? (req.body as Record<string, unknown>)
-      : {};
-  if (
-    body.chat_id != null &&
-    (typeof body.chat_id !== "string" || !body.chat_id.trim())
-  ) {
-    return void res
-      .status(400)
-      .json({ detail: "chat_id must be a non-empty string" });
-  }
-  const chat_id = typeof body.chat_id === "string" ? body.chat_id.trim() : null;
-  const parsedProjectId = parseOptionalProjectId(body.project_id);
-  const parsedTabularReviewId = parseOptionalProjectId(
-    body.tabular_review_id,
-  );
-  if (!parsedProjectId.ok) {
-    return void res.status(400).json({ detail: parsedProjectId.detail });
-  }
-  if (!parsedTabularReviewId.ok) {
-    return void res.status(400).json({
-      detail: "tabular_review_id must be a string or null",
-    });
-  }
-  if (
-    body.model !== undefined &&
-    (typeof body.model !== "string" || !body.model.trim())
-  ) {
-    return void res
-      .status(400)
-      .json({ detail: "model must be a non-empty string" });
-  }
-  const project_id = parsedProjectId.projectId;
-  const tabular_review_id = parsedTabularReviewId.projectId;
-  if (project_id && tabular_review_id) {
-    return void res.status(400).json({
-      detail: "A chat cannot belong to both a project and a tabular review",
-    });
-  }
-  const model = typeof body.model === "string" ? body.model.trim() : undefined;
-  const reasoningEffort =
-    trimmedString(body.reasoning_effort).slice(0, 32) || undefined;
-  const serviceTier =
-    trimmedString(body.service_tier).slice(0, 32) || undefined;
-  let timeZone: string | undefined;
-  if (body.time_zone !== undefined) {
-    if (typeof body.time_zone !== "string" || body.time_zone.length > 100) {
-      return void res.status(400).json({ detail: "time_zone is invalid" });
+  router.post("/:chatId/stop", route(async (req, res, scope) => {
+    if (!await chats.get(scope, req.params.chatId)) {
+      return void res.status(404).json({ detail: "Chat not found" });
     }
+    res.json({ stopped: abortChatTurn(req.params.chatId) });
+  }));
+
+  router.post("/:chatId/steer", route(async (req, res, scope) => {
+    if (!await chats.get(scope, req.params.chatId)) {
+      return void res.status(404).json({ detail: "Chat not found" });
+    }
+    const id = text(req.body?.id), instruction = text(req.body?.text);
+    if (!CODEX_THREAD_ID.test(id) || !instruction || instruction.length > 20_000) {
+      return void res.status(400).json({ detail: "id and text are required" });
+    }
+    if (!await steerChatTurn(req.params.chatId, { id, text: instruction })) {
+      return void res.status(409).json({
+        detail: "No steerable response is running",
+      });
+    }
+    res.json({ steered: true });
+  }));
+
+  router.post("/:chatId/compact", route(async (req, res, scope) => {
+    const controller = new AbortController();
+    let claimedChatId: string | null = null;
+    req.once("aborted", () => controller.abort());
+    res.once("close", () => {
+      if (!res.writableEnded) controller.abort();
+    });
     try {
-      new Intl.DateTimeFormat("en-CA", { timeZone: body.time_zone }).format();
-      timeZone = body.time_zone;
-    } catch {
-      return void res.status(400).json({ detail: "time_zone is invalid" });
+      res.json(await application.compact(scope, {
+        chatId: req.params.chatId,
+        model: text(req.body?.model) || undefined,
+      }, controller.signal, (chatId) => {
+        if (!beginChatTurn(chatId, controller)) return false;
+        claimedChatId = chatId;
+        return true;
+      }));
+    } finally {
+      if (claimedChatId) finishChatTurn(claimedChatId, controller);
     }
-  }
-  const jurisdictionPreference = parseJurisdictionPreference(
-    body.jurisdiction_preference,
-  );
-  if (
-    body.subagent_mode !== undefined &&
-    !["none", "beaver", "native"].includes(String(body.subagent_mode))
-  ) {
-    return void res.status(400).json({
-      detail: "subagent_mode must be none, beaver, or native",
-    });
-  }
-  const subagentMode = (body.subagent_mode ?? "none") as SubagentMode;
-  if (
-    (body.subagent_model !== undefined &&
-      typeof body.subagent_model !== "string") ||
-    (body.subagent_effort !== undefined &&
-      typeof body.subagent_effort !== "string")
-  ) {
-    return void res
-      .status(400)
-      .json({ detail: "subagent_model and subagent_effort must be strings" });
-  }
-  const subagentModel =
-    trimmedString(body.subagent_model).slice(0, 128) || undefined;
-  const subagentEffort =
-    trimmedString(body.subagent_effort).slice(0, 32) || undefined;
-  if (
-    body.activity_detail !== undefined &&
-    !["auto", "standard", "tools", "trace"].includes(String(body.activity_detail))
-  ) {
-    return void res.status(400).json({
-      detail: "activity_detail must be auto, standard, tools, or trace",
-    });
-  }
-  const activityDetail =
-    body.activity_detail === "auto" ||
-    body.activity_detail === "tools" ||
-    body.activity_detail === "trace"
-      ? body.activity_detail
-      : "auto";
-  if (
-    body.edit_mode !== undefined &&
-    body.edit_mode !== "manual" &&
-    body.edit_mode !== "auto"
-  ) {
-    return void res.status(400).json({
-      detail: "edit_mode must be manual or auto",
-    });
-  }
-  const editMode: EditMode = body.edit_mode === "auto" ? "auto" : "manual";
-  const displayedRow = asRecord(body.displayed_doc);
-  const displayedDocument =
-    displayedRow &&
-    trimmedString(displayedRow.filename) &&
-    trimmedString(displayedRow.document_id)
-      ? {
-          filename: trimmedString(displayedRow.filename),
-          document_id: trimmedString(displayedRow.document_id),
-        }
-      : undefined;
-  const attachedDocuments = Array.isArray(body.attached_documents)
-    ? body.attached_documents.flatMap((value) => {
-        const row = asRecord(value);
-        const filename = trimmedString(row?.filename);
-        const documentId = trimmedString(row?.document_id);
-        return filename && documentId
-          ? [{ filename, document_id: documentId }]
-          : [];
-      })
-    : undefined;
-  if (body.displayed_doc !== undefined && !displayedDocument) {
-    return void res.status(400).json({ detail: "displayed_doc is invalid" });
-  }
-  if (
-    body.attached_documents !== undefined &&
-    (!Array.isArray(body.attached_documents) ||
-      attachedDocuments?.length !== body.attached_documents.length)
-  ) {
-    return void res
-      .status(400)
-      .json({ detail: "attached_documents is invalid" });
-  }
+  }));
 
-  if (isAnonymousLocalMode()) {
-    if (body.messages !== undefined) {
-      return void res.status(400).json({
-        detail:
-          "Account-free local chat accepts current_turn, not browser-supplied history",
-      });
+  router.patch("/:chatId", route(async (req, res, scope) => {
+    const body = asObject(req.body);
+    const titleProvided = Object.hasOwn(body, "title");
+    const projectProvided = Object.hasOwn(body, "project_id");
+    if (!titleProvided && !projectProvided) return void res.status(400).json({
+      detail: "title or project_id is required",
+    });
+    const title = titleProvided ? text(body.title) : undefined;
+    if (titleProvided && !title) return void res.status(400).json({
+      detail: "title is required",
+    });
+    const project = projectProvided
+      ? optionalId(body.project_id, "project_id") : null;
+    const chat = await chats.update(scope, req.params.chatId, {
+      ...(title ? { title } : {}),
+      ...(projectProvided ? { projectId: project!.value } : {}),
+    });
+    if (!chat) return void res.status(404).json({ detail: "Chat not found" });
+    res.json({ id: chat.id, title: chat.title, project_id: chat.project_id });
+  }));
+
+  router.delete("/:chatId", route(async (req, res, scope) => {
+    if (!await chats.trash(scope, req.params.chatId)) {
+      return void res.status(404).json({ detail: "Chat not found" });
     }
-    const parsedTurn = parseAnonymousCurrentTurn(body.current_turn);
-    if (!parsedTurn.ok) {
-      return void res.status(400).json({ detail: parsedTurn.detail });
+    res.status(204).send();
+  }));
+  router.post("/:chatId/restore", route(async (req, res, scope) => {
+    if (!await chats.restore(scope, req.params.chatId)) {
+      return void res.status(404).json({ detail: "Chat not found" });
     }
-    const parsedVersion = parseExpectedTranscriptVersion(
-      body.expected_version,
-    );
-    if (!parsedVersion.ok) {
-      return void res.status(400).json({ detail: parsedVersion.detail });
+    res.status(204).send();
+  }));
+  router.delete("/:chatId/permanent", route(async (req, res, scope) => {
+    if (!await chats.remove(scope, req.params.chatId)) {
+      return void res.status(404).json({ detail: "Chat not found" });
     }
-    const existing = chat_id ? getAnonymousChat(userId, chat_id) : null;
-    const resolvedTabularReviewId =
-      existing?.tabular_review_id ?? tabular_review_id;
-    if (
-      existing &&
-      parsedTabularReviewId.provided &&
-      existing.tabular_review_id !== tabular_review_id
-    ) {
-      return void res.status(400).json({
-        detail: "tabular_review_id does not match chat",
-      });
-    }
-    const tabularDetail = resolvedTabularReviewId
-      ? await tabularData.detail({ userId }, resolvedTabularReviewId)
-      : null;
-    if (resolvedTabularReviewId && !tabularDetail) {
-      return void res.status(404).json({ detail: "Review not found" });
-    }
-    const tabular = tabularDetail
-      ? tabularChatContext(tabularDetail)
-      : undefined;
+    res.status(204).send();
+  }));
+  router.post("/:chatId/generate-title", route(async (req, res, scope) => {
+    const message = text(req.body?.message);
+    if (!message) return void res.status(400).json({ detail: "message is required" });
+    const title = await chats.generateTitle(scope, req.params.chatId, message);
+    if (!title) return void res.status(404).json({ detail: "Chat not found" });
+    res.json({ title });
+  }));
+
+  router.post("/", route(async (req, res, scope) => {
+    const parsed = chatTurnInputSchema.safeParse(req.body);
+    if (!parsed.success) return void res.status(400).json({
+      detail: parsed.error.issues[0]?.message ?? "Invalid chat turn",
+    });
+    const controller = new AbortController();
+    let claimedChatId: string | null = null;
+    let started = false;
+    req.once("aborted", () => controller.abort());
+    res.once("close", () => {
+      if (!res.writableEnded) controller.abort();
+    });
+    const sink: EventSink = {
+      claim(chatId) {
+        if (!beginChatTurn(chatId, controller)) return false;
+        claimedChatId = chatId;
+        return true;
+      },
+      start() {
+        startSse(res);
+        started = true;
+      },
+      emit: (event) => writeSse(res, event),
+      setControl: (control) => {
+        if (claimedChatId) setChatTurnControl(claimedChatId, controller, control);
+      },
+    };
     try {
-      await streamAnonymousChat({
-        res,
-        userId: res.locals.userId as string,
-        chatId: chat_id,
-        currentTurn: parsedTurn.turn,
-        expectedVersion: parsedVersion.version,
-        model,
-        reasoningEffort,
-        serviceTier,
-        projectId: project_id,
-        projectIdProvided: parsedProjectId.provided,
-        tabularReviewId: tabular_review_id,
-        tabularReviewIdProvided: parsedTabularReviewId.provided,
-        displayedDocument,
-        attachedDocuments,
-        jurisdictionPreference,
-        subagentMode,
-        subagentModel,
-        subagentEffort,
-        activityDetail,
-        editMode,
-        timeZone,
-        tabular,
-        store: chats,
-        scope,
-      });
+      await application.turn(scope, parsed.data, sink, controller.signal);
     } catch (error) {
-      console.error("[chat/anonymous] preflight", safeErrorLog(error));
-      if (!res.headersSent) {
-        res.status(500).json({ detail: "Local chat failed" });
-      } else {
+      if (!res.headersSent && error instanceof ChatApplicationError) {
+        return void res.status(error.status).json({
+          ...(error.code ? { code: error.code } : {}),
+          ...(error.currentVersion !== undefined
+            ? { current_version: error.currentVersion } : {}),
+          detail: error.message,
+        });
+      }
+      if (!res.headersSent) throw error;
+      console.error("[chat] streaming turn failed", error);
+    } finally {
+      if (claimedChatId) {
+        if (started && !res.destroyed && !res.writableEnded) {
+          res.write("data: [DONE]\n\n");
+        }
+        finishChatTurn(claimedChatId, controller);
+      }
+      if (started && !res.destroyed && !res.writableEnded) {
         res.end();
       }
     }
-    return;
-  }
-
-  const [cloudContext, cloudStreaming] = await Promise.all([
-    import("../lib/chat/contextBuilders"),
-    import("../lib/chat/streaming"),
-  ]);
-  const {
-    appendAskInputsResponseToLastAssistantMessage,
-    appendAssistantEventsToLastAssistantMessage,
-    buildCancelledAssistantMessage,
-    buildDocContext,
-    buildMessages,
-    buildProjectDocContext,
-    buildWorkflowStore,
-    enrichWithPriorEvents,
-    loadPriorChatState,
-    stripTransientAssistantEvents,
-  } = cloudContext;
-  const { AssistantStreamError, runLLMStream } = cloudStreaming;
-
-  const parsedMessages = parseChatMessages(body.messages);
-  if (!parsedMessages.ok) {
-    return void res.status(400).json({ detail: parsedMessages.detail });
-  }
-  const messages = parsedMessages.messages;
-  const askInputsResponse = parseAskInputsResponsePayload(
-    body.ask_inputs_response,
-  );
-
-  devLog("[chat/stream] incoming request", {
-    userId,
-    chat_id,
-    project_id,
-    model,
-    messageCount: messages?.length,
-  });
-
-  const db = createServerSupabase();
-  let chatId = chat_id ?? null;
-  let chatTitle: string | null = null;
-  let resolvedProjectId: string | null = parsedProjectId.projectId;
-  let resolvedTabularReviewId: string | null = parsedTabularReviewId.projectId;
-
-  if (chatId) {
-    const existing = await chats.get(scope, chatId);
-    if (!existing)
-      return void res.status(404).json({ detail: "Chat not found" });
-
-    const existingProjectId = existing.project_id ?? null;
-    const existingTabularReviewId = existing.tabular_review_id ?? null;
-    if (
-      parsedProjectId.provided &&
-      parsedProjectId.projectId !== existingProjectId
-    ) {
-      return void res
-        .status(400)
-        .json({ detail: "project_id does not match chat" });
-    }
-    resolvedProjectId = existingProjectId;
-    if (
-      parsedTabularReviewId.provided &&
-      parsedTabularReviewId.projectId !== existingTabularReviewId
-    ) {
-      return void res.status(400).json({
-        detail: "tabular_review_id does not match chat",
-      });
-    }
-    resolvedTabularReviewId = existingTabularReviewId;
-    chatTitle = existing.title;
-  }
-
-  const tabularDetail = resolvedTabularReviewId
-    ? await tabularData.detail(
-        scope,
-        resolvedTabularReviewId,
-      )
-    : null;
-  if (resolvedTabularReviewId && !tabularDetail) {
-    return void res.status(404).json({ detail: "Review not found" });
-  }
-  const tabular = tabularDetail
-    ? tabularChatContext(tabularDetail)
-    : undefined;
-
-  if (!chatId) {
-    const newChat = await chats.create(scope, {
-      projectId: resolvedProjectId,
-      tabularReviewId: resolvedTabularReviewId,
-    });
-    chatId = newChat.id;
-    chatTitle = newChat.title;
-  }
-
-  devLog("[chat/stream] resolved chatId", chatId);
-
-  const turnChatId = chatId;
-  // In the ask_inputs continuation case events append to the prior
-  // assistant row; otherwise they are a fresh assistant message.
-  const persistAssistantTurn = async (
-    events: Parameters<typeof appendAssistantEventsToLastAssistantMessage>[2],
-    citations: unknown[],
-  ) => {
-    if (chatTurnWasDeleted(turnChatId)) return null;
-    if (askInputsResponse) {
-      await appendAssistantEventsToLastAssistantMessage(
-        db,
-        turnChatId,
-        events,
-        citations,
-      );
-      return null;
-    }
-    return (
-      await db.from("chat_messages").insert({
-        chat_id: turnChatId,
-        role: "assistant",
-        content: events.length ? events : null,
-        citations: citations.length ? citations : null,
-      })
-    ).error;
-  };
-
-  const lastUser = [...messages].reverse().find((m) => m.role === "user");
-  if (askInputsResponse) {
-    await appendAskInputsResponseToLastAssistantMessage(
-      db,
-      chatId,
-      askInputsResponse,
-    );
-  } else if (lastUser) {
-    await db.from("chat_messages").insert({
-      chat_id: chatId,
-      role: "user",
-      content: lastUser.content,
-      files: lastUser.files ?? null,
-      workflow: lastUser.workflow ?? null,
-    });
-  }
-
-  const selectedModel = model || DEFAULT_MAIN_MODEL;
-  const canonicalRows = await chats.transcript(scope, chatId);
-  if (!canonicalRows) {
-    return void res.status(404).json({ detail: "Chat not found" });
-  }
-  const canonicalMessages = projectChatTranscript(
-    canonicalRows,
-    providerForModel(selectedModel),
-  );
-
-  const { docIndex, docStore, folderPaths } = resolvedProjectId
-    ? await buildProjectDocContext(resolvedProjectId, userId, db)
-    : {
-        ...(await buildDocContext(messages, userId, db, chatId)),
-        folderPaths: new Map<string, string>(),
-      };
-  let imagesByDocumentId: Map<string, LlmImage>;
-  try {
-    imagesByDocumentId = await loadStoredChatImages(messages, docIndex, docStore);
-  } catch (error) {
-    return void res.status(400).json({
-      detail: safeErrorMessage(error, "Invalid image attachment"),
-    });
-  }
-  if (imagesByDocumentId.size && !modelSupportsImageInput(selectedModel)) {
-    return void res.status(400).json({
-      detail: `Model "${selectedModel}" does not support image input.`,
-    });
-  }
-  const docAvailability = Object.entries(docIndex).map(([doc_id, info]) => ({
-    doc_id,
-    filename: info.filename,
-    ...(folderPaths.get(doc_id)
-      ? { folder_path: folderPaths.get(doc_id) }
-      : {}),
   }));
-  const cloudPriorState = await loadPriorChatState(chatId, db);
-  const cloudEvidencePrompt = priorLegalEvidencePrompt(cloudPriorState.evidence);
-  const contextualize = async (base: ChatMessage[]) => {
-    let result = (await enrichWithPriorEvents(base, chatId, db, docIndex))
-      .map((message) => ({
-        ...message,
-        images: imagesForMessage(message, imagesByDocumentId),
-      }));
-    if (resolvedProjectId && displayedDocument) {
-      const index = result.map(({ role }) => role).lastIndexOf("user");
-      if (index >= 0) {
-        result = result.slice();
-        result[index] = {
-          ...result[index],
-          content: `${result[index].content}\n\ndisplayed_doc: ${displayedDocument.filename}, displayed_doc_id: ${displayedDocument.document_id}`,
-        };
-      }
-    }
-    if (cloudEvidencePrompt) {
-      const index = result.map(({ role }) => role).lastIndexOf("user");
-      if (index >= 0) {
-        result = result.slice();
-        result[index] = {
-          ...result[index],
-          content: `${result[index].content}\n\n${cloudEvidencePrompt}`,
-        };
-      }
-    }
-    return result;
-  };
-  const messagesForLlm = await contextualize(canonicalMessages);
-  let systemPromptExtra = resolvedProjectId
-    ? PROJECT_SYSTEM_PROMPT_EXTRA
-    : undefined;
-  if (systemPromptExtra && attachedDocuments?.length) {
-    const slugByDocumentId = new Map<string, string>();
-    for (const [slug, info] of Object.entries(docIndex)) {
-      if (info.document_id) slugByDocumentId.set(info.document_id, slug);
-    }
-    const lines = attachedDocuments.map((document) => {
-      const slug = slugByDocumentId.get(document.document_id);
-      return `- ${slug ? `${slug}: ` : ""}${document.filename}`;
-    });
-    systemPromptExtra += `\n\nUSER-ATTACHED DOCUMENTS FOR THIS TURN:\nThe user has attached the following document(s) directly to their latest message. Treat these as the primary focus of the request unless their message clearly says otherwise.\n${lines.join("\n")}`;
-  }
-  const cloudJurisdictionPrompt = jurisdictionPreferencePrompt(
-    jurisdictionPreference,
-  );
-  systemPromptExtra =
-    [systemPromptExtra, tabular?.prompt, cloudJurisdictionPrompt]
-      .filter(Boolean)
-      .join("\n\n") ||
-    undefined;
-  const { api_keys: apiKeys, legal_research_us: legalResearchUs } =
-    await getUserModelSettings(userId, db);
-  const apiMessages = buildMessages(
-    messagesForLlm,
-    docAvailability,
-    systemPromptExtra,
-    undefined,
-    legalResearchUs,
-  );
 
-  const workflowStore = await buildWorkflowStore(userId, userEmail, db);
+  return router;
+}
 
-  devLog("[chat/stream] starting LLM stream", {
-    apiMessageCount: apiMessages.length,
-    docCount: Object.keys(docIndex).length,
-    workflowCount: Object.keys(workflowStore).length,
-  });
-
-  const write = (line: string) => {
-    if (!res.destroyed && !res.writableEnded) res.write(line);
-  };
-  const streamAbort = beginSseTurn(res, chatId);
-  if (!streamAbort) return;
-
-  try {
-    write(`data: ${JSON.stringify({ type: "chat_id", chatId })}\n\n`);
-
-    const { fullText, events, citations } = await runLLMStream({
-      apiMessages,
-      docIndex,
-      userId,
-      userEmail,
-      db,
-      write,
-      workflowStore,
-      includeResearchTools: legalResearchUs,
-      model,
-      apiKeys,
-      reasoningEffort,
-      serviceTier,
-      signal: streamAbort.signal,
-      projectId: resolvedProjectId,
-      subagentMode,
-      subagentModel,
-      subagentEffort,
-      jurisdictionPreference,
-      activityDetail,
-      editMode,
-      timeZone,
-      priorLegalEvidence: cloudPriorState.evidence,
-      resumableSubagents: cloudPriorState.resumableSubagents,
-      tabularStore: tabular?.store,
-      prepareMessages: async (onCompaction) => {
-        const prepared = await compactChatContext({
-          store: chats,
-          scope,
-          chatId,
-          model: selectedModel,
-          apiKeys,
-          signal: streamAbort.signal,
-          onStatus: onCompaction,
-        });
-        return contextualize(prepared.messages);
-      },
-    });
-
-    devLog("[chat/stream] LLM stream finished", {
-      fullTextLen: fullText?.length ?? 0,
-      eventCount: events?.length ?? 0,
-    });
-
-    const persistedEvents = stripTransientAssistantEvents(events);
-    await persistAssistantTurn(persistedEvents, citations);
-
-    if (!chatTitle && lastUser?.content) {
-      await db
-        .from("chats")
-        .update({ title: lastUser.content.slice(0, 120) })
-        .eq("id", chatId)
-        .is("deleted_at", null);
-    }
-    void recordChatTurn(
-      db,
-      {
-        userId,
-        userEmail,
-        chatId,
-        projectId: resolvedProjectId,
-        title: chatTitle ?? lastUser?.content?.slice(0, 120) ?? null,
-        model: selectedModel,
-      },
-      persistedEvents,
-    );
-  } catch (err) {
-    if (isAbortError(err)) {
-      devLog("[chat/stream] client aborted stream", { chatId });
-      void recordChatTurn(
-        db,
-        {
-          userId,
-          userEmail,
-          chatId,
-          projectId: resolvedProjectId,
-          title: chatTitle ?? lastUser?.content?.slice(0, 120) ?? null,
-          model: selectedModel,
-          status: "cancelled",
-        },
-        null,
-      );
-      if (err instanceof AssistantStreamError) {
-        const partial = buildCancelledAssistantMessage({
-          events: err.events,
-        });
-        const saveError = await persistAssistantTurn(
-          partial.events,
-          partial.citations,
-        );
-        if (saveError) {
-          console.error(
-            "[chat/stream] failed to save aborted stream",
-            saveError,
-          );
-        }
-      }
-      return;
-    }
-    console.error("[chat/stream] error:", safeErrorLog(err));
-    const message = safeErrorMessage(err, "Stream error");
-    const errorEvents =
-      err instanceof AssistantStreamError
-        ? stripTransientAssistantEvents(err.events)
-        : [{ type: "error" as const, message }];
-    try {
-      const saveError = await persistAssistantTurn(errorEvents, []);
-      if (saveError)
-        console.error("[chat/stream] failed to save error", saveError);
-    } catch (saveErr) {
-      console.error("[chat/stream] failed to save error", saveErr);
-    }
-    void recordChatTurn(
-      db,
-      {
-        userId,
-        userEmail,
-        chatId,
-        projectId: resolvedProjectId,
-        title: chatTitle ?? lastUser?.content?.slice(0, 120) ?? null,
-        model: selectedModel,
-        status: "failed",
-      },
-      null,
-    );
-    try {
-      write(`data: ${JSON.stringify({ type: "error", message })}\n\n`);
-      write("data: [DONE]\n\n");
-    } catch {}
-  } finally {
-    finishChatTurn(chatId, streamAbort);
-    res.end();
-  }
-}));
-
-return chatRouter;
+function asObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown> : {};
 }

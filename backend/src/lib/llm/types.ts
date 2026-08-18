@@ -1,6 +1,8 @@
-// Shared types for the LLM provider adapter.
-// Callers always speak OpenAI-style tools + { role, content } messages; each
-// provider translates internally.
+// Shared provider-neutral LLM types. Tool contracts use MCP's standard shape;
+// provider adapters only translate at their wire boundary.
+
+export type { Tool } from "@modelcontextprotocol/sdk/types.js";
+import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 
 export type Provider =
   | "claude"
@@ -12,17 +14,6 @@ export type Provider =
   | "meta"
   | "codex"
   | "ollama";
-
-export type OpenAIToolSchema = {
-  type: "function";
-  function: {
-    name: string;
-    description: string;
-    parameters: Record<string, unknown>;
-    /** Ask providers that support it to constrain arguments to the schema. */
-    strict?: boolean;
-  };
-};
 
 export type ProviderContextCheckpoint =
   | { provider: "claude"; content: string }
@@ -63,7 +54,6 @@ export type NormalizedToolResult = {
     | "already_exposed"
     | "error";
   /** Host-only durable mutation receipt; provider adapters send `content`. */
-  mutationReceipt?: string;
   /** Host-only source ranges exposed by text-shaped navigation tools. */
   evidenceSpans?: Array<[number, number]>;
   /** Host-only original-source ranges for virtual multi-document projections. */
@@ -161,9 +151,11 @@ export type StreamChatParams = {
   model: string;
   systemPrompt: string;
   messages: LlmMessage[];
-  tools?: OpenAIToolSchema[];
+  /** Optional output cap used by one-shot callers. */
+  maxTokens?: number;
+  tools?: Tool[];
   /** Full catalog for provider transports that snapshot MCP tools once. */
-  staticTools?: OpenAIToolSchema[];
+  staticTools?: Tool[];
   /**
    * Re-read the tool list before every iteration of the tool loop, so a
    * caller can REVEAL tools mid-conversation — progressive disclosure, where
@@ -174,7 +166,7 @@ export type StreamChatParams = {
    * be called, which forces a caller to duplicate the provider loop. Purely
    * additive: when absent, `tools` behaves exactly as before.
    */
-  resolveTools?: () => OpenAIToolSchema[];
+  resolveTools?: () => Tool[];
   /** Optional explicit provider-call cap. Omit for a natural-stop agent loop. */
   maxIterations?: number;
   callbacks?: StreamCallbacks;

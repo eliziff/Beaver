@@ -15,9 +15,9 @@ const completedPanel = {
     activities: [
         {
             id: "read-case",
+            tool: "Read",
             label: "Reading Example v. Example, 2020 BCSC 1",
             status: "completed" as const,
-            paragraphs: ["3", "5", "7", "9"],
             source: {
                 provider: "a2aj",
                 jurisdiction: "CA",
@@ -39,7 +39,7 @@ const runningPanel = {
     })),
 };
 
-it("shows one bounded paragraph summary for a consolidated case read", async () => {
+it("opens the exact source metadata attached by the backend", async () => {
     const onSourceClick = vi.fn();
     render(
         <ReadSubagentDock
@@ -51,11 +51,10 @@ it("shows one bounded paragraph summary for a consolidated case read", async () 
     );
 
     await userEvent.click(screen.getByText("1 tool call"));
-    expect(screen.getByText("at paras. 3, 5, 7 + 1 more")).toBeVisible();
-    expect(screen.getAllByText("Example v. Example")).toHaveLength(1);
+    expect(screen.getByText("Reading Example v. Example, 2020 BCSC 1")).toBeVisible();
     await userEvent.click(screen.getByRole("button"));
     expect(onSourceClick).toHaveBeenCalledWith(
-        expect.objectContaining({ citation: "2020 BCSC 1", locator: "par3" }),
+        expect.objectContaining({ citation: "2020 BCSC 1" }),
     );
 });
 
@@ -86,5 +85,6 @@ it("shows live activity on the agent tab and current trace", async () => {
 
     expect(screen.getByTitle("Working")).toBeVisible();
     await userEvent.click(screen.getByText("1 tool call"));
-    expect(screen.getAllByLabelText("Working")).toHaveLength(2);
+    expect(screen.getAllByLabelText("Working")).toHaveLength(1);
+    expect(screen.getByText("Reading Example v. Example, 2020 BCSC 1...")).toBeVisible();
 });

@@ -2,16 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getCourtlistenerOpinionStructure = vi.hoisted(() => vi.fn());
 
-vi.mock("../courtlistener", () => ({
+vi.mock("../courtlistener", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../courtlistener")>()),
   getCourtlistenerOpinionStructure,
 }));
 
-import {
-  appendPublicLegalPinpointLinks,
-  buildPublicLegalCitationUrl,
-  createPublicLegalSourceState,
-} from "../chat/publicLegalSourceState";
 import { buildCourtlistenerCitationPinpointUrl } from "../legalSourceLinks";
+import { legalSourcePassageUrl } from "../legalSourceRegistry";
 import { createSourceDoc } from "../sourceDoc";
 
 function nativeParagraph(
@@ -120,7 +117,6 @@ describe("canonical SourceDoc consumers", () => {
   });
 
   it("matches public citations inside the recorded block of the native rendition", () => {
-    const state = createPublicLegalSourceState();
     const url = "https://caselaw.nationalarchives.gov.uk/uksc/2024/1";
     const text =
       "The canonical phrase appears only in the native provider rendition.";
@@ -135,10 +131,7 @@ describe("canonical SourceDoc consumers", () => {
       attachments: [],
     };
     const block = { ...structure.blocks[0], text };
-    state.documents.set("tna:[2024] uksc 1", document);
-    state.lookups.push({
-      document,
-      lookup: {
+    const lookup = {
         status: "found",
         requestedLabel: "par24",
         matches: ["par24"],
@@ -146,31 +139,33 @@ describe("canonical SourceDoc consumers", () => {
         before: [],
         after: [],
         provider: "tna",
-        citation: "[2024] UKSC 1",
-        name: "Example v State",
-        date: null,
         url,
-        snippet: null,
-        journalName: null,
-        authors: null,
+        anchor: "para_24",
+      } as const;
+    const citationUrl = legalSourcePassageUrl({
+      source: {
+        provider: "tna",
+        id: "[2024] UKSC 1",
+        kind: "case",
+        title: "Example v State",
+        citation: "[2024] UKSC 1",
+        url,
+      },
+      locator: {
+        requested: { kind: "paragraph", value: "24" },
+        label: "par24",
         anchor: "para_24",
       },
-    });
-
-    const citationUrl = buildPublicLegalCitationUrl(
-      {
-        provider: "tna",
-        identifier: "[2024] UKSC 1",
-        quotes: [{ quote: "canonical phrase appears only" }],
-      },
-      state,
-    )!;
-    const appended = appendPublicLegalPinpointLinks(
-      'The court said "canonical phrase appears only" [1].',
-      state,
-    );
+      role: "selected",
+      text,
+      textSha256: "passage",
+      documentSha256: structure.revision,
+      revision: structure.revision,
+      blockArtifact: text,
+      documentArtifact: structure,
+      native: { document, lookup },
+    }, ["canonical phrase appears only"]);
 
     expect(citationUrl).toContain("#para_24:~:text=");
-    expect(appended).toContain("#para_24:~:text=");
   });
 });

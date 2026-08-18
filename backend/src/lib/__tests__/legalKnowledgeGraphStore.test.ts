@@ -2,10 +2,8 @@ import os from "node:os";
 import path from "node:path";
 import { mkdtemp, rm } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
-import {
-  LEGAL_KNOWLEDGE_SCHEMA_VERSION,
-  LegalKnowledgeGraphStore,
-} from "../legalKnowledgeGraphStore";
+import { LegalKnowledgeGraphStore } from "../legalKnowledgeGraphStore";
+import { LOCAL_APPLICATION_SCHEMA_VERSION } from "../localApplicationDatabase";
 
 const stores: LegalKnowledgeGraphStore[] = [];
 const directories: string[] = [];
@@ -38,7 +36,7 @@ describe("LegalKnowledgeGraphStore", () => {
           user_version: number;
         }
       ).user_version,
-    ).toBe(LEGAL_KNOWLEDGE_SCHEMA_VERSION);
+    ).toBe(LOCAL_APPLICATION_SCHEMA_VERSION);
     expect(
       (
         knowledge.database.prepare("PRAGMA busy_timeout").get() as {
@@ -80,6 +78,14 @@ describe("LegalKnowledgeGraphStore", () => {
     expect(knowledge.getMatter("owner-a", matter.id)?.created_at).toBe(
       matter.created_at,
     );
+
+    for (const id of ["document-a", "document-b"]) {
+      knowledge.database.prepare(
+        `INSERT INTO local_library_documents
+          (id,user_id,kind,created_at,updated_at,filename,payload)
+         VALUES (?,?,'file','now','now',?,'{}')`,
+      ).run(id, "owner-a", `${id}.pdf`);
+    }
 
     expect(knowledge.attachMatterDocument("owner-a", matter.id, "document-a")).toBe(
       true,

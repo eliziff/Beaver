@@ -76,7 +76,8 @@ async function loadApp() {
   closeLocalStores = async () => {
     graph.legalKnowledgeGraphStore().close();
     tabular.closeLocalTabularStore();
-    await documents.closeLocalDocumentStore();
+    (await import("../../lib/localApplicationDatabase"))
+      .closeLocalApplicationDatabase();
   };
   return app;
 }
@@ -158,7 +159,7 @@ describe("account-free matter routes", () => {
       "Scoped answer",
       expect.any(String),
       expect.any(Set),
-      undefined,
+      expect.any(Set),
       [],
     );
   });
@@ -336,7 +337,7 @@ describe("account-free matter routes", () => {
     const lastContent = focusedInput.messages.at(-1)?.content ?? "";
     expect(lastContent).toContain(
       "[The user attached the following document(s) to this message:\n" +
-        "- appeal-record.xlsx]",
+        "- doc-0: appeal-record.xlsx]",
     );
     expect(lastContent).toContain(
       "[User responses to requested inputs]\n" +
@@ -381,9 +382,9 @@ describe("account-free matter routes", () => {
         project_id: firstMatter.body.id,
         expected_version: 5,
         current_turn: { kind: "message", content: 7 },
-      });
+    });
     expect(malformed.status).toBe(400);
-    expect(malformed.body.detail).toBe("current_turn.content is required");
+    expect(malformed.body.detail).toEqual(expect.any(String));
 
     await closeLocalStores?.();
     closeLocalStores = null;

@@ -31,10 +31,10 @@ export function useAssistantChatRoute({
         useState<ProjectLocation | null>(null);
     const assistant = useAssistantChat({ chatId, projectId: projectId ?? movedProject?.id ?? undefined });
     const [loadedChat, setLoadedChat] = useState<Chat | null>();
-    const responseLoadingRef = useRef(assistant.isResponseLoading);
+    const responseLoadingRef = useRef(assistant.state.run !== null);
     const pendingProjectRouteRef = useRef<string | null | undefined>(undefined);
     const hasLoaded = useRef(false);
-    responseLoadingRef.current = assistant.isResponseLoading;
+    responseLoadingRef.current = assistant.state.run !== null;
     const finishProjectMove = useCallback((nextProjectId: string | null) => {
             if (!projectId) {
                 setMovedProject({ id: nextProjectId, name: null });
@@ -55,20 +55,20 @@ export function useAssistantChatRoute({
     useEffect(() => {
         if (hasLoaded.current) return;
         hasLoaded.current = true;
-        if (assistant.messages.length > 0) {
+        if (assistant.state.messages.length > 0) {
             setLoadedChat(null);
             return;
         }
         getChat(chatId)
             .then(({ chat, messages }) => {
                 setLoadedChat(chat);
-                assistant.setTranscriptVersion(chat.transcript_version ?? 0);
+                assistant.actions.setTranscriptVersion(chat.transcript_version ?? 0);
                 if (!projectId && chat.project_id) {
                     finishProjectMove(chat.project_id);
                 } else {
-                    assistant.setMessages(messages);
+                    assistant.actions.setMessages(messages, chat.turn_in_progress === true);
                     if (chat.turn_in_progress) {
-                        assistant.resumeRunningTurn(
+                        assistant.actions.resumeRunningTurn(
                             chat.id,
                             chat.transcript_version ?? 0,
                         );
@@ -88,10 +88,10 @@ export function useAssistantChatRoute({
     }, [chatId]);
     useEffect(() => {
         const nextProjectId = pendingProjectRouteRef.current;
-        if (assistant.isResponseLoading || nextProjectId === undefined) return;
+        if (assistant.state.run || nextProjectId === undefined) return;
         pendingProjectRouteRef.current = undefined;
         router.replace(chatPath(chatId, nextProjectId));
-    }, [assistant.isResponseLoading, chatId, router]);
+    }, [assistant.state.run, chatId, router]);
     useEffect(() => {
         if (projectId) return;
         const onProjectMoved = (event: Event) => {

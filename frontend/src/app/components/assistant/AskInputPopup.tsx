@@ -1,12 +1,16 @@
 import { useRef, useState } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { PillButton } from "@/app/components/ui/pill-button";
-import type { AssistantEvent, Document } from "../shared/types";
+import type {
+    AskInputsEvent,
+    AskInputsResponseEvent,
+    Document,
+} from "../shared/types";
 import { AddDocumentsModal } from "../modals/AddDocumentsModal";
 
-type AskEvent = Extract<AssistantEvent, { type: "ask_inputs" }>;
+type AskEvent = AskInputsEvent;
 type AskItem = AskEvent["items"][number];
-type AskResponse = Extract<AssistantEvent, { type: "ask_inputs_response" }>;
+type AskResponse = AskInputsResponseEvent;
 type Resolution = "answered" | "skipped";
 type Target = { inputId: string; typeIndex: number };
 type Pick = Target & { document: Document };

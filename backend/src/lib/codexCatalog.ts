@@ -19,8 +19,6 @@ type CodexCatalogModel = {
   supportedReasoningLevels: CodexReasoningLevel[];
   serviceTiers: CodexServiceTier[];
   defaultServiceTier?: string;
-  /** Deprecated catalog field retained for older picker metadata. */
-  additionalSpeedTiers: string[];
   visibility?: string;
   supportedInApi?: boolean;
 };
@@ -132,15 +130,6 @@ export function normalizeCodexCatalog(value: unknown): CodexModelCatalog {
       row.defaultServiceTier.trim()
         ? { defaultServiceTier: row.defaultServiceTier.trim().toLowerCase() }
         : {}),
-      additionalSpeedTiers: Array.isArray(row.additionalSpeedTiers)
-        ? row.additionalSpeedTiers
-            .filter((tier): tier is string => typeof tier === "string")
-            .map((tier) => tier.trim().toLowerCase())
-            .filter(
-              (tier, index, all) =>
-                !!tier && all.indexOf(tier) === index,
-            )
-        : [],
       visibility: row.hidden === true ? "hidden" : "visible",
       supportedInApi: true,
     };

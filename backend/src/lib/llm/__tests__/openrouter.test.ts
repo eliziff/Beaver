@@ -1,15 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { streamOpenRouter } from "../openrouter";
-import type { OpenAIToolSchema } from "../types";
+import { streamChatWithTools } from "../index";
+import type { Tool } from "../types";
 
-const tool = (name: string): OpenAIToolSchema => ({
-  type: "function",
-  function: {
-    name,
-    description: `${name} tool`,
-    parameters: { type: "object", properties: {} },
-  },
+const tool = (name: string): Tool => ({
+  name,
+  description: `${name} tool`,
+  inputSchema: { type: "object", properties: {} },
 });
+
+const runOpenRouter = streamChatWithTools;
 
 function stream(...events: unknown[]) {
   const body = [
@@ -49,7 +48,7 @@ describe("Muse Spark through OpenRouter", () => {
     );
     const reasoning: string[] = [];
 
-    await streamOpenRouter({
+    await runOpenRouter({
       model: "meta/muse-spark-1.1",
       systemPrompt: "system",
       messages: [{ role: "user", content: "research" }],
@@ -77,7 +76,7 @@ describe("Muse Spark through OpenRouter", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await streamOpenRouter({
+    const result = await runOpenRouter({
       model: "meta/muse-spark-1.1",
       systemPrompt: "system",
       messages: [{
@@ -141,7 +140,7 @@ describe("Muse Spark through OpenRouter", () => {
       );
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await streamOpenRouter({
+    const result = await runOpenRouter({
       model: "meta/muse-spark-1.1",
       systemPrompt: "system",
       messages: [{ role: "user", content: "list files" }],
@@ -202,7 +201,7 @@ describe("Muse Spark through OpenRouter", () => {
     vi.stubGlobal("fetch", fetchMock);
     let activeTools = [tool("discover")];
 
-    await streamOpenRouter({
+    await runOpenRouter({
       model: "meta/muse-spark-1.1",
       systemPrompt: "system",
       messages: [{ role: "user", content: "research" }],
@@ -250,7 +249,7 @@ describe("Muse Spark through OpenRouter", () => {
     );
     const calls: Array<Record<string, unknown>> = [];
 
-    await streamOpenRouter({
+    await runOpenRouter({
       model: "meta/muse-spark-1.1",
       systemPrompt: "system",
       messages: [{ role: "user", content: "lookup" }],
@@ -294,7 +293,7 @@ describe("Muse Spark through OpenRouter", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    await streamOpenRouter({
+    await runOpenRouter({
       model: "meta/muse-spark-1.1",
       systemPrompt: "system",
       messages: [{ role: "user", content: "answer" }],

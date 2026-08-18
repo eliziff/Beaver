@@ -1,97 +1,63 @@
 import { createClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
-import {
-    filterAccessibleDocumentIds,
-    listAccessibleProjectIds,
-} from "../../lib/access";
+import { CloudScope } from "../../lib/access";
 
-// Gated: runs only against a real (local) Supabase stack.
-//   supabase start, then export:
-//     SUPABASE_TEST_URL, SUPABASE_TEST_SERVICE_ROLE_KEY
-// or use scripts/test-stack.sh which reads them from `supabase status`.
 const url = process.env.SUPABASE_TEST_URL;
 const serviceKey = process.env.SUPABASE_TEST_SERVICE_ROLE_KEY;
-
 const maybeDescribe = url && serviceKey ? describe : describe.skip;
 
-maybeDescribe("Supabase access integration", () => {
-    it("proves tabular document filtering drops foreign document IDs", async () => {
-        const admin = createClient(url!, serviceKey!, {
-            auth: { persistSession: false },
-        });
-        const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-        const ownerId = crypto.randomUUID();
-        const reviewerId = crypto.randomUUID();
-        const sharedProjectId = crypto.randomUUID();
-        const privateProjectId = crypto.randomUUID();
-        const sharedDocId = crypto.randomUUID();
-        const privateDocId = crypto.randomUUID();
+maybeDescribe("Supabase CloudScope integration", () => {
+  it("enforces owner, share, not-found, and immediate revocation semantics", async () => {
+    const admin = createClient(url!, serviceKey!, { auth: { persistSession: false } });
+    const ownerId = crypto.randomUUID(), reviewerId = crypto.randomUUID();
+    const strangerId = crypto.randomUUID(), projectId = crypto.randomUUID();
+    const documentId = crypto.randomUUID(), reviewId = crypto.randomUUID();
+    const chatId = crypto.randomUUID(), reviewerEmail = `reviewer-${reviewerId}@example.com`;
+    const ids = { projectId, documentId, reviewId, chatId };
+    try {
+      const project = await admin.from("projects").insert({ id: projectId,
+        user_id: ownerId, name: "scope-integration", shared_with: [reviewerEmail] });
+      if (project.error) throw project.error;
+      const document = await admin.from("documents").insert({ id: documentId,
+        user_id: ownerId, project_id: projectId });
+      if (document.error) throw document.error;
+      const review = await admin.from("tabular_reviews").insert({ id: reviewId,
+        user_id: ownerId, project_id: projectId, document_ids: [documentId], shared_with: [] });
+      if (review.error) throw review.error;
+      const chat = await admin.from("chats").insert({ id: chatId, user_id: ownerId,
+        project_id: projectId });
+      if (chat.error) throw chat.error;
 
-        try {
-            const projectsInsert = await admin.from("projects").insert([
-                {
-                    id: sharedProjectId,
-                    user_id: ownerId,
-                    name: `shared-${suffix}`,
-                    shared_with: [`reviewer-${suffix}@example.com`],
-                },
-                {
-                    id: privateProjectId,
-                    user_id: ownerId,
-                    name: `private-${suffix}`,
-                    shared_with: [],
-                },
-            ]);
-            if (projectsInsert.error) {
-                throw new Error(
-                    `Could not seed projects: ${projectsInsert.error.message}`,
-                    { cause: projectsInsert.error },
-                );
-            }
+      const owner = new CloudScope({ userId: ownerId }, admin as any);
+      await expect(owner.project(projectId)).resolves.toMatchObject({ isOwner: true });
+      await expect(owner.document(documentId)).resolves.toMatchObject({ isOwner: true });
+      await expect(owner.review(reviewId)).resolves.toMatchObject({ isOwner: true });
+      await expect(owner.chat(chatId)).resolves.toMatchObject({ isOwner: true });
 
-            // filename/file_type live on document_versions in this schema —
-            // the documents rows only need identity + ownership columns.
-            const documentsInsert = await admin.from("documents").insert([
-                {
-                    id: sharedDocId,
-                    user_id: ownerId,
-                    project_id: sharedProjectId,
-                },
-                {
-                    id: privateDocId,
-                    user_id: ownerId,
-                    project_id: privateProjectId,
-                },
-            ]);
-            if (documentsInsert.error) {
-                throw new Error(
-                    `Could not seed documents: ${documentsInsert.error.message}`,
-                    { cause: documentsInsert.error },
-                );
-            }
+      const reviewer = new CloudScope({ userId: reviewerId,
+        userEmail: reviewerEmail.toUpperCase() }, admin as any);
+      await expect(reviewer.project(projectId)).resolves.toMatchObject({ isOwner: false });
+      await expect(reviewer.document(documentId)).resolves.toMatchObject({ isOwner: false });
+      await expect(reviewer.review(reviewId)).resolves.toMatchObject({ isOwner: false });
+      await expect(reviewer.chat(chatId)).resolves.toMatchObject({ isOwner: false });
 
-            await expect(
-                listAccessibleProjectIds(
-                    reviewerId,
-                    `reviewer-${suffix}@example.com`,
-                    admin as any,
-                ),
-            ).resolves.toContain(sharedProjectId);
+      const stranger = new CloudScope({ userId: strangerId,
+        userEmail: `stranger-${strangerId}@example.com` }, admin as any);
+      for (const id of [documentId, crypto.randomUUID()]) {
+        await expect(stranger.document(id)).resolves.toBeNull();
+      }
 
-            await expect(
-                filterAccessibleDocumentIds(
-                    [sharedDocId, privateDocId],
-                    reviewerId,
-                    `reviewer-${suffix}@example.com`,
-                    admin as any,
-                ),
-            ).resolves.toEqual([sharedDocId]);
-        } finally {
-            await admin.from("documents").delete().in("id", [sharedDocId, privateDocId]);
-            await admin
-                .from("projects")
-                .delete()
-                .in("id", [sharedProjectId, privateProjectId]);
-        }
-    });
+      const revoke = await admin.from("projects").update({ shared_with: [] }).eq("id", projectId);
+      if (revoke.error) throw revoke.error;
+      await expect(reviewer.project(projectId)).resolves.toBeNull();
+      await expect(reviewer.document(documentId)).resolves.toBeNull();
+      await expect(reviewer.review(reviewId)).resolves.toBeNull();
+      await expect(reviewer.chat(chatId)).resolves.toBeNull();
+    } finally {
+      await admin.from("chats").delete().eq("id", ids.chatId);
+      await admin.from("tabular_reviews").delete().eq("id", ids.reviewId);
+      await admin.from("documents").delete().eq("id", ids.documentId);
+      await admin.from("projects").delete().eq("id", ids.projectId);
+    }
+  });
 });

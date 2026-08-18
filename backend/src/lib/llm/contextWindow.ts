@@ -1,5 +1,5 @@
 import { providerForModel } from "./models";
-import type { LlmMessage, OpenAIToolSchema } from "./types";
+import type { LlmMessage, Tool } from "./types";
 
 const MILLION_TOKEN_WINDOW = 1_000_000;
 const OPENAI_CONTEXT_WINDOW = 1_050_000;
@@ -39,7 +39,7 @@ export function compactionThresholdForModel(model: string): number | undefined {
 export function estimateContextTokens(args: {
   systemPrompt?: string;
   messages: LlmMessage[];
-  tools?: OpenAIToolSchema[];
+  tools?: Tool[];
 }) {
   return Math.ceil(Buffer.byteLength(JSON.stringify(args)) / 3);
 }

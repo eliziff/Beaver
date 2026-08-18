@@ -2,48 +2,14 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
-  fetchA2AJDocument,
-  getA2AJDocumentSourceDoc,
-  lookupA2AJLocator,
-  type A2AJLocatorKind,
-} from "./a2aj";
-import {
-  getCourtlistenerCases,
-  getCourtlistenerOpinionStructure,
-  lookupCourtlistenerOpinionLocator,
-  verifyCourtlistenerCitations,
-} from "./courtlistener";
-import {
-  fetchJournalArticle,
-  searchJournalArticles,
-  lookupJournalArticle,
-} from "./journalArticles";
-import {
-  buildA2AJPinpointUrl,
-  buildLegalSourcePinpointUrl,
-} from "./legalSourceLinks";
+  legalSourcePassageUrl,
+  legalSourceProviderFamily,
+  readLegalSourcePassage,
+  resolveLegalSource,
+} from "./legalSourceRegistry";
+import type { LegalSourceKind, LegalSourceLocator } from "./legalSources";
 import { addLocalVersion, getLocalVersionFile } from "./localDocumentStore";
-import {
-  fetchGovInfoCase,
-  fetchGovUkEtCase,
-  fetchTnaCase,
-  lookupPublicLegalSource,
-  searchGovInfoCase,
-  searchGovUkEtCase,
-  searchTnaCase,
-  type PublicLegalDocument,
-} from "./publicLegalSources";
 import { runLegalPdf } from "./legalPdfProcess";
-
-const US_REPORTER =
-  /\b\d{1,4}\s+(?:U\.?\s*S\.?|S\.?\s*Ct\.?|L\.?\s*Ed\.?(?:\s*2d)?|F\.?(?:\s*Supp\.?)?(?:\s*2d|\s*3d|\s*4th)?)\s+\d{1,6}\b/iu;
-const CANADIAN =
-  /\b(?:\d{4}\s+[A-Z][A-Z0-9]{1,12}\s+\d+|\d+\s+S\.?C\.?R\.?\s+\d+|R\.?S\.?[A-Z]\.?\s+\d{4})\b/iu;
-const TNA =
-  /\[(?:19|20)\d{2}\]\s+(?:UKSC|UKPC|EWCA\s+(?:Civ|Crim)|EWHC|EWCC|EWFC|EWCOP|EWCR|UKUT|UKFTT|EAT)\s+\d+/iu;
-const ET_CASE = /(?<![\w/])(?:[A-Z]\/)?\d{6,8}\/(?:19|20)\d{2}(?![\w/])/iu;
-const GOVINFO_DOCKET =
-  /\b(?:\d{1,2}:\d{2,4}-(?:cv|cr|bk|ap|md|mj|mc)-\d{1,8}|(?:case\s+)?no\.?\s*\d{2}-\d{3,6})\b/iu;
 
 type JsonRecord = Record<string, unknown>;
 
@@ -82,13 +48,6 @@ function clean(value: string) {
   return value.trim().replace(/\s+/gu, " ");
 }
 
-function exact(value: string) {
-  return clean(value)
-    .normalize("NFKC")
-    .toLocaleLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, "");
-}
-
 function citationText(intent: DocxCitationIntent) {
   return clean(intent.bare_citation || intent.citation_with_style);
 }
@@ -101,286 +60,45 @@ function locator(intent: DocxCitationIntent) {
   return intent.locator_kind === "none" || !intent.locator.trim()
     ? null
     : {
-        kind: intent.locator_kind as A2AJLocatorKind,
+        kind: intent.locator_kind,
         value: intent.locator.trim(),
-      };
+      } satisfies LegalSourceLocator;
 }
 
-async function resolveA2AJ(intent: DocxCitationIntent) {
-  const citation = citationText(intent);
-  const docType = intent.kind === "statute" ? "laws" : "cases";
-  const requested = locator(intent);
-  if (requested) {
-    const lookup = await lookupA2AJLocator({
-      citation,
-      docType,
-      kind: requested.kind,
-      locator: requested.value,
-      contextBlocks: 0,
-    });
-    return lookup?.status === "found" && lookup.block
-      ? buildA2AJPinpointUrl(lookup, quotes(intent))
-      : null;
-  }
-  const document = await fetchA2AJDocument({
-    citation,
-    docType,
-    maxChars: 300_000,
-  });
-  if (!document?.url) return null;
-  const source = getA2AJDocumentSourceDoc(document);
-  return buildLegalSourcePinpointUrl(
-    { url: document.url, blockText: source, documentText: source },
-    quotes(intent),
-  );
-}
-
-function uniqueClusterId(value: unknown) {
-  const links = record(value)?.citationLinks;
-  if (!Array.isArray(links)) return null;
-  const ids = [
-    ...new Set(
-      links.flatMap((raw) => {
-        const id = record(raw)?.clusterId;
-        return typeof id === "number" && Number.isSafeInteger(id) && id > 0
-          ? [id]
-          : [];
-      }),
-    ),
-  ];
-  return ids.length === 1 ? ids[0] : null;
-}
-
-async function resolveCourtlistener(intent: DocxCitationIntent) {
-  const verified = await verifyCourtlistenerCitations({
-    citations: [citationText(intent)],
-  });
-  const clusterId = uniqueClusterId(verified);
-  if (!clusterId) return null;
-  const payload = await getCourtlistenerCases({
-    clusterIds: [clusterId],
-    includeFullText: true,
-    maxChars: 50_000,
-  });
-  const rawCase = Array.isArray(payload.cases) ? payload.cases[0] : null;
-  const caseRecord = record(rawCase);
-  if (!caseRecord) return null;
-  const opinions = Array.isArray(caseRecord.opinions)
-    ? caseRecord.opinions.filter(
-        (opinion): opinion is object =>
-          Boolean(opinion) && typeof opinion === "object",
-      )
-    : [];
-  const caseUrl =
-    typeof caseRecord.url === "string" && caseRecord.url.trim()
-      ? caseRecord.url
-      : null;
-  const requested = locator(intent);
-  if (!requested) {
-    const opinion = opinions.length === 1 ? record(opinions[0]) : null;
-    const opinionUrl = typeof opinion?.url === "string" ? opinion.url : caseUrl;
-    const structure = opinion
-      ? getCourtlistenerOpinionStructure(opinion)
-      : null;
-    return opinionUrl && structure
-      ? buildLegalSourcePinpointUrl(
-          {
-            url: opinionUrl,
-            blockText: structure,
-            documentText: structure,
-          },
-          quotes(intent),
-        )
-      : null;
-  }
-  const matches = opinions.flatMap((opinion) => {
-    const lookup = lookupCourtlistenerOpinionLocator(
-      opinion,
-      requested.kind,
-      requested.value,
-      0,
-    );
-    return lookup?.status === "found" && lookup.block
-      ? [{ opinion, lookup }]
-      : [];
-  });
-  if (matches.length !== 1) return null;
-  const match = matches[0];
-  const opinion = record(match.opinion);
-  const url =
-    (typeof opinion?.url === "string" ? opinion.url : null) ?? caseUrl;
-  if (!url) return null;
-  const documentText = getCourtlistenerOpinionStructure(match.opinion);
-  if (!documentText) return null;
-  return buildLegalSourcePinpointUrl(
-    {
-      url,
-      anchor: match.lookup.block!.anchor,
-      blockText: match.lookup.block!.text,
-      documentText,
-      pageScoped: requested.kind === "page",
-    },
-    quotes(intent),
-  );
-}
-
-async function resolvePublicDocument(
-  document: PublicLegalDocument | null,
-  intent: DocxCitationIntent,
-) {
-  if (!document) return null;
-  const requested = locator(intent);
-  if (!requested) {
-    return buildLegalSourcePinpointUrl(
-      {
-        url: document.url,
-        blockText: document.structure,
-        documentText: document.structure,
-      },
-      quotes(intent),
-    );
-  }
-  const lookup = lookupPublicLegalSource(
-    document,
-    requested.kind,
-    requested.value,
-    0,
-  );
-  return lookup.status === "found" && lookup.block
-    ? buildLegalSourcePinpointUrl(
-        {
-          url: document.url,
-          anchor: lookup.anchor ?? undefined,
-          blockText: lookup.block.text,
-          documentText: document.structure,
-          pageScoped: requested.kind === "page",
-        },
-        quotes(intent),
-      )
-    : null;
-}
-
-async function resolvePublicCase(intent: DocxCitationIntent) {
-  const citation = citationText(intent);
-  if (TNA.test(citation)) {
-    const match = await searchTnaCase(citation);
-    return resolvePublicDocument(
-      match ? await fetchTnaCase(match) : null,
-      intent,
-    );
-  }
-  if (ET_CASE.test(citation)) {
-    const match = await searchGovUkEtCase(citation);
-    return resolvePublicDocument(
-      match ? await fetchGovUkEtCase(match) : null,
-      intent,
-    );
-  }
-  if (GOVINFO_DOCKET.test(citation)) {
-    const match = await searchGovInfoCase(citation);
-    return resolvePublicDocument(
-      match ? await fetchGovInfoCase(match) : null,
-      intent,
-    );
-  }
-  return null;
-}
-
-async function resolveJournal(intent: DocxCitationIntent) {
-  const candidates = [
-    citationText(intent),
-    clean(intent.citation_with_style),
-    clean(intent.short_form),
-  ].filter(Boolean);
-  let article = null;
-  for (const candidate of candidates) {
-    article = fetchJournalArticle(candidate);
-    if (article) break;
-  }
-  if (!article) {
-    const matches = searchJournalArticles(candidates[0], 10).filter((match) =>
-      candidates.some(
-        (candidate) =>
-          exact(candidate) === exact(match.citation) ||
-          exact(candidate) === exact(match.name),
-      ),
-    );
-    if (matches.length === 1) {
-      article = fetchJournalArticle(String(matches[0].articleId));
-    }
-  }
-  if (!article) return null;
-  const requested = locator(intent);
-  if (!requested) {
-    return buildLegalSourcePinpointUrl(
-      {
-        url: article.url,
-        blockText: article.structure,
-        documentText: article.structure,
-      },
-      quotes(intent),
-    );
-  }
-  const lookup = lookupJournalArticle(
-    article,
-    requested.kind,
-    requested.value,
-    0,
-  );
-  return lookup.status === "found" && lookup.block
-    ? buildLegalSourcePinpointUrl(
-        {
-          url: article.url,
-          anchor: lookup.anchor ?? undefined,
-          blockText: lookup.block.text,
-          documentText: article.structure,
-          pageScoped: requested.kind === "page",
-        },
-        quotes(intent),
-      )
-    : null;
-}
-
-export function citationProvider(intent: DocxCitationIntent) {
-  const citation = citationText(intent);
+function sourceKind(intent: DocxCitationIntent): LegalSourceKind | null {
   if (intent.kind === "journal") return "journal";
-  if (intent.kind === "statute") return "a2aj";
-  if (!["case", "unreported"].includes(intent.kind)) return null;
-  if (
-    TNA.test(citation) ||
-    ET_CASE.test(citation) ||
-    GOVINFO_DOCKET.test(citation)
-  ) {
-    return "public";
-  }
-  if (US_REPORTER.test(citation)) return "courtlistener";
-  if (CANADIAN.test(citation)) return "a2aj";
-  return null;
+  if (intent.kind === "statute") return "legislation";
+  return ["case", "unreported"].includes(intent.kind) ? "case" : null;
 }
 
 async function resolveIntent(
   intent: DocxCitationIntent,
 ): Promise<{ provider: string; url: string } | null> {
-  const citation = citationText(intent);
-  if (!citation) return null;
-  const provider = citationProvider(intent);
-  if (provider === "journal") {
-    const url = await resolveJournal(intent);
-    return url ? { provider: "journal", url } : null;
-  }
-  if (provider === "a2aj") {
-    const url = await resolveA2AJ(intent);
-    return url ? { provider: "a2aj", url } : null;
-  }
-  if (provider === "public") {
-    const url = await resolvePublicCase(intent);
-    return url ? { provider: "public", url } : null;
-  }
-  if (provider === "courtlistener") {
-    const url = await resolveCourtlistener(intent);
-    return url ? { provider: "courtlistener", url } : null;
-  }
-  return null;
+  const text = citationText(intent);
+  const kind = sourceKind(intent);
+  if (!text || !kind) return null;
+  const resolved = await resolveLegalSource({
+    text,
+    kind,
+    alternateTexts: [intent.citation_with_style, intent.short_form]
+      .map(clean)
+      .filter(Boolean),
+  });
+  if (resolved.status !== "found") return null;
+  const passage = await readLegalSourcePassage({
+    source: resolved.value,
+    locator: locator(intent) ?? undefined,
+    contextBlocks: 0,
+  });
+  if (passage.status !== "found") return null;
+  const selected = passage.values.filter(({ role }) =>
+    locator(intent) ? role === "selected" : role === "document",
+  );
+  if (selected.length !== 1) return null;
+  const url = legalSourcePassageUrl(selected[0], quotes(intent));
+  return url
+    ? { provider: legalSourceProviderFamily(selected[0]), url }
+    : null;
 }
 
 function validPlan(value: unknown): value is DocxCitationLinkPlan {

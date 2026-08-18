@@ -474,6 +474,7 @@ create table if not exists public.chats (
   tabular_review_id uuid,
   user_id text not null,
   title text,
+  transcript_version bigint not null default 0 check (transcript_version >= 0),
   created_at timestamptz not null default now(),
   deleted_at timestamptz,
   check (project_id is null or tabular_review_id is null)
@@ -495,6 +496,7 @@ create index if not exists chats_deleted_user_idx
 create table if not exists public.chat_messages (
   id uuid primary key default gen_random_uuid(),
   chat_id uuid not null references public.chats(id) on delete cascade,
+  turn_id uuid,
   role text not null,
   content jsonb,
   files jsonb,
@@ -503,6 +505,155 @@ create table if not exists public.chat_messages (
   created_at timestamptz not null default now()
 );
 create index if not exists idx_chat_messages_chat on public.chat_messages(chat_id);
+create index if not exists idx_chat_messages_turn on public.chat_messages(chat_id, turn_id)
+  where turn_id is not null;
+
+-- The backend is the sole application-data caller. This security-invoker RPC
+-- requires its service-role context, locks the chat revision, verifies the
+-- authenticated actor's resource capability, and applies one transcript write.
+create or replace function public.commit_chat_turn(
+  p_actor_user_id text,
+  p_actor_user_email text,
+  p_chat_id uuid,
+  p_expected_version bigint,
+  p_user_message jsonb default null,
+  p_assistant_message jsonb default null,
+  p_append_event jsonb default null
+)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = public, pg_temp
+as $$
+declare
+  v_chat public.chats%rowtype;
+  v_actor_email text := lower(trim(coalesce(p_actor_user_email, '')));
+  v_allowed boolean := false;
+  v_assistant_id uuid;
+begin
+  if coalesce(current_setting('request.jwt.claim.role', true), current_user)
+       <> 'service_role'
+     and current_user <> 'service_role' then
+    raise insufficient_privilege using message = 'service role required';
+  end if;
+
+  select * into v_chat
+  from public.chats
+  where id = p_chat_id and deleted_at is null
+  for update;
+  if not found then return jsonb_build_object('status', 'missing'); end if;
+
+  v_allowed := v_chat.user_id = p_actor_user_id
+    or exists (
+      select 1 from public.projects p
+      where p.id = v_chat.project_id
+        and (p.user_id = p_actor_user_id or (v_actor_email <> '' and exists (
+          select 1 from jsonb_array_elements_text(p.shared_with) member
+          where lower(trim(member)) = v_actor_email
+        )))
+    )
+    or exists (
+      select 1 from public.tabular_reviews r
+      where r.id = v_chat.tabular_review_id
+        and (
+          r.user_id = p_actor_user_id
+          or (v_actor_email <> '' and exists (
+            select 1 from jsonb_array_elements_text(r.shared_with) member
+            where lower(trim(member)) = v_actor_email
+          ))
+          or exists (
+            select 1 from public.projects p
+            where p.id = r.project_id
+              and (p.user_id = p_actor_user_id or (v_actor_email <> '' and exists (
+                select 1 from jsonb_array_elements_text(p.shared_with) member
+                where lower(trim(member)) = v_actor_email
+              )))
+          )
+        )
+    );
+  if not v_allowed then return jsonb_build_object('status', 'missing'); end if;
+  if p_expected_version is not null
+     and v_chat.transcript_version <> p_expected_version then
+    return jsonb_build_object(
+      'status', 'conflict',
+      'current_version', v_chat.transcript_version
+    );
+  end if;
+  if p_user_message is null and p_assistant_message is null and p_append_event is null then
+    raise invalid_parameter_value using message = 'turn commit is empty';
+  end if;
+  if p_expected_version is null and p_append_event is null then
+    raise invalid_parameter_value using message = 'turn snapshot requires an expected version';
+  end if;
+  if p_append_event is not null
+     and (p_user_message is not null or p_assistant_message is not null) then
+    raise invalid_parameter_value using message = 'append mode cannot include a turn snapshot';
+  end if;
+
+  if p_user_message is not null then
+    insert into public.chat_messages
+      (id, chat_id, turn_id, role, content, files, workflow)
+    values (
+      (p_user_message->>'id')::uuid,
+      p_chat_id,
+      nullif(p_user_message->>'turn_id', '')::uuid,
+      'user',
+      p_user_message->'content',
+      p_user_message->'files',
+      p_user_message->'workflow'
+    );
+  end if;
+
+  if p_assistant_message is not null then
+    v_assistant_id := (p_assistant_message->>'id')::uuid;
+    update public.chat_messages
+    set turn_id = coalesce(
+          nullif(p_assistant_message->>'turn_id', '')::uuid,
+          turn_id
+        ),
+        content = coalesce(p_assistant_message->'content', '[]'::jsonb),
+        citations = p_assistant_message->'citations'
+    where id = v_assistant_id and chat_id = p_chat_id and role = 'assistant';
+    if not found then
+      insert into public.chat_messages
+        (id, chat_id, turn_id, role, content, citations)
+      values (
+        v_assistant_id,
+        p_chat_id,
+        nullif(p_assistant_message->>'turn_id', '')::uuid,
+        'assistant',
+        coalesce(p_assistant_message->'content', '[]'::jsonb),
+        p_assistant_message->'citations'
+      );
+    end if;
+  end if;
+
+  if p_append_event is not null then
+    v_assistant_id := nullif(p_append_event->>'message_id', '')::uuid;
+    update public.chat_messages
+    set content = coalesce(content, '[]'::jsonb)
+      || jsonb_build_array(p_append_event->'event')
+    where id = v_assistant_id and chat_id = p_chat_id and role = 'assistant';
+    if not found then return jsonb_build_object('status', 'missing'); end if;
+  end if;
+
+  update public.chats
+  set transcript_version = transcript_version + 1
+  where id = p_chat_id
+  returning * into v_chat;
+  return jsonb_build_object(
+    'status', 'committed',
+    'current_version', v_chat.transcript_version
+  );
+end;
+$$;
+
+revoke all on function public.commit_chat_turn(
+  text, text, uuid, bigint, jsonb, jsonb, jsonb
+) from public, anon, authenticated;
+grant execute on function public.commit_chat_turn(
+  text, text, uuid, bigint, jsonb, jsonb, jsonb
+) to service_role;
 
 create or replace function public.get_chats_overview(
   p_user_id text,

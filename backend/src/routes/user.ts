@@ -1,5 +1,9 @@
-import crypto from "crypto";
-import { Router } from "express";
+// Account HTTP boundary. Public entrypoint: userRouter.
+// Canonical operations live in userApiKeys, userDataExport/Cleanup, and
+// mcpConnectors; keep this file to validation and HTTP response mapping.
+import { randomBytes } from "node:crypto";
+import { Router, type Response } from "express";
+import { z } from "zod";
 import { requireAuth, requireMfaIfEnrolled } from "../middleware/auth";
 import {
     createServerSupabase,
@@ -20,26 +24,15 @@ import {
     normalizeApiKeyProvider,
     saveUserApiKey,
 } from "../lib/userApiKeys";
-import {
-    deleteAllUserChats,
-    deleteAllUserTabularReviews,
-    deleteUserAccountData,
-    deleteUserProjects,
-} from "../lib/userDataCleanup";
-import {
-    buildUserAccountExport,
-    buildUserChatsExport,
-    buildUserTabularReviewsExport,
-    userExportFilename,
-} from "../lib/userDataExport";
+import * as userDataCleanup from "../lib/userDataCleanup";
+import * as userDataExport from "../lib/userDataExport";
 import { findProfileUserByEmail } from "../lib/userLookup";
-import {
-    normalizeDraftingStyleSettings,
-    type DraftingStyleSettings,
-} from "../lib/draftingStyle";
+import { normalizeDraftingStyleSettings } from "../lib/draftingStyle";
+import { safeErrorLog, safeErrorMessage } from "../lib/safeError";
+import * as mcpConnectors from "../lib/mcpConnectors";
+import { sha256 } from "../lib/hash";
 
 export const userRouter = Router();
-const loadMcpConnectors = () => import("../lib/mcpConnectors");
 
 const MONTHLY_CREDIT_LIMIT = 999999;
 
@@ -56,25 +49,43 @@ type UserProfileRow = {
     drafting_style: unknown;
 };
 
-function errorMessage(error: unknown): string {
-    if (error instanceof Error && error.message) return error.message;
-    if (error && typeof error === "object") {
-        const record = error as {
-            message?: unknown;
-            details?: unknown;
-            hint?: unknown;
-            code?: unknown;
-        };
-        return (
-            [record.message, record.details, record.hint, record.code]
-                .filter(
-                    (value): value is string =>
-                        typeof value === "string" && !!value,
-                )
-                .join(" ") || JSON.stringify(error)
-        );
+function respondUserError(res: Response, error: unknown, status: number) {
+    console.error("[user] request failed", safeErrorLog(error));
+    res.status(status).json({ detail: safeErrorMessage(error) });
+}
+
+type Db = ReturnType<typeof createServerSupabase>;
+
+async function sendUserExport(
+    res: Response,
+    kind: Parameters<typeof userDataExport.userExportFilename>[0],
+    action: string,
+    build: (db: Db, userId: string, userEmail?: string) => Promise<unknown>,
+) {
+    const userId = res.locals.userId as string;
+    const userEmail = res.locals.userEmail as string | undefined;
+    const db = createServerSupabase();
+    try {
+        const data = await build(db, userId, userEmail);
+        res.attachment(userDataExport.userExportFilename(kind, userId));
+        void recordAudit(db, { userId, userEmail, action, surface: "account" });
+        res.json(data);
+    } catch (error) {
+        respondUserError(res, error, 500);
     }
-    return String(error);
+}
+
+async function deleteUserCollection(
+    res: Response,
+    remove: (db: Db, userId: string) => Promise<unknown>,
+) {
+    const userId = res.locals.userId as string;
+    try {
+        await remove(createServerSupabase(), userId);
+        res.status(204).send();
+    } catch (error) {
+        respondUserError(res, error, 500);
+    }
 }
 
 function backendPublicUrl(req: {
@@ -94,12 +105,6 @@ function frontendUrl(path = "/account/connectors") {
         "",
     );
     return `${base}${path}`;
-}
-
-function shortHash(value: string) {
-    return value
-        ? crypto.createHash("sha256").update(value).digest("hex").slice(0, 12)
-        : null;
 }
 
 function mcpOAuthPopupHtml(payload: {
@@ -200,139 +205,79 @@ function serializeProfile(row: UserProfileRow, apiKeyStatus?: ApiKeyStatus) {
     };
 }
 
-function validateProfilePayload(body: unknown):
-    | {
-          ok: true;
-          update: {
-              display_name?: string | null;
-              organisation?: string | null;
-              title_model?: string;
-              tabular_model?: string;
-              legal_research_us?: boolean;
-              drafting_style?: DraftingStyleSettings;
-              updated_at: string;
-          };
-      }
-    | { ok: false; detail: string } {
-    if (!body || typeof body !== "object" || Array.isArray(body)) {
-        return { ok: false, detail: "Expected a JSON object" };
+const supportedModel = z.string().refine((value) => !!resolveModel(value, ""));
+const profilePayload = z.object({
+    displayName: z.string().nullable().optional(),
+    organisation: z.string().nullable().optional(),
+    titleModel: supportedModel.optional(),
+    tabularModel: supportedModel.optional(),
+    legalResearchUs: z.boolean().optional(),
+    draftingStyle: z.record(z.unknown()).optional(),
+}).strict();
+const enabledPayload = z.object({ enabled: z.boolean() }).strict();
+const connectorCreatePayload = z.object({
+    name: z.preprocess((value) => typeof value === "string" ? value : "", z.string()),
+    serverUrl: z.preprocess((value) => typeof value === "string" ? value : "", z.string()),
+    bearerToken: z.preprocess((value) => typeof value === "string" ? value : null, z.string().nullable()).optional(),
+    headers: z.preprocess(
+        (value) => value && typeof value === "object" && !Array.isArray(value) ? value : undefined,
+        z.record(z.unknown()).optional(),
+    ),
+});
+const connectorPatchPayload = z.object({
+    name: z.preprocess((value) => typeof value === "string" ? value : undefined, z.string().optional()),
+    serverUrl: z.preprocess((value) => typeof value === "string" ? value : undefined, z.string().optional()),
+    enabled: z.preprocess((value) => typeof value === "boolean" ? value : undefined, z.boolean().optional()),
+    bearerToken: z.preprocess((value) => typeof value === "string" ? value : null, z.string().nullable()).optional(),
+    headers: z.preprocess(
+        (value) => value && typeof value === "object" && !Array.isArray(value) ? value : {},
+        z.record(z.unknown()),
+    ).optional(),
+});
+
+function validationDetail(error: z.ZodError, profile: boolean) {
+    const issue = error.issues[0];
+    if (issue?.code === "unrecognized_keys") {
+        const field = issue.keys[0];
+        return `${profile ? "Unsupported profile field" : "Unsupported field"}: ${field}`;
     }
-
-    const raw = body as Record<string, unknown>;
-    const allowedFields = new Set([
-        "displayName",
-        "organisation",
-        "titleModel",
-        "tabularModel",
-        "legalResearchUs",
-        "draftingStyle",
-    ]);
-    const invalidField = Object.keys(raw).find(
-        (key) => !allowedFields.has(key),
-    );
-    if (invalidField) {
-        return {
-            ok: false,
-            detail: `Unsupported profile field: ${invalidField}`,
-        };
+    const field = String(issue?.path[0] ?? "");
+    if (!field) return "Expected a JSON object";
+    if (field === "titleModel" || field === "tabularModel") {
+        return issue?.code === "custom"
+            ? `Unsupported ${field}`
+            : `${field} must be a string`;
     }
-
-    const update: {
-        display_name?: string | null;
-        organisation?: string | null;
-        title_model?: string;
-        tabular_model?: string;
-        legal_research_us?: boolean;
-        drafting_style?: DraftingStyleSettings;
-        updated_at: string;
-    } = { updated_at: new Date().toISOString() };
-
-    if ("displayName" in raw) {
-        if (raw.displayName !== null && typeof raw.displayName !== "string") {
-            return {
-                ok: false,
-                detail: "displayName must be a string or null",
-            };
-        }
-        update.display_name = raw.displayName?.trim() || null;
+    if (field === "displayName" || field === "organisation") {
+        return `${field} must be a string or null`;
     }
-
-    if ("organisation" in raw) {
-        if (raw.organisation !== null && typeof raw.organisation !== "string") {
-            return {
-                ok: false,
-                detail: "organisation must be a string or null",
-            };
-        }
-        update.organisation = raw.organisation?.trim() || null;
-    }
-
-    if ("draftingStyle" in raw) {
-        if (
-            !raw.draftingStyle ||
-            typeof raw.draftingStyle !== "object" ||
-            Array.isArray(raw.draftingStyle)
-        ) {
-            return { ok: false, detail: "draftingStyle must be an object" };
-        }
-        update.drafting_style = normalizeDraftingStyleSettings(
-            raw.draftingStyle,
-        );
-    }
-
-    if ("tabularModel" in raw) {
-        if (typeof raw.tabularModel !== "string") {
-            return { ok: false, detail: "tabularModel must be a string" };
-        }
-        const resolved = resolveModel(raw.tabularModel, "");
-        if (!resolved) {
-            return { ok: false, detail: "Unsupported tabularModel" };
-        }
-        update.tabular_model = resolved;
-    }
-
-    if ("titleModel" in raw) {
-        if (typeof raw.titleModel !== "string") {
-            return { ok: false, detail: "titleModel must be a string" };
-        }
-        const resolved = resolveModel(raw.titleModel, "");
-        if (!resolved) {
-            return { ok: false, detail: "Unsupported titleModel" };
-        }
-        update.title_model = resolved;
-    }
-
-    if ("legalResearchUs" in raw) {
-        if (typeof raw.legalResearchUs !== "boolean") {
-            return {
-                ok: false,
-                detail: "legalResearchUs must be a boolean",
-            };
-        }
-        update.legal_research_us = raw.legalResearchUs;
-    }
-
-    return { ok: true, update };
+    if (field === "draftingStyle") return "draftingStyle must be an object";
+    return `${field} must be a boolean`;
 }
 
-function readBooleanBodyField(
-    body: unknown,
-    field: string,
-): { ok: true; value: boolean } | { ok: false; detail: string } {
-    if (!body || typeof body !== "object" || Array.isArray(body)) {
-        return { ok: false, detail: "Expected a JSON object" };
+function validateProfilePayload(body: unknown) {
+    const parsed = profilePayload.safeParse(body);
+    if (!parsed.success) {
+        return { ok: false as const, detail: validationDetail(parsed.error, true) };
     }
+    const raw = parsed.data;
+    const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if ("displayName" in raw) update.display_name = raw.displayName?.trim() || null;
+    if ("organisation" in raw) update.organisation = raw.organisation?.trim() || null;
+    if (raw.titleModel) update.title_model = raw.titleModel;
+    if (raw.tabularModel) update.tabular_model = raw.tabularModel;
+    if (raw.legalResearchUs !== undefined) update.legal_research_us = raw.legalResearchUs;
+    if (raw.draftingStyle) {
+        update.drafting_style = normalizeDraftingStyleSettings(raw.draftingStyle);
+    }
+    return { ok: true as const, update };
+}
 
-    const raw = body as Record<string, unknown>;
-    const invalidField = Object.keys(raw).find((key) => key !== field);
-    if (invalidField) {
-        return { ok: false, detail: `Unsupported field: ${invalidField}` };
-    }
-    if (typeof raw[field] !== "boolean") {
-        return { ok: false, detail: `${field} must be a boolean` };
-    }
-
-    return { ok: true, value: raw[field] };
+function readEnabled(body: unknown) {
+    const parsed = enabledPayload.safeParse(body);
+    return parsed.success
+        ? { ok: true as const, value: parsed.data.enabled }
+        : { ok: false as const, detail: validationDetail(parsed.error, false) };
 }
 
 async function userHasVerifiedTotpFactor(
@@ -484,7 +429,7 @@ userRouter.patch(
     requireMfaIfEnrolled,
     async (req, res) => {
         const userId = res.locals.userId as string;
-        const parsed = readBooleanBodyField(req.body, "enabled");
+        const parsed = readEnabled(req.body);
         if (!parsed.ok)
             return void res.status(400).json({ detail: parsed.detail });
 
@@ -556,12 +501,7 @@ userRouter.put(
             const status = await getUserApiKeyStatus(userId, db);
             res.json(status);
         } catch (err) {
-            const detail = errorMessage(err);
-            console.error("[user/api-keys] save failed", {
-                provider,
-                error: detail,
-            });
-            res.status(500).json({ detail });
+            respondUserError(res, err, 500);
         }
     },
 );
@@ -571,19 +511,14 @@ userRouter.get("/mcp-connectors", requireAuth, async (_req, res) => {
     const db = createServerSupabase();
     try {
         res.json(
-            await (await loadMcpConnectors()).listUserMcpConnectors(
+            await mcpConnectors.listUserMcpConnectors(
                 userId,
                 db,
                 { includeTools: false },
             ),
         );
     } catch (err) {
-        const detail = errorMessage(err);
-        console.error("[user/mcp-connectors] list failed", {
-            userId,
-            error: detail,
-        });
-        res.status(500).json({ detail });
+        respondUserError(res, err, 500);
     }
 });
 
@@ -595,20 +530,14 @@ userRouter.get(
         const db = createServerSupabase();
         try {
             res.json(
-                await (await loadMcpConnectors()).getUserMcpConnector(
+                await mcpConnectors.getUserMcpConnector(
                     userId,
                     req.params.connectorId,
                     db,
                 ),
             );
         } catch (err) {
-            const detail = errorMessage(err);
-            console.error("[user/mcp-connectors] get failed", {
-                userId,
-                connectorId: req.params.connectorId,
-                error: detail,
-            });
-            res.status(404).json({ detail });
+            respondUserError(res, err, 404);
         }
     },
 );
@@ -619,36 +548,17 @@ userRouter.post(
     requireMfaIfEnrolled,
     async (req, res) => {
         const userId = res.locals.userId as string;
-        const name = typeof req.body?.name === "string" ? req.body.name : "";
-        const serverUrl =
-            typeof req.body?.serverUrl === "string" ? req.body.serverUrl : "";
-        const bearerToken =
-            typeof req.body?.bearerToken === "string"
-                ? req.body.bearerToken
-                : null;
-        const headers =
-            req.body?.headers &&
-            typeof req.body.headers === "object" &&
-            !Array.isArray(req.body.headers)
-                ? (req.body.headers as Record<string, unknown>)
-                : undefined;
         const db = createServerSupabase();
         try {
-            const connector = await (
-                await loadMcpConnectors()
-            ).createUserMcpConnector(
+            const input = connectorCreatePayload.parse(req.body);
+            const connector = await mcpConnectors.createUserMcpConnector(
                 userId,
-                { name, serverUrl, bearerToken, headers },
+                { ...input, bearerToken: input.bearerToken ?? null },
                 db,
             );
             res.status(201).json(connector);
         } catch (err) {
-            const detail = errorMessage(err);
-            console.error("[user/mcp-connectors] create failed", {
-                userId,
-                error: detail,
-            });
-            res.status(400).json({ detail });
+            respondUserError(res, err, 400);
         }
     },
 );
@@ -660,56 +570,17 @@ userRouter.patch(
     async (req, res) => {
         const userId = res.locals.userId as string;
         const db = createServerSupabase();
-        const body = req.body ?? {};
         try {
-            const connector = await (
-                await loadMcpConnectors()
-            ).updateUserMcpConnector(
+            const input = connectorPatchPayload.parse(req.body);
+            const connector = await mcpConnectors.updateUserMcpConnector(
                 userId,
                 req.params.connectorId,
-                {
-                    ...(typeof body.name === "string"
-                        ? { name: body.name }
-                        : {}),
-                    ...(typeof body.serverUrl === "string"
-                        ? { serverUrl: body.serverUrl }
-                        : {}),
-                    ...(typeof body.enabled === "boolean"
-                        ? { enabled: body.enabled }
-                        : {}),
-                    ...("bearerToken" in body
-                        ? {
-                              bearerToken:
-                                  typeof body.bearerToken === "string"
-                                      ? body.bearerToken
-                                      : null,
-                          }
-                        : {}),
-                    ...("headers" in body
-                        ? {
-                              headers:
-                                  body.headers &&
-                                  typeof body.headers === "object" &&
-                                  !Array.isArray(body.headers)
-                                      ? (body.headers as Record<
-                                            string,
-                                            unknown
-                                        >)
-                                      : {},
-                          }
-                        : {}),
-                },
+                input,
                 db,
             );
             res.json(connector);
         } catch (err) {
-            const detail = errorMessage(err);
-            console.error("[user/mcp-connectors] update failed", {
-                userId,
-                connectorId: req.params.connectorId,
-                error: detail,
-            });
-            res.status(400).json({ detail });
+            respondUserError(res, err, 400);
         }
     },
 );
@@ -722,20 +593,14 @@ userRouter.delete(
         const userId = res.locals.userId as string;
         const db = createServerSupabase();
         try {
-            await (await loadMcpConnectors()).deleteUserMcpConnector(
+            await mcpConnectors.deleteUserMcpConnector(
                 userId,
                 req.params.connectorId,
                 db,
             );
             res.status(204).send();
         } catch (err) {
-            const detail = errorMessage(err);
-            console.error("[user/mcp-connectors] delete failed", {
-                userId,
-                connectorId: req.params.connectorId,
-                error: detail,
-            });
-            res.status(500).json({ detail });
+            respondUserError(res, err, 500);
         }
     },
 );
@@ -749,9 +614,7 @@ userRouter.post(
         const db = createServerSupabase();
         try {
             const redirectUri = `${backendPublicUrl(req)}/user/mcp-connectors/oauth/callback`;
-            const result = await (
-                await loadMcpConnectors()
-            ).startUserMcpConnectorOAuth(
+            const result = await mcpConnectors.startUserMcpConnectorOAuth(
                 userId,
                 req.params.connectorId,
                 redirectUri,
@@ -759,19 +622,13 @@ userRouter.post(
             );
             res.json(result);
         } catch (err) {
-            const detail = errorMessage(err);
-            console.error("[user/mcp-connectors] oauth start failed", {
-                userId,
-                connectorId: req.params.connectorId,
-                error: detail,
-            });
-            res.status(400).json({ detail });
+            respondUserError(res, err, 400);
         }
     },
 );
 
 userRouter.get("/mcp-connectors/oauth/callback", async (req, res) => {
-    const nonce = crypto.randomBytes(16).toString("base64");
+    const nonce = randomBytes(16).toString("base64");
     const state = typeof req.query.state === "string" ? req.query.state : "";
     const code = typeof req.query.code === "string" ? req.query.code : "";
     const error =
@@ -781,9 +638,7 @@ userRouter.get("/mcp-connectors/oauth/callback", async (req, res) => {
         if (error) throw new Error(error);
         if (!state || !code)
             throw new Error("OAuth callback is missing state or code.");
-        const result = await (
-            await loadMcpConnectors()
-        ).completeUserMcpConnectorOAuth(state, code, db);
+        const result = await mcpConnectors.completeUserMcpConnectorOAuth(state, code, db);
         res.set("Content-Security-Policy", mcpOAuthPopupCsp(nonce))
             .type("html")
             .send(
@@ -796,10 +651,10 @@ userRouter.get("/mcp-connectors/oauth/callback", async (req, res) => {
                 ),
             );
     } catch (err) {
-        const detail = errorMessage(err);
+        const detail = safeErrorMessage(err);
         console.error("[user/mcp-connectors] oauth callback failed", {
             error: detail,
-            stateHash: shortHash(state),
+            stateHash: state ? sha256(state).slice(0, 12) : null,
             hasCode: !!code,
             hasError: !!error,
             issuer:
@@ -824,28 +679,21 @@ userRouter.post(
         const userId = res.locals.userId as string;
         const db = createServerSupabase();
         try {
-            const connector = await (
-                await loadMcpConnectors()
-            ).refreshUserMcpConnectorTools(
+            const connector = await mcpConnectors.refreshUserMcpConnectorTools(
                 userId,
                 req.params.connectorId,
                 db,
             );
             res.json(connector);
         } catch (err) {
-            const detail = errorMessage(err);
-            console.error("[user/mcp-connectors] refresh failed", {
-                userId,
-                connectorId: req.params.connectorId,
-                error: detail,
-            });
+            const detail = safeErrorMessage(err);
             if (err instanceof Error && err.name === "McpOAuthRequiredError") {
                 return void res.status(401).json({
                     code: "oauth_required",
                     detail,
                 });
             }
-            res.status(400).json({ detail });
+            respondUserError(res, err, 400);
         }
     },
 );
@@ -856,15 +704,13 @@ userRouter.patch(
     requireMfaIfEnrolled,
     async (req, res) => {
         const userId = res.locals.userId as string;
-        const parsed = readBooleanBodyField(req.body, "enabled");
+        const parsed = readEnabled(req.body);
         if (!parsed.ok)
             return void res.status(400).json({ detail: parsed.detail });
 
         const db = createServerSupabase();
         try {
-            const connector = await (
-                await loadMcpConnectors()
-            ).setUserMcpToolEnabled(
+            const connector = await mcpConnectors.setUserMcpToolEnabled(
                 userId,
                 req.params.connectorId,
                 req.params.toolId,
@@ -873,14 +719,7 @@ userRouter.patch(
             );
             res.json(connector);
         } catch (err) {
-            const detail = errorMessage(err);
-            console.error("[user/mcp-connectors] tool toggle failed", {
-                userId,
-                connectorId: req.params.connectorId,
-                toolId: req.params.toolId,
-                error: detail,
-            });
-            res.status(400).json({ detail });
+            respondUserError(res, err, 400);
         }
     },
 );
@@ -894,181 +733,52 @@ userRouter.delete(
         const userEmail = res.locals.userEmail as string | undefined;
         const db = createServerSupabase();
         try {
-            await deleteUserAccountData(db, userId, userEmail);
+            await userDataCleanup.deleteUserAccountData(db, userId, userEmail);
             const { error } = await db.auth.admin.deleteUser(userId);
             if (error)
                 return void res.status(500).json({ detail: error.message });
             res.status(204).send();
         } catch (err) {
-            const detail = errorMessage(err);
-            console.error("[user/account] delete failed", {
-                userId,
-                error: detail,
-            });
-            res.status(500).json({ detail });
+            respondUserError(res, err, 500);
         }
     },
 );
 
-userRouter.delete(
-    "/chats",
-    requireAuth,
-    requireMfaIfEnrolled,
-    async (_req, res) => {
-        const userId = res.locals.userId as string;
-        const db = createServerSupabase();
-        try {
-            await deleteAllUserChats(db, userId);
-            res.status(204).send();
-        } catch (err) {
-            const detail = errorMessage(err);
-            console.error("[user/chats] delete failed", {
-                userId,
-                error: detail,
-            });
-            res.status(500).json({ detail });
-        }
-    },
-);
+userRouter.delete("/chats", requireAuth, requireMfaIfEnrolled, async (_req, res) => {
+    await deleteUserCollection(res, userDataCleanup.deleteAllUserChats);
+});
 
-userRouter.delete(
-    "/projects",
-    requireAuth,
-    requireMfaIfEnrolled,
-    async (_req, res) => {
-        const userId = res.locals.userId as string;
-        const db = createServerSupabase();
-        try {
-            await deleteUserProjects(db, userId);
-            res.status(204).send();
-        } catch (err) {
-            const detail = errorMessage(err);
-            console.error("[user/projects] delete failed", {
-                userId,
-                error: detail,
-            });
-            res.status(500).json({ detail });
-        }
-    },
-);
+userRouter.delete("/projects", requireAuth, requireMfaIfEnrolled, async (_req, res) => {
+    await deleteUserCollection(res, userDataCleanup.deleteUserProjects);
+});
 
 userRouter.delete(
     "/tabular-reviews",
     requireAuth,
     requireMfaIfEnrolled,
     async (_req, res) => {
-        const userId = res.locals.userId as string;
-        const db = createServerSupabase();
-        try {
-            await deleteAllUserTabularReviews(db, userId);
-            res.status(204).send();
-        } catch (err) {
-            const detail = errorMessage(err);
-            console.error("[user/tabular-reviews] delete failed", {
-                userId,
-                error: detail,
-            });
-            res.status(500).json({ detail });
-        }
+        await deleteUserCollection(res, userDataCleanup.deleteAllUserTabularReviews);
     },
 );
 
-userRouter.get(
-    "/export",
-    requireAuth,
-    requireMfaIfEnrolled,
-    async (_req, res) => {
-        const userId = res.locals.userId as string;
-        const userEmail = res.locals.userEmail as string | undefined;
-        const db = createServerSupabase();
-        try {
-            const data = await buildUserAccountExport(db, userId, userEmail);
-            res.setHeader("Content-Type", "application/json; charset=utf-8");
-            res.setHeader(
-                "Content-Disposition",
-                `attachment; filename="${userExportFilename("account", userId)}"`,
-            );
-            void recordAudit(db, {
-                userId,
-                userEmail,
-                action: "export.account",
-                surface: "account",
-            });
-            res.json(data);
-        } catch (err) {
-            const detail = errorMessage(err);
-            console.error("[user/export] failed", { userId, error: detail });
-            res.status(500).json({ detail });
-        }
-    },
-);
+userRouter.get("/export", requireAuth, requireMfaIfEnrolled, async (_req, res) => {
+    await sendUserExport(res, "account", "export.account", userDataExport.buildUserAccountExport);
+});
 
-userRouter.get(
-    "/chats/export",
-    requireAuth,
-    requireMfaIfEnrolled,
-    async (_req, res) => {
-        const userId = res.locals.userId as string;
-        const userEmail = res.locals.userEmail as string | undefined;
-        const db = createServerSupabase();
-        try {
-            const data = await buildUserChatsExport(db, userId, userEmail);
-            res.setHeader("Content-Type", "application/json; charset=utf-8");
-            res.setHeader(
-                "Content-Disposition",
-                `attachment; filename="${userExportFilename("chats", userId)}"`,
-            );
-            void recordAudit(db, {
-                userId,
-                userEmail,
-                action: "export.chats",
-                surface: "account",
-            });
-            res.json(data);
-        } catch (err) {
-            const detail = errorMessage(err);
-            console.error("[user/chats/export] failed", {
-                userId,
-                error: detail,
-            });
-            res.status(500).json({ detail });
-        }
-    },
-);
+userRouter.get("/chats/export", requireAuth, requireMfaIfEnrolled, async (_req, res) => {
+    await sendUserExport(res, "chats", "export.chats", userDataExport.buildUserChatsExport);
+});
 
 userRouter.get(
     "/tabular-reviews/export",
     requireAuth,
     requireMfaIfEnrolled,
     async (_req, res) => {
-        const userId = res.locals.userId as string;
-        const userEmail = res.locals.userEmail as string | undefined;
-        const db = createServerSupabase();
-        try {
-            const data = await buildUserTabularReviewsExport(
-                db,
-                userId,
-                userEmail,
-            );
-            res.setHeader("Content-Type", "application/json; charset=utf-8");
-            res.setHeader(
-                "Content-Disposition",
-                `attachment; filename="${userExportFilename("tabular-reviews", userId)}"`,
-            );
-            void recordAudit(db, {
-                userId,
-                userEmail,
-                action: "export.tabular",
-                surface: "account",
-            });
-            res.json(data);
-        } catch (err) {
-            const detail = errorMessage(err);
-            console.error("[user/tabular-reviews/export] failed", {
-                userId,
-                error: detail,
-            });
-            res.status(500).json({ detail });
-        }
+        await sendUserExport(
+            res,
+            "tabular-reviews",
+            "export.tabular",
+            userDataExport.buildUserTabularReviewsExport,
+        );
     },
 );

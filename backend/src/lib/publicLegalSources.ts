@@ -1,13 +1,10 @@
-import crypto from "node:crypto";
-import { access, link, mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { XMLParser } from "fast-xml-parser";
 import { cachedContent } from "./contentCache";
-import { legalProviderCache, mikeLocalDataHome } from "./legalDataPath";
-import type {
-  SourceDoc,
-  SourceDocLocatorKind,
-  SourceDocLookup,
+import {
+  readSourceDocRange,
+  type SourceDoc,
+  type SourceDocLocatorKind,
+  type SourceDocLookup,
 } from "./sourceDoc";
 import {
   compileNativeMarkupSourceDoc,
@@ -17,6 +14,16 @@ import {
 } from "./sourceDocNativeMarkup";
 import type { JournalArticleSearchResult } from "./journalArticles";
 import { sha256 } from "./hash";
+import {
+  guardedRemoteFetch,
+  normalizeRemoteHttpsUrl,
+} from "./remoteUrlSafety";
+import type {
+  LegalSourcePassage,
+  LegalSourceProvider,
+  LegalSourceReference,
+  LegalSourceResolveRequest,
+} from "./legalSources";
 
 const TNA_ORIGIN = "https://caselaw.nationalarchives.gov.uk";
 const GOVUK_ORIGIN = "https://www.gov.uk";
@@ -26,7 +33,7 @@ const TIMEOUT_MS = 15_000;
 
 type JsonRecord = Record<string, unknown>;
 
-export type TnaCaseSearchResult = {
+type TnaCaseSearchResult = {
   provider: "tna";
   citation: string;
   title: string | null;
@@ -34,14 +41,14 @@ export type TnaCaseSearchResult = {
   xmlUrl: string;
 };
 
-export type GovUkEtSearchResult = {
+type GovUkEtSearchResult = {
   provider: "govuk-et";
   caseNumber: string;
   title: string;
   url: string;
 };
 
-export type GovInfoCaseSearchResult = {
+type GovInfoCaseSearchResult = {
   provider: "govinfo";
   docket: string;
   packageId: string;
@@ -68,7 +75,6 @@ export type PublicLegalDocument = {
   identity: string;
   title: string | null;
   url: string;
-  text: string;
   structure: SourceDoc;
   attachments: PublicLegalAttachment[];
   /** journal provider only: the article's canonical citation and date,
@@ -78,53 +84,13 @@ export type PublicLegalDocument = {
   date?: string | null;
   /** Cited authorities the provider's markup states as data (TNA <ref>). */
   citedAuthorities?: NativeMarkupRef[];
-  sourceVersion?: {
-    format: "tna-akn-xml";
-    url: string;
-    sha256: string;
-    body: string;
-  };
+  sourceSha256?: string;
 };
 
-export type PublicLegalLookup = SourceDocLookup & {
+type PublicLegalLookup = SourceDocLookup & {
   provider: PublicLegalDocument["provider"];
   url: string;
   anchor: string | null;
-};
-
-// v2 (2026-07-30): the native-markup compiler learned CAP star-pagination
-// pages, CAP footnote asides, and TNA level (lvl_N) sections. Receipt
-// payload hashes cover same-kind context blocks, so v1 hashes computed
-// over the poorer block index can no longer be re-verified; v1 receipts
-// are refused BY VERSION (typed, honest) instead of failing with a
-// misleading source-integrity error. Source blobs are content-addressed
-// and version-independent.
-const EVIDENCE_SCHEMA = "mike.provider_legal_evidence.v2";
-const EVIDENCE_HANDLE = /^mike-provider-evidence:v2:([0-9a-f]{64})$/u;
-const EVIDENCE_HANDLE_V1 = /^mike-provider-evidence:v1:[0-9a-f]{64}$/u;
-
-export type PublicLegalEvidenceReceipt = {
-  schema_version: typeof EVIDENCE_SCHEMA;
-  handle: string;
-  source: {
-    provider: "tna";
-    identifier: string;
-    title: string | null;
-    canonical_url: string;
-    source_url: string;
-    source_sha256: string;
-    format: "tna-akn-xml";
-  };
-  lookup: {
-    locator_kind: SourceDocLocatorKind;
-    locator: string;
-    provider_locator: string;
-    context_blocks: number;
-  };
-  evidence: {
-    block_text_sha256: string;
-    payload_sha256: string;
-  };
 };
 
 const TNA_CITATION =
@@ -144,279 +110,6 @@ const xmlParser = new XMLParser({
   removeNSPrefix: true,
   trimValues: true,
 });
-
-function evidencePath(handle: string) {
-  if (EVIDENCE_HANDLE_V1.test(handle)) {
-    throw new Error(
-      "Provider evidence receipt uses the superseded v1 structure schema " +
-        "(pre CAP-page/footnote and TNA-level blocks); re-run the lookup " +
-        "to capture a v2 receipt",
-    );
-  }
-  const digest = handle.match(EVIDENCE_HANDLE)?.[1];
-  if (!digest) throw new Error("Invalid provider evidence handle");
-  return path.join(
-    mikeLocalDataHome(),
-    "evidence",
-    "provider-native",
-    "v2",
-    `${digest}.json`,
-  );
-}
-
-function sourcePath(sourceSha256: string) {
-  return path.join(
-    legalProviderCache("tna"),
-    "native",
-    "blobs",
-    "v1",
-    `${sourceSha256}.xml`,
-  );
-}
-
-async function atomicWriteOnce(filename: string, value: string) {
-  await mkdir(path.dirname(filename), { recursive: true });
-  try {
-    await access(filename);
-    return;
-  } catch {
-    // Publish the complete content-addressed file below.
-  }
-  const temporary = `${filename}.${process.pid}.${crypto.randomUUID()}.tmp`;
-  try {
-    await writeFile(temporary, value, { encoding: "utf8", flag: "wx" });
-    try {
-      await link(temporary, filename);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-      await access(filename);
-    }
-  } finally {
-    await rm(temporary, { force: true });
-  }
-}
-
-function lookupPayload(lookup: PublicLegalLookup) {
-  const block = (value: PublicLegalLookup["block"]) =>
-    value
-      ? {
-          kind: value.kind,
-          label: value.label,
-          start: value.start,
-          end: value.end,
-          anchor: value.anchor ?? null,
-          // Receipt payload field names and defaulting are frozen: their
-          // JSON is sha256'd into persisted payload_sha256 values.
-          locator_kind: value.kind,
-          provider_locator: value.anchor ?? value.label,
-          origin: value.origin,
-          parent_label: value.parentLabel ?? null,
-          text: value.text,
-        }
-      : null;
-  return {
-    requested_label: lookup.requestedLabel,
-    matches: lookup.matches,
-    block: block(lookup.block),
-    before: lookup.before.map(block),
-    after: lookup.after.map(block),
-  };
-}
-
-function receiptValue(value: unknown): PublicLegalEvidenceReceipt {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error("Invalid provider evidence receipt");
-  }
-  const receipt = value as Partial<PublicLegalEvidenceReceipt>;
-  const source = receipt.source;
-  const lookup = receipt.lookup;
-  const evidence = receipt.evidence;
-  if (
-    receipt.schema_version !== EVIDENCE_SCHEMA ||
-    typeof receipt.handle !== "string" ||
-    !EVIDENCE_HANDLE.test(receipt.handle) ||
-    !source ||
-    source.provider !== "tna" ||
-    typeof source.identifier !== "string" ||
-    !source.identifier ||
-    (source.title !== null && typeof source.title !== "string") ||
-    typeof source.canonical_url !== "string" ||
-    typeof source.source_url !== "string" ||
-    !/^[a-f0-9]{64}$/u.test(source.source_sha256 ?? "") ||
-    source.format !== "tna-akn-xml" ||
-    !lookup ||
-    !["paragraph", "page", "section", "footnote"].includes(
-      lookup.locator_kind,
-    ) ||
-    typeof lookup.locator !== "string" ||
-    !lookup.locator ||
-    typeof lookup.provider_locator !== "string" ||
-    !lookup.provider_locator ||
-    !Number.isInteger(lookup.context_blocks) ||
-    lookup.context_blocks < 0 ||
-    lookup.context_blocks > 2 ||
-    !evidence ||
-    !/^[a-f0-9]{64}$/u.test(evidence.block_text_sha256 ?? "") ||
-    !/^[a-f0-9]{64}$/u.test(evidence.payload_sha256 ?? "")
-  ) {
-    throw new Error("Invalid provider evidence receipt");
-  }
-  const canonicalUrl = trustedUrl(
-    source.canonical_url,
-    TNA_ORIGIN,
-    new Set(["caselaw.nationalarchives.gov.uk"]),
-  );
-  const sourceUrl = trustedUrl(
-    source.source_url,
-    TNA_ORIGIN,
-    new Set(["caselaw.nationalarchives.gov.uk"]),
-  );
-  if (
-    canonicalUrl !== source.canonical_url ||
-    sourceUrl !== source.source_url
-  ) {
-    throw new Error("Invalid provider evidence receipt");
-  }
-  const { handle: _handle, ...identity } =
-    receipt as PublicLegalEvidenceReceipt;
-  if (
-    `mike-provider-evidence:v2:${sha256(JSON.stringify(identity))}` !==
-    receipt.handle
-  ) {
-    throw new Error(
-      "Provider evidence receipt handle does not match its content",
-    );
-  }
-  return receipt as PublicLegalEvidenceReceipt;
-}
-
-export async function persistPublicLegalEvidence(
-  document: PublicLegalDocument,
-  lookup: PublicLegalLookup,
-  contextBlocks = 0,
-) {
-  if (
-    document.provider !== "tna" ||
-    !document.sourceVersion ||
-    lookup.status !== "found" ||
-    !lookup.block
-  ) {
-    return null;
-  }
-  const sourceVersion = document.sourceVersion;
-  if (
-    sourceVersion.format !== "tna-akn-xml" ||
-    sha256(sourceVersion.body) !== sourceVersion.sha256
-  ) {
-    throw new Error("Provider source version does not match its bytes");
-  }
-  const context = Math.min(Math.max(Math.trunc(contextBlocks), 0), 2);
-  const identity = {
-    schema_version: EVIDENCE_SCHEMA as typeof EVIDENCE_SCHEMA,
-    source: {
-      provider: "tna" as const,
-      identifier: document.identity,
-      title: document.title,
-      canonical_url: document.url,
-      source_url: sourceVersion.url,
-      source_sha256: sourceVersion.sha256,
-      format: sourceVersion.format,
-    },
-    lookup: {
-      locator_kind: lookup.block.kind,
-      locator: lookup.block.label,
-      provider_locator: lookup.block.anchor ?? lookup.block.label,
-      context_blocks: context,
-    },
-    evidence: {
-      block_text_sha256: sha256(lookup.block.text),
-      payload_sha256: sha256(JSON.stringify(lookupPayload(lookup))),
-    },
-  };
-  const handle = `mike-provider-evidence:v2:${sha256(JSON.stringify(identity))}`;
-  const receipt: PublicLegalEvidenceReceipt = { ...identity, handle };
-  const blob = sourcePath(sourceVersion.sha256);
-  await atomicWriteOnce(blob, sourceVersion.body);
-  if (sha256(await readFile(blob, "utf8")) !== sourceVersion.sha256) {
-    throw new Error("Provider source snapshot failed integrity verification");
-  }
-  const filename = evidencePath(handle);
-  await atomicWriteOnce(filename, `${JSON.stringify(receipt, null, 2)}\n`);
-  const stored = receiptValue(JSON.parse(await readFile(filename, "utf8")));
-  if (stored.handle !== handle) {
-    throw new Error("Conflicting provider evidence receipt");
-  }
-  return stored;
-}
-
-export async function readPublicLegalEvidenceReceipt(handle: string) {
-  const receipt = receiptValue(
-    JSON.parse(await readFile(evidencePath(handle), "utf8")),
-  );
-  if (receipt.handle !== handle) {
-    throw new Error("Provider evidence receipt handle does not match its path");
-  }
-  return receipt;
-}
-
-export async function rehydratePublicLegalEvidence(handle: string) {
-  const receipt = await readPublicLegalEvidenceReceipt(handle);
-  const body = await readFile(sourcePath(receipt.source.source_sha256), "utf8");
-  if (sha256(body) !== receipt.source.source_sha256) {
-    throw new Error("Provider source snapshot failed integrity verification");
-  }
-  const structure = compileNativeMarkupSourceDoc({
-    provider: "tna",
-    id: receipt.source.identifier,
-    url: receipt.source.canonical_url,
-    text: "",
-    markup: body,
-    citation: receipt.source.identifier,
-  });
-  const document: PublicLegalDocument = {
-    provider: "tna",
-    identity: receipt.source.identifier,
-    title: receipt.source.title,
-    url: receipt.source.canonical_url,
-    text: structure.text,
-    structure,
-    attachments: [],
-    citedAuthorities: nativeMarkupCitedRefs(body),
-    sourceVersion: {
-      format: receipt.source.format,
-      url: receipt.source.source_url,
-      sha256: receipt.source.source_sha256,
-      body,
-    },
-  };
-  const lookup = lookupPublicLegalSource(
-    document,
-    receipt.lookup.locator_kind,
-    receipt.lookup.locator,
-    receipt.lookup.context_blocks,
-  );
-  if (lookup.status !== "found" || !lookup.block) {
-    throw new Error(
-      "Provider evidence locator is absent from its source snapshot",
-    );
-  }
-  if (
-    (lookup.block.anchor ?? lookup.block.label) !==
-    receipt.lookup.provider_locator
-  ) {
-    throw new Error("Provider evidence locator changed in its source snapshot");
-  }
-  if (sha256(lookup.block.text) !== receipt.evidence.block_text_sha256) {
-    throw new Error("Provider evidence text changed in its source snapshot");
-  }
-  if (
-    sha256(JSON.stringify(lookupPayload(lookup))) !==
-    receipt.evidence.payload_sha256
-  ) {
-    throw new Error("Provider evidence no longer matches its source snapshot");
-  }
-  return { document, lookup, receipt };
-}
 
 function asRecord(value: unknown): JsonRecord | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -461,17 +154,13 @@ function trustedUrl(
   if (!value) return null;
   try {
     const url = new URL(value, base);
-    if (
-      url.protocol !== "https:" ||
-      url.username ||
-      url.password ||
-      !hosts.has(url.hostname.toLowerCase())
-    ) {
-      return null;
-    }
-    url.hash = "";
     url.searchParams.delete("api_key");
-    return url.toString();
+    return normalizeRemoteHttpsUrl(url.toString(), {
+      label: "Public legal source URL",
+      allowedHosts: [...hosts],
+      defaultPortOnly: true,
+      allowIpLiterals: false,
+    }).url.toString();
   } catch {
     return null;
   }
@@ -487,11 +176,30 @@ async function responseText(url: string, accept: string, init?: RequestInit) {
     version: 1,
     ttlMs: 7 * 24 * 60 * 60 * 1_000,
     produce: async () => {
-      const response = await fetch(url, {
-        ...init,
-        headers: { Accept: accept, ...(init?.headers ?? {}) },
-        signal: init?.signal ?? AbortSignal.timeout(TIMEOUT_MS),
-      });
+      const response = await guardedRemoteFetch(
+        url,
+        {
+          ...init,
+          headers: { Accept: accept, ...(init?.headers ?? {}) },
+        },
+        {
+          label: "Public legal source request",
+          allowedHosts: ["caselaw.nationalarchives.gov.uk"],
+          defaultPortOnly: true,
+          allowIpLiterals: false,
+          timeoutMs: TIMEOUT_MS,
+          response: {
+            label: "Public legal source response",
+            maxBytes: 64 * 1024 * 1024,
+            contentTypes: [
+              "application/atom+xml",
+              "application/akn+xml",
+              "application/xml",
+              "text/xml",
+            ],
+          },
+        },
+      );
       if (!response.ok) {
         throw new Error(
           `Public legal source request failed (${response.status})`,
@@ -514,11 +222,25 @@ async function responseJson(
     version: 1,
     ttlMs: 24 * 60 * 60 * 1_000,
     produce: async () => {
-      const response = await fetch(url, {
-        ...init,
-        headers: { Accept: "application/json", ...(init?.headers ?? {}) },
-        signal: init?.signal ?? AbortSignal.timeout(TIMEOUT_MS),
-      });
+      const response = await guardedRemoteFetch(
+        url,
+        {
+          ...init,
+          headers: { Accept: "application/json", ...(init?.headers ?? {}) },
+        },
+        {
+          label: "Public legal source request",
+          allowedHosts: ["www.gov.uk", "api.govinfo.gov"],
+          defaultPortOnly: true,
+          allowIpLiterals: false,
+          timeoutMs: TIMEOUT_MS,
+          response: {
+            label: "Public legal source response",
+            maxBytes: 32 * 1024 * 1024,
+            contentTypes: ["application/json", "application/*+json"],
+          },
+        },
+      );
       if (!response.ok) {
         throw new Error(
           `Public legal source request failed (${response.status})`,
@@ -540,8 +262,9 @@ function tnaCourt(citation: string) {
   return court?.replace(/\s+/gu, "/").toLowerCase() ?? "";
 }
 
-export async function searchTnaCase(
+async function searchTnaCase(
   verbatim: string,
+  signal?: AbortSignal,
 ): Promise<TnaCaseSearchResult | null> {
   const citation = tnaCitation(verbatim);
   if (!citation) return null;
@@ -553,6 +276,7 @@ export async function searchTnaCase(
   const xml = await responseText(
     `${TNA_ORIGIN}/atom.xml?${query}`,
     "application/atom+xml, application/xml",
+    { signal },
   );
   const root = asRecord(xmlParser.parse(xml));
   const feed = asRecord(root?.feed) ?? root;
@@ -604,8 +328,9 @@ export async function searchTnaCase(
   return matches.size === 1 ? [...matches.values()][0] : null;
 }
 
-export async function fetchTnaCase(
+async function fetchTnaCase(
   result: TnaCaseSearchResult,
+  signal?: AbortSignal,
 ): Promise<PublicLegalDocument> {
   const xmlUrl = trustedUrl(
     result.xmlUrl,
@@ -621,6 +346,7 @@ export async function fetchTnaCase(
   const xml = await responseText(
     xmlUrl,
     "application/akn+xml, application/xml, text/xml",
+    { signal },
   );
   const structure = compileNativeMarkupSourceDoc({
     provider: "tna",
@@ -636,16 +362,10 @@ export async function fetchTnaCase(
     identity: result.citation,
     title: result.title,
     url,
-    text: structure.text,
     structure,
     attachments: [],
     citedAuthorities: nativeMarkupCitedRefs(xml),
-    sourceVersion: {
-      format: "tna-akn-xml",
-      url: xmlUrl,
-      sha256: sourceSha256,
-      body: xml,
-    },
+    sourceSha256,
   };
 }
 
@@ -658,8 +378,9 @@ function etCaseNumber(verbatim: string) {
   return matches.size === 1 ? [...matches][0] : "";
 }
 
-export async function searchGovUkEtCase(
+async function searchGovUkEtCase(
   verbatim: string,
+  signal?: AbortSignal,
 ): Promise<GovUkEtSearchResult | null> {
   const caseNumber = etCaseNumber(verbatim);
   if (!caseNumber) return null;
@@ -668,7 +389,9 @@ export async function searchGovUkEtCase(
     filter_format: "employment_tribunal_decision",
     count: "50",
   });
-  const body = await responseJson(`${GOVUK_ORIGIN}/api/search.json?${query}`);
+  const body = await responseJson(`${GOVUK_ORIGIN}/api/search.json?${query}`, {
+    signal,
+  });
   const matches = new Map<string, GovUkEtSearchResult>();
   for (const value of asArray(body.results)) {
     const item = asRecord(value);
@@ -759,8 +482,9 @@ function govUkAttachments(value: unknown): PublicLegalAttachment[] {
   });
 }
 
-export async function fetchGovUkEtCase(
+async function fetchGovUkEtCase(
   result: GovUkEtSearchResult,
+  signal?: AbortSignal,
 ): Promise<PublicLegalDocument> {
   const publicUrl = trustedUrl(
     result.url,
@@ -772,7 +496,9 @@ export async function fetchGovUkEtCase(
   if (!path.startsWith("/employment-tribunal-decisions/")) {
     throw new Error("Invalid GOV.UK Employment Tribunal path");
   }
-  const body = await responseJson(`${GOVUK_ORIGIN}/api/content${path}`);
+  const body = await responseJson(`${GOVUK_ORIGIN}/api/content${path}`, {
+    signal,
+  });
   const details = asRecord(body.details) ?? {};
   const title = asString(body.title) ?? result.title;
   const description = asString(body.description);
@@ -806,7 +532,6 @@ export async function fetchGovUkEtCase(
     identity: result.caseNumber,
     title,
     url: publicUrl,
-    text: structure.text,
     structure,
     attachments: govUkAttachments(details.attachments),
   };
@@ -823,8 +548,9 @@ function govInfoApiKey() {
   return process.env.GOVINFO_API_KEY?.trim() || "DEMO_KEY";
 }
 
-export async function searchGovInfoCase(
+async function searchGovInfoCase(
   verbatim: string,
+  signal?: AbortSignal,
 ): Promise<GovInfoCaseSearchResult | null> {
   const docket = govInfoDocket(verbatim);
   if (!docket) return null;
@@ -839,6 +565,7 @@ export async function searchGovInfoCase(
         offsetMark: "*",
         sorts: [{ field: "score", sortOrder: "DESC" }],
       }),
+      signal,
     },
   );
   const expected = docket.replace(":", "_").toLowerCase();
@@ -886,14 +613,16 @@ function govInfoPdf(summary: JsonRecord): PublicLegalAttachment[] {
   ];
 }
 
-export async function fetchGovInfoCase(
+async function fetchGovInfoCase(
   result: GovInfoCaseSearchResult,
+  signal?: AbortSignal,
 ): Promise<PublicLegalDocument> {
   if (!GOVINFO_PACKAGE.test(result.packageId)) {
     throw new Error("Invalid GovInfo package ID");
   }
   const body = await responseJson(
     `${GOVINFO_API}/packages/${encodeURIComponent(result.packageId)}/summary?api_key=${encodeURIComponent(govInfoApiKey())}`,
+    { signal },
   );
   const title = asString(body.title) ?? result.title;
   const text = [
@@ -917,13 +646,12 @@ export async function fetchGovInfoCase(
     identity: result.packageId,
     title,
     url: `${GOVINFO_WEB}/app/details/${result.packageId}`,
-    text,
     structure,
     attachments: govInfoPdf(body),
   };
 }
 
-export function lookupPublicLegalSource(
+function lookupPublicLegalSource(
   document: PublicLegalDocument,
   kind: SourceDocLocatorKind,
   locator: string,
@@ -942,3 +670,243 @@ export function lookupPublicLegalSource(
     anchor: lookup.block?.anchor ?? null,
   };
 }
+
+type PublicProviderId = "tna" | "govuk-et" | "govinfo";
+
+function publicReference(input: {
+  provider: PublicProviderId;
+  id: string;
+  citation: string;
+  title: string | null;
+  url: string;
+}) {
+  return {
+    provider: input.provider,
+    family: "public",
+    id: input.id,
+    kind: "case",
+    title: input.title,
+    citation: input.citation,
+    url: input.url,
+  } satisfies LegalSourceReference;
+}
+
+async function resolveTnaReference(text: string, signal?: AbortSignal) {
+  const result = await searchTnaCase(text, signal);
+  if (!result) return null;
+  return {
+    source: publicReference({
+        provider: "tna",
+        id: result.citation,
+        citation: result.citation,
+        title: result.title,
+        url: result.url,
+    }),
+    document: await fetchTnaCase(result, signal),
+  };
+}
+
+async function resolveGovUkReference(text: string, signal?: AbortSignal) {
+  const result = await searchGovUkEtCase(text, signal);
+  if (!result) return null;
+  return {
+    source: publicReference({
+        provider: "govuk-et",
+        id: result.caseNumber,
+        citation: result.caseNumber,
+        title: result.title,
+        url: result.url,
+    }),
+    document: await fetchGovUkEtCase(result, signal),
+  };
+}
+
+async function resolveGovInfoReference(text: string, signal?: AbortSignal) {
+  const result = await searchGovInfoCase(text, signal);
+  if (!result) return null;
+  return {
+    source: publicReference({
+        provider: "govinfo",
+        id: result.packageId,
+        citation: result.docket,
+        title: result.title,
+        url: result.url,
+    }),
+    document: await fetchGovInfoCase(result, signal),
+  };
+}
+
+async function fetchPublicReference(
+  source: LegalSourceReference,
+  signal?: AbortSignal,
+) {
+  if (source.provider === "tna") {
+    const result = await searchTnaCase(source.citation || source.id, signal);
+    return result ? fetchTnaCase(result, signal) : null;
+  }
+  if (source.provider === "govuk-et") {
+    const result = await searchGovUkEtCase(
+      source.citation || source.id,
+      signal,
+    );
+    return result ? fetchGovUkEtCase(result, signal) : null;
+  }
+  if (source.provider === "govinfo") {
+    return fetchGovInfoCase(
+      {
+        provider: "govinfo",
+        docket: source.citation || source.id,
+        packageId: source.id,
+        title: source.title ?? null,
+        url: source.url ?? `${GOVINFO_WEB}/app/details/${source.id}`,
+      },
+      signal,
+    );
+  }
+  return null;
+}
+
+function providerCanResolve(
+  provider: PublicProviderId,
+  request: LegalSourceResolveRequest,
+) {
+  if (request.kind !== "case") return false;
+  if (provider === "tna") return Boolean(tnaCitation(request.text));
+  if (provider === "govuk-et") return Boolean(etCaseNumber(request.text));
+  return Boolean(govInfoDocket(request.text));
+}
+
+function createPublicLegalSourceProvider(
+  provider: PublicProviderId,
+  resolveReference: (
+    text: string,
+    signal?: AbortSignal,
+  ) => Promise<{
+    source: LegalSourceReference;
+    document: PublicLegalDocument;
+  } | null>,
+): LegalSourceProvider<
+  SourceDoc | string,
+  {
+    document: PublicLegalDocument;
+    lookup?: PublicLegalLookup;
+  }
+> {
+  const documents = new Map<string, PublicLegalDocument>();
+  return {
+    id: provider,
+    canResolve: (request) => providerCanResolve(provider, request),
+    async resolve(request) {
+      const resolved = await resolveReference(request.text, request.signal);
+      if (!resolved) return [];
+      documents.set(resolved.source.id, resolved.document);
+      if (documents.size > 16) documents.delete(documents.keys().next().value!);
+      return [resolved.source];
+    },
+    async readPassage(request) {
+      const document =
+        documents.get(request.source.id) ??
+        (await fetchPublicReference(request.source, request.signal));
+      if (!document || document.provider !== provider) return [];
+      const source = document.structure;
+      const reference = {
+        ...request.source,
+        title: document.title,
+        url: document.url,
+      } satisfies LegalSourceReference;
+      const revision = document.sourceSha256 ?? source.revision;
+      if (!request.locator) {
+        const passage: LegalSourcePassage<
+          SourceDoc,
+          { document: PublicLegalDocument; lookup?: PublicLegalLookup }
+        > = {
+          source: reference,
+          locator: { requested: null, label: "document" },
+          role: "document",
+          text: source.text,
+          textSha256: sha256(source.text),
+          documentSha256: source.revision,
+          revision,
+          blockArtifact: source,
+          documentArtifact: source,
+          native: { document },
+        };
+        return [passage];
+      }
+      const lookup = lookupPublicLegalSource(
+        document,
+        request.locator.kind,
+        request.locator.value,
+        request.contextBlocks ?? 0,
+      );
+      if (lookup.status !== "found" || !lookup.block) return [];
+      const range = request.locator.endValue
+        ? readSourceDocRange(
+            source,
+            request.locator.kind,
+            request.locator.value,
+            request.locator.endValue,
+            request.contextBlocks ?? 0,
+          )
+        : null;
+      if (request.locator.endValue && !range) return [];
+      const visible = range
+        ? [
+            ...range.before.map((block) => ({ block, role: "context" as const })),
+            ...range.selected.map((block) => ({ block, role: "selected" as const })),
+            ...range.after.map((block) => ({ block, role: "context" as const })),
+          ]
+        : [
+            { block: lookup.block, role: "selected" as const },
+            ...lookup.before.map((block) => ({ block, role: "context" as const })),
+            ...lookup.after.map((block) => ({ block, role: "context" as const })),
+          ];
+      return visible.map(({ block, role }) => ({
+        source: reference,
+        locator: {
+          requested: request.locator!,
+          label: block.label,
+          anchor: block.anchor ?? (role === "selected" ? lookup.anchor : null),
+          pageScoped: block.kind === "page",
+        },
+        role,
+        text: block.text,
+        textSha256: sha256(block.text),
+        documentSha256: source.revision,
+        revision,
+        blockArtifact: block.text,
+        documentArtifact: source,
+        native: {
+          document,
+          lookup: {
+            ...lookup,
+            requestedLabel: block.label,
+            matches: [block.label],
+            block,
+            before: [],
+            after: [],
+            anchor: block.anchor ?? null,
+          },
+        },
+      }));
+    },
+  };
+}
+
+const tnaLegalSourceProvider = createPublicLegalSourceProvider(
+  "tna",
+  resolveTnaReference,
+);
+const govUkEtLegalSourceProvider = createPublicLegalSourceProvider(
+  "govuk-et",
+  resolveGovUkReference,
+);
+const govInfoLegalSourceProvider = createPublicLegalSourceProvider(
+  "govinfo",
+  resolveGovInfoReference,
+);
+export const publicLegalSourceProviders = [
+  tnaLegalSourceProvider,
+  govUkEtLegalSourceProvider,
+  govInfoLegalSourceProvider,
+] as const;

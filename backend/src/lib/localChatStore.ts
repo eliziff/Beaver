@@ -1,5 +1,6 @@
 import {
   appendAnonymousAssistantEvent,
+  commitAnonymousChatTurn,
   createAnonymousChat,
   deleteAnonymousChat,
   getAnonymousChat,
@@ -9,6 +10,8 @@ import {
   restoreAnonymousChat,
   updateAnonymousChatProject,
   updateAnonymousChatTitle,
+  AnonymousChatDeletedError,
+  AnonymousChatVersionConflictError,
   type AnonymousChat,
 } from "./anonymousChatStore";
 import {
@@ -94,9 +97,41 @@ export const createLocalChatStore: CreateChatStore = (tabular) => ({
     return getAnonymousChat(scope.userId, chatId)?.messages ?? null;
   },
 
+  async commitTurn(scope, chatId, commit) {
+    const chat = getAnonymousChat(scope.userId, chatId);
+    if (!chat) return { status: "missing" };
+    try {
+      const current = commitAnonymousChatTurn(chat, commit);
+      return {
+        status: "committed",
+        currentVersion: current.transcript_version,
+      };
+    } catch (error) {
+      if (error instanceof AnonymousChatVersionConflictError) {
+        return { status: "conflict", currentVersion: error.currentVersion };
+      }
+      if (error instanceof AnonymousChatDeletedError) {
+        return { status: "missing" };
+      }
+      throw error;
+    }
+  },
+
   async appendAssistantEvent(scope, chatId, messageId, event) {
     const chat = getAnonymousChat(scope.userId, chatId);
-    return chat ? appendAnonymousAssistantEvent(chat, messageId, event) : false;
+    if (!chat) return { status: "missing" };
+    try {
+      if (!appendAnonymousAssistantEvent(chat, messageId, event)) {
+        return { status: "missing" };
+      }
+      return { status: "committed", currentVersion: chat.transcript_version };
+    } catch (error) {
+      if (error instanceof AnonymousChatDeletedError) return { status: "missing" };
+      if (error instanceof AnonymousChatVersionConflictError) {
+        return { status: "conflict", currentVersion: error.currentVersion };
+      }
+      throw error;
+    }
   },
 
   async update(scope, chatId, input) {

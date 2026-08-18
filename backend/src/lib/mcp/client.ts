@@ -1,4 +1,3 @@
-import crypto from "crypto";
 import {
     HEADER_NAME_RE,
     MAX_CUSTOM_HEADER_VALUE_LENGTH,
@@ -14,8 +13,13 @@ import {
     type OAuthTokenRow,
     type ToolCacheRow,
 } from "./types";
-import { guardedRemoteFetch, validateRemoteHttpsUrl } from "../remoteUrlSafety";
+import {
+    boundRemoteResponse,
+    guardedRemoteFetch,
+    validateRemoteHttpsUrl,
+} from "../remoteUrlSafety";
 import { sha256 } from "../hash";
+import { decryptSecret, encryptSecret } from "../secretEncryption";
 
 function encryptionSecret(): string {
     const secret =
@@ -29,9 +33,7 @@ function encryptionSecret(): string {
     return secret;
 }
 
-function encryptionKey(): Buffer {
-    return crypto.scryptSync(encryptionSecret(), "mike-user-mcp-v1", 32);
-}
+const MCP_SECRET_SALT = "mike-user-mcp-v1";
 
 export function mcpOAuthCallbackUrl() {
     const base = (
@@ -47,16 +49,15 @@ function encryptJson(value: Record<string, unknown>): {
     auth_config_iv: string;
     auth_config_tag: string;
 } {
-    const iv = crypto.randomBytes(12);
-    const cipher = crypto.createCipheriv("aes-256-gcm", encryptionKey(), iv);
-    const encrypted = Buffer.concat([
-        cipher.update(JSON.stringify(value), "utf8"),
-        cipher.final(),
-    ]);
+    const encrypted = encryptSecret(
+        JSON.stringify(value),
+        encryptionSecret(),
+        MCP_SECRET_SALT,
+    );
     return {
-        encrypted_auth_config: encrypted.toString("base64"),
-        auth_config_iv: iv.toString("base64"),
-        auth_config_tag: cipher.getAuthTag().toString("base64"),
+        encrypted_auth_config: encrypted.encrypted,
+        auth_config_iv: encrypted.iv,
+        auth_config_tag: encrypted.tag,
     };
 }
 
@@ -65,17 +66,7 @@ export function encryptString(value: string): {
     iv: string;
     tag: string;
 } {
-    const iv = crypto.randomBytes(12);
-    const cipher = crypto.createCipheriv("aes-256-gcm", encryptionKey(), iv);
-    const encrypted = Buffer.concat([
-        cipher.update(value, "utf8"),
-        cipher.final(),
-    ]);
-    return {
-        encrypted: encrypted.toString("base64"),
-        iv: iv.toString("base64"),
-        tag: cipher.getAuthTag().toString("base64"),
-    };
+    return encryptSecret(value, encryptionSecret(), MCP_SECRET_SALT);
 }
 
 export function decryptString(
@@ -85,17 +76,11 @@ export function decryptString(
 ): string | null {
     if (!encrypted || !iv || !tag) return null;
     try {
-        const decipher = crypto.createDecipheriv(
-            "aes-256-gcm",
-            encryptionKey(),
-            Buffer.from(iv, "base64"),
+        return decryptSecret(
+            { encrypted, iv, tag },
+            encryptionSecret(),
+            MCP_SECRET_SALT,
         );
-        decipher.setAuthTag(Buffer.from(tag, "base64"));
-        const decrypted = Buffer.concat([
-            decipher.update(Buffer.from(encrypted, "base64")),
-            decipher.final(),
-        ]);
-        return decrypted.toString("utf8");
     } catch (err) {
         console.error("[mcp-connectors] failed to decrypt string secret", {
             error: err instanceof Error ? err.message : String(err),
@@ -113,17 +98,15 @@ export function decryptAuthConfig(row: ConnectorRow): McpConnectorAuthConfig {
         return {};
     }
     try {
-        const decipher = crypto.createDecipheriv(
-            "aes-256-gcm",
-            encryptionKey(),
-            Buffer.from(row.auth_config_iv, "base64"),
-        );
-        decipher.setAuthTag(Buffer.from(row.auth_config_tag, "base64"));
-        const decrypted = Buffer.concat([
-            decipher.update(Buffer.from(row.encrypted_auth_config, "base64")),
-            decipher.final(),
-        ]);
-        const parsed = JSON.parse(decrypted.toString("utf8"));
+        const parsed = JSON.parse(decryptSecret(
+            {
+                encrypted: row.encrypted_auth_config,
+                iv: row.auth_config_iv,
+                tag: row.auth_config_tag,
+            },
+            encryptionSecret(),
+            MCP_SECRET_SALT,
+        ));
         return parsed && typeof parsed === "object" && !Array.isArray(parsed)
             ? (parsed as McpConnectorAuthConfig)
             : {};
@@ -245,7 +228,7 @@ export function toConnectorSummary(
 }
 
 export async function validateRemoteMcpUrl(rawUrl: string): Promise<string> {
-    return validateRemoteHttpsUrl(rawUrl, "MCP server URL");
+    return validateRemoteHttpsUrl(rawUrl, { label: "MCP server URL" });
 }
 
 export function headersForAuth(config: McpConnectorAuthConfig) {
@@ -318,7 +301,7 @@ export async function guardedFetch(
     input: Parameters<typeof fetch>[0],
     init?: Parameters<typeof fetch>[1],
 ) {
-    return guardedRemoteFetch(input, init, "MCP server URL");
+    return guardedRemoteFetch(input, init, { label: "MCP server URL" });
 }
 
 function limitedBody(
@@ -378,15 +361,11 @@ export async function boundMcpResponse(response: Response) {
             .trim()
             .toLowerCase() === "text/event-stream";
     const limit = isSse ? MAX_MCP_SSE_EVENT_BYTES : MAX_MCP_RESPONSE_BYTES;
-    const declared = response.headers.get("content-length");
-    if (
-        !isSse &&
-        declared !== null &&
-        Number.isFinite(Number(declared)) &&
-        Number(declared) > limit
-    ) {
-        await response.body?.cancel().catch(() => undefined);
-        throw new Error("MCP response exceeds the size limit.");
+    if (!isSse) {
+        return boundRemoteResponse(response, {
+            label: "MCP response",
+            maxBytes: limit,
+        });
     }
     if (!response.body) return response;
     return new Response(limitedBody(response.body, limit, isSse), {

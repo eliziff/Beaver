@@ -7,7 +7,7 @@ import {
   coveredLength,
   mergeIntervals,
   readCoversBody,
-} from "../localAssistantTools";
+} from "../../__tests__/support/localAssistantTools";
 
 describe("mergeIntervals", () => {
   it("merges overlaps and adjacency, drops degenerates, normalizes order", () => {
@@ -71,7 +71,7 @@ describe("readCoversBody", () => {
     ).toBe(false);
   });
 
-  it("falls back to char counts for legacy entries and refuses empty sources", () => {
+  it("uses char counts for non-windowed entries and refuses empty sources", () => {
     expect(readCoversBody({ sourceChars: 100, deliveredChars: 100 })).toBe(true);
     expect(readCoversBody({ sourceChars: 100, deliveredChars: 99 })).toBe(false);
     expect(readCoversBody({ sourceChars: 0, deliveredChars: 0 })).toBe(false);

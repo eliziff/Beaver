@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
-import type { AssistantEvent } from "../shared/types";
+import type { AskInputsEvent as AssistantEvent } from "../shared/types";
 import { AskInputPopup } from "./AskInputPopup";
 
 vi.mock("../modals/AddDocumentsModal", () => ({

@@ -1,54 +1,43 @@
-// compare_docx_versions — the tracked-changes word action over
-// lib/docxCompareVersions.ts. The model receives change counts, typed
-// abstentions, and the id of a saved redline document — never the diff
-// text itself: the redline lives in the Library where the user opens it
-// in Word, and the model reasons over the typed summary.
 import { compareDocxVersions } from "../../docxCompareVersions";
 import type { DocumentScope, DocumentStore } from "../../documentStore";
-import type { OpenAIToolSchema } from "../../llm";
+import type { Tool } from "../../llm";
 
-const tool = (
-  name: string,
-  description: string,
-  parameters: Record<string, unknown>,
-): OpenAIToolSchema => ({
-  type: "function",
-  function: { name, description, parameters },
-});
-
-export const COMPARE_VERSIONS_TOOLS: OpenAIToolSchema[] = [
-  tool(
-    "compare_docx_versions",
-    "Word tracked-changes redline between two versions of a Library DOCX (default: current against the one before), saved as a new Library document. Returns change counts plus typed abstentions for what the diff cannot honestly represent (tables, content controls, headers/footers, fields). The redline document is the deliverable; the diff text is never returned.",
-    {
-      type: "object",
-      properties: {
-        document_id: {
-          type: "string",
-          description: "Filename from Glob, or document_id when Glob reports a duplicate filename.",
-        },
-        old_version_id: {
-          type: "string",
-          description:
-            "Baseline version. Default: the version immediately before new_version_id.",
-        },
-        new_version_id: {
-          type: "string",
-          description: "Version whose text the redline shows. Default: current.",
-        },
+export const COMPARE_VERSIONS_TOOLS: Tool[] = [{
+  name: "compare_versions",
+  description:
+    "Compare two Library DOCX versions in memory (default: current against the prior version). Returns bounded changes and typed abstentions. Set save_redline only when the user asked for a durable Word redline.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      document_id: {
+        type: "string",
+        description:
+          "Filename from Glob, or document_id when Glob reports a duplicate.",
       },
-      required: ["document_id"],
+      old_version_id: {
+        type: "string",
+        description: "Baseline version; defaults to the version before new_version_id.",
+      },
+      new_version_id: {
+        type: "string",
+        description: "Compared version; defaults to current.",
+      },
+      save_redline: {
+        type: "boolean",
+        description:
+          "Persist a durable Word redline. Omit unless the user requested it.",
+      },
     },
-  ),
-];
+    required: ["document_id"],
+    additionalProperties: false,
+  },
+}];
 
 const MAX_REPORTED_ABSTENTIONS = 20;
 const MAX_REPORTED_CHANGES = 12;
+const text = (value: unknown) => typeof value === "string" ? value.trim() : "";
 
-const trimmed = (value: unknown) =>
-  typeof value === "string" ? value.trim() : "";
-
-/** Handles compare_docx_versions; returns null for other tool names. */
+/** Handles compare_versions; returns null for other tool names. */
 export async function executeCompareVersionsTool(
   documents: DocumentStore,
   scope: DocumentScope,
@@ -56,40 +45,32 @@ export async function executeCompareVersionsTool(
   args: Record<string, unknown>,
   projectId?: string | null,
 ): Promise<Record<string, unknown> | null> {
-  if (name !== "compare_docx_versions") return null;
-  const documentId = trimmed(args.document_id);
+  if (name !== "compare_versions") return null;
+  const documentId = text(args.document_id);
   if (!documentId) return { ok: false, error: "document_id is required" };
   const listing = await documents.versions(scope, documentId);
   if (!listing) return { ok: false, error: "Document not found" };
-  const newVersionId = trimmed(args.new_version_id) || listing.current_version_id;
-  let oldVersionId = trimmed(args.old_version_id);
+  const newVersionId = text(args.new_version_id) || listing.current_version_id;
+  let oldVersionId = text(args.old_version_id);
   if (!oldVersionId) {
-    const index = listing.versions.findIndex(
-      (version) => version.id === newVersionId,
-    );
+    const index = listing.versions.findIndex(({ id }) => id === newVersionId);
     if (index < 0) return { ok: false, error: "version_not_found" };
     if (index === 0) {
       return {
         ok: false,
         error: "no_prior_version",
-        detail:
-          "The document has no earlier version; pass old_version_id explicitly.",
+        detail: "The document has no earlier version; pass old_version_id.",
       };
     }
     oldVersionId = listing.versions[index - 1].id;
   }
-  if (oldVersionId === newVersionId) {
-    return { ok: false, error: "same_version" };
-  }
+  if (oldVersionId === newVersionId) return { ok: false, error: "same_version" };
   const [oldFile, newFile] = await Promise.all([
     documents.read(scope, documentId, oldVersionId, false),
     documents.read(scope, documentId, newVersionId, false),
   ]);
   if (!oldFile || !newFile) return { ok: false, error: "version_not_found" };
-  if (
-    oldFile.fileType.toLowerCase() !== "docx" ||
-    newFile.fileType.toLowerCase() !== "docx"
-  ) {
+  if ([oldFile.fileType, newFile.fileType].some((kind) => kind.toLowerCase() !== "docx")) {
     return {
       ok: false,
       error: "docx_only",
@@ -99,19 +80,8 @@ export async function executeCompareVersionsTool(
   const comparison = await compareDocxVersions(oldFile.bytes, newFile.bytes, {
     author: "Beaver compare",
   });
-  const baseName = newFile.filename.replace(/\.docx$/iu, "");
-  const redline = await documents.create(scope, {
-    filename: `${baseName} (redline).docx`,
-    fileType: "docx",
-    bytes: comparison.bytes,
-    projectId,
-    libraryKind: "file",
-    provenance: { schemaVersion: 1, actor: "assistant", action: "created" },
-  });
-  return {
+  const summary: Record<string, unknown> = {
     ok: true,
-    redline_document_id: redline.id,
-    redline_filename: redline.filename,
     old_version_id: oldVersionId,
     new_version_id: newVersionId,
     changes_total: comparison.changes.length,
@@ -121,11 +91,32 @@ export async function executeCompareVersionsTool(
       inserted: change.insertedText.slice(0, 120),
     })),
     abstentions_total: comparison.abstentions.length,
-    abstentions: comparison.abstentions
-      .slice(0, MAX_REPORTED_ABSTENTIONS)
-      .map((abstention) => ({
-        reason: abstention.reason,
-        excerpt: abstention.excerpt.slice(0, 120),
+    abstentions: comparison.abstentions.slice(0, MAX_REPORTED_ABSTENTIONS)
+      .map((item) => ({
+        reason: item.reason,
+        excerpt: item.excerpt.slice(0, 120),
       })),
+  };
+  if (args.save_redline !== true) return summary;
+  const redline = await documents.create(scope, {
+    filename: `${newFile.filename.replace(/\.docx$/iu, "")} (redline).docx`,
+    fileType: "docx",
+    bytes: comparison.bytes,
+    projectId,
+    libraryKind: "file",
+    provenance: { schemaVersion: 1, actor: "assistant", action: "created" },
+  });
+  return {
+    ...summary,
+    receipt: "mike-document:v1",
+    action: "created",
+    document_id: redline.id,
+    version_id: redline.current_version_id,
+    version_number: redline.active_version_number,
+    filename: redline.filename,
+    file_type: redline.file_type,
+    download_url:
+      `/single-documents/${encodeURIComponent(redline.id)}/file` +
+      `?version_id=${encodeURIComponent(redline.current_version_id)}`,
   };
 }

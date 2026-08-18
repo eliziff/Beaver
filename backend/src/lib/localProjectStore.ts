@@ -121,11 +121,10 @@ export const localProjects = {
 
   async delete(scope, projectId) {
     return checked(() => {
-      if (!legalKnowledgeGraphStore().deleteProject(scope.userId, projectId)) {
-        return false;
-      }
-      localTabularStore().deleteProjectReviews(scope.userId, projectId);
+      if (!legalKnowledgeGraphStore().getMatter(scope.userId, projectId)) return false;
       deleteAnonymousProjectChats(scope.userId, projectId);
+      legalKnowledgeGraphStore().deleteProject(scope.userId, projectId);
+      localTabularStore().deleteProjectReviews(scope.userId, projectId);
       return true;
     });
   },

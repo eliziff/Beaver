@@ -16,7 +16,7 @@ import {
   canonicalizeGroups,
   compileGrammarEntry,
   expandGrammarPattern,
-  expandWhitespaceEscapes,
+  expandPortableEscapes,
   runGrammarVectors,
   validateGrammarEntry,
   validateGrammarPattern,
@@ -143,14 +143,14 @@ describe("whitespace expansion reproduces the source's Unicode \\s", () => {
   });
 
   it("expands inside character classes without brackets", () => {
-    const expanded = expandWhitespaceEscapes("\\d[\\d\\s,-]*");
+    const expanded = expandPortableEscapes("\\d[\\d\\s,-]*");
     expect(expanded.startsWith("\\d[\\d \\t")).toBe(true);
     const re = new RegExp(expanded, "g");
     expect("12, 34".match(re)?.[0]).toBe("12, 34");
   });
 
   it("refuses \\S inside a character class", () => {
-    expect(() => expandWhitespaceEscapes("[\\S]")).toThrow(/character class/);
+    expect(() => expandPortableEscapes("[\\S]")).toThrow(/character class/);
   });
 });
 
@@ -188,9 +188,9 @@ describe("word expansion reproduces the source's Unicode \\w and \\b", () => {
   });
 
   it("refuses \\W and \\B inside a character class, keeps \\b as backspace there", () => {
-    expect(() => expandWhitespaceEscapes("[\\W]")).toThrow(/character class/);
-    expect(() => expandWhitespaceEscapes("[\\B]")).toThrow(/character class/);
-    expect(expandWhitespaceEscapes("[\\b]")).toBe("[\\b]");
+    expect(() => expandPortableEscapes("[\\W]")).toThrow(/character class/);
+    expect(() => expandPortableEscapes("[\\B]")).toThrow(/character class/);
+    expect(expandPortableEscapes("[\\b]")).toBe("[\\b]");
   });
 });
 

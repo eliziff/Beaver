@@ -1,5 +1,3 @@
-import type { NormalizedToolResult } from "../llm";
-
 function isLegalSourceTool(name: string) {
   return name === "search_sources" ||
     name === "note_up" ||
@@ -21,15 +19,7 @@ function withoutUrls(value: unknown): unknown {
 /** Provider URLs stay in host evidence state; models receive source identity and text only. */
 export function hideLegalSourceUrls(
   toolName: string,
-  result: NormalizedToolResult,
-): NormalizedToolResult {
-  if (!isLegalSourceTool(toolName)) return result;
-  try {
-    return {
-      ...result,
-      content: JSON.stringify(withoutUrls(JSON.parse(result.content))),
-    };
-  } catch {
-    return result;
-  }
+  value: unknown,
+) {
+  return isLegalSourceTool(toolName) ? withoutUrls(value) : value;
 }

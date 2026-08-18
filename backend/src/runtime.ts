@@ -1,5 +1,6 @@
 import type { Router } from "express";
 import type { ChatStore } from "./lib/chatStore";
+import type { ChatApplication } from "./lib/chat/chatApplication";
 import type { DocumentStore } from "./lib/documentStore";
 import type { LibraryStore } from "./lib/libraryStore";
 import { isAnonymousLocalMode } from "./lib/localMode";
@@ -26,11 +27,33 @@ const chats = lazy<ChatStore>(async () => local
 const projects = lazy<ProjectStore>(() => local
   ? import("./lib/localProjectStore").then(({ localProjects }) => localProjects)
   : import("./lib/cloudProjectStore").then(({ cloudProjects }) => cloudProjects));
+const chat = lazy<ChatApplication>(async () => {
+  const [{ createChatApplication }, features, chatStore, documentStore,
+    libraryStore, projectStore, tabularStore] =
+    await Promise.all([
+      import("./lib/chat/chatApplication"),
+      local
+        ? import("./lib/chat/localChatApplicationFeatures")
+          .then(({ localChatApplicationFeatures }) => localChatApplicationFeatures)
+        : import("./lib/chat/cloudChatApplicationFeatures")
+          .then(({ cloudChatApplicationFeatures }) => cloudChatApplicationFeatures),
+      chats(), documents(), library(), projects(), tabular(),
+    ]);
+  return createChatApplication({
+    chats: chatStore,
+    documents: documentStore,
+    library: libraryStore,
+    projects: projectStore,
+    tabular: tabularStore,
+    features,
+  });
+});
 const extension = (path: "./routes/localDocuments" | "./routes/localLibraryExtensions") =>
   local ? import(path) : Promise.resolve(null);
 
 export const runtime = {
   mode: local ? "anonymous-local" as const : "cloud" as const,
+  chat,
   chats,
   documents,
   library,

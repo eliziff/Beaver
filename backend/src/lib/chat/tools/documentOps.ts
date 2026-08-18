@@ -1,12 +1,5 @@
 import { docxToPdf } from "../../convert";
-import {
-  applyTrackedEdits,
-  extractDocxBodyText,
-  finalizeTrackedEdits,
-  type EditMode,
-  type EditInput,
-} from "../../docxTrackedChanges";
-import { type EditAnnotation } from "../types";
+import { extractDocxBodyText } from "../../docxTrackedChanges";
 import {
   isPresentationDocumentType,
   isSpreadsheetDocumentType,
@@ -16,19 +9,12 @@ import { extractPresentationText } from "../../officeText";
 import { spreadsheetToLLMText } from "../../spreadsheet";
 import { isPlainTextDocumentType } from "../../documentTypes";
 import { extractEmailText } from "../../emailText";
-import { cachedParse } from "../../parseCache";
-import { docxPathologyReportFor } from "./docxPathologyNotes";
 import {
   normalizeDocxControlTag,
   renderDocxMarkdown,
   type RenderDocxMarkdownOptions,
 } from "./docxMarkdown";
 import { extractLegalPdfText } from "../../legalPdfSourceDoc";
-import type {
-  AssistantEdit,
-  DocumentScope,
-  DocumentStore,
-} from "../../documentStore";
 
 export function citationReminder(docLabel: string, filename: string): string {
   return [
@@ -48,9 +34,6 @@ export async function extractPdfText(buf: ArrayBuffer): Promise<string> {
 
 const toArrayBuffer = (b: Buffer): ArrayBuffer =>
   b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer;
-
-const mammothRawText = async (bytes: Buffer) =>
-  (await (await import("mammoth")).extractRawText({ buffer: bytes })).value;
 
 /**
  * Per-format text parser identity for the content-addressed parse cache.
@@ -143,7 +126,7 @@ export function textParserFor(fileType: string): {
     return {
       parser: "office-pdf-text",
       version: 2,
-      // Legacy Office formats go through a PDF detour for text extraction.
+      // Older Office formats go through a PDF detour for text extraction.
       run: async (b) => extractPdfText(toArrayBuffer(await docxToPdf(b))),
     };
   return null;
@@ -289,6 +272,64 @@ function normalizeRows(rows: unknown, colCount: number) {
         row[i] == null ? "" : String(row[i]),
       ),
     );
+}
+
+export function workbookFromMarkdown(markdown: string) {
+  const sheets: Array<{ name: string; columns: string[]; rows: string[][] }> = [];
+  let name = "Sheet 1";
+  let table: string[][] = [];
+  const flush = () => {
+    if (table.length) {
+      sheets.push({ name, columns: table[0], rows: table.slice(1) });
+      table = [];
+    }
+  };
+  for (const line of markdown.split(/\r?\n/u)) {
+    const heading = /^##\s+(.+)$/u.exec(line);
+    if (heading) {
+      flush();
+      name = heading[1].trim();
+      continue;
+    }
+    if (!/^\s*\|.*\|\s*$/u.test(line)) continue;
+    const cells = line.trim().slice(1, -1).split("|").map((cell) => cell.trim());
+    if (cells.every((cell) => /^:?-{3,}:?$/u.test(cell))) continue;
+    table.push(cells);
+  }
+  flush();
+  if (!sheets.length) throw new Error("XLSX content requires at least one pipe table.");
+  return sheets;
+}
+
+export function presentationFromMarkdown(markdown: string) {
+  const slides: Array<{ title: string; bullets: string[] }> = [];
+  let slide: { title: string; bullets: string[] } | null = null;
+  let notes = false;
+  const flush = () => {
+    if (slide) slides.push(slide);
+  };
+  for (const line of markdown.split(/\r?\n/u)) {
+    if (/^```notes\s*$/iu.test(line)) {
+      notes = true;
+      continue;
+    }
+    if (notes) {
+      if (/^```\s*$/u.test(line)) notes = false;
+      continue;
+    }
+    const heading = /^##\s+(.+)$/u.exec(line);
+    if (heading) {
+      flush();
+      slide = { title: heading[1].trim(), bullets: [] };
+      continue;
+    }
+    if (!slide) continue;
+    const bullet = /^\s*(?:[-*+] |\d+[.)]\s+)(.+)$/u.exec(line);
+    if (bullet) slide.bullets.push(bullet[1].trim());
+  }
+  flush();
+  if (!slides.length) throw new Error("PPTX content requires at least one ## slide heading.");
+  return slides;
 }
 
 export async function renderXlsxWorkbook(
@@ -520,157 +561,6 @@ ${slides
   }
 
   return zip.generateAsync({ type: "nodebuffer" });
-}
-
-export async function runEditDocument(params: {
-  documents: DocumentStore;
-  scope: DocumentScope;
-  documentId: string;
-  edits: EditInput[];
-  editMode?: EditMode;
-  annotate?: boolean;
-  /**
-   * If provided, append these edits to the existing turn-scoped version
-   * (overwrites the file at storagePath and reuses the document_versions
-   * row) instead of creating a new version. Used to collapse multiple
-   * edit_document tool calls within a single assistant turn into one
-   * version.
-   */
-  reuseVersion?: {
-    versionId: string;
-    versionNumber?: number;
-    storagePath?: string;
-    parentVersionId: string;
-  };
-}): Promise<
-  | {
-      ok: true;
-      version_id: string;
-      version_number: number;
-      storage_path: string;
-      download_url: string;
-      edit_mode: EditMode;
-      annotations: EditAnnotation[];
-      errors: { index: number; reason: string }[];
-      comment_count: number;
-    }
-  | { ok: false; error: string }
-> {
-  const {
-    documents,
-    scope,
-    documentId,
-    edits,
-    reuseVersion,
-    editMode = "manual",
-    annotate = false,
-  } = params;
-  const current = await documents.read(
-    scope,
-    documentId,
-    reuseVersion?.versionId ?? null,
-    false,
-  );
-  if (!current) return { ok: false, error: "Could not load document bytes." };
-  if (current.fileType !== "docx") {
-    return { ok: false, error: "Edit only supports .docx files." };
-  }
-
-  const applied = await applyTrackedEdits(current.bytes, edits, {
-    author: "Beaver",
-    annotate,
-  });
-  const { changes, errors } = applied;
-
-  if (changes.length === 0) {
-    // Every diagnosis, not just the first: the matcher explains each miss in
-    // the document's own words, so one round trip can fix the whole call.
-    return {
-      ok: false,
-      error: errors.length
-        ? errors.map((e) => `edit ${e.index + 1}: ${e.reason}`).join("\n\n")
-        : "No edits could be applied. Refine context_before/context_after and retry.",
-    };
-  }
-
-  const finalized = await finalizeTrackedEdits(
-    applied.bytes,
-    changes.flatMap((change) =>
-      [change.delId, change.insId].filter((id): id is string => !!id),
-    ),
-    editMode,
-  );
-  {
-    // Inherit the filename from the most recent prior version so
-    // user-applied renames carry forward through further edits. Malformed
-    // legacy rows without a filename get a neutral placeholder, not the
-    // parent document filename. We intentionally do NOT append "[Edited Vn]"
-    // — the version number is surfaced separately as a tag in the UI.
-  }
-
-  const stored = await documents.commitAssistantVersion(scope, documentId, {
-    sourceVersionId: current.version.id,
-    ...(reuseVersion ? { turnVersionId: reuseVersion.versionId } : {}),
-    parentVersionId: reuseVersion?.parentVersionId ?? current.version.id,
-    filename: current.version.filename ?? current.filename,
-    bytes: finalized.bytes,
-    edits: changes.map((change): AssistantEdit => ({
-      changeId: change.id,
-      delWId: change.delId,
-      insWId: change.insId,
-      deletedText: change.deletedText,
-      insertedText: change.insertedText,
-      contextBefore: change.contextBefore ?? "",
-      contextAfter: change.contextAfter ?? "",
-      reason: change.reason,
-      diff: change.diff,
-    })),
-    status: finalized.status,
-  });
-  if (stored.status !== "committed") {
-    return {
-      ok: false,
-      error: stored.status === "missing"
-        ? "Document not found."
-        : "The active document version changed.",
-    };
-  }
-  const version = stored.version;
-  const versionNumber = version.version_number ?? reuseVersion?.versionNumber;
-  if (!versionNumber) {
-    return { ok: false, error: "The saved version has no version number." };
-  }
-  const annotations: EditAnnotation[] = stored.edits.map((edit) => ({
-    kind: "edit",
-    edit_id: edit.id,
-    document_id: documentId,
-    version_id: version.id,
-    version_number: versionNumber,
-    change_id: edit.changeId,
-    del_w_id: edit.delWId,
-    ins_w_id: edit.insWId,
-    deleted_text: edit.deletedText,
-    inserted_text: edit.insertedText,
-    context_before: edit.contextBefore,
-    context_after: edit.contextAfter,
-    reason: edit.reason,
-    diff: edit.diff,
-    status: edit.status,
-  }));
-
-  return {
-    ok: true,
-    version_id: version.id,
-    version_number: versionNumber,
-    storage_path: version.storage_path ?? reuseVersion?.storagePath ?? "",
-    download_url:
-      `/single-documents/${encodeURIComponent(documentId)}/file` +
-      `?version_id=${encodeURIComponent(version.id)}`,
-    edit_mode: editMode,
-    annotations,
-    errors,
-    comment_count: applied.comments,
-  };
 }
 
 /**

@@ -155,271 +155,87 @@ export type AutomationRunEvent = {
   version_id?: string;
   version_number?: number | null;
 };
-type Streamable<T> = T & { isStreaming?: boolean };
-export type AssistantEvent =
-  | Streamable<{ type: "reasoning"; text: string; debug?: boolean }>
-  | { type: "error"; message: string }
-  | { type: "turn_status"; status: "cancelled" | "interrupted" }
-  | Streamable<{
-      type: "tool_call_start";
-      name: string;
-      label?: string;
-      id?: string;
-      input?: Record<string, unknown>;
-    }>
-  | Streamable<{
-      type: "mcp_tool_call";
-      connector_id: string;
-      connector_name: string;
-      tool_name: string;
-      openai_tool_name: string;
-      status: "ok" | "error";
-      error?: string;
-    }>
-  | {
-      type: "ask_inputs";
-      items: (
-        | {
-            id: string;
-            kind: "choice";
-            question: string;
-            options: {
-              value: string;
-            }[];
-            allow_other: boolean;
-            other_label: string;
-            response_prefix?: string;
-          }
-        | {
-            id: string;
-            kind: "documents";
-            document_types: string[];
-            response_prefix?: string;
-          }
-      )[];
-    }
-  | {
-      type: "ask_inputs_response";
-      responses: (
-        | {
-            id: string;
-            kind: "choice";
-            question: string;
-            answer?: string;
-            skipped?: boolean;
-          }
-        | {
-            id: string;
-            kind: "documents";
-            filenames: string[];
-            documents?: { document_id: string; filename: string }[];
-            skipped?: boolean;
-          }
-      )[];
-    }
-  | Streamable<{ type: "thinking" }>
-  | Streamable<{
-      type: "doc_read";
-      filename: string;
-      document_id?: string;
-    }>
-  | Streamable<{
-      type: "doc_find";
-      filename: string;
-      query: string;
-      total_matches: number;
-    }>
-  | Streamable<{
-      type: "doc_created";
-      filename: string;
-      download_url: string;
-      document_id?: string;
-      version_id?: string;
-      version_number?: number | null;
-    }>
-  | { type: "doc_download"; filename: string; download_url: string }
-  | { type: "workflow_applied"; workflow_id: string; title: string }
-  | Streamable<{
-      type: "doc_edited";
-      filename: string;
-      document_id: string;
-      version_id: string;
-      version_number?: number | null;
-      download_url: string;
-      edit_mode: "manual" | "auto";
-      annotations: EditAnnotation[];
-      error?: string;
-    }>
-  | Streamable<{
-      type: "courtlistener_search_case_law";
-      query: string;
-      result_count?: number;
-      error?: string;
-    }>
-  | Streamable<{
-      type: "courtlistener_get_cases";
-      cluster_ids: number[];
-      case_count?: number;
-      opinion_count?: number;
-      cases?: {
-        cluster_id: number;
-        case_name: string | null;
-        citation: string | null;
-        dateFiled?: string | null;
-        url?: string | null;
-      }[];
-      error?: string;
-    }>
-  | Streamable<{
-      type: "courtlistener_find_in_case";
-      cluster_id: number | null;
-      query: string;
-      total_matches?: number;
-      case_name?: string | null;
-      citation?: string | null;
-      searches?: {
-        cluster_id: number | null;
-        query: string;
-        total_matches?: number;
-        case_name?: string | null;
-        citation?: string | null;
-        error?: string;
-      }[];
-      error?: string;
-    }>
-  | Streamable<{
-      type: "courtlistener_read_case";
-      cluster_id: number | null;
-      case_name?: string | null;
-      citation?: string | null;
-      opinion_count?: number;
-      error?: string;
-    }>
-  | Streamable<{
-      type: "courtlistener_verify_citations";
-      citation_count?: number;
-      match_count?: number;
-      error?: string;
-    }>
-  | {
-      type: "case_citation";
-      cluster_id: number | null;
-      case_name: string | null;
-      citation: string | null;
-      url: string;
-      pdfUrl?: string | null;
-      dateFiled?: string | null;
-      case?: Extract<AssistantEvent, { type: "case_opinions" }>["case"];
-    }
-  | {
-      type: "case_opinions";
-      cluster_id: number;
-      case: {
-        id: number | null;
-        caseName?: string | null;
-        dateFiled?: string | null;
-        citations?: string[];
-        url?: string | null;
-        pdfUrl?: string | null;
-        opinions: {
-          opinionId: number | null;
-          apiUrl?: string | null;
-          type: string | null;
-          author: string | null;
-          url: string | null;
-          text?: string | null;
-          html?: string | null;
-        }[];
-      };
-    }
-  | Streamable<{
-      type: "legal_evidence_receipt";
-      schema_version: 4 | 5 | 6;
-      mode:
-        | "citation_structure"
-        | "compose_check"
-        | "evidence_first"
-        | "holistic_check"
-        | "tiered_check"
-        | null;
-      status: "passed" | "failed";
-      verification: {
-        reference: "verified";
-        answerability: "sufficient" | "insufficient" | "not_run";
-        holistic:
-          | "supported"
-          | "partially_supported"
-          | "unsupported"
-          | "not_run";
-        semantic: "model_checked" | "failed" | "not_run";
-        coverage: "complete" | "incomplete" | "not_run";
-        authority: "not_run";
-      };
-      claims: {
-        text: string;
-        evidence_ids: string[];
-        text_sha256: string;
-        context_status: "preserved" | "changed" | "ambiguous" | "not_run";
-        evidence_status:
-          | "supported"
-          | "contradicted"
-          | "insufficient"
-          | "not_run";
-      }[];
-      evidence: unknown[];
-      failure: string | null;
-    }>
-  | AutomationRunEvent
-  | Streamable<{
-      type: "subagent_run";
-      id: string;
-      agent: "scout" | "planner" | "reviewer" | "native";
-      task: string;
-      model: string;
-      effort: string;
-      status: "running" | "completed" | "error" | "cancelled" | "interrupted";
-      output?: string;
-      error?: string;
-      activities?: Array<{
+export type ToolActivitySource = {
+  provider: string;
+  jurisdiction: string;
+  citation: string;
+  name: string | null;
+  dataset: string;
+  url: string | null;
+  clusterId?: number;
+  locator?: string;
+  quote?: string;
+};
+export type AskInputsEvent = {
+  type: "ask_inputs";
+  items: (
+    | {
         id: string;
-        label: string;
-        status: "running" | "completed" | "error" | "cancelled" | "interrupted";
-        tool?: string;
-        input?: Record<string, unknown>;
-        paragraphs?: string[];
-        source?: {
-          provider: string;
-          jurisdiction: string;
-          citation: string;
-          name: string | null;
-          dataset: string;
-          url: string | null;
-          clusterId?: number;
-          locator?: string;
-          quote?: string;
-        };
-      }>;
-      reasoning?: string[];
-      sources?: Array<{
-        provider: string;
-        jurisdiction: string;
-        citation: string;
-        name: string | null;
-        dataset: string;
-        url: string | null;
-        clusterId?: number;
-        locator?: string;
-        quote?: string;
-      }>;
-      grounding?: {
-        status: "passed" | "failed";
-        evidence: unknown[];
-      };
-    }>
-  | Streamable<{ type: "content"; text: string }>
-  | { type: "steering"; id: string; text: string }
-  | { type: "context_usage"; used_tokens: number; window_tokens: number }
-  | { type: "compaction"; status: "running" | "completed" | "failed" };
+        kind: "choice";
+        question: string;
+        options: { value: string }[];
+        allow_other: boolean;
+        other_label: string;
+        response_prefix?: string;
+      }
+    | {
+        id: string;
+        kind: "documents";
+        document_types: string[];
+        response_prefix?: string;
+      }
+  )[];
+};
+export type AskInputsResponseEvent = {
+  type: "ask_inputs_response";
+  responses: (
+    | {
+        id: string;
+        kind: "choice";
+        question: string;
+        answer?: string;
+        skipped?: boolean;
+      }
+    | {
+        id: string;
+        kind: "documents";
+        filenames: string[];
+        documents?: { document_id: string; filename: string }[];
+        skipped?: boolean;
+      }
+  )[];
+};
+export type CaseOpinionsEvent = {
+  type: "case_opinions";
+  cluster_id: number;
+  case: {
+    id: number | null;
+    caseName?: string | null;
+    dateFiled?: string | null;
+    citations?: string[];
+    url?: string | null;
+    pdfUrl?: string | null;
+    opinions: {
+      opinionId: number | null;
+      apiUrl?: string | null;
+      type: string | null;
+      author: string | null;
+      url: string | null;
+      text?: string | null;
+      html?: string | null;
+    }[];
+  };
+};
+export type CaseCitationEvent = {
+  type: "case_citation";
+  cluster_id: number | null;
+  case_name: string | null;
+  citation: string | null;
+  url: string;
+  pdfUrl?: string | null;
+  dateFiled?: string | null;
+  case?: CaseOpinionsEvent["case"];
+};
 export type CaseCitationQuote = {
   opinionId: number | null;
   type: string | null;
@@ -437,7 +253,7 @@ export interface Message {
   editMode?: "manual" | "auto";
   citations?: Citation[];
   citationStatus?: "started" | "partial" | "final";
-  events?: AssistantEvent[];
+  events?: unknown[];
   error?: string;
   turnId?: string;
   turnStatus?: "cancelled" | "interrupted";
@@ -457,6 +273,9 @@ type CitationDisplay = {
   display_form?: "full" | "pinpoint" | "supra";
   source_class?: "case" | "legislation" | "commentary";
   external_url?: string | null;
+  authority?: string;
+  short_authority?: string;
+  locator_separator?: " at " | ", ";
 };
 export type DocumentCitation = CitationDisplay & {
   type: "citation_data";
@@ -585,7 +404,7 @@ export function formatCitationPage(a: Citation): string {
   if (a.kind === "public_legal") {
     return a.title || a.identifier || "Public legal source";
   }
-  if (a.kind === "tabular") return `${a.col_name} · ${a.doc_name}`;
+  if (a.kind === "tabular") return `${a.col_name} Â· ${a.doc_name}`;
   const quotes = getDocumentCitationQuotes(a);
   if (isSpreadsheetFilename(a.filename)) {
     const cells = Array.from(

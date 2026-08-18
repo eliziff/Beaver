@@ -1,4 +1,4 @@
-import type { OpenAIToolSchema } from "./types";
+import type { Tool } from "./types";
 
 export type ClaudeTool = {
     name: string;
@@ -6,11 +6,30 @@ export type ClaudeTool = {
     input_schema: Record<string, unknown>;
 };
 
-export function toClaudeTools(tools: OpenAIToolSchema[]): ClaudeTool[] {
+export type OpenAIChatTool = {
+    type: "function";
+    function: {
+        name: string;
+        description: string;
+        parameters: Record<string, unknown>;
+    };
+};
+
+export const toOpenAIChatTools = (tools: Tool[]): OpenAIChatTool[] =>
+    tools.map(({ name, description, inputSchema }) => ({
+        type: "function",
+        function: {
+            name,
+            description: description ?? "",
+            parameters: inputSchema,
+        },
+    }));
+
+export function toClaudeTools(tools: Tool[]): ClaudeTool[] {
     return tools.map((t) => ({
-        name: t.function.name,
-        description: t.function.description,
-        input_schema: normalizeSchema(t.function.parameters),
+        name: t.name,
+        description: t.description ?? "",
+        input_schema: normalizeSchema(t.inputSchema),
     }));
 }
 
@@ -20,9 +39,9 @@ export type GeminiFunctionDeclaration = {
     parameters?: Record<string, unknown>;
 };
 
-export function toGeminiTools(tools: OpenAIToolSchema[]): GeminiFunctionDeclaration[] {
+export function toGeminiTools(tools: Tool[]): GeminiFunctionDeclaration[] {
     return tools.map((t) => {
-        const params = normalizeGeminiSchema(t.function.parameters);
+        const params = normalizeGeminiSchema(t.inputSchema);
         // Gemini rejects `{ type: "object", properties: {} }` with no fields
         // present; omit the parameters key entirely when empty.
         const hasProps =
@@ -30,8 +49,8 @@ export function toGeminiTools(tools: OpenAIToolSchema[]): GeminiFunctionDeclarat
             typeof params === "object" &&
             Object.keys((params as { properties?: Record<string, unknown> }).properties ?? {}).length > 0;
         return {
-            name: t.function.name,
-            description: t.function.description,
+            name: t.name,
+            description: t.description ?? "",
             ...(hasProps ? { parameters: params } : {}),
         };
     });

@@ -22,7 +22,11 @@ vi.mock("undici", () => ({
   },
 }));
 
-import { guardedRemoteFetch, validateRemoteHttpsUrl } from "../remoteUrlSafety";
+import {
+  boundRemoteResponse,
+  guardedRemoteFetch,
+  validateRemoteHttpsUrl,
+} from "../remoteUrlSafety";
 
 beforeEach(() => {
   dnsLookup.mockReset();
@@ -121,7 +125,7 @@ describe("remote URL network safety", () => {
     const response = await guardedRemoteFetch(
       "https://provider.example/document.pdf#local-fragment",
       { body: "request body", method: "POST", redirect: "follow" },
-      "Provider PDF URL",
+      { label: "Provider PDF URL" },
     );
 
     expect(await response.text()).toBe("streamed response");
@@ -227,5 +231,64 @@ describe("remote URL network safety", () => {
     expect(dnsLookup).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
     expect(agentOptions).toHaveLength(0);
+  });
+
+  it("enforces host, origin, port, and URL-length policy before transport", async () => {
+    dnsLookup.mockResolvedValue([{ address: "93.184.216.34", family: 4 }]);
+
+    await expect(validateRemoteHttpsUrl(
+      "https://other.example/document.pdf",
+      { allowedHosts: ["provider.example"] },
+    )).rejects.toThrow("outside the allowed hosts");
+    await expect(validateRemoteHttpsUrl(
+      "https://provider.example:8443/document.pdf",
+      { defaultPortOnly: true },
+    )).rejects.toThrow("default HTTPS port");
+    await expect(validateRemoteHttpsUrl(
+      "https://provider.example/document.pdf",
+      { allowedOrigins: ["https://other.example"] },
+    )).rejects.toThrow("outside the allowed origins");
+    await expect(validateRemoteHttpsUrl(
+      "https://provider.example/document.pdf",
+      { maxUrlLength: 10 },
+    )).rejects.toThrow("too long");
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("bounds declared and streamed response bodies", async () => {
+    await expect(boundRemoteResponse(new Response("large", {
+      headers: { "content-length": "5" },
+    }), { maxBytes: 4 })).rejects.toThrow("size limit");
+
+    const bounded = await boundRemoteResponse(
+      new Response("streamed", { headers: { "content-type": "text/plain" } }),
+      { maxBytes: 4 },
+    );
+    await expect(bounded.text()).rejects.toThrow("size limit");
+  });
+
+  it("checks successful response content types and applies fetch timeouts", async () => {
+    dnsLookup.mockResolvedValueOnce([{ address: "93.184.216.34", family: 4 }]);
+    fetchMock.mockImplementationOnce(
+      async (_input: RequestInfo | URL, init: RequestInit) => {
+        expect(init.signal).toBeInstanceOf(AbortSignal);
+        return new Response("<html></html>", {
+          headers: { "content-type": "text/html" },
+        });
+      },
+    );
+
+    await expect(guardedRemoteFetch(
+      "https://provider.example/document.json",
+      undefined,
+      {
+        timeoutMs: 1_000,
+        response: {
+          maxBytes: 1_024,
+          contentTypes: ["application/json", "application/*+json"],
+        },
+      },
+    )).rejects.toThrow("unsupported content type");
   });
 });

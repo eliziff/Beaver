@@ -1,15 +1,12 @@
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { OpenAIToolSchema } from "../llm/types";
+import type { Tool } from "../llm/types";
 
-const tool = (name: string): OpenAIToolSchema => ({
-  type: "function",
-  function: {
-    name,
-    description: `${name} tool`,
-    parameters: { type: "object", properties: {} },
-  },
+const tool = (name: string): Tool => ({
+  name,
+  description: `${name} tool`,
+  inputSchema: { type: "object", properties: {} },
 });
 
 describe("Ollama model catalog", () => {
@@ -275,7 +272,7 @@ describe("Ollama model catalog", () => {
     });
 
     expect(bodies.map((body) =>
-      (body.tools as OpenAIToolSchema[]).map((entry) => entry.function.name)
+      (body.tools as { function: { name: string } }[]).map((entry) => entry.function.name)
     )).toEqual([["discover"], ["discover", "revealed"]]);
   });
 

@@ -1,3 +1,5 @@
+import { tokenizeSourceText } from "../sourceDoc";
+
 /**
  * Deterministic near-miss repair for failed quotation claims, ported in
  * approach from ALR-Quote-Verifier (Eli's reference implementation; see
@@ -10,6 +12,10 @@
  */
 
 const TOKEN_RE = /\p{L}[\p{L}\p{N}'’‐-―-]*|\p{N}+/gu;
+
+const MIN_COPY_TOKENS = 8;
+const MIN_COPY_CHARS = 51;
+const COPY_SEED_CHARS = 25;
 
 type SpanToken = { norm: string; start: number; end: number };
 
@@ -116,5 +122,181 @@ export function quoteRepairSuggestion(
     best.excerpt!.length > 600
       ? best.excerpt!.slice(0, best.excerpt!.lastIndexOf(" ", 600))
       : best.excerpt!;
-  return `closest verbatim excerpt of its cited span (${best.matched} of ${best.claimTokens} words match): “${excerpt}” — if this serves, resubmit quoting it EXACTLY as shown`;
+  return `closest verbatim excerpt of its cited span: “${excerpt}” — if this serves, resubmit quoting it exactly as shown`;
+}
+
+export type VisibleEvidenceText = {
+  evidenceId: string;
+  text: string;
+  labels?: string[];
+};
+
+type MarkedQuote = { body: string; start: number; end: number };
+type CopyToken = { norm: string; start: number; end: number };
+
+function representation(value: string) {
+  return value
+    .normalize("NFC")
+    .replace(/\u00a0/gu, " ")
+    .replace(/[\u201c\u201d\u201e\u201f]/gu, '"')
+    .replace(/[\u2018\u2019\u201a\u201b]/gu, "'")
+    .replace(/\s+/gu, " ")
+    .trim();
+}
+
+function markedQuotes(text: string): MarkedQuote[] {
+  const quotes: MarkedQuote[] = [];
+  for (const match of text.matchAll(/^[ \t]*>+[ \t]?(.*)$/gmu)) {
+    const body = match[1].trim();
+    if (body) quotes.push({ body, start: match.index, end: match.index + match[0].length });
+  }
+  for (const match of text.matchAll(/"([^"\r\n]+)"|\u201c([^\u201d\r\n]+)\u201d|\u2018([^\u2019\r\n]+)\u2019|\u00ab([^\u00bb\r\n]+)\u00bb/gu)) {
+    const start = match.index;
+    const end = start + match[0].length;
+    if (quotes.some((quote) => start >= quote.start && end <= quote.end)) continue;
+    quotes.push({ body: match.slice(1).find((value) => value !== undefined)!, start, end });
+  }
+  return quotes;
+}
+
+function escapeRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
+function alteredQuotePattern(quote: string) {
+  const edits = [...quote.matchAll(/\[[^\]\r\n]+\]|\u2026|\.{3}/gu)];
+  if (!edits.length) return null;
+  let cursor = 0;
+  let pattern = "";
+  let literal = "";
+  for (const edit of edits) {
+    const before = quote.slice(cursor, edit.index).replace(/\s+$/u, "");
+    const next = edit.index + edit[0].length;
+    const after = quote.slice(next);
+    const adjacent =
+      /[\p{L}\p{N}'\u2019]$/u.test(before) ||
+      /^[\p{L}\p{N}'\u2019]/u.test(after);
+    pattern += escapeRegex(before).replace(/ /gu, "\\s+");
+    literal += before;
+    pattern += edit[0].startsWith("[")
+      ? adjacent
+        ? "\\S*"
+        : "\\s+(?:\\S+\\s+)?"
+      : "[\\s\\S]*?";
+    cursor = next;
+    if (!adjacent || !edit[0].startsWith("[")) {
+      while (quote[cursor] === " ") cursor += 1;
+    }
+  }
+  const tail = quote.slice(cursor);
+  pattern += escapeRegex(tail).replace(/ /gu, "\\s+");
+  literal += tail;
+  if (!/[\p{L}\p{N}]/u.test(literal)) return null;
+  return new RegExp(`(?<![\\p{L}\\p{N}])${pattern}(?![\\p{L}\\p{N}])`, "u");
+}
+
+export function sourceSupportsMarkedQuote(quote: string, source: string) {
+  const expected = representation(quote);
+  const available = representation(source);
+  if (!expected) return false;
+  if (available.includes(expected)) return true;
+  return alteredQuotePattern(expected)?.test(available) === true;
+}
+
+function copyTokens(text: string): CopyToken[] {
+  return tokenizeSourceText(text).map(({ word, start, end }) => ({
+    norm: word,
+    start,
+    end,
+  }));
+}
+
+function unmarkedChunks(text: string, quotes: MarkedQuote[], labels: string[]) {
+  const marker = "\u0000";
+  let clean = text;
+  for (const { start, end } of [...quotes].sort((a, b) => b.start - a.start)) {
+    clean = clean.slice(0, start) + marker + clean.slice(end);
+  }
+  clean = clean.replace(
+    /\[@[^\]\r\n]+\]|\[\d+\]|\[\[[^\]\r\n]+\]\]|\[[^\]\r\n]+\]\([^\)\r\n]+\)|https?:\/\/\S+/gu,
+    marker,
+  );
+  for (const label of [...new Set(labels.filter((value) => value.length >= 4))]) {
+    clean = clean.replace(new RegExp(escapeRegex(label), "giu"), marker);
+  }
+  return clean.split(marker).filter(Boolean);
+}
+
+function copiedRun(chunks: string[], sources: VisibleEvidenceText[]) {
+  for (const source of sources) {
+    const sourceTokens = copyTokens(source.text);
+    if (sourceTokens.length < MIN_COPY_TOKENS) continue;
+    const windows = new Map<string, number[]>();
+    for (let index = 0; index <= sourceTokens.length - MIN_COPY_TOKENS; index += 1) {
+      const key = sourceTokens.slice(index, index + MIN_COPY_TOKENS).map(({ norm }) => norm).join("\u0001");
+      const positions = windows.get(key);
+      if (positions) positions.push(index);
+      else windows.set(key, [index]);
+    }
+    for (const chunk of chunks) {
+      const prose = copyTokens(chunk);
+      for (let index = 0; index <= prose.length - MIN_COPY_TOKENS; index += 1) {
+        const key = prose.slice(index, index + MIN_COPY_TOKENS).map(({ norm }) => norm).join("\u0001");
+        for (const sourceIndex of windows.get(key) ?? []) {
+          let left = 0;
+          while (
+            index - left > 0 &&
+            sourceIndex - left > 0 &&
+            prose[index - left - 1].norm === sourceTokens[sourceIndex - left - 1].norm
+          ) left += 1;
+          let right = MIN_COPY_TOKENS;
+          while (
+            index + right < prose.length &&
+            sourceIndex + right < sourceTokens.length &&
+            prose[index + right].norm === sourceTokens[sourceIndex + right].norm
+          ) right += 1;
+          const run = prose.slice(index - left, index + right);
+          const normalizedLength = run.map(({ norm }) => norm).join(" ").length;
+          if (normalizedLength < COPY_SEED_CHARS || normalizedLength < MIN_COPY_CHARS) continue;
+          return {
+            evidenceId: source.evidenceId,
+            copied: chunk.slice(run[0].start, run.at(-1)!.end),
+          };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+export function groundedProseIntegrityErrors(
+  text: string,
+  citedEvidenceIds: readonly string[],
+  visibleEvidence: VisibleEvidenceText[],
+) {
+  const quotes = markedQuotes(text);
+  const cited = visibleEvidence.filter(({ evidenceId }) =>
+    citedEvidenceIds.includes(evidenceId),
+  );
+  const errors = quotes.flatMap(({ body }) => {
+    if (cited.some(({ text }) => sourceSupportsMarkedQuote(body, text))) return [];
+    const repaired = cited
+      .map((source) => ({ source, suggestion: quoteRepairSuggestion(body, [source.text]) }))
+      .find(({ suggestion }) => suggestion);
+    const source = repaired?.source ?? cited[0];
+    const suggestion = repaired?.suggestion;
+    return [`quoted text ${JSON.stringify(body)} does not match its cited evidence${
+      source ? `; ${source.evidenceId} source window: ${JSON.stringify(source.text)}` : ""
+    }${suggestion ? `; ${suggestion}` : ""}`];
+  });
+  const copied = copiedRun(
+    unmarkedChunks(text, quotes, visibleEvidence.flatMap(({ labels = [] }) => labels)),
+    visibleEvidence,
+  );
+  if (copied) {
+    errors.push(
+      `unmarked copied passage ${JSON.stringify(copied.copied)} matches visible evidence ${copied.evidenceId}; quote it explicitly or write a genuine paraphrase`,
+    );
+  }
+  return errors;
 }

@@ -23,7 +23,7 @@ import { compileA2AJSourceDoc } from "../sourceDocA2AJ";
  * records the endpoint, parameters, full-document size and the character range
  * it was cut from. Nothing here touches the network.
  *
- * `legacy-spine.json` is the frozen output of the engine SourceDoc replaced
+ * `baseline-spine.json` is the frozen output of the engine SourceDoc replaced
  * (a2ajStructure.ts, deleted in P1.1a stage 3), machine-captured from it
  * before it was removed. Parity is asserted against that recording, so the
  * gate outlives the code it was taken from. Do not regenerate it.
@@ -69,7 +69,7 @@ function labels(doc: SourceDoc) {
   return doc.blocks.map((block) => block.label);
 }
 
-type LegacySpine = {
+type BaselineSpine = {
   status: "usable" | "unavailable";
   source: string;
   counts: { paragraph: number; page: number; section: number };
@@ -87,9 +87,9 @@ type LegacySpine = {
   }>;
 };
 
-const LEGACY = JSON.parse(
-  readFileSync(path.join(FIXTURE_DIR, "legacy-spine.json"), "utf8"),
-) as Record<string, LegacySpine>;
+const BASELINE = JSON.parse(
+  readFileSync(path.join(FIXTURE_DIR, "baseline-spine.json"), "utf8"),
+) as Record<string, BaselineSpine>;
 
 /**
  * Shapes whose spine the compiler must reproduce exactly. Statute shapes the
@@ -370,7 +370,7 @@ describe("federal statute corpus", () => {
 describe("parity with the engine SourceDoc replaced", () => {
   it.each(PARITY_FIXTURES)("%s keeps the old spine byte-identical", (file) => {
     const source = fixture(file);
-    const old = LEGACY[file];
+    const old = BASELINE[file];
     const doc = compile(source);
     expect(createHash("sha256").update(doc.text).digest("hex")).toBe(
       old.textSha256,
@@ -402,14 +402,14 @@ describe("parity with the engine SourceDoc replaced", () => {
       "a2aj-laws-fed-criminalcode-s83-01",
       "a2aj-regs-fed-crc870-a01",
     ]) {
-      expect(LEGACY[file].status).toBe("unavailable");
-      expect(LEGACY[file].blocks).toEqual([]);
+      expect(BASELINE[file].status).toBe("unavailable");
+      expect(BASELINE[file].blocks).toEqual([]);
       expect(compile(fixture(file)).status).toBe("usable");
     }
   });
 
   it("fixes the labels the old section-map engine mislabelled", () => {
-    const oldLabels = LEGACY[
+    const oldLabels = BASELINE[
       "a2aj-laws-fed-criminalcode-sectionmap"
     ].blocks.map(([, label]) => label);
     // Once (6.1) was dropped because Number("01") === Number("1"), so its

@@ -32,10 +32,23 @@ import {
 } from "./a2ajLocalBulk";
 import { legalProviderCache } from "./legalDataPath";
 import { sha256 } from "./hash";
+import { guardedRemoteFetch } from "./remoteUrlSafety";
+import {
+  a2ajPassageLaneReady,
+  searchLocalA2AJPassages,
+} from "./a2ajPassageSearch";
+import { citationAuthorityMetricsBatch } from "./caselawCitator";
 import {
   classifyLegalMarkdown,
   deriveOriginalPdfCandidates,
 } from "./legalSourcePresentation";
+import type {
+  LegalSourcePassage,
+  LegalSourceProvider,
+  LegalSourceReference,
+  LegalSourceResolveRequest,
+  LegalSourceSearchHit,
+} from "./legalSources";
 
 const A2AJ_BASE_URL = "https://api.a2aj.ca";
 const A2AJ_TIMEOUT_MS = 15_000;
@@ -44,6 +57,8 @@ const A2AJ_HTTP_CACHE_MAX_FILES = 512;
 const A2AJ_HTTP_CACHE_MAX_BYTES = 256 * 1024 * 1024;
 const A2AJ_FETCH_CACHE_MS = 30 * 24 * 60 * 60_000;
 const A2AJ_SEARCH_CACHE_MS = 24 * 60 * 60_000;
+const CANADIAN_CITATION =
+  /\b(?:\d{4}\s+[A-Z][A-Z0-9]{1,12}\s+\d+|\d+\s+S\.?C\.?R\.?\s+\d+|R\.?S\.?[A-Z]\.?\s+\d{4})\b/iu;
 
 type JsonRecord = Record<string, unknown>;
 
@@ -460,17 +475,31 @@ async function writePersistentResponse(
 async function request(
   endpoint: string,
   params: Record<string, string | number | undefined>,
+  signal?: AbortSignal,
 ) {
+  signal?.throwIfAborted();
   const cached = await readPersistentResponse(endpoint, params);
   if (cached) return cached;
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== "") query.set(key, String(value));
   }
-  const response = await fetch(`${A2AJ_BASE_URL}${endpoint}?${query}`, {
-    headers: { Accept: "application/json" },
-    signal: AbortSignal.timeout(A2AJ_TIMEOUT_MS),
-  });
+  const response = await guardedRemoteFetch(
+    `${A2AJ_BASE_URL}${endpoint}?${query}`,
+    { headers: { Accept: "application/json" }, signal },
+    {
+      label: "A2AJ request",
+      allowedHosts: ["api.a2aj.ca"],
+      defaultPortOnly: true,
+      allowIpLiterals: false,
+      timeoutMs: A2AJ_TIMEOUT_MS,
+      response: {
+        label: "A2AJ response",
+        maxBytes: 64 * 1024 * 1024,
+        contentTypes: ["application/json", "application/*+json"],
+      },
+    },
+  );
   const body = (await response.json().catch(() => null)) as unknown;
   if (!response.ok) throw apiError(response.status, body);
   const record = asRecord(body) ?? {};
@@ -698,7 +727,9 @@ async function fullA2AJDocument(args: {
   language: "en" | "fr";
   dataset?: string;
   section?: string;
+  signal?: AbortSignal;
 }) {
+  args.signal?.throwIfAborted();
   const key = cacheKey(args);
   const now = Date.now();
   const cached = documentCache.get(key);
@@ -739,12 +770,16 @@ async function fullA2AJDocument(args: {
         );
       }
     }
-    const payload = await request("/fetch", {
-      citation: args.citation,
-      doc_type: args.docType,
-      output_language: args.language,
-      section: args.section?.trim(),
-    });
+    const payload = await request(
+      "/fetch",
+      {
+        citation: args.citation,
+        doc_type: args.docType,
+        output_language: args.language,
+        section: args.section?.trim(),
+      },
+      args.signal,
+    );
     const document = (Array.isArray(payload.results) ? payload.results : [])
       .map((item) => documentFromResult(item, args.language, args.docType))
       .find(
@@ -897,6 +932,7 @@ export async function fetchA2AJDocument(args: {
   dataset?: string;
   section?: string;
   maxChars?: number;
+  signal?: AbortSignal;
 }): Promise<A2AJFetchedDocument | null> {
   const citation = args.citation.trim();
   if (!citation) throw new Error("citation is required");
@@ -907,6 +943,7 @@ export async function fetchA2AJDocument(args: {
     language,
     dataset: args.dataset,
     section: args.section,
+    signal: args.signal,
   });
   if (!document) return null;
   const maxChars = args.maxChars ?? 50_000;
@@ -930,6 +967,7 @@ export async function lookupA2AJLocator(args: {
   locator: string;
   endLocator?: string;
   contextBlocks?: number;
+  signal?: AbortSignal;
 }): Promise<A2AJLocatorLookup | null> {
   const citation = args.citation.trim();
   const locator = args.locator.trim();
@@ -945,6 +983,7 @@ export async function lookupA2AJLocator(args: {
     docType,
     language,
     dataset: args.dataset,
+    signal: args.signal,
   });
   if (!document) return null;
   const compiled = structureFor(document, docType);
@@ -1169,6 +1208,7 @@ export async function searchA2AJ(args: {
   endDate?: string;
   sortResults?: "default" | "newest_first" | "oldest_first";
   querySyntax?: "terms" | "fts5";
+  signal?: AbortSignal;
 }): Promise<A2AJSearchResult[]> {
   const query = args.query.trim();
   if (!query) throw new Error("query is required");
@@ -1180,24 +1220,28 @@ export async function searchA2AJ(args: {
     docType: args.docType ?? "cases",
   });
   if (localResults !== null) return localResults;
-  const payload = await request("/search", {
-    query,
-    doc_type: args.docType ?? "cases",
-    search_type: args.searchType ?? "full_text",
-    search_language: language,
-    size: Math.min(Math.max(Math.floor(args.size ?? 10), 1), 50),
-    dataset: args.dataset?.trim(),
-    start_date: args.startDate?.trim(),
-    end_date: args.endDate?.trim(),
-    sort_results: args.sortResults ?? "default",
-  });
+  const payload = await request(
+    "/search",
+    {
+      query,
+      doc_type: args.docType ?? "cases",
+      search_type: args.searchType ?? "full_text",
+      search_language: language,
+      size: Math.min(Math.max(Math.floor(args.size ?? 10), 1), 50),
+      dataset: args.dataset?.trim(),
+      start_date: args.startDate?.trim(),
+      end_date: args.endDate?.trim(),
+      sort_results: args.sortResults ?? "default",
+    },
+    args.signal,
+  );
   return (Array.isArray(payload.results) ? payload.results : [])
     .map((item) => searchResultFromResult(item, language))
     .filter((item): item is A2AJSearchResult => !!item)
     .slice(0, 50);
 }
 
-const JURISDICTIONS = {
+export const A2AJ_JURISDICTIONS = {
   FED: "Federal",
   AB: "Alberta",
   BC: "British Columbia",
@@ -1214,7 +1258,7 @@ const JURISDICTIONS = {
   YT: "Yukon",
 } as const;
 
-type JurisdictionCode = keyof typeof JURISDICTIONS;
+type JurisdictionCode = keyof typeof A2AJ_JURISDICTIONS;
 
 const CASE_TRIBUNAL_DATASETS = new Set([
   "CART",
@@ -1239,12 +1283,12 @@ function jurisdictionCode(dataset: string, docType: "cases" | "laws") {
     const suffix = dataset.toUpperCase().match(/-([A-Z]{2,3})$/u)?.[1];
     if (suffix === "FED") return "FED" as const;
     if (suffix === "YK") return "YT" as const;
-    if (suffix && suffix in JURISDICTIONS) return suffix as JurisdictionCode;
+    if (suffix && suffix in A2AJ_JURISDICTIONS) return suffix as JurisdictionCode;
     return "FED" as const;
   }
   const prefix = dataset.toUpperCase().slice(0, 2);
   if (prefix === "YK") return "YT" as const;
-  return prefix in JURISDICTIONS && prefix !== "FED"
+  return prefix in A2AJ_JURISDICTIONS && prefix !== "FED"
     ? (prefix as Exclude<JurisdictionCode, "FED">)
     : ("FED" as const);
 }
@@ -1271,7 +1315,7 @@ function coverageResult(
     descriptionFr: asString(record.description_fr),
     docType,
     jurisdictionCode: code,
-    jurisdiction: JURISDICTIONS[code],
+    jurisdiction: A2AJ_JURISDICTIONS[code],
     sourceKind:
       docType === "laws"
         ? dataset.startsWith("REGULATIONS-")
@@ -1302,3 +1346,331 @@ export async function getA2AJCoverage(
         left.description.localeCompare(right.description),
     );
 }
+
+function a2ajCanResolve(request: LegalSourceResolveRequest) {
+  if (request.kind === "legislation") return true;
+  return request.kind === "case" && CANADIAN_CITATION.test(request.text);
+}
+
+function a2ajReference(document: A2AJDocument, kind: "case" | "legislation") {
+  return {
+    provider: "a2aj",
+    id: document.citation,
+    kind,
+    title: document.name,
+    citation: document.citation,
+    alternateCitation: document.alternateCitation,
+    date: document.date,
+    collection: document.dataset,
+    language: document.language,
+    url: document.url,
+  } satisfies LegalSourceReference;
+}
+
+function rankA2AJCaseHits(
+  rows: LegalSourceSearchHit[],
+  mode: "relevance" | "most_cited" | "most_discussed",
+) {
+  const metrics = citationAuthorityMetricsBatch(
+    rows.map((row) => row.citation ?? ""),
+  );
+  const authorityOrder = rows
+    .map((_, index) => index)
+    .filter((index) => (metrics[index]?.citingCases ?? 0) > 0)
+    .sort(
+      (left, right) =>
+        (metrics[right]?.distinctCitingParagraphs ?? 0) -
+          (metrics[left]?.distinctCitingParagraphs ?? 0) ||
+        (metrics[right]?.citingCases ?? 0) - (metrics[left]?.citingCases ?? 0),
+    );
+  const authorityRank = new Map(
+    authorityOrder.map((index, rank) => [index, rank]),
+  );
+  const ranked = rows.map((row, textRank) => ({
+    row,
+    metric: metrics[textRank],
+    textRank,
+    score:
+      1 / (60 + textRank) +
+      (authorityRank.has(textRank)
+        ? 0.15 / (60 + authorityRank.get(textRank)!)
+        : 0),
+  }));
+  ranked.sort((left, right) => {
+    if (mode === "most_cited") {
+      return (
+        (right.metric?.citingCases ?? 0) - (left.metric?.citingCases ?? 0) ||
+        left.textRank - right.textRank
+      );
+    }
+    if (mode === "most_discussed") {
+      return (
+        (right.metric?.distinctCitingParagraphs ?? 0) -
+          (left.metric?.distinctCitingParagraphs ?? 0) ||
+        (right.metric?.occurrences ?? 0) -
+          (left.metric?.occurrences ?? 0) ||
+        left.textRank - right.textRank
+      );
+    }
+    return right.score - left.score || left.textRank - right.textRank;
+  });
+  return ranked.map(({ row, metric }) => ({
+    ...row,
+    ...(metric && metric.citingCases > 0
+      ? {
+          authority: {
+            citingCases: metric.citingCases,
+            citingParagraphs: metric.distinctCitingParagraphs,
+            occurrences: metric.occurrences,
+          },
+        }
+      : {}),
+  }));
+}
+
+export const a2ajLegalSourceProvider: LegalSourceProvider<
+  SourceDoc | string,
+  | A2AJDocument
+  | {
+      lookup: A2AJLocatorLookup;
+      block: SourceDocBlock & { text: string };
+    }
+> = {
+  id: "a2aj",
+  canResolve: a2ajCanResolve,
+  async resolve(request) {
+    const kind = request.kind === "legislation" ? "legislation" : "case";
+    const docType = kind === "legislation" ? "laws" : "cases";
+    const language = request.language === "fr" ? "fr" : "en";
+    const document = await fetchA2AJDocument({
+      citation: request.text,
+      docType,
+      language,
+      dataset: request.collection,
+      maxChars: 300_000,
+      signal: request.signal,
+    });
+    return document ? [a2ajReference(document, kind)] : [];
+  },
+  async readPassage(request) {
+    const docType = request.source.kind === "legislation" ? "laws" : "cases";
+    const language = request.source.language === "fr" ? "fr" : "en";
+    const citation = request.source.citation || request.source.id;
+    if (request.locator) {
+      if (request.locator.kind === "footnote") return [];
+      const lookup = await lookupA2AJLocator({
+        citation,
+        docType,
+        language,
+        dataset: request.source.collection ?? undefined,
+        kind: request.locator.kind,
+        locator: request.locator.value,
+        endLocator: request.locator.endValue,
+        contextBlocks: request.contextBlocks ?? 0,
+        signal: request.signal,
+      });
+      if (lookup?.status !== "found" || !lookup.block) return [];
+      const documentArtifact = getA2AJLookupDocument(lookup) ?? lookup.block.text;
+      const documentSha256 =
+        typeof documentArtifact === "string"
+          ? sha256(documentArtifact)
+          : documentArtifact.revision;
+      const source = {
+        ...request.source,
+        id: lookup.citation,
+        citation: lookup.citation,
+        alternateCitation: lookup.alternateCitation,
+        title: lookup.name,
+        collection: lookup.dataset,
+        language: lookup.language,
+        url: lookup.url,
+      };
+      const seen = new Set<string>();
+      const visible = [
+        { block: lookup.block, role: "selected" as const },
+        ...lookup.before.map((block) => ({ block, role: "context" as const })),
+        ...lookup.after.map((block) => ({ block, role: "context" as const })),
+      ];
+      const blocks = visible.flatMap(({ block, role }) => {
+        const contained =
+          typeof documentArtifact === "string"
+            ? []
+            : documentArtifact.blocks.filter(
+                (candidate) =>
+                  candidate.kind === block.kind &&
+                  candidate.start >= block.start &&
+                  candidate.end <= block.end,
+              );
+        const units =
+          block.kind === "section" && contained.length > 1
+            ? contained.filter(
+                (candidate) =>
+                  !contained.some(
+                    (child) =>
+                      child !== candidate &&
+                      child.start >= candidate.start &&
+                      child.end <= candidate.end &&
+                      (child.start > candidate.start || child.end < candidate.end),
+                  ),
+              )
+            : contained.length
+              ? contained
+              : [block];
+        return units.flatMap((unit) => {
+          const key = `${unit.kind}:${unit.start}:${unit.end}`;
+          if (seen.has(key) || unit.kind === "footnote") return [];
+          seen.add(key);
+          return [{
+            role,
+            block: {
+              ...unit,
+              text:
+                typeof documentArtifact === "string"
+                  ? block.text
+                  : sourceDocBlockText(documentArtifact, unit),
+            },
+          }];
+        });
+      });
+      return blocks.map(({ block, role }): LegalSourcePassage<
+        SourceDoc | string,
+        {
+          lookup: A2AJLocatorLookup;
+          block: SourceDocBlock & { text: string };
+        }
+      > => ({
+        source,
+        locator: {
+          requested: request.locator!,
+          label: block.label,
+          anchor: block.anchor,
+          pageScoped: block.kind === "page",
+        },
+        role,
+        text: block.text,
+        textSha256: sha256(block.text),
+        documentSha256,
+        revision: documentSha256,
+        blockArtifact: block.text,
+        documentArtifact,
+        native: { lookup, block },
+      }));
+    }
+    const document = await fetchA2AJDocument({
+      citation,
+      docType,
+      language,
+      dataset: request.source.collection ?? undefined,
+      maxChars: 300_000,
+      signal: request.signal,
+    });
+    if (!document) return [];
+    const source = getA2AJDocumentSourceDoc(document);
+    return [{
+      source: a2ajReference(document, request.source.kind as "case" | "legislation"),
+      locator: { requested: null, label: "document" },
+      role: "document",
+      text: source.text,
+      textSha256: sha256(source.text),
+      documentSha256: source.revision,
+      revision: source.revision,
+      blockArtifact: source,
+      documentArtifact: source,
+      native: document,
+    }];
+  },
+  canSearch(request) {
+    const jurisdiction = request.jurisdiction?.toLocaleLowerCase().replace(/[^a-z]/gu, "");
+    return (
+      jurisdiction !== "us" &&
+      jurisdiction !== "usa" &&
+      jurisdiction !== "unitedstates" &&
+      jurisdiction !== "unitedstatesofamerica" &&
+      request.kinds.some((kind) => kind === "case" || kind === "legislation")
+    );
+  },
+  async search(request) {
+    const hits = [];
+    for (const sourceType of ["case", "legislation"] as const) {
+      if (!request.kinds.includes(sourceType)) continue;
+      const docType = sourceType === "case" ? "cases" : "laws";
+      if (
+        request.searchType !== "name" &&
+        request.syntax !== "fts5" &&
+        !request.collection &&
+        !request.dateFrom &&
+        !request.dateTo &&
+        (!request.sort || request.sort === "relevance") &&
+        a2ajPassageLaneReady({ docType })
+      ) {
+        try {
+          const passages = await searchLocalA2AJPassages({
+            query: request.text,
+            docType,
+            language: request.language,
+            size: request.perProviderLimit ?? request.limit,
+          });
+          if (passages.length) {
+            hits.push(
+              ...passages.map((row) => ({
+                provider: "a2aj",
+                id: row.citation,
+                kind: sourceType,
+                title: row.name,
+                citation: row.citation,
+                date: row.date,
+                collection: row.dataset,
+                url: row.url,
+                snippet: row.passage.text,
+                passageStart: row.passage.start,
+                passageEnd: row.passage.end,
+              })),
+            );
+            continue;
+          }
+        } catch {
+          // A missing/stale sidecar degrades to the canonical document lane.
+        }
+      }
+      const rows = await searchA2AJ({
+        query: request.text,
+        docType,
+        searchType: request.searchType,
+        language: request.language,
+        size: request.perProviderLimit ?? request.limit,
+        dataset: request.collection,
+        startDate: request.dateFrom,
+        endDate: request.dateTo,
+        sortResults:
+          request.sort === "newest"
+            ? "newest_first"
+            : request.sort === "oldest"
+              ? "oldest_first"
+              : "default",
+        querySyntax: request.syntax,
+        signal: request.signal,
+      });
+      const mapped: LegalSourceSearchHit[] = rows.map((row) => ({
+          provider: "a2aj",
+          id: row.citation,
+          kind: sourceType,
+          title: row.name,
+          citation: row.citation,
+          alternateCitation: row.alternateCitation,
+          date: row.date,
+          collection: row.dataset,
+          url: row.url,
+          snippet: row.snippet,
+        }));
+      hits.push(
+        ...(sourceType === "case" &&
+        (request.sort === "relevance" ||
+          request.sort === "most_cited" ||
+          request.sort === "most_discussed")
+          ? rankA2AJCaseHits(mapped, request.sort)
+          : mapped),
+      );
+    }
+    return hits;
+  },
+};

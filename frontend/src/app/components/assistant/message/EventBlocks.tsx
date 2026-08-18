@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { createElement, useState, type ReactNode } from "react";
 import {
     BadgeCheck,
     Bot,
@@ -22,11 +22,12 @@ import {
     CitationPillMarkdown,
     GfmMarkdown,
 } from "./MarkdownContent";
-import type { ActivityView } from "./eventUtils";
-import type { AssistantEvent } from "../../shared/types";
+import {
+    safeAssistantUrl,
+    type AssistantActivity,
+} from "@/app/lib/assistantSession";
 
-function activityIcon(event: AssistantEvent) {
-    const name = event.type === "tool_call_start" ? event.name : event.type;
+function activityIcon(name: string) {
     if (name === "Grep" || /search|find|lookup/iu.test(name)) return Search;
     if (name === "Read" || /read|fetch/iu.test(name)) return FileSearch;
     if (name === "Edit" || /edit/iu.test(name)) return Pencil;
@@ -39,9 +40,12 @@ function activityIcon(event: AssistantEvent) {
     return Wrench;
 }
 
-function ActivityIcon({ event }: { event: AssistantEvent }) {
-    const Icon = activityIcon(event);
-    return <Icon size={14} strokeWidth={1.75} aria-hidden="true" />;
+function ActivityIcon({ activity }: { activity: AssistantActivity }) {
+    return createElement(activityIcon(activity.tool), {
+        size: 14,
+        strokeWidth: 1.75,
+        "aria-hidden": true,
+    });
 }
 
 export function ActivityDisclosure({
@@ -111,23 +115,24 @@ export function ActivityDisclosure({
 }
 
 export function ActivityRow({
-    view,
-    event,
+    activity,
     onClick,
     onSourceClick,
 }: {
-    view: ActivityView;
-    event: AssistantEvent;
+    activity: AssistantActivity;
     onClick?: () => void;
-    onSourceClick?: (
-        source: NonNullable<ActivityView["citationSources"]>[number],
-    ) => void;
+    onSourceClick?: (source: NonNullable<AssistantActivity["sources"]>[number]) => void;
 }) {
-    const label = `${view.label}${view.busy && !view.markdown ? "..." : ""}`;
-    const labelNode = onClick ? (
+    const busy = activity.status === "running";
+    const failed = activity.status === "error";
+    const label = `${activity.label}${busy && !activity.markdown ? "..." : ""}`;
+    const labelNode = onClick || (activity.source && onSourceClick) ? (
         <button
             type="button"
-            onClick={onClick}
+            onClick={() => {
+                if (activity.source) onSourceClick?.(activity.source);
+                else onClick?.();
+            }}
             className="text-left font-medium hover:text-gray-800"
         >
             {label}
@@ -141,25 +146,25 @@ export function ActivityRow({
             className="flex min-w-0 items-start gap-2 font-serif text-sm text-gray-600"
         >
             <span className={`mt-0.5 grid size-4 shrink-0 place-items-center ${
-                view.error ? "text-red-600" : "text-gray-500"
+                failed ? "text-red-600" : "text-gray-500"
             }`}>
-                {view.busy ? (
+                {busy ? (
                     <Loader2 size={14} strokeWidth={1.75} className="animate-spin" aria-hidden="true" />
                 ) : (
-                    <ActivityIcon event={event} />
+                    <ActivityIcon activity={activity} />
                 )}
             </span>
             <div className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]">
-                {view.markdown ? (
+                {activity.markdown ? (
                     <>
-                        {view.panelAction && <div className="mb-1">{labelNode}</div>}
+                        {activity.action?.type === "reader" && <div className="mb-1">{labelNode}</div>}
                         <div className="prose prose-sm max-w-none [&>*]:my-1 [&>*]:text-sm [&>*]:text-gray-600 [&_h1]:text-sm [&_h2]:text-sm [&_h3]:text-sm [&_h4]:text-sm">
-                            {view.citationSources ? (
+                            {activity.sources ? (
                                 <CitationPillMarkdown
-                                    text={view.markdown}
-                                    sources={view.citationSources}
+                                    text={activity.markdown}
+                                    sources={activity.sources}
                                     onSourceClick={(source) => {
-                                        const exact = view.citationSources?.find(
+                                        const exact = activity.sources?.find(
                                             (candidate) =>
                                                 candidate.citation ===
                                                     source.citation &&
@@ -179,7 +184,7 @@ export function ActivityRow({
                                         ),
                                     }}
                                 >
-                                    {view.markdown}
+                                    {activity.markdown}
                                 </GfmMarkdown>
                             )}
                         </div>
@@ -187,25 +192,27 @@ export function ActivityRow({
                 ) : (
                     labelNode
                 )}
-                {view.detail && (
+                {activity.detail && (
                     <p
                         className={`mt-0.5 text-xs ${
-                            view.error ? "text-red-600" : "text-gray-500"
+                            failed ? "text-red-600" : "text-gray-500"
                         }`}
                     >
-                        {view.detail}
+                        {activity.detail}
                     </p>
                 )}
-                {!!view.items?.length && (
+                {!!activity.items?.length && (
                     <ul className="mt-1.5 max-h-48 space-y-1 overflow-y-auto pr-1 text-xs text-gray-600">
-                        {view.items.map((item, index) => (
+                        {activity.items.map((item, index) => {
+                            const href = safeAssistantUrl(item.url, { relative: false });
+                            return (
                             <li
                                 key={`${item.label}-${index}`}
                                 className={item.error ? "text-red-600" : ""}
                             >
-                                {item.url ? (
+                                {href ? (
                                     <a
-                                        href={item.url}
+                                        href={href}
                                         target="_blank"
                                         rel="noreferrer"
                                         className="hover:underline"
@@ -222,7 +229,8 @@ export function ActivityRow({
                                     </span>
                                 )}
                             </li>
-                        ))}
+                            );
+                        })}
                     </ul>
                 )}
             </div>
@@ -249,7 +257,8 @@ export function DocDownloadBlock({
     const basename = extMatch
         ? filename.slice(0, -extMatch[0].length)
         : filename;
-    const href = download_url.startsWith("/") ? download_url : null;
+    const candidateHref = safeAssistantUrl(download_url);
+    const href = candidateHref?.startsWith("/") ? candidateHref : null;
     const spinning = busy || isReloading;
     const handleDownload = async (event?: React.SyntheticEvent) => {
         event?.stopPropagation();

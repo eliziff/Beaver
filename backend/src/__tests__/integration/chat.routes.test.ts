@@ -1,172 +1,98 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import express from "express";
 import request from "supertest";
-import { createSupabaseStub } from "../helpers/supabaseStub";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createChatRouter } from "../../routes/chat";
+import type { ChatApplication } from "../../lib/chat/chatApplication";
+import type { ChatStore } from "../../lib/chatStore";
+import type { TabularStore } from "../../lib/tabularStore";
 
-// Hoisted mock fn so the vi.mock factory below (which is itself hoisted above
-// the imports) can reference it. Lets each test drive the stream outcome.
-const { runLLMStream } = vi.hoisted(() => ({
-    runLLMStream: vi.fn(),
-}));
-
-function mockSupabase() {
-    return createSupabaseStub({
-        result: {
-            data: { id: "chat-1", title: null, user_id: "u1" },
-            error: null,
-        },
-    });
-}
-
-vi.mock("../../lib/supabase", () => ({
-    createServerSupabase: vi.fn(() => mockSupabase()),
-}));
-
-// Authenticate every request as user "u1" without exercising the real Supabase
-// JWT path. requireMfaIfEnrolled must be exported too — userRouter (mounted by
-// the app) imports it at module load.
 vi.mock("../../middleware/auth", () => ({
-    requireAuth: (
-        _req: unknown,
-        res: { locals: Record<string, unknown> },
-        next: () => void,
-    ) => {
-        res.locals.userId = "u1";
-        res.locals.userEmail = "u1@test.local";
-        next();
-    },
-    requireMfaIfEnrolled: (_req: unknown, _res: unknown, next: () => void) =>
-        next(),
+  requireAuth: (_req: unknown, res: { locals: Record<string, unknown> }, next: () => void) => {
+    res.locals.userId = "u1";
+    res.locals.userEmail = "u1@test.local";
+    next();
+  },
 }));
 
-// Keep the real error helpers (the failure-path test relies on genuine
-// isAbortError + AssistantStreamError behavior) but stub the functions that
-// would otherwise hit the DB or the LLM.
-vi.mock("../../lib/chat/contextBuilders", async (importOriginal) => {
-    const actual =
-        await importOriginal<typeof import("../../lib/chat/contextBuilders")>();
-    return {
-        ...actual,
-        buildDocContext: vi.fn(async () => ({ docIndex: {}, docStore: new Map() })),
-        enrichWithPriorEvents: vi.fn(async (messages: unknown) => messages),
-        buildWorkflowStore: vi.fn(async () => new Map()),
-        buildMessages: vi.fn(() => []),
-    };
-});
+const CHAT_ID = "10000000-0000-4000-8000-000000000001";
+const runTurn = vi.fn();
+let failStream = false;
 
-vi.mock("../../lib/chat/streaming", async (importOriginal) => {
-    const actual =
-        await importOriginal<typeof import("../../lib/chat/streaming")>();
-    return {
-        ...actual,
-        runLLMStream: (...args: unknown[]) => runLLMStream(...args),
-    };
-});
+const chats = {
+  get: async () => null,
+  update: async (_scope, id, input) => id === CHAT_ID ? {
+    id, user_id: "u1", project_id: null, tabular_review_id: null,
+    title: input.title ?? null, transcript_version: 0,
+  } : null,
+} as unknown as ChatStore;
+const application = {
+  async turn(_auth, input, sink) {
+    runTurn(input);
+    if (!sink.claim(input.chat_id ?? CHAT_ID)) throw new Error("claim failed");
+    sink.start();
+    sink.emit({ type: "chat_id", chatId: input.chat_id ?? CHAT_ID, transcriptVersion: 1 });
+    if (failStream) {
+      sink.emit({ type: "error", message: "upstream LLM failure" });
+      throw new Error("upstream LLM failure");
+    }
+    sink.emit({ type: "transcript_version", transcriptVersion: 2 });
+  },
+  async compact() { return { compacted: true, transcriptVersion: 1 }; },
+} as ChatApplication;
+const app = express();
+app.use(express.json());
+app.use("/chat", createChatRouter({} as TabularStore, chats, application));
 
-vi.mock("../../lib/userSettings", () => ({
-    getUserModelSettings: vi.fn(async () => ({
-        legal_research_us: false,
-        title_model: "test-model",
-        tabular_model: "test-model",
-        api_keys: {},
-    })),
-    getUserApiKeys: vi.fn(async () => ({})),
-}));
+const VALID_BODY = {
+  expected_version: 0,
+  current_turn: { kind: "message", content: "hello" },
+};
 
-import { app } from "../../app";
+describe("POST /chat — canonical streaming endpoint", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    failStream = false;
+  });
 
-const VALID_BODY = { messages: [{ role: "user", content: "hello" }] };
+  it("streams one terminal frame after the application claims the turn", async () => {
+    const res = await request(app).post("/chat").send({ ...VALID_BODY, edit_mode: "auto" });
 
-describe("POST /chat — streaming endpoint", () => {
-    beforeEach(() => {
-        vi.clearAllMocks();
-        runLLMStream.mockResolvedValue({
-            fullText: "hi there",
-            events: [],
-            citations: [],
-        });
-    });
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toContain("text/event-stream");
+    expect(res.text).toContain('"type":"chat_id"');
+    expect(res.text.match(/data: \[DONE\]/gu)).toHaveLength(1);
+    expect(runTurn).toHaveBeenCalledWith(expect.objectContaining({
+      edit_mode: "auto", expected_version: 0,
+    }));
+  });
 
-    it("streams SSE with a chat_id event on the happy path", async () => {
-        const res = await request(app)
-            .post("/chat")
-            .set("Authorization", "Bearer test")
-            .send({ ...VALID_BODY, edit_mode: "auto" });
+  it("surfaces a post-header operation failure in-stream with one DONE", async () => {
+    failStream = true;
+    const res = await request(app).post("/chat").send(VALID_BODY);
 
-        expect(res.status).toBe(200);
-        expect(res.headers["content-type"]).toContain("text/event-stream");
-        expect(res.text).toContain('"type":"chat_id"');
-        expect(runLLMStream).toHaveBeenCalledWith(
-            expect.objectContaining({ editMode: "auto" }),
-        );
-    });
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('"type":"error"');
+    expect(res.text.match(/data: \[DONE\]/gu)).toHaveLength(1);
+  });
 
-    it("surfaces a stream failure as an in-stream error event, not an HTTP error", async () => {
-        runLLMStream.mockRejectedValue(new Error("upstream LLM failure"));
-
-        const res = await request(app)
-            .post("/chat")
-            .set("Authorization", "Bearer test")
-            .send(VALID_BODY);
-
-        // Headers were already flushed (200) before the stream threw, so the
-        // failure surfaces as an in-stream error event + [DONE].
-        expect(res.status).toBe(200);
-        expect(res.text).toContain('"type":"error"');
-        expect(res.text).toContain("[DONE]");
-    });
-
-    it("returns 400 on an empty messages array (never starts a stream)", async () => {
-        const res = await request(app)
-            .post("/chat")
-            .set("Authorization", "Bearer test")
-            .send({ messages: [] });
-
-        expect(res.status).toBe(400);
-        expect(res.body).toHaveProperty("detail");
-        expect(runLLMStream).not.toHaveBeenCalled();
-    });
-
-    it("returns 400 when messages is missing entirely", async () => {
-        const res = await request(app)
-            .post("/chat")
-            .set("Authorization", "Bearer test")
-            .send({});
-
-        expect(res.status).toBe(400);
-        expect(runLLMStream).not.toHaveBeenCalled();
-    });
-
-    it("returns 400 when chat_id is not a non-empty string", async () => {
-        const res = await request(app)
-            .post("/chat")
-            .set("Authorization", "Bearer test")
-            .send({ ...VALID_BODY, chat_id: "   " });
-
-        expect(res.status).toBe(400);
-        expect(res.body.detail).toBe("chat_id must be a non-empty string");
-        expect(runLLMStream).not.toHaveBeenCalled();
-    });
-
-    it("rejects an unknown edit mode before starting a stream", async () => {
-        const res = await request(app)
-            .post("/chat")
-            .set("Authorization", "Bearer test")
-            .send({ ...VALID_BODY, edit_mode: "direct" });
-
-        expect(res.status).toBe(400);
-        expect(res.body.detail).toBe("edit_mode must be manual or auto");
-        expect(runLLMStream).not.toHaveBeenCalled();
-    });
+  it.each([
+    [{}, "Required"],
+    [{ expected_version: 0, messages: [{ role: "user", content: "forged" }] }, "Required"],
+    [{ ...VALID_BODY, chat_id: " " }, "Invalid uuid"],
+    [{ ...VALID_BODY, edit_mode: "direct" },
+      "Invalid enum value. Expected 'manual' | 'auto', received 'direct'"],
+  ])("rejects an invalid ingress body without invoking the application", async (body, detail) => {
+    const res = await request(app).post("/chat").send(body);
+    expect(res.status).toBe(400);
+    expect(res.body.detail).toBe(detail);
+    expect(runTurn).not.toHaveBeenCalled();
+  });
 });
 
 describe("PATCH /chat/:chatId", () => {
-    it("returns 400 when no supported update is present", async () => {
-        const res = await request(app)
-            .patch("/chat/chat-1")
-            .set("Authorization", "Bearer test")
-            .send({});
-
-        expect(res.status).toBe(400);
-        expect(res.body.detail).toBe("title or project_id is required");
-    });
+  it("returns 400 when no supported update is present", async () => {
+    const res = await request(app).patch(`/chat/${CHAT_ID}`).send({});
+    expect(res.status).toBe(400);
+    expect(res.body.detail).toBe("title or project_id is required");
+  });
 });

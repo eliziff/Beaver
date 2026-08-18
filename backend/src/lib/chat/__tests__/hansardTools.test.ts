@@ -5,7 +5,10 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { executeHansardTool, HANSARD_TOOLS } from "../tools/hansardTools";
+import {
+  readLegalSourcePassage,
+  searchLegalSources,
+} from "../../legalSourceRegistry";
 
 const fixture = JSON.parse(
   readFileSync(
@@ -32,23 +35,20 @@ afterEach(async () => {
   }
 });
 
-describe("hansard chat tools", () => {
-  it("declares both tools and ignores foreign calls", () => {
-    expect(HANSARD_TOOLS.map((tool) => tool.function.name)).toEqual([
-      "hansard_search",
-      "hansard_fetch",
-    ]);
-    expect(executeHansardTool("library_read", {})).toBeNull();
-  });
-
-  it("reports hansard_not_installed when no database exists", () => {
+describe("Hansard legal-source adapter", () => {
+  it("reports the unavailable provider when no database exists", async () => {
     process.env.MIKE_A2AJ_HANSARD_DB = path.join(
       os.tmpdir(),
       "beaver-hansard-missing",
       "nope.sqlite",
     );
-    const reply = executeHansardTool("hansard_search", { query: "budget" });
-    expect(reply).toMatchObject({ ok: false, error: "hansard_not_installed" });
+    const reply = await searchLegalSources({
+      text: "budget",
+      kinds: ["hansard"],
+      providers: ["hansard"],
+    });
+    expect(reply.results).toEqual([]);
+    expect(reply.unavailable[0]).toMatchObject({ provider: "hansard" });
   });
 
   it("searches and fetches through the imported store", async () => {
@@ -74,27 +74,24 @@ describe("hansard chat tools", () => {
     expect(imported.status, imported.stderr).toBe(0);
     process.env.MIKE_A2AJ_HANSARD_DB = database;
 
-    const search = executeHansardTool("hansard_search", {
-      query: "speaker",
-      size: 5,
-    }) as { ok: boolean; hits: Array<{ id: string; snippet: string | null }> };
-    expect(search.ok).toBe(true);
-    expect(search.hits.length).toBeGreaterThan(0);
-    const first = search.hits[0];
+    const search = await searchLegalSources({
+      text: "speaker",
+      kinds: ["hansard"],
+      providers: ["hansard"],
+      limit: 5,
+    });
+    expect(search.results.length).toBeGreaterThan(0);
+    const first = search.results[0];
     expect(first.id).toBeTruthy();
 
-    const fetched = executeHansardTool("hansard_fetch", { id: first.id }) as {
-      ok: boolean;
-      intervention: { id: string; text: string };
-    };
-    expect(fetched.ok).toBe(true);
-    expect(fetched.intervention.id).toBe(first.id);
-    expect(fetched.intervention.text.length).toBeGreaterThan(0);
-
-    const missing = executeHansardTool("hansard_fetch", { id: "no-such-id" });
-    expect(missing).toMatchObject({
-      ok: false,
-      error: "hansard_intervention_not_found",
-    });
+    const fetched = await readLegalSourcePassage({ source: first });
+    expect(fetched.status).toBe("found");
+    if (fetched.status === "found") {
+      expect(fetched.values[0].source.id).toBe(first.id);
+      expect(fetched.values[0].text.length).toBeGreaterThan(0);
+    }
+    expect(await readLegalSourcePassage({
+      source: { provider: "hansard", id: "no-such-id", kind: "hansard" },
+    })).toMatchObject({ status: "not_found" });
   });
 });
