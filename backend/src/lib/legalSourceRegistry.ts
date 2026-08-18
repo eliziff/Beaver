@@ -22,29 +22,27 @@ import {
   buildLegalSourcePinpointUrl,
   type QuoteSource,
 } from "./legalSourceLinks";
-import { publicLegalSourceProviders } from "./publicLegalSources";
-
-function providers(
-  courtlistener: LegalSourceProvider<QuoteSource, unknown>,
-): LegalSourceProvider<QuoteSource, unknown>[] {
-  return [
-    a2ajLegalSourceProvider,
-    courtlistener,
-    ...publicLegalSourceProviders,
-    journalLegalSourceProvider,
-    hansardLegalSourceProvider,
-  ];
-}
+import {
+  govUkEmploymentTribunalLegalSourceProvider,
+} from "./legalSources/govUkEmploymentTribunal";
+import { govInfoLegalSourceProvider } from "./legalSources/govInfo";
+import { tnaLegalSourceProvider } from "./legalSources/tna";
 
 export function createLegalSourceOperations(
   options: { courtlistener?: CourtlistenerLegalSourceOptions } = {},
 ) {
   return createLegalSourceRegistry<QuoteSource, unknown>(
-    providers(
+    [
+      a2ajLegalSourceProvider,
       options.courtlistener
         ? createCourtlistenerLegalSourceProvider(options.courtlistener)
         : courtlistenerLegalSourceProvider,
-    ),
+      tnaLegalSourceProvider,
+      govUkEmploymentTribunalLegalSourceProvider,
+      govInfoLegalSourceProvider,
+      journalLegalSourceProvider,
+      hansardLegalSourceProvider,
+    ] satisfies LegalSourceProvider<QuoteSource, unknown>[],
   );
 }
 

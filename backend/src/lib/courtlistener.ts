@@ -1,15 +1,12 @@
 import { cachedContent } from "./contentCache";
-import { downloadFile, listFiles } from "./storage";
 import { createServerSupabase } from "./supabase";
-import { sha256 } from "./hash";
 import { guardedRemoteFetch } from "./remoteUrlSafety";
 import type {
-  LegalSourcePassage,
   LegalSourceProvider,
   LegalSourceReference,
 } from "./legalSources";
+import { sourceDocPassages } from "./legalSources/sourceDocPassages";
 import {
-  readSourceDocRange,
   type SourceDoc,
   type SourceDocLocatorKind,
 } from "./sourceDoc";
@@ -29,7 +26,6 @@ import {
 const COURTLISTENER_BASE = "https://www.courtlistener.com/api/rest/v4";
 const COURTLISTENER_WEB_BASE = "https://www.courtlistener.com";
 const COURTLISTENER_STORAGE_BASE = "https://storage.courtlistener.com";
-const COURTLISTENER_R2_OPINIONS_PREFIX = "courtlistener/opinions/by-cluster";
 const US_REPORTER =
   /\b\d{1,4}\s+(?:U\.?\s*S\.?|S\.?\s*Ct\.?|L\.?\s*Ed\.?(?:\s*2d)?|F\.?(?:\s*Supp\.?)?(?:\s*2d|\s*3d|\s*4th)?)\s+\d{1,6}\b/iu;
 
@@ -962,7 +958,6 @@ async function fetchCourtlistenerCitationLookup(args: {
 }
 
 async function getBulkCourtlistenerCaseOpinions(args: {
-  db?: ServerSupabase;
   clusterId: number;
   maxChars: number;
 }) {
@@ -980,104 +975,7 @@ async function getBulkCourtlistenerCaseOpinions(args: {
       source: "bulk-local",
     };
   }
-  if (!courtlistenerBulkDataEnabled()) {
-    devLog("[courtlistener/r2-opinions] bulk data disabled", {
-      clusterId: args.clusterId,
-    });
-    return null;
-  }
-
-  const prefix = `${COURTLISTENER_R2_OPINIONS_PREFIX}/${args.clusterId}/`;
-  devLog("[courtlistener/r2-opinions] listing", {
-    clusterId: args.clusterId, prefix,
-  });
-  const opinionKeys = (await listFiles(prefix))
-    .filter((key) => key.endsWith(".json"))
-    .sort();
-  devLog("[courtlistener/r2-opinions] listed", {
-    clusterId: args.clusterId, count: opinionKeys.length, keys: opinionKeys,
-  });
-  if (!opinionKeys.length) return null;
-
-  const rawOpinions = (
-    await Promise.all(
-      opinionKeys.map(async (key) => {
-        const bytes = await downloadFile(key);
-        if (!bytes) {
-          devLog("[courtlistener/r2-opinions] download missing", {
-            clusterId: args.clusterId, key,
-          });
-          return null;
-        }
-        try {
-          return JSON.parse(Buffer.from(bytes).toString("utf8")) as JsonRecord;
-        } catch {
-          devLog("[courtlistener/r2-opinions] parse failed", {
-            clusterId: args.clusterId, key, bytes: bytes.byteLength,
-          });
-          return null;
-        }
-      }),
-    )
-  ).filter((opinion): opinion is JsonRecord => !!opinion);
-  devLog("[courtlistener/r2-opinions] parsed", {
-    clusterId: args.clusterId, count: rawOpinions.length,
-  });
-  if (!rawOpinions.length) return null;
-
-  let compactCluster:
-    | ReturnType<typeof compactBulkCluster>
-    | { id: number; url: string | null; pdfUrl: string | null } = {
-    id: args.clusterId,
-    url:
-      absoluteWebUrl(rawOpinions[0]?.url) ??
-      absoluteWebUrl(rawOpinions[0]?.absolute_url) ??
-      `${COURTLISTENER_WEB_BASE}/opinion/${args.clusterId}/`,
-    pdfUrl: null,
-  };
-  let filepathJsonHarvard: string | null = null;
-  if (args.db) {
-    const { data: cluster, error } = await args.db
-      .from("courtlistener_opinion_cluster_index")
-      .select(
-        "id, case_name, case_name_short, case_name_full, slug, date_filed, filepath_json_harvard, filepath_pdf_harvard",
-      )
-      .eq("id", args.clusterId)
-      .maybeSingle();
-    if (error) {
-      devLog("[courtlistener/r2-opinions] cluster metadata query failed", {
-        clusterId: args.clusterId, error: error.message,
-      });
-    } else if (cluster) {
-      filepathJsonHarvard = asString(cluster.filepath_json_harvard);
-      const { data: citationRows } = await args.db
-        .from("courtlistener_citation_index")
-        .select("volume, reporter, page")
-        .eq("cluster_id", args.clusterId)
-        .limit(20);
-      const citations = (citationRows ?? [])
-        .map((row) =>
-          [row.volume, row.reporter, row.page].filter(Boolean).join(" "),
-        )
-        .filter(Boolean);
-      compactCluster = compactBulkCluster(cluster as JsonRecord, citations);
-    } else {
-      devLog("[courtlistener/r2-opinions] cluster metadata missing", {
-        clusterId: args.clusterId,
-      });
-    }
-  }
-
-  const pageCitations = await capPageCitations(filepathJsonHarvard);
-  const opinions = rawOpinions.map((opinion) =>
-    compactOpinion(opinion, args.maxChars, pageCitations),
-  );
-  return {
-    ...compactCluster,
-    pdfUrl: compactCluster.pdfUrl ?? uniqueOpinionPdfUrl(opinions),
-    opinions,
-    source: "bulk",
-  };
+  return null;
 }
 
 function compactLocalOpinion(
@@ -1285,7 +1183,6 @@ export async function getCourtlistenerCaseOpinions(args: {
   const clusterId = Math.floor(args.clusterId);
   const maxChars = Math.max(1000, Math.min(50000, args.maxChars ?? 12000));
   const bulk = await getBulkCourtlistenerCaseOpinions({
-    db: args.db,
     clusterId,
     maxChars,
   });
@@ -1499,80 +1396,19 @@ export function createCourtlistenerLegalSourceProvider(
           ...courtlistenerReference(request.source, caseRecord, url),
           ...(opinionId ? { part: String(opinionId) } : {}),
         };
-        if (!request.locator) {
-          const passage: LegalSourcePassage<
-            SourceDoc | string,
-            CourtlistenerLegalSourceNative
-          > = {
-            source,
-            locator: { requested: null, label: "document" },
-            role: "document",
-            text: structure.text,
-            textSha256: sha256(structure.text),
-            documentSha256: structure.revision,
-            revision: structure.revision,
-            blockArtifact: structure,
-            documentArtifact: structure,
-            native: { case: caseRecord, opinion },
-          };
-          return [passage];
-        }
-        const lookup = lookupCourtlistenerOpinionLocator(
-          opinion,
-          request.locator.kind,
-          request.locator.value,
-          request.contextBlocks ?? 0,
-        );
-        if (lookup?.status !== "found" || !lookup.block) return [];
-        const range = request.locator.endValue
-          ? readSourceDocRange(
-              structure,
-              request.locator.kind,
-              request.locator.value,
-              request.locator.endValue,
-              request.contextBlocks ?? 0,
-            )
-          : null;
-        if (request.locator.endValue && !range) return [];
-        const visible = range
-          ? [
-              ...range.before.map((block) => ({ block, role: "context" as const })),
-              ...range.selected.map((block) => ({ block, role: "selected" as const })),
-              ...range.after.map((block) => ({ block, role: "context" as const })),
-            ]
-          : [
-              { block: lookup.block, role: "selected" as const },
-              ...lookup.before.map((block) => ({ block, role: "context" as const })),
-              ...lookup.after.map((block) => ({ block, role: "context" as const })),
-            ];
-        return visible.map(({ block, role }) => ({
-          source,
-          locator: {
-            requested: request.locator!,
-            label: block.label,
-            anchor: block.anchor,
-            pageScoped: block.kind === "page",
-          },
-          role,
-          text: block.text,
-          textSha256: sha256(block.text),
-          documentSha256: structure.revision,
-          revision: structure.revision,
-          blockArtifact: block.text,
-          documentArtifact: structure,
-          native: {
-            case: caseRecord,
-            opinion,
-            lookup: {
-              ...lookup,
-              requestedLabel: block.label,
-              matches: [block.label],
-              block,
-              before: [],
-              after: [],
-            },
-          },
-        }));
+        return sourceDocPassages({
+          request,
+          reference: source,
+          document: structure,
+          native: { case: caseRecord, opinion },
+          lookup: (kind, value, contextBlocks) =>
+            lookupCourtlistenerOpinionLocator(
+              opinion,
+              kind,
+              value,
+              contextBlocks,
+            ),
+        });
       });
     },
   };

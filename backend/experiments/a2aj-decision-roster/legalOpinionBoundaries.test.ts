@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import {
   analyzeOpinionStructure,
+  deriveTextOpinionStructure,
   partitionOpinionStructure,
 } from "./legalOpinionBoundaries";
 
@@ -13,6 +14,27 @@ function structure(text: string, firstParagraphStart?: number) {
 }
 
 describe("analyzeOpinionStructure", () => {
+  it("does not turn a tribunal name in a panel description into a judge", () => {
+    const result = structure(`Before: Nancy Rosenberg, a panel of the Federal Public Sector Labour Relations and Employment Board
+
+[1] The grievance is allowed.`);
+    expect(result.panel).toEqual(["Nancy Rosenberg"]);
+  });
+
+  it("keeps a middle-initial adjudicator and discards the following office title", () => {
+    const result = structure(`Before: Ian R. Mackenzie, Vice-Chairperson
+
+[1] The application is allowed.`);
+    expect(result.panel).toEqual(["Ian R. Mackenzie"]);
+  });
+
+  it("recognizes regional chief-justice suffixes without creating title-only judges", () => {
+    const result = structure(`Before: Clarke C.J.N.S., MacDonald C.J.B.C., Board Member, Q.C.
+
+[1] The appeal is dismissed.`);
+    expect(result.panel).toEqual(["Clarke C.J.N.S.", "MacDonald C.J.B.C."]);
+  });
+
   it("parses the BCCA front-matter dialect with role bindings and page/paragraph hints", () => {
     const result = structure(`Before:
 The Honourable Madam Justice Rowles
@@ -447,6 +469,207 @@ Bastarache J. (McLachlin C.J. concurring)
       concurred: ["McLachlin C.J."],
     });
     expect(result.refusals).toEqual([]);
+  });
+});
+
+describe("deriveTextOpinionStructure", () => {
+  const reasons = "This appeal requires the court to decide a focused legal issue from the record. The parties made competing submissions about the governing rule and its application. After reviewing the evidence, the legislation, and the authorities, I conclude that the appellant has not shown any reversible error. The appeal should therefore be dismissed with costs in the ordinary course.";
+
+  it("treats BCCA I AGREE signatures as majority joins, not opinions", () => {
+    const text = `Before:
+The Honourable Madam Justice Alpha
+The Honourable Mr. Justice Beta
+The Honourable Madam Justice Gamma
+
+Reasons for Judgment of the Honourable Madam Justice Alpha:
+[1] ALPHA J.A.: ${reasons}
+[2] I would dismiss the appeal.
+"The Honourable Madam Justice Alpha"
+I AGREE:
+"The Honourable Mr. Justice Beta"
+I AGREE:
+"The Honourable Madam Justice Gamma"
+`;
+    const result = deriveTextOpinionStructure({ text });
+    expect(result.status).toBe("ready");
+    expect(result.opinions).toHaveLength(1);
+    expect(result.opinions[0]).toMatchObject({
+      alignment: "lead",
+    });
+    expect(result.opinions[0].authors[0]).toMatch(/Alpha/iu);
+    expect(text.slice(result.opinions[0].start, result.opinions[0].end)).not.toContain("I AGREE");
+    expect(result.judges).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: expect.stringMatching(/^Alpha/iu), resultSide: "majority", relationship: "authors" }),
+      expect.objectContaining({ name: "Beta", resultSide: "majority", relationship: "joins_reasons" }),
+      expect.objectContaining({ name: "Gamma", resultSide: "majority", relationship: "joins_reasons" }),
+    ]));
+  });
+
+  it("separates a dissent from majority reasons and their joining judge", () => {
+    const text = `Before:
+The Honourable Madam Justice Alpha
+The Honourable Mr. Justice Beta
+The Honourable Madam Justice Gamma
+
+Reasons for Judgment of the Honourable Madam Justice Alpha:
+[1] ALPHA J.A.: ${reasons}
+"The Honourable Madam Justice Alpha"
+I AGREE:
+"The Honourable Mr. Justice Beta"
+
+Reasons for Judgment of the Honourable Madam Justice Gamma:
+[2] With respect, I am unable to agree with my colleague. ${reasons} I would allow the appeal.
+"The Honourable Madam Justice Gamma"
+`;
+    const result = deriveTextOpinionStructure({ text });
+    expect(result.status).toBe("ready");
+    expect(result.opinions.map(({ alignment }) => alignment)).toEqual([
+      "lead",
+      "different_result",
+    ]);
+    expect(result.judges).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: "Beta", resultSide: "majority", relationship: "joins_reasons" }),
+      expect.objectContaining({ name: "Gamma", resultSide: "minority", relationship: "authors" }),
+    ]));
+  });
+
+  it("does not turn numbered agreement and order lines into short opinions", () => {
+    const text = `Before:
+The Honourable Madam Justice Alpha
+The Honourable Mr. Justice Beta
+The Honourable Madam Justice Gamma
+
+Reasons for Judgment of the Honourable Madam Justice Alpha:
+[1] ALPHA J.A.: ${reasons}
+[62] BETA J.A.: I agree.
+[63] GAMMA J.A.: I agree.
+[64] BETA J.A.: The appeal is dismissed.
+"The Honourable Madam Justice Alpha"
+`;
+    const result = deriveTextOpinionStructure({ text });
+    expect(result.opinions).toHaveLength(1);
+    expect(text.slice(result.opinions[0].end, text.indexOf("[62]")).trim()).toBe("");
+    expect(result.judges).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: expect.stringMatching(/^Beta/iu), relationship: "joins_reasons" }),
+      expect.objectContaining({ name: expect.stringMatching(/^Gamma/iu), relationship: "joins_reasons" }),
+    ]));
+  });
+
+  it("ignores BCCA front-matter labels and a longer terminal order", () => {
+    const order = "As directed when judgment was pronounced, the appeal is dismissed and the publication ban remains in force according to its terms. The registry will enter the disposition and provide the parties with a copy of these reasons.";
+    const text = `Before:
+The Honourable Madam Justice Alpha
+The Honourable Mr. Justice Beta
+The Honourable Madam Justice Gamma
+
+Written Reasons by:
+The Honourable Madam Justice Alpha
+Concurred in by:
+The Honourable Mr. Justice Beta
+The Honourable Madam Justice Gamma
+
+Reasons for Judgment of the Honourable Madam Justice Alpha:
+[1] ALPHA J.A.: ${reasons}
+[62] BETA J.A.: I agree.
+[63] GAMMA J.A.: I agree.
+[64] BETA J.A.: ${order}
+`;
+    const result = deriveTextOpinionStructure({ text });
+    expect(result.status).toBe("ready");
+    expect(result.opinions).toHaveLength(1);
+    expect(result.opinions[0].start).toBe(text.indexOf("Reasons for Judgment of"));
+    expect(result.opinions[0].authors[0]).toMatch(/Alpha/iu);
+    expect(result.judges).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: expect.stringMatching(/^Beta/iu), resultSide: "majority", relationship: "joins_reasons" }),
+      expect.objectContaining({ name: expect.stringMatching(/^Gamma/iu), resultSide: "majority", relationship: "joins_reasons" }),
+    ]));
+  });
+
+  it("returns source offsets when no paragraph structure exists", () => {
+    const text = `Decision
+Reasons for Judgment of the Honourable Madam Justice Alpha:
+${reasons}
+For those reasons, the application is dismissed.
+"The Honourable Madam Justice Alpha"
+`;
+    const result = deriveTextOpinionStructure({ text });
+    expect(result.status).toBe("ready");
+    expect(result.opinions).toHaveLength(1);
+    expect(result.opinions[0].start).toBe(text.indexOf("Reasons for Judgment"));
+    expect(text.slice(result.opinions[0].end, text.indexOf('"The Honourable')).trim()).toBe("");
+    expect(result.opinions[0].startQuote.length).toBeGreaterThan(0);
+    expect(result.opinions[0].endQuote.length).toBeGreaterThan(0);
+  });
+
+  it("excludes nonparticipating judges and trims post-opinion court metadata", () => {
+    const text = `Coram: Alpha, Beta and Gamma JJ.
+Reasons for Judgment by: Alpha J.
+[1] ${reasons}
+[2] For these reasons, I would dismiss the appeal with costs.
+Solicitors for the appellant: Example LLP, Vancouver.
+[*] Beta and Gamma JJ. took no part in the judgment.
+`;
+    const result = deriveTextOpinionStructure({ text });
+    expect(result.status).toBe("ready");
+    expect(result.panel.map((name) => name.toLocaleLowerCase())).toEqual([expect.stringContaining("alpha")]);
+    expect(result.nonparticipants).toHaveLength(2);
+    expect(result.nonparticipants.map((name) => name.toLocaleLowerCase())).toEqual(expect.arrayContaining([
+      expect.stringContaining("beta"),
+      expect.stringContaining("gamma"),
+    ]));
+    expect(result.judges).toHaveLength(1);
+    expect(result.judges[0]).toMatchObject({
+      name: expect.stringMatching(/Alpha/iu),
+      resultSide: "majority",
+      relationship: "authors",
+    });
+    const opinionText = text.slice(result.opinions[0].start, result.opinions[0].end);
+    expect(opinionText).not.toContain("Solicitors for");
+    expect(opinionText).not.toContain("took no part");
+  });
+
+  it("does not promote a short front-matter block through the sole-panel fallback", () => {
+    const text = `[1]
+IN THE SUPREME COURT OF BRITISH COLUMBIA
+Before: District Registrar Sainty
+${Array.from({ length: 52 }, (_, index) => `caption${index}`).join(" ")}`;
+    const result = deriveTextOpinionStructure({
+      text,
+      paragraphs: [{ label: "par1", start: 0, end: text.length }],
+      firstParagraphStart: 0,
+    });
+    expect(result.status).toBe("unavailable");
+    expect(result.opinions).toEqual([]);
+    expect(result.refusals).toEqual(expect.arrayContaining([
+      expect.stringMatching(/has only \d+ substantive words/iu),
+    ]));
+  });
+
+  it("translates explicit oracle paragraph ranges into text offsets", () => {
+    const header = `Coram: Alpha, Beta and Gamma JJ.
+Joint Reasons for Judgment: (paras. 1 to 1)
+Alpha J. (Beta J. concurring)
+Dissenting Reasons: (paras. 2 to 2)
+Gamma J.
+`;
+    const first = `[1] ${reasons}\n`;
+    const second = `[2] With respect, I dissent. ${reasons}\n`;
+    const text = `${header}${first}${second}`;
+    const result = deriveTextOpinionStructure({
+      text,
+      paragraphs: [
+        { label: "par1", start: header.length, end: header.length + first.length },
+        { label: "par2", start: header.length + first.length, end: text.length },
+      ],
+      firstParagraphStart: header.length,
+    });
+    expect(result.status).toBe("ready");
+    expect(result.opinions).toHaveLength(2);
+    expect(result.opinions[0]).toMatchObject({ start: header.length, alignment: "lead" });
+    expect(result.opinions[1]).toMatchObject({
+      start: header.length + first.length,
+      alignment: "different_result",
+    });
   });
 });
 

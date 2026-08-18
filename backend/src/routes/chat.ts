@@ -7,7 +7,6 @@ import {
   type ChatScope,
   type ChatStore,
 } from "../lib/chatStore";
-import type { TabularStore } from "../lib/tabularStore";
 import {
   ChatApplicationError,
   chatTurnInputSchema,
@@ -96,7 +95,6 @@ function optionalId(value: unknown, label: string) {
 }
 
 export function createChatRouter(
-  tabular: TabularStore,
   chats: ChatStore,
   application: ChatApplication,
 ) {

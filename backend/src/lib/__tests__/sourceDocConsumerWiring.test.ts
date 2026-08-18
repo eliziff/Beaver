@@ -1,13 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-const getCourtlistenerOpinionStructure = vi.hoisted(() => vi.fn());
-
-vi.mock("../courtlistener", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../courtlistener")>()),
-  getCourtlistenerOpinionStructure,
-}));
-
-import { buildCourtlistenerCitationPinpointUrl } from "../legalSourceLinks";
+import { describe, expect, it } from "vitest";
 import { legalSourcePassageUrl } from "../legalSourceRegistry";
 import { createSourceDoc } from "../sourceDoc";
 
@@ -37,83 +28,67 @@ function nativeParagraph(
   });
 }
 
-describe("canonical SourceDoc consumers", () => {
-  beforeEach(() => {
-    getCourtlistenerOpinionStructure.mockReset();
-  });
-
-  it("builds CourtListener fragments from the native rendition, not compact transport text", () => {
-    const url = "https://www.courtlistener.com/opinion/42/example/";
-    const structure = nativeParagraph(
-      "courtlistener",
-      "7",
+function courtlistenerPassageUrl(
+  id: string,
+  url: string,
+  text: string,
+  anchor: string,
+  quotes: string[],
+) {
+  const structure = nativeParagraph("courtlistener", id, url, text, anchor);
+  return legalSourcePassageUrl({
+    source: {
+      provider: "courtlistener",
+      id,
+      kind: "case",
+      title: "Example v State",
+      citation: "42 F.4th 1",
       url,
+    },
+    locator: {
+      requested: { kind: "paragraph", value: "24" },
+      label: "par24",
+      anchor,
+    },
+    role: "selected",
+    text,
+    textSha256: "passage",
+    documentSha256: structure.revision,
+    revision: structure.revision,
+    blockArtifact: text,
+    documentArtifact: structure,
+  }, quotes);
+}
+
+describe("canonical SourceDoc consumers", () => {
+  it("builds CourtListener fragments from the canonical native passage", () => {
+    const result = courtlistenerPassageUrl(
+      "7",
+      "https://www.courtlistener.com/opinion/42/example/",
       "The court adopted the distinctive first proposition and then applied the separate second proposition.",
       "p-24",
-    );
-    getCourtlistenerOpinionStructure.mockReturnValue(structure);
-
-    const result = buildCourtlistenerCitationPinpointUrl(
-      {
-        quotes: [
-          { opinionId: 7, quote: "distinctive first proposition" },
-          { opinionId: 7, quote: "separate second proposition" },
-        ],
-      },
-      {
-        url,
-        opinions: [
-          {
-            opinionId: 7,
-            url,
-            text: "A bounded transport excerpt without either quotation.",
-          },
-        ],
-      },
+      ["distinctive first proposition", "separate second proposition"],
     )!;
 
     expect(result).toContain("#p-24:~:text=");
     expect(result.match(/text=/gu)).toHaveLength(2);
   });
 
-  it("keeps quotes from separate CourtListener opinions in their own SourceDocs", () => {
+  it("keeps separate CourtListener opinions in separate SourceDocs", () => {
     const url = "https://www.courtlistener.com/opinion/42/example/";
-    const first = nativeParagraph(
-      "courtlistener",
-      "7",
-      url,
+    const majority = courtlistenerPassageUrl(
+      "7", url,
       "The majority adopted the distinctive majority proposition.",
-      "majority",
-    );
-    const second = nativeParagraph(
-      "courtlistener",
-      "8",
-      url,
+      "majority", ["distinctive majority proposition"],
+    )!;
+    const dissent = courtlistenerPassageUrl(
+      "8", url,
       "The dissent stated the separate dissenting proposition.",
-      "dissent",
-    );
-    getCourtlistenerOpinionStructure.mockImplementation(
-      (opinion: { opinionId: number }) =>
-        opinion.opinionId === 7 ? first : second,
-    );
-
-    const result = buildCourtlistenerCitationPinpointUrl(
-      {
-        quotes: [
-          { opinionId: 7, quote: "distinctive majority proposition" },
-          { opinionId: 8, quote: "separate dissenting proposition" },
-        ],
-      },
-      {
-        url,
-        opinions: [
-          { opinionId: 7, text: "Bounded majority excerpt." },
-          { opinionId: 8, text: "Bounded dissent excerpt." },
-        ],
-      },
+      "dissent", ["separate dissenting proposition"],
     )!;
 
-    expect(result.match(/text=/gu)).toHaveLength(2);
+    expect(majority).toContain("#majority:~:text=");
+    expect(dissent).toContain("#dissent:~:text=");
   });
 
   it("matches public citations inside the recorded block of the native rendition", () => {

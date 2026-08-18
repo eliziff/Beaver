@@ -1,8 +1,8 @@
-import { loadZip } from "./zip";
 import { readFile } from "node:fs/promises";
 import { getLocalVersionFile } from "./localDocumentStore";
 import { isExternalReference } from "./legalReferenceGrammar";
 import { decodeXmlText, escapeRegExp } from "./text";
+import { openDocxSession } from "./docx/session";
 
 // Deterministic structural lint for contract-style DOCX documents.
 //
@@ -531,13 +531,11 @@ function checkDefinedTerms(texts: string[]): DefinedTermsResult {
 export async function lintDocxStructure(
   bytes: Buffer,
 ): Promise<DocxStructuralLintReport> {
-  const zip = await loadZip(bytes);
-  const documentEntry =
-    zip.file("word/document.xml") ?? zip.file(/^word\/document\.xml$/iu)[0];
-  if (!documentEntry) {
+  const session = await openDocxSession(bytes);
+  const documentXml = await session.readText("word/document.xml");
+  if (documentXml == null) {
     throw new Error("Structural lint requires a valid DOCX");
   }
-  const documentXml = await documentEntry.async("string");
   const texts = paragraphTexts(documentXml);
 
   const numberAnchors = collectNumberAnchors(texts);

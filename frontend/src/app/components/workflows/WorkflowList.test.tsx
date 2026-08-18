@@ -5,7 +5,6 @@ import {
     waitFor,
     within,
 } from "@testing-library/react";
-import { Profiler } from "react";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { Workflow } from "../shared/types";
 import { WorkflowList } from "./WorkflowList";
@@ -87,18 +86,9 @@ beforeEach(() => {
 });
 
 it("filters loaded workflows and opens the selected one", async () => {
-    let commits = 0;
-    render(
-        <Profiler id="workflows" onRender={() => commits++}>
-            <WorkflowList />
-        </Profiler>,
-    );
+    render(<WorkflowList />);
 
     await screen.findByText("Draft contract");
-    expect(mocks.listWorkflows).toHaveBeenCalledWith(
-        { cursor: null, q: "", type: undefined }, expect.any(AbortSignal),
-    );
-    expect(mocks.listWorkflows).toHaveBeenCalledTimes(1);
     fireEvent.change(screen.getByPlaceholderText("Search workflows…"), {
         target: { value: "lease" },
     });

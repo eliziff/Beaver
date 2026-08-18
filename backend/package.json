@@ -13,10 +13,10 @@
     "fetch:courtlistener-bulk": "python scripts/fetch_courtlistener_bulk.py",
     "import:courtlistener-bulk": "python scripts/import_courtlistener_bulk.py",
     "build:journals-fts": "python scripts/build_journal_search_index.py",
-    "test": "node ../scripts/check-experiment-boundary.mjs && vitest run",
+    "test": "node ../packages/legal-grammar-tables/check.mjs && node ../scripts/check-experiment-boundary.mjs && vitest run",
     "test:stack": "bash scripts/test-stack.sh",
     "test:coverage": "vitest run --coverage",
-    "test:experiments": "node ../scripts/check-experiment-boundary.mjs && vitest run --config experiments/vitest.config.mts"
+    "test:experiments": "node ../packages/legal-grammar-tables/check.mjs && node ../scripts/check-experiment-boundary.mjs && vitest run --config experiments/vitest.config.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
@@ -39,6 +39,8 @@
     "mammoth": "^1.9.0",
     "multer": "^2.2.0",
     "nspell": "^2.1.5",
+    "ollama": "^0.6.3",
+    "openai": "^7.5.0",
     "undici": "6.28.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^3.25.76"
@@ -48,11 +50,11 @@
     "@types/express": "^4.17.21",
     "@types/multer": "^2.2.0",
     "@types/node": "^22.14.1",
+    "@types/supertest": "^7.2.1",
+    "@vitest/coverage-v8": "^4.1.9",
     "cytoscape": "^3.34.0",
     "cytoscape-dagre": "^4.0.0",
     "dagre": "^0.8.5",
-    "@types/supertest": "^7.2.1",
-    "@vitest/coverage-v8": "^4.1.9",
     "supertest": "^7.2.2",
     "tsx": "^4.19.3",
     "typescript": "^5.8.3",

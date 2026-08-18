@@ -16,10 +16,18 @@ vi.mock("@modelcontextprotocol/sdk/client/streamableHttp.js", () => ({
 }));
 vi.mock("../mcp/oauth", () => ({
   completeMcpConnectorOAuthAuthorization: vi.fn(),
+  deleteOAuthToken: async (connectorId: string, resource: string, db: Db) => {
+    const { error } = await db
+      .from("user_mcp_oauth_tokens")
+      .delete()
+      .eq("connector_id", connectorId)
+      .eq("resource", resource);
+    if (error) throw error;
+  },
   DbMcpOAuthProvider: class {},
-  discoverOAuthMetadata: vi.fn(),
   guardedOAuthFetch: vi.fn(),
   loadOAuthToken: vi.fn(),
+  loadOAuthTokens: vi.fn(async () => new Map()),
   McpOAuthRequiredError: class extends Error {},
   startUserMcpConnectorOAuth: vi.fn(),
 }));
@@ -30,7 +38,6 @@ vi.mock("../mcp/client", () => ({
   guardedFetch: vi.fn(),
   headersForAuth: vi.fn(() => ({})),
   loadConnector: mocks.loadConnector,
-  mcpOAuthCallbackUrl: vi.fn(() => "https://app.example/oauth/callback"),
   normalizeJsonSchema: vi.fn(),
   openaiToolName: vi.fn(),
   toConnectorSummary: (connector: Record<string, unknown>) => ({
@@ -360,6 +367,27 @@ describe("MCP connector endpoint boundary", () => {
       action: "update",
     });
     expect(current()).toEqual(original);
+  });
+
+  it("invalidates OAuth when same-endpoint connector credentials change", async () => {
+    const original = connector();
+    const { db, operations } = fakeDb(original);
+    mocks.loadConnector.mockResolvedValue(original);
+
+    await updateUserMcpConnector(
+      "user-1",
+      original.id,
+      { headers: { "X-New": "replacement" } },
+      db,
+    );
+
+    expect(operations.map(({ table, action }) => `${table}:${action}`)).toEqual([
+      "user_mcp_connectors:update",
+      "user_mcp_oauth_tokens:delete",
+    ]);
+    expect(operations[0].value?.tool_policy).toMatchObject({
+      __mike_credential_epoch: expect.any(String),
+    });
   });
 
   it("does not clear state when the normalized endpoint is unchanged", async () => {

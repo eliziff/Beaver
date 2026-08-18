@@ -37,20 +37,22 @@ const documentStore = (bytes = Buffer.from("Governing law: Alberta")) => ({
 const settings = async () => ({ title_model: "codex:gpt-5.6", tabular_model: "codex:gpt-5.6",
   api_keys: {} as UserApiKeys }) as Awaited<ReturnType<
     typeof import("../userSettings").getUserModelSettings>>;
+const project = vi.fn(async (input: { bytes?: Buffer }) => ({ kind: "source-doc" as const,
+  text: input.bytes?.toString("utf8") ?? "", sourceDoc: {} as never, tableCells: [] as [] }));
 
 describe("TabularApplication", () => {
   it("maps committed, conflict, and missing writes explicitly", async () => {
-    const committed = createTabularApplication(port(), documentStore(), { settings });
+    const committed = createTabularApplication(port(), documentStore(), { settings, project });
     await expect(committed.update(scope, "review", { title: "Changed" }))
       .resolves.toMatchObject({ title: "Changed" });
 
     const conflict = createTabularApplication(port({ update: vi.fn(async () =>
-      ({ status: "conflict", value: review })) }), documentStore(), { settings });
+      ({ status: "conflict", value: review })) }), documentStore(), { settings, project });
     await expect(conflict.update(scope, "review", { title: "Changed" }))
       .rejects.toMatchObject({ status: 409 });
 
     const missing = createTabularApplication(port({ detail: vi.fn(async () => null) }),
-      documentStore(), { settings });
+      documentStore(), { settings, project });
     await expect(missing.update(scope, "review", { title: "Changed" }))
       .rejects.toMatchObject({ status: 404 });
   });
@@ -68,7 +70,7 @@ describe("TabularApplication", () => {
   it("rejects oversized extraction files before invoking a model", async () => {
     const runTurn = vi.fn() as unknown as typeof import("../chat/turnEngine").runChatTurn;
     const app = createTabularApplication(port(),
-      documentStore(Buffer.alloc(25 * 1024 * 1024 + 1)), { settings, runTurn });
+      documentStore(Buffer.alloc(25 * 1024 * 1024 + 1)), { settings, runTurn, project });
     await expect(app.regenerate(scope, "review", {
       document_id: "document", column_index: 0,
     })).rejects.toMatchObject({ status: 413 });
@@ -88,7 +90,7 @@ describe("TabularApplication", () => {
       });
       throw new Error("unreachable");
     }) as unknown as typeof import("../chat/turnEngine").runChatTurn;
-    const app = createTabularApplication(port(), documentStore(), { settings, runTurn });
+    const app = createTabularApplication(port(), documentStore(), { settings, runTurn, project });
     const controller = new AbortController();
     const work = app.regenerate(scope, "review", {
       document_id: "document", column_index: 0,

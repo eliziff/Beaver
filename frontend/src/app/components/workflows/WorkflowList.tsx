@@ -13,11 +13,10 @@ import { PageHeader } from "../shared/PageHeader";
 import { RowActions } from "../shared/RowActions";
 import { TableToolbar } from "../shared/TableToolbar";
 import {
-    SkeletonLine, TableBody, TableCell, TableEmptyState, TableHeaderCell,
-    TableHeaderRow, TableRow, TableScrollArea, TableSelectionPlaceholder,
-    TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS, TableStickyCell,
+    TableBody, TableCell, TableEmptyState, TableHeaderCell, TableLoadMore, TableLoadingRows,
+    TableRow, TableScrollArea, TableSelectionCheckbox, TableSelectionHeader,
+    TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS, TableStickyCell, useTableSelection,
 } from "../shared/TablePrimitive";
-import { CheckboxControl } from "../ui/checkbox";
 import { PillButton } from "../ui/pill-button";
 import { usePagedQuery } from "@/app/hooks/usePagedQuery";
 
@@ -86,8 +85,6 @@ export function WorkflowList() {
     const loading = systemWorkflows === null || custom.loading;
     const rows = [...(systemWorkflows ?? []), ...custom.items];
     const hidden = new Set(hiddenSystemIds);
-    const selectedSet = new Set(selectedIds);
-    const selectedRows = rows.filter(({ id }) => selectedSet.has(id));
     const canSelect = (workflow: Workflow) =>
         mutationsEnabled && (workflow.is_system || workflow.is_owner !== false);
     const visible = [...rows]
@@ -101,10 +98,8 @@ export function WorkflowList() {
             workflow.metadata.title.toLowerCase().includes(search.toLowerCase()),
         );
     const selectable = visible.filter(canSelect);
-    const allSelected = !!selectable.length && selectable.every(
-        ({ id }) => selectedSet.has(id));
-    const someSelected = !allSelected && selectable.some(
-        ({ id }) => selectedSet.has(id));
+    const selection = useTableSelection(selectable, selectedIds, setSelectedIds);
+    const selectedRows = rows.filter(({ id }) => selection.selected.has(id));
     const onlySystem = !!selectedRows.length &&
         selectedRows.every((workflow) => workflow.is_system);
     const onlyHiddenSystem = !!selectedRows.length &&
@@ -112,16 +107,6 @@ export function WorkflowList() {
     const bulkLabel = onlyHiddenSystem ? "Activate"
         : onlySystem ? "Deactivate" : "Delete";
 
-    function toggleAll() {
-        setSelectedIds(allSelected ? [] : selectable.map(({ id }) => id));
-    }
-    function toggleOne(id: string) {
-        setSelectedIds((current) =>
-            current.includes(id)
-                ? current.filter((selectedId) => selectedId !== id)
-                : [...current, id],
-        );
-    }
     function updateHidden(ids: string[], shouldHide: boolean) {
         setHiddenSystemIds((current) => shouldHide
             ? [...new Set([...current, ...ids])]
@@ -178,48 +163,23 @@ export function WorkflowList() {
                 ) : undefined}
             />
             <TableScrollArea header={
-                <TableHeaderRow>
-                    <TableStickyCell header
-                        widthClassName={TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS}>
-                        {mutationsEnabled && (loading
-                            ? <TableSelectionPlaceholder />
-                            : (
-                                <CheckboxControl checked={allSelected}
-                                    aria-label="Select loaded workflows"
-                                    ref={(element) => {
-                                        if (element)
-                                            element.indeterminate = someSelected;
-                                    }}
-                                    onChange={toggleAll} className="-ml-2 mr-1"
-                                />
-                            ))}
-                        <span className="mr-1">Name</span>
-                    </TableStickyCell>
+                <TableSelectionHeader label="Name" loading={loading}
+                    selection={mutationsEnabled ? selection : undefined}
+                    selectionLabel="Select loaded workflows"
+                    widthClassName={TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS}>
                     {COLUMNS.map(([label, className]) => (
                         <TableHeaderCell key={label} className={className}>{label}</TableHeaderCell>
                     ))}
                     <TableHeaderCell className={ACTION_COLUMN} />
-                </TableHeaderRow>
+                </TableSelectionHeader>
             }>
                 {loading ? (
-                    <TableBody>
-                        {[1, 2, 3].map((key) => (
-                            <TableRow key={key} interactive={false}>
-                                <TableStickyCell widthClassName={
-                                    TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS}>
-                                    <div className="flex items-center">
-                                        {mutationsEnabled && <TableSelectionPlaceholder />}
-                                        <SkeletonLine className="h-3.5 w-48" />
-                                    </div>
-                                </TableStickyCell>
-                                {COLUMNS.map(([label, className, width]) => (
-                                    <TableCell key={label} className={className}>
-                                        <SkeletonLine className={width} /></TableCell>
-                                ))}
-                                <TableCell className={ACTION_COLUMN} />
-                            </TableRow>
-                        ))}
-                    </TableBody>
+                    <TableLoadingRows selection={mutationsEnabled}
+                        primaryWidthClassName={TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS}
+                        columns={[
+                            ...COLUMNS.map(([, className, lineClassName]) => ({ className, lineClassName })),
+                            { className: ACTION_COLUMN },
+                        ]} />
                 ) : visible.length === 0 ? (
                     <TableEmptyState>
                         <p className="text-sm text-gray-500">
@@ -238,7 +198,7 @@ export function WorkflowList() {
                     <TableBody>
                         {visible.map((workflow) => {
                             const isHidden = hidden.has(workflow.id);
-                            const isSelected = selectedSet.has(workflow.id);
+                            const isSelected = selection.selected.has(workflow.id);
                             const selectable = canSelect(workflow);
                             const canHide = mutationsEnabled && workflow.is_system;
                             const canEdit = mutationsEnabled &&
@@ -257,13 +217,9 @@ export function WorkflowList() {
                                         TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS}>
                                         <div className="flex min-w-0 items-center">
                                             {selectable && (
-                                                <CheckboxControl checked={isSelected}
-                                                    onChange={() =>
-                                                        toggleOne(workflow.id)}
-                                                    onClick={(event) =>
-                                                        event.stopPropagation()}
-                                                    className="-ml-2 mr-1"
-                                                />
+                                                <TableSelectionCheckbox checked={isSelected}
+                                                    aria-label={`Select ${workflow.metadata.title}`}
+                                                    onChange={() => selection.toggle(workflow.id)} />
                                             )}
                                             <span className="min-w-0 flex-1 truncate text-sm text-gray-900">
                                                 {workflow.metadata.title}
@@ -316,13 +272,7 @@ export function WorkflowList() {
                     </TableBody>
                 )}
             </TableScrollArea>
-            {custom.hasMore && !loading && activeTab !== "system" && (
-                <div className="flex justify-center border-t border-gray-200 bg-white p-3">
-                    <PillButton tone="white" onClick={() => void custom.loadMore()}>
-                        Load more
-                    </PillButton>
-                </div>
-            )}
+            <TableLoadMore show={custom.hasMore && !loading && activeTab !== "system"} onClick={() => void custom.loadMore()} />
             <UseWorkflowModal workflow={selected} onClose={() => setSelected(null)} />
             <NewWorkflowModal open={creating}
                 onClose={() => setCreating(false)}

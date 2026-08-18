@@ -17,9 +17,7 @@ function canonicalMessage(events: unknown[], error?: string) {
         messages: [{
             id: "assistant-test",
             role: "assistant",
-            content: "",
-            events,
-            ...(error && { error }),
+            content: [...events, ...(error ? [{ type: "error", message: error }] : [])],
         }],
     });
     return state.messages[0] as AssistantMessageState;

@@ -207,7 +207,7 @@ function DownloadButton({
         if (busy || isReloading) return;
         setBusy(true);
         try {
-            const qs = versionId                ? `?version_id=${encodeURIComponent(versionId)}`                : "";            const resp = await apiFetch(                `/single-documents/${documentId}/docx${qs}`,                { headers: { Accept: "*/*" } },            );            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const qs = versionId                ? `?version_id=${encodeURIComponent(versionId)}`                : "";            const resp = await apiFetch(                `/single-documents/${documentId}/file${qs}`,                { headers: { Accept: "*/*" } },            );            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
             downloadBlob(await resp.blob(), filename);
         } finally {
             setBusy(false);

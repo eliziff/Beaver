@@ -22,7 +22,7 @@
  *
  *   Pages are OUR OWN printed data. `[page N]` markers are emitted at a line
  *   start by the PDF and journals compilers (`legalPdfSourceDoc`,
- *   `localPdfLookup`, `journalArticles`); reading them back is parsing our
+ *   `DocumentProjectionService`, `journalArticles`); reading them back is parsing our
  *   own output, not detecting page structure in someone else's document.
  *   Nothing here infers, recovers or validates a page boundary.
  *

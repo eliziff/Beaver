@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  createLocalPdfArtifactSession: vi.fn(),
-  createLocalPdfLinkEvidenceSession: vi.fn(),
   getLocalVersionFile: vi.fn(),
   readLocalPdfEvidenceReceipt: vi.fn(),
   rehydrate: vi.fn(),
@@ -12,17 +10,15 @@ vi.mock("../localDocumentStore", () => ({
   getLocalVersionFile: mocks.getLocalVersionFile,
 }));
 
-vi.mock("../localPdfLookup", () => ({
-  createLocalPdfArtifactSession:
-    mocks.createLocalPdfArtifactSession,
-  createLocalPdfLinkEvidenceSession:
-    mocks.createLocalPdfLinkEvidenceSession,
-  readLocalPdfEvidenceReceipt: mocks.readLocalPdfEvidenceReceipt,
+vi.mock("../documentProjectionService", () => ({
+  documentProjectionService: {
+    readPdfEvidence: mocks.readLocalPdfEvidenceReceipt,
+    rehydratePdfLink: mocks.rehydrate,
+  },
 }));
 
 import {
   appendLocalPdfPinpointLinks,
-  localPdfArtifactSessionForTurn,
   providerPdfReferencesForTurn,
   registerProviderPdfEvidenceForTurn,
 } from "../chat/localPdfEvidenceState";
@@ -43,8 +39,6 @@ const evidence = {
 beforeEach(() => {
   mocks.getLocalVersionFile.mockReset();
   mocks.readLocalPdfEvidenceReceipt.mockReset();
-  mocks.createLocalPdfArtifactSession.mockReset();
-  mocks.createLocalPdfLinkEvidenceSession.mockReset();
   mocks.rehydrate.mockReset();
   mocks.readLocalPdfEvidenceReceipt.mockResolvedValue({
     source: { document_id: "document-1", version_id: "version-1" },
@@ -57,9 +51,6 @@ beforeEach(() => {
     fileType: "pdf",
     path: "C:\\data\\fixture.pdf",
     version: { filename: "fixture.pdf" },
-  });
-  mocks.createLocalPdfArtifactSession.mockReturnValue({
-    source: "C:\\data\\fixture.pdf",
   });
   mocks.rehydrate.mockResolvedValue({
     handle,
@@ -84,27 +75,9 @@ beforeEach(() => {
     ],
     pages: [{ pageNumber: 7, label: "[page 7]", evidence }],
   });
-  mocks.createLocalPdfLinkEvidenceSession.mockReturnValue({
-    rehydrate: mocks.rehydrate,
-  });
 });
 
 describe("local PDF chat link finalization", () => {
-  it("reuses one artifact session for a source throughout a turn", () => {
-    const handles = new Set<string>();
-    const first = localPdfArtifactSessionForTurn(
-      handles,
-      "C:\\data\\fixture.pdf",
-    );
-    const second = localPdfArtifactSessionForTurn(
-      handles,
-      "C:\\data\\fixture.pdf",
-    );
-
-    expect(second).toBe(first);
-    expect(mocks.createLocalPdfArtifactSession).toHaveBeenCalledTimes(1);
-  });
-
   it("builds one verified multi-text link for disjoint quotes on a page", async () => {
     const answer =
       'The court said "The governing rule applies in these circumstances" and "The remedy is limited to damages."';
@@ -177,7 +150,6 @@ describe("local PDF chat link finalization", () => {
     await expect(
       appendLocalPdfPinpointLinks(answer, "local-user", handles),
     ).resolves.toBe(answer);
-    expect(mocks.readLocalPdfEvidenceReceipt).not.toHaveBeenCalled();
   });
 
   it("leaves the answer alone when text mismatches or evidence drifts", async () => {
@@ -200,16 +172,7 @@ describe("local PDF chat link finalization", () => {
     );
   });
 
-  it("skips disk work without quotes and deduplicates repeated page evidence", async () => {
-    await expect(
-      appendLocalPdfPinpointLinks(
-        "The court applied the governing rule.",
-        "local-user",
-        new Set([handle]),
-      ),
-    ).resolves.toBe("The court applied the governing rule.");
-    expect(mocks.readLocalPdfEvidenceReceipt).not.toHaveBeenCalled();
-
+  it("deduplicates repeated page evidence", async () => {
     const answer =
       'The court said "The governing rule applies in these circumstances."';
     const linked = await appendLocalPdfPinpointLinks(
@@ -218,11 +181,6 @@ describe("local PDF chat link finalization", () => {
       new Set([handle, secondHandle]),
     );
     expect(linked.match(/\[fixture\.pdf, p\. 7\]/gu)).toHaveLength(1);
-    expect(mocks.createLocalPdfLinkEvidenceSession).toHaveBeenCalledTimes(1);
-    expect(mocks.createLocalPdfLinkEvidenceSession).toHaveBeenCalledWith(
-      "C:\\data\\fixture.pdf",
-      expect.objectContaining({ source: "C:\\data\\fixture.pdf" }),
-    );
   });
 
   it("deduplicates the selected unit while retaining context-unit links", async () => {

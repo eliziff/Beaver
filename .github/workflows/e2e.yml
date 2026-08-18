@@ -77,9 +77,7 @@ jobs:
 
       # Object storage. Three specs upload a document (tabular-review row,
       # project-folder fixture) and assert the result renders; those uploads go
-      # through backend/src/lib/storage.ts, an S3-compatible client that only
-      # ENABLES when R2_ENDPOINT_URL + R2_ACCESS_KEY_ID + R2_SECRET_ACCESS_KEY are
-      # set (region "auto", forcePathStyle true — MinIO-compatible as written).
+      # through the private S3 adapter in backend/src/lib/storage.ts.
       # With no storage the upload endpoint 5xxs and the row never appears. A
       # `docker run` (not a `services:` container) is used because the minio image
       # needs the `server /data` argument the services block can't supply, and we
@@ -137,9 +135,7 @@ jobs:
             echo "FRONTEND_URL=http://localhost:3000"
             echo "SUPABASE_URL=$API_URL"
             echo "SUPABASE_SECRET_KEY=$SERVICE_KEY"
-            # Both secrets are consumed lazily by download-token signing and API-key
-            # encryption; supply CI dummies well over any length floor.
-            echo "DOWNLOAD_SIGNING_SECRET=ci-download-signing-secret-0123456789abcdef"
+            # Supply an API-key encryption secret above the production length floor.
             echo "USER_API_KEYS_ENCRYPTION_SECRET=ci-user-api-keys-encryption-secret-0123456789abcdef"
             # The suite drives many writes back-to-back (create folder/workflow/
             # review, upload, update profile, login); the default per-window caps
@@ -152,10 +148,12 @@ jobs:
             echo "RATE_LIMIT_EXPORT_MAX=100000"
             echo "RATE_LIMIT_DATA_DELETE_MAX=100000"
             # Point the S3-compatible storage adapter at the MinIO container above.
-            echo "R2_ENDPOINT_URL=http://localhost:9000"
-            echo "R2_ACCESS_KEY_ID=minioadmin"
-            echo "R2_SECRET_ACCESS_KEY=minioadmin"
-            echo "R2_BUCKET_NAME=mike"
+            echo "S3_ENDPOINT=http://localhost:9000"
+            echo "S3_REGION=us-east-1"
+            echo "S3_BUCKET=mike"
+            echo "S3_ACCESS_KEY_ID=minioadmin"
+            echo "S3_SECRET_ACCESS_KEY=minioadmin"
+            echo "S3_FORCE_PATH_STYLE=true"
             echo "ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}"
           } >> backend/.env
           # next build inlines NEXT_PUBLIC_* at build time, so these must be set

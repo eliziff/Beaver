@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  oauthTokenMatchesConnectorCredentials,
+  connectorCredentialsMatch,
   toConnectorSummary,
 } from "../mcp/client";
 import type { ConnectorRow, OAuthTokenRow } from "../mcp/types";
@@ -56,7 +56,7 @@ describe("MCP credential epoch", () => {
     const currentToken = token();
 
     expect(
-      oauthTokenMatchesConnectorCredentials(currentToken, currentConnector),
+      connectorCredentialsMatch(currentToken.updated_at, currentConnector),
     ).toBe(true);
     expect(
       toConnectorSummary(currentConnector, [], currentToken).oauthConnected,
@@ -68,7 +68,7 @@ describe("MCP credential epoch", () => {
       ...token(),
       updated_at: "2026-07-27T11:59:59.000Z",
     };
-    expect(oauthTokenMatchesConnectorCredentials(staleToken, connector())).toBe(
+    expect(connectorCredentialsMatch(staleToken.updated_at, connector())).toBe(
       false,
     );
     expect(

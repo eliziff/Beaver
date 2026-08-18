@@ -205,8 +205,8 @@ describe("assistantSessionReducer", () => {
     live = assistantSessionReducer(live, { type: "run_finished", runId: "run-1" });
 
     const reload = createAssistantSessionState({ chatId: "chat-1", messages: [
-      user,
-      { id: "assistant:run-1", role: "assistant", content: "", events: rawEvents, turnComplete: true },
+      { ...user, id: "user-1" },
+      { id: "assistant:run-1", role: "assistant", content: rawEvents, turn_complete: true },
     ] });
     expect(assistant(reload)).toEqual({ ...assistant(live), turnComplete: true });
   });

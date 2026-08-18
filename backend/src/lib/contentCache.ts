@@ -6,7 +6,7 @@ import { sha256 } from "./hash";
 
 /**
  * Content-addressed keyed cache (evaluation-context plan §12 — the
- * "downloaded authority" family; parseCache covers the parsed-document
+ * "downloaded authority" family; DocumentProjectionService covers document
  * family). Key = caller-chosen request identity + version, scoped so
  * matter-scoped material is never shared across scopes. TTL bounds
  * staleness for sources that can change (consolidated statutes, search

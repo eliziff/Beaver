@@ -244,20 +244,14 @@ export type CaseCitationQuote = {
 };
 export interface Message {
   id?: string;
-  role: "user" | "assistant";
+  role: "user";
   content: string;
   files?: { filename: string; document_id?: string }[];
   workflow?: { id: string; title: string };
   model?: string;
   reasoningEffort?: string;
   editMode?: "manual" | "auto";
-  citations?: Citation[];
-  citationStatus?: "started" | "partial" | "final";
-  events?: unknown[];
-  error?: string;
   turnId?: string;
-  turnStatus?: "cancelled" | "interrupted";
-  turnComplete?: boolean;
 }
 export interface CitationQuote {
   page?: number;

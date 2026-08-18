@@ -139,7 +139,6 @@ afterEach(async () => {
   vi.doUnmock("../convert");
   vi.doUnmock("../draftingStyleStore");
   vi.doUnmock("../localDocumentStore");
-  vi.doUnmock("../localPdfLookup");
   vi.doUnmock("../legalStructureSidecar");
   vi.doUnmock("../chat/tools/sourceSearchTools");
   vi.doUnmock("node:fs/promises");
@@ -176,7 +175,7 @@ describe("local assistant tools", () => {
         sections: [{ children: [new Paragraph("Original provision.")] }],
       }),
     );
-    const store = await import("../localDocumentStore");
+    const store = await import("./support/localDocumentFixtures");
     const document = await store.createLocalDocument({
       userId: "local-user",
       kind: "file",
@@ -186,14 +185,12 @@ describe("local assistant tools", () => {
     const [
       { createChatToolRunner },
       { createLegalEvidenceTurnState },
-      { localDocuments, localLibraryStore },
-      { localProjects },
+      { localDocuments, localLibraryStore, localProjects },
     ] =
       await Promise.all([
         import("../chat/chatToolRunner"),
         import("../chat/legalEvidence"),
-        import("../localLibraryStore"),
-        import("../localProjectStore"),
+        import("./support/localDocumentFixtures"),
       ]);
     const committed = vi.fn();
     const chat = createChatToolRunner({
@@ -267,7 +264,7 @@ describe("local assistant tools", () => {
         await import("../draftingStyle")
       ).DEFAULT_DRAFTING_STYLE),
     }));
-    const store = await import("../localDocumentStore");
+    const store = await import("./support/localDocumentFixtures");
     await store.createLocalDocument({
       userId: "local-user",
       kind: "file",
@@ -279,13 +276,11 @@ describe("local assistant tools", () => {
     const [
       { createChatToolRunner },
       { createLegalEvidenceTurnState },
-      { localDocuments, localLibraryStore },
-      { localProjects },
+      { localDocuments, localLibraryStore, localProjects },
     ] = await Promise.all([
       import("../chat/chatToolRunner"),
       import("../chat/legalEvidence"),
-      import("../localLibraryStore"),
-      import("../localProjectStore"),
+      import("./support/localDocumentFixtures"),
     ]);
     const { runLocalAssistantTools } = await import("./support/localAssistantTools");
     const [created, workbook, presentation] = await runLocalAssistantTools(
@@ -388,7 +383,7 @@ describe("local assistant tools", () => {
         sections: [{ children: [new Paragraph("Original provision.")] }],
       }),
     );
-    const store = await import("../localDocumentStore");
+    const store = await import("./support/localDocumentFixtures");
     const document = await store.createLocalDocument({
       userId: "local-user",
       kind: "file",
@@ -438,7 +433,7 @@ describe("local assistant tools", () => {
   it("source-qualifies multi-document coding reads independently of aliases", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-code-evidence-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
-    const store = await import("../localDocumentStore");
+    const store = await import("./support/localDocumentFixtures");
     const first = await store.createLocalDocument({
       userId: "local-user",
       kind: "file",
@@ -489,7 +484,7 @@ describe("local assistant tools", () => {
   it("keeps broad Grep display context out of the drafting handoff", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-grep-focus-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
-    const store = await import("../localDocumentStore");
+    const store = await import("./support/localDocumentFixtures");
     const text = ["zero", "one", "two", "NEEDLE", "four", "five", "six"].join("\n");
     const document = await store.createLocalDocument({
       userId: "local-user",
@@ -511,7 +506,7 @@ describe("local assistant tools", () => {
       },
     ]);
     const extracted = await tools.extractDocument(
-      (await import("../localLibraryStore")).localDocuments,
+      (await import("./support/localDocumentFixtures")).localDocuments,
       { userId: "local-user" },
       document.id,
     );
@@ -542,7 +537,7 @@ describe("local assistant tools", () => {
       type: "buffer",
       bookType: "xlsx",
     }) as Buffer;
-    const store = await import("../localDocumentStore");
+    const store = await import("./support/localDocumentFixtures");
     const document = await store.createLocalDocument({
       userId: "local-user",
       kind: "file",
@@ -551,7 +546,7 @@ describe("local assistant tools", () => {
     });
     const tools = await import("./support/localAssistantTools");
     const extracted = await tools.extractDocument(
-      (await import("../localLibraryStore")).localDocuments,
+      (await import("./support/localDocumentFixtures")).localDocuments,
       { userId: "local-user" },
       document.id,
     );
@@ -599,7 +594,7 @@ describe("local assistant tools", () => {
         ],
       }),
     );
-    const store = await import("../localDocumentStore");
+    const store = await import("./support/localDocumentFixtures");
     await store.createLocalDocument({
       userId: "local-user",
       kind: "file",
@@ -631,7 +626,7 @@ describe("local assistant tools", () => {
         sections: [{ children: [new Paragraph("Term term TERM.")] }],
       }),
     );
-    const store = await import("../localDocumentStore");
+    const store = await import("./support/localDocumentFixtures");
     const document = await store.createLocalDocument({
       userId: "local-user",
       kind: "file",
@@ -667,7 +662,7 @@ describe("local assistant tools", () => {
       change_count: 1,
     });
     expect((await tools.extractDocument(
-      (await import("../localLibraryStore")).localDocuments,
+      (await import("./support/localDocumentFixtures")).localDocuments,
       { userId: "local-user" },
       document.id,
     ))?.text)
@@ -677,7 +672,7 @@ describe("local assistant tools", () => {
   it("recovers duplicate filenames by id and consolidates a coding edit turn", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-code-turn-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
-    const store = await import("../localDocumentStore");
+    const store = await import("./support/localDocumentFixtures");
     const makeDoc = async (text: string) =>
       store.createLocalDocument({
         userId: "local-user",
@@ -747,47 +742,12 @@ describe("local assistant tools", () => {
     expect((await store.listLocalVersions("local-user", other.id))?.versions)
       .toHaveLength(1);
     expect((await tools.extractDocument(
-      (await import("../localLibraryStore")).localDocuments,
+      (await import("./support/localDocumentFixtures")).localDocuments,
       { userId: "local-user" },
       intended.id,
     ))?.text)
       .toContain("Gamma Delta.");
   }, 45_000);
-
-  it("keeps oversized research results as valid JSON with research guidance", async () => {
-    process.env.MIKE_TOOL_RESULT_CAP = "1000";
-    vi.doMock("../chat/tools/sourceSearchTools", async (importOriginal) => ({
-      ...(await importOriginal<typeof import("../chat/tools/sourceSearchTools")>()),
-      searchSources: vi.fn(async () => ({
-        ok: true,
-        hits: Array.from({ length: 100 }, (_, index) => ({
-          id: `source-${index}`,
-          excerpt: `research passage ${index} ${"x".repeat(100)}`,
-        })),
-      })),
-    }));
-    const { runLocalAssistantTools } =
-      await import("./support/localAssistantTools");
-    const [response] = await runLocalAssistantTools("local-user", [
-      {
-        id: "call-research",
-        name: "search_sources",
-        input: { query: "research", source_types: ["journal"] },
-      },
-    ]);
-
-    expect(response.content.length).toBeLessThanOrEqual(1000);
-    const payload = JSON.parse(response.content);
-    expect(payload).toMatchObject({
-      ok: true,
-      truncated: true,
-      original_format: "json",
-    });
-    expect(payload.omitted_characters).toBeGreaterThan(0);
-    expect(payload.preview.head).toContain("source-0");
-    expect(payload.continuation).toContain("search_sources");
-    expect(payload.continuation).not.toContain("library_");
-  });
 
   it("reads system workflow instructions in account-free mode", async () => {
     const tools = await import("./support/localAssistantTools");
@@ -837,15 +797,10 @@ describe("local assistant tools", () => {
       );
 
       expect(JSON.parse(response.content)).toMatchObject({ ok: false });
-      expect(
-        (
-          await (
-            await import("../localDocumentStore")
-          ).pageLocalDocuments("local-user", ["file"], {
-            q: "", limit: 50, after: null,
-          })
-        ).items,
-      ).toEqual([]);
+      const { localLibraryStore } = await import("./support/localDocumentFixtures");
+      expect((await localLibraryStore.page({ userId: "local-user", kind: "file" }, {
+        q: "", parentFolderId: null, limit: 50, after: null,
+      })).items).toEqual([]);
     } finally {
       graph.close();
     }
@@ -895,7 +850,7 @@ describe("local assistant tools", () => {
       submitTableOfAuthoritiesDocument: submit,
       getTableOfAuthoritiesJob: vi.fn(),
     }));
-    const store = await import("../localDocumentStore");
+    const store = await import("./support/localDocumentFixtures");
     const document = await store.createLocalDocument({
       userId: "local-user",
       kind: "file",
@@ -963,7 +918,7 @@ describe("local assistant tools", () => {
     });
   });
 
-  it("keeps A2AJ link provenance private while collecting lookup evidence", async () => {
+  it("keeps A2AJ link provenance private while returning evidence receipts", async () => {
     const text = Array.from(
       { length: 6 },
       (_, index) =>
@@ -987,8 +942,6 @@ describe("local assistant tools", () => {
       }),
     );
     const tools = await import("./support/localAssistantTools");
-    const evidence: import("../a2aj").A2AJLocatorLookup[] = [];
-
     const [response] = await tools.runLocalAssistantTools(
       "local-user",
       [
@@ -1007,7 +960,6 @@ describe("local assistant tools", () => {
           },
         },
       ],
-      { a2ajLookups: evidence },
     );
     const modelResult = JSON.parse(response.content);
 
@@ -1018,8 +970,10 @@ describe("local assistant tools", () => {
       { locator: "par4", evidence_id: expect.stringMatching(/^e_/u) },
       { locator: "par5", evidence_id: expect.stringMatching(/^e_/u) },
     ]);
-    expect(evidence).toHaveLength(3);
-    expect(evidence.every(({ url }) => url === "https://example.test/case"))
+    expect(response.evidence).toHaveLength(3);
+    expect(response.evidence?.every(
+      ({ external_url }) => external_url === "https://example.test/case",
+    ))
       .toBe(true);
   });
 

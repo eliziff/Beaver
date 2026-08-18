@@ -114,8 +114,7 @@ def main() -> int:
     for eid, entry in C2_ENTRIES.items():
         entries.append(fill(entry, C2_DEFS, C2_VECTORS[eid]))
 
-    table = {"format": gt.GRAMMAR_TABLE_FORMAT,
-             "description": "PROPOSAL ONLY -- sibling dialect entries for review.",
+    table = {"description": "PROPOSAL ONLY -- sibling dialect entries for review.",
              "defs": C2_DEFS, "entries": entries}
     failures = gt.run_vectors(table)
     print(f"run_vectors failures: {failures or 'none'}")

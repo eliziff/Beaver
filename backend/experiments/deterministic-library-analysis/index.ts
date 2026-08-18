@@ -1,16 +1,16 @@
-import { draftingLint } from "../../src/lib/legalDraftingLint";
+import { draftingLint } from "./legalDraftingLint";
 import { consolidateAmendment } from "../../src/lib/legalAmendOps";
 import {
   computeDeadline,
   type DeadlineJurisdiction,
   type DeadlineUnit,
-} from "../../src/lib/legalDeadlines";
-import { conflictScan } from "../../src/lib/legalConflictScan";
+} from "./legalDeadlines";
+import { conflictScan } from "./legalConflictScan";
 import {
   anchorCoverage,
   bilingualConcordance,
-} from "../../src/lib/legalTextAnchors";
-import { termDriftReport } from "../../src/lib/legalTermDrift";
+} from "./legalTextAnchors";
+import { termDriftReport } from "./legalTermDrift";
 
 export const EXPERIMENTAL_LIBRARY_ANALYSES = [
   "anchor_coverage",

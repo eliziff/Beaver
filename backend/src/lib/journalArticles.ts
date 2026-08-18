@@ -8,15 +8,13 @@ import {
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { legalProviderDatabase } from "./legalDataPath";
-import { sha256 } from "./hash";
 import type {
-  LegalSourcePassage,
   LegalSourceProvider,
   LegalSourceReference,
 } from "./legalSources";
+import { sourceDocPassages } from "./legalSources/sourceDocPassages";
 import {
   createSourceDoc,
-  readSourceDocRange,
   type SourceDoc,
   type SourceDocBlock,
   type SourceDocLocatorKind,
@@ -1125,80 +1123,13 @@ export const journalLegalSourceProvider: LegalSourceProvider<
   async readPassage(request) {
     const document = fetchJournalArticle(request.source.id);
     if (!document) return [];
-    const source = document.structure;
-    if (!request.locator) {
-      const passage: LegalSourcePassage<
-        SourceDoc,
-        { document: JournalArticleDocument; lookup?: JournalArticleLookup }
-      > = {
-        source: journalReference(document),
-        locator: { requested: null, label: "document" },
-        role: "document",
-        text: source.text,
-        textSha256: sha256(source.text),
-        documentSha256: source.revision,
-        revision: source.revision,
-        blockArtifact: source,
-        documentArtifact: source,
-        native: { document },
-      };
-      return [passage];
-    }
-    const lookup = lookupJournalArticle(
-      document,
-      request.locator.kind,
-      request.locator.value,
-      request.contextBlocks ?? 0,
-    );
-    if (lookup.status !== "found" || !lookup.block) return [];
-    const range = request.locator.endValue
-      ? readSourceDocRange(
-          source,
-          request.locator.kind,
-          request.locator.value,
-          request.locator.endValue,
-          request.contextBlocks ?? 0,
-        )
-      : null;
-    if (request.locator.endValue && !range) return [];
-    const visible = range
-      ? [
-          ...range.before.map((block) => ({ block, role: "context" as const })),
-          ...range.selected.map((block) => ({ block, role: "selected" as const })),
-          ...range.after.map((block) => ({ block, role: "context" as const })),
-        ]
-      : [
-          { block: lookup.block, role: "selected" as const },
-          ...lookup.before.map((block) => ({ block, role: "context" as const })),
-          ...lookup.after.map((block) => ({ block, role: "context" as const })),
-        ];
-    return visible.map(({ block, role }) => ({
-      source: journalReference(document),
-      locator: {
-        requested: request.locator!,
-        label: block.label,
-        anchor: block.anchor ?? (role === "selected" ? lookup.anchor : null),
-        pageScoped: block.kind === "page",
-      },
-      role,
-      text: block.text,
-      textSha256: sha256(block.text),
-      documentSha256: source.revision,
-      revision: source.revision,
-      blockArtifact: block.text,
-      documentArtifact: source,
-      native: {
-        document,
-        lookup: {
-          ...lookup,
-          requestedLabel: block.label,
-          matches: [block.label],
-          block,
-          before: [],
-          after: [],
-          anchor: block.anchor ?? null,
-        },
-      },
-    }));
+    return sourceDocPassages({
+      request,
+      reference: journalReference(document),
+      document: document.structure,
+      native: { document },
+      lookup: (kind, value, contextBlocks) =>
+        lookupJournalArticle(document, kind, value, contextBlocks),
+    });
   },
 };

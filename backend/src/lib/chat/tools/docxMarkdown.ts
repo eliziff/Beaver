@@ -1,5 +1,5 @@
 import type { ParagraphChild } from "docx";
-import { getZipEntry, loadDocxPackage, setZipEntry } from "../../docx/core";
+import { openDocxSession } from "../../docx/session";
 import { escapeXmlText } from "../../text";
 
 type DocxMarkdownInline =
@@ -534,13 +534,13 @@ export function parseDocxMarkdown(
     referencedNotes: new Set(),
     warnings,
   };
-  const bookmarks = new Set<string>();
   const { definitions, body } = extractFootnotes(
     normalizeMarkdownLines(
       markdown.replaceAll("\r\n", "\n").replaceAll("\r", "\n").split("\n"),
     ),
     warnings,
   );
+  const bookmarks = new Set<string>();
   const blocks: DocxMarkdownBlock[] = [];
 
   for (let index = 0; index < body.length; ) {
@@ -761,17 +761,14 @@ async function bindContentControls(
   values: Readonly<Record<string, string>>,
 ) {
   if (!tags.size) return bytes;
-  const zip = await loadDocxPackage(bytes);
-  const relationshipsEntry = getZipEntry(
-    zip,
-    "word/_rels/document.xml.rels",
-  );
-  const contentTypesEntry = getZipEntry(zip, "[Content_Types].xml");
-  if (!relationshipsEntry || !contentTypesEntry) {
+  const session = await openDocxSession(bytes);
+  const [relationships, contentTypes] = await Promise.all([
+    session.readText("word/_rels/document.xml.rels"),
+    session.readText("[Content_Types].xml"),
+  ]);
+  if (relationships == null || contentTypes == null) {
     throw new Error("Generated DOCX is missing required package metadata.");
   }
-  const relationships = await relationshipsEntry.async("text");
-  const contentTypes = await contentTypesEntry.async("text");
   const fields = [...tags]
     .sort()
     .map(
@@ -780,8 +777,7 @@ async function bindContentControls(
     )
     .join("");
 
-  setZipEntry(
-    zip,
+  session.write(
     "word/_rels/document.xml.rels",
     appendXmlChild(
       relationships,
@@ -789,8 +785,7 @@ async function bindContentControls(
       '<Relationship Id="rIdBeaverFields" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/item1.xml"/>',
     ),
   );
-  setZipEntry(
-    zip,
+  session.write(
     "[Content_Types].xml",
     appendXmlChild(
       contentTypes,
@@ -798,22 +793,19 @@ async function bindContentControls(
       '<Override PartName="/customXml/itemProps1.xml" ContentType="application/vnd.openxmlformats-officedocument.customXmlProperties+xml"/>',
     ),
   );
-  setZipEntry(
-    zip,
+  session.write(
     "customXml/item1.xml",
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><b:fields xmlns:b="${CONTROL_XML_NAMESPACE}">${fields}</b:fields>`,
   );
-  setZipEntry(
-    zip,
+  session.write(
     "customXml/itemProps1.xml",
     `<?xml version="1.0" encoding="UTF-8" standalone="no"?><ds:datastoreItem ds:itemID="${CONTROL_XML_STORE_ID}" xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml"><ds:schemaRefs><ds:schemaRef ds:uri="${CONTROL_XML_NAMESPACE}"/></ds:schemaRefs></ds:datastoreItem>`,
   );
-  setZipEntry(
-    zip,
+  session.write(
     "customXml/_rels/item1.xml.rels",
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps" Target="itemProps1.xml"/></Relationships>',
   );
-  return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
+  return session.save();
 }
 
 function collectCitationIds(document: DocxMarkdownDocument) {

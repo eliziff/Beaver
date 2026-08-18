@@ -37,7 +37,7 @@ import { createSourceDoc, type SourceDocBlock } from "./sourceDoc";
 
 /**
  * Bumped whenever the compiler's output for the same text changes, so a
- * stale bake can never be served. This is the same discipline `parseCache`
+ * stale bake can never be served. This is the same discipline document projections
  * applies to parser versions — the alternative is a cache that quietly
  * disagrees with the code that reads it.
  */

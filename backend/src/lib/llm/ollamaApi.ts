@@ -1,5 +1,6 @@
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
+import { Ollama, type ChatResponse, type Message, type Tool } from "ollama";
 import { throwIfAborted } from "./abort";
 import type {
   NormalizedLlmUsage,
@@ -21,41 +22,50 @@ const ollamaProxyHeaders = (): Record<string, string> => {
   return host ? { Host: host } : {};
 };
 
-async function ollamaFetch(
-  path: string,
-  init: RequestInit = {},
-): Promise<Response> {
-  const url = new URL(`${ollamaBaseUrl()}${path}`);
-  const proxyHeaders = ollamaProxyHeaders();
-  if (!proxyHeaders.Host) return fetch(url.toString(), init);
-
-  return new Promise((resolve, reject) => {
-    const options = {
-      method: init.method,
-      headers: {
-        ...Object.fromEntries(new Headers(init.headers)),
-        ...proxyHeaders,
+async function ollamaFetch(input: string | URL | Request, init: RequestInit) {
+  const host = process.env.OLLAMA_HOST_HEADER;
+  if (!host) return fetch(input, init);
+  const url = new URL(
+    typeof input === "string" || input instanceof URL ? input : input.url,
+  );
+  return new Promise<Response>((resolve, reject) => {
+    const request = (url.protocol === "https:" ? httpsRequest : httpRequest)(
+      url,
+      {
+        method: init.method,
+        headers: { ...Object.fromEntries(new Headers(init.headers)), Host: host },
+        signal: init.signal ?? undefined,
+        ...(url.protocol === "https:" ? { servername: url.hostname } : {}),
       },
-      signal: init.signal ?? undefined,
-    };
-    const request =
-      url.protocol === "https:"
-        ? httpsRequest(url, { ...options, servername: url.hostname })
-        : httpRequest(url, options);
+    );
     const chunks: Buffer[] = [];
     request.on("response", (response) => {
       response.on("data", (chunk: Buffer) => chunks.push(chunk));
-      response.on("end", () => {
-        resolve(
-          new Response(Buffer.concat(chunks), {
-            status: response.statusCode ?? 500,
-            statusText: response.statusMessage,
-          }),
-        );
-      });
+      response.on("end", () => resolve(new Response(Buffer.concat(chunks), {
+        status: response.statusCode ?? 500,
+        statusText: response.statusMessage,
+        headers: Object.entries(response.headers).flatMap(([name, value]) =>
+          (Array.isArray(value) ? value : value == null ? [] : [value])
+            .map((item) => [name, item] as [string, string])),
+      })));
     });
     request.on("error", reject);
     request.end(typeof init.body === "string" ? init.body : undefined);
+  });
+}
+
+function ollamaClient(timeoutMs: number, signal?: AbortSignal) {
+  return new Ollama({
+    host: ollamaBaseUrl(),
+    headers: ollamaProxyHeaders(),
+    fetch: (input, init = {}) => ollamaFetch(input, {
+      ...init,
+      signal: AbortSignal.any([
+        AbortSignal.timeout(timeoutMs),
+        ...(signal ? [signal] : []),
+        ...(init.signal ? [init.signal] : []),
+      ]),
+    }),
   });
 }
 
@@ -111,11 +121,7 @@ export async function getOllamaModelCatalog(): Promise<OllamaModelCatalog> {
   modelCatalogRequest ??= (async () => {
     try {
       const timeout = Number(process.env.OLLAMA_CATALOG_TIMEOUT_MS) || 750;
-      const response = await ollamaFetch("/api/tags", {
-        signal: AbortSignal.timeout(timeout),
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const payload = (await response.json()) as {
+      const payload = await ollamaClient(timeout).list() as unknown as {
         models?: {
           name?: unknown;
           model?: unknown;
@@ -175,27 +181,13 @@ export function ollamaModelSlug(model: string): string | null {
     : null;
 }
 
-type OllamaMessage = {
-  role: string;
-  content: string;
-  tool_calls?: Array<{ function?: { name?: string; arguments?: unknown } }>;
-  tool_name?: string;
-};
-
-type OllamaChatReply = {
-  message?: OllamaMessage & { thinking?: string };
-  prompt_eval_count?: number;
-  eval_count?: number;
-  error?: string;
-};
-
 function configuredNumCtx() {
   const value = Number(process.env.OLLAMA_NUM_CTX || DEFAULT_NUM_CTX);
   return Number.isFinite(value) && value > 0 ? Math.floor(value) : DEFAULT_NUM_CTX;
 }
 
 function requestTokenEstimate(
-  messages: OllamaMessage[],
+  messages: Message[],
   tools: StreamChatParams["tools"],
 ) {
   return Math.ceil(
@@ -205,7 +197,7 @@ function requestTokenEstimate(
 }
 
 function compactOldToolResults(
-  messages: OllamaMessage[],
+  messages: Message[],
   tools: StreamChatParams["tools"],
   numCtx: number,
 ) {
@@ -236,25 +228,13 @@ function compactOldToolResults(
   }
 }
 
-async function ollamaHttpError(response: Response) {
-  let detail = "";
-  try {
-    const payload = JSON.parse(await response.text()) as { error?: unknown };
-    if (typeof payload.error === "string") {
-      detail = payload.error.replace(/\s+/gu, " ").trim().slice(0, 500);
-    }
-  } catch {
-    // Only Ollama's structured error field is safe to surface.
-  }
-  return new Error(
-    `Desktop Ollama failed (HTTP ${response.status})${detail ? `: ${detail}` : ""}. Retry the request. If it keeps failing, choose another tool-capable model.`,
-  );
-}
-
-function thinkingLevel(params: StreamChatParams) {
+function thinkingLevel(
+  params: StreamChatParams,
+): false | "low" | "medium" | "high" {
   if (!params.enableThinking) return false;
   const effort = params.reasoningEffort?.toLowerCase();
-  if (["low", "medium", "high", "max"].includes(effort ?? ""))
+  if (effort === "max") return "high";
+  if (effort === "low" || effort === "medium" || effort === "high")
     return effort;
   return false;
 }
@@ -269,7 +249,7 @@ export async function streamOllama(
   const maxIter = params.maxIterations;
 
   // Images are not carried over this transport (fails closed).
-  const messages: OllamaMessage[] = [
+  const messages: Message[] = [
     { role: "system", content: params.systemPrompt },
     ...params.messages.map((message) => ({
       role: message.role,
@@ -292,45 +272,41 @@ export async function streamOllama(
     throwIfAborted(params.abortSignal);
     const activeTools = params.resolveTools?.() ?? tools;
     compactOldToolResults(messages, activeTools, numCtx);
-    const signals = [AbortSignal.timeout(CALL_TIMEOUT_MS)];
-    if (params.abortSignal) signals.push(params.abortSignal);
-    let response: Response;
+    let reply: ChatResponse;
     try {
-      response = await ollamaFetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: slug,
-          messages,
-          tools: toOpenAIChatTools(activeTools),
-          stream: false,
-          think: thinkingLevel(params),
-          options: { temperature: 0, num_ctx: numCtx },
-        }),
-        signal: AbortSignal.any(signals),
+      reply = await ollamaClient(CALL_TIMEOUT_MS, params.abortSignal).chat({
+        model: slug,
+        messages,
+        tools: toOpenAIChatTools(activeTools) as Tool[],
+        stream: false,
+        think: thinkingLevel(params),
+        options: { temperature: 0, num_ctx: numCtx },
       });
     } catch (error) {
       if (params.abortSignal?.aborted) throw error;
+      const status = (error as { status_code?: unknown }).status_code;
+      const detail = (error as { error?: unknown }).error;
+      if (typeof status === "number") {
+        const safeDetail = typeof detail === "string"
+          ? detail.replace(/\s+/gu, " ").trim().slice(0, 500)
+          : "";
+        throw new Error(
+          `Desktop Ollama failed (HTTP ${status})${safeDetail ? `: ${safeDetail}` : ""}. Retry the request. If it keeps failing, choose another tool-capable model.`,
+          { cause: error },
+        );
+      }
+      if (error instanceof SyntaxError) {
+        throw new Error(
+          "Desktop Ollama returned an unreadable response. Retry the request.",
+          { cause: error },
+        );
+      }
       throw new Error(
         `Desktop Ollama is unreachable at ${ollamaBaseUrl()}. Start Ollama on the desktop and try again.`,
         { cause: error },
       );
     }
-    if (!response.ok) throw await ollamaHttpError(response);
-    let reply: OllamaChatReply;
-    try {
-      reply = (await response.json()) as OllamaChatReply;
-    } catch (error) {
-      throw new Error(
-        "Desktop Ollama returned an unreadable response. Retry the request.",
-        { cause: error },
-      );
-    }
-    if (reply.error)
-      throw new Error(
-        `Desktop Ollama failed: ${reply.error.slice(0, 500)}. Retry the request.`,
-      );
-    const message = reply.message ?? { role: "assistant", content: "" };
+    const message = reply.message;
 
     usage.inputTokens = (usage.inputTokens ?? 0) + (reply.prompt_eval_count ?? 0);
     usage.outputTokens = (usage.outputTokens ?? 0) + (reply.eval_count ?? 0);
@@ -338,6 +314,11 @@ export async function streamOllama(
       usedTokens: reply.prompt_eval_count ?? 0,
       contextWindowTokens: numCtx,
     });
+
+    if (message.thinking) {
+      callbacks.onReasoningDelta?.(message.thinking);
+      callbacks.onReasoningBlockEnd?.();
+    }
 
     if (message.content) {
       fullText += message.content;
@@ -350,16 +331,9 @@ export async function streamOllama(
       const name = String(raw.function?.name ?? "");
       if (!name) continue;
       const rawArguments = raw.function?.arguments;
-      let input: Record<string, unknown> = {};
-      if (typeof rawArguments === "string") {
-        try {
-          input = JSON.parse(rawArguments) as Record<string, unknown>;
-        } catch {
-          input = {};
-        }
-      } else if (rawArguments && typeof rawArguments === "object") {
-        input = rawArguments as Record<string, unknown>;
-      }
+      const input = rawArguments && typeof rawArguments === "object"
+        ? rawArguments as Record<string, unknown>
+        : {};
       callCounter += 1;
       const id = `call_${callCounter}`;
       callNames.set(id, name);

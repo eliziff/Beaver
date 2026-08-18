@@ -270,13 +270,15 @@ create index if not exists idx_documents_library_kind_folder
 create table if not exists public.document_versions (
   id uuid primary key default gen_random_uuid(),
   document_id uuid not null references public.documents(id) on delete cascade,
-  storage_path text,
+  storage_path text not null,
   pdf_storage_path text,
   source text not null default 'upload',
-  version_number integer,
-  filename text,
-  file_type text,
-  size_bytes integer,
+  version_number integer not null,
+  filename text not null,
+  file_type text not null,
+  size_bytes integer not null,
+  source_sha256 text not null,
+  cleanup_paths jsonb not null default '[]'::jsonb,
   page_count integer,
   provenance jsonb,
   deleted_at timestamptz,
@@ -290,7 +292,13 @@ create table if not exists public.document_versions (
       'user_accept'::text,
       'user_reject'::text,
       'generated'::text
-    ]))
+    ])),
+  constraint document_versions_sha256_check
+    check (source_sha256 ~ '^[0-9a-f]{64}$'),
+  constraint document_versions_size_check
+    check (size_bytes between 0 and 104857600),
+  constraint document_versions_cleanup_paths_check
+    check (jsonb_typeof(cleanup_paths) = 'array')
 );
 
 create index if not exists document_versions_document_id_idx
@@ -302,6 +310,14 @@ create index if not exists document_versions_active_document_id_idx
 
 create index if not exists document_versions_doc_vnum_idx
   on public.document_versions(document_id, version_number);
+
+create table if not exists public.object_cleanup (
+  storage_path text primary key,
+  user_id text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.object_cleanup enable row level security;
 
 do $$
 begin
@@ -817,6 +833,7 @@ revoke all on public.project_subfolders from anon, authenticated;
 revoke all on public.library_folders from anon, authenticated;
 revoke all on public.documents from anon, authenticated;
 revoke all on public.document_versions from anon, authenticated;
+revoke all on public.object_cleanup from anon, authenticated;
 revoke all on public.document_edits from anon, authenticated;
 revoke all on public.audit_events from anon, authenticated;
 revoke all on public.workflows from anon, authenticated;

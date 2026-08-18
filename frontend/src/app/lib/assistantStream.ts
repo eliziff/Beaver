@@ -1,4 +1,5 @@
 import { parseAssistantProtocolEvent, type AssistantProtocolEvent } from "./assistantSession";
+import { readSseData } from "./sse";
 
 export const ASSISTANT_STREAM_LIMITS = {
   frame: 512 * 1024,
@@ -24,54 +25,28 @@ export async function readAssistantEventStream({
   expectedChatId?: string;
   onEvent: (event: AssistantProtocolEvent, chatId?: string) => void;
 }) {
-  const reader = body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let total = 0;
   let chatId = expectedChatId;
   let sawDone = false;
   let sawTranscriptVersion = false;
-  const abort = () => void reader.cancel().catch(() => undefined);
-  signal.addEventListener("abort", abort, { once: true });
-  try {
-    while (!signal.aborted && !sawDone) {
-      const chunk = await reader.read();
-      if (signal.aborted) break;
-      const text = decoder.decode(chunk.value, { stream: !chunk.done });
-      total += text.length;
-      if (total > ASSISTANT_STREAM_LIMITS.response) protocolError();
-      buffer += text;
-      if (buffer.length > ASSISTANT_STREAM_LIMITS.buffered) protocolError();
-      if (chunk.done) buffer += "\n\n";
-      const records = buffer.split(/\r?\n\r?\n/u);
-      buffer = records.pop() ?? "";
-      for (const record of records) {
-        if (signal.aborted) break;
-        const data = record.split(/\r?\n/u)
-          .filter((line) => line === "data" || line.startsWith("data:"))
-          .map((line) => line.slice(line[4] === ":" ? 5 : 4).replace(/^ /u, ""))
-          .join("\n");
-        if (!data && !record.includes("data")) continue;
-        if (data.length > ASSISTANT_STREAM_LIMITS.frame) protocolError();
-        if (data === "[DONE]") { sawDone = true; break; }
-        let raw: unknown;
-        try { raw = JSON.parse(data); } catch { protocolError(); }
-        const parsed = parseAssistantProtocolEvent(raw);
-        const event = parsed.ok ? parsed.event : protocolError();
-        if (event.type === "chat_id") {
-          if ((expectedChatId && event.chatId !== expectedChatId) || (chatId && event.chatId !== chatId)) protocolError();
-          chatId = event.chatId;
-        } else if (event.type === "transcript_version") {
-          sawTranscriptVersion = true;
-        }
-        onEvent(event, chatId);
-      }
-      if (chunk.done) break;
+  for await (const data of readSseData(body, {
+    signal,
+    frameLimit: ASSISTANT_STREAM_LIMITS.frame,
+    bufferLimit: ASSISTANT_STREAM_LIMITS.buffered,
+    responseLimit: ASSISTANT_STREAM_LIMITS.response,
+    onLimit: protocolError,
+  })) {
+    if (data === "[DONE]") { sawDone = true; break; }
+    let raw: unknown;
+    try { raw = JSON.parse(data); } catch { protocolError(); }
+    const parsed = parseAssistantProtocolEvent(raw);
+    const event = parsed.ok ? parsed.event : protocolError();
+    if (event.type === "chat_id") {
+      if ((expectedChatId && event.chatId !== expectedChatId) || (chatId && event.chatId !== chatId)) protocolError();
+      chatId = event.chatId;
+    } else if (event.type === "transcript_version") {
+      sawTranscriptVersion = true;
     }
-  } finally {
-    signal.removeEventListener("abort", abort);
-    await reader.cancel().catch(() => undefined);
-    reader.releaseLock();
+    onEvent(event, chatId);
   }
   return { chatId, sawDone, sawTranscriptVersion };
 }

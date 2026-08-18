@@ -3,10 +3,7 @@ import { Router, type Request, type Response } from "express";
 import { asyncRoute } from "../lib/asyncRoute";
 import { contentTypeForDocumentType } from "../lib/documentTypes";
 import { getLocalVersionFile } from "../lib/localDocumentStore";
-import {
-  rehydrateLocalPdfLinkEvidence,
-  verifyLocalPdfLinkEvidence,
-} from "../lib/localPdfLookup";
+import { documentProjectionService } from "../lib/documentProjectionService";
 import { buildContentDisposition } from "../lib/storage";
 import { requireAuth } from "../middleware/auth";
 
@@ -72,13 +69,15 @@ router.get(
       return void res.status(404).json({ detail: "Document not found" });
     }
     const evidence = await receiptEvidence(req, res, file, () =>
-      rehydrateLocalPdfLinkEvidence(file.path, handle),
+      documentProjectionService.rehydratePdfLink(file.path, handle),
     );
     if (!evidence) return;
-    const query = new URLSearchParams({ version_id: file.version.id, evidence: handle });
+    const query = new URLSearchParams({
+      version_id: file.version.id, evidence: handle, rendition: "pdf",
+    });
     const firstPage = evidence.pageNumbers[0];
     const originalHref =
-      `/single-documents/${encodeURIComponent(req.params.documentId)}/display?` +
+      `/single-documents/${encodeURIComponent(req.params.documentId)}/file?` +
       `${query}${firstPage ? `#page=${firstPage}` : ""}`;
     const pages = evidence.pages.map((page) =>
       `<article class="page" id="page=${page.pageNumber}" aria-labelledby="page-${page.pageNumber}-heading">
@@ -126,7 +125,7 @@ router.get(
 );
 
 router.get(
-  "/:documentId/display",
+  "/:documentId/file",
   requireAuth,
   asyncRoute(async (req, res, next) => {
     const handle = requestedEvidence(req);
@@ -142,7 +141,7 @@ router.get(
     );
     if (!file) return void res.status(404).json({ detail: "Document not found" });
     if (!await receiptEvidence(req, res, file, () =>
-      verifyLocalPdfLinkEvidence(file.path, handle))) return;
+      documentProjectionService.verifyPdfEvidence(file.path, handle))) return;
     res.setHeader("Content-Type", contentTypeForDocumentType(file.fileType));
     res.setHeader(
       "Content-Disposition",

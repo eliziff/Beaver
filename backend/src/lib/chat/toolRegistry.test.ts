@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import type { NormalizedToolCall } from "../llm";
 import {
   LOAD_TOOLS_NAME,
+  MAX_MODEL_TOOL_RESULT_CHARS,
   TurnToolRegistry,
+  toolResultText,
   toolText,
   type BeaverTool,
 } from "./toolRegistry";
@@ -148,6 +150,7 @@ describe("TurnToolRegistry", () => {
   });
 
   it("bounds thrown and malformed results and validates structured output", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
     const registry = new TurnToolRegistry([
       tool("throws", {
         async execute() { throw new Error("x".repeat(3_000)); },
@@ -181,6 +184,48 @@ describe("TurnToolRegistry", () => {
     ], { order: [] });
     expect(batch.outcomes.every(({ result }) => result.isError)).toBe(true);
     expect(batch.results[0].content.length).toBeLessThan(2_200);
+    expect(batch.results[0].content).not.toContain("xxx");
+    expect(payload(batch.results[0].content).detail).toBe("Tool execution failed");
+    expect(logged).toHaveBeenCalled();
+    logged.mockRestore();
+  });
+
+  it("hides structured URLs and bounds every model-visible result", async () => {
+    const registry = new TurnToolRegistry([
+      tool("structured", {
+        async execute() {
+          return {
+            result: toolText({
+              ok: true,
+              source_url: "https://secret.example/source",
+              nested: { href: "https://secret.example/link", label: "source" },
+              quoted_text: "The document itself says https://public.example/",
+            }),
+          };
+        },
+      }),
+      tool("large", {
+        async execute() {
+          return { result: toolText("x".repeat(MAX_MODEL_TOOL_RESULT_CHARS + 500)) };
+        },
+      }),
+    ]);
+    const batch = await registry.run([
+      call("1", "structured"),
+      call("2", "large"),
+    ], { order: [] });
+    expect(payload(batch.results[0].content)).toEqual({
+      ok: true,
+      nested: { label: "source" },
+      quoted_text: "The document itself says https://public.example/",
+    });
+    expect(payload(toolResultText(batch.outcomes[0].result))).toHaveProperty(
+      "source_url",
+      "https://secret.example/source",
+    );
+    expect(batch.results[1].content).toHaveLength(MAX_MODEL_TOOL_RESULT_CHARS);
+    expect(batch.results[1].content).toContain("tool result truncated");
+    expect(batch.results[1].status).toBe("truncated");
   });
 
   it("passes the shared AbortSignal to executors", async () => {

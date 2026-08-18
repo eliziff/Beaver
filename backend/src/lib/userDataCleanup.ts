@@ -1,5 +1,5 @@
 import { createServerSupabase } from "./supabase";
-import { deleteFile, listFiles } from "./storage";
+import { cloudDocumentObjects } from "./cloudObjectStorage";
 
 type Db = ReturnType<typeof createServerSupabase>;
 
@@ -82,37 +82,34 @@ async function deleteDocumentVersionFiles(db: Db, documentIds: string[]) {
     for (const batch of chunks(documentIds)) {
         const { data, error } = await db
             .from("document_versions")
-            .select("storage_path, pdf_storage_path")
+            .select("storage_path, pdf_storage_path, cleanup_paths")
             .in("document_id", batch);
         await throwIfError(error, "Failed to load document storage paths");
 
         for (const version of data ?? []) {
-            if (
-                typeof version.storage_path === "string" &&
-                version.storage_path.length > 0
-            ) {
-                paths.add(version.storage_path);
+            for (const path of [version.storage_path, version.pdf_storage_path]) {
+                if (typeof path === "string" && path) paths.add(path);
             }
-            if (
-                typeof version.pdf_storage_path === "string" &&
-                version.pdf_storage_path.length > 0
-            ) {
-                paths.add(version.pdf_storage_path);
+            if (Array.isArray(version.cleanup_paths)) for (const path of version.cleanup_paths) {
+                if (typeof path === "string" && path) paths.add(path);
             }
         }
     }
 
-    await Promise.all([...paths].map((path) => deleteFile(path)));
+    const objects = cloudDocumentObjects();
+    await Promise.all([...paths].map((path) => objects.remove(path)));
 }
 
 async function deleteUserStoragePrefix(userId: string) {
-    try {
-        const paths = await listFiles(`documents/${userId}/`);
-        await Promise.all(paths.map((path) => deleteFile(path).catch(() => {})));
-    } catch {
-        // Version-linked objects are deleted above. Prefix cleanup is best-effort
-        // for orphaned files left behind by interrupted uploads.
-    }
+    const objects = cloudDocumentObjects();
+    const keys: string[] = [];
+    let cursor: string | null = null;
+    do {
+        const page = await objects.list(userId, { cursor });
+        keys.push(...page.keys);
+        cursor = page.cursor;
+    } while (cursor);
+    await Promise.all(keys.map((path) => objects.remove(path)));
 }
 
 async function removeEmailFromSharedWith(
@@ -291,6 +288,7 @@ export async function deleteUserAccountData(
             : Promise.resolve({ error: null }),
         db.from("workflows").delete().eq("user_id", userId),
         db.from("audit_events").delete().eq("user_id", userId),
+        db.from("object_cleanup").delete().eq("user_id", userId),
         db.from("projects").delete().eq("user_id", userId),
     ];
 

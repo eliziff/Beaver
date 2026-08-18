@@ -265,20 +265,26 @@ export async function countLegalPdfPages(bytes: Buffer) {
   }
 }
 
-export async function parseLegalPdfSourceDoc(bytes: Buffer) {
+export async function parseLegalPdfSourceDoc(
+  bytes: Buffer,
+  signal?: AbortSignal,
+) {
   const temporary = await mkdtemp(path.join(os.tmpdir(), "mike-legalpdf-"));
   const source = path.join(temporary, "source.pdf");
   const output = path.join(temporary, "artifacts");
   try {
     await writeFile(source, bytes);
-    await runLegalPdf([
-      "parse",
-      source,
-      "--output",
-      output,
-      "--no-cache",
-      "--compact-pages",
-    ]);
+    await runLegalPdf(
+      [
+        "parse",
+        source,
+        "--output",
+        output,
+        "--no-cache",
+        "--compact-pages",
+      ],
+      { signal },
+    );
     return await readLegalPdfSourceDoc(output);
   } finally {
     await rm(temporary, { recursive: true, force: true });

@@ -78,6 +78,21 @@ function sendContent(res: Response, content: DocumentContent,
   res.send(content.bytes);
 }
 
+async function sendDownload(
+  documents: DocumentStore,
+  req: Request,
+  res: Response,
+  preferPdf: boolean,
+  disposition: "inline" | "attachment",
+) {
+  const download = await documents.download(
+    scope(res), req.params.documentId, versionId(req), preferPdf, disposition,
+  ) ?? reject(404, "Document not found");
+  res.setHeader("Cache-Control", "private, no-store");
+  if (download.kind === "redirect") return void res.redirect(302, download.url);
+  sendContent(res, download.content, disposition);
+}
+
 export function createDocumentsRouter(
   library: LibraryStore,
   documents: DocumentStore,
@@ -151,44 +166,15 @@ export function createDocumentsRouter(
     res.status(204).send();
   }));
 
-  router.get("/:documentId/display", documentRoute(async (req, res) => {
-    const content = await documents.read(
-      scope(res), req.params.documentId, versionId(req), true,
-    ) ?? reject(404, "Document not found");
-    sendContent(res, content, "inline");
-  }));
-
   router.get("/:documentId/file", documentRoute(async (req, res) => {
-    const content = await documents.read(
-      scope(res), req.params.documentId, versionId(req), false,
-    ) ?? reject(404, "Document not found");
-    sendContent(res, content, "attachment");
-  }));
-
-  router.get("/:documentId/url", documentRoute(async (req, res) => {
-    const link = await documents.link(
-      scope(res), req.params.documentId, versionId(req),
-    ) ?? reject(404, "Document not found");
-    if (link.url === null) reject(503, "Storage not configured");
-    const query = link.version.id
-      ? `?version_id=${encodeURIComponent(link.version.id)}`
-      : "";
-    res.json({
-      url: link.url ??
-        `${req.protocol}://${req.get("host")}/single-documents/` +
-        `${encodeURIComponent(req.params.documentId)}/file${query}`,
-      document_id: req.params.documentId,
-      filename: link.filename,
-      version_id: link.version.id,
-      has_pdf_rendition: link.hasPdfRendition,
-    });
-  }));
-
-  router.get("/:documentId/docx", documentRoute(async (req, res) => {
-    const content = await documents.read(
-      scope(res), req.params.documentId, versionId(req), false,
-    ) ?? reject(404, "Document not found");
-    sendContent(res, content, "inline");
+    const rendition = req.query.rendition;
+    if (rendition !== undefined && rendition !== "pdf") {
+      reject(400, "rendition must be pdf");
+    }
+    await sendDownload(
+      documents, req, res, rendition === "pdf",
+      rendition === "pdf" ? "inline" : "attachment",
+    );
   }));
 
   router.get("/:documentId/versions", documentRoute(async (req, res) => {

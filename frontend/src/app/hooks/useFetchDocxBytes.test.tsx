@@ -35,7 +35,7 @@ describe("useFetchDocxBytes", () => {
         await waitFor(() => expect(result.current.bytes).toBe(docx));
         expect(mocks.apiFetch).toHaveBeenCalledOnce();
         expect(mocks.apiFetch).toHaveBeenCalledWith(
-            "/single-documents/local-docx/docx?version_id=version-1",
+            "/single-documents/local-docx/file?version_id=version-1",
             expect.any(Object),
         );
     });
