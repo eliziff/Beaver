@@ -10,3 +10,7 @@
 	path = legal-browser-ocr
 	url = https://github.com/eliziff/legal-browser-ocr.git
 	branch = main
+[submodule "mike-workflows"]
+	path = mike-workflows
+	url = https://github.com/Open-Legal-Products/mike-workflows.git
+	branch = main

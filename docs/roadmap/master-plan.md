@@ -617,6 +617,12 @@ Acceptance:
 
 - Frozen manifests and scorer versions make every reported number
   reproducible.
+- The fail-closed registry in
+  `experiments/legal_pdf_corpus/LEGAL_PDF_SILVER_MASTER_PLAN.md` inventories
+  and runs every locally available corpus that can exercise PDF, SourceDoc,
+  grammar, OCR, or semantic-structure behavior. Unregistered applicable data,
+  silent skips, samples standing in for full corpora, and stale-cache receipts
+  fail the release gate.
 - Model repair must improve a named structural metric without losing text,
   IDs, or source order.
 - Complexity increases only for recurring failure classes with held-out wins.
@@ -661,6 +667,9 @@ Acceptance:
 - The model can request a section/paragraph/page by normalized locator without
   provider-specific URL logic.
 - A wrong inferred locator fails closed or is labeled approximate.
+- Every SourceDoc-producing provider and every mode it actually exposes has a
+  real captured pre-refactor baseline and exact public-output differential.
+  Mocked/synthetic rows are unit tests only and cannot satisfy provider parity.
 
 #### P1.1a Execution: the SourceDoc consolidation (adopted 2026-07-27)
 

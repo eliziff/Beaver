@@ -53,7 +53,6 @@ backend/page-count/
 test-results/
 playwright-report/
 e2e/.auth/
-mike-workflows/
 
 # Local Supabase scaffold (supabase init output) — the local stack is a test
 # harness only; CI scaffolds its own fresh copy on every run

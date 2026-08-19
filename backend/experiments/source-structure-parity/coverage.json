@@ -1,0 +1,221 @@
+{
+  "schema_version": "source-structure-coverage.v1",
+  "baseline_commit": "5d29906341d17239e5e36a5442ca665f5f2a12f0",
+  "serializer_contract_sha256": "4285786358ef017ffc757cf96fb8f8e95b4536a9148daf366133ec66e599a3f5",
+  "corpora": [
+    {
+      "id": "checked-in/a2aj-sourcedoc",
+      "documents": 20,
+      "detail": "Twenty real provider captures plus one baseline recording in fixtures/sourcedoc."
+    },
+    {
+      "id": "checked-in/native-markup",
+      "documents": 5,
+      "detail": "Real TNA, CAP, GovInfo, GOV.UK ET, and journal captures plus two recordings."
+    },
+    {
+      "id": "local/a2aj-bulk",
+      "documents": 248685,
+      "detail": "Installed schema-v3 full-text store: 225,017 cases and 23,668 laws at pinned case/law revisions."
+    },
+    {
+      "id": "local/courtlistener-bulk",
+      "documents": 55504,
+      "detail": "Installed partial opinion bodies; metadata also has 10,070,727 clusters and 18,123,788 citations."
+    },
+    {
+      "id": "local/courtlistener-structure-audit-v2",
+      "documents": 69393,
+      "detail": "Real audited opinion rows in 71 completed compressed parts; available for compact hybrid/flat capture selection."
+    },
+    {
+      "id": "local/journals",
+      "documents": 18958,
+      "detail": "Real public_endpoint.db articles with 404,506 article-page rows; FTS sidecar indexes 18,595 articles."
+    },
+    {
+      "id": "local/legal-pdf-corpus",
+      "documents": 1500,
+      "detail": "The program corpus; 748 of 750 digital-native documents currently have parser artifacts, but no compact Rust source_doc capture is frozen here."
+    }
+  ],
+  "anti_cheat": [
+    "A mock, constructed, or synthetic document cannot have status frozen.",
+    "Every applicable provider mode is a separate row; one mode cannot stand in for another.",
+    "The raw capture hash, baseline commit, serializer contract, canonical byte length, and canonical SHA-256 must all match.",
+    "Canonical bytes include text, ordered full blocks with origin/aliases/parents, ranges, all label/alias/anchor lookups, status, mode, and revision.",
+    "Changing or weakening a fixture, serializer, lookup battery, or assertion fails rather than refreshing a baseline automatically.",
+    "Missing and unavailable rows remain explicit and make the opt-in acceptance gate fail; they cannot be skipped or counted as parity."
+  ],
+  "rows": [
+    {
+      "id": "a2aj/flat-case",
+      "provider": "a2aj",
+      "mode": "flat",
+      "capture": "sourcedoc/a2aj-case-scc-2026scc16-toc.json",
+      "provenance": "real-captured",
+      "status": "frozen",
+      "capture_sha256": "f8480532bd01332f7f2f7a41e1e4b0b705f4ecdb8358cc3408c3e400e4494ea6",
+      "baseline_sha256": "20ca356a273ed8153c441385c49b3e9c3ceb0c86db6c6e9ad879edde42e23c4b",
+      "baseline_bytes": 51290
+    },
+    {
+      "id": "a2aj/flat-law",
+      "provider": "a2aj",
+      "mode": "flat",
+      "capture": "sourcedoc/a2aj-laws-fed-criminalcode-s231.json",
+      "provenance": "real-captured",
+      "status": "frozen",
+      "capture_sha256": "989318f2c9368e6fc11f3540e2a05225b5954976e1c42505389c046728fc2d80",
+      "baseline_sha256": "90e627ed6a818ccbf6d8529aa783ed1d1215c07865156e624ab55ffae2222092",
+      "baseline_bytes": 10382
+    },
+    {
+      "id": "a2aj/hybrid-section-map",
+      "provider": "a2aj",
+      "mode": "hybrid",
+      "capture": "sourcedoc/a2aj-laws-fed-criminalcode-sectionmap.json",
+      "provenance": "real-captured",
+      "status": "frozen",
+      "capture_sha256": "93638364065d8272086100a1d301fa4c03250685508535add23ef2698bfb1233",
+      "baseline_sha256": "e1eb6a0cb13635a1dadf479f90308a8818e8a77ceeefdef6aab0ca6d089d3f71",
+      "baseline_bytes": 26116
+    },
+    {
+      "id": "a2aj/native-section-map",
+      "provider": "a2aj",
+      "mode": "native",
+      "capture": null,
+      "provenance": null,
+      "status": "missing",
+      "blocker": "No real captured provider payload currently produces native-only section-map blocks."
+    },
+    {
+      "id": "courtlistener/native-cap",
+      "provider": "courtlistener",
+      "mode": "native",
+      "capture": "nativemarkup/courtlistener-cap-372us335.json",
+      "provenance": "real-captured",
+      "status": "frozen",
+      "capture_sha256": "942ad76dd8d9b070e22829c27bc48bd77a92de8d0696700dbc354e53fc35638b",
+      "baseline_sha256": "da6070a21f98b03559a3a4c747e8b7c1ded16959f0e93f814c5e917a9d2acc8e",
+      "baseline_bytes": 211959
+    },
+    {
+      "id": "courtlistener/hybrid-opinion",
+      "provider": "courtlistener",
+      "mode": "hybrid",
+      "capture": null,
+      "provenance": null,
+      "status": "missing",
+      "blocker": "Real local audit rows exist, but no compact row has been promoted to a checked-in frozen baseline."
+    },
+    {
+      "id": "courtlistener/flat-opinion",
+      "provider": "courtlistener",
+      "mode": "flat",
+      "capture": null,
+      "provenance": null,
+      "status": "missing",
+      "blocker": "Real local audit rows exist, but no compact row has been promoted to a checked-in frozen baseline."
+    },
+    {
+      "id": "tna/native-akn",
+      "provider": "tna",
+      "mode": "native",
+      "capture": "nativemarkup/tna-eat-2025-1.json",
+      "provenance": "real-captured",
+      "status": "frozen",
+      "capture_sha256": "f8898861b5f68b98b617acc7999c710b46001b3c405d046dcfeb800b7b2f900f",
+      "baseline_sha256": "948b2385c1ab91591489644f0d0369073b99888bbcf07b168de810fc43ed627f",
+      "baseline_bytes": 141428
+    },
+    {
+      "id": "tna/hybrid-akn",
+      "provider": "tna",
+      "mode": "hybrid",
+      "capture": null,
+      "provenance": null,
+      "status": "missing",
+      "blocker": "No real TNA capture exercises inference filling an absent native locator kind."
+    },
+    {
+      "id": "govinfo/flat-text",
+      "provider": "govinfo",
+      "mode": "flat",
+      "capture": "nativemarkup/govinfo-nywd-1-22-cv-00930.json",
+      "provenance": "real-captured",
+      "status": "frozen",
+      "capture_sha256": "7a9a9d2d6dbbf00cffbf7359a64e5138d3e8cf0da85dcccfdeb180813558565b",
+      "baseline_sha256": "111f3cfea09ac001064b8f09e8cada28b56796deba33a0b10536396b14eeaf18",
+      "baseline_bytes": 722
+    },
+    {
+      "id": "govuk-et/flat-text",
+      "provider": "govuk-et",
+      "mode": "flat",
+      "capture": "nativemarkup/govuk-et-kogut-2200123-2023.json",
+      "provenance": "real-captured",
+      "status": "frozen",
+      "capture_sha256": "ca24566934082a8acc3c55f7d79040186917b410fcd68d53e649d24624bf55c6",
+      "baseline_sha256": "689f13d9f3db0ee1178e61783fbfb11fe0affe92b52823e6bb7d4dc30a61ffa1",
+      "baseline_bytes": 734
+    },
+    {
+      "id": "journal/hybrid-legacy",
+      "provider": "journal",
+      "mode": "hybrid",
+      "capture": "nativemarkup/journal-alr-13.json",
+      "provenance": "real-captured",
+      "status": "frozen",
+      "capture_sha256": "d1d344135febcc656a4df1d6611f964ebc14f65a2fbcb5672835b1a78dbcd2be",
+      "baseline_sha256": "b75cbae0cdd0a6cd03f148759d86adcfd6cb0b91a416ee13aacb4f4e1cda33ea",
+      "baseline_bytes": 881147
+    },
+    {
+      "id": "journal/native-final-contract",
+      "provider": "journal",
+      "mode": "native",
+      "capture": null,
+      "provenance": null,
+      "status": "missing",
+      "blocker": "The current final-contract package is constructed in-test, not a frozen real capture."
+    },
+    {
+      "id": "journal/flat-text",
+      "provider": "journal",
+      "mode": "flat",
+      "capture": null,
+      "provenance": null,
+      "status": "missing",
+      "blocker": "No real captured journal row without provider page/final-contract claims is frozen."
+    },
+    {
+      "id": "local-pdf/native-source-doc",
+      "provider": "local-pdf",
+      "mode": "native",
+      "capture": null,
+      "provenance": null,
+      "status": "missing",
+      "blocker": "No compact real Rust-produced native-only legalpdf.source-doc.v1 capture exists."
+    },
+    {
+      "id": "local-pdf/hybrid-source-doc",
+      "provider": "local-pdf",
+      "mode": "hybrid",
+      "capture": null,
+      "provenance": null,
+      "status": "missing",
+      "blocker": "No compact real Rust-produced mixed-origin legalpdf.source-doc.v1 capture exists; backend coverage is mock-only."
+    },
+    {
+      "id": "local-pdf/flat-source-doc",
+      "provider": "local-pdf",
+      "mode": "flat",
+      "capture": null,
+      "provenance": null,
+      "status": "missing",
+      "blocker": "Applicability is not yet classified over the 748 real artifacts and no compact real flat/recovered capture is frozen."
+    }
+  ]
+}
