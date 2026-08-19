@@ -3,6 +3,8 @@
     "private": true,
     "scripts": {
         "measure:source": "node scripts/measure-source.mjs",
+        "test:source-budget": "node scripts/measure-source.mjs --self-test",
+        "check:source-budget": "node scripts/measure-source.mjs --check scripts/legal-structure-guardrails.json",
         "check:grammar": "node packages/legal-grammar-tables/check.mjs",
         "check:experiment-boundary": "node scripts/check-experiment-boundary.mjs",
         "test:experiments": "npm run test:experiments --prefix backend",

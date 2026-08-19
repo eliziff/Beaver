@@ -1147,6 +1147,15 @@ Any proposed output difference is a product change: inspect the affected
 documents directly and accept only strict improvements; proxy scores and
 representative samples are not evidence of equivalence.
 
+“Entire available corpus” is fail-closed: the legal-PDF master plan's corpus
+registry discovers every locally present applicable PDF, provider capture,
+structure truth set, OCR/layout held-out set, grammar corpus, and cross-format
+legal fixture. Every SourceDoc provider/mode also needs a real frozen baseline;
+synthetic objects, mocks, invariant-only checks, silent skips, and historical
+summaries without runnable source bytes cannot establish parity. The release
+receipt accounts for every registered document/page/row and hashes the exact
+baseline/candidate inputs, binaries, outputs, caches, and serializer.
+
 Converge legal citation, reference, pinpoint, and footnote grammars onto one
 complete authored grammar corpus. Every shipping runtime must load that corpus
 or a mechanically verified packaged copy; handwritten runtime shadows and
