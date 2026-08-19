@@ -6,3 +6,7 @@
 	path = AuthoritiesHelper
 	url = https://github.com/eliziff/AuthoritiesHelper.git
 	branch = main
+[submodule "legal-browser-ocr"]
+	path = legal-browser-ocr
+	url = https://github.com/eliziff/legal-browser-ocr.git
+	branch = main

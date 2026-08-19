@@ -106,6 +106,46 @@ two propositions, but identity, appellate history, statutory versions,
 pinpoints, court relationships, and evidence receipts are exact structured
 facts.
 
+## Opinion-aware integration
+
+The decision-roster work supplies a missing citator input: exact opinion
+boundaries and the judges who authored or joined each opinion. Join a citation
+edge to an opinion only when both use the same source hash and the edge's text
+offset falls inside that opinion's exact `[start, end)` range. This makes the
+opinion role and result position deterministic metadata on the edge.
+
+Treatment classification must support two experimental modes. In combined
+mode, one model response finds opinion boundaries and classifies the selected
+citation contexts together. In staged mode, the treatment classifier receives
+the completed opinion extraction. The same frozen cases, resolved citation
+edges, model, and effort are used to measure whether joint attention improves
+either task enough to outweigh its larger schema and coupled failures. No
+production mode is selected before that ablation.
+
+In both modes, explicit treatment markers and the existing
+prose-versus-authority-list classifier select citation contexts; the model is
+not asked to classify every bare citation. The parsed opinion and treatment
+records remain independently validated and stored even when they came from one
+response.
+
+The treatment classifier decides only what the citing passage says: who is
+speaking, the treatment label and scope, and the exact supporting quote. Code
+supplies the resolved citation edge, source offsets, target identity, court,
+date, and containing opinion. A party submission, quoted source, concurrence,
+or dissent is retained as evidence but cannot silently become treatment by the
+deciding court.
+
+A cited decision need not be in the local corpus. A resolved external citation
+key can receive treatment events from in-corpus citing decisions; the target's
+full text is needed only to align the treatment to a target proposition. A
+citing decision outside the corpus must itself be acquired before its treatment
+can be classified.
+
+Case-level indicators are derived views over immutable events. Direct history,
+substantive treatment, citation-only references, opinion position, and
+proposition scope remain separate in storage even when the interface surfaces
+the most consequential event first.
+
 ## Why “good law” is not a binary case property
 
 Three independent questions must stay separate:

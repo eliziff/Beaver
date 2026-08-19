@@ -478,9 +478,10 @@ Work:
 
 - On PDF import, store the source first, then create a durable background parse
   job with `queued`, `parsing`, `ready`, `degraded`, or `failed` state.
-- Save a compact versioned page, paragraph, section, footnote/proposition,
-  diagnostics, parser configuration, and repair source beside the immutable
-  PDF. Do not persist geometry-rich parser working state.
+- Save compact versioned pages, prose-paragraph boundaries, real numbered
+  units, sections, footnote/proposition relations, diagnostics, parser
+  configuration, and repair source beside the immutable PDF. Do not persist
+  geometry-rich parser working state.
 - Parse PDF tables as true structural artifacts: sheet/table, row, cell,
   row/column spans, reading order, source page, and provenance/confidence. Feed
   that typed grid into a compact model-facing representation only after the
@@ -522,7 +523,7 @@ Expose compact tools for:
 - one footnote or a bounded footnote range;
 - the proposition(s) associated with each note reference;
 - page or page range, including `[page n]` markers;
-- paragraph or paragraph range;
+- a real provider/printed numbered paragraph or paragraph range;
 - section, subsection, paragraph, subparagraph, clause, subclause, schedule,
   article, and provider-specific encoded variants;
 - native DOCX table, row, and cell coordinates without emitting an unbounded
@@ -533,6 +534,11 @@ Expose compact tools for:
   and
 - deterministic source/evidence handles suitable for later citation or
   document mutation.
+
+Geometry-backed prose paragraphs remain available as chunk/context boundaries,
+but their internal ordinal is not a legal locator. When the source has no real
+numbered paragraph stream, address the passage by printed/physical page plus
+exact text anchor; do not display a synthetic `para N`.
 
 Every structure query is narrowable at the source's legal level. Decimal
 provisions are complete sibling identifiers (`150` and `150.1`); only
@@ -629,6 +635,15 @@ audit/index scripts. Provider consumers and evidence paths are not all
 converged, and the cross-provider matrix is not yet the single release gate.
 P0.0 adopts `SourceDoc` as the linear source projection and deletes remaining
 consumer-specific extraction/query paths rather than creating another model.
+
+Provider compilation and semantic detection are now separate planned
+boundaries. Provider adapters emit canonical text, trustworthy native blocks,
+anchors, exclusions, and provenance. The same shared semantic structure engine
+used by Legal PDF Parser reconciles missing paragraphs, numbered units,
+headings, notes, and relations before SourceDoc projection. In particular,
+PAGE-XML/BLLA or native-PDF geometry may infer unnumbered prose boundaries for
+reflow and chunking, while only a source/provider enumerator accepted by the
+document-wide grammar becomes a numbered legal paragraph.
 
 - Prefer provider-supplied sections, subsections, paragraphs, subparagraphs,
   pages, neutral citations, and anchors.
@@ -1009,7 +1024,8 @@ Text-Fidelity galley-viewer port.
 - Reuse the Text-Fidelity viewer's proven navigation/layout behavior and
   Table of Authorities' source rendering without runtime coupling to those
   applications.
-- Render pages, sections, nested provisions, paragraphs, footnotes,
+- Render pages, sections, nested provisions, prose paragraphs, real numbered
+  paragraphs, footnotes,
   propositions, highlights, native/external/local pinpoints, and provenance.
 - Library entries remain lightweight pointers to shared bulk/cache/artifacts.
 - Open sources in existing or separate tabs without duplicating durable blobs.
