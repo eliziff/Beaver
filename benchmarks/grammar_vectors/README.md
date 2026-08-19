@@ -1,7 +1,7 @@
 # Grammar vectors (harvested)
 Citation-grammar test vectors harvested from two READ-ONLY reference repos:
 `ALR-Quote-Verifier` (test_deterministic_splitter, test_pure_ref_prefilter,
-test_pinpoint_kind_guards, test_quote_fragments) and `TableOfAuthoritiesMaker`
+test_pinpoint_kind_guards, test_quote_fragments) and `AuthoritiesHelper`
 (test_toa_maker). One JSON object per line of `harvested.jsonl`: `source`
 (file:line), `kind` (splitter-io | pure-ref | guard-negative | raw-string |
 toa-io), `input` literal, structured `expect` (or null), `note` (test name).

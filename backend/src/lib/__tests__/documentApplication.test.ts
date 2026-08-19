@@ -10,6 +10,9 @@ import type {
 } from "../documentRepository";
 import { createFilesystemObjectStorage, type ObjectStorage } from "../storage";
 
+const countLegalPdfPages = vi.hoisted(() => vi.fn(async () => 1));
+vi.mock("../legalPdfSourceDoc", () => ({ countLegalPdfPages }));
+
 function memoryRepository() {
   const values = new Map<string, DocumentAggregate>();
   const orphans = new Set<string>();
@@ -107,6 +110,21 @@ function modes() {
 }
 
 describe("shared document application", () => {
+  it("rejects malformed PDFs before storing them", async () => {
+    const { repository } = memoryRepository();
+    const objects = createFilesystemObjectStorage(root);
+    const documents = createDocumentApplication(repository, objects);
+    countLegalPdfPages.mockRejectedValueOnce(new Error("invalid file trailer"));
+
+    await expect(documents.create({ userId: "owner" }, {
+      filename: "broken.pdf", fileType: "pdf", bytes: Buffer.from("%PDF-1.4"),
+    })).rejects.toMatchObject({
+      status: 400,
+      message: "PDF is invalid or unsupported",
+    });
+    expect((await objects.list()).keys).toEqual([]);
+  });
+
   it("keeps local and cloud lifecycle outcomes identical", async () => {
     const outcomes = [];
     for (const mode of modes()) {

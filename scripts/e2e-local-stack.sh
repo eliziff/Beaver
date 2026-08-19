@@ -71,6 +71,7 @@ set_kv() {
 set_kv .env SUPABASE_URL "$API_URL"
 set_kv .env SUPABASE_PUBLISHABLE_KEY "$ANON_KEY"
 set_kv .env SUPABASE_SECRET_KEY "$SERVICE_KEY"
+set_kv .env DATABASE_URL "${DB_URL}?sslmode=disable"
 set_kv .env AUTH_MODE cloud
 # The suite fires well over the backend's default 300-requests/15-min general
 # cap in one run; once tripped every call 429s and profile/list waits time out.

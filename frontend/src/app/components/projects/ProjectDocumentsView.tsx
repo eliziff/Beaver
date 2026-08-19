@@ -11,7 +11,7 @@ import {
 } from "@/app/components/documents/DocTable";
 import { DocumentAutomation } from "@/app/components/documents/DocumentAutomation";
 import { TabPillButton } from "@/app/components/ui/tab-pill-button";
-import { NativeActionSelect } from "@/app/components/ui/native-action-select";
+import { ActionMenu } from "@/app/components/ui/action-menu";
 import { projectBreadcrumbLabel } from "./ProjectPageParts";
 import { ProjectSectionToolbar, useProjectWorkspace } from "./ProjectWorkspace";
 import { useProjectFiles } from "./useProjectFiles";
@@ -48,7 +48,7 @@ export function ProjectDocumentsView() {
             />
             <span className="inline-flex h-8 w-[5.5rem]">
                 {selectionActions && (
-                    <NativeActionSelect
+                    <ActionMenu
                         label="Actions"
                         items={[
                             {
@@ -75,7 +75,7 @@ export function ProjectDocumentsView() {
                     >
                         Actions
                         <span aria-hidden="true">&#9662;</span>
-                    </NativeActionSelect>
+                    </ActionMenu>
                 )}
             </span>
             <TabPillButton

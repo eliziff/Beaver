@@ -75,7 +75,7 @@ async function loadApi() {
   vi.resetModules();
   const { api } = await import("../../api");
   closeLocalStores = async () => {
-    (await import("../../lib/sqliteDatabase")).closeSqliteDatabase();
+    await (await import("../../lib/relationalDatabase")).closeRelationalDatabase();
   };
   return api;
 }
@@ -226,13 +226,13 @@ describe("account-free matter routes", () => {
     expect(missingFocus.status).toBe(400);
     expect(missingFocus.body.detail).toMatch(/unavailable/u);
 
-    const [{ createChatStore }, { sqliteChatRepository }, { generateChatTitle }] = await Promise.all([
+    const [{ createChatStore }, { chatRepository }, { generateChatTitle }] = await Promise.all([
       import("../../lib/chatStore"),
-      import("../../lib/sqliteChatRepository"),
+      import("../../lib/relationalRepositories"),
       import("../../lib/chatTitle"),
     ]);
     const chatStore = createChatStore(
-      sqliteChatRepository, generateChatTitle,
+      chatRepository, generateChatTitle,
       { project: async () => false, review: async () => false },
     );
     const user = { userId: "00000000-0000-0000-0000-000000000001" };

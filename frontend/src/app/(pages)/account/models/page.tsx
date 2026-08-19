@@ -1,4 +1,3 @@
-"use client";
 import { useState } from "react";
 import { Info, Loader2 } from "lucide-react";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";

@@ -1,23 +1,42 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const runLegalPdf = vi.hoisted(() => vi.fn());
-const runLegalPdfContract = vi.hoisted(() => vi.fn());
-
+const runLegalPdfDocument = vi.hoisted(() => vi.fn());
 vi.mock("../legalPdfProcess", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../legalPdfProcess")>()),
-  runLegalPdf,
-  runLegalPdfContract,
+  runLegalPdfDocument,
 }));
 
 import { lookupSourceDoc } from "../sourceDoc";
 import {
+  countLegalPdfPages,
   parseLegalPdfSourceDoc,
   readLegalPdfSourceDoc,
 } from "../legalPdfSourceDoc";
 
+const source = {
+  sha256: "a".repeat(64),
+  parser_version: "0.4.0",
+  cache_key: "cache-key",
+  cache_hit: false,
+  page_count: 1,
+};
+
+function response(result: unknown, operation = "source_doc") {
+  return {
+    schema_version: "legalpdf.document-result.v1",
+    operation,
+    source,
+    result,
+  };
+}
+
+beforeEach(() => {
+  runLegalPdfDocument.mockReset();
+});
+
 describe("legal PDF SourceDoc adapter", () => {
   it("reads the engine's provider-neutral SourceDoc contract", async () => {
-    runLegalPdfContract.mockResolvedValueOnce({
+    runLegalPdfDocument.mockResolvedValueOnce(response({
       schema_version: "legalpdf.source-doc.v1",
       source_doc: {
         provider: "local-pdf",
@@ -33,15 +52,21 @@ describe("legal PDF SourceDoc adapter", () => {
             origin: "heuristic", anchor: "pair-1", aliases: ["1"] },
         ],
       },
+    }));
+
+    const doc = await readLegalPdfSourceDoc("C:\\source.pdf", {
+      cacheDir: "C:\\cache",
+      id: "pdf-1",
     });
 
-    const doc = await readLegalPdfSourceDoc("C:\\artifacts", { id: "pdf-1" });
-
-    expect(runLegalPdfContract).toHaveBeenCalledWith(
-      "C:\\artifacts",
-      "source_doc",
-      { id: "pdf-1", url: undefined },
-      { maxBuffer: 64 * 1024 * 1024 },
+    expect(runLegalPdfDocument).toHaveBeenCalledWith(
+      {
+        operation: "source_doc",
+        source_pdf: "C:\\source.pdf",
+        cache_dir: "C:\\cache",
+        id: "pdf-1",
+      },
+      { signal: undefined, maxBuffer: 64 * 1024 * 1024 },
     );
     expect(lookupSourceDoc(doc, "section", "7")).toMatchObject({
       status: "found",
@@ -53,21 +78,30 @@ describe("legal PDF SourceDoc adapter", () => {
     });
   });
 
-  it("rejects an invalid engine contract", async () => {
-    runLegalPdfContract.mockResolvedValueOnce({
-      schema_version: "legalpdf.source-doc.v0",
-      source_doc: {},
-    });
-    await expect(readLegalPdfSourceDoc("C:\\artifacts"))
+  it("rejects malformed block boundaries", async () => {
+    runLegalPdfDocument.mockResolvedValueOnce(response({
+      schema_version: "legalpdf.source-doc.v1",
+      source_doc: {
+        provider: "local-pdf", id: "pdf", text: "short",
+        blocks: [{ kind: "page", label: "page1", start: 0, end: 99, origin: "native" }],
+      },
+    }));
+    await expect(readLegalPdfSourceDoc("C:\\source.pdf"))
       .rejects.toThrow("invalid SourceDoc");
   });
 
-  it("requests geometry-free pages for transient text extraction", async () => {
-    runLegalPdf.mockRejectedValueOnce(new Error("stop after argv"));
+  it("uses inspect for page count and source_doc for transient extraction", async () => {
+    runLegalPdfDocument
+      .mockResolvedValueOnce(response({ page_count: 7 }, "inspect"))
+      .mockResolvedValueOnce(response({
+        schema_version: "legalpdf.source-doc.v1",
+        source_doc: { provider: "local-pdf", id: "pdf", text: "page", blocks: [] },
+      }));
 
-    await expect(parseLegalPdfSourceDoc(Buffer.from("pdf"))).rejects.toThrow(
-      "stop after argv",
-    );
-    expect(runLegalPdf.mock.calls[0]?.[0]).toContain("--compact-pages");
+    await expect(countLegalPdfPages(Buffer.from("pdf"))).resolves.toBe(7);
+    await expect(parseLegalPdfSourceDoc(Buffer.from("pdf")))
+      .resolves.toMatchObject({ provider: "local-pdf", text: "page" });
+    expect(runLegalPdfDocument.mock.calls.map(([request]) => request.operation))
+      .toEqual(["inspect", "source_doc"]);
   });
 });

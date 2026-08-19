@@ -23,7 +23,7 @@ import { PeopleModal } from "../modals/PeopleModal";
 import { ApiKeyMissingPopup } from "../popups/ApiKeyMissingPopup";
 import { ConfirmPopup } from "../popups/ConfirmPopup";
 import { OwnerOnlyPopup } from "../popups/OwnerOnlyPopup";
-import { NativeActionSelect } from "../ui/native-action-select";
+import { ActionMenu } from "../ui/action-menu";
 import { TabPillButton } from "../ui/tab-pill-button";
 import { WorkflowPickerModal } from "../workflows/WorkflowPickerModal";
 import { AddColumnModal } from "./AddColumnModal";
@@ -495,7 +495,7 @@ export function TRView({ reviewId, projectId }: Props) {
                                 {loading ? (
                                     <div className="h-8 w-24 rounded-md bg-gray-100" />
                                 ) : (
-                                    <NativeActionSelect
+                                    <ActionMenu
                                         label="Selected document actions"
                                         items={[
                                             { label: "Clear results",
@@ -515,7 +515,7 @@ export function TRView({ reviewId, projectId }: Props) {
                                     >
                                         Actions
                                         <span aria-hidden="true">&#9662;</span>
-                                    </NativeActionSelect>
+                                    </ActionMenu>
                                 )}
                                 {!loading && (
                                     <TabPillButton onClick={() =>

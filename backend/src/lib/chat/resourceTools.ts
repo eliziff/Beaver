@@ -82,10 +82,6 @@ export const RESOURCE_TOOLS = [
       limit: { type: "integer", minimum: 1, maximum: 2000 },
       start_char: { type: "integer", minimum: 0, maximum: 100_000_000 },
       section: { type: "string", description: "Exact structural handle." },
-      pages: {
-        type: "string",
-        description: "Exact PDF or printed-page selector, such as 12-14.",
-      },
       references: {
         type: "string",
         enum: ["none", "inbound", "outbound", "both"],
@@ -95,8 +91,15 @@ export const RESOURCE_TOOLS = [
         type: "string",
         description: "Evidence handle from an earlier Read of this resource.",
       },
-      locator_kind: { type: "string", enum: [...RESOURCE_LOCATOR_KINDS] },
-      locator: { type: "string", description: "Exact native locator." },
+      locator_kind: {
+        type: "string",
+        enum: [...RESOURCE_LOCATOR_KINDS],
+        description: "Kind of exact locator. Use page with a physical PDF page number.",
+      },
+      locator: {
+        type: "string",
+        description: "Exact locator value; required with locator_kind (for example, 5 for PDF page 5).",
+      },
       end_locator: { type: "string", description: "Optional inclusive range end." },
       context_blocks: { type: "integer", minimum: 0, maximum: 2 },
       page: { type: "integer", minimum: 1 },

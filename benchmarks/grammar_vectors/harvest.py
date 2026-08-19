@@ -6,7 +6,7 @@ Sources (never written to):
                          tests/test_pure_ref_prefilter.py      -> kind "pure-ref"
                          tests/test_pinpoint_kind_guards.py    -> kind "guard-negative"
                          tests/test_quote_fragments.py         -> kind "raw-string"
-  2. TableOfAuthoritiesMaker tests/test_toa_maker.py           -> kind "toa-io"
+  2. AuthoritiesHelper tests/test_toa_maker.py           -> kind "toa-io"
 
 Extraction is AST-based (no regex scraping of source text): each test function
 is walked with a literal-only mini evaluator that resolves plain constants,
@@ -38,7 +38,7 @@ from pathlib import Path
 import os
 
 DEFAULT_ALR = os.environ.get('ALR_QUOTE_VERIFIER_ROOT', str(Path(__file__).resolve().parents[2] / ".tmp" / "inputs" / 'default_alr'))
-DEFAULT_TOA = str(Path(__file__).resolve().parents[2] / 'TableOfAuthoritiesMaker')
+DEFAULT_TOA = str(Path(__file__).resolve().parents[2] / 'AuthoritiesHelper')
 
 UNRESOLVED = object()
 STR_METHODS = {
@@ -616,7 +616,7 @@ def main(argv=None):
     parser.add_argument("alr_root", nargs="?", default=DEFAULT_ALR,
                         help="ALR-Quote-Verifier repo root")
     parser.add_argument("toa_root", nargs="?", default=DEFAULT_TOA,
-                        help="TableOfAuthoritiesMaker repo root")
+                        help="AuthoritiesHelper repo root")
     args = parser.parse_args(argv)
     roots = {"alr": Path(args.alr_root), "toa": Path(args.toa_root)}
 

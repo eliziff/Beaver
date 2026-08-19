@@ -13,19 +13,23 @@ maybeDescribe("Supabase CloudScope integration", () => {
     const strangerId = crypto.randomUUID(), projectId = crypto.randomUUID();
     const documentId = crypto.randomUUID(), reviewId = crypto.randomUUID();
     const chatId = crypto.randomUUID(), reviewerEmail = `reviewer-${reviewerId}@example.com`;
+    const timestamp = new Date().toISOString();
     const ids = { projectId, documentId, reviewId, chatId };
     try {
       const project = await admin.from("projects").insert({ id: projectId,
-        user_id: ownerId, name: "scope-integration", shared_with: [reviewerEmail] });
+        user_id: ownerId, name: "scope-integration", shared_with: [reviewerEmail],
+        created_at: timestamp, updated_at: timestamp });
       if (project.error) throw project.error;
       const document = await admin.from("documents").insert({ id: documentId,
-        user_id: ownerId, project_id: projectId });
+        user_id: ownerId, project_id: projectId, filename: "record.pdf",
+        created_at: timestamp, updated_at: timestamp });
       if (document.error) throw document.error;
       const review = await admin.from("tabular_reviews").insert({ id: reviewId,
-        user_id: ownerId, project_id: projectId, document_ids: [documentId], shared_with: [] });
+        user_id: ownerId, project_id: projectId, document_ids: [documentId], shared_with: [],
+        created_at: timestamp, updated_at: timestamp });
       if (review.error) throw review.error;
       const chat = await admin.from("chats").insert({ id: chatId, user_id: ownerId,
-        project_id: projectId });
+        project_id: projectId, created_at: timestamp, updated_at: timestamp });
       if (chat.error) throw chat.error;
 
       const owner = new CloudScope({ userId: ownerId }, admin as any);

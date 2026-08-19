@@ -1,0 +1,305 @@
+{
+  "schema_version": 1,
+  "experiment_id": "harvey-lab-coding-markdown-final-v1",
+  "registered_at": "2026-08-08T05:30:00Z",
+  "status": "preregistered_before_inference",
+  "claim_scope": "Visible-development Harvey LAB evidence only. DeepSeek and Luna lanes are analyzed independently, are never pooled with each other, and are never pooled with canonical constant-model Claude A/B cells or represented as human gold.",
+  "hypothesis": "Source fidelity, evidence available before first composition, synthesis, and exactness drive quality. A single actionable information-gap pause should preserve those gains while removing universal refinement ceremony.",
+  "comparisons": {
+    "primary": {
+      "control": "mike_upstream_native_v1",
+      "candidate": "coding_markdown_final_v1",
+      "reason": "The decision is primarily whether the final arm improves on faithful upstream Mike. upstream_terminal_v1 is not an eligible substitute."
+    },
+    "secondary": {
+      "control": "coding_markdown_v5",
+      "candidate": "coding_markdown_final_v1",
+      "reason": "Frozen universal-refinement v5 is a mechanism and ceremonial-cost ablation, not the primary baseline."
+    }
+  },
+  "arms": [
+    "mike_upstream_native_v1",
+    "coding_markdown_v5",
+    "coding_markdown_final_v1"
+  ],
+  "arm_labels": {
+    "mike_upstream_native_v1": "A-primary-upstream",
+    "coding_markdown_v5": "B-secondary-v5",
+    "coding_markdown_final_v1": "C-candidate"
+  },
+  "candidate_contract": {
+    "surface": "Glob, fair-share section-aware Grep, bounded/full Read, deterministic generate_docx, and draft-only Edit.",
+    "reading": "Inventory and screen every document. Fully read relevant source text when it fits with synthesis room; otherwise use TOCs, content Grep, and scoped Reads. Filename/count Grep results do not count as source text.",
+    "authoring": "Clean first drafts render immediately. A first draft with TOC-only or unseen sources is saved once, receives one actionable review note, may be edited, and then renders without a repeated pause.",
+    "integrity": "Read and Grep content share one exposure plane; TOC-only and unseen are separate. Sources are immutable. Shadow figure reconciliation is model-invisible. Multi-deliverables remain distinct and correctly mapped."
+  },
+  "lanes": {
+    "deepseek": {
+      "performer_model": "deepseek-v4-flash",
+      "performer_effort": "max",
+      "judge_model": "deepseek-v4-flash",
+      "judge_effort": "max",
+      "result_slug": "deepseek-v4-flash",
+      "run_stamp": "2026-08-08T05-30-00Z-final-v1-deepseek",
+      "inference_surface": "authorized DeepSeek API lane",
+      "cached_input_multiplier": 0.02,
+      "cache_accounting": "Raw input tokens are reported separately. Weighted input is uncached + 0.02 * cache-read input. A 0.1 DeepSeek cache multiplier is forbidden."
+    },
+    "luna": {
+      "performer_model": "codex:gpt-5.6-luna",
+      "performer_effort": "high",
+      "judge_model": "codex/gpt-5.6-luna",
+      "judge_effort": "high",
+      "result_slug": "codex-gpt-5-6-luna-high",
+      "run_stamp": "2026-08-08T05-30-00Z-final-v1-luna",
+      "inference_surface": "ChatGPT Codex subscription backend at chatgpt.com/backend-api/codex; platform.openai.com API use is forbidden",
+      "cached_input_multiplier": 0.1,
+      "cache_accounting": "This is a context-equivalent sensitivity for the subscription transport, not API billing or spend.",
+      "start_condition": "Start only after the DeepSeek lane has a final decision, or a preregistered stage-1 stop. Analyze independently and never pool."
+    }
+  },
+  "execution": {
+    "runner": "benchmarks/harvey-labs/scripts/run_coding_markdown_final_v1.py",
+    "sandbox_engine": "docker",
+    "max_concurrent_performers": 2,
+    "performer_order": "The explicit order fields below are frozen. At most two adjacent cells may run concurrently.",
+    "result_run_id_format": "<task>/beaver-<arm>-<lane.result_slug>/<lane.run_stamp>-<phase>-o<two-digit-order>-r<replicate>",
+    "retry_run_id_format": "<base-run-id>-retry1",
+    "resumability": "Complete cells are skipped. Every cell and launch claim is persisted atomically; stdout and stderr are append-only per cell. Existing incomplete non-retryable evidence stops the phase.",
+    "no_tuning": "No prompt, tool, environment, task, judging, criterion-group, retry, metric, or gate change is permitted after the first performer inference. A failure preserves evidence and is analyzed before any later experiment."
+  },
+  "preflight": {
+    "order": 0,
+    "task": "antitrust-competition/prepare-antitrust-risk-assessment",
+    "arm": "coding_markdown_final_v1",
+    "replicate": 1,
+    "required_deliverables": [
+      "antitrust-risk-memorandum.docx",
+      "market-analysis-workpapers.docx",
+      "hsr-filing-timeline-and-checklist.docx",
+      "client-advisory-letter.docx"
+    ],
+    "gate": "Each lane runs the candidate once. Continue only if all four DOCX files are nonempty valid packages, correctly mapped, byte-distinct, library-authored, fully receipted, and the run has no failed calls, source edit attempt, compaction, truncation, cloning, repeated pause, fallback, or non-completed terminal state."
+  },
+  "stages": {
+    "stage1": {
+      "replicates_per_task_arm": 2,
+      "cell_count": 24,
+      "tasks": [
+        "capital-markets/compare-closing-documents-against-closing-checklist",
+        "banking-finance/extract-credit-agreement-covenants",
+        "white-collar-defense-investigations/analyze-counterparty-markup-of-deferred-prosecution-agreement",
+        "antitrust-competition/analyze-counterparty-markup-of-protective-order"
+      ],
+      "cells": [
+        {"order": 1, "task": "capital-markets/compare-closing-documents-against-closing-checklist", "arm": "mike_upstream_native_v1", "replicate": 1},
+        {"order": 2, "task": "banking-finance/extract-credit-agreement-covenants", "arm": "coding_markdown_v5", "replicate": 1},
+        {"order": 3, "task": "white-collar-defense-investigations/analyze-counterparty-markup-of-deferred-prosecution-agreement", "arm": "coding_markdown_final_v1", "replicate": 1},
+        {"order": 4, "task": "antitrust-competition/analyze-counterparty-markup-of-protective-order", "arm": "mike_upstream_native_v1", "replicate": 1},
+        {"order": 5, "task": "capital-markets/compare-closing-documents-against-closing-checklist", "arm": "coding_markdown_v5", "replicate": 1},
+        {"order": 6, "task": "banking-finance/extract-credit-agreement-covenants", "arm": "coding_markdown_final_v1", "replicate": 1},
+        {"order": 7, "task": "white-collar-defense-investigations/analyze-counterparty-markup-of-deferred-prosecution-agreement", "arm": "mike_upstream_native_v1", "replicate": 1},
+        {"order": 8, "task": "antitrust-competition/analyze-counterparty-markup-of-protective-order", "arm": "coding_markdown_v5", "replicate": 1},
+        {"order": 9, "task": "capital-markets/compare-closing-documents-against-closing-checklist", "arm": "coding_markdown_final_v1", "replicate": 1},
+        {"order": 10, "task": "banking-finance/extract-credit-agreement-covenants", "arm": "mike_upstream_native_v1", "replicate": 1},
+        {"order": 11, "task": "white-collar-defense-investigations/analyze-counterparty-markup-of-deferred-prosecution-agreement", "arm": "coding_markdown_v5", "replicate": 1},
+        {"order": 12, "task": "antitrust-competition/analyze-counterparty-markup-of-protective-order", "arm": "coding_markdown_final_v1", "replicate": 1},
+        {"order": 13, "task": "capital-markets/compare-closing-documents-against-closing-checklist", "arm": "coding_markdown_final_v1", "replicate": 2},
+        {"order": 14, "task": "banking-finance/extract-credit-agreement-covenants", "arm": "mike_upstream_native_v1", "replicate": 2},
+        {"order": 15, "task": "white-collar-defense-investigations/analyze-counterparty-markup-of-deferred-prosecution-agreement", "arm": "coding_markdown_v5", "replicate": 2},
+        {"order": 16, "task": "antitrust-competition/analyze-counterparty-markup-of-protective-order", "arm": "coding_markdown_final_v1", "replicate": 2},
+        {"order": 17, "task": "capital-markets/compare-closing-documents-against-closing-checklist", "arm": "mike_upstream_native_v1", "replicate": 2},
+        {"order": 18, "task": "banking-finance/extract-credit-agreement-covenants", "arm": "coding_markdown_v5", "replicate": 2},
+        {"order": 19, "task": "white-collar-defense-investigations/analyze-counterparty-markup-of-deferred-prosecution-agreement", "arm": "coding_markdown_final_v1", "replicate": 2},
+        {"order": 20, "task": "antitrust-competition/analyze-counterparty-markup-of-protective-order", "arm": "mike_upstream_native_v1", "replicate": 2},
+        {"order": 21, "task": "capital-markets/compare-closing-documents-against-closing-checklist", "arm": "coding_markdown_v5", "replicate": 2},
+        {"order": 22, "task": "banking-finance/extract-credit-agreement-covenants", "arm": "coding_markdown_final_v1", "replicate": 2},
+        {"order": 23, "task": "white-collar-defense-investigations/analyze-counterparty-markup-of-deferred-prosecution-agreement", "arm": "mike_upstream_native_v1", "replicate": 2},
+        {"order": 24, "task": "antitrust-competition/analyze-counterparty-markup-of-protective-order", "arm": "coding_markdown_v5", "replicate": 2}
+      ],
+      "continuation": "Stage 2 launches only if every structural receipt is valid and every registered stage-1 pass check is true."
+    },
+    "stage2": {
+      "cell_count": 15,
+      "tasks": {
+        "corporate-ma/draft-acquisition-due-diligence": 2,
+        "tax/draft-transfer-pricing-documentation": 3
+      },
+      "cells": [
+        {"order": 1, "task": "corporate-ma/draft-acquisition-due-diligence", "arm": "mike_upstream_native_v1", "replicate": 1},
+        {"order": 2, "task": "tax/draft-transfer-pricing-documentation", "arm": "coding_markdown_v5", "replicate": 1},
+        {"order": 3, "task": "corporate-ma/draft-acquisition-due-diligence", "arm": "coding_markdown_final_v1", "replicate": 1},
+        {"order": 4, "task": "tax/draft-transfer-pricing-documentation", "arm": "coding_markdown_final_v1", "replicate": 1},
+        {"order": 5, "task": "corporate-ma/draft-acquisition-due-diligence", "arm": "coding_markdown_v5", "replicate": 1},
+        {"order": 6, "task": "tax/draft-transfer-pricing-documentation", "arm": "mike_upstream_native_v1", "replicate": 1},
+        {"order": 7, "task": "corporate-ma/draft-acquisition-due-diligence", "arm": "coding_markdown_v5", "replicate": 2},
+        {"order": 8, "task": "tax/draft-transfer-pricing-documentation", "arm": "coding_markdown_final_v1", "replicate": 2},
+        {"order": 9, "task": "corporate-ma/draft-acquisition-due-diligence", "arm": "mike_upstream_native_v1", "replicate": 2},
+        {"order": 10, "task": "tax/draft-transfer-pricing-documentation", "arm": "mike_upstream_native_v1", "replicate": 2},
+        {"order": 11, "task": "corporate-ma/draft-acquisition-due-diligence", "arm": "coding_markdown_final_v1", "replicate": 2},
+        {"order": 12, "task": "tax/draft-transfer-pricing-documentation", "arm": "coding_markdown_v5", "replicate": 2},
+        {"order": 13, "task": "tax/draft-transfer-pricing-documentation", "arm": "mike_upstream_native_v1", "replicate": 3},
+        {"order": 14, "task": "tax/draft-transfer-pricing-documentation", "arm": "coding_markdown_final_v1", "replicate": 3},
+        {"order": 15, "task": "tax/draft-transfer-pricing-documentation", "arm": "coding_markdown_v5", "replicate": 3}
+      ]
+    }
+  },
+  "judging": {
+    "samples_per_run": 3,
+    "aggregation": "Per-criterion strict majority across three independent samples from the lane's registered judge model and effort.",
+    "parallel_criteria": 6,
+    "sample_files": ["scores.k1.json", "scores.k2.json", "scores.k3.json"],
+    "aggregate_file": "scores.majority.json",
+    "immutability": "Existing samples are skipped, never overwritten. Samples with mixed judge models or efforts are invalid."
+  },
+  "retry_policy": {
+    "maximum_retries_per_cell": 1,
+    "eligible": "Provider/network transport failure with no emitted assistant content and no tool call.",
+    "ineligible": "Any post-emission failure, malformed or failed tool call, bad retrieval, invalid or missing deliverable, source mutation attempt, repeated pause, compaction, truncation, fallback, context overflow, quota exhaustion, or judge disagreement.",
+    "evidence": "The failed base directory is preserved. An eligible retry uses the registered -retry1 run ID and a fresh directory."
+  },
+  "hard_failure_policy": {
+    "performer": "Stop launching new cells after any ineligible failure. Let already-running adjacent cells finish, persist their evidence, then stop the phase.",
+    "artifact": "Every requested output must be a nonempty valid DOCX, exactly mapped, library-authored, and distinct from sibling deliverables.",
+    "receipts": "config, metrics, transcript, beaver receipts, run state, complete cache accounting, prompt/tool/task/source hashes, and final-arm mechanism receipts are mandatory.",
+    "zero_tolerance": [
+      "failed_or_malformed_tool_calls",
+      "source_mutation_calls_or_refusals",
+      "repeated_signal_gates",
+      "missing_receipts",
+      "compactions",
+      "truncated_tool_results",
+      "missing_or_malformed_deliverables",
+      "plain_text_or_silent_fallback",
+      "non_completed_terminal_state"
+    ]
+  },
+  "pass_gates": {
+    "quality_unit": "For each task and arm, average majority criterion rate over registered replicates. Task-macro rate gives every task equal weight.",
+    "macro": "Candidate task-macro criterion rate must meet or exceed both upstream Mike and v5. Upstream is reported first as the primary contrast.",
+    "per_task_stronger_baseline_tolerance": 0.02,
+    "per_task": "No non-tax candidate task may trail the stronger baseline task rate by more than 2 percentage points.",
+    "criterion_groups": {
+      "closing_exact_discrepancies": {
+        "task": "capital-markets/compare-closing-documents-against-closing-checklist",
+        "criteria": ["C-001", "C-002", "C-003", "C-004", "C-005", "C-006", "C-007", "C-008", "C-009", "C-010", "C-011"]
+      },
+      "banking_exact_detail": {
+        "task": "banking-finance/extract-credit-agreement-covenants",
+        "criteria": [
+          "C-019", "C-020", "C-022", "C-023", "C-024", "C-025", "C-027", "C-028", "C-029",
+          "C-032", "C-033", "C-034", "C-035", "C-036", "C-037", "C-038", "C-039", "C-040", "C-041", "C-042", "C-043", "C-044", "C-045", "C-046", "C-047", "C-048", "C-049", "C-050", "C-051", "C-052", "C-053", "C-054", "C-055", "C-056", "C-057", "C-058", "C-059", "C-060", "C-061", "C-062", "C-063", "C-064", "C-065"
+        ]
+      },
+      "dpa_linkage": {
+        "task": "white-collar-defense-investigations/analyze-counterparty-markup-of-deferred-prosecution-agreement",
+        "criteria": ["C-003", "C-017", "C-026", "C-032", "C-054"]
+      },
+      "acquisition_linkage": {
+        "task": "corporate-ma/draft-acquisition-due-diligence",
+        "criteria": ["C-013", "C-015", "C-032"]
+      }
+    },
+    "group_rule": "For every criterion group present in the stage, candidate mean pass rate must meet or exceed both baselines.",
+    "tax_distribution": "Across three tax replicates, candidate median criterion rate must meet both baseline medians, and at least two of three candidate replicates must meet each baseline median.",
+    "ceremonial_cost": "Candidate median wall time, lane-weighted input, and authoring-gate count must each strictly beat v5. Raw input is reported separately but is not itself a pass gate.",
+    "output_growth": "Candidate median output tokens must be no more than 110% of v5.",
+    "stage1_material_loss_stop": "Material loss is candidate task-macro more than 2 points below both baselines. Any failed pass check blocks stage 2 even when the loss is smaller.",
+    "lane_independence": "Apply all gates independently in DeepSeek and Luna. Agreement may corroborate; disagreement is reported, never pooled away."
+  },
+  "task_fingerprints": {
+    "antitrust-competition/prepare-antitrust-risk-assessment": {"split_sha256": "7afa244085083ed066ecf706f9958a599e9ac989ed586f2b5be859daf67f7c3f", "task_config_sha256": "35ca29aa848e153943cdbf1262adcc3a10bc32b608532775523aa8ef2854de80", "instructions_sha256": "84fe22db1b8c692ad1bc0a58ed65055e025f7534f0329f48dd2ab39bfe57ffaa", "source_bundle_sha256": "6b7acf7b42803b04ff0e425aeb489fcf992be7badb26b609b51b88a2aef3343f", "source_count": 12, "source_bytes": 984274, "criteria": 95},
+    "capital-markets/compare-closing-documents-against-closing-checklist": {"split_sha256": "1bafe85535eeb4ee107c033b7d0657f4478aaea696da2436e90605b10c1d9662", "task_config_sha256": "fa2f278335bb75dd4bf005f48c777a3bfd6a80b0ed3d03c1610f51ff23ce3136", "instructions_sha256": "2d0e8912d25ec485ac637d4d118b32bda1f2e2b80cc1dbecbf3ad0a9d741b80b", "source_bundle_sha256": "975f34bc5cc285f0ae9e8ac63c0087ff43ac0289da669144aaea460327a4bc79", "source_count": 8, "source_bytes": 316921, "criteria": 32},
+    "banking-finance/extract-credit-agreement-covenants": {"split_sha256": "4fe134f47fc144da3f0ecf6f4b99ac89dcb8931c3d3df29795ac649e8c8a18f0", "task_config_sha256": "4521248e6438e7649a0784299693284ece4bf98f693544bd7b62d9d55df0c598", "instructions_sha256": "8b3afea95c4ea92f7a1ab9dd10aeb4ba81a03ad546aa1958aa899d042a5d0f2d", "source_bundle_sha256": "a278edc390084fdfb0675f83f6c2a470e1ace91685342411bf9911f735022402", "source_count": 3, "source_bytes": 146996, "criteria": 65},
+    "white-collar-defense-investigations/analyze-counterparty-markup-of-deferred-prosecution-agreement": {"split_sha256": "9fd19fdb447640873ff265a7b01328b57a4e22db42a745be73f6f6caa0f92b9d", "task_config_sha256": "1827c04ef4c19622dd2c9ccc20e397dc71c6e9a09dbbcf3778baeb2c5009eff6", "instructions_sha256": "87c9d3d497dba8adbfb6fc6a0b673b71012d9452e26eb8ec8e46bb8f208f0a08", "source_bundle_sha256": "d177c5a38cc50f056ce053ac0b3d4a826952c51e35f736eaf3a258e39dc84f61", "source_count": 6, "source_bytes": 286807, "criteria": 58},
+    "antitrust-competition/analyze-counterparty-markup-of-protective-order": {"split_sha256": "1b8c2140260cd39e35bd681c1d79b6a14ed05056cfc2fe5b3d2185eed6233d10", "task_config_sha256": "472111856fb32b03f31b50fc4e6aa53149f8e7b6f06b4fb91f2cff27b412d1d3", "instructions_sha256": "f3c5a538989cb769699aa0cecab540ed4600b57b9bda61f8b234363bf856a8c0", "source_bundle_sha256": "b4eb405f598985bc582bbc0216628a93e835718efaffb731714b01c0b30a941b", "source_count": 6, "source_bytes": 275698, "criteria": 49},
+    "corporate-ma/draft-acquisition-due-diligence": {"split_sha256": "1c7c84f7b7641d63d2e63a84e36be858e696be5ef0a2972af40faeee449f2614", "task_config_sha256": "d9adc3cbdfbddf9c71e294daefc3fa5622785e0e09f7f0d156059f38fe3f6cc0", "instructions_sha256": "fba0e88a9d0c1b2830088147dc51ffd46ed054978661405dd6a8ba415f229303", "source_bundle_sha256": "95a51cf8db2f91d1be20be9fd1d25ea30c2e9f8dfba674099b90412e4385feb7", "source_count": 31, "source_bytes": 1372646, "criteria": 64},
+    "tax/draft-transfer-pricing-documentation": {"split_sha256": "9886979ad0409f300ccb78413abc4bda020fcde1f288d879d61e59eff1c85957", "task_config_sha256": "e860b4de7d37024a85dba093e569a893cf4806a190f073e53e9a61514fd5a962", "instructions_sha256": "baa067a9d481a31b85cb9a47a3eebfbc6620e2c5cd23b87e71b2b4f1741d05b7", "source_bundle_sha256": "bc8d591498a818501b7a388d5b93575c5a98f03b25edb2f009f9d166fe4a6647", "source_count": 25, "source_bytes": 1511738, "criteria": 77}
+  },
+  "surface_fingerprints": {
+    "antitrust-competition/prepare-antitrust-risk-assessment": {
+      "mike_upstream_native_v1": {"system_prompt_sha256": "c63f91a027fe5c0b78d692b9969c925e06b9e4d0c72184485de28e38286e6c9b", "tool_schema_sha256": "432ef1e80271816292a0b55aace8152d4ab4fe8d87e542772bd9092f722a8b1a", "tool_names": ["ask_inputs", "read_document", "find_in_document", "generate_docx", "edit_document", "list_workflows", "read_workflow", "list_documents", "fetch_documents"]},
+      "coding_markdown_v5": {"system_prompt_sha256": "08327190c4b4442fe24bb7b40bfa1337cc16f25acd98c23950d7816d203628f8", "tool_schema_sha256": "5a6bb6c2b5abb3fb29bef86d3a3c6dddaf48d5540c519af073c46f202ad16bcf", "tool_names": ["Glob", "Grep", "Read", "generate_docx", "Edit"]},
+      "coding_markdown_final_v1": {"system_prompt_sha256": "2826f51da3b0d61b9409bbdf539fb7e58bd1a6b412de35bc3a1be6c5c15335a8", "tool_schema_sha256": "0cea515ae338409e8012cddc654768ae9303da1a66055bd080c1b33d830bc59d", "tool_names": ["Glob", "Grep", "Read", "generate_docx", "Edit"]}
+    },
+    "capital-markets/compare-closing-documents-against-closing-checklist": {
+      "mike_upstream_native_v1": {"system_prompt_sha256": "ff8f1b7fc805ce52317ed8d2d510bbb6ca65c09da98ceec65fd9ec4f3c6857b0", "tool_schema_sha256": "432ef1e80271816292a0b55aace8152d4ab4fe8d87e542772bd9092f722a8b1a", "tool_names": ["ask_inputs", "read_document", "find_in_document", "generate_docx", "edit_document", "list_workflows", "read_workflow", "list_documents", "fetch_documents"]},
+      "coding_markdown_v5": {"system_prompt_sha256": "8ca25bbebc912b597bc8c5a9ac19c705864f5891714dbb6da984df9aabf9373a", "tool_schema_sha256": "5a6bb6c2b5abb3fb29bef86d3a3c6dddaf48d5540c519af073c46f202ad16bcf", "tool_names": ["Glob", "Grep", "Read", "generate_docx", "Edit"]},
+      "coding_markdown_final_v1": {"system_prompt_sha256": "8d522f334c279ba7c61089f7b23dad50cfec8ada81174cccfb5929d2b25457f6", "tool_schema_sha256": "0cea515ae338409e8012cddc654768ae9303da1a66055bd080c1b33d830bc59d", "tool_names": ["Glob", "Grep", "Read", "generate_docx", "Edit"]}
+    },
+    "banking-finance/extract-credit-agreement-covenants": {
+      "mike_upstream_native_v1": {"system_prompt_sha256": "50cf59d3ee18e6498288e484edd07042d80d3771ac6e8457922fa21ea147333e", "tool_schema_sha256": "432ef1e80271816292a0b55aace8152d4ab4fe8d87e542772bd9092f722a8b1a", "tool_names": ["ask_inputs", "read_document", "find_in_document", "generate_docx", "edit_document", "list_workflows", "read_workflow", "list_documents", "fetch_documents"]},
+      "coding_markdown_v5": {"system_prompt_sha256": "95216a9936262a34bc483d0da05681a49a96eb27f84d57a64b9e713e37e4fbee", "tool_schema_sha256": "5a6bb6c2b5abb3fb29bef86d3a3c6dddaf48d5540c519af073c46f202ad16bcf", "tool_names": ["Glob", "Grep", "Read", "generate_docx", "Edit"]},
+      "coding_markdown_final_v1": {"system_prompt_sha256": "0de54c6c914e7f1cb0e35ce65b9c3c43a55d58fc39401f8e01a43323f2ead353", "tool_schema_sha256": "0cea515ae338409e8012cddc654768ae9303da1a66055bd080c1b33d830bc59d", "tool_names": ["Glob", "Grep", "Read", "generate_docx", "Edit"]}
+    },
+    "white-collar-defense-investigations/analyze-counterparty-markup-of-deferred-prosecution-agreement": {
+      "mike_upstream_native_v1": {"system_prompt_sha256": "3e9b6d267df2790ebdd88df9cc075f5f5747243e689cfc8e9d326e5af785acb7", "tool_schema_sha256": "432ef1e80271816292a0b55aace8152d4ab4fe8d87e542772bd9092f722a8b1a", "tool_names": ["ask_inputs", "read_document", "find_in_document", "generate_docx", "edit_document", "list_workflows", "read_workflow", "list_documents", "fetch_documents"]},
+      "coding_markdown_v5": {"system_prompt_sha256": "05767b6d6692049aee4ab5e2515f74f1f4b0d47d6560e80665fd86070d13fb2a", "tool_schema_sha256": "5a6bb6c2b5abb3fb29bef86d3a3c6dddaf48d5540c519af073c46f202ad16bcf", "tool_names": ["Glob", "Grep", "Read", "generate_docx", "Edit"]},
+      "coding_markdown_final_v1": {"system_prompt_sha256": "255fb229f3ee68baeb6c6ecbfc78e14265e93ba5865a7683c06bee900d64343e", "tool_schema_sha256": "0cea515ae338409e8012cddc654768ae9303da1a66055bd080c1b33d830bc59d", "tool_names": ["Glob", "Grep", "Read", "generate_docx", "Edit"]}
+    },
+    "antitrust-competition/analyze-counterparty-markup-of-protective-order": {
+      "mike_upstream_native_v1": {"system_prompt_sha256": "ca754301416dbeb9bf42030427cb2f0f4bf135f55bde7c457b77b67068908498", "tool_schema_sha256": "432ef1e80271816292a0b55aace8152d4ab4fe8d87e542772bd9092f722a8b1a", "tool_names": ["ask_inputs", "read_document", "find_in_document", "generate_docx", "edit_document", "list_workflows", "read_workflow", "list_documents", "fetch_documents"]},
+      "coding_markdown_v5": {"system_prompt_sha256": "81af64097edf84b4c00ddd81beac547bd133f1c0e6532282a0de00399acadb3a", "tool_schema_sha256": "5a6bb6c2b5abb3fb29bef86d3a3c6dddaf48d5540c519af073c46f202ad16bcf", "tool_names": ["Glob", "Grep", "Read", "generate_docx", "Edit"]},
+      "coding_markdown_final_v1": {"system_prompt_sha256": "62b5532d7b07fe96e8740ee81e12a6290c87c440a2c6db532233e7e93f7b7586", "tool_schema_sha256": "0cea515ae338409e8012cddc654768ae9303da1a66055bd080c1b33d830bc59d", "tool_names": ["Glob", "Grep", "Read", "generate_docx", "Edit"]}
+    },
+    "corporate-ma/draft-acquisition-due-diligence": {
+      "mike_upstream_native_v1": {"system_prompt_sha256": "04c1dbfc3f8ea6f167a02978979604545d8b2a8124049ca28021a4588b22f8d2", "tool_schema_sha256": "432ef1e80271816292a0b55aace8152d4ab4fe8d87e542772bd9092f722a8b1a", "tool_names": ["ask_inputs", "read_document", "find_in_document", "generate_docx", "edit_document", "list_workflows", "read_workflow", "list_documents", "fetch_documents"]},
+      "coding_markdown_v5": {"system_prompt_sha256": "0ca59faa34dd2b868c90e2e7a397a710caed77aa7cbfac0eff1e022af5fa41e9", "tool_schema_sha256": "5a6bb6c2b5abb3fb29bef86d3a3c6dddaf48d5540c519af073c46f202ad16bcf", "tool_names": ["Glob", "Grep", "Read", "generate_docx", "Edit"]},
+      "coding_markdown_final_v1": {"system_prompt_sha256": "6f85da541fe787e2224c098d2e94b049cc61694c4328d352430948f6a335619a", "tool_schema_sha256": "0cea515ae338409e8012cddc654768ae9303da1a66055bd080c1b33d830bc59d", "tool_names": ["Glob", "Grep", "Read", "generate_docx", "Edit"]}
+    },
+    "tax/draft-transfer-pricing-documentation": {
+      "mike_upstream_native_v1": {"system_prompt_sha256": "eeab9b2578b9240f9675d8c0fc3bb79b3b0ae089f1cc30a9a13edec11b5f8970", "tool_schema_sha256": "432ef1e80271816292a0b55aace8152d4ab4fe8d87e542772bd9092f722a8b1a", "tool_names": ["ask_inputs", "read_document", "find_in_document", "generate_docx", "edit_document", "list_workflows", "read_workflow", "list_documents", "fetch_documents"]},
+      "coding_markdown_v5": {"system_prompt_sha256": "00f51f15fa51bc1649602ea29f2d200833d2987c45d4f651d211bce16e1912f2", "tool_schema_sha256": "5a6bb6c2b5abb3fb29bef86d3a3c6dddaf48d5540c519af073c46f202ad16bcf", "tool_names": ["Glob", "Grep", "Read", "generate_docx", "Edit"]},
+      "coding_markdown_final_v1": {"system_prompt_sha256": "04d971cc4610b4a2689813299048516207bf2612773f6dab744143415fef7c3f", "tool_schema_sha256": "0cea515ae338409e8012cddc654768ae9303da1a66055bd080c1b33d830bc59d", "tool_names": ["Glob", "Grep", "Read", "generate_docx", "Edit"]}
+    }
+  },
+  "source_fingerprints": {
+    "backend/scripts/lab-beaver-arm.ts": "d4b65d803aba798de1fe3bd0d0be51818a9b4db4bb67f07298dbfdf299c31423",
+    "backend/scripts/lab-authored-documents.ts": "f9320ba6bef88e1b7bd10a20e27e6297bd2cf422a12842137cb064ff7aecd2a0",
+    "backend/src/lib/chat/localAssistantTools.ts": "b9d457fb3eeda7b1cc6b542f65abaf659cde9c32e06f156ecbb03c04e0717011",
+    "backend/src/lib/chat/upstreamMikeBenchmarkSurface.ts": "df300b0c8d13fe8447436864f13d0972b7f95f306596618486c524da226c486a",
+    "backend/src/lib/chat/evidenceExposure.ts": "59dee7057e692cf900c3c0364efd9f18a70871dd54ace000ff69b16683f0d35f",
+    "backend/src/routes/chat.ts": "ee6ccd01f2fca2aa6b82e36edfc8720c577bdafa65f0f114cb8fbd03fcfb52a9",
+    "backend/src/lib/llm/deepseek.ts": "8cd1926fdf32e758ee8f1df63f49aede9c3c6ca6a0ecf2848f0926a3b8fdf992",
+    "backend/src/lib/llm/codexApi.ts": "e1247f4934938dcf57d2ce719ef6c4c44671d091529fcf13df8dffe74fe71897",
+    "backend/src/lib/llm/openai.ts": "2f775d775ebb094f8d68cc3231503e85d2b42eb9ebf5b1364c2fad2af46b64f3",
+    "backend/src/lib/__tests__/localAssistantTools.finalArm.test.ts": "a9d986bd314bf27df2fc15b47d968c82f2005b755e03e88da44a19ff0e5f15cc",
+    "benchmarks/harvey-labs/evaluation/judge.py": "08d0a7122bba3b3327269250115e36879e6a2118977cc1ab207bc1e465a865dd",
+    "benchmarks/harvey-labs/evaluation/run_eval.py": "07c38fd1bda17acf7c65882c29f37a1745807ec8806a8e8994c8f79a0cee30c5",
+    "benchmarks/harvey-labs/evaluation/aggregate_judgments.py": "995f791d120aec49f5931b91a3c6e8fa130adecaca697c6552a05db16d2da685",
+    "benchmarks/harvey-labs/evaluation/receipt.py": "b10aad9f42b8a4d85e4a7050fd77dc708b44080fe1a8c63ba8df851771b6c770",
+    "benchmarks/harvey-labs/evaluation/scoring.py": "d3e045b5ff752482ea63b61e789bd010277460508abd5ceff234f4554cda7de1",
+    "benchmarks/harvey-labs/evaluation/prompts/rubric_criterion.txt": "da0f2618d996ac5415a960dfc445e53b6fbd1b22602dd587bf6ecccbe139cb21",
+    "benchmarks/harvey-labs/harness/adapters/codex.py": "451c021bcf6846baa6d3adfb6e9b7e39272414e3c9664f835b65df5de835ade5",
+    "benchmarks/harvey-labs/scripts/run_coding_markdown_final_v1.py": "0732f8f53445ad7997d9c6d55bf33c1631d388a49cd8988b0a3758f711ead72b",
+    "benchmarks/lab/corpus-split.json": "ac277f52c2896f978e35db8d6f408b73ec9f7808a163009723d90c07de7d317a"
+  },
+  "prelaunch_commit_gate": {
+    "policy": "Implementation, tests, evaluation changes, registration, and runner are committed together. The runner requires HEAD to be the commit containing this registration, requires every scoped file to be tracked and clean against HEAD, verifies every listed SHA-256, and re-probes every task/source/prompt/tool fingerprint before each phase.",
+    "scoped_paths": [
+      "backend/scripts/lab-beaver-arm.ts",
+      "backend/src/lib/chat/localAssistantTools.ts",
+      "backend/src/lib/chat/upstreamMikeBenchmarkSurface.ts",
+      "backend/src/routes/chat.ts",
+      "backend/src/lib/__tests__/localAssistantTools.finalArm.test.ts",
+      "benchmarks/harvey-labs/evaluation/judge.py",
+      "benchmarks/harvey-labs/evaluation/run_eval.py",
+      "benchmarks/harvey-labs/evaluation/aggregate_judgments.py",
+      "benchmarks/harvey-labs/evaluation/receipt.py",
+      "benchmarks/harvey-labs/scripts/run_coding_markdown_final_v1.py",
+      "docs/harvey-labs/protocols/harvey-lab-coding-markdown-final-v1-preregistration-2026-08-08.json"
+    ]
+  },
+  "authorization": {
+    "allowed": [
+      "authorized DeepSeek API performer and judge lane",
+      "ChatGPT Codex subscription Luna performer and judge lane"
+    ],
+    "forbidden": [
+      "platform.openai.com API or any per-token OpenAI API spend",
+      "held-out or sealed task inspection",
+      "pooling with canonical Claude A/B",
+      "post-inference tuning of this registration"
+    ]
+  }
+}

@@ -13,38 +13,23 @@ const lazy = <T>(load: () => Promise<T>) => {
 };
 const local = isLocalRuntime();
 const persistence = lazy(async () => {
-  if (local) {
-    const [sqlite, project, tabular, chat, workflow, objects, features] = await Promise.all([
-      import("./lib/sqlitePersistence"), import("./lib/sqliteProjectRepository"),
-      import("./lib/sqliteTabularRepository"), import("./lib/sqliteChatRepository"),
-      import("./lib/sqliteWorkflowRepository"),
-      import("./lib/filesystemObjectStorage"), import("./lib/sqliteChatFeatures"),
-    ]);
-    return { documents: sqlite.sqliteDocumentRepository, features: features.sqliteChatFeatures,
-      library: sqlite.sqliteLibraryRepository, projects: project.sqliteProjectRepository,
-      tabular: tabular.sqliteTabularRepository, chats: chat.sqliteChatRepository,
-      workflows: workflow.sqliteWorkflowRepository, workflowCollaboration: undefined,
-      objects: objects.filesystemDocumentObjects() };
-  }
-  const [documents, library, projects, tabular, chats, workflows, objects, features] = await Promise.all([
-    import("./lib/postgresDocumentRepository"), import("./lib/postgresLibraryRepository"),
-    import("./lib/postgresProjectRepository"), import("./lib/postgresTabularRepository"),
-    import("./lib/postgresChatRepository"), import("./lib/postgresWorkflowRepository"),
-    import("./lib/s3ObjectStorage"),
-    import("./lib/postgresChatFeatures"),
-  ]);
-  return { documents: documents.postgresDocumentRepository,
-    features: features.postgresChatFeatures,
-    library: library.postgresLibraryRepository, projects: projects.postgresProjectRepository,
-    tabular: tabular.postgresTabularRepository, chats: chats.postgresChatRepository,
-    workflows: workflows.postgresWorkflowRepository,
-    workflowCollaboration: workflows.postgresWorkflowCollaboration,
-    objects: objects.s3DocumentObjects() };
+  const repositories = await import("./lib/relationalRepositories");
+  const features = local ? (await import("./lib/sqliteChatFeatures")).sqliteChatFeatures
+    : (await import("./lib/postgresChatFeatures")).postgresChatFeatures;
+  const objects = local
+    ? (await import("./lib/filesystemObjectStorage")).filesystemDocumentObjects()
+    : (await import("./lib/s3ObjectStorage")).s3DocumentObjects();
+  return { documents: repositories.documentRepository,
+    features,
+    library: repositories.libraryRepository, projects: repositories.projectRepository,
+    tabular: repositories.tabularRepository, chats: repositories.chatRepository,
+    workflows: repositories.workflowRepository,
+    workflowCollaboration: repositories.workflowCollaboration,
+    objects };
 });
 const documents = lazy(async () => {
-  const ports = await persistence(), store = createDocumentApplication(ports.documents, ports.objects);
-  await store.resumeCleanup();
-  return store;
+  const ports = await persistence();
+  return createDocumentApplication(ports.documents, ports.objects);
 });
 const library = lazy(async () => createLibraryStore((await persistence()).library, await documents()));
 const tabular = lazy(async () => createTabularApplication(
@@ -64,11 +49,25 @@ const workflows = lazy(async () => {
   const ports = await persistence();
   return { repository: ports.workflows, collaboration: ports.workflowCollaboration };
 });
-const modelApiKeys = async (userId: string) => {
+const jobs = lazy(async () => {
+  const [{ startJobWorker }, { pdfJobHandlers }, { providerPdfJobHandlers }, documentStore] = await Promise.all([
+    import("./lib/jobQueue"),
+    import("./lib/pdfJobs"),
+    import("./lib/providerPdfLibraryBridge"),
+    documents(),
+  ]);
+  return startJobWorker({
+    ...pdfJobHandlers(documentStore),
+    ...providerPdfJobHandlers(),
+  });
+});
+async function modelApiKeys(userId: string) {
   if (local) return undefined;
-  const [{ getUserModelSettings }, { createServerSupabase }] = await Promise.all([import("./lib/userSettings"), import("./lib/supabase")]);
+  const [{ getUserModelSettings }, { createServerSupabase }] = await Promise.all([
+    import("./lib/userSettings"), import("./lib/supabase"),
+  ]);
   return (await getUserModelSettings(userId, createServerSupabase())).api_keys;
-};
+}
 const chat = lazy(async () => {
   const [chatStore, documentStore, libraryStore, projectStore, tabularStore, ports] = await Promise.all([chats(), documents(), library(), projects(), tabular(), persistence()]);
   return createChatApplication({ chats: chatStore, documents: documentStore,
@@ -88,13 +87,17 @@ const chat = lazy(async () => {
 });
 const shutdown = lazy(async () => {
   const tasks: Promise<unknown>[] = [
+    jobs().then((worker) => worker.stop()),
     import("./lib/llm/codexAppServer")
       .then(({ shutdownCodexAppServers }) => shutdownCodexAppServers()),
   ];
-  if (local) tasks.push(import("./lib/sqliteDatabase")
-    .then(({ closeSqliteDatabase }) => closeSqliteDatabase()));
+  tasks.push(import("./lib/relationalDatabase")
+    .then(({ closeRelationalDatabase }) => closeRelationalDatabase()));
   await Promise.all(tasks);
 });
 export const runtime = { mode: local ? "local" as const : "cloud" as const,
-  initialize: () => documents().then(() => undefined), chat, chats, documents,
+  initialize: async () => {
+    await (await documents()).resumeCleanup();
+    await jobs();
+  }, chat, chats, documents,
   library, projects, tabular, workflows, modelApiKeys, shutdown };

@@ -16,7 +16,6 @@ vi.mock("@/app/lib/authMode", () => ({ isLocalMode: true }));
 vi.mock("@/app/lib/beaverApi", () => ({
     fixLibraryDocxSupras: vi.fn(),
     inspectLibraryDocumentAutomation: vi.fn(),
-    linkLibraryDocxCitations: vi.fn(),
     submitLibraryDocumentToAuthorities: vi.fn(),
 }));
 
@@ -123,11 +122,6 @@ describe("DocumentAutomation", () => {
             }),
         ).toBeVisible();
         expect(
-            screen.queryByRole("button", {
-                name: "Auto-add hyperlinks to citations",
-            }),
-        ).toBeNull();
-        expect(
             screen.queryByRole("button", { name: "Fix supra references" }),
         ).toBeNull();
     });
@@ -182,11 +176,6 @@ describe("DocumentAutomation", () => {
         expect(
             await screen.findByRole("button", {
                 name: "Create book/table of authorities",
-            }),
-        ).toBeVisible();
-        expect(
-            screen.getByRole("button", {
-                name: "Auto-add hyperlinks to citations",
             }),
         ).toBeVisible();
         expect(

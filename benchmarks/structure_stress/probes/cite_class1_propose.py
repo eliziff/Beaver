@@ -31,7 +31,7 @@ from collections import Counter
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[3]
-ENGINE = REPO / "universal-legal-pdf-engine"
+ENGINE = REPO / "legal-pdf-parser"
 sys.path.insert(0, str(ENGINE / "src"))
 import legalpdf.grammar_tables as gt  # noqa: E402
 

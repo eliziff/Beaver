@@ -21,12 +21,10 @@ type LocalOptions = Partial<Omit<
   | "onMutationCommitted"
 >> & Partial<Pick<ToolOptions, "documents" | "library" | "projects">>;
 
-export const runLocalAssistantTools = async (
+export const localAssistantToolRegistry = (
   userId: string,
-  calls: NormalizedToolCall[],
   options: LocalOptions = {},
-) => {
-  const registry = new TurnToolRegistry(assistantTools<Record<string, never>>({
+) => new TurnToolRegistry(assistantTools<Record<string, never>>({
     userId,
     documents: localDocuments,
     library: localLibraryStore,
@@ -37,6 +35,13 @@ export const runLocalAssistantTools = async (
     onMutationCommitted: () => undefined,
     ...options,
   }));
+
+export const runLocalAssistantTools = async (
+  userId: string,
+  calls: NormalizedToolCall[],
+  options: LocalOptions = {},
+) => {
+  const registry = localAssistantToolRegistry(userId, options);
   const specialists = calls.map(({ name }) => name)
     .filter((name) => registry.specialists().includes(name));
   if (specialists.length) {

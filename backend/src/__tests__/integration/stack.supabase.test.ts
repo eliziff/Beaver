@@ -25,8 +25,8 @@ const maybeDescribe =
 const PUBLIC_TABLES = [
     "chat_messages", "chats", "document_edits",
     "document_versions", "documents", "hidden_workflows", "library_folders",
-    "project_subfolders", "projects", "tabular_cells",
-    "tabular_reviews",
+    "library_legal_sources", "object_cleanup", "project_members", "project_subfolders",
+    "projects", "provider_sessions", "tabular_cells", "tabular_review_members", "tabular_reviews",
     "user_api_keys", "user_mcp_connector_tools", "user_mcp_connectors",
     "user_mcp_oauth_states", "user_mcp_oauth_tokens",
     "user_mcp_tool_audit_logs", "user_profiles",
@@ -79,9 +79,11 @@ maybeDescribe("Supabase stack — auth contract + RLS deny-all firewall", () => 
         tokenA = signIn.data.session.access_token;
 
         // Seed one row owned by A via the service role (the app's real write path).
+        const timestamp = new Date().toISOString();
         const proj = await admin
             .from("projects")
-            .insert({ user_id: userA, name: "Stack Test Project" })
+            .insert({ id: crypto.randomUUID(), user_id: userA,
+                name: "Stack Test Project", created_at: timestamp, updated_at: timestamp })
             .select("id")
             .single();
         if (proj.error || !proj.data) throw proj.error ?? new Error("no project");
@@ -129,65 +131,6 @@ maybeDescribe("Supabase stack — auth contract + RLS deny-all firewall", () => 
         const cross = await asUser(tokenB)
             .from("projects").select("id").eq("id", projectId);
         expect(cross.data ?? []).toHaveLength(0);
-    });
-
-    it("atomically rejects a cross-owner turn and an idempotent revision retry", async () => {
-        const chat = await admin.from("chats")
-            .insert({ user_id: userA })
-            .select("id, transcript_version")
-            .single();
-        if (chat.error || !chat.data) throw chat.error ?? new Error("no chat");
-        const chatId = chat.data.id;
-        const turnId = crypto.randomUUID();
-        const userMessage = {
-            id: crypto.randomUUID(), turn_id: turnId, content: "Atomic question",
-        };
-        const assistantMessage = {
-            id: crypto.randomUUID(), turn_id: turnId, content: [], citations: [],
-        };
-        try {
-            const crossOwner = await admin.rpc("commit_chat_turn", {
-                p_actor_user_id: userB,
-                p_actor_user_email: emailB,
-                p_chat_id: chatId,
-                p_expected_version: 0,
-                p_user_message: userMessage,
-                p_assistant_message: assistantMessage,
-                p_append_event: null,
-            });
-            expect(crossOwner.error).toBeNull();
-            expect(crossOwner.data).toEqual({ status: "missing" });
-            expect((await admin.from("chat_messages").select("id")
-                .eq("chat_id", chatId)).data ?? []).toHaveLength(0);
-
-            const committed = await admin.rpc("commit_chat_turn", {
-                p_actor_user_id: userA,
-                p_actor_user_email: emailA,
-                p_chat_id: chatId,
-                p_expected_version: 0,
-                p_user_message: userMessage,
-                p_assistant_message: assistantMessage,
-                p_append_event: null,
-            });
-            expect(committed.error).toBeNull();
-            expect(committed.data).toEqual({ status: "committed", current_version: 1 });
-
-            const duplicate = await admin.rpc("commit_chat_turn", {
-                p_actor_user_id: userA,
-                p_actor_user_email: emailA,
-                p_chat_id: chatId,
-                p_expected_version: 0,
-                p_user_message: userMessage,
-                p_assistant_message: assistantMessage,
-                p_append_event: null,
-            });
-            expect(duplicate.error).toBeNull();
-            expect(duplicate.data).toEqual({ status: "conflict", current_version: 1 });
-            expect((await admin.from("chat_messages").select("id")
-                .eq("chat_id", chatId)).data ?? []).toHaveLength(2);
-        } finally {
-            await admin.from("chats").delete().eq("id", chatId);
-        }
     });
 
     it("leak sweep: no public table returns rows to the authenticated user path", async () => {

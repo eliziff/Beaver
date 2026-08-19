@@ -42,6 +42,9 @@ server.use(helmet({
       scriptSrc: ["'self'"],
       styleSrc: ["'self'"],
       styleSrcAttr: ["'unsafe-inline'"],
+      // DOCX documents define their own paragraph, numbering, and page styles.
+      // The vendored renderer emits CSS only; scripts remain restricted to self.
+      styleSrcElem: ["'self'", "'unsafe-inline'"],
       upgradeInsecureRequests: process.env.NODE_ENV === "production" ? [] : null,
       workerSrc: ["'self'", "blob:"],
     },

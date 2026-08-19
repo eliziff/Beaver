@@ -17,14 +17,11 @@ import {
   documentProjectionService,
   type PdfLocatorKind,
 } from "../lib/documentProjectionService";
-import { linkDocxCitations } from "../lib/docxCitationLinking";
+import { enqueuePdfReprocess, preparePdf } from "../lib/pdfJobs";
 import {
   fixDocumentSupras,
   inspectDocxAutomation,
 } from "../lib/docxDeterministicCleanup";
-import { getCodexModelCatalog } from "../lib/codexCatalog";
-import { modelSupportsImageInput, type UserApiKeys } from "../lib/llm";
-import type { LegalPdfLayoutConfig } from "../lib/legalPdfProcess";
 
 function nullableId(value: unknown, name: string): string | null {
   if (value === null || value === undefined) return null;
@@ -66,8 +63,7 @@ function docxAction(
   }));
 }
 
-export function createLibraryRouter(store: LibraryStore, documents: DocumentStore,
-  modelApiKeys: (userId: string) => Promise<UserApiKeys | undefined>) {
+export function createLibraryRouter(store: LibraryStore, documents: DocumentStore) {
   const router = Router();
   router.use(requireAuth);
 
@@ -201,8 +197,6 @@ export function createLibraryRouter(store: LibraryStore, documents: DocumentStor
 
   docxAction(router, documents, "/:kind/documents/:documentId/actions/fix-supras",
     "Supra cleanup", fixDocumentSupras);
-  docxAction(router, documents, "/:kind/documents/:documentId/actions/link-citations",
-    "Citation linking", linkDocxCitations);
   router.get("/:kind/documents/:documentId/automation", libraryRoute(async (req, res, scope) => {
     if (scope.kind !== "file") reject(400, "Document automation applies to Library files");
     try {
@@ -226,15 +220,20 @@ export function createLibraryRouter(store: LibraryStore, documents: DocumentStor
 
   router.get("/:kind/documents/:documentId/pdf-parse", libraryRoute(async (req, res, scope) => {
     const file = await pdf(scope, req.params.documentId, req.query.version_id);
-    const state = await documentProjectionService.pdfState(file.path);
+    const state = await documentProjectionService.pdfState({
+      documentId: req.params.documentId,
+      versionId: file.version.id,
+      sourcePath: file.path,
+      sourceSha256: file.version.source_sha256,
+    });
     if (!state) reject(404, "No structural PDF parse state exists for this version");
     res.json(state);
   }));
 
   router.post("/:kind/documents/:documentId/lookup", libraryRoute(async (req, res, scope) => {
     const file = await pdf(scope, req.params.documentId, req.body?.version_id);
-    await documentProjectionService.parsePdf({ documentId: req.params.documentId,
-      versionId: file.version.id, sourcePath: file.path,
+    const cacheKey = await preparePdf({ userId: scope.userId,
+      documentId: req.params.documentId, versionId: file.version.id,
       sourceSha256: file.version.source_sha256 });
     const lookup = await documentProjectionService.lookupPdf(file.path, {
       locatorKind: req.body?.locator_kind as PdfLocatorKind,
@@ -243,6 +242,10 @@ export function createLibraryRouter(store: LibraryStore, documents: DocumentStor
       contextBlocks: typeof req.body?.context_blocks === "number" ? req.body.context_blocks : undefined,
       page: typeof req.body?.page === "number" ? req.body.page : undefined,
       occurrence: typeof req.body?.occurrence === "number" ? req.body.occurrence : undefined,
+    }, {
+      cacheKey,
+      documentId: req.params.documentId,
+      versionId: file.version.id,
     });
     res.status(lookup.status === "invalid" ? 400 : 200).json(lookup);
   }));
@@ -269,48 +272,22 @@ export function createLibraryRouter(store: LibraryStore, documents: DocumentStor
       if (ocr !== undefined && ocr !== "tesseract" && ocr !== "kraken-lite")
         reject(400, "ocr_provider must be kraken-lite or tesseract");
       const layoutProvider = req.body?.layout_provider;
-      if (layoutProvider !== undefined && !["none", "local", "mllm"].includes(layoutProvider))
-        reject(400, "layout_provider must be none, local, or mllm");
-      const layout: LegalPdfLayoutConfig | null | undefined = layoutProvider === "none" ? null
-        : layoutProvider === "local" ? { provider: "local" }
-        : layoutProvider === "mllm" ? { provider: "mllm",
-            model: typeof req.body?.layout_model === "string"
-              ? req.body.layout_model.trim() : "gpt-5.6-luna" }
+      if (layoutProvider !== undefined && !["none", "local"].includes(layoutProvider))
+        reject(400, "layout_provider must be none or local");
+      const layout: boolean | null | undefined = layoutProvider === "none" ? null
+        : layoutProvider === "local" ? true
         : undefined;
-      if (layout?.provider === "mllm" && !modelSupportsImageInput(layout.model))
-        reject(400, "layout_model must be an available vision-capable model");
-      const repairBody = req.body?.repair;
-      let repair: { model: string; effort: string } | undefined;
-      if (repairBody !== undefined) {
-        const encoded = typeof repairBody?.model === "string" ? repairBody.model : "";
-        if (!encoded.startsWith("codex:") || encoded.length > 166 ||
-            encoded.slice(6).trim() !== encoded.slice(6) ||
-            !/^[A-Za-z0-9_-]{1,32}$/u.test(repairBody?.effort))
-          reject(400, "Structural repair requires a Codex model and reasoning effort selected in Assistant");
-        repair = { model: encoded.slice(6), effort: repairBody.effort };
-        const catalog = await getCodexModelCatalog();
-        const model = catalog.models.find(({ slug }) => slug === repair?.model);
-        if (catalog.source === "unavailable") reject(503, "Codex model catalog is unavailable");
-        if (!model?.supportedReasoningLevels.some(({ effort }) => effort === repair?.effort))
-          reject(400, "The selected Codex model or reasoning effort is not available");
-      }
-      const current = ocr || repair || layoutProvider
-        ? await documentProjectionService.pdfState(file.path) : null;
-      if (ocr && !(Number(current?.diagnostic_summary?.by_code?.OCR_REQUIRED) > 0))
-        reject(409, "No PDF pages currently require OCR");
-      if (repair && current?.structural_repair_available !== true)
-        reject(409, "No unresolved PDF structure is eligible for bounded repair");
       try {
-        const apiKeys = layout?.provider === "mllm" ? await modelApiKeys(scope.userId) : undefined;
-        res.status(202).json(await documentProjectionService.queuePdf({
+        const job = await enqueuePdfReprocess({
+          userId: scope.userId,
           documentId: req.params.documentId, versionId: file.version.id,
-          sourcePath: file.path, sourceSha256: file.version.source_sha256, force: true,
-          ...(ocr ? { ocrProvider: ocr } : {}), ...(repair ? { repair } : {}),
-          ...(layoutProvider ? { layout } : {}), ...(apiKeys ? { apiKeys } : {}),
-        }));
+          sourceSha256: file.version.source_sha256,
+          ...(ocr ? { ocrProvider: ocr } : {}),
+          ...(layoutProvider ? { layout } : {}),
+        });
+        res.status(202).json({ id: job.id, status: job.status });
       } catch (error) {
-        if (repair) reject(503, "Structural repair could not start. Check the local Codex installation and retry.");
-        if (layoutProvider) reject(503, "PDF layout analysis could not start. Check the selected model and local runtime or provider credentials.");
+        if (layoutProvider) reject(503, "PDF layout analysis could not start. Check the local runtime and model files.");
         if (!ocr) throw error;
         const message = error instanceof Error ? error.message : "";
         reject(503, ocr === "tesseract" && message.startsWith("Tesseract was not found")

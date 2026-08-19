@@ -26,7 +26,7 @@ LAB = ROOT / "benchmarks" / "harvey-labs"
 BACKEND = ROOT / "backend"
 RESULTS = LAB / "results"
 REGISTRATION_RELATIVE = Path(
-    "docs/harvey-lab-coding-markdown-final-v1-preregistration-2026-08-08.json"
+    "docs/harvey-labs/protocols/harvey-lab-coding-markdown-final-v1-preregistration-2026-08-08.json"
 )
 REGISTRATION_PATH = ROOT / REGISTRATION_RELATIVE
 RUNNER_RELATIVE = Path(

@@ -5,7 +5,6 @@ import { safeAssistantUrl } from "@/app/lib/assistantSession";
 
 const LABELS: Record<AutomationToolName, string> = {
   create_table_of_authorities: "Create book/table of authorities",
-  link_docx_citations: "Auto-add hyperlinks to citations",
   fix_docx_supras: "Fix supra references",
 };
 const LOCAL_AUTOMATION_EVENT = "beaver:assistant-automation";

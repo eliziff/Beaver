@@ -1,11 +1,10 @@
 import { createPortal } from "react-dom";
 import { useEffect, useState, type ComponentType } from "react";
-import { BookOpen, Link2, Loader2, RefreshCw, WandSparkles, X } from "lucide-react";
+import { BookOpen, Loader2, RefreshCw, WandSparkles, X } from "lucide-react";
 import { isLocalMode } from "@/app/lib/authMode";
 import {
     fixLibraryDocxSupras,
     inspectLibraryDocumentAutomation,
-    linkLibraryDocxCitations,
     submitLibraryDocumentToAuthorities,
     type DeterministicDocxActionResult,
     type TableOfAuthoritiesJob,
@@ -32,7 +31,6 @@ type Action = {
 };
 const ACTIONS: readonly Action[] = [
     { tool: "create_table_of_authorities", icon: BookOpen },
-    { tool: "link_docx_citations", icon: Link2 },
     { tool: "fix_docx_supras", icon: RefreshCw },
 ];
 function documentAutomationKind(
@@ -51,24 +49,15 @@ export function documentAutomationEligible(
 }
 function docxRun(
     id: string,
-    tool: Extract<
-        AutomationToolName,
-        "fix_docx_supras" | "link_docx_citations"
-    >,
+    tool: Extract<AutomationToolName, "fix_docx_supras">,
     result: DeterministicDocxActionResult,
 ): AutomationRunEvent {
-    const counts =
-        tool === "fix_docx_supras"
-            ? [
-                  ["Found", result.detected],
-                  ["Fixed", result.converted],
-                  ["Already linked", result.already_linked],
-                  ["Needs review", result.review_required],
-              ]
-            : [
-                  ["Linked", result.linked_citations],
-                  ["Unresolved", result.unresolved_citations],
-              ];
+    const counts = [
+        ["Found", result.detected],
+        ["Fixed", result.converted],
+        ["Already linked", result.already_linked],
+        ["Needs review", result.review_required],
+    ];
     return {
         type: "automation_run",
         id,
@@ -250,10 +239,7 @@ function DocumentAutomationMenu({
                 );
                 return;
             }
-            const result =
-                tool === "fix_docx_supras"
-                    ? await fixLibraryDocxSupras(document.id)
-                    : await linkLibraryDocxCitations(document.id);
+            const result = await fixLibraryDocxSupras(document.id);
             publishAutomationRun(docxRun(runId, tool, result));
             try {
                 await onDocumentChanged?.(result);

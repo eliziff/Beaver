@@ -499,10 +499,6 @@ export const fixLibraryDocxSupras = (documentId: string) =>
   post<DeterministicDocxActionResult>(
     `/library/files/documents/${encodeURIComponent(documentId)}/actions/fix-supras`,
   );
-export const linkLibraryDocxCitations = (documentId: string) =>
-  post<DeterministicDocxActionResult>(
-    `/library/files/documents/${encodeURIComponent(documentId)}/actions/link-citations`,
-  );
 export type TableOfAuthoritiesJob = {
   id: string;
   state: string;

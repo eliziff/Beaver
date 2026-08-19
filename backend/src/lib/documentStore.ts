@@ -3,9 +3,15 @@ import type { EditDiffSegment } from "./docxTrackedChanges";
 import type { ApplicationScope } from "./applicationError";
 
 export type DocumentScope = ApplicationScope;
+export type DocumentParseState = {
+  status: "queued" | "parsing" | "ready" | "degraded" | "failed" | "cancelled";
+  phase?: "inspecting" | "extracting" | "ocr";
+  pages?: number[];
+  error?: string;
+};
 export type DocumentRecord = Record<string, unknown> & { id: string; filename?: string | null;
   current_version_id?: string | null; active_version_number?: number | null;
-  file_type?: string | null };
+  file_type?: string | null; parse_state?: DocumentParseState | null };
 export type CreatedDocumentRecord = DocumentRecord & { filename: string;
   current_version_id: string; active_version_number: number; file_type: string;
   source_sha256: string };

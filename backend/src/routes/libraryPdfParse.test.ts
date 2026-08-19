@@ -8,32 +8,30 @@ const mocks = vi.hoisted(() => ({
   readDocument: vi.fn(),
   documentMetadata: vi.fn(),
   publishPdf: vi.fn(async () => "C:\\projected\\source.pdf"),
-  readPdfParseState: vi.fn(),
-  queuePdfParse: vi.fn(),
-  parsePdfOnDemand: vi.fn(),
-  lookupPdfStructure: vi.fn(),
-  readPdfEvidenceReceipt: vi.fn(),
+  pdfState: vi.fn(),
+  preparePdf: vi.fn(),
+  enqueuePdfReprocess: vi.fn(),
+  lookupPdf: vi.fn(),
+  readPdfEvidence: vi.fn(),
   rehydratePdfEvidence: vi.fn(),
-  getCodexModelCatalog: vi.fn(),
 }));
 
 vi.mock("../lib/localMode", () => ({ isLocalRuntime: () => true }));
 vi.mock("../lib/documentProjectionService", async (importOriginal) => ({
-  ...await importOriginal<typeof import("../lib/documentProjectionService")>(),
+  ...(await importOriginal<typeof import("../lib/documentProjectionService")>()),
   documentProjectionService: {
     ...(await importOriginal<typeof import("../lib/documentProjectionService")>())
       .documentProjectionService,
     publishPdf: mocks.publishPdf,
-    pdfState: mocks.readPdfParseState,
-    queuePdf: mocks.queuePdfParse,
-    parsePdf: mocks.parsePdfOnDemand,
-    readPdfEvidence: mocks.readPdfEvidenceReceipt,
+    pdfState: mocks.pdfState,
+    readPdfEvidence: mocks.readPdfEvidence,
     rehydratePdfEvidence: mocks.rehydratePdfEvidence,
-    lookupPdf: mocks.lookupPdfStructure,
+    lookupPdf: mocks.lookupPdf,
   },
 }));
-vi.mock("../lib/codexCatalog", () => ({
-  getCodexModelCatalog: mocks.getCodexModelCatalog,
+vi.mock("../lib/pdfJobs", () => ({
+  preparePdf: mocks.preparePdf,
+  enqueuePdfReprocess: mocks.enqueuePdfReprocess,
 }));
 
 import { createLibraryRouter } from "./library";
@@ -47,7 +45,7 @@ api.use((_req, res, next) => {
 api.use("/library", createLibraryRouter({} as LibraryStore, {
   read: mocks.readDocument,
   metadata: mocks.documentMetadata,
-} as unknown as DocumentStore, async () => ({})));
+} as unknown as DocumentStore));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -56,231 +54,93 @@ beforeEach(() => {
   mocks.readDocument.mockResolvedValue({
     bytes: Buffer.from("%PDF"),
     fileType: "pdf",
-    version: {
-      id: "version-1",
-      source_sha256: "a".repeat(64),
-    },
+    document: { library_kind: "file" },
+    version: { id: "version-1", source_sha256: "a".repeat(64) },
   });
-  mocks.readPdfParseState.mockResolvedValue({
-    status: "degraded",
-    diagnostics: [{ code: "OCR_REQUIRED" }],
-  });
-  mocks.queuePdfParse.mockResolvedValue({ status: "queued" });
-  mocks.parsePdfOnDemand.mockResolvedValue({ status: "ready" });
-  mocks.lookupPdfStructure.mockResolvedValue({ status: "found" });
-  mocks.readPdfEvidenceReceipt.mockResolvedValue({
+  mocks.pdfState.mockResolvedValue({ status: "degraded", pages_needing_ocr: [1] });
+  mocks.enqueuePdfReprocess.mockResolvedValue({ id: "job-1", status: "queued" });
+  mocks.preparePdf.mockResolvedValue("cache-key");
+  mocks.lookupPdf.mockResolvedValue({ status: "found" });
+  mocks.readPdfEvidence.mockResolvedValue({
     source: { document_id: "document-1", version_id: "version-1" },
   });
   mocks.rehydratePdfEvidence.mockResolvedValue({ status: "found" });
-  mocks.getCodexModelCatalog.mockResolvedValue({
-    source: "live",
-    models: [
-      {
-        slug: "gpt-5.6-luna",
-        displayName: "GPT-5.6 Luna",
-        supportedReasoningLevels: [{ effort: "low" }, { effort: "max" }],
-      },
-    ],
-  });
 });
 
-describe("local Library PDF parse routes", () => {
-  it("starts parsing only when structural lookup is requested", async () => {
+const retry = (body: Record<string, unknown> = {}) => request(api)
+  .post("/library/files/documents/document-1/actions/retry-pdf-parse")
+  .send(body);
+
+describe("local Library PDF routes", () => {
+  it("prepares structural data on first lookup and binds document identity", async () => {
     const response = await request(api)
       .post("/library/files/documents/document-1/lookup")
       .send({ locator_kind: "page", locator: "1" });
 
     expect(response.status).toBe(200);
-    expect(mocks.parsePdfOnDemand).toHaveBeenCalledWith({
+    expect(mocks.preparePdf).toHaveBeenCalledWith({
+      userId: "00000000-0000-0000-0000-000000000001",
       documentId: "document-1",
       versionId: "version-1",
-      sourcePath: "C:\\projected\\source.pdf",
       sourceSha256: "a".repeat(64),
     });
-    expect(mocks.lookupPdfStructure).toHaveBeenCalledOnce();
+    expect(mocks.lookupPdf).toHaveBeenCalledWith(
+      "C:\\projected\\source.pdf",
+      { locatorKind: "page", locator: "1" },
+      {
+        cacheKey: "cache-key",
+        documentId: "document-1",
+        versionId: "version-1",
+      },
+    );
   });
 
-  it("returns durable parse state and diagnostics", async () => {
+  it("returns durable preparation status", async () => {
     const response = await request(api).get(
       "/library/files/documents/document-1/pdf-parse",
     );
-
     expect(response.status).toBe(200);
-    expect(response.body).toEqual({
-      status: "degraded",
-      diagnostics: [{ code: "OCR_REQUIRED" }],
-    });
+    expect(response.body).toEqual({ status: "degraded", pages_needing_ocr: [1] });
   });
 
-  it("queues a bounded manual retry for the selected version", async () => {
-    const response = await request(api)
-      .post("/library/files/documents/document-1/actions/retry-pdf-parse")
-      .send({ version_id: "version-1" });
+  it("queues plain, OCR, and local-layout retries for the authenticated user", async () => {
+    expect((await retry({ version_id: "version-1" })).status).toBe(202);
+    expect((await retry({ ocr_provider: "tesseract" })).status).toBe(202);
+    expect((await retry({ ocr_provider: "kraken-lite" })).status).toBe(202);
+    expect((await retry({ layout_provider: "local" })).status).toBe(202);
 
-    expect(response.status).toBe(202);
-    expect(response.body).toEqual({ status: "queued" });
-    expect(mocks.queuePdfParse).toHaveBeenCalledWith({
+    const common = {
+      userId: "00000000-0000-0000-0000-000000000001",
       documentId: "document-1",
       versionId: "version-1",
-      sourcePath: "C:\\projected\\source.pdf",
       sourceSha256: "a".repeat(64),
-      force: true,
-    });
+    };
+    expect(mocks.enqueuePdfReprocess.mock.calls.map(([value]) => value))
+      .toEqual([
+        common,
+        { ...common, ocrProvider: "tesseract" },
+        { ...common, ocrProvider: "kraken-lite" },
+        { ...common, layout: true },
+      ]);
   });
 
-  it("queues Tesseract only when the current artifacts require OCR", async () => {
-    mocks.readPdfParseState.mockResolvedValue({
-      status: "degraded",
-      diagnostic_summary: {
-        by_code: { OCR_REQUIRED: 2 },
-        by_severity: { warning: 2 },
-      },
-    });
-
-    const response = await request(api)
-      .post("/library/files/documents/document-1/actions/retry-pdf-parse")
-      .send({
-        version_id: "version-1",
-        ocr_provider: "tesseract",
-      });
-
-    expect(response.status).toBe(202);
-    expect(mocks.queuePdfParse).toHaveBeenCalledWith({
-      documentId: "document-1",
-      versionId: "version-1",
-      sourcePath: "C:\\projected\\source.pdf",
-      sourceSha256: "a".repeat(64),
-      force: true,
-      ocrProvider: "tesseract",
-    });
+  it("rejects unsupported OCR and remote layout providers", async () => {
+    expect((await retry({ ocr_provider: "remote" })).status).toBe(400);
+    expect((await retry({ layout_provider: "mllm" })).status).toBe(400);
+    expect(mocks.enqueuePdfReprocess).not.toHaveBeenCalled();
   });
 
-  it("queues vision layout with a default model", async () => {
-    const response = await request(api)
-      .post("/library/files/documents/document-1/actions/retry-pdf-parse")
-      .send({ layout_provider: "mllm" });
-
-    expect(response.status).toBe(202);
-    expect(mocks.queuePdfParse).toHaveBeenCalledWith(
-      expect.objectContaining({
-        force: true,
-        layout: { provider: "mllm", model: expect.any(String) },
-      }),
+  it("returns a safe actionable local-runtime error", async () => {
+    mocks.enqueuePdfReprocess.mockRejectedValue(
+      new Error("Tesseract was not found at C:\\private\\tesseract.exe"),
     );
-  });
-
-  it("accepts registered vision models and rejects text-only layout models", async () => {
-    const accepted = await request(api)
-      .post("/library/files/documents/document-1/actions/retry-pdf-parse")
-      .send({ layout_provider: "mllm", layout_model: "gemini-3.5-flash" });
-    expect(accepted.status).toBe(202);
-    expect(mocks.queuePdfParse).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        layout: { provider: "mllm", model: "gemini-3.5-flash" },
-      }),
-    );
-
-    const rejected = await request(api)
-      .post("/library/files/documents/document-1/actions/retry-pdf-parse")
-      .send({ layout_provider: "mllm", layout_model: "deepseek-v4-flash" });
-    expect(rejected.status).toBe(400);
-  });
-
-  it("queues the native Kraken provider through the same OCR action", async () => {
-    mocks.readPdfParseState.mockResolvedValue({
-      status: "degraded",
-      diagnostic_summary: { by_code: { OCR_REQUIRED: 1 } },
-    });
-
-    const response = await request(api)
-      .post("/library/files/documents/document-1/actions/retry-pdf-parse")
-      .send({ ocr_provider: "kraken-lite" });
-
-    expect(response.status).toBe(202);
-    expect(mocks.queuePdfParse).toHaveBeenCalledWith(
-      expect.objectContaining({ ocrProvider: "kraken-lite" }),
-    );
-  });
-
-  it("returns a safe actionable response when Tesseract is unavailable", async () => {
-    mocks.readPdfParseState.mockResolvedValue({
-      status: "degraded",
-      diagnostic_summary: { by_code: { OCR_REQUIRED: 1 } },
-    });
-    mocks.queuePdfParse.mockRejectedValue(
-      new Error(
-        "Tesseract was not found. Install it or configure its executable.",
-      ),
-    );
-
-    const response = await request(api)
-      .post("/library/files/documents/document-1/actions/retry-pdf-parse")
-      .send({ ocr_provider: "tesseract" });
-
+    const response = await retry({ ocr_provider: "tesseract" });
     expect(response.status).toBe(503);
-    expect(response.body.detail).toContain("Tesseract");
+    expect(response.body.detail).toContain("Tesseract was not found");
+    expect(JSON.stringify(response.body)).not.toContain("C:\\private");
   });
 
-  it("rejects OCR escalation when no page is marked OCR required", async () => {
-    const response = await request(api)
-      .post("/library/files/documents/document-1/actions/retry-pdf-parse")
-      .send({ ocr_provider: "tesseract" });
-
-    expect(response.status).toBe(409);
-  });
-
-  it("queues opt-in structural repair with the selected Codex settings", async () => {
-    mocks.readPdfParseState.mockResolvedValue({
-      status: "degraded",
-      structural_repair_available: true,
-    });
-
-    const response = await request(api)
-      .post("/library/files/documents/document-1/actions/retry-pdf-parse")
-      .send({
-        version_id: "version-1",
-        repair: { model: "codex:gpt-5.6-luna", effort: "max" },
-      });
-
-    expect(response.status).toBe(202);
-    expect(mocks.queuePdfParse).toHaveBeenCalledWith({
-      documentId: "document-1",
-      versionId: "version-1",
-      sourcePath: "C:\\projected\\source.pdf",
-      sourceSha256: "a".repeat(64),
-      force: true,
-      repair: { model: "gpt-5.6-luna", effort: "max" },
-    });
-  });
-
-  it("fails closed for non-Codex repair settings or ineligible diagnostics", async () => {
-    const nonCodex = await request(api)
-      .post("/library/files/documents/document-1/actions/retry-pdf-parse")
-      .send({
-        repair: { model: "deepseek:deepseek-chat", effort: "low" },
-      });
-
-    expect(nonCodex.status).toBe(400);
-
-    const unsupportedEffort = await request(api)
-      .post("/library/files/documents/document-1/actions/retry-pdf-parse")
-      .send({
-        repair: { model: "codex:gpt-5.6-luna", effort: "ultra" },
-      });
-
-    expect(unsupportedEffort.status).toBe(400);
-
-    const ineligible = await request(api)
-      .post("/library/files/documents/document-1/actions/retry-pdf-parse")
-      .send({
-        repair: { model: "codex:gpt-5.6-luna", effort: "low" },
-      });
-
-    expect(ineligible.status).toBe(409);
-    expect(mocks.queuePdfParse).not.toHaveBeenCalled();
-  });
-
-  it("rehydrates evidence only inside the matching Library kind", async () => {
+  it("rehydrates evidence only inside its authenticated Library kind", async () => {
     mocks.documentMetadata.mockResolvedValue({ library_kind: "template" });
     mocks.readDocument.mockResolvedValue({
       fileType: "pdf",
@@ -288,69 +148,39 @@ describe("local Library PDF parse routes", () => {
       version: { id: "version-1" },
     });
 
-    const response = await request(api)
+    const accepted = await request(api)
       .post("/library/templates/evidence/rehydrate")
       .send({ handle: "mike-evidence:v1:receipt" });
-
-    expect(response.status).toBe(200);
-    expect(response.body).toEqual({ status: "found" });
+    expect(accepted.status).toBe(200);
     expect(mocks.rehydratePdfEvidence).toHaveBeenCalledWith(
       "C:\\projected\\source.pdf",
       "mike-evidence:v1:receipt",
     );
-  });
 
-  it("rejects evidence from a different Library kind", async () => {
-    mocks.documentMetadata.mockResolvedValue({ library_kind: "template" });
-    mocks.readDocument.mockResolvedValue({
-      fileType: "pdf",
-      document: { library_kind: "template" },
-      version: { id: "version-1" },
-    });
-
-    const response = await request(api)
+    const rejected = await request(api)
       .post("/library/files/evidence/rehydrate")
       .send({ handle: "mike-evidence:v1:receipt" });
-
-    expect(response.status).toBe(409);
-    expect(response.body).toEqual({
-      detail: "PDF evidence source or artifact is unavailable",
-    });
-    expect(mocks.rehydratePdfEvidence).not.toHaveBeenCalled();
-    expect(JSON.stringify(response.body)).not.toContain("C:\\private");
+    expect(rejected.status).toBe(409);
   });
 
-  it("distinguishes a missing receipt from a missing downstream artifact", async () => {
-    mocks.readPdfEvidenceReceipt.mockRejectedValueOnce(
+  it("distinguishes a missing receipt from unavailable source evidence", async () => {
+    mocks.readPdfEvidence.mockRejectedValueOnce(
       Object.assign(new Error("missing"), { code: "ENOENT" }),
     );
-    const missingReceipt = await request(api)
+    const missing = await request(api)
       .post("/library/files/evidence/rehydrate")
       .send({ handle: "mike-evidence:v1:missing" });
+    expect(missing.status).toBe(404);
+    expect(missing.body.detail).toBe("PDF evidence receipt not found");
 
-    expect(missingReceipt.status).toBe(404);
-    expect(missingReceipt.body).toEqual({
-      detail: "PDF evidence receipt not found",
-    });
-
-    mocks.readDocument.mockResolvedValue({
-      fileType: "pdf",
-      document: { library_kind: "file" },
-      version: { id: "version-1" },
-    });
     mocks.rehydratePdfEvidence.mockRejectedValueOnce(
-      Object.assign(new Error("ENOENT C:\\private\\source.pdf"), {
-        code: "ENOENT",
-      }),
+      Object.assign(new Error("ENOENT C:\\private\\source.pdf"), { code: "ENOENT" }),
     );
-    const missingArtifact = await request(api)
+    const unavailable = await request(api)
       .post("/library/files/evidence/rehydrate")
       .send({ handle: "mike-evidence:v1:receipt" });
-
-    expect(missingArtifact.status).toBe(409);
-    expect(missingArtifact.body).toEqual({
-      detail: "PDF evidence source or artifact is unavailable",
-    });
-    expect(JSON.stringify(missingArtifact.body)).not.toContain("C:\\private");
+    expect(unavailable.status).toBe(409);
+    expect(unavailable.body.detail).toBe("PDF evidence source or artifact is unavailable");
+    expect(JSON.stringify(unavailable.body)).not.toContain("C:\\private");
   });
 });

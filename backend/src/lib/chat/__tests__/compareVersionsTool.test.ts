@@ -10,7 +10,7 @@ let home: string | null = null;
 
 afterEach(async () => {
   try {
-    (await import("../../sqliteDatabase")).closeSqliteDatabase();
+    await (await import("../../relationalDatabase")).closeRelationalDatabase();
   } catch {}
   delete process.env.MIKE_LOCAL_DATA_DIR;
   delete process.env.OPEN_LEGAL_DATA_HOME;

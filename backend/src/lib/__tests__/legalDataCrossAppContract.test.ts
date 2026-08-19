@@ -13,7 +13,7 @@ describe("Beaver and Table of Authorities shared-data contract", () => {
       const tableOfAuthorities = path.resolve(
         process.cwd(),
         "..",
-        "TableOfAuthoritiesMaker",
+        "AuthoritiesHelper",
       );
       const result = spawnSync(
         process.env.TOA_PYTHON?.trim() || "python",

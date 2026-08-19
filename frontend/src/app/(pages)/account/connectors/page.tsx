@@ -1,4 +1,3 @@
-"use client";
 import { useEffect, useState } from "react";
 import { Check, Loader2, Plus, RefreshCw } from "lucide-react";
 import { Modal } from "@/app/components/modals/Modal";

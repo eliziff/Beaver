@@ -41,13 +41,6 @@ vi.mock("@supabase/supabase-js", () => ({
     })),
 }));
 
-vi.mock("../../lib/postgresDocumentRepository", () => ({
-    postgresDocumentRepository: {
-        pendingOrphans: vi.fn(async () => []),
-        pendingCleanup: vi.fn(async () => []),
-    },
-}));
-
 // Vitest hoists vi.mock() calls before all imports, so this regular import
 // receives the mocked supabase-js module even though it appears after the
 // vi.mock() call in source order.

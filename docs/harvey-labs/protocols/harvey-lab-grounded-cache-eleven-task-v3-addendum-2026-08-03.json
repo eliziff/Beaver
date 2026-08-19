@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "experiment_id": "harvey-lab-grounded-cache-eleven-task-v3",
+  "registered_at": "2026-08-03T04:09:00Z",
+  "base_registration": "docs/harvey-labs/protocols/harvey-lab-grounded-cache-twelve-task-preregistration-2026-08-03.json",
+  "transport_addendum": "docs/harvey-labs/protocols/harvey-lab-grounded-cache-twelve-task-v2-addendum-2026-08-03.json",
+  "only_matrix_change": "Exclude diligence/cybersecurity-tuck-in and its three cells. Its local upload stage reached only 50 of 3,513 documents per arm before the route returned HTTP 429, without a model trace or scoreable output. All other arms, tasks, settings, fingerprints, metrics, and judge rules remain fixed.",
+  "task_count": 11,
+  "run_count": 33,
+  "total_criteria": 707,
+  "total_sources": 135,
+  "total_source_bytes": 7226103,
+  "max_concurrent_processes": 12,
+  "run_id_template": "2026-08-03-grounded-cache-v3--{task_slug}--{arm}",
+  "mega_suite_disposition": "Architecture follow-up only; do not relaunch without user approval.",
+  "status": "preregistered_before_v3_performer_calls"
+}

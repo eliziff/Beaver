@@ -4,7 +4,7 @@ This directory is the single authored corpus for Beaver's portable legal-text
 grammars. It contains citation, footnote-label, pinpoint, provision, and
 reference dialects together with every frozen positive and negative vector.
 
-Beaver, the legal PDF parser, and Table of Authorities Maker all load their
+Beaver, the legal PDF parser, and Authorities Helper all load their
 applicable entries from a byte-identical bundle. Consumers compile the
 patterns in their own runtime. The patterns use a small portable dialect:
 JavaScript-style named groups, `ims` flags, and `{{def}}` fragments. Runtime

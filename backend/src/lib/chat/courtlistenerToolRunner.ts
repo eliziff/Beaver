@@ -30,7 +30,7 @@ export async function courtlistenerPdfRendition(value: object, userId?: string) 
       title: text(source.caseName) ?? text(source.case_name) ??
         (Array.isArray(source.citations) ? text(source.citations[0]) : null) ??
         `CourtListener ${clusterId}`,
-    });
+    }, userId);
     return queued && {
       ...queued,
       resource: resourceReference.source("pdf", queued.reference_id),

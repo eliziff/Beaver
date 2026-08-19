@@ -14,7 +14,7 @@ import { Document, Packer, Paragraph, TextRun } from "docx";
 // Turn A: the model must use the library tools to read an uploaded lease
 // and answer with the rent figure.
 // Turn B: the model must route a structural-drafting-errors request to the
-// deterministic lint_docx_structure tool and relay its findings.
+// deterministic lint_document tool and relay its findings.
 
 const LIVE = process.env.LIVE_E2E === "1";
 const MODEL = process.env.LIVE_MODEL?.trim() || "codex:gpt-5.6-luna";
@@ -30,8 +30,8 @@ let closeLocalStore: (() => Promise<void>) | null = null;
 async function loadApi() {
   vi.resetModules();
   const { api } = await import("../../api");
-  closeLocalStore = async () => (await import("../../lib/sqliteDatabase"))
-    .closeSqliteDatabase();
+  closeLocalStore = async () => (await import("../../lib/relationalDatabase"))
+    .closeRelationalDatabase();
   return api;
 }
 
@@ -177,7 +177,7 @@ describe.skipIf(!LIVE)("live tool loop (account-free, real model)", () => {
       const answer = visibleText(events);
 
       // The system prompt routes this request to the deterministic lint.
-      expect(calls).toContain("lint_docx_structure");
+      expect(calls).toContain("lint_document");
       // The lint's verified findings surface in the answer: the missing
       // Section 9 target and the missing Schedule 2 attachment.
       expect(answer).toMatch(/Section 9/u);

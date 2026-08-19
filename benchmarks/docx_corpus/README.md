@@ -1,7 +1,7 @@
 # Local DOCX corpus benchmark
 
 This is the corpus-scale layer missing from the existing
-`universal-legal-pdf-engine` split/link benchmark. It reuses that engine; it
+`legal-pdf-parser` split/link benchmark. It reuses that engine; it
 does not copy or import the ALR application at runtime.
 
 Run the two local deterministic arms over the private corpus:
@@ -40,7 +40,7 @@ python benchmarks\docx_corpus\benchmark.py score `
 ```
 
 For live model arms, first freeze accepted rows into the fixture format already
-supported by the universal engine:
+supported by the Legal PDF Parser:
 
 ```powershell
 python benchmarks\docx_corpus\benchmark.py fixture `
@@ -48,7 +48,7 @@ python benchmarks\docx_corpus\benchmark.py fixture `
   --output benchmarks\docx_corpus\private_results\live-fixture.json `
   --frozen-gold benchmarks\docx_corpus\private_results\live-gold.jsonl
 
-python universal-legal-pdf-engine\dev\benchmark_docx_linking.py `
+python legal-pdf-parser\dev\benchmark_docx_linking.py `
   --fixture benchmarks\docx_corpus\private_results\live-fixture.json `
   --output benchmarks\docx_corpus\private_results\live-results.jsonl `
   --arm gpt-5.6-sol:hybrid --effort max

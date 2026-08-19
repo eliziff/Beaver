@@ -11,17 +11,17 @@ const scope = { userId: USER_ID };
 let dataHome = "";
 
 async function closeDatabase() {
-  (await import("../sqliteDatabase")).closeSqliteDatabase();
+  await (await import("../relationalDatabase")).closeRelationalDatabase();
 }
 
 async function loadStores() {
-  const [sessions, { createChatStore }, { sqliteChatRepository }, { generateChatTitle }] = await Promise.all([
-    import("../sqliteProviderSessionStore"),
-    import("../chatStore"), import("../sqliteChatRepository"), import("../chatTitle"),
+  const [sessions, { createChatStore }, { chatRepository }, { generateChatTitle }] = await Promise.all([
+    import("../providerSessionStore"),
+    import("../chatStore"), import("../relationalRepositories"), import("../chatTitle"),
   ]);
   return [
     sessions,
-    createChatStore(sqliteChatRepository, generateChatTitle,
+    createChatStore(chatRepository, generateChatTitle,
       { project: async () => false, review: async () => false }),
   ] as const;
 }
@@ -29,6 +29,7 @@ async function loadStores() {
 beforeEach(async () => {
   dataHome = await mkdtemp(path.join(os.tmpdir(), "beaver-codex-session-"));
   vi.stubEnv("MIKE_LOCAL_DATA_DIR", dataHome);
+  vi.stubEnv("AUTH_MODE", "local");
 });
 
 afterEach(async () => {

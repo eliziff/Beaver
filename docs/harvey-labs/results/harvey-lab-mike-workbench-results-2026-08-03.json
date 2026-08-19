@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "experiment_id": "harvey-lab-mike-workbench-v1",
+  "preregistration": "docs/harvey-labs/protocols/harvey-lab-mike-workbench-preregistration-2026-08-03.json",
+  "status": "complete_rejected",
+  "judge": "codex/gpt-5.6-sol",
+  "result_label": "provisional derivative criterion labels; not human gold",
+  "structural_gate": {
+    "valid_runs": 9,
+    "expected_runs": 9,
+    "fingerprints_matched": 9,
+    "provider_tier_default": 9,
+    "tool_errors": 0,
+    "readable_nonempty_docx_outputs": 12
+  },
+  "aggregate": {
+    "mike_control_v1": {
+      "score": "163/225",
+      "score_pct": 72.44,
+      "logical_tokens": 577790,
+      "cache_adjusted_input": 520685,
+      "cached_input": 0,
+      "turns": 7,
+      "tool_calls": 20,
+      "wall_seconds": 1091.97
+    },
+    "mike_workbench_v1": {
+      "score": "160/225",
+      "score_pct": 71.11,
+      "logical_tokens": 1134296,
+      "cache_adjusted_input": 1040952,
+      "cached_input": 41984,
+      "turns": 10,
+      "tool_calls": 12,
+      "wall_seconds": 1089.61
+    },
+    "mike_workbench_anchor_v1": {
+      "score": "157/225",
+      "score_pct": 69.78,
+      "logical_tokens": 1769508,
+      "cache_adjusted_input": 1439573,
+      "cached_input": 267264,
+      "turns": 12,
+      "tool_calls": 14,
+      "wall_seconds": 1693.07
+    }
+  },
+  "per_task": {
+    "banking-finance/extract-credit-agreement-covenants": {
+      "mike_control_v1": { "score": "54/65", "logical_tokens": 64076, "cache_adjusted_input": 44122 },
+      "mike_workbench_v1": { "score": "53/65", "logical_tokens": 107488, "cache_adjusted_input": 53032 },
+      "mike_workbench_anchor_v1": { "score": "52/65", "logical_tokens": 186166, "cache_adjusted_input": 156229 }
+    },
+    "tax/draft-transfer-pricing-documentation": {
+      "mike_control_v1": { "score": "36/77", "logical_tokens": 283632, "cache_adjusted_input": 267255 },
+      "mike_workbench_v1": { "score": "36/77", "logical_tokens": 552358, "cache_adjusted_input": 536080 },
+      "mike_workbench_anchor_v1": { "score": "39/77", "logical_tokens": 859141, "cache_adjusted_input": 591171 }
+    },
+    "capital-markets/draft-indenture-for-senior-secured-notes-offering": {
+      "mike_control_v1": { "score": "73/83", "logical_tokens": 230082, "cache_adjusted_input": 209308 },
+      "mike_workbench_v1": { "score": "71/83", "logical_tokens": 474450, "cache_adjusted_input": 451840 },
+      "mike_workbench_anchor_v1": { "score": "66/83", "logical_tokens": 724201, "cache_adjusted_input": 692173 }
+    }
+  },
+  "causal_findings": [
+    "The workbench used Bash exactly as intended: bounded covenant arithmetic on Banking and allocation recomputation on Tax, each returning fewer than 700 characters. It did not use Bash for ingestion.",
+    "Useful after-read computation nevertheless required another inference over the full evidence prefix. Tax workbench input rose from 267255 to 537462 while only 1536 input tokens were reported cached.",
+    "Indenture workbench used no Bash but authored two deliverables in separate model turns, raising input from 209308 to 451840. Control emitted both generation calls together.",
+    "The deterministic packet surfaced concrete prior misses, but every compiler revision became materially shorter. It lost more correct coverage than it gained on Banking and Indenture; its Tax gain was only three criteria at 2.21x cache-adjusted input.",
+    "Across all tasks, every added post-read round reduced aggregate accuracy and increased cost. The control is the winner and both candidate deltas are rejected."
+  ],
+  "decision": {
+    "winner": "mike_control_v1",
+    "advance_workbench": false,
+    "advance_deterministic_review": false,
+    "next_hypothesis": "Keep all analysis and completeness work inside the single evidence-to-deliverable inference. Test a two-tool one-shot surface with exact task recency after the source packet, compact terminal Markdown authoring, stable prompt-cache routing, and a separately attributable pro-mode arm; do not add another after-read tool or compiler round."
+  }
+}
