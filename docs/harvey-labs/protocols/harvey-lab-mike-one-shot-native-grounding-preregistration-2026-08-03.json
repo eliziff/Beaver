@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "experiment_id": "harvey-lab-mike-one-shot-native-grounding-v1",
+  "registered_at": "2026-08-03T10:58:44Z",
+  "status": "preregistered_before_performer_calls",
+  "parent": "docs/harvey-labs/protocols/harvey-lab-mike-one-shot-preregistration-2026-08-03.json",
+  "claim_scope": "One three-task visible-development follow-up against the landed xhigh one-shot and fresh Mike cells. Provisional derivative Sol labels; not human gold.",
+  "landed_trigger": {
+    "user_hypothesis": "Grounding can be valuable even when the native work product should not quote sources.",
+    "trace_evidence": "None of the three requests asks for citations or quotations. The xhigh Banking arm nevertheless devoted 17595 of 67417 Markdown characters to a machine citation block; the deterministic arm devoted 30021 of 84362. Tax and Indenture mostly ignored the same repeated per-document citation directives, showing inconsistent attention cost rather than a stable deliverable requirement.",
+    "scored_baseline": "The xhigh one-shot arm leads fresh Mike 176/225 to 172/225 at 614130 versus 590911 logical tokens."
+  },
+  "hypothesis": "Keep exact whole-document evidence, two tools, two turns, exact-request recency, xhigh effort, and terminal batch generation. Remove the repeated citation-shape directive from each fetched document and add one general rule: ground in exact source text, but put quotations/citations in the deliverable only when requested or native to the professional genre.",
+  "implementation_commit_before_launch": "b1161ea0",
+  "surface": "mike_one_shot_native_xhigh_v1",
+  "performer": {
+    "model": "codex/gpt-5.6-luna",
+    "reasoning_effort": "xhigh",
+    "temperature_requested": 0,
+    "temperature_transmitted": false,
+    "required_provider_service_tier_reported": "default",
+    "tools": ["fetch_documents", "generate_docx"],
+    "tool_schema_sha256": "7da650571cfd85d225720eb6f7b0549eae2309212394202a708d9ffa4b568298",
+    "harness_source_bundle_sha256": "e79da857c5990916879fbeade602cf989e81202802dce4b549698dd485ba86e1",
+    "run_count": 3,
+    "max_concurrent_processes": 3,
+    "run_id_template": "2026-08-03-mike-one-shot-native-grounding-v1--{task_slug_with_slashes_replaced_by_double_hyphens}"
+  },
+  "invariants": [
+    "All exact source text and host receipts remain unchanged.",
+    "The original request still appears after complete evidence.",
+    "No task route, filename, value, criterion, or hidden benchmark content is used.",
+    "Explicit citation or quotation instructions in a future task remain authoritative.",
+    "No extra tool, model round, drafting stage, checkpoint, index, or review is added."
+  ],
+  "tasks": {
+    "banking-finance/extract-credit-agreement-covenants": {
+      "system_prompt_sha256": "69470e9a59abcf3f7001f18f7e622114c9fb16ffbda572b9cde978cc356c8e05",
+      "system_prompt_bytes": 1197,
+      "prompt_cache_key": "lab-60b4be2d9af82e95e991c8a61ca8e727df93aabeff114977854fb2a9795f3a8f",
+      "run_fingerprint_sha256": "4e9d436f4d89dd1ae44e8dd927eef1f6cafda581b6380314cfd85bdfb0e7da07"
+    },
+    "tax/draft-transfer-pricing-documentation": {
+      "system_prompt_sha256": "fd0a61c81773004234dbd3b3366bedbbcc9bfd39296f6f7f71eb7feee06ab0a3",
+      "system_prompt_bytes": 2915,
+      "prompt_cache_key": "lab-1fbb5d9bbcb919e8d66b965406dd6eb28401d72639c9757f97a65de48b332886",
+      "run_fingerprint_sha256": "afc481ef0337bb2acf7c8746d1100479b42158baa8551e4a2d948d995cdd445f"
+    },
+    "capital-markets/draft-indenture-for-senior-secured-notes-offering": {
+      "system_prompt_sha256": "9eafe1a8104b0c98fd9720d6313e55497724dc95d494b1c461d540f0c4446a88",
+      "system_prompt_bytes": 1685,
+      "prompt_cache_key": "lab-046ce9f47b519ba638de5f7daa417cbe3fc7c9f067ed5af84f03701ce3e81c93",
+      "run_fingerprint_sha256": "6ac6f62421b31eb7cb8f66ee8e5d782f79e45915f95aae49702a052681bd70e3"
+    }
+  },
+  "judge": {
+    "model": "codex/gpt-5.6-sol",
+    "reasoning_effort": "provider default",
+    "temperature_requested": 0,
+    "criterion_level": true,
+    "max_concurrent_outputs": 3,
+    "max_concurrent_criteria_per_output": 1,
+    "prompt_sha256": "da0f2618d996ac5415a960dfc445e53b6fbd1b22602dd587bf6ecccbe139cb21",
+    "judge_source_sha256": "3546fec5ca1c4d655c8510d8cf2e0ca2201a94428c86d1628fbcdf5afe83a4b5",
+    "scoring_source_sha256": "e7f5e0accdaffe3ba9d350fb417f0c09f6f372ff5888def5908c73113291a9a3"
+  },
+  "decision_rule": "Advance if the Sol aggregate exceeds 176/225, or if it preserves at least 176/225 while reducing logical tokens. Reject if grounding quality or criterion coverage falls."
+}

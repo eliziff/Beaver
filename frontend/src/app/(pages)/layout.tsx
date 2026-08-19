@@ -1,5 +1,10 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import {
+    Navigate,
+    Outlet,
+    useLocation,
+    useMatches,
+} from "react-router-dom";
 import { PanelLeft } from "lucide-react";
 import { AssistantAutomationActivity } from "@/app/components/assistant/AutomationRun";
 import { AppSidebar } from "@/app/components/shared/AppSidebar";
@@ -8,7 +13,7 @@ import { AuthoritiesLoadingFrame } from "@/app/components/shared/TableOfAuthorit
 import { useAuth } from "@/app/contexts/AuthContext";
 import { ChatHistoryProvider } from "@/app/contexts/ChatHistoryContext";
 import { SidebarContext } from "@/app/contexts/SidebarContext";
-import { isLocalMode, requiresAccount } from "@/app/lib/authMode";
+import { isLocalMode } from "@/app/lib/authMode";
 
 const TableOfAuthoritiesHost = lazy(() =>
     import("@/app/components/shared/TableOfAuthoritiesHost").then((module) => ({
@@ -18,8 +23,17 @@ const TableOfAuthoritiesHost = lazy(() =>
 
 export default function AppShell() {
     const { isAuthenticated, authLoading } = useAuth();
-    const navigate = useNavigate();
     const { pathname } = useLocation();
+    const access = useMatches().reduce<{
+        cloudOnly?: boolean;
+        localRedirect?: string;
+    }>(
+        (current, match) => ({
+            ...current,
+            ...(match.handle as typeof current | undefined),
+        }),
+        {},
+    );
     const authoritiesActive = pathname === "/table-of-authorities";
     const [authoritiesOrigin, setAuthoritiesOrigin] = useState<string | null>(null);
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -36,13 +50,12 @@ export default function AppShell() {
         return () => window.clearTimeout(rollback);
     }, [authoritiesOrigin, pathname]);
 
-    useEffect(() => {
-        if (!authLoading && !isAuthenticated) {
-            navigate("/login", { replace: true });
-        }
-    }, [authLoading, isAuthenticated, navigate]);
-
-    if (!authLoading && !isAuthenticated) return null;
+    if (!authLoading && !isAuthenticated) {
+        return <Navigate to="/login" replace />;
+    }
+    if (isLocalMode && access.localRedirect) {
+        return <Navigate to={access.localRedirect} replace />;
+    }
     const toggleSidebar = () => setMobileSidebarOpen((open) => !open);
     const prepareAuthorities = () => {
         if (authoritiesActive) return;
@@ -98,7 +111,7 @@ export default function AppShell() {
                                         <p className="m-auto px-6 text-sm text-gray-500" role="status">
                                             Loading…
                                         </p>
-                                    ) : isLocalMode && requiresAccount(pathname) ? (
+                                    ) : isLocalMode && access.cloudOnly ? (
                                         <div className="m-auto px-6 text-center">
                                             <h1 className="font-serif text-2xl font-medium text-gray-900">
                                                 Unavailable in local mode

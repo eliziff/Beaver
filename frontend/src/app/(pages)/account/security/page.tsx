@@ -1,4 +1,3 @@
-"use client";
 import { useCallback, useEffect, useState } from "react";
 import { Copy } from "lucide-react";
 import { getSupabase } from "@/app/lib/supabase";

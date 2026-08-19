@@ -3,7 +3,7 @@ import path from "node:path";
 import { mkdtemp, rm } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 import { LegalKnowledgeGraphStore } from "./store";
-import { SQLITE_SCHEMA_VERSION } from "../../src/lib/sqliteDatabase";
+import { SQLITE_SCHEMA_VERSION } from "./database";
 
 const stores: LegalKnowledgeGraphStore[] = [];
 const directories: string[] = [];

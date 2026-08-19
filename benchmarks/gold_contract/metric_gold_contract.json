@@ -3,8 +3,8 @@
   "audited_at": "2026-07-26",
   "scope": [
     "benchmarks/docx_corpus",
-    "universal-legal-pdf-engine benchmark and scorers",
-    "TableOfAuthoritiesMaker benchmark-facing outputs",
+    "legal-pdf-parser benchmark and scorers",
+    "AuthoritiesHelper benchmark-facing outputs",
     "ALR-Quote-Verifier dev benchmark infrastructure",
     "docs/docx-* benchmark reports",
     "private aggregate manifests and results (structure and hashes only)"
@@ -1051,7 +1051,7 @@
         "sha256:85706cf5a84e22166c4d6697bd29e69cdeaf0bd06123129b5857219ac0a86c44"
       ],
       "independence_and_leakage": "The deterministic punctuation snap was changed after an observed model failure on the same fixture. The scorer iterates plan rows rather than enforcing exact expected/prediction ID bijection and tolerant exact omits character neutrality.",
-      "scorer": "universal-legal-pdf-engine/dev/benchmark_docx_linking.py",
+      "scorer": "legal-pdf-parser/dev/benchmark_docx_linking.py",
       "failure_semantics": "The fixture can detect contract regressions but cannot support comparative or real-world accuracy.",
       "uncertainty": "Twelve chosen synthetic cases; no sampling inference.",
       "interpretation": "Synthetic contract test only.",
@@ -1347,7 +1347,7 @@
         "sha256:2e4df1356ce2cfd3e481a860a5124b8c8ec2c6a496d8ca10760fdd53fa7eaf52"
       ],
       "independence_and_leakage": "The application defines the objects being counted.",
-      "scorer": "TableOfAuthoritiesMaker/toa_maker.py and project manifest writers",
+      "scorer": "AuthoritiesHelper/toa_maker.py and project manifest writers",
       "failure_semantics": "Unresolved and discrepancy states are workflow outcomes, not adjudicated errors.",
       "uncertainty": "Counts are exact for a run; no accuracy uncertainty.",
       "interpretation": "Workflow descriptors.",
@@ -1387,7 +1387,7 @@
         "sha256:2e4df1356ce2cfd3e481a860a5124b8c8ec2c6a496d8ca10760fdd53fa7eaf52"
       ],
       "independence_and_leakage": "Thresholds and expected strings are application heuristics; match_score is neither probability nor correctness.",
-      "scorer": "TableOfAuthoritiesMaker/toa_maker.py discrepancy matching",
+      "scorer": "AuthoritiesHelper/toa_maker.py discrepancy matching",
       "failure_semantics": "Threshold crossings are review-routing signals only.",
       "uncertainty": "No threshold calibration or confidence intervals.",
       "interpretation": "No valid accuracy metric.",
@@ -1643,7 +1643,7 @@
         "sha256:c0ed32b2fc5ac221e2ac3ad1b5a624df4313532a6e7d63ac231e1ffddac48cfc"
       ],
       "independence_and_leakage": "Unknown, auto, agent, rejected, or blank statuses are admitted. Human provenance and normalized-content uniqueness are not checked; under/over uses only canonical count.",
-      "scorer": "universal-legal-pdf-engine/dev/benchmark_alr_splitter.py",
+      "scorer": "legal-pdf-parser/dev/benchmark_alr_splitter.py",
       "failure_semantics": "Compatibility outcomes cannot be promoted to gold accuracy under the current loader.",
       "uncertainty": "No representative sampling or interval.",
       "interpretation": "Current output is an untrusted compatibility diagnostic.",

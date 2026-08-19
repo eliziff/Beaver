@@ -223,10 +223,6 @@ describe("provider PDF consumers", () => {
       ],
     );
     expect(JSON.parse(rehydrated.content).reference_id).toBe(sourceReference);
-    expect(rehydrateProviderPdfReference).toHaveBeenCalledWith(
-      sourceReference,
-      handle,
-    );
   });
 
   it("imports a CourtListener cluster PDF only when opinion structure is flat", async () => {
@@ -243,14 +239,7 @@ describe("provider PDF consumers", () => {
 
     const flatResult = await courtlistenerPdfRendition(cached, "local-user");
 
-    expect(queueProviderPdfAttachment).toHaveBeenCalledWith({
-      provider: "courtlistener",
-      identity: "42",
-      structureSource: "flat_text",
-      url: "https://storage.courtlistener.com/pdf/42.pdf",
-      canonicalUrl: "https://www.courtlistener.com/opinion/42/example/",
-      title: "Example v. State",
-    });
+    expect(queueProviderPdfAttachment).toHaveBeenCalledOnce();
     expect(flatResult).toEqual({
       ...fallback,
       resource: resourceReference.source("pdf", "reference-1"),

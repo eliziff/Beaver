@@ -1,0 +1,58 @@
+{
+  "schema_version": "beaver-retrieval-varied-pinpoint-implementation-1",
+  "registered_at": "2026-08-01",
+  "status": "frozen_after_implementation_and_fail_closed_ingest_but_before_model_calls",
+  "design": {
+    "path": "docs/harvey-labs/protocols/retrieval-varied-pinpoint-design-2026-08-01.json",
+    "sha256": "9c426cccbafbbfa05daa5eb79b578e4913e37fd992badcfa8dd7dcc402348541"
+  },
+  "bed": {
+    "kind": "beaver-can-pinpoint",
+    "cells": 19,
+    "documents": 10,
+    "case_cells": 9,
+    "legislation_cells": 10,
+    "exact_alternative_spans": 43,
+    "sample_sha256": "0db81e59d7519b06dda5f6d8e5725ba15a07dbaee2c01206fada150f90bf4af8",
+    "bed_map_sha256": "c265cb4b8d6749122f07ad8c348d0be1b05b2da7a66c96331096d84421678773",
+    "bed_definition_sha256": "7a739e764925f91f9705ad64ceba8371975ac664557bd9f62b0f09257ee8a2b0",
+    "round_trip": "19/19 cells and 43/43 exact alternative spans passed; all 10 filenames are opaque",
+    "size_caveat": "All 19 source excerpts are at or below 24000 characters. This bed adds case/statute and human-pinpoint diversity but is not sufficient by itself to test long-document navigation; a separately frozen long-structure diagnostic remains required before final-hybrid design."
+  },
+  "implementation_sha256": "12f15e8c3030d3208e64d2720d6ce59d46d3970844f78e844ace51cc4323663d",
+  "system_prompt_sha256": "dc3ec5b2a6aaae60ec57e43e292ab66c26cc3846cd754cb082c153ba451e2df7",
+  "arms": {
+    "upstream": {
+      "schema_hash": "86bd57d515a8462e",
+      "schema_chars": 2551,
+      "tools": ["read_document", "find_in_document", "list_documents", "fetch_documents"],
+      "upstream_commit": "e89d3230db40193c540a6b38d8f301ae76377a1a"
+    },
+    "p0-pure-coding": {
+      "schema_hash": "670117103fe6c2a6",
+      "schema_chars": 3015,
+      "tools": ["Glob", "Grep", "Read"],
+      "read_properties": ["file_path", "offset", "limit"],
+      "assertion": "No structural vocabulary or result annotations; off-schema section is refused."
+    },
+    "d1-routed": {
+      "schema_hash": "07158b1f4b03c2e1",
+      "schema_chars": 3484,
+      "tools": ["Glob", "Grep", "Read"],
+      "read_properties": ["file_path", "offset", "limit", "section"]
+    },
+    "address": {
+      "schema_hash": "cbe763c5c8c638b5",
+      "schema_chars": 5526,
+      "tools": ["library_read", "library_outline", "library_links", "library_find"]
+    }
+  },
+  "live": {
+    "model": "codex:gpt-5.6-luna",
+    "effort": "max",
+    "requested_service_tier": null,
+    "replicates": [1, 2],
+    "maximum_simultaneous_model_calls": 3,
+    "maximum_iterations": 10
+  }
+}

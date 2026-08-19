@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "registered_at": "2026-08-02T13:30:40.6355388Z",
+  "status": "preregistered_before_replacement_call",
+  "parent_registration": "docs/harvey-labs/protocols/retrieval-checkpoint-paged-live-registration-v7-2026-08-02.json",
+  "experiment_class": "visible-development Codex-path side run; structurally invalid cell replacement",
+  "failed_attempt": {
+    "run_id": "capital-markets/draft-indenture-for-senior-secured-notes-offering/beaver-checkpoint-paged-v7-codex-gpt-5-6-luna/2026-08-02T13-25-30Z-r1",
+    "observed_error": "Codex transport terminated during the first research-checkpoint request (undici TypeError: terminated). Harness validity failed closed with requests=1, completed=0, initial=0, failures=0, handoff_hash_mismatches=0.",
+    "validity": "invalid; no completed checkpoint, handoff, or score",
+    "use_policy": "Preserve as an operational failure receipt. Do not treat as a replicate and do not score or pool it."
+  },
+  "replacement_attempt": {
+    "task": "capital-markets/draft-indenture-for-senior-secured-notes-offering",
+    "run_id": "capital-markets/draft-indenture-for-senior-secured-notes-offering/beaver-checkpoint-paged-v7-codex-gpt-5-6-luna/2026-08-02T13-30-40Z-r2",
+    "performer_model": "codex:gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "service_tier_argument": null,
+    "required_service_tier_reported": "default",
+    "cli_arm": "checkpoint_paged_v1",
+    "research_checkpoint_max_chars": 12000,
+    "initial_research_checkpoint_max_count": 4,
+    "draft_hot_evidence_max_chars": 24000,
+    "working_set_page_max_chars": 24000,
+    "replicate_policy": "Exact-config replacement of a structurally invalid transport attempt; still one valid replicate if it completes."
+  },
+  "held_constant_by_reference": "All task, source, prompt, tool, SLA, retrieval, sandbox, judge, inspection, and invalidity settings from the parent v7 registration remain unchanged.",
+  "source_fingerprints_rechecked": {
+    "backend/scripts/lab-beaver-arm.ts": "5cf37dbb8c1c02453bb3139facc7402306fc8ee4abe2c8a50990d7d8f2877879",
+    "backend/src/routes/chat.ts": "abf9410001b0012b0dbc92e3acfb75461610cda3fec71e4e8b0caa73b21e1b81",
+    "backend/src/lib/chat/evidenceExposure.ts": "3a42d47d8e5d3ffde5b4745a457b81c1cc63c791d6d9023da14c6da6657fba74",
+    "backend/src/lib/chat/localAssistantTools.ts": "81e7215dab3a252029ecfd69016e81fc6b331612e956deb64711f221e4c15e81",
+    "backend/src/lib/llm/types.ts": "6917ada864730d8a2091ea1eda1387fa973c52e74f24accfbd3343b6f1d7253e"
+  }
+}

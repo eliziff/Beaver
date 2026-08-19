@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "strategy": "local_gitlinks_with_bundled_repositories",
+  "strategy": "public_submodules_with_local_bundle",
   "repositories": {
     "OpenLegalData": {
       "branch": "main",
@@ -8,17 +8,17 @@
       "bundle": "subrepos/OpenLegalData.bundle",
       "remote": null
     },
-    "TableOfAuthoritiesMaker": {
-      "branch": "master",
-      "commit": "54a2a3b10a13a17779684b27fdebbac5da179de5",
-      "bundle": "subrepos/TableOfAuthoritiesMaker.bundle",
-      "remote": null
-    },
-    "universal-legal-pdf-engine": {
+    "AuthoritiesHelper": {
       "branch": "main",
-      "commit": "aedf01e5b2016689931704d352a96678caaaa984",
-      "bundle": "subrepos/universal-legal-pdf-engine.bundle",
-      "remote": null
+      "commit": "426f0b503ccdde2243c6ae0f14b285d598a63415",
+      "bundle": null,
+      "remote": "https://github.com/eliziff/AuthoritiesHelper.git"
+    },
+    "legal-pdf-parser": {
+      "branch": "main",
+      "commit": "68c889ec8132264439ea58c8c37e1d23cd9c82ac",
+      "bundle": null,
+      "remote": "https://github.com/eliziff/legal-pdf-parser.git"
     }
   }
 }

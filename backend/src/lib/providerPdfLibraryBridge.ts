@@ -18,6 +18,7 @@ import { sha256 } from "./hash";
 import type { RemoteLegalSourceDocument } from "./legalSources/remoteProvider";
 import { summarizeLegalSourceDoc } from "./sourceDocNativeMarkup";
 import { resourceReference } from "./resourceReferences";
+import { enqueueJob, wakeJobWorker, type ApplicationJob, type JobHandler } from "./jobQueue";
 
 export type ProviderPdfAttachment = {
   provider: string;
@@ -60,7 +61,6 @@ type PdfRecord = SafeRequest & {
 
 const PREFIX = "mike-provider-pdf:v1";
 const REFERENCE = /^mike-provider-pdf:v1:([a-z0-9-]+):([a-f0-9]{64})(?::([a-f0-9]{64}))?$/u;
-const background = new Set<string>();
 
 const text = (value: string | null | undefined, maximum: number) => {
   const result = value?.trim().replace(/\s+/gu, " ") ?? "";
@@ -134,14 +134,15 @@ async function verifiedContent(digest?: string) {
   catch { return null; }
 }
 
-async function fetchPdf(request: SafeRequest) {
+async function fetchPdf(request: SafeRequest, signal?: AbortSignal) {
   let current = new URL(request.url);
   for (let redirects = 0; redirects <= 5; redirects += 1) {
     const url = sourceUrl(current.toString());
     if (url.hostname === "api.govinfo.gov" && !url.searchParams.has("api_key"))
       url.searchParams.set("api_key", process.env.GOVINFO_API_KEY?.trim() || "DEMO_KEY");
     const response = await guardedRemoteFetch(url, {
-      redirect: "manual", headers: { Accept: "application/pdf, application/octet-stream" },
+      redirect: "manual", signal,
+      headers: { Accept: "application/pdf, application/octet-stream" },
     }, { label: "Source PDF URL", timeoutMs: 30_000 });
     if (response.status < 300 || response.status >= 400) return response;
     const location = response.headers.get("location");
@@ -152,7 +153,7 @@ async function fetchPdf(request: SafeRequest) {
   throw new Error("Source PDF redirect limit exceeded");
 }
 
-async function download(request: SafeRequest) {
+async function download(request: SafeRequest, signal?: AbortSignal) {
   return withProjectionLock(request.requestReference, async () => {
     const prior = await readRecord(request.requestKey);
     const cached = prior?.status === "downloaded"
@@ -161,7 +162,7 @@ async function download(request: SafeRequest) {
       return { path: cached, digest: prior.source_sha256 };
     await writeRecord(request, "queued");
     try {
-      let response = await fetchPdf(request);
+      let response = await fetchPdf(request, signal);
       if (!response.ok || !response.body) {
         await response.body?.cancel().catch(() => undefined);
         throw new Error(`Source PDF request failed (${response.status})`);
@@ -169,7 +170,7 @@ async function download(request: SafeRequest) {
       response = await boundRemoteResponse(response, { label: "Source PDF",
         maxBytes: 100 * 1024 * 1024,
         contentTypes: ["application/pdf", "application/octet-stream"] });
-      const published = await publishPdfStream(response.body!);
+      const published = await publishPdfStream(response.body!, signal);
       await writeRecord(request, "downloaded", published.sourceSha256);
       return { path: published.path, digest: published.sourceSha256 };
     } catch (error) {
@@ -179,9 +180,11 @@ async function download(request: SafeRequest) {
   });
 }
 
-const parse = (path: string, digest: string) => documentProjectionService.queuePdf({
+const parse = (path: string, digest: string, signal?: AbortSignal) =>
+  documentProjectionService.parsePdf({
   documentId: `provider-pdf-${digest.slice(0, 32)}`,
   versionId: digest.slice(0, 32), sourcePath: path, sourceSha256: digest,
+  layout: null, signal,
 });
 
 function state(request: SafeRequest, record: PdfRecord | null,
@@ -197,22 +200,24 @@ function state(request: SafeRequest, record: PdfRecord | null,
   };
 }
 
-async function ingest(input: ProviderPdfAttachment) {
-  if (input.structureSource !== "flat_text") return;
-  const request = safeRequest(input), result = await download(request);
-  await parse(result.path, result.digest);
-}
+const providerGroup = (request: SafeRequest) => `provider-pdf:${request.requestKey}`;
 
-function start(input: ProviderPdfAttachment) {
-  const key = providerPdfRequestReference(input);
-  if (background.has(key)) return;
-  background.add(key);
-  void ingest(input).catch(() => undefined)
-    .finally(() => background.delete(key));
+async function enqueueProviderJob(request: SafeRequest, userId: string) {
+  const queued = await enqueueJob({
+    kind: "pdf.provider",
+    dedupeKey: request.requestReference,
+    groupKey: providerGroup(request),
+    userId,
+    payload: { requestReference: request.requestReference },
+    priority: 0,
+  });
+  wakeJobWorker();
+  return queued;
 }
 
 export async function queueProviderPdfAttachment(
   input: ProviderPdfAttachment,
+  userId: string,
 ) {
   if (input.structureSource !== "flat_text") return null;
   const request = safeRequest(input);
@@ -221,32 +226,38 @@ export async function queueProviderPdfAttachment(
     record = await readRecord(request.requestKey);
     const content = record?.status === "downloaded"
       ? await verifiedContent(record.source_sha256) : null;
-    if (content) return;
-    if (record?.status !== "queued") record = await writeRecord(request, "queued");
-    start(input);
+    if (!content && record?.status !== "queued") record = await writeRecord(request, "queued");
   });
+  await enqueueProviderJob(request, userId);
   return state(request, record);
 }
 
-async function stateFor(request: SafeRequest, expected: string | null) {
+async function stateFor(request: SafeRequest, expected: string | null, userId: string) {
   let record = await readRecord(request.requestKey);
   let digest = record?.status === "downloaded" ? record.source_sha256 ?? null : null;
   if (expected && digest !== expected) return state(request, null);
   let content = await verifiedContent(digest ?? undefined);
   if (!content) {
-    const queued = await queueProviderPdfAttachment(request);
+    const queued = await queueProviderPdfAttachment(request, userId);
     record = await readRecord(request.requestKey);
     return queued ?? state(request, record);
   }
-  const parsed = await parse(content, digest!);
+  const parsed = await documentProjectionService.pdfState({
+    documentId: `provider-pdf-${digest!.slice(0, 32)}`,
+    versionId: digest!.slice(0, 32), sourcePath: content, sourceSha256: digest!,
+  });
+  if (!parsed || !["ready", "degraded"].includes(parsed.status)) {
+    await enqueueProviderJob(request, userId);
+  }
   return state(request, record, parsed?.status ?? null);
 }
 
 export async function readProviderPdfAttachmentState(
   input: ProviderPdfAttachment,
+  userId: string,
 ) {
   if (input.structureSource !== "flat_text") return null;
-  return stateFor(safeRequest(input), null);
+  return stateFor(safeRequest(input), null, userId);
 }
 
 async function requestForReference(reference: string) {
@@ -258,16 +269,44 @@ async function requestForReference(reference: string) {
   return { request: safeRequest(record), digest: match[3] ?? null };
 }
 
+function providerJobReference(job: ApplicationJob) {
+  const value = job.payload;
+  if (!value || typeof value !== "object" || Array.isArray(value) ||
+      typeof value.requestReference !== "string") throw new Error("InvalidProviderPdfJob");
+  return value.requestReference;
+}
+
+export function providerPdfJobHandlers(): Record<string, JobHandler> {
+  return {
+    "pdf.provider": async (job, context) => {
+      const { request } = await requestForReference(providerJobReference(job));
+      const downloaded = await download(request, context.signal);
+      await context.progress({ phase: "extracting" });
+      const parsed = await parse(downloaded.path, downloaded.digest, context.signal);
+      if (!["ready", "degraded"].includes(parsed.status)) {
+        throw new Error("ProviderPdfParseFailed");
+      }
+      return {
+        requestReference: request.requestReference,
+        sourceSha256: downloaded.digest,
+        cacheKey: parsed.cache_key,
+        status: parsed.status,
+      };
+    },
+  };
+}
+
 async function readyEvidence<Lookup extends { status: string }>(
   reference: string,
-  lookup: (sourcePath: string) => Promise<Lookup>,
+  userId: string,
+  lookup: (sourcePath: string, cacheKey: string, sourceSha256: string) => Promise<Lookup>,
   handle: (result: Lookup) => string | null,
 ) {
   let resolved: Awaited<ReturnType<typeof requestForReference>>;
   try { resolved = await requestForReference(reference); }
   catch { return { availability: "error" as const,
     error: "Source PDF reference is unavailable" }; }
-  const current = await stateFor(resolved.request, resolved.digest);
+  const current = await stateFor(resolved.request, resolved.digest, userId);
   if (current.download_status !== "downloaded" || !current.source_sha256 ||
       !["ready", "degraded"].includes(String(current.parse_status))) {
     const failed = current.download_status === "failed" || current.parse_status === "failed";
@@ -275,19 +314,34 @@ async function readyEvidence<Lookup extends { status: string }>(
       error: failed ? "Source PDF download or parse failed" : undefined };
   }
   const sourcePath = pdfContentPath(current.source_sha256);
-  const result = await lookup(sourcePath), evidence = handle(result);
+  const parsed = await documentProjectionService.pdfState({
+    documentId: `provider-pdf-${current.source_sha256.slice(0, 32)}`,
+    versionId: current.source_sha256.slice(0, 32), sourcePath,
+    sourceSha256: current.source_sha256,
+  });
+  if (!parsed || !["ready", "degraded"].includes(parsed.status)) return {
+    availability: "queued" as const, state: current,
+  };
+  const result = await lookup(sourcePath, parsed.cache_key, current.source_sha256);
+  const evidence = handle(result);
   return { availability: "ready" as const, state: current, params: resolved.request,
     lookup: result, linkEvidence: evidence
       ? await documentProjectionService.rehydratePdfLink(sourcePath, evidence) : null };
 }
 
-export const lookupProviderPdfReference = (reference: string, input: PdfLookupInput) =>
-  readyEvidence(reference,
-    (source) => documentProjectionService.lookupPdf(source, input),
+export const lookupProviderPdfReference = (
+  reference: string, userId: string, input: PdfLookupInput,
+) => readyEvidence(reference, userId,
+    (source, cacheKey, sourceSha256) => documentProjectionService.lookupPdf(source, input, {
+      cacheKey,
+      documentId: `provider-pdf-${sourceSha256.slice(0, 32)}`,
+      versionId: sourceSha256.slice(0, 32),
+    }),
     (result) => result.status === "found" ? result.evidence.handle : null);
 
-export const rehydrateProviderPdfReference = (reference: string, handle: string) =>
-  readyEvidence(reference,
+export const rehydrateProviderPdfReference = (
+  reference: string, userId: string, handle: string,
+) => readyEvidence(reference, userId,
     (source) => documentProjectionService.rehydratePdfEvidence(source, handle),
     (result) => result.status === "found" ? handle : null);
 
@@ -322,7 +376,7 @@ export async function queueProviderPdfRenditions(
         canonicalUrl: document.url,
         filename: attachment.filename,
         title: attachment.title || document.title,
-      });
+      }, userId);
       return queued ? {
         ...queued,
         resource: resourceReference.source("pdf", queued.reference_id),

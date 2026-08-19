@@ -5,7 +5,7 @@ import {
   openSqliteDatabase,
   sqliteDatabase,
   sqliteTransaction,
-} from "../../src/lib/sqliteDatabase";
+} from "./database";
 
 const GENERAL_RESEARCH_PROJECT_ID = "general";
 const MAX_LABEL_DEPTH = 3;

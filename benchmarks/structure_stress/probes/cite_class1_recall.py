@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Does the proposed CLASS 1 sibling close the recall gap it was mined for?
 
-Same instrument as universal-legal-pdf-engine/tools/grammar_recall.py (same
+Same instrument as legal-pdf-parser/tools/grammar_recall.py (same
 reservoir seed 42, same gold definition: `cases_cited_<lang>` entries located
 in the decision text), but the coverage set is configurable so the four
 shipped citation entries can be scored with and without a candidate sibling.
@@ -24,7 +24,7 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO / "universal-legal-pdf-engine" / "src"))
+sys.path.insert(0, str(REPO / "legal-pdf-parser" / "src"))
 import legalpdf.grammar_tables as gt  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))

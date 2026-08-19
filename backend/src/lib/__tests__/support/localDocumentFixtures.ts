@@ -1,21 +1,21 @@
 import { createDocumentApplication } from "../../documentApplication";
 import type { DocumentProvenance } from "../../documentStore";
-import { sqliteDocumentRepository, sqliteLibraryRepository } from "../../sqlitePersistence";
+import { documentRepository, libraryRepository,
+  projectRepository } from "../../relationalRepositories";
 import { filesystemDocumentObjects } from "../../filesystemObjectStorage";
 import { createLibraryStore } from "../../libraryStore";
-import { sqliteProjectRepository } from "../../sqliteProjectRepository";
 import { createProjectStore } from "../../projectStore";
 
-export * from "../../sqlitePersistence";
+process.env.AUTH_MODE = "local";
 
 const application = () => createDocumentApplication(
-  sqliteDocumentRepository, filesystemDocumentObjects(),
+  documentRepository, filesystemDocumentObjects(),
 );
 export const localDocuments = application();
 export const localLibraryStore = createLibraryStore(
-  sqliteLibraryRepository, localDocuments,
+  libraryRepository, localDocuments,
 );
-export const localProjects = createProjectStore(sqliteProjectRepository, localDocuments);
+export const localProjects = createProjectStore(projectRepository, localDocuments);
 
 export const createLocalDocument = (input: {
   userId: string;

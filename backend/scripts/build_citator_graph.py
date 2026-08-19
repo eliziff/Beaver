@@ -37,7 +37,7 @@ PORTED GRAMMAR, NOT INVENTED: the citation anchors, case-name capture, and
 node-identity key are faithful ports of the proven reference implementations
 (kept read-only, never imported at runtime):
   - anchor regexes / span dedupe / name + pinpoint capture:
-      TableOfAuthoritiesMaker/toa_maker.py (_NEUTRAL_RE, _CANLII_RE,
+      AuthoritiesHelper/toa_maker.py (_NEUTRAL_RE, _CANLII_RE,
       _REPORTER_RE, _STATUTE_RE, _JOURNAL_RE, _URL_RE, _anchor_spans,
       _CASE_LEFT_RE, _case_name_start, _PAR_RE et al.)
   - node identity key:
@@ -111,7 +111,7 @@ from sourcedoc_client import compile_document
 
 # ---------------------------------------------------------------------------
 # Citation anchor grammar - ported verbatim from
-# TableOfAuthoritiesMaker/toa_maker.py (its module docstring calls the
+# AuthoritiesHelper/toa_maker.py (its module docstring calls the
 # patterns "routing evidence, not a claim that every capitalized number in
 # prose is a legal authority"). All six patterns participate in overlap
 # dedupe exactly as in the original _anchor_spans, so a statute or URL span
@@ -776,7 +776,7 @@ def build(args: argparse.Namespace) -> None:
             "normalization": (
                 "citation_lookup_key port of ALR-Quote-Verifier local_a2aj"
                 "._citation_lookup_key; anchors ported from "
-                "TableOfAuthoritiesMaker toa_maker.py; host paragraphs from "
+                "AuthoritiesHelper toa_maker.py; host paragraphs from "
                 "compileA2AJSourceDoc"
             ),
             "paragraph_compiler": "compileA2AJSourceDoc",

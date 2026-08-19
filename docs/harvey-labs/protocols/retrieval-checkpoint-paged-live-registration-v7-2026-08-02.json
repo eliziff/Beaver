@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "registered_at": "2026-08-02T13:25:30.9915706Z",
+  "status": "preregistered_before_calls",
+  "experiment_class": "visible-development Codex-path side run",
+  "claim_scope": "Corrected checkpoint-and-demand-paging candidate only; do not pool with canonical Claude A/B cells or use v1-v6 judge scores for the primary architecture claim.",
+  "supersedes": "docs/harvey-labs/protocols/retrieval-checkpoint-paged-live-registration-v6-2026-08-02.json",
+  "comparators_registration": "docs/harvey-labs/protocols/retrieval-checkpoint-paged-comparators-registration-2026-08-02.json",
+  "v6_exclusion": {
+    "reason": "v6 was structurally valid but failed both primary performance gates. Fixed Sol scoring was 141/217 (64.98%) versus isolated upstream Mike at 150/217 (69.12%), while provider-reported total tokens were 1,745,096 versus 1,436,478 (+21.5%). Real traces showed that direct drafting Grep calls over exact source ranges already contained in the reviewed mounted union were misclassified as new durable evidence, causing redundant checkpoint and drafting-handoff cycles. Its scores remain cost and behavior diagnostics only.",
+    "candidate_by_task": {
+      "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts": "37/57; 505252 tokens",
+      "tax/draft-transfer-pricing-documentation": "40/77; 393774 tokens",
+      "capital-markets/draft-indenture-for-senior-secured-notes-offering": "64/83; 846070 tokens"
+    },
+    "comparable_upstream_by_task": {
+      "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts": "38/57; 406836 tokens",
+      "tax/draft-transfer-pricing-documentation": "42/77; 559453 tokens",
+      "capital-markets/draft-indenture-for-senior-secured-notes-offering": "70/83; 470189 tokens"
+    },
+    "policy": "Keep v6 and its fixed-judge scores as diagnostics; v7 must be run and inspected independently before scoring."
+  },
+  "v7_general_correction": [
+    "Index exact document/version/source ranges and provider-reference bytes in the reviewed mounted evidence union.",
+    "During drafting, mark a direct reread as durable-union-backed only when its complete original-source range and projection, or its stable provider handle and exact bytes, are already represented by the reviewed mounted union.",
+    "Keep such rereads visible to the fresh drafting-context guard while excluding them from durable-union deltas, so they cannot spuriously reopen checkpointing. Partial ranges, new projections, new handles, and evidence outside the union remain new research and still require checkpoint review.",
+    "Tell drafting to use the reviewed checkpoint as a coverage checklist and explicitly disposition every material finding, contradiction, number, unresolved question, and next action.",
+    "Record gross reviewed-union reread calls and source characters in trace and run telemetry."
+  ],
+  "candidate": {
+    "generation": "v7",
+    "cli_arm": "checkpoint_paged_v1",
+    "performer_model": "codex:gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "service_tier_argument": null,
+    "required_service_tier_reported": "default",
+    "research_checkpoint_max_chars": 12000,
+    "initial_research_checkpoint_max_count": 4,
+    "draft_hot_evidence_max_chars": 24000,
+    "working_set_page_max_chars": 24000,
+    "exact_evidence_union_path": ".mike/working-sets/evidence.txt",
+    "exact_evidence_union_host_sidecar": "evidence-working-set.json",
+    "run_ids": {
+      "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts": "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts/beaver-checkpoint-paged-v7-codex-gpt-5-6-luna/2026-08-02T13-25-30Z-r1",
+      "tax/draft-transfer-pricing-documentation": "tax/draft-transfer-pricing-documentation/beaver-checkpoint-paged-v7-codex-gpt-5-6-luna/2026-08-02T13-25-30Z-r1",
+      "capital-markets/draft-indenture-for-senior-secured-notes-offering": "capital-markets/draft-indenture-for-senior-secured-notes-offering/beaver-checkpoint-paged-v7-codex-gpt-5-6-luna/2026-08-02T13-25-30Z-r1"
+    }
+  },
+  "held_constant": {
+    "task_split": "visible development",
+    "replicates": 1,
+    "retrieval_prompt_variant": "neutral",
+    "tool_description_variant": "operational",
+    "model_coverage_routing": true,
+    "whole_read_max_chars": 800000,
+    "sla_workflow": true,
+    "sla_strategy": "full",
+    "greenfield_review": false,
+    "research_tools_disabled": true,
+    "ask_inputs_disabled": true,
+    "sandbox_engine": "docker"
+  },
+  "tasks": [
+    {
+      "task": "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts",
+      "split_sha256": "c0d270c324eaaeb13a47eb2df309baf468270e4ca04b686e4ed27632a3d36f7d",
+      "instructions_chars": 200,
+      "instructions_sha256": "804acb88a976238cbdf65027b4c873142cfec3c84c9773992e256e40ae02c8a4",
+      "source_documents": 19,
+      "source_bundle_sha256": "f778c5ef888a841432ee70a34d1a8c0d4b0c947a0d19509b4a3834635b23f0e2"
+    },
+    {
+      "task": "tax/draft-transfer-pricing-documentation",
+      "split_sha256": "9886979ad0409f300ccb78413abc4bda020fcde1f288d879d61e59eff1c85957",
+      "instructions_chars": 202,
+      "instructions_sha256": "baa067a9d481a31b85cb9a47a3eebfbc6620e2c5cd23b87e71b2b4f1741d05b7",
+      "source_documents": 25,
+      "source_bundle_sha256": "bc8d591498a818501b7a388d5b93575c5a98f03b25edb2f009f9d166fe4a6647"
+    },
+    {
+      "task": "capital-markets/draft-indenture-for-senior-secured-notes-offering",
+      "split_sha256": "9eb0633b22a0a1e936eeba6980d7e44d23d7f89fc581dfd1697dd3420f34b62a",
+      "instructions_chars": 243,
+      "instructions_sha256": "d9b4b8460380ace783ca538f417843d2edf8f997f0ec3f622f5ea6aebf2f5675",
+      "source_documents": 14,
+      "source_bundle_sha256": "d30b7b0ad6d8c8327f80d8137d4e8c30db52816f8fdfd7b3f08f492a17a82303"
+    }
+  ],
+  "source_fingerprints": {
+    "base_commit": "cbfa8f90528754264b0afc348c3c955bf24d4d60",
+    "backend/scripts/lab-beaver-arm.ts": "5cf37dbb8c1c02453bb3139facc7402306fc8ee4abe2c8a50990d7d8f2877879",
+    "backend/src/routes/chat.ts": "abf9410001b0012b0dbc92e3acfb75461610cda3fec71e4e8b0caa73b21e1b81",
+    "backend/src/lib/chat/evidenceExposure.ts": "3a42d47d8e5d3ffde5b4745a457b81c1cc63c791d6d9023da14c6da6657fba74",
+    "backend/src/lib/chat/localAssistantTools.ts": "81e7215dab3a252029ecfd69016e81fc6b331612e956deb64711f221e4c15e81",
+    "backend/src/lib/chat/prompts.ts": "05f01db45d005d054b7d71bc3fd86d52f592fbb0b4187839d5879b0f90b99a83",
+    "backend/src/lib/chat/slaWorkflow.ts": "561bbedb4aa088136cbc0a5349a4146113c39cb9db37844db84934b044c35af9",
+    "backend/src/lib/llm/openai.ts": "f67d3d14f1b081f9f2ea1fb843998701e20eee0f4fab50480e2cf3f03c919892",
+    "backend/src/lib/llm/types.ts": "6917ada864730d8a2091ea1eda1387fa973c52e74f24accfbd3343b6f1d7253e",
+    "benchmarks/harvey-labs/evaluation/judge.py": "61979c7613e519fcd37ecfba8d241f979f0320e575cd7a3923c0278aa4577cb7",
+    "backend/src/lib/chat/__tests__/evidenceExposure.test.ts": "035f0ae73ca9e6466cee3fdbd18532b32f0e3bc8aac95b0b29f6c00f25eb9f77",
+    "backend/src/lib/chat/__tests__/localToolWiring.test.ts": "eff3505bea90fc07339cdf8f2f0f8e0dccec13ec46d4e953b65d2c360872b4af",
+    "backend/src/lib/__tests__/localAssistantTools.test.ts": "daeb0bc0d25895b933e5a2ded5295c6c2604ad767798351cfdfb688b1b6ce3b3",
+    "backend/src/routes/localChatEvidenceDurability.test.ts": "263030c808ec96d9b057b7783a3df99da79c43fcbaba36d1b92574c2f62427c3"
+  },
+  "dynamic_fingerprint_policy": "Each run must record exact resident/checkpoint/drafting system-prompt hashes, tool-schema hashes, task/source hashes, harness-source hashes, configuration, and composite run SHA-256. The three cells must share task-independent prompt/tool variants and differ only where source/task content is part of the prompt.",
+  "run_policy": {
+    "launch": "Launch all three candidate performers concurrently after this file is written, parsed, and its source hashes are rechecked.",
+    "inspection": "Inspect tool calls/results, reviewed-union reuse, checkpoint compression and continuity, checkpoint-to-handoff hashes, working-set pages, context rounds, service tier, tokens/cache/latency, receipts, and evaluator-readable DOCX artifacts before scoring.",
+    "invalidity": "Reject a cell for incomplete checkpoints, checkpoint/handoff hash mismatch, over-cap handoff/page, missing exact union, answer-text DOCX fallback, non-default reported tier, tool failure that compromises the deliverable, missing fingerprints, or unreadable deliverables."
+  },
+  "preflight": {
+    "focused_tests": "116 passed across four suites",
+    "backend_build": "passed",
+    "source_hashes_rechecked_after_tests": true
+  },
+  "judge": {
+    "model": "codex/gpt-5.6-sol",
+    "priority_class": "BelowNormal",
+    "parallel": 6,
+    "replicates": 1,
+    "temperature_policy": "Retry without temperature only for the exact unsupported-temperature provider rejection.",
+    "score_only_after_structural_validity": true
+  },
+  "acceptance_gate": "Under the fixed Sol judge, v7 must score at least 150/217 in aggregate and use fewer than 1,436,478 aggregate provider-reported total tokens against the freshly reproduced isolated-upstream cells; accuracy and valid deliverables come first, with context, per-task tokens, latency, coverage, and tool behavior reported afterward."
+}

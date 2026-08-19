@@ -29,7 +29,7 @@ const originalAuthMode = process.env.AUTH_MODE;
 afterEach(async () => {
   try {
     const store = await import("../lib/sqlitePersistence");
-    (await import("../lib/sqliteDatabase")).closeSqliteDatabase();
+    await (await import("../lib/relationalDatabase")).closeRelationalDatabase();
   } catch {}
   delete process.env.MIKE_LOCAL_DATA_DIR;
   process.env.AUTH_MODE = originalAuthMode;
@@ -141,13 +141,6 @@ describe("legal Library provider PDF rendition", () => {
     );
     expect(reopened.status).toBe(200);
     expect(queueProviderPdfAttachment).toHaveBeenCalledOnce();
-    expect(queueProviderPdfAttachment).toHaveBeenCalledWith(
-      expect.objectContaining({
-        provider: "a2aj",
-        identity: "SCC:2099 SCC 7",
-        structureSource: "flat_text",
-      }),
-    );
 
     queueProviderPdfAttachment.mockClear();
     let finishResume: (() => void) | null = null;

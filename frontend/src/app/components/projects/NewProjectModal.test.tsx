@@ -81,3 +81,35 @@ it("uses native form values without rerendering for ordinary typing", async () =
     expect(onCreated).toHaveBeenCalledWith(project);
     expect(onClose).toHaveBeenCalledOnce();
 });
+
+it("keeps a created project open for a failed upload and retries without duplicating it", async () => {
+    const onClose = vi.fn();
+    const onCreated = vi.fn();
+    mocks.uploadDocument
+        .mockRejectedValueOnce(new Error("upload failed"))
+        .mockResolvedValueOnce({});
+    const { container } = render(
+        <NewProjectModal open onClose={onClose} onCreated={onCreated} />,
+    );
+    fireEvent.change(screen.getByLabelText("Project name"), {
+        target: { value: "Appeal" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]');
+    expect(input).not.toBeNull();
+    fireEvent.change(input!, {
+        target: { files: [new File(["%PDF-1.7"], "brief.pdf", { type: "application/pdf" })] },
+    });
+    expect(screen.getByRole("list", { name: "Files ready to upload" }))
+        .toHaveTextContent("brief.pdf");
+    fireEvent.click(screen.getByRole("button", { name: "Create project" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/could not be added/i);
+    expect(mocks.createProject).toHaveBeenCalledTimes(1);
+    expect(onCreated).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Create project" }));
+    await waitFor(() => expect(onCreated).toHaveBeenCalledWith(project));
+    expect(mocks.createProject).toHaveBeenCalledTimes(1);
+    expect(mocks.uploadDocument).toHaveBeenCalledTimes(2);
+    expect(onClose).toHaveBeenCalledOnce();
+});

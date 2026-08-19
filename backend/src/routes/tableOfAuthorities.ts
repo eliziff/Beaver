@@ -30,7 +30,7 @@ router.post("/launch", async (_req, res) => {
   if (!tableOfAuthoritiesLocalFeatureAvailable()) {
     res.status(403).json({
       detail:
-        "The standalone Table of Authorities host is available only in local development mode.",
+        "Authorities Helper is available only in local mode.",
     });
     return;
   }
@@ -41,7 +41,7 @@ router.post("/launch", async (_req, res) => {
       detail:
         error instanceof Error
           ? error.message
-          : "Table of Authorities could not be started.",
+          : "Authorities Helper could not be started.",
     });
   }
 });
@@ -50,7 +50,7 @@ router.post("/jobs", requireAuth, async (req, res) => {
   if (!tableOfAuthoritiesLocalFeatureAvailable()) {
     res.status(403).json({
       detail:
-        "Table of Authorities Library submission is available only in local mode.",
+        "Authorities Helper Library submission is available only in local mode.",
     });
     return;
   }
@@ -78,7 +78,7 @@ router.post("/jobs", requireAuth, async (req, res) => {
         .status(400)
         .json({
           detail:
-            "Table of Authorities requires a Word or PDF Library version",
+            "Authorities Helper requires a Word or PDF Library version",
         });
       return;
     }
@@ -98,7 +98,7 @@ router.post("/jobs", requireAuth, async (req, res) => {
       detail:
         error instanceof Error
           ? error.message
-          : "Table of Authorities submission failed",
+          : "Authorities Helper submission failed",
     });
   }
 });

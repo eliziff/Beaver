@@ -8,8 +8,8 @@ const workspace = path.resolve(root, "../..");
 const corpusPath = path.join(root, "grammar-corpus.json");
 const manifestPath = path.join(root, "manifest.json");
 const bundles = [
-  path.join(workspace, "universal-legal-pdf-engine/data/legal-grammar-tables"),
-  path.join(workspace, "TableOfAuthoritiesMaker/data/legal-grammar-tables"),
+  path.join(workspace, "legal-pdf-parser/data/legal-grammar-tables"),
+  path.join(workspace, "AuthoritiesHelper/data/legal-grammar-tables"),
 ];
 const allowedTableKeys = new Set(["description", "defs", "entries"]);
 const allowedEntryKeys = new Set([

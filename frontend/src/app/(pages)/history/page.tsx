@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Download } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 
 import { PageHeader } from "@/app/components/shared/PageHeader";
 import {
@@ -13,7 +12,6 @@ import {
   TableScrollArea,
   TableStickyCell,
 } from "@/app/components/shared/TablePrimitive";
-import { isLocalMode } from "@/app/lib/authMode";
 import { downloadBlob } from "@/app/lib/download";
 import {
   exportAuditHistory,
@@ -40,7 +38,6 @@ const controlClass =
   "h-9 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-700 outline-none focus-visible:ring-2 focus-visible:ring-gray-400";
 
 export default function HistoryPage() {
-  const navigate = useNavigate();
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -51,10 +48,6 @@ export default function HistoryPage() {
   const [draft, setDraft] = useState<AuditHistoryQuery>({});
 
   useEffect(() => {
-    if (isLocalMode) {
-      navigate("/assistant", { replace: true });
-      return;
-    }
     const controller = new AbortController();
     setLoading(true);
     setError("");
@@ -74,9 +67,7 @@ export default function HistoryPage() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [filters, navigate, page]);
-
-  if (isLocalMode) return null;
+  }, [filters, page]);
   const pageCount = Math.max(1, Math.ceil(total / 50));
 
   const download = async () => {

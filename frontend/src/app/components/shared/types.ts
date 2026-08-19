@@ -33,11 +33,12 @@ export interface Document {
   pdf_storage_path: string | null;
   size_bytes: number | null;
   page_count: number | null;
-    parse_state?: {
-      status: "queued" | "parsing" | "ready" | "degraded" | "failed";
-      diagnostic_count?: number;
-      error?: string;
-    } | null;
+  parse_state?: {
+    status: "queued" | "parsing" | "ready" | "degraded" | "failed" | "cancelled";
+    phase?: "inspecting" | "extracting" | "ocr";
+    pages?: number[];
+    error?: string;
+  } | null;
   created_at: string | null;
   updated_at?: string | null;
   current_version_id?: string | null;
@@ -97,8 +98,7 @@ export interface EditResolveHandlers {
 }
 export type AutomationToolName =
   | "create_table_of_authorities"
-  | "fix_docx_supras"
-  | "link_docx_citations";
+  | "fix_docx_supras";
 export type AutomationRunEvent = {
   type: "automation_run";
   id: string;

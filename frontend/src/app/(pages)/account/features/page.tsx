@@ -1,4 +1,3 @@
-"use client";
 import { useState } from "react";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { QUICK_ACTIONS, useAssistantPreferences } from "@/app/components/assistant/assistantPreferences";

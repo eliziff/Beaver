@@ -43,11 +43,8 @@ const secondDocument: Document = {
 };
 
 function chooseAction(label: string) {
-  const select = screen.getByRole("combobox", { name: "More actions" });
-  const option = within(select).getByRole("option", {
-    name: label,
-  }) as HTMLOptionElement;
-  fireEvent.change(select, { target: { value: option.value } });
+  fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+  fireEvent.click(screen.getByRole("menuitem", { name: label }));
 }
 
 function Harness({
@@ -291,7 +288,7 @@ describe("DocTable document removal", () => {
     expect(screen.queryByText("Brief.pdf")).not.toBeInTheDocument();
     expect(screen.queryByText("Research")).not.toBeInTheDocument();
     expect(
-      screen.getAllByRole("combobox", { name: "More actions" }),
+      screen.getAllByRole("button", { name: "More actions" }),
     ).toHaveLength(1);
   });
 

@@ -1,49 +1,35 @@
-"use client";
-import { useEffect } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { useAuth } from "@/app/contexts/AuthContext";
 import { isLocalMode } from "@/app/lib/authMode";
 import { accountTabButtonClassName } from "./accountStyles";
+
 const TABS = [
     { label: "General", href: "/account" },
     { label: "Features", href: "/account/features" },
-    {
-        label: "Privacy & data",
-        href: "/account/privacy-data",
-    },
+    { label: "Privacy & data", href: "/account/privacy-data" },
     { label: "Security", href: "/account/security" },
     { label: "Models", href: "/account/models" },
     { label: "API keys", href: "/account/api-keys" },
     { label: "Connectors", href: "/account/connectors" },
 ];
+
 export default function AccountLayout() {
     const navigate = useNavigate();
     const { pathname } = useLocation();
-    const { isAuthenticated, authLoading } = useAuth();
-    useEffect(() => {
-        if (!authLoading && !isAuthenticated) {
-            navigate("/", { replace: true });
-        }
-    }, [isAuthenticated, authLoading, navigate]);
-    if (!authLoading && !isAuthenticated) {
-        return null;
-    }
     const tabs = isLocalMode
-        ? TABS.filter((tab) =>
-              tab.href === "/account/features" ||
-              tab.href === "/account/api-keys",
+        ? TABS.filter(({ href }) =>
+              href === "/account/features" || href === "/account/api-keys"
           )
         : TABS;
     const activeTab =
-        tabs.find(
-            (tab) =>
-                pathname === tab.href ||
-                (tab.href !== "/account" && pathname.startsWith(tab.href)),
+        tabs.find(({ href }) =>
+            pathname === href ||
+            (href !== "/account" && pathname.startsWith(href))
         ) ?? tabs[0];
+
     return (
         <div className="flex h-full flex-col overflow-y-auto">
             <header className="mx-auto flex h-16 w-full max-w-5xl shrink-0 items-end px-6 pb-2 md:h-24 md:pb-4">
-                <h1 className="text-4xl font-medium font-eb-garamond">
+                <h1 className="font-eb-garamond text-4xl font-medium">
                     Settings
                 </h1>
             </header>
@@ -56,14 +42,12 @@ export default function AccountLayout() {
                         <select
                             aria-label="Settings section"
                             value={activeTab.href}
-                            onChange={(event) =>
-                                navigate(event.target.value)
-                            }
+                            onChange={(event) => navigate(event.target.value)}
                             className="h-9 w-auto max-w-full rounded-lg border border-gray-200 bg-white px-3 pr-8 text-sm text-gray-800 shadow-sm outline-none focus:border-gray-300 md:hidden"
                         >
-                            {tabs.map((tab) => (
-                                <option key={tab.href} value={tab.href}>
-                                    {tab.label}
+                            {tabs.map(({ label, href }) => (
+                                <option key={href} value={href}>
+                                    {label}
                                 </option>
                             ))}
                         </select>
@@ -73,13 +57,9 @@ export default function AccountLayout() {
                                 return (
                                     <li key={tab.href}>
                                         <Link
-                                            aria-current={
-                                                active ? "page" : undefined
-                                            }
+                                            aria-current={active ? "page" : undefined}
                                             to={tab.href}
-                                            className={accountTabButtonClassName(
-                                                active,
-                                            )}
+                                            className={accountTabButtonClassName(active)}
                                         >
                                             {tab.label}
                                         </Link>
@@ -88,17 +68,8 @@ export default function AccountLayout() {
                             })}
                         </ul>
                     </nav>
-                    <div
-                        className="min-w-0 outline-none"
-                        aria-busy={authLoading || undefined}
-                    >
-                        {authLoading ? (
-                            <p className="py-8 text-sm text-gray-500">
-                                Loading settings…
-                            </p>
-                        ) : (
-                            <Outlet />
-                        )}
+                    <div className="min-w-0 outline-none">
+                        <Outlet />
                     </div>
                 </div>
             </main>

@@ -353,7 +353,7 @@ const askResponseSchema = z.strictObject({
 });
 const automationSchema = z.strictObject({
   type: z.literal("automation_run"), id: shortText.optional(),
-  tool: z.enum(["create_table_of_authorities", "fix_docx_supras", "link_docx_citations"]),
+  tool: z.enum(["create_table_of_authorities", "fix_docx_supras"]),
   status: shortText.default("unknown"), stage: shortText.default("Automation"),
   progress: z.number().finite().min(0).max(100).optional(), message: fieldText.optional(),
   counts: z.array(z.strictObject({ label: idText, value: z.number().finite() })).max(32).optional(),

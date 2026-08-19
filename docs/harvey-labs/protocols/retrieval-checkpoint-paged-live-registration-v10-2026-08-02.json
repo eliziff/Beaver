@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "registered_at": "2026-08-02T14:22:41.3803742Z",
+  "status": "preregistered_before_calls",
+  "experiment_class": "visible-development Codex-path side run",
+  "parent_registration": "docs/harvey-labs/protocols/retrieval-checkpoint-paged-live-registration-v9-2026-08-02.json",
+  "comparators_registration": "docs/harvey-labs/protocols/retrieval-checkpoint-paged-comparators-registration-2026-08-02.json",
+  "v9_exclusion": {
+    "policy": "No v9 cell is scoreable or poolable.",
+    "reason": "The performer and route accepted the preregistered three-checkpoint maximum, but the LAB runner's validity audit hardcoded an expected maximum of four. Completed CoC was rejected before artifacts/metrics were written despite reporting mode=paged, checkpoint_chars=11999, hot_packet_chars=23995, page_max_chars=24000, initial_checkpoints=2, and initial_checkpoint_max=3. Tax and indenture were stopped once this deterministic runner-only failure was known.",
+    "operational_receipts": {
+      "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts": "performer completed; runner rejected before result materialization",
+      "tax/draft-transfer-pricing-documentation": "stopped after runner defect became certain",
+      "capital-markets/draft-indenture-for-senior-secured-notes-offering": "stopped after runner defect became certain"
+    }
+  },
+  "v10_general_correction": "The checkpoint-paged runner now derives and validates the positive integer initial-checkpoint maximum reported by the live surface, then uses that same value for request-count and handoff consistency checks. No performer, prompt, retrieval, SLA/compiler, cap, or judge behavior changed from v9.",
+  "candidate": {
+    "generation": "v10",
+    "cli_arm": "checkpoint_paged_v1",
+    "performer_model": "codex:gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "service_tier_argument": null,
+    "required_service_tier_reported": "default",
+    "research_checkpoint_max_chars": 12000,
+    "initial_research_checkpoint_max_count": 3,
+    "draft_hot_evidence_max_chars": 24000,
+    "working_set_page_max_chars": 24000,
+    "exact_evidence_union_path": ".mike/working-sets/evidence.txt",
+    "run_ids": {
+      "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts": "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts/beaver-checkpoint-paged-v10-codex-gpt-5-6-luna/2026-08-02T14-22-41Z-r1",
+      "tax/draft-transfer-pricing-documentation": "tax/draft-transfer-pricing-documentation/beaver-checkpoint-paged-v10-codex-gpt-5-6-luna/2026-08-02T14-22-41Z-r1",
+      "capital-markets/draft-indenture-for-senior-secured-notes-offering": "capital-markets/draft-indenture-for-senior-secured-notes-offering/beaver-checkpoint-paged-v10-codex-gpt-5-6-luna/2026-08-02T14-22-41Z-r1"
+    }
+  },
+  "held_constant_by_reference": "All task/source/model/tier/prompt/tool/retrieval/checkpoint/hot/page/SLA/compiler/sandbox/judge and invalidity settings from v9 remain unchanged.",
+  "task_fingerprints_by_reference": "Identical to v9: CoC c0d270c3/804acb88/f778c5ef; tax 9886979a/baa067a9/bc8d5914; indenture 9eb0633b/d9b4b846/d30b7b0a for split/instructions/source bundle respectively.",
+  "source_fingerprints": {
+    "base_commit": "cbfa8f90528754264b0afc348c3c955bf24d4d60",
+    "backend/scripts/lab-beaver-arm.ts": "f20170d7199d2026ce1fbec5812c4fa1bba43da458e0c78a2bbada79da8e28f8",
+    "backend/src/routes/chat.ts": "5e654057a485a97e7716ecdec4c043dd8c04933adb8f7d3103031b01fd0f195a",
+    "backend/src/lib/chat/evidenceExposure.ts": "43f8b7fc8216852808f1b336af04a51b9a654b756cd4e22cd7ec6be64815e3f0",
+    "backend/src/lib/chat/localAssistantTools.ts": "c740ebf7415cf8a5b41aa6644f4d2cef0d528202b2dc1cb90de8c52a57d34727",
+    "backend/src/lib/chat/prompts.ts": "05f01db45d005d054b7d71bc3fd86d52f592fbb0b4187839d5879b0f90b99a83",
+    "backend/src/lib/chat/slaWorkflow.ts": "561bbedb4aa088136cbc0a5349a4146113c39cb9db37844db84934b044c35af9",
+    "backend/src/lib/llm/openai.ts": "f67d3d14f1b081f9f2ea1fb843998701e20eee0f4fab50480e2cf3f03c919892",
+    "backend/src/lib/llm/types.ts": "6917ada864730d8a2091ea1eda1387fa973c52e74f24accfbd3343b6f1d7253e",
+    "benchmarks/harvey-labs/evaluation/judge.py": "61979c7613e519fcd37ecfba8d241f979f0320e575cd7a3923c0278aa4577cb7",
+    "backend/src/lib/chat/__tests__/evidenceExposure.test.ts": "0695661cda0124bb43ff3065cc685baf2f4952b357b0ebaadb4aced6e07f768d",
+    "backend/src/lib/chat/__tests__/localToolWiring.test.ts": "eff3505bea90fc07339cdf8f2f0f8e0dccec13ec46d4e953b65d2c360872b4af",
+    "backend/src/lib/__tests__/localAssistantTools.test.ts": "a0cf164b7aa13c86063ae9abc866ccee5744ccdb7f603cc9592ef4f05393d550",
+    "backend/src/routes/localChatEvidenceDurability.test.ts": "263030c808ec96d9b057b7783a3df99da79c43fcbaba36d1b92574c2f62427c3",
+    "backend/src/lib/chat/__tests__/slaWorkflow.test.ts": "2e6877b3fd2b282cd29eb707f927e9eebc39da201a96cbe78d684509ea15f0b5"
+  },
+  "preflight": {
+    "focused_tests": "147 passed across five suites before the runner-only correction",
+    "backend_build_after_runner_correction": "passed",
+    "source_hashes_rechecked": true
+  },
+  "judge": {
+    "model": "codex/gpt-5.6-sol",
+    "priority_class": "BelowNormal",
+    "parallel": 6,
+    "replicates": 1,
+    "score_only_after_structural_and_trace_validity": true
+  },
+  "acceptance_gate": "Under the fixed Sol judge, v10 must score at least 150/217 in aggregate and use fewer than 1,436,478 aggregate provider-reported total tokens against the freshly reproduced isolated-upstream cells."
+}

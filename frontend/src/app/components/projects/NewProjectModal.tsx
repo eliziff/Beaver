@@ -21,6 +21,7 @@ function OpenNewProjectModal({ onClose, onCreated }: Omit<Props, "open">) {
     const [users, setUsers] = useState<UserLookupResult[]>([]);
     const [documents, setDocuments] = useState<Document[]>([]);
     const [files, setFiles] = useState<File[]>([]);
+    const [createdProject, setCreatedProject] = useState<Project | null>(null);
     const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
     const [error, setError] = useState("");
     const fileInput = useRef<HTMLInputElement>(null);
@@ -41,14 +42,29 @@ function OpenNewProjectModal({ onClose, onCreated }: Omit<Props, "open">) {
         setStatus("loading");
         setError("");
         try {
-            const project = await createProject(name, cm || undefined,
+            const project = createdProject ?? await createProject(name, cm || undefined,
                 area || undefined,
                 users.map(({ email }) => email).filter((email) => email !== ownEmail));
+            if (!createdProject) setCreatedProject(project);
             const projectFiles = directoryResource({ projectId: project.id });
-            await Promise.all([
-                ...documents.map(({ id }) => addDocumentToProject(project.id, id).catch(() => {})),
-                ...files.map((file) => projectFiles.uploadDocument(file).catch(() => {})),
-            ]);
+            const additions = [
+                ...documents.map(({ id }) => ({ kind: "document" as const, id,
+                    run: addDocumentToProject(project.id, id) })),
+                ...files.map((file) => ({ kind: "file" as const, id: file.name,
+                    run: projectFiles.uploadDocument(file) })),
+            ];
+            const results = await Promise.allSettled(additions.map(({ run }) => run));
+            const succeeded = new Set(additions.flatMap((addition, index) =>
+                results[index].status === "fulfilled" ? [`${addition.kind}:${addition.id}`] : []));
+            setDocuments((current) => current.filter(({ id }) =>
+                !succeeded.has(`document:${id}`)));
+            setFiles((current) => current.filter(({ name }) =>
+                !succeeded.has(`file:${name}`)));
+            const failed = results.filter(({ status: resultStatus }) =>
+                resultStatus === "rejected").length;
+            if (failed) throw new Error(
+                `Project created, but ${failed} document${failed === 1 ? "" : "s"} could not be added. Try again.`,
+            );
             onCreated(project);
             onClose();
         } catch (reason) {
@@ -124,6 +140,24 @@ function OpenNewProjectModal({ onClose, onCreated }: Omit<Props, "open">) {
             {step === "documents" && <div className="flex min-h-0 flex-1 flex-col">
                 <FileDirectory selectedDocuments={documents}
                     onChange={setDocuments} showTabs />
+                {!!files.length && <div className="shrink-0 border-t border-gray-200 py-3">
+                    <p className="mb-2 text-xs font-medium text-gray-600">
+                        {files.length} new file{files.length === 1 ? "" : "s"} ready to upload
+                    </p>
+                    <ul aria-label="Files ready to upload"
+                        className="flex max-h-20 flex-wrap gap-1.5 overflow-y-auto">
+                        {files.map((file) => <li key={file.name}
+                            className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-md border border-gray-200 bg-gray-50 py-1 pl-2.5 pr-1 text-xs text-gray-700">
+                            <span className="truncate">{file.name}</span>
+                            <button type="button" aria-label={`Remove ${file.name}`}
+                                className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-gray-500 hover:bg-gray-200 hover:text-gray-900"
+                                onClick={() => setFiles((current) => current.filter(
+                                    ({ name }) => name !== file.name))}>
+                                <X aria-hidden="true" className="h-3.5 w-3.5" />
+                            </button>
+                        </li>)}
+                    </ul>
+                </div>}
             </div>}
             {error && <p role="alert" className="mt-3 text-sm text-red-500">{error}</p>}
         </form>

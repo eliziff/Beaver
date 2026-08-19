@@ -41,14 +41,14 @@ export function tableOfAuthoritiesProjectDirectory() {
   const fromBackend = path.resolve(
     process.cwd(),
     "..",
-    "TableOfAuthoritiesMaker",
+    "AuthoritiesHelper",
   );
   if (existsSync(path.join(fromBackend, "toa_web.py"))) return fromBackend;
-  return path.resolve(process.cwd(), "TableOfAuthoritiesMaker");
+  return path.resolve(process.cwd(), "AuthoritiesHelper");
 }
 
 export function tableOfAuthoritiesLocalFeatureAvailable() {
-  return isLocalRuntime() && process.env.NODE_ENV !== "production";
+  return isLocalRuntime();
 }
 
 export async function tableOfAuthoritiesStatus() {
@@ -62,7 +62,7 @@ export async function tableOfAuthoritiesStatus() {
       ok?: unknown;
       service?: unknown;
     };
-    return payload.ok === true && payload.service === "table-of-authorities";
+    return payload.ok === true && payload.service === "authorities-helper";
   } catch {
     return false;
   }
@@ -81,7 +81,7 @@ async function waitUntilReady() {
 export async function ensureTableOfAuthoritiesRunning() {
   if (!tableOfAuthoritiesLocalFeatureAvailable()) {
     throw new Error(
-      "Table of Authorities is available only in local mode.",
+      "Authorities Helper is available only in local mode.",
     );
   }
   if (await tableOfAuthoritiesStatus()) {
@@ -92,7 +92,7 @@ export async function ensureTableOfAuthoritiesRunning() {
   const script = path.join(directory, "toa_web.py");
   const bootstrap = path.join(directory, "bootstrap.py");
   if (!existsSync(script)) {
-    throw new Error(`Table of Authorities web host was not found at ${script}`);
+    throw new Error(`Authorities Helper web host was not found at ${script}`);
   }
 
   if (!child || child.exitCode !== null) {
@@ -112,7 +112,7 @@ export async function ensureTableOfAuthoritiesRunning() {
 
   if (!(await waitUntilReady())) {
     throw new Error(
-      "Table of Authorities did not become ready. Run `python bootstrap.py --web` in TableOfAuthoritiesMaker to see its startup error.",
+      "Authorities Helper did not become ready. Run `python bootstrap.py --web` in AuthoritiesHelper to see its startup error.",
     );
   }
   return { url: tableOfAuthoritiesUrl(), reused: false };
@@ -124,12 +124,12 @@ function boundedText(value: unknown, maximum = 500) {
 
 function normalizeJob(payload: unknown): TableOfAuthoritiesJob {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-    throw new Error("Table of Authorities returned an invalid job.");
+    throw new Error("Authorities Helper returned an invalid job.");
   }
   const row = payload as Record<string, unknown>;
   const id = boundedText(row.id, 32);
   if (!JOB_ID.test(id)) {
-    throw new Error("Table of Authorities returned an invalid job id.");
+    throw new Error("Authorities Helper returned an invalid job id.");
   }
   const files = Array.isArray(row.files)
     ? row.files.slice(0, 50).flatMap((value) => {
@@ -181,7 +181,7 @@ async function responseError(response: Response) {
   } catch {
     // Fall through to a bounded status message.
   }
-  return `Table of Authorities request failed (${response.status}).`;
+  return `Authorities Helper request failed (${response.status}).`;
 }
 
 export async function submitTableOfAuthoritiesDocument(params: {
@@ -196,13 +196,13 @@ export async function submitTableOfAuthoritiesDocument(params: {
   const docx = lower.endsWith(".docx");
   if (!docx && !pdf) {
     throw new Error(
-      "Table of Authorities requires a Word or PDF Library version.",
+      "Authorities Helper requires a Word or PDF Library version.",
     );
   }
   const limit = pdf ? PDF_LIMIT : DOCX_LIMIT;
   if (params.bytes.byteLength === 0 || params.bytes.byteLength > limit) {
     throw new Error(
-      `Table of Authorities accepts ${pdf ? "PDF files up to 256 MB" : "Word files up to 64 MB"}.`,
+      `Authorities Helper accepts ${pdf ? "PDF files up to 256 MB" : "Word files up to 64 MB"}.`,
     );
   }
   await ensureTableOfAuthoritiesRunning();
@@ -233,7 +233,7 @@ export async function submitTableOfAuthoritiesDocument(params: {
 
 export async function getTableOfAuthoritiesJob(jobId: string) {
   if (!JOB_ID.test(jobId)) {
-    throw new Error("A valid Table of Authorities job_id is required.");
+    throw new Error("A valid Authorities Helper job ID is required.");
   }
   await ensureTableOfAuthoritiesRunning();
   const response = await fetch(

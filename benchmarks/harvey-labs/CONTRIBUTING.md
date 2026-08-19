@@ -26,7 +26,7 @@ harvey-labs/
 ├── harness/        # Agent loop, tools, skills, and model adapters
 ├── evaluation/     # Rubric scoring, judge wrapper, reports, dashboards
 ├── utils/          # Task discovery, sweeps, playback, visuals
-├── docs/           # User and maintainer documentation
+├── docs/assets/    # README artwork; study docs live in ../../docs/harvey-labs/
 ├── tests/          # Offline and live tests
 └── results/        # Generated runs, ignored by git
 ```
@@ -178,5 +178,5 @@ When docs mention task counts, model IDs, tool names, or command names, verify t
 ```bash
 uv run python -m utils.list_tasks | tail -5
 uv run python -m utils.describe_task real-estate/extract-psa-key-terms/scenario-01
-rg -n "evaluate_submission|run_model_sweep|list_dir|read_file|run_python|write_file" README.md docs CONTRIBUTING.md
+rg -n "evaluate_submission|run_model_sweep|list_dir|read_file|run_python|write_file" README.md ../../docs/harvey-labs CONTRIBUTING.md
 ```

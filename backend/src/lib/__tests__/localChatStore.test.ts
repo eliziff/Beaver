@@ -10,14 +10,14 @@ const otherOwner = "00000000-0000-0000-0000-000000000002";
 const scope = (userId = owner) => ({ userId });
 
 async function closeDatabase() {
-  (await import("../sqliteDatabase")).closeSqliteDatabase();
+  await (await import("../relationalDatabase")).closeRelationalDatabase();
 }
 
 async function loadStore() {
-  const [{ createChatStore }, { sqliteChatRepository }, { generateChatTitle }] = await Promise.all([
-    import("../chatStore"), import("../sqliteChatRepository"), import("../chatTitle"),
+  const [{ createChatStore }, { chatRepository }, { generateChatTitle }] = await Promise.all([
+    import("../chatStore"), import("../relationalRepositories"), import("../chatTitle"),
   ]);
-  return createChatStore(sqliteChatRepository, generateChatTitle, {
+  return createChatStore(chatRepository, generateChatTitle, {
     project: async () => false, review: async () => false,
   });
 }
@@ -31,11 +31,13 @@ async function reopenStore() {
 beforeEach(async () => {
   dataHome = await mkdtemp(path.join(os.tmpdir(), "beaver-chat-store-"));
   process.env.MIKE_LOCAL_DATA_DIR = dataHome;
+  process.env.AUTH_MODE = "local";
 });
 
 afterEach(async () => {
   await closeDatabase();
   delete process.env.MIKE_LOCAL_DATA_DIR;
+  delete process.env.AUTH_MODE;
   vi.useRealTimers();
   vi.resetModules();
   await rm(dataHome, { recursive: true, force: true });
@@ -127,7 +129,7 @@ describe("local chat store", () => {
 
   it("retains provider state in trash and cascades it on permanent delete", async () => {
     const store = await loadStore();
-    const sessions = await import("../sqliteProviderSessionStore");
+    const sessions = await import("../providerSessionStore");
     const chat = await store.create(scope(), { projectId: null, tabularReviewId: null });
     sessions.writeProviderSession({
       userId: owner, chatId: chat.id, projectId: null,

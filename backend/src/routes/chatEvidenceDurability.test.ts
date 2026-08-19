@@ -100,30 +100,30 @@ let dataHome: string;
 
 async function loadApp() {
   try {
-    (await import("../lib/sqliteDatabase")).closeSqliteDatabase();
+    await (await import("../lib/relationalDatabase")).closeRelationalDatabase();
   } catch {}
   vi.resetModules();
   const [
     { createChatRouter },
-    { sqliteTabularRepository },
+    { tabularRepository },
     { createChatStore },
-    { sqliteChatRepository },
+    { chatRepository },
     { generateChatTitle },
     { createChatApplication },
     { sqliteChatFeatures },
     { localDocuments, localLibraryStore, localProjects },
   ] = await Promise.all([
     import("./chat"),
-    import("../lib/sqliteTabularRepository"),
+    import("../lib/relationalRepositories"),
     import("../lib/chatStore"),
-    import("../lib/sqliteChatRepository"),
+    import("../lib/relationalRepositories"),
     import("../lib/chatTitle"),
     import("../lib/chat/chatApplication"),
     import("../lib/sqliteChatFeatures"),
     import("../lib/__tests__/support/localDocumentFixtures"),
   ]);
   const chats = createChatStore(
-    sqliteChatRepository, generateChatTitle, {
+    chatRepository, generateChatTitle, {
       project: async (scope, id) => !!await localProjects.get(scope, id),
       review: async () => false,
     },
@@ -138,7 +138,7 @@ async function loadApp() {
     documents,
     library: localLibraryStore,
     projects: localProjects,
-    tabular: sqliteTabularRepository,
+    tabular: tabularRepository,
     features: {
       load: async () => ({ includeResearchTools: true }),
       ...sqliteChatFeatures,
@@ -165,7 +165,7 @@ beforeEach(async () => {
   dataHome = await mkdtemp(path.join(os.tmpdir(), "beaver-evidence-chat-"));
   vi.stubEnv("AUTH_MODE", "local");
   vi.stubEnv("OPEN_LEGAL_DATA_HOME", dataHome);
-  (await import("../lib/sqliteDatabase")).sqliteDatabase()
+  (await import("../lib/relationalDatabase")).localDatabaseSync()
     .prepare(
       `INSERT OR IGNORE INTO projects
         (user_id,id,name,created_at,updated_at)
@@ -200,7 +200,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   try {
-    (await import("../lib/sqliteDatabase")).closeSqliteDatabase();
+    await (await import("../lib/relationalDatabase")).closeRelationalDatabase();
   } catch {}
   vi.unstubAllEnvs();
   vi.resetModules();
@@ -1485,7 +1485,7 @@ describe("chat PDF evidence durability", () => {
       { role: "assistant", content: "First answer." },
       { role: "user", content: "Second turn." },
     ]);
-    const sessions = await import("../lib/sqliteProviderSessionStore");
+    const sessions = await import("../lib/providerSessionStore");
     expect(
       sessions.readProviderSession(USER_ID, created.body.id),
     ).toMatchObject({

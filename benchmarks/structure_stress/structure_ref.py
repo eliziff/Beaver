@@ -51,7 +51,7 @@ Page = tuple[int, int, int, str]
 REFERENCE = (
     os.environ.get('BENCHMARK_REFERENCE', str(Path(__file__).resolve().parents[2] / ".tmp" / "inputs" / 'reference'))
 )
-FIDELITY_ENGINE_SRC = r"..\..\universal-legal-pdf-engine\src"
+FIDELITY_ENGINE_SRC = r"..\..\legal-pdf-parser\src"
 
 # --- faithful transcription: a2aj_structure.py ------------------------
 

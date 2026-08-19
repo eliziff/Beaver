@@ -1,8 +1,5 @@
 import { MoreHorizontal } from "lucide-react";
-import {
-    NativeActionSelect,
-    type NativeAction,
-} from "@/app/components/ui/native-action-select";
+import { ActionMenu, type ActionMenuItem } from "@/app/components/ui/action-menu";
 import { APP_SURFACE_HOVER_CLASS } from "@/app/components/ui/liquid-surface";
 interface Props {
     label?: string;
@@ -38,7 +35,7 @@ export function RowActions({
     renameLabel = "Rename",
     deleteLabel = "Delete",
 }: Props) {
-    const items: NativeAction[] = [];
+    const items: ActionMenuItem[] = [];
     const add = (
         label: string,
         onSelect?: () => void,
@@ -56,12 +53,12 @@ export function RowActions({
     add("Deactivate", onHide);
     add(deleteLabel, onDelete, deleting || deleteDisabled);
     return (
-        <NativeActionSelect
+        <ActionMenu
             label={label}
             items={items}
             triggerClassName={`h-6 w-6 items-center justify-center rounded text-gray-700 hover:text-gray-900 ${APP_SURFACE_HOVER_CLASS}`}
         >
             <MoreHorizontal className="h-4 w-4" />
-        </NativeActionSelect>
+        </ActionMenu>
     );
 }

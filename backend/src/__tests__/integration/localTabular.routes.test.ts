@@ -51,7 +51,7 @@ async function loadApi() {
   vi.resetModules();
   const { api } = await import("../../api");
   closeStores = async () => {
-    (await import("../../lib/sqliteDatabase")).closeSqliteDatabase();
+    await (await import("../../lib/relationalDatabase")).closeRelationalDatabase();
   };
   return api;
 }

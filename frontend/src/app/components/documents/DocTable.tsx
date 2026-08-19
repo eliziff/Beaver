@@ -110,21 +110,38 @@ function ParseStateChip({ doc, onRetry }: { doc: Document; onRetry?: () => void 
     const state = doc.parse_state;
     if (!state) return null;
     if (state.status === "queued" || state.status === "parsing") {
-        return <span title="Structural PDF parse in progress"
+        const page = state.pages?.length === 1 ? ` page ${state.pages[0]}` : "";
+        const label = state.status === "queued" ? "Queued"
+            : state.phase === "ocr" ? `OCR${page}`
+                : state.phase === "inspecting" ? `Inspecting${page}`
+                    : state.phase === "extracting" ? `Extracting${page}`
+                        : "Preparing";
+        return <span role="status" aria-live="polite"
+            title={`${label} for ${doc.filename}`}
             className="ml-2 inline-flex shrink-0 items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
-            <Loader2 className="h-3 w-3 animate-spin" />Parsing</span>;
+            <Loader2 aria-hidden="true" className="h-3 w-3 animate-spin" />{label}</span>;
+    }
+    if (state.status === "ready" && state.phase === "ocr") {
+        return <span
+            title="Text was recovered with OCR"
+            className="ml-2 inline-flex shrink-0 items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">
+            OCR complete</span>;
     }
     if (state.status === "degraded") {
+        const label = state.phase === "ocr" ? "OCR · Degraded" : "Degraded";
         return <span
-            title={`Parsed with reduced structure${state.diagnostic_count ? ` — ${state.diagnostic_count} diagnostics` : ""}; flat text remains available`}
+            title={state.phase === "ocr"
+                ? "OCR completed, but some document structure may be uncertain"
+                : "Parsed with reduced structure; flat text remains available"}
             className="ml-2 inline-flex shrink-0 items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">
-            Degraded</span>;
+            {label}</span>;
     }
-    if (state.status === "failed") {
+    if (state.status === "failed" || state.status === "cancelled") {
+        const label = state.status === "cancelled" ? "Processing cancelled" : "Parse failed";
         return <span
             title={state.error ?? "Structural PDF parse failed; flat text remains available"}
             className="ml-2 inline-flex shrink-0 items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs text-red-700">
-            Parse failed
+            {label}
             {onRetry && <button type="button" className="underline"
                 aria-label={`Retry structural parse for ${doc.filename}`}
                 onClick={(event) => { event.stopPropagation(); onRetry(); }}>
@@ -291,6 +308,22 @@ export function DocTable({
     const detachesDocument = documentRemovalMode === "detach";
     const removeDocument = operations.removeDocument ?? deleteDocument;
     const refreshCollection = operations.refreshCollection;
+    const hasActivePreparation = documents.some(({ parse_state: parseState }) =>
+        parseState?.status === "queued" || parseState?.status === "parsing");
+    useEffect(() => {
+        if (!hasActivePreparation) return;
+        let stopped = false;
+        let timer: ReturnType<typeof setTimeout>;
+        const poll = async () => {
+            if (!stopped && document.visibilityState === "visible") {
+                try { await refreshCollection(); }
+                catch (error) { console.error("PDF preparation refresh failed", error); }
+            }
+            if (!stopped) timer = setTimeout(poll, 500);
+        };
+        timer = setTimeout(poll, 500);
+        return () => { stopped = true; clearTimeout(timer); };
+    }, [hasActivePreparation, refreshCollection]);
     useEffect(() => {
         loadingRef.current = loading;
         renderAddDocumentsModalRef.current = renderAddDocumentsModal;

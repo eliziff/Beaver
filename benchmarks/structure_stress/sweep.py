@@ -34,7 +34,7 @@ import os
 
 HERE = Path(__file__).resolve().parent
 FORK = HERE.parent.parent
-ENGINE_SRC = FORK / "universal-legal-pdf-engine" / "src"
+ENGINE_SRC = FORK / "legal-pdf-parser" / "src"
 TABLES_DIR = FORK / "shared" / "grammar-tables"
 A2AJ = Path(os.environ.get('A2AJ_ROOT', str(Path(__file__).resolve().parents[2] / ".tmp" / "inputs" / 'a2aj')))
 sys.path.insert(0, str(FORK / "backend" / "scripts"))

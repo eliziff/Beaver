@@ -155,12 +155,10 @@ describe("DocTable Library interactions", () => {
         render(<Harness />);
         const renders = sidePanelRender.mock.calls.length;
         expect(renders).toBe(1);
-        const select = screen.getByRole("combobox", { name: "More actions" });
-        const option = within(select).getByRole("option", {
+        fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+        fireEvent.click(screen.getByRole("menuitem", {
             name: "Upload new version",
-        }) as HTMLOptionElement;
-
-        fireEvent.change(select, { target: { value: option.value } });
+        }));
 
         expect(sidePanelRender).toHaveBeenCalledTimes(renders);
     });
@@ -225,13 +223,12 @@ describe("DocTable Library interactions", () => {
             </Profiler>,
         );
         const row = documentRow();
-        const select = within(row).getByRole("combobox", {
+        fireEvent.click(within(row).getByRole("button", {
             name: "More actions",
-        });
-        const rename = within(select).getByRole("option", {
+        }));
+        fireEvent.click(screen.getByRole("menuitem", {
             name: "Rename document",
-        }) as HTMLOptionElement;
-        fireEvent.change(select, { target: { value: rename.value } });
+        }));
         const input = screen.getByDisplayValue("Brief.pdf");
         const nodeCount = container.querySelectorAll("*").length;
 
@@ -520,24 +517,17 @@ describe("structural parse state", () => {
         extra: Partial<NonNullable<Document["parse_state"]>> = {},
     ): Document["parse_state"] => ({
         status,
-        error: null,
-        attempts: 1,
-        queued_at: "2026-07-30T00:00:00.000Z",
-        updated_at: "2026-07-30T00:00:00.000Z",
-        completed_at: null,
-        engine_status: null,
-        page_count: null,
-        diagnostic_count: null,
-        structural_repair_available: false,
         ...extra,
     });
 
     function ParseHarness({
         state,
         retryPdfParse,
+        refreshCollection = vi.fn(),
     }: {
         state: Document["parse_state"];
         retryPdfParse?: (documentId: string) => Promise<unknown>;
+        refreshCollection?: () => Promise<unknown> | unknown;
     }) {
         const [documents, setDocuments] = useState([
             { ...document, parse_state: state },
@@ -554,7 +544,7 @@ describe("structural parse state", () => {
                 search=""
                 operations={{
                     uploadDocument: async () => document,
-                    refreshCollection: vi.fn(),
+                    refreshCollection,
                     createFolder: vi.fn(),
                     renameFolder: vi.fn(),
                     deleteFolder: vi.fn(),
@@ -570,7 +560,7 @@ describe("structural parse state", () => {
 
     it("shows no chip for a clean ready parse or a missing parse lane", () => {
         const ready = render(<ParseHarness state={parseState("ready")} />);
-        expect(screen.queryByText("Parsing")).toBeNull();
+        expect(screen.queryByText("Preparing")).toBeNull();
         expect(screen.queryByText("Degraded")).toBeNull();
         expect(screen.queryByText("Parse failed")).toBeNull();
         ready.unmount();
@@ -578,20 +568,22 @@ describe("structural parse state", () => {
         expect(screen.queryByText("Parse failed")).toBeNull();
     });
 
-    it("labels queued and degraded parses", () => {
+    it("labels active and completed OCR preparation", () => {
         const queued = render(<ParseHarness state={parseState("queued")} />);
-        expect(screen.getByText("Parsing")).toBeInTheDocument();
+        expect(screen.getByText("Queued")).toBeInTheDocument();
         queued.unmount();
-        render(
-            <ParseHarness
-                state={parseState("degraded", { diagnostic_count: 7 })}
-            />,
+        const ocr = render(
+            <ParseHarness state={parseState("parsing", { phase: "ocr", pages: [5] })} />,
         );
-        expect(screen.getByText("Degraded")).toBeInTheDocument();
-        expect(screen.getByText("Degraded")).toHaveAttribute(
-            "title",
-            expect.stringContaining("7 diagnostics"),
+        expect(screen.getByText("OCR page 5")).toBeInTheDocument();
+        ocr.unmount();
+        const ready = render(
+            <ParseHarness state={parseState("ready", { phase: "ocr", pages: [5] })} />,
         );
+        expect(screen.getByText("OCR complete")).toBeInTheDocument();
+        ready.unmount();
+        render(<ParseHarness state={parseState("degraded", { phase: "ocr" })} />);
+        expect(screen.getByText("OCR · Degraded")).toBeInTheDocument();
     });
 
     it("offers retry for a failed parse and requeues through the operation", async () => {
@@ -611,5 +603,18 @@ describe("structural parse state", () => {
         await waitFor(() =>
             expect(retryPdfParse).toHaveBeenCalledWith("document-1"),
         );
+    });
+
+    it("refreshes a visible collection while preparation is active", async () => {
+        vi.useFakeTimers();
+        const refreshCollection = vi.fn();
+        const view = render(
+            <ParseHarness state={parseState("queued")}
+                refreshCollection={refreshCollection} />,
+        );
+        await vi.advanceTimersByTimeAsync(500);
+        expect(refreshCollection).toHaveBeenCalledTimes(1);
+        view.unmount();
+        vi.useRealTimers();
     });
 });

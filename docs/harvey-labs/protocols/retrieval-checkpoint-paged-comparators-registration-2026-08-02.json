@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "registered_at": "2026-08-02T12:19:12.3153243Z",
+  "status": "preregistered_before_comparator_calls",
+  "experiment_class": "visible-development Codex-path architecture comparison",
+  "claim_scope": "Compare the structurally valid checkpoint-and-demand-paging v5 candidate with freshly reproduced isolated upstream Mike and pure-coding finalist cells. Do not pool these Luna cells with the canonical Claude A/B experiment.",
+  "candidate_registration": "docs/harvey-labs/protocols/retrieval-checkpoint-paged-live-registration-v5-2026-08-02.json",
+  "candidate_run_ids": {
+    "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts": "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts/beaver-checkpoint-paged-v5-codex-gpt-5-6-luna/2026-08-02T11-59-00Z-r1",
+    "tax/draft-transfer-pricing-documentation": "tax/draft-transfer-pricing-documentation/beaver-checkpoint-paged-v5-codex-gpt-5-6-luna/2026-08-02T11-59-00Z-r1",
+    "capital-markets/draft-indenture-for-senior-secured-notes-offering": "capital-markets/draft-indenture-for-senior-secured-notes-offering/beaver-checkpoint-paged-v5-codex-gpt-5-6-luna/2026-08-02T11-59-00Z-r1"
+  },
+  "performer": {
+    "model": "codex:gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "service_tier_argument": null,
+    "required_service_tier_reported": "default",
+    "replicates": 1
+  },
+  "comparators": [
+    {
+      "name": "isolated_upstream_mike",
+      "cli_arm": "upstream",
+      "prompt_variant": "upstream-pinned",
+      "progressive_disclosure": false,
+      "upstream_mike_commit": "e89d3230db40193c540a6b38d8f301ae76377a1a",
+      "upstream_mike_schema_sha256": "78f2e1dfaa7f2c5a62dcc52531804373e998ee002fe783e7767a10113e7a87fc",
+      "run_ids": {
+        "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts": "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts/comparable-upstream-pinned-default-codex-gpt-5-6-luna/2026-08-02T12-20-00Z-r1",
+        "tax/draft-transfer-pricing-documentation": "tax/draft-transfer-pricing-documentation/comparable-upstream-pinned-default-codex-gpt-5-6-luna/2026-08-02T12-20-00Z-r1",
+        "capital-markets/draft-indenture-for-senior-secured-notes-offering": "capital-markets/draft-indenture-for-senior-secured-notes-offering/comparable-upstream-pinned-default-codex-gpt-5-6-luna/2026-08-02T12-20-00Z-r1"
+      }
+    },
+    {
+      "name": "pure_coding_finalist",
+      "cli_arm": "coding_finalist",
+      "prompt_variant": "lean",
+      "progressive_disclosure": true,
+      "retrieval_experiment": "p0-pure-coding",
+      "context_handoff": true,
+      "evidence_handoff_max_chars": 120000,
+      "openai_compact_threshold": 120000,
+      "run_ids": {
+        "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts": "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts/comparable-coding-finalist-default-codex-gpt-5-6-luna/2026-08-02T12-20-00Z-r1",
+        "tax/draft-transfer-pricing-documentation": "tax/draft-transfer-pricing-documentation/comparable-coding-finalist-default-codex-gpt-5-6-luna/2026-08-02T12-20-00Z-r1",
+        "capital-markets/draft-indenture-for-senior-secured-notes-offering": "capital-markets/draft-indenture-for-senior-secured-notes-offering/comparable-coding-finalist-default-codex-gpt-5-6-luna/2026-08-02T12-20-00Z-r1"
+      }
+    }
+  ],
+  "execution": {
+    "waves": [
+      "Run the three isolated-upstream tasks concurrently.",
+      "Run the three pure-coding-finalist tasks concurrently."
+    ],
+    "reason": "Concurrency-matched waves avoid cross-arm six-process contention while preserving the candidate's three-task concurrency pattern.",
+    "structural_gate": "Require a native authored DOCX for every requested DOCX deliverable, evaluator-readable non-empty output, exact on-disk deliverable receipts, successful tool results, exact task/source hashes, pinned tool/prompt fingerprints, and provider-reported default tier before scoring."
+  },
+  "tasks": [
+    {
+      "task": "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts",
+      "split_sha256": "c0d270c324eaaeb13a47eb2df309baf468270e4ca04b686e4ed27632a3d36f7d",
+      "instructions_chars": 200,
+      "instructions_sha256": "804acb88a976238cbdf65027b4c873142cfec3c84c9773992e256e40ae02c8a4",
+      "source_documents": 19,
+      "source_bundle_sha256": "f778c5ef888a841432ee70a34d1a8c0d4b0c947a0d19509b4a3834635b23f0e2"
+    },
+    {
+      "task": "tax/draft-transfer-pricing-documentation",
+      "split_sha256": "9886979ad0409f300ccb78413abc4bda020fcde1f288d879d61e59eff1c85957",
+      "instructions_chars": 202,
+      "instructions_sha256": "baa067a9d481a31b85cb9a47a3eebfbc6620e2c5cd23b87e71b2b4f1741d05b7",
+      "source_documents": 25,
+      "source_bundle_sha256": "bc8d591498a818501b7a388d5b93575c5a98f03b25edb2f009f9d166fe4a6647"
+    },
+    {
+      "task": "capital-markets/draft-indenture-for-senior-secured-notes-offering",
+      "split_sha256": "9eb0633b22a0a1e936eeba6980d7e44d23d7f89fc581dfd1697dd3420f34b62a",
+      "instructions_chars": 243,
+      "instructions_sha256": "d9b4b8460380ace783ca538f417843d2edf8f997f0ec3f622f5ea6aebf2f5675",
+      "source_documents": 14,
+      "source_bundle_sha256": "d30b7b0ad6d8c8327f80d8137d4e8c30db52816f8fdfd7b3f08f492a17a82303"
+    }
+  ],
+  "source_fingerprints": {
+    "base_commit": "cbfa8f90528754264b0afc348c3c955bf24d4d60",
+    "backend/scripts/lab-beaver-arm.ts": "29d23bce760c3992bce4beec4e53f319341f750dc375b869dea030870714551f",
+    "backend/src/routes/chat.ts": "01a54c9f8f1ef2de62002d0f151aeda6a666ba6ff625d90859da876e666864f0",
+    "backend/src/lib/chat/evidenceExposure.ts": "6cb8729a4c5451500d3bf3dc8a669e43a8af974ce979826d4d9792ed4abd5a54",
+    "backend/src/lib/chat/localAssistantTools.ts": "88c6dbefe2c4c326ad7a320be1c74508f98f167c14b976cc6154aa8b7c602b7c",
+    "backend/src/lib/chat/prompts.ts": "05f01db45d005d054b7d71bc3fd86d52f592fbb0b4187839d5879b0f90b99a83",
+    "backend/src/lib/chat/slaWorkflow.ts": "561bbedb4aa088136cbc0a5349a4146113c39cb9db37844db84934b044c35af9",
+    "backend/src/lib/llm/openai.ts": "f67d3d14f1b081f9f2ea1fb843998701e20eee0f4fab50480e2cf3f03c919892",
+    "backend/src/lib/llm/types.ts": "3ae23c053755a41250de400d3d06523c292650d8ee97eec9844a7ffe62a7564c",
+    "benchmarks/harvey-labs/evaluation/judge.py": "61979c7613e519fcd37ecfba8d241f979f0320e575cd7a3923c0278aa4577cb7"
+  },
+  "dynamic_fingerprint_policy": "Each run must record the exact task instructions, source bundle, resident and deferred system prompts, tool schemas, harness sources, run configuration, and composite run SHA-256. Compare task/source hashes exactly; architecture-specific prompt/tool hashes are reported rather than forced equal.",
+  "legacy_exclusion": {
+    "run_id": "tool-surface-varied-luna-high-v1/upstream/tax/draft-transfer-pricing-documentation",
+    "reason": "The legacy runner did not record instruction/source-bundle hashes or non-null deliverable receipts. Its 839,548-token observation remains diagnostic, not a primary comparator."
+  },
+  "judge": {
+    "model": "codex/gpt-5.6-sol",
+    "priority_class": "BelowNormal",
+    "parallel": 6,
+    "replicates": 1,
+    "temperature_policy": "Use the fixed judge implementation; retry without temperature only for the provider's exact unsupported-temperature rejection.",
+    "score_order": [
+      "accuracy and deliverable validity",
+      "context behavior",
+      "provider-reported total tokens",
+      "latency",
+      "coverage",
+      "tool use and failures"
+    ]
+  },
+  "acceptance_gate": "The candidate must match or beat freshly reproduced isolated upstream Mike under the fixed Sol judge while using fewer aggregate provider-reported total tokens; absent an explained accuracy gain, it should also use fewer tokens per task. Pure coding is an additional architectural comparator, not a substitute for upstream."
+}

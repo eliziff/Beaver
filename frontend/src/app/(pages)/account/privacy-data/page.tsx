@@ -1,4 +1,3 @@
-"use client";
 import { useState, type ReactNode } from "react";
 import { Download, Trash2 } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
